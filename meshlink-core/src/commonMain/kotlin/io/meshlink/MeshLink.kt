@@ -127,6 +127,8 @@ class MeshLink(
         started = false
         reassembly.clear()
         outboundTransfers.clear()
+        presenceTracker.clear()
+        pauseQueue.clear()
         scope?.cancel()
         scope = null
     }
@@ -147,13 +149,23 @@ class MeshLink(
         }
     }
 
-    override fun meshHealth(): MeshHealthSnapshot = MeshHealthSnapshot(
-        connectedPeers = presenceTracker.allPeerIds().size,
-        reachablePeers = presenceTracker.connectedPeerIds().size,
-        bufferUtilizationPercent = 0,
-        activeTransfers = outboundTransfers.size,
-        powerMode = "PERFORMANCE",
-    )
+    override fun meshHealth(): MeshHealthSnapshot {
+        val usedBytes = outboundTransfers.values.sumOf { t ->
+            t.chunks.sumOf { it.size }
+        } + reassembly.values.sumOf { s ->
+            s.chunks.values.sumOf { it.size }
+        }
+        val utilPercent = if (config.bufferCapacity > 0) {
+            (usedBytes * 100 / config.bufferCapacity).coerceIn(0, 100)
+        } else 0
+        return MeshHealthSnapshot(
+            connectedPeers = presenceTracker.allPeerIds().size,
+            reachablePeers = presenceTracker.connectedPeerIds().size,
+            bufferUtilizationPercent = utilPercent,
+            activeTransfers = outboundTransfers.size,
+            powerMode = "PERFORMANCE",
+        )
+    }
 
     override fun drainDiagnostics(): List<DiagnosticEvent> {
         val events = mutableListOf<DiagnosticEvent>()
@@ -402,9 +414,12 @@ class MeshLink(
 
         if (!dedup.tryInsert(key)) return
 
-        // If we are the destination, deliver locally
+        // If we are the destination, deliver locally and send delivery ACK back
         if (routed.destination.contentEquals(transport.localPeerId)) {
             _messages.emit(Message(senderId = routed.origin, payload = routed.payload))
+            // Send delivery ACK back toward origin
+            val ack = WireCodec.encodeDeliveryAck(routed.messageId, transport.localPeerId)
+            scope?.launch { transport.sendToPeer(fromPeerId, ack) }
             return
         }
 
@@ -425,8 +440,8 @@ class MeshLink(
         val nextHop = if (destHex in presenceTracker.allPeerIds()) {
             routed.destination
         } else {
-            // For now, no routing table lookup — drop if unknown
-            return
+            val route = routingTable.bestRoute(destHex) ?: return
+            hexToBytes(route.nextHop)
         }
         scope?.launch { transport.sendToPeer(nextHop, relayed) }
     }

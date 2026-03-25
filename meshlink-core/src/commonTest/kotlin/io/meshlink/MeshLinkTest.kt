@@ -1062,7 +1062,10 @@ class MeshLinkTest {
 
     @Test
     fun routedMessageDeliveredIfWeAreDestination() = runTest {
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
         val transportBob = VirtualMeshTransport(peerIdBob)
+        transportBob.linkTo(transportAlice)
+
         val bob = MeshLink(transportBob, meshLinkConfig(), coroutineContext)
         bob.start()
         advanceUntilIdle()
@@ -1193,5 +1196,352 @@ class MeshLinkTest {
 
         collector.cancel()
         alice.stop()
+    }
+
+    // --- Cycle 8 (Multi-hop): Routed message with hopLimit=0 dropped ---
+
+    @Test
+    fun routedMessageHopLimitZeroDropped() = runTest {
+        val transportBob = VirtualMeshTransport(peerIdBob)
+        val transportCharlie = VirtualMeshTransport(peerIdCharlie)
+        transportBob.linkTo(transportCharlie)
+
+        val bob = MeshLink(transportBob, meshLinkConfig(), coroutineContext)
+        bob.start()
+        advanceUntilIdle()
+
+        transportBob.simulateDiscovery(peerIdCharlie)
+        advanceUntilIdle()
+
+        val bobMessages = mutableListOf<Message>()
+        val collector = launch { bob.messages.collect { bobMessages.add(it) } }
+        advanceUntilIdle()
+
+        // Send routed message to Charlie (not Bob) with hopLimit=0
+        val msgId = Uuid.random().toByteArray()
+        val routedData = WireCodec.encodeRoutedMessage(
+            messageId = msgId,
+            origin = peerIdAlice,
+            destination = peerIdCharlie,
+            hopLimit = 0u,
+            visitedList = listOf(peerIdAlice),
+            payload = "should be dropped".encodeToByteArray(),
+        )
+        transportBob.receiveData(peerIdAlice, routedData)
+        advanceUntilIdle()
+
+        // Bob should NOT deliver (not the destination)
+        assertEquals(0, bobMessages.size, "Not delivered locally (wrong destination)")
+
+        // Bob should NOT relay (hop limit exhausted)
+        val relayed = transportBob.sentData.filter { (_, data) ->
+            data.isNotEmpty() && data[0] == WireCodec.TYPE_ROUTED_MESSAGE
+        }
+        assertEquals(0, relayed.size, "Should NOT relay with hopLimit=0")
+
+        collector.cancel()
+        bob.stop()
+    }
+
+    // --- Cycle 7 (Multi-hop): Stop clears all state cleanly ---
+
+    @Test
+    fun stopClearsAllStateThenRestartWorks() = runTest {
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val transportBob = VirtualMeshTransport(peerIdBob)
+        transportAlice.linkTo(transportBob)
+
+        val alice = MeshLink(transportAlice, meshLinkConfig(), coroutineContext)
+        alice.start()
+        advanceUntilIdle()
+
+        transportAlice.simulateDiscovery(peerIdBob)
+        advanceUntilIdle()
+
+        // Add route, send a message, verify state exists
+        alice.addRoute("some-dest", peerIdBob.toHex(), 1.0, 1u)
+        assertEquals(1, alice.meshHealth().connectedPeers)
+
+        // Stop
+        alice.stop()
+
+        // All state should be cleared
+        assertEquals(0, alice.meshHealth().connectedPeers, "Peers should be cleared after stop")
+        assertEquals(0, alice.meshHealth().activeTransfers, "Transfers should be cleared")
+        assertEquals(0, alice.meshHealth().bufferUtilizationPercent, "Buffer should be empty")
+
+        // Restart should work
+        alice.start()
+        advanceUntilIdle()
+        transportAlice.simulateDiscovery(peerIdBob)
+        advanceUntilIdle()
+
+        assertEquals(1, alice.meshHealth().connectedPeers, "Should rediscover peers after restart")
+
+        alice.stop()
+    }
+
+    // --- Cycle 6 (Multi-hop): meshHealth buffer utilization ---
+
+    @Test
+    fun meshHealthReportsBufferUtilization() = runTest {
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val transportBob = VirtualMeshTransport(peerIdBob)
+        transportAlice.linkTo(transportBob)
+
+        // Buffer capacity = 1000 bytes
+        val alice = MeshLink(
+            transportAlice,
+            meshLinkConfig { bufferCapacity = 1000; maxMessageSize = 1000 },
+            coroutineContext,
+        )
+        alice.start()
+        advanceUntilIdle()
+
+        transportAlice.simulateDiscovery(peerIdBob)
+        advanceUntilIdle()
+
+        // Initially 0% utilization
+        assertEquals(0, alice.meshHealth().bufferUtilizationPercent)
+
+        // Send a 500 byte payload (50% of buffer) — outbound transfer stays active
+        // Use a drop filter so ACKs never arrive, keeping the transfer active
+        transportAlice.dropFilter = { data ->
+            data.isNotEmpty() && data[0] == WireCodec.TYPE_CHUNK_ACK
+        }
+        alice.send(peerIdBob, ByteArray(500))
+        advanceUntilIdle()
+
+        val util = alice.meshHealth().bufferUtilizationPercent
+        assertTrue(util > 0, "Buffer utilization should be > 0 with active transfer, got $util")
+
+        alice.stop()
+    }
+
+    // --- Cycle 5 (Multi-hop): Broadcast zero hops — no re-flood ---
+
+    @Test
+    fun broadcastZeroHopsNotReflooded() = runTest {
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val transportBob = VirtualMeshTransport(peerIdBob)
+        transportAlice.linkTo(transportBob)
+
+        val bob = MeshLink(transportBob, meshLinkConfig(), coroutineContext)
+        bob.start()
+        advanceUntilIdle()
+
+        transportBob.simulateDiscovery(peerIdAlice)
+        advanceUntilIdle()
+
+        val received = mutableListOf<Message>()
+        val collector = launch { bob.messages.collect { received.add(it) } }
+        advanceUntilIdle()
+
+        // Alice sends broadcast with 0 remaining hops
+        val msgId = Uuid.random().toByteArray()
+        val broadcastData = WireCodec.encodeBroadcast(
+            messageId = msgId,
+            origin = peerIdAlice,
+            remainingHops = 0u,
+            payload = "no reflood".encodeToByteArray(),
+        )
+        transportBob.receiveData(peerIdAlice, broadcastData)
+        advanceUntilIdle()
+
+        // Bob should still deliver locally
+        assertEquals(1, received.size, "Should deliver locally even with 0 hops")
+
+        // But should NOT re-flood
+        val reflooded = transportBob.sentData.filter { (_, data) ->
+            data.isNotEmpty() && data[0] == WireCodec.TYPE_BROADCAST
+        }
+        assertEquals(0, reflooded.size, "Should NOT re-flood with 0 remaining hops")
+
+        collector.cancel()
+        bob.stop()
+    }
+
+    // --- Cycle 4 (Multi-hop): Broadcast propagates A→B→C ---
+
+    @Test
+    fun broadcastPropagatesMultiHop() = runTest {
+        // Topology: Alice--Bob--Charlie (Alice not connected to Charlie)
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val transportBob = VirtualMeshTransport(peerIdBob)
+        val transportCharlie = VirtualMeshTransport(peerIdCharlie)
+        transportAlice.linkTo(transportBob)
+        transportBob.linkTo(transportCharlie)
+
+        val alice = MeshLink(transportAlice, meshLinkConfig(), coroutineContext)
+        val bob = MeshLink(transportBob, meshLinkConfig(), coroutineContext)
+        val charlie = MeshLink(transportCharlie, meshLinkConfig(), coroutineContext)
+        alice.start(); bob.start(); charlie.start()
+        advanceUntilIdle()
+
+        transportAlice.simulateDiscovery(peerIdBob)
+        transportBob.simulateDiscovery(peerIdAlice)
+        transportBob.simulateDiscovery(peerIdCharlie)
+        transportCharlie.simulateDiscovery(peerIdBob)
+        advanceUntilIdle()
+
+        val charlieMessages = mutableListOf<Message>()
+        val charlieCollector = launch { charlie.messages.collect { charlieMessages.add(it) } }
+        val bobMessages = mutableListOf<Message>()
+        val bobCollector = launch { bob.messages.collect { bobMessages.add(it) } }
+        advanceUntilIdle()
+
+        // Alice broadcasts with 2 hops
+        alice.broadcast("mesh broadcast!".encodeToByteArray(), maxHops = 2u)
+        advanceUntilIdle()
+
+        // Bob should receive and re-flood to Charlie
+        assertEquals(1, bobMessages.size, "Bob should receive broadcast")
+        assertEquals(1, charlieMessages.size, "Charlie should receive re-flooded broadcast")
+        assertContentEquals("mesh broadcast!".encodeToByteArray(), charlieMessages[0].payload)
+        assertContentEquals(peerIdAlice, charlieMessages[0].senderId)
+
+        bobCollector.cancel(); charlieCollector.cancel()
+        alice.stop(); bob.stop(); charlie.stop()
+    }
+
+    // --- Cycle 3 (Multi-hop): Receiver sends delivery ACK back for routed messages ---
+
+    @Test
+    fun destinationSendsDeliveryAckForRoutedMessage() = runTest {
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val transportBob = VirtualMeshTransport(peerIdBob)
+        transportBob.linkTo(transportAlice)
+
+        val bob = MeshLink(transportBob, meshLinkConfig(), coroutineContext)
+        bob.start()
+        advanceUntilIdle()
+
+        transportBob.simulateDiscovery(peerIdAlice)
+        advanceUntilIdle()
+
+        val received = mutableListOf<Message>()
+        val collector = launch { bob.messages.collect { received.add(it) } }
+        advanceUntilIdle()
+
+        // Alice sends routed message to Bob
+        val msgId = Uuid.random().toByteArray()
+        val routedData = WireCodec.encodeRoutedMessage(
+            messageId = msgId,
+            origin = peerIdAlice,
+            destination = peerIdBob,
+            hopLimit = 3u,
+            visitedList = listOf(peerIdAlice),
+            payload = "routed msg".encodeToByteArray(),
+        )
+        transportBob.receiveData(peerIdAlice, routedData)
+        advanceUntilIdle()
+
+        // Bob should deliver the message
+        assertEquals(1, received.size)
+
+        // Bob should send a delivery_ack back to Alice
+        val acks = transportBob.sentData.filter { (_, data) ->
+            data.isNotEmpty() && data[0] == WireCodec.TYPE_DELIVERY_ACK
+        }
+        assertEquals(1, acks.size, "Should send delivery ACK back to origin")
+        val ack = WireCodec.decodeDeliveryAck(acks[0].second)
+        assertContentEquals(msgId, ack.messageId)
+        assertContentEquals(peerIdBob, ack.recipientId)
+
+        collector.cancel()
+        bob.stop()
+    }
+
+    // --- Cycle 2 (Multi-hop): Routed relay uses routing table for non-neighbors ---
+
+    @Test
+    fun routedRelayUsesRoutingTableWhenNotDirectNeighbor() = runTest {
+        // Topology: Alice--Bob--Charlie--Dave
+        // Bob receives routed msg for Dave but only knows Charlie directly
+        val peerIdDave = ByteArray(16) { (0xD0 + it).toByte() }
+        val transportBob = VirtualMeshTransport(peerIdBob)
+        val transportCharlie = VirtualMeshTransport(peerIdCharlie)
+        transportBob.linkTo(transportCharlie)
+
+        val bob = MeshLink(transportBob, meshLinkConfig(), coroutineContext)
+        bob.start()
+        advanceUntilIdle()
+
+        transportBob.simulateDiscovery(peerIdCharlie)
+        advanceUntilIdle()
+
+        // Bob has a route to Dave via Charlie
+        bob.addRoute(peerIdDave.toHex(), peerIdCharlie.toHex(), 2.0, 1u)
+
+        // Alice sends routed message to Dave through Bob
+        val msgId = Uuid.random().toByteArray()
+        val routedData = WireCodec.encodeRoutedMessage(
+            messageId = msgId,
+            origin = peerIdAlice,
+            destination = peerIdDave,
+            hopLimit = 5u,
+            visitedList = listOf(peerIdAlice),
+            payload = "for dave".encodeToByteArray(),
+        )
+        transportBob.receiveData(peerIdAlice, routedData)
+        advanceUntilIdle()
+
+        // Bob should relay to Charlie (via routing table)
+        val relayed = transportBob.sentData.filter { (_, data) ->
+            data.isNotEmpty() && data[0] == WireCodec.TYPE_ROUTED_MESSAGE
+        }
+        assertEquals(1, relayed.size, "Bob should relay via routing table to Charlie")
+        val relayedMsg = WireCodec.decodeRoutedMessage(relayed[0].second)
+        assertContentEquals(peerIdDave, relayedMsg.destination)
+
+        bob.stop()
+    }
+
+    // --- Cycle 1+2 (Multi-hop): End-to-end A→B→C with routing table relay ---
+
+    @Test
+    fun multiHopEndToEndAliceBobCharlie() = runTest {
+        // Topology: Alice--Bob--Charlie (not directly connected)
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val transportBob = VirtualMeshTransport(peerIdBob)
+        val transportCharlie = VirtualMeshTransport(peerIdCharlie)
+        transportAlice.linkTo(transportBob)
+        transportBob.linkTo(transportCharlie)
+
+        val alice = MeshLink(transportAlice, meshLinkConfig(), coroutineContext)
+        val bob = MeshLink(transportBob, meshLinkConfig(), coroutineContext)
+        val charlie = MeshLink(transportCharlie, meshLinkConfig(), coroutineContext)
+        alice.start(); bob.start(); charlie.start()
+        advanceUntilIdle()
+
+        // Discovery: Alice sees Bob, Bob sees Alice+Charlie, Charlie sees Bob
+        transportAlice.simulateDiscovery(peerIdBob)
+        transportBob.simulateDiscovery(peerIdAlice)
+        transportBob.simulateDiscovery(peerIdCharlie)
+        transportCharlie.simulateDiscovery(peerIdBob)
+        advanceUntilIdle()
+
+        // Alice adds route to Charlie via Bob
+        alice.addRoute(peerIdCharlie.toHex(), peerIdBob.toHex(), 1.0, 1u)
+        // Bob adds route to Charlie (direct neighbor) — also needs routing table for relay
+        bob.addRoute(peerIdCharlie.toHex(), peerIdCharlie.toHex(), 1.0, 1u)
+
+        // Charlie listens for messages
+        val received = mutableListOf<Message>()
+        val charlieCollector = launch { charlie.messages.collect { received.add(it) } }
+        advanceUntilIdle()
+
+        // Alice sends to Charlie (not a direct neighbor → routes via Bob)
+        val result = alice.send(peerIdCharlie, "hello charlie!".encodeToByteArray())
+        assertTrue(result.isSuccess, "Send via route should succeed")
+        advanceUntilIdle()
+
+        // Charlie should receive the message
+        assertEquals(1, received.size, "Charlie should receive the routed message")
+        assertContentEquals("hello charlie!".encodeToByteArray(), received[0].payload)
+        assertContentEquals(peerIdAlice, received[0].senderId)
+
+        charlieCollector.cancel()
+        alice.stop(); bob.stop(); charlie.stop()
     }
 }

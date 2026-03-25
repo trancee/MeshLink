@@ -19,6 +19,11 @@ class PresenceTracker {
 
     fun allPeerIds(): Set<String> = peers.keys.toSet()
 
+    fun clear() {
+        peers.clear()
+        missCount.clear()
+    }
+
     /** Run sweep. Returns set of evicted peer IDs (2 consecutive misses). */
     fun sweep(seenPeers: Set<String>): Set<String> {
         val evicted = mutableSetOf<String>()
