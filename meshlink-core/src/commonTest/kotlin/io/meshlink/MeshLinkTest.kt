@@ -4,6 +4,7 @@ import io.meshlink.config.meshLinkConfig
 import io.meshlink.model.Message
 import io.meshlink.model.PeerEvent
 import io.meshlink.transport.VirtualMeshTransport
+import io.meshlink.wire.WireCodec
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.take
@@ -17,6 +18,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
 import kotlin.uuid.ExperimentalUuidApi
+import kotlin.uuid.Uuid
 
 @OptIn(ExperimentalCoroutinesApi::class, ExperimentalUuidApi::class)
 class MeshLinkTest {
@@ -245,5 +247,223 @@ class MeshLinkTest {
 
         alice.stop()
         bob.stop()
+    }
+
+    // --- Cycle 1: Chunk ACK flow ---
+
+    @Test
+    fun receiverSendsChunkAckAfterReassembly() = runTest {
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val transportBob = VirtualMeshTransport(peerIdBob)
+        transportAlice.linkTo(transportBob)
+
+        val alice = MeshLink(transportAlice, meshLinkConfig(), coroutineContext)
+        val bob = MeshLink(transportBob, meshLinkConfig(), coroutineContext)
+        alice.start(); bob.start()
+        advanceUntilIdle()
+
+        transportAlice.simulateDiscovery(peerIdBob)
+        transportBob.simulateDiscovery(peerIdAlice)
+        advanceUntilIdle()
+
+        // Bob listens so reassembly completes
+        val receiveJob = launch { bob.messages.first() }
+
+        val msgId = alice.send(peerIdBob, "hello".encodeToByteArray()).getOrThrow()
+        advanceUntilIdle()
+        receiveJob.join()
+
+        // Bob's transport should have sent a chunk_ack back to Alice
+        val acksSent = transportBob.sentData.filter { (_, data) ->
+            data.isNotEmpty() && data[0] == WireCodec.TYPE_CHUNK_ACK
+        }
+        assertEquals(1, acksSent.size, "Expected exactly 1 chunk_ack from Bob")
+
+        // The ACK should reference the correct messageId
+        val ack = WireCodec.decodeChunkAck(acksSent[0].second)
+        assertContentEquals(msgId.toByteArray(), ack.messageId)
+
+        alice.stop(); bob.stop()
+    }
+
+    // --- Cycle 2: Sender delivery confirmation ---
+
+    @Test
+    fun senderReceivesDeliveryConfirmationViaFlow() = runTest {
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val transportBob = VirtualMeshTransport(peerIdBob)
+        transportAlice.linkTo(transportBob)
+
+        val alice = MeshLink(transportAlice, meshLinkConfig(), coroutineContext)
+        val bob = MeshLink(transportBob, meshLinkConfig(), coroutineContext)
+        alice.start(); bob.start()
+        advanceUntilIdle()
+
+        transportAlice.simulateDiscovery(peerIdBob)
+        transportBob.simulateDiscovery(peerIdAlice)
+        advanceUntilIdle()
+
+        // Bob consumes messages so reassembly triggers ACK
+        val bobJob = launch { bob.messages.first() }
+
+        // Subscribe for delivery confirmation before sending
+        var confirmedId: Uuid? = null
+        val confirmJob = launch {
+            confirmedId = alice.deliveryConfirmations.first()
+        }
+        advanceUntilIdle()
+
+        val msgId = alice.send(peerIdBob, "hello".encodeToByteArray()).getOrThrow()
+        advanceUntilIdle()
+        bobJob.join()
+        advanceUntilIdle()
+        confirmJob.join()
+
+        assertEquals(msgId, confirmedId)
+
+        alice.stop(); bob.stop()
+    }
+
+    // --- Cycle 3: PeerEvent.Lost ---
+
+    @Test
+    fun peerLostEventEmittedWhenPeerDisappears() = runTest {
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val alice = MeshLink(transportAlice, meshLinkConfig(), coroutineContext)
+        alice.start()
+        advanceUntilIdle()
+
+        // Discover Bob
+        transportAlice.simulateDiscovery(peerIdBob)
+        advanceUntilIdle()
+        val discovered = alice.peers.first()
+        assertIs<PeerEvent.Discovered>(discovered)
+
+        // Bob disappears
+        val lostJob = launch {
+            // Skip past the replayed Discovered event, wait for Lost
+            val events = alice.peers.take(2).toList()
+            assertIs<PeerEvent.Lost>(events[1])
+            assertContentEquals(peerIdBob, (events[1] as PeerEvent.Lost).peerId)
+        }
+
+        transportAlice.simulatePeerLost(peerIdBob)
+        advanceUntilIdle()
+        lostJob.join()
+
+        alice.stop()
+    }
+
+    // --- Cycle 4: pause() stops discovery ---
+
+    @Test
+    fun pauseStopsEmittingPeerDiscoveries() = runTest {
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val alice = MeshLink(transportAlice, meshLinkConfig(), coroutineContext)
+        alice.start()
+        advanceUntilIdle()
+
+        // Actively collect all peer events
+        val events = mutableListOf<PeerEvent>()
+        val collector = launch { alice.peers.collect { events.add(it) } }
+        advanceUntilIdle()
+
+        // Discover Bob — should emit
+        transportAlice.simulateDiscovery(peerIdBob)
+        advanceUntilIdle()
+        assertEquals(1, events.size, "Bob should be discovered")
+
+        // Pause
+        alice.pause()
+        advanceUntilIdle()
+
+        // Simulate Charlie while paused — should NOT emit
+        val peerIdCharlie = ByteArray(16) { (0xC0 + it).toByte() }
+        transportAlice.simulateDiscovery(peerIdCharlie)
+        advanceUntilIdle()
+        assertEquals(1, events.size, "Charlie should be suppressed while paused")
+
+        collector.cancel()
+        alice.stop()
+    }
+
+    // --- Cycle 5: send while paused, deliver on resume ---
+
+    @Test
+    fun sendWhilePausedQueuesAndDeliversAfterResume() = runTest {
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val transportBob = VirtualMeshTransport(peerIdBob)
+        transportAlice.linkTo(transportBob)
+
+        val alice = MeshLink(transportAlice, meshLinkConfig(), coroutineContext)
+        val bob = MeshLink(transportBob, meshLinkConfig(), coroutineContext)
+        alice.start(); bob.start()
+        advanceUntilIdle()
+
+        transportAlice.simulateDiscovery(peerIdBob)
+        transportBob.simulateDiscovery(peerIdAlice)
+        advanceUntilIdle()
+
+        // Pause Alice
+        alice.pause()
+        advanceUntilIdle()
+
+        // Send while paused — should NOT throw, should queue
+        val result = alice.send(peerIdBob, "queued message".encodeToByteArray())
+        assert(result.isSuccess) { "send while paused should succeed (queue silently)" }
+        advanceUntilIdle()
+
+        // Bob should NOT have received anything yet
+        val bobEvents = mutableListOf<Message>()
+        val bobCollector = launch { bob.messages.collect { bobEvents.add(it) } }
+        advanceUntilIdle()
+        assertEquals(0, bobEvents.size, "No messages should arrive while sender is paused")
+
+        // Resume Alice — queued message should be delivered
+        alice.resume()
+        advanceUntilIdle()
+
+        assertEquals(1, bobEvents.size, "Queued message should arrive after resume")
+        assertContentEquals("queued message".encodeToByteArray(), bobEvents[0].payload)
+
+        bobCollector.cancel()
+        alice.stop(); bob.stop()
+    }
+
+    // --- Cycle 6: resume re-discovers peers ---
+
+    @Test
+    fun resumeTriggersNewPeerDiscoveries() = runTest {
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val alice = MeshLink(transportAlice, meshLinkConfig(), coroutineContext)
+        alice.start()
+        advanceUntilIdle()
+
+        val events = mutableListOf<PeerEvent>()
+        val collector = launch { alice.peers.collect { events.add(it) } }
+        advanceUntilIdle()
+
+        // Discover Bob
+        transportAlice.simulateDiscovery(peerIdBob)
+        advanceUntilIdle()
+        assertEquals(1, events.size)
+
+        // Pause then resume
+        alice.pause()
+        advanceUntilIdle()
+        alice.resume()
+        advanceUntilIdle()
+
+        // After resume, new advertisements should work again
+        val peerIdCharlie = ByteArray(16) { (0xC0 + it).toByte() }
+        transportAlice.simulateDiscovery(peerIdCharlie)
+        advanceUntilIdle()
+
+        assertEquals(2, events.size, "Charlie should be discovered after resume")
+        assertIs<PeerEvent.Discovered>(events[1])
+        assertContentEquals(peerIdCharlie, (events[1] as PeerEvent.Discovered).peerId)
+
+        collector.cancel()
+        alice.stop()
     }
 }

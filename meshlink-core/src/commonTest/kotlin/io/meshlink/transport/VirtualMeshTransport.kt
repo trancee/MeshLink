@@ -14,9 +14,11 @@ class VirtualMeshTransport(
 
     private val _advertisementEvents = MutableSharedFlow<AdvertisementEvent>(extraBufferCapacity = 64)
     private val _incomingData = MutableSharedFlow<IncomingData>(extraBufferCapacity = 64)
+    private val _peerLostEvents = MutableSharedFlow<PeerLostEvent>(extraBufferCapacity = 64)
 
     override val advertisementEvents: Flow<AdvertisementEvent> = _advertisementEvents.asSharedFlow()
     override val incomingData: Flow<IncomingData> = _incomingData.asSharedFlow()
+    override val peerLostEvents: Flow<PeerLostEvent> = _peerLostEvents.asSharedFlow()
 
     private var advertising = false
 
@@ -29,6 +31,7 @@ class VirtualMeshTransport(
     }
 
     override suspend fun sendToPeer(peerId: ByteArray, data: ByteArray) {
+        sentData.add(peerId.toHex() to data)
         val target = peers[peerId.toHex()] ?: error("No linked peer: ${peerId.toHex()}")
         target.receiveData(localPeerId, data)
     }
@@ -36,6 +39,9 @@ class VirtualMeshTransport(
     // --- Simulation control ---
 
     private val peers = mutableMapOf<String, VirtualMeshTransport>()
+
+    /** All data sent via sendToPeer (peerId hex → data), for test assertions. */
+    val sentData = mutableListOf<Pair<String, ByteArray>>()
 
     /** Link two virtual transports so they can discover and communicate. */
     fun linkTo(other: VirtualMeshTransport) {
@@ -46,6 +52,11 @@ class VirtualMeshTransport(
     /** Simulate peer discovery (as if we received their advertisement). */
     suspend fun simulateDiscovery(peerId: ByteArray, advertisementPayload: ByteArray = ByteArray(17)) {
         _advertisementEvents.emit(AdvertisementEvent(peerId, advertisementPayload))
+    }
+
+    /** Simulate peer disappearance. */
+    suspend fun simulatePeerLost(peerId: ByteArray) {
+        _peerLostEvents.emit(PeerLostEvent(peerId))
     }
 
     /** Deliver raw data as if it arrived from a peer. */

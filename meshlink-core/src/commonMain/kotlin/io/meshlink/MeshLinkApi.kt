@@ -11,7 +11,10 @@ import kotlin.uuid.Uuid
 interface MeshLinkApi {
     fun start(): Result<Unit>
     fun stop()
+    fun pause()
+    fun resume()
     fun send(recipient: ByteArray, payload: ByteArray): Result<Uuid>
     val peers: Flow<PeerEvent>
     val messages: Flow<Message>
+    val deliveryConfirmations: Flow<Uuid>
 }

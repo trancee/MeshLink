@@ -18,6 +18,9 @@ interface BleTransport {
     /** Flow of discovered peer advertisement payloads (17-byte: 1B version+power, 16B key hash). */
     val advertisementEvents: Flow<AdvertisementEvent>
 
+    /** Flow of peer loss events (peer stopped advertising / timed out). */
+    val peerLostEvents: Flow<PeerLostEvent>
+
     /** Send raw bytes to a connected peer. */
     suspend fun sendToPeer(peerId: ByteArray, data: ByteArray)
 
@@ -33,4 +36,8 @@ data class AdvertisementEvent(
 data class IncomingData(
     val peerId: ByteArray,
     val data: ByteArray,
+)
+
+data class PeerLostEvent(
+    val peerId: ByteArray,
 )
