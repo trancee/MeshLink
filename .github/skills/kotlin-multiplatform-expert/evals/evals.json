@@ -1,0 +1,137 @@
+{
+  "skill_name": "kotlin-multiplatform-expert",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I'm starting a new mobile app that needs to share networking and data model code between Android and iOS. Can you set up the shared module's build.gradle.kts with the right targets, source sets, and dependencies for Ktor client and kotlinx.serialization? I want to use Kotlin 2.3.20.",
+      "expected_output": "A complete build.gradle.kts for a KMP shared module with androidTarget, iosArm64, iosSimulatorArm64 targets, Ktor client and kotlinx.serialization dependencies in commonMain, platform-specific Ktor engines in androidMain and iosMain, and proper plugin declarations.",
+      "files": [],
+      "assertions": [
+        {"id": "a1", "text": "Declares androidTarget() or android() with proper configuration"},
+        {"id": "a2", "text": "Declares both iosArm64() and iosSimulatorArm64() targets"},
+        {"id": "a3", "text": "Adds Ktor client core dependency in commonMain using base artifact name"},
+        {"id": "a4", "text": "Adds platform-specific Ktor engines (okhttp for Android, darwin for iOS)"},
+        {"id": "a5", "text": "Includes kotlinx.serialization plugin and content-negotiation dependency"},
+        {"id": "a6", "text": "Configures JVM target for Android compilation"},
+        {"id": "a7", "text": "Uses Kotlin 2.3.20 as requested"}
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "I need to access the device's battery level from my shared KMP code. On Android I'd use BatteryManager and on iOS I'd use UIDevice. What's the best way to set this up with expect/actual so I can call it from commonMain?",
+      "expected_output": "An expect/actual implementation showing the expect declaration in commonMain, Android actual using BatteryManager/Context, and iOS actual using UIDevice.currentDevice.batteryLevel, with explanation of why expect/actual functions with an interface return type is preferred over expect class.",
+      "files": [],
+      "assertions": [
+        {"id": "a1", "text": "Defines an expect declaration in commonMain"},
+        {"id": "a2", "text": "Provides actual Android implementation using BatteryManager or battery-related Android APIs"},
+        {"id": "a3", "text": "Provides actual iOS implementation using UIDevice.currentDevice.batteryLevel"},
+        {"id": "a4", "text": "Mentions iOS requires enabling battery monitoring (isBatteryMonitoringEnabled)"},
+        {"id": "a5", "text": "Discusses architectural choice between expect/actual functions vs expect class vs interface+DI"},
+        {"id": "a6", "text": "Code examples include correct package/import statements"}
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "My KMP project builds fine but when I try to run iOS tests with ./gradlew iosSimulatorArm64Test I get 'Could not find :shared-iosSimulatorArm64-cinterop-interop'. I only declared iosArm64() in my build.gradle.kts. What's wrong and how do I fix it?",
+      "expected_output": "Diagnosis that the user is missing the simulator target declaration, explanation of device vs simulator targets in KMP, and the fix to add iosSimulatorArm64() alongside iosArm64() in the kotlin {} block, plus mention of the iosMain intermediate source set.",
+      "files": [],
+      "assertions": [
+        {"id": "a1", "text": "Correctly diagnoses the root cause: iosSimulatorArm64() target is not declared"},
+        {"id": "a2", "text": "Explains device vs simulator target distinction"},
+        {"id": "a3", "text": "Shows the fix: adding iosSimulatorArm64() to the kotlin {} block"},
+        {"id": "a4", "text": "Mentions iosMain as an intermediate source set shared among all iOS targets"},
+        {"id": "a5", "text": "Mentions choosing simulator target based on Mac architecture (Apple Silicon vs Intel)"}
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "I want to distribute my KMP shared module to the iOS team as a framework they can integrate with Swift Package Manager. What's the best way to configure the framework export and what should I tell them about using it from Swift? They're complaining that Kotlin enum classes show up weirdly and suspend functions are hard to call.",
+      "expected_output": "Framework export configuration with XCFramework, SPM integration guidance, and Swift interop tips covering enum class mapping (needs default in switch), suspend function async/await usage, @ObjCName for better naming, @Throws for error handling, and collection/string performance notes.",
+      "files": [],
+      "assertions": [
+        {"id": "a1", "text": "Shows XCFramework configuration or framework export setup"},
+        {"id": "a2", "text": "Explains how to integrate with SPM (local package or binary target)"},
+        {"id": "a3", "text": "Explains Kotlin enum class mapping to Swift (class, not enum; needs default in switch)"},
+        {"id": "a4", "text": "Explains suspend functions as Swift async/await (Swift 5.5+)"},
+        {"id": "a5", "text": "Mentions @Throws annotation for propagating exceptions to Swift"},
+        {"id": "a6", "text": "Mentions @ObjCName for Swift-friendly API naming"},
+        {"id": "a7", "text": "Mentions dependency export via export() for types the iOS team needs to see"}
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "I have an existing Android app and want to extract some shared logic into a KMP module that also works on iOS. The shared code needs to read from SharedPreferences on Android and NSUserDefaults on iOS. How do I handle the Android Context requirement in the shared module?",
+      "expected_output": "Context initialization pattern using a singleton with lateinit, Application.onCreate() setup, actual implementation using SharedPreferences via the context, iOS actual using NSUserDefaults, with clear separation of platform-specific initialization from shared API.",
+      "files": [],
+      "assertions": [
+        {"id": "a1", "text": "Shows the Android Context singleton/initializer pattern (lateinit appContext)"},
+        {"id": "a2", "text": "Shows initialization in Application.onCreate() with applicationContext"},
+        {"id": "a3", "text": "Mentions registering the Application class in AndroidManifest.xml"},
+        {"id": "a4", "text": "Shows Android actual using SharedPreferences via the initialized context"},
+        {"id": "a5", "text": "Shows iOS actual using NSUserDefaults or platform.Foundation equivalents"},
+        {"id": "a6", "text": "Explains why Context can't be passed directly from commonMain"}
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "Our iOS team is complaining that our KMP shared module is painful to use from Swift. They say Kotlin enums need a 'default' case in switch statements, Flow types are invisible, and suspend functions have weird optional return types. What's the best way to improve the Swift developer experience without rewriting our Kotlin code?",
+      "expected_output": "Recommend SKIE as the primary solution, explaining what it fixes (enums→Swift enums, sealed classes→enum with associated values, suspend→proper async with cancellation, Flow→AsyncSequence). Also mention @Throws for error handling and @ObjCName for API naming. Show installation and before/after code examples.",
+      "files": [],
+      "assertions": [
+        {"id": "a1", "text": "Recommends SKIE (co.touchlab.skie) as the primary/recommended solution"},
+        {"id": "a2", "text": "Shows SKIE Gradle plugin installation"},
+        {"id": "a3", "text": "Explains SKIE fixes enums to proper Swift enums with exhaustive switch"},
+        {"id": "a4", "text": "Explains SKIE converts Flow to Swift AsyncSequence"},
+        {"id": "a5", "text": "Explains SKIE improves suspend functions (cancellation, non-optional returns)"},
+        {"id": "a6", "text": "Mentions sealed class support (onEnum(of:) or similar)"},
+        {"id": "a7", "text": "Still mentions @Throws as needed even with SKIE"},
+        {"id": "a8", "text": "Shows before/after Swift code examples for at least one feature"}
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "I need to test a ViewModel in my KMP shared module that uses coroutines and exposes a StateFlow. The ViewModel fetches data from a repository (suspend function) and updates the state. How do I write tests for this in commonTest? I'm not sure what test libraries work across platforms.",
+      "expected_output": "Show runTest from kotlinx-coroutines-test for testing suspend functions with virtual time, Turbine for testing StateFlow emissions, a fake repository instead of mocking, Dispatchers.setMain for Main dispatcher replacement, and proper test structure with @BeforeTest/@AfterTest.",
+      "files": [],
+      "assertions": [
+        {"id": "a1", "text": "Uses runTest from kotlinx-coroutines-test for coroutine testing"},
+        {"id": "a2", "text": "Uses or recommends Turbine for testing StateFlow emissions"},
+        {"id": "a3", "text": "Creates a fake (not mock) repository implementation for testing"},
+        {"id": "a4", "text": "Handles Dispatchers.Main replacement using setMain/resetMain with TestDispatcher"},
+        {"id": "a5", "text": "Uses kotlin.test annotations (@Test, @BeforeTest or @AfterTest)"},
+        {"id": "a6", "text": "Shows correct test dependencies (kotlin-test, coroutines-test, turbine) in commonTest"},
+        {"id": "a7", "text": "Explains why mocking frameworks like Mockito/MockK can't be used in commonTest"}
+      ]
+    },
+    {
+      "id": 8,
+      "prompt": "I'm building a KMP library that I want to publish to Maven Central and distribute the iOS framework via SPM. I also need a GitHub Actions CI pipeline that runs tests on both platforms. Can you help me set up the CI workflow and the publishing configuration? I'm not sure if I need a macOS runner or if Linux works.",
+      "expected_output": "GitHub Actions workflow using macOS runner (required for iOS), caching ~/.konan, running allTests, publishing configuration with vanniktech plugin or maven-publish, GPG signing, Maven Central secrets, XCFramework generation for SPM distribution.",
+      "files": [],
+      "assertions": [
+        {"id": "a1", "text": "Specifies macOS runner (runs-on: macos-latest) and explains why it's required for iOS targets"},
+        {"id": "a2", "text": "Includes Kotlin/Native cache (~/.konan) for CI performance"},
+        {"id": "a3", "text": "Shows allTests or per-target test tasks in the CI workflow"},
+        {"id": "a4", "text": "Configures Maven Central publishing with GPG signing"},
+        {"id": "a5", "text": "Shows GitHub secrets for Maven Central credentials and signing key"},
+        {"id": "a6", "text": "Shows XCFramework generation (assembleXCFramework or similar)"},
+        {"id": "a7", "text": "Explains SPM binary target integration with checksum for the XCFramework"}
+      ]
+    },
+    {
+      "id": 9,
+      "prompt": "I want to build a KMP app with shared UI using Compose Multiplatform. I need navigation between a list screen and a detail screen, a ViewModel that fetches data, and I want to display an image from shared resources. Can you show me the project setup and how these pieces fit together? Targeting Android and iOS.",
+      "expected_output": "Complete setup with both Compose plugins, navigation-compose with type-safe routes, ViewModel with initializer pattern, compose.components.resources for images, and project structure showing commonMain composables.",
+      "files": [],
+      "assertions": [
+        {"id": "a1", "text": "Includes both required plugins: org.jetbrains.compose AND org.jetbrains.kotlin.plugin.compose"},
+        {"id": "a2", "text": "Shows navigation-compose dependency and NavHost/composable setup with type-safe routes"},
+        {"id": "a3", "text": "Shows ViewModel with explicit initializer (viewModel { MyViewModel() } not viewModel())"},
+        {"id": "a4", "text": "Shows compose.components.resources for shared image resources"},
+        {"id": "a5", "text": "Shows painterResource(Res.drawable.xxx) or similar resource accessor for images"},
+        {"id": "a6", "text": "Mentions composeResources/ directory structure for resource files"},
+        {"id": "a7", "text": "Code is in commonMain source set (shared across platforms)"}
+      ]
+    }
+  ]
+}

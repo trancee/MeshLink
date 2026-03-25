@@ -833,4 +833,57 @@ class MeshLinkTest {
 
         alice.stop(); bob.stop()
     }
+
+    // --- Cycle 1 (Wire Integration): Handle incoming broadcast ---
+
+    private val peerIdCharlie = ByteArray(16) { (0xC0 + it).toByte() }
+
+    @Test
+    fun receivedBroadcastDeliversToSelfAndRefloods() = runTest {
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val transportBob = VirtualMeshTransport(peerIdBob)
+        val transportCharlie = VirtualMeshTransport(peerIdCharlie)
+        transportAlice.linkTo(transportBob)
+        transportAlice.linkTo(transportCharlie)
+
+        val alice = MeshLink(transportAlice, meshLinkConfig(), coroutineContext)
+        alice.start()
+        advanceUntilIdle()
+
+        transportAlice.simulateDiscovery(peerIdBob)
+        transportAlice.simulateDiscovery(peerIdCharlie)
+        advanceUntilIdle()
+
+        // Collect messages delivered to Alice
+        val received = mutableListOf<Message>()
+        val collector = launch { alice.messages.collect { received.add(it) } }
+        advanceUntilIdle()
+
+        // Bob sends a broadcast with hops=2
+        val msgId = Uuid.random().toByteArray()
+        val broadcastData = WireCodec.encodeBroadcast(
+            messageId = msgId,
+            origin = peerIdBob,
+            remainingHops = 2u,
+            payload = "broadcast!".encodeToByteArray(),
+        )
+        transportAlice.receiveData(peerIdBob, broadcastData)
+        advanceUntilIdle()
+
+        // Alice should deliver the broadcast to herself
+        assertEquals(1, received.size, "Broadcast should be delivered locally")
+        assertContentEquals("broadcast!".encodeToByteArray(), received[0].payload)
+        assertContentEquals(peerIdBob, received[0].senderId)
+
+        // Alice should re-flood to Charlie (not back to Bob) with hops decremented
+        val refloodedToCharlie = transportAlice.sentData.filter { (peerId, data) ->
+            peerId == peerIdCharlie.toHex() && data.isNotEmpty() && data[0] == WireCodec.TYPE_BROADCAST
+        }
+        assertEquals(1, refloodedToCharlie.size, "Should re-flood to Charlie")
+        val reflooded = WireCodec.decodeBroadcast(refloodedToCharlie[0].second)
+        assertEquals(1u.toUByte(), reflooded.remainingHops, "Hops should be decremented")
+
+        collector.cancel()
+        alice.stop()
+    }
 }
