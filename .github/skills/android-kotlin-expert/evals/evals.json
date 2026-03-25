@@ -1,0 +1,41 @@
+{
+  "skill_name": "android-kotlin-expert",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I'm collecting a StateFlow from my ViewModel in a Compose screen. A teammate said I should use `collectAsStateWithLifecycle` instead of `collectAsState`, but I don't understand the difference or why it matters. Should I change it, and what dependency do I need?\n\n```kotlin\n@Composable\nfun FeedScreen(viewModel: FeedViewModel = viewModel()) {\n    val uiState by viewModel.uiState.collectAsState()\n    FeedContent(uiState)\n}\n```",
+      "expected_output": "An answer that explains the lifecycle-aware collection distinction, recommends collectAsStateWithLifecycle, names the required dependency (androidx.lifecycle:lifecycle-runtime-compose), explains what happens during the stopped state with each approach, and cites official Android documentation.",
+      "files": [],
+      "expectations": [
+        "The answer recommends replacing `collectAsState()` with `collectAsStateWithLifecycle()` or clearly explains why `collectAsStateWithLifecycle` is preferred for Android UI",
+        "The answer explains that `collectAsState` collects continuously even when the UI is not visible/stopped, while `collectAsStateWithLifecycle` stops collection when the lifecycle is below the minimum state",
+        "The answer identifies the required dependency as `androidx.lifecycle:lifecycle-runtime-compose` (or equivalent artifact)",
+        "The answer cites official Android documentation (lifecycle-aware collection, Compose state, or coroutines best practices)"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "I'm using a Fragment (not Compose) and I want to collect a Flow from my ViewModel and update the UI. My current code sometimes crashes or shows stale data after the fragment comes back from the back stack. What is the correct pattern, and why does my current approach have a problem?\n\n```kotlin\nclass OrdersFragment : Fragment(R.layout.fragment_orders) {\n    private val viewModel: OrdersViewModel by viewModels()\n\n    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {\n        super.onViewCreated(view, savedInstanceState)\n        lifecycleScope.launch {\n            viewModel.orders.collect { orders ->\n                adapter.submitList(orders)\n            }\n        }\n    }\n}\n```",
+      "expected_output": "An answer that identifies the problem with bare lifecycleScope.launch for Flow collection in a Fragment (continues collecting after onDestroyView / multiple coroutines after back-stack return), explains the correct fix using repeatOnLifecycle(STARTED), and cites official Android documentation.",
+      "files": [],
+      "expectations": [
+        "The answer identifies that bare `lifecycleScope.launch` keeps collecting even after the view is destroyed (or that the coroutine is not cancelled on `onDestroyView`), OR explains that navigating back creates a new `onViewCreated` without cancelling the old collector, leading to multiple active collectors",
+        "The answer recommends using `repeatOnLifecycle(Lifecycle.State.STARTED)` (or `flowWithLifecycle`) as the correct fix",
+        "The answer explains that `repeatOnLifecycle(STARTED)` automatically cancels and restarts the coroutine when the fragment transitions between started and stopped states",
+        "The answer cites official Android documentation (lifecycle-aware coroutines, collect flows in Android UI, or coroutines best practices)"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "My Android project uses Kotlin Gradle plugin `2.3.10`, Gradle `7.5`, AGP `8.4`, and JDK `17`. The build now fails during configuration. Based on the official docs, what compatibility issue do you see, what exact version range matters, and what is the smallest reliable fix? Please separate the Kotlin-plugin facts from the Android-specific part.",
+      "expected_output": "A version-precise answer that identifies Gradle 7.5 as below the supported range for Kotlin Gradle plugin 2.3.10, notes that AGP 8.4 is within the KGP-supported range (8.2.2–9.0.0) but also requires minimum Gradle 8.6, recommends the smallest viable fix (upgrade Gradle to at least 8.6 to satisfy both constraints), and separates Kotlin-plugin facts from Android-specific guidance.",
+      "files": [],
+      "expectations": [
+        "The answer states that Gradle `7.5` is below the fully supported range for Kotlin Gradle plugin `2.3.10`, which is `7.6.3–9.0.0`",
+        "The answer states that AGP `8.4` is within the fully supported KGP-side AGP range (`8.2.2–9.0.0`) — it does NOT claim AGP 8.4 is incompatible with KGP 2.3.10",
+        "The answer recommends upgrading Gradle to at least `8.6` (because AGP 8.4 requires minimum Gradle 8.6, which is stricter than KGP's 7.6.3 minimum) or otherwise aligning the Kotlin plugin version with the existing wrapper",
+        "The answer clearly separates Kotlin-plugin compatibility facts from the Android-specific part of the diagnosis"
+      ]
+    }
+  ]
+}

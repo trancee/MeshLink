@@ -1,0 +1,65 @@
+{
+  "skill_name": "maven-central-publisher",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I have a Java library I've been working on. It's a Maven project with groupId com.github.jsmith and artifactId json-utils, version 1.0.0. I want to publish it to Maven Central so other people can use it as a dependency. I've never done this before — where do I start? My GitHub username is jsmith and the repo is at github.com/jsmith/json-utils. The library is Apache 2.0 licensed.",
+      "expected_output": "A comprehensive step-by-step guide covering namespace verification, GPG setup, portal token generation, complete pom.xml additions, settings.xml configuration, and the deploy command. MUST catch the com.github groupId mistake and correct to io.github.",
+      "files": [],
+      "assertions": [
+        {"text": "Corrects com.github.jsmith to io.github.jsmith and explains why", "type": "semantic"},
+        {"text": "Mentions namespace verification on central.sonatype.com", "type": "semantic"},
+        {"text": "Includes GPG key generation and key server upload commands", "type": "semantic"},
+        {"text": "Shows central-publishing-maven-plugin XML configuration", "type": "semantic"},
+        {"text": "Shows maven-source-plugin configuration", "type": "semantic"},
+        {"text": "Shows maven-javadoc-plugin configuration", "type": "semantic"},
+        {"text": "Shows maven-gpg-plugin configuration", "type": "semantic"},
+        {"text": "POM metadata includes name, description, url, license, developer, and scm", "type": "semantic"},
+        {"text": "Uses the user's actual project coordinates (jsmith, json-utils) not generic placeholders", "type": "semantic"}
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "I want to publish my Kotlin library to Maven Central from Gradle without using any third-party publishing plugins. I want full control and don't want dependencies on community plugins that might break. My groupId is io.github.devuser, artifactId is krypto-utils, version 2.0.0. The project is at github.com/devuser/krypto-utils. Can you set up the complete build.gradle.kts?",
+      "expected_output": "Complete build.gradle.kts using only Gradle built-ins (maven-publish, signing) plus custom tasks for checksum generation, zip bundling, Portal API upload, and status polling. Should include Dokka for Kotlin javadoc.",
+      "files": [],
+      "assertions": [
+        {"text": "Uses maven-publish and signing plugins (Gradle built-ins), not community publishing plugins", "type": "semantic"},
+        {"text": "Generates .md5 and .sha1 checksums explicitly (not relying on a plugin)", "type": "semantic"},
+        {"text": "Bundles artifacts into a zip file following Maven repository layout", "type": "semantic"},
+        {"text": "Uploads via HTTP to central.sonatype.com/api/v1/publisher/upload", "type": "semantic"},
+        {"text": "Polls deployment status via central.sonatype.com/api/v1/publisher/status", "type": "semantic"},
+        {"text": "Mentions Dokka for Kotlin documentation JAR generation", "type": "semantic"},
+        {"text": "Includes GPG signing configuration", "type": "semantic"},
+        {"text": "POM metadata includes all required elements (name, description, url, licenses, developers, scm)", "type": "semantic"},
+        {"text": "Uses the user's actual coordinates (io.github.devuser, krypto-utils, 2.0.0)", "type": "semantic"}
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "I currently publish my Kotlin library to OSSRH using the gradle-nexus/publish-plugin pointing at s01.oss.sonatype.org. I heard I need to migrate to the new Central Portal. What are my options? I'm open to switching plugins entirely or keeping what I have. Here's my current config:\n\nnexusPublishing {\n    repositories {\n        sonatype {\n            nexusUrl.set(uri(\"https://s01.oss.sonatype.org/service/local/\"))\n            snapshotRepositoryUrl.set(uri(\"https://s01.oss.sonatype.org/content/repositories/snapshots/\"))\n            username.set(providers.environmentVariable(\"OSSRH_USERNAME\"))\n            password.set(providers.environmentVariable(\"OSSRH_PASSWORD\"))\n        }\n    }\n}",
+      "expected_output": "Should present multiple migration options (update URLs, switch to vanniktech, custom integration) with pros/cons. Must include the correct OSSRH staging API URL and note credential changes.",
+      "files": [],
+      "assertions": [
+        {"text": "Includes the OSSRH staging API URL: ossrh-staging-api.central.sonatype.com", "type": "semantic"},
+        {"text": "Includes the new snapshot URL: central.sonatype.com/repository/maven-snapshots/", "type": "semantic"},
+        {"text": "Mentions that old OSSRH credentials won't work — new Central Portal tokens are required", "type": "semantic"},
+        {"text": "Presents at least 2 options (update existing plugin config OR switch to different plugin/approach)", "type": "semantic"},
+        {"text": "Shows updated build.gradle.kts code for at least one option", "type": "semantic"}
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "My mvn deploy succeeded in uploading but the deployment failed validation on central.sonatype.com. The errors say 'Missing: no javadoc jar found' and 'Invalid POM: missing required element: scm'. Also I'm getting a 401 Unauthorized when I try to re-deploy. I generated my credentials on oss.sonatype.org months ago. Here's my current pom.xml build plugins section:\n\n<build>\n    <plugins>\n        <plugin>\n            <groupId>org.sonatype.central</groupId>\n            <artifactId>central-publishing-maven-plugin</artifactId>\n            <version>0.9.0</version>\n            <extensions>true</extensions>\n            <configuration>\n                <publishingServerId>central</publishingServerId>\n            </configuration>\n        </plugin>\n        <plugin>\n            <groupId>org.apache.maven.plugins</groupId>\n            <artifactId>maven-source-plugin</artifactId>\n            <version>3.3.1</version>\n            <executions>\n                <execution>\n                    <id>attach-sources</id>\n                    <goals><goal>jar-no-fork</goal></goals>\n                </execution>\n            </executions>\n        </plugin>\n        <plugin>\n            <groupId>org.apache.maven.plugins</groupId>\n            <artifactId>maven-gpg-plugin</artifactId>\n            <version>3.2.7</version>\n            <executions>\n                <execution>\n                    <id>sign-artifacts</id>\n                    <phase>verify</phase>\n                    <goals><goal>sign</goal></goals>\n                </execution>\n            </executions>\n        </plugin>\n    </plugins>\n</build>",
+      "expected_output": "Diagnoses all three issues: missing javadoc plugin, missing SCM element, and stale OSSRH credentials. Provides actionable XML fixes and explains the credential migration.",
+      "files": [],
+      "assertions": [
+        {"text": "Identifies the missing maven-javadoc-plugin and provides its XML configuration", "type": "semantic"},
+        {"text": "Identifies the missing <scm> POM element and provides an <scm> XML block", "type": "semantic"},
+        {"text": "Explains that old oss.sonatype.org credentials don't work with Central Portal", "type": "semantic"},
+        {"text": "Directs user to generate new tokens at central.sonatype.com/usertoken", "type": "semantic"},
+        {"text": "Fixes are concrete XML blocks, not just descriptions", "type": "semantic"}
+      ]
+    }
+  ]
+}

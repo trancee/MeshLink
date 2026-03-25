@@ -1,0 +1,169 @@
+{
+  "skill_name": "android-bluetooth-expert",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I need to build a simple Android app that discovers nearby Bluetooth devices, lets the user pick one, and sends a text message over RFCOMM. I'm targeting API 34 with minSdk 26. Can you give me the implementation?",
+      "expected_output": "A complete implementation covering: correct permissions for API 26-34 range (both legacy and new), BluetoothAdapter setup, device discovery with BroadcastReceiver, RFCOMM server/client socket code, data transfer thread, and proper threading. Should use Kotlin and mention cancelDiscovery() before connecting.",
+      "files": [],
+      "assertions": [
+        {
+          "id": "classic-permissions-correct",
+          "description": "Declares BLUETOOTH_SCAN, BLUETOOTH_CONNECT for API 31+ AND legacy BLUETOOTH/BLUETOOTH_ADMIN with maxSdkVersion=30"
+        },
+        {
+          "id": "classic-discovery-pattern",
+          "description": "Uses startDiscovery() with a BroadcastReceiver for ACTION_FOUND, and mentions getBondedDevices() for paired devices"
+        },
+        {
+          "id": "classic-rfcomm-connection",
+          "description": "Shows both server (listenUsingRfcommWithServiceRecord + accept) and client (createRfcommSocketToServiceRecord + connect) patterns with matching UUIDs"
+        },
+        {
+          "id": "classic-cancel-discovery",
+          "description": "Calls cancelDiscovery() before initiating an RFCOMM connection"
+        },
+        {
+          "id": "classic-coroutines-or-bg-thread",
+          "description": "Runs blocking Bluetooth operations off the main thread using coroutines (Dispatchers.IO) or a background thread"
+        },
+        {
+          "id": "classic-runtime-permissions",
+          "description": "Shows runtime permission request code with API branching (Build.VERSION.SDK_INT >= S) using ActivityResultContracts or requestPermissions"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "I'm building an app that connects to a BLE heart rate monitor, reads the heart rate characteristic, and subscribes to notifications. I keep getting onConnectionStateChange with status 133. What's wrong and how should I structure this?",
+      "expected_output": "Explains status 133 (GATT_ERROR) as a generic connection failure, provides diagnostic steps, then shows correct BLE GATT connection pattern with service discovery, characteristic read, and notification subscription including the CCCD descriptor write.",
+      "files": [],
+      "assertions": [
+        {
+          "id": "ble-status-133-diagnosis",
+          "description": "Explains that status 133 (GATT_ERROR) is a generic BLE connection failure and provides diagnostic steps (e.g., close stale connections, check bond state, try reconnecting)"
+        },
+        {
+          "id": "ble-gatt-callback-pattern",
+          "description": "Shows BluetoothGattCallback with onConnectionStateChange, onServicesDiscovered, and onCharacteristicChanged"
+        },
+        {
+          "id": "ble-service-discovery",
+          "description": "Calls discoverServices() after successful connection in onConnectionStateChange"
+        },
+        {
+          "id": "ble-notification-subscription",
+          "description": "Enables notifications with setCharacteristicNotification AND writes to the CCCD descriptor (BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)"
+        },
+        {
+          "id": "ble-gatt-close",
+          "description": "Mentions closing BluetoothGatt when done to avoid resource leaks"
+        },
+        {
+          "id": "ble-transport-le",
+          "description": "Recommends using TRANSPORT_LE parameter in connectGatt() to prevent Classic fallback on dual-mode devices"
+        },
+        {
+          "id": "ble-operation-queue",
+          "description": "Mentions or implements GATT operation serialization/queuing to prevent overlapping operations"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "My Bluetooth scanning code works perfectly on my Pixel running Android 13 but silently returns no results on my old Samsung running Android 10. I have BLUETOOTH_SCAN in my manifest. What am I missing?",
+      "expected_output": "Diagnoses that BLUETOOTH_SCAN only exists on Android 12+ and is meaningless on Android 10, which requires BLUETOOTH, BLUETOOTH_ADMIN, and ACCESS_FINE_LOCATION (runtime-granted). Shows the correct dual-manifest setup and explains runtime permission checking per API level.",
+      "files": [],
+      "assertions": [
+        {
+          "id": "permissions-api-difference",
+          "description": "Explains that BLUETOOTH_SCAN is an API 31+ permission and doesn't exist on Android 10 (API 29)"
+        },
+        {
+          "id": "permissions-legacy-required",
+          "description": "States that Android 10 requires BLUETOOTH, BLUETOOTH_ADMIN, and ACCESS_FINE_LOCATION for scanning"
+        },
+        {
+          "id": "permissions-location-runtime",
+          "description": "Mentions that ACCESS_FINE_LOCATION must be granted at runtime on Android 10, not just declared in manifest"
+        },
+        {
+          "id": "permissions-dual-manifest",
+          "description": "Shows or describes the dual-permission manifest setup with maxSdkVersion to support both old and new API levels"
+        },
+        {
+          "id": "permissions-location-services",
+          "description": "Mentions that Location Services must be enabled on the device for BLE scanning on API ≤ 30"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "I want to pair with a BLE smartwatch from my Android app without asking the user for location permission. My minSdk is 26 and I'm targeting API 34. What's the best approach?",
+      "expected_output": "Recommends CompanionDeviceManager (CDM) for location-free pairing, shows AssociationRequest with BluetoothLeDeviceFilter, includes both API 33+ and pre-33 callback patterns, notes that Location Services must still be enabled.",
+      "files": [],
+      "assertions": [
+        {
+          "id": "cdm-recommended",
+          "description": "Recommends CompanionDeviceManager as the solution for pairing without location permission"
+        },
+        {
+          "id": "cdm-filter-setup",
+          "description": "Shows AssociationRequest.Builder with a BluetoothLeDeviceFilter (or BluetoothDeviceFilter)"
+        },
+        {
+          "id": "cdm-callback-api33",
+          "description": "Shows the API 33+ callback pattern with onAssociationPending/onAssociationCreated"
+        },
+        {
+          "id": "cdm-location-services-note",
+          "description": "Notes that Location Services must still be enabled on the device even though ACCESS_FINE_LOCATION is not needed"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "My BLE app reads a characteristic, then writes to another, then enables notifications on a third — but the second and third operations sometimes silently fail. What's going on?",
+      "expected_output": "Diagnoses the GATT operation serialization problem — only one operation can be pending at a time. Shows a queue-based pattern to serialize operations and call the next one only after the previous callback fires.",
+      "files": [],
+      "assertions": [
+        {
+          "id": "gatt-serialization-diagnosis",
+          "description": "Explains that GATT operations must be serialized — only one pending operation at a time"
+        },
+        {
+          "id": "gatt-queue-pattern",
+          "description": "Shows or describes a queue/sequential pattern for chaining GATT operations"
+        },
+        {
+          "id": "gatt-callback-completion",
+          "description": "Shows that the next operation should only be issued after receiving the callback for the previous one"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "What runtime permissions do I need for Bluetooth on Android and how do I request them? I need to support API 23 through API 34.",
+      "expected_output": "Shows the full permission matrix across API levels, the dual manifest setup, and the runtime permission request code with Build.VERSION.SDK_INT branching using ActivityResultContracts.",
+      "files": [],
+      "assertions": [
+        {
+          "id": "runtime-perms-matrix",
+          "description": "Provides a permission breakdown by API level range showing what's needed for each"
+        },
+        {
+          "id": "runtime-perms-launcher",
+          "description": "Shows ActivityResultContracts.RequestMultiplePermissions() (not deprecated requestPermissions)"
+        },
+        {
+          "id": "runtime-perms-branching",
+          "description": "Shows Build.VERSION.SDK_INT >= Build.VERSION_CODES.S branching to request different permissions per API level"
+        },
+        {
+          "id": "runtime-perms-manifest",
+          "description": "Shows the manifest with maxSdkVersion=30 on legacy permissions"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "skill_name": "android-gradle-plugin-expert",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I just upgraded to AGP 9.1.0. What exact version of the Gradle wrapper do I need, and what is the minimum JDK version required? Also, a colleague said something changed with R8 in 9.1 that might break reflection-based code — what is it, and how do I opt out?",
+      "expected_output": "Should state Gradle 9.3.1 is required for AGP 9.1, JDK 17 is the minimum, explain the R8 repackaging-to-unnamed-package default change, and show the -dontrepackage opt-out rule.",
+      "files": [],
+      "assertions": [
+        {"id": "gradle-931", "description": "States that Gradle 9.3.1 is required (or minimum) for AGP 9.1"},
+        {"id": "jdk-17", "description": "States that JDK 17 is the minimum JDK version for AGP 9.1"},
+        {"id": "r8-repackaging-default", "description": "Explains that R8 now repackages classes to the unnamed/default package by default in AGP 9.1"},
+        {"id": "dontrepackage-optout", "description": "Shows the -dontrepackage ProGuard rule as the opt-out for the new repackaging behavior"}
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "We're planning to target compileSdk 36 (API level 36.0) in our app. What is the minimum AGP version we need, and what is the minimum Android Studio version that supports this? We're currently on AGP 8.5 — is that sufficient?",
+      "expected_output": "Should state AGP 8.9.1 minimum for API 36.0, Meerkat (2024.3.1 patch 1) minimum Android Studio, and that AGP 8.5 is NOT sufficient.",
+      "files": [],
+      "assertions": [
+        {"id": "min-agp-891", "description": "States that AGP 8.9.1 is the minimum AGP version to support compileSdk/targetSdk 36.0"},
+        {"id": "min-studio-meerkat", "description": "States that Android Studio Meerkat (2024.3.1) or Meerkat patch 1 is the minimum Android Studio version for API 36.0"},
+        {"id": "agp-85-insufficient", "description": "Explicitly states that AGP 8.5 is NOT sufficient (too old) to support API level 36.0"}
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "After upgrading to AGP 9.0, our release build now crashes because a library's ProGuard consumer rules included -dontobfuscate, which used to suppress obfuscation for our whole app. Now it seems to be ignored. Why did this change and what should we do instead?",
+      "expected_output": "Should explain the AGP 9.0 library rule filtering change (global options like -dontobfuscate in consumer rules are dropped), explain why this happened, and advise moving -dontobfuscate to the app's own proguard-rules.pro.",
+      "files": [],
+      "assertions": [
+        {"id": "agp9-library-rule-filtering", "description": "Explains that AGP 9.0 introduced library consumer rule filtering, dropping global options like -dontobfuscate from library rules"},
+        {"id": "why-changed", "description": "Explains why the change was made (global options in library rules could silently override app-level settings or led to suboptimal configs)"},
+        {"id": "fix-move-to-app", "description": "Advises adding -dontobfuscate (or the desired global option) to the app's own proguard-rules.pro instead of relying on library consumer rules"}
+      ]
+    }
+  ]
+}

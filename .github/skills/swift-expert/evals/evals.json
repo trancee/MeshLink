@@ -1,0 +1,263 @@
+{
+  "skill_name": "swift-expert",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I have three API calls in my Swift code that run sequentially with `await`. They don't depend on each other. How do I make them run in parallel? Here's what I have:\n```swift\nlet users = await fetchUsers()\nlet posts = await fetchPosts()\nlet comments = await fetchComments()\n```",
+      "expected_output": "Shows async let approach for parallel execution, explains why the original is sequential, mentions TaskGroup as an alternative for dynamic cases, and notes structured concurrency guarantees.",
+      "files": [],
+      "assertions": [
+        {
+          "name": "uses-async-let",
+          "description": "Response uses `async let` syntax to show parallel execution",
+          "type": "contains",
+          "value": "async let"
+        },
+        {
+          "name": "explains-sequential-problem",
+          "description": "Explains why the original code runs sequentially despite using await",
+          "type": "semantic",
+          "value": "The original code runs sequentially because each await suspends and waits for the result before starting the next call"
+        },
+        {
+          "name": "mentions-task-group",
+          "description": "Mentions TaskGroup as an alternative for dynamic parallelism",
+          "type": "contains_any",
+          "value": ["TaskGroup", "withTaskGroup"]
+        },
+        {
+          "name": "shows-complete-code",
+          "description": "Shows a complete, runnable code example with the parallel version",
+          "type": "semantic",
+          "value": "Provides a complete code snippet showing the parallel async let pattern with await on the collected results"
+        },
+        {
+          "name": "includes-pitfalls",
+          "description": "Mentions at least one common pitfall (e.g., partial failure, re-serializing, actor reentrancy)",
+          "type": "semantic",
+          "value": "Warns about a real-world gotcha such as: if one async let throws the others are cancelled, or accidentally re-serializing parallel results, or forgetting to await"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "My SwiftUI view has a class that conforms to ObservableObject with @Published properties, but when I switch to @Observable for iOS 17 the view stops updating. Here's what I have:\n```swift\n@Observable\nclass SettingsModel: ObservableObject {\n    @Published var theme: String = \"light\"\n    @Published var fontSize: Int = 14\n}\n\nstruct SettingsView: View {\n    @ObservedObject var model: SettingsModel\n    var body: some View {\n        VStack {\n            Text(\"Theme: \\(model.theme)\")\n            Stepper(\"Font size: \\(model.fontSize)\", value: $model.fontSize)\n        }\n    }\n}\n```\nHow do I migrate this correctly?",
+      "expected_output": "Diagnoses that mixing @Observable with ObservableObject/@Published/@ObservedObject is the problem, shows the correct migration pattern, explains the Observation framework's per-property tracking advantage.",
+      "files": [],
+      "assertions": [
+        {
+          "name": "removes-observable-object",
+          "description": "Removes ObservableObject conformance from the @Observable class",
+          "type": "semantic",
+          "value": "Shows that when using @Observable, the class should not also conform to ObservableObject"
+        },
+        {
+          "name": "removes-published",
+          "description": "Removes @Published property wrappers since @Observable tracks properties automatically",
+          "type": "semantic",
+          "value": "Explains that @Observable tracks property changes automatically, making @Published unnecessary and conflicting"
+        },
+        {
+          "name": "uses-correct-property-wrapper",
+          "description": "Uses @State or @Bindable instead of @ObservedObject for the view property",
+          "type": "contains_any",
+          "value": ["@State", "@Bindable"]
+        },
+        {
+          "name": "explains-observation-advantage",
+          "description": "Explains the per-property tracking advantage of the Observation framework",
+          "type": "semantic",
+          "value": "The Observation framework tracks individual property access so only views that read a changed property re-render, unlike ObservableObject which notifies on any @Published change"
+        },
+        {
+          "name": "includes-migration-checklist",
+          "description": "Provides a concrete migration checklist or step-by-step migration guide",
+          "type": "semantic",
+          "value": "Lists specific migration steps like: remove ObservableObject, remove @Published, replace @StateObject with @State, replace @ObservedObject with @Bindable"
+        },
+        {
+          "name": "shows-ownership-scenarios",
+          "description": "Shows multiple property wrapper choices based on ownership (owned vs received vs read-only)",
+          "type": "semantic",
+          "value": "Explains that @State is for view-owned objects, @Bindable for received objects needing bindings, and plain let/var for read-only access"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Set up a new Swift package called `DataKit` with a library target that exports a public struct `DataFrame` with a method `filter(where:)`, and a test target that verifies filtering works. Show me the full Package.swift and file layout.",
+      "expected_output": "Complete Package.swift with library and test targets, source file with public DataFrame struct, test file with XCTest or Swift Testing, and directory layout.",
+      "files": [],
+      "assertions": [
+        {
+          "name": "has-package-swift",
+          "description": "Shows a valid Package.swift manifest",
+          "type": "contains",
+          "value": "Package("
+        },
+        {
+          "name": "has-library-target",
+          "description": "Defines a library target in Package.swift",
+          "type": "contains",
+          "value": ".library("
+        },
+        {
+          "name": "has-test-target",
+          "description": "Defines a test target in Package.swift",
+          "type": "contains",
+          "value": ".testTarget("
+        },
+        {
+          "name": "public-struct",
+          "description": "DataFrame struct is marked public",
+          "type": "contains",
+          "value": "public struct DataFrame"
+        },
+        {
+          "name": "filter-method",
+          "description": "DataFrame has a filter(where:) method",
+          "type": "semantic",
+          "value": "Shows a public filter method on DataFrame that takes a where parameter (a closure predicate) to filter rows"
+        },
+        {
+          "name": "shows-directory-layout",
+          "description": "Shows the expected directory structure",
+          "type": "semantic",
+          "value": "Shows Sources/DataKit/ and Tests/DataKitTests/ directory structure"
+        },
+        {
+          "name": "test-imports-module",
+          "description": "Test file imports DataKit",
+          "type": "contains_any",
+          "value": ["import DataKit", "@testable import DataKit"]
+        },
+        {
+          "name": "includes-design-rationale",
+          "description": "Explains design decisions (why struct, why public, target boundaries, etc.)",
+          "type": "semantic",
+          "value": "Includes some design rationale explaining choices like why DataFrame is a struct (value semantics), why filter returns a new instance, or why the targets are structured this way"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "I enabled strict concurrency checking in my Swift 6 project and now I'm getting dozens of 'sending value of non-Sendable type' and 'main actor-isolated property cannot be referenced from a non-isolated context' errors. Here's a typical one:\n```swift\nclass NetworkManager {\n    var cache: [String: Data] = [:]\n    func fetchData(for url: URL) async throws -> Data {\n        if let cached = cache[url.absoluteString] { return cached }\n        let (data, _) = try await URLSession.shared.data(from: url)\n        cache[url.absoluteString] = data\n        return data\n    }\n}\n```\nThis is used from multiple actors. How do I systematically fix these rather than just sprinkling @unchecked Sendable everywhere?",
+      "expected_output": "Systematic migration approach: make the class an actor or add proper isolation, explain why @unchecked Sendable is dangerous, show multiple fix strategies with tradeoffs, include migration checklist.",
+      "files": [],
+      "assertions": [
+        {
+          "name": "shows-actor-solution",
+          "description": "Shows converting the class to an actor as a primary solution",
+          "type": "contains",
+          "value": "actor"
+        },
+        {
+          "name": "warns-unchecked-sendable",
+          "description": "Explicitly warns against @unchecked Sendable as a lazy fix",
+          "type": "semantic",
+          "value": "Warns that @unchecked Sendable silences the compiler but doesn't make the type safe, and should be a last resort"
+        },
+        {
+          "name": "shows-multiple-strategies",
+          "description": "Presents multiple fix strategies (actor, @MainActor, Sendable conformance, value type) with guidance on when to use each",
+          "type": "semantic",
+          "value": "Shows at least 3 different approaches to fixing Sendable violations and explains when each is appropriate"
+        },
+        {
+          "name": "includes-tradeoff-table",
+          "description": "Includes a comparison/tradeoff table for the different approaches",
+          "type": "semantic",
+          "value": "Contains a structured table or matrix comparing the fix strategies (e.g., actor vs struct vs @MainActor) on dimensions like thread safety, performance, API impact"
+        },
+        {
+          "name": "systematic-migration-steps",
+          "description": "Provides systematic migration steps rather than just fixing the one example",
+          "type": "semantic",
+          "value": "Provides a general migration checklist or systematic approach that applies to an entire codebase, not just the single NetworkManager example"
+        },
+        {
+          "name": "version-awareness",
+          "description": "Mentions Swift version considerations (strict concurrency levels, Swift 5 vs 6)",
+          "type": "semantic",
+          "value": "Mentions Swift 5 vs 6 strict concurrency checking levels or the progression from warnings to errors"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "My codebase has `any Drawable` everywhere — function parameters, return types, arrays. Xcode's performance warnings say existentials have overhead. When should I switch to `some Drawable` or generics, and when is `any` actually the right choice? Can you show me a refactoring example with this protocol:\n```swift\nprotocol Drawable {\n    func draw(in rect: CGRect)\n    var boundingBox: CGRect { get }\n}\n\nfunc render(shapes: [any Drawable]) { ... }\nfunc firstShape() -> any Drawable { ... }\nfunc process(shape: any Drawable) { ... }\n```",
+      "expected_output": "Comparison of some vs any with performance implications, concrete before/after refactoring, guidance on when any is correct, generics as an alternative.",
+      "files": [],
+      "assertions": [
+        {
+          "name": "explains-some-vs-any",
+          "description": "Explains the difference between some and any with performance implications",
+          "type": "semantic",
+          "value": "Explains that 'some' is a compile-time opaque type with no existential overhead while 'any' is a runtime box with indirection and allocation costs"
+        },
+        {
+          "name": "shows-generic-alternative",
+          "description": "Shows generics as an alternative to both some and any",
+          "type": "semantic",
+          "value": "Shows a generic function with a Drawable constraint (e.g., func process<T: Drawable> or similar generic syntax) as an alternative to existentials"
+        },
+        {
+          "name": "shows-when-any-is-correct",
+          "description": "Explicitly identifies when any is the RIGHT choice (heterogeneous collections, type erasure)",
+          "type": "semantic",
+          "value": "Identifies specific scenarios where any is correct, such as heterogeneous arrays where different concrete types are stored together"
+        },
+        {
+          "name": "includes-decision-guide",
+          "description": "Includes a decision table/flowchart for choosing between some, any, and generics",
+          "type": "semantic",
+          "value": "Contains a structured decision guide (table, flowchart, or if-then list) for when to use some vs any vs generics"
+        },
+        {
+          "name": "concrete-refactoring",
+          "description": "Shows concrete before/after code for at least 2 of the 3 functions",
+          "type": "semantic",
+          "value": "Provides refactored versions of at least 2 of the 3 example functions (render, firstShape, process) with concrete code"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "I have an actor-based cache that sometimes returns stale data. The fetch method checks if data exists, and if not, calls an async API and stores the result. But under concurrent access, multiple fetches can happen for the same key. Here's my code:\n```swift\nactor DataCache {\n    private var store: [String: Data] = [:]\n    \n    func fetch(key: String) async throws -> Data {\n        if let cached = store[key] {\n            return cached\n        }\n        let data = try await APIClient.shared.load(key: key)\n        store[key] = data\n        return data\n    }\n}\n```\nWhat's going on and how do I fix it?",
+      "expected_output": "Diagnoses actor reentrancy as the root cause, explains that state can change across await, shows fix pattern with in-flight tracking, warns about related pitfalls.",
+      "files": [],
+      "assertions": [
+        {
+          "name": "identifies-reentrancy",
+          "description": "Identifies actor reentrancy as the root cause by name",
+          "type": "contains_any",
+          "value": ["reentrancy", "reentrant", "re-entrancy", "re-entrant"]
+        },
+        {
+          "name": "explains-suspension-state-change",
+          "description": "Explains that state can change across an await point inside an actor",
+          "type": "semantic",
+          "value": "Explains that when the actor suspends at the await point, another call can enter the actor and the store may not have the key yet, so multiple fetches for the same key can occur"
+        },
+        {
+          "name": "shows-inflight-tracking",
+          "description": "Shows a fix using in-flight request tracking (continuations, tasks, or similar)",
+          "type": "semantic",
+          "value": "Shows a fix pattern where in-progress requests are tracked (e.g., a dictionary of Task or continuation) so subsequent callers for the same key wait on the existing request instead of starting a new one"
+        },
+        {
+          "name": "warns-related-pitfalls",
+          "description": "Warns about related pitfalls beyond just the immediate fix",
+          "type": "semantic",
+          "value": "Mentions at least one related pitfall such as: Task cancellation handling, memory leaks from stored Tasks, stale cache invalidation, or deadlock risks"
+        },
+        {
+          "name": "shows-complete-fixed-code",
+          "description": "Shows a complete working version of the fixed actor",
+          "type": "semantic",
+          "value": "Provides a complete, runnable implementation of the fixed DataCache actor with in-flight tracking"
+        }
+      ]
+    }
+  ]
+}

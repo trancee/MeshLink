@@ -1,0 +1,23 @@
+{
+  "skill_name": "swift-testing-expert",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I have this XCTest test class and I want to convert it to Swift Testing. Can you migrate it?\n\n```swift\nimport XCTest\n@testable import MyApp\n\nclass PaymentProcessorTests: XCTestCase {\n    var processor: PaymentProcessor!\n    \n    override func setUp() async throws {\n        processor = try await PaymentProcessor(environment: .sandbox)\n    }\n    \n    override func tearDown() {\n        processor = nil\n    }\n    \n    func testChargeSucceeds() async throws {\n        let result = try await processor.charge(amount: 9.99, currency: .usd)\n        XCTAssertTrue(result.isSuccessful)\n        XCTAssertEqual(result.currency, .usd)\n        XCTAssertGreaterThan(result.transactionId.count, 0)\n    }\n    \n    func testChargeFailsWithInsufficientFunds() async throws {\n        XCTAssertThrowsError(try await processor.charge(amount: 999999, currency: .usd)) { error in\n            XCTAssertEqual(error as? PaymentError, .insufficientFunds)\n        }\n    }\n    \n    func testRefundRequiresValidTransaction() throws {\n        let transaction = try XCTUnwrap(Transaction.lastCompleted)\n        XCTAssertNoThrow(try processor.refund(transaction))\n    }\n}\n```",
+      "expected_output": "A complete Swift Testing migration using struct, init, @Test, #expect, #require, and proper error testing patterns",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "I'm writing tests for an async notification system. I need to verify that when a user places an order, exactly 3 notifications are sent (one to the customer, one to the kitchen, and one to the delivery system), and that no error notifications are sent. How do I write this with Swift Testing?",
+      "expected_output": "Test using confirmation() with expectedCount: 3 for the success notifications and a separate confirmation with expectedCount: 0 for error notifications",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "I need to write a parameterized test that validates our URL parser against a bunch of different inputs. Some should succeed and some should fail. Here are my test cases:\n- \"https://example.com\" → valid, host is \"example.com\"\n- \"ftp://files.example.com/doc.pdf\" → valid, host is \"files.example.com\"\n- \"not a url\" → should throw InvalidURL\n- \"\" → should throw InvalidURL\n- \"https://\" → should throw MissingHost\n\nI'm on Swift 6 with Xcode 16. How should I structure this?",
+      "expected_output": "A parameterized test using @Test(arguments:) with a collection of test cases, using an enum or struct for the test data that handles both success and failure cases",
+      "files": []
+    }
+  ]
+}

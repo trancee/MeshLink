@@ -1,0 +1,117 @@
+{
+  "skill_name": "kotlin-expert",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Review and refactor this Kotlin function to be more idiomatic without changing behavior. Explain the changes and point me to the relevant official docs.\n\n```kotlin\ndata class User(val name: String?, val active: Boolean?)\n\nfun findActiveNames(users: List<User?>): List<String> {\n    var result = mutableListOf<String>()\n    for (u in users) {\n        if (u != null) {\n            if (u.active == true) {\n                result.add(u.name!!)\n            }\n        }\n    }\n    return result\n}\n```",
+      "expected_output": "A more idiomatic Kotlin refactor that preserves original behavior or clearly explains the behavior/safety tradeoff, uses Kotlin collection or null-handling idioms, and cites the relevant Kotlin docs.",
+      "files": [],
+      "expectations": [
+        "Preserves the original behavior or explicitly explains why removing `!!` would change semantics",
+        "Uses idiomatic Kotlin collection or null-handling operations instead of manual mutable accumulation",
+        "Explains at least one Kotlin-specific reason for the refactor, such as null-safety or readability",
+        "Includes at least one relevant official Kotlin documentation link"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "I'm trying to clean up this Android Kotlin coroutine code. Please rewrite it using current best practices, explain the reasoning, and tell me what official docs back up the changes.\n\n```kotlin\nclass NewsRepository {\n    suspend fun loadNews(): List<Article> = withContext(Dispatchers.IO) {\n        api.fetchNews()\n    }\n}\n\nclass NewsViewModel(\n    private val repository: NewsRepository\n) : ViewModel() {\n    val uiState = MutableStateFlow<UiState>(UiState.Loading)\n\n    suspend fun load() {\n        val news = repository.loadNews()\n        uiState.value = UiState.Success(news)\n    }\n}\n```",
+      "expected_output": "A corrected Android-friendly version that addresses dispatcher ownership, ViewModel coroutine launching, immutable exposed state, and testability, with references to official Android/Kotlin coroutine guidance.",
+      "files": [],
+      "expectations": [
+        "Uses `viewModelScope` or another ViewModel-owned coroutine launcher instead of exposing `suspend fun load()` as the main entrypoint",
+        "Keeps mutable flow state private and exposes immutable `StateFlow`",
+        "Replaces hardcoded dispatcher usage with injected dispatcher guidance or an equivalent testable pattern",
+        "References official Android or Kotlin coroutine best-practices documentation"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Set up the smallest useful Kotlin server example for me: JVM 17, Gradle Kotlin DSL, Ktor JSON endpoint, and one test. I want the answer to include the `build.gradle.kts`, the minimal application code, and the test code, plus links to the official docs I should read next.",
+      "expected_output": "A practical Kotlin + Ktor starter with a Kotlin DSL build file, a minimal JSON route, a working test example, clear version assumptions, and links to official Kotlin and Ktor documentation.",
+      "files": [],
+      "expectations": [
+        "Provides a `build.gradle.kts` example with Kotlin/JVM and Ktor setup",
+        "Provides minimal application code for a JSON endpoint",
+        "Provides at least one automated test example",
+        "States JVM, JDK, or version assumptions for the setup",
+        "References official Kotlin or Ktor documentation"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "My Kotlin Multiplatform project fails on JVM with `Duplicate JVM classes`. I have these two files with top-level functions:\n\n- `commonMain/kotlin/myPackage/Platform.kt` -> `package myPackage` and `fun count() {}`\n- `jvmMain/kotlin/myPackage/Platform.kt` -> `package myPackage` and `fun multiply() {}`\n\nExplain the real root cause, show the smallest safe fix, and cite the official docs.",
+      "expected_output": "A precise explanation that this is a generated JVM file-facade clash from same-package top-level declarations, with a minimal rename such as `Platform.jvm.kt`, plus a citation to the Kotlin coding conventions documentation.",
+      "files": [],
+      "expectations": [
+        "Explains the duplicate JVM class problem as a generated file-facade or fully qualified name clash from same-package top-level declarations",
+        "Recommends a minimal fix such as renaming the platform-specific file to a source-set-specific name like `Platform.jvm.kt`",
+        "References official Kotlin coding conventions or multiplatform file-naming documentation"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "My Android project uses Kotlin Gradle plugin `2.3.10`, Gradle `7.5`, and Android Gradle Plugin `8.4`. The build fails during configuration. Based on the official Kotlin docs, what compatibility issue do you see, what exact version range matters here, and what is the smallest fix? Please also separate the Kotlin-plugin compatibility facts from the Android-specific part.",
+      "expected_output": "A version-precise answer that identifies Gradle `7.5` as below the supported range for KGP `2.3.10`, notes that AGP `8.4` is within the supported range, recommends the smallest viable fix, and clearly separates Kotlin-plugin facts from Android-specific guidance.",
+      "files": [],
+      "expectations": [
+        "States that Gradle `7.5` is below the fully supported minimum for Kotlin Gradle plugin `2.3.10`, which is `7.6.3`",
+        "States that AGP `8.4` is within the fully supported range for Kotlin Gradle plugin `2.3.10`, which is `8.2.2–9.0.0`",
+        "Recommends upgrading Gradle to at least `7.6.3` or otherwise explicitly aligning the Kotlin plugin version with the existing wrapper",
+        "Clearly separates Kotlin-plugin compatibility facts from Android-specific advice",
+        "References the official Kotlin Gradle configuration documentation"
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "I want to use `async`/`await` in a plain Kotlin JVM app. Are they Kotlin keywords? Do I need extra dependencies? Show the smallest working example and tell me which parts are core Kotlin versus `kotlinx.coroutines`.",
+      "expected_output": "A doc-grounded explanation that `async` and `await` are not Kotlin keywords and are not part of the standard library, that `kotlinx-coroutines-core` is needed, and a minimal working JVM example that clearly separates core Kotlin from coroutine-library pieces.",
+      "files": [],
+      "expectations": [
+        "States that `async` and `await` are not Kotlin keywords and are not part of the Kotlin standard library",
+        "Includes the `kotlinx-coroutines-core` dependency or clearly names it as required",
+        "Provides a minimal working coroutine example using constructs such as `runBlocking`, `async`, and `await`",
+        "Separates core Kotlin concepts from `kotlinx.coroutines` library-specific concepts",
+        "References the official Kotlin coroutines guide"
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "I have a plain Kotlin/JVM library with `plugins { kotlin(\"jvm\") version \"2.3.10\" }`. I build on JDK 17, but I never set a toolchain or `jvmTarget`. Why can this create a JVM target mismatch or wrong published compatibility metadata, and what exact fix does the official Kotlin docs recommend?",
+      "expected_output": "A precise explanation that unset Kotlin `jvmTarget` effectively becomes `1.8`, `targetCompatibility` follows the Gradle JDK, published metadata can wrongly declare JDK 17 compatibility, and the proper fix is to configure a Java/Kotlin toolchain.",
+      "files": [],
+      "expectations": [
+        "States that when Kotlin `jvmTarget` is unset, it effectively defaults to `1.8`",
+        "States that `targetCompatibility` follows the current Gradle JDK in the default setup",
+        "Mentions that published metadata can wrongly declare JDK 17 compatibility such as `org.gradle.jvm.version=17`",
+        "Recommends configuring a Java or Kotlin toolchain as the preferred fix",
+        "References the official Kotlin Gradle configuration documentation"
+      ]
+    },
+    {
+      "id": 8,
+      "prompt": "We upgraded from Gradle 7.6 to Gradle 8 and our mixed Kotlin/Java build with mismatched JVM targets changed from a warning to a build failure. Based on the official Kotlin docs, why did that happen, what property controls the behavior, and how can we temporarily set it back to warning?",
+      "expected_output": "A doc-grounded explanation that the default for `kotlin.jvm.target.validation.mode` changes from `warning` on Gradle < 8.0 to `error` on Gradle 8.0+, plus a concrete way to set it back to warning temporarily.",
+      "files": [],
+      "expectations": [
+        "Names the property `kotlin.jvm.target.validation.mode`",
+        "States that the default is `error` on Gradle `8.0+` and `warning` on Gradle versions lower than `8.0`",
+        "Shows how to set the behavior back to `warning`, such as in `gradle.properties` or task configuration",
+        "References the official Kotlin Gradle configuration documentation"
+      ]
+    },
+    {
+      "id": 9,
+      "prompt": "I set `kotlin { jvmToolchain(17) }` in `build.gradle.kts`, but on Gradle 8.2 our CI still can't auto-download the JDK. According to the official Kotlin docs, what extra plugin may be required, where does it go, and what example plugin ID/version is shown?",
+      "expected_output": "A precise answer that on Gradle 8.0.2+ a toolchain resolver plugin may be needed, that it belongs in `settings.gradle(.kts)`, and that the Kotlin docs show `org.gradle.toolchains.foojay-resolver-convention` version `0.9.0` as an example.",
+      "files": [],
+      "expectations": [
+        "States that Gradle `8.0.2+` may require a toolchain resolver plugin for downloading toolchains",
+        "States that the plugin goes in `settings.gradle(.kts)`",
+        "Mentions the example plugin `org.gradle.toolchains.foojay-resolver-convention` and version `0.9.0`",
+        "Mentions that the resolver version should correspond to the Gradle version or be checked against the Gradle docs",
+        "References the official Kotlin Gradle configuration documentation"
+      ]
+    }
+  ]
+}

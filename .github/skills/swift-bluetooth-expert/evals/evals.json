@@ -1,0 +1,161 @@
+{
+  "skill_name": "swift-bluetooth-expert",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I'm new to CoreBluetooth. Show me how to scan for a BLE heart rate monitor, connect to it, and read the heart rate value in Swift. I'm targeting iOS 17+.",
+      "expected_output": "A complete central role walkthrough: CBCentralManager setup, scanning with heart rate service UUID 180D, connection, service and characteristic discovery, subscribing to heart rate measurement characteristic 2A37, parsing the heart rate data format, and links to CoreBluetooth docs.",
+      "files": [],
+      "expectations": [
+        "Creates a CBCentralManager and implements centralManagerDidUpdateState to wait for .poweredOn before scanning",
+        "Scans using the heart rate service UUID (180D) rather than nil",
+        "Stores a strong reference to the discovered CBPeripheral",
+        "Shows the full chain: connect → discoverServices → discoverCharacteristics → setNotifyValue or readValue",
+        "Includes at least one relevant Apple documentation link"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "I'm building a SwiftUI app that connects to a custom BLE sensor. How should I architect the Bluetooth layer so my views can reactively show connection status and sensor data? I'm on iOS 17+ so I can use @Observable.",
+      "expected_output": "An @Observable BluetoothManager class that wraps CBCentralManager, delegates bridged into published state, environment injection, and clean separation of BLE logic from SwiftUI views.",
+      "files": [],
+      "expectations": [
+        "Creates an @Observable class (or ObservableObject for older targets) that wraps CBCentralManager",
+        "Implements CBCentralManagerDelegate and CBPeripheralDelegate within the manager or via a delegate adapter",
+        "Exposes reactive state properties (connection state, discovered peripherals, sensor values) that SwiftUI views can observe",
+        "Shows how to inject the manager into the SwiftUI environment",
+        "Keeps BLE logic separate from view code"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "My CBPeripheral connection keeps silently failing. I discover the peripheral fine in centralManager(_:didDiscover:advertisementData:rssi:) and call connect, but centralManager(_:didConnect:) never fires and neither does didFailToConnect. What's going on?\n\n```swift\nclass Scanner: NSObject, CBCentralManagerDelegate {\n    var centralManager: CBCentralManager!\n    \n    func centralManagerDidUpdateState(_ central: CBCentralManager) {\n        if central.state == .poweredOn {\n            central.scanForPeripherals(withServices: nil)\n        }\n    }\n    \n    func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String: Any], rssi RSSI: NSNumber) {\n        print(\"Found: \\(peripheral.name ?? \"unknown\")\")\n        central.connect(peripheral)\n    }\n}\n```",
+      "expected_output": "Diagnoses the missing strong reference to CBPeripheral as the root cause, explains that CoreBluetooth does not retain discovered peripherals, and shows the fix.",
+      "files": [],
+      "expectations": [
+        "Identifies that the CBPeripheral is not being stored in a strong reference property",
+        "Explains that CoreBluetooth does not retain discovered peripherals and they get deallocated",
+        "Shows the fix: adding a property like `var discoveredPeripheral: CBPeripheral?` and assigning before calling connect",
+        "Mentions this is the most common CoreBluetooth bug"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "I need my iOS app to automatically reconnect to a BLE door lock when the user comes home, even if iOS killed my app while they were away. What's the full setup for background BLE with state preservation?",
+      "expected_output": "Complete background BLE setup: Info.plist background modes, state preservation with restoration identifiers, pending connection that survives termination, app relaunch handling, and the willRestoreState delegate.",
+      "files": [],
+      "expectations": [
+        "Configures UIBackgroundModes with bluetooth-central in Info.plist",
+        "Shows CBCentralManager initialization with CBCentralManagerOptionRestoreIdentifierKey",
+        "Explains that connect() does not time out and will reconnect when the peripheral becomes available",
+        "Implements centralManager(_:willRestoreState:) to handle app relaunch and state restoration",
+        "Mentions checking UIApplication.LaunchOptionsKey.bluetoothCentrals on app relaunch"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "How can I wrap CoreBluetooth's delegate-based scanning into an AsyncStream so I can do `for await peripheral in manager.scanForPeripherals()` in modern Swift?",
+      "expected_output": "A practical AsyncStream wrapper for CBCentralManager scanning that bridges delegate callbacks into Swift concurrency, with proper cleanup and cancellation handling.",
+      "files": [],
+      "expectations": [
+        "Creates an AsyncStream (or AsyncThrowingStream) that yields discovered peripherals from the delegate callback",
+        "Starts scanning when the stream is consumed and stops scanning on cancellation/termination",
+        "Handles the continuation correctly (stores it, yields from delegate, finishes on cleanup)",
+        "Mentions practical considerations like when async wrappers add value vs. unnecessary complexity"
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "I want to set up my iPhone as a BLE peripheral that advertises a custom service and lets other devices read a string value from a characteristic. Show me the complete peripheral role setup in Swift.",
+      "expected_output": "Complete peripheral role implementation: CBPeripheralManager setup, creating a mutable service with a readable characteristic, publishing, advertising, and responding to read requests.",
+      "files": [],
+      "expectations": [
+        "Creates a CBPeripheralManager and waits for .poweredOn state",
+        "Creates CBMutableCharacteristic with appropriate properties (.read and/or .notify) and permissions (.readable)",
+        "Creates CBMutableService, assigns characteristics, and adds it via peripheralManager.add()",
+        "Starts advertising with CBAdvertisementDataServiceUUIDsKey",
+        "Implements peripheralManager(_:didReceiveReadRequest:) and calls respond(to:withResult:) exactly once"
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "I'm building a BLE peripheral that streams sensor data at 100Hz by calling updateValue(_:for:onSubscribedCentrals:). Sometimes it returns false and I lose data. What's happening and how do I implement proper flow control?",
+      "expected_output": "Explains transmit queue saturation, shows local buffering with peripheralManagerIsReady callback to resume, and mentions MTU batching for throughput optimization.",
+      "files": [],
+      "expectations": [
+        "Explains that updateValue returning false means the CoreBluetooth transmit queue is full",
+        "Mentions peripheralManagerIsReady(toUpdateSubscribers:) as the callback to resume sending",
+        "Shows implementing a local buffer/queue to hold data when updateValue returns false",
+        "Demonstrates draining the buffer in the peripheralManagerIsReady callback",
+        "Mentions batching multiple samples per notification or using maximumUpdateValueLength"
+      ]
+    },
+    {
+      "id": 8,
+      "prompt": "My app scans for BLE devices using CBCentralManagerScanOptionAllowDuplicatesKey set to true so I can track RSSI changes in real-time for a proximity feature. It works great in the foreground but completely breaks when the app is backgrounded — I stop getting repeated callbacks for the same device. I also notice that when ALL my test devices have their BLE scanning apps backgrounded, discovery takes much longer. Why is this happening, and what's the best architecture for RSSI-based proximity that works across foreground and background?",
+      "expected_output": "Explains AllowDuplicatesKey is ignored in background, discoveries are coalesced, scan intervals increase, and recommends connecting + readRSSI() as the background alternative.",
+      "files": [],
+      "expectations": [
+        "States that CBCentralManagerScanOptionAllowDuplicatesKey is ignored in background",
+        "Explains that discoveries are coalesced to one callback per peripheral in background",
+        "Mentions that background scan intervals increase especially when all scanning apps are backgrounded",
+        "Suggests connecting to the peripheral and using readRSSI() as the background alternative",
+        "Mentions the iOS 26+ Live Activity option for foreground-equivalent background scanning"
+      ]
+    },
+    {
+      "id": 9,
+      "prompt": "I need to connect to 3-5 BLE sensors simultaneously, each with different service UUIDs. Each sensor can disconnect at any time and should automatically reconnect. Show me how to architect this with proper per-peripheral state tracking, reconnection logic using the 3-tier reconnection strategy, and clean SwiftUI integration. Target iOS 17+.",
+      "expected_output": "Per-peripheral state machine, 3-tier reconnection (retrievePeripherals → retrieveConnectedPeripherals → scan), saved identifiers, auto-reconnect on disconnect, @Observable SwiftUI integration.",
+      "files": [],
+      "expectations": [
+        "Implements per-peripheral state tracking with an enum or struct for connection phases",
+        "Shows the 3-tier reconnection strategy: retrievePeripherals → retrieveConnectedPeripherals → scan",
+        "Persists peripheral identifiers to UserDefaults or similar for reconnection",
+        "Automatically attempts reconnection when a peripheral disconnects",
+        "Maintains strong references to all connected CBPeripheral objects",
+        "Shows SwiftUI integration with @Observable or ObservableObject"
+      ]
+    },
+    {
+      "id": 10,
+      "prompt": "I'm advertising a peripheral with 4 custom 128-bit service UUIDs and a local name of \"MySensor-v2\". When I scan from another device, I can only see some of the services and the name is sometimes missing. In the background it's even worse — nothing shows up unless I scan for the exact UUID. What are the exact byte limits I'm hitting, what gets placed in the overflow area, and how should I redesign my advertising strategy?",
+      "expected_output": "States 28-byte limit, calculates 4x128-bit UUID size exceeds it, explains overflow area, background name drop, and recommends advertising one primary UUID.",
+      "files": [],
+      "expectations": [
+        "States the 28-byte foreground advertising data limit or 31-byte BLE PDU limit",
+        "Calculates that 4x 128-bit UUIDs need approximately 64-66 bytes, far exceeding the limit",
+        "Explains the overflow area concept — excess UUIDs only discoverable by explicit scanning",
+        "States that local name is ignored or dropped in background advertising",
+        "Recommends advertising only one primary service UUID and discovering others post-connection",
+        "Includes at least one Apple documentation link"
+      ]
+    },
+    {
+      "id": 11,
+      "prompt": "I'm implementing state restoration for a BLE app with multiple CBCentralManager instances. When my app is relaunched by the system after termination, how do I figure out WHICH managers to recreate and handle the case where one manager's peripheral completed connection while another's is still pending?",
+      "expected_output": "Shows launch options key for restoration identifiers, unique restore IDs per manager, willRestoreState dictionary contents, peripheral.state check, and retain/delegate setup.",
+      "files": [],
+      "expectations": [
+        "Shows using UIApplication.LaunchOptionsKey.bluetoothCentrals to get restoration identifiers on relaunch",
+        "Uses unique CBCentralManagerOptionRestoreIdentifierKey for each manager",
+        "Describes what the willRestoreState dictionary contains (peripherals, scan services, scan options)",
+        "Checks peripheral.state (.connected vs .connecting) to handle different restoration scenarios",
+        "Emphasizes retaining restored peripherals and setting their delegates in willRestoreState"
+      ]
+    },
+    {
+      "id": 12,
+      "prompt": "I'm implementing a BLE peripheral that handles both read and write requests. My didReceiveWriteRequests callback receives an array of CBATTRequest objects. Do I call respond for each? What if I call it twice? How do I handle partial failure in a batch? Do I need to handle the offset property for reads?",
+      "expected_output": "States exactly-once respond rule, first-request for writes, all-or-nothing batch validation, proper offset handling for reads, and double-respond danger.",
+      "files": [],
+      "expectations": [
+        "States that respond(to:withResult:) must be called exactly once per callback invocation",
+        "For batch writes, pass the first request from the array to respond",
+        "Explains that partial failure means rejecting the entire batch (validate all before applying)",
+        "Shows proper offset handling for reads using subdata with request.offset",
+        "Warns that calling respond twice is undefined behavior or dangerous"
+      ]
+    }
+  ]
+}

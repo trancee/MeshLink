@@ -1,0 +1,74 @@
+{
+  "skill_name": "github-actions-expert",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I have a Node.js monorepo with packages in packages/api and packages/web. I want CI that only runs tests for the package that actually changed, not both every time. Also needs to work on PRs and pushes to main.",
+      "expected_output": "A workflow YAML that uses path filtering (either native paths: filter or dorny/paths-filter) to conditionally run separate jobs for api and web. Should include caching, proper permissions, and handle both push and PR triggers.",
+      "files": [],
+      "assertions": [
+        {"id": "path-filtering", "description": "Uses path filtering mechanism to detect which packages changed"},
+        {"id": "separate-jobs", "description": "Has separate CI jobs for api and web packages"},
+        {"id": "caching", "description": "Includes dependency caching"},
+        {"id": "permissions-declared", "description": "Declares explicit permissions block"},
+        {"id": "both-triggers", "description": "Handles both push and pull_request triggers"},
+        {"id": "complete-yaml", "description": "Provides a complete, valid workflow YAML"}
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "My GitHub Actions workflow keeps failing with 'Resource not accessible by integration' when trying to post a comment on a PR. Here's my workflow:\n\nname: PR Check\non: pull_request\njobs:\n  comment:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/github-script@v7\n        with:\n          script: |\n            await github.rest.issues.createComment({\n              owner: context.repo.owner,\n              repo: context.repo.repo,\n              issue_number: context.issue.number,\n              body: 'CI passed!'\n            });",
+      "expected_output": "Diagnose the missing permissions block — the workflow needs 'permissions: pull-requests: write'. Explain why this happens (default token permissions may be read-only) and show the corrected workflow.",
+      "files": [],
+      "assertions": [
+        {"id": "correct-diagnosis", "description": "Correctly identifies missing permissions as the root cause"},
+        {"id": "pull-requests-write", "description": "Shows pull-requests: write or issues: write permission in the fix"},
+        {"id": "corrected-yaml", "description": "Provides a complete corrected workflow YAML"},
+        {"id": "explains-why", "description": "Explains why the default GITHUB_TOKEN may lack write permissions"},
+        {"id": "pins-action", "description": "Pins the action to a SHA or recommends doing so"}
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "I want to set up a deployment pipeline for my Python FastAPI app. It should: run tests on every PR, deploy to staging automatically when merging to main, and deploy to production only after manual approval. We use AWS ECS. I don't want to store long-lived AWS credentials as secrets.",
+      "expected_output": "A multi-job workflow with: test job, staging deploy job using OIDC for AWS auth (id-token: write permission, aws-actions/configure-aws-credentials with role-to-assume), production deploy job with environment protection rules requiring manual approval. Should include concurrency groups to prevent racing deploys.",
+      "files": [],
+      "assertions": [
+        {"id": "oidc-auth", "description": "Uses OIDC authentication for AWS (no stored access keys)"},
+        {"id": "id-token-permission", "description": "Declares id-token: write permission"},
+        {"id": "github-environments", "description": "Uses GitHub Environments for staging and production"},
+        {"id": "manual-approval", "description": "Production deploy requires manual approval"},
+        {"id": "concurrency-groups", "description": "Includes concurrency groups to prevent racing deploys"},
+        {"id": "ecs-deployment", "description": "References ECS deployment mechanism"},
+        {"id": "test-on-pr", "description": "Runs tests on pull requests"}
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "I need to run my integration tests against a PostgreSQL database in GitHub Actions. My app is a Python Django project. The tests need a real Postgres instance, not SQLite. How do I set this up?",
+      "expected_output": "A workflow that uses service containers to run PostgreSQL alongside the test job. Should include health checks on the Postgres container, proper environment variable setup for Django's DATABASE_URL, Python caching, and correct port mapping. Should explain the localhost vs service-name hostname difference.",
+      "files": [],
+      "assertions": [
+        {"id": "service-container", "description": "Uses a services: block with a PostgreSQL image"},
+        {"id": "health-checks", "description": "Includes health check options for the Postgres service"},
+        {"id": "port-mapping", "description": "Maps port 5432 correctly"},
+        {"id": "env-vars", "description": "Sets DATABASE_URL or equivalent env vars for Django to connect"},
+        {"id": "python-setup", "description": "Sets up Python with caching"},
+        {"id": "complete-yaml", "description": "Provides a complete workflow YAML"}
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "I'm reviewing our GitHub Actions workflows and I'm worried about security. We have several workflows that use `pull_request_target` to comment on PRs from forks. One of them checks out the PR code and runs the test suite. Is this safe? What should I look for?",
+      "expected_output": "Explain the critical security risk: pull_request_target + checkout of PR code = untrusted code running with base repo's write permissions. Should describe the attack vector (malicious PR can exfiltrate secrets), explain when pull_request_target is safe (metadata-only operations) vs dangerous (executing PR code), and recommend the workflow_run pattern as a secure alternative. Should mention script injection risks with PR-controlled contexts.",
+      "files": [],
+      "assertions": [
+        {"id": "identifies-risk", "description": "Clearly identifies that checking out PR code under pull_request_target is dangerous"},
+        {"id": "attack-vector", "description": "Explains the attack: untrusted code runs with base repo permissions and can steal secrets"},
+        {"id": "safe-usage", "description": "Explains when pull_request_target IS safe (metadata only, no code checkout)"},
+        {"id": "workflow-run-alternative", "description": "Recommends workflow_run pattern as a secure alternative for running tests then commenting"},
+        {"id": "script-injection", "description": "Mentions script injection risks with untrusted PR contexts (title, body, branch name)"}
+      ]
+    }
+  ]
+}
