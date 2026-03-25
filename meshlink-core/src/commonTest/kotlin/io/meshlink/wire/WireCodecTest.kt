@@ -160,4 +160,48 @@ class WireCodecTest {
         assertContentEquals(visited2, decoded.visitedList[1])
         assertContentEquals(payload, decoded.payload)
     }
+
+    // --- Broadcast (0x00) ---
+
+    @Test
+    fun broadcastEncodeDecodeRoundTrips() {
+        val payload = "hello mesh".encodeToByteArray()
+
+        val encoded = WireCodec.encodeBroadcast(
+            messageId = testMessageId,
+            origin = originId,
+            remainingHops = 3u,
+            payload = payload,
+        )
+
+        // type(1) + messageId(16) + origin(16) + remainingHops(1) + payload
+        assertEquals(1 + 16 + 16 + 1 + payload.size, encoded.size)
+        assertEquals(WireCodec.TYPE_BROADCAST, encoded[0])
+
+        val decoded = WireCodec.decodeBroadcast(encoded)
+
+        assertContentEquals(testMessageId, decoded.messageId)
+        assertContentEquals(originId, decoded.origin)
+        assertEquals(3u.toUByte(), decoded.remainingHops)
+        assertContentEquals(payload, decoded.payload)
+    }
+
+    // --- DeliveryAck (0x06) ---
+
+    @Test
+    fun deliveryAckEncodeDecodeRoundTrips() {
+        val encoded = WireCodec.encodeDeliveryAck(
+            messageId = testMessageId,
+            recipientId = destinationId,
+        )
+
+        // type(1) + messageId(16) + recipientId(16) = 33
+        assertEquals(33, encoded.size)
+        assertEquals(WireCodec.TYPE_DELIVERY_ACK, encoded[0])
+
+        val decoded = WireCodec.decodeDeliveryAck(encoded)
+
+        assertContentEquals(testMessageId, decoded.messageId)
+        assertContentEquals(destinationId, decoded.recipientId)
+    }
 }

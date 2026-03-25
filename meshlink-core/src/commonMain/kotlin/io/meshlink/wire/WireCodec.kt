@@ -4,9 +4,11 @@ private const val MESSAGE_ID_SIZE = 16
 
 object WireCodec {
 
+    const val TYPE_BROADCAST: Byte = 0x00
     const val TYPE_CHUNK: Byte = 0x03
     const val TYPE_CHUNK_ACK: Byte = 0x04
     const val TYPE_ROUTED_MESSAGE: Byte = 0x05
+    const val TYPE_DELIVERY_ACK: Byte = 0x06
 
     // chunk: type(1) + messageId(16) + seqNum(2 LE) + totalChunks(2 LE) + payload
     const val CHUNK_HEADER_SIZE = 1 + MESSAGE_ID_SIZE + 2 + 2 // 21
@@ -107,6 +109,57 @@ object WireCodec {
         val payload = data.copyOfRange(offset, data.size)
         return RoutedMessage(messageId, origin, destination, hopLimit, visitedList, payload)
     }
+
+    // broadcast: type(1) + messageId(16) + origin(16) + remainingHops(1) + payload
+    private const val BROADCAST_HEADER_SIZE = 1 + MESSAGE_ID_SIZE + 16 + 1 // 34
+
+    fun encodeBroadcast(
+        messageId: ByteArray,
+        origin: ByteArray,
+        remainingHops: UByte,
+        payload: ByteArray,
+    ): ByteArray {
+        val buf = ByteArray(BROADCAST_HEADER_SIZE + payload.size)
+        var offset = 0
+        buf[offset++] = TYPE_BROADCAST
+        messageId.copyInto(buf, offset); offset += MESSAGE_ID_SIZE
+        origin.copyInto(buf, offset); offset += 16
+        buf[offset++] = remainingHops.toByte()
+        payload.copyInto(buf, offset)
+        return buf
+    }
+
+    fun decodeBroadcast(data: ByteArray): BroadcastMessage {
+        require(data.size >= BROADCAST_HEADER_SIZE) { "broadcast too short: ${data.size}" }
+        require(data[0] == TYPE_BROADCAST) { "not a broadcast: 0x${data[0].toUByte().toString(16)}" }
+        var offset = 1
+        val messageId = data.copyOfRange(offset, offset + MESSAGE_ID_SIZE); offset += MESSAGE_ID_SIZE
+        val origin = data.copyOfRange(offset, offset + 16); offset += 16
+        val remainingHops = data[offset++].toUByte()
+        val payload = data.copyOfRange(offset, data.size)
+        return BroadcastMessage(messageId, origin, remainingHops, payload)
+    }
+
+    // delivery_ack: type(1) + messageId(16) + recipientId(16)
+    private const val DELIVERY_ACK_SIZE = 1 + MESSAGE_ID_SIZE + 16 // 33
+
+    fun encodeDeliveryAck(messageId: ByteArray, recipientId: ByteArray): ByteArray {
+        val buf = ByteArray(DELIVERY_ACK_SIZE)
+        var offset = 0
+        buf[offset++] = TYPE_DELIVERY_ACK
+        messageId.copyInto(buf, offset); offset += MESSAGE_ID_SIZE
+        recipientId.copyInto(buf, offset)
+        return buf
+    }
+
+    fun decodeDeliveryAck(data: ByteArray): DeliveryAckMessage {
+        require(data.size >= DELIVERY_ACK_SIZE) { "delivery_ack too short: ${data.size}" }
+        require(data[0] == TYPE_DELIVERY_ACK) { "not a delivery_ack: 0x${data[0].toUByte().toString(16)}" }
+        var offset = 1
+        val messageId = data.copyOfRange(offset, offset + MESSAGE_ID_SIZE); offset += MESSAGE_ID_SIZE
+        val recipientId = data.copyOfRange(offset, offset + 16)
+        return DeliveryAckMessage(messageId, recipientId)
+    }
 }
 
 // --- Little-endian helpers ---
@@ -158,4 +211,16 @@ data class RoutedMessage(
     val hopLimit: UByte,
     val visitedList: List<ByteArray>,
     val payload: ByteArray,
+)
+
+data class BroadcastMessage(
+    val messageId: ByteArray,
+    val origin: ByteArray,
+    val remainingHops: UByte,
+    val payload: ByteArray,
+)
+
+data class DeliveryAckMessage(
+    val messageId: ByteArray,
+    val recipientId: ByteArray,
 )
