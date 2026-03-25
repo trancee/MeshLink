@@ -2,6 +2,7 @@ package io.meshlink
 
 import io.meshlink.model.Message
 import io.meshlink.model.PeerEvent
+import io.meshlink.model.TransferProgress
 import io.meshlink.transport.BleTransport
 import kotlinx.coroutines.flow.Flow
 import kotlin.uuid.ExperimentalUuidApi
@@ -17,4 +18,5 @@ interface MeshLinkApi {
     val peers: Flow<PeerEvent>
     val messages: Flow<Message>
     val deliveryConfirmations: Flow<Uuid>
+    val transferProgress: Flow<TransferProgress>
 }

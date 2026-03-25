@@ -32,6 +32,11 @@ class VirtualMeshTransport(
 
     override suspend fun sendToPeer(peerId: ByteArray, data: ByteArray) {
         sentData.add(peerId.toHex() to data)
+        // Check if this packet should be dropped
+        if (dropFilter?.invoke(data) == true) {
+            droppedCount++
+            return
+        }
         val target = peers[peerId.toHex()] ?: error("No linked peer: ${peerId.toHex()}")
         target.receiveData(localPeerId, data)
     }
@@ -42,6 +47,12 @@ class VirtualMeshTransport(
 
     /** All data sent via sendToPeer (peerId hex → data), for test assertions. */
     val sentData = mutableListOf<Pair<String, ByteArray>>()
+
+    /** Optional predicate: return true to drop the packet silently. */
+    var dropFilter: ((ByteArray) -> Boolean)? = null
+
+    /** Count of packets dropped by dropFilter. */
+    var droppedCount: Int = 0
 
     /** Link two virtual transports so they can discover and communicate. */
     fun linkTo(other: VirtualMeshTransport) {

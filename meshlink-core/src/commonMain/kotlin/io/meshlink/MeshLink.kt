@@ -3,6 +3,9 @@ package io.meshlink
 import io.meshlink.config.MeshLinkConfig
 import io.meshlink.model.Message
 import io.meshlink.model.PeerEvent
+import io.meshlink.model.TransferProgress
+import io.meshlink.transfer.SackTracker
+import io.meshlink.transfer.TransferSession
 import io.meshlink.transport.BleTransport
 import io.meshlink.wire.WireCodec
 import kotlinx.coroutines.CoroutineScope
@@ -27,18 +30,23 @@ class MeshLink(
     private val _peers = MutableSharedFlow<PeerEvent>(replay = 64)
     private val _messages = MutableSharedFlow<Message>(extraBufferCapacity = 64)
     private val _deliveryConfirmations = MutableSharedFlow<Uuid>(extraBufferCapacity = 64)
+    private val _transferProgress = MutableSharedFlow<TransferProgress>(extraBufferCapacity = 64)
 
     override val peers: Flow<PeerEvent> = _peers.asSharedFlow()
     override val messages: Flow<Message> = _messages.asSharedFlow()
     override val deliveryConfirmations: Flow<Uuid> = _deliveryConfirmations.asSharedFlow()
+    override val transferProgress: Flow<TransferProgress> = _transferProgress.asSharedFlow()
 
     private var started = false
     private var paused = false
     private var scope: CoroutineScope? = null
     private val baseContext = coroutineContext
 
-    // Reassembly buffer: messageId hex → (totalChunks, received chunks map)
+    // Reassembly buffer: messageId hex → (sack tracker, received chunks map)
     private val reassembly = mutableMapOf<String, ReassemblyState>()
+
+    // Outbound transfer sessions: messageId hex → (session, chunks data, recipient)
+    private val outboundTransfers = mutableMapOf<String, OutboundTransfer>()
 
     // Queued sends while paused: (recipient, payload)
     private val pauseQueue = mutableListOf<Pair<ByteArray, ByteArray>>()
@@ -76,6 +84,7 @@ class MeshLink(
     override fun stop() {
         started = false
         reassembly.clear()
+        outboundTransfers.clear()
         scope?.cancel()
         scope = null
     }
@@ -115,28 +124,37 @@ class MeshLink(
     private fun doSend(s: CoroutineScope, recipient: ByteArray, payload: ByteArray): Result<Uuid> {
         val messageId = Uuid.random().toByteArray()
         val chunkSize = config.mtu - WireCodec.CHUNK_HEADER_SIZE
-        val chunks = payload.asSequence()
-            .chunked(chunkSize)
-            .map { it.toByteArray() }
-            .toList()
-        val totalChunks = chunks.size.coerceAtLeast(1)
-
-        if (chunks.isEmpty()) {
-            val encoded = WireCodec.encodeChunk(messageId, 0u, 1u, ByteArray(0))
-            s.launch { transport.sendToPeer(recipient, encoded) }
+        val chunks = if (payload.isEmpty()) {
+            listOf(ByteArray(0))
         } else {
-            chunks.forEachIndexed { index, chunkPayload ->
-                val encoded = WireCodec.encodeChunk(
-                    messageId = messageId,
-                    sequenceNumber = index.toUShort(),
-                    totalChunks = totalChunks.toUShort(),
-                    payload = chunkPayload,
-                )
-                s.launch { transport.sendToPeer(recipient, encoded) }
-            }
+            payload.asSequence()
+                .chunked(chunkSize)
+                .map { it.toByteArray() }
+                .toList()
         }
+        val totalChunks = chunks.size
+        val session = TransferSession(totalChunks, initialWindow = totalChunks)
+        val key = messageId.toHex()
+        outboundTransfers[key] = OutboundTransfer(session, chunks, recipient, messageId)
+
+        // Send initial batch
+        sendChunks(s, key)
 
         return Result.success(Uuid.fromByteArray(messageId))
+    }
+
+    private fun sendChunks(s: CoroutineScope, transferKey: String) {
+        val transfer = outboundTransfers[transferKey] ?: return
+        val toSend = transfer.session.nextChunksToSend()
+        for (seqNum in toSend) {
+            val encoded = WireCodec.encodeChunk(
+                messageId = transfer.messageId,
+                sequenceNumber = seqNum.toUShort(),
+                totalChunks = transfer.chunks.size.toUShort(),
+                payload = transfer.chunks[seqNum],
+            )
+            s.launch { transport.sendToPeer(transfer.recipient, encoded) }
+        }
     }
 
     private suspend fun handleIncomingData(fromPeerId: ByteArray, data: ByteArray) {
@@ -155,33 +173,73 @@ class MeshLink(
             ReassemblyState(chunk.totalChunks.toInt())
         }
         state.chunks[chunk.sequenceNumber.toInt()] = chunk.payload
+        state.sackTracker.record(chunk.sequenceNumber.toInt())
 
-        if (state.chunks.size == state.totalChunks) {
+        // Send per-chunk ACK with SACK bitmask
+        val status = state.sackTracker.status()
+        val ack = WireCodec.encodeChunkAck(
+            messageId = chunk.messageId,
+            ackSequence = status.ackSeq.toUShort(),
+            sackBitmask = status.sackBitmask,
+        )
+        scope?.launch { transport.sendToPeer(fromPeerId, ack) }
+
+        if (state.sackTracker.isComplete()) {
             reassembly.remove(key)
             val fullPayload = (0 until state.totalChunks)
                 .map { state.chunks[it]!! }
                 .reduce { acc, bytes -> acc + bytes }
             _messages.emit(Message(senderId = fromPeerId, payload = fullPayload))
-
-            // Send chunk_ack back to sender
-            val ack = WireCodec.encodeChunkAck(
-                messageId = chunk.messageId,
-                ackSequence = (state.totalChunks - 1).toUShort(),
-                sackBitmask = 0u,
-            )
-            scope?.launch { transport.sendToPeer(fromPeerId, ack) }
         }
     }
 
     private suspend fun handleChunkAck(data: ByteArray) {
         val ack = WireCodec.decodeChunkAck(data)
-        _deliveryConfirmations.emit(Uuid.fromByteArray(ack.messageId))
+        val key = ack.messageId.toHex()
+        val transfer = outboundTransfers[key] ?: run {
+            // Legacy: no outbound tracking, just emit delivery confirmation
+            _deliveryConfirmations.emit(Uuid.fromByteArray(ack.messageId))
+            return
+        }
+
+        transfer.session.onAck(ack.ackSequence.toInt(), ack.sackBitmask)
+
+        // Emit progress
+        val ackedCount = (0 until transfer.chunks.size).count { i ->
+            // acked if <= ackSeq, or sack bit set
+            i <= ack.ackSequence.toInt() ||
+                (i > ack.ackSequence.toInt() && (i - ack.ackSequence.toInt() - 1) < 64 &&
+                    ack.sackBitmask and (1uL shl (i - ack.ackSequence.toInt() - 1)) != 0uL)
+        }
+        _transferProgress.emit(
+            TransferProgress(
+                messageId = Uuid.fromByteArray(ack.messageId),
+                chunksAcked = ackedCount,
+                totalChunks = transfer.chunks.size,
+            )
+        )
+
+        if (transfer.session.isComplete()) {
+            outboundTransfers.remove(key)
+            _deliveryConfirmations.emit(Uuid.fromByteArray(ack.messageId))
+        } else {
+            // Retransmit missing chunks
+            sendChunks(scope!!, key)
+        }
     }
 }
 
 private class ReassemblyState(val totalChunks: Int) {
     val chunks = mutableMapOf<Int, ByteArray>()
+    val sackTracker = SackTracker(totalChunks)
 }
+
+private class OutboundTransfer(
+    val session: TransferSession,
+    val chunks: List<ByteArray>,
+    val recipient: ByteArray,
+    val messageId: ByteArray,
+)
 
 private fun ByteArray.toHex(): String =
     joinToString("") { it.toUByte().toString(16).padStart(2, '0') }

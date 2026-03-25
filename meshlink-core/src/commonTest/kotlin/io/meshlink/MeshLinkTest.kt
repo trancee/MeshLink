@@ -17,6 +17,7 @@ import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
+import kotlin.test.assertTrue
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
@@ -465,5 +466,104 @@ class MeshLinkTest {
 
         collector.cancel()
         alice.stop()
+    }
+
+    // --- Cycle 7 (Phase 3): Progress callback ---
+
+    @Test
+    fun progressCallbackFiresWithAccurateFraction() = runTest {
+        // Use a small MTU so "hello world!!" (13 bytes) splits into multiple chunks
+        // CHUNK_HEADER_SIZE = 21, MTU = 25 → chunkSize = 4 → 13/4 = 4 chunks
+        val config = meshLinkConfig { mtu = 25 }
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val transportBob = VirtualMeshTransport(peerIdBob)
+        transportAlice.linkTo(transportBob)
+
+        val alice = MeshLink(transportAlice, config, coroutineContext)
+        val bob = MeshLink(transportBob, config, coroutineContext)
+        alice.start(); bob.start()
+        advanceUntilIdle()
+
+        transportAlice.simulateDiscovery(peerIdBob)
+        transportBob.simulateDiscovery(peerIdAlice)
+        advanceUntilIdle()
+
+        // Collect progress events
+        val progressEvents = mutableListOf<io.meshlink.model.TransferProgress>()
+        val progressJob = launch { alice.transferProgress.collect { progressEvents.add(it) } }
+        advanceUntilIdle()
+
+        // Bob consumes messages
+        val bobJob = launch { bob.messages.first() }
+
+        val payload = "hello world!!".encodeToByteArray() // 13 bytes → 4 chunks at chunkSize=4
+        val msgId = alice.send(peerIdBob, payload).getOrThrow()
+        advanceUntilIdle()
+        bobJob.join()
+        advanceUntilIdle()
+
+        // Should have received progress events, final one should have fraction = 1.0
+        assertTrue(progressEvents.isNotEmpty(), "Expected at least one progress event")
+        val last = progressEvents.last()
+        assertEquals(msgId, last.messageId)
+        assertEquals(1f, last.fraction, "Final progress should be 1.0")
+        assertEquals(4, last.totalChunks)
+
+        progressJob.cancel()
+        alice.stop(); bob.stop()
+    }
+
+    // --- Cycle 8 (Phase 3): SACK retransmission ---
+
+    @Test
+    fun droppedChunkRetransmittedViaSack() = runTest {
+        // MTU 25 → chunkSize=4 → "abcdefghijklm" (13 bytes) → 4 chunks
+        val config = meshLinkConfig { mtu = 25 }
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val transportBob = VirtualMeshTransport(peerIdBob)
+        transportAlice.linkTo(transportBob)
+
+        val alice = MeshLink(transportAlice, config, coroutineContext)
+        val bob = MeshLink(transportBob, config, coroutineContext)
+        alice.start(); bob.start()
+        advanceUntilIdle()
+
+        transportAlice.simulateDiscovery(peerIdBob)
+        transportBob.simulateDiscovery(peerIdAlice)
+        advanceUntilIdle()
+
+        // Drop chunk with seqNum=1 on Alice's transport (first time only)
+        var droppedOnce = false
+        transportAlice.dropFilter = { data ->
+            if (!droppedOnce && data.isNotEmpty() && data[0] == WireCodec.TYPE_CHUNK) {
+                val decoded = WireCodec.decodeChunk(data)
+                if (decoded.sequenceNumber.toInt() == 1) {
+                    droppedOnce = true
+                    true // drop this packet
+                } else false
+            } else false
+        }
+
+        val payload = "abcdefghijklm".encodeToByteArray() // 13 bytes → 4 chunks
+
+        // Bob listens for message
+        val bobJob = launch { bob.messages.first() }
+
+        // Alice listens for delivery confirmation
+        var confirmedId: Uuid? = null
+        val confirmJob = launch { confirmedId = alice.deliveryConfirmations.first() }
+        advanceUntilIdle()
+
+        val msgId = alice.send(peerIdBob, payload).getOrThrow()
+        advanceUntilIdle()
+        bobJob.join()
+        advanceUntilIdle()
+        confirmJob.join()
+
+        // Verify chunk 1 was dropped once and then retransmitted
+        assertEquals(1, transportAlice.droppedCount, "Exactly 1 chunk should have been dropped")
+        assertEquals(msgId, confirmedId, "Delivery confirmation should match sent message")
+
+        alice.stop(); bob.stop()
     }
 }
