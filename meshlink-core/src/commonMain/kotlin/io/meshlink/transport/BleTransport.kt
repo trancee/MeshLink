@@ -1,0 +1,36 @@
+package io.meshlink.transport
+
+import kotlinx.coroutines.flow.Flow
+
+/**
+ * System boundary abstraction for BLE hardware.
+ * Production: AndroidBleTransport / iOSBleTransport.
+ * Tests: VirtualMeshTransport.
+ */
+interface BleTransport {
+
+    /** Start advertising and scanning. */
+    suspend fun startAdvertisingAndScanning()
+
+    /** Stop all BLE activity. */
+    suspend fun stopAll()
+
+    /** Flow of discovered peer advertisement payloads (17-byte: 1B version+power, 16B key hash). */
+    val advertisementEvents: Flow<AdvertisementEvent>
+
+    /** Send raw bytes to a connected peer. */
+    suspend fun sendToPeer(peerId: ByteArray, data: ByteArray)
+
+    /** Flow of raw bytes received from connected peers. */
+    val incomingData: Flow<IncomingData>
+}
+
+data class AdvertisementEvent(
+    val peerId: ByteArray,
+    val advertisementPayload: ByteArray,
+)
+
+data class IncomingData(
+    val peerId: ByteArray,
+    val data: ByteArray,
+)

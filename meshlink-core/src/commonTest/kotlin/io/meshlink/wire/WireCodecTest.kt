@@ -1,0 +1,110 @@
+package io.meshlink.wire
+
+import kotlin.test.Test
+import kotlin.test.assertContentEquals
+import kotlin.test.assertEquals
+
+class WireCodecTest {
+
+    private val testMessageId = ByteArray(16) { it.toByte() } // 0x00..0x0F
+
+    @Test
+    fun chunkMessageEncodesToGoldenBytes() {
+        val encoded = WireCodec.encodeChunk(
+            messageId = testMessageId,
+            sequenceNumber = 1u,
+            totalChunks = 3u,
+            payload = "hello".encodeToByteArray()
+        )
+
+        // type(1) + messageId(16) + seqNum(2 LE) + totalChunks(2 LE) + payload(5)
+        val expected = byteArrayOf(
+            0x03,                                                           // type: chunk
+            0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,               // messageId[0..7]
+            0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F,               // messageId[8..15]
+            0x01, 0x00,                                                     // seqNum = 1 (LE)
+            0x03, 0x00,                                                     // totalChunks = 3 (LE)
+            0x68, 0x65, 0x6C, 0x6C, 0x6F                                   // "hello"
+        )
+
+        assertContentEquals(expected, encoded)
+    }
+
+    @Test
+    fun chunkMessageDecodesFromGoldenBytes() {
+        val bytes = byteArrayOf(
+            0x03,
+            0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+            0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F,
+            0x01, 0x00,
+            0x03, 0x00,
+            0x68, 0x65, 0x6C, 0x6C, 0x6F
+        )
+
+        val decoded = WireCodec.decodeChunk(bytes)
+
+        assertContentEquals(testMessageId, decoded.messageId)
+        assertEquals(1u.toUShort(), decoded.sequenceNumber)
+        assertEquals(3u.toUShort(), decoded.totalChunks)
+        assertContentEquals("hello".encodeToByteArray(), decoded.payload)
+    }
+
+    @Test
+    fun chunkAckEncodesToGoldenBytes() {
+        val encoded = WireCodec.encodeChunkAck(
+            messageId = testMessageId,
+            ackSequence = 5u,
+            sackBitmask = 0x1Fu
+        )
+
+        // type(1) + messageId(16) + ackSeq(2 LE) + sackBitmask(8 LE)
+        val expected = byteArrayOf(
+            0x04,                                                           // type: chunk_ack
+            0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,               // messageId[0..7]
+            0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F,               // messageId[8..15]
+            0x05, 0x00,                                                     // ackSeq = 5 (LE)
+            0x1F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00                 // sackBitmask = 0x1F (LE)
+        )
+
+        assertContentEquals(expected, encoded)
+    }
+
+    @Test
+    fun chunkAckDecodesFromGoldenBytes() {
+        val bytes = byteArrayOf(
+            0x04,
+            0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+            0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F,
+            0x05, 0x00,
+            0x1F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+        )
+
+        val decoded = WireCodec.decodeChunkAck(bytes)
+
+        assertContentEquals(testMessageId, decoded.messageId)
+        assertEquals(5u.toUShort(), decoded.ackSequence)
+        assertEquals(0x1Fu.toULong(), decoded.sackBitmask)
+    }
+
+    @Test
+    fun chunkEncodeDecodeRoundTrips() {
+        val payload = ByteArray(200) { (it % 256).toByte() }
+        val encoded = WireCodec.encodeChunk(testMessageId, 42u, 100u, payload)
+        val decoded = WireCodec.decodeChunk(encoded)
+
+        assertContentEquals(testMessageId, decoded.messageId)
+        assertEquals(42u.toUShort(), decoded.sequenceNumber)
+        assertEquals(100u.toUShort(), decoded.totalChunks)
+        assertContentEquals(payload, decoded.payload)
+    }
+
+    @Test
+    fun chunkAckEncodeDecodeRoundTrips() {
+        val encoded = WireCodec.encodeChunkAck(testMessageId, 1000u, ULong.MAX_VALUE)
+        val decoded = WireCodec.decodeChunkAck(encoded)
+
+        assertContentEquals(testMessageId, decoded.messageId)
+        assertEquals(1000u.toUShort(), decoded.ackSequence)
+        assertEquals(ULong.MAX_VALUE, decoded.sackBitmask)
+    }
+}

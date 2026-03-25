@@ -1,0 +1,57 @@
+package io.meshlink.transport
+
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
+
+/**
+ * In-process BLE transport simulator for testing.
+ * Each instance represents one virtual device in the mesh.
+ */
+class VirtualMeshTransport(
+    private val localPeerId: ByteArray,
+) : BleTransport {
+
+    private val _advertisementEvents = MutableSharedFlow<AdvertisementEvent>(extraBufferCapacity = 64)
+    private val _incomingData = MutableSharedFlow<IncomingData>(extraBufferCapacity = 64)
+
+    override val advertisementEvents: Flow<AdvertisementEvent> = _advertisementEvents.asSharedFlow()
+    override val incomingData: Flow<IncomingData> = _incomingData.asSharedFlow()
+
+    private var advertising = false
+
+    override suspend fun startAdvertisingAndScanning() {
+        advertising = true
+    }
+
+    override suspend fun stopAll() {
+        advertising = false
+    }
+
+    override suspend fun sendToPeer(peerId: ByteArray, data: ByteArray) {
+        val target = peers[peerId.toHex()] ?: error("No linked peer: ${peerId.toHex()}")
+        target.receiveData(localPeerId, data)
+    }
+
+    // --- Simulation control ---
+
+    private val peers = mutableMapOf<String, VirtualMeshTransport>()
+
+    /** Link two virtual transports so they can discover and communicate. */
+    fun linkTo(other: VirtualMeshTransport) {
+        peers[other.localPeerId.toHex()] = other
+        other.peers[localPeerId.toHex()] = this
+    }
+
+    /** Simulate peer discovery (as if we received their advertisement). */
+    suspend fun simulateDiscovery(peerId: ByteArray, advertisementPayload: ByteArray = ByteArray(17)) {
+        _advertisementEvents.emit(AdvertisementEvent(peerId, advertisementPayload))
+    }
+
+    /** Deliver raw data as if it arrived from a peer. */
+    suspend fun receiveData(fromPeerId: ByteArray, data: ByteArray) {
+        _incomingData.emit(IncomingData(fromPeerId, data))
+    }
+}
+
+private fun ByteArray.toHex(): String = joinToString("") { it.toUByte().toString(16).padStart(2, '0') }
