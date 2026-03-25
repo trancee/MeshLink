@@ -27,4 +27,6 @@ class DeliveryTracker {
         states[messageId] = State.RESOLVED
         return outcome
     }
+
+    fun isTracked(messageId: String): Boolean = states.containsKey(messageId)
 }

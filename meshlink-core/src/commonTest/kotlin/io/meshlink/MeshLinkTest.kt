@@ -28,6 +28,9 @@ class MeshLinkTest {
     private val peerIdAlice = ByteArray(16) { (0xA0 + it).toByte() }
     private val peerIdBob = ByteArray(16) { (0xB0 + it).toByte() }
 
+    private fun ByteArray.toHex(): String =
+        joinToString("") { it.toUByte().toString(16).padStart(2, '0') }
+
     @Test
     fun twoPeersDiscoverEachOther() = runTest {
         val transportAlice = VirtualMeshTransport(peerIdAlice)
@@ -832,6 +835,311 @@ class MeshLinkTest {
         assertEquals(msgId, confirmedId, "Delivery confirmation should match sent message")
 
         alice.stop(); bob.stop()
+    }
+
+    // --- Cycle 8 (Wire Integration): Broadcast send API ---
+
+    @Test
+    fun broadcastSendsToAllNeighbors() = runTest {
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val transportBob = VirtualMeshTransport(peerIdBob)
+        val transportCharlie = VirtualMeshTransport(peerIdCharlie)
+        transportAlice.linkTo(transportBob)
+        transportAlice.linkTo(transportCharlie)
+
+        val alice = MeshLink(transportAlice, meshLinkConfig(), coroutineContext)
+        val bob = MeshLink(transportBob, meshLinkConfig(), coroutineContext)
+        val charlie = MeshLink(transportCharlie, meshLinkConfig(), coroutineContext)
+        alice.start(); bob.start(); charlie.start()
+        advanceUntilIdle()
+
+        transportAlice.simulateDiscovery(peerIdBob)
+        transportAlice.simulateDiscovery(peerIdCharlie)
+        transportBob.simulateDiscovery(peerIdAlice)
+        transportCharlie.simulateDiscovery(peerIdAlice)
+        advanceUntilIdle()
+
+        val bobMessages = mutableListOf<Message>()
+        val charlieMessages = mutableListOf<Message>()
+        val bobCollector = launch { bob.messages.collect { bobMessages.add(it) } }
+        val charlieCollector = launch { charlie.messages.collect { charlieMessages.add(it) } }
+        advanceUntilIdle()
+
+        // Alice broadcasts
+        val msgId = alice.broadcast("hello mesh!".encodeToByteArray(), maxHops = 3u)
+        assertTrue(msgId.isSuccess)
+        advanceUntilIdle()
+
+        // Both Bob and Charlie should receive the broadcast
+        assertEquals(1, bobMessages.size, "Bob should receive broadcast")
+        assertEquals(1, charlieMessages.size, "Charlie should receive broadcast")
+        assertContentEquals("hello mesh!".encodeToByteArray(), bobMessages[0].payload)
+        assertContentEquals(peerIdAlice, bobMessages[0].senderId)
+
+        bobCollector.cancel(); charlieCollector.cancel()
+        alice.stop(); bob.stop(); charlie.stop()
+    }
+
+    // --- Cycle 7 (Wire Integration): RoutingTable next-hop relay ---
+
+    @Test
+    fun sendToNonNeighborUsesRoutingTable() = runTest {
+        // Alice knows Bob directly, Bob knows Charlie. Alice has a route to Charlie via Bob.
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val transportBob = VirtualMeshTransport(peerIdBob)
+        transportAlice.linkTo(transportBob)
+
+        val alice = MeshLink(transportAlice, meshLinkConfig(), coroutineContext)
+        alice.start()
+        advanceUntilIdle()
+
+        // Discover Bob (direct neighbor)
+        transportAlice.simulateDiscovery(peerIdBob)
+        advanceUntilIdle()
+
+        // Add a route to Charlie via Bob
+        alice.addRoute(
+            destination = peerIdCharlie.toHex(),
+            nextHop = peerIdBob.toHex(),
+            cost = 1.0,
+            sequenceNumber = 1u,
+        )
+
+        // Send to Charlie (not a direct neighbor) — should route via Bob
+        val result = alice.send(peerIdCharlie, "for charlie".encodeToByteArray())
+        assertTrue(result.isSuccess, "Should succeed via routing table")
+        advanceUntilIdle()
+
+        // Bob should have received a routed message (not a chunk)
+        val routedSent = transportAlice.sentData.filter { (peerId, data) ->
+            peerId == peerIdBob.toHex() && data.isNotEmpty() && data[0] == WireCodec.TYPE_ROUTED_MESSAGE
+        }
+        assertEquals(1, routedSent.size, "Should send routed message via Bob")
+        val msg = WireCodec.decodeRoutedMessage(routedSent[0].second)
+        assertContentEquals(peerIdCharlie, msg.destination)
+        assertContentEquals("for charlie".encodeToByteArray(), msg.payload)
+
+        alice.stop()
+    }
+
+    // --- Cycle 6 (Wire Integration): PresenceTracker with sweep eviction ---
+
+    @Test
+    fun presenceTrackerEvictsAfterTwoMissedSweeps() = runTest {
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val alice = MeshLink(transportAlice, meshLinkConfig(), coroutineContext)
+        alice.start()
+        advanceUntilIdle()
+
+        // Discover Bob
+        transportAlice.simulateDiscovery(peerIdBob)
+        advanceUntilIdle()
+        assertEquals(1, alice.meshHealth().connectedPeers)
+
+        // First sweep with empty seen set — Bob misses once (still tracked)
+        alice.sweep(emptySet())
+        assertEquals(1, alice.meshHealth().connectedPeers, "First miss: still tracked")
+
+        // Second sweep — Bob misses again → evicted
+        val evicted = alice.sweep(emptySet())
+        assertEquals(0, alice.meshHealth().connectedPeers, "Second miss: evicted")
+        assertEquals(1, evicted.size, "Should report 1 evicted peer")
+
+        alice.stop()
+    }
+
+    // --- Cycle 5 (Wire Integration): DiagnosticSink emits on rate limit ---
+
+    @Test
+    fun diagnosticEventEmittedOnRateLimit() = runTest {
+        var nowMs = 0L
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val alice = MeshLink(
+            transportAlice, meshLinkConfig(), coroutineContext,
+            rateLimitMaxSends = 1, rateLimitWindowMs = 60_000L, clock = { nowMs },
+        )
+        alice.start()
+        advanceUntilIdle()
+
+        transportAlice.simulateDiscovery(peerIdBob)
+        advanceUntilIdle()
+
+        // First send succeeds
+        alice.send(peerIdBob, "ok".encodeToByteArray())
+
+        // Second send rate-limited
+        alice.send(peerIdBob, "blocked".encodeToByteArray())
+
+        // Drain diagnostics
+        val events = alice.drainDiagnostics()
+        assertTrue(events.any { it.code == io.meshlink.diagnostics.DiagnosticCode.RATE_LIMIT_HIT },
+            "Should emit RATE_LIMIT_HIT diagnostic, got: $events")
+
+        alice.stop()
+    }
+
+    // --- Cycle 4 (Wire Integration): DeliveryTracker exactly-once terminal signal ---
+
+    @Test
+    fun deliveryTrackerPreventsDoubleConfirmation() = runTest {
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val transportBob = VirtualMeshTransport(peerIdBob)
+        transportAlice.linkTo(transportBob)
+
+        val alice = MeshLink(transportAlice, meshLinkConfig(), coroutineContext)
+        val bob = MeshLink(transportBob, meshLinkConfig(), coroutineContext)
+        alice.start(); bob.start()
+        advanceUntilIdle()
+
+        transportAlice.simulateDiscovery(peerIdBob)
+        transportBob.simulateDiscovery(peerIdAlice)
+        advanceUntilIdle()
+
+        // Collect all delivery confirmations
+        val confirmations = mutableListOf<Uuid>()
+        val collector = launch { alice.deliveryConfirmations.collect { confirmations.add(it) } }
+        advanceUntilIdle()
+
+        // Bob consumes messages
+        val bobJob = launch { bob.messages.first() }
+
+        val msgId = alice.send(peerIdBob, "hello".encodeToByteArray()).getOrThrow()
+        advanceUntilIdle()
+        bobJob.join()
+        advanceUntilIdle()
+
+        // First ACK should produce exactly 1 confirmation
+        assertEquals(1, confirmations.size, "Should get exactly 1 confirmation")
+        assertEquals(msgId, confirmations[0])
+
+        // Simulate a duplicate delivery ACK arriving
+        val ackData = WireCodec.encodeDeliveryAck(
+            messageId = msgId.toByteArray(),
+            recipientId = peerIdBob,
+        )
+        transportAlice.receiveData(peerIdBob, ackData)
+        advanceUntilIdle()
+
+        // Should still be exactly 1 (duplicate rejected by DeliveryTracker)
+        assertEquals(1, confirmations.size, "Duplicate ACK should not produce second confirmation")
+
+        collector.cancel()
+        alice.stop(); bob.stop()
+    }
+
+    // --- Cycle 3 (Wire Integration): Handle delivery ACK ---
+
+    @Test
+    fun deliveryAckEmitsConfirmation() = runTest {
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val alice = MeshLink(transportAlice, meshLinkConfig(), coroutineContext)
+        alice.start()
+        advanceUntilIdle()
+
+        transportAlice.simulateDiscovery(peerIdBob)
+        advanceUntilIdle()
+
+        var confirmed: Uuid? = null
+        val confirmJob = launch { confirmed = alice.deliveryConfirmations.first() }
+        advanceUntilIdle()
+
+        // Simulate receiving a delivery ACK from Bob
+        val msgId = Uuid.random()
+        val ackData = WireCodec.encodeDeliveryAck(
+            messageId = msgId.toByteArray(),
+            recipientId = peerIdBob,
+        )
+        transportAlice.receiveData(peerIdBob, ackData)
+        advanceUntilIdle()
+        confirmJob.join()
+
+        assertEquals(msgId, confirmed, "Delivery ACK should emit confirmation")
+
+        alice.stop()
+    }
+
+    // --- Cycle 2 (Wire Integration): Handle routed message ---
+
+    @Test
+    fun routedMessageDeliveredIfWeAreDestination() = runTest {
+        val transportBob = VirtualMeshTransport(peerIdBob)
+        val bob = MeshLink(transportBob, meshLinkConfig(), coroutineContext)
+        bob.start()
+        advanceUntilIdle()
+
+        transportBob.simulateDiscovery(peerIdAlice)
+        advanceUntilIdle()
+
+        val received = mutableListOf<Message>()
+        val collector = launch { bob.messages.collect { received.add(it) } }
+        advanceUntilIdle()
+
+        // Alice sends a routed message with Bob as destination
+        val msgId = Uuid.random().toByteArray()
+        val routedData = WireCodec.encodeRoutedMessage(
+            messageId = msgId,
+            origin = peerIdAlice,
+            destination = peerIdBob,
+            hopLimit = 3u,
+            visitedList = listOf(peerIdAlice),
+            payload = "routed hello".encodeToByteArray(),
+        )
+        transportBob.receiveData(peerIdAlice, routedData)
+        advanceUntilIdle()
+
+        assertEquals(1, received.size, "Routed message should be delivered")
+        assertContentEquals("routed hello".encodeToByteArray(), received[0].payload)
+        assertContentEquals(peerIdAlice, received[0].senderId)
+
+        collector.cancel()
+        bob.stop()
+    }
+
+    @Test
+    fun routedMessageRelayedIfNotDestination() = runTest {
+        // Alice--Bob--Charlie: Alice sends routed message destined for Charlie, Bob relays
+        val transportBob = VirtualMeshTransport(peerIdBob)
+        val transportCharlie = VirtualMeshTransport(peerIdCharlie)
+        transportBob.linkTo(transportCharlie)
+
+        val bob = MeshLink(transportBob, meshLinkConfig(), coroutineContext)
+        bob.start()
+        advanceUntilIdle()
+
+        transportBob.simulateDiscovery(peerIdAlice)
+        transportBob.simulateDiscovery(peerIdCharlie)
+        advanceUntilIdle()
+
+        // Bob receives a routed message destined for Charlie (not Bob)
+        val msgId = Uuid.random().toByteArray()
+        val routedData = WireCodec.encodeRoutedMessage(
+            messageId = msgId,
+            origin = peerIdAlice,
+            destination = peerIdCharlie,
+            hopLimit = 3u,
+            visitedList = listOf(peerIdAlice),
+            payload = "for charlie".encodeToByteArray(),
+        )
+        transportBob.receiveData(peerIdAlice, routedData)
+        advanceUntilIdle()
+
+        // Bob should NOT deliver to self (not the destination)
+        val bobMessages = mutableListOf<Message>()
+        val collector = launch { bob.messages.collect { bobMessages.add(it) } }
+        advanceUntilIdle()
+        assertEquals(0, bobMessages.size, "Bob should not deliver message not destined for him")
+
+        // Bob should relay to Charlie with Bob added to visited list
+        val relayed = transportBob.sentData.filter { (_, data) ->
+            data.isNotEmpty() && data[0] == WireCodec.TYPE_ROUTED_MESSAGE
+        }
+        assertEquals(1, relayed.size, "Bob should relay to Charlie")
+        val relayedMsg = WireCodec.decodeRoutedMessage(relayed[0].second)
+        assertEquals(2u.toUByte(), relayedMsg.hopLimit, "Hop limit should be decremented")
+        assertEquals(2, relayedMsg.visitedList.size, "Bob should be added to visited list")
+
+        collector.cancel()
+        bob.stop()
     }
 
     // --- Cycle 1 (Wire Integration): Handle incoming broadcast ---

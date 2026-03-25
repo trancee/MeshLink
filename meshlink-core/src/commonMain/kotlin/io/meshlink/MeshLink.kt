@@ -1,14 +1,22 @@
 package io.meshlink
 
 import io.meshlink.config.MeshLinkConfig
+import io.meshlink.diagnostics.DiagnosticCode
+import io.meshlink.diagnostics.DiagnosticEvent
+import io.meshlink.diagnostics.DiagnosticSink
 import io.meshlink.diagnostics.MeshHealthSnapshot
+import io.meshlink.diagnostics.Severity
 import io.meshlink.model.Message
 import io.meshlink.model.PeerEvent
 import io.meshlink.model.TransferProgress
 import io.meshlink.routing.DedupSet
+import io.meshlink.routing.PresenceTracker
+import io.meshlink.routing.RoutingTable
 import io.meshlink.transfer.SackTracker
 import io.meshlink.transfer.TransferSession
 import io.meshlink.transport.BleTransport
+import io.meshlink.util.DeliveryOutcome
+import io.meshlink.util.DeliveryTracker
 import io.meshlink.util.RateLimiter
 import io.meshlink.wire.WireCodec
 import kotlinx.coroutines.CoroutineScope
@@ -32,6 +40,8 @@ class MeshLink(
     rateLimitWindowMs: Long = 60_000L,
     clock: () -> Long = { System.currentTimeMillis() },
 ) : MeshLinkApi {
+
+    private val clock = clock
 
     private val rateLimiter: RateLimiter? =
         if (rateLimitMaxSends > 0) RateLimiter(rateLimitMaxSends, rateLimitWindowMs, clock) else null
@@ -60,11 +70,20 @@ class MeshLink(
     // Queued sends while paused: (recipient, payload)
     private val pauseQueue = mutableListOf<Pair<ByteArray, ByteArray>>()
 
-    // Known peers (tracked for meshHealth)
-    private val knownPeers = mutableSetOf<String>()
+    // Peer presence tracking (replaces simple knownPeers set)
+    private val presenceTracker = PresenceTracker()
 
     // Deduplication of fully reassembled messages
     private val dedup = DedupSet()
+
+    // Delivery tracking for exactly-once terminal signals
+    private val deliveryTracker = DeliveryTracker()
+
+    // Diagnostic event sink
+    private val diagnosticSink = DiagnosticSink(clock = clock)
+
+    // Routing table for multi-hop relay
+    private val routingTable = RoutingTable()
 
     override fun start(): Result<Unit> {
         if (started) return Result.success(Unit)
@@ -84,14 +103,14 @@ class MeshLink(
         newScope.launch {
             transport.advertisementEvents.collect { event ->
                 if (!paused) {
-                    knownPeers.add(event.peerId.toHex())
+                    presenceTracker.peerSeen(event.peerId.toHex())
                     _peers.emit(PeerEvent.Discovered(event.peerId))
                 }
             }
         }
         newScope.launch {
             transport.peerLostEvents.collect { event ->
-                knownPeers.remove(event.peerId.toHex())
+                // Don't remove from presenceTracker here — let sweep handle it
                 _peers.emit(PeerEvent.Lost(event.peerId))
             }
         }
@@ -108,7 +127,6 @@ class MeshLink(
         started = false
         reassembly.clear()
         outboundTransfers.clear()
-        knownPeers.clear()
         scope?.cancel()
         scope = null
     }
@@ -130,12 +148,48 @@ class MeshLink(
     }
 
     override fun meshHealth(): MeshHealthSnapshot = MeshHealthSnapshot(
-        connectedPeers = knownPeers.size,
-        reachablePeers = knownPeers.size,
+        connectedPeers = presenceTracker.allPeerIds().size,
+        reachablePeers = presenceTracker.connectedPeerIds().size,
         bufferUtilizationPercent = 0,
         activeTransfers = outboundTransfers.size,
         powerMode = "PERFORMANCE",
     )
+
+    override fun drainDiagnostics(): List<DiagnosticEvent> {
+        val events = mutableListOf<DiagnosticEvent>()
+        diagnosticSink.drainTo(events)
+        return events
+    }
+
+    override fun sweep(seenPeers: Set<String>): Set<String> {
+        val evicted = presenceTracker.sweep(seenPeers)
+        for (peerId in evicted) {
+            diagnosticSink.emit(DiagnosticCode.PEER_EVICTED, Severity.INFO, "peerId=$peerId")
+        }
+        return evicted
+    }
+
+    override fun addRoute(destination: String, nextHop: String, cost: Double, sequenceNumber: UInt) {
+        routingTable.addRoute(destination, nextHop, cost, sequenceNumber)
+    }
+
+    override fun broadcast(payload: ByteArray, maxHops: UByte): Result<Uuid> {
+        if (!started) throw IllegalStateException("MeshLink not started")
+        val s = scope ?: throw IllegalStateException("MeshLink not started")
+        val messageId = Uuid.random()
+        val encoded = WireCodec.encodeBroadcast(
+            messageId = messageId.toByteArray(),
+            origin = transport.localPeerId,
+            remainingHops = maxHops,
+            payload = payload,
+        )
+        // Mark as seen so we don't deliver our own broadcast back to ourselves
+        dedup.tryInsert(messageId.toByteArray().toHex())
+        for (peerHex in presenceTracker.allPeerIds()) {
+            s.launch { transport.sendToPeer(hexToBytes(peerHex), encoded) }
+        }
+        return Result.success(messageId)
+    }
 
     override fun send(recipient: ByteArray, payload: ByteArray): Result<Uuid> {
         if (!started) throw IllegalStateException("MeshLink not started")
@@ -154,6 +208,7 @@ class MeshLink(
         if (rateLimiter != null) {
             val key = recipient.toHex()
             if (!rateLimiter.tryAcquire(key)) {
+                diagnosticSink.emit(DiagnosticCode.RATE_LIMIT_HIT, Severity.WARN, "recipient=$key")
                 return Result.failure(IllegalStateException("Rate limit exceeded"))
             }
         }
@@ -167,8 +222,13 @@ class MeshLink(
             return Result.success(messageId)
         }
 
-        // Check if recipient is known
-        if (recipient.toHex() !in knownPeers) {
+        // Check if recipient is known directly
+        if (recipient.toHex() !in presenceTracker.allPeerIds()) {
+            // Try routing table for multi-hop
+            val route = routingTable.bestRoute(recipient.toHex())
+            if (route != null) {
+                return doRoutedSend(s, recipient, payload, route.nextHop)
+            }
             return Result.failure(IllegalStateException("No route to unknown peer"))
         }
 
@@ -177,6 +237,8 @@ class MeshLink(
 
     private fun doSend(s: CoroutineScope, recipient: ByteArray, payload: ByteArray): Result<Uuid> {
         val messageId = Uuid.random().toByteArray()
+        val key = messageId.toHex()
+        deliveryTracker.register(key)
         val chunkSize = config.mtu - WireCodec.CHUNK_HEADER_SIZE
         val chunks = if (payload.isEmpty()) {
             listOf(ByteArray(0))
@@ -188,13 +250,31 @@ class MeshLink(
         }
         val totalChunks = chunks.size
         val session = TransferSession(totalChunks, initialWindow = totalChunks)
-        val key = messageId.toHex()
         outboundTransfers[key] = OutboundTransfer(session, chunks, recipient, messageId)
 
         // Send initial batch
         sendChunks(s, key)
 
         return Result.success(Uuid.fromByteArray(messageId))
+    }
+
+    private fun doRoutedSend(
+        s: CoroutineScope,
+        destination: ByteArray,
+        payload: ByteArray,
+        nextHopHex: String,
+    ): Result<Uuid> {
+        val messageId = Uuid.random()
+        val encoded = WireCodec.encodeRoutedMessage(
+            messageId = messageId.toByteArray(),
+            origin = transport.localPeerId,
+            destination = destination,
+            hopLimit = 10u,
+            visitedList = listOf(transport.localPeerId),
+            payload = payload,
+        )
+        s.launch { transport.sendToPeer(hexToBytes(nextHopHex), encoded) }
+        return Result.success(messageId)
     }
 
     private fun sendChunks(s: CoroutineScope, transferKey: String) {
@@ -216,6 +296,9 @@ class MeshLink(
         when (data[0]) {
             WireCodec.TYPE_CHUNK -> handleChunk(fromPeerId, data)
             WireCodec.TYPE_CHUNK_ACK -> handleChunkAck(data)
+            WireCodec.TYPE_BROADCAST -> handleBroadcast(fromPeerId, data)
+            WireCodec.TYPE_ROUTED_MESSAGE -> handleRoutedMessage(fromPeerId, data)
+            WireCodec.TYPE_DELIVERY_ACK -> handleDeliveryAck(data)
         }
     }
 
@@ -276,10 +359,85 @@ class MeshLink(
 
         if (transfer.session.isComplete()) {
             outboundTransfers.remove(key)
-            _deliveryConfirmations.emit(Uuid.fromByteArray(ack.messageId))
+            if (deliveryTracker.recordOutcome(key, DeliveryOutcome.CONFIRMED) != null) {
+                _deliveryConfirmations.emit(Uuid.fromByteArray(ack.messageId))
+            }
         } else {
             // Retransmit missing chunks
             sendChunks(scope!!, key)
+        }
+    }
+
+    private suspend fun handleBroadcast(fromPeerId: ByteArray, data: ByteArray) {
+        val broadcast = WireCodec.decodeBroadcast(data)
+        val key = broadcast.messageId.toHex()
+
+        // Dedup: reject if we've seen this broadcast before
+        if (!dedup.tryInsert(key)) return
+
+        // Deliver to self
+        _messages.emit(Message(senderId = broadcast.origin, payload = broadcast.payload))
+
+        // Re-flood to all known peers except sender, if hops remain
+        if (broadcast.remainingHops > 0u) {
+            val reflooded = WireCodec.encodeBroadcast(
+                messageId = broadcast.messageId,
+                origin = broadcast.origin,
+                remainingHops = (broadcast.remainingHops - 1u).toUByte(),
+                payload = broadcast.payload,
+            )
+            val senderHex = fromPeerId.toHex()
+            val s = scope ?: return
+            for (peerHex in presenceTracker.allPeerIds()) {
+                if (peerHex != senderHex) {
+                    s.launch { transport.sendToPeer(hexToBytes(peerHex), reflooded) }
+                }
+            }
+        }
+    }
+
+    private suspend fun handleRoutedMessage(fromPeerId: ByteArray, data: ByteArray) {
+        val routed = WireCodec.decodeRoutedMessage(data)
+        val key = routed.messageId.toHex()
+
+        if (!dedup.tryInsert(key)) return
+
+        // If we are the destination, deliver locally
+        if (routed.destination.contentEquals(transport.localPeerId)) {
+            _messages.emit(Message(senderId = routed.origin, payload = routed.payload))
+            return
+        }
+
+        // Otherwise relay: decrement hop limit, add self to visited, forward
+        if (routed.hopLimit <= 0u) return
+        val newVisited = routed.visitedList + listOf(transport.localPeerId)
+        val relayed = WireCodec.encodeRoutedMessage(
+            messageId = routed.messageId,
+            origin = routed.origin,
+            destination = routed.destination,
+            hopLimit = (routed.hopLimit - 1u).toUByte(),
+            visitedList = newVisited,
+            payload = routed.payload,
+        )
+
+        // Forward to destination if directly known, otherwise best route
+        val destHex = routed.destination.toHex()
+        val nextHop = if (destHex in presenceTracker.allPeerIds()) {
+            routed.destination
+        } else {
+            // For now, no routing table lookup — drop if unknown
+            return
+        }
+        scope?.launch { transport.sendToPeer(nextHop, relayed) }
+    }
+
+    private suspend fun handleDeliveryAck(data: ByteArray) {
+        val ack = WireCodec.decodeDeliveryAck(data)
+        val key = ack.messageId.toHex()
+        // If tracked, use exactly-once guard; if untracked, accept (external ACK)
+        val outcome = deliveryTracker.recordOutcome(key, DeliveryOutcome.CONFIRMED)
+        if (outcome != null || !deliveryTracker.isTracked(key)) {
+            _deliveryConfirmations.emit(Uuid.fromByteArray(ack.messageId))
         }
     }
 }
@@ -298,3 +456,11 @@ private class OutboundTransfer(
 
 private fun ByteArray.toHex(): String =
     joinToString("") { it.toUByte().toString(16).padStart(2, '0') }
+
+private fun hexToBytes(hex: String): ByteArray {
+    val result = ByteArray(hex.length / 2)
+    for (i in result.indices) {
+        result[i] = hex.substring(i * 2, i * 2 + 2).toInt(16).toByte()
+    }
+    return result
+}
