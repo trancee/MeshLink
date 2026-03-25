@@ -107,4 +107,57 @@ class WireCodecTest {
         assertEquals(1000u.toUShort(), decoded.ackSequence)
         assertEquals(ULong.MAX_VALUE, decoded.sackBitmask)
     }
+
+    // --- Routed message (0x05) ---
+
+    private val originId = ByteArray(16) { (0xA0 + it).toByte() }
+    private val destinationId = ByteArray(16) { (0xD0.toByte() + it).toByte() }
+
+    @Test
+    fun routedMessageEncodesWithVisitedListGoldenBytes() {
+        val visitedHash = ByteArray(16) { (0xF0.toByte() + it).toByte() }
+        val payload = "relay".encodeToByteArray()
+
+        val encoded = WireCodec.encodeRoutedMessage(
+            messageId = testMessageId,
+            origin = originId,
+            destination = destinationId,
+            hopLimit = 5u,
+            visitedList = listOf(visitedHash),
+            payload = payload,
+        )
+
+        // type(1) + messageId(16) + origin(16) + destination(16) + hopLimit(1) + visitedCount(1) + visited(16) + payload(5) = 72
+        assertEquals(72, encoded.size)
+        assertEquals(0x05, encoded[0])  // type
+        assertEquals(5.toByte(), encoded[49]) // hopLimit
+        assertEquals(1.toByte(), encoded[50]) // visitedCount
+    }
+
+    @Test
+    fun routedMessageRoundTrips() {
+        val visited1 = ByteArray(16) { (0xF0.toByte() + it).toByte() }
+        val visited2 = ByteArray(16) { (0xE0.toByte() + it).toByte() }
+        val payload = ByteArray(100) { (it % 256).toByte() }
+
+        val encoded = WireCodec.encodeRoutedMessage(
+            messageId = testMessageId,
+            origin = originId,
+            destination = destinationId,
+            hopLimit = 10u,
+            visitedList = listOf(visited1, visited2),
+            payload = payload,
+        )
+
+        val decoded = WireCodec.decodeRoutedMessage(encoded)
+
+        assertContentEquals(testMessageId, decoded.messageId)
+        assertContentEquals(originId, decoded.origin)
+        assertContentEquals(destinationId, decoded.destination)
+        assertEquals(10u.toUByte(), decoded.hopLimit)
+        assertEquals(2, decoded.visitedList.size)
+        assertContentEquals(visited1, decoded.visitedList[0])
+        assertContentEquals(visited2, decoded.visitedList[1])
+        assertContentEquals(payload, decoded.payload)
+    }
 }

@@ -6,6 +6,7 @@ object WireCodec {
 
     const val TYPE_CHUNK: Byte = 0x03
     const val TYPE_CHUNK_ACK: Byte = 0x04
+    const val TYPE_ROUTED_MESSAGE: Byte = 0x05
 
     // chunk: type(1) + messageId(16) + seqNum(2 LE) + totalChunks(2 LE) + payload
     const val CHUNK_HEADER_SIZE = 1 + MESSAGE_ID_SIZE + 2 + 2 // 21
@@ -63,6 +64,49 @@ object WireCodec {
         val sackBitmask = data.getULongLE(offset)
         return ChunkAckMessage(messageId, ackSequence, sackBitmask)
     }
+
+    // routed_message: type(1) + messageId(16) + origin(16) + destination(16) + hopLimit(1) + visitedCount(1) + visited(N×16) + payload
+    private const val ROUTED_HEADER_SIZE = 1 + MESSAGE_ID_SIZE + 16 + 16 + 1 + 1 // 51
+
+    fun encodeRoutedMessage(
+        messageId: ByteArray,
+        origin: ByteArray,
+        destination: ByteArray,
+        hopLimit: UByte,
+        visitedList: List<ByteArray>,
+        payload: ByteArray,
+    ): ByteArray {
+        val buf = ByteArray(ROUTED_HEADER_SIZE + visitedList.size * 16 + payload.size)
+        var offset = 0
+        buf[offset++] = TYPE_ROUTED_MESSAGE
+        messageId.copyInto(buf, offset); offset += MESSAGE_ID_SIZE
+        origin.copyInto(buf, offset); offset += 16
+        destination.copyInto(buf, offset); offset += 16
+        buf[offset++] = hopLimit.toByte()
+        buf[offset++] = visitedList.size.toByte()
+        for (hash in visitedList) {
+            hash.copyInto(buf, offset); offset += 16
+        }
+        payload.copyInto(buf, offset)
+        return buf
+    }
+
+    fun decodeRoutedMessage(data: ByteArray): RoutedMessage {
+        require(data.size >= ROUTED_HEADER_SIZE) { "routed_message too short: ${data.size}" }
+        require(data[0] == TYPE_ROUTED_MESSAGE) { "not a routed_message: 0x${data[0].toUByte().toString(16)}" }
+        var offset = 1
+        val messageId = data.copyOfRange(offset, offset + MESSAGE_ID_SIZE); offset += MESSAGE_ID_SIZE
+        val origin = data.copyOfRange(offset, offset + 16); offset += 16
+        val destination = data.copyOfRange(offset, offset + 16); offset += 16
+        val hopLimit = data[offset++].toUByte()
+        val visitedCount = data[offset++].toInt() and 0xFF
+        val visitedList = (0 until visitedCount).map {
+            val hash = data.copyOfRange(offset, offset + 16); offset += 16
+            hash
+        }
+        val payload = data.copyOfRange(offset, data.size)
+        return RoutedMessage(messageId, origin, destination, hopLimit, visitedList, payload)
+    }
 }
 
 // --- Little-endian helpers ---
@@ -105,4 +149,13 @@ data class ChunkAckMessage(
     val messageId: ByteArray,
     val ackSequence: UShort,
     val sackBitmask: ULong,
+)
+
+data class RoutedMessage(
+    val messageId: ByteArray,
+    val origin: ByteArray,
+    val destination: ByteArray,
+    val hopLimit: UByte,
+    val visitedList: List<ByteArray>,
+    val payload: ByteArray,
 )
