@@ -9,6 +9,9 @@ import kotlinx.coroutines.flow.Flow
  */
 interface BleTransport {
 
+    /** The local peer identifier for this device. */
+    val localPeerId: ByteArray
+
     /** Start advertising and scanning. */
     suspend fun startAdvertisingAndScanning()
 

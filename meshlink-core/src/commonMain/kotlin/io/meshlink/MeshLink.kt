@@ -1,12 +1,15 @@
 package io.meshlink
 
 import io.meshlink.config.MeshLinkConfig
+import io.meshlink.diagnostics.MeshHealthSnapshot
 import io.meshlink.model.Message
 import io.meshlink.model.PeerEvent
 import io.meshlink.model.TransferProgress
+import io.meshlink.routing.DedupSet
 import io.meshlink.transfer.SackTracker
 import io.meshlink.transfer.TransferSession
 import io.meshlink.transport.BleTransport
+import io.meshlink.util.RateLimiter
 import io.meshlink.wire.WireCodec
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
@@ -25,7 +28,13 @@ class MeshLink(
     private val transport: BleTransport,
     private val config: MeshLinkConfig = MeshLinkConfig(),
     coroutineContext: CoroutineContext = EmptyCoroutineContext,
+    rateLimitMaxSends: Int = 0,
+    rateLimitWindowMs: Long = 60_000L,
+    clock: () -> Long = { System.currentTimeMillis() },
 ) : MeshLinkApi {
+
+    private val rateLimiter: RateLimiter? =
+        if (rateLimitMaxSends > 0) RateLimiter(rateLimitMaxSends, rateLimitWindowMs, clock) else null
 
     private val _peers = MutableSharedFlow<PeerEvent>(replay = 64)
     private val _messages = MutableSharedFlow<Message>(extraBufferCapacity = 64)
@@ -51,8 +60,20 @@ class MeshLink(
     // Queued sends while paused: (recipient, payload)
     private val pauseQueue = mutableListOf<Pair<ByteArray, ByteArray>>()
 
+    // Known peers (tracked for meshHealth)
+    private val knownPeers = mutableSetOf<String>()
+
+    // Deduplication of fully reassembled messages
+    private val dedup = DedupSet()
+
     override fun start(): Result<Unit> {
         if (started) return Result.success(Unit)
+
+        val violations = config.validate()
+        if (violations.isNotEmpty()) {
+            return Result.failure(IllegalArgumentException(violations.joinToString("; ")))
+        }
+
         started = true
         val newScope = CoroutineScope(baseContext + SupervisorJob())
         scope = newScope
@@ -63,12 +84,14 @@ class MeshLink(
         newScope.launch {
             transport.advertisementEvents.collect { event ->
                 if (!paused) {
+                    knownPeers.add(event.peerId.toHex())
                     _peers.emit(PeerEvent.Discovered(event.peerId))
                 }
             }
         }
         newScope.launch {
             transport.peerLostEvents.collect { event ->
+                knownPeers.remove(event.peerId.toHex())
                 _peers.emit(PeerEvent.Lost(event.peerId))
             }
         }
@@ -85,6 +108,7 @@ class MeshLink(
         started = false
         reassembly.clear()
         outboundTransfers.clear()
+        knownPeers.clear()
         scope?.cancel()
         scope = null
     }
@@ -105,6 +129,14 @@ class MeshLink(
         }
     }
 
+    override fun meshHealth(): MeshHealthSnapshot = MeshHealthSnapshot(
+        connectedPeers = knownPeers.size,
+        reachablePeers = knownPeers.size,
+        bufferUtilizationPercent = 0,
+        activeTransfers = outboundTransfers.size,
+        powerMode = "PERFORMANCE",
+    )
+
     override fun send(recipient: ByteArray, payload: ByteArray): Result<Uuid> {
         if (!started) throw IllegalStateException("MeshLink not started")
         val s = scope ?: throw IllegalStateException("MeshLink not started")
@@ -116,6 +148,28 @@ class MeshLink(
         if (paused) {
             pauseQueue.add(recipient to payload)
             return Result.success(Uuid.random())
+        }
+
+        // Rate limit check (per-recipient)
+        if (rateLimiter != null) {
+            val key = recipient.toHex()
+            if (!rateLimiter.tryAcquire(key)) {
+                return Result.failure(IllegalStateException("Rate limit exceeded"))
+            }
+        }
+
+        // Self-send loopback: deliver locally without BLE
+        if (recipient.contentEquals(transport.localPeerId)) {
+            val messageId = Uuid.random()
+            s.launch {
+                _messages.emit(Message(senderId = recipient, payload = payload))
+            }
+            return Result.success(messageId)
+        }
+
+        // Check if recipient is known
+        if (recipient.toHex() !in knownPeers) {
+            return Result.failure(IllegalStateException("No route to unknown peer"))
         }
 
         return doSend(s, recipient, payload)
@@ -186,6 +240,7 @@ class MeshLink(
 
         if (state.sackTracker.isComplete()) {
             reassembly.remove(key)
+            if (!dedup.tryInsert(key)) return // duplicate message
             val fullPayload = (0 until state.totalChunks)
                 .map { state.chunks[it]!! }
                 .reduce { acc, bytes -> acc + bytes }

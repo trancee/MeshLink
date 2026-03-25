@@ -6,6 +6,7 @@ import io.meshlink.model.PeerEvent
 import io.meshlink.transport.VirtualMeshTransport
 import io.meshlink.wire.WireCodec
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
@@ -194,8 +195,8 @@ class MeshLinkTest {
         val transportBob = VirtualMeshTransport(peerIdBob)
         transportAlice.linkTo(transportBob)
 
-        // Tiny buffer: 500 bytes
-        val alice = MeshLink(transportAlice, meshLinkConfig { bufferCapacity = 500 }, coroutineContext)
+        // Tiny buffer: 500 bytes, with matching maxMessageSize
+        val alice = MeshLink(transportAlice, meshLinkConfig { bufferCapacity = 500; maxMessageSize = 500 }, coroutineContext)
         alice.start()
         advanceUntilIdle()
 
@@ -465,6 +466,272 @@ class MeshLinkTest {
         assertContentEquals(peerIdCharlie, (events[1] as PeerEvent.Discovered).peerId)
 
         collector.cancel()
+        alice.stop()
+    }
+
+    // --- Cycle 8 (Integration): Pause queues in FIFO order ---
+
+    @Test
+    fun pauseQueueDeliversSendsInFifoOrder() = runTest {
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val transportBob = VirtualMeshTransport(peerIdBob)
+        transportAlice.linkTo(transportBob)
+
+        val alice = MeshLink(transportAlice, meshLinkConfig(), coroutineContext)
+        val bob = MeshLink(transportBob, meshLinkConfig(), coroutineContext)
+        alice.start(); bob.start()
+        advanceUntilIdle()
+
+        transportAlice.simulateDiscovery(peerIdBob)
+        transportBob.simulateDiscovery(peerIdAlice)
+        advanceUntilIdle()
+
+        // Pause Alice
+        alice.pause()
+        advanceUntilIdle()
+
+        // Queue 3 messages while paused
+        alice.send(peerIdBob, "first".encodeToByteArray())
+        alice.send(peerIdBob, "second".encodeToByteArray())
+        alice.send(peerIdBob, "third".encodeToByteArray())
+
+        val received = mutableListOf<Message>()
+        val collector = launch { bob.messages.take(3).toList().let { received.addAll(it) } }
+        advanceUntilIdle()
+
+        // Resume — queued sends should deliver in order
+        alice.resume()
+        advanceUntilIdle()
+        collector.join()
+
+        assertEquals(3, received.size, "Should receive all 3 queued messages")
+        assertContentEquals("first".encodeToByteArray(), received[0].payload)
+        assertContentEquals("second".encodeToByteArray(), received[1].payload)
+        assertContentEquals("third".encodeToByteArray(), received[2].payload)
+
+        alice.stop(); bob.stop()
+    }
+
+    // --- Cycle 7 (Integration): Dedup rejects duplicate messages ---
+
+    @Test
+    fun duplicateMessageDeliveredOnlyOnce() = runTest {
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val transportBob = VirtualMeshTransport(peerIdBob)
+        transportAlice.linkTo(transportBob)
+
+        val alice = MeshLink(transportAlice, meshLinkConfig(), coroutineContext)
+        val bob = MeshLink(transportBob, meshLinkConfig(), coroutineContext)
+        alice.start(); bob.start()
+        advanceUntilIdle()
+
+        transportAlice.simulateDiscovery(peerIdBob)
+        transportBob.simulateDiscovery(peerIdAlice)
+        advanceUntilIdle()
+
+        val received = mutableListOf<Message>()
+        val collector = launch { bob.messages.collect { received.add(it) } }
+        advanceUntilIdle()
+
+        // Alice sends a single-chunk message
+        alice.send(peerIdBob, "hello".encodeToByteArray())
+        advanceUntilIdle()
+
+        assertEquals(1, received.size, "Should receive message once")
+
+        // Replay the same raw chunk data to Bob (simulating duplicate delivery)
+        val sentChunks = transportAlice.sentData.filter { (_, d) ->
+            d.isNotEmpty() && d[0] == WireCodec.TYPE_CHUNK
+        }
+        assertEquals(1, sentChunks.size)
+        transportBob.receiveData(peerIdAlice, sentChunks[0].second)
+        advanceUntilIdle()
+
+        // Bob should still only have 1 message (duplicate rejected)
+        assertEquals(1, received.size, "Duplicate should be rejected by dedup")
+
+        collector.cancel()
+        alice.stop(); bob.stop()
+    }
+
+    // --- Cycle 6 (Integration): Delivery failure for unknown peer ---
+
+    @Test
+    fun sendToUnknownPeerReturnsFailure() = runTest {
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val alice = MeshLink(transportAlice, meshLinkConfig(), coroutineContext)
+        alice.start()
+        advanceUntilIdle()
+
+        // No peers discovered — send to Bob should fail
+        val unknownPeer = ByteArray(16) { 0xFF.toByte() }
+        val result = alice.send(unknownPeer, "hello".encodeToByteArray())
+        assertTrue(result.isFailure, "Send to unknown peer should fail")
+        assertTrue("no route" in result.exceptionOrNull()!!.message!!.lowercase() ||
+            "unknown" in result.exceptionOrNull()!!.message!!.lowercase(),
+            "Should mention no route/unknown: ${result.exceptionOrNull()!!.message}")
+
+        alice.stop()
+    }
+
+    // --- Cycle 5 (Integration): meshHealth() snapshot ---
+
+    @Test
+    fun meshHealthReturnsFreshSnapshot() = runTest {
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val transportBob = VirtualMeshTransport(peerIdBob)
+        transportAlice.linkTo(transportBob)
+
+        val alice = MeshLink(transportAlice, meshLinkConfig(), coroutineContext)
+        alice.start()
+        advanceUntilIdle()
+
+        // Initially: no peers, no transfers
+        var health = alice.meshHealth()
+        assertEquals(0, health.connectedPeers)
+        assertEquals(0, health.activeTransfers)
+
+        // Discover Bob
+        transportAlice.simulateDiscovery(peerIdBob)
+        advanceUntilIdle()
+
+        health = alice.meshHealth()
+        assertEquals(1, health.connectedPeers)
+
+        alice.stop()
+    }
+
+    // --- Cycle 4 (Integration): Rate limiting on sends ---
+
+    @Test
+    fun rateLimitRejectsExcessSends() = runTest {
+        var nowMs = 0L
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val transportBob = VirtualMeshTransport(peerIdBob)
+        transportAlice.linkTo(transportBob)
+
+        val alice = MeshLink(
+            transportAlice,
+            meshLinkConfig(),
+            coroutineContext,
+            rateLimitMaxSends = 3,
+            rateLimitWindowMs = 60_000L,
+            clock = { nowMs },
+        )
+        alice.start()
+        advanceUntilIdle()
+        transportAlice.simulateDiscovery(peerIdBob)
+        advanceUntilIdle()
+
+        // 3 sends within window should succeed
+        for (i in 1..3) {
+            val r = alice.send(peerIdBob, "msg$i".encodeToByteArray())
+            assertTrue(r.isSuccess, "Send $i should succeed")
+        }
+
+        // 4th send should be rate-limited
+        val r4 = alice.send(peerIdBob, "msg4".encodeToByteArray())
+        assertTrue(r4.isFailure, "4th send should be rate-limited")
+        assertTrue("rate" in r4.exceptionOrNull()!!.message!!.lowercase())
+
+        // Advance time past the window → should succeed again
+        nowMs = 61_000L
+        val r5 = alice.send(peerIdBob, "msg5".encodeToByteArray())
+        assertTrue(r5.isSuccess, "Send after window reset should succeed")
+
+        alice.stop()
+    }
+
+    // --- Cycle 3 (Integration): Callback exception isolation ---
+
+    @Test
+    fun exceptionInSubscriberDoesNotCrashLibrary() = runTest {
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val transportBob = VirtualMeshTransport(peerIdBob)
+        transportAlice.linkTo(transportBob)
+
+        val alice = MeshLink(transportAlice, meshLinkConfig(), coroutineContext)
+        val bob = MeshLink(transportBob, meshLinkConfig(), coroutineContext)
+        alice.start(); bob.start()
+        advanceUntilIdle()
+
+        transportAlice.simulateDiscovery(peerIdBob)
+        transportBob.simulateDiscovery(peerIdAlice)
+        advanceUntilIdle()
+
+        // Bob has a crashy subscriber and a well-behaved one
+        val goodMessages = mutableListOf<Message>()
+        val handler = kotlinx.coroutines.CoroutineExceptionHandler { _, _ -> /* swallow */ }
+        val crashJob = launch(SupervisorJob() + handler) {
+            bob.messages.collect {
+                throw RuntimeException("app callback crash!")
+            }
+        }
+        val goodJob = launch {
+            bob.messages.take(2).toList().let { goodMessages.addAll(it) }
+        }
+        advanceUntilIdle()
+
+        // Send two messages
+        alice.send(peerIdBob, "msg1".encodeToByteArray())
+        advanceUntilIdle()
+        alice.send(peerIdBob, "msg2".encodeToByteArray())
+        advanceUntilIdle()
+
+        goodJob.join()
+
+        // Well-behaved subscriber should get both messages
+        assertEquals(2, goodMessages.size, "Good subscriber should receive both messages")
+        assertContentEquals("msg1".encodeToByteArray(), goodMessages[0].payload)
+        assertContentEquals("msg2".encodeToByteArray(), goodMessages[1].payload)
+
+        crashJob.cancel()
+        alice.stop(); bob.stop()
+    }
+
+    // --- Cycle 2 (Integration): Config validation at start() ---
+
+    @Test
+    fun startFailsWithAllViolationsWhenConfigInvalid() = runTest {
+        val transport = VirtualMeshTransport(peerIdAlice)
+        val badConfig = meshLinkConfig {
+            mtu = 10              // too small (< 22)
+            maxMessageSize = 2_000_000  // > bufferCapacity
+        }
+        val mesh = MeshLink(transport, badConfig, coroutineContext)
+
+        val result = mesh.start()
+        assertTrue(result.isFailure, "start() should fail with invalid config")
+        val message = result.exceptionOrNull()!!.message!!
+        assertTrue("mtu" in message.lowercase(), "Should mention mtu: $message")
+        assertTrue("maxmessagesize" in message.lowercase() || "buffer" in message.lowercase(),
+            "Should mention buffer/size violation: $message")
+    }
+
+    // --- Cycle 1 (Integration): Self-send loopback ---
+
+    @Test
+    fun selfSendDeliversViaMesagesFlowWithoutBle() = runTest {
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val alice = MeshLink(transportAlice, meshLinkConfig(), coroutineContext)
+        alice.start()
+        advanceUntilIdle()
+
+        // Send to self — should arrive via messages Flow, no BLE
+        val receiveJob = launch {
+            val msg = alice.messages.first()
+            assertContentEquals(peerIdAlice, msg.senderId)
+            assertContentEquals("self-loop".encodeToByteArray(), msg.payload)
+        }
+
+        val result = alice.send(peerIdAlice, "self-loop".encodeToByteArray())
+        assert(result.isSuccess) { "self-send should succeed" }
+        advanceUntilIdle()
+        receiveJob.join()
+
+        // No BLE data should have been sent
+        assertTrue(transportAlice.sentData.isEmpty(), "Self-send should not use BLE transport")
+
         alice.stop()
     }
 

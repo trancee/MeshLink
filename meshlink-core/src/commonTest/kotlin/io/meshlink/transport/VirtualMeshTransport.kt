@@ -9,7 +9,7 @@ import kotlinx.coroutines.flow.asSharedFlow
  * Each instance represents one virtual device in the mesh.
  */
 class VirtualMeshTransport(
-    private val localPeerId: ByteArray,
+    override val localPeerId: ByteArray,
 ) : BleTransport {
 
     private val _advertisementEvents = MutableSharedFlow<AdvertisementEvent>(extraBufferCapacity = 64)

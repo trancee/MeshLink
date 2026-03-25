@@ -1,5 +1,6 @@
 package io.meshlink
 
+import io.meshlink.diagnostics.MeshHealthSnapshot
 import io.meshlink.model.Message
 import io.meshlink.model.PeerEvent
 import io.meshlink.model.TransferProgress
@@ -15,6 +16,7 @@ interface MeshLinkApi {
     fun pause()
     fun resume()
     fun send(recipient: ByteArray, payload: ByteArray): Result<Uuid>
+    fun meshHealth(): MeshHealthSnapshot
     val peers: Flow<PeerEvent>
     val messages: Flow<Message>
     val deliveryConfirmations: Flow<Uuid>
