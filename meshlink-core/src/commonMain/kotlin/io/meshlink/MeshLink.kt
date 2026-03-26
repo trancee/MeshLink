@@ -45,6 +45,8 @@ class MeshLink(
     circuitBreakerMaxFailures: Int = 0,
     circuitBreakerWindowMs: Long = 60_000L,
     circuitBreakerCooldownMs: Long = 30_000L,
+    diagnosticBufferCapacity: Int = 256,
+    dedupCapacity: Int = 10_000,
     clock: () -> Long = { System.currentTimeMillis() },
 ) : MeshLinkApi {
 
@@ -84,16 +86,19 @@ class MeshLink(
     private val presenceTracker = PresenceTracker()
 
     // Deduplication of fully reassembled messages
-    private val dedup = DedupSet()
+    private val dedup = DedupSet(capacity = dedupCapacity)
 
     // Delivery tracking for exactly-once terminal signals
     private val deliveryTracker = DeliveryTracker()
 
     // Diagnostic event sink
-    private val diagnosticSink = DiagnosticSink(clock = clock)
+    private val diagnosticSink = DiagnosticSink(bufferCapacity = diagnosticBufferCapacity, clock = clock)
 
     // Routing table for multi-hop relay
     private val routingTable = RoutingTable()
+
+    // Reverse path for delivery ACK relay: messageId hex → fromPeerId
+    private val routedMsgSources = mutableMapOf<String, ByteArray>()
 
     // Power mode engine for battery-aware operation
     private val powerModeEngine = PowerModeEngine(clock = clock)
@@ -143,6 +148,7 @@ class MeshLink(
         outboundTransfers.clear()
         presenceTracker.clear()
         pauseQueue.clear()
+        routedMsgSources.clear()
         scope?.cancel()
         scope = null
     }
@@ -377,7 +383,7 @@ class MeshLink(
             WireCodec.TYPE_CHUNK_ACK -> handleChunkAck(data)
             WireCodec.TYPE_BROADCAST -> handleBroadcast(fromPeerId, data)
             WireCodec.TYPE_ROUTED_MESSAGE -> handleRoutedMessage(fromPeerId, data)
-            WireCodec.TYPE_DELIVERY_ACK -> handleDeliveryAck(data)
+            WireCodec.TYPE_DELIVERY_ACK -> handleDeliveryAck(fromPeerId, data)
         }
     }
 
@@ -496,6 +502,10 @@ class MeshLink(
 
         // Otherwise relay: decrement hop limit, add self to visited, forward
         if (routed.hopLimit <= 0u) return
+
+        // Record reverse path for delivery ACK relay
+        routedMsgSources[key] = fromPeerId
+
         val newVisited = routed.visitedList + listOf(transport.localPeerId)
         val relayed = WireCodec.encodeRoutedMessage(
             messageId = routed.messageId,
@@ -517,13 +527,18 @@ class MeshLink(
         scope?.launch { safeSend(nextHop, relayed) }
     }
 
-    private suspend fun handleDeliveryAck(data: ByteArray) {
+    private suspend fun handleDeliveryAck(fromPeerId: ByteArray, data: ByteArray) {
         val ack = WireCodec.decodeDeliveryAck(data)
         val key = ack.messageId.toHex()
         // If tracked, use exactly-once guard; if untracked, accept (external ACK)
         val outcome = deliveryTracker.recordOutcome(key, DeliveryOutcome.CONFIRMED)
         if (outcome != null || !deliveryTracker.isTracked(key)) {
             _deliveryConfirmations.emit(Uuid.fromByteArray(ack.messageId))
+        }
+        // Relay ACK back along reverse path if we were a relay node
+        val source = routedMsgSources.remove(key)
+        if (source != null) {
+            scope?.launch { safeSend(source, data) }
         }
     }
 }
