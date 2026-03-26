@@ -7099,4 +7099,237 @@ class MeshLinkTest {
         confJob.cancel()
         alice.stop()
     }
+
+    // --- Batch 7: Route Lifecycle + Power + Crypto + Buffering Edge Cases ---
+
+    @Test
+    fun chargingOverrideFromPowerSaverJumpsToPerformance() = runTest {
+        var now = 0L
+        val transport = VirtualMeshTransport(peerIdAlice)
+        val alice = MeshLink(transport, meshLinkConfig { gossipIntervalMs = 1000 }, coroutineContext, clock = { now })
+
+        // Drive into POWER_SAVER: battery=10%, not charging, with hysteresis
+        alice.updateBattery(10, false)
+        now += 30_001
+        alice.updateBattery(10, false)
+        val saverHealth = alice.meshHealth()
+        assertEquals("POWER_SAVER", saverHealth.powerMode,
+            "Should be in POWER_SAVER with low battery")
+
+        // Plug in charger → should immediately jump to PERFORMANCE (no hysteresis)
+        alice.updateBattery(10, true)
+        val chargeHealth = alice.meshHealth()
+        assertEquals("PERFORMANCE", chargeHealth.powerMode,
+            "Charging should immediately override POWER_SAVER to PERFORMANCE")
+    }
+
+    @Test
+    fun allExpiredPendingMessagesNoneFlushedOnDiscovery() = runTest {
+        var now = 0L
+        val transportA = VirtualMeshTransport(peerIdAlice)
+        val transportB = VirtualMeshTransport(peerIdBob)
+        transportA.linkTo(transportB)
+        val alice = MeshLink(
+            transportA,
+            meshLinkConfig {
+                pendingMessageTtlMs = 1000
+                pendingMessageCapacity = 10
+                maxMessageSize = 200
+                bufferCapacity = 1000
+            },
+            coroutineContext,
+            clock = { now },
+        )
+        alice.start()
+        advanceUntilIdle()
+
+        // Buffer 2 messages at t=0 (Bob not yet discovered)
+        val r1 = alice.send(peerIdBob, "msg1".encodeToByteArray())
+        val r2 = alice.send(peerIdBob, "msg2".encodeToByteArray())
+        advanceUntilIdle()
+        assertTrue(r1.isSuccess)
+        assertTrue(r2.isSuccess)
+
+        // Advance clock well past TTL
+        now = 5000L
+
+        val bob = MeshLink(transportB, meshLinkConfig(), coroutineContext)
+        bob.start()
+        advanceUntilIdle()
+
+        val received = mutableListOf<Message>()
+        val collector = launch { bob.messages.collect { received.add(it) } }
+        advanceUntilIdle()
+
+        // Discover Bob — triggers flushPendingMessages, but all messages expired
+        transportA.simulateDiscovery(peerIdBob)
+        transportB.simulateDiscovery(peerIdAlice)
+        advanceUntilIdle()
+
+        assertEquals(0, received.size,
+            "No messages should be delivered when all pending messages are TTL-expired")
+
+        collector.cancel()
+        alice.stop(); bob.stop()
+    }
+
+    @Test
+    fun cryptoEnabledNodeRejectsUnsignedBroadcast() = runTest {
+        val crypto = io.meshlink.crypto.createCryptoProvider()
+        val transportA = VirtualMeshTransport(peerIdAlice)
+        val transportB = VirtualMeshTransport(peerIdBob)
+        transportA.linkTo(transportB)
+        // Bob has crypto enabled — unsigned broadcasts should be rejected
+        val bob = MeshLink(transportB, meshLinkConfig(), coroutineContext, crypto = crypto)
+        bob.start()
+        advanceUntilIdle()
+        transportB.simulateDiscovery(peerIdAlice)
+        advanceUntilIdle()
+
+        val received = mutableListOf<Message>()
+        val collector = launch { bob.messages.collect { received.add(it) } }
+        advanceUntilIdle()
+
+        // Inject unsigned broadcast (empty signature) from Alice
+        val unsignedBroadcast = WireCodec.encodeBroadcast(
+            messageId = kotlin.uuid.Uuid.random().toByteArray(),
+            origin = peerIdAlice,
+            remainingHops = 3u,
+            payload = "unsigned".encodeToByteArray(),
+        )
+        transportB.receiveData(peerIdAlice, unsignedBroadcast)
+        advanceUntilIdle()
+
+        assertEquals(0, received.size,
+            "Unsigned broadcast must be rejected when crypto is enabled")
+
+        collector.cancel()
+        bob.stop()
+    }
+
+    @Test
+    fun emptyPayloadBufferedForUnknownPeerAndDeliveredOnDiscovery() = runTest {
+        val transportA = VirtualMeshTransport(peerIdAlice)
+        val transportB = VirtualMeshTransport(peerIdBob)
+        transportA.linkTo(transportB)
+        val alice = MeshLink(
+            transportA,
+            meshLinkConfig {
+                pendingMessageTtlMs = 5000
+                pendingMessageCapacity = 10
+            },
+            coroutineContext,
+        )
+        alice.start()
+        advanceUntilIdle()
+
+        // Send empty payload to unknown peer (Bob not yet discovered)
+        val result = alice.send(peerIdBob, ByteArray(0))
+        advanceUntilIdle()
+        assertTrue(result.isSuccess, "Empty payload send to unknown peer should succeed (buffered)")
+
+        // Now discover Bob
+        val bob = MeshLink(transportB, meshLinkConfig(), coroutineContext)
+        bob.start()
+        advanceUntilIdle()
+
+        val received = mutableListOf<Message>()
+        val collector = launch { bob.messages.collect { received.add(it) } }
+        advanceUntilIdle()
+
+        transportA.simulateDiscovery(peerIdBob)
+        transportB.simulateDiscovery(peerIdAlice)
+        advanceUntilIdle()
+
+        // Empty payload should be flushed and delivered
+        assertEquals(1, received.size, "Empty payload should be delivered after discovery")
+        assertEquals(0, received[0].payload.size, "Payload should be empty")
+
+        collector.cancel()
+        alice.stop(); bob.stop()
+    }
+
+    @Test
+    fun resumeFlushesQueuedMessagesAndRestoresNormalSend() = runTest {
+        val transportA = VirtualMeshTransport(peerIdAlice)
+        val transportB = VirtualMeshTransport(peerIdBob)
+        transportA.linkTo(transportB)
+        val alice = MeshLink(transportA, meshLinkConfig(), coroutineContext)
+        val bob = MeshLink(transportB, meshLinkConfig(), coroutineContext)
+        alice.start(); bob.start()
+        advanceUntilIdle()
+        transportA.simulateDiscovery(peerIdBob)
+        transportB.simulateDiscovery(peerIdAlice)
+        advanceUntilIdle()
+
+        val received = mutableListOf<Message>()
+        val collector = launch { bob.messages.collect { received.add(it) } }
+        advanceUntilIdle()
+
+        // Pause, send 2 messages (queued, not sent)
+        alice.pause()
+        val r1 = alice.send(peerIdBob, "paused-msg-1".encodeToByteArray())
+        val r2 = alice.send(peerIdBob, "paused-msg-2".encodeToByteArray())
+        advanceUntilIdle()
+        assertTrue(r1.isSuccess)
+        assertTrue(r2.isSuccess)
+        assertEquals(0, received.size, "Messages should be queued while paused")
+
+        // Resume → queued messages should flush
+        alice.resume()
+        advanceUntilIdle()
+
+        assertEquals(2, received.size, "Both queued messages should be delivered after resume")
+
+        // Subsequent send should work normally (not queued)
+        val r3 = alice.send(peerIdBob, "after-resume".encodeToByteArray())
+        advanceUntilIdle()
+        assertTrue(r3.isSuccess)
+        assertEquals(3, received.size, "Post-resume message should deliver immediately")
+
+        collector.cancel()
+        alice.stop(); bob.stop()
+    }
+
+    @Test
+    fun duplicateBroadcastFromTwoPeersDeliveredOnce() = runTest {
+        val peerIdC = ByteArray(16) { (0xC0 + it).toByte() }
+        val transportA = VirtualMeshTransport(peerIdAlice)
+        val transportB = VirtualMeshTransport(peerIdBob)
+        val transportC = VirtualMeshTransport(peerIdC)
+        transportA.linkTo(transportB)
+        transportA.linkTo(transportC)
+
+        val alice = MeshLink(transportA, meshLinkConfig(), coroutineContext)
+        alice.start()
+        advanceUntilIdle()
+        transportA.simulateDiscovery(peerIdBob)
+        transportA.simulateDiscovery(peerIdC)
+        advanceUntilIdle()
+
+        val received = mutableListOf<Message>()
+        val collector = launch { alice.messages.collect { received.add(it) } }
+        advanceUntilIdle()
+
+        // Same broadcast (same messageId) arriving from two different peers
+        val msgId = kotlin.uuid.Uuid.random().toByteArray()
+        val broadcast = WireCodec.encodeBroadcast(
+            messageId = msgId,
+            origin = peerIdBob,
+            remainingHops = 3u,
+            payload = "dedup test".encodeToByteArray(),
+        )
+        transportA.receiveData(peerIdBob, broadcast)
+        advanceUntilIdle()
+
+        // Same messageId arrives from Charlie (re-flooded)
+        transportA.receiveData(peerIdC, broadcast)
+        advanceUntilIdle()
+
+        assertEquals(1, received.size,
+            "Same broadcast from two peers should be delivered only once (dedup)")
+
+        collector.cancel()
+        alice.stop()
+    }
 }
