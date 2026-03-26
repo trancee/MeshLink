@@ -3,7 +3,9 @@ package io.meshlink
 import io.meshlink.config.meshLinkConfig
 import io.meshlink.model.Message
 import io.meshlink.model.PeerEvent
+import io.meshlink.model.TransferFailure
 import io.meshlink.transport.VirtualMeshTransport
+import io.meshlink.util.DeliveryOutcome
 import io.meshlink.util.toHex
 import io.meshlink.wire.WireCodec
 import io.meshlink.wire.RouteUpdateEntry
@@ -5031,5 +5033,242 @@ class MeshLinkTest {
         collectJob.cancel()
         alice.stop()
         bob.stop()
+    }
+
+    // --- Transfer Failure Signaling ---
+
+    @Test
+    fun sendToUnknownPeerWithoutBufferEmitsTransferFailure() = runTest {
+        val transport = VirtualMeshTransport(peerIdAlice)
+        val config = meshLinkConfig { }  // pendingMessageTtlMs = 0 → no buffer
+        val alice = MeshLink(transport, config, coroutineContext)
+        alice.start()
+        advanceUntilIdle()
+
+        val failures = mutableListOf<TransferFailure>()
+        val collectJob = launch {
+            alice.transferFailures.collect { failures.add(it) }
+        }
+
+        val unknownPeer = ByteArray(16) { (0xDD.toByte() + it).toByte() }
+        val result = alice.send(unknownPeer, "unreachable".encodeToByteArray())
+
+        // Send still returns failure Result
+        assertTrue(result.isFailure)
+        advanceUntilIdle()
+
+        // But transferFailures Flow also emits with context
+        assertEquals(1, failures.size, "Should emit exactly 1 transfer failure")
+        assertEquals(DeliveryOutcome.FAILED_NO_ROUTE, failures[0].reason)
+
+        collectJob.cancel()
+        alice.stop()
+    }
+
+    @Test
+    fun sendWithPayloadExceedingBufferCapacityEmitsBufferFullFailure() = runTest {
+        val transport = VirtualMeshTransport(peerIdAlice)
+        val config = meshLinkConfig {
+            maxMessageSize = 50
+            bufferCapacity = 50
+            mtu = 50
+        }
+        val alice = MeshLink(transport, config, coroutineContext)
+        alice.start()
+        advanceUntilIdle()
+
+        val failures = mutableListOf<TransferFailure>()
+        val collectJob = launch {
+            alice.transferFailures.collect { failures.add(it) }
+        }
+
+        // Discover Bob so send() reaches the payload size check
+        transport.simulateDiscovery(peerIdBob, ByteArray(0))
+        advanceUntilIdle()
+
+        // Send payload larger than bufferCapacity
+        val bigPayload = ByteArray(100) { it.toByte() }
+        val result = alice.send(peerIdBob, bigPayload)
+
+        assertTrue(result.isFailure)
+        advanceUntilIdle()
+
+        assertEquals(1, failures.size, "Should emit BUFFER_FULL failure")
+        assertEquals(DeliveryOutcome.FAILED_BUFFER_FULL, failures[0].reason)
+
+        collectJob.cancel()
+        alice.stop()
+    }
+
+    @Test
+    fun stopEmitsDeliveryTimeoutForInFlightTransfers() = runTest {
+        val transportA = VirtualMeshTransport(peerIdAlice)
+        val transportB = VirtualMeshTransport(peerIdBob)
+        transportA.linkTo(transportB)
+        // DON'T link B→A so chunk ACKs won't arrive back to Alice
+        val alice = MeshLink(transportA, meshLinkConfig { }, coroutineContext)
+        alice.start()
+        advanceUntilIdle()
+
+        val failures = mutableListOf<TransferFailure>()
+        val collectJob = launch {
+            alice.transferFailures.collect { failures.add(it) }
+        }
+
+        // Discover Bob and send — transfer will be in-flight (waiting for ACK)
+        transportA.simulateDiscovery(peerIdBob, ByteArray(0))
+        advanceUntilIdle()
+        val result = alice.send(peerIdBob, "inflight".encodeToByteArray())
+        assertTrue(result.isSuccess)
+        advanceUntilIdle()
+
+        // Stop while transfer is in-flight
+        alice.stop()
+        advanceUntilIdle()
+
+        // Should emit DELIVERY_TIMEOUT for the orphaned transfer
+        assertEquals(1, failures.size,
+            "stop() should emit failure for in-flight transfer, got ${failures.size}")
+        assertEquals(DeliveryOutcome.FAILED_DELIVERY_TIMEOUT, failures[0].reason)
+
+        collectJob.cancel()
+    }
+
+    @Test
+    fun exactlyOneTerminalSignalPerMessage() = runTest {
+        val transportA = VirtualMeshTransport(peerIdAlice)
+        val transportB = VirtualMeshTransport(peerIdBob)
+        transportA.linkTo(transportB)
+        transportB.linkTo(transportA)
+        val alice = MeshLink(transportA, meshLinkConfig { }, coroutineContext)
+        val bob = MeshLink(transportB, meshLinkConfig { }, coroutineContext)
+        alice.start(); bob.start()
+        advanceUntilIdle()
+
+        val confirmations = mutableListOf<Uuid>()
+        val failures = mutableListOf<TransferFailure>()
+        val cJob = launch { alice.deliveryConfirmations.collect { confirmations.add(it) } }
+        val fJob = launch { alice.transferFailures.collect { failures.add(it) } }
+
+        // Discover each other
+        transportA.simulateDiscovery(peerIdBob, ByteArray(0))
+        transportB.simulateDiscovery(peerIdAlice, ByteArray(0))
+        advanceUntilIdle()
+
+        // Send successfully — should get confirmation, NOT failure
+        val result = alice.send(peerIdBob, "hello".encodeToByteArray())
+        assertTrue(result.isSuccess)
+        advanceUntilIdle()
+
+        assertTrue(confirmations.isNotEmpty(), "Should have delivery confirmation")
+        assertTrue(failures.isEmpty(),
+            "Should have no transfer failures when delivery succeeded, got ${failures.size}")
+
+        // Now stop — already confirmed transfer should NOT re-emit as DELIVERY_TIMEOUT
+        alice.stop()
+        advanceUntilIdle()
+
+        assertTrue(failures.isEmpty(),
+            "stop() should not emit failure for already-confirmed transfer")
+
+        cJob.cancel(); fJob.cancel()
+        bob.stop()
+    }
+
+    @Test
+    fun broadcastRateLimitEnforced() = runTest {
+        var nowMs = 0L
+        val transport = VirtualMeshTransport(peerIdAlice)
+        val config = meshLinkConfig {
+            broadcastRateLimitPerMinute = 10
+        }
+        val alice = MeshLink(transport, config, coroutineContext, clock = { nowMs })
+        alice.start()
+        advanceUntilIdle()
+
+        // Discover a peer so broadcasts have someone to send to
+        transport.simulateDiscovery(peerIdBob, ByteArray(0))
+        advanceUntilIdle()
+
+        // Send 10 broadcasts — all should succeed
+        for (i in 1..10) {
+            val result = alice.broadcast("msg$i".encodeToByteArray(), 3u)
+            assertTrue(result.isSuccess, "Broadcast $i should succeed")
+        }
+
+        // 11th broadcast should be rate-limited
+        val result = alice.broadcast("msg11".encodeToByteArray(), 3u)
+        assertTrue(result.isFailure, "11th broadcast should be rate-limited")
+        assertTrue(result.exceptionOrNull()?.message?.contains("rate") == true,
+            "Error should mention rate limit")
+
+        // After 60s, broadcasts should work again
+        nowMs = 61_000L
+        val result2 = alice.broadcast("msg12".encodeToByteArray(), 3u)
+        assertTrue(result2.isSuccess, "Broadcast after 60s should succeed")
+
+        alice.stop()
+    }
+
+    @Test
+    fun pauseQueuesRelayedMessagesAndResumeFlushes() = runTest {
+        // Topology: Alice → Bob (relay) → Charlie
+        val transportA = VirtualMeshTransport(peerIdAlice)
+        val transportB = VirtualMeshTransport(peerIdBob)
+        val peerIdCharlie = ByteArray(16) { (0xCC.toByte() + it).toByte() }
+        val transportC = VirtualMeshTransport(peerIdCharlie)
+        transportA.linkTo(transportB)
+        transportB.linkTo(transportA)
+        transportB.linkTo(transportC)
+        transportC.linkTo(transportB)
+
+        val config = meshLinkConfig { }
+        val alice = MeshLink(transportA, config, coroutineContext)
+        val bob = MeshLink(transportB, config, coroutineContext)
+        val charlie = MeshLink(transportC, config, coroutineContext)
+
+        alice.start(); bob.start(); charlie.start()
+        advanceUntilIdle()
+
+        // Full discovery
+        transportA.simulateDiscovery(peerIdBob, ByteArray(0))
+        transportB.simulateDiscovery(peerIdAlice, ByteArray(0))
+        transportB.simulateDiscovery(peerIdCharlie, ByteArray(0))
+        transportC.simulateDiscovery(peerIdBob, ByteArray(0))
+        advanceUntilIdle()
+
+        // Add route: Alice knows Charlie via Bob
+        alice.addRoute(peerIdCharlie.joinToString("") { "%02x".format(it) },
+            peerIdBob.joinToString("") { "%02x".format(it) }, 1.0, 1u)
+
+        // Pause Bob (the relay)
+        bob.pause()
+        advanceUntilIdle()
+
+        // Record current state
+        val sentBefore = transportB.sentData.size
+
+        // Alice sends routed message to Charlie through Bob
+        alice.send(peerIdCharlie, "relay-during-pause".encodeToByteArray())
+        advanceUntilIdle()
+
+        // Bob should NOT have forwarded the relay (it's paused, message is queued)
+        val routedSentDuringPause = transportB.sentData.drop(sentBefore).count { (_, data) ->
+            data[0] == WireCodec.TYPE_ROUTED_MESSAGE
+        }
+        assertEquals(0, routedSentDuringPause,
+            "Bob should not relay while paused")
+
+        // Resume Bob — queued relay message should be forwarded
+        bob.resume()
+        advanceUntilIdle()
+
+        val routedSentAfterResume = transportB.sentData.drop(sentBefore).count { (_, data) ->
+            data[0] == WireCodec.TYPE_ROUTED_MESSAGE
+        }
+        assertTrue(routedSentAfterResume > 0,
+            "Resume should flush queued relay messages")
+
+        alice.stop(); bob.stop(); charlie.stop()
     }
 }

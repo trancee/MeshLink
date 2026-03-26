@@ -4,6 +4,7 @@ import io.meshlink.diagnostics.DiagnosticEvent
 import io.meshlink.diagnostics.MeshHealthSnapshot
 import io.meshlink.model.Message
 import io.meshlink.model.PeerEvent
+import io.meshlink.model.TransferFailure
 import io.meshlink.model.TransferProgress
 import io.meshlink.transport.BleTransport
 import kotlinx.coroutines.flow.Flow
@@ -29,6 +30,7 @@ interface MeshLinkApi {
     val peers: Flow<PeerEvent>
     val messages: Flow<Message>
     val deliveryConfirmations: Flow<Uuid>
+    val transferFailures: Flow<TransferFailure>
     val transferProgress: Flow<TransferProgress>
     val meshHealthFlow: Flow<MeshHealthSnapshot>
     val localPublicKey: ByteArray?

@@ -12,6 +12,7 @@ import io.meshlink.diagnostics.MeshHealthSnapshot
 import io.meshlink.diagnostics.Severity
 import io.meshlink.model.Message
 import io.meshlink.model.PeerEvent
+import io.meshlink.model.TransferFailure
 import io.meshlink.model.TransferProgress
 import io.meshlink.power.MemoryPressure
 import io.meshlink.power.PowerModeEngine
@@ -65,14 +66,19 @@ class MeshLink(
     private val circuitBreaker: CircuitBreaker? =
         if (config.circuitBreakerMaxFailures > 0) CircuitBreaker(config.circuitBreakerMaxFailures, config.circuitBreakerWindowMs, config.circuitBreakerCooldownMs, clock) else null
 
+    private val broadcastRateLimiter: RateLimiter? =
+        if (config.broadcastRateLimitPerMinute > 0) RateLimiter(config.broadcastRateLimitPerMinute, 60_000L, clock) else null
+
     private val _peers = MutableSharedFlow<PeerEvent>(replay = 64)
     private val _messages = MutableSharedFlow<Message>(extraBufferCapacity = 64)
     private val _deliveryConfirmations = MutableSharedFlow<Uuid>(extraBufferCapacity = 64)
+    private val _transferFailures = MutableSharedFlow<TransferFailure>(extraBufferCapacity = 64)
     private val _transferProgress = MutableSharedFlow<TransferProgress>(extraBufferCapacity = 64)
 
     override val peers: Flow<PeerEvent> = _peers.asSharedFlow()
     override val messages: Flow<Message> = _messages.asSharedFlow()
     override val deliveryConfirmations: Flow<Uuid> = _deliveryConfirmations.asSharedFlow()
+    override val transferFailures: Flow<TransferFailure> = _transferFailures.asSharedFlow()
     override val transferProgress: Flow<TransferProgress> = _transferProgress.asSharedFlow()
 
     private val _meshHealthFlow = MutableStateFlow(MeshHealthSnapshot(0, 0, 0, 0, "PERFORMANCE", 0.0))
@@ -110,6 +116,9 @@ class MeshLink(
 
     // Queued sends while paused: (recipient, payload)
     private val pauseQueue = mutableListOf<Pair<ByteArray, ByteArray>>()
+
+    // Queued relay messages while paused: (nextHop, encodedFrame)
+    private val relayQueue = mutableListOf<Pair<ByteArray, ByteArray>>()
 
     // Peer presence tracking (replaces simple knownPeers set)
     private val presenceTracker = PresenceTracker()
@@ -223,6 +232,15 @@ class MeshLink(
 
     override fun stop() {
         started = false
+        // Emit DELIVERY_TIMEOUT for all in-flight transfers before clearing
+        for ((key, _) in outboundTransfers) {
+            val outcome = deliveryTracker.recordOutcome(key, DeliveryOutcome.FAILED_DELIVERY_TIMEOUT)
+            if (outcome != null) {
+                _transferFailures.tryEmit(
+                    TransferFailure(Uuid.fromByteArray(hexToBytes(key)), DeliveryOutcome.FAILED_DELIVERY_TIMEOUT)
+                )
+            }
+        }
         clearState()
         scope?.cancel()
         scope = null
@@ -233,6 +251,7 @@ class MeshLink(
         outboundTransfers.clear()
         presenceTracker.clear()
         pauseQueue.clear()
+        relayQueue.clear()
         routedMsgSources.clear()
         inboundReplayGuards.clear()
         inboundRateCounts.clear()
@@ -250,10 +269,17 @@ class MeshLink(
         paused = false
         scope?.launch { transport.startAdvertisingAndScanning() }
         val s = scope ?: return
+        // Flush queued own-outbound sends
         val queued = pauseQueue.toList()
         pauseQueue.clear()
         for ((recipient, payload) in queued) {
             doSend(s, recipient, payload)
+        }
+        // Flush queued relay messages
+        val relayQueued = relayQueue.toList()
+        relayQueue.clear()
+        for ((nextHop, frame) in relayQueued) {
+            s.launch { safeSend(nextHop, frame) }
         }
     }
 
@@ -369,6 +395,13 @@ class MeshLink(
             return Result.failure(IllegalArgumentException("bufferFull"))
         }
 
+        // Broadcast rate limiting
+        if (broadcastRateLimiter != null) {
+            if (!broadcastRateLimiter.tryAcquire("broadcast")) {
+                return Result.failure(IllegalStateException("Broadcast rate limit exceeded"))
+            }
+        }
+
         val messageId = Uuid.random()
         val appIdHash = config.appId?.let { AppIdFilter.hash(it) } ?: ByteArray(16)
         val encoded = WireCodec.encodeBroadcast(
@@ -391,6 +424,10 @@ class MeshLink(
         val s = requireScope()
 
         if (payload.size > config.bufferCapacity) {
+            val failureId = Uuid.random()
+            s.launch {
+                _transferFailures.emit(TransferFailure(failureId, DeliveryOutcome.FAILED_BUFFER_FULL))
+            }
             return Result.failure(IllegalArgumentException("bufferFull"))
         }
 
@@ -439,6 +476,10 @@ class MeshLink(
                     list.removeAt(0)
                 }
                 return Result.success(Uuid.random())
+            }
+            val failureId = Uuid.random()
+            s.launch {
+                _transferFailures.emit(TransferFailure(failureId, DeliveryOutcome.FAILED_NO_ROUTE))
             }
             return Result.failure(IllegalStateException("No route to unknown peer"))
         }
@@ -730,7 +771,6 @@ class MeshLink(
 
         // Otherwise relay: decrement hop limit, add self to visited, forward
         if (routed.hopLimit <= 0u) return
-        if (paused) return // don't relay while paused
 
         // Record reverse path for delivery ACK relay
         routedMsgSources[key] = fromPeerId
@@ -754,7 +794,11 @@ class MeshLink(
             val route = routingTable.bestRoute(destHex) ?: return
             hexToBytes(route.nextHop)
         }
-        scope?.launch { safeSend(nextHop, relayed) }
+        if (paused) {
+            relayQueue.add(nextHop to relayed)
+        } else {
+            scope?.launch { safeSend(nextHop, relayed) }
+        }
     }
 
     private suspend fun handleDeliveryAck(fromPeerId: ByteArray, data: ByteArray) {

@@ -19,6 +19,7 @@ data class MeshLinkConfig(
     val gossipIntervalMs: Long = 0L,
     val pendingMessageTtlMs: Long = 0L,
     val pendingMessageCapacity: Int = 100,
+    val broadcastRateLimitPerMinute: Int = 0,
 ) {
     fun validate(): List<String> {
         val violations = mutableListOf<String>()
@@ -69,6 +70,7 @@ class MeshLinkConfigBuilder(
     var gossipIntervalMs: Long = 0L,
     var pendingMessageTtlMs: Long = 0L,
     var pendingMessageCapacity: Int = 100,
+    var broadcastRateLimitPerMinute: Int = 0,
 ) {
 
     fun build(): MeshLinkConfig = MeshLinkConfig(
@@ -88,5 +90,6 @@ class MeshLinkConfigBuilder(
         gossipIntervalMs = gossipIntervalMs,
         pendingMessageTtlMs = pendingMessageTtlMs,
         pendingMessageCapacity = pendingMessageCapacity,
+        broadcastRateLimitPerMinute = broadcastRateLimitPerMinute,
     )
 }
