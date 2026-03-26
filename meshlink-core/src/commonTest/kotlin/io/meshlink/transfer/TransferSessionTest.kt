@@ -67,4 +67,20 @@ class TransferSessionTest {
         assertTrue(retransmit.contains(1), "Unacked chunk 1 should be retransmitted")
         assertFalse(retransmit.contains(0), "Already acked chunk 0 should not be retransmitted")
     }
+
+    // --- Batch 13 Cycle 3: Window never returns more than totalChunks ---
+
+    @Test
+    fun nextChunksToSendNeverExceedsTotalChunks() {
+        // Window = 100 but only 3 chunks — should send exactly 3
+        val session = TransferSession(totalChunks = 3, initialWindow = 100)
+
+        val first = session.nextChunksToSend()
+        assertEquals(listOf(0, 1, 2), first, "Should send all 3 chunks, not 100")
+
+        // After ACK, no more to send
+        session.onAck(ackSeq = 2, sackBitmask = 0u)
+        assertTrue(session.isComplete())
+        assertEquals(emptyList(), session.nextChunksToSend())
+    }
 }

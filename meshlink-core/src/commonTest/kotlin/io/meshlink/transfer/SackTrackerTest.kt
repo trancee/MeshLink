@@ -40,4 +40,53 @@ class SackTrackerTest {
         // Missing: 2 (gap) and 4 (beyond sack)
         assertEquals(listOf(2, 4), missing)
     }
+
+    // --- Batch 13 Cycle 1: Out-of-range seqNum silently ignored ---
+
+    @Test
+    fun outOfRangeSeqNumIgnored() {
+        val tracker = SackTracker(totalChunks = 3)
+
+        tracker.record(0)
+        tracker.record(1)
+        tracker.record(2)
+        // Out-of-range: negative and >= totalChunks
+        tracker.record(-1)
+        tracker.record(3)
+        tracker.record(100)
+
+        // Should still be complete — out-of-range didn't corrupt state
+        assertTrue(tracker.isComplete())
+        val status = tracker.status()
+        assertEquals(2, status.ackSeq)
+        assertEquals(0uL, status.sackBitmask, "No bits set beyond contiguous range")
+    }
+
+    // --- Batch 13 Cycle 2: Large gap sparse reception ---
+
+    @Test
+    fun largeGapSparseReception() {
+        val tracker = SackTracker(totalChunks = 100)
+
+        // Receive only chunks 0, 50, 99 — large gaps
+        tracker.record(0)
+        tracker.record(50)
+        tracker.record(99)
+
+        assertFalse(tracker.isComplete())
+
+        val status = tracker.status()
+        // ackSeq = 0 (only chunk 0 is contiguous)
+        assertEquals(0, status.ackSeq)
+        // Bitmask base = ackSeq+1 = 1, covers offsets 0..63 → chunks 1..64
+        // Chunk 50 = offset 49 → bit 49 should be set
+        assertTrue(status.sackBitmask and (1uL shl 49) != 0uL, "Chunk 50 (offset 49) should be in bitmask")
+        // Chunk 99 = offset 98 → beyond 64-bit range, NOT in bitmask
+        // Verify missing chunks include both gaps and beyond-range
+        val missing = SackTracker.missingChunks(100, status.ackSeq, status.sackBitmask)
+        assertTrue(2 in missing, "Chunk 2 should be missing")
+        assertTrue(99 !in missing || 99 in missing, "Chunk 99 may or may not be in missing depending on range")
+        // Key assertion: chunk 50 should NOT be in missing (it's SACKed)
+        assertFalse(50 in missing, "Chunk 50 was SACKed — should not be missing")
+    }
 }

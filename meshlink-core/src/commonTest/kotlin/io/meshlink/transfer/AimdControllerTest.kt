@@ -2,6 +2,7 @@ package io.meshlink.transfer
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class AimdControllerTest {
 
@@ -82,5 +83,28 @@ class AimdControllerTest {
         // Double reconnect is safe
         aimd.onReconnect()
         assertEquals(4, aimd.window)
+    }
+
+    // --- Batch 13 Cycle 5: Window floor never drops below 1 ---
+
+    @Test
+    fun windowFloorNeverBelowOne() {
+        val aimd = AimdController(initialWindow = 1)
+
+        // Repeatedly timeout — window should stay at 1
+        repeat(20) {
+            aimd.onTimeout()
+            aimd.onTimeout()
+            assertTrue(aimd.window >= 1, "Window must never go below 1, was ${aimd.window}")
+        }
+        assertEquals(1, aimd.window)
+
+        // Even with large window, repeated halving floors at 1
+        repeat(4) { aimd.onAck() } // grow to 3
+        assertEquals(3, aimd.window)
+        aimd.onTimeout(); aimd.onTimeout() // 3/2 = 1
+        assertEquals(1, aimd.window)
+        aimd.onTimeout(); aimd.onTimeout() // 1/2 = 0 → coerced to 1
+        assertEquals(1, aimd.window)
     }
 }

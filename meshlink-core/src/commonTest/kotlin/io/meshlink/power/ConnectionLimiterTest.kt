@@ -52,4 +52,26 @@ class ConnectionLimiterTest {
         assertEquals(listOf("A", "B", "C", "D"), evicted, "First 4 added should be evicted (FIFO)")
         assertEquals(listOf("E", "F", "G", "H"), limiter.connections(), "Last 4 should remain")
     }
+
+    // --- Batch 13 Cycle 6: Duplicate peer add ---
+
+    @Test
+    fun duplicatePeerAddCountsAsSecondConnection() {
+        val limiter = ConnectionLimiter()
+        limiter.setMode(PowerMode.POWER_SAVER) // limit = 1
+
+        assertTrue(limiter.tryAdd("A"))
+        // Adding same peer again fails because limit is reached
+        assertFalse(limiter.tryAdd("A"), "Duplicate add rejected when at limit")
+        assertEquals(1, limiter.connectionCount())
+
+        // Remove then re-add works
+        limiter.remove("A")
+        assertEquals(0, limiter.connectionCount())
+        assertTrue(limiter.tryAdd("A"), "Re-add after remove succeeds")
+
+        // Remove non-existent peer is no-op
+        limiter.remove("NONEXISTENT")
+        assertEquals(1, limiter.connectionCount())
+    }
 }

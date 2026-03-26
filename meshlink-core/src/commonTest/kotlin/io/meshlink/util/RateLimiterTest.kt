@@ -46,4 +46,29 @@ class RateLimiterTest {
         now = 1001L
         assertTrue(limiter.tryAcquire("k"), "At t=1001, event at t=0 should be pruned and new event allowed")
     }
+
+    // --- Batch 13 Cycle 4: Old events pruned within key ---
+
+    @Test
+    fun oldEventsPrunedDoNotAccumulate() {
+        var now = 0L
+        val limiter = RateLimiter(maxEvents = 2, windowMs = 100, clock = { now })
+
+        // Fill limit at t=0
+        assertTrue(limiter.tryAcquire("k"))
+        assertTrue(limiter.tryAcquire("k"))
+        assertFalse(limiter.tryAcquire("k"), "At limit")
+
+        // Advance past window — old events pruned on next tryAcquire
+        now = 200L
+        assertTrue(limiter.tryAcquire("k"), "Old events pruned, slot available")
+        assertTrue(limiter.tryAcquire("k"), "Second slot available")
+        assertFalse(limiter.tryAcquire("k"), "At limit again")
+
+        // Repeat many times — proves no unbounded growth within a key
+        for (cycle in 1..100) {
+            now = 200L + (cycle * 200L)
+            assertTrue(limiter.tryAcquire("k"), "Cycle $cycle: old events pruned")
+        }
+    }
 }

@@ -49,4 +49,33 @@ class DedupSetTest {
         assertTrue(dedup.tryInsert("a"), "a was evicted — accepted as new")
         assertFalse(dedup.tryInsert("a"), "a is now present — rejected")
     }
+
+    // --- Batch 13 Cycle 7: Re-add after eviction detected as new ---
+
+    @Test
+    fun reAddAfterEvictionAndClearBehavior() {
+        val dedup = DedupSet(capacity = 2)
+
+        assertTrue(dedup.tryInsert("x"))
+        assertTrue(dedup.tryInsert("y"))
+        // x is LRU (y was inserted last)
+        assertEquals(2, dedup.size())
+
+        // Insert z → evicts x (LRU)
+        assertTrue(dedup.tryInsert("z"))
+        assertEquals(2, dedup.size())
+
+        // x was evicted → re-insert succeeds (fresh detection)
+        assertTrue(dedup.tryInsert("x"), "Evicted ID should be accepted as new")
+        // y was evicted by x (y was now LRU since z was more recent)
+        assertFalse(dedup.tryInsert("x"), "x is now present — rejected")
+
+        // Clear empties everything
+        dedup.clear()
+        assertEquals(0, dedup.size())
+        assertTrue(dedup.tryInsert("x"), "After clear, all IDs accepted as new")
+        assertTrue(dedup.tryInsert("y"))
+        assertTrue(dedup.tryInsert("z")) // evicts x
+        assertTrue(dedup.tryInsert("x"), "x evicted by z, re-added as new")
+    }
 }
