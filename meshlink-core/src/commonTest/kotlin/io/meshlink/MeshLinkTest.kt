@@ -4,6 +4,7 @@ import io.meshlink.config.meshLinkConfig
 import io.meshlink.model.Message
 import io.meshlink.model.PeerEvent
 import io.meshlink.transport.VirtualMeshTransport
+import io.meshlink.util.toHex
 import io.meshlink.wire.WireCodec
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
@@ -27,9 +28,6 @@ class MeshLinkTest {
 
     private val peerIdAlice = ByteArray(16) { (0xA0 + it).toByte() }
     private val peerIdBob = ByteArray(16) { (0xB0 + it).toByte() }
-
-    private fun ByteArray.toHex(): String =
-        joinToString("") { it.toUByte().toString(16).padStart(2, '0') }
 
     @Test
     fun twoPeersDiscoverEachOther() = runTest {
@@ -615,10 +613,8 @@ class MeshLinkTest {
 
         val alice = MeshLink(
             transportAlice,
-            meshLinkConfig(),
+            meshLinkConfig { rateLimitMaxSends = 3; rateLimitWindowMs = 60_000L },
             coroutineContext,
-            rateLimitMaxSends = 3,
-            rateLimitWindowMs = 60_000L,
             clock = { nowMs },
         )
         alice.start()
@@ -955,8 +951,8 @@ class MeshLinkTest {
         var nowMs = 0L
         val transportAlice = VirtualMeshTransport(peerIdAlice)
         val alice = MeshLink(
-            transportAlice, meshLinkConfig(), coroutineContext,
-            rateLimitMaxSends = 1, rateLimitWindowMs = 60_000L, clock = { nowMs },
+            transportAlice, meshLinkConfig { rateLimitMaxSends = 1; rateLimitWindowMs = 60_000L }, coroutineContext,
+            clock = { nowMs },
         )
         alice.start()
         advanceUntilIdle()
@@ -1824,10 +1820,11 @@ class MeshLinkTest {
         transportBob.linkTo(transportAlice)
 
         val alice = MeshLink(
-            transportAlice, meshLinkConfig(), coroutineContext,
-            circuitBreakerMaxFailures = 2,
-            circuitBreakerWindowMs = 10_000,
-            circuitBreakerCooldownMs = 5_000,
+            transportAlice, meshLinkConfig {
+                circuitBreakerMaxFailures = 2
+                circuitBreakerWindowMs = 10_000
+                circuitBreakerCooldownMs = 5_000
+            }, coroutineContext,
             clock = { now },
         )
         val bob = MeshLink(transportBob, meshLinkConfig(), coroutineContext)
@@ -2186,7 +2183,7 @@ class MeshLinkTest {
         transportAlice.linkTo(transportBob)
 
         // Use tiny dedup capacity of 2
-        val alice = MeshLink(transportAlice, meshLinkConfig(), coroutineContext, dedupCapacity = 2)
+        val alice = MeshLink(transportAlice, meshLinkConfig { dedupCapacity = 2 }, coroutineContext)
         alice.start()
         advanceUntilIdle()
         transportAlice.simulateDiscovery(peerIdBob)
@@ -2290,8 +2287,7 @@ class MeshLinkTest {
         transportAlice.linkTo(transportBob)
 
         val alice = MeshLink(
-            transportAlice, meshLinkConfig(), coroutineContext,
-            rateLimitMaxSends = 2, rateLimitWindowMs = 10_000,
+            transportAlice, meshLinkConfig { rateLimitMaxSends = 2; rateLimitWindowMs = 10_000 }, coroutineContext,
             clock = { now },
         )
         alice.start()
@@ -2321,9 +2317,10 @@ class MeshLinkTest {
     fun diagnosticSinkOverflowReportsDroppedCount() = runTest {
         val transportAlice = VirtualMeshTransport(peerIdAlice)
         val alice = MeshLink(
-            transportAlice, meshLinkConfig(), coroutineContext,
-            rateLimitMaxSends = 1, rateLimitWindowMs = 60_000,
-            diagnosticBufferCapacity = 3,
+            transportAlice, meshLinkConfig {
+                rateLimitMaxSends = 1; rateLimitWindowMs = 60_000
+                diagnosticBufferCapacity = 3
+            }, coroutineContext,
         )
         alice.start()
         advanceUntilIdle()
@@ -2549,10 +2546,11 @@ class MeshLinkTest {
         transportAlice.linkTo(transportBob)
 
         val alice = MeshLink(
-            transportAlice, meshLinkConfig(), coroutineContext,
-            circuitBreakerMaxFailures = 3,
-            circuitBreakerWindowMs = 10_000,
-            circuitBreakerCooldownMs = 5_000,
+            transportAlice, meshLinkConfig {
+                circuitBreakerMaxFailures = 3
+                circuitBreakerWindowMs = 10_000
+                circuitBreakerCooldownMs = 5_000
+            }, coroutineContext,
             clock = { now },
         )
         alice.start()

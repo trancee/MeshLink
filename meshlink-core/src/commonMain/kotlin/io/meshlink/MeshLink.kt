@@ -22,6 +22,8 @@ import io.meshlink.util.CircuitBreaker
 import io.meshlink.util.DeliveryOutcome
 import io.meshlink.util.DeliveryTracker
 import io.meshlink.util.RateLimiter
+import io.meshlink.util.hexToBytes
+import io.meshlink.util.toHex
 import io.meshlink.wire.WireCodec
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
@@ -40,23 +42,16 @@ class MeshLink(
     private val transport: BleTransport,
     private val config: MeshLinkConfig = MeshLinkConfig(),
     coroutineContext: CoroutineContext = EmptyCoroutineContext,
-    rateLimitMaxSends: Int = 0,
-    rateLimitWindowMs: Long = 60_000L,
-    circuitBreakerMaxFailures: Int = 0,
-    circuitBreakerWindowMs: Long = 60_000L,
-    circuitBreakerCooldownMs: Long = 30_000L,
-    diagnosticBufferCapacity: Int = 256,
-    dedupCapacity: Int = 10_000,
     clock: () -> Long = { System.currentTimeMillis() },
 ) : MeshLinkApi {
 
     private val clock = clock
 
     private val rateLimiter: RateLimiter? =
-        if (rateLimitMaxSends > 0) RateLimiter(rateLimitMaxSends, rateLimitWindowMs, clock) else null
+        if (config.rateLimitMaxSends > 0) RateLimiter(config.rateLimitMaxSends, config.rateLimitWindowMs, clock) else null
 
     private val circuitBreaker: CircuitBreaker? =
-        if (circuitBreakerMaxFailures > 0) CircuitBreaker(circuitBreakerMaxFailures, circuitBreakerWindowMs, circuitBreakerCooldownMs, clock) else null
+        if (config.circuitBreakerMaxFailures > 0) CircuitBreaker(config.circuitBreakerMaxFailures, config.circuitBreakerWindowMs, config.circuitBreakerCooldownMs, clock) else null
 
     private val _peers = MutableSharedFlow<PeerEvent>(replay = 64)
     private val _messages = MutableSharedFlow<Message>(extraBufferCapacity = 64)
@@ -86,13 +81,13 @@ class MeshLink(
     private val presenceTracker = PresenceTracker()
 
     // Deduplication of fully reassembled messages
-    private val dedup = DedupSet(capacity = dedupCapacity)
+    private val dedup = DedupSet(capacity = config.dedupCapacity)
 
     // Delivery tracking for exactly-once terminal signals
     private val deliveryTracker = DeliveryTracker()
 
     // Diagnostic event sink
-    private val diagnosticSink = DiagnosticSink(bufferCapacity = diagnosticBufferCapacity, clock = clock)
+    private val diagnosticSink = DiagnosticSink(bufferCapacity = config.diagnosticBufferCapacity, clock = clock)
 
     // Routing table for multi-hop relay
     private val routingTable = RoutingTable()
@@ -544,25 +539,14 @@ class MeshLink(
     }
 }
 
-private class ReassemblyState(val totalChunks: Int) {
+internal class ReassemblyState(val totalChunks: Int) {
     val chunks = mutableMapOf<Int, ByteArray>()
     val sackTracker = SackTracker(totalChunks)
 }
 
-private class OutboundTransfer(
+internal class OutboundTransfer(
     val session: TransferSession,
     val chunks: List<ByteArray>,
     val recipient: ByteArray,
     val messageId: ByteArray,
 )
-
-private fun ByteArray.toHex(): String =
-    joinToString("") { it.toUByte().toString(16).padStart(2, '0') }
-
-private fun hexToBytes(hex: String): ByteArray {
-    val result = ByteArray(hex.length / 2)
-    for (i in result.indices) {
-        result[i] = hex.substring(i * 2, i * 2 + 2).toInt(16).toByte()
-    }
-    return result
-}

@@ -4,6 +4,13 @@ data class MeshLinkConfig(
     val maxMessageSize: Int = 100_000,
     val bufferCapacity: Int = 1_048_576,
     val mtu: Int = 185,
+    val rateLimitMaxSends: Int = 0,
+    val rateLimitWindowMs: Long = 60_000L,
+    val circuitBreakerMaxFailures: Int = 0,
+    val circuitBreakerWindowMs: Long = 60_000L,
+    val circuitBreakerCooldownMs: Long = 30_000L,
+    val diagnosticBufferCapacity: Int = 256,
+    val dedupCapacity: Int = 10_000,
 ) {
     fun validate(): List<String> {
         val violations = mutableListOf<String>()
@@ -37,11 +44,25 @@ class MeshLinkConfigBuilder(
     var maxMessageSize: Int = 100_000,
     var bufferCapacity: Int = 1_048_576,
     var mtu: Int = 185,
+    var rateLimitMaxSends: Int = 0,
+    var rateLimitWindowMs: Long = 60_000L,
+    var circuitBreakerMaxFailures: Int = 0,
+    var circuitBreakerWindowMs: Long = 60_000L,
+    var circuitBreakerCooldownMs: Long = 30_000L,
+    var diagnosticBufferCapacity: Int = 256,
+    var dedupCapacity: Int = 10_000,
 ) {
 
     fun build(): MeshLinkConfig = MeshLinkConfig(
         maxMessageSize = maxMessageSize,
         bufferCapacity = bufferCapacity,
         mtu = mtu,
+        rateLimitMaxSends = rateLimitMaxSends,
+        rateLimitWindowMs = rateLimitWindowMs,
+        circuitBreakerMaxFailures = circuitBreakerMaxFailures,
+        circuitBreakerWindowMs = circuitBreakerWindowMs,
+        circuitBreakerCooldownMs = circuitBreakerCooldownMs,
+        diagnosticBufferCapacity = diagnosticBufferCapacity,
+        dedupCapacity = dedupCapacity,
     )
 }

@@ -1,5 +1,6 @@
 package io.meshlink.transport
 
+import io.meshlink.util.toHex
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -80,5 +81,3 @@ class VirtualMeshTransport(
         _incomingData.emit(IncomingData(fromPeerId, data))
     }
 }
-
-private fun ByteArray.toHex(): String = joinToString("") { it.toUByte().toString(16).padStart(2, '0') }
