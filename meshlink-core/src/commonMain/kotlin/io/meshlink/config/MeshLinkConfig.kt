@@ -20,6 +20,7 @@ data class MeshLinkConfig(
     val pendingMessageTtlMs: Long = 0L,
     val pendingMessageCapacity: Int = 100,
     val broadcastRateLimitPerMinute: Int = 0,
+    val relayQueueCapacity: Int = 100,
 ) {
     fun validate(): List<String> {
         val violations = mutableListOf<String>()
@@ -71,6 +72,7 @@ class MeshLinkConfigBuilder(
     var pendingMessageTtlMs: Long = 0L,
     var pendingMessageCapacity: Int = 100,
     var broadcastRateLimitPerMinute: Int = 0,
+    var relayQueueCapacity: Int = 100,
 ) {
 
     fun build(): MeshLinkConfig = MeshLinkConfig(
@@ -91,5 +93,6 @@ class MeshLinkConfigBuilder(
         pendingMessageTtlMs = pendingMessageTtlMs,
         pendingMessageCapacity = pendingMessageCapacity,
         broadcastRateLimitPerMinute = broadcastRateLimitPerMinute,
+        relayQueueCapacity = relayQueueCapacity,
     )
 }

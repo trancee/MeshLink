@@ -1,6 +1,7 @@
 package io.meshlink
 
 import io.meshlink.config.meshLinkConfig
+import io.meshlink.diagnostics.DiagnosticCode
 import io.meshlink.model.Message
 import io.meshlink.model.PeerEvent
 import io.meshlink.model.TransferFailure
@@ -5782,6 +5783,255 @@ class MeshLinkTest {
         assertTrue(confirmations.isEmpty(), "Forged delivery ACK must not trigger confirmation")
 
         job.cancel()
+        alice.stop()
+    }
+
+    // --- Relay Queue Overflow Protection ---
+
+    @Test
+    fun relayQueueCappedAtConfiguredCapacity() = runTest {
+        val transportA = VirtualMeshTransport(peerIdAlice)
+        val config = meshLinkConfig {
+            relayQueueCapacity = 5
+        }
+        val alice = MeshLink(transportA, config, coroutineContext)
+        alice.start()
+        advanceUntilIdle()
+
+        // Discover Bob so relay has a next-hop target
+        transportA.simulateDiscovery(peerIdBob)
+        advanceUntilIdle()
+
+        // Add route so relay messages know where to go
+        alice.addRoute(peerIdBob.toHex(), peerIdBob.toHex(), 1.0, 1u)
+
+        // Pause Alice — relay messages should queue instead of sending
+        alice.pause()
+
+        // Inject 10 routed messages destined for Bob (more than capacity of 5)
+        val peerIdSender = ByteArray(16) { (0xCC.toByte() + it).toByte() }
+        for (i in 0 until 10) {
+            val msg = WireCodec.encodeRoutedMessage(
+                messageId = kotlin.uuid.Uuid.random().toByteArray(),
+                origin = peerIdSender,
+                destination = peerIdBob,
+                hopLimit = 5u,
+                visitedList = listOf(peerIdSender),
+                payload = "msg$i".encodeToByteArray(),
+                replayCounter = (i + 1).toULong(),
+            )
+            transportA.receiveData(peerIdSender, msg)
+        }
+        advanceUntilIdle()
+
+        // Resume — only the 5 most recent should be flushed (oldest evicted)
+        alice.resume()
+        advanceUntilIdle()
+
+        // Check that exactly 5 routed messages were sent (not 10)
+        val relayed = transportA.sentData.filter {
+            it.second.isNotEmpty() && it.second[0] == WireCodec.TYPE_ROUTED_MESSAGE
+        }
+        assertEquals(5, relayed.size, "Only capacity-worth of relay messages should be flushed")
+
+        // Verify the 5 most recent messages were kept (msg5..msg9)
+        val payloads = relayed.map { WireCodec.decodeRoutedMessage(it.second).payload.decodeToString() }
+        for (i in 5 until 10) {
+            assertTrue("msg$i" in payloads, "msg$i should be in the flushed relay queue")
+        }
+
+        alice.stop()
+    }
+
+    @Test
+    fun shedMemoryPressureClearsRelayQueue() = runTest {
+        val transportA = VirtualMeshTransport(peerIdAlice)
+        // Large buffer utilization to trigger shedding (bufferCapacity = 100, use 90+)
+        val config = meshLinkConfig {
+            bufferCapacity = 100
+            maxMessageSize = 100
+            mtu = 100
+        }
+        val alice = MeshLink(transportA, config, coroutineContext)
+        alice.start()
+        advanceUntilIdle()
+
+        transportA.simulateDiscovery(peerIdBob)
+        advanceUntilIdle()
+
+        alice.addRoute(peerIdBob.toHex(), peerIdBob.toHex(), 1.0, 1u)
+
+        // Create buffer utilization to trigger shedding:
+        // send a message that fills >90% of bufferCapacity (100 bytes)
+        alice.send(peerIdBob, ByteArray(90))
+        advanceUntilIdle()
+
+        // Pause and queue relay messages
+        alice.pause()
+        val peerIdSender = ByteArray(16) { (0xCC.toByte() + it).toByte() }
+        for (i in 0 until 3) {
+            val msg = WireCodec.encodeRoutedMessage(
+                messageId = kotlin.uuid.Uuid.random().toByteArray(),
+                origin = peerIdSender,
+                destination = peerIdBob,
+                hopLimit = 3u,
+                visitedList = listOf(peerIdSender),
+                payload = "relay$i".encodeToByteArray(),
+                replayCounter = (i + 1).toULong(),
+            )
+            transportA.receiveData(peerIdSender, msg)
+        }
+        advanceUntilIdle()
+
+        // Shed memory pressure
+        val actions = alice.shedMemoryPressure()
+
+        // Should include relay queue clearing in actions
+        val relayAction = actions.any { it.contains("relay", ignoreCase = true) }
+        assertTrue(relayAction, "shedMemoryPressure should clear relay queue: $actions")
+
+        // Resume — relay queue should be empty (shed)
+        alice.resume()
+        advanceUntilIdle()
+
+        val relayed = transportA.sentData.filter {
+            it.second.isNotEmpty() && it.second[0] == WireCodec.TYPE_ROUTED_MESSAGE
+        }
+        assertEquals(0, relayed.size, "Relay queue should be empty after shedding")
+
+        alice.stop()
+    }
+
+    @Test
+    fun meshHealthReportsRelayQueueSize() = runTest {
+        val transportA = VirtualMeshTransport(peerIdAlice)
+        val alice = MeshLink(transportA, meshLinkConfig(), coroutineContext)
+        alice.start()
+        advanceUntilIdle()
+
+        transportA.simulateDiscovery(peerIdBob)
+        advanceUntilIdle()
+        alice.addRoute(peerIdBob.toHex(), peerIdBob.toHex(), 1.0, 1u)
+
+        // Initially relay queue is 0
+        assertEquals(0, alice.meshHealth().relayQueueSize, "Relay queue should start empty")
+
+        // Pause and queue relay messages
+        alice.pause()
+        val peerIdSender = ByteArray(16) { (0xCC.toByte() + it).toByte() }
+        for (i in 0 until 3) {
+            val msg = WireCodec.encodeRoutedMessage(
+                messageId = kotlin.uuid.Uuid.random().toByteArray(),
+                origin = peerIdSender,
+                destination = peerIdBob,
+                hopLimit = 3u,
+                visitedList = listOf(peerIdSender),
+                payload = "relay$i".encodeToByteArray(),
+                replayCounter = (i + 1).toULong(),
+            )
+            transportA.receiveData(peerIdSender, msg)
+        }
+        advanceUntilIdle()
+
+        assertEquals(3, alice.meshHealth().relayQueueSize, "Should report 3 queued relays")
+
+        alice.stop()
+    }
+
+    @Test
+    fun stopEmitsFailureForPausedMessages() = runTest {
+        val transportA = VirtualMeshTransport(peerIdAlice)
+        val alice = MeshLink(transportA, meshLinkConfig(), coroutineContext)
+        alice.start()
+        advanceUntilIdle()
+
+        transportA.simulateDiscovery(peerIdBob)
+        advanceUntilIdle()
+
+        val failures = mutableListOf<TransferFailure>()
+        val fJob = launch { alice.transferFailures.collect { failures.add(it) } }
+
+        // Pause and queue sends
+        alice.pause()
+        alice.send(peerIdBob, "will be lost".encodeToByteArray())
+        alice.send(peerIdBob, "also lost".encodeToByteArray())
+        advanceUntilIdle()
+
+        // Stop while paused — queued messages should emit FAILED_DELIVERY_TIMEOUT
+        alice.stop()
+        advanceUntilIdle()
+
+        assertTrue(failures.size >= 2,
+            "stop() should emit FAILED_DELIVERY_TIMEOUT for each queued paused message, got ${failures.size}")
+        assertTrue(failures.all { it.reason == DeliveryOutcome.FAILED_DELIVERY_TIMEOUT },
+            "All paused messages should report DELIVERY_TIMEOUT")
+
+        fJob.cancel()
+    }
+
+    // --- Diagnostic Emissions ---
+
+    @Test
+    fun hopLimitExhaustedEmitsDiagnostic() = runTest {
+        val transportA = VirtualMeshTransport(peerIdAlice)
+        val alice = MeshLink(transportA, meshLinkConfig(), coroutineContext)
+        alice.start()
+        advanceUntilIdle()
+
+        transportA.simulateDiscovery(peerIdBob)
+        advanceUntilIdle()
+
+        // Inject a routed message with hopLimit=0 (already exhausted)
+        val peerIdSender = ByteArray(16) { (0xCC.toByte() + it).toByte() }
+        val peerIdTarget = ByteArray(16) { (0xDD.toByte() + it).toByte() }
+        val msg = WireCodec.encodeRoutedMessage(
+            messageId = kotlin.uuid.Uuid.random().toByteArray(),
+            origin = peerIdSender,
+            destination = peerIdTarget,
+            hopLimit = 0u,
+            visitedList = listOf(peerIdSender),
+            payload = "expired hops".encodeToByteArray(),
+            replayCounter = 1u,
+        )
+        transportA.receiveData(peerIdSender, msg)
+        advanceUntilIdle()
+
+        val diags = alice.drainDiagnostics()
+        val hopDiags = diags.filter { it.code == DiagnosticCode.HOP_LIMIT_EXCEEDED }
+        assertEquals(1, hopDiags.size, "Should emit HOP_LIMIT_EXCEEDED diagnostic")
+
+        alice.stop()
+    }
+
+    @Test
+    fun loopDetectedEmitsDiagnostic() = runTest {
+        val transportA = VirtualMeshTransport(peerIdAlice)
+        val alice = MeshLink(transportA, meshLinkConfig(), coroutineContext)
+        alice.start()
+        advanceUntilIdle()
+
+        transportA.simulateDiscovery(peerIdBob)
+        advanceUntilIdle()
+
+        // Inject a routed message where Alice is already in the visited list (loop)
+        val peerIdSender = ByteArray(16) { (0xCC.toByte() + it).toByte() }
+        val peerIdTarget = ByteArray(16) { (0xDD.toByte() + it).toByte() }
+        val msg = WireCodec.encodeRoutedMessage(
+            messageId = kotlin.uuid.Uuid.random().toByteArray(),
+            origin = peerIdSender,
+            destination = peerIdTarget,
+            hopLimit = 5u,
+            visitedList = listOf(peerIdSender, peerIdAlice), // Alice already visited!
+            payload = "looped".encodeToByteArray(),
+            replayCounter = 1u,
+        )
+        transportA.receiveData(peerIdSender, msg)
+        advanceUntilIdle()
+
+        val diags = alice.drainDiagnostics()
+        val loopDiags = diags.filter { it.code == DiagnosticCode.LOOP_DETECTED }
+        assertEquals(1, loopDiags.size, "Should emit LOOP_DETECTED diagnostic")
+
         alice.stop()
     }
 }

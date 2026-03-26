@@ -14,6 +14,9 @@ enum class DiagnosticCode {
     MEMORY_PRESSURE,
     LATE_DELIVERY_ACK,
     DECRYPTION_FAILED,
+    HOP_LIMIT_EXCEEDED,
+    LOOP_DETECTED,
+    REPLAY_REJECTED,
 }
 
 data class DiagnosticEvent(

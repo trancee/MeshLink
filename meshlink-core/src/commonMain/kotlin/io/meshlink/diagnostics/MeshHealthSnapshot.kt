@@ -7,4 +7,5 @@ data class MeshHealthSnapshot(
     val activeTransfers: Int,
     val powerMode: String,
     val avgRouteCost: Double = 0.0,
+    val relayQueueSize: Int = 0,
 )

@@ -245,6 +245,12 @@ class MeshLink(
                 )
             }
         }
+        // Emit DELIVERY_TIMEOUT for queued paused messages that were never sent
+        for ((_, _) in pauseQueue) {
+            _transferFailures.tryEmit(
+                TransferFailure(Uuid.random(), DeliveryOutcome.FAILED_DELIVERY_TIMEOUT)
+            )
+        }
         clearState()
         scope?.cancel()
         scope = null
@@ -303,6 +309,7 @@ class MeshLink(
             activeTransfers = outboundTransfers.size,
             powerMode = currentPowerMode,
             avgRouteCost = routingTable.avgCost(),
+            relayQueueSize = relayQueue.size,
         )
     }
 
@@ -401,7 +408,9 @@ class MeshLink(
             when (result.action) {
                 io.meshlink.power.ShedAction.RELAY_BUFFERS_CLEARED -> {
                     reassembly.clear()
-                    actions.add("Cleared ${result.count} relay buffers")
+                    val relayCount = relayQueue.size
+                    relayQueue.clear()
+                    actions.add("Cleared ${result.count} relay buffers, $relayCount queued relays")
                 }
                 io.meshlink.power.ShedAction.DEDUP_TRIMMED -> {
                     dedup.clear()
@@ -790,7 +799,11 @@ class MeshLink(
 
         // Loop detection: drop if we are already in the visited list
         val selfId = transport.localPeerId
-        if (routed.visitedList.any { it.contentEquals(selfId) }) return
+        if (routed.visitedList.any { it.contentEquals(selfId) }) {
+            diagnosticSink.emit(DiagnosticCode.LOOP_DETECTED, Severity.WARN,
+                "messageId=$key, origin=${routed.origin.toHex()}")
+            return
+        }
 
         // If we are the destination, deliver locally and send delivery ACK back
         if (routed.destination.contentEquals(transport.localPeerId)) {
@@ -831,7 +844,11 @@ class MeshLink(
         }
 
         // Otherwise relay: decrement hop limit, add self to visited, forward
-        if (routed.hopLimit <= 0u) return
+        if (routed.hopLimit <= 0u) {
+            diagnosticSink.emit(DiagnosticCode.HOP_LIMIT_EXCEEDED, Severity.INFO,
+                "messageId=$key, origin=${routed.origin.toHex()}")
+            return
+        }
 
         // Record reverse path for delivery ACK relay
         routedMsgSources[key] = fromPeerId
@@ -857,6 +874,10 @@ class MeshLink(
         }
         if (paused) {
             relayQueue.add(nextHop to relayed)
+            // Evict oldest if over capacity
+            while (relayQueue.size > config.relayQueueCapacity) {
+                relayQueue.removeAt(0)
+            }
         } else {
             scope?.launch { safeSend(nextHop, relayed) }
         }
