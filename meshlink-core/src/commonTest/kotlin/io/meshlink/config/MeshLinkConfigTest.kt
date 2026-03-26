@@ -57,4 +57,27 @@ class MeshLinkConfigTest {
         assertTrue(violations.any { "rateLimitWindowMs" in it }, "Should reject zero rateLimitWindowMs when rate limiting enabled: $violations")
         assertTrue(violations.any { "circuitBreakerCooldownMs" in it }, "Should reject negative circuitBreakerCooldownMs: $violations")
     }
+
+    // --- Batch 10 Cycle 4: Preset override with new fields ---
+
+    @Test
+    fun presetOverridePreservesNewFields() {
+        // Override rate limiting in chatOptimized preset
+        val chat = MeshLinkConfig.chatOptimized {
+            rateLimitMaxSends = 5
+            circuitBreakerMaxFailures = 3
+        }
+        assertEquals(10_000, chat.maxMessageSize, "Preset default should be preserved")
+        assertEquals(524_288, chat.bufferCapacity, "Preset default should be preserved")
+        assertEquals(5, chat.rateLimitMaxSends, "Override should apply")
+        assertEquals(3, chat.circuitBreakerMaxFailures, "Override should apply")
+        assertEquals(60_000L, chat.rateLimitWindowMs, "Non-overridden new field should keep builder default")
+
+        // Validate catches violation when override creates inconsistency
+        val invalid = MeshLinkConfig.fileTransferOptimized {
+            bufferCapacity = 100  // less than maxMessageSize (100_000)
+        }
+        val violations = invalid.validate()
+        assertTrue(violations.isNotEmpty(), "Should detect bufferCapacity < maxMessageSize: $violations")
+    }
 }

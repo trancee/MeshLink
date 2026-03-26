@@ -35,4 +35,21 @@ class ConnectionLimiterTest {
         assertEquals(3, evicted2.size, "Should evict 3 on downgrade to PowerSaver")
         assertEquals(1, limiter.connectionCount())
     }
+
+    // --- Batch 10 Cycle 5: FIFO eviction order ---
+
+    @Test
+    fun evictionOrderIsFifoFirstAddedEvictedFirst() {
+        val limiter = ConnectionLimiter()
+        limiter.setMode(PowerMode.PERFORMANCE)
+
+        // Add 8 peers in order: A, B, C, D, E, F, G, H
+        val peers = listOf("A", "B", "C", "D", "E", "F", "G", "H")
+        peers.forEach { assertTrue(limiter.tryAdd(it)) }
+
+        // Downgrade to BALANCED (limit=4) — should evict first 4 (FIFO): A, B, C, D
+        val evicted = limiter.setMode(PowerMode.BALANCED)
+        assertEquals(listOf("A", "B", "C", "D"), evicted, "First 4 added should be evicted (FIFO)")
+        assertEquals(listOf("E", "F", "G", "H"), limiter.connections(), "Last 4 should remain")
+    }
 }

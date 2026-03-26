@@ -3186,4 +3186,126 @@ class MeshLinkTest {
 
         alice.stop()
     }
+
+    // --- Batch 10 Cycle 1: Truncated wire data doesn't crash ---
+
+    @Test
+    fun truncatedChunkDataDoesNotCrashNode() = runTest {
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val alice = MeshLink(transportAlice, meshLinkConfig(), coroutineContext)
+        alice.start()
+        advanceUntilIdle()
+        transportAlice.simulateDiscovery(peerIdBob)
+        advanceUntilIdle()
+
+        // Send truncated chunk (type byte + 5 random bytes, far less than 21-byte header)
+        val truncated = byteArrayOf(WireCodec.TYPE_CHUNK) + ByteArray(5)
+        transportAlice.receiveData(peerIdBob, truncated)
+        advanceUntilIdle()
+
+        // Node should still be functional — send a real message
+        val received = mutableListOf<Message>()
+        val collector = launch { alice.messages.collect { received.add(it) } }
+        advanceUntilIdle()
+
+        // Self-send to confirm node is alive
+        val result = alice.send(peerIdAlice, "alive".encodeToByteArray())
+        assertTrue(result.isSuccess, "Node should still work after truncated data")
+        advanceUntilIdle()
+        assertEquals(1, received.size, "Should receive self-send after surviving truncated data")
+
+        collector.cancel()
+        alice.stop()
+    }
+
+    // --- Batch 10 Cycle 2: Diamond topology broadcast dedup ---
+
+    @Test
+    fun diamondTopologyBroadcastDeliverExactlyOnce() = runTest {
+        val peerIdC = ByteArray(16) { (0xC0 + it).toByte() }
+        val peerIdD = ByteArray(16) { (0xD0 + it).toByte() }
+
+        // Diamond: A-B, A-C, B-D, C-D
+        val tA = VirtualMeshTransport(peerIdAlice)
+        val tB = VirtualMeshTransport(peerIdBob)
+        val tC = VirtualMeshTransport(peerIdC)
+        val tD = VirtualMeshTransport(peerIdD)
+
+        tA.linkTo(tB); tA.linkTo(tC)
+        tB.linkTo(tD); tC.linkTo(tD)
+
+        val a = MeshLink(tA, meshLinkConfig(), coroutineContext)
+        val b = MeshLink(tB, meshLinkConfig(), coroutineContext)
+        val c = MeshLink(tC, meshLinkConfig(), coroutineContext)
+        val d = MeshLink(tD, meshLinkConfig(), coroutineContext)
+
+        listOf(a, b, c, d).forEach { it.start() }
+        advanceUntilIdle()
+
+        // Discover neighbors
+        tA.simulateDiscovery(peerIdBob); tA.simulateDiscovery(peerIdC)
+        tB.simulateDiscovery(peerIdAlice); tB.simulateDiscovery(peerIdD)
+        tC.simulateDiscovery(peerIdAlice); tC.simulateDiscovery(peerIdD)
+        tD.simulateDiscovery(peerIdBob); tD.simulateDiscovery(peerIdC)
+        advanceUntilIdle()
+
+        // D listens
+        val received = mutableListOf<Message>()
+        val collector = launch { d.messages.collect { received.add(it) } }
+        advanceUntilIdle()
+
+        // A broadcasts with maxHops=5 (plenty)
+        val result = a.broadcast("diamond".encodeToByteArray(), maxHops = 5u)
+        assertTrue(result.isSuccess)
+        advanceUntilIdle()
+
+        // D should receive EXACTLY once despite two paths (A→B→D and A→C→D)
+        assertEquals(1, received.size, "D should receive broadcast exactly once via dedup")
+        assertContentEquals("diamond".encodeToByteArray(), received[0].payload)
+        assertContentEquals(peerIdAlice, received[0].senderId)
+
+        collector.cancel()
+        listOf(a, b, c, d).forEach { it.stop() }
+    }
+
+    // --- Batch 10 Cycle 3: Pause queue multi-recipient FIFO ---
+
+    @Test
+    fun pauseQueuePreservesMultiRecipientFifoOrder() = runTest {
+        val peerIdC = ByteArray(16) { (0xC0 + it).toByte() }
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val transportBob = VirtualMeshTransport(peerIdBob)
+        val transportC = VirtualMeshTransport(peerIdC)
+        transportAlice.linkTo(transportBob)
+        transportAlice.linkTo(transportC)
+
+        val alice = MeshLink(transportAlice, meshLinkConfig(), coroutineContext)
+        alice.start()
+        advanceUntilIdle()
+        transportAlice.simulateDiscovery(peerIdBob)
+        transportAlice.simulateDiscovery(peerIdC)
+        advanceUntilIdle()
+
+        alice.pause()
+
+        // Queue sends to different recipients: Bob, Charlie, Bob
+        alice.send(peerIdBob, "toBob1".encodeToByteArray())
+        alice.send(peerIdC, "toCharlie".encodeToByteArray())
+        alice.send(peerIdBob, "toBob2".encodeToByteArray())
+
+        // Clear sentData spy to only track resume sends
+        transportAlice.sentData.clear()
+
+        alice.resume()
+        advanceUntilIdle()
+
+        // Verify sends went out in FIFO order: Bob, Charlie, Bob
+        val sentRecipients = transportAlice.sentData.map { it.first }
+        assertEquals(3, sentRecipients.size, "All 3 queued sends should be delivered")
+        assertEquals(peerIdBob.toHex(), sentRecipients[0], "First send should go to Bob")
+        assertEquals(peerIdC.toHex(), sentRecipients[1], "Second send should go to Charlie")
+        assertEquals(peerIdBob.toHex(), sentRecipients[2], "Third send should go to Bob again")
+
+        alice.stop()
+    }
 }

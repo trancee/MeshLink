@@ -378,12 +378,16 @@ class MeshLink(
 
     private suspend fun handleIncomingData(fromPeerId: ByteArray, data: ByteArray) {
         if (data.isEmpty()) return
-        when (data[0]) {
-            WireCodec.TYPE_CHUNK -> handleChunk(fromPeerId, data)
-            WireCodec.TYPE_CHUNK_ACK -> handleChunkAck(data)
-            WireCodec.TYPE_BROADCAST -> handleBroadcast(fromPeerId, data)
-            WireCodec.TYPE_ROUTED_MESSAGE -> handleRoutedMessage(fromPeerId, data)
-            WireCodec.TYPE_DELIVERY_ACK -> handleDeliveryAck(fromPeerId, data)
+        try {
+            when (data[0]) {
+                WireCodec.TYPE_CHUNK -> handleChunk(fromPeerId, data)
+                WireCodec.TYPE_CHUNK_ACK -> handleChunkAck(data)
+                WireCodec.TYPE_BROADCAST -> handleBroadcast(fromPeerId, data)
+                WireCodec.TYPE_ROUTED_MESSAGE -> handleRoutedMessage(fromPeerId, data)
+                WireCodec.TYPE_DELIVERY_ACK -> handleDeliveryAck(fromPeerId, data)
+            }
+        } catch (_: Exception) {
+            // Silently drop malformed/truncated wire data
         }
     }
 

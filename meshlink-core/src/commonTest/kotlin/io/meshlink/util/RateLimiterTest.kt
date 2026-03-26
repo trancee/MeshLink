@@ -26,4 +26,24 @@ class RateLimiterTest {
         now = 1001L
         assertTrue(limiter.tryAcquire("sender-a"), "After window expires, allowed again")
     }
+
+    // --- Batch 10 Cycle 8: Exact boundary timing ---
+
+    @Test
+    fun windowBoundaryRejectsAtExactEdgeAllowsAfter() {
+        var now = 0L
+        val limiter = RateLimiter(maxEvents = 1, windowMs = 1000, clock = { now })
+
+        // Event at t=0
+        assertTrue(limiter.tryAcquire("k"), "First event at t=0 allowed")
+
+        // At t=1000: event at t=0 is exactly windowMs old → pruneAll removes it (now - 0 > 1000 is false)
+        // The condition is `now - it > windowMs`, so 1000 - 0 = 1000, NOT > 1000 → NOT pruned → still rejected
+        now = 1000L
+        assertFalse(limiter.tryAcquire("k"), "At exact boundary t=1000, event at t=0 should NOT be pruned (1000 - 0 == 1000, not > 1000)")
+
+        // At t=1001: 1001 - 0 = 1001 > 1000 → pruned → allowed
+        now = 1001L
+        assertTrue(limiter.tryAcquire("k"), "At t=1001, event at t=0 should be pruned and new event allowed")
+    }
 }
