@@ -1198,6 +1198,326 @@ class MeshLinkTest {
         alice.stop()
     }
 
+    // --- Batch 6 Cycle 8: Sweep returns evicted peer IDs ---
+
+    @Test
+    fun sweepReturnsCorrectEvictedPeerIds() = runTest {
+        val peerIdCharlie = ByteArray(16) { (0xC0 + it).toByte() }
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val alice = MeshLink(transportAlice, meshLinkConfig(), coroutineContext)
+        alice.start()
+        advanceUntilIdle()
+
+        transportAlice.simulateDiscovery(peerIdBob)
+        transportAlice.simulateDiscovery(peerIdCharlie)
+        advanceUntilIdle()
+        assertEquals(2, alice.meshHealth().connectedPeers)
+
+        // First sweep with only Charlie seen → Bob gets first miss
+        val evicted1 = alice.sweep(setOf(peerIdCharlie.toHex()))
+        assertEquals(0, evicted1.size, "No eviction after 1 miss")
+        assertEquals(2, alice.meshHealth().connectedPeers, "Bob disconnected but not evicted")
+
+        // Second sweep with only Charlie seen → Bob gets second miss → evicted
+        val evicted2 = alice.sweep(setOf(peerIdCharlie.toHex()))
+        assertEquals(1, evicted2.size, "Bob should be evicted")
+        assertTrue(evicted2.contains(peerIdBob.toHex()), "Evicted set should contain Bob's ID")
+        assertEquals(1, alice.meshHealth().connectedPeers, "Only Charlie remains")
+
+        alice.stop()
+    }
+
+    // --- Batch 6 Cycle 7: Large message fragmentation chunk count ---
+
+    @Test
+    fun largeMessageFragmentsIntoCorrectChunkCount() = runTest {
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val transportBob = VirtualMeshTransport(peerIdBob)
+        transportAlice.linkTo(transportBob)
+        transportBob.linkTo(transportAlice)
+
+        // mtu=30, header=21 → 9 bytes payload per chunk
+        val alice = MeshLink(transportAlice, meshLinkConfig { mtu = 30 }, coroutineContext)
+        val bob = MeshLink(transportBob, meshLinkConfig { mtu = 30 }, coroutineContext)
+        alice.start(); bob.start()
+        advanceUntilIdle()
+
+        transportAlice.simulateDiscovery(peerIdBob)
+        transportBob.simulateDiscovery(peerIdAlice)
+        advanceUntilIdle()
+
+        val received = mutableListOf<Message>()
+        val collector = launch { bob.messages.collect { received.add(it) } }
+        advanceUntilIdle()
+
+        // 50 bytes / 9 bytes per chunk = ceil(50/9) = 6 chunks
+        val payload = ByteArray(50) { (it + 1).toByte() }
+        alice.send(peerIdBob, payload)
+        advanceUntilIdle()
+
+        assertEquals(1, received.size, "Should receive reassembled message")
+        assertContentEquals(payload, received[0].payload, "Payload should match exactly")
+
+        // Verify the number of unique chunk sequence numbers sent
+        val chunkSeqNums = transportAlice.sentData
+            .filter { (_, data) -> data.isNotEmpty() && data[0] == WireCodec.TYPE_CHUNK }
+            .map { (_, data) -> ((data[17].toInt() and 0xFF) or ((data[18].toInt() and 0xFF) shl 8)) }
+            .toSet()
+        assertEquals(6, chunkSeqNums.size, "50 bytes at 9 bytes/chunk = 6 unique chunk seqNums")
+
+        collector.cancel()
+        alice.stop(); bob.stop()
+    }
+
+    // --- Batch 6 Cycle 6: Duplicate broadcast delivered only once ---
+
+    @Test
+    fun duplicateBroadcastDeliveredOnlyOnce() = runTest {
+        val transportBob = VirtualMeshTransport(peerIdBob)
+
+        val bob = MeshLink(transportBob, meshLinkConfig(), coroutineContext)
+        bob.start()
+        advanceUntilIdle()
+
+        val received = mutableListOf<Message>()
+        val collector = launch { bob.messages.collect { received.add(it) } }
+        advanceUntilIdle()
+
+        // Same broadcast sent twice
+        val msgId = Uuid.random().toByteArray()
+        val broadcastData = WireCodec.encodeBroadcast(
+            messageId = msgId,
+            origin = peerIdAlice,
+            remainingHops = 3u,
+            payload = "dup test".encodeToByteArray(),
+        )
+        transportBob.receiveData(peerIdAlice, broadcastData)
+        advanceUntilIdle()
+        transportBob.receiveData(peerIdAlice, broadcastData)
+        advanceUntilIdle()
+
+        assertEquals(1, received.size, "Duplicate broadcast should be delivered only once")
+
+        collector.cancel()
+        bob.stop()
+    }
+
+    // --- Batch 6 Cycle 5: Circuit breaker recovery delivers message ---
+
+    @Test
+    fun circuitBreakerRecoveryActuallyDeliversMessage() = runTest {
+        var now = 0L
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val transportBob = VirtualMeshTransport(peerIdBob)
+        transportAlice.linkTo(transportBob)
+        transportBob.linkTo(transportAlice)
+
+        val alice = MeshLink(
+            transportAlice, meshLinkConfig(), coroutineContext,
+            circuitBreakerMaxFailures = 2,
+            circuitBreakerWindowMs = 10_000,
+            circuitBreakerCooldownMs = 5_000,
+            clock = { now },
+        )
+        val bob = MeshLink(transportBob, meshLinkConfig(), coroutineContext)
+        alice.start(); bob.start()
+        advanceUntilIdle()
+
+        transportAlice.simulateDiscovery(peerIdBob)
+        transportBob.simulateDiscovery(peerIdAlice)
+        advanceUntilIdle()
+
+        // Trip the circuit
+        transportAlice.sendFailure = true
+        alice.send(peerIdBob, "f1".encodeToByteArray())
+        advanceUntilIdle()
+        alice.send(peerIdBob, "f2".encodeToByteArray())
+        advanceUntilIdle()
+
+        // Circuit open — send fails fast
+        transportAlice.sendFailure = false
+        val blocked = alice.send(peerIdBob, "blocked".encodeToByteArray())
+        assertTrue(blocked.isFailure)
+
+        // After cooldown — send succeeds AND message is delivered
+        now += 5_001
+        val received = mutableListOf<Message>()
+        val collector = launch { bob.messages.collect { received.add(it) } }
+        advanceUntilIdle()
+
+        val recovered = alice.send(peerIdBob, "recovered!".encodeToByteArray())
+        assertTrue(recovered.isSuccess, "Send should succeed after cooldown")
+        advanceUntilIdle()
+
+        assertEquals(1, received.size, "Bob should receive the message after recovery")
+        assertContentEquals("recovered!".encodeToByteArray(), received[0].payload)
+
+        collector.cancel()
+        alice.stop(); bob.stop()
+    }
+
+    // --- Batch 6 Cycle 4: meshHealth activeTransfers count ---
+
+    @Test
+    fun meshHealthActiveTransfersCountsDuringConcurrentSends() = runTest {
+        val peerIdCharlie = ByteArray(16) { (0xC0 + it).toByte() }
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val transportBob = VirtualMeshTransport(peerIdBob)
+        val transportCharlie = VirtualMeshTransport(peerIdCharlie)
+        transportAlice.linkTo(transportBob)
+        transportAlice.linkTo(transportCharlie)
+        // Drop all ACKs so transfers stay active
+        transportBob.dropFilter = { data -> data.isNotEmpty() && data[0] == WireCodec.TYPE_CHUNK_ACK }
+        transportCharlie.dropFilter = { data -> data.isNotEmpty() && data[0] == WireCodec.TYPE_CHUNK_ACK }
+
+        val alice = MeshLink(transportAlice, meshLinkConfig(), coroutineContext)
+        alice.start()
+        advanceUntilIdle()
+        transportAlice.simulateDiscovery(peerIdBob)
+        transportAlice.simulateDiscovery(peerIdCharlie)
+        advanceUntilIdle()
+
+        assertEquals(0, alice.meshHealth().activeTransfers)
+
+        alice.send(peerIdBob, "msg1".encodeToByteArray())
+        alice.send(peerIdCharlie, "msg2".encodeToByteArray())
+        advanceUntilIdle()
+
+        assertEquals(2, alice.meshHealth().activeTransfers, "Should count 2 in-flight transfers")
+
+        alice.stop()
+        assertEquals(0, alice.meshHealth().activeTransfers, "Cleared after stop")
+    }
+
+    // --- Batch 6 Cycle 3: Pause blocks broadcast re-flooding ---
+
+    @Test
+    fun pausedNodeDoesNotRefloodBroadcast() = runTest {
+        val peerIdCharlie = ByteArray(16) { (0xC0 + it).toByte() }
+        val transportBob = VirtualMeshTransport(peerIdBob)
+        val transportCharlie = VirtualMeshTransport(peerIdCharlie)
+        transportBob.linkTo(transportCharlie)
+
+        val bob = MeshLink(transportBob, meshLinkConfig(), coroutineContext)
+        bob.start()
+        advanceUntilIdle()
+
+        transportBob.simulateDiscovery(peerIdAlice) // Alice is a neighbor (for re-flood target)
+        transportBob.simulateDiscovery(peerIdCharlie)
+        advanceUntilIdle()
+
+        // Pause Bob
+        bob.pause()
+        advanceUntilIdle()
+
+        // Send a broadcast to Bob from Alice
+        val msgId = Uuid.random().toByteArray()
+        val broadcastData = WireCodec.encodeBroadcast(
+            messageId = msgId,
+            origin = peerIdAlice,
+            remainingHops = 3u,
+            payload = "hello all".encodeToByteArray(),
+        )
+        transportBob.receiveData(peerIdAlice, broadcastData)
+        advanceUntilIdle()
+
+        // Bob should still deliver locally (incoming data still processed)
+        // But should NOT re-flood to Charlie since paused
+        val reflooded = transportBob.sentData.filter { (peerId, data) ->
+            peerId == peerIdCharlie.toHex() && data.isNotEmpty() && data[0] == WireCodec.TYPE_BROADCAST
+        }
+        assertEquals(0, reflooded.size, "Paused node should not re-flood broadcasts")
+
+        bob.stop()
+    }
+
+    // --- Batch 6 Cycle 2: Transfer progress reports correct counts ---
+
+    @Test
+    fun transferProgressReportsAccurateChunkCounts() = runTest {
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val transportBob = VirtualMeshTransport(peerIdBob)
+        transportAlice.linkTo(transportBob)
+        transportBob.linkTo(transportAlice)
+
+        val alice = MeshLink(transportAlice, meshLinkConfig { mtu = 30 }, coroutineContext)
+        val bob = MeshLink(transportBob, meshLinkConfig { mtu = 30 }, coroutineContext)
+        alice.start(); bob.start()
+        advanceUntilIdle()
+
+        transportAlice.simulateDiscovery(peerIdBob)
+        transportBob.simulateDiscovery(peerIdAlice)
+        advanceUntilIdle()
+
+        val progressEvents = mutableListOf<io.meshlink.model.TransferProgress>()
+        val collector = launch { alice.transferProgress.collect { progressEvents.add(it) } }
+        advanceUntilIdle()
+
+        // 27 bytes with mtu=30 (9 bytes payload per chunk) → 3 chunks
+        val payload = ByteArray(27) { it.toByte() }
+        val result = alice.send(peerIdBob, payload)
+        assertTrue(result.isSuccess)
+        advanceUntilIdle()
+
+        // Should have progress events, last one should show all chunks acked
+        assertTrue(progressEvents.isNotEmpty(), "Should emit progress events")
+        val lastProgress = progressEvents.last()
+        assertEquals(3, lastProgress.totalChunks, "Should report 3 total chunks")
+        assertEquals(3, lastProgress.chunksAcked, "All chunks should be acked")
+        assertEquals(result.getOrThrow(), lastProgress.messageId, "Message ID should match")
+
+        collector.cancel()
+        alice.stop(); bob.stop()
+    }
+
+    // --- Batch 6 Cycle 1: Multi-chunk SACK retransmission recovery ---
+
+    @Test
+    fun droppedChunkRetransmittedViaSackAndDelivers() = runTest {
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val transportBob = VirtualMeshTransport(peerIdBob)
+        transportAlice.linkTo(transportBob)
+        transportBob.linkTo(transportAlice)
+
+        // Drop chunk with seqNum=1 on first attempt only
+        var dropCount = 0
+        transportAlice.dropFilter = { data ->
+            if (data.isNotEmpty() && data[0] == WireCodec.TYPE_CHUNK) {
+                val seqNum = ((data[17].toInt() and 0xFF) or ((data[18].toInt() and 0xFF) shl 8)).toUShort()
+                if (seqNum == 1.toUShort() && dropCount == 0) {
+                    dropCount++
+                    true
+                } else false
+            } else false
+        }
+
+        val alice = MeshLink(transportAlice, meshLinkConfig { mtu = 30 }, coroutineContext)
+        val bob = MeshLink(transportBob, meshLinkConfig { mtu = 30 }, coroutineContext)
+        alice.start(); bob.start()
+        advanceUntilIdle()
+
+        transportAlice.simulateDiscovery(peerIdBob)
+        transportBob.simulateDiscovery(peerIdAlice)
+        advanceUntilIdle()
+
+        val received = mutableListOf<Message>()
+        val collector = launch { bob.messages.collect { received.add(it) } }
+        advanceUntilIdle()
+
+        // Send payload that requires 3+ chunks with mtu=30 (header=21, payload per chunk=9)
+        val payload = "AAAAAAAAA" + "BBBBBBBBB" + "CCCCCCCCC" // 27 bytes → 3 chunks
+        alice.send(peerIdBob, payload.encodeToByteArray())
+        advanceUntilIdle()
+
+        // Chunk 1 was dropped once, SACK from chunk 0 and 2 should trigger retransmit
+        assertEquals(1, dropCount, "Should have dropped chunk 1 once")
+        assertEquals(1, received.size, "Bob should receive the full message after retransmit")
+        assertContentEquals(payload.encodeToByteArray(), received[0].payload)
+
+        collector.cancel()
+        alice.stop(); bob.stop()
+    }
+
     // --- Batch 5 Cycle 8: Empty payload roundtrip ---
 
     @Test

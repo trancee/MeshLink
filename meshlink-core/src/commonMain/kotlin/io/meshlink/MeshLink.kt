@@ -463,8 +463,8 @@ class MeshLink(
         // Deliver to self
         _messages.emit(Message(senderId = broadcast.origin, payload = broadcast.payload))
 
-        // Re-flood to all known peers except sender, if hops remain
-        if (broadcast.remainingHops > 0u) {
+        // Re-flood to all known peers except sender, if hops remain and not paused
+        if (broadcast.remainingHops > 0u && !paused) {
             val reflooded = WireCodec.encodeBroadcast(
                 messageId = broadcast.messageId,
                 origin = broadcast.origin,
