@@ -1,6 +1,6 @@
 package io.meshlink.util
 
-import java.security.MessageDigest
+import io.meshlink.crypto.createCryptoProvider
 
 class AppIdFilter(appId: String?) {
 
@@ -13,10 +13,10 @@ class AppIdFilter(appId: String?) {
     }
 
     companion object {
-        /** Compute a 16-byte hash of the appId (placeholder for BLAKE2b-128). */
+        /** Compute a 16-byte hash of the appId (truncated SHA-256). */
         fun hash(appId: String): ByteArray {
-            val digest = MessageDigest.getInstance("SHA-256")
-            return digest.digest(appId.encodeToByteArray()).copyOf(16)
+            val crypto = createCryptoProvider()
+            return crypto.sha256(appId.encodeToByteArray()).copyOf(16)
         }
     }
 }

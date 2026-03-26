@@ -1,5 +1,7 @@
 package io.meshlink.config
 
+import io.meshlink.protocol.ProtocolVersion
+
 data class MeshLinkConfig(
     val maxMessageSize: Int = 100_000,
     val bufferCapacity: Int = 1_048_576,
@@ -11,6 +13,8 @@ data class MeshLinkConfig(
     val circuitBreakerCooldownMs: Long = 30_000L,
     val diagnosticBufferCapacity: Int = 256,
     val dedupCapacity: Int = 10_000,
+    val protocolVersion: ProtocolVersion = ProtocolVersion(1, 0),
+    val appId: String? = null,
 ) {
     fun validate(): List<String> {
         val violations = mutableListOf<String>()
@@ -55,6 +59,8 @@ class MeshLinkConfigBuilder(
     var circuitBreakerCooldownMs: Long = 30_000L,
     var diagnosticBufferCapacity: Int = 256,
     var dedupCapacity: Int = 10_000,
+    var protocolVersion: ProtocolVersion = ProtocolVersion(1, 0),
+    var appId: String? = null,
 ) {
 
     fun build(): MeshLinkConfig = MeshLinkConfig(
@@ -68,5 +74,7 @@ class MeshLinkConfigBuilder(
         circuitBreakerCooldownMs = circuitBreakerCooldownMs,
         diagnosticBufferCapacity = diagnosticBufferCapacity,
         dedupCapacity = dedupCapacity,
+        protocolVersion = protocolVersion,
+        appId = appId,
     )
 }

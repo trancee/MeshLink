@@ -110,13 +110,14 @@ object WireCodec {
         return RoutedMessage(messageId, origin, destination, hopLimit, visitedList, payload)
     }
 
-    // broadcast: type(1) + messageId(16) + origin(16) + remainingHops(1) + payload
-    private const val BROADCAST_HEADER_SIZE = 1 + MESSAGE_ID_SIZE + 16 + 1 // 34
+    // broadcast: type(1) + messageId(16) + origin(16) + remainingHops(1) + appIdHash(16) + payload
+    private const val BROADCAST_HEADER_SIZE = 1 + MESSAGE_ID_SIZE + 16 + 1 + 16 // 50
 
     fun encodeBroadcast(
         messageId: ByteArray,
         origin: ByteArray,
         remainingHops: UByte,
+        appIdHash: ByteArray = ByteArray(16),
         payload: ByteArray,
     ): ByteArray {
         val buf = ByteArray(BROADCAST_HEADER_SIZE + payload.size)
@@ -125,6 +126,7 @@ object WireCodec {
         messageId.copyInto(buf, offset); offset += MESSAGE_ID_SIZE
         origin.copyInto(buf, offset); offset += 16
         buf[offset++] = remainingHops.toByte()
+        appIdHash.copyInto(buf, offset); offset += 16
         payload.copyInto(buf, offset)
         return buf
     }
@@ -136,8 +138,9 @@ object WireCodec {
         val messageId = data.copyOfRange(offset, offset + MESSAGE_ID_SIZE); offset += MESSAGE_ID_SIZE
         val origin = data.copyOfRange(offset, offset + 16); offset += 16
         val remainingHops = data[offset++].toUByte()
+        val appIdHash = data.copyOfRange(offset, offset + 16); offset += 16
         val payload = data.copyOfRange(offset, data.size)
-        return BroadcastMessage(messageId, origin, remainingHops, payload)
+        return BroadcastMessage(messageId, origin, remainingHops, appIdHash, payload)
     }
 
     // delivery_ack: type(1) + messageId(16) + recipientId(16)
@@ -217,6 +220,7 @@ data class BroadcastMessage(
     val messageId: ByteArray,
     val origin: ByteArray,
     val remainingHops: UByte,
+    val appIdHash: ByteArray,
     val payload: ByteArray,
 )
 

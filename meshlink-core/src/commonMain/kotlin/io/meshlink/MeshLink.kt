@@ -12,12 +12,14 @@ import io.meshlink.model.TransferProgress
 import io.meshlink.power.MemoryPressure
 import io.meshlink.power.PowerModeEngine
 import io.meshlink.power.TieredShedder
+import io.meshlink.protocol.ProtocolVersion
 import io.meshlink.routing.DedupSet
 import io.meshlink.routing.PresenceTracker
 import io.meshlink.routing.RoutingTable
 import io.meshlink.transfer.SackTracker
 import io.meshlink.transfer.TransferSession
 import io.meshlink.transport.BleTransport
+import io.meshlink.util.AppIdFilter
 import io.meshlink.util.CircuitBreaker
 import io.meshlink.util.DeliveryOutcome
 import io.meshlink.util.DeliveryTracker
@@ -102,6 +104,9 @@ class MeshLink(
     private val powerModeEngine = PowerModeEngine(clock = clock)
     private var currentPowerMode = "PERFORMANCE"
 
+    // App ID filter for broadcast isolation
+    private val appIdFilter = AppIdFilter(config.appId)
+
     override fun start(): Result<Unit> {
         if (started) return Result.success(Unit)
 
@@ -120,6 +125,16 @@ class MeshLink(
         newScope.launch {
             transport.advertisementEvents.collect { event ->
                 if (!paused) {
+                    // Negotiate protocol version from advertisement payload
+                    val advPayload = event.advertisementPayload
+                    if (advPayload.size >= 2) {
+                        val remoteMajor = advPayload[0].toInt() and 0xFF
+                        val remoteMinor = advPayload[1].toInt() and 0xFF
+                        val remoteVersion = ProtocolVersion(remoteMajor, remoteMinor)
+                        if (config.protocolVersion.negotiate(remoteVersion) == null) {
+                            return@collect // Incompatible version — reject peer
+                        }
+                    }
                     presenceTracker.peerSeen(event.peerId.toHex())
                     _peers.emit(PeerEvent.Discovered(event.peerId))
                 }
@@ -279,10 +294,12 @@ class MeshLink(
         }
 
         val messageId = Uuid.random()
+        val appIdHash = config.appId?.let { AppIdFilter.hash(it) } ?: ByteArray(16)
         val encoded = WireCodec.encodeBroadcast(
             messageId = messageId.toByteArray(),
             origin = transport.localPeerId,
             remainingHops = maxHops,
+            appIdHash = appIdHash,
             payload = payload,
         )
         // Mark as seen so we don't deliver our own broadcast back to ourselves
@@ -485,6 +502,9 @@ class MeshLink(
         val broadcast = WireCodec.decodeBroadcast(data)
         val key = broadcast.messageId.toHex()
 
+        // AppId filter: reject broadcasts from a different app
+        if (!appIdFilter.accepts(broadcast.appIdHash)) return
+
         // Dedup: reject if we've seen this broadcast before
         if (!dedup.tryInsert(key)) return
 
@@ -497,6 +517,7 @@ class MeshLink(
                 messageId = broadcast.messageId,
                 origin = broadcast.origin,
                 remainingHops = (broadcast.remainingHops - 1u).toUByte(),
+                appIdHash = broadcast.appIdHash,
                 payload = broadcast.payload,
             )
             val senderHex = fromPeerId.toHex()

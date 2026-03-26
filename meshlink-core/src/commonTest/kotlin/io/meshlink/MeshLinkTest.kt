@@ -3737,4 +3737,154 @@ class MeshLinkTest {
 
         a.stop()
     }
+
+    // ── Wire Integration: Protocol Version ──
+
+    @Test
+    fun incompatibleVersionPeerNotDiscovered() = runTest {
+        val peerIdCharlie = ByteArray(16) { (0xC0 + it).toByte() }
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        transportAlice.linkTo(VirtualMeshTransport(peerIdBob))
+        transportAlice.linkTo(VirtualMeshTransport(peerIdCharlie))
+
+        // Alice requires version 3.0
+        val config = meshLinkConfig {
+            protocolVersion = io.meshlink.protocol.ProtocolVersion(3, 0)
+        }
+        val alice = MeshLink(transportAlice, config, coroutineContext)
+        alice.start()
+        advanceUntilIdle()
+
+        // Bob advertises version 0.0 → incompatible (|3-0| > 1)
+        transportAlice.simulateDiscovery(peerIdBob, ByteArray(17))
+        advanceUntilIdle()
+
+        // Charlie advertises version 3.0 → compatible
+        val charlieAdv = ByteArray(17)
+        charlieAdv[0] = 3; charlieAdv[1] = 0
+        transportAlice.simulateDiscovery(peerIdCharlie, charlieAdv)
+        advanceUntilIdle()
+
+        // Only Charlie should be discovered (Bob rejected)
+        val event = alice.peers.first()
+        assertIs<PeerEvent.Discovered>(event)
+        assertContentEquals(peerIdCharlie, event.peerId)
+
+        alice.stop()
+    }
+
+    @Test
+    fun compatibleVersionPeerDiscovered() = runTest {
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        transportAlice.linkTo(VirtualMeshTransport(peerIdBob))
+
+        // Alice has version 1.0 (default)
+        val alice = MeshLink(transportAlice, meshLinkConfig(), coroutineContext)
+        alice.start()
+        advanceUntilIdle()
+
+        // Bob advertises version 1.0 → compatible
+        val bobAdv = ByteArray(17)
+        bobAdv[0] = 1; bobAdv[1] = 0
+        transportAlice.simulateDiscovery(peerIdBob, bobAdv)
+        advanceUntilIdle()
+
+        val event = alice.peers.first()
+        assertIs<PeerEvent.Discovered>(event)
+        assertContentEquals(peerIdBob, event.peerId)
+
+        alice.stop()
+    }
+
+    // ── Wire Integration: AppId Broadcast Filtering ──
+
+    @Test
+    fun broadcastWithMatchingAppIdDelivered() = runTest {
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val transportBob = VirtualMeshTransport(peerIdBob)
+        transportAlice.linkTo(transportBob)
+
+        val config = meshLinkConfig { appId = "com.example.meshapp" }
+        val alice = MeshLink(transportAlice, config, coroutineContext)
+        val bob = MeshLink(transportBob, config, coroutineContext)
+        alice.start(); bob.start()
+        advanceUntilIdle()
+
+        transportAlice.simulateDiscovery(peerIdBob)
+        transportBob.simulateDiscovery(peerIdAlice)
+        advanceUntilIdle()
+
+        val receiveJob = launch {
+            val msg = bob.messages.first()
+            assertContentEquals("mesh hello".encodeToByteArray(), msg.payload)
+        }
+
+        alice.broadcast("mesh hello".encodeToByteArray(), 3u)
+        advanceUntilIdle()
+        receiveJob.join()
+
+        alice.stop(); bob.stop()
+    }
+
+    @Test
+    fun broadcastWithDifferentAppIdFiltered() = runTest {
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val transportBob = VirtualMeshTransport(peerIdBob)
+        transportAlice.linkTo(transportBob)
+
+        val aliceConfig = meshLinkConfig { appId = "com.example.app1" }
+        val bobConfig = meshLinkConfig { appId = "com.example.app2" }
+        val alice = MeshLink(transportAlice, aliceConfig, coroutineContext)
+        val bob = MeshLink(transportBob, bobConfig, coroutineContext)
+        alice.start(); bob.start()
+        advanceUntilIdle()
+
+        transportAlice.simulateDiscovery(peerIdBob)
+        transportBob.simulateDiscovery(peerIdAlice)
+        advanceUntilIdle()
+
+        // Collect any messages Bob receives
+        val received = mutableListOf<Message>()
+        val collectJob = launch { bob.messages.collect { received.add(it) } }
+        advanceUntilIdle()
+
+        // Alice broadcasts — Bob should NOT receive it (different appId)
+        alice.broadcast("should-not-arrive".encodeToByteArray(), 3u)
+        advanceUntilIdle()
+
+        assertTrue(received.isEmpty(), "Bob should not receive broadcast with different appId")
+        collectJob.cancel()
+
+        bob.stop(); alice.stop()
+    }
+
+    @Test
+    fun broadcastWithNoAppIdAcceptsAll() = runTest {
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val transportBob = VirtualMeshTransport(peerIdBob)
+        transportAlice.linkTo(transportBob)
+
+        // Alice has appId, Bob has no appId (accepts all)
+        val aliceConfig = meshLinkConfig { appId = "com.example.myapp" }
+        val bobConfig = meshLinkConfig() // no appId
+        val alice = MeshLink(transportAlice, aliceConfig, coroutineContext)
+        val bob = MeshLink(transportBob, bobConfig, coroutineContext)
+        alice.start(); bob.start()
+        advanceUntilIdle()
+
+        transportAlice.simulateDiscovery(peerIdBob)
+        transportBob.simulateDiscovery(peerIdAlice)
+        advanceUntilIdle()
+
+        val receiveJob = launch {
+            val msg = bob.messages.first()
+            assertContentEquals("open broadcast".encodeToByteArray(), msg.payload)
+        }
+
+        alice.broadcast("open broadcast".encodeToByteArray(), 3u)
+        advanceUntilIdle()
+        receiveJob.join()
+
+        alice.stop(); bob.stop()
+    }
 }

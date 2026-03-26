@@ -167,16 +167,18 @@ class WireCodecTest {
     @Test
     fun broadcastEncodeDecodeRoundTrips() {
         val payload = "hello mesh".encodeToByteArray()
+        val appIdHash = ByteArray(16) { (0x10 + it).toByte() }
 
         val encoded = WireCodec.encodeBroadcast(
             messageId = testMessageId,
             origin = originId,
             remainingHops = 3u,
+            appIdHash = appIdHash,
             payload = payload,
         )
 
-        // type(1) + messageId(16) + origin(16) + remainingHops(1) + payload
-        assertEquals(1 + 16 + 16 + 1 + payload.size, encoded.size)
+        // type(1) + messageId(16) + origin(16) + remainingHops(1) + appIdHash(16) + payload
+        assertEquals(1 + 16 + 16 + 1 + 16 + payload.size, encoded.size)
         assertEquals(WireCodec.TYPE_BROADCAST, encoded[0])
 
         val decoded = WireCodec.decodeBroadcast(encoded)
@@ -184,6 +186,7 @@ class WireCodecTest {
         assertContentEquals(testMessageId, decoded.messageId)
         assertContentEquals(originId, decoded.origin)
         assertEquals(3u.toUByte(), decoded.remainingHops)
+        assertContentEquals(appIdHash, decoded.appIdHash)
         assertContentEquals(payload, decoded.payload)
     }
 
@@ -239,7 +242,7 @@ class WireCodecTest {
         }
 
         // Valid-length broadcast with chunk type byte
-        val broadcastData = WireCodec.encodeBroadcast(testMessageId, ByteArray(16), 3u, "y".encodeToByteArray())
+        val broadcastData = WireCodec.encodeBroadcast(testMessageId, ByteArray(16), 3u, payload = "y".encodeToByteArray())
         broadcastData[0] = WireCodec.TYPE_CHUNK
         assertFailsWith<IllegalArgumentException> {
             WireCodec.decodeBroadcast(broadcastData)
