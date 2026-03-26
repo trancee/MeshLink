@@ -67,8 +67,8 @@ object WireCodec {
         return ChunkAckMessage(messageId, ackSequence, sackBitmask)
     }
 
-    // routed_message: type(1) + messageId(16) + origin(16) + destination(16) + hopLimit(1) + visitedCount(1) + visited(N×16) + payload
-    private const val ROUTED_HEADER_SIZE = 1 + MESSAGE_ID_SIZE + 16 + 16 + 1 + 1 // 51
+    // routed_message: type(1) + messageId(16) + origin(16) + destination(16) + hopLimit(1) + replayCounter(8 LE) + visitedCount(1) + visited(N×16) + payload
+    private const val ROUTED_HEADER_SIZE = 1 + MESSAGE_ID_SIZE + 16 + 16 + 1 + 8 + 1 // 59
 
     fun encodeRoutedMessage(
         messageId: ByteArray,
@@ -77,6 +77,7 @@ object WireCodec {
         hopLimit: UByte,
         visitedList: List<ByteArray>,
         payload: ByteArray,
+        replayCounter: ULong = 0u,
     ): ByteArray {
         val buf = ByteArray(ROUTED_HEADER_SIZE + visitedList.size * 16 + payload.size)
         var offset = 0
@@ -85,6 +86,7 @@ object WireCodec {
         origin.copyInto(buf, offset); offset += 16
         destination.copyInto(buf, offset); offset += 16
         buf[offset++] = hopLimit.toByte()
+        buf.putULongLE(offset, replayCounter); offset += 8
         buf[offset++] = visitedList.size.toByte()
         for (hash in visitedList) {
             hash.copyInto(buf, offset); offset += 16
@@ -101,13 +103,14 @@ object WireCodec {
         val origin = data.copyOfRange(offset, offset + 16); offset += 16
         val destination = data.copyOfRange(offset, offset + 16); offset += 16
         val hopLimit = data[offset++].toUByte()
+        val replayCounter = data.getULongLE(offset); offset += 8
         val visitedCount = data[offset++].toInt() and 0xFF
         val visitedList = (0 until visitedCount).map {
             val hash = data.copyOfRange(offset, offset + 16); offset += 16
             hash
         }
         val payload = data.copyOfRange(offset, data.size)
-        return RoutedMessage(messageId, origin, destination, hopLimit, visitedList, payload)
+        return RoutedMessage(messageId, origin, destination, hopLimit, replayCounter, visitedList, payload)
     }
 
     // broadcast: type(1) + messageId(16) + origin(16) + remainingHops(1) + appIdHash(16) + payload
@@ -212,6 +215,7 @@ data class RoutedMessage(
     val origin: ByteArray,
     val destination: ByteArray,
     val hopLimit: UByte,
+    val replayCounter: ULong,
     val visitedList: List<ByteArray>,
     val payload: ByteArray,
 )

@@ -1,6 +1,7 @@
 package io.meshlink
 
 import io.meshlink.config.MeshLinkConfig
+import io.meshlink.crypto.ReplayGuard
 import io.meshlink.diagnostics.DiagnosticCode
 import io.meshlink.diagnostics.DiagnosticEvent
 import io.meshlink.diagnostics.DiagnosticSink
@@ -107,6 +108,10 @@ class MeshLink(
     // App ID filter for broadcast isolation
     private val appIdFilter = AppIdFilter(config.appId)
 
+    // Replay protection for routed messages
+    private val outboundReplayGuard = ReplayGuard()
+    private val inboundReplayGuards = mutableMapOf<String, ReplayGuard>()
+
     override fun start(): Result<Unit> {
         if (started) return Result.success(Unit)
 
@@ -168,6 +173,7 @@ class MeshLink(
         presenceTracker.clear()
         pauseQueue.clear()
         routedMsgSources.clear()
+        inboundReplayGuards.clear()
     }
 
     override fun pause() {
@@ -396,6 +402,7 @@ class MeshLink(
             hopLimit = 10u,
             visitedList = listOf(transport.localPeerId),
             payload = payload,
+            replayCounter = outboundReplayGuard.advance(),
         )
         s.launch { safeSend(hexToBytes(nextHopHex), encoded) }
         return Result.success(messageId)
@@ -536,6 +543,13 @@ class MeshLink(
 
         if (!dedup.tryInsert(key)) return
 
+        // Replay guard: check counter if present (counter=0 means unprotected/legacy)
+        if (routed.replayCounter > 0u) {
+            val originHex = routed.origin.toHex()
+            val guard = inboundReplayGuards.getOrPut(originHex) { ReplayGuard() }
+            if (!guard.check(routed.replayCounter)) return
+        }
+
         // Loop detection: drop if we are already in the visited list
         val selfId = transport.localPeerId
         if (routed.visitedList.any { it.contentEquals(selfId) }) return
@@ -564,6 +578,7 @@ class MeshLink(
             hopLimit = (routed.hopLimit - 1u).toUByte(),
             visitedList = newVisited,
             payload = routed.payload,
+            replayCounter = routed.replayCounter,
         )
 
         // Forward to destination if directly known, otherwise best route

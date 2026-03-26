@@ -128,11 +128,11 @@ class WireCodecTest {
             payload = payload,
         )
 
-        // type(1) + messageId(16) + origin(16) + destination(16) + hopLimit(1) + visitedCount(1) + visited(16) + payload(5) = 72
-        assertEquals(72, encoded.size)
+        // type(1) + messageId(16) + origin(16) + destination(16) + hopLimit(1) + replayCounter(8) + visitedCount(1) + visited(16) + payload(5) = 80
+        assertEquals(80, encoded.size)
         assertEquals(0x05, encoded[0])  // type
         assertEquals(5.toByte(), encoded[49]) // hopLimit
-        assertEquals(1.toByte(), encoded[50]) // visitedCount
+        assertEquals(1.toByte(), encoded[58]) // visitedCount (after 8-byte counter)
     }
 
     @Test

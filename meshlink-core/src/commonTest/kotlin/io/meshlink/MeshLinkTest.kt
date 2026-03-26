@@ -3887,4 +3887,196 @@ class MeshLinkTest {
 
         alice.stop(); bob.stop()
     }
+
+    // --- Replay Guard integration tests ---
+
+    @Test
+    fun routedMessageWithReplayCounterDelivered() = runTest {
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val transportBob = VirtualMeshTransport(peerIdBob)
+        transportAlice.linkTo(transportBob)
+
+        val alice = MeshLink(transportAlice, meshLinkConfig(), coroutineContext)
+        val bob = MeshLink(transportBob, meshLinkConfig(), coroutineContext)
+        alice.start(); bob.start()
+        advanceUntilIdle()
+
+        transportAlice.simulateDiscovery(peerIdBob)
+        transportBob.simulateDiscovery(peerIdAlice)
+        advanceUntilIdle()
+
+        val receiveJob = launch {
+            val msg = bob.messages.first()
+            assertContentEquals("replay test".encodeToByteArray(), msg.payload)
+        }
+
+        alice.send(peerIdBob, "replay test".encodeToByteArray())
+        advanceUntilIdle()
+        receiveJob.join()
+
+        alice.stop(); bob.stop()
+    }
+
+    @Test
+    fun replayedCounterRejected() = runTest {
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val transportBob = VirtualMeshTransport(peerIdBob)
+        transportAlice.linkTo(transportBob)
+
+        val bob = MeshLink(transportBob, meshLinkConfig(), coroutineContext)
+        bob.start()
+        advanceUntilIdle()
+
+        transportBob.simulateDiscovery(peerIdAlice)
+        advanceUntilIdle()
+
+        // Start collector BEFORE injecting (SharedFlow drops without subscribers)
+        val received = mutableListOf<Message>()
+        val collectJob = launch { bob.messages.collect { received.add(it) } }
+        advanceUntilIdle()
+
+        // First message with counter=5 should be accepted
+        val msg1 = WireCodec.encodeRoutedMessage(
+            messageId = Uuid.random().toByteArray(),
+            origin = peerIdAlice,
+            destination = peerIdBob,
+            hopLimit = 10u,
+            visitedList = listOf(peerIdAlice),
+            payload = "first".encodeToByteArray(),
+            replayCounter = 5u,
+        )
+        transportBob.receiveData(peerIdAlice, msg1)
+        advanceUntilIdle()
+
+        // Second message with SAME counter=5 but different messageId should be rejected
+        val msg2 = WireCodec.encodeRoutedMessage(
+            messageId = Uuid.random().toByteArray(),
+            origin = peerIdAlice,
+            destination = peerIdBob,
+            hopLimit = 10u,
+            visitedList = listOf(peerIdAlice),
+            payload = "replayed".encodeToByteArray(),
+            replayCounter = 5u,
+        )
+        transportBob.receiveData(peerIdAlice, msg2)
+        advanceUntilIdle()
+
+        // Third message with counter=6 should be accepted
+        val msg3 = WireCodec.encodeRoutedMessage(
+            messageId = Uuid.random().toByteArray(),
+            origin = peerIdAlice,
+            destination = peerIdBob,
+            hopLimit = 10u,
+            visitedList = listOf(peerIdAlice),
+            payload = "fresh".encodeToByteArray(),
+            replayCounter = 6u,
+        )
+        transportBob.receiveData(peerIdAlice, msg3)
+        advanceUntilIdle()
+
+        collectJob.cancel()
+
+        assertEquals(2, received.size)
+        assertContentEquals("first".encodeToByteArray(), received[0].payload)
+        assertContentEquals("fresh".encodeToByteArray(), received[1].payload)
+
+        bob.stop()
+    }
+
+    @Test
+    fun legacyCounterZeroAccepted() = runTest {
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val transportBob = VirtualMeshTransport(peerIdBob)
+        transportAlice.linkTo(transportBob)
+
+        val bob = MeshLink(transportBob, meshLinkConfig(), coroutineContext)
+        bob.start()
+        advanceUntilIdle()
+
+        transportBob.simulateDiscovery(peerIdAlice)
+        advanceUntilIdle()
+
+        // Message with counter=0 (legacy/unprotected) should be accepted
+        val msg = WireCodec.encodeRoutedMessage(
+            messageId = Uuid.random().toByteArray(),
+            origin = peerIdAlice,
+            destination = peerIdBob,
+            hopLimit = 10u,
+            visitedList = listOf(peerIdAlice),
+            payload = "legacy msg".encodeToByteArray(),
+            replayCounter = 0u,
+        )
+
+        val receiveJob = launch {
+            val received = bob.messages.first()
+            assertContentEquals("legacy msg".encodeToByteArray(), received.payload)
+        }
+
+        transportBob.receiveData(peerIdAlice, msg)
+        advanceUntilIdle()
+        receiveJob.join()
+
+        bob.stop()
+    }
+
+    @Test
+    fun replayCounterPreservedThroughRelay() = runTest {
+        val peerIdCharlie = ByteArray(16) { (0xC0 + it).toByte() }
+        val transportBob = VirtualMeshTransport(peerIdBob)
+        val transportCharlie = VirtualMeshTransport(peerIdCharlie)
+        transportBob.linkTo(transportCharlie)
+
+        val bob = MeshLink(transportBob, meshLinkConfig(), coroutineContext)
+        val charlie = MeshLink(transportCharlie, meshLinkConfig(), coroutineContext)
+        bob.start(); charlie.start()
+        advanceUntilIdle()
+
+        // Bob knows both Alice (upstream) and Charlie (downstream)
+        transportBob.simulateDiscovery(peerIdAlice)
+        transportBob.simulateDiscovery(peerIdCharlie)
+        transportCharlie.simulateDiscovery(peerIdBob)
+        advanceUntilIdle()
+
+        // Start Charlie's collector
+        val received = mutableListOf<Message>()
+        val collectJob = launch { charlie.messages.collect { received.add(it) } }
+        advanceUntilIdle()
+
+        // Inject a routed message into Bob from "Alice" destined for Charlie with counter=7
+        val msg = WireCodec.encodeRoutedMessage(
+            messageId = Uuid.random().toByteArray(),
+            origin = peerIdAlice,
+            destination = peerIdCharlie,
+            hopLimit = 10u,
+            visitedList = listOf(peerIdAlice),
+            payload = "relayed".encodeToByteArray(),
+            replayCounter = 7u,
+        )
+        transportBob.receiveData(peerIdAlice, msg)
+        advanceUntilIdle()
+
+        // Charlie should have received the message (counter=7 accepted)
+        assertEquals(1, received.size)
+        assertContentEquals("relayed".encodeToByteArray(), received[0].payload)
+
+        // Now replay counter=7 directly to Charlie — should be rejected
+        val replayMsg = WireCodec.encodeRoutedMessage(
+            messageId = Uuid.random().toByteArray(),
+            origin = peerIdAlice,
+            destination = peerIdCharlie,
+            hopLimit = 10u,
+            visitedList = listOf(peerIdAlice),
+            payload = "replayed".encodeToByteArray(),
+            replayCounter = 7u,
+        )
+        transportCharlie.receiveData(peerIdBob, replayMsg)
+        advanceUntilIdle()
+
+        collectJob.cancel()
+
+        // Still only 1 message — replay was rejected
+        assertEquals(1, received.size)
+
+        bob.stop(); charlie.stop()
+    }
 }
