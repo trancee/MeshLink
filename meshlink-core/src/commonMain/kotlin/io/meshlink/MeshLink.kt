@@ -68,6 +68,9 @@ class MeshLink(
     private var scope: CoroutineScope? = null
     private val baseContext = coroutineContext
 
+    private fun requireScope(): CoroutineScope =
+        scope ?: throw IllegalStateException("MeshLink not started")
+
     // Reassembly buffer: messageId hex → (sack tracker, received chunks map)
     private val reassembly = mutableMapOf<String, ReassemblyState>()
 
@@ -139,13 +142,17 @@ class MeshLink(
 
     override fun stop() {
         started = false
+        clearState()
+        scope?.cancel()
+        scope = null
+    }
+
+    private fun clearState() {
         reassembly.clear()
         outboundTransfers.clear()
         presenceTracker.clear()
         pauseQueue.clear()
         routedMsgSources.clear()
-        scope?.cancel()
-        scope = null
     }
 
     override fun pause() {
@@ -265,7 +272,7 @@ class MeshLink(
 
     override fun broadcast(payload: ByteArray, maxHops: UByte): Result<Uuid> {
         if (!started) throw IllegalStateException("MeshLink not started")
-        val s = scope ?: throw IllegalStateException("MeshLink not started")
+        val s = requireScope()
 
         if (payload.size > config.bufferCapacity) {
             return Result.failure(IllegalArgumentException("bufferFull"))
@@ -288,7 +295,7 @@ class MeshLink(
 
     override fun send(recipient: ByteArray, payload: ByteArray): Result<Uuid> {
         if (!started) throw IllegalStateException("MeshLink not started")
-        val s = scope ?: throw IllegalStateException("MeshLink not started")
+        val s = requireScope()
 
         if (payload.size > config.bufferCapacity) {
             return Result.failure(IllegalArgumentException("bufferFull"))
@@ -454,17 +461,11 @@ class MeshLink(
 
         transfer.session.onAck(ack.ackSequence.toInt(), ack.sackBitmask)
 
-        // Emit progress
-        val ackedCount = (0 until transfer.chunks.size).count { i ->
-            // acked if <= ackSeq, or sack bit set
-            i <= ack.ackSequence.toInt() ||
-                (i > ack.ackSequence.toInt() && (i - ack.ackSequence.toInt() - 1) < 64 &&
-                    ack.sackBitmask and (1uL shl (i - ack.ackSequence.toInt() - 1)) != 0uL)
-        }
+        // Emit progress (use session's authoritative acked count)
         _transferProgress.emit(
             TransferProgress(
                 messageId = Uuid.fromByteArray(ack.messageId),
-                chunksAcked = ackedCount,
+                chunksAcked = transfer.session.ackedCount(),
                 totalChunks = transfer.chunks.size,
             )
         )

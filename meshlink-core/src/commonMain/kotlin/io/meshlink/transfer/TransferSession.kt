@@ -56,6 +56,8 @@ class TransferSession(val totalChunks: Int, initialWindow: Int = 1) {
 
     fun isComplete(): Boolean = acked.all { it }
 
+    fun ackedCount(): Int = acked.count { it }
+
     fun isFailed(): Boolean = failed
 
     fun onInactivityTimeout() {
