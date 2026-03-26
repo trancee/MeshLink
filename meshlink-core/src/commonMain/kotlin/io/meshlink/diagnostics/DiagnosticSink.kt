@@ -17,6 +17,7 @@ enum class DiagnosticCode {
     HOP_LIMIT_EXCEEDED,
     LOOP_DETECTED,
     REPLAY_REJECTED,
+    MALFORMED_DATA,
 }
 
 data class DiagnosticEvent(

@@ -6129,4 +6129,206 @@ class MeshLinkTest {
         assertEquals(2000L, alice.meshHealth().effectiveGossipIntervalMs,
             ">200 routes → 2× interval")
     }
+
+    // --- Batch: Diagnostic Emissions + Hardening ---
+
+    @Test
+    fun malformedWireDataEmitsDiagnostic() = runTest {
+        val transportA = VirtualMeshTransport(peerIdAlice)
+        val alice = MeshLink(transportA, meshLinkConfig(), coroutineContext)
+        alice.start()
+        advanceUntilIdle()
+
+        transportA.simulateDiscovery(peerIdBob)
+        advanceUntilIdle()
+
+        // Inject truncated routed message (valid type byte but too short)
+        val malformed = byteArrayOf(WireCodec.TYPE_ROUTED_MESSAGE) + ByteArray(5)
+        transportA.receiveData(peerIdBob, malformed)
+        advanceUntilIdle()
+
+        val diags = alice.drainDiagnostics()
+        val malformedDiags = diags.filter { it.code == DiagnosticCode.MALFORMED_DATA }
+        assertEquals(1, malformedDiags.size, "Should emit MALFORMED_DATA diagnostic")
+
+        alice.stop()
+    }
+
+    @Test
+    fun bufferPressureEmitsDiagnostic() = runTest {
+        // Small buffer so we can trigger 80% easily
+        val transportA = VirtualMeshTransport(peerIdAlice)
+        val config = meshLinkConfig {
+            maxMessageSize = 200
+            bufferCapacity = 500
+            mtu = 185
+        }
+        val alice = MeshLink(transportA, config, coroutineContext)
+        alice.start()
+        advanceUntilIdle()
+
+        transportA.simulateDiscovery(peerIdBob)
+        advanceUntilIdle()
+
+        // Drop all outgoing data so chunks stay in buffer (no ACKs return)
+        transportA.dropFilter = { true }
+
+        // Send enough data to exceed 80% of 500-byte buffer (>400 bytes)
+        // Each send stores payload as chunks in outboundTransfers
+        alice.send(peerIdBob, ByteArray(200) { 0x42 })
+        advanceUntilIdle()
+        alice.send(peerIdBob, ByteArray(200) { 0x43 })
+        advanceUntilIdle()
+
+        val diags = alice.drainDiagnostics()
+        val pressureDiags = diags.filter { it.code == DiagnosticCode.BUFFER_PRESSURE }
+        assertTrue(pressureDiags.isNotEmpty(), "Should emit BUFFER_PRESSURE when buffer > 80%")
+
+        alice.stop()
+    }
+
+    @Test
+    fun routeChangedEmitsDiagnostic() = runTest {
+        val transportA = VirtualMeshTransport(peerIdAlice)
+        val alice = MeshLink(transportA, meshLinkConfig(), coroutineContext)
+        alice.start()
+        advanceUntilIdle()
+
+        // Connect two peers
+        val peerIdCharlie = ByteArray(16) { (0xCC.toByte() + it).toByte() }
+        transportA.simulateDiscovery(peerIdBob)
+        transportA.simulateDiscovery(peerIdCharlie)
+        advanceUntilIdle()
+
+        val destPeer = ByteArray(16) { (0xDD.toByte() + it).toByte() }
+
+        // Initial route via Bob (cost=2.0)
+        val update1 = WireCodec.encodeRouteUpdate(peerIdBob, listOf(
+            RouteUpdateEntry(destPeer, cost = 1.0, sequenceNumber = 1u, hopCount = 1u)
+        ))
+        transportA.receiveData(peerIdBob, update1)
+        advanceUntilIdle()
+
+        // Better route via Charlie (cost=1.5, higher seq)
+        val update2 = WireCodec.encodeRouteUpdate(peerIdCharlie, listOf(
+            RouteUpdateEntry(destPeer, cost = 0.5, sequenceNumber = 2u, hopCount = 1u)
+        ))
+        transportA.receiveData(peerIdCharlie, update2)
+        advanceUntilIdle()
+
+        val diags = alice.drainDiagnostics()
+        val routeDiags = diags.filter { it.code == DiagnosticCode.ROUTE_CHANGED }
+        assertEquals(1, routeDiags.size, "Should emit ROUTE_CHANGED when best route changes")
+
+        alice.stop()
+    }
+
+    @Test
+    fun pendingMessageEvictionEmitsFailure() = runTest {
+        val transportA = VirtualMeshTransport(peerIdAlice)
+        val config = meshLinkConfig {
+            pendingMessageTtlMs = 60_000
+            pendingMessageCapacity = 2
+        }
+        val alice = MeshLink(transportA, config, coroutineContext)
+        alice.start()
+        advanceUntilIdle()
+
+        // Recipient is unknown — messages will be buffered
+        val unknownPeer = ByteArray(16) { (0xDD.toByte() + it).toByte() }
+
+        val failures = mutableListOf<TransferFailure>()
+        val job = launch { alice.transferFailures.collect { failures.add(it) } }
+
+        // Send 3 messages — capacity is 2, so first will be evicted
+        alice.send(unknownPeer, "msg1".encodeToByteArray())
+        advanceUntilIdle()
+        alice.send(unknownPeer, "msg2".encodeToByteArray())
+        advanceUntilIdle()
+        alice.send(unknownPeer, "msg3".encodeToByteArray())
+        advanceUntilIdle()
+
+        assertEquals(1, failures.size, "Evicted message should emit TransferFailure")
+        assertEquals(DeliveryOutcome.FAILED_BUFFER_FULL, failures[0].reason)
+
+        job.cancel()
+        alice.stop()
+    }
+
+    @Test
+    fun gossipTrafficReportEmitsDiagnostic() = runTest {
+        val transportA = VirtualMeshTransport(peerIdAlice)
+        val config = meshLinkConfig {
+            gossipIntervalMs = 500
+        }
+        val alice = MeshLink(transportA, config, coroutineContext)
+        alice.start()
+        testScheduler.advanceTimeBy(50)
+        testScheduler.runCurrent()
+
+        // Need a peer so gossip sends to someone
+        transportA.simulateDiscovery(peerIdBob)
+        testScheduler.advanceTimeBy(50)
+        testScheduler.runCurrent()
+
+        // Add a route so gossip has content
+        alice.addRoute(
+            ByteArray(16) { 0xDD.toByte() }.toHex(),
+            peerIdBob.toHex(), 1.0, 1u
+        )
+
+        // Drain any pre-existing diagnostics
+        alice.drainDiagnostics()
+
+        // Advance past one gossip interval
+        testScheduler.advanceTimeBy(600)
+        testScheduler.runCurrent()
+
+        val diags = alice.drainDiagnostics()
+        val gossipDiags = diags.filter { it.code == DiagnosticCode.GOSSIP_TRAFFIC_REPORT }
+        assertTrue(gossipDiags.isNotEmpty(), "Should emit GOSSIP_TRAFFIC_REPORT after gossip round")
+        assertTrue(gossipDiags[0].payload!!.contains("peers="), "Payload should include peer count")
+
+        alice.stop()
+    }
+
+    @Test
+    fun inboundRateLimitEmitsDiagnostic() = runTest {
+        val transportA = VirtualMeshTransport(peerIdAlice)
+        val config = meshLinkConfig {
+            inboundRateLimitPerSenderPerMinute = 2
+        }
+        val alice = MeshLink(transportA, config, coroutineContext)
+        alice.start()
+        advanceUntilIdle()
+
+        transportA.simulateDiscovery(peerIdBob)
+        advanceUntilIdle()
+
+        // Alice needs a route to receive routed messages (inbound RL only applies to routed path)
+        val peerIdSender = ByteArray(16) { (0xEE.toByte() + it).toByte() }
+
+        // Send 3 routed messages from same origin — 3rd should be rate-limited
+        for (i in 1..3) {
+            val msg = WireCodec.encodeRoutedMessage(
+                messageId = kotlin.uuid.Uuid.random().toByteArray(),
+                origin = peerIdSender,
+                destination = peerIdAlice, // Alice is the destination
+                hopLimit = 5u,
+                visitedList = listOf(peerIdSender),
+                payload = "msg$i".encodeToByteArray(),
+                replayCounter = i.toULong(),
+            )
+            transportA.receiveData(peerIdBob, msg)
+            advanceUntilIdle()
+        }
+
+        val diags = alice.drainDiagnostics()
+        val rateDiags = diags.filter { it.code == DiagnosticCode.RATE_LIMIT_HIT }
+        assertEquals(1, rateDiags.size, "Should emit RATE_LIMIT_HIT when inbound rate exceeded")
+        assertTrue(rateDiags[0].payload!!.contains(peerIdSender.toHex()),
+            "Payload should include sender info")
+
+        alice.stop()
+    }
 }

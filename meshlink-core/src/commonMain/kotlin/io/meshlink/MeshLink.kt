@@ -88,6 +88,20 @@ class MeshLink(
         _meshHealthFlow.value = meshHealth()
     }
 
+    private fun checkBufferPressure() {
+        if (config.bufferCapacity <= 0) return
+        val usedBytes = outboundTransfers.values.sumOf { t ->
+            t.chunks.sumOf { it.size }
+        } + reassembly.values.sumOf { s ->
+            s.chunks.values.sumOf { it.size }
+        }
+        val utilPercent = usedBytes * 100 / config.bufferCapacity
+        if (utilPercent >= 80) {
+            diagnosticSink.emit(DiagnosticCode.BUFFER_PRESSURE, Severity.WARN,
+                "utilization=$utilPercent%, used=$usedBytes, capacity=${config.bufferCapacity}")
+        }
+    }
+
     private fun flushPendingMessages(peerHex: String, s: CoroutineScope) {
         val messages = pendingMessages.remove(peerHex) ?: return
         val now = clock()
@@ -538,6 +552,9 @@ class MeshLink(
                 // Evict oldest if over capacity
                 while (list.size > config.pendingMessageCapacity) {
                     list.removeAt(0)
+                    s.launch {
+                        _transferFailures.emit(TransferFailure(Uuid.random(), DeliveryOutcome.FAILED_BUFFER_FULL))
+                    }
                 }
                 return Result.success(Uuid.random())
             }
@@ -581,6 +598,9 @@ class MeshLink(
         val totalChunks = chunks.size
         val session = TransferSession(totalChunks, initialWindow = totalChunks)
         outboundTransfers[key] = OutboundTransfer(session, chunks, recipient, messageId, createdAtMs = clock())
+
+        // Check buffer pressure after adding transfer
+        checkBufferPressure()
 
         // Send initial batch
         sendChunks(s, key)
@@ -643,6 +663,9 @@ class MeshLink(
             val peerId = hexToBytes(peerHex)
             safeSend(peerId, updateData)
         }
+
+        diagnosticSink.emit(DiagnosticCode.GOSSIP_TRAFFIC_REPORT, Severity.INFO,
+            "peers=${connectedPeers.size}, routes=${allRoutes.size}")
     }
 
     private suspend fun safeSend(peerId: ByteArray, data: ByteArray) {
@@ -664,8 +687,9 @@ class MeshLink(
                 WireCodec.TYPE_ROUTED_MESSAGE -> handleRoutedMessage(fromPeerId, data)
                 WireCodec.TYPE_DELIVERY_ACK -> handleDeliveryAck(fromPeerId, data)
             }
-        } catch (_: Exception) {
-            // Silently drop malformed/truncated wire data
+        } catch (e: Exception) {
+            diagnosticSink.emit(DiagnosticCode.MALFORMED_DATA, Severity.WARN,
+                "type=0x${data[0].toUByte().toString(16)}, size=${data.size}, error=${e.message}")
         }
     }
 
@@ -676,7 +700,13 @@ class MeshLink(
             val destHex = entry.destination.toHex()
             // Don't learn routes to ourselves
             if (destHex == transport.localPeerId.toHex()) continue
+            val oldBest = routingTable.bestRoute(destHex)
             routingTable.addRoute(destHex, senderHex, entry.cost + 1.0, entry.sequenceNumber)
+            val newBest = routingTable.bestRoute(destHex)
+            if (oldBest != null && newBest != null && oldBest.nextHop != newBest.nextHop) {
+                diagnosticSink.emit(DiagnosticCode.ROUTE_CHANGED, Severity.INFO,
+                    "dest=$destHex, oldNextHop=${oldBest.nextHop}, newNextHop=${newBest.nextHop}, oldCost=${oldBest.cost}, newCost=${newBest.cost}")
+            }
         }
     }
 
@@ -830,6 +860,8 @@ class MeshLink(
                 val timestamps = inboundRateCounts.getOrPut(originHex) { mutableListOf() }
                 timestamps.removeAll { now - it > 60_000L }
                 if (timestamps.size >= config.inboundRateLimitPerSenderPerMinute) {
+                    diagnosticSink.emit(DiagnosticCode.RATE_LIMIT_HIT, Severity.WARN,
+                        "inbound, origin=$originHex, count=${timestamps.size}")
                     return // Drop — sender exceeds inbound rate limit
                 }
                 timestamps.add(now)
