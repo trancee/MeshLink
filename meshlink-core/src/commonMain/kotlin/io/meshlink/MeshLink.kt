@@ -31,9 +31,11 @@ import io.meshlink.util.RateLimiter
 import io.meshlink.util.hexToBytes
 import io.meshlink.util.toHex
 import io.meshlink.wire.WireCodec
+import io.meshlink.wire.RouteUpdateEntry
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -184,6 +186,17 @@ class MeshLink(
         newScope.launch {
             transport.incomingData.collect { incoming ->
                 handleIncomingData(incoming.peerId, incoming.data)
+            }
+        }
+
+        // Gossip route exchange: periodically broadcast route table to connected peers
+        if (config.gossipIntervalMs > 0) {
+            newScope.launch {
+                while (started) {
+                    delay(config.gossipIntervalMs)
+                    if (!started) break
+                    broadcastRouteUpdate()
+                }
             }
         }
 
@@ -472,6 +485,29 @@ class MeshLink(
         }
     }
 
+    private suspend fun broadcastRouteUpdate() {
+        val connectedPeers = presenceTracker.connectedPeerIds()
+        if (connectedPeers.isEmpty()) return
+
+        val allRoutes = routingTable.allBestRoutes()
+
+        for (peerHex in connectedPeers) {
+            // Split horizon: don't advertise a route back to its next-hop
+            val filteredRoutes = allRoutes.filter { it.nextHop != peerHex }
+            val entries = filteredRoutes.map { route ->
+                RouteUpdateEntry(
+                    destination = hexToBytes(route.destination),
+                    cost = route.cost,
+                    sequenceNumber = route.sequenceNumber,
+                    hopCount = 1u,
+                )
+            }
+            val updateData = WireCodec.encodeRouteUpdate(transport.localPeerId, entries)
+            val peerId = hexToBytes(peerHex)
+            safeSend(peerId, updateData)
+        }
+    }
+
     private suspend fun safeSend(peerId: ByteArray, data: ByteArray) {
         try {
             transport.sendToPeer(peerId, data)
@@ -487,11 +523,23 @@ class MeshLink(
                 WireCodec.TYPE_CHUNK -> handleChunk(fromPeerId, data)
                 WireCodec.TYPE_CHUNK_ACK -> handleChunkAck(data)
                 WireCodec.TYPE_BROADCAST -> handleBroadcast(fromPeerId, data)
+                WireCodec.TYPE_ROUTE_UPDATE -> handleRouteUpdate(fromPeerId, data)
                 WireCodec.TYPE_ROUTED_MESSAGE -> handleRoutedMessage(fromPeerId, data)
                 WireCodec.TYPE_DELIVERY_ACK -> handleDeliveryAck(fromPeerId, data)
             }
         } catch (_: Exception) {
             // Silently drop malformed/truncated wire data
+        }
+    }
+
+    private suspend fun handleRouteUpdate(fromPeerId: ByteArray, data: ByteArray) {
+        val update = WireCodec.decodeRouteUpdate(data)
+        val senderHex = fromPeerId.toHex()
+        for (entry in update.entries) {
+            val destHex = entry.destination.toHex()
+            // Don't learn routes to ourselves
+            if (destHex == transport.localPeerId.toHex()) continue
+            routingTable.addRoute(destHex, senderHex, entry.cost + 1.0, entry.sequenceNumber)
         }
     }
 

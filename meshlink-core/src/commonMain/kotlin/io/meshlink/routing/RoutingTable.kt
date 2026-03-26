@@ -67,6 +67,10 @@ class RoutingTable(
         return allRoutes.map { it.cost }.average()
     }
 
+    fun allBestRoutes(): List<Route> {
+        return routes.keys.mapNotNull { bestRoute(it) }
+    }
+
     companion object {
         internal var currentTime: () -> Long = { System.currentTimeMillis() }
     }

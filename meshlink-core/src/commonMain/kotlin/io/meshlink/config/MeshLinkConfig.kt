@@ -16,6 +16,7 @@ data class MeshLinkConfig(
     val protocolVersion: ProtocolVersion = ProtocolVersion(1, 0),
     val appId: String? = null,
     val inboundRateLimitPerSenderPerMinute: Int = 0,
+    val gossipIntervalMs: Long = 0L,
 ) {
     fun validate(): List<String> {
         val violations = mutableListOf<String>()
@@ -63,6 +64,7 @@ class MeshLinkConfigBuilder(
     var protocolVersion: ProtocolVersion = ProtocolVersion(1, 0),
     var appId: String? = null,
     var inboundRateLimitPerSenderPerMinute: Int = 0,
+    var gossipIntervalMs: Long = 0L,
 ) {
 
     fun build(): MeshLinkConfig = MeshLinkConfig(
@@ -79,5 +81,6 @@ class MeshLinkConfigBuilder(
         protocolVersion = protocolVersion,
         appId = appId,
         inboundRateLimitPerSenderPerMinute = inboundRateLimitPerSenderPerMinute,
+        gossipIntervalMs = gossipIntervalMs,
     )
 }

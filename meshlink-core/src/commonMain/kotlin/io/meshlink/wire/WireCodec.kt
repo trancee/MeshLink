@@ -5,6 +5,7 @@ private const val MESSAGE_ID_SIZE = 16
 object WireCodec {
 
     const val TYPE_BROADCAST: Byte = 0x00
+    const val TYPE_ROUTE_UPDATE: Byte = 0x02
     const val TYPE_CHUNK: Byte = 0x03
     const val TYPE_CHUNK_ACK: Byte = 0x04
     const val TYPE_ROUTED_MESSAGE: Byte = 0x05
@@ -166,6 +167,45 @@ object WireCodec {
         val recipientId = data.copyOfRange(offset, offset + 16)
         return DeliveryAckMessage(messageId, recipientId)
     }
+
+    // route_update: type(1) + sender(16) + entryCount(1) + entries(N × 29)
+    // each entry: destination(16) + cost(8 LE double) + sequenceNumber(4 LE uint) + hopCount(1)
+    private const val ROUTE_UPDATE_HEADER_SIZE = 1 + 16 + 1 // 18
+    private const val ROUTE_ENTRY_SIZE = 16 + 8 + 4 + 1 // 29
+
+    fun encodeRouteUpdate(senderId: ByteArray, entries: List<RouteUpdateEntry>): ByteArray {
+        val buf = ByteArray(ROUTE_UPDATE_HEADER_SIZE + entries.size * ROUTE_ENTRY_SIZE)
+        var offset = 0
+        buf[offset++] = TYPE_ROUTE_UPDATE
+        senderId.copyInto(buf, offset); offset += 16
+        buf[offset++] = entries.size.toByte()
+        for (entry in entries) {
+            entry.destination.copyInto(buf, offset); offset += 16
+            buf.putDoubleBitsLE(offset, entry.cost); offset += 8
+            buf.putUIntLE(offset, entry.sequenceNumber); offset += 4
+            buf[offset++] = entry.hopCount.toByte()
+        }
+        return buf
+    }
+
+    fun decodeRouteUpdate(data: ByteArray): RouteUpdateMessage {
+        require(data.size >= ROUTE_UPDATE_HEADER_SIZE) { "route_update too short: ${data.size}" }
+        require(data[0] == TYPE_ROUTE_UPDATE) { "not a route_update: 0x${data[0].toUByte().toString(16)}" }
+        var offset = 1
+        val senderId = data.copyOfRange(offset, offset + 16); offset += 16
+        val entryCount = data[offset++].toInt() and 0xFF
+        require(data.size >= ROUTE_UPDATE_HEADER_SIZE + entryCount * ROUTE_ENTRY_SIZE) {
+            "route_update truncated: expected ${ROUTE_UPDATE_HEADER_SIZE + entryCount * ROUTE_ENTRY_SIZE}, got ${data.size}"
+        }
+        val entries = (0 until entryCount).map {
+            val destination = data.copyOfRange(offset, offset + 16); offset += 16
+            val cost = data.getDoubleBitsLE(offset); offset += 8
+            val sequenceNumber = data.getUIntLE(offset); offset += 4
+            val hopCount = data[offset++].toUByte()
+            RouteUpdateEntry(destination, cost, sequenceNumber, hopCount)
+        }
+        return RouteUpdateMessage(senderId, entries)
+    }
 }
 
 // --- Little-endian helpers ---
@@ -193,6 +233,29 @@ private fun ByteArray.getULongLE(offset: Int): ULong {
         result = result or ((this[offset + i].toLong() and 0xFF) shl (i * 8))
     }
     return result.toULong()
+}
+
+private fun ByteArray.putUIntLE(offset: Int, value: UInt) {
+    val v = value.toInt()
+    for (i in 0..3) {
+        this[offset + i] = (v shr (i * 8)).toByte()
+    }
+}
+
+private fun ByteArray.getUIntLE(offset: Int): UInt {
+    var result = 0
+    for (i in 0..3) {
+        result = result or ((this[offset + i].toInt() and 0xFF) shl (i * 8))
+    }
+    return result.toUInt()
+}
+
+private fun ByteArray.putDoubleBitsLE(offset: Int, value: Double) {
+    putULongLE(offset, value.toRawBits().toULong())
+}
+
+private fun ByteArray.getDoubleBitsLE(offset: Int): Double {
+    return Double.fromBits(getULongLE(offset).toLong())
 }
 
 // --- Data classes ---
@@ -231,4 +294,16 @@ data class BroadcastMessage(
 data class DeliveryAckMessage(
     val messageId: ByteArray,
     val recipientId: ByteArray,
+)
+
+data class RouteUpdateEntry(
+    val destination: ByteArray,
+    val cost: Double,
+    val sequenceNumber: UInt,
+    val hopCount: UByte,
+)
+
+data class RouteUpdateMessage(
+    val senderId: ByteArray,
+    val entries: List<RouteUpdateEntry>,
 )

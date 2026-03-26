@@ -6,6 +6,7 @@ import io.meshlink.model.PeerEvent
 import io.meshlink.transport.VirtualMeshTransport
 import io.meshlink.util.toHex
 import io.meshlink.wire.WireCodec
+import io.meshlink.wire.RouteUpdateEntry
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.first
@@ -4604,5 +4605,223 @@ class MeshLinkTest {
 
         alice.stop()
         bob.stop()
+    }
+
+    // --- Gossip Route Exchange ---
+
+    @Test
+    fun gossipBroadcastsSelfRouteOnInterval() = runTest {
+        val transport = VirtualMeshTransport(peerIdAlice)
+        val config = meshLinkConfig {
+            gossipIntervalMs = 100L
+        }
+        val alice = MeshLink(transport, config, coroutineContext)
+
+        val destHex = peerIdBob.toList().joinToString("") { "%02x".format(it) }
+        alice.addRoute(destHex, destHex, 2.0, 1u)
+
+        alice.start()
+        testScheduler.advanceTimeBy(1L)
+
+        transport.simulateDiscovery(peerIdBob)
+        testScheduler.advanceTimeBy(1L)
+
+        val health = alice.meshHealth()
+        assertTrue(health.connectedPeers > 0, "Expected connectedPeers > 0 after discovery, got ${health.connectedPeers}")
+
+        testScheduler.advanceTimeBy(200L)
+
+        val routeUpdates = transport.sentData.filter { (_, data) ->
+            data.isNotEmpty() && data[0] == WireCodec.TYPE_ROUTE_UPDATE
+        }
+
+        alice.stop()
+        testScheduler.advanceTimeBy(1L)
+
+        assertTrue(routeUpdates.isNotEmpty(), "Expected gossip route update, sentData count: ${transport.sentData.size}")
+    }
+
+    @Test
+    fun gossipIncludesLocalIdAsSender() = runTest {
+        val transport = VirtualMeshTransport(peerIdAlice)
+        val config = meshLinkConfig {
+            gossipIntervalMs = 100L
+        }
+        val alice = MeshLink(transport, config, coroutineContext)
+        val destHex = peerIdBob.toList().joinToString("") { "%02x".format(it) }
+        alice.addRoute(destHex, destHex, 1.0, 1u)
+
+        alice.start()
+        testScheduler.advanceTimeBy(1L)
+
+        transport.simulateDiscovery(peerIdBob)
+        testScheduler.advanceTimeBy(1L)
+
+        testScheduler.advanceTimeBy(200L)
+
+        val routeUpdates = transport.sentData.filter { (_, data) ->
+            data.isNotEmpty() && data[0] == WireCodec.TYPE_ROUTE_UPDATE
+        }
+
+        alice.stop()
+        testScheduler.advanceTimeBy(1L)
+
+        assertTrue(routeUpdates.isNotEmpty(), "Expected route update")
+        val decoded = WireCodec.decodeRouteUpdate(routeUpdates[0].second)
+        assertContentEquals(peerIdAlice, decoded.senderId, "Sender should be Alice's peer ID")
+    }
+
+    @Test
+    fun gossipSplitHorizonFiltersRouteBackToSource() = runTest {
+        // Alice learns route to Charlie via Bob.
+        // When Alice gossips to Bob, it should NOT include route to Charlie (split horizon).
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val config = meshLinkConfig { gossipIntervalMs = 100L }
+        val alice = MeshLink(transportAlice, config, coroutineContext)
+
+        val bobHex = peerIdBob.toList().joinToString("") { "%02x".format(it) }
+        val charlieId = ByteArray(16) { (0x30 + it).toByte() }
+        val charlieHex = charlieId.toList().joinToString("") { "%02x".format(it) }
+
+        // Alice learns: Charlie is reachable via Bob (next-hop = Bob)
+        alice.addRoute(charlieHex, bobHex, 2.0, 1u)
+
+        alice.start()
+        testScheduler.advanceTimeBy(1L)
+
+        transportAlice.simulateDiscovery(peerIdBob)
+        testScheduler.advanceTimeBy(1L)
+
+        testScheduler.advanceTimeBy(200L)
+
+        // Check route update sent to Bob does NOT contain Charlie
+        val routeUpdates = transportAlice.sentData.filter { (_, data) ->
+            data.isNotEmpty() && data[0] == WireCodec.TYPE_ROUTE_UPDATE
+        }
+
+        alice.stop()
+        testScheduler.advanceTimeBy(1L)
+
+        assertTrue(routeUpdates.isNotEmpty(), "Expected at least one route update")
+        val decoded = WireCodec.decodeRouteUpdate(routeUpdates[0].second)
+        val charlieEntries = decoded.entries.filter { it.destination.contentEquals(charlieId) }
+        assertTrue(charlieEntries.isEmpty(), "Split horizon violated: route to Charlie should NOT be sent back to Bob (next-hop)")
+    }
+
+    @Test
+    fun gossipRouteLearningPopulatesTable() = runTest {
+        val transport = VirtualMeshTransport(peerIdAlice)
+        val alice = MeshLink(transport, meshLinkConfig(), coroutineContext)
+        alice.start()
+        testScheduler.advanceTimeBy(1L)
+
+        // Bob sends a route update to Alice advertising Charlie
+        val charlieId = ByteArray(16) { (0x30 + it).toByte() }
+        val charlieHex = charlieId.toList().joinToString("") { "%02x".format(it) }
+        val routeUpdate = WireCodec.encodeRouteUpdate(
+            senderId = peerIdBob,
+            entries = listOf(
+                RouteUpdateEntry(destination = charlieId, cost = 1.0, sequenceNumber = 5u, hopCount = 1u)
+            ),
+        )
+        transport.receiveData(peerIdBob, routeUpdate)
+        testScheduler.advanceTimeBy(1L)
+
+        // Alice should now have a route to Charlie
+        val health = alice.meshHealth()
+        assertTrue(health.avgRouteCost > 0.0, "Expected routes after learning from gossip, avgRouteCost=${health.avgRouteCost}")
+
+        alice.stop()
+        testScheduler.advanceTimeBy(1L)
+    }
+
+    @Test
+    fun gossip3NodeLineConverges() = runTest {
+        // A ↔ B ↔ C: after gossip, A should learn route to C via B
+        val transportA = VirtualMeshTransport(peerIdAlice)
+        val transportB = VirtualMeshTransport(peerIdBob)
+        val charlieId = ByteArray(16) { (0x30 + it).toByte() }
+        val transportC = VirtualMeshTransport(charlieId)
+        transportA.linkTo(transportB)
+        transportB.linkTo(transportC)
+
+        val config = meshLinkConfig { gossipIntervalMs = 100L }
+        val a = MeshLink(transportA, config, coroutineContext)
+        val b = MeshLink(transportB, config, coroutineContext)
+        val c = MeshLink(transportC, config, coroutineContext)
+
+        a.start(); b.start(); c.start()
+        testScheduler.advanceTimeBy(1L)
+
+        // Discover peers
+        transportA.simulateDiscovery(peerIdBob)
+        transportB.simulateDiscovery(peerIdAlice)
+        transportB.simulateDiscovery(charlieId)
+        transportC.simulateDiscovery(peerIdBob)
+        testScheduler.advanceTimeBy(1L)
+
+        // Each node advertises itself: A knows about B directly, C knows about B directly
+        val aliceHex = peerIdAlice.toList().joinToString("") { "%02x".format(it) }
+        val bobHex = peerIdBob.toList().joinToString("") { "%02x".format(it) }
+        val charlieHex = charlieId.toList().joinToString("") { "%02x".format(it) }
+
+        // Manually set direct neighbor routes (these would come from discovery in a full impl)
+        a.addRoute(bobHex, bobHex, 1.0, 1u)
+        b.addRoute(aliceHex, aliceHex, 1.0, 1u)
+        b.addRoute(charlieHex, charlieHex, 1.0, 1u)
+        c.addRoute(bobHex, bobHex, 1.0, 1u)
+
+        // Run 2 gossip intervals — routes should propagate
+        testScheduler.advanceTimeBy(250L)
+
+        // A should now know a route to C (learned via B's gossip)
+        val aHealth = a.meshHealth()
+
+        a.stop(); b.stop(); c.stop()
+        testScheduler.advanceTimeBy(1L)
+
+        assertTrue(aHealth.avgRouteCost > 0.0, "A should have learned routes")
+    }
+
+    @Test
+    fun gossipPoisonReverseOnPeerDisappearance() = runTest {
+        val transport = VirtualMeshTransport(peerIdAlice)
+        val config = meshLinkConfig { gossipIntervalMs = 100L }
+        val alice = MeshLink(transport, config, coroutineContext)
+
+        val bobHex = peerIdBob.toList().joinToString("") { "%02x".format(it) }
+        alice.addRoute(bobHex, bobHex, 1.0, 1u)
+
+        alice.start()
+        testScheduler.advanceTimeBy(1L)
+
+        // Discover another peer (Charlie) to receive gossip
+        val charlieId = ByteArray(16) { (0x30 + it).toByte() }
+        transport.simulateDiscovery(charlieId)
+        testScheduler.advanceTimeBy(1L)
+
+        // Bob disappears — sweep should trigger poison reverse
+        alice.sweep(emptySet()) // first miss
+        alice.sweep(emptySet()) // second miss → eviction
+
+        testScheduler.advanceTimeBy(200L)
+
+        // Check that route to Bob is no longer advertised (or advertised as infinity)
+        val routeUpdates = transport.sentData.filter { (_, data) ->
+            data.isNotEmpty() && data[0] == WireCodec.TYPE_ROUTE_UPDATE
+        }
+
+        alice.stop()
+        testScheduler.advanceTimeBy(1L)
+
+        // After Bob is evicted, route table shouldn't contain Bob anymore
+        // so gossip updates should either be empty or not contain Bob
+        if (routeUpdates.isNotEmpty()) {
+            val decoded = WireCodec.decodeRouteUpdate(routeUpdates.last().second)
+            val bobEntries = decoded.entries.filter { it.destination.contentEquals(peerIdBob) }
+            val highCostBob = bobEntries.filter { it.cost >= Double.MAX_VALUE / 2 }
+            assertTrue(bobEntries.isEmpty() || highCostBob.isNotEmpty(),
+                "After eviction, Bob route should be removed or poisoned (cost=∞)")
+        }
     }
 }

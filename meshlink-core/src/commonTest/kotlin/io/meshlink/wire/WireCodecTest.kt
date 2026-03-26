@@ -248,4 +248,76 @@ class WireCodecTest {
             WireCodec.decodeBroadcast(broadcastData)
         }
     }
+
+    // --- Route Update (0x02) ---
+
+    @Test
+    fun routeUpdateEncodeDecodeRoundTrips() {
+        val senderId = ByteArray(16) { (0xBB.toByte() + it).toByte() }
+        val dest1 = ByteArray(16) { (0xC0.toByte() + it).toByte() }
+        val dest2 = ByteArray(16) { (0xD0.toByte() + it).toByte() }
+        val entries = listOf(
+            RouteUpdateEntry(destination = dest1, cost = 1.5, sequenceNumber = 10u, hopCount = 1u),
+            RouteUpdateEntry(destination = dest2, cost = 3.0, sequenceNumber = 20u, hopCount = 2u),
+        )
+
+        val encoded = WireCodec.encodeRouteUpdate(senderId, entries)
+
+        assertEquals(WireCodec.TYPE_ROUTE_UPDATE, encoded[0])
+        // type(1) + sender(16) + entryCount(1) + 2 entries × 29 = 76
+        assertEquals(76, encoded.size)
+
+        val decoded = WireCodec.decodeRouteUpdate(encoded)
+
+        assertContentEquals(senderId, decoded.senderId)
+        assertEquals(2, decoded.entries.size)
+        assertContentEquals(dest1, decoded.entries[0].destination)
+        assertEquals(1.5, decoded.entries[0].cost, 0.001)
+        assertEquals(10u, decoded.entries[0].sequenceNumber)
+        assertEquals(1u.toUByte(), decoded.entries[0].hopCount)
+        assertContentEquals(dest2, decoded.entries[1].destination)
+        assertEquals(3.0, decoded.entries[1].cost, 0.001)
+        assertEquals(20u, decoded.entries[1].sequenceNumber)
+        assertEquals(2u.toUByte(), decoded.entries[1].hopCount)
+    }
+
+    @Test
+    fun routeUpdateEncodesToGoldenBytes() {
+        val senderId = ByteArray(16) { 0xAA.toByte() }
+        val dest = ByteArray(16) { 0xDD.toByte() }
+        val entries = listOf(
+            RouteUpdateEntry(destination = dest, cost = 2.0, sequenceNumber = 1u, hopCount = 1u),
+        )
+
+        val encoded = WireCodec.encodeRouteUpdate(senderId, entries)
+
+        // type(1) + sender(16) + entryCount(1) + 1 entry × 29 = 47
+        assertEquals(47, encoded.size)
+        assertEquals(0x02, encoded[0]) // TYPE_ROUTE_UPDATE
+        // sender starts at offset 1
+        assertEquals(0xAA.toByte(), encoded[1])
+        // entryCount at offset 17
+        assertEquals(1.toByte(), encoded[17])
+        // entry destination starts at offset 18
+        assertEquals(0xDD.toByte(), encoded[18])
+    }
+
+    @Test
+    fun routeUpdateEmptyEntriesRoundTrips() {
+        val senderId = ByteArray(16) { 0x11 }
+        val encoded = WireCodec.encodeRouteUpdate(senderId, emptyList())
+        val decoded = WireCodec.decodeRouteUpdate(encoded)
+
+        assertContentEquals(senderId, decoded.senderId)
+        assertEquals(0, decoded.entries.size)
+        // type(1) + sender(16) + entryCount(1) = 18
+        assertEquals(18, encoded.size)
+    }
+
+    @Test
+    fun decodeRouteUpdateRejectsTruncatedData() {
+        assertFailsWith<IllegalArgumentException> {
+            WireCodec.decodeRouteUpdate(byteArrayOf(WireCodec.TYPE_ROUTE_UPDATE) + ByteArray(10))
+        }
+    }
 }
