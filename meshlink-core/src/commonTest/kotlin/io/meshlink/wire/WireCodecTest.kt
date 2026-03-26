@@ -4,6 +4,7 @@ import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertTrue
 
 class WireCodecTest {
 
@@ -318,6 +319,38 @@ class WireCodecTest {
     fun decodeRouteUpdateRejectsTruncatedData() {
         assertFailsWith<IllegalArgumentException> {
             WireCodec.decodeRouteUpdate(byteArrayOf(WireCodec.TYPE_ROUTE_UPDATE) + ByteArray(10))
+        }
+    }
+
+    // --- Visited List Validation ---
+
+    @Test
+    fun decodeRoutedMessageRejectsTruncatedVisitedList() {
+        // Build a routed message with visitedCount=5 but only enough data for 1 entry
+        val header = ByteArray(59) // ROUTED_HEADER_SIZE = 59
+        header[0] = WireCodec.TYPE_ROUTED_MESSAGE
+        header[58] = 5 // visitedCount = 5 (claims 5×16=80 bytes of visited data)
+        // Only provide 16 bytes of visited data (1 entry, not 5)
+        val truncated = header + ByteArray(16) + "payload".encodeToByteArray()
+
+        val ex = assertFailsWith<IllegalArgumentException> {
+            WireCodec.decodeRoutedMessage(truncated)
+        }
+        assertTrue(ex.message!!.contains("truncated"), "Error should mention truncation: ${ex.message}")
+    }
+
+    @Test
+    fun encodeRoutedMessageRejectsVisitedListOver255() {
+        val oversized = (0..255).map { ByteArray(16) { it.toByte() } } // 256 entries
+        assertFailsWith<IllegalArgumentException> {
+            WireCodec.encodeRoutedMessage(
+                messageId = testMessageId,
+                origin = ByteArray(16),
+                destination = ByteArray(16),
+                hopLimit = 10u,
+                visitedList = oversized,
+                payload = "x".encodeToByteArray()
+            )
         }
     }
 }

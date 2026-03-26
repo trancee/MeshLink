@@ -75,6 +75,8 @@ class RoutingTable(
         routes.clear()
     }
 
+    fun size(): Int = routes.size
+
     companion object {
         internal var currentTime: () -> Long = { System.currentTimeMillis() }
     }

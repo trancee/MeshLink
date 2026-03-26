@@ -6034,4 +6034,99 @@ class MeshLinkTest {
 
         alice.stop()
     }
+
+    @Test
+    fun replayRejectionEmitsDiagnostic() = runTest {
+        val transportA = VirtualMeshTransport(peerIdAlice)
+        val alice = MeshLink(transportA, meshLinkConfig(), coroutineContext)
+        alice.start()
+        advanceUntilIdle()
+
+        transportA.simulateDiscovery(peerIdBob)
+        advanceUntilIdle()
+
+        val peerIdSender = ByteArray(16) { (0xEE.toByte() + it).toByte() }
+        val peerIdTarget = ByteArray(16) { (0xFF.toByte() + it).toByte() }
+
+        // First message with replayCounter=1 — accepted
+        val msg1 = WireCodec.encodeRoutedMessage(
+            messageId = kotlin.uuid.Uuid.random().toByteArray(),
+            origin = peerIdSender,
+            destination = peerIdTarget,
+            hopLimit = 5u,
+            visitedList = listOf(peerIdSender),
+            payload = "first".encodeToByteArray(),
+            replayCounter = 1u,
+        )
+        transportA.receiveData(peerIdBob, msg1)
+        advanceUntilIdle()
+
+        // Second message with same replayCounter=1 but different messageId — replay!
+        val msg2 = WireCodec.encodeRoutedMessage(
+            messageId = kotlin.uuid.Uuid.random().toByteArray(),
+            origin = peerIdSender,
+            destination = peerIdTarget,
+            hopLimit = 5u,
+            visitedList = listOf(peerIdSender),
+            payload = "replayed".encodeToByteArray(),
+            replayCounter = 1u,
+        )
+        transportA.receiveData(peerIdBob, msg2)
+        advanceUntilIdle()
+
+        val diags = alice.drainDiagnostics()
+        val replayDiags = diags.filter { it.code == DiagnosticCode.REPLAY_REJECTED }
+        assertEquals(1, replayDiags.size, "Should emit REPLAY_REJECTED diagnostic")
+
+        alice.stop()
+    }
+
+    @Test
+    fun gossipThrottlesWhenRoutingTableLarge() = runTest {
+        val transportA = VirtualMeshTransport(peerIdAlice)
+        // gossipIntervalMs=0 disables the gossip coroutine (avoids runTest hang)
+        val config = meshLinkConfig {
+            gossipIntervalMs = 1000
+        }
+        val alice = MeshLink(transportA, config, coroutineContext)
+        // Don't start() — just test effectiveGossipInterval via meshHealth()
+        // addRoute + meshHealth are safe to call without starting
+
+        // Baseline: effective interval equals configured
+        assertEquals(1000L, alice.meshHealth().effectiveGossipIntervalMs,
+            "No routes → base interval")
+
+        // Add 101 routes to trigger throttle (>100 = 1.5× interval)
+        for (i in 0 until 101) {
+            val dest = ByteArray(16).also {
+                it[0] = (i shr 8 and 0xFF).toByte()
+                it[1] = (i and 0xFF).toByte()
+            }.toHex()
+            alice.addRoute(dest, peerIdBob.toHex(), 1.0, 1u)
+        }
+
+        assertEquals(1500L, alice.meshHealth().effectiveGossipIntervalMs,
+            ">100 routes → 1.5× interval")
+    }
+
+    @Test
+    fun gossipDoublesAt200Routes() = runTest {
+        val transportA = VirtualMeshTransport(peerIdAlice)
+        val config = meshLinkConfig {
+            gossipIntervalMs = 1000
+        }
+        val alice = MeshLink(transportA, config, coroutineContext)
+
+        // Add 201 routes to trigger 2× throttle
+        for (i in 0 until 201) {
+            val dest = ByteArray(16).also {
+                it[0] = (i shr 8 and 0xFF).toByte()
+                it[1] = (i and 0xFF).toByte()
+            }.toHex()
+            alice.addRoute(dest, peerIdBob.toHex(), 1.0, 1u)
+        }
+
+        assertEquals(2000L, alice.meshHealth().effectiveGossipIntervalMs,
+            ">200 routes → 2× interval")
+    }
 }

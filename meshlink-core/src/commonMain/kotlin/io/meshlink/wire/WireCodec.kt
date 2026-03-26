@@ -80,6 +80,7 @@ object WireCodec {
         payload: ByteArray,
         replayCounter: ULong = 0u,
     ): ByteArray {
+        require(visitedList.size <= 255) { "visitedList too large: ${visitedList.size} (max 255)" }
         val buf = ByteArray(ROUTED_HEADER_SIZE + visitedList.size * 16 + payload.size)
         var offset = 0
         buf[offset++] = TYPE_ROUTED_MESSAGE
@@ -106,6 +107,9 @@ object WireCodec {
         val hopLimit = data[offset++].toUByte()
         val replayCounter = data.getULongLE(offset); offset += 8
         val visitedCount = data[offset++].toInt() and 0xFF
+        require(data.size >= offset + visitedCount * 16) {
+            "routed_message truncated: visitedCount=$visitedCount requires ${offset + visitedCount * 16} bytes, got ${data.size}"
+        }
         val visitedList = (0 until visitedCount).map {
             val hash = data.copyOfRange(offset, offset + 16); offset += 16
             hash

@@ -224,7 +224,7 @@ class MeshLink(
         if (config.gossipIntervalMs > 0) {
             newScope.launch {
                 while (started) {
-                    delay(config.gossipIntervalMs)
+                    delay(effectiveGossipInterval())
                     if (!started) break
                     broadcastRouteUpdate()
                 }
@@ -310,6 +310,7 @@ class MeshLink(
             powerMode = currentPowerMode,
             avgRouteCost = routingTable.avgCost(),
             relayQueueSize = relayQueue.size,
+            effectiveGossipIntervalMs = effectiveGossipInterval(),
         )
     }
 
@@ -329,6 +330,17 @@ class MeshLink(
 
     override fun addRoute(destination: String, nextHop: String, cost: Double, sequenceNumber: UInt) {
         routingTable.addRoute(destination, nextHop, cost, sequenceNumber)
+    }
+
+    private fun effectiveGossipInterval(): Long {
+        val base = config.gossipIntervalMs
+        if (base <= 0) return 0
+        val routeCount = routingTable.size()
+        return when {
+            routeCount > 200 -> base * 2
+            routeCount > 100 -> base * 3 / 2
+            else -> base
+        }
     }
 
     override fun sweepStaleTransfers(maxAgeMs: Long): Int {
@@ -794,7 +806,11 @@ class MeshLink(
         if (routed.replayCounter > 0u) {
             val originHex = routed.origin.toHex()
             val guard = inboundReplayGuards.getOrPut(originHex) { ReplayGuard() }
-            if (!guard.check(routed.replayCounter)) return
+            if (!guard.check(routed.replayCounter)) {
+                diagnosticSink.emit(DiagnosticCode.REPLAY_REJECTED, Severity.WARN,
+                    "messageId=$key, origin=${routed.origin.toHex()}, counter=${routed.replayCounter}")
+                return
+            }
         }
 
         // Loop detection: drop if we are already in the visited list

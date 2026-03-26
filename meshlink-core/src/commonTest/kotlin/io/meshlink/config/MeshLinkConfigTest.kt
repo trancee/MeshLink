@@ -80,4 +80,27 @@ class MeshLinkConfigTest {
         val violations = invalid.validate()
         assertTrue(violations.isNotEmpty(), "Should detect bufferCapacity < maxMessageSize: $violations")
     }
+
+    @Test
+    fun allPresetsPassValidation() {
+        val presets = listOf(
+            "chatOptimized" to MeshLinkConfig.chatOptimized(),
+            "fileTransferOptimized" to MeshLinkConfig.fileTransferOptimized(),
+            "powerOptimized" to MeshLinkConfig.powerOptimized(),
+        )
+        for ((name, config) in presets) {
+            val violations = config.validate()
+            assertEquals(emptyList(), violations, "$name should have no violations")
+            assertTrue(config.mtu <= config.maxMessageSize, "$name: mtu must be <= maxMessageSize")
+            assertTrue(config.maxMessageSize <= config.bufferCapacity, "$name: maxMessageSize must be <= bufferCapacity")
+            assertTrue(config.relayQueueCapacity > 0, "$name: relayQueueCapacity must be > 0")
+        }
+    }
+
+    @Test
+    fun presetOverridesRelayQueueCapacity() {
+        val custom = MeshLinkConfig.chatOptimized { relayQueueCapacity = 50 }
+        assertEquals(50, custom.relayQueueCapacity)
+        assertEquals(10_000, custom.maxMessageSize, "Other fields preserved")
+    }
 }
