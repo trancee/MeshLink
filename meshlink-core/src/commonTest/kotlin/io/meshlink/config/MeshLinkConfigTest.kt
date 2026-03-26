@@ -38,4 +38,23 @@ class MeshLinkConfigTest {
         assertTrue(violations.any { "mtu" in it.lowercase() })
         assertTrue(violations.any { "buffer" in it.lowercase() || "maxmessagesize" in it.lowercase() })
     }
+
+    // --- Batch 9 Cycle 1: Config validation for new fields ---
+
+    @Test
+    fun newConfigFieldsValidateNonNegativeAndPositive() {
+        val violations = MeshLinkConfig(
+            diagnosticBufferCapacity = -1,
+            dedupCapacity = 0,
+            rateLimitMaxSends = 2,
+            rateLimitWindowMs = 0,
+            circuitBreakerMaxFailures = 1,
+            circuitBreakerCooldownMs = -5,
+        ).validate()
+
+        assertTrue(violations.any { "diagnosticBufferCapacity" in it }, "Should reject negative diagnosticBufferCapacity: $violations")
+        assertTrue(violations.any { "dedupCapacity" in it }, "Should reject zero dedupCapacity: $violations")
+        assertTrue(violations.any { "rateLimitWindowMs" in it }, "Should reject zero rateLimitWindowMs when rate limiting enabled: $violations")
+        assertTrue(violations.any { "circuitBreakerCooldownMs" in it }, "Should reject negative circuitBreakerCooldownMs: $violations")
+    }
 }

@@ -243,6 +243,11 @@ class MeshLink(
     override fun broadcast(payload: ByteArray, maxHops: UByte): Result<Uuid> {
         if (!started) throw IllegalStateException("MeshLink not started")
         val s = scope ?: throw IllegalStateException("MeshLink not started")
+
+        if (payload.size > config.bufferCapacity) {
+            return Result.failure(IllegalArgumentException("bufferFull"))
+        }
+
         val messageId = Uuid.random()
         val encoded = WireCodec.encodeBroadcast(
             messageId = messageId.toByteArray(),

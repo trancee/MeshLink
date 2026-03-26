@@ -19,6 +19,10 @@ data class MeshLinkConfig(
         if (maxMessageSize <= 0) violations.add("maxMessageSize must be positive")
         if (bufferCapacity <= 0) violations.add("bufferCapacity must be positive")
         if (mtu > maxMessageSize) violations.add("mtu ($mtu) exceeds maxMessageSize ($maxMessageSize)")
+        if (diagnosticBufferCapacity < 0) violations.add("diagnosticBufferCapacity must be non-negative")
+        if (dedupCapacity <= 0) violations.add("dedupCapacity must be positive")
+        if (rateLimitMaxSends > 0 && rateLimitWindowMs <= 0) violations.add("rateLimitWindowMs must be positive when rate limiting is enabled")
+        if (circuitBreakerMaxFailures > 0 && circuitBreakerCooldownMs <= 0) violations.add("circuitBreakerCooldownMs must be positive when circuit breaker is enabled")
         return violations
     }
 
