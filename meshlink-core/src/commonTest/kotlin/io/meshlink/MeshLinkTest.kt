@@ -3308,4 +3308,65 @@ class MeshLinkTest {
 
         alice.stop()
     }
+
+    // --- Batch 11 Cycle 1: Stale transfer cleanup ---
+
+    @Test
+    fun sweepStaleTransfersEvictsAbandonedOutboundTransfers() = runTest {
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val transportBob = VirtualMeshTransport(peerIdBob)
+        transportAlice.linkTo(transportBob)
+        // Drop all data so chunks never get ACKed
+        transportAlice.dropFilter = { _ -> true }
+
+        var nowMs = 0L
+        val alice = MeshLink(transportAlice, meshLinkConfig(), coroutineContext, clock = { nowMs })
+        alice.start()
+        advanceUntilIdle()
+        transportAlice.simulateDiscovery(peerIdBob)
+        advanceUntilIdle()
+
+        // Send a message — chunks go out but never get ACKed
+        alice.send(peerIdBob, "stale".encodeToByteArray())
+        advanceUntilIdle()
+
+        // Verify there's an active transfer
+        assertEquals(1, alice.meshHealth().activeTransfers, "Should have 1 active transfer")
+
+        // Advance time past max age and sweep
+        nowMs = 30_001L
+        val swept = alice.sweepStaleTransfers(maxAgeMs = 30_000L)
+        assertEquals(1, swept, "Should evict 1 stale transfer")
+        assertEquals(0, alice.meshHealth().activeTransfers, "No active transfers after sweep")
+
+        alice.stop()
+    }
+
+    // --- Batch 11 Cycle 7: Stopped node ignores incoming data ---
+
+    @Test
+    fun stoppedNodeIgnoresIncomingDataGracefully() = runTest {
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val alice = MeshLink(transportAlice, meshLinkConfig(), coroutineContext)
+        alice.start()
+        advanceUntilIdle()
+        transportAlice.simulateDiscovery(peerIdBob)
+        advanceUntilIdle()
+
+        // Stop the node
+        alice.stop()
+        advanceUntilIdle()
+
+        // Simulate incoming broadcast after stop — should not crash
+        val broadcastData = byteArrayOf(WireCodec.TYPE_BROADCAST) + ByteArray(33)
+        transportAlice.receiveData(peerIdBob, broadcastData)
+        advanceUntilIdle()
+
+        // Node is stopped — restarting should work fine
+        alice.start()
+        advanceUntilIdle()
+        val health = alice.meshHealth()
+        assertEquals(0, health.connectedPeers, "Fresh start should have no peers")
+        alice.stop()
+    }
 }

@@ -63,4 +63,24 @@ class AimdControllerTest {
         aimd.onReconnect()
         assertEquals(1, aimd.window)
     }
+
+    // --- Batch 11 Cycle 5: onReconnect with custom initialWindow ---
+
+    @Test
+    fun onReconnectResetsToCustomInitialWindow() {
+        val aimd = AimdController(initialWindow = 4)
+        assertEquals(4, aimd.window)
+
+        // Grow window
+        repeat(8) { aimd.onAck() }
+        assertEquals(8, aimd.window)
+
+        // Reconnect resets to initial (4), not 1
+        aimd.onReconnect()
+        assertEquals(4, aimd.window)
+
+        // Double reconnect is safe
+        aimd.onReconnect()
+        assertEquals(4, aimd.window)
+    }
 }

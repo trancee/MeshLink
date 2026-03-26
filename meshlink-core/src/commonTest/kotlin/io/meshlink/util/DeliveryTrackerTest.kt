@@ -2,7 +2,9 @@ package io.meshlink.util
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class DeliveryTrackerTest {
 
@@ -43,5 +45,21 @@ class DeliveryTrackerTest {
         // Unregistered message → also returns null (not tracked)
         val result3 = tracker.recordOutcome("unknown", DeliveryOutcome.CONFIRMED)
         assertNull(result3, "Unregistered message should return null")
+    }
+
+    // --- Batch 11 Cycle 6: isTracked ---
+
+    @Test
+    fun isTrackedReturnsFalseForUnknownTrueForRegistered() {
+        val tracker = DeliveryTracker()
+
+        assertFalse(tracker.isTracked("unknown"), "Unknown message should not be tracked")
+
+        tracker.register("msg1")
+        assertTrue(tracker.isTracked("msg1"), "Registered message should be tracked")
+
+        // After resolution, still tracked (tombstoned)
+        tracker.recordOutcome("msg1", DeliveryOutcome.CONFIRMED)
+        assertTrue(tracker.isTracked("msg1"), "Resolved message should still be tracked (tombstone)")
     }
 }

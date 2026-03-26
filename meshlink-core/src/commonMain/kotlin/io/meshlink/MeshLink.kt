@@ -200,6 +200,18 @@ class MeshLink(
         routingTable.addRoute(destination, nextHop, cost, sequenceNumber)
     }
 
+    override fun sweepStaleTransfers(maxAgeMs: Long): Int {
+        val now = clock()
+        val staleKeys = outboundTransfers.entries
+            .filter { now - it.value.createdAtMs > maxAgeMs }
+            .map { it.key }
+        for (key in staleKeys) {
+            val transfer = outboundTransfers.remove(key)
+            transfer?.session?.onInactivityTimeout()
+        }
+        return staleKeys.size
+    }
+
     override fun updateBattery(batteryPercent: Int, isCharging: Boolean) {
         currentPowerMode = powerModeEngine.update(batteryPercent, isCharging).name
     }
@@ -327,7 +339,7 @@ class MeshLink(
         }
         val totalChunks = chunks.size
         val session = TransferSession(totalChunks, initialWindow = totalChunks)
-        outboundTransfers[key] = OutboundTransfer(session, chunks, recipient, messageId)
+        outboundTransfers[key] = OutboundTransfer(session, chunks, recipient, messageId, createdAtMs = clock())
 
         // Send initial batch
         sendChunks(s, key)
@@ -558,4 +570,5 @@ internal class OutboundTransfer(
     val chunks: List<ByteArray>,
     val recipient: ByteArray,
     val messageId: ByteArray,
+    val createdAtMs: Long = 0L,
 )
