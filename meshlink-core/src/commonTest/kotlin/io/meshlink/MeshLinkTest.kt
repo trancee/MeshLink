@@ -1198,6 +1198,196 @@ class MeshLinkTest {
         alice.stop()
     }
 
+    // --- Batch 8 Cycle 1: Double start is idempotent ---
+
+    @Test
+    fun doubleStartIsIdempotent() = runTest {
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val alice = MeshLink(transportAlice, meshLinkConfig(), coroutineContext)
+
+        val r1 = alice.start()
+        assertTrue(r1.isSuccess)
+        advanceUntilIdle()
+        val r2 = alice.start()
+        assertTrue(r2.isSuccess, "Second start should succeed (idempotent)")
+
+        // Should still function normally
+        transportAlice.simulateDiscovery(peerIdBob)
+        advanceUntilIdle()
+        assertEquals(1, alice.meshHealth().connectedPeers)
+
+        alice.stop()
+    }
+
+    // --- Batch 8 Cycle 2: Broadcast to zero peers succeeds ---
+
+    @Test
+    fun broadcastToZeroPeersSucceeds() = runTest {
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val alice = MeshLink(transportAlice, meshLinkConfig(), coroutineContext)
+        alice.start()
+        advanceUntilIdle()
+
+        // No peers discovered — broadcast should still succeed
+        assertEquals(0, alice.meshHealth().connectedPeers)
+        val result = alice.broadcast("hello void".encodeToByteArray(), 3u)
+        assertTrue(result.isSuccess, "Broadcast to zero peers should succeed")
+
+        alice.stop()
+    }
+
+    // --- Batch 8 Cycle 3: Send not started throws ---
+
+    @Test
+    fun sendBeforeStartThrows() = runTest {
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val alice = MeshLink(transportAlice, meshLinkConfig(), coroutineContext)
+
+        assertFailsWith<IllegalStateException>("Should throw when not started") {
+            alice.send(peerIdBob, "nope".encodeToByteArray())
+        }
+    }
+
+    // --- Batch 8 Cycle 4: Routed message to direct neighbor skips routing table ---
+
+    @Test
+    fun routedMessageToDirectNeighborSendsDirectly() = runTest {
+        val peerIdCharlie = ByteArray(16) { (0xC0 + it).toByte() }
+        val transportBob = VirtualMeshTransport(peerIdBob)
+        val transportCharlie = VirtualMeshTransport(peerIdCharlie)
+        transportBob.linkTo(transportCharlie)
+
+        val bob = MeshLink(transportBob, meshLinkConfig(), coroutineContext)
+        val charlie = MeshLink(transportCharlie, meshLinkConfig(), coroutineContext)
+        bob.start(); charlie.start()
+        advanceUntilIdle()
+        transportBob.simulateDiscovery(peerIdCharlie)
+        transportCharlie.simulateDiscovery(peerIdBob)
+        advanceUntilIdle()
+
+        val received = mutableListOf<Message>()
+        val collector = launch { charlie.messages.collect { received.add(it) } }
+        advanceUntilIdle()
+
+        // Bob receives a routed message destined for Charlie (direct neighbor)
+        // Should deliver directly without needing routing table entry
+        val msgId = Uuid.random().toByteArray()
+        val routedData = WireCodec.encodeRoutedMessage(
+            messageId = msgId,
+            origin = peerIdAlice,
+            destination = peerIdCharlie,
+            hopLimit = 5u,
+            visitedList = listOf(peerIdAlice),
+            payload = "direct relay".encodeToByteArray(),
+        )
+        transportBob.receiveData(peerIdAlice, routedData)
+        advanceUntilIdle()
+
+        assertEquals(1, received.size, "Charlie should receive via direct relay")
+        assertContentEquals("direct relay".encodeToByteArray(), received[0].payload)
+
+        collector.cancel()
+        bob.stop(); charlie.stop()
+    }
+
+    // --- Batch 8 Cycle 5: Delivery tracker prevents double confirmation ---
+
+    @Test
+    fun duplicateDeliveryAckEmitsOnlyOneConfirmation() = runTest {
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val transportBob = VirtualMeshTransport(peerIdBob)
+        transportAlice.linkTo(transportBob)
+        transportBob.linkTo(transportAlice)
+
+        val alice = MeshLink(transportAlice, meshLinkConfig(), coroutineContext)
+        val bob = MeshLink(transportBob, meshLinkConfig(), coroutineContext)
+        alice.start(); bob.start()
+        advanceUntilIdle()
+        transportAlice.simulateDiscovery(peerIdBob)
+        transportBob.simulateDiscovery(peerIdAlice)
+        advanceUntilIdle()
+
+        val confirmations = mutableListOf<Uuid>()
+        val collector = launch { alice.deliveryConfirmations.collect { confirmations.add(it) } }
+        advanceUntilIdle()
+
+        // Send message — will get one confirmation via chunk ACK
+        val result = alice.send(peerIdBob, "msg".encodeToByteArray())
+        assertTrue(result.isSuccess)
+        advanceUntilIdle()
+
+        val countAfterFirst = confirmations.size
+        assertEquals(1, countAfterFirst, "Should have exactly 1 confirmation")
+
+        // Manually send a duplicate delivery ACK back from Bob
+        val msgId = result.getOrThrow().toByteArray()
+        val dupAck = WireCodec.encodeDeliveryAck(msgId, peerIdBob)
+        transportAlice.receiveData(peerIdBob, dupAck)
+        advanceUntilIdle()
+
+        // DeliveryTracker should block the duplicate — state is already RESOLVED
+        assertEquals(1, confirmations.size, "Duplicate ACK should NOT produce second confirmation")
+
+        collector.cancel()
+        alice.stop(); bob.stop()
+    }
+
+    // --- Batch 8 Cycle 6: Resume without start is safe ---
+
+    @Test
+    fun resumeWithoutStartDoesNotCrash() = runTest {
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val alice = MeshLink(transportAlice, meshLinkConfig(), coroutineContext)
+
+        // These should not crash
+        alice.resume()
+        alice.pause()
+        alice.resume()
+        alice.stop()
+    }
+
+    // --- Batch 8 Cycle 7: Config DSL builder produces expected values ---
+
+    @Test
+    fun configDslBuilderOverridesApply() = runTest {
+        val config = meshLinkConfig {
+            mtu = 128
+            maxMessageSize = 5_000
+            bufferCapacity = 50_000
+        }
+        assertEquals(128, config.mtu)
+        assertEquals(5_000, config.maxMessageSize)
+        assertEquals(50_000, config.bufferCapacity)
+
+        // Validate passes
+        val violations = config.validate()
+        assertTrue(violations.isEmpty(), "Custom config should validate: $violations")
+    }
+
+    // --- Batch 8 Cycle 8: meshHealth consistent after pause/resume ---
+
+    @Test
+    fun meshHealthConsistentAfterPauseResume() = runTest {
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val alice = MeshLink(transportAlice, meshLinkConfig(), coroutineContext)
+        alice.start()
+        advanceUntilIdle()
+
+        transportAlice.simulateDiscovery(peerIdBob)
+        advanceUntilIdle()
+        assertEquals(1, alice.meshHealth().connectedPeers)
+
+        alice.pause()
+        // Peers should still be tracked while paused
+        assertEquals(1, alice.meshHealth().connectedPeers, "Peers preserved during pause")
+
+        alice.resume()
+        advanceUntilIdle()
+        assertEquals(1, alice.meshHealth().connectedPeers, "Peers preserved after resume")
+
+        alice.stop()
+    }
+
     // --- Batch 7 Cycle 8: Power mode BALANCED at mid battery ---
 
     @Test
