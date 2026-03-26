@@ -71,4 +71,31 @@ class DiagnosticSinkTest {
         assertEquals("e4", events[0].payload)
         assertEquals("e5", events[1].payload)
     }
+
+    // --- Batch 15 Cycle 7: Emit after drain starts fresh ---
+
+    @Test
+    fun emitAfterDrainStartsFresh() {
+        var ms = 0L
+        val sink = DiagnosticSink(bufferCapacity = 10, clock = { ms })
+
+        // Emit and drain
+        ms = 1L; sink.emit(DiagnosticCode.ROUTE_CHANGED, Severity.INFO, "first")
+        val batch1 = mutableListOf<DiagnosticEvent>()
+        sink.drainTo(batch1)
+        assertEquals(1, batch1.size)
+
+        // Drain again — should be empty
+        val batch2 = mutableListOf<DiagnosticEvent>()
+        sink.drainTo(batch2)
+        assertEquals(0, batch2.size, "Second drain should be empty")
+
+        // Emit new events after drain — should have droppedCount=0
+        ms = 2L; sink.emit(DiagnosticCode.BUFFER_PRESSURE, Severity.WARN, "second")
+        val batch3 = mutableListOf<DiagnosticEvent>()
+        sink.drainTo(batch3)
+        assertEquals(1, batch3.size)
+        assertEquals(0, batch3[0].droppedCount, "Fresh emit after drain should have 0 drops")
+        assertEquals("second", batch3[0].payload)
+    }
 }

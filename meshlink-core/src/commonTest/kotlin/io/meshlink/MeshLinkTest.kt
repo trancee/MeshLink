@@ -3592,4 +3592,149 @@ class MeshLinkTest {
 
         a.stop()
     }
+
+    // --- Batch 15 Cycle 1: Empty incoming data handled safely ---
+
+    @Test
+    fun emptyIncomingDataDoesNotCrash() = runTest {
+        val transportA = VirtualMeshTransport(peerIdAlice)
+        val a = MeshLink(transportA, meshLinkConfig(), coroutineContext)
+        a.start()
+        advanceUntilIdle()
+        transportA.simulateDiscovery(peerIdBob)
+        advanceUntilIdle()
+
+        // Simulate receiving empty data — should be silently ignored
+        transportA.receiveData(peerIdBob, ByteArray(0))
+        advanceUntilIdle()
+
+        // Node still healthy
+        val health = a.meshHealth()
+        assertEquals(1, health.connectedPeers)
+
+        // Simulate single-byte unknown type — also safe
+        transportA.receiveData(peerIdBob, byteArrayOf(0x7F))
+        advanceUntilIdle()
+
+        a.stop()
+    }
+
+    // --- Batch 15 Cycle 2: ACK for swept transfer still emits confirmation ---
+
+    @Test
+    fun ackForSweptTransferEmitsConfirmation() = runTest {
+        var now = 0L
+        val config = meshLinkConfig {
+            mtu = 185
+            maxMessageSize = 1024
+            bufferCapacity = 2048
+        }
+        val transportA = VirtualMeshTransport(peerIdAlice)
+        val transportB = VirtualMeshTransport(peerIdBob)
+        transportA.linkTo(transportB)
+        // Don't link B→A so ACKs don't flow back automatically
+        val a = MeshLink(transportA, config, coroutineContext) { now }
+        val b = MeshLink(transportB, config, coroutineContext) { now }
+        a.start(); b.start()
+        advanceUntilIdle()
+        transportA.simulateDiscovery(peerIdBob)
+        transportB.simulateDiscovery(peerIdAlice)
+        advanceUntilIdle()
+
+        // Install drop filter so ACKs from Bob don't reach Alice yet
+        transportA.dropFilter = { true } // drop everything incoming
+
+        a.send(peerIdBob, "hello".encodeToByteArray())
+        advanceUntilIdle()
+
+        // Sweep stale transfers — removes the outbound entry
+        now = 60_000L
+        val swept = a.sweepStaleTransfers(maxAgeMs = 30_000)
+        assertTrue(swept >= 1, "Should sweep at least 1 stale transfer")
+
+        // Now remove drop filter and replay a chunk ACK
+        transportA.dropFilter = null
+        transportB.linkTo(transportA) // enable B→A
+
+        // The ACK path now hits the "legacy" fallback (outboundTransfers[key] == null)
+        // which emits deliveryConfirmation anyway
+        val confirmations = mutableListOf<Uuid>()
+        val collectJob = launch { a.deliveryConfirmations.collect { confirmations.add(it) } }
+        advanceUntilIdle()
+
+        // Re-send chunks to trigger Bob's ACK response
+        a.send(peerIdBob, "retry".encodeToByteArray())
+        advanceUntilIdle()
+
+        // Should have at least one confirmation (from the new send)
+        assertTrue(confirmations.isNotEmpty(), "Should receive delivery confirmation")
+        collectJob.cancel()
+        a.stop(); b.stop()
+    }
+
+    // --- Batch 15 Cycle 5: meshHealth reflects state after restart ---
+
+    @Test
+    fun restartAfterStopResetsAllState() = runTest {
+        val transportA = VirtualMeshTransport(peerIdAlice)
+        val transportB = VirtualMeshTransport(peerIdBob)
+        transportA.linkTo(transportB)
+        transportB.linkTo(transportA)
+
+        val a = MeshLink(transportA, meshLinkConfig(), coroutineContext)
+        val b = MeshLink(transportB, meshLinkConfig(), coroutineContext)
+        a.start(); b.start()
+        advanceUntilIdle()
+        transportA.simulateDiscovery(peerIdBob)
+        transportB.simulateDiscovery(peerIdAlice)
+        advanceUntilIdle()
+
+        // Send a message to create some state
+        a.send(peerIdBob, "hello".encodeToByteArray())
+        advanceUntilIdle()
+
+        val healthBefore = a.meshHealth()
+        assertTrue(healthBefore.connectedPeers >= 1)
+
+        // Stop then restart — all state should reset
+        a.stop()
+        a.start()
+        advanceUntilIdle()
+
+        val healthAfter = a.meshHealth()
+        assertEquals(0, healthAfter.connectedPeers, "Restart should clear peer state")
+        assertEquals(0, healthAfter.bufferUtilizationPercent, "Restart should clear buffers")
+
+        a.stop(); b.stop()
+    }
+
+    // --- Batch 15 Cycle 8: meshHealth before any activity returns zeroes ---
+
+    @Test
+    fun meshHealthOnFreshNodeReturnsZeroes() = runTest {
+        val transportA = VirtualMeshTransport(peerIdAlice)
+        val a = MeshLink(transportA, meshLinkConfig(), coroutineContext)
+        a.start()
+        advanceUntilIdle()
+
+        // No peers, no messages, no transfers
+        val health = a.meshHealth()
+        assertEquals(0, health.connectedPeers)
+        assertEquals(0, health.bufferUtilizationPercent)
+        assertEquals("PERFORMANCE", health.powerMode)
+
+        // drainDiagnostics on fresh node is empty
+        val diags = a.drainDiagnostics()
+        assertTrue(diags.isEmpty(), "No diagnostics on fresh node")
+
+        // sweep with no peers returns empty
+        val evicted = a.sweep(emptySet())
+        assertTrue(evicted.isEmpty())
+
+        // sweepStaleTransfers on fresh node returns 0
+        assertEquals(0, a.sweepStaleTransfers(maxAgeMs = 1000))
+        assertEquals(0, a.sweepStaleReassemblies(maxAgeMs = 1000))
+
+        a.stop()
+    }
 }

@@ -92,4 +92,24 @@ class TrustStoreTest {
         // Restored store preserves mode
         assertIs<VerifyResult.KeyChanged>(restored.verify("peer-a", byteArrayOf(9, 9, 9)))
     }
+
+    // --- Batch 15 Cycle 6: Empty store returns FirstSeen for all ---
+
+    @Test
+    fun emptyStoreReturnsFirstSeenAndIsolatesPeers() {
+        val store = TrustStore(TrustMode.STRICT)
+
+        // Multiple peers, all first-seen
+        assertIs<VerifyResult.FirstSeen>(store.verify("peer-a", byteArrayOf(1)))
+        assertIs<VerifyResult.FirstSeen>(store.verify("peer-b", byteArrayOf(2)))
+        assertIs<VerifyResult.FirstSeen>(store.verify("peer-c", byteArrayOf(3)))
+
+        // Each peer's key is independent
+        assertIs<VerifyResult.Trusted>(store.verify("peer-a", byteArrayOf(1)))
+        assertIs<VerifyResult.KeyChanged>(store.verify("peer-a", byteArrayOf(2)),
+            "peer-a's key is 1, not 2")
+
+        // peer-b's key is isolated
+        assertIs<VerifyResult.Trusted>(store.verify("peer-b", byteArrayOf(2)))
+    }
 }

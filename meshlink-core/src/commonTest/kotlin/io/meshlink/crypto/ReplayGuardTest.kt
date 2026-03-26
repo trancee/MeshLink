@@ -86,4 +86,21 @@ class ReplayGuardTest {
         // Counter 1 is way too old
         assertFalse(guard.check(1u), "counter 1 is way outside window")
     }
+
+    // --- Batch 15 Cycle 3: Counter zero always rejected ---
+
+    @Test
+    fun counterZeroAlwaysRejected() {
+        val guard = ReplayGuard()
+
+        // Zero is rejected even as the first counter
+        assertFalse(guard.check(0u), "Counter 0 is sentinel — always rejected")
+
+        // Normal counters still work
+        assertTrue(guard.check(1u))
+        assertTrue(guard.check(2u))
+
+        // Zero still rejected after state accumulates
+        assertFalse(guard.check(0u), "Counter 0 still rejected after other counters accepted")
+    }
 }
