@@ -328,6 +328,12 @@ class MeshLink(
         for (key in staleKeys) {
             val transfer = outboundTransfers.remove(key)
             transfer?.session?.onInactivityTimeout()
+            val outcome = deliveryTracker.recordOutcome(key, DeliveryOutcome.FAILED_ACK_TIMEOUT)
+            if (outcome != null) {
+                _transferFailures.tryEmit(
+                    TransferFailure(Uuid.fromByteArray(hexToBytes(key)), DeliveryOutcome.FAILED_ACK_TIMEOUT)
+                )
+            }
         }
         return staleKeys.size
     }
@@ -341,6 +347,27 @@ class MeshLink(
             reassembly.remove(key)
         }
         return staleKeys.size
+    }
+
+    override fun sweepExpiredPendingMessages(): Int {
+        if (config.pendingMessageTtlMs <= 0) return 0
+        val now = clock()
+        var count = 0
+        val emptyKeys = mutableListOf<String>()
+        for ((peerHex, messages) in pendingMessages) {
+            val before = messages.size
+            messages.removeAll { (now - it.enqueueTimeMs) >= config.pendingMessageTtlMs }
+            val expired = before - messages.size
+            count += expired
+            for (i in 0 until expired) {
+                _transferFailures.tryEmit(
+                    TransferFailure(Uuid.random(), DeliveryOutcome.FAILED_DELIVERY_TIMEOUT)
+                )
+            }
+            if (messages.isEmpty()) emptyKeys.add(peerHex)
+        }
+        for (key in emptyKeys) pendingMessages.remove(key)
+        return count
     }
 
     override fun updateBattery(batteryPercent: Int, isCharging: Boolean) {
@@ -808,6 +835,9 @@ class MeshLink(
         val outcome = deliveryTracker.recordOutcome(key, DeliveryOutcome.CONFIRMED)
         if (outcome != null || !deliveryTracker.isTracked(key)) {
             _deliveryConfirmations.emit(Uuid.fromByteArray(ack.messageId))
+        } else if (deliveryTracker.isTracked(key)) {
+            // Late ACK: messageId already resolved (tombstoned)
+            diagnosticSink.emit(DiagnosticCode.LATE_DELIVERY_ACK, Severity.INFO, "messageId=$key")
         }
         // Relay ACK back along reverse path if we were a relay node
         val source = routedMsgSources.remove(key)

@@ -5271,4 +5271,263 @@ class MeshLinkTest {
 
         alice.stop(); bob.stop(); charlie.stop()
     }
+
+    // --- Transfer Lifecycle Hardening ---
+
+    @Test
+    fun sweepStaleTransfersEmitsAckTimeoutFailure() = runTest {
+        val transportA = VirtualMeshTransport(peerIdAlice)
+        val transportB = VirtualMeshTransport(peerIdBob)
+        transportA.linkTo(transportB)
+        // Don't link B→A so chunk ACKs never arrive
+        var nowMs = 0L
+        val alice = MeshLink(transportA, meshLinkConfig { }, coroutineContext, clock = { nowMs })
+        alice.start()
+        advanceUntilIdle()
+
+        val failures = mutableListOf<TransferFailure>()
+        val collectJob = launch {
+            alice.transferFailures.collect { failures.add(it) }
+        }
+
+        transportA.simulateDiscovery(peerIdBob, ByteArray(0))
+        advanceUntilIdle()
+
+        // Send — transfer starts but ACK never arrives
+        alice.send(peerIdBob, "stale".encodeToByteArray())
+        advanceUntilIdle()
+        assertEquals(1, alice.meshHealth().activeTransfers)
+
+        // Advance clock and sweep
+        nowMs = 31_000L
+        val swept = alice.sweepStaleTransfers(30_000L)
+        advanceUntilIdle()
+
+        assertEquals(1, swept)
+        assertEquals(1, failures.size, "Sweep should emit FAILED_ACK_TIMEOUT")
+        assertEquals(DeliveryOutcome.FAILED_ACK_TIMEOUT, failures[0].reason)
+
+        collectJob.cancel()
+        alice.stop()
+    }
+
+    @Test
+    fun lateDeliveryAckAfterTombstoneDroppedWithDiagnostic() = runTest {
+        val transportA = VirtualMeshTransport(peerIdAlice)
+        val transportB = VirtualMeshTransport(peerIdBob)
+        transportA.linkTo(transportB)
+        transportB.linkTo(transportA)
+        val alice = MeshLink(transportA, meshLinkConfig { }, coroutineContext)
+        val bob = MeshLink(transportB, meshLinkConfig { }, coroutineContext)
+        alice.start(); bob.start()
+        advanceUntilIdle()
+
+        transportA.simulateDiscovery(peerIdBob, ByteArray(0))
+        transportB.simulateDiscovery(peerIdAlice, ByteArray(0))
+        advanceUntilIdle()
+
+        val confirmations = mutableListOf<Uuid>()
+        val cJob = launch { alice.deliveryConfirmations.collect { confirmations.add(it) } }
+
+        // Send — will get confirmed via chunk ACK
+        val result = alice.send(peerIdBob, "hello".encodeToByteArray())
+        assertTrue(result.isSuccess)
+        advanceUntilIdle()
+
+        // Should have gotten delivery confirmation already (via chunk ACK)
+        assertTrue(confirmations.isNotEmpty(), "Should have delivery confirmation")
+        val confirmedId = confirmations[0]
+        val confirmationCount = confirmations.size
+
+        // Now inject a LATE delivery ACK for the same messageId
+        val lateAck = WireCodec.encodeDeliveryAck(
+            messageId = confirmedId.toByteArray(),
+            recipientId = peerIdBob,
+        )
+        transportA.receiveData(peerIdBob, lateAck)
+        advanceUntilIdle()
+
+        // Should NOT emit duplicate confirmation
+        assertEquals(confirmationCount, confirmations.size,
+            "Late delivery ACK should not emit duplicate confirmation")
+
+        // Should have emitted LATE_DELIVERY_ACK diagnostic
+        val diagnostics = alice.drainDiagnostics()
+        val lateDiag = diagnostics.any { it.code.name == "LATE_DELIVERY_ACK" }
+        assertTrue(lateDiag, "Should emit LATE_DELIVERY_ACK diagnostic, got: ${diagnostics.map { it.code }}")
+
+        cJob.cancel()
+        alice.stop(); bob.stop()
+    }
+
+    @Test
+    fun broadcastTtlClampingLimitsPropagation() = runTest {
+        // Topology: Alice → Bob → Charlie (linear chain)
+        val transportA = VirtualMeshTransport(peerIdAlice)
+        val transportB = VirtualMeshTransport(peerIdBob)
+        val peerIdCharlie = ByteArray(16) { (0xCC.toByte() + it).toByte() }
+        val transportC = VirtualMeshTransport(peerIdCharlie)
+        transportA.linkTo(transportB)
+        transportB.linkTo(transportC)
+
+        val config = meshLinkConfig { }
+        val bob = MeshLink(transportB, config, coroutineContext)
+        val charlie = MeshLink(transportC, config, coroutineContext)
+        bob.start(); charlie.start()
+        advanceUntilIdle()
+
+        transportB.simulateDiscovery(peerIdAlice, ByteArray(0))
+        transportB.simulateDiscovery(peerIdCharlie, ByteArray(0))
+        transportC.simulateDiscovery(peerIdBob, ByteArray(0))
+        advanceUntilIdle()
+
+        val bobMessages = mutableListOf<Message>()
+        val charlieMessages = mutableListOf<Message>()
+        val bJob = launch { bob.messages.collect { bobMessages.add(it) } }
+        val cJob = launch { charlie.messages.collect { charlieMessages.add(it) } }
+
+        // Manually inject a broadcast with remainingHops=1 into Bob
+        val msgId1 = Uuid.random()
+        val broadcast1 = WireCodec.encodeBroadcast(
+            messageId = msgId1.toByteArray(),
+            origin = peerIdAlice,
+            remainingHops = 1u,
+            appIdHash = ByteArray(16),
+            payload = "ttl1".encodeToByteArray(),
+        )
+        transportB.receiveData(peerIdAlice, broadcast1)
+        advanceUntilIdle()
+
+        assertEquals(1, bobMessages.size, "Bob should receive the broadcast")
+        // Bob re-floods with hops=0, Charlie receives it, but Charlie won't re-flood
+        assertEquals(1, charlieMessages.size,
+            "Charlie should receive broadcast relayed by Bob (hops decremented to 0)")
+
+        // Now inject broadcast with remainingHops=0 → Bob receives but does NOT re-flood
+        val msgId2 = Uuid.random()
+        val broadcast2 = WireCodec.encodeBroadcast(
+            messageId = msgId2.toByteArray(),
+            origin = peerIdAlice,
+            remainingHops = 0u,
+            appIdHash = ByteArray(16),
+            payload = "ttl0".encodeToByteArray(),
+        )
+        transportB.receiveData(peerIdAlice, broadcast2)
+        advanceUntilIdle()
+
+        assertEquals(2, bobMessages.size, "Bob should receive the second broadcast")
+        assertEquals(1, charlieMessages.size,
+            "Charlie should NOT receive broadcast with hops=0 (not re-flooded)")
+
+        bJob.cancel(); cJob.cancel()
+        bob.stop(); charlie.stop()
+    }
+
+    @Test
+    fun broadcastDoesNotDeliverToSender() = runTest {
+        val transportA = VirtualMeshTransport(peerIdAlice)
+        val transportB = VirtualMeshTransport(peerIdBob)
+        transportA.linkTo(transportB)
+        transportB.linkTo(transportA)
+        val alice = MeshLink(transportA, meshLinkConfig { }, coroutineContext)
+        val bob = MeshLink(transportB, meshLinkConfig { }, coroutineContext)
+        alice.start(); bob.start()
+        advanceUntilIdle()
+
+        transportA.simulateDiscovery(peerIdBob, ByteArray(0))
+        transportB.simulateDiscovery(peerIdAlice, ByteArray(0))
+        advanceUntilIdle()
+
+        val aliceMessages = mutableListOf<Message>()
+        val bobMessages = mutableListOf<Message>()
+        val aJob = launch { alice.messages.collect { aliceMessages.add(it) } }
+        val bJob = launch { bob.messages.collect { bobMessages.add(it) } }
+
+        alice.broadcast("hello all".encodeToByteArray(), 3u)
+        advanceUntilIdle()
+
+        // Bob should receive the broadcast
+        assertEquals(1, bobMessages.size, "Bob should receive the broadcast")
+
+        // Alice should NOT receive her own broadcast
+        assertEquals(0, aliceMessages.size,
+            "Sender should not receive own broadcast (no self-delivery)")
+
+        aJob.cancel(); bJob.cancel()
+        alice.stop(); bob.stop()
+    }
+
+    @Test
+    fun stopDoesNotEmitFailureForCompletedTransfers() = runTest {
+        val transportA = VirtualMeshTransport(peerIdAlice)
+        val transportB = VirtualMeshTransport(peerIdBob)
+        transportA.linkTo(transportB)
+        transportB.linkTo(transportA)
+        val alice = MeshLink(transportA, meshLinkConfig { }, coroutineContext)
+        val bob = MeshLink(transportB, meshLinkConfig { }, coroutineContext)
+        alice.start(); bob.start()
+        advanceUntilIdle()
+
+        transportA.simulateDiscovery(peerIdBob, ByteArray(0))
+        transportB.simulateDiscovery(peerIdAlice, ByteArray(0))
+        advanceUntilIdle()
+
+        val failures = mutableListOf<TransferFailure>()
+        val confirmations = mutableListOf<Uuid>()
+        val fJob = launch { alice.transferFailures.collect { failures.add(it) } }
+        val cJob = launch { alice.deliveryConfirmations.collect { confirmations.add(it) } }
+
+        // Send — transfer completes before stop
+        alice.send(peerIdBob, "completes".encodeToByteArray())
+        advanceUntilIdle()
+
+        assertTrue(confirmations.isNotEmpty(), "Transfer should complete before stop")
+        assertEquals(0, alice.meshHealth().activeTransfers, "No active transfers")
+
+        // Stop — no in-flight transfers, so no failures should be emitted
+        alice.stop()
+        advanceUntilIdle()
+
+        assertTrue(failures.isEmpty(),
+            "stop() should not emit failure for already-completed transfers")
+
+        fJob.cancel(); cJob.cancel()
+        bob.stop()
+    }
+
+    @Test
+    fun deliveryDeadlineEmitsTimeoutForExpiredBufferedMessages() = runTest {
+        var nowMs = 0L
+        val transport = VirtualMeshTransport(peerIdAlice)
+        val config = meshLinkConfig {
+            pendingMessageTtlMs = 5_000L
+        }
+        val alice = MeshLink(transport, config, coroutineContext, clock = { nowMs })
+        alice.start()
+        advanceUntilIdle()
+
+        val failures = mutableListOf<TransferFailure>()
+        val fJob = launch { alice.transferFailures.collect { failures.add(it) } }
+
+        // Buffer a message for unknown peer
+        val unknownPeer = ByteArray(16) { (0xEE.toByte() + it).toByte() }
+        alice.send(unknownPeer, "will timeout".encodeToByteArray())
+        advanceUntilIdle()
+
+        assertTrue(failures.isEmpty(), "No failure yet — message is buffered")
+
+        // Advance clock past TTL
+        nowMs = 6_000L
+
+        // Sweep pending messages to trigger delivery deadline
+        alice.sweepExpiredPendingMessages()
+        advanceUntilIdle()
+
+        assertEquals(1, failures.size,
+            "Should emit DELIVERY_TIMEOUT for expired buffered message")
+        assertEquals(DeliveryOutcome.FAILED_DELIVERY_TIMEOUT, failures[0].reason)
+
+        fJob.cancel()
+        alice.stop()
+    }
 }
