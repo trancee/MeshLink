@@ -21,4 +21,8 @@ class DedupSet(private val capacity: Int = 10_000) {
         seen[id] = true
         return true
     }
+
+    fun size(): Int = seen.size
+
+    fun clear() = seen.clear()
 }

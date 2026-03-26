@@ -32,6 +32,8 @@ class VirtualMeshTransport(
 
     override suspend fun sendToPeer(peerId: ByteArray, data: ByteArray) {
         sentData.add(peerId.toHex() to data)
+        // Simulate transport failure if configured
+        if (sendFailure) throw RuntimeException("Transport send failure")
         // Check if this packet should be dropped
         if (dropFilter?.invoke(data) == true) {
             droppedCount++
@@ -47,6 +49,9 @@ class VirtualMeshTransport(
 
     /** All data sent via sendToPeer (peerId hex → data), for test assertions. */
     val sentData = mutableListOf<Pair<String, ByteArray>>()
+
+    /** When true, sendToPeer throws RuntimeException. */
+    var sendFailure: Boolean = false
 
     /** Optional predicate: return true to drop the packet silently. */
     var dropFilter: ((ByteArray) -> Boolean)? = null

@@ -21,7 +21,9 @@ interface MeshLinkApi {
     fun meshHealth(): MeshHealthSnapshot
     fun drainDiagnostics(): List<DiagnosticEvent>
     fun sweep(seenPeers: Set<String>): Set<String>
+    fun shedMemoryPressure(): List<String>
     fun addRoute(destination: String, nextHop: String, cost: Double, sequenceNumber: UInt)
+    fun updateBattery(batteryPercent: Int, isCharging: Boolean)
     val peers: Flow<PeerEvent>
     val messages: Flow<Message>
     val deliveryConfirmations: Flow<Uuid>

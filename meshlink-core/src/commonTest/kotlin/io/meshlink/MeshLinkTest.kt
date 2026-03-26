@@ -1198,6 +1198,317 @@ class MeshLinkTest {
         alice.stop()
     }
 
+    // --- Batch 4 Cycle 8: Concurrent multi-recipient transfers ---
+
+    @Test
+    fun concurrentTransfersToMultipleRecipientsWorkIndependently() = runTest {
+        val peerIdCharlie = ByteArray(16) { (0xC0 + it).toByte() }
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val transportBob = VirtualMeshTransport(peerIdBob)
+        val transportCharlie = VirtualMeshTransport(peerIdCharlie)
+        transportAlice.linkTo(transportBob)
+        transportAlice.linkTo(transportCharlie)
+
+        val bob = MeshLink(transportBob, meshLinkConfig(), coroutineContext)
+        val charlie = MeshLink(transportCharlie, meshLinkConfig(), coroutineContext)
+        val alice = MeshLink(transportAlice, meshLinkConfig(), coroutineContext)
+        alice.start(); bob.start(); charlie.start()
+        advanceUntilIdle()
+
+        transportAlice.simulateDiscovery(peerIdBob)
+        transportAlice.simulateDiscovery(peerIdCharlie)
+        transportBob.simulateDiscovery(peerIdAlice)
+        transportCharlie.simulateDiscovery(peerIdAlice)
+        advanceUntilIdle()
+
+        val bobMessages = mutableListOf<Message>()
+        val charlieMessages = mutableListOf<Message>()
+        val cBob = launch { bob.messages.collect { bobMessages.add(it) } }
+        val cCharlie = launch { charlie.messages.collect { charlieMessages.add(it) } }
+        advanceUntilIdle()
+
+        // Send different messages to Bob and Charlie concurrently
+        val r1 = alice.send(peerIdBob, "for bob".encodeToByteArray())
+        val r2 = alice.send(peerIdCharlie, "for charlie".encodeToByteArray())
+        assertTrue(r1.isSuccess)
+        assertTrue(r2.isSuccess)
+        advanceUntilIdle()
+
+        assertEquals(1, bobMessages.size, "Bob should receive exactly 1 message")
+        assertEquals(1, charlieMessages.size, "Charlie should receive exactly 1 message")
+        assertContentEquals("for bob".encodeToByteArray(), bobMessages[0].payload)
+        assertContentEquals("for charlie".encodeToByteArray(), charlieMessages[0].payload)
+
+        cBob.cancel(); cCharlie.cancel()
+        alice.stop(); bob.stop(); charlie.stop()
+    }
+
+    // --- Batch 4 Cycle 7: Broadcast origin preserved through relay ---
+
+    @Test
+    fun broadcastOriginPreservedThroughMultiHop() = runTest {
+        val peerIdCharlie = ByteArray(16) { (0xC0 + it).toByte() }
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val transportBob = VirtualMeshTransport(peerIdBob)
+        val transportCharlie = VirtualMeshTransport(peerIdCharlie)
+        transportAlice.linkTo(transportBob)
+        transportBob.linkTo(transportCharlie)
+
+        val alice = MeshLink(transportAlice, meshLinkConfig(), coroutineContext)
+        val bob = MeshLink(transportBob, meshLinkConfig(), coroutineContext)
+        val charlie = MeshLink(transportCharlie, meshLinkConfig(), coroutineContext)
+        alice.start(); bob.start(); charlie.start()
+        advanceUntilIdle()
+
+        transportAlice.simulateDiscovery(peerIdBob)
+        transportBob.simulateDiscovery(peerIdAlice)
+        transportBob.simulateDiscovery(peerIdCharlie)
+        transportCharlie.simulateDiscovery(peerIdBob)
+        advanceUntilIdle()
+
+        val charlieMessages = mutableListOf<Message>()
+        val collector = launch { charlie.messages.collect { charlieMessages.add(it) } }
+        advanceUntilIdle()
+
+        // Alice broadcasts with 2 hops
+        alice.broadcast("from alice".encodeToByteArray(), 2u)
+        advanceUntilIdle()
+
+        // Charlie should receive with Alice as the origin sender, NOT Bob
+        assertEquals(1, charlieMessages.size)
+        assertContentEquals(peerIdAlice, charlieMessages[0].senderId,
+            "Origin should be Alice, not the relay (Bob)")
+        assertContentEquals("from alice".encodeToByteArray(), charlieMessages[0].payload)
+
+        collector.cancel()
+        alice.stop(); bob.stop(); charlie.stop()
+    }
+
+    // --- Batch 4 Cycle 6: Out-of-order chunk reassembly ---
+
+    @Test
+    fun outOfOrderChunksReassembleCorrectly() = runTest {
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val transportBob = VirtualMeshTransport(peerIdBob)
+        transportAlice.linkTo(transportBob)
+
+        val bob = MeshLink(transportBob, meshLinkConfig(), coroutineContext)
+        bob.start()
+        advanceUntilIdle()
+        transportBob.simulateDiscovery(peerIdAlice)
+        advanceUntilIdle()
+
+        val received = mutableListOf<Message>()
+        val collector = launch { bob.messages.collect { received.add(it) } }
+        advanceUntilIdle()
+
+        // Manually send 3 chunks in reverse order (2, 1, 0)
+        val msgId = Uuid.random().toByteArray()
+        val payloads = listOf("AAA".encodeToByteArray(), "BBB".encodeToByteArray(), "CCC".encodeToByteArray())
+        for (seqNum in listOf(2, 0, 1)) { // out of order!
+            val chunk = WireCodec.encodeChunk(
+                messageId = msgId,
+                sequenceNumber = seqNum.toUShort(),
+                totalChunks = 3u,
+                payload = payloads[seqNum],
+            )
+            transportBob.receiveData(peerIdAlice, chunk)
+            advanceUntilIdle()
+        }
+
+        assertEquals(1, received.size, "Should reassemble despite out-of-order delivery")
+        val expected = "AAABBBCCC".encodeToByteArray()
+        assertContentEquals(expected, received[0].payload, "Payload should be correctly ordered")
+
+        collector.cancel()
+        bob.stop()
+    }
+
+    // --- Batch 4 Cycle 5: TieredShedder wired ---
+
+    @Test
+    fun highBufferUtilizationTriggersMemoryShedding() = runTest {
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val transportBob = VirtualMeshTransport(peerIdBob)
+        transportAlice.linkTo(transportBob)
+        // Drop all chunk ACKs so transfers stay active (building up buffer)
+        transportAlice.dropFilter = { data -> data.isNotEmpty() && data[0] == WireCodec.TYPE_CHUNK_ACK }
+
+        // Small buffer so we hit pressure quickly
+        val config = meshLinkConfig { bufferCapacity = 200; maxMessageSize = 200 }
+        val alice = MeshLink(transportAlice, config, coroutineContext)
+        alice.start()
+        advanceUntilIdle()
+        transportAlice.simulateDiscovery(peerIdBob)
+        advanceUntilIdle()
+
+        // Send messages to fill buffer
+        alice.send(peerIdBob, ByteArray(100) { 1 })
+        alice.send(peerIdBob, ByteArray(100) { 2 })
+        advanceUntilIdle()
+
+        // Verify buffer is under pressure
+        val healthBefore = alice.meshHealth()
+        assertTrue(healthBefore.bufferUtilizationPercent > 50, "Buffer should be under pressure")
+
+        // Trigger memory shedding
+        val shedResults = alice.shedMemoryPressure()
+        assertTrue(shedResults.isNotEmpty(), "Should return shed results")
+
+        // After shedding, buffer should be lower
+        val healthAfter = alice.meshHealth()
+        assertTrue(healthAfter.bufferUtilizationPercent <= healthBefore.bufferUtilizationPercent,
+            "Buffer should be reduced after shedding")
+
+        alice.stop()
+    }
+
+    // --- Batch 4 Cycle 4: PEER_EVICTED diagnostic drainable ---
+
+    @Test
+    fun sweepEvictionEmitsDiagnosticEvent() = runTest {
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val alice = MeshLink(transportAlice, meshLinkConfig(), coroutineContext)
+        alice.start()
+        advanceUntilIdle()
+
+        // Discover Bob
+        transportAlice.simulateDiscovery(peerIdBob)
+        advanceUntilIdle()
+        assertEquals(1, alice.meshHealth().connectedPeers)
+
+        // Two sweeps without Bob → evicted
+        alice.sweep(emptySet()) // miss 1
+        alice.sweep(emptySet()) // miss 2 → evicted
+        assertEquals(0, alice.meshHealth().connectedPeers)
+
+        // Drain diagnostics — should have PEER_EVICTED event
+        val events = alice.drainDiagnostics()
+        val evicted = events.filter { it.code == io.meshlink.diagnostics.DiagnosticCode.PEER_EVICTED }
+        assertEquals(1, evicted.size, "Should have exactly one PEER_EVICTED event")
+        assertTrue(evicted[0].payload?.contains(peerIdBob.toHex()) == true,
+            "PEER_EVICTED payload should contain evicted peer ID")
+
+        alice.stop()
+    }
+
+    // --- Batch 4 Cycle 3: CircuitBreaker wired ---
+
+    @Test
+    fun circuitBreakerTripsAfterRepeatedTransportFailures() = runTest {
+        var now = 0L
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val transportBob = VirtualMeshTransport(peerIdBob)
+        transportAlice.linkTo(transportBob)
+
+        val alice = MeshLink(
+            transportAlice, meshLinkConfig(), coroutineContext,
+            circuitBreakerMaxFailures = 3,
+            circuitBreakerWindowMs = 10_000,
+            circuitBreakerCooldownMs = 5_000,
+            clock = { now },
+        )
+        alice.start()
+        advanceUntilIdle()
+        transportAlice.simulateDiscovery(peerIdBob)
+        advanceUntilIdle()
+
+        // Enable transport failures
+        transportAlice.sendFailure = true
+
+        // Send 3 messages — each will fail at transport level
+        repeat(3) {
+            alice.send(peerIdBob, "fail-$it".encodeToByteArray())
+            advanceUntilIdle()
+        }
+
+        // Circuit should now be open — next send should fail fast
+        transportAlice.sendFailure = false // transport is "fine" now
+        val result = alice.send(peerIdBob, "should-fail-fast".encodeToByteArray())
+        assertTrue(result.isFailure, "Send should fail when circuit is open")
+        assertTrue(result.exceptionOrNull()?.message?.contains("circuit") == true,
+            "Failure should mention circuit breaker")
+
+        // After cooldown, should work again
+        now += 5_001
+        val recovered = alice.send(peerIdBob, "should-work".encodeToByteArray())
+        assertTrue(recovered.isSuccess, "Send should succeed after cooldown")
+
+        alice.stop()
+    }
+
+    // --- Batch 4 Cycle 2: PowerModeEngine wired ---
+
+    @Test
+    fun updateBatteryChangePowerMode() = runTest {
+        var now = 0L
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val alice = MeshLink(transportAlice, meshLinkConfig(), coroutineContext, clock = { now })
+        alice.start()
+        advanceUntilIdle()
+
+        // Default: PERFORMANCE
+        assertEquals("PERFORMANCE", alice.meshHealth().powerMode)
+
+        // Low battery → after hysteresis, should transition to POWER_SAVER
+        alice.updateBattery(15, false) // below 30% → target POWER_SAVER
+        assertEquals("PERFORMANCE", alice.meshHealth().powerMode, "Hysteresis: should still be PERFORMANCE")
+        now += 30_001 // past hysteresis window
+        alice.updateBattery(15, false)
+        assertEquals("POWER_SAVER", alice.meshHealth().powerMode)
+
+        // Charging override → immediate PERFORMANCE
+        alice.updateBattery(15, true)
+        assertEquals("PERFORMANCE", alice.meshHealth().powerMode)
+
+        alice.stop()
+    }
+
+    // --- Batch 4 Cycle 1: Route loop detection (self in visited) ---
+
+    @Test
+    fun routedMessageWithSelfInVisitedListDropped() = runTest {
+        val peerIdCharlie = ByteArray(16) { (0xC0 + it).toByte() }
+        val transportBob = VirtualMeshTransport(peerIdBob)
+        val transportCharlie = VirtualMeshTransport(peerIdCharlie)
+        transportBob.linkTo(transportCharlie)
+
+        val bob = MeshLink(transportBob, meshLinkConfig(), coroutineContext)
+        bob.start()
+        advanceUntilIdle()
+        transportBob.simulateDiscovery(peerIdCharlie)
+        advanceUntilIdle()
+
+        val bobMessages = mutableListOf<Message>()
+        val collector = launch { bob.messages.collect { bobMessages.add(it) } }
+        advanceUntilIdle()
+
+        // Craft routed message where Bob is already in visited list (loop!)
+        val msgId = Uuid.random().toByteArray()
+        val destId = ByteArray(16) { (0xD0 + it).toByte() } // some other destination
+        bob.addRoute(destId.toHex(), peerIdCharlie.toHex(), 1.0, 1u)
+        val routedData = WireCodec.encodeRoutedMessage(
+            messageId = msgId,
+            origin = peerIdAlice,
+            destination = destId,
+            hopLimit = 5u,
+            visitedList = listOf(peerIdAlice, peerIdBob), // Bob already visited!
+            payload = "loop!".encodeToByteArray(),
+        )
+        transportBob.receiveData(peerIdAlice, routedData)
+        advanceUntilIdle()
+
+        // Bob should NOT relay (loop) and NOT deliver (wrong destination)
+        assertEquals(0, bobMessages.size, "Should not deliver looped message")
+        val relayed = transportBob.sentData.filter { (_, data) ->
+            data.isNotEmpty() && data[0] == WireCodec.TYPE_ROUTED_MESSAGE
+        }
+        assertEquals(0, relayed.size, "Should not relay message with self in visited list")
+
+        collector.cancel()
+        bob.stop()
+    }
+
     // --- Cycle 8 (Multi-hop): Routed message with hopLimit=0 dropped ---
 
     @Test

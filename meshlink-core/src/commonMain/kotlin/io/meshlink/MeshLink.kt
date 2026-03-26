@@ -9,12 +9,16 @@ import io.meshlink.diagnostics.Severity
 import io.meshlink.model.Message
 import io.meshlink.model.PeerEvent
 import io.meshlink.model.TransferProgress
+import io.meshlink.power.MemoryPressure
+import io.meshlink.power.PowerModeEngine
+import io.meshlink.power.TieredShedder
 import io.meshlink.routing.DedupSet
 import io.meshlink.routing.PresenceTracker
 import io.meshlink.routing.RoutingTable
 import io.meshlink.transfer.SackTracker
 import io.meshlink.transfer.TransferSession
 import io.meshlink.transport.BleTransport
+import io.meshlink.util.CircuitBreaker
 import io.meshlink.util.DeliveryOutcome
 import io.meshlink.util.DeliveryTracker
 import io.meshlink.util.RateLimiter
@@ -38,6 +42,9 @@ class MeshLink(
     coroutineContext: CoroutineContext = EmptyCoroutineContext,
     rateLimitMaxSends: Int = 0,
     rateLimitWindowMs: Long = 60_000L,
+    circuitBreakerMaxFailures: Int = 0,
+    circuitBreakerWindowMs: Long = 60_000L,
+    circuitBreakerCooldownMs: Long = 30_000L,
     clock: () -> Long = { System.currentTimeMillis() },
 ) : MeshLinkApi {
 
@@ -45,6 +52,9 @@ class MeshLink(
 
     private val rateLimiter: RateLimiter? =
         if (rateLimitMaxSends > 0) RateLimiter(rateLimitMaxSends, rateLimitWindowMs, clock) else null
+
+    private val circuitBreaker: CircuitBreaker? =
+        if (circuitBreakerMaxFailures > 0) CircuitBreaker(circuitBreakerMaxFailures, circuitBreakerWindowMs, circuitBreakerCooldownMs, clock) else null
 
     private val _peers = MutableSharedFlow<PeerEvent>(replay = 64)
     private val _messages = MutableSharedFlow<Message>(extraBufferCapacity = 64)
@@ -84,6 +94,10 @@ class MeshLink(
 
     // Routing table for multi-hop relay
     private val routingTable = RoutingTable()
+
+    // Power mode engine for battery-aware operation
+    private val powerModeEngine = PowerModeEngine(clock = clock)
+    private var currentPowerMode = "PERFORMANCE"
 
     override fun start(): Result<Unit> {
         if (started) return Result.success(Unit)
@@ -163,7 +177,7 @@ class MeshLink(
             reachablePeers = presenceTracker.connectedPeerIds().size,
             bufferUtilizationPercent = utilPercent,
             activeTransfers = outboundTransfers.size,
-            powerMode = "PERFORMANCE",
+            powerMode = currentPowerMode,
         )
     }
 
@@ -185,6 +199,46 @@ class MeshLink(
         routingTable.addRoute(destination, nextHop, cost, sequenceNumber)
     }
 
+    override fun updateBattery(batteryPercent: Int, isCharging: Boolean) {
+        currentPowerMode = powerModeEngine.update(batteryPercent, isCharging).name
+    }
+
+    override fun shedMemoryPressure(): List<String> {
+        val health = meshHealth()
+        val level = when {
+            health.bufferUtilizationPercent >= 90 -> MemoryPressure.CRITICAL
+            health.bufferUtilizationPercent >= 70 -> MemoryPressure.HIGH
+            health.bufferUtilizationPercent >= 50 -> MemoryPressure.MODERATE
+            else -> return emptyList()
+        }
+        val shedder = TieredShedder(
+            relayBufferCount = reassembly.size,
+            dedupEntries = dedup.size(),
+            connectionCount = presenceTracker.allPeerIds().size,
+        )
+        val results = shedder.shed(level)
+        val actions = mutableListOf<String>()
+        for (result in results) {
+            when (result.action) {
+                io.meshlink.power.ShedAction.RELAY_BUFFERS_CLEARED -> {
+                    reassembly.clear()
+                    actions.add("Cleared ${result.count} relay buffers")
+                }
+                io.meshlink.power.ShedAction.DEDUP_TRIMMED -> {
+                    dedup.clear()
+                    actions.add("Trimmed ${result.count} dedup entries")
+                }
+                io.meshlink.power.ShedAction.CONNECTIONS_DROPPED -> {
+                    actions.add("Would drop ${result.count} connections")
+                }
+            }
+        }
+        if (actions.isNotEmpty()) {
+            diagnosticSink.emit(DiagnosticCode.MEMORY_PRESSURE, Severity.WARN, "level=$level, actions=$actions")
+        }
+        return actions
+    }
+
     override fun broadcast(payload: ByteArray, maxHops: UByte): Result<Uuid> {
         if (!started) throw IllegalStateException("MeshLink not started")
         val s = scope ?: throw IllegalStateException("MeshLink not started")
@@ -198,7 +252,7 @@ class MeshLink(
         // Mark as seen so we don't deliver our own broadcast back to ourselves
         dedup.tryInsert(messageId.toByteArray().toHex())
         for (peerHex in presenceTracker.allPeerIds()) {
-            s.launch { transport.sendToPeer(hexToBytes(peerHex), encoded) }
+            s.launch { safeSend(hexToBytes(peerHex), encoded) }
         }
         return Result.success(messageId)
     }
@@ -223,6 +277,11 @@ class MeshLink(
                 diagnosticSink.emit(DiagnosticCode.RATE_LIMIT_HIT, Severity.WARN, "recipient=$key")
                 return Result.failure(IllegalStateException("Rate limit exceeded"))
             }
+        }
+
+        // Circuit breaker check
+        if (circuitBreaker != null && !circuitBreaker.allowAttempt()) {
+            return Result.failure(IllegalStateException("Circuit breaker open — transport circuit tripped"))
         }
 
         // Self-send loopback: deliver locally without BLE
@@ -285,7 +344,7 @@ class MeshLink(
             visitedList = listOf(transport.localPeerId),
             payload = payload,
         )
-        s.launch { transport.sendToPeer(hexToBytes(nextHopHex), encoded) }
+        s.launch { safeSend(hexToBytes(nextHopHex), encoded) }
         return Result.success(messageId)
     }
 
@@ -299,7 +358,15 @@ class MeshLink(
                 totalChunks = transfer.chunks.size.toUShort(),
                 payload = transfer.chunks[seqNum],
             )
-            s.launch { transport.sendToPeer(transfer.recipient, encoded) }
+            s.launch { safeSend(transfer.recipient, encoded) }
+        }
+    }
+
+    private suspend fun safeSend(peerId: ByteArray, data: ByteArray) {
+        try {
+            transport.sendToPeer(peerId, data)
+        } catch (_: Exception) {
+            circuitBreaker?.recordFailure()
         }
     }
 
@@ -331,7 +398,7 @@ class MeshLink(
             ackSequence = status.ackSeq.toUShort(),
             sackBitmask = status.sackBitmask,
         )
-        scope?.launch { transport.sendToPeer(fromPeerId, ack) }
+        scope?.launch { safeSend(fromPeerId, ack) }
 
         if (state.sackTracker.isComplete()) {
             reassembly.remove(key)
@@ -402,7 +469,7 @@ class MeshLink(
             val s = scope ?: return
             for (peerHex in presenceTracker.allPeerIds()) {
                 if (peerHex != senderHex) {
-                    s.launch { transport.sendToPeer(hexToBytes(peerHex), reflooded) }
+                    s.launch { safeSend(hexToBytes(peerHex), reflooded) }
                 }
             }
         }
@@ -414,12 +481,16 @@ class MeshLink(
 
         if (!dedup.tryInsert(key)) return
 
+        // Loop detection: drop if we are already in the visited list
+        val selfId = transport.localPeerId
+        if (routed.visitedList.any { it.contentEquals(selfId) }) return
+
         // If we are the destination, deliver locally and send delivery ACK back
         if (routed.destination.contentEquals(transport.localPeerId)) {
             _messages.emit(Message(senderId = routed.origin, payload = routed.payload))
             // Send delivery ACK back toward origin
             val ack = WireCodec.encodeDeliveryAck(routed.messageId, transport.localPeerId)
-            scope?.launch { transport.sendToPeer(fromPeerId, ack) }
+            scope?.launch { safeSend(fromPeerId, ack) }
             return
         }
 
@@ -443,7 +514,7 @@ class MeshLink(
             val route = routingTable.bestRoute(destHex) ?: return
             hexToBytes(route.nextHop)
         }
-        scope?.launch { transport.sendToPeer(nextHop, relayed) }
+        scope?.launch { safeSend(nextHop, relayed) }
     }
 
     private suspend fun handleDeliveryAck(data: ByteArray) {
