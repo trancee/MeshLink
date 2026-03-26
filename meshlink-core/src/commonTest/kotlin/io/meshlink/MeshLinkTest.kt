@@ -6382,4 +6382,199 @@ class MeshLinkTest {
 
         alice.stop()
     }
+
+    // --- Batch: Data Isolation + Reliability + Feature Completion ---
+
+    @Test
+    fun duplicateChunkIsIdempotent() = runTest {
+        val transportA = VirtualMeshTransport(peerIdAlice)
+        val transportB = VirtualMeshTransport(peerIdBob)
+        transportA.linkTo(transportB)
+        val alice = MeshLink(transportA, meshLinkConfig(), coroutineContext)
+        val bob = MeshLink(transportB, meshLinkConfig(), coroutineContext)
+        alice.start(); bob.start()
+        advanceUntilIdle()
+
+        transportA.simulateDiscovery(peerIdBob)
+        transportB.simulateDiscovery(peerIdAlice)
+        advanceUntilIdle()
+
+        val received = mutableListOf<Message>()
+        val job = launch { bob.messages.collect { received.add(it) } }
+        advanceUntilIdle()
+
+        // Send a message from Alice to Bob
+        alice.send(peerIdBob, "hello".encodeToByteArray())
+        advanceUntilIdle()
+
+        // Now re-inject the same chunk data (simulate relay retransmit)
+        val sentChunks = transportA.sentData.filter { it.second[0] == WireCodec.TYPE_CHUNK }
+        assertTrue(sentChunks.isNotEmpty(), "Should have sent at least one chunk")
+
+        for ((_, chunkData) in sentChunks) {
+            transportB.receiveData(peerIdAlice, chunkData)
+        }
+        advanceUntilIdle()
+
+        // Message should be delivered exactly once
+        assertEquals(1, received.size, "Duplicate chunks should not cause double delivery")
+        assertContentEquals("hello".encodeToByteArray(), received[0].payload)
+
+        job.cancel()
+        bob.stop(); alice.stop()
+    }
+
+    @Test
+    fun shedMemoryPressureClearsIncompleteReassembly() = runTest {
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val transportBob = VirtualMeshTransport(peerIdBob)
+        transportAlice.linkTo(transportBob)
+
+        // Small buffer so partial reassembly pushes utilization above 50%
+        val config = meshLinkConfig {
+            maxMessageSize = 90
+            bufferCapacity = 100
+            mtu = 50
+        }
+        val bob = MeshLink(transportBob, config, coroutineContext)
+        bob.start()
+        advanceUntilIdle()
+        transportBob.simulateDiscovery(peerIdAlice)
+        advanceUntilIdle()
+
+        // Inject partial chunks (3 of 5, each 20 bytes = 60 bytes > 50% of 100)
+        val msgId = kotlin.uuid.Uuid.random().toByteArray()
+        for (seq in 0 until 3) {
+            val chunk = WireCodec.encodeChunk(
+                messageId = msgId,
+                sequenceNumber = seq.toUShort(),
+                totalChunks = 5u,
+                payload = ByteArray(20) { (0x42 + seq).toByte() },
+            )
+            transportBob.receiveData(peerIdAlice, chunk)
+            advanceUntilIdle()
+        }
+
+        // Verify reassembly data is stored (chunk ACKs prove chunks were processed)
+        val acks = transportBob.sentData.filter { it.second[0] == WireCodec.TYPE_CHUNK_ACK }
+        assertEquals(3, acks.size, "Bob should have sent 3 chunk ACKs")
+
+        val healthBefore = bob.meshHealth()
+        assertTrue(healthBefore.bufferUtilizationPercent >= 50,
+            "Should have >=50% utilization, got ${healthBefore.bufferUtilizationPercent}%")
+
+        // shedMemoryPressure should clear reassembly
+        val actions = bob.shedMemoryPressure()
+        assertTrue(actions.isNotEmpty(), "Should have shed actions")
+
+        // After shedding, buffer utilization should drop to 0
+        val healthAfter = bob.meshHealth()
+        assertEquals(0, healthAfter.bufferUtilizationPercent,
+            "Buffer should be 0% after reassembly cleared")
+
+        bob.stop()
+    }
+
+    @Test
+    fun powerSaverModeIncreasesEffectiveGossipInterval() = runTest {
+        var now = 0L
+        val transport = VirtualMeshTransport(peerIdAlice)
+        val config = meshLinkConfig { gossipIntervalMs = 1000 }
+        val alice = MeshLink(transport, config, coroutineContext, clock = { now })
+
+        // Default: PERFORMANCE mode → base interval
+        val healthPerf = alice.meshHealth()
+        assertEquals("PERFORMANCE", healthPerf.powerMode)
+        assertEquals(1000L, healthPerf.effectiveGossipIntervalMs)
+
+        // Request POWER_SAVER (5% battery, not charging)
+        alice.updateBattery(5, isCharging = false)
+        // Hysteresis: first call starts pending downgrade
+        assertEquals("PERFORMANCE", alice.meshHealth().powerMode)
+
+        // Advance past hysteresis (30s)
+        now += 30_001
+        alice.updateBattery(5, isCharging = false)
+
+        val healthSaver = alice.meshHealth()
+        assertEquals("POWER_SAVER", healthSaver.powerMode)
+        assertTrue(healthSaver.effectiveGossipIntervalMs > 1000L,
+            "POWER_SAVER should increase gossip interval, got ${healthSaver.effectiveGossipIntervalMs}ms")
+    }
+
+    @Test
+    fun balancedModeDoublesGossipInterval() = runTest {
+        var now = 0L
+        val transport = VirtualMeshTransport(peerIdAlice)
+        val config = meshLinkConfig { gossipIntervalMs = 1000 }
+        val alice = MeshLink(transport, config, coroutineContext, clock = { now })
+
+        // Request BALANCED (50% battery, not charging)
+        alice.updateBattery(50, isCharging = false)
+        now += 30_001
+        alice.updateBattery(50, isCharging = false)
+
+        val health = alice.meshHealth()
+        assertEquals("BALANCED", health.powerMode)
+        assertEquals(2000L, health.effectiveGossipIntervalMs,
+            "BALANCED should double gossip interval")
+    }
+
+    @Test
+    fun appIdMismatchEmitsDiagnostic() = runTest {
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val transportBob = VirtualMeshTransport(peerIdBob)
+        transportAlice.linkTo(transportBob)
+
+        val aliceConfig = meshLinkConfig { appId = "com.example.app1" }
+        val bobConfig = meshLinkConfig { appId = "com.example.app2" }
+        val alice = MeshLink(transportAlice, aliceConfig, coroutineContext)
+        val bob = MeshLink(transportBob, bobConfig, coroutineContext)
+        alice.start(); bob.start()
+        advanceUntilIdle()
+
+        transportAlice.simulateDiscovery(peerIdBob)
+        transportBob.simulateDiscovery(peerIdAlice)
+        advanceUntilIdle()
+
+        // Alice broadcasts — Bob should reject due to different appId
+        alice.broadcast("test".encodeToByteArray(), 3u)
+        advanceUntilIdle()
+
+        // Bob should emit APP_ID_REJECTED diagnostic
+        val diags = bob.drainDiagnostics()
+        val appIdDiags = diags.filter { it.code == io.meshlink.diagnostics.DiagnosticCode.APP_ID_REJECTED }
+        assertTrue(appIdDiags.isNotEmpty(), "Should emit APP_ID_REJECTED diagnostic")
+
+        bob.stop(); alice.stop()
+    }
+
+    @Test
+    fun powerModeStacksWithRouteCountThrottle() = runTest {
+        var now = 0L
+        val transport = VirtualMeshTransport(peerIdAlice)
+        val config = meshLinkConfig { gossipIntervalMs = 1000 }
+        val alice = MeshLink(transport, config, coroutineContext, clock = { now })
+
+        // Add >100 routes to trigger route count throttle (1.5×)
+        for (i in 0 until 101) {
+            val dest = ByteArray(16).also {
+                it[0] = (i shr 8 and 0xFF).toByte()
+                it[1] = (i and 0xFF).toByte()
+            }.toHex()
+            alice.addRoute(dest, peerIdBob.toHex(), 1.0, 1u)
+        }
+
+        // PERFORMANCE + >100 routes → 1500ms
+        assertEquals(1500L, alice.meshHealth().effectiveGossipIntervalMs)
+
+        // Switch to BALANCED mode
+        alice.updateBattery(50, isCharging = false)
+        now += 30_001
+        alice.updateBattery(50, isCharging = false)
+
+        // BALANCED (2×) + >100 routes (1.5×) → 1000 * 1.5 * 2 = 3000ms
+        assertEquals(3000L, alice.meshHealth().effectiveGossipIntervalMs,
+            "BALANCED + route throttle should stack")
+    }
 }

@@ -19,6 +19,7 @@ enum class DiagnosticCode {
     REPLAY_REJECTED,
     MALFORMED_DATA,
     SEND_FAILED,
+    APP_ID_REJECTED,
 }
 
 data class DiagnosticEvent(

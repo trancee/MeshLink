@@ -350,10 +350,15 @@ class MeshLink(
         val base = config.gossipIntervalMs
         if (base <= 0) return 0
         val routeCount = routingTable.size()
-        return when {
+        val routeMultiplied = when {
             routeCount > 200 -> base * 2
             routeCount > 100 -> base * 3 / 2
             else -> base
+        }
+        return when (currentPowerMode) {
+            "POWER_SAVER" -> routeMultiplied * 3
+            "BALANCED" -> routeMultiplied * 2
+            else -> routeMultiplied
         }
     }
 
@@ -792,7 +797,11 @@ class MeshLink(
         val key = broadcast.messageId.toHex()
 
         // AppId filter: reject broadcasts from a different app
-        if (!appIdFilter.accepts(broadcast.appIdHash)) return
+        if (!appIdFilter.accepts(broadcast.appIdHash)) {
+            diagnosticSink.emit(DiagnosticCode.APP_ID_REJECTED, Severity.INFO,
+                "messageId=$key")
+            return
+        }
 
         // Ed25519 signature verification (when crypto is available)
         if (crypto != null && broadcast.signature.isNotEmpty()) {
