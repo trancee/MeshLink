@@ -41,6 +41,9 @@ object WireCodec {
         val sequenceNumber = data.getUShortLE(offset); offset += 2
         val totalChunks = data.getUShortLE(offset); offset += 2
         val payload = data.copyOfRange(offset, data.size)
+        require(sequenceNumber < totalChunks) {
+            "chunk sequenceNumber ($sequenceNumber) >= totalChunks ($totalChunks)"
+        }
         return ChunkMessage(messageId, sequenceNumber, totalChunks, payload)
     }
 
@@ -160,6 +163,9 @@ object WireCodec {
         val signature: ByteArray
         val signerPublicKey: ByteArray
         if (sigLen > 0) {
+            require(data.size >= offset + sigLen + ED25519_PUB_KEY_SIZE) {
+                "broadcast signature truncated: sigLen=$sigLen requires ${offset + sigLen + ED25519_PUB_KEY_SIZE} bytes, got ${data.size}"
+            }
             signature = data.copyOfRange(offset, offset + sigLen); offset += sigLen
             signerPublicKey = data.copyOfRange(offset, offset + ED25519_PUB_KEY_SIZE); offset += ED25519_PUB_KEY_SIZE
         } else {
@@ -203,6 +209,9 @@ object WireCodec {
         val signature: ByteArray
         val signerPublicKey: ByteArray
         if (sigLen > 0) {
+            require(data.size >= offset + sigLen + ED25519_PUB_KEY_SIZE) {
+                "delivery_ack signature truncated: sigLen=$sigLen requires ${offset + sigLen + ED25519_PUB_KEY_SIZE} bytes, got ${data.size}"
+            }
             signature = data.copyOfRange(offset, offset + sigLen); offset += sigLen
             signerPublicKey = data.copyOfRange(offset, offset + ED25519_PUB_KEY_SIZE)
         } else {
@@ -244,6 +253,9 @@ object WireCodec {
         val entries = (0 until entryCount).map {
             val destination = data.copyOfRange(offset, offset + 16); offset += 16
             val cost = data.getDoubleBitsLE(offset); offset += 8
+            require(cost.isFinite() && cost >= 0.0) {
+                "route entry cost invalid: $cost (must be finite and non-negative)"
+            }
             val sequenceNumber = data.getUIntLE(offset); offset += 4
             val hopCount = data[offset++].toUByte()
             RouteUpdateEntry(destination, cost, sequenceNumber, hopCount)

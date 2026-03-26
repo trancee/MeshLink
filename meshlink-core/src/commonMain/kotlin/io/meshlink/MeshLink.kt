@@ -464,6 +464,8 @@ class MeshLink(
         // Broadcast rate limiting
         if (broadcastRateLimiter != null) {
             if (!broadcastRateLimiter.tryAcquire("broadcast")) {
+                diagnosticSink.emit(DiagnosticCode.RATE_LIMIT_HIT, Severity.WARN,
+                    "broadcast rate limit exceeded")
                 return Result.failure(IllegalStateException("Broadcast rate limit exceeded"))
             }
         }
@@ -671,8 +673,10 @@ class MeshLink(
     private suspend fun safeSend(peerId: ByteArray, data: ByteArray) {
         try {
             transport.sendToPeer(peerId, data)
-        } catch (_: Exception) {
+        } catch (e: Exception) {
             circuitBreaker?.recordFailure()
+            diagnosticSink.emit(DiagnosticCode.SEND_FAILED, Severity.WARN,
+                "peer=${peerId.toHex()}, error=${e.message}")
         }
     }
 

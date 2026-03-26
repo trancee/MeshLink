@@ -18,6 +18,7 @@ enum class DiagnosticCode {
     LOOP_DETECTED,
     REPLAY_REJECTED,
     MALFORMED_DATA,
+    SEND_FAILED,
 }
 
 data class DiagnosticEvent(

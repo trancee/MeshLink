@@ -6331,4 +6331,55 @@ class MeshLinkTest {
 
         alice.stop()
     }
+
+    @Test
+    fun safeSendFailureEmitsDiagnostic() = runTest {
+        val transportA = VirtualMeshTransport(peerIdAlice)
+        val alice = MeshLink(transportA, meshLinkConfig(), coroutineContext)
+        alice.start()
+        advanceUntilIdle()
+
+        transportA.simulateDiscovery(peerIdBob)
+        advanceUntilIdle()
+
+        // Make transport throw on all sends
+        transportA.sendFailure = true
+
+        // Send a message — sendChunks will call safeSend which should emit diagnostic
+        alice.send(peerIdBob, "test".encodeToByteArray())
+        advanceUntilIdle()
+
+        val diags = alice.drainDiagnostics()
+        val sendDiags = diags.filter { it.code == DiagnosticCode.SEND_FAILED }
+        assertTrue(sendDiags.isNotEmpty(), "Should emit SEND_FAILED diagnostic on transport error")
+
+        alice.stop()
+    }
+
+    @Test
+    fun broadcastRateLimitEmitsDiagnostic() = runTest {
+        val transportA = VirtualMeshTransport(peerIdAlice)
+        val config = meshLinkConfig {
+            broadcastRateLimitPerMinute = 1
+        }
+        val alice = MeshLink(transportA, config, coroutineContext)
+        alice.start()
+        advanceUntilIdle()
+
+        transportA.simulateDiscovery(peerIdBob)
+        advanceUntilIdle()
+
+        // First broadcast — should succeed
+        alice.broadcast("msg1".encodeToByteArray(), maxHops = 3u)
+
+        // Second broadcast — should be rate-limited
+        val result = alice.broadcast("msg2".encodeToByteArray(), maxHops = 3u)
+        assertTrue(result.isFailure, "Second broadcast should fail due to rate limit")
+
+        val diags = alice.drainDiagnostics()
+        val rlDiags = diags.filter { it.code == DiagnosticCode.RATE_LIMIT_HIT }
+        assertTrue(rlDiags.isNotEmpty(), "Should emit RATE_LIMIT_HIT on broadcast rate limit")
+
+        alice.stop()
+    }
 }

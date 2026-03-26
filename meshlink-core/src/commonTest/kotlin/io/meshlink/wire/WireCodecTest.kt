@@ -353,4 +353,65 @@ class WireCodecTest {
             )
         }
     }
+
+    // --- Wire Protocol Hardening ---
+
+    @Test
+    fun decodeBroadcastRejectsTruncatedSignature() {
+        // Craft broadcast with sigLen=64 but only 10 bytes remaining
+        val header = ByteArray(51) // BROADCAST_HEADER_SIZE = 51
+        header[0] = WireCodec.TYPE_BROADCAST
+        header[50] = 64 // sigLen=64, but no signature bytes follow
+        val truncated = header + ByteArray(10) // only 10 bytes, need 64+32=96
+
+        assertFailsWith<IllegalArgumentException> {
+            WireCodec.decodeBroadcast(truncated)
+        }
+    }
+
+    @Test
+    fun decodeChunkRejectsSequenceExceedingTotal() {
+        // Craft chunk with sequenceNumber=10, totalChunks=3
+        val encoded = WireCodec.encodeChunk(
+            messageId = testMessageId,
+            sequenceNumber = 10u,
+            totalChunks = 3u,
+            payload = "data".encodeToByteArray(),
+        )
+        assertFailsWith<IllegalArgumentException> {
+            WireCodec.decodeChunk(encoded)
+        }
+    }
+
+    @Test
+    fun decodeRouteUpdateRejectsNaNCost() {
+        // Encode a route update with NaN cost by building raw bytes
+        val senderId = ByteArray(16) { 0x11 }
+        val dest = ByteArray(16) { 0x22 }
+        // Build valid route update then patch cost to NaN
+        val valid = WireCodec.encodeRouteUpdate(senderId, listOf(
+            RouteUpdateEntry(dest, 1.0, 1u, 1u)
+        ))
+        // Cost is at offset 18 (header) + 16 (destination) = 34, 8 bytes LE double
+        val nanBits = Double.NaN.toRawBits()
+        for (i in 0..7) {
+            valid[34 + i] = (nanBits shr (i * 8)).toByte()
+        }
+        assertFailsWith<IllegalArgumentException> {
+            WireCodec.decodeRouteUpdate(valid)
+        }
+    }
+
+    @Test
+    fun decodeDeliveryAckRejectsTruncatedSignature() {
+        // Craft delivery ACK with sigLen=64 but insufficient data
+        val header = ByteArray(34) // DELIVERY_ACK_HEADER_SIZE = 34
+        header[0] = WireCodec.TYPE_DELIVERY_ACK
+        header[33] = 64 // sigLen=64, but no signature bytes follow
+        val truncated = header + ByteArray(10) // only 10 bytes, need 64+32=96
+
+        assertFailsWith<IllegalArgumentException> {
+            WireCodec.decodeDeliveryAck(truncated)
+        }
+    }
 }
