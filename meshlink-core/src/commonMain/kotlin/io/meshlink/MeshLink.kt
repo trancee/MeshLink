@@ -1,6 +1,9 @@
 package io.meshlink
 
 import io.meshlink.config.MeshLinkConfig
+import io.meshlink.crypto.CryptoKeyPair
+import io.meshlink.crypto.CryptoProvider
+import io.meshlink.crypto.NoiseKSealer
 import io.meshlink.crypto.ReplayGuard
 import io.meshlink.diagnostics.DiagnosticCode
 import io.meshlink.diagnostics.DiagnosticEvent
@@ -46,6 +49,7 @@ class MeshLink(
     private val config: MeshLinkConfig = MeshLinkConfig(),
     coroutineContext: CoroutineContext = EmptyCoroutineContext,
     clock: () -> Long = { System.currentTimeMillis() },
+    private val crypto: CryptoProvider? = null,
 ) : MeshLinkApi {
 
     private val clock = clock
@@ -112,6 +116,13 @@ class MeshLink(
     private val outboundReplayGuard = ReplayGuard()
     private val inboundReplayGuards = mutableMapOf<String, ReplayGuard>()
 
+    // E2E encryption
+    private val localKeyPair: CryptoKeyPair? = crypto?.generateX25519KeyPair()
+    private val sealer: NoiseKSealer? = crypto?.let { NoiseKSealer(it) }
+    override val localPublicKey: ByteArray? get() = localKeyPair?.publicKey
+    override fun peerPublicKey(peerIdHex: String): ByteArray? = peerPublicKeys[peerIdHex]
+    private val peerPublicKeys = mutableMapOf<String, ByteArray>()
+
     override fun start(): Result<Unit> {
         if (started) return Result.success(Unit)
 
@@ -141,6 +152,10 @@ class MeshLink(
                         }
                     }
                     presenceTracker.peerSeen(event.peerId.toHex())
+                    // Extract peer's X25519 public key from advertisement if present
+                    if (advPayload.size >= 34) {
+                        peerPublicKeys[event.peerId.toHex()] = advPayload.copyOfRange(2, 34)
+                    }
                     _peers.emit(PeerEvent.Discovered(event.peerId))
                 }
             }
@@ -362,6 +377,11 @@ class MeshLink(
             return Result.failure(IllegalStateException("No route to unknown peer"))
         }
 
+        // Require recipient's public key when crypto is enabled
+        if (crypto != null && recipient.toHex() !in peerPublicKeys) {
+            return Result.failure(IllegalStateException("Recipient public key unknown"))
+        }
+
         return doSend(s, recipient, payload)
     }
 
@@ -369,11 +389,20 @@ class MeshLink(
         val messageId = Uuid.random().toByteArray()
         val key = messageId.toHex()
         deliveryTracker.register(key)
+
+        // Encrypt payload if crypto is available and we know the recipient's public key
+        val recipientHex = recipient.toHex()
+        val wirePayload = if (sealer != null && peerPublicKeys.containsKey(recipientHex)) {
+            sealer.seal(peerPublicKeys[recipientHex]!!, payload)
+        } else {
+            payload
+        }
+
         val chunkSize = config.mtu - WireCodec.CHUNK_HEADER_SIZE
-        val chunks = if (payload.isEmpty()) {
+        val chunks = if (wirePayload.isEmpty()) {
             listOf(ByteArray(0))
         } else {
-            payload.asSequence()
+            wirePayload.asSequence()
                 .chunked(chunkSize)
                 .map { it.toByteArray() }
                 .toList()
@@ -470,7 +499,19 @@ class MeshLink(
             val fullPayload = (0 until state.totalChunks)
                 .map { state.chunks[it]!! }
                 .reduce { acc, bytes -> acc + bytes }
-            _messages.emit(Message(senderId = fromPeerId, payload = fullPayload))
+
+            // Decrypt if crypto is available
+            val decrypted = if (sealer != null && localKeyPair != null && fullPayload.size >= 48) {
+                try {
+                    sealer.unseal(localKeyPair.privateKey, fullPayload)
+                } catch (_: Exception) {
+                    diagnosticSink.emit(DiagnosticCode.DECRYPTION_FAILED, Severity.WARN, "chunk reassembly")
+                    fullPayload // Decryption failed — deliver as-is (plaintext fallback)
+                }
+            } else {
+                fullPayload
+            }
+            _messages.emit(Message(senderId = fromPeerId, payload = decrypted))
         }
     }
 
@@ -556,7 +597,18 @@ class MeshLink(
 
         // If we are the destination, deliver locally and send delivery ACK back
         if (routed.destination.contentEquals(transport.localPeerId)) {
-            _messages.emit(Message(senderId = routed.origin, payload = routed.payload))
+            // Decrypt if crypto is available
+            val deliveredPayload = if (sealer != null && localKeyPair != null && routed.payload.size >= 48) {
+                try {
+                    sealer.unseal(localKeyPair.privateKey, routed.payload)
+                } catch (_: Exception) {
+                    diagnosticSink.emit(DiagnosticCode.DECRYPTION_FAILED, Severity.WARN, "routed message")
+                    routed.payload // Decryption failed — deliver as-is
+                }
+            } else {
+                routed.payload
+            }
+            _messages.emit(Message(senderId = routed.origin, payload = deliveredPayload))
             // Send delivery ACK back toward origin
             val ack = WireCodec.encodeDeliveryAck(routed.messageId, transport.localPeerId)
             scope?.launch { safeSend(fromPeerId, ack) }

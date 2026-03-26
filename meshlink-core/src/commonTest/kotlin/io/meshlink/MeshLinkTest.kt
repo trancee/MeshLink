@@ -3388,8 +3388,8 @@ class MeshLinkTest {
         transportA.linkTo(transportB)
         transportB.linkTo(transportA)
 
-        val alice = MeshLink(transportA, config, coroutineContext) { now }
-        val bob = MeshLink(transportB, config, coroutineContext) { now }
+        val alice = MeshLink(transportA, config, coroutineContext, clock = { now })
+        val bob = MeshLink(transportB, config, coroutineContext, clock = { now })
 
         alice.start(); bob.start()
         advanceUntilIdle()
@@ -3633,8 +3633,8 @@ class MeshLinkTest {
         val transportB = VirtualMeshTransport(peerIdBob)
         transportA.linkTo(transportB)
         // Don't link B→A so ACKs don't flow back automatically
-        val a = MeshLink(transportA, config, coroutineContext) { now }
-        val b = MeshLink(transportB, config, coroutineContext) { now }
+        val a = MeshLink(transportA, config, coroutineContext, clock = { now })
+        val b = MeshLink(transportB, config, coroutineContext, clock = { now })
         a.start(); b.start()
         advanceUntilIdle()
         transportA.simulateDiscovery(peerIdBob)
@@ -4078,5 +4078,317 @@ class MeshLinkTest {
         assertEquals(1, received.size)
 
         bob.stop(); charlie.stop()
+    }
+
+    // --- E2E Encryption integration tests ---
+
+    @Test
+    fun meshLinkGeneratesIdentityKey() = runTest {
+        val transport = VirtualMeshTransport(peerIdAlice)
+        val crypto = io.meshlink.crypto.createCryptoProvider()
+        val alice = MeshLink(transport, meshLinkConfig(), coroutineContext, crypto = crypto)
+        alice.start()
+        advanceUntilIdle()
+
+        val pubKey = alice.localPublicKey
+        assertIs<ByteArray>(pubKey)
+        assertEquals(32, pubKey.size)
+
+        alice.stop()
+    }
+
+    @Test
+    fun meshLinkWithoutCryptoHasNullPublicKey() = runTest {
+        val transport = VirtualMeshTransport(peerIdAlice)
+        val alice = MeshLink(transport, meshLinkConfig(), coroutineContext)
+        alice.start()
+        advanceUntilIdle()
+
+        assertEquals(null, alice.localPublicKey)
+
+        alice.stop()
+    }
+
+    @Test
+    fun peerPublicKeyStoredOnDiscovery() = runTest {
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val transportBob = VirtualMeshTransport(peerIdBob)
+        transportAlice.linkTo(transportBob)
+
+        val crypto = io.meshlink.crypto.createCryptoProvider()
+        val alice = MeshLink(transportAlice, meshLinkConfig(), coroutineContext, crypto = crypto)
+        val bob = MeshLink(transportBob, meshLinkConfig(), coroutineContext, crypto = crypto)
+        alice.start(); bob.start()
+        advanceUntilIdle()
+
+        // Build advertisement payload with Bob's public key: [ver_major:1B][ver_minor:1B][x25519_pub:32B]
+        val bobKey = bob.localPublicKey!!
+        val advPayload = ByteArray(34)
+        advPayload[0] = 0 // version major
+        advPayload[1] = 1 // version minor
+        bobKey.copyInto(advPayload, 2)
+
+        transportAlice.simulateDiscovery(peerIdBob, advPayload)
+        advanceUntilIdle()
+
+        // Alice should now know Bob's public key
+        val storedKey = alice.peerPublicKey(peerIdBob.toHex())
+        assertContentEquals(bobKey, storedKey)
+
+        alice.stop(); bob.stop()
+    }
+
+    private fun buildAdvPayload(publicKey: ByteArray): ByteArray {
+        val payload = ByteArray(34)
+        payload[0] = 0; payload[1] = 1
+        publicKey.copyInto(payload, 2)
+        return payload
+    }
+
+    @Test
+    fun encryptedDirectMessageRoundTrip() = runTest {
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val transportBob = VirtualMeshTransport(peerIdBob)
+        transportAlice.linkTo(transportBob)
+
+        val crypto = io.meshlink.crypto.createCryptoProvider()
+        val alice = MeshLink(transportAlice, meshLinkConfig(), coroutineContext, crypto = crypto)
+        val bob = MeshLink(transportBob, meshLinkConfig(), coroutineContext, crypto = crypto)
+        alice.start(); bob.start()
+        advanceUntilIdle()
+
+        // Exchange public keys via advertisements
+        transportAlice.simulateDiscovery(peerIdBob, buildAdvPayload(bob.localPublicKey!!))
+        transportBob.simulateDiscovery(peerIdAlice, buildAdvPayload(alice.localPublicKey!!))
+        advanceUntilIdle()
+
+        val receiveJob = launch {
+            val msg = bob.messages.first()
+            assertContentEquals("encrypted hello".encodeToByteArray(), msg.payload)
+        }
+
+        alice.send(peerIdBob, "encrypted hello".encodeToByteArray())
+        advanceUntilIdle()
+        receiveJob.join()
+
+        alice.stop(); bob.stop()
+    }
+
+    @Test
+    fun encryptedPayloadIsNotPlaintext() = runTest {
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val transportBob = VirtualMeshTransport(peerIdBob)
+        transportAlice.linkTo(transportBob)
+
+        val crypto = io.meshlink.crypto.createCryptoProvider()
+        val alice = MeshLink(transportAlice, meshLinkConfig(), coroutineContext, crypto = crypto)
+        val bob = MeshLink(transportBob, meshLinkConfig(), coroutineContext, crypto = crypto)
+        alice.start(); bob.start()
+        advanceUntilIdle()
+
+        transportAlice.simulateDiscovery(peerIdBob, buildAdvPayload(bob.localPublicKey!!))
+        transportBob.simulateDiscovery(peerIdAlice, buildAdvPayload(alice.localPublicKey!!))
+        advanceUntilIdle()
+
+        alice.send(peerIdBob, "secret message".encodeToByteArray())
+        advanceUntilIdle()
+
+        // Inspect raw wire data — payload should NOT contain plaintext
+        val rawPayloads = transportAlice.sentData.map { it.second }
+        val allBytes = rawPayloads.fold(byteArrayOf()) { acc, b -> acc + b }
+        val plaintext = "secret message".encodeToByteArray()
+        // The plaintext should not appear as a substring in any sent data
+        val found = allBytes.asSequence().windowed(plaintext.size).any { window ->
+            window.toByteArray().contentEquals(plaintext)
+        }
+        assertTrue(!found, "Plaintext should not appear in wire data when encryption is enabled")
+
+        alice.stop(); bob.stop()
+    }
+
+    @Test
+    fun selfSendWorksWithCrypto() = runTest {
+        val transport = VirtualMeshTransport(peerIdAlice)
+        val crypto = io.meshlink.crypto.createCryptoProvider()
+        val alice = MeshLink(transport, meshLinkConfig(), coroutineContext, crypto = crypto)
+        alice.start()
+        advanceUntilIdle()
+
+        val receiveJob = launch {
+            val msg = alice.messages.first()
+            assertContentEquals("self hello".encodeToByteArray(), msg.payload)
+        }
+
+        alice.send(peerIdAlice, "self hello".encodeToByteArray())
+        advanceUntilIdle()
+        receiveJob.join()
+
+        alice.stop()
+    }
+
+    @Test
+    fun encryptedRoutedMessageDelivered() = runTest {
+        val peerIdCharlie = ByteArray(16) { (0xC0 + it).toByte() }
+        val transportBob = VirtualMeshTransport(peerIdBob)
+        val transportCharlie = VirtualMeshTransport(peerIdCharlie)
+        transportBob.linkTo(transportCharlie)
+
+        val crypto = io.meshlink.crypto.createCryptoProvider()
+        val bob = MeshLink(transportBob, meshLinkConfig(), coroutineContext, crypto = crypto)
+        val charlie = MeshLink(transportCharlie, meshLinkConfig(), coroutineContext, crypto = crypto)
+        bob.start(); charlie.start()
+        advanceUntilIdle()
+
+        // Bob knows Alice (upstream) and Charlie (downstream)
+        transportBob.simulateDiscovery(peerIdAlice)
+        transportBob.simulateDiscovery(peerIdCharlie, buildAdvPayload(charlie.localPublicKey!!))
+        transportCharlie.simulateDiscovery(peerIdBob, buildAdvPayload(bob.localPublicKey!!))
+        advanceUntilIdle()
+
+        // Start Charlie's collector
+        val received = mutableListOf<Message>()
+        val collectJob = launch { charlie.messages.collect { received.add(it) } }
+        advanceUntilIdle()
+
+        // Inject a routed message from "Alice" to Charlie, encrypted for Charlie
+        val aliceCrypto = io.meshlink.crypto.createCryptoProvider()
+        val aliceSealer = io.meshlink.crypto.NoiseKSealer(aliceCrypto)
+        val sealedPayload = aliceSealer.seal(charlie.localPublicKey!!, "routed secret".encodeToByteArray())
+
+        val msg = WireCodec.encodeRoutedMessage(
+            messageId = Uuid.random().toByteArray(),
+            origin = peerIdAlice,
+            destination = peerIdCharlie,
+            hopLimit = 10u,
+            visitedList = listOf(peerIdAlice),
+            payload = sealedPayload,
+            replayCounter = 1u,
+        )
+        transportBob.receiveData(peerIdAlice, msg)
+        advanceUntilIdle()
+
+        collectJob.cancel()
+
+        // Charlie should have received and decrypted the message
+        assertEquals(1, received.size)
+        assertContentEquals("routed secret".encodeToByteArray(), received[0].payload)
+
+        bob.stop(); charlie.stop()
+    }
+
+    @Test
+    fun relayForwardsEncryptedPayloadOpaquely() = runTest {
+        val peerIdCharlie = ByteArray(16) { (0xC0 + it).toByte() }
+        val transportBob = VirtualMeshTransport(peerIdBob)
+        val transportCharlie = VirtualMeshTransport(peerIdCharlie)
+        transportBob.linkTo(transportCharlie)
+
+        val crypto = io.meshlink.crypto.createCryptoProvider()
+        val bob = MeshLink(transportBob, meshLinkConfig(), coroutineContext, crypto = crypto)
+        val charlie = MeshLink(transportCharlie, meshLinkConfig(), coroutineContext, crypto = crypto)
+        bob.start(); charlie.start()
+        advanceUntilIdle()
+
+        transportBob.simulateDiscovery(peerIdAlice)
+        transportBob.simulateDiscovery(peerIdCharlie, buildAdvPayload(charlie.localPublicKey!!))
+        transportCharlie.simulateDiscovery(peerIdBob, buildAdvPayload(bob.localPublicKey!!))
+        advanceUntilIdle()
+
+        // Create sealed payload that Bob (relay) CANNOT decrypt (encrypted for Charlie)
+        val aliceCrypto = io.meshlink.crypto.createCryptoProvider()
+        val aliceSealer = io.meshlink.crypto.NoiseKSealer(aliceCrypto)
+        val sealedPayload = aliceSealer.seal(charlie.localPublicKey!!, "opaque".encodeToByteArray())
+
+        val msg = WireCodec.encodeRoutedMessage(
+            messageId = Uuid.random().toByteArray(),
+            origin = peerIdAlice,
+            destination = peerIdCharlie,
+            hopLimit = 10u,
+            visitedList = listOf(peerIdAlice),
+            payload = sealedPayload,
+        )
+        transportBob.receiveData(peerIdAlice, msg)
+        advanceUntilIdle()
+
+        // Bob should have forwarded the message to Charlie
+        // Find the routed message (type 0x05) in sent data
+        val forwardedData = transportBob.sentData
+            .map { it.second }
+            .firstOrNull { it.isNotEmpty() && it[0] == WireCodec.TYPE_ROUTED_MESSAGE }
+        assertIs<ByteArray>(forwardedData)
+        // The forwarded routed message should contain the SAME sealed payload
+        val forwarded = WireCodec.decodeRoutedMessage(forwardedData)
+        assertContentEquals(sealedPayload, forwarded.payload)
+
+        bob.stop(); charlie.stop()
+    }
+
+    @Test
+    fun decryptionFailureDropsMessage() = runTest {
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val transportBob = VirtualMeshTransport(peerIdBob)
+        transportAlice.linkTo(transportBob)
+
+        val crypto = io.meshlink.crypto.createCryptoProvider()
+        val bob = MeshLink(transportBob, meshLinkConfig(), coroutineContext, crypto = crypto)
+        bob.start()
+        advanceUntilIdle()
+
+        transportBob.simulateDiscovery(peerIdAlice, buildAdvPayload(ByteArray(32))) // fake key
+        advanceUntilIdle()
+
+        // Start collector
+        val received = mutableListOf<Message>()
+        val collectJob = launch { bob.messages.collect { received.add(it) } }
+        advanceUntilIdle()
+
+        // Send corrupted "sealed" data (>= 48 bytes to trigger decrypt attempt, but random)
+        val corrupted = ByteArray(64) { it.toByte() }
+        val msg = WireCodec.encodeRoutedMessage(
+            messageId = Uuid.random().toByteArray(),
+            origin = peerIdAlice,
+            destination = peerIdBob,
+            hopLimit = 10u,
+            visitedList = listOf(peerIdAlice),
+            payload = corrupted,
+            replayCounter = 1u,
+        )
+        transportBob.receiveData(peerIdAlice, msg)
+        advanceUntilIdle()
+
+        collectJob.cancel()
+
+        // Should still deliver (decryption failed → fallback to raw payload)
+        assertEquals(1, received.size)
+        assertContentEquals(corrupted, received[0].payload)
+
+        // Verify diagnostic was emitted
+        val diagnostics = bob.drainDiagnostics()
+        assertTrue(diagnostics.any { it.code == io.meshlink.diagnostics.DiagnosticCode.DECRYPTION_FAILED },
+            "Should emit DECRYPTION_FAILED diagnostic")
+
+        bob.stop()
+    }
+
+    @Test
+    fun sendWithoutRecipientKeyFails() = runTest {
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val transportBob = VirtualMeshTransport(peerIdBob)
+        transportAlice.linkTo(transportBob)
+
+        val crypto = io.meshlink.crypto.createCryptoProvider()
+        val alice = MeshLink(transportAlice, meshLinkConfig(), coroutineContext, crypto = crypto)
+        alice.start()
+        advanceUntilIdle()
+
+        // Discover Bob WITHOUT public key (short advertisement)
+        transportAlice.simulateDiscovery(peerIdBob)
+        advanceUntilIdle()
+
+        // Send should fail because we don't have Bob's public key
+        val result = alice.send(peerIdBob, "hello".encodeToByteArray())
+        assertTrue(result.isFailure, "Send should fail when recipient public key is unknown")
+
+        alice.stop()
     }
 }

@@ -13,6 +13,7 @@ enum class DiagnosticCode {
     BLE_STACK_UNRESPONSIVE,
     MEMORY_PRESSURE,
     LATE_DELIVERY_ACK,
+    DECRYPTION_FAILED,
 }
 
 data class DiagnosticEvent(

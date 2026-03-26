@@ -30,4 +30,6 @@ interface MeshLinkApi {
     val messages: Flow<Message>
     val deliveryConfirmations: Flow<Uuid>
     val transferProgress: Flow<TransferProgress>
+    val localPublicKey: ByteArray?
+    fun peerPublicKey(peerIdHex: String): ByteArray?
 }
