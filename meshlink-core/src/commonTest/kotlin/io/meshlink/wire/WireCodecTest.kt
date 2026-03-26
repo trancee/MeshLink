@@ -177,8 +177,8 @@ class WireCodecTest {
             payload = payload,
         )
 
-        // type(1) + messageId(16) + origin(16) + remainingHops(1) + appIdHash(16) + payload
-        assertEquals(1 + 16 + 16 + 1 + 16 + payload.size, encoded.size)
+        // type(1) + messageId(16) + origin(16) + remainingHops(1) + appIdHash(16) + sigLen(1) + payload
+        assertEquals(1 + 16 + 16 + 1 + 16 + 1 + payload.size, encoded.size)
         assertEquals(WireCodec.TYPE_BROADCAST, encoded[0])
 
         val decoded = WireCodec.decodeBroadcast(encoded)
@@ -199,8 +199,8 @@ class WireCodecTest {
             recipientId = destinationId,
         )
 
-        // type(1) + messageId(16) + recipientId(16) = 33
-        assertEquals(33, encoded.size)
+        // type(1) + messageId(16) + recipientId(16) + sigLen(1) = 34
+        assertEquals(34, encoded.size)
         assertEquals(WireCodec.TYPE_DELIVERY_ACK, encoded[0])
 
         val decoded = WireCodec.decodeDeliveryAck(encoded)

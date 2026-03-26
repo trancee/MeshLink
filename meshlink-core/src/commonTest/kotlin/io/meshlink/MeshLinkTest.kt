@@ -5530,4 +5530,258 @@ class MeshLinkTest {
         fJob.cancel()
         alice.stop()
     }
+
+    // --- Ed25519 Broadcast Signing ---
+
+    @Test
+    fun broadcastIncludesEd25519Signature() = runTest {
+        val crypto = io.meshlink.crypto.createCryptoProvider()
+        val transport = VirtualMeshTransport(peerIdAlice)
+        val alice = MeshLink(transport, meshLinkConfig(), coroutineContext, crypto = crypto)
+        alice.start()
+        advanceUntilIdle()
+
+        // Discover Bob so broadcast has a target
+        transport.simulateDiscovery(peerIdBob)
+        advanceUntilIdle()
+
+        alice.broadcast("hello signed".encodeToByteArray(), maxHops = 3u)
+        advanceUntilIdle()
+
+        // Verify broadcast was sent
+        val sent = transport.sentData.filter { it.second[0] == WireCodec.TYPE_BROADCAST }
+        assertEquals(1, sent.size)
+
+        // Decode the broadcast — should now include a signature field
+        val broadcast = WireCodec.decodeBroadcast(sent[0].second)
+        assertTrue(broadcast.signature.isNotEmpty(), "Broadcast should contain Ed25519 signature")
+        assertEquals(64, broadcast.signature.size, "Ed25519 signature must be 64 bytes")
+
+        // Verify the signature is valid using Alice's broadcast public key
+        // Note: remainingHops excluded from signed data (mutable during relay)
+        val signedData = broadcast.messageId + broadcast.origin + broadcast.appIdHash + broadcast.payload
+        assertTrue(
+            crypto.verify(alice.broadcastPublicKey!!, signedData, broadcast.signature),
+            "Signature must be valid for the broadcast content"
+        )
+
+        alice.stop()
+    }
+
+    @Test
+    fun broadcastWithForgedSignatureRejected() = runTest {
+        val crypto = io.meshlink.crypto.createCryptoProvider()
+        val transportA = VirtualMeshTransport(peerIdAlice)
+        val transportB = VirtualMeshTransport(peerIdBob)
+        val alice = MeshLink(transportA, meshLinkConfig(), coroutineContext, crypto = crypto)
+        val bob = MeshLink(transportB, meshLinkConfig(), coroutineContext, crypto = crypto)
+        alice.start(); bob.start()
+        advanceUntilIdle()
+
+        // Build a broadcast with a forged (random) signature
+        val forgedBroadcast = WireCodec.encodeBroadcast(
+            messageId = kotlin.uuid.Uuid.random().toByteArray(),
+            origin = peerIdAlice,
+            remainingHops = 3u,
+            appIdHash = ByteArray(16),
+            payload = "forged".encodeToByteArray(),
+            signature = ByteArray(64) { 0xFF.toByte() },
+        )
+
+        val received = mutableListOf<Message>()
+        val job = launch { bob.messages.collect { received.add(it) } }
+
+        // Inject forged broadcast into Bob
+        transportB.receiveData(peerIdAlice, forgedBroadcast)
+        advanceUntilIdle()
+
+        assertTrue(received.isEmpty(), "Forged broadcast must be silently rejected")
+
+        job.cancel()
+        alice.stop(); bob.stop()
+    }
+
+    @Test
+    fun broadcastSignaturePreservedThroughRelay() = runTest {
+        val crypto = io.meshlink.crypto.createCryptoProvider()
+        val transportA = VirtualMeshTransport(peerIdAlice)
+        val transportB = VirtualMeshTransport(peerIdBob)
+        val peerIdCharlie = ByteArray(16) { (0x30 + it).toByte() }
+        val transportC = VirtualMeshTransport(peerIdCharlie)
+
+        val alice = MeshLink(transportA, meshLinkConfig(), coroutineContext, crypto = crypto)
+        val bob = MeshLink(transportB, meshLinkConfig(), coroutineContext, crypto = crypto)
+        val charlie = MeshLink(transportC, meshLinkConfig(), coroutineContext, crypto = crypto)
+
+        // Topology: Alice <-> Bob <-> Charlie (Alice not directly connected to Charlie)
+        transportA.linkTo(transportB)
+        transportB.linkTo(transportC)
+
+        alice.start(); bob.start(); charlie.start()
+        advanceUntilIdle()
+
+        transportA.simulateDiscovery(peerIdBob)
+        transportB.simulateDiscovery(peerIdAlice)
+        transportB.simulateDiscovery(peerIdCharlie)
+        transportC.simulateDiscovery(peerIdBob)
+        advanceUntilIdle()
+
+        val received = mutableListOf<Message>()
+        val job = launch { charlie.messages.collect { received.add(it) } }
+
+        // Alice broadcasts with maxHops=3 — should reach Charlie via Bob
+        alice.broadcast("multi hop".encodeToByteArray(), maxHops = 3u)
+        advanceUntilIdle()
+
+        assertEquals(1, received.size, "Charlie should receive the broadcast")
+        assertEquals("multi hop", received[0].payload.decodeToString())
+
+        // Verify the signature on the wire data Bob relayed to Charlie is the same
+        // as Alice's original signature (preserved, not re-signed by Bob)
+        val sentToCharlie = transportB.sentData.filter {
+            it.first == peerIdCharlie.toHex() && it.second[0] == WireCodec.TYPE_BROADCAST
+        }
+        assertTrue(sentToCharlie.isNotEmpty(), "Bob should have relayed to Charlie")
+        val relayed = WireCodec.decodeBroadcast(sentToCharlie[0].second)
+        assertTrue(relayed.signature.isNotEmpty(), "Relayed broadcast must preserve signature")
+
+        // Verify it's Alice's signature (verify against Alice's public key)
+        val signedData = relayed.messageId + relayed.origin + relayed.appIdHash + relayed.payload
+        assertTrue(
+            crypto.verify(alice.broadcastPublicKey!!, signedData, relayed.signature),
+            "Relayed signature must be valid with Alice's key"
+        )
+
+        job.cancel()
+        alice.stop(); bob.stop(); charlie.stop()
+    }
+
+    @Test
+    fun broadcastWithoutCryptoSkipsSignatureCheck() = runTest {
+        // Nodes without crypto should accept unsigned broadcasts
+        val transportA = VirtualMeshTransport(peerIdAlice)
+        val transportB = VirtualMeshTransport(peerIdBob)
+        val alice = MeshLink(transportA, meshLinkConfig(), coroutineContext)  // no crypto
+        val bob = MeshLink(transportB, meshLinkConfig(), coroutineContext)    // no crypto
+        transportA.linkTo(transportB)
+        alice.start(); bob.start()
+        advanceUntilIdle()
+
+        transportA.simulateDiscovery(peerIdBob)
+        transportB.simulateDiscovery(peerIdAlice)
+        advanceUntilIdle()
+
+        val received = mutableListOf<Message>()
+        val job = launch { bob.messages.collect { received.add(it) } }
+
+        alice.broadcast("unsigned".encodeToByteArray(), maxHops = 1u)
+        advanceUntilIdle()
+
+        assertEquals(1, received.size, "Unsigned broadcast should be accepted without crypto")
+        assertEquals("unsigned", received[0].payload.decodeToString())
+
+        job.cancel()
+        alice.stop(); bob.stop()
+    }
+
+    @Test
+    fun deliveryAckIncludesEd25519Signature() = runTest {
+        val crypto = io.meshlink.crypto.createCryptoProvider()
+        val peerIdCharlie = ByteArray(16) { (0x30 + it).toByte() }
+        val transportA = VirtualMeshTransport(peerIdAlice)
+        val transportB = VirtualMeshTransport(peerIdBob)
+        val transportC = VirtualMeshTransport(peerIdCharlie)
+
+        val alice = MeshLink(transportA, meshLinkConfig(), coroutineContext, crypto = crypto)
+        val bob = MeshLink(transportB, meshLinkConfig(), coroutineContext, crypto = crypto)
+        val charlie = MeshLink(transportC, meshLinkConfig(), coroutineContext, crypto = crypto)
+
+        // Topology: Alice <-> Bob <-> Charlie
+        transportA.linkTo(transportB)
+        transportB.linkTo(transportC)
+        alice.start(); bob.start(); charlie.start()
+        advanceUntilIdle()
+
+        // Discovery for direct neighbors
+        transportA.simulateDiscovery(peerIdBob)
+        transportB.simulateDiscovery(peerIdAlice)
+        transportB.simulateDiscovery(peerIdCharlie)
+        transportC.simulateDiscovery(peerIdBob)
+        advanceUntilIdle()
+
+        // Add route: Alice → Charlie via Bob
+        alice.addRoute(peerIdCharlie.toHex(), peerIdBob.toHex(), 1.0, 1u)
+        // Add route: Bob → Alice (for ACK relay)
+        bob.addRoute(peerIdAlice.toHex(), peerIdAlice.toHex(), 1.0, 1u)
+
+        val received = mutableListOf<Message>()
+        val job = launch { charlie.messages.collect { received.add(it) } }
+
+        // Alice sends routed message to Charlie via Bob
+        alice.send(peerIdCharlie, "ack me".encodeToByteArray())
+        advanceUntilIdle()
+
+        assertTrue(received.isNotEmpty(), "Charlie should receive the routed message")
+
+        // Charlie sends TYPE_DELIVERY_ACK back
+        val acks = transportC.sentData.filter { it.second[0] == WireCodec.TYPE_DELIVERY_ACK }
+        assertTrue(acks.isNotEmpty(), "Charlie should send delivery ACK for routed message")
+
+        val ack = WireCodec.decodeDeliveryAck(acks[0].second)
+        assertTrue(ack.signature.isNotEmpty(), "Delivery ACK should include Ed25519 signature")
+        assertEquals(64, ack.signature.size, "Ed25519 signature must be 64 bytes")
+
+        // Verify the signature is valid using Charlie's broadcast public key
+        val signedData = ack.messageId + ack.recipientId
+        assertTrue(
+            crypto.verify(charlie.broadcastPublicKey!!, signedData, ack.signature),
+            "ACK signature must be valid with Charlie's key"
+        )
+
+        job.cancel()
+        alice.stop(); bob.stop(); charlie.stop()
+    }
+
+    @Test
+    fun deliveryAckWithForgedSignatureRejected() = runTest {
+        val crypto = io.meshlink.crypto.createCryptoProvider()
+        val transportA = VirtualMeshTransport(peerIdAlice)
+        val alice = MeshLink(transportA, meshLinkConfig(), coroutineContext, crypto = crypto)
+        alice.start()
+        advanceUntilIdle()
+
+        transportA.simulateDiscovery(peerIdBob)
+        advanceUntilIdle()
+
+        // Add route to Charlie via Bob
+        val peerIdCharlie = ByteArray(16) { (0x30 + it).toByte() }
+        alice.addRoute(peerIdCharlie.toHex(), peerIdBob.toHex(), 1.0, 1u)
+
+        // Send routed message to register in delivery tracker
+        val result = alice.send(peerIdCharlie, "test".encodeToByteArray())
+        assertTrue(result.isSuccess)
+        advanceUntilIdle()
+
+        val confirmations = mutableListOf<kotlin.uuid.Uuid>()
+        val job = launch { alice.deliveryConfirmations.collect { confirmations.add(it) } }
+
+        // Forge a delivery ACK with the correct messageId but invalid signature
+        val sentRouted = transportA.sentData.filter { it.second[0] == WireCodec.TYPE_ROUTED_MESSAGE }
+        val routed = WireCodec.decodeRoutedMessage(sentRouted[0].second)
+        val forgedAck = WireCodec.encodeDeliveryAck(
+            messageId = routed.messageId,
+            recipientId = peerIdCharlie,
+            signature = ByteArray(64) { 0xFF.toByte() },
+            signerPublicKey = ByteArray(32) { 0xAA.toByte() },
+        )
+
+        // Inject the forged ACK into Alice
+        transportA.receiveData(peerIdBob, forgedAck)
+        advanceUntilIdle()
+
+        assertTrue(confirmations.isEmpty(), "Forged delivery ACK must not trigger confirmation")
+
+        job.cancel()
+        alice.stop()
+    }
 }

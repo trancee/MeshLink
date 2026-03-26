@@ -114,8 +114,9 @@ object WireCodec {
         return RoutedMessage(messageId, origin, destination, hopLimit, replayCounter, visitedList, payload)
     }
 
-    // broadcast: type(1) + messageId(16) + origin(16) + remainingHops(1) + appIdHash(16) + payload
-    private const val BROADCAST_HEADER_SIZE = 1 + MESSAGE_ID_SIZE + 16 + 1 + 16 // 50
+    // broadcast: type(1) + messageId(16) + origin(16) + remainingHops(1) + appIdHash(16) + sigLen(1) + [signature(64) + signerPubKey(32)] + payload
+    private const val BROADCAST_HEADER_SIZE = 1 + MESSAGE_ID_SIZE + 16 + 1 + 16 + 1 // 51
+    private const val ED25519_PUB_KEY_SIZE = 32
 
     fun encodeBroadcast(
         messageId: ByteArray,
@@ -123,14 +124,22 @@ object WireCodec {
         remainingHops: UByte,
         appIdHash: ByteArray = ByteArray(16),
         payload: ByteArray,
+        signature: ByteArray = ByteArray(0),
+        signerPublicKey: ByteArray = ByteArray(0),
     ): ByteArray {
-        val buf = ByteArray(BROADCAST_HEADER_SIZE + payload.size)
+        val sigBlock = if (signature.isNotEmpty()) signature.size + signerPublicKey.size else 0
+        val buf = ByteArray(BROADCAST_HEADER_SIZE + sigBlock + payload.size)
         var offset = 0
         buf[offset++] = TYPE_BROADCAST
         messageId.copyInto(buf, offset); offset += MESSAGE_ID_SIZE
         origin.copyInto(buf, offset); offset += 16
         buf[offset++] = remainingHops.toByte()
         appIdHash.copyInto(buf, offset); offset += 16
+        buf[offset++] = signature.size.toByte()
+        if (signature.isNotEmpty()) {
+            signature.copyInto(buf, offset); offset += signature.size
+            signerPublicKey.copyInto(buf, offset); offset += signerPublicKey.size
+        }
         payload.copyInto(buf, offset)
         return buf
     }
@@ -143,29 +152,60 @@ object WireCodec {
         val origin = data.copyOfRange(offset, offset + 16); offset += 16
         val remainingHops = data[offset++].toUByte()
         val appIdHash = data.copyOfRange(offset, offset + 16); offset += 16
+        val sigLen = data[offset++].toInt() and 0xFF
+        val signature: ByteArray
+        val signerPublicKey: ByteArray
+        if (sigLen > 0) {
+            signature = data.copyOfRange(offset, offset + sigLen); offset += sigLen
+            signerPublicKey = data.copyOfRange(offset, offset + ED25519_PUB_KEY_SIZE); offset += ED25519_PUB_KEY_SIZE
+        } else {
+            signature = ByteArray(0)
+            signerPublicKey = ByteArray(0)
+        }
         val payload = data.copyOfRange(offset, data.size)
-        return BroadcastMessage(messageId, origin, remainingHops, appIdHash, payload)
+        return BroadcastMessage(messageId, origin, remainingHops, appIdHash, payload, signature, signerPublicKey)
     }
 
-    // delivery_ack: type(1) + messageId(16) + recipientId(16)
-    private const val DELIVERY_ACK_SIZE = 1 + MESSAGE_ID_SIZE + 16 // 33
+    // delivery_ack: type(1) + messageId(16) + recipientId(16) + sigLen(1) + [signature(64) + signerPubKey(32)]
+    private const val DELIVERY_ACK_HEADER_SIZE = 1 + MESSAGE_ID_SIZE + 16 + 1 // 34
 
-    fun encodeDeliveryAck(messageId: ByteArray, recipientId: ByteArray): ByteArray {
-        val buf = ByteArray(DELIVERY_ACK_SIZE)
+    fun encodeDeliveryAck(
+        messageId: ByteArray,
+        recipientId: ByteArray,
+        signature: ByteArray = ByteArray(0),
+        signerPublicKey: ByteArray = ByteArray(0),
+    ): ByteArray {
+        val sigBlock = if (signature.isNotEmpty()) signature.size + signerPublicKey.size else 0
+        val buf = ByteArray(DELIVERY_ACK_HEADER_SIZE + sigBlock)
         var offset = 0
         buf[offset++] = TYPE_DELIVERY_ACK
         messageId.copyInto(buf, offset); offset += MESSAGE_ID_SIZE
-        recipientId.copyInto(buf, offset)
+        recipientId.copyInto(buf, offset); offset += 16
+        buf[offset++] = signature.size.toByte()
+        if (signature.isNotEmpty()) {
+            signature.copyInto(buf, offset); offset += signature.size
+            signerPublicKey.copyInto(buf, offset)
+        }
         return buf
     }
 
     fun decodeDeliveryAck(data: ByteArray): DeliveryAckMessage {
-        require(data.size >= DELIVERY_ACK_SIZE) { "delivery_ack too short: ${data.size}" }
+        require(data.size >= DELIVERY_ACK_HEADER_SIZE) { "delivery_ack too short: ${data.size}" }
         require(data[0] == TYPE_DELIVERY_ACK) { "not a delivery_ack: 0x${data[0].toUByte().toString(16)}" }
         var offset = 1
         val messageId = data.copyOfRange(offset, offset + MESSAGE_ID_SIZE); offset += MESSAGE_ID_SIZE
-        val recipientId = data.copyOfRange(offset, offset + 16)
-        return DeliveryAckMessage(messageId, recipientId)
+        val recipientId = data.copyOfRange(offset, offset + 16); offset += 16
+        val sigLen = data[offset++].toInt() and 0xFF
+        val signature: ByteArray
+        val signerPublicKey: ByteArray
+        if (sigLen > 0) {
+            signature = data.copyOfRange(offset, offset + sigLen); offset += sigLen
+            signerPublicKey = data.copyOfRange(offset, offset + ED25519_PUB_KEY_SIZE)
+        } else {
+            signature = ByteArray(0)
+            signerPublicKey = ByteArray(0)
+        }
+        return DeliveryAckMessage(messageId, recipientId, signature, signerPublicKey)
     }
 
     // route_update: type(1) + sender(16) + entryCount(1) + entries(N × 29)
@@ -289,11 +329,15 @@ data class BroadcastMessage(
     val remainingHops: UByte,
     val appIdHash: ByteArray,
     val payload: ByteArray,
+    val signature: ByteArray = ByteArray(0),
+    val signerPublicKey: ByteArray = ByteArray(0),
 )
 
 data class DeliveryAckMessage(
     val messageId: ByteArray,
     val recipientId: ByteArray,
+    val signature: ByteArray = ByteArray(0),
+    val signerPublicKey: ByteArray = ByteArray(0),
 )
 
 data class RouteUpdateEntry(

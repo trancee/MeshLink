@@ -156,6 +156,10 @@ class MeshLink(
     override fun peerPublicKey(peerIdHex: String): ByteArray? = peerPublicKeys[peerIdHex]
     private val peerPublicKeys = mutableMapOf<String, ByteArray>()
 
+    // Ed25519 signing for broadcasts and delivery ACKs
+    private val broadcastKeyPair: CryptoKeyPair? = crypto?.generateEd25519KeyPair()
+    override val broadcastPublicKey: ByteArray? get() = broadcastKeyPair?.publicKey
+
     // Inbound rate limiting: per-sender message count within sliding window
     private val inboundRateCounts = mutableMapOf<String, MutableList<Long>>()
 
@@ -431,12 +435,24 @@ class MeshLink(
 
         val messageId = Uuid.random()
         val appIdHash = config.appId?.let { AppIdFilter.hash(it) } ?: ByteArray(16)
+        val msgIdBytes = messageId.toByteArray()
+        val remainingHops = maxHops
+
+        // Sign broadcast content with Ed25519 if crypto is available
+        // Note: remainingHops is excluded from signed data because relays decrement it
+        val signature = if (broadcastKeyPair != null && crypto != null) {
+            val signedData = msgIdBytes + transport.localPeerId + appIdHash + payload
+            crypto.sign(broadcastKeyPair.privateKey, signedData)
+        } else ByteArray(0)
+
         val encoded = WireCodec.encodeBroadcast(
-            messageId = messageId.toByteArray(),
+            messageId = msgIdBytes,
             origin = transport.localPeerId,
-            remainingHops = maxHops,
+            remainingHops = remainingHops,
             appIdHash = appIdHash,
             payload = payload,
+            signature = signature,
+            signerPublicKey = broadcastKeyPair?.publicKey ?: ByteArray(0),
         )
         // Mark as seen so we don't deliver our own broadcast back to ourselves
         dedup.tryInsert(messageId.toByteArray().toHex())
@@ -723,6 +739,15 @@ class MeshLink(
         // AppId filter: reject broadcasts from a different app
         if (!appIdFilter.accepts(broadcast.appIdHash)) return
 
+        // Ed25519 signature verification (when crypto is available)
+        if (crypto != null && broadcast.signature.isNotEmpty()) {
+            val signedData = broadcast.messageId + broadcast.origin + broadcast.appIdHash + broadcast.payload
+            if (!crypto.verify(broadcast.signerPublicKey, signedData, broadcast.signature)) return
+        } else if (crypto != null && broadcast.signature.isEmpty()) {
+            // Crypto enabled but no signature → reject
+            return
+        }
+
         // Dedup: reject if we've seen this broadcast before
         if (!dedup.tryInsert(key)) return
 
@@ -737,6 +762,8 @@ class MeshLink(
                 remainingHops = (broadcast.remainingHops - 1u).toUByte(),
                 appIdHash = broadcast.appIdHash,
                 payload = broadcast.payload,
+                signature = broadcast.signature,
+                signerPublicKey = broadcast.signerPublicKey,
             )
             val senderHex = fromPeerId.toHex()
             val s = scope ?: return
@@ -790,8 +817,15 @@ class MeshLink(
                 routed.payload
             }
             _messages.emit(Message(senderId = routed.origin, payload = deliveredPayload))
-            // Send delivery ACK back toward origin
-            val ack = WireCodec.encodeDeliveryAck(routed.messageId, transport.localPeerId)
+            // Send signed delivery ACK back toward origin
+            val ackSig = if (broadcastKeyPair != null && crypto != null) {
+                crypto.sign(broadcastKeyPair.privateKey, routed.messageId + transport.localPeerId)
+            } else ByteArray(0)
+            val ack = WireCodec.encodeDeliveryAck(
+                routed.messageId, transport.localPeerId,
+                signature = ackSig,
+                signerPublicKey = broadcastKeyPair?.publicKey ?: ByteArray(0),
+            )
             scope?.launch { safeSend(fromPeerId, ack) }
             return
         }
@@ -831,6 +865,15 @@ class MeshLink(
     private suspend fun handleDeliveryAck(fromPeerId: ByteArray, data: ByteArray) {
         val ack = WireCodec.decodeDeliveryAck(data)
         val key = ack.messageId.toHex()
+
+        // Ed25519 signature verification for delivery ACKs
+        if (crypto != null && ack.signature.isNotEmpty()) {
+            val signedData = ack.messageId + ack.recipientId
+            if (!crypto.verify(ack.signerPublicKey, signedData, ack.signature)) return
+        } else if (crypto != null && ack.signature.isEmpty()) {
+            return
+        }
+
         // If tracked, use exactly-once guard; if untracked, accept (external ACK)
         val outcome = deliveryTracker.recordOutcome(key, DeliveryOutcome.CONFIRMED)
         if (outcome != null || !deliveryTracker.isTracked(key)) {
