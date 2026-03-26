@@ -6817,4 +6817,286 @@ class MeshLinkTest {
         confJob.cancel()
         alice.stop()
     }
+
+    // --- Batch 6: Timeout + Multi-hop + TTL Flush + Reassembly + Crypto ---
+
+    @Test
+    fun sweepStaleTransfersEmitsAckTimeoutForUnackedRoutedMessage() = runTest {
+        var now = 0L
+        val transportA = VirtualMeshTransport(peerIdAlice)
+        val transportB = VirtualMeshTransport(peerIdBob)
+        transportA.linkTo(transportB)
+        // Drop ALL chunk ACKs so transfer stays in-flight forever
+        transportB.dropFilter = { data -> data[0] == WireCodec.TYPE_CHUNK_ACK }
+        val alice = MeshLink(transportA, meshLinkConfig(), coroutineContext, clock = { now })
+        alice.start()
+        advanceUntilIdle()
+        transportA.simulateDiscovery(peerIdBob)
+        advanceUntilIdle()
+
+        val failures = mutableListOf<TransferFailure>()
+        val failJob = launch { alice.transferFailures.collect { failures.add(it) } }
+        advanceUntilIdle()
+
+        val result = alice.send(peerIdBob, "timeout-test".encodeToByteArray())
+        advanceUntilIdle()
+        assertTrue(result.isSuccess)
+        val messageId = result.getOrThrow()
+
+        // Advance clock past timeout and sweep
+        now += 3000
+        val swept = alice.sweepStaleTransfers(2000)
+        advanceUntilIdle()
+
+        assertEquals(1, swept, "Should sweep 1 stale transfer")
+        assertEquals(1, failures.size, "Should emit exactly 1 failure")
+        assertEquals(messageId, failures[0].messageId)
+        assertEquals(DeliveryOutcome.FAILED_ACK_TIMEOUT, failures[0].reason)
+
+        failJob.cancel()
+        alice.stop()
+    }
+
+    @Test
+    fun relayNodesEmitConfirmationForRelayedAcks() = runTest {
+        // Topology: Alice--Bob--Charlie--Dave
+        // Relay nodes (Bob, Charlie) emit confirmations for relayed ACKs
+        // because the messageId is untracked from their perspective (orphaned ACK acceptance)
+        val peerIdC = ByteArray(16) { (0xC0 + it).toByte() }
+        val peerIdD = ByteArray(16) { (0xD0 + it).toByte() }
+        val tA = VirtualMeshTransport(peerIdAlice)
+        val tB = VirtualMeshTransport(peerIdBob)
+        val tC = VirtualMeshTransport(peerIdC)
+        val tD = VirtualMeshTransport(peerIdD)
+        tA.linkTo(tB); tB.linkTo(tC); tC.linkTo(tD)
+
+        val a = MeshLink(tA, meshLinkConfig(), coroutineContext)
+        val b = MeshLink(tB, meshLinkConfig(), coroutineContext)
+        val c = MeshLink(tC, meshLinkConfig(), coroutineContext)
+        val d = MeshLink(tD, meshLinkConfig(), coroutineContext)
+        listOf(a, b, c, d).forEach { it.start() }
+        advanceUntilIdle()
+
+        tA.simulateDiscovery(peerIdBob)
+        tB.simulateDiscovery(peerIdAlice); tB.simulateDiscovery(peerIdC)
+        tC.simulateDiscovery(peerIdBob); tC.simulateDiscovery(peerIdD)
+        tD.simulateDiscovery(peerIdC)
+        advanceUntilIdle()
+
+        a.addRoute(peerIdD.toHex(), peerIdBob.toHex(), 3.0, 1u)
+        b.addRoute(peerIdD.toHex(), peerIdC.toHex(), 2.0, 1u)
+        c.addRoute(peerIdD.toHex(), peerIdD.toHex(), 1.0, 1u)
+
+        val aliceConfs = mutableListOf<Uuid>()
+        val bobConfs = mutableListOf<Uuid>()
+        val charlieConfs = mutableListOf<Uuid>()
+        val confA = launch { a.deliveryConfirmations.collect { aliceConfs.add(it) } }
+        val confB = launch { b.deliveryConfirmations.collect { bobConfs.add(it) } }
+        val confC = launch { c.deliveryConfirmations.collect { charlieConfs.add(it) } }
+        advanceUntilIdle()
+
+        val received = mutableListOf<Message>()
+        val recvJob = launch { d.messages.collect { received.add(it) } }
+        advanceUntilIdle()
+
+        val result = a.send(peerIdD, "multi-hop".encodeToByteArray())
+        assertTrue(result.isSuccess)
+        advanceUntilIdle()
+
+        assertEquals(1, received.size, "Dave should receive the message")
+        assertEquals(1, aliceConfs.size, "Alice (sender) should get delivery confirmation")
+        assertEquals(result.getOrThrow(), aliceConfs[0])
+
+        // Relay nodes ALSO emit confirmations (orphaned ACK acceptance:
+        // messageId is untracked → deliveryConfirmations emits)
+        val msgId = result.getOrThrow()
+        assertTrue(bobConfs.any { it == msgId },
+            "Bob (relay) emits confirmation via orphaned ACK path")
+        assertTrue(charlieConfs.any { it == msgId },
+            "Charlie (relay) emits confirmation via orphaned ACK path")
+
+        confA.cancel(); confB.cancel(); confC.cancel(); recvJob.cancel()
+        listOf(a, b, c, d).forEach { it.stop() }
+    }
+
+    @Test
+    fun flushPendingSkipsExpiredButSendsFreshMessages() = runTest {
+        var now = 0L
+        val transportA = VirtualMeshTransport(peerIdAlice)
+        val transportB = VirtualMeshTransport(peerIdBob)
+        transportA.linkTo(transportB)
+        val alice = MeshLink(
+            transportA,
+            meshLinkConfig {
+                pendingMessageTtlMs = 2000
+                pendingMessageCapacity = 10
+                maxMessageSize = 200
+                bufferCapacity = 1000
+            },
+            coroutineContext,
+            clock = { now },
+        )
+        alice.start()
+        advanceUntilIdle()
+        // Don't discover Bob yet — messages go to pending buffer
+
+        // Send msg1 at t=0
+        now = 0L
+        val r1 = alice.send(peerIdBob, "msg1-old".encodeToByteArray())
+        advanceUntilIdle()
+        assertTrue(r1.isSuccess)
+
+        // Send msg2 at t=1500 (within TTL)
+        now = 1500L
+        val r2 = alice.send(peerIdBob, "msg2-fresh".encodeToByteArray())
+        advanceUntilIdle()
+        assertTrue(r2.isSuccess)
+
+        // At t=2500, msg1 is 2500ms old (expired, TTL=2000), msg2 is 1000ms old (fresh)
+        now = 2500L
+
+        val bob = MeshLink(transportB, meshLinkConfig(), coroutineContext)
+        bob.start()
+        advanceUntilIdle()
+
+        val received = mutableListOf<Message>()
+        val collector = launch { bob.messages.collect { received.add(it) } }
+        advanceUntilIdle()
+
+        // Discover Bob — triggers flushPendingMessages
+        transportA.simulateDiscovery(peerIdBob)
+        transportB.simulateDiscovery(peerIdAlice)
+        advanceUntilIdle()
+
+        // Only msg2 should arrive (msg1 TTL-expired, skipped by continue at line 111)
+        assertEquals(1, received.size, "Only fresh message should be delivered")
+        assertContentEquals("msg2-fresh".encodeToByteArray(), received[0].payload)
+
+        collector.cancel()
+        alice.stop(); bob.stop()
+    }
+
+    @Test
+    fun sweepStaleReassembliesClearsIncompleteTransfer() = runTest {
+        var now = 0L
+        val transportB = VirtualMeshTransport(peerIdBob)
+        val bob = MeshLink(
+            transportB,
+            meshLinkConfig { mtu = 50; maxMessageSize = 200; bufferCapacity = 500 },
+            coroutineContext,
+            clock = { now },
+        )
+        bob.start()
+        advanceUntilIdle()
+        transportB.simulateDiscovery(peerIdAlice)
+        advanceUntilIdle()
+
+        // Manually inject partial chunks (2 of 5) to create incomplete reassembly
+        val msgId = kotlin.uuid.Uuid.random().toByteArray()
+        val chunk0 = WireCodec.encodeChunk(
+            messageId = msgId, sequenceNumber = 0u, totalChunks = 5u,
+            payload = ByteArray(30) { 0xAA.toByte() },
+        )
+        val chunk1 = WireCodec.encodeChunk(
+            messageId = msgId, sequenceNumber = 1u, totalChunks = 5u,
+            payload = ByteArray(30) { 0xBB.toByte() },
+        )
+        transportB.receiveData(peerIdAlice, chunk0)
+        transportB.receiveData(peerIdAlice, chunk1)
+        advanceUntilIdle()
+
+        val healthBefore = bob.meshHealth()
+        assertTrue(healthBefore.bufferUtilizationPercent > 0,
+            "Bob should have buffer usage from partial reassembly")
+
+        // Advance clock past timeout and sweep
+        now += 10_001
+        val swept = bob.sweepStaleReassemblies(10_000)
+        advanceUntilIdle()
+
+        assertTrue(swept > 0, "Should sweep at least 1 stale reassembly")
+
+        val healthAfter = bob.meshHealth()
+        assertEquals(0, healthAfter.bufferUtilizationPercent,
+            "Buffer should be empty after sweeping stale reassembly")
+
+        bob.stop()
+    }
+
+    @Test
+    fun cryptoEnabledNodeRejectsUnsignedDeliveryAck() = runTest {
+        val crypto = io.meshlink.crypto.createCryptoProvider()
+        val transportA = VirtualMeshTransport(peerIdAlice)
+        val transportB = VirtualMeshTransport(peerIdBob)
+        transportA.linkTo(transportB)
+        val alice = MeshLink(transportA, meshLinkConfig(), coroutineContext, crypto = crypto)
+        alice.start()
+        advanceUntilIdle()
+        transportA.simulateDiscovery(peerIdBob)
+        advanceUntilIdle()
+
+        val peerIdC = ByteArray(16) { (0xC0 + it).toByte() }
+        alice.addRoute(peerIdC.toHex(), peerIdBob.toHex(), 1.0, 1u)
+
+        // Send a message to register in delivery tracker
+        val result = alice.send(peerIdC, "test".encodeToByteArray())
+        assertTrue(result.isSuccess)
+        advanceUntilIdle()
+
+        val confirmations = mutableListOf<kotlin.uuid.Uuid>()
+        val confJob = launch { alice.deliveryConfirmations.collect { confirmations.add(it) } }
+        advanceUntilIdle()
+
+        // Get the messageId from the sent routed message
+        val sentRouted = transportA.sentData.filter { it.second[0] == WireCodec.TYPE_ROUTED_MESSAGE }
+        val routed = WireCodec.decodeRoutedMessage(sentRouted[0].second)
+
+        // Send ACK with EMPTY signature (no crypto fields)
+        val unsignedAck = WireCodec.encodeDeliveryAck(
+            messageId = routed.messageId,
+            recipientId = peerIdC,
+        )
+        transportA.receiveData(peerIdBob, unsignedAck)
+        advanceUntilIdle()
+
+        // Crypto-enabled node rejects unsigned ACKs (line 956: signature.isEmpty → return)
+        assertTrue(confirmations.isEmpty(),
+            "Unsigned delivery ACK must be rejected when crypto is enabled")
+
+        confJob.cancel()
+        alice.stop()
+    }
+
+    @Test
+    fun chunkAckForUntrackedTransferEmitsConfirmation() = runTest {
+        val transportA = VirtualMeshTransport(peerIdAlice)
+        val transportB = VirtualMeshTransport(peerIdBob)
+        transportA.linkTo(transportB)
+        val alice = MeshLink(transportA, meshLinkConfig(), coroutineContext)
+        alice.start()
+        advanceUntilIdle()
+        transportA.simulateDiscovery(peerIdBob)
+        advanceUntilIdle()
+
+        val confirmations = mutableListOf<kotlin.uuid.Uuid>()
+        val confJob = launch { alice.deliveryConfirmations.collect { confirmations.add(it) } }
+        advanceUntilIdle()
+
+        // Inject chunk ACK for unknown/untracked messageId → legacy fallback (line 768)
+        val unknownMsgId = kotlin.uuid.Uuid.random().toByteArray()
+        val chunkAck = WireCodec.encodeChunkAck(
+            messageId = unknownMsgId,
+            ackSequence = 0u,
+            sackBitmask = 0uL,
+        )
+        transportA.receiveData(peerIdBob, chunkAck)
+        advanceUntilIdle()
+
+        // Legacy fallback emits confirmation directly (outboundTransfers[key] == null)
+        assertEquals(1, confirmations.size, "Untracked chunk ACK should emit confirmation via legacy path")
+        assertEquals(kotlin.uuid.Uuid.fromByteArray(unknownMsgId), confirmations[0])
+
+        confJob.cancel()
+        alice.stop()
+    }
 }
