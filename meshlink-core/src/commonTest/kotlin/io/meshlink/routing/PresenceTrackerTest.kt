@@ -64,4 +64,29 @@ class PresenceTrackerTest {
         assertEquals(emptySet(), tracker.connectedPeerIds())
         assertEquals(emptySet(), tracker.allPeerIds())
     }
+
+    // --- Batch 12 Cycle 7: sweep with all peers seen evicts none ---
+
+    @Test
+    fun sweepWithAllPeersSeenEvictsNone() {
+        val tracker = PresenceTracker()
+        tracker.peerSeen("A")
+        tracker.peerSeen("B")
+        tracker.peerSeen("C")
+
+        // Sweep with all seen → all stay CONNECTED, no evictions
+        val evicted1 = tracker.sweep(setOf("A", "B", "C"))
+        assertEquals(emptySet(), evicted1)
+        assertEquals(setOf("A", "B", "C"), tracker.connectedPeerIds())
+
+        // Sweep again with all seen → still no evictions
+        val evicted2 = tracker.sweep(setOf("A", "B", "C"))
+        assertEquals(emptySet(), evicted2)
+
+        // Now miss B twice → only B evicted
+        tracker.sweep(setOf("A", "C")) // B → DISCONNECTED
+        val evicted3 = tracker.sweep(setOf("A", "C")) // B → evicted
+        assertEquals(setOf("B"), evicted3)
+        assertEquals(setOf("A", "C"), tracker.connectedPeerIds())
+    }
 }

@@ -83,4 +83,71 @@ class RoutingTableTest {
         table.addRoute(destination = "D4", nextHop = "M", cost = 2.0, sequenceNumber = 1u)
         assertEquals("M", table.bestRoute("D4")?.nextHop, "Different neighbor should be accepted")
     }
+
+    // --- Batch 12 Cycle 5: Cost tie-breaking and removal ---
+
+    @Test
+    fun equalCostRoutesThenRemoveBest() {
+        val table = RoutingTable()
+
+        // Two routes with identical cost and seqnum
+        table.addRoute("D", "A", cost = 5.0, sequenceNumber = 1u)
+        table.addRoute("D", "B", cost = 5.0, sequenceNumber = 1u)
+
+        // bestRoute returns one of them (deterministic via minByOrNull)
+        val best = table.bestRoute("D")!!
+        assertEquals(5.0, best.cost)
+
+        // Remove whichever was picked — the other should take over
+        table.removeRoute("D", best.nextHop)
+        val remaining = table.bestRoute("D")
+        assertEquals(5.0, remaining?.cost)
+        // nextHop must be the OTHER one
+        val other = if (best.nextHop == "A") "B" else "A"
+        assertEquals(other, remaining?.nextHop)
+
+        // Remove second route → null
+        table.removeRoute("D", other)
+        assertNull(table.bestRoute("D"))
+    }
+
+    // --- Batch 12 Cycle 6: Stale seqnum rejected ---
+
+    @Test
+    fun staleSequenceNumberRejected() {
+        val table = RoutingTable()
+
+        table.addRoute("D", "A", cost = 5.0, sequenceNumber = 10u)
+
+        // Lower seqnum is ignored even with better cost
+        table.addRoute("D", "B", cost = 1.0, sequenceNumber = 5u)
+        assertEquals("A", table.bestRoute("D")?.nextHop,
+            "Stale seqnum should be rejected even with better cost")
+
+        // Equal seqnum adds a competing route
+        table.addRoute("D", "C", cost = 3.0, sequenceNumber = 10u)
+        assertEquals("C", table.bestRoute("D")?.nextHop,
+            "Same seqnum, lower cost → new best route")
+
+        // Higher seqnum clears old routes
+        table.addRoute("D", "X", cost = 100.0, sequenceNumber = 20u)
+        assertEquals("X", table.bestRoute("D")?.nextHop,
+            "Higher seqnum clears old routes even with worse cost")
+    }
+
+    // --- Batch 12 Cycle 8: removeRoute then bestRoute null ---
+
+    @Test
+    fun removeOnlyRouteThenBestRouteNull() {
+        val table = RoutingTable()
+
+        table.addRoute("D", "A", cost = 1.0, sequenceNumber = 1u)
+        assertEquals("A", table.bestRoute("D")?.nextHop)
+
+        table.removeRoute("D", "A")
+        assertNull(table.bestRoute("D"), "After removing only route, bestRoute returns null")
+
+        // Removing from non-existent destination is a no-op
+        table.removeRoute("X", "Y") // should not throw
+    }
 }

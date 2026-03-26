@@ -42,4 +42,35 @@ class PowerModeEngineTest {
         assertEquals(PowerMode.PERFORMANCE, engine.update(batteryPercent = 10, isCharging = true),
             "Charging should force Performance")
     }
+
+    // --- Batch 12 Cycle 4: Battery threshold boundaries ---
+
+    @Test
+    fun batteryThresholdBoundaryValues() {
+        var now = 0L
+        val engine = PowerModeEngine(hysteresisMs = 0, clock = { now })
+
+        // modeForBattery: >80→PERFORMANCE, >=30→BALANCED, <30→POWER_SAVER
+        assertEquals(PowerMode.PERFORMANCE, engine.update(100, false))
+        assertEquals(PowerMode.PERFORMANCE, engine.update(81, false))
+
+        // At exactly 80: NOT > 80 → BALANCED (two calls: first sets pending, second applies)
+        now += 1
+        engine.update(80, false)
+        assertEquals(PowerMode.BALANCED, engine.update(80, false))
+
+        // Exactly 30: >= 30 → BALANCED (stays)
+        assertEquals(PowerMode.BALANCED, engine.update(30, false))
+
+        // At 29: < 30 → POWER_SAVER
+        now += 1
+        engine.update(29, false)
+        assertEquals(PowerMode.POWER_SAVER, engine.update(29, false))
+
+        // At 0: edge
+        assertEquals(PowerMode.POWER_SAVER, engine.update(0, false))
+
+        // Charging always overrides (upward → immediate)
+        assertEquals(PowerMode.PERFORMANCE, engine.update(0, true))
+    }
 }

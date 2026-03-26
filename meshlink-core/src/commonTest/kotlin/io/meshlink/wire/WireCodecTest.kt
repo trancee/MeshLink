@@ -3,6 +3,7 @@ package io.meshlink.wire
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 
 class WireCodecTest {
 
@@ -203,5 +204,45 @@ class WireCodecTest {
 
         assertContentEquals(testMessageId, decoded.messageId)
         assertContentEquals(destinationId, decoded.recipientId)
+    }
+
+    // --- Batch 12 Cycle 1: Decode rejects truncated data ---
+
+    @Test
+    fun decodeChunkThrowsOnTruncatedData() {
+        assertFailsWith<IllegalArgumentException> {
+            WireCodec.decodeChunk(byteArrayOf(WireCodec.TYPE_CHUNK))
+        }
+        assertFailsWith<IllegalArgumentException> {
+            WireCodec.decodeChunkAck(byteArrayOf(WireCodec.TYPE_CHUNK_ACK) + ByteArray(10))
+        }
+        assertFailsWith<IllegalArgumentException> {
+            WireCodec.decodeBroadcast(byteArrayOf(WireCodec.TYPE_BROADCAST) + ByteArray(20))
+        }
+        assertFailsWith<IllegalArgumentException> {
+            WireCodec.decodeDeliveryAck(byteArrayOf(WireCodec.TYPE_DELIVERY_ACK) + ByteArray(15))
+        }
+        assertFailsWith<IllegalArgumentException> {
+            WireCodec.decodeRoutedMessage(byteArrayOf(WireCodec.TYPE_ROUTED_MESSAGE) + ByteArray(30))
+        }
+    }
+
+    // --- Batch 12 Cycle 2: Decode rejects wrong type byte ---
+
+    @Test
+    fun decodeRejectsWrongTypeByte() {
+        // Valid-length chunk data but with broadcast type byte
+        val chunkData = WireCodec.encodeChunk(testMessageId, 0u, 1u, "x".encodeToByteArray())
+        chunkData[0] = WireCodec.TYPE_BROADCAST // corrupt type
+        assertFailsWith<IllegalArgumentException> {
+            WireCodec.decodeChunk(chunkData)
+        }
+
+        // Valid-length broadcast with chunk type byte
+        val broadcastData = WireCodec.encodeBroadcast(testMessageId, ByteArray(16), 3u, "y".encodeToByteArray())
+        broadcastData[0] = WireCodec.TYPE_CHUNK
+        assertFailsWith<IllegalArgumentException> {
+            WireCodec.decodeBroadcast(broadcastData)
+        }
     }
 }
