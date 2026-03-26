@@ -15,6 +15,7 @@ data class MeshLinkConfig(
     val dedupCapacity: Int = 10_000,
     val protocolVersion: ProtocolVersion = ProtocolVersion(1, 0),
     val appId: String? = null,
+    val inboundRateLimitPerSenderPerMinute: Int = 0,
 ) {
     fun validate(): List<String> {
         val violations = mutableListOf<String>()
@@ -61,6 +62,7 @@ class MeshLinkConfigBuilder(
     var dedupCapacity: Int = 10_000,
     var protocolVersion: ProtocolVersion = ProtocolVersion(1, 0),
     var appId: String? = null,
+    var inboundRateLimitPerSenderPerMinute: Int = 0,
 ) {
 
     fun build(): MeshLinkConfig = MeshLinkConfig(
@@ -76,5 +78,6 @@ class MeshLinkConfigBuilder(
         dedupCapacity = dedupCapacity,
         protocolVersion = protocolVersion,
         appId = appId,
+        inboundRateLimitPerSenderPerMinute = inboundRateLimitPerSenderPerMinute,
     )
 }

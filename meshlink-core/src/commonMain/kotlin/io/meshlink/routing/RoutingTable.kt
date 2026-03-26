@@ -61,6 +61,12 @@ class RoutingTable(
         if (destRoutes.isEmpty()) routes.remove(destination)
     }
 
+    fun avgCost(): Double {
+        val allRoutes = routes.values.flatMap { it.values }
+        if (allRoutes.isEmpty()) return 0.0
+        return allRoutes.map { it.cost }.average()
+    }
+
     companion object {
         internal var currentTime: () -> Long = { System.currentTimeMillis() }
     }

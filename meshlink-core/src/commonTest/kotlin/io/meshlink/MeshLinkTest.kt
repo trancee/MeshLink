@@ -4391,4 +4391,218 @@ class MeshLinkTest {
 
         alice.stop()
     }
+
+    // --- Production API: meshHealthFlow tests ---
+
+    @Test
+    fun meshHealthFlowEmitsInitialSnapshot() = runTest {
+        val transport = VirtualMeshTransport(peerIdAlice)
+        val alice = MeshLink(transport, meshLinkConfig(), coroutineContext)
+        alice.start()
+        advanceUntilIdle()
+
+        val snapshot = alice.meshHealthFlow.first()
+        assertEquals(0, snapshot.connectedPeers)
+        assertEquals(0, snapshot.activeTransfers)
+
+        alice.stop()
+    }
+
+    @Test
+    fun meshHealthFlowUpdatesOnPeerDiscovery() = runTest {
+        val transport = VirtualMeshTransport(peerIdAlice)
+        val alice = MeshLink(transport, meshLinkConfig(), coroutineContext)
+        alice.start()
+        advanceUntilIdle()
+
+        val snapshots = mutableListOf<io.meshlink.diagnostics.MeshHealthSnapshot>()
+        val collectJob = launch { alice.meshHealthFlow.collect { snapshots.add(it) } }
+        advanceUntilIdle()
+
+        transport.simulateDiscovery(peerIdBob)
+        advanceUntilIdle()
+
+        collectJob.cancel()
+
+        // Should have at least 2 snapshots: initial + after discovery
+        assertTrue(snapshots.size >= 2, "Expected at least 2 snapshots, got ${snapshots.size}")
+        val lastSnapshot = snapshots.last()
+        assertEquals(1, lastSnapshot.connectedPeers)
+
+        alice.stop()
+    }
+
+    @Test
+    fun meshHealthFlowUpdatesOnPowerModeChange() = runTest {
+        var now = 100_000L
+        val transport = VirtualMeshTransport(peerIdAlice)
+        val alice = MeshLink(transport, meshLinkConfig(), coroutineContext, clock = { now })
+        alice.start()
+        advanceUntilIdle()
+
+        val snapshots = mutableListOf<io.meshlink.diagnostics.MeshHealthSnapshot>()
+        val collectJob = launch { alice.meshHealthFlow.collect { snapshots.add(it) } }
+        advanceUntilIdle()
+
+        // First call starts hysteresis pending downgrade
+        alice.updateBattery(10, false)
+        now += 31_000L // Advance past 30s hysteresis
+        // Second call applies the downgrade
+        alice.updateBattery(10, false)
+        advanceUntilIdle()
+
+        collectJob.cancel()
+
+        val powerModes = snapshots.map { it.powerMode }.distinct()
+        assertTrue(powerModes.size >= 2, "Expected power mode change, got modes: $powerModes")
+
+        alice.stop()
+    }
+
+    @Test
+    fun meshHealthIncludesAvgRouteCost() = runTest {
+        val transport = VirtualMeshTransport(peerIdAlice)
+        val alice = MeshLink(transport, meshLinkConfig(), coroutineContext)
+        alice.start()
+        advanceUntilIdle()
+
+        // No routes → avgRouteCost should be 0.0
+        assertEquals(0.0, alice.meshHealth().avgRouteCost, 0.001)
+
+        // Add routes with known costs
+        alice.addRoute("dest1", "hop1", 2.0, 1u)
+        alice.addRoute("dest2", "hop2", 4.0, 1u)
+
+        // avgRouteCost should be (2.0 + 4.0) / 2 = 3.0
+        assertEquals(3.0, alice.meshHealth().avgRouteCost, 0.001)
+
+        alice.stop()
+    }
+
+    @Test
+    fun inboundRateLimitDropsFlood() = runTest {
+        val transport = VirtualMeshTransport(peerIdAlice)
+        val config = meshLinkConfig {
+            inboundRateLimitPerSenderPerMinute = 3
+        }
+        val alice = MeshLink(transport, config, coroutineContext)
+        alice.start()
+        advanceUntilIdle()
+
+        val received = mutableListOf<Message>()
+        val collectJob = launch { alice.messages.collect { received.add(it) } }
+        advanceUntilIdle()
+
+        // Send 5 routed messages from same origin — only first 3 should arrive
+        val originId = ByteArray(16) { 0x42 }
+        val destId = peerIdAlice
+        repeat(5) { i ->
+            val msg = WireCodec.encodeRoutedMessage(
+                messageId = ByteArray(16) { (i + 1).toByte() },
+                origin = originId,
+                destination = destId,
+                hopLimit = 3.toUByte(),
+                replayCounter = (i + 1).toULong(),
+                visitedList = emptyList(),
+                payload = "msg-$i".encodeToByteArray(),
+            )
+            transport.receiveData(originId, msg)
+        }
+        advanceUntilIdle()
+
+        collectJob.cancel()
+
+        assertTrue(received.size <= 3, "Expected at most 3 messages, got ${received.size}")
+
+        alice.stop()
+    }
+
+    @Test
+    fun inboundRateLimitConfigurable() = runTest {
+        val transport = VirtualMeshTransport(peerIdAlice)
+        val config = meshLinkConfig {
+            inboundRateLimitPerSenderPerMinute = 1
+        }
+        val alice = MeshLink(transport, config, coroutineContext)
+        alice.start()
+        advanceUntilIdle()
+
+        val received = mutableListOf<Message>()
+        val collectJob = launch { alice.messages.collect { received.add(it) } }
+        advanceUntilIdle()
+
+        val originId = ByteArray(16) { 0x43 }
+        repeat(3) { i ->
+            val msg = WireCodec.encodeRoutedMessage(
+                messageId = ByteArray(16) { (i + 1).toByte() },
+                origin = originId,
+                destination = peerIdAlice,
+                hopLimit = 3.toUByte(),
+                replayCounter = (i + 1).toULong(),
+                visitedList = emptyList(),
+                payload = "msg-$i".encodeToByteArray(),
+            )
+            transport.receiveData(originId, msg)
+        }
+        advanceUntilIdle()
+
+        collectJob.cancel()
+
+        assertEquals(1, received.size, "Expected only 1 message with limit=1, got ${received.size}")
+
+        alice.stop()
+    }
+
+    @Test
+    fun encryptedRoutedSendUsesDestinationKey() = runTest {
+        val crypto = io.meshlink.crypto.createCryptoProvider()
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val transportBob = VirtualMeshTransport(peerIdBob)
+        val alice = MeshLink(transportAlice, meshLinkConfig(), coroutineContext, crypto = crypto)
+        val bob = MeshLink(transportBob, meshLinkConfig(), coroutineContext, crypto = crypto)
+        alice.start()
+        bob.start()
+        advanceUntilIdle()
+
+        // Exchange keys via advertisement
+        val aliceAdvPayload = buildAdvPayload(alice.localPublicKey!!)
+        val bobAdvPayload = buildAdvPayload(bob.localPublicKey!!)
+
+        transportAlice.simulateDiscovery(peerIdBob, bobAdvPayload)
+        transportBob.simulateDiscovery(peerIdAlice, aliceAdvPayload)
+        advanceUntilIdle()
+
+        // Alice sends routed message to Bob
+        val destHex = peerIdBob.toList().joinToString("") { "%02x".format(it) }
+        alice.addRoute(destHex, destHex, 1.0, 1u)
+
+        val received = mutableListOf<Message>()
+        val collectJob = launch { bob.messages.collect { received.add(it) } }
+        advanceUntilIdle()
+
+        val payload = "encrypted routed hello".encodeToByteArray()
+        val result = alice.send(peerIdBob, payload)
+        assertTrue(result.isSuccess, "Send should succeed")
+        advanceUntilIdle()
+
+        // Forward chunks from Alice to Bob
+        for ((_, data) in transportAlice.sentData.toList()) {
+            transportBob.receiveData(peerIdAlice, data)
+            advanceUntilIdle()
+        }
+
+        // Forward delivery ack from Bob to Alice
+        for ((_, data) in transportBob.sentData.toList()) {
+            transportAlice.receiveData(peerIdBob, data)
+            advanceUntilIdle()
+        }
+
+        collectJob.cancel()
+
+        assertTrue(received.isNotEmpty(), "Bob should receive the message")
+        assertTrue(received[0].payload.contentEquals(payload), "Payload should be decrypted correctly")
+
+        alice.stop()
+        bob.stop()
+    }
 }

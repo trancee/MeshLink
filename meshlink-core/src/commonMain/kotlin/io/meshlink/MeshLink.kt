@@ -36,7 +36,10 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
@@ -69,6 +72,13 @@ class MeshLink(
     override val messages: Flow<Message> = _messages.asSharedFlow()
     override val deliveryConfirmations: Flow<Uuid> = _deliveryConfirmations.asSharedFlow()
     override val transferProgress: Flow<TransferProgress> = _transferProgress.asSharedFlow()
+
+    private val _meshHealthFlow = MutableStateFlow(MeshHealthSnapshot(0, 0, 0, 0, "PERFORMANCE", 0.0))
+    override val meshHealthFlow: StateFlow<MeshHealthSnapshot> = _meshHealthFlow.asStateFlow()
+
+    private fun emitHealthUpdate() {
+        _meshHealthFlow.value = meshHealth()
+    }
 
     private var started = false
     private var paused = false
@@ -123,6 +133,9 @@ class MeshLink(
     override fun peerPublicKey(peerIdHex: String): ByteArray? = peerPublicKeys[peerIdHex]
     private val peerPublicKeys = mutableMapOf<String, ByteArray>()
 
+    // Inbound rate limiting: per-sender message count within sliding window
+    private val inboundRateCounts = mutableMapOf<String, MutableList<Long>>()
+
     override fun start(): Result<Unit> {
         if (started) return Result.success(Unit)
 
@@ -157,6 +170,7 @@ class MeshLink(
                         peerPublicKeys[event.peerId.toHex()] = advPayload.copyOfRange(2, 34)
                     }
                     _peers.emit(PeerEvent.Discovered(event.peerId))
+                    emitHealthUpdate()
                 }
             }
         }
@@ -164,6 +178,7 @@ class MeshLink(
             transport.peerLostEvents.collect { event ->
                 // Don't remove from presenceTracker here — let sweep handle it
                 _peers.emit(PeerEvent.Lost(event.peerId))
+                emitHealthUpdate()
             }
         }
         newScope.launch {
@@ -189,6 +204,7 @@ class MeshLink(
         pauseQueue.clear()
         routedMsgSources.clear()
         inboundReplayGuards.clear()
+        inboundRateCounts.clear()
     }
 
     override fun pause() {
@@ -222,6 +238,7 @@ class MeshLink(
             bufferUtilizationPercent = utilPercent,
             activeTransfers = outboundTransfers.size,
             powerMode = currentPowerMode,
+            avgRouteCost = routingTable.avgCost(),
         )
     }
 
@@ -267,7 +284,11 @@ class MeshLink(
     }
 
     override fun updateBattery(batteryPercent: Int, isCharging: Boolean) {
+        val oldMode = currentPowerMode
         currentPowerMode = powerModeEngine.update(batteryPercent, isCharging).name
+        if (currentPowerMode != oldMode) {
+            emitHealthUpdate()
+        }
     }
 
     override fun shedMemoryPressure(): List<String> {
@@ -537,6 +558,7 @@ class MeshLink(
 
         if (transfer.session.isComplete()) {
             outboundTransfers.remove(key)
+            emitHealthUpdate()
             if (deliveryTracker.recordOutcome(key, DeliveryOutcome.CONFIRMED) != null) {
                 _deliveryConfirmations.emit(Uuid.fromByteArray(ack.messageId))
             }
@@ -597,6 +619,17 @@ class MeshLink(
 
         // If we are the destination, deliver locally and send delivery ACK back
         if (routed.destination.contentEquals(transport.localPeerId)) {
+            // Inbound rate limiting: check per-sender rate
+            if (config.inboundRateLimitPerSenderPerMinute > 0) {
+                val originHex = routed.origin.toHex()
+                val now = clock()
+                val timestamps = inboundRateCounts.getOrPut(originHex) { mutableListOf() }
+                timestamps.removeAll { now - it > 60_000L }
+                if (timestamps.size >= config.inboundRateLimitPerSenderPerMinute) {
+                    return // Drop — sender exceeds inbound rate limit
+                }
+                timestamps.add(now)
+            }
             // Decrypt if crypto is available
             val deliveredPayload = if (sealer != null && localKeyPair != null && routed.payload.size >= 48) {
                 try {

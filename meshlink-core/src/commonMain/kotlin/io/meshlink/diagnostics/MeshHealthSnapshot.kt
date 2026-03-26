@@ -6,4 +6,5 @@ data class MeshHealthSnapshot(
     val bufferUtilizationPercent: Int,
     val activeTransfers: Int,
     val powerMode: String,
+    val avgRouteCost: Double = 0.0,
 )
