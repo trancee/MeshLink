@@ -17,6 +17,8 @@ data class MeshLinkConfig(
     val appId: String? = null,
     val inboundRateLimitPerSenderPerMinute: Int = 0,
     val gossipIntervalMs: Long = 0L,
+    val pendingMessageTtlMs: Long = 0L,
+    val pendingMessageCapacity: Int = 100,
 ) {
     fun validate(): List<String> {
         val violations = mutableListOf<String>()
@@ -65,6 +67,8 @@ class MeshLinkConfigBuilder(
     var appId: String? = null,
     var inboundRateLimitPerSenderPerMinute: Int = 0,
     var gossipIntervalMs: Long = 0L,
+    var pendingMessageTtlMs: Long = 0L,
+    var pendingMessageCapacity: Int = 100,
 ) {
 
     fun build(): MeshLinkConfig = MeshLinkConfig(
@@ -82,5 +86,7 @@ class MeshLinkConfigBuilder(
         appId = appId,
         inboundRateLimitPerSenderPerMinute = inboundRateLimitPerSenderPerMinute,
         gossipIntervalMs = gossipIntervalMs,
+        pendingMessageTtlMs = pendingMessageTtlMs,
+        pendingMessageCapacity = pendingMessageCapacity,
     )
 }

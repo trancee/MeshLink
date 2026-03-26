@@ -82,6 +82,18 @@ class MeshLink(
         _meshHealthFlow.value = meshHealth()
     }
 
+    private fun flushPendingMessages(peerHex: String, s: CoroutineScope) {
+        val messages = pendingMessages.remove(peerHex) ?: return
+        val now = clock()
+        val recipientBytes = hexToBytes(peerHex)
+        for (msg in messages) {
+            if (config.pendingMessageTtlMs > 0 && (now - msg.enqueueTimeMs) >= config.pendingMessageTtlMs) {
+                continue // TTL expired
+            }
+            doSend(s, recipientBytes, msg.payload)
+        }
+    }
+
     private var started = false
     private var paused = false
     private var scope: CoroutineScope? = null
@@ -138,6 +150,10 @@ class MeshLink(
     // Inbound rate limiting: per-sender message count within sliding window
     private val inboundRateCounts = mutableMapOf<String, MutableList<Long>>()
 
+    // Store-and-forward: buffer messages for unreachable peers
+    private data class PendingMessage(val recipient: ByteArray, val payload: ByteArray, val enqueueTimeMs: Long)
+    private val pendingMessages = mutableMapOf<String, MutableList<PendingMessage>>()
+
     override fun start(): Result<Unit> {
         if (started) return Result.success(Unit)
 
@@ -173,6 +189,8 @@ class MeshLink(
                     }
                     _peers.emit(PeerEvent.Discovered(event.peerId))
                     emitHealthUpdate()
+                    // Flush buffered messages for this peer
+                    flushPendingMessages(event.peerId.toHex(), newScope)
                 }
             }
         }
@@ -218,6 +236,9 @@ class MeshLink(
         routedMsgSources.clear()
         inboundReplayGuards.clear()
         inboundRateCounts.clear()
+        dedup.clear()
+        routingTable.clear()
+        pendingMessages.clear()
     }
 
     override fun pause() {
@@ -407,6 +428,17 @@ class MeshLink(
             val route = routingTable.bestRoute(recipient.toHex())
             if (route != null) {
                 return doRoutedSend(s, recipient, payload, route.nextHop)
+            }
+            // Buffer for store-and-forward if enabled
+            if (config.pendingMessageTtlMs > 0) {
+                val recipientHex = recipient.toHex()
+                val list = pendingMessages.getOrPut(recipientHex) { mutableListOf() }
+                list.add(PendingMessage(recipient, payload, clock()))
+                // Evict oldest if over capacity
+                while (list.size > config.pendingMessageCapacity) {
+                    list.removeAt(0)
+                }
+                return Result.success(Uuid.random())
             }
             return Result.failure(IllegalStateException("No route to unknown peer"))
         }

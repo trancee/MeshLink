@@ -71,6 +71,10 @@ class RoutingTable(
         return routes.keys.mapNotNull { bestRoute(it) }
     }
 
+    fun clear() {
+        routes.clear()
+    }
+
     companion object {
         internal var currentTime: () -> Long = { System.currentTimeMillis() }
     }

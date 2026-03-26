@@ -4824,4 +4824,212 @@ class MeshLinkTest {
                 "After eviction, Bob route should be removed or poisoned (cost=∞)")
         }
     }
+
+    // --- BufferActor: Store-and-Forward ---
+
+    @Test
+    fun sendToUnknownPeerBuffersMessage() = runTest {
+        val transport = VirtualMeshTransport(peerIdAlice)
+        val config = meshLinkConfig {
+            pendingMessageTtlMs = 30_000L
+        }
+        val alice = MeshLink(transport, config, coroutineContext)
+        alice.start()
+        advanceUntilIdle()
+
+        // Send to completely unknown peer — should succeed (buffered)
+        val unknownPeer = ByteArray(16) { (0x99.toByte() + it).toByte() }
+        val result = alice.send(unknownPeer, "buffered hello".encodeToByteArray())
+
+        assertTrue(result.isSuccess, "Send to unknown peer should succeed (buffered), got: ${result.exceptionOrNull()?.message}")
+
+        // No data should be sent over transport (message is buffered, not transmitted)
+        assertTrue(transport.sentData.isEmpty(), "Buffered message should not be sent over transport")
+
+        alice.stop()
+    }
+
+    @Test
+    fun bufferedMessageFlushedOnPeerDiscovery() = runTest {
+        val transportA = VirtualMeshTransport(peerIdAlice)
+        val transportB = VirtualMeshTransport(peerIdBob)
+        transportA.linkTo(transportB)
+        val config = meshLinkConfig {
+            pendingMessageTtlMs = 30_000L
+        }
+        val alice = MeshLink(transportA, config, coroutineContext)
+        alice.start()
+        advanceUntilIdle()
+
+        // Send to Bob who is not yet discovered — message buffered
+        val result = alice.send(peerIdBob, "deferred hello".encodeToByteArray())
+        assertTrue(result.isSuccess)
+        assertTrue(transportA.sentData.isEmpty(), "Message should be buffered, not sent yet")
+
+        // Now Bob appears
+        transportA.simulateDiscovery(peerIdBob, ByteArray(0))
+        advanceUntilIdle()
+
+        // Buffered message should now be flushed
+        assertTrue(transportA.sentData.isNotEmpty(), "Buffered message should be flushed on peer discovery")
+
+        alice.stop()
+    }
+
+    @Test
+    fun bufferedMessageExpiredByTtlIsPurged() = runTest {
+        var nowMs = 0L
+        val transport = VirtualMeshTransport(peerIdAlice)
+        val config = meshLinkConfig {
+            pendingMessageTtlMs = 5_000L
+        }
+        val alice = MeshLink(transport, config, coroutineContext, clock = { nowMs })
+        alice.start()
+        advanceUntilIdle()
+
+        val unknownPeer = ByteArray(16) { (0xAA.toByte() + it).toByte() }
+        alice.send(unknownPeer, "will expire".encodeToByteArray())
+
+        // Advance clock past TTL
+        nowMs = 6_000L
+
+        // Now discover the peer — expired message should NOT be flushed
+        val advPayload = ByteArray(0)
+        transport.simulateDiscovery(unknownPeer, advPayload)
+        advanceUntilIdle()
+
+        // Nothing sent because the buffered message expired
+        assertTrue(transport.sentData.isEmpty(), "Expired buffered message should not be sent")
+
+        alice.stop()
+    }
+
+    @Test
+    fun bufferCapacityEvictsOldestMessages() = runTest {
+        val transport = VirtualMeshTransport(peerIdAlice)
+        val transportB = VirtualMeshTransport(peerIdBob)
+        transport.linkTo(transportB)
+        val config = meshLinkConfig {
+            pendingMessageTtlMs = 30_000L
+            pendingMessageCapacity = 3
+        }
+        val alice = MeshLink(transport, config, coroutineContext)
+        alice.start()
+        advanceUntilIdle()
+
+        val unknownPeer = ByteArray(16) { (0xBB.toByte() + it).toByte() }
+        // Buffer 5 messages — should evict oldest 2, keeping newest 3
+        for (i in 1..5) {
+            alice.send(unknownPeer, "msg$i".encodeToByteArray())
+        }
+
+        // Discover the peer — only newest 3 should be flushed
+        transport.simulateDiscovery(unknownPeer, ByteArray(0))
+        advanceUntilIdle()
+
+        // Should have sent exactly 3 messages (the newest ones)
+        assertEquals(3, transport.sentData.size,
+            "Should flush exactly 3 messages (capacity limit), got ${transport.sentData.size}")
+
+        alice.stop()
+    }
+
+    @Test
+    fun clearStateOnStopClearsDedupAndRoutingTableAndBuffer() = runTest {
+        val transport = VirtualMeshTransport(peerIdAlice)
+        val transportB = VirtualMeshTransport(peerIdBob)
+        transport.linkTo(transportB)
+        val config = meshLinkConfig {
+            pendingMessageTtlMs = 30_000L
+        }
+        val alice = MeshLink(transport, config, coroutineContext)
+        alice.start()
+        advanceUntilIdle()
+
+        // Discover Bob and exchange a message to populate dedup
+        transport.simulateDiscovery(peerIdBob, ByteArray(0))
+        advanceUntilIdle()
+        val result1 = alice.send(peerIdBob, "hello".encodeToByteArray())
+        assertTrue(result1.isSuccess)
+        advanceUntilIdle()
+
+        // Buffer a message for unknown peer
+        val unknownPeer = ByteArray(16) { (0xCC.toByte() + it).toByte() }
+        alice.send(unknownPeer, "buffered".encodeToByteArray())
+
+        val sentBeforeStop = transport.sentData.size
+
+        // Stop and restart
+        alice.stop()
+        transport.sentData.clear()
+        alice.start()
+        advanceUntilIdle()
+
+        // Re-discover Bob
+        transport.simulateDiscovery(peerIdBob, ByteArray(0))
+        advanceUntilIdle()
+
+        // Send the same message ID content again — if dedup was cleared, it should succeed
+        // (not be rejected as duplicate)
+        val result2 = alice.send(peerIdBob, "hello".encodeToByteArray())
+        assertTrue(result2.isSuccess, "Send after restart should succeed (dedup cleared)")
+        advanceUntilIdle()
+
+        // The new send should produce transport data
+        assertTrue(transport.sentData.isNotEmpty(), "Message should be sent after restart")
+
+        // Buffered message for unknown peer should NOT be flushed (buffer was cleared on stop)
+        // Discover the unknown peer now
+        transport.sentData.clear()
+        transport.simulateDiscovery(unknownPeer, ByteArray(0))
+        advanceUntilIdle()
+        assertTrue(transport.sentData.isEmpty(),
+            "Buffered messages should be cleared on stop — nothing to flush")
+
+        alice.stop()
+    }
+
+    @Test
+    fun bufferE2eIntegrationBufferThenDiscoverThenDeliver() = runTest {
+        val transportA = VirtualMeshTransport(peerIdAlice)
+        val transportB = VirtualMeshTransport(peerIdBob)
+        transportA.linkTo(transportB)
+        transportB.linkTo(transportA)
+        val config = meshLinkConfig {
+            pendingMessageTtlMs = 30_000L
+        }
+        val alice = MeshLink(transportA, config, coroutineContext)
+        val bob = MeshLink(transportB, config, coroutineContext)
+        alice.start()
+        bob.start()
+        advanceUntilIdle()
+
+        // Bob subscribes to messages
+        val received = mutableListOf<Message>()
+        val collectJob = launch {
+            bob.messages.collect { received.add(it) }
+        }
+
+        // Alice sends to Bob BEFORE discovering him — message is buffered
+        val payload = "hello from buffer".encodeToByteArray()
+        val result = alice.send(peerIdBob, payload)
+        assertTrue(result.isSuccess, "Send should succeed (buffered)")
+        advanceUntilIdle()
+
+        // Nothing received yet
+        assertTrue(received.isEmpty(), "Bob should not have received the message yet")
+
+        // Now Alice discovers Bob
+        transportA.simulateDiscovery(peerIdBob, ByteArray(0))
+        advanceUntilIdle()
+
+        // Bob should receive the message
+        assertEquals(1, received.size, "Bob should receive exactly 1 buffered message, got ${received.size}")
+        assertContentEquals(payload, received[0].payload,
+            "Payload should match what was buffered")
+
+        collectJob.cancel()
+        alice.stop()
+        bob.stop()
+    }
 }
