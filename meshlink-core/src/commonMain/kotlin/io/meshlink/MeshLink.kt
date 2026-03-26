@@ -502,6 +502,7 @@ class MeshLink(
 
         // Otherwise relay: decrement hop limit, add self to visited, forward
         if (routed.hopLimit <= 0u) return
+        if (paused) return // don't relay while paused
 
         // Record reverse path for delivery ACK relay
         routedMsgSources[key] = fromPeerId

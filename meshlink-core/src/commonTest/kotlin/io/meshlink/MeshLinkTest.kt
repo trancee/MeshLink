@@ -1198,6 +1198,327 @@ class MeshLinkTest {
         alice.stop()
     }
 
+    // --- Batch 7 Cycle 8: Power mode BALANCED at mid battery ---
+
+    @Test
+    fun powerModeTransitionsToBalancedAtMidBattery() = runTest {
+        var now = 0L
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val alice = MeshLink(transportAlice, meshLinkConfig(), coroutineContext, clock = { now })
+        alice.start()
+        advanceUntilIdle()
+
+        assertEquals("PERFORMANCE", alice.meshHealth().powerMode)
+
+        // 50% battery → target BALANCED, but hysteresis delays it
+        alice.updateBattery(50, false)
+        assertEquals("PERFORMANCE", alice.meshHealth().powerMode, "Hysteresis prevents immediate downgrade")
+
+        // Advance past hysteresis (30s default)
+        now += 30_001
+        alice.updateBattery(50, false)
+        assertEquals("BALANCED", alice.meshHealth().powerMode, "Should transition to BALANCED")
+
+        // Battery recovers to 90% → immediate upgrade (no hysteresis for upward)
+        alice.updateBattery(90, false)
+        assertEquals("PERFORMANCE", alice.meshHealth().powerMode, "Upward transition is immediate")
+
+        alice.stop()
+    }
+
+    // --- Batch 7 Cycle 7: Sweep with all peers seen preserves all ---
+
+    @Test
+    fun sweepWithAllPeersSeenPreservesEveryone() = runTest {
+        val peerIdCharlie = ByteArray(16) { (0xC0 + it).toByte() }
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val alice = MeshLink(transportAlice, meshLinkConfig(), coroutineContext)
+        alice.start()
+        advanceUntilIdle()
+
+        transportAlice.simulateDiscovery(peerIdBob)
+        transportAlice.simulateDiscovery(peerIdCharlie)
+        advanceUntilIdle()
+        assertEquals(2, alice.meshHealth().connectedPeers)
+
+        // Sweep with all peers seen — nobody evicted
+        val allSeen = setOf(peerIdBob.toHex(), peerIdCharlie.toHex())
+        val evicted1 = alice.sweep(allSeen)
+        assertEquals(0, evicted1.size, "No eviction when all peers seen")
+        assertEquals(2, alice.meshHealth().connectedPeers, "Both peers preserved")
+
+        // Multiple sweeps with all seen — still nobody evicted
+        val evicted2 = alice.sweep(allSeen)
+        val evicted3 = alice.sweep(allSeen)
+        assertEquals(0, evicted2.size)
+        assertEquals(0, evicted3.size)
+        assertEquals(2, alice.meshHealth().connectedPeers, "All peers still present after 3 sweeps")
+
+        alice.stop()
+    }
+
+    // --- Batch 7 Cycle 6: Delivery confirmation for direct single-chunk send ---
+
+    @Test
+    fun deliveryConfirmationForDirectSingleChunkSend() = runTest {
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val transportBob = VirtualMeshTransport(peerIdBob)
+        transportAlice.linkTo(transportBob)
+        transportBob.linkTo(transportAlice)
+
+        val alice = MeshLink(transportAlice, meshLinkConfig(), coroutineContext)
+        val bob = MeshLink(transportBob, meshLinkConfig(), coroutineContext)
+        alice.start(); bob.start()
+        advanceUntilIdle()
+
+        transportAlice.simulateDiscovery(peerIdBob)
+        transportBob.simulateDiscovery(peerIdAlice)
+        advanceUntilIdle()
+
+        val confirmations = mutableListOf<Uuid>()
+        val collector = launch { alice.deliveryConfirmations.collect { confirmations.add(it) } }
+        advanceUntilIdle()
+
+        val result = alice.send(peerIdBob, "small".encodeToByteArray())
+        assertTrue(result.isSuccess)
+        val messageId = result.getOrThrow()
+        advanceUntilIdle()
+
+        // Should get exactly one delivery confirmation matching the message ID
+        assertEquals(1, confirmations.size, "Should receive delivery confirmation")
+        assertEquals(messageId, confirmations[0], "Confirmation should match sent message ID")
+
+        collector.cancel()
+        alice.stop(); bob.stop()
+    }
+
+    // --- Batch 7 Cycle 5: Multiple sequential sends all deliver ---
+
+    @Test
+    fun multipleSequentialSendsToSamePeerAllDeliver() = runTest {
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val transportBob = VirtualMeshTransport(peerIdBob)
+        transportAlice.linkTo(transportBob)
+        transportBob.linkTo(transportAlice)
+
+        val alice = MeshLink(transportAlice, meshLinkConfig(), coroutineContext)
+        val bob = MeshLink(transportBob, meshLinkConfig(), coroutineContext)
+        alice.start(); bob.start()
+        advanceUntilIdle()
+
+        transportAlice.simulateDiscovery(peerIdBob)
+        transportBob.simulateDiscovery(peerIdAlice)
+        advanceUntilIdle()
+
+        val received = mutableListOf<Message>()
+        val collector = launch { bob.messages.collect { received.add(it) } }
+        advanceUntilIdle()
+
+        // Send 5 sequential messages
+        repeat(5) { i ->
+            val result = alice.send(peerIdBob, "msg-$i".encodeToByteArray())
+            assertTrue(result.isSuccess, "Send $i should succeed")
+            advanceUntilIdle()
+        }
+
+        assertEquals(5, received.size, "All 5 messages should be delivered")
+        for (i in 0 until 5) {
+            assertContentEquals("msg-$i".encodeToByteArray(), received[i].payload)
+        }
+
+        collector.cancel()
+        alice.stop(); bob.stop()
+    }
+
+    // --- Batch 7 Cycle 4: Broadcast maxHops=1 reaches only direct neighbors ---
+
+    @Test
+    fun broadcastMaxHopsOneReachesOnlyDirectNeighbors() = runTest {
+        val peerIdCharlie = ByteArray(16) { (0xC0 + it).toByte() }
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val transportBob = VirtualMeshTransport(peerIdBob)
+        val transportCharlie = VirtualMeshTransport(peerIdCharlie)
+        transportAlice.linkTo(transportBob)
+        transportBob.linkTo(transportCharlie)
+
+        val alice = MeshLink(transportAlice, meshLinkConfig(), coroutineContext)
+        val bob = MeshLink(transportBob, meshLinkConfig(), coroutineContext)
+        val charlie = MeshLink(transportCharlie, meshLinkConfig(), coroutineContext)
+        alice.start(); bob.start(); charlie.start()
+        advanceUntilIdle()
+
+        transportAlice.simulateDiscovery(peerIdBob)
+        transportBob.simulateDiscovery(peerIdAlice)
+        transportBob.simulateDiscovery(peerIdCharlie)
+        transportCharlie.simulateDiscovery(peerIdBob)
+        advanceUntilIdle()
+
+        val bobMessages = mutableListOf<Message>()
+        val charlieMessages = mutableListOf<Message>()
+        val cBob = launch { bob.messages.collect { bobMessages.add(it) } }
+        val cCharlie = launch { charlie.messages.collect { charlieMessages.add(it) } }
+        advanceUntilIdle()
+
+        // Broadcast with maxHops=1: Alice→Bob (hops=1), Bob re-floods with hops=0→Charlie
+        alice.broadcast("one hop".encodeToByteArray(), 1u)
+        advanceUntilIdle()
+
+        assertEquals(1, bobMessages.size, "Bob (direct neighbor) should receive")
+        assertEquals(1, charlieMessages.size, "Charlie should receive (Bob re-floods with hops=0)")
+
+        // But if maxHops=0, Charlie should NOT receive
+        val charlieMessages2 = mutableListOf<Message>()
+        val cCharlie2 = launch { charlie.messages.collect { charlieMessages2.add(it) } }
+        advanceUntilIdle()
+
+        alice.broadcast("zero hop".encodeToByteArray(), 0u)
+        advanceUntilIdle()
+
+        // Bob receives (direct), but doesn't re-flood (hops=0 after decrement would be <0)
+        // Actually maxHops=0 means Alice sends with remainingHops=0, Bob receives and does NOT re-flood
+        assertEquals(0, charlieMessages2.size, "Charlie should NOT receive with maxHops=0")
+
+        cBob.cancel(); cCharlie.cancel(); cCharlie2.cancel()
+        alice.stop(); bob.stop(); charlie.stop()
+    }
+
+    // --- Batch 7 Cycle 3: addRoute higher seqnum changes next hop ---
+
+    @Test
+    fun addRouteHigherSeqnumReplacesOldRoute() = runTest {
+        val peerIdCharlie = ByteArray(16) { (0xC0 + it).toByte() }
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val transportBob = VirtualMeshTransport(peerIdBob)
+        val transportCharlie = VirtualMeshTransport(peerIdCharlie)
+        transportAlice.linkTo(transportBob)
+        transportAlice.linkTo(transportCharlie)
+        transportBob.linkTo(transportAlice)
+        transportCharlie.linkTo(transportAlice)
+
+        val peerIdDest = ByteArray(16) { (0xD0 + it).toByte() }
+        val alice = MeshLink(transportAlice, meshLinkConfig(), coroutineContext)
+        alice.start()
+        advanceUntilIdle()
+        transportAlice.simulateDiscovery(peerIdBob)
+        transportAlice.simulateDiscovery(peerIdCharlie)
+        advanceUntilIdle()
+
+        // Route to dest via Bob (seqnum 1)
+        alice.addRoute(peerIdDest.toHex(), peerIdBob.toHex(), 1.0, 1u)
+        alice.send(peerIdDest, "via-bob".encodeToByteArray())
+        advanceUntilIdle()
+
+        val sentToBob = transportAlice.sentData.filter { (peerId, data) ->
+            peerId == peerIdBob.toHex() && data.isNotEmpty() && data[0] == WireCodec.TYPE_ROUTED_MESSAGE
+        }
+        assertEquals(1, sentToBob.size, "Should route via Bob initially")
+
+        // Update route: higher seqnum, now via Charlie
+        transportAlice.sentData.clear()
+        alice.addRoute(peerIdDest.toHex(), peerIdCharlie.toHex(), 1.0, 2u)
+        alice.send(peerIdDest, "via-charlie".encodeToByteArray())
+        advanceUntilIdle()
+
+        val sentToCharlie = transportAlice.sentData.filter { (peerId, data) ->
+            peerId == peerIdCharlie.toHex() && data.isNotEmpty() && data[0] == WireCodec.TYPE_ROUTED_MESSAGE
+        }
+        assertEquals(1, sentToCharlie.size, "Should route via Charlie after seqnum update")
+
+        alice.stop()
+    }
+
+    // --- Batch 7 Cycle 2: 4-node delivery ACK chain ---
+
+    @Test
+    fun fourNodeDeliveryAckRelaysBackToSender() = runTest {
+        val peerIdCharlie = ByteArray(16) { (0xC0 + it).toByte() }
+        val peerIdDave = ByteArray(16) { (0xD0 + it).toByte() }
+        val tA = VirtualMeshTransport(peerIdAlice)
+        val tB = VirtualMeshTransport(peerIdBob)
+        val tC = VirtualMeshTransport(peerIdCharlie)
+        val tD = VirtualMeshTransport(peerIdDave)
+        tA.linkTo(tB); tB.linkTo(tC); tC.linkTo(tD)
+
+        val alice = MeshLink(tA, meshLinkConfig(), coroutineContext)
+        val bob = MeshLink(tB, meshLinkConfig(), coroutineContext)
+        val charlie = MeshLink(tC, meshLinkConfig(), coroutineContext)
+        val dave = MeshLink(tD, meshLinkConfig(), coroutineContext)
+        alice.start(); bob.start(); charlie.start(); dave.start()
+        advanceUntilIdle()
+
+        tA.simulateDiscovery(peerIdBob); tB.simulateDiscovery(peerIdAlice)
+        tB.simulateDiscovery(peerIdCharlie); tC.simulateDiscovery(peerIdBob)
+        tC.simulateDiscovery(peerIdDave); tD.simulateDiscovery(peerIdCharlie)
+        advanceUntilIdle()
+
+        // Routes: A→B→C→D
+        alice.addRoute(peerIdDave.toHex(), peerIdBob.toHex(), 1.0, 1u)
+        bob.addRoute(peerIdDave.toHex(), peerIdCharlie.toHex(), 1.0, 1u)
+        charlie.addRoute(peerIdDave.toHex(), peerIdDave.toHex(), 1.0, 1u)
+
+        val confirmations = mutableListOf<Uuid>()
+        val confCollector = launch { alice.deliveryConfirmations.collect { confirmations.add(it) } }
+        val daveMessages = mutableListOf<Message>()
+        val daveCollector = launch { dave.messages.collect { daveMessages.add(it) } }
+        advanceUntilIdle()
+
+        val result = alice.send(peerIdDave, "4-hop hello".encodeToByteArray())
+        assertTrue(result.isSuccess)
+        advanceUntilIdle()
+
+        // Dave should receive the message
+        assertEquals(1, daveMessages.size, "Dave should receive the message")
+        assertContentEquals("4-hop hello".encodeToByteArray(), daveMessages[0].payload)
+
+        // Alice should receive delivery confirmation (ACK relayed D→C→B→A)
+        assertEquals(1, confirmations.size, "Alice should get delivery ACK through 3-hop relay")
+
+        confCollector.cancel(); daveCollector.cancel()
+        alice.stop(); bob.stop(); charlie.stop(); dave.stop()
+    }
+
+    // --- Batch 7 Cycle 1: Paused node doesn't relay routed messages ---
+
+    @Test
+    fun pausedNodeDoesNotRelayRoutedMessages() = runTest {
+        val peerIdCharlie = ByteArray(16) { (0xC0 + it).toByte() }
+        val transportBob = VirtualMeshTransport(peerIdBob)
+        val transportCharlie = VirtualMeshTransport(peerIdCharlie)
+        transportBob.linkTo(transportCharlie)
+
+        val bob = MeshLink(transportBob, meshLinkConfig(), coroutineContext)
+        bob.start()
+        advanceUntilIdle()
+        transportBob.simulateDiscovery(peerIdCharlie)
+        advanceUntilIdle()
+        bob.addRoute(peerIdCharlie.toHex(), peerIdCharlie.toHex(), 1.0, 1u)
+
+        // Pause Bob
+        bob.pause()
+        advanceUntilIdle()
+
+        // Send routed message through Bob destined for Charlie
+        val msgId = Uuid.random().toByteArray()
+        val routedData = WireCodec.encodeRoutedMessage(
+            messageId = msgId,
+            origin = peerIdAlice,
+            destination = peerIdCharlie,
+            hopLimit = 5u,
+            visitedList = listOf(peerIdAlice),
+            payload = "relayed?".encodeToByteArray(),
+        )
+        transportBob.receiveData(peerIdAlice, routedData)
+        advanceUntilIdle()
+
+        // Bob should NOT relay while paused
+        val relayed = transportBob.sentData.filter { (_, data) ->
+            data.isNotEmpty() && data[0] == WireCodec.TYPE_ROUTED_MESSAGE
+        }
+        assertEquals(0, relayed.size, "Paused node should not relay routed messages")
+
+        bob.stop()
+    }
+
     // --- Batch 6 Cycle 8: Sweep returns evicted peer IDs ---
 
     @Test
