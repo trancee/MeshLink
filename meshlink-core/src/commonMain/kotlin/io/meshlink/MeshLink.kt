@@ -212,6 +212,17 @@ class MeshLink(
         return staleKeys.size
     }
 
+    override fun sweepStaleReassemblies(maxAgeMs: Long): Int {
+        val now = clock()
+        val staleKeys = reassembly.entries
+            .filter { now - it.value.createdAtMs > maxAgeMs }
+            .map { it.key }
+        for (key in staleKeys) {
+            reassembly.remove(key)
+        }
+        return staleKeys.size
+    }
+
     override fun updateBattery(batteryPercent: Int, isCharging: Boolean) {
         currentPowerMode = powerModeEngine.update(batteryPercent, isCharging).name
     }
@@ -283,6 +294,15 @@ class MeshLink(
             return Result.failure(IllegalArgumentException("bufferFull"))
         }
 
+        // Self-send loopback: deliver locally without BLE (bypasses pause)
+        if (recipient.contentEquals(transport.localPeerId)) {
+            val messageId = Uuid.random()
+            s.launch {
+                _messages.emit(Message(senderId = recipient, payload = payload))
+            }
+            return Result.success(messageId)
+        }
+
         if (paused) {
             pauseQueue.add(recipient to payload)
             return Result.success(Uuid.random())
@@ -300,15 +320,6 @@ class MeshLink(
         // Circuit breaker check
         if (circuitBreaker != null && !circuitBreaker.allowAttempt()) {
             return Result.failure(IllegalStateException("Circuit breaker open — transport circuit tripped"))
-        }
-
-        // Self-send loopback: deliver locally without BLE
-        if (recipient.contentEquals(transport.localPeerId)) {
-            val messageId = Uuid.random()
-            s.launch {
-                _messages.emit(Message(senderId = recipient, payload = payload))
-            }
-            return Result.success(messageId)
         }
 
         // Check if recipient is known directly
@@ -408,7 +419,7 @@ class MeshLink(
         val key = chunk.messageId.toHex()
 
         val state = reassembly.getOrPut(key) {
-            ReassemblyState(chunk.totalChunks.toInt())
+            ReassemblyState(chunk.totalChunks.toInt(), createdAtMs = clock())
         }
         state.chunks[chunk.sequenceNumber.toInt()] = chunk.payload
         state.sackTracker.record(chunk.sequenceNumber.toInt())
@@ -560,7 +571,7 @@ class MeshLink(
     }
 }
 
-internal class ReassemblyState(val totalChunks: Int) {
+internal class ReassemblyState(val totalChunks: Int, val createdAtMs: Long = 0L) {
     val chunks = mutableMapOf<Int, ByteArray>()
     val sackTracker = SackTracker(totalChunks)
 }
