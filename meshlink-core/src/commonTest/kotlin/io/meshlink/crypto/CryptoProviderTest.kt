@@ -1,5 +1,6 @@
 package io.meshlink.crypto
 
+import io.meshlink.util.toHex
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -115,7 +116,7 @@ class CryptoProviderTest {
         val expected = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
         val hash = crypto.sha256(input)
         assertEquals(32, hash.size, "SHA-256 output should be 32 bytes")
-        assertEquals(expected, hash.joinToString("") { "%02x".format(it) })
+        assertEquals(expected, hash.toHex())
     }
 
     // ── Vertical slice 9: HKDF produces requested length ──
@@ -148,6 +149,6 @@ class CryptoProviderTest {
         val expectedOkm = "3cb25f25faacd57a90434f64d0362f2a2d2d0a90cf1a5a4c5db02d56ecc4c5bf34007208d5b887185865"
 
         val okm = crypto.hkdfSha256(ikm, salt, info, 42)
-        assertEquals(expectedOkm, okm.joinToString("") { "%02x".format(it) })
+        assertEquals(expectedOkm, okm.toHex())
     }
 }

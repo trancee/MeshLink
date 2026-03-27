@@ -85,7 +85,7 @@ class MeshLinkTest {
 
         // Alice sends to Bob
         val result = alice.send(peerIdBob, "hello".encodeToByteArray())
-        assert(result.isSuccess) { "send failed: $result" }
+        assertTrue(result.isSuccess, "send failed: $result")
 
         advanceUntilIdle()
         receiveJob.join()
@@ -120,7 +120,7 @@ class MeshLinkTest {
         }
 
         val result = alice.send(peerIdBob, largePayload)
-        assert(result.isSuccess) { "send failed: $result" }
+        assertTrue(result.isSuccess, "send failed: $result")
 
         advanceUntilIdle()
         receiveJob.join()
@@ -137,7 +137,7 @@ class MeshLinkTest {
         val exception = assertFailsWith<IllegalStateException> {
             mesh.send(peerIdBob, "hello".encodeToByteArray())
         }
-        assert(exception.message!!.contains("not started"))
+        assertTrue(exception.message!!.contains("not started"))
     }
 
     @Test
@@ -168,7 +168,7 @@ class MeshLinkTest {
         }
 
         val result = alice.send(peerIdBob, "after restart".encodeToByteArray())
-        assert(result.isSuccess)
+        assertTrue(result.isSuccess)
 
         advanceUntilIdle()
         receiveJob.join()
@@ -211,7 +211,7 @@ class MeshLinkTest {
 
         // Send a payload that exceeds the buffer
         val result = alice.send(peerIdBob, ByteArray(600))
-        assert(result.isFailure) { "Expected failure, got $result" }
+        assertTrue(result.isFailure, "Expected failure, got $result")
 
         alice.stop()
     }
@@ -245,7 +245,7 @@ class MeshLinkTest {
         val sendJobs = (0 until messageCount).map { i ->
             launch {
                 val result = alice.send(peerIdBob, "msg-$i".encodeToByteArray())
-                assert(result.isSuccess) { "send $i failed: $result" }
+                assertTrue(result.isSuccess, "send $i failed: $result")
             }
         }
         sendJobs.forEach { it.join() }
@@ -418,7 +418,7 @@ class MeshLinkTest {
 
         // Send while paused — should NOT throw, should queue
         val result = alice.send(peerIdBob, "queued message".encodeToByteArray())
-        assert(result.isSuccess) { "send while paused should succeed (queue silently)" }
+        assertTrue(result.isSuccess, "send while paused should succeed (queue silently)")
         advanceUntilIdle()
 
         // Bob should NOT have received anything yet
@@ -729,7 +729,7 @@ class MeshLinkTest {
         }
 
         val result = alice.send(peerIdAlice, "self-loop".encodeToByteArray())
-        assert(result.isSuccess) { "self-send should succeed" }
+        assertTrue(result.isSuccess, "self-send should succeed")
         advanceUntilIdle()
         receiveJob.join()
 
@@ -4578,7 +4578,7 @@ class MeshLinkTest {
         advanceUntilIdle()
 
         // Alice sends routed message to Bob
-        val destHex = peerIdBob.toList().joinToString("") { "%02x".format(it) }
+        val destHex = peerIdBob.toHex()
         alice.addRoute(destHex, destHex, 1.0, 1u)
 
         val received = mutableListOf<Message>()
@@ -4621,7 +4621,7 @@ class MeshLinkTest {
         }
         val alice = MeshLink(transport, config, coroutineContext)
 
-        val destHex = peerIdBob.toList().joinToString("") { "%02x".format(it) }
+        val destHex = peerIdBob.toHex()
         alice.addRoute(destHex, destHex, 2.0, 1u)
 
         alice.start()
@@ -4652,7 +4652,7 @@ class MeshLinkTest {
             gossipIntervalMs = 100L
         }
         val alice = MeshLink(transport, config, coroutineContext)
-        val destHex = peerIdBob.toList().joinToString("") { "%02x".format(it) }
+        val destHex = peerIdBob.toHex()
         alice.addRoute(destHex, destHex, 1.0, 1u)
 
         alice.start()
@@ -4683,9 +4683,9 @@ class MeshLinkTest {
         val config = meshLinkConfig { gossipIntervalMs = 100L }
         val alice = MeshLink(transportAlice, config, coroutineContext)
 
-        val bobHex = peerIdBob.toList().joinToString("") { "%02x".format(it) }
+        val bobHex = peerIdBob.toHex()
         val charlieId = ByteArray(16) { (0x30 + it).toByte() }
-        val charlieHex = charlieId.toList().joinToString("") { "%02x".format(it) }
+        val charlieHex = charlieId.toHex()
 
         // Alice learns: Charlie is reachable via Bob (next-hop = Bob)
         alice.addRoute(charlieHex, bobHex, 2.0, 1u)
@@ -4721,7 +4721,7 @@ class MeshLinkTest {
 
         // Bob sends a route update to Alice advertising Charlie
         val charlieId = ByteArray(16) { (0x30 + it).toByte() }
-        val charlieHex = charlieId.toList().joinToString("") { "%02x".format(it) }
+        val charlieHex = charlieId.toHex()
         val routeUpdate = WireCodec.encodeRouteUpdate(
             senderId = peerIdBob,
             entries = listOf(
@@ -4765,9 +4765,9 @@ class MeshLinkTest {
         testScheduler.advanceTimeBy(1L)
 
         // Each node advertises itself: A knows about B directly, C knows about B directly
-        val aliceHex = peerIdAlice.toList().joinToString("") { "%02x".format(it) }
-        val bobHex = peerIdBob.toList().joinToString("") { "%02x".format(it) }
-        val charlieHex = charlieId.toList().joinToString("") { "%02x".format(it) }
+        val aliceHex = peerIdAlice.toHex()
+        val bobHex = peerIdBob.toHex()
+        val charlieHex = charlieId.toHex()
 
         // Manually set direct neighbor routes (these would come from discovery in a full impl)
         a.addRoute(bobHex, bobHex, 1.0, 1u)
@@ -4793,7 +4793,7 @@ class MeshLinkTest {
         val config = meshLinkConfig { gossipIntervalMs = 100L }
         val alice = MeshLink(transport, config, coroutineContext)
 
-        val bobHex = peerIdBob.toList().joinToString("") { "%02x".format(it) }
+        val bobHex = peerIdBob.toHex()
         alice.addRoute(bobHex, bobHex, 1.0, 1u)
 
         alice.start()
@@ -5240,8 +5240,8 @@ class MeshLinkTest {
         advanceUntilIdle()
 
         // Add route: Alice knows Charlie via Bob
-        alice.addRoute(peerIdCharlie.joinToString("") { "%02x".format(it) },
-            peerIdBob.joinToString("") { "%02x".format(it) }, 1.0, 1u)
+        alice.addRoute(peerIdCharlie.toHex(),
+            peerIdBob.toHex(), 1.0, 1u)
 
         // Pause Bob (the relay)
         bob.pause()
@@ -6698,7 +6698,7 @@ class MeshLinkTest {
 
         assertEquals(2, received.size, "Only last 2 messages should survive (oldest evicted)")
         // Messages 3 and 4 should be the ones delivered (oldest msg-1 and msg-2 evicted)
-        val payloads = received.map { String(it.payload) }.sorted()
+        val payloads = received.map { it.payload.decodeToString() }.sorted()
         assertTrue(payloads.contains("msg-3") && payloads.contains("msg-4"),
             "Should have msg-3 and msg-4, got $payloads")
 
@@ -8614,11 +8614,11 @@ class MeshLinkTest {
         val config = meshLinkConfig { gossipIntervalMs = 100L }
         val alice = MeshLink(transportAlice, config, coroutineContext)
 
-        val bobHex = peerIdBob.toList().joinToString("") { "%02x".format(it) }
+        val bobHex = peerIdBob.toHex()
         val charlieId = ByteArray(16) { (0x30 + it).toByte() }
-        val charlieHex = charlieId.toList().joinToString("") { "%02x".format(it) }
+        val charlieHex = charlieId.toHex()
         val destId = ByteArray(16) { (0xD0 + it).toByte() }
-        val destHex = destId.toList().joinToString("") { "%02x".format(it) }
+        val destHex = destId.toHex()
 
         // Alice learns route to dest via Bob
         alice.addRoute(destHex, bobHex, 5.0, 1u)
@@ -8696,8 +8696,8 @@ class MeshLinkTest {
         transportB.simulateDiscovery(peerIdAlice)
         testScheduler.advanceTimeBy(1L)
 
-        val bobHex = peerIdBob.toList().joinToString("") { "%02x".format(it) }
-        val charlieHex = charlieId.toList().joinToString("") { "%02x".format(it) }
+        val bobHex = peerIdBob.toHex()
+        val charlieHex = charlieId.toHex()
 
         // A learns route to Charlie via B with cost 5
         val entry1 = RouteUpdateEntry(

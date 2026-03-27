@@ -1,5 +1,6 @@
 package io.meshlink.crypto
 
+import io.meshlink.util.toHex
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
@@ -13,7 +14,7 @@ class X25519Test {
     }
 
     private fun bytesToHex(bytes: ByteArray): String {
-        return bytes.joinToString("") { "%02x".format(it) }
+        return bytes.toHex()
     }
 
     // --- RFC 7748 Section 6.1 test vectors ---
