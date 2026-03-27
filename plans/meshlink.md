@@ -6,7 +6,7 @@
 
 Durable decisions that apply across all phases:
 
-- **Platform strategy**: Kotlin Multiplatform (KMP). `common` holds ~85% of shared protocol/logic code. `android` and `ios` hold platform-specific BLE transport and secure storage (~15%). All actors, wire format, crypto state machines, routing, and buffering live in `common`.
+- **Platform strategy**: Kotlin Multiplatform (KMP). `commonMain` holds ~85% of shared protocol/logic code. `androidMain` and `iosMain` hold platform-specific BLE transport and secure storage (~15%). All actors, wire format, crypto state machines, routing, and buffering live in `commonMain`.
 - **Concurrency model**: Actor-based. 7 actors (ConnectionActor, CryptoActor, TransferActor, RouterActor, GossipActor, PresenceActor, BufferActor) with bounded typed Kotlin Channels. Strict DAG ordering — downstream actors never send to upstream. Reverse communication via `CompletableDeferred` only. Tiered circuit breaker supervision (Strict/Standard/Lenient).
 - **Wire format**: Custom binary protocol. All multi-byte fields unsigned little-endian. 1-byte message type prefix (0x00–0x07, 0x08–0xFF reserved). No protobuf, no TLV. Any wire change requires protocol version bump.
 - **GATT service**: Single service UUID `0x7F3A` with 4 characteristics (Control Write/Notify for handshake+gossip; Data Write/Notify for chunks). Control uses write-with-response; Data uses write-without-response.
@@ -33,7 +33,7 @@ Durable decisions that apply across all phases:
 
 The thinnest possible end-to-end slice: two devices discover each other over BLE and exchange a message through the public API, with no encryption and no routing.
 
-Scaffold the KMP project structure (`common`, `android`, `ios`), the actor system skeleton (ConnectionActor and TransferActor with their channels and supervision), and the `BleTransport` interface with platform implementations for advertising, scanning, GATT connection, MTU negotiation, and service discovery.
+Scaffold the KMP project structure (`commonMain`, `androidMain`, `iosMain`), the actor system skeleton (ConnectionActor and TransferActor with their channels and supervision), and the `BleTransport` interface with platform implementations for advertising, scanning, GATT connection, MTU negotiation, and service discovery.
 
 Implement the wire format for `chunk` (0x03) and `chunk_ack` (0x04) message types with golden byte-level test vectors. Implement basic chunking (split payload into MTU-sized pieces, sequence numbers, message ID) and reassembly with simple in-order ACK.
 
