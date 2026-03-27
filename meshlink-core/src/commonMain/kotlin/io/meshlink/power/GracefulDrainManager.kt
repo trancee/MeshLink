@@ -21,7 +21,9 @@ class GracefulDrainManager(
 
     /** Mark a peer as draining (has active transfers, needs grace period). */
     fun startDrain(peerIdHex: String, reason: String = "power_mode_downgrade") {
-        draining.putIfAbsent(peerIdHex, DrainEntry(peerIdHex, clock(), reason))
+        if (peerIdHex !in draining) {
+            draining[peerIdHex] = DrainEntry(peerIdHex, clock(), reason)
+        }
     }
 
     /** Check if a peer is in the grace period (should NOT be disconnected yet). */
