@@ -1,0 +1,189 @@
+# Firebase Test Lab – runs Android and iOS tests on real devices.
+#
+# Android: Builds the library's androidTest APK and submits it to
+# Firebase Test Lab via the gcloud CLI.  Because meshlink-core is a
+# *library* module (produces an AAR, not an APK), there is no separate
+# app APK.  We pass the self-instrumenting test APK as both --app and
+# --test, which is the standard approach for library projects.
+#
+# iOS: Builds an XCTest bundle via Gradle's iosSimulatorArm64Test task,
+# packages it as a .zip, and submits it to Firebase Test Lab for
+# execution on physical iOS devices.
+#
+# Prerequisites (repository settings → Secrets & Variables → Actions):
+#   GCP_PROJECT_ID               – Google Cloud project that owns the
+#                                  Firebase Test Lab resources
+#   GCP_SERVICE_ACCOUNT          – SA email with Test Lab permissions
+#   GCP_WORKLOAD_IDENTITY_PROVIDER – full resource name of the WIF provider
+#   GCP_TEST_RESULTS_BUCKET      – GCS bucket for test artifacts
+
+name: Firebase Test Lab
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'meshlink-core/src/androidMain/**'
+      - 'meshlink-core/src/androidTest/**'
+      - 'meshlink-core/src/iosMain/**'
+      - 'meshlink-core/src/commonMain/**'
+  workflow_dispatch:
+
+# Avoid Node.js 20 deprecation warnings from third-party actions
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android-instrumented-tests:
+    name: Android Instrumented Tests
+    runs-on: ubuntu-latest
+
+    # Required for Workload Identity Federation (id-token)
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      # ── Source & toolchain ────────────────────────────────────────────
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: 'zulu'
+          java-version: '21'
+
+      - uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-disabled: true
+
+      # ── Build test APK ────────────────────────────────────────────────
+      # For a library module there is no app APK; the test APK produced
+      # by assembleDebugAndroidTest is self-instrumenting and serves as
+      # both --app and --test when submitted to Firebase Test Lab.
+      - name: Build Android test APK
+        run: ./gradlew :meshlink-core:assembleDebugAndroidTest --parallel
+
+      # ── Authenticate to Google Cloud ──────────────────────────────────
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+
+      - name: Set up gcloud CLI
+        uses: google-github-actions/setup-gcloud@v2
+
+      # ── Run tests on Firebase Test Lab ────────────────────────────────
+      - name: Run instrumented tests on Firebase Test Lab
+        run: |
+          TEST_APK=meshlink-core/build/outputs/apk/androidTest/debug/meshlink-core-debug-androidTest.apk
+
+          gcloud firebase test android run \
+            --type instrumentation \
+            --app  "$TEST_APK" \
+            --test "$TEST_APK" \
+            --device model=Pixel2,version=33 \
+            --device model=Pixel6,version=34 \
+            --timeout 10m \
+            --results-bucket "${{ secrets.GCP_TEST_RESULTS_BUCKET }}" \
+            --results-dir   "meshlink-${{ github.run_id }}" \
+            --project        "${{ secrets.GCP_PROJECT_ID }}"
+
+      # ── Collect results ───────────────────────────────────────────────
+      - name: Download test results from GCS
+        if: always()
+        run: |
+          mkdir -p firebase-test-results
+          gsutil -m cp -r \
+            "gs://${{ secrets.GCP_TEST_RESULTS_BUCKET }}/meshlink-${{ github.run_id }}/**" \
+            firebase-test-results/ || true
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: firebase-android-test-results
+          path: firebase-test-results/
+          retention-days: 14
+
+  ios-instrumented-tests:
+    name: iOS Instrumented Tests
+    runs-on: macos-latest
+
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      # ── Source & toolchain ────────────────────────────────────────────
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: 'zulu'
+          java-version: '21'
+
+      - uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-disabled: true
+
+      # ── Build XCTest bundle ────────────────────────────────────────────
+      # Builds the Kotlin/Native test binary as an XCTest bundle that
+      # Firebase Test Lab can execute on physical iOS devices.
+      - name: Build iOS test bundle
+        run: |
+          ./gradlew :meshlink-core:iosArm64Test \
+            -Pkotlin.native.cocoapods.generate.wrapper=true \
+            --parallel || true
+
+          # Locate and zip the .xctest bundle for upload
+          XCTEST_PATH=$(find meshlink-core/build -name "*.xctest" -type d | head -1)
+          if [ -n "$XCTEST_PATH" ]; then
+            cd "$(dirname "$XCTEST_PATH")"
+            zip -r "$GITHUB_WORKSPACE/ios-tests.zip" "$(basename "$XCTEST_PATH")"
+          fi
+
+      # ── Authenticate to Google Cloud ──────────────────────────────────
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+
+      - name: Set up gcloud CLI
+        uses: google-github-actions/setup-gcloud@v2
+
+      # ── Run tests on Firebase Test Lab ────────────────────────────────
+      - name: Run XCTest on Firebase Test Lab
+        run: |
+          gcloud firebase test ios run \
+            --test ios-tests.zip \
+            --device model=iphone13pro,version=16.6 \
+            --device model=iphone14pro,version=17.5 \
+            --timeout 10m \
+            --results-bucket "${{ secrets.GCP_TEST_RESULTS_BUCKET }}" \
+            --results-dir   "meshlink-ios-${{ github.run_id }}" \
+            --project        "${{ secrets.GCP_PROJECT_ID }}"
+
+      # ── Collect results ───────────────────────────────────────────────
+      - name: Download test results from GCS
+        if: always()
+        run: |
+          mkdir -p firebase-ios-test-results
+          gsutil -m cp -r \
+            "gs://${{ secrets.GCP_TEST_RESULTS_BUCKET }}/meshlink-ios-${{ github.run_id }}/**" \
+            firebase-ios-test-results/ || true
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: firebase-ios-test-results
+          path: firebase-ios-test-results/
+          retention-days: 14
