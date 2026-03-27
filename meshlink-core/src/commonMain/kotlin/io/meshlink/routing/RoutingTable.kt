@@ -1,5 +1,7 @@
 package io.meshlink.routing
 
+import io.meshlink.util.currentTimeMillis
+
 /**
  * Enhanced DSDV routing table.
  * Stores routes to mesh destinations with composite cost metric,
@@ -104,6 +106,6 @@ class RoutingTable(
 
     companion object {
         const val MAX_ROUTE_COST = 1_000_000.0
-        internal var currentTime: () -> Long = { System.currentTimeMillis() }
+        internal var currentTime: () -> Long = { currentTimeMillis() }
     }
 }

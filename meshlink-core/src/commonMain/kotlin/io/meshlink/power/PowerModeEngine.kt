@@ -1,10 +1,12 @@
 package io.meshlink.power
 
+import io.meshlink.util.currentTimeMillis
+
 enum class PowerMode { PERFORMANCE, BALANCED, POWER_SAVER }
 
 class PowerModeEngine(
     private val hysteresisMs: Long = 30_000,
-    private val clock: () -> Long = { System.currentTimeMillis() },
+    private val clock: () -> Long = { currentTimeMillis() },
 ) {
     private var currentMode: PowerMode = PowerMode.PERFORMANCE
     private var pendingDowngrade: PowerMode? = null

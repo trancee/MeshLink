@@ -3,7 +3,7 @@ package io.meshlink.util
 class RateLimiter(
     private val maxEvents: Int,
     private val windowMs: Long,
-    private val clock: () -> Long = { System.currentTimeMillis() },
+    private val clock: () -> Long = { currentTimeMillis() },
 ) {
     // key → list of timestamps within window
     private val events = mutableMapOf<String, MutableList<Long>>()

@@ -1,5 +1,6 @@
 package io.meshlink.diagnostics
 
+import io.meshlink.util.currentTimeMillis
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -38,7 +39,7 @@ data class DiagnosticEvent(
 
 class DiagnosticSink(
     private val bufferCapacity: Int = 256,
-    private val clock: () -> Long = { System.currentTimeMillis() },
+    private val clock: () -> Long = { currentTimeMillis() },
 ) {
     private val _events = MutableSharedFlow<DiagnosticEvent>(
         extraBufferCapacity = bufferCapacity,

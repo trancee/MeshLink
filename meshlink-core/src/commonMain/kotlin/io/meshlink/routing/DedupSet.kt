@@ -6,17 +6,18 @@ package io.meshlink.routing
  */
 class DedupSet(private val capacity: Int = 10_000) {
 
-    // LinkedHashMap with accessOrder=true gives LRU eviction for free
-    private val seen = object : LinkedHashMap<String, Boolean>(capacity, 0.75f, true) {
-        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Boolean>): Boolean {
-            return size > capacity
-        }
-    }
+    // KMP-compatible LRU: remove+re-insert to move accessed keys to the end
+    private val seen = LinkedHashMap<String, Boolean>()
 
     fun tryInsert(id: String): Boolean {
         if (seen.containsKey(id)) {
-            seen[id] = true // refresh access order
+            // Move to end (most recently used)
+            seen.remove(id)
+            seen[id] = true
             return false
+        }
+        if (seen.size >= capacity) {
+            seen.remove(seen.keys.first())
         }
         seen[id] = true
         return true

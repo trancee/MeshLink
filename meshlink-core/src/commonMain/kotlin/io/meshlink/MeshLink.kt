@@ -31,6 +31,7 @@ import io.meshlink.util.CircuitBreaker
 import io.meshlink.util.DeliveryOutcome
 import io.meshlink.util.DeliveryTracker
 import io.meshlink.util.createPlatformLock
+import io.meshlink.util.currentTimeMillis
 import io.meshlink.util.RateLimiter
 import io.meshlink.util.withLock
 import io.meshlink.util.hexToBytes
@@ -60,7 +61,7 @@ class MeshLink(
     private val transport: BleTransport,
     private val config: MeshLinkConfig = MeshLinkConfig(),
     coroutineContext: CoroutineContext = EmptyCoroutineContext,
-    clock: () -> Long = { System.currentTimeMillis() },
+    clock: () -> Long = { currentTimeMillis() },
     private val crypto: CryptoProvider? = null,
 ) : MeshLinkApi {
 

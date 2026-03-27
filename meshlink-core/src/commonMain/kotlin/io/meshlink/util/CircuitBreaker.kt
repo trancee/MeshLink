@@ -4,7 +4,7 @@ class CircuitBreaker(
     private val maxFailures: Int,
     private val windowMs: Long,
     private val cooldownMs: Long,
-    private val clock: () -> Long = { System.currentTimeMillis() },
+    private val clock: () -> Long = { currentTimeMillis() },
 ) {
     private val failures = mutableListOf<Long>()
     private var trippedAt: Long? = null
