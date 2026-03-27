@@ -23,6 +23,7 @@ import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
@@ -8301,12 +8302,13 @@ class MeshLinkTest {
 
         for ((_, data) in routeUpdates) {
             val decoded = WireCodec.decodeRouteUpdate(data)
-            assertTrue(decoded.signerPublicKey != null, "Route update should have signer public key")
-            assertTrue(decoded.signature != null, "Route update should have signature")
-            // Verify the signature is valid
+            val signerKey = decoded.signerPublicKey
+            val signature = decoded.signature
+            assertNotNull(signerKey, "Route update should have signer public key")
+            assertNotNull(signature, "Route update should have signature")
             val signedData = data.copyOfRange(0, data.size - 64)
             assertTrue(
-                crypto.verify(decoded.signerPublicKey!!, signedData, decoded.signature!!),
+                crypto.verify(signerKey, signedData, signature),
                 "Route update signature should be valid"
             )
         }
