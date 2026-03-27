@@ -20,14 +20,14 @@
 name: Firebase Test Lab
 
 on:
-  push:
-    branches: [ main ]
-    paths:
-      - 'meshlink-core/src/androidMain/**'
-      - 'meshlink-core/src/androidTest/**'
-      - 'meshlink-core/src/iosMain/**'
-      - 'meshlink-core/src/commonMain/**'
   workflow_dispatch:
+  # push:
+  #   branches: [ main ]
+  #   paths:
+  #     - 'meshlink-core/src/androidMain/**'
+  #     - 'meshlink-core/src/androidTest/**'
+  #     - 'meshlink-core/src/iosMain/**'
+  #     - 'meshlink-core/src/commonMain/**'
 
 # Avoid Node.js 20 deprecation warnings from third-party actions
 env:
