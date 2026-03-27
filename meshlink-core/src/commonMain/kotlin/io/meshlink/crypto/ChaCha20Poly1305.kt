@@ -94,7 +94,7 @@ internal object ChaCha20Poly1305 {
 
     // ---- ChaCha20 Encryption (RFC 8439 §2.4) ----
 
-    private fun chacha20Encrypt(
+    internal fun chacha20Encrypt(
         key: ByteArray,
         initialCounter: Int,
         nonce: ByteArray,
