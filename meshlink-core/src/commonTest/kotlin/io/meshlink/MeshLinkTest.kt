@@ -8348,4 +8348,28 @@ class MeshLinkTest {
 
         assertEquals(0.0, health.avgRouteCost, "Should not have learned route from invalid signature")
     }
+
+    @Test
+    fun rotateIdentityChangesPublicKeys() = runTest {
+        val transport = VirtualMeshTransport(peerIdAlice)
+        val crypto = io.meshlink.crypto.createCryptoProvider()
+        val alice = MeshLink(transport, meshLinkConfig(), coroutineContext, crypto = crypto)
+        alice.start()
+        testScheduler.advanceTimeBy(1L)
+
+        val oldLocalKey = alice.localPublicKey!!.copyOf()
+        val oldBroadcastKey = alice.broadcastPublicKey!!.copyOf()
+
+        val result = alice.rotateIdentity()
+        assertTrue(result.isSuccess, "rotateIdentity should succeed")
+
+        // Keys should have changed
+        val newLocalKey = alice.localPublicKey!!
+        val newBroadcastKey = alice.broadcastPublicKey!!
+        assertTrue(!oldLocalKey.contentEquals(newLocalKey), "X25519 key should change after rotation")
+        assertTrue(!oldBroadcastKey.contentEquals(newBroadcastKey), "Ed25519 key should change after rotation")
+
+        alice.stop()
+        testScheduler.advanceTimeBy(1L)
+    }
 }

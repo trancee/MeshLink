@@ -39,4 +39,5 @@ interface MeshLinkApi {
     val localPublicKey: ByteArray?
     val broadcastPublicKey: ByteArray?
     fun peerPublicKey(peerIdHex: String): ByteArray?
+    fun rotateIdentity(): Result<Unit>
 }

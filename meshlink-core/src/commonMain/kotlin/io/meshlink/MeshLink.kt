@@ -171,14 +171,14 @@ class MeshLink(
     private val inboundReplayGuards = mutableMapOf<String, ReplayGuard>()
 
     // E2E encryption
-    private val localKeyPair: CryptoKeyPair? = crypto?.generateX25519KeyPair()
-    private val sealer: NoiseKSealer? = crypto?.let { NoiseKSealer(it) }
+    private var localKeyPair: CryptoKeyPair? = crypto?.generateX25519KeyPair()
+    private var sealer: NoiseKSealer? = crypto?.let { NoiseKSealer(it) }
     override val localPublicKey: ByteArray? get() = localKeyPair?.publicKey
     override fun peerPublicKey(peerIdHex: String): ByteArray? = peerPublicKeys[peerIdHex]
     private val peerPublicKeys = mutableMapOf<String, ByteArray>()
 
     // Ed25519 signing for broadcasts and delivery ACKs
-    private val broadcastKeyPair: CryptoKeyPair? = crypto?.generateEd25519KeyPair()
+    private var broadcastKeyPair: CryptoKeyPair? = crypto?.generateEd25519KeyPair()
     override val broadcastPublicKey: ByteArray? get() = broadcastKeyPair?.publicKey
 
     // Noise XX handshake manager for hop-by-hop encryption
@@ -303,6 +303,14 @@ class MeshLink(
         clearState()
         scope?.cancel()
         scope = null
+    }
+
+    override fun rotateIdentity(): Result<Unit> {
+        if (crypto == null) return Result.failure(IllegalStateException("Crypto not enabled"))
+        localKeyPair = crypto.generateX25519KeyPair()
+        sealer = NoiseKSealer(crypto)
+        broadcastKeyPair = crypto.generateEd25519KeyPair()
+        return Result.success(Unit)
     }
 
     private fun clearState() {
@@ -517,9 +525,10 @@ class MeshLink(
 
         // Sign broadcast content with Ed25519 if crypto is available
         // Note: remainingHops is excluded from signed data because relays decrement it
-        val signature = if (broadcastKeyPair != null && crypto != null) {
+        val bkp = broadcastKeyPair
+        val signature = if (bkp != null && crypto != null) {
             val signedData = msgIdBytes + transport.localPeerId + appIdHash + payload
-            crypto.sign(broadcastKeyPair.privateKey, signedData)
+            crypto.sign(bkp.privateKey, signedData)
         } else ByteArray(0)
 
         val encoded = WireCodec.encodeBroadcast(
@@ -529,7 +538,7 @@ class MeshLink(
             appIdHash = appIdHash,
             payload = payload,
             signature = signature,
-            signerPublicKey = broadcastKeyPair?.publicKey ?: ByteArray(0),
+            signerPublicKey = bkp?.publicKey ?: ByteArray(0),
         )
         // Mark as seen so we don't deliver our own broadcast back to ourselves
         dedup.tryInsert(messageId.toByteArray().toHex())
@@ -626,8 +635,9 @@ class MeshLink(
 
         // Encrypt payload if crypto is available and we know the recipient's public key
         val recipientHex = recipient.toHex()
-        val wirePayload = if (sealer != null && peerPublicKeys.containsKey(recipientHex)) {
-            sealer.seal(peerPublicKeys[recipientHex]!!, payload)
+        val currentSealer = sealer
+        val wirePayload = if (currentSealer != null && peerPublicKeys.containsKey(recipientHex)) {
+            currentSealer.seal(peerPublicKeys[recipientHex]!!, payload)
         } else {
             payload
         }
@@ -705,12 +715,12 @@ class MeshLink(
                     hopCount = 1u,
                 )
             }
-            val updateData = if (crypto != null && broadcastKeyPair != null) {
+            val bkp2 = broadcastKeyPair
+            val updateData = if (crypto != null && bkp2 != null) {
                 val unsigned = WireCodec.encodeRouteUpdate(transport.localPeerId, entries)
-                // Sign the route update + signerPublicKey to prevent key substitution
-                val dataToSign = unsigned + broadcastKeyPair.publicKey
-                val signature = crypto.sign(broadcastKeyPair.privateKey, dataToSign)
-                WireCodec.encodeSignedRouteUpdate(transport.localPeerId, entries, broadcastKeyPair.publicKey, signature)
+                val dataToSign = unsigned + bkp2.publicKey
+                val signature = crypto.sign(bkp2.privateKey, dataToSign)
+                WireCodec.encodeSignedRouteUpdate(transport.localPeerId, entries, bkp2.publicKey, signature)
             } else {
                 WireCodec.encodeRouteUpdate(transport.localPeerId, entries)
             }
@@ -811,9 +821,11 @@ class MeshLink(
                 .reduce { acc, bytes -> acc + bytes }
 
             // Decrypt if crypto is available
-            val decrypted = if (sealer != null && localKeyPair != null && fullPayload.size >= 48) {
+            val cs = sealer
+            val lkp = localKeyPair
+            val decrypted = if (cs != null && lkp != null && fullPayload.size >= 48) {
                 try {
-                    sealer.unseal(localKeyPair.privateKey, fullPayload)
+                    cs.unseal(lkp.privateKey, fullPayload)
                 } catch (_: Exception) {
                     diagnosticSink.emit(DiagnosticCode.DECRYPTION_FAILED, Severity.WARN, "chunk reassembly")
                     fullPayload // Decryption failed — deliver as-is (plaintext fallback)
@@ -945,9 +957,11 @@ class MeshLink(
                 timestamps.add(now)
             }
             // Decrypt if crypto is available
-            val deliveredPayload = if (sealer != null && localKeyPair != null && routed.payload.size >= 48) {
+            val cs2 = sealer
+            val lkp2 = localKeyPair
+            val deliveredPayload = if (cs2 != null && lkp2 != null && routed.payload.size >= 48) {
                 try {
-                    sealer.unseal(localKeyPair.privateKey, routed.payload)
+                    cs2.unseal(lkp2.privateKey, routed.payload)
                 } catch (_: Exception) {
                     diagnosticSink.emit(DiagnosticCode.DECRYPTION_FAILED, Severity.WARN, "routed message")
                     routed.payload // Decryption failed — deliver as-is
@@ -957,13 +971,14 @@ class MeshLink(
             }
             _messages.emit(Message(senderId = routed.origin, payload = deliveredPayload))
             // Send signed delivery ACK back toward origin
-            val ackSig = if (broadcastKeyPair != null && crypto != null) {
-                crypto.sign(broadcastKeyPair.privateKey, routed.messageId + transport.localPeerId)
+            val bkp3 = broadcastKeyPair
+            val ackSig = if (bkp3 != null && crypto != null) {
+                crypto.sign(bkp3.privateKey, routed.messageId + transport.localPeerId)
             } else ByteArray(0)
             val ack = WireCodec.encodeDeliveryAck(
                 routed.messageId, transport.localPeerId,
                 signature = ackSig,
-                signerPublicKey = broadcastKeyPair?.publicKey ?: ByteArray(0),
+                signerPublicKey = bkp3?.publicKey ?: ByteArray(0),
             )
             scope?.launch { safeSend(fromPeerId, ack) }
             return
