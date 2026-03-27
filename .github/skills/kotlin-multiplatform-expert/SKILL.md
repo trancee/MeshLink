@@ -64,7 +64,7 @@ Use the default template rather than manual `dependsOn` calls unless you need cu
 
 There is no single `ios` target. Most projects need at least:
 - **`iosArm64`** — device target for physical iPhones
-- **`iosSimulatorArm64`** — simulator target for Apple Silicon Macs (or `iosX64` for Intel Macs)
+- **`iosSimulatorArm64`** — simulator target for Apple Silicon Macs
 
 The `iosMain` intermediate source set is shared among all iOS targets. Platform source sets like `iosArm64Main` and `iosSimulatorArm64Main` are usually empty because device and simulator Kotlin code is normally identical.
 

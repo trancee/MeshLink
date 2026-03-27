@@ -559,7 +559,7 @@ directly.
 | Implementation | Platform | Description |
 |---------------|----------|-------------|
 | `AndroidBleTransport` | Android | GATT server/client + L2CAP CoC |
-| `iOSBleTransport` | iOS | CoreBluetooth central/peripheral |
+| `IosBleTransport` | iOS | CoreBluetooth central/peripheral |
 | `VirtualMeshTransport` | Tests | In-memory simulated mesh (no hardware) |
 
 ### CryptoProvider
@@ -646,13 +646,21 @@ meshlink-core/
 │   │
 │   ├── androidMain/         ← Android platform bindings
 │   │   └── kotlin/io/meshlink/
-│   │       ├── crypto/               AndroidCryptoProvider
-│   │       └── util/                 AndroidPlatformLock, AndroidTime
+│   │       ├── crypto/               CryptoProvider (JCA-backed)
+│   │       ├── platform/             MeshLinkService
+│   │       ├── power/                BatteryMonitor
+│   │       ├── storage/              SecureStorage (Keystore)
+│   │       ├── transport/            BleTransport, BleConstants
+│   │       └── util/                 PlatformLock, Time
 │   │
 │   ├── iosMain/             ← iOS platform bindings
 │   │   └── kotlin/io/meshlink/
-│   │       ├── crypto/               IosCryptoProvider
-│   │       └── util/                 IosPlatformLock, IosTime
+│   │       ├── crypto/               CryptoProvider (CryptoKit)
+│   │       ├── platform/             StatePreservation
+│   │       ├── power/                BatteryMonitor
+│   │       ├── storage/              SecureStorage (Keychain)
+│   │       ├── transport/            BleTransport
+│   │       └── util/                 PlatformLock, Time
 │   │
 │   └── commonTest/          ← Shared test suite
 ```
@@ -664,7 +672,6 @@ meshlink-core/
 | Android | API 26 (Android 8.0) | compileSdk 35 |
 | iOS arm64 | — | Physical devices |
 | iOS simulator arm64 | — | Apple Silicon simulators |
-| iOS x64 | — | Intel simulators |
 | JVM | — | For desktop/server testing |
 
 ### Dependencies

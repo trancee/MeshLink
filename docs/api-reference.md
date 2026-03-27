@@ -547,7 +547,7 @@ data class PeerLostEvent(val peerId: ByteArray)
 
 **Implementations:**
 - **Android:** `AndroidBleTransport` (production)
-- **iOS:** `iOSBleTransport` (production)
+- **iOS:** `IosBleTransport` (production)
 - **Tests:** `VirtualMeshTransport` (in-memory simulation)
 
 ### CryptoProvider

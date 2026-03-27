@@ -370,7 +370,7 @@ class IosSpecificTest {
 
 **Running iOS tests requires:**
 - A Mac with Xcode installed
-- `iosSimulatorArm64` target declared (or `iosX64` for Intel Macs)
+- `iosSimulatorArm64` target declared
 - A simulator runtime installed
 
 ### Test source set hierarchy
