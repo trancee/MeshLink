@@ -36,6 +36,9 @@ jobs:
       - name: Run JVM tests
         run: ./gradlew :meshlink-core:jvmTest --parallel
 
+      - name: Compile Android
+        run: ./gradlew :meshlink-core:compileReleaseKotlinAndroid --parallel
+
       - name: Run Native tests
         run: ./gradlew :meshlink-core:iosSimulatorArm64Test --parallel
 
@@ -63,4 +66,4 @@ jobs:
           cache-disabled: true
 
       - name: Check Kotlin compilation
-        run: ./gradlew :meshlink-core:compileKotlinJvm --parallel
+        run: ./gradlew :meshlink-core:compileKotlinJvm :meshlink-core:compileReleaseKotlinAndroid --parallel

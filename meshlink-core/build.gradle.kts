@@ -1,6 +1,7 @@
 plugins {
     kotlin("multiplatform")
     kotlin("plugin.power-assert")
+    id("com.android.library")
 }
 
 powerAssert {
@@ -19,6 +20,7 @@ powerAssert {
 
 kotlin {
     jvm()
+    androidTarget()
     iosArm64()
     iosSimulatorArm64()
     iosX64()
@@ -31,5 +33,17 @@ kotlin {
             implementation(kotlin("test"))
             implementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
         }
+    }
+}
+
+android {
+    namespace = "io.meshlink"
+    compileSdk = 35
+    defaultConfig {
+        minSdk = 26
+    }
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_21
+        targetCompatibility = JavaVersion.VERSION_21
     }
 }
