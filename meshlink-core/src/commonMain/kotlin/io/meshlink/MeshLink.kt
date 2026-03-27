@@ -11,6 +11,7 @@ import io.meshlink.diagnostics.DiagnosticEvent
 import io.meshlink.diagnostics.DiagnosticSink
 import io.meshlink.diagnostics.MeshHealthSnapshot
 import io.meshlink.diagnostics.Severity
+import io.meshlink.model.KeyChangeEvent
 import io.meshlink.model.Message
 import io.meshlink.model.PeerEvent
 import io.meshlink.model.TransferFailure
@@ -78,12 +79,14 @@ class MeshLink(
     private val _deliveryConfirmations = MutableSharedFlow<Uuid>(extraBufferCapacity = 64)
     private val _transferFailures = MutableSharedFlow<TransferFailure>(extraBufferCapacity = 64)
     private val _transferProgress = MutableSharedFlow<TransferProgress>(extraBufferCapacity = 64)
+    private val _keyChanges = MutableSharedFlow<KeyChangeEvent>(extraBufferCapacity = 64)
 
     override val peers: Flow<PeerEvent> = _peers.asSharedFlow()
     override val messages: Flow<Message> = _messages.asSharedFlow()
     override val deliveryConfirmations: Flow<Uuid> = _deliveryConfirmations.asSharedFlow()
     override val transferFailures: Flow<TransferFailure> = _transferFailures.asSharedFlow()
     override val transferProgress: Flow<TransferProgress> = _transferProgress.asSharedFlow()
+    override val keyChanges: Flow<KeyChangeEvent> = _keyChanges.asSharedFlow()
 
     private val _meshHealthFlow = MutableStateFlow(MeshHealthSnapshot(0, 0, 0, 0, "PERFORMANCE", 0.0))
     override val meshHealthFlow: StateFlow<MeshHealthSnapshot> = _meshHealthFlow.asStateFlow()
@@ -224,7 +227,17 @@ class MeshLink(
                     presenceTracker.peerSeen(event.peerId.toHex())
                     // Extract peer's X25519 public key from advertisement if present
                     if (advPayload.size >= 34) {
-                        peerPublicKeys[event.peerId.toHex()] = advPayload.copyOfRange(2, 34)
+                        val newKey = advPayload.copyOfRange(2, 34)
+                        val peerHex = event.peerId.toHex()
+                        val previousKey = peerPublicKeys[peerHex]
+                        if (previousKey != null && !previousKey.contentEquals(newKey)) {
+                            _keyChanges.tryEmit(KeyChangeEvent(
+                                peerId = event.peerId.copyOf(),
+                                previousKey = previousKey.copyOf(),
+                                newKey = newKey.copyOf(),
+                            ))
+                        }
+                        peerPublicKeys[peerHex] = newKey
                     }
                     _peers.emit(PeerEvent.Discovered(event.peerId))
                     emitHealthUpdate()
@@ -692,7 +705,15 @@ class MeshLink(
                     hopCount = 1u,
                 )
             }
-            val updateData = WireCodec.encodeRouteUpdate(transport.localPeerId, entries)
+            val updateData = if (crypto != null && broadcastKeyPair != null) {
+                val unsigned = WireCodec.encodeRouteUpdate(transport.localPeerId, entries)
+                // Sign the route update + signerPublicKey to prevent key substitution
+                val dataToSign = unsigned + broadcastKeyPair.publicKey
+                val signature = crypto.sign(broadcastKeyPair.privateKey, dataToSign)
+                WireCodec.encodeSignedRouteUpdate(transport.localPeerId, entries, broadcastKeyPair.publicKey, signature)
+            } else {
+                WireCodec.encodeRouteUpdate(transport.localPeerId, entries)
+            }
             val peerId = hexToBytes(peerHex)
             safeSend(peerId, updateData)
         }
@@ -739,6 +760,15 @@ class MeshLink(
 
     private suspend fun handleRouteUpdate(fromPeerId: ByteArray, data: ByteArray) {
         val update = WireCodec.decodeRouteUpdate(data)
+        // If signed, verify the signature before accepting
+        if (update.signature != null && update.signerPublicKey != null && crypto != null) {
+            val signedData = data.copyOfRange(0, data.size - 64)
+            if (!crypto.verify(update.signerPublicKey, signedData, update.signature)) {
+                diagnosticSink.emit(DiagnosticCode.MALFORMED_DATA, Severity.WARN,
+                    "route_update signature verification failed from ${fromPeerId.toHex()}")
+                return
+            }
+        }
         val senderHex = fromPeerId.toHex()
         for (entry in update.entries) {
             val destHex = entry.destination.toHex()

@@ -8231,4 +8231,121 @@ class MeshLinkTest {
         alice.stop()
         bob.stop()
     }
+
+    @Test
+    fun keyChangeEmittedWhenPeerPublicKeyChanges() = runTest {
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val crypto = io.meshlink.crypto.createCryptoProvider()
+        val alice = MeshLink(transportAlice, meshLinkConfig(), coroutineContext, crypto = crypto)
+        alice.start()
+        advanceUntilIdle()
+
+        // First discovery with key1
+        val key1 = ByteArray(32) { it.toByte() }
+        val adv1 = buildAdvPayload(key1)
+        transportAlice.simulateDiscovery(peerIdBob, adv1)
+        advanceUntilIdle()
+
+        // Collect key changes
+        val keyChanges = mutableListOf<io.meshlink.model.KeyChangeEvent>()
+        val collectJob = launch { alice.keyChanges.collect { keyChanges.add(it) } }
+        advanceUntilIdle()
+
+        // Second discovery with different key2
+        val key2 = ByteArray(32) { (it + 100).toByte() }
+        val adv2 = buildAdvPayload(key2)
+        transportAlice.simulateDiscovery(peerIdBob, adv2)
+        advanceUntilIdle()
+
+        assertEquals(1, keyChanges.size, "Should emit exactly one key change event")
+        assertContentEquals(peerIdBob, keyChanges[0].peerId)
+        assertContentEquals(key1, keyChanges[0].previousKey)
+        assertContentEquals(key2, keyChanges[0].newKey)
+
+        collectJob.cancel()
+        alice.stop()
+    }
+
+    @Test
+    fun gossipRouteUpdatesAreSignedWhenCryptoEnabled() = runTest {
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val transportBob = VirtualMeshTransport(peerIdBob)
+        transportAlice.linkTo(transportBob)
+
+        val crypto = io.meshlink.crypto.createCryptoProvider()
+        val alice = MeshLink(transportAlice, meshLinkConfig {
+            gossipIntervalMs = 100
+        }, coroutineContext, crypto = crypto)
+
+        val destHex = peerIdBob.toHex()
+        alice.addRoute(destHex, destHex, 1.0, 1u)
+
+        alice.start()
+        testScheduler.advanceTimeBy(1L)
+
+        transportAlice.simulateDiscovery(peerIdBob)
+        testScheduler.advanceTimeBy(1L)
+
+        // Advance past gossip interval to trigger route broadcast
+        testScheduler.advanceTimeBy(200L)
+
+        // Check that route updates sent by Alice include a signature
+        val routeUpdates = transportAlice.sentData.filter { (_, data) ->
+            data.isNotEmpty() && data[0] == WireCodec.TYPE_ROUTE_UPDATE
+        }
+
+        alice.stop()
+        testScheduler.advanceTimeBy(1L)
+
+        assertTrue(routeUpdates.isNotEmpty(), "Alice should have sent route updates")
+
+        for ((_, data) in routeUpdates) {
+            val decoded = WireCodec.decodeRouteUpdate(data)
+            assertTrue(decoded.signerPublicKey != null, "Route update should have signer public key")
+            assertTrue(decoded.signature != null, "Route update should have signature")
+            // Verify the signature is valid
+            val signedData = data.copyOfRange(0, data.size - 64)
+            assertTrue(
+                crypto.verify(decoded.signerPublicKey!!, signedData, decoded.signature!!),
+                "Route update signature should be valid"
+            )
+        }
+    }
+
+    @Test
+    fun routeUpdateWithInvalidSignatureIsRejected() = runTest {
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+
+        val crypto = io.meshlink.crypto.createCryptoProvider()
+        val alice = MeshLink(transportAlice, meshLinkConfig(), coroutineContext, crypto = crypto)
+        alice.start()
+        testScheduler.advanceTimeBy(1L)
+
+        transportAlice.simulateDiscovery(peerIdBob)
+        testScheduler.advanceTimeBy(1L)
+
+        // Forge a signed route update with invalid signature
+        val entries = listOf(
+            RouteUpdateEntry(
+                destination = ByteArray(16) { 0x42 },
+                cost = 1.0,
+                sequenceNumber = 1u,
+                hopCount = 1u,
+            )
+        )
+        val fakeKey = ByteArray(32) { 0xFF.toByte() }
+        val fakeSignature = ByteArray(64) { 0xAA.toByte() }
+        val forgedUpdate = WireCodec.encodeSignedRouteUpdate(peerIdBob, entries, fakeKey, fakeSignature)
+        transportAlice.receiveData(peerIdBob, forgedUpdate)
+        testScheduler.advanceTimeBy(1L)
+
+        // The route should NOT have been accepted — health should show 0 avgRouteCost
+        // (no routes learned from invalid gossip)
+        val health = alice.meshHealth()
+
+        alice.stop()
+        testScheduler.advanceTimeBy(1L)
+
+        assertEquals(0.0, health.avgRouteCost, "Should not have learned route from invalid signature")
+    }
 }

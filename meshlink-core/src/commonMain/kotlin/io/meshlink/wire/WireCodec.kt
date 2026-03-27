@@ -243,9 +243,12 @@ object WireCodec {
     }
 
     // route_update: type(1) + sender(16) + entryCount(1) + entries(N × 29)
+    // signed_route_update: route_update + signerPublicKey(32) + signature(64)
     // each entry: destination(16) + cost(8 LE double) + sequenceNumber(4 LE uint) + hopCount(1)
     private const val ROUTE_UPDATE_HEADER_SIZE = 1 + 16 + 1 // 18
     private const val ROUTE_ENTRY_SIZE = 16 + 8 + 4 + 1 // 29
+    private const val SIGNER_PUBLIC_KEY_SIZE = 32
+    private const val SIGNATURE_SIZE = 64
 
     fun encodeRouteUpdate(senderId: ByteArray, entries: List<RouteUpdateEntry>): ByteArray {
         val buf = ByteArray(ROUTE_UPDATE_HEADER_SIZE + entries.size * ROUTE_ENTRY_SIZE)
@@ -262,14 +265,29 @@ object WireCodec {
         return buf
     }
 
+    fun encodeSignedRouteUpdate(
+        senderId: ByteArray,
+        entries: List<RouteUpdateEntry>,
+        signerPublicKey: ByteArray,
+        signature: ByteArray,
+    ): ByteArray {
+        val unsigned = encodeRouteUpdate(senderId, entries)
+        val buf = ByteArray(unsigned.size + SIGNER_PUBLIC_KEY_SIZE + SIGNATURE_SIZE)
+        unsigned.copyInto(buf)
+        signerPublicKey.copyInto(buf, unsigned.size)
+        signature.copyInto(buf, unsigned.size + SIGNER_PUBLIC_KEY_SIZE)
+        return buf
+    }
+
     fun decodeRouteUpdate(data: ByteArray): RouteUpdateMessage {
         require(data.size >= ROUTE_UPDATE_HEADER_SIZE) { "route_update too short: ${data.size}" }
         require(data[0] == TYPE_ROUTE_UPDATE) { "not a route_update: 0x${data[0].toUByte().toString(16)}" }
         var offset = 1
         val senderId = data.copyOfRange(offset, offset + 16); offset += 16
         val entryCount = data[offset++].toInt() and 0xFF
-        require(data.size >= ROUTE_UPDATE_HEADER_SIZE + entryCount * ROUTE_ENTRY_SIZE) {
-            "route_update truncated: expected ${ROUTE_UPDATE_HEADER_SIZE + entryCount * ROUTE_ENTRY_SIZE}, got ${data.size}"
+        val entriesEnd = ROUTE_UPDATE_HEADER_SIZE + entryCount * ROUTE_ENTRY_SIZE
+        require(data.size >= entriesEnd) {
+            "route_update truncated: expected $entriesEnd, got ${data.size}"
         }
         val entries = (0 until entryCount).map {
             val destination = data.copyOfRange(offset, offset + 16); offset += 16
@@ -281,7 +299,18 @@ object WireCodec {
             val hopCount = data[offset++].toUByte()
             RouteUpdateEntry(destination, cost, sequenceNumber, hopCount)
         }
-        return RouteUpdateMessage(senderId, entries)
+        // Check for trailing signature (signerPublicKey(32) + signature(64))
+        val remaining = data.size - entriesEnd
+        val signerPublicKey: ByteArray?
+        val signature: ByteArray?
+        if (remaining >= SIGNER_PUBLIC_KEY_SIZE + SIGNATURE_SIZE) {
+            signerPublicKey = data.copyOfRange(entriesEnd, entriesEnd + SIGNER_PUBLIC_KEY_SIZE)
+            signature = data.copyOfRange(entriesEnd + SIGNER_PUBLIC_KEY_SIZE, entriesEnd + SIGNER_PUBLIC_KEY_SIZE + SIGNATURE_SIZE)
+        } else {
+            signerPublicKey = null
+            signature = null
+        }
+        return RouteUpdateMessage(senderId, entries, signerPublicKey, signature)
     }
 }
 
@@ -387,6 +416,8 @@ data class RouteUpdateEntry(
 data class RouteUpdateMessage(
     val senderId: ByteArray,
     val entries: List<RouteUpdateEntry>,
+    val signerPublicKey: ByteArray? = null,
+    val signature: ByteArray? = null,
 )
 
 data class HandshakeMessage(

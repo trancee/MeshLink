@@ -2,6 +2,7 @@ package io.meshlink
 
 import io.meshlink.diagnostics.DiagnosticEvent
 import io.meshlink.diagnostics.MeshHealthSnapshot
+import io.meshlink.model.KeyChangeEvent
 import io.meshlink.model.Message
 import io.meshlink.model.PeerEvent
 import io.meshlink.model.TransferFailure
@@ -34,6 +35,7 @@ interface MeshLinkApi {
     val transferFailures: Flow<TransferFailure>
     val transferProgress: Flow<TransferProgress>
     val meshHealthFlow: Flow<MeshHealthSnapshot>
+    val keyChanges: Flow<KeyChangeEvent>
     val localPublicKey: ByteArray?
     val broadcastPublicKey: ByteArray?
     fun peerPublicKey(peerIdHex: String): ByteArray?

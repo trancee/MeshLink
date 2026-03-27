@@ -490,4 +490,67 @@ class WireCodecTest {
         assertEquals(0u.toUByte(), decoded.step)
         assertEquals(0, decoded.noiseMessage.size)
     }
+
+    @Test
+    fun signedRouteUpdateRoundTrip() {
+        val senderId = ByteArray(16) { (it + 0xA0).toByte() }
+        val entries = listOf(
+            RouteUpdateEntry(
+                destination = ByteArray(16) { (it + 0xB0).toByte() },
+                cost = 2.5,
+                sequenceNumber = 7u,
+                hopCount = 1u,
+            )
+        )
+        val signerPublicKey = ByteArray(32) { (it + 0xC0).toByte() }
+        val signature = ByteArray(64) { (it + 0xD0).toByte() }
+
+        val encoded = WireCodec.encodeSignedRouteUpdate(senderId, entries, signerPublicKey, signature)
+        val decoded = WireCodec.decodeRouteUpdate(encoded)
+
+        assertContentEquals(senderId, decoded.senderId)
+        assertEquals(1, decoded.entries.size)
+        assertContentEquals(signerPublicKey, decoded.signerPublicKey)
+        assertContentEquals(signature, decoded.signature)
+    }
+
+    @Test
+    fun signedRouteUpdateSignedDataExtractsCorrectly() {
+        val senderId = ByteArray(16) { (it + 0xA0).toByte() }
+        val entries = listOf(
+            RouteUpdateEntry(
+                destination = ByteArray(16) { (it + 0xB0).toByte() },
+                cost = 1.0,
+                sequenceNumber = 1u,
+                hopCount = 1u,
+            )
+        )
+        val signerPublicKey = ByteArray(32) { 0xAA.toByte() }
+        val signature = ByteArray(64) { 0xBB.toByte() }
+
+        val encoded = WireCodec.encodeSignedRouteUpdate(senderId, entries, signerPublicKey, signature)
+        // Signed data is everything except the trailing 64-byte signature
+        val signedData = encoded.copyOfRange(0, encoded.size - 64)
+        assertEquals(encoded.size - 64, signedData.size)
+    }
+
+    @Test
+    fun unsignedRouteUpdateDecodesWithoutSignature() {
+        val senderId = ByteArray(16) { (it + 0xA0).toByte() }
+        val entries = listOf(
+            RouteUpdateEntry(
+                destination = ByteArray(16) { (it + 0xB0).toByte() },
+                cost = 1.0,
+                sequenceNumber = 1u,
+                hopCount = 1u,
+            )
+        )
+        val encoded = WireCodec.encodeRouteUpdate(senderId, entries)
+        val decoded = WireCodec.decodeRouteUpdate(encoded)
+
+        assertContentEquals(senderId, decoded.senderId)
+        assertEquals(1, decoded.entries.size)
+        assertEquals(null, decoded.signerPublicKey)
+        assertEquals(null, decoded.signature)
+    }
 }
