@@ -119,7 +119,10 @@ MeshLink/
 │       └── commonTest/          # 891 tests
 ├── meshlink-sample/
 │   ├── android/                 # Jetpack Compose reference app
-│   └── ios/                     # SwiftUI reference app
+│   ├── ios/                     # SwiftUI reference app
+│   ├── macos/                   # SwiftUI macOS reference app
+│   ├── jvm/                     # JVM console app
+│   └── linux/                   # Linux console app (arm64, x64)
 ├── docs/                        # Architecture, API, wire format spec
 ├── Package.swift                # SPM manifest (iOS + macOS)
 └── UBIQUITOUS_LANGUAGE.md       # Domain glossary
@@ -145,8 +148,14 @@ MeshLink/
 # Run iOS simulator tests
 ./gradlew :meshlink:iosSimulatorArm64Test
 
+# Run JVM sample app
+./gradlew :meshlink-sample:jvm:run
+
 # Run macOS tests
 ./gradlew :meshlink:macosArm64Test
+
+# Compile Linux sample (cross-compile from macOS)
+./gradlew :meshlink-sample:linux:compileKotlinLinuxX64
 
 # Build XCFramework for SPM (iOS + macOS)
 ./gradlew :meshlink:assembleMeshLinkXCFramework
