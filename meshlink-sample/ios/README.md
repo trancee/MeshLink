@@ -29,13 +29,13 @@ This sample mirrors the Android sample (`meshlink-sample/android/`) and shows ho
 From the **repository root**, run:
 
 ```bash
-./gradlew :meshlink:assembleMeshLinkCoreXCFramework
+./gradlew :meshlink:assembleMeshLinkXCFramework
 ```
 
 This produces:
 
 ```
-meshlink/build/XCFrameworks/release/MeshLinkCore.xcframework
+meshlink/build/XCFrameworks/release/MeshLink.xcframework
 ```
 
 The XCFramework contains slices for:
@@ -58,14 +58,14 @@ Since we don't commit `.xcodeproj` files, create one in Xcode:
 
 ---
 
-## 3. Add the MeshLinkCore Package
+## 3. Add the MeshLink Package
 
 1. In Xcode: **File → Add Package Dependencies…**
 2. Click **Add Local…** and select the **repository root** (`MeshLink/`)
-3. Xcode reads `Package.swift` and offers the `MeshLinkCore` library
+3. Xcode reads `Package.swift` and offers the `MeshLink` library
 4. Add it to the `MeshLinkSample` target
 
-> **Alternative:** Drag `MeshLinkCore.xcframework` directly into your project
+> **Alternative:** Drag `MeshLink.xcframework` directly into your project
 > and link it under **Frameworks, Libraries, and Embedded Content**.
 
 ---
@@ -159,7 +159,7 @@ Kotlin `Flow` requires a collector bridge in Swift. Two options:
 
 | Issue                              | Solution                                    |
 |------------------------------------|---------------------------------------------|
-| `No such module 'MeshLinkCore'`    | Build the XCFramework first (step 1)        |
+| `No such module 'MeshLink'`    | Build the XCFramework first (step 1)        |
 | BLE not working on simulator       | Expected — use a physical device             |
 | Crash on `KotlinByteArray`         | Ensure correct `Int8` ↔ `UInt8` conversion  |
 | Flow never emits                   | Check that `meshLink.start()` was called    |

@@ -6,22 +6,22 @@
 //
 // ## Kotlin/Native Swift Interop Notes
 //
-// The MeshLinkCore XCFramework exports Kotlin classes to Swift under the
-// `MeshLinkCore` module name. Key mappings:
+// The MeshLink XCFramework exports Kotlin classes to Swift under the
+// `MeshLink` module name. Key mappings:
 //
 // | Kotlin                              | Swift                                           |
 // |-------------------------------------|-------------------------------------------------|
-// | `MeshLink(transport, config)`       | `MeshLinkCore.MeshLink(transport:config:...)`   |
-// | `MeshLinkConfig.chatOptimized()`    | `MeshLinkCore.MeshLinkConfig.companion.chatOptimized()` |
-// | `BleTransport` (interface)          | `MeshLinkCore.BleTransport` (protocol)          |
-// | `PeerEvent.Discovered`              | `MeshLinkCore.PeerEventDiscovered`              |
-// | `PeerEvent.Lost`                    | `MeshLinkCore.PeerEventLost`                    |
+// | `MeshLink(transport, config)`       | `MeshLink.MeshLink(transport:config:...)`   |
+// | `MeshLinkConfig.chatOptimized()`    | `MeshLink.MeshLinkConfig.companion.chatOptimized()` |
+// | `BleTransport` (interface)          | `MeshLink.BleTransport` (protocol)          |
+// | `PeerEvent.Discovered`              | `MeshLink.PeerEventDiscovered`              |
+// | `PeerEvent.Lost`                    | `MeshLink.PeerEventLost`                    |
 // | `Flow<T>.collect { ... }`           | Requires SKIE or manual `FlowCollector` wrapper |
-// | `Result<Unit>`                      | `MeshLinkCore.KotlinResult` (or SKIE mapping)   |
+// | `Result<Unit>`                      | `MeshLink.KotlinResult` (or SKIE mapping)   |
 // | `ByteArray`                         | `KotlinByteArray`                               |
 
 import Foundation
-import MeshLinkCore
+import MeshLink
 
 // MARK: - Peer Info
 

@@ -37,7 +37,7 @@ dependencies {
 
 ### Swift Package Manager (iOS)
 
-Add the repository URL and depend on the `MeshLinkCore` target. See [Package.swift](Package.swift) for details.
+Add the repository URL and depend on the `MeshLink` target. See [Package.swift](Package.swift) for details.
 
 ### Basic Usage
 
@@ -141,7 +141,7 @@ MeshLink/
 ./gradlew :meshlink:iosSimulatorArm64Test
 
 # Build XCFramework for SPM
-./gradlew :meshlink:assembleMeshLinkCoreXCFramework
+./gradlew :meshlink:assembleMeshLinkXCFramework
 ```
 
 ## CI

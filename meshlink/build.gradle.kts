@@ -29,10 +29,10 @@ kotlin {
     jvm()
     androidTarget()
 
-    val xcf = XCFramework("MeshLinkCore")
+    val xcf = XCFramework("MeshLink")
     listOf(iosArm64(), iosSimulatorArm64()).forEach { target ->
         target.binaries.framework {
-            baseName = "MeshLinkCore"
+            baseName = "MeshLink"
             isStatic = true
             xcf.add(this)
         }

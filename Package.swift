@@ -4,10 +4,10 @@
 // MeshLink - Secure BLE mesh messaging library
 //
 // Build the XCFramework with:
-//   ./gradlew :meshlink:assembleMeshLinkCoreXCFramework
+//   ./gradlew :meshlink:assembleMeshLinkXCFramework
 //
 // The XCFramework will be generated at:
-//   meshlink/build/XCFrameworks/release/MeshLinkCore.xcframework
+//   meshlink/build/XCFrameworks/release/MeshLink.xcframework
 
 import PackageDescription
 
@@ -18,14 +18,14 @@ let package = Package(
     ],
     products: [
         .library(
-            name: "MeshLinkCore",
-            targets: ["MeshLinkCore"]
+            name: "MeshLink",
+            targets: ["MeshLink"]
         ),
     ],
     targets: [
         .binaryTarget(
-            name: "MeshLinkCore",
-            path: "meshlink/build/XCFrameworks/release/MeshLinkCore.xcframework"
+            name: "MeshLink",
+            path: "meshlink/build/XCFrameworks/release/MeshLink.xcframework"
         ),
     ]
 )
