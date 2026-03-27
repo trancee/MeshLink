@@ -35,6 +35,7 @@ import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.convert
 import kotlinx.cinterop.refTo
 import kotlinx.cinterop.usePinned
+import platform.CoreFoundation.CFTypeRefVar
 import platform.Foundation.NSString
 import platform.Foundation.NSUTF8StringEncoding
 import platform.Foundation.dataWithBytes
@@ -78,11 +79,11 @@ class IosSecureStorage : SecureStorage {
         }
 
         memScoped {
-            val result = alloc<kotlinx.cinterop.ObjCObjectVar<Any?>>()
+            val result = alloc<CFTypeRefVar>()
             val status = SecItemCopyMatching(query.toCFDictionary(), result.ptr)
             if (status != errSecSuccess) return null
 
-            val data = result.value as? NSData ?: return null
+            val data = CFBridgingRelease(result.value) as? NSData ?: return null
             return data.toByteArray()
         }
     }
@@ -108,12 +109,12 @@ class IosSecureStorage : SecureStorage {
         )
 
         memScoped {
-            val result = alloc<kotlinx.cinterop.ObjCObjectVar<Any?>>()
+            val result = alloc<CFTypeRefVar>()
             val status = SecItemCopyMatching(query.toCFDictionary(), result.ptr)
             if (status == errSecItemNotFound) return 0
             if (status != errSecSuccess) return 0
 
-            val items = result.value as? List<*> ?: return 0
+            val items = CFBridgingRelease(result.value) as? List<*> ?: return 0
             return items.size
         }
     }

@@ -48,6 +48,7 @@ import platform.Foundation.create
 import platform.darwin.NSObject
 import platform.darwin.dispatch_get_main_queue
 import platform.posix.memcpy
+import kotlinx.cinterop.ObjCSignatureOverride
 import kotlin.coroutines.resume
 
 // -- NSData <-> ByteArray conversion extensions --
@@ -235,10 +236,11 @@ class IosBleTransport(
         }
 
         val uuid = NSUUID()
-        val uuidBytes = ByteArray(16)
-        memScoped {
-            uuid.getUUIDBytes(uuidBytes.refTo(0))
+        val uuidUBytes = UByteArray(16)
+        uuidUBytes.usePinned { pinned ->
+            uuid.getUUIDBytes(pinned.addressOf(0))
         }
+        val uuidBytes = uuidUBytes.toByteArray()
         val hexString = uuidBytes.toHexString()
         defaults.setObject(hexString, forKey = USER_DEFAULTS_PEER_ID_KEY)
         defaults.synchronize()
@@ -421,6 +423,7 @@ class IosBleTransport(
             didConnectPeripheral.discoverServices(listOf(serviceUUID))
         }
 
+        @ObjCSignatureOverride
         override fun centralManager(
             central: CBCentralManager,
             didFailToConnectPeripheral: CBPeripheral,
@@ -429,6 +432,7 @@ class IosBleTransport(
             NSLog("$TAG: Failed to connect: ${didFailToConnectPeripheral.identifier.UUIDString}, error: ${error?.localizedDescription}")
         }
 
+        @ObjCSignatureOverride
         override fun centralManager(
             central: CBCentralManager,
             didDisconnectPeripheral: CBPeripheral,
@@ -557,6 +561,7 @@ class IosBleTransport(
             onReady = null
         }
 
+        @ObjCSignatureOverride
         override fun peripheral(
             peripheral: CBPeripheral,
             didWriteValueForCharacteristic: CBCharacteristic,
@@ -567,6 +572,7 @@ class IosBleTransport(
             }
         }
 
+        @ObjCSignatureOverride
         override fun peripheral(
             peripheral: CBPeripheral,
             didUpdateValueForCharacteristic: CBCharacteristic,
@@ -610,10 +616,10 @@ class IosBleTransport(
         derivePeerIdFromUUID(peripheral.identifier)
 
     private fun derivePeerIdFromUUID(uuid: NSUUID): ByteArray {
-        val bytes = ByteArray(16)
-        memScoped {
-            uuid.getUUIDBytes(bytes.refTo(0))
+        val uBytes = UByteArray(16)
+        uBytes.usePinned { pinned ->
+            uuid.getUUIDBytes(pinned.addressOf(0))
         }
-        return bytes
+        return uBytes.toByteArray()
     }
 }

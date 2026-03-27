@@ -34,10 +34,8 @@ class ScanDutyCycleController(
 
     private var cycleJob: Job? = null
 
-    @Volatile
     private var currentTiming: CycleTiming = timingFor(PowerMode.PERFORMANCE)
 
-    @Volatile
     private var running = false
 
     /** Whether the duty-cycle loop is currently active. */
