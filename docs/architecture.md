@@ -625,7 +625,7 @@ order. See `docs/wire-format-spec.md` for the complete protocol specification.
 ### Kotlin Multiplatform Structure
 
 ```
-meshlink-core/
+meshlink/
 ├── src/
 │   ├── commonMain/          ← ~85% of code (platform-agnostic)
 │   │   └── kotlin/io/meshlink/

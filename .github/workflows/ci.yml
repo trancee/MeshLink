@@ -34,20 +34,20 @@ jobs:
           restore-keys: konan-${{ runner.os }}-
 
       - name: Run JVM tests
-        run: ./gradlew :meshlink-core:jvmTest --parallel
+        run: ./gradlew :meshlink:jvmTest --parallel
 
       - name: Compile Android
-        run: ./gradlew :meshlink-core:compileReleaseKotlinAndroid --parallel
+        run: ./gradlew :meshlink:compileReleaseKotlinAndroid --parallel
 
       - name: Run Native tests
-        run: ./gradlew :meshlink-core:iosSimulatorArm64Test --parallel
+        run: ./gradlew :meshlink:iosSimulatorArm64Test --parallel
 
       - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: test-reports
-          path: meshlink-core/build/reports/tests/
+          path: meshlink/build/reports/tests/
           retention-days: 14
 
   lint:
@@ -66,4 +66,4 @@ jobs:
           cache-disabled: true
 
       - name: Check Kotlin compilation
-        run: ./gradlew :meshlink-core:compileKotlinJvm :meshlink-core:compileReleaseKotlinAndroid --parallel
+        run: ./gradlew :meshlink:compileKotlinJvm :meshlink:compileReleaseKotlinAndroid --parallel

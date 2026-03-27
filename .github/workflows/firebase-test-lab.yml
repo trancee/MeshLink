@@ -1,7 +1,7 @@
 # Firebase Test Lab – runs Android and iOS tests on real devices.
 #
 # Android: Builds the library's androidTest APK and submits it to
-# Firebase Test Lab via the gcloud CLI.  Because meshlink-core is a
+# Firebase Test Lab via the gcloud CLI.  Because meshlink is a
 # *library* module (produces an AAR, not an APK), there is no separate
 # app APK.  We pass the self-instrumenting test APK as both --app and
 # --test, which is the standard approach for library projects.
@@ -24,10 +24,10 @@ on:
   # push:
   #   branches: [ main ]
   #   paths:
-  #     - 'meshlink-core/src/androidMain/**'
-  #     - 'meshlink-core/src/androidTest/**'
-  #     - 'meshlink-core/src/iosMain/**'
-  #     - 'meshlink-core/src/commonMain/**'
+  #     - 'meshlink/src/androidMain/**'
+  #     - 'meshlink/src/androidTest/**'
+  #     - 'meshlink/src/iosMain/**'
+  #     - 'meshlink/src/commonMain/**'
 
 # Avoid Node.js 20 deprecation warnings from third-party actions
 env:
@@ -65,7 +65,7 @@ jobs:
       # by assembleDebugAndroidTest is self-instrumenting and serves as
       # both --app and --test when submitted to Firebase Test Lab.
       - name: Build Android test APK
-        run: ./gradlew :meshlink-core:assembleDebugAndroidTest --parallel
+        run: ./gradlew :meshlink:assembleDebugAndroidTest --parallel
 
       # ── Authenticate to Google Cloud ──────────────────────────────────
       - name: Authenticate to Google Cloud
@@ -81,7 +81,7 @@ jobs:
       # ── Run tests on Firebase Test Lab ────────────────────────────────
       - name: Run instrumented tests on Firebase Test Lab
         run: |
-          TEST_APK=meshlink-core/build/outputs/apk/androidTest/debug/meshlink-core-debug-androidTest.apk
+          TEST_APK=meshlink/build/outputs/apk/androidTest/debug/meshlink-debug-androidTest.apk
 
           gcloud firebase test android run \
             --type instrumentation \
@@ -137,12 +137,12 @@ jobs:
       # Firebase Test Lab can execute on physical iOS devices.
       - name: Build iOS test bundle
         run: |
-          ./gradlew :meshlink-core:iosArm64Test \
+          ./gradlew :meshlink:iosArm64Test \
             -Pkotlin.native.cocoapods.generate.wrapper=true \
             --parallel || true
 
           # Locate and zip the .xctest bundle for upload
-          XCTEST_PATH=$(find meshlink-core/build -name "*.xctest" -type d | head -1)
+          XCTEST_PATH=$(find meshlink/build -name "*.xctest" -type d | head -1)
           if [ -n "$XCTEST_PATH" ]; then
             cd "$(dirname "$XCTEST_PATH")"
             zip -r "$GITHUB_WORKSPACE/ios-tests.zip" "$(basename "$XCTEST_PATH")"

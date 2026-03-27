@@ -161,10 +161,10 @@ You can test the gcloud commands locally:
 
 ```bash
 # Build the Android test APK
-./gradlew :meshlink-core:assembleDebugAndroidTest
+./gradlew :meshlink:assembleDebugAndroidTest
 
 # Find the APK
-TEST_APK=meshlink-core/build/outputs/apk/androidTest/debug/meshlink-core-debug-androidTest.apk
+TEST_APK=meshlink/build/outputs/apk/androidTest/debug/meshlink-debug-androidTest.apk
 
 # Run on Firebase Test Lab
 gcloud firebase test android run \
@@ -183,7 +183,7 @@ gcloud firebase test android run \
 ### Android Tests
 
 The workflow builds a self-instrumenting test APK from the `androidTest`
-source set. Since `meshlink-core` is a library module (AAR), there is no
+source set. Since `meshlink` is a library module (AAR), there is no
 separate app APK — the test APK is passed as both `--app` and `--test`
 to Firebase Test Lab.
 

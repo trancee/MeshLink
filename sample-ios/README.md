@@ -29,13 +29,13 @@ This sample mirrors the Android sample (`sample-android/`) and shows how to:
 From the **repository root**, run:
 
 ```bash
-./gradlew :meshlink-core:assembleMeshLinkCoreXCFramework
+./gradlew :meshlink:assembleMeshLinkCoreXCFramework
 ```
 
 This produces:
 
 ```
-meshlink-core/build/XCFrameworks/release/MeshLinkCore.xcframework
+meshlink/build/XCFrameworks/release/MeshLinkCore.xcframework
 ```
 
 The XCFramework contains slices for:

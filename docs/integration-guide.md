@@ -30,11 +30,11 @@ Get a BLE mesh network running in five minutes.
 
 ```kotlin
 // settings.gradle.kts
-include(":meshlink-core")
+include(":meshlink")
 
 // app/build.gradle.kts
 dependencies {
-    implementation(project(":meshlink-core"))
+    implementation(project(":meshlink"))
 }
 ```
 
