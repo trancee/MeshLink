@@ -1,5 +1,20 @@
 plugins {
     kotlin("multiplatform")
+    kotlin("plugin.power-assert")
+}
+
+powerAssert {
+    functions = listOf(
+        "kotlin.assert",
+        "kotlin.test.assertTrue",
+        "kotlin.test.assertFalse",
+        "kotlin.test.assertEquals",
+        "kotlin.test.assertNotEquals",
+        "kotlin.test.assertNull",
+        "kotlin.test.assertNotNull",
+        "kotlin.test.assertIs",
+        "kotlin.test.assertContentEquals",
+    )
 }
 
 kotlin {
