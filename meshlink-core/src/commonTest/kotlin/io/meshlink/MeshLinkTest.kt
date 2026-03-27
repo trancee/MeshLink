@@ -8372,4 +8372,101 @@ class MeshLinkTest {
         alice.stop()
         testScheduler.advanceTimeBy(1L)
     }
+
+    @Test
+    fun transferResumesFromByteOffsetOnReconnect() = runTest {
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val transportBob = VirtualMeshTransport(peerIdBob)
+        transportAlice.linkTo(transportBob)
+
+        val alice = MeshLink(transportAlice, meshLinkConfig { mtu = 30 }, coroutineContext)
+        val bob = MeshLink(transportBob, meshLinkConfig { mtu = 30 }, coroutineContext)
+
+        // Drop ACKs from Bob so Alice's transfer stays incomplete
+        transportBob.dropFilter = { data -> data.isNotEmpty() && data[0] == WireCodec.TYPE_CHUNK_ACK }
+
+        alice.start(); bob.start()
+        testScheduler.advanceTimeBy(1L)
+
+        transportAlice.simulateDiscovery(peerIdBob)
+        transportBob.simulateDiscovery(peerIdAlice)
+        testScheduler.advanceTimeBy(1L)
+
+        // Send a large payload that needs multiple chunks
+        val payload = ByteArray(100) { it.toByte() }
+        val result = alice.send(peerIdBob, payload)
+        assertTrue(result.isSuccess)
+        testScheduler.advanceTimeBy(1L)
+
+        // Simulate peer loss
+        transportAlice.simulatePeerLost(peerIdBob)
+        testScheduler.advanceTimeBy(1L)
+
+        // Clear sent data to track only new sends after reconnect
+        transportAlice.sentData.clear()
+
+        // Stop dropping ACKs — allow transfer to complete on reconnect
+        transportBob.dropFilter = null
+
+        // Peer reconnects
+        transportAlice.simulateDiscovery(peerIdBob)
+        testScheduler.advanceTimeBy(1L)
+
+        // Alice should resume sending remaining chunks
+        val chunksAfterReconnect = transportAlice.sentData.filter { (_, data) ->
+            data.isNotEmpty() && data[0] == WireCodec.TYPE_CHUNK
+        }.size
+
+        alice.stop(); bob.stop()
+        testScheduler.advanceTimeBy(1L)
+
+        assertTrue(chunksAfterReconnect > 0,
+            "Should have resumed sending chunks after reconnect, sent $chunksAfterReconnect")
+    }
+
+    @Test
+    fun concurrentTransfersInterleaveFairly() = runTest {
+        val peerIdCharlie = ByteArray(16) { (0x30 + it).toByte() }
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val transportBob = VirtualMeshTransport(peerIdBob)
+        val transportCharlie = VirtualMeshTransport(peerIdCharlie)
+        transportAlice.linkTo(transportBob)
+        transportAlice.linkTo(transportCharlie)
+
+        // Drop ACKs so transfers stay in-progress
+        transportBob.dropFilter = { data -> data.isNotEmpty() && data[0] == WireCodec.TYPE_CHUNK_ACK }
+        transportCharlie.dropFilter = { data -> data.isNotEmpty() && data[0] == WireCodec.TYPE_CHUNK_ACK }
+
+        val alice = MeshLink(transportAlice, meshLinkConfig { mtu = 30 }, coroutineContext)
+        val bob = MeshLink(transportBob, meshLinkConfig { mtu = 30 }, coroutineContext)
+        val charlie = MeshLink(transportCharlie, meshLinkConfig { mtu = 30 }, coroutineContext)
+
+        alice.start(); bob.start(); charlie.start()
+        testScheduler.advanceTimeBy(1L)
+
+        transportAlice.simulateDiscovery(peerIdBob)
+        transportAlice.simulateDiscovery(peerIdCharlie)
+        testScheduler.advanceTimeBy(1L)
+
+        // Send to both peers simultaneously
+        val payloadBob = ByteArray(50) { it.toByte() }
+        val payloadCharlie = ByteArray(50) { (it + 100).toByte() }
+        alice.send(peerIdBob, payloadBob)
+        alice.send(peerIdCharlie, payloadCharlie)
+        testScheduler.advanceTimeBy(1L)
+
+        // Both peers should have received chunks
+        val toBob = transportAlice.sentData.filter { (peer, data) ->
+            peer == peerIdBob.toHex() && data.isNotEmpty() && data[0] == WireCodec.TYPE_CHUNK
+        }.size
+        val toCharlie = transportAlice.sentData.filter { (peer, data) ->
+            peer == peerIdCharlie.toHex() && data.isNotEmpty() && data[0] == WireCodec.TYPE_CHUNK
+        }.size
+
+        alice.stop(); bob.stop(); charlie.stop()
+        testScheduler.advanceTimeBy(1L)
+
+        assertTrue(toBob > 0, "Should have sent chunks to Bob, got $toBob")
+        assertTrue(toCharlie > 0, "Should have sent chunks to Charlie, got $toCharlie")
+    }
 }

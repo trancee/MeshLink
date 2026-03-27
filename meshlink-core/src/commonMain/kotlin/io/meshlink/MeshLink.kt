@@ -121,6 +121,16 @@ class MeshLink(
         }
     }
 
+    private fun resumeTransfers(peerId: ByteArray, s: CoroutineScope, eligibleKeys: Set<String>) {
+        val peerHex = peerId.toHex()
+        for (key in eligibleKeys) {
+            val transfer = outboundTransfers[key] ?: continue
+            if (transfer.recipient.toHex() == peerHex && !transfer.session.isComplete() && !transfer.session.isFailed()) {
+                sendChunks(s, key)
+            }
+        }
+    }
+
     private var started = false
     private var paused = false
     private var scope: CoroutineScope? = null
@@ -251,8 +261,11 @@ class MeshLink(
                             }
                         }
                     }
-                    // Flush buffered messages for this peer
+                    // Flush buffered messages and resume interrupted transfers
+                    val preExistingTransferKeys = outboundTransfers.keys.toSet()
                     flushPendingMessages(event.peerId.toHex(), newScope)
+                    // Resume interrupted transfers that existed before this discovery
+                    resumeTransfers(event.peerId, newScope, preExistingTransferKeys)
                 }
             }
         }
