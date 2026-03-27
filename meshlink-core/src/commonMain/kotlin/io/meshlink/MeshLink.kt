@@ -4,6 +4,7 @@ import io.meshlink.config.MeshLinkConfig
 import io.meshlink.crypto.CryptoKeyPair
 import io.meshlink.crypto.CryptoProvider
 import io.meshlink.crypto.NoiseKSealer
+import io.meshlink.crypto.PeerHandshakeManager
 import io.meshlink.crypto.ReplayGuard
 import io.meshlink.diagnostics.DiagnosticCode
 import io.meshlink.diagnostics.DiagnosticEvent
@@ -177,6 +178,11 @@ class MeshLink(
     private val broadcastKeyPair: CryptoKeyPair? = crypto?.generateEd25519KeyPair()
     override val broadcastPublicKey: ByteArray? get() = broadcastKeyPair?.publicKey
 
+    // Noise XX handshake manager for hop-by-hop encryption
+    private val handshakeManager: PeerHandshakeManager? = crypto?.let {
+        PeerHandshakeManager(it, crypto.generateX25519KeyPair())
+    }
+
     // Inbound rate limiting: per-sender message count within sliding window
     private val inboundRateCounts = mutableMapOf<String, MutableList<Long>>()
 
@@ -222,6 +228,16 @@ class MeshLink(
                     }
                     _peers.emit(PeerEvent.Discovered(event.peerId))
                     emitHealthUpdate()
+                    // Initiate Noise XX handshake if crypto enabled
+                    // Deterministic tie-breaking: lower peerId initiates
+                    if (handshakeManager != null && !handshakeManager.isComplete(event.peerId)) {
+                        if (transport.localPeerId.toHex() < event.peerId.toHex()) {
+                            val msg1 = handshakeManager.initiateHandshake(event.peerId)
+                            if (msg1 != null) {
+                                safeSend(event.peerId, msg1)
+                            }
+                        }
+                    }
                     // Flush buffered messages for this peer
                     flushPendingMessages(event.peerId.toHex(), newScope)
                 }
@@ -699,6 +715,7 @@ class MeshLink(
         if (data.isEmpty()) return
         try {
             when (data[0]) {
+                WireCodec.TYPE_HANDSHAKE -> handleHandshake(fromPeerId, data)
                 WireCodec.TYPE_CHUNK -> handleChunk(fromPeerId, data)
                 WireCodec.TYPE_CHUNK_ACK -> handleChunkAck(data)
                 WireCodec.TYPE_BROADCAST -> handleBroadcast(fromPeerId, data)
@@ -709,6 +726,14 @@ class MeshLink(
         } catch (e: Exception) {
             diagnosticSink.emit(DiagnosticCode.MALFORMED_DATA, Severity.WARN,
                 "type=0x${data[0].toUByte().toString(16)}, size=${data.size}, error=${e.message}")
+        }
+    }
+
+    private suspend fun handleHandshake(fromPeerId: ByteArray, data: ByteArray) {
+        val mgr = handshakeManager ?: return
+        val response = mgr.handleIncoming(fromPeerId, data)
+        if (response != null) {
+            safeSend(fromPeerId, response)
         }
     }
 

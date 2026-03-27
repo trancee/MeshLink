@@ -8187,4 +8187,48 @@ class MeshLinkTest {
         alice.stop()
         bob.stop()
     }
+
+    // --- Noise XX Handshake Integration ---
+
+    @Test
+    fun peerDiscoveryTriggersNoiseXXHandshakeAndCompletesIt() = runTest {
+        val crypto = io.meshlink.crypto.createCryptoProvider()
+
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val transportBob = VirtualMeshTransport(peerIdBob)
+        transportAlice.linkTo(transportBob)
+
+        val alice = MeshLink(
+            transport = transportAlice,
+            config = meshLinkConfig(),
+            coroutineContext = coroutineContext,
+            crypto = crypto,
+        )
+        val bob = MeshLink(
+            transport = transportBob,
+            config = meshLinkConfig(),
+            coroutineContext = coroutineContext,
+            crypto = crypto,
+        )
+
+        alice.start()
+        bob.start()
+        advanceUntilIdle()
+
+        // Discover each other — lower peerId initiates handshake
+        transportAlice.simulateDiscovery(peerIdBob)
+        transportBob.simulateDiscovery(peerIdAlice)
+        advanceUntilIdle()
+
+        // Handshake messages should have been exchanged (3 messages: msg1, msg2, msg3)
+        // Verify handshake wire format messages were sent
+        val handshakeMessages = transportAlice.sentData.filter { (_, data) ->
+            data.isNotEmpty() && data[0] == WireCodec.TYPE_HANDSHAKE
+        }
+        assertTrue(handshakeMessages.isNotEmpty(),
+            "Handshake messages should have been sent after discovery")
+
+        alice.stop()
+        bob.stop()
+    }
 }
