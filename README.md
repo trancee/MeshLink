@@ -138,28 +138,102 @@ MeshLink/
 
 ## Building
 
+### Prerequisites
+
+- **Java 21** (e.g., Zulu, Temurin)
+- **Gradle 9.4+** (wrapper included)
+- **Android SDK** with `compileSdk 35` (for Android target)
+- **Xcode 15+** (for iOS/macOS targets, macOS only)
+
+### Library
+
 ```bash
-# Run all JVM tests
+# Run all JVM tests (891 tests)
 ./gradlew :meshlink:jvmTest
 
-# Compile Android release
+# Compile Android AAR
 ./gradlew :meshlink:compileReleaseKotlinAndroid
 
-# Run iOS simulator tests
+# Run iOS simulator tests (requires macOS + Xcode)
 ./gradlew :meshlink:iosSimulatorArm64Test
-
-# Run JVM sample app
-./gradlew :meshlink-sample:jvm:run
 
 # Run macOS tests
 ./gradlew :meshlink:macosArm64Test
 
-# Compile Linux sample (cross-compile from macOS)
-./gradlew :meshlink-sample:linux:compileKotlinLinuxX64
+# Compile Linux targets (cross-compiles from macOS)
+./gradlew :meshlink:compileKotlinLinuxX64
+./gradlew :meshlink:compileKotlinLinuxArm64
 
-# Build XCFramework for SPM (iOS + macOS)
+# Build XCFramework for Swift Package Manager (iOS + macOS)
 ./gradlew :meshlink:assembleMeshLinkXCFramework
 ```
+
+### Sample Apps
+
+#### JVM (console)
+
+```bash
+./gradlew :meshlink-sample:jvm:run
+```
+
+#### Android (Jetpack Compose)
+
+```bash
+# Build debug APK
+./gradlew :meshlink-sample:android:assembleDebug
+
+# APK location:
+# meshlink-sample/android/build/outputs/apk/debug/android-debug.apk
+```
+
+Install with `adb install` and grant Bluetooth + Location permissions.
+
+#### iOS (SwiftUI)
+
+```bash
+# 1. Build the XCFramework
+./gradlew :meshlink:assembleMeshLinkXCFramework
+
+# 2. Open in Xcode
+#    - Create a new iOS App project
+#    - Add the MeshLink SPM package (File → Add Package Dependencies → local repo)
+#    - Copy files from meshlink-sample/ios/MeshLinkSample/ into your project
+#    - Run on simulator or device
+```
+
+See [meshlink-sample/ios/README.md](meshlink-sample/ios/README.md) for detailed setup.
+
+#### macOS (SwiftUI)
+
+```bash
+# 1. Build the XCFramework (same as iOS — includes macOS slice)
+./gradlew :meshlink:assembleMeshLinkXCFramework
+
+# 2. Open in Xcode
+#    - Create a new macOS App project
+#    - Add the MeshLink SPM package (local repo)
+#    - Copy files from meshlink-sample/macos/MeshLinkSample/ into your project
+#    - Run (⌘R)
+```
+
+See [meshlink-sample/macos/README.md](meshlink-sample/macos/README.md) for details.
+
+#### Linux (console, native)
+
+```bash
+# Cross-compile from macOS
+./gradlew :meshlink-sample:linux:linkReleaseExecutableLinuxX64
+./gradlew :meshlink-sample:linux:linkReleaseExecutableLinuxArm64
+
+# Executable locations:
+# meshlink-sample/linux/build/bin/linuxX64/releaseExecutable/linux.kexe
+# meshlink-sample/linux/build/bin/linuxArm64/releaseExecutable/linux.kexe
+
+# Copy to target Linux machine and run:
+# ./linux.kexe
+```
+
+To use real BLE hardware on Linux, edit `Main.kt` to use `LinuxBleTransport` instead of `DemoTransport`. Requires `CAP_NET_RAW` or root.
 
 ## CI
 
