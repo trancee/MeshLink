@@ -2,8 +2,10 @@ package io.meshlink.util
 
 import platform.Foundation.NSRecursiveLock
 
-actual class PlatformLock actual constructor() {
+private class IosPlatformLock : PlatformLock {
     private val lock = NSRecursiveLock()
-    actual fun lock() = lock.lock()
-    actual fun unlock() = lock.unlock()
+    override fun lock() = lock.lock()
+    override fun unlock() = lock.unlock()
 }
+
+actual fun createPlatformLock(): PlatformLock = IosPlatformLock()

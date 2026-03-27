@@ -30,7 +30,7 @@ import io.meshlink.util.AppIdFilter
 import io.meshlink.util.CircuitBreaker
 import io.meshlink.util.DeliveryOutcome
 import io.meshlink.util.DeliveryTracker
-import io.meshlink.util.PlatformLock
+import io.meshlink.util.createPlatformLock
 import io.meshlink.util.RateLimiter
 import io.meshlink.util.withLock
 import io.meshlink.util.hexToBytes
@@ -65,7 +65,7 @@ class MeshLink(
 ) : MeshLinkApi {
 
     private val clock = clock
-    private val sendLock = PlatformLock()
+    private val sendLock = createPlatformLock()
 
     private val rateLimiter: RateLimiter? =
         if (config.rateLimitMaxSends > 0) RateLimiter(config.rateLimitMaxSends, config.rateLimitWindowMs, clock) else null

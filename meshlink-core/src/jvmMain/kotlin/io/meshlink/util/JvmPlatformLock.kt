@@ -2,8 +2,10 @@ package io.meshlink.util
 
 import java.util.concurrent.locks.ReentrantLock
 
-actual class PlatformLock actual constructor() {
+private class JvmPlatformLock : PlatformLock {
     private val lock = ReentrantLock()
-    actual fun lock() = lock.lock()
-    actual fun unlock() = lock.unlock()
+    override fun lock() = lock.lock()
+    override fun unlock() = lock.unlock()
 }
+
+actual fun createPlatformLock(): PlatformLock = JvmPlatformLock()
