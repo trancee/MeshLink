@@ -29,6 +29,8 @@ data class MeshLinkConfig(
     val l2capRetryAttempts: Int = 3,
     val chunkInactivityTimeoutMs: Long = 30_000L,
     val bufferTtlMs: Long = 300_000L,
+    val triggeredUpdateThreshold: Double = 0.3,
+    val triggeredUpdateBatchMs: Long = 100L,
 ) {
     fun validate(): List<String> {
         val violations = mutableListOf<String>()
@@ -96,6 +98,8 @@ class MeshLinkConfigBuilder(
     var l2capRetryAttempts: Int = 3,
     var chunkInactivityTimeoutMs: Long = 30_000L,
     var bufferTtlMs: Long = 300_000L,
+    var triggeredUpdateThreshold: Double = 0.3,
+    var triggeredUpdateBatchMs: Long = 100L,
 ) {
 
     fun build(): MeshLinkConfig = MeshLinkConfig(
@@ -125,5 +129,7 @@ class MeshLinkConfigBuilder(
         l2capRetryAttempts = l2capRetryAttempts,
         chunkInactivityTimeoutMs = chunkInactivityTimeoutMs,
         bufferTtlMs = bufferTtlMs,
+        triggeredUpdateThreshold = triggeredUpdateThreshold,
+        triggeredUpdateBatchMs = triggeredUpdateBatchMs,
     )
 }

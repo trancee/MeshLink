@@ -2318,7 +2318,7 @@ class MeshLinkTest {
     // --- Batch 5 Cycle 1: Diagnostic sink overflow ---
 
     @Test
-    fun diagnosticSinkOverflowReportsDroppedCount() = runTest {
+    fun diagnosticSinkOverflowDropsOldestEvents() = runTest {
         val transportAlice = VirtualMeshTransport(peerIdAlice)
         val alice = MeshLink(
             transportAlice, meshLinkConfig {
@@ -2338,10 +2338,10 @@ class MeshLinkTest {
         }
 
         val events = alice.drainDiagnostics()
-        // Buffer holds 3 events: the last 3 of 5 (first 2 dropped)
+        // Buffer holds at most 3 events (oldest dropped by SharedFlow's DROP_OLDEST)
         assertEquals(3, events.size, "Should have exactly 3 events (buffer capacity)")
-        // The first event in the drained buffer should carry the dropped count
-        assertTrue(events.any { it.droppedCount > 0 }, "At least one event should report dropped count")
+        // With SharedFlow, droppedCount is always 0 — overflow is handled transparently
+        assertTrue(events.all { it.droppedCount == 0 }, "droppedCount should be 0 (SharedFlow handles overflow)")
 
         alice.stop()
     }
@@ -8664,5 +8664,208 @@ class MeshLinkTest {
         }
         assertTrue(hasPoisonReverse,
             "Old next-hop (Bob) should receive cost=∞ for destination after next-hop changes to Charlie")
+    }
+
+    // ── Triggered gossip update tests ──────────────────────────────────────────
+
+    @Test
+    fun test_triggered_update_on_significant_cost_change() = runTest {
+        // A ↔ B ↔ C topology. When B tells A about a >30% cost change, A should
+        // fire a triggered gossip update to its peers before the periodic interval.
+        val transportA = VirtualMeshTransport(peerIdAlice)
+        val transportB = VirtualMeshTransport(peerIdBob)
+        val charlieId = ByteArray(16) { (0x30 + it).toByte() }
+        val transportC = VirtualMeshTransport(charlieId)
+        transportA.linkTo(transportB)
+
+        // Long gossip interval so periodic gossip won't fire during the test window
+        val config = meshLinkConfig {
+            gossipIntervalMs = 10_000L
+            triggeredUpdateBatchMs = 50L
+        }
+        val a = MeshLink(transportA, config, coroutineContext)
+        val b = MeshLink(transportB, config, coroutineContext)
+
+        a.start(); b.start()
+        testScheduler.advanceTimeBy(1L)
+
+        // Discover peers
+        transportA.simulateDiscovery(peerIdBob)
+        transportB.simulateDiscovery(peerIdAlice)
+        testScheduler.advanceTimeBy(1L)
+
+        val bobHex = peerIdBob.toList().joinToString("") { "%02x".format(it) }
+        val charlieHex = charlieId.toList().joinToString("") { "%02x".format(it) }
+
+        // A learns route to Charlie via B with cost 5
+        val entry1 = RouteUpdateEntry(
+            destination = charlieId,
+            cost = 5.0,
+            sequenceNumber = 1u,
+            hopCount = 1u,
+        )
+        val update1 = WireCodec.encodeRouteUpdate(peerIdBob, listOf(entry1))
+        transportA.receiveData(peerIdBob, update1)
+        testScheduler.advanceTimeBy(1L)
+
+        // Clear sent data to only capture triggered updates
+        transportA.sentData.clear()
+
+        // B sends A a route update with cost changed by >30% (5 → 10, 100% change)
+        val entry2 = RouteUpdateEntry(
+            destination = charlieId,
+            cost = 10.0,
+            sequenceNumber = 2u,
+            hopCount = 1u,
+        )
+        val update2 = WireCodec.encodeRouteUpdate(peerIdBob, listOf(entry2))
+        transportA.receiveData(peerIdBob, update2)
+        testScheduler.advanceTimeBy(1L)
+
+        // Advance past the batch window but well before the periodic gossip interval
+        testScheduler.advanceTimeBy(200L)
+
+        val routeUpdates = transportA.sentData.filter { (_, data) ->
+            data.isNotEmpty() && data[0] == WireCodec.TYPE_ROUTE_UPDATE
+        }
+
+        a.stop(); b.stop()
+        testScheduler.advanceTimeBy(1L)
+
+        assertTrue(routeUpdates.isNotEmpty(),
+            "Significant cost change (>30%) should trigger early gossip update")
+    }
+
+    @Test
+    fun test_no_triggered_update_on_small_cost_change() = runTest {
+        val transportA = VirtualMeshTransport(peerIdAlice)
+        val transportB = VirtualMeshTransport(peerIdBob)
+        transportA.linkTo(transportB)
+
+        // Long gossip interval so periodic gossip won't fire during the test window
+        val config = meshLinkConfig {
+            gossipIntervalMs = 10_000L
+            triggeredUpdateBatchMs = 50L
+        }
+        val a = MeshLink(transportA, config, coroutineContext)
+
+        a.start()
+        testScheduler.advanceTimeBy(1L)
+
+        transportA.simulateDiscovery(peerIdBob)
+        testScheduler.advanceTimeBy(1L)
+
+        val charlieId = ByteArray(16) { (0x30 + it).toByte() }
+
+        // A learns route to Charlie via Bob with cost 10
+        val entry1 = RouteUpdateEntry(
+            destination = charlieId,
+            cost = 10.0,
+            sequenceNumber = 1u,
+            hopCount = 1u,
+        )
+        val update1 = WireCodec.encodeRouteUpdate(peerIdBob, listOf(entry1))
+        transportA.receiveData(peerIdBob, update1)
+        testScheduler.advanceTimeBy(1L)
+
+        // Wait for the initial triggered update (new route is significant) to complete
+        testScheduler.advanceTimeBy(200L)
+
+        // Clear sent data so we only capture updates from the small cost change
+        transportA.sentData.clear()
+
+        // B sends a small cost change: 10 → 11 (10% change, below 30% threshold)
+        val entry2 = RouteUpdateEntry(
+            destination = charlieId,
+            cost = 11.0,
+            sequenceNumber = 2u,
+            hopCount = 1u,
+        )
+        val update2 = WireCodec.encodeRouteUpdate(peerIdBob, listOf(entry2))
+        transportA.receiveData(peerIdBob, update2)
+        testScheduler.advanceTimeBy(1L)
+
+        // Advance past the batch window but well before periodic gossip
+        testScheduler.advanceTimeBy(500L)
+
+        val routeUpdates = transportA.sentData.filter { (_, data) ->
+            data.isNotEmpty() && data[0] == WireCodec.TYPE_ROUTE_UPDATE
+        }
+
+        a.stop()
+        testScheduler.advanceTimeBy(1L)
+
+        assertTrue(routeUpdates.isEmpty(),
+            "Small cost change (<30%) should NOT trigger early gossip update")
+    }
+
+    @Test
+    fun test_triggered_update_rate_limited() = runTest {
+        val transportA = VirtualMeshTransport(peerIdAlice)
+        val transportB = VirtualMeshTransport(peerIdBob)
+        transportA.linkTo(transportB)
+
+        // gossipIntervalMs=10_000 means at most 1 triggered update per 10s per neighbor
+        val config = meshLinkConfig {
+            gossipIntervalMs = 10_000L
+            triggeredUpdateBatchMs = 50L
+        }
+        val a = MeshLink(transportA, config, coroutineContext)
+
+        a.start()
+        testScheduler.advanceTimeBy(1L)
+
+        transportA.simulateDiscovery(peerIdBob)
+        testScheduler.advanceTimeBy(1L)
+
+        val charlieId = ByteArray(16) { (0x30 + it).toByte() }
+
+        // First significant cost change: new route (null → 5)
+        val entry1 = RouteUpdateEntry(
+            destination = charlieId,
+            cost = 5.0,
+            sequenceNumber = 1u,
+            hopCount = 1u,
+        )
+        val update1 = WireCodec.encodeRouteUpdate(peerIdBob, listOf(entry1))
+        transportA.receiveData(peerIdBob, update1)
+        testScheduler.advanceTimeBy(1L)
+
+        // Wait for first triggered update to complete
+        testScheduler.advanceTimeBy(200L)
+
+        // Record how many route updates were sent after first trigger
+        val countAfterFirst = transportA.sentData.count { (_, data) ->
+            data.isNotEmpty() && data[0] == WireCodec.TYPE_ROUTE_UPDATE
+        }
+
+        // Clear and send another significant cost change
+        transportA.sentData.clear()
+        val entry2 = RouteUpdateEntry(
+            destination = charlieId,
+            cost = 50.0,
+            sequenceNumber = 3u,
+            hopCount = 1u,
+        )
+        val update2 = WireCodec.encodeRouteUpdate(peerIdBob, listOf(entry2))
+        transportA.receiveData(peerIdBob, update2)
+        testScheduler.advanceTimeBy(1L)
+
+        // Advance past batch window but within the same gossip interval
+        testScheduler.advanceTimeBy(200L)
+
+        val countAfterSecond = transportA.sentData.count { (_, data) ->
+            data.isNotEmpty() && data[0] == WireCodec.TYPE_ROUTE_UPDATE
+        }
+
+        a.stop()
+        testScheduler.advanceTimeBy(1L)
+
+        // First triggered update should have sent at least one route update
+        assertTrue(countAfterFirst > 0,
+            "First triggered update should send route updates")
+        // Second triggered update within the same gossip interval should be rate-limited
+        assertEquals(0, countAfterSecond,
+            "Second triggered update within the same gossip interval should be rate-limited (per-neighbor)")
     }
 }

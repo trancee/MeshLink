@@ -40,6 +40,7 @@ import io.meshlink.wire.RouteUpdateEntry
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -48,6 +49,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.uuid.ExperimentalUuidApi
@@ -169,6 +171,12 @@ class MeshLink(
     // Track previous next-hop per destination for poison reverse
     private val previousNextHop = mutableMapOf<String, String>()
 
+    // Triggered gossip update signal channel (buffered to coalesce rapid changes)
+    private val triggeredUpdateChannel = Channel<Unit>(Channel.CONFLATED)
+
+    // Per-neighbor rate limit: last triggered update timestamp per peer hex
+    private val lastTriggeredUpdateTime = mutableMapOf<String, Long>()
+
     // Reverse path for delivery ACK relay: messageId hex → fromPeerId
     private val routedMsgSources = mutableMapOf<String, ByteArray>()
 
@@ -286,12 +294,20 @@ class MeshLink(
         }
 
         // Gossip route exchange: periodically broadcast route table to connected peers
+        // Also listens for triggered update signals to fire early gossip on significant route changes
         if (config.gossipIntervalMs > 0) {
             newScope.launch {
                 while (started) {
-                    delay(effectiveGossipInterval())
+                    val triggered = withTimeoutOrNull(effectiveGossipInterval()) {
+                        triggeredUpdateChannel.receive()
+                    }
                     if (!started) break
-                    broadcastRouteUpdate()
+                    if (triggered != null) {
+                        // Batch triggered updates: wait a short window to coalesce rapid changes
+                        delay(config.triggeredUpdateBatchMs)
+                        if (!started) break
+                    }
+                    broadcastRouteUpdate(isTriggered = triggered != null)
                 }
             }
         }
@@ -341,6 +357,7 @@ class MeshLink(
         dedup.clear()
         routingTable.clear()
         pendingMessages.clear()
+        lastTriggeredUpdateTime.clear()
     }
 
     override fun pause() {
@@ -389,9 +406,12 @@ class MeshLink(
 
     override fun drainDiagnostics(): List<DiagnosticEvent> {
         val events = mutableListOf<DiagnosticEvent>()
+        @Suppress("DEPRECATION")
         diagnosticSink.drainTo(events)
         return events
     }
+
+    override val diagnosticEvents: Flow<DiagnosticEvent> = diagnosticSink.events
 
     override fun sweep(seenPeers: Set<String>): Set<String> {
         val evicted = presenceTracker.sweep(seenPeers)
@@ -419,6 +439,18 @@ class MeshLink(
             "BALANCED" -> routeMultiplied * 2
             else -> routeMultiplied
         }
+    }
+
+    private fun isSignificantCostChange(oldCost: Double?, newCost: Double?): Boolean {
+        // New route appeared or route withdrawn
+        if (oldCost == null && newCost != null) return true
+        if (oldCost != null && newCost == null) return true
+        if (oldCost == null || newCost == null) return false
+        // Withdrawal (MAX_VALUE) is always significant
+        if (newCost == Double.MAX_VALUE || oldCost == Double.MAX_VALUE) return true
+        if (oldCost == 0.0) return newCost > 0.0
+        val ratio = kotlin.math.abs(newCost - oldCost) / oldCost
+        return ratio > config.triggeredUpdateThreshold
     }
 
     override fun sweepStaleTransfers(maxAgeMs: Long): Int {
@@ -714,13 +746,23 @@ class MeshLink(
         }
     }
 
-    private suspend fun broadcastRouteUpdate() {
+    private suspend fun broadcastRouteUpdate(isTriggered: Boolean = false) {
         val connectedPeers = presenceTracker.connectedPeerIds()
         if (connectedPeers.isEmpty()) return
 
         val allRoutes = routingTable.allBestRoutes()
+        val now = clock()
 
         for (peerHex in connectedPeers) {
+            // Per-neighbor rate limit: skip if this is a triggered update and
+            // we already sent a triggered update to this peer within the gossip interval
+            if (isTriggered) {
+                val lastSent = lastTriggeredUpdateTime[peerHex]
+                if (lastSent != null && (now - lastSent) < effectiveGossipInterval()) {
+                    continue
+                }
+            }
+
             val entries = allRoutes.mapNotNull { route ->
                 if (route.nextHop == peerHex) {
                     // Split horizon: don't advertise a route back to its next-hop
@@ -753,6 +795,10 @@ class MeshLink(
             }
             val peerId = hexToBytes(peerHex)
             safeSend(peerId, updateData)
+
+            if (isTriggered) {
+                lastTriggeredUpdateTime[peerHex] = now
+            }
         }
 
         diagnosticSink.emit(DiagnosticCode.GOSSIP_TRAFFIC_REPORT, Severity.INFO,
@@ -812,6 +858,7 @@ class MeshLink(
             }
         }
         val senderHex = fromPeerId.toHex()
+        var significantChange = false
         for (entry in update.entries) {
             val destHex = entry.destination.toHex()
             // Don't learn routes to ourselves
@@ -824,6 +871,13 @@ class MeshLink(
                 diagnosticSink.emit(DiagnosticCode.ROUTE_CHANGED, Severity.INFO,
                     "dest=$destHex, oldNextHop=${oldBest.nextHop}, newNextHop=${newBest.nextHop}, oldCost=${oldBest.cost}, newCost=${newBest.cost}")
             }
+            // Detect significant cost changes for triggered updates
+            if (!significantChange) {
+                significantChange = isSignificantCostChange(oldBest?.cost, newBest?.cost)
+            }
+        }
+        if (significantChange && config.gossipIntervalMs > 0) {
+            triggeredUpdateChannel.trySend(Unit)
         }
     }
 
