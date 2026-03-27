@@ -372,7 +372,24 @@ class MeshLink(
 
     override fun stop() {
         started = false
+        // Cancel all delivery deadline timers before processing in-flight transfers
         deliveryDeadlineTimer.cancelAll()
+        // Emit DELIVERY_TIMEOUT for all in-flight transfers before clearing
+        for ((key, _) in outboundTransfers) {
+            val outcome = deliveryTracker.recordOutcome(key, DeliveryOutcome.FAILED_DELIVERY_TIMEOUT)
+            if (outcome != null) {
+                tombstoneSet.add(key)
+                _transferFailures.tryEmit(
+                    TransferFailure(Uuid.fromByteArray(hexToBytes(key)), DeliveryOutcome.FAILED_DELIVERY_TIMEOUT)
+                )
+            }
+        }
+        // Emit DELIVERY_TIMEOUT for queued paused messages that were never sent
+        for ((_, _) in pauseQueue) {
+            _transferFailures.tryEmit(
+                TransferFailure(Uuid.random(), DeliveryOutcome.FAILED_DELIVERY_TIMEOUT)
+            )
+        }
         clearState()
         scope?.cancel()
         scope = null

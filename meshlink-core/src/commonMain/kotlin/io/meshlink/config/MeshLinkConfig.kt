@@ -55,7 +55,7 @@ data class MeshLinkConfig(
             violations.add("powerModeThresholds must be strictly descending: [${powerModeThresholds.joinToString()}]")
         }
         if (l2capEnabled && l2capRetryAttempts < 0) violations.add("l2capRetryAttempts ($l2capRetryAttempts) must be >= 0 when l2capEnabled is true")
-        if (chunkInactivityTimeoutMs >= bufferTtlMs) violations.add("chunkInactivityTimeoutMs ($chunkInactivityTimeoutMs) must be < bufferTtlMs ($bufferTtlMs)")
+        if (bufferTtlMs > 0 && chunkInactivityTimeoutMs >= bufferTtlMs) violations.add("chunkInactivityTimeoutMs ($chunkInactivityTimeoutMs) must be < bufferTtlMs ($bufferTtlMs)")
         return violations
     }
 

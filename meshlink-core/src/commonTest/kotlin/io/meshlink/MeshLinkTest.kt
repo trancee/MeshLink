@@ -1883,7 +1883,7 @@ class MeshLinkTest {
         transportBob.dropFilter = { data -> data.isNotEmpty() && data[0] == WireCodec.TYPE_CHUNK_ACK }
         transportCharlie.dropFilter = { data -> data.isNotEmpty() && data[0] == WireCodec.TYPE_CHUNK_ACK }
 
-        val alice = MeshLink(transportAlice, meshLinkConfig(), coroutineContext)
+        val alice = MeshLink(transportAlice, meshLinkConfig { bufferTtlMs = 0L; keepaliveIntervalMs = 0L }, coroutineContext)
         alice.start()
         advanceUntilIdle()
         transportAlice.simulateDiscovery(peerIdBob)
@@ -2253,7 +2253,7 @@ class MeshLinkTest {
         // Drop all ACKs so transfer never completes
         transportBob.dropFilter = { data -> data.isNotEmpty() && data[0] == WireCodec.TYPE_CHUNK_ACK }
 
-        val alice = MeshLink(transportAlice, meshLinkConfig(), coroutineContext)
+        val alice = MeshLink(transportAlice, meshLinkConfig { bufferTtlMs = 0L; keepaliveIntervalMs = 0L }, coroutineContext)
         alice.start()
         advanceUntilIdle()
         transportAlice.simulateDiscovery(peerIdBob)
@@ -2484,7 +2484,7 @@ class MeshLinkTest {
         transportAlice.dropFilter = { data -> data.isNotEmpty() && data[0] == WireCodec.TYPE_CHUNK_ACK }
 
         // Small buffer so we hit pressure quickly
-        val config = meshLinkConfig { bufferCapacity = 200; maxMessageSize = 200 }
+        val config = meshLinkConfig { bufferCapacity = 200; maxMessageSize = 200; bufferTtlMs = 0L; keepaliveIntervalMs = 0L }
         val alice = MeshLink(transportAlice, config, coroutineContext)
         alice.start()
         advanceUntilIdle()
@@ -2753,7 +2753,7 @@ class MeshLinkTest {
         // Buffer capacity = 1000 bytes
         val alice = MeshLink(
             transportAlice,
-            meshLinkConfig { bufferCapacity = 1000; maxMessageSize = 1000 },
+            meshLinkConfig { bufferCapacity = 1000; maxMessageSize = 1000; bufferTtlMs = 0L; keepaliveIntervalMs = 0L },
             coroutineContext,
         )
         alice.start()
@@ -3325,7 +3325,7 @@ class MeshLinkTest {
         transportAlice.dropFilter = { _ -> true }
 
         var nowMs = 0L
-        val alice = MeshLink(transportAlice, meshLinkConfig(), coroutineContext, clock = { nowMs })
+        val alice = MeshLink(transportAlice, meshLinkConfig { bufferTtlMs = 0L; keepaliveIntervalMs = 0L }, coroutineContext, clock = { nowMs })
         alice.start()
         advanceUntilIdle()
         transportAlice.simulateDiscovery(peerIdBob)
@@ -3633,6 +3633,7 @@ class MeshLinkTest {
             mtu = 185
             maxMessageSize = 1024
             bufferCapacity = 2048
+            bufferTtlMs = 0L; keepaliveIntervalMs = 0L
         }
         val transportA = VirtualMeshTransport(peerIdAlice)
         val transportB = VirtualMeshTransport(peerIdBob)
@@ -5283,7 +5284,7 @@ class MeshLinkTest {
         transportA.linkTo(transportB)
         // Don't link B→A so chunk ACKs never arrive
         var nowMs = 0L
-        val alice = MeshLink(transportA, meshLinkConfig { }, coroutineContext, clock = { nowMs })
+        val alice = MeshLink(transportA, meshLinkConfig { bufferTtlMs = 0L; keepaliveIntervalMs = 0L }, coroutineContext, clock = { nowMs })
         alice.start()
         advanceUntilIdle()
 
@@ -5852,6 +5853,7 @@ class MeshLinkTest {
             bufferCapacity = 100
             maxMessageSize = 100
             mtu = 100
+            bufferTtlMs = 0L; keepaliveIntervalMs = 0L
         }
         val alice = MeshLink(transportA, config, coroutineContext)
         alice.start()
@@ -5942,7 +5944,7 @@ class MeshLinkTest {
     @Test
     fun stopEmitsFailureForPausedMessages() = runTest {
         val transportA = VirtualMeshTransport(peerIdAlice)
-        val alice = MeshLink(transportA, meshLinkConfig(), coroutineContext)
+        val alice = MeshLink(transportA, meshLinkConfig { bufferTtlMs = 0L; keepaliveIntervalMs = 0L }, coroutineContext)
         alice.start()
         advanceUntilIdle()
 
@@ -6163,6 +6165,7 @@ class MeshLinkTest {
             maxMessageSize = 200
             bufferCapacity = 500
             mtu = 185
+            bufferTtlMs = 0L; keepaliveIntervalMs = 0L
         }
         val alice = MeshLink(transportA, config, coroutineContext)
         alice.start()
@@ -6771,7 +6774,7 @@ class MeshLinkTest {
         transportA.linkTo(transportB)
         // Drop chunk ACKs so transfer stays in-flight
         transportB.dropFilter = { data -> data[0] == WireCodec.TYPE_CHUNK_ACK }
-        val alice = MeshLink(transportA, meshLinkConfig(), coroutineContext, clock = { now })
+        val alice = MeshLink(transportA, meshLinkConfig { bufferTtlMs = 0L; keepaliveIntervalMs = 0L }, coroutineContext, clock = { now })
         alice.start()
         advanceUntilIdle()
         transportA.simulateDiscovery(peerIdBob)
@@ -6829,7 +6832,7 @@ class MeshLinkTest {
         transportA.linkTo(transportB)
         // Drop ALL chunk ACKs so transfer stays in-flight forever
         transportB.dropFilter = { data -> data[0] == WireCodec.TYPE_CHUNK_ACK }
-        val alice = MeshLink(transportA, meshLinkConfig(), coroutineContext, clock = { now })
+        val alice = MeshLink(transportA, meshLinkConfig { bufferTtlMs = 0L; keepaliveIntervalMs = 0L }, coroutineContext, clock = { now })
         alice.start()
         advanceUntilIdle()
         transportA.simulateDiscovery(peerIdBob)
@@ -7745,7 +7748,7 @@ class MeshLinkTest {
         val alice = MeshLink(
             transportA,
             meshLinkConfig {
-                mtu = 22; maxMessageSize = 23; bufferCapacity = 25
+                mtu = 22; maxMessageSize = 23; bufferCapacity = 25; bufferTtlMs = 0L; keepaliveIntervalMs = 0L
             },
             coroutineContext,
         )
@@ -7777,7 +7780,7 @@ class MeshLinkTest {
         transportA.linkTo(transportB)
         // Drop ALL chunk ACKs so transfer stays forever in-flight
         transportB.dropFilter = { data -> data[0] == WireCodec.TYPE_CHUNK_ACK }
-        val alice = MeshLink(transportA, meshLinkConfig { mtu = 50 }, coroutineContext, clock = { now })
+        val alice = MeshLink(transportA, meshLinkConfig { mtu = 50; bufferTtlMs = 0L; keepaliveIntervalMs = 0L }, coroutineContext, clock = { now })
         alice.start()
         advanceUntilIdle()
         transportA.simulateDiscovery(peerIdBob)
