@@ -1,3 +1,5 @@
+@file:JvmName("BatteryMonitorAndroid")
+
 package io.meshlink.power
 
 import android.content.Context

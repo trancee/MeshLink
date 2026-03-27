@@ -91,7 +91,7 @@ class IosBleTransport(
 ) : BleTransport {
 
     companion object {
-        private const val TAG = "IosBleTransport"
+        private const val TAG = "BleTransport"
         private const val PEER_TIMEOUT_MS = 10_000L
         private const val PEER_SWEEP_INTERVAL_MS = 3_000L
         private const val USER_DEFAULTS_PEER_ID_KEY = "io.meshlink.localPeerId"

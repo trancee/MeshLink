@@ -4,7 +4,7 @@ import kotlinx.coroutines.flow.Flow
 
 /**
  * System boundary abstraction for BLE hardware.
- * Production: AndroidBleTransport / iOSBleTransport.
+ * Production: AndroidBleTransport (androidMain) / IosBleTransport (iosMain).
  * Tests: VirtualMeshTransport.
  */
 interface BleTransport {

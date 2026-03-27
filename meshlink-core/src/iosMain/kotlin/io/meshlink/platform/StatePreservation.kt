@@ -14,7 +14,7 @@ import io.meshlink.util.currentTimeMillis
  * **Security rule:** after restoration we never trust old Noise session state.
  * Every restored peer must complete a fresh Noise XX handshake.
  */
-class IosStatePreservation(
+class StatePreservation(
     private val clock: () -> Long = { currentTimeMillis() },
 ) {
     /**

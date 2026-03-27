@@ -3,7 +3,7 @@ package io.meshlink.transport
 /**
  * Android-specific BLE constants for MeshLink transport.
  */
-object AndroidBleConstants {
+object BleConstants {
 
     // --- Scanning ---
 

@@ -82,7 +82,7 @@ class AndroidBleTransport(
     private val controlNotifyUuid = UUID.fromString(GattConstants.CONTROL_NOTIFY_UUID)
     private val dataWriteUuid = UUID.fromString(GattConstants.DATA_WRITE_UUID)
     private val dataNotifyUuid = UUID.fromString(GattConstants.DATA_NOTIFY_UUID)
-    private val cccdUuid = UUID.fromString(AndroidBleConstants.CCCD_UUID)
+    private val cccdUuid = UUID.fromString(BleConstants.CCCD_UUID)
 
     // --- Peer tracking ---
 
@@ -142,17 +142,17 @@ class AndroidBleTransport(
 
     private fun loadOrGenerateLocalPeerId(): ByteArray {
         val prefs = context.getSharedPreferences(
-            AndroidBleConstants.PREFS_NAME,
+            BleConstants.PREFS_NAME,
             Context.MODE_PRIVATE,
         )
-        val existing = prefs.getString(AndroidBleConstants.PREFS_KEY_LOCAL_PEER_ID, null)
+        val existing = prefs.getString(BleConstants.PREFS_KEY_LOCAL_PEER_ID, null)
         if (existing != null) {
             return hexToBytes(existing)
         }
-        val newId = ByteArray(AndroidBleConstants.LOCAL_PEER_ID_LENGTH)
+        val newId = ByteArray(BleConstants.LOCAL_PEER_ID_LENGTH)
         SecureRandom().nextBytes(newId)
         prefs.edit()
-            .putString(AndroidBleConstants.PREFS_KEY_LOCAL_PEER_ID, bytesToHex(newId))
+            .putString(BleConstants.PREFS_KEY_LOCAL_PEER_ID, bytesToHex(newId))
             .apply()
         return newId
     }
@@ -166,9 +166,9 @@ class AndroidBleTransport(
         advertiser = adv
 
         val settings = AdvertiseSettings.Builder()
-            .setAdvertiseMode(AndroidBleConstants.ADVERTISE_MODE)
-            .setTxPowerLevel(AndroidBleConstants.ADVERTISE_TX_POWER)
-            .setConnectable(AndroidBleConstants.ADVERTISE_CONNECTABLE)
+            .setAdvertiseMode(BleConstants.ADVERTISE_MODE)
+            .setTxPowerLevel(BleConstants.ADVERTISE_TX_POWER)
+            .setConnectable(BleConstants.ADVERTISE_CONNECTABLE)
             .build()
 
         val data = AdvertiseData.Builder()
@@ -199,8 +199,8 @@ class AndroidBleTransport(
         scanner = sc
 
         val settings = ScanSettings.Builder()
-            .setScanMode(AndroidBleConstants.SCAN_MODE)
-            .setReportDelay(AndroidBleConstants.SCAN_REPORT_DELAY_MS)
+            .setScanMode(BleConstants.SCAN_MODE)
+            .setReportDelay(BleConstants.SCAN_REPORT_DELAY_MS)
             .build()
 
         val filter = ScanFilter.Builder()
@@ -249,10 +249,10 @@ class AndroidBleTransport(
     private fun startPeerTimeoutMonitor(scope: CoroutineScope) {
         scope.launch {
             while (isActive) {
-                delay(AndroidBleConstants.PEER_TIMEOUT_CHECK_INTERVAL_MS)
+                delay(BleConstants.PEER_TIMEOUT_CHECK_INTERVAL_MS)
                 val now = System.currentTimeMillis()
                 val timedOut = peerLastSeen.entries.filter { (_, lastSeen) ->
-                    now - lastSeen > AndroidBleConstants.PEER_LOST_TIMEOUT_MS
+                    now - lastSeen > BleConstants.PEER_LOST_TIMEOUT_MS
                 }
                 for ((address, _) in timedOut) {
                     peerLastSeen.remove(address)
@@ -418,7 +418,7 @@ class AndroidBleTransport(
                 }
                 when (newState) {
                     BluetoothProfile.STATE_CONNECTED -> {
-                        gatt.requestMtu(AndroidBleConstants.PREFERRED_MTU)
+                        gatt.requestMtu(BleConstants.PREFERRED_MTU)
                     }
                     BluetoothProfile.STATE_DISCONNECTED -> {
                         activeConnections.remove(address)
@@ -469,7 +469,7 @@ class AndroidBleTransport(
 
         device.connectGatt(context, false, callback, BluetoothDevice.TRANSPORT_LE)
 
-        return withTimeout(AndroidBleConstants.GATT_CONNECTION_TIMEOUT_MS) {
+        return withTimeout(BleConstants.GATT_CONNECTION_TIMEOUT_MS) {
             servicesReady.await()
         }
     }
@@ -496,7 +496,7 @@ class AndroidBleTransport(
             throw BleTransportException("Write initiation failed for $address")
         }
 
-        withTimeout(AndroidBleConstants.GATT_WRITE_TIMEOUT_MS) {
+        withTimeout(BleConstants.GATT_WRITE_TIMEOUT_MS) {
             writeDeferred.await()
         }
     }

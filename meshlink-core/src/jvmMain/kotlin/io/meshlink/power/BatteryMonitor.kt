@@ -1,3 +1,5 @@
+@file:JvmName("BatteryMonitorJvm")
+
 package io.meshlink.power
 
 private class JvmBatteryMonitor : BatteryMonitor {

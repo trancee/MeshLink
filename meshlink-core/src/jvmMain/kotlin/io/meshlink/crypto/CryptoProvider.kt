@@ -1,3 +1,5 @@
+@file:JvmName("CryptoProviderJvm")
+
 package io.meshlink.crypto
 
 import java.security.KeyFactory

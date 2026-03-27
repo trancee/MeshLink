@@ -72,7 +72,7 @@ class PureKotlinCryptoProviderTest {
     @Test
     fun crossProviderAeadInterop() {
         // Verify pure Kotlin and JVM providers produce interoperable AEAD
-        val jvm = createCryptoProvider() // JvmCryptoProvider on JVM test target
+        val jvm = createCryptoProvider() // JvmCryptoProvider on JVM, platform provider on other targets
         val key = ByteArray(32) { (it * 3).toByte() }
         val nonce = ByteArray(12) { (it + 1).toByte() }
         val plaintext = "cross-provider test".encodeToByteArray()

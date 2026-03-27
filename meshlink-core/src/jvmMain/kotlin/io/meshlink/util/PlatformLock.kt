@@ -1,11 +1,13 @@
+@file:JvmName("PlatformLockJvm")
+
 package io.meshlink.util
 
 import java.util.concurrent.locks.ReentrantLock
 
-private class AndroidPlatformLock : PlatformLock {
+private class JvmPlatformLock : PlatformLock {
     private val lock = ReentrantLock()
     override fun lock() = lock.lock()
     override fun unlock() = lock.unlock()
 }
 
-actual fun createPlatformLock(): PlatformLock = AndroidPlatformLock()
+actual fun createPlatformLock(): PlatformLock = JvmPlatformLock()
