@@ -112,7 +112,11 @@ Establish the shared protocol spec and project scaffolding before writing any pl
     - **Channel capacities:** Connection=128, Crypto/Transfer=64, Router/Buffer=32, Presence/Gossip=16
     - **Topology:** DAG-ordered unidirectional message flow; `MeshLinkEngine` factory creates actors in topological order via constructor injection
   - Platform-specific dispatchers for BLE callbacks (Android: coroutine dispatcher; iOS: Kotlin/Native freeze-safe dispatching into actors)
-- **Crypto dependencies:** `ionspin/kotlin-multiplatform-libsodium` for primitives (Curve25519, Ed25519, ChaCha20-Poly1305). Noise Protocol state machine (XX + K patterns) implemented in `commonMain` as shared Kotlin code on top of libsodium primitives.
+- **Crypto dependencies:** Native platform crypto: Java 21 JCA (JVM/Android API 33+), pure Kotlin Ed25519/X25519 (Android API 26-32), CryptoKit (iOS). Specifics:
+  - **JVM:** Java 21 built-in crypto (Ed25519, X25519, ChaCha20-Poly1305, SHA-256, HKDF via HMAC)
+  - **Android API 26-32:** Pure Kotlin Ed25519/X25519 fallback in `commonMain`
+  - **iOS:** CryptoKit via Kotlin/Native interop
+  Noise Protocol state machine (XX + K patterns) implemented in `commonMain` as shared Kotlin code on top of platform crypto primitives (ChaCha20-Poly1305, Ed25519, X25519, SHA-256).
 - **Virtual Mesh Simulator scaffolding:** `VirtualMesh` class in `commonTest`, creating N simulated peers in-process, with configurable per-link parameters (latency, packet loss, connection drops, MTU, L2CAP support toggle, RSSI, power mode). All `BleTransport` calls route through the virtual mesh.
 - **VirtualMesh phased simulation fidelity:**
   - Phase 0–1: Configurable latency, packet loss, topology, MTU negotiation, connection limits
@@ -260,11 +264,11 @@ sequenceDiagram
 
 ### 2.2 Noise XX Handshake (Hop-by-Hop)
 
-Implement Noise XX (hop-by-hop) and Noise K (E2E) using libsodium primitives.
+Implement Noise XX (hop-by-hop) and Noise K (E2E) using platform crypto primitives.
 
 ### 2.3 Noise K Encryption (End-to-End)
 
-- Implement `Noise_K_25519_ChaChaPoly_BLAKE2b` one-shot encryption
+- Implement `Noise_K_25519_ChaChaPoly_SHA256` one-shot encryption
 - Sender generates ephemeral Curve25519 keypair per message, encrypts payload with recipient's static key
 - Produces `SealedMessage` = ephemeral pubkey + ciphertext (sealed payload layout: `[8B counter | 1B flags | N bytes data]`)
 - **Sender authentication built into Noise K** — no separate Ed25519 signature needed (saves 64 bytes vs. Noise N + signature)
@@ -577,7 +581,7 @@ Expose the mesh transport as a clean library API with messaging semantics.
 - `test_config_struct_swift`: create MeshLinkConfig with custom values → verify start() uses them
 - `test_config_presets`: verify `chatOptimized()`, `fileTransferOptimized()`, `powerOptimized()` return correct default overrides; verify individual overrides applied after preset
 - `test_quickstart_snippet_compiles`: copy-paste Kotlin quickstart into a test class → verify it compiles and runs against VirtualMesh
-- `test_crypto_init_failed_bad_libsodium`: mock libsodium init to return failure → call start() → verify Result.Failure(cryptoInitFailed) + fatalError diagnostic
+- `test_crypto_init_failed`: mock platform crypto init to return failure → call start() → verify Result.Failure(cryptoInitFailed) + fatalError diagnostic
 - `test_key_storage_failure_retries`: mock Keychain/SharedPrefs to fail 2× then succeed → verify start() succeeds after 2 retries + logged diagnostics
 - `test_key_storage_failure_exhausted`: mock storage to fail 3× → verify fatalError(retryable: true) + Result.Failure(keyStorageFailed)
 - `test_state_machine_transitions`: verify complete 6-state machine: start() valid from {uninitialized, stopped, recoverable}; pause() from {running}; resume() from {paused}; stop() always no-op safe; all other transitions → IllegalStateException
@@ -589,13 +593,13 @@ Expose the mesh transport as a clean library API with messaging semantics.
 - `test_flow_subscription_replay`: discover 3 peers → subscribe to .peers → verify subscriber receives all 3 current peers then incremental updates. Verify subscription is race-free with concurrent peer eviction.
 - `test_diagnostic_shared_buffer`: subscribe 2 collectors to .diagnostics → slow-block one collector → emit 300 events → verify fast collector loses old events (shared buffer DROP_OLDEST affects all)
 - `test_pause_power_eviction`: establish 5 connections in Performance mode → pause() → trigger power downgrade to Balanced (limit=3) → verify 2 connections evicted during pause + onPeerLost fires → resume() → verify scan restarts
-- `test_fatal_error_dual_signal_contract`: mock libsodium init to fail → call start() → capture Result.Failure(cryptoInitFailed) AND verify fatalError diagnostic emitted on .diagnostics in same event cycle → verify neither signal suppresses the other
+- `test_fatal_error_dual_signal_contract`: mock platform crypto init to fail → call start() → capture Result.Failure(cryptoInitFailed) AND verify fatalError diagnostic emitted on .diagnostics in same event cycle → verify neither signal suppresses the other
 - `test_relay_opaque_forwarding_unknown_type`: create VirtualMesh with v1 relay between two endpoints → send routed_message wrapping unknown inner type (0x08) → verify v1 relay forwards opaquely without dropping → verify destination drops with UNKNOWN_MESSAGE_TYPE diagnostic
 - `test_flow_peers_replay`: subscribe to `.peers` after peers exist → receive replay of current peers; subscribe to `.messages` after messages sent → receive nothing (forward-only)
 - `test_send_fifo_per_thread`: call send() 10 times from single thread → verify messages dispatched in FIFO order to TransferActor
 - `test_send_buffer_full_immediate`: fill buffer → call send() → verify immediate Result.Failure(bufferFull), non-blocking
 - `test_mesh_health_on_demand_fresh`: call meshHealth() → verify snapshot reflects current state (not cached). Modify state → call again → verify snapshot updated
-- `test_app_id_blake2b_hash`: configure `appId = "com.test.app"` via MeshLinkConfig → verify wire format contains BLAKE2b-128 hash, not raw string. Verify non-matching appId hash silently dropped at recipient.
+- `test_app_id_sha256_hash`: configure `appId = "com.test.app"` via MeshLinkConfig → verify wire format contains SHA-256-128 hash, not raw string. Verify non-matching appId hash silently dropped at recipient.
 - `test_rate_limit_control_exempt`: flood node with 100 chunk_acks in 1 minute from same sender → verify none rate-limited (control-plane exempt)
 - `test_api_misuse_diagnostic`: call send() with oversized payload 10 times consecutively → verify API_MISUSE(send, messageTooLarge, 5) diagnostic emitted once at 5th call → send 5 more → verify second API_MISUSE emitted at 10th call (counter reset after first emission)
 - `test_transfer_failed_context`: send to unknown peer with no route → verify onTransferFailed includes failureContext=NO_ROUTE; send to peer beyond maxHops → verify failureContext=HOP_LIMIT; send when buffer full → verify failureContext=BUFFER_FULL

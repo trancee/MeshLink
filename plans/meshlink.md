@@ -10,8 +10,8 @@ Durable decisions that apply across all phases:
 - **Concurrency model**: Actor-based. 7 actors (ConnectionActor, CryptoActor, TransferActor, RouterActor, GossipActor, PresenceActor, BufferActor) with bounded typed Kotlin Channels. Strict DAG ordering — downstream actors never send to upstream. Reverse communication via `CompletableDeferred` only. Tiered circuit breaker supervision (Strict/Standard/Lenient).
 - **Wire format**: Custom binary protocol. All multi-byte fields unsigned little-endian. 1-byte message type prefix (0x00–0x07, 0x08–0xFF reserved). No protobuf, no TLV. Any wire change requires protocol version bump.
 - **GATT service**: Single service UUID `0x7F3A` with 4 characteristics (Control Write/Notify for handshake+gossip; Data Write/Notify for chunks). Control uses write-with-response; Data uses write-without-response.
-- **Advertisement format**: Frozen 17-byte payload (1B version+power, 16B BLAKE2b-128 key hash). Permanent across all protocol versions.
-- **Encryption**: Two-tier. Noise K (`Noise_K_25519_ChaChaPoly_BLAKE2b`) for E2E. Noise XX (`Noise_XX_25519_ChaChaPoly_BLAKE2b`) for hop-by-hop. Crypto primitives via `ionspin/kotlin-multiplatform-libsodium`.
+- **Advertisement format**: Frozen 17-byte payload (1B version+power, 16B SHA-256-128 key hash). Permanent across all protocol versions.
+- **Encryption**: Two-tier. Noise K (`Noise_K_25519_ChaChaPoly_SHA256`) for E2E. Noise XX (`Noise_XX_25519_ChaChaPoly_SHA256`) for hop-by-hop. Native platform crypto: Java 21 JCA (JVM/Android), CryptoKit (iOS), pure Kotlin Ed25519/X25519 fallback for Android API 26-32.
 - **Identity**: Static Ed25519 keypair generated on first launch. Curve25519 derived via birational map. Public key IS the identity. One key = one device. Keys excluded from platform backup.
 - **Secure storage**: Android `EncryptedSharedPreferences` (backed by Keystore). iOS Keychain with `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`.
 - **Transport abstraction**: `BleTransport` expect/actual interface. Production: `AndroidBleTransport` / `iOSBleTransport`. Tests: `VirtualMeshTransport`.
@@ -152,7 +152,7 @@ Implement presence detection: advertisement-based with per-peer adaptive timeout
 
 Implement BufferActor: fixed 1MB pool with 75/25 relay/own split, 3-tier eviction, in-memory dedup set (10K entries, LRU), store-and-forward with configurable TTL, cut-through relay forwarding with local buffer copy.
 
-Implement routed message forwarding: `routed_message` (0x05) wire format with visited-list loop prevention (BLAKE2b-128 key hashes). Hop limit enforcement. Relay decrypt → re-encrypt (hop-by-hop Noise XX). Relay-is-also-destination handling for direct messages vs. broadcasts.
+Implement routed message forwarding: `routed_message` (0x05) wire format with visited-list loop prevention (SHA-256-128 key hashes). Hop limit enforcement. Relay decrypt → re-encrypt (hop-by-hop Noise XX). Relay-is-also-destination handling for direct messages vs. broadcasts.
 
 ### Acceptance criteria
 
@@ -191,7 +191,7 @@ Complete TOFI: add `softRepin` mode (auto-accept new key). Implement `rotateIden
 
 Implement delivery ACKs: `delivery_ack` (0x06) wire format with recipient Ed25519 signature. Reverse-path unicast routing (2 attempts × 2s timeout). Strict single-signal rule: exactly one terminal callback per messageId (`onDeliveryConfirmed` or `onTransferFailed`). Late ACK tombstoning.
 
-Implement appId topic filtering: `BLAKE2b-128(appId.toUTF8())` hash in sealed payload flags. Recipient-side silent drop for non-matching appId. Relays forward all messages regardless of appId.
+Implement appId topic filtering: `SHA-256-128(appId.toUTF8())` hash in sealed payload flags. Recipient-side silent drop for non-matching appId. Relays forward all messages regardless of appId.
 
 Implement `onTransferFailed` with `failureContext` (NO_ROUTE, HOP_LIMIT, ACK_TIMEOUT, BUFFER_FULL, PEER_OFFLINE). Delivery deadline fires `DELIVERY_TIMEOUT` at `bufferTTL`.
 

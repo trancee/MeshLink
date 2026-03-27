@@ -100,7 +100,7 @@ stateDiagram-v2
 |------|-----------|-----------------|
 | **Backup Exclusion** | Identity keys are explicitly excluded from platform backup (iOS: `ThisDeviceOnly` Keychain attribute; Android: backup exclusion rules). New device = new identity, always. | Backup restore, key migration |
 | **Identity** | A static Ed25519 keypair generated on first launch — the Ed25519 public key IS the identity. A Curve25519 keypair is derived from it via the **Birational Map** for use in Noise handshakes. | Account, user, profile |
-| **Key Hash** | The 16-byte BLAKE2b-128 of a **Peer's** Curve25519 **Public Key** (derived from Ed25519 **Identity**), carried in the **Advertisement** and **Visited List**. | Fingerprint, peer hash, identity hash |
+| **Key Hash** | The 16-byte SHA-256-128 (truncated SHA-256) of a **Peer's** Curve25519 **Public Key** (derived from Ed25519 **Identity**), carried in the **Advertisement** and **Visited List**. | Fingerprint, peer hash, identity hash |
 | **Key Pinning** | Associating a discovered **Public Key** with a **Peer** identity on first contact (**TOFI**). Strict mode (default): reject changed keys, require explicit `repinKey()`. Soft re-pin mode: silently accept new keys. Both emit `onKeyChanged`. | Trusting, remembering |
 | **Keychain Accessibility Requirement** | iOS: MeshLink keys use `kSecAttrAccessibleAfterFirstUnlock` — available in background after first device unlock post-reboot. Keys are unavailable before first unlock. | Keychain protection, key accessibility |
 | **Public Key** | The Ed25519 public key that uniquely identifies a **Peer** on the mesh. The corresponding Curve25519 public key (for Noise handshakes) is derived deterministically. | Address, ID, peer ID |
@@ -248,8 +248,8 @@ flowchart TD
 | Term | Definition | Aliases to avoid |
 |------|-----------|-----------------|
 | **Birational Map** | RFC 8032 conversion between Ed25519 (Edwards) and Curve25519 (Montgomery) keys. MeshLink derives Curve25519 from Ed25519 (the well-supported direction). One keypair, two uses. | Key conversion, curve mapping |
-| **E2E Encryption** | The Noise K (`Noise_K_25519_ChaChaPoly_BLAKE2b`) one-shot encryption layer protecting **Payload** from sender to final recipient. Noise K provides built-in sender authentication (recipient must know sender's static key via **Gossip**). | Inner encryption, message encryption |
-| **Hop-by-Hop Encryption** | The Noise XX (`Noise_XX_25519_ChaChaPoly_BLAKE2b`) session encryption layer protecting all data between adjacent **Neighbors**. | Outer encryption, transport encryption, link encryption |
+| **E2E Encryption** | The Noise K (`Noise_K_25519_ChaChaPoly_SHA256`) one-shot encryption layer protecting **Payload** from sender to final recipient. Noise K provides built-in sender authentication (recipient must know sender's static key via **Gossip**). | Inner encryption, message encryption |
+| **Hop-by-Hop Encryption** | The Noise XX (`Noise_XX_25519_ChaChaPoly_SHA256`) session encryption layer protecting all data between adjacent **Neighbors**. | Outer encryption, transport encryption, link encryption |
 | **Hop-by-Hop Re-encryption** | The per-**Chunk** (or per-**L2CAP Framing** unit) operation at a **Relay**: decrypt from inbound **Noise XX Session**, re-encrypt under outbound **Noise XX Session**. On **L2CAP CoC**, each framed message is an independent encryption unit. | Re-wrapping, transit encryption |
 | **Key Rotation** | Generating a new **Identity** keypair via `rotateIdentity()`, signing the announcement with the old key, and gossiping both old+new keys to all reachable **Peers**. API: `suspend fun rotateIdentity(): Result<PublicKey>` — returns new key after gossip announcement sent. **TOFI** auto-accepts signed rotations in both `strict` and `softRepin` modes. v1: single-device identity only. | Identity rotation, re-keying |
 | **Noise XX Session** | The authenticated encrypted transport channel established via Noise XX handshake between two **Neighbors** on a GATT connection. | Transport session, encrypted channel |
@@ -326,8 +326,8 @@ mindmap
 | **Routing Table** | The local data structure mapping each known **Peer** to the best **Neighbor** (next-hop) for forwarding, built from **Peer Announcements** via Enhanced DSDV. Stores primary + backup routes. | Forwarding table, route map |
 | **Split Horizon** | Routes are NOT advertised back to the **Neighbor** they were learned from during **Gossip**. Combined with **Poison Reverse** to prevent count-to-infinity. | Reverse filtering |
 | **Triggered Update** | An immediate **Gossip** exchange sent when a significant topology change is detected (new **Neighbor**, **Presence Eviction**, large **Route Cost** change), rather than waiting for the next **Gossip Interval**. Rate-limited to 1 per **Gossip Interval** per **Neighbor**. | Event-driven update, instant gossip |
-| **Visited List** | The list of 16-byte **BLAKE2b-128 Key Hashes** of every **Peer** that has forwarded a **Routed Message**, used for loop prevention. 64 bytes max at 4 hops. | Visited node list, path list |
-| **Visited List Loop Diagnostic** | `VISITED_LIST_LOOP_DETECTED` diagnostic emitted when a message is dropped due to visited-list match. Carries `{messageId, matchedHash, hopCount}`. BLAKE2b-128 collision probability is ~N²/2¹²⁸ — negligible for meshes ≤10,000 peers; no mitigation implemented. | Loop warning, collision alert |
+| **Visited List** | The list of 16-byte **SHA-256-128 Key Hashes** of every **Peer** that has forwarded a **Routed Message**, used for loop prevention. 64 bytes max at 4 hops. | Visited node list, path list |
+| **Visited List Loop Diagnostic** | `VISITED_LIST_LOOP_DETECTED` diagnostic emitted when a message is dropped due to visited-list match. Carries `{messageId, matchedHash, hopCount}`. SHA-256-128 collision probability is ~N²/2¹²⁸ — negligible for meshes ≤10,000 peers; no mitigation implemented. | Loop warning, collision alert |
 
 ## Deduplication & Buffering
 
@@ -434,7 +434,7 @@ mindmap
 | **Crash Recovery State Table** | Defines which state survives unexpected termination: **Identity**, **Replay Counters**, TOFI pins fully restored; **Dedup Set** lost (in-memory only in v1); **Routing Table**, **Transfers**, **Buffers** rebuilt/lost. | Recovery matrix, persistence table |
 | **CryptoActor** | The **Actor** owning **Noise XX Sessions**, Noise K seal/unseal, and **Replay Counter** management. | Crypto engine |
 | **DAG Ordering** | The strict directed acyclic graph governing inter-**Actor** message flow. Prevents deadlocks by ensuring no bidirectional direct messaging between actors. | Message flow, deadlock prevention |
-| **fatalError** | Unrecoverable library error triggered by actor circuit breaker, libsodium init failure, or key storage failure. `retryable` flag indicates whether `start()` can be re-attempted. → see design.md §11. | Fatal crash, library panic |
+| **fatalError** | Unrecoverable library error triggered by actor circuit breaker, platform crypto init failure, or key storage failure. `retryable` flag indicates whether `start()` can be re-attempted. → see design.md §11. | Fatal crash, library panic |
 | **GossipActor** | The **Actor** owning the **Gossip** timer, differential exchange, **Triggered Updates**, and **Split Horizon**. | Gossip engine |
 | **Monotonic Time** | Uptime-based clock (monotonic, not wall-clock) used for **Dedup Set** expiry, **Buffer** TTL, **Replay Counter** eviction age, and **circuit breaker** sliding window. Resets to zero on device reboot; never affected by NTP corrections. `System.nanoTime()` (Android) / `ProcessInfo.systemUptime` (iOS). | Uptime clock, elapsed time |
 | **PresenceActor** | The **Actor** owning scanner results, **Sweep Timer**, peer table, and **Presence Eviction**. | Presence manager |
@@ -447,8 +447,8 @@ mindmap
 
 | Term | Definition | Aliases to avoid |
 |------|-----------|-----------------|
-| **App Filter Hash** | BLAKE2b-128 hash of the developer-provided appId string. 16 bytes fixed size in the wire format. Zero hash = no filter. NOT included in BLE advertisement; filtering is recipient-side only. | App ID hash, filter hash |
-| **appId** | Immutable config parameter (`BLAKE2b-128` hash in wire format). Inbound messages with non-matching hash silently dropped; relays forward regardless. → see design.md §11. | setAppFilter, app filter, topic filter |
+| **App Filter Hash** | SHA-256-128 hash of the developer-provided appId string. 16 bytes fixed size in the wire format. Zero hash = no filter. NOT included in BLE advertisement; filtering is recipient-side only. | App ID hash, filter hash |
+| **appId** | Immutable config parameter (`SHA-256-128` hash in wire format). Inbound messages with non-matching hash silently dropped; relays forward regardless. → see design.md §11. | setAppFilter, app filter, topic filter |
 | **Backward Compatibility (Protocol)** | Each major protocol version MUST accept connections from the previous major version and speak the older protocol (downgrade). Prevents mesh partitioning during rollout. | Version downgrade, protocol compat |
 | **BLE Connection Parameters** | The BLE connection interval, slave latency, and supervision timeout. MeshLink **requests** optimal values per activity state (active transfer: 15ms/0; idle: 100ms/4) but the OS makes the final decision. Actual negotiated values logged via **Diagnostic Stream**. | Connection interval, BLE params |
 | **Config Validation** | Two-phase: per-field bounds at assignment, cross-field rules at build. Returns all violations at once. Config immutable after construction. 7 cross-field rules in v1, extensible. | Validation, bounds checking |

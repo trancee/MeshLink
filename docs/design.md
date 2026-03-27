@@ -15,7 +15,7 @@ A **reference app** ships alongside the library to demonstrate integration patte
 - **iOS:** Swift Package Manager (SPM) via GitHub release tags. CocoaPods as secondary option.
 - **Minimum platform versions:** Android API 26 (Android 8.0 — BLE advertising APIs), iOS 14 (stable L2CAP CoC + modern CoreBluetooth APIs).
 - **Release cadence:** Semantic versioning. Releases on feature completion, not on schedule. Patch releases for security/critical bugs.
-- **Android packaging:** AAR ships with **consumer ProGuard rules** (keeps libsodium JNI bindings, public API surface, and Kotlin serialization metadata). Apps using R8 do not need custom keep rules for MeshLink.
+- **Android packaging:** AAR ships with **consumer ProGuard rules** (keeps public API surface and Kotlin serialization metadata). Apps using R8 do not need custom keep rules for MeshLink.
 - **Observability:** The `.diagnostics` Flow is the **sole observability surface**. No built-in crash reporting adapter — apps pipe diagnostics to their own crash reporter. The library never installs global crash/exception handlers. **Zero console output in release builds.** Debug builds may enable verbose logging via compile-time `MESHLINK_DEBUG` flag.
 - **Binary size and cold-start:** No premature targets. After Phase 1, **measure baseline** (AAR size, `start()` latency) and add a **CI regression gate** (size must not increase >10% per release without justification).
 
@@ -48,7 +48,7 @@ ios/                       ← Platform-specific (~7%)
   └── storage/             ← Keychain key storage
 ```
 
-**Crypto library strategy:** Crypto primitives (Curve25519, Ed25519, ChaCha20-Poly1305) use `ionspin/kotlin-multiplatform-libsodium` — a production KMP wrapper around native libsodium. The Noise Protocol state machine (XX + K patterns) is implemented in shared Kotlin code on top of these primitives (~500-800 lines).
+**Crypto library strategy:** Crypto primitives (Curve25519, Ed25519, ChaCha20-Poly1305, SHA-256) use **platform-native crypto** — no third-party crypto dependencies. JVM/Desktop: Java 21 built-in (Ed25519, X25519, ChaCha20-Poly1305, SHA-256). Android API 33+: Java native. Android API 26–32: pure Kotlin Ed25519/X25519 fallback (JCA lacks these before API 31/33), with JCA for ChaCha20-Poly1305 and SHA-256. iOS: CryptoKit via Kotlin/Native interop (Curve25519.Signing, Curve25519.KeyAgreement, ChaChaPoly, SHA256, HKDF). The Noise Protocol state machine (XX + K patterns) is implemented in shared Kotlin code on top of these primitives (~500-800 lines).
 
 **Reference app:** Built with **Compose Multiplatform** — a single codebase for both Android and iOS. Compose Multiplatform UI for iOS is Beta as of 2026, which is acceptable for a development/testing tool. **Three screens:**
 1. **Chat screen** (demo mode) — send/receive text messages to discovered peers. Demonstrates `send()`, `.messages`, `.peers` integration patterns.
@@ -156,7 +156,7 @@ flowchart TD
   | 16 | 32 bytes | Destination public key (Ed25519) |
   | 48 | 1 byte | Hop count (current) |
   | 49 | 1 byte | Visited node count (V) |
-  | 50 | V × 16 bytes | Visited node list (16-byte BLAKE2b-128 key hashes, max `maxHops` entries) |
+  | 50 | V × 16 bytes | Visited node list (16-byte SHA-256-128 key hashes, max `maxHops` entries) |
   | 50 + V×16 | 2 bytes | Chunk sequence number (uint16, little-endian) |
   | 52 + V×16 | 4 bytes | Total ciphertext length (uint32, LE; **first chunk only**, seq=0. Omitted for seq>0, reducing per-chunk overhead by 4 bytes.) |
   | 56 + V×16 | C bytes | Chunk payload (E2E ciphertext fragment; for seq>0, payload starts at offset 52 + V×16) |
@@ -884,9 +884,9 @@ When a new route is discovered via Gossip, it is **not immediately advertised** 
 
 Each routed message carries a **visited node list** — the public key (or truncated hash) of every node that has forwarded this message. A node that sees itself in the visited list drops the message. **Relay processing sequence:** (1) receive message, (2) check visited list for own hash → if present, DROP (loop detected), (3) **add own hash** to visited list, (4) look up next-hop in routing table, (5) forward message with updated visited list. The relay adds its hash **before forwarding** — this ensures the next relay sees the current relay in the visited list, preventing loops via asymmetric return paths. The dedup set handles concurrent multipath copies arriving at the same relay simultaneously.
 
-The visited list uses **16-byte BLAKE2b-128 key hashes** (truncated Curve25519 public key digests) rather than full 32-byte public keys. At 4 hops max, this costs **64 bytes** (4 × 16 bytes). Collision risk at 128 bits is negligible for any practical mesh size (birthday bound at ~2^64, vastly exceeding any realistic number of mesh devices). The hop counter provides a secondary backstop.
+The visited list uses **16-byte SHA-256-128 key hashes** (SHA-256 truncated to 128 bits of Curve25519 public key digests) rather than full 32-byte public keys. At 4 hops max, this costs **64 bytes** (4 × 16 bytes). Collision risk at 128 bits is negligible for any practical mesh size (birthday bound at ~2^64, vastly exceeding any realistic number of mesh devices). The hop counter provides a secondary backstop.
 
-**Hash collision risk:** BLAKE2b-128 collision probability is ~N²/2¹²⁸, negligible for meshes ≤10,000 peers. No mitigation implemented. A `VISITED_LIST_LOOP_DETECTED` diagnostic is emitted whenever a message is dropped due to visited-list match, carrying `{messageId, matchedHash, hopCount}` for forensic analysis.
+**Hash collision risk:** SHA-256-128 collision probability is ~N²/2¹²⁸, negligible for meshes ≤10,000 peers. No mitigation implemented. A `VISITED_LIST_LOOP_DETECTED` diagnostic is emitted whenever a message is dropped due to visited-list match, carrying `{messageId, matchedHash, hopCount}` for forensic analysis.
 
 **Origin node visited list:** The origin sender transmits with `visited_count=0` — it does not add itself to the visited list. The origin's identity is already encoded in the `sender` field of the routed_message envelope. The first relay receives V=0, adds its own hash (V=1), and forwards. This saves 16 bytes on single-hop messages.
 
@@ -1009,15 +1009,15 @@ MeshLink uses two distinct encryption layers to secure messages over multi-hop r
 
 | Layer | Scheme | Purpose | Scope |
 |-------|--------|---------|-------|
-| **End-to-end (E2E)** | Noise K (`Noise_K_25519_ChaChaPoly_BLAKE2b`) | Encrypt payload so only the final recipient can read it; authenticates sender | Sender → Recipient |
-| **Hop-by-hop** | Noise XX (`Noise_XX_25519_ChaChaPoly_BLAKE2b`) | Encrypt transport between adjacent mesh nodes | Node → Adjacent Node |
+| **End-to-end (E2E)** | Noise K (`Noise_K_25519_ChaChaPoly_SHA256`) | Encrypt payload so only the final recipient can read it; authenticates sender | Sender → Recipient |
+| **Hop-by-hop** | Noise XX (`Noise_XX_25519_ChaChaPoly_SHA256`) | Encrypt transport between adjacent mesh nodes | Node → Adjacent Node |
 
 ### E2E Layer: Noise K (One-Shot, 0-RTT, Sender-Authenticated)
 
 The sender knows the recipient's static Curve25519 public key (distributed via gossip). Using the **Noise K pattern** (sender = initiator), the sender:
 1. Generates an ephemeral Curve25519 keypair (`e`)
 2. Computes DH(e, rs) + DH(s, rs) where `rs` = recipient's static Curve25519 key, `s` = sender's static Curve25519 key
-3. Derives a symmetric key from the DH outputs via the Noise KDF chain (HKDF with BLAKE2b)
+3. Derives a symmetric key from the DH outputs via the Noise KDF chain (HKDF with SHA-256)
 4. Encrypts the sealed payload with ChaCha20-Poly1305 using the derived key
 5. Output: `ephemeral_pubkey(32 bytes) + ciphertext(N + 16 bytes AEAD tag)`
 
@@ -1043,7 +1043,7 @@ The recipient decrypts by: loading the sender's static Curve25519 key from the p
 |--------|------|-------|
 | 0 | 8 bytes | Replay counter (uint64, little-endian) |
 | 8 | 1 byte | Flags (bit 0: appId present, bits 1–7: reserved (must be 0; receivers MUST silently ignore non-zero reserved bits for forward compatibility)) |
-| 9 | 0 or 16 bytes | App ID hash (`BLAKE2b-128(appId.toUTF8())`; present only when flags bit 0 = 1) |
+| 9 | 0 or 16 bytes | App ID hash (`SHA-256-128(appId.toUTF8())`; present only when flags bit 0 = 1) |
 | 9 or 25 | N bytes | Message data (plaintext) |
 
 The sender's identity is authenticated by the Noise K handshake itself — no explicit public key or signature in the payload. This saves 96 bytes per message compared to the Noise N + signature approach.
@@ -1084,9 +1084,9 @@ flowchart LR
 
 ### Hop-by-Hop Layer: Noise XX
 
-Uses `Noise_XX_25519_ChaChaPoly_BLAKE2b` for mutual authentication with session-level forward secrecy between adjacent nodes.
+Uses `Noise_XX_25519_ChaChaPoly_SHA256` for mutual authentication with session-level forward secrecy between adjacent nodes.
 
-**Hash function choice:** BLAKE2b (not BLAKE2s): native to libsodium, faster on 64-bit ARM, zero custom code required.
+**Hash function choice:** SHA-256: hardware-accelerated on all modern ARM64 devices via ARM Crypto Extensions (2–5 GB/s), natively available on all target platforms (Java JCA, Android, iOS CryptoKit), and provides equivalent security at 128-bit truncation for identifier purposes. No third-party crypto library required.
 
 Each BLE GATT connection between two mesh nodes follows a strict **connection establishment sequence** before the link is usable:
 
@@ -1166,7 +1166,7 @@ A malicious relay node could record and replay a `RoutedMessage` envelope. To pr
 
 This creates **defense-in-depth**: replay counter (primary) + dedup set (backup). Both must fail simultaneously for a duplicate to reach the consuming app after a crash.
 
-**Timing side-channel analysis:** All cryptographic operations (Curve25519 DH, ChaCha20-Poly1305 AEAD) use libsodium's constant-time implementations. BLE transport jitter (~5ms) makes sub-microsecond timing attacks on peer table lookups impractical. No additional constant-time mitigations are required for v1. Revisit if a lower-jitter transport (Wi-Fi Direct) is added post-v1.
+**Timing side-channel analysis:** All cryptographic operations (Curve25519 DH, ChaCha20-Poly1305 AEAD) use platform crypto constant-time implementations (Java JCA for JVM/Android, iOS CryptoKit for iOS). The pure Kotlin Ed25519/X25519 fallback (Android API 26–32) uses constant-time field arithmetic. BLE transport jitter (~5ms) makes sub-microsecond timing attacks on peer table lookups impractical. No additional constant-time mitigations are required for v1. Revisit if a lower-jitter transport (Wi-Fi Direct) is added post-v1.
 
 **Physical tamper resistance:** Physical device compromise (flash memory access, counter reset) is outside the threat model. An attacker with physical access can extract the Ed25519 private key, making counter manipulation redundant. Apps requiring tamper resistance should use hardware-backed keystores (Android StrongBox, iOS Secure Enclave) for identity storage — MeshLink supports this via the platform secure storage abstraction.
 
@@ -1218,7 +1218,7 @@ Signed gossip (§4) prevents key forgery but does not prevent relay nodes from m
 
 ### Identity
 
-**Decision:** Static Ed25519 keypair generated on first launch. The Ed25519 public key IS the identity. A Curve25519 keypair is derived from the Ed25519 key (via the standard birational map, as implemented by libsodium) for use in Noise protocol handshakes.
+**Decision:** Static Ed25519 keypair generated on first launch. The Ed25519 public key IS the identity. A Curve25519 keypair is derived from the Ed25519 key (via the standard birational map) for use in Noise protocol handshakes.
 
 - No usernames, no registration, no central authority
 - **No multi-device support** — one key lives on one device, period
@@ -1227,9 +1227,9 @@ Signed gossip (§4) prevents key forgery but does not prevent relay nodes from m
   - **Android:** `EncryptedSharedPreferences` (backed by Android Keystore master key). Note: Android Keystore does not natively support X25519 key agreement — the raw Curve25519 key bytes are generated by the Noise library and stored encrypted.
   - **iOS:** Keychain Services
 
-**Crypto initialization:** On `start()`, the library initializes libsodium (`sodium_init()`). If initialization fails (rare — some emulators or exotic architectures), the library emits `fatalError(retryable: false)` and returns `Result.Failure(CryptoInitFailed)`. The library never starts without a working crypto backend.
+**Crypto initialization:** On `start()`, the library initializes the platform crypto backend (JCA provider verification on JVM/Android, CryptoKit availability on iOS). If initialization fails (rare — some emulators or exotic architectures), the library emits `fatalError(retryable: false)` and returns `Result.Failure(CryptoInitFailed)`. The library never starts without a working crypto backend.
 
-**Crypto init failure:** If libsodium or platform crypto initialization fails, `start()` returns `Result.Failure(CryptoError.INIT_FAILED)` with the underlying platform error. MeshLink cannot operate without cryptography — there is no fallback mode. **Minimum requirements:** ARM64 (all modern iOS/Android devices since 2015). x86/x64 emulators supported. ARM32-only devices unsupported.
+**Crypto init failure:** If platform crypto initialization fails, `start()` returns `Result.Failure(CryptoError.INIT_FAILED)` with the underlying platform error. MeshLink cannot operate without cryptography — there is no fallback mode. **Minimum requirements:** ARM64 (all modern iOS/Android devices since 2015). x86/x64 emulators supported. ARM32-only devices unsupported.
 
 **Key storage failure recovery:** If platform secure storage fails (corrupted, permission denied, quota exceeded) during identity key store (first launch) or load (restart):
 1. Retry the storage operation **3 times** with 100ms delay between attempts
@@ -1832,7 +1832,7 @@ Convenience APIs using listener patterns for consumers who don't use async strea
 
 ### App-Level Topic Filtering
 
-`appId` is an **immutable config parameter** set at construction via `MeshLink.configure { appId = "com.mycompany.meshchat" }`. The library computes `BLAKE2b-128(appId.toUTF8())` internally — the 16-byte hash is what appears in the wire format (fixed size, no length prefix needed). Recommended format: reverse-domain notation. To change the appId, create a new MeshLink instance. When set:
+`appId` is an **immutable config parameter** set at construction via `MeshLink.configure { appId = "com.mycompany.meshchat" }`. The library computes `SHA-256-128(appId.toUTF8())` internally — the 16-byte hash is what appears in the wire format (fixed size, no length prefix needed). Recommended format: reverse-domain notation. To change the appId, create a new MeshLink instance. When set:
 - Outbound messages include the 16-byte appId hash in the payload envelope
 - Inbound messages with a non-matching appId hash are **silently dropped** at the recipient (not delivered to the app)
 - **AppId is NOT included in the BLE advertisement** — all MeshLink peers connect regardless of app. Filtering is recipient-side only, preserving cross-app relay density.
@@ -1929,7 +1929,7 @@ Errors use a **two-tier structure**: a broad category + a specific code.
 | **Timeout** | `connectionTimeout` | Yes | Yes (reconnect) | BLE connection couldn't be established. Library retries connection. |
 | **Validation** | `messageTooLarge` | No | No | Payload exceeds `maxMessageSize`. Split or reduce payload before sending. |
 | **Initialization** | `permissionDenied` | Yes (after grant) | No | Bluetooth permissions not granted. `start()` checks permissions before BLE init. `missing: List<String>` identifies which permissions. App requests permissions, then retries `start()`. |
-| **Initialization** | `cryptoInitFailed` | No | No | libsodium initialization failed (rare — exotic architecture or broken emulator). Library cannot start. |
+| **Initialization** | `cryptoInitFailed` | No | No | Platform crypto initialization failed (rare — exotic architecture or broken emulator). Library cannot start. |
 | **Initialization** | `keyStorageFailed` | Yes (retryable) | Yes (3 retries) | Platform secure storage (Keychain/EncryptedSharedPreferences) read/write failed. App can retry `start()` after storage freed. |
 
 **API misuse detection:** If `send()` (or any public API method) returns the same failure reason 5 or more consecutive times, a one-shot `API_MISUSE(method, reason, count)` diagnostic is emitted, then the counter resets. No throttling or blocking is applied — the rejection path is trivially cheap.
@@ -1999,7 +1999,7 @@ All other transitions → IllegalStateException (start() from terminal is not al
 
 **`start()` initialization order** (strict sequential, fail at first error — no partial state to clean up):
 1. **Permission check** → `Result.Failure(permissionDenied(missing))` → recoverable
-2. **libsodium init** (`sodium_init()`) → `Result.Failure(cryptoInitFailed)` → terminal
+2. **Platform crypto init** (JCA provider verification / CryptoKit availability) → `Result.Failure(cryptoInitFailed)` → terminal
 3. **Key load/generate** (Keychain / EncryptedSharedPreferences; generate Ed25519 if first run) → `Result.Failure(keyStorageFailed)` after 3 retries → recoverable
 4. **Derive Curve25519** from Ed25519 via birational map, cache in memory
 5. **Construct actor DAG** via `MeshLinkEngine` factory (topological order, constructor injection)
@@ -2119,7 +2119,7 @@ Each actor processes messages serially from its mailbox — no locks, no shared 
 
   | Tier | Actors | Threshold | Rationale |
   |------|--------|-----------|-----------|
-  | **Tier 1 — Strict** | CryptoActor | 2 crashes/60s → `fatalError(retryable: false)` | First crypto crash auto-restarts with fresh state (same as other actors). Second crash within 60s confirms unrecoverable failure (e.g., broken libsodium). Single transient failures (OOM during HKDF) recover automatically. Precedent: WireGuard drops and re-initiates per-session, never kills the daemon on first crypto error. |
+  | **Tier 1 — Strict** | CryptoActor | 2 crashes/60s → `fatalError(retryable: false)` | First crypto crash auto-restarts with fresh state (same as other actors). Second crash within 60s confirms unrecoverable failure (e.g., broken platform crypto backend). Single transient failures (OOM during HKDF) recover automatically. Precedent: WireGuard drops and re-initiates per-session, never kills the daemon on first crypto error. |
   | **Tier 2 — Standard** | RouterActor, BufferActor, PresenceActor, GossipActor | 3 crashes/60s → `fatalError(retryable: true)` | Logic errors, unlikely to self-heal |
   | **Tier 3 — Lenient** | ConnectionActor, TransferActor | 5 crashes/60s → `fatalError(retryable: true)` | BLE stack transient failures, often recovers |
 
@@ -2215,7 +2215,7 @@ All configurable parameters grouped by category, with defaults, bounds, and desc
 
 | Parameter | Type | Default | Min | Max | Description |
 |-----------|------|---------|-----|-----|-------------|
-| `appId` | string? | null | — | — | App-level topic filter. When set, the library computes `BLAKE2b-128(appId.toUTF8())` and includes the 16-byte hash in outbound messages. Inbound messages with non-matching appId are silently dropped at the recipient. Relays forward all messages regardless of appId (preserves mesh density). `null` = receive all messages. Recommended format: reverse-domain notation (e.g., `"com.mycompany.meshchat"`). Immutable after construction. |
+| `appId` | string? | null | — | — | App-level topic filter. When set, the library computes `SHA-256-128(appId.toUTF8())` and includes the 16-byte hash in outbound messages. Inbound messages with non-matching appId are silently dropped at the recipient. Relays forward all messages regardless of appId (preserves mesh density). `null` = receive all messages. Recommended format: reverse-domain notation (e.g., `"com.mycompany.meshchat"`). Immutable after construction. |
 | `maxHops` | int | 4 | 2 | 8 | Maximum mesh relay depth. Higher = wider reach but more relay traffic and larger visited lists. |
 | `bufferTTL` | duration | 5min | 1min | 30min | Per-message buffer lifetime. Messages evicted after expiry. |
 | `maxMessageSize` | bytes | 102,400 (100 KB) | 1,024 | 1,048,576 (1 MB) | Maximum payload size accepted for sending. Larger messages are rejected with `messageTooLarge` error. |

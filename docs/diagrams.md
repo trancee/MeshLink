@@ -69,7 +69,7 @@ title: "Noise K Sealed Payload (with appId)"
 packet
     0-63: "Replay Counter (uint64 LE)"
     64-71: "Flags (bit 0 = 1: appId present)"
-    72-199: "App ID Hash (BLAKE2b-128, 16 bytes)"
+    72-199: "App ID Hash (SHA-256-128, 16 bytes)"
     200-263: "Message Data (N bytes, plaintext)"
 ```
 
