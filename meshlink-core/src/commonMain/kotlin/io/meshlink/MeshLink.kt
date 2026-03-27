@@ -6,6 +6,7 @@ import io.meshlink.crypto.CryptoProvider
 import io.meshlink.crypto.NoiseKSealer
 import io.meshlink.crypto.PeerHandshakeManager
 import io.meshlink.crypto.ReplayGuard
+import io.meshlink.crypto.TrustStore
 import io.meshlink.diagnostics.DiagnosticCode
 import io.meshlink.diagnostics.DiagnosticEvent
 import io.meshlink.diagnostics.DiagnosticSink
@@ -29,7 +30,9 @@ import io.meshlink.transport.BleTransport
 import io.meshlink.util.AppIdFilter
 import io.meshlink.util.CircuitBreaker
 import io.meshlink.util.DeliveryOutcome
+import io.meshlink.util.DeliveryDeadlineTimer
 import io.meshlink.util.DeliveryTracker
+import io.meshlink.util.TombstoneSet
 import io.meshlink.util.createPlatformLock
 import io.meshlink.util.currentTimeMillis
 import io.meshlink.util.RateLimiter
@@ -63,6 +66,7 @@ class MeshLink(
     coroutineContext: CoroutineContext = EmptyCoroutineContext,
     clock: () -> Long = { currentTimeMillis() },
     private val crypto: CryptoProvider? = null,
+    private val trustStore: TrustStore? = null,
 ) : MeshLinkApi {
 
     private val clock = clock
@@ -76,6 +80,18 @@ class MeshLink(
 
     private val broadcastRateLimiter: RateLimiter? =
         if (config.broadcastRateLimitPerMinute > 0) RateLimiter(config.broadcastRateLimitPerMinute, 60_000L, clock) else null
+
+    private val handshakeRateLimiter: RateLimiter? =
+        if (config.handshakeRateLimitPerSec > 0) RateLimiter(config.handshakeRateLimitPerSec, 1_000L, clock) else null
+
+    private val nackRateLimiter: RateLimiter? =
+        if (config.nackRateLimitPerSec > 0) RateLimiter(config.nackRateLimitPerSec, 1_000L, clock) else null
+
+    private val neighborAggregateRateLimiter: RateLimiter? =
+        if (config.neighborAggregateLimitPerMin > 0) RateLimiter(config.neighborAggregateLimitPerMin, 60_000L, clock) else null
+
+    private val senderNeighborRateLimiter: RateLimiter? =
+        if (config.senderNeighborLimitPerMin > 0) RateLimiter(config.senderNeighborLimitPerMin, 60_000L, clock) else null
 
     private val _peers = MutableSharedFlow<PeerEvent>(replay = 64)
     private val _messages = MutableSharedFlow<Message>(extraBufferCapacity = 64)
@@ -163,8 +179,17 @@ class MeshLink(
     // Delivery tracking for exactly-once terminal signals
     private val deliveryTracker = DeliveryTracker()
 
+    // Tombstone set for detecting late ACKs after delivery resolution
+    private val tombstoneSet = TombstoneSet(windowMs = config.tombstoneWindowMs, clock = clock)
+
     // Diagnostic event sink
     private val diagnosticSink = DiagnosticSink(bufferCapacity = config.diagnosticBufferCapacity, clock = clock)
+
+    // Delivery deadline timer: fires DELIVERY_TIMEOUT diagnostic when bufferTtlMs expires
+    private val deliveryDeadlineTimer = DeliveryDeadlineTimer(
+        diagnosticSink = diagnosticSink,
+        deliveryTracker = deliveryTracker,
+    )
 
     // Routing table for multi-hop relay
     private val routingTable = RoutingTable()
@@ -177,6 +202,9 @@ class MeshLink(
 
     // Per-neighbor rate limit: last triggered update timestamp per peer hex
     private val lastTriggeredUpdateTime = mutableMapOf<String, Long>()
+
+    // Timestamp of last gossip route update sent (used for keepalive scheduling)
+    private var lastGossipSentMs: Long = 0L
 
     // Reverse path for delivery ACK relay: messageId hex → fromPeerId
     private val routedMsgSources = mutableMapOf<String, ByteArray>()
@@ -267,9 +295,21 @@ class MeshLink(
                     // Deterministic tie-breaking: lower peerId initiates
                     if (handshakeManager != null && !handshakeManager.isComplete(event.peerId)) {
                         if (transport.localPeerId.toHex() < event.peerId.toHex()) {
-                            val msg1 = handshakeManager.initiateHandshake(event.peerId)
-                            if (msg1 != null) {
-                                safeSend(event.peerId, msg1)
+                            // Handshake rate limit: TOFI-pinned peers are exempt
+                            val peerHex = event.peerId.toHex()
+                            val isPinned = trustStore?.let { ts ->
+                                val key = peerPublicKeys[peerHex]
+                                key != null && ts.verify(peerHex, key) is io.meshlink.crypto.VerifyResult.Trusted
+                            } ?: false
+                            if (!isPinned && handshakeRateLimiter != null &&
+                                !handshakeRateLimiter.tryAcquire(peerHex)) {
+                                diagnosticSink.emit(DiagnosticCode.RATE_LIMIT_HIT, Severity.WARN,
+                                    "handshake rate limit exceeded, peer=$peerHex")
+                            } else {
+                                val msg1 = handshakeManager.initiateHandshake(event.peerId)
+                                if (msg1 != null) {
+                                    safeSend(event.peerId, msg1)
+                                }
                             }
                         }
                     }
@@ -313,26 +353,26 @@ class MeshLink(
             }
         }
 
+        // Keepalive loop: send keepalives when topology is stable (no gossip sent recently)
+        if (config.keepaliveIntervalMs > 0) {
+            newScope.launch {
+                while (started) {
+                    delay(config.keepaliveIntervalMs)
+                    if (!started) break
+                    val sinceLastGossip = clock() - lastGossipSentMs
+                    if (config.gossipIntervalMs <= 0 || sinceLastGossip >= config.keepaliveIntervalMs) {
+                        broadcastKeepalive()
+                    }
+                }
+            }
+        }
+
         return Result.success(Unit)
     }
 
     override fun stop() {
         started = false
-        // Emit DELIVERY_TIMEOUT for all in-flight transfers before clearing
-        for ((key, _) in outboundTransfers) {
-            val outcome = deliveryTracker.recordOutcome(key, DeliveryOutcome.FAILED_DELIVERY_TIMEOUT)
-            if (outcome != null) {
-                _transferFailures.tryEmit(
-                    TransferFailure(Uuid.fromByteArray(hexToBytes(key)), DeliveryOutcome.FAILED_DELIVERY_TIMEOUT)
-                )
-            }
-        }
-        // Emit DELIVERY_TIMEOUT for queued paused messages that were never sent
-        for ((_, _) in pauseQueue) {
-            _transferFailures.tryEmit(
-                TransferFailure(Uuid.random(), DeliveryOutcome.FAILED_DELIVERY_TIMEOUT)
-            )
-        }
+        deliveryDeadlineTimer.cancelAll()
         clearState()
         scope?.cancel()
         scope = null
@@ -359,6 +399,8 @@ class MeshLink(
         routingTable.clear()
         pendingMessages.clear()
         lastTriggeredUpdateTime.clear()
+        lastGossipSentMs = 0L
+        tombstoneSet.clear()
     }
 
     override fun pause() {
@@ -464,11 +506,13 @@ class MeshLink(
             transfer?.session?.onInactivityTimeout()
             val outcome = deliveryTracker.recordOutcome(key, DeliveryOutcome.FAILED_ACK_TIMEOUT)
             if (outcome != null) {
+                tombstoneSet.add(key)
                 _transferFailures.tryEmit(
                     TransferFailure(Uuid.fromByteArray(hexToBytes(key)), DeliveryOutcome.FAILED_ACK_TIMEOUT)
                 )
             }
         }
+        tombstoneSet.sweep()
         return staleKeys.size
     }
 
@@ -682,6 +726,19 @@ class MeshLink(
         val key = messageId.toHex()
         deliveryTracker.register(key)
 
+        // Start delivery deadline timer based on bufferTtlMs
+        if (config.bufferTtlMs > 0) {
+            deliveryDeadlineTimer.startTimer(
+                scope = s,
+                messageKey = key,
+                deadlineMs = config.bufferTtlMs,
+            ) { expiredKey ->
+                val uuid = Uuid.fromByteArray(hexToBytes(expiredKey))
+                _transferFailures.tryEmit(TransferFailure(uuid, DeliveryOutcome.FAILED_DELIVERY_TIMEOUT))
+                outboundTransfers.remove(expiredKey)
+            }
+        }
+
         // Encrypt payload if crypto is available and we know the recipient's public key
         val recipientHex = recipient.toHex()
         val currentSealer = sealer
@@ -804,9 +861,34 @@ class MeshLink(
 
         diagnosticSink.emit(DiagnosticCode.GOSSIP_TRAFFIC_REPORT, Severity.INFO,
             "peers=${connectedPeers.size}, routes=${allRoutes.size}")
+        lastGossipSentMs = clock()
+    }
+
+    private suspend fun broadcastKeepalive() {
+        val connectedPeers = presenceTracker.connectedPeerIds()
+        if (connectedPeers.isEmpty()) return
+        val nowSeconds = (clock() / 1000).toUInt()
+        val frame = WireCodec.encodeKeepalive(nowSeconds)
+        for (peerHex in connectedPeers) {
+            safeSend(hexToBytes(peerHex), frame)
+        }
+    }
+
+    private fun handleKeepalive(fromPeerId: ByteArray, @Suppress("UNUSED_PARAMETER") data: ByteArray) {
+        // Validate the frame (will throw on malformed data, caught by handleIncomingData)
+        WireCodec.decodeKeepalive(data)
+        presenceTracker.peerSeen(fromPeerId.toHex())
     }
 
     private suspend fun safeSend(peerId: ByteArray, data: ByteArray) {
+        // Per-neighbor aggregate rate limit
+        if (neighborAggregateRateLimiter != null) {
+            if (!neighborAggregateRateLimiter.tryAcquire(peerId.toHex())) {
+                diagnosticSink.emit(DiagnosticCode.RATE_LIMIT_HIT, Severity.WARN,
+                    "neighbor aggregate limit exceeded, peer=${peerId.toHex()}")
+                return
+            }
+        }
         try {
             transport.sendToPeer(peerId, data)
         } catch (e: Exception) {
@@ -814,6 +896,17 @@ class MeshLink(
             diagnosticSink.emit(DiagnosticCode.SEND_FAILED, Severity.WARN,
                 "peer=${peerId.toHex()}, error=${e.message}")
         }
+    }
+
+    internal fun sendNack(peerId: ByteArray, messageId: ByteArray) {
+        val peerHex = peerId.toHex()
+        if (nackRateLimiter != null && !nackRateLimiter.tryAcquire(peerHex)) {
+            diagnosticSink.emit(DiagnosticCode.RATE_LIMIT_HIT, Severity.WARN,
+                "NACK rate limit exceeded, peer=$peerHex")
+            return
+        }
+        val frame = WireCodec.encodeNack(messageId)
+        scope?.launch { safeSend(peerId, frame) }
     }
 
     private suspend fun handleIncomingData(fromPeerId: ByteArray, data: ByteArray) {
@@ -828,6 +921,8 @@ class MeshLink(
                 WireCodec.TYPE_ROUTED_MESSAGE -> handleRoutedMessage(fromPeerId, data)
                 WireCodec.TYPE_DELIVERY_ACK -> handleDeliveryAck(fromPeerId, data)
                 WireCodec.TYPE_RESUME_REQUEST -> handleResumeRequest(fromPeerId, data)
+                WireCodec.TYPE_KEEPALIVE -> handleKeepalive(fromPeerId, data)
+                WireCodec.TYPE_NACK -> { /* NACK received — no-op for now */ }
                 else -> {
                     diagnosticSink.emit(DiagnosticCode.UNKNOWN_MESSAGE_TYPE, Severity.WARN,
                         "type=0x${data[0].toUByte().toString(16).padStart(2, '0')}, size=${data.size}")
@@ -947,8 +1042,10 @@ class MeshLink(
 
         if (transfer.session.isComplete()) {
             outboundTransfers.remove(key)
+            deliveryDeadlineTimer.cancel(key)
             emitHealthUpdate()
             if (deliveryTracker.recordOutcome(key, DeliveryOutcome.CONFIRMED) != null) {
+                tombstoneSet.add(key)
                 _deliveryConfirmations.emit(Uuid.fromByteArray(ack.messageId))
             }
         } else {
@@ -1079,6 +1176,23 @@ class MeshLink(
             return
         }
 
+        // Per-sender-per-neighbor rate limit for relay
+        val destHex = routed.destination.toHex()
+        val nextHop = if (destHex in presenceTracker.allPeerIds()) {
+            routed.destination
+        } else {
+            val route = routingTable.bestRoute(destHex) ?: return
+            hexToBytes(route.nextHop)
+        }
+        if (senderNeighborRateLimiter != null) {
+            val senderNeighborKey = "${routed.origin.toHex()}->${nextHop.toHex()}"
+            if (!senderNeighborRateLimiter.tryAcquire(senderNeighborKey)) {
+                diagnosticSink.emit(DiagnosticCode.RATE_LIMIT_HIT, Severity.WARN,
+                    "sender-neighbor relay limit exceeded, origin=${routed.origin.toHex()}, neighbor=${nextHop.toHex()}")
+                return
+            }
+        }
+
         // Record reverse path for delivery ACK relay
         routedMsgSources[key] = fromPeerId
 
@@ -1094,13 +1208,6 @@ class MeshLink(
         )
 
         // Forward to destination if directly known, otherwise best route
-        val destHex = routed.destination.toHex()
-        val nextHop = if (destHex in presenceTracker.allPeerIds()) {
-            routed.destination
-        } else {
-            val route = routingTable.bestRoute(destHex) ?: return
-            hexToBytes(route.nextHop)
-        }
         if (paused) {
             relayQueue.add(nextHop to relayed)
             // Evict oldest if over capacity
@@ -1131,12 +1238,21 @@ class MeshLink(
             return
         }
 
+        // Check tombstone set first — ACK for already-resolved delivery
+        if (tombstoneSet.contains(key)) {
+            diagnosticSink.emit(DiagnosticCode.LATE_DELIVERY_ACK, Severity.INFO, "messageId=$key")
+            return
+        }
+
         // If tracked, use exactly-once guard; if untracked, accept (external ACK)
         val outcome = deliveryTracker.recordOutcome(key, DeliveryOutcome.CONFIRMED)
         if (outcome != null || !deliveryTracker.isTracked(key)) {
+            deliveryDeadlineTimer.cancel(key)
+            if (outcome != null) tombstoneSet.add(key)
             _deliveryConfirmations.emit(Uuid.fromByteArray(ack.messageId))
         } else if (deliveryTracker.isTracked(key)) {
-            // Late ACK: messageId already resolved (tombstoned)
+            // Late ACK: messageId already resolved (tombstoned in delivery tracker)
+            tombstoneSet.add(key)
             diagnosticSink.emit(DiagnosticCode.LATE_DELIVERY_ACK, Severity.INFO, "messageId=$key")
         }
         // Relay ACK back along reverse path if we were a relay node

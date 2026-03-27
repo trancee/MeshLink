@@ -8870,4 +8870,58 @@ class MeshLinkTest {
         assertEquals(0, countAfterSecond,
             "Second triggered update within the same gossip interval should be rate-limited (per-neighbor)")
     }
+
+    @Test
+    fun keepaliveSentWhenTopologyStable() = runTest {
+        val transport = VirtualMeshTransport(peerIdAlice)
+        val config = meshLinkConfig {
+            keepaliveIntervalMs = 100L
+            gossipIntervalMs = 0L // disable gossip so topology is always "stable"
+        }
+        val alice = MeshLink(transport, config, coroutineContext)
+        alice.start()
+        testScheduler.advanceTimeBy(1L)
+
+        transport.simulateDiscovery(peerIdBob)
+        testScheduler.advanceTimeBy(1L)
+
+        // Advance past the keepalive interval
+        testScheduler.advanceTimeBy(200L)
+
+        val keepalives = transport.sentData.filter { (_, data) ->
+            data.isNotEmpty() && data[0] == WireCodec.TYPE_KEEPALIVE
+        }
+
+        alice.stop()
+        testScheduler.advanceTimeBy(1L)
+
+        assertTrue(keepalives.isNotEmpty(), "Expected keepalive messages to be sent")
+        // Each keepalive frame should be exactly 6 bytes
+        for ((_, data) in keepalives) {
+            assertEquals(6, data.size, "Keepalive frame should be 6 bytes")
+        }
+    }
+
+    @Test
+    fun keepaliveReceiveUpdatesPeerPresence() = runTest {
+        val transport = VirtualMeshTransport(peerIdAlice)
+        val config = meshLinkConfig {
+            keepaliveIntervalMs = 0L // disable outbound keepalives for this test
+        }
+        val alice = MeshLink(transport, config, coroutineContext)
+        alice.start()
+        testScheduler.advanceTimeBy(1L)
+
+        // Simulate receiving a keepalive from Bob
+        val keepaliveFrame = WireCodec.encodeKeepalive(timestampSeconds = 1_700_000_000u)
+        transport.receiveData(peerIdBob, keepaliveFrame)
+        testScheduler.advanceTimeBy(1L)
+
+        // Bob should now be known — verify via meshHealth showing connected peers
+        val health = alice.meshHealth()
+        assertTrue(health.connectedPeers > 0, "Peer should be tracked after receiving keepalive")
+
+        alice.stop()
+        testScheduler.advanceTimeBy(1L)
+    }
 }

@@ -31,6 +31,12 @@ data class MeshLinkConfig(
     val bufferTtlMs: Long = 300_000L,
     val triggeredUpdateThreshold: Double = 0.3,
     val triggeredUpdateBatchMs: Long = 100L,
+    val keepaliveIntervalMs: Long = 0L,
+    val tombstoneWindowMs: Long = 120_000L,
+    val handshakeRateLimitPerSec: Int = 1,
+    val nackRateLimitPerSec: Int = 10,
+    val neighborAggregateLimitPerMin: Int = 100,
+    val senderNeighborLimitPerMin: Int = 20,
 ) {
     fun validate(): List<String> {
         val violations = mutableListOf<String>()
@@ -100,6 +106,12 @@ class MeshLinkConfigBuilder(
     var bufferTtlMs: Long = 300_000L,
     var triggeredUpdateThreshold: Double = 0.3,
     var triggeredUpdateBatchMs: Long = 100L,
+    var keepaliveIntervalMs: Long = 0L,
+    var tombstoneWindowMs: Long = 120_000L,
+    var handshakeRateLimitPerSec: Int = 1,
+    var nackRateLimitPerSec: Int = 10,
+    var neighborAggregateLimitPerMin: Int = 100,
+    var senderNeighborLimitPerMin: Int = 20,
 ) {
 
     fun build(): MeshLinkConfig = MeshLinkConfig(
@@ -131,5 +143,11 @@ class MeshLinkConfigBuilder(
         bufferTtlMs = bufferTtlMs,
         triggeredUpdateThreshold = triggeredUpdateThreshold,
         triggeredUpdateBatchMs = triggeredUpdateBatchMs,
+        keepaliveIntervalMs = keepaliveIntervalMs,
+        tombstoneWindowMs = tombstoneWindowMs,
+        handshakeRateLimitPerSec = handshakeRateLimitPerSec,
+        nackRateLimitPerSec = nackRateLimitPerSec,
+        neighborAggregateLimitPerMin = neighborAggregateLimitPerMin,
+        senderNeighborLimitPerMin = senderNeighborLimitPerMin,
     )
 }

@@ -12,6 +12,11 @@ object WireCodec {
     const val TYPE_ROUTED_MESSAGE: Byte = 0x05
     const val TYPE_DELIVERY_ACK: Byte = 0x06
     const val TYPE_RESUME_REQUEST: Byte = 0x07
+    const val TYPE_KEEPALIVE: Byte = 0x08
+    const val TYPE_NACK: Byte = 0x09
+
+    // keepalive: type(1) + flags(1) + timestamp(4 BE uint)
+    private const val KEEPALIVE_SIZE = 6
 
     // resume_request: type(1) + messageId(16) + bytesReceived(4 LE) = 21
     private const val RESUME_REQUEST_SIZE = 1 + MESSAGE_ID_SIZE + 4 // 21
@@ -335,6 +340,56 @@ object WireCodec {
         }
         return RouteUpdateMessage(senderId, entries, signerPublicKey, signature)
     }
+
+    fun encodeKeepalive(timestampSeconds: UInt, flags: UByte = 0u): ByteArray {
+        val buf = ByteArray(KEEPALIVE_SIZE)
+        buf[0] = TYPE_KEEPALIVE
+        buf[1] = flags.toByte()
+        buf.putUIntBE(2, timestampSeconds)
+        return buf
+    }
+
+    fun decodeKeepalive(data: ByteArray): KeepaliveMessage {
+        require(data.size >= KEEPALIVE_SIZE) { "keepalive too short: ${data.size}" }
+        require(data[0] == TYPE_KEEPALIVE) { "not a keepalive: 0x${data[0].toUByte().toString(16)}" }
+        val flags = data[1].toUByte()
+        val timestampSeconds = data.getUIntBE(2)
+        return KeepaliveMessage(flags, timestampSeconds)
+    }
+    // nack: type(1) + messageId(16) = 17
+    private const val NACK_SIZE = 17
+
+    fun encodeNack(messageId: ByteArray): ByteArray {
+        require(messageId.size == MESSAGE_ID_SIZE) { "messageId must be $MESSAGE_ID_SIZE bytes" }
+        val buf = ByteArray(NACK_SIZE)
+        buf[0] = TYPE_NACK
+        messageId.copyInto(buf, 1)
+        return buf
+    }
+
+    fun decodeNack(data: ByteArray): NackMessage {
+        require(data.size >= NACK_SIZE) { "nack too short: ${data.size}" }
+        require(data[0] == TYPE_NACK) { "not a nack: 0x${data[0].toUByte().toString(16)}" }
+        val messageId = data.copyOfRange(1, 1 + MESSAGE_ID_SIZE)
+        return NackMessage(messageId)
+    }
+}
+
+// --- Big-endian helpers ---
+
+private fun ByteArray.putUIntBE(offset: Int, value: UInt) {
+    val v = value.toInt()
+    this[offset]     = (v shr 24).toByte()
+    this[offset + 1] = (v shr 16).toByte()
+    this[offset + 2] = (v shr 8).toByte()
+    this[offset + 3] = v.toByte()
+}
+
+private fun ByteArray.getUIntBE(offset: Int): UInt {
+    return (((this[offset].toInt() and 0xFF) shl 24) or
+            ((this[offset + 1].toInt() and 0xFF) shl 16) or
+            ((this[offset + 2].toInt() and 0xFF) shl 8) or
+            (this[offset + 3].toInt() and 0xFF)).toUInt()
 }
 
 // --- Little-endian helpers ---
@@ -461,4 +516,13 @@ data class ResumeRequestMessage(
 data class HandshakeMessage(
     val step: UByte,
     val noiseMessage: ByteArray,
+)
+
+data class KeepaliveMessage(
+    val flags: UByte,
+    val timestampSeconds: UInt,
+)
+
+data class NackMessage(
+    val messageId: ByteArray,
 )
