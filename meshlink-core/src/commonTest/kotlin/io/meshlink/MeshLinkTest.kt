@@ -7332,4 +7332,272 @@ class MeshLinkTest {
         collector.cancel()
         alice.stop()
     }
+
+    // --- Batch 8: Routing Decisions + TTL Boundary + Config Validation ---
+
+    @Test
+    fun routedMessageToDirectNeighborBypassesRoutingTable() = runTest {
+        // Topology: Alice--Bob--Charlie, but Alice also directly knows Charlie
+        val peerIdC = ByteArray(16) { (0xC0 + it).toByte() }
+        val tA = VirtualMeshTransport(peerIdAlice)
+        val tB = VirtualMeshTransport(peerIdBob)
+        val tC = VirtualMeshTransport(peerIdC)
+        tA.linkTo(tB); tA.linkTo(tC); tB.linkTo(tC)
+
+        val alice = MeshLink(tA, meshLinkConfig(), coroutineContext)
+        val bob = MeshLink(tB, meshLinkConfig(), coroutineContext)
+        val charlie = MeshLink(tC, meshLinkConfig(), coroutineContext)
+        listOf(alice, bob, charlie).forEach { it.start() }
+        advanceUntilIdle()
+
+        // Alice discovers both Bob and Charlie directly
+        tA.simulateDiscovery(peerIdBob)
+        tA.simulateDiscovery(peerIdC)
+        tB.simulateDiscovery(peerIdAlice); tB.simulateDiscovery(peerIdC)
+        tC.simulateDiscovery(peerIdAlice); tC.simulateDiscovery(peerIdBob)
+        advanceUntilIdle()
+
+        // Add a route to Charlie via Bob (longer path)
+        alice.addRoute(peerIdC.toHex(), peerIdBob.toHex(), 2.0, 1u)
+
+        val received = mutableListOf<Message>()
+        val collector = launch { charlie.messages.collect { received.add(it) } }
+        advanceUntilIdle()
+
+        // Alice sends to Charlie — should go directly, not via Bob
+        val result = alice.send(peerIdC, "direct path".encodeToByteArray())
+        assertTrue(result.isSuccess)
+        advanceUntilIdle()
+
+        assertEquals(1, received.size, "Charlie should receive the message")
+        assertContentEquals("direct path".encodeToByteArray(), received[0].payload)
+
+        // Verify Bob did NOT relay (no routed messages through Bob)
+        val bobRelayed = tB.sentData.filter { (_, data) ->
+            data.isNotEmpty() && data[0] == WireCodec.TYPE_ROUTED_MESSAGE
+        }
+        assertEquals(0, bobRelayed.size, "Bob should not have relayed — direct path used")
+
+        collector.cancel()
+        listOf(alice, bob, charlie).forEach { it.stop() }
+    }
+
+    @Test
+    fun deliveryAckNotRelayedForDirectDelivery() = runTest {
+        // Alice sends directly to Bob. Bob's delivery ACK should NOT be relayed
+        // (routedMsgSources has no entry for direct deliveries)
+        val transportA = VirtualMeshTransport(peerIdAlice)
+        val transportB = VirtualMeshTransport(peerIdBob)
+        transportA.linkTo(transportB)
+        val alice = MeshLink(transportA, meshLinkConfig(), coroutineContext)
+        val bob = MeshLink(transportB, meshLinkConfig(), coroutineContext)
+        alice.start(); bob.start()
+        advanceUntilIdle()
+        transportA.simulateDiscovery(peerIdBob)
+        transportB.simulateDiscovery(peerIdAlice)
+        advanceUntilIdle()
+
+        val confirmations = mutableListOf<kotlin.uuid.Uuid>()
+        val confJob = launch { alice.deliveryConfirmations.collect { confirmations.add(it) } }
+        advanceUntilIdle()
+
+        val result = alice.send(peerIdBob, "direct msg".encodeToByteArray())
+        assertTrue(result.isSuccess)
+        advanceUntilIdle()
+
+        // Alice gets delivery confirmation (direct ACK from Bob)
+        assertEquals(1, confirmations.size, "Alice should get delivery confirmation")
+
+        // Bob should NOT have sent any delivery ACKs to third parties
+        // (only chunk ACKs back to Alice, plus the delivery ACK to Alice)
+        val bobDeliveryAcks = transportB.sentData.filter { (dest, data) ->
+            data.isNotEmpty() && data[0] == WireCodec.TYPE_DELIVERY_ACK &&
+                dest != peerIdAlice.toHex()
+        }
+        assertEquals(0, bobDeliveryAcks.size,
+            "Bob should not relay delivery ACK to any third party for direct delivery")
+
+        confJob.cancel()
+        alice.stop(); bob.stop()
+    }
+
+    @Test
+    fun emptyIncomingDataSilentlyIgnored() = runTest {
+        val transportA = VirtualMeshTransport(peerIdAlice)
+        val transportB = VirtualMeshTransport(peerIdBob)
+        transportA.linkTo(transportB)
+        val alice = MeshLink(transportA, meshLinkConfig(), coroutineContext)
+        alice.start()
+        advanceUntilIdle()
+        transportA.simulateDiscovery(peerIdBob)
+        advanceUntilIdle()
+
+        val received = mutableListOf<Message>()
+        val collector = launch { alice.messages.collect { received.add(it) } }
+        advanceUntilIdle()
+
+        // Inject empty data — should not crash or deliver anything
+        transportA.receiveData(peerIdBob, ByteArray(0))
+        advanceUntilIdle()
+
+        assertEquals(0, received.size, "Empty data should be silently ignored")
+
+        // No diagnostics emitted for empty data
+        val diags = alice.drainDiagnostics()
+        val malformed = diags.filter {
+            it.code == io.meshlink.diagnostics.DiagnosticCode.MALFORMED_DATA
+        }
+        assertEquals(0, malformed.size, "Empty data should not emit MALFORMED_DATA diagnostic")
+
+        // Node still functional after empty data
+        val bob = MeshLink(transportB, meshLinkConfig(), coroutineContext)
+        bob.start()
+        advanceUntilIdle()
+        transportB.simulateDiscovery(peerIdAlice)
+        advanceUntilIdle()
+
+        val r = bob.send(peerIdAlice, "after-empty".encodeToByteArray())
+        advanceUntilIdle()
+        assertTrue(r.isSuccess)
+        assertEquals(1, received.size, "Node should still receive messages after empty data")
+
+        collector.cancel()
+        alice.stop(); bob.stop()
+    }
+
+    @Test
+    fun exactTtlBoundaryDropsPendingMessage() = runTest {
+        var now = 0L
+        val transportA = VirtualMeshTransport(peerIdAlice)
+        val transportB = VirtualMeshTransport(peerIdBob)
+        transportA.linkTo(transportB)
+        val alice = MeshLink(
+            transportA,
+            meshLinkConfig {
+                pendingMessageTtlMs = 1000
+                pendingMessageCapacity = 10
+                maxMessageSize = 200
+                bufferCapacity = 1000
+            },
+            coroutineContext,
+            clock = { now },
+        )
+        alice.start()
+        advanceUntilIdle()
+
+        // Buffer message at t=0
+        now = 0L
+        val result = alice.send(peerIdBob, "boundary-test".encodeToByteArray())
+        advanceUntilIdle()
+        assertTrue(result.isSuccess)
+
+        // Advance to exact TTL boundary: (1000 - 0) >= 1000 → expired
+        now = 1000L
+
+        val bob = MeshLink(transportB, meshLinkConfig(), coroutineContext)
+        bob.start()
+        advanceUntilIdle()
+
+        val received = mutableListOf<Message>()
+        val collector = launch { bob.messages.collect { received.add(it) } }
+        advanceUntilIdle()
+
+        transportA.simulateDiscovery(peerIdBob)
+        transportB.simulateDiscovery(peerIdAlice)
+        advanceUntilIdle()
+
+        // Message at exact TTL boundary should be expired (>= check)
+        assertEquals(0, received.size,
+            "Message at exact TTL boundary (elapsed == ttl) should be expired")
+
+        collector.cancel()
+        alice.stop(); bob.stop()
+    }
+
+    @Test
+    fun configValidationRejectsRateLimitWindowZeroWithMaxSends() = runTest {
+        val transportA = VirtualMeshTransport(peerIdAlice)
+        val alice = MeshLink(
+            transportA,
+            meshLinkConfig {
+                rateLimitMaxSends = 10
+                rateLimitWindowMs = 0
+            },
+            coroutineContext,
+        )
+        // start() calls validate() — should fail due to rateLimitWindowMs <= 0
+        val result = alice.start()
+        assertTrue(result.isFailure,
+            "start() should fail when rateLimitWindowMs=0 with maxSends>0")
+
+        val errorMsg = result.exceptionOrNull()?.message ?: ""
+        assertTrue(errorMsg.contains("rateLimitWindowMs"),
+            "Error should mention rateLimitWindowMs violation: $errorMsg")
+    }
+
+    @Test
+    fun hopLimit1DeliveredAtDestinationButNotRelayedFurther() = runTest {
+        // A→B→C→D: Alice sends to Charlie with hopLimit=2
+        // Bob relays (hopLimit 2→1), Charlie is destination → delivers
+        // Verify that reaching destination with hopLimit=0 still delivers
+        // (destination check at line 890 runs BEFORE hop limit check at line 908)
+        val peerIdC = ByteArray(16) { (0xC0 + it).toByte() }
+        val peerIdD = ByteArray(16) { (0xD0 + it).toByte() }
+        val tA = VirtualMeshTransport(peerIdAlice)
+        val tB = VirtualMeshTransport(peerIdBob)
+        val tC = VirtualMeshTransport(peerIdC)
+        val tD = VirtualMeshTransport(peerIdD)
+        tA.linkTo(tB); tB.linkTo(tC); tC.linkTo(tD)
+
+        val alice = MeshLink(tA, meshLinkConfig(), coroutineContext)
+        val bob = MeshLink(tB, meshLinkConfig(), coroutineContext)
+        val charlie = MeshLink(tC, meshLinkConfig(), coroutineContext)
+        val dave = MeshLink(tD, meshLinkConfig(), coroutineContext)
+        listOf(alice, bob, charlie, dave).forEach { it.start() }
+        advanceUntilIdle()
+
+        tA.simulateDiscovery(peerIdBob)
+        tB.simulateDiscovery(peerIdAlice); tB.simulateDiscovery(peerIdC)
+        tC.simulateDiscovery(peerIdBob); tC.simulateDiscovery(peerIdD)
+        tD.simulateDiscovery(peerIdC)
+        advanceUntilIdle()
+
+        // Routes: A→C via B, B→C direct
+        alice.addRoute(peerIdC.toHex(), peerIdBob.toHex(), 2.0, 1u)
+        bob.addRoute(peerIdC.toHex(), peerIdC.toHex(), 1.0, 1u)
+        // Route beyond: C→D
+        charlie.addRoute(peerIdD.toHex(), peerIdD.toHex(), 1.0, 1u)
+
+        val charlieReceived = mutableListOf<Message>()
+        val cCollector = launch { charlie.messages.collect { charlieReceived.add(it) } }
+        val daveReceived = mutableListOf<Message>()
+        val dCollector = launch { dave.messages.collect { daveReceived.add(it) } }
+        advanceUntilIdle()
+
+        // Inject routed message with hopLimit=1 destined for Charlie
+        val msgId = kotlin.uuid.Uuid.random().toByteArray()
+        val routedMsg = WireCodec.encodeRoutedMessage(
+            messageId = msgId,
+            origin = peerIdAlice,
+            destination = peerIdC,
+            hopLimit = 1u,
+            visitedList = listOf(peerIdAlice),
+            payload = "hop-test".encodeToByteArray(),
+        )
+        // Bob receives from Alice
+        tB.receiveData(peerIdAlice, routedMsg)
+        advanceUntilIdle()
+
+        // Bob relays to Charlie with hopLimit=0
+        // Charlie IS the destination → delivers (line 890 before line 908)
+        assertEquals(1, charlieReceived.size,
+            "Charlie should receive message even when hopLimit decremented to 0")
+
+        // Verify Dave receives nothing (message was for Charlie, not relayed further)
+        assertEquals(0, daveReceived.size,
+            "Dave should not receive anything — message was for Charlie")
+
+        cCollector.cancel(); dCollector.cancel()
+        listOf(alice, bob, charlie, dave).forEach { it.stop() }
+    }
 }
