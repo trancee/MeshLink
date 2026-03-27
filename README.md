@@ -19,7 +19,8 @@ A **Kotlin Multiplatform (KMP)** BLE mesh messaging library for **Android**, **i
 |--------|-------------|-----------------|
 | Android | API 26 | Pure Kotlin (API 26–32), JCA (API 33+) |
 | iOS | arm64, simulatorArm64 | Pure Kotlin |
-| macOS | arm64, x64 | Pure Kotlin |
+| macOS | arm64 | Pure Kotlin |
+| Linux | arm64, x64 | Pure Kotlin |
 | JVM | Java 21 | Java native JCA |
 
 ## Quick Start
@@ -112,6 +113,7 @@ MeshLink/
 │       ├── appleMain/           # Shared Apple (CoreBluetooth, Keychain)
 │       ├── iosMain/             # iOS-specific (UIKit battery)
 │       ├── macosMain/           # macOS-specific (battery stub)
+│       ├── linuxMain/           # Linux-specific (POSIX time, battery stub)
 │       ├── androidMain/         # Android BLE, storage, services
 │       ├── jvmMain/             # JVM crypto provider
 │       └── commonTest/          # 891 tests
