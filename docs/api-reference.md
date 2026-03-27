@@ -243,6 +243,7 @@ companion object {
     fun chatOptimized(overrides: MeshLinkConfigBuilder.() -> Unit = {}): MeshLinkConfig
     fun fileTransferOptimized(overrides: MeshLinkConfigBuilder.() -> Unit = {}): MeshLinkConfig
     fun powerOptimized(overrides: MeshLinkConfigBuilder.() -> Unit = {}): MeshLinkConfig
+    fun sensorOptimized(overrides: MeshLinkConfigBuilder.() -> Unit = {}): MeshLinkConfig
 }
 ```
 
@@ -251,6 +252,7 @@ companion object {
 | `chatOptimized` | 10,000 | 524,288 (512 KB) | Text chat, small payloads |
 | `fileTransferOptimized` | 100,000 | 2,097,152 (2 MB) | Images, files, large data |
 | `powerOptimized` | 10,000 | 262,144 (256 KB) | IoT, wearables, battery-constrained devices |
+| `sensorOptimized` | 1,000 | 65,536 (64 KB) | Sensor telemetry, infrequent small readings |
 
 All presets accept an override block:
 

@@ -71,6 +71,14 @@ data class MeshLinkConfig(
         fun powerOptimized(overrides: MeshLinkConfigBuilder.() -> Unit = {}): MeshLinkConfig =
             MeshLinkConfigBuilder(maxMessageSize = 10_000, bufferCapacity = 262_144)
                 .apply(overrides).build()
+
+        fun sensorOptimized(overrides: MeshLinkConfigBuilder.() -> Unit = {}): MeshLinkConfig =
+            MeshLinkConfigBuilder(
+                maxMessageSize = 1_000,
+                bufferCapacity = 65_536,
+                gossipIntervalMs = 30_000L,
+                keepaliveIntervalMs = 60_000L,
+            ).apply(overrides).build()
     }
 }
 
