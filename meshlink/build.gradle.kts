@@ -37,6 +37,13 @@ kotlin {
             xcf.add(this)
         }
     }
+    listOf(macosArm64(), macosX64()).forEach { target ->
+        target.binaries.framework {
+            baseName = "MeshLink"
+            isStatic = true
+            xcf.add(this)
+        }
+    }
 
     sourceSets {
         commonMain.dependencies {
@@ -67,7 +74,7 @@ publishing {
     publications.withType<MavenPublication> {
         pom {
             name.set("MeshLink Core")
-            description.set("Secure BLE mesh messaging library for Android and iOS")
+            description.set("Secure BLE mesh messaging library for Android, iOS, and macOS")
             url.set("https://github.com/trancee/MeshLink")
 
             licenses {

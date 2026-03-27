@@ -1,6 +1,6 @@
 # MeshLink
 
-A **Kotlin Multiplatform (KMP)** BLE mesh messaging library for **Android** and **iOS**. MeshLink enables secure, multi-hop peer-to-peer communication over Bluetooth Low Energy with ~85% shared code across platforms.
+A **Kotlin Multiplatform (KMP)** BLE mesh messaging library for **Android**, **iOS**, and **macOS**. MeshLink enables secure, multi-hop peer-to-peer communication over Bluetooth Low Energy with ~85% shared code across platforms.
 
 ## Features
 
@@ -19,6 +19,7 @@ A **Kotlin Multiplatform (KMP)** BLE mesh messaging library for **Android** and 
 |--------|-------------|-----------------|
 | Android | API 26 | Pure Kotlin (API 26–32), JCA (API 33+) |
 | iOS | arm64, simulatorArm64 | Pure Kotlin |
+| macOS | arm64, x64 | Pure Kotlin |
 | JVM | Java 21 | Java native JCA |
 
 ## Quick Start
@@ -108,15 +109,17 @@ MeshLink/
 ├── meshlink/                    # Core KMP library
 │   └── src/
 │       ├── commonMain/          # ~85% shared code
+│       ├── appleMain/           # Shared Apple (CoreBluetooth, Keychain)
+│       ├── iosMain/             # iOS-specific (UIKit battery)
+│       ├── macosMain/           # macOS-specific (battery stub)
 │       ├── androidMain/         # Android BLE, storage, services
-│       ├── iosMain/             # iOS CoreBluetooth, Keychain
 │       ├── jvmMain/             # JVM crypto provider
 │       └── commonTest/          # 891 tests
 ├── meshlink-sample/
 │   ├── android/                 # Jetpack Compose reference app
 │   └── ios/                     # SwiftUI reference app
 ├── docs/                        # Architecture, API, wire format spec
-├── Package.swift                # SPM manifest
+├── Package.swift                # SPM manifest (iOS + macOS)
 └── UBIQUITOUS_LANGUAGE.md       # Domain glossary
 ```
 
@@ -140,7 +143,10 @@ MeshLink/
 # Run iOS simulator tests
 ./gradlew :meshlink:iosSimulatorArm64Test
 
-# Build XCFramework for SPM
+# Run macOS tests
+./gradlew :meshlink:macosArm64Test
+
+# Build XCFramework for SPM (iOS + macOS)
 ./gradlew :meshlink:assembleMeshLinkXCFramework
 ```
 

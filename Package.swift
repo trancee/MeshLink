@@ -15,6 +15,7 @@ let package = Package(
     name: "MeshLink",
     platforms: [
         .iOS(.v13),
+        .macOS(.v11),
     ],
     products: [
         .library(
