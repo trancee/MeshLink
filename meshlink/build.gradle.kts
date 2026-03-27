@@ -45,8 +45,24 @@ kotlin {
         }
     }
 
-    linuxArm64()
-    linuxX64()
+    linuxArm64 {
+        compilations.getByName("main") {
+            cinterops {
+                val bluetooth by creating {
+                    defFile("src/nativeInterop/cinterop/bluetooth.def")
+                }
+            }
+        }
+    }
+    linuxX64 {
+        compilations.getByName("main") {
+            cinterops {
+                val bluetooth by creating {
+                    defFile("src/nativeInterop/cinterop/bluetooth.def")
+                }
+            }
+        }
+    }
 
     sourceSets {
         commonMain.dependencies {

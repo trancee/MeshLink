@@ -15,13 +15,13 @@ A **Kotlin Multiplatform (KMP)** BLE mesh messaging library for **Android**, **i
 
 ## Platform Support
 
-| Target | Min Version | Crypto Provider |
-|--------|-------------|-----------------|
-| Android | API 26 | Pure Kotlin (API 26–32), JCA (API 33+) |
-| iOS | arm64, simulatorArm64 | Pure Kotlin |
-| macOS | arm64 | Pure Kotlin |
-| Linux | arm64, x64 | Pure Kotlin |
-| JVM | Java 21 | Java native JCA |
+| Target | Min Version | Details |
+|--------|-------------|---------|
+| Android | API 26 | Pure Kotlin crypto (API 26–32), JCA (API 33+) |
+| iOS | arm64, simulatorArm64 | CoreBluetooth, Keychain |
+| macOS | arm64 | CoreBluetooth, Keychain |
+| Linux | arm64, x64 | Raw HCI/L2CAP sockets via BlueZ kernel API |
+| JVM | Java 21 | Java native JCA crypto |
 
 ## Quick Start
 

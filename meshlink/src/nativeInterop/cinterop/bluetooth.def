@@ -1,0 +1,187 @@
+// Minimal Linux Bluetooth socket API for BLE scanning, advertising, and GATT.
+// These definitions come from the Linux kernel Bluetooth headers
+// (bluetooth/bluetooth.h, bluetooth/hci.h, bluetooth/hci_lib.h, bluetooth/l2cap.h).
+// Bundled inline so the project cross-compiles from macOS without libbluetooth-dev.
+
+---
+
+#include <stdint.h>
+#include <sys/socket.h>
+#include <sys/ioctl.h>
+#include <unistd.h>
+#include <errno.h>
+#include <string.h>
+
+/* ---------- Address family & protocol numbers ---------- */
+
+#define AF_BLUETOOTH       31
+#define PF_BLUETOOTH       AF_BLUETOOTH
+#define BTPROTO_L2CAP      0
+#define BTPROTO_HCI        1
+#define SOL_HCI            0
+#define HCI_FILTER         2
+
+/* ---------- Bluetooth address ---------- */
+
+typedef struct {
+    uint8_t b[6];
+} __attribute__((packed)) bdaddr_t;
+
+static const bdaddr_t BDADDR_ANY = {{0, 0, 0, 0, 0, 0}};
+
+/* ---------- HCI socket address ---------- */
+
+struct sockaddr_hci {
+    sa_family_t hci_family;
+    unsigned short hci_dev;
+    unsigned short hci_channel;
+};
+
+/* ---------- L2CAP socket address ---------- */
+
+struct sockaddr_l2 {
+    sa_family_t    l2_family;
+    unsigned short l2_psm;
+    bdaddr_t       l2_bdaddr;
+    unsigned short l2_cid;
+    uint8_t        l2_bdaddr_type;
+};
+
+#define BDADDR_LE_PUBLIC  0x01
+#define BDADDR_LE_RANDOM  0x02
+
+/* ATT CID for BLE GATT */
+#define ATT_CID           0x0004
+
+/* ---------- HCI constants ---------- */
+
+#define HCI_MAX_EVENT_SIZE  260
+#define HCI_EVENT_HDR_SIZE  2
+
+/* HCI packet types */
+#define HCI_COMMAND_PKT   0x01
+#define HCI_EVENT_PKT     0x04
+
+/* HCI events */
+#define EVT_LE_META_EVENT          0x3E
+#define EVT_CMD_COMPLETE           0x0E
+
+/* LE sub-events */
+#define EVT_LE_ADVERTISING_REPORT  0x02
+
+/* HCI LE commands (OGF=0x08) */
+#define OGF_LE_CTL                     0x08
+
+#define OCF_LE_SET_SCAN_PARAMETERS     0x000B
+#define OCF_LE_SET_SCAN_ENABLE         0x000C
+#define OCF_LE_SET_ADVERTISING_PARAMETERS 0x0006
+#define OCF_LE_SET_ADVERTISING_DATA    0x0008
+#define OCF_LE_SET_ADVERTISE_ENABLE    0x000A
+
+/* Build opcode from OGF + OCF */
+static inline uint16_t hci_opcode(uint8_t ogf, uint16_t ocf) {
+    return (uint16_t)((ogf << 10) | ocf);
+}
+
+/* ---------- HCI event filter ---------- */
+
+struct hci_filter {
+    uint32_t type_mask;
+    uint32_t event_mask[2];
+    uint16_t opcode;
+};
+
+/* ---------- HCI command header ---------- */
+
+struct hci_command_hdr {
+    uint16_t opcode;
+    uint8_t  plen;
+} __attribute__((packed));
+
+/* ---------- HCI event header ---------- */
+
+struct hci_event_hdr {
+    uint8_t evt;
+    uint8_t plen;
+} __attribute__((packed));
+
+/* ---------- LE scan parameters command ---------- */
+
+struct hci_le_set_scan_parameters_cp {
+    uint8_t  type;       /* 0x00 = passive, 0x01 = active */
+    uint16_t interval;   /* N * 0.625ms */
+    uint16_t window;     /* N * 0.625ms */
+    uint8_t  own_bdaddr_type;
+    uint8_t  filter;
+} __attribute__((packed));
+
+/* ---------- LE scan enable command ---------- */
+
+struct hci_le_set_scan_enable_cp {
+    uint8_t enable;
+    uint8_t filter_dup;
+} __attribute__((packed));
+
+/* ---------- LE advertising parameters ---------- */
+
+struct hci_le_set_adv_parameters_cp {
+    uint16_t min_interval;
+    uint16_t max_interval;
+    uint8_t  type;
+    uint8_t  own_bdaddr_type;
+    uint8_t  direct_bdaddr_type;
+    bdaddr_t direct_bdaddr;
+    uint8_t  chan_map;
+    uint8_t  filter;
+} __attribute__((packed));
+
+/* ---------- LE advertising data ---------- */
+
+struct hci_le_set_adv_data_cp {
+    uint8_t length;
+    uint8_t data[31];
+} __attribute__((packed));
+
+/* ---------- LE advertising enable ---------- */
+
+struct hci_le_set_advertise_enable_cp {
+    uint8_t enable;
+} __attribute__((packed));
+
+/* ---------- LE advertising report (inside event) ---------- */
+
+struct le_advertising_info {
+    uint8_t  evt_type;
+    uint8_t  bdaddr_type;
+    bdaddr_t bdaddr;
+    uint8_t  length;
+    /* followed by `length` bytes of data, then 1 byte RSSI */
+} __attribute__((packed));
+
+/* ---------- Helper: send HCI command ---------- */
+
+static inline int bt_hci_send_cmd(int fd, uint16_t opcode, uint8_t plen, const void *param) {
+    uint8_t buf[4 + 255];
+    buf[0] = HCI_COMMAND_PKT;
+    buf[1] = opcode & 0xFF;
+    buf[2] = (opcode >> 8) & 0xFF;
+    buf[3] = plen;
+    if (plen > 0 && param != NULL) {
+        memcpy(buf + 4, param, plen);
+    }
+    return (int)write(fd, buf, 4 + plen);
+}
+
+/* ---------- ATT protocol opcodes ---------- */
+
+#define ATT_OP_MTU_REQ              0x02
+#define ATT_OP_MTU_RESP             0x03
+#define ATT_OP_FIND_BY_TYPE_REQ     0x06
+#define ATT_OP_READ_BY_TYPE_REQ     0x08
+#define ATT_OP_READ_BY_TYPE_RESP    0x09
+#define ATT_OP_READ_BY_GROUP_REQ    0x10
+#define ATT_OP_READ_BY_GROUP_RESP   0x11
+#define ATT_OP_WRITE_REQ            0x12
+#define ATT_OP_WRITE_RESP           0x13
+#define ATT_OP_WRITE_CMD            0x52
+#define ATT_OP_HANDLE_NOTIFY        0x1B

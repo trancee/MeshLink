@@ -114,7 +114,7 @@ private fun ByteArray.toHex(): String = joinToString("") {
     "$hi$lo"
 }
 
-/** No-op BLE transport for Linux demonstration. */
+/** No-op BLE transport for demonstration without root privileges. */
 private class DemoTransport : BleTransport {
     override val localPeerId: ByteArray = ByteArray(16) { it.toByte() }
     override suspend fun startAdvertisingAndScanning() {}
@@ -124,3 +124,10 @@ private class DemoTransport : BleTransport {
     override suspend fun sendToPeer(peerId: ByteArray, data: ByteArray) {}
     override val incomingData: Flow<IncomingData> = emptyFlow()
 }
+
+// To use real BLE hardware, replace DemoTransport with LinuxBleTransport:
+//
+//   val transport = LinuxBleTransport(hciDeviceId = 0)
+//
+// Requires: Linux with Bluetooth, CAP_NET_RAW or root.
+// See LinuxBleTransport documentation for details.
