@@ -20,6 +20,7 @@ enum class DiagnosticCode {
     MALFORMED_DATA,
     SEND_FAILED,
     APP_ID_REJECTED,
+    UNKNOWN_MESSAGE_TYPE,
 }
 
 data class DiagnosticEvent(

@@ -31,6 +31,11 @@ class RoutingTable(
     private val lastRouteChange = mutableMapOf<String, Long>()
 
     fun addRoute(destination: String, nextHop: String, cost: Double, sequenceNumber: UInt) {
+        // Sanity validation
+        if (cost < 0.0 || cost.isNaN()) return
+        if (cost.isInfinite()) return // Use Double.MAX_VALUE for withdrawals, not Infinity
+        if (cost > MAX_ROUTE_COST && cost != Double.MAX_VALUE) return
+
         val now = currentTime()
         val existing = routes[destination]
         if (existing != null) {
@@ -98,6 +103,7 @@ class RoutingTable(
     fun size(): Int = routes.size
 
     companion object {
+        const val MAX_ROUTE_COST = 1_000_000.0
         internal var currentTime: () -> Long = { System.currentTimeMillis() }
     }
 }

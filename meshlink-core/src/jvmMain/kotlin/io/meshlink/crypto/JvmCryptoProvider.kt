@@ -76,20 +76,20 @@ internal class JvmCryptoProvider : CryptoProvider {
         return ka.generateSecret()
     }
 
-    override fun aesgcmEncrypt(key: ByteArray, nonce: ByteArray, plaintext: ByteArray, aad: ByteArray): ByteArray {
-        val cipher = javax.crypto.Cipher.getInstance("AES/GCM/NoPadding")
-        val keySpec = javax.crypto.spec.SecretKeySpec(key, "AES")
-        val gcmSpec = javax.crypto.spec.GCMParameterSpec(128, nonce)
-        cipher.init(javax.crypto.Cipher.ENCRYPT_MODE, keySpec, gcmSpec)
+    override fun aeadEncrypt(key: ByteArray, nonce: ByteArray, plaintext: ByteArray, aad: ByteArray): ByteArray {
+        val cipher = javax.crypto.Cipher.getInstance("ChaCha20-Poly1305")
+        val keySpec = javax.crypto.spec.SecretKeySpec(key, "ChaCha20")
+        val ivSpec = javax.crypto.spec.IvParameterSpec(nonce)
+        cipher.init(javax.crypto.Cipher.ENCRYPT_MODE, keySpec, ivSpec)
         if (aad.isNotEmpty()) cipher.updateAAD(aad)
         return cipher.doFinal(plaintext)
     }
 
-    override fun aesgcmDecrypt(key: ByteArray, nonce: ByteArray, ciphertext: ByteArray, aad: ByteArray): ByteArray {
-        val cipher = javax.crypto.Cipher.getInstance("AES/GCM/NoPadding")
-        val keySpec = javax.crypto.spec.SecretKeySpec(key, "AES")
-        val gcmSpec = javax.crypto.spec.GCMParameterSpec(128, nonce)
-        cipher.init(javax.crypto.Cipher.DECRYPT_MODE, keySpec, gcmSpec)
+    override fun aeadDecrypt(key: ByteArray, nonce: ByteArray, ciphertext: ByteArray, aad: ByteArray): ByteArray {
+        val cipher = javax.crypto.Cipher.getInstance("ChaCha20-Poly1305")
+        val keySpec = javax.crypto.spec.SecretKeySpec(key, "ChaCha20")
+        val ivSpec = javax.crypto.spec.IvParameterSpec(nonce)
+        cipher.init(javax.crypto.Cipher.DECRYPT_MODE, keySpec, ivSpec)
         if (aad.isNotEmpty()) cipher.updateAAD(aad)
         return cipher.doFinal(ciphertext)
     }

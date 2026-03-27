@@ -21,6 +21,14 @@ data class MeshLinkConfig(
     val pendingMessageCapacity: Int = 100,
     val broadcastRateLimitPerMinute: Int = 0,
     val relayQueueCapacity: Int = 100,
+    val maxHops: UByte = UByte.MAX_VALUE,
+    val ackWindowMin: Int = 2,
+    val ackWindowMax: Int = 16,
+    val powerModeThresholds: List<Int> = listOf(80, 30),
+    val l2capEnabled: Boolean = true,
+    val l2capRetryAttempts: Int = 3,
+    val chunkInactivityTimeoutMs: Long = 30_000L,
+    val bufferTtlMs: Long = 300_000L,
 ) {
     fun validate(): List<String> {
         val violations = mutableListOf<String>()
@@ -33,6 +41,13 @@ data class MeshLinkConfig(
         if (dedupCapacity <= 0) violations.add("dedupCapacity must be positive")
         if (rateLimitMaxSends > 0 && rateLimitWindowMs <= 0) violations.add("rateLimitWindowMs must be positive when rate limiting is enabled")
         if (circuitBreakerMaxFailures > 0 && circuitBreakerCooldownMs <= 0) violations.add("circuitBreakerCooldownMs must be positive when circuit breaker is enabled")
+        // Cross-field validation rules from design doc §14
+        if (ackWindowMax < ackWindowMin) violations.add("ackWindowMax ($ackWindowMax) must be >= ackWindowMin ($ackWindowMin)")
+        if (powerModeThresholds.size >= 2 && powerModeThresholds[0] <= powerModeThresholds[1]) {
+            violations.add("powerModeThresholds must be strictly descending: [${powerModeThresholds.joinToString()}]")
+        }
+        if (l2capEnabled && l2capRetryAttempts < 0) violations.add("l2capRetryAttempts ($l2capRetryAttempts) must be >= 0 when l2capEnabled is true")
+        if (chunkInactivityTimeoutMs >= bufferTtlMs) violations.add("chunkInactivityTimeoutMs ($chunkInactivityTimeoutMs) must be < bufferTtlMs ($bufferTtlMs)")
         return violations
     }
 
@@ -73,6 +88,14 @@ class MeshLinkConfigBuilder(
     var pendingMessageCapacity: Int = 100,
     var broadcastRateLimitPerMinute: Int = 0,
     var relayQueueCapacity: Int = 100,
+    var maxHops: UByte = UByte.MAX_VALUE,
+    var ackWindowMin: Int = 2,
+    var ackWindowMax: Int = 16,
+    var powerModeThresholds: List<Int> = listOf(80, 30),
+    var l2capEnabled: Boolean = true,
+    var l2capRetryAttempts: Int = 3,
+    var chunkInactivityTimeoutMs: Long = 30_000L,
+    var bufferTtlMs: Long = 300_000L,
 ) {
 
     fun build(): MeshLinkConfig = MeshLinkConfig(
@@ -94,5 +117,13 @@ class MeshLinkConfigBuilder(
         pendingMessageCapacity = pendingMessageCapacity,
         broadcastRateLimitPerMinute = broadcastRateLimitPerMinute,
         relayQueueCapacity = relayQueueCapacity,
+        maxHops = maxHops,
+        ackWindowMin = ackWindowMin,
+        ackWindowMax = ackWindowMax,
+        powerModeThresholds = powerModeThresholds,
+        l2capEnabled = l2capEnabled,
+        l2capRetryAttempts = l2capRetryAttempts,
+        chunkInactivityTimeoutMs = chunkInactivityTimeoutMs,
+        bufferTtlMs = bufferTtlMs,
     )
 }

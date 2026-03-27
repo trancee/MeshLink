@@ -2,6 +2,7 @@ package io.meshlink.routing
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 
 class RoutingTableTest {
@@ -203,5 +204,60 @@ class RoutingTableTest {
         now = 1400L
         table.addRoute("D", "C", cost = 2.0, sequenceNumber = 7u)
         assertEquals("C", table.bestRoute("D")?.nextHop, "New route accepted after holddown")
+    }
+
+    // --- Route Cost Sanity Validation ---
+
+    @Test
+    fun negativeCostRejected() {
+        val table = RoutingTable()
+        table.addRoute("D", "A", cost = -1.0, sequenceNumber = 1u)
+        assertNull(table.bestRoute("D"), "Negative cost route should be rejected")
+    }
+
+    @Test
+    fun nanCostRejected() {
+        val table = RoutingTable()
+        table.addRoute("D", "A", cost = Double.NaN, sequenceNumber = 1u)
+        assertNull(table.bestRoute("D"), "NaN cost route should be rejected")
+    }
+
+    @Test
+    fun infiniteCostRejected() {
+        val table = RoutingTable()
+        table.addRoute("D", "A", cost = Double.POSITIVE_INFINITY, sequenceNumber = 1u)
+        assertNull(table.bestRoute("D"), "Positive infinity cost should be rejected")
+
+        table.addRoute("D", "B", cost = Double.NEGATIVE_INFINITY, sequenceNumber = 1u)
+        assertNull(table.bestRoute("D"), "Negative infinity cost should be rejected")
+    }
+
+    @Test
+    fun costExceedingMaxRejected() {
+        val table = RoutingTable()
+        table.addRoute("D", "A", cost = RoutingTable.MAX_ROUTE_COST + 1.0, sequenceNumber = 1u)
+        assertNull(table.bestRoute("D"), "Cost exceeding MAX_ROUTE_COST should be rejected")
+    }
+
+    @Test
+    fun withdrawalCostAccepted() {
+        val table = RoutingTable()
+        table.addRoute("D", "A", cost = Double.MAX_VALUE, sequenceNumber = 1u)
+        val best = table.bestRoute("D")
+        assertNotNull(best, "Double.MAX_VALUE (withdrawal) should be accepted")
+        assertEquals(Double.MAX_VALUE, best.cost)
+    }
+
+    @Test
+    fun normalPositiveCostsAccepted() {
+        val table = RoutingTable()
+        table.addRoute("D", "A", cost = 0.0, sequenceNumber = 1u)
+        assertNotNull(table.bestRoute("D"), "Zero cost should be accepted")
+
+        table.addRoute("E", "A", cost = 1.0, sequenceNumber = 1u)
+        assertNotNull(table.bestRoute("E"), "Normal positive cost should be accepted")
+
+        table.addRoute("F", "A", cost = RoutingTable.MAX_ROUTE_COST, sequenceNumber = 1u)
+        assertNotNull(table.bestRoute("F"), "Cost exactly at MAX_ROUTE_COST should be accepted")
     }
 }

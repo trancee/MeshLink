@@ -30,7 +30,7 @@ class NoiseXXHandshake private constructor(
     )
 
     companion object {
-        private val PROTOCOL_NAME = "Noise_XX_25519_AESGCM_SHA256".encodeToByteArray()
+        private val PROTOCOL_NAME = "Noise_XX_25519_ChaChaPoly_SHA256".encodeToByteArray()
 
         fun initiator(crypto: CryptoProvider, staticKeyPair: CryptoKeyPair): NoiseXXHandshake {
             return NoiseXXHandshake(crypto, staticKeyPair, isInitiator = true).apply { initialize() }
@@ -208,7 +208,7 @@ class NoiseXXHandshake private constructor(
         val ciphertext = if (hasKey) {
             val n = nonceBytes()
             nonce++
-            crypto.aesgcmEncrypt(symmetricKey, n, plaintext, handshakeHash)
+            crypto.aeadEncrypt(symmetricKey, n, plaintext, handshakeHash)
         } else {
             plaintext
         }
@@ -220,7 +220,7 @@ class NoiseXXHandshake private constructor(
         val plaintext = if (hasKey) {
             val n = nonceBytes()
             nonce++
-            crypto.aesgcmDecrypt(symmetricKey, n, ciphertext, handshakeHash)
+            crypto.aeadDecrypt(symmetricKey, n, ciphertext, handshakeHash)
         } else {
             ciphertext
         }

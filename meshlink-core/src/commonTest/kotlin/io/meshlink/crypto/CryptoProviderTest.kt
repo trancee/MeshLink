@@ -74,36 +74,36 @@ class CryptoProviderTest {
         assertTrue(secretAB.contentEquals(secretBA), "A(priv)+B(pub) must equal B(priv)+A(pub)")
     }
 
-    // ── Vertical slice 6: AES-GCM encrypt/decrypt round-trip ──
+    // ── Vertical slice 6: ChaCha20-Poly1305 encrypt/decrypt round-trip ──
 
     @Test
-    fun aesGcmEncryptDecryptRoundTrip() {
+    fun aeadEncryptDecryptRoundTrip() {
         val key = ByteArray(32) { it.toByte() }
         val nonce = ByteArray(12) { (it + 100).toByte() }
         val plaintext = "secret mesh data".encodeToByteArray()
         val aad = "associated-data".encodeToByteArray()
 
-        val ciphertext = crypto.aesgcmEncrypt(key, nonce, plaintext, aad)
+        val ciphertext = crypto.aeadEncrypt(key, nonce, plaintext, aad)
         assertTrue(ciphertext.size > plaintext.size, "Ciphertext should be longer (includes auth tag)")
 
-        val decrypted = crypto.aesgcmDecrypt(key, nonce, ciphertext, aad)
+        val decrypted = crypto.aeadDecrypt(key, nonce, ciphertext, aad)
         assertTrue(plaintext.contentEquals(decrypted), "Decrypted should match original")
     }
 
-    // ── Vertical slice 7: AES-GCM rejects tampered ciphertext ──
+    // ── Vertical slice 7: ChaCha20-Poly1305 rejects tampered ciphertext ──
 
     @Test
-    fun aesGcmDecryptRejectsTamperedCiphertext() {
+    fun aeadDecryptRejectsTamperedCiphertext() {
         val key = ByteArray(32) { it.toByte() }
         val nonce = ByteArray(12) { (it + 100).toByte() }
         val plaintext = "secret mesh data".encodeToByteArray()
 
-        val ciphertext = crypto.aesgcmEncrypt(key, nonce, plaintext)
+        val ciphertext = crypto.aeadEncrypt(key, nonce, plaintext)
         val tampered = ciphertext.copyOf()
         tampered[0] = (tampered[0].toInt() xor 0xFF).toByte()
 
         assertFailsWith<Exception> {
-            crypto.aesgcmDecrypt(key, nonce, tampered)
+            crypto.aeadDecrypt(key, nonce, tampered)
         }
     }
 

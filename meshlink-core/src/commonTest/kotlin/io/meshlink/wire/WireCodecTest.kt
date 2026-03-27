@@ -553,4 +553,53 @@ class WireCodecTest {
         assertEquals(null, decoded.signerPublicKey)
         assertEquals(null, decoded.signature)
     }
+
+    // --- ResumeRequest tests ---
+
+    @Test
+    fun resumeRequestEncodesToGoldenBytes() {
+        val encoded = WireCodec.encodeResumeRequest(
+            messageId = testMessageId,
+            bytesReceived = 0x04030201u,
+        )
+
+        // type(1) + messageId(16) + bytesReceived(4 LE) = 21
+        val expected = byteArrayOf(
+            0x07,                                                           // type: resume_request
+            0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,               // messageId[0..7]
+            0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F,               // messageId[8..15]
+            0x01, 0x02, 0x03, 0x04,                                         // bytesReceived = 0x04030201 (LE)
+        )
+
+        assertContentEquals(expected, encoded)
+    }
+
+    @Test
+    fun resumeRequestRoundTrip() {
+        val messageId = ByteArray(16) { (0xA0 + it).toByte() }
+        val bytesReceived = 123456u
+
+        val encoded = WireCodec.encodeResumeRequest(messageId, bytesReceived)
+        val decoded = WireCodec.decodeResumeRequest(encoded)
+
+        assertContentEquals(messageId, decoded.messageId)
+        assertEquals(bytesReceived, decoded.bytesReceived)
+    }
+
+    @Test
+    fun resumeRequestRejectsTooShort() {
+        val tooShort = ByteArray(20) { 0x07 }
+        assertFailsWith<IllegalArgumentException> {
+            WireCodec.decodeResumeRequest(tooShort)
+        }
+    }
+
+    @Test
+    fun resumeRequestTypeByte() {
+        val encoded = WireCodec.encodeResumeRequest(
+            messageId = testMessageId,
+            bytesReceived = 0u,
+        )
+        assertEquals(0x07, encoded[0])
+    }
 }

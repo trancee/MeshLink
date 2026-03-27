@@ -4,7 +4,7 @@ package io.meshlink.crypto
  * Noise K E2E sealer for per-message encryption.
  *
  * Sender generates ephemeral X25519 keypair per message, encrypts payload
- * with recipient's static public key using ECDH + HKDF + AES-GCM.
+ * with recipient's static public key using ECDH + HKDF + ChaCha20-Poly1305.
  *
  * Sealed layout: [32B ephemeral_pub | encrypted_payload_with_tag]
  *
@@ -21,7 +21,7 @@ class NoiseKSealer(private val crypto: CryptoProvider) {
         val sharedSecret = crypto.x25519SharedSecret(ephemeral.privateKey, recipientStaticPub)
         val key = crypto.hkdfSha256(sharedSecret, byteArrayOf(), "NoiseK-seal".encodeToByteArray(), 32)
         val nonce = ByteArray(12) // zero nonce is safe because key is unique per message
-        val ciphertext = crypto.aesgcmEncrypt(key, nonce, plaintext, ephemeral.publicKey)
+        val ciphertext = crypto.aeadEncrypt(key, nonce, plaintext, ephemeral.publicKey)
         return ephemeral.publicKey + ciphertext
     }
 
@@ -37,6 +37,6 @@ class NoiseKSealer(private val crypto: CryptoProvider) {
         val sharedSecret = crypto.x25519SharedSecret(recipientStaticPriv, ephemeralPub)
         val key = crypto.hkdfSha256(sharedSecret, byteArrayOf(), "NoiseK-seal".encodeToByteArray(), 32)
         val nonce = ByteArray(12)
-        return crypto.aesgcmDecrypt(key, nonce, ciphertext, ephemeralPub)
+        return crypto.aeadDecrypt(key, nonce, ciphertext, ephemeralPub)
     }
 }

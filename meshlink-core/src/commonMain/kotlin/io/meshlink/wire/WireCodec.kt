@@ -11,6 +11,10 @@ object WireCodec {
     const val TYPE_CHUNK_ACK: Byte = 0x04
     const val TYPE_ROUTED_MESSAGE: Byte = 0x05
     const val TYPE_DELIVERY_ACK: Byte = 0x06
+    const val TYPE_RESUME_REQUEST: Byte = 0x07
+
+    // resume_request: type(1) + messageId(16) + bytesReceived(4 LE) = 21
+    private const val RESUME_REQUEST_SIZE = 1 + MESSAGE_ID_SIZE + 4 // 21
 
     // chunk: type(1) + messageId(16) + seqNum(2 LE) + totalChunks(2 LE) + payload
     const val CHUNK_HEADER_SIZE = 1 + MESSAGE_ID_SIZE + 2 + 2 // 21
@@ -279,6 +283,25 @@ object WireCodec {
         return buf
     }
 
+    fun encodeResumeRequest(messageId: ByteArray, bytesReceived: UInt): ByteArray {
+        require(messageId.size == 16) { "messageId must be 16 bytes" }
+        val buf = ByteArray(RESUME_REQUEST_SIZE)
+        var offset = 0
+        buf[offset++] = TYPE_RESUME_REQUEST
+        messageId.copyInto(buf, offset); offset += MESSAGE_ID_SIZE
+        buf.putUIntLE(offset, bytesReceived)
+        return buf
+    }
+
+    fun decodeResumeRequest(data: ByteArray): ResumeRequestMessage {
+        require(data.size >= RESUME_REQUEST_SIZE) { "resume_request too short: ${data.size}" }
+        require(data[0] == TYPE_RESUME_REQUEST) { "not a resume_request: 0x${data[0].toUByte().toString(16)}" }
+        var offset = 1
+        val messageId = data.copyOfRange(offset, offset + MESSAGE_ID_SIZE); offset += MESSAGE_ID_SIZE
+        val bytesReceived = data.getUIntLE(offset)
+        return ResumeRequestMessage(messageId, bytesReceived)
+    }
+
     fun decodeRouteUpdate(data: ByteArray): RouteUpdateMessage {
         require(data.size >= ROUTE_UPDATE_HEADER_SIZE) { "route_update too short: ${data.size}" }
         require(data[0] == TYPE_ROUTE_UPDATE) { "not a route_update: 0x${data[0].toUByte().toString(16)}" }
@@ -419,6 +442,21 @@ data class RouteUpdateMessage(
     val signerPublicKey: ByteArray? = null,
     val signature: ByteArray? = null,
 )
+
+data class ResumeRequestMessage(
+    val messageId: ByteArray,
+    val bytesReceived: UInt,
+) {
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is ResumeRequestMessage) return false
+        return messageId.contentEquals(other.messageId) && bytesReceived == other.bytesReceived
+    }
+
+    override fun hashCode(): Int {
+        return 31 * messageId.contentHashCode() + bytesReceived.hashCode()
+    }
+}
 
 data class HandshakeMessage(
     val step: UByte,

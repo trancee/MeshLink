@@ -166,6 +166,9 @@ class MeshLink(
     // Routing table for multi-hop relay
     private val routingTable = RoutingTable()
 
+    // Track previous next-hop per destination for poison reverse
+    private val previousNextHop = mutableMapOf<String, String>()
+
     // Reverse path for delivery ACK relay: messageId hex → fromPeerId
     private val routedMsgSources = mutableMapOf<String, ByteArray>()
 
@@ -718,15 +721,26 @@ class MeshLink(
         val allRoutes = routingTable.allBestRoutes()
 
         for (peerHex in connectedPeers) {
-            // Split horizon: don't advertise a route back to its next-hop
-            val filteredRoutes = allRoutes.filter { it.nextHop != peerHex }
-            val entries = filteredRoutes.map { route ->
-                RouteUpdateEntry(
-                    destination = hexToBytes(route.destination),
-                    cost = route.cost,
-                    sequenceNumber = route.sequenceNumber,
-                    hopCount = 1u,
-                )
+            val entries = allRoutes.mapNotNull { route ->
+                if (route.nextHop == peerHex) {
+                    // Split horizon: don't advertise a route back to its next-hop
+                    null
+                } else if (previousNextHop[route.destination] == peerHex && route.nextHop != peerHex) {
+                    // Poison reverse: tell old next-hop the route is gone
+                    RouteUpdateEntry(
+                        destination = hexToBytes(route.destination),
+                        cost = Double.MAX_VALUE,
+                        sequenceNumber = route.sequenceNumber,
+                        hopCount = 1u,
+                    )
+                } else {
+                    RouteUpdateEntry(
+                        destination = hexToBytes(route.destination),
+                        cost = route.cost,
+                        sequenceNumber = route.sequenceNumber,
+                        hopCount = 1u,
+                    )
+                }
             }
             val bkp2 = broadcastKeyPair
             val updateData = if (crypto != null && bkp2 != null) {
@@ -766,6 +780,11 @@ class MeshLink(
                 WireCodec.TYPE_ROUTE_UPDATE -> handleRouteUpdate(fromPeerId, data)
                 WireCodec.TYPE_ROUTED_MESSAGE -> handleRoutedMessage(fromPeerId, data)
                 WireCodec.TYPE_DELIVERY_ACK -> handleDeliveryAck(fromPeerId, data)
+                WireCodec.TYPE_RESUME_REQUEST -> handleResumeRequest(fromPeerId, data)
+                else -> {
+                    diagnosticSink.emit(DiagnosticCode.UNKNOWN_MESSAGE_TYPE, Severity.WARN,
+                        "type=0x${data[0].toUByte().toString(16).padStart(2, '0')}, size=${data.size}")
+                }
             }
         } catch (e: Exception) {
             diagnosticSink.emit(DiagnosticCode.MALFORMED_DATA, Severity.WARN,
@@ -801,6 +820,7 @@ class MeshLink(
             routingTable.addRoute(destHex, senderHex, entry.cost + 1.0, entry.sequenceNumber)
             val newBest = routingTable.bestRoute(destHex)
             if (oldBest != null && newBest != null && oldBest.nextHop != newBest.nextHop) {
+                previousNextHop[destHex] = oldBest.nextHop
                 diagnosticSink.emit(DiagnosticCode.ROUTE_CHANGED, Severity.INFO,
                     "dest=$destHex, oldNextHop=${oldBest.nextHop}, newNextHop=${newBest.nextHop}, oldCost=${oldBest.cost}, newCost=${newBest.cost}")
             }
@@ -913,7 +933,7 @@ class MeshLink(
             val reflooded = WireCodec.encodeBroadcast(
                 messageId = broadcast.messageId,
                 origin = broadcast.origin,
-                remainingHops = (broadcast.remainingHops - 1u).toUByte(),
+                remainingHops = minOf((broadcast.remainingHops - 1u).toUByte(), config.maxHops),
                 appIdHash = broadcast.appIdHash,
                 payload = broadcast.payload,
                 signature = broadcast.signature,
@@ -1035,6 +1055,13 @@ class MeshLink(
         } else {
             scope?.launch { safeSend(nextHop, relayed) }
         }
+    }
+
+    private suspend fun handleResumeRequest(fromPeerId: ByteArray, data: ByteArray) {
+        // Resume logic will be implemented in p3-byte-offset-resume
+        val request = WireCodec.decodeResumeRequest(data)
+        diagnosticSink.emit(DiagnosticCode.TRANSPORT_MODE_CHANGED, Severity.INFO,
+            "resume_request: messageId=${request.messageId.toHex()}, bytesReceived=${request.bytesReceived}")
     }
 
     private suspend fun handleDeliveryAck(fromPeerId: ByteArray, data: ByteArray) {

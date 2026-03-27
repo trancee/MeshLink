@@ -103,4 +103,105 @@ class MeshLinkConfigTest {
         assertEquals(50, custom.relayQueueCapacity)
         assertEquals(10_000, custom.maxMessageSize, "Other fields preserved")
     }
+
+    // --- Cross-field validation rules from design doc §14 ---
+
+    @Test
+    fun ackWindowMaxMustBeGreaterOrEqualToAckWindowMin() {
+        val violations = MeshLinkConfig(ackWindowMax = 1, ackWindowMin = 4).validate()
+        assertTrue(violations.any { "ackWindowMax" in it && "ackWindowMin" in it },
+            "Should reject ackWindowMax < ackWindowMin: $violations")
+    }
+
+    @Test
+    fun ackWindowValidWhenMaxEqualsMin() {
+        val violations = MeshLinkConfig(ackWindowMax = 4, ackWindowMin = 4).validate()
+        assertTrue(violations.none { "ackWindow" in it },
+            "ackWindowMax == ackWindowMin should be valid: $violations")
+    }
+
+    @Test
+    fun powerModeThresholdsMustBeStrictlyDescending() {
+        val violations = MeshLinkConfig(powerModeThresholds = listOf(30, 80)).validate()
+        assertTrue(violations.any { "powerModeThresholds" in it && "descending" in it },
+            "Should reject non-descending thresholds: $violations")
+    }
+
+    @Test
+    fun powerModeThresholdsEqualValuesAreInvalid() {
+        val violations = MeshLinkConfig(powerModeThresholds = listOf(50, 50)).validate()
+        assertTrue(violations.any { "powerModeThresholds" in it },
+            "Should reject equal thresholds: $violations")
+    }
+
+    @Test
+    fun l2capRetryAttemptsMustBeNonNegativeWhenEnabled() {
+        val violations = MeshLinkConfig(l2capEnabled = true, l2capRetryAttempts = -1).validate()
+        assertTrue(violations.any { "l2capRetryAttempts" in it },
+            "Should reject negative l2capRetryAttempts when l2capEnabled: $violations")
+    }
+
+    @Test
+    fun l2capRetryAttemptsNegativeAllowedWhenDisabled() {
+        val violations = MeshLinkConfig(l2capEnabled = false, l2capRetryAttempts = -1).validate()
+        assertTrue(violations.none { "l2capRetryAttempts" in it },
+            "Should allow negative l2capRetryAttempts when l2capEnabled is false: $violations")
+    }
+
+    @Test
+    fun chunkInactivityTimeoutMustBeLessThanBufferTtl() {
+        val violations = MeshLinkConfig(
+            chunkInactivityTimeoutMs = 300_000L,
+            bufferTtlMs = 300_000L,
+        ).validate()
+        assertTrue(violations.any { "chunkInactivityTimeoutMs" in it && "bufferTtlMs" in it },
+            "Should reject chunkInactivityTimeoutMs >= bufferTtlMs: $violations")
+    }
+
+    @Test
+    fun chunkInactivityTimeoutExceedingBufferTtlIsInvalid() {
+        val violations = MeshLinkConfig(
+            chunkInactivityTimeoutMs = 600_000L,
+            bufferTtlMs = 300_000L,
+        ).validate()
+        assertTrue(violations.any { "chunkInactivityTimeoutMs" in it },
+            "Should reject chunkInactivityTimeoutMs > bufferTtlMs: $violations")
+    }
+
+    @Test
+    fun multipleCrossFieldViolationsReturnedTogether() {
+        val violations = MeshLinkConfig(
+            ackWindowMax = 1,
+            ackWindowMin = 8,
+            powerModeThresholds = listOf(10, 90),
+            l2capEnabled = true,
+            l2capRetryAttempts = -2,
+            chunkInactivityTimeoutMs = 500_000L,
+            bufferTtlMs = 100_000L,
+        ).validate()
+        assertTrue(violations.size >= 4,
+            "Should report at least 4 cross-field violations, got ${violations.size}: $violations")
+        assertTrue(violations.any { "ackWindow" in it })
+        assertTrue(violations.any { "powerModeThresholds" in it })
+        assertTrue(violations.any { "l2capRetryAttempts" in it })
+        assertTrue(violations.any { "chunkInactivityTimeoutMs" in it })
+    }
+
+    @Test
+    fun validConfigReturnsEmptyViolations() {
+        val violations = MeshLinkConfig().validate()
+        assertEquals(emptyList(), violations, "Default config should have no violations")
+    }
+
+    @Test
+    fun defaultNewFieldsAreValid() {
+        val config = MeshLinkConfig()
+        assertEquals(2, config.ackWindowMin)
+        assertEquals(16, config.ackWindowMax)
+        assertEquals(listOf(80, 30), config.powerModeThresholds)
+        assertEquals(true, config.l2capEnabled)
+        assertEquals(3, config.l2capRetryAttempts)
+        assertEquals(30_000L, config.chunkInactivityTimeoutMs)
+        assertEquals(300_000L, config.bufferTtlMs)
+    }
 }

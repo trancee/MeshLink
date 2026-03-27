@@ -8469,4 +8469,200 @@ class MeshLinkTest {
         assertTrue(toBob > 0, "Should have sent chunks to Bob, got $toBob")
         assertTrue(toCharlie > 0, "Should have sent chunks to Charlie, got $toCharlie")
     }
+
+    // --- Per-hop TTL clamping tests ---
+
+    @Test
+    fun test_broadcast_ttl_zero_not_forwarded() = runTest {
+        val peerIdCharlie = ByteArray(16) { (0xC0 + it).toByte() }
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val transportBob = VirtualMeshTransport(peerIdBob)
+        val transportCharlie = VirtualMeshTransport(peerIdCharlie)
+        transportAlice.linkTo(transportBob)
+        transportBob.linkTo(transportCharlie)
+
+        val alice = MeshLink(transportAlice, meshLinkConfig(), coroutineContext)
+        val bob = MeshLink(transportBob, meshLinkConfig(), coroutineContext)
+        val charlie = MeshLink(transportCharlie, meshLinkConfig(), coroutineContext)
+        alice.start(); bob.start(); charlie.start()
+        advanceUntilIdle()
+
+        transportAlice.simulateDiscovery(peerIdBob)
+        transportBob.simulateDiscovery(peerIdAlice)
+        transportBob.simulateDiscovery(peerIdCharlie)
+        transportCharlie.simulateDiscovery(peerIdBob)
+        advanceUntilIdle()
+
+        val bobMessages = mutableListOf<Message>()
+        val charlieMessages = mutableListOf<Message>()
+        val cBob = launch { bob.messages.collect { bobMessages.add(it) } }
+        val cCharlie = launch { charlie.messages.collect { charlieMessages.add(it) } }
+        advanceUntilIdle()
+
+        // Alice broadcasts with maxHops=0: Bob receives directly but must NOT forward
+        alice.broadcast("ttl zero".encodeToByteArray(), maxHops = 0u)
+        advanceUntilIdle()
+
+        assertEquals(1, bobMessages.size, "Bob (direct neighbor) should receive locally")
+        assertEquals(0, charlieMessages.size, "Charlie should NOT receive (remainingHops was 0)")
+
+        // Verify Bob did not send any broadcast to Charlie
+        val bobBroadcastsToCharlie = transportBob.sentData.filter { (peerId, data) ->
+            peerId == peerIdCharlie.toHex() && data.isNotEmpty() && data[0] == WireCodec.TYPE_BROADCAST
+        }
+        assertEquals(0, bobBroadcastsToCharlie.size, "Bob should not forward broadcast with remainingHops=0")
+
+        cBob.cancel(); cCharlie.cancel()
+        alice.stop(); bob.stop(); charlie.stop()
+    }
+
+    @Test
+    fun test_broadcast_ttl_decremented() = runTest {
+        val peerIdCharlie = ByteArray(16) { (0xC0 + it).toByte() }
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val transportBob = VirtualMeshTransport(peerIdBob)
+        val transportCharlie = VirtualMeshTransport(peerIdCharlie)
+        transportAlice.linkTo(transportBob)
+        transportBob.linkTo(transportCharlie)
+
+        val alice = MeshLink(transportAlice, meshLinkConfig(), coroutineContext)
+        val bob = MeshLink(transportBob, meshLinkConfig(), coroutineContext)
+        val charlie = MeshLink(transportCharlie, meshLinkConfig(), coroutineContext)
+        alice.start(); bob.start(); charlie.start()
+        advanceUntilIdle()
+
+        transportAlice.simulateDiscovery(peerIdBob)
+        transportBob.simulateDiscovery(peerIdAlice)
+        transportBob.simulateDiscovery(peerIdCharlie)
+        transportCharlie.simulateDiscovery(peerIdBob)
+        advanceUntilIdle()
+
+        val charlieMessages = mutableListOf<Message>()
+        val collector = launch { charlie.messages.collect { charlieMessages.add(it) } }
+        advanceUntilIdle()
+
+        // Alice broadcasts with maxHops=3
+        alice.broadcast("decrement test".encodeToByteArray(), maxHops = 3u)
+        advanceUntilIdle()
+
+        assertEquals(1, charlieMessages.size, "Charlie should receive the broadcast")
+
+        // Inspect the wire data Bob forwarded to Charlie
+        val bobBroadcastsToCharlie = transportBob.sentData.filter { (peerId, data) ->
+            peerId == peerIdCharlie.toHex() && data.isNotEmpty() && data[0] == WireCodec.TYPE_BROADCAST
+        }
+        assertEquals(1, bobBroadcastsToCharlie.size, "Bob should forward to Charlie")
+        val relayed = WireCodec.decodeBroadcast(bobBroadcastsToCharlie[0].second)
+        assertEquals(2u.toUByte(), relayed.remainingHops, "remainingHops should be decremented from 3 to 2")
+
+        collector.cancel()
+        alice.stop(); bob.stop(); charlie.stop()
+    }
+
+    @Test
+    fun test_broadcast_ttl_clamped_by_local_config() = runTest {
+        val peerIdCharlie = ByteArray(16) { (0xC0 + it).toByte() }
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val transportBob = VirtualMeshTransport(peerIdBob)
+        val transportCharlie = VirtualMeshTransport(peerIdCharlie)
+        transportAlice.linkTo(transportBob)
+        transportBob.linkTo(transportCharlie)
+
+        val alice = MeshLink(transportAlice, meshLinkConfig(), coroutineContext)
+        // Bob's config limits maxHops to 1
+        val bob = MeshLink(transportBob, meshLinkConfig { maxHops = 1u }, coroutineContext)
+        val charlie = MeshLink(transportCharlie, meshLinkConfig(), coroutineContext)
+        alice.start(); bob.start(); charlie.start()
+        advanceUntilIdle()
+
+        transportAlice.simulateDiscovery(peerIdBob)
+        transportBob.simulateDiscovery(peerIdAlice)
+        transportBob.simulateDiscovery(peerIdCharlie)
+        transportCharlie.simulateDiscovery(peerIdBob)
+        advanceUntilIdle()
+
+        val charlieMessages = mutableListOf<Message>()
+        val collector = launch { charlie.messages.collect { charlieMessages.add(it) } }
+        advanceUntilIdle()
+
+        // Alice broadcasts with maxHops=5
+        alice.broadcast("clamp test".encodeToByteArray(), maxHops = 5u)
+        advanceUntilIdle()
+
+        assertEquals(1, charlieMessages.size, "Charlie should receive the broadcast")
+
+        // Bob should clamp: min(5-1, 1) = 1
+        val bobBroadcastsToCharlie = transportBob.sentData.filter { (peerId, data) ->
+            peerId == peerIdCharlie.toHex() && data.isNotEmpty() && data[0] == WireCodec.TYPE_BROADCAST
+        }
+        assertEquals(1, bobBroadcastsToCharlie.size, "Bob should forward to Charlie")
+        val relayed = WireCodec.decodeBroadcast(bobBroadcastsToCharlie[0].second)
+        assertEquals(1u.toUByte(), relayed.remainingHops,
+            "remainingHops should be clamped to Bob's maxHops=1 (not 4)")
+
+        collector.cancel()
+        alice.stop(); bob.stop(); charlie.stop()
+    }
+
+    // --- Poison Reverse: old next-hop receives cost=∞ ---
+
+    @Test
+    fun poisonReverseOnNextHopChange() = runTest {
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val config = meshLinkConfig { gossipIntervalMs = 100L }
+        val alice = MeshLink(transportAlice, config, coroutineContext)
+
+        val bobHex = peerIdBob.toList().joinToString("") { "%02x".format(it) }
+        val charlieId = ByteArray(16) { (0x30 + it).toByte() }
+        val charlieHex = charlieId.toList().joinToString("") { "%02x".format(it) }
+        val destId = ByteArray(16) { (0xD0 + it).toByte() }
+        val destHex = destId.toList().joinToString("") { "%02x".format(it) }
+
+        // Alice learns route to dest via Bob
+        alice.addRoute(destHex, bobHex, 5.0, 1u)
+
+        alice.start()
+        testScheduler.advanceTimeBy(1L)
+
+        // Discover Bob and Charlie as connected peers
+        transportAlice.simulateDiscovery(peerIdBob)
+        transportAlice.simulateDiscovery(charlieId)
+        testScheduler.advanceTimeBy(1L)
+
+        // Now Alice learns a better route to dest via Charlie (next-hop changes from Bob to Charlie)
+        // Simulate a route update arriving from Charlie
+        val routeEntry = RouteUpdateEntry(
+            destination = destId,
+            cost = 1.0,
+            sequenceNumber = 2u,
+            hopCount = 1u,
+        )
+        val routeUpdateData = WireCodec.encodeRouteUpdate(charlieId, listOf(routeEntry))
+        transportAlice.receiveData(charlieId, routeUpdateData)
+        testScheduler.advanceTimeBy(1L)
+
+        // Clear sent data to only capture the next gossip round
+        transportAlice.sentData.clear()
+
+        // Trigger gossip
+        testScheduler.advanceTimeBy(200L)
+
+        alice.stop()
+        testScheduler.advanceTimeBy(1L)
+
+        // Check route updates sent to Bob (the old next-hop)
+        val routeUpdatesToBob = transportAlice.sentData.filter { (peer, data) ->
+            peer == bobHex && data.isNotEmpty() && data[0] == WireCodec.TYPE_ROUTE_UPDATE
+        }
+
+        // Bob should receive a poison reverse entry for dest with cost=∞
+        val hasPoisonReverse = routeUpdatesToBob.any { (_, data) ->
+            val decoded = WireCodec.decodeRouteUpdate(data)
+            decoded.entries.any { entry ->
+                entry.destination.contentEquals(destId) && entry.cost == Double.MAX_VALUE
+            }
+        }
+        assertTrue(hasPoisonReverse,
+            "Old next-hop (Bob) should receive cost=∞ for destination after next-hop changes to Charlie")
+    }
 }

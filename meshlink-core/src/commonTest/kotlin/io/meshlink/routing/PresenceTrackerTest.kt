@@ -89,4 +89,31 @@ class PresenceTrackerTest {
         assertEquals(setOf("B"), evicted3)
         assertEquals(setOf("A", "C"), tracker.connectedPeerIds())
     }
+
+    // --- 3-State Presence Lifecycle: GONE state ---
+
+    @Test
+    fun goneStateExplicitLifecycle() {
+        val tracker = PresenceTracker()
+
+        tracker.peerSeen("X")
+        assertEquals(PresenceState.CONNECTED, tracker.state("X"))
+
+        // First miss → DISCONNECTED
+        tracker.sweep(emptySet())
+        assertEquals(PresenceState.DISCONNECTED, tracker.state("X"))
+
+        // Peer seen again after DISCONNECTED → back to CONNECTED
+        tracker.peerSeen("X")
+        assertEquals(PresenceState.CONNECTED, tracker.state("X"))
+
+        // Miss again → DISCONNECTED
+        tracker.sweep(emptySet())
+        assertEquals(PresenceState.DISCONNECTED, tracker.state("X"))
+
+        // Second consecutive miss → GONE (evicted)
+        val evicted = tracker.sweep(emptySet())
+        assertEquals(setOf("X"), evicted)
+        assertNull(tracker.state("X"), "Peer should be null (evicted/GONE)")
+    }
 }
