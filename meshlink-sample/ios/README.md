@@ -3,7 +3,7 @@
 A SwiftUI iOS app demonstrating [MeshLink](../) — a Kotlin Multiplatform BLE
 mesh messaging library.
 
-This sample mirrors the Android sample (`sample-android/`) and shows how to:
+This sample mirrors the Android sample (`meshlink-sample/android/`) and shows how to:
 
 - Initialize MeshLink with a `BleTransport`
 - Start and stop the mesh
@@ -52,7 +52,7 @@ Since we don't commit `.xcodeproj` files, create one in Xcode:
 2. Product Name: `MeshLinkSample`
 3. Interface: **SwiftUI**
 4. Language: **Swift**
-5. Save it inside `sample-ios/`
+5. Save it inside `meshlink-sample/ios/`
 6. Delete the generated `ContentView.swift` and `MeshLinkSampleApp.swift`
 7. Add the existing Swift files from `MeshLinkSample/` to the project
 

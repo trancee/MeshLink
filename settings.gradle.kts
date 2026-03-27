@@ -8,4 +8,4 @@ pluginManagement {
 
 rootProject.name = "MeshLink"
 include(":meshlink")
-include(":sample-android")
+include(":meshlink-sample:android")
