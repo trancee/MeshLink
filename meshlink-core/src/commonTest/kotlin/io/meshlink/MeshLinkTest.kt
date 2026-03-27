@@ -8143,4 +8143,48 @@ class MeshLinkTest {
         alice.stop()
         bob.stop()
     }
+
+    // --- Thread-safe concurrent send ---
+
+    @Test
+    fun concurrentSendsDoNotCorruptState() = runTest {
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val transportBob = VirtualMeshTransport(peerIdBob)
+        transportAlice.linkTo(transportBob)
+
+        val alice = MeshLink(transport = transportAlice, config = meshLinkConfig(), coroutineContext = coroutineContext)
+        val bob = MeshLink(transport = transportBob, config = meshLinkConfig(), coroutineContext = coroutineContext)
+
+        alice.start()
+        bob.start()
+        advanceUntilIdle()
+
+        transportAlice.simulateDiscovery(peerIdBob)
+        transportBob.simulateDiscovery(peerIdAlice)
+        advanceUntilIdle()
+
+        val received = mutableListOf<Message>()
+        val collector = launch { bob.messages.collect { received.add(it) } }
+        advanceUntilIdle()
+
+        // Launch 10 concurrent sends
+        val jobs = (0 until 10).map { i ->
+            launch {
+                val result = alice.send(peerIdBob, "msg-$i".encodeToByteArray())
+                assertTrue(result.isSuccess, "Concurrent send #$i should succeed: ${result.exceptionOrNull()?.message}")
+            }
+        }
+        jobs.forEach { it.join() }
+        advanceUntilIdle()
+
+        assertEquals(10, received.size, "All 10 concurrent sends should be received")
+
+        // Verify all unique messages arrived (no duplicates, no corruption)
+        val payloads = received.map { it.payload.decodeToString() }.toSet()
+        assertEquals(10, payloads.size, "All 10 messages should be unique")
+
+        collector.cancel()
+        alice.stop()
+        bob.stop()
+    }
 }

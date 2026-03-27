@@ -414,4 +414,80 @@ class WireCodecTest {
             WireCodec.decodeDeliveryAck(truncated)
         }
     }
+
+    // --- Handshake (0x01) ---
+
+    @Test
+    fun handshakeEncodesToGoldenBytes() {
+        val noisePayload = byteArrayOf(0xCA.toByte(), 0xFE.toByte(), 0xBA.toByte(), 0xBE.toByte())
+        val encoded = WireCodec.encodeHandshake(
+            step = 0u,
+            noiseMessage = noisePayload,
+        )
+
+        // type(1) + step(1) + noiseMessage(4) = 6
+        val expected = byteArrayOf(
+            0x01,                   // type: handshake
+            0x00,                   // step = 0
+            0xCA.toByte(), 0xFE.toByte(), 0xBA.toByte(), 0xBE.toByte()  // noise payload
+        )
+
+        assertContentEquals(expected, encoded)
+    }
+
+    @Test
+    fun handshakeDecodesFromGoldenBytes() {
+        val bytes = byteArrayOf(
+            0x01,                   // type: handshake
+            0x02,                   // step = 2
+            0xDE.toByte(), 0xAD.toByte()  // noise payload
+        )
+
+        val decoded = WireCodec.decodeHandshake(bytes)
+
+        assertEquals(2u.toUByte(), decoded.step)
+        assertContentEquals(byteArrayOf(0xDE.toByte(), 0xAD.toByte()), decoded.noiseMessage)
+    }
+
+    @Test
+    fun handshakeRoundTrips() {
+        val noiseMessage = ByteArray(128) { (it % 256).toByte() }
+        val encoded = WireCodec.encodeHandshake(step = 1u, noiseMessage = noiseMessage)
+        val decoded = WireCodec.decodeHandshake(encoded)
+
+        assertEquals(1u.toUByte(), decoded.step)
+        assertContentEquals(noiseMessage, decoded.noiseMessage)
+    }
+
+    @Test
+    fun handshakeDecodeRejectsTruncated() {
+        // Only type byte, no step
+        assertFailsWith<IllegalArgumentException> {
+            WireCodec.decodeHandshake(byteArrayOf(0x01))
+        }
+    }
+
+    @Test
+    fun handshakeDecodeRejectsWrongType() {
+        assertFailsWith<IllegalArgumentException> {
+            WireCodec.decodeHandshake(byteArrayOf(0x03, 0x00))
+        }
+    }
+
+    @Test
+    fun handshakeDecodeRejectsInvalidStep() {
+        // step = 3 is invalid (only 0, 1, 2 are valid Noise XX steps)
+        assertFailsWith<IllegalArgumentException> {
+            WireCodec.decodeHandshake(byteArrayOf(0x01, 0x03, 0xAA.toByte()))
+        }
+    }
+
+    @Test
+    fun handshakeWithEmptyNoiseMessage() {
+        val encoded = WireCodec.encodeHandshake(step = 0u, noiseMessage = ByteArray(0))
+        val decoded = WireCodec.decodeHandshake(encoded)
+
+        assertEquals(0u.toUByte(), decoded.step)
+        assertEquals(0, decoded.noiseMessage.size)
+    }
 }

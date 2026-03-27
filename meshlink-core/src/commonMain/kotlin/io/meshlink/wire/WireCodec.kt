@@ -5,6 +5,7 @@ private const val MESSAGE_ID_SIZE = 16
 object WireCodec {
 
     const val TYPE_BROADCAST: Byte = 0x00
+    const val TYPE_HANDSHAKE: Byte = 0x01
     const val TYPE_ROUTE_UPDATE: Byte = 0x02
     const val TYPE_CHUNK: Byte = 0x03
     const val TYPE_CHUNK_ACK: Byte = 0x04
@@ -16,6 +17,26 @@ object WireCodec {
 
     // chunk_ack: type(1) + messageId(16) + ackSeq(2 LE) + sackBitmask(8 LE)
     private const val CHUNK_ACK_SIZE = 1 + MESSAGE_ID_SIZE + 2 + 8 // 27
+
+    // handshake: type(1) + step(1) + noiseMessage(variable)
+    private const val HANDSHAKE_HEADER_SIZE = 2
+
+    fun encodeHandshake(step: UByte, noiseMessage: ByteArray): ByteArray {
+        val buf = ByteArray(HANDSHAKE_HEADER_SIZE + noiseMessage.size)
+        buf[0] = TYPE_HANDSHAKE
+        buf[1] = step.toByte()
+        noiseMessage.copyInto(buf, HANDSHAKE_HEADER_SIZE)
+        return buf
+    }
+
+    fun decodeHandshake(data: ByteArray): HandshakeMessage {
+        require(data.size >= HANDSHAKE_HEADER_SIZE) { "handshake too short: ${data.size}" }
+        require(data[0] == TYPE_HANDSHAKE) { "not a handshake: 0x${data[0].toUByte().toString(16)}" }
+        val step = data[1].toUByte()
+        require(step <= 2u) { "invalid handshake step: $step (must be 0, 1, or 2)" }
+        val noiseMessage = data.copyOfRange(HANDSHAKE_HEADER_SIZE, data.size)
+        return HandshakeMessage(step, noiseMessage)
+    }
 
     fun encodeChunk(
         messageId: ByteArray,
@@ -366,4 +387,9 @@ data class RouteUpdateEntry(
 data class RouteUpdateMessage(
     val senderId: ByteArray,
     val entries: List<RouteUpdateEntry>,
+)
+
+data class HandshakeMessage(
+    val step: UByte,
+    val noiseMessage: ByteArray,
 )

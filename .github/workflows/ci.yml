@@ -34,6 +34,9 @@ jobs:
       - name: Run JVM tests
         run: ./gradlew :meshlink-core:jvmTest --parallel
 
+      - name: Run Native tests
+        run: ./gradlew :meshlink-core:iosSimulatorArm64Test --parallel
+
       - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@v4

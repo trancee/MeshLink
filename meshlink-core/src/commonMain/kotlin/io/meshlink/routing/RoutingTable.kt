@@ -9,6 +9,8 @@ class RoutingTable(
     private val expiryMs: Long = Long.MAX_VALUE,
     private val neighborCapFraction: Double = 1.0,
     private val maxDestinations: Int = Int.MAX_VALUE,
+    private val settlingMs: Long = 0,
+    private val holddownMs: Long = 0,
 ) {
 
     data class Route(
@@ -22,13 +24,21 @@ class RoutingTable(
     // destination → (nextHop → Route)
     private val routes = mutableMapOf<String, MutableMap<String, Route>>()
 
+    // Track when a destination entered holddown (route withdrawn with infinity cost)
+    private val holddownUntil = mutableMapOf<String, Long>()
+
+    // Track when a destination last had a route change (for settling)
+    private val lastRouteChange = mutableMapOf<String, Long>()
+
     fun addRoute(destination: String, nextHop: String, cost: Double, sequenceNumber: UInt) {
+        val now = currentTime()
         val existing = routes[destination]
         if (existing != null) {
             val maxSeqNum = existing.values.maxOf { it.sequenceNumber }
             if (sequenceNumber < maxSeqNum) return
             if (sequenceNumber > maxSeqNum) {
                 existing.clear()
+                lastRouteChange[destination] = now
             }
         }
 
@@ -39,8 +49,18 @@ class RoutingTable(
             if (neighborDestCount >= cap) return // reject excess
         }
 
-        val route = Route(destination, nextHop, cost, sequenceNumber)
+        val route = Route(destination, nextHop, cost, sequenceNumber, now)
         routes.getOrPut(destination) { mutableMapOf() }[nextHop] = route
+
+        // If this is a withdrawal (infinity cost), start holddown
+        if (cost == Double.MAX_VALUE && holddownMs > 0) {
+            holddownUntil[destination] = now + holddownMs
+        }
+
+        // Track settling time
+        if (settlingMs > 0) {
+            lastRouteChange[destination] = now
+        }
     }
 
     fun bestRoute(destination: String): Route? {

@@ -28,7 +28,9 @@ import io.meshlink.util.AppIdFilter
 import io.meshlink.util.CircuitBreaker
 import io.meshlink.util.DeliveryOutcome
 import io.meshlink.util.DeliveryTracker
+import io.meshlink.util.PlatformLock
 import io.meshlink.util.RateLimiter
+import io.meshlink.util.withLock
 import io.meshlink.util.hexToBytes
 import io.meshlink.util.toHex
 import io.meshlink.wire.WireCodec
@@ -59,6 +61,7 @@ class MeshLink(
 ) : MeshLinkApi {
 
     private val clock = clock
+    private val sendLock = PlatformLock()
 
     private val rateLimiter: RateLimiter? =
         if (config.rateLimitMaxSends > 0) RateLimiter(config.rateLimitMaxSends, config.rateLimitWindowMs, clock) else null
@@ -190,7 +193,10 @@ class MeshLink(
         }
 
         started = true
-        val newScope = CoroutineScope(baseContext + SupervisorJob())
+        val exceptionHandler = kotlinx.coroutines.CoroutineExceptionHandler { _, throwable ->
+            diagnosticSink.emit(DiagnosticCode.SEND_FAILED, Severity.ERROR, "Uncaught: ${throwable.message}")
+        }
+        val newScope = CoroutineScope(baseContext + SupervisorJob() + exceptionHandler)
         scope = newScope
 
         newScope.launch {
@@ -506,6 +512,10 @@ class MeshLink(
 
     override fun send(recipient: ByteArray, payload: ByteArray): Result<Uuid> {
         if (!started) throw IllegalStateException("MeshLink not started")
+        return sendLock.withLock { sendInternal(recipient, payload) }
+    }
+
+    private fun sendInternal(recipient: ByteArray, payload: ByteArray): Result<Uuid> {
         val s = requireScope()
 
         if (payload.size > config.bufferCapacity) {
