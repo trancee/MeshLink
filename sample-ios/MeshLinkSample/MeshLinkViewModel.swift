@@ -23,6 +23,59 @@
 import Foundation
 import MeshLinkCore
 
+// MARK: - Peer Info
+
+/// Lightweight representation of a discovered mesh peer for the visualizer.
+struct PeerInfo: Identifiable, Equatable {
+    /// Hex-encoded peer ID (full length).
+    let id: String
+    /// Last observed RSSI value (dBm). More negative = weaker signal.
+    var rssi: Int
+    /// Timestamp of the most recent advertisement or keepalive.
+    var lastSeen: Date
+
+    /// First 4 hex characters of the peer ID, used as a short label.
+    var shortId: String {
+        String(id.prefix(4))
+    }
+
+    /// Normalized signal quality in `0.0 ... 1.0` (1 = excellent, 0 = very weak).
+    ///
+    /// Maps RSSI from `[-100, -30]` dBm to `[0, 1]`.
+    var signalQuality: Double {
+        let clamped = min(max(Double(rssi), -100), -30)
+        return (clamped + 100) / 70
+    }
+}
+
+// MARK: - Config Preset
+
+/// Available MeshLinkConfig preset names.
+enum ConfigPreset: String, CaseIterable, Identifiable {
+    case chatOptimized = "Chat"
+    case fileTransferOptimized = "File Transfer"
+    case powerOptimized = "Power Saver"
+    case sensorOptimized = "Sensor"
+
+    var id: String { rawValue }
+
+    /// Create the corresponding `MeshLinkConfig`.
+    func makeConfig(mtuOverride: Int? = nil) -> MeshLinkConfig {
+        // Each preset is a companion factory method on MeshLinkConfig.
+        // An optional MTU override can be applied via the builder lambda.
+        switch self {
+        case .chatOptimized:
+            return MeshLinkConfig.companion.chatOptimized()
+        case .fileTransferOptimized:
+            return MeshLinkConfig.companion.fileTransferOptimized()
+        case .powerOptimized:
+            return MeshLinkConfig.companion.powerOptimized()
+        case .sensorOptimized:
+            return MeshLinkConfig.companion.sensorOptimized()
+        }
+    }
+}
+
 // MARK: - ViewModel
 
 /// ObservableObject that wraps MeshLink for SwiftUI consumption.
@@ -48,10 +101,25 @@ final class MeshLinkViewModel: ObservableObject {
     @Published var bufferUsagePercent = 0
     @Published var activeTransfers = 0
 
+    /// All currently known peers, updated on discovery/loss events.
+    @Published var discoveredPeers: [PeerInfo] = []
+
+    /// Active configuration preset.
+    @Published var currentPreset: ConfigPreset = .chatOptimized
+
+    /// Current MTU value from the active config.
+    @Published var currentMtu: Int = 185
+
+    /// Max message size from the active config (bytes).
+    @Published private(set) var maxMessageSize: Int = 10_000
+
+    /// Buffer capacity from the active config (bytes).
+    @Published private(set) var bufferCapacity: Int = 524_288
+
     // MARK: Private
 
     private let transport: BleTransport
-    private let meshLink: MeshLink
+    private var meshLink: MeshLink
 
     // MARK: Init
 
@@ -61,13 +129,96 @@ final class MeshLinkViewModel: ObservableObject {
         self.transport = DemoTransport()
 
         // Create a chat-optimized configuration (same as the Android sample).
-        // MeshLinkConfig.companion.chatOptimized() returns a config preset
-        // tuned for small text payloads with moderate buffering.
         let config = MeshLinkConfig.companion.chatOptimized()
 
         self.meshLink = MeshLink(transport: transport, config: config)
+        self.currentMtu = Int(config.mtu)
+        self.maxMessageSize = Int(config.maxMessageSize)
+        self.bufferCapacity = Int(config.bufferCapacity)
 
         startCollectingFlows()
+    }
+
+    // MARK: - Configuration
+
+    /// Apply a configuration preset, restarting the mesh if it was running.
+    func applyPreset(_ preset: ConfigPreset) {
+        let wasRunning = isRunning
+        if wasRunning { stopMesh() }
+
+        currentPreset = preset
+        let config = preset.makeConfig()
+        meshLink = MeshLink(transport: transport, config: config)
+        currentMtu = Int(config.mtu)
+        maxMessageSize = Int(config.maxMessageSize)
+        bufferCapacity = Int(config.bufferCapacity)
+
+        startCollectingFlows()
+        log("⚙️ Applied preset: \(preset.rawValue)")
+
+        if wasRunning { startMesh() }
+    }
+
+    /// Update the MTU value, restarting the mesh if it was running.
+    ///
+    /// > Note: MeshLinkConfig is immutable once created, so changing the MTU
+    /// > requires creating a new MeshLink instance with an updated config.
+    func updateMtu(_ mtu: Int) {
+        let wasRunning = isRunning
+        if wasRunning { stopMesh() }
+
+        currentMtu = mtu
+        let config = currentPreset.makeConfig()
+        // Reconstruct with the desired MTU using the config copy constructor.
+        let updatedConfig = config.doCopy(
+            maxMessageSize: config.maxMessageSize,
+            bufferCapacity: config.bufferCapacity,
+            mtu: Int32(mtu),
+            rateLimitMaxSends: config.rateLimitMaxSends,
+            rateLimitWindowMs: config.rateLimitWindowMs,
+            circuitBreakerMaxFailures: config.circuitBreakerMaxFailures,
+            circuitBreakerWindowMs: config.circuitBreakerWindowMs,
+            circuitBreakerCooldownMs: config.circuitBreakerCooldownMs,
+            diagnosticBufferCapacity: config.diagnosticBufferCapacity,
+            dedupCapacity: config.dedupCapacity,
+            protocolVersion: config.protocolVersion,
+            appId: config.appId,
+            inboundRateLimitPerSenderPerMinute: config.inboundRateLimitPerSenderPerMinute,
+            gossipIntervalMs: config.gossipIntervalMs,
+            pendingMessageTtlMs: config.pendingMessageTtlMs,
+            pendingMessageCapacity: config.pendingMessageCapacity,
+            broadcastRateLimitPerMinute: config.broadcastRateLimitPerMinute,
+            relayQueueCapacity: config.relayQueueCapacity,
+            maxHops: config.maxHops,
+            ackWindowMin: config.ackWindowMin,
+            ackWindowMax: config.ackWindowMax,
+            powerModeThresholds: config.powerModeThresholds,
+            l2capEnabled: config.l2capEnabled,
+            l2capRetryAttempts: config.l2capRetryAttempts,
+            chunkInactivityTimeoutMs: config.chunkInactivityTimeoutMs,
+            bufferTtlMs: config.bufferTtlMs,
+            triggeredUpdateThreshold: config.triggeredUpdateThreshold,
+            triggeredUpdateBatchMs: config.triggeredUpdateBatchMs,
+            keepaliveIntervalMs: config.keepaliveIntervalMs,
+            tombstoneWindowMs: config.tombstoneWindowMs,
+            handshakeRateLimitPerSec: config.handshakeRateLimitPerSec,
+            nackRateLimitPerSec: config.nackRateLimitPerSec,
+            neighborAggregateLimitPerMin: config.neighborAggregateLimitPerMin,
+            senderNeighborLimitPerMin: config.senderNeighborLimitPerMin
+        )
+
+        meshLink = MeshLink(transport: transport, config: updatedConfig)
+        startCollectingFlows()
+        log("⚙️ MTU updated to \(mtu)")
+
+        if wasRunning { startMesh() }
+    }
+
+    /// Reset configuration back to defaults (chat-optimized, default MTU).
+    func resetToDefaults() {
+        applyPreset(.chatOptimized)
+        updateMtu(185)
+        log("⚙️ Reset to defaults")
     }
 
     // MARK: - Mesh Lifecycle
@@ -134,10 +285,22 @@ final class MeshLinkViewModel: ObservableObject {
                 let peerHex = kotlinByteArrayToHex(discovered.peerId)
                 self?.log("🔵 Peer discovered: \(peerHex)")
                 self?.peerCount += 1
+
+                // Add to discovered peers for the visualizer.
+                // Use a simulated RSSI since BleTransport doesn't expose it.
+                let info = PeerInfo(id: peerHex, rssi: Int.random(in: -85 ... -35), lastSeen: Date())
+                if let idx = self?.discoveredPeers.firstIndex(where: { $0.id == peerHex }) {
+                    self?.discoveredPeers[idx].rssi = info.rssi
+                    self?.discoveredPeers[idx].lastSeen = info.lastSeen
+                } else {
+                    self?.discoveredPeers.append(info)
+                }
             } else if let lost = event as? PeerEvent.Lost {
                 let peerHex = kotlinByteArrayToHex(lost.peerId)
                 self?.log("🔴 Peer lost: \(peerHex)")
                 self?.peerCount = max(0, (self?.peerCount ?? 1) - 1)
+
+                self?.discoveredPeers.removeAll { $0.id == peerHex }
             }
         }
 

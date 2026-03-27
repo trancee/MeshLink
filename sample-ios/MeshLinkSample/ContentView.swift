@@ -3,11 +3,38 @@
 //
 // This view mirrors the Android sample's MainActivity.kt Compose UI,
 // providing the same feature set with idiomatic SwiftUI patterns.
+// Uses a TabView to provide Chat, Mesh Visualizer, and Settings screens.
 
 import SwiftUI
 
 struct ContentView: View {
     @StateObject private var viewModel = MeshLinkViewModel()
+
+    var body: some View {
+        TabView {
+            ChatView(viewModel: viewModel)
+                .tabItem {
+                    Label("Chat", systemImage: "message")
+                }
+
+            MeshVisualizerView(viewModel: viewModel)
+                .tabItem {
+                    Label("Mesh", systemImage: "circle.grid.hex")
+                }
+
+            SettingsView(viewModel: viewModel)
+                .tabItem {
+                    Label("Settings", systemImage: "gear")
+                }
+        }
+    }
+}
+
+// MARK: - Chat View
+
+/// The original chat and status UI, extracted into its own view for tab navigation.
+private struct ChatView: View {
+    @ObservedObject var viewModel: MeshLinkViewModel
     @State private var recipientId = ""
     @State private var messageText = ""
 
