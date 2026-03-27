@@ -3,6 +3,7 @@ package io.meshlink
 import io.meshlink.config.MeshLinkConfig
 import io.meshlink.crypto.CryptoKeyPair
 import io.meshlink.crypto.CryptoProvider
+import io.meshlink.crypto.HandshakePayload
 import io.meshlink.crypto.NoiseKSealer
 import io.meshlink.crypto.PeerHandshakeManager
 import io.meshlink.crypto.ReplayGuard
@@ -40,6 +41,7 @@ import io.meshlink.util.withLock
 import io.meshlink.util.hexToBytes
 import io.meshlink.util.toHex
 import io.meshlink.wire.WireCodec
+import io.meshlink.wire.RotationAnnouncement
 import io.meshlink.wire.RouteUpdateEntry
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
@@ -110,8 +112,26 @@ class MeshLink(
     private val _meshHealthFlow = MutableStateFlow(MeshHealthSnapshot(0, 0, 0, 0, "PERFORMANCE", 0.0))
     override val meshHealthFlow: StateFlow<MeshHealthSnapshot> = _meshHealthFlow.asStateFlow()
 
+    // Health flow throttle: minimum 500ms between emissions (2/sec max)
+    private var lastHealthUpdateMs: Long = 0L
+    private val healthThrottleMs: Long = 500L
+
     private fun emitHealthUpdate() {
+        val now = clock()
+        if (now - lastHealthUpdateMs < healthThrottleMs) return
+        lastHealthUpdateMs = now
         _meshHealthFlow.value = meshHealth()
+    }
+
+    // Callback isolation: catch exceptions from downstream collectors to prevent
+    // a misbehaving subscriber from crashing the mesh engine.
+    private suspend fun <T> safeEmit(flow: MutableSharedFlow<T>, value: T, label: String) {
+        try {
+            flow.emit(value)
+        } catch (e: Exception) {
+            diagnosticSink.emit(DiagnosticCode.SEND_FAILED, Severity.WARN,
+                "callback exception in $label: ${e.message}")
+        }
     }
 
     private fun checkBufferPressure() {
@@ -232,8 +252,13 @@ class MeshLink(
     override val broadcastPublicKey: ByteArray? get() = broadcastKeyPair?.publicKey
 
     // Noise XX handshake manager for hop-by-hop encryption
+    private val handshakePayload: ByteArray = HandshakePayload(
+        protocolVersion = ((config.protocolVersion.major shl 8) or config.protocolVersion.minor).toUShort(),
+        capabilityFlags = if (config.l2capEnabled) HandshakePayload.CAP_L2CAP else 0u,
+        l2capPsm = 0u, // PSM assigned at runtime by BLE stack
+    ).encode()
     private val handshakeManager: PeerHandshakeManager? = crypto?.let {
-        PeerHandshakeManager(it, crypto.generateX25519KeyPair())
+        PeerHandshakeManager(it, crypto.generateX25519KeyPair(), localPayload = handshakePayload)
     }
 
     // Inbound rate limiting: per-sender message count within sliding window
@@ -289,7 +314,7 @@ class MeshLink(
                         }
                         peerPublicKeys[peerHex] = newKey
                     }
-                    _peers.emit(PeerEvent.Discovered(event.peerId))
+                    safeEmit(_peers, PeerEvent.Discovered(event.peerId), "peers")
                     emitHealthUpdate()
                     // Initiate Noise XX handshake if crypto enabled
                     // Deterministic tie-breaking: lower peerId initiates
@@ -324,7 +349,7 @@ class MeshLink(
         newScope.launch {
             transport.peerLostEvents.collect { event ->
                 // Don't remove from presenceTracker here — let sweep handle it
-                _peers.emit(PeerEvent.Lost(event.peerId))
+                safeEmit(_peers, PeerEvent.Lost(event.peerId), "peers")
                 emitHealthUpdate()
             }
         }
@@ -418,6 +443,7 @@ class MeshLink(
         lastTriggeredUpdateTime.clear()
         lastGossipSentMs = 0L
         tombstoneSet.clear()
+        lastHealthUpdateMs = 0L
     }
 
     override fun pause() {
@@ -678,7 +704,7 @@ class MeshLink(
         if (recipient.contentEquals(transport.localPeerId)) {
             val messageId = Uuid.random()
             s.launch {
-                _messages.emit(Message(senderId = recipient, payload = payload))
+                safeEmit(_messages, Message(senderId = recipient, payload = payload), "messages")
             }
             return Result.success(messageId)
         }
@@ -940,6 +966,7 @@ class MeshLink(
                 WireCodec.TYPE_RESUME_REQUEST -> handleResumeRequest(fromPeerId, data)
                 WireCodec.TYPE_KEEPALIVE -> handleKeepalive(fromPeerId, data)
                 WireCodec.TYPE_NACK -> { /* NACK received — no-op for now */ }
+                WireCodec.TYPE_ROTATION -> handleRotationAnnouncement(fromPeerId, data)
                 else -> {
                     diagnosticSink.emit(DiagnosticCode.UNKNOWN_MESSAGE_TYPE, Severity.WARN,
                         "type=0x${data[0].toUByte().toString(16).padStart(2, '0')}, size=${data.size}")
@@ -1033,7 +1060,7 @@ class MeshLink(
             } else {
                 fullPayload
             }
-            _messages.emit(Message(senderId = fromPeerId, payload = decrypted))
+            safeEmit(_messages, Message(senderId = fromPeerId, payload = decrypted), "messages")
         }
     }
 
@@ -1042,20 +1069,18 @@ class MeshLink(
         val key = ack.messageId.toHex()
         val transfer = outboundTransfers[key] ?: run {
             // Legacy: no outbound tracking, just emit delivery confirmation
-            _deliveryConfirmations.emit(Uuid.fromByteArray(ack.messageId))
+            safeEmit(_deliveryConfirmations, Uuid.fromByteArray(ack.messageId), "deliveryConfirmations")
             return
         }
 
         transfer.session.onAck(ack.ackSequence.toInt(), ack.sackBitmask)
 
         // Emit progress (use session's authoritative acked count)
-        _transferProgress.emit(
-            TransferProgress(
+        safeEmit(_transferProgress, TransferProgress(
                 messageId = Uuid.fromByteArray(ack.messageId),
                 chunksAcked = transfer.session.ackedCount(),
                 totalChunks = transfer.chunks.size,
-            )
-        )
+            ), "transferProgress")
 
         if (transfer.session.isComplete()) {
             outboundTransfers.remove(key)
@@ -1063,7 +1088,7 @@ class MeshLink(
             emitHealthUpdate()
             if (deliveryTracker.recordOutcome(key, DeliveryOutcome.CONFIRMED) != null) {
                 tombstoneSet.add(key)
-                _deliveryConfirmations.emit(Uuid.fromByteArray(ack.messageId))
+                safeEmit(_deliveryConfirmations, Uuid.fromByteArray(ack.messageId), "deliveryConfirmations")
             }
         } else {
             // Retransmit missing chunks
@@ -1095,7 +1120,7 @@ class MeshLink(
         if (!dedup.tryInsert(key)) return
 
         // Deliver to self
-        _messages.emit(Message(senderId = broadcast.origin, payload = broadcast.payload))
+        safeEmit(_messages, Message(senderId = broadcast.origin, payload = broadcast.payload), "messages")
 
         // Re-flood to all known peers except sender, if hops remain and not paused
         if (broadcast.remainingHops > 0u && !paused) {
@@ -1171,7 +1196,7 @@ class MeshLink(
             } else {
                 routed.payload
             }
-            _messages.emit(Message(senderId = routed.origin, payload = deliveredPayload))
+            safeEmit(_messages, Message(senderId = routed.origin, payload = deliveredPayload), "messages")
             // Send signed delivery ACK back toward origin
             val bkp3 = broadcastKeyPair
             val ackSig = if (bkp3 != null && crypto != null) {
@@ -1266,7 +1291,7 @@ class MeshLink(
         if (outcome != null || !deliveryTracker.isTracked(key)) {
             deliveryDeadlineTimer.cancel(key)
             if (outcome != null) tombstoneSet.add(key)
-            _deliveryConfirmations.emit(Uuid.fromByteArray(ack.messageId))
+            safeEmit(_deliveryConfirmations, Uuid.fromByteArray(ack.messageId), "deliveryConfirmations")
         } else if (deliveryTracker.isTracked(key)) {
             // Late ACK: messageId already resolved (tombstoned in delivery tracker)
             tombstoneSet.add(key)
@@ -1276,6 +1301,27 @@ class MeshLink(
         val source = routedMsgSources.remove(key)
         if (source != null) {
             scope?.launch { safeSend(source, data) }
+        }
+    }
+
+    private fun handleRotationAnnouncement(fromPeerId: ByteArray, data: ByteArray) {
+        val c = crypto ?: return
+        val msg = RotationAnnouncement.decode(data)
+        if (!RotationAnnouncement.verify(msg, c)) {
+            diagnosticSink.emit(DiagnosticCode.MALFORMED_DATA, Severity.WARN,
+                "rotation announcement signature verification failed from ${fromPeerId.toHex()}")
+            return
+        }
+        val peerHex = fromPeerId.toHex()
+        val knownKey = peerPublicKeys[peerHex]
+        // Only accept if we know the peer's old key and it matches
+        if (knownKey != null && knownKey.contentEquals(msg.oldX25519Key)) {
+            peerPublicKeys[peerHex] = msg.newX25519Key
+            _keyChanges.tryEmit(KeyChangeEvent(
+                peerId = fromPeerId.copyOf(),
+                previousKey = msg.oldX25519Key.copyOf(),
+                newKey = msg.newX25519Key.copyOf(),
+            ))
         }
     }
 }

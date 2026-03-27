@@ -14,6 +14,7 @@ object WireCodec {
     const val TYPE_RESUME_REQUEST: Byte = 0x07
     const val TYPE_KEEPALIVE: Byte = 0x08
     const val TYPE_NACK: Byte = 0x09
+    const val TYPE_ROTATION: Byte = 0x0A
 
     // keepalive: type(1) + flags(1) + timestamp(4 BE uint)
     private const val KEEPALIVE_SIZE = 6
