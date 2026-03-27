@@ -1,5 +1,9 @@
 package io.meshlink.diagnostics
 
+import kotlinx.coroutines.flow.take
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -7,13 +11,12 @@ import kotlin.test.assertTrue
 class DiagnosticSinkTest {
 
     @Test
-    fun emitsEventsWithSeverityAndTracksDrops() {
+    fun emitsEventsWithCorrectFieldsViaDrain() {
         var monotonicMs = 0L
         val sink = DiagnosticSink(bufferCapacity = 3, clock = { monotonicMs })
 
         val collected = mutableListOf<DiagnosticEvent>()
 
-        // Emit events
         monotonicMs = 100L
         sink.emit(DiagnosticCode.ROUTE_CHANGED, Severity.INFO, "route to A updated")
         monotonicMs = 200L
@@ -21,81 +24,137 @@ class DiagnosticSinkTest {
         monotonicMs = 300L
         sink.emit(DiagnosticCode.BLE_STACK_UNRESPONSIVE, Severity.ERROR, "no response 60s")
 
-        // Drain events
+        @Suppress("DEPRECATION")
         sink.drainTo(collected)
         assertEquals(3, collected.size)
 
-        // Check first event
         assertEquals(DiagnosticCode.ROUTE_CHANGED, collected[0].code)
         assertEquals(Severity.INFO, collected[0].severity)
         assertEquals("route to A updated", collected[0].payload)
         assertEquals(100L, collected[0].monotonicMs)
         assertEquals(0, collected[0].droppedCount)
-
-        // Overflow: emit 4 events with buffer=3 → oldest dropped
-        collected.clear()
-        for (i in 1..4) {
-            monotonicMs = (400 + i).toLong()
-            sink.emit(DiagnosticCode.RATE_LIMIT_HIT, Severity.WARN, "event $i")
-        }
-        sink.drainTo(collected)
-        assertEquals(3, collected.size)
-        // Last event carries the drop count (it was emitted right after overflow)
-        assertTrue(collected.last().droppedCount >= 1, "Last event should report drops: ${collected.last().droppedCount}")
     }
 
-    // --- Batch 10 Cycle 7: droppedCount tracks consecutive overflows ---
+    @Test
+    fun overflowDropsOldestAndRetainsNewest() {
+        var monotonicMs = 0L
+        val sink = DiagnosticSink(bufferCapacity = 3, clock = { monotonicMs })
+
+        for (i in 1..5) {
+            monotonicMs = (100 * i).toLong()
+            sink.emit(DiagnosticCode.RATE_LIMIT_HIT, Severity.WARN, "event $i")
+        }
+
+        val collected = mutableListOf<DiagnosticEvent>()
+        @Suppress("DEPRECATION")
+        sink.drainTo(collected)
+        assertEquals(3, collected.size, "Buffer retains only bufferCapacity events")
+        assertEquals("event 3", collected[0].payload)
+        assertEquals("event 4", collected[1].payload)
+        assertEquals("event 5", collected[2].payload)
+    }
 
     @Test
-    fun droppedCountTracksConsecutiveOverflowsCorrectly() {
+    fun overflowKeepsNewestEventsInBuffer() {
         var ms = 0L
         val sink = DiagnosticSink(bufferCapacity = 2, clock = { ms })
 
-        // Fill buffer: emit 2 events (at capacity)
         ms = 1L; sink.emit(DiagnosticCode.ROUTE_CHANGED, Severity.INFO, "e1")
         ms = 2L; sink.emit(DiagnosticCode.ROUTE_CHANGED, Severity.INFO, "e2")
-
-        // Emit 3 more — each one drops the oldest, incrementing droppedSinceLastEmit
-        // But droppedSinceLastEmit resets to 0 after each emit that records it
-        ms = 3L; sink.emit(DiagnosticCode.RATE_LIMIT_HIT, Severity.WARN, "e3") // drops e1, droppedCount=1 on e3, then resets
-        ms = 4L; sink.emit(DiagnosticCode.RATE_LIMIT_HIT, Severity.WARN, "e4") // drops e2, droppedCount=1 on e4, then resets
-        ms = 5L; sink.emit(DiagnosticCode.RATE_LIMIT_HIT, Severity.WARN, "e5") // drops e3, droppedCount=1 on e5, then resets
+        ms = 3L; sink.emit(DiagnosticCode.RATE_LIMIT_HIT, Severity.WARN, "e3")
+        ms = 4L; sink.emit(DiagnosticCode.RATE_LIMIT_HIT, Severity.WARN, "e4")
+        ms = 5L; sink.emit(DiagnosticCode.RATE_LIMIT_HIT, Severity.WARN, "e5")
 
         val events = mutableListOf<DiagnosticEvent>()
+        @Suppress("DEPRECATION")
         sink.drainTo(events)
         assertEquals(2, events.size, "Buffer holds exactly 2")
-
-        // Each event should report droppedCount=1 (one drop before each emit)
-        assertEquals(1, events[0].droppedCount, "e4 should report 1 drop")
-        assertEquals(1, events[1].droppedCount, "e5 should report 1 drop")
         assertEquals("e4", events[0].payload)
         assertEquals("e5", events[1].payload)
     }
-
-    // --- Batch 15 Cycle 7: Emit after drain starts fresh ---
 
     @Test
     fun emitAfterDrainStartsFresh() {
         var ms = 0L
         val sink = DiagnosticSink(bufferCapacity = 10, clock = { ms })
 
-        // Emit and drain
         ms = 1L; sink.emit(DiagnosticCode.ROUTE_CHANGED, Severity.INFO, "first")
         val batch1 = mutableListOf<DiagnosticEvent>()
+        @Suppress("DEPRECATION")
         sink.drainTo(batch1)
         assertEquals(1, batch1.size)
 
-        // Drain again — should be empty
         val batch2 = mutableListOf<DiagnosticEvent>()
+        @Suppress("DEPRECATION")
         sink.drainTo(batch2)
         assertEquals(0, batch2.size, "Second drain should be empty")
 
-        // Emit new events after drain — should have droppedCount=0
         ms = 2L; sink.emit(DiagnosticCode.BUFFER_PRESSURE, Severity.WARN, "second")
         val batch3 = mutableListOf<DiagnosticEvent>()
+        @Suppress("DEPRECATION")
         sink.drainTo(batch3)
         assertEquals(1, batch3.size)
         assertEquals(0, batch3[0].droppedCount, "Fresh emit after drain should have 0 drops")
         assertEquals("second", batch3[0].payload)
+    }
+
+    // --- SharedFlow reactive API tests ---
+
+    @Test
+    fun eventsFlowReceivesEmittedEvents() = runTest {
+        var ms = 0L
+        val sink = DiagnosticSink(bufferCapacity = 16, clock = { ms })
+
+        val received = mutableListOf<DiagnosticEvent>()
+        val job = launch {
+            sink.events.take(2).toList(received)
+        }
+        // Ensure subscriber is active before emitting
+        testScheduler.advanceUntilIdle()
+
+        ms = 10L; sink.emit(DiagnosticCode.ROUTE_CHANGED, Severity.INFO, "a")
+        ms = 20L; sink.emit(DiagnosticCode.PEER_EVICTED, Severity.WARN, "b")
+        testScheduler.advanceUntilIdle()
+
+        job.join()
+
+        assertEquals(2, received.size)
+        assertEquals(DiagnosticCode.ROUTE_CHANGED, received[0].code)
+        assertEquals("a", received[0].payload)
+        assertEquals(DiagnosticCode.PEER_EVICTED, received[1].code)
+        assertEquals("b", received[1].payload)
+    }
+
+    @Test
+    fun sharedFlowDropsOldestOnOverflow() = runTest {
+        val sink = DiagnosticSink(bufferCapacity = 2, clock = { 0L })
+
+        // Emit 4 events with no active subscriber — buffer holds only the last 2
+        repeat(4) { i ->
+            sink.emit(DiagnosticCode.RATE_LIMIT_HIT, Severity.WARN, "ev$i")
+        }
+
+        // A subscriber collecting from now should not see the dropped events.
+        // Verify via the legacy drain that buffer retained the newest 2.
+        val drained = mutableListOf<DiagnosticEvent>()
+        @Suppress("DEPRECATION")
+        sink.drainTo(drained)
+        assertEquals(2, drained.size)
+        assertEquals("ev2", drained[0].payload)
+        assertEquals("ev3", drained[1].payload)
+    }
+
+    @Test
+    fun droppedCountIsAlwaysZeroWithSharedFlow() {
+        val sink = DiagnosticSink(bufferCapacity = 2, clock = { 0L })
+
+        repeat(10) {
+            sink.emit(DiagnosticCode.RATE_LIMIT_HIT, Severity.WARN, "x")
+        }
+
+        val events = mutableListOf<DiagnosticEvent>()
+        @Suppress("DEPRECATION")
+        sink.drainTo(events)
+        assertTrue(events.all { it.droppedCount == 0 }, "All events should have droppedCount=0")
     }
 }

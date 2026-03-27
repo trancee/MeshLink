@@ -1,5 +1,10 @@
 package io.meshlink.diagnostics
 
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
+
 enum class Severity { INFO, WARN, ERROR }
 
 enum class DiagnosticCode {
@@ -35,28 +40,34 @@ class DiagnosticSink(
     private val bufferCapacity: Int = 256,
     private val clock: () -> Long = { System.currentTimeMillis() },
 ) {
-    private val buffer = ArrayDeque<DiagnosticEvent>(bufferCapacity)
-    private var droppedSinceLastEmit = 0
+    private val _events = MutableSharedFlow<DiagnosticEvent>(
+        extraBufferCapacity = bufferCapacity,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
+
+    val events: SharedFlow<DiagnosticEvent> = _events.asSharedFlow()
+
+    // Backward-compat buffer for deprecated drainTo()
+    private val _legacyBuffer = ArrayDeque<DiagnosticEvent>(bufferCapacity)
 
     fun emit(code: DiagnosticCode, severity: Severity, payload: String? = null) {
-        if (buffer.size >= bufferCapacity) {
-            buffer.removeFirst()
-            droppedSinceLastEmit++
-        }
-        buffer.addLast(
-            DiagnosticEvent(
-                code = code,
-                severity = severity,
-                monotonicMs = clock(),
-                droppedCount = droppedSinceLastEmit,
-                payload = payload,
-            )
+        val event = DiagnosticEvent(
+            code = code,
+            severity = severity,
+            monotonicMs = clock(),
+            droppedCount = 0,
+            payload = payload,
         )
-        droppedSinceLastEmit = 0
+        _events.tryEmit(event)
+        if (_legacyBuffer.size >= bufferCapacity) {
+            _legacyBuffer.removeFirst()
+        }
+        _legacyBuffer.addLast(event)
     }
 
+    @Deprecated("Use events SharedFlow instead", replaceWith = ReplaceWith("events"))
     fun drainTo(out: MutableList<DiagnosticEvent>) {
-        out.addAll(buffer)
-        buffer.clear()
+        out.addAll(_legacyBuffer)
+        _legacyBuffer.clear()
     }
 }

@@ -22,6 +22,7 @@ interface MeshLinkApi {
     fun broadcast(payload: ByteArray, maxHops: UByte): Result<Uuid>
     fun meshHealth(): MeshHealthSnapshot
     fun drainDiagnostics(): List<DiagnosticEvent>
+    val diagnosticEvents: Flow<DiagnosticEvent>
     fun sweep(seenPeers: Set<String>): Set<String>
     fun sweepStaleTransfers(maxAgeMs: Long): Int
     fun sweepStaleReassemblies(maxAgeMs: Long): Int

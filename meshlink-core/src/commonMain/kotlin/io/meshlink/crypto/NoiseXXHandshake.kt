@@ -22,11 +22,16 @@ class NoiseXXHandshake private constructor(
     private var chainingKey: ByteArray = ByteArray(32)
     private var handshakeHash: ByteArray = ByteArray(32)
     private var messageIndex = 0
+    private var _peerPayload: ByteArray? = null
+
+    /** Payload received from the remote peer during the handshake (available after completion). */
+    val peerPayload: ByteArray? get() = _peerPayload
 
     data class HandshakeResult(
         val sendKey: ByteArray,
         val receiveKey: ByteArray,
         val remoteStaticKey: ByteArray,
+        val peerPayload: ByteArray? = null,
     )
 
     companion object {
@@ -73,12 +78,16 @@ class NoiseXXHandshake private constructor(
      */
     fun readMessage(message: ByteArray): ByteArray {
         check(!isComplete) { "Handshake already complete" }
-        return when {
+        val payload = when {
             !isInitiator && messageIndex == 0 -> readMsg1(message)
             isInitiator && messageIndex == 1 -> readMsg2(message)
             !isInitiator && messageIndex == 2 -> readMsg3(message)
             else -> error("Unexpected readMessage at index $messageIndex for ${if (isInitiator) "initiator" else "responder"}")
         }
+        if (payload.isNotEmpty()) {
+            _peerPayload = payload
+        }
+        return payload
     }
 
     /**
@@ -88,9 +97,9 @@ class NoiseXXHandshake private constructor(
         check(isComplete) { "Handshake not yet complete" }
         val (k1, k2) = hkdfPair(chainingKey, byteArrayOf())
         return if (isInitiator) {
-            HandshakeResult(sendKey = k1, receiveKey = k2, remoteStaticKey = remoteStaticPub!!)
+            HandshakeResult(sendKey = k1, receiveKey = k2, remoteStaticKey = remoteStaticPub!!, peerPayload = _peerPayload)
         } else {
-            HandshakeResult(sendKey = k2, receiveKey = k1, remoteStaticKey = remoteStaticPub!!)
+            HandshakeResult(sendKey = k2, receiveKey = k1, remoteStaticKey = remoteStaticPub!!, peerPayload = _peerPayload)
         }
     }
 

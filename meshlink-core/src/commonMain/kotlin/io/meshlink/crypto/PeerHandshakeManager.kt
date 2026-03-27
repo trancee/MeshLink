@@ -13,6 +13,7 @@ import io.meshlink.wire.WireCodec
 class PeerHandshakeManager(
     private val crypto: CryptoProvider,
     private val localStaticKeyPair: CryptoKeyPair,
+    private val localPayload: ByteArray = byteArrayOf(),
 ) {
     // peerId hex → handshake state machine
     private val handshakes = mutableMapOf<String, NoiseXXHandshake>()
@@ -56,8 +57,8 @@ class PeerHandshakeManager(
             return null
         }
 
-        // Write our response
-        val response = hs.writeMessage()
+        // Write our response (responder sends localPayload in msg2, initiator in msg3)
+        val response = hs.writeMessage(localPayload)
         val responseStep = hsMsg.step.toInt() + 1
 
         if (hs.isComplete) {
@@ -74,4 +75,8 @@ class PeerHandshakeManager(
     /** Get session keys for a peer, or null if handshake not complete. */
     fun getSessionKeys(peerId: ByteArray): NoiseXXHandshake.HandshakeResult? =
         sessionKeys[peerId.toHex()]
+
+    /** Get the peer's handshake payload, or null if handshake not complete. */
+    fun getPeerPayload(peerId: ByteArray): ByteArray? =
+        sessionKeys[peerId.toHex()]?.peerPayload
 }
