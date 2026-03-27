@@ -70,7 +70,7 @@ internal object Sha256 {
     private fun Int.rotateRight(n: Int): Int = (this ushr n) or (this shl (32 - n))
 
     private val IV = intArrayOf(
-        0x6a09e667.toInt(), 0xbb67ae85.toInt(), 0x3c6ef372, 0xa54ff53a.toInt(),
+        0x6a09e667, 0xbb67ae85.toInt(), 0x3c6ef372, 0xa54ff53a.toInt(),
         0x510e527f, 0x9b05688c.toInt(), 0x1f83d9ab, 0x5be0cd19
     )
 
