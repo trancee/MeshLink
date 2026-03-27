@@ -7814,4 +7814,333 @@ class MeshLinkTest {
 
         alice.stop()
     }
+
+    // --- Batch 10: State Reset + Self-Send + Multi-Peer + Health Accuracy ---
+
+    @Test
+    fun selfSendWhilePausedBypassesPauseQueue() = runTest {
+        val transportA = VirtualMeshTransport(peerIdAlice)
+        val alice = MeshLink(transportA, meshLinkConfig(), coroutineContext)
+        alice.start()
+        advanceUntilIdle()
+
+        val received = mutableListOf<Message>()
+        val collector = launch { alice.messages.collect { received.add(it) } }
+        advanceUntilIdle()
+
+        // Pause Alice
+        alice.pause()
+
+        // Self-send (loopback) should bypass pause and deliver immediately
+        val result = alice.send(peerIdAlice, "self-while-paused".encodeToByteArray())
+        advanceUntilIdle()
+        assertTrue(result.isSuccess, "Self-send should succeed even while paused")
+        assertEquals(1, received.size, "Self-send should deliver immediately, not queue")
+        assertContentEquals("self-while-paused".encodeToByteArray(), received[0].payload)
+
+        // Resume should NOT re-deliver the self-sent message (it wasn't queued)
+        alice.resume()
+        advanceUntilIdle()
+        assertEquals(1, received.size,
+            "Resume should not duplicate self-sent message (it was never queued)")
+
+        collector.cancel()
+        alice.stop()
+    }
+
+    @Test
+    fun clearStateResetsMeshHealthToZeroes() = runTest {
+        val transportA = VirtualMeshTransport(peerIdAlice)
+        val transportB = VirtualMeshTransport(peerIdBob)
+        transportA.linkTo(transportB)
+        transportB.linkTo(transportA)
+
+        val alice = MeshLink(transportA, meshLinkConfig {
+            bufferCapacity = 200_000
+            maxMessageSize = 200_000
+        }, coroutineContext)
+        val bob = MeshLink(transportB, meshLinkConfig {
+            bufferCapacity = 200_000
+            maxMessageSize = 200_000
+        }, coroutineContext)
+        alice.start()
+        bob.start()
+        advanceUntilIdle()
+
+        // Discover peers to populate presenceTracker
+        transportA.simulateDiscovery(peerIdBob)
+        transportB.simulateDiscovery(peerIdAlice)
+        advanceUntilIdle()
+
+        // Send a message to create transfer state
+        alice.send(peerIdBob, "hello".encodeToByteArray())
+        advanceUntilIdle()
+
+        val healthBefore = alice.meshHealth()
+        assertTrue(healthBefore.connectedPeers > 0, "Should have peers before clear")
+
+        // Stop and restart to trigger clearState (called at start of start())
+        alice.stop()
+        advanceUntilIdle()
+        alice.start()
+        advanceUntilIdle()
+
+        val healthAfter = alice.meshHealth()
+        assertEquals(0, healthAfter.connectedPeers, "Peers should be 0 after clearState")
+        assertEquals(0, healthAfter.activeTransfers, "Transfers should be 0 after clearState")
+        assertEquals(0, healthAfter.relayQueueSize, "Relay queue should be 0 after clearState")
+        assertEquals(0, healthAfter.bufferUtilizationPercent,
+            "Buffer utilization should be 0 after clearState")
+
+        alice.stop()
+        bob.stop()
+    }
+
+    @Test
+    fun meshHealthGossipIntervalReflectsRouteCountThrottle() = runTest {
+        val transportA = VirtualMeshTransport(peerIdAlice)
+        val alice = MeshLink(transportA, meshLinkConfig {
+            gossipIntervalMs = 1000
+        }, coroutineContext)
+
+        alice.start()
+        testScheduler.advanceTimeBy(100)
+        testScheduler.runCurrent()
+
+        val healthBase = alice.meshHealth()
+        assertEquals(1000L, healthBase.effectiveGossipIntervalMs,
+            "Base gossip interval should be 1000ms with 0 routes")
+
+        // Inject 101 route update entries to trigger 1.5× throttle
+        val entries = (1..101).map { i ->
+            val destBytes = ByteArray(6) { if (it < 2) (i shr (8 * (1 - it)) and 0xFF).toByte() else 0 }
+            io.meshlink.wire.RouteUpdateEntry(
+                destination = destBytes,
+                cost = 1.0,
+                sequenceNumber = 1u,
+                hopCount = 1u
+            )
+        }
+        val senderId = ByteArray(6) { 0x01 }
+        val routeUpdateFrame = io.meshlink.wire.WireCodec.encodeRouteUpdate(senderId, entries)
+        transportA.simulateDiscovery(senderId)
+        testScheduler.advanceTimeBy(100)
+        testScheduler.runCurrent()
+        transportA.receiveData(senderId, routeUpdateFrame)
+        testScheduler.advanceTimeBy(100)
+        testScheduler.runCurrent()
+
+        val healthThrottled = alice.meshHealth()
+        assertEquals(1500L, healthThrottled.effectiveGossipIntervalMs,
+            "101+ routes should trigger 1.5× gossip throttle (1000 * 3/2 = 1500)")
+
+        alice.stop()
+        testScheduler.advanceTimeBy(100)
+        testScheduler.runCurrent()
+    }
+
+    @Test
+    fun flushPendingMultiPeerIndependentTtlOutcomes() = runTest {
+        var now = 0L
+        val transportA = VirtualMeshTransport(peerIdAlice)
+        val transportB = VirtualMeshTransport(peerIdBob)
+        val transportC = VirtualMeshTransport(peerIdCharlie)
+
+        val alice = MeshLink(transportA, meshLinkConfig {
+            pendingMessageTtlMs = 5000
+            gossipIntervalMs = 0
+            pendingMessageCapacity = 10
+            maxMessageSize = 200
+            bufferCapacity = 200_000
+        }, coroutineContext, clock = { now })
+        val bob = MeshLink(transportB, meshLinkConfig {
+            gossipIntervalMs = 0
+            bufferCapacity = 200_000
+            maxMessageSize = 200_000
+        }, coroutineContext)
+        val charlie = MeshLink(transportC, meshLinkConfig {
+            gossipIntervalMs = 0
+            bufferCapacity = 200_000
+            maxMessageSize = 200_000
+        }, coroutineContext)
+
+        alice.start()
+        bob.start()
+        charlie.start()
+        advanceUntilIdle()
+
+        // Buffer messages to both Bob and Charlie at t=0 (no links, no discovery)
+        alice.send(peerIdBob, "for-bob".encodeToByteArray())
+        alice.send(peerIdCharlie, "for-charlie-old".encodeToByteArray())
+        advanceUntilIdle()
+
+        // Advance clock past TTL — both pending messages now expired
+        now = 6000L
+
+        // Buffer a fresh message for Charlie AFTER TTL expiry
+        alice.send(peerIdCharlie, "for-charlie-fresh".encodeToByteArray())
+        advanceUntilIdle()
+
+        val bobReceived = mutableListOf<Message>()
+        val charlieReceived = mutableListOf<Message>()
+        val bobCollector = launch { bob.messages.collect { bobReceived.add(it) } }
+        val charlieCollector = launch { charlie.messages.collect { charlieReceived.add(it) } }
+        advanceUntilIdle()
+
+        // Link and discover Bob — his only message is expired
+        transportA.linkTo(transportB)
+        transportB.linkTo(transportA)
+        transportA.simulateDiscovery(peerIdBob)
+        advanceUntilIdle()
+
+        assertEquals(0, bobReceived.size,
+            "Bob should not receive TTL-expired buffered message")
+
+        // Link and discover Charlie — old message expired, fresh one delivered
+        transportA.linkTo(transportC)
+        transportC.linkTo(transportA)
+        transportA.simulateDiscovery(peerIdCharlie)
+        advanceUntilIdle()
+
+        assertTrue(charlieReceived.isNotEmpty(),
+            "Charlie should receive the fresh (non-expired) message")
+        val payloads = charlieReceived.map { it.payload.decodeToString() }
+        assertTrue(payloads.contains("for-charlie-fresh"),
+            "Charlie should get the fresh message")
+        assertTrue(!payloads.contains("for-charlie-old"),
+            "Charlie should NOT get the TTL-expired message")
+
+        bobCollector.cancel()
+        charlieCollector.cancel()
+        alice.stop()
+        bob.stop()
+        charlie.stop()
+    }
+
+    @Test
+    fun sendToKnownPeerDirectAndUnknownPeerBuffered() = runTest {
+        val transportA = VirtualMeshTransport(peerIdAlice)
+        val transportB = VirtualMeshTransport(peerIdBob)
+        val transportC = VirtualMeshTransport(peerIdCharlie)
+        transportA.linkTo(transportB)
+        transportB.linkTo(transportA)
+
+        val alice = MeshLink(transportA, meshLinkConfig {
+            gossipIntervalMs = 0
+            bufferCapacity = 200_000
+            maxMessageSize = 200_000
+            pendingMessageCapacity = 10
+            pendingMessageTtlMs = 60_000
+        }, coroutineContext)
+        val bob = MeshLink(transportB, meshLinkConfig {
+            gossipIntervalMs = 0
+            bufferCapacity = 200_000
+            maxMessageSize = 200_000
+        }, coroutineContext)
+        val charlie = MeshLink(transportC, meshLinkConfig {
+            gossipIntervalMs = 0
+            bufferCapacity = 200_000
+            maxMessageSize = 200_000
+        }, coroutineContext)
+
+        alice.start()
+        bob.start()
+        charlie.start()
+        advanceUntilIdle()
+
+        // Discover Bob (direct neighbor), Charlie NOT discovered
+        transportA.simulateDiscovery(peerIdBob)
+        advanceUntilIdle()
+
+        val bobReceived = mutableListOf<Message>()
+        val charlieReceived = mutableListOf<Message>()
+        val bobCollector = launch { bob.messages.collect { bobReceived.add(it) } }
+        val charlieCollector = launch { charlie.messages.collect { charlieReceived.add(it) } }
+        advanceUntilIdle()
+
+        // Send to both simultaneously — Bob direct, Charlie buffered
+        alice.send(peerIdBob, "direct-to-bob".encodeToByteArray())
+        alice.send(peerIdCharlie, "buffered-for-charlie".encodeToByteArray())
+        advanceUntilIdle()
+
+        // Bob should receive immediately (direct)
+        assertEquals(1, bobReceived.size, "Bob should receive direct message")
+        assertContentEquals("direct-to-bob".encodeToByteArray(), bobReceived[0].payload)
+
+        // Charlie should NOT have received yet (no link, no discovery)
+        assertEquals(0, charlieReceived.size, "Charlie should not receive yet (buffered)")
+
+        // Now link and discover Charlie
+        transportA.linkTo(transportC)
+        transportC.linkTo(transportA)
+        transportA.simulateDiscovery(peerIdCharlie)
+        advanceUntilIdle()
+
+        // Charlie should now receive the buffered message
+        assertEquals(1, charlieReceived.size, "Charlie should receive after discovery")
+        assertContentEquals("buffered-for-charlie".encodeToByteArray(), charlieReceived[0].payload)
+
+        bobCollector.cancel()
+        charlieCollector.cancel()
+        alice.stop()
+        bob.stop()
+        charlie.stop()
+    }
+
+    @Test
+    fun deliveryTrackerSurvivesClearStateOnRestart() = runTest {
+        val transportA = VirtualMeshTransport(peerIdAlice)
+        val transportB = VirtualMeshTransport(peerIdBob)
+        transportA.linkTo(transportB)
+        transportB.linkTo(transportA)
+
+        val alice = MeshLink(transportA, meshLinkConfig {
+            bufferCapacity = 200_000
+            maxMessageSize = 200_000
+        }, coroutineContext)
+        val bob = MeshLink(transportB, meshLinkConfig {
+            bufferCapacity = 200_000
+            maxMessageSize = 200_000
+        }, coroutineContext)
+
+        alice.start()
+        bob.start()
+        advanceUntilIdle()
+
+        transportA.simulateDiscovery(peerIdBob)
+        transportB.simulateDiscovery(peerIdAlice)
+        advanceUntilIdle()
+
+        val confirmations = mutableListOf<Uuid>()
+        val collector = launch { alice.deliveryConfirmations.collect { confirmations.add(it) } }
+        advanceUntilIdle()
+
+        // Send a message — should get confirmed
+        alice.send(peerIdBob, "before-restart".encodeToByteArray())
+        advanceUntilIdle()
+
+        val confirmedBeforeRestart = confirmations.size
+        assertTrue(confirmedBeforeRestart > 0,
+            "Should receive confirmation before restart")
+
+        // Stop and restart Alice (triggers clearState internally)
+        alice.stop()
+        advanceUntilIdle()
+        alice.start()
+        advanceUntilIdle()
+
+        // Verify that clearState() resets routing/peers but deliveryTracker persists
+        val healthAfter = alice.meshHealth()
+        assertEquals(0, healthAfter.connectedPeers,
+            "Peers should be cleared after restart")
+
+        // The key assertion: clearState didn't clear deliveryTracker,
+        // so total confirmations count should remain unchanged
+        assertEquals(confirmedBeforeRestart, confirmations.size,
+            "No spurious confirmations after restart — tracker preserved, not duplicated")
+
+        collector.cancel()
+        alice.stop()
+        bob.stop()
+    }
 }
