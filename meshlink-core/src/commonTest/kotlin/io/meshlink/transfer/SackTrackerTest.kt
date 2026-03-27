@@ -89,4 +89,30 @@ class SackTrackerTest {
         // Key assertion: chunk 50 should NOT be in missing (it's SACKed)
         assertFalse(50 in missing, "Chunk 50 was SACKed — should not be missing")
     }
+
+    @Test
+    fun chunkBeyond64BitSackWindowTreatedAsMissing() {
+        val tracker = SackTracker(totalChunks = 100)
+
+        // Receive chunks 0..10 contiguously, plus chunk 80 (beyond 64-bit SACK range)
+        for (i in 0..10) tracker.record(i)
+        tracker.record(80)
+
+        val status = tracker.status()
+        // ackSeq = 10 (highest contiguous)
+        assertEquals(10, status.ackSeq)
+        // Bitmask covers chunks [11..74] (offsets 0..63)
+        // Chunk 80 = offset 69 → BEYOND 64-bit range, NOT in bitmask
+        assertEquals(0uL, status.sackBitmask and (1uL shl 63),
+            "Bit 63 (chunk 74) should not be set — not received")
+
+        // missingChunks should include chunk 80 (beyond SACK window, treated as missing)
+        val missing = SackTracker.missingChunks(100, status.ackSeq, status.sackBitmask)
+        assertTrue(80 in missing,
+            "Chunk 80 (beyond 64-bit SACK window) must be in missing list")
+        // Chunk 12 (within window, not received) should also be missing
+        assertTrue(12 in missing, "Chunk 12 (within window, not received) should be missing")
+        // Chunks 0..10 should NOT be missing (contiguously acked)
+        assertFalse(5 in missing, "Chunk 5 is below ackSeq, not in missing")
+    }
 }

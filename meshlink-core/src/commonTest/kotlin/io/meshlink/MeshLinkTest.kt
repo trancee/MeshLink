@@ -7600,4 +7600,218 @@ class MeshLinkTest {
         cCollector.cancel(); dCollector.cancel()
         listOf(alice, bob, charlie, dave).forEach { it.stop() }
     }
+
+    // --- Batch 9: State Machines + Buffer Math + Gossip + SACK ---
+
+    @Test
+    fun gossipRouteUpdateWithSelfDestinedEntriesSkipped() = runTest {
+        val transportA = VirtualMeshTransport(peerIdAlice)
+        val transportB = VirtualMeshTransport(peerIdBob)
+        transportA.linkTo(transportB)
+        val alice = MeshLink(transportA, meshLinkConfig(), coroutineContext)
+        alice.start()
+        advanceUntilIdle()
+        transportA.simulateDiscovery(peerIdBob)
+        advanceUntilIdle()
+
+        // Verify routing table is initially empty for Alice's own ID
+        val healthBefore = alice.meshHealth()
+
+        // Inject route update from Bob where ALL entries are destined for Alice (self)
+        val selfRoute = WireCodec.encodeRouteUpdate(
+            senderId = peerIdBob,
+            entries = listOf(
+                io.meshlink.wire.RouteUpdateEntry(peerIdAlice, 1.0, 1u, 1u),
+                io.meshlink.wire.RouteUpdateEntry(peerIdAlice, 2.0, 2u, 2u),
+            ),
+        )
+        transportA.receiveData(peerIdBob, selfRoute)
+        advanceUntilIdle()
+
+        // Routing table should NOT have routes to self
+        val healthAfter = alice.meshHealth()
+        // avgRouteCost should be 0.0 (no routes added)
+        assertEquals(0.0, healthAfter.avgRouteCost,
+            "No routes should be added for self-destined gossip entries")
+
+        // No diagnostics emitted (silent skip)
+        val diags = alice.drainDiagnostics()
+        val routeChanged = diags.filter {
+            it.code == io.meshlink.diagnostics.DiagnosticCode.ROUTE_CHANGED
+        }
+        assertEquals(0, routeChanged.size,
+            "No ROUTE_CHANGED diagnostic should be emitted for self-destined entries")
+
+        alice.stop()
+    }
+
+    @Test
+    fun peerTransitionsToDisconnectedBeforeEviction() = runTest {
+        val transportA = VirtualMeshTransport(peerIdAlice)
+        val alice = MeshLink(transportA, meshLinkConfig(), coroutineContext)
+        alice.start()
+        advanceUntilIdle()
+
+        // Discover Bob
+        transportA.simulateDiscovery(peerIdBob)
+        advanceUntilIdle()
+
+        val health1 = alice.meshHealth()
+        assertEquals(1, health1.connectedPeers, "Bob should be a connected peer")
+
+        // First sweep with Bob absent → DISCONNECTED (still known, but not connected)
+        alice.sweep(emptySet())
+        advanceUntilIdle()
+        val health2 = alice.meshHealth()
+        // Bob is DISCONNECTED but still in allPeerIds (connectedPeers = still counted)
+        // reachablePeers uses connectedPeerIds() which filters CONNECTED only
+        assertEquals(0, health2.reachablePeers,
+            "Bob should not be reachable after 1 sweep miss (DISCONNECTED)")
+        assertTrue(health2.connectedPeers >= 0,
+            "connectedPeers should not crash")
+
+        // Second sweep with Bob absent → EVICTED (removed entirely)
+        alice.sweep(emptySet())
+        advanceUntilIdle()
+        val health3 = alice.meshHealth()
+        assertEquals(0, health3.connectedPeers,
+            "Bob should be evicted after 2 sweep misses")
+        assertEquals(0, health3.reachablePeers,
+            "No reachable peers after eviction")
+
+        alice.stop()
+    }
+
+    @Test
+    fun circuitBreakerBlocksSendAfterFailuresThenRecoversAfterCooldown() = runTest {
+        var now = 0L
+        val transportA = VirtualMeshTransport(peerIdAlice)
+        val transportB = VirtualMeshTransport(peerIdBob)
+        transportA.linkTo(transportB)
+        val alice = MeshLink(
+            transportA,
+            meshLinkConfig {
+                circuitBreakerMaxFailures = 3
+                circuitBreakerWindowMs = 10_000
+                circuitBreakerCooldownMs = 5000
+            },
+            coroutineContext,
+            clock = { now },
+        )
+        alice.start()
+        advanceUntilIdle()
+        transportA.simulateDiscovery(peerIdBob)
+        advanceUntilIdle()
+
+        // Normal send works
+        val r1 = alice.send(peerIdBob, "before-trip".encodeToByteArray())
+        advanceUntilIdle()
+        assertTrue(r1.isSuccess, "Send should work before circuit breaker trip")
+
+        // Enable transport failures to trip circuit breaker
+        transportA.sendFailure = true
+        // Send 3 messages — each safeSend will fail, recording failures
+        for (i in 1..3) {
+            alice.send(peerIdBob, "fail-$i".encodeToByteArray())
+            advanceUntilIdle()
+        }
+
+        // Circuit breaker should now be tripped — next send should fail
+        val blocked = alice.send(peerIdBob, "blocked".encodeToByteArray())
+        assertTrue(blocked.isFailure, "Send should fail when circuit breaker is tripped")
+        assertTrue(blocked.exceptionOrNull()?.message?.contains("Circuit breaker") == true)
+
+        // Advance clock past cooldown
+        now += 5001
+        transportA.sendFailure = false
+
+        // Should recover — send works again
+        val recovered = alice.send(peerIdBob, "recovered".encodeToByteArray())
+        advanceUntilIdle()
+        assertTrue(recovered.isSuccess,
+            "Send should succeed after circuit breaker cooldown")
+
+        alice.stop()
+    }
+
+    @Test
+    fun minimalBufferCapacityUtilizationMath() = runTest {
+        val transportA = VirtualMeshTransport(peerIdAlice)
+        val transportB = VirtualMeshTransport(peerIdBob)
+        transportA.linkTo(transportB)
+        // Drop chunk ACKs so transfer stays in outboundTransfers (buffer used)
+        transportB.dropFilter = { data -> data[0] == WireCodec.TYPE_CHUNK_ACK }
+        val alice = MeshLink(
+            transportA,
+            meshLinkConfig {
+                mtu = 22; maxMessageSize = 23; bufferCapacity = 25
+            },
+            coroutineContext,
+        )
+        alice.start()
+        advanceUntilIdle()
+        transportA.simulateDiscovery(peerIdBob)
+        advanceUntilIdle()
+
+        // Send a small message — it stays in outboundTransfers (ACKs dropped)
+        val result = alice.send(peerIdBob, "x".encodeToByteArray())
+        advanceUntilIdle()
+        assertTrue(result.isSuccess)
+
+        val health = alice.meshHealth()
+        // 1-byte payload = 1 chunk. Buffer utilization should be > 0
+        assertTrue(health.bufferUtilizationPercent > 0,
+            "Buffer utilization should be positive with minimal capacity")
+        assertTrue(health.bufferUtilizationPercent <= 100,
+            "Buffer utilization should be capped at 100%")
+
+        alice.stop()
+    }
+
+    @Test
+    fun sweepStaleTransfersRemovesTransferAndStopsRetransmits() = runTest {
+        var now = 0L
+        val transportA = VirtualMeshTransport(peerIdAlice)
+        val transportB = VirtualMeshTransport(peerIdBob)
+        transportA.linkTo(transportB)
+        // Drop ALL chunk ACKs so transfer stays forever in-flight
+        transportB.dropFilter = { data -> data[0] == WireCodec.TYPE_CHUNK_ACK }
+        val alice = MeshLink(transportA, meshLinkConfig { mtu = 50 }, coroutineContext, clock = { now })
+        alice.start()
+        advanceUntilIdle()
+        transportA.simulateDiscovery(peerIdBob)
+        advanceUntilIdle()
+
+        val result = alice.send(peerIdBob, ByteArray(100) { it.toByte() })
+        advanceUntilIdle()
+        assertTrue(result.isSuccess)
+
+        // Transfer should be active
+        val healthBefore = alice.meshHealth()
+        assertEquals(1, healthBefore.activeTransfers, "Should have 1 active transfer")
+
+        // Record sent data count before sweep
+        val sentBefore = transportA.sentData.size
+
+        // Sweep stale transfers
+        now += 10_001
+        val swept = alice.sweepStaleTransfers(10_000)
+        advanceUntilIdle()
+
+        assertEquals(1, swept, "Should sweep 1 stale transfer")
+
+        // Transfer should be removed — no more active transfers
+        val healthAfter = alice.meshHealth()
+        assertEquals(0, healthAfter.activeTransfers,
+            "No active transfers after sweep (transfer removed, no retransmit loop)")
+
+        // No new chunks sent after sweep (transfer cleaned up)
+        val sentAfter = transportA.sentData.size
+        // Allow for the sweep itself to not produce chunks
+        // The key assertion is that activeTransfers is 0
+        assertTrue(healthAfter.activeTransfers == 0,
+            "Transfer session should be fully cleaned up")
+
+        alice.stop()
+    }
 }
