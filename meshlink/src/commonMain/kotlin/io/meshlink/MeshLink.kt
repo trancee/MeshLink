@@ -325,7 +325,7 @@ class MeshLink(
                     is PeerConnectionAction.PeerUpdate -> {
                         action.keyChangeEvent?.let { _keyChanges.tryEmit(it) }
                         if (action.isNewPeer) {
-                            safeEmit(_peers, PeerEvent.Discovered(action.peerId), "peers")
+                            safeEmit(_peers, PeerEvent.Found(action.peerId), "peers")
                             emitHealthUpdate()
                             val preExistingTransferKeys = outboundRecipients.keys.toSet()
                             flushPendingMessages(action.peerId.toHex(), newScope)

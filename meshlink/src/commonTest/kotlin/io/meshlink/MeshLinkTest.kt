@@ -49,7 +49,7 @@ class MeshLinkTest {
 
         val discoveryJob = launch {
             val event = alice.peers.first()
-            assertIs<PeerEvent.Discovered>(event)
+            assertIs<PeerEvent.Found>(event)
         }
 
         // Simulate Bob advertising to Alice
@@ -346,7 +346,7 @@ class MeshLinkTest {
         transportAlice.simulateDiscovery(peerIdBob)
         advanceUntilIdle()
         val discovered = alice.peers.first()
-        assertIs<PeerEvent.Discovered>(discovered)
+        assertIs<PeerEvent.Found>(discovered)
 
         // Bob disappears
         val lostJob = launch {
@@ -469,8 +469,8 @@ class MeshLinkTest {
         advanceUntilIdle()
 
         assertEquals(2, events.size, "Charlie should be discovered after resume")
-        assertIs<PeerEvent.Discovered>(events[1])
-        assertContentEquals(peerIdCharlie, (events[1] as PeerEvent.Discovered).peerId)
+        assertIs<PeerEvent.Found>(events[1])
+        assertContentEquals(peerIdCharlie, (events[1] as PeerEvent.Found).peerId)
 
         collector.cancel()
         alice.stop()
@@ -3774,7 +3774,7 @@ class MeshLinkTest {
 
         // Only Charlie should be discovered (Bob rejected)
         val event = alice.peers.first()
-        assertIs<PeerEvent.Discovered>(event)
+        assertIs<PeerEvent.Found>(event)
         assertContentEquals(peerIdCharlie, event.peerId)
 
         alice.stop()
@@ -3797,7 +3797,7 @@ class MeshLinkTest {
         advanceUntilIdle()
 
         val event = alice.peers.first()
-        assertIs<PeerEvent.Discovered>(event)
+        assertIs<PeerEvent.Found>(event)
         assertContentEquals(peerIdBob, event.peerId)
 
         alice.stop()
@@ -8944,7 +8944,7 @@ class MeshLinkTest {
         assertTrue(!transport.advertising, "Transport should NOT be advertising after stop()")
     }
 
-    // --- Duplicate discovery: only first advertisement emits PeerEvent.Discovered ---
+    // --- Duplicate discovery: only first advertisement emits PeerEvent.Found ---
 
     @Test
     fun duplicateAdvertisementDoesNotEmitMultipleDiscoveries() = runTest {
@@ -8963,8 +8963,8 @@ class MeshLinkTest {
             advanceUntilIdle()
         }
 
-        assertEquals(1, events.size, "Only the first advertisement should emit PeerEvent.Discovered")
-        assertIs<PeerEvent.Discovered>(events[0])
+        assertEquals(1, events.size, "Only the first advertisement should emit PeerEvent.Found")
+        assertIs<PeerEvent.Found>(events[0])
 
         collector.cancel()
         alice.stop()
@@ -8997,7 +8997,7 @@ class MeshLinkTest {
         transport.simulateDiscovery(peerIdBob)
         advanceUntilIdle()
         assertEquals(2, events.size, "Re-discovery after eviction should emit new Discovered")
-        assertIs<PeerEvent.Discovered>(events[1])
+        assertIs<PeerEvent.Found>(events[1])
 
         collector.cancel()
         alice.stop()

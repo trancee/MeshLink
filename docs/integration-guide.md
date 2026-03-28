@@ -90,7 +90,7 @@ import io.meshlink.model.PeerEvent
 launch {
     mesh.peers.collect { event ->
         when (event) {
-            is PeerEvent.Discovered -> println("Peer joined: ${event.peerId.toHex()}")
+            is PeerEvent.Found -> println("Peer joined: ${event.peerId.toHex()}")
             is PeerEvent.Lost      -> println("Peer left: ${event.peerId.toHex()}")
         }
     }

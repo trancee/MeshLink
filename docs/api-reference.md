@@ -47,7 +47,7 @@ scope before calling `start()`.
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `peers` | `Flow<PeerEvent>` | Emits `PeerEvent.Discovered` and `PeerEvent.Lost` events when BLE neighbors appear or disappear. |
+| `peers` | `Flow<PeerEvent>` | Emits `PeerEvent.Found` and `PeerEvent.Lost` events when BLE neighbors appear or disappear. |
 | `messages` | `Flow<Message>` | Emits received unicast and broadcast messages with `senderId` and `payload`. |
 | `deliveryConfirmations` | `Flow<Uuid>` | Emits the message UUID when the recipient acknowledges delivery. |
 | `transferProgress` | `Flow<TransferProgress>` | Emits progress updates for chunked transfers: `messageId`, `chunksAcked`, `totalChunks`, `fraction`. |
@@ -305,7 +305,7 @@ Represents a received unicast or broadcast message.
 
 ```kotlin
 sealed class PeerEvent {
-    data class Discovered(val peerId: ByteArray) : PeerEvent()
+    data class Found(val peerId: ByteArray) : PeerEvent()
     data class Lost(val peerId: ByteArray) : PeerEvent()
 }
 ```
@@ -314,7 +314,7 @@ Emitted on the `peers` flow when BLE neighbors are discovered or lost.
 
 | Subclass | Field | Description |
 |----------|-------|-------------|
-| `Discovered` | `peerId: ByteArray` | 16-byte ID of the newly discovered peer. |
+| `Found` | `peerId: ByteArray` | 16-byte ID of the newly found peer. |
 | `Lost` | `peerId: ByteArray` | 16-byte ID of the peer that is no longer reachable. |
 
 ### TransferProgress

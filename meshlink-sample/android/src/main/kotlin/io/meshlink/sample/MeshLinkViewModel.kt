@@ -71,7 +71,7 @@ class MeshLinkViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch {
             meshLink.peers.collect { event ->
                 when (event) {
-                    is PeerEvent.Discovered -> {
+                    is PeerEvent.Found -> {
                         val hexId = event.peerId.toHex()
                         log("🔵 Peer discovered: $hexId")
                         _discoveredPeers.update { peers ->

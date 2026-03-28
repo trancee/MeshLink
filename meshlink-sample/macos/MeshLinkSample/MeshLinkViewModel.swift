@@ -150,8 +150,8 @@ final class MeshLinkViewModel: ObservableObject {
         }
 
         collectFlow(meshLink.peers) { [weak self] (event: PeerEvent) in
-            if let discovered = event as? PeerEvent.Discovered {
-                let peerHex = kotlinByteArrayToHex(discovered.peerId)
+            if let found = event as? PeerEvent.Found {
+                let peerHex = kotlinByteArrayToHex(found.peerId)
                 self?.log("🔵 Peer: \(String(peerHex.prefix(8)))…")
                 self?.peerCount += 1
                 let info = PeerInfo(

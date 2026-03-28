@@ -134,7 +134,7 @@ MeshLinkSample/
 | `ByteArray`              | `KotlinByteArray`                     |
 | `Flow<T>`                | `Kotlinx_coroutines_coreFlow`         |
 | `Result<T>`              | Object with `.isSuccess()` method     |
-| `PeerEvent.Discovered`   | `PeerEvent.Discovered` (nested class) |
+| `PeerEvent.Found`   | `PeerEvent.Found` (nested class) |
 | `MeshHealthSnapshot`     | `MeshHealthSnapshot`                  |
 
 ### Flow Collection

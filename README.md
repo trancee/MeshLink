@@ -63,7 +63,7 @@ mesh.start()
 launch {
     mesh.peers.collect { event ->
         when (event) {
-            is PeerEvent.Discovered -> println("Peer: ${event.peerId.toHex()}")
+            is PeerEvent.Found -> println("Peer: ${event.peerId.toHex()}")
             is PeerEvent.Lost -> println("Lost: ${event.peerId.toHex()}")
         }
     }

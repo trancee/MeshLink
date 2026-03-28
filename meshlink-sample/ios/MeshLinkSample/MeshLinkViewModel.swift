@@ -10,7 +10,7 @@
 // |-------------------------------------|-------------------------------------------------|
 // | `MeshLinkFactory.create(config)`    | `MeshLinkFactory.shared.create(config:)`        |
 // | `MeshLinkConfig.chatOptimized()`    | `MeshLinkConfig.companion.chatOptimized {...}`  |
-// | `PeerEvent.Discovered`              | `PeerEvent.Discovered`                          |
+// | `PeerEvent.Found`              | `PeerEvent.Found`                          |
 // | `PeerEvent.Lost`                    | `PeerEvent.Lost`                                |
 // | `Flow<T>.collect { ... }`           | Manual `FlowCollector` wrapper (see below)      |
 // | `ByteArray`                         | `KotlinByteArray`                               |
@@ -161,8 +161,8 @@ final class MeshLinkViewModel: ObservableObject {
         }
 
         collectFlow(meshLink.peers) { [weak self] (event: PeerEvent) in
-            if let discovered = event as? PeerEvent.Discovered {
-                let peerHex = kotlinByteArrayToHex(discovered.peerId)
+            if let found = event as? PeerEvent.Found {
+                let peerHex = kotlinByteArrayToHex(found.peerId)
                 self?.log("🔵 Peer: \(String(peerHex.prefix(8)))…")
                 self?.peerCount += 1
                 let info = PeerInfo(
