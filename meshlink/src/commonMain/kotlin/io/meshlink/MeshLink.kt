@@ -13,6 +13,7 @@ import io.meshlink.diagnostics.DiagnosticSink
 import io.meshlink.diagnostics.MeshHealthSnapshot
 import io.meshlink.diagnostics.Severity
 import io.meshlink.dispatch.DispatchSink
+import io.meshlink.dispatch.InboundValidator
 import io.meshlink.dispatch.MessageDispatcher
 import io.meshlink.model.KeyChangeEvent
 import io.meshlink.model.Message
@@ -257,14 +258,23 @@ class MeshLink(
         isPaused = { pauseManager.isPaused },
     )
 
+    private val inboundValidator = InboundValidator(
+        securityEngine = securityEngine,
+        deliveryPipeline = deliveryPipeline,
+        rateLimitPolicy = rateLimitPolicy,
+        appIdFilter = appIdFilter,
+        diagnosticSink = diagnosticSink,
+        localPeerId = transport.localPeerId,
+        config = config,
+    )
+
     private val messageDispatcher = MessageDispatcher(
         securityEngine = securityEngine,
         routingEngine = routingEngine,
         transferEngine = transferEngine,
         deliveryPipeline = deliveryPipeline,
-        rateLimitPolicy = rateLimitPolicy,
+        validator = inboundValidator,
         pauseManager = pauseManager,
-        appIdFilter = appIdFilter,
         diagnosticSink = diagnosticSink,
         localPeerId = transport.localPeerId,
         config = config,

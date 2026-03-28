@@ -144,7 +144,8 @@ platform-agnostic logic (in `commonMain`) and platform-specific I/O (in
 
 | File | Responsibility |
 |------|---------------|
-| `MessageDispatcher.kt` | Dispatches inbound BLE frames to typed handlers; owns decode/validate pipeline, dedup, loop detection, unseal, and delegates effects via `DispatchSink`. |
+| `MessageDispatcher.kt` | Dispatches inbound BLE frames to typed handlers; owns decode pipeline and delegates effects via `DispatchSink`. |
+| `InboundValidator.kt` | Pre-dispatch validation: signatures, replay counters, loop detection, hop limits, rate limiting, app-ID filtering, and decryption. |
 | `DispatchSink.kt` | Callback interface grouping 8 effect callbacks for flow emissions and transport sends. |
 
 ### `io.meshlink.gossip` — Gossip Coordination

@@ -80,14 +80,23 @@ class MessageDispatcherTest {
         val pauseManager = PauseManager()
         val appIdFilter = AppIdFilter(null)
 
+        val validator = InboundValidator(
+            securityEngine = null,
+            deliveryPipeline = deliveryPipeline,
+            rateLimitPolicy = rateLimitPolicy,
+            appIdFilter = appIdFilter,
+            diagnosticSink = diagnosticSink,
+            localPeerId = localPeer,
+            config = config,
+        )
+
         val dispatcher = MessageDispatcher(
             securityEngine = null,
             routingEngine = routingEngine,
             transferEngine = transferEngine,
             deliveryPipeline = deliveryPipeline,
-            rateLimitPolicy = rateLimitPolicy,
+            validator = validator,
             pauseManager = pauseManager,
-            appIdFilter = appIdFilter,
             diagnosticSink = diagnosticSink,
             localPeerId = localPeer,
             config = config,
@@ -279,15 +288,27 @@ class MessageDispatcherTest {
         val routingEngine = RoutingEngine(localPeerId = localPeer.toHex())
         val config = MeshLinkConfig()
         val sink = RecordingSink()
+        val deliveryPipeline = DeliveryPipeline(diagnosticSink = diagnosticSink)
+        val rateLimitPolicy = RateLimitPolicy(config) { 0L }
+        val appIdFilter = AppIdFilter("my-app")
+
+        val validator = InboundValidator(
+            securityEngine = null,
+            deliveryPipeline = deliveryPipeline,
+            rateLimitPolicy = rateLimitPolicy,
+            appIdFilter = appIdFilter,
+            diagnosticSink = diagnosticSink,
+            localPeerId = localPeer,
+            config = config,
+        )
 
         val dispatcher = MessageDispatcher(
             securityEngine = null,
             routingEngine = routingEngine,
             transferEngine = TransferEngine(),
-            deliveryPipeline = DeliveryPipeline(diagnosticSink = diagnosticSink),
-            rateLimitPolicy = RateLimitPolicy(config) { 0L },
+            deliveryPipeline = deliveryPipeline,
+            validator = validator,
             pauseManager = PauseManager(),
-            appIdFilter = AppIdFilter("my-app"),
             diagnosticSink = diagnosticSink,
             localPeerId = localPeer,
             config = config,
@@ -316,18 +337,29 @@ class MessageDispatcherTest {
         val sink = RecordingSink()
         val pauseManager = PauseManager()
         pauseManager.pause()
+        val deliveryPipeline = DeliveryPipeline(diagnosticSink = diagnosticSink)
+        val rateLimitPolicy = RateLimitPolicy(config) { 0L }
 
         // Make peerB "present" so routing succeeds
         routingEngine.peerSeen(peerB.toHex())
+
+        val validator = InboundValidator(
+            securityEngine = null,
+            deliveryPipeline = deliveryPipeline,
+            rateLimitPolicy = rateLimitPolicy,
+            appIdFilter = AppIdFilter(null),
+            diagnosticSink = diagnosticSink,
+            localPeerId = localPeer,
+            config = config,
+        )
 
         val dispatcher = MessageDispatcher(
             securityEngine = null,
             routingEngine = routingEngine,
             transferEngine = TransferEngine(),
-            deliveryPipeline = DeliveryPipeline(diagnosticSink = diagnosticSink),
-            rateLimitPolicy = RateLimitPolicy(config) { 0L },
+            deliveryPipeline = deliveryPipeline,
+            validator = validator,
             pauseManager = pauseManager,
-            appIdFilter = AppIdFilter(null),
             diagnosticSink = diagnosticSink,
             localPeerId = localPeer,
             config = config,
