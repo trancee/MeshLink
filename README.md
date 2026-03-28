@@ -178,15 +178,35 @@ MeshLink/
 
 #### Android (Jetpack Compose)
 
+**With Android Studio:**
+
+1. Open the **root `MeshLink/` directory** in Android Studio (File → Open)
+2. Wait for Gradle sync to complete
+3. In the **Run Configurations** dropdown, select `meshlink-sample.android`
+4. Select a device or emulator (API 26+)
+5. Click ▶ Run
+6. Grant **Bluetooth** and **Location** permissions when prompted
+
+> **Tip:** If the run configuration doesn't appear, go to
+> Run → Edit Configurations → + → Android App, set module to
+> `MeshLink.meshlink-sample.android.main` and launch activity to
+> `io.meshlink.sample.MainActivity`.
+
+**From the command line:**
+
 ```bash
 # Build debug APK
 ./gradlew :meshlink-sample:android:assembleDebug
 
 # APK location:
 # meshlink-sample/android/build/outputs/apk/debug/android-debug.apk
+
+# Install on connected device
+adb install meshlink-sample/android/build/outputs/apk/debug/android-debug.apk
 ```
 
-Install with `adb install` and grant Bluetooth + Location permissions.
+The app has three screens: **Chat** (start/stop mesh, send messages),
+**Mesh Visualizer** (peer topology graph), and **Settings** (config presets, MTU).
 
 #### iOS (SwiftUI)
 

@@ -2,3 +2,7 @@
 .gradle/
 .kotlin/
 build/
+
+# Android Studio
+.idea/
+local.properties
