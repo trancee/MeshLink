@@ -1,8 +1,13 @@
 package io.meshlink.sample
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -43,9 +48,51 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 
 class MainActivity : ComponentActivity() {
+
+    private val requiredPermissions: Array<String>
+        get() = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            arrayOf(
+                Manifest.permission.BLUETOOTH_SCAN,
+                Manifest.permission.BLUETOOTH_CONNECT,
+                Manifest.permission.BLUETOOTH_ADVERTISE,
+                Manifest.permission.ACCESS_FINE_LOCATION,
+            )
+        } else {
+            arrayOf(
+                Manifest.permission.ACCESS_FINE_LOCATION,
+            )
+        }
+
+    private var onPermissionResult: ((Boolean) -> Unit)? = null
+
+    private val permissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { grants ->
+        val allGranted = grants.values.all { it }
+        if (!allGranted) {
+            Toast.makeText(this, "Bluetooth permissions required for mesh networking", Toast.LENGTH_LONG).show()
+        }
+        onPermissionResult?.invoke(allGranted)
+        onPermissionResult = null
+    }
+
+    /** Request BLE permissions, then invoke [onResult]. Calls immediately if already granted. */
+    fun ensurePermissions(onResult: (granted: Boolean) -> Unit) {
+        val missing = requiredPermissions.filter {
+            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
+        }
+        if (missing.isEmpty()) {
+            onResult(true)
+        } else {
+            onPermissionResult = onResult
+            permissionLauncher.launch(missing.toTypedArray())
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
@@ -107,6 +154,7 @@ fun ChatScreen(viewModel: MeshLinkViewModel) {
     val health by viewModel.health.collectAsState()
     val logs by viewModel.logs.collectAsState()
     val isRunning by viewModel.isRunning.collectAsState()
+    val activity = androidx.compose.ui.platform.LocalContext.current as? MainActivity
 
     var recipientId by rememberSaveable { mutableStateOf("") }
     var message by rememberSaveable { mutableStateOf("") }
@@ -136,7 +184,15 @@ fun ChatScreen(viewModel: MeshLinkViewModel) {
 
             // ── Start / Stop toggle ──
             Button(
-                onClick = { if (isRunning) viewModel.stopMesh() else viewModel.startMesh() },
+                onClick = {
+                    if (isRunning) {
+                        viewModel.stopMesh()
+                    } else {
+                        activity?.ensurePermissions { granted ->
+                            if (granted) viewModel.startMesh()
+                        } ?: viewModel.startMesh()
+                    }
+                },
                 modifier = Modifier.fillMaxWidth(),
                 colors = if (isRunning) {
                     ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)

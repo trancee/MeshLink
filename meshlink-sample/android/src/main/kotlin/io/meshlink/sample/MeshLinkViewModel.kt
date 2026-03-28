@@ -1,20 +1,16 @@
 package io.meshlink.sample
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import io.meshlink.MeshLink
 import io.meshlink.config.MeshLinkConfig
 import io.meshlink.diagnostics.MeshHealthSnapshot
 import io.meshlink.model.PeerEvent
-import io.meshlink.transport.AdvertisementEvent
-import io.meshlink.transport.BleTransport
-import io.meshlink.transport.IncomingData
-import io.meshlink.transport.PeerLostEvent
-import kotlinx.coroutines.flow.Flow
+import io.meshlink.transport.AndroidBleTransport
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlin.uuid.ExperimentalUuidApi
@@ -27,9 +23,9 @@ data class PeerInfo(
 )
 
 @OptIn(ExperimentalUuidApi::class)
-class MeshLinkViewModel : ViewModel() {
+class MeshLinkViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val transport = DemoTransport()
+    private val transport = AndroidBleTransport(application)
 
     private var _currentConfig = MutableStateFlow(MeshLinkConfig.chatOptimized())
     /** Current [MeshLinkConfig] — observable for the Settings screen. */
@@ -59,6 +55,7 @@ class MeshLinkViewModel : ViewModel() {
     val discoveredPeers: StateFlow<List<PeerInfo>> = _discoveredPeers.asStateFlow()
 
     init {
+        log("🔧 Transport: AndroidBleTransport (peer: ${transport.localPeerId.toHex()})")
         collectFlows()
     }
 
@@ -196,18 +193,4 @@ private fun ByteArray.toHex(): String = joinToString("") { "%02x".format(it) }
 private fun String.hexToByteArray(): ByteArray {
     check(length % 2 == 0) { "Hex string must have even length" }
     return chunked(2).map { it.toInt(16).toByte() }.toByteArray()
-}
-
-/**
- * No-op BLE transport for demonstration purposes.
- * In a real app, use AndroidBleTransport with proper runtime permissions.
- */
-private class DemoTransport : BleTransport {
-    override val localPeerId: ByteArray = ByteArray(16) { it.toByte() }
-    override suspend fun startAdvertisingAndScanning() {}
-    override suspend fun stopAll() {}
-    override val advertisementEvents: Flow<AdvertisementEvent> = emptyFlow()
-    override val peerLostEvents: Flow<PeerLostEvent> = emptyFlow()
-    override suspend fun sendToPeer(peerId: ByteArray, data: ByteArray) {}
-    override val incomingData: Flow<IncomingData> = emptyFlow()
 }

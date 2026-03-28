@@ -208,6 +208,10 @@ adb install meshlink-sample/android/build/outputs/apk/debug/android-debug.apk
 The app has three screens: **Chat** (start/stop mesh, send messages),
 **Mesh Visualizer** (peer topology graph), and **Settings** (config presets, MTU).
 
+The sample uses the real `AndroidBleTransport` — it will advertise, scan,
+and connect to other MeshLink devices over BLE. Runtime permissions
+(Bluetooth Scan/Connect/Advertise + Location) are requested on launch.
+
 #### iOS (SwiftUI)
 
 ```bash
