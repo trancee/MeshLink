@@ -221,14 +221,10 @@ class IosBleTransport(
 
     override suspend fun sendToPeer(peerId: ByteArray, data: ByteArray) {
         val peerIdHex = peerId.toHexString()
-        logD("sendToPeer $peerIdHex, ${data.size} bytes")
 
         val peripheral = connectedPeripherals[peerIdHex]
             ?: findPeripheralForPeer(peerId)
-            ?: run {
-                logD("No peripheral found for peer $peerIdHex")
-                return
-            }
+            ?: return
 
         // Connect and discover if not already connected
         if (peripheral.state != CBPeripheralStateConnected) {
@@ -236,11 +232,7 @@ class IosBleTransport(
         }
 
         val peripheralUUID = peripheral.identifier.UUIDString
-        val writeChar = discoveredWriteCharacteristics[peripheralUUID]
-            ?: run {
-                logD("No write characteristic found for peripheral $peripheralUUID")
-                return
-            }
+        val writeChar = discoveredWriteCharacteristics[peripheralUUID] ?: return
 
         peripheral.writeValue(
             data.toNSData(),

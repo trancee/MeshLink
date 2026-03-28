@@ -14,6 +14,12 @@ class PresenceTracker {
 
     fun state(peerId: String): PresenceState? = peers[peerId]
 
+    fun markDisconnected(peerId: String) {
+        if (peers.containsKey(peerId)) {
+            peers[peerId] = PresenceState.DISCONNECTED
+        }
+    }
+
     fun connectedPeerIds(): Set<String> =
         peers.filterValues { it == PresenceState.CONNECTED }.keys
 

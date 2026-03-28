@@ -33,7 +33,7 @@ struct ContentView: View {
 
 private struct ChatView: View {
     @ObservedObject var viewModel: MeshLinkViewModel
-    @State private var recipientId = ""
+    @State private var selectedPeerIndex = 0
     @State private var messageText = ""
 
     var body: some View {
@@ -117,11 +117,15 @@ private struct ChatView: View {
 
     private var messagingSection: some View {
         VStack(spacing: 8) {
-            TextField("Recipient ID (hex)", text: $recipientId)
-                .textFieldStyle(.roundedBorder)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-                .font(.system(.body, design: .monospaced))
+            Picker("Recipient", selection: $selectedPeerIndex) {
+                Text("📡 Broadcast").tag(0)
+                ForEach(Array(viewModel.discoveredPeers.enumerated()), id: \.element.id) { index, peer in
+                    Text(String(peer.id.prefix(12)) + "…")
+                        .tag(index + 1)
+                }
+            }
+            .pickerStyle(.menu)
+            .frame(maxWidth: .infinity, alignment: .leading)
 
             HStack(spacing: 8) {
                 TextField("Message", text: $messageText)
@@ -129,7 +133,7 @@ private struct ChatView: View {
                     .onSubmit(sendMessage)
 
                 Button(action: sendMessage) {
-                    Image(systemName: "paperplane.fill")
+                    Image(systemName: selectedPeerIndex == 0 ? "antenna.radiowaves.left.and.right" : "paperplane.fill")
                         .padding(.horizontal, 4)
                 }
                 .buttonStyle(.borderedProminent)
@@ -166,12 +170,18 @@ private struct ChatView: View {
     // MARK: - Helpers
 
     private var canSend: Bool {
-        viewModel.isRunning && !recipientId.isEmpty && !messageText.isEmpty
+        viewModel.isRunning && !messageText.isEmpty
     }
 
     private func sendMessage() {
         guard canSend else { return }
-        viewModel.sendMessage(to: recipientId, message: messageText)
+        if selectedPeerIndex == 0 {
+            viewModel.broadcastMessage(messageText)
+        } else {
+            let peerIndex = selectedPeerIndex - 1
+            guard peerIndex < viewModel.discoveredPeers.count else { return }
+            viewModel.sendMessage(to: viewModel.discoveredPeers[peerIndex].id, message: messageText)
+        }
         messageText = ""
     }
 }

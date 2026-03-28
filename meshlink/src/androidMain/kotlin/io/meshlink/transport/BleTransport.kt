@@ -527,7 +527,6 @@ class AndroidBleTransport(
 
     override suspend fun sendToPeer(peerId: ByteArray, data: ByteArray) {
         val address = bytesToAddress(peerId)
-        logD { "sendToPeer: $address, ${data.size}B" }
         val mutex = connectionMutexes.getOrPut(address) { Mutex() }
 
         mutex.withLock {

@@ -319,6 +319,10 @@ class MeshLink(
                     if (isNewPeer) {
                         safeEmit(_peers, PeerEvent.Discovered(event.peerId), "peers")
                         emitHealthUpdate()
+                        // Flush buffered messages and resume interrupted transfers
+                        val preExistingTransferKeys = outboundTransfers.keys.toSet()
+                        flushPendingMessages(event.peerId.toHex(), newScope)
+                        resumeTransfers(event.peerId, newScope, preExistingTransferKeys)
                     }
                     // Initiate Noise XX handshake if crypto enabled
                     // Deterministic tie-breaking: lower peerId initiates
@@ -342,17 +346,12 @@ class MeshLink(
                             }
                         }
                     }
-                    // Flush buffered messages and resume interrupted transfers
-                    val preExistingTransferKeys = outboundTransfers.keys.toSet()
-                    flushPendingMessages(event.peerId.toHex(), newScope)
-                    // Resume interrupted transfers that existed before this discovery
-                    resumeTransfers(event.peerId, newScope, preExistingTransferKeys)
                 }
             }
         }
         newScope.launch {
             transport.peerLostEvents.collect { event ->
-                // Don't remove from presenceTracker here — let sweep handle it
+                presenceTracker.markDisconnected(event.peerId.toHex())
                 safeEmit(_peers, PeerEvent.Lost(event.peerId), "peers")
                 emitHealthUpdate()
             }

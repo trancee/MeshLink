@@ -130,10 +130,21 @@ class MeshLinkViewModel(application: Application) : AndroidViewModel(application
         val payloadBytes = message.encodeToByteArray()
         meshLink.send(recipientBytes, payloadBytes)
             .onSuccess { uuid ->
-                log("📤 Sent (id=$uuid) to $recipientId")
+                log("📤 Sent (id=$uuid) to ${recipientId.take(12)}…")
             }
             .onFailure { e ->
                 log("❌ Send failed: ${e.message}")
+            }
+    }
+
+    fun broadcastMessage(message: String) {
+        val payloadBytes = message.encodeToByteArray()
+        meshLink.broadcast(payloadBytes, maxHops = 3u.toUByte())
+            .onSuccess { uuid ->
+                log("📡 Broadcast (id=$uuid): $message")
+            }
+            .onFailure { e ->
+                log("❌ Broadcast failed: ${e.message}")
             }
     }
 

@@ -31,7 +31,10 @@ import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -194,9 +197,10 @@ fun ChatScreen(viewModel: MeshLinkViewModel) {
     val health by viewModel.health.collectAsState()
     val logs by viewModel.logs.collectAsState()
     val isRunning by viewModel.isRunning.collectAsState()
+    val peers by viewModel.discoveredPeers.collectAsState()
     val activity = androidx.compose.ui.platform.LocalContext.current as? MainActivity
 
-    var recipientId by rememberSaveable { mutableStateOf("") }
+    var selectedPeerIndex by rememberSaveable { mutableIntStateOf(0) }
     var message by rememberSaveable { mutableStateOf("") }
 
     Scaffold(
@@ -243,14 +247,40 @@ fun ChatScreen(viewModel: MeshLinkViewModel) {
                 Text(if (isRunning) "Stop Mesh" else "Start Mesh")
             }
 
-            // ── Send message ──
-            OutlinedTextField(
-                value = recipientId,
-                onValueChange = { recipientId = it },
-                label = { Text("Recipient ID (hex)") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true
-            )
+            // ── Recipient selector ──
+            val peerOptions = listOf("📡 Broadcast") + peers.map { it.id.take(12) + "…" }
+            var dropdownExpanded by rememberSaveable { mutableStateOf(false) }
+            // Reset selection if peers list changed and index is out of bounds
+            if (selectedPeerIndex >= peerOptions.size) selectedPeerIndex = 0
+
+            ExposedDropdownMenuBox(
+                expanded = dropdownExpanded,
+                onExpandedChange = { dropdownExpanded = it },
+            ) {
+                OutlinedTextField(
+                    value = peerOptions[selectedPeerIndex],
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Recipient") },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = dropdownExpanded) },
+                    modifier = Modifier.fillMaxWidth().menuAnchor(),
+                    singleLine = true,
+                )
+                ExposedDropdownMenu(
+                    expanded = dropdownExpanded,
+                    onDismissRequest = { dropdownExpanded = false },
+                ) {
+                    peerOptions.forEachIndexed { index, label ->
+                        DropdownMenuItem(
+                            text = { Text(label) },
+                            onClick = {
+                                selectedPeerIndex = index
+                                dropdownExpanded = false
+                            },
+                        )
+                    }
+                }
+            }
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -264,12 +294,16 @@ fun ChatScreen(viewModel: MeshLinkViewModel) {
                 )
                 Button(
                     onClick = {
-                        viewModel.sendMessage(recipientId, message)
+                        if (selectedPeerIndex == 0) {
+                            viewModel.broadcastMessage(message)
+                        } else {
+                            viewModel.sendMessage(peers[selectedPeerIndex - 1].id, message)
+                        }
                         message = ""
                     },
-                    enabled = isRunning && recipientId.isNotBlank() && message.isNotBlank()
+                    enabled = isRunning && message.isNotBlank()
                 ) {
-                    Text("Send")
+                    Text(if (selectedPeerIndex == 0) "Broadcast" else "Send")
                 }
             }
 
