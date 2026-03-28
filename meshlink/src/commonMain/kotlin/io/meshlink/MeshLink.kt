@@ -206,6 +206,7 @@ class MeshLink(
                 capabilityFlags = if (config.l2capEnabled) HandshakePayload.CAP_L2CAP else 0u,
                 l2capPsm = 0u,
             ).encode(),
+            clock = clock,
         )
     }
 

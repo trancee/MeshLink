@@ -189,4 +189,99 @@ class SecurityEngineTest {
         assertNull(engine.peerPublicKey("peer1"))
         assertIs<SealResult.UnknownRecipient>(engine.seal("peer1", "test".encodeToByteArray()))
     }
+
+    // --- TM-007: Rotation timestamp freshness ---
+
+    @Test
+    fun rotationAnnouncementWithFreshTimestampAccepted() {
+        var now = 100_000L
+        val crypto = PureKotlinCryptoProvider()
+        val engine = SecurityEngine(crypto, clock = { now }, rotationFreshnessWindowMs = 30_000L)
+
+        // Generate keys for "peer" and register old key
+        val oldKp = crypto.generateX25519KeyPair()
+        val newKp = crypto.generateX25519KeyPair()
+        val oldEd = crypto.generateEd25519KeyPair()
+        val newEd = crypto.generateEd25519KeyPair()
+        engine.registerPeerKey("0a0b0c0d0e0f0102030405060708090a", oldKp.publicKey)
+
+        // Build a valid rotation announcement at current time
+        val payload = io.meshlink.wire.RotationAnnouncement.buildSignablePayload(
+            oldKp.publicKey, newKp.publicKey, oldEd.publicKey, newEd.publicKey, now.toULong(),
+        )
+        val sig = crypto.sign(oldEd.privateKey, payload)
+
+        val msg = io.meshlink.wire.RotationAnnouncement.RotationMessage(
+            oldKp.publicKey, newKp.publicKey, oldEd.publicKey, newEd.publicKey, now.toULong(), sig,
+        )
+
+        val result = engine.handleRotationAnnouncement("0a0b0c0d0e0f0102030405060708090a", msg)
+        assertIs<RotationResult.Accepted>(result)
+    }
+
+    @Test
+    fun rotationAnnouncementWithExpiredTimestampRejectedAsStale() {
+        var now = 100_000L
+        val crypto = PureKotlinCryptoProvider()
+        val engine = SecurityEngine(crypto, clock = { now }, rotationFreshnessWindowMs = 30_000L)
+
+        val oldKp = crypto.generateX25519KeyPair()
+        val newKp = crypto.generateX25519KeyPair()
+        val oldEd = crypto.generateEd25519KeyPair()
+        val newEd = crypto.generateEd25519KeyPair()
+        engine.registerPeerKey("0a0b0c0d0e0f0102030405060708090a", oldKp.publicKey)
+
+        // Announcement timestamp is 60s in the past (outside 30s window)
+        val staleTs = (now - 60_000L).toULong()
+        val payload = io.meshlink.wire.RotationAnnouncement.buildSignablePayload(
+            oldKp.publicKey, newKp.publicKey, oldEd.publicKey, newEd.publicKey, staleTs,
+        )
+        val sig = crypto.sign(oldEd.privateKey, payload)
+
+        val msg = io.meshlink.wire.RotationAnnouncement.RotationMessage(
+            oldKp.publicKey, newKp.publicKey, oldEd.publicKey, newEd.publicKey, staleTs, sig,
+        )
+
+        val result = engine.handleRotationAnnouncement("0a0b0c0d0e0f0102030405060708090a", msg)
+        assertIs<RotationResult.Stale>(result)
+    }
+
+    @Test
+    fun rotationReplayWithSameTimestampRejectedAsStale() {
+        var now = 100_000L
+        val crypto = PureKotlinCryptoProvider()
+        val engine = SecurityEngine(crypto, clock = { now }, rotationFreshnessWindowMs = 30_000L)
+
+        val oldKp = crypto.generateX25519KeyPair()
+        val newKp = crypto.generateX25519KeyPair()
+        val oldEd = crypto.generateEd25519KeyPair()
+        val newEd = crypto.generateEd25519KeyPair()
+        engine.registerPeerKey("0a0b0c0d0e0f0102030405060708090a", oldKp.publicKey)
+
+        val payload = io.meshlink.wire.RotationAnnouncement.buildSignablePayload(
+            oldKp.publicKey, newKp.publicKey, oldEd.publicKey, newEd.publicKey, now.toULong(),
+        )
+        val sig = crypto.sign(oldEd.privateKey, payload)
+        val msg = io.meshlink.wire.RotationAnnouncement.RotationMessage(
+            oldKp.publicKey, newKp.publicKey, oldEd.publicKey, newEd.publicKey, now.toULong(), sig,
+        )
+
+        // First rotation accepted
+        assertIs<RotationResult.Accepted>(engine.handleRotationAnnouncement("0a0b0c0d0e0f0102030405060708090a", msg))
+
+        // Build a second rotation from newKp -> newerKp with the SAME timestamp
+        val newerKp = crypto.generateX25519KeyPair()
+        val newerEd = crypto.generateEd25519KeyPair()
+        val payload2 = io.meshlink.wire.RotationAnnouncement.buildSignablePayload(
+            newKp.publicKey, newerKp.publicKey, newEd.publicKey, newerEd.publicKey, now.toULong(),
+        )
+        val sig2 = crypto.sign(newEd.privateKey, payload2)
+        val msg2 = io.meshlink.wire.RotationAnnouncement.RotationMessage(
+            newKp.publicKey, newerKp.publicKey, newEd.publicKey, newerEd.publicKey, now.toULong(), sig2,
+        )
+
+        // Same timestamp → rejected as stale
+        val result = engine.handleRotationAnnouncement("0a0b0c0d0e0f0102030405060708090a", msg2)
+        assertIs<RotationResult.Stale>(result)
+    }
 }

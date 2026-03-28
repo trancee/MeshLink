@@ -356,6 +356,10 @@ class MessageDispatcher(
                 DiagnosticCode.MALFORMED_DATA, Severity.WARN,
                 "rotation announcement signature verification failed from $peerHex",
             )
+            is RotationResult.Stale -> diagnosticSink.emit(
+                DiagnosticCode.REPLAY_REJECTED, Severity.WARN,
+                "stale rotation announcement from $peerHex",
+            )
             is RotationResult.UnknownPeer -> {}
         }
     }
