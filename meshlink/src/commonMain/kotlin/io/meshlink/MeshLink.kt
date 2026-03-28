@@ -24,6 +24,7 @@ import io.meshlink.power.ModeChangeResult
 import io.meshlink.power.PowerCoordinator
 import io.meshlink.power.ShedAction
 import io.meshlink.protocol.ProtocolVersion
+import io.meshlink.util.PauseManager
 import io.meshlink.routing.GossipEntry
 import io.meshlink.routing.LearnedRoute
 import io.meshlink.routing.NextHopResult
@@ -154,7 +155,6 @@ class MeshLink(
     }
 
     private var started = false
-    private var paused = false
     private var scope: CoroutineScope? = null
     private val baseContext = coroutineContext
 
@@ -167,11 +167,10 @@ class MeshLink(
     // Outbound recipient tracking: messageId hex → recipient peerId
     private val outboundRecipients = mutableMapOf<String, ByteArray>()
 
-    // Queued sends while paused: (recipient, payload)
-    private val pauseQueue = mutableListOf<Pair<ByteArray, ByteArray>>()
-
-    // Queued relay messages while paused: (nextHop, encodedFrame)
-    private val relayQueue = mutableListOf<Pair<ByteArray, ByteArray>>()
+    private val pauseManager = PauseManager(
+        sendQueueCapacity = config.pendingMessageCapacity,
+        relayQueueCapacity = config.relayQueueCapacity,
+    )
 
     // Routing engine: facade for routing table, presence tracking, dedup, and gossip
     private val routingEngine = RoutingEngine(
@@ -241,7 +240,7 @@ class MeshLink(
         }
         newScope.launch {
             transport.advertisementEvents.collect { event ->
-                if (!paused) {
+                if (!pauseManager.isPaused) {
                     // Negotiate protocol version from advertisement payload
                     val advPayload = event.advertisementPayload
                     if (advPayload.size >= 2) {
@@ -363,7 +362,7 @@ class MeshLink(
             }
         }
         // Emit DELIVERY_TIMEOUT for queued paused messages that were never sent
-        for ((_, _) in pauseQueue) {
+        for ((_, _) in pauseManager.drainSendQueue()) {
             _transferFailures.tryEmit(
                 TransferFailure(Uuid.random(), DeliveryOutcome.FAILED_DELIVERY_TIMEOUT)
             )
@@ -383,32 +382,25 @@ class MeshLink(
         transferEngine.clearAll()
         outboundRecipients.clear()
         routingEngine.clear()
-        pauseQueue.clear()
-        relayQueue.clear()
+        pauseManager.clear()
         deliveryPipeline.clear()
         securityEngine?.clear()
         lastHealthUpdateMs = 0L
     }
 
     override fun pause() {
-        paused = true
+        pauseManager.pause()
         scope?.launch { transport.stopAll() }
     }
 
     override fun resume() {
-        paused = false
+        val snapshot = pauseManager.resume()
         scope?.launch { transport.startAdvertisingAndScanning() }
         val s = scope ?: return
-        // Flush queued own-outbound sends
-        val queued = pauseQueue.toList()
-        pauseQueue.clear()
-        for ((recipient, payload) in queued) {
+        for ((recipient, payload) in snapshot.pendingSends) {
             doSend(s, recipient, payload)
         }
-        // Flush queued relay messages
-        val relayQueued = relayQueue.toList()
-        relayQueue.clear()
-        for ((nextHop, frame) in relayQueued) {
+        for ((nextHop, frame) in snapshot.pendingRelays) {
             s.launch { safeSend(nextHop, frame) }
         }
     }
@@ -425,7 +417,7 @@ class MeshLink(
             activeTransfers = transferEngine.outboundCount,
             powerMode = powerCoordinator.currentMode,
             avgRouteCost = routingEngine.avgCost(),
-            relayQueueSize = relayQueue.size,
+            relayQueueSize = pauseManager.relayQueueSize,
             effectiveGossipIntervalMs = routingEngine.effectiveGossipInterval(powerCoordinator.currentMode),
         )
     }
@@ -498,8 +490,8 @@ class MeshLink(
             when (result.action) {
                 ShedAction.RELAY_BUFFERS_CLEARED -> {
                     transferEngine.clearAll()
-                    val relayCount = relayQueue.size
-                    relayQueue.clear()
+                    val relayCount = pauseManager.relayQueueSize
+                    pauseManager.clear()
                     actions.add("Cleared ${result.count} relay buffers, $relayCount queued relays")
                 }
                 ShedAction.DEDUP_TRIMMED -> {
@@ -585,8 +577,8 @@ class MeshLink(
             return Result.success(messageId)
         }
 
-        if (paused) {
-            pauseQueue.add(recipient to payload)
+        if (pauseManager.isPaused) {
+            pauseManager.queueSend(recipient, payload)
             return Result.success(Uuid.random())
         }
 
@@ -949,7 +941,7 @@ class MeshLink(
         safeEmit(_messages, Message(senderId = broadcast.origin, payload = broadcast.payload), "messages")
 
         // Re-flood to all known peers except sender, if hops remain and not paused
-        if (broadcast.remainingHops > 0u && !paused) {
+        if (broadcast.remainingHops > 0u && !pauseManager.isPaused) {
             val reflooded = WireCodec.encodeBroadcast(
                 messageId = broadcast.messageId,
                 origin = broadcast.origin,
@@ -1061,12 +1053,8 @@ class MeshLink(
         )
 
         // Forward to destination if directly known, otherwise best route
-        if (paused) {
-            relayQueue.add(nextHop to relayed)
-            // Evict oldest if over capacity
-            while (relayQueue.size > config.relayQueueCapacity) {
-                relayQueue.removeAt(0)
-            }
+        if (pauseManager.isPaused) {
+            pauseManager.queueRelay(nextHop, relayed)
         } else {
             scope?.launch { safeSend(nextHop, relayed) }
         }
