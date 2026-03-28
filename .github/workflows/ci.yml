@@ -77,8 +77,8 @@ jobs:
       - name: Compile Android (release + debug)
         run: ./gradlew :meshlink:compileReleaseKotlinAndroid :meshlink:compileDebugKotlinAndroid --parallel
 
-  ios-test:
-    name: iOS Tests
+  apple-test:
+    name: iOS & macOS Tests
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v6
@@ -88,11 +88,6 @@ jobs:
           distribution: 'zulu'
           java-version: '21'
 
-      - uses: gradle/actions/setup-gradle@v6
-        with:
-          build-scan-terms-of-use-url: 'https://gradle.com/help/legal-terms-of-use'
-          build-scan-terms-of-use-agree: 'yes'
-
       - name: Cache Kotlin/Native compiler
         uses: actions/cache@v5
         with:
@@ -100,49 +95,22 @@ jobs:
           key: konan-${{ runner.os }}-${{ hashFiles('**/*.gradle.kts') }}
           restore-keys: konan-${{ runner.os }}-
 
-      - name: Run iOS Simulator tests
-        run: ./gradlew :meshlink:iosSimulatorArm64Test --parallel
-
-      - name: Upload test reports
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: ios-test-reports
-          path: meshlink/build/reports/tests/iosSimulatorArm64Test/
-          retention-days: 14
-
-  macos-test:
-    name: macOS Tests
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v6
-
-      - uses: actions/setup-java@v5
-        with:
-          distribution: 'zulu'
-          java-version: '21'
-
       - uses: gradle/actions/setup-gradle@v6
         with:
           build-scan-terms-of-use-url: 'https://gradle.com/help/legal-terms-of-use'
           build-scan-terms-of-use-agree: 'yes'
 
-      - name: Cache Kotlin/Native compiler
-        uses: actions/cache@v5
-        with:
-          path: ~/.konan
-          key: konan-${{ runner.os }}-${{ hashFiles('**/*.gradle.kts') }}
-          restore-keys: konan-${{ runner.os }}-
-
-      - name: Run macOS ARM64 tests
-        run: ./gradlew :meshlink:macosArm64Test --parallel
+      - name: Run iOS Simulator & macOS tests
+        run: ./gradlew :meshlink:iosSimulatorArm64Test :meshlink:macosArm64Test --parallel
 
       - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: macos-test-reports
-          path: meshlink/build/reports/tests/macosArm64Test/
+          name: apple-test-reports
+          path: |
+            meshlink/build/reports/tests/iosSimulatorArm64Test/
+            meshlink/build/reports/tests/macosArm64Test/
           retention-days: 14
 
   linux-test:
@@ -156,17 +124,17 @@ jobs:
           distribution: 'zulu'
           java-version: '21'
 
-      - uses: gradle/actions/setup-gradle@v6
-        with:
-          build-scan-terms-of-use-url: 'https://gradle.com/help/legal-terms-of-use'
-          build-scan-terms-of-use-agree: 'yes'
-
       - name: Cache Kotlin/Native compiler
         uses: actions/cache@v5
         with:
           path: ~/.konan
           key: konan-${{ runner.os }}-${{ hashFiles('**/*.gradle.kts') }}
           restore-keys: konan-${{ runner.os }}-
+
+      - uses: gradle/actions/setup-gradle@v6
+        with:
+          build-scan-terms-of-use-url: 'https://gradle.com/help/legal-terms-of-use'
+          build-scan-terms-of-use-agree: 'yes'
 
       - name: Run Linux x64 tests
         run: ./gradlew :meshlink:linuxX64Test --parallel
