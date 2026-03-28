@@ -25,6 +25,8 @@ import io.meshlink.power.PowerCoordinator
 import io.meshlink.power.ShedAction
 import io.meshlink.protocol.ProtocolVersion
 import io.meshlink.send.SendDecision
+import io.meshlink.send.BroadcastDecision
+import io.meshlink.send.BroadcastPolicyChain
 import io.meshlink.send.SendPolicyChain
 import io.meshlink.util.PauseManager
 import io.meshlink.routing.GossipEntry
@@ -217,6 +219,15 @@ class MeshLink(
         checkCircuitBreaker = { rateLimitPolicy.checkCircuitBreaker() },
         resolveNextHop = { routingEngine.resolveNextHop(it) },
         peerPublicKey = securityEngine?.let { se -> { recipientHex: String -> se.peerPublicKey(recipientHex) } },
+    )
+
+    private val broadcastPolicyChain = BroadcastPolicyChain(
+        bufferCapacity = config.bufferCapacity,
+        checkBroadcastRate = { rateLimitPolicy.checkBroadcast() },
+        signData = securityEngine?.let { se -> { data: ByteArray -> se.sign(data) } },
+        appIdHash = config.appId?.let { AppIdFilter.hash(it) } ?: ByteArray(16),
+        localPeerId = transport.localPeerId,
+        markAsSeen = { routingEngine.isDuplicate(it) },
     )
 
     private val messageDispatcher = MessageDispatcher(
@@ -563,43 +574,23 @@ class MeshLink(
         if (!started) throw IllegalStateException("MeshLink not started")
         val s = requireScope()
 
-        if (payload.size > config.bufferCapacity) {
-            return Result.failure(IllegalArgumentException("bufferFull"))
+        return when (val decision = broadcastPolicyChain.evaluate(payload, maxHops)) {
+            is BroadcastDecision.BufferFull ->
+                Result.failure(IllegalArgumentException("bufferFull"))
+
+            is BroadcastDecision.RateLimited -> {
+                diagnosticSink.emit(DiagnosticCode.RATE_LIMIT_HIT, Severity.WARN,
+                    "broadcast rate limit exceeded")
+                Result.failure(IllegalStateException("Broadcast rate limit exceeded"))
+            }
+
+            is BroadcastDecision.Proceed -> {
+                for (peerHex in routingEngine.allPeerIds()) {
+                    s.launch { safeSend(hexToBytes(peerHex), decision.encodedFrame) }
+                }
+                Result.success(Uuid.fromByteArray(decision.messageId))
+            }
         }
-
-        // Broadcast rate limiting
-        if (rateLimitPolicy.checkBroadcast() is RateLimitResult.Limited) {
-            diagnosticSink.emit(DiagnosticCode.RATE_LIMIT_HIT, Severity.WARN,
-                "broadcast rate limit exceeded")
-            return Result.failure(IllegalStateException("Broadcast rate limit exceeded"))
-        }
-
-        val messageId = Uuid.random()
-        val appIdHash = config.appId?.let { AppIdFilter.hash(it) } ?: ByteArray(16)
-        val msgIdBytes = messageId.toByteArray()
-        val remainingHops = maxHops
-
-        // Sign broadcast content with Ed25519 if crypto is available
-        // Note: remainingHops is excluded from signed data because relays decrement it
-        val signedData = msgIdBytes + transport.localPeerId + appIdHash + payload
-        val signed = securityEngine?.sign(signedData)
-        val signature = signed?.signature ?: ByteArray(0)
-
-        val encoded = WireCodec.encodeBroadcast(
-            messageId = msgIdBytes,
-            origin = transport.localPeerId,
-            remainingHops = remainingHops,
-            appIdHash = appIdHash,
-            payload = payload,
-            signature = signature,
-            signerPublicKey = signed?.signerPublicKey ?: ByteArray(0),
-        )
-        // Mark as seen so we don't deliver our own broadcast back to ourselves
-        routingEngine.isDuplicate(messageId.toByteArray().toHex())
-        for (peerHex in routingEngine.allPeerIds()) {
-            s.launch { safeSend(hexToBytes(peerHex), encoded) }
-        }
-        return Result.success(messageId)
     }
 
     override fun send(recipient: ByteArray, payload: ByteArray): Result<Uuid> {
