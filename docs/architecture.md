@@ -160,7 +160,8 @@ platform-agnostic logic (in `commonMain`) and platform-specific I/O (in
 
 | File | Responsibility |
 |------|---------------|
-| `RateLimiter.kt` | Sliding window rate limiting (used for sends, broadcasts, handshakes, NACKs, neighbors). |
+| `RateLimitPolicy.kt` | Facade consolidating 7 rate limiters and circuit breaker behind sealed `RateLimitResult` type. |
+| `RateLimiter.kt` | Sliding window rate limiting (per-key token bucket). |
 | `CircuitBreaker.kt` | Fault isolation with closed → open → half-open state machine. |
 | `DeliveryTracker.kt` | Per-message delivery outcome tracking (PENDING → RESOLVED). |
 | `TombstoneSet.kt` | Tracks recently-delivered message IDs to suppress reordered duplicates. |

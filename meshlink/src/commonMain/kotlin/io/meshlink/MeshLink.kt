@@ -36,14 +36,14 @@ import io.meshlink.transfer.TransferEngine
 import io.meshlink.transfer.TransferUpdate
 import io.meshlink.transport.BleTransport
 import io.meshlink.util.AppIdFilter
-import io.meshlink.util.CircuitBreaker
 import io.meshlink.delivery.AckResult
 import io.meshlink.delivery.BufferResult
 import io.meshlink.delivery.DeliveryPipeline
 import io.meshlink.util.DeliveryOutcome
 import io.meshlink.util.createPlatformLock
 import io.meshlink.util.currentTimeMillis
-import io.meshlink.util.RateLimiter
+import io.meshlink.util.RateLimitPolicy
+import io.meshlink.util.RateLimitResult
 import io.meshlink.util.withLock
 import io.meshlink.util.hexToBytes
 import io.meshlink.util.toHex
@@ -81,26 +81,7 @@ class MeshLink(
     private val clock = clock
     private val sendLock = createPlatformLock()
 
-    private val rateLimiter: RateLimiter? =
-        if (config.rateLimitMaxSends > 0) RateLimiter(config.rateLimitMaxSends, config.rateLimitWindowMs, clock) else null
-
-    private val circuitBreaker: CircuitBreaker? =
-        if (config.circuitBreakerMaxFailures > 0) CircuitBreaker(config.circuitBreakerMaxFailures, config.circuitBreakerWindowMs, config.circuitBreakerCooldownMs, clock) else null
-
-    private val broadcastRateLimiter: RateLimiter? =
-        if (config.broadcastRateLimitPerMinute > 0) RateLimiter(config.broadcastRateLimitPerMinute, 60_000L, clock) else null
-
-    private val handshakeRateLimiter: RateLimiter? =
-        if (config.handshakeRateLimitPerSec > 0) RateLimiter(config.handshakeRateLimitPerSec, 1_000L, clock) else null
-
-    private val nackRateLimiter: RateLimiter? =
-        if (config.nackRateLimitPerSec > 0) RateLimiter(config.nackRateLimitPerSec, 1_000L, clock) else null
-
-    private val neighborAggregateRateLimiter: RateLimiter? =
-        if (config.neighborAggregateLimitPerMin > 0) RateLimiter(config.neighborAggregateLimitPerMin, 60_000L, clock) else null
-
-    private val senderNeighborRateLimiter: RateLimiter? =
-        if (config.senderNeighborLimitPerMin > 0) RateLimiter(config.senderNeighborLimitPerMin, 60_000L, clock) else null
+    private val rateLimitPolicy = RateLimitPolicy(config, clock)
 
     private val _peers = MutableSharedFlow<PeerEvent>(replay = 64)
     private val _messages = MutableSharedFlow<Message>(extraBufferCapacity = 64)
@@ -304,8 +285,7 @@ class MeshLink(
                                 val key = securityEngine.peerPublicKey(peerHex)
                                 key != null && ts.verify(peerHex, key) is io.meshlink.crypto.VerifyResult.Trusted
                             } ?: false
-                            if (!isPinned && handshakeRateLimiter != null &&
-                                !handshakeRateLimiter.tryAcquire(peerHex)) {
+                            if (!isPinned && rateLimitPolicy.checkHandshake(peerHex) is RateLimitResult.Limited) {
                                 diagnosticSink.emit(DiagnosticCode.RATE_LIMIT_HIT, Severity.WARN,
                                     "handshake rate limit exceeded, peer=$peerHex")
                             } else {
@@ -546,12 +526,10 @@ class MeshLink(
         }
 
         // Broadcast rate limiting
-        if (broadcastRateLimiter != null) {
-            if (!broadcastRateLimiter.tryAcquire("broadcast")) {
-                diagnosticSink.emit(DiagnosticCode.RATE_LIMIT_HIT, Severity.WARN,
-                    "broadcast rate limit exceeded")
-                return Result.failure(IllegalStateException("Broadcast rate limit exceeded"))
-            }
+        if (rateLimitPolicy.checkBroadcast() is RateLimitResult.Limited) {
+            diagnosticSink.emit(DiagnosticCode.RATE_LIMIT_HIT, Severity.WARN,
+                "broadcast rate limit exceeded")
+            return Result.failure(IllegalStateException("Broadcast rate limit exceeded"))
         }
 
         val messageId = Uuid.random()
@@ -613,16 +591,16 @@ class MeshLink(
         }
 
         // Rate limit check (per-recipient)
-        if (rateLimiter != null) {
-            val key = recipient.toHex()
-            if (!rateLimiter.tryAcquire(key)) {
-                diagnosticSink.emit(DiagnosticCode.RATE_LIMIT_HIT, Severity.WARN, "recipient=$key")
+        when (val rl = rateLimitPolicy.checkSend(recipient.toHex())) {
+            is RateLimitResult.Allowed -> {}
+            is RateLimitResult.Limited -> {
+                diagnosticSink.emit(DiagnosticCode.RATE_LIMIT_HIT, Severity.WARN, "recipient=${rl.key}")
                 return Result.failure(IllegalStateException("Rate limit exceeded"))
             }
         }
 
         // Circuit breaker check
-        if (circuitBreaker != null && !circuitBreaker.allowAttempt()) {
+        if (rateLimitPolicy.checkCircuitBreaker() is RateLimitResult.Limited) {
             return Result.failure(IllegalStateException("Circuit breaker open — transport circuit tripped"))
         }
 
@@ -780,17 +758,15 @@ class MeshLink(
 
     private suspend fun safeSend(peerId: ByteArray, data: ByteArray) {
         // Per-neighbor aggregate rate limit
-        if (neighborAggregateRateLimiter != null) {
-            if (!neighborAggregateRateLimiter.tryAcquire(peerId.toHex())) {
-                diagnosticSink.emit(DiagnosticCode.RATE_LIMIT_HIT, Severity.WARN,
-                    "neighbor aggregate limit exceeded, peer=${peerId.toHex()}")
-                return
-            }
+        if (rateLimitPolicy.checkNeighborAggregate(peerId.toHex()) is RateLimitResult.Limited) {
+            diagnosticSink.emit(DiagnosticCode.RATE_LIMIT_HIT, Severity.WARN,
+                "neighbor aggregate limit exceeded, peer=${peerId.toHex()}")
+            return
         }
         try {
             transport.sendToPeer(peerId, data)
         } catch (e: Exception) {
-            circuitBreaker?.recordFailure()
+            rateLimitPolicy.recordTransportFailure()
             diagnosticSink.emit(DiagnosticCode.SEND_FAILED, Severity.WARN,
                 "peer=${peerId.toHex()}, error=${e.message}")
         }
@@ -798,7 +774,7 @@ class MeshLink(
 
     internal fun sendNack(peerId: ByteArray, messageId: ByteArray) {
         val peerHex = peerId.toHex()
-        if (nackRateLimiter != null && !nackRateLimiter.tryAcquire(peerHex)) {
+        if (rateLimitPolicy.checkNack(peerHex) is RateLimitResult.Limited) {
             diagnosticSink.emit(DiagnosticCode.RATE_LIMIT_HIT, Severity.WARN,
                 "NACK rate limit exceeded, peer=$peerHex")
             return
@@ -1062,13 +1038,12 @@ class MeshLink(
             is NextHopResult.ViaRoute -> hexToBytes(hop.nextHop)
             is NextHopResult.Unreachable -> return
         }
-        if (senderNeighborRateLimiter != null) {
-            val senderNeighborKey = "${routed.origin.toHex()}->${nextHop.toHex()}"
-            if (!senderNeighborRateLimiter.tryAcquire(senderNeighborKey)) {
-                diagnosticSink.emit(DiagnosticCode.RATE_LIMIT_HIT, Severity.WARN,
-                    "sender-neighbor relay limit exceeded, origin=${routed.origin.toHex()}, neighbor=${nextHop.toHex()}")
-                return
-            }
+        val originHex = routed.origin.toHex()
+        val neighborHex = nextHop.toHex()
+        if (rateLimitPolicy.checkSenderNeighborRelay(originHex, neighborHex) is RateLimitResult.Limited) {
+            diagnosticSink.emit(DiagnosticCode.RATE_LIMIT_HIT, Severity.WARN,
+                "sender-neighbor relay limit exceeded, origin=$originHex, neighbor=$neighborHex")
+            return
         }
 
         // Record reverse path for delivery ACK relay
