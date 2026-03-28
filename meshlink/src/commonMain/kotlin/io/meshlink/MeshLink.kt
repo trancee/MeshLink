@@ -65,6 +65,9 @@ import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
+private const val NEXTHOP_UNRELIABLE_THRESHOLD = 0.5
+private const val NEXTHOP_MIN_SAMPLES = 3
+
 @OptIn(ExperimentalUuidApi::class)
 class MeshLink(
     private val transport: BleTransport,
@@ -165,6 +168,8 @@ class MeshLink(
 
     // Outbound recipient tracking: messageId hex → recipient peerId
     private val outboundRecipients = mutableMapOf<String, ByteArray>()
+    // Outbound next-hop tracking: messageId hex → next-hop hex (for routed sends)
+    private val outboundNextHops = mutableMapOf<String, String>()
 
     private val pauseManager = PauseManager(
         sendQueueCapacity = config.pendingMessageCapacity,
@@ -276,6 +281,10 @@ class MeshLink(
                 ), "transferProgress")
             }
             override suspend fun onDeliveryConfirmed(messageId: ByteArray) {
+                val key = messageId.toHex()
+                outboundNextHops.remove(key)?.let { nextHop ->
+                    routingEngine.recordNextHopSuccess(nextHop)
+                }
                 safeEmit(_deliveryConfirmations, Uuid.fromByteArray(messageId), "deliveryConfirmations")
             }
             override fun onKeyChanged(event: KeyChangeEvent) {
@@ -420,6 +429,7 @@ class MeshLink(
     private fun clearState() {
         transferEngine.clearAll()
         outboundRecipients.clear()
+        outboundNextHops.clear()
         routingEngine.clear()
         pauseManager.clear()
         deliveryPipeline.clear()
@@ -486,6 +496,14 @@ class MeshLink(
         val staleKeys = transferEngine.sweepStaleOutbound(maxAgeMs)
         for (key in staleKeys) {
             outboundRecipients.remove(key)
+            outboundNextHops.remove(key)?.let { nextHop ->
+                routingEngine.recordNextHopFailure(nextHop)
+                if (routingEngine.nextHopFailureRate(nextHop) > NEXTHOP_UNRELIABLE_THRESHOLD &&
+                    routingEngine.nextHopFailureCount(nextHop) >= NEXTHOP_MIN_SAMPLES) {
+                    diagnosticSink.emit(DiagnosticCode.NEXTHOP_UNRELIABLE, Severity.WARN,
+                        "nextHop=$nextHop, failureRate=${"%.2f".format(routingEngine.nextHopFailureRate(nextHop))}")
+                }
+            }
             if (deliveryPipeline.recordFailure(key, DeliveryOutcome.FAILED_ACK_TIMEOUT)) {
                 _transferFailures.tryEmit(
                     TransferFailure(Uuid.fromByteArray(hexToBytes(key)), DeliveryOutcome.FAILED_ACK_TIMEOUT)
@@ -652,6 +670,9 @@ class MeshLink(
             _transferFailures.tryEmit(TransferFailure(Uuid.fromByteArray(hexToBytes(expiredKey)), DeliveryOutcome.FAILED_DELIVERY_TIMEOUT))
             transferEngine.removeOutbound(expiredKey)
             outboundRecipients.remove(expiredKey)
+            outboundNextHops.remove(expiredKey)?.let { nextHop ->
+                routingEngine.recordNextHopFailure(nextHop)
+            }
         }
 
         // Encrypt payload via security engine
@@ -680,6 +701,8 @@ class MeshLink(
         nextHopHex: String,
     ): Result<Uuid> {
         val messageId = Uuid.random()
+        val key = messageId.toByteArray().toHex()
+        outboundNextHops[key] = nextHopHex
         val encoded = WireCodec.encodeRoutedMessage(
             messageId = messageId.toByteArray(),
             origin = transport.localPeerId,

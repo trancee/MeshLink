@@ -262,7 +262,7 @@ Attacker → triggers crypto edge case (e.g., malformed handshake) → exception
 | TM-001 | ✅ Mitigated | `fb1887b` | `maxConcurrentInboundSessions` config (default 100), `ChunkAcceptResult.Rejected` |
 | TM-002 | ✅ Mitigated | See below | `requireEncryption = true` default; `start()` fails without `CryptoProvider` |
 | TM-003 | ✅ Mitigated | `fb1887b` | TTL-based `DedupSet` with 300s expiry, capacity increased to 100K |
-| TM-004 | ⏳ Open | — | Requires cryptographic route signing (protocol-level change) — GitHub #28 |
+| TM-004 | ✅ Mitigated | See below | Unsigned routes rejected when crypto enabled; per-next-hop failure tracking with diagnostic alerts |
 | TM-005 | ✅ Mitigated | `fb1887b` | Default `maxHops` reduced from 255 to 10 |
 | TM-006 | ✅ Mitigated | `fb1887b` | `expect/actual secureRandomBytes()` with platform CSPRNG implementations |
 | TM-007 | ✅ Mitigated | `47b40e8` | Rotation timestamp freshness (±30s window) and replay rejection |

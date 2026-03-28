@@ -56,6 +56,8 @@ class RoutingEngine(
     private val previousNextHop = mutableMapOf<String, String>()
     private val lastTriggeredUpdateTime = mutableMapOf<String, Long>()
     private var lastGossipSentMs: Long = 0L
+    private val nextHopFailures = mutableMapOf<String, Int>()
+    private val nextHopSuccesses = mutableMapOf<String, Int>()
 
     // ── Presence ──────────────────────────────────────────────────
 
@@ -178,6 +180,30 @@ class RoutingEngine(
     val dedupSize: Int get() = dedup.size()
     fun avgCost(): Double = routingTable.avgCost()
 
+    // ── Next-hop reliability tracking ──────────────────────────────
+
+    /** Record a delivery failure via a specific next-hop. */
+    fun recordNextHopFailure(nextHopHex: String) {
+        nextHopFailures[nextHopHex] = (nextHopFailures[nextHopHex] ?: 0) + 1
+    }
+
+    /** Record a delivery success via a specific next-hop. */
+    fun recordNextHopSuccess(nextHopHex: String) {
+        nextHopSuccesses[nextHopHex] = (nextHopSuccesses[nextHopHex] ?: 0) + 1
+    }
+
+    /** Failure rate for a next-hop (0.0–1.0), or 0.0 if no data. */
+    fun nextHopFailureRate(nextHopHex: String): Double {
+        val failures = nextHopFailures[nextHopHex] ?: 0
+        val successes = nextHopSuccesses[nextHopHex] ?: 0
+        val total = failures + successes
+        if (total == 0) return 0.0
+        return failures.toDouble() / total
+    }
+
+    /** Total recorded failures for a next-hop. */
+    fun nextHopFailureCount(nextHopHex: String): Int = nextHopFailures[nextHopHex] ?: 0
+
     // ── Cleanup ────────────────────────────────────────────────────
 
     fun clear() {
@@ -186,6 +212,8 @@ class RoutingEngine(
         dedup.clear()
         previousNextHop.clear()
         lastTriggeredUpdateTime.clear()
+        nextHopFailures.clear()
+        nextHopSuccesses.clear()
         lastGossipSentMs = 0L
     }
 

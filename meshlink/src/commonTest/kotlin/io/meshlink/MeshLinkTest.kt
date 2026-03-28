@@ -8419,6 +8419,67 @@ class MeshLinkTest {
     }
 
     @Test
+    fun unsignedRouteUpdateRejectedWhenCryptoEnabled() = runTest {
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        val crypto = io.meshlink.crypto.createCryptoProvider()
+        val alice = MeshLink(transportAlice, meshLinkConfig { requireEncryption = false }, coroutineContext, crypto = crypto)
+        alice.start()
+        testScheduler.advanceTimeBy(1L)
+
+        transportAlice.simulateDiscovery(peerIdBob)
+        testScheduler.advanceTimeBy(1L)
+
+        // Send an UNSIGNED route update (no signature appended)
+        val entries = listOf(
+            RouteUpdateEntry(
+                destination = ByteArray(16) { 0x42 },
+                cost = 1.0,
+                sequenceNumber = 1u,
+                hopCount = 1u,
+            )
+        )
+        val unsignedUpdate = WireCodec.encodeRouteUpdate(peerIdBob, entries)
+        transportAlice.receiveData(peerIdBob, unsignedUpdate)
+        testScheduler.advanceTimeBy(1L)
+
+        val health = alice.meshHealth()
+        alice.stop()
+        testScheduler.advanceTimeBy(1L)
+
+        assertEquals(0.0, health.avgRouteCost, "Unsigned route should be rejected when crypto is enabled")
+    }
+
+    @Test
+    fun unsignedRouteUpdateAcceptedWhenNoCrypto() = runTest {
+        val transportAlice = VirtualMeshTransport(peerIdAlice)
+        // No crypto provider — unsigned routes should be accepted
+        val alice = MeshLink(transportAlice, meshLinkConfig { requireEncryption = false }, coroutineContext)
+        alice.start()
+        testScheduler.advanceTimeBy(1L)
+
+        transportAlice.simulateDiscovery(peerIdBob)
+        testScheduler.advanceTimeBy(1L)
+
+        val entries = listOf(
+            RouteUpdateEntry(
+                destination = ByteArray(16) { 0x42 },
+                cost = 1.0,
+                sequenceNumber = 1u,
+                hopCount = 1u,
+            )
+        )
+        val unsignedUpdate = WireCodec.encodeRouteUpdate(peerIdBob, entries)
+        transportAlice.receiveData(peerIdBob, unsignedUpdate)
+        testScheduler.advanceTimeBy(1L)
+
+        val health = alice.meshHealth()
+        alice.stop()
+        testScheduler.advanceTimeBy(1L)
+
+        assertTrue(health.avgRouteCost > 0.0, "Unsigned route should be accepted when no crypto")
+    }
+
+    @Test
     fun rotateIdentityChangesPublicKeys() = runTest {
         val transport = VirtualMeshTransport(peerIdAlice)
         val crypto = io.meshlink.crypto.createCryptoProvider()

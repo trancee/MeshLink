@@ -90,7 +90,14 @@ class MessageDispatcher(
 
     private suspend fun handleRouteUpdate(fromPeerId: ByteArray, data: ByteArray) {
         val update = WireCodec.decodeRouteUpdate(data)
-        if (update.signature != null && update.signerPublicKey != null && securityEngine != null) {
+        if (securityEngine != null) {
+            if (update.signature == null || update.signerPublicKey == null) {
+                diagnosticSink.emit(
+                    DiagnosticCode.MALFORMED_DATA, Severity.WARN,
+                    "unsigned route_update rejected (crypto enabled) from ${fromPeerId.toHex()}",
+                )
+                return
+            }
             val signedData = data.copyOfRange(0, data.size - 64)
             if (!securityEngine.verify(update.signerPublicKey, signedData, update.signature)) {
                 diagnosticSink.emit(

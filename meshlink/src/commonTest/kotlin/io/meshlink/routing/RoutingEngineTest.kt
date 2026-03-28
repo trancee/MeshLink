@@ -265,4 +265,29 @@ class RoutingEngineTest {
         assertTrue(re.shouldSendTriggeredUpdate("peer1", "PERFORMANCE"))
         assertEquals(now, re.timeSinceLastGossip()) // lastGossipSentMs reset to 0
     }
+
+    // ── Next-hop reliability tracking ──────────────────────────────
+
+    @Test
+    fun nextHopFailureRateTracksSuccessesAndFailures() {
+        val re = RoutingEngine("local")
+        assertEquals(0.0, re.nextHopFailureRate("relay01"))
+
+        re.recordNextHopSuccess("relay01")
+        re.recordNextHopSuccess("relay01")
+        re.recordNextHopFailure("relay01")
+        // 1 failure out of 3 total
+        assertEquals(1.0 / 3.0, re.nextHopFailureRate("relay01"), 0.001)
+        assertEquals(1, re.nextHopFailureCount("relay01"))
+    }
+
+    @Test
+    fun nextHopFailureCountersClearedOnClear() {
+        val re = RoutingEngine("local")
+        re.recordNextHopFailure("relay01")
+        re.recordNextHopSuccess("relay01")
+        re.clear()
+        assertEquals(0, re.nextHopFailureCount("relay01"))
+        assertEquals(0.0, re.nextHopFailureRate("relay01"))
+    }
 }
