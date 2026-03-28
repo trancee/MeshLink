@@ -2,6 +2,7 @@ package io.meshlink.sample
 
 import io.meshlink.MeshLink
 import io.meshlink.config.MeshLinkConfig
+import io.meshlink.crypto.createCryptoProvider
 import io.meshlink.model.PeerEvent
 import io.meshlink.transport.AdvertisementEvent
 import io.meshlink.transport.BleTransport
@@ -36,7 +37,7 @@ fun main() {
     println()
 
     val transport = DemoTransport()
-    val mesh = MeshLink(transport, config)
+    val mesh = MeshLink(transport, config, crypto = createCryptoProvider())
 
     runBlocking {
         // Collect events in background coroutines

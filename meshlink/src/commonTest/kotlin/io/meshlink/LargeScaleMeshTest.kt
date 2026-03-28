@@ -14,7 +14,7 @@ class LargeScaleMeshTest {
     @Test
     fun fiftyPeerLineTopologyConverges() = runTest {
         val peerCount = 50
-        val config = meshLinkConfig { gossipIntervalMs = 50L }
+        val config = meshLinkConfig { requireEncryption = false; gossipIntervalMs = 50L }
 
         // Create 50 transports with unique 16-byte peer IDs
         val transports = (0 until peerCount).map { i ->
@@ -68,7 +68,7 @@ class LargeScaleMeshTest {
     @Test
     fun twentyPeerFullMeshConverges() = runTest {
         val peerCount = 20
-        val config = meshLinkConfig { gossipIntervalMs = 50L }
+        val config = meshLinkConfig { requireEncryption = false; gossipIntervalMs = 50L }
 
         // Create 20 transports
         val transports = (0 until peerCount).map { i ->

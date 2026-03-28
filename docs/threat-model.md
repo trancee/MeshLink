@@ -255,6 +255,23 @@ Attacker → triggers crypto edge case (e.g., malformed handshake) → exception
 
 ---
 
+## Remediation status
+
+| ID | Status | Commit | Notes |
+|----|--------|--------|-------|
+| TM-001 | ✅ Mitigated | `fb1887b` | `maxConcurrentInboundSessions` config (default 100), `ChunkAcceptResult.Rejected` |
+| TM-002 | ✅ Mitigated | See below | `requireEncryption = true` default; `start()` fails without `CryptoProvider` |
+| TM-003 | ✅ Mitigated | `fb1887b` | TTL-based `DedupSet` with 300s expiry, capacity increased to 100K |
+| TM-004 | ⏳ Open | — | Requires cryptographic route signing (protocol-level change) — GitHub #28 |
+| TM-005 | ✅ Mitigated | `fb1887b` | Default `maxHops` reduced from 255 to 10 |
+| TM-006 | ✅ Mitigated | `fb1887b` | `expect/actual secureRandomBytes()` with platform CSPRNG implementations |
+| TM-007 | ✅ Mitigated | `47b40e8` | Rotation timestamp freshness (±30s window) and replay rejection |
+| TM-008 | ✅ Mitigated | `fb1887b` | `unsealPayload()` returns null on failure; messages dropped |
+| TM-009 | ✅ Mitigated | `fb1887b` | Diagnostic emits `throwable::class.simpleName` instead of message |
+| TM-010 | ✅ Mitigated | `fb1887b` | `BleTransport.debugLogging` changed from `public` to `internal` |
+
+---
+
 ## Quality checklist
 
 - [x] All entry points covered (GATT write, advertisement, chunk, route, broadcast, handshake, rotation, config)

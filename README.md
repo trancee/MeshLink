@@ -46,14 +46,16 @@ Add the repository URL and depend on the `MeshLink` target. See [Package.swift](
 ```kotlin
 import io.meshlink.MeshLink
 import io.meshlink.config.meshLinkConfig
+import io.meshlink.crypto.createCryptoProvider
 
-// Create with a configuration preset
+// Create with encryption enabled (required by default)
 val mesh = MeshLink(
     transport = bleTransport,
     config = meshLinkConfig {
         maxMessageSize = 50_000
         gossipIntervalMs = 10_000L
     },
+    crypto = createCryptoProvider(),
 )
 
 // Start the mesh

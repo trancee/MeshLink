@@ -306,6 +306,16 @@ class MeshLink(
     override fun start(): Result<Unit> {
         if (started) return Result.success(Unit)
 
+        if (config.requireEncryption && crypto == null) {
+            return Result.failure(
+                IllegalStateException(
+                    "CryptoProvider is required when requireEncryption is true. " +
+                    "Pass a CryptoProvider to the MeshLink constructor, or set " +
+                    "requireEncryption = false if plaintext operation is intentional."
+                )
+            )
+        }
+
         val violations = config.validate()
         if (violations.isNotEmpty()) {
             return Result.failure(IllegalArgumentException(violations.joinToString("; ")))

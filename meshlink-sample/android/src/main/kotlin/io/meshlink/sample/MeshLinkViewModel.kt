@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import io.meshlink.MeshLink
 import io.meshlink.config.MeshLinkConfig
+import io.meshlink.crypto.createCryptoProvider
 import io.meshlink.diagnostics.MeshHealthSnapshot
 import io.meshlink.model.PeerEvent
 import io.meshlink.transport.AndroidBleTransport
@@ -35,7 +36,9 @@ class MeshLinkViewModel(application: Application) : AndroidViewModel(application
     /** Which config preset is active. */
     val currentPreset: StateFlow<ConfigPreset> = _currentPreset.asStateFlow()
 
-    private var meshLink = MeshLink(transport, _currentConfig.value)
+    private val crypto = createCryptoProvider()
+
+    private var meshLink = MeshLink(transport, _currentConfig.value, crypto = crypto)
 
     private val _logs = MutableStateFlow<List<String>>(emptyList())
     val logs: StateFlow<List<String>> = _logs.asStateFlow()
@@ -172,7 +175,7 @@ class MeshLinkViewModel(application: Application) : AndroidViewModel(application
             }
         }
         _currentConfig.value = newConfig
-        meshLink = MeshLink(transport, newConfig)
+        meshLink = MeshLink(transport, newConfig, crypto = crypto)
         collectFlows()
         log("⚙️ Applied preset: $preset")
 
@@ -186,7 +189,7 @@ class MeshLinkViewModel(application: Application) : AndroidViewModel(application
 
         val newConfig = _currentConfig.value.copy(mtu = mtu)
         _currentConfig.value = newConfig
-        meshLink = MeshLink(transport, newConfig)
+        meshLink = MeshLink(transport, newConfig, crypto = crypto)
         collectFlows()
 
         if (wasRunning) startMesh()

@@ -55,6 +55,7 @@ class RateLimitingSuiteTest {
     @Test
     fun builderDslOverridesRateLimitFields() {
         val config = meshLinkConfig {
+            requireEncryption = false
             handshakeRateLimitPerSec = 3
             nackRateLimitPerSec = 15
             neighborAggregateLimitPerMin = 500
@@ -149,6 +150,7 @@ class RateLimitingSuiteTest {
         transport.linkTo(transportBob)
 
         val config = meshLinkConfig {
+            requireEncryption = false
             nackRateLimitPerSec = 2
             neighborAggregateLimitPerMin = 0 // disable to isolate NACK limiter
         }
@@ -189,6 +191,7 @@ class RateLimitingSuiteTest {
         transport.linkTo(transportBob)
 
         val config = meshLinkConfig {
+            requireEncryption = false
             neighborAggregateLimitPerMin = 3
         }
 
@@ -227,6 +230,7 @@ class RateLimitingSuiteTest {
         transport.linkTo(transportBob)
 
         val config = meshLinkConfig {
+            requireEncryption = false
             handshakeRateLimitPerSec = 0
             nackRateLimitPerSec = 0
             neighborAggregateLimitPerMin = 0

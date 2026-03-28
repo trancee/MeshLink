@@ -121,7 +121,7 @@ class MeshLink(
 | `config`           | `MeshLinkConfig`    | `MeshLinkConfig()`     | Mesh configuration. |
 | `coroutineContext` | `CoroutineContext`  | `EmptyCoroutineContext`| Custom dispatcher for mesh coroutines. |
 | `clock`            | `() -> Long`        | `currentTimeMillis()`  | Monotonic clock source; override for deterministic testing. |
-| `crypto`           | `CryptoProvider?`   | `null`                 | Enables encryption when non-null. Use `createCryptoProvider()`. |
+| `crypto`           | `CryptoProvider?`   | `null`                 | Encryption provider. **Required by default** — `start()` fails if null unless `requireEncryption = false`. Use `createCryptoProvider()`. |
 | `trustStore`       | `TrustStore?`       | `null`                 | Enables key pinning when non-null. |
 
 ---

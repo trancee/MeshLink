@@ -38,6 +38,7 @@ data class MeshLinkConfig(
     val neighborAggregateLimitPerMin: Int = 100,
     val senderNeighborLimitPerMin: Int = 20,
     val maxConcurrentInboundSessions: Int = 100,
+    val requireEncryption: Boolean = true,
 ) {
     fun validate(): List<String> {
         val violations = mutableListOf<String>()
@@ -123,6 +124,7 @@ class MeshLinkConfigBuilder(
     var neighborAggregateLimitPerMin: Int = 100,
     var senderNeighborLimitPerMin: Int = 20,
     var maxConcurrentInboundSessions: Int = 100,
+    var requireEncryption: Boolean = true,
 ) {
 
     fun build(): MeshLinkConfig = MeshLinkConfig(
@@ -161,5 +163,6 @@ class MeshLinkConfigBuilder(
         neighborAggregateLimitPerMin = neighborAggregateLimitPerMin,
         senderNeighborLimitPerMin = senderNeighborLimitPerMin,
         maxConcurrentInboundSessions = maxConcurrentInboundSessions,
+        requireEncryption = requireEncryption,
     )
 }

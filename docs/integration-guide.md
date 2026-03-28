@@ -49,6 +49,7 @@ Xcode project as a local or remote Swift package.
 ```kotlin
 import io.meshlink.MeshLink
 import io.meshlink.config.meshLinkConfig
+import io.meshlink.crypto.createCryptoProvider
 
 // `transport` is your platform-specific BleTransport implementation
 val mesh = MeshLink(
@@ -57,6 +58,7 @@ val mesh = MeshLink(
         maxMessageSize = 50_000
         gossipIntervalMs = 10_000L
     },
+    crypto = createCryptoProvider(),
 )
 ```
 
@@ -68,7 +70,7 @@ The `MeshLink` constructor accepts:
 | `config`           | No       | `MeshLinkConfig` (defaults are sensible) |
 | `coroutineContext` | No       | Custom coroutine context                 |
 | `clock`            | No       | Clock function (for testing)             |
-| `crypto`           | No       | `CryptoProvider` (enables encryption)    |
+| `crypto`           | No       | `CryptoProvider` — **required by default** (`requireEncryption = true`). Set `requireEncryption = false` in config to allow plaintext. |
 | `trustStore`       | No       | `TrustStore` (enables key pinning)       |
 
 ### 3. Start the Mesh
