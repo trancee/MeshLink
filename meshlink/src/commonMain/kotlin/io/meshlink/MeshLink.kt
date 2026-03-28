@@ -28,8 +28,10 @@ import io.meshlink.routing.DedupSet
 import io.meshlink.routing.PresenceState
 import io.meshlink.routing.PresenceTracker
 import io.meshlink.routing.RoutingTable
-import io.meshlink.transfer.SackTracker
-import io.meshlink.transfer.TransferSession
+import io.meshlink.transfer.ChunkAcceptResult
+import io.meshlink.transfer.ChunkData
+import io.meshlink.transfer.TransferEngine
+import io.meshlink.transfer.TransferUpdate
 import io.meshlink.transport.BleTransport
 import io.meshlink.util.AppIdFilter
 import io.meshlink.util.CircuitBreaker
@@ -139,11 +141,7 @@ class MeshLink(
 
     private fun checkBufferPressure() {
         if (config.bufferCapacity <= 0) return
-        val usedBytes = outboundTransfers.values.sumOf { t ->
-            t.chunks.sumOf { it.size }
-        } + reassembly.values.sumOf { s ->
-            s.chunks.values.sumOf { it.size }
-        }
+        val usedBytes = transferEngine.outboundBufferBytes() + transferEngine.inboundBufferBytes()
         val utilPercent = usedBytes * 100 / config.bufferCapacity
         if (utilPercent >= 80) {
             diagnosticSink.emit(DiagnosticCode.BUFFER_PRESSURE, Severity.WARN,
@@ -166,9 +164,14 @@ class MeshLink(
     private fun resumeTransfers(peerId: ByteArray, s: CoroutineScope, eligibleKeys: Set<String>) {
         val peerHex = peerId.toHex()
         for (key in eligibleKeys) {
-            val transfer = outboundTransfers[key] ?: continue
-            if (transfer.recipient.toHex() == peerHex && !transfer.session.isComplete() && !transfer.session.isFailed()) {
-                sendChunks(s, key)
+            val info = transferEngine.getOutboundRecipientInfo(key) ?: continue
+            val recipientHex = outboundRecipients[key]?.toHex() ?: continue
+            if (recipientHex == peerHex && !info.isComplete && !info.isFailed) {
+                // Re-send remaining chunks via a dummy ACK to trigger retransmit
+                val update = transferEngine.onAck(key, -1, 0uL)
+                if (update is TransferUpdate.Progress) {
+                    dispatchChunks(s, outboundRecipients[key]!!, update.chunksToSend, info.messageId)
+                }
             }
         }
     }
@@ -181,11 +184,11 @@ class MeshLink(
     private fun requireScope(): CoroutineScope =
         scope ?: throw IllegalStateException("MeshLink not started")
 
-    // Reassembly buffer: messageId hex → (sack tracker, received chunks map)
-    private val reassembly = mutableMapOf<String, ReassemblyState>()
+    // Transfer engine (consolidates outbound chunking and inbound reassembly)
+    private val transferEngine = TransferEngine(clock = clock)
 
-    // Outbound transfer sessions: messageId hex → (session, chunks data, recipient)
-    private val outboundTransfers = mutableMapOf<String, OutboundTransfer>()
+    // Outbound recipient tracking: messageId hex → recipient peerId
+    private val outboundRecipients = mutableMapOf<String, ByteArray>()
 
     // Queued sends while paused: (recipient, payload)
     private val pauseQueue = mutableListOf<Pair<ByteArray, ByteArray>>()
@@ -316,7 +319,7 @@ class MeshLink(
                         safeEmit(_peers, PeerEvent.Discovered(event.peerId), "peers")
                         emitHealthUpdate()
                         // Flush buffered messages and resume interrupted transfers
-                        val preExistingTransferKeys = outboundTransfers.keys.toSet()
+                        val preExistingTransferKeys = outboundRecipients.keys.toSet()
                         flushPendingMessages(event.peerId.toHex(), newScope)
                         resumeTransfers(event.peerId, newScope, preExistingTransferKeys)
                     }
@@ -401,7 +404,7 @@ class MeshLink(
         // Cancel all delivery deadline timers before processing in-flight transfers
         deliveryDeadlineTimer.cancelAll()
         // Emit DELIVERY_TIMEOUT for all in-flight transfers before clearing
-        for ((key, _) in outboundTransfers) {
+        for (key in outboundRecipients.keys) {
             val outcome = deliveryTracker.recordOutcome(key, DeliveryOutcome.FAILED_DELIVERY_TIMEOUT)
             if (outcome != null) {
                 tombstoneSet.add(key)
@@ -428,8 +431,8 @@ class MeshLink(
     }
 
     private fun clearState() {
-        reassembly.clear()
-        outboundTransfers.clear()
+        transferEngine.clearAll()
+        outboundRecipients.clear()
         presenceTracker.clear()
         pauseQueue.clear()
         relayQueue.clear()
@@ -470,11 +473,7 @@ class MeshLink(
     }
 
     override fun meshHealth(): MeshHealthSnapshot {
-        val usedBytes = outboundTransfers.values.sumOf { t ->
-            t.chunks.sumOf { it.size }
-        } + reassembly.values.sumOf { s ->
-            s.chunks.values.sumOf { it.size }
-        }
+        val usedBytes = transferEngine.outboundBufferBytes() + transferEngine.inboundBufferBytes()
         val utilPercent = if (config.bufferCapacity > 0) {
             (usedBytes * 100 / config.bufferCapacity).coerceIn(0, 100)
         } else 0
@@ -482,7 +481,7 @@ class MeshLink(
             connectedPeers = presenceTracker.allPeerIds().size,
             reachablePeers = presenceTracker.connectedPeerIds().size,
             bufferUtilizationPercent = utilPercent,
-            activeTransfers = outboundTransfers.size,
+            activeTransfers = transferEngine.outboundCount,
             powerMode = currentPowerMode,
             avgRouteCost = routingTable.avgCost(),
             relayQueueSize = relayQueue.size,
@@ -540,13 +539,9 @@ class MeshLink(
     }
 
     override fun sweepStaleTransfers(maxAgeMs: Long): Int {
-        val now = clock()
-        val staleKeys = outboundTransfers.entries
-            .filter { now - it.value.createdAtMs > maxAgeMs }
-            .map { it.key }
+        val staleKeys = transferEngine.sweepStaleOutbound(maxAgeMs)
         for (key in staleKeys) {
-            val transfer = outboundTransfers.remove(key)
-            transfer?.session?.onInactivityTimeout()
+            outboundRecipients.remove(key)
             val outcome = deliveryTracker.recordOutcome(key, DeliveryOutcome.FAILED_ACK_TIMEOUT)
             if (outcome != null) {
                 tombstoneSet.add(key)
@@ -560,13 +555,7 @@ class MeshLink(
     }
 
     override fun sweepStaleReassemblies(maxAgeMs: Long): Int {
-        val now = clock()
-        val staleKeys = reassembly.entries
-            .filter { now - it.value.createdAtMs > maxAgeMs }
-            .map { it.key }
-        for (key in staleKeys) {
-            reassembly.remove(key)
-        }
+        val staleKeys = transferEngine.sweepStaleInbound(maxAgeMs)
         return staleKeys.size
     }
 
@@ -608,7 +597,7 @@ class MeshLink(
             else -> return emptyList()
         }
         val shedder = TieredShedder(
-            relayBufferCount = reassembly.size,
+            relayBufferCount = transferEngine.inboundCount,
             dedupEntries = dedup.size(),
             connectionCount = presenceTracker.allPeerIds().size,
         )
@@ -617,7 +606,7 @@ class MeshLink(
         for (result in results) {
             when (result.action) {
                 io.meshlink.power.ShedAction.RELAY_BUFFERS_CLEARED -> {
-                    reassembly.clear()
+                    transferEngine.clearAll()
                     val relayCount = relayQueue.size
                     relayQueue.clear()
                     actions.add("Cleared ${result.count} relay buffers, $relayCount queued relays")
@@ -776,7 +765,8 @@ class MeshLink(
             ) { expiredKey ->
                 val uuid = Uuid.fromByteArray(hexToBytes(expiredKey))
                 _transferFailures.tryEmit(TransferFailure(uuid, DeliveryOutcome.FAILED_DELIVERY_TIMEOUT))
-                outboundTransfers.remove(expiredKey)
+                transferEngine.removeOutbound(expiredKey)
+                outboundRecipients.remove(expiredKey)
             }
         }
 
@@ -788,23 +778,13 @@ class MeshLink(
         }
 
         val chunkSize = config.mtu - WireCodec.CHUNK_HEADER_SIZE
-        val chunks = if (wirePayload.isEmpty()) {
-            listOf(ByteArray(0))
-        } else {
-            wirePayload.asSequence()
-                .chunked(chunkSize)
-                .map { it.toByteArray() }
-                .toList()
-        }
-        val totalChunks = chunks.size
-        val session = TransferSession(totalChunks, initialWindow = totalChunks)
-        outboundTransfers[key] = OutboundTransfer(session, chunks, recipient, messageId, createdAtMs = clock())
+        val handle = transferEngine.beginSend(key, messageId, wirePayload, chunkSize)
+        outboundRecipients[key] = recipient
 
         // Check buffer pressure after adding transfer
         checkBufferPressure()
 
-        // Send initial batch
-        sendChunks(s, key)
+        dispatchChunks(s, recipient, handle.chunks, messageId)
 
         return Result.success(Uuid.fromByteArray(messageId))
     }
@@ -829,17 +809,15 @@ class MeshLink(
         return Result.success(messageId)
     }
 
-    private fun sendChunks(s: CoroutineScope, transferKey: String) {
-        val transfer = outboundTransfers[transferKey] ?: return
-        val toSend = transfer.session.nextChunksToSend()
-        for (seqNum in toSend) {
+    private fun dispatchChunks(s: CoroutineScope, recipient: ByteArray, chunks: List<ChunkData>, messageId: ByteArray) {
+        for (chunk in chunks) {
             val encoded = WireCodec.encodeChunk(
-                messageId = transfer.messageId,
-                sequenceNumber = seqNum.toUShort(),
-                totalChunks = transfer.chunks.size.toUShort(),
-                payload = transfer.chunks[seqNum],
+                messageId = messageId,
+                sequenceNumber = chunk.seqNum.toUShort(),
+                totalChunks = chunk.totalChunks.toUShort(),
+                payload = chunk.payload,
             )
-            s.launch { safeSend(transfer.recipient, encoded) }
+            s.launch { safeSend(recipient, encoded) }
         }
     }
 
@@ -1019,71 +997,76 @@ class MeshLink(
         val chunk = WireCodec.decodeChunk(data)
         val key = chunk.messageId.toHex()
 
-        val state = reassembly.getOrPut(key) {
-            ReassemblyState(chunk.totalChunks.toInt(), createdAtMs = clock())
-        }
-        state.chunks[chunk.sequenceNumber.toInt()] = chunk.payload
-        state.sackTracker.record(chunk.sequenceNumber.toInt())
+        val result = transferEngine.onChunkReceived(key, chunk.sequenceNumber.toInt(), chunk.totalChunks.toInt(), chunk.payload)
 
-        // Send per-chunk ACK with SACK bitmask
-        val status = state.sackTracker.status()
-        val ack = WireCodec.encodeChunkAck(
-            messageId = chunk.messageId,
-            ackSequence = status.ackSeq.toUShort(),
-            sackBitmask = status.sackBitmask,
-        )
-        scope?.launch { safeSend(fromPeerId, ack) }
-
-        if (state.sackTracker.isComplete()) {
-            reassembly.remove(key)
-            if (!dedup.tryInsert(key)) return // duplicate message
-            val fullPayload = (0 until state.totalChunks)
-                .map { state.chunks[it]!! }
-                .reduce { acc, bytes -> acc + bytes }
-
-            // Decrypt via security engine
-            val decrypted = when (val ur = securityEngine?.unseal(fullPayload)) {
-                is UnsealResult.Decrypted -> ur.plaintext
-                is UnsealResult.Failed -> {
-                    diagnosticSink.emit(DiagnosticCode.DECRYPTION_FAILED, Severity.WARN, "chunk reassembly")
-                    ur.originalPayload
-                }
-                is UnsealResult.TooShort -> ur.originalPayload
-                null -> fullPayload
+        when (result) {
+            is ChunkAcceptResult.Ack -> {
+                val ack = WireCodec.encodeChunkAck(
+                    messageId = chunk.messageId,
+                    ackSequence = result.ackSeq.toUShort(),
+                    sackBitmask = result.sackBitmask,
+                )
+                scope?.launch { safeSend(fromPeerId, ack) }
             }
-            safeEmit(_messages, Message(senderId = fromPeerId, payload = decrypted), "messages")
+            is ChunkAcceptResult.MessageComplete -> {
+                val ack = WireCodec.encodeChunkAck(
+                    messageId = chunk.messageId,
+                    ackSequence = result.ackSeq.toUShort(),
+                    sackBitmask = result.sackBitmask,
+                )
+                scope?.launch { safeSend(fromPeerId, ack) }
+
+                if (!dedup.tryInsert(key)) return
+
+                val decrypted = when (val ur = securityEngine?.unseal(result.reassembledPayload)) {
+                    is UnsealResult.Decrypted -> ur.plaintext
+                    is UnsealResult.Failed -> {
+                        diagnosticSink.emit(DiagnosticCode.DECRYPTION_FAILED, Severity.WARN, "chunk reassembly")
+                        ur.originalPayload
+                    }
+                    is UnsealResult.TooShort -> ur.originalPayload
+                    null -> result.reassembledPayload
+                }
+                safeEmit(_messages, Message(senderId = fromPeerId, payload = decrypted), "messages")
+            }
         }
     }
 
     private suspend fun handleChunkAck(data: ByteArray) {
         val ack = WireCodec.decodeChunkAck(data)
         val key = ack.messageId.toHex()
-        val transfer = outboundTransfers[key] ?: run {
-            // Legacy: no outbound tracking, just emit delivery confirmation
-            safeEmit(_deliveryConfirmations, Uuid.fromByteArray(ack.messageId), "deliveryConfirmations")
-            return
-        }
+        val recipient = outboundRecipients[key]
 
-        transfer.session.onAck(ack.ackSequence.toInt(), ack.sackBitmask)
+        val update = transferEngine.onAck(key, ack.ackSequence.toInt(), ack.sackBitmask)
 
-        // Emit progress (use session's authoritative acked count)
-        safeEmit(_transferProgress, TransferProgress(
-                messageId = Uuid.fromByteArray(ack.messageId),
-                chunksAcked = transfer.session.ackedCount(),
-                totalChunks = transfer.chunks.size,
-            ), "transferProgress")
-
-        if (transfer.session.isComplete()) {
-            outboundTransfers.remove(key)
-            deliveryDeadlineTimer.cancel(key)
-            emitHealthUpdate()
-            if (deliveryTracker.recordOutcome(key, DeliveryOutcome.CONFIRMED) != null) {
-                tombstoneSet.add(key)
+        when (update) {
+            is TransferUpdate.Complete -> {
+                outboundRecipients.remove(key)
+                deliveryDeadlineTimer.cancel(key)
+                emitHealthUpdate()
+                safeEmit(_transferProgress, TransferProgress(
+                    messageId = Uuid.fromByteArray(ack.messageId),
+                    chunksAcked = update.ackedCount,
+                    totalChunks = update.totalChunks,
+                ), "transferProgress")
+                if (deliveryTracker.recordOutcome(key, DeliveryOutcome.CONFIRMED) != null) {
+                    tombstoneSet.add(key)
+                    safeEmit(_deliveryConfirmations, Uuid.fromByteArray(ack.messageId), "deliveryConfirmations")
+                }
+            }
+            is TransferUpdate.Progress -> {
+                safeEmit(_transferProgress, TransferProgress(
+                    messageId = Uuid.fromByteArray(ack.messageId),
+                    chunksAcked = update.ackedCount,
+                    totalChunks = update.totalChunks,
+                ), "transferProgress")
+                if (recipient != null) {
+                    dispatchChunks(scope!!, recipient, update.chunksToSend, ack.messageId)
+                }
+            }
+            is TransferUpdate.Unknown -> {
                 safeEmit(_deliveryConfirmations, Uuid.fromByteArray(ack.messageId), "deliveryConfirmations")
             }
-        } else {
-            // Retransmit missing chunks
-            sendChunks(scope!!, key)
         }
     }
 
@@ -1302,15 +1285,3 @@ class MeshLink(
     }
 }
 
-internal class ReassemblyState(val totalChunks: Int, val createdAtMs: Long = 0L) {
-    val chunks = mutableMapOf<Int, ByteArray>()
-    val sackTracker = SackTracker(totalChunks)
-}
-
-internal class OutboundTransfer(
-    val session: TransferSession,
-    val chunks: List<ByteArray>,
-    val recipient: ByteArray,
-    val messageId: ByteArray,
-    val createdAtMs: Long = 0L,
-)

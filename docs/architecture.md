@@ -93,6 +93,7 @@ platform-agnostic logic (in `commonMain`) and platform-specific I/O (in
 
 | File | Responsibility |
 |------|---------------|
+| `TransferEngine.kt` | Facade consolidating outbound chunking (AIMD/SACK) and inbound reassembly behind sealed result types. |
 | `TransferSession.kt` | Sender-side state machine for multi-chunk transfers. |
 | `SackTracker.kt` | Receiver-side selective acknowledgement tracking. |
 | `AimdController.kt` | Additive Increase / Multiplicative Decrease congestion control. |
@@ -505,6 +506,11 @@ where `CHUNK_HEADER_SIZE = 21` bytes.
 ---
 
 ## Transfer & Congestion Control
+
+`TransferEngine` is the facade that consolidates outbound chunking and inbound
+reassembly behind sealed result types (`TransferUpdate`, `ChunkAcceptResult`).
+`MeshLink` delegates all chunk-level operations to `TransferEngine` and
+pattern-matches on results to dispatch wire bytes and emit diagnostics.
 
 ### Chunking
 
