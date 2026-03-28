@@ -147,7 +147,9 @@ val config = meshLinkConfig {
 
 ### Using a Preset
 
-Three presets cover common scenarios. Each accepts an optional override block:
+Three presets cover common scenarios. Each accepts an optional override block.
+See the [API Reference § Presets](api-reference.md#presets) for the full
+comparison table.
 
 ```kotlin
 import io.meshlink.config.MeshLinkConfig
@@ -164,12 +166,6 @@ val fileConfig = MeshLinkConfig.fileTransferOptimized()
 val powerConfig = MeshLinkConfig.powerOptimized()
 ```
 
-| Preset                  | `maxMessageSize` | `bufferCapacity` | Best For                |
-|-------------------------|------------------|------------------|-------------------------|
-| `chatOptimized`         | 10,000           | 524,288 (512 KB) | Text chat, small payloads |
-| `fileTransferOptimized` | 100,000          | 2,097,152 (2 MB) | Images, files, large data |
-| `powerOptimized`        | 10,000           | 262,144 (256 KB) | IoT, wearables, sensors |
-
 ### Key Configuration Options
 
 #### Messaging
@@ -181,7 +177,7 @@ val powerConfig = MeshLinkConfig.powerOptimized()
 | `mtu`                   | 185       | Leave at default unless you negotiate a larger MTU |
 | `pendingMessageTtlMs`   | 0 (never) | Set to 60–300 s for apps with delivery deadlines |
 | `pendingMessageCapacity`| 100       | Increase for bursty senders                      |
-| `maxHops`               | 255       | Lower to 3–5 for latency-sensitive apps          |
+| `maxHops`               | 10        | Lower to 3–5 for latency-sensitive apps          |
 
 #### Rate Limiting
 
@@ -201,7 +197,7 @@ val powerConfig = MeshLinkConfig.powerOptimized()
 | `circuitBreakerMaxFailures`  | 0 (disabled) | Failures before circuit opens        |
 | `circuitBreakerWindowMs`     | 60,000       | Failure counting window              |
 | `circuitBreakerCooldownMs`   | 30,000       | Time before retry after trip         |
-| `dedupCapacity`              | 10,000       | LRU dedup set size                   |
+| `dedupCapacity`              | 100,000      | TTL-based dedup set size (300 s expiry)  |
 | `tombstoneWindowMs`          | 120,000      | Ignore reordered duplicates window   |
 
 #### Routing
@@ -282,17 +278,9 @@ launch {
 }
 ```
 
-The `DeliveryOutcome` enum provides specific failure reasons:
-
-| Reason                    | Meaning                                   |
-|---------------------------|-------------------------------------------|
-| `CONFIRMED`               | Delivery confirmed by recipient           |
-| `FAILED_NO_ROUTE`         | No route to destination                   |
-| `FAILED_HOP_LIMIT`        | Message exceeded max hop count            |
-| `FAILED_ACK_TIMEOUT`      | Chunk ACK not received in time            |
-| `FAILED_BUFFER_FULL`      | Outbound buffer capacity exceeded         |
-| `FAILED_PEER_OFFLINE`     | Destination peer is unreachable           |
-| `FAILED_DELIVERY_TIMEOUT` | End-to-end delivery ACK timed out         |
+The `DeliveryOutcome` enum provides specific failure reasons — see the
+[API Reference § DeliveryOutcome](api-reference.md#deliveryoutcome) for all
+values.
 
 ---
 
@@ -489,7 +477,7 @@ Each `DiagnosticEvent` contains:
 
 | Field          | Type             | Description                      |
 |----------------|------------------|----------------------------------|
-| `code`         | `DiagnosticCode` | One of 19 event codes            |
+| `code`         | `DiagnosticCode` | One of 20 event codes            |
 | `severity`     | `Severity`       | `INFO`, `WARN`, or `ERROR`       |
 | `monotonicMs`  | `Long`           | Monotonic clock timestamp        |
 | `droppedCount` | `Int`            | Events lost due to buffer overflow|
@@ -598,8 +586,9 @@ mesh.rotateIdentity().onFailure { error ->
 
 ### Security
 
-- **Always provide a `CryptoProvider`** in production. Without one, messages
-  are sent in cleartext.
+- **Always provide a `CryptoProvider`** in production. Encryption is required
+  by default (`requireEncryption = true`). Without a `CryptoProvider`,
+  `start()` will fail.
 - **Use `TrustMode.STRICT`** unless you have a specific need for re-pinning.
 - **Monitor `keyChanges`** — alert users when a peer's key changes
   unexpectedly.

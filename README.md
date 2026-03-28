@@ -10,7 +10,7 @@ A **Kotlin Multiplatform (KMP)** BLE mesh messaging library for **Android**, **i
 - **Large message transfer** — Chunking, selective ACKs (SACK), AIMD congestion control, byte-offset resume
 - **Power-aware operation** — Automatic tuning of scan duty cycle, advertising interval, and chunk sizes based on battery level
 - **L2CAP support** — High-throughput data plane with automatic GATT fallback
-- **Real-time diagnostics** — 19 diagnostic event codes, health snapshots, and Flow-based event streams
+- **Real-time diagnostics** — 20 diagnostic event codes, health snapshots, and Flow-based event streams
 - **Identity rotation** — Rotate keys with signed gossip announcements and configurable grace periods
 
 ## Platform Support
@@ -85,8 +85,8 @@ mesh.send(recipientPeerId, "Hello mesh!".encodeToByteArray())
 
 MeshLink ships with four presets — `chatOptimized`, `fileTransferOptimized`,
 `powerOptimized`, and `sensorOptimized`. See the
-[Integration Guide § Configuration](docs/integration-guide.md#configuration)
-for details.
+[API Reference § Presets](docs/api-reference.md#presets) for the full
+comparison table.
 
 ```kotlin
 val config = MeshLinkConfig.chatOptimized()
@@ -112,7 +112,7 @@ MeshLink/
 │       ├── linuxMain/           # Linux-specific (POSIX time, battery stub)
 │       ├── androidMain/         # Android BLE, storage, services
 │       ├── jvmMain/             # JVM crypto provider
-│       └── commonTest/          # 1,123 tests
+│       └── commonTest/          # 1,135+ tests
 ├── meshlink-sample/
 │   ├── android/                 # Jetpack Compose reference app
 │   ├── ios/                     # SwiftUI reference app
@@ -268,10 +268,12 @@ To use real BLE hardware on Linux, edit `Main.kt` to use `LinuxBleTransport` ins
 
 ## CI
 
-GitHub Actions runs on every push and PR:
+GitHub Actions runs on every push and PR (when relevant files change):
 - JVM tests (Ubuntu)
 - Android compilation (Ubuntu)
 - iOS simulator tests (macOS, Apple Silicon)
+- macOS native tests (macOS, Apple Silicon)
+- Linux native compilation (Ubuntu)
 
 ## License
 

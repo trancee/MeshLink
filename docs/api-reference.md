@@ -141,7 +141,7 @@ Immutable configuration data class. All fields have sensible defaults.
 | `maxMessageSize` | `Int` | `100_000` | Maximum payload size in bytes. Messages larger than `mtu - 21` are automatically chunked. |
 | `bufferCapacity` | `Int` | `1_048_576` | Total in-flight data buffer size in bytes. Must be ≥ `maxMessageSize`. |
 | `mtu` | `Int` | `185` | BLE link MTU. Effective payload per chunk = `mtu - 21` (header size). Must be > 21. |
-| `maxHops` | `UByte` | `255` | Maximum hop count for routed messages. |
+| `maxHops` | `UByte` | `10` | Maximum hop count for routed messages. |
 | `pendingMessageTtlMs` | `Long` | `0` | TTL for queued outbound messages. `0` = never expire. |
 | `pendingMessageCapacity` | `Int` | `100` | Maximum pending outbound messages. |
 | `appId` | `String?` | `null` | Optional app identifier. Messages with a non-matching app ID are silently dropped. |
@@ -205,13 +205,20 @@ Immutable configuration data class. All fields have sensible defaults.
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `diagnosticBufferCapacity` | `Int` | `256` | Maximum diagnostic events in the ring buffer. |
-| `dedupCapacity` | `Int` | `10_000` | Maximum unique message IDs tracked for deduplication (LRU). |
+| `dedupCapacity` | `Int` | `100_000` | Maximum unique message IDs tracked for deduplication (TTL-based, 300 s expiry). |
 
 #### Protocol
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `protocolVersion` | `ProtocolVersion` | `ProtocolVersion(1, 0)` | Wire protocol version (major, minor). |
+
+#### Security
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `requireEncryption` | `Boolean` | `true` | When `true`, `start()` fails if no `CryptoProvider` is supplied. Set to `false` to allow plaintext operation. |
+| `maxConcurrentInboundSessions` | `Int` | `100` | Maximum concurrent inbound reassembly sessions. Limits memory exhaustion from unauthenticated chunk floods. |
 
 ### Validation
 
@@ -453,7 +460,7 @@ enum class Severity { INFO, WARN, ERROR }
 
 ### DiagnosticCode
 
-All 19 diagnostic codes:
+All 20 diagnostic codes:
 
 | Code | Typical Severity | Description |
 |------|-----------------|-------------|
@@ -473,6 +480,7 @@ All 19 diagnostic codes:
 | `REPLAY_REJECTED` | WARN | The replay guard rejected a message with a duplicate or out-of-window counter. |
 | `MALFORMED_DATA` | WARN | Wire format parsing failed. The received data is malformed. |
 | `SEND_FAILED` | WARN | An outbound send operation failed at the transport layer. |
+| `NEXTHOP_UNRELIABLE` | WARN | A routing next-hop has a delivery failure rate exceeding 50%. Payload includes the next-hop ID and failure rate. |
 | `APP_ID_REJECTED` | INFO | A received message's app ID does not match the local filter. Silently dropped. |
 | `UNKNOWN_MESSAGE_TYPE` | WARN | A wire message with an unrecognized type byte was received. |
 | `DELIVERY_TIMEOUT` | WARN | End-to-end delivery ACK was not received within the configured deadline. |
