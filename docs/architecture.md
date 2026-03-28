@@ -110,11 +110,17 @@ platform-agnostic logic (in `commonMain`) and platform-specific I/O (in
 |------|---------------|
 | `SecurityEngine.kt` | Facade consolidating E2E encryption, signatures, handshakes, and peer key lifecycle. |
 | `CryptoProvider.kt` | Interface for all cryptographic primitives (Ed25519, X25519, ChaCha20-Poly1305, SHA-256, HKDF). |
+| `SecureRandom.kt` | `expect/actual` CSPRNG — delegates to `java.security.SecureRandom` (JVM/Android), `SecRandomCopyBytes` (Apple), `/dev/urandom` (Linux). |
 | `NoiseXXHandshake.kt` | Noise XX handshake — mutual authentication with forward secrecy. |
 | `PeerHandshakeManager.kt` | Multi-peer handshake orchestration and session key storage. |
 | `NoiseKSealer.kt` | Per-message end-to-end encryption using Noise K pattern. |
 | `ReplayGuard.kt` | 64-entry sliding window replay protection per sender. |
 | `TrustStore.kt` | Key pinning with STRICT and SOFT_REPIN modes. |
+
+> **CSPRNG design note:** `kotlin.random.Random.Default` happens to use platform-secure
+> sources on current Kotlin versions, but the stdlib docs do not guarantee cryptographic
+> security. `secureRandomBytes()` uses canonical platform APIs via `expect/actual`,
+> making the security contract explicit and immune to future Kotlin changes.
 
 ### `io.meshlink.power` — Power Management
 
