@@ -6,7 +6,7 @@ class CircuitBreaker(
     private val cooldownMs: Long,
     private val clock: () -> Long = { currentTimeMillis() },
 ) {
-    private val failures = mutableListOf<Long>()
+    private var failures = listOf<Long>()
     private var trippedAt: Long? = null
 
     fun allowAttempt(): Boolean {
@@ -15,7 +15,7 @@ class CircuitBreaker(
         if (trip != null) {
             return if (now - trip >= cooldownMs) {
                 trippedAt = null
-                failures.clear()
+                failures = emptyList()
                 true
             } else false
         }
@@ -24,9 +24,9 @@ class CircuitBreaker(
 
     fun recordFailure() {
         val now = clock()
-        failures.add(now)
-        failures.removeAll { now - it > windowMs }
-        if (failures.size >= maxFailures) {
+        val pruned = failures.filter { now - it <= windowMs } + now
+        failures = pruned
+        if (pruned.size >= maxFailures) {
             trippedAt = now
         }
     }

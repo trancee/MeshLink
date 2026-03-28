@@ -6,15 +6,17 @@ class RateLimiter(
     private val clock: () -> Long = { currentTimeMillis() },
 ) {
     // key → list of timestamps within window
-    private val events = mutableMapOf<String, MutableList<Long>>()
+    // Uses replace-on-write to avoid concurrent mutation crashes on Kotlin/Native
+    private val events = mutableMapOf<String, List<Long>>()
 
     fun tryAcquire(key: String): Boolean {
         val now = clock()
-        val timestamps = events.getOrPut(key) { mutableListOf() }
-        // Prune expired events
-        timestamps.removeAll { now - it > windowMs }
-        if (timestamps.size >= maxEvents) return false
-        timestamps.add(now)
+        val pruned = (events[key] ?: emptyList()).filter { now - it <= windowMs }
+        if (pruned.size >= maxEvents) {
+            events[key] = pruned
+            return false
+        }
+        events[key] = pruned + now
         return true
     }
 }

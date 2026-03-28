@@ -263,7 +263,7 @@ class MeshLink(
     }
 
     // Inbound rate limiting: per-sender message count within sliding window
-    private val inboundRateCounts = mutableMapOf<String, MutableList<Long>>()
+    private val inboundRateCounts = mutableMapOf<String, List<Long>>()
 
     // Store-and-forward: buffer messages for unreachable peers
     private data class PendingMessage(val recipient: ByteArray, val payload: ByteArray, val enqueueTimeMs: Long)
@@ -1179,14 +1179,14 @@ class MeshLink(
             if (config.inboundRateLimitPerSenderPerMinute > 0) {
                 val originHex = routed.origin.toHex()
                 val now = clock()
-                val timestamps = inboundRateCounts.getOrPut(originHex) { mutableListOf() }
-                timestamps.removeAll { now - it > 60_000L }
-                if (timestamps.size >= config.inboundRateLimitPerSenderPerMinute) {
+                val pruned = (inboundRateCounts[originHex] ?: emptyList()).filter { now - it <= 60_000L }
+                if (pruned.size >= config.inboundRateLimitPerSenderPerMinute) {
+                    inboundRateCounts[originHex] = pruned
                     diagnosticSink.emit(DiagnosticCode.RATE_LIMIT_HIT, Severity.WARN,
-                        "inbound, origin=$originHex, count=${timestamps.size}")
+                        "inbound, origin=$originHex, count=${pruned.size}")
                     return // Drop — sender exceeds inbound rate limit
                 }
-                timestamps.add(now)
+                inboundRateCounts[originHex] = pruned + now
             }
             // Decrypt if crypto is available
             val cs2 = sealer
