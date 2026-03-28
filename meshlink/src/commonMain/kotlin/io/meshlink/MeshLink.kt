@@ -48,11 +48,10 @@ import io.meshlink.util.withLock
 import io.meshlink.util.hexToBytes
 import io.meshlink.util.toHex
 import io.meshlink.wire.WireCodec
-import io.meshlink.wire.RouteUpdateEntry
+import io.meshlink.gossip.GossipCoordinator
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -61,7 +60,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.uuid.ExperimentalUuidApi
@@ -190,9 +188,6 @@ class MeshLink(
         diagnosticSink = diagnosticSink,
     )
 
-    // Triggered gossip update signal channel (buffered to coalesce rapid changes)
-    private val triggeredUpdateChannel = Channel<Unit>(Channel.CONFLATED)
-
     // Power coordinator for battery-aware operation
     private val powerCoordinator = PowerCoordinator(clock = clock)
 
@@ -228,6 +223,19 @@ class MeshLink(
         appIdHash = config.appId?.let { AppIdFilter.hash(it) } ?: ByteArray(16),
         localPeerId = transport.localPeerId,
         markAsSeen = { routingEngine.isDuplicate(it) },
+    )
+
+    private val gossipCoordinator = GossipCoordinator(
+        routingEngine = routingEngine,
+        securityEngine = securityEngine,
+        diagnosticSink = diagnosticSink,
+        localPeerId = transport.localPeerId,
+        gossipIntervalMs = config.gossipIntervalMs,
+        triggeredUpdateBatchMs = config.triggeredUpdateBatchMs,
+        keepaliveIntervalMs = config.keepaliveIntervalMs,
+        currentPowerMode = { powerCoordinator.currentMode },
+        sendFrame = { peerId, frame -> safeSend(peerId, frame) },
+        clock = clock,
     )
 
     private val messageDispatcher = MessageDispatcher(
@@ -266,7 +274,7 @@ class MeshLink(
                 this@MeshLink.dispatchChunks(scope!!, recipient, chunks, messageId)
             }
             override fun triggerGossipUpdate() {
-                triggeredUpdateChannel.trySend(Unit)
+                gossipCoordinator.triggerUpdate()
             }
             override fun onOutboundComplete(key: String, messageId: ByteArray) {
                 emitHealthUpdate()
@@ -376,32 +384,14 @@ class MeshLink(
         // Also listens for triggered update signals to fire early gossip on significant route changes
         if (config.gossipIntervalMs > 0) {
             newScope.launch {
-                while (started) {
-                    val triggered = withTimeoutOrNull(routingEngine.effectiveGossipInterval(powerCoordinator.currentMode)) {
-                        triggeredUpdateChannel.receive()
-                    }
-                    if (!started) break
-                    if (triggered != null) {
-                        // Batch triggered updates: wait a short window to coalesce rapid changes
-                        delay(config.triggeredUpdateBatchMs)
-                        if (!started) break
-                    }
-                    broadcastRouteUpdate(isTriggered = triggered != null)
-                }
+                gossipCoordinator.runGossipLoop { started }
             }
         }
 
         // Keepalive loop: send keepalives when topology is stable (no gossip sent recently)
         if (config.keepaliveIntervalMs > 0) {
             newScope.launch {
-                while (started) {
-                    delay(config.keepaliveIntervalMs)
-                    if (!started) break
-                    val sinceLastGossip = routingEngine.timeSinceLastGossip()
-                    if (config.gossipIntervalMs <= 0 || sinceLastGossip >= config.keepaliveIntervalMs) {
-                        broadcastKeepalive()
-                    }
-                }
+                gossipCoordinator.runKeepaliveLoop { started }
             }
         }
 
@@ -724,54 +714,6 @@ class MeshLink(
                 payload = chunk.payload,
             )
             s.launch { safeSend(recipient, encoded) }
-        }
-    }
-
-    private suspend fun broadcastRouteUpdate(isTriggered: Boolean = false) {
-        val connectedPeers = routingEngine.connectedPeerIds()
-        if (connectedPeers.isEmpty()) return
-
-        for (peerHex in connectedPeers) {
-            if (isTriggered && !routingEngine.shouldSendTriggeredUpdate(peerHex, powerCoordinator.currentMode)) {
-                continue
-            }
-
-            val gossipEntries = routingEngine.prepareGossipEntries(peerHex)
-            val entries = gossipEntries.map { ge ->
-                RouteUpdateEntry(
-                    destination = hexToBytes(ge.destination),
-                    cost = ge.cost,
-                    sequenceNumber = ge.sequenceNumber,
-                    hopCount = ge.hopCount,
-                )
-            }
-            val updateData = if (securityEngine != null) {
-                val unsigned = WireCodec.encodeRouteUpdate(transport.localPeerId, entries)
-                val signed = securityEngine.sign(unsigned + securityEngine.localBroadcastPublicKey)
-                WireCodec.encodeSignedRouteUpdate(transport.localPeerId, entries, signed.signerPublicKey, signed.signature)
-            } else {
-                WireCodec.encodeRouteUpdate(transport.localPeerId, entries)
-            }
-            val peerId = hexToBytes(peerHex)
-            safeSend(peerId, updateData)
-
-            if (isTriggered) {
-                routingEngine.recordTriggeredUpdate(peerHex)
-            }
-        }
-
-        diagnosticSink.emit(DiagnosticCode.GOSSIP_TRAFFIC_REPORT, Severity.INFO,
-            "peers=${connectedPeers.size}, routes=${routingEngine.routeCount}")
-        routingEngine.recordGossipSent()
-    }
-
-    private suspend fun broadcastKeepalive() {
-        val connectedPeers = routingEngine.connectedPeerIds()
-        if (connectedPeers.isEmpty()) return
-        val nowSeconds = (clock() / 1000).toUInt()
-        val frame = WireCodec.encodeKeepalive(nowSeconds)
-        for (peerHex in connectedPeers) {
-            safeSend(hexToBytes(peerHex), frame)
         }
     }
 
