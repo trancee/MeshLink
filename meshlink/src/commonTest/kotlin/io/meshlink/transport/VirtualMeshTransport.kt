@@ -21,7 +21,9 @@ class VirtualMeshTransport(
     override val incomingData: Flow<IncomingData> = _incomingData.asSharedFlow()
     override val peerLostEvents: Flow<PeerLostEvent> = _peerLostEvents.asSharedFlow()
 
-    private var advertising = false
+    /** Whether this transport is currently advertising/scanning. */
+    var advertising = false
+        private set
 
     override suspend fun startAdvertisingAndScanning() {
         advertising = true

@@ -76,7 +76,7 @@ class MeshLinkViewModel(application: Application) : AndroidViewModel(application
                         log("🔵 Peer discovered: $hexId")
                         _discoveredPeers.update { peers ->
                             // Simulated RSSI — a real transport would supply the actual value.
-                            val rssi = (-40..-90).random()
+                            val rssi = (-90..-40).random()
                             peers.filterNot { it.id == hexId } + PeerInfo(hexId, rssi, System.currentTimeMillis())
                         }
                     }

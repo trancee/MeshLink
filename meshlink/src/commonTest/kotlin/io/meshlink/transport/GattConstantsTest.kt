@@ -7,9 +7,13 @@ import kotlin.test.assertTrue
 class GattConstantsTest {
 
     @Test
-    fun serviceUuidIs7F3A() {
-        assertTrue(GattConstants.SERVICE_UUID.contains("7f3a", ignoreCase = true),
-            "Service UUID should contain 0x7F3A")
+    fun serviceUuidIsRandom128Bit() {
+        // Must NOT use Bluetooth SIG Base UUID pattern (unassigned 16-bit UUIDs are silently dropped)
+        val sigBaseSuffix = "0000-1000-8000-00805f9b34fb"
+        assertTrue(!GattConstants.SERVICE_UUID.endsWith(sigBaseSuffix),
+            "Service UUID must not use Bluetooth SIG Base UUID pattern")
+        assertTrue(GattConstants.SERVICE_UUID.contains("c64fb997", ignoreCase = true),
+            "Service UUID should be the expected MeshLink UUID")
     }
 
     @Test
@@ -40,15 +44,15 @@ class GattConstantsTest {
 
     @Test
     fun characteristicUuidsShareServiceBase() {
-        // All characteristic UUIDs should use the same base as the service
-        val serviceBase = GattConstants.SERVICE_UUID.takeLast(24)
+        // All characteristic UUIDs share the same base (last 28 chars) as the service
+        val serviceBase = GattConstants.SERVICE_UUID.substring(8)
         listOf(
             GattConstants.CONTROL_WRITE_UUID,
             GattConstants.CONTROL_NOTIFY_UUID,
             GattConstants.DATA_WRITE_UUID,
             GattConstants.DATA_NOTIFY_UUID,
         ).forEach { uuid ->
-            assertTrue(uuid.takeLast(24) == serviceBase,
+            assertTrue(uuid.substring(8) == serviceBase,
                 "Characteristic UUID should share service base: $uuid")
         }
     }

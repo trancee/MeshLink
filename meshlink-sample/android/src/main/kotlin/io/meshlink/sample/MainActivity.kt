@@ -1,9 +1,13 @@
 package io.meshlink.sample
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.location.LocationManager
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -74,22 +78,58 @@ class MainActivity : ComponentActivity() {
     ) { grants ->
         val allGranted = grants.values.all { it }
         if (!allGranted) {
-            Toast.makeText(this, "Bluetooth permissions required for mesh networking", Toast.LENGTH_LONG).show()
+            val denied = grants.filter { !it.value }.keys.map { it.substringAfterLast('.') }
+            Log.w("MeshLink.BLE", "⚠️ Permissions denied: $denied")
+            Toast.makeText(this, "Bluetooth & Location permissions required", Toast.LENGTH_LONG).show()
         }
-        onPermissionResult?.invoke(allGranted)
-        onPermissionResult = null
+        if (allGranted) {
+            // Permissions OK — now check Location Services
+            checkLocationServicesAndProceed()
+        } else {
+            onPermissionResult?.invoke(false)
+            onPermissionResult = null
+        }
     }
 
-    /** Request BLE permissions, then invoke [onResult]. Calls immediately if already granted. */
+    /** Request BLE + Location permissions, check Location Services, then invoke [onResult]. */
     fun ensurePermissions(onResult: (granted: Boolean) -> Unit) {
+        onPermissionResult = onResult
+
+        // Log current permission status
+        val statuses = requiredPermissions.associate { perm ->
+            perm.substringAfterLast('.') to
+                (ContextCompat.checkSelfPermission(this, perm) == PackageManager.PERMISSION_GRANTED)
+        }
+        Log.d("MeshLink.BLE", "Permission check: $statuses")
+
         val missing = requiredPermissions.filter {
             ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
         }
         if (missing.isEmpty()) {
-            onResult(true)
+            Log.d("MeshLink.BLE", "✅ All permissions granted")
+            checkLocationServicesAndProceed()
         } else {
-            onPermissionResult = onResult
+            Log.d("MeshLink.BLE", "Requesting permissions: ${missing.map { it.substringAfterLast('.') }}")
             permissionLauncher.launch(missing.toTypedArray())
+        }
+    }
+
+    private fun checkLocationServicesAndProceed() {
+        val locationManager = getSystemService(LOCATION_SERVICE) as LocationManager
+        val gpsOn = locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)
+        val networkOn = locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
+
+        if (!gpsOn && !networkOn) {
+            Log.w("MeshLink.BLE", "⚠️ Location Services are OFF — BLE scanning requires them")
+            Toast.makeText(this, "Please enable Location Services for BLE scanning", Toast.LENGTH_LONG).show()
+            startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
+            // Don't call onResult yet — user needs to enable location and tap Start again
+            onPermissionResult?.invoke(false)
+            onPermissionResult = null
+        } else {
+            Log.d("MeshLink.BLE", "✅ Location Services ON (gps=$gpsOn, network=$networkOn)")
+            onPermissionResult?.invoke(true)
+            onPermissionResult = null
         }
     }
 

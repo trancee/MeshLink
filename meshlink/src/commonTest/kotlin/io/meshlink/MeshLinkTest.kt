@@ -5,6 +5,7 @@ import io.meshlink.diagnostics.DiagnosticCode
 import io.meshlink.model.Message
 import io.meshlink.model.PeerEvent
 import io.meshlink.model.TransferFailure
+import io.meshlink.transport.GattConstants
 import io.meshlink.transport.VirtualMeshTransport
 import io.meshlink.util.DeliveryOutcome
 import io.meshlink.util.toHex
@@ -8926,5 +8927,152 @@ class MeshLinkTest {
 
         alice.stop()
         testScheduler.advanceTimeBy(1L)
+    }
+
+    // --- Transport lifecycle: stop() calls transport.stopAll() ---
+
+    @Test
+    fun stopCallsTransportStopAll() = runTest {
+        val transport = VirtualMeshTransport(peerIdAlice)
+        val alice = MeshLink(transport, meshLinkConfig(), coroutineContext)
+        alice.start()
+        advanceUntilIdle()
+        assertTrue(transport.advertising, "Transport should be advertising after start()")
+
+        alice.stop()
+        advanceUntilIdle()
+        assertTrue(!transport.advertising, "Transport should NOT be advertising after stop()")
+    }
+
+    // --- Duplicate discovery: only first advertisement emits PeerEvent.Discovered ---
+
+    @Test
+    fun duplicateAdvertisementDoesNotEmitMultipleDiscoveries() = runTest {
+        val transport = VirtualMeshTransport(peerIdAlice)
+        val alice = MeshLink(transport, meshLinkConfig(), coroutineContext)
+        alice.start()
+        advanceUntilIdle()
+
+        val events = mutableListOf<PeerEvent>()
+        val collector = launch { alice.peers.collect { events.add(it) } }
+        advanceUntilIdle()
+
+        // Simulate the same peer being discovered 5 times (as BLE scan duplicates)
+        repeat(5) {
+            transport.simulateDiscovery(peerIdBob)
+            advanceUntilIdle()
+        }
+
+        assertEquals(1, events.size, "Only the first advertisement should emit PeerEvent.Discovered")
+        assertIs<PeerEvent.Discovered>(events[0])
+
+        collector.cancel()
+        alice.stop()
+    }
+
+    // --- Re-discovery after eviction emits new Discovered event ---
+
+    @Test
+    fun peerRediscoveredAfterEvictionEmitsNewDiscovery() = runTest {
+        val transport = VirtualMeshTransport(peerIdAlice)
+        val alice = MeshLink(transport, meshLinkConfig(), coroutineContext)
+        alice.start()
+        advanceUntilIdle()
+
+        val events = mutableListOf<PeerEvent>()
+        val collector = launch { alice.peers.collect { events.add(it) } }
+        advanceUntilIdle()
+
+        // Discover Bob
+        transport.simulateDiscovery(peerIdBob)
+        advanceUntilIdle()
+        assertEquals(1, events.size, "First discovery")
+
+        // Evict Bob via sweep (2 consecutive misses)
+        alice.sweep(emptySet())
+        alice.sweep(emptySet())
+        advanceUntilIdle()
+
+        // Re-discover Bob — should emit Discovered again
+        transport.simulateDiscovery(peerIdBob)
+        advanceUntilIdle()
+        assertEquals(2, events.size, "Re-discovery after eviction should emit new Discovered")
+        assertIs<PeerEvent.Discovered>(events[1])
+
+        collector.cancel()
+        alice.stop()
+    }
+
+    // --- stop() then start() clears presence state ---
+
+    @Test
+    fun stopClearsPresenceStateSoRestartedPeersAreNew() = runTest {
+        val transport = VirtualMeshTransport(peerIdAlice)
+        val alice = MeshLink(transport, meshLinkConfig(), coroutineContext)
+
+        // First cycle: discover Bob
+        alice.start()
+        advanceUntilIdle()
+        transport.simulateDiscovery(peerIdBob)
+        advanceUntilIdle()
+        assertEquals(1, alice.meshHealth().connectedPeers, "Bob should be connected")
+
+        alice.stop()
+        advanceUntilIdle()
+
+        // After stop, presence state must be cleared
+        assertEquals(0, alice.meshHealth().connectedPeers, "No peers after stop")
+
+        // Second cycle: Bob should be re-discoverable
+        alice.start()
+        advanceUntilIdle()
+        transport.simulateDiscovery(peerIdBob)
+        advanceUntilIdle()
+        assertEquals(1, alice.meshHealth().connectedPeers, "Bob should be connected again after restart")
+
+        alice.stop()
+        advanceUntilIdle()
+    }
+
+    // --- pause() stops transport, resume() restarts it ---
+
+    @Test
+    fun pauseStopsTransportResumeRestartsIt() = runTest {
+        val transport = VirtualMeshTransport(peerIdAlice)
+        val alice = MeshLink(transport, meshLinkConfig(), coroutineContext)
+        alice.start()
+        advanceUntilIdle()
+        assertTrue(transport.advertising, "Should be advertising after start()")
+
+        alice.pause()
+        advanceUntilIdle()
+        assertTrue(!transport.advertising, "Should NOT be advertising after pause()")
+
+        alice.resume()
+        advanceUntilIdle()
+        assertTrue(transport.advertising, "Should be advertising again after resume()")
+
+        alice.stop()
+    }
+
+    // --- GattConstants uses random 128-bit UUIDs (not Bluetooth SIG base) ---
+
+    @Test
+    fun gattConstantsUsesRandom128BitUuids() {
+        val sigBaseSuffix = "0000-1000-8000-00805f9b34fb"
+        val uuids = listOf(
+            GattConstants.SERVICE_UUID,
+            GattConstants.CONTROL_WRITE_UUID,
+            GattConstants.CONTROL_NOTIFY_UUID,
+            GattConstants.DATA_WRITE_UUID,
+            GattConstants.DATA_NOTIFY_UUID,
+        )
+        for (uuid in uuids) {
+            assertTrue(
+                !uuid.endsWith(sigBaseSuffix),
+                "UUID $uuid must NOT use Bluetooth SIG Base UUID pattern — " +
+                    "unassigned 16-bit UUIDs are silently dropped by Android/iOS BLE stacks",
+            )
+        }
     }
 }

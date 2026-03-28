@@ -140,7 +140,7 @@ class AndroidBleTransport(
     // =========================================================================
 
     override suspend fun startAdvertisingAndScanning() {
-        logD { "startAdvertisingAndScanning() — adapter=${bluetoothAdapter?.name}, enabled=${bluetoothAdapter?.isEnabled}" }
+        logD { "startAdvertisingAndScanning() — adapter enabled=${bluetoothAdapter?.isEnabled}" }
         val transportScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         scope = transportScope
 
@@ -189,12 +189,18 @@ class AndroidBleTransport(
     // =========================================================================
 
     private fun startAdvertising() {
+        logD { "startAdvertising() entering..." }
+
         // Stop any prior advertising to avoid ALREADY_STARTED errors on restart
-        advertiser?.stopAdvertising(advertiseCallback)
+        try {
+            advertiser?.stopAdvertising(advertiseCallback)
+        } catch (e: Exception) {
+            logW { "⚠️ stopAdvertising cleanup failed: ${e.message}" }
+        }
 
         val adv = bluetoothAdapter.bluetoothLeAdvertiser
         if (adv == null) {
-            logW { "BLE advertiser unavailable — device may not support peripheral mode" }
+            logW { "⚠️ BLE advertiser unavailable — device may not support peripheral mode" }
             return
         }
         advertiser = adv
@@ -211,8 +217,12 @@ class AndroidBleTransport(
             .setIncludeTxPowerLevel(false)
             .build()
 
-        logD { "startAdvertising() — service=$serviceUuid, mode=${BleConstants.ADVERTISE_MODE}, connectable=true" }
-        adv.startAdvertising(settings, data, advertiseCallback)
+        try {
+            logD { "startAdvertising() — service=$serviceUuid, mode=${BleConstants.ADVERTISE_MODE}, connectable=true" }
+            adv.startAdvertising(settings, data, advertiseCallback)
+        } catch (e: Exception) {
+            logW { "⚠️ startAdvertising() threw: ${e::class.simpleName}: ${e.message}" }
+        }
     }
 
     private fun stopAdvertising() {
@@ -223,7 +233,22 @@ class AndroidBleTransport(
 
     private val advertiseCallback = object : AdvertiseCallback() {
         override fun onStartSuccess(settingsInEffect: AdvertiseSettings?) {
-            logD { "Advertising started successfully — settings=$settingsInEffect" }
+            logD {
+                val mode = when (settingsInEffect?.mode) {
+                    AdvertiseSettings.ADVERTISE_MODE_LOW_POWER -> "LOW_POWER"
+                    AdvertiseSettings.ADVERTISE_MODE_BALANCED -> "BALANCED"
+                    AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY -> "LOW_LATENCY"
+                    else -> "unknown(${settingsInEffect?.mode})"
+                }
+                val tx = when (settingsInEffect?.txPowerLevel) {
+                    AdvertiseSettings.ADVERTISE_TX_POWER_ULTRA_LOW -> "ULTRA_LOW"
+                    AdvertiseSettings.ADVERTISE_TX_POWER_LOW -> "LOW"
+                    AdvertiseSettings.ADVERTISE_TX_POWER_MEDIUM -> "MEDIUM"
+                    AdvertiseSettings.ADVERTISE_TX_POWER_HIGH -> "HIGH"
+                    else -> "unknown(${settingsInEffect?.txPowerLevel})"
+                }
+                "✅ Advertising started — mode=$mode, txPower=$tx, connectable=${settingsInEffect?.isConnectable}, service=$serviceUuid"
+            }
         }
 
         override fun onStartFailure(errorCode: Int) {
@@ -244,12 +269,26 @@ class AndroidBleTransport(
     // =========================================================================
 
     private fun startScanning() {
+        logD { "startScanning() entering..." }
+
+        // Check if Location Services are enabled — required for BLE scanning on most Android devices
+        val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as? android.location.LocationManager
+        val locationEnabled = locationManager?.isProviderEnabled(android.location.LocationManager.GPS_PROVIDER) == true ||
+            locationManager?.isProviderEnabled(android.location.LocationManager.NETWORK_PROVIDER) == true
+        if (!locationEnabled) {
+            logW { "⚠️ Location Services are OFF — BLE scanning will not return results on most Android devices. Enable GPS/Location." }
+        }
+
         // Stop any prior scan to avoid ALREADY_STARTED errors on restart
-        scanner?.stopScan(scanCallback)
+        try {
+            scanner?.stopScan(scanCallback)
+        } catch (e: Exception) {
+            logW { "⚠️ stopScan cleanup failed: ${e.message}" }
+        }
 
         val sc = bluetoothAdapter.bluetoothLeScanner
         if (sc == null) {
-            logW { "BLE scanner unavailable — Bluetooth may be off" }
+            logW { "⚠️ BLE scanner unavailable — Bluetooth may be off" }
             return
         }
         scanner = sc
@@ -263,8 +302,13 @@ class AndroidBleTransport(
             .setServiceUuid(ParcelUuid(serviceUuid))
             .build()
 
-        logD { "startScanning() — filter=service:$serviceUuid, mode=${BleConstants.SCAN_MODE}" }
-        sc.startScan(listOf(filter), settings, scanCallback)
+        try {
+            logD { "startScanning() — filter=service:$serviceUuid, mode=${BleConstants.SCAN_MODE}" }
+            sc.startScan(listOf(filter), settings, scanCallback)
+            logD { "✅ Scan started" }
+        } catch (e: Exception) {
+            logW { "⚠️ startScan() threw: ${e::class.simpleName}: ${e.message}" }
+        }
     }
 
     private fun stopScanning() {
@@ -304,14 +348,21 @@ class AndroidBleTransport(
         peerLastSeen[address] = System.currentTimeMillis()
         peerDevices[address] = device
 
-        val payload = result.scanRecord
+        val scanRecord = result.scanRecord
+        val payload = scanRecord
             ?.getServiceData(ParcelUuid(serviceUuid))
             ?: ByteArray(0)
 
         if (isNew) {
-            logD { "📡 NEW peer discovered: $address, RSSI=${result.rssi}, payload=${payload.size}B" }
+            val serviceUuids = scanRecord?.serviceUuids?.joinToString { it.uuid.toString() } ?: "none"
+            val deviceName = scanRecord?.deviceName ?: "unknown"
+            val serviceDataKeys = scanRecord?.serviceData?.keys?.joinToString { it.uuid.toString() } ?: "none"
+            logD {
+                "📡 NEW peer discovered: $address ($deviceName), RSSI=${result.rssi}, " +
+                    "serviceUUIDs=[$serviceUuids], serviceDataKeys=[$serviceDataKeys], payload=${payload.size}B"
+            }
         } else {
-            logD { "📡 Peer seen: $address, RSSI=${result.rssi}" }
+            // Suppress repeated "Peer seen" logs — they fire on every scan cycle
         }
 
         _advertisementEvents.tryEmit(AdvertisementEvent(peerId, payload))

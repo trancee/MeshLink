@@ -27,7 +27,7 @@ object BleConstants {
     // --- Peer Tracking ---
 
     /** Duration in ms after which a peer is considered lost if no scan result is received */
-    const val PEER_LOST_TIMEOUT_MS = 10_000L
+    const val PEER_LOST_TIMEOUT_MS = 30_000L
 
     /** Interval in ms between peer timeout sweeps */
     const val PEER_TIMEOUT_CHECK_INTERVAL_MS = 2_000L

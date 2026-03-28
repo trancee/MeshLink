@@ -23,6 +23,7 @@ import io.meshlink.power.PowerModeEngine
 import io.meshlink.power.TieredShedder
 import io.meshlink.protocol.ProtocolVersion
 import io.meshlink.routing.DedupSet
+import io.meshlink.routing.PresenceState
 import io.meshlink.routing.PresenceTracker
 import io.meshlink.routing.RoutingTable
 import io.meshlink.transfer.SackTracker
@@ -299,6 +300,7 @@ class MeshLink(
                             return@collect // Incompatible version — reject peer
                         }
                     }
+                    val isNewPeer = presenceTracker.state(event.peerId.toHex()) != PresenceState.CONNECTED
                     presenceTracker.peerSeen(event.peerId.toHex())
                     // Extract peer's X25519 public key from advertisement if present
                     if (advPayload.size >= 34) {
@@ -314,8 +316,10 @@ class MeshLink(
                         }
                         peerPublicKeys[peerHex] = newKey
                     }
-                    safeEmit(_peers, PeerEvent.Discovered(event.peerId), "peers")
-                    emitHealthUpdate()
+                    if (isNewPeer) {
+                        safeEmit(_peers, PeerEvent.Discovered(event.peerId), "peers")
+                        emitHealthUpdate()
+                    }
                     // Initiate Noise XX handshake if crypto enabled
                     // Deterministic tie-breaking: lower peerId initiates
                     if (handshakeManager != null && !handshakeManager.isComplete(event.peerId)) {
@@ -397,6 +401,8 @@ class MeshLink(
 
     override fun stop() {
         started = false
+        // Stop BLE transport before cancelling scope
+        CoroutineScope(baseContext).launch { transport.stopAll() }
         // Cancel all delivery deadline timers before processing in-flight transfers
         deliveryDeadlineTimer.cancelAll()
         // Emit DELIVERY_TIMEOUT for all in-flight transfers before clearing

@@ -8,6 +8,7 @@ import kotlinx.cinterop.refTo
 import kotlinx.cinterop.usePinned
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -18,9 +19,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import platform.CoreBluetooth.CBATTErrorSuccess
 import platform.CoreBluetooth.CBATTRequest
-import platform.CoreBluetooth.CBAdvertisementDataServiceUUIDsKey
 import platform.CoreBluetooth.CBCentralManager
 import platform.CoreBluetooth.CBCentralManagerDelegateProtocol
+import platform.CoreBluetooth.CBCentralManagerScanOptionAllowDuplicatesKey
 import platform.CoreBluetooth.CBCentralManagerStatePoweredOn
 import platform.CoreBluetooth.CBCharacteristic
 import platform.CoreBluetooth.CBCharacteristicPropertyNotify
@@ -38,6 +39,7 @@ import platform.CoreBluetooth.CBPeripheralManagerStatePoweredOn
 import platform.CoreBluetooth.CBPeripheralStateConnected
 import platform.CoreBluetooth.CBService
 import platform.CoreBluetooth.CBUUID
+import platform.CoreBluetooth.CBAdvertisementDataServiceUUIDsKey
 import platform.Foundation.NSData
 import platform.Foundation.NSError
 import platform.Foundation.NSLog
@@ -93,7 +95,7 @@ class IosBleTransport(
 
     companion object {
         private const val TAG = "MeshLink.BLE"
-        private const val PEER_TIMEOUT_MS = 10_000L
+        private const val PEER_TIMEOUT_MS = 30_000L
         private const val PEER_SWEEP_INTERVAL_MS = 3_000L
         private const val USER_DEFAULTS_PEER_ID_KEY = "io.meshlink.localPeerId"
 
@@ -170,17 +172,22 @@ class IosBleTransport(
     override suspend fun startAdvertisingAndScanning() {
         logD("startAdvertisingAndScanning() — setting up CoreBluetooth")
 
-        centralManager = CBCentralManager(
-            delegate = centralDelegate,
-            queue = dispatch_get_main_queue(),
-        )
-        peripheralManager = CBPeripheralManager(
-            delegate = peripheralMgrDelegate,
-            queue = dispatch_get_main_queue(),
-        )
+        // CoreBluetooth managers MUST be created on the main thread to ensure
+        // delegate callbacks (centralManagerDidUpdateState, etc.) fire reliably.
+        withContext(Dispatchers.Main) {
+            centralManager = CBCentralManager(
+                delegate = centralDelegate,
+                queue = dispatch_get_main_queue(),
+            )
+            peripheralManager = CBPeripheralManager(
+                delegate = peripheralMgrDelegate,
+                queue = dispatch_get_main_queue(),
+            )
+            logD("Managers created — CM=${centralManager != null}, PM=${peripheralManager != null}")
+        }
 
         startPeerSweep()
-        logD("CoreBluetooth managers initialized — waiting for PoweredOn state")
+        logD("CoreBluetooth initialized — centralReady=$centralManagerReady, peripheralReady=$peripheralManagerReady")
     }
 
     override suspend fun stopAll() {
@@ -189,15 +196,18 @@ class IosBleTransport(
         peerSweepJob?.cancel()
         peerSweepJob = null
 
-        centralManager?.stopScan()
-        for ((_, peer) in knownPeers) {
-            if (peer.peripheral.state == CBPeripheralStateConnected) {
-                centralManager?.cancelPeripheralConnection(peer.peripheral)
+        // CoreBluetooth calls must run on the main thread
+        withContext(Dispatchers.Main) {
+            centralManager?.stopScan()
+            for ((_, peer) in knownPeers.toMap()) {
+                if (peer.peripheral.state == CBPeripheralStateConnected) {
+                    centralManager?.cancelPeripheralConnection(peer.peripheral)
+                }
             }
-        }
 
-        peripheralManager?.stopAdvertising()
-        gattService?.let { peripheralManager?.removeService(it) }
+            peripheralManager?.stopAdvertising()
+            gattService?.let { peripheralManager?.removeService(it) }
+        }
 
         knownPeers.clear()
         connectedPeripherals.clear()
@@ -280,7 +290,10 @@ class IosBleTransport(
 
     private fun sweepTimedOutPeers() {
         val now = io.meshlink.util.currentTimeMillis()
-        val timedOut = knownPeers.entries.filter { (_, peer) ->
+        // Deep copy to avoid ConcurrentModificationException — EntryRef objects
+        // hold references to the backing HashMap and crash if the map is rehashed.
+        val snapshot = knownPeers.toMap()
+        val timedOut = snapshot.filter { (_, peer) ->
             now - peer.lastSeenMs > PEER_TIMEOUT_MS
         }
         for ((key, peer) in timedOut) {
@@ -297,7 +310,7 @@ class IosBleTransport(
 
     private fun findPeripheralForPeer(peerId: ByteArray): CBPeripheral? {
         val peerIdHex = peerId.toHexString()
-        return knownPeers.values.firstOrNull {
+        return knownPeers.toMap().values.firstOrNull {
             it.peerId.toHexString() == peerIdHex
         }?.peripheral
     }
@@ -368,20 +381,20 @@ class IosBleTransport(
     }
 
     private fun startAdvertising() {
-        peripheralManager?.startAdvertising(
-            mapOf<Any?, Any?>(
-                CBAdvertisementDataServiceUUIDsKey to listOf(serviceUUID),
-            ),
+        val advData = mapOf<Any?, Any?>(
+            CBAdvertisementDataServiceUUIDsKey to listOf(serviceUUID),
         )
-        logD("Started advertising")
+        logD("startAdvertising() — serviceUUID=${serviceUUID.UUIDString}, advData=$advData")
+        peripheralManager?.startAdvertising(advData)
+        logD("✅ Advertising started for service ${serviceUUID.UUIDString}")
     }
 
     private fun startScanning() {
         centralManager?.scanForPeripheralsWithServices(
             serviceUUIDs = listOf(serviceUUID),
-            options = null,
+            options = mapOf<Any?, Any?>(CBCentralManagerScanOptionAllowDuplicatesKey to true),
         )
-        logD("Started scanning")
+        logD("Started scanning for service ${serviceUUID.UUIDString}")
     }
 
     // ========================
@@ -400,7 +413,8 @@ class IosBleTransport(
                 5 -> "poweredOn"
                 else -> "state(${central.state})"
             }
-            logD("Central manager state: $stateName")
+            // Always log — critical for diagnosing BLE issues
+            NSLog("$TAG: Central manager state: $stateName")
             if (central.state == CBCentralManagerStatePoweredOn) {
                 centralManagerReady = true
                 startScanning()
@@ -423,7 +437,7 @@ class IosBleTransport(
             val existing = knownPeers[peripheralUUID]
             if (existing != null) {
                 existing.lastSeenMs = now
-                logD("📡 Peer seen: $peripheralUUID, RSSI=$RSSI")
+                // Suppress repeated "Peer seen" logs — they fire on every scan cycle
             } else {
                 logD("📡 NEW peer discovered: $peripheralUUID, RSSI=$RSSI, payload=${advertisementPayload.size}B")
                 knownPeers[peripheralUUID] = TrackedPeer(
