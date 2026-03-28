@@ -11,6 +11,7 @@ package io.meshlink.transfer
  */
 class TransferEngine(
     private val clock: () -> Long = { 0L },
+    private val maxConcurrentInboundSessions: Int = 100,
 ) {
     // Outbound state: messageId hex → transfer
     private val outbound = mutableMapOf<String, OutboundState>()
@@ -83,8 +84,12 @@ class TransferEngine(
         totalChunks: Int,
         chunkPayload: ByteArray,
     ): ChunkAcceptResult {
-        val state = inbound.getOrPut(messageIdHex) {
-            InboundState(totalChunks, createdAtMs = clock())
+        val existing = inbound[messageIdHex]
+        if (existing == null && inbound.size >= maxConcurrentInboundSessions) {
+            return ChunkAcceptResult.Rejected
+        }
+        val state = existing ?: InboundState(totalChunks, createdAtMs = clock()).also {
+            inbound[messageIdHex] = it
         }
         state.chunks[seqNum] = chunkPayload
         state.sackTracker.record(seqNum)
@@ -194,6 +199,7 @@ sealed interface ChunkAcceptResult {
         val sackBitmask: ULong,
         val reassembledPayload: ByteArray,
     ) : ChunkAcceptResult
+    data object Rejected : ChunkAcceptResult
 }
 
 data class OutboundInfo(

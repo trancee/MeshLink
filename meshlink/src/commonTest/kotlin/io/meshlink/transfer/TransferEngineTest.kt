@@ -181,4 +181,29 @@ class TransferEngineTest {
         assertEquals(0, engine.outboundCount)
         assertEquals(0, engine.inboundCount)
     }
+
+    // --- TM-001: Reject chunks when inbound session limit reached ---
+
+    @Test
+    fun rejectChunksWhenInboundSessionLimitReached() {
+        val engine = TransferEngine(maxConcurrentInboundSessions = 2)
+
+        // Fill both session slots
+        val r1 = engine.onChunkReceived("msg1", 0, 3, "a".encodeToByteArray())
+        assertIs<ChunkAcceptResult.Ack>(r1)
+
+        val r2 = engine.onChunkReceived("msg2", 0, 3, "b".encodeToByteArray())
+        assertIs<ChunkAcceptResult.Ack>(r2)
+
+        assertEquals(2, engine.inboundCount)
+
+        // Third session rejected
+        val r3 = engine.onChunkReceived("msg3", 0, 3, "c".encodeToByteArray())
+        assertIs<ChunkAcceptResult.Rejected>(r3)
+        assertEquals(2, engine.inboundCount)
+
+        // Existing sessions still accept chunks
+        val r1b = engine.onChunkReceived("msg1", 1, 3, "d".encodeToByteArray())
+        assertIs<ChunkAcceptResult.Ack>(r1b)
+    }
 }

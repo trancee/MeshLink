@@ -52,7 +52,7 @@ class RoutingEngine(
 ) {
     private val routingTable = RoutingTable()
     private val presenceTracker = PresenceTracker()
-    private val dedup = DedupSet(capacity = dedupCapacity)
+    private val dedup = DedupSet(capacity = dedupCapacity, clock = clock)
     private val previousNextHop = mutableMapOf<String, String>()
     private val lastTriggeredUpdateTime = mutableMapOf<String, Long>()
     private var lastGossipSentMs: Long = 0L

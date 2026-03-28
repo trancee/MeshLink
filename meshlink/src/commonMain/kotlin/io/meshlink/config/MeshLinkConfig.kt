@@ -12,7 +12,7 @@ data class MeshLinkConfig(
     val circuitBreakerWindowMs: Long = 60_000L,
     val circuitBreakerCooldownMs: Long = 30_000L,
     val diagnosticBufferCapacity: Int = 256,
-    val dedupCapacity: Int = 10_000,
+    val dedupCapacity: Int = 100_000,
     val protocolVersion: ProtocolVersion = ProtocolVersion(1, 0),
     val appId: String? = null,
     val inboundRateLimitPerSenderPerMinute: Int = 0,
@@ -21,7 +21,7 @@ data class MeshLinkConfig(
     val pendingMessageCapacity: Int = 100,
     val broadcastRateLimitPerMinute: Int = 0,
     val relayQueueCapacity: Int = 100,
-    val maxHops: UByte = UByte.MAX_VALUE,
+    val maxHops: UByte = 10u,
     val ackWindowMin: Int = 2,
     val ackWindowMax: Int = 16,
     val powerModeThresholds: List<Int> = listOf(80, 30),
@@ -37,6 +37,7 @@ data class MeshLinkConfig(
     val nackRateLimitPerSec: Int = 10,
     val neighborAggregateLimitPerMin: Int = 100,
     val senderNeighborLimitPerMin: Int = 20,
+    val maxConcurrentInboundSessions: Int = 100,
 ) {
     fun validate(): List<String> {
         val violations = mutableListOf<String>()
@@ -56,6 +57,7 @@ data class MeshLinkConfig(
         }
         if (l2capEnabled && l2capRetryAttempts < 0) violations.add("l2capRetryAttempts ($l2capRetryAttempts) must be >= 0 when l2capEnabled is true")
         if (bufferTtlMs > 0 && chunkInactivityTimeoutMs >= bufferTtlMs) violations.add("chunkInactivityTimeoutMs ($chunkInactivityTimeoutMs) must be < bufferTtlMs ($bufferTtlMs)")
+        if (maxConcurrentInboundSessions <= 0) violations.add("maxConcurrentInboundSessions must be positive")
         return violations
     }
 
@@ -95,7 +97,7 @@ class MeshLinkConfigBuilder(
     var circuitBreakerWindowMs: Long = 60_000L,
     var circuitBreakerCooldownMs: Long = 30_000L,
     var diagnosticBufferCapacity: Int = 256,
-    var dedupCapacity: Int = 10_000,
+    var dedupCapacity: Int = 100_000,
     var protocolVersion: ProtocolVersion = ProtocolVersion(1, 0),
     var appId: String? = null,
     var inboundRateLimitPerSenderPerMinute: Int = 0,
@@ -104,7 +106,7 @@ class MeshLinkConfigBuilder(
     var pendingMessageCapacity: Int = 100,
     var broadcastRateLimitPerMinute: Int = 0,
     var relayQueueCapacity: Int = 100,
-    var maxHops: UByte = UByte.MAX_VALUE,
+    var maxHops: UByte = 10u,
     var ackWindowMin: Int = 2,
     var ackWindowMax: Int = 16,
     var powerModeThresholds: List<Int> = listOf(80, 30),
@@ -120,6 +122,7 @@ class MeshLinkConfigBuilder(
     var nackRateLimitPerSec: Int = 10,
     var neighborAggregateLimitPerMin: Int = 100,
     var senderNeighborLimitPerMin: Int = 20,
+    var maxConcurrentInboundSessions: Int = 100,
 ) {
 
     fun build(): MeshLinkConfig = MeshLinkConfig(
@@ -157,5 +160,6 @@ class MeshLinkConfigBuilder(
         nackRateLimitPerSec = nackRateLimitPerSec,
         neighborAggregateLimitPerMin = neighborAggregateLimitPerMin,
         senderNeighborLimitPerMin = senderNeighborLimitPerMin,
+        maxConcurrentInboundSessions = maxConcurrentInboundSessions,
     )
 }

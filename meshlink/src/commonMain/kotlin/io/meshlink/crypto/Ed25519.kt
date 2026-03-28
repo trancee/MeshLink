@@ -1,7 +1,5 @@
 package io.meshlink.crypto
 
-import kotlin.random.Random
-
 /**
  * Pure Kotlin Ed25519 (EdDSA on edwards25519) per RFC 8032 Section 5.1.
  *
@@ -13,7 +11,7 @@ internal object Ed25519 {
     // ── Public API ──────────────────────────────────────────────────────
 
     fun generateKeyPair(): CryptoKeyPair {
-        val privateKey = Random.nextBytes(32)
+        val privateKey = secureRandomBytes(32)
         val publicKey = publicKeyFromPrivate(privateKey)
         return CryptoKeyPair(publicKey = publicKey, privateKey = privateKey)
     }

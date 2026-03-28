@@ -158,7 +158,10 @@ class MeshLink(
         scope ?: throw IllegalStateException("MeshLink not started")
 
     // Transfer engine (consolidates outbound chunking and inbound reassembly)
-    private val transferEngine = TransferEngine(clock = clock)
+    private val transferEngine = TransferEngine(
+        clock = clock,
+        maxConcurrentInboundSessions = config.maxConcurrentInboundSessions,
+    )
 
     // Outbound recipient tracking: messageId hex → recipient peerId
     private val outboundRecipients = mutableMapOf<String, ByteArray>()
@@ -309,7 +312,7 @@ class MeshLink(
 
         started = true
         val exceptionHandler = kotlinx.coroutines.CoroutineExceptionHandler { _, throwable ->
-            diagnosticSink.emit(DiagnosticCode.SEND_FAILED, Severity.ERROR, "Uncaught: ${throwable.message}")
+            diagnosticSink.emit(DiagnosticCode.SEND_FAILED, Severity.ERROR, "Uncaught: ${throwable::class.simpleName}")
         }
         val newScope = CoroutineScope(baseContext + SupervisorJob() + exceptionHandler)
         scope = newScope

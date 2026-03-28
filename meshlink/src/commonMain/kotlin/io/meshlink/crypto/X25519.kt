@@ -1,7 +1,5 @@
 package io.meshlink.crypto
 
-import kotlin.random.Random
-
 /**
  * Pure Kotlin X25519 (Curve25519 Diffie-Hellman) implementation per RFC 7748.
  * Provides a fallback for platforms without JCA X25519 support (Android API 26-32).
@@ -15,15 +13,9 @@ internal object X25519 {
 
     private val BASEPOINT = ByteArray(32).also { it[0] = 9 }
 
-    /**
-     * Generate an X25519 key pair.
-     *
-     * Note: Uses [kotlin.random.Random] which may not be cryptographically secure
-     * on all platforms. For production use, prefer generating private key bytes
-     * with a platform-specific secure random source and using [scalarMult] directly.
-     */
+    /** Generate an X25519 key pair using platform-specific secure random. */
     fun generateKeyPair(): CryptoKeyPair {
-        val privateKey = Random.nextBytes(32)
+        val privateKey = secureRandomBytes(32)
         clampPrivateKey(privateKey)
         val publicKey = scalarMult(privateKey, BASEPOINT)
         return CryptoKeyPair(publicKey = publicKey, privateKey = privateKey)

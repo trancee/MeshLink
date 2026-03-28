@@ -129,6 +129,10 @@ class MessageDispatcher(
         )
 
         when (result) {
+            is ChunkAcceptResult.Rejected -> {
+                diagnosticSink.emit(DiagnosticCode.BUFFER_PRESSURE, Severity.WARN, "inbound session limit reached")
+                return
+            }
             is ChunkAcceptResult.Ack -> {
                 val ack = WireCodec.encodeChunkAck(
                     messageId = chunk.messageId,
@@ -147,7 +151,7 @@ class MessageDispatcher(
 
                 if (routingEngine.isDuplicate(key)) return
 
-                val decrypted = unsealPayload(result.reassembledPayload, "chunk reassembly")
+                val decrypted = unsealPayload(result.reassembledPayload, "chunk reassembly") ?: return
                 sink.onMessageReceived(fromPeerId, decrypted)
             }
         }
@@ -253,7 +257,7 @@ class MessageDispatcher(
                     return
                 }
             }
-            val deliveredPayload = unsealPayload(routed.payload, "routed message")
+            val deliveredPayload = unsealPayload(routed.payload, "routed message") ?: return
             sink.onMessageReceived(routed.origin, deliveredPayload)
             val signed = securityEngine?.sign(routed.messageId + localPeerId)
             val ackFrame = WireCodec.encodeDeliveryAck(
@@ -356,15 +360,18 @@ class MessageDispatcher(
         }
     }
 
-    /** Decrypt via security engine, falling back to plaintext on failure or no crypto. */
-    private fun unsealPayload(ciphertext: ByteArray, context: String): ByteArray {
+    /** Decrypt via security engine; drops the message on failure (returns null). */
+    private fun unsealPayload(ciphertext: ByteArray, context: String): ByteArray? {
         return when (val ur = securityEngine?.unseal(ciphertext)) {
             is UnsealResult.Decrypted -> ur.plaintext
             is UnsealResult.Failed -> {
                 diagnosticSink.emit(DiagnosticCode.DECRYPTION_FAILED, Severity.WARN, context)
-                ur.originalPayload
+                null
             }
-            is UnsealResult.TooShort -> ur.originalPayload
+            is UnsealResult.TooShort -> {
+                diagnosticSink.emit(DiagnosticCode.DECRYPTION_FAILED, Severity.WARN, "$context (too short)")
+                null
+            }
             null -> ciphertext
         }
     }

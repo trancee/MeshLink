@@ -68,7 +68,7 @@ class AndroidBleTransport(
          * AndroidBleTransport.debugLogging = BuildConfig.DEBUG
          * ```
          */
-        var debugLogging: Boolean = false
+        internal var debugLogging: Boolean = false
     }
 
     private inline fun logD(msg: () -> String) {
