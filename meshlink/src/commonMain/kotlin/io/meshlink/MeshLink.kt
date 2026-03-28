@@ -24,6 +24,8 @@ import io.meshlink.power.ModeChangeResult
 import io.meshlink.power.PowerCoordinator
 import io.meshlink.power.ShedAction
 import io.meshlink.protocol.ProtocolVersion
+import io.meshlink.send.SendDecision
+import io.meshlink.send.SendPolicyChain
 import io.meshlink.util.PauseManager
 import io.meshlink.routing.GossipEntry
 import io.meshlink.routing.LearnedRoute
@@ -212,6 +214,16 @@ class MeshLink(
             ).encode(),
         )
     }
+
+    private val sendPolicyChain = SendPolicyChain(
+        bufferCapacity = config.bufferCapacity,
+        localPeerId = transport.localPeerId,
+        isPaused = { pauseManager.isPaused },
+        checkSendRate = { rateLimitPolicy.checkSend(it) },
+        checkCircuitBreaker = { rateLimitPolicy.checkCircuitBreaker() },
+        resolveNextHop = { routingEngine.resolveNextHop(it) },
+        peerPublicKey = securityEngine?.let { se -> { recipientHex: String -> se.peerPublicKey(recipientHex) } },
+    )
 
     override val localPublicKey: ByteArray? get() = securityEngine?.localPublicKey
     override fun peerPublicKey(peerIdHex: String): ByteArray? = securityEngine?.peerPublicKey(peerIdHex)
@@ -560,52 +572,42 @@ class MeshLink(
     private fun sendInternal(recipient: ByteArray, payload: ByteArray): Result<Uuid> {
         val s = requireScope()
 
-        if (payload.size > config.bufferCapacity) {
-            val failureId = Uuid.random()
-            s.launch {
-                _transferFailures.emit(TransferFailure(failureId, DeliveryOutcome.FAILED_BUFFER_FULL))
+        return when (val decision = sendPolicyChain.evaluate(recipient, payload.size)) {
+            is SendDecision.BufferFull -> {
+                val failureId = Uuid.random()
+                s.launch {
+                    _transferFailures.emit(TransferFailure(failureId, DeliveryOutcome.FAILED_BUFFER_FULL))
+                }
+                Result.failure(IllegalArgumentException("bufferFull"))
             }
-            return Result.failure(IllegalArgumentException("bufferFull"))
-        }
 
-        // Self-send loopback: deliver locally without BLE (bypasses pause)
-        if (recipient.contentEquals(transport.localPeerId)) {
-            val messageId = Uuid.random()
-            s.launch {
-                safeEmit(_messages, Message(senderId = recipient, payload = payload), "messages")
+            is SendDecision.Loopback -> {
+                val messageId = Uuid.random()
+                s.launch {
+                    safeEmit(_messages, Message(senderId = recipient, payload = payload), "messages")
+                }
+                Result.success(messageId)
             }
-            return Result.success(messageId)
-        }
 
-        if (pauseManager.isPaused) {
-            pauseManager.queueSend(recipient, payload)
-            return Result.success(Uuid.random())
-        }
-
-        // Rate limit check (per-recipient)
-        when (val rl = rateLimitPolicy.checkSend(recipient.toHex())) {
-            is RateLimitResult.Allowed -> {}
-            is RateLimitResult.Limited -> {
-                diagnosticSink.emit(DiagnosticCode.RATE_LIMIT_HIT, Severity.WARN, "recipient=${rl.key}")
-                return Result.failure(IllegalStateException("Rate limit exceeded"))
+            is SendDecision.Paused -> {
+                pauseManager.queueSend(recipient, payload)
+                Result.success(Uuid.random())
             }
-        }
 
-        // Circuit breaker check
-        if (rateLimitPolicy.checkCircuitBreaker() is RateLimitResult.Limited) {
-            return Result.failure(IllegalStateException("Circuit breaker open — transport circuit tripped"))
-        }
+            is SendDecision.RateLimited -> {
+                diagnosticSink.emit(DiagnosticCode.RATE_LIMIT_HIT, Severity.WARN, "recipient=${decision.key}")
+                Result.failure(IllegalStateException("Rate limit exceeded"))
+            }
 
-        // Check if recipient is reachable (directly or via routing)
-        when (val hop = routingEngine.resolveNextHop(recipient.toHex())) {
-            is NextHopResult.Direct -> {
-                // Directly reachable — fall through to doSend below
+            is SendDecision.CircuitBreakerOpen -> {
+                Result.failure(IllegalStateException("Circuit breaker open — transport circuit tripped"))
             }
-            is NextHopResult.ViaRoute -> {
-                return doRoutedSend(s, recipient, payload, hop.nextHop)
+
+            is SendDecision.Routed -> {
+                doRoutedSend(s, recipient, payload, decision.nextHopHex)
             }
-            is NextHopResult.Unreachable -> {
-                // Buffer for store-and-forward if enabled
+
+            is SendDecision.Unreachable -> {
                 if (config.pendingMessageTtlMs > 0) {
                     val recipientHex = recipient.toHex()
                     when (deliveryPipeline.bufferPending(recipientHex, recipient, payload, config.pendingMessageCapacity)) {
@@ -616,22 +618,24 @@ class MeshLink(
                         }
                         is BufferResult.Buffered -> {}
                     }
-                    return Result.success(Uuid.random())
+                    Result.success(Uuid.random())
+                } else {
+                    val failureId = Uuid.random()
+                    s.launch {
+                        _transferFailures.emit(TransferFailure(failureId, DeliveryOutcome.FAILED_NO_ROUTE))
+                    }
+                    Result.failure(IllegalStateException("No route to unknown peer"))
                 }
-                val failureId = Uuid.random()
-                s.launch {
-                    _transferFailures.emit(TransferFailure(failureId, DeliveryOutcome.FAILED_NO_ROUTE))
-                }
-                return Result.failure(IllegalStateException("No route to unknown peer"))
+            }
+
+            is SendDecision.MissingPublicKey -> {
+                Result.failure(IllegalStateException("Recipient public key unknown"))
+            }
+
+            is SendDecision.Direct -> {
+                doSend(s, recipient, payload)
             }
         }
-
-        // Require recipient's public key when crypto is enabled
-        if (securityEngine != null && securityEngine.peerPublicKey(recipient.toHex()) == null) {
-            return Result.failure(IllegalStateException("Recipient public key unknown"))
-        }
-
-        return doSend(s, recipient, payload)
     }
 
     private fun doSend(s: CoroutineScope, recipient: ByteArray, payload: ByteArray): Result<Uuid> {
