@@ -1,6 +1,7 @@
 package io.meshlink.transport
 
 import io.meshlink.power.PowerMode
+import io.meshlink.power.PowerProfile
 import io.meshlink.util.currentTimeMillis
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -81,11 +82,10 @@ class ScanDutyCycleController(
     }
 
     companion object {
-        /** Returns the [CycleTiming] for the given [mode]. */
-        fun timingFor(mode: PowerMode): CycleTiming = when (mode) {
-            PowerMode.PERFORMANCE -> CycleTiming(scanOnMs = 4_000L, scanOffMs = 1_000L)
-            PowerMode.BALANCED -> CycleTiming(scanOnMs = 3_000L, scanOffMs = 3_000L)
-            PowerMode.POWER_SAVER -> CycleTiming(scanOnMs = 1_000L, scanOffMs = 5_000L)
+        /** Returns the [CycleTiming] for the given [mode], derived from [PowerProfile]. */
+        fun timingFor(mode: PowerMode): CycleTiming {
+            val profile = PowerProfile.forMode(mode)
+            return CycleTiming(scanOnMs = profile.scanOnMs, scanOffMs = profile.scanOffMs)
         }
     }
 }

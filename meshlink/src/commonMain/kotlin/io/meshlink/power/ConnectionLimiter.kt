@@ -2,9 +2,9 @@ package io.meshlink.power
 
 class ConnectionLimiter(
     private val limits: Map<PowerMode, Int> = mapOf(
-        PowerMode.PERFORMANCE to 8,
-        PowerMode.BALANCED to 4,
-        PowerMode.POWER_SAVER to 1,
+        PowerMode.PERFORMANCE to PowerProfile.PERFORMANCE.maxConnections,
+        PowerMode.BALANCED to PowerProfile.BALANCED.maxConnections,
+        PowerMode.POWER_SAVER to PowerProfile.POWER_SAVER.maxConnections,
     )
 ) {
     private var currentLimit = limits[PowerMode.PERFORMANCE] ?: 8
