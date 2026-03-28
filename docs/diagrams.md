@@ -1,6 +1,9 @@
 # MeshLink — Visual Diagrams
 
-Reference diagrams for the MeshLink BLE mesh networking library. All diagrams are authored in Mermaid and correspond to specifications in [design.md](./design.md).
+Reference diagrams for the MeshLink BLE mesh networking library. All diagrams
+use [Mermaid](https://mermaid.js.org/) and render natively on GitHub. If
+diagrams don't render in your viewer, paste them into the
+[Mermaid Live Editor](https://mermaid.live).
 
 ---
 
@@ -127,7 +130,7 @@ packet
 
 ## 3. Architecture Overview
 
-The actor-based internal architecture with transport, security, and routing layers.
+The engine/coordinator architecture with transport, security, and routing layers.
 
 ```mermaid
 flowchart TB
@@ -135,23 +138,32 @@ flowchart TB
         API["MeshLink Public API<br/>(send, broadcast, meshHealth)"]
     end
 
-    subgraph MeshLinkEngine["MeshLinkEngine (Actor Supervisor)"]
+    subgraph Core["MeshLink Core"]
         direction TB
 
-        subgraph Actors["Actor DAG"]
-            TA["TransferActor<br/>Chunking, SACK, L2CAP I/O"]
-            BA["BufferActor<br/>Store-and-Forward, Dedup, TTL"]
-            RA["RouterActor<br/>Enhanced DSDV, Route Selection"]
-            PA["PresenceActor<br/>Peer Discovery, Timeout Sweep"]
-            CA["ConnectionActor<br/>BLE Lifecycle, Tie-Breaking"]
-            GA["GossipActor<br/>Peer Announcements, Routing Updates"]
-            CRA["CryptoActor<br/>Noise XX/K, Replay Counters"]
+        subgraph Engines["Stateful Engines (sealed result types)"]
+            SE["SecurityEngine<br/>Noise XX/K, Trust, Replay"]
+            RE["RoutingEngine<br/>DSDV, Cost, Dedup"]
+            TE["TransferEngine<br/>Chunking, SACK, AIMD"]
+            DP["DeliveryPipeline<br/>Confirmation, Timeout"]
+        end
+
+        subgraph Coordinators["Orchestrators"]
+            PC["PowerCoordinator<br/>Mode transitions, Hysteresis"]
+            GC["GossipCoordinator<br/>Route gossip, Keepalive"]
+            PCC["PeerConnectionCoordinator<br/>Discovery, Handshake init"]
+        end
+
+        subgraph Policies["Policy Chains"]
+            SPC["SendPolicyChain<br/>Rate limit, Circuit breaker"]
+            BPC["BroadcastPolicyChain<br/>Buffer, Rate limit"]
+            MD["MessageDispatcher<br/>Inbound decode + dispatch"]
         end
 
         subgraph Security["Security Layer"]
             NK["Noise K (E2E)<br/>0-RTT Sender Auth"]
             NXX["Noise XX (Hop-by-Hop)<br/>Mutual Auth + Key Exchange"]
-            RC["Replay Counter<br/>64-entry Sliding Window"]
+            RC["ReplayGuard<br/>64-entry Sliding Window"]
         end
 
         subgraph Transport["Transport Layer"]
@@ -166,27 +178,19 @@ flowchart TB
         CONN["Connections"]
     end
 
-    API --> TA
-    API --> BA
-    TA --> BA
-    TA --> NXX
-    BA --> RA
-    RA --> GA
-    PA --> CA
-    GA --> CA
-    CRA --> TA
-    CRA --> CA
+    API --> SPC & BPC
+    SPC --> SE
+    SPC --> RE
+    SE --> NXX & NK
+    TE --> DP
+    MD --> TE
+    GC --> RE
+    PCC --> SE
 
-    NXX --> L2CAP
-    NXX --> GATT
-    NK -.->|"E2E wraps payload"| CRA
-    RC -.->|"per-sender window"| NK
-
-    L2CAP --> CONN
-    GATT --> CONN
-    PA --> SCAN
-    CA --> ADV
-    CA --> CONN
+    NXX --> L2CAP & GATT
+    L2CAP & GATT --> CONN
+    PC --> SCAN & ADV
+    PCC --> CONN
 
     style App fill:#e8f5e9,stroke:#388e3c
     style Security fill:#fff3e0,stroke:#f57c00
@@ -196,70 +200,9 @@ flowchart TB
 
 ---
 
-## 4. Implementation Phase Dependencies
-
-Gantt chart showing the 7 implementation phases and their dependency relationships.
-
-```mermaid
-gantt
-    title MeshLink Implementation Phases
-    dateFormat X
-    axisFormat %s
-
-    section Foundation
-        Phase 0 - Protocol Spec & Test Infra   :done, p0, 0, 1
-
-    section Transport
-        Phase 1 - BLE Transport (GATT + L2CAP) :active, p1, 1, 2
-
-    section Crypto
-        Phase 2 - Encryption & Key Storage     :p2, 2, 3
-
-    section Mesh & Power (Parallel)
-        Phase 3 - Mesh Routing & Gossip        :p3, 3, 5
-        Phase 5 - Power Mgmt & Hardening       :p5, 3, 5
-
-    section API
-        Phase 4 - Public API & Messaging       :p4, 5, 6
-
-    section Release
-        Phase 6 - Integration Testing & Docs   :p6, 6, 7
-```
-
-### Phase Dependency Graph
-
-```mermaid
-flowchart LR
-    P0["Phase 0<br/>Foundation"]
-    P1["Phase 1<br/>BLE Transport"]
-    P2["Phase 2<br/>Crypto"]
-    P3["Phase 3<br/>Mesh Routing"]
-    P4["Phase 4<br/>Public API"]
-    P5["Phase 5<br/>Power & Hardening"]
-    P6["Phase 6<br/>Testing & Docs"]
-
-    P0 --> P1
-    P1 --> P2
-    P2 --> P3
-    P2 --> P5
-    P3 --> P4
-    P5 --> P4
-    P4 --> P6
-
-    P5 -. "P5.3 uses route costs<br/>from P3.4 (stub: 1.0/hop)" .-> P3
-
-    style P0 fill:#c8e6c9,stroke:#388e3c
-    style P1 fill:#bbdefb,stroke:#1976d2
-    style P2 fill:#fff9c4,stroke:#f9a825
-    style P3 fill:#ffccbc,stroke:#e64a19
-    style P4 fill:#d1c4e9,stroke:#7b1fa2
-    style P5 fill:#ffccbc,stroke:#e64a19
-    style P6 fill:#b2dfdb,stroke:#00796b
-```
-
 ---
 
-## 5. Multi-Hop Routed Message Flow
+## 4. Multi-Hop Routed Message Flow
 
 Sequence diagram showing a direct message from Sender → Relay → Recipient with delivery ACK.
 
@@ -304,7 +247,7 @@ sequenceDiagram
 
 ---
 
-## 6. Noise XX Handshake
+## 5. Noise XX Handshake
 
 The 3-message mutual authentication handshake establishing a hop-by-hop encrypted session.
 
@@ -338,7 +281,7 @@ sequenceDiagram
 
 ---
 
-## 7. Power Mode Transitions
+## 6. Power Mode Transitions
 
 The 3-tier automatic power management system with battery-driven transitions.
 
@@ -369,7 +312,7 @@ stateDiagram-v2
 
 ---
 
-## 8. GATT Chunking & SACK Flow
+## 7. GATT Chunking & SACK Flow
 
 The chunk transfer sequence with selective acknowledgement, relay buffering, and resume-on-disconnect.
 
@@ -419,56 +362,52 @@ sequenceDiagram
 
 ---
 
-## 9. Actor DAG & Message Flow
+## 8. Engine & Coordinator Data Flow
 
-The 7-actor supervision hierarchy with strict downstream-only message flow.
+The engine/coordinator architecture with sealed result types and unidirectional data flow.
 
 ```mermaid
 flowchart TD
-    subgraph Tier1["Tier 1 — Strict (crypto: 2 crashes/60s)"]
-        CRA["CryptoActor\n📦 64 mailbox\nNoise XX/K, Replay Counters"]
+    subgraph Facades["Stateful Engines (sealed result types)"]
+        SE["SecurityEngine<br/>🔒 Noise XX/K, Trust, Replay"]
+        RE["RoutingEngine<br/>🗺️ DSDV, Cost, Dedup"]
+        TE["TransferEngine<br/>📦 Chunking, SACK, AIMD"]
+        DP["DeliveryPipeline<br/>✅ Confirmation, Timeout"]
     end
 
-    subgraph Tier3["Tier 3 — Lenient (5 crashes/60s)"]
-        CA["ConnectionActor\n📦 128 mailbox\nBLE Lifecycle, L2CAP Setup"]
-        TA["TransferActor\n📦 64 mailbox\nChunking, SACK, L2CAP I/O"]
+    subgraph Orchestrators["Coordinators"]
+        PC["PowerCoordinator<br/>⚡ Mode transitions"]
+        GC["GossipCoordinator<br/>📡 Route gossip, Keepalive"]
+        PCC["PeerConnectionCoordinator<br/>🤝 Discovery, Handshake"]
     end
 
-    subgraph Tier2["Tier 2 — Standard (3 crashes/60s)"]
-        RA["RouterActor\n📦 32 mailbox\nDSDV, Route Selection"]
-        BA["BufferActor\n📦 32 mailbox\nStore-Forward, Dedup, TTL"]
-        PA["PresenceActor\n📦 16 mailbox\nPeer Discovery, Sweep"]
-        GA["GossipActor\n📦 16 mailbox\nDifferential Exchange"]
+    subgraph Chains["Policy Chains (pure functions)"]
+        SPC["SendPolicyChain<br/>→ SendDecision"]
+        BPC["BroadcastPolicyChain<br/>→ BroadcastDecision"]
+        MD["MessageDispatcher<br/>→ DispatchSink effects"]
     end
 
     BLE["BLE Transport"]
 
-    BLE -->|BleEvent| CA
-    CA -->|"Downstream ①"| CRA
-    CRA -->|"Downstream ②"| TA
-    TA -->|"Downstream ③"| RA
-    RA -->|"Downstream ④"| BA
-    PA -->|ScanResults| RA
-    GA -->|RouteUpdates| RA
-    BA -.->|"OutboundFrame\n(shared channel)"| CA
+    BLE --> MD
+    MD -->|"Inbound frames"| TE & SE & RE
+    SPC -->|"SendDecision.Direct/Routed"| SE
+    SE -->|"Sealed/Handshake bytes"| TE
+    TE -->|"TransferUpdate"| DP
+    GC -->|"Route updates"| RE
+    PCC -->|"PeerConnectionAction"| SE
+    PC -->|"PowerProfile"| BLE
 
-    CRA -.->|CompletableDeferred| TA
-    TA -.->|CompletableDeferred| RA
-
-    style CA fill:#ffcccc,stroke:#cc0000
-    style TA fill:#ffcccc,stroke:#cc0000
-    style CRA fill:#ffffcc,stroke:#cc9900
-    style RA fill:#cce5ff,stroke:#0066cc
-    style BA fill:#cce5ff,stroke:#0066cc
-    style PA fill:#cce5ff,stroke:#0066cc
-    style GA fill:#cce5ff,stroke:#0066cc
+    style Facades fill:#e3f2fd,stroke:#1976d2
+    style Orchestrators fill:#fff3e0,stroke:#f57c00
+    style Chains fill:#e8f5e9,stroke:#388e3c
 ```
 
-> **DAG invariant:** Downstream actors NEVER send to upstream actors. Reverse communication uses `CompletableDeferred` response channels only. Enforced by code review + compile-time lint.
+> **Design principle:** Engines return sealed result types; the caller pattern-matches and dispatches effects. No engine sends messages directly to another engine. `MeshLink` is the sole wiring layer.
 
 ---
 
-## 10. Gossip Protocol Exchange
+## 9. Gossip Protocol Exchange
 
 Differential gossip exchange between neighbors with split horizon and triggered updates.
 
@@ -505,7 +444,7 @@ sequenceDiagram
 
 ---
 
-## 11. TOFI Trust Model
+## 10. TOFI Trust Model
 
 Trust-on-First-Discover key pinning with strict/softRepin modes and signed rotation handling.
 
@@ -557,7 +496,7 @@ flowchart TD
 
 ---
 
-## 12. Key Rotation Sequence
+## 11. Key Rotation Sequence
 
 Identity key rotation with gossip announcement, grace period, and old-key teardown.
 

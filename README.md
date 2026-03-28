@@ -81,12 +81,10 @@ mesh.send(recipientPeerId, "Hello mesh!".encodeToByteArray())
 
 ## Configuration Presets
 
-| Preset | Max Message | Buffer | Use Case |
-|--------|-------------|--------|----------|
-| `chatOptimized` | 10 KB | 512 KB | Text chat, small payloads |
-| `fileTransferOptimized` | 100 KB | 2 MB | Images, files, large data |
-| `powerOptimized` | 10 KB | 256 KB | IoT, wearables, sensors |
-| `sensorOptimized` | 1 KB | 128 KB | Telemetry, beacons |
+MeshLink ships with four presets — `chatOptimized`, `fileTransferOptimized`,
+`powerOptimized`, and `sensorOptimized`. See the
+[Integration Guide § Configuration](docs/integration-guide.md#configuration)
+for details.
 
 ```kotlin
 val config = MeshLinkConfig.chatOptimized()
@@ -94,14 +92,10 @@ val config = MeshLinkConfig.chatOptimized()
 
 ## Security
 
-MeshLink uses a two-layer encryption model when a `CryptoProvider` is supplied:
-
-| Layer | Protocol | Scope |
-|-------|----------|-------|
-| Hop-by-hop | Noise XX | Per BLE link — mutual authentication, forward secrecy |
-| End-to-end | Noise K | Per message — sender-authenticated, ephemeral keys |
-
-All cryptographic primitives are validated against RFC test vectors (RFC 7748, 8032, 8439, 5869, 6234).
+MeshLink uses two-layer Noise protocol encryption (Noise XX hop-by-hop +
+Noise K end-to-end) validated against RFC test vectors. See the
+[Integration Guide § Encryption & Trust](docs/integration-guide.md#encryption--trust)
+for details.
 
 ## Project Structure
 
@@ -131,7 +125,6 @@ MeshLink/
 ## Documentation
 
 - [Integration Guide](docs/integration-guide.md) — Setup, configuration, and usage patterns
-- [API Reference](docs/api-reference.md) — Complete public API surface
 - [Architecture](docs/architecture.md) — Module structure and data flow
 - [Wire Format Spec](docs/wire-format-spec.md) — Binary protocol specification
 - [Design](docs/design.md) — Design decisions and rationale

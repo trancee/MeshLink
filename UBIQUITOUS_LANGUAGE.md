@@ -64,6 +64,18 @@ flowchart LR
 | **Peripheral** | The BLE role that accepts an inbound GATT connection. | Server, responder |
 | **Relay** | A **Peer** that forwards a **Routed Message** on behalf of others without being the sender or recipient. | Intermediary, forwarder, relay node |
 
+## ⚠️ Terminology Cautions
+
+The following terms are commonly confused. Read this before continuing.
+
+- **"Node" vs "Device" vs "Peer"** — **Peer** is canonical. Use "node" only in graph-theory contexts; avoid "device" except for hardware constraints.
+- **"Message" is overloaded** — **Payload** = app-level content. **Sealed/Routed Message** = encrypted envelope. Qualify control messages explicitly (e.g., "gossip message").
+- **"Eviction" has three meanings** — **Connection Eviction** (removing GATT connections), **Buffer Eviction** (removing stored messages), **Presence Eviction** (marking peers as Gone). Always qualify.
+- **"ACK" has two meanings** — **Chunk ACK** (transport-level) and **Delivery ACK** (application-level). Always use the full term.
+- **"Sequence number" has two meanings** — Chunk sequence (within a Transfer) vs. announcement sequence (DSDV routing freshness). Disambiguate explicitly.
+- **"Session"** — Refers specifically to a **Noise XX Session**. Avoid for any other concept.
+- **"Broadcast" vs "Advertisement"** — **Broadcast** = signed message to all mesh peers. **Advertisement** = BLE advertising packet. Never conflate.
+
 ## Identity & Trust
 
 ```mermaid
@@ -500,22 +512,6 @@ mindmap
 > **Dev:** "What if the **Relay** can't forward because it's at its concurrent **Transfer** limit?"
 >
 > **Domain expert:** "It sends a **NACK** with `bufferFull`. The sender retries with exponential backoff or tries an alternate route."
-
-## Flagged ambiguities
-
-- **"Node" vs "Device" vs "Peer"** — All three were used interchangeably in design discussions. **Peer** is the canonical term (it's what the API exposes). Use "node" only in graph-theory contexts (e.g., "cut vertex node"), and avoid "device" except when discussing physical hardware constraints (e.g., "some Android devices have flaky BLE stacks").
-
-- **"Message" is overloaded** — Used to mean: (a) the app-level content the user sends, (b) the encrypted envelope on the wire, (c) any data unit including gossip control messages. Canonical terms: **Payload** for (a), **Sealed Message** / **Routed Message** for (b), and qualify with type for (c) (e.g., "gossip message", "control message"). Unqualified "message" should only mean a **Direct Message** or **Broadcast** — the things the **Consuming App** sends and receives.
-
-- **"Eviction" has three distinct meanings** — **Connection Eviction** (removing a low-priority GATT connection during **Power Mode** transition), **Buffer Eviction** (removing stored messages when memory is full), and **Presence Eviction** (marking a **Peer** as **Gone** after sweep timeout). Always qualify which kind.
-
-- **"ACK" has two meanings** — **Chunk ACK** (transport-level sliding window acknowledgment during a **Transfer**) and **Delivery ACK** (application-level confirmation that a **Direct Message** was received). Always use the full term.
-
-- **"Sequence number" has two meanings** — The chunk sequence number (ordering **Chunks** within a **Transfer**) and the gossip/DSDV sequence number (ordering **Peer Announcements** for routing freshness). Disambiguate as "chunk sequence number" vs "announcement sequence number."
-
-- **"Session"** — Refers specifically to a **Noise XX Session** (the encrypted channel on a GATT connection). Avoid using "session" for any other concept (app session, user session).
-
-- **"Broadcast" vs "Advertisement"** — A **Broadcast** is a signed message sent to all mesh **Peers** via gossip/flooding. An **Advertisement** is a BLE advertisement packet for peer discovery. Never use "broadcast" to describe BLE advertising behavior.
 
 ## Testing
 

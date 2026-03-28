@@ -25,6 +25,8 @@ A **reference app** ships alongside the library to demonstrate integration patte
 
 ## 2. Cross-Platform Strategy
 
+> ⚠️ **Architecture note:** This section describes the original actor/channel design. The current implementation uses engines, coordinators, and sealed result types. See [architecture.md](architecture.md) for the current module structure.
+
 ### Kotlin Multiplatform (KMP) Architecture
 
 KMP abstracts shared protocol logic (~85% of codebase); platform-specific BLE transport (~15%) is implemented per platform via the `BleTransport` interface. See [Appendix A](#appendix-a-decision-records) for alternatives evaluated.
@@ -361,6 +363,8 @@ flowchart TD
 
 ### Wire Format: Custom Binary Protocol
 
+> 📋 **Canonical reference:** [wire-format-spec.md](wire-format-spec.md) has the complete byte-level specification for all message types. This section covers design rationale only.
+
 All message types use a **hand-specified binary format** — no protobuf, no schema language. Every message layout is documented as byte-offset tables in the protocol RFC.
 
 **Design choices:**
@@ -458,6 +462,8 @@ Since every device operates as both BLE central and peripheral, two devices disc
 - At 244 bytes/chunk, a 100KB payload requires **~410 chunks** for a direct (single-hop) transfer. Multi-hop routed transfers use more chunks due to the `routed_message` envelope overhead (56–148 bytes per chunk depending on hop count).
 
 ### Chunking & Reassembly
+
+> 📋 **Byte layouts:** See [wire-format-spec.md](wire-format-spec.md) for chunk and SACK header formats.
 
 The library handles fragmentation transparently. Consuming apps send a message; the library chunks, transmits, and reassembles on the other side.
 
@@ -2096,6 +2102,8 @@ No attempt to resume active transfers — sender retry via SACK/timeout is the c
 **Slot release during pause:** When a relay transfer completes during `pause()`, the connection slot is released immediately. No new outbound connections are initiated, but slot accounting returns to normal. If no other transfers use the connection, it becomes eligible for normal idle eviction.
 
 ### Concurrency Model
+
+> ⚠️ **Architecture note:** The actor model described below was simplified during implementation to an engine/coordinator pattern with sealed result types. See [architecture.md](architecture.md) for the current structure.
 
 **Android (Kotlin): Actor model** with 7 actors communicating via coroutine channels:
 
