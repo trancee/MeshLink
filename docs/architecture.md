@@ -149,6 +149,12 @@ platform-agnostic logic (in `commonMain`) and platform-specific I/O (in
 |------|---------------|
 | `SecureStorage.kt` | Interface for platform-specific secure key-value storage. |
 
+### `io.meshlink.delivery` — Delivery Pipeline
+
+| File | Responsibility |
+|------|---------------|
+| `DeliveryPipeline.kt` | Facade consolidating delivery tracking, tombstones, deadline timers, reverse-path relay, replay guards, inbound rate limiting, and store-and-forward buffering behind sealed result types. |
+
 ### `io.meshlink.util` — Utilities
 
 | File | Responsibility |

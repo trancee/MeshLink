@@ -37,10 +37,10 @@ import io.meshlink.transfer.TransferUpdate
 import io.meshlink.transport.BleTransport
 import io.meshlink.util.AppIdFilter
 import io.meshlink.util.CircuitBreaker
+import io.meshlink.delivery.AckResult
+import io.meshlink.delivery.BufferResult
+import io.meshlink.delivery.DeliveryPipeline
 import io.meshlink.util.DeliveryOutcome
-import io.meshlink.util.DeliveryDeadlineTimer
-import io.meshlink.util.DeliveryTracker
-import io.meshlink.util.TombstoneSet
 import io.meshlink.util.createPlatformLock
 import io.meshlink.util.currentTimeMillis
 import io.meshlink.util.RateLimiter
@@ -152,14 +152,9 @@ class MeshLink(
     }
 
     private fun flushPendingMessages(peerHex: String, s: CoroutineScope) {
-        val messages = pendingMessages.remove(peerHex) ?: return
-        val now = clock()
-        val recipientBytes = hexToBytes(peerHex)
-        for (msg in messages) {
-            if (config.pendingMessageTtlMs > 0 && (now - msg.enqueueTimeMs) >= config.pendingMessageTtlMs) {
-                continue // TTL expired
-            }
-            doSend(s, recipientBytes, msg.payload)
+        val flushed = deliveryPipeline.flushPending(peerHex, config.pendingMessageTtlMs)
+        for (msg in flushed) {
+            doSend(s, msg.recipient, msg.payload)
         }
     }
 
@@ -207,26 +202,19 @@ class MeshLink(
         clock = clock,
     )
 
-    // Delivery tracking for exactly-once terminal signals
-    private val deliveryTracker = DeliveryTracker()
-
-    // Tombstone set for detecting late ACKs after delivery resolution
-    private val tombstoneSet = TombstoneSet(windowMs = config.tombstoneWindowMs, clock = clock)
-
     // Diagnostic event sink
     private val diagnosticSink = DiagnosticSink(bufferCapacity = config.diagnosticBufferCapacity, clock = clock)
 
-    // Delivery deadline timer: fires DELIVERY_TIMEOUT diagnostic when bufferTtlMs expires
-    private val deliveryDeadlineTimer = DeliveryDeadlineTimer(
+    // Delivery pipeline: consolidates delivery tracking, tombstones, deadlines,
+    // reverse-path relay, replay guards, inbound rate limiting, and store-and-forward
+    private val deliveryPipeline = DeliveryPipeline(
+        clock = clock,
+        tombstoneWindowMs = config.tombstoneWindowMs,
         diagnosticSink = diagnosticSink,
-        deliveryTracker = deliveryTracker,
     )
 
     // Triggered gossip update signal channel (buffered to coalesce rapid changes)
     private val triggeredUpdateChannel = Channel<Unit>(Channel.CONFLATED)
-
-    // Reverse path for delivery ACK relay: messageId hex → fromPeerId
-    private val routedMsgSources = mutableMapOf<String, ByteArray>()
 
     // Power mode engine for battery-aware operation
     private val powerModeEngine = PowerModeEngine(clock = clock)
@@ -253,14 +241,6 @@ class MeshLink(
 
     // Replay protection (independent of crypto — counters are not cryptographic)
     private val outboundReplayGuard = ReplayGuard()
-    private val inboundReplayGuards = mutableMapOf<String, ReplayGuard>()
-
-    // Inbound rate limiting: per-sender message count within sliding window
-    private val inboundRateCounts = mutableMapOf<String, List<Long>>()
-
-    // Store-and-forward: buffer messages for unreachable peers
-    private data class PendingMessage(val recipient: ByteArray, val payload: ByteArray, val enqueueTimeMs: Long)
-    private val pendingMessages = mutableMapOf<String, MutableList<PendingMessage>>()
 
     override fun start(): Result<Unit> {
         if (started) return Result.success(Unit)
@@ -395,12 +375,10 @@ class MeshLink(
         // Stop BLE transport before cancelling scope
         CoroutineScope(baseContext).launch { transport.stopAll() }
         // Cancel all delivery deadline timers before processing in-flight transfers
-        deliveryDeadlineTimer.cancelAll()
+        deliveryPipeline.cancelAllDeadlines()
         // Emit DELIVERY_TIMEOUT for all in-flight transfers before clearing
         for (key in outboundRecipients.keys) {
-            val outcome = deliveryTracker.recordOutcome(key, DeliveryOutcome.FAILED_DELIVERY_TIMEOUT)
-            if (outcome != null) {
-                tombstoneSet.add(key)
+            if (deliveryPipeline.recordFailure(key, DeliveryOutcome.FAILED_DELIVERY_TIMEOUT)) {
                 _transferFailures.tryEmit(
                     TransferFailure(Uuid.fromByteArray(hexToBytes(key)), DeliveryOutcome.FAILED_DELIVERY_TIMEOUT)
                 )
@@ -429,12 +407,8 @@ class MeshLink(
         routingEngine.clear()
         pauseQueue.clear()
         relayQueue.clear()
-        routedMsgSources.clear()
+        deliveryPipeline.clear()
         securityEngine?.clear()
-        inboundReplayGuards.clear()
-        inboundRateCounts.clear()
-        pendingMessages.clear()
-        tombstoneSet.clear()
         lastHealthUpdateMs = 0L
     }
 
@@ -503,15 +477,12 @@ class MeshLink(
         val staleKeys = transferEngine.sweepStaleOutbound(maxAgeMs)
         for (key in staleKeys) {
             outboundRecipients.remove(key)
-            val outcome = deliveryTracker.recordOutcome(key, DeliveryOutcome.FAILED_ACK_TIMEOUT)
-            if (outcome != null) {
-                tombstoneSet.add(key)
+            if (deliveryPipeline.recordFailure(key, DeliveryOutcome.FAILED_ACK_TIMEOUT)) {
                 _transferFailures.tryEmit(
                     TransferFailure(Uuid.fromByteArray(hexToBytes(key)), DeliveryOutcome.FAILED_ACK_TIMEOUT)
                 )
             }
         }
-        tombstoneSet.sweep()
         return staleKeys.size
     }
 
@@ -521,24 +492,13 @@ class MeshLink(
     }
 
     override fun sweepExpiredPendingMessages(): Int {
-        if (config.pendingMessageTtlMs <= 0) return 0
-        val now = clock()
-        var count = 0
-        val emptyKeys = mutableListOf<String>()
-        for ((peerHex, messages) in pendingMessages) {
-            val before = messages.size
-            messages.removeAll { (now - it.enqueueTimeMs) >= config.pendingMessageTtlMs }
-            val expired = before - messages.size
-            count += expired
-            for (i in 0 until expired) {
-                _transferFailures.tryEmit(
-                    TransferFailure(Uuid.random(), DeliveryOutcome.FAILED_DELIVERY_TIMEOUT)
-                )
-            }
-            if (messages.isEmpty()) emptyKeys.add(peerHex)
+        val expired = deliveryPipeline.sweepExpiredPending(config.pendingMessageTtlMs)
+        for (i in 0 until expired) {
+            _transferFailures.tryEmit(
+                TransferFailure(Uuid.random(), DeliveryOutcome.FAILED_DELIVERY_TIMEOUT)
+            )
         }
-        for (key in emptyKeys) pendingMessages.remove(key)
-        return count
+        return expired
     }
 
     override fun updateBattery(batteryPercent: Int, isCharging: Boolean) {
@@ -688,14 +648,13 @@ class MeshLink(
                 // Buffer for store-and-forward if enabled
                 if (config.pendingMessageTtlMs > 0) {
                     val recipientHex = recipient.toHex()
-                    val list = pendingMessages.getOrPut(recipientHex) { mutableListOf() }
-                    list.add(PendingMessage(recipient, payload, clock()))
-                    // Evict oldest if over capacity
-                    while (list.size > config.pendingMessageCapacity) {
-                        list.removeAt(0)
-                        s.launch {
-                            _transferFailures.emit(TransferFailure(Uuid.random(), DeliveryOutcome.FAILED_BUFFER_FULL))
+                    when (deliveryPipeline.bufferPending(recipientHex, recipient, payload, config.pendingMessageCapacity)) {
+                        is BufferResult.Evicted -> {
+                            s.launch {
+                                _transferFailures.emit(TransferFailure(Uuid.random(), DeliveryOutcome.FAILED_BUFFER_FULL))
+                            }
                         }
+                        is BufferResult.Buffered -> {}
                     }
                     return Result.success(Uuid.random())
                 }
@@ -718,20 +677,10 @@ class MeshLink(
     private fun doSend(s: CoroutineScope, recipient: ByteArray, payload: ByteArray): Result<Uuid> {
         val messageId = Uuid.random().toByteArray()
         val key = messageId.toHex()
-        deliveryTracker.register(key)
-
-        // Start delivery deadline timer based on bufferTtlMs
-        if (config.bufferTtlMs > 0) {
-            deliveryDeadlineTimer.startTimer(
-                scope = s,
-                messageKey = key,
-                deadlineMs = config.bufferTtlMs,
-            ) { expiredKey ->
-                val uuid = Uuid.fromByteArray(hexToBytes(expiredKey))
-                _transferFailures.tryEmit(TransferFailure(uuid, DeliveryOutcome.FAILED_DELIVERY_TIMEOUT))
-                transferEngine.removeOutbound(expiredKey)
-                outboundRecipients.remove(expiredKey)
-            }
+        deliveryPipeline.registerOutbound(s, key, config.bufferTtlMs) { expiredKey ->
+            _transferFailures.tryEmit(TransferFailure(Uuid.fromByteArray(hexToBytes(expiredKey)), DeliveryOutcome.FAILED_DELIVERY_TIMEOUT))
+            transferEngine.removeOutbound(expiredKey)
+            outboundRecipients.remove(expiredKey)
         }
 
         // Encrypt payload via security engine
@@ -980,15 +929,14 @@ class MeshLink(
         when (update) {
             is TransferUpdate.Complete -> {
                 outboundRecipients.remove(key)
-                deliveryDeadlineTimer.cancel(key)
+                deliveryPipeline.cancelDeadline(key)
                 emitHealthUpdate()
                 safeEmit(_transferProgress, TransferProgress(
                     messageId = Uuid.fromByteArray(ack.messageId),
                     chunksAcked = update.ackedCount,
                     totalChunks = update.totalChunks,
                 ), "transferProgress")
-                if (deliveryTracker.recordOutcome(key, DeliveryOutcome.CONFIRMED) != null) {
-                    tombstoneSet.add(key)
+                if (deliveryPipeline.recordFailure(key, DeliveryOutcome.CONFIRMED)) {
                     safeEmit(_deliveryConfirmations, Uuid.fromByteArray(ack.messageId), "deliveryConfirmations")
                 }
             }
@@ -1063,9 +1011,7 @@ class MeshLink(
 
         // Replay guard: check counter if present (counter=0 means unprotected/legacy)
         if (routed.replayCounter > 0u) {
-            val originHex = routed.origin.toHex()
-            val guard = inboundReplayGuards.getOrPut(originHex) { ReplayGuard() }
-            if (!guard.check(routed.replayCounter)) {
+            if (!deliveryPipeline.checkReplay(routed.origin.toHex(), routed.replayCounter)) {
                 diagnosticSink.emit(DiagnosticCode.REPLAY_REJECTED, Severity.WARN,
                     "messageId=$key, origin=${routed.origin.toHex()}, counter=${routed.replayCounter}")
                 return
@@ -1085,15 +1031,11 @@ class MeshLink(
             // Inbound rate limiting: check per-sender rate
             if (config.inboundRateLimitPerSenderPerMinute > 0) {
                 val originHex = routed.origin.toHex()
-                val now = clock()
-                val pruned = (inboundRateCounts[originHex] ?: emptyList()).filter { now - it <= 60_000L }
-                if (pruned.size >= config.inboundRateLimitPerSenderPerMinute) {
-                    inboundRateCounts[originHex] = pruned
+                if (!deliveryPipeline.checkInboundRate(originHex, config.inboundRateLimitPerSenderPerMinute)) {
                     diagnosticSink.emit(DiagnosticCode.RATE_LIMIT_HIT, Severity.WARN,
-                        "inbound, origin=$originHex, count=${pruned.size}")
-                    return // Drop — sender exceeds inbound rate limit
+                        "inbound, origin=$originHex")
+                    return
                 }
-                inboundRateCounts[originHex] = pruned + now
             }
             // Decrypt via security engine
             val deliveredPayload = when (val ur = securityEngine?.unseal(routed.payload)) {
@@ -1140,7 +1082,7 @@ class MeshLink(
         }
 
         // Record reverse path for delivery ACK relay
-        routedMsgSources[key] = fromPeerId
+        deliveryPipeline.recordReversePath(key, fromPeerId)
 
         val newVisited = routed.visitedList + listOf(transport.localPeerId)
         val relayed = WireCodec.encodeRoutedMessage(
@@ -1184,27 +1126,17 @@ class MeshLink(
             return
         }
 
-        // Check tombstone set first — ACK for already-resolved delivery
-        if (tombstoneSet.contains(key)) {
-            diagnosticSink.emit(DiagnosticCode.LATE_DELIVERY_ACK, Severity.INFO, "messageId=$key")
-            return
-        }
-
-        // If tracked, use exactly-once guard; if untracked, accept (external ACK)
-        val outcome = deliveryTracker.recordOutcome(key, DeliveryOutcome.CONFIRMED)
-        if (outcome != null || !deliveryTracker.isTracked(key)) {
-            deliveryDeadlineTimer.cancel(key)
-            if (outcome != null) tombstoneSet.add(key)
-            safeEmit(_deliveryConfirmations, Uuid.fromByteArray(ack.messageId), "deliveryConfirmations")
-        } else if (deliveryTracker.isTracked(key)) {
-            // Late ACK: messageId already resolved (tombstoned in delivery tracker)
-            tombstoneSet.add(key)
-            diagnosticSink.emit(DiagnosticCode.LATE_DELIVERY_ACK, Severity.INFO, "messageId=$key")
-        }
-        // Relay ACK back along reverse path if we were a relay node
-        val source = routedMsgSources.remove(key)
-        if (source != null) {
-            scope?.launch { safeSend(source, data) }
+        when (val result = deliveryPipeline.processAck(key)) {
+            is AckResult.Confirmed -> {
+                safeEmit(_deliveryConfirmations, Uuid.fromByteArray(ack.messageId), "deliveryConfirmations")
+            }
+            is AckResult.ConfirmedAndRelay -> {
+                safeEmit(_deliveryConfirmations, Uuid.fromByteArray(ack.messageId), "deliveryConfirmations")
+                scope?.launch { safeSend(result.relayTo, data) }
+            }
+            is AckResult.Late -> {
+                diagnosticSink.emit(DiagnosticCode.LATE_DELIVERY_ACK, Severity.INFO, "messageId=$key")
+            }
         }
     }
 
