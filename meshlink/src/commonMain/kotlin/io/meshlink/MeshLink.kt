@@ -501,7 +501,7 @@ class MeshLink(
                 if (routingEngine.nextHopFailureRate(nextHop) > NEXTHOP_UNRELIABLE_THRESHOLD &&
                     routingEngine.nextHopFailureCount(nextHop) >= NEXTHOP_MIN_SAMPLES) {
                     diagnosticSink.emit(DiagnosticCode.NEXTHOP_UNRELIABLE, Severity.WARN,
-                        "nextHop=$nextHop, failureRate=${"%.2f".format(routingEngine.nextHopFailureRate(nextHop))}")
+                        "nextHop=$nextHop, failureRate=${((routingEngine.nextHopFailureRate(nextHop) * 100).toInt())}%")
                 }
             }
             if (deliveryPipeline.recordFailure(key, DeliveryOutcome.FAILED_ACK_TIMEOUT)) {
