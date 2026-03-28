@@ -39,7 +39,7 @@ class MessageDispatcher(
     private val diagnosticSink: DiagnosticSink,
     private val localPeerId: ByteArray,
     private val config: MeshLinkConfig,
-    private val outboundRecipients: MutableMap<String, ByteArray>,
+    private val outboundTracker: OutboundTracker,
     private val sink: DispatchSink,
 ) {
     suspend fun dispatch(fromPeerId: ByteArray, data: ByteArray) {
@@ -155,13 +155,13 @@ class MessageDispatcher(
     private suspend fun handleChunkAck(data: ByteArray) {
         val ack = WireCodec.decodeChunkAck(data)
         val key = ack.messageId.toHex()
-        val recipient = outboundRecipients[key]
+        val recipient = outboundTracker.recipient(key)
 
         val update = transferEngine.onAck(key, ack.ackSequence.toInt(), ack.sackBitmask)
 
         when (update) {
             is TransferUpdate.Complete -> {
-                outboundRecipients.remove(key)
+                outboundTracker.removeRecipient(key)
                 deliveryPipeline.cancelDeadline(key)
                 sink.onOutboundComplete(key, ack.messageId)
                 sink.onTransferProgress(ack.messageId, update.ackedCount, update.totalChunks)

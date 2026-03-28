@@ -100,7 +100,7 @@ class MessageDispatcherTest {
             diagnosticSink = diagnosticSink,
             localPeerId = localPeer,
             config = config,
-            outboundRecipients = mutableMapOf(),
+            outboundTracker = OutboundTracker(),
             sink = sink,
         )
         return dispatcher to sink
@@ -312,7 +312,7 @@ class MessageDispatcherTest {
             diagnosticSink = diagnosticSink,
             localPeerId = localPeer,
             config = config,
-            outboundRecipients = mutableMapOf(),
+            outboundTracker = OutboundTracker(),
             sink = sink,
         )
 
@@ -363,7 +363,7 @@ class MessageDispatcherTest {
             diagnosticSink = diagnosticSink,
             localPeerId = localPeer,
             config = config,
-            outboundRecipients = mutableMapOf(),
+            outboundTracker = OutboundTracker(),
             sink = sink,
         )
 

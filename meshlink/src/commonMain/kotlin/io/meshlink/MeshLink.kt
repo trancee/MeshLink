@@ -3,7 +3,6 @@ package io.meshlink
 import io.meshlink.config.MeshLinkConfig
 import io.meshlink.crypto.CryptoProvider
 import io.meshlink.crypto.HandshakePayload
-import io.meshlink.crypto.ReplayGuard
 import io.meshlink.crypto.SealResult
 import io.meshlink.crypto.SecurityEngine
 import io.meshlink.crypto.TrustStore
@@ -15,6 +14,7 @@ import io.meshlink.diagnostics.Severity
 import io.meshlink.dispatch.DispatchSink
 import io.meshlink.dispatch.InboundValidator
 import io.meshlink.dispatch.MessageDispatcher
+import io.meshlink.dispatch.OutboundTracker
 import io.meshlink.model.KeyChangeEvent
 import io.meshlink.model.Message
 import io.meshlink.model.PeerEvent
@@ -143,12 +143,12 @@ class MeshLink(
         val peerHex = peerId.toHex()
         for (key in eligibleKeys) {
             val info = transferEngine.getOutboundRecipientInfo(key) ?: continue
-            val recipientHex = outboundRecipients[key]?.toHex() ?: continue
+            val recipientHex = outboundTracker.recipient(key)?.toHex() ?: continue
             if (recipientHex == peerHex && !info.isComplete && !info.isFailed) {
                 // Re-send remaining chunks via a dummy ACK to trigger retransmit
                 val update = transferEngine.onAck(key, -1, 0uL)
                 if (update is TransferUpdate.Progress) {
-                    dispatchChunks(s, outboundRecipients[key]!!, update.chunksToSend, info.messageId)
+                    dispatchChunks(s, outboundTracker.recipient(key)!!, update.chunksToSend, info.messageId)
                 }
             }
         }
@@ -167,10 +167,8 @@ class MeshLink(
         maxConcurrentInboundSessions = config.maxConcurrentInboundSessions,
     )
 
-    // Outbound recipient tracking: messageId hex → recipient peerId
-    private val outboundRecipients = mutableMapOf<String, ByteArray>()
-    // Outbound next-hop tracking: messageId hex → next-hop hex (for routed sends)
-    private val outboundNextHops = mutableMapOf<String, String>()
+    // Outbound message state tracking (recipients, next-hops, replay counter)
+    private val outboundTracker = OutboundTracker()
 
     private val pauseManager = PauseManager(
         sendQueueCapacity = config.pendingMessageCapacity,
@@ -278,7 +276,7 @@ class MeshLink(
         diagnosticSink = diagnosticSink,
         localPeerId = transport.localPeerId,
         config = config,
-        outboundRecipients = outboundRecipients,
+        outboundTracker = outboundTracker,
         sink = object : DispatchSink {
             override suspend fun onMessageReceived(senderId: ByteArray, payload: ByteArray) {
                 safeEmit(_messages, Message(senderId = senderId, payload = payload), "messages")
@@ -292,7 +290,7 @@ class MeshLink(
             }
             override suspend fun onDeliveryConfirmed(messageId: ByteArray) {
                 val key = messageId.toHex()
-                outboundNextHops.remove(key)?.let { nextHop ->
+                outboundTracker.removeNextHop(key)?.let { nextHop ->
                     routingEngine.recordNextHopSuccess(nextHop)
                 }
                 safeEmit(_deliveryConfirmations, Uuid.fromByteArray(messageId), "deliveryConfirmations")
@@ -318,9 +316,6 @@ class MeshLink(
     override val localPublicKey: ByteArray? get() = securityEngine?.localPublicKey
     override fun peerPublicKey(peerIdHex: String): ByteArray? = securityEngine?.peerPublicKey(peerIdHex)
     override val broadcastPublicKey: ByteArray? get() = securityEngine?.localBroadcastPublicKey
-
-    // Replay protection (independent of crypto — counters are not cryptographic)
-    private val outboundReplayGuard = ReplayGuard()
 
     override fun start(): Result<Unit> {
         if (started) return Result.success(Unit)
@@ -360,7 +355,7 @@ class MeshLink(
                         if (action.isNewPeer) {
                             safeEmit(_peers, PeerEvent.Found(action.peerId), "peers")
                             emitHealthUpdate()
-                            val preExistingTransferKeys = outboundRecipients.keys.toSet()
+                            val preExistingTransferKeys = outboundTracker.allRecipientKeys()
                             flushPendingMessages(action.peerId.toHex(), newScope)
                             resumeTransfers(action.peerId, newScope, preExistingTransferKeys)
                         }
@@ -412,7 +407,7 @@ class MeshLink(
         // Cancel all delivery deadline timers before processing in-flight transfers
         deliveryPipeline.cancelAllDeadlines()
         // Emit DELIVERY_TIMEOUT for all in-flight transfers before clearing
-        for (key in outboundRecipients.keys) {
+        for (key in outboundTracker.allRecipientKeys()) {
             if (deliveryPipeline.recordFailure(key, DeliveryOutcome.FAILED_DELIVERY_TIMEOUT)) {
                 _transferFailures.tryEmit(
                     TransferFailure(Uuid.fromByteArray(hexToBytes(key)), DeliveryOutcome.FAILED_DELIVERY_TIMEOUT)
@@ -438,8 +433,7 @@ class MeshLink(
 
     private fun clearState() {
         transferEngine.clearAll()
-        outboundRecipients.clear()
-        outboundNextHops.clear()
+        outboundTracker.clear()
         routingEngine.clear()
         pauseManager.clear()
         deliveryPipeline.clear()
@@ -505,8 +499,8 @@ class MeshLink(
     override fun sweepStaleTransfers(maxAgeMs: Long): Int {
         val staleKeys = transferEngine.sweepStaleOutbound(maxAgeMs)
         for (key in staleKeys) {
-            outboundRecipients.remove(key)
-            outboundNextHops.remove(key)?.let { nextHop ->
+            outboundTracker.removeRecipient(key)
+            outboundTracker.removeNextHop(key)?.let { nextHop ->
                 routingEngine.recordNextHopFailure(nextHop)
                 if (routingEngine.nextHopFailureRate(nextHop) > NEXTHOP_UNRELIABLE_THRESHOLD &&
                     routingEngine.nextHopFailureCount(nextHop) >= NEXTHOP_MIN_SAMPLES) {
@@ -679,8 +673,8 @@ class MeshLink(
         deliveryPipeline.registerOutbound(s, key, config.bufferTtlMs) { expiredKey ->
             _transferFailures.tryEmit(TransferFailure(Uuid.fromByteArray(hexToBytes(expiredKey)), DeliveryOutcome.FAILED_DELIVERY_TIMEOUT))
             transferEngine.removeOutbound(expiredKey)
-            outboundRecipients.remove(expiredKey)
-            outboundNextHops.remove(expiredKey)?.let { nextHop ->
+            outboundTracker.removeRecipient(expiredKey)
+            outboundTracker.removeNextHop(expiredKey)?.let { nextHop ->
                 routingEngine.recordNextHopFailure(nextHop)
             }
         }
@@ -694,7 +688,7 @@ class MeshLink(
 
         val chunkSize = config.mtu - WireCodec.CHUNK_HEADER_SIZE
         val handle = transferEngine.beginSend(key, messageId, wirePayload, chunkSize)
-        outboundRecipients[key] = recipient
+        outboundTracker.registerRecipient(key, recipient)
 
         // Check buffer pressure after adding transfer
         checkBufferPressure()
@@ -712,7 +706,7 @@ class MeshLink(
     ): Result<Uuid> {
         val messageId = Uuid.random()
         val key = messageId.toByteArray().toHex()
-        outboundNextHops[key] = nextHopHex
+        outboundTracker.registerNextHop(key, nextHopHex)
         val encoded = WireCodec.encodeRoutedMessage(
             messageId = messageId.toByteArray(),
             origin = transport.localPeerId,
@@ -720,7 +714,7 @@ class MeshLink(
             hopLimit = 10u,
             visitedList = listOf(transport.localPeerId),
             payload = payload,
-            replayCounter = outboundReplayGuard.advance(),
+            replayCounter = outboundTracker.advanceReplayCounter(),
         )
         s.launch { safeSend(hexToBytes(nextHopHex), encoded) }
         return Result.success(messageId)
