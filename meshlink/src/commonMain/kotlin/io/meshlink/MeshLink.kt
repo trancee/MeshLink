@@ -20,9 +20,9 @@ import io.meshlink.model.Message
 import io.meshlink.model.PeerEvent
 import io.meshlink.model.TransferFailure
 import io.meshlink.model.TransferProgress
-import io.meshlink.power.MemoryPressure
-import io.meshlink.power.PowerModeEngine
-import io.meshlink.power.TieredShedder
+import io.meshlink.power.ModeChangeResult
+import io.meshlink.power.PowerCoordinator
+import io.meshlink.power.ShedAction
 import io.meshlink.protocol.ProtocolVersion
 import io.meshlink.routing.GossipEntry
 import io.meshlink.routing.LearnedRoute
@@ -142,10 +142,9 @@ class MeshLink(
     }
 
     private fun checkBufferPressure() {
-        if (config.bufferCapacity <= 0) return
-        val usedBytes = transferEngine.outboundBufferBytes() + transferEngine.inboundBufferBytes()
-        val utilPercent = usedBytes * 100 / config.bufferCapacity
-        if (utilPercent >= 80) {
+        val usedBytes = (transferEngine.outboundBufferBytes() + transferEngine.inboundBufferBytes()).toLong()
+        if (powerCoordinator.shouldWarnBufferPressure(usedBytes, config.bufferCapacity.toLong())) {
+            val utilPercent = usedBytes * 100 / config.bufferCapacity
             diagnosticSink.emit(DiagnosticCode.BUFFER_PRESSURE, Severity.WARN,
                 "utilization=$utilPercent%, used=$usedBytes, capacity=${config.bufferCapacity}")
         }
@@ -216,9 +215,8 @@ class MeshLink(
     // Triggered gossip update signal channel (buffered to coalesce rapid changes)
     private val triggeredUpdateChannel = Channel<Unit>(Channel.CONFLATED)
 
-    // Power mode engine for battery-aware operation
-    private val powerModeEngine = PowerModeEngine(clock = clock)
-    private var currentPowerMode = "PERFORMANCE"
+    // Power coordinator for battery-aware operation
+    private val powerCoordinator = PowerCoordinator(clock = clock)
 
     // App ID filter for broadcast isolation
     private val appIdFilter = AppIdFilter(config.appId)
@@ -339,7 +337,7 @@ class MeshLink(
         if (config.gossipIntervalMs > 0) {
             newScope.launch {
                 while (started) {
-                    val triggered = withTimeoutOrNull(routingEngine.effectiveGossipInterval(currentPowerMode)) {
+                    val triggered = withTimeoutOrNull(routingEngine.effectiveGossipInterval(powerCoordinator.currentMode)) {
                         triggeredUpdateChannel.receive()
                     }
                     if (!started) break
@@ -445,10 +443,10 @@ class MeshLink(
             reachablePeers = routingEngine.connectedPeerCount,
             bufferUtilizationPercent = utilPercent,
             activeTransfers = transferEngine.outboundCount,
-            powerMode = currentPowerMode,
+            powerMode = powerCoordinator.currentMode,
             avgRouteCost = routingEngine.avgCost(),
             relayQueueSize = relayQueue.size,
-            effectiveGossipIntervalMs = routingEngine.effectiveGossipInterval(currentPowerMode),
+            effectiveGossipIntervalMs = routingEngine.effectiveGossipInterval(powerCoordinator.currentMode),
         )
     }
 
@@ -502,41 +500,33 @@ class MeshLink(
     }
 
     override fun updateBattery(batteryPercent: Int, isCharging: Boolean) {
-        val oldMode = currentPowerMode
-        currentPowerMode = powerModeEngine.update(batteryPercent, isCharging).name
-        if (currentPowerMode != oldMode) {
-            emitHealthUpdate()
+        when (powerCoordinator.updateBattery(batteryPercent, isCharging)) {
+            is ModeChangeResult.Changed -> emitHealthUpdate()
+            is ModeChangeResult.Unchanged -> {}
         }
     }
 
     override fun shedMemoryPressure(): List<String> {
         val health = meshHealth()
-        val level = when {
-            health.bufferUtilizationPercent >= 90 -> MemoryPressure.CRITICAL
-            health.bufferUtilizationPercent >= 70 -> MemoryPressure.HIGH
-            health.bufferUtilizationPercent >= 50 -> MemoryPressure.MODERATE
-            else -> return emptyList()
-        }
-        val shedder = TieredShedder(
-            relayBufferCount = transferEngine.inboundCount,
-            dedupEntries = routingEngine.dedupSize,
-            connectionCount = routingEngine.peerCount,
+        val level = powerCoordinator.evaluatePressure(health.bufferUtilizationPercent)
+            ?: return emptyList()
+        val results = powerCoordinator.computeShedActions(
+            level, transferEngine.inboundCount, routingEngine.dedupSize, routingEngine.peerCount
         )
-        val results = shedder.shed(level)
         val actions = mutableListOf<String>()
         for (result in results) {
             when (result.action) {
-                io.meshlink.power.ShedAction.RELAY_BUFFERS_CLEARED -> {
+                ShedAction.RELAY_BUFFERS_CLEARED -> {
                     transferEngine.clearAll()
                     val relayCount = relayQueue.size
                     relayQueue.clear()
                     actions.add("Cleared ${result.count} relay buffers, $relayCount queued relays")
                 }
-                io.meshlink.power.ShedAction.DEDUP_TRIMMED -> {
+                ShedAction.DEDUP_TRIMMED -> {
                     routingEngine.clearDedup()
                     actions.add("Trimmed ${result.count} dedup entries")
                 }
-                io.meshlink.power.ShedAction.CONNECTIONS_DROPPED -> {
+                ShedAction.CONNECTIONS_DROPPED -> {
                     actions.add("Would drop ${result.count} connections")
                 }
             }
@@ -739,7 +729,7 @@ class MeshLink(
         if (connectedPeers.isEmpty()) return
 
         for (peerHex in connectedPeers) {
-            if (isTriggered && !routingEngine.shouldSendTriggeredUpdate(peerHex, currentPowerMode)) {
+            if (isTriggered && !routingEngine.shouldSendTriggeredUpdate(peerHex, powerCoordinator.currentMode)) {
                 continue
             }
 

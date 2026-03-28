@@ -118,6 +118,7 @@ platform-agnostic logic (in `commonMain`) and platform-specific I/O (in
 
 | File | Responsibility |
 |------|---------------|
+| `PowerCoordinator.kt` | Facade consolidating power-mode transitions, memory-pressure evaluation, and buffer-pressure monitoring behind sealed result types. |
 | `PowerModeEngine.kt` | Hysteresis-based mode transitions driven by battery level and charging state. |
 | `AdvertisingPolicy.kt` | Maps power mode to BLE advertising interval and scan duty cycle. |
 | `TransferScheduler.kt` | Adjusts max concurrent transfers per power mode. |
@@ -444,6 +445,11 @@ All cryptography is implemented in **pure Kotlin** with no native bindings:
 ---
 
 ## Power Management
+
+`PowerCoordinator` is the facade that consolidates power-mode transitions
+(with hysteresis), memory-pressure evaluation, and buffer-pressure monitoring
+behind sealed result types (`ModeChangeResult`). MeshLink delegates all
+power decisions to `PowerCoordinator` and pattern-matches on results.
 
 MeshLink automatically adapts BLE behavior based on device battery level.
 
