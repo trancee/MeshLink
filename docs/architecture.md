@@ -104,6 +104,7 @@ platform-agnostic logic (in `commonMain`) and platform-specific I/O (in
 
 | File | Responsibility |
 |------|---------------|
+| `SecurityEngine.kt` | Facade consolidating E2E encryption, signatures, handshakes, and peer key lifecycle. |
 | `CryptoProvider.kt` | Interface for all cryptographic primitives (Ed25519, X25519, ChaCha20-Poly1305, SHA-256, HKDF). |
 | `NoiseXXHandshake.kt` | Noise XX handshake — mutual authentication with forward secrecy. |
 | `PeerHandshakeManager.kt` | Multi-peer handshake orchestration and session key storage. |
@@ -365,7 +366,7 @@ After the three-message handshake:
 - All subsequent hop-by-hop traffic is encrypted with ChaCha20-Poly1305.
 
 **Implementation:** `NoiseXXHandshake` (initiator/responder factory methods)
-and `PeerHandshakeManager` (multi-peer orchestration).
+and `PeerHandshakeManager` (multi-peer orchestration), both managed by `SecurityEngine`.
 
 ### Layer 2: End-to-End — Noise K
 

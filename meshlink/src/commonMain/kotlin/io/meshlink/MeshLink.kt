@@ -1,13 +1,15 @@
 package io.meshlink
 
 import io.meshlink.config.MeshLinkConfig
-import io.meshlink.crypto.CryptoKeyPair
 import io.meshlink.crypto.CryptoProvider
 import io.meshlink.crypto.HandshakePayload
-import io.meshlink.crypto.NoiseKSealer
-import io.meshlink.crypto.PeerHandshakeManager
+import io.meshlink.crypto.KeyRegistrationResult
 import io.meshlink.crypto.ReplayGuard
+import io.meshlink.crypto.RotationResult
+import io.meshlink.crypto.SealResult
+import io.meshlink.crypto.SecurityEngine
 import io.meshlink.crypto.TrustStore
+import io.meshlink.crypto.UnsealResult
 import io.meshlink.diagnostics.DiagnosticCode
 import io.meshlink.diagnostics.DiagnosticEvent
 import io.meshlink.diagnostics.DiagnosticSink
@@ -237,30 +239,25 @@ class MeshLink(
     // App ID filter for broadcast isolation
     private val appIdFilter = AppIdFilter(config.appId)
 
-    // Replay protection for routed messages
+    // Security engine (consolidates E2E encryption, signatures, handshakes, key management)
+    private val securityEngine: SecurityEngine? = crypto?.let {
+        SecurityEngine(
+            crypto = it,
+            handshakePayload = HandshakePayload(
+                protocolVersion = ((config.protocolVersion.major shl 8) or config.protocolVersion.minor).toUShort(),
+                capabilityFlags = if (config.l2capEnabled) HandshakePayload.CAP_L2CAP else 0u,
+                l2capPsm = 0u,
+            ).encode(),
+        )
+    }
+
+    override val localPublicKey: ByteArray? get() = securityEngine?.localPublicKey
+    override fun peerPublicKey(peerIdHex: String): ByteArray? = securityEngine?.peerPublicKey(peerIdHex)
+    override val broadcastPublicKey: ByteArray? get() = securityEngine?.localBroadcastPublicKey
+
+    // Replay protection (independent of crypto — counters are not cryptographic)
     private val outboundReplayGuard = ReplayGuard()
     private val inboundReplayGuards = mutableMapOf<String, ReplayGuard>()
-
-    // E2E encryption
-    private var localKeyPair: CryptoKeyPair? = crypto?.generateX25519KeyPair()
-    private var sealer: NoiseKSealer? = crypto?.let { NoiseKSealer(it) }
-    override val localPublicKey: ByteArray? get() = localKeyPair?.publicKey
-    override fun peerPublicKey(peerIdHex: String): ByteArray? = peerPublicKeys[peerIdHex]
-    private val peerPublicKeys = mutableMapOf<String, ByteArray>()
-
-    // Ed25519 signing for broadcasts and delivery ACKs
-    private var broadcastKeyPair: CryptoKeyPair? = crypto?.generateEd25519KeyPair()
-    override val broadcastPublicKey: ByteArray? get() = broadcastKeyPair?.publicKey
-
-    // Noise XX handshake manager for hop-by-hop encryption
-    private val handshakePayload: ByteArray = HandshakePayload(
-        protocolVersion = ((config.protocolVersion.major shl 8) or config.protocolVersion.minor).toUShort(),
-        capabilityFlags = if (config.l2capEnabled) HandshakePayload.CAP_L2CAP else 0u,
-        l2capPsm = 0u, // PSM assigned at runtime by BLE stack
-    ).encode()
-    private val handshakeManager: PeerHandshakeManager? = crypto?.let {
-        PeerHandshakeManager(it, crypto.generateX25519KeyPair(), localPayload = handshakePayload)
-    }
 
     // Inbound rate limiting: per-sender message count within sliding window
     private val inboundRateCounts = mutableMapOf<String, List<Long>>()
@@ -303,18 +300,17 @@ class MeshLink(
                     val isNewPeer = presenceTracker.state(event.peerId.toHex()) != PresenceState.CONNECTED
                     presenceTracker.peerSeen(event.peerId.toHex())
                     // Extract peer's X25519 public key from advertisement if present
-                    if (advPayload.size >= 34) {
+                    if (advPayload.size >= 34 && securityEngine != null) {
                         val newKey = advPayload.copyOfRange(2, 34)
                         val peerHex = event.peerId.toHex()
-                        val previousKey = peerPublicKeys[peerHex]
-                        if (previousKey != null && !previousKey.contentEquals(newKey)) {
+                        val regResult = securityEngine.registerPeerKey(peerHex, newKey)
+                        if (regResult is KeyRegistrationResult.Changed) {
                             _keyChanges.tryEmit(KeyChangeEvent(
                                 peerId = event.peerId.copyOf(),
-                                previousKey = previousKey.copyOf(),
+                                previousKey = regResult.previousKey.copyOf(),
                                 newKey = newKey.copyOf(),
                             ))
                         }
-                        peerPublicKeys[peerHex] = newKey
                     }
                     if (isNewPeer) {
                         safeEmit(_peers, PeerEvent.Discovered(event.peerId), "peers")
@@ -326,12 +322,12 @@ class MeshLink(
                     }
                     // Initiate Noise XX handshake if crypto enabled
                     // Deterministic tie-breaking: lower peerId initiates
-                    if (handshakeManager != null && !handshakeManager.isComplete(event.peerId)) {
+                    if (securityEngine != null && !securityEngine.isHandshakeComplete(event.peerId)) {
                         if (transport.localPeerId.toHex() < event.peerId.toHex()) {
                             // Handshake rate limit: TOFI-pinned peers are exempt
                             val peerHex = event.peerId.toHex()
                             val isPinned = trustStore?.let { ts ->
-                                val key = peerPublicKeys[peerHex]
+                                val key = securityEngine.peerPublicKey(peerHex)
                                 key != null && ts.verify(peerHex, key) is io.meshlink.crypto.VerifyResult.Trusted
                             } ?: false
                             if (!isPinned && handshakeRateLimiter != null &&
@@ -339,7 +335,7 @@ class MeshLink(
                                 diagnosticSink.emit(DiagnosticCode.RATE_LIMIT_HIT, Severity.WARN,
                                     "handshake rate limit exceeded, peer=$peerHex")
                             } else {
-                                val msg1 = handshakeManager.initiateHandshake(event.peerId)
+                                val msg1 = securityEngine.initiateHandshake(event.peerId)
                                 if (msg1 != null) {
                                     safeSend(event.peerId, msg1)
                                 }
@@ -426,10 +422,8 @@ class MeshLink(
     }
 
     override fun rotateIdentity(): Result<Unit> {
-        if (crypto == null) return Result.failure(IllegalStateException("Crypto not enabled"))
-        localKeyPair = crypto.generateX25519KeyPair()
-        sealer = NoiseKSealer(crypto)
-        broadcastKeyPair = crypto.generateEd25519KeyPair()
+        val se = securityEngine ?: return Result.failure(IllegalStateException("Crypto not enabled"))
+        se.rotateIdentity()
         return Result.success(Unit)
     }
 
@@ -440,6 +434,7 @@ class MeshLink(
         pauseQueue.clear()
         relayQueue.clear()
         routedMsgSources.clear()
+        securityEngine?.clear()
         inboundReplayGuards.clear()
         inboundRateCounts.clear()
         dedup.clear()
@@ -666,11 +661,9 @@ class MeshLink(
 
         // Sign broadcast content with Ed25519 if crypto is available
         // Note: remainingHops is excluded from signed data because relays decrement it
-        val bkp = broadcastKeyPair
-        val signature = if (bkp != null && crypto != null) {
-            val signedData = msgIdBytes + transport.localPeerId + appIdHash + payload
-            crypto.sign(bkp.privateKey, signedData)
-        } else ByteArray(0)
+        val signedData = msgIdBytes + transport.localPeerId + appIdHash + payload
+        val signed = securityEngine?.sign(signedData)
+        val signature = signed?.signature ?: ByteArray(0)
 
         val encoded = WireCodec.encodeBroadcast(
             messageId = msgIdBytes,
@@ -679,7 +672,7 @@ class MeshLink(
             appIdHash = appIdHash,
             payload = payload,
             signature = signature,
-            signerPublicKey = bkp?.publicKey ?: ByteArray(0),
+            signerPublicKey = signed?.signerPublicKey ?: ByteArray(0),
         )
         // Mark as seen so we don't deliver our own broadcast back to ourselves
         dedup.tryInsert(messageId.toByteArray().toHex())
@@ -762,7 +755,7 @@ class MeshLink(
         }
 
         // Require recipient's public key when crypto is enabled
-        if (crypto != null && recipient.toHex() !in peerPublicKeys) {
+        if (securityEngine != null && securityEngine.peerPublicKey(recipient.toHex()) == null) {
             return Result.failure(IllegalStateException("Recipient public key unknown"))
         }
 
@@ -787,13 +780,11 @@ class MeshLink(
             }
         }
 
-        // Encrypt payload if crypto is available and we know the recipient's public key
+        // Encrypt payload via security engine
         val recipientHex = recipient.toHex()
-        val currentSealer = sealer
-        val wirePayload = if (currentSealer != null && peerPublicKeys.containsKey(recipientHex)) {
-            currentSealer.seal(peerPublicKeys[recipientHex]!!, payload)
-        } else {
-            payload
+        val wirePayload = when (val sr = securityEngine?.seal(recipientHex, payload)) {
+            is SealResult.Sealed -> sr.ciphertext
+            else -> payload
         }
 
         val chunkSize = config.mtu - WireCodec.CHUNK_HEADER_SIZE
@@ -890,12 +881,10 @@ class MeshLink(
                     )
                 }
             }
-            val bkp2 = broadcastKeyPair
-            val updateData = if (crypto != null && bkp2 != null) {
+            val updateData = if (securityEngine != null) {
                 val unsigned = WireCodec.encodeRouteUpdate(transport.localPeerId, entries)
-                val dataToSign = unsigned + bkp2.publicKey
-                val signature = crypto.sign(bkp2.privateKey, dataToSign)
-                WireCodec.encodeSignedRouteUpdate(transport.localPeerId, entries, bkp2.publicKey, signature)
+                val signed = securityEngine.sign(unsigned + securityEngine.localBroadcastPublicKey)
+                WireCodec.encodeSignedRouteUpdate(transport.localPeerId, entries, signed.signerPublicKey, signed.signature)
             } else {
                 WireCodec.encodeRouteUpdate(transport.localPeerId, entries)
             }
@@ -984,8 +973,8 @@ class MeshLink(
     }
 
     private suspend fun handleHandshake(fromPeerId: ByteArray, data: ByteArray) {
-        val mgr = handshakeManager ?: return
-        val response = mgr.handleIncoming(fromPeerId, data)
+        val se = securityEngine ?: return
+        val response = se.handleHandshakeMessage(fromPeerId, data)
         if (response != null) {
             safeSend(fromPeerId, response)
         }
@@ -994,9 +983,9 @@ class MeshLink(
     private suspend fun handleRouteUpdate(fromPeerId: ByteArray, data: ByteArray) {
         val update = WireCodec.decodeRouteUpdate(data)
         // If signed, verify the signature before accepting
-        if (update.signature != null && update.signerPublicKey != null && crypto != null) {
+        if (update.signature != null && update.signerPublicKey != null && securityEngine != null) {
             val signedData = data.copyOfRange(0, data.size - 64)
-            if (!crypto.verify(update.signerPublicKey, signedData, update.signature)) {
+            if (!securityEngine.verify(update.signerPublicKey, signedData, update.signature)) {
                 diagnosticSink.emit(DiagnosticCode.MALFORMED_DATA, Severity.WARN,
                     "route_update signature verification failed from ${fromPeerId.toHex()}")
                 return
@@ -1052,18 +1041,15 @@ class MeshLink(
                 .map { state.chunks[it]!! }
                 .reduce { acc, bytes -> acc + bytes }
 
-            // Decrypt if crypto is available
-            val cs = sealer
-            val lkp = localKeyPair
-            val decrypted = if (cs != null && lkp != null && fullPayload.size >= 48) {
-                try {
-                    cs.unseal(lkp.privateKey, fullPayload)
-                } catch (_: Exception) {
+            // Decrypt via security engine
+            val decrypted = when (val ur = securityEngine?.unseal(fullPayload)) {
+                is UnsealResult.Decrypted -> ur.plaintext
+                is UnsealResult.Failed -> {
                     diagnosticSink.emit(DiagnosticCode.DECRYPTION_FAILED, Severity.WARN, "chunk reassembly")
-                    fullPayload // Decryption failed — deliver as-is (plaintext fallback)
+                    ur.originalPayload
                 }
-            } else {
-                fullPayload
+                is UnsealResult.TooShort -> ur.originalPayload
+                null -> fullPayload
             }
             safeEmit(_messages, Message(senderId = fromPeerId, payload = decrypted), "messages")
         }
@@ -1113,10 +1099,10 @@ class MeshLink(
         }
 
         // Ed25519 signature verification (when crypto is available)
-        if (crypto != null && broadcast.signature.isNotEmpty()) {
+        if (securityEngine != null && broadcast.signature.isNotEmpty()) {
             val signedData = broadcast.messageId + broadcast.origin + broadcast.appIdHash + broadcast.payload
-            if (!crypto.verify(broadcast.signerPublicKey, signedData, broadcast.signature)) return
-        } else if (crypto != null && broadcast.signature.isEmpty()) {
+            if (!securityEngine.verify(broadcast.signerPublicKey, signedData, broadcast.signature)) return
+        } else if (securityEngine != null && broadcast.signature.isEmpty()) {
             // Crypto enabled but no signature → reject
             return
         }
@@ -1188,29 +1174,23 @@ class MeshLink(
                 }
                 inboundRateCounts[originHex] = pruned + now
             }
-            // Decrypt if crypto is available
-            val cs2 = sealer
-            val lkp2 = localKeyPair
-            val deliveredPayload = if (cs2 != null && lkp2 != null && routed.payload.size >= 48) {
-                try {
-                    cs2.unseal(lkp2.privateKey, routed.payload)
-                } catch (_: Exception) {
+            // Decrypt via security engine
+            val deliveredPayload = when (val ur = securityEngine?.unseal(routed.payload)) {
+                is UnsealResult.Decrypted -> ur.plaintext
+                is UnsealResult.Failed -> {
                     diagnosticSink.emit(DiagnosticCode.DECRYPTION_FAILED, Severity.WARN, "routed message")
-                    routed.payload // Decryption failed — deliver as-is
+                    ur.originalPayload
                 }
-            } else {
-                routed.payload
+                is UnsealResult.TooShort -> ur.originalPayload
+                null -> routed.payload
             }
             safeEmit(_messages, Message(senderId = routed.origin, payload = deliveredPayload), "messages")
             // Send signed delivery ACK back toward origin
-            val bkp3 = broadcastKeyPair
-            val ackSig = if (bkp3 != null && crypto != null) {
-                crypto.sign(bkp3.privateKey, routed.messageId + transport.localPeerId)
-            } else ByteArray(0)
+            val signed = securityEngine?.sign(routed.messageId + transport.localPeerId)
             val ack = WireCodec.encodeDeliveryAck(
                 routed.messageId, transport.localPeerId,
-                signature = ackSig,
-                signerPublicKey = bkp3?.publicKey ?: ByteArray(0),
+                signature = signed?.signature ?: ByteArray(0),
+                signerPublicKey = signed?.signerPublicKey ?: ByteArray(0),
             )
             scope?.launch { safeSend(fromPeerId, ack) }
             return
@@ -1278,10 +1258,10 @@ class MeshLink(
         val key = ack.messageId.toHex()
 
         // Ed25519 signature verification for delivery ACKs
-        if (crypto != null && ack.signature.isNotEmpty()) {
+        if (securityEngine != null && ack.signature.isNotEmpty()) {
             val signedData = ack.messageId + ack.recipientId
-            if (!crypto.verify(ack.signerPublicKey, signedData, ack.signature)) return
-        } else if (crypto != null && ack.signature.isEmpty()) {
+            if (!securityEngine.verify(ack.signerPublicKey, signedData, ack.signature)) return
+        } else if (securityEngine != null && ack.signature.isEmpty()) {
             return
         }
 
@@ -1310,23 +1290,14 @@ class MeshLink(
     }
 
     private fun handleRotationAnnouncement(fromPeerId: ByteArray, data: ByteArray) {
-        val c = crypto ?: return
+        val se = securityEngine ?: return
         val msg = RotationAnnouncement.decode(data)
-        if (!RotationAnnouncement.verify(msg, c)) {
-            diagnosticSink.emit(DiagnosticCode.MALFORMED_DATA, Severity.WARN,
-                "rotation announcement signature verification failed from ${fromPeerId.toHex()}")
-            return
-        }
         val peerHex = fromPeerId.toHex()
-        val knownKey = peerPublicKeys[peerHex]
-        // Only accept if we know the peer's old key and it matches
-        if (knownKey != null && knownKey.contentEquals(msg.oldX25519Key)) {
-            peerPublicKeys[peerHex] = msg.newX25519Key
-            _keyChanges.tryEmit(KeyChangeEvent(
-                peerId = fromPeerId.copyOf(),
-                previousKey = msg.oldX25519Key.copyOf(),
-                newKey = msg.newX25519Key.copyOf(),
-            ))
+        when (val result = se.handleRotationAnnouncement(peerHex, msg)) {
+            is RotationResult.Accepted -> _keyChanges.tryEmit(result.event)
+            is RotationResult.Rejected -> diagnosticSink.emit(DiagnosticCode.MALFORMED_DATA, Severity.WARN,
+                "rotation announcement signature verification failed from $peerHex")
+            is RotationResult.UnknownPeer -> { /* ignore rotation from unknown peer */ }
         }
     }
 }
