@@ -163,6 +163,7 @@ platform-agnostic logic (in `commonMain`) and platform-specific I/O (in
 | `RateLimitPolicy.kt` | Facade consolidating 7 rate limiters and circuit breaker behind sealed `RateLimitResult` type. |
 | `PauseManager.kt` | Manages paused state with bounded send and relay queues; returns `PauseSnapshot` on resume for deferred flush. |
 | `SendPolicyChain.kt` | Pure pre-flight evaluator for outbound sends; chains buffer, pause, rate-limit, circuit-breaker, routing, and crypto checks into sealed `SendDecision`. |
+| `MessageDispatcher.kt` | Dispatches inbound BLE frames to typed handlers; owns decode/validate pipeline, dedup, loop detection, unseal, and delegates effects via `DispatchSink`. |
 | `RateLimiter.kt` | Sliding window rate limiting (per-key token bucket). |
 | `CircuitBreaker.kt` | Fault isolation with closed → open → half-open state machine. |
 | `DeliveryTracker.kt` | Per-message delivery outcome tracking (PENDING → RESOLVED). |
