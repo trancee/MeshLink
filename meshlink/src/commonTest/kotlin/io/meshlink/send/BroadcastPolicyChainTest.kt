@@ -85,7 +85,7 @@ class BroadcastPolicyChainTest {
 
         // Verify the encoded frame can be decoded
         val decoded = WireCodec.decodeBroadcast(result.encodedFrame)
-        assertEquals(5u, decoded.remainingHops.toUByte())
+        assertEquals(5u, decoded.remainingHops)
         assertTrue(decoded.payload.contentEquals(payload))
         assertTrue(decoded.origin.contentEquals(localPeerId))
         assertTrue(decoded.appIdHash.contentEquals(appIdHash))
@@ -133,7 +133,7 @@ class BroadcastPolicyChainTest {
         // 16 (msgId) + 16 (peerId) + 16 (appIdHash) + 3 (payload) = 51
         assertEquals(51, capturedData!!.size)
         // Last 3 bytes should be the payload
-        assertTrue(capturedData!!.sliceArray(48..50).contentEquals(payload))
+        assertTrue(capturedData.sliceArray(48..50).contentEquals(payload))
     }
 
     // ── Dedup marking ───────────────────────────────────────────
@@ -163,8 +163,8 @@ class BroadcastPolicyChainTest {
         val r7 = c.evaluate(ByteArray(1), maxHops = 7u) as BroadcastDecision.Proceed
         val d1 = WireCodec.decodeBroadcast(r1.encodedFrame)
         val d7 = WireCodec.decodeBroadcast(r7.encodedFrame)
-        assertEquals(1u, d1.remainingHops.toUByte())
-        assertEquals(7u, d7.remainingHops.toUByte())
+        assertEquals(1u, d1.remainingHops)
+        assertEquals(7u, d7.remainingHops)
     }
 
     // ── Empty payload ───────────────────────────────────────────
@@ -174,7 +174,7 @@ class BroadcastPolicyChainTest {
         val c = chain()
         val result = c.evaluate(ByteArray(0), maxHops = 3u)
         assertIs<BroadcastDecision.Proceed>(result)
-        val decoded = WireCodec.decodeBroadcast((result as BroadcastDecision.Proceed).encodedFrame)
+        val decoded = WireCodec.decodeBroadcast(result.encodedFrame)
         assertEquals(0, decoded.payload.size)
     }
 }
