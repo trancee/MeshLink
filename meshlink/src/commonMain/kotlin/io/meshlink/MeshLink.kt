@@ -3,7 +3,6 @@ package io.meshlink
 import io.meshlink.config.MeshLinkConfig
 import io.meshlink.crypto.CryptoProvider
 import io.meshlink.crypto.HandshakePayload
-import io.meshlink.crypto.KeyRegistrationResult
 import io.meshlink.crypto.ReplayGuard
 import io.meshlink.crypto.SealResult
 import io.meshlink.crypto.SecurityEngine
@@ -30,7 +29,6 @@ import io.meshlink.send.BroadcastPolicyChain
 import io.meshlink.send.SendPolicyChain
 import io.meshlink.util.PauseManager
 import io.meshlink.routing.GossipEntry
-import io.meshlink.routing.PresenceState
 import io.meshlink.routing.RoutingEngine
 import io.meshlink.transfer.ChunkData
 import io.meshlink.transfer.TransferEngine
@@ -49,6 +47,8 @@ import io.meshlink.util.hexToBytes
 import io.meshlink.util.toHex
 import io.meshlink.wire.WireCodec
 import io.meshlink.gossip.GossipCoordinator
+import io.meshlink.peer.PeerConnectionAction
+import io.meshlink.peer.PeerConnectionCoordinator
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
@@ -238,6 +238,16 @@ class MeshLink(
         clock = clock,
     )
 
+    private val peerConnectionCoordinator = PeerConnectionCoordinator(
+        routingEngine = routingEngine,
+        securityEngine = securityEngine,
+        rateLimitPolicy = { rateLimitPolicy.checkHandshake(it) },
+        trustStore = trustStore,
+        localPeerId = transport.localPeerId,
+        protocolVersion = config.protocolVersion,
+        isPaused = { pauseManager.isPaused },
+    )
+
     private val messageDispatcher = MessageDispatcher(
         securityEngine = securityEngine,
         routingEngine = routingEngine,
@@ -309,68 +319,32 @@ class MeshLink(
         }
         newScope.launch {
             transport.advertisementEvents.collect { event ->
-                if (!pauseManager.isPaused) {
-                    // Negotiate protocol version from advertisement payload
-                    val advPayload = event.advertisementPayload
-                    if (advPayload.size >= 2) {
-                        val remoteMajor = advPayload[0].toInt() and 0xFF
-                        val remoteMinor = advPayload[1].toInt() and 0xFF
-                        val remoteVersion = ProtocolVersion(remoteMajor, remoteMinor)
-                        if (config.protocolVersion.negotiate(remoteVersion) == null) {
-                            return@collect // Incompatible version — reject peer
+                when (val action = peerConnectionCoordinator.onAdvertisementReceived(event.peerId, event.advertisementPayload)) {
+                    is PeerConnectionAction.Rejected,
+                    is PeerConnectionAction.Skipped -> { /* no-op */ }
+                    is PeerConnectionAction.PeerUpdate -> {
+                        action.keyChangeEvent?.let { _keyChanges.tryEmit(it) }
+                        if (action.isNewPeer) {
+                            safeEmit(_peers, PeerEvent.Discovered(action.peerId), "peers")
+                            emitHealthUpdate()
+                            val preExistingTransferKeys = outboundRecipients.keys.toSet()
+                            flushPendingMessages(action.peerId.toHex(), newScope)
+                            resumeTransfers(action.peerId, newScope, preExistingTransferKeys)
                         }
-                    }
-                    val isNewPeer = routingEngine.presenceState(event.peerId.toHex()) != PresenceState.CONNECTED
-                    routingEngine.peerSeen(event.peerId.toHex())
-                    // Extract peer's X25519 public key from advertisement if present
-                    if (advPayload.size >= 34 && securityEngine != null) {
-                        val newKey = advPayload.copyOfRange(2, 34)
-                        val peerHex = event.peerId.toHex()
-                        val regResult = securityEngine.registerPeerKey(peerHex, newKey)
-                        if (regResult is KeyRegistrationResult.Changed) {
-                            _keyChanges.tryEmit(KeyChangeEvent(
-                                peerId = event.peerId.copyOf(),
-                                previousKey = regResult.previousKey.copyOf(),
-                                newKey = newKey.copyOf(),
-                            ))
+                        if (action.handshakeRateLimited) {
+                            diagnosticSink.emit(DiagnosticCode.RATE_LIMIT_HIT, Severity.WARN,
+                                "handshake rate limit exceeded, peer=${action.peerId.toHex()}")
                         }
+                        action.handshakeMessage?.let { safeSend(action.peerId, it) }
                     }
-                    if (isNewPeer) {
-                        safeEmit(_peers, PeerEvent.Discovered(event.peerId), "peers")
-                        emitHealthUpdate()
-                        // Flush buffered messages and resume interrupted transfers
-                        val preExistingTransferKeys = outboundRecipients.keys.toSet()
-                        flushPendingMessages(event.peerId.toHex(), newScope)
-                        resumeTransfers(event.peerId, newScope, preExistingTransferKeys)
-                    }
-                    // Initiate Noise XX handshake if crypto enabled
-                    // Deterministic tie-breaking: lower peerId initiates
-                    if (securityEngine != null && !securityEngine.isHandshakeComplete(event.peerId)) {
-                        if (transport.localPeerId.toHex() < event.peerId.toHex()) {
-                            // Handshake rate limit: TOFI-pinned peers are exempt
-                            val peerHex = event.peerId.toHex()
-                            val isPinned = trustStore?.let { ts ->
-                                val key = securityEngine.peerPublicKey(peerHex)
-                                key != null && ts.verify(peerHex, key) is io.meshlink.crypto.VerifyResult.Trusted
-                            } ?: false
-                            if (!isPinned && rateLimitPolicy.checkHandshake(peerHex) is RateLimitResult.Limited) {
-                                diagnosticSink.emit(DiagnosticCode.RATE_LIMIT_HIT, Severity.WARN,
-                                    "handshake rate limit exceeded, peer=$peerHex")
-                            } else {
-                                val msg1 = securityEngine.initiateHandshake(event.peerId)
-                                if (msg1 != null) {
-                                    safeSend(event.peerId, msg1)
-                                }
-                            }
-                        }
-                    }
+                    is PeerConnectionAction.Lost -> { /* handled separately */ }
                 }
             }
         }
         newScope.launch {
             transport.peerLostEvents.collect { event ->
-                routingEngine.markDisconnected(event.peerId.toHex())
-                safeEmit(_peers, PeerEvent.Lost(event.peerId), "peers")
+                val action = peerConnectionCoordinator.onPeerLost(event.peerId)
+                safeEmit(_peers, PeerEvent.Lost(action.peerId), "peers")
                 emitHealthUpdate()
             }
         }

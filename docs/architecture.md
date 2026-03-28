@@ -121,6 +121,7 @@ platform-agnostic logic (in `commonMain`) and platform-specific I/O (in
 | `PowerCoordinator.kt` | Facade consolidating power-mode transitions, memory-pressure evaluation, and buffer-pressure monitoring behind sealed result types. |
 | `PowerProfile.kt` | Single source of truth for all power-mode-dependent constants (advertising interval, scan timing, max connections, gossip multiplier). Replaces scattered `when(mode)` lookups. |
 | `GossipCoordinator.kt` | Coordinates routing protocol maintenance: gossip broadcasting, keepalive pings, and triggered route updates with batching and throttling. |
+| `PeerConnectionCoordinator.kt` | Coordinates BLE peer discovery: version negotiation, routing presence, security key registration, and handshake initiation via sealed `PeerConnectionAction`. |
 | `PowerModeEngine.kt` | Hysteresis-based mode transitions driven by battery level and charging state. |
 | `AdvertisingPolicy.kt` | Maps power mode to BLE advertising interval and scan duty cycle. |
 | `TransferScheduler.kt` | Adjusts max concurrent transfers per power mode. |
