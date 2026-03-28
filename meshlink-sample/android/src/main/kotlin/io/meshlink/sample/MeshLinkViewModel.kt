@@ -55,6 +55,9 @@ class MeshLinkViewModel(application: Application) : AndroidViewModel(application
     val discoveredPeers: StateFlow<List<PeerInfo>> = _discoveredPeers.asStateFlow()
 
     init {
+        // Enable BLE debug logging for debug builds
+        AndroidBleTransport.debugLogging = true
+
         log("🔧 Transport: AndroidBleTransport (peer: ${transport.localPeerId.toHex()})")
         collectFlows()
     }

@@ -68,6 +68,9 @@ final class MeshLinkViewModel: ObservableObject {
     private var meshLink: MeshLink
 
     init() {
+        // Enable BLE debug logging — output appears in Xcode console
+        IosBleTransport.companion.debugLogging = true
+
         let config = ConfigPreset.chatOptimized.makeConfig()
         self.meshLink = MeshLinkFactory.shared.create(config: config)
         self.currentMtu = Int(config.mtu)

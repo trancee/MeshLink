@@ -1,0 +1,265 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 60;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		F10001000000000000000001 /* MeshLinkSampleApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10002000000000000000001 /* MeshLinkSampleApp.swift */; };
+		F10001000000000000000002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10002000000000000000002 /* ContentView.swift */; };
+		F10001000000000000000003 /* MeshLinkViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10002000000000000000003 /* MeshLinkViewModel.swift */; };
+		F10001000000000000000004 /* MeshVisualizerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10002000000000000000004 /* MeshVisualizerView.swift */; };
+		F10001000000000000000005 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10002000000000000000005 /* SettingsView.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		F10002000000000000000001 /* MeshLinkSampleApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeshLinkSampleApp.swift; sourceTree = "<group>"; };
+		F10002000000000000000002 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		F10002000000000000000003 /* MeshLinkViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeshLinkViewModel.swift; sourceTree = "<group>"; };
+		F10002000000000000000004 /* MeshVisualizerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeshVisualizerView.swift; sourceTree = "<group>"; };
+		F10002000000000000000005 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		F10002000000000000000010 /* MeshLinkSample.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MeshLinkSample.app; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		F10003000000000000000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		F10004000000000000000001 /* root */ = {
+			isa = PBXGroup;
+			children = (
+				F10004000000000000000002 /* MeshLinkSample */,
+				F10004000000000000000003 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		F10004000000000000000002 /* MeshLinkSample */ = {
+			isa = PBXGroup;
+			children = (
+				F10002000000000000000001 /* MeshLinkSampleApp.swift */,
+				F10002000000000000000002 /* ContentView.swift */,
+				F10002000000000000000003 /* MeshLinkViewModel.swift */,
+				F10002000000000000000004 /* MeshVisualizerView.swift */,
+				F10002000000000000000005 /* SettingsView.swift */,
+			);
+			path = MeshLinkSample;
+			sourceTree = "<group>";
+		};
+		F10004000000000000000003 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				F10002000000000000000010 /* MeshLinkSample.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		F10005000000000000000001 /* MeshLinkSample */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F10008000000000000000002 /* Build configuration list for PBXNativeTarget "MeshLinkSample" */;
+			buildPhases = (
+				F10006000000000000000001 /* Sources */,
+				F10003000000000000000001 /* Frameworks */,
+				F10003000000000000000002 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = MeshLinkSample;
+			packageProductDependencies = (
+				F1000A000000000000000001 /* MeshLink */,
+			);
+			productName = MeshLinkSample;
+			productReference = F10002000000000000000010 /* MeshLinkSample.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		F10007000000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1540;
+				LastUpgradeCheck = 1540;
+			};
+			buildConfigurationList = F10008000000000000000001 /* Build configuration list for PBXProject "MeshLinkSample" */;
+			compatibilityVersion = "Xcode 15.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = F10004000000000000000001 /* root */;
+			packageReferences = (
+				F10009000000000000000001 /* XCLocalSwiftPackageReference "MeshLink" */,
+			);
+			productRefGroup = F10004000000000000000003 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				F10005000000000000000001 /* MeshLinkSample */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		F10003000000000000000002 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		F10006000000000000000001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F10001000000000000000001 /* MeshLinkSampleApp.swift in Sources */,
+				F10001000000000000000002 /* ContentView.swift in Sources */,
+				F10001000000000000000003 /* MeshLinkViewModel.swift in Sources */,
+				F10001000000000000000004 /* MeshVisualizerView.swift in Sources */,
+				F10001000000000000000005 /* SettingsView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		F10008010000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) DEBUG";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		F10008010000000000000002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_OPTIMIZATION_LEVEL = s;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_VERSION = 5.0;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		F10008010000000000000003 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = MeshLinkSample/MeshLinkSample.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "MeshLink needs Bluetooth for mesh networking.";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = io.meshlink.sample.macos;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+			};
+			name = Debug;
+		};
+		F10008010000000000000004 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = MeshLinkSample/MeshLinkSample.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "MeshLink needs Bluetooth for mesh networking.";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = io.meshlink.sample.macos;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		F10008000000000000000001 /* Build configuration list for PBXProject "MeshLinkSample" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F10008010000000000000001 /* Debug */,
+				F10008010000000000000002 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		F10008000000000000000002 /* Build configuration list for PBXNativeTarget "MeshLinkSample" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F10008010000000000000003 /* Debug */,
+				F10008010000000000000004 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		F10009000000000000000001 /* XCLocalSwiftPackageReference "MeshLink" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../..;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		F1000A000000000000000001 /* MeshLink */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = MeshLink;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = F10007000000000000000001 /* Project object */;
+}

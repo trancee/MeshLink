@@ -24,7 +24,7 @@ struct MeshVisualizerView: View {
     private let refreshTimer = Timer.publish(every: 5, on: .main, in: .common).autoconnect()
 
     var body: some View {
-        NavigationStack {
+        NavigationView {
             VStack(spacing: 0) {
                 statusBadges
                     .padding(.horizontal)

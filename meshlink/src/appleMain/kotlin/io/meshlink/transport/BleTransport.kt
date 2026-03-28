@@ -92,10 +92,25 @@ class IosBleTransport(
 ) : BleTransport {
 
     companion object {
-        private const val TAG = "BleTransport"
+        private const val TAG = "MeshLink.BLE"
         private const val PEER_TIMEOUT_MS = 10_000L
         private const val PEER_SWEEP_INTERVAL_MS = 3_000L
         private const val USER_DEFAULTS_PEER_ID_KEY = "io.meshlink.localPeerId"
+
+        /**
+         * Enable verbose BLE debug logging via NSLog.
+         * Set to `true` to trace scanning, advertising, GATT connections,
+         * and data flow. Output appears in Xcode console.
+         *
+         * ```swift
+         * IosBleTransport.companion.debugLogging = true
+         * ```
+         */
+        var debugLogging: Boolean = false
+    }
+
+    private fun logD(msg: String) {
+        if (debugLogging) NSLog("$TAG: $msg")
     }
 
     // -- GATT UUIDs --
@@ -153,7 +168,7 @@ class IosBleTransport(
     // ========================
 
     override suspend fun startAdvertisingAndScanning() {
-        NSLog("$TAG: Starting advertising and scanning")
+        logD("startAdvertisingAndScanning() — setting up CoreBluetooth")
 
         centralManager = CBCentralManager(
             delegate = centralDelegate,
@@ -165,10 +180,11 @@ class IosBleTransport(
         )
 
         startPeerSweep()
+        logD("CoreBluetooth managers initialized — waiting for PoweredOn state")
     }
 
     override suspend fun stopAll() {
-        NSLog("$TAG: Stopping all BLE activity")
+        logD("stopAll() — tearing down CoreBluetooth")
 
         peerSweepJob?.cancel()
         peerSweepJob = null
@@ -195,12 +211,12 @@ class IosBleTransport(
 
     override suspend fun sendToPeer(peerId: ByteArray, data: ByteArray) {
         val peerIdHex = peerId.toHexString()
-        NSLog("$TAG: sendToPeer $peerIdHex, ${data.size} bytes")
+        logD("sendToPeer $peerIdHex, ${data.size} bytes")
 
         val peripheral = connectedPeripherals[peerIdHex]
             ?: findPeripheralForPeer(peerId)
             ?: run {
-                NSLog("$TAG: No peripheral found for peer $peerIdHex")
+                logD("No peripheral found for peer $peerIdHex")
                 return
             }
 
@@ -212,7 +228,7 @@ class IosBleTransport(
         val peripheralUUID = peripheral.identifier.UUIDString
         val writeChar = discoveredWriteCharacteristics[peripheralUUID]
             ?: run {
-                NSLog("$TAG: No write characteristic found for peripheral $peripheralUUID")
+                logD("No write characteristic found for peripheral $peripheralUUID")
                 return
             }
 
@@ -245,7 +261,7 @@ class IosBleTransport(
         defaults.setObject(hexString, forKey = USER_DEFAULTS_PEER_ID_KEY)
         defaults.synchronize()
 
-        NSLog("$TAG: Generated new peer ID: $hexString")
+        logD("Generated new peer ID: $hexString")
         return uuidBytes
     }
 
@@ -268,7 +284,7 @@ class IosBleTransport(
             now - peer.lastSeenMs > PEER_TIMEOUT_MS
         }
         for ((key, peer) in timedOut) {
-            NSLog("$TAG: Peer timed out: ${peer.peerId.toHexString()}")
+            logD("Peer timed out: ${peer.peerId.toHexString()}")
             knownPeers.remove(key)
             connectedPeripherals.values.removeAll { it.identifier.UUIDString == key }
             _peerLostEvents.tryEmit(PeerLostEvent(peer.peerId))
@@ -357,7 +373,7 @@ class IosBleTransport(
                 CBAdvertisementDataServiceUUIDsKey to listOf(serviceUUID),
             ),
         )
-        NSLog("$TAG: Started advertising")
+        logD("Started advertising")
     }
 
     private fun startScanning() {
@@ -365,7 +381,7 @@ class IosBleTransport(
             serviceUUIDs = listOf(serviceUUID),
             options = null,
         )
-        NSLog("$TAG: Started scanning")
+        logD("Started scanning")
     }
 
     // ========================
@@ -375,7 +391,16 @@ class IosBleTransport(
     private inner class CentralDelegate : NSObject(), CBCentralManagerDelegateProtocol {
 
         override fun centralManagerDidUpdateState(central: CBCentralManager) {
-            NSLog("$TAG: Central manager state: ${central.state}")
+            val stateName = when (central.state.toInt()) {
+                0 -> "unknown"
+                1 -> "resetting"
+                2 -> "unsupported"
+                3 -> "unauthorized"
+                4 -> "poweredOff"
+                5 -> "poweredOn"
+                else -> "state(${central.state})"
+            }
+            logD("Central manager state: $stateName")
             if (central.state == CBCentralManagerStatePoweredOn) {
                 centralManagerReady = true
                 startScanning()
@@ -398,7 +423,9 @@ class IosBleTransport(
             val existing = knownPeers[peripheralUUID]
             if (existing != null) {
                 existing.lastSeenMs = now
+                logD("📡 Peer seen: $peripheralUUID, RSSI=$RSSI")
             } else {
+                logD("📡 NEW peer discovered: $peripheralUUID, RSSI=$RSSI, payload=${advertisementPayload.size}B")
                 knownPeers[peripheralUUID] = TrackedPeer(
                     peerId = peerId,
                     peripheral = didDiscoverPeripheral,
@@ -419,7 +446,7 @@ class IosBleTransport(
             central: CBCentralManager,
             didConnectPeripheral: CBPeripheral,
         ) {
-            NSLog("$TAG: Connected to ${didConnectPeripheral.identifier.UUIDString}")
+            logD("Connected to ${didConnectPeripheral.identifier.UUIDString}")
             didConnectPeripheral.discoverServices(listOf(serviceUUID))
         }
 
@@ -429,7 +456,7 @@ class IosBleTransport(
             didFailToConnectPeripheral: CBPeripheral,
             error: NSError?,
         ) {
-            NSLog("$TAG: Failed to connect: ${didFailToConnectPeripheral.identifier.UUIDString}, error: ${error?.localizedDescription}")
+            logD("Failed to connect: ${didFailToConnectPeripheral.identifier.UUIDString}, error: ${error?.localizedDescription}")
         }
 
         @ObjCSignatureOverride
@@ -439,7 +466,7 @@ class IosBleTransport(
             error: NSError?,
         ) {
             val id = didDisconnectPeripheral.identifier.UUIDString
-            NSLog("$TAG: Disconnected from $id, error: ${error?.localizedDescription}")
+            logD("Disconnected from $id, error: ${error?.localizedDescription}")
             discoveredWriteCharacteristics.remove(id)
         }
     }
@@ -451,7 +478,16 @@ class IosBleTransport(
     private inner class PeripheralManagerDelegate : NSObject(), CBPeripheralManagerDelegateProtocol {
 
         override fun peripheralManagerDidUpdateState(peripheral: CBPeripheralManager) {
-            NSLog("$TAG: Peripheral manager state: ${peripheral.state}")
+            val stateName = when (peripheral.state.toInt()) {
+                0 -> "unknown"
+                1 -> "resetting"
+                2 -> "unsupported"
+                3 -> "unauthorized"
+                4 -> "poweredOff"
+                5 -> "poweredOn"
+                else -> "state(${peripheral.state})"
+            }
+            logD("Peripheral manager state: $stateName")
             if (peripheral.state == CBPeripheralManagerStatePoweredOn) {
                 peripheralManagerReady = true
                 setupGattService()
@@ -464,10 +500,10 @@ class IosBleTransport(
             error: NSError?,
         ) {
             if (error != null) {
-                NSLog("$TAG: Failed to add service: ${error.localizedDescription}")
+                logD("Failed to add service: ${error.localizedDescription}")
                 return
             }
-            NSLog("$TAG: Service added successfully")
+            logD("Service added successfully")
             startAdvertising()
         }
 
@@ -482,7 +518,7 @@ class IosBleTransport(
 
                 val peerId = derivePeerIdFromUUID(attRequest.central.identifier)
 
-                NSLog("$TAG: Received write from $centralId, ${data.size} bytes")
+                logD("Received write from $centralId, ${data.size} bytes")
 
                 _incomingData.tryEmit(
                     IncomingData(peerId = peerId, data = data),
@@ -501,9 +537,9 @@ class IosBleTransport(
             error: NSError?,
         ) {
             if (error != null) {
-                NSLog("$TAG: Failed to start advertising: ${error.localizedDescription}")
+                logD("Failed to start advertising: ${error.localizedDescription}")
             } else {
-                NSLog("$TAG: Advertising started successfully")
+                logD("Advertising started successfully")
             }
         }
     }
@@ -518,7 +554,7 @@ class IosBleTransport(
 
         override fun peripheral(peripheral: CBPeripheral, didDiscoverServices: NSError?) {
             if (didDiscoverServices != null) {
-                NSLog("$TAG: Error discovering services: ${didDiscoverServices.localizedDescription}")
+                logD("Error discovering services: ${didDiscoverServices.localizedDescription}")
                 onReady?.invoke()
                 onReady = null
                 return
@@ -542,7 +578,7 @@ class IosBleTransport(
             error: NSError?,
         ) {
             if (error != null) {
-                NSLog("$TAG: Error discovering characteristics: ${error.localizedDescription}")
+                logD("Error discovering characteristics: ${error.localizedDescription}")
                 onReady?.invoke()
                 onReady = null
                 return
@@ -554,7 +590,7 @@ class IosBleTransport(
                 val cbChar = characteristic as? CBCharacteristic ?: continue
                 if (cbChar.UUID == dataWriteUUID || cbChar.UUID == controlWriteUUID) {
                     discoveredWriteCharacteristics[peripheral.identifier.UUIDString] = cbChar
-                    NSLog("$TAG: Found write characteristic on ${peripheral.identifier.UUIDString}")
+                    logD("Found write characteristic on ${peripheral.identifier.UUIDString}")
                 }
             }
             onReady?.invoke()
@@ -568,7 +604,7 @@ class IosBleTransport(
             error: NSError?,
         ) {
             if (error != null) {
-                NSLog("$TAG: Write error: ${error.localizedDescription}")
+                logD("Write error: ${error.localizedDescription}")
             }
         }
 
@@ -579,7 +615,7 @@ class IosBleTransport(
             error: NSError?,
         ) {
             if (error != null) {
-                NSLog("$TAG: Notification error: ${error.localizedDescription}")
+                logD("Notification error: ${error.localizedDescription}")
                 return
             }
 

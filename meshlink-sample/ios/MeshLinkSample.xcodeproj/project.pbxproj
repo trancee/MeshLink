@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		5819C5082F77F94F00AD1708 /* MeshLink in Frameworks */ = {isa = PBXBuildFile; productRef = E1000A000000000000000001 /* MeshLink */; };
 		E10001000000000000000001 /* MeshLinkSampleApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10002000000000000000001 /* MeshLinkSampleApp.swift */; };
 		E10001000000000000000002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10002000000000000000002 /* ContentView.swift */; };
 		E10001000000000000000003 /* MeshLinkViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10002000000000000000003 /* MeshLinkViewModel.swift */; };
@@ -29,13 +30,14 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				5819C5082F77F94F00AD1708 /* MeshLink in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		E10004000000000000000001 /* root */ = {
+		E10004000000000000000001 = {
 			isa = PBXGroup;
 			children = (
 				E10004000000000000000002 /* MeshLinkSample */,
@@ -105,9 +107,9 @@
 				en,
 				Base,
 			);
-			mainGroup = E10004000000000000000001 /* root */;
+			mainGroup = E10004000000000000000001;
 			packageReferences = (
-				E10009000000000000000001 /* XCLocalSwiftPackageReference "MeshLink" */,
+				E10009000000000000000001 /* XCLocalSwiftPackageReference "../.." */,
 			);
 			productRefGroup = E10004000000000000000003 /* Products */;
 			projectDirPath = "";
@@ -161,7 +163,7 @@
 					"DEBUG=1",
 					"$(inherited)",
 				);
-				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
@@ -184,7 +186,7 @@
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				GCC_OPTIMIZATION_LEVEL = s;
-				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				SDKROOT = iphoneos;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_VERSION = 5.0;
@@ -260,7 +262,7 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		E10009000000000000000001 /* XCLocalSwiftPackageReference "MeshLink" */ = {
+		E10009000000000000000001 /* XCLocalSwiftPackageReference "../.." */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = ../..;
 		};

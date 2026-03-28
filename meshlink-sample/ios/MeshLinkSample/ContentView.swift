@@ -1,9 +1,8 @@
 // ContentView.swift
 // MeshLink iOS Sample — Main SwiftUI interface
 //
-// This view mirrors the Android sample's MainActivity.kt Compose UI,
-// providing the same feature set with idiomatic SwiftUI patterns.
 // Uses a TabView to provide Chat, Mesh Visualizer, and Settings screens.
+// Compatible with iOS 15+.
 
 import SwiftUI
 
@@ -32,14 +31,13 @@ struct ContentView: View {
 
 // MARK: - Chat View
 
-/// The original chat and status UI, extracted into its own view for tab navigation.
 private struct ChatView: View {
     @ObservedObject var viewModel: MeshLinkViewModel
     @State private var recipientId = ""
     @State private var messageText = ""
 
     var body: some View {
-        NavigationStack {
+        NavigationView {
             ScrollView {
                 VStack(spacing: 16) {
                     healthCard
@@ -52,7 +50,7 @@ private struct ChatView: View {
             }
             .navigationTitle("MeshLink Sample")
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Clear Log") {
                         viewModel.clearLog()
                     }
@@ -60,6 +58,7 @@ private struct ChatView: View {
                 }
             }
         }
+        .navigationViewStyle(.stack)
     }
 
     // MARK: - Health Status Card
@@ -69,43 +68,28 @@ private struct ChatView: View {
             Label("Mesh Health", systemImage: "heart.fill")
                 .font(.headline)
 
-            Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 4) {
-                GridRow {
-                    Text("Connected peers:")
-                        .foregroundStyle(.secondary)
-                    Text("\(viewModel.connectedPeers)")
-                        .fontWeight(.medium)
-                }
-                GridRow {
-                    Text("Reachable peers:")
-                        .foregroundStyle(.secondary)
-                    Text("\(viewModel.reachablePeers)")
-                        .fontWeight(.medium)
-                }
-                GridRow {
-                    Text("Power mode:")
-                        .foregroundStyle(.secondary)
-                    Text(viewModel.powerMode)
-                        .fontWeight(.medium)
-                }
-                GridRow {
-                    Text("Buffer usage:")
-                        .foregroundStyle(.secondary)
-                    Text("\(viewModel.bufferUsagePercent)%")
-                        .fontWeight(.medium)
-                }
-                GridRow {
-                    Text("Active transfers:")
-                        .foregroundStyle(.secondary)
-                    Text("\(viewModel.activeTransfers)")
-                        .fontWeight(.medium)
-                }
+            VStack(alignment: .leading, spacing: 4) {
+                healthRow("Connected peers:", value: "\(viewModel.connectedPeers)")
+                healthRow("Reachable peers:", value: "\(viewModel.reachablePeers)")
+                healthRow("Power mode:", value: viewModel.powerMode)
+                healthRow("Buffer usage:", value: "\(viewModel.bufferUsagePercent)%")
+                healthRow("Active transfers:", value: "\(viewModel.activeTransfers)")
             }
             .font(.subheadline)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding()
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
+    }
+
+    private func healthRow(_ label: String, value: String) -> some View {
+        HStack {
+            Text(label)
+                .foregroundColor(.secondary)
+            Spacer()
+            Text(value)
+                .fontWeight(.medium)
+        }
     }
 
     // MARK: - Start / Stop Toggle
@@ -163,7 +147,7 @@ private struct ChatView: View {
 
             if viewModel.logEntries.isEmpty {
                 Text("No events yet. Start the mesh to begin.")
-                    .foregroundStyle(.secondary)
+                    .foregroundColor(.secondary)
                     .font(.subheadline)
                     .frame(maxWidth: .infinity, alignment: .center)
                     .padding(.vertical, 32)

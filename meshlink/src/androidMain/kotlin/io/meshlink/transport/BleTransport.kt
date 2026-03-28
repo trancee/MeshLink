@@ -2,6 +2,7 @@ package io.meshlink.transport
 
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothDevice
+import android.util.Log
 import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattCallback
 import android.bluetooth.BluetoothGattCharacteristic
@@ -54,6 +55,29 @@ import java.util.concurrent.ConcurrentHashMap
 class AndroidBleTransport(
     private val context: Context,
 ) : BleTransport {
+
+    companion object {
+        private const val TAG = "MeshLink.BLE"
+
+        /**
+         * Enable verbose BLE debug logging.
+         * Set to `true` in debug builds to trace scanning, advertising,
+         * GATT connections, and data flow. Disable for release.
+         *
+         * ```kotlin
+         * AndroidBleTransport.debugLogging = BuildConfig.DEBUG
+         * ```
+         */
+        var debugLogging: Boolean = false
+    }
+
+    private inline fun logD(msg: () -> String) {
+        if (debugLogging) Log.d(TAG, msg())
+    }
+
+    private inline fun logW(msg: () -> String) {
+        if (debugLogging) Log.w(TAG, msg())
+    }
 
     // --- System services ---
 
@@ -116,6 +140,7 @@ class AndroidBleTransport(
     // =========================================================================
 
     override suspend fun startAdvertisingAndScanning() {
+        logD { "startAdvertisingAndScanning() — adapter=${bluetoothAdapter?.name}, enabled=${bluetoothAdapter?.isEnabled}" }
         val transportScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         scope = transportScope
 
@@ -123,9 +148,11 @@ class AndroidBleTransport(
         startAdvertising()
         startScanning()
         startPeerTimeoutMonitor(transportScope)
+        logD { "BLE stack initialized — GATT server, advertiser, scanner all started" }
     }
 
     override suspend fun stopAll() {
+        logD { "stopAll() — tearing down BLE stack" }
         stopScanning()
         stopAdvertising()
         stopGattServer()
@@ -162,7 +189,14 @@ class AndroidBleTransport(
     // =========================================================================
 
     private fun startAdvertising() {
-        val adv = bluetoothAdapter.bluetoothLeAdvertiser ?: return
+        // Stop any prior advertising to avoid ALREADY_STARTED errors on restart
+        advertiser?.stopAdvertising(advertiseCallback)
+
+        val adv = bluetoothAdapter.bluetoothLeAdvertiser
+        if (adv == null) {
+            logW { "BLE advertiser unavailable — device may not support peripheral mode" }
+            return
+        }
         advertiser = adv
 
         val settings = AdvertiseSettings.Builder()
@@ -177,17 +211,32 @@ class AndroidBleTransport(
             .setIncludeTxPowerLevel(false)
             .build()
 
+        logD { "startAdvertising() — service=$serviceUuid, mode=${BleConstants.ADVERTISE_MODE}, connectable=true" }
         adv.startAdvertising(settings, data, advertiseCallback)
     }
 
     private fun stopAdvertising() {
+        logD { "stopAdvertising()" }
         advertiser?.stopAdvertising(advertiseCallback)
         advertiser = null
     }
 
     private val advertiseCallback = object : AdvertiseCallback() {
-        override fun onStartSuccess(settingsInEffect: AdvertiseSettings?) = Unit
-        override fun onStartFailure(errorCode: Int) = Unit
+        override fun onStartSuccess(settingsInEffect: AdvertiseSettings?) {
+            logD { "Advertising started successfully — settings=$settingsInEffect" }
+        }
+
+        override fun onStartFailure(errorCode: Int) {
+            val reason = when (errorCode) {
+                ADVERTISE_FAILED_DATA_TOO_LARGE -> "DATA_TOO_LARGE"
+                ADVERTISE_FAILED_TOO_MANY_ADVERTISERS -> "TOO_MANY_ADVERTISERS"
+                ADVERTISE_FAILED_ALREADY_STARTED -> "ALREADY_STARTED"
+                ADVERTISE_FAILED_INTERNAL_ERROR -> "INTERNAL_ERROR"
+                ADVERTISE_FAILED_FEATURE_UNSUPPORTED -> "FEATURE_UNSUPPORTED"
+                else -> "UNKNOWN($errorCode)"
+            }
+            logW { "⚠️ Advertising failed: $reason (code=$errorCode)" }
+        }
     }
 
     // =========================================================================
@@ -195,7 +244,14 @@ class AndroidBleTransport(
     // =========================================================================
 
     private fun startScanning() {
-        val sc = bluetoothAdapter.bluetoothLeScanner ?: return
+        // Stop any prior scan to avoid ALREADY_STARTED errors on restart
+        scanner?.stopScan(scanCallback)
+
+        val sc = bluetoothAdapter.bluetoothLeScanner
+        if (sc == null) {
+            logW { "BLE scanner unavailable — Bluetooth may be off" }
+            return
+        }
         scanner = sc
 
         val settings = ScanSettings.Builder()
@@ -207,10 +263,12 @@ class AndroidBleTransport(
             .setServiceUuid(ParcelUuid(serviceUuid))
             .build()
 
+        logD { "startScanning() — filter=service:$serviceUuid, mode=${BleConstants.SCAN_MODE}" }
         sc.startScan(listOf(filter), settings, scanCallback)
     }
 
     private fun stopScanning() {
+        logD { "stopScanning()" }
         scanner?.stopScan(scanCallback)
         scanner = null
     }
@@ -221,16 +279,27 @@ class AndroidBleTransport(
         }
 
         override fun onBatchScanResults(results: List<ScanResult>) {
+            logD { "onBatchScanResults: ${results.size} results" }
             results.forEach { handleScanResult(it) }
         }
 
-        override fun onScanFailed(errorCode: Int) = Unit
+        override fun onScanFailed(errorCode: Int) {
+            val reason = when (errorCode) {
+                SCAN_FAILED_ALREADY_STARTED -> "ALREADY_STARTED"
+                SCAN_FAILED_APPLICATION_REGISTRATION_FAILED -> "REGISTRATION_FAILED"
+                SCAN_FAILED_INTERNAL_ERROR -> "INTERNAL_ERROR"
+                SCAN_FAILED_FEATURE_UNSUPPORTED -> "FEATURE_UNSUPPORTED"
+                else -> "UNKNOWN($errorCode)"
+            }
+            logW { "⚠️ Scan failed: $reason (code=$errorCode)" }
+        }
     }
 
     private fun handleScanResult(result: ScanResult) {
         val device = result.device
         val address = device.address
         val peerId = addressToBytes(address)
+        val isNew = !peerLastSeen.containsKey(address)
 
         peerLastSeen[address] = System.currentTimeMillis()
         peerDevices[address] = device
@@ -238,6 +307,12 @@ class AndroidBleTransport(
         val payload = result.scanRecord
             ?.getServiceData(ParcelUuid(serviceUuid))
             ?: ByteArray(0)
+
+        if (isNew) {
+            logD { "📡 NEW peer discovered: $address, RSSI=${result.rssi}, payload=${payload.size}B" }
+        } else {
+            logD { "📡 Peer seen: $address, RSSI=${result.rssi}" }
+        }
 
         _advertisementEvents.tryEmit(AdvertisementEvent(peerId, payload))
     }
@@ -254,11 +329,15 @@ class AndroidBleTransport(
                 val timedOut = peerLastSeen.entries.filter { (_, lastSeen) ->
                     now - lastSeen > BleConstants.PEER_LOST_TIMEOUT_MS
                 }
-                for ((address, _) in timedOut) {
+                for ((address, lastSeen) in timedOut) {
+                    logD { "🔴 Peer timed out: $address (last seen ${now - lastSeen}ms ago)" }
                     peerLastSeen.remove(address)
                     peerDevices.remove(address)
                     _peerLostEvents.tryEmit(PeerLostEvent(addressToBytes(address)))
                     activeConnections.remove(address)?.close()
+                }
+                if (debugLogging && peerLastSeen.isNotEmpty()) {
+                    logD { "Peer sweep: ${peerLastSeen.size} active peers tracked" }
                 }
             }
         }
@@ -269,8 +348,13 @@ class AndroidBleTransport(
     // =========================================================================
 
     private fun startGattServer() {
-        val server = bluetoothManager.openGattServer(context, gattServerCallback) ?: return
+        val server = bluetoothManager.openGattServer(context, gattServerCallback)
+        if (server == null) {
+            logW { "⚠️ Failed to open GATT server" }
+            return
+        }
         gattServer = server
+        logD { "GATT server opened" }
 
         val service = BluetoothGattService(
             serviceUuid,
@@ -310,6 +394,7 @@ class AndroidBleTransport(
         )
 
         server.addService(service)
+        logD { "GATT service added: $serviceUuid (4 characteristics)" }
     }
 
     private fun newCccdDescriptor(): BluetoothGattDescriptor =
@@ -326,6 +411,7 @@ class AndroidBleTransport(
     private val gattServerCallback = object : BluetoothGattServerCallback() {
 
         override fun onConnectionStateChange(device: BluetoothDevice, status: Int, newState: Int) {
+            logD { "GATT server: connection state change device=${device.address}, status=$status, newState=$newState" }
             if (newState == BluetoothProfile.STATE_CONNECTED) {
                 peerDevices[device.address] = device
             }
@@ -341,6 +427,8 @@ class AndroidBleTransport(
             value: ByteArray?,
         ) {
             val data = value ?: return
+
+            logD { "GATT server: write from ${device.address}, char=${characteristic.uuid}, ${data.size}B" }
 
             if (responseNeeded) {
                 gattServer?.sendResponse(
@@ -388,6 +476,7 @@ class AndroidBleTransport(
 
     override suspend fun sendToPeer(peerId: ByteArray, data: ByteArray) {
         val address = bytesToAddress(peerId)
+        logD { "sendToPeer: $address, ${data.size}B" }
         val mutex = connectionMutexes.getOrPut(address) { Mutex() }
 
         mutex.withLock {
@@ -397,6 +486,7 @@ class AndroidBleTransport(
     }
 
     private suspend fun connectToDevice(address: String): BluetoothGatt {
+        logD { "connectToDevice: $address" }
         val device = peerDevices[address]
             ?: bluetoothAdapter.getRemoteDevice(address)
 
@@ -405,6 +495,7 @@ class AndroidBleTransport(
         val callback = object : BluetoothGattCallback() {
 
             override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
+                logD { "GATT client: $address state=$newState, status=$status" }
                 if (status != BluetoothGatt.GATT_SUCCESS) {
                     activeConnections.remove(address)
                     gatt.close()
@@ -434,10 +525,12 @@ class AndroidBleTransport(
             }
 
             override fun onMtuChanged(gatt: BluetoothGatt, mtu: Int, status: Int) {
+                logD { "GATT client: MTU changed to $mtu for $address (status=$status)" }
                 gatt.discoverServices()
             }
 
             override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
+                logD { "GATT client: services discovered for $address (status=$status)" }
                 if (status == BluetoothGatt.GATT_SUCCESS) {
                     activeConnections[address] = gatt
                     servicesReady.complete(gatt)

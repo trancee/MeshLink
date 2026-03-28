@@ -6,3 +6,6 @@ build/
 # Android Studio
 .idea/
 local.properties
+
+# iOS
+xcuserdata/
