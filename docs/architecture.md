@@ -22,39 +22,41 @@ messaging library for Android and iOS.
 
 ## System Overview
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                        Application                              │
-│                                                                 │
-│   peers ◄── messages ◄── deliveryConfirmations ◄── keyChanges   │
-│   send() ──► broadcast() ──► meshHealth() ──► updateBattery()   │
-├─────────────────────────────────────────────────────────────────┤
-│                     MeshLinkApi Interface                        │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌───────────────┐   │
-│  │ Routing   │  │ Transfer │  │ Crypto   │  │ Diagnostics   │   │
-│  │          │  │          │  │          │  │               │   │
-│  │ DSDV     │  │ Chunking │  │ Noise XX │  │ DiagnosticSink│   │
-│  │ Gossip   │  │ SACK     │  │ Noise K  │  │ Health        │   │
-│  │ Cost     │  │ AIMD     │  │ Trust    │  │ Snapshots     │   │
-│  │ Dedup    │  │ Schedule │  │ Replay   │  │               │   │
-│  └──────────┘  └──────────┘  └──────────┘  └───────────────┘   │
-│                                                                 │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌───────────────┐   │
-│  │ Power    │  │ Wire     │  │ Util     │  │ Storage       │   │
-│  │          │  │          │  │          │  │               │   │
-│  │ Modes    │  │ Codec    │  │ Rate     │  │ SecureStorage │   │
-│  │ Policy   │  │ Encode   │  │ Limiter  │  │ (Keychain /   │   │
-│  │ Shedding │  │ Decode   │  │ Circuit  │  │  Keystore)    │   │
-│  │ Chunks   │  │          │  │ Breaker  │  │               │   │
-│  └──────────┘  └──────────┘  └──────────┘  └───────────────┘   │
-│                                                                 │
-├─────────────────────────────────────────────────────────────────┤
-│                   BleTransport Interface                         │
-├─────────────────────────────────────────────────────────────────┤
-│           Android (GATT + L2CAP)  │  iOS (CoreBluetooth)        │
-└───────────────────────────────────┴─────────────────────────────┘
+```mermaid
+flowchart TD
+    subgraph App["Application Layer"]
+        direction LR
+        API["MeshLinkApi Interface"]
+        Flows["peers · messages · deliveryConfirmations · keyChanges"]
+        Methods["send() · broadcast() · meshHealth() · updateBattery()"]
+    end
+
+    subgraph Core["Core Engines (commonMain ~85%)"]
+        direction TB
+        subgraph Row1[" "]
+            direction LR
+            Routing["🗺️ Routing<br/>DSDV · Gossip<br/>Cost · Dedup"]
+            Transfer["📦 Transfer<br/>Chunking · SACK<br/>AIMD · Schedule"]
+            Crypto["🔒 Crypto<br/>Noise XX · Noise K<br/>Trust · Replay"]
+            Diag["📊 Diagnostics<br/>DiagnosticSink<br/>Health · Snapshots"]
+        end
+        subgraph Row2[" "]
+            direction LR
+            Power["⚡ Power<br/>Modes · Policy<br/>Shedding · Chunks"]
+            Wire["📡 Wire<br/>Codec · Encode<br/>Decode"]
+            Util["🔧 Util<br/>RateLimit · Circuit<br/>Breaker · Pause"]
+            Storage["💾 Storage<br/>SecureStorage<br/>Keychain / Keystore"]
+        end
+    end
+
+    subgraph Transport["BLE Transport Layer"]
+        direction LR
+        BleAPI["BleTransport Interface"]
+        Android["Android<br/>GATT + L2CAP"]
+        iOS["iOS<br/>CoreBluetooth"]
+    end
+
+    App --> Core --> Transport
 ```
 
 MeshLink is structured as a layered library with a clean boundary between
@@ -210,124 +212,96 @@ platform-agnostic logic (in `commonMain`) and platform-specific I/O (in
 
 ### Outbound Unicast
 
-```
-Application
-    │
-    ▼
-send(recipient, payload)
-    │
-    ├─ Rate limiter check ──► FAIL → Result.failure()
-    ├─ Circuit breaker check ──► FAIL → Result.failure()
-    ├─ Buffer capacity check ──► FAIL → Result.failure()
-    │
-    ▼
-Generate message UUID
-    │
-    ▼
-Noise K seal (if crypto enabled)
-    ├─ Generate ephemeral X25519 key pair
-    ├─ ECDH: ephemeral private × recipient static public
-    ├─ HKDF-SHA256 key derivation
-    └─ ChaCha20-Poly1305 encrypt
-        Output: [32B ephemeral pub | ciphertext | 16B tag]
-    │
-    ▼
-Chunk into segments
-    ├─ Effective chunk size = min(powerModeMax, mtu - 21)
-    ├─ Each chunk: type(1) + messageId(16) + seqNum(2) + totalChunks(2) + payload
-    └─ Create TransferSession (AIMD window = ackWindowMin)
-    │
-    ▼
-Route lookup (RoutingTable.bestRoute)
-    ├─ Direct neighbor → send via BleTransport
-    └─ Multi-hop → wrap as TYPE_ROUTED_MESSAGE → send to nextHop
-    │
-    ▼
-BLE Transport
-    ├─ L2CAP (preferred, connection-oriented)
-    └─ GATT (fallback, connectionless)
-    │
-    ▼
-Wait for Chunk ACKs
-    ├─ ACK received → AIMD window increase
-    ├─ SACK bitmask → selective retransmit gaps
-    ├─ Timeout → AIMD window decrease, retransmit
-    └─ All chunks ACKed → await Delivery ACK
-    │
-    ▼
-Delivery ACK received → emit on deliveryConfirmations flow
-    or
-Timeout → emit TransferFailure(FAILED_DELIVERY_TIMEOUT)
+```mermaid
+flowchart TD
+    App["Application calls send(recipient, payload)"]
+    App --> PolicyChain
+
+    subgraph PolicyChain["SendPolicyChain (pre-flight)"]
+        direction TB
+        P1{"Buffer full?"} -->|Yes| Fail1["Result.failure(bufferFull)"]
+        P1 -->|No| P2{"Loopback?"}
+        P2 -->|Yes| Loopback["Deliver to self"]
+        P2 -->|No| P3{"Paused?"}
+        P3 -->|Yes| Queue["Queue in PauseManager"]
+        P3 -->|No| P4{"Rate limited?"}
+        P4 -->|Yes| Fail2["Result.failure(rateLimited)"]
+        P4 -->|No| P5{"Circuit breaker open?"}
+        P5 -->|Yes| Fail3["Result.failure(circuitBreakerOpen)"]
+        P5 -->|No| P6{"Route exists?"}
+        P6 -->|No| Fail4["Result.failure(unreachable)"]
+        P6 -->|Yes| OK["SendDecision.Direct / .Routed"]
+    end
+
+    OK --> GenID["Generate message UUID"]
+    GenID --> Seal
+
+    subgraph Seal["Noise K Seal (if crypto)"]
+        direction TB
+        S1["Generate ephemeral X25519 keypair"] --> S2["ECDH: ephemeral × recipient static"]
+        S2 --> S3["HKDF-SHA256 key derivation"]
+        S3 --> S4["ChaCha20-Poly1305 encrypt"]
+    end
+
+    Seal --> Chunk["Chunk into MTU-sized segments"]
+    Chunk --> Route{"Direct neighbor?"}
+    Route -->|Yes| Direct["Send via BleTransport"]
+    Route -->|No| Routed["Wrap as TYPE_ROUTED_MESSAGE → nextHop"]
+    Direct --> ACK["Wait for Chunk ACKs (AIMD window)"]
+    Routed --> ACK
+    ACK --> DeliveryACK["Delivery ACK received → emit confirmation"]
 ```
 
 ### Inbound Unicast
 
-```
-BLE Transport
-    │
-    ▼
-incomingData flow
-    │
-    ▼
-WireCodec.decode (parse type byte + header)
-    │
-    ├─ TYPE_HANDSHAKE → PeerHandshakeManager
-    ├─ TYPE_CHUNK → chunk processing pipeline (below)
-    ├─ TYPE_CHUNK_ACK → update TransferSession
-    ├─ TYPE_ROUTE_UPDATE → RoutingTable.addRoute
-    ├─ TYPE_BROADCAST → deduplicate → emit on messages flow
-    ├─ TYPE_ROUTED_MESSAGE → forward or deliver (see below)
-    ├─ TYPE_DELIVERY_ACK → DeliveryAckRouter
-    ├─ TYPE_KEEPALIVE → update presence
-    ├─ TYPE_NACK → handle negative ack
-    ├─ TYPE_ROTATION → TrustStore update → emit KeyChangeEvent
-    └─ TYPE_RESUME_REQUEST → resume interrupted transfer
-    │
-    ▼
-Chunk Processing:
-    │
-    ├─ Neighbor rate limit check
-    ├─ Per-sender rate limit check
-    ├─ Dedup check (DedupSet)
-    ├─ SackTracker.record(seqNum)
-    ├─ Send TYPE_CHUNK_ACK with SACK bitmask
-    │
-    ▼
-All chunks received? (SackTracker.isComplete)
-    │
-    ▼
-Reassemble payload
-    │
-    ▼
-Noise K unseal (if crypto enabled)
-    ├─ Extract 32B ephemeral public key
-    ├─ ECDH: local static private × ephemeral public
-    ├─ HKDF-SHA256 key derivation
-    └─ ChaCha20-Poly1305 decrypt
-    │
-    ▼
-App ID filter check
-    │
-    ▼
-Emit Message on messages flow
-    │
-    ▼
-Send TYPE_DELIVERY_ACK back to sender
+```mermaid
+flowchart TD
+    BLE["BLE Transport incomingData"] --> Decode["WireCodec.decode (type byte)"]
+
+    Decode --> |"0x01 HANDSHAKE"| Handshake["PeerHandshakeManager"]
+    Decode --> |"0x03 CHUNK"| ChunkPipeline
+    Decode --> |"0x04 CHUNK_ACK"| AckUpdate["Update TransferSession"]
+    Decode --> |"0x02 ROUTE_UPDATE"| RouteLearn["RoutingEngine.learnRoutes"]
+    Decode --> |"0x00 BROADCAST"| Broadcast["Dedup → emit on messages"]
+    Decode --> |"0x05 ROUTED"| RoutedMsg["Forward or deliver"]
+    Decode --> |"0x06 DELIVERY_ACK"| DelAck["DeliveryAckRouter"]
+    Decode --> |"0x08 KEEPALIVE"| Keepalive["Update presence"]
+    Decode --> |"0x09 NACK"| Nack["Handle negative ack"]
+    Decode --> |"0x0A ROTATION"| Rotation["TrustStore → KeyChangeEvent"]
+
+    subgraph ChunkPipeline["Chunk Processing"]
+        direction TB
+        C1["Rate limit checks"] --> C2["Dedup check"]
+        C2 --> C3["SackTracker.record(seqNum)"]
+        C3 --> C4["Send CHUNK_ACK + SACK bitmask"]
+        C4 --> C5{"All chunks received?"}
+        C5 -->|No| Wait["Wait for more chunks"]
+        C5 -->|Yes| Reassemble["Reassemble payload"]
+    end
+
+    Reassemble --> Unseal["Noise K unseal (if crypto)"]
+    Unseal --> Filter["App ID filter check"]
+    Filter --> Emit["Emit Message on messages flow"]
+    Emit --> SendAck["Send DELIVERY_ACK to sender"]
 ```
 
 ### Routed Message Forwarding
 
-```
-Receive TYPE_ROUTED_MESSAGE
-    │
-    ├─ Am I the destination? → decrypt + deliver locally
-    │
-    └─ Not for me → relay
-        ├─ Hop count check (decrement, discard if 0)
-        ├─ Loop detection (have I seen this message ID?)
-        ├─ Relay queue capacity check
-        ├─ Route lookup for destination
-        └─ Forward via BleTransport to nextHop
+```mermaid
+flowchart TD
+    Recv["Receive TYPE_ROUTED_MESSAGE"] --> Check{"Am I the destination?"}
+    Check -->|Yes| Decrypt["Decrypt + deliver locally"]
+    Check -->|No| Relay
+
+    subgraph Relay["Relay Processing"]
+        direction TB
+        R1{"Hop count > 0?"} -->|No| Drop["Discard (TTL expired)"]
+        R1 -->|Yes| R2{"Seen this message ID?"}
+        R2 -->|Yes| DropDup["Discard (loop)"]
+        R2 -->|No| R3{"Relay queue has capacity?"}
+        R3 -->|No| NackFull["Send NACK(bufferFull)"]
+        R3 -->|Yes| R4["Route lookup → forward to nextHop"]
+    end
 ```
 
 ---
@@ -404,18 +378,24 @@ forward secrecy for the BLE link.
 
 **Protocol:** Noise XX (bidirectional, mutual authentication)
 
-```
-Initiator (I)                      Responder (R)
-─────────────────────────────────────────────────
-msg1: I → R    e                   Ephemeral public key
-msg2: R → I    e, ee, s, es        Ephemeral, ECDH, encrypted static, ECDH
-msg3: I → R    s, se               Encrypted static, ECDH
-```
+```mermaid
+sequenceDiagram
+    participant I as Initiator
+    participant R as Responder
 
-After the three-message handshake:
-- Both sides have verified each other's Ed25519 static public key.
-- Two symmetric transport keys are derived (one per direction).
-- All subsequent hop-by-hop traffic is encrypted with ChaCha20-Poly1305.
+    Note over I,R: Lower peerId initiates (deterministic tie-breaking)
+
+    I->>R: msg1: e (ephemeral public key)
+    Note right of R: R generates own ephemeral key
+
+    R->>I: msg2: e, ee, s, es
+    Note left of I: ECDH: ee (both ephemerals)<br/>Encrypted static key + ECDH: es
+
+    I->>R: msg3: s, se
+    Note right of R: Encrypted static key + ECDH: se
+
+    Note over I,R: ✓ Both sides verified Ed25519 static keys<br/>✓ Two symmetric transport keys derived<br/>✓ All subsequent traffic encrypted (ChaCha20-Poly1305)
+```
 
 **Implementation:** `NoiseXXHandshake` (initiator/responder factory methods)
 and `PeerHandshakeManager` (multi-peer orchestration), both managed by `SecurityEngine`.
@@ -427,20 +407,22 @@ it, even when relayed through intermediate peers.
 
 **Protocol:** Noise K pattern (sender-authenticated, one-way)
 
-```
-Seal:
-  1. Generate ephemeral X25519 key pair (esk, epk)
-  2. Compute shared secret: X25519(esk, recipientStaticPub)
-  3. Derive key via HKDF-SHA256
-  4. Encrypt with ChaCha20-Poly1305
-  5. Output: [32B epk | ciphertext | 16B auth tag]
-  6. Discard esk (forward secrecy)
+```mermaid
+sequenceDiagram
+    participant S as Sender
+    participant R as Recipient
 
-Unseal:
-  1. Extract 32B epk from sealed data
-  2. Compute shared secret: X25519(recipientStaticPriv, epk)
-  3. Derive key via HKDF-SHA256
-  4. Decrypt with ChaCha20-Poly1305
+    Note over S: Generate ephemeral X25519 keypair (esk, epk)
+    Note over S: ECDH: X25519(esk, recipientStaticPub)
+    Note over S: HKDF-SHA256 → symmetric key
+    Note over S: ChaCha20-Poly1305 encrypt
+    S->>R: [32B epk | ciphertext | 16B auth tag]
+    Note over S: Discard esk (forward secrecy)
+
+    Note over R: Extract 32B epk
+    Note over R: ECDH: X25519(recipientStaticPriv, epk)
+    Note over R: HKDF-SHA256 → symmetric key
+    Note over R: ChaCha20-Poly1305 decrypt
 ```
 
 **Overhead:** 48 bytes per message (32B ephemeral key + 16B auth tag).
@@ -506,6 +488,30 @@ Chunk Payload:  8192 B       4096 B        1024 B
 
 Thresholds are configurable via `powerModeThresholds` (default `[80, 30]`).
 
+```mermaid
+stateDiagram-v2
+    [*] --> PERFORMANCE : Battery > 80%
+
+    PERFORMANCE --> BALANCED : Battery ≤ 80%<br/>(30s hysteresis)
+    BALANCED --> POWER_SAVER : Battery ≤ 30%<br/>(30s hysteresis)
+
+    POWER_SAVER --> BALANCED : Battery > 30%<br/>(immediate)
+    BALANCED --> PERFORMANCE : Battery > 80%<br/>(immediate)
+
+    POWER_SAVER --> PERFORMANCE : Charging detected<br/>(immediate)
+    BALANCED --> PERFORMANCE : Charging detected<br/>(immediate)
+
+    state PERFORMANCE {
+        [*] : Adv: 250ms · Scan: 80% · 8 transfers
+    }
+    state BALANCED {
+        [*] : Adv: 500ms · Scan: 50% · 4 transfers
+    }
+    state POWER_SAVER {
+        [*] : Adv: 1000ms · Scan: 16% · 1 transfer
+    }
+```
+
 ### Hysteresis
 
 `PowerModeEngine` prevents rapid mode flapping:
@@ -555,11 +561,19 @@ where `CHUNK_HEADER_SIZE = 21` bytes.
 
 `TieredShedder` implements three escalation levels:
 
-| Level | Actions |
-|-------|---------|
-| MODERATE | Clear relay message buffers |
-| HIGH | Also trim deduplication set entries |
-| CRITICAL | Also drop BLE connections |
+```mermaid
+flowchart LR
+    Eval{"Buffer utilization?"} -->|"≥ 50%"| MOD["🟡 MODERATE"]
+    Eval -->|"≥ 70%"| HIGH["🟠 HIGH"]
+    Eval -->|"≥ 90%"| CRIT["🔴 CRITICAL"]
+
+    MOD --> A1["Clear relay buffers"]
+    HIGH --> A1
+    HIGH --> A2["Trim dedup set"]
+    CRIT --> A1
+    CRIT --> A2
+    CRIT --> A3["Drop BLE connections"]
+```
 
 ---
 
@@ -575,11 +589,13 @@ pattern-matches on results to dispatch wire bytes and emit diagnostics.
 Messages larger than `mtu - 21` bytes are split into chunks. Each chunk
 carries a 21-byte header:
 
-```
-┌──────┬──────────────┬─────────┬─────────────┬─────────┐
-│ Type │  Message ID  │ Seq Num │ Total Chunks│ Payload │
-│ 1B   │    16B       │  2B LE  │   2B LE     │ var     │
-└──────┴──────────────┴─────────┴─────────────┘─────────┘
+```mermaid
+packet-beta
+  0-7: "Type (1B)"
+  8-135: "Message ID (16B UUID)"
+  136-151: "Seq Num (2B LE)"
+  152-167: "Total Chunks (2B LE)"
+  168-191: "Payload (variable)"
 ```
 
 ### Selective Acknowledgement (SACK)
@@ -589,8 +605,15 @@ carries a 21-byte header:
 - `ackSeq`: highest contiguous sequence number received from 0.
 - `sackBitmask`: 64-bit bitmask indicating received chunks beyond `ackSeq`.
 
-ACK wire format: `type(1) + messageId(16) + ackSeq(2 LE) + sackBitmask(8 LE)`
-= 27 bytes.
+ACK wire format:
+
+```mermaid
+packet-beta
+  0-7: "Type (1B)"
+  8-135: "Message ID (16B UUID)"
+  136-151: "Ack Seq (2B LE)"
+  152-215: "SACK Bitmask (8B LE)"
+```
 
 The sender uses the SACK bitmask to selectively retransmit only missing
 chunks, avoiding unnecessary retransmission of already-received data.
