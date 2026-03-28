@@ -394,54 +394,56 @@ flowchart TD
 ```mermaid
 mindmap
   root((MeshLink<br/>Concurrency))
-    Actors
-      ConnectionActor
-        BLE lifecycle
-        Slot management
-      CryptoActor
+    Engines
+      SecurityEngine
         Noise XX/K
-        Replay counters
-      TransferActor
-        Chunking
-        SACK / L2CAP I/O
-      RouterActor
+        Key management
+      RoutingEngine
         DSDV routing
-      BufferActor
+        Gossip preparation
+        Dedup
+      TransferEngine
+        Chunking / SACK
+        AIMD congestion
+      DeliveryPipeline
+        Tracking / tombstones
         Store-and-forward
-        Dedup set
-      PresenceActor
-        Sweep timer
-        Peer table
-      GossipActor
-        Differential exchange
-        Split horizon
+    Coordinators
+      GossipCoordinator
+        Gossip loop
+        Keepalive loop
+        Triggered updates
+      PeerConnectionCoordinator
+        Version negotiation
+        Key registration
+        Handshake initiation
+      PowerCoordinator
+        Mode transitions
+        Memory shedding
+    Policy Chains
+      SendPolicyChain
+        Unicast pre-flight
+      BroadcastPolicyChain
+        Broadcast pre-flight
+      MessageDispatcher
+        Inbound frame dispatch
     Communication
-      Channel-Based FFI
-      CompletableDeferred
-      DAG Ordering
-    Supervision
-      Let-it-crash
-      Tiered Circuit Breaker
-      Crash History (in-memory)
+      Coroutine Scopes
+      Sealed Result Types
+      Function-Type Dependencies
 ```
 
 | Term | Definition | Aliases to avoid |
 |------|-----------|-----------------|
-| **Actor** | A concurrency unit that processes messages serially from its own mailbox. No shared mutable state between actors. Kotlin: coroutine actor with typed `Channel<T>`; Swift: `actor` type. Per-actor channel capacities: Connection=128, Crypto=64, Transfer=64, Router=32, Buffer=32, Presence=16, Gossip=16. | Thread, worker, handler |
-| **Actor Supervision** | Let-it-crash model with tiered circuit breaker: CryptoActor=2 crashes/60s, standard=3, lenient=5. Crash history in-memory only. → see design.md §11. | Restart policy, crash recovery |
-| **BufferActor** | The **Actor** owning the **Buffer** pool, **Dedup Set** (in-memory), and TTL eviction. | Buffer manager |
-| **ConnectionActor** | The **Actor** owning BLE connection lifecycle, **Tie-Breaking**, slot management, and **L2CAP CoC** channel setup. | Connection manager |
-| **Crash Recovery State Table** | Defines which state survives unexpected termination: **Identity**, **Replay Counters**, TOFI pins fully restored; **Dedup Set** lost (in-memory only in v1); **Routing Table**, **Transfers**, **Buffers** rebuilt/lost. | Recovery matrix, persistence table |
-| **CryptoActor** | The **Actor** owning **Noise XX Sessions**, Noise K seal/unseal, and **Replay Counter** management. | Crypto engine |
-| **DAG Ordering** | The strict directed acyclic graph governing inter-**Actor** message flow. Prevents deadlocks by ensuring no bidirectional direct messaging between actors. | Message flow, deadlock prevention |
-| **fatalError** | Unrecoverable library error triggered by actor circuit breaker, platform crypto init failure, or key storage failure. `retryable` flag indicates whether `start()` can be re-attempted. → see design.md §11. | Fatal crash, library panic |
-| **GossipActor** | The **Actor** owning the **Gossip** timer, differential exchange, **Triggered Updates**, and **Split Horizon**. | Gossip engine |
-| **Monotonic Time** | Uptime-based clock (monotonic, not wall-clock) used for **Dedup Set** expiry, **Buffer** TTL, **Replay Counter** eviction age, and **circuit breaker** sliding window. Resets to zero on device reboot; never affected by NTP corrections. `System.nanoTime()` (Android) / `ProcessInfo.systemUptime` (iOS). | Uptime clock, elapsed time |
-| **PresenceActor** | The **Actor** owning scanner results, **Sweep Timer**, peer table, and **Presence Eviction**. | Presence manager |
-| **RouterActor** | The **Actor** owning the **Routing Table**, Enhanced DSDV, and route selection (**Primary**/**Backup Route**). | Routing engine |
-| **TransferActor** | The **Actor** owning chunking, reassembly, **SACK** (GATT), **L2CAP CoC** stream I/O, and **round-robin** interleaving. | Transfer manager |
-| **Virtual Time** | Injectable clock model used by **VirtualMesh**. All internal timers use the injected clock. Tests advance time programmatically via `advanceTime()` and `advanceUntilIdle()`. | Fake clock, test clock, simulated time |
-| **VirtualMesh** | The in-process BLE simulator that creates N simulated **Peers** with configurable per-link parameters (latency, loss, RSSI, L2CAP toggle). All **BleTransport** calls route through it. | Simulator, mock mesh |
+| **Engine** | A stateful facade that consolidates a domain concern (routing, transfer, security, delivery) behind sealed result types. Engines are constructed once and injected into MeshLink. Callers pattern-match on sealed results to decide effects. | Actor, manager, service |
+| **Coordinator** | A stateful component that orchestrates loops or multi-step decision logic (gossip timing, peer connection handling, power transitions). Coordinators call engines and return sealed actions for MeshLink to execute. | Actor, controller |
+| **Policy Chain** | A pure pre-flight evaluator that checks conditions in priority order and returns a sealed decision type (e.g., `SendDecision`, `BroadcastDecision`). Testable via function-type dependency injection. | Validator, checker |
+| **Sealed Result Type** | The pattern used across all engines and coordinators: methods return sealed interfaces so callers exhaustively pattern-match on outcomes. Eliminates boolean flags and stringly-typed errors. | Union type, result enum |
+| **Function-Type Dependency** | Constructor parameter of type `() -> T` or `(A) -> B` that injects behavior without requiring the full dependency graph. Used by policy chains and coordinators for testability. | Callback, lambda injection |
+| **DispatchSink** | Callback interface grouping 8 effect callbacks (flow emissions, transport sends) that `MessageDispatcher` uses to delegate side effects back to MeshLink. | Observer, listener |
+| **Monotonic Time** | Uptime-based clock (monotonic, not wall-clock) used for dedup expiry, buffer TTL, replay counter eviction, and circuit breaker windows. Resets to zero on reboot. `System.nanoTime()` (Android) / `ProcessInfo.systemUptime` (iOS). | Uptime clock, elapsed time |
+| **Virtual Time** | Injectable clock model used by tests. All internal timers use the injected `clock: () -> Long`. Tests advance time programmatically via `advanceTime()` and `advanceUntilIdle()`. | Fake clock, test clock |
+| **VirtualMesh** | The in-process BLE simulator that creates N simulated **Peers** with configurable per-link parameters (latency, loss, RSSI). All **BleTransport** calls route through it. | Simulator, mock mesh |
 
 ## Library API
 

@@ -120,13 +120,47 @@ platform-agnostic logic (in `commonMain`) and platform-specific I/O (in
 |------|---------------|
 | `PowerCoordinator.kt` | Facade consolidating power-mode transitions, memory-pressure evaluation, and buffer-pressure monitoring behind sealed result types. |
 | `PowerProfile.kt` | Single source of truth for all power-mode-dependent constants (advertising interval, scan timing, max connections, gossip multiplier). Replaces scattered `when(mode)` lookups. |
-| `GossipCoordinator.kt` | Coordinates routing protocol maintenance: gossip broadcasting, keepalive pings, and triggered route updates with batching and throttling. |
-| `PeerConnectionCoordinator.kt` | Coordinates BLE peer discovery: version negotiation, routing presence, security key registration, and handshake initiation via sealed `PeerConnectionAction`. |
 | `PowerModeEngine.kt` | Hysteresis-based mode transitions driven by battery level and charging state. |
 | `AdvertisingPolicy.kt` | Maps power mode to BLE advertising interval and scan duty cycle. |
-| `TransferScheduler.kt` | Adjusts max concurrent transfers per power mode. |
-| `ChunkSizePolicy.kt` | Adjusts chunk payload size per power mode. |
 | `TieredShedder.kt` | Three-tier memory shedding strategy (MODERATE → HIGH → CRITICAL). |
+| `ConnectionLimiter.kt` | Manages per-mode connection limits with eviction on power mode downgrade. |
+
+### `io.meshlink.send` — Send Policy
+
+| File | Responsibility |
+|------|---------------|
+| `SendPolicyChain.kt` | Pure pre-flight evaluator for outbound sends; chains buffer, pause, rate-limit, circuit-breaker, routing, and crypto checks into sealed `SendDecision`. |
+| `BroadcastPolicyChain.kt` | Pure pre-flight evaluator for broadcast sends; chains buffer and rate-limit checks, then constructs a signed encoded frame via sealed `BroadcastDecision`. |
+
+### `io.meshlink.dispatch` — Message Dispatch
+
+| File | Responsibility |
+|------|---------------|
+| `MessageDispatcher.kt` | Dispatches inbound BLE frames to typed handlers; owns decode/validate pipeline, dedup, loop detection, unseal, and delegates effects via `DispatchSink`. |
+| `DispatchSink.kt` | Callback interface grouping 8 effect callbacks for flow emissions and transport sends. |
+
+### `io.meshlink.gossip` — Gossip Coordination
+
+| File | Responsibility |
+|------|---------------|
+| `GossipCoordinator.kt` | Coordinates routing protocol maintenance: gossip broadcasting, keepalive pings, and triggered route updates with batching and throttling. |
+
+### `io.meshlink.peer` — Peer Connection
+
+| File | Responsibility |
+|------|---------------|
+| `PeerConnectionCoordinator.kt` | Coordinates BLE peer discovery: version negotiation, routing presence, security key registration, and handshake initiation via sealed `PeerConnectionAction`. |
+
+### `io.meshlink.model` — Domain Model
+
+| File | Responsibility |
+|------|---------------|
+| `Identifiers.kt` | Inline value classes `PeerId` and `MessageId` wrapping hex strings for compile-time type safety and correct map-key equality. |
+| `Message.kt` | Inbound message data class. |
+| `PeerEvent.kt` | Sealed interface for peer discovery/loss events. |
+| `KeyChangeEvent.kt` | Key rotation notification data class. |
+| `TransferFailure.kt` | Transfer failure event data class. |
+| `TransferProgress.kt` | Transfer progress event data class. |
 
 ### `io.meshlink.wire` — Wire Protocol
 
@@ -165,14 +199,8 @@ platform-agnostic logic (in `commonMain`) and platform-specific I/O (in
 |------|---------------|
 | `RateLimitPolicy.kt` | Facade consolidating 7 rate limiters and circuit breaker behind sealed `RateLimitResult` type. |
 | `PauseManager.kt` | Manages paused state with bounded send and relay queues; returns `PauseSnapshot` on resume for deferred flush. |
-| `SendPolicyChain.kt` | Pure pre-flight evaluator for outbound sends; chains buffer, pause, rate-limit, circuit-breaker, routing, and crypto checks into sealed `SendDecision`. |
-| `BroadcastPolicyChain.kt` | Pure pre-flight evaluator for broadcast sends; chains buffer and rate-limit checks, then constructs a signed encoded frame via sealed `BroadcastDecision`. |
-| `MessageDispatcher.kt` | Dispatches inbound BLE frames to typed handlers; owns decode/validate pipeline, dedup, loop detection, unseal, and delegates effects via `DispatchSink`. |
-| `Identifiers.kt` | Inline value classes `PeerId` and `MessageId` wrapping hex strings for compile-time type safety and correct map-key equality. |
 | `RateLimiter.kt` | Sliding window rate limiting (per-key token bucket). |
 | `CircuitBreaker.kt` | Fault isolation with closed → open → half-open state machine. |
-| `DeliveryTracker.kt` | Per-message delivery outcome tracking (PENDING → RESOLVED). |
-| `TombstoneSet.kt` | Tracks recently-delivered message IDs to suppress reordered duplicates. |
 | `HexUtil.kt` | Hex encoding/decoding. |
 | `PlatformLock.kt` | Multiplatform mutex (`expect`/`actual`). |
 
@@ -471,7 +499,7 @@ Battery Level:  100%        80%           30%          0%
                  │PERFORMANCE│  BALANCED   │POWER_SAVER │
                  │           │             │            │
 Adv Interval:   250 ms       500 ms        1000 ms
-Scan Duty:      90%          50%           15%
+Scan Duty:      80%          50%           16%
 Max Transfers:  8            4             1
 Chunk Payload:  8192 B       4096 B        1024 B
 ```
@@ -490,13 +518,15 @@ Thresholds are configurable via `powerModeThresholds` (default `[80, 30]`).
 
 ### Advertising & Scan Policy
 
-`AdvertisingPolicy` maps power mode to BLE radio parameters:
+`PowerProfile` is the single source of truth for all power-mode-dependent
+constants. `AdvertisingPolicy` and `ScanDutyCycleController` derive their
+values from it:
 
 | Mode | Advertising Interval | Scan Duty Cycle | Aggressive Discovery |
 |------|---------------------|-----------------|---------------------|
-| PERFORMANCE | 250 ms | 90% | Yes |
-| BALANCED | 500 ms | 50% | No |
-| POWER_SAVER | 1000 ms | 15% | No |
+| PERFORMANCE | 250 ms | 80% (4s on / 1s off) | Yes |
+| BALANCED | 500 ms | 50% (3s on / 3s off) | No |
+| POWER_SAVER | 1000 ms | 16% (1s on / 5s off) | No |
 
 ### Transfer Scheduling
 
@@ -668,11 +698,16 @@ meshlink/
 │   │       ├── MeshLinkApi.kt        Public interface
 │   │       ├── config/               Configuration
 │   │       ├── crypto/               Noise XX, Noise K, trust, replay
+│   │       ├── delivery/             Delivery pipeline, tracking, tombstones
 │   │       ├── diagnostics/          Events, health snapshots
-│   │       ├── model/                Message, PeerEvent, etc.
-│   │       ├── power/                Power mode engine, policies
+│   │       ├── dispatch/             Inbound frame dispatch
+│   │       ├── gossip/               Gossip coordination
+│   │       ├── model/                Message, PeerEvent, identifiers
+│   │       ├── peer/                 Peer connection coordination
+│   │       ├── power/                Power mode engine, profiles, policies
 │   │       ├── protocol/             Protocol version
 │   │       ├── routing/              DSDV, gossip, cost, dedup
+│   │       ├── send/                 Send and broadcast policy chains
 │   │       ├── storage/              SecureStorage interface
 │   │       ├── transfer/             AIMD, SACK, chunking, scheduling
 │   │       ├── transport/            BleTransport interface

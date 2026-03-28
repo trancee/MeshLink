@@ -2,6 +2,8 @@
 
 > A secure, decentralized, peer-to-peer messaging library for Android and iOS over Bluetooth Low Energy mesh networks.
 
+> **Implementation note:** This document describes the original design rationale, including an actor-based concurrency model (7 named actors). During implementation, the actor model was simplified to an engine/coordinator pattern — stateful facades with sealed result types, coroutine scopes, and function-type dependency injection. See [architecture.md](architecture.md) for the current module structure.
+
 ## 1. Product Vision
 
 MeshLink is a **library-first SDK** that enables developers to embed encrypted, serverless, offline-capable messaging into their Android and iOS apps. Communication happens entirely over BLE mesh — no internet, no servers, no accounts.
