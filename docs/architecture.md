@@ -200,11 +200,15 @@ platform-agnostic logic (in `commonMain`) and platform-specific I/O (in
 | File | Responsibility |
 |------|---------------|
 | `DeliveryPipeline.kt` | Facade consolidating delivery tracking, tombstones, deadline timers, reverse-path relay, replay guards, inbound rate limiting, and store-and-forward buffering behind sealed result types. |
+| `DeliveryTracker.kt` | Internal PENDING→RESOLVED state machine for first-terminal-signal delivery tracking. |
+| `DeliveryDeadlineTimer.kt` | Internal coroutine-based per-message timeout with diagnostic emission. |
+| `TombstoneSet.kt` | Internal time-windowed set for late-ACK detection. |
 
 ### `io.meshlink.util` — Utilities
 
 | File | Responsibility |
 |------|---------------|
+| `DeliveryOutcome.kt` | Enum of delivery outcomes (confirmed, failed variants). |
 | `RateLimitPolicy.kt` | Facade consolidating 7 rate limiters and circuit breaker behind sealed `RateLimitResult` type. |
 | `PauseManager.kt` | Manages paused state with bounded send and relay queues; returns `PauseSnapshot` on resume for deferred flush. |
 | `RateLimiter.kt` | Sliding window rate limiting (per-key token bucket). |

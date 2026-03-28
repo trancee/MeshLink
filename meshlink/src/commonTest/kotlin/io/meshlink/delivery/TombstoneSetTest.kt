@@ -1,4 +1,4 @@
-package io.meshlink.util
+package io.meshlink.delivery
 
 import kotlin.test.Test
 import kotlin.test.assertEquals

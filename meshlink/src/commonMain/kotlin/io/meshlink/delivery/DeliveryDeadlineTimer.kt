@@ -1,8 +1,9 @@
-package io.meshlink.util
+package io.meshlink.delivery
 
 import io.meshlink.diagnostics.DiagnosticCode
 import io.meshlink.diagnostics.DiagnosticSink
 import io.meshlink.diagnostics.Severity
+import io.meshlink.util.DeliveryOutcome
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -18,7 +19,7 @@ import kotlinx.coroutines.launch
  * Timers are cancelled when delivery is confirmed, the message is explicitly cancelled,
  * or [cancelAll] is called (e.g. on MeshLink stop).
  */
-class DeliveryDeadlineTimer(
+internal class DeliveryDeadlineTimer(
     private val diagnosticSink: DiagnosticSink,
     private val deliveryTracker: DeliveryTracker,
 ) {

@@ -1,8 +1,9 @@
-package io.meshlink.util
+package io.meshlink.delivery
 
 import io.meshlink.diagnostics.DiagnosticCode
 import io.meshlink.diagnostics.DiagnosticSink
 import io.meshlink.diagnostics.Severity
+import io.meshlink.util.DeliveryOutcome
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch

@@ -1,10 +1,12 @@
-package io.meshlink.util
+package io.meshlink.delivery
+
+import io.meshlink.util.currentTimeMillis
 
 /**
  * Time-bounded set that tracks message IDs for a configurable window.
  * Used to detect late ACKs arriving after a delivery has been resolved.
  */
-class TombstoneSet(
+internal class TombstoneSet(
     private val windowMs: Long = 120_000L,
     private val clock: () -> Long = { currentTimeMillis() },
 ) {

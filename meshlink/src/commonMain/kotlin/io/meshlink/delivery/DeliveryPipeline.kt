@@ -2,10 +2,7 @@ package io.meshlink.delivery
 
 import io.meshlink.crypto.ReplayGuard
 import io.meshlink.diagnostics.DiagnosticSink
-import io.meshlink.util.DeliveryDeadlineTimer
 import io.meshlink.util.DeliveryOutcome
-import io.meshlink.util.DeliveryTracker
-import io.meshlink.util.TombstoneSet
 import io.meshlink.util.currentTimeMillis
 import kotlinx.coroutines.CoroutineScope
 
@@ -42,7 +39,7 @@ class DeliveryPipeline(
 ) {
     private val deliveryTracker = DeliveryTracker()
     private val tombstoneSet = TombstoneSet(windowMs = tombstoneWindowMs, clock = clock)
-    val deadlineTimer = DeliveryDeadlineTimer(
+    private val deadlineTimer = DeliveryDeadlineTimer(
         diagnosticSink = diagnosticSink,
         deliveryTracker = deliveryTracker,
     )

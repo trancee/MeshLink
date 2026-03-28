@@ -1,16 +1,8 @@
-package io.meshlink.util
+package io.meshlink.delivery
 
-enum class DeliveryOutcome {
-    CONFIRMED,
-    FAILED_NO_ROUTE,
-    FAILED_HOP_LIMIT,
-    FAILED_ACK_TIMEOUT,
-    FAILED_BUFFER_FULL,
-    FAILED_PEER_OFFLINE,
-    FAILED_DELIVERY_TIMEOUT,
-}
+import io.meshlink.util.DeliveryOutcome
 
-class DeliveryTracker {
+internal class DeliveryTracker {
 
     private enum class State { PENDING, RESOLVED }
 
