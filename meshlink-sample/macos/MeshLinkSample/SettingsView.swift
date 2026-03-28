@@ -14,7 +14,7 @@ struct SettingsView: View {
                         Text(preset.rawValue).tag(preset)
                     }
                 }
-                .onChange(of: viewModel.currentPreset) { _, newValue in
+                .onChange(of: viewModel.currentPreset) { newValue in
                     viewModel.applyPreset(newValue)
                 }
             }
@@ -25,7 +25,7 @@ struct SettingsView: View {
                     Slider(
                         value: Binding(
                             get: { Double(viewModel.currentMtu) },
-                            set: { viewModel.updateMtu(Int($0)) }
+                            set: { viewModel.currentMtu = Int($0) }
                         ),
                         in: 23...517,
                         step: 1

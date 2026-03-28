@@ -214,33 +214,45 @@ and connect to other MeshLink devices over BLE. Runtime permissions
 
 #### iOS (SwiftUI)
 
-```bash
-# 1. Build the XCFramework
-./gradlew :meshlink:assembleMeshLinkXCFramework
+1. Build the XCFramework (required before opening the project):
+   ```bash
+   ./gradlew :meshlink:assembleMeshLinkXCFramework
+   ```
+2. Open the Xcode project:
+   ```bash
+   open meshlink-sample/ios/MeshLinkSample.xcodeproj
+   ```
+3. Wait for Xcode to resolve the MeshLink SPM package (automatic)
+4. Select the **MeshLinkSample** scheme, pick an iPhone simulator or device, then press **⌘R**
 
-# 2. Open in Xcode
-#    - Create a new iOS App project
-#    - Add the MeshLink SPM package (File → Add Package Dependencies → local repo)
-#    - Copy files from meshlink-sample/ios/MeshLinkSample/ into your project
-#    - Run on simulator or device
-```
+> **Physical device required** for real BLE activity. The simulator supports
+> the UI but CoreBluetooth scanning/advertising only works on hardware.
 
-See [meshlink-sample/ios/README.md](meshlink-sample/ios/README.md) for detailed setup.
+The app has three tabs: **Chat** (send/receive messages), **Mesh Visualizer**
+(node-link topology diagram), and **Settings** (config presets, MTU, health).
+
+> **Troubleshooting:** If Xcode shows _"missing binary artifact"_, re-run
+> step 1 — the XCFramework must be built before SPM can resolve it. If you
+> see linker errors about x86_64, set **Build Settings → Architectures** to
+> `arm64` (the XCFramework ships arm64 only).
 
 #### macOS (SwiftUI)
 
-```bash
-# 1. Build the XCFramework (same as iOS — includes macOS slice)
-./gradlew :meshlink:assembleMeshLinkXCFramework
+1. Build the XCFramework (same command — includes the macOS slice):
+   ```bash
+   ./gradlew :meshlink:assembleMeshLinkXCFramework
+   ```
+2. Open the Xcode project:
+   ```bash
+   open meshlink-sample/macos/MeshLinkSample.xcodeproj
+   ```
+3. Wait for SPM package resolution, then press **⌘R** to run
 
-# 2. Open in Xcode
-#    - Create a new macOS App project
-#    - Add the MeshLink SPM package (local repo)
-#    - Copy files from meshlink-sample/macos/MeshLinkSample/ into your project
-#    - Run (⌘R)
-```
+The macOS sample includes a Bluetooth sandbox entitlement
+(`MeshLinkSample.entitlements`) that is already configured in the project.
 
-See [meshlink-sample/macos/README.md](meshlink-sample/macos/README.md) for details.
+> **Troubleshooting:** If Bluetooth doesn't work, open **System Settings →
+> Privacy & Security → Bluetooth** and allow MeshLinkSample.
 
 #### Linux (console, native)
 

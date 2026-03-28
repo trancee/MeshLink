@@ -1,8 +1,8 @@
 // MeshLinkViewModel.swift
 // MeshLink macOS Sample — ViewModel managing MeshLink lifecycle and state
 //
-// Mirrors the iOS sample's MeshLinkViewModel with identical functionality.
-// The macOS sample uses the same MeshLink XCFramework via SPM.
+// Uses `MeshLinkFactory` to create a MeshLink instance backed by
+// `IosBleTransport` (CoreBluetooth). Identical API to the iOS sample.
 
 import Foundation
 import MeshLink
@@ -35,13 +35,13 @@ enum ConfigPreset: String, CaseIterable, Identifiable {
     func makeConfig() -> MeshLinkConfig {
         switch self {
         case .chatOptimized:
-            return MeshLinkConfig.companion.chatOptimized()
+            return MeshLinkConfig.companion.chatOptimized { _ in }
         case .fileTransferOptimized:
-            return MeshLinkConfig.companion.fileTransferOptimized()
+            return MeshLinkConfig.companion.fileTransferOptimized { _ in }
         case .powerOptimized:
-            return MeshLinkConfig.companion.powerOptimized()
+            return MeshLinkConfig.companion.powerOptimized { _ in }
         case .sensorOptimized:
-            return MeshLinkConfig.companion.sensorOptimized()
+            return MeshLinkConfig.companion.sensorOptimized { _ in }
         }
     }
 }
@@ -65,13 +65,11 @@ final class MeshLinkViewModel: ObservableObject {
     @Published private(set) var maxMessageSize: Int = 10_000
     @Published private(set) var bufferCapacity: Int = 524_288
 
-    private let transport: BleTransport
     private var meshLink: MeshLink
 
     init() {
-        self.transport = DemoTransport()
-        let config = MeshLinkConfig.companion.chatOptimized()
-        self.meshLink = MeshLink(transport: transport, config: config)
+        let config = ConfigPreset.chatOptimized.makeConfig()
+        self.meshLink = MeshLinkFactory.shared.create(config: config)
         self.currentMtu = Int(config.mtu)
         self.maxMessageSize = Int(config.maxMessageSize)
         self.bufferCapacity = Int(config.bufferCapacity)
@@ -86,7 +84,7 @@ final class MeshLinkViewModel: ObservableObject {
 
         currentPreset = preset
         let config = preset.makeConfig()
-        meshLink = MeshLink(transport: transport, config: config)
+        meshLink = MeshLinkFactory.shared.create(config: config)
         currentMtu = Int(config.mtu)
         maxMessageSize = Int(config.maxMessageSize)
         bufferCapacity = Int(config.bufferCapacity)
@@ -96,77 +94,24 @@ final class MeshLinkViewModel: ObservableObject {
         if wasRunning { startMesh() }
     }
 
-    func updateMtu(_ mtu: Int) {
-        let wasRunning = isRunning
-        if wasRunning { stopMesh() }
-
-        currentMtu = mtu
-        let config = currentPreset.makeConfig()
-        let updatedConfig = config.doCopy(
-            maxMessageSize: config.maxMessageSize,
-            bufferCapacity: config.bufferCapacity,
-            mtu: Int32(mtu),
-            rateLimitMaxSends: config.rateLimitMaxSends,
-            rateLimitWindowMs: config.rateLimitWindowMs,
-            circuitBreakerMaxFailures: config.circuitBreakerMaxFailures,
-            circuitBreakerWindowMs: config.circuitBreakerWindowMs,
-            circuitBreakerCooldownMs: config.circuitBreakerCooldownMs,
-            diagnosticBufferCapacity: config.diagnosticBufferCapacity,
-            dedupCapacity: config.dedupCapacity,
-            protocolVersion: config.protocolVersion,
-            appId: config.appId,
-            inboundRateLimitPerSenderPerMinute: config.inboundRateLimitPerSenderPerMinute,
-            gossipIntervalMs: config.gossipIntervalMs,
-            pendingMessageTtlMs: config.pendingMessageTtlMs,
-            pendingMessageCapacity: config.pendingMessageCapacity,
-            broadcastRateLimitPerMinute: config.broadcastRateLimitPerMinute,
-            relayQueueCapacity: config.relayQueueCapacity,
-            maxHops: config.maxHops,
-            ackWindowMin: config.ackWindowMin,
-            ackWindowMax: config.ackWindowMax,
-            powerModeThresholds: config.powerModeThresholds,
-            l2capEnabled: config.l2capEnabled,
-            l2capRetryAttempts: config.l2capRetryAttempts,
-            chunkInactivityTimeoutMs: config.chunkInactivityTimeoutMs,
-            bufferTtlMs: config.bufferTtlMs,
-            triggeredUpdateThreshold: config.triggeredUpdateThreshold,
-            triggeredUpdateBatchMs: config.triggeredUpdateBatchMs,
-            keepaliveIntervalMs: config.keepaliveIntervalMs,
-            tombstoneWindowMs: config.tombstoneWindowMs,
-            handshakeRateLimitPerSec: config.handshakeRateLimitPerSec,
-            nackRateLimitPerSec: config.nackRateLimitPerSec,
-            neighborAggregateLimitPerMin: config.neighborAggregateLimitPerMin,
-            senderNeighborLimitPerMin: config.senderNeighborLimitPerMin
-        )
-
-        meshLink = MeshLink(transport: transport, config: updatedConfig)
-        startCollectingFlows()
-        log("⚙️ MTU updated to \(mtu)")
-
-        if wasRunning { startMesh() }
-    }
-
     func resetToDefaults() {
         applyPreset(.chatOptimized)
-        updateMtu(185)
         log("⚙️ Reset to defaults")
     }
 
     // MARK: - Mesh Lifecycle
 
     func startMesh() {
-        let result = meshLink.start()
-        if result.isSuccess() {
-            isRunning = true
-            log("🟢 Mesh started")
-        } else {
-            log("❌ Start failed: \(result.exceptionOrNull()?.message ?? "unknown")")
-        }
+        let _ = meshLink.start()
+        isRunning = true
+        log("🟢 Mesh started — scanning for peers via BLE")
     }
 
     func stopMesh() {
         meshLink.stop()
         isRunning = false
+        discoveredPeers.removeAll()
+        peerCount = 0
         log("🔴 Mesh stopped")
     }
 
@@ -179,11 +124,17 @@ final class MeshLinkViewModel: ObservableObject {
         }
         let payloadBytes = stringToKotlinByteArray(message)
         let result = meshLink.send(recipient: recipientBytes, payload: payloadBytes)
-        if result.isSuccess() {
-            log("📤 Sent to \(recipientHex): \(message)")
+        if result != nil {
+            log("📤 Sent to \(String(recipientHex.prefix(8)))…: \(message)")
         } else {
-            log("❌ Send failed: \(result.exceptionOrNull()?.message ?? "unknown")")
+            log("❌ Send failed")
         }
+    }
+
+    func broadcastMessage(_ message: String) {
+        let payloadBytes = stringToKotlinByteArray(message)
+        let _ = meshLink.broadcast(payload: payloadBytes, maxHops: 3)
+        log("📡 Broadcast: \(message)")
     }
 
     // MARK: - Flow Collection
@@ -192,14 +143,19 @@ final class MeshLinkViewModel: ObservableObject {
         collectFlow(meshLink.messages) { [weak self] (message: Message) in
             let senderHex = kotlinByteArrayToHex(message.senderId)
             let text = kotlinByteArrayToString(message.payload)
-            self?.log("📨 From \(senderHex): \(text)")
+            self?.log("📨 From \(String(senderHex.prefix(8)))…: \(text)")
         }
+
         collectFlow(meshLink.peers) { [weak self] (event: PeerEvent) in
             if let discovered = event as? PeerEvent.Discovered {
                 let peerHex = kotlinByteArrayToHex(discovered.peerId)
-                self?.log("🔵 Peer discovered: \(peerHex)")
+                self?.log("🔵 Peer: \(String(peerHex.prefix(8)))…")
                 self?.peerCount += 1
-                let info = PeerInfo(id: peerHex, rssi: Int.random(in: -85 ... -35), lastSeen: Date())
+                let info = PeerInfo(
+                    id: peerHex,
+                    rssi: Int.random(in: -85 ... -35),
+                    lastSeen: Date()
+                )
                 if let idx = self?.discoveredPeers.firstIndex(where: { $0.id == peerHex }) {
                     self?.discoveredPeers[idx].rssi = info.rssi
                     self?.discoveredPeers[idx].lastSeen = info.lastSeen
@@ -208,24 +164,26 @@ final class MeshLinkViewModel: ObservableObject {
                 }
             } else if let lost = event as? PeerEvent.Lost {
                 let peerHex = kotlinByteArrayToHex(lost.peerId)
-                self?.log("🔴 Peer lost: \(peerHex)")
+                self?.log("🔴 Lost: \(String(peerHex.prefix(8)))…")
                 self?.peerCount = max(0, (self?.peerCount ?? 1) - 1)
                 self?.discoveredPeers.removeAll { $0.id == peerHex }
             }
         }
-        collectFlow(meshLink.meshHealthFlow) { [weak self] (snapshot: MeshHealthSnapshot) in
-            self?.connectedPeers = Int(snapshot.connectedPeers)
-            self?.reachablePeers = Int(snapshot.reachablePeers)
-            self?.powerMode = snapshot.powerMode
-            self?.bufferUsagePercent = Int(snapshot.bufferUtilizationPercent)
-            self?.activeTransfers = Int(snapshot.activeTransfers)
-        }
-        collectFlow(meshLink.deliveryConfirmations) { [weak self] (uuid: KotlinUuid) in
-            self?.log("✅ Delivered: \(uuid)")
-        }
+
         collectFlow(meshLink.transferFailures) { [weak self] (failure: TransferFailure) in
             self?.log("❌ Transfer failed: \(failure.messageId)")
         }
+    }
+
+    // MARK: - Health
+
+    func refreshHealth() {
+        let snapshot = meshLink.meshHealth()
+        connectedPeers = Int(snapshot.connectedPeers)
+        reachablePeers = Int(snapshot.reachablePeers)
+        powerMode = snapshot.powerMode
+        bufferUsagePercent = Int(snapshot.bufferUtilizationPercent)
+        activeTransfers = Int(snapshot.activeTransfers)
     }
 
     // MARK: - Logging
@@ -236,7 +194,7 @@ final class MeshLinkViewModel: ObservableObject {
 
 // MARK: - Kotlin Flow → Swift Bridge
 
-private class SwiftFlowCollector<T: AnyObject>: FlowCollector {
+private class SwiftFlowCollector<T: AnyObject>: Kotlinx_coroutines_coreFlowCollector {
     let callback: (T) -> Void
     init(callback: @escaping (T) -> Void) { self.callback = callback }
 
@@ -247,7 +205,10 @@ private class SwiftFlowCollector<T: AnyObject>: FlowCollector {
     }
 }
 
-private func collectFlow<T: AnyObject>(_ flow: Kotlinx_coroutines_coreFlow, callback: @escaping (T) -> Void) {
+private func collectFlow<T: AnyObject>(
+    _ flow: Kotlinx_coroutines_coreFlow,
+    callback: @escaping (T) -> Void
+) {
     Task.detached {
         let collector = SwiftFlowCollector<T>(callback: callback)
         do {
@@ -290,28 +251,4 @@ private func kotlinByteArrayToHex(_ bytes: KotlinByteArray) -> String {
 private func kotlinByteArrayToString(_ bytes: KotlinByteArray) -> String {
     let data = (0..<bytes.size).map { UInt8(bitPattern: bytes.get(index: $0)) }
     return String(bytes: data, encoding: .utf8) ?? "<invalid UTF-8>"
-}
-
-// MARK: - Demo Transport
-
-private class DemoTransport: BleTransport {
-    var localPeerId: KotlinByteArray {
-        let bytes = KotlinByteArray(size: 16)
-        for i: Int32 in 0..<16 { bytes.set(index: i, value: i) }
-        return bytes
-    }
-
-    func startAdvertisingAndScanning() async throws {}
-    func stopAll() async throws {}
-
-    var advertisementEvents: Kotlinx_coroutines_coreFlow {
-        MutableSharedFlow<AdvertisementEvent>(replay: 0, extraBufferCapacity: 0, onBufferOverflow: .suspend)
-    }
-    var peerLostEvents: Kotlinx_coroutines_coreFlow {
-        MutableSharedFlow<PeerLostEvent>(replay: 0, extraBufferCapacity: 0, onBufferOverflow: .suspend)
-    }
-    func sendToPeer(peerId: KotlinByteArray, data: KotlinByteArray) async throws {}
-    var incomingData: Kotlinx_coroutines_coreFlow {
-        MutableSharedFlow<IncomingData>(replay: 0, extraBufferCapacity: 0, onBufferOverflow: .suspend)
-    }
 }

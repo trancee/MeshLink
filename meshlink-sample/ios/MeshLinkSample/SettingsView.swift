@@ -47,7 +47,7 @@ struct SettingsView: View {
                 }
             }
             .pickerStyle(.segmented)
-            .onChange(of: viewModel.currentPreset) { _, newPreset in
+            .onChange(of: viewModel.currentPreset) { newPreset in
                 viewModel.applyPreset(newPreset)
                 mtuSliderValue = Double(viewModel.currentMtu)
             }
@@ -91,8 +91,8 @@ struct SettingsView: View {
                 } maximumValueLabel: {
                     Text("512").font(.caption2)
                 }
-                .onChange(of: mtuSliderValue) { _, newValue in
-                    viewModel.updateMtu(Int(newValue))
+                .onChange(of: mtuSliderValue) { newValue in
+                    viewModel.currentMtu = Int(newValue)
                 }
             }
         } header: {

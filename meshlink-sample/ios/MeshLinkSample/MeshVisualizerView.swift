@@ -88,11 +88,16 @@ struct MeshVisualizerView: View {
     // MARK: - Empty State
 
     private var emptyState: some View {
-        ContentUnavailableView(
-            "No Peers Discovered",
-            systemImage: "circle.grid.hex",
-            description: Text("Start the mesh to discover nearby peers.")
-        )
+        VStack(spacing: 12) {
+            Image(systemName: "circle.grid.hex")
+                .font(.system(size: 48))
+                .foregroundStyle(.secondary)
+            Text("No Peers Discovered")
+                .font(.title3.weight(.semibold))
+            Text("Start the mesh to discover nearby peers.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
         .frame(maxHeight: .infinity)
     }
 
