@@ -24,10 +24,12 @@ import io.meshlink.power.MemoryPressure
 import io.meshlink.power.PowerModeEngine
 import io.meshlink.power.TieredShedder
 import io.meshlink.protocol.ProtocolVersion
-import io.meshlink.routing.DedupSet
+import io.meshlink.routing.GossipEntry
+import io.meshlink.routing.LearnedRoute
+import io.meshlink.routing.NextHopResult
 import io.meshlink.routing.PresenceState
-import io.meshlink.routing.PresenceTracker
-import io.meshlink.routing.RoutingTable
+import io.meshlink.routing.RouteLearnResult
+import io.meshlink.routing.RoutingEngine
 import io.meshlink.transfer.ChunkAcceptResult
 import io.meshlink.transfer.ChunkData
 import io.meshlink.transfer.TransferEngine
@@ -196,11 +198,14 @@ class MeshLink(
     // Queued relay messages while paused: (nextHop, encodedFrame)
     private val relayQueue = mutableListOf<Pair<ByteArray, ByteArray>>()
 
-    // Peer presence tracking (replaces simple knownPeers set)
-    private val presenceTracker = PresenceTracker()
-
-    // Deduplication of fully reassembled messages
-    private val dedup = DedupSet(capacity = config.dedupCapacity)
+    // Routing engine: facade for routing table, presence tracking, dedup, and gossip
+    private val routingEngine = RoutingEngine(
+        localPeerId = transport.localPeerId.toHex(),
+        dedupCapacity = config.dedupCapacity,
+        triggeredUpdateThreshold = config.triggeredUpdateThreshold,
+        gossipIntervalMs = config.gossipIntervalMs,
+        clock = clock,
+    )
 
     // Delivery tracking for exactly-once terminal signals
     private val deliveryTracker = DeliveryTracker()
@@ -217,20 +222,8 @@ class MeshLink(
         deliveryTracker = deliveryTracker,
     )
 
-    // Routing table for multi-hop relay
-    private val routingTable = RoutingTable()
-
-    // Track previous next-hop per destination for poison reverse
-    private val previousNextHop = mutableMapOf<String, String>()
-
     // Triggered gossip update signal channel (buffered to coalesce rapid changes)
     private val triggeredUpdateChannel = Channel<Unit>(Channel.CONFLATED)
-
-    // Per-neighbor rate limit: last triggered update timestamp per peer hex
-    private val lastTriggeredUpdateTime = mutableMapOf<String, Long>()
-
-    // Timestamp of last gossip route update sent (used for keepalive scheduling)
-    private var lastGossipSentMs: Long = 0L
 
     // Reverse path for delivery ACK relay: messageId hex → fromPeerId
     private val routedMsgSources = mutableMapOf<String, ByteArray>()
@@ -300,8 +293,8 @@ class MeshLink(
                             return@collect // Incompatible version — reject peer
                         }
                     }
-                    val isNewPeer = presenceTracker.state(event.peerId.toHex()) != PresenceState.CONNECTED
-                    presenceTracker.peerSeen(event.peerId.toHex())
+                    val isNewPeer = routingEngine.presenceState(event.peerId.toHex()) != PresenceState.CONNECTED
+                    routingEngine.peerSeen(event.peerId.toHex())
                     // Extract peer's X25519 public key from advertisement if present
                     if (advPayload.size >= 34 && securityEngine != null) {
                         val newKey = advPayload.copyOfRange(2, 34)
@@ -350,7 +343,7 @@ class MeshLink(
         }
         newScope.launch {
             transport.peerLostEvents.collect { event ->
-                presenceTracker.markDisconnected(event.peerId.toHex())
+                routingEngine.markDisconnected(event.peerId.toHex())
                 safeEmit(_peers, PeerEvent.Lost(event.peerId), "peers")
                 emitHealthUpdate()
             }
@@ -366,7 +359,7 @@ class MeshLink(
         if (config.gossipIntervalMs > 0) {
             newScope.launch {
                 while (started) {
-                    val triggered = withTimeoutOrNull(effectiveGossipInterval()) {
+                    val triggered = withTimeoutOrNull(routingEngine.effectiveGossipInterval(currentPowerMode)) {
                         triggeredUpdateChannel.receive()
                     }
                     if (!started) break
@@ -386,7 +379,7 @@ class MeshLink(
                 while (started) {
                     delay(config.keepaliveIntervalMs)
                     if (!started) break
-                    val sinceLastGossip = clock() - lastGossipSentMs
+                    val sinceLastGossip = routingEngine.timeSinceLastGossip()
                     if (config.gossipIntervalMs <= 0 || sinceLastGossip >= config.keepaliveIntervalMs) {
                         broadcastKeepalive()
                     }
@@ -433,18 +426,14 @@ class MeshLink(
     private fun clearState() {
         transferEngine.clearAll()
         outboundRecipients.clear()
-        presenceTracker.clear()
+        routingEngine.clear()
         pauseQueue.clear()
         relayQueue.clear()
         routedMsgSources.clear()
         securityEngine?.clear()
         inboundReplayGuards.clear()
         inboundRateCounts.clear()
-        dedup.clear()
-        routingTable.clear()
         pendingMessages.clear()
-        lastTriggeredUpdateTime.clear()
-        lastGossipSentMs = 0L
         tombstoneSet.clear()
         lastHealthUpdateMs = 0L
     }
@@ -478,14 +467,14 @@ class MeshLink(
             (usedBytes * 100 / config.bufferCapacity).coerceIn(0, 100)
         } else 0
         return MeshHealthSnapshot(
-            connectedPeers = presenceTracker.allPeerIds().size,
-            reachablePeers = presenceTracker.connectedPeerIds().size,
+            connectedPeers = routingEngine.peerCount,
+            reachablePeers = routingEngine.connectedPeerCount,
             bufferUtilizationPercent = utilPercent,
             activeTransfers = transferEngine.outboundCount,
             powerMode = currentPowerMode,
-            avgRouteCost = routingTable.avgCost(),
+            avgRouteCost = routingEngine.avgCost(),
             relayQueueSize = relayQueue.size,
-            effectiveGossipIntervalMs = effectiveGossipInterval(),
+            effectiveGossipIntervalMs = routingEngine.effectiveGossipInterval(currentPowerMode),
         )
     }
 
@@ -499,7 +488,7 @@ class MeshLink(
     override val diagnosticEvents: Flow<DiagnosticEvent> = diagnosticSink.events
 
     override fun sweep(seenPeers: Set<String>): Set<String> {
-        val evicted = presenceTracker.sweep(seenPeers)
+        val evicted = routingEngine.sweepPresence(seenPeers)
         for (peerId in evicted) {
             diagnosticSink.emit(DiagnosticCode.PEER_EVICTED, Severity.INFO, "peerId=$peerId")
         }
@@ -507,35 +496,7 @@ class MeshLink(
     }
 
     override fun addRoute(destination: String, nextHop: String, cost: Double, sequenceNumber: UInt) {
-        routingTable.addRoute(destination, nextHop, cost, sequenceNumber)
-    }
-
-    private fun effectiveGossipInterval(): Long {
-        val base = config.gossipIntervalMs
-        if (base <= 0) return 0
-        val routeCount = routingTable.size()
-        val routeMultiplied = when {
-            routeCount > 200 -> base * 2
-            routeCount > 100 -> base * 3 / 2
-            else -> base
-        }
-        return when (currentPowerMode) {
-            "POWER_SAVER" -> routeMultiplied * 3
-            "BALANCED" -> routeMultiplied * 2
-            else -> routeMultiplied
-        }
-    }
-
-    private fun isSignificantCostChange(oldCost: Double?, newCost: Double?): Boolean {
-        // New route appeared or route withdrawn
-        if (oldCost == null && newCost != null) return true
-        if (oldCost != null && newCost == null) return true
-        if (oldCost == null || newCost == null) return false
-        // Withdrawal (MAX_VALUE) is always significant
-        if (newCost == Double.MAX_VALUE || oldCost == Double.MAX_VALUE) return true
-        if (oldCost == 0.0) return newCost > 0.0
-        val ratio = kotlin.math.abs(newCost - oldCost) / oldCost
-        return ratio > config.triggeredUpdateThreshold
+        routingEngine.addRoute(destination, nextHop, cost, sequenceNumber)
     }
 
     override fun sweepStaleTransfers(maxAgeMs: Long): Int {
@@ -598,8 +559,8 @@ class MeshLink(
         }
         val shedder = TieredShedder(
             relayBufferCount = transferEngine.inboundCount,
-            dedupEntries = dedup.size(),
-            connectionCount = presenceTracker.allPeerIds().size,
+            dedupEntries = routingEngine.dedupSize,
+            connectionCount = routingEngine.peerCount,
         )
         val results = shedder.shed(level)
         val actions = mutableListOf<String>()
@@ -612,7 +573,7 @@ class MeshLink(
                     actions.add("Cleared ${result.count} relay buffers, $relayCount queued relays")
                 }
                 io.meshlink.power.ShedAction.DEDUP_TRIMMED -> {
-                    dedup.clear()
+                    routingEngine.clearDedup()
                     actions.add("Trimmed ${result.count} dedup entries")
                 }
                 io.meshlink.power.ShedAction.CONNECTIONS_DROPPED -> {
@@ -664,8 +625,8 @@ class MeshLink(
             signerPublicKey = signed?.signerPublicKey ?: ByteArray(0),
         )
         // Mark as seen so we don't deliver our own broadcast back to ourselves
-        dedup.tryInsert(messageId.toByteArray().toHex())
-        for (peerHex in presenceTracker.allPeerIds()) {
+        routingEngine.isDuplicate(messageId.toByteArray().toHex())
+        for (peerHex in routingEngine.allPeerIds()) {
             s.launch { safeSend(hexToBytes(peerHex), encoded) }
         }
         return Result.success(messageId)
@@ -715,32 +676,35 @@ class MeshLink(
             return Result.failure(IllegalStateException("Circuit breaker open — transport circuit tripped"))
         }
 
-        // Check if recipient is known directly
-        if (recipient.toHex() !in presenceTracker.allPeerIds()) {
-            // Try routing table for multi-hop
-            val route = routingTable.bestRoute(recipient.toHex())
-            if (route != null) {
-                return doRoutedSend(s, recipient, payload, route.nextHop)
+        // Check if recipient is reachable (directly or via routing)
+        when (val hop = routingEngine.resolveNextHop(recipient.toHex())) {
+            is NextHopResult.Direct -> {
+                // Directly reachable — fall through to doSend below
             }
-            // Buffer for store-and-forward if enabled
-            if (config.pendingMessageTtlMs > 0) {
-                val recipientHex = recipient.toHex()
-                val list = pendingMessages.getOrPut(recipientHex) { mutableListOf() }
-                list.add(PendingMessage(recipient, payload, clock()))
-                // Evict oldest if over capacity
-                while (list.size > config.pendingMessageCapacity) {
-                    list.removeAt(0)
-                    s.launch {
-                        _transferFailures.emit(TransferFailure(Uuid.random(), DeliveryOutcome.FAILED_BUFFER_FULL))
+            is NextHopResult.ViaRoute -> {
+                return doRoutedSend(s, recipient, payload, hop.nextHop)
+            }
+            is NextHopResult.Unreachable -> {
+                // Buffer for store-and-forward if enabled
+                if (config.pendingMessageTtlMs > 0) {
+                    val recipientHex = recipient.toHex()
+                    val list = pendingMessages.getOrPut(recipientHex) { mutableListOf() }
+                    list.add(PendingMessage(recipient, payload, clock()))
+                    // Evict oldest if over capacity
+                    while (list.size > config.pendingMessageCapacity) {
+                        list.removeAt(0)
+                        s.launch {
+                            _transferFailures.emit(TransferFailure(Uuid.random(), DeliveryOutcome.FAILED_BUFFER_FULL))
+                        }
                     }
+                    return Result.success(Uuid.random())
                 }
-                return Result.success(Uuid.random())
+                val failureId = Uuid.random()
+                s.launch {
+                    _transferFailures.emit(TransferFailure(failureId, DeliveryOutcome.FAILED_NO_ROUTE))
+                }
+                return Result.failure(IllegalStateException("No route to unknown peer"))
             }
-            val failureId = Uuid.random()
-            s.launch {
-                _transferFailures.emit(TransferFailure(failureId, DeliveryOutcome.FAILED_NO_ROUTE))
-            }
-            return Result.failure(IllegalStateException("No route to unknown peer"))
         }
 
         // Require recipient's public key when crypto is enabled
@@ -822,42 +786,22 @@ class MeshLink(
     }
 
     private suspend fun broadcastRouteUpdate(isTriggered: Boolean = false) {
-        val connectedPeers = presenceTracker.connectedPeerIds()
+        val connectedPeers = routingEngine.connectedPeerIds()
         if (connectedPeers.isEmpty()) return
 
-        val allRoutes = routingTable.allBestRoutes()
-        val now = clock()
-
         for (peerHex in connectedPeers) {
-            // Per-neighbor rate limit: skip if this is a triggered update and
-            // we already sent a triggered update to this peer within the gossip interval
-            if (isTriggered) {
-                val lastSent = lastTriggeredUpdateTime[peerHex]
-                if (lastSent != null && (now - lastSent) < effectiveGossipInterval()) {
-                    continue
-                }
+            if (isTriggered && !routingEngine.shouldSendTriggeredUpdate(peerHex, currentPowerMode)) {
+                continue
             }
 
-            val entries = allRoutes.mapNotNull { route ->
-                if (route.nextHop == peerHex) {
-                    // Split horizon: don't advertise a route back to its next-hop
-                    null
-                } else if (previousNextHop[route.destination] == peerHex && route.nextHop != peerHex) {
-                    // Poison reverse: tell old next-hop the route is gone
-                    RouteUpdateEntry(
-                        destination = hexToBytes(route.destination),
-                        cost = Double.MAX_VALUE,
-                        sequenceNumber = route.sequenceNumber,
-                        hopCount = 1u,
-                    )
-                } else {
-                    RouteUpdateEntry(
-                        destination = hexToBytes(route.destination),
-                        cost = route.cost,
-                        sequenceNumber = route.sequenceNumber,
-                        hopCount = 1u,
-                    )
-                }
+            val gossipEntries = routingEngine.prepareGossipEntries(peerHex)
+            val entries = gossipEntries.map { ge ->
+                RouteUpdateEntry(
+                    destination = hexToBytes(ge.destination),
+                    cost = ge.cost,
+                    sequenceNumber = ge.sequenceNumber,
+                    hopCount = ge.hopCount,
+                )
             }
             val updateData = if (securityEngine != null) {
                 val unsigned = WireCodec.encodeRouteUpdate(transport.localPeerId, entries)
@@ -870,17 +814,17 @@ class MeshLink(
             safeSend(peerId, updateData)
 
             if (isTriggered) {
-                lastTriggeredUpdateTime[peerHex] = now
+                routingEngine.recordTriggeredUpdate(peerHex)
             }
         }
 
         diagnosticSink.emit(DiagnosticCode.GOSSIP_TRAFFIC_REPORT, Severity.INFO,
-            "peers=${connectedPeers.size}, routes=${allRoutes.size}")
-        lastGossipSentMs = clock()
+            "peers=${connectedPeers.size}, routes=${routingEngine.routeCount}")
+        routingEngine.recordGossipSent()
     }
 
     private suspend fun broadcastKeepalive() {
-        val connectedPeers = presenceTracker.connectedPeerIds()
+        val connectedPeers = routingEngine.connectedPeerIds()
         if (connectedPeers.isEmpty()) return
         val nowSeconds = (clock() / 1000).toUInt()
         val frame = WireCodec.encodeKeepalive(nowSeconds)
@@ -892,7 +836,7 @@ class MeshLink(
     private fun handleKeepalive(fromPeerId: ByteArray, @Suppress("UNUSED_PARAMETER") data: ByteArray) {
         // Validate the frame (will throw on malformed data, caught by handleIncomingData)
         WireCodec.decodeKeepalive(data)
-        presenceTracker.peerSeen(fromPeerId.toHex())
+        routingEngine.peerSeen(fromPeerId.toHex())
     }
 
     private suspend fun safeSend(peerId: ByteArray, data: ByteArray) {
@@ -969,27 +913,21 @@ class MeshLink(
                 return
             }
         }
-        val senderHex = fromPeerId.toHex()
-        var significantChange = false
-        for (entry in update.entries) {
-            val destHex = entry.destination.toHex()
-            // Don't learn routes to ourselves
-            if (destHex == transport.localPeerId.toHex()) continue
-            val oldBest = routingTable.bestRoute(destHex)
-            routingTable.addRoute(destHex, senderHex, entry.cost + 1.0, entry.sequenceNumber)
-            val newBest = routingTable.bestRoute(destHex)
-            if (oldBest != null && newBest != null && oldBest.nextHop != newBest.nextHop) {
-                previousNextHop[destHex] = oldBest.nextHop
-                diagnosticSink.emit(DiagnosticCode.ROUTE_CHANGED, Severity.INFO,
-                    "dest=$destHex, oldNextHop=${oldBest.nextHop}, newNextHop=${newBest.nextHop}, oldCost=${oldBest.cost}, newCost=${newBest.cost}")
-            }
-            // Detect significant cost changes for triggered updates
-            if (!significantChange) {
-                significantChange = isSignificantCostChange(oldBest?.cost, newBest?.cost)
-            }
+        val learned = update.entries.map { entry ->
+            LearnedRoute(entry.destination.toHex(), entry.cost, entry.sequenceNumber)
         }
-        if (significantChange && config.gossipIntervalMs > 0) {
-            triggeredUpdateChannel.trySend(Unit)
+        val result = routingEngine.learnRoutes(fromPeerId.toHex(), learned)
+        when (result) {
+            is RouteLearnResult.SignificantChange -> {
+                for (change in result.routeChanges) {
+                    diagnosticSink.emit(DiagnosticCode.ROUTE_CHANGED, Severity.INFO,
+                        "dest=${change.destination}, oldNextHop=${change.oldNextHop}, newNextHop=${change.newNextHop}")
+                }
+                if (config.gossipIntervalMs > 0) {
+                    triggeredUpdateChannel.trySend(Unit)
+                }
+            }
+            is RouteLearnResult.NoSignificantChange -> {}
         }
     }
 
@@ -1016,7 +954,7 @@ class MeshLink(
                 )
                 scope?.launch { safeSend(fromPeerId, ack) }
 
-                if (!dedup.tryInsert(key)) return
+                if (routingEngine.isDuplicate(key)) return
 
                 val decrypted = when (val ur = securityEngine?.unseal(result.reassembledPayload)) {
                     is UnsealResult.Decrypted -> ur.plaintext
@@ -1091,7 +1029,7 @@ class MeshLink(
         }
 
         // Dedup: reject if we've seen this broadcast before
-        if (!dedup.tryInsert(key)) return
+        if (routingEngine.isDuplicate(key)) return
 
         // Deliver to self
         safeEmit(_messages, Message(senderId = broadcast.origin, payload = broadcast.payload), "messages")
@@ -1109,7 +1047,7 @@ class MeshLink(
             )
             val senderHex = fromPeerId.toHex()
             val s = scope ?: return
-            for (peerHex in presenceTracker.allPeerIds()) {
+            for (peerHex in routingEngine.allPeerIds()) {
                 if (peerHex != senderHex) {
                     s.launch { safeSend(hexToBytes(peerHex), reflooded) }
                 }
@@ -1121,7 +1059,7 @@ class MeshLink(
         val routed = WireCodec.decodeRoutedMessage(data)
         val key = routed.messageId.toHex()
 
-        if (!dedup.tryInsert(key)) return
+        if (routingEngine.isDuplicate(key)) return
 
         // Replay guard: check counter if present (counter=0 means unprotected/legacy)
         if (routed.replayCounter > 0u) {
@@ -1186,13 +1124,11 @@ class MeshLink(
             return
         }
 
-        // Per-sender-per-neighbor rate limit for relay
         val destHex = routed.destination.toHex()
-        val nextHop = if (destHex in presenceTracker.allPeerIds()) {
-            routed.destination
-        } else {
-            val route = routingTable.bestRoute(destHex) ?: return
-            hexToBytes(route.nextHop)
+        val nextHop = when (val hop = routingEngine.resolveNextHop(destHex)) {
+            is NextHopResult.Direct -> routed.destination
+            is NextHopResult.ViaRoute -> hexToBytes(hop.nextHop)
+            is NextHopResult.Unreachable -> return
         }
         if (senderNeighborRateLimiter != null) {
             val senderNeighborKey = "${routed.origin.toHex()}->${nextHop.toHex()}"

@@ -82,6 +82,7 @@ platform-agnostic logic (in `commonMain`) and platform-specific I/O (in
 
 | File | Responsibility |
 |------|---------------|
+| `RoutingEngine.kt` | Facade consolidating routing table, presence, dedup, gossip preparation (split-horizon/poison-reverse), and adaptive timing behind sealed result types. |
 | `RoutingTable.kt` | Enhanced DSDV routing table with expiry, settling, holddown, and neighbor capacity limits. |
 | `RouteCostCalculator.kt` | Composite cost metric from RSSI, packet loss, freshness, and stability. |
 | `GossipTracker.kt` | Differential gossip — tracks per-peer route state, computes deltas and withdrawals. |
@@ -288,6 +289,12 @@ Receive TYPE_ROUTED_MESSAGE
 ---
 
 ## Routing
+
+`RoutingEngine` is the facade that consolidates routing table management,
+peer presence tracking, message deduplication, gossip preparation
+(split-horizon / poison-reverse), and adaptive gossip timing behind sealed
+result types (`NextHopResult`, `RouteLearnResult`). MeshLink delegates all
+routing decisions to `RoutingEngine` and pattern-matches on results.
 
 MeshLink uses an enhanced DSDV (Destination-Sequenced Distance-Vector)
 protocol with gossip-based route propagation.
