@@ -236,25 +236,6 @@ Attacker → triggers crypto edge case (e.g., malformed handshake) → exception
 
 ---
 
-## Focus paths for security review
-
-| Path | Why it matters | Related Threat IDs |
-|------|---------------|-------------------|
-| `meshlink/src/commonMain/kotlin/io/meshlink/transfer/TransferEngine.kt` | Unbounded `inbound` map creates reassembly sessions without limit; primary DoS vector | TM-001 |
-| `meshlink/src/commonMain/kotlin/io/meshlink/dispatch/MessageDispatcher.kt` | Central dispatch for all inbound BLE data; no rate limiting on chunks; decryption fallback logic | TM-001, TM-008 |
-| `meshlink/src/commonMain/kotlin/io/meshlink/crypto/Ed25519.kt` (line 16) | Uses `kotlin.random.Random` for private key generation | TM-006 |
-| `meshlink/src/commonMain/kotlin/io/meshlink/crypto/X25519.kt` (line 26) | Uses `kotlin.random.Random` for private key generation | TM-006 |
-| `meshlink/src/commonMain/kotlin/io/meshlink/MeshLink.kt` (line 74) | `CryptoProvider?` nullable — encryption optional | TM-002 |
-| `meshlink/src/commonMain/kotlin/io/meshlink/routing/RoutingEngine.kt` | Route updates accepted without mandatory authentication | TM-004 |
-| `meshlink/src/commonMain/kotlin/io/meshlink/routing/DedupSet.kt` | Fixed-capacity LRU dedup; exhaustible via unique message IDs | TM-003 |
-| `meshlink/src/commonMain/kotlin/io/meshlink/config/MeshLinkConfig.kt` | All rate limits default to 0 (disabled); maxHops defaults to 255 | TM-001, TM-005 |
-| `meshlink/src/commonMain/kotlin/io/meshlink/wire/RotationAnnouncement.kt` | No timestamp freshness check on rotation announcements | TM-007 |
-| `meshlink/src/commonMain/kotlin/io/meshlink/crypto/PeerHandshakeManager.kt` | Failed handshake state not cleaned up; no timeout on stale handshakes | TM-001 |
-| `meshlink/src/commonMain/kotlin/io/meshlink/peer/PeerConnectionCoordinator.kt` | BLE advertisements processed without authentication | TM-001 |
-| `meshlink/src/commonMain/kotlin/io/meshlink/MeshLink.kt` (line 312) | Exception messages leaked to DiagnosticSink | TM-009 |
-
----
-
 ## Remediation status
 
 | ID | Status | Commit | Notes |

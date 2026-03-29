@@ -96,7 +96,7 @@ MeshLink/
 
 - **Java 21** (e.g., Zulu, Temurin)
 - **Gradle 9.4+** (wrapper included)
-- **Android SDK** with `compileSdk 35` (for Android target)
+- **Android SDK** with `compileSdk 36` (for Android target)
 - **Xcode 15+** (for iOS/macOS targets, macOS only)
 
 ### Library
@@ -159,8 +159,9 @@ MeshLink/
 adb install meshlink-sample/android/build/outputs/apk/debug/android-debug.apk
 ```
 
-The app has three screens: **Chat** (start/stop mesh, send messages),
-**Mesh Visualizer** (peer topology graph), and **Settings** (config presets, MTU).
+The app has four screens: **Chat** (start/stop mesh, send messages),
+**Mesh Visualizer** (peer topology graph), **Diagnostics** (filterable event log),
+and **Settings** (config presets, MTU).
 
 The sample uses the real `AndroidBleTransport` — it will advertise, scan,
 and connect to other MeshLink devices over BLE. Runtime permissions

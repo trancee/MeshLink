@@ -381,97 +381,25 @@ already seen. On capacity overflow, the least-recently-used entry is evicted.
 ## Security Model
 
 MeshLink implements a two-layer encryption architecture when a `CryptoProvider`
-is supplied.
+is supplied. For full details, see [design.md §5](design.md#5-security) and
+[diagrams.md § Noise XX Handshake](diagrams.md#5-noise-xx-handshake).
 
-### Layer 1: Hop-by-Hop — Noise XX
+| Layer | Protocol | Scope | Purpose |
+|-------|----------|-------|---------|
+| Hop-by-hop | Noise XX | Per BLE link | Mutual authentication, session keys, forward secrecy |
+| End-to-end | Noise K | Per message | Sender-authenticated encryption, relay-opaque |
 
-**Purpose:** Authenticate neighboring peers, establish session keys, provide
-forward secrecy for the BLE link.
+**Key components:**
 
-**Protocol:** Noise XX (bidirectional, mutual authentication)
+- `SecurityEngine` — facade consolidating E2E encryption, signatures, handshakes, and peer key lifecycle
+- `NoiseXXHandshake` + `PeerHandshakeManager` — 3-message mutual auth handshake
+- `NoiseKSealer` — per-message E2E encryption (48B overhead: 32B ephemeral key + 16B auth tag)
+- `ReplayGuard` — 64-entry sliding window bitmask per sender
+- `TrustStore` — TOFI key pinning with `STRICT` and `SOFT_REPIN` modes
 
-```mermaid
-sequenceDiagram
-    participant I as Initiator
-    participant R as Responder
-
-    Note over I,R: Lower peerId initiates (deterministic tie-breaking)
-
-    I->>R: msg1: e (ephemeral public key)
-    Note right of R: R generates own ephemeral key
-
-    R->>I: msg2: e, ee, s, es
-    Note left of I: ECDH: ee (both ephemerals)<br/>Encrypted static key + ECDH: es
-
-    I->>R: msg3: s, se
-    Note right of R: Encrypted static key + ECDH: se
-
-    Note over I,R: ✓ Both sides verified Ed25519 static keys<br/>✓ Two symmetric transport keys derived<br/>✓ All subsequent traffic encrypted (ChaCha20-Poly1305)
-```
-
-**Implementation:** `NoiseXXHandshake` (initiator/responder factory methods)
-and `PeerHandshakeManager` (multi-peer orchestration), both managed by `SecurityEngine`.
-
-### Layer 2: End-to-End — Noise K
-
-**Purpose:** Encrypt message payload so only the intended recipient can read
-it, even when relayed through intermediate peers.
-
-**Protocol:** Noise K pattern (sender-authenticated, one-way)
-
-```mermaid
-sequenceDiagram
-    participant S as Sender
-    participant R as Recipient
-
-    Note over S: Generate ephemeral X25519 keypair (esk, epk)
-    Note over S: ECDH: X25519(esk, recipientStaticPub)
-    Note over S: HKDF-SHA256 → symmetric key
-    Note over S: ChaCha20-Poly1305 encrypt
-    S->>R: [32B epk | ciphertext | 16B auth tag]
-    Note over S: Discard esk (forward secrecy)
-
-    Note over R: Extract 32B epk
-    Note over R: ECDH: X25519(recipientStaticPriv, epk)
-    Note over R: HKDF-SHA256 → symmetric key
-    Note over R: ChaCha20-Poly1305 decrypt
-```
-
-**Overhead:** 48 bytes per message (32B ephemeral key + 16B auth tag).
-
-### Replay Protection
-
-`ReplayGuard` uses a 64-entry sliding window bitmask per sender. Each message
-carries a monotonic counter. The guard accepts a counter only if:
-- It is greater than the highest seen counter (advances the window), or
-- It falls within the 64-entry window and has not been seen before.
-
-### Trust Model — TOFI (Trust On First Identification)
-
-`TrustStore` implements key pinning:
-
-| Mode | First Contact | Key Change |
-|------|---------------|------------|
-| `STRICT` | Pin key, return `FirstSeen` | Reject, return `KeyChanged(previousKey)` |
-| `SOFT_REPIN` | Pin key, return `FirstSeen` | Accept new key, re-pin, return `FirstSeen` |
-
-### Identity Rotation
-
-`rotateIdentity()` generates a new Ed25519 key pair and broadcasts a
-`TYPE_ROTATION` (0x0A) wire message. Peers update their trust store and emit
-a `KeyChangeEvent` on the `keyChanges` flow.
-
-### Cryptographic Primitives
-
-All cryptography is implemented in **pure Kotlin** with no native bindings:
-
-| Algorithm | Purpose | Implementation |
-|-----------|---------|----------------|
-| Ed25519 | Digital signatures (identity) | Pure Kotlin (Edwards25519) |
-| X25519 | Key agreement (ECDH) | Pure Kotlin (Curve25519) |
-| ChaCha20-Poly1305 | AEAD encryption | Pure Kotlin |
-| SHA-256 | Hashing | Pure Kotlin |
-| HKDF-SHA256 | Key derivation | Pure Kotlin |
+**Cryptographic primitives** — all pure Kotlin with no native bindings:
+Ed25519 (signatures), X25519 (key agreement), ChaCha20-Poly1305 (AEAD),
+SHA-256 (hashing), HKDF-SHA256 (key derivation).
 
 ---
 
@@ -479,170 +407,42 @@ All cryptography is implemented in **pure Kotlin** with no native bindings:
 
 `PowerCoordinator` is the facade that consolidates power-mode transitions
 (with hysteresis), memory-pressure evaluation, and buffer-pressure monitoring
-behind sealed result types (`ModeChangeResult`). MeshLink delegates all
-power decisions to `PowerCoordinator` and pattern-matches on results.
+behind sealed result types. For full details and state diagrams, see
+[design.md §7](design.md#7-power-management) and
+[diagrams.md § Power Mode Transitions](diagrams.md#6-power-mode-transitions).
 
-MeshLink automatically adapts BLE behavior based on device battery level.
+MeshLink automatically adapts BLE behavior based on battery level across
+three tiers:
 
-### Three-Tier Power Modes
+| Mode | Battery | Adv Interval | Scan Duty | Max Transfers | Chunk Payload |
+|------|---------|-------------|-----------|---------------|---------------|
+| PERFORMANCE | >80% or charging | 250 ms | 80% | 8 | 8,192 B |
+| BALANCED | 30–80% | 500 ms | 50% | 4 | 4,096 B |
+| POWER_SAVER | <30% | 1,000 ms | 16% | 1 | 1,024 B |
 
-```
-Battery Level:  100%        80%           30%          0%
-                 │           │             │            │
-                 ├───────────┤─────────────┤────────────┤
-                 │PERFORMANCE│  BALANCED   │POWER_SAVER │
-                 │           │             │            │
-Adv Interval:   250 ms       500 ms        1000 ms
-Scan Duty:      80%          50%           16%
-Max Transfers:  8            4             1
-Chunk Payload:  8192 B       4096 B        1024 B
-```
-
-Thresholds are configurable via `powerModeThresholds` (default `[80, 30]`).
-
-```mermaid
-stateDiagram-v2
-    [*] --> PERFORMANCE : Battery > 80%
-
-    PERFORMANCE --> BALANCED : Battery ≤ 80%<br/>(30s hysteresis)
-    BALANCED --> POWER_SAVER : Battery ≤ 30%<br/>(30s hysteresis)
-
-    POWER_SAVER --> BALANCED : Battery > 30%<br/>(immediate)
-    BALANCED --> PERFORMANCE : Battery > 80%<br/>(immediate)
-
-    POWER_SAVER --> PERFORMANCE : Charging detected<br/>(immediate)
-    BALANCED --> PERFORMANCE : Charging detected<br/>(immediate)
-
-    state PERFORMANCE {
-        [*] : Adv: 250ms · Scan: 80% · 8 transfers
-    }
-    state BALANCED {
-        [*] : Adv: 500ms · Scan: 50% · 4 transfers
-    }
-    state POWER_SAVER {
-        [*] : Adv: 1000ms · Scan: 16% · 1 transfer
-    }
-```
-
-### Hysteresis
-
-`PowerModeEngine` prevents rapid mode flapping:
-
-- **Downward transitions** (e.g., BALANCED → POWER_SAVER): delayed by
-  `hysteresisMillis` (default 30 seconds). The battery must remain below the
-  threshold for the full window.
-- **Upward transitions** (e.g., POWER_SAVER → BALANCED): immediate.
-- **Charging detected**: immediately promotes to PERFORMANCE.
-
-### Advertising & Scan Policy
-
-`PowerProfile` is the single source of truth for all power-mode-dependent
-constants. `AdvertisingPolicy` and `ScanDutyCycleController` derive their
-values from it:
-
-| Mode | Advertising Interval | Scan Duty Cycle | Aggressive Discovery |
-|------|---------------------|-----------------|---------------------|
-| PERFORMANCE | 250 ms | 80% (4s on / 1s off) | Yes |
-| BALANCED | 500 ms | 50% (3s on / 3s off) | No |
-| POWER_SAVER | 1000 ms | 16% (1s on / 5s off) | No |
-
-### Transfer Scheduling
-
-`TransferScheduler` limits concurrent transfers per power mode:
-
-| Mode | Max Concurrent Transfers |
-|------|--------------------------|
-| PERFORMANCE | 8 |
-| BALANCED | 4 |
-| POWER_SAVER | 1 |
-
-On power mode downgrade, excess active transfers are demoted to a waiting
-queue. On upgrade, waiting transfers are promoted.
-
-### Chunk Size Adaptation
-
-`ChunkSizePolicy` adjusts payload size per chunk:
-
-```
-effectiveChunkSize = min(powerModeMaxPayload, mtu - CHUNK_HEADER_SIZE)
-```
-
-where `CHUNK_HEADER_SIZE = 21` bytes.
-
-### Memory Pressure Shedding
-
-`TieredShedder` implements three escalation levels:
-
-```mermaid
-flowchart LR
-    Eval{"Buffer utilization?"} -->|"≥ 50%"| MOD["🟡 MODERATE"]
-    Eval -->|"≥ 70%"| HIGH["🟠 HIGH"]
-    Eval -->|"≥ 90%"| CRIT["🔴 CRITICAL"]
-
-    MOD --> A1["Clear relay buffers"]
-    HIGH --> A1
-    HIGH --> A2["Trim dedup set"]
-    CRIT --> A1
-    CRIT --> A2
-    CRIT --> A3["Drop BLE connections"]
-```
+Thresholds configurable via `powerModeThresholds` (default `[80, 30]`).
+Downward transitions delayed by 30s hysteresis; upward transitions and
+charging are immediate. Memory pressure shedding escalates through three
+levels (MODERATE → HIGH → CRITICAL) based on buffer utilization.
 
 ---
 
 ## Transfer & Congestion Control
 
-`TransferEngine` is the facade that consolidates outbound chunking and inbound
-reassembly behind sealed result types (`TransferUpdate`, `ChunkAcceptResult`).
-`MeshLink` delegates all chunk-level operations to `TransferEngine` and
-pattern-matches on results to dispatch wire bytes and emit diagnostics.
+`TransferEngine` consolidates outbound chunking and inbound reassembly behind
+sealed result types. For wire format details, see
+[wire-format-spec.md](wire-format-spec.md) and
+[diagrams.md § GATT Chunking & SACK Flow](diagrams.md#7-gatt-chunking--sack-flow).
 
-### Chunking
-
-Messages larger than `mtu - 21` bytes are split into chunks. Each chunk
-carries a 21-byte header:
-
-```mermaid
-packet-beta
-  0-7: "Type (1B)"
-  8-135: "Message ID (16B UUID)"
-  136-151: "Seq Num (2B LE)"
-  152-167: "Total Chunks (2B LE)"
-  168-191: "Payload (variable)"
-```
-
-### Selective Acknowledgement (SACK)
-
-`SackTracker` on the receiver tracks which chunks have arrived:
-
-- `ackSeq`: highest contiguous sequence number received from 0.
-- `sackBitmask`: 64-bit bitmask indicating received chunks beyond `ackSeq`.
-
-ACK wire format:
-
-```mermaid
-packet-beta
-  0-7: "Type (1B)"
-  8-135: "Message ID (16B UUID)"
-  136-151: "Ack Seq (2B LE)"
-  152-215: "SACK Bitmask (8B LE)"
-```
-
-The sender uses the SACK bitmask to selectively retransmit only missing
-chunks, avoiding unnecessary retransmission of already-received data.
-
-### AIMD Congestion Control
-
-`AimdController` adapts the sending window:
-
-- **Additive Increase:** After 4 consecutive clean ACK rounds, increase
-  window by 2 (up to `ackWindowMax`, default 16).
-- **Multiplicative Decrease:** After 2 consecutive timeouts, halve the window
-  (down to `ackWindowMin`, default 2).
-- **Reconnect:** Resets window and counters.
-
-`TransferSession` uses the AIMD window to decide how many chunks to send per
-round. It prioritizes retransmitting gaps (from SACK) before sending new
-chunks.
+- **Chunking** — messages larger than `mtu - 21` bytes are split into chunks
+  with a 21-byte header (type + messageId + seqNum + totalChunks).
+- **SACK** — receiver tracks arrivals via `SackTracker` (cumulative ackSeq +
+  64-bit bitmask). Sender retransmits only missing chunks.
+- **AIMD congestion control** — `AimdController` increases the window by 2
+  after 4 clean rounds; halves it after 2 consecutive timeouts
+  (min: `ackWindowMin`, max: `ackWindowMax`).
+- **Transfer scheduling** — `TransferScheduler` limits concurrent transfers
+  per power mode and uses weighted round-robin interleaving.
 
 ---
 
@@ -774,7 +574,7 @@ meshlink/
 
 | Target | Min Version | Notes |
 |--------|-------------|-------|
-| Android | API 26 (Android 8.0) | compileSdk 35 |
+| Android | API 26 (Android 8.0) | compileSdk 36 |
 | iOS arm64 | — | Physical devices |
 | iOS simulator arm64 | — | Apple Silicon simulators |
 | JVM | — | For desktop/server testing |

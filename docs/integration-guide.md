@@ -38,8 +38,8 @@ dependencies {
 }
 ```
 
-MeshLink targets **Android (minSdk 26, compileSdk 35)** and
-**iOS (arm64, simulatorArm64, x64)** via Kotlin Multiplatform.
+MeshLink targets **Android (minSdk 26, compileSdk 36)** and
+**iOS (arm64, simulatorArm64)** via Kotlin Multiplatform.
 
 **Swift Package Manager (iOS)** — export the KMP framework and add it to your
 Xcode project as a local or remote Swift package.
@@ -147,7 +147,7 @@ val config = meshLinkConfig {
 
 ### Using a Preset
 
-Three presets cover common scenarios. Each accepts an optional override block.
+Four presets cover common scenarios. Each accepts an optional override block.
 See the [API Reference § Presets](api-reference.md#presets) for the full
 comparison table.
 
@@ -164,6 +164,9 @@ val fileConfig = MeshLinkConfig.fileTransferOptimized()
 
 // Battery-constrained devices — small buffers, minimal overhead
 val powerConfig = MeshLinkConfig.powerOptimized()
+
+// Sensor telemetry — tiny payloads, minimal resources
+val sensorConfig = MeshLinkConfig.sensorOptimized()
 ```
 
 ### Key Configuration Options

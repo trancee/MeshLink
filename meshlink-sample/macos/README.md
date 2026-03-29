@@ -8,6 +8,7 @@ A SwiftUI reference app demonstrating the MeshLink BLE mesh messaging library on
 |--------|-------------|
 | **Chat** | Start/stop mesh, send messages, view event log |
 | **Mesh** | Visualize network topology with signal strength |
+| **Diagnostics** | Filterable diagnostic event log with severity color-coding |
 | **Settings** | Config presets, MTU slider, health dashboard |
 
 ## Prerequisites

@@ -1,5 +1,10 @@
 # Firebase Test Lab Setup Guide
 
+> **⚠️ Planned — not yet implemented.** This guide describes the intended
+> Firebase Test Lab integration. The `firebase-test-lab.yml` workflow
+> referenced below has not been created yet. Follow these steps when you're
+> ready to set up device testing in CI.
+
 This guide walks through setting up Firebase Test Lab to run MeshLink's
 Android instrumented tests and iOS XCTests on real devices via GitHub Actions.
 

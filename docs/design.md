@@ -50,10 +50,11 @@ ios/                       ← Platform-specific (~7%)
 
 **Crypto library strategy:** Crypto primitives (Curve25519, Ed25519, ChaCha20-Poly1305, SHA-256) use **platform-native crypto** — no third-party crypto dependencies. JVM/Desktop: Java 21 built-in (Ed25519, X25519, ChaCha20-Poly1305, SHA-256). Android API 33+: Java native. Android API 26–32: pure Kotlin Ed25519/X25519 fallback (JCA lacks these before API 31/33), with JCA for ChaCha20-Poly1305 and SHA-256. iOS: CryptoKit via Kotlin/Native interop (Curve25519.Signing, Curve25519.KeyAgreement, ChaChaPoly, SHA256, HKDF). The Noise Protocol state machine (XX + K patterns) is implemented in shared Kotlin code on top of these primitives (~500-800 lines).
 
-**Reference app:** Built with **Compose Multiplatform** — a single codebase for both Android and iOS. Compose Multiplatform UI for iOS is Beta as of 2026, which is acceptable for a development/testing tool. **Three screens:**
+**Reference app:** Built with **Compose Multiplatform** — a single codebase for both Android and iOS. Compose Multiplatform UI for iOS is Beta as of 2026, which is acceptable for a development/testing tool. **Four screens:**
 1. **Chat screen** (demo mode) — send/receive text messages to discovered peers. Demonstrates `send()`, `.messages`, `.peers` integration patterns.
 2. **Mesh Visualizer** (debug mode) — live graph of peer nodes (sized by connection count) with edges between connected peers (color-coded by signal quality). Route paths highlighted when sending a message. The "wow" demo and the "aha" debug tool.
-3. **Diagnostics Log** (debug mode) — scrollable, filterable view of all `DiagnosticEvent` emissions. Toggle between demo/debug mode via settings.
+3. **Diagnostics** (debug mode) — scrollable, filterable view of all `DiagnosticEvent` emissions with severity color-coding and auto-scroll. Toggle between demo/debug mode via settings.
+4. **Settings** — config presets, MTU slider, health dashboard.
 
 **Safeguards:**
 1. Single shared implementation prevents protocol drift
@@ -389,7 +390,7 @@ Message IDs are **128-bit UUID v4** (16 bytes), generated randomly by the sender
 
 ### Protocol Versioning & Advertisement Layout
 
-Protocol version and capability flags are bit-packed into the BLE advertisement payload (17 bytes total: 1B version+power, 16B key hash). Version negotiation occurs during the Noise XX handshake. See §13 Protocol Governance & Versioning for negotiation rules, backward compatibility policy, and the N−1 support window.
+Protocol version and capability flags are bit-packed into the BLE advertisement payload (17 bytes total: 1B version+power, 16B key hash). Version negotiation occurs during the Noise XX handshake. See §12 Protocol Governance & Versioning for negotiation rules, backward compatibility policy, and the N−1 support window.
 
 **Frozen advertisement format:** The 17-byte MeshLink payload (1B version+power, 16B key hash) is **permanently frozen** across all protocol versions. The 6-bit version field in byte 0 allows scanning nodes to determine the remote protocol version *before* connecting — avoiding wasted handshakes on version mismatch. If a node scans an advertisement with an unsupported major version, it skips the connection entirely.
 
@@ -1113,7 +1114,7 @@ Noise XX provides mutual authentication, session-level forward secrecy, and simp
 | Message 2 (`← e, ee, s, es`) | Responder → Initiator | Yes (responder authenticated) | `version(2) + capability(1) + l2cap_psm(2)` = 5 bytes |
 | Message 3 (`→ s, se`) | Initiator → Responder | Yes (both authenticated) | `version(2) + capability(1) + l2cap_psm(2)` = 5 bytes |
 
-Both payloads are encrypted and use the **blanket little-endian encoding rule**: `version` = uint16 LE (major×256 + minor), `capability` = 1 byte (bit 0 = L2CAP, bits 1–7 reserved; unknown bits silently ignored per §13 Protocol Governance & Versioning), `l2cap_psm` = uint16 LE (`0x0000` = no L2CAP support). **Forward-compatible payload extension:** Receivers MUST accept payloads ≥5 bytes and silently ignore any trailing bytes beyond the first 5. This allows minor versions to append new fields (e.g., max-chunk-size hint) without a major version bump. After Message 3, both peers know each other's protocol version, L2CAP capability, and PSM. Version negotiation rules (§13 Protocol Governance & Versioning) apply to the exchanged versions. If version negotiation fails (gap > 1 major version), the connection is torn down immediately.
+Both payloads are encrypted and use the **blanket little-endian encoding rule**: `version` = uint16 LE (major×256 + minor), `capability` = 1 byte (bit 0 = L2CAP, bits 1–7 reserved; unknown bits silently ignored per §12 Protocol Governance & Versioning), `l2cap_psm` = uint16 LE (`0x0000` = no L2CAP support). **Forward-compatible payload extension:** Receivers MUST accept payloads ≥5 bytes and silently ignore any trailing bytes beyond the first 5. This allows minor versions to append new fields (e.g., max-chunk-size hint) without a major version bump. After Message 3, both peers know each other's protocol version, L2CAP capability, and PSM. Version negotiation rules (§12 Protocol Governance & Versioning) apply to the exchanged versions. If version negotiation fails (gap > 1 major version), the connection is torn down immediately.
 
 **Extension model:** Capability bits (8 flags in the capability byte) are the sole mechanism for feature negotiation. Both peers AND their capability bytes; features requiring unsupported bits are disabled for that session. No TLV encoding — the 8-bit capability field provides sufficient feature flags for v1–v3. The reserved 5th payload byte is set to `0x00` by v1 peers and ignored if non-zero. Capability byte exhaustion (all 8 bits used) is addressed at the next major version bump.
 
@@ -1595,13 +1596,7 @@ A GATT disconnect immediately transitions a peer to **disconnected** (strong sig
 
 ---
 
-## 9. Compression
-
-**Compression:** Deferred to post-v1. Chat messages (1-10KB) yield minimal absolute savings; images/files are already compressed formats. The sealed payload flags byte reserves bit 0 for future compression support.
-
----
-
-## 10. Platform Constraints
+## 9. Platform Constraints
 
 ### Dual-Role BLE Requirement
 
@@ -1666,7 +1661,7 @@ iOS imposes severe restrictions on background BLE:
 
 **On relaunch:** The library starts from `uninitialized` state (same codepath as cold start). The app calls `MeshLink(context) { config }` + `start()`. CoreBluetooth-restored connections get fresh Noise XX handshakes. Identity keypair, TOFI key pins, replay counters, and dedup set are restored from secure storage; all other state is rebuilt via gossip (~10–30s convergence).
 
-See **Restart semantics** table in §11 for full crash recovery state.
+See **Restart semantics** table in §10 for full crash recovery state.
 
 **Buffered message loss:** The library does NOT persist buffered messages — `send()` is "accepted for best-effort delivery," NOT "guaranteed delivery." Apps should track pending messages until `onMessageDelivered(messageId)` fires.
 
@@ -1696,7 +1691,7 @@ See **Restart semantics** table in §11 for full crash recovery state.
 
 ---
 
-## 11. Library API Design
+## 10. Library API Design
 
 ### Quickstart
 
@@ -2186,7 +2181,7 @@ This enables apps to implement health indicators, adaptive behavior (reduce send
 
 ---
 
-## 12. Testing Strategy
+## 11. Testing Strategy
 
 ### Three-Layer Approach
 
@@ -2268,7 +2263,7 @@ These are **release gates** — tests that fail these thresholds block release. 
 
 ---
 
-## 13. Risks & Post-v1 Roadmap
+## 12. Risks & Post-v1 Roadmap
 
 ### Critical Risks
 
@@ -2287,7 +2282,7 @@ These are **release gates** — tests that fail these thresholds block release. 
 - Multi-device key synchronization
 - Larger payload support (>100KB) with progressive download
 - Mesh analytics/diagnostics API for consuming apps
-- Per-message compression (LZ4/zstd for higher ratio, dictionary-based compression for repetitive payloads)
+- Per-message compression (LZ4/zstd for higher ratio, dictionary-based compression for repetitive payloads). The sealed payload flags byte reserves bit 0 for future compression. Chat messages (1–10KB) yield minimal absolute savings; images/files are typically already compressed.
 - Sliding window ACK window size auto-tuning based on connection quality (v1 includes basic halve/double; post-v1 adds bandwidth estimation, RTT-based adjustment, and per-peer adaptive profiles)
 - Onion-style routing for metadata protection (each hop only knows next hop)
 - Multi-Point Relay (MPR) gossip optimization — select a minimum subset of Neighbors that covers all 2-hop Peers, and only relay Gossip through MPRs. Reduces Gossip traffic by up to 75% in dense meshes (20+ Peers). Adapted from OLSR.

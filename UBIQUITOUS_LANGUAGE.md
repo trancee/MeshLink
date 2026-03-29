@@ -25,35 +25,7 @@ The following terms are commonly confused. Read this before continuing.
 
 ## Identity & Trust
 
-```mermaid
-stateDiagram-v2
-    [*] --> Generated : First launch
-
-    state "Ed25519 Keypair" as Generated
-    state "Curve25519 Derived" as Derived
-    state "Active (In Use)" as Active
-    state "Rotation Announced" as Rotating
-    state "Old Key Grace" as Grace
-    state "New Key Only" as NewOnly
-
-    Generated --> Derived : Birational map
-    Derived --> Active : Stored in secure storage
-    Active --> Rotating : rotateIdentity() called
-    Rotating --> Grace : Gossip announcement sent
-    Grace --> NewOnly : All old sessions torn down
-    NewOnly --> Active : New key is now primary
-
-    note right of Grace
-        Old key accepted until
-        all Noise XX sessions
-        using it are torn down
-    end note
-
-    note right of Rotating
-        Signed with OLD key:
-        oldPubKey + newPubKey
-    end note
-```
+> See [diagrams.md § TOFI Trust Model](docs/diagrams.md#10-tofi-trust-model) and [§ Key Rotation Sequence](docs/diagrams.md#11-key-rotation-sequence) for visual references.
 
 | Term | Definition | Aliases to avoid |
 |------|-----------|-----------------|
@@ -124,31 +96,7 @@ stateDiagram-v2
 
 ## Messaging
 
-```mermaid
-sequenceDiagram
-    participant S as Sender
-    participant M as Mesh (Relays)
-    participant R as Recipient
-
-    Note over S,R: Path 1 — Direct Message (with ACK)
-    S->>M: send(recipient, payload)
-    M->>R: Routed via DSDV
-    R->>R: Decrypt (Noise K)
-    R-->>M: DeliveryACK (signed)
-    M-->>S: DeliveryACK
-    Note left of S: onDeliveryConfirmed
-
-    Note over S,R: Path 2 — Broadcast
-    S->>M: broadcast(payload) [Ed25519 signed]
-    M->>M: Relay to all (TTL hops)
-    M->>R: Deliver + re-broadcast
-    Note right of R: No ACK for broadcasts
-
-    Note over S,R: Path 3 — NACK (rejection)
-    S->>M: send(recipient, payload)
-    M--xS: NACK (bufferFull)
-    Note left of S: onTransferFailed
-```
+> See [diagrams.md § Multi-Hop Routed Message Flow](docs/diagrams.md#4-multi-hop-routed-message-flow) for the full sequence diagram.
 
 | Term | Definition | Aliases to avoid |
 |------|-----------|-----------------|
@@ -178,31 +126,7 @@ sequenceDiagram
 
 ## Encryption
 
-```mermaid
-flowchart TD
-    subgraph E2E["E2E Layer (Noise K)"]
-        direction LR
-        E1["Scope: Sender → Recipient"]
-        E2["Auth: Sender static key"]
-        E3["Forward secrecy: per-message ephemeral"]
-        E4["Relay visibility: NONE"]
-    end
-
-    subgraph H2H["Hop-by-Hop Layer (Noise XX)"]
-        direction LR
-        H1["Scope: Node → Adjacent Node"]
-        H2["Auth: Mutual (both static keys)"]
-        H3["Forward secrecy: per-session"]
-        H4["Re-encrypted at each relay"]
-    end
-
-    P["Plaintext"] --> E2E
-    E2E -->|"E2E ciphertext"| H2H
-    H2H -->|"Hop-encrypted frame"| BLE["BLE Transport"]
-
-    style E2E fill:#e8e8f4,stroke:#333
-    style H2H fill:#f4e8e8,stroke:#333
-```
+> See [diagrams.md § Noise XX Handshake](docs/diagrams.md#5-noise-xx-handshake) and [architecture.md § Security Model](docs/architecture.md#security-model) for visual references.
 
 | Term | Definition | Aliases to avoid |
 |------|-----------|-----------------|
@@ -218,35 +142,7 @@ flowchart TD
 
 ## Routing
 
-```mermaid
-mindmap
-  root((Routing))
-    Routing Table
-      Primary Route
-      Backup Route
-      Route Cost
-      Route Expiry
-    Algorithm
-      Enhanced DSDV
-      Link Cost
-        RSSI linear
-        Loss rate
-        Stability
-    Updates
-      Gossip
-      Triggered Update
-      Split Horizon
-      Poison Reverse
-      Settling Time
-      Holddown Timer
-    Failures
-      Route Expiry
-      Multipath Failover
-    Security
-      Gossip Signing
-      Route Cost Validation
-      Reputation System
-```
+> See [diagrams.md § Gossip Protocol Exchange](docs/diagrams.md#9-gossip-protocol-exchange) for the full gossip sequence diagram.
 
 | Term | Definition | Aliases to avoid |
 |------|-----------|-----------------|
@@ -290,30 +186,7 @@ mindmap
 
 ## Deduplication & Buffering
 
-```mermaid
-flowchart TD
-    subgraph Survives["Persisted (survives crash)"]
-        ID["Identity Key\n(secure storage)"]
-        RC["Replay Counters\n(write-ahead)"]
-        TOFI["TOFI Pins\n(secure storage)"]
-        DD["Dedup Set\n(in-memory only in v1)"]
-    end
-
-    subgraph Lost["Rebuilt / Lost on crash"]
-        RT["Routing Table\n(rebuilt from gossip)"]
-        BUF["Message Buffer\n(lost — senders retry)"]
-        TF["In-flight Transfers\n(lost — SACK retry)"]
-        ENG["Engine State\n(fresh restart)"]
-    end
-
-    Crash(("Process\nCrash")) --> Survives
-    Crash --> Lost
-    RT -.->|"Rebuilt via"| Gossip["Gossip exchange\nwith neighbors"]
-    TF -.->|"Recovered via"| SACK["SACK timeout\n+ retransmit"]
-
-    style Survives fill:#e8f4e8,stroke:#333
-    style Lost fill:#f4e8e8,stroke:#333
-```
+> See [diagrams.md § Engine & Coordinator Data Flow](docs/diagrams.md#8-engine--coordinator-data-flow) for the crash persistence model.
 
 | Term | Definition | Aliases to avoid |
 |------|-----------|-----------------|
@@ -350,47 +223,7 @@ flowchart TD
 
 ## Concurrency Model
 
-```mermaid
-mindmap
-  root((MeshLink<br/>Concurrency))
-    Engines
-      SecurityEngine
-        Noise XX/K
-        Key management
-      RoutingEngine
-        DSDV routing
-        Gossip preparation
-        Dedup
-      TransferEngine
-        Chunking / SACK
-        AIMD congestion
-      DeliveryPipeline
-        Tracking / tombstones
-        Store-and-forward
-    Coordinators
-      GossipCoordinator
-        Gossip loop
-        Keepalive loop
-        Triggered updates
-      PeerConnectionCoordinator
-        Version negotiation
-        Key registration
-        Handshake initiation
-      PowerCoordinator
-        Mode transitions
-        Memory shedding
-    Policy Chains
-      SendPolicyChain
-        Unicast pre-flight
-      BroadcastPolicyChain
-        Broadcast pre-flight
-      MessageDispatcher
-        Inbound frame dispatch
-    Communication
-      Coroutine Scopes
-      Sealed Result Types
-      Function-Type Dependencies
-```
+> See [diagrams.md § Architecture Overview](docs/diagrams.md#3-architecture-overview) and [§ Engine & Coordinator Data Flow](docs/diagrams.md#8-engine--coordinator-data-flow) for visual references.
 
 | Term | Definition | Aliases to avoid |
 |------|-----------|-----------------|
@@ -419,7 +252,7 @@ mindmap
 | Term | Definition | Aliases to avoid |
 |------|-----------|-----------------|
 | **App Filter Hash** | SHA-256-128 hash of the developer-provided appId string. 16 bytes fixed size in the wire format. Zero hash = no filter. NOT included in BLE advertisement; filtering is recipient-side only. | App ID hash, filter hash |
-| **appId** | Immutable config parameter (`SHA-256-128` hash in wire format). Inbound messages with non-matching hash silently dropped; relays forward regardless. → see design.md §11. | setAppFilter, app filter, topic filter |
+| **appId** | Immutable config parameter (`SHA-256-128` hash in wire format). Inbound messages with non-matching hash silently dropped; relays forward regardless. → see design.md §10. | setAppFilter, app filter, topic filter |
 | **Backward Compatibility (Protocol)** | Each major protocol version MUST accept connections from the previous major version and speak the older protocol (downgrade). Prevents mesh partitioning during rollout. | Version downgrade, protocol compat |
 | **BLE Connection Parameters** | The BLE connection interval, slave latency, and supervision timeout. MeshLink **requests** optimal values per activity state (active transfer: 15ms/0; idle: 100ms/4) but the OS makes the final decision. Actual negotiated values logged via **Diagnostic Stream**. | Connection interval, BLE params |
 | **Config Validation** | Two-phase: per-field bounds at assignment, cross-field rules at build. Returns all violations at once. Config immutable after construction. 7 cross-field rules in v1, extensible. | Validation, bounds checking |
@@ -432,7 +265,7 @@ mindmap
 | **Library State Machine** | 6-state lifecycle: uninitialized → running ⇄ paused → stopped. Also: recoverable (retryable fatalError) and terminal (non-retryable). **`stopped` is restartable** — `start()` after `stop()` re-initializes with the same config. `terminal` is the permanent failure state. `stop()` is **idempotent** (second call is no-op). | Lifecycle, state transitions |
 | **MeshLink** | The library/SDK itself — the public interface consumed by the **Consuming App**. | SDK, framework, library |
 | **Outbound Broadcast Rate Limit** | The `broadcastRateLimit` is enforced locally on the sending device — `broadcast()` returns `broadcastRateLimitExceeded` error if the consuming app exceeds the configured rate. Prevents a buggy app from flooding the mesh at the source. | Local broadcast throttle, send-side rate limit |
-| **Outbox Pattern** | Recommended consuming app pattern: track sent messages in an app-side outbox, remove on `onDeliveryConfirmed`, retry or alert on `onTransferFailed`. See §11 integration guide example. | Send tracking, delivery tracking |
+| **Outbox Pattern** | Recommended consuming app pattern: track sent messages in an app-side outbox, remove on `onDeliveryConfirmed`, retry or alert on `onTransferFailed`. See §10 integration guide example. | Send tracking, delivery tracking |
 | **perRelayBufferSize** | Config parameter. Per-relay-transfer buffer copy size (default 100KB, range 10KB–1MB). | Relay buffer, copy buffer size |
 | **Reactive Connection Limit Discovery** | Android-specific: the library starts with the configured **Connection Slot** budget. When a connection attempt fails with `GATT_ERROR` or `CONNECTION_FAILED`, the effective slot budget is reduced by 1. The discovered limit is persisted per device model (`manufacturer + model → maxConnections`). Compensates for undocumented OEM-specific BLE connection caps. | Auto connection limit, OEM limit discovery |
 | **Single-Instance Enforcement** | `MeshLink` is a process-level singleton. `MeshLink.configure()` throws `IllegalStateException` if already configured in the current process. Prevents BLE conflicts and connection slot contention. | Singleton guard, double-init prevention |
