@@ -1,0 +1,10 @@
+repos:
+  - repo: local
+    hooks:
+      - id: detekt
+        name: detekt
+        description: Run detekt static analysis
+        entry: ./gradlew detekt --no-daemon
+        language: system
+        pass_filenames: false
+        always_run: true
