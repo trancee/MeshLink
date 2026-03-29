@@ -95,8 +95,8 @@ jobs:
           build-scan-terms-of-use-url: 'https://gradle.com/help/legal-terms-of-use'
           build-scan-terms-of-use-agree: 'yes'
 
-      - name: Compile Android (release + debug)
-        run: ./gradlew :meshlink:compileReleaseKotlinAndroid :meshlink:compileDebugKotlinAndroid --parallel
+      - name: Compile Android
+        run: ./gradlew :meshlink:compileKotlinAndroid
 
   apple-test:
     name: iOS & macOS Tests

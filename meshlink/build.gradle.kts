@@ -3,7 +3,7 @@ import org.jetbrains.kotlin.gradle.plugin.mpp.apple.XCFramework
 plugins {
     kotlin("multiplatform")
     kotlin("plugin.power-assert")
-    id("com.android.library")
+    id("com.android.kotlin.multiplatform.library")
     `maven-publish`
     signing
 }
@@ -27,7 +27,15 @@ powerAssert {
 
 kotlin {
     jvm()
-    androidTarget()
+    android {
+        namespace = "io.meshlink"
+        compileSdk = 35
+        minSdk = 26
+
+        withDeviceTestBuilder {
+            sourceSetTreeName = "test"
+        }
+    }
 
     val xcf = XCFramework("MeshLink")
     listOf(iosArm64(), iosSimulatorArm64()).forEach { target ->
@@ -72,20 +80,10 @@ kotlin {
             implementation(kotlin("test"))
             implementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
         }
-    }
-}
-
-android {
-    namespace = "io.meshlink"
-    compileSdk = 35
-    defaultConfig {
-        minSdk = 26
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        consumerProguardFiles("consumer-rules.pro")
-    }
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_21
-        targetCompatibility = JavaVersion.VERSION_21
+        getByName("androidDeviceTest").dependencies {
+            implementation("androidx.test:runner:1.7.0")
+            implementation("androidx.test.ext:junit:1.2.1")
+        }
     }
 }
 
@@ -131,11 +129,6 @@ publishing {
             }
         }
     }
-}
-
-dependencies {
-    androidTestImplementation("androidx.test:runner:1.7.0")
-    androidTestImplementation("androidx.test.ext:junit:1.2.1")
 }
 
 signing {
