@@ -17,21 +17,21 @@ private class LinuxPlatformLock : PlatformLock {
 
     override fun lock() {
         val currentThread = pthread_self().toLong()
-        if (ownerThreadId.load() == currentThread && recursionCount > 0) {
+        if (ownerThreadId.value == currentThread && recursionCount > 0) {
             recursionCount++
             return
         }
         while (!locked.compareAndSet(0, 1)) {
             // spin
         }
-        ownerThreadId.store(currentThread)
+        ownerThreadId.value = currentThread
         recursionCount = 1
     }
 
     override fun unlock() {
         recursionCount--
         if (recursionCount == 0) {
-            ownerThreadId.store(0L)
+            ownerThreadId.value = 0L
             locked.value = 0
         }
     }
