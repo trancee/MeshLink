@@ -9,7 +9,6 @@ import io.meshlink.diagnostics.Severity
 import io.meshlink.util.AppIdFilter
 import io.meshlink.util.RateLimitPolicy
 import io.meshlink.util.RateLimitResult
-import io.meshlink.util.toHex
 
 /**
  * Pre-dispatch validation for inbound messages.

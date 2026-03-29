@@ -6,6 +6,7 @@ package io.meshlink.crypto
  * Curve: -x² + y² = 1 + d·x²·y²  where d = -121665/121666 mod p, p = 2²⁵⁵ - 19.
  * Uses extended coordinates (X:Y:Z:T) where x=X/Z, y=Y/Z, xy=T/Z.
  */
+@Suppress("TooManyFunctions")
 internal object Ed25519 {
 
     // ── Public API ──────────────────────────────────────────────────────

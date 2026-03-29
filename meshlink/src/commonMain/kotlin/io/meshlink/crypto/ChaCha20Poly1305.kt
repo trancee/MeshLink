@@ -8,6 +8,7 @@ package io.meshlink.crypto
  * Poly1305 uses 130-bit arithmetic with 5 × 26-bit limbs in LongArray
  * to remain platform-independent (no java.math.BigInteger).
  */
+@Suppress("TooManyFunctions")
 internal object ChaCha20Poly1305 {
 
     private const val TAG_SIZE = 16
@@ -118,6 +119,7 @@ internal object ChaCha20Poly1305 {
     // ---- Poly1305 MAC (RFC 8439 §2.5) ----
     // 130-bit arithmetic using 5 × 26-bit limbs stored in Long.
 
+    @Suppress("LongMethod")
     internal fun poly1305Mac(key: ByteArray, message: ByteArray): ByteArray {
         // Clamp r (key[0..15])
         val cr = key.copyOfRange(0, 16)

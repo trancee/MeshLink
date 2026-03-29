@@ -1,0 +1,87 @@
+build:
+  maxIssues: 0
+
+complexity:
+  LongMethod:
+    threshold: 80
+  LongParameterList:
+    functionThreshold: 8
+    constructorThreshold: 14
+  TooManyFunctions:
+    thresholdInClasses: 50
+    thresholdInFiles: 50
+  CyclomaticComplexMethod:
+    threshold: 25
+  NestedBlockDepth:
+    threshold: 5
+
+formatting:
+  active: true
+  MaximumLineLength:
+    active: false
+  TrailingCommaOnCallSite:
+    active: false
+  TrailingCommaOnDeclarationSite:
+    active: false
+  NoWildcardImports:
+    active: true
+  Wrapping:
+    active: false
+  Indentation:
+    active: false
+  ArgumentListWrapping:
+    active: false
+  ParameterListWrapping:
+    active: false
+  SpacingAroundOperators:
+    active: false
+  NoMultipleSpaces:
+    active: false
+  MultiLineIfElse:
+    active: false
+  ImportOrdering:
+    active: false
+  SpacingBetweenDeclarationsWithAnnotations:
+    active: false
+  SpacingBetweenDeclarationsWithComments:
+    active: false
+  NoConsecutiveBlankLines:
+    active: false
+
+naming:
+  FunctionNaming:
+    active: true
+  VariableNaming:
+    active: true
+  TopLevelPropertyNaming:
+    constantPattern: '[A-Z][A-Za-z0-9_]*'
+  MatchingDeclarationName:
+    active: false
+
+style:
+  MagicNumber:
+    active: false
+  ReturnCount:
+    max: 10
+  ForbiddenComment:
+    active: false
+  MaxLineLength:
+    maxLineLength: 160
+  WildcardImport:
+    active: true
+  UnusedPrivateMember:
+    active: true
+  UnnecessaryAbstractClass:
+    active: true
+  LoopWithTooManyJumpStatements:
+    active: false
+  ThrowsCount:
+    active: false
+  UseCheckOrError:
+    active: false
+  UseRequire:
+    active: false
+
+exceptions:
+  TooGenericExceptionCaught:
+    active: false

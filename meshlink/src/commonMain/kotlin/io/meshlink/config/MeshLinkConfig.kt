@@ -49,15 +49,23 @@ data class MeshLinkConfig(
         if (mtu > maxMessageSize) violations.add("mtu ($mtu) exceeds maxMessageSize ($maxMessageSize)")
         if (diagnosticBufferCapacity < 0) violations.add("diagnosticBufferCapacity must be non-negative")
         if (dedupCapacity <= 0) violations.add("dedupCapacity must be positive")
-        if (rateLimitMaxSends > 0 && rateLimitWindowMs <= 0) violations.add("rateLimitWindowMs must be positive when rate limiting is enabled")
-        if (circuitBreakerMaxFailures > 0 && circuitBreakerCooldownMs <= 0) violations.add("circuitBreakerCooldownMs must be positive when circuit breaker is enabled")
+        if (rateLimitMaxSends > 0 && rateLimitWindowMs <= 0) {
+            violations.add("rateLimitWindowMs must be positive when rate limiting is enabled")
+        }
+        if (circuitBreakerMaxFailures > 0 && circuitBreakerCooldownMs <= 0) {
+            violations.add("circuitBreakerCooldownMs must be positive when circuit breaker is enabled")
+        }
         // Cross-field validation rules from design doc §14
         if (ackWindowMax < ackWindowMin) violations.add("ackWindowMax ($ackWindowMax) must be >= ackWindowMin ($ackWindowMin)")
         if (powerModeThresholds.size >= 2 && powerModeThresholds[0] <= powerModeThresholds[1]) {
             violations.add("powerModeThresholds must be strictly descending: [${powerModeThresholds.joinToString()}]")
         }
         if (l2capEnabled && l2capRetryAttempts < 0) violations.add("l2capRetryAttempts ($l2capRetryAttempts) must be >= 0 when l2capEnabled is true")
-        if (bufferTtlMs > 0 && chunkInactivityTimeoutMs >= bufferTtlMs) violations.add("chunkInactivityTimeoutMs ($chunkInactivityTimeoutMs) must be < bufferTtlMs ($bufferTtlMs)")
+        if (bufferTtlMs > 0 && chunkInactivityTimeoutMs >= bufferTtlMs) {
+            violations.add(
+                "chunkInactivityTimeoutMs ($chunkInactivityTimeoutMs) must be < bufferTtlMs ($bufferTtlMs)",
+            )
+        }
         if (maxConcurrentInboundSessions <= 0) violations.add("maxConcurrentInboundSessions must be positive")
         return violations
     }
@@ -88,6 +96,7 @@ data class MeshLinkConfig(
 fun meshLinkConfig(block: MeshLinkConfigBuilder.() -> Unit = {}): MeshLinkConfig =
     MeshLinkConfigBuilder().apply(block).build()
 
+@Suppress("LongParameterList")
 class MeshLinkConfigBuilder(
     var maxMessageSize: Int = 100_000,
     var bufferCapacity: Int = 1_048_576,

@@ -1,10 +1,8 @@
 @file:OptIn(kotlinx.cinterop.ExperimentalForeignApi::class, kotlinx.cinterop.BetaInteropApi::class)
+@file:Suppress("Filename")
 
 package io.meshlink.transport
 
-import kotlinx.cinterop.addressOf
-import kotlinx.cinterop.memScoped
-import kotlinx.cinterop.refTo
 import kotlinx.cinterop.usePinned
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers

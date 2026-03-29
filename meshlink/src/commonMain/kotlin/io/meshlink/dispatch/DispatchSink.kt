@@ -2,7 +2,6 @@ package io.meshlink.dispatch
 
 import io.meshlink.model.KeyChangeEvent
 import io.meshlink.transfer.ChunkData
-import kotlin.uuid.Uuid
 
 /**
  * Callback interface for side-effectful actions that handlers need

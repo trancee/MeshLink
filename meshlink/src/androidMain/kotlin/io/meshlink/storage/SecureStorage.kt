@@ -1,3 +1,5 @@
+@file:Suppress("Filename")
+
 package io.meshlink.storage
 
 import android.content.Context

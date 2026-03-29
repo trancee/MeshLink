@@ -9,6 +9,7 @@ package io.meshlink.crypto
  * Field elements are represented as LongArray(10) with alternating 26/25-bit limbs
  * following the standard ref10 representation.
  */
+@Suppress("TooManyFunctions")
 internal object X25519 {
 
     private val BASEPOINT = ByteArray(32).also { it[0] = 9 }
@@ -284,6 +285,7 @@ internal object X25519 {
         feCarryMul(out, h0, h1, h2, h3, h4, h5, h6, h7, h8, h9)
     }
 
+    @Suppress("LongParameterList")
     private fun feCarryMul(
         out: LongArray,
         h0In: Long, h1In: Long, h2In: Long, h3In: Long, h4In: Long,

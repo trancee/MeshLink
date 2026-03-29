@@ -267,6 +267,7 @@ class MessageDispatcher(
         }
     }
 
+    @Suppress("UnusedParameter")
     private suspend fun handleResumeRequest(fromPeerId: ByteArray, data: ByteArray) {
         val request = WireCodec.decodeResumeRequest(data)
         diagnosticSink.emit(
@@ -275,6 +276,7 @@ class MessageDispatcher(
         )
     }
 
+    @Suppress("UnusedParameter")
     private suspend fun handleDeliveryAck(fromPeerId: ByteArray, data: ByteArray) {
         val ack = WireCodec.decodeDeliveryAck(data)
         val key = ack.messageId.toHex()

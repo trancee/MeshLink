@@ -21,7 +21,16 @@ class RateLimitPolicy(
         if (config.rateLimitMaxSends > 0) RateLimiter(config.rateLimitMaxSends, config.rateLimitWindowMs, clock) else null
 
     private val circuitBreaker: CircuitBreaker? =
-        if (config.circuitBreakerMaxFailures > 0) CircuitBreaker(config.circuitBreakerMaxFailures, config.circuitBreakerWindowMs, config.circuitBreakerCooldownMs, clock) else null
+        if (config.circuitBreakerMaxFailures > 0) {
+            CircuitBreaker(
+                config.circuitBreakerMaxFailures,
+                config.circuitBreakerWindowMs,
+                config.circuitBreakerCooldownMs,
+                clock,
+            )
+        } else {
+            null
+        }
 
     private val broadcastLimiter: RateLimiter? =
         if (config.broadcastRateLimitPerMinute > 0) RateLimiter(config.broadcastRateLimitPerMinute, 60_000L, clock) else null

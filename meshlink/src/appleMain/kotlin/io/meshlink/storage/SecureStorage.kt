@@ -1,3 +1,5 @@
+@file:Suppress("Filename")
+
 package io.meshlink.storage
 
 import kotlinx.cinterop.ExperimentalForeignApi
@@ -9,14 +11,10 @@ import platform.CoreFoundation.CFDictionaryRef
 import platform.Foundation.CFBridgingRelease
 import platform.Foundation.CFBridgingRetain
 import platform.Foundation.NSData
-import platform.Foundation.NSNumber
-import platform.Foundation.create
 import platform.Security.SecItemAdd
 import platform.Security.SecItemCopyMatching
 import platform.Security.SecItemDelete
 import platform.Security.SecItemUpdate
-import platform.Security.errSecDuplicateItem
-import platform.Security.errSecItemNotFound
 import platform.Security.errSecSuccess
 import platform.Security.kSecAttrAccessible
 import platform.Security.kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
@@ -31,13 +29,8 @@ import platform.Security.kSecReturnAttributes
 import platform.Security.kSecReturnData
 import platform.Security.kSecValueData
 import platform.darwin.OSStatus
-import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.convert
-import kotlinx.cinterop.refTo
-import kotlinx.cinterop.usePinned
 import platform.CoreFoundation.CFTypeRefVar
-import platform.Foundation.NSString
-import platform.Foundation.NSUTF8StringEncoding
 import platform.Foundation.dataWithBytes
 import platform.posix.memcpy
 

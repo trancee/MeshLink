@@ -7,12 +7,12 @@ import io.meshlink.model.Message
 import io.meshlink.model.PeerEvent
 import io.meshlink.model.TransferFailure
 import io.meshlink.model.TransferProgress
-import io.meshlink.transport.BleTransport
 import kotlinx.coroutines.flow.Flow
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
 @OptIn(ExperimentalUuidApi::class)
+@Suppress("TooManyFunctions")
 interface MeshLinkApi {
     fun start(): Result<Unit>
     fun stop()

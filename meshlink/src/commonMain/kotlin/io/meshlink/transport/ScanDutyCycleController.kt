@@ -22,7 +22,7 @@ import kotlinx.coroutines.launch
  * the duty-cycle loop, so no external synchronisation is needed.
  */
 class ScanDutyCycleController(
-    private val clock: () -> Long = { currentTimeMillis() },
+    @Suppress("UnusedPrivateProperty") private val clock: () -> Long = { currentTimeMillis() },
 ) {
     /** Duty-cycle timing for a given power mode. */
     data class CycleTiming(

@@ -1,3 +1,4 @@
+@file:Suppress("Filename", "WildcardImport", "NoWildcardImports")
 @file:OptIn(kotlinx.cinterop.ExperimentalForeignApi::class)
 
 package io.meshlink.transport
@@ -392,14 +393,16 @@ class LinuxBleTransport(
         for (i in 0 until numReports) {
             if (offset + 9 >= length) break
 
-            val evtType = buf[offset].toInt() and 0xFF
+            @Suppress("UnusedPrivateProperty", "VariableNaming")
+            val _evtType = buf[offset].toInt() and 0xFF
             val bdaddrType = buf[offset + 1].toUByte()
             val bdaddr = buf.copyOfRange(offset + 2, offset + 8)
             val dataLen = buf[offset + 8].toInt() and 0xFF
 
             if (offset + 9 + dataLen >= length) break
             val advPayload = buf.copyOfRange(offset + 9, offset + 9 + dataLen)
-            val rssi = buf[offset + 9 + dataLen] // signed byte
+            @Suppress("UnusedPrivateProperty", "VariableNaming")
+            val _rssi = buf[offset + 9 + dataLen] // signed byte
 
             offset += 10 + dataLen
 

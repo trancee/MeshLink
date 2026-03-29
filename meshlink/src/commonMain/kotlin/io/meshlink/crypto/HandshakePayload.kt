@@ -26,7 +26,7 @@ data class HandshakePayload(
 
     companion object {
         const val SIZE = 5
-        val CAP_L2CAP: UByte = 0x01u
+        const val CAP_L2CAP: UByte = 0x01u
 
         fun decode(data: ByteArray): HandshakePayload {
             require(data.size >= SIZE) { "Handshake payload too short: ${data.size} < $SIZE" }

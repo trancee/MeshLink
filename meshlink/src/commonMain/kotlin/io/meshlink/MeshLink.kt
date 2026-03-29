@@ -23,13 +23,11 @@ import io.meshlink.model.TransferProgress
 import io.meshlink.power.ModeChangeResult
 import io.meshlink.power.PowerCoordinator
 import io.meshlink.power.ShedAction
-import io.meshlink.protocol.ProtocolVersion
 import io.meshlink.send.SendDecision
 import io.meshlink.send.BroadcastDecision
 import io.meshlink.send.BroadcastPolicyChain
 import io.meshlink.send.SendPolicyChain
 import io.meshlink.util.PauseManager
-import io.meshlink.routing.GossipEntry
 import io.meshlink.routing.RoutingEngine
 import io.meshlink.transfer.ChunkData
 import io.meshlink.transfer.TransferEngine
@@ -53,7 +51,6 @@ import io.meshlink.peer.PeerConnectionCoordinator
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -70,6 +67,7 @@ private const val NEXTHOP_UNRELIABLE_THRESHOLD = 0.5
 private const val NEXTHOP_MIN_SAMPLES = 3
 
 @OptIn(ExperimentalUuidApi::class)
+@Suppress("TooManyFunctions")
 class MeshLink(
     private val transport: BleTransport,
     private val config: MeshLinkConfig = MeshLinkConfig(),
@@ -524,7 +522,7 @@ class MeshLink(
 
     override fun sweepExpiredPendingMessages(): Int {
         val expired = deliveryPipeline.sweepExpiredPending(config.pendingMessageTtlMs)
-        for (i in 0 until expired) {
+        repeat(expired) {
             _transferFailures.tryEmit(
                 TransferFailure(Uuid.random(), DeliveryOutcome.FAILED_DELIVERY_TIMEOUT)
             )
