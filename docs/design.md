@@ -2,8 +2,6 @@
 
 > A secure, decentralized, peer-to-peer messaging library for Android and iOS over Bluetooth Low Energy mesh networks.
 
-> **Implementation note:** This document describes the original design rationale, including an actor-based concurrency model (7 named actors). During implementation, the actor model was simplified to an engine/coordinator pattern — stateful facades with sealed result types, coroutine scopes, and function-type dependency injection. See [architecture.md](architecture.md) for the current module structure.
-
 ## 1. Product Vision
 
 MeshLink is a **library-first SDK** that enables developers to embed encrypted, serverless, offline-capable messaging into their Android and iOS apps. Communication happens entirely over BLE mesh — no internet, no servers, no accounts.
@@ -25,15 +23,13 @@ A **reference app** ships alongside the library to demonstrate integration patte
 
 ## 2. Cross-Platform Strategy
 
-> ⚠️ **Architecture note:** This section describes the original actor/channel design. The current implementation uses engines, coordinators, and sealed result types. See [architecture.md](architecture.md) for the current module structure.
-
 ### Kotlin Multiplatform (KMP) Architecture
 
 KMP abstracts shared protocol logic (~85% of codebase); platform-specific BLE transport (~15%) is implemented per platform via the `BleTransport` interface. See [Appendix A](#appendix-a-decision-records) for alternatives evaluated.
 
-**KMP/Native FFI boundary:** Platform BLE layers (CoreBluetooth delegates, Android BluetoothGattCallback) communicate with the shared Kotlin actors via **channel-based decoupling**. The native layer posts lightweight value-type events (e.g., `BleEvent.PeerDiscovered`, `BleEvent.GattWriteComplete`) into a thread-safe channel using a single non-throwing `trySend()` call — the only FFI surface. Kotlin actors consume from this channel serially. Actor crashes are invisible to the BLE layer (events queue up, and the restarted actor drains the backlog). No retain cycles, no cross-FFI exception propagation, no lifecycle coupling.
+**KMP/Native FFI boundary:** Platform BLE layers (CoreBluetooth delegates, Android BluetoothGattCallback) communicate with the shared Kotlin code via **function-type dependency injection** through the `BleTransport` interface. Platform implementations post lightweight value-type events (e.g., `BleEvent.PeerDiscovered`, `BleEvent.GattWriteComplete`) through the `BleTransport` abstraction — the only FFI surface. No retain cycles, no cross-FFI exception propagation, no lifecycle coupling.
 
-**Actor instantiation:** A `MeshLinkEngine` factory creates all 7 actors in DAG topological order (leaves first) via **constructor injection**. Each actor receives its dependencies (other actors' channels, `BleTransport`, `MeshLinkConfig`) as constructor parameters. No DI frameworks — the wiring is ~20 lines of explicit code. `BleTransport` is a constructor parameter: production passes `AndroidBleTransport` / `IosBleTransport`, tests pass `VirtualMeshTransport`. Compile-time cycle prevention via constructor ordering.
+**Module instantiation:** The `MeshLink` orchestrator creates all modules via **constructor injection**: engines (SecurityEngine, RoutingEngine, TransferEngine, DeliveryPipeline), coordinators (PowerCoordinator, GossipCoordinator, PeerConnectionCoordinator), and policy chains (SendPolicyChain, BroadcastPolicyChain, MessageDispatcher). Each module receives its dependencies as constructor parameters. No DI frameworks — the wiring is explicit code. `BleTransport` is a constructor parameter: production passes `AndroidBleTransport` / `IosBleTransport`, tests pass `VirtualMeshTransport`.
 
 **Architecture:**
 
@@ -912,11 +908,11 @@ This is critical to prevent duplicate delivery to the consuming app and redundan
 
 **Dedup persistence:** In-memory only. On crash, messages from the last few seconds may be redelivered — consuming apps should deduplicate by messageId. Disk persistence deferred to post-v1.
 
-**Concurrency model:** The dedup set is **in-memory** — all lookups hit the in-memory `HashMap` directly (zero contention). The BufferActor owns the dedup set and processes messages serially (actor model).
+**Concurrency model:** The dedup set is **in-memory** — all lookups hit the in-memory `HashMap` directly (zero contention). DeliveryPipeline owns the dedup set and processes operations serially within its coroutine scope.
 
 **Clock handling:** Dedup TTL uses **monotonic system uptime** (`SystemClock.elapsedRealtime()` on Android, `ProcessInfo.systemUptime` on iOS), immune to user clock changes.
 
-**Clock source rule (applies to all timers):** All operational timers in the library (buffer TTL, dedup window, gossip intervals, sweep timers, chunk inactivity timeout, handshake timeout, SACK retransmission, actor circuit breaker) use **monotonic clock** — immune to NTP jumps, timezone changes, and user clock manipulation. The only exception: replay counter 30-day per-sender expiry uses wall-clock (requires calendar-scale duration; monotonic resets on reboot). **NTP jumps never affect library behavior** beyond replay counter housekeeping.
+**Clock source rule (applies to all timers):** All operational timers in the library (buffer TTL, dedup window, gossip intervals, sweep timers, chunk inactivity timeout, handshake timeout, SACK retransmission, engine circuit breaker) use **monotonic clock** — immune to NTP jumps, timezone changes, and user clock manipulation. The only exception: replay counter 30-day per-sender expiry uses wall-clock (requires calendar-scale duration; monotonic resets on reboot). **NTP jumps never affect library behavior** beyond replay counter housekeeping.
 
 **Dedup eviction:** LRU — oldest entries evicted first regardless of sender.
 
@@ -949,7 +945,7 @@ When the recipient is temporarily unreachable, mesh nodes buffer encrypted messa
 
 Each tier is triggered only if the previous tier was insufficient. A `memoryPressure` diagnostic event is emitted at each tier.
 
-**Actor state is NOT shed under memory pressure.** Routing table (~28KB at 200 peers) and peer table (~10KB) are naturally bounded by `maxHops=4` and BLE range. Shedding ~38KB of actor state provides negligible relief compared to the buffer (256KB–8MB configurable, typically 512KB–4MB at runtime) and dedup set (240KB) targeted by the 3 tiers. Route expiry (5× gossip interval) and sweep timers already evict stale entries. Post-v1: if Wi-Fi transport or higher hop limits expand reachability to 1000+ peers, LRU eviction may be added.
+**Engine state is NOT shed under memory pressure.** Routing table (~28KB at 200 peers) and peer table (~10KB) are naturally bounded by `maxHops=4` and BLE range. Shedding ~38KB of engine state provides negligible relief compared to the buffer (256KB–8MB configurable, typically 512KB–4MB at runtime) and dedup set (240KB) targeted by the 3 tiers. Route expiry (5× gossip interval) and sweep timers already evict stale entries. Post-v1: if Wi-Fi transport or higher hop limits expand reachability to 1000+ peers, LRU eviction may be added.
 
 - **Buffer eviction policy** (when buffer is full, applied in tier order):
 
@@ -1551,7 +1547,7 @@ The peer's power mode is read from the 2-bit field in their advertisement payloa
 
 **Eviction hardening:** A peer is marked **gone** only after **2 consecutive sweep intervals** with no advertisements exceeding the adaptive timeout (not just 1). This prevents false evictions from transient RF interference in congested environments (30%+ packet loss).
 
-**Sweep evaluation atomicity:** When the sweep timer fires, PresenceActor takes an **atomic snapshot** of all peer last-seen timestamps before evaluating eviction. Advertisements arriving during evaluation update the live timestamp but do not affect the current sweep's snapshot. Combined with 2-sweep eviction hardening, this prevents race-induced false evictions without blocking BLE callback processing.
+**Sweep evaluation atomicity:** When the sweep timer fires, the presence module takes an **atomic snapshot** of all peer last-seen timestamps before evaluating eviction. Advertisements arriving during evaluation update the live timestamp but do not affect the current sweep's snapshot. Combined with 2-sweep eviction hardening, this prevents race-induced false evictions without blocking BLE callback processing.
 
 **Sweep counter rule:** Any advertisement received from a peer during a sweep interval — regardless of timing within the interval — resets the consecutive-miss counter to zero. The counter increments only when an entire sweep interval passes with **zero** advertisements from the peer. This simple rule avoids false evictions from advertising intervals that don't align with sweep cadence.
 
@@ -1641,7 +1637,7 @@ Every MeshLink device simultaneously operates as both a **BLE peripheral** (adve
 
 **OEM workarounds:** The library documents known OEM issues in its API reference and recommends consuming apps link to [dontkillmyapp.com](https://dontkillmyapp.com) in their troubleshooting UI.
 
-**OEM BLE stack variants:** Some Android OEMs (Samsung, Huawei, Xiaomi) run parts of the BLE stack in a separate system process. This is transparent to MeshLink — the standard Android BLE API (`android.bluetooth.le`) handles cross-process dispatch via Binder IPC. BLE callbacks arrive on a Binder thread in the app's process regardless of OEM implementation, and are dispatched into the actor system (ConnectionActor) via bounded channels.
+**OEM BLE stack variants:** Some Android OEMs (Samsung, Huawei, Xiaomi) run parts of the BLE stack in a separate system process. This is transparent to MeshLink — the standard Android BLE API (`android.bluetooth.le`) handles cross-process dispatch via Binder IPC. BLE callbacks arrive on a Binder thread in the app's process regardless of OEM implementation, and are dispatched into the engine system via the `BleTransport` abstraction.
 
 **Foreground service death detection:** The abstract `MeshLinkService` base class exposes an `onServiceStateChanged(running: Boolean)` callback, surfacing the service's `onDestroy()` signal. The library does not attempt automatic service restart — OEM battery optimizer workarounds are a moving target (see dontkillmyapp.com). The consuming app implements its own restart logic using this callback.
 
@@ -1702,53 +1698,14 @@ See **Restart semantics** table in §11 for full crash recovery state.
 
 ## 11. Library API Design
 
-### Quickstart (Minimal Integration)
+### Quickstart
 
-All configuration parameters have sensible defaults. The minimum viable integration:
-
-```kotlin
-// Android (Kotlin)
-val meshLink = MeshLink(context) {  // context = Android Context
-    appId = "com.mycompany.meshchat"  // optional app-level topic filter
-}
-meshLink.start()
-
-// Discover peers
-meshLink.peers.collect { peer -> println("Found: ${peer.publicKey}") }
-
-// Send a message (suspending, returns Result)
-val result = meshLink.send(recipientPublicKey, "Hello mesh!".toByteArray())
-result.onSuccess { println("Queued for delivery") }
-       .onFailure { error -> println("Send failed: $error") }
-
-// Receive messages
-meshLink.messages.collect { msg -> println("From ${msg.sender}: ${String(msg.payload)}") }
-```
-
-```swift
-// iOS (Swift)
-let meshLink = MeshLink()
-try await meshLink.start()
-
-// Discover peers
-for await peer in meshLink.peers { print("Found: \(peer.publicKey)") }
-
-// Send a message (throws on expected failure)
-do {
-    try await meshLink.send(to: recipientPublicKey, payload: "Hello mesh!".data(using: .utf8)!)
-    print("Queued for delivery")
-} catch {
-    print("Send failed: \(error)")
-}
-
-// Receive messages
-for await msg in meshLink.messages { print("From \(msg.sender): \(String(data: msg.payload, encoding: .utf8)!)") }
-```
+See [Integration Guide § Quick Start](integration-guide.md#quick-start) for minimal integration examples.
 
 **Primary async interfaces:**
-- `meshLink.peers: Flow<Peer>` — emits peer discovery and loss events. New subscriptions **replay current known peers**, then incremental updates (`onPeerDiscovered` / `onPeerLost`). **Subscription is serialized through the PresenceActor** — it is a message in the actor's mailbox, so replay of current state and subsequent deltas are naturally race-free with concurrent eviction/discovery events.
-- `meshLink.messages: Flow<Message>` — **forward-only event stream (no replay)**. Only messages received *after* subscription are delivered. Each `Message` carries `sender: PublicKey`, `payload: ByteArray`, `messageId: UUID`, `isBroadcast: Boolean`. **Subscription is serialized through the TransferActor** — the TransferActor holds the `MutableSharedFlow`, so new subscribers immediately start receiving without race conditions.
-- `meshLink.diagnostics: Flow<DiagnosticEvent>` — optional diagnostic stream (zero cost when unsubscribed; see Diagnostic Stream section below). **Subscription is serialized through the CryptoActor.** Implemented as a single `MutableSharedFlow(extraBufferCapacity=256, onBufferOverflow=DROP_OLDEST)` — all subscribers share one buffer. A slow subscriber causes DROP_OLDEST for all subscribers (surfacing the problem rather than hiding it). On iOS, exposed as `AsyncStream` with a bounded 256-element channel.
+- `meshLink.peers: Flow<Peer>` — emits peer discovery and loss events. New subscriptions **replay current known peers**, then incremental updates (`onPeerDiscovered` / `onPeerLost`). **Subscription is thread-safe via `MutableStateFlow`** — replay of current state and subsequent deltas are naturally race-free with concurrent eviction/discovery events.
+- `meshLink.messages: Flow<Message>` — **forward-only event stream (no replay)**. Only messages received *after* subscription are delivered. Each `Message` carries `sender: PublicKey`, `payload: ByteArray`, `messageId: UUID`, `isBroadcast: Boolean`. **Delivered via `MutableSharedFlow`** — new subscribers immediately start receiving without race conditions.
+- `meshLink.diagnostics: Flow<DiagnosticEvent>` — optional diagnostic stream (zero cost when unsubscribed; see Diagnostic Stream section below). **Delivered via `MutableSharedFlow`.** Implemented as a single `MutableSharedFlow(extraBufferCapacity=256, onBufferOverflow=DROP_OLDEST)` — all subscribers share one buffer. A slow subscriber causes DROP_OLDEST for all subscribers (surfacing the problem rather than hiding it). On iOS, exposed as `AsyncStream` with a bounded 256-element channel.
 
 On iOS, `.peers` and `.messages` are exposed as `AsyncStream<Peer>` and `AsyncStream<Message>` via thin Swift extensions.
 
@@ -1764,69 +1721,7 @@ On iOS, `.peers` and `.messages` are exposed as `AsyncStream<Peer>` and `AsyncSt
 
 ### Configuration API
 
-**Kotlin:** DSL lambda producing an immutable `MeshLinkConfig`:
-```kotlin
-val meshLink = MeshLink(context) {
-    appId = "com.mycompany.meshchat"  // app-level topic filter (null = receive all)
-    maxHops = 6
-    bufferTTL = 10.minutes
-    powerModeThresholds = intArrayOf(80, 30)
-    // ... all other params optional, defaults apply
-}
-```
-
-**Swift:** Struct initializer with default parameter values:
-```swift
-let config = MeshLinkConfig(
-    appId: "com.mycompany.meshchat",  // app-level topic filter (nil = receive all)
-    maxHops: 6,
-    bufferTTL: .minutes(10),
-    powerModeThresholds: [80, 30]
-    // ... all other params optional, defaults apply
-)
-let meshLink = MeshLink(config: config)
-```
-
-Both produce the same underlying `MeshLinkConfig` object in the KMP shared module. Platform-specific parameters (e.g., Android `notificationConfig`) are only available on their respective platform's initializer. **Config is bound at construction** — `MeshLink(context) { ... }` freezes the config. `start()` and `stop()` are parameterless. To change config, create a new `MeshLink` instance. The old instance is garbage collected after `stop()`.
-
-#### Configuration Presets
-
-Three presets provide tuned defaults for common use cases. All preset values can be individually overridden:
-
-**Kotlin:**
-```kotlin
-val meshLink = MeshLink(context, MeshLinkConfig.chatOptimized()) {
-    maxHops = 4  // override single value
-}
-```
-
-**Swift:**
-```swift
-let meshLink = try MeshLink(config: .chatOptimized()) { config in
-    config.maxHops = 4  // override single value
-}
-```
-
-| Preset | Optimized For | Key Overrides |
-|--------|--------------|---------------|
-| `chatOptimized()` | Low-latency text messaging | `gossipInterval=5s`, `ackTimeout=2s`, `maxMessageSize=50KB`, `ackWindowInitial=4` |
-| `fileTransferOptimized()` | Large payload throughput | `bufferSize=4MB`, `ackWindowInitial=16`, `maxMessageSize=100KB`, `chunkTimeout=120s` |
-| `powerOptimized()` | Battery-constrained devices | `gossipInterval=30s`, `chunkTimeout=60s`, `bufferSize=1MB`, `scanInterval=15s`, `customPowerMode=PowerSaver` |
-
-Presets are factory methods returning `MeshLinkConfig` with adjusted defaults. The DSL `configure {}` block runs after preset application, enabling selective overrides. Precedent: Android BLE scan modes (`SCAN_MODE_BALANCED`, `SCAN_MODE_LOW_LATENCY`, `SCAN_MODE_LOW_POWER`), OkHttp connection pool defaults, AWS SDK retry strategies.
-
-**Single-instance enforcement:** `MeshLink` is a process-level singleton. Calling `MeshLink.configure()` when an instance already exists in the current process throws `IllegalStateException`. This prevents BLE advertisement conflicts, duplicate GATT services, and connection slot contention. The singleton survives `stop()`/`start()` cycles — crash history, circuit breaker state, and OEM compatibility caches persist within the process.
-
-**Config validation:** Per-field bounds are checked immediately at assignment time (Kotlin: `require()` in DSL setters throws `IllegalArgumentException`; Swift: `init()` throws `MeshLinkError.invalidConfiguration`). Cross-field rules are validated at build time (end of DSL block / end of `init()`), returning **all violations at once** — not just the first. The `invalidConfiguration(violations: List<String>)` error lists every failing rule. The config object is **immutable after construction** — no mutation after build, no mutation after `start()`.
-
-**Cross-field validation rules (v1, extensible in minor versions):**
-1. `ackWindowMax ≥ ackWindowMin` (flow control sanity)
-2. `powerModeThresholds` strictly descending: `powerModeThresholds[0] > powerModeThresholds[1]` (Performance > Balanced > PowerSaver tiers)
-3. `l2capRetryAttempts ≥ 0` when `l2capEnabled = true`
-4. `chunkInactivityTimeout < bufferTTL` (chunk timeout shorter than buffer lifetime)
-5. `maxMessageSize ≤ bufferMaxSize` (message must fit in buffer)
-
-New cross-field rules may be added in minor versions — this is always non-breaking because newly caught configs were already silently producing runtime failures.
+See [Integration Guide § Configuration](integration-guide.md#configuration) for configuration DSL, presets, and validation.
 
 ### Primary: Async Streams (KMP Kotlin Flow)
 
@@ -1851,7 +1746,7 @@ Convenience APIs using listener patterns for consumers who don't use async strea
 
 **Replay counter interaction:** Self-send loopback does not increment the sender's replay counter — no cryptographic state is mutated. Messages arriving via wire with sender=self are impossible by design (the visited list contains the node's own key hash, causing the message to be dropped before reaching replay validation).
 
-**Dedup interaction:** Self-send loopback **bypasses the dedup set entirely** — the message goes directly from `send()` → TransferActor → `.messages` Flow. No messageId is inserted into the dedup pool. Self-messages cannot consume dedup quota or pollute the mesh dedup set. The API generates a fresh UUID for every `send()` call, so duplicate self-sends are impossible through the public API.
+**Dedup interaction:** Self-send loopback **bypasses the dedup set entirely** — the message goes directly from `send()` → TransferEngine → `.messages` Flow. No messageId is inserted into the dedup pool. Self-messages cannot consume dedup quota or pollute the mesh dedup set. The API generates a fresh UUID for every `send()` call, so duplicate self-sends are impossible through the public API.
 
 ### Key Events
 
@@ -1866,7 +1761,7 @@ onKeyChanged(peer: Peer, oldKey: PublicKey, newKey: PublicKey) // Peer's identit
 onIdentityRotated(oldKey: PublicKey, newKey: PublicKey) // Own identity key was rotated via rotateIdentity()
 onSecurityWarning(type: SecurityWarningType, detail: Any)  // Security event (e.g., DUPLICATE_IDENTITY)
 onLibraryRestarted()                                    // Library restarted after iOS State Preservation relaunch
-fatalError(retryable: Boolean, reason: String, detail: Any?)  // Unrecoverable error; library stopping. Sources: actor circuit breaker, crypto init failure, key storage failure.
+fatalError(retryable: Boolean, reason: String, detail: Any?)  // Unrecoverable error; library stopping. Sources: engine circuit breaker, crypto init failure, key storage failure.
 ```
 
 ### Diagnostic Stream (Optional)
@@ -2010,7 +1905,7 @@ All other transitions → IllegalStateException (start() from terminal is not al
 2. **Platform crypto init** (JCA provider verification / CryptoKit availability) → `Result.Failure(cryptoInitFailed)` → terminal
 3. **Key load/generate** (Keychain / EncryptedSharedPreferences; generate Ed25519 if first run) → `Result.Failure(keyStorageFailed)` after 3 retries → recoverable
 4. **Derive Curve25519** from Ed25519 via birational map, cache in memory
-5. **Construct actor DAG** via `MeshLinkEngine` factory (topological order, constructor injection)
+5. **Construct modules** via `MeshLink` orchestrator (constructor injection)
 6. **BLE stack init** (detect iOS CB State Preservation restored peripherals; fast-path reconnection)
 7. **Start scan/advertise** at current power mode parameters
 
@@ -2028,7 +1923,7 @@ Construction (`MeshLink(context) { config }`) is side-effect-free — no filesys
 - **Dedup set:** No persistence — in-memory only. No disk failure possible.
 - **Pre-flight check:** On `start()`, query available disk space. Emit `LOW_DISK_SPACE` diagnostic if < 1MB free (early warning, non-blocking).
 
-**Shutdown contract:** `stop()` is synchronous: it signals all actors to shut down, waits for pending callbacks on the callback pool to complete (with a 5-second timeout to prevent indefinite blocking), then returns. After `stop()` returns, no further callbacks will fire. This prevents dangling state from callbacks executing after the app assumes the library is stopped.
+**Shutdown contract:** `stop()` is synchronous: it signals all engines to shut down, waits for pending callbacks on the callback pool to complete (with a 5-second timeout to prevent indefinite blocking), then returns. After `stop()` returns, no further callbacks will fire. This prevents dangling state from callbacks executing after the app assumes the library is stopped.
 
 **Two-phase shutdown:** After `stop()` returns (5-second timeout), any callbacks still executing operate on **invalidated-but-not-freed** library state. If a lingering callback attempts to call any library method, it receives `LibraryShutdownException`. Callback pool threads are **daemon threads** — they won't prevent process exit. The 5-second timeout is the contractual deadline; callbacks blocking beyond 5 seconds are best-effort with no crash guarantee but no undefined behavior either.
 
@@ -2047,11 +1942,11 @@ Construction (`MeshLink(context) { config }`) is side-effect-free — no filesys
 - `stop()` when already stopped / uninitialized / terminal → no-op (always safe)
 - Concurrent `start()` from multiple threads → first thread wins (atomic CAS on state), second thread throws `IllegalStateException`
 
-**fatalError dual signal:** When `start()` fails (cryptoInitFailed, keyStorageFailed) or an actor circuit breaker triggers, the app receives **both**: (1) `Result.Failure` from the `start()` return for programmatic control flow, and (2) a `fatalError` diagnostic event on `.diagnostics` for observability/monitoring. Two channels, two audiences — no conflict. Apps that don't subscribe to diagnostics never see the second signal.
+**fatalError dual signal:** When `start()` fails (cryptoInitFailed, keyStorageFailed) or an engine circuit breaker triggers, the app receives **both**: (1) `Result.Failure` from the `start()` return for programmatic control flow, and (2) a `fatalError` diagnostic event on `.diagnostics` for observability/monitoring. Two channels, two audiences — no conflict. Apps that don't subscribe to diagnostics never see the second signal.
 
 Fail-fast behavior ensures developers catch integration mistakes immediately during development, not silently in production.
 
-**Calling library methods from callbacks:** Calling `send()`, `broadcast()`, or other thread-safe methods from within `onMessageReceived` or any other callback is **fully supported**. The call dispatches to the actor mailbox like any other thread — no re-entrancy risk (actors process messages serially), no deadlock risk (DAG prevents cycles). This enables the common "receive → reply" pattern without requiring the developer to context-switch threads.
+**Calling library methods from callbacks:** Calling `send()`, `broadcast()`, or other thread-safe methods from within `onMessageReceived` or any other callback is **fully supported**. The call dispatches to the MeshLink coroutine scope — no re-entrancy risk (engines process operations sequentially), no deadlock risk. This enables the common "receive → reply" pattern without requiring the developer to context-switch threads.
 
 **Restart semantics (stop → start):** Calling `start()` after `stop()` is always valid — no restriction on restart cycles. The library emits `onDiagnostic(RESTARTED, reason)` where reason is `"user"` (normal stop→start) or `"crash_recovery"` (start after fatalError).
 
@@ -2064,13 +1959,13 @@ Fail-fast behavior ensures developers catch integration mistakes immediately dur
 | Routing table | Rebuilt from gossip (10–30s) |
 | Active transfers | Lost — senders retry |
 | Buffered messages | Lost — senders retry |
-| Actor state | Fresh (all actors restarted) |
+| Engine state | Fresh (all engines restarted) |
 
 No attempt to resume active transfers — sender retry via SACK/timeout is the correct recovery path.
 
-**Thread safety:** All public API methods (`send`, `broadcast`, `pause`, `resume`, `stop`, `meshHealth`) are **thread-safe** for concurrent calls from multiple threads. Internally, all method calls are dispatched to the appropriate actor's bounded channel — the actor model provides serialization without explicit locks. No external synchronization is required by the consuming app.
+**Thread safety:** All public API methods (`send`, `broadcast`, `pause`, `resume`, `stop`, `meshHealth`) are **thread-safe** for concurrent calls from multiple threads. Internally, all method calls are dispatched to the MeshLink coroutine scope — the engine pattern provides serialization without explicit locks. No external synchronization is required by the consuming app.
 
-**`send()` ordering and backpressure:** Concurrent `send()` calls are dispatched to the TransferActor's channel. Ordering guarantee: **FIFO within a single thread** (standard channel semantics). No ordering guarantee across threads — cross-thread ordering is inherently non-deterministic. If the message buffer is full, `send()` returns `Result.Failure(bufferFull)` **immediately** (non-blocking) — the app decides whether to retry, drop, or alert the user. `send()` never suspends or blocks the calling coroutine.
+**`send()` ordering and backpressure:** Concurrent `send()` calls are dispatched to the MeshLink coroutine scope. Ordering guarantee: **FIFO within a single thread**. No ordering guarantee across threads — cross-thread ordering is inherently non-deterministic. If the message buffer is full, `send()` returns `Result.Failure(bufferFull)` **immediately** (non-blocking) — the app decides whether to retry, drop, or alert the user. `send()` never suspends or blocks the calling coroutine.
 
 **`send()` API surface:** Minimal: `send(recipient: PublicKey, payload: ByteArray): Result<UUID>`. On Swift, the external parameter label is `to:` per Swift naming conventions: `send(to: PublicKey, payload: Data) throws -> UUID`. No metadata parameters, no priority hints, no builder pattern. The payload is opaque bytes — the app encodes its own content type, priority, or metadata within the payload. This keeps the API surface minimal for v1; ergonomic additions (tags, options) can be added in minor versions without breaking changes.
 
@@ -2103,109 +1998,25 @@ No attempt to resume active transfers — sender retry via SACK/timeout is the c
 
 ### Concurrency Model
 
-> ⚠️ **Architecture note:** The actor model described below was simplified during implementation to an engine/coordinator pattern with sealed result types. See [architecture.md](architecture.md) for the current structure.
+MeshLink uses an **engine/coordinator pattern** with three categories of modules:
 
-**Android (Kotlin): Actor model** with 7 actors communicating via coroutine channels:
+| Category | Modules | Responsibility |
+|----------|---------|----------------|
+| **Stateful Engines** | SecurityEngine, RoutingEngine, TransferEngine, DeliveryPipeline | Own domain state, return sealed result types |
+| **Coordinators** | PowerCoordinator, GossipCoordinator, PeerConnectionCoordinator | Orchestrate multi-step workflows |
+| **Policy Chains** | SendPolicyChain, BroadcastPolicyChain, MessageDispatcher | Apply rules, produce decisions |
 
-| Actor | Responsibility | Key State Owned |
-|-------|---------------|----------------|
-| **ConnectionActor** | BLE connection lifecycle, tie-breaking, slot management, L2CAP channel setup | Active connections, connection slots |
-| **TransferActor** | Chunking, reassembly, SACK (GATT), L2CAP stream I/O, round-robin interleaving | In-flight transfers, reassembly buffers |
-| **RouterActor** | Routing table, Enhanced DSDV, route selection (primary/backup) | Routing table |
-| **GossipActor** | Gossip timer, differential exchange, triggered updates, split horizon | Per-neighbor sequence tracking |
-| **PresenceActor** | Scanner results, sweep timer, peer table, eviction | Peer table, sweep state |
-| **CryptoActor** | Noise XX sessions, Noise K seal/unseal, replay counter management | Session keys, replay counters |
-| **BufferActor** | Auto-sized message buffer, dedup set, TTL eviction | Buffer pool, dedup set |
+**Design principle:** Engines return sealed result types; the caller (MeshLink orchestrator) pattern-matches and dispatches effects. No module sends messages directly to another module.
 
-Each actor processes messages serially from its mailbox — no locks, no shared mutable state between actors. Inter-actor communication uses typed Kotlin `Channel<T>` messages.
+**Thread safety:** All mutable state is confined to a single coroutine scope per engine. Engines expose suspend functions; callers invoke them sequentially from the MeshLink coroutine scope. No locks, no shared mutable state between modules.
 
-**Routing table concurrency:** The RouterActor processes one message at a time from its channel — gossip updates and forwarding lookups are serialized by construction. There is no concurrent access to the routing table and no locking is required. Implementers MUST NOT add synchronization primitives; the actor channel is the sole coordination mechanism.
+**Routing table concurrency:** RoutingEngine processes operations sequentially within its coroutine scope — gossip updates and forwarding lookups are serialized by construction. No concurrent access, no locking required.
 
-**iOS (Swift): Mirrored Swift `actor` types** — same 7 actors, same boundaries. Swift actors use the cooperative thread pool by default.
-
-**CoreBluetooth integration (iOS):** CoreBluetooth delegate callbacks arrive on a dedicated `DispatchQueue`. These are posted as value-type events into the ConnectionActor's channel via `trySend()` (the channel-based FFI boundary described in §2). The actor consumes events serially regardless of the source queue. Actor crashes do not affect the BLE layer — events queue up and the restarted actor drains the backlog.
-
-**Actor Supervision (let-it-crash):** On unrecoverable exception: log diagnostic event, drop faulting message, restart actor with fresh state (in-memory transfers lost; persisted state reloaded). **In-flight message contract:** Messages inside a crashed actor's channel are **silently dropped** — this is consistent with the `send()` best-effort delivery contract. Senders recover via the existing delivery ACK timeout mechanism. Peers reconnect via timeout. **Channel cleanup on restart:** The old actor's incoming channel is closed, and all pending messages are discarded. A fresh channel is created for the restarted actor. Senders that attempt to write to the old channel receive `ClosedSendChannelException`, which is treated as a transient failure — peers retry via normal timeout mechanisms (chunk SACK retransmission, delivery ACK timeout, gossip refresh). **Tiered circuit breaker:** Actor crash thresholds vary by criticality, using a **monotonic-clock sliding window** (immune to wall-clock adjustments). Each crash timestamp has a 60-second TTL in the window:
-
-  | Tier | Actors | Threshold | Rationale |
-  |------|--------|-----------|-----------|
-  | **Tier 1 — Strict** | CryptoActor | 2 crashes/60s → `fatalError(retryable: false)` | First crypto crash auto-restarts with fresh state (same as other actors). Second crash within 60s confirms unrecoverable failure (e.g., broken platform crypto backend). Single transient failures (OOM during HKDF) recover automatically. Precedent: WireGuard drops and re-initiates per-session, never kills the daemon on first crypto error. |
-  | **Tier 2 — Standard** | RouterActor, BufferActor, PresenceActor, GossipActor | 3 crashes/60s → `fatalError(retryable: true)` | Logic errors, unlikely to self-heal |
-  | **Tier 3 — Lenient** | ConnectionActor, TransferActor | 5 crashes/60s → `fatalError(retryable: true)` | BLE stack transient failures, often recovers |
-
-  **Crash history is in-memory only** — reset on each app restart. This prevents a death spiral where persisted crash history causes immediate `fatalError` on relaunch after a transient issue. **Double-trip guard:** If `start()` is called after a retryable fatalError and the circuit breaker trips again within 60 seconds → emit `fatalError(retryable: false)`. This prevents infinite restart loops.
-- **Actor channel capacity:** Inter-actor mailboxes use **bounded Kotlin channels** with suspend-on-full semantics (sending actor suspends until space is available). Channel capacities are configurable per actor, with defaults tuned to each actor's throughput profile:
-
-  | Actor | Default Capacity | Rationale |
-  |-------|-----------------|-----------|
-  | ConnectionActor | 128 | High-throughput BLE I/O; absorbs burst of concurrent connection events |
-  | CryptoActor | 64 | Moderate throughput; crypto operations are CPU-bound |
-  | TransferActor | 64 | Moderate throughput; chunk processing is I/O-bound |
-  | RouterActor | 32 | Low throughput; routing decisions are fast |
-  | BufferActor | 32 | Low throughput; buffer operations are memory-bound |
-  | PresenceActor | 16 | Low frequency; scan events arrive at BLE scan intervals |
-  | GossipActor | 16 | Low frequency; gossip operates on 5–60s intervals |
-- **DAG ordering (deadlock prevention):** Inter-actor message flow follows a strict DAG — **downstream actors NEVER send to upstream actors**. All reverse communication uses `CompletableDeferred` response channels or Flow subscriptions (not channel sends). This invariant is enforced by code review and a compile-time lint that flags `Channel.send()` calls violating the DAG.
-  ```
-  ConnectionActor → CryptoActor → TransferActor → RouterActor → BufferActor
-                                                        ↑
-                                        PresenceActor ──┘
-                                          GossipActor ──┘
-  
-  Reverse: CompletableDeferred response channels (request/reply, no DAG violation)
-  Outbound: shared Channel<OutboundFrame> → ConnectionActor (dedicated outbound path, not a reverse edge)
-  ```
-
-```mermaid
-flowchart TD
-    subgraph Tier1["Tier 1 — Strict (2 crashes/60s → fatalError)"]
-        CRA{{CryptoActor}}
-    end
-
-    subgraph Tier2["Tier 2 — Standard (3 crashes/60s)"]
-        RA[RouterActor]
-        BA[BufferActor]
-        PA[PresenceActor]
-        GA[GossipActor]
-    end
-
-    subgraph Tier3["Tier 3 — Lenient (5 crashes/60s)"]
-        CA([ConnectionActor])
-        TA([TransferActor])
-    end
-
-    %% DAG downstream message flow
-    CA -->|"Decrypted frames"| CRA
-    CRA -->|"Verified payloads"| TA
-    TA -->|"Routable messages"| RA
-    RA -->|"Buffered delivery"| BA
-    PA -->|"Peer presence"| RA
-    GA -->|"Gossip vectors"| RA
-
-    %% CompletableDeferred reverse communication (no DAG violation)
-    RA -.->|"CompletableDeferred reply"| TA
-    TA -.->|"CompletableDeferred reply"| CRA
-    CRA -.->|"CompletableDeferred reply"| CA
-
-    %% Dedicated outbound channel (all actors → ConnectionActor)
-    BA -..->|"OutboundFrame channel"| CA
-    RA -..->|"OutboundFrame channel"| CA
-    TA -..->|"OutboundFrame channel"| CA
-    PA -..->|"OutboundFrame channel"| CA
-    GA -..->|"OutboundFrame channel"| CA
-
-    style CRA fill:#f96,stroke:#333,stroke-width:2px
-    style RA fill:#69f,stroke:#333,stroke-width:2px
-    style BA fill:#69f,stroke:#333,stroke-width:2px
-    style PA fill:#69f,stroke:#333,stroke-width:2px
-    style GA fill:#69f,stroke:#333,stroke-width:2px
-    style CA fill:#9c6,stroke:#333,stroke-width:2px
-    style TA fill:#9c6,stroke:#333,stroke-width:2px
-```
+See [diagrams.md § Engine & Coordinator Data Flow](diagrams.md#8-engine--coordinator-data-flow) for the module interaction diagram.
 
 **API callback threading:** All callbacks to the consuming app (`onMessageReceived`, `onPeerDiscovered`, `onTransferProgress`, diagnostic events) are dispatched on a **configurable callback dispatcher** (`callbackDispatcher` config parameter, default `Dispatchers.Default`). The consuming app can specify `Dispatchers.Main` for UI-driven apps, or leave the default for background services/non-UI consumers. This follows the pattern used by Retrofit, OkHttp, and Firebase SDKs. The callback dispatcher provides two guarantees:
-1. **Exception isolation:** All callbacks are wrapped in try/catch. If a callback throws, the exception is logged via the diagnostic event system and the callback is skipped — exceptions never propagate into the actor system.
-2. **Blocking tolerance:** A callback that blocks (e.g., synchronous DB write) only stalls the callback dispatcher, not the mesh engine. Actors continue processing messages, gossip, and relay forwarding regardless of callback latency.
+1. **Exception isolation:** All callbacks are wrapped in try/catch. If a callback throws, the exception is logged via the diagnostic event system and the callback is skipped — exceptions never propagate into the engine system.
+2. **Blocking tolerance:** A callback that blocks (e.g., synchronous DB write) only stalls the callback dispatcher, not the mesh engine. Engines continue processing regardless of callback latency.
 
 The consuming app can override the dispatcher at initialization:
 
@@ -2305,9 +2116,8 @@ All configurable parameters grouped by category, with defaults, bounds, and desc
 
 | Parameter | Type | Default | Min | Max | Description |
 |-----------|------|---------|-----|-----|-------------|
-| `actorCrashThreshold` | map\<tier,int\> | `{crypto: 2, standard: 3, lenient: 5}` | 1 | 10 | Per-tier crash count within `actorCrashWindow` that triggers the circuit breaker. CryptoActor=crypto tier, BleActor=lenient tier, all others=standard tier. |
-| `actorCrashWindow` | duration | 60s | 10s | 300s | Time window for the actor crash circuit breaker. |
-| `actorChannelCapacity` | map\<Actor,int\> | (per-actor defaults) | 16 | 256 | Per-actor bounded channel capacity. |
+| `engineCrashThreshold` | map\<tier,int\> | `{crypto: 2, standard: 3, lenient: 5}` | 1 | 10 | Per-tier crash count within `engineCrashWindow` that triggers the circuit breaker. SecurityEngine=crypto tier, BLE transport=lenient tier, all others=standard tier. |
+| `engineCrashWindow` | duration | 60s | 10s | 300s | Time window for the engine crash circuit breaker. |
 
 ##### Rate Limiting & DoS Protection
 
@@ -2368,7 +2178,7 @@ data class MeshHealthSnapshot(
 )
 ```
 
-This enables apps to implement health indicators, adaptive behavior (reduce sending when mesh is congested), and diagnostic logging. **Computation model:** `meshHealth()` is a suspending function that queries each relevant actor (PresenceActor, RouterActor, BufferActor, TransferActor) on-demand via `CompletableDeferred`. The snapshot is **always fresh** — no caching, no staleness window. Typical latency: ~1-5ms (actor mailbox round-trip). Concurrent `meshHealth()` calls each receive their own independently-computed snapshot.
+This enables apps to implement health indicators, adaptive behavior (reduce sending when mesh is congested), and diagnostic logging. **Computation model:** `meshHealth()` is a suspending function that queries each relevant engine (RoutingEngine, TransferEngine, DeliveryPipeline) on-demand. The snapshot is **always fresh** — no caching, no staleness window. Typical latency: ~1-5ms. Concurrent `meshHealth()` calls each receive their own independently-computed snapshot.
 
 **Reactive API:** In addition to the pull-based `meshHealth()`, a `meshHealthFlow: Flow<MeshHealthSnapshot>` (Android) / `AsyncStream<MeshHealthSnapshot>` (iOS) emits on significant state changes: peer connects/disconnects, transfer starts/completes, power mode change, buffer crosses 25/50/75% thresholds. Throttled to max **2 emissions per second**. Use `meshHealthFlow` for reactive UI updates; use `meshHealth()` for one-shot background checks.
 
@@ -2386,7 +2196,7 @@ This enables apps to implement health indicators, adaptive behavior (reduce send
 | **Integration tests** | Full BLE simulator with configurable latency, packet loss, connection drops, MTU limits | Test timing-dependent behavior, connection management, power mode transitions, presence detection. Simulates multi-node meshes. |
 | **End-to-end validation** | Physical device lab (3+ phones) | Validate real-world BLE behavior, iOS background constraints, cross-platform interop. Manual or semi-automated. |
 
-**Virtual Mesh Simulator (v1):** An in-process `VirtualMesh` that creates N simulated peers, each with their own actor system, connected through a simulated BLE transport. All `BleTransport` calls route through the virtual mesh — the mesh engine doesn't know it's simulated. Configurable per-link parameters:
+**Virtual Mesh Simulator (v1):** An in-process `VirtualMesh` that creates N simulated peers, each with their own engine system, connected through a simulated BLE transport. All `BleTransport` calls route through the virtual mesh — the mesh engine doesn't know it's simulated. Configurable per-link parameters:
 - Latency (5–50ms per hop)
 - Packet loss rate (0–100%)
 - Random connection drops
@@ -2510,6 +2320,8 @@ These are **release gates** — tests that fail these thresholds block release. 
 
 ### A2. Transport Layer
 
+#### Summary
+
 | Transport | Throughput | Verdict | Reason |
 |-----------|-----------|---------|--------|
 | **RFCOMM (BT Classic)** | 100–200 KB/s | ❌ Eliminated | iOS blocks Bluetooth Classic for third-party apps (MFi-only) |
@@ -2518,6 +2330,105 @@ These are **release gates** — tests that fail these thresholds block release. 
 | **BLE Extended Advertisements** | N/A | ❌ Not for data | iOS gives no developer control; Android API 26+ only |
 | **BLE GATT** | 10–50 KB/s | ✅ Control plane + fallback | Universal (iOS 11+ / Android 5+), no pairing, reliable |
 | **BLE L2CAP CoC** | 50–150 KB/s | ✅ Preferred data plane | 3–10× faster than GATT; credit-based flow control; no pairing with insecure variant |
+
+#### Detailed Evaluation
+
+##### RFCOMM (Bluetooth Classic SPP)
+
+| Aspect | Detail |
+|--------|--------|
+| Throughput | 100–200 KB/s |
+| iOS support | ❌ **Blocked** — MFi certification required. No public API. |
+| Android support | ✅ API 5+ (BluetoothSocket RFCOMM) |
+| Pairing | Required |
+| Power | ~10× BLE power draw |
+
+**Verdict: Eliminated.** iOS does not expose Bluetooth Classic to third-party apps. Non-starter for cross-platform.
+
+##### BLE GATT
+
+| Aspect | Detail |
+|--------|--------|
+| Throughput | 10–20 KB/s (write-with-response), 20–50 KB/s (write-without-response) |
+| iOS support | ✅ All versions (CoreBluetooth) |
+| Android support | ✅ API 21+ (Android 5.0) |
+| Pairing | Not required |
+| Power | Low (BLE native) |
+| MTU | iOS: auto-negotiated (185–512 depending on device); Android: requestMtu() up to 517 |
+
+**Strengths:**
+- Universal compatibility across all BLE-capable devices since 2015
+- No pairing barrier — critical for mesh discovery
+- Natural message boundaries (each write = one PDU)
+
+**Weaknesses:**
+- Low throughput for bulk data (~410 chunks for 100KB at 244-byte MTU)
+- ATT protocol overhead per write (3-byte ATT header + characteristic lookup)
+- Requires app-level SACK (selective ACK) and flow control
+- 100KB transfer takes ~5–10 seconds at typical throughput
+
+##### BLE L2CAP CoC (Connection-Oriented Channels)
+
+| Aspect | Detail |
+|--------|--------|
+| Throughput | 50–150 KB/s (3–10× GATT) |
+| iOS support | ✅ iOS 11+ (CBL2CAPChannel, 2017) |
+| Android support | ✅ API 29+ / Android 10+ (createL2capChannel, 2019) |
+| Pairing | **Not required** for insecure variant |
+| Power | Same as GATT (same BLE physical layer) |
+| Flow control | Built-in credit-based (automatic backpressure) |
+
+**How it works:**
+- Peripheral publishes an L2CAP channel → system assigns a dynamic PSM (Protocol/Service Multiplexer)
+- Central opens a channel to that PSM
+- Both sides get stream I/O (InputStream/OutputStream on Android, NSStream on iOS)
+- Credit-based flow control: receiver grants credits, sender blocks when credits exhausted
+- SDU sizes up to 65,535 bytes (vs 244-byte GATT writes)
+
+**Strengths:**
+- **3–10× throughput** vs GATT — 100KB transfer drops from ~5–10s to ~1–2s
+- **Built-in flow control** — credit-based backpressure replaces our SACK
+- **No pairing** when using insecure variant (iOS: `publishL2CAPChannel(withEncryption: false)`, Android: `createInsecureL2capChannel()`)
+- Lower per-byte overhead (no ATT framing, no characteristic lookup)
+- Works in iOS background mode (with bluetooth-central/peripheral capability)
+- MeshLink already encrypts at app level (Noise XX + Noise K) — BLE-level encryption is redundant
+
+**Weaknesses:**
+- **Android fragmentation**: Known reliability issues on Samsung, OnePlus; retry logic essential
+- **Narrower device support**: Android 10+ (vs Android 5+ for GATT) — excludes ~8% of active Android devices
+- **Stream-oriented**: No natural message boundaries — must add length-prefix framing
+- **PSM discovery**: Requires out-of-band PSM exchange (via GATT characteristic or handshake)
+- **iOS MTU**: Not configurable for L2CAP; default 672 bytes (adequate but not optimal)
+
+##### BLE Extended Advertisements (Bluetooth 5.0+)
+
+| Aspect | Detail |
+|--------|--------|
+| Payload | Up to 251 bytes (vs 31 legacy) |
+| iOS | Auto-managed by stack; no developer control |
+| Android | API 26+ via AdvertisingSet API |
+
+**Verdict: Not suitable for data transfer.** Useful only for richer advertisements. iOS doesn't expose control. Current decision to use GATT for gossip remains correct.
+
+##### Outcome
+
+**Adopted: Hybrid GATT + L2CAP CoC** with GATT as guaranteed fallback.
+
+- **Zero compatibility risk** — worst case = GATT-only behavior
+- **3–10× throughput** when both peers support L2CAP
+- **Built-in flow control** — L2CAP credit-based replaces app-level SACK
+- **No pairing needed** — insecure L2CAP + Noise XX app-level encryption
+
+##### Rejected Alternatives
+
+| Transport | Why Rejected |
+|-----------|-------------|
+| **RFCOMM / Bluetooth Classic** | iOS blocks for third-party apps; requires pairing; higher power |
+| **Wi-Fi Direct** | Shorter battery life, less universal |
+| **Multipeer Connectivity** | iOS-only, Apple-controlled protocol |
+| **Nearby Connections API** | Google-only, opaque protocol |
+| **Extended Advertisements for data** | Unreliable cross-platform; iOS gives no developer control |
+| **Multiple L2CAP channels per peer** | Unclear platform limits; unnecessary complexity |
 
 ### A3. Routing Strategy
 
