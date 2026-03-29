@@ -134,7 +134,7 @@ publishing {
 }
 
 dependencies {
-    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test:runner:1.7.0")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
 }
 
