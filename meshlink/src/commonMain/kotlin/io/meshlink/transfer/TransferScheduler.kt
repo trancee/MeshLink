@@ -4,7 +4,7 @@ package io.meshlink.transfer
  * Round-robin scheduler for interleaving concurrent outbound transfers.
  * Ensures fair bandwidth distribution across multiple transfers.
  */
-class TransferScheduler(
+internal class TransferScheduler(
     private val maxConcurrentPerformance: Int = 8,
     private val maxConcurrentBalanced: Int = 4,
     private val maxConcurrentPowerSaver: Int = 1,

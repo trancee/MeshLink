@@ -5,7 +5,7 @@ package io.meshlink.transfer
  * Tracks which chunks have been acknowledged, uses AIMD window for pacing,
  * and computes which chunks need (re)transmission.
  */
-class TransferSession(val totalChunks: Int, initialWindow: Int = 1) {
+internal class TransferSession(val totalChunks: Int, initialWindow: Int = 1) {
 
     private val aimd = AimdController(initialWindow)
     private val acked = BooleanArray(totalChunks)

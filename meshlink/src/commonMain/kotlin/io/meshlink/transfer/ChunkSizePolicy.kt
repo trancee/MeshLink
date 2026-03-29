@@ -3,7 +3,7 @@ package io.meshlink.transfer
 /**
  * Determines effective chunk payload size based on power mode and MTU.
  */
-class ChunkSizePolicy(
+internal class ChunkSizePolicy(
     private val headerSize: Int = 21, // WireCodec.CHUNK_HEADER_SIZE
     private val performanceMaxPayload: Int = 8192,
     private val balancedMaxPayload: Int = 4096,

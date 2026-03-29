@@ -5,7 +5,7 @@ package io.meshlink.transfer
  * Given a list of chunk sizes and the total bytes the receiver confirmed,
  * determines which chunks are already delivered and the starting chunk for resume.
  */
-object ResumeCalculator {
+internal object ResumeCalculator {
 
     data class ResumeState(
         val resumeFromChunk: Int,

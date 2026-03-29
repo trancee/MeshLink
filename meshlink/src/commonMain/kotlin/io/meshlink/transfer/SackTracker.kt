@@ -5,7 +5,7 @@ package io.meshlink.transfer
  * Records which chunks have been received, produces ackSeq (highest contiguous)
  * and a 64-bit SACK bitmask for out-of-order chunks beyond ackSeq.
  */
-class SackTracker(val totalChunks: Int) {
+internal class SackTracker(val totalChunks: Int) {
 
     data class Status(val ackSeq: Int, val sackBitmask: ULong)
 

@@ -5,7 +5,7 @@ package io.meshlink.transfer
  * Stores forwarded chunks for potential retransmission while forwarding
  * chunks as they arrive rather than waiting for full reassembly.
  */
-class CutThroughBuffer(
+internal class CutThroughBuffer(
     private val maxBufferBytes: Int = 262_144, // 256 KB default
 ) {
     data class BufferedChunk(

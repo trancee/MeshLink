@@ -96,13 +96,14 @@ platform-agnostic logic (in `commonMain`) and platform-specific I/O (in
 
 | File | Responsibility |
 |------|---------------|
-| `TransferEngine.kt` | Facade consolidating outbound chunking (AIMD/SACK) and inbound reassembly behind sealed result types. |
-| `TransferSession.kt` | Sender-side state machine for multi-chunk transfers. |
-| `SackTracker.kt` | Receiver-side selective acknowledgement tracking. |
-| `AimdController.kt` | Additive Increase / Multiplicative Decrease congestion control. |
-| `TransferScheduler.kt` | Fair round-robin scheduling across concurrent transfers with power-mode limits. |
-| `ChunkSizePolicy.kt` | Power-aware chunk payload sizing. |
-| `CutThroughBuffer.kt` | Receiver-side reassembly buffer for out-of-order chunks. |
+| `TransferEngine.kt` | Public façade consolidating outbound chunking (AIMD/SACK) and inbound reassembly behind sealed result types. |
+| `TransferSession.kt` | _(internal)_ Sender-side state machine for multi-chunk transfers. |
+| `SackTracker.kt` | _(internal)_ Receiver-side selective acknowledgement tracking. |
+| `AimdController.kt` | _(internal)_ Additive Increase / Multiplicative Decrease congestion control. |
+| `TransferScheduler.kt` | _(internal)_ Fair round-robin scheduling across concurrent transfers with power-mode limits. |
+| `ChunkSizePolicy.kt` | _(internal)_ Power-aware chunk payload sizing. |
+| `CutThroughBuffer.kt` | _(internal)_ Receiver-side reassembly buffer for out-of-order chunks. |
+| `ResumeCalculator.kt` | _(internal)_ Resumption offset computation for interrupted transfers. |
 
 ### `io.meshlink.crypto` — Security
 

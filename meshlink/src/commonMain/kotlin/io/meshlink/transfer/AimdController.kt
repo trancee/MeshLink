@@ -1,6 +1,6 @@
 package io.meshlink.transfer
 
-class AimdController(private val initialWindow: Int = 1) {
+internal class AimdController(private val initialWindow: Int = 1) {
     var window: Int = initialWindow
         private set
 
