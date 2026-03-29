@@ -1,7 +1,6 @@
 package io.meshlink.wire
 
 import io.meshlink.crypto.Sha256
-import io.meshlink.util.hexToBytes
 import io.meshlink.util.toHex
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -14,6 +13,7 @@ class AdvertisementCodecTest {
 
     // Fixed 32-byte key for deterministic tests
     private val testKey = ByteArray(32) { it.toByte() }
+    private val testKeyHash = Sha256.hash(testKey)
 
     // ── Round-trip ───────────────────────────────────────────────────────
 
@@ -23,7 +23,7 @@ class AdvertisementCodecTest {
             versionMajor = 1,
             versionMinor = 0,
             powerMode = 2,
-            publicKey = testKey,
+            publicKeyHash = testKeyHash,
         )
         val decoded = AdvertisementCodec.decode(encoded)
 
@@ -38,11 +38,11 @@ class AdvertisementCodecTest {
             versionMajor = 3,
             versionMinor = 42,
             powerMode = 1,
-            publicKey = testKey,
+            publicKeyHash = testKeyHash,
         )
         val decoded = AdvertisementCodec.decode(encoded)
 
-        val expectedHash = Sha256.hash(testKey).copyOfRange(0, 15)
+        val expectedHash = testKeyHash.copyOfRange(0, 15)
         assertContentEquals(expectedHash, decoded.keyHash)
     }
 
@@ -59,7 +59,7 @@ class AdvertisementCodecTest {
             versionMajor = 0,
             versionMinor = 0,
             powerMode = 0,
-            publicKey = zeroKey,
+            publicKeyHash = fullHash,
         )
 
         // Bytes 2-16 must be the first 15 bytes of the hash
@@ -75,7 +75,7 @@ class AdvertisementCodecTest {
             versionMajor = 1,
             versionMinor = 0,
             powerMode = 2,
-            publicKey = testKey,
+            publicKeyHash = testKeyHash,
         )
         // major=1 → upper nibble 0x1_, power=2 → lower nibble 0x_2 → 0x12
         assertEquals(0x12.toByte(), encoded[0])
@@ -88,7 +88,7 @@ class AdvertisementCodecTest {
             versionMajor = 15,
             versionMinor = 255,
             powerMode = 15,
-            publicKey = testKey,
+            publicKeyHash = testKeyHash,
         )
         // major=15 → 0xF_, power=15 → 0x_F → 0xFF
         assertEquals(0xFF.toByte(), encoded[0])
@@ -101,7 +101,7 @@ class AdvertisementCodecTest {
             versionMajor = 0,
             versionMinor = 0,
             powerMode = 0,
-            publicKey = testKey,
+            publicKeyHash = testKeyHash,
         )
         assertEquals(0x00.toByte(), encoded[0])
         assertEquals(0x00.toByte(), encoded[1])
@@ -116,7 +116,7 @@ class AdvertisementCodecTest {
                 versionMajor = 5,
                 versionMinor = 10,
                 powerMode = mode,
-                publicKey = testKey,
+                publicKeyHash = testKeyHash,
             )
             val byte0 = encoded[0].toInt() and 0xFF
             assertEquals(expectedNibble, byte0 and 0x0F, "Power mode $mode")
@@ -132,7 +132,7 @@ class AdvertisementCodecTest {
             versionMajor = 1,
             versionMinor = 0,
             powerMode = 0,
-            publicKey = testKey,
+            publicKeyHash = testKeyHash,
         )
         assertEquals(AdvertisementCodec.SIZE, encoded.size)
         assertEquals(17, encoded.size)
@@ -154,16 +154,16 @@ class AdvertisementCodecTest {
 
     @Test
     fun differentKeysProduceDifferentHashes() {
-        val keyA = ByteArray(32) { 0xAA.toByte() }
-        val keyB = ByteArray(32) { 0xBB.toByte() }
+        val hashA = Sha256.hash(ByteArray(32) { 0xAA.toByte() })
+        val hashB = Sha256.hash(ByteArray(32) { 0xBB.toByte() })
 
-        val encodedA = AdvertisementCodec.encode(1, 0, 0, keyA)
-        val encodedB = AdvertisementCodec.encode(1, 0, 0, keyB)
+        val encodedA = AdvertisementCodec.encode(1, 0, 0, hashA)
+        val encodedB = AdvertisementCodec.encode(1, 0, 0, hashB)
 
-        val hashA = encodedA.copyOfRange(2, 17)
-        val hashB = encodedB.copyOfRange(2, 17)
+        val sliceA = encodedA.copyOfRange(2, 17)
+        val sliceB = encodedB.copyOfRange(2, 17)
 
-        assertFalse(hashA.contentEquals(hashB), "Different keys must yield different hash prefixes")
+        assertFalse(sliceA.contentEquals(sliceB), "Different keys must yield different hash prefixes")
     }
 
     // ── Clamping ────────────────────────────────────────────────────────
@@ -175,7 +175,7 @@ class AdvertisementCodecTest {
             versionMajor = 99,
             versionMinor = 300,
             powerMode = 20,
-            publicKey = testKey,
+            publicKeyHash = testKeyHash,
         )
         val decoded = AdvertisementCodec.decode(encoded)
         assertEquals(15, decoded.versionMajor)
@@ -187,7 +187,7 @@ class AdvertisementCodecTest {
 
     @Test
     fun decodeIgnoresTrailingBytes() {
-        val encoded = AdvertisementCodec.encode(2, 7, 1, testKey)
+        val encoded = AdvertisementCodec.encode(2, 7, 1, testKeyHash)
         val padded = encoded + ByteArray(10) // 27 bytes total
         val decoded = AdvertisementCodec.decode(padded)
 

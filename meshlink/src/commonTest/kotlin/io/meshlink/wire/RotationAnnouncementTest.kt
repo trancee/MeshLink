@@ -55,10 +55,18 @@ class RotationAnnouncementTest {
     }
 
     @Test
-    fun signatureVerificationPassesWithCorrectOldKey() {
+    fun signatureVerificationPassesViaSecurityEngine() {
         val (_, encoded) = createSignedMessage()
         val decoded = RotationAnnouncement.decode(encoded)
-        assertTrue(RotationAnnouncement.verify(decoded, crypto))
+
+        val signablePayload = RotationAnnouncement.buildSignablePayload(
+            decoded.oldX25519Key,
+            decoded.newX25519Key,
+            decoded.oldEd25519Key,
+            decoded.newEd25519Key,
+            decoded.timestampMillis,
+        )
+        assertTrue(crypto.verify(decoded.oldEd25519Key, signablePayload, decoded.signature))
     }
 
     @Test
@@ -67,12 +75,14 @@ class RotationAnnouncementTest {
         val decoded = RotationAnnouncement.decode(encoded)
 
         val wrongKey = crypto.generateEd25519KeyPair().publicKey
-        val tampered = RotationAnnouncement.RotationMessage(
-            decoded.oldX25519Key, decoded.newX25519Key,
-            wrongKey, decoded.newEd25519Key,
-            decoded.timestampMillis, decoded.signature,
+        val signablePayload = RotationAnnouncement.buildSignablePayload(
+            decoded.oldX25519Key,
+            decoded.newX25519Key,
+            wrongKey,
+            decoded.newEd25519Key,
+            decoded.timestampMillis,
         )
-        assertFalse(RotationAnnouncement.verify(tampered, crypto))
+        assertFalse(crypto.verify(wrongKey, signablePayload, decoded.signature))
     }
 
     @Test
@@ -81,12 +91,14 @@ class RotationAnnouncementTest {
         val decoded = RotationAnnouncement.decode(encoded)
 
         val tamperedNewEd = crypto.generateEd25519KeyPair().publicKey
-        val tampered = RotationAnnouncement.RotationMessage(
-            decoded.oldX25519Key, decoded.newX25519Key,
-            decoded.oldEd25519Key, tamperedNewEd,
-            decoded.timestampMillis, decoded.signature,
+        val signablePayload = RotationAnnouncement.buildSignablePayload(
+            decoded.oldX25519Key,
+            decoded.newX25519Key,
+            decoded.oldEd25519Key,
+            tamperedNewEd,
+            decoded.timestampMillis,
         )
-        assertFalse(RotationAnnouncement.verify(tampered, crypto))
+        assertFalse(crypto.verify(decoded.oldEd25519Key, signablePayload, decoded.signature))
     }
 
     @Test
@@ -94,12 +106,14 @@ class RotationAnnouncementTest {
         val (_, encoded) = createSignedMessage()
         val decoded = RotationAnnouncement.decode(encoded)
 
-        val tampered = RotationAnnouncement.RotationMessage(
-            decoded.oldX25519Key, decoded.newX25519Key,
-            decoded.oldEd25519Key, decoded.newEd25519Key,
-            decoded.timestampMillis + 1u, decoded.signature,
+        val signablePayload = RotationAnnouncement.buildSignablePayload(
+            decoded.oldX25519Key,
+            decoded.newX25519Key,
+            decoded.oldEd25519Key,
+            decoded.newEd25519Key,
+            decoded.timestampMillis + 1u,
         )
-        assertFalse(RotationAnnouncement.verify(tampered, crypto))
+        assertFalse(crypto.verify(decoded.oldEd25519Key, signablePayload, decoded.signature))
     }
 
     @Test

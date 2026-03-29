@@ -1,7 +1,5 @@
 package io.meshlink.wire
 
-import io.meshlink.crypto.Sha256
-
 /**
  * Frozen 17-byte BLE advertisement payload codec.
  *
@@ -10,17 +8,31 @@ import io.meshlink.crypto.Sha256
  * Byte 1:      [8 bits: version minor]
  * Bytes 2-16:  [15 bytes: truncated SHA-256 of X25519 public key]
  * ```
+ *
+ * This is a pure codec — callers must pre-hash the public key via SHA-256
+ * before calling [encode]. This keeps the wire module free of crypto dependencies.
  */
 object AdvertisementCodec {
 
     const val SIZE = 17
+    const val KEY_HASH_SIZE = 15
 
+    /**
+     * Encode a BLE advertisement payload.
+     *
+     * @param publicKeyHash SHA-256 hash of the X25519 public key (≥15 bytes).
+     *   Only the first 15 bytes are used.
+     */
     fun encode(
         versionMajor: Int,
         versionMinor: Int,
         powerMode: Int,
-        publicKey: ByteArray,
+        publicKeyHash: ByteArray,
     ): ByteArray {
+        require(publicKeyHash.size >= KEY_HASH_SIZE) {
+            "publicKeyHash must be at least $KEY_HASH_SIZE bytes, got ${publicKeyHash.size}"
+        }
+
         val major = versionMajor.coerceIn(0, 15)
         val minor = versionMinor.coerceIn(0, 255)
         val power = powerMode.coerceIn(0, 15)
@@ -29,8 +41,7 @@ object AdvertisementCodec {
         result[0] = ((major shl 4) or power).toByte()
         result[1] = minor.toByte()
 
-        val hash = Sha256.hash(publicKey)
-        hash.copyInto(result, destinationOffset = 2, startIndex = 0, endIndex = 15)
+        publicKeyHash.copyInto(result, destinationOffset = 2, startIndex = 0, endIndex = KEY_HASH_SIZE)
 
         return result
     }

@@ -99,7 +99,14 @@ class SecurityEngine(
         fromPeerHex: String,
         announcement: RotationAnnouncement.RotationMessage,
     ): RotationResult {
-        if (!RotationAnnouncement.verify(announcement, crypto)) {
+        val signablePayload = RotationAnnouncement.buildSignablePayload(
+            announcement.oldX25519Key,
+            announcement.newX25519Key,
+            announcement.oldEd25519Key,
+            announcement.newEd25519Key,
+            announcement.timestampMillis,
+        )
+        if (!crypto.verify(announcement.oldEd25519Key, signablePayload, announcement.signature)) {
             return RotationResult.Rejected
         }
 

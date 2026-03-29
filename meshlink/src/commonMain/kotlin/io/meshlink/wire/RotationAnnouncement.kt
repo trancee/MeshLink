@@ -1,8 +1,10 @@
 package io.meshlink.wire
 
-import io.meshlink.crypto.CryptoProvider
-
 /**
+ * Wire format for key rotation announcements.
+ *
+ * This is a pure codec — encode/decode only, no cryptographic verification.
+ * Signature verification is handled by SecurityEngine.
  * Wire format for key rotation announcements.
  *
  * Format:
@@ -141,20 +143,6 @@ object RotationAnnouncement {
         offset += KEY_SIZE
         buf.putULongBE(offset, timestampMillis)
         return buf
-    }
-
-    /**
-     * Verify a rotation announcement's signature using the embedded old Ed25519 key.
-     */
-    fun verify(message: RotationMessage, cryptoProvider: CryptoProvider): Boolean {
-        val payload = buildSignablePayload(
-            message.oldX25519Key,
-            message.newX25519Key,
-            message.oldEd25519Key,
-            message.newEd25519Key,
-            message.timestampMillis,
-        )
-        return cryptoProvider.verify(message.oldEd25519Key, payload, message.signature)
     }
 
     private fun ByteArray.putULongBE(offset: Int, value: ULong) {
