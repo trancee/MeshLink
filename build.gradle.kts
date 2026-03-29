@@ -6,10 +6,48 @@ plugins {
     id("io.gitlab.arturbosch.detekt") version "1.23.8"
 }
 
+// Force patched versions for transitive build-tool dependencies (AGP bundletool, gRPC, etc.)
+buildscript {
+    configurations.all {
+        resolutionStrategy.eachDependency {
+            if (requested.group == "io.netty") useVersion("4.1.132.Final")
+            if (requested.group == "org.bitbucket.b_c" && requested.name == "jose4j") useVersion("0.9.6")
+            if (requested.group == "org.jdom" && requested.name == "jdom2") useVersion("2.0.6.1")
+            if (requested.group == "org.apache.commons" && requested.name == "commons-lang3") useVersion("3.18.0")
+            if (requested.group == "org.apache.httpcomponents" && requested.name == "httpclient") useVersion("4.5.14")
+        }
+    }
+}
+
 allprojects {
     repositories {
         google()
         mavenCentral()
+    }
+
+    configurations.all {
+        resolutionStrategy.eachDependency {
+            // Netty: fix CVEs up to 4.1.132.Final (HTTP/2 DoS, request smuggling, CRLF injection, etc.)
+            if (requested.group == "io.netty") {
+                useVersion("4.1.132.Final")
+            }
+            // jose4j: fix compressed JWE DoS (CVE-2023-51775)
+            if (requested.group == "org.bitbucket.b_c" && requested.name == "jose4j") {
+                useVersion("0.9.6")
+            }
+            // JDOM2: fix XXE injection (CVE-2021-33813)
+            if (requested.group == "org.jdom" && requested.name == "jdom2") {
+                useVersion("2.0.6.1")
+            }
+            // Commons Lang3: fix uncontrolled recursion (CVE-2024-10397)
+            if (requested.group == "org.apache.commons" && requested.name == "commons-lang3") {
+                useVersion("3.18.0")
+            }
+            // HttpClient: fix XSS (CVE-2020-13956)
+            if (requested.group == "org.apache.httpcomponents" && requested.name == "httpclient") {
+                useVersion("4.5.14")
+            }
+        }
     }
 }
 
