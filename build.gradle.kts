@@ -1,7 +1,7 @@
 plugins {
     kotlin("multiplatform") version "2.3.20" apply false
     kotlin("plugin.power-assert") version "2.3.20" apply false
-    id("com.android.library") version "8.13.2" apply false
+    id("com.android.library") version "9.1.0" apply false
     id("io.gitlab.arturbosch.detekt") version "1.23.8"
 }
 
