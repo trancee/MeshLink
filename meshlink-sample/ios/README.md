@@ -24,67 +24,31 @@ This sample mirrors the Android sample (`meshlink-sample/android/`) and shows ho
 
 ---
 
-## 1. Build the XCFramework
+## Setup
 
-From the **repository root**, run:
+### 1. Build the XCFramework
+
+From the **repository root**:
 
 ```bash
 ./gradlew :meshlink:assembleMeshLinkXCFramework
 ```
 
-This produces:
+This generates `meshlink/build/XCFrameworks/release/MeshLink.xcframework` with slices for `ios-arm64` (device) and `ios-arm64_x86_64-simulator`.
 
+### 2. Open and Run
+
+```bash
+open meshlink-sample/ios/MeshLinkSample.xcodeproj
 ```
-meshlink/build/XCFrameworks/release/MeshLink.xcframework
-```
 
-The XCFramework contains slices for:
-- `ios-arm64` (device)
-- `ios-arm64_x86_64-simulator` (simulator)
+The project is pre-configured with:
+- Local SPM dependency pointing to the repo root `Package.swift`
+- MeshLink framework linked in the build phase
+- `Info.plist` with Bluetooth usage descriptions
+- Shared scheme (MeshLinkSample)
 
----
-
-## 2. Create the Xcode Project
-
-Since we don't commit `.xcodeproj` files, create one in Xcode:
-
-1. **File → New → Project → iOS → App**
-2. Product Name: `MeshLinkSample`
-3. Interface: **SwiftUI**
-4. Language: **Swift**
-5. Save it inside `meshlink-sample/ios/`
-6. Delete the generated `ContentView.swift` and `MeshLinkSampleApp.swift`
-7. Add the existing Swift files from `MeshLinkSample/` to the project
-
----
-
-## 3. Add the MeshLink Package
-
-1. In Xcode: **File → Add Package Dependencies…**
-2. Click **Add Local…** and select the **repository root** (`MeshLink/`)
-3. Xcode reads `Package.swift` and offers the `MeshLink` library
-4. Add it to the `MeshLinkSample` target
-
-> **Alternative:** Drag `MeshLink.xcframework` directly into your project
-> and link it under **Frameworks, Libraries, and Embedded Content**.
-
----
-
-## 4. Configure the Project
-
-### Deployment Target
-
-Set the minimum deployment target to **iOS 15.0** in the project settings.
-
-### Info.plist
-
-The provided `Info.plist` includes:
-
-| Key                                  | Purpose                              |
-|--------------------------------------|--------------------------------------|
-| `NSBluetoothAlwaysUsageDescription`  | Required for CoreBluetooth scanning  |
-| `NSBluetoothPeripheralUsageDescription` | Required for BLE advertising      |
-| `UIBackgroundModes`                  | `bluetooth-central`, `bluetooth-peripheral` |
+Select the **MeshLinkSample** scheme, choose a device or simulator, and run (⌘R).
 
 ### Signing
 
@@ -92,7 +56,7 @@ Select your development team under **Signing & Capabilities**.
 
 ---
 
-## 5. Build & Run
+## Build & Run Notes
 
 - **Simulator:** The app will launch and the UI will work, but BLE is
   unavailable on the simulator. Use the demo transport for UI testing.
@@ -108,8 +72,11 @@ Select your development team under **Signing & Capabilities**.
 ```
 MeshLinkSample/
 ├── MeshLinkSampleApp.swift      App entry point (@main)
-├── ContentView.swift            SwiftUI view (health, messaging, logs)
+├── ContentView.swift            SwiftUI tab view (Chat, Mesh, Diagnostics, Settings)
 ├── MeshLinkViewModel.swift      ObservableObject wrapping MeshLink
+├── MeshVisualizerView.swift     Mesh topology visualizer
+├── DiagnosticsView.swift        Filterable diagnostic event log
+├── SettingsView.swift           Config presets and health dashboard
 └── Info.plist                   BLE usage descriptions
 ```
 
@@ -159,9 +126,10 @@ Kotlin `Flow` requires a collector bridge in Swift. Two options:
 
 | Issue                              | Solution                                    |
 |------------------------------------|---------------------------------------------|
-| `No such module 'MeshLink'`    | Build the XCFramework first (step 1). If already built, clean with `./gradlew clean` from the repo root to rebuild |
+| `No such module 'MeshLink'`    | Run `./gradlew :meshlink:assembleMeshLinkXCFramework` — the XCFramework must be built before SPM can resolve it |
 | BLE not working on simulator       | Expected — use a physical device             |
 | Crash on `KotlinByteArray`         | Ensure correct `Int8` ↔ `UInt8` conversion  |
 | Flow never emits                   | Check that `meshLink.start()` was called    |
 | Permission dialog not appearing    | Verify `Info.plist` keys are present         |
-| Stale framework after code changes | Run `./gradlew :meshlink:assembleMeshLinkXCFramework` to rebuild, then clean Xcode build folder (Shift+Cmd+K) |
+| Stale framework after code changes | Rebuild the XCFramework, then clean Xcode build folder (⇧⌘K) |
+| XCFramework cache stale after rebuild | Delete `~/Library/Developer/Xcode/DerivedData/MeshLinkSample-*` and reopen project |

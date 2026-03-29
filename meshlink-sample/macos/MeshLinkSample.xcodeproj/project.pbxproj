@@ -12,6 +12,8 @@
 		F10001000000000000000003 /* MeshLinkViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10002000000000000000003 /* MeshLinkViewModel.swift */; };
 		F10001000000000000000004 /* MeshVisualizerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10002000000000000000004 /* MeshVisualizerView.swift */; };
 		F10001000000000000000005 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10002000000000000000005 /* SettingsView.swift */; };
+		F10001000000000000000006 /* DiagnosticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10002000000000000000006 /* DiagnosticsView.swift */; };
+		F10001000000000000000007 /* MeshLink in Frameworks */ = {isa = PBXBuildFile; productRef = F1000A000000000000000001 /* MeshLink */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -20,6 +22,8 @@
 		F10002000000000000000003 /* MeshLinkViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeshLinkViewModel.swift; sourceTree = "<group>"; };
 		F10002000000000000000004 /* MeshVisualizerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeshVisualizerView.swift; sourceTree = "<group>"; };
 		F10002000000000000000005 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		F10002000000000000000006 /* DiagnosticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticsView.swift; sourceTree = "<group>"; };
+		F10002000000000000000007 /* MeshLinkSample.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MeshLinkSample.entitlements; sourceTree = "<group>"; };
 		F10002000000000000000010 /* MeshLinkSample.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MeshLinkSample.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -28,6 +32,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				F10001000000000000000007 /* MeshLink in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -50,6 +55,8 @@
 				F10002000000000000000003 /* MeshLinkViewModel.swift */,
 				F10002000000000000000004 /* MeshVisualizerView.swift */,
 				F10002000000000000000005 /* SettingsView.swift */,
+				F10002000000000000000006 /* DiagnosticsView.swift */,
+				F10002000000000000000007 /* MeshLinkSample.entitlements */,
 			);
 			path = MeshLinkSample;
 			sourceTree = "<group>";
@@ -136,6 +143,7 @@
 				F10001000000000000000003 /* MeshLinkViewModel.swift in Sources */,
 				F10001000000000000000004 /* MeshVisualizerView.swift in Sources */,
 				F10001000000000000000005 /* SettingsView.swift in Sources */,
+				F10001000000000000000006 /* DiagnosticsView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

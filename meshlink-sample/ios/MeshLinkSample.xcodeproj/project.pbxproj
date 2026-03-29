@@ -13,6 +13,7 @@
 		E10001000000000000000003 /* MeshLinkViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10002000000000000000003 /* MeshLinkViewModel.swift */; };
 		E10001000000000000000004 /* MeshVisualizerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10002000000000000000004 /* MeshVisualizerView.swift */; };
 		E10001000000000000000005 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10002000000000000000005 /* SettingsView.swift */; };
+		E10001000000000000000006 /* DiagnosticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10002000000000000000006 /* DiagnosticsView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -21,7 +22,8 @@
 		E10002000000000000000003 /* MeshLinkViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeshLinkViewModel.swift; sourceTree = "<group>"; };
 		E10002000000000000000004 /* MeshVisualizerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeshVisualizerView.swift; sourceTree = "<group>"; };
 		E10002000000000000000005 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
-		E10002000000000000000006 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		E10002000000000000000006 /* DiagnosticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticsView.swift; sourceTree = "<group>"; };
+		E10002000000000000000007 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		E10002000000000000000010 /* MeshLinkSample.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MeshLinkSample.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -53,7 +55,8 @@
 				E10002000000000000000003 /* MeshLinkViewModel.swift */,
 				E10002000000000000000004 /* MeshVisualizerView.swift */,
 				E10002000000000000000005 /* SettingsView.swift */,
-				E10002000000000000000006 /* Info.plist */,
+				E10002000000000000000006 /* DiagnosticsView.swift */,
+				E10002000000000000000007 /* Info.plist */,
 			);
 			path = MeshLinkSample;
 			sourceTree = "<group>";
@@ -140,6 +143,7 @@
 				E10001000000000000000003 /* MeshLinkViewModel.swift in Sources */,
 				E10001000000000000000004 /* MeshVisualizerView.swift in Sources */,
 				E10001000000000000000005 /* SettingsView.swift in Sources */,
+				E10001000000000000000006 /* DiagnosticsView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

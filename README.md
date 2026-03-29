@@ -161,11 +161,23 @@ and connect to other MeshLink devices over BLE. Runtime permissions
 
 #### iOS (SwiftUI)
 
-See [meshlink-sample/ios/README.md](meshlink-sample/ios/README.md) for setup instructions.
+```bash
+./gradlew :meshlink:assembleMeshLinkXCFramework
+open meshlink-sample/ios/MeshLinkSample.xcodeproj
+```
+
+Build the XCFramework, open the pre-configured Xcode project, and hit ⌘R.
+See [meshlink-sample/ios/README.md](meshlink-sample/ios/README.md) for details.
 
 #### macOS (SwiftUI)
 
-See [meshlink-sample/macos/README.md](meshlink-sample/macos/README.md) for setup instructions.
+```bash
+./gradlew :meshlink:assembleMeshLinkXCFramework
+open meshlink-sample/macos/MeshLinkSample.xcodeproj
+```
+
+Build the XCFramework, open the pre-configured Xcode project, and hit ⌘R.
+See [meshlink-sample/macos/README.md](meshlink-sample/macos/README.md) for details.
 
 #### Linux (console, native)
 

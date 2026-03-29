@@ -14,36 +14,34 @@ A SwiftUI reference app demonstrating the MeshLink BLE mesh messaging library on
 ## Prerequisites
 
 - Xcode 15+
-- macOS 11+
+- macOS 13+ (Ventura)
+- Java 21+ (for building the XCFramework via Gradle)
 
 ## Setup
 
 ### 1. Build the XCFramework
 
+From the repository root:
+
 ```bash
 ./gradlew :meshlink:assembleMeshLinkXCFramework
 ```
 
-The framework is generated at:
+This generates `meshlink/build/XCFrameworks/release/MeshLink.xcframework`.
+
+### 2. Open and Run
+
+```bash
+open meshlink-sample/macos/MeshLinkSample.xcodeproj
 ```
-meshlink/build/XCFrameworks/release/MeshLink.xcframework
-```
 
-### 2. Open in Xcode
+The project is pre-configured with:
+- Local SPM dependency pointing to the repo root `Package.swift`
+- MeshLink framework linked in the build phase
+- Bluetooth sandbox entitlement
+- Shared scheme (MeshLinkSample)
 
-Create a new macOS App project in Xcode, then:
-
-1. Add the MeshLink SPM dependency (File → Add Package Dependencies)
-2. Point to the local repository root
-3. Copy the Swift files from `meshlink-sample/macos/MeshLinkSample/` into your project
-
-### 3. Run
-
-Select a macOS target and run (⌘R).
-
-## Bluetooth Entitlement
-
-The project includes `MeshLinkSample.entitlements` with the Bluetooth sandbox entitlement pre-configured. No manual entitlement setup is required.
+Select the **MeshLinkSample** scheme and run (⌘R).
 
 ## DemoTransport vs BleTransport
 
@@ -56,6 +54,7 @@ is available for real BLE communication — implement `BleTransport` using
 | Issue | Solution |
 |-------|----------|
 | Bluetooth doesn't work | Open **System Settings → Privacy & Security → Bluetooth** and allow MeshLinkSample |
-| `No such module 'MeshLink'` | Re-run `./gradlew :meshlink:assembleMeshLinkXCFramework` — the XCFramework must be built before SPM can resolve it |
+| `No such module 'MeshLink'` | Run `./gradlew :meshlink:assembleMeshLinkXCFramework` — the XCFramework must be built before SPM can resolve it |
 | Flow never emits | Check that `meshLink.start()` was called |
-| Stale framework after code changes | Run `./gradlew :meshlink:assembleMeshLinkXCFramework` to rebuild, then clean Xcode build folder (Shift+Cmd+K) |
+| Stale framework after code changes | Rebuild the XCFramework, then clean Xcode build folder (⇧⌘K) |
+| XCFramework cache stale after rebuild | Delete `~/Library/Developer/Xcode/DerivedData/MeshLinkSample-*` and reopen project |

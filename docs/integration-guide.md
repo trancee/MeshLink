@@ -41,8 +41,16 @@ dependencies {
 MeshLink targets **Android (minSdk 26, compileSdk 36)** and
 **iOS (arm64, simulatorArm64)** via Kotlin Multiplatform.
 
-**Swift Package Manager (iOS)** — export the KMP framework and add it to your
-Xcode project as a local or remote Swift package.
+**Swift Package Manager (iOS / macOS)** — build the XCFramework, then open the
+pre-configured sample project:
+
+```bash
+./gradlew :meshlink:assembleMeshLinkXCFramework
+open meshlink-sample/ios/MeshLinkSample.xcodeproj   # or macos/
+```
+
+For your own project, add the repository root as a local SPM dependency —
+`Package.swift` declares a binary target pointing to the built XCFramework.
 
 ### 2. Create a MeshLink Instance
 
