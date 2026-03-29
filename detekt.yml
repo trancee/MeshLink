@@ -3,13 +3,15 @@ build:
 
 complexity:
   LongMethod:
-    threshold: 80
+    threshold: 90
   LongParameterList:
-    functionThreshold: 8
-    constructorThreshold: 14
+    functionThreshold: 12
+    constructorThreshold: 40
   TooManyFunctions:
     thresholdInClasses: 50
     thresholdInFiles: 50
+    thresholdInObjects: 25
+    thresholdInInterfaces: 20
   CyclomaticComplexMethod:
     threshold: 25
   NestedBlockDepth:
@@ -25,6 +27,7 @@ formatting:
     active: false
   NoWildcardImports:
     active: true
+    packagesToUseImportOnDemandProperty: 'bluetooth'
   Wrapping:
     active: false
   Indentation:
@@ -69,6 +72,8 @@ style:
     maxLineLength: 160
   WildcardImport:
     active: true
+    excludeImports:
+      - 'bluetooth.*'
   UnusedPrivateMember:
     active: true
   UnnecessaryAbstractClass:

@@ -1,5 +1,4 @@
 @file:OptIn(kotlinx.cinterop.ExperimentalForeignApi::class, kotlinx.cinterop.BetaInteropApi::class)
-@file:Suppress("Filename")
 
 package io.meshlink.transport
 

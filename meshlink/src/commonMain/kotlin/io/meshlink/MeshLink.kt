@@ -67,7 +67,6 @@ private const val NEXTHOP_UNRELIABLE_THRESHOLD = 0.5
 private const val NEXTHOP_MIN_SAMPLES = 3
 
 @OptIn(ExperimentalUuidApi::class)
-@Suppress("TooManyFunctions")
 class MeshLink(
     private val transport: BleTransport,
     private val config: MeshLinkConfig = MeshLinkConfig(),

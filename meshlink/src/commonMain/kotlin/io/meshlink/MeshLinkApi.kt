@@ -12,7 +12,6 @@ import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
 @OptIn(ExperimentalUuidApi::class)
-@Suppress("TooManyFunctions")
 interface MeshLinkApi {
     fun start(): Result<Unit>
     fun stop()

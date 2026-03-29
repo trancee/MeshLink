@@ -8,7 +8,6 @@ package io.meshlink.crypto
  *
  * Shared by both X25519 and Ed25519 implementations.
  */
-@Suppress("TooManyFunctions")
 internal object Field25519 {
 
     fun feZero(): LongArray = LongArray(10)
@@ -190,7 +189,7 @@ internal object Field25519 {
     private fun feReduce(t: LongArray) {
         // Carry chain
         var carry: Long
-        for (@Suppress("UnusedPrivateProperty") _pass in 0..1) {
+        repeat(2) {
             for (i in 0..9) {
                 val bits = if (i % 2 == 0) 26 else 25
                 carry = t[i] shr bits

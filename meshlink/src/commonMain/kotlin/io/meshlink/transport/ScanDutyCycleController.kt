@@ -2,7 +2,6 @@ package io.meshlink.transport
 
 import io.meshlink.power.PowerMode
 import io.meshlink.power.PowerProfile
-import io.meshlink.util.currentTimeMillis
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -21,9 +20,7 @@ import kotlinx.coroutines.launch
  * Thread-safety: all mutable state is confined to the coroutine that runs
  * the duty-cycle loop, so no external synchronisation is needed.
  */
-class ScanDutyCycleController(
-    @Suppress("UnusedPrivateProperty") private val clock: () -> Long = { currentTimeMillis() },
-) {
+class ScanDutyCycleController {
     /** Duty-cycle timing for a given power mode. */
     data class CycleTiming(
         val scanOnMs: Long,

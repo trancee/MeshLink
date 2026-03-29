@@ -96,7 +96,6 @@ data class MeshLinkConfig(
 fun meshLinkConfig(block: MeshLinkConfigBuilder.() -> Unit = {}): MeshLinkConfig =
     MeshLinkConfigBuilder().apply(block).build()
 
-@Suppress("LongParameterList")
 class MeshLinkConfigBuilder(
     var maxMessageSize: Int = 100_000,
     var bufferCapacity: Int = 1_048_576,

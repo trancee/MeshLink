@@ -1,5 +1,3 @@
-@file:Suppress("Filename")
-
 package io.meshlink.storage
 
 import kotlinx.cinterop.ExperimentalForeignApi

@@ -183,7 +183,6 @@ class BleAutoRecoveryTest {
         val recovery = BleAutoRecovery(
             silenceThresholdMs = 500,
             maxRecoveriesPerHour = 1,
-            cooldownMs = 10_000L,
             clock = { now },
         )
 

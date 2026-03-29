@@ -7,7 +7,6 @@ package io.meshlink.transport
 class BleAutoRecovery(
     private val silenceThresholdMs: Long = 60_000L,
     private val maxRecoveriesPerHour: Int = 3,
-    @Suppress("UnusedPrivateProperty") private val cooldownMs: Long = 5_000L,
     private val clock: () -> Long = { io.meshlink.util.currentTimeMillis() },
 ) {
     private var lastActivityMs: Long = clock()

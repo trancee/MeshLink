@@ -2,7 +2,6 @@ package io.meshlink.wire
 
 private const val MESSAGE_ID_SIZE = 16
 
-@Suppress("TooManyFunctions")
 object WireCodec {
 
     const val TYPE_BROADCAST: Byte = 0x00

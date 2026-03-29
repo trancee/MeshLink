@@ -52,8 +52,8 @@ class MessageDispatcher(
                 WireCodec.TYPE_BROADCAST -> handleBroadcast(fromPeerId, data)
                 WireCodec.TYPE_ROUTE_UPDATE -> handleRouteUpdate(fromPeerId, data)
                 WireCodec.TYPE_ROUTED_MESSAGE -> handleRoutedMessage(fromPeerId, data)
-                WireCodec.TYPE_DELIVERY_ACK -> handleDeliveryAck(fromPeerId, data)
-                WireCodec.TYPE_RESUME_REQUEST -> handleResumeRequest(fromPeerId, data)
+                WireCodec.TYPE_DELIVERY_ACK -> handleDeliveryAck(data)
+                WireCodec.TYPE_RESUME_REQUEST -> handleResumeRequest(data)
                 WireCodec.TYPE_KEEPALIVE -> handleKeepalive(fromPeerId, data)
                 WireCodec.TYPE_NACK -> { /* NACK received — no-op for now */ }
                 WireCodec.TYPE_ROTATION -> handleRotationAnnouncement(fromPeerId, data)
@@ -267,8 +267,7 @@ class MessageDispatcher(
         }
     }
 
-    @Suppress("UnusedParameter")
-    private suspend fun handleResumeRequest(fromPeerId: ByteArray, data: ByteArray) {
+    private suspend fun handleResumeRequest(data: ByteArray) {
         val request = WireCodec.decodeResumeRequest(data)
         diagnosticSink.emit(
             DiagnosticCode.TRANSPORT_MODE_CHANGED, Severity.INFO,
@@ -276,8 +275,7 @@ class MessageDispatcher(
         )
     }
 
-    @Suppress("UnusedParameter")
-    private suspend fun handleDeliveryAck(fromPeerId: ByteArray, data: ByteArray) {
+    private suspend fun handleDeliveryAck(data: ByteArray) {
         val ack = WireCodec.decodeDeliveryAck(data)
         val key = ack.messageId.toHex()
 
