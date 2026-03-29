@@ -40,6 +40,20 @@ Create a new macOS App project in Xcode, then:
 
 Select a macOS target and run (⌘R).
 
-> **Note:** The sample uses a no-op `DemoTransport`. On macOS, CoreBluetooth
-> is available for real BLE communication — implement `BleTransport` using
-> `CBCentralManager` and `CBPeripheralManager` for actual mesh networking.
+## Bluetooth Entitlement
+
+The project includes `MeshLinkSample.entitlements` with the Bluetooth sandbox entitlement pre-configured. No manual entitlement setup is required.
+
+## DemoTransport vs BleTransport
+
+The sample uses a no-op `DemoTransport` by default. On macOS, CoreBluetooth
+is available for real BLE communication — implement `BleTransport` using
+`CBCentralManager` and `CBPeripheralManager` for actual mesh networking.
+
+## Troubleshooting
+
+| Issue | Solution |
+|-------|----------|
+| Bluetooth doesn't work | Open **System Settings → Privacy & Security → Bluetooth** and allow MeshLinkSample |
+| `No such module 'MeshLink'` | Re-run `./gradlew :meshlink:assembleMeshLinkXCFramework` — the XCFramework must be built before SPM can resolve it |
+| Flow never emits | Check that `meshLink.start()` was called |

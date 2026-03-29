@@ -5,6 +5,20 @@ use [Mermaid](https://mermaid.js.org/) and render natively on GitHub. If
 diagrams don't render in your viewer, paste them into the
 [Mermaid Live Editor](https://mermaid.live).
 
+## Contents
+
+1. [Library State Machine](#1-library-state-machine) — 6-state lifecycle
+2. [Wire Format — Routed Message](#2-wire-format--routed-message-noise-k-sealed-payload) — Noise K sealed payload byte layout
+3. [Architecture Overview](#3-architecture-overview) — Engine/coordinator layers
+4. [Multi-Hop Routed Message Flow](#4-multi-hop-routed-message-flow) — Sender → Relay → Recipient sequence
+5. [Noise XX Handshake](#5-noise-xx-handshake) — 3-message mutual authentication
+6. [Power Mode Transitions](#6-power-mode-transitions) — Battery-driven mode state machine
+7. [GATT Chunking & SACK Flow](#7-gatt-chunking--sack-flow) — Selective ACK and resume-on-disconnect
+8. [Engine & Coordinator Data Flow](#8-engine--coordinator-data-flow) — Sealed result types, unidirectional flow
+9. [Gossip Protocol Exchange](#9-gossip-protocol-exchange) — Differential gossip with split horizon
+10. [TOFI Trust Model](#10-tofi-trust-model) — Key pinning with strict/softRepin modes
+11. [Key Rotation Sequence](#11-key-rotation-sequence) — Gossip announcement, grace period, teardown
+
 ---
 
 ## 1. Library State Machine
@@ -197,8 +211,6 @@ flowchart TB
     style Transport fill:#e3f2fd,stroke:#1976d2
     style BLE fill:#fce4ec,stroke:#c62828
 ```
-
----
 
 ---
 

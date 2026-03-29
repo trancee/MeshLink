@@ -25,61 +25,16 @@ A **Kotlin Multiplatform (KMP)** BLE mesh messaging library for **Android**, **i
 
 ## Quick Start
 
-### Gradle (Android / JVM)
-
 ```kotlin
-// settings.gradle.kts
-include(":meshlink")
-
-// app/build.gradle.kts
-dependencies {
-    implementation(project(":meshlink"))
-}
-```
-
-### Swift Package Manager (iOS)
-
-Add the repository URL and depend on the `MeshLink` target. See [Package.swift](Package.swift) for details.
-
-### Basic Usage
-
-```kotlin
-import io.meshlink.MeshLink
-import io.meshlink.config.meshLinkConfig
-import io.meshlink.crypto.createCryptoProvider
-
-// Create with encryption enabled (required by default)
 val mesh = MeshLink(
     transport = bleTransport,
-    config = meshLinkConfig {
-        maxMessageSize = 50_000
-        gossipIntervalMs = 10_000L
-    },
+    config = meshLinkConfig { maxMessageSize = 50_000 },
     crypto = createCryptoProvider(),
 )
-
-// Start the mesh
 mesh.start()
-
-// Listen for peers and messages
-launch {
-    mesh.peers.collect { event ->
-        when (event) {
-            is PeerEvent.Found -> println("Peer: ${event.peerId.toHex()}")
-            is PeerEvent.Lost -> println("Lost: ${event.peerId.toHex()}")
-        }
-    }
-}
-
-launch {
-    mesh.messages.collect { msg ->
-        println("${msg.senderId.toHex()}: ${msg.payload.decodeToString()}")
-    }
-}
-
-// Send a message
-mesh.send(recipientPeerId, "Hello mesh!".encodeToByteArray())
 ```
+
+See the [Integration Guide](docs/integration-guide.md) for complete setup, configuration presets, and platform-specific examples.
 
 ## Configuration Presets
 
@@ -130,6 +85,10 @@ MeshLink/
 - [Architecture](docs/architecture.md) — Module structure and data flow
 - [Wire Format Spec](docs/wire-format-spec.md) — Binary protocol specification
 - [Design](docs/design.md) — Design decisions and rationale
+- [API Reference](docs/api-reference.md) — Complete API documentation
+- [Threat Model](docs/threat-model.md) — Security analysis
+- [Diagrams](docs/diagrams.md) — Visual reference diagrams
+- [Firebase Test Lab Setup](docs/firebase-test-lab-setup.md) — CI/CD device testing
 
 ## Building
 
@@ -147,7 +106,7 @@ MeshLink/
 ./gradlew :meshlink:jvmTest
 
 # Compile Android AAR
-./gradlew :meshlink:compileReleaseKotlinAndroid
+./gradlew :meshlink:compileAndroidMain
 
 # Run iOS simulator tests (requires macOS + Xcode)
 ./gradlew :meshlink:iosSimulatorArm64Test
@@ -209,45 +168,11 @@ and connect to other MeshLink devices over BLE. Runtime permissions
 
 #### iOS (SwiftUI)
 
-1. Build the XCFramework (required before opening the project):
-   ```bash
-   ./gradlew :meshlink:assembleMeshLinkXCFramework
-   ```
-2. Open the Xcode project:
-   ```bash
-   open meshlink-sample/ios/MeshLinkSample.xcodeproj
-   ```
-3. Wait for Xcode to resolve the MeshLink SPM package (automatic)
-4. Select the **MeshLinkSample** scheme, pick an iPhone simulator or device, then press **⌘R**
-
-> **Physical device required** for real BLE activity. The simulator supports
-> the UI but CoreBluetooth scanning/advertising only works on hardware.
-
-The app has three tabs: **Chat** (send/receive messages), **Mesh Visualizer**
-(node-link topology diagram), and **Settings** (config presets, MTU, health).
-
-> **Troubleshooting:** If Xcode shows _"missing binary artifact"_, re-run
-> step 1 — the XCFramework must be built before SPM can resolve it. If you
-> see linker errors about x86_64, set **Build Settings → Architectures** to
-> `arm64` (the XCFramework ships arm64 only).
+See [meshlink-sample/ios/README.md](meshlink-sample/ios/README.md) for setup instructions.
 
 #### macOS (SwiftUI)
 
-1. Build the XCFramework (same command — includes the macOS slice):
-   ```bash
-   ./gradlew :meshlink:assembleMeshLinkXCFramework
-   ```
-2. Open the Xcode project:
-   ```bash
-   open meshlink-sample/macos/MeshLinkSample.xcodeproj
-   ```
-3. Wait for SPM package resolution, then press **⌘R** to run
-
-The macOS sample includes a Bluetooth sandbox entitlement
-(`MeshLinkSample.entitlements`) that is already configured in the project.
-
-> **Troubleshooting:** If Bluetooth doesn't work, open **System Settings →
-> Privacy & Security → Bluetooth** and allow MeshLinkSample.
+See [meshlink-sample/macos/README.md](meshlink-sample/macos/README.md) for setup instructions.
 
 #### Linux (console, native)
 

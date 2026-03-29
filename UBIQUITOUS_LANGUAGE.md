@@ -1,58 +1,5 @@
 # Ubiquitous Language
 
-```mermaid
-flowchart LR
-    subgraph Identity["Identity & Trust"]
-        ID[Identity]
-        TOFI[TOFI]
-        KeyPin[Key Pinning]
-    end
-
-    subgraph Transport["Transport"]
-        BLE[BLE Transport]
-        GATT[GATT Service]
-        L2CAP[L2CAP CoC]
-    end
-
-    subgraph Messaging["Messaging"]
-        DM[Direct Message]
-        BC[Broadcast]
-        ACK[Delivery ACK]
-    end
-
-    subgraph Routing["Routing"]
-        DSDV[Enhanced DSDV]
-        Gossip[Gossip]
-        RT[Routing Table]
-    end
-
-    subgraph Encryption["Encryption"]
-        NoiseK[Noise K - E2E]
-        NoiseXX[Noise XX - Hop]
-    end
-
-    subgraph Power["Power & Presence"]
-        PM[Power Mode]
-        Presence[Peer Lifecycle]
-    end
-
-    ID --> NoiseK
-    ID --> NoiseXX
-    Gossip --> RT
-    RT --> DM
-    DM --> NoiseK
-    NoiseK --> Transport
-    NoiseXX --> Transport
-    BLE --> GATT
-    BLE --> L2CAP
-    PM --> Presence
-    PM --> Transport
-
-    style Identity fill:#e8f4e8,stroke:#333
-    style Encryption fill:#e8e8f4,stroke:#333
-    style Routing fill:#f4e8e8,stroke:#333
-```
-
 ## Actors & Roles
 
 | Term | Definition | Aliases to avoid |

@@ -43,10 +43,10 @@ hardening.
 | A4 | **Library consumers follow integration guide** — configure rate limits, supply CryptoProvider | If defaults are used as-is, all rate-limiting gaps become critical |
 | A5 | **No internet connectivity** — attack surface is BLE proximity only (~30–100m) | If bridged to internet (future feature), all threats escalate dramatically |
 
-### Open questions
+### Design decisions
 
-- Will MeshLink ever support internet relay/bridging? (Would change the entire threat surface)
-- Is there a plan to add mandatory minimum security configuration validation?
+- **No internet relay/bridging.** MeshLink is BLE-only by design. The threat surface is limited to Bluetooth radio proximity (~30–100m). If internet bridging is ever added, this threat model must be re-evaluated from scratch.
+- **Configuration validation is enforced.** `MeshLinkConfig` validates all parameters at construction time (range checks, consistency constraints). See [API Reference § Configuration](api-reference.md#meshLinkConfig) for validation rules.
 
 ---
 

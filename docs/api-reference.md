@@ -130,6 +130,8 @@ class MeshLink(
 
 `io.meshlink.config.MeshLinkConfig`
 
+For usage examples and configuration presets, see [Integration Guide § Configuration](integration-guide.md#configuration).
+
 Immutable configuration data class. All fields have sensible defaults.
 
 ### Fields

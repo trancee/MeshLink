@@ -459,9 +459,13 @@ val peerKey = mesh.peerPublicKey("abcd...") // Peer's public key from handshake
 val broadcastKey = mesh.broadcastPublicKey  // Key for broadcast verification
 ```
 
+See [Threat Model](threat-model.md) for the security analysis and threat categories.
+
 ---
 
 ## Diagnostics & Monitoring
+
+See [API Reference § Diagnostics](api-reference.md#diagnostics) for the full list of diagnostic codes.
 
 ### Real-Time Diagnostic Events
 
