@@ -21,6 +21,11 @@ struct ContentView: View {
                     Label("Mesh", systemImage: "circle.grid.hex")
                 }
 
+            DiagnosticsView(viewModel: viewModel)
+                .tabItem {
+                    Label("Diagnostics", systemImage: "stethoscope")
+                }
+
             SettingsView(viewModel: viewModel)
                 .tabItem {
                     Label("Settings", systemImage: "gear")

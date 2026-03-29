@@ -22,12 +22,30 @@ class PowerCoordinator(
 ) {
     private val powerModeEngine = PowerModeEngine(hysteresisMs = hysteresisMs, clock = clock)
     private var _currentMode: String = "PERFORMANCE"
+    private var _customPowerMode: PowerMode? = null
 
     val currentMode: String get() = _currentMode
+    val customPowerMode: PowerMode? get() = _customPowerMode
+
+    // ── Custom power mode override ────────────────────────────────
+
+    fun setCustomPowerMode(mode: PowerMode?): ModeChangeResult {
+        _customPowerMode = mode
+        val oldMode = _currentMode
+        if (mode != null) {
+            _currentMode = mode.name
+        }
+        return if (_currentMode != oldMode) {
+            ModeChangeResult.Changed(oldMode, _currentMode)
+        } else {
+            ModeChangeResult.Unchanged
+        }
+    }
 
     // ── Battery / mode transitions ────────────────────────────────
 
     fun updateBattery(batteryPercent: Int, isCharging: Boolean): ModeChangeResult {
+        if (_customPowerMode != null) return ModeChangeResult.Unchanged
         val oldMode = _currentMode
         _currentMode = powerModeEngine.update(batteryPercent, isCharging).name
         return if (_currentMode != oldMode) {

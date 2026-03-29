@@ -22,6 +22,16 @@ struct PeerInfo: Identifiable, Equatable {
     }
 }
 
+// MARK: - Diagnostic Entry
+
+struct DiagnosticEntry: Identifiable {
+    let id: String
+    let code: String
+    let severity: String
+    let timestamp: String
+    let payload: String?
+}
+
 // MARK: - Config Preset
 
 enum ConfigPreset: String, CaseIterable, Identifiable {
@@ -64,6 +74,7 @@ final class MeshLinkViewModel: ObservableObject {
     @Published var currentMtu: Int = 185
     @Published private(set) var maxMessageSize: Int = 10_000
     @Published private(set) var bufferCapacity: Int = 524_288
+    @Published var diagnosticEntries: [DiagnosticEntry] = []
 
     private var meshLink: MeshLink
 
@@ -176,6 +187,20 @@ final class MeshLinkViewModel: ObservableObject {
         collectFlow(meshLink.transferFailures) { [weak self] (failure: TransferFailure) in
             self?.log("❌ Transfer failed: \(failure.messageId)")
         }
+
+        collectFlow(meshLink.diagnosticEvents) { [weak self] (event: DiagnosticEvent) in
+            let entry = DiagnosticEntry(
+                id: "\(event.monotonicMs)-\(event.code.name)",
+                code: event.code.name,
+                severity: event.severity.name,
+                timestamp: Self.formatTimestamp(event.monotonicMs),
+                payload: event.payload
+            )
+            if (self?.diagnosticEntries.count ?? 0) > 500 {
+                self?.diagnosticEntries.removeFirst()
+            }
+            self?.diagnosticEntries.append(entry)
+        }
     }
 
     // MARK: - Health
@@ -193,6 +218,15 @@ final class MeshLinkViewModel: ObservableObject {
 
     private func log(_ entry: String) { logEntries.append(entry) }
     func clearLog() { logEntries.removeAll() }
+    func clearDiagnostics() { diagnosticEntries.removeAll() }
+
+    private static func formatTimestamp(_ monotonicMs: Int64) -> String {
+        let totalSeconds = monotonicMs / 1000
+        let minutes = (totalSeconds / 60) % 60
+        let seconds = totalSeconds % 60
+        let millis = monotonicMs % 1000
+        return String(format: "%02d:%02d.%03d", minutes, seconds, millis)
+    }
 }
 
 // MARK: - Kotlin Flow → Swift Bridge

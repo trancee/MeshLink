@@ -26,6 +26,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Button
@@ -151,6 +152,7 @@ class MainActivity : ComponentActivity() {
 private enum class Screen(val label: String, val icon: ImageVector) {
     Chat("Chat", Icons.Default.Email),
     Mesh("Mesh", Icons.Default.Share),
+    Diagnostics("Diagnostics", Icons.Default.Info),
     Settings("Settings", Icons.Default.Settings),
 }
 
@@ -183,6 +185,7 @@ fun MeshLinkApp(viewModel: MeshLinkViewModel = viewModel()) {
             when (Screen.entries[selectedTab]) {
                 Screen.Chat -> ChatScreen(viewModel)
                 Screen.Mesh -> MeshVisualizerScreen(viewModel)
+                Screen.Diagnostics -> DiagnosticsScreen(viewModel)
                 Screen.Settings -> SettingsScreen(viewModel)
             }
         }

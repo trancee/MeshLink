@@ -29,6 +29,7 @@ interface MeshLinkApi {
     fun shedMemoryPressure(): List<String>
     fun addRoute(destination: String, nextHop: String, cost: Double, sequenceNumber: UInt)
     fun updateBattery(batteryPercent: Int, isCharging: Boolean)
+    fun setCustomPowerMode(mode: String?)
     val peers: Flow<PeerEvent>
     val messages: Flow<Message>
     val deliveryConfirmations: Flow<Uuid>

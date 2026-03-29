@@ -6,7 +6,9 @@ import androidx.lifecycle.viewModelScope
 import io.meshlink.MeshLink
 import io.meshlink.config.MeshLinkConfig
 import io.meshlink.crypto.createCryptoProvider
+import io.meshlink.diagnostics.DiagnosticEvent
 import io.meshlink.diagnostics.MeshHealthSnapshot
+import io.meshlink.diagnostics.Severity
 import io.meshlink.model.PeerEvent
 import io.meshlink.transport.AndroidBleTransport
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -57,6 +59,14 @@ class MeshLinkViewModel(application: Application) : AndroidViewModel(application
     /** Live list of discovered peers for the mesh visualizer. */
     val discoveredPeers: StateFlow<List<PeerInfo>> = _discoveredPeers.asStateFlow()
 
+    private val _diagnosticEvents = MutableStateFlow<List<DiagnosticEvent>>(emptyList())
+    /** Rolling list of diagnostic events for the diagnostics screen. */
+    val diagnosticEvents: StateFlow<List<DiagnosticEvent>> = _diagnosticEvents.asStateFlow()
+
+    private val _severityFilter = MutableStateFlow<Severity?>(null)
+    /** Current severity filter (null = show all). */
+    val severityFilter: StateFlow<Severity?> = _severityFilter.asStateFlow()
+
     init {
         // Enable BLE debug logging for debug builds
         AndroidBleTransport.debugLogging = true
@@ -105,6 +115,13 @@ class MeshLinkViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch {
             meshLink.transferFailures.collect { failure ->
                 log("❌ Transfer failed: ${failure.messageId}")
+            }
+        }
+        viewModelScope.launch {
+            meshLink.diagnosticEvents.collect { event ->
+                _diagnosticEvents.update { events ->
+                    (events + event).takeLast(500)
+                }
             }
         }
     }
@@ -193,6 +210,14 @@ class MeshLinkViewModel(application: Application) : AndroidViewModel(application
         collectFlows()
 
         if (wasRunning) startMesh()
+    }
+
+    fun setSeverityFilter(severity: Severity?) {
+        _severityFilter.value = severity
+    }
+
+    fun clearDiagnostics() {
+        _diagnosticEvents.value = emptyList()
     }
 
     private fun log(entry: String) {

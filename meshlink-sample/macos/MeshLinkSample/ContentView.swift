@@ -17,6 +17,9 @@ struct ContentView: View {
             MeshVisualizerView(viewModel: viewModel)
                 .tabItem { Label("Mesh", systemImage: "network") }
 
+            DiagnosticsView(viewModel: viewModel)
+                .tabItem { Label("Diagnostics", systemImage: "stethoscope") }
+
             SettingsView(viewModel: viewModel)
                 .tabItem { Label("Settings", systemImage: "gear") }
         }

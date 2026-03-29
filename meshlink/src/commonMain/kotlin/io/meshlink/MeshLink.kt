@@ -27,6 +27,7 @@ import io.meshlink.peer.PeerConnectionAction
 import io.meshlink.peer.PeerConnectionCoordinator
 import io.meshlink.power.ModeChangeResult
 import io.meshlink.power.PowerCoordinator
+import io.meshlink.power.PowerMode
 import io.meshlink.power.ShedAction
 import io.meshlink.routing.RoutingEngine
 import io.meshlink.send.BroadcastDecision
@@ -560,6 +561,14 @@ class MeshLink(
 
     override fun updateBattery(batteryPercent: Int, isCharging: Boolean) {
         when (powerCoordinator.updateBattery(batteryPercent, isCharging)) {
+            is ModeChangeResult.Changed -> emitHealthUpdate()
+            is ModeChangeResult.Unchanged -> {}
+        }
+    }
+
+    override fun setCustomPowerMode(mode: String?) {
+        val powerMode = mode?.let { PowerMode.valueOf(it) }
+        when (powerCoordinator.setCustomPowerMode(powerMode)) {
             is ModeChangeResult.Changed -> emitHealthUpdate()
             is ModeChangeResult.Unchanged -> {}
         }

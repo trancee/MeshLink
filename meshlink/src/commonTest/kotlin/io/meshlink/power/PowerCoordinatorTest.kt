@@ -162,4 +162,52 @@ class PowerCoordinatorTest {
         val pc = coordinator()
         assertFalse(pc.shouldWarnBufferPressure(100, 0))
     }
+
+    // ── 5. Custom power mode override ─────────────────────────────
+
+    @Test
+    fun customPowerMode_overrides_battery_logic() {
+        val pc = coordinator()
+        pc.setCustomPowerMode(PowerMode.POWER_SAVER)
+        assertEquals("POWER_SAVER", pc.currentMode)
+
+        val result = pc.updateBattery(100, isCharging = true)
+        assertIs<ModeChangeResult.Unchanged>(result)
+        assertEquals("POWER_SAVER", pc.currentMode)
+    }
+
+    @Test
+    fun clearCustomPowerMode_resumes_battery_logic() {
+        val pc = coordinator()
+        pc.setCustomPowerMode(PowerMode.POWER_SAVER)
+        assertEquals("POWER_SAVER", pc.currentMode)
+
+        pc.setCustomPowerMode(null)
+        assertNull(pc.customPowerMode)
+
+        // Battery logic resumes — charging should switch to PERFORMANCE
+        val result = pc.updateBattery(100, isCharging = true)
+        assertIs<ModeChangeResult.Changed>(result)
+        assertEquals("PERFORMANCE", pc.currentMode)
+    }
+
+    @Test
+    fun setCustomPowerMode_returns_changed_when_different() {
+        val pc = coordinator()
+        assertEquals("PERFORMANCE", pc.currentMode)
+
+        val r1 = pc.setCustomPowerMode(PowerMode.BALANCED)
+        assertIs<ModeChangeResult.Changed>(r1)
+        assertEquals("PERFORMANCE", r1.oldMode)
+        assertEquals("BALANCED", r1.newMode)
+
+        // Same mode again → Unchanged
+        val r2 = pc.setCustomPowerMode(PowerMode.BALANCED)
+        assertIs<ModeChangeResult.Unchanged>(r2)
+
+        // Clear back — mode stays BALANCED until battery update
+        val r3 = pc.setCustomPowerMode(null)
+        assertIs<ModeChangeResult.Unchanged>(r3)
+        assertEquals("BALANCED", pc.currentMode)
+    }
 }
