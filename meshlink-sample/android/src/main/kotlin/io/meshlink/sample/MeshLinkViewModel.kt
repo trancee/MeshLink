@@ -142,6 +142,8 @@ class MeshLinkViewModel(application: Application) : AndroidViewModel(application
         meshLink.stop()
         _isRunning.value = false
         _startTime.value = 0L
+        _discoveredPeers.value = emptyList()
+        _health.value = meshLink.meshHealth()
         log("🔴 Mesh stopped")
     }
 
