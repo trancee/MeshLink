@@ -23,8 +23,22 @@ actual fun createCryptoProvider(): CryptoProvider =
 /**
  * JCA-backed crypto provider for Android API 33+.
  * Uses platform KeyPairGenerator for Ed25519/X25519 and Cipher for ChaCha20-Poly1305.
+ *
+ * The init block probes key generation to verify Ed25519/X25519 are actually usable.
+ * Some devices resolve to AndroidKeyStore (requires KeyGenParameterSpec) or lack
+ * Conscrypt Ed25519 support entirely — both cases throw, triggering the
+ * PureKotlinCryptoProvider fallback in [createCryptoProvider].
  */
 private class AndroidJcaCryptoProvider : CryptoProvider {
+
+    /** Name of the JCA provider that passed the Ed25519 probe (e.g. "AndroidOpenSSL"). */
+    private val providerName: String
+
+    init {
+        val kpg = java.security.KeyPairGenerator.getInstance("Ed25519")
+        kpg.generateKeyPair() // fails on AndroidKeyStore ("Not initialized") or missing algorithms
+        providerName = kpg.provider.name
+    }
 
     private val ed25519Pkcs8Prefix = byteArrayOf(
         0x30, 0x2E, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06,
@@ -44,7 +58,7 @@ private class AndroidJcaCryptoProvider : CryptoProvider {
     )
 
     override fun generateEd25519KeyPair(): CryptoKeyPair {
-        val kpg = java.security.KeyPairGenerator.getInstance("Ed25519", "AndroidOpenSSL")
+        val kpg = java.security.KeyPairGenerator.getInstance("Ed25519", providerName)
         val javaKeyPair = kpg.generateKeyPair()
         val rawPublic = javaKeyPair.public.encoded.copyOfRange(
             ed25519X509Prefix.size,
@@ -58,11 +72,11 @@ private class AndroidJcaCryptoProvider : CryptoProvider {
     }
 
     override fun sign(privateKey: ByteArray, data: ByteArray): ByteArray {
-        val keyFactory = java.security.KeyFactory.getInstance("Ed25519", "AndroidOpenSSL")
+        val keyFactory = java.security.KeyFactory.getInstance("Ed25519", providerName)
         val pkcs8Key = keyFactory.generatePrivate(
             java.security.spec.PKCS8EncodedKeySpec(ed25519Pkcs8Prefix + privateKey),
         )
-        val sig = java.security.Signature.getInstance("Ed25519", "AndroidOpenSSL")
+        val sig = java.security.Signature.getInstance("Ed25519", providerName)
         sig.initSign(pkcs8Key)
         sig.update(data)
         return sig.sign()
@@ -70,11 +84,11 @@ private class AndroidJcaCryptoProvider : CryptoProvider {
 
     override fun verify(publicKey: ByteArray, data: ByteArray, signature: ByteArray): Boolean {
         return try {
-            val keyFactory = java.security.KeyFactory.getInstance("Ed25519", "AndroidOpenSSL")
+            val keyFactory = java.security.KeyFactory.getInstance("Ed25519", providerName)
             val x509Key = keyFactory.generatePublic(
                 java.security.spec.X509EncodedKeySpec(ed25519X509Prefix + publicKey),
             )
-            val sig = java.security.Signature.getInstance("Ed25519", "AndroidOpenSSL")
+            val sig = java.security.Signature.getInstance("Ed25519", providerName)
             sig.initVerify(x509Key)
             sig.update(data)
             sig.verify(signature)
@@ -84,7 +98,7 @@ private class AndroidJcaCryptoProvider : CryptoProvider {
     }
 
     override fun generateX25519KeyPair(): CryptoKeyPair {
-        val kpg = java.security.KeyPairGenerator.getInstance("X25519", "AndroidOpenSSL")
+        val kpg = java.security.KeyPairGenerator.getInstance("X25519", providerName)
         val javaKeyPair = kpg.generateKeyPair()
         val rawPublic = javaKeyPair.public.encoded.copyOfRange(
             x25519X509Prefix.size,
@@ -98,10 +112,10 @@ private class AndroidJcaCryptoProvider : CryptoProvider {
     }
 
     override fun x25519SharedSecret(privateKey: ByteArray, publicKey: ByteArray): ByteArray {
-        val keyFactory = java.security.KeyFactory.getInstance("X25519", "AndroidOpenSSL")
+        val keyFactory = java.security.KeyFactory.getInstance("X25519", providerName)
         val privKey = keyFactory.generatePrivate(java.security.spec.PKCS8EncodedKeySpec(x25519Pkcs8Prefix + privateKey))
         val pubKey = keyFactory.generatePublic(java.security.spec.X509EncodedKeySpec(x25519X509Prefix + publicKey))
-        val ka = javax.crypto.KeyAgreement.getInstance("X25519", "AndroidOpenSSL")
+        val ka = javax.crypto.KeyAgreement.getInstance("X25519", providerName)
         ka.init(privKey)
         ka.doPhase(pubKey, true)
         return ka.generateSecret()
