@@ -303,7 +303,7 @@ flowchart TD
         RT["Routing Table\n(rebuilt from gossip)"]
         BUF["Message Buffer\n(lost — senders retry)"]
         TF["In-flight Transfers\n(lost — SACK retry)"]
-        ACTOR["Actor State\n(fresh restart)"]
+        ENG["Engine State\n(fresh restart)"]
     end
 
     Crash(("Process\nCrash")) --> Survives
@@ -394,9 +394,19 @@ mindmap
 
 | Term | Definition | Aliases to avoid |
 |------|-----------|-----------------|
-| **Engine** | A stateful facade that consolidates a domain concern (routing, transfer, security, delivery) behind sealed result types. Engines are constructed once and injected into MeshLink. Callers pattern-match on sealed results to decide effects. | Actor, manager, service |
-| **Coordinator** | A stateful component that orchestrates loops or multi-step decision logic (gossip timing, peer connection handling, power transitions). Coordinators call engines and return sealed actions for MeshLink to execute. | Actor, controller |
+| **Engine** | A stateful facade that consolidates a domain concern behind sealed result types. Constructed once and injected into MeshLink. Callers pattern-match on sealed results to decide effects. | Actor, manager, service |
+| **SecurityEngine** | Engine owning Noise XX/K sessions, trust store (TOFI), and replay guard state. Returns sealed results for handshake steps, seal/unseal, and trust decisions. | CryptoActor, crypto manager |
+| **RoutingEngine** | Engine owning the **Routing Table**, **Enhanced DSDV** state, and **Dedup Set**. Returns sealed results for route lookups, gossip preparation, and dedup checks. | RouterActor, routing manager |
+| **TransferEngine** | Engine owning in-flight **Transfer** state, chunking, **SACK** windows, and **AIMD** congestion control. Returns sealed results for chunk processing and transfer lifecycle events. | TransferActor, transfer manager |
+| **DeliveryPipeline** | Engine owning delivery tracking, confirmation tombstones, and store-and-forward buffering. Returns sealed results for delivery status and buffer operations. | BufferActor, delivery tracker |
+| **Coordinator** | A stateful component that orchestrates loops or multi-step decision logic. Coordinators call engines and return sealed actions for MeshLink to execute. | Actor, controller |
+| **GossipCoordinator** | Coordinator managing the **Gossip** timer loop, differential exchange, **Triggered Updates**, and **Gossip Suppression** keepalives. | GossipActor, gossip manager |
+| **PeerConnectionCoordinator** | Coordinator managing BLE connection lifecycle: discovery, **Tie-Breaking Rule** evaluation, **Noise XX Session** initiation, and version negotiation. | ConnectionActor, connection manager |
+| **PowerCoordinator** | Coordinator managing **Power Mode** transitions, **Hysteresis** timers, charging override, and memory shedding during mode downgrades. | PresenceActor, power manager |
 | **Policy Chain** | A pure pre-flight evaluator that checks conditions in priority order and returns a sealed decision type (e.g., `SendDecision`, `BroadcastDecision`). Testable via function-type dependency injection. | Validator, checker |
+| **SendPolicyChain** | Policy chain evaluating unicast send pre-flight: rate limits, circuit breaker, route availability, buffer capacity. Returns `SendDecision` sealed type. | Send validator, send filter |
+| **BroadcastPolicyChain** | Policy chain evaluating broadcast pre-flight: rate limits, TTL, signature requirements. Returns `BroadcastDecision` sealed type. | Broadcast validator, broadcast filter |
+| **MessageDispatcher** | Policy chain decoding inbound BLE frames, routing them to the appropriate engine, and delegating side effects via **DispatchSink**. | Inbound handler, frame router |
 | **Sealed Result Type** | The pattern used across all engines and coordinators: methods return sealed interfaces so callers exhaustively pattern-match on outcomes. Eliminates boolean flags and stringly-typed errors. | Union type, result enum |
 | **Function-Type Dependency** | Constructor parameter of type `() -> T` or `(A) -> B` that injects behavior without requiring the full dependency graph. Used by policy chains and coordinators for testability. | Callback, lambda injection |
 | **DispatchSink** | Callback interface grouping 8 effect callbacks (flow emissions, transport sends) that `MessageDispatcher` uses to delegate side effects back to MeshLink. | Observer, listener |
