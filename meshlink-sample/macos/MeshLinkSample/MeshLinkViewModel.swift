@@ -116,7 +116,11 @@ final class MeshLinkViewModel: ObservableObject {
     // MARK: - Mesh Lifecycle
 
     func startMesh() {
-        let _ = meshLink.start()
+        let result = meshLink.start()
+        guard result != nil else {
+            log("❌ Start failed — check Bluetooth is enabled and permissions are granted")
+            return
+        }
         isRunning = true
         log("🟢 Mesh started — scanning for peers via BLE")
     }
