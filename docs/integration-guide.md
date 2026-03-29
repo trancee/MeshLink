@@ -369,9 +369,9 @@ mesh.updateBattery(batteryPercent = 72, isCharging = false)
 
 | Mode          | Battery     | Adv Interval | Scan Duty | Max Concurrent Transfers |
 |---------------|-------------|--------------|-----------|--------------------------|
-| PERFORMANCE   | > 80%       | 250 ms       | 90%       | 8                        |
+| PERFORMANCE   | > 80%       | 250 ms       | 80%       | 8                        |
 | BALANCED      | 30% – 80%   | 500 ms       | 50%       | 4                        |
-| POWER_SAVER   | < 30%       | 1000 ms      | 15%       | 1                        |
+| POWER_SAVER   | < 30%       | 1000 ms      | 17%       | 1                        |
 
 Thresholds are configurable via `powerModeThresholds` (default: `[80, 30]`).
 

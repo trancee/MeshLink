@@ -58,3 +58,4 @@ is available for real BLE communication — implement `BleTransport` using
 | Bluetooth doesn't work | Open **System Settings → Privacy & Security → Bluetooth** and allow MeshLinkSample |
 | `No such module 'MeshLink'` | Re-run `./gradlew :meshlink:assembleMeshLinkXCFramework` — the XCFramework must be built before SPM can resolve it |
 | Flow never emits | Check that `meshLink.start()` was called |
+| Stale framework after code changes | Run `./gradlew :meshlink:assembleMeshLinkXCFramework` to rebuild, then clean Xcode build folder (Shift+Cmd+K) |

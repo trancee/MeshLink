@@ -16,15 +16,13 @@ ChaCha20-Poly1305, detekt 1.23.8.
 
 ```bash
 # Prerequisites: Java 21 (Zulu recommended), Android SDK (compileSdk 36, minSdk 26)
-
-# Clone and verify
 git clone <repo-url> && cd MeshLink
 ./gradlew detekt                        # Lint — must pass with zero issues
 ./gradlew :meshlink:jvmTest --parallel  # Fastest test suite (~30s)
 ```
 
-No additional environment setup is required. Gradle wrapper downloads all
-dependencies automatically. Configuration cache is enabled (`gradle.properties`).
+Gradle wrapper downloads all dependencies automatically. Configuration cache
+is enabled (`gradle.properties`).
 
 ## Development Workflow
 
@@ -80,9 +78,10 @@ rejected locally before reaching CI.
 
 ### Test Structure
 
-87 test files across 20 packages in `meshlink/src/commonTest/`. Key test areas:
-crypto (17 files), transfer (8 files), transport (8 files), power (8 files),
-routing (6 files), model (6 files), wire (6 files), delivery (4 files).
+87 test files across 20 packages in `meshlink/src/commonTest/`: crypto (17),
+transfer (8), transport (8), power (8), routing (6), model (6), wire (6),
+delivery (4), dispatch (3), config (2), diagnostics (2), util (2), plus
+integration suites.
 
 ### Test Conventions
 
@@ -243,8 +242,7 @@ See `docs/threat-model.md` for the full threat analysis.
 - Run `./gradlew detekt` and all relevant test tasks before committing
 - Detekt runs as a pre-commit hook — commits that fail lint are rejected locally
 - Keep commits atomic: one logical change per commit
-- Update `docs/api-reference.md` when adding or changing public APIs
-- Update `docs/design.md` when changing architecture or behaviour
+- Update documentation per the section below when changing APIs or behavior
 - CI must pass before merging — six jobs must all be green
 
 ## Domain Language

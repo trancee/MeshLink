@@ -1,20 +1,19 @@
 # MeshLink — Threat Model
 
-> Generated: 2026-03-28 | Scope: Full repository | Branch: main
+> Updated: 2026-03-29 | Scope: Full repository | Branch: main
 
 ## Executive summary
 
-MeshLink's highest-risk area is **resource exhaustion via unauthenticated BLE
-input**. Because data is accepted from any BLE device before authentication or
-encryption, an attacker within radio range can flood reassembly buffers,
-exhaust deduplication state, or poison the routing table — all without
-completing a handshake. Secondary risks include **weak default configuration**
-(all rate limits disabled, encryption optional), **non-cryptographic PRNG for
-key generation**, and **broadcast amplification** in large meshes. The
-cryptographic primitives themselves are well-implemented (constant-time
-operations, proper Noise protocol patterns, RFC-validated), but the layers
-*around* them — input gating, resource bounding, and failure handling — need
-hardening.
+All 10 identified threats have been mitigated (see [Remediation status](#remediation-status)).
+The highest-risk category was **resource exhaustion via unauthenticated BLE
+input** — an attacker within radio range could flood reassembly buffers,
+exhaust deduplication state, or poison the routing table before completing a
+handshake. These are now bounded by `maxConcurrentInboundSessions`, TTL-based
+dedup, and mandatory route signing. Secondary risks (plaintext mode, weak PRNG,
+broadcast amplification) are addressed by mandatory encryption, platform
+CSPRNG, and `maxHops` capping. The cryptographic primitives are
+well-implemented (constant-time operations, Noise protocol patterns,
+RFC-validated).
 
 ---
 
@@ -56,7 +55,7 @@ hardening.
 
 | Component | Type | Location | Role |
 |-----------|------|----------|------|
-| **MeshLink** | Orchestrator | `MeshLink.kt` (725 lines) | Wiring layer connecting engines, coordinators, and transport |
+| **MeshLink** | Orchestrator | `MeshLink.kt` (~830 lines) | Wiring layer connecting engines, coordinators, and transport |
 | **SecurityEngine** | Stateful engine | `crypto/SecurityEngine.kt` | Noise XX/K seal/unseal, trust store, replay guard |
 | **RoutingEngine** | Stateful engine | `routing/RoutingEngine.kt` | DSDV routing table, dedup, route cost validation |
 | **TransferEngine** | Stateful engine | `transfer/TransferEngine.kt` | Chunking, reassembly, SACK, AIMD congestion control |

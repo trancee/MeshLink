@@ -318,129 +318,67 @@ flowchart TD
 
 ## Routing
 
-`RoutingEngine` is the facade that consolidates routing table management,
-peer presence tracking, message deduplication, gossip preparation
-(split-horizon / poison-reverse), and adaptive gossip timing behind sealed
-result types (`NextHopResult`, `RouteLearnResult`). MeshLink delegates all
-routing decisions to `RoutingEngine` and pattern-matches on results.
+`RoutingEngine` consolidates routing table management, peer presence tracking,
+message deduplication, gossip preparation (split-horizon / poison-reverse), and
+adaptive gossip timing behind sealed result types (`NextHopResult`,
+`RouteLearnResult`).
 
-MeshLink uses an enhanced DSDV (Destination-Sequenced Distance-Vector)
-protocol with gossip-based route propagation.
+MeshLink uses Enhanced DSDV with composite cost metrics, primary + backup
+routes, settling delay, holddown timers, and per-neighbor routing table caps.
+`GossipTracker` implements differential gossip with triggered updates.
+`DedupSet` is an LRU set (default 10K entries) for message deduplication.
 
-### Routing Table
-
-`RoutingTable` maintains destination → route mappings with:
-
-- **Sequence numbers** — DSDV ordering (higher wins for same destination)
-- **Route expiry** — configurable TTL for stale routes
-- **Settling delay** — hold new routes briefly before advertising
-- **Holddown timer** — suppress route flapping
-- **Neighbor cap** — limit routing table entries proportional to neighbor count
-- **Primary + backup** — tracks multiple next-hops per destination
-
-### Composite Cost Metric
-
-`RouteCostCalculator` produces a cost value from four inputs:
-
-```
-cost = (rssiBase × lossMultiplier × freshnessPenalty) + stabilityPenalty
-
-Where:
-  rssiBase         = (rssi − (−20)) / (−100 − (−20))        ∈ [0, 1]
-  lossMultiplier   = 1 / (1 − packetLossRate)                1.0 at 0%, 100 at 99%
-  freshnessPenalty  = 1.0 + ageMillis / freshnessHalfLifeMillis      1.0 new, 2.0 at half-life
-  stabilityPenalty  = flapCount × penaltyPerFlap (default 0.1)
-```
-
-Lower cost is better. The result is clamped to `(0, MAX_ROUTE_COST]`.
-
-### Gossip Protocol
-
-`GossipTracker` implements differential gossip to minimize bandwidth:
-
-1. **Per-peer state tracking** — remembers which routes were last sent to each
-   peer (destination, sequence number, cost).
-2. **Diff computation** — `computeDiff()` returns only routes that are new or
-   changed since the last advertisement to that peer.
-3. **Withdrawal detection** — `computeWithdrawals()` identifies routes the peer
-   knows about but we no longer have (sent with `cost = ∞`).
-4. **Triggered updates** — a cost change exceeding `triggeredUpdateThreshold`
-   (default 30%) triggers an immediate advertisement, batched within
-   `triggeredUpdateBatchMillis` (default 100 ms).
-
-### Deduplication
-
-`DedupSet` is an LRU set (default 10K entries) that tracks message IDs. When a
-message arrives, `tryInsert()` returns `true` if the ID is new, `false` if
-already seen. On capacity overflow, the least-recently-used entry is evicted.
+For protocol details, cost formula, and gossip behavior, see
+[design.md §6](design.md#6-routing).
 
 ---
 
 ## Security Model
 
-MeshLink implements a two-layer encryption architecture when a `CryptoProvider`
-is supplied. For full details, see [design.md §5](design.md#5-security) and
-[diagrams.md § Noise XX Handshake](diagrams.md#5-noise-xx-handshake).
+Two-layer Noise encryption when a `CryptoProvider` is supplied:
 
 | Layer | Protocol | Scope | Purpose |
 |-------|----------|-------|---------|
 | Hop-by-hop | Noise XX | Per BLE link | Mutual authentication, session keys, forward secrecy |
 | End-to-end | Noise K | Per message | Sender-authenticated encryption, relay-opaque |
 
-**Key components:**
+Key components: `SecurityEngine` (facade), `NoiseXXHandshake` +
+`PeerHandshakeManager` (3-message mutual auth), `NoiseKSealer` (E2E, 48B
+overhead), `ReplayGuard` (64-entry sliding window), `TrustStore` (TOFI key
+pinning). All crypto is pure Kotlin — Ed25519, X25519, ChaCha20-Poly1305,
+SHA-256, HKDF-SHA256.
 
-- `SecurityEngine` — facade consolidating E2E encryption, signatures, handshakes, and peer key lifecycle
-- `NoiseXXHandshake` + `PeerHandshakeManager` — 3-message mutual auth handshake
-- `NoiseKSealer` — per-message E2E encryption (48B overhead: 32B ephemeral key + 16B auth tag)
-- `ReplayGuard` — 64-entry sliding window bitmask per sender
-- `TrustStore` — TOFI key pinning with `STRICT` and `SOFT_REPIN` modes
-
-**Cryptographic primitives** — all pure Kotlin with no native bindings:
-Ed25519 (signatures), X25519 (key agreement), ChaCha20-Poly1305 (AEAD),
-SHA-256 (hashing), HKDF-SHA256 (key derivation).
+For handshake flows and trust model details, see
+[design.md §5](design.md#5-security) and
+[diagrams.md § Noise XX Handshake](diagrams.md#5-noise-xx-handshake).
 
 ---
 
 ## Power Management
 
-`PowerCoordinator` is the facade that consolidates power-mode transitions
-(with hysteresis), memory-pressure evaluation, and buffer-pressure monitoring
-behind sealed result types. For full details and state diagrams, see
-[design.md §7](design.md#7-power-management) and
-[diagrams.md § Power Mode Transitions](diagrams.md#6-power-mode-transitions).
+`PowerCoordinator` manages battery-adaptive power modes with hysteresis:
 
-MeshLink automatically adapts BLE behavior based on battery level across
-three tiers:
+| Mode | Battery | Adv Interval | Scan Duty | Max Transfers |
+|------|---------|-------------|-----------|---------------|
+| PERFORMANCE | >80% / charging | 250 ms | 80% | 8 |
+| BALANCED | 30–80% | 500 ms | 50% | 4 |
+| POWER_SAVER | <30% | 1,000 ms | 16% | 1 |
 
-| Mode | Battery | Adv Interval | Scan Duty | Max Transfers | Chunk Payload |
-|------|---------|-------------|-----------|---------------|---------------|
-| PERFORMANCE | >80% or charging | 250 ms | 80% | 8 | 8,192 B |
-| BALANCED | 30–80% | 500 ms | 50% | 4 | 4,096 B |
-| POWER_SAVER | <30% | 1,000 ms | 16% | 1 | 1,024 B |
-
-Thresholds configurable via `powerModeThresholds` (default `[80, 30]`).
-Downward transitions delayed by 30s hysteresis; upward transitions and
-charging are immediate. Memory pressure shedding escalates through three
-levels (MODERATE → HIGH → CRITICAL) based on buffer utilization.
+Downward transitions delayed 30s (hysteresis); upward and charging immediate.
+For state diagrams and memory shedding, see
+[design.md §7](design.md#7-power-management).
 
 ---
 
 ## Transfer & Congestion Control
 
-`TransferEngine` consolidates outbound chunking and inbound reassembly behind
-sealed result types. For wire format details, see
-[wire-format-spec.md](wire-format-spec.md) and
-[diagrams.md § GATT Chunking & SACK Flow](diagrams.md#7-gatt-chunking--sack-flow).
+`TransferEngine` consolidates outbound chunking (AIMD/SACK) and inbound
+reassembly behind sealed result types. Chunks use 21-byte headers; SACK uses
+64-bit bitmasks for selective retransmission; `AimdController` adapts the
+congestion window; `TransferScheduler` limits concurrent transfers per power
+mode.
 
-- **Chunking** — messages larger than `mtu - 21` bytes are split into chunks
-  with a 21-byte header (type + messageId + seqNum + totalChunks).
-- **SACK** — receiver tracks arrivals via `SackTracker` (cumulative ackSeq +
-  64-bit bitmask). Sender retransmits only missing chunks.
-- **AIMD congestion control** — `AimdController` increases the window by 2
-  after 4 clean rounds; halves it after 2 consecutive timeouts
-  (min: `ackWindowMin`, max: `ackWindowMax`).
-- **Transfer scheduling** — `TransferScheduler` limits concurrent transfers
-  per power mode and uses weighted round-robin interleaving.
+For wire format details, see [wire-format-spec.md](wire-format-spec.md).
 
 ---
 

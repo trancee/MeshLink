@@ -159,8 +159,9 @@ Kotlin `Flow` requires a collector bridge in Swift. Two options:
 
 | Issue                              | Solution                                    |
 |------------------------------------|---------------------------------------------|
-| `No such module 'MeshLink'`    | Build the XCFramework first (step 1)        |
+| `No such module 'MeshLink'`    | Build the XCFramework first (step 1). If already built, clean with `./gradlew clean` from the repo root to rebuild |
 | BLE not working on simulator       | Expected — use a physical device             |
 | Crash on `KotlinByteArray`         | Ensure correct `Int8` ↔ `UInt8` conversion  |
 | Flow never emits                   | Check that `meshLink.start()` was called    |
 | Permission dialog not appearing    | Verify `Info.plist` keys are present         |
+| Stale framework after code changes | Run `./gradlew :meshlink:assembleMeshLinkXCFramework` to rebuild, then clean Xcode build folder (Shift+Cmd+K) |

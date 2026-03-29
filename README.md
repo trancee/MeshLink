@@ -39,18 +39,17 @@ See the [Integration Guide](docs/integration-guide.md) for complete setup, confi
 ## Configuration Presets
 
 MeshLink ships with four presets — `chatOptimized`, `fileTransferOptimized`,
-`powerOptimized`, and `sensorOptimized`. See the
-[API Reference § Presets](docs/api-reference.md#presets) for the full
-comparison table.
-
-```kotlin
-val config = MeshLinkConfig.chatOptimized()
-```
+`powerOptimized`, and `sensorOptimized` — see the
+[API Reference](docs/api-reference.md#presets) for details.
 
 ## Security
 
-MeshLink uses two-layer Noise protocol encryption (Noise XX hop-by-hop +
-Noise K end-to-end) validated against RFC test vectors. See the
+MeshLink uses two-layer Noise protocol encryption — Noise XX
+(`Noise_XX_25519_ChaChaPoly_SHA256`) for hop-by-hop confidentiality between
+neighbors and Noise K (`Noise_K_25519_ChaChaPoly_SHA256`) for end-to-end
+authentication between sender and recipient. Identity is Ed25519 with TOFI
+(Trust-On-First-Discover) key pinning. See the
+[Threat Model](docs/threat-model.md) and
 [Integration Guide § Encryption & Trust](docs/integration-guide.md#encryption--trust)
 for details.
 
@@ -81,14 +80,7 @@ MeshLink/
 
 ## Documentation
 
-- [Integration Guide](docs/integration-guide.md) — Setup, configuration, and usage patterns
-- [Architecture](docs/architecture.md) — Module structure and data flow
-- [Wire Format Spec](docs/wire-format-spec.md) — Binary protocol specification
-- [Design](docs/design.md) — Design decisions and rationale
-- [API Reference](docs/api-reference.md) — Complete API documentation
-- [Threat Model](docs/threat-model.md) — Security analysis
-- [Diagrams](docs/diagrams.md) — Visual reference diagrams
-- [Firebase Test Lab Setup](docs/firebase-test-lab-setup.md) — CI/CD device testing
+[Integration Guide](docs/integration-guide.md) · [Architecture](docs/architecture.md) · [Wire Format Spec](docs/wire-format-spec.md) · [Design](docs/design.md) · [API Reference](docs/api-reference.md) · [Threat Model](docs/threat-model.md) · [Diagrams](docs/diagrams.md)
 
 ## Building
 

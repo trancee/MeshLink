@@ -132,13 +132,16 @@ packet
 |------|------|
 | 0x00 | broadcast |
 | 0x01 | handshake |
-| 0x02 | gossip |
+| 0x02 | gossip (route_update) |
 | 0x03 | chunk |
 | 0x04 | chunk_ack |
 | 0x05 | routed_message |
 | 0x06 | delivery_ack |
 | 0x07 | resume_request |
-| 0x08–0xFF | reserved |
+| 0x08 | keepalive |
+| 0x09 | nack |
+| 0x0A | rotation |
+| 0x0B–0xFF | reserved |
 
 ---
 
