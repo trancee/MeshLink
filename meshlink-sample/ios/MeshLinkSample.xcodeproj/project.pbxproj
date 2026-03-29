@@ -275,6 +275,7 @@
 /* Begin XCSwiftPackageProductDependency section */
 		E1000A000000000000000001 /* MeshLink */ = {
 			isa = XCSwiftPackageProductDependency;
+			package = E10009000000000000000001 /* XCLocalSwiftPackageReference "../.." */;
 			productName = MeshLink;
 		};
 /* End XCSwiftPackageProductDependency section */
