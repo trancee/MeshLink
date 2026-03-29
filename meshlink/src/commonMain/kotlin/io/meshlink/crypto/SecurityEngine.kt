@@ -2,6 +2,7 @@ package io.meshlink.crypto
 
 import io.meshlink.diagnostics.DiagnosticSink
 import io.meshlink.model.KeyChangeEvent
+import io.meshlink.util.toHex
 import io.meshlink.wire.RotationAnnouncement
 
 /**
@@ -70,11 +71,24 @@ class SecurityEngine(
 
     // --- Handshake ---
 
-    fun handleHandshakeMessage(fromPeerId: ByteArray, wireData: ByteArray): ByteArray? =
-        handshakeManager.handleIncoming(fromPeerId, wireData)
+    fun handleHandshakeMessage(fromPeerId: ByteArray, wireData: ByteArray): ByteArray? {
+        val response = handshakeManager.handleIncoming(fromPeerId, wireData)
+        registerCompletedHandshakeKey(fromPeerId)
+        return response
+    }
 
-    fun initiateHandshake(peerId: ByteArray): ByteArray? =
-        handshakeManager.initiateHandshake(peerId, handshakePayload)
+    fun initiateHandshake(peerId: ByteArray): ByteArray? {
+        val response = handshakeManager.initiateHandshake(peerId, handshakePayload)
+        registerCompletedHandshakeKey(peerId)
+        return response
+    }
+
+    private fun registerCompletedHandshakeKey(peerId: ByteArray) {
+        val peerHex = peerId.toHex()
+        if (peerPublicKeys.containsKey(peerHex)) return
+        val result = handshakeManager.getSessionKeys(peerId) ?: return
+        peerPublicKeys[peerHex] = result.remoteStaticKey
+    }
 
     fun isHandshakeComplete(peerId: ByteArray): Boolean =
         handshakeManager.isComplete(peerId)
