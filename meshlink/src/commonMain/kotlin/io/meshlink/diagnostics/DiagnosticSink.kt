@@ -29,6 +29,7 @@ enum class DiagnosticCode {
     APP_ID_REJECTED,
     UNKNOWN_MESSAGE_TYPE,
     DELIVERY_TIMEOUT,
+    HANDSHAKE_EVENT,
 }
 
 data class DiagnosticEvent(

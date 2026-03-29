@@ -217,6 +217,7 @@ class MeshLink(
                 l2capPsm = 0u,
             ).encode(),
             clock = clock,
+            diagnosticSink = diagnosticSink,
         )
     }
 

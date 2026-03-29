@@ -1,5 +1,6 @@
 package io.meshlink.crypto
 
+import io.meshlink.diagnostics.DiagnosticSink
 import io.meshlink.model.KeyChangeEvent
 import io.meshlink.wire.RotationAnnouncement
 
@@ -15,6 +16,7 @@ class SecurityEngine(
     private val handshakePayload: ByteArray = byteArrayOf(),
     private val clock: () -> Long = { 0L },
     private val rotationFreshnessWindowMillis: Long = 30_000L,
+    diagnosticSink: DiagnosticSink? = null,
 ) {
     private var localKeyPair: CryptoKeyPair = crypto.generateX25519KeyPair()
     private var broadcastKeyPair: CryptoKeyPair = crypto.generateEd25519KeyPair()
@@ -27,6 +29,7 @@ class SecurityEngine(
         crypto,
         crypto.generateX25519KeyPair(),
         localPayload = handshakePayload,
+        diagnosticSink = diagnosticSink,
     )
 
     // --- Public key accessors ---
