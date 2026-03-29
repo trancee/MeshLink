@@ -2,6 +2,7 @@
 
 package io.meshlink.transport
 
+import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.usePinned
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
