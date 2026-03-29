@@ -29,7 +29,7 @@ kotlin {
     jvm()
     android {
         namespace = "io.meshlink"
-        compileSdk = 35
+        compileSdk = 36
         minSdk = 26
 
         withDeviceTestBuilder {

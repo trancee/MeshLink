@@ -5,7 +5,7 @@ plugins {
 
 android {
     namespace = "io.meshlink.sample"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "io.meshlink.sample"
