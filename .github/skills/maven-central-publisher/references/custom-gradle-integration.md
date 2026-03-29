@@ -252,11 +252,11 @@ fun buildMultipartBody(boundary: String, file: File): ByteArray {
 
 fun waitForValidation(deploymentId: String, token: String, waitForPublishing: Boolean) {
     val client = HttpClient.newHttpClient()
-    val maxWaitMs = 30 * 60 * 1000L  // 30 minutes
-    val pollIntervalMs = 5_000L
+    val maxWaitMillis = 30 * 60 * 1000L  // 30 minutes
+    val pollIntervalMillis = 5_000L
     val start = System.currentTimeMillis()
 
-    while (System.currentTimeMillis() - start < maxWaitMs) {
+    while (System.currentTimeMillis() - start < maxWaitMillis) {
         val request = HttpRequest.newBuilder()
             .uri(URI.create("https://central.sonatype.com/api/v1/publisher/status?id=$deploymentId"))
             .header("Authorization", "Bearer $token")
@@ -274,7 +274,7 @@ fun waitForValidation(deploymentId: String, token: String, waitForPublishing: Bo
         val state = Regex("\"deploymentState\"\\s*:\\s*\"([A-Z_]+)\"").find(body)?.groupValues?.get(1)
         if (state == null) {
             logger.warn("Could not parse deploymentState from response: $body")
-            Thread.sleep(pollIntervalMs)
+            Thread.sleep(pollIntervalMillis)
             continue
         }
 
@@ -301,10 +301,10 @@ fun waitForValidation(deploymentId: String, token: String, waitForPublishing: Bo
             else -> logger.warn("  Unknown state: $state")
         }
 
-        Thread.sleep(pollIntervalMs)
+        Thread.sleep(pollIntervalMillis)
     }
 
-    error("Timed out waiting for deployment validation after ${maxWaitMs / 1000}s")
+    error("Timed out waiting for deployment validation after ${maxWaitMillis / 1000}s")
 }
 ```
 
@@ -412,8 +412,8 @@ Option B is recommended for projects with many modules since it reduces API call
 | What | How |
 |------|-----|
 | Auto-publish | Set `MAVEN_CENTRAL_AUTO_PUBLISH=true` or `mavenCentralAutoPublish=true` in gradle.properties |
-| Polling interval | Change `pollIntervalMs` in `waitForValidation()` |
-| Timeout | Change `maxWaitMs` in `waitForValidation()` |
+| Polling interval | Change `pollIntervalMillis` in `waitForValidation()` |
+| Timeout | Change `maxWaitMillis` in `waitForValidation()` |
 | Additional checksums | Add SHA-256/SHA-512 in `generateChecksums()` (optional but recommended) |
 | Skip metadata files | The `maven-metadata*.xml` filter prevents local Gradle metadata from being included |
 | Custom deployment name | Modify the `deploymentName` variable in the task |
@@ -441,5 +441,5 @@ Option B is recommended for projects with many modules since it reduces API call
 | Validation fails: missing checksums | `generateChecksums()` didn't run or didn't cover all files | The task generates `.md5` and `.sha1` for every file. Verify the staging directory has checksum files before zipping. |
 | Validation fails: invalid signature | Wrong GPG key, or signing used a sub-key that's not on key servers | Use `gpg --list-keys --keyid-format long` to check which key is signing. Upload the exact key to `keyserver.ubuntu.com`. |
 | `FAILED` status with no error details | API returned an error but the task couldn't parse it | Check the raw JSON response. The `errors` field in the status response contains details. |
-| Timeout waiting for validation | Large bundle or portal backlog | Increase `maxWaitMs`. Bundles under 100MB typically validate in under 2 minutes. |
+| Timeout waiting for validation | Large bundle or portal backlog | Increase `maxWaitMillis`. Bundles under 100MB typically validate in under 2 minutes. |
 | `maven-metadata*.xml` in bundle | Gradle's `maven-publish` generates local metadata | The zip task already filters these out. If you customized the task, ensure the filter is in place. |

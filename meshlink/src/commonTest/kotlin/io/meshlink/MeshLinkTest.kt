@@ -613,16 +613,16 @@ class MeshLinkTest {
 
     @Test
     fun rateLimitRejectsExcessSends() = runTest {
-        var nowMs = 0L
+        var nowMillis = 0L
         val transportAlice = VirtualMeshTransport(peerIdAlice)
         val transportBob = VirtualMeshTransport(peerIdBob)
         transportAlice.linkTo(transportBob)
 
         val alice = MeshLink(
             transportAlice,
-            meshLinkConfig { requireEncryption = false; rateLimitMaxSends = 3; rateLimitWindowMs = 60_000L },
+            meshLinkConfig { requireEncryption = false; rateLimitMaxSends = 3; rateLimitWindowMillis = 60_000L },
             coroutineContext,
-            clock = { nowMs },
+            clock = { nowMillis },
         )
         alice.start()
         advanceUntilIdle()
@@ -641,7 +641,7 @@ class MeshLinkTest {
         assertTrue("rate" in r4.exceptionOrNull()!!.message!!.lowercase())
 
         // Advance time past the window → should succeed again
-        nowMs = 61_000L
+        nowMillis = 61_000L
         val r5 = alice.send(peerIdBob, "msg5".encodeToByteArray())
         assertTrue(r5.isSuccess, "Send after window reset should succeed")
 
@@ -976,11 +976,11 @@ class MeshLinkTest {
 
     @Test
     fun diagnosticEventEmittedOnRateLimit() = runTest {
-        var nowMs = 0L
+        var nowMillis = 0L
         val transportAlice = VirtualMeshTransport(peerIdAlice)
         val alice = MeshLink(
-            transportAlice, meshLinkConfig { requireEncryption = false; rateLimitMaxSends = 1; rateLimitWindowMs = 60_000L }, coroutineContext,
-            clock = { nowMs },
+            transportAlice, meshLinkConfig { requireEncryption = false; rateLimitMaxSends = 1; rateLimitWindowMillis = 60_000L }, coroutineContext,
+            clock = { nowMillis },
         )
         alice.start()
         advanceUntilIdle()
@@ -1852,8 +1852,8 @@ class MeshLinkTest {
             transportAlice, meshLinkConfig {
                 requireEncryption = false
                 circuitBreakerMaxFailures = 2
-                circuitBreakerWindowMs = 10_000
-                circuitBreakerCooldownMs = 5_000
+                circuitBreakerWindowMillis = 10_000
+                circuitBreakerCooldownMillis = 5_000
             }, coroutineContext,
             clock = { now },
         )
@@ -1908,7 +1908,7 @@ class MeshLinkTest {
         transportBob.dropFilter = { data -> data.isNotEmpty() && data[0] == WireCodec.TYPE_CHUNK_ACK }
         transportCharlie.dropFilter = { data -> data.isNotEmpty() && data[0] == WireCodec.TYPE_CHUNK_ACK }
 
-        val alice = MeshLink(transportAlice, meshLinkConfig { requireEncryption = false; bufferTtlMs = 0L; keepaliveIntervalMs = 0L }, coroutineContext)
+        val alice = MeshLink(transportAlice, meshLinkConfig { requireEncryption = false; bufferTtlMillis = 0L; keepaliveIntervalMillis = 0L }, coroutineContext)
         alice.start()
         advanceUntilIdle()
         transportAlice.simulateDiscovery(peerIdBob)
@@ -2278,7 +2278,7 @@ class MeshLinkTest {
         // Drop all ACKs so transfer never completes
         transportBob.dropFilter = { data -> data.isNotEmpty() && data[0] == WireCodec.TYPE_CHUNK_ACK }
 
-        val alice = MeshLink(transportAlice, meshLinkConfig { requireEncryption = false; bufferTtlMs = 0L; keepaliveIntervalMs = 0L }, coroutineContext)
+        val alice = MeshLink(transportAlice, meshLinkConfig { requireEncryption = false; bufferTtlMillis = 0L; keepaliveIntervalMillis = 0L }, coroutineContext)
         alice.start()
         advanceUntilIdle()
         transportAlice.simulateDiscovery(peerIdBob)
@@ -2317,7 +2317,7 @@ class MeshLinkTest {
         transportAlice.linkTo(transportBob)
 
         val alice = MeshLink(
-            transportAlice, meshLinkConfig { requireEncryption = false; rateLimitMaxSends = 2; rateLimitWindowMs = 10_000 }, coroutineContext,
+            transportAlice, meshLinkConfig { requireEncryption = false; rateLimitMaxSends = 2; rateLimitWindowMillis = 10_000 }, coroutineContext,
             clock = { now },
         )
         alice.start()
@@ -2349,7 +2349,7 @@ class MeshLinkTest {
         val alice = MeshLink(
             transportAlice, meshLinkConfig {
                 requireEncryption = false
-                rateLimitMaxSends = 1; rateLimitWindowMs = 60_000
+                rateLimitMaxSends = 1; rateLimitWindowMillis = 60_000
                 diagnosticBufferCapacity = 3
             }, coroutineContext,
         )
@@ -2510,7 +2510,7 @@ class MeshLinkTest {
         transportAlice.dropFilter = { data -> data.isNotEmpty() && data[0] == WireCodec.TYPE_CHUNK_ACK }
 
         // Small buffer so we hit pressure quickly
-        val config = meshLinkConfig { requireEncryption = false; bufferCapacity = 200; maxMessageSize = 200; bufferTtlMs = 0L; keepaliveIntervalMs = 0L }
+        val config = meshLinkConfig { requireEncryption = false; bufferCapacity = 200; maxMessageSize = 200; bufferTtlMillis = 0L; keepaliveIntervalMillis = 0L }
         val alice = MeshLink(transportAlice, config, coroutineContext)
         alice.start()
         advanceUntilIdle()
@@ -2580,8 +2580,8 @@ class MeshLinkTest {
             transportAlice, meshLinkConfig {
                 requireEncryption = false
                 circuitBreakerMaxFailures = 3
-                circuitBreakerWindowMs = 10_000
-                circuitBreakerCooldownMs = 5_000
+                circuitBreakerWindowMillis = 10_000
+                circuitBreakerCooldownMillis = 5_000
             }, coroutineContext,
             clock = { now },
         )
@@ -2780,7 +2780,7 @@ class MeshLinkTest {
         // Buffer capacity = 1000 bytes
         val alice = MeshLink(
             transportAlice,
-            meshLinkConfig { requireEncryption = false; bufferCapacity = 1000; maxMessageSize = 1000; bufferTtlMs = 0L; keepaliveIntervalMs = 0L },
+            meshLinkConfig { requireEncryption = false; bufferCapacity = 1000; maxMessageSize = 1000; bufferTtlMillis = 0L; keepaliveIntervalMillis = 0L },
             coroutineContext,
         )
         alice.start()
@@ -3196,7 +3196,7 @@ class MeshLinkTest {
         val transportAlice = VirtualMeshTransport(peerIdAlice)
         val alice = MeshLink(
             transportAlice,
-            meshLinkConfig { requireEncryption = false; rateLimitMaxSends = 1; rateLimitWindowMs = 60_000 },
+            meshLinkConfig { requireEncryption = false; rateLimitMaxSends = 1; rateLimitWindowMillis = 60_000 },
             coroutineContext,
         )
         alice.start()
@@ -3351,8 +3351,8 @@ class MeshLinkTest {
         // Drop all data so chunks never get ACKed
         transportAlice.dropFilter = { _ -> true }
 
-        var nowMs = 0L
-        val alice = MeshLink(transportAlice, meshLinkConfig { requireEncryption = false; bufferTtlMs = 0L; keepaliveIntervalMs = 0L }, coroutineContext, clock = { nowMs })
+        var nowMillis = 0L
+        val alice = MeshLink(transportAlice, meshLinkConfig { requireEncryption = false; bufferTtlMillis = 0L; keepaliveIntervalMillis = 0L }, coroutineContext, clock = { nowMillis })
         alice.start()
         advanceUntilIdle()
         transportAlice.simulateDiscovery(peerIdBob)
@@ -3366,8 +3366,8 @@ class MeshLinkTest {
         assertEquals(1, alice.meshHealth().activeTransfers, "Should have 1 active transfer")
 
         // Advance time past max age and sweep
-        nowMs = 30_001L
-        val swept = alice.sweepStaleTransfers(maxAgeMs = 30_000L)
+        nowMillis = 30_001L
+        val swept = alice.sweepStaleTransfers(maxAgeMillis = 30_000L)
         assertEquals(1, swept, "Should evict 1 stale transfer")
         assertEquals(0, alice.meshHealth().activeTransfers, "No active transfers after sweep")
 
@@ -3437,7 +3437,7 @@ class MeshLinkTest {
 
         // Sweep with short maxAge — orphaned reassembly should be evicted
         now = 10_000L
-        val evictedCount = alice.sweepStaleReassemblies(maxAgeMs = 5_000)
+        val evictedCount = alice.sweepStaleReassemblies(maxAgeMillis = 5_000)
         assertTrue(evictedCount >= 0, "sweepStaleReassemblies should return non-negative count")
 
         alice.stop(); bob.stop()
@@ -3662,7 +3662,7 @@ class MeshLinkTest {
             mtu = 185
             maxMessageSize = 1024
             bufferCapacity = 2048
-            bufferTtlMs = 0L; keepaliveIntervalMs = 0L
+            bufferTtlMillis = 0L; keepaliveIntervalMillis = 0L
         }
         val transportA = VirtualMeshTransport(peerIdAlice)
         val transportB = VirtualMeshTransport(peerIdBob)
@@ -3684,7 +3684,7 @@ class MeshLinkTest {
 
         // Sweep stale transfers — removes the outbound entry
         now = 60_000L
-        val swept = a.sweepStaleTransfers(maxAgeMs = 30_000)
+        val swept = a.sweepStaleTransfers(maxAgeMillis = 30_000)
         assertTrue(swept >= 1, "Should sweep at least 1 stale transfer")
 
         // Now remove drop filter and replay a chunk ACK
@@ -3767,8 +3767,8 @@ class MeshLinkTest {
         assertTrue(evicted.isEmpty())
 
         // sweepStaleTransfers on fresh node returns 0
-        assertEquals(0, a.sweepStaleTransfers(maxAgeMs = 1000))
-        assertEquals(0, a.sweepStaleReassemblies(maxAgeMs = 1000))
+        assertEquals(0, a.sweepStaleTransfers(maxAgeMillis = 1000))
+        assertEquals(0, a.sweepStaleReassemblies(maxAgeMillis = 1000))
 
         a.stop()
     }
@@ -4650,7 +4650,7 @@ class MeshLinkTest {
         val transport = VirtualMeshTransport(peerIdAlice)
         val config = meshLinkConfig {
             requireEncryption = false
-            gossipIntervalMs = 100L
+            gossipIntervalMillis = 100L
         }
         val alice = MeshLink(transport, config, coroutineContext)
 
@@ -4683,7 +4683,7 @@ class MeshLinkTest {
         val transport = VirtualMeshTransport(peerIdAlice)
         val config = meshLinkConfig {
             requireEncryption = false
-            gossipIntervalMs = 100L
+            gossipIntervalMillis = 100L
         }
         val alice = MeshLink(transport, config, coroutineContext)
         val destHex = peerIdBob.toHex()
@@ -4714,7 +4714,7 @@ class MeshLinkTest {
         // Alice learns route to Charlie via Bob.
         // When Alice gossips to Bob, it should NOT include route to Charlie (split horizon).
         val transportAlice = VirtualMeshTransport(peerIdAlice)
-        val config = meshLinkConfig { requireEncryption = false; gossipIntervalMs = 100L }
+        val config = meshLinkConfig { requireEncryption = false; gossipIntervalMillis = 100L }
         val alice = MeshLink(transportAlice, config, coroutineContext)
 
         val bobHex = peerIdBob.toHex()
@@ -4783,7 +4783,7 @@ class MeshLinkTest {
         transportA.linkTo(transportB)
         transportB.linkTo(transportC)
 
-        val config = meshLinkConfig { requireEncryption = false; gossipIntervalMs = 100L }
+        val config = meshLinkConfig { requireEncryption = false; gossipIntervalMillis = 100L }
         val a = MeshLink(transportA, config, coroutineContext)
         val b = MeshLink(transportB, config, coroutineContext)
         val c = MeshLink(transportC, config, coroutineContext)
@@ -4824,7 +4824,7 @@ class MeshLinkTest {
     @Test
     fun gossipPoisonReverseOnPeerDisappearance() = runTest {
         val transport = VirtualMeshTransport(peerIdAlice)
-        val config = meshLinkConfig { requireEncryption = false; gossipIntervalMs = 100L }
+        val config = meshLinkConfig { requireEncryption = false; gossipIntervalMillis = 100L }
         val alice = MeshLink(transport, config, coroutineContext)
 
         val bobHex = peerIdBob.toHex()
@@ -4870,7 +4870,7 @@ class MeshLinkTest {
         val transport = VirtualMeshTransport(peerIdAlice)
         val config = meshLinkConfig {
             requireEncryption = false
-            pendingMessageTtlMs = 30_000L
+            pendingMessageTtlMillis = 30_000L
         }
         val alice = MeshLink(transport, config, coroutineContext)
         alice.start()
@@ -4895,7 +4895,7 @@ class MeshLinkTest {
         transportA.linkTo(transportB)
         val config = meshLinkConfig {
             requireEncryption = false
-            pendingMessageTtlMs = 30_000L
+            pendingMessageTtlMillis = 30_000L
         }
         val alice = MeshLink(transportA, config, coroutineContext)
         alice.start()
@@ -4918,13 +4918,13 @@ class MeshLinkTest {
 
     @Test
     fun bufferedMessageExpiredByTtlIsPurged() = runTest {
-        var nowMs = 0L
+        var nowMillis = 0L
         val transport = VirtualMeshTransport(peerIdAlice)
         val config = meshLinkConfig {
             requireEncryption = false
-            pendingMessageTtlMs = 5_000L
+            pendingMessageTtlMillis = 5_000L
         }
-        val alice = MeshLink(transport, config, coroutineContext, clock = { nowMs })
+        val alice = MeshLink(transport, config, coroutineContext, clock = { nowMillis })
         alice.start()
         advanceUntilIdle()
 
@@ -4932,7 +4932,7 @@ class MeshLinkTest {
         alice.send(unknownPeer, "will expire".encodeToByteArray())
 
         // Advance clock past TTL
-        nowMs = 6_000L
+        nowMillis = 6_000L
 
         // Now discover the peer — expired message should NOT be flushed
         val advPayload = ByteArray(0)
@@ -4952,7 +4952,7 @@ class MeshLinkTest {
         transport.linkTo(transportB)
         val config = meshLinkConfig {
             requireEncryption = false
-            pendingMessageTtlMs = 30_000L
+            pendingMessageTtlMillis = 30_000L
             pendingMessageCapacity = 3
         }
         val alice = MeshLink(transport, config, coroutineContext)
@@ -4983,7 +4983,7 @@ class MeshLinkTest {
         transport.linkTo(transportB)
         val config = meshLinkConfig {
             requireEncryption = false
-            pendingMessageTtlMs = 30_000L
+            pendingMessageTtlMillis = 30_000L
         }
         val alice = MeshLink(transport, config, coroutineContext)
         alice.start()
@@ -5040,7 +5040,7 @@ class MeshLinkTest {
         transportB.linkTo(transportA)
         val config = meshLinkConfig {
             requireEncryption = false
-            pendingMessageTtlMs = 30_000L
+            pendingMessageTtlMillis = 30_000L
         }
         val alice = MeshLink(transportA, config, coroutineContext)
         val bob = MeshLink(transportB, config, coroutineContext)
@@ -5082,7 +5082,7 @@ class MeshLinkTest {
     @Test
     fun sendToUnknownPeerWithoutBufferEmitsTransferFailure() = runTest {
         val transport = VirtualMeshTransport(peerIdAlice)
-        val config = meshLinkConfig { requireEncryption = false }  // pendingMessageTtlMs = 0 → no buffer
+        val config = meshLinkConfig { requireEncryption = false }  // pendingMessageTtlMillis = 0 → no buffer
         val alice = MeshLink(transport, config, coroutineContext)
         alice.start()
         advanceUntilIdle()
@@ -5220,13 +5220,13 @@ class MeshLinkTest {
 
     @Test
     fun broadcastRateLimitEnforced() = runTest {
-        var nowMs = 0L
+        var nowMillis = 0L
         val transport = VirtualMeshTransport(peerIdAlice)
         val config = meshLinkConfig {
             requireEncryption = false
             broadcastRateLimitPerMinute = 10
         }
-        val alice = MeshLink(transport, config, coroutineContext, clock = { nowMs })
+        val alice = MeshLink(transport, config, coroutineContext, clock = { nowMillis })
         alice.start()
         advanceUntilIdle()
 
@@ -5247,7 +5247,7 @@ class MeshLinkTest {
             "Error should mention rate limit")
 
         // After 60s, broadcasts should work again
-        nowMs = 61_000L
+        nowMillis = 61_000L
         val result2 = alice.broadcast("msg12".encodeToByteArray(), 3u)
         assertTrue(result2.isSuccess, "Broadcast after 60s should succeed")
 
@@ -5324,8 +5324,8 @@ class MeshLinkTest {
         val transportB = VirtualMeshTransport(peerIdBob)
         transportA.linkTo(transportB)
         // Don't link B→A so chunk ACKs never arrive
-        var nowMs = 0L
-        val alice = MeshLink(transportA, meshLinkConfig { requireEncryption = false; bufferTtlMs = 0L; keepaliveIntervalMs = 0L }, coroutineContext, clock = { nowMs })
+        var nowMillis = 0L
+        val alice = MeshLink(transportA, meshLinkConfig { requireEncryption = false; bufferTtlMillis = 0L; keepaliveIntervalMillis = 0L }, coroutineContext, clock = { nowMillis })
         alice.start()
         advanceUntilIdle()
 
@@ -5343,7 +5343,7 @@ class MeshLinkTest {
         assertEquals(1, alice.meshHealth().activeTransfers)
 
         // Advance clock and sweep
-        nowMs = 31_000L
+        nowMillis = 31_000L
         val swept = alice.sweepStaleTransfers(30_000L)
         advanceUntilIdle()
 
@@ -5541,13 +5541,13 @@ class MeshLinkTest {
 
     @Test
     fun deliveryDeadlineEmitsTimeoutForExpiredBufferedMessages() = runTest {
-        var nowMs = 0L
+        var nowMillis = 0L
         val transport = VirtualMeshTransport(peerIdAlice)
         val config = meshLinkConfig {
             requireEncryption = false
-            pendingMessageTtlMs = 5_000L
+            pendingMessageTtlMillis = 5_000L
         }
-        val alice = MeshLink(transport, config, coroutineContext, clock = { nowMs })
+        val alice = MeshLink(transport, config, coroutineContext, clock = { nowMillis })
         alice.start()
         advanceUntilIdle()
 
@@ -5562,7 +5562,7 @@ class MeshLinkTest {
         assertTrue(failures.isEmpty(), "No failure yet — message is buffered")
 
         // Advance clock past TTL
-        nowMs = 6_000L
+        nowMillis = 6_000L
 
         // Sweep pending messages to trigger delivery deadline
         alice.sweepExpiredPendingMessages()
@@ -5890,7 +5890,7 @@ class MeshLinkTest {
             bufferCapacity = 100
             maxMessageSize = 100
             mtu = 100
-            bufferTtlMs = 0L; keepaliveIntervalMs = 0L
+            bufferTtlMillis = 0L; keepaliveIntervalMillis = 0L
         }
         val alice = MeshLink(transportA, config, coroutineContext)
         alice.start()
@@ -5981,7 +5981,7 @@ class MeshLinkTest {
     @Test
     fun stopEmitsFailureForPausedMessages() = runTest {
         val transportA = VirtualMeshTransport(peerIdAlice)
-        val alice = MeshLink(transportA, meshLinkConfig { requireEncryption = false; bufferTtlMs = 0L; keepaliveIntervalMs = 0L }, coroutineContext)
+        val alice = MeshLink(transportA, meshLinkConfig { requireEncryption = false; bufferTtlMillis = 0L; keepaliveIntervalMillis = 0L }, coroutineContext)
         alice.start()
         advanceUntilIdle()
 
@@ -6124,17 +6124,17 @@ class MeshLinkTest {
     @Test
     fun gossipThrottlesWhenRoutingTableLarge() = runTest {
         val transportA = VirtualMeshTransport(peerIdAlice)
-        // gossipIntervalMs=0 disables the gossip coroutine (avoids runTest hang)
+        // gossipIntervalMillis=0 disables the gossip coroutine (avoids runTest hang)
         val config = meshLinkConfig {
             requireEncryption = false
-            gossipIntervalMs = 1000
+            gossipIntervalMillis = 1000
         }
         val alice = MeshLink(transportA, config, coroutineContext)
         // Don't start() — just test effectiveGossipInterval via meshHealth()
         // addRoute + meshHealth are safe to call without starting
 
         // Baseline: effective interval equals configured
-        assertEquals(1000L, alice.meshHealth().effectiveGossipIntervalMs,
+        assertEquals(1000L, alice.meshHealth().effectiveGossipIntervalMillis,
             "No routes → base interval")
 
         // Add 101 routes to trigger throttle (>100 = 1.5× interval)
@@ -6146,7 +6146,7 @@ class MeshLinkTest {
             alice.addRoute(dest, peerIdBob.toHex(), 1.0, 1u)
         }
 
-        assertEquals(1500L, alice.meshHealth().effectiveGossipIntervalMs,
+        assertEquals(1500L, alice.meshHealth().effectiveGossipIntervalMillis,
             ">100 routes → 1.5× interval")
     }
 
@@ -6155,7 +6155,7 @@ class MeshLinkTest {
         val transportA = VirtualMeshTransport(peerIdAlice)
         val config = meshLinkConfig {
             requireEncryption = false
-            gossipIntervalMs = 1000
+            gossipIntervalMillis = 1000
         }
         val alice = MeshLink(transportA, config, coroutineContext)
 
@@ -6168,7 +6168,7 @@ class MeshLinkTest {
             alice.addRoute(dest, peerIdBob.toHex(), 1.0, 1u)
         }
 
-        assertEquals(2000L, alice.meshHealth().effectiveGossipIntervalMs,
+        assertEquals(2000L, alice.meshHealth().effectiveGossipIntervalMillis,
             ">200 routes → 2× interval")
     }
 
@@ -6205,7 +6205,7 @@ class MeshLinkTest {
             maxMessageSize = 200
             bufferCapacity = 500
             mtu = 185
-            bufferTtlMs = 0L; keepaliveIntervalMs = 0L
+            bufferTtlMillis = 0L; keepaliveIntervalMillis = 0L
         }
         val alice = MeshLink(transportA, config, coroutineContext)
         alice.start()
@@ -6272,7 +6272,7 @@ class MeshLinkTest {
         val transportA = VirtualMeshTransport(peerIdAlice)
         val config = meshLinkConfig {
             requireEncryption = false
-            pendingMessageTtlMs = 60_000
+            pendingMessageTtlMillis = 60_000
             pendingMessageCapacity = 2
         }
         val alice = MeshLink(transportA, config, coroutineContext)
@@ -6305,7 +6305,7 @@ class MeshLinkTest {
         val transportA = VirtualMeshTransport(peerIdAlice)
         val config = meshLinkConfig {
             requireEncryption = false
-            gossipIntervalMs = 500
+            gossipIntervalMillis = 500
         }
         val alice = MeshLink(transportA, config, coroutineContext)
         alice.start()
@@ -6528,13 +6528,13 @@ class MeshLinkTest {
     fun powerSaverModeIncreasesEffectiveGossipInterval() = runTest {
         var now = 0L
         val transport = VirtualMeshTransport(peerIdAlice)
-        val config = meshLinkConfig { requireEncryption = false; gossipIntervalMs = 1000 }
+        val config = meshLinkConfig { requireEncryption = false; gossipIntervalMillis = 1000 }
         val alice = MeshLink(transport, config, coroutineContext, clock = { now })
 
         // Default: PERFORMANCE mode → base interval
         val healthPerf = alice.meshHealth()
         assertEquals("PERFORMANCE", healthPerf.powerMode)
-        assertEquals(1000L, healthPerf.effectiveGossipIntervalMs)
+        assertEquals(1000L, healthPerf.effectiveGossipIntervalMillis)
 
         // Request POWER_SAVER (5% battery, not charging)
         alice.updateBattery(5, isCharging = false)
@@ -6547,15 +6547,15 @@ class MeshLinkTest {
 
         val healthSaver = alice.meshHealth()
         assertEquals("POWER_SAVER", healthSaver.powerMode)
-        assertTrue(healthSaver.effectiveGossipIntervalMs > 1000L,
-            "POWER_SAVER should increase gossip interval, got ${healthSaver.effectiveGossipIntervalMs}ms")
+        assertTrue(healthSaver.effectiveGossipIntervalMillis > 1000L,
+            "POWER_SAVER should increase gossip interval, got ${healthSaver.effectiveGossipIntervalMillis}ms")
     }
 
     @Test
     fun balancedModeDoublesGossipInterval() = runTest {
         var now = 0L
         val transport = VirtualMeshTransport(peerIdAlice)
-        val config = meshLinkConfig { requireEncryption = false; gossipIntervalMs = 1000 }
+        val config = meshLinkConfig { requireEncryption = false; gossipIntervalMillis = 1000 }
         val alice = MeshLink(transport, config, coroutineContext, clock = { now })
 
         // Request BALANCED (50% battery, not charging)
@@ -6565,7 +6565,7 @@ class MeshLinkTest {
 
         val health = alice.meshHealth()
         assertEquals("BALANCED", health.powerMode)
-        assertEquals(2000L, health.effectiveGossipIntervalMs,
+        assertEquals(2000L, health.effectiveGossipIntervalMillis,
             "BALANCED should double gossip interval")
     }
 
@@ -6602,7 +6602,7 @@ class MeshLinkTest {
     fun powerModeStacksWithRouteCountThrottle() = runTest {
         var now = 0L
         val transport = VirtualMeshTransport(peerIdAlice)
-        val config = meshLinkConfig { requireEncryption = false; gossipIntervalMs = 1000 }
+        val config = meshLinkConfig { requireEncryption = false; gossipIntervalMillis = 1000 }
         val alice = MeshLink(transport, config, coroutineContext, clock = { now })
 
         // Add >100 routes to trigger route count throttle (1.5×)
@@ -6615,7 +6615,7 @@ class MeshLinkTest {
         }
 
         // PERFORMANCE + >100 routes → 1500ms
-        assertEquals(1500L, alice.meshHealth().effectiveGossipIntervalMs)
+        assertEquals(1500L, alice.meshHealth().effectiveGossipIntervalMillis)
 
         // Switch to BALANCED mode
         alice.updateBattery(50, isCharging = false)
@@ -6623,7 +6623,7 @@ class MeshLinkTest {
         alice.updateBattery(50, isCharging = false)
 
         // BALANCED (2×) + >100 routes (1.5×) → 1000 * 1.5 * 2 = 3000ms
-        assertEquals(3000L, alice.meshHealth().effectiveGossipIntervalMs,
+        assertEquals(3000L, alice.meshHealth().effectiveGossipIntervalMillis,
             "BALANCED + route throttle should stack")
     }
 
@@ -6757,7 +6757,7 @@ class MeshLinkTest {
     @Test
     fun ttlZeroSendToUnknownPeerFailsImmediately() = runTest {
         val transport = VirtualMeshTransport(peerIdAlice)
-        val config = meshLinkConfig { requireEncryption = false; pendingMessageTtlMs = 0 }
+        val config = meshLinkConfig { requireEncryption = false; pendingMessageTtlMillis = 0 }
         val alice = MeshLink(transport, config, coroutineContext)
         alice.start()
         advanceUntilIdle()
@@ -6819,7 +6819,7 @@ class MeshLinkTest {
         transportA.linkTo(transportB)
         // Drop chunk ACKs so transfer stays in-flight
         transportB.dropFilter = { data -> data[0] == WireCodec.TYPE_CHUNK_ACK }
-        val alice = MeshLink(transportA, meshLinkConfig { requireEncryption = false; bufferTtlMs = 0L; keepaliveIntervalMs = 0L }, coroutineContext, clock = { now })
+        val alice = MeshLink(transportA, meshLinkConfig { requireEncryption = false; bufferTtlMillis = 0L; keepaliveIntervalMillis = 0L }, coroutineContext, clock = { now })
         alice.start()
         advanceUntilIdle()
         transportA.simulateDiscovery(peerIdBob)
@@ -6877,7 +6877,7 @@ class MeshLinkTest {
         transportA.linkTo(transportB)
         // Drop ALL chunk ACKs so transfer stays in-flight forever
         transportB.dropFilter = { data -> data[0] == WireCodec.TYPE_CHUNK_ACK }
-        val alice = MeshLink(transportA, meshLinkConfig { requireEncryption = false; bufferTtlMs = 0L; keepaliveIntervalMs = 0L }, coroutineContext, clock = { now })
+        val alice = MeshLink(transportA, meshLinkConfig { requireEncryption = false; bufferTtlMillis = 0L; keepaliveIntervalMillis = 0L }, coroutineContext, clock = { now })
         alice.start()
         advanceUntilIdle()
         transportA.simulateDiscovery(peerIdBob)
@@ -6978,7 +6978,7 @@ class MeshLinkTest {
             transportA,
             meshLinkConfig {
                 requireEncryption = false
-                pendingMessageTtlMs = 2000
+                pendingMessageTtlMillis = 2000
                 pendingMessageCapacity = 10
                 maxMessageSize = 200
                 bufferCapacity = 1000
@@ -7156,7 +7156,7 @@ class MeshLinkTest {
     fun chargingOverrideFromPowerSaverJumpsToPerformance() = runTest {
         var now = 0L
         val transport = VirtualMeshTransport(peerIdAlice)
-        val alice = MeshLink(transport, meshLinkConfig { requireEncryption = false; gossipIntervalMs = 1000 }, coroutineContext, clock = { now })
+        val alice = MeshLink(transport, meshLinkConfig { requireEncryption = false; gossipIntervalMillis = 1000 }, coroutineContext, clock = { now })
 
         // Drive into POWER_SAVER: battery=10%, not charging, with hysteresis
         alice.updateBattery(10, false)
@@ -7183,7 +7183,7 @@ class MeshLinkTest {
             transportA,
             meshLinkConfig {
                 requireEncryption = false
-                pendingMessageTtlMs = 1000
+                pendingMessageTtlMillis = 1000
                 pendingMessageCapacity = 10
                 maxMessageSize = 200
                 bufferCapacity = 1000
@@ -7267,7 +7267,7 @@ class MeshLinkTest {
             transportA,
             meshLinkConfig {
                 requireEncryption = false
-                pendingMessageTtlMs = 5000
+                pendingMessageTtlMillis = 5000
                 pendingMessageCapacity = 10
             },
             coroutineContext,
@@ -7527,7 +7527,7 @@ class MeshLinkTest {
             transportA,
             meshLinkConfig {
                 requireEncryption = false
-                pendingMessageTtlMs = 1000
+                pendingMessageTtlMillis = 1000
                 pendingMessageCapacity = 10
                 maxMessageSize = 200
                 bufferCapacity = 1000
@@ -7575,18 +7575,18 @@ class MeshLinkTest {
             meshLinkConfig {
                 requireEncryption = false
                 rateLimitMaxSends = 10
-                rateLimitWindowMs = 0
+                rateLimitWindowMillis = 0
             },
             coroutineContext,
         )
-        // start() calls validate() — should fail due to rateLimitWindowMs <= 0
+        // start() calls validate() — should fail due to rateLimitWindowMillis <= 0
         val result = alice.start()
         assertTrue(result.isFailure,
-            "start() should fail when rateLimitWindowMs=0 with maxSends>0")
+            "start() should fail when rateLimitWindowMillis=0 with maxSends>0")
 
         val errorMsg = result.exceptionOrNull()?.message ?: ""
-        assertTrue(errorMsg.contains("rateLimitWindowMs"),
-            "Error should mention rateLimitWindowMs violation: $errorMsg")
+        assertTrue(errorMsg.contains("rateLimitWindowMillis"),
+            "Error should mention rateLimitWindowMillis violation: $errorMsg")
     }
 
     @Test
@@ -7747,8 +7747,8 @@ class MeshLinkTest {
             meshLinkConfig {
                 requireEncryption = false
                 circuitBreakerMaxFailures = 3
-                circuitBreakerWindowMs = 10_000
-                circuitBreakerCooldownMs = 5000
+                circuitBreakerWindowMillis = 10_000
+                circuitBreakerCooldownMillis = 5000
             },
             coroutineContext,
             clock = { now },
@@ -7800,7 +7800,7 @@ class MeshLinkTest {
             transportA,
             meshLinkConfig {
                 requireEncryption = false
-                mtu = 22; maxMessageSize = 23; bufferCapacity = 25; bufferTtlMs = 0L; keepaliveIntervalMs = 0L
+                mtu = 22; maxMessageSize = 23; bufferCapacity = 25; bufferTtlMillis = 0L; keepaliveIntervalMillis = 0L
             },
             coroutineContext,
         )
@@ -7832,7 +7832,7 @@ class MeshLinkTest {
         transportA.linkTo(transportB)
         // Drop ALL chunk ACKs so transfer stays forever in-flight
         transportB.dropFilter = { data -> data[0] == WireCodec.TYPE_CHUNK_ACK }
-        val alice = MeshLink(transportA, meshLinkConfig { requireEncryption = false; mtu = 50; bufferTtlMs = 0L; keepaliveIntervalMs = 0L }, coroutineContext, clock = { now })
+        val alice = MeshLink(transportA, meshLinkConfig { requireEncryption = false; mtu = 50; bufferTtlMillis = 0L; keepaliveIntervalMillis = 0L }, coroutineContext, clock = { now })
         alice.start()
         advanceUntilIdle()
         transportA.simulateDiscovery(peerIdBob)
@@ -7959,7 +7959,7 @@ class MeshLinkTest {
         val transportA = VirtualMeshTransport(peerIdAlice)
         val alice = MeshLink(transportA, meshLinkConfig {
             requireEncryption = false
-            gossipIntervalMs = 1000
+            gossipIntervalMillis = 1000
         }, coroutineContext)
 
         alice.start()
@@ -7967,7 +7967,7 @@ class MeshLinkTest {
         testScheduler.runCurrent()
 
         val healthBase = alice.meshHealth()
-        assertEquals(1000L, healthBase.effectiveGossipIntervalMs,
+        assertEquals(1000L, healthBase.effectiveGossipIntervalMillis,
             "Base gossip interval should be 1000ms with 0 routes")
 
         // Inject 101 route update entries to trigger 1.5× throttle
@@ -7990,7 +7990,7 @@ class MeshLinkTest {
         testScheduler.runCurrent()
 
         val healthThrottled = alice.meshHealth()
-        assertEquals(1500L, healthThrottled.effectiveGossipIntervalMs,
+        assertEquals(1500L, healthThrottled.effectiveGossipIntervalMillis,
             "101+ routes should trigger 1.5× gossip throttle (1000 * 3/2 = 1500)")
 
         alice.stop()
@@ -8007,21 +8007,21 @@ class MeshLinkTest {
 
         val alice = MeshLink(transportA, meshLinkConfig {
             requireEncryption = false
-            pendingMessageTtlMs = 5000
-            gossipIntervalMs = 0
+            pendingMessageTtlMillis = 5000
+            gossipIntervalMillis = 0
             pendingMessageCapacity = 10
             maxMessageSize = 200
             bufferCapacity = 200_000
         }, coroutineContext, clock = { now })
         val bob = MeshLink(transportB, meshLinkConfig {
             requireEncryption = false
-            gossipIntervalMs = 0
+            gossipIntervalMillis = 0
             bufferCapacity = 200_000
             maxMessageSize = 200_000
         }, coroutineContext)
         val charlie = MeshLink(transportC, meshLinkConfig {
             requireEncryption = false
-            gossipIntervalMs = 0
+            gossipIntervalMillis = 0
             bufferCapacity = 200_000
             maxMessageSize = 200_000
         }, coroutineContext)
@@ -8089,21 +8089,21 @@ class MeshLinkTest {
 
         val alice = MeshLink(transportA, meshLinkConfig {
             requireEncryption = false
-            gossipIntervalMs = 0
+            gossipIntervalMillis = 0
             bufferCapacity = 200_000
             maxMessageSize = 200_000
             pendingMessageCapacity = 10
-            pendingMessageTtlMs = 60_000
+            pendingMessageTtlMillis = 60_000
         }, coroutineContext)
         val bob = MeshLink(transportB, meshLinkConfig {
             requireEncryption = false
-            gossipIntervalMs = 0
+            gossipIntervalMillis = 0
             bufferCapacity = 200_000
             maxMessageSize = 200_000
         }, coroutineContext)
         val charlie = MeshLink(transportC, meshLinkConfig {
             requireEncryption = false
-            gossipIntervalMs = 0
+            gossipIntervalMillis = 0
             bufferCapacity = 200_000
             maxMessageSize = 200_000
         }, coroutineContext)
@@ -8342,7 +8342,7 @@ class MeshLinkTest {
         val crypto = io.meshlink.crypto.createCryptoProvider()
         val alice = MeshLink(transportAlice, meshLinkConfig {
             requireEncryption = false
-            gossipIntervalMs = 100
+            gossipIntervalMillis = 100
         }, coroutineContext, crypto = crypto)
 
         val destHex = peerIdBob.toHex()
@@ -8739,7 +8739,7 @@ class MeshLinkTest {
     @Test
     fun poisonReverseOnNextHopChange() = runTest {
         val transportAlice = VirtualMeshTransport(peerIdAlice)
-        val config = meshLinkConfig { requireEncryption = false; gossipIntervalMs = 100L }
+        val config = meshLinkConfig { requireEncryption = false; gossipIntervalMillis = 100L }
         val alice = MeshLink(transportAlice, config, coroutineContext)
 
         val bobHex = peerIdBob.toHex()
@@ -8811,8 +8811,8 @@ class MeshLinkTest {
         // Long gossip interval so periodic gossip won't fire during the test window
         val config = meshLinkConfig {
             requireEncryption = false
-            gossipIntervalMs = 10_000L
-            triggeredUpdateBatchMs = 50L
+            gossipIntervalMillis = 10_000L
+            triggeredUpdateBatchMillis = 50L
         }
         val a = MeshLink(transportA, config, coroutineContext)
         val b = MeshLink(transportB, config, coroutineContext)
@@ -8876,8 +8876,8 @@ class MeshLinkTest {
         // Long gossip interval so periodic gossip won't fire during the test window
         val config = meshLinkConfig {
             requireEncryption = false
-            gossipIntervalMs = 10_000L
-            triggeredUpdateBatchMs = 50L
+            gossipIntervalMillis = 10_000L
+            triggeredUpdateBatchMillis = 50L
         }
         val a = MeshLink(transportA, config, coroutineContext)
 
@@ -8937,11 +8937,11 @@ class MeshLinkTest {
         val transportB = VirtualMeshTransport(peerIdBob)
         transportA.linkTo(transportB)
 
-        // gossipIntervalMs=10_000 means at most 1 triggered update per 10s per neighbor
+        // gossipIntervalMillis=10_000 means at most 1 triggered update per 10s per neighbor
         val config = meshLinkConfig {
             requireEncryption = false
-            gossipIntervalMs = 10_000L
-            triggeredUpdateBatchMs = 50L
+            gossipIntervalMillis = 10_000L
+            triggeredUpdateBatchMillis = 50L
         }
         val a = MeshLink(transportA, config, coroutineContext)
 
@@ -9007,8 +9007,8 @@ class MeshLinkTest {
         val transport = VirtualMeshTransport(peerIdAlice)
         val config = meshLinkConfig {
             requireEncryption = false
-            keepaliveIntervalMs = 100L
-            gossipIntervalMs = 0L // disable gossip so topology is always "stable"
+            keepaliveIntervalMillis = 100L
+            gossipIntervalMillis = 0L // disable gossip so topology is always "stable"
         }
         val alice = MeshLink(transport, config, coroutineContext)
         alice.start()
@@ -9039,7 +9039,7 @@ class MeshLinkTest {
         val transport = VirtualMeshTransport(peerIdAlice)
         val config = meshLinkConfig {
             requireEncryption = false
-            keepaliveIntervalMs = 0L // disable outbound keepalives for this test
+            keepaliveIntervalMillis = 0L // disable outbound keepalives for this test
         }
         val alice = MeshLink(transport, config, coroutineContext)
         alice.start()

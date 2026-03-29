@@ -2,7 +2,7 @@ package io.meshlink.util
 
 class RateLimiter(
     private val maxEvents: Int,
-    private val windowMs: Long,
+    private val windowMillis: Long,
     private val clock: () -> Long = { currentTimeMillis() },
 ) {
     // key → list of timestamps within window
@@ -11,7 +11,7 @@ class RateLimiter(
 
     fun tryAcquire(key: String): Boolean {
         val now = clock()
-        val pruned = (events[key] ?: emptyList()).filter { now - it <= windowMs }
+        val pruned = (events[key] ?: emptyList()).filter { now - it <= windowMillis }
         if (pruned.size >= maxEvents) {
             events[key] = pruned
             return false

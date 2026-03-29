@@ -123,7 +123,7 @@ fun DiagnosticsScreen(viewModel: MeshLinkViewModel) {
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                     modifier = Modifier.fillMaxSize(),
                 ) {
-                    items(events, key = { "${it.monotonicMs}-${it.code}" }) { event ->
+                    items(events, key = { "${it.monotonicMillis}-${it.code}" }) { event ->
                         DiagnosticEventCard(event)
                     }
                 }
@@ -153,7 +153,7 @@ private fun DiagnosticEventCard(event: DiagnosticEvent) {
                 )
                 Spacer(modifier = Modifier.weight(1f))
                 Text(
-                    text = formatTimestamp(event.monotonicMs),
+                    text = formatTimestamp(event.monotonicMillis),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -184,10 +184,10 @@ private fun severityColor(severity: Severity): Color = when (severity) {
     Severity.ERROR -> Color(0xFFF44336)
 }
 
-private fun formatTimestamp(monotonicMs: Long): String {
-    val totalSeconds = monotonicMs / 1000
+private fun formatTimestamp(monotonicMillis: Long): String {
+    val totalSeconds = monotonicMillis / 1000
     val minutes = (totalSeconds / 60) % 60
     val seconds = totalSeconds % 60
-    val millis = monotonicMs % 1000
+    val millis = monotonicMillis % 1000
     return "%02d:%02d.%03d".format(minutes, seconds, millis)
 }

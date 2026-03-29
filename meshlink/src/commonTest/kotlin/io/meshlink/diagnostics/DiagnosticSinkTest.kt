@@ -12,16 +12,16 @@ class DiagnosticSinkTest {
 
     @Test
     fun emitsEventsWithCorrectFieldsViaDrain() {
-        var monotonicMs = 0L
-        val sink = DiagnosticSink(bufferCapacity = 3, clock = { monotonicMs })
+        var monotonicMillis = 0L
+        val sink = DiagnosticSink(bufferCapacity = 3, clock = { monotonicMillis })
 
         val collected = mutableListOf<DiagnosticEvent>()
 
-        monotonicMs = 100L
+        monotonicMillis = 100L
         sink.emit(DiagnosticCode.ROUTE_CHANGED, Severity.INFO, "route to A updated")
-        monotonicMs = 200L
+        monotonicMillis = 200L
         sink.emit(DiagnosticCode.BUFFER_PRESSURE, Severity.WARN, "buffer at 80%")
-        monotonicMs = 300L
+        monotonicMillis = 300L
         sink.emit(DiagnosticCode.BLE_STACK_UNRESPONSIVE, Severity.ERROR, "no response 60s")
 
         @Suppress("DEPRECATION")
@@ -31,17 +31,17 @@ class DiagnosticSinkTest {
         assertEquals(DiagnosticCode.ROUTE_CHANGED, collected[0].code)
         assertEquals(Severity.INFO, collected[0].severity)
         assertEquals("route to A updated", collected[0].payload)
-        assertEquals(100L, collected[0].monotonicMs)
+        assertEquals(100L, collected[0].monotonicMillis)
         assertEquals(0, collected[0].droppedCount)
     }
 
     @Test
     fun overflowDropsOldestAndRetainsNewest() {
-        var monotonicMs = 0L
-        val sink = DiagnosticSink(bufferCapacity = 3, clock = { monotonicMs })
+        var monotonicMillis = 0L
+        val sink = DiagnosticSink(bufferCapacity = 3, clock = { monotonicMillis })
 
         for (i in 1..5) {
-            monotonicMs = (100 * i).toLong()
+            monotonicMillis = (100 * i).toLong()
             sink.emit(DiagnosticCode.RATE_LIMIT_HIT, Severity.WARN, "event $i")
         }
 

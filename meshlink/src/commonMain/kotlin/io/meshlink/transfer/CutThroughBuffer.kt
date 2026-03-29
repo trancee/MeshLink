@@ -11,7 +11,7 @@ class CutThroughBuffer(
     data class BufferedChunk(
         val sequenceNumber: Int,
         val data: ByteArray,
-        val forwardedAtMs: Long = 0L,
+        val forwardedAtMillis: Long = 0L,
     )
 
     data class RelaySession(
@@ -42,12 +42,17 @@ class CutThroughBuffer(
      * Buffer a chunk for forwarding. Returns the chunk data if it should be forwarded
      * (new chunk), or null if it's a duplicate or the session doesn't exist.
      */
-    fun bufferChunk(messageIdHex: String, sequenceNumber: Int, data: ByteArray, timestampMs: Long = 0L): ByteArray? {
+    fun bufferChunk(
+        messageIdHex: String,
+        sequenceNumber: Int,
+        data: ByteArray,
+        timestampMillis: Long = 0L,
+    ): ByteArray? {
         val session = sessions[messageIdHex] ?: return null
         if (session.chunks.containsKey(sequenceNumber)) return null
 
         val copy = data.copyOf()
-        session.chunks[sequenceNumber] = BufferedChunk(sequenceNumber, copy, timestampMs)
+        session.chunks[sequenceNumber] = BufferedChunk(sequenceNumber, copy, timestampMillis)
         session.forwardedCount++
         return copy
     }

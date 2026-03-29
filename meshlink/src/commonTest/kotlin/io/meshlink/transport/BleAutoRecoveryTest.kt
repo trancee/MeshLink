@@ -10,20 +10,20 @@ class BleAutoRecoveryTest {
     @Test
     fun activityResetsSilenceTimer() {
         var now = 0L
-        val recovery = BleAutoRecovery(silenceThresholdMs = 100, clock = { now })
+        val recovery = BleAutoRecovery(silenceThresholdMillis = 100, clock = { now })
 
         now = 90L
         recovery.recordActivity()
         now = 150L
 
-        assertEquals(60L, recovery.silenceDurationMs(), "Duration should be since last activity")
+        assertEquals(60L, recovery.silenceDurationMillis(), "Duration should be since last activity")
         assertFalse(recovery.isSilent(), "Should not be silent after recent activity")
     }
 
     @Test
     fun isSilentReturnsFalseWithinThreshold() {
         var now = 0L
-        val recovery = BleAutoRecovery(silenceThresholdMs = 100, clock = { now })
+        val recovery = BleAutoRecovery(silenceThresholdMillis = 100, clock = { now })
 
         now = 99L
         assertFalse(recovery.isSilent(), "Should not be silent at 99ms with 100ms threshold")
@@ -32,7 +32,7 @@ class BleAutoRecoveryTest {
     @Test
     fun isSilentReturnsTrueAfterThreshold() {
         var now = 0L
-        val recovery = BleAutoRecovery(silenceThresholdMs = 100, clock = { now })
+        val recovery = BleAutoRecovery(silenceThresholdMillis = 100, clock = { now })
 
         now = 100L
         assertTrue(recovery.isSilent(), "Should be silent at exactly 100ms threshold")
@@ -96,16 +96,16 @@ class BleAutoRecoveryTest {
         var now = 0L
         val recovery = BleAutoRecovery(clock = { now })
 
-        assertEquals(0L, recovery.silenceDurationMs(), "Initially zero")
+        assertEquals(0L, recovery.silenceDurationMillis(), "Initially zero")
 
         now = 500L
-        assertEquals(500L, recovery.silenceDurationMs(), "500ms since construction")
+        assertEquals(500L, recovery.silenceDurationMillis(), "500ms since construction")
 
         recovery.recordActivity()
-        assertEquals(0L, recovery.silenceDurationMs(), "Reset to zero after activity")
+        assertEquals(0L, recovery.silenceDurationMillis(), "Reset to zero after activity")
 
         now = 750L
-        assertEquals(250L, recovery.silenceDurationMs(), "250ms since last activity")
+        assertEquals(250L, recovery.silenceDurationMillis(), "250ms since last activity")
     }
 
     @Test
@@ -136,7 +136,7 @@ class BleAutoRecoveryTest {
     fun resetClearsAllState() {
         var now = 0L
         val recovery = BleAutoRecovery(
-            silenceThresholdMs = 100,
+            silenceThresholdMillis = 100,
             maxRecoveriesPerHour = 3,
             clock = { now },
         )
@@ -150,13 +150,13 @@ class BleAutoRecoveryTest {
         recovery.reset()
         assertFalse(recovery.isSilent(), "Should not be silent after reset")
         assertEquals(0, recovery.recoveriesInLastHour(), "No recoveries after reset")
-        assertEquals(0L, recovery.silenceDurationMs(), "Silence duration reset to zero")
+        assertEquals(0L, recovery.silenceDurationMillis(), "Silence duration reset to zero")
     }
 
     @Test
     fun multipleActivityRecordingsKeepTimerFresh() {
         var now = 0L
-        val recovery = BleAutoRecovery(silenceThresholdMs = 100, clock = { now })
+        val recovery = BleAutoRecovery(silenceThresholdMillis = 100, clock = { now })
 
         // Keep recording activity before the threshold
         now = 50L
@@ -170,7 +170,7 @@ class BleAutoRecoveryTest {
 
         // Only 0ms since last activity at now=200
         assertFalse(recovery.isSilent(), "Continuous activity should prevent silence")
-        assertEquals(0L, recovery.silenceDurationMs())
+        assertEquals(0L, recovery.silenceDurationMillis())
 
         // Now let silence happen from 200ms
         now = 300L
@@ -181,7 +181,7 @@ class BleAutoRecoveryTest {
     fun customThresholdsWork() {
         var now = 0L
         val recovery = BleAutoRecovery(
-            silenceThresholdMs = 500,
+            silenceThresholdMillis = 500,
             maxRecoveriesPerHour = 1,
             clock = { now },
         )
@@ -215,7 +215,7 @@ class BleAutoRecoveryTest {
     @Test
     fun isSilentBoundaryExactlyAtThreshold() {
         var now = 0L
-        val recovery = BleAutoRecovery(silenceThresholdMs = 60_000L, clock = { now })
+        val recovery = BleAutoRecovery(silenceThresholdMillis = 60_000L, clock = { now })
 
         now = 59_999L
         assertFalse(recovery.isSilent(), "1ms before threshold")

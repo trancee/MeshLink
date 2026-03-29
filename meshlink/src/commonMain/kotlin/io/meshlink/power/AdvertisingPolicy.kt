@@ -5,9 +5,9 @@ package io.meshlink.power
  * Controls how aggressively the node advertises its presence and scans for peers.
  */
 class AdvertisingPolicy(
-    private val performanceAdvIntervalMs: Long = 250L,
-    private val balancedAdvIntervalMs: Long = 500L,
-    private val powerSaverAdvIntervalMs: Long = 1000L,
+    private val performanceAdvIntervalMillis: Long = 250L,
+    private val balancedAdvIntervalMillis: Long = 500L,
+    private val powerSaverAdvIntervalMillis: Long = 1000L,
     private val performanceScanDutyPercent: Int = 90,
     private val balancedScanDutyPercent: Int = 50,
     private val powerSaverScanDutyPercent: Int = 15,
@@ -17,10 +17,10 @@ class AdvertisingPolicy(
     /**
      * Advertising interval for the given power mode.
      */
-    fun advertisingIntervalMs(mode: PowerMode): Long = when (mode) {
-        PowerMode.PERFORMANCE -> performanceAdvIntervalMs
-        PowerMode.BALANCED -> balancedAdvIntervalMs
-        PowerMode.POWER_SAVER -> powerSaverAdvIntervalMs
+    fun advertisingIntervalMillis(mode: PowerMode): Long = when (mode) {
+        PowerMode.PERFORMANCE -> performanceAdvIntervalMillis
+        PowerMode.BALANCED -> balancedAdvIntervalMillis
+        PowerMode.POWER_SAVER -> powerSaverAdvIntervalMillis
     }
 
     /**
@@ -37,8 +37,8 @@ class AdvertisingPolicy(
      * Scan window duration for a given scan interval.
      * scanWindow = scanInterval × (dutyPercent / 100)
      */
-    fun scanWindowMs(mode: PowerMode, scanIntervalMs: Long): Long =
-        scanIntervalMs * scanDutyPercent(mode) / 100
+    fun scanWindowMillis(mode: PowerMode, scanIntervalMillis: Long): Long =
+        scanIntervalMillis * scanDutyPercent(mode) / 100
 
     /**
      * Whether the current mode should use aggressive discovery

@@ -25,9 +25,9 @@ class GossipCoordinator(
     private val securityEngine: SecurityEngine?,
     private val diagnosticSink: DiagnosticSink,
     private val localPeerId: ByteArray,
-    private val gossipIntervalMs: Long,
-    private val triggeredUpdateBatchMs: Long,
-    private val keepaliveIntervalMs: Long,
+    private val gossipIntervalMillis: Long,
+    private val triggeredUpdateBatchMillis: Long,
+    private val keepaliveIntervalMillis: Long,
     private val currentPowerMode: () -> String,
     private val sendFrame: suspend (peerId: ByteArray, frame: ByteArray) -> Unit,
     private val clock: () -> Long,
@@ -53,7 +53,7 @@ class GossipCoordinator(
             }
             if (!isActive()) break
             if (triggered != null) {
-                delay(triggeredUpdateBatchMs)
+                delay(triggeredUpdateBatchMillis)
                 if (!isActive()) break
             }
             broadcastRouteUpdate(isTriggered = triggered != null)
@@ -66,10 +66,10 @@ class GossipCoordinator(
      */
     suspend fun runKeepaliveLoop(isActive: () -> Boolean) {
         while (isActive()) {
-            delay(keepaliveIntervalMs)
+            delay(keepaliveIntervalMillis)
             if (!isActive()) break
             val sinceLastGossip = routingEngine.timeSinceLastGossip()
-            if (gossipIntervalMs <= 0 || sinceLastGossip >= keepaliveIntervalMs) {
+            if (gossipIntervalMillis <= 0 || sinceLastGossip >= keepaliveIntervalMillis) {
                 broadcastKeepalive()
             }
         }

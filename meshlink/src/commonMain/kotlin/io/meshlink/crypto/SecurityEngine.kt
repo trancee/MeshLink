@@ -14,14 +14,14 @@ class SecurityEngine(
     private val crypto: CryptoProvider,
     private val handshakePayload: ByteArray = byteArrayOf(),
     private val clock: () -> Long = { 0L },
-    private val rotationFreshnessWindowMs: Long = 30_000L,
+    private val rotationFreshnessWindowMillis: Long = 30_000L,
 ) {
     private var localKeyPair: CryptoKeyPair = crypto.generateX25519KeyPair()
     private var broadcastKeyPair: CryptoKeyPair = crypto.generateEd25519KeyPair()
     private var sealer: NoiseKSealer = NoiseKSealer(crypto)
 
     private val peerPublicKeys = mutableMapOf<String, ByteArray>()
-    private val lastRotationTimestampMs = mutableMapOf<String, ULong>()
+    private val lastRotationTimestampMillis = mutableMapOf<String, ULong>()
 
     private val handshakeManager = PeerHandshakeManager(
         crypto,
@@ -105,16 +105,16 @@ class SecurityEngine(
 
         // Timestamp freshness: reject if outside ±window of current time
         val now = clock().toULong()
-        val ts = announcement.timestampMs
-        if (now > ts && (now - ts) > rotationFreshnessWindowMs.toULong()) {
+        val ts = announcement.timestampMillis
+        if (now > ts && (now - ts) > rotationFreshnessWindowMillis.toULong()) {
             return RotationResult.Stale
         }
-        if (ts > now && (ts - now) > rotationFreshnessWindowMs.toULong()) {
+        if (ts > now && (ts - now) > rotationFreshnessWindowMillis.toULong()) {
             return RotationResult.Stale
         }
 
         // Reject if timestamp is not newer than the last seen rotation from this peer
-        val lastTs = lastRotationTimestampMs[fromPeerHex]
+        val lastTs = lastRotationTimestampMillis[fromPeerHex]
         if (lastTs != null && ts <= lastTs) {
             return RotationResult.Stale
         }
@@ -125,7 +125,7 @@ class SecurityEngine(
             return RotationResult.Rejected
         }
         peerPublicKeys[fromPeerHex] = announcement.newX25519Key
-        lastRotationTimestampMs[fromPeerHex] = ts
+        lastRotationTimestampMillis[fromPeerHex] = ts
         return RotationResult.Accepted(
             KeyChangeEvent(
                 peerId = io.meshlink.util.hexToBytes(fromPeerHex),

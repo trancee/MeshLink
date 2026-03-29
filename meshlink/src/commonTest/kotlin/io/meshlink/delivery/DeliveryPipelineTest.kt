@@ -17,10 +17,10 @@ class DeliveryPipelineTest {
 
     private fun pipeline(
         clock: () -> Long = { 0L },
-        tombstoneWindowMs: Long = 120_000L,
+        tombstoneWindowMillis: Long = 120_000L,
     ) = DeliveryPipeline(
         clock = clock,
-        tombstoneWindowMs = tombstoneWindowMs,
+        tombstoneWindowMillis = tombstoneWindowMillis,
         diagnosticSink = DiagnosticSink(clock = clock),
     )
 
@@ -29,7 +29,7 @@ class DeliveryPipelineTest {
     @Test
     fun confirmDeliveryAfterRegister() = runTest {
         val dp = pipeline()
-        dp.registerOutbound(this, "msg1", deadlineMs = 0)
+        dp.registerOutbound(this, "msg1", deadlineMillis = 0)
         val result = dp.processAck("msg1")
         assertIs<AckResult.Confirmed>(result)
         assertEquals("msg1", result.messageId)
@@ -38,7 +38,7 @@ class DeliveryPipelineTest {
     @Test
     fun duplicateAckIsLate() = runTest {
         val dp = pipeline()
-        dp.registerOutbound(this, "msg1", deadlineMs = 0)
+        dp.registerOutbound(this, "msg1", deadlineMillis = 0)
         dp.processAck("msg1") // first ACK
         val result = dp.processAck("msg1") // second ACK
         assertIs<AckResult.Late>(result)
@@ -67,7 +67,7 @@ class DeliveryPipelineTest {
     @Test
     fun recordFailureForTrackedMessage() = runTest {
         val dp = pipeline()
-        dp.registerOutbound(this, "msg1", deadlineMs = 0)
+        dp.registerOutbound(this, "msg1", deadlineMillis = 0)
         assertTrue(dp.recordFailure("msg1", DeliveryOutcome.FAILED_ACK_TIMEOUT))
         // After failure, ACK should be late (tombstoned)
         val result = dp.processAck("msg1")
@@ -148,7 +148,7 @@ class DeliveryPipelineTest {
         assertIs<BufferResult.Buffered>(result)
         assertEquals(1, dp.pendingCount)
 
-        val flushed = dp.flushPending("peer1", ttlMs = 0)
+        val flushed = dp.flushPending("peer1", ttlMillis = 0)
         assertEquals(1, flushed.size)
         assertTrue(byteArrayOf(10, 20).contentEquals(flushed[0].payload))
         assertEquals(0, dp.pendingCount)
@@ -163,7 +163,7 @@ class DeliveryPipelineTest {
         assertIs<BufferResult.Evicted>(result)
         assertEquals(2, dp.pendingCount)
         // Flush and verify oldest was evicted
-        val flushed = dp.flushPending("peer1", ttlMs = 0)
+        val flushed = dp.flushPending("peer1", ttlMillis = 0)
         assertEquals(2, flushed.size)
         assertTrue(byteArrayOf(2).contentEquals(flushed[0].payload))
     }
@@ -177,7 +177,7 @@ class DeliveryPipelineTest {
         dp.bufferPending("peer1", byteArrayOf(1), byteArrayOf(20), 10)
         now = 6000L
         // TTL 5500ms: first message (age 6000ms) expired, second (age 1000ms) still valid
-        val flushed = dp.flushPending("peer1", ttlMs = 5500L)
+        val flushed = dp.flushPending("peer1", ttlMillis = 5500L)
         assertEquals(1, flushed.size)
         assertTrue(byteArrayOf(20).contentEquals(flushed[0].payload))
     }
@@ -189,7 +189,7 @@ class DeliveryPipelineTest {
         dp.bufferPending("peer1", byteArrayOf(1), byteArrayOf(10), 10)
         dp.bufferPending("peer2", byteArrayOf(2), byteArrayOf(20), 10)
         now = 10_000L
-        val expired = dp.sweepExpiredPending(ttlMs = 5000L)
+        val expired = dp.sweepExpiredPending(ttlMillis = 5000L)
         assertEquals(2, expired)
         assertEquals(0, dp.pendingCount)
     }
@@ -203,7 +203,7 @@ class DeliveryPipelineTest {
             clock = { testScheduler.currentTime },
             diagnosticSink = DiagnosticSink(clock = { testScheduler.currentTime }),
         )
-        dp.registerOutbound(this, "msg1", deadlineMs = 1000L) { timedOut = true }
+        dp.registerOutbound(this, "msg1", deadlineMillis = 1000L) { timedOut = true }
         advanceTimeBy(1001L)
         assertTrue(timedOut)
     }
@@ -215,7 +215,7 @@ class DeliveryPipelineTest {
             clock = { testScheduler.currentTime },
             diagnosticSink = DiagnosticSink(clock = { testScheduler.currentTime }),
         )
-        dp.registerOutbound(this, "msg1", deadlineMs = 1000L) { timedOut = true }
+        dp.registerOutbound(this, "msg1", deadlineMillis = 1000L) { timedOut = true }
         dp.cancelDeadline("msg1")
         advanceTimeBy(2000L)
         assertFalse(timedOut)
@@ -226,7 +226,7 @@ class DeliveryPipelineTest {
     @Test
     fun clearResetsAllState() = runTest {
         val dp = pipeline()
-        dp.registerOutbound(this, "msg1", deadlineMs = 0)
+        dp.registerOutbound(this, "msg1", deadlineMillis = 0)
         dp.recordReversePath("msg2", byteArrayOf(1))
         dp.checkReplay("origin1", 5u)
         dp.checkInboundRate("sender1", 10)

@@ -205,9 +205,9 @@ private fun formatBytes(bytes: Int): String = when {
 }
 
 /** Human-readable uptime from a start timestamp (0 = not started). */
-private fun formatUptime(startTimeMs: Long): String {
-    if (startTimeMs == 0L) return "—"
-    val elapsed = System.currentTimeMillis() - startTimeMs
+private fun formatUptime(startTimeMillis: Long): String {
+    if (startTimeMillis == 0L) return "—"
+    val elapsed = System.currentTimeMillis() - startTimeMillis
     val seconds = (elapsed / 1_000) % 60
     val minutes = (elapsed / 60_000) % 60
     val hours = elapsed / 3_600_000

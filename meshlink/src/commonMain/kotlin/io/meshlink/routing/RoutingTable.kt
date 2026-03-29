@@ -8,11 +8,11 @@ import io.meshlink.util.currentTimeMillis
  * primary + backup route support, and expiry.
  */
 class RoutingTable(
-    private val expiryMs: Long = Long.MAX_VALUE,
+    private val expiryMillis: Long = Long.MAX_VALUE,
     private val neighborCapFraction: Double = 1.0,
     private val maxDestinations: Int = Int.MAX_VALUE,
-    private val settlingMs: Long = 0,
-    private val holddownMs: Long = 0,
+    private val settlingMillis: Long = 0,
+    private val holddownMillis: Long = 0,
 ) {
 
     data class Route(
@@ -60,12 +60,12 @@ class RoutingTable(
         routes.getOrPut(destination) { mutableMapOf() }[nextHop] = route
 
         // If this is a withdrawal (infinity cost), start holddown
-        if (cost == Double.MAX_VALUE && holddownMs > 0) {
-            holddownUntil[destination] = now + holddownMs
+        if (cost == Double.MAX_VALUE && holddownMillis > 0) {
+            holddownUntil[destination] = now + holddownMillis
         }
 
         // Track settling time
-        if (settlingMs > 0) {
+        if (settlingMillis > 0) {
             lastRouteChange[destination] = now
         }
     }
@@ -74,7 +74,7 @@ class RoutingTable(
         val now = currentTime()
         val destRoutes = routes[destination] ?: return null
         // Remove expired routes
-        destRoutes.values.removeAll { now - it.timestamp > expiryMs }
+        destRoutes.values.removeAll { now - it.timestamp > expiryMillis }
         if (destRoutes.isEmpty()) {
             routes.remove(destination)
             return null

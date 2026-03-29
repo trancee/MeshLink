@@ -5,11 +5,11 @@ package io.meshlink.transport
  * appears unresponsive (extended silence with no received data or advertisements).
  */
 class BleAutoRecovery(
-    private val silenceThresholdMs: Long = 60_000L,
+    private val silenceThresholdMillis: Long = 60_000L,
     private val maxRecoveriesPerHour: Int = 3,
     private val clock: () -> Long = { io.meshlink.util.currentTimeMillis() },
 ) {
-    private var lastActivityMs: Long = clock()
+    private var lastActivityMillis: Long = clock()
     private val recoveryTimestamps = mutableListOf<Long>()
 
     /**
@@ -17,14 +17,14 @@ class BleAutoRecovery(
      * Resets the silence timer.
      */
     fun recordActivity() {
-        lastActivityMs = clock()
+        lastActivityMillis = clock()
     }
 
     /**
      * Check if silence threshold has been exceeded.
-     * Returns true if no activity has been recorded for [silenceThresholdMs].
+     * Returns true if no activity has been recorded for [silenceThresholdMillis].
      */
-    fun isSilent(): Boolean = silenceDurationMs() >= silenceThresholdMs
+    fun isSilent(): Boolean = silenceDurationMillis() >= silenceThresholdMillis
 
     /**
      * Check if a recovery attempt is allowed (under hourly limit).
@@ -44,7 +44,7 @@ class BleAutoRecovery(
     /**
      * Milliseconds since last activity.
      */
-    fun silenceDurationMs(): Long = clock() - lastActivityMs
+    fun silenceDurationMillis(): Long = clock() - lastActivityMillis
 
     /**
      * Number of recoveries in the last hour.
@@ -59,7 +59,7 @@ class BleAutoRecovery(
      * Reset all state (e.g., on manual start/stop).
      */
     fun reset() {
-        lastActivityMs = clock()
+        lastActivityMillis = clock()
         recoveryTimestamps.clear()
     }
 }

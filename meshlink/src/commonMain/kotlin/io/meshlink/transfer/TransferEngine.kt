@@ -37,7 +37,7 @@ class TransferEngine(
         }
         val totalChunks = chunks.size
         val session = TransferSession(totalChunks, initialWindow = totalChunks)
-        outbound[messageIdHex] = OutboundState(session, chunks, messageId, createdAtMs = clock())
+        outbound[messageIdHex] = OutboundState(session, chunks, messageId, createdAtMillis = clock())
         val initialSeqs = session.nextChunksToSend()
         return OutboundHandle(
             messageId = messageId,
@@ -88,7 +88,7 @@ class TransferEngine(
         if (existing == null && inbound.size >= maxConcurrentInboundSessions) {
             return ChunkAcceptResult.Rejected
         }
-        val state = existing ?: InboundState(totalChunks, createdAtMs = clock()).also {
+        val state = existing ?: InboundState(totalChunks, createdAtMillis = clock()).also {
             inbound[messageIdHex] = it
         }
         state.chunks[seqNum] = chunkPayload
@@ -116,19 +116,19 @@ class TransferEngine(
 
     // --- Sweep stale ---
 
-    fun sweepStaleOutbound(maxAgeMs: Long): List<String> {
+    fun sweepStaleOutbound(maxAgeMillis: Long): List<String> {
         val now = clock()
         val stale = outbound.entries
-            .filter { (now - it.value.createdAtMs) >= maxAgeMs }
+            .filter { (now - it.value.createdAtMillis) >= maxAgeMillis }
             .map { it.key }
         stale.forEach { outbound.remove(it) }
         return stale
     }
 
-    fun sweepStaleInbound(maxAgeMs: Long): List<String> {
+    fun sweepStaleInbound(maxAgeMillis: Long): List<String> {
         val now = clock()
         val stale = inbound.entries
-            .filter { (now - it.value.createdAtMs) >= maxAgeMs }
+            .filter { (now - it.value.createdAtMillis) >= maxAgeMillis }
             .map { it.key }
         stale.forEach { inbound.remove(it) }
         return stale
@@ -156,12 +156,12 @@ class TransferEngine(
         val session: TransferSession,
         val chunks: List<ByteArray>,
         val messageId: ByteArray,
-        val createdAtMs: Long,
+        val createdAtMillis: Long,
     )
 
     private class InboundState(
         val totalChunks: Int,
-        val createdAtMs: Long,
+        val createdAtMillis: Long,
     ) {
         val chunks = mutableMapOf<Int, ByteArray>()
         val sackTracker = SackTracker(totalChunks)

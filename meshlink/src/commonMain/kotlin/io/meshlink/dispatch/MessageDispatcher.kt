@@ -115,7 +115,7 @@ class MessageDispatcher(
                         "dest=${change.destination}, oldNextHop=${change.oldNextHop}, newNextHop=${change.newNextHop}",
                     )
                 }
-                if (config.gossipIntervalMs > 0) {
+                if (config.gossipIntervalMillis > 0) {
                     sink.triggerGossipUpdate()
                 }
             }

@@ -9,7 +9,7 @@ class GracefulDrainManagerTest {
 
     @Test
     fun startDrainMarksPeerAsInGracePeriod() {
-        val mgr = GracefulDrainManager(graceMs = 30_000L, clock = { 1000L })
+        val mgr = GracefulDrainManager(graceMillis = 30_000L, clock = { 1000L })
         mgr.startDrain("aabb")
         assertTrue(mgr.isInGracePeriod("aabb"))
     }
@@ -17,7 +17,7 @@ class GracefulDrainManagerTest {
     @Test
     fun gracePeriodNotExpiredReturnsTrue() {
         var now = 0L
-        val mgr = GracefulDrainManager(graceMs = 30_000L, clock = { now })
+        val mgr = GracefulDrainManager(graceMillis = 30_000L, clock = { now })
         mgr.startDrain("aabb")
 
         now = 29_999L
@@ -27,7 +27,7 @@ class GracefulDrainManagerTest {
     @Test
     fun gracePeriodExpiredReturnsFalseAndAppearsInExpired() {
         var now = 0L
-        val mgr = GracefulDrainManager(graceMs = 30_000L, clock = { now })
+        val mgr = GracefulDrainManager(graceMillis = 30_000L, clock = { now })
         mgr.startDrain("aabb")
 
         now = 30_000L
@@ -37,7 +37,7 @@ class GracefulDrainManagerTest {
 
     @Test
     fun completeRemovesPeerFromTracking() {
-        val mgr = GracefulDrainManager(graceMs = 30_000L, clock = { 0L })
+        val mgr = GracefulDrainManager(graceMillis = 30_000L, clock = { 0L })
         mgr.startDrain("aabb")
         mgr.complete("aabb")
 
@@ -48,7 +48,7 @@ class GracefulDrainManagerTest {
     @Test
     fun multiplePeersTrackedIndependently() {
         var now = 0L
-        val mgr = GracefulDrainManager(graceMs = 10_000L, clock = { now })
+        val mgr = GracefulDrainManager(graceMillis = 10_000L, clock = { now })
 
         mgr.startDrain("aa")
         now = 5_000L
@@ -64,7 +64,7 @@ class GracefulDrainManagerTest {
 
     @Test
     fun clearRemovesAll() {
-        val mgr = GracefulDrainManager(graceMs = 30_000L, clock = { 0L })
+        val mgr = GracefulDrainManager(graceMillis = 30_000L, clock = { 0L })
         mgr.startDrain("aa")
         mgr.startDrain("bb")
         mgr.clear()
@@ -75,7 +75,7 @@ class GracefulDrainManagerTest {
 
     @Test
     fun sizeTracksCorrectly() {
-        val mgr = GracefulDrainManager(graceMs = 30_000L, clock = { 0L })
+        val mgr = GracefulDrainManager(graceMillis = 30_000L, clock = { 0L })
         assertEquals(0, mgr.size())
 
         mgr.startDrain("aa")
@@ -91,7 +91,7 @@ class GracefulDrainManagerTest {
     @Test
     fun duplicateStartDrainDoesNotResetTimer() {
         var now = 0L
-        val mgr = GracefulDrainManager(graceMs = 10_000L, clock = { now })
+        val mgr = GracefulDrainManager(graceMillis = 10_000L, clock = { now })
         mgr.startDrain("aabb")
 
         now = 5_000L
@@ -102,18 +102,18 @@ class GracefulDrainManagerTest {
         assertFalse(mgr.isInGracePeriod("aabb"))
 
         // verify the entry still records the original start time
-        assertEquals(0L, mgr.drainingPeers().single().startedAtMs)
+        assertEquals(0L, mgr.drainingPeers().single().startedAtMillis)
     }
 
     @Test
     fun expiredPeersReturnsEmptyWhenNoDrains() {
-        val mgr = GracefulDrainManager(graceMs = 30_000L, clock = { 100_000L })
+        val mgr = GracefulDrainManager(graceMillis = 30_000L, clock = { 100_000L })
         assertTrue(mgr.expiredPeers().isEmpty())
     }
 
     @Test
     fun drainingPeersReturnsAllActiveDrains() {
-        val mgr = GracefulDrainManager(graceMs = 30_000L, clock = { 0L })
+        val mgr = GracefulDrainManager(graceMillis = 30_000L, clock = { 0L })
         mgr.startDrain("aa", "mode_change")
         mgr.startDrain("bb", "battery_low")
 
@@ -125,7 +125,7 @@ class GracefulDrainManagerTest {
     @Test
     fun customGracePeriod() {
         var now = 0L
-        val mgr = GracefulDrainManager(graceMs = 500L, clock = { now })
+        val mgr = GracefulDrainManager(graceMillis = 500L, clock = { now })
         mgr.startDrain("aabb")
 
         now = 499L
@@ -137,7 +137,7 @@ class GracefulDrainManagerTest {
 
     @Test
     fun reasonStringPreserved() {
-        val mgr = GracefulDrainManager(graceMs = 30_000L, clock = { 0L })
+        val mgr = GracefulDrainManager(graceMillis = 30_000L, clock = { 0L })
         mgr.startDrain("aabb", "battery_critical")
 
         val entry = mgr.drainingPeers().single()
@@ -146,7 +146,7 @@ class GracefulDrainManagerTest {
 
     @Test
     fun defaultReasonIsPowerModeDowngrade() {
-        val mgr = GracefulDrainManager(graceMs = 30_000L, clock = { 0L })
+        val mgr = GracefulDrainManager(graceMillis = 30_000L, clock = { 0L })
         mgr.startDrain("aabb")
 
         assertEquals("power_mode_downgrade", mgr.drainingPeers().single().reason)
@@ -154,13 +154,13 @@ class GracefulDrainManagerTest {
 
     @Test
     fun isInGracePeriodReturnsFalseForUnknownPeer() {
-        val mgr = GracefulDrainManager(graceMs = 30_000L, clock = { 0L })
+        val mgr = GracefulDrainManager(graceMillis = 30_000L, clock = { 0L })
         assertFalse(mgr.isInGracePeriod("unknown"))
     }
 
     @Test
     fun completeOnUnknownPeerIsNoOp() {
-        val mgr = GracefulDrainManager(graceMs = 30_000L, clock = { 0L })
+        val mgr = GracefulDrainManager(graceMillis = 30_000L, clock = { 0L })
         mgr.startDrain("aabb")
         mgr.complete("unknown") // should not throw or affect existing entries
         assertEquals(1, mgr.size())

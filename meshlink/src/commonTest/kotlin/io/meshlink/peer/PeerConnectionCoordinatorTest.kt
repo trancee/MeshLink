@@ -23,7 +23,7 @@ class PeerConnectionCoordinatorTest {
         localPeerId = localPeerId.toHex(),
         dedupCapacity = 100,
         triggeredUpdateThreshold = 0.3,
-        gossipIntervalMs = 5_000L,
+        gossipIntervalMillis = 5_000L,
     )
 
     /** Build a minimal advertisement payload: [majorVersion, minorVersion, ...x25519Key] */

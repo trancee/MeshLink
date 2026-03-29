@@ -106,7 +106,7 @@ class LinuxBleTransport(
         val peerId: ByteArray,
         val bdaddr: ByteArray,
         val bdaddrType: UByte,
-        var lastSeenMs: Long,
+        var lastSeenMillis: Long,
         var advertisementPayload: ByteArray,
     )
 
@@ -418,14 +418,14 @@ class LinuxBleTransport(
 
             val existing = knownPeers[bdaddrHex]
             if (existing != null) {
-                existing.lastSeenMs = now
+                existing.lastSeenMillis = now
                 existing.advertisementPayload = advPayload
             } else {
                 knownPeers[bdaddrHex] = TrackedPeer(
                     peerId = peerId,
                     bdaddr = bdaddr,
                     bdaddrType = bdaddrType,
-                    lastSeenMs = now,
+                    lastSeenMillis = now,
                     advertisementPayload = advPayload,
                 )
             }
@@ -519,7 +519,7 @@ class LinuxBleTransport(
             delay(PEER_SWEEP_INTERVAL_MS)
             val now = io.meshlink.util.currentTimeMillis()
             val timedOut = knownPeers.entries.filter { (_, peer) ->
-                now - peer.lastSeenMs > PEER_TIMEOUT_MS
+                now - peer.lastSeenMillis > PEER_TIMEOUT_MS
             }
             for ((key, peer) in timedOut) {
                 knownPeers.remove(key)

@@ -196,7 +196,7 @@ class SecurityEngineTest {
     fun rotationAnnouncementWithFreshTimestampAccepted() {
         var now = 100_000L
         val crypto = PureKotlinCryptoProvider()
-        val engine = SecurityEngine(crypto, clock = { now }, rotationFreshnessWindowMs = 30_000L)
+        val engine = SecurityEngine(crypto, clock = { now }, rotationFreshnessWindowMillis = 30_000L)
 
         // Generate keys for "peer" and register old key
         val oldKp = crypto.generateX25519KeyPair()
@@ -223,7 +223,7 @@ class SecurityEngineTest {
     fun rotationAnnouncementWithExpiredTimestampRejectedAsStale() {
         var now = 100_000L
         val crypto = PureKotlinCryptoProvider()
-        val engine = SecurityEngine(crypto, clock = { now }, rotationFreshnessWindowMs = 30_000L)
+        val engine = SecurityEngine(crypto, clock = { now }, rotationFreshnessWindowMillis = 30_000L)
 
         val oldKp = crypto.generateX25519KeyPair()
         val newKp = crypto.generateX25519KeyPair()
@@ -250,7 +250,7 @@ class SecurityEngineTest {
     fun rotationReplayWithSameTimestampRejectedAsStale() {
         var now = 100_000L
         val crypto = PureKotlinCryptoProvider()
-        val engine = SecurityEngine(crypto, clock = { now }, rotationFreshnessWindowMs = 30_000L)
+        val engine = SecurityEngine(crypto, clock = { now }, rotationFreshnessWindowMillis = 30_000L)
 
         val oldKp = crypto.generateX25519KeyPair()
         val newKp = crypto.generateX25519KeyPair()

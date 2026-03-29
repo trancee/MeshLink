@@ -21,7 +21,7 @@ class RateLimitPolicy(
         if (config.rateLimitMaxSends > 0) {
             RateLimiter(
                 config.rateLimitMaxSends,
-                config.rateLimitWindowMs,
+                config.rateLimitWindowMillis,
                 clock,
             )
         } else {
@@ -32,8 +32,8 @@ class RateLimitPolicy(
         if (config.circuitBreakerMaxFailures > 0) {
             CircuitBreaker(
                 config.circuitBreakerMaxFailures,
-                config.circuitBreakerWindowMs,
-                config.circuitBreakerCooldownMs,
+                config.circuitBreakerWindowMillis,
+                config.circuitBreakerCooldownMillis,
                 clock,
             )
         } else {

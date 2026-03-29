@@ -5,7 +5,7 @@ import io.meshlink.util.currentTimeMillis
 enum class PowerMode { PERFORMANCE, BALANCED, POWER_SAVER }
 
 class PowerModeEngine(
-    private val hysteresisMs: Long = 30_000,
+    private val hysteresisMillis: Long = 30_000,
     private val clock: () -> Long = { currentTimeMillis() },
 ) {
     private var currentMode: PowerMode = PowerMode.PERFORMANCE
@@ -44,7 +44,7 @@ class PowerModeEngine(
         }
 
         // Check if hysteresis period has elapsed
-        if (now - downgradeRequestedAt >= hysteresisMs) {
+        if (now - downgradeRequestedAt >= hysteresisMillis) {
             currentMode = targetMode
             pendingDowngrade = null
         }

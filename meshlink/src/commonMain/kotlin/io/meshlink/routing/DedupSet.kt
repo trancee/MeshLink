@@ -4,12 +4,12 @@ package io.meshlink.routing
  * Bounded deduplication set with time-windowed TTL expiry.
  * Returns true if the ID is new (accepted), false if duplicate (rejected).
  *
- * Entries expire after [ttlMs] milliseconds to prevent targeted eviction attacks.
+ * Entries expire after [ttlMillis] milliseconds to prevent targeted eviction attacks.
  * A hard [capacity] cap is still enforced as a safety net.
  */
 class DedupSet(
     private val capacity: Int = 100_000,
-    private val ttlMs: Long = 300_000L,
+    private val ttlMillis: Long = 300_000L,
     private val clock: () -> Long = { 0L },
 ) {
 
@@ -40,7 +40,7 @@ class DedupSet(
         val iter = seen.iterator()
         while (iter.hasNext()) {
             val entry = iter.next()
-            if ((now - entry.value) >= ttlMs) {
+            if ((now - entry.value) >= ttlMillis) {
                 iter.remove()
             } else {
                 break // LinkedHashMap is insertion-ordered; older entries are first

@@ -102,13 +102,13 @@ class MeshLink(
     override val meshHealthFlow: StateFlow<MeshHealthSnapshot> = _meshHealthFlow.asStateFlow()
 
     // Health flow throttle: minimum 500ms between emissions (2/sec max)
-    private var lastHealthUpdateMs: Long = 0L
-    private val healthThrottleMs: Long = 500L
+    private var lastHealthUpdateMillis: Long = 0L
+    private val healthThrottleMillis: Long = 500L
 
     private fun emitHealthUpdate() {
         val now = clock()
-        if (now - lastHealthUpdateMs < healthThrottleMs) return
-        lastHealthUpdateMs = now
+        if (now - lastHealthUpdateMillis < healthThrottleMillis) return
+        lastHealthUpdateMillis = now
         _meshHealthFlow.value = meshHealth()
     }
 
@@ -139,7 +139,7 @@ class MeshLink(
     }
 
     private fun flushPendingMessages(peerHex: String, s: CoroutineScope) {
-        val flushed = deliveryPipeline.flushPending(peerHex, config.pendingMessageTtlMs)
+        val flushed = deliveryPipeline.flushPending(peerHex, config.pendingMessageTtlMillis)
         for (msg in flushed) {
             doSend(s, msg.recipient, msg.payload)
         }
@@ -186,7 +186,7 @@ class MeshLink(
         localPeerId = transport.localPeerId.toHex(),
         dedupCapacity = config.dedupCapacity,
         triggeredUpdateThreshold = config.triggeredUpdateThreshold,
-        gossipIntervalMs = config.gossipIntervalMs,
+        gossipIntervalMillis = config.gossipIntervalMillis,
         clock = clock,
     )
 
@@ -197,7 +197,7 @@ class MeshLink(
     // reverse-path relay, replay guards, inbound rate limiting, and store-and-forward
     private val deliveryPipeline = DeliveryPipeline(
         clock = clock,
-        tombstoneWindowMs = config.tombstoneWindowMs,
+        tombstoneWindowMillis = config.tombstoneWindowMillis,
         diagnosticSink = diagnosticSink,
     )
 
@@ -244,9 +244,9 @@ class MeshLink(
         securityEngine = securityEngine,
         diagnosticSink = diagnosticSink,
         localPeerId = transport.localPeerId,
-        gossipIntervalMs = config.gossipIntervalMs,
-        triggeredUpdateBatchMs = config.triggeredUpdateBatchMs,
-        keepaliveIntervalMs = config.keepaliveIntervalMs,
+        gossipIntervalMillis = config.gossipIntervalMillis,
+        triggeredUpdateBatchMillis = config.triggeredUpdateBatchMillis,
+        keepaliveIntervalMillis = config.keepaliveIntervalMillis,
         currentPowerMode = { powerCoordinator.currentMode },
         sendFrame = { peerId, frame -> safeSend(peerId, frame) },
         clock = clock,
@@ -402,14 +402,14 @@ class MeshLink(
 
         // Gossip route exchange: periodically broadcast route table to connected peers
         // Also listens for triggered update signals to fire early gossip on significant route changes
-        if (config.gossipIntervalMs > 0) {
+        if (config.gossipIntervalMillis > 0) {
             newScope.launch {
                 gossipCoordinator.runGossipLoop { started }
             }
         }
 
         // Keepalive loop: send keepalives when topology is stable (no gossip sent recently)
-        if (config.keepaliveIntervalMs > 0) {
+        if (config.keepaliveIntervalMillis > 0) {
             newScope.launch {
                 gossipCoordinator.runKeepaliveLoop { started }
             }
@@ -459,7 +459,7 @@ class MeshLink(
         pauseManager.clear()
         deliveryPipeline.clear()
         securityEngine?.clear()
-        lastHealthUpdateMs = 0L
+        lastHealthUpdateMillis = 0L
     }
 
     override fun pause() {
@@ -494,7 +494,7 @@ class MeshLink(
             powerMode = powerCoordinator.currentMode,
             avgRouteCost = routingEngine.avgCost(),
             relayQueueSize = pauseManager.relayQueueSize,
-            effectiveGossipIntervalMs = routingEngine.effectiveGossipInterval(powerCoordinator.currentMode),
+            effectiveGossipIntervalMillis = routingEngine.effectiveGossipInterval(powerCoordinator.currentMode),
         )
     }
 
@@ -519,8 +519,8 @@ class MeshLink(
         routingEngine.addRoute(destination, nextHop, cost, sequenceNumber)
     }
 
-    override fun sweepStaleTransfers(maxAgeMs: Long): Int {
-        val staleKeys = transferEngine.sweepStaleOutbound(maxAgeMs)
+    override fun sweepStaleTransfers(maxAgeMillis: Long): Int {
+        val staleKeys = transferEngine.sweepStaleOutbound(maxAgeMillis)
         for (key in staleKeys) {
             outboundTracker.removeRecipient(key)
             outboundTracker.removeNextHop(key)?.let { nextHop ->
@@ -544,13 +544,13 @@ class MeshLink(
         return staleKeys.size
     }
 
-    override fun sweepStaleReassemblies(maxAgeMs: Long): Int {
-        val staleKeys = transferEngine.sweepStaleInbound(maxAgeMs)
+    override fun sweepStaleReassemblies(maxAgeMillis: Long): Int {
+        val staleKeys = transferEngine.sweepStaleInbound(maxAgeMillis)
         return staleKeys.size
     }
 
     override fun sweepExpiredPendingMessages(): Int {
-        val expired = deliveryPipeline.sweepExpiredPending(config.pendingMessageTtlMs)
+        val expired = deliveryPipeline.sweepExpiredPending(config.pendingMessageTtlMillis)
         repeat(expired) {
             _transferFailures.tryEmit(
                 TransferFailure(Uuid.random(), DeliveryOutcome.FAILED_DELIVERY_TIMEOUT)
@@ -678,7 +678,7 @@ class MeshLink(
             }
 
             is SendDecision.Unreachable -> {
-                if (config.pendingMessageTtlMs > 0) {
+                if (config.pendingMessageTtlMillis > 0) {
                     val recipientHex = recipient.toHex()
                     when (
                         deliveryPipeline.bufferPending(
@@ -723,7 +723,7 @@ class MeshLink(
     private fun doSend(s: CoroutineScope, recipient: ByteArray, payload: ByteArray): Result<Uuid> {
         val messageId = Uuid.random().toByteArray()
         val key = messageId.toHex()
-        deliveryPipeline.registerOutbound(s, key, config.bufferTtlMs) { expiredKey ->
+        deliveryPipeline.registerOutbound(s, key, config.bufferTtlMillis) { expiredKey ->
             _transferFailures.tryEmit(
                 TransferFailure(
                     Uuid.fromByteArray(hexToBytes(expiredKey)),

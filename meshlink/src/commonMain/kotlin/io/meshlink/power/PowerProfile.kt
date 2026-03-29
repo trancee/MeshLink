@@ -8,17 +8,17 @@ package io.meshlink.power
  * and [ConnectionLimiter] with a data-driven profile per mode.
  */
 data class PowerProfile(
-    val advertisingIntervalMs: Long,
-    val scanOnMs: Long,
-    val scanOffMs: Long,
+    val advertisingIntervalMillis: Long,
+    val scanOnMillis: Long,
+    val scanOffMillis: Long,
     val maxConnections: Int,
     val gossipMultiplier: Double,
 ) {
     /** Computed scan duty cycle percentage. */
     val scanDutyPercent: Int
         get() {
-            val total = scanOnMs + scanOffMs
-            return if (total <= 0) 0 else ((scanOnMs * 100) / total).toInt()
+            val total = scanOnMillis + scanOffMillis
+            return if (total <= 0) 0 else ((scanOnMillis * 100) / total).toInt()
         }
 
     /** Whether this profile uses aggressive discovery (short interval, high duty). */
@@ -26,25 +26,25 @@ data class PowerProfile(
 
     companion object {
         val PERFORMANCE = PowerProfile(
-            advertisingIntervalMs = 250L,
-            scanOnMs = 4_000L,
-            scanOffMs = 1_000L,
+            advertisingIntervalMillis = 250L,
+            scanOnMillis = 4_000L,
+            scanOffMillis = 1_000L,
             maxConnections = 8,
             gossipMultiplier = 1.0,
         )
 
         val BALANCED = PowerProfile(
-            advertisingIntervalMs = 500L,
-            scanOnMs = 3_000L,
-            scanOffMs = 3_000L,
+            advertisingIntervalMillis = 500L,
+            scanOnMillis = 3_000L,
+            scanOffMillis = 3_000L,
             maxConnections = 4,
             gossipMultiplier = 1.5,
         )
 
         val POWER_SAVER = PowerProfile(
-            advertisingIntervalMs = 1_000L,
-            scanOnMs = 1_000L,
-            scanOffMs = 5_000L,
+            advertisingIntervalMillis = 1_000L,
+            scanOnMillis = 1_000L,
+            scanOffMillis = 5_000L,
             maxConnections = 1,
             gossipMultiplier = 3.0,
         )

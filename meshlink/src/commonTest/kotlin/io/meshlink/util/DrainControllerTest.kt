@@ -15,7 +15,7 @@ class DrainControllerTest {
     @Test
     fun allItemsDrainBeforeTimeout() = runTest {
         var active = 3
-        val controller = DrainController(drainTimeoutMs = 5_000L, pollIntervalMs = 100L)
+        val controller = DrainController(drainTimeoutMillis = 5_000L, pollIntervalMillis = 100L)
 
         val job = launch {
             delay(250)
@@ -30,7 +30,7 @@ class DrainControllerTest {
 
     @Test
     fun noItemsActiveReturnsImmediately() = runTest {
-        val controller = DrainController(drainTimeoutMs = 5_000L, pollIntervalMs = 100L)
+        val controller = DrainController(drainTimeoutMillis = 5_000L, pollIntervalMillis = 100L)
 
         val result = controller.drain { 0 }
 
@@ -39,7 +39,7 @@ class DrainControllerTest {
 
     @Test
     fun itemsNeverDrainReturnsRemainingAfterTimeout() = runTest {
-        val controller = DrainController(drainTimeoutMs = 1_000L, pollIntervalMs = 100L)
+        val controller = DrainController(drainTimeoutMillis = 1_000L, pollIntervalMillis = 100L)
 
         val result = controller.drain { 5 }
 
@@ -49,7 +49,7 @@ class DrainControllerTest {
     @Test
     fun partialDrainReturnsRemainingCount() = runTest {
         var active = 10
-        val controller = DrainController(drainTimeoutMs = 1_000L, pollIntervalMs = 100L)
+        val controller = DrainController(drainTimeoutMillis = 1_000L, pollIntervalMillis = 100L)
 
         val job = launch {
             delay(300)
@@ -64,7 +64,7 @@ class DrainControllerTest {
 
     @Test
     fun zeroTimeoutReturnsImmediately() = runTest {
-        val controller = DrainController(drainTimeoutMs = 0L, pollIntervalMs = 100L)
+        val controller = DrainController(drainTimeoutMillis = 0L, pollIntervalMillis = 100L)
 
         val result = controller.drain { 7 }
 
@@ -73,7 +73,7 @@ class DrainControllerTest {
 
     @Test
     fun negativeTimeoutReturnsImmediately() = runTest {
-        val controller = DrainController(drainTimeoutMs = -1L, pollIntervalMs = 100L)
+        val controller = DrainController(drainTimeoutMillis = -1L, pollIntervalMillis = 100L)
 
         val result = controller.drain { 4 }
 
@@ -83,7 +83,7 @@ class DrainControllerTest {
     @Test
     fun itemsDrainAtVaryingRates() = runTest {
         var active = 5
-        val controller = DrainController(drainTimeoutMs = 5_000L, pollIntervalMs = 50L)
+        val controller = DrainController(drainTimeoutMillis = 5_000L, pollIntervalMillis = 50L)
 
         val job = launch {
             delay(100)
@@ -102,17 +102,17 @@ class DrainControllerTest {
 
     @Test
     fun enabledPropertyReflectsTimeoutConfiguration() {
-        assertTrue(DrainController(drainTimeoutMs = 5_000L).enabled, "Positive timeout → enabled")
-        assertTrue(DrainController(drainTimeoutMs = 1L).enabled, "Minimal positive timeout → enabled")
-        assertFalse(DrainController(drainTimeoutMs = 0L).enabled, "Zero timeout → disabled")
-        assertFalse(DrainController(drainTimeoutMs = -1L).enabled, "Negative timeout → disabled")
-        assertFalse(DrainController(drainTimeoutMs = -100L).enabled, "Large negative timeout → disabled")
+        assertTrue(DrainController(drainTimeoutMillis = 5_000L).enabled, "Positive timeout → enabled")
+        assertTrue(DrainController(drainTimeoutMillis = 1L).enabled, "Minimal positive timeout → enabled")
+        assertFalse(DrainController(drainTimeoutMillis = 0L).enabled, "Zero timeout → disabled")
+        assertFalse(DrainController(drainTimeoutMillis = -1L).enabled, "Negative timeout → disabled")
+        assertFalse(DrainController(drainTimeoutMillis = -100L).enabled, "Large negative timeout → disabled")
     }
 
     @Test
     fun fastDrainOnFirstPoll() = runTest {
         var active = 5
-        val controller = DrainController(drainTimeoutMs = 5_000L, pollIntervalMs = 100L)
+        val controller = DrainController(drainTimeoutMillis = 5_000L, pollIntervalMillis = 100L)
 
         val job = launch {
             delay(10)
@@ -127,16 +127,16 @@ class DrainControllerTest {
 
     @Test
     fun timeoutAccuracyDoesNotWaitMuchLonger() = runTest {
-        val timeoutMs = 500L
-        val controller = DrainController(drainTimeoutMs = timeoutMs, pollIntervalMs = 50L)
+        val timeoutMillis = 500L
+        val controller = DrainController(drainTimeoutMillis = timeoutMillis, pollIntervalMillis = 50L)
 
         val startTime = testScheduler.currentTime
         controller.drain { 1 }
         val elapsed = testScheduler.currentTime - startTime
 
         assertTrue(
-            elapsed in timeoutMs..(timeoutMs + 200),
-            "Elapsed $elapsed ms should be close to timeout $timeoutMs ms"
+            elapsed in timeoutMillis..(timeoutMillis + 200),
+            "Elapsed $elapsed ms should be close to timeout $timeoutMillis ms"
         )
     }
 
@@ -149,7 +149,7 @@ class DrainControllerTest {
     @Test
     fun drainWithSingleItemThatCompletes() = runTest {
         var active = 1
-        val controller = DrainController(drainTimeoutMs = 2_000L, pollIntervalMs = 50L)
+        val controller = DrainController(drainTimeoutMillis = 2_000L, pollIntervalMillis = 50L)
 
         val job = launch {
             delay(150)

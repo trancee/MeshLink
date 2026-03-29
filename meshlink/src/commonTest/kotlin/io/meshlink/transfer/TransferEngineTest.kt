@@ -132,7 +132,7 @@ class TransferEngineTest {
         assertEquals(1, engine.outboundCount)
 
         now = 6000L // 5 seconds later
-        val swept = engine.sweepStaleOutbound(maxAgeMs = 3000L)
+        val swept = engine.sweepStaleOutbound(maxAgeMillis = 3000L)
         assertEquals(1, swept.size)
         assertEquals(msgHex, swept[0])
         assertEquals(0, engine.outboundCount)
@@ -149,7 +149,7 @@ class TransferEngineTest {
         assertEquals(1, engine.inboundCount)
 
         now = 6000L
-        val swept = engine.sweepStaleInbound(maxAgeMs = 3000L)
+        val swept = engine.sweepStaleInbound(maxAgeMillis = 3000L)
         assertEquals(1, swept.size)
         assertEquals(0, engine.inboundCount)
     }

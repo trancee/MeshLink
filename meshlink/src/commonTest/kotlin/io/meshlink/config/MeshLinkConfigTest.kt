@@ -47,15 +47,15 @@ class MeshLinkConfigTest {
             diagnosticBufferCapacity = -1,
             dedupCapacity = 0,
             rateLimitMaxSends = 2,
-            rateLimitWindowMs = 0,
+            rateLimitWindowMillis = 0,
             circuitBreakerMaxFailures = 1,
-            circuitBreakerCooldownMs = -5,
+            circuitBreakerCooldownMillis = -5,
         ).validate()
 
         assertTrue(violations.any { "diagnosticBufferCapacity" in it }, "Should reject negative diagnosticBufferCapacity: $violations")
         assertTrue(violations.any { "dedupCapacity" in it }, "Should reject zero dedupCapacity: $violations")
-        assertTrue(violations.any { "rateLimitWindowMs" in it }, "Should reject zero rateLimitWindowMs when rate limiting enabled: $violations")
-        assertTrue(violations.any { "circuitBreakerCooldownMs" in it }, "Should reject negative circuitBreakerCooldownMs: $violations")
+        assertTrue(violations.any { "rateLimitWindowMillis" in it }, "Should reject zero rateLimitWindowMillis when rate limiting enabled: $violations")
+        assertTrue(violations.any { "circuitBreakerCooldownMillis" in it }, "Should reject negative circuitBreakerCooldownMillis: $violations")
     }
 
     // --- Batch 10 Cycle 4: Preset override with new fields ---
@@ -71,7 +71,7 @@ class MeshLinkConfigTest {
         assertEquals(524_288, chat.bufferCapacity, "Preset default should be preserved")
         assertEquals(5, chat.rateLimitMaxSends, "Override should apply")
         assertEquals(3, chat.circuitBreakerMaxFailures, "Override should apply")
-        assertEquals(60_000L, chat.rateLimitWindowMs, "Non-overridden new field should keep builder default")
+        assertEquals(60_000L, chat.rateLimitWindowMillis, "Non-overridden new field should keep builder default")
 
         // Validate catches violation when override creates inconsistency
         val invalid = MeshLinkConfig.fileTransferOptimized {
@@ -151,21 +151,21 @@ class MeshLinkConfigTest {
     @Test
     fun chunkInactivityTimeoutMustBeLessThanBufferTtl() {
         val violations = MeshLinkConfig(
-            chunkInactivityTimeoutMs = 300_000L,
-            bufferTtlMs = 300_000L,
+            chunkInactivityTimeoutMillis = 300_000L,
+            bufferTtlMillis = 300_000L,
         ).validate()
-        assertTrue(violations.any { "chunkInactivityTimeoutMs" in it && "bufferTtlMs" in it },
-            "Should reject chunkInactivityTimeoutMs >= bufferTtlMs: $violations")
+        assertTrue(violations.any { "chunkInactivityTimeoutMillis" in it && "bufferTtlMillis" in it },
+            "Should reject chunkInactivityTimeoutMillis >= bufferTtlMillis: $violations")
     }
 
     @Test
     fun chunkInactivityTimeoutExceedingBufferTtlIsInvalid() {
         val violations = MeshLinkConfig(
-            chunkInactivityTimeoutMs = 600_000L,
-            bufferTtlMs = 300_000L,
+            chunkInactivityTimeoutMillis = 600_000L,
+            bufferTtlMillis = 300_000L,
         ).validate()
-        assertTrue(violations.any { "chunkInactivityTimeoutMs" in it },
-            "Should reject chunkInactivityTimeoutMs > bufferTtlMs: $violations")
+        assertTrue(violations.any { "chunkInactivityTimeoutMillis" in it },
+            "Should reject chunkInactivityTimeoutMillis > bufferTtlMillis: $violations")
     }
 
     @Test
@@ -176,15 +176,15 @@ class MeshLinkConfigTest {
             powerModeThresholds = listOf(10, 90),
             l2capEnabled = true,
             l2capRetryAttempts = -2,
-            chunkInactivityTimeoutMs = 500_000L,
-            bufferTtlMs = 100_000L,
+            chunkInactivityTimeoutMillis = 500_000L,
+            bufferTtlMillis = 100_000L,
         ).validate()
         assertTrue(violations.size >= 4,
             "Should report at least 4 cross-field violations, got ${violations.size}: $violations")
         assertTrue(violations.any { "ackWindow" in it })
         assertTrue(violations.any { "powerModeThresholds" in it })
         assertTrue(violations.any { "l2capRetryAttempts" in it })
-        assertTrue(violations.any { "chunkInactivityTimeoutMs" in it })
+        assertTrue(violations.any { "chunkInactivityTimeoutMillis" in it })
     }
 
     @Test
@@ -201,7 +201,7 @@ class MeshLinkConfigTest {
         assertEquals(listOf(80, 30), config.powerModeThresholds)
         assertEquals(true, config.l2capEnabled)
         assertEquals(3, config.l2capRetryAttempts)
-        assertEquals(30_000L, config.chunkInactivityTimeoutMs)
-        assertEquals(300_000L, config.bufferTtlMs)
+        assertEquals(30_000L, config.chunkInactivityTimeoutMillis)
+        assertEquals(300_000L, config.bufferTtlMillis)
     }
 }

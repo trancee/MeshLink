@@ -350,7 +350,7 @@ cost = (rssiBase × lossMultiplier × freshnessPenalty) + stabilityPenalty
 Where:
   rssiBase         = (rssi − (−20)) / (−100 − (−20))        ∈ [0, 1]
   lossMultiplier   = 1 / (1 − packetLossRate)                1.0 at 0%, 100 at 99%
-  freshnessPenalty  = 1.0 + ageMs / freshnessHalfLifeMs      1.0 new, 2.0 at half-life
+  freshnessPenalty  = 1.0 + ageMillis / freshnessHalfLifeMillis      1.0 new, 2.0 at half-life
   stabilityPenalty  = flapCount × penaltyPerFlap (default 0.1)
 ```
 
@@ -368,7 +368,7 @@ Lower cost is better. The result is clamped to `(0, MAX_ROUTE_COST]`.
    knows about but we no longer have (sent with `cost = ∞`).
 4. **Triggered updates** — a cost change exceeding `triggeredUpdateThreshold`
    (default 30%) triggers an immediate advertisement, batched within
-   `triggeredUpdateBatchMs` (default 100 ms).
+   `triggeredUpdateBatchMillis` (default 100 ms).
 
 ### Deduplication
 
@@ -529,7 +529,7 @@ stateDiagram-v2
 `PowerModeEngine` prevents rapid mode flapping:
 
 - **Downward transitions** (e.g., BALANCED → POWER_SAVER): delayed by
-  `hysteresisMs` (default 30 seconds). The battery must remain below the
+  `hysteresisMillis` (default 30 seconds). The battery must remain below the
   threshold for the full window.
 - **Upward transitions** (e.g., POWER_SAVER → BALANCED): immediate.
 - **Charging detected**: immediately promotes to PERFORMANCE.

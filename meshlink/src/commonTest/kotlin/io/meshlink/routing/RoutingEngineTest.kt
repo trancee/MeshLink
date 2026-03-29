@@ -10,7 +10,7 @@ class RoutingEngineTest {
 
     private val localId = "aabb"
     private fun engine(
-        gossipIntervalMs: Long = 1000L,
+        gossipIntervalMillis: Long = 1000L,
         dedupCapacity: Int = 100,
         triggeredUpdateThreshold: Double = 0.3,
         clock: () -> Long = { 0L },
@@ -18,7 +18,7 @@ class RoutingEngineTest {
         localPeerId = localId,
         dedupCapacity = dedupCapacity,
         triggeredUpdateThreshold = triggeredUpdateThreshold,
-        gossipIntervalMs = gossipIntervalMs,
+        gossipIntervalMillis = gossipIntervalMillis,
         clock = clock,
     )
 
@@ -165,7 +165,7 @@ class RoutingEngineTest {
 
     @Test
     fun effectiveGossipIntervalScalesWithPowerMode() {
-        val re = engine(gossipIntervalMs = 1000L)
+        val re = engine(gossipIntervalMillis = 1000L)
         assertEquals(1000L, re.effectiveGossipInterval("PERFORMANCE"))
         assertEquals(2000L, re.effectiveGossipInterval("BALANCED"))
         assertEquals(3000L, re.effectiveGossipInterval("POWER_SAVER"))
@@ -173,7 +173,7 @@ class RoutingEngineTest {
 
     @Test
     fun effectiveGossipIntervalScalesWithRouteCount() {
-        val re = engine(gossipIntervalMs = 1000L)
+        val re = engine(gossipIntervalMillis = 1000L)
         // Add >100 routes to trigger 1.5x multiplier
         for (i in 0..100) {
             re.addRoute("dest$i", "relay", 1.0, 1u)
@@ -184,7 +184,7 @@ class RoutingEngineTest {
     @Test
     fun triggeredUpdateRateLimited() {
         var now = 0L
-        val re = engine(gossipIntervalMs = 1000L, clock = { now })
+        val re = engine(gossipIntervalMillis = 1000L, clock = { now })
         // First triggered update always allowed
         assertTrue(re.shouldSendTriggeredUpdate("peer1", "PERFORMANCE"))
         re.recordTriggeredUpdate("peer1")
@@ -263,7 +263,7 @@ class RoutingEngineTest {
         assertEquals(0, re.routeCount)
         assertFalse(re.isDuplicate("msg1")) // dedup cleared, msg1 is "new" again
         assertTrue(re.shouldSendTriggeredUpdate("peer1", "PERFORMANCE"))
-        assertEquals(now, re.timeSinceLastGossip()) // lastGossipSentMs reset to 0
+        assertEquals(now, re.timeSinceLastGossip()) // lastGossipSentMillis reset to 0
     }
 
     // ── Next-hop reliability tracking ──────────────────────────────

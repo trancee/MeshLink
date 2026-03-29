@@ -34,7 +34,7 @@ enum class DiagnosticCode {
 data class DiagnosticEvent(
     val code: DiagnosticCode,
     val severity: Severity,
-    val monotonicMs: Long,
+    val monotonicMillis: Long,
     val droppedCount: Int,
     val payload: String?,
 )
@@ -57,7 +57,7 @@ class DiagnosticSink(
         val event = DiagnosticEvent(
             code = code,
             severity = severity,
-            monotonicMs = clock(),
+            monotonicMillis = clock(),
             droppedCount = 0,
             payload = payload,
         )

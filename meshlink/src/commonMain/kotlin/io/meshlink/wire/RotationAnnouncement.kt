@@ -31,7 +31,7 @@ object RotationAnnouncement {
         val newX25519Key: ByteArray,
         val oldEd25519Key: ByteArray,
         val newEd25519Key: ByteArray,
-        val timestampMs: ULong,
+        val timestampMillis: ULong,
         val signature: ByteArray,
     ) {
         override fun equals(other: Any?): Boolean {
@@ -41,7 +41,7 @@ object RotationAnnouncement {
                 newX25519Key.contentEquals(other.newX25519Key) &&
                 oldEd25519Key.contentEquals(other.oldEd25519Key) &&
                 newEd25519Key.contentEquals(other.newEd25519Key) &&
-                timestampMs == other.timestampMs &&
+                timestampMillis == other.timestampMillis &&
                 signature.contentEquals(other.signature)
         }
 
@@ -50,7 +50,7 @@ object RotationAnnouncement {
             result = 31 * result + newX25519Key.contentHashCode()
             result = 31 * result + oldEd25519Key.contentHashCode()
             result = 31 * result + newEd25519Key.contentHashCode()
-            result = 31 * result + timestampMs.hashCode()
+            result = 31 * result + timestampMillis.hashCode()
             result = 31 * result + signature.contentHashCode()
             return result
         }
@@ -64,7 +64,7 @@ object RotationAnnouncement {
         newX25519Key: ByteArray,
         oldEd25519Key: ByteArray,
         newEd25519Key: ByteArray,
-        timestampMs: ULong,
+        timestampMillis: ULong,
         signature: ByteArray,
     ): ByteArray {
         require(oldX25519Key.size == KEY_SIZE) { "oldX25519Key must be $KEY_SIZE bytes, got ${oldX25519Key.size}" }
@@ -84,7 +84,7 @@ object RotationAnnouncement {
         offset += KEY_SIZE
         newEd25519Key.copyInto(buf, offset)
         offset += KEY_SIZE
-        buf.putULongBE(offset, timestampMs)
+        buf.putULongBE(offset, timestampMillis)
         offset += TIMESTAMP_SIZE
         signature.copyInto(buf, offset)
         return buf
@@ -106,11 +106,11 @@ object RotationAnnouncement {
         offset += KEY_SIZE
         val newEd25519 = data.copyOfRange(offset, offset + KEY_SIZE)
         offset += KEY_SIZE
-        val timestampMs = data.getULongBE(offset)
+        val timestampMillis = data.getULongBE(offset)
         offset += TIMESTAMP_SIZE
         val signature = data.copyOfRange(offset, offset + SIGNATURE_SIZE)
 
-        return RotationMessage(oldX25519, newX25519, oldEd25519, newEd25519, timestampMs, signature)
+        return RotationMessage(oldX25519, newX25519, oldEd25519, newEd25519, timestampMillis, signature)
     }
 
     /**
@@ -122,7 +122,7 @@ object RotationAnnouncement {
         newX25519Key: ByteArray,
         oldEd25519Key: ByteArray,
         newEd25519Key: ByteArray,
-        timestampMs: ULong,
+        timestampMillis: ULong,
     ): ByteArray {
         require(oldX25519Key.size == KEY_SIZE) { "oldX25519Key must be $KEY_SIZE bytes, got ${oldX25519Key.size}" }
         require(newX25519Key.size == KEY_SIZE) { "newX25519Key must be $KEY_SIZE bytes, got ${newX25519Key.size}" }
@@ -139,7 +139,7 @@ object RotationAnnouncement {
         offset += KEY_SIZE
         newEd25519Key.copyInto(buf, offset)
         offset += KEY_SIZE
-        buf.putULongBE(offset, timestampMs)
+        buf.putULongBE(offset, timestampMillis)
         return buf
     }
 
@@ -152,7 +152,7 @@ object RotationAnnouncement {
             message.newX25519Key,
             message.oldEd25519Key,
             message.newEd25519Key,
-            message.timestampMs,
+            message.timestampMillis,
         )
         return cryptoProvider.verify(message.oldEd25519Key, payload, message.signature)
     }

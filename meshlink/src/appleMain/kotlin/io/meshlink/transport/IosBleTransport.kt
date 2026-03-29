@@ -78,7 +78,7 @@ private fun ByteArray.toHexString(): String =
 private data class TrackedPeer(
     val peerId: ByteArray,
     val peripheral: CBPeripheral,
-    var lastSeenMs: Long,
+    var lastSeenMillis: Long,
 )
 
 /**
@@ -284,7 +284,7 @@ class IosBleTransport(
         // hold references to the backing HashMap and crash if the map is rehashed.
         val snapshot = knownPeers.toMap()
         val timedOut = snapshot.filter { (_, peer) ->
-            now - peer.lastSeenMs > PEER_TIMEOUT_MS
+            now - peer.lastSeenMillis > PEER_TIMEOUT_MS
         }
         for ((key, peer) in timedOut) {
             logD("Peer timed out: ${peer.peerId.toHexString()}")
@@ -426,14 +426,14 @@ class IosBleTransport(
             // Track this peer
             val existing = knownPeers[peripheralUUID]
             if (existing != null) {
-                existing.lastSeenMs = now
+                existing.lastSeenMillis = now
                 // Suppress repeated "Peer seen" logs — they fire on every scan cycle
             } else {
                 logD("📡 NEW peer discovered: $peripheralUUID, RSSI=$RSSI, payload=${advertisementPayload.size}B")
                 knownPeers[peripheralUUID] = TrackedPeer(
                     peerId = peerId,
                     peripheral = didDiscoverPeripheral,
-                    lastSeenMs = now,
+                    lastSeenMillis = now,
                 )
                 connectedPeripherals[peerId.toHexString()] = didDiscoverPeripheral
             }

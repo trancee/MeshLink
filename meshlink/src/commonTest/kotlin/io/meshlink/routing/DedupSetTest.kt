@@ -77,7 +77,7 @@ class DedupSetTest {
     @Test
     fun expiredEntriesAreEvictedByTtl() {
         var now = 0L
-        val dedup = DedupSet(capacity = 100, ttlMs = 1000L, clock = { now })
+        val dedup = DedupSet(capacity = 100, ttlMillis = 1000L, clock = { now })
 
         assertTrue(dedup.tryInsert("a"))
         assertTrue(dedup.tryInsert("b"))
@@ -93,7 +93,7 @@ class DedupSetTest {
     @Test
     fun ttlExpiryPreventsTargetedEviction() {
         var now = 0L
-        val dedup = DedupSet(capacity = 3, ttlMs = 5000L, clock = { now })
+        val dedup = DedupSet(capacity = 3, ttlMillis = 5000L, clock = { now })
 
         // Insert legitimate message
         assertTrue(dedup.tryInsert("legit"))
@@ -107,12 +107,12 @@ class DedupSetTest {
 
         // legit was evicted by capacity cap, but within TTL window
         // this is acceptable — the capacity is a safety net
-        // The key improvement is that with ttlMs=5000 and capacity=100_000,
+        // The key improvement is that with ttlMillis=5000 and capacity=100_000,
         // an attacker needs 100,000 unique IDs within 5 seconds to evict
 
         // Verify the TTL window protects when capacity is large enough
         now = 0L
-        val largeDedup = DedupSet(capacity = 100_000, ttlMs = 5000L, clock = { now })
+        val largeDedup = DedupSet(capacity = 100_000, ttlMillis = 5000L, clock = { now })
         assertTrue(largeDedup.tryInsert("legit"))
         for (i in 0 until 1000) {
             largeDedup.tryInsert("atk$i")

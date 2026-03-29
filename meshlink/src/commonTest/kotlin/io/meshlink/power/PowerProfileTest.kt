@@ -31,37 +31,37 @@ class PowerProfileTest {
 
     @Test
     fun performance_advertisingInterval_250ms() {
-        assertEquals(250L, PowerProfile.PERFORMANCE.advertisingIntervalMs)
+        assertEquals(250L, PowerProfile.PERFORMANCE.advertisingIntervalMillis)
     }
 
     @Test
     fun balanced_advertisingInterval_500ms() {
-        assertEquals(500L, PowerProfile.BALANCED.advertisingIntervalMs)
+        assertEquals(500L, PowerProfile.BALANCED.advertisingIntervalMillis)
     }
 
     @Test
     fun powerSaver_advertisingInterval_1000ms() {
-        assertEquals(1_000L, PowerProfile.POWER_SAVER.advertisingIntervalMs)
+        assertEquals(1_000L, PowerProfile.POWER_SAVER.advertisingIntervalMillis)
     }
 
     // ── Scan timing ─────────────────────────────────────────────
 
     @Test
     fun performance_scanOn4s_scanOff1s() {
-        assertEquals(4_000L, PowerProfile.PERFORMANCE.scanOnMs)
-        assertEquals(1_000L, PowerProfile.PERFORMANCE.scanOffMs)
+        assertEquals(4_000L, PowerProfile.PERFORMANCE.scanOnMillis)
+        assertEquals(1_000L, PowerProfile.PERFORMANCE.scanOffMillis)
     }
 
     @Test
     fun balanced_scanOn3s_scanOff3s() {
-        assertEquals(3_000L, PowerProfile.BALANCED.scanOnMs)
-        assertEquals(3_000L, PowerProfile.BALANCED.scanOffMs)
+        assertEquals(3_000L, PowerProfile.BALANCED.scanOnMillis)
+        assertEquals(3_000L, PowerProfile.BALANCED.scanOffMillis)
     }
 
     @Test
     fun powerSaver_scanOn1s_scanOff5s() {
-        assertEquals(1_000L, PowerProfile.POWER_SAVER.scanOnMs)
-        assertEquals(5_000L, PowerProfile.POWER_SAVER.scanOffMs)
+        assertEquals(1_000L, PowerProfile.POWER_SAVER.scanOnMillis)
+        assertEquals(5_000L, PowerProfile.POWER_SAVER.scanOffMillis)
     }
 
     // ── Scan duty percent ───────────────────────────────────────
@@ -137,9 +137,9 @@ class PowerProfileTest {
     @Test
     fun customProfile_computesScanDutyCorrectly() {
         val custom = PowerProfile(
-            advertisingIntervalMs = 100L,
-            scanOnMs = 2_000L,
-            scanOffMs = 8_000L,
+            advertisingIntervalMillis = 100L,
+            scanOnMillis = 2_000L,
+            scanOffMillis = 8_000L,
             maxConnections = 2,
             gossipMultiplier = 2.0,
         )
@@ -149,9 +149,9 @@ class PowerProfileTest {
     @Test
     fun customProfile_zeroDuration_scanDutyIsZero() {
         val custom = PowerProfile(
-            advertisingIntervalMs = 100L,
-            scanOnMs = 0L,
-            scanOffMs = 0L,
+            advertisingIntervalMillis = 100L,
+            scanOnMillis = 0L,
+            scanOffMillis = 0L,
             maxConnections = 1,
             gossipMultiplier = 1.0,
         )

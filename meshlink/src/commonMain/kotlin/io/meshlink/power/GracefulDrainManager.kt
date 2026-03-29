@@ -8,12 +8,12 @@ import io.meshlink.util.currentTimeMillis
  * before disconnecting them when connection limits decrease.
  */
 class GracefulDrainManager(
-    private val graceMs: Long = 30_000L,
+    private val graceMillis: Long = 30_000L,
     private val clock: () -> Long = { currentTimeMillis() },
 ) {
     data class DrainEntry(
         val peerIdHex: String,
-        val startedAtMs: Long,
+        val startedAtMillis: Long,
         val reason: String,
     )
 
@@ -29,14 +29,14 @@ class GracefulDrainManager(
     /** Check if a peer is in the grace period (should NOT be disconnected yet). */
     fun isInGracePeriod(peerIdHex: String): Boolean {
         val entry = draining[peerIdHex] ?: return false
-        return clock() - entry.startedAtMs < graceMs
+        return clock() - entry.startedAtMillis < graceMillis
     }
 
     /** Get all peers whose grace period has expired (ready to disconnect). */
     fun expiredPeers(): List<String> {
         val now = clock()
         return draining.values
-            .filter { now - it.startedAtMs >= graceMs }
+            .filter { now - it.startedAtMillis >= graceMillis }
             .map { it.peerIdHex }
     }
 

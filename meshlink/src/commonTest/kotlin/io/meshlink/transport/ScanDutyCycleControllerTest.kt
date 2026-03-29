@@ -19,24 +19,24 @@ class ScanDutyCycleControllerTest {
     @Test
     fun performanceTimingIs4sOn1sOff() {
         val t = ScanDutyCycleController.timingFor(PowerMode.PERFORMANCE)
-        assertEquals(4_000L, t.scanOnMs)
-        assertEquals(1_000L, t.scanOffMs)
+        assertEquals(4_000L, t.scanOnMillis)
+        assertEquals(1_000L, t.scanOffMillis)
         assertEquals(80, t.dutyPercent)
     }
 
     @Test
     fun balancedTimingIs3sOn3sOff() {
         val t = ScanDutyCycleController.timingFor(PowerMode.BALANCED)
-        assertEquals(3_000L, t.scanOnMs)
-        assertEquals(3_000L, t.scanOffMs)
+        assertEquals(3_000L, t.scanOnMillis)
+        assertEquals(3_000L, t.scanOffMillis)
         assertEquals(50, t.dutyPercent)
     }
 
     @Test
     fun powerSaverTimingIs1sOn5sOff() {
         val t = ScanDutyCycleController.timingFor(PowerMode.POWER_SAVER)
-        assertEquals(1_000L, t.scanOnMs)
-        assertEquals(5_000L, t.scanOffMs)
+        assertEquals(1_000L, t.scanOnMillis)
+        assertEquals(5_000L, t.scanOffMillis)
         assertEquals(16, t.dutyPercent) // 1000/6000 = 16%
     }
 
@@ -115,11 +115,11 @@ class ScanDutyCycleControllerTest {
     @Test
     fun onPowerModeChangedUpdatesTiming() {
         val controller = ScanDutyCycleController()
-        assertEquals(4_000L, controller.timing.scanOnMs) // default PERFORMANCE
+        assertEquals(4_000L, controller.timing.scanOnMillis) // default PERFORMANCE
 
         controller.onPowerModeChanged(PowerMode.POWER_SAVER)
-        assertEquals(1_000L, controller.timing.scanOnMs)
-        assertEquals(5_000L, controller.timing.scanOffMs)
+        assertEquals(1_000L, controller.timing.scanOnMillis)
+        assertEquals(5_000L, controller.timing.scanOffMillis)
     }
 
     @Test
@@ -147,14 +147,14 @@ class ScanDutyCycleControllerTest {
     // -- CycleTiming computed properties --------------------------------------
 
     @Test
-    fun cycleTimingTotalMs() {
-        val t = ScanDutyCycleController.CycleTiming(scanOnMs = 2_000L, scanOffMs = 8_000L)
-        assertEquals(10_000L, t.totalMs)
+    fun cycleTimingTotalMillis() {
+        val t = ScanDutyCycleController.CycleTiming(scanOnMillis = 2_000L, scanOffMillis = 8_000L)
+        assertEquals(10_000L, t.totalMillis)
     }
 
     @Test
     fun cycleTimingDutyPercent() {
-        val t = ScanDutyCycleController.CycleTiming(scanOnMs = 2_000L, scanOffMs = 8_000L)
+        val t = ScanDutyCycleController.CycleTiming(scanOnMillis = 2_000L, scanOffMillis = 8_000L)
         assertEquals(20, t.dutyPercent)
     }
 

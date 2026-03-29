@@ -9,27 +9,27 @@ import io.meshlink.util.currentTimeMillis
  * [channelFactory]. When a factory call fails, the manager retries up to
  * [maxRetries] times with exponential back-off and, after repeated failures,
  * engages a circuit breaker that marks the peer as GATT-only for
- * [circuitBreakerCooldownMs] milliseconds.
+ * [circuitBreakerCooldownMillis] milliseconds.
  *
  * @param channelFactory  Suspending function that opens a platform L2CAP
  *   channel for the given peer ID, or returns `null` / throws if the peer
  *   does not support L2CAP.
  * @param maxRetries              Number of retry attempts before giving up.
- * @param initialBackoffMs        Base delay for the first retry.
- * @param circuitBreakerFailures  Number of failures within [circuitBreakerWindowMs]
+ * @param initialBackoffMillis        Base delay for the first retry.
+ * @param circuitBreakerFailures  Number of failures within [circuitBreakerWindowMillis]
  *   that trip the circuit breaker.
- * @param circuitBreakerWindowMs  Sliding window for counting failures.
- * @param circuitBreakerCooldownMs Duration a tripped breaker stays open.
+ * @param circuitBreakerWindowMillis  Sliding window for counting failures.
+ * @param circuitBreakerCooldownMillis Duration a tripped breaker stays open.
  * @param clock                   Wall-clock source (injectable for tests).
  * @param delayFn                 Suspending delay (injectable for tests).
  */
 class L2capManager(
     private val channelFactory: suspend (peerId: ByteArray) -> L2capChannel? = { null },
     private val maxRetries: Int = 3,
-    private val initialBackoffMs: Long = 200L,
+    private val initialBackoffMillis: Long = 200L,
     private val circuitBreakerFailures: Int = 3,
-    private val circuitBreakerWindowMs: Long = 5 * 60 * 1_000L,
-    private val circuitBreakerCooldownMs: Long = 30 * 60 * 1_000L,
+    private val circuitBreakerWindowMillis: Long = 5 * 60 * 1_000L,
+    private val circuitBreakerCooldownMillis: Long = 30 * 60 * 1_000L,
     private val clock: () -> Long = { currentTimeMillis() },
     private val delayFn: suspend (ms: Long) -> Unit = { kotlinx.coroutines.delay(it) },
 ) {
@@ -79,7 +79,7 @@ class L2capManager(
                 lastException = e
             }
             if (attempt < maxRetries) {
-                val delay = initialBackoffMs * (1L shl attempt)
+                val delay = initialBackoffMillis * (1L shl attempt)
                 delayFn(delay)
             }
         }
@@ -112,12 +112,12 @@ class L2capManager(
             failureTimestamps[key] = mutableListOf(now)
         }
         // Evict old entries outside the window
-        val cutoff = now - circuitBreakerWindowMs
+        val cutoff = now - circuitBreakerWindowMillis
         failureTimestamps[key]?.removeAll { it <= cutoff }
 
         val count = failureTimestamps[key]?.size ?: 0
         if (count >= circuitBreakerFailures) {
-            circuitOpenUntil[key] = now + circuitBreakerCooldownMs
+            circuitOpenUntil[key] = now + circuitBreakerCooldownMillis
         }
     }
 

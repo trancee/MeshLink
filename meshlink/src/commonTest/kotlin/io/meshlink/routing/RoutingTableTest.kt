@@ -53,7 +53,7 @@ class RoutingTableTest {
         var now = 1000L
         RoutingTable.currentTime = { now }
 
-        val table = RoutingTable(expiryMs = 500)
+        val table = RoutingTable(expiryMillis = 500)
 
         table.addRoute(destination = "D", nextHop = "A", cost = 5.0, sequenceNumber = 1u)
         assertEquals("A", table.bestRoute("D")?.nextHop)
@@ -159,7 +159,7 @@ class RoutingTableTest {
         var now = 1000L
         RoutingTable.currentTime = { now }
 
-        val table = RoutingTable(settlingMs = 100)
+        val table = RoutingTable(settlingMillis = 100)
 
         // Initial route accepted immediately
         table.addRoute("D", "A", cost = 5.0, sequenceNumber = 1u)
@@ -180,7 +180,7 @@ class RoutingTableTest {
         var now = 1000L
         RoutingTable.currentTime = { now }
 
-        val table = RoutingTable(holddownMs = 200)
+        val table = RoutingTable(holddownMillis = 200)
 
         // Route installed
         table.addRoute("D", "A", cost = 5.0, sequenceNumber = 5u)

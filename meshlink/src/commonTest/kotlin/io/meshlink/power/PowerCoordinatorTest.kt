@@ -11,8 +11,8 @@ class PowerCoordinatorTest {
 
     private fun coordinator(
         clock: () -> Long = { 0L },
-        hysteresisMs: Long = 0L,
-    ) = PowerCoordinator(clock = clock, hysteresisMs = hysteresisMs)
+        hysteresisMillis: Long = 0L,
+    ) = PowerCoordinator(clock = clock, hysteresisMillis = hysteresisMillis)
 
     // ── 1. Mode transitions ───────────────────────────────────────
 
@@ -62,7 +62,7 @@ class PowerCoordinatorTest {
     @Test
     fun hysteresisDelaysDowngrade() {
         var now = 0L
-        val pc = PowerCoordinator(clock = { now }, hysteresisMs = 5000L)
+        val pc = PowerCoordinator(clock = { now }, hysteresisMillis = 5000L)
 
         // First call: requests downgrade, but hysteresis delays it
         pc.updateBattery(50, isCharging = false)

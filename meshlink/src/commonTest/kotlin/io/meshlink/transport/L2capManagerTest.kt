@@ -79,7 +79,7 @@ class L2capManagerTest {
                 fake
             },
             maxRetries = 3,
-            initialBackoffMs = 1,
+            initialBackoffMillis = 1,
             delayFn = { /* no-op for test speed */ },
         )
 
@@ -94,7 +94,7 @@ class L2capManagerTest {
         val manager = L2capManager(
             channelFactory = { attempt++; throw RuntimeException("always fails") },
             maxRetries = 3,
-            initialBackoffMs = 1,
+            initialBackoffMillis = 1,
             delayFn = { },
         )
 
@@ -108,7 +108,7 @@ class L2capManagerTest {
         val manager = L2capManager(
             channelFactory = { null },
             maxRetries = 3,
-            initialBackoffMs = 1,
+            initialBackoffMillis = 1,
             delayFn = { },
         )
 
@@ -125,10 +125,10 @@ class L2capManagerTest {
         val manager = L2capManager(
             channelFactory = { attempt++; throw RuntimeException("fail") },
             maxRetries = 0,          // fail immediately (1 attempt each)
-            initialBackoffMs = 1,
+            initialBackoffMillis = 1,
             circuitBreakerFailures = 3,
-            circuitBreakerWindowMs = 300_000L,
-            circuitBreakerCooldownMs = 1_800_000L,
+            circuitBreakerWindowMillis = 300_000L,
+            circuitBreakerCooldownMillis = 1_800_000L,
             clock = { now },
             delayFn = { },
         )
@@ -160,10 +160,10 @@ class L2capManagerTest {
                 fake
             },
             maxRetries = 0,
-            initialBackoffMs = 1,
+            initialBackoffMillis = 1,
             circuitBreakerFailures = 3,
-            circuitBreakerWindowMs = 300_000L,
-            circuitBreakerCooldownMs = 1_800_000L,
+            circuitBreakerWindowMillis = 300_000L,
+            circuitBreakerCooldownMillis = 1_800_000L,
             clock = { now },
             delayFn = { },
         )
@@ -185,10 +185,10 @@ class L2capManagerTest {
         val manager = L2capManager(
             channelFactory = { throw RuntimeException("fail") },
             maxRetries = 0,
-            initialBackoffMs = 1,
+            initialBackoffMillis = 1,
             circuitBreakerFailures = 3,
-            circuitBreakerWindowMs = 5_000L,
-            circuitBreakerCooldownMs = 1_800_000L,
+            circuitBreakerWindowMillis = 5_000L,
+            circuitBreakerCooldownMillis = 1_800_000L,
             clock = { now },
             delayFn = { },
         )
@@ -208,10 +208,10 @@ class L2capManagerTest {
         val manager2 = L2capManager(
             channelFactory = { factoryCalled = true; throw RuntimeException("fail") },
             maxRetries = 0,
-            initialBackoffMs = 1,
+            initialBackoffMillis = 1,
             circuitBreakerFailures = 3,
-            circuitBreakerWindowMs = 5_000L,
-            circuitBreakerCooldownMs = 1_800_000L,
+            circuitBreakerWindowMillis = 5_000L,
+            circuitBreakerCooldownMillis = 1_800_000L,
             clock = { now },
             delayFn = { },
         )
@@ -276,7 +276,7 @@ class L2capManagerTest {
         val manager = L2capManager(
             channelFactory = { throw RuntimeException("fail") },
             maxRetries = 3,
-            initialBackoffMs = 100,
+            initialBackoffMillis = 100,
             delayFn = { delays.add(it) },
         )
 

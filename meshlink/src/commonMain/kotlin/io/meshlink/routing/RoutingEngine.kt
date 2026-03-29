@@ -47,7 +47,7 @@ class RoutingEngine(
     private val localPeerId: String,
     private val dedupCapacity: Int = 10_000,
     private val triggeredUpdateThreshold: Double = 0.3,
-    private val gossipIntervalMs: Long = 0L,
+    private val gossipIntervalMillis: Long = 0L,
     private val clock: () -> Long = { currentTimeMillis() },
 ) {
     private val routingTable = RoutingTable()
@@ -55,7 +55,7 @@ class RoutingEngine(
     private val dedup = DedupSet(capacity = dedupCapacity, clock = clock)
     private val previousNextHop = mutableMapOf<String, String>()
     private val lastTriggeredUpdateTime = mutableMapOf<String, Long>()
-    private var lastGossipSentMs: Long = 0L
+    private var lastGossipSentMillis: Long = 0L
     private val nextHopFailures = mutableMapOf<String, Int>()
     private val nextHopSuccesses = mutableMapOf<String, Int>()
 
@@ -142,7 +142,7 @@ class RoutingEngine(
     // ── Gossip timing ─────────────────────────────────────────────
 
     fun effectiveGossipInterval(powerMode: String): Long {
-        val base = gossipIntervalMs
+        val base = gossipIntervalMillis
         if (base <= 0) return 0
         val routeCount = routingTable.size()
         val routeMultiplied = when {
@@ -169,10 +169,10 @@ class RoutingEngine(
     }
 
     fun recordGossipSent() {
-        lastGossipSentMs = clock()
+        lastGossipSentMillis = clock()
     }
 
-    fun timeSinceLastGossip(): Long = clock() - lastGossipSentMs
+    fun timeSinceLastGossip(): Long = clock() - lastGossipSentMillis
 
     // ── Health ─────────────────────────────────────────────────────
 
@@ -216,7 +216,7 @@ class RoutingEngine(
         lastTriggeredUpdateTime.clear()
         nextHopFailures.clear()
         nextHopSuccesses.clear()
-        lastGossipSentMs = 0L
+        lastGossipSentMillis = 0L
     }
 
     fun clearDedup() {

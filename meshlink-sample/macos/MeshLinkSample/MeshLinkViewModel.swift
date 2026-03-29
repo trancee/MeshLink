@@ -190,10 +190,10 @@ final class MeshLinkViewModel: ObservableObject {
 
         collectFlow(meshLink.diagnosticEvents) { [weak self] (event: DiagnosticEvent) in
             let entry = DiagnosticEntry(
-                id: "\(event.monotonicMs)-\(event.code.name)",
+                id: "\(event.monotonicMillis)-\(event.code.name)",
                 code: event.code.name,
                 severity: event.severity.name,
-                timestamp: Self.formatTimestamp(event.monotonicMs),
+                timestamp: Self.formatTimestamp(event.monotonicMillis),
                 payload: event.payload
             )
             if (self?.diagnosticEntries.count ?? 0) > 500 {
@@ -220,11 +220,11 @@ final class MeshLinkViewModel: ObservableObject {
     func clearLog() { logEntries.removeAll() }
     func clearDiagnostics() { diagnosticEntries.removeAll() }
 
-    private static func formatTimestamp(_ monotonicMs: Int64) -> String {
-        let totalSeconds = monotonicMs / 1000
+    private static func formatTimestamp(_ monotonicMillis: Int64) -> String {
+        let totalSeconds = monotonicMillis / 1000
         let minutes = (totalSeconds / 60) % 60
         let seconds = totalSeconds % 60
-        let millis = monotonicMs % 1000
+        let millis = monotonicMillis % 1000
         return String(format: "%02d:%02d.%03d", minutes, seconds, millis)
     }
 }

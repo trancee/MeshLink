@@ -23,8 +23,8 @@ interface MeshLinkApi {
     fun drainDiagnostics(): List<DiagnosticEvent>
     val diagnosticEvents: Flow<DiagnosticEvent>
     fun sweep(seenPeers: Set<String>): Set<String>
-    fun sweepStaleTransfers(maxAgeMs: Long): Int
-    fun sweepStaleReassemblies(maxAgeMs: Long): Int
+    fun sweepStaleTransfers(maxAgeMillis: Long): Int
+    fun sweepStaleReassemblies(maxAgeMillis: Long): Int
     fun sweepExpiredPendingMessages(): Int
     fun shedMemoryPressure(): List<String>
     fun addRoute(destination: String, nextHop: String, cost: Double, sequenceNumber: UInt)

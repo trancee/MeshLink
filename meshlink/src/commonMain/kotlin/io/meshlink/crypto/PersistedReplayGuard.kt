@@ -8,7 +8,7 @@ import io.meshlink.util.currentTimeMillis
  * to [SecureStorage] so they survive app restarts.
  *
  * - Outbound counter is persisted on every [advance] call.
- * - Inbound highest-seen counter is persisted periodically: every [persistIntervalMs]
+ * - Inbound highest-seen counter is persisted periodically: every [persistIntervalMillis]
  *   milliseconds or every [persistIntervalMessages] accepted messages, whichever comes first.
  * - On creation, persisted counters are loaded from storage. The sliding-window bitmask is
  *   set to all-ones after restore so that only counters above the persisted highest-seen
@@ -17,11 +17,11 @@ import io.meshlink.util.currentTimeMillis
 class PersistedReplayGuard(
     private val peerIdHex: String,
     private val storage: SecureStorage,
-    private val persistIntervalMs: Long = 1_000L,
+    private val persistIntervalMillis: Long = 1_000L,
     private val persistIntervalMessages: Int = 100,
 ) {
     private val guard: ReplayGuard
-    private var lastInboundPersistTimeMs: Long
+    private var lastInboundPersistTimeMillis: Long
     private var messagesSinceLastPersist: Int = 0
 
     init {
@@ -37,7 +37,7 @@ class PersistedReplayGuard(
                 windowBitmask = if (inbound > 0uL) ULong.MAX_VALUE else 0uL,
             )
         )
-        lastInboundPersistTimeMs = currentTimeMillis()
+        lastInboundPersistTimeMillis = currentTimeMillis()
     }
 
     /** Returns the next outbound counter and persists it. */
@@ -54,10 +54,10 @@ class PersistedReplayGuard(
             messagesSinceLastPersist++
             val now = currentTimeMillis()
             if (messagesSinceLastPersist >= persistIntervalMessages ||
-                now - lastInboundPersistTimeMs >= persistIntervalMs
+                now - lastInboundPersistTimeMillis >= persistIntervalMillis
             ) {
                 persistInbound()
-                lastInboundPersistTimeMs = now
+                lastInboundPersistTimeMillis = now
                 messagesSinceLastPersist = 0
             }
         }

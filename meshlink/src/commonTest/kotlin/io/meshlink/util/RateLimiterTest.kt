@@ -9,7 +9,7 @@ class RateLimiterTest {
     @Test
     fun allowsUpToLimitRejectsExcess() {
         var now = 0L
-        val limiter = RateLimiter(maxEvents = 3, windowMs = 1000, clock = { now })
+        val limiter = RateLimiter(maxEvents = 3, windowMillis = 1000, clock = { now })
 
         // First 3 events within window → allowed
         assertTrue(limiter.tryAcquire("sender-a"), "1st event allowed")
@@ -32,13 +32,13 @@ class RateLimiterTest {
     @Test
     fun windowBoundaryRejectsAtExactEdgeAllowsAfter() {
         var now = 0L
-        val limiter = RateLimiter(maxEvents = 1, windowMs = 1000, clock = { now })
+        val limiter = RateLimiter(maxEvents = 1, windowMillis = 1000, clock = { now })
 
         // Event at t=0
         assertTrue(limiter.tryAcquire("k"), "First event at t=0 allowed")
 
-        // At t=1000: event at t=0 is exactly windowMs old → pruneAll removes it (now - 0 > 1000 is false)
-        // The condition is `now - it > windowMs`, so 1000 - 0 = 1000, NOT > 1000 → NOT pruned → still rejected
+        // At t=1000: event at t=0 is exactly windowMillis old → pruneAll removes it (now - 0 > 1000 is false)
+        // The condition is `now - it > windowMillis`, so 1000 - 0 = 1000, NOT > 1000 → NOT pruned → still rejected
         now = 1000L
         assertFalse(limiter.tryAcquire("k"), "At exact boundary t=1000, event at t=0 should NOT be pruned (1000 - 0 == 1000, not > 1000)")
 
@@ -52,7 +52,7 @@ class RateLimiterTest {
     @Test
     fun oldEventsPrunedDoNotAccumulate() {
         var now = 0L
-        val limiter = RateLimiter(maxEvents = 2, windowMs = 100, clock = { now })
+        val limiter = RateLimiter(maxEvents = 2, windowMillis = 100, clock = { now })
 
         // Fill limit at t=0
         assertTrue(limiter.tryAcquire("k"))

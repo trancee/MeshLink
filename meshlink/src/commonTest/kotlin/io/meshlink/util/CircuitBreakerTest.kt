@@ -11,8 +11,8 @@ class CircuitBreakerTest {
         var now = 0L
         val breaker = CircuitBreaker(
             maxFailures = 3,
-            windowMs = 5000,
-            cooldownMs = 30_000,
+            windowMillis = 5000,
+            cooldownMillis = 30_000,
             clock = { now },
         )
 
@@ -49,14 +49,14 @@ class CircuitBreakerTest {
     // --- Batch 11 Cycle 2: Exact cooldown boundary ---
 
     @Test
-    fun cooldownBoundaryAllowsAtExactMs() {
+    fun cooldownBoundaryAllowsAtExactMillis() {
         var now = 0L
-        val breaker = CircuitBreaker(maxFailures = 1, windowMs = 10_000, cooldownMs = 5_000, clock = { now })
+        val breaker = CircuitBreaker(maxFailures = 1, windowMillis = 10_000, cooldownMillis = 5_000, clock = { now })
 
         breaker.recordFailure() // trips at t=0
         assertFalse(breaker.allowAttempt(), "Should be tripped")
 
-        // At exactly cooldownMs: 5000 - 0 = 5000 >= 5000 → should allow (>= check)
+        // At exactly cooldownMillis: 5000 - 0 = 5000 >= 5000 → should allow (>= check)
         now = 5_000L
         assertTrue(breaker.allowAttempt(), "At exact cooldown boundary, should reset (>= check)")
     }
@@ -66,7 +66,7 @@ class CircuitBreakerTest {
     @Test
     fun failureAtExactWindowBoundaryStillCounted() {
         var now = 0L
-        val breaker = CircuitBreaker(maxFailures = 2, windowMs = 5_000, cooldownMs = 10_000, clock = { now })
+        val breaker = CircuitBreaker(maxFailures = 2, windowMillis = 5_000, cooldownMillis = 10_000, clock = { now })
 
         // Failure at t=0
         now = 0L

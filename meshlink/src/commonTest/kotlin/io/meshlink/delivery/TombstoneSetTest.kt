@@ -10,7 +10,7 @@ class TombstoneSetTest {
     @Test
     fun addAndContainsWithinWindow() {
         var now = 1000L
-        val set = TombstoneSet(windowMs = 120_000L, clock = { now })
+        val set = TombstoneSet(windowMillis = 120_000L, clock = { now })
 
         set.add("msg1")
         assertTrue(set.contains("msg1"), "Should contain recently added messageId")
@@ -19,14 +19,14 @@ class TombstoneSetTest {
 
     @Test
     fun containsReturnsFalseForUnknownId() {
-        val set = TombstoneSet(windowMs = 120_000L, clock = { 1000L })
+        val set = TombstoneSet(windowMillis = 120_000L, clock = { 1000L })
         assertFalse(set.contains("unknown"), "Should not contain unknown messageId")
     }
 
     @Test
     fun tombstoneExpiresAfterWindow() {
         var now = 1000L
-        val set = TombstoneSet(windowMs = 5000L, clock = { now })
+        val set = TombstoneSet(windowMillis = 5000L, clock = { now })
 
         set.add("msg1")
         assertTrue(set.contains("msg1"), "Should contain within window")
@@ -39,20 +39,20 @@ class TombstoneSetTest {
     @Test
     fun tombstoneExpiresExactlyAtBoundary() {
         var now = 0L
-        val set = TombstoneSet(windowMs = 100L, clock = { now })
+        val set = TombstoneSet(windowMillis = 100L, clock = { now })
 
         set.add("msg1")
         now = 99L
         assertTrue(set.contains("msg1"), "Should still be valid at window - 1")
 
         now = 100L
-        assertFalse(set.contains("msg1"), "Should expire at exactly windowMs")
+        assertFalse(set.contains("msg1"), "Should expire at exactly windowMillis")
     }
 
     @Test
     fun sweepRemovesExpiredEntries() {
         var now = 0L
-        val set = TombstoneSet(windowMs = 100L, clock = { now })
+        val set = TombstoneSet(windowMillis = 100L, clock = { now })
 
         set.add("msg1")
         set.add("msg2")
@@ -74,7 +74,7 @@ class TombstoneSetTest {
     @Test
     fun sweepReturnsZeroWhenNothingExpired() {
         var now = 0L
-        val set = TombstoneSet(windowMs = 1000L, clock = { now })
+        val set = TombstoneSet(windowMillis = 1000L, clock = { now })
 
         set.add("msg1")
         now = 500L
@@ -85,7 +85,7 @@ class TombstoneSetTest {
 
     @Test
     fun clearRemovesAllEntries() {
-        val set = TombstoneSet(windowMs = 120_000L, clock = { 0L })
+        val set = TombstoneSet(windowMillis = 120_000L, clock = { 0L })
 
         set.add("msg1")
         set.add("msg2")
@@ -99,7 +99,7 @@ class TombstoneSetTest {
 
     @Test
     fun normalAckNotAffectedByTombstoneSet() {
-        val set = TombstoneSet(windowMs = 120_000L, clock = { 0L })
+        val set = TombstoneSet(windowMillis = 120_000L, clock = { 0L })
 
         // A message ID that was never tombstoned should not be found
         assertFalse(set.contains("normal-msg"), "Non-tombstoned message should not be in set")
@@ -108,7 +108,7 @@ class TombstoneSetTest {
     @Test
     fun reAddAfterExpiryWorks() {
         var now = 0L
-        val set = TombstoneSet(windowMs = 100L, clock = { now })
+        val set = TombstoneSet(windowMillis = 100L, clock = { now })
 
         set.add("msg1")
         now = 200L
@@ -122,7 +122,7 @@ class TombstoneSetTest {
     @Test
     fun multipleMessagesTrackedIndependently() {
         var now = 0L
-        val set = TombstoneSet(windowMs = 100L, clock = { now })
+        val set = TombstoneSet(windowMillis = 100L, clock = { now })
 
         set.add("msg1")
         now = 50L

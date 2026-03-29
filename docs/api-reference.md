@@ -68,8 +68,8 @@ scope before calling `start()`.
 | Signature | Description |
 |-----------|-------------|
 | `fun sweep(seenPeers: Set<String>): Set<String>` | Removes peers not in `seenPeers`. Returns the set of removed peer ID hex strings. |
-| `fun sweepStaleTransfers(maxAgeMs: Long): Int` | Removes outbound transfers older than `maxAgeMs`. Returns count removed. |
-| `fun sweepStaleReassemblies(maxAgeMs: Long): Int` | Removes incomplete reassembly buffers older than `maxAgeMs`. Returns count removed. |
+| `fun sweepStaleTransfers(maxAgeMillis: Long): Int` | Removes outbound transfers older than `maxAgeMillis`. Returns count removed. |
+| `fun sweepStaleReassemblies(maxAgeMillis: Long): Int` | Removes incomplete reassembly buffers older than `maxAgeMillis`. Returns count removed. |
 | `fun sweepExpiredPendingMessages(): Int` | Removes pending messages past their TTL. Returns count removed. |
 | `fun shedMemoryPressure(): List<String>` | Aggressively frees memory when under pressure. Returns a list of shedding action descriptions. |
 
@@ -144,7 +144,7 @@ Immutable configuration data class. All fields have sensible defaults.
 | `bufferCapacity` | `Int` | `1_048_576` | Total in-flight data buffer size in bytes. Must be ≥ `maxMessageSize`. |
 | `mtu` | `Int` | `185` | BLE link MTU. Effective payload per chunk = `mtu - 21` (header size). Must be > 21. |
 | `maxHops` | `UByte` | `10` | Maximum hop count for routed messages. |
-| `pendingMessageTtlMs` | `Long` | `0` | TTL for queued outbound messages. `0` = never expire. |
+| `pendingMessageTtlMillis` | `Long` | `0` | TTL for queued outbound messages. `0` = never expire. |
 | `pendingMessageCapacity` | `Int` | `100` | Maximum pending outbound messages. |
 | `appId` | `String?` | `null` | Optional app identifier. Messages with a non-matching app ID are silently dropped. |
 
@@ -153,7 +153,7 @@ Immutable configuration data class. All fields have sensible defaults.
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `rateLimitMaxSends` | `Int` | `0` | Max outbound unicast sends per window. `0` = disabled. |
-| `rateLimitWindowMs` | `Long` | `60_000` | Sliding window for outbound rate limiting (ms). |
+| `rateLimitWindowMillis` | `Long` | `60_000` | Sliding window for outbound rate limiting (ms). |
 | `broadcastRateLimitPerMinute` | `Int` | `0` | Max broadcast sends per minute. `0` = disabled. |
 | `inboundRateLimitPerSenderPerMinute` | `Int` | `0` | Max inbound messages from a single sender per minute. `0` = disabled. |
 | `handshakeRateLimitPerSec` | `Int` | `1` | Max Noise XX handshakes per second. |
@@ -166,16 +166,16 @@ Immutable configuration data class. All fields have sensible defaults.
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `circuitBreakerMaxFailures` | `Int` | `0` | Consecutive failures before circuit opens. `0` = disabled. |
-| `circuitBreakerWindowMs` | `Long` | `60_000` | Window for counting failures (ms). |
-| `circuitBreakerCooldownMs` | `Long` | `30_000` | Cooldown before retry after circuit trips (ms). |
+| `circuitBreakerWindowMillis` | `Long` | `60_000` | Window for counting failures (ms). |
+| `circuitBreakerCooldownMillis` | `Long` | `30_000` | Cooldown before retry after circuit trips (ms). |
 
 #### Routing & Gossip
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `gossipIntervalMs` | `Long` | `0` | Periodic route advertisement interval (ms). `0` = disabled. |
+| `gossipIntervalMillis` | `Long` | `0` | Periodic route advertisement interval (ms). `0` = disabled. |
 | `triggeredUpdateThreshold` | `Double` | `0.3` | Fractional cost change that triggers an immediate route update. |
-| `triggeredUpdateBatchMs` | `Long` | `100` | Batch window for triggered updates (ms). |
+| `triggeredUpdateBatchMillis` | `Long` | `100` | Batch window for triggered updates (ms). |
 | `relayQueueCapacity` | `Int` | `100` | Max queued relay (forwarded) messages. |
 
 #### Transfer & Congestion
@@ -184,8 +184,8 @@ Immutable configuration data class. All fields have sensible defaults.
 |-------|------|---------|-------------|
 | `ackWindowMin` | `Int` | `2` | Minimum AIMD congestion window size. |
 | `ackWindowMax` | `Int` | `16` | Maximum AIMD congestion window size. Must be ≥ `ackWindowMin`. |
-| `chunkInactivityTimeoutMs` | `Long` | `30_000` | Timeout for incomplete transfer assembly (ms). Must be < `bufferTtlMs`. |
-| `bufferTtlMs` | `Long` | `300_000` | Max time to keep buffered data (ms). |
+| `chunkInactivityTimeoutMillis` | `Long` | `30_000` | Timeout for incomplete transfer assembly (ms). Must be < `bufferTtlMillis`. |
+| `bufferTtlMillis` | `Long` | `300_000` | Max time to keep buffered data (ms). |
 
 #### Transport
 
@@ -193,8 +193,8 @@ Immutable configuration data class. All fields have sensible defaults.
 |-------|------|---------|-------------|
 | `l2capEnabled` | `Boolean` | `true` | Enable L2CAP connection-oriented mode. |
 | `l2capRetryAttempts` | `Int` | `3` | L2CAP connection retry count. Must be ≥ 0 when L2CAP is enabled. |
-| `keepaliveIntervalMs` | `Long` | `0` | Idle connection keepalive interval (ms). `0` = disabled. |
-| `tombstoneWindowMs` | `Long` | `120_000` | Window to ignore reordered duplicate messages (ms). |
+| `keepaliveIntervalMillis` | `Long` | `0` | Idle connection keepalive interval (ms). `0` = disabled. |
+| `tombstoneWindowMillis` | `Long` | `120_000` | Window to ignore reordered duplicate messages (ms). |
 
 #### Power Management
 
@@ -238,12 +238,12 @@ configuration is valid. Enforced constraints:
 - `mtu ≤ maxMessageSize`
 - `diagnosticBufferCapacity ≥ 0`
 - `dedupCapacity > 0`
-- `rateLimitWindowMs > 0` when `rateLimitMaxSends > 0`
-- `circuitBreakerCooldownMs > 0` when `circuitBreakerMaxFailures > 0`
+- `rateLimitWindowMillis > 0` when `rateLimitMaxSends > 0`
+- `circuitBreakerCooldownMillis > 0` when `circuitBreakerMaxFailures > 0`
 - `ackWindowMax ≥ ackWindowMin`
 - `powerModeThresholds` strictly descending
 - `l2capRetryAttempts ≥ 0` when `l2capEnabled`
-- `chunkInactivityTimeoutMs < bufferTtlMs`
+- `chunkInactivityTimeoutMillis < bufferTtlMillis`
 
 ### Presets
 
@@ -267,8 +267,8 @@ All presets accept an override block:
 
 ```kotlin
 val config = MeshLinkConfig.chatOptimized {
-    gossipIntervalMs = 5_000L
-    keepaliveIntervalMs = 30_000L
+    gossipIntervalMillis = 5_000L
+    keepaliveIntervalMillis = 30_000L
 }
 ```
 
@@ -284,7 +284,7 @@ Constructs a `MeshLinkConfig` using a builder DSL:
 val config = meshLinkConfig {
     maxMessageSize = 50_000
     mtu = 512
-    gossipIntervalMs = 10_000L
+    gossipIntervalMillis = 10_000L
 }
 ```
 
@@ -440,7 +440,7 @@ Manages diagnostic event emission and buffering.
 data class DiagnosticEvent(
     val code: DiagnosticCode,
     val severity: Severity,
-    val monotonicMs: Long,
+    val monotonicMillis: Long,
     val droppedCount: Int,
     val payload: String?,
 )
@@ -450,7 +450,7 @@ data class DiagnosticEvent(
 |-------|------|-------------|
 | `code` | `DiagnosticCode` | The event code identifying what happened. |
 | `severity` | `Severity` | `INFO`, `WARN`, or `ERROR`. |
-| `monotonicMs` | `Long` | Monotonic clock timestamp when the event occurred. |
+| `monotonicMillis` | `Long` | Monotonic clock timestamp when the event occurred. |
 | `droppedCount` | `Int` | Number of events dropped due to buffer overflow since the last event. |
 | `payload` | `String?` | Optional diagnostic data (JSON, metrics, identifiers, etc.). |
 
@@ -498,7 +498,7 @@ data class MeshHealthSnapshot(
     val powerMode: String,
     val avgRouteCost: Double = 0.0,
     val relayQueueSize: Int = 0,
-    val effectiveGossipIntervalMs: Long = 0,
+    val effectiveGossipIntervalMillis: Long = 0,
 )
 ```
 
@@ -511,7 +511,7 @@ data class MeshHealthSnapshot(
 | `powerMode` | `String` | — | Current power mode: `"PERFORMANCE"`, `"BALANCED"`, or `"POWER_SAVER"`. |
 | `avgRouteCost` | `Double` | `0.0` | Average composite cost across all routes in the routing table. |
 | `relayQueueSize` | `Int` | `0` | Number of messages in the relay forwarding queue. |
-| `effectiveGossipIntervalMs` | `Long` | `0` | Current effective gossip interval (may differ from config if adjusted). |
+| `effectiveGossipIntervalMillis` | `Long` | `0` | Current effective gossip interval (may differ from config if adjusted). |
 
 ---
 

@@ -18,9 +18,9 @@ sealed interface ModeChangeResult {
  */
 class PowerCoordinator(
     clock: () -> Long = { currentTimeMillis() },
-    hysteresisMs: Long = 30_000L,
+    hysteresisMillis: Long = 30_000L,
 ) {
-    private val powerModeEngine = PowerModeEngine(hysteresisMs = hysteresisMs, clock = clock)
+    private val powerModeEngine = PowerModeEngine(hysteresisMillis = hysteresisMillis, clock = clock)
     private var _currentMode: String = "PERFORMANCE"
     private var _customPowerMode: PowerMode? = null
 

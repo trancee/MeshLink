@@ -7,17 +7,17 @@ data class MeshLinkConfig(
     val bufferCapacity: Int = 1_048_576,
     val mtu: Int = 185,
     val rateLimitMaxSends: Int = 0,
-    val rateLimitWindowMs: Long = 60_000L,
+    val rateLimitWindowMillis: Long = 60_000L,
     val circuitBreakerMaxFailures: Int = 0,
-    val circuitBreakerWindowMs: Long = 60_000L,
-    val circuitBreakerCooldownMs: Long = 30_000L,
+    val circuitBreakerWindowMillis: Long = 60_000L,
+    val circuitBreakerCooldownMillis: Long = 30_000L,
     val diagnosticBufferCapacity: Int = 256,
     val dedupCapacity: Int = 100_000,
     val protocolVersion: ProtocolVersion = ProtocolVersion(1, 0),
     val appId: String? = null,
     val inboundRateLimitPerSenderPerMinute: Int = 0,
-    val gossipIntervalMs: Long = 0L,
-    val pendingMessageTtlMs: Long = 0L,
+    val gossipIntervalMillis: Long = 0L,
+    val pendingMessageTtlMillis: Long = 0L,
     val pendingMessageCapacity: Int = 100,
     val broadcastRateLimitPerMinute: Int = 0,
     val relayQueueCapacity: Int = 100,
@@ -27,12 +27,12 @@ data class MeshLinkConfig(
     val powerModeThresholds: List<Int> = listOf(80, 30),
     val l2capEnabled: Boolean = true,
     val l2capRetryAttempts: Int = 3,
-    val chunkInactivityTimeoutMs: Long = 30_000L,
-    val bufferTtlMs: Long = 300_000L,
+    val chunkInactivityTimeoutMillis: Long = 30_000L,
+    val bufferTtlMillis: Long = 300_000L,
     val triggeredUpdateThreshold: Double = 0.3,
-    val triggeredUpdateBatchMs: Long = 100L,
-    val keepaliveIntervalMs: Long = 0L,
-    val tombstoneWindowMs: Long = 120_000L,
+    val triggeredUpdateBatchMillis: Long = 100L,
+    val keepaliveIntervalMillis: Long = 0L,
+    val tombstoneWindowMillis: Long = 120_000L,
     val handshakeRateLimitPerSec: Int = 1,
     val nackRateLimitPerSec: Int = 10,
     val neighborAggregateLimitPerMin: Int = 100,
@@ -53,11 +53,11 @@ data class MeshLinkConfig(
         if (mtu > maxMessageSize) violations.add("mtu ($mtu) exceeds maxMessageSize ($maxMessageSize)")
         if (diagnosticBufferCapacity < 0) violations.add("diagnosticBufferCapacity must be non-negative")
         if (dedupCapacity <= 0) violations.add("dedupCapacity must be positive")
-        if (rateLimitMaxSends > 0 && rateLimitWindowMs <= 0) {
-            violations.add("rateLimitWindowMs must be positive when rate limiting is enabled")
+        if (rateLimitMaxSends > 0 && rateLimitWindowMillis <= 0) {
+            violations.add("rateLimitWindowMillis must be positive when rate limiting is enabled")
         }
-        if (circuitBreakerMaxFailures > 0 && circuitBreakerCooldownMs <= 0) {
-            violations.add("circuitBreakerCooldownMs must be positive when circuit breaker is enabled")
+        if (circuitBreakerMaxFailures > 0 && circuitBreakerCooldownMillis <= 0) {
+            violations.add("circuitBreakerCooldownMillis must be positive when circuit breaker is enabled")
         }
         // Cross-field validation rules from design doc §14
         if (ackWindowMax < ackWindowMin) {
@@ -73,9 +73,9 @@ data class MeshLinkConfig(
                 "l2capRetryAttempts ($l2capRetryAttempts) must be >= 0 when l2capEnabled is true",
             )
         }
-        if (bufferTtlMs > 0 && chunkInactivityTimeoutMs >= bufferTtlMs) {
+        if (bufferTtlMillis > 0 && chunkInactivityTimeoutMillis >= bufferTtlMillis) {
             violations.add(
-                "chunkInactivityTimeoutMs ($chunkInactivityTimeoutMs) must be < bufferTtlMs ($bufferTtlMs)",
+                "chunkInactivityTimeoutMillis ($chunkInactivityTimeoutMillis) must be < bufferTtlMillis ($bufferTtlMillis)",
             )
         }
         if (maxConcurrentInboundSessions <= 0) violations.add("maxConcurrentInboundSessions must be positive")
@@ -99,8 +99,8 @@ data class MeshLinkConfig(
             MeshLinkConfigBuilder(
                 maxMessageSize = 1_000,
                 bufferCapacity = 65_536,
-                gossipIntervalMs = 30_000L,
-                keepaliveIntervalMs = 60_000L,
+                gossipIntervalMillis = 30_000L,
+                keepaliveIntervalMillis = 60_000L,
             ).apply(overrides).build()
     }
 }
@@ -113,17 +113,17 @@ class MeshLinkConfigBuilder(
     var bufferCapacity: Int = 1_048_576,
     var mtu: Int = 185,
     var rateLimitMaxSends: Int = 0,
-    var rateLimitWindowMs: Long = 60_000L,
+    var rateLimitWindowMillis: Long = 60_000L,
     var circuitBreakerMaxFailures: Int = 0,
-    var circuitBreakerWindowMs: Long = 60_000L,
-    var circuitBreakerCooldownMs: Long = 30_000L,
+    var circuitBreakerWindowMillis: Long = 60_000L,
+    var circuitBreakerCooldownMillis: Long = 30_000L,
     var diagnosticBufferCapacity: Int = 256,
     var dedupCapacity: Int = 100_000,
     var protocolVersion: ProtocolVersion = ProtocolVersion(1, 0),
     var appId: String? = null,
     var inboundRateLimitPerSenderPerMinute: Int = 0,
-    var gossipIntervalMs: Long = 0L,
-    var pendingMessageTtlMs: Long = 0L,
+    var gossipIntervalMillis: Long = 0L,
+    var pendingMessageTtlMillis: Long = 0L,
     var pendingMessageCapacity: Int = 100,
     var broadcastRateLimitPerMinute: Int = 0,
     var relayQueueCapacity: Int = 100,
@@ -133,12 +133,12 @@ class MeshLinkConfigBuilder(
     var powerModeThresholds: List<Int> = listOf(80, 30),
     var l2capEnabled: Boolean = true,
     var l2capRetryAttempts: Int = 3,
-    var chunkInactivityTimeoutMs: Long = 30_000L,
-    var bufferTtlMs: Long = 300_000L,
+    var chunkInactivityTimeoutMillis: Long = 30_000L,
+    var bufferTtlMillis: Long = 300_000L,
     var triggeredUpdateThreshold: Double = 0.3,
-    var triggeredUpdateBatchMs: Long = 100L,
-    var keepaliveIntervalMs: Long = 0L,
-    var tombstoneWindowMs: Long = 120_000L,
+    var triggeredUpdateBatchMillis: Long = 100L,
+    var keepaliveIntervalMillis: Long = 0L,
+    var tombstoneWindowMillis: Long = 120_000L,
     var handshakeRateLimitPerSec: Int = 1,
     var nackRateLimitPerSec: Int = 10,
     var neighborAggregateLimitPerMin: Int = 100,
@@ -152,17 +152,17 @@ class MeshLinkConfigBuilder(
         bufferCapacity = bufferCapacity,
         mtu = mtu,
         rateLimitMaxSends = rateLimitMaxSends,
-        rateLimitWindowMs = rateLimitWindowMs,
+        rateLimitWindowMillis = rateLimitWindowMillis,
         circuitBreakerMaxFailures = circuitBreakerMaxFailures,
-        circuitBreakerWindowMs = circuitBreakerWindowMs,
-        circuitBreakerCooldownMs = circuitBreakerCooldownMs,
+        circuitBreakerWindowMillis = circuitBreakerWindowMillis,
+        circuitBreakerCooldownMillis = circuitBreakerCooldownMillis,
         diagnosticBufferCapacity = diagnosticBufferCapacity,
         dedupCapacity = dedupCapacity,
         protocolVersion = protocolVersion,
         appId = appId,
         inboundRateLimitPerSenderPerMinute = inboundRateLimitPerSenderPerMinute,
-        gossipIntervalMs = gossipIntervalMs,
-        pendingMessageTtlMs = pendingMessageTtlMs,
+        gossipIntervalMillis = gossipIntervalMillis,
+        pendingMessageTtlMillis = pendingMessageTtlMillis,
         pendingMessageCapacity = pendingMessageCapacity,
         broadcastRateLimitPerMinute = broadcastRateLimitPerMinute,
         relayQueueCapacity = relayQueueCapacity,
@@ -172,12 +172,12 @@ class MeshLinkConfigBuilder(
         powerModeThresholds = powerModeThresholds,
         l2capEnabled = l2capEnabled,
         l2capRetryAttempts = l2capRetryAttempts,
-        chunkInactivityTimeoutMs = chunkInactivityTimeoutMs,
-        bufferTtlMs = bufferTtlMs,
+        chunkInactivityTimeoutMillis = chunkInactivityTimeoutMillis,
+        bufferTtlMillis = bufferTtlMillis,
         triggeredUpdateThreshold = triggeredUpdateThreshold,
-        triggeredUpdateBatchMs = triggeredUpdateBatchMs,
-        keepaliveIntervalMs = keepaliveIntervalMs,
-        tombstoneWindowMs = tombstoneWindowMs,
+        triggeredUpdateBatchMillis = triggeredUpdateBatchMillis,
+        keepaliveIntervalMillis = keepaliveIntervalMillis,
+        tombstoneWindowMillis = tombstoneWindowMillis,
         handshakeRateLimitPerSec = handshakeRateLimitPerSec,
         nackRateLimitPerSec = nackRateLimitPerSec,
         neighborAggregateLimitPerMin = neighborAggregateLimitPerMin,

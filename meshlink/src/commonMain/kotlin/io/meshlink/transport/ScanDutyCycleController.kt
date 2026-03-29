@@ -23,11 +23,11 @@ import kotlinx.coroutines.launch
 class ScanDutyCycleController {
     /** Duty-cycle timing for a given power mode. */
     data class CycleTiming(
-        val scanOnMs: Long,
-        val scanOffMs: Long,
+        val scanOnMillis: Long,
+        val scanOffMillis: Long,
     ) {
-        val totalMs: Long get() = scanOnMs + scanOffMs
-        val dutyPercent: Int get() = ((scanOnMs * 100) / totalMs).toInt()
+        val totalMillis: Long get() = scanOnMillis + scanOffMillis
+        val dutyPercent: Int get() = ((scanOnMillis * 100) / totalMillis).toInt()
     }
 
     private var cycleJob: Job? = null
@@ -55,10 +55,10 @@ class ScanDutyCycleController {
             while (isActive && running) {
                 val t = currentTiming
                 transport.startAdvertisingAndScanning()
-                delay(t.scanOnMs)
+                delay(t.scanOnMillis)
                 if (!isActive || !running) break
                 transport.stopAll()
-                delay(t.scanOffMs)
+                delay(t.scanOffMillis)
             }
         }
     }
@@ -82,7 +82,7 @@ class ScanDutyCycleController {
         /** Returns the [CycleTiming] for the given [mode], derived from [PowerProfile]. */
         fun timingFor(mode: PowerMode): CycleTiming {
             val profile = PowerProfile.forMode(mode)
-            return CycleTiming(scanOnMs = profile.scanOnMs, scanOffMs = profile.scanOffMs)
+            return CycleTiming(scanOnMillis = profile.scanOnMillis, scanOffMillis = profile.scanOffMillis)
         }
     }
 }

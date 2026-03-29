@@ -84,7 +84,7 @@ class RateLimitingSuiteTest {
     @Test
     fun handshakeRateLimiterAllows1PerSecRejectsExcess() {
         var now = 0L
-        val limiter = RateLimiter(maxEvents = 1, windowMs = 1_000L, clock = { now })
+        val limiter = RateLimiter(maxEvents = 1, windowMillis = 1_000L, clock = { now })
         assertTrue(limiter.tryAcquire("peer-a"), "First handshake allowed")
         assertFalse(limiter.tryAcquire("peer-a"), "Second handshake within 1s rejected")
         // Different peer is independent
@@ -99,7 +99,7 @@ class RateLimitingSuiteTest {
     @Test
     fun nackRateLimiterAllows10PerSecRejectsExcess() {
         var now = 0L
-        val limiter = RateLimiter(maxEvents = 10, windowMs = 1_000L, clock = { now })
+        val limiter = RateLimiter(maxEvents = 10, windowMillis = 1_000L, clock = { now })
         val key = "neighbor-x"
         repeat(10) { i ->
             assertTrue(limiter.tryAcquire(key), "NACK ${i + 1} allowed")
@@ -114,7 +114,7 @@ class RateLimitingSuiteTest {
     @Test
     fun neighborAggregateLimiterAllows100PerMinRejectsExcess() {
         var now = 0L
-        val limiter = RateLimiter(maxEvents = 100, windowMs = 60_000L, clock = { now })
+        val limiter = RateLimiter(maxEvents = 100, windowMillis = 60_000L, clock = { now })
         val key = "neighbor-y"
         repeat(100) { i ->
             assertTrue(limiter.tryAcquire(key), "Message ${i + 1} allowed")
@@ -129,7 +129,7 @@ class RateLimitingSuiteTest {
     @Test
     fun senderNeighborLimiterAllows20PerMinRejectsExcess() {
         var now = 0L
-        val limiter = RateLimiter(maxEvents = 20, windowMs = 60_000L, clock = { now })
+        val limiter = RateLimiter(maxEvents = 20, windowMillis = 60_000L, clock = { now })
         val key = "sender-a->neighbor-b"
         repeat(20) { i ->
             assertTrue(limiter.tryAcquire(key), "Relay ${i + 1} allowed")

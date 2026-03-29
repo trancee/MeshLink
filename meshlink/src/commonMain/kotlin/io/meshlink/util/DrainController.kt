@@ -9,24 +9,24 @@ import kotlinx.coroutines.withTimeoutOrNull
  * or until a timeout expires.
  */
 class DrainController(
-    private val drainTimeoutMs: Long = 5_000L,
-    private val pollIntervalMs: Long = 100L,
+    private val drainTimeoutMillis: Long = 5_000L,
+    private val pollIntervalMillis: Long = 100L,
 ) {
     /**
-     * Wait for [activeCount] to return 0, up to [drainTimeoutMs].
+     * Wait for [activeCount] to return 0, up to [drainTimeoutMillis].
      * Returns the number of items still active when drain ended.
      * Returns 0 if all items drained successfully.
-     * Returns immediately if drainTimeoutMs <= 0.
+     * Returns immediately if drainTimeoutMillis <= 0.
      */
     suspend fun drain(activeCount: () -> Int): Int {
         val current = activeCount()
         if (current == 0) return 0
-        if (drainTimeoutMs <= 0) return current
+        if (drainTimeoutMillis <= 0) return current
 
-        withTimeoutOrNull(drainTimeoutMs) {
+        withTimeoutOrNull(drainTimeoutMillis) {
             while (true) {
                 if (activeCount() == 0) return@withTimeoutOrNull
-                delay(pollIntervalMs)
+                delay(pollIntervalMillis)
             }
         }
 
@@ -36,5 +36,5 @@ class DrainController(
     /**
      * Whether this controller is configured for draining (timeout > 0).
      */
-    val enabled: Boolean get() = drainTimeoutMs > 0
+    val enabled: Boolean get() = drainTimeoutMillis > 0
 }

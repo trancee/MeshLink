@@ -48,7 +48,7 @@ class PowerModeEngineTest {
     @Test
     fun batteryThresholdBoundaryValues() {
         var now = 0L
-        val engine = PowerModeEngine(hysteresisMs = 0, clock = { now })
+        val engine = PowerModeEngine(hysteresisMillis = 0, clock = { now })
 
         // modeForBattery: >80→PERFORMANCE, >=30→BALANCED, <30→POWER_SAVER
         assertEquals(PowerMode.PERFORMANCE, engine.update(100, false))

@@ -15,22 +15,22 @@ class GossipCoordinatorTest {
     private val peerAHex = peerA.toHex()
 
     private fun routingEngine(
-        gossipIntervalMs: Long = 5_000L,
+        gossipIntervalMillis: Long = 5_000L,
         clock: () -> Long = { 0L },
     ) = RoutingEngine(
         localPeerId = localPeerId.toHex(),
         dedupCapacity = 100,
         triggeredUpdateThreshold = 0.3,
-        gossipIntervalMs = gossipIntervalMs,
+        gossipIntervalMillis = gossipIntervalMillis,
         clock = clock,
     )
 
     private fun coordinator(
         routingEngine: RoutingEngine,
         securityEngine: SecurityEngine? = null,
-        gossipIntervalMs: Long = 5_000L,
-        keepaliveIntervalMs: Long = 10_000L,
-        triggeredUpdateBatchMs: Long = 50L,
+        gossipIntervalMillis: Long = 5_000L,
+        keepaliveIntervalMillis: Long = 10_000L,
+        triggeredUpdateBatchMillis: Long = 50L,
         currentPowerMode: () -> String = { "PERFORMANCE" },
         sendFrame: suspend (ByteArray, ByteArray) -> Unit = { _, _ -> },
         clock: () -> Long = { 0L },
@@ -39,9 +39,9 @@ class GossipCoordinatorTest {
         securityEngine = securityEngine,
         diagnosticSink = DiagnosticSink(),
         localPeerId = localPeerId,
-        gossipIntervalMs = gossipIntervalMs,
-        triggeredUpdateBatchMs = triggeredUpdateBatchMs,
-        keepaliveIntervalMs = keepaliveIntervalMs,
+        gossipIntervalMillis = gossipIntervalMillis,
+        triggeredUpdateBatchMillis = triggeredUpdateBatchMillis,
+        keepaliveIntervalMillis = keepaliveIntervalMillis,
         currentPowerMode = currentPowerMode,
         sendFrame = sendFrame,
         clock = clock,

@@ -34,7 +34,7 @@ class DeliveryDeadlineTimerTest {
         timer.startTimer(
             scope = this,
             messageKey = messageKey,
-            deadlineMs = 1_000L,
+            deadlineMillis = 1_000L,
         ) { timeoutFired = true }
 
         // Collect the diagnostic event in the background
@@ -42,7 +42,7 @@ class DeliveryDeadlineTimerTest {
             val event = sink.events.first()
             assertEquals(DiagnosticCode.DELIVERY_TIMEOUT, event.code)
             assertEquals(Severity.WARN, event.severity)
-            assertEquals("messageId=$messageKey, deadlineMs=1000", event.payload)
+            assertEquals("messageId=$messageKey, deadlineMillis=1000", event.payload)
         }
 
         // Advance past the deadline
@@ -65,7 +65,7 @@ class DeliveryDeadlineTimerTest {
         timer.startTimer(
             scope = this,
             messageKey = messageKey,
-            deadlineMs = 5_000L,
+            deadlineMillis = 5_000L,
         ) { timeoutFired = true }
 
         assertEquals(1, timer.activeCount)

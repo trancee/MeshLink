@@ -70,7 +70,7 @@ class PersistedReplayGuardTest {
         val guard = PersistedReplayGuard(
             peerIdHex = "ee",
             storage = storage,
-            persistIntervalMs = Long.MAX_VALUE,   // disable time-based
+            persistIntervalMillis = Long.MAX_VALUE,   // disable time-based
             persistIntervalMessages = 3,
         )
         assertTrue(guard.check(1uL))
@@ -88,7 +88,7 @@ class PersistedReplayGuardTest {
         val guard = PersistedReplayGuard(
             peerIdHex = "ff",
             storage = storage,
-            persistIntervalMs = Long.MAX_VALUE,
+            persistIntervalMillis = Long.MAX_VALUE,
             persistIntervalMessages = 2,
         )
         assertTrue(guard.check(1uL))

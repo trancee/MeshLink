@@ -35,7 +35,7 @@ class L2capBackpressureDetectorTest {
     @Test
     fun slowWritesOutsideWindowDoNotCount() {
         var now = 0L
-        val detector = L2capBackpressureDetector(windowMs = 7_000L, clock = { now })
+        val detector = L2capBackpressureDetector(windowMillis = 7_000L, clock = { now })
 
         now = 1000L
         detector.recordWrite(150)
@@ -50,7 +50,7 @@ class L2capBackpressureDetectorTest {
     @Test
     fun exactlyAtThresholdIsNotSlow() {
         var now = 0L
-        val detector = L2capBackpressureDetector(slowWriteMs = 100, clock = { now })
+        val detector = L2capBackpressureDetector(slowWriteMillis = 100, clock = { now })
 
         // 100ms is not > 100ms, so it should not count as slow
         now = 1000L
@@ -98,7 +98,7 @@ class L2capBackpressureDetectorTest {
     @Test
     fun backpressureClearsWhenOldEntriesExpire() {
         var now = 0L
-        val detector = L2capBackpressureDetector(windowMs = 7_000L, clock = { now })
+        val detector = L2capBackpressureDetector(windowMillis = 7_000L, clock = { now })
 
         now = 1000L
         detector.recordWrite(200)
@@ -116,9 +116,9 @@ class L2capBackpressureDetectorTest {
     fun customThresholds() {
         var now = 0L
         val detector = L2capBackpressureDetector(
-            slowWriteMs = 50,
+            slowWriteMillis = 50,
             slowThreshold = 2,
-            windowMs = 1_000L,
+            windowMillis = 1_000L,
             clock = { now },
         )
 
@@ -131,7 +131,7 @@ class L2capBackpressureDetectorTest {
     @Test
     fun windowBoundaryExactlyAtCutoff() {
         var now = 0L
-        val detector = L2capBackpressureDetector(windowMs = 7_000L, clock = { now })
+        val detector = L2capBackpressureDetector(windowMillis = 7_000L, clock = { now })
 
         now = 1000L
         detector.recordWrite(200) // recorded at t=1000

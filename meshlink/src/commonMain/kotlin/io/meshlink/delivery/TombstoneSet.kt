@@ -7,14 +7,14 @@ import io.meshlink.util.currentTimeMillis
  * Used to detect late ACKs arriving after a delivery has been resolved.
  */
 internal class TombstoneSet(
-    private val windowMs: Long = 120_000L,
+    private val windowMillis: Long = 120_000L,
     private val clock: () -> Long = { currentTimeMillis() },
 ) {
     private val entries = mutableMapOf<String, Long>()
 
-    /** Add a message ID with expiry at now + windowMs. */
+    /** Add a message ID with expiry at now + windowMillis. */
     fun add(messageId: String) {
-        entries[messageId] = clock() + windowMs
+        entries[messageId] = clock() + windowMillis
     }
 
     /** Returns true if the message ID is tombstoned and not yet expired. */

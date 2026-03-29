@@ -13,7 +13,7 @@ class RotationAnnouncementTest {
     private val crypto = PureKotlinCryptoProvider()
 
     private fun createSignedMessage(
-        timestampMs: ULong = 1_700_000_000_000u,
+        timestampMillis: ULong = 1_700_000_000_000u,
     ): Pair<RotationAnnouncement.RotationMessage, ByteArray> {
         val oldEd = crypto.generateEd25519KeyPair()
         val newEd = crypto.generateEd25519KeyPair()
@@ -23,20 +23,20 @@ class RotationAnnouncementTest {
         val payload = RotationAnnouncement.buildSignablePayload(
             oldX.publicKey, newX.publicKey,
             oldEd.publicKey, newEd.publicKey,
-            timestampMs,
+            timestampMillis,
         )
         val signature = crypto.sign(oldEd.privateKey, payload)
 
         val encoded = RotationAnnouncement.encode(
             oldX.publicKey, newX.publicKey,
             oldEd.publicKey, newEd.publicKey,
-            timestampMs, signature,
+            timestampMillis, signature,
         )
 
         val message = RotationAnnouncement.RotationMessage(
             oldX.publicKey, newX.publicKey,
             oldEd.publicKey, newEd.publicKey,
-            timestampMs, signature,
+            timestampMillis, signature,
         )
         return message to encoded
     }
@@ -50,7 +50,7 @@ class RotationAnnouncementTest {
         assertContentEquals(original.newX25519Key, decoded.newX25519Key)
         assertContentEquals(original.oldEd25519Key, decoded.oldEd25519Key)
         assertContentEquals(original.newEd25519Key, decoded.newEd25519Key)
-        assertEquals(original.timestampMs, decoded.timestampMs)
+        assertEquals(original.timestampMillis, decoded.timestampMillis)
         assertContentEquals(original.signature, decoded.signature)
     }
 
@@ -70,7 +70,7 @@ class RotationAnnouncementTest {
         val tampered = RotationAnnouncement.RotationMessage(
             decoded.oldX25519Key, decoded.newX25519Key,
             wrongKey, decoded.newEd25519Key,
-            decoded.timestampMs, decoded.signature,
+            decoded.timestampMillis, decoded.signature,
         )
         assertFalse(RotationAnnouncement.verify(tampered, crypto))
     }
@@ -84,7 +84,7 @@ class RotationAnnouncementTest {
         val tampered = RotationAnnouncement.RotationMessage(
             decoded.oldX25519Key, decoded.newX25519Key,
             decoded.oldEd25519Key, tamperedNewEd,
-            decoded.timestampMs, decoded.signature,
+            decoded.timestampMillis, decoded.signature,
         )
         assertFalse(RotationAnnouncement.verify(tampered, crypto))
     }
@@ -97,7 +97,7 @@ class RotationAnnouncementTest {
         val tampered = RotationAnnouncement.RotationMessage(
             decoded.oldX25519Key, decoded.newX25519Key,
             decoded.oldEd25519Key, decoded.newEd25519Key,
-            decoded.timestampMs + 1u, decoded.signature,
+            decoded.timestampMillis + 1u, decoded.signature,
         )
         assertFalse(RotationAnnouncement.verify(tampered, crypto))
     }
@@ -121,9 +121,9 @@ class RotationAnnouncementTest {
     @Test
     fun timestampRoundTripsCorrectlyForLargeValues() {
         val maxTimestamp = ULong.MAX_VALUE
-        val (_, encoded) = createSignedMessage(timestampMs = maxTimestamp)
+        val (_, encoded) = createSignedMessage(timestampMillis = maxTimestamp)
         val decoded = RotationAnnouncement.decode(encoded)
-        assertEquals(maxTimestamp, decoded.timestampMs)
+        assertEquals(maxTimestamp, decoded.timestampMillis)
 
         val highBitTimestamp: ULong = 0x8000_0000_0000_0000u
         val oldEd = crypto.generateEd25519KeyPair()
@@ -142,7 +142,7 @@ class RotationAnnouncementTest {
             highBitTimestamp, sig,
         )
         val dec = RotationAnnouncement.decode(enc)
-        assertEquals(highBitTimestamp, dec.timestampMs)
+        assertEquals(highBitTimestamp, dec.timestampMillis)
     }
 
     @Test
@@ -162,8 +162,8 @@ class RotationAnnouncementTest {
 
     @Test
     fun multipleRotationsProduceDifferentSignatures() {
-        val (msg1, _) = createSignedMessage(timestampMs = 1_000u)
-        val (msg2, _) = createSignedMessage(timestampMs = 2_000u)
+        val (msg1, _) = createSignedMessage(timestampMillis = 1_000u)
+        val (msg2, _) = createSignedMessage(timestampMillis = 2_000u)
         assertFalse(msg1.signature.contentEquals(msg2.signature))
     }
 

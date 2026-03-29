@@ -14,7 +14,7 @@ import kotlinx.coroutines.launch
  *
  * When a message is queued for delivery, [startTimer] launches a coroutine that fires
  * a [DiagnosticCode.DELIVERY_TIMEOUT] event via [DiagnosticSink] if the message is not
- * delivered (ACK received) before [deadlineMs] elapses.
+ * delivered (ACK received) before [deadlineMillis] elapses.
  *
  * Timers are cancelled when delivery is confirmed, the message is explicitly cancelled,
  * or [cancelAll] is called (e.g. on MeshLink stop).
@@ -27,7 +27,7 @@ internal class DeliveryDeadlineTimer(
 
     /**
      * Start a deadline timer for [messageKey] (hex message ID).
-     * If delivery is not confirmed within [deadlineMs], emits a DELIVERY_TIMEOUT diagnostic
+     * If delivery is not confirmed within [deadlineMillis], emits a DELIVERY_TIMEOUT diagnostic
      * and records a FAILED_DELIVERY_TIMEOUT outcome on the [deliveryTracker].
      *
      * The [onTimeout] callback is invoked when the deadline fires, allowing the caller
@@ -36,21 +36,21 @@ internal class DeliveryDeadlineTimer(
     fun startTimer(
         scope: CoroutineScope,
         messageKey: String,
-        deadlineMs: Long,
+        deadlineMillis: Long,
         onTimeout: ((String) -> Unit)? = null,
     ) {
         // Don't start duplicate timers
         if (timers.containsKey(messageKey)) return
 
         timers[messageKey] = scope.launch {
-            delay(deadlineMs)
+            delay(deadlineMillis)
             // Deadline expired — record failure and emit diagnostic
             val outcome = deliveryTracker.recordOutcome(messageKey, DeliveryOutcome.FAILED_DELIVERY_TIMEOUT)
             if (outcome != null) {
                 diagnosticSink.emit(
                     DiagnosticCode.DELIVERY_TIMEOUT,
                     Severity.WARN,
-                    "messageId=$messageKey, deadlineMs=$deadlineMs",
+                    "messageId=$messageKey, deadlineMillis=$deadlineMillis",
                 )
                 onTimeout?.invoke(messageKey)
             }

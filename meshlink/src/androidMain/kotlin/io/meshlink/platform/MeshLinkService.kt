@@ -46,9 +46,9 @@ abstract class MeshLinkService : Service() {
 
     // crash-loop tracking
     private val startTimestamps = mutableListOf<Long>()
-    private val crashWindowMs = 60_000L
+    private val crashWindowMillis = 60_000L
     private val crashThreshold = 3
-    private val crashDelayMs = 30_000L
+    private val crashDelayMillis = 30_000L
 
     // battery broadcast receiver
     private var batteryReceiver: BroadcastReceiver? = null
@@ -62,11 +62,11 @@ abstract class MeshLinkService : Service() {
 
         val now = currentTimeMillis()
         startTimestamps.add(now)
-        startTimestamps.removeAll { now - it > crashWindowMs }
+        startTimestamps.removeAll { now - it > crashWindowMillis }
 
         if (startTimestamps.size >= crashThreshold) {
             serviceScope.launch {
-                delay(crashDelayMs)
+                delay(crashDelayMillis)
                 initMeshLink()
             }
         } else {

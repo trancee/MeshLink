@@ -2,8 +2,8 @@ package io.meshlink.util
 
 class CircuitBreaker(
     private val maxFailures: Int,
-    private val windowMs: Long,
-    private val cooldownMs: Long,
+    private val windowMillis: Long,
+    private val cooldownMillis: Long,
     private val clock: () -> Long = { currentTimeMillis() },
 ) {
     private var failures = listOf<Long>()
@@ -13,7 +13,7 @@ class CircuitBreaker(
         val now = clock()
         val trip = trippedAt
         if (trip != null) {
-            return if (now - trip >= cooldownMs) {
+            return if (now - trip >= cooldownMillis) {
                 trippedAt = null
                 failures = emptyList()
                 true
@@ -26,7 +26,7 @@ class CircuitBreaker(
 
     fun recordFailure() {
         val now = clock()
-        val pruned = failures.filter { now - it <= windowMs } + now
+        val pruned = failures.filter { now - it <= windowMillis } + now
         failures = pruned
         if (pruned.size >= maxFailures) {
             trippedAt = now

@@ -56,7 +56,7 @@ val mesh = MeshLink(
     transport = transport,
     config = meshLinkConfig {
         maxMessageSize = 50_000
-        gossipIntervalMs = 10_000L
+        gossipIntervalMillis = 10_000L
     },
     crypto = createCryptoProvider(),
 )
@@ -139,9 +139,9 @@ val config = meshLinkConfig {
     maxMessageSize = 50_000
     bufferCapacity = 1_048_576
     mtu = 185
-    gossipIntervalMs = 10_000L
-    keepaliveIntervalMs = 30_000L
-    pendingMessageTtlMs = 60_000L
+    gossipIntervalMillis = 10_000L
+    keepaliveIntervalMillis = 30_000L
+    pendingMessageTtlMillis = 60_000L
 }
 ```
 
@@ -156,7 +156,7 @@ import io.meshlink.config.MeshLinkConfig
 
 // Chat apps — small messages, moderate buffer
 val chatConfig = MeshLinkConfig.chatOptimized {
-    gossipIntervalMs = 5_000L
+    gossipIntervalMillis = 5_000L
 }
 
 // File/image transfer — large messages, big buffer
@@ -175,7 +175,7 @@ val powerConfig = MeshLinkConfig.powerOptimized()
 | `maxMessageSize`        | 100,000   | Set to your largest expected payload             |
 | `bufferCapacity`        | 1,048,576 | Must be ≥ `maxMessageSize`                       |
 | `mtu`                   | 185       | Leave at default unless you negotiate a larger MTU |
-| `pendingMessageTtlMs`   | 0 (never) | Set to 60–300 s for apps with delivery deadlines |
+| `pendingMessageTtlMillis`   | 0 (never) | Set to 60–300 s for apps with delivery deadlines |
 | `pendingMessageCapacity`| 100       | Increase for bursty senders                      |
 | `maxHops`               | 10        | Lower to 3–5 for latency-sensitive apps          |
 
@@ -184,7 +184,7 @@ val powerConfig = MeshLinkConfig.powerOptimized()
 | Field                               | Default      | Description                        |
 |-------------------------------------|--------------|------------------------------------|
 | `rateLimitMaxSends`                 | 0 (disabled) | Max outbound unicasts per window   |
-| `rateLimitWindowMs`                 | 60,000       | Window duration in ms              |
+| `rateLimitWindowMillis`                 | 60,000       | Window duration in ms              |
 | `broadcastRateLimitPerMinute`       | 0 (disabled) | Max broadcasts per minute          |
 | `inboundRateLimitPerSenderPerMinute`| 0 (disabled) | Inbound cap per sender per minute  |
 | `neighborAggregateLimitPerMin`      | 100          | Total messages from all neighbors  |
@@ -195,18 +195,18 @@ val powerConfig = MeshLinkConfig.powerOptimized()
 | Field                        | Default      | Description                          |
 |------------------------------|--------------|--------------------------------------|
 | `circuitBreakerMaxFailures`  | 0 (disabled) | Failures before circuit opens        |
-| `circuitBreakerWindowMs`     | 60,000       | Failure counting window              |
-| `circuitBreakerCooldownMs`   | 30,000       | Time before retry after trip         |
+| `circuitBreakerWindowMillis`     | 60,000       | Failure counting window              |
+| `circuitBreakerCooldownMillis`   | 30,000       | Time before retry after trip         |
 | `dedupCapacity`              | 100,000      | TTL-based dedup set size (300 s expiry)  |
-| `tombstoneWindowMs`          | 120,000      | Ignore reordered duplicates window   |
+| `tombstoneWindowMillis`          | 120,000      | Ignore reordered duplicates window   |
 
 #### Routing
 
 | Field                       | Default | Description                              |
 |-----------------------------|---------|------------------------------------------|
-| `gossipIntervalMs`          | 0 (off) | Route advertisement interval             |
+| `gossipIntervalMillis`          | 0 (off) | Route advertisement interval             |
 | `triggeredUpdateThreshold`  | 0.3     | Cost change % triggering immediate gossip|
-| `triggeredUpdateBatchMs`    | 100     | Batch window for triggered updates       |
+| `triggeredUpdateBatchMillis`    | 100     | Batch window for triggered updates       |
 | `relayQueueCapacity`        | 100     | Max queued relay messages                |
 
 #### Transport
@@ -215,9 +215,9 @@ val powerConfig = MeshLinkConfig.powerOptimized()
 |-----------------------------|---------|------------------------------------------|
 | `l2capEnabled`              | true    | Enable L2CAP connection-oriented mode    |
 | `l2capRetryAttempts`        | 3       | Retry count for L2CAP connections        |
-| `chunkInactivityTimeoutMs`  | 30,000  | Timeout for incomplete transfers         |
-| `bufferTtlMs`               | 300,000 | Max time to keep buffered data           |
-| `keepaliveIntervalMs`       | 0 (off) | Idle connection keepalive                |
+| `chunkInactivityTimeoutMillis`  | 30,000  | Timeout for incomplete transfers         |
+| `bufferTtlMillis`               | 300,000 | Max time to keep buffered data           |
+| `keepaliveIntervalMillis`       | 0 (off) | Idle connection keepalive                |
 
 ### Validating Configuration
 
@@ -316,12 +316,12 @@ routing protocol with gossip-based advertisement.
 
 ### Enabling Gossip
 
-Set `gossipIntervalMs` to a non-zero value to enable periodic route
+Set `gossipIntervalMillis` to a non-zero value to enable periodic route
 advertisements:
 
 ```kotlin
 val config = meshLinkConfig {
-    gossipIntervalMs = 10_000L            // Advertise routes every 10 s
+    gossipIntervalMillis = 10_000L            // Advertise routes every 10 s
     triggeredUpdateThreshold = 0.3        // Trigger immediate update on 30% cost change
     maxHops = 5u                          // Limit message forwarding to 5 hops
 }
@@ -483,7 +483,7 @@ Each `DiagnosticEvent` contains:
 |----------------|------------------|----------------------------------|
 | `code`         | `DiagnosticCode` | One of 20 event codes            |
 | `severity`     | `Severity`       | `INFO`, `WARN`, or `ERROR`       |
-| `monotonicMs`  | `Long`           | Monotonic clock timestamp        |
+| `monotonicMillis`  | `Long`           | Monotonic clock timestamp        |
 | `droppedCount` | `Int`            | Events lost due to buffer overflow|
 | `payload`      | `String?`        | Optional diagnostic data         |
 
@@ -514,7 +514,7 @@ launch {
 | `powerMode`                | `String` | Current power mode               |
 | `avgRouteCost`             | `Double` | Average route cost across table  |
 | `relayQueueSize`           | `Int`    | Queued relay messages            |
-| `effectiveGossipIntervalMs`| `Long`   | Current gossip interval          |
+| `effectiveGossipIntervalMillis`| `Long`   | Current gossip interval          |
 
 ### Memory Management
 
@@ -523,10 +523,10 @@ launch {
 val removed = mesh.sweep(currentlySeenPeerIds)
 
 // Clean up stale transfers (older than 60 s)
-val cleaned = mesh.sweepStaleTransfers(maxAgeMs = 60_000L)
+val cleaned = mesh.sweepStaleTransfers(maxAgeMillis = 60_000L)
 
 // Clean up stale reassembly buffers
-mesh.sweepStaleReassemblies(maxAgeMs = 60_000L)
+mesh.sweepStaleReassemblies(maxAgeMillis = 60_000L)
 
 // Remove expired pending messages
 mesh.sweepExpiredPendingMessages()
@@ -581,7 +581,7 @@ mesh.rotateIdentity().onFailure { error ->
 
 - **Set `maxHops` realistically** — limit to 3–5 for chat apps to reduce
   latency and relay load.
-- **Enable gossip** — set `gossipIntervalMs` to 5–30 seconds for multi-hop
+- **Enable gossip** — set `gossipIntervalMillis` to 5–30 seconds for multi-hop
   networks.
 - **Report battery state** — call `updateBattery()` on battery change
   broadcasts so MeshLink can adapt automatically.
@@ -601,7 +601,7 @@ mesh.rotateIdentity().onFailure { error ->
 
 ### Resource Management
 
-- **Set `pendingMessageTtlMs`** — prevents unbounded growth of the pending
+- **Set `pendingMessageTtlMillis`** — prevents unbounded growth of the pending
   message queue.
 - **Monitor `bufferUtilizationPercent`** from `meshHealth()` — react before
   hitting capacity.

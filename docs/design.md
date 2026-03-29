@@ -355,7 +355,7 @@ flowchart TD
 
 **Nonce desync handling:** If an L2CAP frame fails Noise XX decryption (nonce desynchronization), the library immediately **tears down the L2CAP channel** and falls back to GATT (same fallback path as above). Unlike GATT where a corrupted write affects only that write, L2CAP nonce desync breaks all subsequent frames — a single mismatch triggers immediate teardown with no tolerance window. An attacker who can drop L2CAP frames can force GATT-only mode (3–10× slower), but cannot break encryption or prevent communication.
 
-**Nonce desync circuit breaker:** 3 nonce desyncs with the same peer within 5 minutes → demote that peer to **GATT-only for 30 minutes**. After 30 minutes, L2CAP is retried on the next connection. `L2CAP_NONCE_DESYNC_DEMOTION(peer, demotionDurationMs)` diagnostic emitted when circuit breaker trips.
+**Nonce desync circuit breaker:** 3 nonce desyncs with the same peer within 5 minutes → demote that peer to **GATT-only for 30 minutes**. After 30 minutes, L2CAP is retried on the next connection. `L2CAP_NONCE_DESYNC_DEMOTION(peer, demotionDurationMillis)` diagnostic emitted when circuit breaker trips.
 
 ### Wire Format: Custom Binary Protocol
 
@@ -1794,8 +1794,8 @@ Not intended for business logic — purely for debugging, monitoring, and diagno
 data class DiagnosticEvent(
     val code: DiagnosticCode,        // enum of all event types
     val severity: Severity,           // FATAL, ERROR, WARNING, INFO
-    val monotonicMs: Long,           // millis since boot
-    val wallClockMs: Long,           // epoch millis
+    val monotonicMillis: Long,           // millis since boot
+    val wallClockMillis: Long,           // epoch millis
     val droppedCount: Int,           // 0 if no drops since last event
     val payload: Map<String, Any>    // event-specific key-value pairs
 )

@@ -11,17 +11,17 @@ class AdvertisingPolicyTest {
 
     @Test
     fun performanceIntervalIs250ms() {
-        assertEquals(250L, policy.advertisingIntervalMs(AdvertisingPolicy.PowerMode.PERFORMANCE))
+        assertEquals(250L, policy.advertisingIntervalMillis(AdvertisingPolicy.PowerMode.PERFORMANCE))
     }
 
     @Test
     fun balancedIntervalIs500ms() {
-        assertEquals(500L, policy.advertisingIntervalMs(AdvertisingPolicy.PowerMode.BALANCED))
+        assertEquals(500L, policy.advertisingIntervalMillis(AdvertisingPolicy.PowerMode.BALANCED))
     }
 
     @Test
     fun powerSaverIntervalIs1000ms() {
-        assertEquals(1000L, policy.advertisingIntervalMs(AdvertisingPolicy.PowerMode.POWER_SAVER))
+        assertEquals(1000L, policy.advertisingIntervalMillis(AdvertisingPolicy.PowerMode.POWER_SAVER))
     }
 
     @Test
@@ -41,7 +41,7 @@ class AdvertisingPolicyTest {
 
     @Test
     fun scanWindowCalculation() {
-        assertEquals(50L, policy.scanWindowMs(AdvertisingPolicy.PowerMode.BALANCED, 100L))
+        assertEquals(50L, policy.scanWindowMillis(AdvertisingPolicy.PowerMode.BALANCED, 100L))
     }
 
     @Test
@@ -54,16 +54,16 @@ class AdvertisingPolicyTest {
     @Test
     fun customPolicyValuesOverrideDefaults() {
         val custom = AdvertisingPolicy(
-            performanceAdvIntervalMs = 100L,
-            balancedAdvIntervalMs = 300L,
-            powerSaverAdvIntervalMs = 2000L,
+            performanceAdvIntervalMillis = 100L,
+            balancedAdvIntervalMillis = 300L,
+            powerSaverAdvIntervalMillis = 2000L,
             performanceScanDutyPercent = 95,
             balancedScanDutyPercent = 60,
             powerSaverScanDutyPercent = 10,
         )
-        assertEquals(100L, custom.advertisingIntervalMs(AdvertisingPolicy.PowerMode.PERFORMANCE))
-        assertEquals(300L, custom.advertisingIntervalMs(AdvertisingPolicy.PowerMode.BALANCED))
-        assertEquals(2000L, custom.advertisingIntervalMs(AdvertisingPolicy.PowerMode.POWER_SAVER))
+        assertEquals(100L, custom.advertisingIntervalMillis(AdvertisingPolicy.PowerMode.PERFORMANCE))
+        assertEquals(300L, custom.advertisingIntervalMillis(AdvertisingPolicy.PowerMode.BALANCED))
+        assertEquals(2000L, custom.advertisingIntervalMillis(AdvertisingPolicy.PowerMode.POWER_SAVER))
         assertEquals(95, custom.scanDutyPercent(AdvertisingPolicy.PowerMode.PERFORMANCE))
         assertEquals(60, custom.scanDutyPercent(AdvertisingPolicy.PowerMode.BALANCED))
         assertEquals(10, custom.scanDutyPercent(AdvertisingPolicy.PowerMode.POWER_SAVER))
@@ -71,9 +71,9 @@ class AdvertisingPolicyTest {
 
     @Test
     fun intervalsIncreaseMonotonically() {
-        val perf = policy.advertisingIntervalMs(AdvertisingPolicy.PowerMode.PERFORMANCE)
-        val bal = policy.advertisingIntervalMs(AdvertisingPolicy.PowerMode.BALANCED)
-        val saver = policy.advertisingIntervalMs(AdvertisingPolicy.PowerMode.POWER_SAVER)
+        val perf = policy.advertisingIntervalMillis(AdvertisingPolicy.PowerMode.PERFORMANCE)
+        val bal = policy.advertisingIntervalMillis(AdvertisingPolicy.PowerMode.BALANCED)
+        val saver = policy.advertisingIntervalMillis(AdvertisingPolicy.PowerMode.POWER_SAVER)
         assertTrue(perf < bal, "Performance interval should be less than Balanced")
         assertTrue(bal < saver, "Balanced interval should be less than PowerSaver")
     }
@@ -89,8 +89,8 @@ class AdvertisingPolicyTest {
 
     @Test
     fun scanWindowWithZeroIntervalReturnsZero() {
-        assertEquals(0L, policy.scanWindowMs(AdvertisingPolicy.PowerMode.PERFORMANCE, 0L))
-        assertEquals(0L, policy.scanWindowMs(AdvertisingPolicy.PowerMode.BALANCED, 0L))
-        assertEquals(0L, policy.scanWindowMs(AdvertisingPolicy.PowerMode.POWER_SAVER, 0L))
+        assertEquals(0L, policy.scanWindowMillis(AdvertisingPolicy.PowerMode.PERFORMANCE, 0L))
+        assertEquals(0L, policy.scanWindowMillis(AdvertisingPolicy.PowerMode.BALANCED, 0L))
+        assertEquals(0L, policy.scanWindowMillis(AdvertisingPolicy.PowerMode.POWER_SAVER, 0L))
     }
 }

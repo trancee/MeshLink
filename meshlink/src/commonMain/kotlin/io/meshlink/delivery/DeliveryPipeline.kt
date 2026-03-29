@@ -20,7 +20,7 @@ sealed interface BufferResult {
 data class PendingMessage(
     val recipient: ByteArray,
     val payload: ByteArray,
-    val enqueueTimeMs: Long,
+    val enqueueTimeMillis: Long,
 )
 
 /**
@@ -34,11 +34,11 @@ data class PendingMessage(
  */
 class DeliveryPipeline(
     private val clock: () -> Long = { currentTimeMillis() },
-    tombstoneWindowMs: Long = 120_000L,
+    tombstoneWindowMillis: Long = 120_000L,
     diagnosticSink: DiagnosticSink,
 ) {
     private val deliveryTracker = DeliveryTracker()
-    private val tombstoneSet = TombstoneSet(windowMs = tombstoneWindowMs, clock = clock)
+    private val tombstoneSet = TombstoneSet(windowMillis = tombstoneWindowMillis, clock = clock)
     private val deadlineTimer = DeliveryDeadlineTimer(
         diagnosticSink = diagnosticSink,
         deliveryTracker = deliveryTracker,
@@ -53,12 +53,12 @@ class DeliveryPipeline(
     fun registerOutbound(
         scope: CoroutineScope,
         key: String,
-        deadlineMs: Long,
+        deadlineMillis: Long,
         onTimeout: ((String) -> Unit)? = null,
     ) {
         deliveryTracker.register(key)
-        if (deadlineMs > 0) {
-            deadlineTimer.startTimer(scope, key, deadlineMs, onTimeout)
+        if (deadlineMillis > 0) {
+            deadlineTimer.startTimer(scope, key, deadlineMillis, onTimeout)
         }
     }
 
@@ -140,20 +140,20 @@ class DeliveryPipeline(
         }
     }
 
-    fun flushPending(recipientHex: String, ttlMs: Long): List<PendingMessage> {
+    fun flushPending(recipientHex: String, ttlMillis: Long): List<PendingMessage> {
         val msgs = pendingMessages.remove(recipientHex) ?: return emptyList()
         val now = clock()
-        return if (ttlMs > 0) msgs.filter { now - it.enqueueTimeMs < ttlMs } else msgs
+        return if (ttlMillis > 0) msgs.filter { now - it.enqueueTimeMillis < ttlMillis } else msgs
     }
 
-    fun sweepExpiredPending(ttlMs: Long): Int {
-        if (ttlMs <= 0) return 0
+    fun sweepExpiredPending(ttlMillis: Long): Int {
+        if (ttlMillis <= 0) return 0
         val now = clock()
         var count = 0
         val emptyKeys = mutableListOf<String>()
         for ((peerHex, messages) in pendingMessages) {
             val before = messages.size
-            messages.removeAll { (now - it.enqueueTimeMs) >= ttlMs }
+            messages.removeAll { (now - it.enqueueTimeMillis) >= ttlMillis }
             count += before - messages.size
             if (messages.isEmpty()) emptyKeys.add(peerHex)
         }

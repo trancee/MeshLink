@@ -469,7 +469,7 @@ Byte:   0       1                              32  33                           
 
        129                           136  137                           200
        +---------- ... ----------------+---+---------- ... ----------------+
-       | timestampMs (8, BE ULong)     |        signature (64)            |
+       | timestampMillis (8, BE ULong)     |        signature (64)            |
        +---------- ... ----------------+---+---------- ... ----------------+
 ```
 
@@ -480,7 +480,7 @@ Byte:   0       1                              32  33                           
 | 33–64 | 32 | `newX25519Key` | bytes | — | New X25519 public key. |
 | 65–96 | 32 | `oldEd25519Key` | bytes | — | Previous Ed25519 (signing) public key. |
 | 97–128 | 32 | `newEd25519Key` | bytes | — | New Ed25519 public key. |
-| 129–136 | 8 | `timestampMs` | ULong | **BE** | Rotation timestamp in milliseconds since Unix epoch. |
+| 129–136 | 8 | `timestampMillis` | ULong | **BE** | Rotation timestamp in milliseconds since Unix epoch. |
 | 137–200 | 64 | `signature` | bytes | — | Ed25519 signature over bytes 1–136 (the signable payload). |
 
 **Signable payload:** bytes 1–136 of the wire format (4 keys + timestamp, 136
@@ -530,7 +530,7 @@ version negotiation and capability exchange (e.g., L2CAP support).
 - **Routed Messages** include an 8-byte `replayCounter` (little-endian ULong)
   that should be monotonically increasing per origin. Receivers should reject
   messages with a replay counter at or below the last accepted value.
-- **Rotation Announcements** include a `timestampMs` field that can be used to
+- **Rotation Announcements** include a `timestampMillis` field that can be used to
   reject stale announcements.
 
 ### Loop Detection
@@ -554,7 +554,7 @@ little-endian helpers are used depending on the field.
 
 ### Big-Endian (Network Order)
 
-Used for: Keepalive `timestampSeconds`, Rotation `timestampMs`, Handshake
+Used for: Keepalive `timestampSeconds`, Rotation `timestampMillis`, Handshake
 payload fields.
 
 | Function | Width | Description |
@@ -601,4 +601,4 @@ Quick reference for the byte order of every multi-byte field in the protocol.
 | Route Update Entry | `sequenceNumber` | 4 | **LE** |
 | Resume Request | `bytesReceived` | 4 | **LE** |
 | Keepalive | `timestampSeconds` | 4 | **BE** |
-| Rotation | `timestampMs` | 8 | **BE** |
+| Rotation | `timestampMillis` | 8 | **BE** |
