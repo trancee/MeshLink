@@ -47,6 +47,7 @@ import platform.Foundation.NSUUID
 import platform.Foundation.NSUserDefaults
 import platform.Foundation.create
 import platform.darwin.NSObject
+import platform.darwin.dispatch_async
 import platform.darwin.dispatch_get_main_queue
 import platform.posix.memcpy
 import kotlin.coroutines.resume
@@ -194,8 +195,11 @@ class IosBleTransport(
         peerSweepJob?.cancel()
         peerSweepJob = null
 
-        // CoreBluetooth calls must run on the main thread
-        withContext(Dispatchers.Main) {
+        // Fire-and-forget CoreBluetooth teardown via GCD.
+        // Using dispatch_async avoids the deadlock that occurs when stop() blocks
+        // the main thread with runBlocking while withContext(Dispatchers.Main)
+        // waits for that same thread.
+        dispatch_async(dispatch_get_main_queue()) {
             centralManager?.stopScan()
             for ((_, peer) in knownPeers.toMap()) {
                 if (peer.peripheral.state == CBPeripheralStateConnected) {

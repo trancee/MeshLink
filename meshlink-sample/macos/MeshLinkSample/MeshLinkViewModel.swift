@@ -130,6 +130,11 @@ final class MeshLinkViewModel: ObservableObject {
         isRunning = false
         discoveredPeers.removeAll()
         peerCount = 0
+        connectedPeers = 0
+        reachablePeers = 0
+        activeTransfers = 0
+        bufferUsagePercent = 0
+        powerMode = "BALANCED"
         log("🔴 Mesh stopped")
     }
 
