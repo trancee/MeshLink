@@ -1,10 +1,15 @@
 package io.meshlink.delivery
 
 import io.meshlink.crypto.ReplayGuard
+import io.meshlink.diagnostics.DiagnosticCode
 import io.meshlink.diagnostics.DiagnosticSink
+import io.meshlink.diagnostics.Severity
 import io.meshlink.util.DeliveryOutcome
 import io.meshlink.util.currentTimeMillis
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 sealed interface AckResult {
     data class Confirmed(val messageId: String) : AckResult
@@ -24,9 +29,9 @@ data class PendingMessage(
 )
 
 /**
- * Facade consolidating delivery tracking, tombstones, deadline timers,
- * reverse-path relay, replay guards, inbound rate limiting, and
- * store-and-forward buffering behind sealed result types.
+ * Consolidated delivery pipeline owning: delivery state tracking,
+ * tombstones (late-ACK detection), deadline timers, reverse-path relay,
+ * replay guards, inbound rate limiting, and store-and-forward buffering.
  *
  * MeshLink delegates all delivery-outcome decisions to this pipeline
  * and pattern-matches on [AckResult] to drive wire-level actions and
@@ -34,15 +39,21 @@ data class PendingMessage(
  */
 class DeliveryPipeline(
     private val clock: () -> Long = { currentTimeMillis() },
-    tombstoneWindowMillis: Long = 120_000L,
-    diagnosticSink: DiagnosticSink,
+    private val tombstoneWindowMillis: Long = 120_000L,
+    private val diagnosticSink: DiagnosticSink,
 ) {
-    private val deliveryTracker = DeliveryTracker()
-    private val tombstoneSet = TombstoneSet(windowMillis = tombstoneWindowMillis, clock = clock)
-    private val deadlineTimer = DeliveryDeadlineTimer(
-        diagnosticSink = diagnosticSink,
-        deliveryTracker = deliveryTracker,
-    )
+    // -- Delivery tracking (was DeliveryTracker) --
+    private enum class DeliveryState { PENDING, RESOLVED }
+
+    private val deliveryStates = mutableMapOf<String, DeliveryState>()
+
+    // -- Tombstone set (was TombstoneSet) --
+    private val tombstoneEntries = mutableMapOf<String, Long>()
+
+    // -- Deadline timers (was DeliveryDeadlineTimer) --
+    private val deadlineTimers = mutableMapOf<String, Job>()
+
+    // -- Other state --
     private val routedMsgSources = mutableMapOf<String, ByteArray>()
     private val inboundReplayGuards = mutableMapOf<String, ReplayGuard>()
     private val inboundRateCounts = mutableMapOf<String, List<Long>>()
@@ -56,21 +67,21 @@ class DeliveryPipeline(
         deadlineMillis: Long,
         onTimeout: ((String) -> Unit)? = null,
     ) {
-        deliveryTracker.register(key)
+        deliveryStates[key] = DeliveryState.PENDING
         if (deadlineMillis > 0) {
-            deadlineTimer.startTimer(scope, key, deadlineMillis, onTimeout)
+            startDeadlineTimer(scope, key, deadlineMillis, onTimeout)
         }
     }
 
     // ── ACK processing ────────────────────────────────────────────
 
     fun processAck(key: String): AckResult {
-        if (tombstoneSet.contains(key)) return AckResult.Late(key)
+        if (isTombstoned(key)) return AckResult.Late(key)
         val source = routedMsgSources.remove(key)
-        val outcome = deliveryTracker.recordOutcome(key, DeliveryOutcome.CONFIRMED)
-        if (outcome != null || !deliveryTracker.isTracked(key)) {
-            deadlineTimer.cancel(key)
-            if (outcome != null) tombstoneSet.add(key)
+        val outcome = recordOutcome(key, DeliveryOutcome.CONFIRMED)
+        if (outcome != null || !deliveryStates.containsKey(key)) {
+            cancelDeadline(key)
+            if (outcome != null) addTombstone(key)
             return if (source != null) {
                 AckResult.ConfirmedAndRelay(key, source)
             } else {
@@ -78,20 +89,26 @@ class DeliveryPipeline(
             }
         }
         // Already resolved → late
-        tombstoneSet.add(key)
+        addTombstone(key)
         return AckResult.Late(key)
     }
 
     // ── Failure recording ─────────────────────────────────────────
 
     fun recordFailure(key: String, outcome: DeliveryOutcome): Boolean {
-        val result = deliveryTracker.recordOutcome(key, outcome)
-        if (result != null) tombstoneSet.add(key)
+        val result = recordOutcome(key, outcome)
+        if (result != null) addTombstone(key)
         return result != null
     }
 
-    fun cancelDeadline(key: String) = deadlineTimer.cancel(key)
-    fun cancelAllDeadlines() = deadlineTimer.cancelAll()
+    fun cancelDeadline(key: String) {
+        deadlineTimers.remove(key)?.cancel()
+    }
+
+    fun cancelAllDeadlines() {
+        for ((_, job) in deadlineTimers) job.cancel()
+        deadlineTimers.clear()
+    }
 
     // ── Reverse path tracking ─────────────────────────────────────
 
@@ -171,6 +188,55 @@ class DeliveryPipeline(
         inboundReplayGuards.clear()
         inboundRateCounts.clear()
         pendingMessages.clear()
-        tombstoneSet.clear()
+        tombstoneEntries.clear()
+    }
+
+    // ── Private: delivery state tracking ──────────────────────────
+
+    private fun recordOutcome(key: String, outcome: DeliveryOutcome): DeliveryOutcome? {
+        val state = deliveryStates[key] ?: return null
+        if (state != DeliveryState.PENDING) return null
+        deliveryStates[key] = DeliveryState.RESOLVED
+        return outcome
+    }
+
+    // ── Private: tombstone set ────────────────────────────────────
+
+    private fun addTombstone(messageId: String) {
+        tombstoneEntries[messageId] = clock() + tombstoneWindowMillis
+    }
+
+    private fun isTombstoned(messageId: String): Boolean {
+        val expiry = tombstoneEntries[messageId] ?: return false
+        if (clock() >= expiry) {
+            tombstoneEntries.remove(messageId)
+            return false
+        }
+        return true
+    }
+
+    // ── Private: deadline timers ──────────────────────────────────
+
+    private fun startDeadlineTimer(
+        scope: CoroutineScope,
+        messageKey: String,
+        deadlineMillis: Long,
+        onTimeout: ((String) -> Unit)? = null,
+    ) {
+        if (deadlineTimers.containsKey(messageKey)) return
+
+        deadlineTimers[messageKey] = scope.launch {
+            delay(deadlineMillis)
+            val outcome = recordOutcome(messageKey, DeliveryOutcome.FAILED_DELIVERY_TIMEOUT)
+            if (outcome != null) {
+                diagnosticSink.emit(
+                    DiagnosticCode.DELIVERY_TIMEOUT,
+                    Severity.WARN,
+                    "messageId=$messageKey, deadlineMillis=$deadlineMillis",
+                )
+                onTimeout?.invoke(messageKey)
+            }
+            deadlineTimers.remove(messageKey)
+        }
     }
 }
