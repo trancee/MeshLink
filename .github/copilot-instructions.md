@@ -1,7 +1,7 @@
 # Copilot Instructions — MeshLink
 
-See [AGENTS.md](../AGENTS.md) for the full agent guide (build commands, code
-style, architecture, testing conventions, domain language).
+See [AGENTS.md](../AGENTS.md) for the complete agent guide (setup, workflow,
+testing, code style, architecture, CI, security, domain language).
 
 This file supplements AGENTS.md with Copilot-specific notes.
 
@@ -21,3 +21,4 @@ This file supplements AGENTS.md with Copilot-specific notes.
 - Use `expect`/`actual` for platform-specific code — never `#ifdef`-style branching.
 - Prefer sealed result types over exceptions for expected failures.
 - Use domain terms from `UBIQUITOUS_LANGUAGE.md` (Peer, Neighbor, TOFI, etc.).
+- Update `docs/api-reference.md` when adding or changing public APIs.
