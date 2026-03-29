@@ -49,6 +49,8 @@ class SecurityEngine(
         return try {
             UnsealResult.Decrypted(sealer.unseal(localKeyPair.privateKey, payload))
         } catch (_: Exception) {
+            // Expected for wrong-key, tampered data, or unknown sender.
+            // Caller (InboundValidator) emits DECRYPTION_FAILED diagnostic.
             UnsealResult.Failed(payload)
         }
     }

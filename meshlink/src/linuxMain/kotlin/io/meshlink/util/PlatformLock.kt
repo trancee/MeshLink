@@ -1,18 +1,39 @@
+@file:OptIn(kotlinx.cinterop.ExperimentalForeignApi::class)
+
 package io.meshlink.util
 
 import kotlin.concurrent.AtomicInt
+import kotlin.concurrent.AtomicLong
+import platform.posix.pthread_self
 
+/**
+ * Reentrant platform lock for Linux using AtomicInt with pthread-based thread ownership.
+ * Matches the reentrant behavior of Android (ReentrantLock) and Apple (NSRecursiveLock).
+ */
 private class LinuxPlatformLock : PlatformLock {
     private val locked = AtomicInt(0)
+    private val ownerThreadId = AtomicLong(0L)
+    private var recursionCount: Int = 0
 
     override fun lock() {
+        val currentThread = pthread_self().toLong()
+        if (ownerThreadId.load() == currentThread && recursionCount > 0) {
+            recursionCount++
+            return
+        }
         while (!locked.compareAndSet(0, 1)) {
             // spin
         }
+        ownerThreadId.store(currentThread)
+        recursionCount = 1
     }
 
     override fun unlock() {
-        locked.value = 0
+        recursionCount--
+        if (recursionCount == 0) {
+            ownerThreadId.store(0L)
+            locked.value = 0
+        }
     }
 }
 

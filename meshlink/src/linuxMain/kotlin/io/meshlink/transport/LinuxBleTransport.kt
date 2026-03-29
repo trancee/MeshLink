@@ -68,6 +68,12 @@ class LinuxBleTransport(
         // LE advertising parameters: 100ms interval
         private const val ADV_INTERVAL_MIN: UShort = 0x00A0u
         private const val ADV_INTERVAL_MAX: UShort = 0x00A0u
+
+        // TODO: Replace with ATT service discovery (Read By Group Type + Read By Type)
+        //  to dynamically resolve the MeshLink GATT characteristic handle at connection time.
+        //  Currently assumes the MeshLink write characteristic is at handle 0x0004,
+        //  which only works when the peer's GATT table has this exact layout.
+        private const val GATT_DATA_WRITE_HANDLE: UShort = 0x0004u
     }
 
     // -- Local peer ID --
@@ -173,9 +179,8 @@ class LinuxBleTransport(
         // Send as ATT Write Command (no response needed)
         val attPdu = ByteArray(3 + data.size)
         attPdu[0] = ATT_OP_WRITE_CMD.toByte()
-        // Use data write handle (0x0004 — typical for 4th characteristic)
-        attPdu[1] = 0x04
-        attPdu[2] = 0x00
+        attPdu[1] = (GATT_DATA_WRITE_HANDLE.toInt() and 0xFF).toByte()
+        attPdu[2] = (GATT_DATA_WRITE_HANDLE.toInt() shr 8).toByte()
         data.copyInto(attPdu, 3)
 
         attPdu.usePinned { pinned ->

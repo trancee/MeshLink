@@ -58,6 +58,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.uuid.ExperimentalUuidApi
@@ -417,8 +419,12 @@ class MeshLink(
 
     override fun stop() {
         started = false
-        // Stop BLE transport before cancelling scope
-        CoroutineScope(baseContext).launch { transport.stopAll() }
+        // Cancel scope first to stop gossip/keepalive loops, then await transport shutdown.
+        scope?.cancel()
+        // Await BLE transport shutdown on Default dispatcher to avoid deadlocking test dispatchers.
+        runBlocking(kotlinx.coroutines.Dispatchers.Default) {
+            withTimeoutOrNull(5_000L) { transport.stopAll() }
+        }
         // Cancel all delivery deadline timers before processing in-flight transfers
         deliveryPipeline.cancelAllDeadlines()
         // Emit DELIVERY_TIMEOUT for all in-flight transfers before clearing
@@ -436,7 +442,6 @@ class MeshLink(
             )
         }
         clearState()
-        scope?.cancel()
         scope = null
     }
 

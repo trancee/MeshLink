@@ -96,8 +96,8 @@ publishing {
 
             licenses {
                 license {
-                    name.set("MIT License")
-                    url.set("https://opensource.org/licenses/MIT")
+                    name.set("The Unlicense")
+                    url.set("https://unlicense.org")
                 }
             }
 
