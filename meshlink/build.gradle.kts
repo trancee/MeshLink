@@ -87,6 +87,25 @@ kotlin {
     }
 }
 
+tasks.withType<AbstractTestTask> {
+    testLogging {
+        events("passed", "skipped", "failed")
+        showStandardStreams = false
+    }
+    addTestListener(object : TestListener {
+        override fun beforeSuite(suite: TestDescriptor) {}
+        override fun afterSuite(suite: TestDescriptor, result: TestResult) {
+            if (suite.parent == null) {
+                println("\n${result.resultType}: ${result.successfulTestCount} passed, " +
+                    "${result.failedTestCount} failed, ${result.skippedTestCount} skipped " +
+                    "(${result.testCount} total) in ${(result.endTime - result.startTime)}ms")
+            }
+        }
+        override fun beforeTest(testDescriptor: TestDescriptor) {}
+        override fun afterTest(testDescriptor: TestDescriptor, result: TestResult) {}
+    })
+}
+
 publishing {
     publications.withType<MavenPublication> {
         pom {

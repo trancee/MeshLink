@@ -66,7 +66,7 @@ MeshLink/
 │       ├── linuxMain/           # Linux-specific (POSIX time, battery stub)
 │       ├── androidMain/         # Android BLE, storage, services
 │       ├── jvmMain/             # JVM crypto provider
-│       └── commonTest/          # 1,135+ tests
+│       └── commonTest/          # 1,140+ tests
 ├── meshlink-sample/
 │   ├── android/                 # Jetpack Compose reference app
 │   ├── ios/                     # SwiftUI reference app
@@ -96,6 +96,9 @@ MeshLink/
 ```bash
 # Run all JVM tests
 ./gradlew :meshlink:jvmTest
+
+# Run integration tests only (18 end-to-end scenarios)
+./gradlew :meshlink:jvmTest --tests "io.meshlink.MeshIntegrationTest" --parallel
 
 # Compile Android AAR
 ./gradlew :meshlink:compileAndroidMain

@@ -66,22 +66,37 @@ rejected locally before reaching CI.
 ./gradlew :meshlink:macosArm64Test
 ./gradlew :meshlink:linuxX64Test
 
+# Integration tests only (18 end-to-end scenarios via VirtualMeshTransport)
+./gradlew :meshlink:jvmTest --tests "io.meshlink.MeshIntegrationTest" --parallel
+
 # Single test class
 ./gradlew :meshlink:jvmTest --tests "io.meshlink.wire.WireFormatGoldenVectorsTest"
 
 # Single test method
-./gradlew :meshlink:jvmTest --tests "io.meshlink.wire.WireFormatGoldenVectorsTest.chunkGoldenVectorEncodes"
+./gradlew :meshlink:jvmTest --tests "io.meshlink.MeshIntegrationTest.threeHopRoutedMessage"
 
 # XCFramework for iOS/macOS
 ./gradlew :meshlink:assembleMeshLinkXCFramework
+
+# View HTML test report after a run
+open meshlink/build/reports/tests/jvmTest/index.html
 ```
 
 ### Test Structure
 
-87 test files across 20 packages in `meshlink/src/commonTest/`: crypto (17),
-transfer (8), transport (8), power (8), routing (6), model (6), wire (6),
-delivery (4), dispatch (3), config (2), diagnostics (2), util (2), plus
-integration suites.
+84 test files across 20 packages in `meshlink/src/commonTest/`: crypto (17),
+transport (9), transfer (8), util (7), power (7), wire (6), model (6),
+routing (5), dispatch (3), diagnostics (3), send (2), config (1), delivery (1),
+gossip (1), peer (1), protocol (1), storage (1), plus integration and stress
+suites.
+
+#### Integration Test Suite (`MeshIntegrationTest.kt`)
+
+32 end-to-end scenarios exercising full MeshLink flows through the
+`VirtualMeshTransport`. Covers discovery, handshake, direct/broadcast/routed
+messaging, delivery confirmation, chunking, pause/resume, lifecycle, and
+diagnostics. See `docs/integration-tests.feature` for the Gherkin specification
+of each scenario.
 
 ### Test Conventions
 
@@ -100,6 +115,8 @@ integration suites.
 - **New engine/coordinator:** test with `VirtualMeshTransport` and injected clock
 - **New `expect`/`actual`:** add tests in `commonTest` using the expect interface
 - **New config field:** add test in `MeshLinkConfigTest`
+- **New end-to-end flow:** add scenario to `MeshIntegrationTest.kt` and update
+  `docs/integration-tests.feature`
 
 ## Code Style
 
@@ -126,7 +143,7 @@ before committing. See `detekt.yml` for the full rule set.
 ```
 meshlink/src/
   commonMain/     ~85% of code: protocol, routing, crypto, wire format
-  commonTest/     1,125+ tests using VirtualMeshTransport (in-memory BLE mock)
+  commonTest/     1,140+ tests using VirtualMeshTransport (in-memory BLE mock)
   androidMain/    BLE transport, EncryptedSharedPreferences, JCA crypto (API 33+)
   appleMain/      Shared iOS/macOS: CoreBluetooth, CryptoKit, Keychain
   iosMain/        iOS-specific overrides
@@ -275,6 +292,9 @@ Keep documentation in sync with the implementation:
   attack surfaces or mitigations.
 - **`docs/integration-guide.md`** — Consumer-facing integration guide. Update
   when the API surface or configuration changes.
+- **`docs/integration-tests.feature`** — Gherkin specification of all
+  integration test scenarios. Update when adding or changing tests in
+  `MeshIntegrationTest.kt`.
 
 ## Debugging Tips
 
