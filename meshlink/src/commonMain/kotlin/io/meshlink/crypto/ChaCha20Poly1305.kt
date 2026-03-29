@@ -54,10 +54,14 @@ internal object ChaCha20Poly1305 {
     // ---- ChaCha20 Quarter Round (RFC 8439 §2.1) ----
 
     internal fun quarterRound(state: IntArray, a: Int, b: Int, c: Int, d: Int) {
-        state[a] += state[b]; state[d] = (state[d] xor state[a]).rotateLeft(16)
-        state[c] += state[d]; state[b] = (state[b] xor state[c]).rotateLeft(12)
-        state[a] += state[b]; state[d] = (state[d] xor state[a]).rotateLeft(8)
-        state[c] += state[d]; state[b] = (state[b] xor state[c]).rotateLeft(7)
+        state[a] += state[b]
+        state[d] = (state[d] xor state[a]).rotateLeft(16)
+        state[c] += state[d]
+        state[b] = (state[b] xor state[c]).rotateLeft(12)
+        state[a] += state[b]
+        state[d] = (state[d] xor state[a]).rotateLeft(8)
+        state[c] += state[d]
+        state[b] = (state[b] xor state[c]).rotateLeft(7)
     }
 
     // ---- ChaCha20 Block Function (RFC 8439 §2.3) ----
@@ -153,7 +157,11 @@ internal object ChaCha20Poly1305 {
         val s3 = u8to32le(key, 28)
 
         // Accumulator
-        var h0 = 0L; var h1 = 0L; var h2 = 0L; var h3 = 0L; var h4 = 0L
+        var h0 = 0L
+        var h1 = 0L
+        var h2 = 0L
+        var h3 = 0L
+        var h4 = 0L
 
         // Process message in 16-byte blocks
         var offset = 0
@@ -186,12 +194,24 @@ internal object ChaCha20Poly1305 {
 
             // Carry propagation
             var c: Long
-            c = d0 ushr 26; h0 = d0 and 0x3FFFFFF
-            val d1c = d1 + c; c = d1c ushr 26; h1 = d1c and 0x3FFFFFF
-            val d2c = d2 + c; c = d2c ushr 26; h2 = d2c and 0x3FFFFFF
-            val d3c = d3 + c; c = d3c ushr 26; h3 = d3c and 0x3FFFFFF
-            val d4c = d4 + c; c = d4c ushr 26; h4 = d4c and 0x3FFFFFF
-            h0 += c * 5; c = h0 ushr 26; h0 = h0 and 0x3FFFFFF; h1 += c
+            c = d0 ushr 26
+            h0 = d0 and 0x3FFFFFF
+            val d1c = d1 + c
+            c = d1c ushr 26
+            h1 = d1c and 0x3FFFFFF
+            val d2c = d2 + c
+            c = d2c ushr 26
+            h2 = d2c and 0x3FFFFFF
+            val d3c = d3 + c
+            c = d3c ushr 26
+            h3 = d3c and 0x3FFFFFF
+            val d4c = d4 + c
+            c = d4c ushr 26
+            h4 = d4c and 0x3FFFFFF
+            h0 += c * 5
+            c = h0 ushr 26
+            h0 = h0 and 0x3FFFFFF
+            h1 += c
 
             offset += 16
         }
@@ -200,17 +220,35 @@ internal object ChaCha20Poly1305 {
 
         // Full carry
         var c: Long
-        c = h1 ushr 26; h1 = h1 and 0x3FFFFFF; h2 += c
-        c = h2 ushr 26; h2 = h2 and 0x3FFFFFF; h3 += c
-        c = h3 ushr 26; h3 = h3 and 0x3FFFFFF; h4 += c
-        c = h4 ushr 26; h4 = h4 and 0x3FFFFFF; h0 += c * 5
-        c = h0 ushr 26; h0 = h0 and 0x3FFFFFF; h1 += c
+        c = h1 ushr 26
+        h1 = h1 and 0x3FFFFFF
+        h2 += c
+        c = h2 ushr 26
+        h2 = h2 and 0x3FFFFFF
+        h3 += c
+        c = h3 ushr 26
+        h3 = h3 and 0x3FFFFFF
+        h4 += c
+        c = h4 ushr 26
+        h4 = h4 and 0x3FFFFFF
+        h0 += c * 5
+        c = h0 ushr 26
+        h0 = h0 and 0x3FFFFFF
+        h1 += c
 
         // Compute g = h + 5 and conditionally select h or g = h − p
-        var g0 = h0 + 5; c = g0 ushr 26; g0 = g0 and 0x3FFFFFF
-        var g1 = h1 + c; c = g1 ushr 26; g1 = g1 and 0x3FFFFFF
-        var g2 = h2 + c; c = g2 ushr 26; g2 = g2 and 0x3FFFFFF
-        var g3 = h3 + c; c = g3 ushr 26; g3 = g3 and 0x3FFFFFF
+        var g0 = h0 + 5
+        c = g0 ushr 26
+        g0 = g0 and 0x3FFFFFF
+        var g1 = h1 + c
+        c = g1 ushr 26
+        g1 = g1 and 0x3FFFFFF
+        var g2 = h2 + c
+        c = g2 ushr 26
+        g2 = g2 and 0x3FFFFFF
+        var g3 = h3 + c
+        c = g3 ushr 26
+        g3 = g3 and 0x3FFFFFF
         var g4 = h4 + c - (1L shl 26)
 
         // If h < p then g4 is negative; mask selects h. Otherwise g.
@@ -227,10 +265,17 @@ internal object ChaCha20Poly1305 {
         var f2 = ((h2 ushr 12) or (h3 shl 14)) and 0xFFFFFFFFL
         var f3 = ((h3 ushr 18) or (h4 shl 8)) and 0xFFFFFFFFL
 
-        f0 += s0; c = f0 ushr 32; f0 = f0 and 0xFFFFFFFFL
-        f1 += s1 + c; c = f1 ushr 32; f1 = f1 and 0xFFFFFFFFL
-        f2 += s2 + c; c = f2 ushr 32; f2 = f2 and 0xFFFFFFFFL
-        f3 += s3 + c; f3 = f3 and 0xFFFFFFFFL
+        f0 += s0
+        c = f0 ushr 32
+        f0 = f0 and 0xFFFFFFFFL
+        f1 += s1 + c
+        c = f1 ushr 32
+        f1 = f1 and 0xFFFFFFFFL
+        f2 += s2 + c
+        c = f2 ushr 32
+        f2 = f2 and 0xFFFFFFFFL
+        f3 += s3 + c
+        f3 = f3 and 0xFFFFFFFFL
 
         val tag = ByteArray(TAG_SIZE)
         u32toLE(f0, tag, 0)

@@ -2,8 +2,10 @@ build:
   maxIssues: 0
 
 complexity:
+  LargeClass:
+    threshold: 850
   LongMethod:
-    threshold: 90
+    threshold: 170
   LongParameterList:
     functionThreshold: 12
     constructorThreshold: 40
@@ -29,27 +31,27 @@ formatting:
     active: true
     packagesToUseImportOnDemandProperty: 'bluetooth'
   Wrapping:
-    active: false
+    active: true
   Indentation:
-    active: false
+    active: true
   ArgumentListWrapping:
-    active: false
+    active: true
   ParameterListWrapping:
-    active: false
+    active: true
   SpacingAroundOperators:
-    active: false
+    active: true
   NoMultipleSpaces:
-    active: false
+    active: true
   MultiLineIfElse:
-    active: false
+    active: true
   ImportOrdering:
-    active: false
+    active: true
   SpacingBetweenDeclarationsWithAnnotations:
-    active: false
+    active: true
   SpacingBetweenDeclarationsWithComments:
-    active: false
+    active: true
   NoConsecutiveBlankLines:
-    active: false
+    active: true
 
 naming:
   FunctionNaming:

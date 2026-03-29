@@ -112,8 +112,9 @@ class GossipCoordinator(
         }
 
         diagnosticSink.emit(
-            DiagnosticCode.GOSSIP_TRAFFIC_REPORT, Severity.INFO,
-            "peers=${connectedPeers.size}, routes=${routingEngine.routeCount}"
+            DiagnosticCode.GOSSIP_TRAFFIC_REPORT,
+            Severity.INFO,
+            "peers=${connectedPeers.size}, routes=${routingEngine.routeCount}",
         )
         routingEngine.recordGossipSent()
     }

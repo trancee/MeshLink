@@ -123,9 +123,9 @@ internal object X25519 {
 
     private fun load4(b: ByteArray, off: Int): Long {
         return (b[off].toLong() and 0xffL) or
-                ((b[off + 1].toLong() and 0xffL) shl 8) or
-                ((b[off + 2].toLong() and 0xffL) shl 16) or
-                ((b[off + 3].toLong() and 0xffL) shl 24)
+            ((b[off + 1].toLong() and 0xffL) shl 8) or
+            ((b[off + 2].toLong() and 0xffL) shl 16) or
+            ((b[off + 3].toLong() and 0xffL) shl 24)
     }
 
     private fun feUnpack(out: LongArray, b: ByteArray) {
@@ -142,8 +142,16 @@ internal object X25519 {
     }
 
     private fun fePack(out: ByteArray, h: LongArray) {
-        var h0 = h[0]; var h1 = h[1]; var h2 = h[2]; var h3 = h[3]; var h4 = h[4]
-        var h5 = h[5]; var h6 = h[6]; var h7 = h[7]; var h8 = h[8]; var h9 = h[9]
+        var h0 = h[0]
+        var h1 = h[1]
+        var h2 = h[2]
+        var h3 = h[3]
+        var h4 = h[4]
+        var h5 = h[5]
+        var h6 = h[6]
+        var h7 = h[7]
+        var h8 = h[8]
+        var h9 = h[9]
 
         // Compute q = floor((h + 19) / (2^255)) to determine if we need to subtract p
         var q = (19L * h9 + (1L shl 24)) shr 25
@@ -161,16 +169,35 @@ internal object X25519 {
         h0 += 19L * q
 
         var c: Long
-        c = h0 shr 26; h1 += c; h0 -= c shl 26
-        c = h1 shr 25; h2 += c; h1 -= c shl 25
-        c = h2 shr 26; h3 += c; h2 -= c shl 26
-        c = h3 shr 25; h4 += c; h3 -= c shl 25
-        c = h4 shr 26; h5 += c; h4 -= c shl 26
-        c = h5 shr 25; h6 += c; h5 -= c shl 25
-        c = h6 shr 26; h7 += c; h6 -= c shl 26
-        c = h7 shr 25; h8 += c; h7 -= c shl 25
-        c = h8 shr 26; h9 += c; h8 -= c shl 26
-        c = h9 shr 25;          h9 -= c shl 25
+        c = h0 shr 26
+        h1 += c
+        h0 -= c shl 26
+        c = h1 shr 25
+        h2 += c
+        h1 -= c shl 25
+        c = h2 shr 26
+        h3 += c
+        h2 -= c shl 26
+        c = h3 shr 25
+        h4 += c
+        h3 -= c shl 25
+        c = h4 shr 26
+        h5 += c
+        h4 -= c shl 26
+        c = h5 shr 25
+        h6 += c
+        h5 -= c shl 25
+        c = h6 shr 26
+        h7 += c
+        h6 -= c shl 26
+        c = h7 shr 25
+        h8 += c
+        h7 -= c shl 25
+        c = h8 shr 26
+        h9 += c
+        h8 -= c shl 26
+        c = h9 shr 25
+        h9 -= c shl 25
 
         out[0] = h0.toByte()
         out[1] = (h0 shr 8).toByte()
@@ -224,95 +251,184 @@ internal object X25519 {
     }
 
     private fun feMul(out: LongArray, f: LongArray, g: LongArray) {
-        val f0 = f[0]; val f1 = f[1]; val f2 = f[2]; val f3 = f[3]; val f4 = f[4]
-        val f5 = f[5]; val f6 = f[6]; val f7 = f[7]; val f8 = f[8]; val f9 = f[9]
-        val g0 = g[0]; val g1 = g[1]; val g2 = g[2]; val g3 = g[3]; val g4 = g[4]
-        val g5 = g[5]; val g6 = g[6]; val g7 = g[7]; val g8 = g[8]; val g9 = g[9]
+        val f0 = f[0]
+        val f1 = f[1]
+        val f2 = f[2]
+        val f3 = f[3]
+        val f4 = f[4]
+        val f5 = f[5]
+        val f6 = f[6]
+        val f7 = f[7]
+        val f8 = f[8]
+        val f9 = f[9]
+        val g0 = g[0]
+        val g1 = g[1]
+        val g2 = g[2]
+        val g3 = g[3]
+        val g4 = g[4]
+        val g5 = g[5]
+        val g6 = g[6]
+        val g7 = g[7]
+        val g8 = g[8]
+        val g9 = g[9]
 
-        val g1_19 = 19L * g1; val g2_19 = 19L * g2; val g3_19 = 19L * g3
-        val g4_19 = 19L * g4; val g5_19 = 19L * g5; val g6_19 = 19L * g6
-        val g7_19 = 19L * g7; val g8_19 = 19L * g8; val g9_19 = 19L * g9
+        val g1_19 = 19L * g1
+        val g2_19 = 19L * g2
+        val g3_19 = 19L * g3
+        val g4_19 = 19L * g4
+        val g5_19 = 19L * g5
+        val g6_19 = 19L * g6
+        val g7_19 = 19L * g7
+        val g8_19 = 19L * g8
+        val g9_19 = 19L * g9
 
-        val f1_2 = 2L * f1; val f3_2 = 2L * f3; val f5_2 = 2L * f5
-        val f7_2 = 2L * f7; val f9_2 = 2L * f9
+        val f1_2 = 2L * f1
+        val f3_2 = 2L * f3
+        val f5_2 = 2L * f5
+        val f7_2 = 2L * f7
+        val f9_2 = 2L * f9
 
-        val h0 = f0*g0 + f1_2*g9_19 + f2*g8_19 + f3_2*g7_19 + f4*g6_19 +
-                f5_2*g5_19 + f6*g4_19 + f7_2*g3_19 + f8*g2_19 + f9_2*g1_19
-        val h1 = f0*g1 + f1*g0 + f2*g9_19 + f3*g8_19 + f4*g7_19 +
-                f5*g6_19 + f6*g5_19 + f7*g4_19 + f8*g3_19 + f9*g2_19
-        val h2 = f0*g2 + f1_2*g1 + f2*g0 + f3_2*g9_19 + f4*g8_19 +
-                f5_2*g7_19 + f6*g6_19 + f7_2*g5_19 + f8*g4_19 + f9_2*g3_19
-        val h3 = f0*g3 + f1*g2 + f2*g1 + f3*g0 + f4*g9_19 +
-                f5*g8_19 + f6*g7_19 + f7*g6_19 + f8*g5_19 + f9*g4_19
-        val h4 = f0*g4 + f1_2*g3 + f2*g2 + f3_2*g1 + f4*g0 +
-                f5_2*g9_19 + f6*g8_19 + f7_2*g7_19 + f8*g6_19 + f9_2*g5_19
-        val h5 = f0*g5 + f1*g4 + f2*g3 + f3*g2 + f4*g1 +
-                f5*g0 + f6*g9_19 + f7*g8_19 + f8*g7_19 + f9*g6_19
-        val h6 = f0*g6 + f1_2*g5 + f2*g4 + f3_2*g3 + f4*g2 +
-                f5_2*g1 + f6*g0 + f7_2*g9_19 + f8*g8_19 + f9_2*g7_19
-        val h7 = f0*g7 + f1*g6 + f2*g5 + f3*g4 + f4*g3 +
-                f5*g2 + f6*g1 + f7*g0 + f8*g9_19 + f9*g8_19
-        val h8 = f0*g8 + f1_2*g7 + f2*g6 + f3_2*g5 + f4*g4 +
-                f5_2*g3 + f6*g2 + f7_2*g1 + f8*g0 + f9_2*g9_19
-        val h9 = f0*g9 + f1*g8 + f2*g7 + f3*g6 + f4*g5 +
-                f5*g4 + f6*g3 + f7*g2 + f8*g1 + f9*g0
+        val h0 = f0 * g0 + f1_2 * g9_19 + f2 * g8_19 + f3_2 * g7_19 + f4 * g6_19 +
+            f5_2 * g5_19 + f6 * g4_19 + f7_2 * g3_19 + f8 * g2_19 + f9_2 * g1_19
+        val h1 = f0 * g1 + f1 * g0 + f2 * g9_19 + f3 * g8_19 + f4 * g7_19 +
+            f5 * g6_19 + f6 * g5_19 + f7 * g4_19 + f8 * g3_19 + f9 * g2_19
+        val h2 = f0 * g2 + f1_2 * g1 + f2 * g0 + f3_2 * g9_19 + f4 * g8_19 +
+            f5_2 * g7_19 + f6 * g6_19 + f7_2 * g5_19 + f8 * g4_19 + f9_2 * g3_19
+        val h3 = f0 * g3 + f1 * g2 + f2 * g1 + f3 * g0 + f4 * g9_19 +
+            f5 * g8_19 + f6 * g7_19 + f7 * g6_19 + f8 * g5_19 + f9 * g4_19
+        val h4 = f0 * g4 + f1_2 * g3 + f2 * g2 + f3_2 * g1 + f4 * g0 +
+            f5_2 * g9_19 + f6 * g8_19 + f7_2 * g7_19 + f8 * g6_19 + f9_2 * g5_19
+        val h5 = f0 * g5 + f1 * g4 + f2 * g3 + f3 * g2 + f4 * g1 +
+            f5 * g0 + f6 * g9_19 + f7 * g8_19 + f8 * g7_19 + f9 * g6_19
+        val h6 = f0 * g6 + f1_2 * g5 + f2 * g4 + f3_2 * g3 + f4 * g2 +
+            f5_2 * g1 + f6 * g0 + f7_2 * g9_19 + f8 * g8_19 + f9_2 * g7_19
+        val h7 = f0 * g7 + f1 * g6 + f2 * g5 + f3 * g4 + f4 * g3 +
+            f5 * g2 + f6 * g1 + f7 * g0 + f8 * g9_19 + f9 * g8_19
+        val h8 = f0 * g8 + f1_2 * g7 + f2 * g6 + f3_2 * g5 + f4 * g4 +
+            f5_2 * g3 + f6 * g2 + f7_2 * g1 + f8 * g0 + f9_2 * g9_19
+        val h9 = f0 * g9 + f1 * g8 + f2 * g7 + f3 * g6 + f4 * g5 +
+            f5 * g4 + f6 * g3 + f7 * g2 + f8 * g1 + f9 * g0
 
         feCarryMul(out, h0, h1, h2, h3, h4, h5, h6, h7, h8, h9)
     }
 
     private fun feSquare(out: LongArray, f: LongArray) {
-        val f0 = f[0]; val f1 = f[1]; val f2 = f[2]; val f3 = f[3]; val f4 = f[4]
-        val f5 = f[5]; val f6 = f[6]; val f7 = f[7]; val f8 = f[8]; val f9 = f[9]
+        val f0 = f[0]
+        val f1 = f[1]
+        val f2 = f[2]
+        val f3 = f[3]
+        val f4 = f[4]
+        val f5 = f[5]
+        val f6 = f[6]
+        val f7 = f[7]
+        val f8 = f[8]
+        val f9 = f[9]
 
-        val f0_2 = 2L * f0; val f1_2 = 2L * f1; val f2_2 = 2L * f2
-        val f3_2 = 2L * f3; val f4_2 = 2L * f4; val f5_2 = 2L * f5
-        val f6_2 = 2L * f6; val f7_2 = 2L * f7
-        val f5_38 = 38L * f5; val f6_19 = 19L * f6; val f7_38 = 38L * f7
-        val f8_19 = 19L * f8; val f9_38 = 38L * f9
+        val f0_2 = 2L * f0
+        val f1_2 = 2L * f1
+        val f2_2 = 2L * f2
+        val f3_2 = 2L * f3
+        val f4_2 = 2L * f4
+        val f5_2 = 2L * f5
+        val f6_2 = 2L * f6
+        val f7_2 = 2L * f7
+        val f5_38 = 38L * f5
+        val f6_19 = 19L * f6
+        val f7_38 = 38L * f7
+        val f8_19 = 19L * f8
+        val f9_38 = 38L * f9
 
-        val h0 = f0*f0     + f1_2*f9_38 + f2_2*f8_19 + f3_2*f7_38 + f4_2*f6_19 + f5*f5_38
-        val h1 = f0_2*f1   + f2*f9_38   + f3_2*f8_19 + f4*f7_38   + f5_2*f6_19
-        val h2 = f0_2*f2   + f1_2*f1    + f3_2*f9_38 + f4_2*f8_19 + f5_2*f7_38 + f6*f6_19
-        val h3 = f0_2*f3   + f1_2*f2    + f4*f9_38   + f5_2*f8_19 + f6*f7_38
-        val h4 = f0_2*f4   + f1_2*f3_2  + f2*f2      + f5_2*f9_38 + f6_2*f8_19 + f7*f7_38
-        val h5 = f0_2*f5   + f1_2*f4    + f2_2*f3    + f6*f9_38   + f7_2*f8_19
-        val h6 = f0_2*f6   + f1_2*f5_2  + f2_2*f4    + f3_2*f3    + f7_2*f9_38 + f8*f8_19
-        val h7 = f0_2*f7   + f1_2*f6    + f2_2*f5    + f3_2*f4    + f8*f9_38
-        val h8 = f0_2*f8   + f1_2*f7_2  + f2_2*f6    + f3_2*f5_2  + f4*f4      + f9*f9_38
-        val h9 = f0_2*f9   + f1_2*f8    + f2_2*f7    + f3_2*f6    + f4_2*f5
+        val h0 = f0 * f0 + f1_2 * f9_38 + f2_2 * f8_19 + f3_2 * f7_38 + f4_2 * f6_19 + f5 * f5_38
+        val h1 = f0_2 * f1 + f2 * f9_38 + f3_2 * f8_19 + f4 * f7_38 + f5_2 * f6_19
+        val h2 = f0_2 * f2 + f1_2 * f1 + f3_2 * f9_38 + f4_2 * f8_19 + f5_2 * f7_38 + f6 * f6_19
+        val h3 = f0_2 * f3 + f1_2 * f2 + f4 * f9_38 + f5_2 * f8_19 + f6 * f7_38
+        val h4 = f0_2 * f4 + f1_2 * f3_2 + f2 * f2 + f5_2 * f9_38 + f6_2 * f8_19 + f7 * f7_38
+        val h5 = f0_2 * f5 + f1_2 * f4 + f2_2 * f3 + f6 * f9_38 + f7_2 * f8_19
+        val h6 = f0_2 * f6 + f1_2 * f5_2 + f2_2 * f4 + f3_2 * f3 + f7_2 * f9_38 + f8 * f8_19
+        val h7 = f0_2 * f7 + f1_2 * f6 + f2_2 * f5 + f3_2 * f4 + f8 * f9_38
+        val h8 = f0_2 * f8 + f1_2 * f7_2 + f2_2 * f6 + f3_2 * f5_2 + f4 * f4 + f9 * f9_38
+        val h9 = f0_2 * f9 + f1_2 * f8 + f2_2 * f7 + f3_2 * f6 + f4_2 * f5
 
         feCarryMul(out, h0, h1, h2, h3, h4, h5, h6, h7, h8, h9)
     }
 
     private fun feCarryMul(
         out: LongArray,
-        h0In: Long, h1In: Long, h2In: Long, h3In: Long, h4In: Long,
-        h5In: Long, h6In: Long, h7In: Long, h8In: Long, h9In: Long
+        h0In: Long,
+        h1In: Long,
+        h2In: Long,
+        h3In: Long,
+        h4In: Long,
+        h5In: Long,
+        h6In: Long,
+        h7In: Long,
+        h8In: Long,
+        h9In: Long
     ) {
-        var h0 = h0In; var h1 = h1In; var h2 = h2In; var h3 = h3In; var h4 = h4In
-        var h5 = h5In; var h6 = h6In; var h7 = h7In; var h8 = h8In; var h9 = h9In
+        var h0 = h0In
+        var h1 = h1In
+        var h2 = h2In
+        var h3 = h3In
+        var h4 = h4In
+        var h5 = h5In
+        var h6 = h6In
+        var h7 = h7In
+        var h8 = h8In
+        var h9 = h9In
 
         var c: Long
-        c = (h0 + (1L shl 25)) shr 26; h1 += c; h0 -= c shl 26
-        c = (h4 + (1L shl 25)) shr 26; h5 += c; h4 -= c shl 26
+        c = (h0 + (1L shl 25)) shr 26
+        h1 += c
+        h0 -= c shl 26
+        c = (h4 + (1L shl 25)) shr 26
+        h5 += c
+        h4 -= c shl 26
 
-        c = (h1 + (1L shl 24)) shr 25; h2 += c; h1 -= c shl 25
-        c = (h5 + (1L shl 24)) shr 25; h6 += c; h5 -= c shl 25
+        c = (h1 + (1L shl 24)) shr 25
+        h2 += c
+        h1 -= c shl 25
+        c = (h5 + (1L shl 24)) shr 25
+        h6 += c
+        h5 -= c shl 25
 
-        c = (h2 + (1L shl 25)) shr 26; h3 += c; h2 -= c shl 26
-        c = (h6 + (1L shl 25)) shr 26; h7 += c; h6 -= c shl 26
+        c = (h2 + (1L shl 25)) shr 26
+        h3 += c
+        h2 -= c shl 26
+        c = (h6 + (1L shl 25)) shr 26
+        h7 += c
+        h6 -= c shl 26
 
-        c = (h3 + (1L shl 24)) shr 25; h4 += c; h3 -= c shl 25
-        c = (h7 + (1L shl 24)) shr 25; h8 += c; h7 -= c shl 25
+        c = (h3 + (1L shl 24)) shr 25
+        h4 += c
+        h3 -= c shl 25
+        c = (h7 + (1L shl 24)) shr 25
+        h8 += c
+        h7 -= c shl 25
 
-        c = (h4 + (1L shl 25)) shr 26; h5 += c; h4 -= c shl 26
-        c = (h8 + (1L shl 25)) shr 26; h9 += c; h8 -= c shl 26
+        c = (h4 + (1L shl 25)) shr 26
+        h5 += c
+        h4 -= c shl 26
+        c = (h8 + (1L shl 25)) shr 26
+        h9 += c
+        h8 -= c shl 26
 
-        c = (h9 + (1L shl 24)) shr 25; h0 += c * 19L; h9 -= c shl 25
-        c = (h0 + (1L shl 25)) shr 26; h1 += c; h0 -= c shl 26
+        c = (h9 + (1L shl 24)) shr 25
+        h0 += c * 19L
+        h9 -= c shl 25
+        c = (h0 + (1L shl 25)) shr 26
+        h1 += c
+        h0 -= c shl 26
 
-        out[0] = h0; out[1] = h1; out[2] = h2; out[3] = h3; out[4] = h4
-        out[5] = h5; out[6] = h6; out[7] = h7; out[8] = h8; out[9] = h9
+        out[0] = h0
+        out[1] = h1
+        out[2] = h2
+        out[3] = h3
+        out[4] = h4
+        out[5] = h5
+        out[6] = h6
+        out[7] = h7
+        out[8] = h8
+        out[9] = h9
     }
 
     private fun feMul121666(out: LongArray, a: LongArray) {
@@ -328,19 +444,47 @@ internal object X25519 {
         var h9 = a[9] * 121666L
 
         var c: Long
-        c = (h9 + (1L shl 24)) shr 25; h0 += c * 19L; h9 -= c shl 25
-        c = (h0 + (1L shl 25)) shr 26; h1 += c; h0 -= c shl 26
-        c = (h1 + (1L shl 24)) shr 25; h2 += c; h1 -= c shl 25
-        c = (h2 + (1L shl 25)) shr 26; h3 += c; h2 -= c shl 26
-        c = (h3 + (1L shl 24)) shr 25; h4 += c; h3 -= c shl 25
-        c = (h4 + (1L shl 25)) shr 26; h5 += c; h4 -= c shl 26
-        c = (h5 + (1L shl 24)) shr 25; h6 += c; h5 -= c shl 25
-        c = (h6 + (1L shl 25)) shr 26; h7 += c; h6 -= c shl 26
-        c = (h7 + (1L shl 24)) shr 25; h8 += c; h7 -= c shl 25
-        c = (h8 + (1L shl 25)) shr 26; h9 += c; h8 -= c shl 26
+        c = (h9 + (1L shl 24)) shr 25
+        h0 += c * 19L
+        h9 -= c shl 25
+        c = (h0 + (1L shl 25)) shr 26
+        h1 += c
+        h0 -= c shl 26
+        c = (h1 + (1L shl 24)) shr 25
+        h2 += c
+        h1 -= c shl 25
+        c = (h2 + (1L shl 25)) shr 26
+        h3 += c
+        h2 -= c shl 26
+        c = (h3 + (1L shl 24)) shr 25
+        h4 += c
+        h3 -= c shl 25
+        c = (h4 + (1L shl 25)) shr 26
+        h5 += c
+        h4 -= c shl 26
+        c = (h5 + (1L shl 24)) shr 25
+        h6 += c
+        h5 -= c shl 25
+        c = (h6 + (1L shl 25)) shr 26
+        h7 += c
+        h6 -= c shl 26
+        c = (h7 + (1L shl 24)) shr 25
+        h8 += c
+        h7 -= c shl 25
+        c = (h8 + (1L shl 25)) shr 26
+        h9 += c
+        h8 -= c shl 26
 
-        out[0] = h0; out[1] = h1; out[2] = h2; out[3] = h3; out[4] = h4
-        out[5] = h5; out[6] = h6; out[7] = h7; out[8] = h8; out[9] = h9
+        out[0] = h0
+        out[1] = h1
+        out[2] = h2
+        out[3] = h3
+        out[4] = h4
+        out[5] = h5
+        out[6] = h6
+        out[7] = h7
+        out[8] = h8
+        out[9] = h9
     }
 
     private fun feInvert(out: LongArray, z: LongArray) {
@@ -349,44 +493,44 @@ internal object X25519 {
         val t2 = LongArray(10)
         val t3 = LongArray(10)
 
-        feSquare(t0, z)             // t0 = z^2
-        feSquare(t1, t0)            // t1 = z^4
-        feSquare(t1, t1)            // t1 = z^8
-        feMul(t1, z, t1)            // t1 = z^9
-        feMul(t0, t0, t1)           // t0 = z^11
-        feSquare(t2, t0)            // t2 = z^22
-        feMul(t1, t1, t2)           // t1 = z^(2^5 - 1)
+        feSquare(t0, z) // t0 = z^2
+        feSquare(t1, t0) // t1 = z^4
+        feSquare(t1, t1) // t1 = z^8
+        feMul(t1, z, t1) // t1 = z^9
+        feMul(t0, t0, t1) // t0 = z^11
+        feSquare(t2, t0) // t2 = z^22
+        feMul(t1, t1, t2) // t1 = z^(2^5 - 1)
 
-        feSquare(t2, t1)            // t2 = z^(2^6 - 2)
-        for (i in 1 until 5) feSquare(t2, t2)   // t2 = z^(2^10 - 2^5)
-        feMul(t1, t2, t1)           // t1 = z^(2^10 - 1)
+        feSquare(t2, t1) // t2 = z^(2^6 - 2)
+        for (i in 1 until 5) feSquare(t2, t2) // t2 = z^(2^10 - 2^5)
+        feMul(t1, t2, t1) // t1 = z^(2^10 - 1)
 
-        feSquare(t2, t1)            // t2 = z^(2^11 - 2)
-        for (i in 1 until 10) feSquare(t2, t2)  // t2 = z^(2^20 - 2^10)
-        feMul(t2, t2, t1)           // t2 = z^(2^20 - 1)
+        feSquare(t2, t1) // t2 = z^(2^11 - 2)
+        for (i in 1 until 10) feSquare(t2, t2) // t2 = z^(2^20 - 2^10)
+        feMul(t2, t2, t1) // t2 = z^(2^20 - 1)
 
         feSquare(t3, t2)
-        for (i in 1 until 20) feSquare(t3, t3)  // t3 = z^(2^40 - 2^20)
-        feMul(t2, t3, t2)           // t2 = z^(2^40 - 1)
+        for (i in 1 until 20) feSquare(t3, t3) // t3 = z^(2^40 - 2^20)
+        feMul(t2, t3, t2) // t2 = z^(2^40 - 1)
 
         feSquare(t2, t2)
-        for (i in 1 until 10) feSquare(t2, t2)  // t2 = z^(2^50 - 2^10)
-        feMul(t1, t2, t1)           // t1 = z^(2^50 - 1)
+        for (i in 1 until 10) feSquare(t2, t2) // t2 = z^(2^50 - 2^10)
+        feMul(t1, t2, t1) // t1 = z^(2^50 - 1)
 
         feSquare(t2, t1)
-        for (i in 1 until 50) feSquare(t2, t2)  // t2 = z^(2^100 - 2^50)
-        feMul(t2, t2, t1)           // t2 = z^(2^100 - 1)
+        for (i in 1 until 50) feSquare(t2, t2) // t2 = z^(2^100 - 2^50)
+        feMul(t2, t2, t1) // t2 = z^(2^100 - 1)
 
         feSquare(t3, t2)
         for (i in 1 until 100) feSquare(t3, t3) // t3 = z^(2^200 - 2^100)
-        feMul(t2, t3, t2)           // t2 = z^(2^200 - 1)
+        feMul(t2, t3, t2) // t2 = z^(2^200 - 1)
 
         feSquare(t2, t2)
-        for (i in 1 until 50) feSquare(t2, t2)  // t2 = z^(2^250 - 2^50)
-        feMul(t1, t2, t1)           // t1 = z^(2^250 - 1)
+        for (i in 1 until 50) feSquare(t2, t2) // t2 = z^(2^250 - 2^50)
+        feMul(t1, t2, t1) // t1 = z^(2^250 - 1)
 
         feSquare(t1, t1)
-        for (i in 1 until 5) feSquare(t1, t1)   // t1 = z^(2^255 - 2^5)
-        feMul(out, t1, t0)          // out = z^(2^255 - 21) = z^(p-2)
+        for (i in 1 until 5) feSquare(t1, t1) // t1 = z^(2^255 - 2^5)
+        feMul(out, t1, t0) // out = z^(2^255 - 21) = z^(p-2)
     }
 }

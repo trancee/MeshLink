@@ -68,6 +68,8 @@ class ConfigurablePermissionChecker(
             val status = check(perm)
             if (status != PermissionChecker.PermissionStatus.GRANTED) {
                 PermissionChecker.PermissionResult(perm, status)
-            } else null
+            } else {
+                null
+            }
         }
 }

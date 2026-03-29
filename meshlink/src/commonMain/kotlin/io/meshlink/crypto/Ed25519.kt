@@ -86,16 +86,18 @@ internal object Ed25519 {
     // ── Curve constants ─────────────────────────────────────────────────
 
     /** d = -121665/121666 mod p */
-    private val D: LongArray = Field25519.feUnpack(byteArrayOf(
-        0xa3.toByte(), 0x78.toByte(), 0x59.toByte(), 0x13.toByte(),
-        0xca.toByte(), 0x4d.toByte(), 0xeb.toByte(), 0x75.toByte(),
-        0xab.toByte(), 0xd8.toByte(), 0x41.toByte(), 0x41.toByte(),
-        0x4d.toByte(), 0x0a.toByte(), 0x70.toByte(), 0x00.toByte(),
-        0x98.toByte(), 0xe8.toByte(), 0x79.toByte(), 0x77.toByte(),
-        0x79.toByte(), 0x40.toByte(), 0xc7.toByte(), 0x8c.toByte(),
-        0x73.toByte(), 0xfe.toByte(), 0x6f.toByte(), 0x2b.toByte(),
-        0xee.toByte(), 0x6c.toByte(), 0x03.toByte(), 0x52.toByte(),
-    ))
+    private val D: LongArray = Field25519.feUnpack(
+        byteArrayOf(
+            0xa3.toByte(), 0x78.toByte(), 0x59.toByte(), 0x13.toByte(),
+            0xca.toByte(), 0x4d.toByte(), 0xeb.toByte(), 0x75.toByte(),
+            0xab.toByte(), 0xd8.toByte(), 0x41.toByte(), 0x41.toByte(),
+            0x4d.toByte(), 0x0a.toByte(), 0x70.toByte(), 0x00.toByte(),
+            0x98.toByte(), 0xe8.toByte(), 0x79.toByte(), 0x77.toByte(),
+            0x79.toByte(), 0x40.toByte(), 0xc7.toByte(), 0x8c.toByte(),
+            0x73.toByte(), 0xfe.toByte(), 0x6f.toByte(), 0x2b.toByte(),
+            0xee.toByte(), 0x6c.toByte(), 0x03.toByte(), 0x52.toByte(),
+        )
+    )
 
     /** Base point B encoded as 32 bytes */
     private val B_ENCODED = byteArrayOf(
@@ -209,8 +211,8 @@ internal object Ed25519 {
         val y = Field25519.feUnpack(s)
         val z = Field25519.feOne()
         val y2 = Field25519.feSquare(y)
-        val v = Field25519.feAdd(Field25519.feMul(y2, D), z)   // dy²+1
-        val u = Field25519.feSub(y2, z)                         // y²-1
+        val v = Field25519.feAdd(Field25519.feMul(y2, D), z) // dy²+1
+        val u = Field25519.feSub(y2, z) // y²-1
 
         val v3 = Field25519.feMul(Field25519.feSquare(v), v)
         val v7 = Field25519.feMul(Field25519.feSquare(v3), v)
@@ -250,16 +252,18 @@ internal object Ed25519 {
     }
 
     /** sqrt(-1) mod p = 2^((p-1)/4) mod p */
-    private val SQRTM1: LongArray = Field25519.feUnpack(byteArrayOf(
-        0xb0.toByte(), 0xa0.toByte(), 0x0e.toByte(), 0x4a.toByte(),
-        0x27.toByte(), 0x1b.toByte(), 0xee.toByte(), 0xc4.toByte(),
-        0x78.toByte(), 0xe4.toByte(), 0x2f.toByte(), 0xad.toByte(),
-        0x06.toByte(), 0x18.toByte(), 0x43.toByte(), 0x2f.toByte(),
-        0xa7.toByte(), 0xd7.toByte(), 0xfb.toByte(), 0x3d.toByte(),
-        0x99.toByte(), 0x00.toByte(), 0x4d.toByte(), 0x2b.toByte(),
-        0x0b.toByte(), 0xdf.toByte(), 0xc1.toByte(), 0x4f.toByte(),
-        0x80.toByte(), 0x24.toByte(), 0x83.toByte(), 0x2b.toByte(),
-    ))
+    private val SQRTM1: LongArray = Field25519.feUnpack(
+        byteArrayOf(
+            0xb0.toByte(), 0xa0.toByte(), 0x0e.toByte(), 0x4a.toByte(),
+            0x27.toByte(), 0x1b.toByte(), 0xee.toByte(), 0xc4.toByte(),
+            0x78.toByte(), 0xe4.toByte(), 0x2f.toByte(), 0xad.toByte(),
+            0x06.toByte(), 0x18.toByte(), 0x43.toByte(), 0x2f.toByte(),
+            0xa7.toByte(), 0xd7.toByte(), 0xfb.toByte(), 0x3d.toByte(),
+            0x99.toByte(), 0x00.toByte(), 0x4d.toByte(), 0x2b.toByte(),
+            0x0b.toByte(), 0xdf.toByte(), 0xc1.toByte(), 0x4f.toByte(),
+            0x80.toByte(), 0x24.toByte(), 0x83.toByte(), 0x2b.toByte(),
+        )
+    )
 
     // ── Scalar operations mod L ─────────────────────────────────────────
 
@@ -460,13 +464,19 @@ internal object Ed25519 {
     )
 
     private val SHA512_IV = longArrayOf(
-        0x6a09e667f3bcc908, -0x4498517a7b3558c5, 0x3c6ef372fe94f82b, -0x5ab00ac5a0e2c90f,
-        0x510e527fade682d1, -0x64fa9773d4c193e1, 0x1f83d9abfb41bd6b, 0x5be0cd19137e2179,
+        0x6a09e667f3bcc908,
+        -0x4498517a7b3558c5,
+        0x3c6ef372fe94f82b,
+        -0x5ab00ac5a0e2c90f,
+        0x510e527fade682d1,
+        -0x64fa9773d4c193e1,
+        0x1f83d9abfb41bd6b,
+        0x5be0cd19137e2179,
     )
 
     fun sha512(data: ByteArray): ByteArray {
         // Pre-processing: add padding
-        val ml = data.size.toLong() * 8  // message length in bits
+        val ml = data.size.toLong() * 8 // message length in bits
         // pad to 896 mod 1024 bits (112 mod 128 bytes)
         val padLen = (112 - (data.size + 1) % 128 + 128) % 128 + 1
         val padded = ByteArray(data.size + padLen + 16)
@@ -491,13 +501,19 @@ internal object Ed25519 {
             }
             // Extend to 80 words
             for (j in 16..79) {
-                val s0 = w[j-15].rotateRight(1) xor w[j-15].rotateRight(8) xor (w[j-15] ushr 7)
-                val s1 = w[j-2].rotateRight(19) xor w[j-2].rotateRight(61) xor (w[j-2] ushr 6)
-                w[j] = w[j-16] + s0 + w[j-7] + s1
+                val s0 = w[j - 15].rotateRight(1) xor w[j - 15].rotateRight(8) xor (w[j - 15] ushr 7)
+                val s1 = w[j - 2].rotateRight(19) xor w[j - 2].rotateRight(61) xor (w[j - 2] ushr 6)
+                w[j] = w[j - 16] + s0 + w[j - 7] + s1
             }
 
-            var a = h[0]; var b = h[1]; var c = h[2]; var d = h[3]
-            var e = h[4]; var f = h[5]; var g = h[6]; var hh = h[7]
+            var a = h[0]
+            var b = h[1]
+            var c = h[2]
+            var d = h[3]
+            var e = h[4]
+            var f = h[5]
+            var g = h[6]
+            var hh = h[7]
 
             for (j in 0..79) {
                 val s1 = e.rotateRight(14) xor e.rotateRight(18) xor e.rotateRight(41)
@@ -507,12 +523,24 @@ internal object Ed25519 {
                 val maj = (a and b) xor (a and c) xor (b and c)
                 val temp2 = s0 + maj
 
-                hh = g; g = f; f = e; e = d + temp1
-                d = c; c = b; b = a; a = temp1 + temp2
+                hh = g
+                g = f
+                f = e
+                e = d + temp1
+                d = c
+                c = b
+                b = a
+                a = temp1 + temp2
             }
 
-            h[0] += a; h[1] += b; h[2] += c; h[3] += d
-            h[4] += e; h[5] += f; h[6] += g; h[7] += hh
+            h[0] += a
+            h[1] += b
+            h[2] += c
+            h[3] += d
+            h[4] += e
+            h[5] += f
+            h[6] += g
+            h[7] += hh
         }
 
         val digest = ByteArray(64)

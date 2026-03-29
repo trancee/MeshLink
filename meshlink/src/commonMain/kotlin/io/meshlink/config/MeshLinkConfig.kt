@@ -43,7 +43,11 @@ data class MeshLinkConfig(
     fun validate(): List<String> {
         val violations = mutableListOf<String>()
         if (mtu <= 21) violations.add("mtu must be > 21 (chunk header size)")
-        if (maxMessageSize > bufferCapacity) violations.add("maxMessageSize ($maxMessageSize) exceeds bufferCapacity ($bufferCapacity)")
+        if (maxMessageSize > bufferCapacity) {
+            violations.add(
+                "maxMessageSize ($maxMessageSize) exceeds bufferCapacity ($bufferCapacity)",
+            )
+        }
         if (maxMessageSize <= 0) violations.add("maxMessageSize must be positive")
         if (bufferCapacity <= 0) violations.add("bufferCapacity must be positive")
         if (mtu > maxMessageSize) violations.add("mtu ($mtu) exceeds maxMessageSize ($maxMessageSize)")
@@ -56,11 +60,19 @@ data class MeshLinkConfig(
             violations.add("circuitBreakerCooldownMs must be positive when circuit breaker is enabled")
         }
         // Cross-field validation rules from design doc §14
-        if (ackWindowMax < ackWindowMin) violations.add("ackWindowMax ($ackWindowMax) must be >= ackWindowMin ($ackWindowMin)")
+        if (ackWindowMax < ackWindowMin) {
+            violations.add(
+                "ackWindowMax ($ackWindowMax) must be >= ackWindowMin ($ackWindowMin)",
+            )
+        }
         if (powerModeThresholds.size >= 2 && powerModeThresholds[0] <= powerModeThresholds[1]) {
             violations.add("powerModeThresholds must be strictly descending: [${powerModeThresholds.joinToString()}]")
         }
-        if (l2capEnabled && l2capRetryAttempts < 0) violations.add("l2capRetryAttempts ($l2capRetryAttempts) must be >= 0 when l2capEnabled is true")
+        if (l2capEnabled && l2capRetryAttempts < 0) {
+            violations.add(
+                "l2capRetryAttempts ($l2capRetryAttempts) must be >= 0 when l2capEnabled is true",
+            )
+        }
         if (bufferTtlMs > 0 && chunkInactivityTimeoutMs >= bufferTtlMs) {
             violations.add(
                 "chunkInactivityTimeoutMs ($chunkInactivityTimeoutMs) must be < bufferTtlMs ($bufferTtlMs)",

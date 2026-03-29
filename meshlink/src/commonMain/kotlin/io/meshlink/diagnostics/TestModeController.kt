@@ -32,7 +32,11 @@ class TestModeController(
         data class SimulatePeerLoss(val peerIdHex: String) : TestAction()
 
         /** Inject a synthetic diagnostic event */
-        data class InjectDiagnostic(val code: DiagnosticCode, val severity: Severity, val payload: String?) : TestAction()
+        data class InjectDiagnostic(
+            val code: DiagnosticCode,
+            val severity: Severity,
+            val payload: String?,
+        ) : TestAction()
 
         /** Force memory pressure at a given level (0-100) */
         data class ForceMemoryPressure(val level: Int) : TestAction()

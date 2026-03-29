@@ -17,7 +17,9 @@ class CircuitBreaker(
                 trippedAt = null
                 failures = emptyList()
                 true
-            } else false
+            } else {
+                false
+            }
         }
         return true
     }

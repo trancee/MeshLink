@@ -6,6 +6,8 @@ import io.meshlink.crypto.HandshakePayload
 import io.meshlink.crypto.SealResult
 import io.meshlink.crypto.SecurityEngine
 import io.meshlink.crypto.TrustStore
+import io.meshlink.delivery.BufferResult
+import io.meshlink.delivery.DeliveryPipeline
 import io.meshlink.diagnostics.DiagnosticCode
 import io.meshlink.diagnostics.DiagnosticEvent
 import io.meshlink.diagnostics.DiagnosticSink
@@ -15,39 +17,37 @@ import io.meshlink.dispatch.DispatchSink
 import io.meshlink.dispatch.InboundValidator
 import io.meshlink.dispatch.MessageDispatcher
 import io.meshlink.dispatch.OutboundTracker
+import io.meshlink.gossip.GossipCoordinator
 import io.meshlink.model.KeyChangeEvent
 import io.meshlink.model.Message
 import io.meshlink.model.PeerEvent
 import io.meshlink.model.TransferFailure
 import io.meshlink.model.TransferProgress
+import io.meshlink.peer.PeerConnectionAction
+import io.meshlink.peer.PeerConnectionCoordinator
 import io.meshlink.power.ModeChangeResult
 import io.meshlink.power.PowerCoordinator
 import io.meshlink.power.ShedAction
-import io.meshlink.send.SendDecision
+import io.meshlink.routing.RoutingEngine
 import io.meshlink.send.BroadcastDecision
 import io.meshlink.send.BroadcastPolicyChain
+import io.meshlink.send.SendDecision
 import io.meshlink.send.SendPolicyChain
-import io.meshlink.util.PauseManager
-import io.meshlink.routing.RoutingEngine
 import io.meshlink.transfer.ChunkData
 import io.meshlink.transfer.TransferEngine
 import io.meshlink.transfer.TransferUpdate
 import io.meshlink.transport.BleTransport
 import io.meshlink.util.AppIdFilter
-import io.meshlink.delivery.BufferResult
-import io.meshlink.delivery.DeliveryPipeline
 import io.meshlink.util.DeliveryOutcome
-import io.meshlink.util.createPlatformLock
-import io.meshlink.util.currentTimeMillis
+import io.meshlink.util.PauseManager
 import io.meshlink.util.RateLimitPolicy
 import io.meshlink.util.RateLimitResult
-import io.meshlink.util.withLock
+import io.meshlink.util.createPlatformLock
+import io.meshlink.util.currentTimeMillis
 import io.meshlink.util.hexToBytes
 import io.meshlink.util.toHex
+import io.meshlink.util.withLock
 import io.meshlink.wire.WireCodec
-import io.meshlink.gossip.GossipCoordinator
-import io.meshlink.peer.PeerConnectionAction
-import io.meshlink.peer.PeerConnectionCoordinator
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
@@ -115,8 +115,11 @@ class MeshLink(
         try {
             flow.emit(value)
         } catch (e: Exception) {
-            diagnosticSink.emit(DiagnosticCode.SEND_FAILED, Severity.WARN,
-                "callback exception in $label: ${e.message}")
+            diagnosticSink.emit(
+                DiagnosticCode.SEND_FAILED,
+                Severity.WARN,
+                "callback exception in $label: ${e.message}"
+            )
         }
     }
 
@@ -124,8 +127,11 @@ class MeshLink(
         val usedBytes = (transferEngine.outboundBufferBytes() + transferEngine.inboundBufferBytes()).toLong()
         if (powerCoordinator.shouldWarnBufferPressure(usedBytes, config.bufferCapacity.toLong())) {
             val utilPercent = usedBytes * 100 / config.bufferCapacity
-            diagnosticSink.emit(DiagnosticCode.BUFFER_PRESSURE, Severity.WARN,
-                "utilization=$utilPercent%, used=$usedBytes, capacity=${config.bufferCapacity}")
+            diagnosticSink.emit(
+                DiagnosticCode.BUFFER_PRESSURE,
+                Severity.WARN,
+                "utilization=$utilPercent%, used=$usedBytes, capacity=${config.bufferCapacity}"
+            )
         }
     }
 
@@ -279,11 +285,15 @@ class MeshLink(
                 safeEmit(_messages, Message(senderId = senderId, payload = payload), "messages")
             }
             override suspend fun onTransferProgress(messageId: ByteArray, chunksAcked: Int, totalChunks: Int) {
-                safeEmit(_transferProgress, TransferProgress(
-                    messageId = Uuid.fromByteArray(messageId),
-                    chunksAcked = chunksAcked,
-                    totalChunks = totalChunks,
-                ), "transferProgress")
+                safeEmit(
+                    _transferProgress,
+                    TransferProgress(
+                        messageId = Uuid.fromByteArray(messageId),
+                        chunksAcked = chunksAcked,
+                        totalChunks = totalChunks,
+                    ),
+                    "transferProgress"
+                )
             }
             override suspend fun onDeliveryConfirmed(messageId: ByteArray) {
                 val key = messageId.toHex()
@@ -321,8 +331,8 @@ class MeshLink(
             return Result.failure(
                 IllegalStateException(
                     "CryptoProvider is required when requireEncryption is true. " +
-                    "Pass a CryptoProvider to the MeshLink constructor, or set " +
-                    "requireEncryption = false if plaintext operation is intentional."
+                        "Pass a CryptoProvider to the MeshLink constructor, or set " +
+                        "requireEncryption = false if plaintext operation is intentional."
                 )
             )
         }
@@ -344,7 +354,12 @@ class MeshLink(
         }
         newScope.launch {
             transport.advertisementEvents.collect { event ->
-                when (val action = peerConnectionCoordinator.onAdvertisementReceived(event.peerId, event.advertisementPayload)) {
+                when (
+                    val action = peerConnectionCoordinator.onAdvertisementReceived(
+                        event.peerId,
+                        event.advertisementPayload
+                    )
+                ) {
                     is PeerConnectionAction.Rejected,
                     is PeerConnectionAction.Skipped -> { /* no-op */ }
                     is PeerConnectionAction.PeerUpdate -> {
@@ -357,8 +372,11 @@ class MeshLink(
                             resumeTransfers(action.peerId, newScope, preExistingTransferKeys)
                         }
                         if (action.handshakeRateLimited) {
-                            diagnosticSink.emit(DiagnosticCode.RATE_LIMIT_HIT, Severity.WARN,
-                                "handshake rate limit exceeded, peer=${action.peerId.toHex()}")
+                            diagnosticSink.emit(
+                                DiagnosticCode.RATE_LIMIT_HIT,
+                                Severity.WARN,
+                                "handshake rate limit exceeded, peer=${action.peerId.toHex()}"
+                            )
                         }
                         action.handshakeMessage?.let { safeSend(action.peerId, it) }
                     }
@@ -459,7 +477,9 @@ class MeshLink(
         val usedBytes = transferEngine.outboundBufferBytes() + transferEngine.inboundBufferBytes()
         val utilPercent = if (config.bufferCapacity > 0) {
             (usedBytes * 100 / config.bufferCapacity).coerceIn(0, 100)
-        } else 0
+        } else {
+            0
+        }
         return MeshHealthSnapshot(
             connectedPeers = routingEngine.peerCount,
             reachablePeers = routingEngine.connectedPeerCount,
@@ -500,9 +520,13 @@ class MeshLink(
             outboundTracker.removeNextHop(key)?.let { nextHop ->
                 routingEngine.recordNextHopFailure(nextHop)
                 if (routingEngine.nextHopFailureRate(nextHop) > NEXTHOP_UNRELIABLE_THRESHOLD &&
-                    routingEngine.nextHopFailureCount(nextHop) >= NEXTHOP_MIN_SAMPLES) {
-                    diagnosticSink.emit(DiagnosticCode.NEXTHOP_UNRELIABLE, Severity.WARN,
-                        "nextHop=$nextHop, failureRate=${((routingEngine.nextHopFailureRate(nextHop) * 100).toInt())}%")
+                    routingEngine.nextHopFailureCount(nextHop) >= NEXTHOP_MIN_SAMPLES
+                ) {
+                    diagnosticSink.emit(
+                        DiagnosticCode.NEXTHOP_UNRELIABLE,
+                        Severity.WARN,
+                        "nextHop=$nextHop, failureRate=${((routingEngine.nextHopFailureRate(nextHop) * 100).toInt())}%"
+                    )
                 }
             }
             if (deliveryPipeline.recordFailure(key, DeliveryOutcome.FAILED_ACK_TIMEOUT)) {
@@ -541,7 +565,10 @@ class MeshLink(
         val level = powerCoordinator.evaluatePressure(health.bufferUtilizationPercent)
             ?: return emptyList()
         val results = powerCoordinator.computeShedActions(
-            level, transferEngine.inboundCount, routingEngine.dedupSize, routingEngine.peerCount
+            level,
+            transferEngine.inboundCount,
+            routingEngine.dedupSize,
+            routingEngine.peerCount
         )
         val actions = mutableListOf<String>()
         for (result in results) {
@@ -576,8 +603,11 @@ class MeshLink(
                 Result.failure(IllegalArgumentException("bufferFull"))
 
             is BroadcastDecision.RateLimited -> {
-                diagnosticSink.emit(DiagnosticCode.RATE_LIMIT_HIT, Severity.WARN,
-                    "broadcast rate limit exceeded")
+                diagnosticSink.emit(
+                    DiagnosticCode.RATE_LIMIT_HIT,
+                    Severity.WARN,
+                    "broadcast rate limit exceeded"
+                )
                 Result.failure(IllegalStateException("Broadcast rate limit exceeded"))
             }
 
@@ -636,10 +666,22 @@ class MeshLink(
             is SendDecision.Unreachable -> {
                 if (config.pendingMessageTtlMs > 0) {
                     val recipientHex = recipient.toHex()
-                    when (deliveryPipeline.bufferPending(recipientHex, recipient, payload, config.pendingMessageCapacity)) {
+                    when (
+                        deliveryPipeline.bufferPending(
+                            recipientHex,
+                            recipient,
+                            payload,
+                            config.pendingMessageCapacity
+                        )
+                    ) {
                         is BufferResult.Evicted -> {
                             s.launch {
-                                _transferFailures.emit(TransferFailure(Uuid.random(), DeliveryOutcome.FAILED_BUFFER_FULL))
+                                _transferFailures.emit(
+                                    TransferFailure(
+                                        Uuid.random(),
+                                        DeliveryOutcome.FAILED_BUFFER_FULL
+                                    )
+                                )
                             }
                         }
                         is BufferResult.Buffered -> {}
@@ -668,7 +710,12 @@ class MeshLink(
         val messageId = Uuid.random().toByteArray()
         val key = messageId.toHex()
         deliveryPipeline.registerOutbound(s, key, config.bufferTtlMs) { expiredKey ->
-            _transferFailures.tryEmit(TransferFailure(Uuid.fromByteArray(hexToBytes(expiredKey)), DeliveryOutcome.FAILED_DELIVERY_TIMEOUT))
+            _transferFailures.tryEmit(
+                TransferFailure(
+                    Uuid.fromByteArray(hexToBytes(expiredKey)),
+                    DeliveryOutcome.FAILED_DELIVERY_TIMEOUT
+                )
+            )
             transferEngine.removeOutbound(expiredKey)
             outboundTracker.removeRecipient(expiredKey)
             outboundTracker.removeNextHop(expiredKey)?.let { nextHop ->
@@ -732,24 +779,33 @@ class MeshLink(
     private suspend fun safeSend(peerId: ByteArray, data: ByteArray) {
         // Per-neighbor aggregate rate limit
         if (rateLimitPolicy.checkNeighborAggregate(peerId.toHex()) is RateLimitResult.Limited) {
-            diagnosticSink.emit(DiagnosticCode.RATE_LIMIT_HIT, Severity.WARN,
-                "neighbor aggregate limit exceeded, peer=${peerId.toHex()}")
+            diagnosticSink.emit(
+                DiagnosticCode.RATE_LIMIT_HIT,
+                Severity.WARN,
+                "neighbor aggregate limit exceeded, peer=${peerId.toHex()}"
+            )
             return
         }
         try {
             transport.sendToPeer(peerId, data)
         } catch (e: Exception) {
             rateLimitPolicy.recordTransportFailure()
-            diagnosticSink.emit(DiagnosticCode.SEND_FAILED, Severity.WARN,
-                "peer=${peerId.toHex()}, error=${e.message}")
+            diagnosticSink.emit(
+                DiagnosticCode.SEND_FAILED,
+                Severity.WARN,
+                "peer=${peerId.toHex()}, error=${e.message}"
+            )
         }
     }
 
     internal fun sendNack(peerId: ByteArray, messageId: ByteArray) {
         val peerHex = peerId.toHex()
         if (rateLimitPolicy.checkNack(peerHex) is RateLimitResult.Limited) {
-            diagnosticSink.emit(DiagnosticCode.RATE_LIMIT_HIT, Severity.WARN,
-                "NACK rate limit exceeded, peer=$peerHex")
+            diagnosticSink.emit(
+                DiagnosticCode.RATE_LIMIT_HIT,
+                Severity.WARN,
+                "NACK rate limit exceeded, peer=$peerHex"
+            )
             return
         }
         val frame = WireCodec.encodeNack(messageId)
@@ -760,4 +816,3 @@ class MeshLink(
         messageDispatcher.dispatch(fromPeerId, data)
     }
 }
-

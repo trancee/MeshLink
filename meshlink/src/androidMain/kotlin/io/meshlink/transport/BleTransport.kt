@@ -2,7 +2,6 @@ package io.meshlink.transport
 
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothDevice
-import android.util.Log
 import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattCallback
 import android.bluetooth.BluetoothGattCharacteristic
@@ -23,6 +22,7 @@ import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
 import android.content.Context
 import android.os.ParcelUuid
+import android.util.Log
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -276,7 +276,9 @@ class AndroidBleTransport(
         val locationEnabled = locationManager?.isProviderEnabled(android.location.LocationManager.GPS_PROVIDER) == true ||
             locationManager?.isProviderEnabled(android.location.LocationManager.NETWORK_PROVIDER) == true
         if (!locationEnabled) {
-            logW { "⚠️ Location Services are OFF — BLE scanning will not return results on most Android devices. Enable GPS/Location." }
+            logW {
+                "⚠️ Location Services are OFF — BLE scanning will not return results on most Android devices. Enable GPS/Location."
+            }
         }
 
         // Stop any prior scan to avoid ALREADY_STARTED errors on restart

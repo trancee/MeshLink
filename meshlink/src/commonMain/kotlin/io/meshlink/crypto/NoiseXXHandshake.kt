@@ -68,7 +68,9 @@ class NoiseXXHandshake private constructor(
             isInitiator && messageIndex == 0 -> writeMsg1(payload)
             !isInitiator && messageIndex == 1 -> writeMsg2(payload)
             isInitiator && messageIndex == 2 -> writeMsg3(payload)
-            else -> error("Unexpected writeMessage at index $messageIndex for ${if (isInitiator) "initiator" else "responder"}")
+            else -> error(
+                "Unexpected writeMessage at index $messageIndex for ${if (isInitiator) "initiator" else "responder"}",
+            )
         }
     }
 
@@ -82,7 +84,9 @@ class NoiseXXHandshake private constructor(
             !isInitiator && messageIndex == 0 -> readMsg1(message)
             isInitiator && messageIndex == 1 -> readMsg2(message)
             !isInitiator && messageIndex == 2 -> readMsg3(message)
-            else -> error("Unexpected readMessage at index $messageIndex for ${if (isInitiator) "initiator" else "responder"}")
+            else -> error(
+                "Unexpected readMessage at index $messageIndex for ${if (isInitiator) "initiator" else "responder"}",
+            )
         }
         if (payload.isNotEmpty()) {
             _peerPayload = payload
@@ -97,9 +101,19 @@ class NoiseXXHandshake private constructor(
         check(isComplete) { "Handshake not yet complete" }
         val (k1, k2) = hkdfPair(chainingKey, byteArrayOf())
         return if (isInitiator) {
-            HandshakeResult(sendKey = k1, receiveKey = k2, remoteStaticKey = remoteStaticPub!!, peerPayload = _peerPayload)
+            HandshakeResult(
+                sendKey = k1,
+                receiveKey = k2,
+                remoteStaticKey = remoteStaticPub!!,
+                peerPayload = _peerPayload,
+            )
         } else {
-            HandshakeResult(sendKey = k2, receiveKey = k1, remoteStaticKey = remoteStaticPub!!, peerPayload = _peerPayload)
+            HandshakeResult(
+                sendKey = k2,
+                receiveKey = k1,
+                remoteStaticKey = remoteStaticPub!!,
+                peerPayload = _peerPayload,
+            )
         }
     }
 
@@ -148,14 +162,16 @@ class NoiseXXHandshake private constructor(
         var offset = 0
 
         // e
-        remoteEphemeralPub = message.copyOfRange(offset, offset + 32); offset += 32
+        remoteEphemeralPub = message.copyOfRange(offset, offset + 32)
+        offset += 32
         mixHash(remoteEphemeralPub!!)
 
         // ee
         mixKey(crypto.x25519SharedSecret(localEphemeral!!.privateKey, remoteEphemeralPub!!))
 
         // s (encrypted static = 32 bytes + 16 byte tag)
-        val encStatic = message.copyOfRange(offset, offset + 48); offset += 48
+        val encStatic = message.copyOfRange(offset, offset + 48)
+        offset += 48
         remoteStaticPub = decryptAndHash(encStatic)
 
         // es
@@ -184,7 +200,8 @@ class NoiseXXHandshake private constructor(
         var offset = 0
 
         // s (encrypted static = 32 bytes + 16 byte tag)
-        val encStatic = message.copyOfRange(offset, offset + 48); offset += 48
+        val encStatic = message.copyOfRange(offset, offset + 48)
+        offset += 48
         remoteStaticPub = decryptAndHash(encStatic)
 
         // se

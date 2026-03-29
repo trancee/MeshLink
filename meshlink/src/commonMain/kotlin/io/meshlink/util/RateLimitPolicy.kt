@@ -18,7 +18,15 @@ class RateLimitPolicy(
     private val clock: () -> Long = { currentTimeMillis() },
 ) {
     private val sendLimiter: RateLimiter? =
-        if (config.rateLimitMaxSends > 0) RateLimiter(config.rateLimitMaxSends, config.rateLimitWindowMs, clock) else null
+        if (config.rateLimitMaxSends > 0) {
+            RateLimiter(
+                config.rateLimitMaxSends,
+                config.rateLimitWindowMs,
+                clock,
+            )
+        } else {
+            null
+        }
 
     private val circuitBreaker: CircuitBreaker? =
         if (config.circuitBreakerMaxFailures > 0) {
@@ -33,7 +41,15 @@ class RateLimitPolicy(
         }
 
     private val broadcastLimiter: RateLimiter? =
-        if (config.broadcastRateLimitPerMinute > 0) RateLimiter(config.broadcastRateLimitPerMinute, 60_000L, clock) else null
+        if (config.broadcastRateLimitPerMinute > 0) {
+            RateLimiter(
+                config.broadcastRateLimitPerMinute,
+                60_000L,
+                clock,
+            )
+        } else {
+            null
+        }
 
     private val handshakeLimiter: RateLimiter? =
         if (config.handshakeRateLimitPerSec > 0) RateLimiter(config.handshakeRateLimitPerSec, 1_000L, clock) else null
@@ -42,10 +58,26 @@ class RateLimitPolicy(
         if (config.nackRateLimitPerSec > 0) RateLimiter(config.nackRateLimitPerSec, 1_000L, clock) else null
 
     private val neighborAggregateLimiter: RateLimiter? =
-        if (config.neighborAggregateLimitPerMin > 0) RateLimiter(config.neighborAggregateLimitPerMin, 60_000L, clock) else null
+        if (config.neighborAggregateLimitPerMin > 0) {
+            RateLimiter(
+                config.neighborAggregateLimitPerMin,
+                60_000L,
+                clock,
+            )
+        } else {
+            null
+        }
 
     private val senderNeighborLimiter: RateLimiter? =
-        if (config.senderNeighborLimitPerMin > 0) RateLimiter(config.senderNeighborLimitPerMin, 60_000L, clock) else null
+        if (config.senderNeighborLimitPerMin > 0) {
+            RateLimiter(
+                config.senderNeighborLimitPerMin,
+                60_000L,
+                clock,
+            )
+        } else {
+            null
+        }
 
     // ── Per-scope checks ──────────────────────────────────────────
 
@@ -54,8 +86,11 @@ class RateLimitPolicy(
 
     fun checkCircuitBreaker(): RateLimitResult {
         val cb = circuitBreaker ?: return RateLimitResult.Allowed
-        return if (cb.allowAttempt()) RateLimitResult.Allowed
-        else RateLimitResult.Limited("circuit_breaker", "transport")
+        return if (cb.allowAttempt()) {
+            RateLimitResult.Allowed
+        } else {
+            RateLimitResult.Limited("circuit_breaker", "transport")
+        }
     }
 
     fun checkBroadcast(): RateLimitResult =
@@ -83,7 +118,10 @@ class RateLimitPolicy(
 
     private fun check(limiter: RateLimiter?, scope: String, key: String): RateLimitResult {
         val l = limiter ?: return RateLimitResult.Allowed
-        return if (l.tryAcquire(key)) RateLimitResult.Allowed
-        else RateLimitResult.Limited(scope, key)
+        return if (l.tryAcquire(key)) {
+            RateLimitResult.Allowed
+        } else {
+            RateLimitResult.Limited(scope, key)
+        }
     }
 }

@@ -43,47 +43,90 @@ internal object Field25519 {
      * with 19-reduction for limbs above 2^255.
      */
     fun feMul(f: LongArray, g: LongArray): LongArray {
-        val f0 = f[0]; val f1 = f[1]; val f2 = f[2]; val f3 = f[3]; val f4 = f[4]
-        val f5 = f[5]; val f6 = f[6]; val f7 = f[7]; val f8 = f[8]; val f9 = f[9]
-        val g0 = g[0]; val g1 = g[1]; val g2 = g[2]; val g3 = g[3]; val g4 = g[4]
-        val g5 = g[5]; val g6 = g[6]; val g7 = g[7]; val g8 = g[8]; val g9 = g[9]
-        val g1_19 = 19 * g1; val g2_19 = 19 * g2; val g3_19 = 19 * g3
-        val g4_19 = 19 * g4; val g5_19 = 19 * g5; val g6_19 = 19 * g6
-        val g7_19 = 19 * g7; val g8_19 = 19 * g8; val g9_19 = 19 * g9
-        val f1_2 = 2 * f1; val f3_2 = 2 * f3; val f5_2 = 2 * f5
-        val f7_2 = 2 * f7; val f9_2 = 2 * f9
+        val f0 = f[0]
+        val f1 = f[1]
+        val f2 = f[2]
+        val f3 = f[3]
+        val f4 = f[4]
+        val f5 = f[5]
+        val f6 = f[6]
+        val f7 = f[7]
+        val f8 = f[8]
+        val f9 = f[9]
+        val g0 = g[0]
+        val g1 = g[1]
+        val g2 = g[2]
+        val g3 = g[3]
+        val g4 = g[4]
+        val g5 = g[5]
+        val g6 = g[6]
+        val g7 = g[7]
+        val g8 = g[8]
+        val g9 = g[9]
+        val g1_19 = 19 * g1
+        val g2_19 = 19 * g2
+        val g3_19 = 19 * g3
+        val g4_19 = 19 * g4
+        val g5_19 = 19 * g5
+        val g6_19 = 19 * g6
+        val g7_19 = 19 * g7
+        val g8_19 = 19 * g8
+        val g9_19 = 19 * g9
+        val f1_2 = 2 * f1
+        val f3_2 = 2 * f3
+        val f5_2 = 2 * f5
+        val f7_2 = 2 * f7
+        val f9_2 = 2 * f9
 
-        val h0 = f0*g0 + f1_2*g9_19 + f2*g8_19 + f3_2*g7_19 + f4*g6_19 + f5_2*g5_19 + f6*g4_19 + f7_2*g3_19 + f8*g2_19 + f9_2*g1_19
-        val h1 = f0*g1 + f1*g0 + f2*g9_19 + f3*g8_19 + f4*g7_19 + f5*g6_19 + f6*g5_19 + f7*g4_19 + f8*g3_19 + f9*g2_19
-        val h2 = f0*g2 + f1_2*g1 + f2*g0 + f3_2*g9_19 + f4*g8_19 + f5_2*g7_19 + f6*g6_19 + f7_2*g5_19 + f8*g4_19 + f9_2*g3_19
-        val h3 = f0*g3 + f1*g2 + f2*g1 + f3*g0 + f4*g9_19 + f5*g8_19 + f6*g7_19 + f7*g6_19 + f8*g5_19 + f9*g4_19
-        val h4 = f0*g4 + f1_2*g3 + f2*g2 + f3_2*g1 + f4*g0 + f5_2*g9_19 + f6*g8_19 + f7_2*g7_19 + f8*g6_19 + f9_2*g5_19
-        val h5 = f0*g5 + f1*g4 + f2*g3 + f3*g2 + f4*g1 + f5*g0 + f6*g9_19 + f7*g8_19 + f8*g7_19 + f9*g6_19
-        val h6 = f0*g6 + f1_2*g5 + f2*g4 + f3_2*g3 + f4*g2 + f5_2*g1 + f6*g0 + f7_2*g9_19 + f8*g8_19 + f9_2*g7_19
-        val h7 = f0*g7 + f1*g6 + f2*g5 + f3*g4 + f4*g3 + f5*g2 + f6*g1 + f7*g0 + f8*g9_19 + f9*g8_19
-        val h8 = f0*g8 + f1_2*g7 + f2*g6 + f3_2*g5 + f4*g4 + f5_2*g3 + f6*g2 + f7_2*g1 + f8*g0 + f9_2*g9_19
-        val h9 = f0*g9 + f1*g8 + f2*g7 + f3*g6 + f4*g5 + f5*g4 + f6*g3 + f7*g2 + f8*g1 + f9*g0
+        val h0 = f0 * g0 + f1_2 * g9_19 + f2 * g8_19 + f3_2 * g7_19 + f4 * g6_19 + f5_2 * g5_19 + f6 * g4_19 + f7_2 * g3_19 + f8 * g2_19 + f9_2 * g1_19
+        val h1 = f0 * g1 + f1 * g0 + f2 * g9_19 + f3 * g8_19 + f4 * g7_19 + f5 * g6_19 + f6 * g5_19 + f7 * g4_19 + f8 * g3_19 + f9 * g2_19
+        val h2 = f0 * g2 + f1_2 * g1 + f2 * g0 + f3_2 * g9_19 + f4 * g8_19 + f5_2 * g7_19 + f6 * g6_19 + f7_2 * g5_19 + f8 * g4_19 + f9_2 * g3_19
+        val h3 = f0 * g3 + f1 * g2 + f2 * g1 + f3 * g0 + f4 * g9_19 + f5 * g8_19 + f6 * g7_19 + f7 * g6_19 + f8 * g5_19 + f9 * g4_19
+        val h4 = f0 * g4 + f1_2 * g3 + f2 * g2 + f3_2 * g1 + f4 * g0 + f5_2 * g9_19 + f6 * g8_19 + f7_2 * g7_19 + f8 * g6_19 + f9_2 * g5_19
+        val h5 = f0 * g5 + f1 * g4 + f2 * g3 + f3 * g2 + f4 * g1 + f5 * g0 + f6 * g9_19 + f7 * g8_19 + f8 * g7_19 + f9 * g6_19
+        val h6 = f0 * g6 + f1_2 * g5 + f2 * g4 + f3_2 * g3 + f4 * g2 + f5_2 * g1 + f6 * g0 + f7_2 * g9_19 + f8 * g8_19 + f9_2 * g7_19
+        val h7 = f0 * g7 + f1 * g6 + f2 * g5 + f3 * g4 + f4 * g3 + f5 * g2 + f6 * g1 + f7 * g0 + f8 * g9_19 + f9 * g8_19
+        val h8 = f0 * g8 + f1_2 * g7 + f2 * g6 + f3_2 * g5 + f4 * g4 + f5_2 * g3 + f6 * g2 + f7_2 * g1 + f8 * g0 + f9_2 * g9_19
+        val h9 = f0 * g9 + f1 * g8 + f2 * g7 + f3 * g6 + f4 * g5 + f5 * g4 + f6 * g3 + f7 * g2 + f8 * g1 + f9 * g0
 
         return feCarry(longArrayOf(h0, h1, h2, h3, h4, h5, h6, h7, h8, h9))
     }
 
     fun feSquare(f: LongArray): LongArray {
-        val f0 = f[0]; val f1 = f[1]; val f2 = f[2]; val f3 = f[3]; val f4 = f[4]
-        val f5 = f[5]; val f6 = f[6]; val f7 = f[7]; val f8 = f[8]; val f9 = f[9]
-        val f0_2 = 2*f0; val f1_2 = 2*f1; val f2_2 = 2*f2; val f3_2 = 2*f3
-        val f4_2 = 2*f4; val f5_2 = 2*f5; val f6_2 = 2*f6; val f7_2 = 2*f7
-        val f5_38 = 38*f5; val f6_19 = 19*f6; val f7_38 = 38*f7; val f8_19 = 19*f8; val f9_38 = 38*f9
+        val f0 = f[0]
+        val f1 = f[1]
+        val f2 = f[2]
+        val f3 = f[3]
+        val f4 = f[4]
+        val f5 = f[5]
+        val f6 = f[6]
+        val f7 = f[7]
+        val f8 = f[8]
+        val f9 = f[9]
+        val f0_2 = 2 * f0
+        val f1_2 = 2 * f1
+        val f2_2 = 2 * f2
+        val f3_2 = 2 * f3
+        val f4_2 = 2 * f4
+        val f5_2 = 2 * f5
+        val f6_2 = 2 * f6
+        val f7_2 = 2 * f7
+        val f5_38 = 38 * f5
+        val f6_19 = 19 * f6
+        val f7_38 = 38 * f7
+        val f8_19 = 19 * f8
+        val f9_38 = 38 * f9
 
-        val h0 = f0*f0 + f1_2*f9_38 + f2_2*f8_19 + f3_2*f7_38 + f4_2*f6_19 + f5*f5_38
-        val h1 = f0_2*f1 + f2*f9_38 + f3_2*f8_19 + f4*f7_38 + f5_2*f6_19
-        val h2 = f0_2*f2 + f1_2*f1 + f3_2*f9_38 + f4_2*f8_19 + f5_2*f7_38 + f6*f6_19
-        val h3 = f0_2*f3 + f1_2*f2 + f4*f9_38 + f5_2*f8_19 + f6*f7_38
-        val h4 = f0_2*f4 + f1_2*f3_2 + f2*f2 + f5_2*f9_38 + f6_2*f8_19 + f7*f7_38
-        val h5 = f0_2*f5 + f1_2*f4 + f2_2*f3 + f6*f9_38 + f7_2*f8_19
-        val h6 = f0_2*f6 + f1_2*f5_2 + f2_2*f4 + f3_2*f3 + f7_2*f9_38 + f8*f8_19
-        val h7 = f0_2*f7 + f1_2*f6 + f2_2*f5 + f3_2*f4 + f8*f9_38
-        val h8 = f0_2*f8 + f1_2*f7_2 + f2_2*f6 + f3_2*f5_2 + f4*f4 + f9*f9_38
-        val h9 = f0_2*f9 + f1_2*f8 + f2_2*f7 + f3_2*f6 + f4_2*f5
+        val h0 = f0 * f0 + f1_2 * f9_38 + f2_2 * f8_19 + f3_2 * f7_38 + f4_2 * f6_19 + f5 * f5_38
+        val h1 = f0_2 * f1 + f2 * f9_38 + f3_2 * f8_19 + f4 * f7_38 + f5_2 * f6_19
+        val h2 = f0_2 * f2 + f1_2 * f1 + f3_2 * f9_38 + f4_2 * f8_19 + f5_2 * f7_38 + f6 * f6_19
+        val h3 = f0_2 * f3 + f1_2 * f2 + f4 * f9_38 + f5_2 * f8_19 + f6 * f7_38
+        val h4 = f0_2 * f4 + f1_2 * f3_2 + f2 * f2 + f5_2 * f9_38 + f6_2 * f8_19 + f7 * f7_38
+        val h5 = f0_2 * f5 + f1_2 * f4 + f2_2 * f3 + f6 * f9_38 + f7_2 * f8_19
+        val h6 = f0_2 * f6 + f1_2 * f5_2 + f2_2 * f4 + f3_2 * f3 + f7_2 * f9_38 + f8 * f8_19
+        val h7 = f0_2 * f7 + f1_2 * f6 + f2_2 * f5 + f3_2 * f4 + f8 * f9_38
+        val h8 = f0_2 * f8 + f1_2 * f7_2 + f2_2 * f6 + f3_2 * f5_2 + f4 * f4 + f9 * f9_38
+        val h9 = f0_2 * f9 + f1_2 * f8 + f2_2 * f7 + f3_2 * f6 + f4_2 * f5
 
         return feCarry(longArrayOf(h0, h1, h2, h3, h4, h5, h6, h7, h8, h9))
     }
@@ -122,16 +165,16 @@ internal object Field25519 {
         feReduce(t)
 
         val s = ByteArray(32)
-        s[0]  = (t[0]).toByte()
-        s[1]  = (t[0] shr 8).toByte()
-        s[2]  = (t[0] shr 16).toByte()
-        s[3]  = ((t[0] shr 24) or (t[1] shl 2)).toByte()
-        s[4]  = (t[1] shr 6).toByte()
-        s[5]  = (t[1] shr 14).toByte()
-        s[6]  = ((t[1] shr 22) or (t[2] shl 3)).toByte()
-        s[7]  = (t[2] shr 5).toByte()
-        s[8]  = (t[2] shr 13).toByte()
-        s[9]  = ((t[2] shr 21) or (t[3] shl 5)).toByte()
+        s[0] = (t[0]).toByte()
+        s[1] = (t[0] shr 8).toByte()
+        s[2] = (t[0] shr 16).toByte()
+        s[3] = ((t[0] shr 24) or (t[1] shl 2)).toByte()
+        s[4] = (t[1] shr 6).toByte()
+        s[5] = (t[1] shr 14).toByte()
+        s[6] = ((t[1] shr 22) or (t[2] shl 3)).toByte()
+        s[7] = (t[2] shr 5).toByte()
+        s[8] = (t[2] shr 13).toByte()
+        s[9] = ((t[2] shr 21) or (t[3] shl 5)).toByte()
         s[10] = (t[3] shr 3).toByte()
         s[11] = (t[3] shr 11).toByte()
         s[12] = ((t[3] shr 19) or (t[4] shl 6)).toByte()
@@ -165,9 +208,9 @@ internal object Field25519 {
     fun feUnpack(s: ByteArray): LongArray {
         fun load4(off: Int): Long =
             (s[off].toLong() and 0xff) or
-            ((s[off+1].toLong() and 0xff) shl 8) or
-            ((s[off+2].toLong() and 0xff) shl 16) or
-            ((s[off+3].toLong() and 0xff) shl 24)
+                ((s[off + 1].toLong() and 0xff) shl 8) or
+                ((s[off + 2].toLong() and 0xff) shl 16) or
+                ((s[off + 3].toLong() and 0xff) shl 24)
 
         val h = LongArray(10)
         h[0] = load4(0) and 0x3ffffff
@@ -220,37 +263,37 @@ internal object Field25519 {
      * Exponent: p-2 = 2^255-21 = (2^250-1)*2^5 + 11.
      */
     fun feInvert(z: LongArray): LongArray {
-        var t0 = feSquare(z)            // z^2
-        var t1 = feSquare(t0)           // z^4
-        t1 = feSquare(t1)               // z^8
-        t1 = feMul(z, t1)              // z^9
-        t0 = feMul(t0, t1)             // z^11
-        var t2 = feSquare(t0)           // z^22
-        t1 = feMul(t1, t2)             // z^(2^5 - 1)
+        var t0 = feSquare(z) // z^2
+        var t1 = feSquare(t0) // z^4
+        t1 = feSquare(t1) // z^8
+        t1 = feMul(z, t1) // z^9
+        t0 = feMul(t0, t1) // z^11
+        var t2 = feSquare(t0) // z^22
+        t1 = feMul(t1, t2) // z^(2^5 - 1)
         t2 = feSquare(t1)
         for (i in 1..4) t2 = feSquare(t2)
-        t1 = feMul(t2, t1)             // z^(2^10 - 1)
+        t1 = feMul(t2, t1) // z^(2^10 - 1)
         t2 = feSquare(t1)
         for (i in 1..9) t2 = feSquare(t2)
-        t2 = feMul(t2, t1)             // z^(2^20 - 1)
+        t2 = feMul(t2, t1) // z^(2^20 - 1)
         var t3 = feSquare(t2)
         for (i in 1..19) t3 = feSquare(t3)
-        t2 = feMul(t3, t2)             // z^(2^40 - 1)
+        t2 = feMul(t3, t2) // z^(2^40 - 1)
         t2 = feSquare(t2)
         for (i in 1..9) t2 = feSquare(t2)
-        t1 = feMul(t2, t1)             // z^(2^50 - 1)
+        t1 = feMul(t2, t1) // z^(2^50 - 1)
         t2 = feSquare(t1)
         for (i in 1..49) t2 = feSquare(t2)
-        t2 = feMul(t2, t1)             // z^(2^100 - 1)
+        t2 = feMul(t2, t1) // z^(2^100 - 1)
         t3 = feSquare(t2)
         for (i in 1..99) t3 = feSquare(t3)
-        t2 = feMul(t3, t2)             // z^(2^200 - 1)
+        t2 = feMul(t3, t2) // z^(2^200 - 1)
         t2 = feSquare(t2)
         for (i in 1..49) t2 = feSquare(t2)
-        t1 = feMul(t2, t1)             // z^(2^250 - 1)
+        t1 = feMul(t2, t1) // z^(2^250 - 1)
         t1 = feSquare(t1)
         for (i in 1..4) t1 = feSquare(t1) // z^(2^255 - 32)
-        return feMul(t1, t0)            // z^(2^255 - 32 + 11) = z^(p-2)
+        return feMul(t1, t0) // z^(2^255 - 32 + 11) = z^(p-2)
     }
 
     /**
@@ -258,37 +301,37 @@ internal object Field25519 {
      * Used for Ed25519 point decompression (square root computation).
      */
     fun fePow22523(z: LongArray): LongArray {
-        var t0 = feSquare(z)            // z^2
+        var t0 = feSquare(z) // z^2
         var t1 = feSquare(t0)
-        t1 = feSquare(t1)               // z^8
-        t1 = feMul(z, t1)              // z^9
-        t0 = feMul(t0, t1)             // z^11
-        t0 = feSquare(t0)               // z^22
-        t0 = feMul(t1, t0)             // z^(2^5 - 21) = z^31 -- actually z^(2^5-1)
+        t1 = feSquare(t1) // z^8
+        t1 = feMul(z, t1) // z^9
+        t0 = feMul(t0, t1) // z^11
+        t0 = feSquare(t0) // z^22
+        t0 = feMul(t1, t0) // z^(2^5 - 21) = z^31 -- actually z^(2^5-1)
         t1 = feSquare(t0)
         for (i in 1..4) t1 = feSquare(t1)
-        t0 = feMul(t1, t0)             // z^(2^10 - 1)
+        t0 = feMul(t1, t0) // z^(2^10 - 1)
         t1 = feSquare(t0)
         for (i in 1..9) t1 = feSquare(t1)
-        t1 = feMul(t1, t0)             // z^(2^20 - 1)
+        t1 = feMul(t1, t0) // z^(2^20 - 1)
         var t2 = feSquare(t1)
         for (i in 1..19) t2 = feSquare(t2)
-        t1 = feMul(t2, t1)             // z^(2^40 - 1)
+        t1 = feMul(t2, t1) // z^(2^40 - 1)
         t1 = feSquare(t1)
         for (i in 1..9) t1 = feSquare(t1)
-        t0 = feMul(t1, t0)             // z^(2^50 - 1)
+        t0 = feMul(t1, t0) // z^(2^50 - 1)
         t1 = feSquare(t0)
         for (i in 1..49) t1 = feSquare(t1)
-        t1 = feMul(t1, t0)             // z^(2^100 - 1)
+        t1 = feMul(t1, t0) // z^(2^100 - 1)
         t2 = feSquare(t1)
         for (i in 1..99) t2 = feSquare(t2)
-        t1 = feMul(t2, t1)             // z^(2^200 - 1)
+        t1 = feMul(t2, t1) // z^(2^200 - 1)
         t1 = feSquare(t1)
         for (i in 1..49) t1 = feSquare(t1)
-        t0 = feMul(t1, t0)             // z^(2^250 - 1)
+        t0 = feMul(t1, t0) // z^(2^250 - 1)
         t0 = feSquare(t0)
         t0 = feSquare(t0)
-        return feMul(t0, z)             // z^(2^252 - 3)
+        return feMul(t0, z) // z^(2^252 - 3)
     }
 
     fun feIsNegative(f: LongArray): Int {

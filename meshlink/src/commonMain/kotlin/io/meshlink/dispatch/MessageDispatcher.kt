@@ -1,7 +1,6 @@
 package io.meshlink.dispatch
 
 import io.meshlink.config.MeshLinkConfig
-import io.meshlink.wire.RotationAnnouncement
 import io.meshlink.crypto.RotationResult
 import io.meshlink.crypto.SecurityEngine
 import io.meshlink.delivery.AckResult
@@ -20,6 +19,7 @@ import io.meshlink.util.DeliveryOutcome
 import io.meshlink.util.PauseManager
 import io.meshlink.util.hexToBytes
 import io.meshlink.util.toHex
+import io.meshlink.wire.RotationAnnouncement
 import io.meshlink.wire.WireCodec
 
 /**
@@ -59,14 +59,16 @@ class MessageDispatcher(
                 WireCodec.TYPE_ROTATION -> handleRotationAnnouncement(fromPeerId, data)
                 else -> {
                     diagnosticSink.emit(
-                        DiagnosticCode.UNKNOWN_MESSAGE_TYPE, Severity.WARN,
+                        DiagnosticCode.UNKNOWN_MESSAGE_TYPE,
+                        Severity.WARN,
                         "type=0x${data[0].toUByte().toString(16).padStart(2, '0')}, size=${data.size}",
                     )
                 }
             }
         } catch (e: Exception) {
             diagnosticSink.emit(
-                DiagnosticCode.MALFORMED_DATA, Severity.WARN,
+                DiagnosticCode.MALFORMED_DATA,
+                Severity.WARN,
                 "type=0x${data[0].toUByte().toString(16)}, size=${data.size}, error=${e.message}",
             )
         }
@@ -90,9 +92,14 @@ class MessageDispatcher(
         if (validator.cryptoRequired) {
             val signedData = data.copyOfRange(0, data.size - 64)
             if (!validator.validateRouteUpdateSignature(
-                    fromPeerId.toHex(), update.signature, update.signerPublicKey, signedData,
+                    fromPeerId.toHex(),
+                    update.signature,
+                    update.signerPublicKey,
+                    signedData,
                 )
-            ) return
+            ) {
+                return
+            }
         }
 
         val learned = update.entries.map { entry ->
@@ -103,7 +110,8 @@ class MessageDispatcher(
             is RouteLearnResult.SignificantChange -> {
                 for (change in result.routeChanges) {
                     diagnosticSink.emit(
-                        DiagnosticCode.ROUTE_CHANGED, Severity.INFO,
+                        DiagnosticCode.ROUTE_CHANGED,
+                        Severity.INFO,
                         "dest=${change.destination}, oldNextHop=${change.oldNextHop}, newNextHop=${change.newNextHop}",
                     )
                 }
@@ -120,7 +128,10 @@ class MessageDispatcher(
         val key = chunk.messageId.toHex()
 
         val result = transferEngine.onChunkReceived(
-            key, chunk.sequenceNumber.toInt(), chunk.totalChunks.toInt(), chunk.payload,
+            key,
+            chunk.sequenceNumber.toInt(),
+            chunk.totalChunks.toInt(),
+            chunk.payload,
         )
 
         when (result) {
@@ -228,7 +239,8 @@ class MessageDispatcher(
             sink.onMessageReceived(routed.origin, deliveredPayload)
             val signed = securityEngine?.sign(routed.messageId + localPeerId)
             val ackFrame = WireCodec.encodeDeliveryAck(
-                routed.messageId, localPeerId,
+                routed.messageId,
+                localPeerId,
                 signature = signed?.signature ?: ByteArray(0),
                 signerPublicKey = signed?.signerPublicKey ?: ByteArray(0),
             )
@@ -270,7 +282,8 @@ class MessageDispatcher(
     private suspend fun handleResumeRequest(data: ByteArray) {
         val request = WireCodec.decodeResumeRequest(data)
         diagnosticSink.emit(
-            DiagnosticCode.TRANSPORT_MODE_CHANGED, Severity.INFO,
+            DiagnosticCode.TRANSPORT_MODE_CHANGED,
+            Severity.INFO,
             "resume_request: messageId=${request.messageId.toHex()}, bytesReceived=${request.bytesReceived}",
         )
     }
@@ -303,11 +316,13 @@ class MessageDispatcher(
         when (val result = se.handleRotationAnnouncement(peerHex, msg)) {
             is RotationResult.Accepted -> sink.onKeyChanged(result.event)
             is RotationResult.Rejected -> diagnosticSink.emit(
-                DiagnosticCode.MALFORMED_DATA, Severity.WARN,
+                DiagnosticCode.MALFORMED_DATA,
+                Severity.WARN,
                 "rotation announcement signature verification failed from $peerHex",
             )
             is RotationResult.Stale -> diagnosticSink.emit(
-                DiagnosticCode.REPLAY_REJECTED, Severity.WARN,
+                DiagnosticCode.REPLAY_REJECTED,
+                Severity.WARN,
                 "stale rotation announcement from $peerHex",
             )
             is RotationResult.UnknownPeer -> {}

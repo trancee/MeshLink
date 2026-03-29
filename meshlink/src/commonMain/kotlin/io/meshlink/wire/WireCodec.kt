@@ -57,9 +57,12 @@ object WireCodec {
         val buf = ByteArray(CHUNK_HEADER_SIZE + payload.size)
         var offset = 0
         buf[offset++] = TYPE_CHUNK
-        messageId.copyInto(buf, offset); offset += MESSAGE_ID_SIZE
-        buf.putUShortLE(offset, sequenceNumber); offset += 2
-        buf.putUShortLE(offset, totalChunks); offset += 2
+        messageId.copyInto(buf, offset)
+        offset += MESSAGE_ID_SIZE
+        buf.putUShortLE(offset, sequenceNumber)
+        offset += 2
+        buf.putUShortLE(offset, totalChunks)
+        offset += 2
         payload.copyInto(buf, offset)
         return buf
     }
@@ -68,9 +71,12 @@ object WireCodec {
         require(data.size >= CHUNK_HEADER_SIZE) { "chunk too short: ${data.size}" }
         require(data[0] == TYPE_CHUNK) { "not a chunk: 0x${data[0].toUByte().toString(16)}" }
         var offset = 1
-        val messageId = data.copyOfRange(offset, offset + MESSAGE_ID_SIZE); offset += MESSAGE_ID_SIZE
-        val sequenceNumber = data.getUShortLE(offset); offset += 2
-        val totalChunks = data.getUShortLE(offset); offset += 2
+        val messageId = data.copyOfRange(offset, offset + MESSAGE_ID_SIZE)
+        offset += MESSAGE_ID_SIZE
+        val sequenceNumber = data.getUShortLE(offset)
+        offset += 2
+        val totalChunks = data.getUShortLE(offset)
+        offset += 2
         val payload = data.copyOfRange(offset, data.size)
         require(sequenceNumber < totalChunks) {
             "chunk sequenceNumber ($sequenceNumber) >= totalChunks ($totalChunks)"
@@ -86,8 +92,10 @@ object WireCodec {
         val buf = ByteArray(CHUNK_ACK_SIZE)
         var offset = 0
         buf[offset++] = TYPE_CHUNK_ACK
-        messageId.copyInto(buf, offset); offset += MESSAGE_ID_SIZE
-        buf.putUShortLE(offset, ackSequence); offset += 2
+        messageId.copyInto(buf, offset)
+        offset += MESSAGE_ID_SIZE
+        buf.putUShortLE(offset, ackSequence)
+        offset += 2
         buf.putULongLE(offset, sackBitmask)
         return buf
     }
@@ -96,8 +104,10 @@ object WireCodec {
         require(data.size >= CHUNK_ACK_SIZE) { "chunk_ack too short: ${data.size}" }
         require(data[0] == TYPE_CHUNK_ACK) { "not a chunk_ack: 0x${data[0].toUByte().toString(16)}" }
         var offset = 1
-        val messageId = data.copyOfRange(offset, offset + MESSAGE_ID_SIZE); offset += MESSAGE_ID_SIZE
-        val ackSequence = data.getUShortLE(offset); offset += 2
+        val messageId = data.copyOfRange(offset, offset + MESSAGE_ID_SIZE)
+        offset += MESSAGE_ID_SIZE
+        val ackSequence = data.getUShortLE(offset)
+        offset += 2
         val sackBitmask = data.getULongLE(offset)
         return ChunkAckMessage(messageId, ackSequence, sackBitmask)
     }
@@ -118,14 +128,19 @@ object WireCodec {
         val buf = ByteArray(ROUTED_HEADER_SIZE + visitedList.size * 16 + payload.size)
         var offset = 0
         buf[offset++] = TYPE_ROUTED_MESSAGE
-        messageId.copyInto(buf, offset); offset += MESSAGE_ID_SIZE
-        origin.copyInto(buf, offset); offset += 16
-        destination.copyInto(buf, offset); offset += 16
+        messageId.copyInto(buf, offset)
+        offset += MESSAGE_ID_SIZE
+        origin.copyInto(buf, offset)
+        offset += 16
+        destination.copyInto(buf, offset)
+        offset += 16
         buf[offset++] = hopLimit.toByte()
-        buf.putULongLE(offset, replayCounter); offset += 8
+        buf.putULongLE(offset, replayCounter)
+        offset += 8
         buf[offset++] = visitedList.size.toByte()
         for (hash in visitedList) {
-            hash.copyInto(buf, offset); offset += 16
+            hash.copyInto(buf, offset)
+            offset += 16
         }
         payload.copyInto(buf, offset)
         return buf
@@ -135,17 +150,22 @@ object WireCodec {
         require(data.size >= ROUTED_HEADER_SIZE) { "routed_message too short: ${data.size}" }
         require(data[0] == TYPE_ROUTED_MESSAGE) { "not a routed_message: 0x${data[0].toUByte().toString(16)}" }
         var offset = 1
-        val messageId = data.copyOfRange(offset, offset + MESSAGE_ID_SIZE); offset += MESSAGE_ID_SIZE
-        val origin = data.copyOfRange(offset, offset + 16); offset += 16
-        val destination = data.copyOfRange(offset, offset + 16); offset += 16
+        val messageId = data.copyOfRange(offset, offset + MESSAGE_ID_SIZE)
+        offset += MESSAGE_ID_SIZE
+        val origin = data.copyOfRange(offset, offset + 16)
+        offset += 16
+        val destination = data.copyOfRange(offset, offset + 16)
+        offset += 16
         val hopLimit = data[offset++].toUByte()
-        val replayCounter = data.getULongLE(offset); offset += 8
+        val replayCounter = data.getULongLE(offset)
+        offset += 8
         val visitedCount = data[offset++].toInt() and 0xFF
         require(data.size >= offset + visitedCount * 16) {
             "routed_message truncated: visitedCount=$visitedCount requires ${offset + visitedCount * 16} bytes, got ${data.size}"
         }
         val visitedList = (0 until visitedCount).map {
-            val hash = data.copyOfRange(offset, offset + 16); offset += 16
+            val hash = data.copyOfRange(offset, offset + 16)
+            offset += 16
             hash
         }
         val payload = data.copyOfRange(offset, data.size)
@@ -169,14 +189,19 @@ object WireCodec {
         val buf = ByteArray(BROADCAST_HEADER_SIZE + sigBlock + payload.size)
         var offset = 0
         buf[offset++] = TYPE_BROADCAST
-        messageId.copyInto(buf, offset); offset += MESSAGE_ID_SIZE
-        origin.copyInto(buf, offset); offset += 16
+        messageId.copyInto(buf, offset)
+        offset += MESSAGE_ID_SIZE
+        origin.copyInto(buf, offset)
+        offset += 16
         buf[offset++] = remainingHops.toByte()
-        appIdHash.copyInto(buf, offset); offset += 16
+        appIdHash.copyInto(buf, offset)
+        offset += 16
         buf[offset++] = signature.size.toByte()
         if (signature.isNotEmpty()) {
-            signature.copyInto(buf, offset); offset += signature.size
-            signerPublicKey.copyInto(buf, offset); offset += signerPublicKey.size
+            signature.copyInto(buf, offset)
+            offset += signature.size
+            signerPublicKey.copyInto(buf, offset)
+            offset += signerPublicKey.size
         }
         payload.copyInto(buf, offset)
         return buf
@@ -186,10 +211,13 @@ object WireCodec {
         require(data.size >= BROADCAST_HEADER_SIZE) { "broadcast too short: ${data.size}" }
         require(data[0] == TYPE_BROADCAST) { "not a broadcast: 0x${data[0].toUByte().toString(16)}" }
         var offset = 1
-        val messageId = data.copyOfRange(offset, offset + MESSAGE_ID_SIZE); offset += MESSAGE_ID_SIZE
-        val origin = data.copyOfRange(offset, offset + 16); offset += 16
+        val messageId = data.copyOfRange(offset, offset + MESSAGE_ID_SIZE)
+        offset += MESSAGE_ID_SIZE
+        val origin = data.copyOfRange(offset, offset + 16)
+        offset += 16
         val remainingHops = data[offset++].toUByte()
-        val appIdHash = data.copyOfRange(offset, offset + 16); offset += 16
+        val appIdHash = data.copyOfRange(offset, offset + 16)
+        offset += 16
         val sigLen = data[offset++].toInt() and 0xFF
         val signature: ByteArray
         val signerPublicKey: ByteArray
@@ -197,8 +225,10 @@ object WireCodec {
             require(data.size >= offset + sigLen + ED25519_PUB_KEY_SIZE) {
                 "broadcast signature truncated: sigLen=$sigLen requires ${offset + sigLen + ED25519_PUB_KEY_SIZE} bytes, got ${data.size}"
             }
-            signature = data.copyOfRange(offset, offset + sigLen); offset += sigLen
-            signerPublicKey = data.copyOfRange(offset, offset + ED25519_PUB_KEY_SIZE); offset += ED25519_PUB_KEY_SIZE
+            signature = data.copyOfRange(offset, offset + sigLen)
+            offset += sigLen
+            signerPublicKey = data.copyOfRange(offset, offset + ED25519_PUB_KEY_SIZE)
+            offset += ED25519_PUB_KEY_SIZE
         } else {
             signature = ByteArray(0)
             signerPublicKey = ByteArray(0)
@@ -220,11 +250,14 @@ object WireCodec {
         val buf = ByteArray(DELIVERY_ACK_HEADER_SIZE + sigBlock)
         var offset = 0
         buf[offset++] = TYPE_DELIVERY_ACK
-        messageId.copyInto(buf, offset); offset += MESSAGE_ID_SIZE
-        recipientId.copyInto(buf, offset); offset += 16
+        messageId.copyInto(buf, offset)
+        offset += MESSAGE_ID_SIZE
+        recipientId.copyInto(buf, offset)
+        offset += 16
         buf[offset++] = signature.size.toByte()
         if (signature.isNotEmpty()) {
-            signature.copyInto(buf, offset); offset += signature.size
+            signature.copyInto(buf, offset)
+            offset += signature.size
             signerPublicKey.copyInto(buf, offset)
         }
         return buf
@@ -234,8 +267,10 @@ object WireCodec {
         require(data.size >= DELIVERY_ACK_HEADER_SIZE) { "delivery_ack too short: ${data.size}" }
         require(data[0] == TYPE_DELIVERY_ACK) { "not a delivery_ack: 0x${data[0].toUByte().toString(16)}" }
         var offset = 1
-        val messageId = data.copyOfRange(offset, offset + MESSAGE_ID_SIZE); offset += MESSAGE_ID_SIZE
-        val recipientId = data.copyOfRange(offset, offset + 16); offset += 16
+        val messageId = data.copyOfRange(offset, offset + MESSAGE_ID_SIZE)
+        offset += MESSAGE_ID_SIZE
+        val recipientId = data.copyOfRange(offset, offset + 16)
+        offset += 16
         val sigLen = data[offset++].toInt() and 0xFF
         val signature: ByteArray
         val signerPublicKey: ByteArray
@@ -243,7 +278,8 @@ object WireCodec {
             require(data.size >= offset + sigLen + ED25519_PUB_KEY_SIZE) {
                 "delivery_ack signature truncated: sigLen=$sigLen requires ${offset + sigLen + ED25519_PUB_KEY_SIZE} bytes, got ${data.size}"
             }
-            signature = data.copyOfRange(offset, offset + sigLen); offset += sigLen
+            signature = data.copyOfRange(offset, offset + sigLen)
+            offset += sigLen
             signerPublicKey = data.copyOfRange(offset, offset + ED25519_PUB_KEY_SIZE)
         } else {
             signature = ByteArray(0)
@@ -264,12 +300,16 @@ object WireCodec {
         val buf = ByteArray(ROUTE_UPDATE_HEADER_SIZE + entries.size * ROUTE_ENTRY_SIZE)
         var offset = 0
         buf[offset++] = TYPE_ROUTE_UPDATE
-        senderId.copyInto(buf, offset); offset += 16
+        senderId.copyInto(buf, offset)
+        offset += 16
         buf[offset++] = entries.size.toByte()
         for (entry in entries) {
-            entry.destination.copyInto(buf, offset); offset += 16
-            buf.putDoubleBitsLE(offset, entry.cost); offset += 8
-            buf.putUIntLE(offset, entry.sequenceNumber); offset += 4
+            entry.destination.copyInto(buf, offset)
+            offset += 16
+            buf.putDoubleBitsLE(offset, entry.cost)
+            offset += 8
+            buf.putUIntLE(offset, entry.sequenceNumber)
+            offset += 4
             buf[offset++] = entry.hopCount.toByte()
         }
         return buf
@@ -294,7 +334,8 @@ object WireCodec {
         val buf = ByteArray(RESUME_REQUEST_SIZE)
         var offset = 0
         buf[offset++] = TYPE_RESUME_REQUEST
-        messageId.copyInto(buf, offset); offset += MESSAGE_ID_SIZE
+        messageId.copyInto(buf, offset)
+        offset += MESSAGE_ID_SIZE
         buf.putUIntLE(offset, bytesReceived)
         return buf
     }
@@ -303,7 +344,8 @@ object WireCodec {
         require(data.size >= RESUME_REQUEST_SIZE) { "resume_request too short: ${data.size}" }
         require(data[0] == TYPE_RESUME_REQUEST) { "not a resume_request: 0x${data[0].toUByte().toString(16)}" }
         var offset = 1
-        val messageId = data.copyOfRange(offset, offset + MESSAGE_ID_SIZE); offset += MESSAGE_ID_SIZE
+        val messageId = data.copyOfRange(offset, offset + MESSAGE_ID_SIZE)
+        offset += MESSAGE_ID_SIZE
         val bytesReceived = data.getUIntLE(offset)
         return ResumeRequestMessage(messageId, bytesReceived)
     }
@@ -312,19 +354,23 @@ object WireCodec {
         require(data.size >= ROUTE_UPDATE_HEADER_SIZE) { "route_update too short: ${data.size}" }
         require(data[0] == TYPE_ROUTE_UPDATE) { "not a route_update: 0x${data[0].toUByte().toString(16)}" }
         var offset = 1
-        val senderId = data.copyOfRange(offset, offset + 16); offset += 16
+        val senderId = data.copyOfRange(offset, offset + 16)
+        offset += 16
         val entryCount = data[offset++].toInt() and 0xFF
         val entriesEnd = ROUTE_UPDATE_HEADER_SIZE + entryCount * ROUTE_ENTRY_SIZE
         require(data.size >= entriesEnd) {
             "route_update truncated: expected $entriesEnd, got ${data.size}"
         }
         val entries = (0 until entryCount).map {
-            val destination = data.copyOfRange(offset, offset + 16); offset += 16
-            val cost = data.getDoubleBitsLE(offset); offset += 8
+            val destination = data.copyOfRange(offset, offset + 16)
+            offset += 16
+            val cost = data.getDoubleBitsLE(offset)
+            offset += 8
             require(cost.isFinite() && cost >= 0.0) {
                 "route entry cost invalid: $cost (must be finite and non-negative)"
             }
-            val sequenceNumber = data.getUIntLE(offset); offset += 4
+            val sequenceNumber = data.getUIntLE(offset)
+            offset += 4
             val hopCount = data[offset++].toUByte()
             RouteUpdateEntry(destination, cost, sequenceNumber, hopCount)
         }
@@ -357,6 +403,7 @@ object WireCodec {
         val timestampSeconds = data.getUIntBE(2)
         return KeepaliveMessage(flags, timestampSeconds)
     }
+
     // nack: type(1) + messageId(16) = 17
     private const val NACK_SIZE = 17
 
@@ -380,17 +427,19 @@ object WireCodec {
 
 private fun ByteArray.putUIntBE(offset: Int, value: UInt) {
     val v = value.toInt()
-    this[offset]     = (v shr 24).toByte()
+    this[offset] = (v shr 24).toByte()
     this[offset + 1] = (v shr 16).toByte()
     this[offset + 2] = (v shr 8).toByte()
     this[offset + 3] = v.toByte()
 }
 
 private fun ByteArray.getUIntBE(offset: Int): UInt {
-    return (((this[offset].toInt() and 0xFF) shl 24) or
+    return (
+        ((this[offset].toInt() and 0xFF) shl 24) or
             ((this[offset + 1].toInt() and 0xFF) shl 16) or
             ((this[offset + 2].toInt() and 0xFF) shl 8) or
-            (this[offset + 3].toInt() and 0xFF)).toUInt()
+            (this[offset + 3].toInt() and 0xFF)
+        ).toUInt()
 }
 
 // --- Little-endian helpers ---
@@ -402,8 +451,10 @@ private fun ByteArray.putUShortLE(offset: Int, value: UShort) {
 }
 
 private fun ByteArray.getUShortLE(offset: Int): UShort =
-    ((this[offset].toInt() and 0xFF) or
-     ((this[offset + 1].toInt() and 0xFF) shl 8)).toUShort()
+    (
+        (this[offset].toInt() and 0xFF) or
+            ((this[offset + 1].toInt() and 0xFF) shl 8)
+        ).toUShort()
 
 private fun ByteArray.putULongLE(offset: Int, value: ULong) {
     val v = value.toLong()

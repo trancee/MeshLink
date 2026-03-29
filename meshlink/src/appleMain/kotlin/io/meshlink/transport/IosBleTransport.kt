@@ -2,11 +2,11 @@
 
 package io.meshlink.transport
 
+import kotlinx.cinterop.ObjCSignatureOverride
 import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.usePinned
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -15,8 +15,10 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
 import platform.CoreBluetooth.CBATTErrorSuccess
 import platform.CoreBluetooth.CBATTRequest
+import platform.CoreBluetooth.CBAdvertisementDataServiceUUIDsKey
 import platform.CoreBluetooth.CBCentralManager
 import platform.CoreBluetooth.CBCentralManagerDelegateProtocol
 import platform.CoreBluetooth.CBCentralManagerScanOptionAllowDuplicatesKey
@@ -37,7 +39,6 @@ import platform.CoreBluetooth.CBPeripheralManagerStatePoweredOn
 import platform.CoreBluetooth.CBPeripheralStateConnected
 import platform.CoreBluetooth.CBService
 import platform.CoreBluetooth.CBUUID
-import platform.CoreBluetooth.CBAdvertisementDataServiceUUIDsKey
 import platform.Foundation.NSData
 import platform.Foundation.NSError
 import platform.Foundation.NSLog
@@ -48,7 +49,6 @@ import platform.Foundation.create
 import platform.darwin.NSObject
 import platform.darwin.dispatch_get_main_queue
 import platform.posix.memcpy
-import kotlinx.cinterop.ObjCSignatureOverride
 import kotlin.coroutines.resume
 
 // -- NSData <-> ByteArray conversion extensions --
@@ -460,7 +460,9 @@ class IosBleTransport(
             didFailToConnectPeripheral: CBPeripheral,
             error: NSError?,
         ) {
-            logD("Failed to connect: ${didFailToConnectPeripheral.identifier.UUIDString}, error: ${error?.localizedDescription}")
+            logD(
+                "Failed to connect: ${didFailToConnectPeripheral.identifier.UUIDString}, error: ${error?.localizedDescription}",
+            )
         }
 
         @ObjCSignatureOverride

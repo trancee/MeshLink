@@ -76,11 +76,16 @@ object RotationAnnouncement {
         val buf = ByteArray(SIZE)
         buf[0] = TYPE_ROTATION
         var offset = 1
-        oldX25519Key.copyInto(buf, offset); offset += KEY_SIZE
-        newX25519Key.copyInto(buf, offset); offset += KEY_SIZE
-        oldEd25519Key.copyInto(buf, offset); offset += KEY_SIZE
-        newEd25519Key.copyInto(buf, offset); offset += KEY_SIZE
-        buf.putULongBE(offset, timestampMs); offset += TIMESTAMP_SIZE
+        oldX25519Key.copyInto(buf, offset)
+        offset += KEY_SIZE
+        newX25519Key.copyInto(buf, offset)
+        offset += KEY_SIZE
+        oldEd25519Key.copyInto(buf, offset)
+        offset += KEY_SIZE
+        newEd25519Key.copyInto(buf, offset)
+        offset += KEY_SIZE
+        buf.putULongBE(offset, timestampMs)
+        offset += TIMESTAMP_SIZE
         signature.copyInto(buf, offset)
         return buf
     }
@@ -93,11 +98,16 @@ object RotationAnnouncement {
         require(data[0] == TYPE_ROTATION) { "not a rotation announcement: 0x${data[0].toUByte().toString(16)}" }
 
         var offset = 1
-        val oldX25519 = data.copyOfRange(offset, offset + KEY_SIZE); offset += KEY_SIZE
-        val newX25519 = data.copyOfRange(offset, offset + KEY_SIZE); offset += KEY_SIZE
-        val oldEd25519 = data.copyOfRange(offset, offset + KEY_SIZE); offset += KEY_SIZE
-        val newEd25519 = data.copyOfRange(offset, offset + KEY_SIZE); offset += KEY_SIZE
-        val timestampMs = data.getULongBE(offset); offset += TIMESTAMP_SIZE
+        val oldX25519 = data.copyOfRange(offset, offset + KEY_SIZE)
+        offset += KEY_SIZE
+        val newX25519 = data.copyOfRange(offset, offset + KEY_SIZE)
+        offset += KEY_SIZE
+        val oldEd25519 = data.copyOfRange(offset, offset + KEY_SIZE)
+        offset += KEY_SIZE
+        val newEd25519 = data.copyOfRange(offset, offset + KEY_SIZE)
+        offset += KEY_SIZE
+        val timestampMs = data.getULongBE(offset)
+        offset += TIMESTAMP_SIZE
         val signature = data.copyOfRange(offset, offset + SIGNATURE_SIZE)
 
         return RotationMessage(oldX25519, newX25519, oldEd25519, newEd25519, timestampMs, signature)
@@ -121,10 +131,14 @@ object RotationAnnouncement {
 
         val buf = ByteArray(SIGNABLE_PAYLOAD_SIZE)
         var offset = 0
-        oldX25519Key.copyInto(buf, offset); offset += KEY_SIZE
-        newX25519Key.copyInto(buf, offset); offset += KEY_SIZE
-        oldEd25519Key.copyInto(buf, offset); offset += KEY_SIZE
-        newEd25519Key.copyInto(buf, offset); offset += KEY_SIZE
+        oldX25519Key.copyInto(buf, offset)
+        offset += KEY_SIZE
+        newX25519Key.copyInto(buf, offset)
+        offset += KEY_SIZE
+        oldEd25519Key.copyInto(buf, offset)
+        offset += KEY_SIZE
+        newEd25519Key.copyInto(buf, offset)
+        offset += KEY_SIZE
         buf.putULongBE(offset, timestampMs)
         return buf
     }
@@ -145,7 +159,7 @@ object RotationAnnouncement {
 
     private fun ByteArray.putULongBE(offset: Int, value: ULong) {
         val v = value.toLong()
-        this[offset]     = (v shr 56).toByte()
+        this[offset] = (v shr 56).toByte()
         this[offset + 1] = (v shr 48).toByte()
         this[offset + 2] = (v shr 40).toByte()
         this[offset + 3] = (v shr 32).toByte()
@@ -156,13 +170,15 @@ object RotationAnnouncement {
     }
 
     private fun ByteArray.getULongBE(offset: Int): ULong {
-        return (((this[offset].toLong() and 0xFF) shl 56) or
+        return (
+            ((this[offset].toLong() and 0xFF) shl 56) or
                 ((this[offset + 1].toLong() and 0xFF) shl 48) or
                 ((this[offset + 2].toLong() and 0xFF) shl 40) or
                 ((this[offset + 3].toLong() and 0xFF) shl 32) or
                 ((this[offset + 4].toLong() and 0xFF) shl 24) or
                 ((this[offset + 5].toLong() and 0xFF) shl 16) or
                 ((this[offset + 6].toLong() and 0xFF) shl 8) or
-                (this[offset + 7].toLong() and 0xFF)).toULong()
+                (this[offset + 7].toLong() and 0xFF)
+            ).toULong()
     }
 }

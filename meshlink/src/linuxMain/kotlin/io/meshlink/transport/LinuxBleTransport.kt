@@ -22,15 +22,15 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import platform.posix.SOCK_RAW
+import platform.posix.SOCK_SEQPACKET
+import platform.posix.bind
 import platform.posix.close
+import platform.posix.connect
+import platform.posix.memset
 import platform.posix.read
 import platform.posix.setsockopt
 import platform.posix.socket
 import platform.posix.write
-import platform.posix.bind
-import platform.posix.connect
-import platform.posix.SOCK_SEQPACKET
-import platform.posix.memset
 import kotlin.random.Random
 
 /**
@@ -63,7 +63,7 @@ class LinuxBleTransport(
 
         // LE scan parameters: 100ms interval, 50ms window (50% duty)
         private const val SCAN_INTERVAL: UShort = 0x00A0u // 100ms in 0.625ms units
-        private const val SCAN_WINDOW: UShort = 0x0050u   // 50ms
+        private const val SCAN_WINDOW: UShort = 0x0050u // 50ms
 
         // LE advertising parameters: 100ms interval
         private const val ADV_INTERVAL_MIN: UShort = 0x00A0u
@@ -238,7 +238,7 @@ class LinuxBleTransport(
     private fun startLeScanning() = memScoped {
         // Set scan parameters: active scan, 100ms interval, 50ms window
         val scanParams = alloc<hci_le_set_scan_parameters_cp>()
-        scanParams.type = 0x01u   // active scan
+        scanParams.type = 0x01u // active scan
         scanParams.interval = SCAN_INTERVAL
         scanParams.window = SCAN_WINDOW
         scanParams.own_bdaddr_type = 0x00u
@@ -288,9 +288,9 @@ class LinuxBleTransport(
         val advParams = alloc<hci_le_set_adv_parameters_cp>()
         advParams.min_interval = ADV_INTERVAL_MIN
         advParams.max_interval = ADV_INTERVAL_MAX
-        advParams.type = 0x00u          // ADV_IND (connectable undirected)
+        advParams.type = 0x00u // ADV_IND (connectable undirected)
         advParams.own_bdaddr_type = 0x00u
-        advParams.chan_map = 0x07u      // all 3 channels
+        advParams.chan_map = 0x07u // all 3 channels
         advParams.filter = 0x00u
 
         bt_hci_send_cmd(
@@ -312,11 +312,11 @@ class LinuxBleTransport(
         // AD structure: Flags (3 bytes) + Complete 128-bit Service UUIDs (18 bytes)
         val advBytes = ByteArray(32) // 1 byte length + 31 bytes data
         var pos = 1 // skip length byte at [0]
-        advBytes[pos++] = 0x02  // AD length
-        advBytes[pos++] = 0x01  // AD type: Flags
-        advBytes[pos++] = 0x06  // LE General Discoverable + BR/EDR Not Supported
-        advBytes[pos++] = 0x11  // AD length (17 = 1 type + 16 UUID)
-        advBytes[pos++] = 0x07  // AD type: Complete List of 128-bit Service UUIDs
+        advBytes[pos++] = 0x02 // AD length
+        advBytes[pos++] = 0x01 // AD type: Flags
+        advBytes[pos++] = 0x06 // LE General Discoverable + BR/EDR Not Supported
+        advBytes[pos++] = 0x11 // AD length (17 = 1 type + 16 UUID)
+        advBytes[pos++] = 0x07 // AD type: Complete List of 128-bit Service UUIDs
         for (b in serviceUuidBytes) {
             advBytes[pos++] = b
         }

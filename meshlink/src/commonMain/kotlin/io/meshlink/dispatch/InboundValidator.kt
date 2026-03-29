@@ -50,14 +50,16 @@ class InboundValidator(
         val se = securityEngine ?: return true
         if (signature == null || signerPublicKey == null) {
             diagnosticSink.emit(
-                DiagnosticCode.MALFORMED_DATA, Severity.WARN,
+                DiagnosticCode.MALFORMED_DATA,
+                Severity.WARN,
                 "unsigned route_update rejected (crypto enabled) from $fromPeerHex",
             )
             return false
         }
         if (!se.verify(signerPublicKey, signedData, signature)) {
             diagnosticSink.emit(
-                DiagnosticCode.MALFORMED_DATA, Severity.WARN,
+                DiagnosticCode.MALFORMED_DATA,
+                Severity.WARN,
                 "route_update signature verification failed from $fromPeerHex",
             )
             return false
@@ -109,7 +111,8 @@ class InboundValidator(
         if (replayCounter == 0uL) return true
         if (deliveryPipeline.checkReplay(originHex, replayCounter)) return true
         diagnosticSink.emit(
-            DiagnosticCode.REPLAY_REJECTED, Severity.WARN,
+            DiagnosticCode.REPLAY_REJECTED,
+            Severity.WARN,
             "messageId=$key, origin=$originHex, counter=$replayCounter",
         )
         return false
@@ -119,7 +122,8 @@ class InboundValidator(
     fun checkLoop(key: String, visitedList: List<ByteArray>, originHex: String): Boolean {
         if (visitedList.none { it.contentEquals(localPeerId) }) return true
         diagnosticSink.emit(
-            DiagnosticCode.LOOP_DETECTED, Severity.WARN,
+            DiagnosticCode.LOOP_DETECTED,
+            Severity.WARN,
             "messageId=$key, origin=$originHex",
         )
         return false
@@ -129,7 +133,8 @@ class InboundValidator(
     fun checkHopLimit(key: String, hopLimit: UByte, originHex: String): Boolean {
         if (hopLimit > 0u) return true
         diagnosticSink.emit(
-            DiagnosticCode.HOP_LIMIT_EXCEEDED, Severity.INFO,
+            DiagnosticCode.HOP_LIMIT_EXCEEDED,
+            Severity.INFO,
             "messageId=$key, origin=$originHex",
         )
         return false
@@ -149,7 +154,8 @@ class InboundValidator(
     fun checkRelayRate(originHex: String, neighborHex: String): Boolean {
         if (rateLimitPolicy.checkSenderNeighborRelay(originHex, neighborHex) is RateLimitResult.Allowed) return true
         diagnosticSink.emit(
-            DiagnosticCode.RATE_LIMIT_HIT, Severity.WARN,
+            DiagnosticCode.RATE_LIMIT_HIT,
+            Severity.WARN,
             "sender-neighbor relay limit exceeded, origin=$originHex, neighbor=$neighborHex",
         )
         return false

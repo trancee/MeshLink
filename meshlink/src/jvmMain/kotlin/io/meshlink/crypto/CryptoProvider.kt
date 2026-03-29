@@ -34,7 +34,10 @@ internal class JvmCryptoProvider : CryptoProvider {
         val kpg = KeyPairGenerator.getInstance("Ed25519")
         val javaKeyPair = kpg.generateKeyPair()
         val rawPublic = javaKeyPair.public.encoded.copyOfRange(ed25519X509Prefix.size, javaKeyPair.public.encoded.size)
-        val rawPrivate = javaKeyPair.private.encoded.copyOfRange(ed25519Pkcs8Prefix.size, javaKeyPair.private.encoded.size)
+        val rawPrivate = javaKeyPair.private.encoded.copyOfRange(
+            ed25519Pkcs8Prefix.size,
+            javaKeyPair.private.encoded.size,
+        )
         return CryptoKeyPair(rawPublic, rawPrivate)
     }
 
@@ -64,7 +67,10 @@ internal class JvmCryptoProvider : CryptoProvider {
         val kpg = KeyPairGenerator.getInstance("X25519")
         val javaKeyPair = kpg.generateKeyPair()
         val rawPublic = javaKeyPair.public.encoded.copyOfRange(x25519X509Prefix.size, javaKeyPair.public.encoded.size)
-        val rawPrivate = javaKeyPair.private.encoded.copyOfRange(x25519Pkcs8Prefix.size, javaKeyPair.private.encoded.size)
+        val rawPrivate = javaKeyPair.private.encoded.copyOfRange(
+            x25519Pkcs8Prefix.size,
+            javaKeyPair.private.encoded.size,
+        )
         return CryptoKeyPair(rawPublic, rawPrivate)
     }
 

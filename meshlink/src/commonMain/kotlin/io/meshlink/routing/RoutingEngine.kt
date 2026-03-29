@@ -98,8 +98,10 @@ class RoutingEngine(
 
             val oldBest = routingTable.bestRoute(route.destination)
             routingTable.addRoute(
-                route.destination, fromPeerHex,
-                route.cost + 1.0, route.sequenceNumber,
+                route.destination,
+                fromPeerHex,
+                route.cost + 1.0,
+                route.sequenceNumber,
             )
             val newBest = routingTable.bestRoute(route.destination)
 

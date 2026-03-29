@@ -38,8 +38,14 @@ internal object Sha256 {
                 w[j] = w[j - 16] + s0 + w[j - 7] + s1
             }
 
-            var a = h[0]; var b = h[1]; var c = h[2]; var d = h[3]
-            var e = h[4]; var f = h[5]; var g = h[6]; var hh = h[7]
+            var a = h[0]
+            var b = h[1]
+            var c = h[2]
+            var d = h[3]
+            var e = h[4]
+            var f = h[5]
+            var g = h[6]
+            var hh = h[7]
 
             for (j in 0..63) {
                 val s1 = e.rotateRight(6) xor e.rotateRight(11) xor e.rotateRight(25)
@@ -49,12 +55,24 @@ internal object Sha256 {
                 val maj = (a and b) xor (a and c) xor (b and c)
                 val temp2 = s0 + maj
 
-                hh = g; g = f; f = e; e = d + temp1
-                d = c; c = b; b = a; a = temp1 + temp2
+                hh = g
+                g = f
+                f = e
+                e = d + temp1
+                d = c
+                c = b
+                b = a
+                a = temp1 + temp2
             }
 
-            h[0] += a; h[1] += b; h[2] += c; h[3] += d
-            h[4] += e; h[5] += f; h[6] += g; h[7] += hh
+            h[0] += a
+            h[1] += b
+            h[2] += c
+            h[3] += d
+            h[4] += e
+            h[5] += f
+            h[6] += g
+            h[7] += hh
         }
 
         val digest = ByteArray(32)
@@ -70,8 +88,14 @@ internal object Sha256 {
     private fun Int.rotateRight(n: Int): Int = (this ushr n) or (this shl (32 - n))
 
     private val IV = intArrayOf(
-        0x6a09e667, 0xbb67ae85.toInt(), 0x3c6ef372, 0xa54ff53a.toInt(),
-        0x510e527f, 0x9b05688c.toInt(), 0x1f83d9ab, 0x5be0cd19
+        0x6a09e667,
+        0xbb67ae85.toInt(),
+        0x3c6ef372,
+        0xa54ff53a.toInt(),
+        0x510e527f,
+        0x9b05688c.toInt(),
+        0x1f83d9ab,
+        0x5be0cd19,
     )
 
     private val K = intArrayOf(

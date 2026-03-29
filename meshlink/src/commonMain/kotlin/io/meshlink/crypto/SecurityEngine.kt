@@ -24,7 +24,9 @@ class SecurityEngine(
     private val lastRotationTimestampMs = mutableMapOf<String, ULong>()
 
     private val handshakeManager = PeerHandshakeManager(
-        crypto, crypto.generateX25519KeyPair(), localPayload = handshakePayload,
+        crypto,
+        crypto.generateX25519KeyPair(),
+        localPayload = handshakePayload,
     )
 
     // --- Public key accessors ---

@@ -28,12 +28,14 @@ value class PeerId(val hex: String) {
 @JvmInline
 value class MessageId(val hex: String) {
     val bytes: ByteArray get() = hexToBytes(hex)
+
     @OptIn(ExperimentalUuidApi::class)
     fun toUuid(): Uuid = Uuid.fromByteArray(bytes)
     override fun toString(): String = hex
 
     companion object {
         fun fromBytes(bytes: ByteArray): MessageId = MessageId(bytes.toHex())
+
         @OptIn(ExperimentalUuidApi::class)
         fun random(): MessageId = fromBytes(Uuid.random().toByteArray())
     }

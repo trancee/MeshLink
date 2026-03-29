@@ -1,11 +1,11 @@
 package io.meshlink.util
 
 import kotlinx.cinterop.ExperimentalForeignApi
-import platform.posix.gettimeofday
-import platform.posix.timeval
 import kotlinx.cinterop.alloc
 import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.ptr
+import platform.posix.gettimeofday
+import platform.posix.timeval
 
 @OptIn(ExperimentalForeignApi::class)
 actual fun currentTimeMillis(): Long = memScoped {
