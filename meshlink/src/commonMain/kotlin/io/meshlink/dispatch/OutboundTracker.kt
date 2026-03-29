@@ -10,7 +10,7 @@ import io.meshlink.crypto.ReplayGuard
  * Consolidates three correlated maps and the replay guard that were
  * previously scattered across MeshLink fields.
  */
-class OutboundTracker {
+internal class OutboundTracker {
     private val recipients = mutableMapOf<String, ByteArray>()
     private val nextHops = mutableMapOf<String, String>()
     private val replayGuard = ReplayGuard()

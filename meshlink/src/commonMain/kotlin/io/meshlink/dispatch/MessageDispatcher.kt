@@ -29,7 +29,7 @@ import io.meshlink.wire.WireCodec
  * Side-effectful actions (flow emissions, transport sends) are delegated to
  * [DispatchSink].
  */
-class MessageDispatcher(
+internal class MessageDispatcher(
     private val securityEngine: SecurityEngine?,
     private val routingEngine: RoutingEngine,
     private val transferEngine: TransferEngine,

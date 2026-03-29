@@ -7,7 +7,7 @@ import io.meshlink.transfer.ChunkData
  * Callback interface for side-effectful actions that handlers need
  * MeshLink to perform (flow emission, transport sends, coroutine launches).
  */
-interface DispatchSink {
+internal interface DispatchSink {
     suspend fun onMessageReceived(senderId: ByteArray, payload: ByteArray)
     suspend fun onTransferProgress(messageId: ByteArray, chunksAcked: Int, totalChunks: Int)
     suspend fun onDeliveryConfirmed(messageId: ByteArray)

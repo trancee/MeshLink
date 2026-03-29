@@ -22,7 +22,7 @@ import io.meshlink.util.RateLimitResult
  * handler logic, keeping handlers focused on "what to do" rather
  * than "should I do it".
  */
-class InboundValidator(
+internal class InboundValidator(
     private val securityEngine: SecurityEngine?,
     private val deliveryPipeline: DeliveryPipeline,
     private val rateLimitPolicy: RateLimitPolicy,
