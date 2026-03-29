@@ -72,6 +72,8 @@ enum ConfigPreset: String, CaseIterable, Identifiable {
 @MainActor
 final class MeshLinkViewModel: ObservableObject {
 
+    private var diagnosticCounter = 0
+
     @Published var isRunning = false
     @Published var logEntries: [String] = []
     @Published var peerCount = 0
@@ -209,8 +211,10 @@ final class MeshLinkViewModel: ObservableObject {
         }
 
         collectFlow(meshLink.diagnosticEvents) { [weak self] (event: DiagnosticEvent) in
+            guard let self else { return }
+            self.diagnosticCounter += 1
             let entry = DiagnosticEntry(
-                id: "\(event.monotonicMillis)-\(event.code.name)",
+                id: "\(event.monotonicMillis)-\(event.code.name)-\(self.diagnosticCounter)",
                 code: event.code.name,
                 severity: event.severity.name,
                 timestamp: Self.formatTimestamp(event.monotonicMillis),

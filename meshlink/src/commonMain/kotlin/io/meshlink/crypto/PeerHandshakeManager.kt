@@ -56,10 +56,22 @@ class PeerHandshakeManager(
     fun handleIncoming(fromPeerId: ByteArray, wireData: ByteArray): ByteArray? {
         val key = fromPeerId.toHex()
         val hsMsg = WireCodec.decodeHandshake(wireData)
+
+        // If we receive a step-0 message but already have an in-progress initiator
+        // handshake for this peer, both sides raced to initiate. Reset to responder
+        // to resolve the collision.
+        if (hsMsg.step.toInt() == 0 && key in handshakes) {
+            diagnosticSink?.emit(
+                DiagnosticCode.HANDSHAKE_EVENT,
+                Severity.INFO,
+                "⚠ handshake collision detected — resetting to responder (peer=${key.take(8)}…)",
+            )
+            handshakes[key] = NoiseXXHandshake.responder(crypto, localStaticKeyPair)
+        }
+
         val isNewResponder = key !in handshakes
 
         val hs = handshakes.getOrPut(key) {
-            // First message from this peer — we're the responder
             NoiseXXHandshake.responder(crypto, localStaticKeyPair)
         }
 
