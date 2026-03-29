@@ -96,7 +96,7 @@ jobs:
           build-scan-terms-of-use-agree: 'yes'
 
       - name: Compile Android
-        run: ./gradlew :meshlink:compileKotlinAndroid
+        run: ./gradlew :meshlink:compileAndroidMain
 
   apple-test:
     name: iOS & macOS Tests
