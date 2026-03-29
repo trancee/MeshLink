@@ -2,9 +2,9 @@
 
 package io.meshlink.util
 
+import platform.posix.pthread_self
 import kotlin.concurrent.AtomicInt
 import kotlin.concurrent.AtomicLong
-import platform.posix.pthread_self
 
 /**
  * Reentrant platform lock for Linux using AtomicInt with pthread-based thread ownership.

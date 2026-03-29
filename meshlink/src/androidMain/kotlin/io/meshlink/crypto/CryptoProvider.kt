@@ -42,14 +42,22 @@ private class AndroidJcaCryptoProvider : CryptoProvider {
     override fun generateEd25519KeyPair(): CryptoKeyPair {
         val kpg = java.security.KeyPairGenerator.getInstance("Ed25519")
         val javaKeyPair = kpg.generateKeyPair()
-        val rawPublic = javaKeyPair.public.encoded.copyOfRange(ed25519X509Prefix.size, javaKeyPair.public.encoded.size)
-        val rawPrivate = javaKeyPair.private.encoded.copyOfRange(ed25519Pkcs8Prefix.size, javaKeyPair.private.encoded.size)
+        val rawPublic = javaKeyPair.public.encoded.copyOfRange(
+            ed25519X509Prefix.size,
+            javaKeyPair.public.encoded.size,
+        )
+        val rawPrivate = javaKeyPair.private.encoded.copyOfRange(
+            ed25519Pkcs8Prefix.size,
+            javaKeyPair.private.encoded.size,
+        )
         return CryptoKeyPair(rawPublic, rawPrivate)
     }
 
     override fun sign(privateKey: ByteArray, data: ByteArray): ByteArray {
         val keyFactory = java.security.KeyFactory.getInstance("Ed25519")
-        val pkcs8Key = keyFactory.generatePrivate(java.security.spec.PKCS8EncodedKeySpec(ed25519Pkcs8Prefix + privateKey))
+        val pkcs8Key = keyFactory.generatePrivate(
+            java.security.spec.PKCS8EncodedKeySpec(ed25519Pkcs8Prefix + privateKey),
+        )
         val sig = java.security.Signature.getInstance("Ed25519")
         sig.initSign(pkcs8Key)
         sig.update(data)
@@ -59,7 +67,9 @@ private class AndroidJcaCryptoProvider : CryptoProvider {
     override fun verify(publicKey: ByteArray, data: ByteArray, signature: ByteArray): Boolean {
         return try {
             val keyFactory = java.security.KeyFactory.getInstance("Ed25519")
-            val x509Key = keyFactory.generatePublic(java.security.spec.X509EncodedKeySpec(ed25519X509Prefix + publicKey))
+            val x509Key = keyFactory.generatePublic(
+                java.security.spec.X509EncodedKeySpec(ed25519X509Prefix + publicKey),
+            )
             val sig = java.security.Signature.getInstance("Ed25519")
             sig.initVerify(x509Key)
             sig.update(data)
@@ -72,8 +82,14 @@ private class AndroidJcaCryptoProvider : CryptoProvider {
     override fun generateX25519KeyPair(): CryptoKeyPair {
         val kpg = java.security.KeyPairGenerator.getInstance("X25519")
         val javaKeyPair = kpg.generateKeyPair()
-        val rawPublic = javaKeyPair.public.encoded.copyOfRange(x25519X509Prefix.size, javaKeyPair.public.encoded.size)
-        val rawPrivate = javaKeyPair.private.encoded.copyOfRange(x25519Pkcs8Prefix.size, javaKeyPair.private.encoded.size)
+        val rawPublic = javaKeyPair.public.encoded.copyOfRange(
+            x25519X509Prefix.size,
+            javaKeyPair.public.encoded.size,
+        )
+        val rawPrivate = javaKeyPair.private.encoded.copyOfRange(
+            x25519Pkcs8Prefix.size,
+            javaKeyPair.private.encoded.size,
+        )
         return CryptoKeyPair(rawPublic, rawPrivate)
     }
 
