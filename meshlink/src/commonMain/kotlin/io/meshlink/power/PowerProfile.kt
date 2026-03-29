@@ -3,9 +3,8 @@ package io.meshlink.power
 /**
  * Single source of truth for all power-mode-dependent constants.
  *
- * Replaces scattered `when(mode)` lookups in [AdvertisingPolicy],
- * [ScanDutyCycleController][io.meshlink.transport.ScanDutyCycleController],
- * and [ConnectionLimiter] with a data-driven profile per mode.
+ * Used by [ScanDutyCycleController][io.meshlink.transport.ScanDutyCycleController]
+ * and [ConnectionLimiter] for mode-specific timing and limits.
  */
 data class PowerProfile(
     val advertisingIntervalMillis: Long,

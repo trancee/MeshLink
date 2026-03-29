@@ -1,6 +1,6 @@
 package io.meshlink.transport
 
-import io.meshlink.power.PowerMode
+import io.meshlink.power.PowerProfile
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -18,7 +18,8 @@ class ScanDutyCycleControllerTest {
 
     @Test
     fun performanceTimingIs4sOn1sOff() {
-        val t = ScanDutyCycleController.timingFor(PowerMode.PERFORMANCE)
+        val p = PowerProfile.PERFORMANCE
+        val t = ScanDutyCycleController.CycleTiming(p.scanOnMillis, p.scanOffMillis)
         assertEquals(4_000L, t.scanOnMillis)
         assertEquals(1_000L, t.scanOffMillis)
         assertEquals(80, t.dutyPercent)
@@ -26,7 +27,8 @@ class ScanDutyCycleControllerTest {
 
     @Test
     fun balancedTimingIs3sOn3sOff() {
-        val t = ScanDutyCycleController.timingFor(PowerMode.BALANCED)
+        val p = PowerProfile.BALANCED
+        val t = ScanDutyCycleController.CycleTiming(p.scanOnMillis, p.scanOffMillis)
         assertEquals(3_000L, t.scanOnMillis)
         assertEquals(3_000L, t.scanOffMillis)
         assertEquals(50, t.dutyPercent)
@@ -34,7 +36,8 @@ class ScanDutyCycleControllerTest {
 
     @Test
     fun powerSaverTimingIs1sOn5sOff() {
-        val t = ScanDutyCycleController.timingFor(PowerMode.POWER_SAVER)
+        val p = PowerProfile.POWER_SAVER
+        val t = ScanDutyCycleController.CycleTiming(p.scanOnMillis, p.scanOffMillis)
         assertEquals(1_000L, t.scanOnMillis)
         assertEquals(5_000L, t.scanOffMillis)
         assertEquals(16, t.dutyPercent) // 1000/6000 = 16%
@@ -87,7 +90,8 @@ class ScanDutyCycleControllerTest {
     fun multipleCyclesAlternateStartAndStop() = runTest {
         val transport = RecordingTransport()
         val controller = ScanDutyCycleController()
-        controller.onPowerModeChanged(PowerMode.BALANCED) // 3s on, 3s off
+        val balanced = PowerProfile.BALANCED
+        controller.onTimingChanged(balanced.scanOnMillis, balanced.scanOffMillis) // 3s on, 3s off
 
         controller.start(this, transport)
 
@@ -113,11 +117,12 @@ class ScanDutyCycleControllerTest {
     // -- Power mode changes ---------------------------------------------------
 
     @Test
-    fun onPowerModeChangedUpdatesTiming() {
+    fun onTimingChangedUpdatesTiming() {
         val controller = ScanDutyCycleController()
         assertEquals(4_000L, controller.timing.scanOnMillis) // default PERFORMANCE
 
-        controller.onPowerModeChanged(PowerMode.POWER_SAVER)
+        val ps = PowerProfile.POWER_SAVER
+        controller.onTimingChanged(ps.scanOnMillis, ps.scanOffMillis)
         assertEquals(1_000L, controller.timing.scanOnMillis)
         assertEquals(5_000L, controller.timing.scanOffMillis)
     }
@@ -131,7 +136,8 @@ class ScanDutyCycleControllerTest {
         advanceTimeBy(100) // first start called
 
         // Switch to PowerSaver mid-cycle (1s on, 5s off)
-        controller.onPowerModeChanged(PowerMode.POWER_SAVER)
+        val ps = PowerProfile.POWER_SAVER
+        controller.onTimingChanged(ps.scanOnMillis, ps.scanOffMillis)
 
         // Complete the current PERFORMANCE on-window (4s) + off-window (1s)
         advanceTimeBy(4_900)

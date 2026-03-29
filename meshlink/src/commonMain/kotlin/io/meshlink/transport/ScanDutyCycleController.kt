@@ -1,7 +1,5 @@
 package io.meshlink.transport
 
-import io.meshlink.power.PowerMode
-import io.meshlink.power.PowerProfile
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -9,19 +7,17 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /**
- * Controls BLE scan on/off cycling based on the current [PowerMode].
+ * Controls BLE scan on/off cycling based on the current power mode.
  *
- * Each power mode defines a scan-on and scan-off duration that together
- * form the duty cycle:
- * - **Performance**: scan 4 s, pause 1 s (80 % duty)
- * - **Balanced**: scan 3 s, pause 3 s (50 % duty)
- * - **PowerSaver**: scan 1 s, pause 5 s (≈17 % duty)
+ * Accepts raw scan timing values — callers resolve power mode to timing
+ * externally (via `PowerProfile.forMode()`), keeping the transport layer
+ * free of power-management imports.
  *
  * Thread-safety: all mutable state is confined to the coroutine that runs
  * the duty-cycle loop, so no external synchronisation is needed.
  */
 class ScanDutyCycleController {
-    /** Duty-cycle timing for a given power mode. */
+    /** Duty-cycle timing. */
     data class CycleTiming(
         val scanOnMillis: Long,
         val scanOffMillis: Long,
@@ -32,7 +28,10 @@ class ScanDutyCycleController {
 
     private var cycleJob: Job? = null
 
-    private var currentTiming: CycleTiming = timingFor(PowerMode.PERFORMANCE)
+    private var currentTiming: CycleTiming = CycleTiming(
+        scanOnMillis = 4_000L,
+        scanOffMillis = 1_000L,
+    )
 
     private var running = false
 
@@ -71,18 +70,13 @@ class ScanDutyCycleController {
     }
 
     /**
-     * Adjusts the cycle timing for the new [mode].
-     * Takes effect at the start of the next cycle iteration.
+     * Adjusts the cycle timing. Takes effect at the start of the next cycle
+     * iteration.
      */
-    fun onPowerModeChanged(mode: PowerMode) {
-        currentTiming = timingFor(mode)
-    }
-
-    companion object {
-        /** Returns the [CycleTiming] for the given [mode], derived from [PowerProfile]. */
-        fun timingFor(mode: PowerMode): CycleTiming {
-            val profile = PowerProfile.forMode(mode)
-            return CycleTiming(scanOnMillis = profile.scanOnMillis, scanOffMillis = profile.scanOffMillis)
-        }
+    fun onTimingChanged(scanOnMillis: Long, scanOffMillis: Long) {
+        currentTiming = CycleTiming(
+            scanOnMillis = scanOnMillis,
+            scanOffMillis = scanOffMillis,
+        )
     }
 }

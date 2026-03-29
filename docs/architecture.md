@@ -129,7 +129,7 @@ platform-agnostic logic (in `commonMain`) and platform-specific I/O (in
 | `PowerCoordinator.kt` | Facade consolidating power-mode transitions, memory-pressure evaluation, and buffer-pressure monitoring behind sealed result types. |
 | `PowerProfile.kt` | Single source of truth for all power-mode-dependent constants (advertising interval, scan timing, max connections, gossip multiplier). Replaces scattered `when(mode)` lookups. |
 | `PowerModeEngine.kt` | Hysteresis-based mode transitions driven by battery level and charging state. |
-| `AdvertisingPolicy.kt` | Maps power mode to BLE advertising interval and scan duty cycle. |
+| `PowerProfile.kt` | Single source of truth for power-mode-dependent constants (intervals, limits). |
 | `TieredShedder.kt` | Three-tier memory shedding strategy (MODERATE → HIGH → CRITICAL). |
 | `ConnectionLimiter.kt` | Manages per-mode connection limits with eviction on power mode downgrade. |
 
