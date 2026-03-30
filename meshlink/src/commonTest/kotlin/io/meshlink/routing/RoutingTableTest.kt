@@ -1,5 +1,6 @@
 package io.meshlink.routing
 
+import io.meshlink.util.ByteArrayKey
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -7,29 +8,31 @@ import kotlin.test.assertNull
 
 class RoutingTableTest {
 
+    private fun key(s: String) = ByteArrayKey(s.encodeToByteArray())
+
     @Test
     fun addRouteAndQueryBestRoute() {
         val table = RoutingTable()
 
-        table.addRoute(destination = "D", nextHop = "A", cost = 10.0, sequenceNumber = 1u)
-        table.addRoute(destination = "D", nextHop = "B", cost = 5.0, sequenceNumber = 1u)
+        table.addRoute(destination = key("D"), nextHop = key("A"), cost = 10.0, sequenceNumber = 1u)
+        table.addRoute(destination = key("D"), nextHop = key("B"), cost = 5.0, sequenceNumber = 1u)
 
-        val best = table.bestRoute("D")
-        assertEquals("B", best?.nextHop)
+        val best = table.bestRoute(key("D"))
+        assertEquals(key("B"), best?.nextHop)
         assertEquals(5.0, best?.cost)
 
-        assertNull(table.bestRoute("X"))
+        assertNull(table.bestRoute(key("X")))
     }
 
     @Test
     fun preferHigherSequenceNumberOverShorterPath() {
         val table = RoutingTable()
 
-        table.addRoute(destination = "D", nextHop = "A", cost = 1.0, sequenceNumber = 1u)
-        table.addRoute(destination = "D", nextHop = "B", cost = 10.0, sequenceNumber = 5u)
+        table.addRoute(destination = key("D"), nextHop = key("A"), cost = 1.0, sequenceNumber = 1u)
+        table.addRoute(destination = key("D"), nextHop = key("B"), cost = 10.0, sequenceNumber = 5u)
 
-        val best = table.bestRoute("D")
-        assertEquals("B", best?.nextHop, "Higher seqnum should win over lower cost")
+        val best = table.bestRoute(key("D"))
+        assertEquals(key("B"), best?.nextHop, "Higher seqnum should win over lower cost")
         assertEquals(5u, best?.sequenceNumber)
     }
 
@@ -37,15 +40,15 @@ class RoutingTableTest {
     fun primaryAndBackupFailover() {
         val table = RoutingTable()
 
-        table.addRoute(destination = "D", nextHop = "A", cost = 3.0, sequenceNumber = 1u)
-        table.addRoute(destination = "D", nextHop = "B", cost = 7.0, sequenceNumber = 1u)
+        table.addRoute(destination = key("D"), nextHop = key("A"), cost = 3.0, sequenceNumber = 1u)
+        table.addRoute(destination = key("D"), nextHop = key("B"), cost = 7.0, sequenceNumber = 1u)
 
-        assertEquals("A", table.bestRoute("D")?.nextHop, "Primary should be lowest cost")
+        assertEquals(key("A"), table.bestRoute(key("D"))?.nextHop, "Primary should be lowest cost")
 
-        table.removeRoute(destination = "D", nextHop = "A")
+        table.removeRoute(destination = key("D"), nextHop = key("A"))
 
-        val backup = table.bestRoute("D")
-        assertEquals("B", backup?.nextHop, "Backup should take over after primary removed")
+        val backup = table.bestRoute(key("D"))
+        assertEquals(key("B"), backup?.nextHop, "Backup should take over after primary removed")
     }
 
     @Test
@@ -55,11 +58,11 @@ class RoutingTableTest {
 
         val table = RoutingTable(expiryMillis = 500)
 
-        table.addRoute(destination = "D", nextHop = "A", cost = 5.0, sequenceNumber = 1u)
-        assertEquals("A", table.bestRoute("D")?.nextHop)
+        table.addRoute(destination = key("D"), nextHop = key("A"), cost = 5.0, sequenceNumber = 1u)
+        assertEquals(key("A"), table.bestRoute(key("D"))?.nextHop)
 
         now = 1600L
-        assertNull(table.bestRoute("D"), "Route should be expired after 500ms")
+        assertNull(table.bestRoute(key("D")), "Route should be expired after 500ms")
     }
 
     @Test
@@ -68,21 +71,21 @@ class RoutingTableTest {
         val table = RoutingTable(neighborCapFraction = 0.3, maxDestinations = 10)
 
         // Neighbor "N" announces routes to D1, D2, D3 — all accepted
-        table.addRoute(destination = "D1", nextHop = "N", cost = 1.0, sequenceNumber = 1u)
-        table.addRoute(destination = "D2", nextHop = "N", cost = 1.0, sequenceNumber = 1u)
-        table.addRoute(destination = "D3", nextHop = "N", cost = 1.0, sequenceNumber = 1u)
+        table.addRoute(destination = key("D1"), nextHop = key("N"), cost = 1.0, sequenceNumber = 1u)
+        table.addRoute(destination = key("D2"), nextHop = key("N"), cost = 1.0, sequenceNumber = 1u)
+        table.addRoute(destination = key("D3"), nextHop = key("N"), cost = 1.0, sequenceNumber = 1u)
 
-        assertEquals("N", table.bestRoute("D1")?.nextHop)
-        assertEquals("N", table.bestRoute("D2")?.nextHop)
-        assertEquals("N", table.bestRoute("D3")?.nextHop)
+        assertEquals(key("N"), table.bestRoute(key("D1"))?.nextHop)
+        assertEquals(key("N"), table.bestRoute(key("D2"))?.nextHop)
+        assertEquals(key("N"), table.bestRoute(key("D3"))?.nextHop)
 
         // 4th route from same neighbor exceeds 30% cap → rejected
-        table.addRoute(destination = "D4", nextHop = "N", cost = 1.0, sequenceNumber = 1u)
-        assertNull(table.bestRoute("D4"), "4th route from neighbor N should be rejected (30% cap of 10)")
+        table.addRoute(destination = key("D4"), nextHop = key("N"), cost = 1.0, sequenceNumber = 1u)
+        assertNull(table.bestRoute(key("D4")), "4th route from neighbor N should be rejected (30% cap of 10)")
 
         // Different neighbor can still add routes
-        table.addRoute(destination = "D4", nextHop = "M", cost = 2.0, sequenceNumber = 1u)
-        assertEquals("M", table.bestRoute("D4")?.nextHop, "Different neighbor should be accepted")
+        table.addRoute(destination = key("D4"), nextHop = key("M"), cost = 2.0, sequenceNumber = 1u)
+        assertEquals(key("M"), table.bestRoute(key("D4"))?.nextHop, "Different neighbor should be accepted")
     }
 
     // --- Batch 12 Cycle 5: Cost tie-breaking and removal ---
@@ -92,24 +95,24 @@ class RoutingTableTest {
         val table = RoutingTable()
 
         // Two routes with identical cost and seqnum
-        table.addRoute("D", "A", cost = 5.0, sequenceNumber = 1u)
-        table.addRoute("D", "B", cost = 5.0, sequenceNumber = 1u)
+        table.addRoute(key("D"), key("A"), cost = 5.0, sequenceNumber = 1u)
+        table.addRoute(key("D"), key("B"), cost = 5.0, sequenceNumber = 1u)
 
         // bestRoute returns one of them (deterministic via minByOrNull)
-        val best = table.bestRoute("D")!!
+        val best = table.bestRoute(key("D"))!!
         assertEquals(5.0, best.cost)
 
         // Remove whichever was picked — the other should take over
-        table.removeRoute("D", best.nextHop)
-        val remaining = table.bestRoute("D")
+        table.removeRoute(key("D"), best.nextHop)
+        val remaining = table.bestRoute(key("D"))
         assertEquals(5.0, remaining?.cost)
         // nextHop must be the OTHER one
-        val other = if (best.nextHop == "A") "B" else "A"
+        val other = if (best.nextHop == key("A")) key("B") else key("A")
         assertEquals(other, remaining?.nextHop)
 
         // Remove second route → null
-        table.removeRoute("D", other)
-        assertNull(table.bestRoute("D"))
+        table.removeRoute(key("D"), other)
+        assertNull(table.bestRoute(key("D")))
     }
 
     // --- Batch 12 Cycle 6: Stale seqnum rejected ---
@@ -118,21 +121,21 @@ class RoutingTableTest {
     fun staleSequenceNumberRejected() {
         val table = RoutingTable()
 
-        table.addRoute("D", "A", cost = 5.0, sequenceNumber = 10u)
+        table.addRoute(key("D"), key("A"), cost = 5.0, sequenceNumber = 10u)
 
         // Lower seqnum is ignored even with better cost
-        table.addRoute("D", "B", cost = 1.0, sequenceNumber = 5u)
-        assertEquals("A", table.bestRoute("D")?.nextHop,
+        table.addRoute(key("D"), key("B"), cost = 1.0, sequenceNumber = 5u)
+        assertEquals(key("A"), table.bestRoute(key("D"))?.nextHop,
             "Stale seqnum should be rejected even with better cost")
 
         // Equal seqnum adds a competing route
-        table.addRoute("D", "C", cost = 3.0, sequenceNumber = 10u)
-        assertEquals("C", table.bestRoute("D")?.nextHop,
+        table.addRoute(key("D"), key("C"), cost = 3.0, sequenceNumber = 10u)
+        assertEquals(key("C"), table.bestRoute(key("D"))?.nextHop,
             "Same seqnum, lower cost → new best route")
 
         // Higher seqnum clears old routes
-        table.addRoute("D", "X", cost = 100.0, sequenceNumber = 20u)
-        assertEquals("X", table.bestRoute("D")?.nextHop,
+        table.addRoute(key("D"), key("X"), cost = 100.0, sequenceNumber = 20u)
+        assertEquals(key("X"), table.bestRoute(key("D"))?.nextHop,
             "Higher seqnum clears old routes even with worse cost")
     }
 
@@ -142,14 +145,14 @@ class RoutingTableTest {
     fun removeOnlyRouteThenBestRouteNull() {
         val table = RoutingTable()
 
-        table.addRoute("D", "A", cost = 1.0, sequenceNumber = 1u)
-        assertEquals("A", table.bestRoute("D")?.nextHop)
+        table.addRoute(key("D"), key("A"), cost = 1.0, sequenceNumber = 1u)
+        assertEquals(key("A"), table.bestRoute(key("D"))?.nextHop)
 
-        table.removeRoute("D", "A")
-        assertNull(table.bestRoute("D"), "After removing only route, bestRoute returns null")
+        table.removeRoute(key("D"), key("A"))
+        assertNull(table.bestRoute(key("D")), "After removing only route, bestRoute returns null")
 
         // Removing from non-existent destination is a no-op
-        table.removeRoute("X", "Y") // should not throw
+        table.removeRoute(key("X"), key("Y")) // should not throw
     }
 
     // --- DSDV Holddown Timer ---
@@ -162,17 +165,17 @@ class RoutingTableTest {
         val table = RoutingTable(settlingMillis = 100)
 
         // Initial route accepted immediately
-        table.addRoute("D", "A", cost = 5.0, sequenceNumber = 1u)
-        assertEquals("A", table.bestRoute("D")?.nextHop)
+        table.addRoute(key("D"), key("A"), cost = 5.0, sequenceNumber = 1u)
+        assertEquals(key("A"), table.bestRoute(key("D"))?.nextHop)
 
         // New route with same seqnum arrives during settling period — held
         now = 1050L
-        table.addRoute("D", "B", cost = 3.0, sequenceNumber = 1u)
+        table.addRoute(key("D"), key("B"), cost = 3.0, sequenceNumber = 1u)
         // During settling, the original route should still be best (settling delays new)
         // But after settling, the better route is accepted
         now = 1200L
-        val best = table.bestRoute("D")
-        assertEquals("B", best?.nextHop, "Better route should be usable after settling period")
+        val best = table.bestRoute(key("D"))
+        assertEquals(key("B"), best?.nextHop, "Better route should be usable after settling period")
     }
 
     @Test
@@ -183,27 +186,27 @@ class RoutingTableTest {
         val table = RoutingTable(holddownMillis = 200)
 
         // Route installed
-        table.addRoute("D", "A", cost = 5.0, sequenceNumber = 5u)
-        assertEquals("A", table.bestRoute("D")?.nextHop)
+        table.addRoute(key("D"), key("A"), cost = 5.0, sequenceNumber = 5u)
+        assertEquals(key("A"), table.bestRoute(key("D"))?.nextHop)
 
         // Route withdrawn (high cost = infinity, higher seqnum)
         now = 1100L
-        table.addRoute("D", "A", cost = Double.MAX_VALUE, sequenceNumber = 6u)
+        table.addRoute(key("D"), key("A"), cost = Double.MAX_VALUE, sequenceNumber = 6u)
 
         // During holddown, a new route with lower seqnum is rejected
         now = 1150L
-        table.addRoute("D", "B", cost = 1.0, sequenceNumber = 4u)
+        table.addRoute(key("D"), key("B"), cost = 1.0, sequenceNumber = 4u)
         // Route with stale seqnum should still be rejected (existing behavior)
-        val best = table.bestRoute("D")
+        val best = table.bestRoute(key("D"))
         // Only the infinity-cost route exists during holddown
         if (best != null) {
-            assertEquals("A", best.nextHop)
+            assertEquals(key("A"), best.nextHop)
         }
 
         // After holddown, a new route with higher seqnum is accepted
         now = 1400L
-        table.addRoute("D", "C", cost = 2.0, sequenceNumber = 7u)
-        assertEquals("C", table.bestRoute("D")?.nextHop, "New route accepted after holddown")
+        table.addRoute(key("D"), key("C"), cost = 2.0, sequenceNumber = 7u)
+        assertEquals(key("C"), table.bestRoute(key("D"))?.nextHop, "New route accepted after holddown")
     }
 
     // --- Route Cost Sanity Validation ---
@@ -211,39 +214,39 @@ class RoutingTableTest {
     @Test
     fun negativeCostRejected() {
         val table = RoutingTable()
-        table.addRoute("D", "A", cost = -1.0, sequenceNumber = 1u)
-        assertNull(table.bestRoute("D"), "Negative cost route should be rejected")
+        table.addRoute(key("D"), key("A"), cost = -1.0, sequenceNumber = 1u)
+        assertNull(table.bestRoute(key("D")), "Negative cost route should be rejected")
     }
 
     @Test
     fun nanCostRejected() {
         val table = RoutingTable()
-        table.addRoute("D", "A", cost = Double.NaN, sequenceNumber = 1u)
-        assertNull(table.bestRoute("D"), "NaN cost route should be rejected")
+        table.addRoute(key("D"), key("A"), cost = Double.NaN, sequenceNumber = 1u)
+        assertNull(table.bestRoute(key("D")), "NaN cost route should be rejected")
     }
 
     @Test
     fun infiniteCostRejected() {
         val table = RoutingTable()
-        table.addRoute("D", "A", cost = Double.POSITIVE_INFINITY, sequenceNumber = 1u)
-        assertNull(table.bestRoute("D"), "Positive infinity cost should be rejected")
+        table.addRoute(key("D"), key("A"), cost = Double.POSITIVE_INFINITY, sequenceNumber = 1u)
+        assertNull(table.bestRoute(key("D")), "Positive infinity cost should be rejected")
 
-        table.addRoute("D", "B", cost = Double.NEGATIVE_INFINITY, sequenceNumber = 1u)
-        assertNull(table.bestRoute("D"), "Negative infinity cost should be rejected")
+        table.addRoute(key("D"), key("B"), cost = Double.NEGATIVE_INFINITY, sequenceNumber = 1u)
+        assertNull(table.bestRoute(key("D")), "Negative infinity cost should be rejected")
     }
 
     @Test
     fun costExceedingMaxRejected() {
         val table = RoutingTable()
-        table.addRoute("D", "A", cost = RoutingTable.MAX_ROUTE_COST + 1.0, sequenceNumber = 1u)
-        assertNull(table.bestRoute("D"), "Cost exceeding MAX_ROUTE_COST should be rejected")
+        table.addRoute(key("D"), key("A"), cost = RoutingTable.MAX_ROUTE_COST + 1.0, sequenceNumber = 1u)
+        assertNull(table.bestRoute(key("D")), "Cost exceeding MAX_ROUTE_COST should be rejected")
     }
 
     @Test
     fun withdrawalCostAccepted() {
         val table = RoutingTable()
-        table.addRoute("D", "A", cost = Double.MAX_VALUE, sequenceNumber = 1u)
-        val best = table.bestRoute("D")
+        table.addRoute(key("D"), key("A"), cost = Double.MAX_VALUE, sequenceNumber = 1u)
+        val best = table.bestRoute(key("D"))
         assertNotNull(best, "Double.MAX_VALUE (withdrawal) should be accepted")
         assertEquals(Double.MAX_VALUE, best.cost)
     }
@@ -251,13 +254,13 @@ class RoutingTableTest {
     @Test
     fun normalPositiveCostsAccepted() {
         val table = RoutingTable()
-        table.addRoute("D", "A", cost = 0.0, sequenceNumber = 1u)
-        assertNotNull(table.bestRoute("D"), "Zero cost should be accepted")
+        table.addRoute(key("D"), key("A"), cost = 0.0, sequenceNumber = 1u)
+        assertNotNull(table.bestRoute(key("D")), "Zero cost should be accepted")
 
-        table.addRoute("E", "A", cost = 1.0, sequenceNumber = 1u)
-        assertNotNull(table.bestRoute("E"), "Normal positive cost should be accepted")
+        table.addRoute(key("E"), key("A"), cost = 1.0, sequenceNumber = 1u)
+        assertNotNull(table.bestRoute(key("E")), "Normal positive cost should be accepted")
 
-        table.addRoute("F", "A", cost = RoutingTable.MAX_ROUTE_COST, sequenceNumber = 1u)
-        assertNotNull(table.bestRoute("F"), "Cost exactly at MAX_ROUTE_COST should be accepted")
+        table.addRoute(key("F"), key("A"), cost = RoutingTable.MAX_ROUTE_COST, sequenceNumber = 1u)
+        assertNotNull(table.bestRoute(key("F")), "Cost exactly at MAX_ROUTE_COST should be accepted")
     }
 }

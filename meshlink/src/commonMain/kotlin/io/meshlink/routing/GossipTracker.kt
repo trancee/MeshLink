@@ -1,5 +1,7 @@
 package io.meshlink.routing
 
+import io.meshlink.util.ByteArrayKey
+
 /**
  * Tracks per-neighbor gossip state for differential exchange.
  * Instead of flooding all routes to every peer on each gossip round,
@@ -12,16 +14,16 @@ class GossipTracker {
         val cost: Double,
     )
 
-    // peerHex → (destination → SentRouteState)
-    private val peerState: MutableMap<String, MutableMap<String, SentRouteState>> = mutableMapOf()
+    // peerId → (destination → SentRouteState)
+    private val peerState: MutableMap<ByteArrayKey, MutableMap<ByteArrayKey, SentRouteState>> = mutableMapOf()
 
     /**
-     * Compute which routes need to be sent to [peerHex].
+     * Compute which routes need to be sent to [peerId].
      * Returns only routes that are new or changed since last sent.
      * If peer has no prior state, returns ALL routes (full exchange).
      */
-    fun computeDiff(peerHex: String, currentRoutes: List<RoutingTable.Route>): List<RoutingTable.Route> {
-        val sent = peerState[peerHex] ?: return currentRoutes
+    fun computeDiff(peerId: ByteArrayKey, currentRoutes: List<RoutingTable.Route>): List<RoutingTable.Route> {
+        val sent = peerState[peerId] ?: return currentRoutes
 
         return currentRoutes.filter { route ->
             val previous = sent[route.destination] ?: return@filter true
@@ -30,11 +32,11 @@ class GossipTracker {
     }
 
     /**
-     * Record that routes were successfully sent to [peerHex].
+     * Record that routes were successfully sent to [peerId].
      * Call this AFTER sending to update tracked state.
      */
-    fun recordSent(peerHex: String, sentRoutes: List<RoutingTable.Route>) {
-        val map = peerState.getOrPut(peerHex) { mutableMapOf() }
+    fun recordSent(peerId: ByteArrayKey, sentRoutes: List<RoutingTable.Route>) {
+        val map = peerState.getOrPut(peerId) { mutableMapOf() }
         for (route in sentRoutes) {
             map[route.destination] = SentRouteState(route.sequenceNumber, route.cost)
         }
@@ -44,8 +46,8 @@ class GossipTracker {
      * Compute routes that the peer knows about but are no longer in our table.
      * These should be sent as withdrawals (cost = Double.MAX_VALUE).
      */
-    fun computeWithdrawals(peerHex: String, currentDestinations: Set<String>): Set<String> {
-        val sent = peerState[peerHex] ?: return emptySet()
+    fun computeWithdrawals(peerId: ByteArrayKey, currentDestinations: Set<ByteArrayKey>): Set<ByteArrayKey> {
+        val sent = peerState[peerId] ?: return emptySet()
 
         return sent.keys.filter { destination ->
             destination !in currentDestinations &&
@@ -56,15 +58,15 @@ class GossipTracker {
     /**
      * Clear state for a disconnected peer.
      */
-    fun removePeer(peerHex: String) {
-        peerState.remove(peerHex)
+    fun removePeer(peerId: ByteArrayKey) {
+        peerState.remove(peerId)
     }
 
     /**
      * Force full exchange on next gossip round for this peer.
      */
-    fun resetPeer(peerHex: String) {
-        peerState.remove(peerHex)
+    fun resetPeer(peerId: ByteArrayKey) {
+        peerState.remove(peerId)
     }
 
     /**

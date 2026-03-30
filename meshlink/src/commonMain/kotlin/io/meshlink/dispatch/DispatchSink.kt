@@ -2,6 +2,7 @@ package io.meshlink.dispatch
 
 import io.meshlink.model.KeyChangeEvent
 import io.meshlink.transfer.ChunkData
+import io.meshlink.util.ByteArrayKey
 
 /**
  * Callback interface for side-effectful actions that handlers need
@@ -15,5 +16,5 @@ internal interface DispatchSink {
     suspend fun sendFrame(peerId: ByteArray, frame: ByteArray)
     suspend fun dispatchChunks(recipient: ByteArray, chunks: List<ChunkData>, messageId: ByteArray)
     fun triggerGossipUpdate()
-    fun onOutboundComplete(key: String, messageId: ByteArray)
+    fun onOutboundComplete(key: ByteArrayKey, messageId: ByteArray)
 }

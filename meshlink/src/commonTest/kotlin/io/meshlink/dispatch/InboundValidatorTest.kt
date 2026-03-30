@@ -8,6 +8,7 @@ import io.meshlink.diagnostics.DiagnosticCode
 import io.meshlink.diagnostics.DiagnosticEvent
 import io.meshlink.diagnostics.DiagnosticSink
 import io.meshlink.util.AppIdFilter
+import io.meshlink.util.ByteArrayKey
 import io.meshlink.util.RateLimitPolicy
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -17,6 +18,8 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class InboundValidatorTest {
+
+    private fun key(s: String) = ByteArrayKey(s.encodeToByteArray())
 
     private val localPeer = ByteArray(4) { (it + 1).toByte() }
 
@@ -72,7 +75,7 @@ class InboundValidatorTest {
     @Test
     fun appIdAcceptsWhenNoFilter() {
         val (v, sink) = createValidator(appId = null)
-        assertTrue(v.checkAppId("msg1", "anything".encodeToByteArray()))
+        assertTrue(v.checkAppId(key("msg1"), "anything".encodeToByteArray()))
         assertTrue(sink.drain().isEmpty())
     }
 
@@ -80,7 +83,7 @@ class InboundValidatorTest {
     fun appIdRejectsNonMatchingHash() {
         val (v, sink) = createValidator(appId = "com.example.chat")
         val wrongHash = AppIdFilter.hash("com.other.app")
-        assertFalse(v.checkAppId("msg1", wrongHash))
+        assertFalse(v.checkAppId(key("msg1"), wrongHash))
         val events = sink.drain()
         assertEquals(1, events.size)
         assertEquals(DiagnosticCode.APP_ID_REJECTED, events[0].code)
@@ -90,7 +93,7 @@ class InboundValidatorTest {
     fun appIdAcceptsMatchingHash() {
         val (v, sink) = createValidator(appId = "com.example.chat")
         val matchingHash = AppIdFilter.hash("com.example.chat")
-        assertTrue(v.checkAppId("msg1", matchingHash))
+        assertTrue(v.checkAppId(key("msg1"), matchingHash))
         assertTrue(sink.drain().isEmpty())
     }
 
@@ -100,7 +103,7 @@ class InboundValidatorTest {
     fun loopDetectedWhenLocalPeerInVisitedList() {
         val (v, sink) = createValidator()
         val visited = listOf(ByteArray(4) { 0xFF.toByte() }, localPeer.copyOf())
-        assertFalse(v.checkLoop("msg1", visited, "origin01"))
+        assertFalse(v.checkLoop(key("msg1"), visited, key("origin01")))
         val events = sink.drain()
         assertEquals(1, events.size)
         assertEquals(DiagnosticCode.LOOP_DETECTED, events[0].code)
@@ -110,14 +113,14 @@ class InboundValidatorTest {
     fun noLoopWhenLocalPeerNotInVisitedList() {
         val (v, sink) = createValidator()
         val visited = listOf(ByteArray(4) { 0xFF.toByte() })
-        assertTrue(v.checkLoop("msg1", visited, "origin01"))
+        assertTrue(v.checkLoop(key("msg1"), visited, key("origin01")))
         assertTrue(sink.drain().isEmpty())
     }
 
     @Test
     fun noLoopWithEmptyVisitedList() {
         val (v, _) = createValidator()
-        assertTrue(v.checkLoop("msg1", emptyList(), "origin01"))
+        assertTrue(v.checkLoop(key("msg1"), emptyList(), key("origin01")))
     }
 
     // ── Hop limit ──────────────────────────────────────────────────
@@ -125,7 +128,7 @@ class InboundValidatorTest {
     @Test
     fun hopLimitExceededAtZero() {
         val (v, sink) = createValidator()
-        assertFalse(v.checkHopLimit("msg1", 0u, "origin01"))
+        assertFalse(v.checkHopLimit(key("msg1"), 0u, key("origin01")))
         val events = sink.drain()
         assertEquals(1, events.size)
         assertEquals(DiagnosticCode.HOP_LIMIT_EXCEEDED, events[0].code)
@@ -134,8 +137,8 @@ class InboundValidatorTest {
     @Test
     fun hopLimitPassesAboveZero() {
         val (v, sink) = createValidator()
-        assertTrue(v.checkHopLimit("msg1", 1u, "origin01"))
-        assertTrue(v.checkHopLimit("msg2", 10u, "origin01"))
+        assertTrue(v.checkHopLimit(key("msg1"), 1u, key("origin01")))
+        assertTrue(v.checkHopLimit(key("msg2"), 10u, key("origin01")))
         assertTrue(sink.drain().isEmpty())
     }
 
@@ -144,21 +147,21 @@ class InboundValidatorTest {
     @Test
     fun replayCounterZeroAlwaysPasses() {
         val (v, _) = createValidator()
-        assertTrue(v.checkReplay("msg1", "origin01", 0uL))
+        assertTrue(v.checkReplay(key("msg1"), key("origin01"), 0uL))
     }
 
     @Test
     fun replayCounterAcceptsForwardProgress() {
         val (v, _) = createValidator()
-        assertTrue(v.checkReplay("msg1", "origin01", 5uL))
+        assertTrue(v.checkReplay(key("msg1"), key("origin01"), 5uL))
     }
 
     @Test
     fun replayCounterRejectsRepeatedCounter() {
         val (v, sink) = createValidator()
-        assertTrue(v.checkReplay("msg1", "origin01", 5uL))
+        assertTrue(v.checkReplay(key("msg1"), key("origin01"), 5uL))
         sink.drain() // clear
-        assertFalse(v.checkReplay("msg2", "origin01", 5uL))
+        assertFalse(v.checkReplay(key("msg2"), key("origin01"), 5uL))
         val events = sink.drain()
         assertEquals(1, events.size)
         assertEquals(DiagnosticCode.REPLAY_REJECTED, events[0].code)
@@ -169,15 +172,15 @@ class InboundValidatorTest {
     @Test
     fun inboundRateDisabledByDefault() {
         val (v, _) = createValidator(inboundRateLimit = 0)
-        assertTrue(v.checkInboundRate("origin01"))
+        assertTrue(v.checkInboundRate(key("origin01")))
     }
 
     @Test
     fun inboundRateRejectsWhenExceeded() {
         val (v, sink) = createValidator(inboundRateLimit = 1)
-        assertTrue(v.checkInboundRate("origin01"))
+        assertTrue(v.checkInboundRate(key("origin01")))
         sink.drain() // clear
-        assertFalse(v.checkInboundRate("origin01"))
+        assertFalse(v.checkInboundRate(key("origin01")))
         val events = sink.drain()
         assertEquals(1, events.size)
         assertEquals(DiagnosticCode.RATE_LIMIT_HIT, events[0].code)
@@ -188,7 +191,7 @@ class InboundValidatorTest {
     @Test
     fun relayRatePassesUnderLimit() {
         val (v, _) = createValidator()
-        assertTrue(v.checkRelayRate("origin01", "neighbor01"))
+        assertTrue(v.checkRelayRate(key("origin01"), key("neighbor01")))
     }
 
     // ── Signature validation (no crypto) ───────────────────────────
@@ -196,7 +199,7 @@ class InboundValidatorTest {
     @Test
     fun routeUpdatePassesWithoutCrypto() {
         val (v, _) = createValidator(securityEngine = null)
-        assertTrue(v.validateRouteUpdateSignature("peer01", null, null, ByteArray(0)))
+        assertTrue(v.validateRouteUpdateSignature(key("peer01"), null, null, ByteArray(0)))
     }
 
     @Test
@@ -217,7 +220,7 @@ class InboundValidatorTest {
     fun routeUpdateRejectsUnsignedWhenCryptoEnabled() {
         val se = SecurityEngine(PureKotlinCryptoProvider())
         val (v, sink) = createValidator(securityEngine = se)
-        assertFalse(v.validateRouteUpdateSignature("peer01", null, null, ByteArray(10)))
+        assertFalse(v.validateRouteUpdateSignature(key("peer01"), null, null, ByteArray(10)))
         val events = sink.drain()
         assertEquals(1, events.size)
         assertEquals(DiagnosticCode.MALFORMED_DATA, events[0].code)
@@ -229,7 +232,7 @@ class InboundValidatorTest {
         val se = SecurityEngine(PureKotlinCryptoProvider())
         val (v, sink) = createValidator(securityEngine = se)
         assertFalse(v.validateRouteUpdateSignature(
-            "peer01",
+            key("peer01"),
             signature = ByteArray(64),
             signerPublicKey = ByteArray(32),
             signedData = ByteArray(10),

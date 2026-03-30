@@ -40,6 +40,7 @@ import io.meshlink.transfer.TransferEngine
 import io.meshlink.transfer.TransferUpdate
 import io.meshlink.transport.BleTransport
 import io.meshlink.util.AppIdFilter
+import io.meshlink.util.ByteArrayKey
 import io.meshlink.util.DeliveryOutcome
 import io.meshlink.util.PauseManager
 import io.meshlink.util.RateLimitPolicy
@@ -48,6 +49,7 @@ import io.meshlink.util.createPlatformLock
 import io.meshlink.util.currentTimeMillis
 import io.meshlink.util.hexToBytes
 import io.meshlink.util.toHex
+import io.meshlink.util.toKey
 import io.meshlink.util.withLock
 import io.meshlink.wire.AdvertisementCodec
 import io.meshlink.wire.WireCodec
@@ -140,19 +142,19 @@ class MeshLink(
         }
     }
 
-    private fun flushPendingMessages(peerHex: String, s: CoroutineScope) {
-        val flushed = deliveryPipeline.flushPending(peerHex, config.pendingMessageTtlMillis)
+    private fun flushPendingMessages(peerId: ByteArrayKey, s: CoroutineScope) {
+        val flushed = deliveryPipeline.flushPending(peerId, config.pendingMessageTtlMillis)
         for (msg in flushed) {
             doSend(s, msg.recipient, msg.payload)
         }
     }
 
-    private fun resumeTransfers(peerId: ByteArray, s: CoroutineScope, eligibleKeys: Set<String>) {
-        val peerHex = peerId.toHex()
+    private fun resumeTransfers(peerId: ByteArray, s: CoroutineScope, eligibleKeys: Set<ByteArrayKey>) {
+        val peerKey = peerId.toKey()
         for (key in eligibleKeys) {
             val info = transferEngine.getOutboundRecipientInfo(key) ?: continue
-            val recipientHex = outboundTracker.recipient(key)?.toHex() ?: continue
-            if (recipientHex == peerHex && !info.isComplete && !info.isFailed) {
+            val recipientKey = outboundTracker.recipient(key)?.toKey() ?: continue
+            if (recipientKey == peerKey && !info.isComplete && !info.isFailed) {
                 // Re-send remaining chunks via a dummy ACK to trigger retransmit
                 val update = transferEngine.onAck(key, -1, 0uL)
                 if (update is TransferUpdate.Progress) {
@@ -185,7 +187,7 @@ class MeshLink(
 
     // Routing engine: facade for routing table, presence tracking, dedup, and gossip
     private val routingEngine = RoutingEngine(
-        localPeerId = transport.localPeerId.toHex(),
+        localPeerId = transport.localPeerId.toKey(),
         dedupCapacity = config.dedupCapacity,
         triggeredUpdateThreshold = config.triggeredUpdateThreshold,
         gossipIntervalMillis = config.gossipIntervalMillis,
@@ -230,7 +232,7 @@ class MeshLink(
         checkSendRate = { rateLimitPolicy.checkSend(it) },
         checkCircuitBreaker = { rateLimitPolicy.checkCircuitBreaker() },
         resolveNextHop = { routingEngine.resolveNextHop(it) },
-        peerPublicKey = securityEngine?.let { se -> { recipientHex: String -> se.peerPublicKey(recipientHex) } },
+        peerPublicKey = securityEngine?.let { se -> { recipientId: ByteArrayKey -> se.peerPublicKey(recipientId) } },
     )
 
     private val broadcastPolicyChain = BroadcastPolicyChain(
@@ -309,7 +311,7 @@ class MeshLink(
                 )
             }
             override suspend fun onDeliveryConfirmed(messageId: ByteArray) {
-                val key = messageId.toHex()
+                val key = messageId.toKey()
                 outboundTracker.removeNextHop(key)?.let { nextHop ->
                     routingEngine.recordNextHopSuccess(nextHop)
                 }
@@ -327,31 +329,33 @@ class MeshLink(
             override fun triggerGossipUpdate() {
                 gossipCoordinator.triggerUpdate()
             }
-            override fun onOutboundComplete(key: String, messageId: ByteArray) {
+            override fun onOutboundComplete(key: ByteArrayKey, messageId: ByteArray) {
                 emitHealthUpdate()
             }
         },
     )
 
     override val localPublicKey: ByteArray? get() = securityEngine?.localPublicKey
-    override fun peerPublicKey(peerIdHex: String): ByteArray? = securityEngine?.peerPublicKey(peerIdHex)
+    override fun peerPublicKey(peerIdHex: String): ByteArray? =
+        securityEngine?.peerPublicKey(ByteArrayKey(hexToBytes(peerIdHex)))
     override val broadcastPublicKey: ByteArray? get() = securityEngine?.localBroadcastPublicKey
 
     override fun peerDetail(peerIdHex: String): PeerDetail? {
-        val state = routingEngine.presenceState(peerIdHex) ?: return null
-        val route = routingEngine.bestRoute(peerIdHex)
+        val peerId = ByteArrayKey(hexToBytes(peerIdHex))
+        val state = routingEngine.presenceState(peerId) ?: return null
+        val route = routingEngine.bestRoute(peerId)
         val connectedIds = routingEngine.connectedPeerIds()
-        val pubKey = securityEngine?.peerPublicKey(peerIdHex)
+        val pubKey = securityEngine?.peerPublicKey(peerId)
         return PeerDetail(
             peerIdHex = peerIdHex,
             presenceState = state,
-            isDirectNeighbor = peerIdHex in connectedIds,
-            routeNextHop = route?.nextHop,
+            isDirectNeighbor = peerId in connectedIds,
+            routeNextHop = route?.nextHop?.toString(),
             routeCost = route?.cost,
             routeSequenceNumber = route?.sequenceNumber,
             publicKeyHex = pubKey?.toHex(),
-            nextHopFailureRate = routingEngine.nextHopFailureRate(peerIdHex),
-            nextHopFailureCount = routingEngine.nextHopFailureCount(peerIdHex),
+            nextHopFailureRate = routingEngine.nextHopFailureRate(peerId),
+            nextHopFailureCount = routingEngine.nextHopFailureCount(peerId),
         )
     }
 
@@ -359,20 +363,20 @@ class MeshLink(
         val allIds = routingEngine.allPeerIds()
         val connectedIds = routingEngine.connectedPeerIds()
         val allRoutes = routingEngine.allBestRoutes().associateBy { it.destination }
-        return allIds.mapNotNull { peerIdHex ->
-            val state = routingEngine.presenceState(peerIdHex) ?: return@mapNotNull null
-            val route = allRoutes[peerIdHex]
-            val pubKey = securityEngine?.peerPublicKey(peerIdHex)
+        return allIds.mapNotNull { peerId ->
+            val state = routingEngine.presenceState(peerId) ?: return@mapNotNull null
+            val route = allRoutes[peerId]
+            val pubKey = securityEngine?.peerPublicKey(peerId)
             PeerDetail(
-                peerIdHex = peerIdHex,
+                peerIdHex = peerId.toString(),
                 presenceState = state,
-                isDirectNeighbor = peerIdHex in connectedIds,
-                routeNextHop = route?.nextHop,
+                isDirectNeighbor = peerId in connectedIds,
+                routeNextHop = route?.nextHop?.toString(),
                 routeCost = route?.cost,
                 routeSequenceNumber = route?.sequenceNumber,
                 publicKeyHex = pubKey?.toHex(),
-                nextHopFailureRate = routingEngine.nextHopFailureRate(peerIdHex),
-                nextHopFailureCount = routingEngine.nextHopFailureCount(peerIdHex),
+                nextHopFailureRate = routingEngine.nextHopFailureRate(peerId),
+                nextHopFailureCount = routingEngine.nextHopFailureCount(peerId),
             )
         }
     }
@@ -421,7 +425,7 @@ class MeshLink(
                             safeEmit(_peers, PeerEvent.Found(action.peerId), "peers")
                             emitHealthUpdate()
                             val preExistingTransferKeys = outboundTracker.allRecipientKeys()
-                            flushPendingMessages(action.peerId.toHex(), newScope)
+                            flushPendingMessages(action.peerId.toKey(), newScope)
                             resumeTransfers(action.peerId, newScope, preExistingTransferKeys)
                         }
                         if (action.handshakeRateLimited) {
@@ -482,7 +486,7 @@ class MeshLink(
         for (key in outboundTracker.allRecipientKeys()) {
             if (deliveryPipeline.recordFailure(key, DeliveryOutcome.FAILED_DELIVERY_TIMEOUT)) {
                 _transferFailures.tryEmit(
-                    TransferFailure(Uuid.fromByteArray(hexToBytes(key)), DeliveryOutcome.FAILED_DELIVERY_TIMEOUT)
+                    TransferFailure(Uuid.fromByteArray(key.bytes), DeliveryOutcome.FAILED_DELIVERY_TIMEOUT)
                 )
             }
         }
@@ -558,15 +562,21 @@ class MeshLink(
     override val diagnosticEvents: Flow<DiagnosticEvent> = diagnosticSink.events
 
     override fun sweep(seenPeers: Set<String>): Set<String> {
-        val evicted = routingEngine.sweepPresence(seenPeers)
+        val seenKeys = seenPeers.map { ByteArrayKey(hexToBytes(it)) }.toSet()
+        val evicted = routingEngine.sweepPresence(seenKeys)
         for (peerId in evicted) {
             diagnosticSink.emit(DiagnosticCode.PEER_EVICTED, Severity.INFO, "peerId=$peerId")
         }
-        return evicted
+        return evicted.map { it.toString() }.toSet()
     }
 
     override fun addRoute(destination: String, nextHop: String, cost: Double, sequenceNumber: UInt) {
-        routingEngine.addRoute(destination, nextHop, cost, sequenceNumber)
+        routingEngine.addRoute(
+            ByteArrayKey(hexToBytes(destination)),
+            ByteArrayKey(hexToBytes(nextHop)),
+            cost,
+            sequenceNumber,
+        )
     }
 
     override fun sweepStaleTransfers(maxAgeMillis: Long): Int {
@@ -587,7 +597,7 @@ class MeshLink(
             }
             if (deliveryPipeline.recordFailure(key, DeliveryOutcome.FAILED_ACK_TIMEOUT)) {
                 _transferFailures.tryEmit(
-                    TransferFailure(Uuid.fromByteArray(hexToBytes(key)), DeliveryOutcome.FAILED_ACK_TIMEOUT)
+                    TransferFailure(Uuid.fromByteArray(key.bytes), DeliveryOutcome.FAILED_ACK_TIMEOUT)
                 )
             }
         }
@@ -676,8 +686,8 @@ class MeshLink(
             }
 
             is BroadcastDecision.Proceed -> {
-                for (peerHex in routingEngine.allPeerIds()) {
-                    s.launch { safeSend(hexToBytes(peerHex), decision.encodedFrame) }
+                for (peerId in routingEngine.allPeerIds()) {
+                    s.launch { safeSend(peerId.bytes, decision.encodedFrame) }
                 }
                 Result.success(Uuid.fromByteArray(decision.messageId))
             }
@@ -724,15 +734,15 @@ class MeshLink(
             }
 
             is SendDecision.Routed -> {
-                doRoutedSend(s, recipient, payload, decision.nextHopHex)
+                doRoutedSend(s, recipient, payload, decision.nextHopId)
             }
 
             is SendDecision.Unreachable -> {
                 if (config.pendingMessageTtlMillis > 0) {
-                    val recipientHex = recipient.toHex()
+                    val recipientId = recipient.toKey()
                     when (
                         deliveryPipeline.bufferPending(
-                            recipientHex,
+                            recipientId,
                             recipient,
                             payload,
                             config.pendingMessageCapacity
@@ -772,11 +782,11 @@ class MeshLink(
 
     private fun doSend(s: CoroutineScope, recipient: ByteArray, payload: ByteArray): Result<Uuid> {
         val messageId = Uuid.random().toByteArray()
-        val key = messageId.toHex()
+        val key = messageId.toKey()
         deliveryPipeline.registerOutbound(s, key, config.bufferTtlMillis) { expiredKey ->
             _transferFailures.tryEmit(
                 TransferFailure(
-                    Uuid.fromByteArray(hexToBytes(expiredKey)),
+                    Uuid.fromByteArray(expiredKey.bytes),
                     DeliveryOutcome.FAILED_DELIVERY_TIMEOUT
                 )
             )
@@ -788,8 +798,8 @@ class MeshLink(
         }
 
         // Encrypt payload via security engine
-        val recipientHex = recipient.toHex()
-        val wirePayload = when (val sr = securityEngine?.seal(recipientHex, payload)) {
+        val recipientId = recipient.toKey()
+        val wirePayload = when (val sr = securityEngine?.seal(recipientId, payload)) {
             is SealResult.Sealed -> sr.ciphertext
             else -> payload
         }
@@ -810,11 +820,11 @@ class MeshLink(
         s: CoroutineScope,
         destination: ByteArray,
         payload: ByteArray,
-        nextHopHex: String,
+        nextHopId: ByteArrayKey,
     ): Result<Uuid> {
         val messageId = Uuid.random()
-        val key = messageId.toByteArray().toHex()
-        outboundTracker.registerNextHop(key, nextHopHex)
+        val key = messageId.toByteArray().toKey()
+        outboundTracker.registerNextHop(key, nextHopId)
         val encoded = WireCodec.encodeRoutedMessage(
             messageId = messageId.toByteArray(),
             origin = transport.localPeerId,
@@ -824,7 +834,7 @@ class MeshLink(
             payload = payload,
             replayCounter = outboundTracker.advanceReplayCounter(),
         )
-        s.launch { safeSend(hexToBytes(nextHopHex), encoded) }
+        s.launch { safeSend(nextHopId.bytes, encoded) }
         return Result.success(messageId)
     }
 
@@ -842,7 +852,7 @@ class MeshLink(
 
     private suspend fun safeSend(peerId: ByteArray, data: ByteArray) {
         // Per-neighbor aggregate rate limit
-        if (rateLimitPolicy.checkNeighborAggregate(peerId.toHex()) is RateLimitResult.Limited) {
+        if (rateLimitPolicy.checkNeighborAggregate(peerId.toKey()) is RateLimitResult.Limited) {
             diagnosticSink.emit(
                 DiagnosticCode.RATE_LIMIT_HIT,
                 Severity.WARN,
@@ -863,12 +873,12 @@ class MeshLink(
     }
 
     internal fun sendNack(peerId: ByteArray, messageId: ByteArray) {
-        val peerHex = peerId.toHex()
-        if (rateLimitPolicy.checkNack(peerHex) is RateLimitResult.Limited) {
+        val peerKey = peerId.toKey()
+        if (rateLimitPolicy.checkNack(peerKey) is RateLimitResult.Limited) {
             diagnosticSink.emit(
                 DiagnosticCode.RATE_LIMIT_HIT,
                 Severity.WARN,
-                "NACK rate limit exceeded, peer=$peerHex"
+                "NACK rate limit exceeded, peer=$peerKey"
             )
             return
         }

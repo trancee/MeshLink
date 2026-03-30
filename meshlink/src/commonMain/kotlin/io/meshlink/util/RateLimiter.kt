@@ -7,9 +7,9 @@ class RateLimiter(
 ) {
     // key → list of timestamps within window
     // Uses replace-on-write to avoid concurrent mutation crashes on Kotlin/Native
-    private val events = mutableMapOf<String, List<Long>>()
+    private val events = mutableMapOf<ByteArrayKey, List<Long>>()
 
-    fun tryAcquire(key: String): Boolean {
+    fun tryAcquire(key: ByteArrayKey): Boolean {
         val now = clock()
         val pruned = (events[key] ?: emptyList()).filter { now - it <= windowMillis }
         if (pruned.size >= maxEvents) {

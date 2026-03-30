@@ -1,8 +1,9 @@
 package io.meshlink.send
 
 import io.meshlink.crypto.SignedPayload
+import io.meshlink.util.ByteArrayKey
 import io.meshlink.util.RateLimitResult
-import io.meshlink.util.toHex
+import io.meshlink.util.toKey
 import io.meshlink.wire.WireCodec
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
@@ -31,7 +32,7 @@ class BroadcastPolicyChain(
     private val signData: ((ByteArray) -> SignedPayload?)?,
     private val appIdHash: ByteArray,
     private val localPeerId: ByteArray,
-    private val markAsSeen: (String) -> Unit = {},
+    private val markAsSeen: (ByteArrayKey) -> Unit = {},
 ) {
     fun evaluate(payload: ByteArray, maxHops: UByte): BroadcastDecision {
         if (payload.size > bufferCapacity) return BroadcastDecision.BufferFull
@@ -57,7 +58,7 @@ class BroadcastPolicyChain(
         )
 
         // Mark as seen so we don't deliver our own broadcast back
-        markAsSeen(msgIdBytes.toHex())
+        markAsSeen(msgIdBytes.toKey())
 
         return BroadcastDecision.Proceed(encodedFrame, msgIdBytes)
     }

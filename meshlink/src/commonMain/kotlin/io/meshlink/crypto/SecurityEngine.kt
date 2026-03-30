@@ -2,7 +2,8 @@ package io.meshlink.crypto
 
 import io.meshlink.diagnostics.DiagnosticSink
 import io.meshlink.model.KeyChangeEvent
-import io.meshlink.util.toHex
+import io.meshlink.util.ByteArrayKey
+import io.meshlink.util.toKey
 import io.meshlink.wire.RotationAnnouncement
 
 /**
@@ -23,8 +24,8 @@ class SecurityEngine(
     private var broadcastKeyPair: CryptoKeyPair = crypto.generateEd25519KeyPair()
     private var sealer: NoiseKSealer = NoiseKSealer(crypto)
 
-    private val peerPublicKeys = mutableMapOf<String, ByteArray>()
-    private val lastRotationTimestampMillis = mutableMapOf<String, ULong>()
+    private val peerPublicKeys = mutableMapOf<ByteArrayKey, ByteArray>()
+    private val lastRotationTimestampMillis = mutableMapOf<ByteArrayKey, ULong>()
 
     private val handshakeManager = PeerHandshakeManager(
         crypto,
@@ -38,12 +39,12 @@ class SecurityEngine(
     val localPublicKey: ByteArray get() = localKeyPair.publicKey
     val localBroadcastPublicKey: ByteArray get() = broadcastKeyPair.publicKey
 
-    fun peerPublicKey(peerHex: String): ByteArray? = peerPublicKeys[peerHex]
+    fun peerPublicKey(peerId: ByteArrayKey): ByteArray? = peerPublicKeys[peerId]
 
     // --- E2E encryption ---
 
-    fun seal(recipientHex: String, payload: ByteArray): SealResult {
-        val recipientKey = peerPublicKeys[recipientHex]
+    fun seal(recipientId: ByteArrayKey, payload: ByteArray): SealResult {
+        val recipientKey = peerPublicKeys[recipientId]
             ?: return SealResult.UnknownRecipient
         return SealResult.Sealed(sealer.seal(recipientKey, payload))
     }
@@ -84,10 +85,10 @@ class SecurityEngine(
     }
 
     private fun registerCompletedHandshakeKey(peerId: ByteArray) {
-        val peerHex = peerId.toHex()
-        if (peerPublicKeys.containsKey(peerHex)) return
+        val key = peerId.toKey()
+        if (peerPublicKeys.containsKey(key)) return
         val result = handshakeManager.getSessionKeys(peerId) ?: return
-        peerPublicKeys[peerHex] = result.remoteStaticKey
+        peerPublicKeys[key] = result.remoteStaticKey
     }
 
     fun isHandshakeComplete(peerId: ByteArray): Boolean =
@@ -99,12 +100,12 @@ class SecurityEngine(
 
     // --- Peer key management ---
 
-    fun registerPeerKey(peerHex: String, publicKey: ByteArray): KeyRegistrationResult {
-        val previousKey = peerPublicKeys[peerHex]
+    fun registerPeerKey(peerId: ByteArrayKey, publicKey: ByteArray): KeyRegistrationResult {
+        val previousKey = peerPublicKeys[peerId]
         if (previousKey != null && previousKey.contentEquals(publicKey)) {
             return KeyRegistrationResult.Unchanged
         }
-        peerPublicKeys[peerHex] = publicKey
+        peerPublicKeys[peerId] = publicKey
         return if (previousKey != null) {
             KeyRegistrationResult.Changed(previousKey)
         } else {
@@ -113,7 +114,7 @@ class SecurityEngine(
     }
 
     fun handleRotationAnnouncement(
-        fromPeerHex: String,
+        fromPeerId: ByteArrayKey,
         announcement: RotationAnnouncement.RotationMessage,
     ): RotationResult {
         val signablePayload = RotationAnnouncement.buildSignablePayload(
@@ -138,21 +139,21 @@ class SecurityEngine(
         }
 
         // Reject if timestamp is not newer than the last seen rotation from this peer
-        val lastTs = lastRotationTimestampMillis[fromPeerHex]
+        val lastTs = lastRotationTimestampMillis[fromPeerId]
         if (lastTs != null && ts <= lastTs) {
             return RotationResult.Stale
         }
 
-        val knownKey = peerPublicKeys[fromPeerHex]
+        val knownKey = peerPublicKeys[fromPeerId]
             ?: return RotationResult.UnknownPeer
         if (!knownKey.contentEquals(announcement.oldX25519Key)) {
             return RotationResult.Rejected
         }
-        peerPublicKeys[fromPeerHex] = announcement.newX25519Key
-        lastRotationTimestampMillis[fromPeerHex] = ts
+        peerPublicKeys[fromPeerId] = announcement.newX25519Key
+        lastRotationTimestampMillis[fromPeerId] = ts
         return RotationResult.Accepted(
             KeyChangeEvent(
-                peerId = io.meshlink.util.hexToBytes(fromPeerHex),
+                peerId = fromPeerId.bytes,
                 previousKey = announcement.oldX25519Key.copyOf(),
                 newKey = announcement.newX25519Key.copyOf(),
             )

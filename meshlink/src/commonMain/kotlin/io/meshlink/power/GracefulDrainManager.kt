@@ -1,5 +1,6 @@
 package io.meshlink.power
 
+import io.meshlink.util.ByteArrayKey
 import io.meshlink.util.currentTimeMillis
 
 /**
@@ -12,37 +13,37 @@ class GracefulDrainManager(
     private val clock: () -> Long = { currentTimeMillis() },
 ) {
     data class DrainEntry(
-        val peerIdHex: String,
+        val peerId: ByteArrayKey,
         val startedAtMillis: Long,
         val reason: String,
     )
 
-    private val draining = mutableMapOf<String, DrainEntry>()
+    private val draining = mutableMapOf<ByteArrayKey, DrainEntry>()
 
     /** Mark a peer as draining (has active transfers, needs grace period). */
-    fun startDrain(peerIdHex: String, reason: String = "power_mode_downgrade") {
-        if (peerIdHex !in draining) {
-            draining[peerIdHex] = DrainEntry(peerIdHex, clock(), reason)
+    fun startDrain(peerId: ByteArrayKey, reason: String = "power_mode_downgrade") {
+        if (peerId !in draining) {
+            draining[peerId] = DrainEntry(peerId, clock(), reason)
         }
     }
 
     /** Check if a peer is in the grace period (should NOT be disconnected yet). */
-    fun isInGracePeriod(peerIdHex: String): Boolean {
-        val entry = draining[peerIdHex] ?: return false
+    fun isInGracePeriod(peerId: ByteArrayKey): Boolean {
+        val entry = draining[peerId] ?: return false
         return clock() - entry.startedAtMillis < graceMillis
     }
 
     /** Get all peers whose grace period has expired (ready to disconnect). */
-    fun expiredPeers(): List<String> {
+    fun expiredPeers(): List<ByteArrayKey> {
         val now = clock()
         return draining.values
             .filter { now - it.startedAtMillis >= graceMillis }
-            .map { it.peerIdHex }
+            .map { it.peerId }
     }
 
     /** Remove a peer from drain tracking (transfer completed or peer disconnected). */
-    fun complete(peerIdHex: String) {
-        draining.remove(peerIdHex)
+    fun complete(peerId: ByteArrayKey) {
+        draining.remove(peerId)
     }
 
     /** Get all peers currently in drain state. */

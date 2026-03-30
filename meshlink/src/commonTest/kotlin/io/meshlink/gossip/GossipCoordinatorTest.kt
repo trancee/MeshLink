@@ -4,6 +4,7 @@ import io.meshlink.crypto.SecurityEngine
 import io.meshlink.diagnostics.DiagnosticSink
 import io.meshlink.routing.RoutingEngine
 import io.meshlink.util.toHex
+import io.meshlink.util.toKey
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -18,7 +19,7 @@ class GossipCoordinatorTest {
         gossipIntervalMillis: Long = 5_000L,
         clock: () -> Long = { 0L },
     ) = RoutingEngine(
-        localPeerId = localPeerId.toHex(),
+        localPeerId = localPeerId.toKey(),
         dedupCapacity = 100,
         triggeredUpdateThreshold = 0.3,
         gossipIntervalMillis = gossipIntervalMillis,
@@ -61,9 +62,9 @@ class GossipCoordinatorTest {
     @Test
     fun routeUpdate_withPeers_sendsToEachPeer() = kotlinx.coroutines.test.runTest {
         val re = routingEngine()
-        re.peerSeen(peerAHex)
+        re.peerSeen(peerA.toKey())
         val peerB = ByteArray(16) { (it + 0x20).toByte() }
-        re.peerSeen(peerB.toHex())
+        re.peerSeen(peerB.toKey())
 
         val sentPeers = mutableListOf<String>()
         val gc = coordinator(re, sendFrame = { id, _ -> sentPeers.add(id.toHex()) })
@@ -76,7 +77,7 @@ class GossipCoordinatorTest {
     @Test
     fun routeUpdate_unsigned_sendsRouteUpdateFrame() = kotlinx.coroutines.test.runTest {
         val re = routingEngine()
-        re.peerSeen(peerAHex)
+        re.peerSeen(peerA.toKey())
 
         val sentData = mutableListOf<ByteArray>()
         val gc = coordinator(re, sendFrame = { _, data -> sentData.add(data) })
@@ -91,7 +92,7 @@ class GossipCoordinatorTest {
         var time = 0L
         val re = routingEngine(clock = { time })
 
-        re.peerSeen(peerAHex)
+        re.peerSeen(peerA.toKey())
 
         val gc = coordinator(re, clock = { time }, sendFrame = { _, _ -> })
         time = 1000L
@@ -104,7 +105,7 @@ class GossipCoordinatorTest {
     fun routeUpdate_triggered_skipsThrottledPeers() = kotlinx.coroutines.test.runTest {
         var time = 0L
         val re = routingEngine(clock = { time })
-        re.peerSeen(peerAHex)
+        re.peerSeen(peerA.toKey())
 
         val sentPeers = mutableListOf<String>()
         val gc = coordinator(re, clock = { time }, sendFrame = { id, _ -> sentPeers.add(id.toHex()) })
@@ -124,7 +125,7 @@ class GossipCoordinatorTest {
     fun routeUpdate_nonTriggered_sendsRegardlessOfThrottle() = kotlinx.coroutines.test.runTest {
         var time = 0L
         val re = routingEngine(clock = { time })
-        re.peerSeen(peerAHex)
+        re.peerSeen(peerA.toKey())
 
         val sentPeers = mutableListOf<String>()
         val gc = coordinator(re, clock = { time }, sendFrame = { id, _ -> sentPeers.add(id.toHex()) })
@@ -153,7 +154,7 @@ class GossipCoordinatorTest {
     @Test
     fun keepalive_withPeers_sendsToAll() = kotlinx.coroutines.test.runTest {
         val re = routingEngine()
-        re.peerSeen(peerAHex)
+        re.peerSeen(peerA.toKey())
 
         val sentPeers = mutableListOf<String>()
         val gc = coordinator(re, sendFrame = { id, _ -> sentPeers.add(id.toHex()) })
@@ -165,7 +166,7 @@ class GossipCoordinatorTest {
     @Test
     fun keepalive_encodesCorrectType() = kotlinx.coroutines.test.runTest {
         val re = routingEngine()
-        re.peerSeen(peerAHex)
+        re.peerSeen(peerA.toKey())
 
         val sentData = mutableListOf<ByteArray>()
         val gc = coordinator(re, clock = { 5000L }, sendFrame = { _, data -> sentData.add(data) })

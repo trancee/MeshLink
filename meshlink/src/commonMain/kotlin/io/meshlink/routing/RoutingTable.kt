@@ -1,5 +1,6 @@
 package io.meshlink.routing
 
+import io.meshlink.util.ByteArrayKey
 import io.meshlink.util.currentTimeMillis
 
 /**
@@ -16,23 +17,23 @@ class RoutingTable(
 ) {
 
     data class Route(
-        val destination: String,
-        val nextHop: String,
+        val destination: ByteArrayKey,
+        val nextHop: ByteArrayKey,
         val cost: Double,
         val sequenceNumber: UInt,
         val timestamp: Long = currentTime(),
     )
 
     // destination → (nextHop → Route)
-    private val routes = mutableMapOf<String, MutableMap<String, Route>>()
+    private val routes = mutableMapOf<ByteArrayKey, MutableMap<ByteArrayKey, Route>>()
 
     // Track when a destination entered holddown (route withdrawn with infinity cost)
-    private val holddownUntil = mutableMapOf<String, Long>()
+    private val holddownUntil = mutableMapOf<ByteArrayKey, Long>()
 
     // Track when a destination last had a route change (for settling)
-    private val lastRouteChange = mutableMapOf<String, Long>()
+    private val lastRouteChange = mutableMapOf<ByteArrayKey, Long>()
 
-    fun addRoute(destination: String, nextHop: String, cost: Double, sequenceNumber: UInt) {
+    fun addRoute(destination: ByteArrayKey, nextHop: ByteArrayKey, cost: Double, sequenceNumber: UInt) {
         // Sanity validation
         if (cost < 0.0 || cost.isNaN()) return
         if (cost.isInfinite()) return // Use Double.MAX_VALUE for withdrawals, not Infinity
@@ -70,7 +71,7 @@ class RoutingTable(
         }
     }
 
-    fun bestRoute(destination: String): Route? {
+    fun bestRoute(destination: ByteArrayKey): Route? {
         val now = currentTime()
         val destRoutes = routes[destination] ?: return null
         // Remove expired routes
@@ -82,7 +83,7 @@ class RoutingTable(
         return destRoutes.values.minByOrNull { it.cost }
     }
 
-    fun removeRoute(destination: String, nextHop: String) {
+    fun removeRoute(destination: ByteArrayKey, nextHop: ByteArrayKey) {
         val destRoutes = routes[destination] ?: return
         destRoutes.remove(nextHop)
         if (destRoutes.isEmpty()) routes.remove(destination)

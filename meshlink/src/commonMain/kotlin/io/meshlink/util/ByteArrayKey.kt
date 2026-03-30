@@ -7,7 +7,7 @@ package io.meshlink.util
  * Kotlin's [ByteArray] uses identity-based equality — two arrays with identical
  * content are NOT considered equal. This wrapper fixes that.
  */
-internal class ByteArrayKey(val bytes: ByteArray) {
+class ByteArrayKey(val bytes: ByteArray) {
 
     override fun equals(other: Any?): Boolean =
         other is ByteArrayKey && bytes.contentEquals(other.bytes)
@@ -17,4 +17,4 @@ internal class ByteArrayKey(val bytes: ByteArray) {
     override fun toString(): String = bytes.toHex()
 }
 
-internal fun ByteArray.toKey(): ByteArrayKey = ByteArrayKey(this)
+fun ByteArray.toKey(): ByteArrayKey = ByteArrayKey(this)

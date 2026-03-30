@@ -8,8 +8,9 @@ import io.meshlink.model.KeyChangeEvent
 import io.meshlink.protocol.ProtocolVersion
 import io.meshlink.routing.PresenceState
 import io.meshlink.routing.RoutingEngine
+import io.meshlink.util.ByteArrayKey
 import io.meshlink.util.RateLimitResult
-import io.meshlink.util.toHex
+import io.meshlink.util.toKey
 import io.meshlink.wire.AdvertisementCodec
 
 /**
@@ -55,7 +56,7 @@ sealed interface PeerConnectionAction {
 class PeerConnectionCoordinator(
     private val routingEngine: RoutingEngine,
     private val securityEngine: SecurityEngine?,
-    private val rateLimitPolicy: (String) -> RateLimitResult,
+    private val rateLimitPolicy: (ByteArrayKey) -> RateLimitResult,
     private val trustStore: TrustStore?,
     private val localPeerId: ByteArray,
     private val protocolVersion: ProtocolVersion,
@@ -94,15 +95,15 @@ class PeerConnectionCoordinator(
             }
         }
 
-        val peerHex = peerId.toHex()
-        val isNewPeer = routingEngine.presenceState(peerHex) != PresenceState.CONNECTED
-        routingEngine.peerSeen(peerHex)
+        val peerKey = peerId.toKey()
+        val isNewPeer = routingEngine.presenceState(peerKey) != PresenceState.CONNECTED
+        routingEngine.peerSeen(peerKey)
 
         // Key registration (requires full 32-byte X25519 key in extended payload)
         var keyChangeEvent: KeyChangeEvent? = null
         if (advertisementPayload.size >= 34 && securityEngine != null) {
             val newKey = advertisementPayload.copyOfRange(2, 34)
-            val regResult = securityEngine.registerPeerKey(peerHex, newKey)
+            val regResult = securityEngine.registerPeerKey(peerKey, newKey)
             if (regResult is KeyRegistrationResult.Changed) {
                 keyChangeEvent = KeyChangeEvent(
                     peerId = peerId.copyOf(),
@@ -118,11 +119,11 @@ class PeerConnectionCoordinator(
         if (securityEngine != null && !securityEngine.isHandshakeComplete(peerId)) {
             if (shouldInitiate(peerId, remotePowerMode, remoteKeyHash)) {
                 val isPinned = trustStore?.let { ts ->
-                    val key = securityEngine.peerPublicKey(peerHex)
-                    key != null && ts.verify(peerHex, key) is VerifyResult.Trusted
+                    val key = securityEngine.peerPublicKey(peerKey)
+                    key != null && ts.verify(peerKey.toString(), key) is VerifyResult.Trusted
                 } ?: false
 
-                if (!isPinned && rateLimitPolicy(peerHex) is RateLimitResult.Limited) {
+                if (!isPinned && rateLimitPolicy(peerKey) is RateLimitResult.Limited) {
                     handshakeRateLimited = true
                 } else {
                     handshakeMessage = securityEngine.initiateHandshake(peerId)
@@ -141,7 +142,7 @@ class PeerConnectionCoordinator(
 
     /** Process a peer-lost event. Updates routing engine. */
     fun onPeerLost(peerId: ByteArray): PeerConnectionAction.Lost {
-        routingEngine.markDisconnected(peerId.toHex())
+        routingEngine.markDisconnected(peerId.toKey())
         return PeerConnectionAction.Lost(peerId)
     }
 

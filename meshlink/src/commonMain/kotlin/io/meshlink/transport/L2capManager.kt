@@ -1,6 +1,8 @@
 package io.meshlink.transport
 
+import io.meshlink.util.ByteArrayKey
 import io.meshlink.util.currentTimeMillis
+import io.meshlink.util.toKey
 
 /**
  * Manages L2CAP CoC channel lifecycle for each peer.
@@ -35,11 +37,11 @@ class L2capManager(
 ) {
 
     // Peer key → open channel
-    private val channels = mutableMapOf<String, L2capChannel>()
+    private val channels = mutableMapOf<ByteArrayKey, L2capChannel>()
 
     // Per-peer circuit-breaker state
-    private val failureTimestamps = mutableMapOf<String, MutableList<Long>>()
-    private val circuitOpenUntil = mutableMapOf<String, Long>()
+    private val failureTimestamps = mutableMapOf<ByteArrayKey, MutableList<Long>>()
+    private val circuitOpenUntil = mutableMapOf<ByteArrayKey, Long>()
 
     /**
      * Try to open an L2CAP channel to [peerId].
@@ -103,7 +105,7 @@ class L2capManager(
 
     // --- internals ---
 
-    private fun recordFailure(key: String) {
+    private fun recordFailure(key: ByteArrayKey) {
         val now = clock()
         val timestamps = failureTimestamps[key]
         if (timestamps != null) {
@@ -119,17 +121,5 @@ class L2capManager(
         if (count >= circuitBreakerFailures) {
             circuitOpenUntil[key] = now + circuitBreakerCooldownMillis
         }
-    }
-
-    /** Hex-encode a peer ID to use as a map key. */
-    private fun ByteArray.toKey(): String = joinToString("") { byte ->
-        val v = byte.toInt() and 0xFF
-        val hi = v shr 4
-        val lo = v and 0x0F
-        "${HEX_CHARS[hi]}${HEX_CHARS[lo]}"
-    }
-
-    companion object {
-        private const val HEX_CHARS = "0123456789abcdef"
     }
 }

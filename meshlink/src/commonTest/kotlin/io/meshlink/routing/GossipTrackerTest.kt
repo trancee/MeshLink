@@ -1,17 +1,20 @@
 package io.meshlink.routing
 
+import io.meshlink.util.ByteArrayKey
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class GossipTrackerTest {
 
+    private fun key(s: String) = ByteArrayKey(s.encodeToByteArray())
+
     private fun route(
         destination: String,
         nextHop: String = "hop",
         cost: Double = 1.0,
         sequenceNumber: UInt = 1u,
-    ) = RoutingTable.Route(destination, nextHop, cost, sequenceNumber)
+    ) = RoutingTable.Route(key(destination), key(nextHop), cost, sequenceNumber)
 
     // 1. New peer gets full exchange
     @Test
@@ -19,7 +22,7 @@ class GossipTrackerTest {
         val tracker = GossipTracker()
         val routes = listOf(route("A"), route("B"), route("C"))
 
-        val diff = tracker.computeDiff("peer1", routes)
+        val diff = tracker.computeDiff(key("peer1"), routes)
 
         assertEquals(routes, diff)
     }
@@ -30,8 +33,8 @@ class GossipTrackerTest {
         val tracker = GossipTracker()
         val routes = listOf(route("A"), route("B"))
 
-        tracker.recordSent("peer1", routes)
-        val diff = tracker.computeDiff("peer1", routes)
+        tracker.recordSent(key("peer1"), routes)
+        val diff = tracker.computeDiff(key("peer1"), routes)
 
         assertTrue(diff.isEmpty())
     }
@@ -41,13 +44,13 @@ class GossipTrackerTest {
     fun costChangeIncludesOnlyChangedRoute() {
         val tracker = GossipTracker()
         val original = listOf(route("A", cost = 1.0), route("B", cost = 2.0))
-        tracker.recordSent("peer1", original)
+        tracker.recordSent(key("peer1"), original)
 
         val updated = listOf(route("A", cost = 5.0), route("B", cost = 2.0))
-        val diff = tracker.computeDiff("peer1", updated)
+        val diff = tracker.computeDiff(key("peer1"), updated)
 
         assertEquals(1, diff.size)
-        assertEquals("A", diff[0].destination)
+        assertEquals(key("A"), diff[0].destination)
         assertEquals(5.0, diff[0].cost)
     }
 
@@ -56,10 +59,10 @@ class GossipTrackerTest {
     fun sequenceNumberBumpIncludesRoute() {
         val tracker = GossipTracker()
         val original = listOf(route("A", sequenceNumber = 1u))
-        tracker.recordSent("peer1", original)
+        tracker.recordSent(key("peer1"), original)
 
         val updated = listOf(route("A", sequenceNumber = 2u))
-        val diff = tracker.computeDiff("peer1", updated)
+        val diff = tracker.computeDiff(key("peer1"), updated)
 
         assertEquals(1, diff.size)
         assertEquals(2u, diff[0].sequenceNumber)
@@ -70,13 +73,13 @@ class GossipTrackerTest {
     fun newRouteAddedIncludedInDiff() {
         val tracker = GossipTracker()
         val original = listOf(route("A"))
-        tracker.recordSent("peer1", original)
+        tracker.recordSent(key("peer1"), original)
 
         val updated = listOf(route("A"), route("B"))
-        val diff = tracker.computeDiff("peer1", updated)
+        val diff = tracker.computeDiff(key("peer1"), updated)
 
         assertEquals(1, diff.size)
-        assertEquals("B", diff[0].destination)
+        assertEquals(key("B"), diff[0].destination)
     }
 
     // 6. Route removed from table → withdrawal computed
@@ -84,12 +87,12 @@ class GossipTrackerTest {
     fun removedRouteProducesWithdrawal() {
         val tracker = GossipTracker()
         val original = listOf(route("A"), route("B"))
-        tracker.recordSent("peer1", original)
+        tracker.recordSent(key("peer1"), original)
 
-        val currentDestinations = setOf("A")
-        val withdrawals = tracker.computeWithdrawals("peer1", currentDestinations)
+        val currentDestinations = setOf(key("A"))
+        val withdrawals = tracker.computeWithdrawals(key("peer1"), currentDestinations)
 
-        assertEquals(setOf("B"), withdrawals)
+        assertEquals(setOf(key("B")), withdrawals)
     }
 
     // 7. Multiple peers tracked independently
@@ -98,10 +101,10 @@ class GossipTrackerTest {
         val tracker = GossipTracker()
         val routes = listOf(route("A"), route("B"))
 
-        tracker.recordSent("peer1", routes)
+        tracker.recordSent(key("peer1"), routes)
         // peer2 has no state yet
-        val diff1 = tracker.computeDiff("peer1", routes)
-        val diff2 = tracker.computeDiff("peer2", routes)
+        val diff1 = tracker.computeDiff(key("peer1"), routes)
+        val diff2 = tracker.computeDiff(key("peer2"), routes)
 
         assertTrue(diff1.isEmpty())
         assertEquals(routes, diff2)
@@ -113,16 +116,16 @@ class GossipTrackerTest {
         val tracker = GossipTracker()
         val routes = listOf(route("A"))
 
-        tracker.recordSent("peer1", routes)
-        tracker.recordSent("peer2", routes)
-        tracker.removePeer("peer1")
+        tracker.recordSent(key("peer1"), routes)
+        tracker.recordSent(key("peer2"), routes)
+        tracker.removePeer(key("peer1"))
 
         // peer1 removed → full exchange
-        val diff1 = tracker.computeDiff("peer1", routes)
+        val diff1 = tracker.computeDiff(key("peer1"), routes)
         assertEquals(routes, diff1)
 
         // peer2 unaffected → empty diff
-        val diff2 = tracker.computeDiff("peer2", routes)
+        val diff2 = tracker.computeDiff(key("peer2"), routes)
         assertTrue(diff2.isEmpty())
     }
 
@@ -132,12 +135,12 @@ class GossipTrackerTest {
         val tracker = GossipTracker()
         val routes = listOf(route("A"), route("B"))
 
-        tracker.recordSent("peer1", routes)
-        assertTrue(tracker.computeDiff("peer1", routes).isEmpty())
+        tracker.recordSent(key("peer1"), routes)
+        assertTrue(tracker.computeDiff(key("peer1"), routes).isEmpty())
 
-        tracker.resetPeer("peer1")
+        tracker.resetPeer(key("peer1"))
 
-        val diff = tracker.computeDiff("peer1", routes)
+        val diff = tracker.computeDiff(key("peer1"), routes)
         assertEquals(routes, diff)
     }
 
@@ -147,13 +150,13 @@ class GossipTrackerTest {
         val tracker = GossipTracker()
         val routes = listOf(route("A"))
 
-        tracker.recordSent("peer1", routes)
-        tracker.recordSent("peer2", routes)
+        tracker.recordSent(key("peer1"), routes)
+        tracker.recordSent(key("peer2"), routes)
         tracker.clear()
 
         assertEquals(0, tracker.trackedPeerCount())
-        assertEquals(routes, tracker.computeDiff("peer1", routes))
-        assertEquals(routes, tracker.computeDiff("peer2", routes))
+        assertEquals(routes, tracker.computeDiff(key("peer1"), routes))
+        assertEquals(routes, tracker.computeDiff(key("peer2"), routes))
     }
 
     // 11. Mixed scenario: some routes changed, some not, some withdrawn
@@ -165,7 +168,7 @@ class GossipTrackerTest {
             route("B", cost = 2.0, sequenceNumber = 1u),
             route("C", cost = 3.0, sequenceNumber = 1u),
         )
-        tracker.recordSent("peer1", original)
+        tracker.recordSent(key("peer1"), original)
 
         // A: unchanged, B: cost changed, C: removed, D: new
         val updated = listOf(
@@ -174,12 +177,12 @@ class GossipTrackerTest {
             route("D", cost = 4.0, sequenceNumber = 1u),
         )
 
-        val diff = tracker.computeDiff("peer1", updated)
+        val diff = tracker.computeDiff(key("peer1"), updated)
         val diffDests = diff.map { it.destination }.toSet()
-        assertEquals(setOf("B", "D"), diffDests)
+        assertEquals(setOf(key("B"), key("D")), diffDests)
 
-        val withdrawals = tracker.computeWithdrawals("peer1", setOf("A", "B", "D"))
-        assertEquals(setOf("C"), withdrawals)
+        val withdrawals = tracker.computeWithdrawals(key("peer1"), setOf(key("A"), key("B"), key("D")))
+        assertEquals(setOf(key("C")), withdrawals)
     }
 
     // 12. Withdrawal not re-sent if peer was already notified
@@ -187,14 +190,14 @@ class GossipTrackerTest {
     fun withdrawalNotResentIfAlreadyNotified() {
         val tracker = GossipTracker()
         val original = listOf(route("A"), route("B"))
-        tracker.recordSent("peer1", original)
+        tracker.recordSent(key("peer1"), original)
 
         // B is withdrawn — record it as sent with MAX_VALUE cost
         val withdrawal = route("B", cost = Double.MAX_VALUE, sequenceNumber = 2u)
-        tracker.recordSent("peer1", listOf(withdrawal))
+        tracker.recordSent(key("peer1"), listOf(withdrawal))
 
         // Now B is still absent from current destinations
-        val withdrawals = tracker.computeWithdrawals("peer1", setOf("A"))
+        val withdrawals = tracker.computeWithdrawals(key("peer1"), setOf(key("A")))
         assertTrue(withdrawals.isEmpty(), "Should not re-withdraw already-notified route")
     }
 
@@ -205,13 +208,13 @@ class GossipTrackerTest {
 
         assertEquals(0, tracker.trackedPeerCount())
 
-        tracker.recordSent("peer1", listOf(route("A")))
+        tracker.recordSent(key("peer1"), listOf(route("A")))
         assertEquals(1, tracker.trackedPeerCount())
 
-        tracker.recordSent("peer2", listOf(route("A")))
+        tracker.recordSent(key("peer2"), listOf(route("A")))
         assertEquals(2, tracker.trackedPeerCount())
 
-        tracker.removePeer("peer1")
+        tracker.removePeer(key("peer1"))
         assertEquals(1, tracker.trackedPeerCount())
 
         tracker.clear()
@@ -223,10 +226,10 @@ class GossipTrackerTest {
     fun emptyCurrentRoutesProducesAllWithdrawals() {
         val tracker = GossipTracker()
         val original = listOf(route("A"), route("B"), route("C"))
-        tracker.recordSent("peer1", original)
+        tracker.recordSent(key("peer1"), original)
 
-        val withdrawals = tracker.computeWithdrawals("peer1", emptySet())
-        assertEquals(setOf("A", "B", "C"), withdrawals)
+        val withdrawals = tracker.computeWithdrawals(key("peer1"), emptySet())
+        assertEquals(setOf(key("A"), key("B"), key("C")), withdrawals)
     }
 
     // 15. Cost change below threshold still included (any change counts)
@@ -234,20 +237,20 @@ class GossipTrackerTest {
     fun tinyCostChangeStillIncluded() {
         val tracker = GossipTracker()
         val original = listOf(route("A", cost = 1.0))
-        tracker.recordSent("peer1", original)
+        tracker.recordSent(key("peer1"), original)
 
         val updated = listOf(route("A", cost = 1.0000001))
-        val diff = tracker.computeDiff("peer1", updated)
+        val diff = tracker.computeDiff(key("peer1"), updated)
 
         assertEquals(1, diff.size)
-        assertEquals("A", diff[0].destination)
+        assertEquals(key("A"), diff[0].destination)
     }
 
     // 16. computeWithdrawals with no prior state returns empty
     @Test
     fun computeWithdrawalsNoPriorStateReturnsEmpty() {
         val tracker = GossipTracker()
-        val withdrawals = tracker.computeWithdrawals("unknown", setOf("A"))
+        val withdrawals = tracker.computeWithdrawals(key("unknown"), setOf(key("A")))
         assertTrue(withdrawals.isEmpty())
     }
 
@@ -255,11 +258,11 @@ class GossipTrackerTest {
     @Test
     fun recordSentUpdatesExistingEntries() {
         val tracker = GossipTracker()
-        tracker.recordSent("peer1", listOf(route("A", cost = 1.0, sequenceNumber = 1u)))
-        tracker.recordSent("peer1", listOf(route("A", cost = 2.0, sequenceNumber = 2u)))
+        tracker.recordSent(key("peer1"), listOf(route("A", cost = 1.0, sequenceNumber = 1u)))
+        tracker.recordSent(key("peer1"), listOf(route("A", cost = 2.0, sequenceNumber = 2u)))
 
         // Route now matches the updated state → empty diff
-        val diff = tracker.computeDiff("peer1", listOf(route("A", cost = 2.0, sequenceNumber = 2u)))
+        val diff = tracker.computeDiff(key("peer1"), listOf(route("A", cost = 2.0, sequenceNumber = 2u)))
         assertTrue(diff.isEmpty())
     }
 }

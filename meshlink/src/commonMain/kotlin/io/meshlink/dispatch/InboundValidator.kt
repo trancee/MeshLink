@@ -7,6 +7,7 @@ import io.meshlink.diagnostics.DiagnosticCode
 import io.meshlink.diagnostics.DiagnosticSink
 import io.meshlink.diagnostics.Severity
 import io.meshlink.util.AppIdFilter
+import io.meshlink.util.ByteArrayKey
 import io.meshlink.util.RateLimitPolicy
 import io.meshlink.util.RateLimitResult
 
@@ -42,7 +43,7 @@ internal class InboundValidator(
      * updates whose signature does not verify.
      */
     fun validateRouteUpdateSignature(
-        fromPeerHex: String,
+        fromPeerId: ByteArrayKey,
         signature: ByteArray?,
         signerPublicKey: ByteArray?,
         signedData: ByteArray,
@@ -52,7 +53,7 @@ internal class InboundValidator(
             diagnosticSink.emit(
                 DiagnosticCode.MALFORMED_DATA,
                 Severity.WARN,
-                "unsigned route_update rejected (crypto enabled) from $fromPeerHex",
+                "unsigned route_update rejected (crypto enabled) from $fromPeerId",
             )
             return false
         }
@@ -60,7 +61,7 @@ internal class InboundValidator(
             diagnosticSink.emit(
                 DiagnosticCode.MALFORMED_DATA,
                 Severity.WARN,
-                "route_update signature verification failed from $fromPeerHex",
+                "route_update signature verification failed from $fromPeerId",
             )
             return false
         }
@@ -98,7 +99,7 @@ internal class InboundValidator(
     // ── App-ID filtering ───────────────────────────────────────────
 
     /** Returns true if the message's app-ID hash passes the filter. */
-    fun checkAppId(key: String, appIdHash: ByteArray): Boolean {
+    fun checkAppId(key: ByteArrayKey, appIdHash: ByteArray): Boolean {
         if (appIdFilter.accepts(appIdHash)) return true
         diagnosticSink.emit(DiagnosticCode.APP_ID_REJECTED, Severity.INFO, "messageId=$key")
         return false
@@ -107,35 +108,35 @@ internal class InboundValidator(
     // ── Replay, loop & hop-limit checks ────────────────────────────
 
     /** Returns true if the replay counter is acceptable. */
-    fun checkReplay(key: String, originHex: String, replayCounter: ULong): Boolean {
+    fun checkReplay(key: ByteArrayKey, originId: ByteArrayKey, replayCounter: ULong): Boolean {
         if (replayCounter == 0uL) return true
-        if (deliveryPipeline.checkReplay(originHex, replayCounter)) return true
+        if (deliveryPipeline.checkReplay(originId, replayCounter)) return true
         diagnosticSink.emit(
             DiagnosticCode.REPLAY_REJECTED,
             Severity.WARN,
-            "messageId=$key, origin=$originHex, counter=$replayCounter",
+            "messageId=$key, origin=$originId, counter=$replayCounter",
         )
         return false
     }
 
     /** Returns true if the visited list does NOT contain the local peer. */
-    fun checkLoop(key: String, visitedList: List<ByteArray>, originHex: String): Boolean {
+    fun checkLoop(key: ByteArrayKey, visitedList: List<ByteArray>, originId: ByteArrayKey): Boolean {
         if (visitedList.none { it.contentEquals(localPeerId) }) return true
         diagnosticSink.emit(
             DiagnosticCode.LOOP_DETECTED,
             Severity.WARN,
-            "messageId=$key, origin=$originHex",
+            "messageId=$key, origin=$originId",
         )
         return false
     }
 
     /** Returns true if the hop limit has not been exhausted. */
-    fun checkHopLimit(key: String, hopLimit: UByte, originHex: String): Boolean {
+    fun checkHopLimit(key: ByteArrayKey, hopLimit: UByte, originId: ByteArrayKey): Boolean {
         if (hopLimit > 0u) return true
         diagnosticSink.emit(
             DiagnosticCode.HOP_LIMIT_EXCEEDED,
             Severity.INFO,
-            "messageId=$key, origin=$originHex",
+            "messageId=$key, origin=$originId",
         )
         return false
     }
@@ -143,20 +144,20 @@ internal class InboundValidator(
     // ── Rate limiting ──────────────────────────────────────────────
 
     /** Returns true if the inbound rate for this sender has not been exceeded. */
-    fun checkInboundRate(originHex: String): Boolean {
+    fun checkInboundRate(originId: ByteArrayKey): Boolean {
         if (config.inboundRateLimitPerSenderPerMinute <= 0) return true
-        if (deliveryPipeline.checkInboundRate(originHex, config.inboundRateLimitPerSenderPerMinute)) return true
-        diagnosticSink.emit(DiagnosticCode.RATE_LIMIT_HIT, Severity.WARN, "inbound, origin=$originHex")
+        if (deliveryPipeline.checkInboundRate(originId, config.inboundRateLimitPerSenderPerMinute)) return true
+        diagnosticSink.emit(DiagnosticCode.RATE_LIMIT_HIT, Severity.WARN, "inbound, origin=$originId")
         return false
     }
 
     /** Returns true if the sender→neighbor relay rate has not been exceeded. */
-    fun checkRelayRate(originHex: String, neighborHex: String): Boolean {
-        if (rateLimitPolicy.checkSenderNeighborRelay(originHex, neighborHex) is RateLimitResult.Allowed) return true
+    fun checkRelayRate(originId: ByteArrayKey, neighborId: ByteArrayKey): Boolean {
+        if (rateLimitPolicy.checkSenderNeighborRelay(originId, neighborId) is RateLimitResult.Allowed) return true
         diagnosticSink.emit(
             DiagnosticCode.RATE_LIMIT_HIT,
             Severity.WARN,
-            "sender-neighbor relay limit exceeded, origin=$originHex, neighbor=$neighborHex",
+            "sender-neighbor relay limit exceeded, origin=$originId, neighbor=$neighborId",
         )
         return false
     }

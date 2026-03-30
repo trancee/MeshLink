@@ -1,5 +1,7 @@
 package io.meshlink.routing
 
+import io.meshlink.util.ByteArrayKey
+
 /**
  * Bounded deduplication set with time-windowed TTL expiry.
  * Returns true if the ID is new (accepted), false if duplicate (rejected).
@@ -13,9 +15,9 @@ class DedupSet(
     private val clock: () -> Long = { 0L },
 ) {
 
-    private val seen = LinkedHashMap<String, Long>()
+    private val seen = LinkedHashMap<ByteArrayKey, Long>()
 
-    fun tryInsert(id: String): Boolean {
+    fun tryInsert(id: ByteArrayKey): Boolean {
         sweepExpired()
         val existingTs = seen[id]
         if (existingTs != null) {

@@ -17,8 +17,8 @@ import io.meshlink.transfer.TransferEngine
 import io.meshlink.transfer.TransferUpdate
 import io.meshlink.util.DeliveryOutcome
 import io.meshlink.util.PauseManager
-import io.meshlink.util.hexToBytes
 import io.meshlink.util.toHex
+import io.meshlink.util.toKey
 import io.meshlink.wire.RotationAnnouncement
 import io.meshlink.wire.WireCodec
 
@@ -76,7 +76,7 @@ internal class MessageDispatcher(
 
     private fun handleKeepalive(fromPeerId: ByteArray, data: ByteArray) {
         WireCodec.decodeKeepalive(data)
-        routingEngine.peerSeen(fromPeerId.toHex())
+        routingEngine.peerSeen(fromPeerId.toKey())
     }
 
     private suspend fun handleHandshake(fromPeerId: ByteArray, data: ByteArray) {
@@ -92,7 +92,7 @@ internal class MessageDispatcher(
         if (validator.cryptoRequired) {
             val signedData = data.copyOfRange(0, data.size - 64)
             if (!validator.validateRouteUpdateSignature(
-                    fromPeerId.toHex(),
+                    fromPeerId.toKey(),
                     update.signature,
                     update.signerPublicKey,
                     signedData,
@@ -103,9 +103,9 @@ internal class MessageDispatcher(
         }
 
         val learned = update.entries.map { entry ->
-            LearnedRoute(entry.destination.toHex(), entry.cost, entry.sequenceNumber)
+            LearnedRoute(entry.destination.toKey(), entry.cost, entry.sequenceNumber)
         }
-        val result = routingEngine.learnRoutes(fromPeerId.toHex(), learned)
+        val result = routingEngine.learnRoutes(fromPeerId.toKey(), learned)
         when (result) {
             is RouteLearnResult.SignificantChange -> {
                 for (change in result.routeChanges) {
@@ -125,7 +125,7 @@ internal class MessageDispatcher(
 
     private suspend fun handleChunk(fromPeerId: ByteArray, data: ByteArray) {
         val chunk = WireCodec.decodeChunk(data)
-        val key = chunk.messageId.toHex()
+        val key = chunk.messageId.toKey()
 
         val result = transferEngine.onChunkReceived(
             key,
@@ -165,7 +165,7 @@ internal class MessageDispatcher(
 
     private suspend fun handleChunkAck(data: ByteArray) {
         val ack = WireCodec.decodeChunkAck(data)
-        val key = ack.messageId.toHex()
+        val key = ack.messageId.toKey()
         val recipient = outboundTracker.recipient(key)
 
         val update = transferEngine.onAck(key, ack.ackSequence.toInt(), ack.sackBitmask)
@@ -194,7 +194,7 @@ internal class MessageDispatcher(
 
     private suspend fun handleBroadcast(fromPeerId: ByteArray, data: ByteArray) {
         val broadcast = WireCodec.decodeBroadcast(data)
-        val key = broadcast.messageId.toHex()
+        val key = broadcast.messageId.toKey()
 
         if (!validator.checkAppId(key, broadcast.appIdHash)) return
 
@@ -215,10 +215,10 @@ internal class MessageDispatcher(
                 signature = broadcast.signature,
                 signerPublicKey = broadcast.signerPublicKey,
             )
-            val senderHex = fromPeerId.toHex()
-            for (peerHex in routingEngine.allPeerIds()) {
-                if (peerHex != senderHex) {
-                    sink.sendFrame(hexToBytes(peerHex), reflooded)
+            val senderId = fromPeerId.toKey()
+            for (peerId in routingEngine.allPeerIds()) {
+                if (peerId != senderId) {
+                    sink.sendFrame(peerId.bytes, reflooded)
                 }
             }
         }
@@ -226,15 +226,15 @@ internal class MessageDispatcher(
 
     private suspend fun handleRoutedMessage(fromPeerId: ByteArray, data: ByteArray) {
         val routed = WireCodec.decodeRoutedMessage(data)
-        val key = routed.messageId.toHex()
-        val originHex = routed.origin.toHex()
+        val key = routed.messageId.toKey()
+        val originId = routed.origin.toKey()
 
         if (routingEngine.isDuplicate(key)) return
-        if (!validator.checkReplay(key, originHex, routed.replayCounter)) return
-        if (!validator.checkLoop(key, routed.visitedList, originHex)) return
+        if (!validator.checkReplay(key, originId, routed.replayCounter)) return
+        if (!validator.checkLoop(key, routed.visitedList, originId)) return
 
         if (routed.destination.contentEquals(localPeerId)) {
-            if (!validator.checkInboundRate(originHex)) return
+            if (!validator.checkInboundRate(originId)) return
             val deliveredPayload = validator.unsealPayload(routed.payload, "routed message") ?: return
             sink.onMessageReceived(routed.origin, deliveredPayload)
             val signed = securityEngine?.sign(routed.messageId + localPeerId)
@@ -248,16 +248,16 @@ internal class MessageDispatcher(
             return
         }
 
-        if (!validator.checkHopLimit(key, routed.hopLimit, originHex)) return
+        if (!validator.checkHopLimit(key, routed.hopLimit, originId)) return
 
-        val destHex = routed.destination.toHex()
-        val nextHop = when (val hop = routingEngine.resolveNextHop(destHex)) {
+        val destId = routed.destination.toKey()
+        val nextHop = when (val hop = routingEngine.resolveNextHop(destId)) {
             is NextHopResult.Direct -> routed.destination
-            is NextHopResult.ViaRoute -> hexToBytes(hop.nextHop)
+            is NextHopResult.ViaRoute -> hop.nextHop.bytes
             is NextHopResult.Unreachable -> return
         }
-        val neighborHex = nextHop.toHex()
-        if (!validator.checkRelayRate(originHex, neighborHex)) return
+        val neighborId = nextHop.toKey()
+        if (!validator.checkRelayRate(originId, neighborId)) return
 
         deliveryPipeline.recordReversePath(key, fromPeerId)
 
@@ -290,7 +290,7 @@ internal class MessageDispatcher(
 
     private suspend fun handleDeliveryAck(data: ByteArray) {
         val ack = WireCodec.decodeDeliveryAck(data)
-        val key = ack.messageId.toHex()
+        val key = ack.messageId.toKey()
 
         val signedData = ack.messageId + ack.recipientId
         if (!validator.validateDeliveryAckSignature(ack.signature, ack.signerPublicKey, signedData)) return
@@ -312,18 +312,18 @@ internal class MessageDispatcher(
     private fun handleRotationAnnouncement(fromPeerId: ByteArray, data: ByteArray) {
         val se = securityEngine ?: return
         val msg = RotationAnnouncement.decode(data)
-        val peerHex = fromPeerId.toHex()
-        when (val result = se.handleRotationAnnouncement(peerHex, msg)) {
+        val peerId = fromPeerId.toKey()
+        when (val result = se.handleRotationAnnouncement(peerId, msg)) {
             is RotationResult.Accepted -> sink.onKeyChanged(result.event)
             is RotationResult.Rejected -> diagnosticSink.emit(
                 DiagnosticCode.MALFORMED_DATA,
                 Severity.WARN,
-                "rotation announcement signature verification failed from $peerHex",
+                "rotation announcement signature verification failed from $peerId",
             )
             is RotationResult.Stale -> diagnosticSink.emit(
                 DiagnosticCode.REPLAY_REJECTED,
                 Severity.WARN,
-                "stale rotation announcement from $peerHex",
+                "stale rotation announcement from $peerId",
             )
             is RotationResult.UnknownPeer -> {}
         }

@@ -5,8 +5,8 @@ import io.meshlink.peer.PeerConnectionCoordinator.Companion.compareUnsignedBytes
 import io.meshlink.protocol.ProtocolVersion
 import io.meshlink.routing.PresenceState
 import io.meshlink.routing.RoutingEngine
+import io.meshlink.util.ByteArrayKey
 import io.meshlink.util.RateLimitResult
-import io.meshlink.util.toHex
 import io.meshlink.wire.AdvertisementCodec
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -20,10 +20,10 @@ class PeerConnectionCoordinatorTest {
     private val localPeerId = ByteArray(16) { 0x01 }
     // Higher peerId so localPeerId < peerA (tie-breaking: local initiates)
     private val peerA = ByteArray(16) { 0x10 }
-    private val peerAHex = peerA.toHex()
+    private val peerAKey = ByteArrayKey(peerA)
 
     private fun routingEngine() = RoutingEngine(
-        localPeerId = localPeerId.toHex(),
+        localPeerId = ByteArrayKey(localPeerId),
         dedupCapacity = 100,
         triggeredUpdateThreshold = 0.3,
         gossipIntervalMillis = 5_000L,
@@ -46,7 +46,7 @@ class PeerConnectionCoordinatorTest {
     private fun coordinator(
         routingEngine: RoutingEngine,
         isPaused: () -> Boolean = { false },
-        rateLimitPolicy: (String) -> RateLimitResult = { RateLimitResult.Allowed },
+        rateLimitPolicy: (ByteArrayKey) -> RateLimitResult = { RateLimitResult.Allowed },
         protocolVersion: ProtocolVersion = ProtocolVersion(1, 0),
         localPowerMode: () -> Int = { 0 },
         localKeyHash: () -> ByteArray = { ByteArray(0) },
@@ -140,9 +140,9 @@ class PeerConnectionCoordinatorTest {
     fun newPeer_updatesRoutingPresence() {
         val re = routingEngine()
         val c = coordinator(re)
-        assertNull(re.presenceState(peerAHex))
+        assertNull(re.presenceState(peerAKey))
         c.onAdvertisementReceived(peerA, advPayload())
-        assertEquals(PresenceState.CONNECTED, re.presenceState(peerAHex))
+        assertEquals(PresenceState.CONNECTED, re.presenceState(peerAKey))
     }
 
     // ── No crypto: no handshake ─────────────────────────────────
@@ -173,13 +173,13 @@ class PeerConnectionCoordinatorTest {
         val c = coordinator(re)
         // First discover the peer
         c.onAdvertisementReceived(peerA, advPayload())
-        assertEquals(PresenceState.CONNECTED, re.presenceState(peerAHex))
+        assertEquals(PresenceState.CONNECTED, re.presenceState(peerAKey))
 
         // Then lose it
         val result = c.onPeerLost(peerA)
         assertIs<PeerConnectionAction.Lost>(result)
         assertTrue(result.peerId.contentEquals(peerA))
-        assertEquals(PresenceState.DISCONNECTED, re.presenceState(peerAHex))
+        assertEquals(PresenceState.DISCONNECTED, re.presenceState(peerAKey))
     }
 
     // ── Rate limiting (without crypto, just verifying plumbing) ─

@@ -1,6 +1,7 @@
 package io.meshlink.send
 
 import io.meshlink.crypto.SignedPayload
+import io.meshlink.util.ByteArrayKey
 import io.meshlink.util.RateLimitResult
 import io.meshlink.wire.WireCodec
 import kotlin.test.Test
@@ -140,18 +141,18 @@ class BroadcastPolicyChainTest {
 
     @Test
     fun proceed_markAsSeen_isCalled() {
-        var markedHex: String? = null
+        var markedKey: ByteArrayKey? = null
         val c = BroadcastPolicyChain(
             bufferCapacity = 1024,
             checkBroadcastRate = { RateLimitResult.Allowed },
             signData = null,
             appIdHash = appIdHash,
             localPeerId = localPeerId,
-            markAsSeen = { markedHex = it },
+            markAsSeen = { markedKey = it },
         )
         val result = c.evaluate(byteArrayOf(0x01), maxHops = 3u) as BroadcastDecision.Proceed
-        // The marked hex should correspond to the messageId
-        assertEquals(result.messageId.size * 2, markedHex!!.length)
+        // The marked key bytes should correspond to the messageId
+        assertEquals(result.messageId.size, markedKey!!.bytes.size)
     }
 
     // ── maxHops propagation ─────────────────────────────────────

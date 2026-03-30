@@ -1,6 +1,7 @@
 package io.meshlink.send
 
 import io.meshlink.routing.NextHopResult
+import io.meshlink.util.ByteArrayKey
 import io.meshlink.util.RateLimitResult
 import kotlin.test.Test
 import kotlin.test.assertIs
@@ -11,13 +12,15 @@ class SendPolicyChainTest {
     private val self = byteArrayOf(0x01, 0x02)
     private val peer = byteArrayOf(0x0A, 0x0B)
 
+    private fun key(s: String) = ByteArrayKey(s.encodeToByteArray())
+
     private fun chain(
         bufferCapacity: Int = 1024,
         isPaused: () -> Boolean = { false },
-        checkSendRate: (String) -> RateLimitResult = { RateLimitResult.Allowed },
+        checkSendRate: (ByteArrayKey) -> RateLimitResult = { RateLimitResult.Allowed },
         checkCircuitBreaker: () -> RateLimitResult = { RateLimitResult.Allowed },
-        resolveNextHop: (String) -> NextHopResult = { NextHopResult.Direct(it) },
-        peerPublicKey: ((String) -> ByteArray?)? = null,
+        resolveNextHop: (ByteArrayKey) -> NextHopResult = { NextHopResult.Direct(it) },
+        peerPublicKey: ((ByteArrayKey) -> ByteArray?)? = null,
     ) = SendPolicyChain(
         bufferCapacity = bufferCapacity,
         localPeerId = self,
@@ -50,7 +53,7 @@ class SendPolicyChainTest {
 
     @Test
     fun rateLimitedReturnsRateLimited() {
-        val c = chain(checkSendRate = { RateLimitResult.Limited("send", it) })
+        val c = chain(checkSendRate = { RateLimitResult.Limited("send", it.toString()) })
         val result = c.evaluate(peer, payloadSize = 10)
         assertIs<SendDecision.RateLimited>(result)
     }
@@ -69,10 +72,10 @@ class SendPolicyChainTest {
 
     @Test
     fun routedReturnsRoutedWithNextHop() {
-        val c = chain(resolveNextHop = { NextHopResult.ViaRoute("deadbeef") })
+        val c = chain(resolveNextHop = { NextHopResult.ViaRoute(key("deadbeef")) })
         val result = c.evaluate(peer, payloadSize = 10)
         assertIs<SendDecision.Routed>(result)
-        assertEquals("deadbeef", result.nextHopHex)
+        assertEquals(key("deadbeef"), result.nextHopId)
     }
 
     @Test
@@ -114,7 +117,7 @@ class SendPolicyChainTest {
     fun pausedTakesPriorityOverRateLimit() {
         val c = chain(
             isPaused = { true },
-            checkSendRate = { RateLimitResult.Limited("send", it) },
+            checkSendRate = { RateLimitResult.Limited("send", it.toString()) },
         )
         assertIs<SendDecision.Paused>(c.evaluate(peer, payloadSize = 10))
     }
@@ -122,7 +125,7 @@ class SendPolicyChainTest {
     @Test
     fun rateLimitTakesPriorityOverCircuitBreaker() {
         val c = chain(
-            checkSendRate = { RateLimitResult.Limited("send", it) },
+            checkSendRate = { RateLimitResult.Limited("send", it.toString()) },
             checkCircuitBreaker = { RateLimitResult.Limited("cb", "global") },
         )
         assertIs<SendDecision.RateLimited>(c.evaluate(peer, payloadSize = 10))

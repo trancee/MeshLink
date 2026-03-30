@@ -6,8 +6,8 @@ import io.meshlink.diagnostics.DiagnosticCode
 import io.meshlink.diagnostics.DiagnosticEvent
 import io.meshlink.diagnostics.Severity
 import io.meshlink.transport.VirtualMeshTransport
+import io.meshlink.util.ByteArrayKey
 import io.meshlink.util.RateLimiter
-import io.meshlink.util.toHex
 import io.meshlink.wire.WireCodec
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
@@ -22,6 +22,8 @@ import kotlin.uuid.ExperimentalUuidApi
 
 @OptIn(ExperimentalCoroutinesApi::class, ExperimentalUuidApi::class)
 class RateLimitingSuiteTest {
+
+    private fun key(s: String) = ByteArrayKey(s.encodeToByteArray())
 
     private val peerIdAlice = ByteArray(16) { (0xA0 + it).toByte() }
     private val peerIdBob = ByteArray(16) { (0xB0 + it).toByte() }
@@ -85,13 +87,13 @@ class RateLimitingSuiteTest {
     fun handshakeRateLimiterAllows1PerSecRejectsExcess() {
         var now = 0L
         val limiter = RateLimiter(maxEvents = 1, windowMillis = 1_000L, clock = { now })
-        assertTrue(limiter.tryAcquire("peer-a"), "First handshake allowed")
-        assertFalse(limiter.tryAcquire("peer-a"), "Second handshake within 1s rejected")
+        assertTrue(limiter.tryAcquire(key("peer-a")), "First handshake allowed")
+        assertFalse(limiter.tryAcquire(key("peer-a")), "Second handshake within 1s rejected")
         // Different peer is independent
-        assertTrue(limiter.tryAcquire("peer-b"), "Different peer allowed")
+        assertTrue(limiter.tryAcquire(key("peer-b")), "Different peer allowed")
         // After window expires
         now = 1_001L
-        assertTrue(limiter.tryAcquire("peer-a"), "After window, allowed again")
+        assertTrue(limiter.tryAcquire(key("peer-a")), "After window, allowed again")
     }
 
     // ── NACK rate limiter (unit) ──
@@ -100,13 +102,13 @@ class RateLimitingSuiteTest {
     fun nackRateLimiterAllows10PerSecRejectsExcess() {
         var now = 0L
         val limiter = RateLimiter(maxEvents = 10, windowMillis = 1_000L, clock = { now })
-        val key = "neighbor-x"
+        val limiterKey = key("neighbor-x")
         repeat(10) { i ->
-            assertTrue(limiter.tryAcquire(key), "NACK ${i + 1} allowed")
+            assertTrue(limiter.tryAcquire(limiterKey), "NACK ${i + 1} allowed")
         }
-        assertFalse(limiter.tryAcquire(key), "11th NACK rejected")
+        assertFalse(limiter.tryAcquire(limiterKey), "11th NACK rejected")
         now = 1_001L
-        assertTrue(limiter.tryAcquire(key), "After window, allowed again")
+        assertTrue(limiter.tryAcquire(limiterKey), "After window, allowed again")
     }
 
     // ── Neighbor aggregate rate limiter (unit) ──
@@ -115,13 +117,13 @@ class RateLimitingSuiteTest {
     fun neighborAggregateLimiterAllows100PerMinRejectsExcess() {
         var now = 0L
         val limiter = RateLimiter(maxEvents = 100, windowMillis = 60_000L, clock = { now })
-        val key = "neighbor-y"
+        val limiterKey = key("neighbor-y")
         repeat(100) { i ->
-            assertTrue(limiter.tryAcquire(key), "Message ${i + 1} allowed")
+            assertTrue(limiter.tryAcquire(limiterKey), "Message ${i + 1} allowed")
         }
-        assertFalse(limiter.tryAcquire(key), "101st message rejected")
+        assertFalse(limiter.tryAcquire(limiterKey), "101st message rejected")
         now = 60_001L
-        assertTrue(limiter.tryAcquire(key), "After window, allowed again")
+        assertTrue(limiter.tryAcquire(limiterKey), "After window, allowed again")
     }
 
     // ── Sender-neighbor rate limiter (unit) ──
@@ -130,15 +132,15 @@ class RateLimitingSuiteTest {
     fun senderNeighborLimiterAllows20PerMinRejectsExcess() {
         var now = 0L
         val limiter = RateLimiter(maxEvents = 20, windowMillis = 60_000L, clock = { now })
-        val key = "sender-a->neighbor-b"
+        val limiterKey = key("sender-a->neighbor-b")
         repeat(20) { i ->
-            assertTrue(limiter.tryAcquire(key), "Relay ${i + 1} allowed")
+            assertTrue(limiter.tryAcquire(limiterKey), "Relay ${i + 1} allowed")
         }
-        assertFalse(limiter.tryAcquire(key), "21st relay rejected")
+        assertFalse(limiter.tryAcquire(limiterKey), "21st relay rejected")
         // Different sender-neighbor pair is independent
-        assertTrue(limiter.tryAcquire("sender-c->neighbor-b"), "Different pair allowed")
+        assertTrue(limiter.tryAcquire(key("sender-c->neighbor-b")), "Different pair allowed")
         now = 60_001L
-        assertTrue(limiter.tryAcquire(key), "After window, allowed again")
+        assertTrue(limiter.tryAcquire(limiterKey), "After window, allowed again")
     }
 
     // ── NACK integration: sendNack emits diagnostic on rate limit ──

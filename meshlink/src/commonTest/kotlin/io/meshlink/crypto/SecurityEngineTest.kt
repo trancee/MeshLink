@@ -1,5 +1,6 @@
 package io.meshlink.crypto
 
+import io.meshlink.util.ByteArrayKey
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -8,6 +9,8 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class SecurityEngineTest {
+
+    private fun key(s: String) = ByteArrayKey(s.encodeToByteArray())
 
     private fun createEngine(): SecurityEngine {
         val crypto = PureKotlinCryptoProvider()
@@ -21,10 +24,10 @@ class SecurityEngineTest {
         val sender = createEngine()
         val receiver = createEngine()
 
-        sender.registerPeerKey("receiver01", receiver.localPublicKey)
+        sender.registerPeerKey(key("receiver01"), receiver.localPublicKey)
 
         val plaintext = "hello mesh".encodeToByteArray()
-        val sealResult = sender.seal("receiver01", plaintext)
+        val sealResult = sender.seal(key("receiver01"), plaintext)
         assertIs<SealResult.Sealed>(sealResult)
 
         val unsealResult = receiver.unseal(sealResult.ciphertext)
@@ -37,7 +40,7 @@ class SecurityEngineTest {
     @Test
     fun sealForUnknownRecipientReturnsUnknownRecipient() {
         val engine = createEngine()
-        val result = engine.seal("nobody", "data".encodeToByteArray())
+        val result = engine.seal(key("nobody"), "data".encodeToByteArray())
         assertIs<SealResult.UnknownRecipient>(result)
     }
 
@@ -47,9 +50,9 @@ class SecurityEngineTest {
     fun unsealTamperedCiphertextReturnsFailed() {
         val sender = createEngine()
         val receiver = createEngine()
-        sender.registerPeerKey("receiver01", receiver.localPublicKey)
+        sender.registerPeerKey(key("receiver01"), receiver.localPublicKey)
 
-        val sealed = (sender.seal("receiver01", "secret".encodeToByteArray()) as SealResult.Sealed).ciphertext
+        val sealed = (sender.seal(key("receiver01"), "secret".encodeToByteArray()) as SealResult.Sealed).ciphertext
         // Tamper with the ciphertext
         sealed[sealed.size - 1] = (sealed[sealed.size - 1] + 1).toByte()
 
@@ -105,17 +108,17 @@ class SecurityEngineTest {
     @Test
     fun registerNewKeyReturnsNew() {
         val engine = createEngine()
-        val key = ByteArray(32) { it.toByte() }
-        val result = engine.registerPeerKey("peer1", key)
+        val peerKey = ByteArray(32) { it.toByte() }
+        val result = engine.registerPeerKey(key("peer1"), peerKey)
         assertIs<KeyRegistrationResult.New>(result)
     }
 
     @Test
     fun registerSameKeyReturnsUnchanged() {
         val engine = createEngine()
-        val key = ByteArray(32) { it.toByte() }
-        engine.registerPeerKey("peer1", key)
-        val result = engine.registerPeerKey("peer1", key)
+        val peerKey = ByteArray(32) { it.toByte() }
+        engine.registerPeerKey(key("peer1"), peerKey)
+        val result = engine.registerPeerKey(key("peer1"), peerKey)
         assertIs<KeyRegistrationResult.Unchanged>(result)
     }
 
@@ -124,8 +127,8 @@ class SecurityEngineTest {
         val engine = createEngine()
         val key1 = ByteArray(32) { it.toByte() }
         val key2 = ByteArray(32) { (it + 1).toByte() }
-        engine.registerPeerKey("peer1", key1)
-        val result = engine.registerPeerKey("peer1", key2)
+        engine.registerPeerKey(key("peer1"), key1)
+        val result = engine.registerPeerKey(key("peer1"), key2)
         assertIs<KeyRegistrationResult.Changed>(result)
         assertTrue(result.previousKey.contentEquals(key1))
     }
@@ -133,15 +136,15 @@ class SecurityEngineTest {
     @Test
     fun registeredKeyIsRetrievable() {
         val engine = createEngine()
-        val key = ByteArray(32) { it.toByte() }
-        engine.registerPeerKey("peer1", key)
-        assertTrue(engine.peerPublicKey("peer1")!!.contentEquals(key))
+        val peerKey = ByteArray(32) { it.toByte() }
+        engine.registerPeerKey(key("peer1"), peerKey)
+        assertTrue(engine.peerPublicKey(key("peer1"))!!.contentEquals(peerKey))
     }
 
     @Test
     fun unknownPeerKeyReturnsNull() {
         val engine = createEngine()
-        assertNull(engine.peerPublicKey("unknown"))
+        assertNull(engine.peerPublicKey(key("unknown")))
     }
 
     // --- Vertical slice 8: identity rotation ---
@@ -162,9 +165,9 @@ class SecurityEngineTest {
     fun rotateIdentityBreaksOldSealedMessages() {
         val sender = createEngine()
         val receiver = createEngine()
-        sender.registerPeerKey("receiver01", receiver.localPublicKey)
+        sender.registerPeerKey(key("receiver01"), receiver.localPublicKey)
 
-        val sealed = (sender.seal("receiver01", "before rotation".encodeToByteArray()) as SealResult.Sealed).ciphertext
+        val sealed = (sender.seal(key("receiver01"), "before rotation".encodeToByteArray()) as SealResult.Sealed).ciphertext
 
         receiver.rotateIdentity() // new key pair
 
@@ -178,16 +181,16 @@ class SecurityEngineTest {
     fun clearResetsPeerKeys() {
         val engine = createEngine()
         val other = createEngine()
-        engine.registerPeerKey("peer1", other.localPublicKey)
+        engine.registerPeerKey(key("peer1"), other.localPublicKey)
 
         // Before clear, seal should work
-        assertIs<SealResult.Sealed>(engine.seal("peer1", "test".encodeToByteArray()))
+        assertIs<SealResult.Sealed>(engine.seal(key("peer1"), "test".encodeToByteArray()))
 
         engine.clear()
 
         // After clear, peer key is gone
-        assertNull(engine.peerPublicKey("peer1"))
-        assertIs<SealResult.UnknownRecipient>(engine.seal("peer1", "test".encodeToByteArray()))
+        assertNull(engine.peerPublicKey(key("peer1")))
+        assertIs<SealResult.UnknownRecipient>(engine.seal(key("peer1"), "test".encodeToByteArray()))
     }
 
     // --- TM-007: Rotation timestamp freshness ---
@@ -203,7 +206,7 @@ class SecurityEngineTest {
         val newKp = crypto.generateX25519KeyPair()
         val oldEd = crypto.generateEd25519KeyPair()
         val newEd = crypto.generateEd25519KeyPair()
-        engine.registerPeerKey("0a0b0c0d0e0f0102030405060708090a", oldKp.publicKey)
+        engine.registerPeerKey(key("0a0b0c0d0e0f0102030405060708090a"), oldKp.publicKey)
 
         // Build a valid rotation announcement at current time
         val payload = io.meshlink.wire.RotationAnnouncement.buildSignablePayload(
@@ -215,7 +218,7 @@ class SecurityEngineTest {
             oldKp.publicKey, newKp.publicKey, oldEd.publicKey, newEd.publicKey, now.toULong(), sig,
         )
 
-        val result = engine.handleRotationAnnouncement("0a0b0c0d0e0f0102030405060708090a", msg)
+        val result = engine.handleRotationAnnouncement(key("0a0b0c0d0e0f0102030405060708090a"), msg)
         assertIs<RotationResult.Accepted>(result)
     }
 
@@ -229,7 +232,7 @@ class SecurityEngineTest {
         val newKp = crypto.generateX25519KeyPair()
         val oldEd = crypto.generateEd25519KeyPair()
         val newEd = crypto.generateEd25519KeyPair()
-        engine.registerPeerKey("0a0b0c0d0e0f0102030405060708090a", oldKp.publicKey)
+        engine.registerPeerKey(key("0a0b0c0d0e0f0102030405060708090a"), oldKp.publicKey)
 
         // Announcement timestamp is 60s in the past (outside 30s window)
         val staleTs = (now - 60_000L).toULong()
@@ -242,7 +245,7 @@ class SecurityEngineTest {
             oldKp.publicKey, newKp.publicKey, oldEd.publicKey, newEd.publicKey, staleTs, sig,
         )
 
-        val result = engine.handleRotationAnnouncement("0a0b0c0d0e0f0102030405060708090a", msg)
+        val result = engine.handleRotationAnnouncement(key("0a0b0c0d0e0f0102030405060708090a"), msg)
         assertIs<RotationResult.Stale>(result)
     }
 
@@ -256,7 +259,7 @@ class SecurityEngineTest {
         val newKp = crypto.generateX25519KeyPair()
         val oldEd = crypto.generateEd25519KeyPair()
         val newEd = crypto.generateEd25519KeyPair()
-        engine.registerPeerKey("0a0b0c0d0e0f0102030405060708090a", oldKp.publicKey)
+        engine.registerPeerKey(key("0a0b0c0d0e0f0102030405060708090a"), oldKp.publicKey)
 
         val payload = io.meshlink.wire.RotationAnnouncement.buildSignablePayload(
             oldKp.publicKey, newKp.publicKey, oldEd.publicKey, newEd.publicKey, now.toULong(),
@@ -267,7 +270,7 @@ class SecurityEngineTest {
         )
 
         // First rotation accepted
-        assertIs<RotationResult.Accepted>(engine.handleRotationAnnouncement("0a0b0c0d0e0f0102030405060708090a", msg))
+        assertIs<RotationResult.Accepted>(engine.handleRotationAnnouncement(key("0a0b0c0d0e0f0102030405060708090a"), msg))
 
         // Build a second rotation from newKp -> newerKp with the SAME timestamp
         val newerKp = crypto.generateX25519KeyPair()
@@ -281,7 +284,7 @@ class SecurityEngineTest {
         )
 
         // Same timestamp → rejected as stale
-        val result = engine.handleRotationAnnouncement("0a0b0c0d0e0f0102030405060708090a", msg2)
+        val result = engine.handleRotationAnnouncement(key("0a0b0c0d0e0f0102030405060708090a"), msg2)
         assertIs<RotationResult.Stale>(result)
     }
 }

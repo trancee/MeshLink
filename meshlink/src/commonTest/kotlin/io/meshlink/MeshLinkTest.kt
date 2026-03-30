@@ -2748,7 +2748,7 @@ class MeshLinkTest {
         advanceUntilIdle()
 
         // Add route, send a message, verify state exists
-        alice.addRoute("some-dest", peerIdBob.toHex(), 1.0, 1u)
+        alice.addRoute(peerIdBob.toHex(), peerIdBob.toHex(), 1.0, 1u)
         assertEquals(1, alice.meshHealth().connectedPeers)
 
         // Stop
@@ -4502,8 +4502,8 @@ class MeshLinkTest {
         assertEquals(0.0, alice.meshHealth().avgRouteCost, 0.001)
 
         // Add routes with known costs
-        alice.addRoute("dest1", "hop1", 2.0, 1u)
-        alice.addRoute("dest2", "hop2", 4.0, 1u)
+        alice.addRoute("de51de51de51de51", "a0a0a0a0a0a0a0a0", 2.0, 1u)
+        alice.addRoute("de52de52de52de52", "b0b0b0b0b0b0b0b0", 4.0, 1u)
 
         // avgRouteCost should be (2.0 + 4.0) / 2 = 3.0
         assertEquals(3.0, alice.meshHealth().avgRouteCost, 0.001)

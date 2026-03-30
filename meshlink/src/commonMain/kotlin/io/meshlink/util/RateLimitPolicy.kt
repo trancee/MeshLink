@@ -81,8 +81,8 @@ class RateLimitPolicy(
 
     // ── Per-scope checks ──────────────────────────────────────────
 
-    fun checkSend(recipientHex: String): RateLimitResult =
-        check(sendLimiter, "send", recipientHex)
+    fun checkSend(recipientId: ByteArrayKey): RateLimitResult =
+        check(sendLimiter, "send", recipientId)
 
     fun checkCircuitBreaker(): RateLimitResult {
         val cb = circuitBreaker ?: return RateLimitResult.Allowed
@@ -94,19 +94,19 @@ class RateLimitPolicy(
     }
 
     fun checkBroadcast(): RateLimitResult =
-        check(broadcastLimiter, "broadcast", "broadcast")
+        check(broadcastLimiter, "broadcast", BROADCAST_KEY)
 
-    fun checkHandshake(peerHex: String): RateLimitResult =
-        check(handshakeLimiter, "handshake", peerHex)
+    fun checkHandshake(peerId: ByteArrayKey): RateLimitResult =
+        check(handshakeLimiter, "handshake", peerId)
 
-    fun checkNack(peerHex: String): RateLimitResult =
-        check(nackLimiter, "nack", peerHex)
+    fun checkNack(peerId: ByteArrayKey): RateLimitResult =
+        check(nackLimiter, "nack", peerId)
 
-    fun checkNeighborAggregate(peerHex: String): RateLimitResult =
-        check(neighborAggregateLimiter, "neighbor_aggregate", peerHex)
+    fun checkNeighborAggregate(peerId: ByteArrayKey): RateLimitResult =
+        check(neighborAggregateLimiter, "neighbor_aggregate", peerId)
 
-    fun checkSenderNeighborRelay(originHex: String, neighborHex: String): RateLimitResult =
-        check(senderNeighborLimiter, "sender_neighbor", "$originHex->$neighborHex")
+    fun checkSenderNeighborRelay(originId: ByteArrayKey, neighborId: ByteArrayKey): RateLimitResult =
+        check(senderNeighborLimiter, "sender_neighbor", ByteArrayKey(originId.bytes + neighborId.bytes))
 
     // ── Circuit breaker failure recording ─────────────────────────
 
@@ -116,12 +116,16 @@ class RateLimitPolicy(
 
     // ── Internal ──────────────────────────────────────────────────
 
-    private fun check(limiter: RateLimiter?, scope: String, key: String): RateLimitResult {
+    private fun check(limiter: RateLimiter?, scope: String, key: ByteArrayKey): RateLimitResult {
         val l = limiter ?: return RateLimitResult.Allowed
         return if (l.tryAcquire(key)) {
             RateLimitResult.Allowed
         } else {
-            RateLimitResult.Limited(scope, key)
+            RateLimitResult.Limited(scope, key.toString())
         }
+    }
+
+    companion object {
+        val BROADCAST_KEY = ByteArrayKey("broadcast".encodeToByteArray())
     }
 }

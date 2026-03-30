@@ -1,10 +1,11 @@
 package io.meshlink.routing
 
+import io.meshlink.util.ByteArrayKey
 import io.meshlink.util.currentTimeMillis
 
 sealed interface NextHopResult {
-    data class Direct(val peerId: String) : NextHopResult
-    data class ViaRoute(val nextHop: String) : NextHopResult
+    data class Direct(val peerId: ByteArrayKey) : NextHopResult
+    data class ViaRoute(val nextHop: ByteArrayKey) : NextHopResult
     data object Unreachable : NextHopResult
 }
 
@@ -16,20 +17,20 @@ sealed interface RouteLearnResult {
 }
 
 data class RouteChange(
-    val destination: String,
-    val oldNextHop: String,
-    val newNextHop: String,
+    val destination: ByteArrayKey,
+    val oldNextHop: ByteArrayKey,
+    val newNextHop: ByteArrayKey,
 )
 
 data class GossipEntry(
-    val destination: String,
+    val destination: ByteArrayKey,
     val cost: Double,
     val sequenceNumber: UInt,
     val hopCount: UByte = 1u,
 )
 
 data class LearnedRoute(
-    val destination: String,
+    val destination: ByteArrayKey,
     val cost: Double,
     val sequenceNumber: UInt,
 )
@@ -44,7 +45,7 @@ data class LearnedRoute(
  * wire-level actions.
  */
 class RoutingEngine(
-    private val localPeerId: String,
+    private val localPeerId: ByteArrayKey,
     private val dedupCapacity: Int = 10_000,
     private val triggeredUpdateThreshold: Double = 0.3,
     private val gossipIntervalMillis: Long = 0L,
@@ -53,43 +54,43 @@ class RoutingEngine(
     private val routingTable = RoutingTable()
     private val presenceTracker = PresenceTracker()
     private val dedup = DedupSet(capacity = dedupCapacity, clock = clock)
-    private val previousNextHop = mutableMapOf<String, String>()
-    private val lastTriggeredUpdateTime = mutableMapOf<String, Long>()
+    private val previousNextHop = mutableMapOf<ByteArrayKey, ByteArrayKey>()
+    private val lastTriggeredUpdateTime = mutableMapOf<ByteArrayKey, Long>()
     private var lastGossipSentMillis: Long = 0L
-    private val nextHopFailures = mutableMapOf<String, Int>()
-    private val nextHopSuccesses = mutableMapOf<String, Int>()
+    private val nextHopFailures = mutableMapOf<ByteArrayKey, Int>()
+    private val nextHopSuccesses = mutableMapOf<ByteArrayKey, Int>()
 
     // ── Presence ──────────────────────────────────────────────────
 
-    fun peerSeen(peerId: String) = presenceTracker.peerSeen(peerId)
-    fun markDisconnected(peerId: String) = presenceTracker.markDisconnected(peerId)
-    fun presenceState(peerId: String): PresenceState? = presenceTracker.state(peerId)
-    fun connectedPeerIds(): Set<String> = presenceTracker.connectedPeerIds()
-    fun allPeerIds(): Set<String> = presenceTracker.allPeerIds()
-    fun sweepPresence(seenPeers: Set<String>): Set<String> = presenceTracker.sweep(seenPeers)
+    fun peerSeen(peerId: ByteArrayKey) = presenceTracker.peerSeen(peerId)
+    fun markDisconnected(peerId: ByteArrayKey) = presenceTracker.markDisconnected(peerId)
+    fun presenceState(peerId: ByteArrayKey): PresenceState? = presenceTracker.state(peerId)
+    fun connectedPeerIds(): Set<ByteArrayKey> = presenceTracker.connectedPeerIds()
+    fun allPeerIds(): Set<ByteArrayKey> = presenceTracker.allPeerIds()
+    fun sweepPresence(seenPeers: Set<ByteArrayKey>): Set<ByteArrayKey> = presenceTracker.sweep(seenPeers)
 
     // ── Route management ──────────────────────────────────────────
 
-    fun addRoute(destination: String, nextHop: String, cost: Double, sequenceNumber: UInt) {
+    fun addRoute(destination: ByteArrayKey, nextHop: ByteArrayKey, cost: Double, sequenceNumber: UInt) {
         routingTable.addRoute(destination, nextHop, cost, sequenceNumber)
     }
 
-    fun resolveNextHop(destinationHex: String): NextHopResult {
-        if (destinationHex in presenceTracker.allPeerIds()) {
-            return NextHopResult.Direct(destinationHex)
+    fun resolveNextHop(destination: ByteArrayKey): NextHopResult {
+        if (destination in presenceTracker.allPeerIds()) {
+            return NextHopResult.Direct(destination)
         }
-        val route = routingTable.bestRoute(destinationHex)
+        val route = routingTable.bestRoute(destination)
             ?: return NextHopResult.Unreachable
         return NextHopResult.ViaRoute(route.nextHop)
     }
 
     // ── Deduplication ─────────────────────────────────────────────
 
-    fun isDuplicate(key: String): Boolean = !dedup.tryInsert(key)
+    fun isDuplicate(key: ByteArrayKey): Boolean = !dedup.tryInsert(key)
 
     // ── Route learning ────────────────────────────────────────────
 
-    fun learnRoutes(fromPeerHex: String, routes: List<LearnedRoute>): RouteLearnResult {
+    fun learnRoutes(fromPeerId: ByteArrayKey, routes: List<LearnedRoute>): RouteLearnResult {
         val routeChanges = mutableListOf<RouteChange>()
         var significantChange = false
 
@@ -99,7 +100,7 @@ class RoutingEngine(
             val oldBest = routingTable.bestRoute(route.destination)
             routingTable.addRoute(
                 route.destination,
-                fromPeerHex,
+                fromPeerId,
                 route.cost + 1.0,
                 route.sequenceNumber,
             )
@@ -125,12 +126,12 @@ class RoutingEngine(
 
     // ── Gossip preparation ────────────────────────────────────────
 
-    fun prepareGossipEntries(forPeerHex: String): List<GossipEntry> {
+    fun prepareGossipEntries(forPeerId: ByteArrayKey): List<GossipEntry> {
         return routingTable.allBestRoutes().mapNotNull { route ->
             when {
-                route.nextHop == forPeerHex -> null // Split horizon
-                previousNextHop[route.destination] == forPeerHex &&
-                    route.nextHop != forPeerHex -> {
+                route.nextHop == forPeerId -> null // Split horizon
+                previousNextHop[route.destination] == forPeerId &&
+                    route.nextHop != forPeerId -> {
                     // Poison reverse: tell old next-hop the route is withdrawn
                     GossipEntry(route.destination, Double.MAX_VALUE, route.sequenceNumber)
                 }
@@ -157,15 +158,15 @@ class RoutingEngine(
         }
     }
 
-    fun shouldSendTriggeredUpdate(peerHex: String, powerMode: String): Boolean {
+    fun shouldSendTriggeredUpdate(peerId: ByteArrayKey, powerMode: String): Boolean {
         val interval = effectiveGossipInterval(powerMode)
         if (interval <= 0) return true
-        val lastSent = lastTriggeredUpdateTime[peerHex] ?: return true
+        val lastSent = lastTriggeredUpdateTime[peerId] ?: return true
         return (clock() - lastSent) >= interval
     }
 
-    fun recordTriggeredUpdate(peerHex: String) {
-        lastTriggeredUpdateTime[peerHex] = clock()
+    fun recordTriggeredUpdate(peerId: ByteArrayKey) {
+        lastTriggeredUpdateTime[peerId] = clock()
     }
 
     fun recordGossipSent() {
@@ -176,7 +177,7 @@ class RoutingEngine(
 
     // ── Route queries ─────────────────────────────────────────────
 
-    fun bestRoute(destination: String): RoutingTable.Route? = routingTable.bestRoute(destination)
+    fun bestRoute(destination: ByteArrayKey): RoutingTable.Route? = routingTable.bestRoute(destination)
 
     fun allBestRoutes(): List<RoutingTable.Route> = routingTable.allBestRoutes()
 
@@ -191,26 +192,26 @@ class RoutingEngine(
     // ── Next-hop reliability tracking ──────────────────────────────
 
     /** Record a delivery failure via a specific next-hop. */
-    fun recordNextHopFailure(nextHopHex: String) {
-        nextHopFailures[nextHopHex] = (nextHopFailures[nextHopHex] ?: 0) + 1
+    fun recordNextHopFailure(nextHopId: ByteArrayKey) {
+        nextHopFailures[nextHopId] = (nextHopFailures[nextHopId] ?: 0) + 1
     }
 
     /** Record a delivery success via a specific next-hop. */
-    fun recordNextHopSuccess(nextHopHex: String) {
-        nextHopSuccesses[nextHopHex] = (nextHopSuccesses[nextHopHex] ?: 0) + 1
+    fun recordNextHopSuccess(nextHopId: ByteArrayKey) {
+        nextHopSuccesses[nextHopId] = (nextHopSuccesses[nextHopId] ?: 0) + 1
     }
 
     /** Failure rate for a next-hop (0.0–1.0), or 0.0 if no data. */
-    fun nextHopFailureRate(nextHopHex: String): Double {
-        val failures = nextHopFailures[nextHopHex] ?: 0
-        val successes = nextHopSuccesses[nextHopHex] ?: 0
+    fun nextHopFailureRate(nextHopId: ByteArrayKey): Double {
+        val failures = nextHopFailures[nextHopId] ?: 0
+        val successes = nextHopSuccesses[nextHopId] ?: 0
         val total = failures + successes
         if (total == 0) return 0.0
         return failures.toDouble() / total
     }
 
     /** Total recorded failures for a next-hop. */
-    fun nextHopFailureCount(nextHopHex: String): Int = nextHopFailures[nextHopHex] ?: 0
+    fun nextHopFailureCount(nextHopId: ByteArrayKey): Int = nextHopFailures[nextHopId] ?: 0
 
     // ── Cleanup ────────────────────────────────────────────────────
 

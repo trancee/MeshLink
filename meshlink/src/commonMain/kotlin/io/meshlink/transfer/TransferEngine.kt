@@ -1,5 +1,7 @@
 package io.meshlink.transfer
 
+import io.meshlink.util.ByteArrayKey
+
 /**
  * Manages the complete lifecycle of chunked message transfers:
  * outbound chunking + AIMD congestion control + retransmission,
@@ -13,17 +15,17 @@ class TransferEngine(
     private val clock: () -> Long = { 0L },
     private val maxConcurrentInboundSessions: Int = 100,
 ) {
-    // Outbound state: messageId hex → transfer
-    private val outbound = mutableMapOf<String, OutboundState>()
+    // Outbound state: messageId → transfer
+    private val outbound = mutableMapOf<ByteArrayKey, OutboundState>()
 
-    // Inbound state: messageId hex → reassembly
-    private val inbound = mutableMapOf<String, InboundState>()
+    // Inbound state: messageId → reassembly
+    private val inbound = mutableMapOf<ByteArrayKey, InboundState>()
 
     // --- Outbound: chunking and sending ---
 
     fun beginSend(
-        messageIdHex: String,
-        messageId: ByteArray,
+        messageId: ByteArrayKey,
+        rawMessageId: ByteArray,
         payload: ByteArray,
         chunkSize: Int,
     ): OutboundHandle {
@@ -37,21 +39,21 @@ class TransferEngine(
         }
         val totalChunks = chunks.size
         val session = TransferSession(totalChunks, initialWindow = totalChunks)
-        outbound[messageIdHex] = OutboundState(session, chunks, messageId, createdAtMillis = clock())
+        outbound[messageId] = OutboundState(session, chunks, rawMessageId, createdAtMillis = clock())
         val initialSeqs = session.nextChunksToSend()
         return OutboundHandle(
-            messageId = messageId,
+            messageId = rawMessageId,
             chunks = initialSeqs.map { seq -> ChunkData(seq, totalChunks, chunks[seq]) },
             totalChunks = totalChunks,
         )
     }
 
-    fun onAck(messageIdHex: String, ackSeq: Int, sackBitmask: ULong): TransferUpdate {
-        val state = outbound[messageIdHex] ?: return TransferUpdate.Unknown
+    fun onAck(messageId: ByteArrayKey, ackSeq: Int, sackBitmask: ULong): TransferUpdate {
+        val state = outbound[messageId] ?: return TransferUpdate.Unknown
         state.session.onAck(ackSeq, sackBitmask)
 
         if (state.session.isComplete()) {
-            outbound.remove(messageIdHex)
+            outbound.remove(messageId)
             return TransferUpdate.Complete(state.messageId, state.session.ackedCount(), state.chunks.size)
         }
 
@@ -63,8 +65,8 @@ class TransferEngine(
         )
     }
 
-    fun getOutboundRecipientInfo(messageIdHex: String): OutboundInfo? {
-        val state = outbound[messageIdHex] ?: return null
+    fun getOutboundRecipientInfo(messageId: ByteArrayKey): OutboundInfo? {
+        val state = outbound[messageId] ?: return null
         return OutboundInfo(
             messageId = state.messageId,
             isComplete = state.session.isComplete(),
@@ -72,24 +74,24 @@ class TransferEngine(
         )
     }
 
-    fun removeOutbound(messageIdHex: String) {
-        outbound.remove(messageIdHex)
+    fun removeOutbound(messageId: ByteArrayKey) {
+        outbound.remove(messageId)
     }
 
     // --- Inbound: reassembly ---
 
     fun onChunkReceived(
-        messageIdHex: String,
+        messageId: ByteArrayKey,
         seqNum: Int,
         totalChunks: Int,
         chunkPayload: ByteArray,
     ): ChunkAcceptResult {
-        val existing = inbound[messageIdHex]
+        val existing = inbound[messageId]
         if (existing == null && inbound.size >= maxConcurrentInboundSessions) {
             return ChunkAcceptResult.Rejected
         }
         val state = existing ?: InboundState(totalChunks, createdAtMillis = clock()).also {
-            inbound[messageIdHex] = it
+            inbound[messageId] = it
         }
         state.chunks[seqNum] = chunkPayload
         state.sackTracker.record(seqNum)
@@ -97,7 +99,7 @@ class TransferEngine(
         val status = state.sackTracker.status()
 
         if (state.sackTracker.isComplete()) {
-            inbound.remove(messageIdHex)
+            inbound.remove(messageId)
             val fullPayload = (0 until state.totalChunks)
                 .map { state.chunks[it]!! }
                 .reduce { acc, bytes -> acc + bytes }
@@ -116,7 +118,7 @@ class TransferEngine(
 
     // --- Sweep stale ---
 
-    fun sweepStaleOutbound(maxAgeMillis: Long): List<String> {
+    fun sweepStaleOutbound(maxAgeMillis: Long): List<ByteArrayKey> {
         val now = clock()
         val stale = outbound.entries
             .filter { (now - it.value.createdAtMillis) >= maxAgeMillis }
@@ -125,7 +127,7 @@ class TransferEngine(
         return stale
     }
 
-    fun sweepStaleInbound(maxAgeMillis: Long): List<String> {
+    fun sweepStaleInbound(maxAgeMillis: Long): List<ByteArrayKey> {
         val now = clock()
         val stale = inbound.entries
             .filter { (now - it.value.createdAtMillis) >= maxAgeMillis }

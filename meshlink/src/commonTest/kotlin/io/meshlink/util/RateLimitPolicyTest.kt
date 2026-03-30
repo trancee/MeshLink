@@ -6,29 +6,31 @@ import kotlin.test.assertIs
 
 class RateLimitPolicyTest {
 
+    private fun key(s: String) = ByteArrayKey(s.encodeToByteArray())
+
     // ── 1. Send rate limiting ─────────────────────────────────────
 
     @Test
     fun sendAllowedWhenUnderLimit() {
         val policy = RateLimitPolicy(MeshLinkConfig(rateLimitMaxSends = 2, rateLimitWindowMillis = 1000L))
-        assertIs<RateLimitResult.Allowed>(policy.checkSend("peer1"))
-        assertIs<RateLimitResult.Allowed>(policy.checkSend("peer1"))
+        assertIs<RateLimitResult.Allowed>(policy.checkSend(key("peer1")))
+        assertIs<RateLimitResult.Allowed>(policy.checkSend(key("peer1")))
     }
 
     @Test
     fun sendLimitedWhenExceeded() {
         val policy = RateLimitPolicy(MeshLinkConfig(rateLimitMaxSends = 1, rateLimitWindowMillis = 1000L))
-        policy.checkSend("peer1")
-        val result = policy.checkSend("peer1")
+        policy.checkSend(key("peer1"))
+        val result = policy.checkSend(key("peer1"))
         assertIs<RateLimitResult.Limited>(result)
         kotlin.test.assertEquals("send", result.scope)
-        kotlin.test.assertEquals("peer1", result.key)
+        kotlin.test.assertEquals(key("peer1").toString(), result.key)
     }
 
     @Test
     fun sendDisabledWhenZero() {
         val policy = RateLimitPolicy(MeshLinkConfig(rateLimitMaxSends = 0))
-        assertIs<RateLimitResult.Allowed>(policy.checkSend("peer1"))
+        assertIs<RateLimitResult.Allowed>(policy.checkSend(key("peer1")))
     }
 
     // ── 2. Circuit breaker ────────────────────────────────────────
@@ -92,10 +94,10 @@ class RateLimitPolicyTest {
     @Test
     fun handshakeLimitedPerPeer() {
         val policy = RateLimitPolicy(MeshLinkConfig(handshakeRateLimitPerSec = 1))
-        policy.checkHandshake("peer1")
-        assertIs<RateLimitResult.Limited>(policy.checkHandshake("peer1"))
+        policy.checkHandshake(key("peer1"))
+        assertIs<RateLimitResult.Limited>(policy.checkHandshake(key("peer1")))
         // Different peer is still allowed
-        assertIs<RateLimitResult.Allowed>(policy.checkHandshake("peer2"))
+        assertIs<RateLimitResult.Allowed>(policy.checkHandshake(key("peer2")))
     }
 
     // ── 5. NACK rate limiting ─────────────────────────────────────
@@ -103,8 +105,8 @@ class RateLimitPolicyTest {
     @Test
     fun nackLimitedPerPeer() {
         val policy = RateLimitPolicy(MeshLinkConfig(nackRateLimitPerSec = 1))
-        policy.checkNack("peer1")
-        assertIs<RateLimitResult.Limited>(policy.checkNack("peer1"))
+        policy.checkNack(key("peer1"))
+        assertIs<RateLimitResult.Limited>(policy.checkNack(key("peer1")))
     }
 
     // ── 6. Neighbor aggregate ─────────────────────────────────────
@@ -112,11 +114,11 @@ class RateLimitPolicyTest {
     @Test
     fun neighborAggregateLimitedPerPeer() {
         val policy = RateLimitPolicy(MeshLinkConfig(neighborAggregateLimitPerMin = 2))
-        policy.checkNeighborAggregate("peer1")
-        policy.checkNeighborAggregate("peer1")
-        assertIs<RateLimitResult.Limited>(policy.checkNeighborAggregate("peer1"))
+        policy.checkNeighborAggregate(key("peer1"))
+        policy.checkNeighborAggregate(key("peer1"))
+        assertIs<RateLimitResult.Limited>(policy.checkNeighborAggregate(key("peer1")))
         // Different peer still allowed
-        assertIs<RateLimitResult.Allowed>(policy.checkNeighborAggregate("peer2"))
+        assertIs<RateLimitResult.Allowed>(policy.checkNeighborAggregate(key("peer2")))
     }
 
     // ── 7. Sender-neighbor relay ──────────────────────────────────
@@ -124,12 +126,12 @@ class RateLimitPolicyTest {
     @Test
     fun senderNeighborRelayLimited() {
         val policy = RateLimitPolicy(MeshLinkConfig(senderNeighborLimitPerMin = 1))
-        policy.checkSenderNeighborRelay("origin1", "neighbor1")
-        val result = policy.checkSenderNeighborRelay("origin1", "neighbor1")
+        policy.checkSenderNeighborRelay(key("origin1"), key("neighbor1"))
+        val result = policy.checkSenderNeighborRelay(key("origin1"), key("neighbor1"))
         assertIs<RateLimitResult.Limited>(result)
         kotlin.test.assertEquals("sender_neighbor", result.scope)
         // Different pair still allowed
-        assertIs<RateLimitResult.Allowed>(policy.checkSenderNeighborRelay("origin2", "neighbor1"))
+        assertIs<RateLimitResult.Allowed>(policy.checkSenderNeighborRelay(key("origin2"), key("neighbor1")))
     }
 
     // ── 8. Independent scopes ─────────────────────────────────────
@@ -142,15 +144,15 @@ class RateLimitPolicyTest {
             handshakeRateLimitPerSec = 1,
         ))
         // Exhaust all three
-        policy.checkSend("peer1")
+        policy.checkSend(key("peer1"))
         policy.checkBroadcast()
-        policy.checkHandshake("peer1")
+        policy.checkHandshake(key("peer1"))
         // All three are now limited
-        assertIs<RateLimitResult.Limited>(policy.checkSend("peer1"))
+        assertIs<RateLimitResult.Limited>(policy.checkSend(key("peer1")))
         assertIs<RateLimitResult.Limited>(policy.checkBroadcast())
-        assertIs<RateLimitResult.Limited>(policy.checkHandshake("peer1"))
+        assertIs<RateLimitResult.Limited>(policy.checkHandshake(key("peer1")))
         // But different keys in per-peer scopes are still allowed
-        assertIs<RateLimitResult.Allowed>(policy.checkSend("peer2"))
-        assertIs<RateLimitResult.Allowed>(policy.checkHandshake("peer2"))
+        assertIs<RateLimitResult.Allowed>(policy.checkSend(key("peer2")))
+        assertIs<RateLimitResult.Allowed>(policy.checkHandshake(key("peer2")))
     }
 }

@@ -1,29 +1,31 @@
 package io.meshlink.routing
 
+import io.meshlink.util.ByteArrayKey
+
 enum class PresenceState { CONNECTED, DISCONNECTED, GONE }
 
 class PresenceTracker {
 
-    private val peers = mutableMapOf<String, PresenceState>()
-    private val missCount = mutableMapOf<String, Int>()
+    private val peers = mutableMapOf<ByteArrayKey, PresenceState>()
+    private val missCount = mutableMapOf<ByteArrayKey, Int>()
 
-    fun peerSeen(peerId: String) {
+    fun peerSeen(peerId: ByteArrayKey) {
         peers[peerId] = PresenceState.CONNECTED
         missCount[peerId] = 0
     }
 
-    fun state(peerId: String): PresenceState? = peers[peerId]
+    fun state(peerId: ByteArrayKey): PresenceState? = peers[peerId]
 
-    fun markDisconnected(peerId: String) {
+    fun markDisconnected(peerId: ByteArrayKey) {
         if (peers.containsKey(peerId)) {
             peers[peerId] = PresenceState.DISCONNECTED
         }
     }
 
-    fun connectedPeerIds(): Set<String> =
+    fun connectedPeerIds(): Set<ByteArrayKey> =
         peers.filterValues { it == PresenceState.CONNECTED }.keys
 
-    fun allPeerIds(): Set<String> = peers.keys.toSet()
+    fun allPeerIds(): Set<ByteArrayKey> = peers.keys.toSet()
 
     fun clear() {
         peers.clear()
@@ -31,8 +33,8 @@ class PresenceTracker {
     }
 
     /** Run sweep. Returns set of evicted peer IDs (2 consecutive misses → GONE). */
-    fun sweep(seenPeers: Set<String>): Set<String> {
-        val evicted = mutableSetOf<String>()
+    fun sweep(seenPeers: Set<ByteArrayKey>): Set<ByteArrayKey> {
+        val evicted = mutableSetOf<ByteArrayKey>()
         for (peerId in peers.keys.toList()) {
             if (peerId in seenPeers) {
                 peers[peerId] = PresenceState.CONNECTED

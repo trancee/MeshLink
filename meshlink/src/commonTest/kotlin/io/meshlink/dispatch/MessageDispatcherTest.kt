@@ -8,9 +8,10 @@ import io.meshlink.routing.RoutingEngine
 import io.meshlink.transfer.ChunkData
 import io.meshlink.transfer.TransferEngine
 import io.meshlink.util.AppIdFilter
+import io.meshlink.util.ByteArrayKey
 import io.meshlink.util.PauseManager
 import io.meshlink.util.RateLimitPolicy
-import io.meshlink.util.toHex
+import io.meshlink.util.toKey
 import io.meshlink.wire.WireCodec
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
@@ -33,7 +34,7 @@ class MessageDispatcherTest {
         val keyChanges = mutableListOf<KeyChangeEvent>()
         val chunksDispatched = mutableListOf<Triple<ByteArray, List<ChunkData>, ByteArray>>()
         var gossipTriggered = false
-        val completedKeys = mutableListOf<String>()
+        val completedKeys = mutableListOf<ByteArrayKey>()
 
         override suspend fun onMessageReceived(senderId: ByteArray, payload: ByteArray) {
             messages.add(senderId to payload)
@@ -63,7 +64,7 @@ class MessageDispatcherTest {
             gossipTriggered = true
         }
 
-        override fun onOutboundComplete(key: String, messageId: ByteArray) {
+        override fun onOutboundComplete(key: ByteArrayKey, messageId: ByteArray) {
             completedKeys.add(key)
         }
     }
@@ -73,7 +74,7 @@ class MessageDispatcherTest {
         config: MeshLinkConfig = MeshLinkConfig(),
     ): Pair<MessageDispatcher, RecordingSink> {
         val diagnosticSink = DiagnosticSink()
-        val routingEngine = RoutingEngine(localPeerId = localPeer.toHex())
+        val routingEngine = RoutingEngine(localPeerId = localPeer.toKey())
         val transferEngine = TransferEngine()
         val deliveryPipeline = DeliveryPipeline(diagnosticSink = diagnosticSink)
         val rateLimitPolicy = RateLimitPolicy(config) { 0L }
@@ -285,7 +286,7 @@ class MessageDispatcherTest {
     @Test
     fun broadcastWithWrongAppIdIsRejected() = runTest {
         val diagnosticSink = DiagnosticSink()
-        val routingEngine = RoutingEngine(localPeerId = localPeer.toHex())
+        val routingEngine = RoutingEngine(localPeerId = localPeer.toKey())
         val config = MeshLinkConfig()
         val sink = RecordingSink()
         val deliveryPipeline = DeliveryPipeline(diagnosticSink = diagnosticSink)
@@ -332,7 +333,7 @@ class MessageDispatcherTest {
     @Test
     fun routedMessageQueuedWhenPaused() = runTest {
         val diagnosticSink = DiagnosticSink()
-        val routingEngine = RoutingEngine(localPeerId = localPeer.toHex())
+        val routingEngine = RoutingEngine(localPeerId = localPeer.toKey())
         val config = MeshLinkConfig()
         val sink = RecordingSink()
         val pauseManager = PauseManager()
@@ -341,7 +342,7 @@ class MessageDispatcherTest {
         val rateLimitPolicy = RateLimitPolicy(config) { 0L }
 
         // Make peerB "present" so routing succeeds
-        routingEngine.peerSeen(peerB.toHex())
+        routingEngine.peerSeen(peerB.toKey())
 
         val validator = InboundValidator(
             securityEngine = null,

@@ -5,7 +5,6 @@ import io.meshlink.diagnostics.DiagnosticCode
 import io.meshlink.diagnostics.DiagnosticSink
 import io.meshlink.diagnostics.Severity
 import io.meshlink.routing.RoutingEngine
-import io.meshlink.util.hexToBytes
 import io.meshlink.wire.RouteUpdateEntry
 import io.meshlink.wire.WireCodec
 import kotlinx.coroutines.channels.Channel
@@ -83,15 +82,15 @@ class GossipCoordinator(
         val connectedPeers = routingEngine.connectedPeerIds()
         if (connectedPeers.isEmpty()) return
 
-        for (peerHex in connectedPeers) {
-            if (isTriggered && !routingEngine.shouldSendTriggeredUpdate(peerHex, currentPowerMode())) {
+        for (peerId in connectedPeers) {
+            if (isTriggered && !routingEngine.shouldSendTriggeredUpdate(peerId, currentPowerMode())) {
                 continue
             }
 
-            val gossipEntries = routingEngine.prepareGossipEntries(peerHex)
+            val gossipEntries = routingEngine.prepareGossipEntries(peerId)
             val entries = gossipEntries.map { ge ->
                 RouteUpdateEntry(
-                    destination = hexToBytes(ge.destination),
+                    destination = ge.destination.bytes,
                     cost = ge.cost,
                     sequenceNumber = ge.sequenceNumber,
                     hopCount = ge.hopCount,
@@ -104,10 +103,10 @@ class GossipCoordinator(
             } else {
                 WireCodec.encodeRouteUpdate(localPeerId, entries)
             }
-            sendFrame(hexToBytes(peerHex), updateData)
+            sendFrame(peerId.bytes, updateData)
 
             if (isTriggered) {
-                routingEngine.recordTriggeredUpdate(peerHex)
+                routingEngine.recordTriggeredUpdate(peerId)
             }
         }
 
@@ -125,8 +124,8 @@ class GossipCoordinator(
         if (connectedPeers.isEmpty()) return
         val nowSeconds = (clock() / 1000).toUInt()
         val frame = WireCodec.encodeKeepalive(nowSeconds)
-        for (peerHex in connectedPeers) {
-            sendFrame(hexToBytes(peerHex), frame)
+        for (peerId in connectedPeers) {
+            sendFrame(peerId.bytes, frame)
         }
     }
 }
