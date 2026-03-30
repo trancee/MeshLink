@@ -80,6 +80,8 @@ class LinuxBleTransport(
 
     override val localPeerId: ByteArray = generatePeerId()
 
+    override var advertisementServiceData: ByteArray = ByteArray(0)
+
     // -- HCI socket --
 
     private var hciSocket: Int = -1
@@ -334,6 +336,32 @@ class LinuxBleTransport(
                 sizeOf<hci_le_set_adv_data_cp>().toUByte(),
                 pinned.addressOf(0),
             )
+        }
+
+        // Set scan response data with service data (AdvertisementCodec payload)
+        if (advertisementServiceData.isNotEmpty()) {
+            val scanRspBytes = ByteArray(32)
+            var spos = 1
+            // AD type 0x21 = Service Data - 128-bit UUID
+            val adLen = (1 + 16 + advertisementServiceData.size).toByte()
+            scanRspBytes[spos++] = adLen
+            scanRspBytes[spos++] = 0x21 // type
+            for (b in serviceUuidBytes) {
+                scanRspBytes[spos++] = b
+            }
+            for (b in advertisementServiceData) {
+                scanRspBytes[spos++] = b
+            }
+            scanRspBytes[0] = (spos - 1).toByte()
+
+            scanRspBytes.usePinned { pinned ->
+                bt_hci_send_cmd(
+                    hciSocket,
+                    hci_opcode(OGF_LE_CTL.toUByte(), OCF_LE_SET_SCAN_RSP_DATA.toUShort()),
+                    sizeOf<hci_le_set_scan_rsp_data_cp>().toUByte(),
+                    pinned.addressOf(0),
+                )
+            }
         }
 
         // Enable advertising

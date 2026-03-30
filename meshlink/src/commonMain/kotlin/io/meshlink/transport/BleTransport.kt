@@ -12,13 +12,20 @@ interface BleTransport {
     /** The local peer identifier for this device. */
     val localPeerId: ByteArray
 
+    /**
+     * Service data to include in BLE advertisements (encoded via [io.meshlink.wire.AdvertisementCodec]).
+     * Set this before calling [startAdvertisingAndScanning]. Transports include this payload
+     * in scan response data (Android/Linux) or advertisement data (iOS/macOS).
+     */
+    var advertisementServiceData: ByteArray
+
     /** Start advertising and scanning. */
     suspend fun startAdvertisingAndScanning()
 
     /** Stop all BLE activity. */
     suspend fun stopAll()
 
-    /** Flow of discovered peer advertisement payloads (17-byte: 1B version+power, 16B key hash). */
+    /** Flow of discovered peer advertisement payloads. */
     val advertisementEvents: Flow<AdvertisementEvent>
 
     /** Flow of peer loss events (peer stopped advertising / timed out). */

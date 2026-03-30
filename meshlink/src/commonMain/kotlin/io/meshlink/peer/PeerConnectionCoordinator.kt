@@ -1,6 +1,5 @@
 package io.meshlink.peer
 
-import io.meshlink.crypto.KeyRegistrationResult
 import io.meshlink.crypto.SecurityEngine
 import io.meshlink.crypto.TrustStore
 import io.meshlink.crypto.VerifyResult
@@ -66,19 +65,19 @@ class PeerConnectionCoordinator(
 ) {
     /**
      * Process a BLE advertisement event.
-     * Performs version negotiation, updates routing presence, registers
-     * peer keys, and determines whether a handshake should be initiated.
+     * Performs version negotiation, updates routing presence, and determines
+     * whether a handshake should be initiated.
      */
     fun onAdvertisementReceived(peerId: ByteArray, advertisementPayload: ByteArray): PeerConnectionAction {
         if (isPaused()) return PeerConnectionAction.Skipped
 
         // Protocol version negotiation and power mode extraction.
-        // Exactly 17 bytes → AdvertisementCodec format: byte 0 = [major:4][power:4].
-        // Other sizes ≥ 2 bytes → legacy format: byte 0 = major, byte 1 = minor.
+        // AdvertisementCodec format (≥ SIZE bytes): byte 0 = [major:4][power:4].
+        // Shorter payloads skip version check (no power/key info available).
         var remotePowerMode = POWER_MODE_UNKNOWN
         var remoteKeyHash: ByteArray? = null
 
-        if (advertisementPayload.size == AdvertisementCodec.SIZE) {
+        if (advertisementPayload.size >= AdvertisementCodec.SIZE) {
             val adv = AdvertisementCodec.decode(advertisementPayload)
             val remoteVersion = ProtocolVersion(adv.versionMajor, adv.versionMinor)
             if (protocolVersion.negotiate(remoteVersion) == null) {
@@ -86,32 +85,11 @@ class PeerConnectionCoordinator(
             }
             remotePowerMode = adv.powerMode
             remoteKeyHash = adv.keyHash
-        } else if (advertisementPayload.size >= 2) {
-            val remoteMajor = advertisementPayload[0].toInt() and 0xFF
-            val remoteMinor = advertisementPayload[1].toInt() and 0xFF
-            val remoteVersion = ProtocolVersion(remoteMajor, remoteMinor)
-            if (protocolVersion.negotiate(remoteVersion) == null) {
-                return PeerConnectionAction.Rejected
-            }
         }
 
         val peerKey = peerId.toKey()
         val isNewPeer = routingEngine.presenceState(peerKey) != PresenceState.CONNECTED
         routingEngine.peerSeen(peerKey)
-
-        // Key registration (requires full 32-byte X25519 key in extended payload)
-        var keyChangeEvent: KeyChangeEvent? = null
-        if (advertisementPayload.size >= 34 && securityEngine != null) {
-            val newKey = advertisementPayload.copyOfRange(2, 34)
-            val regResult = securityEngine.registerPeerKey(peerKey, newKey)
-            if (regResult is KeyRegistrationResult.Changed) {
-                keyChangeEvent = KeyChangeEvent(
-                    peerId = peerId.copyOf(),
-                    previousKey = regResult.previousKey.copyOf(),
-                    newKey = newKey.copyOf(),
-                )
-            }
-        }
 
         // Handshake initiation (power-mode-aware tie-breaking)
         var handshakeMessage: ByteArray? = null
@@ -134,7 +112,7 @@ class PeerConnectionCoordinator(
         return PeerConnectionAction.PeerUpdate(
             peerId = peerId,
             isNewPeer = isNewPeer,
-            keyChangeEvent = keyChangeEvent,
+            keyChangeEvent = null,
             handshakeMessage = handshakeMessage,
             handshakeRateLimited = handshakeRateLimited,
         )
@@ -151,7 +129,7 @@ class PeerConnectionCoordinator(
      *
      * - Higher-power device (lower [PowerMode] ordinal) acts as central.
      * - Same power → lexicographically higher key hash acts as central.
-     * - Fallback (no power/key info): lower peer ID initiates (legacy).
+     * - Fallback (no power/key info): lower peer ID initiates.
      */
     internal fun shouldInitiate(
         peerId: ByteArray,
@@ -166,14 +144,13 @@ class PeerConnectionCoordinator(
             if (localPower > remotePowerMode) return false
 
             // Same power mode — higher key hash initiates.
-            // Only if both hashes are non-trivial (not placeholder all-zeros).
             val localHash = localKeyHash()
-            if (remoteKeyHash != null && localHash.isNotEmpty() && !isAllZeros(remoteKeyHash)) {
+            if (remoteKeyHash != null && localHash.isNotEmpty()) {
                 return compareUnsignedBytes(localHash, remoteKeyHash) > 0
             }
         }
 
-        // Fallback: lower peer ID initiates (legacy behavior)
+        // Fallback: lower peer ID initiates
         return compareUnsignedBytes(localPeerId, peerId) < 0
     }
 
@@ -193,7 +170,5 @@ class PeerConnectionCoordinator(
             }
             return a.size - b.size
         }
-
-        private fun isAllZeros(data: ByteArray): Boolean = data.all { it == 0.toByte() }
     }
 }

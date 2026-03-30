@@ -29,14 +29,8 @@ class PeerConnectionCoordinatorTest {
         gossipIntervalMillis = 5_000L,
     )
 
-    /** Build a minimal advertisement payload: [majorVersion, minorVersion, ...x25519Key] */
-    private fun advPayload(major: Int = 1, minor: Int = 0, x25519Key: ByteArray? = null): ByteArray {
-        val version = byteArrayOf(major.toByte(), minor.toByte())
-        return if (x25519Key != null) version + x25519Key else version
-    }
-
-    /** Build a full 17-byte AdvertisementCodec payload with power mode and key hash. */
-    private fun fullAdvPayload(
+    /** Build an AdvertisementCodec payload with power mode and key hash. */
+    private fun advPayload(
         major: Int = 1,
         minor: Int = 0,
         powerMode: Int = 0,
@@ -99,22 +93,6 @@ class PeerConnectionCoordinatorTest {
         assertIs<PeerConnectionAction.PeerUpdate>(result)
     }
 
-    @Test
-    fun fullPayload_incompatibleVersion_rejected() {
-        val re = routingEngine()
-        val c = coordinator(re, protocolVersion = ProtocolVersion(1, 0))
-        val result = c.onAdvertisementReceived(peerA, fullAdvPayload(major = 5, minor = 0))
-        assertIs<PeerConnectionAction.Rejected>(result)
-    }
-
-    @Test
-    fun fullPayload_compatibleVersion_proceeds() {
-        val re = routingEngine()
-        val c = coordinator(re, protocolVersion = ProtocolVersion(1, 0))
-        val result = c.onAdvertisementReceived(peerA, fullAdvPayload(major = 1, minor = 0))
-        assertIs<PeerConnectionAction.PeerUpdate>(result)
-    }
-
     // ── New vs existing peer ────────────────────────────────────
 
     @Test
@@ -160,8 +138,7 @@ class PeerConnectionCoordinatorTest {
     fun noCrypto_noKeyChangeEvent() {
         val re = routingEngine()
         val c = coordinator(re)
-        val key = ByteArray(32) { 0x55 }
-        val result = c.onAdvertisementReceived(peerA, advPayload(x25519Key = key)) as PeerConnectionAction.PeerUpdate
+        val result = c.onAdvertisementReceived(peerA, advPayload()) as PeerConnectionAction.PeerUpdate
         assertNull(result.keyChangeEvent)
     }
 
@@ -233,8 +210,8 @@ class PeerConnectionCoordinatorTest {
     @Test
     fun shouldInitiate_samePower_higherKeyHashInitiates() {
         val re = routingEngine()
-        val localHash = ByteArray(15) { 0xFF.toByte() }
-        val remoteHash = ByteArray(15) { 0x01 }
+        val localHash = ByteArray(AdvertisementCodec.KEY_HASH_SIZE) { 0xFF.toByte() }
+        val remoteHash = ByteArray(AdvertisementCodec.KEY_HASH_SIZE) { 0x01 }
         val c = coordinator(re, localPowerMode = { 1 }, localKeyHash = { localHash })
         // Local hash FF... > remote hash 01... → local initiates
         assertTrue(c.shouldInitiate(peerA, remotePowerMode = 1, remoteKeyHash = remoteHash))
@@ -243,8 +220,8 @@ class PeerConnectionCoordinatorTest {
     @Test
     fun shouldInitiate_samePower_lowerKeyHashWaits() {
         val re = routingEngine()
-        val localHash = ByteArray(15) { 0x01 }
-        val remoteHash = ByteArray(15) { 0xFF.toByte() }
+        val localHash = ByteArray(AdvertisementCodec.KEY_HASH_SIZE) { 0x01 }
+        val remoteHash = ByteArray(AdvertisementCodec.KEY_HASH_SIZE) { 0xFF.toByte() }
         val c = coordinator(re, localPowerMode = { 1 }, localKeyHash = { localHash })
         // Local hash 01... < remote hash FF... → local waits
         assertTrue(!c.shouldInitiate(peerA, remotePowerMode = 1, remoteKeyHash = remoteHash))
@@ -267,21 +244,20 @@ class PeerConnectionCoordinatorTest {
     }
 
     @Test
-    fun shouldInitiate_samePower_allZerosKeyHash_fallsToPeerId() {
+    fun shouldInitiate_samePower_zeroKeyHash_usesHashComparison() {
         val re = routingEngine()
-        // Even with local key hash, all-zeros remote hash is treated as placeholder
-        val localHash = ByteArray(15) { 0xFF.toByte() }
-        val allZeros = ByteArray(15)
+        // Local FF... hash > remote 00... hash → local initiates via hash comparison
+        val localHash = ByteArray(AdvertisementCodec.KEY_HASH_SIZE) { 0xFF.toByte() }
+        val allZeros = ByteArray(AdvertisementCodec.KEY_HASH_SIZE)
         val c = coordinator(re, localPowerMode = { 1 }, localKeyHash = { localHash })
-        // Falls back to peer ID comparison (local 0101... < remote 1010...)
         assertTrue(c.shouldInitiate(peerA, remotePowerMode = 1, remoteKeyHash = allZeros))
     }
 
     @Test
     fun shouldInitiate_symmetry_onlyOneInitiates() {
         // Verify that given the same inputs, exactly one side initiates
-        val hashA = byteArrayOf(0x10, 0x20, 0x30, 0x40, 0x50, 0x60, 0x70, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00)
-        val hashB = byteArrayOf(0x10, 0x20, 0x30, 0x40, 0x50, 0x60, 0x71.toByte(), 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00)
+        val hashA = byteArrayOf(0x10, 0x20, 0x30, 0x40, 0x50, 0x60, 0x70, 0x00)
+        val hashB = byteArrayOf(0x10, 0x20, 0x30, 0x40, 0x50, 0x60, 0x71.toByte(), 0x00)
 
         val re1 = routingEngine()
         val c1 = coordinator(re1, localPowerMode = { 1 }, localKeyHash = { hashA })

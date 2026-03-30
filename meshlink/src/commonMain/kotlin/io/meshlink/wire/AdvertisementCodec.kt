@@ -1,27 +1,32 @@
 package io.meshlink.wire
 
 /**
- * Frozen 17-byte BLE advertisement payload codec.
+ * 10-byte BLE advertisement service-data codec.
  *
  * ```
- * Byte 0:      [4 bits: version major][4 bits: power mode]
- * Byte 1:      [8 bits: version minor]
- * Bytes 2-16:  [15 bytes: truncated SHA-256 of X25519 public key]
+ * Byte 0:     [4 bits: version major][4 bits: power mode]
+ * Byte 1:     [8 bits: version minor]
+ * Bytes 2-9:  [8 bytes: truncated SHA-256 of X25519 public key]
  * ```
+ *
+ * **BLE size constraint:** BLE 4.x scan response data is limited to 31 bytes.
+ * A Service Data AD structure with a 128-bit UUID requires 18 bytes of overhead
+ * (1 length + 1 type + 16 UUID), leaving 13 bytes for the payload. This codec
+ * uses 10 bytes, well within that limit.
  *
  * This is a pure codec — callers must pre-hash the public key via SHA-256
  * before calling [encode]. This keeps the wire module free of crypto dependencies.
  */
 object AdvertisementCodec {
 
-    const val SIZE = 17
-    const val KEY_HASH_SIZE = 15
+    const val SIZE = 10
+    const val KEY_HASH_SIZE = 8
 
     /**
      * Encode a BLE advertisement payload.
      *
-     * @param publicKeyHash SHA-256 hash of the X25519 public key (≥15 bytes).
-     *   Only the first 15 bytes are used.
+     * @param publicKeyHash SHA-256 hash of the X25519 public key (≥8 bytes).
+     *   Only the first 8 bytes are used.
      */
     fun encode(
         versionMajor: Int,
@@ -53,7 +58,7 @@ object AdvertisementCodec {
         val versionMajor = byte0 ushr 4
         val powerMode = byte0 and 0x0F
         val versionMinor = data[1].toInt() and 0xFF
-        val keyHash = data.copyOfRange(2, 17)
+        val keyHash = data.copyOfRange(2, 2 + KEY_HASH_SIZE)
 
         return AdvertisementPayload(versionMajor, versionMinor, powerMode, keyHash)
     }

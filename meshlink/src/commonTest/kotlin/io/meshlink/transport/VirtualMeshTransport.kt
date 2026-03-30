@@ -13,6 +13,8 @@ class VirtualMeshTransport(
     override val localPeerId: ByteArray,
 ) : BleTransport {
 
+    override var advertisementServiceData: ByteArray = ByteArray(0)
+
     private val _advertisementEvents = MutableSharedFlow<AdvertisementEvent>(extraBufferCapacity = 64)
     private val _incomingData = MutableSharedFlow<IncomingData>(extraBufferCapacity = 64)
     private val _peerLostEvents = MutableSharedFlow<PeerLostEvent>(extraBufferCapacity = 64)
@@ -69,7 +71,10 @@ class VirtualMeshTransport(
     }
 
     /** Simulate peer discovery (as if we received their advertisement). */
-    suspend fun simulateDiscovery(peerId: ByteArray, advertisementPayload: ByteArray = ByteArray(17)) {
+    suspend fun simulateDiscovery(
+        peerId: ByteArray,
+        advertisementPayload: ByteArray = ByteArray(0),
+    ) {
         _advertisementEvents.emit(AdvertisementEvent(peerId, advertisementPayload))
     }
 

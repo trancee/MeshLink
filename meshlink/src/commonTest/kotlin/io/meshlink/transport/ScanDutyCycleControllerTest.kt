@@ -200,6 +200,7 @@ class ScanDutyCycleControllerTest {
         var stopCount = 0
 
         override val localPeerId: ByteArray = ByteArray(16)
+        override var advertisementServiceData: ByteArray = ByteArray(0)
 
         override suspend fun startAdvertisingAndScanning() {
             startCount++

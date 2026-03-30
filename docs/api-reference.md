@@ -577,9 +577,10 @@ interface BleTransport {
 | Member | Description |
 |--------|-------------|
 | `localPeerId` | 16-byte unique identifier for this device. |
+| `advertisementServiceData` | Service data payload to include in BLE advertisements (set before starting). |
 | `startAdvertisingAndScanning()` | Begin BLE advertising and scanning. |
 | `stopAll()` | Stop all BLE activity. |
-| `advertisementEvents` | Flow of 17-byte advertisement payloads (1 byte version+power, 16 bytes key hash). |
+| `advertisementEvents` | Flow of advertisement payloads from discovered peers. |
 | `peerLostEvents` | Flow of events when a peer stops advertising or times out. |
 | `sendToPeer(peerId, data)` | Send raw bytes to a connected peer. |
 | `incomingData` | Flow of raw bytes received from peers. |

@@ -42,7 +42,7 @@ class AdvertisementCodecTest {
         )
         val decoded = AdvertisementCodec.decode(encoded)
 
-        val expectedHash = testKeyHash.copyOfRange(0, 15)
+        val expectedHash = testKeyHash.copyOfRange(0, AdvertisementCodec.KEY_HASH_SIZE)
         assertContentEquals(expectedHash, decoded.keyHash)
     }
 
@@ -53,7 +53,7 @@ class AdvertisementCodecTest {
         // SHA-256 of 32 zero bytes
         val zeroKey = ByteArray(32)
         val fullHash = Sha256.hash(zeroKey)
-        val expected15 = fullHash.copyOfRange(0, 15)
+        val expectedPrefix = fullHash.copyOfRange(0, AdvertisementCodec.KEY_HASH_SIZE)
 
         val encoded = AdvertisementCodec.encode(
             versionMajor = 0,
@@ -62,9 +62,9 @@ class AdvertisementCodecTest {
             publicKeyHash = fullHash,
         )
 
-        // Bytes 2-16 must be the first 15 bytes of the hash
-        val hashSlice = encoded.copyOfRange(2, 17)
-        assertContentEquals(expected15, hashSlice)
+        // Bytes 2-(2+KEY_HASH_SIZE) must be the first KEY_HASH_SIZE bytes of the hash
+        val hashSlice = encoded.copyOfRange(2, 2 + AdvertisementCodec.KEY_HASH_SIZE)
+        assertContentEquals(expectedPrefix, hashSlice)
     }
 
     // ── Bit-packing ─────────────────────────────────────────────────────
@@ -127,7 +127,7 @@ class AdvertisementCodecTest {
     // ── Size ─────────────────────────────────────────────────────────────
 
     @Test
-    fun encodedPayloadIsExactly17Bytes() {
+    fun encodedPayloadIsExactly10Bytes() {
         val encoded = AdvertisementCodec.encode(
             versionMajor = 1,
             versionMinor = 0,
@@ -135,7 +135,7 @@ class AdvertisementCodecTest {
             publicKeyHash = testKeyHash,
         )
         assertEquals(AdvertisementCodec.SIZE, encoded.size)
-        assertEquals(17, encoded.size)
+        assertEquals(10, encoded.size)
     }
 
     // ── Decode validation ───────────────────────────────────────────────
@@ -143,7 +143,7 @@ class AdvertisementCodecTest {
     @Test
     fun decodeWithShortDataThrows() {
         assertFailsWith<IllegalArgumentException> {
-            AdvertisementCodec.decode(ByteArray(16))
+            AdvertisementCodec.decode(ByteArray(9))
         }
         assertFailsWith<IllegalArgumentException> {
             AdvertisementCodec.decode(ByteArray(0))
@@ -160,8 +160,8 @@ class AdvertisementCodecTest {
         val encodedA = AdvertisementCodec.encode(1, 0, 0, hashA)
         val encodedB = AdvertisementCodec.encode(1, 0, 0, hashB)
 
-        val sliceA = encodedA.copyOfRange(2, 17)
-        val sliceB = encodedB.copyOfRange(2, 17)
+        val sliceA = encodedA.copyOfRange(2, 2 + AdvertisementCodec.KEY_HASH_SIZE)
+        val sliceB = encodedB.copyOfRange(2, 2 + AdvertisementCodec.KEY_HASH_SIZE)
 
         assertFalse(sliceA.contentEquals(sliceB), "Different keys must yield different hash prefixes")
     }

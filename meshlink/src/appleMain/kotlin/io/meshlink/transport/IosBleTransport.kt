@@ -126,6 +126,8 @@ class IosBleTransport(
 
     override val localPeerId: ByteArray = loadOrGeneratePeerId()
 
+    override var advertisementServiceData: ByteArray = ByteArray(0)
+
     // -- CoreBluetooth managers (initialized on start) --
 
     private var centralManager: CBCentralManager? = null
@@ -375,10 +377,17 @@ class IosBleTransport(
     }
 
     private fun startAdvertising() {
-        val advData = mapOf<Any?, Any?>(
+        val advData = mutableMapOf<Any?, Any?>(
             CBAdvertisementDataServiceUUIDsKey to listOf(serviceUUID),
         )
-        logD("startAdvertising() — serviceUUID=${serviceUUID.UUIDString}, advData=$advData")
+        if (advertisementServiceData.isNotEmpty()) {
+            advData["kCBAdvDataServiceData"] = mapOf<Any?, Any?>(
+                serviceUUID to advertisementServiceData.toNSData(),
+            )
+        }
+        logD(
+            "startAdvertising() — serviceUUID=${serviceUUID.UUIDString}, serviceData=${advertisementServiceData.size}B"
+        )
         peripheralManager?.startAdvertising(advData)
         logD("✅ Advertising started for service ${serviceUUID.UUIDString}")
     }

@@ -9,7 +9,7 @@ Protocol version: 1.0
 MeshLink uses a compact binary wire protocol designed for Bluetooth Low Energy
 (BLE) mesh networking. Every framed message begins with a single **type byte**
 (offset 0) that acts as the message discriminator. Separate from the framed
-messages, the protocol defines a **17-byte BLE advertisement payload** and a
+messages, the protocol defines a **10-byte BLE advertisement payload** and a
 **5-byte Noise XX handshake payload**.
 
 ## Conventions
@@ -25,20 +25,21 @@ messages, the protocol defines a **17-byte BLE advertisement payload** and a
 
 ---
 
-## BLE Advertisement Payload (17 bytes)
+## BLE Advertisement Payload (10 bytes)
 
-Broadcast over BLE advertising channels for peer discovery. Not framed with a
-type byte — this is a standalone payload.
+Broadcast as BLE service data in the scan response for peer discovery. Not
+framed with a type byte — this is a standalone payload carried inside a
+Service Data AD structure with the MeshLink 128-bit service UUID.
 
-**Source:** `AdvertisementCodec.kt` · `SIZE = 17`
+**Source:** `AdvertisementCodec.kt` · `SIZE = 10`
 
 ```
-Byte:   0               1               2                              16
-       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-- ... --+-+-+-+-+
-       |MajVer |PwrMode|  VersionMinor |       Truncated SHA-256        |
-       |4 bits |4 bits |   (8 bits)    |   of X25519 public key         |
-       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-- ... --+-+-+-+-+
-       |<--- 1 byte --->|<-- 1 byte -->|<-------- 15 bytes ------------>|
+Byte:   0               1               2                           9
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-- ... --+-+-+
+       |MajVer |PwrMode|  VersionMinor |   Truncated SHA-256        |
+       |4 bits |4 bits |   (8 bits)    |   of X25519 public key     |
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-- ... --+-+-+
+       |<--- 1 byte --->|<-- 1 byte -->|<------- 8 bytes ---------->|
 ```
 
 | Offset | Size | Field | Type | Endianness | Description |
@@ -46,22 +47,22 @@ Byte:   0               1               2                              16
 | 0 [7:4] | 4 bits | `versionMajor` | uint | — | Protocol major version (0–15). |
 | 0 [3:0] | 4 bits | `powerMode` | uint | — | Power mode indicator (0–15). |
 | 1 | 1 | `versionMinor` | uint8 | — | Protocol minor version (0–255). |
-| 2–16 | 15 | `keyHash` | bytes | — | First 15 bytes of `SHA-256(X25519_public_key)`. |
+| 2–9 | 8 | `keyHash` | bytes | — | First 8 bytes of `SHA-256(X25519_public_key)`. |
 
 **Encoding:** `byte0 = (versionMajor << 4) | powerMode`. Both nibble values are
 clamped to their respective ranges via `coerceIn`.
 
 **Decoding:** `versionMajor = byte0 >>> 4`, `powerMode = byte0 & 0x0F`.
 
-**Why 15 bytes for the key hash?** The advertisement payload is constrained to 17
-bytes so it fits within the BLE 4.0 advertising data limit of 31 bytes (leaving
-room for the mandatory AD structure overhead — length byte, AD type, flags). The
-first 2 bytes carry version and power mode metadata, leaving exactly 15 bytes for
-the key hash. A 15-byte (120-bit) truncation of SHA-256 still provides ~2⁶⁰
-collision resistance (birthday bound), which is far beyond the practical mesh
-sizes MeshLink targets. The hash serves as a probabilistic identifier for peer
-key matching — full key exchange happens during the Noise XX handshake, where the
-complete 32-byte X25519 public key is verified.
+**Why 8 bytes for the key hash?** BLE 4.x scan response data is limited to 31
+bytes. A Service Data AD structure with a 128-bit UUID requires 18 bytes of
+overhead (1 length byte + 1 AD type + 16-byte UUID), leaving a maximum of 13
+bytes for the payload. The first 2 bytes carry version and power mode metadata,
+leaving 8 bytes for the key hash. An 8-byte (64-bit) truncation of SHA-256 still
+provides ~2³² collision resistance (birthday bound), which is far beyond the
+practical mesh sizes MeshLink targets. The hash serves as a probabilistic
+identifier for connection tie-breaking — full key exchange happens during the
+Noise XX handshake, where the complete 32-byte X25519 public key is verified.
 
 ---
 
@@ -541,7 +542,7 @@ version negotiation and capability exchange (e.g., L2CAP support).
 
 ### Key Identity
 
-- Node identity is derived from the **first 15 bytes of SHA-256(X25519 public
+- Node identity is derived from the **first 8 bytes of SHA-256(X25519 public
   key)** in BLE advertisements (see Advertisement Payload).
 - Framed messages use **16-byte** truncated key hashes as node identifiers.
 

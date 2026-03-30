@@ -169,7 +169,7 @@ flowchart TD
 | Surface | How reached | Trust boundary | Notes | Evidence |
 |---------|------------|---------------|-------|----------|
 | **BLE GATT write** | Any BLE device writes to GATT characteristic | Untrusted → Transport | No auth before accept | `BleTransport.kt` (Android:496, Apple:393) |
-| **BLE advertisement** | Any device advertises matching UUID | Untrusted → Transport | 17-byte payload parsed without auth | `PeerConnectionCoordinator.kt:61` |
+| **BLE advertisement** | Any device advertises matching UUID | Untrusted → Transport | 10-byte payload parsed without auth | `PeerConnectionCoordinator.kt` |
 | **Chunk ingestion** | First byte = 0x03 in GATT write | Transport → TransferEngine | Creates reassembly state, no rate limit | `MessageDispatcher.kt:123` |
 | **Route update** | First byte = 0x02 in GATT write | Transport → RoutingEngine | Signature optional | `MessageDispatcher.kt:91` |
 | **Broadcast relay** | First byte = 0x00 in GATT write | Transport → all peers | Signature checked but relayed to all neighbors | `MessageDispatcher.kt:185` |

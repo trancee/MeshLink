@@ -29,7 +29,7 @@ class SecurityEngine(
 
     private val handshakeManager = PeerHandshakeManager(
         crypto,
-        crypto.generateX25519KeyPair(),
+        localKeyPair,
         localPayload = handshakePayload,
         diagnosticSink = diagnosticSink,
     )

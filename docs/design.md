@@ -390,9 +390,9 @@ Message IDs are **128-bit UUID v4** (16 bytes), generated randomly by the sender
 
 ### Protocol Versioning & Advertisement Layout
 
-Protocol version and capability flags are bit-packed into the BLE advertisement payload (17 bytes total: 1B version+power, 16B key hash). Version negotiation occurs during the Noise XX handshake. See §12 Protocol Governance & Versioning for negotiation rules, backward compatibility policy, and the N−1 support window.
+Protocol version and capability flags are bit-packed into the BLE advertisement payload (10 bytes total: 2B version+power+reserved, 8B key hash). BLE 4.x scan response allows 31 bytes max; a Service Data AD with 128-bit UUID uses 18 bytes of overhead, leaving 13 bytes — MeshLink uses 10 for a clean fit. Version negotiation occurs during the Noise XX handshake. See §12 Protocol Governance & Versioning for negotiation rules, backward compatibility policy, and the N−1 support window.
 
-**Frozen advertisement format:** The 17-byte MeshLink payload (1B version+power, 16B key hash) is **permanently frozen** across all protocol versions. The 6-bit version field in byte 0 allows scanning nodes to determine the remote protocol version *before* connecting — avoiding wasted handshakes on version mismatch. If a node scans an advertisement with an unsupported major version, it skips the connection entirely.
+**Scan response service data:** The advertisement payload is carried as BLE Service Data associated with the MeshLink 128-bit service UUID. The 6-bit version field in byte 0 allows scanning nodes to determine the remote protocol version *before* connecting — avoiding wasted handshakes on version mismatch. If a node scans an advertisement with an unsupported major version, it skips the connection entirely.
 
 **Scan response data:** The scan response carries a duplicate of the 16-bit service UUID (`0x7F3A`) in a Complete List of 16-bit Service UUIDs AD structure. This ensures iOS background discoverability — iOS moves service UUIDs to the "overflow area" when the app is backgrounded, making them visible only to devices already filtering for that UUID. The scan response UUID guarantees MeshLink peers remain discoverable regardless of iOS background state.
 

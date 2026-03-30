@@ -89,6 +89,8 @@ class AndroidBleTransport(
 
     override val localPeerId: ByteArray = loadOrGenerateLocalPeerId()
 
+    override var advertisementServiceData: ByteArray = ByteArray(0)
+
     // --- Event flows ---
 
     private val _advertisementEvents = MutableSharedFlow<AdvertisementEvent>(extraBufferCapacity = 64)
@@ -217,9 +219,17 @@ class AndroidBleTransport(
             .setIncludeTxPowerLevel(false)
             .build()
 
+        val scanResponseBuilder = AdvertiseData.Builder()
+            .setIncludeDeviceName(false)
+            .setIncludeTxPowerLevel(false)
+        if (advertisementServiceData.isNotEmpty()) {
+            scanResponseBuilder.addServiceData(ParcelUuid(serviceUuid), advertisementServiceData)
+        }
+        val scanResponse = scanResponseBuilder.build()
+
         try {
             logD { "startAdvertising() — service=$serviceUuid, mode=${BleConstants.ADVERTISE_MODE}, connectable=true" }
-            adv.startAdvertising(settings, data, advertiseCallback)
+            adv.startAdvertising(settings, data, scanResponse, advertiseCallback)
         } catch (e: Exception) {
             logW { "⚠️ startAdvertising() threw: ${e::class.simpleName}: ${e.message}" }
         }

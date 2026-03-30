@@ -4154,28 +4154,17 @@ class MeshLinkTest {
         alice.start(); bob.start()
         advanceUntilIdle()
 
-        // Build advertisement payload with Bob's public key: [ver_major:1B][ver_minor:1B][x25519_pub:32B]
-        val bobKey = bob.localPublicKey!!
-        val advPayload = ByteArray(34)
-        advPayload[0] = 0 // version major
-        advPayload[1] = 1 // version minor
-        bobKey.copyInto(advPayload, 2)
-
-        transportAlice.simulateDiscovery(peerIdBob, advPayload)
+        // Discover peers — keys are exchanged via Noise XX handshake
+        transportAlice.simulateDiscovery(peerIdBob)
+        transportBob.simulateDiscovery(peerIdAlice)
         advanceUntilIdle()
 
-        // Alice should now know Bob's public key
+        // Alice should now know Bob's public key via completed handshake
         val storedKey = alice.peerPublicKey(peerIdBob.toHex())
-        assertContentEquals(bobKey, storedKey)
+        assertNotNull(storedKey)
+        assertContentEquals(bob.localPublicKey!!, storedKey)
 
         alice.stop(); bob.stop()
-    }
-
-    private fun buildAdvPayload(publicKey: ByteArray): ByteArray {
-        val payload = ByteArray(34)
-        payload[0] = 0; payload[1] = 1
-        publicKey.copyInto(payload, 2)
-        return payload
     }
 
     @Test
@@ -4190,9 +4179,9 @@ class MeshLinkTest {
         alice.start(); bob.start()
         advanceUntilIdle()
 
-        // Exchange public keys via advertisements
-        transportAlice.simulateDiscovery(peerIdBob, buildAdvPayload(bob.localPublicKey!!))
-        transportBob.simulateDiscovery(peerIdAlice, buildAdvPayload(alice.localPublicKey!!))
+        // Discover peers — keys exchanged via Noise XX handshake
+        transportAlice.simulateDiscovery(peerIdBob)
+        transportBob.simulateDiscovery(peerIdAlice)
         advanceUntilIdle()
 
         val receiveJob = launch {
@@ -4219,8 +4208,9 @@ class MeshLinkTest {
         alice.start(); bob.start()
         advanceUntilIdle()
 
-        transportAlice.simulateDiscovery(peerIdBob, buildAdvPayload(bob.localPublicKey!!))
-        transportBob.simulateDiscovery(peerIdAlice, buildAdvPayload(alice.localPublicKey!!))
+        // Discover peers — keys exchanged via Noise XX handshake
+        transportAlice.simulateDiscovery(peerIdBob)
+        transportBob.simulateDiscovery(peerIdAlice)
         advanceUntilIdle()
 
         alice.send(peerIdBob, "secret message".encodeToByteArray())
@@ -4274,8 +4264,9 @@ class MeshLinkTest {
 
         // Bob knows Alice (upstream) and Charlie (downstream)
         transportBob.simulateDiscovery(peerIdAlice)
-        transportBob.simulateDiscovery(peerIdCharlie, buildAdvPayload(charlie.localPublicKey!!))
-        transportCharlie.simulateDiscovery(peerIdBob, buildAdvPayload(bob.localPublicKey!!))
+        // Discover peers — keys exchanged via Noise XX handshake
+        transportBob.simulateDiscovery(peerIdCharlie)
+        transportCharlie.simulateDiscovery(peerIdBob)
         advanceUntilIdle()
 
         // Start Charlie's collector
@@ -4323,8 +4314,9 @@ class MeshLinkTest {
         advanceUntilIdle()
 
         transportBob.simulateDiscovery(peerIdAlice)
-        transportBob.simulateDiscovery(peerIdCharlie, buildAdvPayload(charlie.localPublicKey!!))
-        transportCharlie.simulateDiscovery(peerIdBob, buildAdvPayload(bob.localPublicKey!!))
+        // Discover peers — keys exchanged via Noise XX handshake
+        transportBob.simulateDiscovery(peerIdCharlie)
+        transportCharlie.simulateDiscovery(peerIdBob)
         advanceUntilIdle()
 
         // Create sealed payload that Bob (relay) CANNOT decrypt (encrypted for Charlie)
@@ -4367,7 +4359,7 @@ class MeshLinkTest {
         bob.start()
         advanceUntilIdle()
 
-        transportBob.simulateDiscovery(peerIdAlice, buildAdvPayload(ByteArray(32))) // fake key
+        transportBob.simulateDiscovery(peerIdAlice)
         advanceUntilIdle()
 
         // Start collector
@@ -4592,18 +4584,16 @@ class MeshLinkTest {
         val crypto = io.meshlink.crypto.createCryptoProvider()
         val transportAlice = VirtualMeshTransport(peerIdAlice)
         val transportBob = VirtualMeshTransport(peerIdBob)
+        transportAlice.linkTo(transportBob)
         val alice = MeshLink(transportAlice, meshLinkConfig { requireEncryption = false }, coroutineContext, crypto = crypto)
         val bob = MeshLink(transportBob, meshLinkConfig { requireEncryption = false }, coroutineContext, crypto = crypto)
         alice.start()
         bob.start()
         advanceUntilIdle()
 
-        // Exchange keys via advertisement
-        val aliceAdvPayload = buildAdvPayload(alice.localPublicKey!!)
-        val bobAdvPayload = buildAdvPayload(bob.localPublicKey!!)
-
-        transportAlice.simulateDiscovery(peerIdBob, bobAdvPayload)
-        transportBob.simulateDiscovery(peerIdAlice, aliceAdvPayload)
+        // Discover peers — keys exchanged via Noise XX handshake
+        transportAlice.simulateDiscovery(peerIdBob)
+        transportBob.simulateDiscovery(peerIdAlice)
         advanceUntilIdle()
 
         // Alice sends routed message to Bob
@@ -4618,18 +4608,6 @@ class MeshLinkTest {
         val result = alice.send(peerIdBob, payload)
         assertTrue(result.isSuccess, "Send should succeed")
         advanceUntilIdle()
-
-        // Forward chunks from Alice to Bob
-        for ((_, data) in transportAlice.sentData.toList()) {
-            transportBob.receiveData(peerIdAlice, data)
-            advanceUntilIdle()
-        }
-
-        // Forward delivery ack from Bob to Alice
-        for ((_, data) in transportBob.sentData.toList()) {
-            transportAlice.receiveData(peerIdBob, data)
-            advanceUntilIdle()
-        }
 
         collectJob.cancel()
 
@@ -8297,34 +8275,22 @@ class MeshLinkTest {
     }
 
     @Test
-    fun keyChangeEmittedWhenPeerPublicKeyChanges() = runTest {
+    fun keyChangeEventFieldIsNullWithoutLegacyAdvertisement() = runTest {
         val transportAlice = VirtualMeshTransport(peerIdAlice)
         val crypto = io.meshlink.crypto.createCryptoProvider()
         val alice = MeshLink(transportAlice, meshLinkConfig { requireEncryption = false }, coroutineContext, crypto = crypto)
         alice.start()
         advanceUntilIdle()
 
-        // First discovery with key1
-        val key1 = ByteArray(32) { it.toByte() }
-        val adv1 = buildAdvPayload(key1)
-        transportAlice.simulateDiscovery(peerIdBob, adv1)
-        advanceUntilIdle()
-
-        // Collect key changes
+        // Key changes no longer come from advertisements — verify no false emissions
         val keyChanges = mutableListOf<io.meshlink.model.KeyChangeEvent>()
         val collectJob = launch { alice.keyChanges.collect { keyChanges.add(it) } }
         advanceUntilIdle()
 
-        // Second discovery with different key2
-        val key2 = ByteArray(32) { (it + 100).toByte() }
-        val adv2 = buildAdvPayload(key2)
-        transportAlice.simulateDiscovery(peerIdBob, adv2)
+        transportAlice.simulateDiscovery(peerIdBob)
         advanceUntilIdle()
 
-        assertEquals(1, keyChanges.size, "Should emit exactly one key change event")
-        assertContentEquals(peerIdBob, keyChanges[0].peerId)
-        assertContentEquals(key1, keyChanges[0].previousKey)
-        assertContentEquals(key2, keyChanges[0].newKey)
+        assertEquals(0, keyChanges.size, "Should not emit key change from advertisement")
 
         collectJob.cancel()
         alice.stop()

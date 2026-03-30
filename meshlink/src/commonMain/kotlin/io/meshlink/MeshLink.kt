@@ -381,6 +381,19 @@ class MeshLink(
         }
     }
 
+    /** Encode the AdvertisementCodec payload from current state. */
+    private fun encodeAdvertisementPayload(): ByteArray {
+        val keyHash = securityEngine?.let { se ->
+            crypto?.sha256(se.localPublicKey)
+        } ?: ByteArray(AdvertisementCodec.KEY_HASH_SIZE)
+        return AdvertisementCodec.encode(
+            versionMajor = config.protocolVersion.major,
+            versionMinor = config.protocolVersion.minor,
+            powerMode = PowerMode.valueOf(powerCoordinator.currentMode).ordinal,
+            publicKeyHash = keyHash,
+        )
+    }
+
     override fun start(): Result<Unit> {
         if (started) return Result.success(Unit)
 
@@ -406,6 +419,7 @@ class MeshLink(
         val newScope = CoroutineScope(baseContext + SupervisorJob() + exceptionHandler)
         scope = newScope
 
+        transport.advertisementServiceData = encodeAdvertisementPayload()
         newScope.launch {
             transport.startAdvertisingAndScanning()
         }
@@ -523,6 +537,7 @@ class MeshLink(
 
     override fun resume() {
         val snapshot = pauseManager.resume()
+        transport.advertisementServiceData = encodeAdvertisementPayload()
         scope?.launch { transport.startAdvertisingAndScanning() }
         val s = scope ?: return
         for ((recipient, payload) in snapshot.pendingSends) {

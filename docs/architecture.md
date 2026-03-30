@@ -443,11 +443,16 @@ MeshLink uses a binary wire protocol (version 1.0) with 11 message types.
 
 ### BLE Advertisement Payload
 
-17 bytes: `version+power(1B) + keyHash(16B)`
+10 bytes: `version+power(2B) + keyHash(8B)`
 
-- Bits 0–3 of byte 0: protocol version
-- Bits 4–5 of byte 0: power mode (0 = PERFORMANCE, 1 = BALANCED, 2 = POWER_SAVER)
-- Bytes 1–16: truncated SHA-256 of the local Ed25519 public key
+BLE 4.x scan response allows 31 bytes maximum. A Service Data AD with a
+128-bit UUID consumes 18 bytes of overhead (2 header + 16 UUID), leaving
+at most 13 bytes for the payload. MeshLink uses 10 bytes for a clean fit.
+
+- Bits 0–5 of byte 0: protocol version
+- Bits 6–7 of byte 0: power mode (0 = PERFORMANCE, 1 = BALANCED, 2 = POWER_SAVER)
+- Byte 1: reserved (0x00)
+- Bytes 2–9: truncated SHA-256 of the local X25519 public key
 
 ### Byte Order
 

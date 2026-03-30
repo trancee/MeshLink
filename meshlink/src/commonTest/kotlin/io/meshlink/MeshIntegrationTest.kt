@@ -45,13 +45,6 @@ class MeshIntegrationTest {
     private val peerIdBob = peerId(0xB)
     private val peerIdCharlie = peerId(0xC)
 
-    private fun buildAdvPayload(publicKey: ByteArray): ByteArray {
-        val payload = ByteArray(34)
-        payload[0] = 0; payload[1] = 1
-        publicKey.copyInto(payload, 2)
-        return payload
-    }
-
     // ── Plaintext peer discovery + direct messaging ────────────────
 
     @Test
@@ -100,9 +93,9 @@ class MeshIntegrationTest {
         alice.start(); bob.start()
         advanceUntilIdle()
 
-        // Exchange keys via advertisement payloads
-        tAlice.simulateDiscovery(peerIdBob, buildAdvPayload(bob.localPublicKey!!))
-        tBob.simulateDiscovery(peerIdAlice, buildAdvPayload(alice.localPublicKey!!))
+        // Discover peers — keys are exchanged via Noise XX handshake
+        tAlice.simulateDiscovery(peerIdBob)
+        tBob.simulateDiscovery(peerIdAlice)
         advanceUntilIdle()
 
         val receiveJob = launch {
@@ -566,9 +559,9 @@ class MeshIntegrationTest {
         }
         advanceUntilIdle()
 
-        // Discover with advertisement keys to trigger handshake
-        tAlice.simulateDiscovery(peerIdBob, buildAdvPayload(bob.localPublicKey!!))
-        tBob.simulateDiscovery(peerIdAlice, buildAdvPayload(alice.localPublicKey!!))
+        // Discover with empty advertisement to trigger handshake
+        tAlice.simulateDiscovery(peerIdBob)
+        tBob.simulateDiscovery(peerIdAlice)
         advanceUntilIdle()
 
         diagJob.cancel()
