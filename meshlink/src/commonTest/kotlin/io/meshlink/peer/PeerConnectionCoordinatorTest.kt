@@ -219,7 +219,7 @@ class PeerConnectionCoordinatorTest {
         val re = routingEngine()
         // Local is PERFORMANCE (0), remote is POWER_SAVER (2)
         val c = coordinator(re, localPowerMode = { 0 })
-        assertTrue(c.shouldInitiate(peerAHex, remotePowerMode = 2, remoteKeyHash = null))
+        assertTrue(c.shouldInitiate(peerA, remotePowerMode = 2, remoteKeyHash = null))
     }
 
     @Test
@@ -227,7 +227,7 @@ class PeerConnectionCoordinatorTest {
         val re = routingEngine()
         // Local is POWER_SAVER (2), remote is PERFORMANCE (0)
         val c = coordinator(re, localPowerMode = { 2 })
-        assertTrue(!c.shouldInitiate(peerAHex, remotePowerMode = 0, remoteKeyHash = null))
+        assertTrue(!c.shouldInitiate(peerA, remotePowerMode = 0, remoteKeyHash = null))
     }
 
     @Test
@@ -237,7 +237,7 @@ class PeerConnectionCoordinatorTest {
         val remoteHash = ByteArray(15) { 0x01 }
         val c = coordinator(re, localPowerMode = { 1 }, localKeyHash = { localHash })
         // Local hash FF... > remote hash 01... → local initiates
-        assertTrue(c.shouldInitiate(peerAHex, remotePowerMode = 1, remoteKeyHash = remoteHash))
+        assertTrue(c.shouldInitiate(peerA, remotePowerMode = 1, remoteKeyHash = remoteHash))
     }
 
     @Test
@@ -247,7 +247,7 @@ class PeerConnectionCoordinatorTest {
         val remoteHash = ByteArray(15) { 0xFF.toByte() }
         val c = coordinator(re, localPowerMode = { 1 }, localKeyHash = { localHash })
         // Local hash 01... < remote hash FF... → local waits
-        assertTrue(!c.shouldInitiate(peerAHex, remotePowerMode = 1, remoteKeyHash = remoteHash))
+        assertTrue(!c.shouldInitiate(peerA, remotePowerMode = 1, remoteKeyHash = remoteHash))
     }
 
     @Test
@@ -255,7 +255,7 @@ class PeerConnectionCoordinatorTest {
         val re = routingEngine()
         val c = coordinator(re)
         // localPeerId (0x01...) < peerA (0x10...) → local initiates per legacy rule
-        assertTrue(c.shouldInitiate(peerAHex, POWER_MODE_UNKNOWN, remoteKeyHash = null))
+        assertTrue(c.shouldInitiate(peerA, POWER_MODE_UNKNOWN, remoteKeyHash = null))
     }
 
     @Test
@@ -263,7 +263,7 @@ class PeerConnectionCoordinatorTest {
         val re = routingEngine()
         val c = coordinator(re, localPowerMode = { 1 })
         // Same power mode but no key hashes → fall back to peer ID
-        assertTrue(c.shouldInitiate(peerAHex, remotePowerMode = 1, remoteKeyHash = null))
+        assertTrue(c.shouldInitiate(peerA, remotePowerMode = 1, remoteKeyHash = null))
     }
 
     @Test
@@ -274,7 +274,7 @@ class PeerConnectionCoordinatorTest {
         val allZeros = ByteArray(15)
         val c = coordinator(re, localPowerMode = { 1 }, localKeyHash = { localHash })
         // Falls back to peer ID comparison (local 0101... < remote 1010...)
-        assertTrue(c.shouldInitiate(peerAHex, remotePowerMode = 1, remoteKeyHash = allZeros))
+        assertTrue(c.shouldInitiate(peerA, remotePowerMode = 1, remoteKeyHash = allZeros))
     }
 
     @Test
@@ -285,11 +285,11 @@ class PeerConnectionCoordinatorTest {
 
         val re1 = routingEngine()
         val c1 = coordinator(re1, localPowerMode = { 1 }, localKeyHash = { hashA })
-        val sideA = c1.shouldInitiate(peerAHex, remotePowerMode = 1, remoteKeyHash = hashB)
+        val sideA = c1.shouldInitiate(peerA, remotePowerMode = 1, remoteKeyHash = hashB)
 
         val re2 = routingEngine()
         val c2 = coordinator(re2, localPowerMode = { 1 }, localKeyHash = { hashB })
-        val sideB = c2.shouldInitiate(localPeerId.toHex(), remotePowerMode = 1, remoteKeyHash = hashA)
+        val sideB = c2.shouldInitiate(localPeerId, remotePowerMode = 1, remoteKeyHash = hashA)
 
         // Exactly one should initiate
         assertTrue(sideA != sideB, "Tie-breaking must be deterministic: exactly one side initiates")

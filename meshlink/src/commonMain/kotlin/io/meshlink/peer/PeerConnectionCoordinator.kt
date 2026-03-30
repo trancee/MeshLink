@@ -116,7 +116,7 @@ class PeerConnectionCoordinator(
         var handshakeMessage: ByteArray? = null
         var handshakeRateLimited = false
         if (securityEngine != null && !securityEngine.isHandshakeComplete(peerId)) {
-            if (shouldInitiate(peerHex, remotePowerMode, remoteKeyHash)) {
+            if (shouldInitiate(peerId, remotePowerMode, remoteKeyHash)) {
                 val isPinned = trustStore?.let { ts ->
                     val key = securityEngine.peerPublicKey(peerHex)
                     key != null && ts.verify(peerHex, key) is VerifyResult.Trusted
@@ -153,7 +153,7 @@ class PeerConnectionCoordinator(
      * - Fallback (no power/key info): lower peer ID initiates (legacy).
      */
     internal fun shouldInitiate(
-        peerHex: String,
+        peerId: ByteArray,
         remotePowerMode: Int,
         remoteKeyHash: ByteArray?,
     ): Boolean {
@@ -173,7 +173,7 @@ class PeerConnectionCoordinator(
         }
 
         // Fallback: lower peer ID initiates (legacy behavior)
-        return localPeerId.toHex() < peerHex
+        return compareUnsignedBytes(localPeerId, peerId) < 0
     }
 
     companion object {
