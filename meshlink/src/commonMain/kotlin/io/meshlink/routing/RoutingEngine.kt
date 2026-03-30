@@ -174,6 +174,12 @@ class RoutingEngine(
 
     fun timeSinceLastGossip(): Long = clock() - lastGossipSentMillis
 
+    // ── Route queries ─────────────────────────────────────────────
+
+    fun bestRoute(destination: String): RoutingTable.Route? = routingTable.bestRoute(destination)
+
+    fun allBestRoutes(): List<RoutingTable.Route> = routingTable.allBestRoutes()
+
     // ── Health ─────────────────────────────────────────────────────
 
     val routeCount: Int get() = routingTable.size()

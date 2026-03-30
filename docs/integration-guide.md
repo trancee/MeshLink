@@ -101,7 +101,7 @@ launch {
     mesh.peers.collect { event ->
         when (event) {
             is PeerEvent.Found -> println("Peer joined: ${event.peerId.toHex()}")
-            is PeerEvent.Lost      -> println("Peer left: ${event.peerId.toHex()}")
+            is PeerEvent.Lost  -> println("Peer left: ${event.peerId.toHex()}")
         }
     }
 }

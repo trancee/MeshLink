@@ -4,6 +4,7 @@ import io.meshlink.diagnostics.DiagnosticEvent
 import io.meshlink.diagnostics.MeshHealthSnapshot
 import io.meshlink.model.KeyChangeEvent
 import io.meshlink.model.Message
+import io.meshlink.model.PeerDetail
 import io.meshlink.model.PeerEvent
 import io.meshlink.model.TransferFailure
 import io.meshlink.model.TransferProgress
@@ -40,5 +41,7 @@ interface MeshLinkApi {
     val localPublicKey: ByteArray?
     val broadcastPublicKey: ByteArray?
     fun peerPublicKey(peerIdHex: String): ByteArray?
+    fun peerDetail(peerIdHex: String): PeerDetail?
+    fun allPeerDetails(): List<PeerDetail>
     fun rotateIdentity(): Result<Unit>
 }

@@ -9,6 +9,7 @@ import io.meshlink.crypto.createCryptoProvider
 import io.meshlink.diagnostics.DiagnosticEvent
 import io.meshlink.diagnostics.MeshHealthSnapshot
 import io.meshlink.diagnostics.Severity
+import io.meshlink.model.PeerDetail
 import io.meshlink.model.PeerEvent
 import io.meshlink.transport.AndroidBleTransport
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -23,6 +24,7 @@ data class PeerInfo(
     val id: String,
     val rssi: Int,
     val lastSeen: Long,
+    val firstSeen: Long,
 )
 
 @OptIn(ExperimentalUuidApi::class)
@@ -67,6 +69,17 @@ class MeshLinkViewModel(application: Application) : AndroidViewModel(application
     /** Current severity filter (null = show all). */
     val severityFilter: StateFlow<Severity?> = _severityFilter.asStateFlow()
 
+    private val _selectedPeerId = MutableStateFlow<String?>(null)
+    /** Currently selected peer ID in the mesh visualizer (null = none). */
+    val selectedPeerId: StateFlow<String?> = _selectedPeerId.asStateFlow()
+
+    /** Returns core library detail for the given peer, or null if unknown. */
+    fun peerDetail(peerIdHex: String): PeerDetail? = meshLink.peerDetail(peerIdHex)
+
+    fun selectPeer(peerId: String?) {
+        _selectedPeerId.value = peerId
+    }
+
     init {
         // Enable BLE debug logging for debug builds
         AndroidBleTransport.debugLogging = true
@@ -90,7 +103,14 @@ class MeshLinkViewModel(application: Application) : AndroidViewModel(application
                         _discoveredPeers.update { peers ->
                             // Simulated RSSI — a real transport would supply the actual value.
                             val rssi = (-90..-40).random()
-                            peers.filterNot { it.id == hexId } + PeerInfo(hexId, rssi, System.currentTimeMillis())
+                            val now = System.currentTimeMillis()
+                            val existing = peers.find { it.id == hexId }
+                            peers.filterNot { it.id == hexId } + PeerInfo(
+                                hexId,
+                                rssi,
+                                lastSeen = now,
+                                firstSeen = existing?.firstSeen ?: now,
+                            )
                         }
                     }
                     is PeerEvent.Lost -> {

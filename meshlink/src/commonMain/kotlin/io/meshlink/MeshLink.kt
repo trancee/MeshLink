@@ -20,6 +20,7 @@ import io.meshlink.dispatch.OutboundTracker
 import io.meshlink.gossip.GossipCoordinator
 import io.meshlink.model.KeyChangeEvent
 import io.meshlink.model.Message
+import io.meshlink.model.PeerDetail
 import io.meshlink.model.PeerEvent
 import io.meshlink.model.TransferFailure
 import io.meshlink.model.TransferProgress
@@ -327,6 +328,46 @@ class MeshLink(
     override val localPublicKey: ByteArray? get() = securityEngine?.localPublicKey
     override fun peerPublicKey(peerIdHex: String): ByteArray? = securityEngine?.peerPublicKey(peerIdHex)
     override val broadcastPublicKey: ByteArray? get() = securityEngine?.localBroadcastPublicKey
+
+    override fun peerDetail(peerIdHex: String): PeerDetail? {
+        val state = routingEngine.presenceState(peerIdHex) ?: return null
+        val route = routingEngine.bestRoute(peerIdHex)
+        val connectedIds = routingEngine.connectedPeerIds()
+        val pubKey = securityEngine?.peerPublicKey(peerIdHex)
+        return PeerDetail(
+            peerIdHex = peerIdHex,
+            presenceState = state,
+            isDirectNeighbor = peerIdHex in connectedIds,
+            routeNextHop = route?.nextHop,
+            routeCost = route?.cost,
+            routeSequenceNumber = route?.sequenceNumber,
+            publicKeyHex = pubKey?.toHex(),
+            nextHopFailureRate = routingEngine.nextHopFailureRate(peerIdHex),
+            nextHopFailureCount = routingEngine.nextHopFailureCount(peerIdHex),
+        )
+    }
+
+    override fun allPeerDetails(): List<PeerDetail> {
+        val allIds = routingEngine.allPeerIds()
+        val connectedIds = routingEngine.connectedPeerIds()
+        val allRoutes = routingEngine.allBestRoutes().associateBy { it.destination }
+        return allIds.mapNotNull { peerIdHex ->
+            val state = routingEngine.presenceState(peerIdHex) ?: return@mapNotNull null
+            val route = allRoutes[peerIdHex]
+            val pubKey = securityEngine?.peerPublicKey(peerIdHex)
+            PeerDetail(
+                peerIdHex = peerIdHex,
+                presenceState = state,
+                isDirectNeighbor = peerIdHex in connectedIds,
+                routeNextHop = route?.nextHop,
+                routeCost = route?.cost,
+                routeSequenceNumber = route?.sequenceNumber,
+                publicKeyHex = pubKey?.toHex(),
+                nextHopFailureRate = routingEngine.nextHopFailureRate(peerIdHex),
+                nextHopFailureCount = routingEngine.nextHopFailureCount(peerIdHex),
+            )
+        }
+    }
 
     override fun start(): Result<Unit> {
         if (started) return Result.success(Unit)

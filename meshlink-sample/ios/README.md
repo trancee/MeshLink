@@ -84,11 +84,11 @@ MeshLinkSample/
 
 | Android (Kotlin)                | iOS (Swift)                                |
 |---------------------------------|--------------------------------------------|
-| `MeshLinkViewModel : ViewModel` | `MeshLinkViewModel : ObservableObject`    |
+| `MeshLinkViewModel : ViewModel` | `MeshLinkViewModel : ObservableObject`     |
 | `StateFlow<T>`                  | `@Published var`                           |
-| `viewModelScope.launch { }`    | `Task.detached { }`                        |
-| `flow.collect { }`             | `SwiftFlowCollector` (or SKIE async seq)   |
-| `DemoTransport : BleTransport` | `DemoTransport : BleTransport`             |
+| `viewModelScope.launch { }`     | `Task.detached { }`                        |
+| `flow.collect { }`              | `SwiftFlowCollector` (or SKIE async seq)   |
+| `DemoTransport : BleTransport`  | `DemoTransport : BleTransport`             |
 
 ---
 
@@ -101,7 +101,7 @@ MeshLinkSample/
 | `ByteArray`              | `KotlinByteArray`                     |
 | `Flow<T>`                | `Kotlinx_coroutines_coreFlow`         |
 | `Result<T>`              | Object with `.isSuccess()` method     |
-| `PeerEvent.Found`   | `PeerEvent.Found` (nested class) |
+| `PeerEvent.Found`        | `PeerEvent.Found` (nested class)      |
 | `MeshHealthSnapshot`     | `MeshHealthSnapshot`                  |
 
 ### Flow Collection
@@ -127,9 +127,9 @@ Kotlin `Flow` requires a collector bridge in Swift. Two options:
 | Issue                              | Solution                                    |
 |------------------------------------|---------------------------------------------|
 | `No such module 'MeshLink'`    | Run `./gradlew :meshlink:assembleMeshLinkXCFramework` — the XCFramework must be built before SPM can resolve it |
-| BLE not working on simulator       | Expected — use a physical device             |
+| BLE not working on simulator       | Expected — use a physical device            |
 | Crash on `KotlinByteArray`         | Ensure correct `Int8` ↔ `UInt8` conversion  |
 | Flow never emits                   | Check that `meshLink.start()` was called    |
-| Permission dialog not appearing    | Verify `Info.plist` keys are present         |
+| Permission dialog not appearing    | Verify `Info.plist` keys are present        |
 | Stale framework after code changes | Rebuild the XCFramework, then clean Xcode build folder (⇧⌘K) |
 | XCFramework cache stale after rebuild | Delete `~/Library/Developer/Xcode/DerivedData/MeshLinkSample-*` and reopen project |

@@ -2,9 +2,11 @@
 // MeshLink macOS Sample — Interactive mesh network topology visualizer
 //
 // Renders discovered peers as nodes in a circular layout with signal
-// strength indicators. The local device is at the center.
+// strength indicators. Click a peer node to see detailed info.
+// The local device is at the center.
 
 import SwiftUI
+import MeshLink
 
 struct MeshVisualizerView: View {
     @ObservedObject var viewModel: MeshLinkViewModel
@@ -64,11 +66,18 @@ struct MeshVisualizerView: View {
                                 lineWidth: max(1, peer.signalQuality * 3)
                             )
 
-                            // Peer node
+                            // Peer node (tappable)
                             VStack(spacing: 2) {
-                                Circle()
-                                    .fill(Color.green)
-                                    .frame(width: 18, height: 18)
+                                ZStack {
+                                    if peer.id == viewModel.selectedPeerId {
+                                        Circle()
+                                            .stroke(Color.white, lineWidth: 2)
+                                            .frame(width: 26, height: 26)
+                                    }
+                                    Circle()
+                                        .fill(Color.green)
+                                        .frame(width: 18, height: 18)
+                                }
                                 Text(peer.shortId)
                                     .font(.caption2)
                                 Text("\(peer.rssi) dBm")
@@ -76,9 +85,29 @@ struct MeshVisualizerView: View {
                                     .foregroundColor(.secondary)
                             }
                             .position(peerCenter)
+                            .onTapGesture {
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    if viewModel.selectedPeerId == peer.id {
+                                        viewModel.selectPeer(nil)
+                                    } else {
+                                        viewModel.selectPeer(peer.id)
+                                    }
+                                }
+                            }
                         }
                     }
                 }
+            }
+
+            // Peer Detail Panel
+            if let selectedId = viewModel.selectedPeerId,
+               let peer = viewModel.discoveredPeers.first(where: { $0.id == selectedId }) {
+                MacPeerDetailPanel(
+                    peer: peer,
+                    detail: viewModel.peerDetail(selectedId),
+                    onDismiss: { viewModel.selectPeer(nil) }
+                )
+                .transition(.opacity)
             }
 
             // Stats bar
@@ -92,5 +121,111 @@ struct MeshVisualizerView: View {
             .foregroundColor(.secondary)
         }
         .padding()
+        .animation(.easeInOut(duration: 0.25), value: viewModel.selectedPeerId)
+    }
+}
+
+// MARK: - macOS Peer Detail Panel
+
+private struct MacPeerDetailPanel: View {
+    let peer: PeerInfo
+    let detail: PeerDetail?
+    let onDismiss: () -> Void
+
+    var body: some View {
+        VStack(spacing: 6) {
+            HStack {
+                Label("Peer Detail", systemImage: "info.circle.fill")
+                    .font(.headline)
+                Spacer()
+                Button("Close", action: onDismiss)
+                    .buttonStyle(.plain)
+                    .font(.subheadline)
+                    .foregroundColor(.accentColor)
+            }
+
+            Divider()
+
+            detailRow("Peer ID", peer.id.uppercased())
+            detailRow("Signal", "\(peer.rssi) dBm (\(rssiLabel(peer.rssi)))")
+            detailRow("First seen", relativeTime(from: peer.firstSeen))
+            detailRow("Last seen", relativeTime(from: peer.lastSeen))
+
+            if let detail = detail {
+                Divider()
+
+                detailRow("Presence", presenceLabel(detail.presenceState))
+                detailRow("Connection", detail.isDirectNeighbor ? "Direct (1-hop)" : "Multi-hop")
+
+                Divider()
+
+                routingSection(detail)
+
+                let reliability = (1.0 - detail.nextHopFailureRate) * 100
+                detailRow(
+                    "Reliability",
+                    String(format: "%.0f%% (%d failures)", reliability, detail.nextHopFailureCount)
+                )
+
+                if let keyHex = detail.publicKeyHex {
+                    detailRow("Public key", String(keyHex.prefix(16)).uppercased() + "…")
+                }
+            }
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color(nsColor: .controlBackgroundColor))
+        )
+    }
+
+    @ViewBuilder
+    private func routingSection(_ detail: PeerDetail) -> some View {
+        if let nextHop = detail.routeNextHop {
+            let cost = detail.routeCost?.doubleValue ?? 0.0
+            let seq = detail.routeSequenceNumber?.uint32Value ?? 0
+            detailRow("Next hop", String(nextHop.prefix(12)).uppercased() + "…")
+            detailRow("Route cost", String(format: "%.2f", cost))
+            detailRow("Seq #", "\(seq)")
+        } else {
+            detailRow("Route", "No route available")
+        }
+    }
+
+    private func detailRow(_ label: String, _ value: String) -> some View {
+        HStack {
+            Text(label)
+                .font(.caption)
+                .foregroundColor(.secondary)
+            Spacer()
+            Text(value)
+                .font(.caption.monospaced())
+                .fontWeight(.medium)
+        }
+    }
+
+    private func rssiLabel(_ rssi: Int) -> String {
+        if rssi >= -60 { return "Good" }
+        if rssi >= -80 { return "Fair" }
+        return "Poor"
+    }
+
+    private func presenceLabel(_ state: PresenceState) -> String {
+        switch state {
+        case .connected:    return "🟢 Connected"
+        case .disconnected: return "🟡 Disconnected"
+        case .gone:         return "🔴 Gone"
+        default:            return "Unknown"
+        }
+    }
+
+    private func relativeTime(from date: Date) -> String {
+        let seconds = Int(Date().timeIntervalSince(date))
+        switch seconds {
+        case ..<5:    return "just now"
+        case ..<60:   return "\(seconds)s ago"
+        case ..<3600: return "\(seconds / 60)m \(seconds % 60)s ago"
+        default:      return "\(seconds / 3600)h \((seconds % 3600) / 60)m ago"
+        }
     }
 }

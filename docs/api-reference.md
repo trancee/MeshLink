@@ -92,6 +92,8 @@ scope before calling `start()`.
 | `val localPublicKey: ByteArray?` | The local device's Ed25519 static public key. `null` if crypto is not enabled. |
 | `val broadcastPublicKey: ByteArray?` | Static key used for broadcast message verification. |
 | `fun peerPublicKey(peerIdHex: String): ByteArray?` | Returns the peer's Ed25519 public key obtained during handshake. `null` if peer is unknown or crypto is disabled. |
+| `fun peerDetail(peerIdHex: String): PeerDetail?` | Returns a snapshot of a single peer's connection, routing, and identity state. `null` if the peer is unknown. |
+| `fun allPeerDetails(): List<PeerDetail>` | Returns detail snapshots for all known peers. Useful for visualizers and diagnostics UIs. |
 | `fun rotateIdentity(): Result<Unit>` | Generates a new Ed25519 identity key pair and announces the rotation to the mesh via a `ROTATION` wire message. |
 
 ---
@@ -384,6 +386,39 @@ Emitted when a peer rotates their Ed25519 identity key.
 
 This class implements custom `equals()` and `hashCode()` using
 `contentEquals()` / `contentHashCode()` for correct `ByteArray` comparison.
+
+### PeerDetail
+
+`io.meshlink.model.PeerDetail`
+
+```kotlin
+data class PeerDetail(
+    val peerIdHex: String,
+    val presenceState: PresenceState,
+    val isDirectNeighbor: Boolean,
+    val routeNextHop: String?,
+    val routeCost: Double?,
+    val routeSequenceNumber: UInt?,
+    val publicKeyHex: String?,
+    val nextHopFailureRate: Double,
+    val nextHopFailureCount: Int,
+)
+```
+
+Snapshot of a single peer's connection, routing, and identity state. Returned by
+`peerDetail()` and `allPeerDetails()`.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `peerIdHex` | `String` | Hex-encoded 16-byte peer ID. |
+| `presenceState` | `PresenceState` | `CONNECTED`, `DISCONNECTED`, or `GONE`. |
+| `isDirectNeighbor` | `Boolean` | `true` if the peer is within 1-hop BLE range. |
+| `routeNextHop` | `String?` | Hex ID of the next-hop peer on the best route. `null` if no route exists. |
+| `routeCost` | `Double?` | Composite link quality cost of the best route. `null` if no route. |
+| `routeSequenceNumber` | `UInt?` | DSDV sequence number of the best route. |
+| `publicKeyHex` | `String?` | Ed25519 public key as hex. `null` if crypto is disabled or peer is unknown. |
+| `nextHopFailureRate` | `Double` | Delivery failure rate via this peer as next-hop (0.0–1.0). |
+| `nextHopFailureCount` | `Int` | Total recorded delivery failures via this peer. |
 
 ### DeliveryOutcome
 

@@ -12,7 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.Card
@@ -123,7 +123,7 @@ fun DiagnosticsScreen(viewModel: MeshLinkViewModel) {
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                     modifier = Modifier.fillMaxSize(),
                 ) {
-                    items(events, key = { "${it.monotonicMillis}-${it.code}" }) { event ->
+                    itemsIndexed(events, key = { index, it -> "${it.monotonicMillis}-${it.code}-$index" }) { _, event ->
                         DiagnosticEventCard(event)
                     }
                 }

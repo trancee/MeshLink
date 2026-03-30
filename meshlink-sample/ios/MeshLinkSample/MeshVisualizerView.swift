@@ -4,8 +4,10 @@
 // Draws the local device and all discovered peers in a circular layout
 // using SwiftUI Canvas. Links between nodes are colored by signal quality
 // (green = strong, yellow = moderate, red = weak).
+// Tap a peer node to see detailed connection, routing, and identity info.
 
 import SwiftUI
+import MeshLink
 
 // MARK: - Mesh Visualizer View
 
@@ -15,6 +17,7 @@ import SwiftUI
 /// - **Peer nodes** are arranged in a circle around the self node.
 /// - **Link lines** connect every peer to the self node, with thickness
 ///   and color proportional to signal quality (derived from RSSI).
+/// - **Tap** a peer node to open a detail panel with routing and identity info.
 /// - A legend and summary badges are displayed for quick reference.
 struct MeshVisualizerView: View {
     @ObservedObject var viewModel: MeshLinkViewModel
@@ -25,23 +28,38 @@ struct MeshVisualizerView: View {
 
     var body: some View {
         NavigationView {
-            VStack(spacing: 0) {
-                statusBadges
-                    .padding(.horizontal)
-                    .padding(.top, 8)
+            ScrollView {
+                VStack(spacing: 0) {
+                    statusBadges
+                        .padding(.horizontal)
+                        .padding(.top, 8)
 
-                if viewModel.discoveredPeers.isEmpty {
-                    emptyState
-                } else {
-                    meshCanvas
+                    if viewModel.discoveredPeers.isEmpty {
+                        emptyState
+                    } else {
+                        meshGraph
+                    }
+
+                    // Peer Detail Panel
+                    if let selectedId = viewModel.selectedPeerId,
+                       let peer = viewModel.discoveredPeers.first(where: { $0.id == selectedId }) {
+                        PeerDetailPanel(
+                            peer: peer,
+                            detail: viewModel.peerDetail(selectedId),
+                            onDismiss: { viewModel.selectPeer(nil) }
+                        )
+                        .padding(.horizontal)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                    }
+
+                    legend
+                        .padding(.horizontal)
+                        .padding(.bottom, 8)
                 }
-
-                legend
-                    .padding(.horizontal)
-                    .padding(.bottom, 8)
             }
             .navigationTitle("Mesh Visualizer")
             .onReceive(refreshTimer) { tick = $0 }
+            .animation(.easeInOut(duration: 0.25), value: viewModel.selectedPeerId)
         }
     }
 
@@ -101,71 +119,72 @@ struct MeshVisualizerView: View {
         .frame(maxHeight: .infinity)
     }
 
-    // MARK: - Canvas
+    // MARK: - Mesh Graph with Tap Targets
 
-    private var meshCanvas: some View {
-        Canvas { context, size in
-            let center = CGPoint(x: size.width / 2, y: size.height / 2)
-            let radius = min(size.width, size.height) * 0.35
+    private var meshGraph: some View {
+        GeometryReader { geometry in
+            let center = CGPoint(x: geometry.size.width / 2, y: geometry.size.height / 2)
+            let radius = min(geometry.size.width, geometry.size.height) * 0.35
             let peers = viewModel.discoveredPeers
-            let peerPositions = circularPositions(count: peers.count, center: center, radius: radius)
+            let positions = circularPositions(count: peers.count, center: center, radius: radius)
 
-            // Draw links from self (center) to each peer.
-            for (index, peer) in peers.enumerated() {
-                let peerPos = peerPositions[index]
-                let quality = peer.signalQuality
-                var path = Path()
-                path.move(to: center)
-                path.addLine(to: peerPos)
+            ZStack {
+                // Canvas draws links and the self node
+                Canvas { context, size in
+                    // Draw links
+                    for (index, peer) in peers.enumerated() {
+                        let peerPos = positions[index]
+                        let quality = peer.signalQuality
+                        var path = Path()
+                        path.move(to: center)
+                        path.addLine(to: peerPos)
+                        context.stroke(
+                            path,
+                            with: .color(linkColor(quality: quality)),
+                            lineWidth: linkWidth(quality: quality)
+                        )
+                    }
 
-                context.stroke(
-                    path,
-                    with: .color(linkColor(quality: quality)),
-                    lineWidth: linkWidth(quality: quality)
-                )
+                    // Self node
+                    let selfRadius: CGFloat = 24
+                    let selfRect = CGRect(
+                        x: center.x - selfRadius,
+                        y: center.y - selfRadius,
+                        width: selfRadius * 2,
+                        height: selfRadius * 2
+                    )
+                    context.fill(Circle().path(in: selfRect), with: .color(.accentColor))
+                    context.stroke(
+                        Circle().path(in: selfRect),
+                        with: .color(.accentColor.opacity(0.6)),
+                        lineWidth: 3
+                    )
+                    let selfLabel = Text("ME")
+                        .font(.system(size: 11, weight: .heavy, design: .rounded))
+                        .foregroundColor(.white)
+                    context.draw(context.resolve(selfLabel), at: center)
+                }
+
+                // Tappable peer overlays
+                ForEach(Array(peers.enumerated()), id: \.element.id) { index, peer in
+                    let pos = positions[index]
+                    let isSelected = peer.id == viewModel.selectedPeerId
+
+                    PeerNodeView(peer: peer, isSelected: isSelected)
+                        .position(pos)
+                        .onTapGesture {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                if viewModel.selectedPeerId == peer.id {
+                                    viewModel.selectPeer(nil)
+                                } else {
+                                    viewModel.selectPeer(peer.id)
+                                }
+                            }
+                        }
+                }
             }
-
-            // Draw peer nodes.
-            let peerNodeRadius: CGFloat = 18
-            for (index, peer) in peers.enumerated() {
-                let pos = peerPositions[index]
-                let rect = CGRect(
-                    x: pos.x - peerNodeRadius,
-                    y: pos.y - peerNodeRadius,
-                    width: peerNodeRadius * 2,
-                    height: peerNodeRadius * 2
-                )
-
-                // Filled circle
-                context.fill(Circle().path(in: rect), with: .color(.blue.opacity(0.8)))
-                // Border
-                context.stroke(Circle().path(in: rect), with: .color(.blue), lineWidth: 2)
-
-                // Peer label (short ID)
-                let label = Text(peer.shortId)
-                    .font(.system(size: 10, weight: .bold, design: .monospaced))
-                    .foregroundColor(.white)
-                context.draw(context.resolve(label), at: pos)
-            }
-
-            // Draw self node (centered, larger, accent-colored).
-            let selfRadius: CGFloat = 24
-            let selfRect = CGRect(
-                x: center.x - selfRadius,
-                y: center.y - selfRadius,
-                width: selfRadius * 2,
-                height: selfRadius * 2
-            )
-            context.fill(Circle().path(in: selfRect), with: .color(.accentColor))
-            context.stroke(Circle().path(in: selfRect), with: .color(.accentColor.opacity(0.6)), lineWidth: 3)
-
-            let selfLabel = Text("ME")
-                .font(.system(size: 11, weight: .heavy, design: .rounded))
-                .foregroundColor(.white)
-            context.draw(context.resolve(selfLabel), at: center)
-
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(height: 320)
         .padding()
     }
 
@@ -195,7 +214,6 @@ struct MeshVisualizerView: View {
 
     // MARK: - Layout Helpers
 
-    /// Arrange `count` points evenly on a circle.
     private func circularPositions(count: Int, center: CGPoint, radius: CGFloat) -> [CGPoint] {
         guard count > 0 else { return [] }
         return (0..<count).map { i in
@@ -207,7 +225,6 @@ struct MeshVisualizerView: View {
         }
     }
 
-    /// Map signal quality `[0, 1]` to a color gradient: red → yellow → green.
     private func linkColor(quality: Double) -> Color {
         switch quality {
         case 0..<0.33:  return .red
@@ -216,9 +233,143 @@ struct MeshVisualizerView: View {
         }
     }
 
-    /// Map signal quality to line thickness (thicker = stronger).
     private func linkWidth(quality: Double) -> CGFloat {
         1.5 + quality * 3.0
+    }
+}
+
+// MARK: - Peer Node View
+
+private struct PeerNodeView: View {
+    let peer: PeerInfo
+    let isSelected: Bool
+
+    var body: some View {
+        ZStack {
+            if isSelected {
+                Circle()
+                    .stroke(Color.white, lineWidth: 3)
+                    .frame(width: 44, height: 44)
+            }
+            Circle()
+                .fill(Color.blue.opacity(0.8))
+                .frame(width: 36, height: 36)
+            Circle()
+                .stroke(Color.blue, lineWidth: 2)
+                .frame(width: 36, height: 36)
+            Text(peer.shortId)
+                .font(.system(size: 10, weight: .bold, design: .monospaced))
+                .foregroundColor(.white)
+        }
+    }
+}
+
+// MARK: - Peer Detail Panel
+
+private struct PeerDetailPanel: View {
+    let peer: PeerInfo
+    let detail: PeerDetail?
+    let onDismiss: () -> Void
+
+    var body: some View {
+        VStack(spacing: 8) {
+            // Header
+            HStack {
+                Label("Peer Detail", systemImage: "info.circle.fill")
+                    .font(.headline)
+                Spacer()
+                Button("Close", action: onDismiss)
+                    .font(.subheadline)
+            }
+
+            Divider()
+
+            // Identity & Signal
+            detailRow("Peer ID", peer.id.uppercased())
+            detailRow("Signal", "\(peer.rssi) dBm (\(rssiLabel(peer.rssi)))")
+            detailRow("First seen", relativeTime(from: peer.firstSeen))
+            detailRow("Last seen", relativeTime(from: peer.lastSeen))
+
+            if let detail = detail {
+                Divider()
+
+                // Connection
+                detailRow("Presence", presenceLabel(detail.presenceState))
+                detailRow("Connection", detail.isDirectNeighbor ? "Direct (1-hop)" : "Multi-hop")
+
+                Divider()
+
+                // Routing
+                routingSection(detail)
+
+                // Reliability
+                let reliability = (1.0 - detail.nextHopFailureRate) * 100
+                detailRow(
+                    "Reliability",
+                    String(format: "%.0f%% (%d failures)", reliability, detail.nextHopFailureCount)
+                )
+
+                // Key
+                if let keyHex = detail.publicKeyHex {
+                    detailRow("Public key", String(keyHex.prefix(16)).uppercased() + "…")
+                }
+            }
+        }
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color.secondary.opacity(0.12))
+        )
+    }
+
+    @ViewBuilder
+    private func routingSection(_ detail: PeerDetail) -> some View {
+        if let nextHop = detail.routeNextHop {
+            let cost = detail.routeCost?.doubleValue ?? 0.0
+            let seq = detail.routeSequenceNumber?.uint32Value ?? 0
+            detailRow("Next hop", String(nextHop.prefix(12)).uppercased() + "…")
+            detailRow("Route cost", String(format: "%.2f", cost))
+            detailRow("Seq #", "\(seq)")
+        } else {
+            detailRow("Route", "No route available")
+        }
+    }
+
+    private func detailRow(_ label: String, _ value: String) -> some View {
+        HStack {
+            Text(label)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Spacer()
+            Text(value)
+                .font(.caption.monospaced())
+                .fontWeight(.medium)
+        }
+    }
+
+    private func rssiLabel(_ rssi: Int) -> String {
+        if rssi >= -60 { return "Good" }
+        if rssi >= -80 { return "Fair" }
+        return "Poor"
+    }
+
+    private func presenceLabel(_ state: PresenceState) -> String {
+        switch state {
+        case .connected:    return "🟢 Connected"
+        case .disconnected: return "🟡 Disconnected"
+        case .gone:         return "🔴 Gone"
+        default:            return "Unknown"
+        }
+    }
+
+    private func relativeTime(from date: Date) -> String {
+        let seconds = Int(Date().timeIntervalSince(date))
+        switch seconds {
+        case ..<5:    return "just now"
+        case ..<60:   return "\(seconds)s ago"
+        case ..<3600: return "\(seconds / 60)m \(seconds % 60)s ago"
+        default:      return "\(seconds / 3600)h \((seconds % 3600) / 60)m ago"
+        }
     }
 }
 

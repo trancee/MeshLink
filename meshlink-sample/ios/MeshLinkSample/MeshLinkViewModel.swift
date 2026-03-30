@@ -10,7 +10,7 @@
 // |-------------------------------------|-------------------------------------------------|
 // | `MeshLinkFactory.create(config)`    | `MeshLinkFactory.shared.create(config:)`        |
 // | `MeshLinkConfig.chatOptimized()`    | `MeshLinkConfig.companion.chatOptimized {...}`  |
-// | `PeerEvent.Found`              | `PeerEvent.Found`                          |
+// | `PeerEvent.Found`                   | `PeerEvent.Found`                               |
 // | `PeerEvent.Lost`                    | `PeerEvent.Lost`                                |
 // | `Flow<T>.collect { ... }`           | Manual `FlowCollector` wrapper (see below)      |
 // | `ByteArray`                         | `KotlinByteArray`                               |
@@ -24,6 +24,7 @@ struct PeerInfo: Identifiable, Equatable {
     let id: String
     var rssi: Int
     var lastSeen: Date
+    var firstSeen: Date
 
     var shortId: String { String(id.prefix(4)) }
 
@@ -83,6 +84,7 @@ final class MeshLinkViewModel: ObservableObject {
     @Published var bufferUsagePercent = 0
     @Published var activeTransfers = 0
     @Published var discoveredPeers: [PeerInfo] = []
+    @Published var selectedPeerId: String?
     @Published var currentPreset: ConfigPreset = .chatOptimized
     @Published var currentMtu: Int = 185
     @Published private(set) var maxMessageSize: Int = 10_000
@@ -124,6 +126,16 @@ final class MeshLinkViewModel: ObservableObject {
     func resetToDefaults() {
         applyPreset(.chatOptimized)
         log("⚙️ Reset to defaults")
+    }
+
+    // MARK: - Peer Selection
+
+    func selectPeer(_ peerId: String?) {
+        selectedPeerId = peerId
+    }
+
+    func peerDetail(_ peerIdHex: String) -> PeerDetail? {
+        return meshLink.peerDetail(peerIdHex: peerIdHex)
     }
 
     // MARK: - Mesh Lifecycle
@@ -187,10 +199,13 @@ final class MeshLinkViewModel: ObservableObject {
                 let peerHex = kotlinByteArrayToHex(found.peerId)
                 self?.log("🔵 Peer: \(String(peerHex.prefix(8)))…")
                 self?.peerCount += 1
+                let now = Date()
+                let existing = self?.discoveredPeers.first { $0.id == peerHex }
                 let info = PeerInfo(
                     id: peerHex,
                     rssi: Int.random(in: -85 ... -35),
-                    lastSeen: Date()
+                    lastSeen: now,
+                    firstSeen: existing?.firstSeen ?? now
                 )
                 if let idx = self?.discoveredPeers.firstIndex(where: { $0.id == peerHex }) {
                     self?.discoveredPeers[idx].rssi = info.rssi
@@ -220,10 +235,10 @@ final class MeshLinkViewModel: ObservableObject {
                 timestamp: Self.formatTimestamp(event.monotonicMillis),
                 payload: event.payload
             )
-            if (self?.diagnosticEntries.count ?? 0) > 500 {
-                self?.diagnosticEntries.removeFirst()
+            if self.diagnosticEntries.count > 500 {
+                self.diagnosticEntries.removeFirst()
             }
-            self?.diagnosticEntries.append(entry)
+            self.diagnosticEntries.append(entry)
         }
     }
 

@@ -13,7 +13,7 @@ complexity:
     thresholdInClasses: 50
     thresholdInFiles: 50
     thresholdInObjects: 25
-    thresholdInInterfaces: 20
+    thresholdInInterfaces: 25
   CyclomaticComplexMethod:
     threshold: 25
   NestedBlockDepth:

@@ -1,6 +1,8 @@
 package io.meshlink.sample
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,15 +22,18 @@ import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -37,15 +42,20 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import io.meshlink.routing.PresenceState
 import kotlinx.coroutines.delay
 import kotlin.math.cos
 import kotlin.math.sin
+import kotlin.math.sqrt
 
 /**
  * Mesh Visualizer screen — renders discovered peers as a circular graph on a Canvas.
@@ -53,6 +63,7 @@ import kotlin.math.sin
  * • Self node is drawn in the center with the primary color.
  * • Peer nodes are arranged in a circle around it.
  * • Links are drawn with color and thickness derived from RSSI signal quality.
+ * • Tap a peer node to see detailed connection info.
  * • Auto-refreshes every 2 seconds.
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -60,7 +71,11 @@ import kotlin.math.sin
 fun MeshVisualizerScreen(viewModel: MeshLinkViewModel) {
     val peers by viewModel.discoveredPeers.collectAsState()
     val health by viewModel.health.collectAsState()
+    val selectedPeerId by viewModel.selectedPeerId.collectAsState()
     val textMeasurer = rememberTextMeasurer()
+
+    // Peer positions are computed during draw; cache them for hit testing.
+    var peerPositions by remember { mutableStateOf<List<Pair<String, Offset>>>(emptyList()) }
 
     // Tick counter to trigger recomposition every 2 seconds
     var tick by remember { mutableLongStateOf(0L) }
@@ -123,15 +138,45 @@ fun MeshVisualizerScreen(viewModel: MeshLinkViewModel) {
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     } else {
-                        Canvas(modifier = Modifier.fillMaxSize()) {
-                            drawMeshGraph(
+                        Canvas(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .pointerInput(peers) {
+                                    detectTapGestures { tapOffset ->
+                                        val hitRadius = 40f
+                                        val tapped = peerPositions.firstOrNull { (_, pos) ->
+                                            val dx = tapOffset.x - pos.x
+                                            val dy = tapOffset.y - pos.y
+                                            sqrt(dx * dx + dy * dy) <= hitRadius
+                                        }
+                                        viewModel.selectPeer(
+                                            if (tapped?.first == selectedPeerId) null else tapped?.first
+                                        )
+                                    }
+                                }
+                        ) {
+                            val positions = drawMeshGraph(
                                 peers = peers,
+                                selectedPeerId = selectedPeerId,
                                 primaryColor = primaryColor,
                                 labelColor = onSurfaceColor,
                                 textMeasurer = textMeasurer,
                             )
+                            peerPositions = positions
                         }
                     }
+                }
+            }
+
+            // ── Peer Detail Panel ──
+            AnimatedVisibility(visible = selectedPeerId != null) {
+                val peer = peers.find { it.id == selectedPeerId }
+                if (peer != null) {
+                    PeerDetailCard(
+                        peer = peer,
+                        detail = viewModel.peerDetail(peer.id),
+                        onDismiss = { viewModel.selectPeer(null) },
+                    )
                 }
             }
 
@@ -152,6 +197,147 @@ fun MeshVisualizerScreen(viewModel: MeshLinkViewModel) {
     }
 }
 
+// ── Peer Detail Card ──
+
+@Composable
+private fun PeerDetailCard(
+    peer: PeerInfo,
+    detail: io.meshlink.model.PeerDetail?,
+    onDismiss: () -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+        )
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    "Peer Detail",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                )
+                TextButton(onClick = onDismiss) { Text("Close") }
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+            HorizontalDivider()
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Identity
+            DetailRow("Peer ID", peer.id.uppercase())
+            DetailRow("Signal", "${peer.rssi} dBm (${rssiLabel(peer.rssi)})")
+            DetailRow(
+                "First seen",
+                formatRelativeTime(System.currentTimeMillis() - peer.firstSeen)
+            )
+            DetailRow(
+                "Last seen",
+                formatRelativeTime(System.currentTimeMillis() - peer.lastSeen)
+            )
+
+            if (detail != null) {
+                Spacer(modifier = Modifier.height(8.dp))
+                HorizontalDivider()
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Connection
+                DetailRow("Presence", presenceLabel(detail.presenceState))
+                DetailRow(
+                    "Connection",
+                    if (detail.isDirectNeighbor) "Direct (1-hop)" else "Multi-hop"
+                )
+
+                // Routing
+                Spacer(modifier = Modifier.height(8.dp))
+                HorizontalDivider()
+                Spacer(modifier = Modifier.height(8.dp))
+
+                val nextHop = detail.routeNextHop
+                if (nextHop != null) {
+                    DetailRow("Next hop", nextHop.take(12).uppercase() + "…")
+                    DetailRow(
+                        "Route cost",
+                        "%.2f".format(detail.routeCost ?: 0.0)
+                    )
+                    DetailRow(
+                        "Seq #",
+                        (detail.routeSequenceNumber ?: 0u).toString()
+                    )
+                } else {
+                    DetailRow("Route", "No route available")
+                }
+
+                // Reliability
+                DetailRow(
+                    "Reliability",
+                    "%.0f%% (%d failures)".format(
+                        (1.0 - detail.nextHopFailureRate) * 100,
+                        detail.nextHopFailureCount
+                    )
+                )
+
+                // Key
+                val keyHex = detail.publicKeyHex
+                if (keyHex != null) {
+                    DetailRow(
+                        "Public key",
+                        keyHex.take(16).uppercase() + "…"
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DetailRow(label: String, value: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 2.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Text(
+            label,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f),
+        )
+        Text(
+            value,
+            style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+            fontWeight = FontWeight.Medium,
+        )
+    }
+}
+
+private fun rssiLabel(rssi: Int): String = when {
+    rssi >= -60 -> "Good"
+    rssi >= -80 -> "Fair"
+    else -> "Poor"
+}
+
+private fun presenceLabel(state: PresenceState): String = when (state) {
+    PresenceState.CONNECTED -> "🟢 Connected"
+    PresenceState.DISCONNECTED -> "🟡 Disconnected"
+    PresenceState.GONE -> "🔴 Gone"
+}
+
+private fun formatRelativeTime(deltaMs: Long): String {
+    val seconds = deltaMs / 1_000
+    return when {
+        seconds < 5 -> "just now"
+        seconds < 60 -> "${seconds}s ago"
+        seconds < 3_600 -> "${seconds / 60}m ${seconds % 60}s ago"
+        else -> "${seconds / 3_600}h ${(seconds % 3_600) / 60}m ago"
+    }
+}
+
 @Composable
 private fun LegendRow(color: Color, label: String) {
     Row(
@@ -168,12 +354,16 @@ private fun LegendRow(color: Color, label: String) {
 
 // ── Drawing helpers ──
 
+/**
+ * Draws the mesh graph and returns a list of (peerId, position) for hit testing.
+ */
 private fun DrawScope.drawMeshGraph(
     peers: List<PeerInfo>,
+    selectedPeerId: String?,
     primaryColor: Color,
     labelColor: Color,
     textMeasurer: TextMeasurer,
-) {
+): List<Pair<String, Offset>> {
     val center = Offset(size.width / 2f, size.height / 2f)
     val radius = (minOf(size.width, size.height) / 2f) * 0.7f
     val selfNodeRadius = 22f
@@ -225,6 +415,17 @@ private fun DrawScope.drawMeshGraph(
     peers.forEachIndexed { index, peer ->
         val pos = peerPositions[index]
         val nodeColor = rssiToColor(peer.rssi)
+        val isSelected = peer.id == selectedPeerId
+
+        // Selection ring
+        if (isSelected) {
+            drawCircle(
+                color = Color.White,
+                radius = peerNodeRadius + 6f,
+                center = pos,
+                style = Stroke(width = 3f)
+            )
+        }
 
         drawCircle(color = nodeColor, radius = peerNodeRadius, center = pos)
 
@@ -241,6 +442,8 @@ private fun DrawScope.drawMeshGraph(
             )
         )
     }
+
+    return peers.mapIndexed { index, peer -> peer.id to peerPositions[index] }
 }
 
 /** Maps RSSI (dBm, typically −30…−100) to a green→yellow→red color. */
