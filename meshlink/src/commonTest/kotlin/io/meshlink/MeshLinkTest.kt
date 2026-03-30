@@ -9,6 +9,7 @@ import io.meshlink.transport.GattConstants
 import io.meshlink.transport.VirtualMeshTransport
 import io.meshlink.util.DeliveryOutcome
 import io.meshlink.util.toHex
+import io.meshlink.wire.AdvertisementCodec
 import io.meshlink.wire.WireCodec
 import io.meshlink.wire.RouteUpdateEntry
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -3792,13 +3793,11 @@ class MeshLinkTest {
         advanceUntilIdle()
 
         // Bob advertises version 0.0 → incompatible (|3-0| > 1)
-        transportAlice.simulateDiscovery(peerIdBob, ByteArray(17))
+        transportAlice.simulateDiscovery(peerIdBob, AdvertisementCodec.encode(0, 0, 0, ByteArray(15)))
         advanceUntilIdle()
 
         // Charlie advertises version 3.0 → compatible
-        val charlieAdv = ByteArray(17)
-        charlieAdv[0] = 3; charlieAdv[1] = 0
-        transportAlice.simulateDiscovery(peerIdCharlie, charlieAdv)
+        transportAlice.simulateDiscovery(peerIdCharlie, AdvertisementCodec.encode(3, 0, 0, ByteArray(15)))
         advanceUntilIdle()
 
         // Only Charlie should be discovered (Bob rejected)
@@ -3820,9 +3819,7 @@ class MeshLinkTest {
         advanceUntilIdle()
 
         // Bob advertises version 1.0 → compatible
-        val bobAdv = ByteArray(17)
-        bobAdv[0] = 1; bobAdv[1] = 0
-        transportAlice.simulateDiscovery(peerIdBob, bobAdv)
+        transportAlice.simulateDiscovery(peerIdBob, AdvertisementCodec.encode(1, 0, 0, ByteArray(15)))
         advanceUntilIdle()
 
         val event = alice.peers.first()

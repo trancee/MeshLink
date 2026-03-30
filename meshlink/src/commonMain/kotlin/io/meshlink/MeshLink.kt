@@ -49,6 +49,7 @@ import io.meshlink.util.currentTimeMillis
 import io.meshlink.util.hexToBytes
 import io.meshlink.util.toHex
 import io.meshlink.util.withLock
+import io.meshlink.wire.AdvertisementCodec
 import io.meshlink.wire.WireCodec
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
@@ -262,6 +263,13 @@ class MeshLink(
         localPeerId = transport.localPeerId,
         protocolVersion = config.protocolVersion,
         isPaused = { pauseManager.isPaused },
+        localPowerMode = { PowerMode.valueOf(powerCoordinator.currentMode).ordinal },
+        localKeyHash = {
+            securityEngine?.let { se ->
+                crypto?.sha256(se.localPublicKey)
+                    ?.copyOfRange(0, AdvertisementCodec.KEY_HASH_SIZE)
+            } ?: ByteArray(0)
+        },
     )
 
     private val inboundValidator = InboundValidator(
