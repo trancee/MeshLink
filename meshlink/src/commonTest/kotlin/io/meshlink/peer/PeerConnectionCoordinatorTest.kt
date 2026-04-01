@@ -17,9 +17,9 @@ import kotlin.test.assertTrue
 
 class PeerConnectionCoordinatorTest {
 
-    private val localPeerId = ByteArray(16) { 0x01 }
+    private val localPeerId = ByteArray(8) { 0x01 }
     // Higher peerId so localPeerId < peerA (tie-breaking: local initiates)
-    private val peerA = ByteArray(16) { 0x10 }
+    private val peerA = ByteArray(8) { 0x10 }
     private val peerAKey = ByteArrayKey(peerA)
 
     private fun routingEngine() = RoutingEngine(

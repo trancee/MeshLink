@@ -21,9 +21,9 @@ class HexUtilTest {
         assertEquals("ff", byteArrayOf(0xFF.toByte()).toHex())
 
         // Round-trip: arbitrary 16-byte peer ID
-        val peerId = ByteArray(16) { (0xA0 + it).toByte() }
+        val peerId = ByteArray(8) { (0xA0 + it).toByte() }
         val hex = peerId.toHex()
-        assertEquals(32, hex.length)
+        assertEquals(16, hex.length)
         assertContentEquals(peerId, hexToBytes(hex))
 
         // Round-trip: all-zero
@@ -31,7 +31,7 @@ class HexUtilTest {
         assertContentEquals(zeros, hexToBytes(zeros.toHex()))
 
         // Round-trip: all-FF
-        val ffs = ByteArray(16) { 0xFF.toByte() }
+        val ffs = ByteArray(8) { 0xFF.toByte() }
         assertContentEquals(ffs, hexToBytes(ffs.toHex()))
     }
 }

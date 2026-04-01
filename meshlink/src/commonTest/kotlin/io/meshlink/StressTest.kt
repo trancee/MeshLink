@@ -18,7 +18,7 @@ import kotlin.uuid.ExperimentalUuidApi
 @OptIn(ExperimentalCoroutinesApi::class, ExperimentalUuidApi::class)
 class StressTest {
 
-    private fun peerId(index: Int) = ByteArray(16) { (index * 0x10 + it).toByte() }
+    private fun peerId(index: Int) = ByteArray(8) { (index * 0x10 + it).toByte() }
 
     @Test
     fun `10 peers discover each other`() = runTest {

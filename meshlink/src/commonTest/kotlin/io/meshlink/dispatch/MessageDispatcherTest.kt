@@ -20,9 +20,9 @@ import kotlin.test.assertTrue
 
 class MessageDispatcherTest {
 
-    private val localPeer = ByteArray(16) { 0x01 }
-    private val peerA = ByteArray(16) { 0x0A }
-    private val peerB = ByteArray(16) { 0x0B }
+    private val localPeer = ByteArray(8) { 0x01 }
+    private val peerA = ByteArray(8) { 0x0A }
+    private val peerB = ByteArray(8) { 0x0B }
     private val msgId = ByteArray(16) { 0xAA.toByte() }
 
     /** Recording sink that captures all effects for assertions. */
@@ -321,7 +321,7 @@ class MessageDispatcherTest {
             messageId = msgId,
             origin = peerA,
             remainingHops = 3u,
-            appIdHash = ByteArray(16) { 0xFF.toByte() }, // wrong hash
+            appIdHash = ByteArray(8) { 0xFF.toByte() }, // wrong hash
             payload = "filtered".encodeToByteArray(),
         )
         dispatcher.dispatch(peerA, frame)

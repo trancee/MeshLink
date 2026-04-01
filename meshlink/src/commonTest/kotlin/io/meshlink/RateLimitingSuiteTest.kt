@@ -26,9 +26,9 @@ class RateLimitingSuiteTest {
 
     private fun key(s: String) = ByteArrayKey(s.encodeToByteArray())
 
-    private val peerIdAlice = ByteArray(16) { (0xA0 + it).toByte() }
-    private val peerIdBob = ByteArray(16) { (0xB0 + it).toByte() }
-    private val peerIdCarol = ByteArray(16) { (0xC0 + it).toByte() }
+    private val peerIdAlice = ByteArray(8) { (0xA0 + it).toByte() }
+    private val peerIdBob = ByteArray(8) { (0xB0 + it).toByte() }
+    private val peerIdCarol = ByteArray(8) { (0xC0 + it).toByte() }
 
     // ── Config defaults ──
 

@@ -11,8 +11,8 @@ import kotlin.test.assertTrue
 
 class GossipCoordinatorTest {
 
-    private val localPeerId = ByteArray(16) { it.toByte() }
-    private val peerA = ByteArray(16) { (it + 0x10).toByte() }
+    private val localPeerId = ByteArray(8) { it.toByte() }
+    private val peerA = ByteArray(8) { (it + 0x10).toByte() }
     private val peerAHex = peerA.toHex()
 
     private fun routingEngine(
@@ -63,7 +63,7 @@ class GossipCoordinatorTest {
     fun routeUpdate_withPeers_sendsToEachPeer() = kotlinx.coroutines.test.runTest {
         val re = routingEngine()
         re.peerSeen(peerA.toKey())
-        val peerB = ByteArray(16) { (it + 0x20).toByte() }
+        val peerB = ByteArray(8) { (it + 0x20).toByte() }
         re.peerSeen(peerB.toKey())
 
         val sentPeers = mutableListOf<String>()

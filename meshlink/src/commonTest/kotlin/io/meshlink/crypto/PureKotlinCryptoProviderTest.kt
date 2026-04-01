@@ -101,7 +101,7 @@ class PureKotlinCryptoProviderTest {
     fun crossProviderHkdfInterop() {
         val jvm = CryptoProvider()
         val ikm = ByteArray(32) { it.toByte() }
-        val salt = ByteArray(16) { (0x80 + it).toByte() }
+        val salt = ByteArray(8) { (0x80 + it).toByte() }
         val info = "MeshLink-test".encodeToByteArray()
 
         assertContentEquals(

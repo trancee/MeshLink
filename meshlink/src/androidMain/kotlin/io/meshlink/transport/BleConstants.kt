@@ -52,7 +52,7 @@ object BleConstants {
     const val PREFS_KEY_LOCAL_PEER_ID = "local_peer_id"
 
     /** Length of the randomly generated local peer ID in bytes */
-    const val LOCAL_PEER_ID_LENGTH = 16
+    const val LOCAL_PEER_ID_LENGTH = 8
 
     // --- BLE Standard UUIDs ---
 

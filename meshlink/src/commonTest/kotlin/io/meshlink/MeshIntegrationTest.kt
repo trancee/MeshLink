@@ -39,7 +39,7 @@ import kotlin.uuid.ExperimentalUuidApi
 @OptIn(ExperimentalCoroutinesApi::class, ExperimentalUuidApi::class)
 class MeshIntegrationTest {
 
-    private fun peerId(index: Int) = ByteArray(16) { ((index shl 4) + it).toByte() }
+    private fun peerId(index: Int) = ByteArray(8) { ((index shl 4) + it).toByte() }
 
     private val peerIdAlice = peerId(0xA)
     private val peerIdBob = peerId(0xB)
@@ -729,7 +729,7 @@ class MeshIntegrationTest {
         advanceUntilIdle()
 
         // No discovery — Bob is unknown
-        val unknownPeer = ByteArray(16) { 0xFF.toByte() }
+        val unknownPeer = ByteArray(8) { 0xFF.toByte() }
         val result = alice.send(unknownPeer, "hello".encodeToByteArray())
         assertTrue(result.isFailure, "send to undiscovered peer should fail")
 
@@ -960,8 +960,8 @@ class MeshIntegrationTest {
         advanceUntilIdle()
 
         // Inject a routed message with hopLimit=0 (already exhausted)
-        val sender = ByteArray(16) { 0xCC.toByte() }
-        val target = ByteArray(16) { 0xDD.toByte() }
+        val sender = ByteArray(8) { 0xCC.toByte() }
+        val target = ByteArray(8) { 0xDD.toByte() }
         val msg = WireCodec.encodeRoutedMessage(
             messageId = kotlin.uuid.Uuid.random().toByteArray(),
             origin = sender,

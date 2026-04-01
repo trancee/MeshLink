@@ -105,20 +105,20 @@ class WireFormatGoldenVectorsTest {
     // ────────────────────────────────────────────────────────────────────
     // RoutedMessage (0x05)
     //   messageId    = 0x01..0x10
-    //   origin       = 0x11 × 16
-    //   destination   = 0xAA × 16
+    //   origin       = 0x11 × 8
+    //   destination   = 0xAA × 8
     //   hopLimit     = 5
     //   replayCounter = 0
     //   visitedList  = [] (empty)
     //   payload      = "routed data"
     //
-    // Layout: type(1) + msgId(16) + origin(16) + dest(16) + hop(1)
-    //         + replay(8 LE) + visitedCount(1) + payload(11) = 70 bytes
+    // Layout: type(1) + msgId(16) + origin(8) + dest(8) + hop(1)
+    //         + replay(8 LE) + visitedCount(1) + payload(11) = 54 bytes
     //
     // Golden hex:
     //   050102030405060708090a0b0c0d0e0f10
-    //   11111111111111111111111111111111
-    //   aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    //   1111111111111111
+    //   aaaaaaaaaaaaaaaa
     //   05 0000000000000000 00
     //   726f757465642064617461
     // ────────────────────────────────────────────────────────────────────
@@ -126,8 +126,8 @@ class WireFormatGoldenVectorsTest {
     private val routedMessageGoldenHex =
         "05" +                                  // type: routed_message
         "0102030405060708090a0b0c0d0e0f10" +    // messageId
-        "11111111111111111111111111111111" +      // origin (16 × 0x11)
-        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" +      // destination (16 × 0xAA)
+        "1111111111111111" +                    // origin (8 × 0x11)
+        "aaaaaaaaaaaaaaaa" +                    // destination (8 × 0xAA)
         "05" +                                  // hopLimit = 5
         "0000000000000000" +                    // replayCounter = 0 (LE)
         "00" +                                  // visitedCount = 0
@@ -137,14 +137,14 @@ class WireFormatGoldenVectorsTest {
     fun routedMessageGoldenVectorEncodes() {
         val encoded = WireCodec.encodeRoutedMessage(
             messageId = messageId,
-            origin = ByteArray(16) { 0x11 },
-            destination = ByteArray(16) { 0xAA.toByte() },
+            origin = ByteArray(8) { 0x11 },
+            destination = ByteArray(8) { 0xAA.toByte() },
             hopLimit = 5u,
             visitedList = emptyList(),
             payload = "routed data".encodeToByteArray(),
         )
         assertEquals(routedMessageGoldenHex, encoded.toHex())
-        assertEquals(70, encoded.size)
+        assertEquals(54, encoded.size)
     }
 
     @Test
@@ -152,8 +152,8 @@ class WireFormatGoldenVectorsTest {
         val decoded = WireCodec.decodeRoutedMessage(hexToBytes(routedMessageGoldenHex))
 
         assertContentEquals(messageId, decoded.messageId)
-        assertContentEquals(ByteArray(16) { 0x11 }, decoded.origin)
-        assertContentEquals(ByteArray(16) { 0xAA.toByte() }, decoded.destination)
+        assertContentEquals(ByteArray(8) { 0x11 }, decoded.origin)
+        assertContentEquals(ByteArray(8) { 0xAA.toByte() }, decoded.destination)
         assertEquals(5u.toUByte(), decoded.hopLimit)
         assertEquals(0uL, decoded.replayCounter)
         assertEquals(0, decoded.visitedList.size)
@@ -163,7 +163,7 @@ class WireFormatGoldenVectorsTest {
     // ────────────────────────────────────────────────────────────────────
     // RoutedMessage with visited list (0x05)
     //   Same base fields, but with replayCounter = 0x0000000100000002
-    //   and visitedList = [0xEE × 16]
+    //   and visitedList = [0xEE × 8]
     //
     // replayCounter LE: 02 00 00 00 01 00 00 00
     // ────────────────────────────────────────────────────────────────────
@@ -171,27 +171,27 @@ class WireFormatGoldenVectorsTest {
     private val routedWithVisitedGoldenHex =
         "05" +                                  // type
         "0102030405060708090a0b0c0d0e0f10" +    // messageId
-        "11111111111111111111111111111111" +      // origin
-        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" +      // destination
+        "1111111111111111" +                    // origin
+        "aaaaaaaaaaaaaaaa" +                    // destination
         "05" +                                  // hopLimit = 5
         "0200000001000000" +                    // replayCounter = 0x0000000100000002 (LE)
         "01" +                                  // visitedCount = 1
-        "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee" +    // visited[0] (16 × 0xEE)
+        "eeeeeeeeeeeeeeee" +                    // visited[0] (8 × 0xEE)
         "726f757465642064617461"                 // payload "routed data"
 
     @Test
     fun routedMessageWithVisitedListGoldenVectorEncodes() {
         val encoded = WireCodec.encodeRoutedMessage(
             messageId = messageId,
-            origin = ByteArray(16) { 0x11 },
-            destination = ByteArray(16) { 0xAA.toByte() },
+            origin = ByteArray(8) { 0x11 },
+            destination = ByteArray(8) { 0xAA.toByte() },
             hopLimit = 5u,
-            visitedList = listOf(ByteArray(16) { 0xEE.toByte() }),
+            visitedList = listOf(ByteArray(8) { 0xEE.toByte() }),
             payload = "routed data".encodeToByteArray(),
             replayCounter = 0x0000000100000002uL,
         )
         assertEquals(routedWithVisitedGoldenHex, encoded.toHex())
-        assertEquals(86, encoded.size) // 70 + 16 visited entry
+        assertEquals(62, encoded.size) // 54 + 8 visited entry
     }
 
     @Test
@@ -202,25 +202,25 @@ class WireFormatGoldenVectorsTest {
         assertEquals(5u.toUByte(), decoded.hopLimit)
         assertEquals(0x0000000100000002uL, decoded.replayCounter)
         assertEquals(1, decoded.visitedList.size)
-        assertContentEquals(ByteArray(16) { 0xEE.toByte() }, decoded.visitedList[0])
+        assertContentEquals(ByteArray(8) { 0xEE.toByte() }, decoded.visitedList[0])
         assertContentEquals("routed data".encodeToByteArray(), decoded.payload)
     }
 
     // ────────────────────────────────────────────────────────────────────
     // Broadcast (0x00)
     //   messageId     = 0x01..0x10
-    //   origin        = 0xBB × 16
+    //   origin        = 0xBB × 8
     //   remainingHops = 3
     //   appIdHash     = 0xCC × 16
     //   signature     = (none, sigLen = 0)
     //   payload       = "broadcast msg"
     //
-    // Layout: type(1) + msgId(16) + origin(16) + hops(1) + appIdHash(16)
-    //         + sigLen(1) + payload(13) = 64 bytes
+    // Layout: type(1) + msgId(16) + origin(8) + hops(1) + appIdHash(16)
+    //         + sigLen(1) + payload(13) = 56 bytes
     //
     // Golden hex:
     //   000102030405060708090a0b0c0d0e0f10
-    //   bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    //   bbbbbbbbbbbbbbbb
     //   03
     //   cccccccccccccccccccccccccccccccc
     //   00
@@ -230,7 +230,7 @@ class WireFormatGoldenVectorsTest {
     private val broadcastGoldenHex =
         "00" +                                  // type: broadcast
         "0102030405060708090a0b0c0d0e0f10" +    // messageId
-        "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" +      // origin (16 × 0xBB)
+        "bbbbbbbbbbbbbbbb" +                    // origin (8 × 0xBB)
         "03" +                                  // remainingHops = 3
         "cccccccccccccccccccccccccccccccc" +      // appIdHash (16 × 0xCC)
         "00" +                                  // sigLen = 0 (unsigned)
@@ -240,13 +240,13 @@ class WireFormatGoldenVectorsTest {
     fun broadcastGoldenVectorEncodes() {
         val encoded = WireCodec.encodeBroadcast(
             messageId = messageId,
-            origin = ByteArray(16) { 0xBB.toByte() },
+            origin = ByteArray(8) { 0xBB.toByte() },
             remainingHops = 3u,
             appIdHash = ByteArray(16) { 0xCC.toByte() },
             payload = "broadcast msg".encodeToByteArray(),
         )
         assertEquals(broadcastGoldenHex, encoded.toHex())
-        assertEquals(64, encoded.size)
+        assertEquals(56, encoded.size)
     }
 
     @Test
@@ -254,7 +254,7 @@ class WireFormatGoldenVectorsTest {
         val decoded = WireCodec.decodeBroadcast(hexToBytes(broadcastGoldenHex))
 
         assertContentEquals(messageId, decoded.messageId)
-        assertContentEquals(ByteArray(16) { 0xBB.toByte() }, decoded.origin)
+        assertContentEquals(ByteArray(8) { 0xBB.toByte() }, decoded.origin)
         assertEquals(3u.toUByte(), decoded.remainingHops)
         assertContentEquals(ByteArray(16) { 0xCC.toByte() }, decoded.appIdHash)
         assertEquals(0, decoded.signature.size)
@@ -265,31 +265,31 @@ class WireFormatGoldenVectorsTest {
     // ────────────────────────────────────────────────────────────────────
     // DeliveryAck (0x06)
     //   messageId   = 0x01..0x10
-    //   recipientId = 0xDD × 16
+    //   recipientId = 0xDD × 8
     //   signature   = (none, sigLen = 0)
     //
-    // Layout: type(1) + msgId(16) + recipientId(16) + sigLen(1) = 34 bytes
+    // Layout: type(1) + msgId(16) + recipientId(8) + sigLen(1) = 26 bytes
     //
     // Golden hex:
     //   060102030405060708090a0b0c0d0e0f10
-    //   dddddddddddddddddddddddddddddddd
+    //   dddddddddddddddd
     //   00
     // ────────────────────────────────────────────────────────────────────
 
     private val deliveryAckGoldenHex =
         "06" +                                  // type: delivery_ack
         "0102030405060708090a0b0c0d0e0f10" +    // messageId
-        "dddddddddddddddddddddddddddddddd" +    // recipientId (16 × 0xDD)
+        "dddddddddddddddd" +                   // recipientId (8 × 0xDD)
         "00"                                    // sigLen = 0 (unsigned)
 
     @Test
     fun deliveryAckGoldenVectorEncodes() {
         val encoded = WireCodec.encodeDeliveryAck(
             messageId = messageId,
-            recipientId = ByteArray(16) { 0xDD.toByte() },
+            recipientId = ByteArray(8) { 0xDD.toByte() },
         )
         assertEquals(deliveryAckGoldenHex, encoded.toHex())
-        assertEquals(34, encoded.size)
+        assertEquals(26, encoded.size)
     }
 
     @Test
@@ -297,38 +297,38 @@ class WireFormatGoldenVectorsTest {
         val decoded = WireCodec.decodeDeliveryAck(hexToBytes(deliveryAckGoldenHex))
 
         assertContentEquals(messageId, decoded.messageId)
-        assertContentEquals(ByteArray(16) { 0xDD.toByte() }, decoded.recipientId)
+        assertContentEquals(ByteArray(8) { 0xDD.toByte() }, decoded.recipientId)
         assertEquals(0, decoded.signature.size)
         assertEquals(0, decoded.signerPublicKey.size)
     }
 
     // ────────────────────────────────────────────────────────────────────
     // RouteUpdate (0x02)
-    //   senderId = 0xAA × 16
+    //   senderId = 0xAA × 8
     //   2 entries:
-    //     Entry 1: dest=0xBB×16, cost=1.0, seqNum=100, hopCount=2
-    //     Entry 2: dest=0xCC×16, cost=2.5, seqNum=200, hopCount=3
+    //     Entry 1: dest=0xBB×8, cost=1.0, seqNum=100, hopCount=2
+    //     Entry 2: dest=0xCC×8, cost=2.5, seqNum=200, hopCount=3
     //
     //   cost 1.0 IEEE 754 raw bits = 0x3FF0000000000000, LE: 000000000000f03f
     //   cost 2.5 IEEE 754 raw bits = 0x4004000000000000, LE: 0000000000000440
     //   seqNum 100 LE: 64000000
     //   seqNum 200 LE: c8000000
     //
-    // Layout: type(1) + sender(16) + count(1) + 2 × entry(29) = 76 bytes
-    // Each entry: dest(16) + cost(8 LE double) + seqNum(4 LE) + hop(1) = 29
+    // Layout: type(1) + sender(8) + count(1) + 2 × entry(21) = 52 bytes
+    // Each entry: dest(8) + cost(8 LE double) + seqNum(4 LE) + hop(1) = 21
     // ────────────────────────────────────────────────────────────────────
 
     private val routeUpdateGoldenHex =
         "02" +                                  // type: route_update
-        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" +      // senderId (16 × 0xAA)
+        "aaaaaaaaaaaaaaaa" +                    // senderId (8 × 0xAA)
         "02" +                                  // entryCount = 2
         // Entry 1
-        "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" +      // destination (16 × 0xBB)
+        "bbbbbbbbbbbbbbbb" +                    // destination (8 × 0xBB)
         "000000000000f03f" +                    // cost = 1.0 (LE double)
         "64000000" +                            // sequenceNumber = 100 (LE)
         "02" +                                  // hopCount = 2
         // Entry 2
-        "cccccccccccccccccccccccccccccccc" +      // destination (16 × 0xCC)
+        "cccccccccccccccc" +                    // destination (8 × 0xCC)
         "0000000000000440" +                    // cost = 2.5 (LE double)
         "c8000000" +                            // sequenceNumber = 200 (LE)
         "03"                                    // hopCount = 3
@@ -336,16 +336,16 @@ class WireFormatGoldenVectorsTest {
     @Test
     fun routeUpdateGoldenVectorEncodes() {
         val encoded = WireCodec.encodeRouteUpdate(
-            senderId = ByteArray(16) { 0xAA.toByte() },
+            senderId = ByteArray(8) { 0xAA.toByte() },
             entries = listOf(
                 RouteUpdateEntry(
-                    destination = ByteArray(16) { 0xBB.toByte() },
+                    destination = ByteArray(8) { 0xBB.toByte() },
                     cost = 1.0,
                     sequenceNumber = 100u,
                     hopCount = 2u,
                 ),
                 RouteUpdateEntry(
-                    destination = ByteArray(16) { 0xCC.toByte() },
+                    destination = ByteArray(8) { 0xCC.toByte() },
                     cost = 2.5,
                     sequenceNumber = 200u,
                     hopCount = 3u,
@@ -353,24 +353,24 @@ class WireFormatGoldenVectorsTest {
             ),
         )
         assertEquals(routeUpdateGoldenHex, encoded.toHex())
-        assertEquals(76, encoded.size)
+        assertEquals(52, encoded.size)
     }
 
     @Test
     fun routeUpdateGoldenVectorDecodes() {
         val decoded = WireCodec.decodeRouteUpdate(hexToBytes(routeUpdateGoldenHex))
 
-        assertContentEquals(ByteArray(16) { 0xAA.toByte() }, decoded.senderId)
+        assertContentEquals(ByteArray(8) { 0xAA.toByte() }, decoded.senderId)
         assertEquals(2, decoded.entries.size)
 
         val e0 = decoded.entries[0]
-        assertContentEquals(ByteArray(16) { 0xBB.toByte() }, e0.destination)
+        assertContentEquals(ByteArray(8) { 0xBB.toByte() }, e0.destination)
         assertEquals(1.0, e0.cost, 0.0)
         assertEquals(100u, e0.sequenceNumber)
         assertEquals(2u.toUByte(), e0.hopCount)
 
         val e1 = decoded.entries[1]
-        assertContentEquals(ByteArray(16) { 0xCC.toByte() }, e1.destination)
+        assertContentEquals(ByteArray(8) { 0xCC.toByte() }, e1.destination)
         assertEquals(2.5, e1.cost, 0.0)
         assertEquals(200u, e1.sequenceNumber)
         assertEquals(3u.toUByte(), e1.hopCount)

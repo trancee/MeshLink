@@ -1,6 +1,8 @@
 package io.meshlink.wire
 
 private const val MESSAGE_ID_SIZE = 16
+private const val PEER_ID_SIZE = 8
+private const val APP_ID_HASH_SIZE = 16
 
 object WireCodec {
 
@@ -117,8 +119,8 @@ object WireCodec {
         return ChunkAckMessage(messageId, ackSequence, sackBitmask, sackBitmaskHigh)
     }
 
-    // routed_message: type(1) + messageId(16) + origin(16) + destination(16) + hopLimit(1) + replayCounter(8 LE) + visitedCount(1) + visited(N×16) + payload
-    private const val ROUTED_HEADER_SIZE = 1 + MESSAGE_ID_SIZE + 16 + 16 + 1 + 8 + 1 // 59
+    // routed_message: type(1) + messageId(16) + origin(8) + destination(8) + hopLimit(1) + replayCounter(8 LE) + visitedCount(1) + visited(N×8) + payload
+    private const val ROUTED_HEADER_SIZE = 1 + MESSAGE_ID_SIZE + PEER_ID_SIZE + PEER_ID_SIZE + 1 + 8 + 1 // 43
 
     fun encodeRoutedMessage(
         messageId: ByteArray,
@@ -130,22 +132,22 @@ object WireCodec {
         replayCounter: ULong = 0u,
     ): ByteArray {
         require(visitedList.size <= 255) { "visitedList too large: ${visitedList.size} (max 255)" }
-        val buf = ByteArray(ROUTED_HEADER_SIZE + visitedList.size * 16 + payload.size)
+        val buf = ByteArray(ROUTED_HEADER_SIZE + visitedList.size * PEER_ID_SIZE + payload.size)
         var offset = 0
         buf[offset++] = TYPE_ROUTED_MESSAGE
         messageId.copyInto(buf, offset)
         offset += MESSAGE_ID_SIZE
         origin.copyInto(buf, offset)
-        offset += 16
+        offset += PEER_ID_SIZE
         destination.copyInto(buf, offset)
-        offset += 16
+        offset += PEER_ID_SIZE
         buf[offset++] = hopLimit.toByte()
         buf.putULongLE(offset, replayCounter)
         offset += 8
         buf[offset++] = visitedList.size.toByte()
         for (hash in visitedList) {
             hash.copyInto(buf, offset)
-            offset += 16
+            offset += PEER_ID_SIZE
         }
         payload.copyInto(buf, offset)
         return buf
@@ -157,28 +159,28 @@ object WireCodec {
         var offset = 1
         val messageId = data.copyOfRange(offset, offset + MESSAGE_ID_SIZE)
         offset += MESSAGE_ID_SIZE
-        val origin = data.copyOfRange(offset, offset + 16)
-        offset += 16
-        val destination = data.copyOfRange(offset, offset + 16)
-        offset += 16
+        val origin = data.copyOfRange(offset, offset + PEER_ID_SIZE)
+        offset += PEER_ID_SIZE
+        val destination = data.copyOfRange(offset, offset + PEER_ID_SIZE)
+        offset += PEER_ID_SIZE
         val hopLimit = data[offset++].toUByte()
         val replayCounter = data.getULongLE(offset)
         offset += 8
         val visitedCount = data[offset++].toInt() and 0xFF
-        require(data.size >= offset + visitedCount * 16) {
-            "routed_message truncated: visitedCount=$visitedCount requires ${offset + visitedCount * 16} bytes, got ${data.size}"
+        require(data.size >= offset + visitedCount * PEER_ID_SIZE) {
+            "routed_message truncated: visitedCount=$visitedCount requires ${offset + visitedCount * PEER_ID_SIZE} bytes, got ${data.size}"
         }
         val visitedList = (0 until visitedCount).map {
-            val hash = data.copyOfRange(offset, offset + 16)
-            offset += 16
+            val hash = data.copyOfRange(offset, offset + PEER_ID_SIZE)
+            offset += PEER_ID_SIZE
             hash
         }
         val payload = data.copyOfRange(offset, data.size)
         return RoutedMessage(messageId, origin, destination, hopLimit, replayCounter, visitedList, payload)
     }
 
-    // broadcast: type(1) + messageId(16) + origin(16) + remainingHops(1) + appIdHash(16) + flags(1) + [signature(64) + signerPubKey(32)] + payload
-    private const val BROADCAST_HEADER_SIZE = 1 + MESSAGE_ID_SIZE + 16 + 1 + 16 + 1 // 51
+    // broadcast: type(1) + messageId(16) + origin(8) + remainingHops(1) + appIdHash(16) + flags(1) + [signature(64) + signerPubKey(32)] + payload
+    private const val BROADCAST_HEADER_SIZE = 1 + MESSAGE_ID_SIZE + PEER_ID_SIZE + 1 + APP_ID_HASH_SIZE + 1 // 43
     private const val ED25519_SIG_SIZE = 64
     private const val ED25519_PUB_KEY_SIZE = 32
     private const val FLAG_HAS_SIGNATURE = 0x01
@@ -187,7 +189,7 @@ object WireCodec {
         messageId: ByteArray,
         origin: ByteArray,
         remainingHops: UByte,
-        appIdHash: ByteArray = ByteArray(16),
+        appIdHash: ByteArray = ByteArray(APP_ID_HASH_SIZE),
         payload: ByteArray,
         signature: ByteArray = ByteArray(0),
         signerPublicKey: ByteArray = ByteArray(0),
@@ -199,10 +201,10 @@ object WireCodec {
         messageId.copyInto(buf, offset)
         offset += MESSAGE_ID_SIZE
         origin.copyInto(buf, offset)
-        offset += 16
+        offset += PEER_ID_SIZE
         buf[offset++] = remainingHops.toByte()
         appIdHash.copyInto(buf, offset)
-        offset += 16
+        offset += APP_ID_HASH_SIZE
         buf[offset++] = if (signature.isNotEmpty()) FLAG_HAS_SIGNATURE.toByte() else 0
         if (signature.isNotEmpty()) {
             signature.copyInto(buf, offset)
@@ -220,11 +222,11 @@ object WireCodec {
         var offset = 1
         val messageId = data.copyOfRange(offset, offset + MESSAGE_ID_SIZE)
         offset += MESSAGE_ID_SIZE
-        val origin = data.copyOfRange(offset, offset + 16)
-        offset += 16
+        val origin = data.copyOfRange(offset, offset + PEER_ID_SIZE)
+        offset += PEER_ID_SIZE
         val remainingHops = data[offset++].toUByte()
-        val appIdHash = data.copyOfRange(offset, offset + 16)
-        offset += 16
+        val appIdHash = data.copyOfRange(offset, offset + APP_ID_HASH_SIZE)
+        offset += APP_ID_HASH_SIZE
         val flags = data[offset++].toInt() and 0xFF
         val signature: ByteArray
         val signerPublicKey: ByteArray
@@ -244,8 +246,8 @@ object WireCodec {
         return BroadcastMessage(messageId, origin, remainingHops, appIdHash, payload, signature, signerPublicKey)
     }
 
-    // delivery_ack: type(1) + messageId(16) + recipientId(16) + flags(1) + [signature(64) + signerPubKey(32)]
-    private const val DELIVERY_ACK_HEADER_SIZE = 1 + MESSAGE_ID_SIZE + 16 + 1 // 34
+    // delivery_ack: type(1) + messageId(16) + recipientId(8) + flags(1) + [signature(64) + signerPubKey(32)]
+    private const val DELIVERY_ACK_HEADER_SIZE = 1 + MESSAGE_ID_SIZE + PEER_ID_SIZE + 1 // 26
 
     fun encodeDeliveryAck(
         messageId: ByteArray,
@@ -260,7 +262,7 @@ object WireCodec {
         messageId.copyInto(buf, offset)
         offset += MESSAGE_ID_SIZE
         recipientId.copyInto(buf, offset)
-        offset += 16
+        offset += PEER_ID_SIZE
         buf[offset++] = if (signature.isNotEmpty()) FLAG_HAS_SIGNATURE.toByte() else 0
         if (signature.isNotEmpty()) {
             signature.copyInto(buf, offset)
@@ -276,8 +278,8 @@ object WireCodec {
         var offset = 1
         val messageId = data.copyOfRange(offset, offset + MESSAGE_ID_SIZE)
         offset += MESSAGE_ID_SIZE
-        val recipientId = data.copyOfRange(offset, offset + 16)
-        offset += 16
+        val recipientId = data.copyOfRange(offset, offset + PEER_ID_SIZE)
+        offset += PEER_ID_SIZE
         val flags = data[offset++].toInt() and 0xFF
         val signature: ByteArray
         val signerPublicKey: ByteArray
@@ -295,11 +297,11 @@ object WireCodec {
         return DeliveryAckMessage(messageId, recipientId, signature, signerPublicKey)
     }
 
-    // route_update: type(1) + sender(16) + entryCount(1) + entries(N × 29)
+    // route_update: type(1) + sender(8) + entryCount(1) + entries(N × 21)
     // signed_route_update: route_update + signerPublicKey(32) + signature(64)
-    // each entry: destination(16) + cost(8 LE double) + sequenceNumber(4 LE uint) + hopCount(1)
-    private const val ROUTE_UPDATE_HEADER_SIZE = 1 + 16 + 1 // 18
-    private const val ROUTE_ENTRY_SIZE = 16 + 8 + 4 + 1 // 29
+    // each entry: destination(8) + cost(8 LE double) + sequenceNumber(4 LE uint) + hopCount(1)
+    private const val ROUTE_UPDATE_HEADER_SIZE = 1 + PEER_ID_SIZE + 1 // 10
+    private const val ROUTE_ENTRY_SIZE = PEER_ID_SIZE + 8 + 4 + 1 // 21
     private const val SIGNER_PUBLIC_KEY_SIZE = 32
     private const val SIGNATURE_SIZE = 64
 
@@ -308,11 +310,11 @@ object WireCodec {
         var offset = 0
         buf[offset++] = TYPE_ROUTE_UPDATE
         senderId.copyInto(buf, offset)
-        offset += 16
+        offset += PEER_ID_SIZE
         buf[offset++] = entries.size.toByte()
         for (entry in entries) {
             entry.destination.copyInto(buf, offset)
-            offset += 16
+            offset += PEER_ID_SIZE
             buf.putDoubleBitsLE(offset, entry.cost)
             offset += 8
             buf.putUIntLE(offset, entry.sequenceNumber)
@@ -361,16 +363,16 @@ object WireCodec {
         require(data.size >= ROUTE_UPDATE_HEADER_SIZE) { "route_update too short: ${data.size}" }
         require(data[0] == TYPE_ROUTE_UPDATE) { "not a route_update: 0x${data[0].toUByte().toString(16)}" }
         var offset = 1
-        val senderId = data.copyOfRange(offset, offset + 16)
-        offset += 16
+        val senderId = data.copyOfRange(offset, offset + PEER_ID_SIZE)
+        offset += PEER_ID_SIZE
         val entryCount = data[offset++].toInt() and 0xFF
         val entriesEnd = ROUTE_UPDATE_HEADER_SIZE + entryCount * ROUTE_ENTRY_SIZE
         require(data.size >= entriesEnd) {
             "route_update truncated: expected $entriesEnd, got ${data.size}"
         }
         val entries = (0 until entryCount).map {
-            val destination = data.copyOfRange(offset, offset + 16)
-            offset += 16
+            val destination = data.copyOfRange(offset, offset + PEER_ID_SIZE)
+            offset += PEER_ID_SIZE
             val cost = data.getDoubleBitsLE(offset)
             offset += 8
             require(cost.isFinite() && cost >= 0.0) {

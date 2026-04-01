@@ -253,7 +253,7 @@ class IosBleTransport(
         val defaults = NSUserDefaults.standardUserDefaults
         val existing = defaults.stringForKey(USER_DEFAULTS_PEER_ID_KEY)
 
-        if (existing != null && existing.length == 32) {
+        if (existing != null && existing.length == 16) {
             return existing.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
         }
 
@@ -262,13 +262,13 @@ class IosBleTransport(
         uuidUBytes.usePinned { pinned ->
             uuid.getUUIDBytes(pinned.addressOf(0))
         }
-        val uuidBytes = uuidUBytes.toByteArray()
-        val hexString = uuidBytes.toHexString()
+        val peerIdBytes = uuidUBytes.toByteArray().copyOf(8)
+        val hexString = peerIdBytes.toHexString()
         defaults.setObject(hexString, forKey = USER_DEFAULTS_PEER_ID_KEY)
         defaults.synchronize()
 
         logD("Generated new peer ID: $hexString")
-        return uuidBytes
+        return peerIdBytes
     }
 
     // ========================
@@ -675,6 +675,6 @@ class IosBleTransport(
         uBytes.usePinned { pinned ->
             uuid.getUUIDBytes(pinned.addressOf(0))
         }
-        return uBytes.toByteArray()
+        return uBytes.toByteArray().copyOf(8)
     }
 }
