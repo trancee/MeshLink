@@ -172,9 +172,11 @@ object WireCodec {
         return RoutedMessage(messageId, origin, destination, hopLimit, replayCounter, visitedList, payload)
     }
 
-    // broadcast: type(1) + messageId(16) + origin(16) + remainingHops(1) + appIdHash(16) + sigLen(1) + [signature(64) + signerPubKey(32)] + payload
+    // broadcast: type(1) + messageId(16) + origin(16) + remainingHops(1) + appIdHash(16) + flags(1) + [signature(64) + signerPubKey(32)] + payload
     private const val BROADCAST_HEADER_SIZE = 1 + MESSAGE_ID_SIZE + 16 + 1 + 16 + 1 // 51
+    private const val ED25519_SIG_SIZE = 64
     private const val ED25519_PUB_KEY_SIZE = 32
+    private const val FLAG_HAS_SIGNATURE = 0x01
 
     fun encodeBroadcast(
         messageId: ByteArray,
@@ -185,7 +187,7 @@ object WireCodec {
         signature: ByteArray = ByteArray(0),
         signerPublicKey: ByteArray = ByteArray(0),
     ): ByteArray {
-        val sigBlock = if (signature.isNotEmpty()) signature.size + signerPublicKey.size else 0
+        val sigBlock = if (signature.isNotEmpty()) ED25519_SIG_SIZE + ED25519_PUB_KEY_SIZE else 0
         val buf = ByteArray(BROADCAST_HEADER_SIZE + sigBlock + payload.size)
         var offset = 0
         buf[offset++] = TYPE_BROADCAST
@@ -196,12 +198,12 @@ object WireCodec {
         buf[offset++] = remainingHops.toByte()
         appIdHash.copyInto(buf, offset)
         offset += 16
-        buf[offset++] = signature.size.toByte()
+        buf[offset++] = if (signature.isNotEmpty()) FLAG_HAS_SIGNATURE.toByte() else 0
         if (signature.isNotEmpty()) {
             signature.copyInto(buf, offset)
-            offset += signature.size
+            offset += ED25519_SIG_SIZE
             signerPublicKey.copyInto(buf, offset)
-            offset += signerPublicKey.size
+            offset += ED25519_PUB_KEY_SIZE
         }
         payload.copyInto(buf, offset)
         return buf
@@ -218,15 +220,15 @@ object WireCodec {
         val remainingHops = data[offset++].toUByte()
         val appIdHash = data.copyOfRange(offset, offset + 16)
         offset += 16
-        val sigLen = data[offset++].toInt() and 0xFF
+        val flags = data[offset++].toInt() and 0xFF
         val signature: ByteArray
         val signerPublicKey: ByteArray
-        if (sigLen > 0) {
-            require(data.size >= offset + sigLen + ED25519_PUB_KEY_SIZE) {
-                "broadcast signature truncated: sigLen=$sigLen requires ${offset + sigLen + ED25519_PUB_KEY_SIZE} bytes, got ${data.size}"
+        if (flags and FLAG_HAS_SIGNATURE != 0) {
+            require(data.size >= offset + ED25519_SIG_SIZE + ED25519_PUB_KEY_SIZE) {
+                "broadcast signature truncated: requires ${offset + ED25519_SIG_SIZE + ED25519_PUB_KEY_SIZE} bytes, got ${data.size}"
             }
-            signature = data.copyOfRange(offset, offset + sigLen)
-            offset += sigLen
+            signature = data.copyOfRange(offset, offset + ED25519_SIG_SIZE)
+            offset += ED25519_SIG_SIZE
             signerPublicKey = data.copyOfRange(offset, offset + ED25519_PUB_KEY_SIZE)
             offset += ED25519_PUB_KEY_SIZE
         } else {
@@ -237,7 +239,7 @@ object WireCodec {
         return BroadcastMessage(messageId, origin, remainingHops, appIdHash, payload, signature, signerPublicKey)
     }
 
-    // delivery_ack: type(1) + messageId(16) + recipientId(16) + sigLen(1) + [signature(64) + signerPubKey(32)]
+    // delivery_ack: type(1) + messageId(16) + recipientId(16) + flags(1) + [signature(64) + signerPubKey(32)]
     private const val DELIVERY_ACK_HEADER_SIZE = 1 + MESSAGE_ID_SIZE + 16 + 1 // 34
 
     fun encodeDeliveryAck(
@@ -246,7 +248,7 @@ object WireCodec {
         signature: ByteArray = ByteArray(0),
         signerPublicKey: ByteArray = ByteArray(0),
     ): ByteArray {
-        val sigBlock = if (signature.isNotEmpty()) signature.size + signerPublicKey.size else 0
+        val sigBlock = if (signature.isNotEmpty()) ED25519_SIG_SIZE + ED25519_PUB_KEY_SIZE else 0
         val buf = ByteArray(DELIVERY_ACK_HEADER_SIZE + sigBlock)
         var offset = 0
         buf[offset++] = TYPE_DELIVERY_ACK
@@ -254,10 +256,10 @@ object WireCodec {
         offset += MESSAGE_ID_SIZE
         recipientId.copyInto(buf, offset)
         offset += 16
-        buf[offset++] = signature.size.toByte()
+        buf[offset++] = if (signature.isNotEmpty()) FLAG_HAS_SIGNATURE.toByte() else 0
         if (signature.isNotEmpty()) {
             signature.copyInto(buf, offset)
-            offset += signature.size
+            offset += ED25519_SIG_SIZE
             signerPublicKey.copyInto(buf, offset)
         }
         return buf
@@ -271,15 +273,15 @@ object WireCodec {
         offset += MESSAGE_ID_SIZE
         val recipientId = data.copyOfRange(offset, offset + 16)
         offset += 16
-        val sigLen = data[offset++].toInt() and 0xFF
+        val flags = data[offset++].toInt() and 0xFF
         val signature: ByteArray
         val signerPublicKey: ByteArray
-        if (sigLen > 0) {
-            require(data.size >= offset + sigLen + ED25519_PUB_KEY_SIZE) {
-                "delivery_ack signature truncated: sigLen=$sigLen requires ${offset + sigLen + ED25519_PUB_KEY_SIZE} bytes, got ${data.size}"
+        if (flags and FLAG_HAS_SIGNATURE != 0) {
+            require(data.size >= offset + ED25519_SIG_SIZE + ED25519_PUB_KEY_SIZE) {
+                "delivery_ack signature truncated: requires ${offset + ED25519_SIG_SIZE + ED25519_PUB_KEY_SIZE} bytes, got ${data.size}"
             }
-            signature = data.copyOfRange(offset, offset + sigLen)
-            offset += sigLen
+            signature = data.copyOfRange(offset, offset + ED25519_SIG_SIZE)
+            offset += ED25519_SIG_SIZE
             signerPublicKey = data.copyOfRange(offset, offset + ED25519_PUB_KEY_SIZE)
         } else {
             signature = ByteArray(0)

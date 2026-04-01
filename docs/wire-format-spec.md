@@ -126,14 +126,14 @@ Byte:   0       1                              16  17                           
 
        33      34                             49  50
        +-------+---------- ... ----------------+-------+
-       | rHops |        appIdHash (16)         | sigLen|
+       | rHops |        appIdHash (16)         | flags |
        +-------+---------- ... ----------------+-------+
 
-       If sigLen > 0:
-       51                             51+sigLen-1  51+sigLen                  51+sigLen+31
-       +---------- ... ----------------+-----------+---------- ... ----------+
-       |       signature (sigLen)      |       signerPublicKey (32)         |
-       +---------- ... ----------------+-----------+---------- ... ----------+
+       If flags bit 0 set (HAS_SIGNATURE):
+       51                                     114  115                            146
+       +---------- ... ------------------------+---------- ... ------------------+
+       |         signature (64)                |       signerPublicKey (32)      |
+       +---------- ... ------------------------+---------- ... ------------------+
 
        Followed by: payload (remaining bytes)
 ```
@@ -145,14 +145,14 @@ Byte:   0       1                              16  17                           
 | 17–32 | 16 | `origin` | bytes | — | Originator node ID (truncated key hash). |
 | 33 | 1 | `remainingHops` | UByte | — | TTL / remaining hop count. |
 | 34–49 | 16 | `appIdHash` | bytes | — | Application identifier hash (zero-filled if unused). |
-| 50 | 1 | `sigLen` | UByte | — | Length of the signature field. `0` = unsigned. Typically `64` for Ed25519. |
-| 51… | `sigLen` | `signature` | bytes | — | Ed25519 signature (present only if `sigLen > 0`). |
-| 51+sigLen… | 32 | `signerPublicKey` | bytes | — | Ed25519 public key of signer (present only if `sigLen > 0`). |
+| 50 | 1 | `flags` | UByte | — | Bit 0: `HAS_SIGNATURE` (signature + signerPublicKey present). Bits 1–7: reserved. |
+| 51–114 | 64 | `signature` | bytes | — | Ed25519 signature (present only if `flags & 0x01`). |
+| 115–146 | 32 | `signerPublicKey` | bytes | — | Ed25519 public key of signer (present only if `flags & 0x01`). |
 | … | variable | `payload` | bytes | — | Application payload (remaining bytes). |
 
 **Validation:**
-- Minimum message size: 51 bytes (header only, `sigLen = 0`, empty payload).
-- If `sigLen > 0`, the message must contain at least `51 + sigLen + 32` bytes before the payload.
+- Minimum message size: 51 bytes (header only, `flags = 0x00`, empty payload).
+- If `flags & 0x01`, the message must contain at least `51 + 64 + 32 = 147` bytes before the payload.
 
 ---
 
@@ -355,14 +355,14 @@ End-to-end delivery confirmation, optionally signed for non-repudiation.
 ```
 Byte:   0       1                              16  17                             32  33
        +-------+---------- ... ----------------+---+---------- ... ----------------+-------+
-       | 0x06  |         messageId (16)         |       recipientId (16)           | sigLen|
+       | 0x06  |         messageId (16)         |       recipientId (16)           | flags |
        +-------+---------- ... ----------------+---+---------- ... ----------------+-------+
 
-       If sigLen > 0:
-       34                        34+sigLen-1  34+sigLen              34+sigLen+31
-       +---------- ... ----------+-----------+---------- ... --------+
-       |    signature (sigLen)   |     signerPublicKey (32)          |
-       +---------- ... ----------+-----------+---------- ... --------+
+       If flags bit 0 set (HAS_SIGNATURE):
+       34                                      97  98                             129
+       +---------- ... ------------------------+---------- ... ------------------+
+       |         signature (64)                |     signerPublicKey (32)        |
+       +---------- ... ------------------------+---------- ... ------------------+
 ```
 
 | Offset | Size | Field | Type | Endianness | Description |
@@ -370,13 +370,13 @@ Byte:   0       1                              16  17                           
 | 0 | 1 | `type` | byte | — | `0x06` |
 | 1–16 | 16 | `messageId` | bytes | — | ID of the message being acknowledged. |
 | 17–32 | 16 | `recipientId` | bytes | — | Node ID of the recipient confirming delivery. |
-| 33 | 1 | `sigLen` | UByte | — | Signature length. `0` = unsigned. Typically `64`. |
-| 34… | `sigLen` | `signature` | bytes | — | Ed25519 signature (present only if `sigLen > 0`). |
-| 34+sigLen… | 32 | `signerPublicKey` | bytes | — | Ed25519 public key (present only if `sigLen > 0`). |
+| 33 | 1 | `flags` | UByte | — | Bit 0: `HAS_SIGNATURE`. Bits 1–7: reserved. |
+| 34–97 | 64 | `signature` | bytes | — | Ed25519 signature (present only if `flags & 0x01`). |
+| 98–129 | 32 | `signerPublicKey` | bytes | — | Ed25519 public key (present only if `flags & 0x01`). |
 
 **Validation:**
 - Minimum message size: 34 bytes.
-- If `sigLen > 0`, message must contain at least `34 + sigLen + 32` bytes.
+- If `flags & 0x01`, message must contain at least `34 + 64 + 32 = 130` bytes.
 
 ---
 

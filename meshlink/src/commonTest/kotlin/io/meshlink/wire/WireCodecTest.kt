@@ -358,10 +358,10 @@ class WireCodecTest {
 
     @Test
     fun decodeBroadcastRejectsTruncatedSignature() {
-        // Craft broadcast with sigLen=64 but only 10 bytes remaining
+        // Craft broadcast with flags=0x01 (has signature) but only 10 bytes remaining
         val header = ByteArray(51) // BROADCAST_HEADER_SIZE = 51
         header[0] = WireCodec.TYPE_BROADCAST
-        header[50] = 64 // sigLen=64, but no signature bytes follow
+        header[50] = 0x01 // FLAG_HAS_SIGNATURE, but no signature bytes follow
         val truncated = header + ByteArray(10) // only 10 bytes, need 64+32=96
 
         assertFailsWith<IllegalArgumentException> {
@@ -404,10 +404,10 @@ class WireCodecTest {
 
     @Test
     fun decodeDeliveryAckRejectsTruncatedSignature() {
-        // Craft delivery ACK with sigLen=64 but insufficient data
+        // Craft delivery ACK with flags=0x01 (has signature) but insufficient data
         val header = ByteArray(34) // DELIVERY_ACK_HEADER_SIZE = 34
         header[0] = WireCodec.TYPE_DELIVERY_ACK
-        header[33] = 64 // sigLen=64, but no signature bytes follow
+        header[33] = 0x01 // FLAG_HAS_SIGNATURE, but no signature bytes follow
         val truncated = header + ByteArray(10) // only 10 bytes, need 64+32=96
 
         assertFailsWith<IllegalArgumentException> {
