@@ -245,7 +245,7 @@ pair, add golden vector test, add fuzz test case.
 
 - **Encryption:** Two-layer Noise protocol — Noise K (end-to-end) + Noise XX
   (hop-by-hop). All messages encrypted before transmission.
-- **Trust model:** TOFI (Trust-On-First-Discover) with key pinning. Key changes
+- **Trust model:** TOFU (Trust-On-First-Discover) with key pinning. Key changes
   emit `KeyChangeEvent` for user verification.
 - **Replay protection:** Per-peer replay guards with persisted counters.
 - **Transitive dependency pinning:** Root `build.gradle.kts` force-pins Netty,
@@ -272,7 +272,7 @@ Use the terminology defined in `UBIQUITOUS_LANGUAGE.md`:
   advertisement is a BLE packet
 - **Chunk ACK** vs **Delivery ACK** — transport-level vs app-level
   acknowledgment
-- **TOFI** (not "TOFU") — Trust-On-First-Discover
+- **TOFU** (not "TOFU") — Trust-On-First-Discover
 - Always qualify "eviction": Connection / Buffer / Presence
 
 ## Documentation

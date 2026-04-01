@@ -5,7 +5,7 @@
 MeshLink provides:
 
 - **Two-layer Noise encryption** — Noise XX (hop-by-hop) + Noise K (end-to-end)
-- **Ed25519 identity pinning** — TOFI (Trust-On-First-Discover) with strict and soft re-pin modes
+- **Ed25519 identity pinning** — TOFU (Trust-On-First-Discover) with strict and soft re-pin modes
 - **Replay protection** — Per-peer replay guards with persisted counters and 64-counter sliding window
 - **Sybil mitigation** — Handshake rate limiting (1/sec per unknown peer) + per-neighbor routing table cap (30%)
 - **Platform CSPRNG** — All randomness sourced from platform-native secure random (`SecureRandom`, `SecRandomCopyBytes`)

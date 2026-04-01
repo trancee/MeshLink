@@ -134,16 +134,11 @@ At 244-byte MTU, that's ~15% more payload per frame. On BLE, bandwidth is the sc
 
 ## 🟡 Moderate Challenges (Design nuances)
 
-### 11. TOFI Instead of TOFU — Terminology Creates Confusion for No Benefit
+### 11. ~~TOFI Instead of TOFU — Terminology Creates Confusion for No Benefit~~ ✅ RESOLVED
 
-**Current decision:** Rename TOFU to "TOFI" (Trust-On-First-**Discover**) because the mechanism is "discovery" not "use."
+**Current decision:** ~~Rename TOFU to "TOFI" (Trust-On-First-**Discover**) because the mechanism is "discovery" not "use."~~ Adopted industry-standard TOFU terminology (RFC 7435).
 
-**Challenge:** TOFU is an industry-standard term (RFC 7435, SSH, Signal). Renaming it to TOFI means:
-- Developers searching for "TOFU" in the docs find nothing
-- The concept is identical; the rename adds no technical clarity
-- The ubiquitous language doc has to repeatedly clarify "not TOFU"
-
-**Better alternative:** Call it TOFU and add a note: "MeshLink implements TOFU key pinning (sometimes called Trust-On-First-Discover in the mesh context, since key pinning occurs at peer discovery, not first message exchange)." This preserves searchability while acknowledging the nuance.
+**Resolution:** Renamed TOFI → TOFU across all code and documentation. `PinType.TOFU` in code, "Trust-on-First-Use" in docs with a note that MeshLink pinning occurs at peer discovery (Noise XX handshake) rather than first message exchange.
 
 ---
 
@@ -252,7 +247,7 @@ All eviction-related identifiers now qualified: `connectionEvicted` (ConnectionL
 |----------|-------|------------|--------|
 | 🔴 Critical | 4 | ~~Mixed endianness~~ ✅, no recipient forward secrecy, DSDV routing, no schema evolution | 1/4 resolved |
 | 🟠 Significant | 6 | ~~Unencrypted broadcasts~~ ✅, wasteful 16-byte IDs, narrow SACK, ~~disabled rate limits~~ ✅, ~~maxHops inconsistency~~ ✅, no compression | 3/6 resolved |
-| 🟡 Moderate | 8 | TOFI naming, ~~replay persist gap~~ ✅, ~~conflated TTL/timeout~~ ✅, ~~gossip off by default~~ ✅, ~~doc duplication~~ ✅, ~~test gaps~~ ✅, ~~overconfident threat model~~ ✅, ~~preset naming~~ ✅ | 7/8 resolved |
+| 🟡 Moderate | 8 | ~~TOFU naming~~ ✅, ~~replay persist gap~~ ✅, ~~conflated TTL/timeout~~ ✅, ~~gossip off by default~~ ✅, ~~doc duplication~~ ✅, ~~test gaps~~ ✅, ~~overconfident threat model~~ ✅, ~~preset naming~~ ✅ | 8/8 resolved |
 | 🟢 Minor | 5 | ~~sigLen waste~~ ✅, ~~timestamp inconsistency~~ ✅, ~~NACK missing reason~~ ✅, ~~design doc size~~ ✅, ~~term inconsistency~~ ✅ | 5/5 resolved |
 
 ## Recommended Immediate Actions (before v1 ships)
@@ -274,8 +269,8 @@ All eviction-related identifiers now qualified: `connectionEvicted` (ConnectionL
 
 ## Deferred to Post-v1
 
-The following 6 findings require architectural changes, protocol-breaking modifications,
-or owner decisions. They are intentionally deferred:
+The following 5 findings require architectural changes or protocol-breaking modifications.
+They are intentionally deferred:
 
 | # | Finding | Why Deferred |
 |---|---------|--------------|
@@ -283,6 +278,4 @@ or owner decisions. They are intentionally deferred:
 | **#3** | DSDV routing vs. AODV/DSR | Replacing the routing algorithm would rewrite `RoutingEngine`, `GossipCoordinator`, all gossip/route-update wire messages, and ~30 tests. Evaluate after real-world mesh deployment data. |
 | **#4** | Custom binary vs. FlatBuffers | Migrating `WireCodec` to FlatBuffers/protobuf requires a schema, code generator, and new dependency across all KMP targets. The custom format is stable and well-tested. |
 | **#6** | 16-byte peer IDs wasteful on BLE | Reducing to 8 bytes saves 8–32 bytes per message but requires updating every encode/decode function, all test vectors, and changes the collision probability model. |
-| **#7** | SACK bitmask only 64 bits | Expanding to 128-bit or variable-length SACK requires wire format change, `ChunkAck` parsing rewrite, and `TransferEngine` window logic update. |
 | **#9** | No message compression | Requires: (a) KMP-compatible compression library (expect/actual for Deflater/NSData/zlib), (b) payload envelope prefix for signaling, (c) changes to encryption pipeline (compress before encrypt), (d) version negotiation for backward compatibility. The broadcast flags byte reserves bits 1–7 for future use including compression. |
-| **#11** | TOFI terminology vs. TOFU | Owner naming decision. TOFI is documented in `UBIQUITOUS_LANGUAGE.md` with rationale. Industry standard is TOFU (RFC 7435). Either choice is defensible. |

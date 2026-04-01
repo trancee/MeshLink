@@ -134,7 +134,7 @@ flowchart TD
 | **Ed25519/X25519 private keys** | Identity and decryption capability; compromise enables impersonation and eavesdropping | Confidentiality, Integrity |
 | **Plaintext message payloads** | User content (chat messages, files); privacy-critical | Confidentiality |
 | **Routing table state** | Determines message delivery paths; poisoning enables blackhole/interception | Integrity, Availability |
-| **Peer trust pins** | TOFI key bindings; tampering enables MITM | Integrity |
+| **Peer trust pins** | TOFU key bindings; tampering enables MITM | Integrity |
 | **Reassembly buffers** | Memory resource; exhaustion causes DoS | Availability |
 | **Deduplication state** | Prevents replay/amplification; exhaustion enables replay attacks | Integrity, Availability |
 | **Replay counters** | Prevents message replay; reset/manipulation enables replay | Integrity |

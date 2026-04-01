@@ -20,5 +20,5 @@ This file supplements AGENTS.md with Copilot-specific notes.
   no wildcard imports except `bluetooth.*`, argument wrapping per line).
 - Use `expect`/`actual` for platform-specific code — never `#ifdef`-style branching.
 - Prefer sealed result types over exceptions for expected failures.
-- Use domain terms from `UBIQUITOUS_LANGUAGE.md` (Peer, Neighbor, TOFI, etc.).
+- Use domain terms from `UBIQUITOUS_LANGUAGE.md` (Peer, Neighbor, TOFU, etc.).
 - Update `docs/api-reference.md` when adding or changing public APIs.

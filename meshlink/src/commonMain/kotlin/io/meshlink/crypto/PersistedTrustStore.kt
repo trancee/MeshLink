@@ -6,7 +6,7 @@ import io.meshlink.storage.SecureStorage
  * Wrapper around [TrustStore] that persists trust pins to [SecureStorage].
  *
  * Each pin is stored under key `trust_pin_{peerId}` with the format:
- *   byte 0     – [PinType] ordinal (0 = TOFI, 1 = EXPLICIT)
+ *   byte 0     – [PinType] ordinal (0 = TOFU, 1 = EXPLICIT)
  *   bytes 1..n – public-key bytes
  *
  * A separate index key ([INDEX_KEY]) holds a UTF-8 comma-separated list of
@@ -47,7 +47,7 @@ class PersistedTrustStore(
     fun verify(peerId: String, publicKey: ByteArray): VerifyResult {
         val result = store.verify(peerId, publicKey)
         if (result is VerifyResult.FirstSeen) {
-            persistPin(peerId, publicKey, PinType.TOFI)
+            persistPin(peerId, publicKey, PinType.TOFU)
         }
         return result
     }
@@ -111,7 +111,7 @@ class PersistedTrustStore(
         }
     }
 
-    enum class PinType { TOFI, EXPLICIT }
+    enum class PinType { TOFU, EXPLICIT }
 
     companion object {
         internal const val INDEX_KEY = "trust_pin_index"

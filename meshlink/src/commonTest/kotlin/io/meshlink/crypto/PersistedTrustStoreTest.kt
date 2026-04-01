@@ -17,14 +17,14 @@ class PersistedTrustStoreTest {
     // ── pin persistence ─────────────────────────────────────────────────
 
     @Test
-    fun firstVerifyPersistsPinAsTOFI() {
+    fun firstVerifyPersistsPinAsTOFU() {
         val ts = PersistedTrustStore(TrustMode.STRICT, storage)
         val result = ts.verify("peer1", key1)
         assertIs<VerifyResult.FirstSeen>(result)
 
         val data = storage.get("trust_pin_peer1")
         assertNotNull(data)
-        assertEquals(0.toByte(), data[0], "pin type should be TOFI (0)")
+        assertEquals(0.toByte(), data[0], "pin type should be TOFU (0)")
         assertContentEquals(key1, data.copyOfRange(1, data.size))
     }
 

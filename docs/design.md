@@ -1042,7 +1042,7 @@ The recipient decrypts by: loading the sender's static Curve25519 key from the p
 
 **Edge case — message before gossip convergence:** Messages to recipients who lack the sender's public key are dropped (not buffered — buffering unverifiable messages is an attack vector). The sender's retry mechanism handles recovery; gossip propagates keys before retry timeout.
 
-**Ed25519 key derivation:** The Curve25519 key is derived from the Ed25519 identity key (see Identity section above). Invalid Ed25519 public keys from peers are rejected during TOFI verification before conversion is attempted.
+**Ed25519 key derivation:** The Curve25519 key is derived from the Ed25519 identity key (see Identity section above). Invalid Ed25519 public keys from peers are rejected during TOFU verification before conversion is attempted.
 
 **Sealed payload layout (Noise K):**
 
@@ -1211,7 +1211,7 @@ Rationale: 20/min = 4× typical app messaging rate (~5 msg/min). At 50 senders �
 
 An attacker with physical access to multiple devices can generate many valid Ed25519 identities and flood the mesh with Sybil peers. MeshLink mitigates this with two mechanisms:
 
-**Handshake rate limiting:** New Noise XX handshakes are rate-limited to **1 per second per BLE MAC address range**. This forces Sybil devices to spend real time establishing connections. TOFI-pinned peers (already trusted) are exempt from the rate limit — only initial handshakes with unknown peers are throttled. Configurable via `handshakeRateLimit`.
+**Handshake rate limiting:** New Noise XX handshakes are rate-limited to **1 per second per BLE MAC address range**. This forces Sybil devices to spend real time establishing connections. TOFU-pinned peers (already trusted) are exempt from the rate limit — only initial handshakes with unknown peers are throttled. Configurable via `handshakeRateLimit`.
 
 **Per-neighbor routing table cap:** Routes learned through any single neighbor are capped at 30% of the routing table (see §4 Routing Algorithm). This prevents a Sybil cluster from dominating path selection by flooding routes through a single relay.
 
@@ -1241,7 +1241,7 @@ Signed gossip (§4) prevents key forgery but does not prevent relay nodes from m
 **Key storage failure recovery:** If platform secure storage fails (corrupted, permission denied, quota exceeded) during identity key store (first launch) or load (restart):
 1. Retry the storage operation **3 times** with 100ms delay between attempts
 2. If all retries fail: emit `fatalError(retryable: true)` — the consuming app can call `start()` again after the user frees storage or resolves permissions
-3. **Never silently regenerate identity** — identity loss must be explicit and visible to the consuming app. Silent regeneration would break TOFI trust for all existing peers.
+3. **Never silently regenerate identity** — identity loss must be explicit and visible to the consuming app. Silent regeneration would break TOFU trust for all existing peers.
 
 **Exception classification for retries:**
 - **IOException** (disk full, filesystem corruption) → retry up to 3× with exponential backoff (100ms, 500ms, 2s)
@@ -1287,15 +1287,15 @@ Total: 132 bytes. Receivers verify the signature against the old public key (whi
 
 **Concurrent sends during rotation:** `rotateIdentity()` takes effect immediately — it does NOT wait for in-flight transfers to complete. Messages currently being sent use the old key; recipients accept both old and new keys during the rotation grace period (5× gossip interval). `KEY_ROTATION_WITH_INFLIGHT(activeTransfers: N)` diagnostic emitted if transfers are active at rotation time. If a recipient receives a message encrypted with an unknown key during a rotation window, the message is buffered for up to one gossip interval pending rotation announcement arrival; on timeout, `onTransferFailed(messageId, keyRotationPending)` fires on the sender side (via delivery ACK timeout).
 
-**TOFI interaction with rotation:** When a peer receives a rotation announcement signed by a pinned key, the new key is auto-accepted in **both** `strict` and `softRepin` modes (signed rotations are trusted transitions, not compromise indicators). `onKeyChanged` callback fires in both modes.
+**TOFU interaction with rotation:** When a peer receives a rotation announcement signed by a pinned key, the new key is auto-accepted in **both** `strict` and `softRepin` modes (signed rotations are trusted transitions, not compromise indicators). `onKeyChanged` callback fires in both modes.
 
 **v1 scope:** Single-device identity. Each device has its own keypair. Multi-device identity sync is deferred to post-v1.
 
-### Trust Model: Trust-on-First-Discover (TOFI)
+### Trust Model: Trust-on-First-Discover (TOFU)
 
-When a device first discovers a peer's public key in the mesh, it **pins that key** — associating it with the peer identity. This is analogous to SSH's `known_hosts` model. Key pins are **persisted to platform secure storage** (Keychain on iOS, EncryptedSharedPreferences on Android) so they survive app restarts — without persistence, TOFI would reset on every relaunch, defeating its purpose.
+When a device first discovers a peer's public key in the mesh, it **pins that key** — associating it with the peer identity. This is analogous to SSH's `known_hosts` model. Key pins are **persisted to platform secure storage** (Keychain on iOS, EncryptedSharedPreferences on Android) so they survive app restarts — without persistence, TOFU would reset on every relaunch, defeating its purpose.
 
-**TOFI pinning trigger:** Key pinning occurs **only after a successful Noise XX handshake** — NOT on gossip receipt. Gossip-delivered public keys are treated as **routing candidates** (used for route selection and address resolution) but are NOT trusted for TOFI pinning until mutual authentication via Noise XX confirms the peer actually holds the corresponding private key. This prevents a malicious relay from racing to inject a forged key via gossip before the legitimate peer's announcement arrives. Once a key is pinned via handshake, subsequent gossip announcements for that peer are validated against the pinned key.
+**TOFU pinning trigger:** Key pinning occurs **only after a successful Noise XX handshake** — NOT on gossip receipt. Gossip-delivered public keys are treated as **routing candidates** (used for route selection and address resolution) but are NOT trusted for TOFU pinning until mutual authentication via Noise XX confirms the peer actually holds the corresponding private key. This prevents a malicious relay from racing to inject a forged key via gossip before the legitimate peer's announcement arrives. Once a key is pinned via handshake, subsequent gossip announcements for that peer are validated against the pinned key.
 
 - **Default behavior (`strict`):** If a previously-pinned peer appears with a different public key (e.g., user reinstalled the app), messages from that peer are **rejected**. The library invokes the **`onKeyChanged(peer, oldKey, newKey)`** callback and the consuming app must call **`repinKey(peer)`** to explicitly accept the new key. This follows the SSH model: key changes are treated as potential MITM attacks until the user (or app) confirms.
 - **Alternative mode (`softRepin`):** Silently accept the new key and re-pin. Suitable for apps where UX is prioritized over security (e.g., casual social apps). Enabled via `trustMode = .softRepin` in configuration.
@@ -1661,7 +1661,7 @@ iOS imposes severe restrictions on background BLE:
 
 **Decision:** Best-effort background operation using **BLE State Preservation and Restoration**. When iOS terminates the app, CoreBluetooth saves BLE state and relaunches it. This does NOT guarantee continuous mesh participation.
 
-**On relaunch:** The library starts from `uninitialized` state (same codepath as cold start). The app calls `MeshLink(context) { config }` + `start()`. CoreBluetooth-restored connections get fresh Noise XX handshakes. Identity keypair, TOFI key pins, replay counters, and dedup set are restored from secure storage; all other state is rebuilt via gossip (~10–30s convergence).
+**On relaunch:** The library starts from `uninitialized` state (same codepath as cold start). The app calls `MeshLink(context) { config }` + `start()`. CoreBluetooth-restored connections get fresh Noise XX handshakes. Identity keypair, TOFU key pins, replay counters, and dedup set are restored from secure storage; all other state is rebuilt via gossip (~10–30s convergence).
 
 See **Restart semantics** table in §10 for full crash recovery state.
 
@@ -1685,7 +1685,7 @@ See **Restart semantics** table in §10 for full crash recovery state.
 | < 30s | None (grace period) | Instant |
 | 30s – 5 min | In-flight transfers lost | 5–15s (gossip reconverges) |
 | 5 min – 2 hr | All buffered messages + transfers lost | 10–30s (full routing rebuild) |
-| > 2 hr | All state lost except identity/TOFI | 10–30s (equivalent to cold start) |
+| > 2 hr | All state lost except identity/TOFU | 10–30s (equivalent to cold start) |
 
 **Recommendation:** For time-sensitive messaging, implement a push notification channel. MeshLink handles reconnection automatically on wake (~10–30s). BLE State Preservation is unreliable for suspensions >5 minutes.
 
@@ -1912,10 +1912,10 @@ Construction (`MeshLink(context) { config }`) is side-effect-free — no filesys
 
 **Keychain accessibility requirement:** All MeshLink Keychain items use `kSecAttrAccessibleAfterFirstUnlock` — keys are available in background after the user unlocks the device once post-reboot. No separate Keychain timeout; Keychain reads are bundled into the 30-second BLE initialization window. Keys are unavailable before first device unlock after reboot — the library cannot operate in this state.
 
-**Library upgrade behavior:** On library version bump, non-critical persisted state (routing table) is discarded and rebuilt from scratch. Identity keys and TOFI pins are preserved (format-stable raw Ed25519 bytes). No migration code is required. A `LIBRARY_UPGRADED(oldVersion, newVersion)` diagnostic is emitted on first `start()` after upgrade.
+**Library upgrade behavior:** On library version bump, non-critical persisted state (routing table) is discarded and rebuilt from scratch. Identity keys and TOFU pins are preserved (format-stable raw Ed25519 bytes). No migration code is required. A `LIBRARY_UPGRADED(oldVersion, newVersion)` diagnostic is emitted on first `start()` after upgrade.
 
 **Persistence failure policy (criticality-based):**
-- **Identity key + TOFI pins:** `fatalError(retryable: true)` after 3 retries (cannot operate without identity)
+- **Identity key + TOFU pins:** `fatalError(retryable: true)` after 3 retries (cannot operate without identity)
 - **Replay counter:** Retry 3×, then `PERSIST_FAILED` diagnostic + continue in-memory (dedup set provides backup duplicate detection)
 - **Dedup set:** No persistence — in-memory only. No disk failure possible.
 - **Pre-flight check:** On `start()`, query available disk space. Emit `LOW_DISK_SPACE` diagnostic if < 1MB free (early warning, non-blocking).
@@ -1951,7 +1951,7 @@ Fail-fast behavior ensures developers catch integration mistakes immediately dur
 |-------|-------------------|
 | Ed25519 identity | Restored from secure storage |
 | Replay counters | Restored (write-ahead, no gap) |
-| TOFI trust store | Restored from secure storage |
+| TOFU trust store | Restored from secure storage |
 | Dedup set | Empty — in-memory only, not persisted (recent messages may be redelivered) |
 | Routing table | Rebuilt from gossip (10–30s) |
 | Active transfers | Lost — senders retry |
@@ -2123,7 +2123,7 @@ All configurable parameters grouped by category, with defaults, bounds, and desc
 | `neighborRateLimit` | int | 100 | 20 | 1000 | Maximum total incoming user-level messages per minute from any single neighbor (aggregate across all senders). Control-plane exempt. |
 | `rateLimitEnforcement` | enum | `perSenderPerNeighbor` | — | — | Rate limit scope. `perSenderPerNeighbor` (default): keyed on (neighbor, original sender). `perNeighbor`: keyed on neighbor only (stricter). |
 | `nackRateLimitPerNeighbor` | int | 10 | 1 | 100 | Maximum outbound NACKs per second per neighbor. Excess NACKs silently dropped to prevent amplification attacks. |
-| `handshakeRateLimit` | int | 1 | 1 | 10 | Maximum new Noise XX handshakes per second with unknown peers (Sybil mitigation). TOFI-pinned peers are exempt. |
+| `handshakeRateLimit` | int | 1 | 1 | 10 | Maximum new Noise XX handshakes per second with unknown peers (Sybil mitigation). TOFU-pinned peers are exempt. |
 | `routeTablePerNeighborCap` | float | 0.30 | 0.10 | 0.50 | Maximum fraction of routing table entries learnable from a single neighbor (Sybil mitigation). |
 
 ##### Presence Detection

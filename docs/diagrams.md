@@ -16,7 +16,7 @@ diagrams don't render in your viewer, paste them into the
 7. [GATT Chunking & SACK Flow](#7-gatt-chunking--sack-flow) — Selective ACK and resume-on-disconnect
 8. [Engine & Coordinator Data Flow](#8-engine--coordinator-data-flow) — Sealed result types, unidirectional flow
 9. [Gossip Protocol Exchange](#9-gossip-protocol-exchange) — Differential gossip with split horizon
-10. [TOFI Trust Model](#10-tofi-trust-model) — Key pinning with strict/softRepin modes
+10. [TOFU Trust Model](#10-tofi-trust-model) — Key pinning with strict/softRepin modes
 11. [Key Rotation Sequence](#11-key-rotation-sequence) — Gossip announcement, grace period, teardown
 
 ---
@@ -459,7 +459,7 @@ sequenceDiagram
 
 ---
 
-## 10. TOFI Trust Model
+## 10. TOFU Trust Model
 
 Trust-on-First-Discover key pinning with strict/softRepin modes and signed rotation handling.
 
@@ -467,7 +467,7 @@ Trust-on-First-Discover key pinning with strict/softRepin modes and signed rotat
 flowchart TD
     Discover["Peer key discovered"] --> Origin{"Source?"}
 
-    Origin -->|"Gossip"| Routing["Routing candidate only\n(NOT trusted for TOFI)"]
+    Origin -->|"Gossip"| Routing["Routing candidate only\n(NOT trusted for TOFU)"]
     Routing --> WaitNoise["Wait for Noise XX handshake"]
 
     Origin -->|"Noise XX handshake"| Authenticated["Mutually authenticated key"]

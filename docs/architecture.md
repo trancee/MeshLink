@@ -344,7 +344,7 @@ Two-layer Noise encryption when a `CryptoProvider` is supplied:
 
 Key components: `SecurityEngine` (facade), `NoiseXXHandshake` +
 `PeerHandshakeManager` (3-message mutual auth), `NoiseKSealer` (E2E, 48B
-overhead), `ReplayGuard` (64-entry sliding window), `TrustStore` (TOFI key
+overhead), `ReplayGuard` (64-entry sliding window), `TrustStore` (TOFU key
 pinning). All crypto is pure Kotlin — Ed25519, X25519, ChaCha20-Poly1305,
 SHA-256, HKDF-SHA256.
 

@@ -47,7 +47,7 @@ MeshLink ships with four presets — `smallPayloadLowLatency`, `largePayloadHigh
 MeshLink uses two-layer Noise protocol encryption — Noise XX
 (`Noise_XX_25519_ChaChaPoly_SHA256`) for hop-by-hop confidentiality between
 neighbors and Noise K (`Noise_K_25519_ChaChaPoly_SHA256`) for end-to-end
-authentication between sender and recipient. Identity is Ed25519 with TOFI
+authentication between sender and recipient. Identity is Ed25519 with TOFU
 (Trust-On-First-Discover) key pinning. See the
 [Threat Model](docs/threat-model.md) and
 [Integration Guide § Encryption & Trust](docs/integration-guide.md#encryption--trust)
