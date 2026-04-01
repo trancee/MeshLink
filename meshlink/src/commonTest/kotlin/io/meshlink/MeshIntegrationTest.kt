@@ -1,7 +1,7 @@
 package io.meshlink
 
-import io.meshlink.config.meshLinkConfig
-import io.meshlink.crypto.createCryptoProvider
+import io.meshlink.config.testMeshLinkConfig
+import io.meshlink.crypto.CryptoProvider
 import io.meshlink.diagnostics.DiagnosticCode
 import io.meshlink.diagnostics.DiagnosticEvent
 import io.meshlink.model.Message
@@ -53,7 +53,7 @@ class MeshIntegrationTest {
         val tBob = VirtualMeshTransport(peerIdBob)
         tAlice.linkTo(tBob)
 
-        val config = meshLinkConfig { requireEncryption = false }
+        val config = testMeshLinkConfig { requireEncryption = false }
         val alice = MeshLink(tAlice, config, coroutineContext)
         val bob = MeshLink(tBob, config, coroutineContext)
         alice.start(); bob.start()
@@ -86,8 +86,8 @@ class MeshIntegrationTest {
         val tBob = VirtualMeshTransport(peerIdBob)
         tAlice.linkTo(tBob)
 
-        val crypto = createCryptoProvider()
-        val config = meshLinkConfig { requireEncryption = false }
+        val crypto = CryptoProvider()
+        val config = testMeshLinkConfig { requireEncryption = false }
         val alice = MeshLink(tAlice, config, coroutineContext, crypto = crypto)
         val bob = MeshLink(tBob, config, coroutineContext, crypto = crypto)
         alice.start(); bob.start()
@@ -119,9 +119,9 @@ class MeshIntegrationTest {
         val tBob = VirtualMeshTransport(peerIdBob)
         tAlice.linkTo(tBob)
 
-        val config = meshLinkConfig { requireEncryption = false }
-        val alice = MeshLink(tAlice, config, coroutineContext, crypto = createCryptoProvider())
-        val bob = MeshLink(tBob, config, coroutineContext, crypto = createCryptoProvider())
+        val config = testMeshLinkConfig { requireEncryption = false }
+        val alice = MeshLink(tAlice, config, coroutineContext, crypto = CryptoProvider())
+        val bob = MeshLink(tBob, config, coroutineContext, crypto = CryptoProvider())
         alice.start(); bob.start()
         advanceUntilIdle()
 
@@ -151,7 +151,7 @@ class MeshIntegrationTest {
         val tBob = VirtualMeshTransport(peerIdBob)
         tAlice.linkTo(tBob)
 
-        val config = meshLinkConfig { requireEncryption = false }
+        val config = testMeshLinkConfig { requireEncryption = false }
         val alice = MeshLink(tAlice, config, coroutineContext)
         val bob = MeshLink(tBob, config, coroutineContext)
         alice.start(); bob.start()
@@ -190,7 +190,7 @@ class MeshIntegrationTest {
         tAlice.linkTo(tBob)
         tAlice.linkTo(tCharlie)
 
-        val config = meshLinkConfig { requireEncryption = false }
+        val config = testMeshLinkConfig { requireEncryption = false }
         val alice = MeshLink(tAlice, config, coroutineContext)
         val bob = MeshLink(tBob, config, coroutineContext)
         val charlie = MeshLink(tCharlie, config, coroutineContext)
@@ -236,7 +236,7 @@ class MeshIntegrationTest {
         tA.linkTo(tB)
         tB.linkTo(tC)
 
-        val config = meshLinkConfig { requireEncryption = false; gossipIntervalMillis = 100L }
+        val config = testMeshLinkConfig { requireEncryption = false; gossipIntervalMillis = 100L }
         val a = MeshLink(tA, config, coroutineContext)
         val b = MeshLink(tB, config, coroutineContext)
         val c = MeshLink(tC, config, coroutineContext)
@@ -286,7 +286,7 @@ class MeshIntegrationTest {
         val tBob = VirtualMeshTransport(peerIdBob)
         tAlice.linkTo(tBob)
 
-        val config = meshLinkConfig { requireEncryption = false }
+        val config = testMeshLinkConfig { requireEncryption = false }
         val alice = MeshLink(tAlice, config, coroutineContext)
         alice.start()
         advanceUntilIdle()
@@ -316,7 +316,7 @@ class MeshIntegrationTest {
         val tBob = VirtualMeshTransport(peerIdBob)
         tAlice.linkTo(tBob)
 
-        val config = meshLinkConfig { requireEncryption = false }
+        val config = testMeshLinkConfig { requireEncryption = false }
         val alice = MeshLink(tAlice, config, coroutineContext)
         val bob = MeshLink(tBob, config, coroutineContext)
         alice.start(); bob.start()
@@ -355,7 +355,7 @@ class MeshIntegrationTest {
         val tBob = VirtualMeshTransport(peerIdBob)
         tAlice.linkTo(tBob)
 
-        val config = meshLinkConfig { requireEncryption = false }
+        val config = testMeshLinkConfig { requireEncryption = false }
         val alice = MeshLink(tAlice, config, coroutineContext)
         val bob = MeshLink(tBob, config, coroutineContext)
         alice.start(); bob.start()
@@ -392,7 +392,7 @@ class MeshIntegrationTest {
         val tBob = VirtualMeshTransport(peerIdBob)
         tAlice.linkTo(tBob)
 
-        val config = meshLinkConfig { requireEncryption = false; mtu = 185 }
+        val config = testMeshLinkConfig { requireEncryption = false; mtu = 185 }
         val alice = MeshLink(tAlice, config, coroutineContext)
         val bob = MeshLink(tBob, config, coroutineContext)
         alice.start(); bob.start()
@@ -426,7 +426,7 @@ class MeshIntegrationTest {
         val tBob = VirtualMeshTransport(peerIdBob)
         tAlice.linkTo(tBob)
 
-        val config = meshLinkConfig { requireEncryption = false }
+        val config = testMeshLinkConfig { requireEncryption = false }
         val alice = MeshLink(tAlice, config, coroutineContext)
         alice.start()
         advanceUntilIdle()
@@ -452,7 +452,7 @@ class MeshIntegrationTest {
         val tBob = VirtualMeshTransport(peerIdBob)
         tAlice.linkTo(tBob)
 
-        val config = meshLinkConfig { requireEncryption = false }
+        val config = testMeshLinkConfig { requireEncryption = false }
         val alice = MeshLink(tAlice, config, coroutineContext)
         val bob = MeshLink(tBob, config, coroutineContext)
         alice.start(); bob.start()
@@ -488,7 +488,7 @@ class MeshIntegrationTest {
     @Test
     fun selfSendLoopback() = runTest {
         val tAlice = VirtualMeshTransport(peerIdAlice)
-        val config = meshLinkConfig { requireEncryption = false }
+        val config = testMeshLinkConfig { requireEncryption = false }
         val alice = MeshLink(tAlice, config, coroutineContext)
         alice.start()
         advanceUntilIdle()
@@ -514,9 +514,9 @@ class MeshIntegrationTest {
         val tBob = VirtualMeshTransport(peerIdBob)
         tAlice.linkTo(tBob)
 
-        val config = meshLinkConfig { requireEncryption = false }
-        val alice = MeshLink(tAlice, config, coroutineContext, crypto = createCryptoProvider())
-        val bob = MeshLink(tBob, config, coroutineContext, crypto = createCryptoProvider())
+        val config = testMeshLinkConfig { requireEncryption = false }
+        val alice = MeshLink(tAlice, config, coroutineContext, crypto = CryptoProvider())
+        val bob = MeshLink(tBob, config, coroutineContext, crypto = CryptoProvider())
         alice.start(); bob.start()
         advanceUntilIdle()
 
@@ -547,9 +547,9 @@ class MeshIntegrationTest {
         val tBob = VirtualMeshTransport(peerIdBob)
         tAlice.linkTo(tBob)
 
-        val config = meshLinkConfig { requireEncryption = false }
-        val alice = MeshLink(tAlice, config, coroutineContext, crypto = createCryptoProvider())
-        val bob = MeshLink(tBob, config, coroutineContext, crypto = createCryptoProvider())
+        val config = testMeshLinkConfig { requireEncryption = false }
+        val alice = MeshLink(tAlice, config, coroutineContext, crypto = CryptoProvider())
+        val bob = MeshLink(tBob, config, coroutineContext, crypto = CryptoProvider())
         alice.start(); bob.start()
         advanceUntilIdle()
 
@@ -600,7 +600,7 @@ class MeshIntegrationTest {
             }
         }
 
-        val config = meshLinkConfig { requireEncryption = false }
+        val config = testMeshLinkConfig { requireEncryption = false }
         val nodes = transports.map { MeshLink(it, config, coroutineContext) }
         nodes.forEach { it.start() }
         advanceUntilIdle()
@@ -630,7 +630,7 @@ class MeshIntegrationTest {
         val tBob = VirtualMeshTransport(peerIdBob)
         tAlice.linkTo(tBob)
 
-        val config = meshLinkConfig { requireEncryption = false }
+        val config = testMeshLinkConfig { requireEncryption = false }
         val alice = MeshLink(tAlice, config, coroutineContext)
         val bob = MeshLink(tBob, config, coroutineContext)
 
@@ -668,7 +668,7 @@ class MeshIntegrationTest {
         val tBob = VirtualMeshTransport(peerIdBob)
         tAlice.linkTo(tBob)
 
-        val config = meshLinkConfig { requireEncryption = false }
+        val config = testMeshLinkConfig { requireEncryption = false }
         val alice = MeshLink(tAlice, config, coroutineContext)
         val bob = MeshLink(tBob, config, coroutineContext)
         alice.start(); bob.start()
@@ -704,7 +704,7 @@ class MeshIntegrationTest {
         tAlice.linkTo(tBob)
 
         // bufferCapacity = 500, so a 600-byte payload exceeds the buffer
-        val config = meshLinkConfig { requireEncryption = false; bufferCapacity = 500; maxMessageSize = 500 }
+        val config = testMeshLinkConfig { requireEncryption = false; bufferCapacity = 500; maxMessageSize = 500 }
         val alice = MeshLink(tAlice, config, coroutineContext)
         alice.start()
         advanceUntilIdle()
@@ -723,7 +723,7 @@ class MeshIntegrationTest {
     @Test
     fun sendToUnreachablePeerFails() = runTest {
         val tAlice = VirtualMeshTransport(peerIdAlice)
-        val config = meshLinkConfig { requireEncryption = false }
+        val config = testMeshLinkConfig { requireEncryption = false }
         val alice = MeshLink(tAlice, config, coroutineContext)
         alice.start()
         advanceUntilIdle()
@@ -741,7 +741,7 @@ class MeshIntegrationTest {
     @Test
     fun sendBeforeStartThrows() = runTest {
         val tAlice = VirtualMeshTransport(peerIdAlice)
-        val alice = MeshLink(tAlice, meshLinkConfig { requireEncryption = false }, coroutineContext)
+        val alice = MeshLink(tAlice, testMeshLinkConfig { requireEncryption = false }, coroutineContext)
 
         assertFailsWith<IllegalStateException> {
             alice.send(peerIdBob, "hello".encodeToByteArray())
@@ -756,7 +756,7 @@ class MeshIntegrationTest {
         val tBob = VirtualMeshTransport(peerIdBob)
         tAlice.linkTo(tBob)
 
-        val config = meshLinkConfig { requireEncryption = false }
+        val config = testMeshLinkConfig { requireEncryption = false }
         val alice = MeshLink(tAlice, config, coroutineContext)
         alice.start()
         advanceUntilIdle()
@@ -788,7 +788,7 @@ class MeshIntegrationTest {
         val tBob = VirtualMeshTransport(peerIdBob)
         tAlice.linkTo(tBob)
 
-        val config = meshLinkConfig { requireEncryption = false; mtu = 185 }
+        val config = testMeshLinkConfig { requireEncryption = false; mtu = 185 }
         val alice = MeshLink(tAlice, config, coroutineContext)
         val bob = MeshLink(tBob, config, coroutineContext)
         alice.start(); bob.start()
@@ -826,9 +826,9 @@ class MeshIntegrationTest {
         val tAlice = VirtualMeshTransport(peerIdAlice)
         val alice = MeshLink(
             tAlice,
-            meshLinkConfig { requireEncryption = false },
+            testMeshLinkConfig { requireEncryption = false },
             coroutineContext,
-            crypto = createCryptoProvider()
+            crypto = CryptoProvider()
         )
         alice.start()
         advanceUntilIdle()
@@ -846,7 +846,7 @@ class MeshIntegrationTest {
     @Test
     fun rotateIdentityWithoutCryptoFails() = runTest {
         val tAlice = VirtualMeshTransport(peerIdAlice)
-        val alice = MeshLink(tAlice, meshLinkConfig { requireEncryption = false }, coroutineContext)
+        val alice = MeshLink(tAlice, testMeshLinkConfig { requireEncryption = false }, coroutineContext)
         alice.start()
         advanceUntilIdle()
 
@@ -862,7 +862,7 @@ class MeshIntegrationTest {
     fun lowBatteryTriggersPowerSaver() = runTest {
         var now = 0L
         val tAlice = VirtualMeshTransport(peerIdAlice)
-        val alice = MeshLink(tAlice, meshLinkConfig { requireEncryption = false }, coroutineContext, clock = { now })
+        val alice = MeshLink(tAlice, testMeshLinkConfig { requireEncryption = false }, coroutineContext, clock = { now })
         alice.start()
         advanceUntilIdle()
 
@@ -880,7 +880,7 @@ class MeshIntegrationTest {
     fun chargingActivatesPerformanceMode() = runTest {
         var now = 0L
         val tAlice = VirtualMeshTransport(peerIdAlice)
-        val alice = MeshLink(tAlice, meshLinkConfig { requireEncryption = false }, coroutineContext, clock = { now })
+        val alice = MeshLink(tAlice, testMeshLinkConfig { requireEncryption = false }, coroutineContext, clock = { now })
         alice.start()
         advanceUntilIdle()
 
@@ -901,7 +901,7 @@ class MeshIntegrationTest {
     fun mediumBatteryActivatesBalancedMode() = runTest {
         var now = 0L
         val tAlice = VirtualMeshTransport(peerIdAlice)
-        val alice = MeshLink(tAlice, meshLinkConfig { requireEncryption = false }, coroutineContext, clock = { now })
+        val alice = MeshLink(tAlice, testMeshLinkConfig { requireEncryption = false }, coroutineContext, clock = { now })
         alice.start()
         advanceUntilIdle()
 
@@ -918,7 +918,7 @@ class MeshIntegrationTest {
     @Test
     fun malformedDataEmitsDiagnostic() = runTest {
         val tAlice = VirtualMeshTransport(peerIdAlice)
-        val alice = MeshLink(tAlice, meshLinkConfig { requireEncryption = false }, coroutineContext)
+        val alice = MeshLink(tAlice, testMeshLinkConfig { requireEncryption = false }, coroutineContext)
         alice.start()
         advanceUntilIdle()
 
@@ -948,7 +948,7 @@ class MeshIntegrationTest {
     @OptIn(kotlin.uuid.ExperimentalUuidApi::class)
     fun hopLimitExceededEmitsDiagnostic() = runTest {
         val tAlice = VirtualMeshTransport(peerIdAlice)
-        val alice = MeshLink(tAlice, meshLinkConfig { requireEncryption = false }, coroutineContext)
+        val alice = MeshLink(tAlice, testMeshLinkConfig { requireEncryption = false }, coroutineContext)
         alice.start()
         advanceUntilIdle()
 
@@ -987,7 +987,7 @@ class MeshIntegrationTest {
     @Test
     fun peerEvictedAfterConsecutiveSweepMisses() = runTest {
         val tAlice = VirtualMeshTransport(peerIdAlice)
-        val alice = MeshLink(tAlice, meshLinkConfig { requireEncryption = false }, coroutineContext)
+        val alice = MeshLink(tAlice, testMeshLinkConfig { requireEncryption = false }, coroutineContext)
         alice.start()
         advanceUntilIdle()
 
@@ -1012,7 +1012,7 @@ class MeshIntegrationTest {
     @Test
     fun shedMemoryPressureReturnsActions() = runTest {
         val tAlice = VirtualMeshTransport(peerIdAlice)
-        val alice = MeshLink(tAlice, meshLinkConfig { requireEncryption = false }, coroutineContext)
+        val alice = MeshLink(tAlice, testMeshLinkConfig { requireEncryption = false }, coroutineContext)
         alice.start()
         advanceUntilIdle()
 

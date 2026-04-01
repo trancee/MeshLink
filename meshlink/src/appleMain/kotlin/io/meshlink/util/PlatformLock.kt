@@ -8,4 +8,4 @@ private class IosPlatformLock : PlatformLock {
     override fun unlock() = lock.unlock()
 }
 
-actual fun createPlatformLock(): PlatformLock = IosPlatformLock()
+actual fun PlatformLock(): PlatformLock = IosPlatformLock()

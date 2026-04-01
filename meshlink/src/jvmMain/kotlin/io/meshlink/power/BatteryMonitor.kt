@@ -8,4 +8,4 @@ private class JvmBatteryMonitor : BatteryMonitor {
     override fun isAvailable(): Boolean = false
 }
 
-actual fun createBatteryMonitor(): BatteryMonitor = JvmBatteryMonitor()
+actual fun BatteryMonitor(): BatteryMonitor = JvmBatteryMonitor()

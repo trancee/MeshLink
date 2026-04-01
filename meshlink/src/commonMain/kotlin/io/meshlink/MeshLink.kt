@@ -43,9 +43,9 @@ import io.meshlink.util.AppIdFilter
 import io.meshlink.util.ByteArrayKey
 import io.meshlink.util.DeliveryOutcome
 import io.meshlink.util.PauseManager
+import io.meshlink.util.PlatformLock
 import io.meshlink.util.RateLimitPolicy
 import io.meshlink.util.RateLimitResult
-import io.meshlink.util.createPlatformLock
 import io.meshlink.util.currentTimeMillis
 import io.meshlink.util.hexToBytes
 import io.meshlink.util.toHex
@@ -84,7 +84,7 @@ class MeshLink(
 ) : MeshLinkApi {
 
     private val clock = clock
-    private val sendLock = createPlatformLock()
+    private val sendLock = PlatformLock()
 
     private val rateLimitPolicy = RateLimitPolicy(config, clock)
 

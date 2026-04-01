@@ -8,7 +8,7 @@ import java.security.Signature
 import java.security.spec.PKCS8EncodedKeySpec
 import java.security.spec.X509EncodedKeySpec
 
-actual fun createCryptoProvider(): CryptoProvider = JvmCryptoProvider()
+actual fun CryptoProvider(): CryptoProvider = JvmCryptoProvider()
 
 internal class JvmCryptoProvider : CryptoProvider {
 

@@ -5,7 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import io.meshlink.MeshLink
 import io.meshlink.config.MeshLinkConfig
-import io.meshlink.crypto.createCryptoProvider
+import io.meshlink.crypto.CryptoProvider
 import io.meshlink.diagnostics.DiagnosticEvent
 import io.meshlink.diagnostics.MeshHealthSnapshot
 import io.meshlink.diagnostics.Severity
@@ -40,7 +40,7 @@ class MeshLinkViewModel(application: Application) : AndroidViewModel(application
     /** Which config preset is active. */
     val currentPreset: StateFlow<ConfigPreset> = _currentPreset.asStateFlow()
 
-    private val crypto = createCryptoProvider()
+    private val crypto = CryptoProvider()
 
     private var meshLink = MeshLink(transport, _currentConfig.value, crypto = crypto)
 

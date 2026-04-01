@@ -21,4 +21,4 @@ private class IosBatteryMonitor : BatteryMonitor {
     override fun isAvailable(): Boolean = true
 }
 
-actual fun createBatteryMonitor(): BatteryMonitor = IosBatteryMonitor()
+actual fun BatteryMonitor(): BatteryMonitor = IosBatteryMonitor()

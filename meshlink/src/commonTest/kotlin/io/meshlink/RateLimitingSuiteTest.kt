@@ -1,7 +1,7 @@
 package io.meshlink
 
 import io.meshlink.config.MeshLinkConfig
-import io.meshlink.config.meshLinkConfig
+import io.meshlink.config.testMeshLinkConfig
 import io.meshlink.diagnostics.DiagnosticCode
 import io.meshlink.diagnostics.DiagnosticEvent
 import io.meshlink.diagnostics.Severity
@@ -59,7 +59,7 @@ class RateLimitingSuiteTest {
 
     @Test
     fun builderDslOverridesRateLimitFields() {
-        val config = meshLinkConfig {
+        val config = testMeshLinkConfig {
             requireEncryption = false
             handshakeRateLimitPerSec = 3
             nackRateLimitPerSec = 15
@@ -154,7 +154,7 @@ class RateLimitingSuiteTest {
         val transportBob = VirtualMeshTransport(peerIdBob)
         transport.linkTo(transportBob)
 
-        val config = meshLinkConfig {
+        val config = testMeshLinkConfig {
             requireEncryption = false
             nackRateLimitPerSec = 2
             neighborAggregateLimitPerMin = 0 // disable to isolate NACK limiter
@@ -195,7 +195,7 @@ class RateLimitingSuiteTest {
         val transportBob = VirtualMeshTransport(peerIdBob)
         transport.linkTo(transportBob)
 
-        val config = meshLinkConfig {
+        val config = testMeshLinkConfig {
             requireEncryption = false
             neighborAggregateLimitPerMin = 3
         }
@@ -234,7 +234,7 @@ class RateLimitingSuiteTest {
         val transportBob = VirtualMeshTransport(peerIdBob)
         transport.linkTo(transportBob)
 
-        val config = meshLinkConfig {
+        val config = testMeshLinkConfig {
             requireEncryption = false
             handshakeRateLimitPerSec = 0
             nackRateLimitPerSec = 0

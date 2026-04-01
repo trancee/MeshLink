@@ -184,10 +184,10 @@ Platform-specific code uses `expect`/`actual` declarations in `io.meshlink.util`
 and `io.meshlink.crypto`:
 
 - `currentTimeMillis()` — monotonic clock
-- `createPlatformLock()` — reentrant lock (contract: must be reentrant)
+- `PlatformLock()` — reentrant lock (contract: must be reentrant)
 - `secureRandomBytes(size)` — CSPRNG
-- `createCryptoProvider()` — Ed25519, X25519, ChaCha20-Poly1305, HKDF, SHA-256
-- `createBatteryMonitor()` — battery level + charging status
+- `CryptoProvider()` — Ed25519, X25519, ChaCha20-Poly1305, HKDF, SHA-256
+- `BatteryMonitor()` — battery level + charging status
 
 When adding a new `expect` declaration, provide `actual` implementations for
 **all 4 platform groups**: `jvmMain`, `androidMain`, `appleMain`, `linuxMain`.

@@ -1,6 +1,6 @@
 package io.meshlink
 
-import io.meshlink.config.meshLinkConfig
+import io.meshlink.config.testMeshLinkConfig
 import io.meshlink.model.Message
 import io.meshlink.transport.VirtualMeshTransport
 import io.meshlink.util.toHex
@@ -32,7 +32,7 @@ class StressTest {
             }
         }
 
-        val config = meshLinkConfig { requireEncryption = false }
+        val config = testMeshLinkConfig { requireEncryption = false }
         val nodes = transports.map { MeshLink(it, config, coroutineContext) }
         nodes.forEach { it.start() }
         advanceUntilIdle()
@@ -63,7 +63,7 @@ class StressTest {
         // Linear topology: 0↔1↔2↔3↔4
         for (i in 0 until 4) transports[i].linkTo(transports[i + 1])
 
-        val config = meshLinkConfig { requireEncryption = false }
+        val config = testMeshLinkConfig { requireEncryption = false }
         val nodes = transports.map { MeshLink(it, config, coroutineContext) }
         nodes.forEach { it.start() }
         advanceUntilIdle()
@@ -109,7 +109,7 @@ class StressTest {
             }
         }
 
-        val config = meshLinkConfig { requireEncryption = false }
+        val config = testMeshLinkConfig { requireEncryption = false }
         val nodes = transports.map { MeshLink(it, config, coroutineContext) }
         nodes.forEach { it.start() }
         advanceUntilIdle()
@@ -153,7 +153,7 @@ class StressTest {
     fun `rapid start-stop cycles do not leak`() = runTest {
         val id = peerId(0)
         val transport = VirtualMeshTransport(id)
-        val config = meshLinkConfig { requireEncryption = false }
+        val config = testMeshLinkConfig { requireEncryption = false }
         val node = MeshLink(transport, config, coroutineContext)
 
         repeat(10) { cycle ->
@@ -178,7 +178,7 @@ class StressTest {
         val tB = VirtualMeshTransport(idB)
         tA.linkTo(tB)
 
-        val config = meshLinkConfig {
+        val config = testMeshLinkConfig {
             requireEncryption = false
             maxMessageSize = 100_000
             mtu = 185
@@ -225,7 +225,7 @@ class StressTest {
             }
         }
 
-        val config = meshLinkConfig { requireEncryption = false }
+        val config = testMeshLinkConfig { requireEncryption = false }
         val nodes = transports.map { MeshLink(it, config, coroutineContext) }
         nodes.forEach { it.start() }
         advanceUntilIdle()

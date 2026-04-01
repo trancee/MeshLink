@@ -6,4 +6,4 @@ private class LinuxBatteryMonitor : BatteryMonitor {
     override fun isAvailable(): Boolean = false
 }
 
-actual fun createBatteryMonitor(): BatteryMonitor = LinuxBatteryMonitor()
+actual fun BatteryMonitor(): BatteryMonitor = LinuxBatteryMonitor()

@@ -14,4 +14,4 @@ interface BatteryMonitor {
     fun isAvailable(): Boolean
 }
 
-expect fun createBatteryMonitor(): BatteryMonitor
+expect fun BatteryMonitor(): BatteryMonitor

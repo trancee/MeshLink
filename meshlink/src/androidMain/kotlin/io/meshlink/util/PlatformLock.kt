@@ -10,4 +10,4 @@ private class AndroidPlatformLock : PlatformLock {
     override fun unlock() = lock.unlock()
 }
 
-actual fun createPlatformLock(): PlatformLock = AndroidPlatformLock()
+actual fun PlatformLock(): PlatformLock = AndroidPlatformLock()

@@ -28,4 +28,4 @@ class AndroidBatteryMonitor : BatteryMonitor {
     override fun isAvailable(): Boolean = true
 }
 
-actual fun createBatteryMonitor(): BatteryMonitor = AndroidBatteryMonitor()
+actual fun BatteryMonitor(): BatteryMonitor = AndroidBatteryMonitor()

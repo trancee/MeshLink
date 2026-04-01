@@ -29,7 +29,7 @@ A **Kotlin Multiplatform (KMP)** BLE mesh messaging library for **Android**, **i
 val mesh = MeshLink(
     transport = bleTransport,
     config = meshLinkConfig { maxMessageSize = 50_000 },
-    crypto = createCryptoProvider(),
+    crypto = CryptoProvider(),
 )
 mesh.start()
 ```

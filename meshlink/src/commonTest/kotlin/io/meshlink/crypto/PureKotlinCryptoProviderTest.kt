@@ -72,7 +72,7 @@ class PureKotlinCryptoProviderTest {
     @Test
     fun crossProviderAeadInterop() {
         // Verify pure Kotlin and JVM providers produce interoperable AEAD
-        val jvm = createCryptoProvider() // JvmCryptoProvider on JVM, platform provider on other targets
+        val jvm = CryptoProvider() // JvmCryptoProvider on JVM, platform provider on other targets
         val key = ByteArray(32) { (it * 3).toByte() }
         val nonce = ByteArray(12) { (it + 1).toByte() }
         val plaintext = "cross-provider test".encodeToByteArray()
@@ -91,7 +91,7 @@ class PureKotlinCryptoProviderTest {
 
     @Test
     fun crossProviderSha256Interop() {
-        val jvm = createCryptoProvider()
+        val jvm = CryptoProvider()
         val data = "interop hash test".encodeToByteArray()
 
         assertContentEquals(jvm.sha256(data), pure.sha256(data))
@@ -99,7 +99,7 @@ class PureKotlinCryptoProviderTest {
 
     @Test
     fun crossProviderHkdfInterop() {
-        val jvm = createCryptoProvider()
+        val jvm = CryptoProvider()
         val ikm = ByteArray(32) { it.toByte() }
         val salt = ByteArray(16) { (0x80 + it).toByte() }
         val info = "MeshLink-test".encodeToByteArray()

@@ -21,4 +21,4 @@ private class MacosBatteryMonitor : BatteryMonitor {
     }
 }
 
-actual fun createBatteryMonitor(): BatteryMonitor = MacosBatteryMonitor()
+actual fun BatteryMonitor(): BatteryMonitor = MacosBatteryMonitor()

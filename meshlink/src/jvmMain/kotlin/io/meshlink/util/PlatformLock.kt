@@ -10,4 +10,4 @@ private class JvmPlatformLock : PlatformLock {
     override fun unlock() = lock.unlock()
 }
 
-actual fun createPlatformLock(): PlatformLock = JvmPlatformLock()
+actual fun PlatformLock(): PlatformLock = JvmPlatformLock()

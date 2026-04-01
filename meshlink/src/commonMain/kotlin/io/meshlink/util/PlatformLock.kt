@@ -9,7 +9,7 @@ interface PlatformLock {
     fun unlock()
 }
 
-expect fun createPlatformLock(): PlatformLock
+expect fun PlatformLock(): PlatformLock
 
 inline fun <T> PlatformLock.withLock(block: () -> T): T {
     lock()

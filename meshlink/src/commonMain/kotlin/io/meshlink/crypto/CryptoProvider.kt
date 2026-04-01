@@ -14,4 +14,4 @@ interface CryptoProvider {
     fun hkdfSha256(ikm: ByteArray, salt: ByteArray, info: ByteArray, length: Int): ByteArray
 }
 
-expect fun createCryptoProvider(): CryptoProvider
+expect fun CryptoProvider(): CryptoProvider

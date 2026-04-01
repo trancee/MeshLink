@@ -37,4 +37,4 @@ private class LinuxPlatformLock : PlatformLock {
     }
 }
 
-actual fun createPlatformLock(): PlatformLock = LinuxPlatformLock()
+actual fun PlatformLock(): PlatformLock = LinuxPlatformLock()

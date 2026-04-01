@@ -9,7 +9,7 @@ import android.os.Build
  * - API 33+: JCA-backed provider (hardware-accelerated Ed25519/X25519)
  * - API 26–32: Pure Kotlin provider (JCA lacks Ed25519/X25519 before API 33)
  */
-actual fun createCryptoProvider(): CryptoProvider =
+actual fun CryptoProvider(): CryptoProvider =
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
         try {
             AndroidJcaCryptoProvider()
@@ -27,7 +27,7 @@ actual fun createCryptoProvider(): CryptoProvider =
  * The init block probes key generation to verify Ed25519/X25519 are actually usable.
  * Some devices resolve to AndroidKeyStore (requires KeyGenParameterSpec) or lack
  * Conscrypt Ed25519 support entirely — both cases throw, triggering the
- * PureKotlinCryptoProvider fallback in [createCryptoProvider].
+ * PureKotlinCryptoProvider fallback in [CryptoProvider].
  */
 private class AndroidJcaCryptoProvider : CryptoProvider {
 

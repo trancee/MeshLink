@@ -1,7 +1,7 @@
 package io.meshlink
 
 import io.meshlink.config.MeshLinkConfig
-import io.meshlink.crypto.createCryptoProvider
+import io.meshlink.crypto.CryptoProvider
 import io.meshlink.transport.IosBleTransport
 import io.meshlink.util.currentTimeMillis
 import kotlinx.coroutines.CoroutineScope
@@ -32,7 +32,7 @@ object MeshLinkFactory {
         return MeshLink(
             transport = transport,
             config = config,
-            crypto = createCryptoProvider(),
+            crypto = CryptoProvider(),
             coroutineContext = EmptyCoroutineContext,
             clock = { currentTimeMillis() },
         )
@@ -45,7 +45,7 @@ object MeshLinkFactory {
         return MeshLink(
             transport = transport,
             config = config,
-            crypto = createCryptoProvider(),
+            crypto = CryptoProvider(),
             coroutineContext = EmptyCoroutineContext,
             clock = { currentTimeMillis() },
         )

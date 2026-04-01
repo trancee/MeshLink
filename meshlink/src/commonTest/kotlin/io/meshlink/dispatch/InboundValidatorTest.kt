@@ -1,6 +1,6 @@
 package io.meshlink.dispatch
 
-import io.meshlink.config.meshLinkConfig
+import io.meshlink.config.testMeshLinkConfig
 import io.meshlink.crypto.PureKotlinCryptoProvider
 import io.meshlink.crypto.SecurityEngine
 import io.meshlink.delivery.DeliveryPipeline
@@ -30,7 +30,7 @@ class InboundValidatorTest {
         clock: () -> Long = { 0L },
     ): Pair<InboundValidator, DiagnosticSink> {
         val diagnosticSink = DiagnosticSink(bufferCapacity = 64, clock = clock)
-        val config = meshLinkConfig {
+        val config = testMeshLinkConfig {
             requireEncryption = false
             inboundRateLimitPerSenderPerMinute = inboundRateLimit
         }

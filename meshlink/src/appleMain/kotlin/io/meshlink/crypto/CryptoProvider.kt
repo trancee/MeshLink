@@ -1,3 +1,3 @@
 package io.meshlink.crypto
 
-actual fun createCryptoProvider(): CryptoProvider = PureKotlinCryptoProvider()
+actual fun CryptoProvider(): CryptoProvider = PureKotlinCryptoProvider()

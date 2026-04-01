@@ -8,7 +8,7 @@ import kotlin.test.assertTrue
 
 class NoiseXXHandshakeTest {
 
-    private val crypto = createCryptoProvider()
+    private val crypto = CryptoProvider()
 
     // ── Vertical slice 1: full handshake completes ──
 

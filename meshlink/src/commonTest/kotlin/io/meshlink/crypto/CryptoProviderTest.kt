@@ -10,7 +10,7 @@ import kotlin.test.assertTrue
 
 class CryptoProviderTest {
 
-    private val crypto = createCryptoProvider()
+    private val crypto = CryptoProvider()
 
     // ── Vertical slice 1: Ed25519 key generation ──
 

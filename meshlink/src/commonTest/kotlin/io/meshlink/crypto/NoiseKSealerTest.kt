@@ -7,7 +7,7 @@ import kotlin.test.assertTrue
 
 class NoiseKSealerTest {
 
-    private val crypto = createCryptoProvider()
+    private val crypto = CryptoProvider()
     private val sealer = NoiseKSealer(crypto)
 
     // ── Vertical slice 1: seal/unseal round-trip ──

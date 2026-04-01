@@ -407,7 +407,7 @@ testing.
 |---------------|-------------|
 | `PureKotlinCryptoProvider` | Pure Kotlin crypto (used on all platforms) |
 
-Created via the `expect`/`actual` factory: `createCryptoProvider()`.
+Created via the `expect`/`actual` factory: `CryptoProvider()`.
 
 ### SecureStorage
 
@@ -532,6 +532,6 @@ Platform-specific code uses Kotlin's `expect`/`actual` mechanism:
 
 | expect Declaration | Android actual | iOS actual |
 |-------------------|----------------|------------|
-| `createCryptoProvider()` | `PureKotlinCryptoProvider` | `PureKotlinCryptoProvider` |
-| `createPlatformLock()` | JVM `ReentrantLock` wrapper | iOS mutex wrapper |
+| `CryptoProvider()` | `PureKotlinCryptoProvider` | `PureKotlinCryptoProvider` |
+| `PlatformLock()` | JVM `ReentrantLock` wrapper | iOS mutex wrapper |
 | `currentTimeMillis()` | `System.currentTimeMillis()` | iOS time function |

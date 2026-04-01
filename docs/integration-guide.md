@@ -57,7 +57,7 @@ For your own project, add the repository root as a local SPM dependency —
 ```kotlin
 import io.meshlink.MeshLink
 import io.meshlink.config.meshLinkConfig
-import io.meshlink.crypto.createCryptoProvider
+import io.meshlink.crypto.CryptoProvider
 
 // `transport` is your platform-specific BleTransport implementation
 val mesh = MeshLink(
@@ -66,7 +66,7 @@ val mesh = MeshLink(
         maxMessageSize = 50_000
         gossipIntervalMillis = 10_000L
     },
-    crypto = createCryptoProvider(),
+    crypto = CryptoProvider(),
 )
 ```
 
@@ -407,14 +407,14 @@ MeshLink provides two layers of encryption when a `CryptoProvider` is supplied.
 ### Enabling Encryption
 
 ```kotlin
-import io.meshlink.crypto.createCryptoProvider
+import io.meshlink.crypto.CryptoProvider
 import io.meshlink.crypto.TrustStore
 import io.meshlink.crypto.TrustMode
 
 val mesh = MeshLink(
     transport = transport,
     config = config,
-    crypto = createCryptoProvider(),
+    crypto = CryptoProvider(),
     trustStore = TrustStore(mode = TrustMode.STRICT),
 )
 ```

@@ -21,7 +21,7 @@ import kotlin.test.assertTrue
  */
 class NoiseHandshakeGoldenTest {
 
-    private val crypto = createCryptoProvider()
+    private val crypto = CryptoProvider()
 
     // ── RFC 7748 Section 6.1 test vectors ──
     // These are the canonical X25519 key pairs used across all tests.

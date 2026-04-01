@@ -94,7 +94,7 @@ class HandshakePayloadTest {
 
     // ── Noise XX handshake payload exchange ──
 
-    private val crypto = createCryptoProvider()
+    private val crypto = CryptoProvider()
 
     @Test
     fun handshakeExchangesPayloadInMsg2AndMsg3() {

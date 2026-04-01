@@ -11,7 +11,7 @@ import kotlin.test.assertTrue
 
 class PeerHandshakeManagerTest {
 
-    private val crypto = createCryptoProvider()
+    private val crypto = CryptoProvider()
     private val aliceStatic = crypto.generateX25519KeyPair()
     private val bobStatic = crypto.generateX25519KeyPair()
 
