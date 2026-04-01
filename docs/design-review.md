@@ -147,23 +147,23 @@ At 244-byte MTU, that's ~15% more payload per frame. On BLE, bandwidth is the sc
 
 ---
 
-### 12. Replay Counter Persistence Strategy Has a 1-Second Vulnerability Window
+### 12. ~~Replay Counter Persistence Strategy Has a 1-Second Vulnerability Window~~ ✅ RESOLVED
 
 **Current decision:** Outbound counter uses pre-increment persist (correct). Inbound counter uses "periodic persist every 1 second" with the rationale "worst-case 1s of messages" and "dedup provides backup."
 
 **Challenge:** During that 1-second window after a crash, an attacker who recorded messages can replay them successfully. The doc says "defense-in-depth: replay counter + dedup set." But the dedup set is **also** in-memory only (lost on crash). Both defenses fail simultaneously on crash — exactly the scenario where replay attacks are most likely (attacker forces crash, then replays).
 
-**Better alternative:** **Persist inbound counters on every message that advances the highest-seen counter** (not every message — only the ~10% that advance the window). On modern flash, this is 1 write per new-high message, not 1 per message. Alternatively, bump the persist to every 100ms (10× the current frequency) since the threat model assumes attackers can force crashes.
+**Resolution:** Inbound counter now persists immediately on every high-water-mark advance. The periodic persist strategy (1s / 100 messages) has been replaced — `persistIntervalMillis` and `persistIntervalMessages` parameters removed. Window fills (counters below the high-water mark) skip persistence since the high-water mark already covers them.
 
 ---
 
-### 13. Buffer TTL as Sole Delivery Deadline Is Too Coarse
+### 13. ~~Buffer TTL as Sole Delivery Deadline Is Too Coarse~~ ✅ RESOLVED
 
 **Current decision:** `bufferTTL` (default 5 minutes) serves as both the buffer eviction timer AND the delivery deadline for `onTransferFailed`.
 
 **Challenge:** A chat app wants failed-delivery notification within 10 seconds (UX), but messages should be buffered for 5 minutes (resilience). These are fundamentally different concerns conflated into one parameter.
 
-**Better alternative:** Separate `deliveryTimeoutMillis` (how long before notifying the sender of failure) from `bufferTtlMillis` (how long to keep buffered messages). The delivery timeout can be per-message via `SendOptions`, while buffer TTL stays global. This mirrors how TCP has separate connect timeout vs socket keepalive.
+**Resolution:** Added `deliveryTimeoutMillis` config field (default 30s) separate from `bufferTtlMillis`. Validation ensures `deliveryTimeoutMillis ≤ bufferTtlMillis`. Presets tuned: `smallPayloadLowLatency` = 10s, `largePayloadHighThroughput` = 120s. `MeshLink.doSend()` uses the new field for delivery deadline.
 
 ---
 
@@ -187,22 +187,17 @@ At 244-byte MTU, that's ~15% more payload per frame. On BLE, bandwidth is the sc
 
 ---
 
-### 16. Integration Tests Miss Key Scenarios
+### 16. ~~Integration Tests Miss Key Scenarios~~ ✅ RESOLVED
 
 **Current decision:** 32 integration test scenarios in the .feature file.
 
-**Challenge:** Notable gaps:
-- **No multi-hop encrypted message test** — there's a 3-hop routing test but it's plaintext. E2E encryption through relays is the signature feature but untested end-to-end.
-- **No concurrent transfer test** — the design spec has elaborate round-robin and backpressure logic, but no integration test exercises it.
-- **No L2CAP↔GATT fallback test** — the design has pages on transport fallback; no integration test.
-- **No gossip convergence timing test** — the design depends on gossip converging within 1 interval; no test validates this.
-- **No broadcast with relay test** — the broadcast test uses 3 directly-connected peers. No test verifies multi-hop broadcast relay with TTL decrement.
+**Challenge:** Notable gaps: no multi-hop encrypted message, no concurrent transfer, no gossip convergence timing, no broadcast with relay + TTL decrement test.
 
-**Better alternative:** Add at least one integration test for each of these critical paths. The VirtualMeshTransport already supports the necessary simulation.
+**Resolution:** Added 4 integration tests: `encryptedThreeHopRoutedMessage` (E2E encryption through 3-hop relay), `broadcastRelaysAcrossHopsWithTtlDecrement` (multi-hop broadcast with TTL verification), `gossipConvergesRoutingTableWithinOneInterval` (routing convergence validation), `concurrentTransfersDeliverAllMessages` (5 concurrent sends). L2CAP↔GATT fallback remains untested (requires platform-specific transport mocking beyond VirtualMeshTransport).
 
 ---
 
-### 17. Threat Model Lists All 10 Threats as "✅ Mitigated" — Overconfident
+### 17. ~~Threat Model Lists All 10 Threats as "✅ Mitigated" — Overconfident~~ ✅ RESOLVED
 
 **Current decision:** Every threat shows green checkmarks with commit references.
 
@@ -211,7 +206,7 @@ At 244-byte MTU, that's ~15% more payload per frame. On BLE, bandwidth is the sc
 - **TM-003 (dedup exhaustion):** TTL-based dedup is good, but the dedup capacity of 100K entries at 24 bytes each = 2.4MB — not "negligible" on constrained devices. The remediation doesn't address targeted eviction attacks.
 - **TM-007 (rotation replay):** ±30s freshness window is very narrow. Clock skew between devices on a mesh with no NTP could easily exceed 30s. The design says monotonic clocks — but rotation timestamps use wall-clock (`timestampMillis`).
 
-**Better alternative:** Use a **traffic-light status** (✅ Fully Mitigated, 🟡 Partially Mitigated, ⚠️ Accepted Risk) and be honest about residual risk. This builds more trust than pretending everything is solved.
+**Resolution:** TM-003, TM-004, and TM-007 changed from ✅ to 🟡 Partially Mitigated in `docs/threat-model.md` with documented residual risks for each.
 
 ---
 
@@ -231,7 +226,9 @@ At 244-byte MTU, that's ~15% more payload per frame. On BLE, bandwidth is the sc
 
 ### 20. Keepalive timestamp is 4 bytes (seconds precision) while rotation timestamp is 8 bytes (milliseconds). The inconsistency adds cognitive load for no technical reason.
 
-### 21. The NACK message (0x09) has no reason code — just a bare message ID. TCP's ICMP has reason codes; so should NACK. Without one, the sender can't distinguish "buffer full" from "unknown destination" from "decryption failed."
+### 21. ~~The NACK message (0x09) has no reason code~~ ✅ RESOLVED
+
+The NACK message now includes a reason byte at offset 17 with 5 reason codes: UNKNOWN(0), BUFFER_FULL(1), UNKNOWN_DESTINATION(2), DECRYPT_FAILED(3), RATE_LIMITED(4). Wire format updated from 17→18 bytes. Golden vector test and round-trip tests added.
 
 ### 22. The design doc is 2,446 lines. It's simultaneously a design doc, protocol RFC, architecture spec, integration guide, and API reference. It should be split — which has partially happened (separate docs exist) but design.md still contains full wire format tables that duplicate wire-format-spec.md.
 
@@ -245,8 +242,8 @@ At 244-byte MTU, that's ~15% more payload per frame. On BLE, bandwidth is the sc
 |----------|-------|------------|--------|
 | 🔴 Critical | 4 | ~~Mixed endianness~~ ✅, no recipient forward secrecy, DSDV routing, no schema evolution | 1/4 resolved |
 | 🟠 Significant | 6 | ~~Unencrypted broadcasts~~ ✅, wasteful 16-byte IDs, narrow SACK, ~~disabled rate limits~~ ✅, ~~maxHops inconsistency~~ ✅, no compression | 3/6 resolved |
-| 🟡 Moderate | 7 | TOFI naming, replay persist gap, conflated TTL/timeout, ~~gossip off by default~~ ✅, doc duplication, test gaps, overconfident threat model | 1/7 resolved |
-| 🟢 Minor | 5 | sigLen waste, timestamp inconsistency, NACK missing reason, design doc size, term inconsistency | 0/5 |
+| 🟡 Moderate | 8 | TOFI naming, ~~replay persist gap~~ ✅, ~~conflated TTL/timeout~~ ✅, ~~gossip off by default~~ ✅, doc duplication, ~~test gaps~~ ✅, ~~overconfident threat model~~ ✅, ~~preset naming~~ ✅ | 6/8 resolved |
+| 🟢 Minor | 5 | sigLen waste, ~~timestamp inconsistency~~ ✅, ~~NACK missing reason~~ ✅, design doc size, term inconsistency | 2/5 resolved |
 
 ## Recommended Immediate Actions (before v1 ships)
 
@@ -254,4 +251,9 @@ At 244-byte MTU, that's ~15% more payload per frame. On BLE, bandwidth is the sc
 2. ~~**Default gossip interval to 15s** and **rate limits to sane values** — DX and security~~ ✅ Done
 3. ~~**Fix maxHops default inconsistency** — either 4 or 10, pick one and propagate everywhere~~ ✅ Done (aligned to 10)
 4. ~~**Add encrypted broadcast via appId-derived key** — low-hanging privacy win~~ ✅ Done
-5. **Add the missing integration test scenarios** — especially encrypted multi-hop ⏳ In progress
+5. ~~**Add the missing integration test scenarios** — especially encrypted multi-hop~~ ✅ Done (4 scenarios added)
+6. ~~**Separate delivery timeout from buffer TTL**~~ ✅ Done (`deliveryTimeoutMillis` config field)
+7. ~~**Add NACK reason codes**~~ ✅ Done (5 reason codes in wire format)
+8. ~~**Persist replay counter on high-water-mark advance**~~ ✅ Done (eliminates 1s vulnerability window)
+9. ~~**Rename config presets to behavior-based names**~~ ✅ Done (old names deprecated)
+10. ~~**Update threat model status to traffic-light**~~ ✅ Done (TM-003, TM-004, TM-007 → 🟡 Partially Mitigated)

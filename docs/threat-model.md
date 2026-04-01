@@ -241,11 +241,11 @@ Attacker → triggers crypto edge case (e.g., malformed handshake) → exception
 |----|--------|--------|-------|
 | TM-001 | ✅ Mitigated | `fb1887b` | `maxConcurrentInboundSessions` config (default 100), `ChunkAcceptResult.Rejected` |
 | TM-002 | ✅ Mitigated | See below | `requireEncryption = true` default; `start()` fails without `CryptoProvider` |
-| TM-003 | ✅ Mitigated | `fb1887b` | TTL-based `DedupSet` with 300s expiry, capacity increased to 100K |
-| TM-004 | ✅ Mitigated | See below | Unsigned routes rejected when crypto enabled; per-next-hop failure tracking with diagnostic alerts |
+| TM-003 | 🟡 Partially Mitigated | `fb1887b` | TTL-based `DedupSet` with 300s expiry, capacity increased to 100K. **Residual risk:** 100K entries × 24 bytes = 2.4 MB; targeted eviction attacks can still force LRU eviction of specific entries on memory-constrained devices. |
+| TM-004 | 🟡 Partially Mitigated | See below | Unsigned routes rejected when crypto enabled; per-next-hop failure tracking with diagnostic alerts. **Residual risk:** consumers can set `requireEncryption = false`, which disables route signing. No reachability probes to detect blackhole routes. |
 | TM-005 | ✅ Mitigated | `fb1887b` | Default `maxHops` reduced from 255 to 10 |
 | TM-006 | ✅ Mitigated | `fb1887b` | `expect/actual secureRandomBytes()` with platform CSPRNG implementations |
-| TM-007 | ✅ Mitigated | `47b40e8` | Rotation timestamp freshness (±30s window) and replay rejection |
+| TM-007 | 🟡 Partially Mitigated | `47b40e8` | Rotation timestamp freshness (±30s window) and replay rejection. **Residual risk:** ±30s window assumes reasonably synchronized clocks; devices without NTP on a mesh may exceed 30s skew, causing legitimate rotations to be rejected or replays within the window to succeed. |
 | TM-008 | ✅ Mitigated | `fb1887b` | `unsealPayload()` returns null on failure; messages dropped |
 | TM-009 | ✅ Mitigated | `fb1887b` | Diagnostic emits `throwable::class.simpleName` instead of message |
 | TM-010 | ✅ Mitigated | `fb1887b` | `BleTransport.debugLogging` changed from `public` to `internal` |
