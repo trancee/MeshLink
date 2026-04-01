@@ -15,6 +15,6 @@ internal interface DispatchSink {
     fun onKeyChanged(event: KeyChangeEvent)
     suspend fun sendFrame(peerId: ByteArray, frame: ByteArray)
     suspend fun dispatchChunks(recipient: ByteArray, chunks: List<ChunkData>, messageId: ByteArray)
-    fun triggerGossipUpdate()
+    fun onRouteDiscovered(destination: ByteArrayKey)
     fun onOutboundComplete(key: ByteArrayKey, messageId: ByteArray)
 }

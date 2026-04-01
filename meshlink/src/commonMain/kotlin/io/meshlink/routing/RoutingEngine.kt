@@ -2,6 +2,7 @@ package io.meshlink.routing
 
 import io.meshlink.util.ByteArrayKey
 import io.meshlink.util.currentTimeMillis
+import io.meshlink.wire.WireCodec
 
 sealed interface NextHopResult {
     data class Direct(val peerId: ByteArrayKey) : NextHopResult
@@ -9,54 +10,65 @@ sealed interface NextHopResult {
     data object Unreachable : NextHopResult
 }
 
-sealed interface RouteLearnResult {
-    data object NoSignificantChange : RouteLearnResult
-    data class SignificantChange(
-        val routeChanges: List<RouteChange>,
-    ) : RouteLearnResult
+/** Result of handling an inbound RREQ. */
+sealed interface RouteRequestResult {
+    /** We are the target or have a cached route — here is the RREP frame. */
+    data class Reply(val replyFrame: ByteArray, val replyTo: ByteArrayKey) : RouteRequestResult
+
+    /** RREQ should be reflooded to neighbours. */
+    data class Flood(val rreqFrame: ByteArray) : RouteRequestResult
+
+    /** Duplicate or expired RREQ — drop silently. */
+    data object Drop : RouteRequestResult
 }
 
-data class RouteChange(
-    val destination: ByteArrayKey,
-    val oldNextHop: ByteArrayKey,
-    val newNextHop: ByteArrayKey,
-)
+/** Result of handling an inbound RREP. */
+sealed interface RouteReplyResult {
+    /** Route installed, forward the RREP toward the RREQ originator. */
+    data class Forward(val rrepFrame: ByteArray, val nextHop: ByteArrayKey) : RouteReplyResult
 
-data class GossipEntry(
-    val destination: ByteArrayKey,
-    val cost: Double,
-    val sequenceNumber: UInt,
-    val hopCount: UByte = 1u,
-)
+    /** We are the RREQ originator — route is now available. */
+    data class Resolved(val destination: ByteArrayKey) : RouteReplyResult
 
-data class LearnedRoute(
-    val destination: ByteArrayKey,
-    val cost: Double,
-    val sequenceNumber: UInt,
+    /** Stale or duplicate RREP — drop silently. */
+    data object Drop : RouteReplyResult
+}
+
+data class RouteDiscovery(
+    val rreqFrame: ByteArray,
+    val requestId: UInt,
 )
 
 /**
- * Facade consolidating routing table, presence tracking, deduplication,
- * gossip preparation (split-horizon / poison-reverse), and adaptive
- * gossip timing behind sealed result types.
+ * AODV-style reactive routing engine.
+ *
+ * Routes are discovered on-demand via RREQ/RREP flooding and cached
+ * with a configurable TTL. 1-hop neighbour presence is tracked via
+ * BLE discovery/keepalives (not routing protocol).
  *
  * MeshLink delegates all routing decisions to this engine and
- * pattern-matches on [NextHopResult] / [RouteLearnResult] to drive
- * wire-level actions.
+ * pattern-matches on [NextHopResult] / [RouteRequestResult] /
+ * [RouteReplyResult] to drive wire-level actions.
  */
 class RoutingEngine(
     private val localPeerId: ByteArrayKey,
     private val dedupCapacity: Int = 10_000,
-    private val triggeredUpdateThreshold: Double = 0.3,
-    private val gossipIntervalMillis: Long = 0L,
+    private val routeCacheTtlMillis: Long = 60_000L,
+    private val maxHops: UByte = 10u,
     private val clock: () -> Long = { currentTimeMillis() },
 ) {
-    private val routingTable = RoutingTable()
+    private val routingTable = RoutingTable(expiryMillis = routeCacheTtlMillis)
     private val presenceTracker = PresenceTracker()
     private val dedup = DedupSet(capacity = dedupCapacity, clock = clock)
-    private val previousNextHop = mutableMapOf<ByteArrayKey, ByteArrayKey>()
-    private val lastTriggeredUpdateTime = mutableMapOf<ByteArrayKey, Long>()
-    private var lastGossipSentMillis: Long = 0L
+
+    // AODV reverse path: requestKey → sender who forwarded the RREQ to us
+    private val reversePath = mutableMapOf<ByteArrayKey, ByteArrayKey>()
+
+    // RREQ dedup: (origin + requestId) → timestamp
+    private val rreqSeen = mutableMapOf<ByteArrayKey, Long>()
+
+    private var nextRequestId: UInt = 0u
+
     private val nextHopFailures = mutableMapOf<ByteArrayKey, Int>()
     private val nextHopSuccesses = mutableMapOf<ByteArrayKey, Int>()
 
@@ -88,92 +100,123 @@ class RoutingEngine(
 
     fun isDuplicate(key: ByteArrayKey): Boolean = !dedup.tryInsert(key)
 
-    // ── Route learning ────────────────────────────────────────────
+    // ── AODV Route Discovery ──────────────────────────────────────
 
-    fun learnRoutes(fromPeerId: ByteArrayKey, routes: List<LearnedRoute>): RouteLearnResult {
-        val routeChanges = mutableListOf<RouteChange>()
-        var significantChange = false
+    /**
+     * Initiate a route discovery for [destination].
+     * Returns an RREQ frame to flood to all neighbours.
+     */
+    fun initiateRouteDiscovery(destination: ByteArrayKey): RouteDiscovery {
+        val reqId = nextRequestId++
+        val rreqKey = rreqKey(localPeerId, reqId)
+        rreqSeen[rreqKey] = clock()
 
-        for (route in routes) {
-            if (route.destination == localPeerId) continue
+        val frame = WireCodec.encodeRouteRequest(
+            origin = localPeerId.bytes,
+            destination = destination.bytes,
+            requestId = reqId,
+            hopCount = 0u,
+            hopLimit = maxHops,
+        )
+        return RouteDiscovery(frame, reqId)
+    }
 
-            val oldBest = routingTable.bestRoute(route.destination)
-            routingTable.addRoute(
-                route.destination,
-                fromPeerId,
-                route.cost + 1.0,
-                route.sequenceNumber,
+    /**
+     * Handle an inbound RREQ from [fromPeerId].
+     * - If we are the destination, generate an RREP.
+     * - If we have a cached route, generate an RREP (intermediate reply).
+     * - Otherwise, record the reverse path and return [RouteRequestResult.Flood].
+     */
+    fun handleRouteRequest(
+        fromPeerId: ByteArrayKey,
+        originPeerId: ByteArrayKey,
+        destinationPeerId: ByteArrayKey,
+        requestId: UInt,
+        hopCount: UByte,
+        hopLimit: UByte,
+    ): RouteRequestResult {
+        val rreqKey = rreqKey(originPeerId, requestId)
+
+        // Dedup: already seen this RREQ?
+        if (rreqSeen.containsKey(rreqKey)) return RouteRequestResult.Drop
+        rreqSeen[rreqKey] = clock()
+
+        // Record reverse path: how to get back to origin
+        reversePath[rreqKey] = fromPeerId
+
+        // Install reverse route to origin (for RREP and future traffic)
+        routingTable.addRoute(originPeerId, fromPeerId, hopCount.toDouble() + 1.0, requestId)
+
+        // Are we the destination?
+        if (destinationPeerId == localPeerId) {
+            val rrep = WireCodec.encodeRouteReply(
+                origin = originPeerId.bytes,
+                destination = localPeerId.bytes,
+                requestId = requestId,
+                hopCount = 0u,
             )
-            val newBest = routingTable.bestRoute(route.destination)
-
-            if (oldBest != null && newBest != null && oldBest.nextHop != newBest.nextHop) {
-                previousNextHop[route.destination] = oldBest.nextHop
-                routeChanges.add(RouteChange(route.destination, oldBest.nextHop, newBest.nextHop))
-                significantChange = true
-            }
-
-            if (!significantChange) {
-                significantChange = isSignificantCostChange(oldBest?.cost, newBest?.cost)
-            }
+            return RouteRequestResult.Reply(rrep, fromPeerId)
         }
 
-        return if (significantChange) {
-            RouteLearnResult.SignificantChange(routeChanges)
-        } else {
-            RouteLearnResult.NoSignificantChange
+        // Do we have a cached route to the destination?
+        val cached = routingTable.bestRoute(destinationPeerId)
+        if (cached != null) {
+            val rrep = WireCodec.encodeRouteReply(
+                origin = originPeerId.bytes,
+                destination = destinationPeerId.bytes,
+                requestId = requestId,
+                hopCount = (cached.cost.toInt()).toUByte(),
+            )
+            return RouteRequestResult.Reply(rrep, fromPeerId)
         }
+
+        // Hop limit check
+        if (hopCount >= hopLimit) return RouteRequestResult.Drop
+
+        // Reflood with incremented hop count
+        val reflood = WireCodec.encodeRouteRequest(
+            origin = originPeerId.bytes,
+            destination = destinationPeerId.bytes,
+            requestId = requestId,
+            hopCount = (hopCount + 1u).toUByte(),
+            hopLimit = hopLimit,
+        )
+        return RouteRequestResult.Flood(reflood)
     }
 
-    // ── Gossip preparation ────────────────────────────────────────
+    /**
+     * Handle an inbound RREP from [fromPeerId].
+     * - Install forward route to destination via fromPeerId.
+     * - If we are the RREQ originator, return [RouteReplyResult.Resolved].
+     * - Otherwise, forward the RREP along the reverse path.
+     */
+    fun handleRouteReply(
+        fromPeerId: ByteArrayKey,
+        originPeerId: ByteArrayKey,
+        destinationPeerId: ByteArrayKey,
+        requestId: UInt,
+        hopCount: UByte,
+    ): RouteReplyResult {
+        // Install forward route to destination via the sender
+        routingTable.addRoute(destinationPeerId, fromPeerId, hopCount.toDouble() + 1.0, requestId)
 
-    fun prepareGossipEntries(forPeerId: ByteArrayKey): List<GossipEntry> {
-        return routingTable.allBestRoutes().mapNotNull { route ->
-            when {
-                route.nextHop == forPeerId -> null // Split horizon
-                previousNextHop[route.destination] == forPeerId &&
-                    route.nextHop != forPeerId -> {
-                    // Poison reverse: tell old next-hop the route is withdrawn
-                    GossipEntry(route.destination, Double.MAX_VALUE, route.sequenceNumber)
-                }
-                else -> GossipEntry(route.destination, route.cost, route.sequenceNumber)
-            }
+        // Are we the original requester?
+        if (originPeerId == localPeerId) {
+            return RouteReplyResult.Resolved(destinationPeerId)
         }
+
+        // Forward RREP along reverse path
+        val rreqKey = rreqKey(originPeerId, requestId)
+        val nextHop = reversePath[rreqKey] ?: return RouteReplyResult.Drop
+
+        val forwarded = WireCodec.encodeRouteReply(
+            origin = originPeerId.bytes,
+            destination = destinationPeerId.bytes,
+            requestId = requestId,
+            hopCount = (hopCount + 1u).toUByte(),
+        )
+        return RouteReplyResult.Forward(forwarded, nextHop)
     }
-
-    // ── Gossip timing ─────────────────────────────────────────────
-
-    fun effectiveGossipInterval(powerMode: String): Long {
-        val base = gossipIntervalMillis
-        if (base <= 0) return 0
-        val routeCount = routingTable.size()
-        val routeMultiplied = when {
-            routeCount > 200 -> base * 2
-            routeCount > 100 -> base * 3 / 2
-            else -> base
-        }
-        return when (powerMode) {
-            "POWER_SAVER" -> routeMultiplied * 3
-            "BALANCED" -> routeMultiplied * 2
-            else -> routeMultiplied
-        }
-    }
-
-    fun shouldSendTriggeredUpdate(peerId: ByteArrayKey, powerMode: String): Boolean {
-        val interval = effectiveGossipInterval(powerMode)
-        if (interval <= 0) return true
-        val lastSent = lastTriggeredUpdateTime[peerId] ?: return true
-        return (clock() - lastSent) >= interval
-    }
-
-    fun recordTriggeredUpdate(peerId: ByteArrayKey) {
-        lastTriggeredUpdateTime[peerId] = clock()
-    }
-
-    fun recordGossipSent() {
-        lastGossipSentMillis = clock()
-    }
-
-    fun timeSinceLastGossip(): Long = clock() - lastGossipSentMillis
 
     // ── Route queries ─────────────────────────────────────────────
 
@@ -191,17 +234,14 @@ class RoutingEngine(
 
     // ── Next-hop reliability tracking ──────────────────────────────
 
-    /** Record a delivery failure via a specific next-hop. */
     fun recordNextHopFailure(nextHopId: ByteArrayKey) {
         nextHopFailures[nextHopId] = (nextHopFailures[nextHopId] ?: 0) + 1
     }
 
-    /** Record a delivery success via a specific next-hop. */
     fun recordNextHopSuccess(nextHopId: ByteArrayKey) {
         nextHopSuccesses[nextHopId] = (nextHopSuccesses[nextHopId] ?: 0) + 1
     }
 
-    /** Failure rate for a next-hop (0.0–1.0), or 0.0 if no data. */
     fun nextHopFailureRate(nextHopId: ByteArrayKey): Double {
         val failures = nextHopFailures[nextHopId] ?: 0
         val successes = nextHopSuccesses[nextHopId] ?: 0
@@ -210,7 +250,6 @@ class RoutingEngine(
         return failures.toDouble() / total
     }
 
-    /** Total recorded failures for a next-hop. */
     fun nextHopFailureCount(nextHopId: ByteArrayKey): Int = nextHopFailures[nextHopId] ?: 0
 
     // ── Cleanup ────────────────────────────────────────────────────
@@ -219,11 +258,11 @@ class RoutingEngine(
         routingTable.clear()
         presenceTracker.clear()
         dedup.clear()
-        previousNextHop.clear()
-        lastTriggeredUpdateTime.clear()
+        reversePath.clear()
+        rreqSeen.clear()
         nextHopFailures.clear()
         nextHopSuccesses.clear()
-        lastGossipSentMillis = 0L
+        nextRequestId = 0u
     }
 
     fun clearDedup() {
@@ -232,13 +271,13 @@ class RoutingEngine(
 
     // ── Internal ───────────────────────────────────────────────────
 
-    private fun isSignificantCostChange(oldCost: Double?, newCost: Double?): Boolean {
-        if (oldCost == null && newCost != null) return true
-        if (oldCost != null && newCost == null) return true
-        if (oldCost == null || newCost == null) return false
-        if (newCost == Double.MAX_VALUE || oldCost == Double.MAX_VALUE) return true
-        if (oldCost == 0.0) return newCost > 0.0
-        val ratio = kotlin.math.abs(newCost - oldCost) / oldCost
-        return ratio > triggeredUpdateThreshold
+    private fun rreqKey(origin: ByteArrayKey, requestId: UInt): ByteArrayKey {
+        val key = ByteArray(origin.bytes.size + 4)
+        origin.bytes.copyInto(key)
+        key[origin.bytes.size] = (requestId.toInt() and 0xFF).toByte()
+        key[origin.bytes.size + 1] = ((requestId.toInt() shr 8) and 0xFF).toByte()
+        key[origin.bytes.size + 2] = ((requestId.toInt() shr 16) and 0xFF).toByte()
+        key[origin.bytes.size + 3] = ((requestId.toInt() shr 24) and 0xFF).toByte()
+        return ByteArrayKey(key)
     }
 }

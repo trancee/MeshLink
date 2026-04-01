@@ -6,7 +6,6 @@ import io.meshlink.crypto.HandshakePayload
 import io.meshlink.crypto.SealResult
 import io.meshlink.crypto.SecurityEngine
 import io.meshlink.crypto.TrustStore
-import io.meshlink.delivery.BufferResult
 import io.meshlink.delivery.DeliveryPipeline
 import io.meshlink.diagnostics.DiagnosticCode
 import io.meshlink.diagnostics.DiagnosticEvent
@@ -17,7 +16,6 @@ import io.meshlink.dispatch.DispatchSink
 import io.meshlink.dispatch.InboundValidator
 import io.meshlink.dispatch.MessageDispatcher
 import io.meshlink.dispatch.OutboundTracker
-import io.meshlink.gossip.GossipCoordinator
 import io.meshlink.model.KeyChangeEvent
 import io.meshlink.model.Message
 import io.meshlink.model.PeerDetail
@@ -30,6 +28,7 @@ import io.meshlink.power.ModeChangeResult
 import io.meshlink.power.PowerCoordinator
 import io.meshlink.power.PowerMode
 import io.meshlink.power.ShedAction
+import io.meshlink.routing.RouteCoordinator
 import io.meshlink.routing.RoutingEngine
 import io.meshlink.send.BroadcastDecision
 import io.meshlink.send.BroadcastPolicyChain
@@ -194,8 +193,8 @@ class MeshLink(
     private val routingEngine = RoutingEngine(
         localPeerId = transport.localPeerId.toKey(),
         dedupCapacity = config.dedupCapacity,
-        triggeredUpdateThreshold = config.triggeredUpdateThreshold,
-        gossipIntervalMillis = config.gossipIntervalMillis,
+        routeCacheTtlMillis = config.routeCacheTtlMillis,
+        maxHops = config.maxHops,
         clock = clock,
     )
 
@@ -249,18 +248,16 @@ class MeshLink(
         markAsSeen = { routingEngine.isDuplicate(it) },
     )
 
-    private val gossipCoordinator = GossipCoordinator(
+    private val routeCoordinator = RouteCoordinator(
         routingEngine = routingEngine,
-        securityEngine = securityEngine,
         diagnosticSink = diagnosticSink,
-        localPeerId = transport.localPeerId,
-        gossipIntervalMillis = config.gossipIntervalMillis,
-        triggeredUpdateBatchMillis = config.triggeredUpdateBatchMillis,
         keepaliveIntervalMillis = config.keepaliveIntervalMillis,
-        currentPowerMode = { powerCoordinator.currentMode },
         sendFrame = { peerId, frame -> safeSend(peerId, frame) },
         clock = clock,
     )
+
+    // Pending route discoveries: destination → list of (payload, messageId) waiting for route
+    private val pendingMessages = mutableMapOf<ByteArrayKey, MutableList<PendingSend>>()
 
     private val peerConnectionCoordinator = PeerConnectionCoordinator(
         routingEngine = routingEngine,
@@ -331,8 +328,8 @@ class MeshLink(
             override suspend fun dispatchChunks(recipient: ByteArray, chunks: List<ChunkData>, messageId: ByteArray) {
                 this@MeshLink.dispatchChunks(scope!!, recipient, chunks, messageId)
             }
-            override fun triggerGossipUpdate() {
-                gossipCoordinator.triggerUpdate()
+            override fun onRouteDiscovered(destination: ByteArrayKey) {
+                drainPendingMessages(destination)
             }
             override fun onOutboundComplete(key: ByteArrayKey, messageId: ByteArray) {
                 emitHealthUpdate()
@@ -474,18 +471,10 @@ class MeshLink(
             }
         }
 
-        // Gossip route exchange: periodically broadcast route table to connected peers
-        // Also listens for triggered update signals to fire early gossip on significant route changes
-        if (config.gossipIntervalMillis > 0) {
-            newScope.launch {
-                gossipCoordinator.runGossipLoop { started }
-            }
-        }
-
-        // Keepalive loop: send keepalives when topology is stable (no gossip sent recently)
+        // Keepalive loop: send keepalives to detect neighbour liveness
         if (config.keepaliveIntervalMillis > 0) {
             newScope.launch {
-                gossipCoordinator.runKeepaliveLoop { started }
+                routeCoordinator.runKeepaliveLoop { started }
             }
         }
 
@@ -569,7 +558,7 @@ class MeshLink(
             powerMode = powerCoordinator.currentMode,
             avgRouteCost = routingEngine.avgCost(),
             relayQueueSize = pauseManager.relayQueueSize,
-            effectiveGossipIntervalMillis = routingEngine.effectiveGossipInterval(powerCoordinator.currentMode),
+            effectiveGossipIntervalMillis = 0L,
         )
     }
 
@@ -759,36 +748,13 @@ class MeshLink(
             }
 
             is SendDecision.Unreachable -> {
-                if (config.pendingMessageTtlMillis > 0) {
-                    val recipientId = recipient.toKey()
-                    when (
-                        deliveryPipeline.bufferPending(
-                            recipientId,
-                            recipient,
-                            payload,
-                            config.pendingMessageCapacity
-                        )
-                    ) {
-                        is BufferResult.Evicted -> {
-                            s.launch {
-                                _transferFailures.emit(
-                                    TransferFailure(
-                                        Uuid.random(),
-                                        DeliveryOutcome.FAILED_BUFFER_FULL
-                                    )
-                                )
-                            }
-                        }
-                        is BufferResult.Buffered -> {}
-                    }
-                    Result.success(Uuid.random())
-                } else {
-                    val failureId = Uuid.random()
-                    s.launch {
-                        _transferFailures.emit(TransferFailure(failureId, DeliveryOutcome.FAILED_NO_ROUTE))
-                    }
-                    Result.failure(IllegalStateException("No route to unknown peer"))
-                }
+                val destKey = recipient.toKey()
+                val pending = pendingMessages.getOrPut(destKey) { mutableListOf() }
+                pending.add(PendingSend(recipient, payload))
+                // Initiate AODV route discovery
+                val discovery = routingEngine.initiateRouteDiscovery(destKey)
+                s.launch { routeCoordinator.floodRouteRequest(discovery.rreqFrame) }
+                Result.success(Uuid.random())
             }
 
             is SendDecision.MissingPublicKey -> {
@@ -959,4 +925,21 @@ class MeshLink(
     private suspend fun handleIncomingData(fromPeerId: ByteArray, data: ByteArray) {
         messageDispatcher.dispatch(fromPeerId, data)
     }
+
+    /**
+     * Drain pending messages for a newly-discovered destination.
+     * Called when an RREP resolves a route.
+     */
+    private fun drainPendingMessages(destination: ByteArrayKey) {
+        val pending = pendingMessages.remove(destination) ?: return
+        val s = scope ?: return
+        for (msg in pending) {
+            s.launch { doSend(s, msg.recipient, msg.payload) }
+        }
+    }
 }
+
+private data class PendingSend(
+    val recipient: ByteArray,
+    val payload: ByteArray,
+)

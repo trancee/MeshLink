@@ -5,23 +5,27 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 class RoutingEngineTest {
 
     private fun key(s: String) = ByteArrayKey(s.encodeToByteArray())
 
-    private val localId = key("aabb")
+    /** 8-byte key required by WireCodec for peer IDs in AODV frames. */
+    private fun peerId(index: Int) = ByteArrayKey(ByteArray(8) { ((index shl 4) + it).toByte() })
+
+    private val localId = peerId(0)
     private fun engine(
-        gossipIntervalMillis: Long = 1000L,
         dedupCapacity: Int = 100,
-        triggeredUpdateThreshold: Double = 0.3,
+        routeCacheTtlMillis: Long = 60_000L,
+        maxHops: UByte = 10u,
         clock: () -> Long = { 0L },
     ) = RoutingEngine(
         localPeerId = localId,
         dedupCapacity = dedupCapacity,
-        triggeredUpdateThreshold = triggeredUpdateThreshold,
-        gossipIntervalMillis = gossipIntervalMillis,
+        routeCacheTtlMillis = routeCacheTtlMillis,
+        maxHops = maxHops,
         clock = clock,
     )
 
@@ -60,86 +64,193 @@ class RoutingEngineTest {
         assertIs<NextHopResult.Direct>(result)
     }
 
-    // ── 2. Route learning ─────────────────────────────────────────
+    // ── 2. AODV Route Discovery (initiateRouteDiscovery) ──────────
 
     @Test
-    fun learnNewRouteIsSignificantChange() {
+    fun initiateRouteDiscoveryReturnsRreqFrame() {
         val re = engine()
-        val result = re.learnRoutes(key("relay1"), listOf(LearnedRoute(key("dest1"), 1.0, 1u)))
-        assertIs<RouteLearnResult.SignificantChange>(result)
-        // Route should now be reachable with cost + 1
-        val hop = re.resolveNextHop(key("dest1"))
-        assertIs<NextHopResult.ViaRoute>(hop)
-        assertEquals(key("relay1"), hop.nextHop)
+        val discovery = re.initiateRouteDiscovery(peerId(1))
+        assertTrue(discovery.rreqFrame.isNotEmpty())
+        assertEquals(0x0B, discovery.rreqFrame[0].toInt(), "Frame should be TYPE_ROUTE_REQUEST")
     }
 
     @Test
-    fun learnRouteToSelfIsIgnored() {
+    fun initiateRouteDiscoveryIncrementsRequestId() {
         val re = engine()
-        val result = re.learnRoutes(key("relay1"), listOf(LearnedRoute(localId, 1.0, 1u)))
-        assertIs<RouteLearnResult.NoSignificantChange>(result)
-        assertIs<NextHopResult.Unreachable>(re.resolveNextHop(localId))
+        val d1 = re.initiateRouteDiscovery(peerId(1))
+        val d2 = re.initiateRouteDiscovery(peerId(2))
+        assertTrue(d2.requestId > d1.requestId, "Request IDs should increment")
     }
 
-    @Test
-    fun smallCostChangeIsNotSignificant() {
-        val re = engine(triggeredUpdateThreshold = 0.3)
-        re.addRoute(key("dest1"), key("relay1"), 10.0, 1u)
-        // Learned cost 8.5 + 1.0 = 9.5, change from 10.0 is 5% — below 30% threshold
-        val result = re.learnRoutes(key("relay1"), listOf(LearnedRoute(key("dest1"), 8.5, 2u)))
-        assertIs<RouteLearnResult.NoSignificantChange>(result)
-    }
+    // ── 3. AODV handleRouteRequest ────────────────────────────────
 
     @Test
-    fun learnRouteDetectsNextHopChange() {
+    fun handleRouteRequestForLocalPeerReplies() {
         val re = engine()
-        re.addRoute(key("dest1"), key("relay1"), 5.0, 1u)
-        // Better route via relay2 with same sequence
-        val result = re.learnRoutes(key("relay2"), listOf(LearnedRoute(key("dest1"), 1.0, 2u)))
-        assertIs<RouteLearnResult.SignificantChange>(result)
-        assertEquals(1, result.routeChanges.size)
-        assertEquals(key("relay1"), result.routeChanges[0].oldNextHop)
-        assertEquals(key("relay2"), result.routeChanges[0].newNextHop)
-    }
-
-    // ── 3. Split horizon & poison reverse ─────────────────────────
-
-    @Test
-    fun splitHorizonOmitsRouteLearnedFromPeer() {
-        val re = engine()
-        re.addRoute(key("dest1"), key("relay1"), 2.0, 1u)
-        // Gossip entries for relay1 should NOT include dest1 (split horizon)
-        val entries = re.prepareGossipEntries(key("relay1"))
-        assertTrue(entries.isEmpty())
+        val origin = peerId(1)
+        val result = re.handleRouteRequest(
+            fromPeerId = peerId(2),
+            originPeerId = origin,
+            destinationPeerId = localId,
+            requestId = 1u,
+            hopCount = 1u,
+            hopLimit = 10u,
+        )
+        assertIs<RouteRequestResult.Reply>(result)
+        assertEquals(peerId(2), result.replyTo)
+        assertTrue(result.replyFrame.isNotEmpty())
     }
 
     @Test
-    fun poisonReverseSendsWithdrawalToOldNextHop() {
+    fun handleRouteRequestForUnknownDestinationFloods() {
         val re = engine()
-        re.addRoute(key("dest1"), key("relay1"), 5.0, 1u)
-        // Learn better route via relay2 → triggers next-hop change
-        re.learnRoutes(key("relay2"), listOf(LearnedRoute(key("dest1"), 1.0, 2u)))
-        // Gossip for relay1 should contain poison reverse (MAX_VALUE cost)
-        val entries = re.prepareGossipEntries(key("relay1"))
-        assertEquals(1, entries.size)
-        assertEquals(Double.MAX_VALUE, entries[0].cost)
-        assertEquals(key("dest1"), entries[0].destination)
+        val result = re.handleRouteRequest(
+            fromPeerId = peerId(2),
+            originPeerId = peerId(1),
+            destinationPeerId = peerId(9),
+            requestId = 1u,
+            hopCount = 0u,
+            hopLimit = 10u,
+        )
+        assertIs<RouteRequestResult.Flood>(result)
+        assertTrue(result.rreqFrame.isNotEmpty())
     }
 
     @Test
-    fun normalGossipEntriesIncludeReachableRoutes() {
+    fun handleRouteRequestWithCachedRouteReplies() {
         val re = engine()
-        re.addRoute(key("dest1"), key("relay1"), 2.0, 1u)
-        re.addRoute(key("dest2"), key("relay1"), 3.0, 1u)
-        // Gossip for relay2 (not the next-hop) should include both routes
-        val entries = re.prepareGossipEntries(key("relay2"))
-        assertEquals(2, entries.size)
-        val costs = entries.map { it.cost }.toSet()
-        assertTrue(2.0 in costs)
-        assertTrue(3.0 in costs)
+        re.addRoute(peerId(3), peerId(4), 2.0, 1u)
+        val result = re.handleRouteRequest(
+            fromPeerId = peerId(2),
+            originPeerId = peerId(1),
+            destinationPeerId = peerId(3),
+            requestId = 1u,
+            hopCount = 0u,
+            hopLimit = 10u,
+        )
+        assertIs<RouteRequestResult.Reply>(result)
     }
 
-    // ── 4. Deduplication ──────────────────────────────────────────
+    @Test
+    fun handleRouteRequestDuplicateIsDropped() {
+        val re = engine()
+        re.handleRouteRequest(
+            fromPeerId = peerId(2),
+            originPeerId = peerId(1),
+            destinationPeerId = peerId(3),
+            requestId = 1u,
+            hopCount = 0u,
+            hopLimit = 10u,
+        )
+        val result = re.handleRouteRequest(
+            fromPeerId = peerId(4),
+            originPeerId = peerId(1),
+            destinationPeerId = peerId(3),
+            requestId = 1u,
+            hopCount = 0u,
+            hopLimit = 10u,
+        )
+        assertIs<RouteRequestResult.Drop>(result)
+    }
+
+    @Test
+    fun handleRouteRequestAtHopLimitIsDropped() {
+        val re = engine(maxHops = 3u)
+        val result = re.handleRouteRequest(
+            fromPeerId = peerId(2),
+            originPeerId = peerId(1),
+            destinationPeerId = peerId(3),
+            requestId = 1u,
+            hopCount = 3u,
+            hopLimit = 3u,
+        )
+        assertIs<RouteRequestResult.Drop>(result)
+    }
+
+    @Test
+    fun handleRouteRequestInstallsReverseRoute() {
+        val re = engine()
+        re.handleRouteRequest(
+            fromPeerId = peerId(2),
+            originPeerId = peerId(1),
+            destinationPeerId = peerId(3),
+            requestId = 1u,
+            hopCount = 2u,
+            hopLimit = 10u,
+        )
+        val route = re.bestRoute(peerId(1))
+        assertNotNull(route, "Reverse route to origin should be installed")
+        assertEquals(peerId(2), route.nextHop)
+    }
+
+    // ── 4. AODV handleRouteReply ──────────────────────────────────
+
+    @Test
+    fun handleRouteReplyAsOriginatorResolves() {
+        val re = engine()
+        re.initiateRouteDiscovery(peerId(3))
+        val result = re.handleRouteReply(
+            fromPeerId = peerId(2),
+            originPeerId = localId,
+            destinationPeerId = peerId(3),
+            requestId = 0u,
+            hopCount = 1u,
+        )
+        assertIs<RouteReplyResult.Resolved>(result)
+        assertEquals(peerId(3), result.destination)
+    }
+
+    @Test
+    fun handleRouteReplyInstallsForwardRoute() {
+        val re = engine()
+        re.handleRouteReply(
+            fromPeerId = peerId(2),
+            originPeerId = localId,
+            destinationPeerId = peerId(3),
+            requestId = 0u,
+            hopCount = 2u,
+        )
+        val route = re.bestRoute(peerId(3))
+        assertNotNull(route, "Forward route to destination should be installed")
+        assertEquals(peerId(2), route.nextHop)
+    }
+
+    @Test
+    fun handleRouteReplyForwardsAlongReversePath() {
+        val re = engine()
+        re.handleRouteRequest(
+            fromPeerId = peerId(2),
+            originPeerId = peerId(1),
+            destinationPeerId = peerId(3),
+            requestId = 5u,
+            hopCount = 0u,
+            hopLimit = 10u,
+        )
+        val result = re.handleRouteReply(
+            fromPeerId = peerId(4),
+            originPeerId = peerId(1),
+            destinationPeerId = peerId(3),
+            requestId = 5u,
+            hopCount = 1u,
+        )
+        assertIs<RouteReplyResult.Forward>(result)
+        assertEquals(peerId(2), result.nextHop)
+    }
+
+    @Test
+    fun handleRouteReplyWithNoReversePathDrops() {
+        val re = engine()
+        val result = re.handleRouteReply(
+            fromPeerId = peerId(2),
+            originPeerId = peerId(9),
+            destinationPeerId = peerId(3),
+            requestId = 99u,
+            hopCount = 1u,
+        )
+        assertIs<RouteReplyResult.Drop>(result)
+    }
+
+    // ── 5. Deduplication ──────────────────────────────────────────
 
     @Test
     fun firstMessageIsNotDuplicate() {
@@ -162,49 +273,6 @@ class RoutingEngineTest {
         re.isDuplicate(key("msg3")) // evicts msg1
         assertFalse(re.isDuplicate(key("msg1"))) // msg1 was evicted, so it's "new" (re-insert evicts msg2)
         assertTrue(re.isDuplicate(key("msg3")))  // msg3 still present
-    }
-
-    // ── 5. Gossip timing ──────────────────────────────────────────
-
-    @Test
-    fun effectiveGossipIntervalScalesWithPowerMode() {
-        val re = engine(gossipIntervalMillis = 1000L)
-        assertEquals(1000L, re.effectiveGossipInterval("PERFORMANCE"))
-        assertEquals(2000L, re.effectiveGossipInterval("BALANCED"))
-        assertEquals(3000L, re.effectiveGossipInterval("POWER_SAVER"))
-    }
-
-    @Test
-    fun effectiveGossipIntervalScalesWithRouteCount() {
-        val re = engine(gossipIntervalMillis = 1000L)
-        // Add >100 routes to trigger 1.5x multiplier
-        for (i in 0..100) {
-            re.addRoute(key("dest$i"), key("relay"), 1.0, 1u)
-        }
-        assertEquals(1500L, re.effectiveGossipInterval("PERFORMANCE"))
-    }
-
-    @Test
-    fun triggeredUpdateRateLimited() {
-        var now = 0L
-        val re = engine(gossipIntervalMillis = 1000L, clock = { now })
-        // First triggered update always allowed
-        assertTrue(re.shouldSendTriggeredUpdate(key("peer1"), "PERFORMANCE"))
-        re.recordTriggeredUpdate(key("peer1"))
-        // Immediately after: rate limited
-        assertFalse(re.shouldSendTriggeredUpdate(key("peer1"), "PERFORMANCE"))
-        // After interval: allowed again
-        now = 1000L
-        assertTrue(re.shouldSendTriggeredUpdate(key("peer1"), "PERFORMANCE"))
-    }
-
-    @Test
-    fun timeSinceLastGossipTracked() {
-        var now = 0L
-        val re = engine(clock = { now })
-        re.recordGossipSent()
-        now = 500L
-        assertEquals(500L, re.timeSinceLastGossip())
     }
 
     // ── 6. Presence ───────────────────────────────────────────────
@@ -251,29 +319,23 @@ class RoutingEngineTest {
 
     @Test
     fun clearResetsAllState() {
-        var now = 0L
-        val re = engine(clock = { now })
+        val re = engine()
         re.peerSeen(key("peer1"))
         re.addRoute(key("dest1"), key("relay"), 2.0, 1u)
         re.isDuplicate(key("msg1"))
-        re.recordTriggeredUpdate(key("peer1"))
-        re.recordGossipSent()
-        now = 100L
 
         re.clear()
 
         assertEquals(0, re.peerCount)
         assertEquals(0, re.routeCount)
-        assertFalse(re.isDuplicate(key("msg1"))) // dedup cleared, msg1 is "new" again
-        assertTrue(re.shouldSendTriggeredUpdate(key("peer1"), "PERFORMANCE"))
-        assertEquals(now, re.timeSinceLastGossip()) // lastGossipSentMillis reset to 0
+        assertFalse(re.isDuplicate(key("msg1")))
     }
 
     // ── Next-hop reliability tracking ──────────────────────────────
 
     @Test
     fun nextHopFailureRateTracksSuccessesAndFailures() {
-        val re = RoutingEngine(key("local"))
+        val re = RoutingEngine(peerId(0xF0))
         assertEquals(0.0, re.nextHopFailureRate(key("relay01")))
 
         re.recordNextHopSuccess(key("relay01"))
@@ -286,7 +348,7 @@ class RoutingEngineTest {
 
     @Test
     fun nextHopFailureCountersClearedOnClear() {
-        val re = RoutingEngine(key("local"))
+        val re = RoutingEngine(peerId(0xF0))
         re.recordNextHopFailure(key("relay01"))
         re.recordNextHopSuccess(key("relay01"))
         re.clear()

@@ -25,8 +25,6 @@ class PeerConnectionCoordinatorTest {
     private fun routingEngine() = RoutingEngine(
         localPeerId = ByteArrayKey(localPeerId),
         dedupCapacity = 100,
-        triggeredUpdateThreshold = 0.3,
-        gossipIntervalMillis = 5_000L,
     )
 
     /** Build an AdvertisementCodec payload with power mode and key hash. */

@@ -8,9 +8,9 @@ import io.meshlink.delivery.DeliveryPipeline
 import io.meshlink.diagnostics.DiagnosticCode
 import io.meshlink.diagnostics.DiagnosticSink
 import io.meshlink.diagnostics.Severity
-import io.meshlink.routing.LearnedRoute
 import io.meshlink.routing.NextHopResult
-import io.meshlink.routing.RouteLearnResult
+import io.meshlink.routing.RouteReplyResult
+import io.meshlink.routing.RouteRequestResult
 import io.meshlink.routing.RoutingEngine
 import io.meshlink.transfer.ChunkAcceptResult
 import io.meshlink.transfer.TransferEngine
@@ -51,13 +51,15 @@ internal class MessageDispatcher(
                 WireCodec.TYPE_CHUNK -> handleChunk(fromPeerId, data)
                 WireCodec.TYPE_CHUNK_ACK -> handleChunkAck(data)
                 WireCodec.TYPE_BROADCAST -> handleBroadcast(fromPeerId, data)
-                WireCodec.TYPE_ROUTE_UPDATE -> handleRouteUpdate(fromPeerId, data)
+                WireCodec.TYPE_ROUTE_REQUEST -> handleRouteRequest(fromPeerId, data)
+                WireCodec.TYPE_ROUTE_REPLY -> handleRouteReply(fromPeerId, data)
                 WireCodec.TYPE_ROUTED_MESSAGE -> handleRoutedMessage(fromPeerId, data)
                 WireCodec.TYPE_DELIVERY_ACK -> handleDeliveryAck(data)
                 WireCodec.TYPE_RESUME_REQUEST -> handleResumeRequest(data)
                 WireCodec.TYPE_KEEPALIVE -> handleKeepalive(fromPeerId, data)
                 WireCodec.TYPE_NACK -> { /* NACK received — no-op for now */ }
                 WireCodec.TYPE_ROTATION -> handleRotationAnnouncement(fromPeerId, data)
+                WireCodec.TYPE_ROUTE_UPDATE -> { /* Legacy DSDV — ignored */ }
                 else -> {
                     diagnosticSink.emit(
                         DiagnosticCode.UNKNOWN_MESSAGE_TYPE,
@@ -88,39 +90,49 @@ internal class MessageDispatcher(
         }
     }
 
-    private suspend fun handleRouteUpdate(fromPeerId: ByteArray, data: ByteArray) {
-        val update = WireCodec.decodeRouteUpdate(data)
-        if (validator.cryptoRequired) {
-            val signedData = data.copyOfRange(0, data.size - 64)
-            if (!validator.validateRouteUpdateSignature(
-                    fromPeerId.toKey(),
-                    update.signature,
-                    update.signerPublicKey,
-                    signedData,
-                )
-            ) {
-                return
-            }
-        }
-
-        val learned = update.entries.map { entry ->
-            LearnedRoute(entry.destination.toKey(), entry.cost, entry.sequenceNumber)
-        }
-        val result = routingEngine.learnRoutes(fromPeerId.toKey(), learned)
+    private suspend fun handleRouteRequest(fromPeerId: ByteArray, data: ByteArray) {
+        val rreq = WireCodec.decodeRouteRequest(data)
+        val result = routingEngine.handleRouteRequest(
+            fromPeerId = fromPeerId.toKey(),
+            originPeerId = rreq.origin.toKey(),
+            destinationPeerId = rreq.destination.toKey(),
+            requestId = rreq.requestId,
+            hopCount = rreq.hopCount,
+            hopLimit = rreq.hopLimit,
+        )
         when (result) {
-            is RouteLearnResult.SignificantChange -> {
-                for (change in result.routeChanges) {
-                    diagnosticSink.emit(
-                        DiagnosticCode.ROUTE_CHANGED,
-                        Severity.INFO,
-                        "dest=${change.destination}, oldNextHop=${change.oldNextHop}, newNextHop=${change.newNextHop}",
-                    )
-                }
-                if (config.gossipIntervalMillis > 0) {
-                    sink.triggerGossipUpdate()
+            is RouteRequestResult.Reply -> {
+                sink.sendFrame(result.replyTo.bytes, result.replyFrame)
+            }
+            is RouteRequestResult.Flood -> {
+                val senderId = fromPeerId.toKey()
+                for (peerId in routingEngine.connectedPeerIds()) {
+                    if (peerId != senderId) {
+                        sink.sendFrame(peerId.bytes, result.rreqFrame)
+                    }
                 }
             }
-            is RouteLearnResult.NoSignificantChange -> {}
+            is RouteRequestResult.Drop -> {}
+        }
+    }
+
+    private suspend fun handleRouteReply(fromPeerId: ByteArray, data: ByteArray) {
+        val rrep = WireCodec.decodeRouteReply(data)
+        val result = routingEngine.handleRouteReply(
+            fromPeerId = fromPeerId.toKey(),
+            originPeerId = rrep.origin.toKey(),
+            destinationPeerId = rrep.destination.toKey(),
+            requestId = rrep.requestId,
+            hopCount = rrep.hopCount,
+        )
+        when (result) {
+            is RouteReplyResult.Forward -> {
+                sink.sendFrame(result.nextHop.bytes, result.rrepFrame)
+            }
+            is RouteReplyResult.Resolved -> {
+                sink.onRouteDiscovered(result.destination)
+            }
+            is RouteReplyResult.Drop -> {}
         }
     }
 

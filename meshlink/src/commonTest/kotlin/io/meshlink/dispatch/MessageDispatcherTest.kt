@@ -33,7 +33,7 @@ class MessageDispatcherTest {
         val framesSent = mutableListOf<Pair<ByteArray, ByteArray>>()
         val keyChanges = mutableListOf<KeyChangeEvent>()
         val chunksDispatched = mutableListOf<Triple<ByteArray, List<ChunkData>, ByteArray>>()
-        var gossipTriggered = false
+        val discoveredRoutes = mutableListOf<ByteArrayKey>()
         val completedKeys = mutableListOf<ByteArrayKey>()
 
         override suspend fun onMessageReceived(senderId: ByteArray, payload: ByteArray) {
@@ -60,8 +60,8 @@ class MessageDispatcherTest {
             chunksDispatched.add(Triple(recipient, chunks, messageId))
         }
 
-        override fun triggerGossipUpdate() {
-            gossipTriggered = true
+        override fun onRouteDiscovered(destination: ByteArrayKey) {
+            discoveredRoutes.add(destination)
         }
 
         override fun onOutboundComplete(key: ByteArrayKey, messageId: ByteArray) {

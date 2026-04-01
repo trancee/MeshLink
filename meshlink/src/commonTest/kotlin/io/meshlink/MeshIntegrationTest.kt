@@ -236,7 +236,7 @@ class MeshIntegrationTest {
         tA.linkTo(tB)
         tB.linkTo(tC)
 
-        val config = testMeshLinkConfig { requireEncryption = false; gossipIntervalMillis = 100L }
+        val config = testMeshLinkConfig { requireEncryption = false }
         val a = MeshLink(tA, config, coroutineContext)
         val b = MeshLink(tB, config, coroutineContext)
         val c = MeshLink(tC, config, coroutineContext)
@@ -247,6 +247,9 @@ class MeshIntegrationTest {
         b.addRoute(hexC, hexC, 1.0, 1u)
         c.addRoute(hexB, hexB, 1.0, 1u)
 
+        // Pre-install multi-hop route: A reaches C via B (AODV — no gossip)
+        a.addRoute(hexC, hexB, 2.0, 2u)
+
         a.start(); b.start(); c.start()
         testScheduler.advanceTimeBy(1L)
 
@@ -255,12 +258,9 @@ class MeshIntegrationTest {
         tB.simulateDiscovery(idC); tC.simulateDiscovery(idB)
         testScheduler.advanceTimeBy(1L)
 
-        // Allow gossip to propagate routes (A learns about C via B)
-        testScheduler.advanceTimeBy(500L)
-
-        // A should have learned routes via gossip (avgRouteCost > 0)
+        // A should have routes (manually installed)
         val health = a.meshHealth()
-        assertTrue(health.avgRouteCost > 0.0, "A should have routes after gossip")
+        assertTrue(health.avgRouteCost > 0.0, "A should have routes")
 
         // Send message from A to C — routed via B
         val result = a.send(idC, "routed hello".encodeToByteArray())
@@ -721,17 +721,17 @@ class MeshIntegrationTest {
     // ── Send rejection: unreachable peer ──────────────────────────
 
     @Test
-    fun sendToUnreachablePeerFails() = runTest {
+    fun sendToUnreachablePeerQueuesAndDiscovers() = runTest {
         val tAlice = VirtualMeshTransport(peerIdAlice)
         val config = testMeshLinkConfig { requireEncryption = false }
         val alice = MeshLink(tAlice, config, coroutineContext)
         alice.start()
         advanceUntilIdle()
 
-        // No discovery — Bob is unknown
+        // No discovery — Bob is unknown. AODV queues and floods RREQ.
         val unknownPeer = ByteArray(8) { 0xFF.toByte() }
         val result = alice.send(unknownPeer, "hello".encodeToByteArray())
-        assertTrue(result.isFailure, "send to undiscovered peer should fail")
+        assertTrue(result.isSuccess, "send to undiscovered peer should queue for route discovery")
 
         alice.stop()
     }
@@ -1036,7 +1036,7 @@ class MeshIntegrationTest {
         tA.linkTo(tB)
         tB.linkTo(tC)
 
-        val config = testMeshLinkConfig { requireEncryption = false; gossipIntervalMillis = 100L }
+        val config = testMeshLinkConfig { requireEncryption = false }
         val a = MeshLink(tA, config, coroutineContext, crypto = CryptoProvider())
         val b = MeshLink(tB, config, coroutineContext, crypto = CryptoProvider())
         val c = MeshLink(tC, config, coroutineContext, crypto = CryptoProvider())
@@ -1047,6 +1047,9 @@ class MeshIntegrationTest {
         b.addRoute(hexC, hexC, 1.0, 1u)
         c.addRoute(hexB, hexB, 1.0, 1u)
 
+        // Pre-install multi-hop route: A reaches C via B (AODV — no gossip)
+        a.addRoute(hexC, hexB, 2.0, 2u)
+
         a.start(); b.start(); c.start()
         testScheduler.advanceTimeBy(1L)
 
@@ -1055,11 +1058,8 @@ class MeshIntegrationTest {
         tB.simulateDiscovery(idC); tC.simulateDiscovery(idB)
         testScheduler.advanceTimeBy(50L)
 
-        // Gossip propagates routes (A learns about C via B)
-        testScheduler.advanceTimeBy(500L)
-
         val health = a.meshHealth()
-        assertTrue(health.avgRouteCost > 0.0, "A should have routes after gossip")
+        assertTrue(health.avgRouteCost > 0.0, "A should have routes")
 
         // Send encrypted message from A to C — routed via B
         val result = a.send(idC, "encrypted routed hello".encodeToByteArray())
@@ -1090,7 +1090,7 @@ class MeshIntegrationTest {
         tB.linkTo(tC)
         // Note: A is NOT linked to C — C can only receive via relay through B
 
-        val config = testMeshLinkConfig { requireEncryption = false; gossipIntervalMillis = 100L }
+        val config = testMeshLinkConfig { requireEncryption = false }
         val a = MeshLink(tA, config, coroutineContext)
         val b = MeshLink(tB, config, coroutineContext)
         val c = MeshLink(tC, config, coroutineContext)
@@ -1125,62 +1125,36 @@ class MeshIntegrationTest {
         testScheduler.advanceTimeBy(1L)
     }
 
-    // ── Gossip convergence timing ─────────────────────────────────
+    // ── AODV route discovery ───────────────────────────────────────
 
     @Test
-    fun gossipConvergesRoutingTableWithinOneInterval() = runTest {
-        // A ↔ B ↔ C: after one gossip interval, A should learn route to C via B
-        val idA = peerId(1); val idB = peerId(2); val idC = peerId(3)
-        val hexA = idA.toHex(); val hexB = idB.toHex(); val hexC = idC.toHex()
-        val tA = VirtualMeshTransport(idA)
-        val tB = VirtualMeshTransport(idB)
-        val tC = VirtualMeshTransport(idC)
-        tA.linkTo(tB)
-        tB.linkTo(tC)
+    fun aodvRouteDiscoveryQueuesAndSendsRreq() = runTest {
+        // When sending to an unknown peer, AODV queues the message and floods an RREQ
+        val tAlice = VirtualMeshTransport(peerIdAlice)
+        val tBob = VirtualMeshTransport(peerIdBob)
+        tAlice.linkTo(tBob)
 
-        val gossipInterval = 200L
-        val config = testMeshLinkConfig {
-            requireEncryption = false
-            gossipIntervalMillis = gossipInterval
+        val config = testMeshLinkConfig { requireEncryption = false }
+        val alice = MeshLink(tAlice, config, coroutineContext)
+        alice.start()
+        advanceUntilIdle()
+
+        tAlice.simulateDiscovery(peerIdBob)
+        advanceUntilIdle()
+
+        // Send to unknown peer C — should succeed (queued) and flood RREQ
+        val unknownPeer = ByteArray(8) { 0xAA.toByte() }
+        val result = alice.send(unknownPeer, "find-me".encodeToByteArray())
+        assertTrue(result.isSuccess, "send to unknown peer should queue for discovery")
+        advanceUntilIdle()
+
+        // Verify an RREQ was flooded to neighbors
+        val rreqs = tAlice.sentData.filter { (_, data) ->
+            data.isNotEmpty() && data[0] == WireCodec.TYPE_ROUTE_REQUEST
         }
-        val a = MeshLink(tA, config, coroutineContext)
-        val b = MeshLink(tB, config, coroutineContext)
-        val c = MeshLink(tC, config, coroutineContext)
+        assertTrue(rreqs.isNotEmpty(), "Alice should flood an RREQ to discover the unknown peer")
 
-        // Seed direct neighbor routes
-        a.addRoute(hexB, hexB, 1.0, 1u)
-        b.addRoute(hexA, hexA, 1.0, 1u)
-        b.addRoute(hexC, hexC, 1.0, 1u)
-        c.addRoute(hexB, hexB, 1.0, 1u)
-
-        a.start(); b.start(); c.start()
-        testScheduler.advanceTimeBy(1L)
-
-        tA.simulateDiscovery(idB); tB.simulateDiscovery(idA)
-        tB.simulateDiscovery(idC); tC.simulateDiscovery(idB)
-        testScheduler.advanceTimeBy(1L)
-
-        // Before gossip: A only knows direct neighbor B
-        val healthBefore = a.meshHealth()
-
-        // Advance exactly 2 gossip intervals — routes should propagate A→B→C
-        testScheduler.advanceTimeBy(gossipInterval * 2 + 50L)
-
-        val healthAfter = a.meshHealth()
-
-        // A should have learned more routes after gossip convergence
-        assertTrue(
-            healthAfter.reachablePeers >= healthBefore.reachablePeers,
-            "A should discover more peers after gossip: before=${healthBefore.reachablePeers}, after=${healthAfter.reachablePeers}"
-        )
-
-        // Verify A can now route a message to C
-        val result = a.send(idC, "post-gossip".encodeToByteArray())
-        testScheduler.advanceTimeBy(10L)
-        assertTrue(result.isSuccess, "A should be able to send to C after gossip convergence: $result")
-
-        a.stop(); b.stop(); c.stop()
-        testScheduler.advanceTimeBy(1L)
+        alice.stop()
     }
 
     // ── Concurrent transfers ──────────────────────────────────────
