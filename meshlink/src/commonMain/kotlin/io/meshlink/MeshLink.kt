@@ -52,6 +52,7 @@ import io.meshlink.util.toHex
 import io.meshlink.util.toKey
 import io.meshlink.util.withLock
 import io.meshlink.wire.AdvertisementCodec
+import io.meshlink.wire.NackReason
 import io.meshlink.wire.WireCodec
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
@@ -887,7 +888,11 @@ class MeshLink(
         }
     }
 
-    internal fun sendNack(peerId: ByteArray, messageId: ByteArray) {
+    internal fun sendNack(
+        peerId: ByteArray,
+        messageId: ByteArray,
+        reason: NackReason = NackReason.UNKNOWN,
+    ) {
         val peerKey = peerId.toKey()
         if (rateLimitPolicy.checkNack(peerKey) is RateLimitResult.Limited) {
             diagnosticSink.emit(
@@ -897,7 +902,7 @@ class MeshLink(
             )
             return
         }
-        val frame = WireCodec.encodeNack(messageId)
+        val frame = WireCodec.encodeNack(messageId, reason)
         scope?.launch { safeSend(peerId, frame) }
     }
 

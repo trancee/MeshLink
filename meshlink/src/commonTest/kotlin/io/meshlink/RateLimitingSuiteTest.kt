@@ -8,6 +8,7 @@ import io.meshlink.diagnostics.Severity
 import io.meshlink.transport.VirtualMeshTransport
 import io.meshlink.util.ByteArrayKey
 import io.meshlink.util.RateLimiter
+import io.meshlink.wire.NackReason
 import io.meshlink.wire.WireCodec
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
@@ -272,5 +273,36 @@ class RateLimitingSuiteTest {
         assertEquals(WireCodec.TYPE_NACK, encoded[0])
         val decoded = WireCodec.decodeNack(encoded)
         assertTrue(decoded.messageId.contentEquals(messageId), "Message ID should round-trip")
+        assertEquals(NackReason.UNKNOWN, decoded.reason, "Default reason should be UNKNOWN")
+    }
+
+    @Test
+    fun nackReasonCodeRoundTrips() {
+        val messageId = ByteArray(16) { (0xAA + it).toByte() }
+        for (reason in NackReason.entries) {
+            val encoded = WireCodec.encodeNack(messageId, reason)
+            assertEquals(18, encoded.size, "NACK frame should be 18 bytes")
+            val decoded = WireCodec.decodeNack(encoded)
+            assertEquals(reason, decoded.reason, "Reason $reason should round-trip")
+        }
+    }
+
+    @Test
+    fun nackGoldenVector() {
+        // type(0x09) + messageId(16 x 0xFF) + reason(0x01 = BUFFER_FULL)
+        val golden = byteArrayOf(
+            0x09,
+            0xFF.toByte(), 0xFF.toByte(), 0xFF.toByte(), 0xFF.toByte(),
+            0xFF.toByte(), 0xFF.toByte(), 0xFF.toByte(), 0xFF.toByte(),
+            0xFF.toByte(), 0xFF.toByte(), 0xFF.toByte(), 0xFF.toByte(),
+            0xFF.toByte(), 0xFF.toByte(), 0xFF.toByte(), 0xFF.toByte(),
+            0x01,
+        )
+        val decoded = WireCodec.decodeNack(golden)
+        assertTrue(decoded.messageId.all { it == 0xFF.toByte() }, "messageId should be all 0xFF")
+        assertEquals(NackReason.BUFFER_FULL, decoded.reason)
+
+        val reencoded = WireCodec.encodeNack(ByteArray(16) { 0xFF.toByte() }, NackReason.BUFFER_FULL)
+        assertTrue(golden.contentEquals(reencoded), "Golden vector should re-encode identically")
     }
 }

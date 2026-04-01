@@ -105,7 +105,7 @@ All framed messages begin with a 1-byte type code at offset 0.
 | `0x06` | Delivery ACK | `TYPE_DELIVERY_ACK` | Variable (min 34) | End-to-end delivery confirmation. |
 | `0x07` | Resume Request | `TYPE_RESUME_REQUEST` | 21 | Request to resume a chunked transfer. |
 | `0x08` | Keepalive | `TYPE_KEEPALIVE` | 6 | Link liveness probe. |
-| `0x09` | NACK | `TYPE_NACK` | 17 | Negative acknowledgment. |
+| `0x09` | NACK | `TYPE_NACK` | 18 | Negative acknowledgment with reason code. |
 | `0x0A` | Rotation Announcement | `TYPE_ROTATION` | 201 | Key rotation broadcast. |
 
 ---
@@ -430,23 +430,24 @@ Byte:   0       1       2                       5
 ### 0x09 — NACK
 
 Negative acknowledgment indicating that a message could not be delivered or
-processed.
+processed. Includes a reason code so the sender can distinguish failure modes.
 
-**Source:** `WireCodec.kt` · `NACK_SIZE = 17`
+**Source:** `WireCodec.kt` · `NACK_SIZE = 18`
 
 ```
-Byte:   0       1                              16
-       +-------+---------- ... ----------------+
-       | 0x09  |         messageId (16)         |
-       +-------+---------- ... ----------------+
+Byte:   0       1                              16      17
+       +-------+---------- ... ----------------+-------+
+       | 0x09  |         messageId (16)         |reason |
+       +-------+---------- ... ----------------+-------+
 ```
 
 | Offset | Size | Field | Type | Endianness | Description |
 |--------|------|-------|------|------------|-------------|
 | 0 | 1 | `type` | byte | — | `0x09` |
-| 1–16 | 16 | `messageId` | bytes | — | ID of the message being negatively acknowledged. Must be exactly 16 bytes. |
+| 1–16 | 16 | `messageId` | bytes | — | ID of the message being negatively acknowledged. |
+| 17 | 1 | `reason` | UByte | — | Reason code: `0` = unknown, `1` = buffer full, `2` = unknown destination, `3` = decryption failed, `4` = rate limited. |
 
-**Fixed size:** 17 bytes.
+**Fixed size:** 18 bytes.
 
 ---
 

@@ -404,14 +404,15 @@ object WireCodec {
         return KeepaliveMessage(flags, timestampSeconds)
     }
 
-    // nack: type(1) + messageId(16) = 17
-    private const val NACK_SIZE = 17
+    // nack: type(1) + messageId(16) + reason(1) = 18
+    private const val NACK_SIZE = 18
 
-    fun encodeNack(messageId: ByteArray): ByteArray {
+    fun encodeNack(messageId: ByteArray, reason: NackReason = NackReason.UNKNOWN): ByteArray {
         require(messageId.size == MESSAGE_ID_SIZE) { "messageId must be $MESSAGE_ID_SIZE bytes" }
         val buf = ByteArray(NACK_SIZE)
         buf[0] = TYPE_NACK
         messageId.copyInto(buf, 1)
+        buf[17] = reason.code.toByte()
         return buf
     }
 
@@ -419,7 +420,8 @@ object WireCodec {
         require(data.size >= NACK_SIZE) { "nack too short: ${data.size}" }
         require(data[0] == TYPE_NACK) { "not a nack: 0x${data[0].toUByte().toString(16)}" }
         val messageId = data.copyOfRange(1, 1 + MESSAGE_ID_SIZE)
-        return NackMessage(messageId)
+        val reason = NackReason.fromCode(data[17].toUByte())
+        return NackMessage(messageId, reason)
     }
 }
 
@@ -577,4 +579,18 @@ data class KeepaliveMessage(
 
 data class NackMessage(
     val messageId: ByteArray,
+    val reason: NackReason = NackReason.UNKNOWN,
 )
+
+enum class NackReason(val code: UByte) {
+    UNKNOWN(0u),
+    BUFFER_FULL(1u),
+    UNKNOWN_DESTINATION(2u),
+    DECRYPT_FAILED(3u),
+    RATE_LIMITED(4u);
+
+    companion object {
+        fun fromCode(code: UByte): NackReason =
+            entries.firstOrNull { it.code == code } ?: UNKNOWN
+    }
+}
