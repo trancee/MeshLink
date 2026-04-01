@@ -75,7 +75,7 @@ class RateLimitingSuiteTest {
 
     @Test
     fun presetIncludesNewRateLimitFields() {
-        val chat = MeshLinkConfig.chatOptimized {
+        val chat = MeshLinkConfig.smallPayloadLowLatency {
             handshakeRateLimitPerSec = 2
         }
         assertEquals(2, chat.handshakeRateLimitPerSec)

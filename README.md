@@ -38,8 +38,8 @@ See the [Integration Guide](docs/integration-guide.md) for complete setup, confi
 
 ## Configuration Presets
 
-MeshLink ships with four presets — `chatOptimized`, `fileTransferOptimized`,
-`powerOptimized`, and `sensorOptimized` — see the
+MeshLink ships with four presets — `smallPayloadLowLatency`, `largePayloadHighThroughput`,
+`minimalResourceUsage`, and `minimalOverhead` — see the
 [API Reference](docs/api-reference.md#presets) for details.
 
 ## Security

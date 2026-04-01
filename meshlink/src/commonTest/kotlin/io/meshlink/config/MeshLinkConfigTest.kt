@@ -8,20 +8,20 @@ class MeshLinkConfigTest {
 
     @Test
     fun presetsReturnCorrectDefaultsWithOverrides() {
-        val chat = MeshLinkConfig.chatOptimized()
+        val chat = MeshLinkConfig.smallPayloadLowLatency()
         assertEquals(10_000, chat.maxMessageSize)
         assertEquals(524_288, chat.bufferCapacity)
 
-        val file = MeshLinkConfig.fileTransferOptimized()
+        val file = MeshLinkConfig.largePayloadHighThroughput()
         assertEquals(100_000, file.maxMessageSize)
         assertEquals(2_097_152, file.bufferCapacity)
 
-        val power = MeshLinkConfig.powerOptimized()
+        val power = MeshLinkConfig.minimalResourceUsage()
         assertEquals(10_000, power.maxMessageSize)
         assertEquals(262_144, power.bufferCapacity)
 
         // Individual override after preset
-        val custom = MeshLinkConfig.chatOptimized { maxMessageSize = 50_000 }
+        val custom = MeshLinkConfig.smallPayloadLowLatency { maxMessageSize = 50_000 }
         assertEquals(50_000, custom.maxMessageSize)
         assertEquals(524_288, custom.bufferCapacity)
     }
@@ -62,8 +62,8 @@ class MeshLinkConfigTest {
 
     @Test
     fun presetOverridePreservesNewFields() {
-        // Override rate limiting in chatOptimized preset
-        val chat = MeshLinkConfig.chatOptimized {
+        // Override rate limiting in smallPayloadLowLatency preset
+        val chat = MeshLinkConfig.smallPayloadLowLatency {
             rateLimitMaxSends = 5
             circuitBreakerMaxFailures = 3
         }
@@ -74,7 +74,7 @@ class MeshLinkConfigTest {
         assertEquals(60_000L, chat.rateLimitWindowMillis, "Non-overridden new field should keep builder default")
 
         // Validate catches violation when override creates inconsistency
-        val invalid = MeshLinkConfig.fileTransferOptimized {
+        val invalid = MeshLinkConfig.largePayloadHighThroughput {
             bufferCapacity = 100  // less than maxMessageSize (100_000)
         }
         val violations = invalid.validate()
@@ -84,9 +84,9 @@ class MeshLinkConfigTest {
     @Test
     fun allPresetsPassValidation() {
         val presets = listOf(
-            "chatOptimized" to MeshLinkConfig.chatOptimized(),
-            "fileTransferOptimized" to MeshLinkConfig.fileTransferOptimized(),
-            "powerOptimized" to MeshLinkConfig.powerOptimized(),
+            "smallPayloadLowLatency" to MeshLinkConfig.smallPayloadLowLatency(),
+            "largePayloadHighThroughput" to MeshLinkConfig.largePayloadHighThroughput(),
+            "minimalResourceUsage" to MeshLinkConfig.minimalResourceUsage(),
         )
         for ((name, config) in presets) {
             val violations = config.validate()
@@ -99,7 +99,7 @@ class MeshLinkConfigTest {
 
     @Test
     fun presetOverridesRelayQueueCapacity() {
-        val custom = MeshLinkConfig.chatOptimized { relayQueueCapacity = 50 }
+        val custom = MeshLinkConfig.smallPayloadLowLatency { relayQueueCapacity = 50 }
         assertEquals(50, custom.relayQueueCapacity)
         assertEquals(10_000, custom.maxMessageSize, "Other fields preserved")
     }
@@ -231,14 +231,30 @@ class MeshLinkConfigTest {
     }
 
     @Test
-    fun chatOptimizedPresetHasShorterDeliveryTimeout() {
-        val config = MeshLinkConfig.chatOptimized()
+    fun smallPayloadLowLatencyPresetHasShorterDeliveryTimeout() {
+        val config = MeshLinkConfig.smallPayloadLowLatency()
         assertEquals(10_000L, config.deliveryTimeoutMillis)
     }
 
     @Test
     fun fileTransferPresetHasLongerDeliveryTimeout() {
-        val config = MeshLinkConfig.fileTransferOptimized()
+        val config = MeshLinkConfig.largePayloadHighThroughput()
         assertEquals(120_000L, config.deliveryTimeoutMillis)
+    }
+
+    @Suppress("DEPRECATION")
+    @Test
+    fun deprecatedPresetAliasesStillWork() {
+        val chat = MeshLinkConfig.chatOptimized()
+        assertEquals(MeshLinkConfig.smallPayloadLowLatency(), chat)
+
+        val file = MeshLinkConfig.fileTransferOptimized()
+        assertEquals(MeshLinkConfig.largePayloadHighThroughput(), file)
+
+        val power = MeshLinkConfig.powerOptimized()
+        assertEquals(MeshLinkConfig.minimalResourceUsage(), power)
+
+        val sensor = MeshLinkConfig.sensorOptimized()
+        assertEquals(MeshLinkConfig.minimalOverhead(), sensor)
     }
 }

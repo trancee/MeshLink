@@ -2100,9 +2100,9 @@ class MeshLinkTest {
 
         // Each preset should start without validation errors
         for ((name, config) in listOf(
-            "chatOptimized" to io.meshlink.config.MeshLinkConfig.chatOptimized().copy(requireEncryption = false),
-            "fileTransferOptimized" to io.meshlink.config.MeshLinkConfig.fileTransferOptimized().copy(requireEncryption = false),
-            "powerOptimized" to io.meshlink.config.MeshLinkConfig.powerOptimized().copy(requireEncryption = false),
+            "smallPayloadLowLatency" to io.meshlink.config.MeshLinkConfig.smallPayloadLowLatency().copy(requireEncryption = false),
+            "largePayloadHighThroughput" to io.meshlink.config.MeshLinkConfig.largePayloadHighThroughput().copy(requireEncryption = false),
+            "minimalResourceUsage" to io.meshlink.config.MeshLinkConfig.minimalResourceUsage().copy(requireEncryption = false),
         )) {
             val alice = MeshLink(transportAlice, config, coroutineContext)
             val result = alice.start()

@@ -220,8 +220,8 @@ private fun formatUptime(startTimeMillis: Long): String {
 
 /** Available config presets with display metadata. */
 enum class ConfigPreset(val key: String, val label: String, val description: String) {
-    CHAT("chatOptimized", "Chat Optimized", "Low latency, moderate buffer"),
-    FILE_TRANSFER("fileTransferOptimized", "File Transfer", "Large messages, big buffer"),
-    POWER("powerOptimized", "Power Optimized", "Reduced resource usage"),
-    SENSOR("sensorOptimized", "Sensor / IoT", "Tiny messages, long intervals"),
+    CHAT("smallPayloadLowLatency", "Small Payload / Low Latency", "Low latency, moderate buffer"),
+    FILE_TRANSFER("largePayloadHighThroughput", "Large Payload / High Throughput", "Large messages, big buffer"),
+    POWER("minimalResourceUsage", "Minimal Resource Usage", "Reduced resource usage"),
+    SENSOR("minimalOverhead", "Minimal Overhead", "Tiny messages, long intervals"),
 }

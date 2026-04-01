@@ -9,7 +9,7 @@
 // | Kotlin                              | Swift (after `import MeshLink`)                 |
 // |-------------------------------------|-------------------------------------------------|
 // | `MeshLinkFactory.create(config)`    | `MeshLinkFactory.shared.create(config:)`        |
-// | `MeshLinkConfig.chatOptimized()`    | `MeshLinkConfig.companion.chatOptimized {...}`  |
+// | `MeshLinkConfig.smallPayloadLowLatency()` | `MeshLinkConfig.companion.smallPayloadLowLatency {...}` |
 // | `PeerEvent.Found`                   | `PeerEvent.Found`                               |
 // | `PeerEvent.Lost`                    | `PeerEvent.Lost`                                |
 // | `Flow<T>.collect { ... }`           | Manual `FlowCollector` wrapper (see below)      |
@@ -47,23 +47,23 @@ struct DiagnosticEntry: Identifiable {
 // MARK: - Config Preset
 
 enum ConfigPreset: String, CaseIterable, Identifiable {
-    case chatOptimized = "Chat"
-    case fileTransferOptimized = "File Transfer"
-    case powerOptimized = "Power Saver"
-    case sensorOptimized = "Sensor"
+    case smallPayloadLowLatency = "Chat"
+    case largePayloadHighThroughput = "File Transfer"
+    case minimalResourceUsage = "Power Saver"
+    case minimalOverhead = "Sensor"
 
     var id: String { rawValue }
 
     func makeConfig() -> MeshLinkConfig {
         switch self {
-        case .chatOptimized:
-            return MeshLinkConfig.companion.chatOptimized { _ in }
-        case .fileTransferOptimized:
-            return MeshLinkConfig.companion.fileTransferOptimized { _ in }
-        case .powerOptimized:
-            return MeshLinkConfig.companion.powerOptimized { _ in }
-        case .sensorOptimized:
-            return MeshLinkConfig.companion.sensorOptimized { _ in }
+        case .smallPayloadLowLatency:
+            return MeshLinkConfig.companion.smallPayloadLowLatency { _ in }
+        case .largePayloadHighThroughput:
+            return MeshLinkConfig.companion.largePayloadHighThroughput { _ in }
+        case .minimalResourceUsage:
+            return MeshLinkConfig.companion.minimalResourceUsage { _ in }
+        case .minimalOverhead:
+            return MeshLinkConfig.companion.minimalOverhead { _ in }
         }
     }
 }
@@ -85,7 +85,7 @@ final class MeshLinkViewModel: ObservableObject {
     @Published var activeTransfers = 0
     @Published var discoveredPeers: [PeerInfo] = []
     @Published var selectedPeerId: String?
-    @Published var currentPreset: ConfigPreset = .chatOptimized
+    @Published var currentPreset: ConfigPreset = .smallPayloadLowLatency
     @Published var currentMtu: Int = 185
     @Published private(set) var maxMessageSize: Int = 10_000
     @Published private(set) var bufferCapacity: Int = 524_288
@@ -97,7 +97,7 @@ final class MeshLinkViewModel: ObservableObject {
         // Enable BLE debug logging — output appears in Xcode console
         IosBleTransport.companion.debugLogging = true
 
-        let config = ConfigPreset.chatOptimized.makeConfig()
+        let config = ConfigPreset.smallPayloadLowLatency.makeConfig()
         self.meshLink = MeshLinkFactory.shared.create(config: config)
         self.currentMtu = Int(config.mtu)
         self.maxMessageSize = Int(config.maxMessageSize)
@@ -124,7 +124,7 @@ final class MeshLinkViewModel: ObservableObject {
     }
 
     func resetToDefaults() {
-        applyPreset(.chatOptimized)
+        applyPreset(.smallPayloadLowLatency)
         log("⚙️ Reset to defaults")
     }
 

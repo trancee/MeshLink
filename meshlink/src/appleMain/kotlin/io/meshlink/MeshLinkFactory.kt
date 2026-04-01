@@ -22,11 +22,11 @@ object MeshLinkFactory {
      *
      * Usage from Swift:
      * ```swift
-     * let config = MeshLinkConfig.companion.chatOptimized { _ in }
+     * let config = MeshLinkConfig.companion.smallPayloadLowLatency { _ in }
      * let meshLink = MeshLinkFactory.shared.create(config: config)
      * ```
      */
-    fun create(config: MeshLinkConfig = MeshLinkConfig.chatOptimized()): MeshLink {
+    fun create(config: MeshLinkConfig = MeshLinkConfig.smallPayloadLowLatency()): MeshLink {
         val scope = CoroutineScope(Dispatchers.Main)
         val transport = IosBleTransport(scope)
         return MeshLink(
@@ -41,7 +41,7 @@ object MeshLinkFactory {
     /**
      * Create a [MeshLink] instance with a custom [IosBleTransport].
      */
-    fun create(transport: IosBleTransport, config: MeshLinkConfig = MeshLinkConfig.chatOptimized()): MeshLink {
+    fun create(transport: IosBleTransport, config: MeshLinkConfig = MeshLinkConfig.smallPayloadLowLatency()): MeshLink {
         return MeshLink(
             transport = transport,
             config = config,

@@ -28,8 +28,8 @@ fun main() {
     println("╚══════════════════════════════════════╝")
     println()
 
-    val config = MeshLinkConfig.chatOptimized()
-    println("Config preset: chatOptimized")
+    val config = MeshLinkConfig.smallPayloadLowLatency()
+    println("Config preset: smallPayloadLowLatency")
     println("  maxMessageSize = ${config.maxMessageSize}")
     println("  bufferCapacity = ${config.bufferCapacity}")
     println("  mtu            = ${config.mtu}")
@@ -101,10 +101,10 @@ fun main() {
         // Demonstrate available presets
         println()
         println("Available presets:")
-        println("  chatOptimized         — text chat, small payloads")
-        println("  fileTransferOptimized — images, files, large data")
-        println("  powerOptimized        — IoT, wearables, low power")
-        println("  sensorOptimized       — telemetry, beacons")
+        println("  smallPayloadLowLatency     — text chat, small payloads")
+        println("  largePayloadHighThroughput — images, files, large data")
+        println("  minimalResourceUsage       — IoT, wearables, low power")
+        println("  minimalOverhead            — telemetry, beacons")
 
         // Run briefly then stop
         delay(500)

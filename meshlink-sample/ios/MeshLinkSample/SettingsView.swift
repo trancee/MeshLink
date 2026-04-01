@@ -48,13 +48,13 @@ struct SettingsView: View {
 
     private var presetDescription: String {
         switch viewModel.currentPreset {
-        case .chatOptimized:
+        case .smallPayloadLowLatency:
             return "Tuned for small text payloads with moderate buffering."
-        case .fileTransferOptimized:
+        case .largePayloadHighThroughput:
             return "Larger messages and buffers for file transfer workloads."
-        case .powerOptimized:
+        case .minimalResourceUsage:
             return "Reduced buffer sizes and longer intervals to save battery."
-        case .sensorOptimized:
+        case .minimalOverhead:
             return "Tiny payloads with minimal buffering for sensor data."
         }
     }

@@ -78,7 +78,7 @@ platform-agnostic logic (in `commonMain`) and platform-specific I/O (in
 
 | File | Responsibility |
 |------|---------------|
-| `MeshLinkConfig.kt` | Immutable config data class with 30+ fields, validation, presets (`chatOptimized`, `fileTransferOptimized`, `powerOptimized`), and DSL builder. |
+| `MeshLinkConfig.kt` | Immutable config data class with 30+ fields, validation, presets (`smallPayloadLowLatency`, `largePayloadHighThroughput`, `minimalResourceUsage`), and DSL builder. |
 
 ### `io.meshlink.routing` — Mesh Routing
 

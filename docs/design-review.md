@@ -217,11 +217,11 @@ At 244-byte MTU, that's ~15% more payload per frame. On BLE, bandwidth is the sc
 
 ### 18. Config Presets Are Named for Use Cases Instead of Behavior
 
-**Current decision:** Presets named `chatOptimized`, `fileTransferOptimized`, `powerOptimized`, `sensorOptimized`.
+**Current decision:** Presets renamed from `chatOptimized`, `fileTransferOptimized`, `powerOptimized`, `sensorOptimized` (deprecated) to `smallPayloadLowLatency`, `largePayloadHighThroughput`, `minimalResourceUsage`, `minimalOverhead`.
 
-**Challenge:** Use-case-based naming is fragile. What if my "chat" app sends images (should I use `chatOptimized` or `fileTransferOptimized`)? What if my sensor also needs to relay large payloads?
+**Challenge:** The original use-case-based naming was fragile. What if my "chat" app sends images (should I use `chatOptimized` or `fileTransferOptimized`)? What if my sensor also needs to relay large payloads?
 
-**Better alternative:** Name presets for what they DO: `smallPayloadLowLatency`, `largePayloadHighThroughput`, `minimalResourceUsage`, `minimalOverhead`. Or even better, use a builder pattern: `MeshLinkConfig.withMaxPayload(50_000).withGossip(15_000)`.
+**Resolution:** Presets are now named for what they DO: `smallPayloadLowLatency`, `largePayloadHighThroughput`, `minimalResourceUsage`, `minimalOverhead`. The builder pattern (`MeshLinkConfig.withMaxPayload(50_000).withGossip(15_000)`) remains a possible future enhancement.
 
 ---
 

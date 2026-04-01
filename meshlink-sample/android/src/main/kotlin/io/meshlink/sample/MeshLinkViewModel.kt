@@ -32,7 +32,7 @@ class MeshLinkViewModel(application: Application) : AndroidViewModel(application
 
     private val transport = AndroidBleTransport(application)
 
-    private var _currentConfig = MutableStateFlow(MeshLinkConfig.chatOptimized())
+    private var _currentConfig = MutableStateFlow(MeshLinkConfig.smallPayloadLowLatency())
     /** Current [MeshLinkConfig] — observable for the Settings screen. */
     val currentConfig: StateFlow<MeshLinkConfig> = _currentConfig.asStateFlow()
 
@@ -196,21 +196,21 @@ class MeshLinkViewModel(application: Application) : AndroidViewModel(application
         if (wasRunning) meshLink.stop()
 
         val newConfig = when (preset) {
-            "fileTransferOptimized" -> {
+            "largePayloadHighThroughput" -> {
                 _currentPreset.value = ConfigPreset.FILE_TRANSFER
-                MeshLinkConfig.fileTransferOptimized()
+                MeshLinkConfig.largePayloadHighThroughput()
             }
-            "powerOptimized" -> {
+            "minimalResourceUsage" -> {
                 _currentPreset.value = ConfigPreset.POWER
-                MeshLinkConfig.powerOptimized()
+                MeshLinkConfig.minimalResourceUsage()
             }
-            "sensorOptimized" -> {
+            "minimalOverhead" -> {
                 _currentPreset.value = ConfigPreset.SENSOR
-                MeshLinkConfig.sensorOptimized()
+                MeshLinkConfig.minimalOverhead()
             }
             else -> {
                 _currentPreset.value = ConfigPreset.CHAT
-                MeshLinkConfig.chatOptimized()
+                MeshLinkConfig.smallPayloadLowLatency()
             }
         }
         _currentConfig.value = newConfig

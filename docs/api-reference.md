@@ -254,24 +254,24 @@ configuration is valid. Enforced constraints:
 
 ```kotlin
 companion object {
-    fun chatOptimized(overrides: MeshLinkConfigBuilder.() -> Unit = {}): MeshLinkConfig
-    fun fileTransferOptimized(overrides: MeshLinkConfigBuilder.() -> Unit = {}): MeshLinkConfig
-    fun powerOptimized(overrides: MeshLinkConfigBuilder.() -> Unit = {}): MeshLinkConfig
-    fun sensorOptimized(overrides: MeshLinkConfigBuilder.() -> Unit = {}): MeshLinkConfig
+    fun smallPayloadLowLatency(overrides: MeshLinkConfigBuilder.() -> Unit = {}): MeshLinkConfig
+    fun largePayloadHighThroughput(overrides: MeshLinkConfigBuilder.() -> Unit = {}): MeshLinkConfig
+    fun minimalResourceUsage(overrides: MeshLinkConfigBuilder.() -> Unit = {}): MeshLinkConfig
+    fun minimalOverhead(overrides: MeshLinkConfigBuilder.() -> Unit = {}): MeshLinkConfig
 }
 ```
 
 | Preset | `maxMessageSize` | `bufferCapacity` | Use Case |
 |--------|------------------|------------------|----------|
-| `chatOptimized` | 10,000 | 524,288 (512 KB) | Text chat, small payloads |
-| `fileTransferOptimized` | 100,000 | 2,097,152 (2 MB) | Images, files, large data |
-| `powerOptimized` | 10,000 | 262,144 (256 KB) | IoT, wearables, battery-constrained devices |
-| `sensorOptimized` | 1,000 | 65,536 (64 KB) | Sensor telemetry, infrequent small readings |
+| `smallPayloadLowLatency` | 10,000 | 524,288 (512 KB) | Text chat, small payloads |
+| `largePayloadHighThroughput` | 100,000 | 2,097,152 (2 MB) | Images, files, large data |
+| `minimalResourceUsage` | 10,000 | 262,144 (256 KB) | IoT, wearables, battery-constrained devices |
+| `minimalOverhead` | 1,000 | 65,536 (64 KB) | Sensor telemetry, infrequent small readings |
 
 All presets accept an override block:
 
 ```kotlin
-val config = MeshLinkConfig.chatOptimized {
+val config = MeshLinkConfig.smallPayloadLowLatency {
     gossipIntervalMillis = 5_000L
     keepaliveIntervalMillis = 30_000L
 }

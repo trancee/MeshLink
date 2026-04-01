@@ -90,31 +90,47 @@ data class MeshLinkConfig(
     }
 
     companion object {
-        fun chatOptimized(overrides: MeshLinkConfigBuilder.() -> Unit = {}): MeshLinkConfig =
+        fun smallPayloadLowLatency(overrides: MeshLinkConfigBuilder.() -> Unit = {}): MeshLinkConfig =
             MeshLinkConfigBuilder(
                 maxMessageSize = 10_000,
                 bufferCapacity = 524_288,
                 deliveryTimeoutMillis = 10_000L,
             ).apply(overrides).build()
 
-        fun fileTransferOptimized(overrides: MeshLinkConfigBuilder.() -> Unit = {}): MeshLinkConfig =
+        fun largePayloadHighThroughput(overrides: MeshLinkConfigBuilder.() -> Unit = {}): MeshLinkConfig =
             MeshLinkConfigBuilder(
                 maxMessageSize = 100_000,
                 bufferCapacity = 2_097_152,
                 deliveryTimeoutMillis = 120_000L,
             ).apply(overrides).build()
 
-        fun powerOptimized(overrides: MeshLinkConfigBuilder.() -> Unit = {}): MeshLinkConfig =
+        fun minimalResourceUsage(overrides: MeshLinkConfigBuilder.() -> Unit = {}): MeshLinkConfig =
             MeshLinkConfigBuilder(maxMessageSize = 10_000, bufferCapacity = 262_144)
                 .apply(overrides).build()
 
-        fun sensorOptimized(overrides: MeshLinkConfigBuilder.() -> Unit = {}): MeshLinkConfig =
+        fun minimalOverhead(overrides: MeshLinkConfigBuilder.() -> Unit = {}): MeshLinkConfig =
             MeshLinkConfigBuilder(
                 maxMessageSize = 1_000,
                 bufferCapacity = 65_536,
                 gossipIntervalMillis = 30_000L,
                 keepaliveIntervalMillis = 60_000L,
             ).apply(overrides).build()
+
+        @Deprecated("Use smallPayloadLowLatency()", ReplaceWith("smallPayloadLowLatency(overrides)"))
+        fun chatOptimized(overrides: MeshLinkConfigBuilder.() -> Unit = {}): MeshLinkConfig =
+            smallPayloadLowLatency(overrides)
+
+        @Deprecated("Use largePayloadHighThroughput()", ReplaceWith("largePayloadHighThroughput(overrides)"))
+        fun fileTransferOptimized(overrides: MeshLinkConfigBuilder.() -> Unit = {}): MeshLinkConfig =
+            largePayloadHighThroughput(overrides)
+
+        @Deprecated("Use minimalResourceUsage()", ReplaceWith("minimalResourceUsage(overrides)"))
+        fun powerOptimized(overrides: MeshLinkConfigBuilder.() -> Unit = {}): MeshLinkConfig =
+            minimalResourceUsage(overrides)
+
+        @Deprecated("Use minimalOverhead()", ReplaceWith("minimalOverhead(overrides)"))
+        fun sensorOptimized(overrides: MeshLinkConfigBuilder.() -> Unit = {}): MeshLinkConfig =
+            minimalOverhead(overrides)
     }
 }
 

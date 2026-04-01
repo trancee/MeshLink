@@ -31,8 +31,8 @@ fun main() {
     println("╚══════════════════════════════════════╝")
     println()
 
-    val config = MeshLinkConfig.chatOptimized()
-    println("Config preset: chatOptimized")
+    val config = MeshLinkConfig.smallPayloadLowLatency()
+    println("Config preset: smallPayloadLowLatency")
     println("  maxMessageSize = ${config.maxMessageSize}")
     println("  bufferCapacity = ${config.bufferCapacity}")
     println("  mtu            = ${config.mtu}")
@@ -96,7 +96,7 @@ fun main() {
         println("Config validation: ${if (violations.isEmpty()) "OK" else "${violations.size} violations"}")
 
         println()
-        println("Available presets: chatOptimized, fileTransferOptimized, powerOptimized, sensorOptimized")
+        println("Available presets: smallPayloadLowLatency, largePayloadHighThroughput, minimalResourceUsage, minimalOverhead")
 
         delay(500)
         mesh.stop()

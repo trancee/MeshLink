@@ -163,18 +163,18 @@ comparison table.
 import io.meshlink.config.MeshLinkConfig
 
 // Chat apps — small messages, moderate buffer
-val chatConfig = MeshLinkConfig.chatOptimized {
+val chatConfig = MeshLinkConfig.smallPayloadLowLatency {
     gossipIntervalMillis = 5_000L
 }
 
 // File/image transfer — large messages, big buffer
-val fileConfig = MeshLinkConfig.fileTransferOptimized()
+val fileConfig = MeshLinkConfig.largePayloadHighThroughput()
 
 // Battery-constrained devices — small buffers, minimal overhead
-val powerConfig = MeshLinkConfig.powerOptimized()
+val powerConfig = MeshLinkConfig.minimalResourceUsage()
 
 // Sensor telemetry — tiny payloads, minimal resources
-val sensorConfig = MeshLinkConfig.sensorOptimized()
+val sensorConfig = MeshLinkConfig.minimalOverhead()
 ```
 
 ### Key Configuration Options
@@ -585,8 +585,8 @@ mesh.rotateIdentity().onFailure { error ->
 - **Validate config** — always call `config.validate()` during development.
 - **Collect all flows** — launch collectors for `messages`, `peers`,
   `transferFailures`, and `diagnosticEvents` before calling `start()`.
-- **Use presets** — start with `chatOptimized()`, `fileTransferOptimized()`,
-  or `powerOptimized()` and override only what you need.
+- **Use presets** — start with `smallPayloadLowLatency()`, `largePayloadHighThroughput()`,
+  or `minimalResourceUsage()` and override only what you need.
 
 ### Performance
 
