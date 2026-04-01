@@ -157,7 +157,7 @@ class WireFormatFuzzTest {
         }
         repeat(iterations) {
             try {
-                WireCodec.decodeKeepalive(randomBytesWithType(WireCodec.TYPE_KEEPALIVE, maxSize = 10))
+                WireCodec.decodeKeepalive(randomBytesWithType(WireCodec.TYPE_KEEPALIVE, maxSize = 20))
             } catch (_: IllegalArgumentException) { }
         }
     }

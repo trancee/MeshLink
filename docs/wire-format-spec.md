@@ -104,7 +104,7 @@ All framed messages begin with a 1-byte type code at offset 0.
 | `0x05` | Routed Message | `TYPE_ROUTED_MESSAGE` | Variable (min 59) | Unicast message forwarded along a route. |
 | `0x06` | Delivery ACK | `TYPE_DELIVERY_ACK` | Variable (min 34) | End-to-end delivery confirmation. |
 | `0x07` | Resume Request | `TYPE_RESUME_REQUEST` | 21 | Request to resume a chunked transfer. |
-| `0x08` | Keepalive | `TYPE_KEEPALIVE` | 6 | Link liveness probe. |
+| `0x08` | Keepalive | `TYPE_KEEPALIVE` | 10 | Link liveness probe. |
 | `0x09` | NACK | `TYPE_NACK` | 18 | Negative acknowledgment with reason code. |
 | `0x0A` | Rotation Announcement | `TYPE_ROTATION` | 201 | Key rotation broadcast. |
 
@@ -408,22 +408,22 @@ Byte:   0       1                              16  17                  20
 
 Lightweight link liveness probe with a timestamp and optional flags.
 
-**Source:** `WireCodec.kt` · `KEEPALIVE_SIZE = 6`
+**Source:** `WireCodec.kt` · `KEEPALIVE_SIZE = 10`
 
 ```
-Byte:   0       1       2                       5
-       +-------+-------+-------+-------+-------+
-       | 0x08  | flags | timestampSeconds (4,BE)|
-       +-------+-------+-------+-------+-------+
+Byte:   0       1       2                                       9
+       +-------+-------+-------+-------+-------+-------+-------+-------+-------+-------+
+       | 0x08  | flags |              timestampMillis (8, LE)                            |
+       +-------+-------+-------+-------+-------+-------+-------+-------+-------+-------+
 ```
 
 | Offset | Size | Field | Type | Endianness | Description |
 |--------|------|-------|------|------------|-------------|
 | 0 | 1 | `type` | byte | — | `0x08` |
 | 1 | 1 | `flags` | UByte | — | Reserved flags. Default `0x00`. |
-| 2–5 | 4 | `timestampSeconds` | UInt | **BE** | Unix timestamp in seconds. |
+| 2–9 | 8 | `timestampMillis` | ULong | **LE** | Unix timestamp in milliseconds. |
 
-**Fixed size:** 6 bytes.
+**Fixed size:** 10 bytes.
 
 ---
 
@@ -556,7 +556,7 @@ little-endian helpers are used depending on the field.
 
 ### Big-Endian (Network Order)
 
-Used for: Keepalive `timestampSeconds`, Rotation `timestampMillis`, Handshake
+Used for: Rotation `timestampMillis`, Handshake
 payload fields.
 
 | Function | Width | Description |
@@ -570,7 +570,7 @@ payload fields.
 
 Used for: Chunk `sequenceNumber`/`totalChunks`, Chunk ACK `ackSequence`/
 `sackBitmask`, Routed Message `replayCounter`, Route Update `cost`/
-`sequenceNumber`, Resume Request `bytesReceived`.
+`sequenceNumber`, Resume Request `bytesReceived`, Keepalive `timestampMillis`.
 
 | Function | Width | Description |
 |----------|-------|-------------|
@@ -602,5 +602,5 @@ Quick reference for the byte order of every multi-byte field in the protocol.
 | Route Update Entry | `cost` | 8 | **LE** |
 | Route Update Entry | `sequenceNumber` | 4 | **LE** |
 | Resume Request | `bytesReceived` | 4 | **LE** |
-| Keepalive | `timestampSeconds` | 4 | **BE** |
+| Keepalive | `timestampMillis` | 8 | **LE** |
 | Rotation | `timestampMillis` | 8 | **BE** |

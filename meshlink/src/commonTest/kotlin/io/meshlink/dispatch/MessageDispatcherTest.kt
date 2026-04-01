@@ -137,7 +137,7 @@ class MessageDispatcherTest {
     @Test
     fun keepaliveUpdatesPeerPresence() = runTest {
         val (dispatcher, _) = createDispatcher()
-        val frame = WireCodec.encodeKeepalive(timestampSeconds = 1234u)
+        val frame = WireCodec.encodeKeepalive(timestampMillis = 1_234_000uL)
         dispatcher.dispatch(peerA, frame)
         // No exception means keepalive was processed (peerSeen called)
     }

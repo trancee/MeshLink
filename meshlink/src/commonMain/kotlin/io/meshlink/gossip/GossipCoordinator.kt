@@ -122,8 +122,8 @@ class GossipCoordinator(
     suspend fun broadcastKeepalive() {
         val connectedPeers = routingEngine.connectedPeerIds()
         if (connectedPeers.isEmpty()) return
-        val nowSeconds = (clock() / 1000).toUInt()
-        val frame = WireCodec.encodeKeepalive(nowSeconds)
+        val nowMillis = clock().toULong()
+        val frame = WireCodec.encodeKeepalive(nowMillis)
         for (peerId in connectedPeers) {
             sendFrame(peerId.bytes, frame)
         }

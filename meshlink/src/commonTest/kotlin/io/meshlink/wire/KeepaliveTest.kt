@@ -8,68 +8,72 @@ import kotlin.test.assertFailsWith
 class KeepaliveTest {
 
     @Test
-    fun encodeProduces6Bytes() {
-        val encoded = WireCodec.encodeKeepalive(timestampSeconds = 0u)
-        assertEquals(6, encoded.size)
+    fun encodeProduces10Bytes() {
+        val encoded = WireCodec.encodeKeepalive(timestampMillis = 0uL)
+        assertEquals(10, encoded.size)
     }
 
     @Test
     fun encodeHasCorrectTypeAndFlags() {
-        val encoded = WireCodec.encodeKeepalive(timestampSeconds = 0u)
+        val encoded = WireCodec.encodeKeepalive(timestampMillis = 0uL)
         assertEquals(WireCodec.TYPE_KEEPALIVE, encoded[0])
         assertEquals(0.toByte(), encoded[1]) // flags reserved = 0
     }
 
     @Test
     fun roundTripPreservesTimestamp() {
-        val ts = 1_700_000_000u
-        val encoded = WireCodec.encodeKeepalive(timestampSeconds = ts)
+        val ts = 1_700_000_000_000uL
+        val encoded = WireCodec.encodeKeepalive(timestampMillis = ts)
         val decoded = WireCodec.decodeKeepalive(encoded)
-        assertEquals(ts, decoded.timestampSeconds)
+        assertEquals(ts, decoded.timestampMillis)
         assertEquals(0u.toUByte(), decoded.flags)
     }
 
     @Test
     fun roundTripMaxTimestamp() {
-        val ts = UInt.MAX_VALUE
-        val encoded = WireCodec.encodeKeepalive(timestampSeconds = ts)
+        val ts = ULong.MAX_VALUE
+        val encoded = WireCodec.encodeKeepalive(timestampMillis = ts)
         val decoded = WireCodec.decodeKeepalive(encoded)
-        assertEquals(ts, decoded.timestampSeconds)
+        assertEquals(ts, decoded.timestampMillis)
     }
 
     @Test
     fun roundTripZeroTimestamp() {
-        val encoded = WireCodec.encodeKeepalive(timestampSeconds = 0u)
+        val encoded = WireCodec.encodeKeepalive(timestampMillis = 0uL)
         val decoded = WireCodec.decodeKeepalive(encoded)
-        assertEquals(0u, decoded.timestampSeconds)
+        assertEquals(0uL, decoded.timestampMillis)
     }
 
     @Test
-    fun timestampIsBigEndian() {
-        // 0x65_8D_88_00 = 1_703_840_768
-        val ts = 0x658D8800u
-        val encoded = WireCodec.encodeKeepalive(timestampSeconds = ts)
-        // Bytes 2..5 should be big-endian
-        assertEquals(0x65.toByte(), encoded[2])
-        assertEquals(0x8D.toByte(), encoded[3])
-        assertEquals(0x88.toByte(), encoded[4])
-        assertEquals(0x00.toByte(), encoded[5])
+    fun timestampIsLittleEndian() {
+        // 0x00_00_01_8B_CF_E5_68_00 = 1_700_000_000_000
+        val ts = 1_700_000_000_000uL
+        val encoded = WireCodec.encodeKeepalive(timestampMillis = ts)
+        // Bytes 2..9 should be little-endian: 00 68 e5 cf 8b 01 00 00
+        assertEquals(0x00.toByte(), encoded[2])
+        assertEquals(0x68.toByte(), encoded[3])
+        assertEquals(0xE5.toByte(), encoded[4])
+        assertEquals(0xCF.toByte(), encoded[5])
+        assertEquals(0x8B.toByte(), encoded[6])
+        assertEquals(0x01.toByte(), encoded[7])
+        assertEquals(0x00.toByte(), encoded[8])
+        assertEquals(0x00.toByte(), encoded[9])
     }
 
     @Test
     fun goldenVector() {
-        val ts = 0x01020304u
+        val ts = 1000uL // 0x3E8
         val expected = byteArrayOf(
             0x08,       // TYPE_KEEPALIVE
             0x00,       // flags
-            0x01, 0x02, 0x03, 0x04  // timestamp big-endian
+            0xE8.toByte(), 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 // timestamp LE ULong
         )
-        val encoded = WireCodec.encodeKeepalive(timestampSeconds = ts)
+        val encoded = WireCodec.encodeKeepalive(timestampMillis = ts)
         assertContentEquals(expected, encoded)
 
         val decoded = WireCodec.decodeKeepalive(expected)
         assertEquals(0u.toUByte(), decoded.flags)
-        assertEquals(ts, decoded.timestampSeconds)
+        assertEquals(ts, decoded.timestampMillis)
     }
 
     @Test
@@ -88,7 +92,7 @@ class KeepaliveTest {
 
     @Test
     fun decodeWrongTypeThrows() {
-        val bad = byteArrayOf(0x03, 0x00, 0x00, 0x00, 0x00, 0x00) // TYPE_CHUNK
+        val bad = byteArrayOf(0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00) // TYPE_CHUNK
         assertFailsWith<IllegalArgumentException> {
             WireCodec.decodeKeepalive(bad)
         }
@@ -96,16 +100,20 @@ class KeepaliveTest {
 
     @Test
     fun decodeExtraBytesAreIgnored() {
-        val extended = byteArrayOf(0x08, 0x00, 0x01, 0x02, 0x03, 0x04, 0xFF.toByte())
+        val extended = byteArrayOf(
+            0x08, 0x00,
+            0xE8.toByte(), 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // 1000 LE ULong
+            0xFF.toByte() // extra
+        )
         val decoded = WireCodec.decodeKeepalive(extended)
-        assertEquals(0x01020304u, decoded.timestampSeconds)
+        assertEquals(1000uL, decoded.timestampMillis)
     }
 
     @Test
     fun flagsFieldPreserved() {
-        val encoded = WireCodec.encodeKeepalive(timestampSeconds = 42u, flags = 0xABu)
+        val encoded = WireCodec.encodeKeepalive(timestampMillis = 42_000uL, flags = 0xABu)
         val decoded = WireCodec.decodeKeepalive(encoded)
         assertEquals(0xABu.toUByte(), decoded.flags)
-        assertEquals(42u, decoded.timestampSeconds)
+        assertEquals(42_000uL, decoded.timestampMillis)
     }
 }

@@ -8991,9 +8991,9 @@ class MeshLinkTest {
         testScheduler.advanceTimeBy(1L)
 
         assertTrue(keepalives.isNotEmpty(), "Expected keepalive messages to be sent")
-        // Each keepalive frame should be exactly 6 bytes
+        // Each keepalive frame should be exactly 10 bytes
         for ((_, data) in keepalives) {
-            assertEquals(6, data.size, "Keepalive frame should be 6 bytes")
+            assertEquals(10, data.size, "Keepalive frame should be 10 bytes")
         }
     }
 
@@ -9009,7 +9009,7 @@ class MeshLinkTest {
         testScheduler.advanceTimeBy(1L)
 
         // Simulate receiving a keepalive from Bob
-        val keepaliveFrame = WireCodec.encodeKeepalive(timestampSeconds = 1_700_000_000u)
+        val keepaliveFrame = WireCodec.encodeKeepalive(timestampMillis = 1_700_000_000_000uL)
         transport.receiveData(peerIdBob, keepaliveFrame)
         testScheduler.advanceTimeBy(1L)
 

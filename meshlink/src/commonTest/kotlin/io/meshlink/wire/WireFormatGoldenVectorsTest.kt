@@ -407,6 +407,56 @@ class WireFormatGoldenVectorsTest {
     }
 
     // ────────────────────────────────────────────────────────────────────
+    // Keepalive (0x08)
+    //   flags          = 0x00
+    //   timestampMillis = 0  (LE ULong)
+    //
+    //   08 00 0000000000000000
+    // ────────────────────────────────────────────────────────────────────
+
+    private val keepaliveZeroGoldenHex =
+        "08" +                  // type
+        "00" +                  // flags
+        "0000000000000000"      // timestampMillis = 0 (LE ULong)
+
+    // Non-zero: timestampMillis = 1_700_000_000_000  (0x18BCFE56800)
+    //   LE bytes: 00 68 e5 cf 8b 01 00 00
+    //
+    //   08 00 0068e5cf8b010000
+    private val keepaliveNonZeroGoldenHex =
+        "08" +                  // type
+        "00" +                  // flags
+        "0068e5cf8b010000"      // timestampMillis = 1_700_000_000_000 (LE ULong)
+
+    @Test
+    fun keepaliveZeroGoldenVectorEncodes() {
+        val encoded = WireCodec.encodeKeepalive(timestampMillis = 0uL)
+        assertEquals(keepaliveZeroGoldenHex, encoded.toHex())
+        assertEquals(10, encoded.size)
+    }
+
+    @Test
+    fun keepaliveZeroGoldenVectorDecodes() {
+        val decoded = WireCodec.decodeKeepalive(hexToBytes(keepaliveZeroGoldenHex))
+        assertEquals(0u.toUByte(), decoded.flags)
+        assertEquals(0uL, decoded.timestampMillis)
+    }
+
+    @Test
+    fun keepaliveNonZeroGoldenVectorEncodes() {
+        val encoded = WireCodec.encodeKeepalive(timestampMillis = 1_700_000_000_000uL)
+        assertEquals(keepaliveNonZeroGoldenHex, encoded.toHex())
+        assertEquals(10, encoded.size)
+    }
+
+    @Test
+    fun keepaliveNonZeroGoldenVectorDecodes() {
+        val decoded = WireCodec.decodeKeepalive(hexToBytes(keepaliveNonZeroGoldenHex))
+        assertEquals(0u.toUByte(), decoded.flags)
+        assertEquals(1_700_000_000_000uL, decoded.timestampMillis)
+    }
+
+    // ────────────────────────────────────────────────────────────────────
     // Cross-check: encode then decode round-trip yields identical fields
     // for every message type with the golden input values.
     // ────────────────────────────────────────────────────────────────────
@@ -448,5 +498,10 @@ class WireFormatGoldenVectorsTest {
         val rr = WireCodec.decodeResumeRequest(hexToBytes(resumeRequestGoldenHex))
         val reRr = WireCodec.encodeResumeRequest(rr.messageId, rr.bytesReceived)
         assertEquals(resumeRequestGoldenHex, reRr.toHex(), "ResumeRequest round-trip mismatch")
+
+        // Keepalive
+        val ka = WireCodec.decodeKeepalive(hexToBytes(keepaliveNonZeroGoldenHex))
+        val reKa = WireCodec.encodeKeepalive(ka.timestampMillis, ka.flags)
+        assertEquals(keepaliveNonZeroGoldenHex, reKa.toHex(), "Keepalive round-trip mismatch")
     }
 }
