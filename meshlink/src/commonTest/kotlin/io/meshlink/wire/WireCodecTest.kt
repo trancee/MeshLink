@@ -60,14 +60,15 @@ class WireCodecTest {
             sackBitmaskHigh = 0uL
         )
 
-        // type(1) + messageId(16) + ackSeq(2 LE) + sackBitmask(8 LE) + sackBitmaskHigh(8 LE) = 35
+        // type(1) + messageId(16) + ackSeq(2 LE) + sackBitmask(8 LE) + sackBitmaskHigh(8 LE) + ext(2) = 37
         val expected = byteArrayOf(
             0x04,                                                           // type: chunk_ack
             0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,               // messageId[0..7]
             0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F,               // messageId[8..15]
             0x05, 0x00,                                                     // ackSeq = 5 (LE)
             0x1F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,                // sackBitmask = 0x1F (LE)
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00                 // sackBitmaskHigh = 0 (LE)
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,                // sackBitmaskHigh = 0 (LE)
+            0x00, 0x00                                                      // empty TLV extensions
         )
 
         assertContentEquals(expected, encoded)
@@ -205,8 +206,8 @@ class WireCodecTest {
             recipientId = destinationId,
         )
 
-        // type(1) + messageId(16) + recipientId(8) + sigLen(1) = 26
-        assertEquals(26, encoded.size)
+        // type(1) + messageId(16) + recipientId(8) + sigLen(1) + ext(2) = 28
+        assertEquals(28, encoded.size)
         assertEquals(WireCodec.TYPE_DELIVERY_ACK, encoded[0])
 
         val decoded = WireCodec.decodeDeliveryAck(encoded)
@@ -568,12 +569,13 @@ class WireCodecTest {
             bytesReceived = 0x04030201u,
         )
 
-        // type(1) + messageId(16) + bytesReceived(4 LE) = 21
+        // type(1) + messageId(16) + bytesReceived(4 LE) + ext(2) = 23
         val expected = byteArrayOf(
             0x07,                                                           // type: resume_request
             0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,               // messageId[0..7]
             0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F,               // messageId[8..15]
             0x01, 0x02, 0x03, 0x04,                                         // bytesReceived = 0x04030201 (LE)
+            0x00, 0x00                                                      // empty TLV extensions
         )
 
         assertContentEquals(expected, encoded)

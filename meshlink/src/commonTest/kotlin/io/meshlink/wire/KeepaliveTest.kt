@@ -10,7 +10,7 @@ class KeepaliveTest {
     @Test
     fun encodeProduces10Bytes() {
         val encoded = WireCodec.encodeKeepalive(timestampMillis = 0uL)
-        assertEquals(10, encoded.size)
+        assertEquals(12, encoded.size)
     }
 
     @Test
@@ -66,7 +66,8 @@ class KeepaliveTest {
         val expected = byteArrayOf(
             0x08,       // TYPE_KEEPALIVE
             0x00,       // flags
-            0xE8.toByte(), 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 // timestamp LE ULong
+            0xE8.toByte(), 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // timestamp LE ULong
+            0x00, 0x00  // empty TLV extensions
         )
         val encoded = WireCodec.encodeKeepalive(timestampMillis = ts)
         assertContentEquals(expected, encoded)
@@ -103,10 +104,12 @@ class KeepaliveTest {
         val extended = byteArrayOf(
             0x08, 0x00,
             0xE8.toByte(), 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // 1000 LE ULong
-            0xFF.toByte() // extra
+            0x05, 0x00, // TLV extension length = 5
+            0x01, 0x02, 0x00, 0xAA.toByte(), 0xBB.toByte() // tag=1, len=2, value=AA BB
         )
         val decoded = WireCodec.decodeKeepalive(extended)
         assertEquals(1000uL, decoded.timestampMillis)
+        assertEquals(1, decoded.extensions.size)
     }
 
     @Test

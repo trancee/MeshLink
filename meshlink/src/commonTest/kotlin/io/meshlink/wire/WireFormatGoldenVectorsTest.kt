@@ -79,7 +79,8 @@ class WireFormatGoldenVectorsTest {
         "0102030405060708090a0b0c0d0e0f10" +    // messageId
         "0300" +                                // ackSequence = 3 (LE)
         "00ff00ff00ff00ff" +                     // sackBitmask = 0xFF00FF00FF00FF00 (LE)
-        "55aa55aa55aa55aa"                       // sackBitmaskHigh = 0xAA55AA55AA55AA55 (LE)
+        "55aa55aa55aa55aa" +                     // sackBitmaskHigh = 0xAA55AA55AA55AA55 (LE)
+        "0000"                                  // empty TLV extensions
 
     @Test
     fun chunkAckGoldenVectorEncodes() {
@@ -280,7 +281,8 @@ class WireFormatGoldenVectorsTest {
         "06" +                                  // type: delivery_ack
         "0102030405060708090a0b0c0d0e0f10" +    // messageId
         "dddddddddddddddd" +                   // recipientId (8 × 0xDD)
-        "00"                                    // sigLen = 0 (unsigned)
+        "00" +                                  // sigLen = 0 (unsigned)
+        "0000"                                  // empty TLV extensions
 
     @Test
     fun deliveryAckGoldenVectorEncodes() {
@@ -289,7 +291,7 @@ class WireFormatGoldenVectorsTest {
             recipientId = ByteArray(8) { 0xDD.toByte() },
         )
         assertEquals(deliveryAckGoldenHex, encoded.toHex())
-        assertEquals(26, encoded.size)
+        assertEquals(28, encoded.size)
     }
 
     @Test
@@ -393,7 +395,8 @@ class WireFormatGoldenVectorsTest {
     private val resumeRequestGoldenHex =
         "07" +                                  // type: resume_request
         "0102030405060708090a0b0c0d0e0f10" +    // messageId
-        "78563412"                              // bytesReceived = 0x12345678 (LE)
+        "78563412" +                            // bytesReceived = 0x12345678 (LE)
+        "0000"                                  // empty TLV extensions
 
     @Test
     fun resumeRequestGoldenVectorEncodes() {
@@ -402,7 +405,7 @@ class WireFormatGoldenVectorsTest {
             bytesReceived = 0x12345678u,
         )
         assertEquals(resumeRequestGoldenHex, encoded.toHex())
-        assertEquals(21, encoded.size)
+        assertEquals(23, encoded.size)
     }
 
     @Test
@@ -424,7 +427,8 @@ class WireFormatGoldenVectorsTest {
     private val keepaliveZeroGoldenHex =
         "08" +                  // type
         "00" +                  // flags
-        "0000000000000000"      // timestampMillis = 0 (LE ULong)
+        "0000000000000000" +    // timestampMillis = 0 (LE ULong)
+        "0000"                  // empty TLV extensions
 
     // Non-zero: timestampMillis = 1_700_000_000_000  (0x18BCFE56800)
     //   LE bytes: 00 68 e5 cf 8b 01 00 00
@@ -433,13 +437,14 @@ class WireFormatGoldenVectorsTest {
     private val keepaliveNonZeroGoldenHex =
         "08" +                  // type
         "00" +                  // flags
-        "0068e5cf8b010000"      // timestampMillis = 1_700_000_000_000 (LE ULong)
+        "0068e5cf8b010000" +    // timestampMillis = 1_700_000_000_000 (LE ULong)
+        "0000"                  // empty TLV extensions
 
     @Test
     fun keepaliveZeroGoldenVectorEncodes() {
         val encoded = WireCodec.encodeKeepalive(timestampMillis = 0uL)
         assertEquals(keepaliveZeroGoldenHex, encoded.toHex())
-        assertEquals(10, encoded.size)
+        assertEquals(12, encoded.size)
     }
 
     @Test
@@ -453,7 +458,7 @@ class WireFormatGoldenVectorsTest {
     fun keepaliveNonZeroGoldenVectorEncodes() {
         val encoded = WireCodec.encodeKeepalive(timestampMillis = 1_700_000_000_000uL)
         assertEquals(keepaliveNonZeroGoldenHex, encoded.toHex())
-        assertEquals(10, encoded.size)
+        assertEquals(12, encoded.size)
     }
 
     @Test
@@ -481,7 +486,8 @@ class WireFormatGoldenVectorsTest {
         "b0b1b2b3b4b5b6b7" +  // destination
         "2a000000" +            // requestId = 42 (LE)
         "02" +                  // hopCount = 2
-        "0a"                    // hopLimit = 10
+        "0a" +                  // hopLimit = 10
+        "0000"                  // empty TLV extensions
 
     @Test
     fun routeRequestGoldenVectorEncodes() {
@@ -493,7 +499,7 @@ class WireFormatGoldenVectorsTest {
             hopLimit = 10u,
         )
         assertEquals(routeRequestGoldenHex, encoded.toHex())
-        assertEquals(23, encoded.size)
+        assertEquals(25, encoded.size)
     }
 
     @Test
@@ -522,7 +528,8 @@ class WireFormatGoldenVectorsTest {
         "a0a1a2a3a4a5a6a7" +  // origin
         "b0b1b2b3b4b5b6b7" +  // destination
         "2a000000" +            // requestId = 42 (LE)
-        "03"                    // hopCount = 3
+        "03" +                  // hopCount = 3
+        "0000"                  // empty TLV extensions
 
     @Test
     fun routeReplyGoldenVectorEncodes() {
@@ -533,7 +540,7 @@ class WireFormatGoldenVectorsTest {
             hopCount = 3u,
         )
         assertEquals(routeReplyGoldenHex, encoded.toHex())
-        assertEquals(22, encoded.size)
+        assertEquals(24, encoded.size)
     }
 
     @Test

@@ -99,8 +99,10 @@ object WireCodec {
         ackSequence: UShort,
         sackBitmask: ULong,
         sackBitmaskHigh: ULong,
+        extensions: List<TlvEntry> = emptyList(),
     ): ByteArray {
-        val buf = ByteArray(CHUNK_ACK_SIZE)
+        val extBytes = TlvCodec.encode(extensions)
+        val buf = ByteArray(CHUNK_ACK_SIZE + extBytes.size)
         var offset = 0
         buf[offset++] = TYPE_CHUNK_ACK
         messageId.copyInto(buf, offset)
@@ -110,6 +112,7 @@ object WireCodec {
         buf.putULongLE(offset, sackBitmask)
         offset += 8
         buf.putULongLE(offset, sackBitmaskHigh)
+        extBytes.copyInto(buf, CHUNK_ACK_SIZE)
         return buf
     }
 
@@ -124,7 +127,12 @@ object WireCodec {
         val sackBitmask = data.getULongLE(offset)
         offset += 8
         val sackBitmaskHigh = data.getULongLE(offset)
-        return ChunkAckMessage(messageId, ackSequence, sackBitmask, sackBitmaskHigh)
+        val extensions = if (data.size > CHUNK_ACK_SIZE) {
+            TlvCodec.decode(data, CHUNK_ACK_SIZE).first
+        } else {
+            emptyList()
+        }
+        return ChunkAckMessage(messageId, ackSequence, sackBitmask, sackBitmaskHigh, extensions)
     }
 
     // routed_message: type(1) + messageId(16) + origin(8) + destination(8) + hopLimit(1) + replayCounter(8 LE) + visitedCount(1) + visited(N×8) + payload
@@ -262,9 +270,11 @@ object WireCodec {
         recipientId: ByteArray,
         signature: ByteArray = ByteArray(0),
         signerPublicKey: ByteArray = ByteArray(0),
+        extensions: List<TlvEntry> = emptyList(),
     ): ByteArray {
         val sigBlock = if (signature.isNotEmpty()) ED25519_SIG_SIZE + ED25519_PUB_KEY_SIZE else 0
-        val buf = ByteArray(DELIVERY_ACK_HEADER_SIZE + sigBlock)
+        val extBytes = TlvCodec.encode(extensions)
+        val buf = ByteArray(DELIVERY_ACK_HEADER_SIZE + sigBlock + extBytes.size)
         var offset = 0
         buf[offset++] = TYPE_DELIVERY_ACK
         messageId.copyInto(buf, offset)
@@ -276,7 +286,9 @@ object WireCodec {
             signature.copyInto(buf, offset)
             offset += ED25519_SIG_SIZE
             signerPublicKey.copyInto(buf, offset)
+            offset += ED25519_PUB_KEY_SIZE
         }
+        extBytes.copyInto(buf, offset)
         return buf
     }
 
@@ -298,11 +310,17 @@ object WireCodec {
             signature = data.copyOfRange(offset, offset + ED25519_SIG_SIZE)
             offset += ED25519_SIG_SIZE
             signerPublicKey = data.copyOfRange(offset, offset + ED25519_PUB_KEY_SIZE)
+            offset += ED25519_PUB_KEY_SIZE
         } else {
             signature = ByteArray(0)
             signerPublicKey = ByteArray(0)
         }
-        return DeliveryAckMessage(messageId, recipientId, signature, signerPublicKey)
+        val extensions = if (data.size > offset) {
+            TlvCodec.decode(data, offset).first
+        } else {
+            emptyList()
+        }
+        return DeliveryAckMessage(messageId, recipientId, signature, signerPublicKey, extensions)
     }
 
     // route_update: type(1) + sender(8) + entryCount(1) + entries(N × 21)
@@ -346,14 +364,20 @@ object WireCodec {
         return buf
     }
 
-    fun encodeResumeRequest(messageId: ByteArray, bytesReceived: UInt): ByteArray {
+    fun encodeResumeRequest(
+        messageId: ByteArray,
+        bytesReceived: UInt,
+        extensions: List<TlvEntry> = emptyList(),
+    ): ByteArray {
         require(messageId.size == 16) { "messageId must be 16 bytes" }
-        val buf = ByteArray(RESUME_REQUEST_SIZE)
+        val extBytes = TlvCodec.encode(extensions)
+        val buf = ByteArray(RESUME_REQUEST_SIZE + extBytes.size)
         var offset = 0
         buf[offset++] = TYPE_RESUME_REQUEST
         messageId.copyInto(buf, offset)
         offset += MESSAGE_ID_SIZE
         buf.putUIntLE(offset, bytesReceived)
+        extBytes.copyInto(buf, RESUME_REQUEST_SIZE)
         return buf
     }
 
@@ -364,7 +388,12 @@ object WireCodec {
         val messageId = data.copyOfRange(offset, offset + MESSAGE_ID_SIZE)
         offset += MESSAGE_ID_SIZE
         val bytesReceived = data.getUIntLE(offset)
-        return ResumeRequestMessage(messageId, bytesReceived)
+        val extensions = if (data.size > RESUME_REQUEST_SIZE) {
+            TlvCodec.decode(data, RESUME_REQUEST_SIZE).first
+        } else {
+            emptyList()
+        }
+        return ResumeRequestMessage(messageId, bytesReceived, extensions)
     }
 
     fun decodeRouteUpdate(data: ByteArray): RouteUpdateMessage {
@@ -405,11 +434,17 @@ object WireCodec {
         return RouteUpdateMessage(senderId, entries, signerPublicKey, signature)
     }
 
-    fun encodeKeepalive(timestampMillis: ULong, flags: UByte = 0u): ByteArray {
-        val buf = ByteArray(KEEPALIVE_SIZE)
+    fun encodeKeepalive(
+        timestampMillis: ULong,
+        flags: UByte = 0u,
+        extensions: List<TlvEntry> = emptyList(),
+    ): ByteArray {
+        val extBytes = TlvCodec.encode(extensions)
+        val buf = ByteArray(KEEPALIVE_SIZE + extBytes.size)
         buf[0] = TYPE_KEEPALIVE
         buf[1] = flags.toByte()
         buf.putULongLE(2, timestampMillis)
+        extBytes.copyInto(buf, KEEPALIVE_SIZE)
         return buf
     }
 
@@ -418,18 +453,29 @@ object WireCodec {
         require(data[0] == TYPE_KEEPALIVE) { "not a keepalive: 0x${data[0].toUByte().toString(16)}" }
         val flags = data[1].toUByte()
         val timestampMillis = data.getULongLE(2)
-        return KeepaliveMessage(flags, timestampMillis)
+        val extensions = if (data.size > KEEPALIVE_SIZE) {
+            TlvCodec.decode(data, KEEPALIVE_SIZE).first
+        } else {
+            emptyList()
+        }
+        return KeepaliveMessage(flags, timestampMillis, extensions)
     }
 
     // nack: type(1) + messageId(16) + reason(1) = 18
     private const val NACK_SIZE = 18
 
-    fun encodeNack(messageId: ByteArray, reason: NackReason = NackReason.UNKNOWN): ByteArray {
+    fun encodeNack(
+        messageId: ByteArray,
+        reason: NackReason = NackReason.UNKNOWN,
+        extensions: List<TlvEntry> = emptyList(),
+    ): ByteArray {
         require(messageId.size == MESSAGE_ID_SIZE) { "messageId must be $MESSAGE_ID_SIZE bytes" }
-        val buf = ByteArray(NACK_SIZE)
+        val extBytes = TlvCodec.encode(extensions)
+        val buf = ByteArray(NACK_SIZE + extBytes.size)
         buf[0] = TYPE_NACK
         messageId.copyInto(buf, 1)
         buf[17] = reason.code.toByte()
+        extBytes.copyInto(buf, NACK_SIZE)
         return buf
     }
 
@@ -438,7 +484,12 @@ object WireCodec {
         require(data[0] == TYPE_NACK) { "not a nack: 0x${data[0].toUByte().toString(16)}" }
         val messageId = data.copyOfRange(1, 1 + MESSAGE_ID_SIZE)
         val reason = NackReason.fromCode(data[17].toUByte())
-        return NackMessage(messageId, reason)
+        val extensions = if (data.size > NACK_SIZE) {
+            TlvCodec.decode(data, NACK_SIZE).first
+        } else {
+            emptyList()
+        }
+        return NackMessage(messageId, reason, extensions)
     }
 
     // ── Route Request (AODV RREQ) ────────────────────────────────
@@ -449,10 +500,12 @@ object WireCodec {
         requestId: UInt,
         hopCount: UByte = 0u,
         hopLimit: UByte = 10u,
+        extensions: List<TlvEntry> = emptyList(),
     ): ByteArray {
         require(origin.size == PEER_ID_SIZE) { "origin must be $PEER_ID_SIZE bytes" }
         require(destination.size == PEER_ID_SIZE) { "destination must be $PEER_ID_SIZE bytes" }
-        val buf = ByteArray(ROUTE_REQUEST_SIZE)
+        val extBytes = TlvCodec.encode(extensions)
+        val buf = ByteArray(ROUTE_REQUEST_SIZE + extBytes.size)
         var offset = 0
         buf[offset++] = TYPE_ROUTE_REQUEST
         origin.copyInto(buf, offset)
@@ -463,6 +516,7 @@ object WireCodec {
         offset += 4
         buf[offset++] = hopCount.toByte()
         buf[offset] = hopLimit.toByte()
+        extBytes.copyInto(buf, ROUTE_REQUEST_SIZE)
         return buf
     }
 
@@ -478,7 +532,12 @@ object WireCodec {
         offset += 4
         val hopCount = data[offset++].toUByte()
         val hopLimit = data[offset].toUByte()
-        return RouteRequestMessage(origin, destination, requestId, hopCount, hopLimit)
+        val extensions = if (data.size > ROUTE_REQUEST_SIZE) {
+            TlvCodec.decode(data, ROUTE_REQUEST_SIZE).first
+        } else {
+            emptyList()
+        }
+        return RouteRequestMessage(origin, destination, requestId, hopCount, hopLimit, extensions)
     }
 
     // ── Route Reply (AODV RREP) ──────────────────────────────────
@@ -488,10 +547,12 @@ object WireCodec {
         destination: ByteArray,
         requestId: UInt,
         hopCount: UByte = 0u,
+        extensions: List<TlvEntry> = emptyList(),
     ): ByteArray {
         require(origin.size == PEER_ID_SIZE) { "origin must be $PEER_ID_SIZE bytes" }
         require(destination.size == PEER_ID_SIZE) { "destination must be $PEER_ID_SIZE bytes" }
-        val buf = ByteArray(ROUTE_REPLY_SIZE)
+        val extBytes = TlvCodec.encode(extensions)
+        val buf = ByteArray(ROUTE_REPLY_SIZE + extBytes.size)
         var offset = 0
         buf[offset++] = TYPE_ROUTE_REPLY
         origin.copyInto(buf, offset)
@@ -501,6 +562,7 @@ object WireCodec {
         buf.putUIntLE(offset, requestId)
         offset += 4
         buf[offset] = hopCount.toByte()
+        extBytes.copyInto(buf, ROUTE_REPLY_SIZE)
         return buf
     }
 
@@ -515,7 +577,12 @@ object WireCodec {
         val requestId = data.getUIntLE(offset)
         offset += 4
         val hopCount = data[offset].toUByte()
-        return RouteReplyMessage(origin, destination, requestId, hopCount)
+        val extensions = if (data.size > ROUTE_REPLY_SIZE) {
+            TlvCodec.decode(data, ROUTE_REPLY_SIZE).first
+        } else {
+            emptyList()
+        }
+        return RouteReplyMessage(origin, destination, requestId, hopCount, extensions)
     }
 }
 
@@ -585,6 +652,7 @@ data class ChunkAckMessage(
     val ackSequence: UShort,
     val sackBitmask: ULong,
     val sackBitmaskHigh: ULong,
+    val extensions: List<TlvEntry> = emptyList(),
 )
 
 data class RoutedMessage(
@@ -612,6 +680,7 @@ data class DeliveryAckMessage(
     val recipientId: ByteArray,
     val signature: ByteArray = ByteArray(0),
     val signerPublicKey: ByteArray = ByteArray(0),
+    val extensions: List<TlvEntry> = emptyList(),
 )
 
 data class RouteUpdateEntry(
@@ -631,15 +700,21 @@ data class RouteUpdateMessage(
 data class ResumeRequestMessage(
     val messageId: ByteArray,
     val bytesReceived: UInt,
+    val extensions: List<TlvEntry> = emptyList(),
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (other !is ResumeRequestMessage) return false
-        return messageId.contentEquals(other.messageId) && bytesReceived == other.bytesReceived
+        return messageId.contentEquals(other.messageId) &&
+            bytesReceived == other.bytesReceived &&
+            extensions == other.extensions
     }
 
     override fun hashCode(): Int {
-        return 31 * messageId.contentHashCode() + bytesReceived.hashCode()
+        var result = messageId.contentHashCode()
+        result = 31 * result + bytesReceived.hashCode()
+        result = 31 * result + extensions.hashCode()
+        return result
     }
 }
 
@@ -651,11 +726,13 @@ data class HandshakeMessage(
 data class KeepaliveMessage(
     val flags: UByte,
     val timestampMillis: ULong,
+    val extensions: List<TlvEntry> = emptyList(),
 )
 
 data class NackMessage(
     val messageId: ByteArray,
     val reason: NackReason = NackReason.UNKNOWN,
+    val extensions: List<TlvEntry> = emptyList(),
 )
 
 enum class NackReason(val code: UByte) {
@@ -677,6 +754,7 @@ data class RouteRequestMessage(
     val requestId: UInt,
     val hopCount: UByte,
     val hopLimit: UByte,
+    val extensions: List<TlvEntry> = emptyList(),
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
@@ -685,7 +763,8 @@ data class RouteRequestMessage(
             destination.contentEquals(other.destination) &&
             requestId == other.requestId &&
             hopCount == other.hopCount &&
-            hopLimit == other.hopLimit
+            hopLimit == other.hopLimit &&
+            extensions == other.extensions
     }
 
     override fun hashCode(): Int {
@@ -694,6 +773,7 @@ data class RouteRequestMessage(
         result = 31 * result + requestId.hashCode()
         result = 31 * result + hopCount.hashCode()
         result = 31 * result + hopLimit.hashCode()
+        result = 31 * result + extensions.hashCode()
         return result
     }
 }
@@ -703,6 +783,7 @@ data class RouteReplyMessage(
     val destination: ByteArray,
     val requestId: UInt,
     val hopCount: UByte,
+    val extensions: List<TlvEntry> = emptyList(),
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
@@ -710,7 +791,8 @@ data class RouteReplyMessage(
         return origin.contentEquals(other.origin) &&
             destination.contentEquals(other.destination) &&
             requestId == other.requestId &&
-            hopCount == other.hopCount
+            hopCount == other.hopCount &&
+            extensions == other.extensions
     }
 
     override fun hashCode(): Int {
@@ -718,6 +800,7 @@ data class RouteReplyMessage(
         result = 31 * result + destination.contentHashCode()
         result = 31 * result + requestId.hashCode()
         result = 31 * result + hopCount.hashCode()
+        result = 31 * result + extensions.hashCode()
         return result
     }
 }

@@ -7547,9 +7547,9 @@ class MeshLinkTest {
         testScheduler.advanceTimeBy(1L)
 
         assertTrue(keepalives.isNotEmpty(), "Expected keepalive messages to be sent")
-        // Each keepalive frame should be exactly 10 bytes
+        // Each keepalive frame should be exactly 12 bytes (10 fixed + 2 TLV extension prefix)
         for ((_, data) in keepalives) {
-            assertEquals(10, data.size, "Keepalive frame should be 10 bytes")
+            assertEquals(12, data.size, "Keepalive frame should be 12 bytes")
         }
     }
 

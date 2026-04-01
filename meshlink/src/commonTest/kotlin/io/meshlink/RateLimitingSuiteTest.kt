@@ -281,7 +281,7 @@ class RateLimitingSuiteTest {
         val messageId = ByteArray(16) { (0xAA + it).toByte() }
         for (reason in NackReason.entries) {
             val encoded = WireCodec.encodeNack(messageId, reason)
-            assertEquals(18, encoded.size, "NACK frame should be 18 bytes")
+            assertEquals(20, encoded.size, "NACK frame should be 20 bytes")
             val decoded = WireCodec.decodeNack(encoded)
             assertEquals(reason, decoded.reason, "Reason $reason should round-trip")
         }
@@ -289,7 +289,7 @@ class RateLimitingSuiteTest {
 
     @Test
     fun nackGoldenVector() {
-        // type(0x09) + messageId(16 x 0xFF) + reason(0x01 = BUFFER_FULL)
+        // type(0x09) + messageId(16 x 0xFF) + reason(0x01 = BUFFER_FULL) + ext(0x00, 0x00)
         val golden = byteArrayOf(
             0x09,
             0xFF.toByte(), 0xFF.toByte(), 0xFF.toByte(), 0xFF.toByte(),
@@ -297,6 +297,7 @@ class RateLimitingSuiteTest {
             0xFF.toByte(), 0xFF.toByte(), 0xFF.toByte(), 0xFF.toByte(),
             0xFF.toByte(), 0xFF.toByte(), 0xFF.toByte(), 0xFF.toByte(),
             0x01,
+            0x00, 0x00
         )
         val decoded = WireCodec.decodeNack(golden)
         assertTrue(decoded.messageId.all { it == 0xFF.toByte() }, "messageId should be all 0xFF")
