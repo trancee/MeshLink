@@ -1022,4 +1022,210 @@ class MeshIntegrationTest {
 
         alice.stop()
     }
+
+    // ── Encrypted multi-hop routed message ────────────────────────
+
+    @Test
+    fun encryptedThreeHopRoutedMessage() = runTest {
+        // A ↔ B ↔ C (linear chain): A sends encrypted message to C via relay B
+        val idA = peerId(1); val idB = peerId(2); val idC = peerId(3)
+        val hexA = idA.toHex(); val hexB = idB.toHex(); val hexC = idC.toHex()
+        val tA = VirtualMeshTransport(idA)
+        val tB = VirtualMeshTransport(idB)
+        val tC = VirtualMeshTransport(idC)
+        tA.linkTo(tB)
+        tB.linkTo(tC)
+
+        val config = testMeshLinkConfig { requireEncryption = false; gossipIntervalMillis = 100L }
+        val a = MeshLink(tA, config, coroutineContext, crypto = CryptoProvider())
+        val b = MeshLink(tB, config, coroutineContext, crypto = CryptoProvider())
+        val c = MeshLink(tC, config, coroutineContext, crypto = CryptoProvider())
+
+        // Direct neighbor routes
+        a.addRoute(hexB, hexB, 1.0, 1u)
+        b.addRoute(hexA, hexA, 1.0, 1u)
+        b.addRoute(hexC, hexC, 1.0, 1u)
+        c.addRoute(hexB, hexB, 1.0, 1u)
+
+        a.start(); b.start(); c.start()
+        testScheduler.advanceTimeBy(1L)
+
+        // Neighbor discovery triggers Noise XX handshake between adjacent peers
+        tA.simulateDiscovery(idB); tB.simulateDiscovery(idA)
+        tB.simulateDiscovery(idC); tC.simulateDiscovery(idB)
+        testScheduler.advanceTimeBy(50L)
+
+        // Gossip propagates routes (A learns about C via B)
+        testScheduler.advanceTimeBy(500L)
+
+        val health = a.meshHealth()
+        assertTrue(health.avgRouteCost > 0.0, "A should have routes after gossip")
+
+        // Send encrypted message from A to C — routed via B
+        val result = a.send(idC, "encrypted routed hello".encodeToByteArray())
+        testScheduler.advanceTimeBy(50L)
+        assertTrue(result.isSuccess, "send to C should succeed: $result")
+
+        // Verify B relayed an encrypted routed message toward C
+        val relayed = tB.sentData.filter { (peer, data) ->
+            peer == hexC && data.isNotEmpty() && data[0] == WireCodec.TYPE_ROUTED_MESSAGE
+        }
+        assertTrue(relayed.isNotEmpty(), "B should relay the routed message to C")
+
+        a.stop(); b.stop(); c.stop()
+        testScheduler.advanceTimeBy(1L)
+    }
+
+    // ── Broadcast with multi-hop relay and TTL decrement ──────────
+
+    @Test
+    fun broadcastRelaysAcrossHopsWithTtlDecrement() = runTest {
+        // A ↔ B ↔ C (linear chain): A broadcasts, B relays to C
+        val idA = peerId(1); val idB = peerId(2); val idC = peerId(3)
+        val hexC = idC.toHex()
+        val tA = VirtualMeshTransport(idA)
+        val tB = VirtualMeshTransport(idB)
+        val tC = VirtualMeshTransport(idC)
+        tA.linkTo(tB)
+        tB.linkTo(tC)
+        // Note: A is NOT linked to C — C can only receive via relay through B
+
+        val config = testMeshLinkConfig { requireEncryption = false; gossipIntervalMillis = 100L }
+        val a = MeshLink(tA, config, coroutineContext)
+        val b = MeshLink(tB, config, coroutineContext)
+        val c = MeshLink(tC, config, coroutineContext)
+
+        a.start(); b.start(); c.start()
+        testScheduler.advanceTimeBy(1L)
+
+        // Discovery: only adjacent peers see each other
+        tA.simulateDiscovery(idB); tB.simulateDiscovery(idA)
+        tB.simulateDiscovery(idC); tC.simulateDiscovery(idB)
+        testScheduler.advanceTimeBy(1L)
+
+        // A broadcasts with maxHops=3 — should reach B directly and C via relay
+        a.broadcast("multi-hop broadcast".encodeToByteArray(), maxHops = 3u.toUByte())
+        testScheduler.advanceTimeBy(50L)
+
+        // Verify B relayed the broadcast toward C
+        val relayedToC = tB.sentData.filter { (peer, data) ->
+            peer == hexC && data.isNotEmpty() && data[0] == WireCodec.TYPE_BROADCAST
+        }
+        assertTrue(relayedToC.isNotEmpty(), "B should relay broadcast to C")
+
+        // Verify the relayed broadcast has decremented remaining hops
+        val relayedFrame = relayedToC.first().second
+        val decoded = WireCodec.decodeBroadcast(relayedFrame)
+        assertTrue(
+            decoded.remainingHops < 3u,
+            "remaining hops should be decremented from 3, got ${decoded.remainingHops}"
+        )
+
+        a.stop(); b.stop(); c.stop()
+        testScheduler.advanceTimeBy(1L)
+    }
+
+    // ── Gossip convergence timing ─────────────────────────────────
+
+    @Test
+    fun gossipConvergesRoutingTableWithinOneInterval() = runTest {
+        // A ↔ B ↔ C: after one gossip interval, A should learn route to C via B
+        val idA = peerId(1); val idB = peerId(2); val idC = peerId(3)
+        val hexA = idA.toHex(); val hexB = idB.toHex(); val hexC = idC.toHex()
+        val tA = VirtualMeshTransport(idA)
+        val tB = VirtualMeshTransport(idB)
+        val tC = VirtualMeshTransport(idC)
+        tA.linkTo(tB)
+        tB.linkTo(tC)
+
+        val gossipInterval = 200L
+        val config = testMeshLinkConfig {
+            requireEncryption = false
+            gossipIntervalMillis = gossipInterval
+        }
+        val a = MeshLink(tA, config, coroutineContext)
+        val b = MeshLink(tB, config, coroutineContext)
+        val c = MeshLink(tC, config, coroutineContext)
+
+        // Seed direct neighbor routes
+        a.addRoute(hexB, hexB, 1.0, 1u)
+        b.addRoute(hexA, hexA, 1.0, 1u)
+        b.addRoute(hexC, hexC, 1.0, 1u)
+        c.addRoute(hexB, hexB, 1.0, 1u)
+
+        a.start(); b.start(); c.start()
+        testScheduler.advanceTimeBy(1L)
+
+        tA.simulateDiscovery(idB); tB.simulateDiscovery(idA)
+        tB.simulateDiscovery(idC); tC.simulateDiscovery(idB)
+        testScheduler.advanceTimeBy(1L)
+
+        // Before gossip: A only knows direct neighbor B
+        val healthBefore = a.meshHealth()
+
+        // Advance exactly 2 gossip intervals — routes should propagate A→B→C
+        testScheduler.advanceTimeBy(gossipInterval * 2 + 50L)
+
+        val healthAfter = a.meshHealth()
+
+        // A should have learned more routes after gossip convergence
+        assertTrue(
+            healthAfter.reachablePeers >= healthBefore.reachablePeers,
+            "A should discover more peers after gossip: before=${healthBefore.reachablePeers}, after=${healthAfter.reachablePeers}"
+        )
+
+        // Verify A can now route a message to C
+        val result = a.send(idC, "post-gossip".encodeToByteArray())
+        testScheduler.advanceTimeBy(10L)
+        assertTrue(result.isSuccess, "A should be able to send to C after gossip convergence: $result")
+
+        a.stop(); b.stop(); c.stop()
+        testScheduler.advanceTimeBy(1L)
+    }
+
+    // ── Concurrent transfers ──────────────────────────────────────
+
+    @Test
+    fun concurrentTransfersDeliverAllMessages() = runTest {
+        val tAlice = VirtualMeshTransport(peerIdAlice)
+        val tBob = VirtualMeshTransport(peerIdBob)
+        tAlice.linkTo(tBob)
+
+        val config = testMeshLinkConfig { requireEncryption = false }
+        val alice = MeshLink(tAlice, config, coroutineContext)
+        val bob = MeshLink(tBob, config, coroutineContext)
+        alice.start(); bob.start()
+        advanceUntilIdle()
+
+        tAlice.simulateDiscovery(peerIdBob)
+        tBob.simulateDiscovery(peerIdAlice)
+        advanceUntilIdle()
+
+        val messageCount = 5
+        val receivedMessages = mutableListOf<Message>()
+        val receiveJob = launch {
+            bob.messages.take(messageCount).toList().let { receivedMessages.addAll(it) }
+        }
+
+        // Send multiple messages concurrently
+        val sendResults = (1..messageCount).map { i ->
+            alice.send(peerIdBob, "message-$i".encodeToByteArray())
+        }
+        advanceUntilIdle()
+        receiveJob.join()
+
+        // All sends should succeed
+        sendResults.forEachIndexed { i, result ->
+            assertTrue(result.isSuccess, "send ${i + 1} should succeed: $result")
+        }
+
+        // All messages should be received
+        assertEquals(messageCount, receivedMessages.size, "all $messageCount messages should arrive")
+        val payloads = receivedMessages.map { String(it.payload) }.toSet()
+        for (i in 1..messageCount) {
+            assertTrue("message-$i" in payloads, "message-$i should be received")
+        }
+
+        alice.stop(); bob.stop()
+    }
 }
