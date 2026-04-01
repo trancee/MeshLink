@@ -21,7 +21,7 @@ messages, the protocol defines a **10-byte BLE advertisement payload** and a
 | **Byte ordering** | Varies per field — each field table states **BE** (big-endian / network order) or **LE** (little-endian). |
 | **Type discriminator** | All framed messages share byte 0 as the type code. |
 | **Sizes** | All sizes are in bytes unless stated otherwise. Multi-byte integers are unsigned unless noted. |
-| **Key hashes** | Node identifiers and visited-list entries are 16-byte values (truncated SHA-256). |
+| **Key hashes** | Node identifiers and visited-list entries are 8-byte values (truncated SHA-256). |
 | **Message IDs** | 16-byte random or pseudo-random identifiers. |
 | **Signature blocks** | Ed25519 signatures are 64 bytes; Ed25519 public keys are 32 bytes. |
 
@@ -98,13 +98,13 @@ All framed messages begin with a 1-byte type code at offset 0.
 
 | Code | Name | Constant | Fixed Size | Description |
 |------|------|----------|------------|-------------|
-| `0x00` | Broadcast | `TYPE_BROADCAST` | Variable (min 51) | Flood-fill broadcast to all nodes. |
+| `0x00` | Broadcast | `TYPE_BROADCAST` | Variable (min 43) | Flood-fill broadcast to all nodes. |
 | `0x01` | Handshake | `TYPE_HANDSHAKE` | Variable (min 2) | Noise XX handshake step. |
-| `0x02` | Route Update | `TYPE_ROUTE_UPDATE` | Variable (min 18) | Distance-vector routing table exchange. |
+| `0x02` | Route Update | `TYPE_ROUTE_UPDATE` | Variable (min 10) | Distance-vector routing table exchange. |
 | `0x03` | Chunk | `TYPE_CHUNK` | Variable (min 21) | Fragment of a chunked transfer. |
 | `0x04` | Chunk ACK | `TYPE_CHUNK_ACK` | 35 | Selective acknowledgment of chunks. |
-| `0x05` | Routed Message | `TYPE_ROUTED_MESSAGE` | Variable (min 59) | Unicast message forwarded along a route. |
-| `0x06` | Delivery ACK | `TYPE_DELIVERY_ACK` | Variable (min 34) | End-to-end delivery confirmation. |
+| `0x05` | Routed Message | `TYPE_ROUTED_MESSAGE` | Variable (min 43) | Unicast message forwarded along a route. |
+| `0x06` | Delivery ACK | `TYPE_DELIVERY_ACK` | Variable (min 26) | End-to-end delivery confirmation. |
 | `0x07` | Resume Request | `TYPE_RESUME_REQUEST` | 21 | Request to resume a chunked transfer. |
 | `0x08` | Keepalive | `TYPE_KEEPALIVE` | 10 | Link liveness probe. |
 | `0x09` | NACK | `TYPE_NACK` | 18 | Negative acknowledgment with reason code. |
@@ -118,21 +118,21 @@ All framed messages begin with a 1-byte type code at offset 0.
 
 Flood-fill message propagated through the mesh. Optionally signed with Ed25519.
 
-**Source:** `WireCodec.kt` · `BROADCAST_HEADER_SIZE = 51`
+**Source:** `WireCodec.kt` · `BROADCAST_HEADER_SIZE = 43`
 
 ```
-Byte:   0       1                              16  17                             32
-       +-------+---------- ... ----------------+---+---------- ... ----------------+
-       | 0x00  |         messageId (16)         |          origin (16)             |
-       +-------+---------- ... ----------------+---+---------- ... ----------------+
+Byte:   0       1                              16  17                 24
+       +-------+---------- ... ----------------+---+--- ... ---------+
+       | 0x00  |         messageId (16)         |    origin (8)      |
+       +-------+---------- ... ----------------+---+--- ... ---------+
 
-       33      34                             49  50
+       25      26                             41  42
        +-------+---------- ... ----------------+-------+
        | rHops |        appIdHash (16)         | flags |
        +-------+---------- ... ----------------+-------+
 
        If flags bit 0 set (HAS_SIGNATURE):
-       51                                     114  115                            146
+       43                                     106  107                            138
        +---------- ... ------------------------+---------- ... ------------------+
        |         signature (64)                |       signerPublicKey (32)      |
        +---------- ... ------------------------+---------- ... ------------------+
@@ -144,17 +144,17 @@ Byte:   0       1                              16  17                           
 |--------|------|-------|------|------------|-------------|
 | 0 | 1 | `type` | byte | — | `0x00` |
 | 1–16 | 16 | `messageId` | bytes | — | Unique message identifier. |
-| 17–32 | 16 | `origin` | bytes | — | Originator node ID (truncated key hash). |
-| 33 | 1 | `remainingHops` | UByte | — | TTL / remaining hop count. |
-| 34–49 | 16 | `appIdHash` | bytes | — | Application identifier hash (zero-filled if unused). |
-| 50 | 1 | `flags` | UByte | — | Bit 0: `HAS_SIGNATURE` (signature + signerPublicKey present). Bits 1–7: reserved. |
-| 51–114 | 64 | `signature` | bytes | — | Ed25519 signature (present only if `flags & 0x01`). |
-| 115–146 | 32 | `signerPublicKey` | bytes | — | Ed25519 public key of signer (present only if `flags & 0x01`). |
+| 17–24 | 8 | `origin` | bytes | — | Originator node ID (truncated key hash). |
+| 25 | 1 | `remainingHops` | UByte | — | TTL / remaining hop count. |
+| 26–41 | 16 | `appIdHash` | bytes | — | Application identifier hash (zero-filled if unused). |
+| 42 | 1 | `flags` | UByte | — | Bit 0: `HAS_SIGNATURE` (signature + signerPublicKey present). Bits 1–7: reserved. |
+| 43–106 | 64 | `signature` | bytes | — | Ed25519 signature (present only if `flags & 0x01`). |
+| 107–138 | 32 | `signerPublicKey` | bytes | — | Ed25519 public key of signer (present only if `flags & 0x01`). |
 | … | variable | `payload` | bytes | — | Application payload (remaining bytes). |
 
 **Validation:**
-- Minimum message size: 51 bytes (header only, `flags = 0x00`, empty payload).
-- If `flags & 0x01`, the message must contain at least `51 + 64 + 32 = 147` bytes before the payload.
+- Minimum message size: 43 bytes (header only, `flags = 0x00`, empty payload).
+- If `flags & 0x01`, the message must contain at least `43 + 64 + 32 = 139` bytes before the payload.
 
 ---
 
@@ -193,20 +193,20 @@ the 5-byte payload carried inside the Noise framework messages.
 Distance-vector routing table exchange. Comes in two variants: unsigned and
 signed.
 
-**Source:** `WireCodec.kt` · `ROUTE_UPDATE_HEADER_SIZE = 18`, `ROUTE_ENTRY_SIZE = 29`
+**Source:** `WireCodec.kt` · `ROUTE_UPDATE_HEADER_SIZE = 10`, `ROUTE_ENTRY_SIZE = 21`
 
 #### Unsigned Variant
 
 ```
-Byte:   0       1                              16  17
-       +-------+---------- ... ----------------+-------+
-       | 0x02  |         senderId (16)         | count |
-       +-------+---------- ... ----------------+-------+
+Byte:   0       1                       8  9
+       +-------+------- ... -----------+-------+
+       | 0x02  |     senderId (8)      | count |
+       +-------+------- ... -----------+-------+
 
-       For each of `count` entries (29 bytes each):
-       +---------- ... ----+---------- ... ----+-------+-------+-------+
-       | destination (16)  |   cost (8, LE)    | seqNum (4, LE)| hops  |
-       +---------- ... ----+---------- ... ----+-------+-------+-------+
+       For each of `count` entries (21 bytes each):
+       +---- ... ------+---------- ... ----+-------+-------+-------+
+       | destination(8) |   cost (8, LE)    | seqNum (4, LE)| hops  |
+       +---- ... ------+---------- ... ----+-------+-------+-------+
 ```
 
 #### Signed Variant
@@ -221,22 +221,22 @@ entries:
        +---------- ... ----------+---------- ... ----------+
 ```
 
-**Total signed size:** `18 + (count × 29) + 32 + 64`
+**Total signed size:** `10 + (count × 21) + 32 + 64`
 
 | Offset | Size | Field | Type | Endianness | Description |
 |--------|------|-------|------|------------|-------------|
 | 0 | 1 | `type` | byte | — | `0x02` |
-| 1–16 | 16 | `senderId` | bytes | — | Sender node ID. |
-| 17 | 1 | `entryCount` | UByte | — | Number of route entries (0–255). |
+| 1–8 | 8 | `senderId` | bytes | — | Sender node ID. |
+| 9 | 1 | `entryCount` | UByte | — | Number of route entries (0–255). |
 
-**Route Entry (29 bytes each):**
+**Route Entry (21 bytes each):**
 
 | Entry Offset | Size | Field | Type | Endianness | Description |
 |--------------|------|-------|------|------------|-------------|
-| +0 | 16 | `destination` | bytes | — | Destination node ID. |
-| +16 | 8 | `cost` | Double | **LE** | Route cost (IEEE 754 double, bit-cast). Must be finite and ≥ 0. |
-| +24 | 4 | `sequenceNumber` | UInt | **LE** | Route sequence number. |
-| +28 | 1 | `hopCount` | UByte | — | Number of hops to destination. |
+| +0 | 8 | `destination` | bytes | — | Destination node ID. |
+| +8 | 8 | `cost` | Double | **LE** | Route cost (IEEE 754 double, bit-cast). Must be finite and ≥ 0. |
+| +16 | 4 | `sequenceNumber` | UInt | **LE** | Route sequence number. |
+| +20 | 1 | `hopCount` | UByte | — | Number of hops to destination. |
 
 **Trailing signature (signed variant only):**
 
@@ -246,7 +246,7 @@ entries:
 | +32 | 64 | `signature` | bytes | — | Ed25519 signature over the unsigned message bytes. |
 
 **Validation:**
-- Minimum message size: 18 bytes (zero entries).
+- Minimum message size: 10 bytes (zero entries).
 - Route cost must be finite and non-negative.
 - Signed variant is detected by checking if `remaining bytes ≥ 96` after all entries.
 
@@ -311,23 +311,23 @@ Byte:   0       1                              16  17      18  19               
 Unicast message forwarded hop-by-hop along a computed route. Includes a visited
 list for loop detection.
 
-**Source:** `WireCodec.kt` · `ROUTED_HEADER_SIZE = 59`
+**Source:** `WireCodec.kt` · `ROUTED_HEADER_SIZE = 43`
 
 ```
-Byte:   0       1                 16  17                32  33                48
-       +-------+------ ... ------+---+------ ... ------+---+------ ... ------+
-       | 0x05  |  messageId (16) |     origin (16)     |   destination (16)  |
-       +-------+------ ... ------+---+------ ... ------+---+------ ... ------+
+Byte:   0       1                 16  17         24  25         32
+       +-------+------ ... ------+---+-- ... ---+---+-- ... ---+
+       | 0x05  |  messageId (16) |  origin (8)  | destination(8)|
+       +-------+------ ... ------+---+-- ... ---+---+-- ... ---+
 
-       49      50                             57  58
+       33      34                             41  42
        +-------+---------- ... ----------------+-------+
        | hLim  |    replayCounter (8, LE)      | vCnt  |
        +-------+---------- ... ----------------+-------+
 
-       For each of `vCnt` visited entries (16 bytes each):
-       +---------- ... ----------+
-       |    visited node (16)    |
-       +---------- ... ----------+
+       For each of `vCnt` visited entries (8 bytes each):
+       +------- ... --------+
+       |  visited node (8)  |
+       +------- ... --------+
 
        Followed by: payload (remaining bytes)
 ```
@@ -336,16 +336,16 @@ Byte:   0       1                 16  17                32  33                48
 |--------|------|-------|------|------------|-------------|
 | 0 | 1 | `type` | byte | — | `0x05` |
 | 1–16 | 16 | `messageId` | bytes | — | Unique message identifier. |
-| 17–32 | 16 | `origin` | bytes | — | Originator node ID. |
-| 33–48 | 16 | `destination` | bytes | — | Destination node ID. |
-| 49 | 1 | `hopLimit` | UByte | — | Maximum remaining hops. |
-| 50–57 | 8 | `replayCounter` | ULong | **LE** | Monotonic counter for replay protection. Default `0`. |
-| 58 | 1 | `visitedCount` | UByte | — | Number of visited-list entries (0–255). |
-| 59… | `vCnt × 16` | `visitedList` | bytes | — | Node IDs already visited (loop detection). |
+| 17–24 | 8 | `origin` | bytes | — | Originator node ID. |
+| 25–32 | 8 | `destination` | bytes | — | Destination node ID. |
+| 33 | 1 | `hopLimit` | UByte | — | Maximum remaining hops. |
+| 34–41 | 8 | `replayCounter` | ULong | **LE** | Monotonic counter for replay protection. Default `0`. |
+| 42 | 1 | `visitedCount` | UByte | — | Number of visited-list entries (0–255). |
+| 43… | `vCnt × 8` | `visitedList` | bytes | — | Node IDs already visited (loop detection). |
 | … | variable | `payload` | bytes | — | Application payload (remaining bytes). |
 
 **Validation:**
-- Minimum message size: 59 bytes (zero visited entries, empty payload).
+- Minimum message size: 43 bytes (zero visited entries, empty payload).
 - `visitedCount` entries must fit within the remaining data.
 
 ---
@@ -354,16 +354,16 @@ Byte:   0       1                 16  17                32  33                48
 
 End-to-end delivery confirmation, optionally signed for non-repudiation.
 
-**Source:** `WireCodec.kt` · `DELIVERY_ACK_HEADER_SIZE = 34`
+**Source:** `WireCodec.kt` · `DELIVERY_ACK_HEADER_SIZE = 26`
 
 ```
-Byte:   0       1                              16  17                             32  33
-       +-------+---------- ... ----------------+---+---------- ... ----------------+-------+
-       | 0x06  |         messageId (16)         |       recipientId (16)           | flags |
-       +-------+---------- ... ----------------+---+---------- ... ----------------+-------+
+Byte:   0       1                              16  17                 24  25
+       +-------+---------- ... ----------------+---+--- ... ---------+-------+
+       | 0x06  |         messageId (16)         |   recipientId (8)  | flags |
+       +-------+---------- ... ----------------+---+--- ... ---------+-------+
 
        If flags bit 0 set (HAS_SIGNATURE):
-       34                                      97  98                             129
+       26                                      89  90                             121
        +---------- ... ------------------------+---------- ... ------------------+
        |         signature (64)                |     signerPublicKey (32)        |
        +---------- ... ------------------------+---------- ... ------------------+
@@ -373,14 +373,14 @@ Byte:   0       1                              16  17                           
 |--------|------|-------|------|------------|-------------|
 | 0 | 1 | `type` | byte | — | `0x06` |
 | 1–16 | 16 | `messageId` | bytes | — | ID of the message being acknowledged. |
-| 17–32 | 16 | `recipientId` | bytes | — | Node ID of the recipient confirming delivery. |
-| 33 | 1 | `flags` | UByte | — | Bit 0: `HAS_SIGNATURE`. Bits 1–7: reserved. |
-| 34–97 | 64 | `signature` | bytes | — | Ed25519 signature (present only if `flags & 0x01`). |
-| 98–129 | 32 | `signerPublicKey` | bytes | — | Ed25519 public key (present only if `flags & 0x01`). |
+| 17–24 | 8 | `recipientId` | bytes | — | Node ID of the recipient confirming delivery. |
+| 25 | 1 | `flags` | UByte | — | Bit 0: `HAS_SIGNATURE`. Bits 1–7: reserved. |
+| 26–89 | 64 | `signature` | bytes | — | Ed25519 signature (present only if `flags & 0x01`). |
+| 90–121 | 32 | `signerPublicKey` | bytes | — | Ed25519 public key (present only if `flags & 0x01`). |
 
 **Validation:**
-- Minimum message size: 34 bytes.
-- If `flags & 0x01`, message must contain at least `34 + 64 + 32 = 130` bytes.
+- Minimum message size: 26 bytes.
+- If `flags & 0x01`, message must contain at least `26 + 64 + 32 = 122` bytes.
 
 ---
 
@@ -549,7 +549,7 @@ version negotiation and capability exchange (e.g., L2CAP support).
 
 - Node identity is derived from the **first 8 bytes of SHA-256(X25519 public
   key)** in BLE advertisements (see Advertisement Payload).
-- Framed messages use **16-byte** truncated key hashes as node identifiers.
+- Framed messages use **8-byte** truncated key hashes as node identifiers.
 
 ---
 

@@ -112,7 +112,7 @@ launch {
 ```kotlin
 // Send a message
 val messageId = mesh.send(
-    recipient = recipientPeerId,       // 16-byte peer ID
+    recipient = recipientPeerId,       // 8-byte peer ID
     payload = "Hello mesh!".encodeToByteArray(),
 )
 

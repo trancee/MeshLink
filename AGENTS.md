@@ -235,7 +235,7 @@ Custom binary protocol — no protobuf. All parsers in `WireCodec.kt`.
 - **Type byte** at offset 0: `0x00` Broadcast through `0x0A` Rotation
 - **Endianness:** little-endian for chunk offsets, replay counters, SACK
   bitmasks; big-endian for protocol version, timestamps, PSM
-- **Key sizes:** 16-byte peer IDs, 32-byte Ed25519/X25519 keys, 64-byte
+- **Key sizes:** 8-byte peer IDs, 32-byte Ed25519/X25519 keys, 64-byte
   signatures
 
 When adding a message type: assign next code in `WireCodec`, add `encode`/`decode`

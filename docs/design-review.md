@@ -75,9 +75,9 @@ The counterargument ("no explicit route discovery phase") is actually a weakness
 
 ---
 
-### 6. 16-Byte Peer IDs (SHA-256 Truncated) Are Wasteful on BLE
+### 6. ~~16-Byte Peer IDs (SHA-256 Truncated) Are Wasteful on BLE~~ ✅ RESOLVED
 
-**Current decision:** Node identifiers are 16-byte SHA-256 truncations in all wire messages.
+**Original decision:** Node identifiers are 16-byte SHA-256 truncations in all wire messages.
 
 **Challenge:** At 128 bits, collision resistance is ~2^64 (birthday bound) — massive overkill for meshes the doc says target ≤50–200 peers. Meanwhile, every routed message carries 3 of these IDs (messageId, origin, destination) = 48 bytes, plus 16 bytes per visited-list entry. On a 244-byte MTU, this routing overhead alone consumes 59+ bytes (24% of the frame).
 
@@ -87,6 +87,8 @@ The counterargument ("no explicit route discovery phase") is actually a weakness
 - 8 bytes per route update entry
 
 At 244-byte MTU, that's ~15% more payload per frame. On BLE, bandwidth is the scarcest resource.
+
+**Resolution:** Peer IDs reduced from 16 bytes to 8 bytes in all wire messages, aligning framed messages with the BLE advertisement key hash size. Updated all encode/decode functions, wire format constants, and test vectors. Collision resistance at 64 bits (~2³² birthday bound) remains far beyond practical mesh sizes (≤200 peers). Saves 8–32 bytes per message depending on type and hop count.
 
 ---
 
@@ -242,7 +244,7 @@ All eviction-related identifiers now qualified: `connectionEvicted` (ConnectionL
 | Severity | Count | Top Issues | Status |
 |----------|-------|------------|--------|
 | 🔴 Critical | 4 | ~~Mixed endianness~~ ✅, ~~no recipient forward secrecy~~ ✅, DSDV routing, no schema evolution | 2/4 resolved |
-| 🟠 Significant | 6 | ~~Unencrypted broadcasts~~ ✅, wasteful 16-byte IDs, ~~narrow SACK~~ ✅, ~~disabled rate limits~~ ✅, ~~maxHops inconsistency~~ ✅, no compression | 4/6 resolved |
+| 🟠 Significant | 6 | ~~Unencrypted broadcasts~~ ✅, ~~wasteful 16-byte IDs~~ ✅, ~~narrow SACK~~ ✅, ~~disabled rate limits~~ ✅, ~~maxHops inconsistency~~ ✅, no compression | 5/6 resolved |
 | 🟡 Moderate | 8 | ~~TOFU naming~~ ✅, ~~replay persist gap~~ ✅, ~~conflated TTL/timeout~~ ✅, ~~gossip off by default~~ ✅, ~~doc duplication~~ ✅, ~~test gaps~~ ✅, ~~overconfident threat model~~ ✅, ~~preset naming~~ ✅ | 8/8 resolved |
 | 🟢 Minor | 5 | ~~sigLen waste~~ ✅, ~~timestamp inconsistency~~ ✅, ~~NACK missing reason~~ ✅, ~~design doc size~~ ✅, ~~term inconsistency~~ ✅ | 5/5 resolved |
 
@@ -265,12 +267,11 @@ All eviction-related identifiers now qualified: `connectionEvicted` (ConnectionL
 
 ## Deferred to Post-v1
 
-The following 4 findings require architectural changes or protocol-breaking modifications.
+The following 3 findings require architectural changes or protocol-breaking modifications.
 They are intentionally deferred:
 
 | # | Finding | Why Deferred |
 |---|---------|--------------|
 | **#3** | DSDV routing vs. AODV/DSR | Replacing the routing algorithm would rewrite `RoutingEngine`, `GossipCoordinator`, all gossip/route-update wire messages, and ~30 tests. Evaluate after real-world mesh deployment data. |
 | **#4** | Custom binary vs. FlatBuffers | Migrating `WireCodec` to FlatBuffers/protobuf requires a schema, code generator, and new dependency across all KMP targets. The custom format is stable and well-tested. |
-| **#6** | 16-byte peer IDs wasteful on BLE | Reducing to 8 bytes saves 8–32 bytes per message but requires updating every encode/decode function, all test vectors, and changes the collision probability model. |
 | **#9** | No message compression | Requires: (a) KMP-compatible compression library (expect/actual for Deflater/NSData/zlib), (b) payload envelope prefix for signaling, (c) changes to encryption pipeline (compress before encrypt), (d) version negotiation for backward compatibility. The broadcast flags byte reserves bits 1–7 for future use including compression. |

@@ -159,10 +159,10 @@ flowchart TD
   | 16 | 32 bytes | Destination public key (Ed25519) |
   | 48 | 1 byte | Hop count (current) |
   | 49 | 1 byte | Visited node count (V) |
-  | 50 | V × 16 bytes | Visited node list (16-byte SHA-256-128 key hashes, max `maxHops` entries) |
-  | 50 + V×16 | 2 bytes | Chunk sequence number (uint16, little-endian) |
-  | 52 + V×16 | 4 bytes | Total ciphertext length (uint32, LE; **first chunk only**, seq=0. Omitted for seq>0, reducing per-chunk overhead by 4 bytes.) |
-  | 56 + V×16 | C bytes | Chunk payload (E2E ciphertext fragment; for seq>0, payload starts at offset 52 + V×16) |
+  | 50 | V × 8 bytes | Visited node list (8-byte SHA-256-64 key hashes, max `maxHops` entries) |
+  | 50 + V×8 | 2 bytes | Chunk sequence number (uint16, little-endian) |
+  | 52 + V×8 | 4 bytes | Total ciphertext length (uint32, LE; **first chunk only**, seq=0. Omitted for seq>0, reducing per-chunk overhead by 4 bytes.) |
+  | 56 + V×8 | C bytes | Chunk payload (E2E ciphertext fragment; for seq>0, payload starts at offset 52 + V×8) |
 
 ```mermaid
 ---
@@ -445,10 +445,10 @@ Since every device operates as both BLE central and peripheral, two devices disc
 
 **Power-mode-aware role assignment:** The higher-power device acts as central (initiator), letting the lower-power device use peripheral slave latency to save energy. Both sides compute the same result from advertisement data — no coordination needed.
 
-**Comparison method:** Key hashes are compared as unsigned byte arrays using **lexicographic (left-to-right) byte comparison**. The peer with the lexicographically higher 16-byte key hash acts as central. Both platforms must use identical comparison logic — a cross-platform golden test vector is included in Phase 0 conformance tests.
+**Comparison method:** Key hashes are compared as unsigned byte arrays using **lexicographic (left-to-right) byte comparison**. The peer with the lexicographically higher 8-byte key hash acts as central. Both platforms must use identical comparison logic — a cross-platform golden test vector is included in Phase 0 conformance tests.
 
 **Edge cases:**
-- **Identical truncated key hashes:** Astronomically unlikely with 16 bytes (128-bit collision resistance), but if it happens, detect the duplicate during Noise XX handshake (same static key on both sessions) and tear down the second connection.
+- **Identical truncated key hashes:** Astronomically unlikely with 8 bytes (64-bit collision resistance), but if it happens, detect the duplicate during Noise XX handshake (same static key on both sessions) and tear down the second connection.
 - **One side doesn't see the other's advertisement** (e.g., iOS background overflow): The device that can see the ad connects regardless of the tie-breaking rule. If a connection already exists (the other side connected first), the new connection is rejected at the GATT level.
 - **On-demand connections for message delivery** bypass the tie-breaking convention — if a node has data to send and needs to connect to a specific peer, it initiates regardless of the tie-breaking result. Tie-breaking only governs **mutual-discovery races** (when both sides see each other's advertisement simultaneously), not one-sided reconnection needs. There is no duplicate risk because the other side is not simultaneously trying to connect.
 
@@ -891,11 +891,11 @@ When a new route is discovered via Gossip, it is **not immediately advertised** 
 
 Each routed message carries a **visited node list** — the public key (or truncated hash) of every node that has forwarded this message. A node that sees itself in the visited list drops the message. **Relay processing sequence:** (1) receive message, (2) check visited list for own hash → if present, DROP (loop detected), (3) **add own hash** to visited list, (4) look up next-hop in routing table, (5) forward message with updated visited list. The relay adds its hash **before forwarding** — this ensures the next relay sees the current relay in the visited list, preventing loops via asymmetric return paths. The dedup set handles concurrent multipath copies arriving at the same relay simultaneously.
 
-The visited list uses **16-byte SHA-256-128 key hashes** (SHA-256 truncated to 128 bits of Curve25519 public key digests) rather than full 32-byte public keys. At 4 hops max, this costs **64 bytes** (4 × 16 bytes). Collision risk at 128 bits is negligible for any practical mesh size (birthday bound at ~2^64, vastly exceeding any realistic number of mesh devices). The hop counter provides a secondary backstop.
+The visited list uses **8-byte SHA-256-64 key hashes** (SHA-256 truncated to 64 bits of Curve25519 public key digests) rather than full 32-byte public keys. At 4 hops max, this costs **32 bytes** (4 × 8 bytes). Collision risk at 64 bits (~2³² birthday bound) is negligible for any practical mesh size (far exceeding any realistic number of mesh devices). The hop counter provides a secondary backstop.
 
-**Hash collision risk:** SHA-256-128 collision probability is ~N²/2¹²⁸, negligible for meshes ≤10,000 peers. No mitigation implemented. A `VISITED_LIST_LOOP_DETECTED` diagnostic is emitted whenever a message is dropped due to visited-list match, carrying `{messageId, matchedHash, hopCount}` for forensic analysis.
+**Hash collision risk:** SHA-256-64 collision probability is ~N²/2⁶⁴, negligible for meshes ≤10,000 peers. No mitigation implemented. A `VISITED_LIST_LOOP_DETECTED` diagnostic is emitted whenever a message is dropped due to visited-list match, carrying `{messageId, matchedHash, hopCount}` for forensic analysis.
 
-**Origin node visited list:** The origin sender transmits with `visited_count=0` — it does not add itself to the visited list. The origin's identity is already encoded in the `sender` field of the routed_message envelope. The first relay receives V=0, adds its own hash (V=1), and forwards. This saves 16 bytes on single-hop messages.
+**Origin node visited list:** The origin sender transmits with `visited_count=0` — it does not add itself to the visited list. The origin's identity is already encoded in the `sender` field of the routed_message envelope. The first relay receives V=0, adds its own hash (V=1), and forwards. This saves 8 bytes on single-hop messages.
 
 ### Message Deduplication
 

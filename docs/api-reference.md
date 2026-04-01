@@ -37,7 +37,7 @@ The primary interface for all mesh networking operations. Implemented by
 
 | Signature | Description |
 |-----------|-------------|
-| `fun send(recipient: ByteArray, payload: ByteArray): Result<Uuid>` | Sends an encrypted unicast message. `recipient` is a 16-byte peer ID. Returns the message UUID on success. Fails if rate-limited, circuit breaker tripped, or buffer full. |
+| `fun send(recipient: ByteArray, payload: ByteArray): Result<Uuid>` | Sends an encrypted unicast message. `recipient` is an 8-byte peer ID. Returns the message UUID on success. Fails if rate-limited, circuit breaker tripped, or buffer full. |
 | `fun broadcast(payload: ByteArray, maxHops: UByte): Result<Uuid>` | Broadcasts an unencrypted message to all peers within `maxHops` radius. Returns the message UUID. |
 
 ### Event Streams
@@ -312,7 +312,7 @@ Represents a received unicast or broadcast message.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `senderId` | `ByteArray` | 16-byte peer ID of the sender. |
+| `senderId` | `ByteArray` | 8-byte peer ID of the sender. |
 | `payload` | `ByteArray` | Decrypted message content. |
 
 ### PeerEvent
@@ -328,8 +328,8 @@ Emitted on the `peers` flow when BLE neighbors are discovered or lost.
 
 | Subclass | Field | Description |
 |----------|-------|-------------|
-| `Found` | `peerId: ByteArray` | 16-byte ID of the newly found peer. |
-| `Lost` | `peerId: ByteArray` | 16-byte ID of the peer that is no longer reachable. |
+| `Found` | `peerId: ByteArray` | 8-byte ID of the newly found peer. |
+| `Lost` | `peerId: ByteArray` | 8-byte ID of the peer that is no longer reachable. |
 
 ### TransferProgress
 
@@ -383,7 +383,7 @@ Emitted when a peer rotates their Ed25519 identity key.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `peerId` | `ByteArray` | 16-byte ID of the peer. |
+| `peerId` | `ByteArray` | 8-byte ID of the peer. |
 | `previousKey` | `ByteArray` | The peer's previous Ed25519 public key. |
 | `newKey` | `ByteArray` | The peer's new Ed25519 public key. |
 
@@ -413,7 +413,7 @@ Snapshot of a single peer's connection, routing, and identity state. Returned by
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `peerIdHex` | `String` | Hex-encoded 16-byte peer ID. |
+| `peerIdHex` | `String` | Hex-encoded 8-byte peer ID. |
 | `presenceState` | `PresenceState` | `CONNECTED`, `DISCONNECTED`, or `GONE`. |
 | `isDirectNeighbor` | `Boolean` | `true` if the peer is within 1-hop BLE range. |
 | `routeNextHop` | `String?` | Hex ID of the next-hop peer on the best route. `null` if no route exists. |
@@ -579,7 +579,7 @@ interface BleTransport {
 
 | Member | Description |
 |--------|-------------|
-| `localPeerId` | 16-byte unique identifier for this device. |
+| `localPeerId` | 8-byte unique identifier for this device. |
 | `advertisementServiceData` | Service data payload to include in BLE advertisements (set before starting). |
 | `startAdvertisingAndScanning()` | Begin BLE advertising and scanning. |
 | `stopAll()` | Stop all BLE activity. |
