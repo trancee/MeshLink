@@ -177,7 +177,7 @@ packet-beta
   576-639: "Chunk Payload (C bytes)"
 ```
 
-**Parser safety:** The visited node count (V) MUST be validated: `V ≤ maxHops` (default 4). Messages with `V > maxHops` are rejected immediately. Additionally, the total message size must not exceed the transport frame size (MTU for GATT, negotiated frame size for L2CAP). Malformed messages are dropped and logged via diagnostic events.
+**Parser safety:** The visited node count (V) MUST be validated: `V ≤ maxHops` (default 10). Messages with `V > maxHops` are rejected immediately. Additionally, the total message size must not exceed the transport frame size (MTU for GATT, negotiated frame size for L2CAP). Malformed messages are dropped and logged via diagnostic events.
 
 **Forwarding predicate:** A relay node MUST NOT forward a `routed_message` if `hop_count >= maxHops`. The hop count field (offset 48) governs the TTL — it is incremented by each relay before forwarding. The visited node list governs **loop detection** — if the relay's own key hash is already in the visited list, the message is dropped (loop). These are independent checks: hop_count limits distance, visited list prevents cycles.
 
@@ -695,8 +695,8 @@ flowchart TD
 
 ### Hop Limits
 
-- **Default max hops:** **4** (configurable)
-- **Rationale:** At ≤4 hops, a 100KB transfer takes ~4–12 seconds; 7 hops would exceed 20 seconds with diminishing reliability.
+- **Default max hops:** **10** (configurable)
+- **Rationale:** At ≤10 hops, the mesh covers a wide area while keeping per-message relay traffic bounded; higher values increase reach but reduce reliability and increase latency.
 
 ### Routing Algorithm: Enhanced DSDV (Proactive Distance-Vector)
 
@@ -741,7 +741,7 @@ flowchart TD
     K -- No --> M["Wait for periodic\ngossip cycle"]
 ```
 
-**No explicit routing table size cap for v1.** At maxHops=4 with typical BLE range (30-100m), the reachable peer count is naturally bounded at ~50-200 devices. Each route entry is ~140 bytes, so 200 peers = ~28KB — negligible. Route expiry (5× gossip interval) evicts stale entries. Post-v1 may add LRU eviction if Wi-Fi transport or higher hop limits expand reachability.
+**No explicit routing table size cap for v1.** At maxHops=10 with typical BLE range (30-100m), the reachable peer count is naturally bounded. Each route entry is ~140 bytes, so even at larger peer counts the memory footprint remains negligible. Route expiry (5× gossip interval) evicts stale entries. Post-v1 may add LRU eviction if Wi-Fi transport expands reachability further.
 
 **Scale beyond 50 peers:** There is no hard peer cap. All internal structures (routing table, dedup set, buffer pool, connection slots) are size-bounded by existing configuration parameters, not by peer count. Beyond 50 peers, gossip overhead increases (~2KB/s at 50 peers, ~8KB/s at 200 peers) and may reduce available bandwidth for user messages. The library is designed for ≤50 peers, tested to 100, and degrades gracefully beyond.
 
@@ -899,7 +899,7 @@ The visited list uses **16-byte SHA-256-128 key hashes** (SHA-256 truncated to 1
 
 With gossip and store-and-forward, the same message can arrive at a node via multiple paths. Every node maintains a **recently-seen message ID set**, bounded by **both time and count** (whichever limit is hit first):
 
-- **Time bound:** entries older than `maxHops × bufferTTL` are evicted (default: 4 × 5 min = 20 min). Each relay node starts its own independent TTL from the moment it receives a message (no shared clock required), so a message can theoretically survive `maxHops × bufferTTL` total. The dedup time bound must cover this maximum lifespan. The 20-minute dedup window (`maxHops × bufferTTL` = 4 × 5 min) covers the theoretical maximum lifespan of a message traversing the full relay chain — one `bufferTTL` per hop, sequentially. This ensures that even messages spending the maximum buffer time at each relay are caught by dedup on redelivery, preventing duplicates after app restart or during partition heal.
+- **Time bound:** entries older than `maxHops × bufferTTL` are evicted (default: 10 × 5 min = 50 min). Each relay node starts its own independent TTL from the moment it receives a message (no shared clock required), so a message can theoretically survive `maxHops × bufferTTL` total. The dedup time bound must cover this maximum lifespan. The 50-minute dedup window (`maxHops × bufferTTL` = 10 × 5 min) covers the theoretical maximum lifespan of a message traversing the full relay chain — one `bufferTTL` per hop, sequentially. This ensures that even messages spending the maximum buffer time at each relay are caught by dedup on redelivery, preventing duplicates after app restart or during partition heal.
 - **Count bound:** default maximum 10,000 entries (configurable via `dedupMaxEntries`). Rationale: at 30 msg/s sustained, 10,000 entries provide ~333 seconds (5.5 min) of coverage — slightly above the 5-minute bufferTTL. Memory: 24 bytes × 10,000 = 240KB (acceptable). Beyond 30 msg/s, earliest entries evict before TTL; duplicate delivery handled by app-layer message ID dedup.
 - On receiving any message (routed, broadcast, or buffered), check if `messageId` is in the seen set
 - If seen → drop silently (do not forward, do not deliver to app)
@@ -946,7 +946,7 @@ When the recipient is temporarily unreachable, mesh nodes buffer encrypted messa
 
 Each tier is triggered only if the previous tier was insufficient. A `memoryPressure` diagnostic event is emitted at each tier.
 
-**Engine state is NOT shed under memory pressure.** Routing table (~28KB at 200 peers) and peer table (~10KB) are naturally bounded by `maxHops=4` and BLE range. Shedding ~38KB of engine state provides negligible relief compared to the buffer (256KB–8MB configurable, typically 512KB–4MB at runtime) and dedup set (240KB) targeted by the 3 tiers. Route expiry (5× gossip interval) and sweep timers already evict stale entries. Post-v1: if Wi-Fi transport or higher hop limits expand reachability to 1000+ peers, LRU eviction may be added.
+**Engine state is NOT shed under memory pressure.** Routing table and peer table are naturally bounded by `maxHops=10` and BLE range. Shedding engine state provides negligible relief compared to the buffer (256KB–8MB configurable, typically 512KB–4MB at runtime) and dedup set (240KB) targeted by the 3 tiers. Route expiry (5× gossip interval) and sweep timers already evict stale entries. Post-v1: if Wi-Fi transport expands reachability to 1000+ peers, LRU eviction may be added.
 
 - **Buffer eviction policy** (when buffer is full, applied in tier order):
 
@@ -2032,7 +2032,7 @@ All configurable parameters grouped by category, with defaults, bounds, and desc
 | Parameter | Type | Default | Min | Max | Description |
 |-----------|------|---------|-----|-----|-------------|
 | `appId` | string? | null | — | — | App-level topic filter. When set, the library computes `SHA-256-128(appId.toUTF8())` and includes the 16-byte hash in outbound messages. Inbound messages with non-matching appId are silently dropped at the recipient. Relays forward all messages regardless of appId (preserves mesh density). `null` = receive all messages. Recommended format: reverse-domain notation (e.g., `"com.mycompany.meshchat"`). Immutable after construction. |
-| `maxHops` | int | 4 | 2 | 8 | Maximum mesh relay depth. Higher = wider reach but more relay traffic and larger visited lists. |
+| `maxHops` | int | 10 | 2 | 255 | Maximum mesh relay depth. Higher = wider reach but more relay traffic and larger visited lists. |
 | `bufferTTL` | duration | 5min | 1min | 30min | Per-message buffer lifetime. Messages evicted after expiry. |
 | `maxMessageSize` | bytes | 102,400 (100 KB) | 1,024 | 1,048,576 (1 MB) | Maximum payload size accepted for sending. Larger messages are rejected with `messageTooLarge` error. |
 | `powerModeThresholds` | int[2] | [80, 30] | — | — | Battery % thresholds for Performance/Balanced/PowerSaver transitions. Must be descending. |
