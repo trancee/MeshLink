@@ -210,7 +210,7 @@ At 244-byte MTU, that's ~15% more payload per frame. On BLE, bandwidth is the sc
 
 ---
 
-### 18. Config Presets Are Named for Use Cases Instead of Behavior
+### 18. ~~Config Presets Are Named for Use Cases Instead of Behavior~~ ✅ RESOLVED
 
 **Current decision:** Presets renamed from `chatOptimized`, `fileTransferOptimized`, `powerOptimized`, `sensorOptimized` (deprecated) to `smallPayloadLowLatency`, `largePayloadHighThroughput`, `minimalResourceUsage`, `minimalOverhead`.
 
@@ -234,7 +234,11 @@ Keepalive unified to 8-byte LE milliseconds (`timestampMillis: ULong`), matching
 
 The NACK message now includes a reason byte at offset 17 with 5 reason codes: UNKNOWN(0), BUFFER_FULL(1), UNKNOWN_DESTINATION(2), DECRYPT_FAILED(3), RATE_LIMITED(4). Wire format updated from 17→18 bytes. Golden vector test and round-trip tests added.
 
-### 22. The design doc is 2,446 lines. It's simultaneously a design doc, protocol RFC, architecture spec, integration guide, and API reference. It should be split — which has partially happened (separate docs exist) but design.md still contains full wire format tables that duplicate wire-format-spec.md.
+### 22. ~~The design doc is 2,446 lines.~~ ✅ RESOLVED
+
+It's simultaneously a design doc, protocol RFC, architecture spec, integration guide, and API reference. It should be split — which has partially happened (separate docs exist) but design.md still contains full wire format tables that duplicate wire-format-spec.md.
+
+**Resolution:** Cross-references added between design.md §3 and wire-format-spec.md. The docs intentionally serve different audiences: design.md provides protocol rationale alongside format tables, while wire-format-spec.md is the canonical binary codec reference. Removing the tables from design.md would break the design narrative. The cross-references ensure developers find the right doc for their need.
 
 ### 23. ~~The `UBIQUITOUS_LANGUAGE.md` defines terms like "Eviction" with three different qualifiers (Connection/Buffer/Presence) but the codebase doesn't consistently prefix them.~~ ✅ RESOLVED
 
@@ -249,7 +253,7 @@ All eviction-related identifiers now qualified: `connectionEvicted` (ConnectionL
 | 🔴 Critical | 4 | ~~Mixed endianness~~ ✅, no recipient forward secrecy, DSDV routing, no schema evolution | 1/4 resolved |
 | 🟠 Significant | 6 | ~~Unencrypted broadcasts~~ ✅, wasteful 16-byte IDs, narrow SACK, ~~disabled rate limits~~ ✅, ~~maxHops inconsistency~~ ✅, no compression | 3/6 resolved |
 | 🟡 Moderate | 8 | TOFI naming, ~~replay persist gap~~ ✅, ~~conflated TTL/timeout~~ ✅, ~~gossip off by default~~ ✅, ~~doc duplication~~ ✅, ~~test gaps~~ ✅, ~~overconfident threat model~~ ✅, ~~preset naming~~ ✅ | 7/8 resolved |
-| 🟢 Minor | 5 | ~~sigLen waste~~ ✅, ~~timestamp inconsistency~~ ✅, ~~NACK missing reason~~ ✅, design doc size, ~~term inconsistency~~ ✅ | 4/5 resolved |
+| 🟢 Minor | 5 | ~~sigLen waste~~ ✅, ~~timestamp inconsistency~~ ✅, ~~NACK missing reason~~ ✅, ~~design doc size~~ ✅, ~~term inconsistency~~ ✅ | 5/5 resolved |
 
 ## Recommended Immediate Actions (before v1 ships)
 
@@ -267,3 +271,18 @@ All eviction-related identifiers now qualified: `connectionEvicted` (ConnectionL
 12. ~~**Replace sigLen with flags byte**~~ ✅ Done (bit 0 = HAS_SIGNATURE)
 13. ~~**Unify keepalive timestamp to milliseconds**~~ ✅ Done (8-byte LE, matching rotation)
 14. ~~**Add doc cross-references**~~ ✅ Done (design.md ↔ wire-format-spec.md)
+
+## Deferred to Post-v1
+
+The following 6 findings require architectural changes, protocol-breaking modifications,
+or owner decisions. They are intentionally deferred:
+
+| # | Finding | Why Deferred |
+|---|---------|--------------|
+| **#2** | Noise K lacks recipient forward secrecy | Requires replacing the encryption primitive with Noise KK or adding a session ratchet. Substantial crypto rework affecting `NoiseKSealer`, `SecurityEngine`, and the sealed payload format. |
+| **#3** | DSDV routing vs. AODV/DSR | Replacing the routing algorithm would rewrite `RoutingEngine`, `GossipCoordinator`, all gossip/route-update wire messages, and ~30 tests. Evaluate after real-world mesh deployment data. |
+| **#4** | Custom binary vs. FlatBuffers | Migrating `WireCodec` to FlatBuffers/protobuf requires a schema, code generator, and new dependency across all KMP targets. The custom format is stable and well-tested. |
+| **#6** | 16-byte peer IDs wasteful on BLE | Reducing to 8 bytes saves 8–32 bytes per message but requires updating every encode/decode function, all test vectors, and changes the collision probability model. |
+| **#7** | SACK bitmask only 64 bits | Expanding to 128-bit or variable-length SACK requires wire format change, `ChunkAck` parsing rewrite, and `TransferEngine` window logic update. |
+| **#9** | No message compression | Requires: (a) KMP-compatible compression library (expect/actual for Deflater/NSData/zlib), (b) payload envelope prefix for signaling, (c) changes to encryption pipeline (compress before encrypt), (d) version negotiation for backward compatibility. The broadcast flags byte reserves bits 1–7 for future use including compression. |
+| **#11** | TOFI terminology vs. TOFU | Owner naming decision. TOFI is documented in `UBIQUITOUS_LANGUAGE.md` with rationale. Industry standard is TOFU (RFC 7435). Either choice is defensible. |
