@@ -1000,9 +1000,9 @@ class MeshIntegrationTest {
         assertEquals(1, alice.meshHealth().connectedPeers, "first miss: still tracked")
 
         // Second sweep miss — evicted
-        val evicted = alice.sweep(emptySet())
+        val presenceEvicted = alice.sweep(emptySet())
         assertEquals(0, alice.meshHealth().connectedPeers, "second miss: evicted")
-        assertEquals(1, evicted.size, "should report 1 evicted peer")
+        assertEquals(1, presenceEvicted.size, "should report 1 evicted peer")
 
         alice.stop()
     }

@@ -22,8 +22,8 @@ class PresenceTrackerTest {
         assertEquals(PresenceState.DISCONNECTED, tracker.state(key("A")))
 
         // Second consecutive miss → Gone (evicted)
-        val evicted = tracker.sweep(seenPeers = emptySet())
-        assertEquals(setOf(key("A")), evicted, "Peer A should be evicted after 2 misses")
+        val presenceEvicted = tracker.sweep(seenPeers = emptySet())
+        assertEquals(setOf(key("A")), presenceEvicted, "Peer A should be evicted after 2 misses")
         assertNull(tracker.state(key("A")), "Evicted peer should be gone")
 
         // If peer is seen again during Disconnected, goes back to Connected
@@ -78,18 +78,18 @@ class PresenceTrackerTest {
         tracker.peerSeen(key("C"))
 
         // Sweep with all seen → all stay CONNECTED, no evictions
-        val evicted1 = tracker.sweep(setOf(key("A"), key("B"), key("C")))
-        assertEquals(emptySet<ByteArrayKey>(), evicted1)
+        val presenceEvicted1 = tracker.sweep(setOf(key("A"), key("B"), key("C")))
+        assertEquals(emptySet<ByteArrayKey>(), presenceEvicted1)
         assertEquals(setOf(key("A"), key("B"), key("C")), tracker.connectedPeerIds())
 
         // Sweep again with all seen → still no evictions
-        val evicted2 = tracker.sweep(setOf(key("A"), key("B"), key("C")))
-        assertEquals(emptySet<ByteArrayKey>(), evicted2)
+        val presenceEvicted2 = tracker.sweep(setOf(key("A"), key("B"), key("C")))
+        assertEquals(emptySet<ByteArrayKey>(), presenceEvicted2)
 
         // Now miss B twice → only B evicted
         tracker.sweep(setOf(key("A"), key("C"))) // B → DISCONNECTED
-        val evicted3 = tracker.sweep(setOf(key("A"), key("C"))) // B → evicted
-        assertEquals(setOf(key("B")), evicted3)
+        val presenceEvicted3 = tracker.sweep(setOf(key("A"), key("C"))) // B → evicted
+        assertEquals(setOf(key("B")), presenceEvicted3)
         assertEquals(setOf(key("A"), key("C")), tracker.connectedPeerIds())
     }
 
@@ -115,8 +115,8 @@ class PresenceTrackerTest {
         assertEquals(PresenceState.DISCONNECTED, tracker.state(key("X")))
 
         // Second consecutive miss → GONE (evicted)
-        val evicted = tracker.sweep(emptySet())
-        assertEquals(setOf(key("X")), evicted)
+        val presenceEvicted = tracker.sweep(emptySet())
+        assertEquals(setOf(key("X")), presenceEvicted)
         assertNull(tracker.state(key("X")), "Peer should be null (evicted/GONE)")
     }
 }

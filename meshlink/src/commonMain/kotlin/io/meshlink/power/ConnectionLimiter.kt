@@ -10,14 +10,14 @@ class ConnectionLimiter(
     private var currentLimit = limits[PowerMode.PERFORMANCE] ?: 8
     private val connected = mutableListOf<String>()
 
-    /** Change power mode. Returns list of evicted peer IDs if limit decreased. */
+    /** Change power mode. Returns list of connection-evicted peer IDs if limit decreased. */
     fun setMode(mode: PowerMode): List<String> {
         currentLimit = limits[mode] ?: currentLimit
-        val evicted = mutableListOf<String>()
+        val connectionEvicted = mutableListOf<String>()
         while (connected.size > currentLimit) {
-            evicted.add(connected.removeFirst())
+            connectionEvicted.add(connected.removeFirst())
         }
-        return evicted
+        return connectionEvicted
     }
 
     fun tryAdd(peerId: String): Boolean {

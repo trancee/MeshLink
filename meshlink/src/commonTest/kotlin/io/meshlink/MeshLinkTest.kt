@@ -966,9 +966,9 @@ class MeshLinkTest {
         assertEquals(1, alice.meshHealth().connectedPeers, "First miss: still tracked")
 
         // Second sweep — Bob misses again → evicted
-        val evicted = alice.sweep(emptySet())
+        val presenceEvicted = alice.sweep(emptySet())
         assertEquals(0, alice.meshHealth().connectedPeers, "Second miss: evicted")
-        assertEquals(1, evicted.size, "Should report 1 evicted peer")
+        assertEquals(1, presenceEvicted.size, "Should report 1 evicted peer")
 
         alice.stop()
     }
@@ -1459,15 +1459,15 @@ class MeshLinkTest {
 
         // Sweep with all peers seen — nobody evicted
         val allSeen = setOf(peerIdBob.toHex(), peerIdCharlie.toHex())
-        val evicted1 = alice.sweep(allSeen)
-        assertEquals(0, evicted1.size, "No eviction when all peers seen")
+        val presenceEvicted1 = alice.sweep(allSeen)
+        assertEquals(0, presenceEvicted1.size, "No eviction when all peers seen")
         assertEquals(2, alice.meshHealth().connectedPeers, "Both peers preserved")
 
         // Multiple sweeps with all seen — still nobody evicted
-        val evicted2 = alice.sweep(allSeen)
-        val evicted3 = alice.sweep(allSeen)
-        assertEquals(0, evicted2.size)
-        assertEquals(0, evicted3.size)
+        val presenceEvicted2 = alice.sweep(allSeen)
+        val presenceEvicted3 = alice.sweep(allSeen)
+        assertEquals(0, presenceEvicted2.size)
+        assertEquals(0, presenceEvicted3.size)
         assertEquals(2, alice.meshHealth().connectedPeers, "All peers still present after 3 sweeps")
 
         alice.stop()
@@ -1751,14 +1751,14 @@ class MeshLinkTest {
         assertEquals(2, alice.meshHealth().connectedPeers)
 
         // First sweep with only Charlie seen → Bob gets first miss
-        val evicted1 = alice.sweep(setOf(peerIdCharlie.toHex()))
-        assertEquals(0, evicted1.size, "No eviction after 1 miss")
+        val presenceEvicted1 = alice.sweep(setOf(peerIdCharlie.toHex()))
+        assertEquals(0, presenceEvicted1.size, "No eviction after 1 miss")
         assertEquals(2, alice.meshHealth().connectedPeers, "Bob disconnected but not evicted")
 
         // Second sweep with only Charlie seen → Bob gets second miss → evicted
-        val evicted2 = alice.sweep(setOf(peerIdCharlie.toHex()))
-        assertEquals(1, evicted2.size, "Bob should be evicted")
-        assertTrue(evicted2.contains(peerIdBob.toHex()), "Evicted set should contain Bob's ID")
+        val presenceEvicted2 = alice.sweep(setOf(peerIdCharlie.toHex()))
+        assertEquals(1, presenceEvicted2.size, "Bob should be evicted")
+        assertTrue(presenceEvicted2.contains(peerIdBob.toHex()), "Evicted set should contain Bob's ID")
         assertEquals(1, alice.meshHealth().connectedPeers, "Only Charlie remains")
 
         alice.stop()
@@ -2539,7 +2539,7 @@ class MeshLinkTest {
         alice.stop()
     }
 
-    // --- Batch 4 Cycle 4: PEER_EVICTED diagnostic drainable ---
+    // --- Batch 4 Cycle 4: PEER_PRESENCE_EVICTED diagnostic drainable ---
 
     @Test
     fun sweepEvictionEmitsDiagnosticEvent() = runTest {
@@ -2558,12 +2558,12 @@ class MeshLinkTest {
         alice.sweep(emptySet()) // miss 2 → evicted
         assertEquals(0, alice.meshHealth().connectedPeers)
 
-        // Drain diagnostics — should have PEER_EVICTED event
+        // Drain diagnostics — should have PEER_PRESENCE_EVICTED event
         val events = alice.drainDiagnostics()
-        val evicted = events.filter { it.code == io.meshlink.diagnostics.DiagnosticCode.PEER_EVICTED }
-        assertEquals(1, evicted.size, "Should have exactly one PEER_EVICTED event")
-        assertTrue(evicted[0].payload?.contains(peerIdBob.toHex()) == true,
-            "PEER_EVICTED payload should contain evicted peer ID")
+        val presenceEvicted = events.filter { it.code == io.meshlink.diagnostics.DiagnosticCode.PEER_PRESENCE_EVICTED }
+        assertEquals(1, presenceEvicted.size, "Should have exactly one PEER_PRESENCE_EVICTED event")
+        assertTrue(presenceEvicted[0].payload?.contains(peerIdBob.toHex()) == true,
+            "PEER_PRESENCE_EVICTED payload should contain evicted peer ID")
 
         alice.stop()
     }
@@ -3764,8 +3764,8 @@ class MeshLinkTest {
         assertTrue(diags.isEmpty(), "No diagnostics on fresh node")
 
         // sweep with no peers returns empty
-        val evicted = a.sweep(emptySet())
-        assertTrue(evicted.isEmpty())
+        val presenceEvicted = a.sweep(emptySet())
+        assertTrue(presenceEvicted.isEmpty())
 
         // sweepStaleTransfers on fresh node returns 0
         assertEquals(0, a.sweepStaleTransfers(maxAgeMillis = 1000))

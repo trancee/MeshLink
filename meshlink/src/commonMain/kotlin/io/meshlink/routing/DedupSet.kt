@@ -6,7 +6,7 @@ import io.meshlink.util.ByteArrayKey
  * Bounded deduplication set with time-windowed TTL expiry.
  * Returns true if the ID is new (accepted), false if duplicate (rejected).
  *
- * Entries expire after [ttlMillis] milliseconds to prevent targeted eviction attacks.
+ * Entries expire after [ttlMillis] milliseconds to prevent targeted dedup-eviction attacks.
  * A hard [capacity] cap is still enforced as a safety net.
  */
 class DedupSet(

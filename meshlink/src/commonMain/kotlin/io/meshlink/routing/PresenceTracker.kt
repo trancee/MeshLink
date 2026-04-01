@@ -32,9 +32,9 @@ class PresenceTracker {
         missCount.clear()
     }
 
-    /** Run sweep. Returns set of evicted peer IDs (2 consecutive misses → GONE). */
+    /** Run sweep. Returns set of presence-evicted peer IDs (2 consecutive misses → GONE). */
     fun sweep(seenPeers: Set<ByteArrayKey>): Set<ByteArrayKey> {
-        val evicted = mutableSetOf<ByteArrayKey>()
+        val presenceEvicted = mutableSetOf<ByteArrayKey>()
         for (peerId in peers.keys.toList()) {
             if (peerId in seenPeers) {
                 peers[peerId] = PresenceState.CONNECTED
@@ -49,16 +49,16 @@ class PresenceTracker {
                         peers[peerId] = PresenceState.GONE
                         peers.remove(peerId)
                         missCount.remove(peerId)
-                        evicted.add(peerId)
+                        presenceEvicted.add(peerId)
                     }
                     else -> {
                         peers.remove(peerId)
                         missCount.remove(peerId)
-                        evicted.add(peerId)
+                        presenceEvicted.add(peerId)
                     }
                 }
             }
         }
-        return evicted
+        return presenceEvicted
     }
 }

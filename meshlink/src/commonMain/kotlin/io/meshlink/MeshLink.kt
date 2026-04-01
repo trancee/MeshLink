@@ -579,11 +579,11 @@ class MeshLink(
 
     override fun sweep(seenPeers: Set<String>): Set<String> {
         val seenKeys = seenPeers.map { ByteArrayKey(hexToBytes(it)) }.toSet()
-        val evicted = routingEngine.sweepPresence(seenKeys)
-        for (peerId in evicted) {
-            diagnosticSink.emit(DiagnosticCode.PEER_EVICTED, Severity.INFO, "peerId=$peerId")
+        val presenceEvicted = routingEngine.sweepPresence(seenKeys)
+        for (peerId in presenceEvicted) {
+            diagnosticSink.emit(DiagnosticCode.PEER_PRESENCE_EVICTED, Severity.INFO, "peerId=$peerId")
         }
-        return evicted.map { it.toString() }.toSet()
+        return presenceEvicted.map { it.toString() }.toSet()
     }
 
     override fun addRoute(destination: String, nextHop: String, cost: Double, sequenceNumber: UInt) {

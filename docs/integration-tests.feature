@@ -309,7 +309,7 @@ Feature: BLE Mesh Peer-to-Peer Messaging
     And Alice has discovered "Bob"
     When Bob disappears and Alice sweeps presence twice without seeing Bob
     Then Alice should report 0 connected peers
-    And Alice should emit a PEER_EVICTED diagnostic event
+    And Alice should emit a PEER_PRESENCE_EVICTED diagnostic event
 
   # ─── Memory Pressure ───────────────────────────────────────────
 

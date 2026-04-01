@@ -19,8 +19,8 @@ class ConnectionLimiterTest {
         assertFalse(limiter.tryAdd("peer9"), "9th connection should be rejected in Performance")
 
         // Downgrade to Balanced (limit = 4) — should evict 4 idle connections
-        val evicted = limiter.setMode(PowerMode.BALANCED)
-        assertEquals(4, evicted.size, "Should evict 4 connections on downgrade to Balanced")
+        val connectionEvicted = limiter.setMode(PowerMode.BALANCED)
+        assertEquals(4, connectionEvicted.size, "Should evict 4 connections on downgrade to Balanced")
         assertEquals(4, limiter.connectionCount())
 
         // Can't add more (at limit)
@@ -31,15 +31,15 @@ class ConnectionLimiterTest {
         assertTrue(limiter.tryAdd("peer10"), "After remove, should accept")
 
         // Downgrade to PowerSaver (limit = 1)
-        val evicted2 = limiter.setMode(PowerMode.POWER_SAVER)
-        assertEquals(3, evicted2.size, "Should evict 3 on downgrade to PowerSaver")
+        val connectionEvicted2 = limiter.setMode(PowerMode.POWER_SAVER)
+        assertEquals(3, connectionEvicted2.size, "Should evict 3 on downgrade to PowerSaver")
         assertEquals(1, limiter.connectionCount())
     }
 
     // --- Batch 10 Cycle 5: FIFO eviction order ---
 
     @Test
-    fun evictionOrderIsFifoFirstAddedEvictedFirst() {
+    fun connectionEvictionOrderIsFifoFirstEvictedFirst() {
         val limiter = ConnectionLimiter()
         limiter.setMode(PowerMode.PERFORMANCE)
 
@@ -48,8 +48,8 @@ class ConnectionLimiterTest {
         peers.forEach { assertTrue(limiter.tryAdd(it)) }
 
         // Downgrade to BALANCED (limit=4) — should evict first 4 (FIFO): A, B, C, D
-        val evicted = limiter.setMode(PowerMode.BALANCED)
-        assertEquals(listOf("A", "B", "C", "D"), evicted, "First 4 added should be evicted (FIFO)")
+        val connectionEvicted = limiter.setMode(PowerMode.BALANCED)
+        assertEquals(listOf("A", "B", "C", "D"), connectionEvicted, "First 4 added should be evicted (FIFO)")
         assertEquals(listOf("E", "F", "G", "H"), limiter.connections(), "Last 4 should remain")
     }
 

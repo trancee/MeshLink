@@ -218,8 +218,8 @@ class RoutingEngineTest {
         re.sweepPresence(setOf(key("peer1")))
         assertEquals(PresenceState.DISCONNECTED, re.presenceState(key("peer2")))
         // Second sweep without peer2: peer2 → evicted
-        val evicted = re.sweepPresence(setOf(key("peer1")))
-        assertTrue(key("peer2") in evicted)
+        val presenceEvicted = re.sweepPresence(setOf(key("peer1")))
+        assertTrue(key("peer2") in presenceEvicted)
         assertEquals(1, re.peerCount)
     }
 

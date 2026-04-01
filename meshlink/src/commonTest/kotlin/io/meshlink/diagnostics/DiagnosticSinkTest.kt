@@ -113,7 +113,7 @@ class DiagnosticSinkTest {
         testScheduler.advanceUntilIdle()
 
         ms = 10L; sink.emit(DiagnosticCode.ROUTE_CHANGED, Severity.INFO, "a")
-        ms = 20L; sink.emit(DiagnosticCode.PEER_EVICTED, Severity.WARN, "b")
+        ms = 20L; sink.emit(DiagnosticCode.PEER_PRESENCE_EVICTED, Severity.WARN, "b")
         testScheduler.advanceUntilIdle()
 
         job.join()
@@ -121,7 +121,7 @@ class DiagnosticSinkTest {
         assertEquals(2, received.size)
         assertEquals(DiagnosticCode.ROUTE_CHANGED, received[0].code)
         assertEquals("a", received[0].payload)
-        assertEquals(DiagnosticCode.PEER_EVICTED, received[1].code)
+        assertEquals(DiagnosticCode.PEER_PRESENCE_EVICTED, received[1].code)
         assertEquals("b", received[1].payload)
     }
 

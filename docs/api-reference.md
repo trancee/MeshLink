@@ -507,7 +507,7 @@ All 20 diagnostic codes:
 | `L2CAP_FALLBACK` | WARN | BLE transport fell back from L2CAP to connectionless mode. |
 | `RATE_LIMIT_HIT` | WARN | Outbound rate limit was triggered; message was dropped. |
 | `ROUTE_CHANGED` | INFO | A route to a destination was added, updated, or removed. |
-| `PEER_EVICTED` | WARN | A peer was removed from the active peer list (e.g., due to inactivity or power mode downgrade). |
+| `PEER_PRESENCE_EVICTED` | WARN | A peer was presence-evicted (removed from the active peer list after 2 consecutive sweep misses). |
 | `BUFFER_PRESSURE` | WARN | Buffer utilization exceeded 80%. Consider shedding load. |
 | `TRANSPORT_MODE_CHANGED` | INFO | The BLE transport operating mode changed (e.g., L2CAP ↔ connectionless). |
 | `GOSSIP_TRAFFIC_REPORT` | INFO | A route advertisement exchange completed. Payload may contain route counts. |
