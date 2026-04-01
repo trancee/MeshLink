@@ -798,7 +798,7 @@ class MeshLink(
     private fun doSend(s: CoroutineScope, recipient: ByteArray, payload: ByteArray): Result<Uuid> {
         val messageId = Uuid.random().toByteArray()
         val key = messageId.toKey()
-        deliveryPipeline.registerOutbound(s, key, config.bufferTtlMillis) { expiredKey ->
+        deliveryPipeline.registerOutbound(s, key, config.deliveryTimeoutMillis) { expiredKey ->
             _transferFailures.tryEmit(
                 TransferFailure(
                     Uuid.fromByteArray(expiredKey.bytes),

@@ -203,5 +203,42 @@ class MeshLinkConfigTest {
         assertEquals(3, config.l2capRetryAttempts)
         assertEquals(30_000L, config.chunkInactivityTimeoutMillis)
         assertEquals(300_000L, config.bufferTtlMillis)
+        assertEquals(30_000L, config.deliveryTimeoutMillis)
+    }
+
+    @Test
+    fun deliveryTimeoutExceedingBufferTtlIsInvalid() {
+        val violations = MeshLinkConfig(
+            deliveryTimeoutMillis = 600_000L,
+            bufferTtlMillis = 300_000L,
+        ).validate()
+        assertTrue(
+            violations.any { "deliveryTimeoutMillis" in it },
+            "Should reject deliveryTimeoutMillis > bufferTtlMillis: $violations"
+        )
+    }
+
+    @Test
+    fun deliveryTimeoutEqualToBufferTtlIsValid() {
+        val violations = MeshLinkConfig(
+            deliveryTimeoutMillis = 300_000L,
+            bufferTtlMillis = 300_000L,
+        ).validate()
+        assertTrue(
+            violations.none { "deliveryTimeoutMillis" in it },
+            "deliveryTimeoutMillis == bufferTtlMillis should be valid: $violations"
+        )
+    }
+
+    @Test
+    fun chatOptimizedPresetHasShorterDeliveryTimeout() {
+        val config = MeshLinkConfig.chatOptimized()
+        assertEquals(10_000L, config.deliveryTimeoutMillis)
+    }
+
+    @Test
+    fun fileTransferPresetHasLongerDeliveryTimeout() {
+        val config = MeshLinkConfig.fileTransferOptimized()
+        assertEquals(120_000L, config.deliveryTimeoutMillis)
     }
 }

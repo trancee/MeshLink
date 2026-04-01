@@ -756,7 +756,7 @@ class MeshIntegrationTest {
         val tBob = VirtualMeshTransport(peerIdBob)
         tAlice.linkTo(tBob)
 
-        val config = testMeshLinkConfig { requireEncryption = false }
+        val config = testMeshLinkConfig { requireEncryption = false; deliveryTimeoutMillis = 30_000L }
         val alice = MeshLink(tAlice, config, coroutineContext)
         alice.start()
         advanceUntilIdle()

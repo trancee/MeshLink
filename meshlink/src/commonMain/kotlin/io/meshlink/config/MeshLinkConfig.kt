@@ -29,6 +29,7 @@ data class MeshLinkConfig(
     val l2capRetryAttempts: Int = 3,
     val chunkInactivityTimeoutMillis: Long = 30_000L,
     val bufferTtlMillis: Long = 300_000L,
+    val deliveryTimeoutMillis: Long = 30_000L,
     val triggeredUpdateThreshold: Double = 0.3,
     val triggeredUpdateBatchMillis: Long = 100L,
     val keepaliveIntervalMillis: Long = 0L,
@@ -79,17 +80,29 @@ data class MeshLinkConfig(
             )
         }
         if (maxConcurrentInboundSessions <= 0) violations.add("maxConcurrentInboundSessions must be positive")
+        if (deliveryTimeoutMillis < 0) violations.add("deliveryTimeoutMillis must be non-negative")
+        if (deliveryTimeoutMillis > 0 && bufferTtlMillis > 0 && deliveryTimeoutMillis > bufferTtlMillis) {
+            violations.add(
+                "deliveryTimeoutMillis ($deliveryTimeoutMillis) must be <= bufferTtlMillis ($bufferTtlMillis)",
+            )
+        }
         return violations
     }
 
     companion object {
         fun chatOptimized(overrides: MeshLinkConfigBuilder.() -> Unit = {}): MeshLinkConfig =
-            MeshLinkConfigBuilder(maxMessageSize = 10_000, bufferCapacity = 524_288)
-                .apply(overrides).build()
+            MeshLinkConfigBuilder(
+                maxMessageSize = 10_000,
+                bufferCapacity = 524_288,
+                deliveryTimeoutMillis = 10_000L,
+            ).apply(overrides).build()
 
         fun fileTransferOptimized(overrides: MeshLinkConfigBuilder.() -> Unit = {}): MeshLinkConfig =
-            MeshLinkConfigBuilder(maxMessageSize = 100_000, bufferCapacity = 2_097_152)
-                .apply(overrides).build()
+            MeshLinkConfigBuilder(
+                maxMessageSize = 100_000,
+                bufferCapacity = 2_097_152,
+                deliveryTimeoutMillis = 120_000L,
+            ).apply(overrides).build()
 
         fun powerOptimized(overrides: MeshLinkConfigBuilder.() -> Unit = {}): MeshLinkConfig =
             MeshLinkConfigBuilder(maxMessageSize = 10_000, bufferCapacity = 262_144)
@@ -135,6 +148,7 @@ class MeshLinkConfigBuilder(
     var l2capRetryAttempts: Int = 3,
     var chunkInactivityTimeoutMillis: Long = 30_000L,
     var bufferTtlMillis: Long = 300_000L,
+    var deliveryTimeoutMillis: Long = 30_000L,
     var triggeredUpdateThreshold: Double = 0.3,
     var triggeredUpdateBatchMillis: Long = 100L,
     var keepaliveIntervalMillis: Long = 0L,
@@ -174,6 +188,7 @@ class MeshLinkConfigBuilder(
         l2capRetryAttempts = l2capRetryAttempts,
         chunkInactivityTimeoutMillis = chunkInactivityTimeoutMillis,
         bufferTtlMillis = bufferTtlMillis,
+        deliveryTimeoutMillis = deliveryTimeoutMillis,
         triggeredUpdateThreshold = triggeredUpdateThreshold,
         triggeredUpdateBatchMillis = triggeredUpdateBatchMillis,
         keepaliveIntervalMillis = keepaliveIntervalMillis,

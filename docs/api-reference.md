@@ -187,7 +187,8 @@ Immutable configuration data class. All fields have sensible defaults.
 | `ackWindowMin` | `Int` | `2` | Minimum AIMD congestion window size. |
 | `ackWindowMax` | `Int` | `16` | Maximum AIMD congestion window size. Must be ≥ `ackWindowMin`. |
 | `chunkInactivityTimeoutMillis` | `Long` | `30_000` | Timeout for incomplete transfer assembly (ms). Must be < `bufferTtlMillis`. |
-| `bufferTtlMillis` | `Long` | `300_000` | Max time to keep buffered data (ms). |
+| `bufferTtlMillis` | `Long` | `300_000` | Max time to keep buffered store-and-forward data (ms). |
+| `deliveryTimeoutMillis` | `Long` | `30_000` | How long before notifying sender of delivery failure (ms). Must be ≤ `bufferTtlMillis`. `0` = no deadline. |
 
 #### Transport
 
@@ -246,6 +247,8 @@ configuration is valid. Enforced constraints:
 - `powerModeThresholds` strictly descending
 - `l2capRetryAttempts ≥ 0` when `l2capEnabled`
 - `chunkInactivityTimeoutMillis < bufferTtlMillis`
+- `deliveryTimeoutMillis ≤ bufferTtlMillis` (when both > 0)
+- `deliveryTimeoutMillis ≥ 0`
 
 ### Presets
 
