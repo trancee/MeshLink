@@ -154,10 +154,10 @@ Immutable configuration data class. All fields have sensible defaults.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `rateLimitMaxSends` | `Int` | `0` | Max outbound unicast sends per window. `0` = disabled. |
+| `rateLimitMaxSends` | `Int` | `60` | Max outbound unicast sends per window. `0` = disabled. |
 | `rateLimitWindowMillis` | `Long` | `60_000` | Sliding window for outbound rate limiting (ms). |
-| `broadcastRateLimitPerMinute` | `Int` | `0` | Max broadcast sends per minute. `0` = disabled. |
-| `inboundRateLimitPerSenderPerMinute` | `Int` | `0` | Max inbound messages from a single sender per minute. `0` = disabled. |
+| `broadcastRateLimitPerMinute` | `Int` | `10` | Max broadcast sends per minute. `0` = disabled. |
+| `inboundRateLimitPerSenderPerMinute` | `Int` | `30` | Max inbound messages from a single sender per minute. `0` = disabled. |
 | `handshakeRateLimitPerSec` | `Int` | `1` | Max Noise XX handshakes per second. |
 | `nackRateLimitPerSec` | `Int` | `10` | Max NACKs per second. |
 | `neighborAggregateLimitPerMin` | `Int` | `100` | Max aggregate messages from all BLE neighbors per minute. |
@@ -175,7 +175,7 @@ Immutable configuration data class. All fields have sensible defaults.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `gossipIntervalMillis` | `Long` | `0` | Periodic route advertisement interval (ms). `0` = disabled. |
+| `gossipIntervalMillis` | `Long` | `15_000` | Periodic route advertisement interval (ms). `0` = disabled. |
 | `triggeredUpdateThreshold` | `Double` | `0.3` | Fractional cost change that triggers an immediate route update. |
 | `triggeredUpdateBatchMillis` | `Long` | `100` | Batch window for triggered updates (ms). |
 | `relayQueueCapacity` | `Int` | `100` | Max queued relay (forwarded) messages. |

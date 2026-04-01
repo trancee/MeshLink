@@ -194,10 +194,10 @@ val sensorConfig = MeshLinkConfig.sensorOptimized()
 
 | Field                               | Default      | Description                        |
 |-------------------------------------|--------------|------------------------------------|
-| `rateLimitMaxSends`                 | 0 (disabled) | Max outbound unicasts per window   |
+| `rateLimitMaxSends`                 | 60           | Max outbound unicasts per window   |
 | `rateLimitWindowMillis`                 | 60,000       | Window duration in ms              |
-| `broadcastRateLimitPerMinute`       | 0 (disabled) | Max broadcasts per minute          |
-| `inboundRateLimitPerSenderPerMinute`| 0 (disabled) | Inbound cap per sender per minute  |
+| `broadcastRateLimitPerMinute`       | 10           | Max broadcasts per minute          |
+| `inboundRateLimitPerSenderPerMinute`| 30           | Inbound cap per sender per minute  |
 | `neighborAggregateLimitPerMin`      | 100          | Total messages from all neighbors  |
 | `senderNeighborLimitPerMin`         | 20           | Messages from a single neighbor    |
 
@@ -215,7 +215,7 @@ val sensorConfig = MeshLinkConfig.sensorOptimized()
 
 | Field                       | Default | Description                              |
 |-----------------------------|---------|------------------------------------------|
-| `gossipIntervalMillis`          | 0 (off) | Route advertisement interval             |
+| `gossipIntervalMillis`          | 15,000  | Route advertisement interval             |
 | `triggeredUpdateThreshold`  | 0.3     | Cost change % triggering immediate gossip|
 | `triggeredUpdateBatchMillis`    | 100     | Batch window for triggered updates       |
 | `relayQueueCapacity`        | 100     | Max queued relay messages                |
@@ -327,8 +327,8 @@ routing protocol with gossip-based advertisement.
 
 ### Enabling Gossip
 
-Set `gossipIntervalMillis` to a non-zero value to enable periodic route
-advertisements:
+Gossip is enabled by default (`gossipIntervalMillis = 15_000L`). Adjust the
+interval to tune the trade-off between route freshness and BLE bandwidth:
 
 ```kotlin
 val config = meshLinkConfig {
@@ -592,8 +592,8 @@ mesh.rotateIdentity().onFailure { error ->
 
 - **Set `maxHops` realistically** — limit to 3–5 for chat apps to reduce
   latency and relay load.
-- **Enable gossip** — set `gossipIntervalMillis` to 5–30 seconds for multi-hop
-  networks.
+- **Tune gossip interval** — default is 15 seconds; increase for
+  low-bandwidth scenarios or decrease for faster convergence.
 - **Report battery state** — call `updateBattery()` on battery change
   broadcasts so MeshLink can adapt automatically.
 - **Sweep periodically** — call `sweepStaleTransfers()` and
@@ -607,8 +607,8 @@ mesh.rotateIdentity().onFailure { error ->
 - **Use `TrustMode.STRICT`** unless you have a specific need for re-pinning.
 - **Monitor `keyChanges`** — alert users when a peer's key changes
   unexpectedly.
-- **Enable rate limiting** — set `rateLimitMaxSends`, `broadcastRateLimitPerMinute`,
-  and `inboundRateLimitPerSenderPerMinute` to protect against abuse.
+- **Tune rate limiting** — defaults are `rateLimitMaxSends=60`, `broadcastRateLimitPerMinute=10`,
+  and `inboundRateLimitPerSenderPerMinute=30`. Adjust for your use case; set to `0` to disable.
 
 ### Resource Management
 
