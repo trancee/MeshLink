@@ -1036,7 +1036,7 @@ The recipient decrypts by: loading the sender's static Curve25519 key from the p
 - **Confidentiality:** Recipient-only decryption
 - **Sender authentication:** Built into Noise K handshake
 - **Sender forward secrecy:** Ephemeral key per message
-- **⚠️ No recipient forward secrecy:** Static-key one-shot scheme; post-v1 mitigation: Double Ratchet
+- **Recipient forward secrecy:** Session-key mixing — after Noise XX handshake, a 32-byte session secret (derived from the shared chaining key) is mixed into the per-message HKDF key derivation. Session secrets are memory-only; deleted on restart. Compromising the static key without the session secret cannot decrypt past messages from that session.
 - **No server/prekey distribution needed**
 - **Prerequisite:** Recipient must know sender's public key (via gossip)
 

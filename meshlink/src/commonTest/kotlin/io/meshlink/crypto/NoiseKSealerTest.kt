@@ -84,4 +84,60 @@ class NoiseKSealerTest {
             sealer.unseal(recipient.privateKey, ByteArray(47))
         }
     }
+
+    // ── Vertical slice 6: session secret provides recipient forward secrecy ──
+
+    @Test
+    fun sealWithSessionSecretUnsealWithSameSecretSucceeds() {
+        val recipient = crypto.generateX25519KeyPair()
+        val sessionSecret = crypto.sha256("shared-session-key".encodeToByteArray())
+        val plaintext = "forward-secret message".encodeToByteArray()
+
+        val sealed = sealer.seal(recipient.publicKey, plaintext, sessionSecret)
+        val decrypted = sealer.unseal(recipient.privateKey, sealed, sessionSecret)
+
+        assertTrue(plaintext.contentEquals(decrypted))
+    }
+
+    @Test
+    fun sealWithSessionSecretUnsealWithoutSecretFails() {
+        val recipient = crypto.generateX25519KeyPair()
+        val sessionSecret = crypto.sha256("shared-session-key".encodeToByteArray())
+        val plaintext = "forward-secret message".encodeToByteArray()
+
+        val sealed = sealer.seal(recipient.publicKey, plaintext, sessionSecret)
+
+        // Without session secret, decryption fails — even with the correct static key
+        assertFailsWith<Exception> {
+            sealer.unseal(recipient.privateKey, sealed)
+        }
+    }
+
+    @Test
+    fun sealWithoutSessionSecretUnsealWithSecretFails() {
+        val recipient = crypto.generateX25519KeyPair()
+        val sessionSecret = crypto.sha256("shared-session-key".encodeToByteArray())
+        val plaintext = "plain noise-k message".encodeToByteArray()
+
+        val sealed = sealer.seal(recipient.publicKey, plaintext)
+
+        // Trying to unseal with a session secret that wasn't used during seal
+        assertFailsWith<Exception> {
+            sealer.unseal(recipient.privateKey, sealed, sessionSecret)
+        }
+    }
+
+    @Test
+    fun sealWithWrongSessionSecretFails() {
+        val recipient = crypto.generateX25519KeyPair()
+        val secret1 = crypto.sha256("session-1".encodeToByteArray())
+        val secret2 = crypto.sha256("session-2".encodeToByteArray())
+        val plaintext = "test".encodeToByteArray()
+
+        val sealed = sealer.seal(recipient.publicKey, plaintext, secret1)
+
+        assertFailsWith<Exception> {
+            sealer.unseal(recipient.privateKey, sealed, secret2)
+        }
+    }
 }

@@ -159,7 +159,11 @@ internal class MessageDispatcher(
 
                 if (routingEngine.isDuplicate(key)) return
 
-                val decrypted = validator.unsealPayload(result.reassembledPayload, "chunk reassembly") ?: return
+                val decrypted = validator.unsealPayload(
+                    result.reassembledPayload,
+                    "chunk reassembly",
+                    fromPeerId.toKey(),
+                ) ?: return
                 sink.onMessageReceived(fromPeerId, decrypted)
             }
         }
@@ -237,7 +241,11 @@ internal class MessageDispatcher(
 
         if (routed.destination.contentEquals(localPeerId)) {
             if (!validator.checkInboundRate(originId)) return
-            val deliveredPayload = validator.unsealPayload(routed.payload, "routed message") ?: return
+            val deliveredPayload = validator.unsealPayload(
+                routed.payload,
+                "routed message",
+                routed.origin.toKey(),
+            ) ?: return
             sink.onMessageReceived(routed.origin, deliveredPayload)
             val signed = securityEngine?.sign(routed.messageId + localPeerId)
             val ackFrame = WireCodec.encodeDeliveryAck(

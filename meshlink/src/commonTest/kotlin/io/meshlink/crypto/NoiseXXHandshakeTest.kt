@@ -153,4 +153,51 @@ class NoiseXXHandshakeTest {
         assertFalse(result1.sendKey.contentEquals(result2.sendKey),
             "Different handshakes should produce different transport keys")
     }
+
+    // ── Vertical slice 7: session secret is identical on both sides ──
+
+    @Test
+    fun sessionSecretIsIdenticalOnBothSides() {
+        val aliceStatic = crypto.generateX25519KeyPair()
+        val bobStatic = crypto.generateX25519KeyPair()
+
+        val alice = NoiseXXHandshake.initiator(crypto, aliceStatic)
+        val bob = NoiseXXHandshake.responder(crypto, bobStatic)
+
+        bob.readMessage(alice.writeMessage())
+        alice.readMessage(bob.writeMessage())
+        bob.readMessage(alice.writeMessage())
+
+        val aliceResult = alice.finalize()
+        val bobResult = bob.finalize()
+
+        assertTrue(
+            aliceResult.sessionSecret.contentEquals(bobResult.sessionSecret),
+            "Session secret must be identical on both sides for E2E forward secrecy",
+        )
+        assertEquals(32, aliceResult.sessionSecret.size, "Session secret should be 32 bytes")
+    }
+
+    @Test
+    fun differentHandshakesProduceDifferentSessionSecrets() {
+        val aliceStatic = crypto.generateX25519KeyPair()
+        val bobStatic = crypto.generateX25519KeyPair()
+
+        fun doHandshake(): NoiseXXHandshake.HandshakeResult {
+            val alice = NoiseXXHandshake.initiator(crypto, aliceStatic)
+            val bob = NoiseXXHandshake.responder(crypto, bobStatic)
+            bob.readMessage(alice.writeMessage())
+            alice.readMessage(bob.writeMessage())
+            bob.readMessage(alice.writeMessage())
+            return alice.finalize()
+        }
+
+        val result1 = doHandshake()
+        val result2 = doHandshake()
+
+        assertFalse(
+            result1.sessionSecret.contentEquals(result2.sessionSecret),
+            "Different handshakes should produce different session secrets (ephemeral keys differ)",
+        )
+    }
 }

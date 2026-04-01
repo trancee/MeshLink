@@ -31,6 +31,7 @@ class NoiseXXHandshake private constructor(
         val sendKey: ByteArray,
         val receiveKey: ByteArray,
         val remoteStaticKey: ByteArray,
+        val sessionSecret: ByteArray,
         val peerPayload: ByteArray? = null,
     )
 
@@ -100,11 +101,20 @@ class NoiseXXHandshake private constructor(
     fun finalize(): HandshakeResult {
         check(isComplete) { "Handshake not yet complete" }
         val (k1, k2) = hkdfPair(chainingKey, byteArrayOf())
+        // Derive a session secret from the chaining key for E2E forward secrecy.
+        // Both sides share the same chainingKey, so this value is identical on both peers.
+        val sessionSecret = crypto.hkdfSha256(
+            chainingKey,
+            byteArrayOf(),
+            "NoiseK-session".encodeToByteArray(),
+            32,
+        )
         return if (isInitiator) {
             HandshakeResult(
                 sendKey = k1,
                 receiveKey = k2,
                 remoteStaticKey = remoteStaticPub!!,
+                sessionSecret = sessionSecret,
                 peerPayload = _peerPayload,
             )
         } else {
@@ -112,6 +122,7 @@ class NoiseXXHandshake private constructor(
                 sendKey = k2,
                 receiveKey = k1,
                 remoteStaticKey = remoteStaticPub!!,
+                sessionSecret = sessionSecret,
                 peerPayload = _peerPayload,
             )
         }

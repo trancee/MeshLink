@@ -25,6 +25,7 @@ class SecurityEngine(
     private var sealer: NoiseKSealer = NoiseKSealer(crypto)
 
     private val peerPublicKeys = mutableMapOf<ByteArrayKey, ByteArray>()
+    private val sessionSecrets = mutableMapOf<ByteArrayKey, ByteArray>()
     private val lastRotationTimestampMillis = mutableMapOf<ByteArrayKey, ULong>()
 
     private val handshakeManager = PeerHandshakeManager(
@@ -46,16 +47,27 @@ class SecurityEngine(
     fun seal(recipientId: ByteArrayKey, payload: ByteArray): SealResult {
         val recipientKey = peerPublicKeys[recipientId]
             ?: return SealResult.UnknownRecipient
-        return SealResult.Sealed(sealer.seal(recipientKey, payload))
+        val sessionSecret = sessionSecrets[recipientId]
+        return SealResult.Sealed(sealer.seal(recipientKey, payload, sessionSecret))
     }
 
-    fun unseal(payload: ByteArray): UnsealResult {
+    fun unseal(payload: ByteArray, senderPeerId: ByteArrayKey? = null): UnsealResult {
         if (payload.size < 48) return UnsealResult.TooShort(payload)
+        // Try with session secret first (if sender is known and has a session)
+        val sessionSecret = senderPeerId?.let { sessionSecrets[it] }
+        if (sessionSecret != null) {
+            try {
+                return UnsealResult.Decrypted(
+                    sealer.unseal(localKeyPair.privateKey, payload, sessionSecret)
+                )
+            } catch (_: Exception) {
+                // Session key mismatch — fall through to try without
+            }
+        }
+        // Fallback: try without session secret (pure Noise K)
         return try {
             UnsealResult.Decrypted(sealer.unseal(localKeyPair.privateKey, payload))
         } catch (_: Exception) {
-            // Expected for wrong-key, tampered data, or unknown sender.
-            // Caller (InboundValidator) emits DECRYPTION_FAILED diagnostic.
             UnsealResult.Failed(payload)
         }
     }
@@ -89,6 +101,7 @@ class SecurityEngine(
         if (peerPublicKeys.containsKey(key)) return
         val result = handshakeManager.getSessionKeys(peerId) ?: return
         peerPublicKeys[key] = result.remoteStaticKey
+        sessionSecrets[key] = result.sessionSecret
     }
 
     fun isHandshakeComplete(peerId: ByteArray): Boolean =
@@ -172,6 +185,7 @@ class SecurityEngine(
 
     fun clear() {
         peerPublicKeys.clear()
+        sessionSecrets.clear()
     }
 }
 

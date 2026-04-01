@@ -165,8 +165,12 @@ internal class InboundValidator(
     // ── Decryption ─────────────────────────────────────────────────
 
     /** Decrypt payload, returning null on failure (with diagnostic emission). */
-    fun unsealPayload(ciphertext: ByteArray, context: String): ByteArray? {
-        return when (val ur = securityEngine?.unseal(ciphertext)) {
+    fun unsealPayload(
+        ciphertext: ByteArray,
+        context: String,
+        senderPeerId: ByteArrayKey? = null,
+    ): ByteArray? {
+        return when (val ur = securityEngine?.unseal(ciphertext, senderPeerId)) {
             is io.meshlink.crypto.UnsealResult.Decrypted -> ur.plaintext
             is io.meshlink.crypto.UnsealResult.Failed -> {
                 diagnosticSink.emit(DiagnosticCode.DECRYPTION_FAILED, Severity.WARN, context)

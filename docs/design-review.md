@@ -21,13 +21,11 @@ and UBIQUITOUS_LANGUAGE.md.
 
 ---
 
-### 2. Noise K Without Recipient Forward Secrecy Is a Bigger Gap Than Acknowledged
+### 2. ~~Noise K Without Recipient Forward Secrecy Is a Bigger Gap Than Acknowledged~~ ✅ RESOLVED
 
-**Current decision:** Noise K for E2E encryption. The design notes "⚠️ No recipient forward secrecy" and defers Double Ratchet to "post-v1."
+**Original decision:** Noise K for E2E encryption. The design notes "⚠️ No recipient forward secrecy" and defers Double Ratchet to "post-v1."
 
-**Challenge:** If a recipient's static key is ever compromised (device seized, key extracted from Keychain/Keystore), **every past message ever sent to that recipient is decryptable.** For a library marketed toward protest/festival/disaster use, this is a serious gap. The design doc's own threat model assumes "casual attackers," but the Noise K weakness scales: a state actor seizing one phone unlocks the full message history.
-
-**Better alternative:** **Noise KK or Noise IK + session ratcheting.** Noise KK adds one DH operation but gives mutual forward secrecy. Alternatively, implement a lightweight session ratchet: after the initial Noise K message, derive new keys per-message using a hash chain of the previous key. This doesn't require the full X3DH/Double Ratchet complexity but closes the "decrypt all past messages" attack. The performance cost (~1 HKDF per message, <1µs) is negligible.
+**Resolution:** Added session-key mixing for recipient forward secrecy. After Noise XX handshake, a 32-byte session secret is derived from the shared chaining key (identical on both sides). This session secret is mixed into the HKDF key derivation in `NoiseKSealer.seal()`/`unseal()`, so even if the recipient's static X25519 key is later compromised, past messages cannot be decrypted without the ephemeral session secret. Session secrets are held in memory only — deleted on app restart, identity rotation, or `clear()`. Fallback to pure Noise K when no session key is available (backward compatible, handles restarts gracefully).
 
 ---
 
@@ -243,7 +241,7 @@ All eviction-related identifiers now qualified: `connectionEvicted` (ConnectionL
 
 | Severity | Count | Top Issues | Status |
 |----------|-------|------------|--------|
-| 🔴 Critical | 4 | ~~Mixed endianness~~ ✅, no recipient forward secrecy, DSDV routing, no schema evolution | 1/4 resolved |
+| 🔴 Critical | 4 | ~~Mixed endianness~~ ✅, ~~no recipient forward secrecy~~ ✅, DSDV routing, no schema evolution | 2/4 resolved |
 | 🟠 Significant | 6 | ~~Unencrypted broadcasts~~ ✅, wasteful 16-byte IDs, ~~narrow SACK~~ ✅, ~~disabled rate limits~~ ✅, ~~maxHops inconsistency~~ ✅, no compression | 4/6 resolved |
 | 🟡 Moderate | 8 | ~~TOFU naming~~ ✅, ~~replay persist gap~~ ✅, ~~conflated TTL/timeout~~ ✅, ~~gossip off by default~~ ✅, ~~doc duplication~~ ✅, ~~test gaps~~ ✅, ~~overconfident threat model~~ ✅, ~~preset naming~~ ✅ | 8/8 resolved |
 | 🟢 Minor | 5 | ~~sigLen waste~~ ✅, ~~timestamp inconsistency~~ ✅, ~~NACK missing reason~~ ✅, ~~design doc size~~ ✅, ~~term inconsistency~~ ✅ | 5/5 resolved |
@@ -267,12 +265,11 @@ All eviction-related identifiers now qualified: `connectionEvicted` (ConnectionL
 
 ## Deferred to Post-v1
 
-The following 5 findings require architectural changes or protocol-breaking modifications.
+The following 4 findings require architectural changes or protocol-breaking modifications.
 They are intentionally deferred:
 
 | # | Finding | Why Deferred |
 |---|---------|--------------|
-| **#2** | Noise K lacks recipient forward secrecy | Requires replacing the encryption primitive with Noise KK or adding a session ratchet. Substantial crypto rework affecting `NoiseKSealer`, `SecurityEngine`, and the sealed payload format. |
 | **#3** | DSDV routing vs. AODV/DSR | Replacing the routing algorithm would rewrite `RoutingEngine`, `GossipCoordinator`, all gossip/route-update wire messages, and ~30 tests. Evaluate after real-world mesh deployment data. |
 | **#4** | Custom binary vs. FlatBuffers | Migrating `WireCodec` to FlatBuffers/protobuf requires a schema, code generator, and new dependency across all KMP targets. The custom format is stable and well-tested. |
 | **#6** | 16-byte peer IDs wasteful on BLE | Reducing to 8 bytes saves 8–32 bytes per message but requires updating every encode/decode function, all test vectors, and changes the collision probability model. |

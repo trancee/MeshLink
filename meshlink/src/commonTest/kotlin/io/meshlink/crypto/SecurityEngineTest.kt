@@ -287,4 +287,37 @@ class SecurityEngineTest {
         val result = engine.handleRotationAnnouncement(key("0a0b0c0d0e0f0102030405060708090a"), msg2)
         assertIs<RotationResult.Stale>(result)
     }
+
+    // --- Vertical slice 9: unseal falls back to pure Noise K when no session secret ---
+
+    @Test
+    fun unsealFallsBackToNoiseKWithoutSessionSecret() {
+        val sender = createEngine()
+        val receiver = createEngine()
+
+        // Register peer key directly (no handshake → no session secret)
+        sender.registerPeerKey(key("receiver01"), receiver.localPublicKey)
+
+        val plaintext = "no-session message".encodeToByteArray()
+        val sealResult = sender.seal(key("receiver01"), plaintext)
+        assertIs<SealResult.Sealed>(sealResult)
+
+        // Receiver has no session secret for this peer — should still decrypt via pure Noise K fallback
+        val unsealResult = receiver.unseal(sealResult.ciphertext, key("sender01"))
+        assertIs<UnsealResult.Decrypted>(unsealResult)
+        assertEquals(plaintext.decodeToString(), unsealResult.plaintext.decodeToString())
+    }
+
+    // --- Vertical slice 10: clear erases session secrets ---
+
+    @Test
+    fun clearErasesSessionSecrets() {
+        val engine = createEngine()
+        engine.registerPeerKey(key("peer01"), CryptoProvider().generateX25519KeyPair().publicKey)
+
+        engine.clear()
+
+        // After clear, no peer keys or session secrets remain
+        assertNull(engine.peerPublicKey(key("peer01")))
+    }
 }
