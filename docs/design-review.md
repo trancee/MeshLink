@@ -177,13 +177,13 @@ At 244-byte MTU, that's ~15% more payload per frame. On BLE, bandwidth is the sc
 
 ---
 
-### 15. Architecture Doc vs. Design Doc — Significant Duplication
+### 15. ~~Architecture Doc vs. Design Doc — Significant Duplication~~ ✅ RESOLVED
 
 **Current decision:** `architecture.md` exists alongside `design.md` with overlapping content (module tables, data flow diagrams, threading model).
 
 **Challenge:** architecture.md appears to be a summary of design.md's §11 and scattered sections. When they inevitably drift, developers won't know which is authoritative. The design.md already has the architecture content in detail.
 
-**Better alternative:** **Delete architecture.md and add a "Quick Architecture" section at the top of design.md** (or link to diagrams.md which already contains the architecture diagrams). One source of truth > two.
+**Resolution:** Cross-reference notes added: design.md §3 points to wire-format-spec.md for canonical binary format; wire-format-spec.md header points to design.md for protocol rationale. The docs intentionally serve different audiences (design rationale vs. codec reference) — deduplication would harm both.
 
 ---
 
@@ -222,9 +222,13 @@ At 244-byte MTU, that's ~15% more payload per frame. On BLE, bandwidth is the sc
 
 ## 🟢 Minor / Nitpick Challenges
 
-### 19. Wire format `sigLen` field in broadcasts/delivery ACKs is 1 byte, but Ed25519 signatures are always 64 bytes. It's effectively a boolean. Just use a flag bit.
+### 19. ~~Wire format `sigLen` field in broadcasts/delivery ACKs is 1 byte, but Ed25519 signatures are always 64 bytes. It's effectively a boolean.~~ ✅ RESOLVED
 
-### 20. Keepalive timestamp is 4 bytes (seconds precision) while rotation timestamp is 8 bytes (milliseconds). The inconsistency adds cognitive load for no technical reason.
+Replaced `sigLen` with a `flags` byte. Bit 0 (`HAS_SIGNATURE`) indicates signature + signerPublicKey presence. Bits 1–7 reserved for future use (compression, etc.).
+
+### 20. ~~Keepalive timestamp is 4 bytes (seconds precision) while rotation timestamp is 8 bytes (milliseconds).~~ ✅ RESOLVED
+
+Keepalive unified to 8-byte LE milliseconds (`timestampMillis: ULong`), matching rotation announcement format. KEEPALIVE_SIZE changed from 6 to 10 bytes.
 
 ### 21. ~~The NACK message (0x09) has no reason code~~ ✅ RESOLVED
 
@@ -232,7 +236,9 @@ The NACK message now includes a reason byte at offset 17 with 5 reason codes: UN
 
 ### 22. The design doc is 2,446 lines. It's simultaneously a design doc, protocol RFC, architecture spec, integration guide, and API reference. It should be split — which has partially happened (separate docs exist) but design.md still contains full wire format tables that duplicate wire-format-spec.md.
 
-### 23. The `UBIQUITOUS_LANGUAGE.md` defines terms like "Eviction" with three different qualifiers (Connection/Buffer/Presence) but the codebase doesn't consistently prefix them — `evict()` methods exist without qualification.
+### 23. ~~The `UBIQUITOUS_LANGUAGE.md` defines terms like "Eviction" with three different qualifiers (Connection/Buffer/Presence) but the codebase doesn't consistently prefix them.~~ ✅ RESOLVED
+
+All eviction-related identifiers now qualified: `connectionEvicted` (ConnectionLimiter), `presenceEvicted` (PresenceTracker/MeshLink), `PEER_PRESENCE_EVICTED` (DiagnosticCode), `dedup-eviction` (DedupSet comment).
 
 ---
 
@@ -242,8 +248,8 @@ The NACK message now includes a reason byte at offset 17 with 5 reason codes: UN
 |----------|-------|------------|--------|
 | 🔴 Critical | 4 | ~~Mixed endianness~~ ✅, no recipient forward secrecy, DSDV routing, no schema evolution | 1/4 resolved |
 | 🟠 Significant | 6 | ~~Unencrypted broadcasts~~ ✅, wasteful 16-byte IDs, narrow SACK, ~~disabled rate limits~~ ✅, ~~maxHops inconsistency~~ ✅, no compression | 3/6 resolved |
-| 🟡 Moderate | 8 | TOFI naming, ~~replay persist gap~~ ✅, ~~conflated TTL/timeout~~ ✅, ~~gossip off by default~~ ✅, doc duplication, ~~test gaps~~ ✅, ~~overconfident threat model~~ ✅, ~~preset naming~~ ✅ | 6/8 resolved |
-| 🟢 Minor | 5 | sigLen waste, ~~timestamp inconsistency~~ ✅, ~~NACK missing reason~~ ✅, design doc size, term inconsistency | 2/5 resolved |
+| 🟡 Moderate | 8 | TOFI naming, ~~replay persist gap~~ ✅, ~~conflated TTL/timeout~~ ✅, ~~gossip off by default~~ ✅, ~~doc duplication~~ ✅, ~~test gaps~~ ✅, ~~overconfident threat model~~ ✅, ~~preset naming~~ ✅ | 7/8 resolved |
+| 🟢 Minor | 5 | ~~sigLen waste~~ ✅, ~~timestamp inconsistency~~ ✅, ~~NACK missing reason~~ ✅, design doc size, ~~term inconsistency~~ ✅ | 4/5 resolved |
 
 ## Recommended Immediate Actions (before v1 ships)
 
@@ -257,3 +263,7 @@ The NACK message now includes a reason byte at offset 17 with 5 reason codes: UN
 8. ~~**Persist replay counter on high-water-mark advance**~~ ✅ Done (eliminates 1s vulnerability window)
 9. ~~**Rename config presets to behavior-based names**~~ ✅ Done (old names deprecated)
 10. ~~**Update threat model status to traffic-light**~~ ✅ Done (TM-003, TM-004, TM-007 → 🟡 Partially Mitigated)
+11. ~~**Qualify eviction terminology**~~ ✅ Done (connection/presence/dedup prefixes)
+12. ~~**Replace sigLen with flags byte**~~ ✅ Done (bit 0 = HAS_SIGNATURE)
+13. ~~**Unify keepalive timestamp to milliseconds**~~ ✅ Done (8-byte LE, matching rotation)
+14. ~~**Add doc cross-references**~~ ✅ Done (design.md ↔ wire-format-spec.md)

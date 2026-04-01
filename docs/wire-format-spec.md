@@ -1,5 +1,7 @@
 # MeshLink Wire Format Specification
 
+> **Canonical binary specification.** For design rationale and protocol context, see [design.md](design.md).
+
 ## Version
 
 Protocol version: 1.0

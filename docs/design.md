@@ -65,6 +65,8 @@ ios/                       ← Platform-specific (~7%)
 
 ## 3. Transport Layer
 
+> **Note:** For the complete byte-level wire format specification, see [wire-format-spec.md](wire-format-spec.md).
+
 ### BLE Transport: GATT + L2CAP CoC
 
 BLE is available on all modern iOS/Android devices, power-efficient, no pairing required. The hybrid GATT + L2CAP approach maximizes throughput without sacrificing compatibility — GATT is the guaranteed fallback. See [Appendix A](#appendix-a-decision-records) for alternatives evaluated.
