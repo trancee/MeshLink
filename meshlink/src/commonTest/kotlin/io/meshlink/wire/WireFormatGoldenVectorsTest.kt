@@ -62,19 +62,24 @@ class WireFormatGoldenVectorsTest {
 
     // ────────────────────────────────────────────────────────────────────
     // ChunkAck (0x04)
-    //   messageId    = 0x01..0x10
-    //   ackSequence  = 0x0003  (LE: 03 00)
-    //   sackBitmask  = 0xFF00FF00FF00FF00  (LE: 00 ff 00 ff 00 ff 00 ff)
+    //   messageId       = 0x01..0x10
+    //   ackSequence     = 0x0003  (LE: 03 00)
+    //   sackBitmask     = 0xFF00FF00FF00FF00  (LE: 00 ff 00 ff 00 ff 00 ff)
+    //   sackBitmaskHigh = 0xAA55AA55AA55AA55  (LE: 55 aa 55 aa 55 aa 55 aa)
+    //
+    // Layout: type(1) + msgId(16) + ackSeq(2 LE) + sackBitmask(8 LE)
+    //         + sackBitmaskHigh(8 LE) = 35 bytes
     //
     // Golden hex:
-    //   040102030405060708090a0b0c0d0e0f10030000ff00ff00ff00ff
+    //   040102030405060708090a0b0c0d0e0f10030000ff00ff00ff00ff55aa55aa55aa55aa
     // ────────────────────────────────────────────────────────────────────
 
     private val chunkAckGoldenHex =
         "04" +                                  // type: chunk_ack
         "0102030405060708090a0b0c0d0e0f10" +    // messageId
         "0300" +                                // ackSequence = 3 (LE)
-        "00ff00ff00ff00ff"                       // sackBitmask = 0xFF00FF00FF00FF00 (LE)
+        "00ff00ff00ff00ff" +                     // sackBitmask = 0xFF00FF00FF00FF00 (LE)
+        "55aa55aa55aa55aa"                       // sackBitmaskHigh = 0xAA55AA55AA55AA55 (LE)
 
     @Test
     fun chunkAckGoldenVectorEncodes() {
@@ -82,6 +87,7 @@ class WireFormatGoldenVectorsTest {
             messageId = messageId,
             ackSequence = 0x0003u,
             sackBitmask = 0xFF00FF00FF00FF00uL,
+            sackBitmaskHigh = 0xAA55AA55AA55AA55uL
         )
         assertEquals(chunkAckGoldenHex, encoded.toHex())
     }
@@ -93,6 +99,7 @@ class WireFormatGoldenVectorsTest {
         assertContentEquals(messageId, decoded.messageId)
         assertEquals(3u.toUShort(), decoded.ackSequence)
         assertEquals(0xFF00FF00FF00FF00uL, decoded.sackBitmask)
+        assertEquals(0xAA55AA55AA55AA55uL, decoded.sackBitmaskHigh)
     }
 
     // ────────────────────────────────────────────────────────────────────
@@ -476,7 +483,7 @@ class WireFormatGoldenVectorsTest {
         // ChunkAck
         val ackBytes = hexToBytes(chunkAckGoldenHex)
         val ack = WireCodec.decodeChunkAck(ackBytes)
-        val reAck = WireCodec.encodeChunkAck(ack.messageId, ack.ackSequence, ack.sackBitmask)
+        val reAck = WireCodec.encodeChunkAck(ack.messageId, ack.ackSequence, ack.sackBitmask, ack.sackBitmaskHigh)
         assertEquals(chunkAckGoldenHex, reAck.toHex(), "ChunkAck round-trip mismatch")
 
         // Broadcast

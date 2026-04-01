@@ -92,13 +92,11 @@ At 244-byte MTU, that's ~15% more payload per frame. On BLE, bandwidth is the sc
 
 ---
 
-### 7. SACK Bitmask Is Only 64 Bits — Fragile for Large Transfers
+### 7. ~~SACK Bitmask Is Only 64 Bits — Fragile for Large Transfers~~ ✅ RESOLVED
 
-**Current decision:** 64-bit SACK bitmask in chunk_ack covers 64 chunks beyond the base ACK.
+**Original decision:** 64-bit SACK bitmask in chunk_ack covers 64 chunks beyond the base ACK.
 
-**Challenge:** At 244-byte MTU, a 100KB message = ~410 chunks. The 64-bit SACK window covers only 15% of the transfer. If chunks arrive very out of order (common with relay delays), the sender has no visibility beyond 64 chunks ahead of the base ACK. This forces conservative retransmission.
-
-**Better alternative:** **Variable-length SACK ranges** (TCP-style, RFC 2018). Encode SACK as pairs of (begin, end) ranges: 2 bytes each, up to 4 ranges = 16 bytes (same as the current 8-byte bitmask + 2-byte base). This covers arbitrary gaps anywhere in the transfer, not just the first 64 chunks after the base. Alternatively, double the bitmask to 128 bits (16 bytes) for 3× the coverage at 8 bytes extra cost.
+**Resolution:** Expanded to 128-bit SACK bitmask (two ULong fields: `sackBitmask` + `sackBitmaskHigh`). chunk_ack grows from 27 → 35 bytes (+8 bytes). Now covers 31% of a 410-chunk transfer instead of 15%. The additional 8 bytes per ACK is negligible given ACKs are infrequent relative to data chunks.
 
 ---
 
@@ -246,7 +244,7 @@ All eviction-related identifiers now qualified: `connectionEvicted` (ConnectionL
 | Severity | Count | Top Issues | Status |
 |----------|-------|------------|--------|
 | 🔴 Critical | 4 | ~~Mixed endianness~~ ✅, no recipient forward secrecy, DSDV routing, no schema evolution | 1/4 resolved |
-| 🟠 Significant | 6 | ~~Unencrypted broadcasts~~ ✅, wasteful 16-byte IDs, narrow SACK, ~~disabled rate limits~~ ✅, ~~maxHops inconsistency~~ ✅, no compression | 3/6 resolved |
+| 🟠 Significant | 6 | ~~Unencrypted broadcasts~~ ✅, wasteful 16-byte IDs, ~~narrow SACK~~ ✅, ~~disabled rate limits~~ ✅, ~~maxHops inconsistency~~ ✅, no compression | 4/6 resolved |
 | 🟡 Moderate | 8 | ~~TOFU naming~~ ✅, ~~replay persist gap~~ ✅, ~~conflated TTL/timeout~~ ✅, ~~gossip off by default~~ ✅, ~~doc duplication~~ ✅, ~~test gaps~~ ✅, ~~overconfident threat model~~ ✅, ~~preset naming~~ ✅ | 8/8 resolved |
 | 🟢 Minor | 5 | ~~sigLen waste~~ ✅, ~~timestamp inconsistency~~ ✅, ~~NACK missing reason~~ ✅, ~~design doc size~~ ✅, ~~term inconsistency~~ ✅ | 5/5 resolved |
 

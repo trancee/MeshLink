@@ -157,7 +157,7 @@ class MeshLink(
             val recipientKey = outboundTracker.recipient(key)?.toKey() ?: continue
             if (recipientKey == peerKey && !info.isComplete && !info.isFailed) {
                 // Re-send remaining chunks via a dummy ACK to trigger retransmit
-                val update = transferEngine.onAck(key, -1, 0uL)
+                val update = transferEngine.onAck(key, -1, 0uL, 0uL)
                 if (update is TransferUpdate.Progress) {
                     dispatchChunks(s, outboundTracker.recipient(key)!!, update.chunksToSend, info.messageId)
                 }

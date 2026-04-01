@@ -102,7 +102,7 @@ All framed messages begin with a 1-byte type code at offset 0.
 | `0x01` | Handshake | `TYPE_HANDSHAKE` | Variable (min 2) | Noise XX handshake step. |
 | `0x02` | Route Update | `TYPE_ROUTE_UPDATE` | Variable (min 18) | Distance-vector routing table exchange. |
 | `0x03` | Chunk | `TYPE_CHUNK` | Variable (min 21) | Fragment of a chunked transfer. |
-| `0x04` | Chunk ACK | `TYPE_CHUNK_ACK` | 27 | Selective acknowledgment of chunks. |
+| `0x04` | Chunk ACK | `TYPE_CHUNK_ACK` | 35 | Selective acknowledgment of chunks. |
 | `0x05` | Routed Message | `TYPE_ROUTED_MESSAGE` | Variable (min 59) | Unicast message forwarded along a route. |
 | `0x06` | Delivery ACK | `TYPE_DELIVERY_ACK` | Variable (min 34) | End-to-end delivery confirmation. |
 | `0x07` | Resume Request | `TYPE_RESUME_REQUEST` | 21 | Request to resume a chunked transfer. |
@@ -282,15 +282,16 @@ Byte:   0       1                              16  17      18  19      20  21   
 ### 0x04 — Chunk ACK
 
 Selective acknowledgment for a chunked transfer, using a cumulative ACK
-sequence number plus a 64-bit SACK bitmask for out-of-order reception.
+sequence number plus a 128-bit SACK bitmask (two ULong fields) for
+out-of-order reception. Covers up to 128 chunks beyond `ackSequence`.
 
-**Source:** `WireCodec.kt` · `CHUNK_ACK_SIZE = 27`
+**Source:** `WireCodec.kt` · `CHUNK_ACK_SIZE = 35`
 
 ```
-Byte:   0       1                              16  17      18  19                     26
-       +-------+---------- ... ----------------+---+-------+---+---------- ... --------+
-       | 0x04  |         messageId (16)         |ackSeq (LE)  |   sackBitmask (8, LE)  |
-       +-------+---------- ... ----------------+---+-------+---+---------- ... --------+
+Byte:   0       1                              16  17      18  19                     26  27                     34
+       +-------+---------- ... ----------------+---+-------+---+---------- ... --------+---+---------- ... --------+
+       | 0x04  |         messageId (16)         |ackSeq (LE)  | sackBitmask (8, LE)    | sackBitmaskHigh (8, LE)  |
+       +-------+---------- ... ----------------+---+-------+---+---------- ... --------+---+---------- ... --------+
 ```
 
 | Offset | Size | Field | Type | Endianness | Description |
@@ -298,9 +299,10 @@ Byte:   0       1                              16  17      18  19               
 | 0 | 1 | `type` | byte | — | `0x04` |
 | 1–16 | 16 | `messageId` | bytes | — | Message ID being acknowledged. |
 | 17–18 | 2 | `ackSequence` | UShort | **LE** | Cumulative ACK: all chunks up to this number received. |
-| 19–26 | 8 | `sackBitmask` | ULong | **LE** | Selective ACK bitmask for chunks beyond `ackSequence`. |
+| 19–26 | 8 | `sackBitmask` | ULong | **LE** | Low 64 bits: SACK for chunks at offsets 0–63 beyond `ackSequence`. |
+| 27–34 | 8 | `sackBitmaskHigh` | ULong | **LE** | High 64 bits: SACK for chunks at offsets 64–127 beyond `ackSequence`. |
 
-**Fixed size:** 27 bytes.
+**Fixed size:** 35 bytes.
 
 ---
 
@@ -571,7 +573,7 @@ payload fields.
 ### Little-Endian
 
 Used for: Chunk `sequenceNumber`/`totalChunks`, Chunk ACK `ackSequence`/
-`sackBitmask`, Routed Message `replayCounter`, Route Update `cost`/
+`sackBitmask`/`sackBitmaskHigh`, Routed Message `replayCounter`, Route Update `cost`/
 `sequenceNumber`, Resume Request `bytesReceived`, Keepalive `timestampMillis`.
 
 | Function | Width | Description |
@@ -600,6 +602,7 @@ Quick reference for the byte order of every multi-byte field in the protocol.
 | Chunk | `totalChunks` | 2 | **LE** |
 | Chunk ACK | `ackSequence` | 2 | **LE** |
 | Chunk ACK | `sackBitmask` | 8 | **LE** |
+| Chunk ACK | `sackBitmaskHigh` | 8 | **LE** |
 | Routed Message | `replayCounter` | 8 | **LE** |
 | Route Update Entry | `cost` | 8 | **LE** |
 | Route Update Entry | `sequenceNumber` | 4 | **LE** |

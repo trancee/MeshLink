@@ -25,8 +25,8 @@ object WireCodec {
     // chunk: type(1) + messageId(16) + seqNum(2 LE) + totalChunks(2 LE) + payload
     const val CHUNK_HEADER_SIZE = 1 + MESSAGE_ID_SIZE + 2 + 2 // 21
 
-    // chunk_ack: type(1) + messageId(16) + ackSeq(2 LE) + sackBitmask(8 LE)
-    private const val CHUNK_ACK_SIZE = 1 + MESSAGE_ID_SIZE + 2 + 8 // 27
+    // chunk_ack: type(1) + messageId(16) + ackSeq(2 LE) + sackBitmask(8 LE) + sackBitmaskHigh(8 LE)
+    private const val CHUNK_ACK_SIZE = 1 + MESSAGE_ID_SIZE + 2 + 8 + 8 // 35
 
     // handshake: type(1) + step(1) + noiseMessage(variable)
     private const val HANDSHAKE_HEADER_SIZE = 2
@@ -88,6 +88,7 @@ object WireCodec {
         messageId: ByteArray,
         ackSequence: UShort,
         sackBitmask: ULong,
+        sackBitmaskHigh: ULong,
     ): ByteArray {
         val buf = ByteArray(CHUNK_ACK_SIZE)
         var offset = 0
@@ -97,6 +98,8 @@ object WireCodec {
         buf.putUShortLE(offset, ackSequence)
         offset += 2
         buf.putULongLE(offset, sackBitmask)
+        offset += 8
+        buf.putULongLE(offset, sackBitmaskHigh)
         return buf
     }
 
@@ -109,7 +112,9 @@ object WireCodec {
         val ackSequence = data.getUShortLE(offset)
         offset += 2
         val sackBitmask = data.getULongLE(offset)
-        return ChunkAckMessage(messageId, ackSequence, sackBitmask)
+        offset += 8
+        val sackBitmaskHigh = data.getULongLE(offset)
+        return ChunkAckMessage(messageId, ackSequence, sackBitmask, sackBitmaskHigh)
     }
 
     // routed_message: type(1) + messageId(16) + origin(16) + destination(16) + hopLimit(1) + replayCounter(8 LE) + visitedCount(1) + visited(N×16) + payload
@@ -492,6 +497,7 @@ data class ChunkAckMessage(
     val messageId: ByteArray,
     val ackSequence: UShort,
     val sackBitmask: ULong,
+    val sackBitmaskHigh: ULong,
 )
 
 data class RoutedMessage(

@@ -144,6 +144,7 @@ internal class MessageDispatcher(
                     messageId = chunk.messageId,
                     ackSequence = result.ackSeq.toUShort(),
                     sackBitmask = result.sackBitmask,
+                    sackBitmaskHigh = result.sackBitmaskHigh,
                 )
                 sink.sendFrame(fromPeerId, ack)
             }
@@ -152,6 +153,7 @@ internal class MessageDispatcher(
                     messageId = chunk.messageId,
                     ackSequence = result.ackSeq.toUShort(),
                     sackBitmask = result.sackBitmask,
+                    sackBitmaskHigh = result.sackBitmaskHigh,
                 )
                 sink.sendFrame(fromPeerId, ack)
 
@@ -168,7 +170,7 @@ internal class MessageDispatcher(
         val key = ack.messageId.toKey()
         val recipient = outboundTracker.recipient(key)
 
-        val update = transferEngine.onAck(key, ack.ackSequence.toInt(), ack.sackBitmask)
+        val update = transferEngine.onAck(key, ack.ackSequence.toInt(), ack.sackBitmask, ack.sackBitmaskHigh)
 
         when (update) {
             is TransferUpdate.Complete -> {

@@ -33,16 +33,23 @@ internal class TransferSession(val totalChunks: Int, initialWindow: Int = 1) {
         return toSend
     }
 
-    fun onAck(ackSeq: Int, sackBitmask: ULong) {
+    fun onAck(ackSeq: Int, sackBitmask: ULong, sackBitmaskHigh: ULong) {
         // Mark contiguous chunks as acked
         for (i in 0..ackSeq.coerceAtMost(totalChunks - 1)) {
             acked[i] = true
         }
-        // Mark sack bits
+        // Mark low sack bits (0–63)
         val base = ackSeq + 1
         for (offset in 0 until 64) {
             if (sackBitmask and (1uL shl offset) != 0uL) {
                 val idx = base + offset
+                if (idx < totalChunks) acked[idx] = true
+            }
+        }
+        // Mark high sack bits (64–127)
+        for (offset in 0 until 64) {
+            if (sackBitmaskHigh and (1uL shl offset) != 0uL) {
+                val idx = base + 64 + offset
                 if (idx < totalChunks) acked[idx] = true
             }
         }

@@ -26,7 +26,7 @@ class TransferEngineTest {
         assertEquals(1, handle.chunks.size)
 
         // Simulate receiver ACKing the single chunk
-        val update = engine.onAck(key(msgHex), ackSeq = 0, sackBitmask = 0uL)
+        val update = engine.onAck(key(msgHex), ackSeq = 0, sackBitmask = 0uL, sackBitmaskHigh = 0uL)
         assertIs<TransferUpdate.Complete>(update)
     }
 
@@ -44,17 +44,17 @@ class TransferEngineTest {
         assertEquals(3, handle.chunks.size)
 
         // ACK chunk 0
-        val u1 = engine.onAck(key(msgHex), ackSeq = 0, sackBitmask = 0uL)
+        val u1 = engine.onAck(key(msgHex), ackSeq = 0, sackBitmask = 0uL, sackBitmaskHigh = 0uL)
         assertIs<TransferUpdate.Progress>(u1)
         assertEquals(1, u1.ackedCount)
 
         // ACK chunks 0-1
-        val u2 = engine.onAck(key(msgHex), ackSeq = 1, sackBitmask = 0uL)
+        val u2 = engine.onAck(key(msgHex), ackSeq = 1, sackBitmask = 0uL, sackBitmaskHigh = 0uL)
         assertIs<TransferUpdate.Progress>(u2)
         assertEquals(2, u2.ackedCount)
 
         // ACK chunks 0-2 (complete)
-        val u3 = engine.onAck(key(msgHex), ackSeq = 2, sackBitmask = 0uL)
+        val u3 = engine.onAck(key(msgHex), ackSeq = 2, sackBitmask = 0uL, sackBitmaskHigh = 0uL)
         assertIs<TransferUpdate.Complete>(u3)
     }
 
@@ -118,7 +118,7 @@ class TransferEngineTest {
     @Test
     fun ackForUnknownTransferReturnsUnknown() {
         val engine = createEngine()
-        val result = engine.onAck(key("nonexistent"), 0, 0uL)
+        val result = engine.onAck(key("nonexistent"), 0, 0uL, 0uL)
         assertIs<TransferUpdate.Unknown>(result)
     }
 
