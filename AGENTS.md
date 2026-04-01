@@ -87,7 +87,7 @@ open meshlink/build/reports/tests/jvmTest/index.html
 84 test files across 20 packages in `meshlink/src/commonTest/`: crypto (17),
 transport (9), transfer (8), util (7), power (7), wire (6), model (6),
 routing (5), dispatch (3), diagnostics (3), send (2), config (1), delivery (1),
-gossip (1), peer (1), protocol (1), storage (1), plus integration and stress
+route (1), peer (1), protocol (1), storage (1), plus integration and stress
 suites.
 
 #### Integration Test Suite (`MeshIntegrationTest.kt`)
@@ -143,7 +143,7 @@ before committing. See `detekt.yml` for the full rule set.
 ```
 meshlink/src/
   commonMain/     ~85% of code: protocol, routing, crypto, wire format
-  commonTest/     1,140+ tests using VirtualMeshTransport (in-memory BLE mock)
+  commonTest/     1,167 tests using VirtualMeshTransport (in-memory BLE mock)
   androidMain/    BLE transport, EncryptedSharedPreferences, JCA crypto (API 33+)
   appleMain/      Shared iOS/macOS: CoreBluetooth, CryptoKit, Keychain
   iosMain/        iOS-specific overrides
@@ -175,7 +175,7 @@ and `meshlink-sample/macos/` (not Gradle-managed).
 | `MeshLinkConfig.kt` | 40+ config fields with DSL builder and presets |
 | `WireCodec.kt` | Binary encode/decode + message type constants |
 | `SecurityEngine.kt` | Noise K (E2E) + Noise XX (hop-by-hop) encryption |
-| `RoutingEngine.kt` | DSDV routing table and next-hop resolution |
+| `RoutingEngine.kt` | AODV reactive routing: route discovery, RREQ/RREP handling, route cache |
 | `PowerCoordinator.kt` | Battery-adaptive power modes with hysteresis |
 | `Compressor.kt` | Payload compression expect/actual (zlib RFC 1950) |
 
@@ -223,7 +223,8 @@ Test reports are uploaded as artifacts (14-day retention).
 ## Error Handling
 
 - Public API returns `Result<T>` — never throw for expected failures
-- Internal engines use sealed result types (e.g. `SendDecision`, `UnsealResult`)
+- Internal engines use sealed result types (e.g. `SendDecision`, `UnsealResult`,
+  `RouteRequestResult`, `RouteReplyResult`)
 - `IllegalStateException` for API misuse only (e.g. calling `send()` before
   `start()`)
 - `catch (_: Exception)` in crypto code is intentional — platform crypto throws
@@ -234,7 +235,7 @@ Test reports are uploaded as artifacts (14-day retention).
 
 Custom binary protocol — no protobuf. All parsers in `WireCodec.kt`.
 
-- **Type byte** at offset 0: `0x00` Broadcast through `0x0A` Rotation
+- **Type byte** at offset 0: `0x00` Broadcast through `0x0C` Route Reply
 - **Endianness:** little-endian for chunk offsets, replay counters, SACK
   bitmasks; big-endian for protocol version, timestamps, PSM
 - **Key sizes:** 8-byte peer IDs, 32-byte Ed25519/X25519 keys, 64-byte

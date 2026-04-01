@@ -64,7 +64,6 @@ val mesh = MeshLink(
     transport = transport,
     config = meshLinkConfig {
         maxMessageSize = 50_000
-        gossipIntervalMillis = 10_000L
     },
     crypto = CryptoProvider(),
 )
@@ -147,7 +146,7 @@ val config = meshLinkConfig {
     maxMessageSize = 50_000
     bufferCapacity = 1_048_576
     mtu = 185
-    gossipIntervalMillis = 10_000L
+    routeCacheTtlMillis = 120_000L
     keepaliveIntervalMillis = 30_000L
     pendingMessageTtlMillis = 60_000L
 }
@@ -164,7 +163,7 @@ import io.meshlink.config.MeshLinkConfig
 
 // Chat apps — small messages, moderate buffer
 val chatConfig = MeshLinkConfig.smallPayloadLowLatency {
-    gossipIntervalMillis = 5_000L
+    routeCacheTtlMillis = 30_000L
 }
 
 // File/image transfer — large messages, big buffer
@@ -215,9 +214,9 @@ val sensorConfig = MeshLinkConfig.minimalOverhead()
 
 | Field                       | Default | Description                              |
 |-----------------------------|---------|------------------------------------------|
-| `gossipIntervalMillis`          | 15,000  | Route advertisement interval             |
-| `triggeredUpdateThreshold`  | 0.3     | Cost change % triggering immediate gossip|
-| `triggeredUpdateBatchMillis`    | 100     | Batch window for triggered updates       |
+| `routeCacheTtlMillis`       | 60,000  | TTL for cached AODV routes (ms)          |
+| `routeDiscoveryTimeoutMillis`| 5,000  | Max wait for Route Reply (ms)            |
+| `gossipIntervalMillis`      | 0       | Legacy (unused with AODV); retained for backward compat |
 | `relayQueueCapacity`        | 100     | Max queued relay messages                |
 
 #### Transport
@@ -350,19 +349,32 @@ launch {
 
 ## Multi-Hop Routing
 
-MeshLink uses an enhanced DSDV (Destination-Sequenced Distance-Vector)
-routing protocol with gossip-based advertisement.
+MeshLink uses AODV (Ad-hoc On-demand Distance Vector) reactive routing.
+Routes are discovered automatically when you send a message to a peer that
+is not a direct neighbor — no configuration is needed for multi-hop to work.
 
-### Enabling Gossip
+### How Route Discovery Works
 
-Gossip is enabled by default (`gossipIntervalMillis = 15_000L`). Adjust the
-interval to tune the trade-off between route freshness and BLE bandwidth:
+When you call `send()` for a peer with no cached route:
+1. MeshLink queues the message and floods a **Route Request (RREQ)** to all
+   neighbors.
+2. Intermediate peers relay the RREQ until it reaches the destination (or a
+   peer with a cached route).
+3. The destination sends a **Route Reply (RREP)** back along the reverse path.
+4. The route is cached and all pending messages are drained automatically.
+
+Discovery typically completes in **1–3 seconds** for meshes ≤ 5 hops.
+
+### Route Cache Tuning
+
+Discovered routes are cached for `routeCacheTtlMillis` (default 60 seconds).
+Tune this based on mesh mobility:
 
 ```kotlin
 val config = meshLinkConfig {
-    gossipIntervalMillis = 10_000L            // Advertise routes every 10 s
-    triggeredUpdateThreshold = 0.3        // Trigger immediate update on 30% cost change
-    maxHops = 5u                          // Limit message forwarding to 5 hops
+    routeCacheTtlMillis = 120_000L            // Cache routes for 2 minutes (stable mesh)
+    routeDiscoveryTimeoutMillis = 10_000L     // Allow 10s for discovery in large meshes
+    maxHops = 5u                              // Limit message forwarding to 5 hops
 }
 ```
 
@@ -375,7 +387,6 @@ mesh.addRoute(
     destination = "peer-hex-id",
     nextHop = "neighbor-hex-id",
     cost = 1.5,
-    sequenceNumber = 42u,
 )
 ```
 
@@ -553,7 +564,7 @@ launch {
 | `powerMode`                | `String` | Current power mode               |
 | `avgRouteCost`             | `Double` | Average route cost across table  |
 | `relayQueueSize`           | `Int`    | Queued relay messages            |
-| `effectiveGossipIntervalMillis`| `Long`   | Current gossip interval          |
+| `effectiveGossipIntervalMillis`| `Long`   | Legacy; always 0 with AODV routing |
 
 ### Memory Management
 
@@ -620,8 +631,8 @@ mesh.rotateIdentity().onFailure { error ->
 
 - **Set `maxHops` realistically** — limit to 3–5 for chat apps to reduce
   latency and relay load.
-- **Tune gossip interval** — default is 15 seconds; increase for
-  low-bandwidth scenarios or decrease for faster convergence.
+- **Tune route cache TTL** — default is 60 seconds; increase for stable meshes
+  to reduce discovery overhead, decrease for highly mobile meshes.
 - **Report battery state** — call `updateBattery()` on battery change
   broadcasts so MeshLink can adapt automatically.
 - **Sweep periodically** — call `sweepStaleTransfers()` and

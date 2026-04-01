@@ -29,7 +29,7 @@ KMP abstracts shared protocol logic (~85% of codebase); platform-specific BLE tr
 
 **KMP/Native FFI boundary:** Platform BLE layers (CoreBluetooth delegates, Android BluetoothGattCallback) communicate with the shared Kotlin code via **function-type dependency injection** through the `BleTransport` interface. Platform implementations post lightweight value-type events (e.g., `BleEvent.PeerDiscovered`, `BleEvent.GattWriteComplete`) through the `BleTransport` abstraction — the only FFI surface. No retain cycles, no cross-FFI exception propagation, no lifecycle coupling.
 
-**Module instantiation:** The `MeshLink` orchestrator creates all modules via **constructor injection**: engines (SecurityEngine, RoutingEngine, TransferEngine, DeliveryPipeline), coordinators (PowerCoordinator, GossipCoordinator, PeerConnectionCoordinator), and policy chains (SendPolicyChain, BroadcastPolicyChain, MessageDispatcher). Each module receives its dependencies as constructor parameters. No DI frameworks — the wiring is explicit code. `BleTransport` is a constructor parameter: production passes `AndroidBleTransport` / `IosBleTransport`, tests pass `VirtualMeshTransport`.
+**Module instantiation:** The `MeshLink` orchestrator creates all modules via **constructor injection**: engines (SecurityEngine, RoutingEngine, TransferEngine, DeliveryPipeline), coordinators (PowerCoordinator, RouteCoordinator, PeerConnectionCoordinator), and policy chains (SendPolicyChain, BroadcastPolicyChain, MessageDispatcher). Each module receives its dependencies as constructor parameters. No DI frameworks — the wiring is explicit code. `BleTransport` is a constructor parameter: production passes `AndroidBleTransport` / `IosBleTransport`, tests pass `VirtualMeshTransport`.
 
 **Architecture:**
 
@@ -37,7 +37,7 @@ KMP abstracts shared protocol logic (~85% of codebase); platform-specific BLE tr
 shared/                    ← KMP module (Kotlin, ~85% of code)
   ├── protocol/            ← Wire format, serialization, message types
   ├── crypto/              ← Noise handshake state machine, encryption
-  ├── mesh/                ← Routing (DSDV), gossip, presence, dedup, buffering
+  ├── mesh/                ← Routing (AODV), keepalive, presence, dedup, buffering
   ├── transport/           ← Chunking, ACKs, flow control
   └── power/               ← Power mode state machine
 android/                   ← Platform-specific (~8%)
@@ -628,128 +628,151 @@ Based on BLE physical characteristics (3–5ms per GATT write, ~50–200ms conne
 | 100KB direct (1 hop, GATT) | 4–8s | ~410 chunks × ~10–20ms per chunk + SACK rounds |
 | 100KB direct (1 hop, L2CAP) | 1–3s | ~25 chunks at 4096 bytes; credit-based flow |
 | 100KB routed (2 hops, GATT) | 8–20s | Cut-through helps; bottleneck is slowest link |
-| 1KB routed (2 hops, PowerSaver) | 20–60s | Discovery (2s) + stale routes (30–60s gossip interval) + handshake (8s) |
+| 1KB routed (2 hops, PowerSaver) | 5–15s | Route discovery RREQ/RREP (~5s timeout) + handshake (8s) |
 
 These are estimates to be validated with real-device measurements during Phase 1. PowerSaver mode adds latency due to longer scan/advertising intervals.
 
-**PowerSaver mode warning:** When all peers are in PowerSaver mode, latency increases due to low scan duty cycles and infrequent gossip. For time-sensitive messaging, consider `customPowerMode` override or an app-level push notification fallback.
+**PowerSaver mode warning:** When all peers are in PowerSaver mode, latency increases due to low scan duty cycles. For time-sensitive messaging, consider `customPowerMode` override or an app-level push notification fallback.
 
 ---
 
 ## 4. Mesh Routing
 
-### Hybrid Architecture: Gossip + Routed
+### Hybrid Architecture: Keepalive + Reactive Routing (AODV)
 
-Control messages are small/frequent (→ gossip for resilience), while data payloads are large/infrequent (→ routed paths for efficiency). See [Appendix A](#appendix-a-decision-records) for alternatives evaluated.
+Neighbor discovery uses lightweight keepalives over GATT connections, while
+multi-hop routes are discovered **on-demand** using AODV (Ad-hoc On-demand
+Distance Vector, RFC 3561). This eliminates proactive gossip overhead — routes
+are only established when a message needs to be sent. See
+[Appendix A](#appendix-a-decision-records) for alternatives evaluated.
 
-### Gossip Protocol Details
+### Route Discovery Protocol
 
-Gossip exchanges happen over **GATT connections** (not BLE advertisements — advertisements are too size-constrained for multi-hop routing data). BLE advertisements carry only self-announcement data (truncated public key hash, power mode, protocol version).
+Route discovery uses two new wire message types (`TYPE_ROUTE_REQUEST` 0x0B and
+`TYPE_ROUTE_REPLY` 0x0C) exchanged over GATT connections. BLE advertisements
+carry only self-announcement data (truncated public key hash, power mode,
+protocol version).
 
-Gossip intervals vary by power mode — see §7 Power Management table.
+**RREQ flooding** (Route Request):
+When MeshLink needs to send a message to a peer with no known route, it:
+1. Queues the outbound message in a **pending message buffer**.
+2. Constructs an RREQ frame containing `origin`, `destination`, `requestId`,
+   `hopCount`, and `hopLimit`.
+3. Floods the RREQ to all connected neighbors.
+4. Each intermediate peer records the **reverse path** (mapping
+   `origin + requestId → neighbor that sent the RREQ`) and rebroadcasts.
+5. Duplicate RREQs (same `origin + requestId`) are dropped.
 
-**Exchange protocol** (see flowchart below for full decision tree):
-- **First connection:** full routing table exchange
-- **Subsequent cycles:** differential updates (entries with seq# higher than last exchange with this neighbor)
-- **Split horizon + poison reverse** (standard DSDV per Perkins & Bhagwat 1994): steady-state gossip suppresses routes learned from the advertising neighbor; route withdrawals send `cost=∞` to the old next-hop for fast invalidation
-- **Multipath:** suppression applies only to the specific route learned from each neighbor — alternative routes are advertised normally
-- **Suppression:** no changes since last exchange → lightweight keepalive (6 bytes: entry count + highest seq#) instead of full differential
+**RREP unicast** (Route Reply):
+When the RREQ reaches the destination (or an intermediate peer with a cached
+route to the destination):
+1. The peer constructs an RREP containing `origin`, `destination`, `requestId`,
+   and `hopCount`.
+2. The RREP is unicast back along the reverse path recorded during the RREQ
+   flood.
+3. Each intermediate peer installs a **forward route** to the destination via
+   the neighbor that sent the RREP.
+4. When the RREP reaches the originator, the route is resolved and all pending
+   messages for that destination are drained from the pending buffer.
 
-  **Gossip message framing (0x02):** A gossip message contains one or more `PeerAnnouncement` entries, prefixed with a count:
+**Intermediate RREP:** If an intermediate peer already has a cached, non-expired
+route to the RREQ destination, it may reply directly with an RREP without
+further flooding. This reduces discovery latency and RREQ traffic.
 
-  | Offset | Size | Field |
-  |--------|------|-------|
-  | 0 | 2 bytes | Entry count (uint16, little-endian; 0 = keepalive) |
-  | 2 | 4 bytes | Sender's highest local sequence number (uint32, little-endian) |
-  | 6 | N × 103 bytes | N `PeerAnnouncement` entries (see wire format below) |
+**Route cache with TTL:** Discovered routes are cached for `routeCacheTtlMillis`
+(default 60 seconds). After expiry, the next send to that destination triggers a
+fresh route discovery. The short TTL ensures routes adapt to topology changes in
+mobile BLE meshes.
 
-  **Gossip keepalive wire format:** When entry count = 0, the message is a keepalive (6 bytes total after the 0x02 type prefix):
-
-  | Offset | Size | Field |
-  |--------|------|-------|
-  | 0 | 2 bytes | Entry count = `0x0000` (uint16 LE) |
-  | 2 | 4 bytes | Sender's highest local sequence number (uint32, little-endian) |
+**Discovery timeout:** If no RREP is received within `routeDiscoveryTimeoutMillis`
+(default 5 seconds), the pending messages fail with `FAILED_NO_ROUTE`.
 
 ```mermaid
-flowchart TD
-    A["Gossip timer fires\n(5–60s per power mode)"] --> B{"First connection\nto this neighbor?"}
-    B -- Yes --> C["Full routing table exchange\n(all routes + seq# + costs + signatures)"]
-    C --> J["Update per-neighbor\nlast-sent sequence number"]
-    B -- No --> D{"Any routing table changes\nsince last exchange?"}
-    D -- No --> E["Send keepalive\n(6 bytes: entry count + highest seq#)"]
-    E --> J
-    D -- Yes --> F{"Triggered update pending?\n(cost change >30%)"}
-    F -- Yes --> G{"Rate check:\nalready sent this interval?"}
-    G -- Yes --> H["Batch with next\nperiodic cycle"]
-    G -- No --> I["Send immediate differential"]
-    I --> J
-    F -- No --> K["Build differential update\n(changed entries only)"]
-    K --> L["Apply split horizon:\nexclude routes learned\nfrom this neighbor"]
-    L --> M["Apply settling time:\nexclude new routes\n< 1 gossip interval old"]
-    M --> N["Apply holddown:\nexclude routes changed\n< 2× gossip interval ago"]
-    N --> O["Send differential\nto neighbor"]
-    O --> J
+sequenceDiagram
+    participant A as Peer A (origin)
+    participant B as Peer B (relay)
+    participant C as Peer C (relay)
+    participant D as Peer D (destination)
+
+    Note over A: send(msg, dest=D) — no route cached
+    A->>A: Queue msg in pending buffer
+    A->>B: RREQ(origin=A, dest=D, reqId=1, hops=0)
+    A->>C: RREQ(origin=A, dest=D, reqId=1, hops=0)
+    B->>B: Record reverse path: A+1 → A
+    B->>D: RREQ(origin=A, dest=D, reqId=1, hops=1)
+    C->>C: Record reverse path: A+1 → A
+    C->>D: RREQ(origin=A, dest=D, reqId=1, hops=1)
+    D->>D: I am the destination
+    D->>B: RREP(origin=A, dest=D, reqId=1, hops=0)
+    Note over D: RREQ from C is duplicate — dropped
+    B->>B: Install route: D via neighbor that sent RREP
+    B->>A: RREP(origin=A, dest=D, reqId=1, hops=1)
+    A->>A: Route resolved — drain pending messages
+    A->>B: RoutedMessage(dest=D, payload=msg)
+    B->>D: RoutedMessage(dest=D, payload=msg)
 ```
 
-**Gossip overhead scaling:** Each `PeerAnnouncement` entry is 103 bytes (39 bytes data + 64 bytes Ed25519 signature). At 50 peers in Performance mode (5s interval) with ~5 differential entries per cycle: ~3 KB/s mesh-wide gossip overhead (negligible vs. BLE throughput). At 200 peers, differential updates grow proportionally (~20 entries per cycle as the larger routing table sees more changes): ~41 KB/s — significant on BLE links. For meshes exceeding 100 peers in Performance mode, Balanced mode (15s interval) reduces gossip overhead by 3×. Post-v1 MPR optimization reduces gossip by up to 75% in dense meshes. In practice, BLE meshes rarely exceed 50 peers.
+### RouteCoordinator (Keepalive Only)
 
-**Automatic gossip throttling:** When the routing table exceeds **100 entries**, gossip interval automatically increases by 50% (e.g., Balanced 15s → 22.5s). At >200 entries, gossip interval doubles. This is self-regulating and prevents gossip from consuming BLE bandwidth at scale. Explicit `gossipInterval` config overrides automatic throttling.
+`RouteCoordinator` replaces the former `GossipCoordinator`. It is responsible
+only for **keepalive probing** of 1-hop neighbors — it does **not** perform
+periodic routing table gossip. The AODV route discovery protocol handles all
+multi-hop route establishment on demand.
+
+Keepalive intervals vary by power mode — see §7 Power Management table.
 
 ### Hop Limits
 
 - **Default max hops:** **10** (configurable)
 - **Rationale:** At ≤10 hops, the mesh covers a wide area while keeping per-message relay traffic bounded; higher values increase reach but reduce reliability and increase latency.
 
-### Routing Algorithm: Enhanced DSDV (Proactive Distance-Vector)
+### Routing Algorithm: Reactive AODV (On-Demand Route Discovery)
 
-The data-plane routing table is built from gossip announcements using a simplified DSDV (Destination-Sequenced Distance-Vector) approach:
+MeshLink uses AODV (Ad-hoc On-demand Distance Vector) routing for multi-hop
+message delivery. Unlike the former proactive DSDV approach, routes are
+discovered only when needed — no continuous routing table gossip is required.
 
-- Each gossip `PeerAnnouncement` carries: **origin public key, sequence number, hop count, cumulative route cost, Ed25519 signature**
+**Core operations in `RoutingEngine`:**
 
-  **`PeerAnnouncement` wire format (within gossip 0x02 payload):**
+- `initiateRouteDiscovery(destination)` → `RouteDiscovery` — creates an RREQ
+  frame for the given destination and returns it for flooding.
+- `handleRouteRequest(rreqFrame, fromNeighbor)` → `RouteRequestResult` — processes
+  an incoming RREQ: returns `Reply` (if destination or cached route), `Flood`
+  (rebroadcast), or `Drop` (duplicate/expired).
+- `handleRouteReply(rrepFrame, fromNeighbor)` → `RouteReplyResult` — processes
+  an incoming RREP: returns `Forward` (relay toward originator), `Resolved`
+  (route established, drain pending), or `Drop` (no matching reverse path).
 
-  | Offset | Size | Field |
-  |--------|------|-------|
-  | 0 | 32 bytes | Origin Ed25519 public key |
-  | 32 | 4 bytes | Sequence number (uint32, little-endian) |
-  | 36 | 1 byte | Hop count |
-  | 37 | 2 bytes | Cumulative route cost (uint16, little-endian, ×100 fixed-point) |
-  | 39 | 64 bytes | Ed25519 signature over bytes [0, 36) — origin pubkey + sequence number |
+**RREQ deduplication:** Each peer tracks recently seen `(origin, requestId)`
+pairs in a bounded dedup set. Duplicate RREQs are dropped without rebroadcast.
 
-  **Encoding rule:** Route cost is encoded as `floor(cost × 100)` (truncate, no rounding). Both platforms must produce identical encoded values for deterministic routing.
+**Reverse path tracking:** On receiving an RREQ, the peer records a mapping from
+`(origin, requestId)` to the neighbor that delivered the RREQ. This reverse path
+is used to unicast the RREP back to the originator.
 
-  **Gossip signing:** The Ed25519 signature covers only the **immutable fields** `(origin_pubkey, sequence_number)` — NOT `hop_count` or `cumulative_route_cost`, which are incremented by each relay. This prevents a malicious relay from forging gossip announcements for peers it relays for (key injection attack), which would enable MITM of E2E Noise K messages. Relays can still manipulate mutable routing fields (cost inflation/deflation); this is mitigated by the reputation system (see §5 Routing Manipulation Mitigation). Signature overhead: +64 bytes per announcement entry (~320 bytes/cycle at 5 differential entries, ~3.2KB on full 50-peer table exchange — well within BLE capacity).
+**Route cache:** Discovered routes are stored in a time-bounded cache. Each entry
+records the destination, next-hop neighbor, hop count, and a TTL timestamp.
+Entries expire after `routeCacheTtlMillis` (default 60 seconds). Expired entries
+are lazily evicted on the next lookup.
 
-  **Signature failure escalation:** Failed announcements are dropped (never cached). Per-neighbor failure count tracked in a rolling 1-gossip-interval window. After **5 failures from the same neighbor** within 1 gossip interval → `GOSSIP_POISONING_SUSPECTED` diagnostic emitted with `{neighborKey, failureCount, interval}`. No blocklist — future valid announcements from the same neighbor are still accepted. Existing routes for affected destinations remain valid.
-
-- On receiving an announcement, a node updates its routing table: for each destination, track the neighbor that advertised the **lowest route cost with the highest sequence number** (hop count is retained as a secondary metric and hard limit via `maxHops`)
-- Sequence numbers prevent routing loops — stale route information (lower sequence number) is discarded even if it claims a shorter path
-- No explicit route discovery phase — the gossip control plane already distributes topology information continuously
+**Pending message queue:** When `MeshLink.send()` is called for a destination
+with no cached route, the message is placed in a pending queue and an RREQ is
+flooded. When the corresponding RREP arrives (`RouteReplyResult.Resolved`), the
+`DispatchSink.onRouteDiscovered()` callback fires and all queued messages for
+that destination are drained and sent.
 
 ```mermaid
 flowchart TD
-    A["Receive PeerAnnouncement"] --> B{"Valid Ed25519\nsignature?"}
-    B -- No --> C["Drop + diagnostic"]
-    B -- Yes --> D{"Seq# > current\nfor this peer?"}
-    D -- No --> E["Discard (stale)"]
-    D -- Yes --> F{"Route cost <\ncurrent best?"}
-    F -- Yes --> G["Update primary route\n(new next-hop)"]
-    F -- No --> H{"Cost < backup\nroute?"}
-    H -- Yes --> I["Update backup route"]
-    H -- No --> J["Discard\n(worse than both)"]
-    G --> K["Check: trigger update?\n(cost change >30%)"]
-    I --> K
-    K -- Yes --> L["Schedule triggered\ngossip update"]
-    K -- No --> M["Wait for periodic\ngossip cycle"]
+    A["send(msg, dest)"] --> B{"Route cached\nfor dest?"}
+    B -- Yes --> C["Forward via\ncached next-hop"]
+    B -- No --> D["Queue msg in\npending buffer"]
+    D --> E["initiateRouteDiscovery(dest)\n→ RouteDiscovery(rreqFrame)"]
+    E --> F["Flood RREQ to\nall neighbors"]
+    F --> G{"RREP received\nwithin timeout?"}
+    G -- Yes --> H["Install route\nin cache"]
+    H --> I["onRouteDiscovered(dest)\n→ drain pending queue"]
+    G -- No --> J["Fail with\nFAILED_NO_ROUTE"]
 ```
-
-**No explicit routing table size cap for v1.** At maxHops=10 with typical BLE range (30-100m), the reachable peer count is naturally bounded. Each route entry is ~140 bytes, so even at larger peer counts the memory footprint remains negligible. Route expiry (5× gossip interval) evicts stale entries. Post-v1 may add LRU eviction if Wi-Fi transport expands reachability further.
-
-**Scale beyond 50 peers:** There is no hard peer cap. All internal structures (routing table, dedup set, buffer pool, connection slots) are size-bounded by existing configuration parameters, not by peer count. Beyond 50 peers, gossip overhead increases (~2KB/s at 50 peers, ~8KB/s at 200 peers) and may reduce available bandwidth for user messages. The library is designed for ≤50 peers, tested to 100, and degrades gracefully beyond.
-
-**Per-neighbor routing table cap (Sybil mitigation):** Routes learned through any single neighbor are capped at **30% of the routing table entries** (or a minimum of 60 routes, whichever is larger). This prevents a Sybil cluster flooding via one relay from dominating the routing table. In normal topologies (balanced 4-hop mesh), no single neighbor advertises more than ~50 routes — the cap has zero impact. In star topologies or after partition heals, the cap may delay learning some routes until alternative paths form via gossip (convergence increases from ~10-30s to ~60-90s). Configurable via `routeTablePerNeighborCap`.
-
-**Cap overflow eviction order:** When a single neighbor's routes exceed the 30% cap, excess routes are rejected in **highest route cost first** order (worst routes evicted first). Tie-breaker: lower sequence number (older announcement) evicted first. This preserves the best routes and discards the worst, preventing a Sybil attacker from injecting high-seq# routes with poor quality.
 
 ### Route Metric: Composite Link Quality (ETX-Weighted)
 
@@ -775,11 +798,11 @@ The three input signals and their concrete values:
 
 2. **Loss rate multiplier** (from Chunk ACK retransmission ratio on active Transfers): `1 + (loss_rate × 10)` — so 0% loss = ×1.0, 5% loss = ×1.5, 20% loss = ×3.0
 
-3. **Stability penalty:** `max(0, 3 − consecutive_stable_intervals)` — new links start at +3, decays to 0 after 3 consecutive stable DSDV intervals (no GATT disconnects). Penalizes recently-flapping connections.
+3. **Stability penalty:** `max(0, 3 − consecutive_stable_intervals)` — new links start at +3, decays to 0 after 3 consecutive stable keepalive intervals (no GATT disconnects). Penalizes recently-flapping connections.
 
 4. **Freshness penalty** (derived from last measurement age):
-   - Last loss measurement within 2× `gossipInterval`: `freshness_penalty = 1.0` (proven quality)
-   - Last loss measurement older than 2× `gossipInterval`: `freshness_penalty = 1.5` (unknown quality)
+   - Last loss measurement within 2× `keepaliveIntervalMillis`: `freshness_penalty = 1.0` (proven quality)
+   - Last loss measurement older than 2× `keepaliveIntervalMillis`: `freshness_penalty = 1.5` (unknown quality)
    - This biases routing toward links with recent, proven quality data. Idle links that haven't been tested recently appear 50% more expensive, preventing the routing table from favoring untested paths. Precedent: BATMAN-adv V probes idle links to feed estimation logic; Babel (RFC 8966 §3.5.2) decays idle links toward "unknown quality."
 
 **Cost range:** ~1 (excellent/reliable/stable) to ~30 (marginal+loss+new). Typical operational range assumes ≤20% loss — links with higher loss are functionally unusable.
@@ -810,31 +833,24 @@ flowchart LR
     Add --> Cost
 ```
 
-**Route cost** = sum of per-link costs along the path. Each Peer Announcement carries the **cumulative route cost** from origin. The Routing Table selects the route with the **lowest total cost** (not just lowest hop count). Sequence numbers still govern freshness — stale routes are rejected regardless of cost.
+**Route cost** = sum of per-link costs along the path. RREP messages carry the **cumulative hop count** from the destination. The route cache selects the route with the **lowest total cost** (not just lowest hop count) when multiple routes are available.
 
 **Fallback:** If link quality data is unavailable (new Neighbor, no Transfers yet), cost defaults to 1.0 per hop (equivalent to hop count). Link quality improves route selection over time as data accumulates.
 
-**Route cost validation:** On receiving a PeerAnnouncement, the node validates: `advertised_route_cost >= local_link_cost_to_announcing_neighbor`. If the advertised cost is lower than the direct link cost to the neighbor advertising it, the announcement is rejected (a route through a neighbor cannot cost less than the link to that neighbor). This is a cheap sanity check, not cryptographic — it prevents trivial blackhole attacks but does not prevent a sophisticated attacker from advertising plausible costs.
+### Route Expiry
 
-**No tolerance margin:** The check is strict (`advertised_cost < local_link_cost` → reject). All link cost values are integers computed from the same deterministic formula — no floating-point rounding. False positives are not possible with correct implementations. `ROUTE_COST_SANITY_FAILED` diagnostic (WARNING) emitted on rejection with `{peerKey, advertisedCost, localLinkCost, neighbor}`.
+Routes in the AODV route cache expire after `routeCacheTtlMillis` (default
+60 seconds). Expired entries are lazily removed on the next route lookup. If a
+message needs to be sent to an expired destination, a fresh route discovery is
+triggered automatically.
 
-### Route Expiry (Soft-Delete)
-
-Routes to peers that are no longer advertising are purged from the routing table via soft-delete:
-
-- A route entry is marked **stale** if no updated gossip announcement (with a newer sequence number) has been received within **5× the current gossip interval** (e.g., 25 seconds in performance mode, 150 seconds in PowerSaver mode)
-- Stale routes are **soft-deleted** — removed from the routing table and no longer used for forwarding
-- If the peer re-appears (advertisement seen again), the route is **revived** from the next gossip exchange
-
-This prevents the routing table from accumulating phantom entries for peers that have left the mesh.
-
-**Power mode transition:** When the local device's power mode changes, all route expiry timers are **reset** using the new gossip interval (expiry = 5× new interval). This prevents premature route evictions during upward transitions (e.g., Performance→Balanced lengthens the expiry window) and avoids stale routes lingering during downward transitions.
-
-**Route expiry recalculation:** On power mode change, all route expiry timers are recalculated immediately: `new_expiry = last_update_time + (5 × new_gossip_interval)`. Routes where `new_expiry < now` are expired immediately. Downward transitions (shorter→longer interval) extend timers to match slower gossip pace; upward transitions (longer→shorter) may expire stale routes immediately.
+**Power mode interaction:** Route cache TTL is not affected by power mode
+transitions. The short, fixed TTL ensures routes stay fresh regardless of the
+device's power state.
 
 ### Route Failure Recovery
 
-**Route failure recovery:** Broken routes are detected via delivery timeout and expire naturally at 5× gossipInterval (25–150s). No active RERR propagation in v1 — gossip convergence handles route recovery. Post-v1: RERR for faster convergence in large meshes.
+**Route failure recovery:** Broken routes are detected via delivery timeout and removed from the route cache immediately. The next send attempt to the same destination triggers a fresh AODV route discovery. Post-v1: RERR (Route Error) propagation for faster convergence in large meshes.
 
 ### Multipath Routing (Backup Routes)
 
@@ -849,43 +865,41 @@ The backup route must use a different Next-Hop — two routes through the same N
 
 **Failover behavior:**
 1. Primary route fails (GATT disconnect, delivery timeout) → instantly switch to backup
-2. Promote backup to primary. **Backup routes are used regardless of sequence number age** — a stale backup is better than no route. If the backup points to a peer that has moved, the forwarding attempt fails fast (BLE connection timeout ~5s), and the message is buffered. Route Expiry (5× gossip interval) already cleans up truly ancient entries.
+2. Promote backup to primary. **Backup routes are used regardless of age** — a stale backup is better than no route. If the backup points to a peer that has moved, the forwarding attempt fails fast (BLE connection timeout ~5s), and the message is buffered. Route cache TTL expiry cleans up truly stale entries.
 3. Wait for the next Gossip cycle to discover a new backup
 4. If no backup exists → buffer the message and wait for Gossip convergence (up to buffer TTL)
 
-**Best-effort multi-path:** MeshLink does NOT maintain explicit backup path state — backups are a natural consequence of DSDV's route table, which stores multiple learned routes. If neither primary nor backup succeeds, the message is buffered for TTL duration. No proactive backup path probing or maintenance is performed.
+**Best-effort multi-path:** MeshLink does NOT maintain explicit backup path state — backups are a natural consequence of the AODV route cache, which may store alternative routes from intermediate RREPs. If neither primary nor backup succeeds, the message is buffered for TTL duration and a fresh route discovery is initiated. No proactive backup path probing or maintenance is performed.
 
-**Interaction with route failure:** When a route is detected as broken (delivery timeout, GATT disconnect), the backup (if it exists and doesn't use the same failed link) becomes primary immediately. Gossip convergence restores full route knowledge within one gossip interval.
+**Interaction with route failure:** When a route is detected as broken (delivery timeout, GATT disconnect), the backup (if it exists and doesn't use the same failed link) becomes primary immediately. A fresh AODV route discovery restores full route knowledge within `routeDiscoveryTimeoutMillis`.
 
-**Routing table authority:** The routing table is the sole authority for next-hop selection, even when a direct GATT connection exists to the destination. The composite route cost already accounts for direct link quality — a poor direct link (Marginal RSSI, high loss) will have a higher cost than a relay path through strong links. Bypassing the routing table for direct connections would undermine the quality-aware routing that DSDV provides.
+**Routing table authority:** The route cache is the sole authority for next-hop selection, even when a direct GATT connection exists to the destination. The composite route cost already accounts for direct link quality — a poor direct link (Marginal RSSI, high loss) will have a higher cost than a relay path through strong links. Bypassing the route cache for direct connections would undermine the quality-aware routing that AODV provides.
 
-### Triggered Updates (Event-Driven Gossip)
+### Topology Change Handling
 
-In addition to periodic Gossip at the configured interval, MeshLink sends **immediate differential Gossip exchanges** to all connected Neighbors when significant topology changes are detected:
+With AODV, topology changes are handled reactively rather than via periodic
+gossip:
 
-| Trigger Event | What's Sent |
-|---------------|-------------|
-| New Neighbor discovered (GATT + Noise XX complete) | Full route exchange with new Neighbor; differential to existing Neighbors |
-| Neighbor transitions to Gone (Presence Eviction) | Route withdrawal for all destinations via that Neighbor |
-| Route cost changes by >30% | Updated Peer Announcement with new cost |
+| Event | Action |
+|-------|--------|
+| New Neighbor discovered (GATT + Noise XX complete) | Neighbor added to connection table. No route exchange needed — routes are discovered on demand when messages are sent. |
+| Neighbor transitions to Gone (Presence Eviction) | All cached routes using that neighbor as next-hop are invalidated. Next send to those destinations triggers fresh RREQ. |
+| Route failure (delivery timeout) | Cached route removed. Fresh RREQ flooded on next send attempt. |
 
-**Periodic Gossip continues unchanged** as a consistency backstop — it catches any updates that triggered updates may have missed (e.g., Neighbor was temporarily disconnected when a trigger fired).
+**No background routing traffic:** Unlike the former DSDV gossip, AODV generates
+zero control-plane traffic when no messages are being sent. This significantly
+reduces battery drain in PowerSaver mode and on idle meshes.
 
-**Rate limiting triggered updates:** To prevent a cascade of triggered updates from creating a control-plane storm, a Peer sends at most **one triggered update per Gossip Interval** to each Neighbor. If multiple triggers fire within one interval, they are batched into a single differential update.
+### Route Settling Time & RREQ Rate Limiting
 
-**Partition heal suppression:** When a new neighbor is discovered (first contact), a full gossip table exchange occurs (existing behavior). Routes learned from this full exchange are **not** propagated via triggered updates — they propagate via normal periodic gossip only. This prevents a gossip storm when a network partition heals and a bridge peer suddenly has 20+ new routes to announce. Single link changes (the common case) still fire triggered updates normally.
+**RREQ rate limiting:** To prevent RREQ storms, a peer sends at most **one RREQ
+per destination per `routeDiscoveryTimeoutMillis` window**. If a second send to
+the same destination arrives while a discovery is already in progress, the
+message is queued in the pending buffer and drained when the RREP arrives.
 
-**Impact:** Gossip convergence drops from "next interval" (5–30s) to near-immediate for common topology changes. Especially valuable in PowerSaver mode where periodic Gossip is infrequent.
-
-### Route Settling Time & Holddown Timer
-
-When a new route is discovered via Gossip, it is **not immediately advertised** to other Neighbors. The route is installed in the local Routing Table for local use, but advertisement to Neighbors is delayed by **1 Gossip Interval** (the "settling time"). If the route is withdrawn during that window, it is never advertised — the instability is suppressed.
-
-**Holddown timer:** After any route change (cost change, next-hop change), the affected route enters a **holddown period of 2× the current DSDV gossip interval** (e.g., 60 seconds at 30s interval). During holddown, the route is suppressed from re-advertisement. If the route flaps back to its previous state within the holddown window, the flap is absorbed silently — peers never see the oscillation. After the holddown expires, the stable state is advertised. This limits peers to seeing at most 1 route update per holddown period, preventing RSSI fluctuations and transient link quality changes from flooding the mesh with routing updates.
-
-**Exceptions (no settling time):**
-- **Route withdrawals** (peer gone) are advertised immediately — fast failure propagation is more important than stability
-- **Route updates** to already-advertised destinations (cost change, sequence number bump) are advertised immediately — the route is already known, only the metric changed
+**Exceptions (immediate rediscovery):**
+- **Route failure** (delivery timeout, GATT disconnect) — immediately invalidates
+  the cached route and allows a fresh discovery on the next send attempt.
 
 ### Loop Prevention: Visited Node List
 
@@ -915,7 +929,7 @@ This is critical to prevent duplicate delivery to the consuming app and redundan
 
 **Clock handling:** Dedup TTL uses **monotonic system uptime** (`SystemClock.elapsedRealtime()` on Android, `ProcessInfo.systemUptime` on iOS), immune to user clock changes.
 
-**Clock source rule (applies to all timers):** All operational timers in the library (buffer TTL, dedup window, gossip intervals, sweep timers, chunk inactivity timeout, handshake timeout, SACK retransmission, engine circuit breaker) use **monotonic clock** — immune to NTP jumps, timezone changes, and user clock manipulation. The only exception: replay counter 30-day per-sender expiry uses wall-clock (requires calendar-scale duration; monotonic resets on reboot). **NTP jumps never affect library behavior** beyond replay counter housekeeping.
+**Clock source rule (applies to all timers):** All operational timers in the library (buffer TTL, dedup window, route cache TTL, sweep timers, chunk inactivity timeout, handshake timeout, SACK retransmission, engine circuit breaker) use **monotonic clock** — immune to NTP jumps, timezone changes, and user clock manipulation. The only exception: replay counter 30-day per-sender expiry uses wall-clock (requires calendar-scale duration; monotonic resets on reboot). **NTP jumps never affect library behavior** beyond replay counter housekeeping.
 
 **Dedup eviction:** LRU — oldest entries evicted first regardless of sender.
 
@@ -948,7 +962,7 @@ When the recipient is temporarily unreachable, mesh nodes buffer encrypted messa
 
 Each tier is triggered only if the previous tier was insufficient. A `memoryPressure` diagnostic event is emitted at each tier.
 
-**Engine state is NOT shed under memory pressure.** Routing table and peer table are naturally bounded by `maxHops=10` and BLE range. Shedding engine state provides negligible relief compared to the buffer (256KB–8MB configurable, typically 512KB–4MB at runtime) and dedup set (240KB) targeted by the 3 tiers. Route expiry (5× gossip interval) and sweep timers already evict stale entries. Post-v1: if Wi-Fi transport expands reachability to 1000+ peers, LRU eviction may be added.
+**Engine state is NOT shed under memory pressure.** Routing cache and peer table are naturally bounded by `routeCacheTtlMillis` and BLE range. Shedding engine state provides negligible relief compared to the buffer (256KB–8MB configurable, typically 512KB–4MB at runtime) and dedup set (240KB) targeted by the 3 tiers. Route cache TTL expiry and sweep timers already evict stale entries. Post-v1: if Wi-Fi transport expands reachability to 1000+ peers, LRU eviction may be added.
 
 - **Buffer eviction policy** (when buffer is full, applied in tier order):
 
@@ -1221,7 +1235,7 @@ An attacker with physical access to multiple devices can generate many valid Ed2
 
 ### Routing Manipulation Mitigation
 
-Signed gossip (§4) prevents key forgery but does not prevent relay nodes from manipulating mutable routing fields (cost inflation/deflation, announcement suppression). MeshLink mitigates routing manipulation via a **hybrid reputation system**:
+Signed route discovery (§4) prevents key forgery in RREQ/RREP messages but does not prevent relay nodes from manipulating mutable routing fields (hop count inflation, RREQ suppression). MeshLink mitigates routing manipulation via a **hybrid reputation system**:
 
 **Statistical correlation (normal/low priority messages):** Each peer maintains a **local-only reputation score** per relay, tracking delivery success rates across all paths through that relay over time. If a relay appears disproportionately on failed routes vs. successful routes, it is deprioritized in path selection. Reputation scores are never gossiped — this prevents reputation poisoning attacks where a malicious peer gossips false scores to isolate a legitimate relay. Detection requires sufficient data points (~20-50 messages through a relay), so convergence time is ~10-30 minutes at typical messaging rates.
 
@@ -1270,13 +1284,13 @@ meshLink.rotateIdentity()  // generates new Ed25519 keypair, gossips rotation an
 - **Warning:** Peers not reachable during rotation will reject future messages until they receive the announcement (via gossip or direct contact). Undecryptable messages are **dropped** — the sender retries after gossip propagates the new key.
 - **In-flight message impact:** Relays are unaffected (forward opaquely). Only the **destination** is affected if it hasn't received the rotation announcement → Noise K unseal fails → message dropped. The sender's retry mechanism (`bufferTTL`=5min) exceeds gossip convergence (~10-30s), so recovery is automatic.
 - **No post-rotation send hold** — the ~30s drop window is acceptable for this rare, user-initiated operation.
-- **Old-key session teardown:** After gossiping the rotation announcement, old-key Noise XX sessions are kept alive for active transfers. Hard timeout: **5× gossip interval** (e.g., 75s in Balanced mode). After the hard timeout, all remaining old-key sessions are forcibly closed regardless of transfer state — in-flight transfers are terminated (senders retry with new key via SACK resume). The rotating peer initiates teardown. Old key is erased only after all old-key sessions are closed. **Grace period interaction:** Key rotation old-key session grace (5× gossip interval) is independent from connection eviction grace (30s). If a power mode downgrade occurs during key rotation, connections with old-key sessions receive the **longer** of the two grace periods to avoid cascade failures. Specifically: eviction grace = `max(evictionGracePeriod, remaining_rotation_grace)`.
+- **Old-key session teardown:** After broadcasting the rotation announcement, old-key Noise XX sessions are kept alive for active transfers. Hard timeout: **75 seconds**. After the hard timeout, all remaining old-key sessions are forcibly closed regardless of transfer state — in-flight transfers are terminated (senders retry with new key via SACK resume). The rotating peer initiates teardown. Old key is erased only after all old-key sessions are closed. **Grace period interaction:** Key rotation old-key session grace (75s) is independent from connection eviction grace (30s). If a power mode downgrade occurs during key rotation, connections with old-key sessions receive the **longer** of the two grace periods to avoid cascade failures. Specifically: eviction grace = `max(evictionGracePeriod, remaining_rotation_grace)`.
 
 **`rotateIdentity()` API:**
 ```kotlin
 suspend fun rotateIdentity(): Result<PublicKey>
 ```
-Behavior: (1) Generate new Ed25519 keypair, (2) store new private key in secure storage alongside old key, (3) sign rotation announcement with **old** key: `{oldPubKey, newPubKey, signature}`, (4) gossip announcement to all connected neighbors, (5) return `Result.Success(newPublicKey)` once announcement is sent. Old-key sessions get 5× gossip interval grace period (see key rotation teardown). Failure: `Result.Failure(keyStorageFailed)` on secure storage write failure; `IllegalStateException` if not in `running` state.
+Behavior: (1) Generate new Ed25519 keypair, (2) store new private key in secure storage alongside old key, (3) sign rotation announcement with **old** key: `{oldPubKey, newPubKey, signature}`, (4) broadcast announcement to all connected neighbors, (5) return `Result.Success(newPublicKey)` once announcement is sent. Old-key sessions get a 75-second grace period (see key rotation teardown). Failure: `Result.Failure(keyStorageFailed)` on secure storage write failure; `IllegalStateException` if not in `running` state.
 
 **Rotation announcement wire format (carried within gossip 0x02 as a special PeerAnnouncement):**
 
@@ -1289,7 +1303,7 @@ Behavior: (1) Generate new Ed25519 keypair, (2) store new private key in secure 
 
 Total: 132 bytes. Receivers verify the signature against the old public key (which must match their pinned key for this peer).
 
-**Concurrent sends during rotation:** `rotateIdentity()` takes effect immediately — it does NOT wait for in-flight transfers to complete. Messages currently being sent use the old key; recipients accept both old and new keys during the rotation grace period (5× gossip interval). `KEY_ROTATION_WITH_INFLIGHT(activeTransfers: N)` diagnostic emitted if transfers are active at rotation time. If a recipient receives a message encrypted with an unknown key during a rotation window, the message is buffered for up to one gossip interval pending rotation announcement arrival; on timeout, `onTransferFailed(messageId, keyRotationPending)` fires on the sender side (via delivery ACK timeout).
+**Concurrent sends during rotation:** `rotateIdentity()` takes effect immediately — it does NOT wait for in-flight transfers to complete. Messages currently being sent use the old key; recipients accept both old and new keys during the rotation grace period (75 seconds). `KEY_ROTATION_WITH_INFLIGHT(activeTransfers: N)` diagnostic emitted if transfers are active at rotation time. If a recipient receives a message encrypted with an unknown key during a rotation window, the message is buffered for up to one keepalive interval pending rotation announcement arrival; on timeout, `onTransferFailed(messageId, keyRotationPending)` fires on the sender side (via delivery ACK timeout).
 
 **TOFU interaction with rotation:** When a peer receives a rotation announcement signed by a pinned key, the new key is auto-accepted in **both** `strict` and `softRepin` modes (signed rotations are trusted transitions, not compromise indicators). `onKeyChanged` callback fires in both modes.
 
@@ -1665,7 +1679,7 @@ iOS imposes severe restrictions on background BLE:
 
 **Decision:** Best-effort background operation using **BLE State Preservation and Restoration**. When iOS terminates the app, CoreBluetooth saves BLE state and relaunches it. This does NOT guarantee continuous mesh participation.
 
-**On relaunch:** The library starts from `uninitialized` state (same codepath as cold start). The app calls `MeshLink(context) { config }` + `start()`. CoreBluetooth-restored connections get fresh Noise XX handshakes. Identity keypair, TOFU key pins, replay counters, and dedup set are restored from secure storage; all other state is rebuilt via gossip (~10–30s convergence).
+**On relaunch:** The library starts from `uninitialized` state (same codepath as cold start). The app calls `MeshLink(context) { config }` + `start()`. CoreBluetooth-restored connections get fresh Noise XX handshakes. Identity keypair, TOFU key pins, replay counters, and dedup set are restored from secure storage; all other state is rebuilt via AODV route discovery on first send.
 
 See **Restart semantics** table in §10 for full crash recovery state.
 
@@ -1687,11 +1701,11 @@ See **Restart semantics** table in §10 for full crash recovery state.
 | Suspension Duration | Impact | Reconnection Time |
 |---|---|---|
 | < 30s | None (grace period) | Instant |
-| 30s – 5 min | In-flight transfers lost | 5–15s (gossip reconverges) |
-| 5 min – 2 hr | All buffered messages + transfers lost | 10–30s (full routing rebuild) |
-| > 2 hr | All state lost except identity/TOFU | 10–30s (equivalent to cold start) |
+| 30s – 5 min | In-flight transfers lost | 5–15s (AODV route rediscovery) |
+| 5 min – 2 hr | All buffered messages + transfers lost | 5–15s (full routing rebuild via AODV) |
+| > 2 hr | All state lost except identity/TOFU | 5–15s (equivalent to cold start) |
 
-**Recommendation:** For time-sensitive messaging, implement a push notification channel. MeshLink handles reconnection automatically on wake (~10–30s). BLE State Preservation is unreliable for suspensions >5 minutes.
+**Recommendation:** For time-sensitive messaging, implement a push notification channel. MeshLink handles reconnection automatically on wake (~5–15s). BLE State Preservation is unreliable for suspensions >5 minutes.
 
 **Alternatives rejected:** Silent push notifications, Notification Service Extension, BGProcessingTask, and foreground-only operation were all considered and rejected — all require internet connectivity or are unsuitable for real-time mesh operation.
 
@@ -1779,14 +1793,14 @@ An optional `MeshLink.diagnostics → Stream<DiagnosticEvent>` for transport and
 | `peerEvicted(peer)` | Peer marked gone by sweep |
 | `bufferPressure(usedBytes, totalBytes)` | Buffer usage exceeds 80% |
 | `transportModeChanged(peer, oldMode, newMode)` | Data plane switched between L2CAP and GATT |
-| `gossipTrafficReport` | Periodic (every 10 × gossip interval): messages sent/received, routing table size, seconds since last topology change, active peer count |
+| `routeDiscoveryReport` | Periodic: active route discoveries, cache size, cache hit rate, RREQ/RREP counts |
 | `bleInitSlow(elapsed)` | CoreBluetooth initialization exceeded 30s timeout on iOS app relaunch via State Preservation |
 | `evictionFailed(peer)` | BLE.disconnect() failed during connection eviction; message queued for retry |
 | `restarted(reason)` | Library restarted after stop→start; reason is `"user"` (normal) or `"crash_recovery"` (after fatalError) |
 | `lateDeliveryAck(messageId)` | Signed delivery ACK arrived after messageId was already tombstoned (onTransferFailed already fired) |
 | `bleStackUnresponsive(silenceDuration, suggestedAction)` | Emitted when the library is in `started` state, actively scanning/advertising, and zero BLE callbacks arrive within 60 seconds. Re-emitted every 60s while the condition persists. `suggestedAction: RESTART_BLUETOOTH`. Triggers automatic BLE stack recovery (teardown → 5s cooldown → re-initialize, up to 3 attempts/hour). |
 
-**Recovery action:** On `BLE_STACK_UNRESPONSIVE`, the library automatically tears down all BLE resources and re-initializes after a **5-second cooldown**. Up to **3 restart attempts per hour** are permitted. After 3 failed attempts, the library emits `BLE_STACK_FATAL` diagnostic and **stops all BLE operations** — gossip and routing continue on cached state, but no new connections or advertisements are made. The app can call `stop()` + `start()` to force a manual reset.
+**Recovery action:** On `BLE_STACK_UNRESPONSIVE`, the library automatically tears down all BLE resources and re-initializes after a **5-second cooldown**. Up to **3 restart attempts per hour** are permitted. After 3 failed attempts, the library emits `BLE_STACK_FATAL` diagnostic and **stops all BLE operations** — routing continues on cached state, but no new connections or advertisements are made. The app can call `stop()` + `start()` to force a manual reset.
 
 Not intended for business logic — purely for debugging, monitoring, and diagnostics.
 
@@ -1957,7 +1971,7 @@ Fail-fast behavior ensures developers catch integration mistakes immediately dur
 | Replay counters | Restored (write-ahead, no gap) |
 | TOFU trust store | Restored from secure storage |
 | Dedup set | Empty — in-memory only, not persisted (recent messages may be redelivered) |
-| Routing table | Rebuilt from gossip (10–30s) |
+| Routing table | Rebuilt via AODV route discovery on first send (~1-5s per destination) |
 | Active transfers | Lost — senders retry |
 | Buffered messages | Lost — senders retry |
 | Engine state | Fresh (all engines restarted) |
@@ -2004,14 +2018,14 @@ MeshLink uses an **engine/coordinator pattern** with three categories of modules
 | Category | Modules | Responsibility |
 |----------|---------|----------------|
 | **Stateful Engines** | SecurityEngine, RoutingEngine, TransferEngine, DeliveryPipeline | Own domain state, return sealed result types |
-| **Coordinators** | PowerCoordinator, GossipCoordinator, PeerConnectionCoordinator | Orchestrate multi-step workflows |
+| **Coordinators** | PowerCoordinator, RouteCoordinator, PeerConnectionCoordinator | Orchestrate multi-step workflows |
 | **Policy Chains** | SendPolicyChain, BroadcastPolicyChain, MessageDispatcher | Apply rules, produce decisions |
 
 **Design principle:** Engines return sealed result types; the caller (MeshLink orchestrator) pattern-matches and dispatches effects. No module sends messages directly to another module.
 
 **Thread safety:** All mutable state is confined to a single coroutine scope per engine. Engines expose suspend functions; callers invoke them sequentially from the MeshLink coroutine scope. No locks, no shared mutable state between modules.
 
-**Routing table concurrency:** RoutingEngine processes operations sequentially within its coroutine scope — gossip updates and forwarding lookups are serialized by construction. No concurrent access, no locking required.
+**Routing table concurrency:** RoutingEngine processes operations sequentially within its coroutine scope — RREQ/RREP handling and forwarding lookups are serialized by construction. No concurrent access, no locking required.
 
 See [diagrams.md § Engine & Coordinator Data Flow](diagrams.md#8-engine--coordinator-data-flow) for the module interaction diagram.
 
@@ -2087,8 +2101,8 @@ All configurable parameters grouped by category, with defaults, bounds, and desc
 
 | Parameter | Type | Default | Min | Max | Description |
 |-----------|------|---------|-----|-----|-------------|
-| `routeExpiryMultiplier` | float | 5.0 | 2.0 | 10.0 | Route expires after this × current gossip interval with no fresh announcement. |
-| `routeCostChangeThreshold` | float | 0.30 | 0.10 | 0.50 | Minimum route cost change (fraction) to trigger a triggered update. Lower = more responsive but chattier. |
+| `routeCacheTtlMillis` | long | 60,000 | 10,000 | 600,000 | Time-to-live for cached AODV routes (ms). Routes expire and are rediscovered on next send. |
+| `routeDiscoveryTimeoutMillis` | long | 5,000 | 1,000 | 30,000 | Maximum time to wait for a Route Reply (ms). Pending messages fail with NO_ROUTE on expiry. |
 
 ##### Buffering & Deduplication
 
@@ -2193,7 +2207,7 @@ This enables apps to implement health indicators, adaptive behavior (reduce send
 
 | Layer | Tool | Purpose |
 |-------|------|---------|
-| **Unit / protocol tests** | `BleTransport` interface with in-memory mock | Test protocol correctness (chunking, encryption, routing, dedup, gossip) without BLE hardware. Instant, deterministic, runs in CI. |
+| **Unit / protocol tests** | `BleTransport` interface with in-memory mock | Test protocol correctness (chunking, encryption, routing, dedup) without BLE hardware. Instant, deterministic, runs in CI. |
 | **Integration tests** | Full BLE simulator with configurable latency, packet loss, connection drops, MTU limits | Test timing-dependent behavior, connection management, power mode transitions, presence detection. Simulates multi-node meshes. |
 | **End-to-end validation** | Physical device lab (3+ phones) | Validate real-world BLE behavior, iOS background constraints, cross-platform interop. Manual or semi-automated. |
 
@@ -2206,7 +2220,7 @@ This enables apps to implement health indicators, adaptive behavior (reduce send
 - RSSI simulation per link
 - Power mode per peer
 
-**Virtual time model:** VirtualMesh uses an **injectable clock** (`TestCoroutineScheduler` on Kotlin, equivalent test clock on Swift) instead of wall-clock time. All internal timers (gossip intervals, sweep timers, chunk inactivity timeouts, buffer TTLs, hysteresis) use the injected clock. Tests advance time programmatically:
+**Virtual time model:** VirtualMesh uses an **injectable clock** (`TestCoroutineScheduler` on Kotlin, equivalent test clock on Swift) instead of wall-clock time. All internal timers (route cache TTL, sweep timers, chunk inactivity timeouts, buffer TTLs, hysteresis) use the injected clock. Tests advance time programmatically:
 
 ```kotlin
 val mesh = VirtualMesh(peers = 5, topology = Topology.Line)
@@ -2261,7 +2275,7 @@ These are **release gates** — tests that fail these thresholds block release. 
 
 **Reliability (Phase 5, VirtualMesh):**
 - 100KB over 3 hops at 10% packet loss: ≥95% delivery success rate
-- 50-peer mesh gossip convergence: ≤30s
+- 50-peer mesh route discovery: ≤5s per destination
 
 **Real-device (Phase 5–6, Firebase Test Lab):**
 - Cross-platform interop: Android↔iOS 1:1 + broadcast pass
@@ -2436,8 +2450,9 @@ These are **release gates** — tests that fail these thresholds block release. 
 | Strategy | Pros | Cons |
 |----------|------|------|
 | Flooding | Simple, resilient | Massive bandwidth waste, especially for 100KB payloads |
-| **Gossip (control plane)** | Resilient, low state, good for discovery | Redundant transmissions; unsuitable for large payloads |
-| **Routing tables (data plane)** | Efficient, predictable latency | State overhead, topology discovery is chatty |
+| Gossip (control plane) | Resilient, low state, good for discovery | Redundant transmissions; high overhead when idle |
+| Proactive routing (DSDV) | Consistent tables, predictable latency | Continuous gossip overhead even when idle; slow convergence in mobile BLE |
+| **Reactive routing (AODV, chosen)** | Zero overhead when idle, fast discovery, proven for MANETs (RFC 3561) | Initial send has route discovery latency (~1-5s); no pre-computed paths |
 | Store-and-forward only | Simple | No active routing; relies entirely on physical movement |
 
 ### A4. Hop-by-Hop Encryption

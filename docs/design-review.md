@@ -29,22 +29,22 @@ and UBIQUITOUS_LANGUAGE.md.
 
 ---
 
-### 3. DSDV Is the Wrong Routing Algorithm for a BLE Mesh
+### 3. ~~DSDV Is the Wrong Routing Algorithm for a BLE Mesh~~ ✅ RESOLVED
 
-**Current decision:** Enhanced DSDV (proactive distance-vector) with periodic gossip.
+**Original decision:** Enhanced DSDV (proactive distance-vector) with periodic gossip.
 
 **Challenge:** DSDV requires every node to maintain a full routing table for every reachable destination, updated proactively. In a mobile BLE mesh where peers appear and disappear every few minutes, this means:
 - Continuous gossip overhead even when nobody is sending messages
 - Route expiry/convergence delays (5× gossip interval = 25–300s depending on power mode)
 - PowerSaver mode gossip at 30–60s intervals means route convergence takes 2.5–5 **minutes**
 
-**Better alternative:** **Reactive routing (AODV or DSR-style)** for the data plane, with lightweight beacon-only gossip for neighbor discovery. AODV discovers routes on-demand when a message needs to be sent, which:
-- **Eliminates background gossip traffic** when nobody is messaging (the common case for most peers)
-- **Reduces battery drain** significantly in PowerSaver mode
-- **Converges faster** for active conversations (route discovery is immediate, not bound to gossip intervals)
-- Is well-proven for mobile ad-hoc networks (RFC 3561)
-
-The counterargument ("no explicit route discovery phase") is actually a weakness — DSDV forces all peers to pay the routing overhead, even idle ones. A hybrid approach (beacon for 1-hop neighbors + AODV for multi-hop) gives the best of both worlds.
+**Resolution:** Replaced DSDV with **AODV (Ad-hoc On-demand Distance Vector)** reactive routing. Routes are discovered on-demand via RREQ flooding and RREP unicast when a message needs to be sent. Key changes:
+- `RoutingEngine` rewritten with `initiateRouteDiscovery()`, `handleRouteRequest()`, `handleRouteReply()`
+- Route cache with TTL (`routeCacheTtlMillis`, default 60s) replaces proactive routing table
+- `RouteCoordinator` replaces `GossipCoordinator` (keepalive only, no periodic gossip)
+- New wire message types: `TYPE_ROUTE_REQUEST` (0x0B) and `TYPE_ROUTE_REPLY` (0x0C)
+- `TYPE_ROUTE_UPDATE` (0x02) retained as legacy no-op for backward compatibility
+- Zero background routing traffic when no messages are being sent — significant battery savings
 
 ---
 
@@ -166,7 +166,7 @@ At 244-byte MTU, that's ~15% more payload per frame. On BLE, bandwidth is the sc
 
 **Challenge:** If gossip is off by default, multi-hop routing doesn't work out of the box. This is the #1 thing a developer integrating a "mesh" library would expect to work automatically. Having to manually enable the core mesh feature is bad DX.
 
-**Resolution:** Default changed to `gossipIntervalMillis = 15_000L` (15 seconds). Multi-hop routing now works out of the box. Developers wanting single-hop-only can set it to 0. All docs updated.
+**Resolution:** Default changed to `gossipIntervalMillis = 0` (disabled). Multi-hop routing now uses AODV reactive discovery — routes are established on-demand when `send()` is called, with no periodic gossip needed. The `gossipIntervalMillis` config field is retained for backward compatibility but is unused by AODV routing.
 
 ---
 
@@ -243,7 +243,7 @@ All eviction-related identifiers now qualified: `connectionEvicted` (ConnectionL
 
 | Severity | Count | Top Issues | Status |
 |----------|-------|------------|--------|
-| 🔴 Critical | 4 | ~~Mixed endianness~~ ✅, ~~no recipient forward secrecy~~ ✅, DSDV routing, no schema evolution | 2/4 resolved |
+| 🔴 Critical | 4 | ~~Mixed endianness~~ ✅, ~~no recipient forward secrecy~~ ✅, ~~DSDV routing~~ ✅, no schema evolution | 3/4 resolved |
 | 🟠 Significant | 6 | ~~Unencrypted broadcasts~~ ✅, ~~wasteful 16-byte IDs~~ ✅, ~~narrow SACK~~ ✅, ~~disabled rate limits~~ ✅, ~~maxHops inconsistency~~ ✅, ~~no compression~~ ✅ | 6/6 resolved |
 | 🟡 Moderate | 8 | ~~TOFU naming~~ ✅, ~~replay persist gap~~ ✅, ~~conflated TTL/timeout~~ ✅, ~~gossip off by default~~ ✅, ~~doc duplication~~ ✅, ~~test gaps~~ ✅, ~~overconfident threat model~~ ✅, ~~preset naming~~ ✅ | 8/8 resolved |
 | 🟢 Minor | 5 | ~~sigLen waste~~ ✅, ~~timestamp inconsistency~~ ✅, ~~NACK missing reason~~ ✅, ~~design doc size~~ ✅, ~~term inconsistency~~ ✅ | 5/5 resolved |
@@ -272,5 +272,5 @@ They are intentionally deferred:
 
 | # | Finding | Why Deferred |
 |---|---------|--------------|
-| **#3** | DSDV routing vs. AODV/DSR | Replacing the routing algorithm would rewrite `RoutingEngine`, `GossipCoordinator`, all gossip/route-update wire messages, and ~30 tests. Evaluate after real-world mesh deployment data. |
+| **#3** | ~~DSDV routing vs. AODV/DSR~~ ✅ | Implemented: AODV reactive routing replaces DSDV. `RoutingEngine` rewritten, `RouteCoordinator` replaces `GossipCoordinator`, new RREQ/RREP wire messages (0x0B, 0x0C), route cache with TTL. |
 | **#4** | Custom binary vs. FlatBuffers | Migrating `WireCodec` to FlatBuffers/protobuf requires a schema, code generator, and new dependency across all KMP targets. The custom format is stable and well-tested. |

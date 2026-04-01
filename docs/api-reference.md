@@ -77,7 +77,7 @@ scope before calling `start()`.
 
 | Signature | Description |
 |-----------|-------------|
-| `fun addRoute(destination: String, nextHop: String, cost: Double, sequenceNumber: UInt)` | Manually adds or updates a route. `destination` and `nextHop` are hex peer IDs. `cost` must be > 0. `sequenceNumber` is the DSDV sequence number. |
+| `fun addRoute(destination: String, nextHop: String, cost: Double)` | Manually adds or updates a route. `destination` and `nextHop` are hex peer IDs. `cost` must be > 0. Routes added manually behave like discovered routes and are subject to TTL expiry (`routeCacheTtlMillis`). |
 
 ### Power Management
 
@@ -171,13 +171,15 @@ Immutable configuration data class. All fields have sensible defaults.
 | `circuitBreakerWindowMillis` | `Long` | `60_000` | Window for counting failures (ms). |
 | `circuitBreakerCooldownMillis` | `Long` | `30_000` | Cooldown before retry after circuit trips (ms). |
 
-#### Routing & Gossip
+#### Routing
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `gossipIntervalMillis` | `Long` | `15_000` | Periodic route advertisement interval (ms). `0` = disabled. |
-| `triggeredUpdateThreshold` | `Double` | `0.3` | Fractional cost change that triggers an immediate route update. |
-| `triggeredUpdateBatchMillis` | `Long` | `100` | Batch window for triggered updates (ms). |
+| `routeCacheTtlMillis` | `Long` | `60_000` | Time-to-live for cached routes discovered via AODV (ms). Routes expire and are rediscovered on next send. |
+| `routeDiscoveryTimeoutMillis` | `Long` | `5_000` | Maximum time to wait for a Route Reply after flooding a Route Request (ms). Messages are queued during discovery. |
+| `gossipIntervalMillis` | `Long` | `0` | Legacy periodic route advertisement interval (ms). `0` = disabled. Retained for backward compatibility; not used by AODV routing. |
+| `triggeredUpdateThreshold` | `Double` | `0.3` | Legacy: fractional cost change that triggers an immediate route update. Retained for backward compatibility; not used by AODV routing. |
+| `triggeredUpdateBatchMillis` | `Long` | `100` | Legacy: batch window for triggered updates (ms). Retained for backward compatibility; not used by AODV routing. |
 | `relayQueueCapacity` | `Int` | `100` | Max queued relay (forwarded) messages. |
 
 #### Transfer & Congestion
@@ -279,7 +281,6 @@ All presets accept an override block:
 
 ```kotlin
 val config = MeshLinkConfig.smallPayloadLowLatency {
-    gossipIntervalMillis = 5_000L
     keepaliveIntervalMillis = 30_000L
 }
 ```
@@ -296,7 +297,7 @@ Constructs a `MeshLinkConfig` using a builder DSL:
 val config = meshLinkConfig {
     maxMessageSize = 50_000
     mtu = 512
-    gossipIntervalMillis = 10_000L
+    routeCacheTtlMillis = 120_000L
 }
 ```
 
@@ -425,7 +426,7 @@ Snapshot of a single peer's connection, routing, and identity state. Returned by
 | `isDirectNeighbor` | `Boolean` | `true` if the peer is within 1-hop BLE range. |
 | `routeNextHop` | `String?` | Hex ID of the next-hop peer on the best route. `null` if no route exists. |
 | `routeCost` | `Double?` | Composite link quality cost of the best route. `null` if no route. |
-| `routeSequenceNumber` | `UInt?` | DSDV sequence number of the best route. |
+| `routeSequenceNumber` | `UInt?` | AODV request sequence number of the best route. |
 | `publicKeyHex` | `String?` | Ed25519 public key as hex. `null` if crypto is disabled or peer is unknown. |
 | `nextHopFailureRate` | `Double` | Delivery failure rate via this peer as next-hop (0.0–1.0). |
 | `nextHopFailureCount` | `Int` | Total recorded delivery failures via this peer. |
@@ -455,6 +456,77 @@ enum class DeliveryOutcome {
 | `FAILED_BUFFER_FULL` | Outbound buffer capacity was exceeded. |
 | `FAILED_PEER_OFFLINE` | Destination peer is no longer reachable. |
 | `FAILED_DELIVERY_TIMEOUT` | End-to-end delivery ACK was not received within the deadline. |
+
+### RouteRequestResult
+
+`io.meshlink.routing.RouteRequestResult`
+
+Sealed result type returned by `RoutingEngine.handleRouteRequest()` when an
+incoming RREQ frame is processed.
+
+```kotlin
+sealed class RouteRequestResult {
+    data class Reply(val rrepFrame: ByteArray) : RouteRequestResult()
+    data class Flood(val rreqFrame: ByteArray) : RouteRequestResult()
+    data object Drop : RouteRequestResult()
+}
+```
+
+| Variant | Description |
+|---------|-------------|
+| `Reply` | This peer is the destination or has a cached route — send the contained RREP back along the reverse path. |
+| `Flood` | Rebroadcast the contained RREQ (with incremented hop count) to all neighbors. |
+| `Drop` | Duplicate or expired RREQ — discard silently. |
+
+### RouteReplyResult
+
+`io.meshlink.routing.RouteReplyResult`
+
+Sealed result type returned by `RoutingEngine.handleRouteReply()` when an
+incoming RREP frame is processed.
+
+```kotlin
+sealed class RouteReplyResult {
+    data class Forward(val rrepFrame: ByteArray, val nextHop: ByteArray) : RouteReplyResult()
+    data class Resolved(val destination: ByteArray) : RouteReplyResult()
+    data object Drop : RouteReplyResult()
+}
+```
+
+| Variant | Description |
+|---------|-------------|
+| `Forward` | Relay the RREP toward the RREQ originator via `nextHop`. |
+| `Resolved` | This peer is the RREQ originator — the route to `destination` is now available; drain pending messages. |
+| `Drop` | No matching reverse path or stale RREP — discard silently. |
+
+### RouteDiscovery
+
+`io.meshlink.routing.RouteDiscovery`
+
+Data class returned by `RoutingEngine.initiateRouteDiscovery()` when the
+local peer needs to find a route.
+
+```kotlin
+data class RouteDiscovery(val rreqFrame: ByteArray)
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `rreqFrame` | `ByteArray` | Encoded RREQ frame ready to be flooded to all neighbors. |
+
+### DispatchSink.onRouteDiscovered
+
+`io.meshlink.dispatch.DispatchSink`
+
+Callback invoked by `MeshLink` when an RREP resolves a pending route
+discovery. Replaces the former `triggerGossipUpdate()` method.
+
+```kotlin
+interface DispatchSink {
+    fun onRouteDiscovered(destination: ByteArray)
+    // ...
+}
+```
 
 ---
 
@@ -556,7 +628,7 @@ data class MeshHealthSnapshot(
 | `powerMode` | `String` | — | Current power mode: `"PERFORMANCE"`, `"BALANCED"`, or `"POWER_SAVER"`. |
 | `avgRouteCost` | `Double` | `0.0` | Average composite cost across all routes in the routing table. |
 | `relayQueueSize` | `Int` | `0` | Number of messages in the relay forwarding queue. |
-| `effectiveGossipIntervalMillis` | `Long` | `0` | Current effective gossip interval (may differ from config if adjusted). |
+| `effectiveGossipIntervalMillis` | `Long` | `0` | Legacy gossip interval. Always `0` with AODV routing; retained for backward compatibility. |
 
 ---
 

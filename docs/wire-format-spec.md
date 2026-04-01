@@ -100,7 +100,7 @@ All framed messages begin with a 1-byte type code at offset 0.
 |------|------|----------|------------|-------------|
 | `0x00` | Broadcast | `TYPE_BROADCAST` | Variable (min 43) | Flood-fill broadcast to all nodes. |
 | `0x01` | Handshake | `TYPE_HANDSHAKE` | Variable (min 2) | Noise XX handshake step. |
-| `0x02` | Route Update | `TYPE_ROUTE_UPDATE` | Variable (min 10) | Distance-vector routing table exchange. |
+| `0x02` | Route Update (legacy) | `TYPE_ROUTE_UPDATE` | Variable (min 10) | Legacy DSDV routing table exchange. Parsed as a no-op for backward compatibility; not sent by current implementations. |
 | `0x03` | Chunk | `TYPE_CHUNK` | Variable (min 21) | Fragment of a chunked transfer. |
 | `0x04` | Chunk ACK | `TYPE_CHUNK_ACK` | 35 | Selective acknowledgment of chunks. |
 | `0x05` | Routed Message | `TYPE_ROUTED_MESSAGE` | Variable (min 43) | Unicast message forwarded along a route. |
@@ -109,6 +109,8 @@ All framed messages begin with a 1-byte type code at offset 0.
 | `0x08` | Keepalive | `TYPE_KEEPALIVE` | 10 | Link liveness probe. |
 | `0x09` | NACK | `TYPE_NACK` | 18 | Negative acknowledgment with reason code. |
 | `0x0A` | Rotation Announcement | `TYPE_ROTATION` | 201 | Key rotation broadcast. |
+| `0x0B` | Route Request | `TYPE_ROUTE_REQUEST` | 23 | AODV route request (RREQ), flooded to discover a path to a destination. |
+| `0x0C` | Route Reply | `TYPE_ROUTE_REPLY` | 22 | AODV route reply (RREP), unicast back along the reverse path. |
 
 ---
 
@@ -188,7 +190,11 @@ the 5-byte payload carried inside the Noise framework messages.
 
 ---
 
-### 0x02 — Route Update
+### 0x02 — Route Update (Legacy)
+
+> **Legacy:** This message type was used by the former DSDV routing protocol.
+> Current implementations retain the parser for backward compatibility but treat
+> received Route Update messages as a no-op. New peers never send this type.
 
 Distance-vector routing table exchange. Comes in two variants: unsigned and
 signed.
@@ -249,6 +255,68 @@ entries:
 - Minimum message size: 10 bytes (zero entries).
 - Route cost must be finite and non-negative.
 - Signed variant is detected by checking if `remaining bytes ≥ 96` after all entries.
+
+---
+
+### 0x0B — Route Request (RREQ)
+
+AODV route discovery request. Flooded by the originator (or an intermediate
+peer with no cached route) to discover a path to a destination. Each peer
+that receives an RREQ records the reverse path back to the origin and
+rebroadcasts unless it has already seen the same `requestId` from the same
+origin.
+
+**Source:** `WireCodec.kt` · Fixed size: **23 bytes**
+
+```
+Byte:   0       1             8  9            16 17          20 21   22
+       +-------+---- ... ----+--+---- ... ----+--+--- ... ---+-----+-----+
+       | 0x0B  |  origin (8) |  |   dest (8)  |  | reqId(4LE)| hops|limit|
+       +-------+---- ... ----+--+---- ... ----+--+--- ... ---+-----+-----+
+```
+
+| Offset | Size | Field | Type | Endianness | Description |
+|--------|------|-------|------|------------|-------------|
+| 0 | 1 | `type` | byte | — | `0x0B` |
+| 1–8 | 8 | `origin` | bytes | — | Peer ID of the RREQ originator. |
+| 9–16 | 8 | `destination` | bytes | — | Peer ID of the desired destination. |
+| 17–20 | 4 | `requestId` | UInt | **LE** | Unique request identifier (scoped to origin). Used for RREQ deduplication. |
+| 21 | 1 | `hopCount` | UByte | — | Number of hops traversed so far (incremented at each relay). |
+| 22 | 1 | `hopLimit` | UByte | — | Maximum hops this RREQ may traverse (derived from `maxHops` config). |
+
+**Validation:**
+- Fixed size: exactly 23 bytes.
+- `hopCount` must be < `hopLimit`; otherwise the RREQ is dropped.
+- Duplicate RREQs (same `origin` + `requestId`) are dropped.
+
+---
+
+### 0x0C — Route Reply (RREP)
+
+AODV route reply. Unicast back along the reverse path recorded during the
+RREQ flood. Sent by the destination peer or by an intermediate peer that
+already has a cached route to the destination.
+
+**Source:** `WireCodec.kt` · Fixed size: **22 bytes**
+
+```
+Byte:   0       1             8  9            16 17          20 21
+       +-------+---- ... ----+--+---- ... ----+--+--- ... ---+-----+
+       | 0x0C  |  origin (8) |  |   dest (8)  |  | reqId(4LE)| hops|
+       +-------+---- ... ----+--+---- ... ----+--+--- ... ---+-----+
+```
+
+| Offset | Size | Field | Type | Endianness | Description |
+|--------|------|-------|------|------------|-------------|
+| 0 | 1 | `type` | byte | — | `0x0C` |
+| 1–8 | 8 | `origin` | bytes | — | Peer ID of the original RREQ originator (copied from the RREQ). |
+| 9–16 | 8 | `destination` | bytes | — | Peer ID of the destination (the peer that generated or relayed the RREP). |
+| 17–20 | 4 | `requestId` | UInt | **LE** | Request ID from the corresponding RREQ. |
+| 21 | 1 | `hopCount` | UByte | — | Number of hops from the destination back to the origin (incremented at each relay). |
+
+**Validation:**
+- Fixed size: exactly 22 bytes.
+- Must correspond to a previously seen RREQ (matching `origin` + `requestId` with a recorded reverse path).
 
 ---
 
@@ -570,8 +638,9 @@ decryption by peers running the compression-aware version.
 - **Broadcast** and **Delivery ACK** messages support optional Ed25519
   signatures. When present, the signature block contains the 64-byte signature
   followed by the 32-byte signer public key.
-- **Route Update** messages support a signed variant with the signer public key
-  (32 bytes) and signature (64 bytes) appended after all route entries.
+- **Route Update** (legacy) messages support a signed variant with the signer
+  public key (32 bytes) and signature (64 bytes) appended after all route
+  entries. This message type is retained for backward compatibility only.
 - **Rotation Announcement** messages are always signed by the old Ed25519 key
   to authorize key transitions.
 
@@ -628,8 +697,9 @@ payload fields.
 ### Little-Endian
 
 Used for: Chunk `sequenceNumber`/`totalChunks`, Chunk ACK `ackSequence`/
-`sackBitmask`/`sackBitmaskHigh`, Routed Message `replayCounter`, Route Update `cost`/
-`sequenceNumber`, Resume Request `bytesReceived`, Keepalive `timestampMillis`.
+`sackBitmask`/`sackBitmaskHigh`, Routed Message `replayCounter`, Route Update
+(legacy) `cost`/`sequenceNumber`, Route Request/Reply `requestId`, Resume
+Request `bytesReceived`, Keepalive `timestampMillis`.
 
 | Function | Width | Description |
 |----------|-------|-------------|
@@ -659,8 +729,10 @@ Quick reference for the byte order of every multi-byte field in the protocol.
 | Chunk ACK | `sackBitmask` | 8 | **LE** |
 | Chunk ACK | `sackBitmaskHigh` | 8 | **LE** |
 | Routed Message | `replayCounter` | 8 | **LE** |
-| Route Update Entry | `cost` | 8 | **LE** |
-| Route Update Entry | `sequenceNumber` | 4 | **LE** |
+| Route Update Entry (legacy) | `cost` | 8 | **LE** |
+| Route Update Entry (legacy) | `sequenceNumber` | 4 | **LE** |
+| Route Request | `requestId` | 4 | **LE** |
+| Route Reply | `requestId` | 4 | **LE** |
 | Resume Request | `bytesReceived` | 4 | **LE** |
 | Keepalive | `timestampMillis` | 8 | **LE** |
 | Rotation | `timestampMillis` | 8 | **BE** |
