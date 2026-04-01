@@ -66,38 +66,45 @@ class PersistedReplayGuardTest {
     }
 
     @Test
-    fun inboundPersistedPeriodicallyByMessageCount() {
-        val guard = PersistedReplayGuard(
-            peerIdHex = "ee",
-            storage = storage,
-            persistIntervalMillis = Long.MAX_VALUE,   // disable time-based
-            persistIntervalMessages = 3,
-        )
+    fun inboundPersistedOnEveryHighWaterMarkAdvance() {
+        val guard = PersistedReplayGuard("ee", storage)
         assertTrue(guard.check(1uL))
-        assertTrue(guard.check(2uL))
-        assertNull(storage.get("replay_in_ee"), "should not persist before threshold")
-        assertTrue(guard.check(3uL)) // 3rd accepted → triggers persist
+        assertEquals(1uL, storage.get("replay_in_ee")!!.fromBytesBigEndian(), "should persist on first advance")
 
-        val persisted = storage.get("replay_in_ee")
-        assertNotNull(persisted)
-        assertEquals(3uL, persisted.fromBytesBigEndian())
+        assertTrue(guard.check(2uL))
+        assertEquals(2uL, storage.get("replay_in_ee")!!.fromBytesBigEndian(), "should persist on second advance")
+
+        assertTrue(guard.check(3uL))
+        assertEquals(3uL, storage.get("replay_in_ee")!!.fromBytesBigEndian(), "should persist on third advance")
     }
 
     @Test
-    fun rejectedMessagesDoNotCountTowardPersistThreshold() {
-        val guard = PersistedReplayGuard(
-            peerIdHex = "ff",
-            storage = storage,
-            persistIntervalMillis = Long.MAX_VALUE,
-            persistIntervalMessages = 2,
-        )
-        assertTrue(guard.check(1uL))
-        assertFalse(guard.check(1uL))  // duplicate – rejected
-        assertFalse(guard.check(0uL))  // sentinel – rejected
-        assertNull(storage.get("replay_in_ff"), "rejected messages should not trigger persist")
-        assertTrue(guard.check(2uL))   // 2nd accepted → persist
+    fun windowFillDoesNotPersistInbound() {
+        val guard = PersistedReplayGuard("ff", storage)
+        assertTrue(guard.check(5uL))  // high-water mark → persists
+        assertEquals(5uL, storage.get("replay_in_ff")!!.fromBytesBigEndian())
 
-        assertNotNull(storage.get("replay_in_ff"))
+        // Accepting counters within the window (below high-water mark) should NOT persist
+        assertTrue(guard.check(3uL))
+        assertEquals(5uL, storage.get("replay_in_ff")!!.fromBytesBigEndian(), "window fill should not re-persist")
+
+        assertTrue(guard.check(4uL))
+        assertEquals(5uL, storage.get("replay_in_ff")!!.fromBytesBigEndian(), "window fill should not re-persist")
+
+        // New high-water mark → persists again
+        assertTrue(guard.check(6uL))
+        assertEquals(6uL, storage.get("replay_in_ff")!!.fromBytesBigEndian(), "new high-water mark should persist")
+    }
+
+    @Test
+    fun rejectedMessagesDoNotPersist() {
+        val guard = PersistedReplayGuard("gg", storage)
+        assertTrue(guard.check(1uL))
+        assertEquals(1uL, storage.get("replay_in_gg")!!.fromBytesBigEndian())
+
+        assertFalse(guard.check(1uL))  // duplicate
+        assertFalse(guard.check(0uL))  // sentinel
+        assertEquals(1uL, storage.get("replay_in_gg")!!.fromBytesBigEndian(), "rejected messages should not change persisted value")
     }
 
     // ── peer isolation ──────────────────────────────────────────────────

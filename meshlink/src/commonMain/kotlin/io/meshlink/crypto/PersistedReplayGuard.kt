@@ -1,15 +1,15 @@
 package io.meshlink.crypto
 
 import io.meshlink.storage.SecureStorage
-import io.meshlink.util.currentTimeMillis
 
 /**
  * Wrapper around [ReplayGuard] that persists outbound and inbound counters
  * to [SecureStorage] so they survive app restarts.
  *
  * - Outbound counter is persisted on every [advance] call.
- * - Inbound highest-seen counter is persisted periodically: every [persistIntervalMillis]
- *   milliseconds or every [persistIntervalMessages] accepted messages, whichever comes first.
+ * - Inbound highest-seen counter is persisted immediately whenever the
+ *   high-water mark advances. This eliminates the vulnerability window
+ *   that existed with the previous periodic-persist strategy.
  * - On creation, persisted counters are loaded from storage. The sliding-window bitmask is
  *   set to all-ones after restore so that only counters above the persisted highest-seen
  *   value are accepted (conservative replay protection after restart).
@@ -17,12 +17,8 @@ import io.meshlink.util.currentTimeMillis
 class PersistedReplayGuard(
     private val peerIdHex: String,
     private val storage: SecureStorage,
-    private val persistIntervalMillis: Long = 1_000L,
-    private val persistIntervalMessages: Int = 100,
 ) {
     private val guard: ReplayGuard
-    private var lastInboundPersistTimeMillis: Long
-    private var messagesSinceLastPersist: Int = 0
 
     init {
         val outbound = loadCounter(outboundKey())
@@ -37,7 +33,6 @@ class PersistedReplayGuard(
                 windowBitmask = if (inbound > 0uL) ULong.MAX_VALUE else 0uL,
             )
         )
-        lastInboundPersistTimeMillis = currentTimeMillis()
     }
 
     /** Returns the next outbound counter and persists it. */
@@ -47,18 +42,14 @@ class PersistedReplayGuard(
         return counter
     }
 
-    /** Checks whether [counter] is fresh. Periodically persists the highest-seen value. */
+    /** Checks whether [counter] is fresh. Persists immediately on high-water-mark advance. */
     fun check(counter: ULong): Boolean {
+        val prevHighest = guard.snapshot().highestSeen
         val result = guard.check(counter)
         if (result) {
-            messagesSinceLastPersist++
-            val now = currentTimeMillis()
-            if (messagesSinceLastPersist >= persistIntervalMessages ||
-                now - lastInboundPersistTimeMillis >= persistIntervalMillis
-            ) {
+            val newHighest = guard.snapshot().highestSeen
+            if (newHighest > prevHighest) {
                 persistInbound()
-                lastInboundPersistTimeMillis = now
-                messagesSinceLastPersist = 0
             }
         }
         return result
