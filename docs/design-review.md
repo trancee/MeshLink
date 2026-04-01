@@ -48,7 +48,7 @@ and UBIQUITOUS_LANGUAGE.md.
 
 ---
 
-### 4. Custom Binary Wire Format vs. Protobuf/FlatBuffers
+### 4. ~~Custom Binary Wire Format vs. Protobuf/FlatBuffers~~ ✅ RESOLVED
 
 **Current decision:** Hand-specified binary format with byte-offset tables.
 
@@ -60,6 +60,8 @@ and UBIQUITOUS_LANGUAGE.md.
 **Better alternative:** **FlatBuffers.** Zero-copy deserialization, schema evolution with backward compatibility, generated code eliminates byte-offset bugs, and the overhead is 4–8 bytes per message (a 2–3% increase at typical BLE MTU). FlatBuffers is specifically designed for bandwidth-constrained environments and is used by BLE-adjacent projects (Google Nearby, Matter protocol). The "no protobuf" stance seems based on protobuf's overhead, but FlatBuffers has none.
 
 **Counter-counter:** If the ~8 byte overhead is truly unacceptable, at minimum add a **TLV extension field** to each message type. The current "no optional fields, no TLV extensions" rule guarantees painful major version bumps for any protocol evolution.
+
+**Resolution:** Added TLV (Type-Length-Value) extension areas to 7 fixed/known-length message types (Keepalive, ChunkAck, Nack, ResumeRequest, RouteRequest, RouteReply, DeliveryAck). New fields can be added as TLV entries without a protocol version bump. Empty extensions cost only 2 bytes (`0x00 0x00`). Tags `0x00`–`0x7F` reserved for protocol use; `0x80`–`0xFF` for applications. Unknown tags are preserved for forward compatibility. Legacy decoders ignore trailing bytes. Variable-length messages (Chunk, Broadcast, RoutedMessage), Noise handshakes, and the signed Rotation Announcement are excluded — they use existing extensibility mechanisms. Implementation in `TlvCodec.kt` with 38 tests (18 unit + 20 integration).
 
 ---
 
@@ -243,7 +245,7 @@ All eviction-related identifiers now qualified: `connectionEvicted` (ConnectionL
 
 | Severity | Count | Top Issues | Status |
 |----------|-------|------------|--------|
-| 🔴 Critical | 4 | ~~Mixed endianness~~ ✅, ~~no recipient forward secrecy~~ ✅, ~~DSDV routing~~ ✅, no schema evolution | 3/4 resolved |
+| 🔴 Critical | 4 | ~~Mixed endianness~~ ✅, ~~no recipient forward secrecy~~ ✅, ~~DSDV routing~~ ✅, ~~no schema evolution~~ ✅ | 4/4 resolved |
 | 🟠 Significant | 6 | ~~Unencrypted broadcasts~~ ✅, ~~wasteful 16-byte IDs~~ ✅, ~~narrow SACK~~ ✅, ~~disabled rate limits~~ ✅, ~~maxHops inconsistency~~ ✅, ~~no compression~~ ✅ | 6/6 resolved |
 | 🟡 Moderate | 8 | ~~TOFU naming~~ ✅, ~~replay persist gap~~ ✅, ~~conflated TTL/timeout~~ ✅, ~~gossip off by default~~ ✅, ~~doc duplication~~ ✅, ~~test gaps~~ ✅, ~~overconfident threat model~~ ✅, ~~preset naming~~ ✅ | 8/8 resolved |
 | 🟢 Minor | 5 | ~~sigLen waste~~ ✅, ~~timestamp inconsistency~~ ✅, ~~NACK missing reason~~ ✅, ~~design doc size~~ ✅, ~~term inconsistency~~ ✅ | 5/5 resolved |
@@ -267,10 +269,10 @@ All eviction-related identifiers now qualified: `connectionEvicted` (ConnectionL
 
 ## Deferred to Post-v1
 
-The following 2 findings require architectural changes or protocol-breaking modifications.
-They are intentionally deferred:
+The following finding required architectural changes.
+It is intentionally deferred:
 
 | # | Finding | Why Deferred |
 |---|---------|--------------|
 | **#3** | ~~DSDV routing vs. AODV/DSR~~ ✅ | Implemented: AODV reactive routing replaces DSDV. `RoutingEngine` rewritten, `RouteCoordinator` replaces `GossipCoordinator`, new RREQ/RREP wire messages (0x0B, 0x0C), route cache with TTL. |
-| **#4** | Custom binary vs. FlatBuffers | Migrating `WireCodec` to FlatBuffers/protobuf requires a schema, code generator, and new dependency across all KMP targets. The custom format is stable and well-tested. |
+| **#4** | ~~Custom binary vs. FlatBuffers~~ ✅ | Resolved: TLV extension areas added to 7 fixed-length message types. New fields can be added without protocol version bumps. `TlvCodec.kt` implementation with 38 tests. FlatBuffers migration no longer needed. |

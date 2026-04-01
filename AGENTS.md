@@ -85,7 +85,7 @@ open meshlink/build/reports/tests/jvmTest/index.html
 ### Test Structure
 
 84 test files across 20 packages in `meshlink/src/commonTest/`: crypto (17),
-transport (9), transfer (8), util (7), power (7), wire (6), model (6),
+transport (9), transfer (8), util (7), power (7), wire (8), model (6),
 routing (5), dispatch (3), diagnostics (3), send (2), config (1), delivery (1),
 route (1), peer (1), protocol (1), storage (1), plus integration and stress
 suites.
@@ -143,7 +143,7 @@ before committing. See `detekt.yml` for the full rule set.
 ```
 meshlink/src/
   commonMain/     ~85% of code: protocol, routing, crypto, wire format
-  commonTest/     1,167 tests using VirtualMeshTransport (in-memory BLE mock)
+  commonTest/     1,201 tests using VirtualMeshTransport (in-memory BLE mock)
   androidMain/    BLE transport, EncryptedSharedPreferences, JCA crypto (API 33+)
   appleMain/      Shared iOS/macOS: CoreBluetooth, CryptoKit, Keychain
   iosMain/        iOS-specific overrides
@@ -174,6 +174,7 @@ and `meshlink-sample/macos/` (not Gradle-managed).
 | `MeshLinkApi.kt` | Public API interface (all methods consumers call) |
 | `MeshLinkConfig.kt` | 40+ config fields with DSL builder and presets |
 | `WireCodec.kt` | Binary encode/decode + message type constants |
+| `TlvCodec.kt` | TLV extension area encoder/decoder for wire message extensibility |
 | `SecurityEngine.kt` | Noise K (E2E) + Noise XX (hop-by-hop) encryption |
 | `RoutingEngine.kt` | AODV reactive routing: route discovery, RREQ/RREP handling, route cache |
 | `PowerCoordinator.kt` | Battery-adaptive power modes with hysteresis |
@@ -240,9 +241,17 @@ Custom binary protocol — no protobuf. All parsers in `WireCodec.kt`.
   bitmasks; big-endian for protocol version, timestamps, PSM
 - **Key sizes:** 8-byte peer IDs, 32-byte Ed25519/X25519 keys, 64-byte
   signatures
+- **TLV extensions:** 7 fixed-length message types (Keepalive, ChunkAck, Nack,
+  ResumeRequest, RouteRequest, RouteReply, DeliveryAck) support trailing TLV
+  extension areas for backward-compatible schema evolution. Tags `0x00`–`0x7F`
+  reserved for protocol; `0x80`–`0xFF` for applications. See `TlvCodec.kt`.
 
 When adding a message type: assign next code in `WireCodec`, add `encode`/`decode`
 pair, add golden vector test, add fuzz test case.
+
+When adding a TLV extension tag: assign next tag code, update encode/decode to
+populate the `extensions` list, add unit test in `TlvCodecTest`, add integration
+test in `TlvExtensionWireTest`, update `docs/wire-format-spec.md`.
 
 ## Security
 

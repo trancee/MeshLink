@@ -368,7 +368,7 @@ All message types use a **hand-specified binary format** — no protobuf, no sch
 
 **Design choices:**
 - **Blanket encoding rule:** All multi-byte integer fields are **unsigned little-endian** unless explicitly stated otherwise. All single-byte integer fields are **unsigned**. This applies to every wire format table in this document and the protocol RFC. (Matches ARM-native byte order on both iOS and Android.)
-- **Strict versioning** — any wire format change requires a protocol version bump. No optional fields, no TLV extensions.
+- **TLV extension areas** — seven fixed/known-length message types (Keepalive, ChunkAck, Nack, ResumeRequest, RouteRequest, RouteReply, DeliveryAck) include a trailing TLV (Type-Length-Value) extension area for backward-compatible schema evolution. Adding new fields via TLV entries does not require a protocol version bump. Tags `0x00`–`0x7F` are reserved for protocol use; `0x80`–`0xFF` are available for applications. Unknown tags are preserved for forward compatibility. See [wire-format-spec.md § TLV Extension Area](wire-format-spec.md#tlv-extension-area) for the binary layout and `TlvCodec.kt` for the implementation.
 - **No self-describing format** — parsers must know the protocol version to decode. This maximizes payload efficiency on the bandwidth-constrained BLE link.
 
 **Tradeoff:** The shared cross-platform test suite becomes critical — a single byte offset error = total failure. Test vectors in Phase 0 must cover every message type with exact byte-level golden outputs.

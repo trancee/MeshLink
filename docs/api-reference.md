@@ -815,3 +815,55 @@ class MeshLinkConfigBuilder(/* all fields with same defaults as MeshLinkConfig *
     fun build(): MeshLinkConfig
 }
 ```
+
+### TlvEntry
+
+`io.meshlink.wire.TlvEntry`
+
+A single TLV (Type-Length-Value) extension entry carried in the extension area
+of supported wire messages.
+
+```kotlin
+data class TlvEntry(
+    val tag: UByte,
+    val value: ByteArray
+)
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `tag` | `UByte` | Extension tag identifier. Tags `0x00`–`0x7F` are reserved for protocol use; tags `0x80`–`0xFF` are available for application use. |
+| `value` | `ByteArray` | Extension value (0–65535 bytes). |
+
+Custom `equals()` and `hashCode()` implementations use `contentEquals` /
+`contentHashCode` for byte array comparison.
+
+### TlvCodec
+
+`io.meshlink.wire.TlvCodec`
+
+Internal codec for encoding and decoding the TLV extension area appended to
+fixed-length wire messages. Not typically called directly by consumers — the
+`WireCodec` encode/decode functions handle TLV extensions via the `extensions`
+parameter.
+
+```kotlin
+internal object TlvCodec {
+    fun encode(entries: List<TlvEntry>): ByteArray
+    fun decode(data: ByteArray, offset: Int): Pair<List<TlvEntry>, Int>
+    fun wireSize(entries: List<TlvEntry>): Int
+}
+```
+
+| Method | Description |
+|--------|-------------|
+| `encode(entries)` | Encodes a list of TLV entries into a byte array including the 2-byte extension-length prefix. Returns `[0x00, 0x00]` when entries is empty. |
+| `decode(data, offset)` | Decodes TLV entries starting at `offset`. Returns `(entries, totalBytesConsumed)`. Unknown tags are preserved (not dropped). Throws `IllegalArgumentException` if data is truncated. |
+| `wireSize(entries)` | Returns the total wire size in bytes including the 2-byte prefix. |
+
+Wire messages that support TLV extensions (Keepalive, ChunkAck, Nack,
+ResumeRequest, RouteRequest, RouteReply, DeliveryAck) accept an
+`extensions: List<TlvEntry> = emptyList()` parameter in their encode functions
+and expose an `extensions: List<TlvEntry>` field on their decoded data classes.
+See [wire-format-spec.md § TLV Extension Area](wire-format-spec.md#tlv-extension-area)
+for the binary layout.
