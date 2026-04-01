@@ -41,6 +41,7 @@ import io.meshlink.transfer.TransferUpdate
 import io.meshlink.transport.BleTransport
 import io.meshlink.util.AppIdFilter
 import io.meshlink.util.ByteArrayKey
+import io.meshlink.util.Compressor
 import io.meshlink.util.DeliveryOutcome
 import io.meshlink.util.PauseManager
 import io.meshlink.util.PlatformLock
@@ -73,6 +74,8 @@ import kotlin.uuid.Uuid
 
 private const val NEXTHOP_UNRELIABLE_THRESHOLD = 0.5
 private const val NEXTHOP_MIN_SAMPLES = 3
+private const val ENVELOPE_UNCOMPRESSED: Byte = 0x00
+private const val ENVELOPE_COMPRESSED: Byte = 0x01
 
 @OptIn(ExperimentalUuidApi::class)
 class MeshLink(
@@ -86,6 +89,7 @@ class MeshLink(
 
     private val clock = clock
     private val sendLock = PlatformLock()
+    private val compressor: Compressor? = if (config.compressionEnabled) Compressor() else null
 
     private val rateLimitPolicy = RateLimitPolicy(config, clock)
 
@@ -334,6 +338,7 @@ class MeshLink(
                 emitHealthUpdate()
             }
         },
+        unwrapPayload = ::unwrapPayloadEnvelope,
     )
 
     override val localPublicKey: ByteArray? get() = securityEngine?.localPublicKey
@@ -813,11 +818,14 @@ class MeshLink(
             }
         }
 
+        // Compress payload if enabled and beneficial
+        val envelopedPayload = wrapPayloadEnvelope(payload)
+
         // Encrypt payload via security engine
         val recipientId = recipient.toKey()
-        val wirePayload = when (val sr = securityEngine?.seal(recipientId, payload)) {
+        val wirePayload = when (val sr = securityEngine?.seal(recipientId, envelopedPayload)) {
             is SealResult.Sealed -> sr.ciphertext
-            else -> payload
+            else -> envelopedPayload
         }
 
         val chunkSize = config.mtu - WireCodec.CHUNK_HEADER_SIZE
@@ -852,6 +860,48 @@ class MeshLink(
         )
         s.launch { safeSend(nextHopId.bytes, encoded) }
         return Result.success(messageId)
+    }
+
+    internal fun wrapPayloadEnvelope(payload: ByteArray): ByteArray {
+        if (compressor == null) return payload
+        if (payload.size < config.compressionMinBytes) {
+            val envelope = ByteArray(1 + payload.size)
+            envelope[0] = ENVELOPE_UNCOMPRESSED
+            payload.copyInto(envelope, 1)
+            return envelope
+        }
+        val compressed = compressor.compress(payload)
+        if (compressed.size >= payload.size) {
+            val envelope = ByteArray(1 + payload.size)
+            envelope[0] = ENVELOPE_UNCOMPRESSED
+            payload.copyInto(envelope, 1)
+            return envelope
+        }
+        val envelope = ByteArray(5 + compressed.size)
+        envelope[0] = ENVELOPE_COMPRESSED
+        envelope[1] = (payload.size and 0xFF).toByte()
+        envelope[2] = ((payload.size shr 8) and 0xFF).toByte()
+        envelope[3] = ((payload.size shr 16) and 0xFF).toByte()
+        envelope[4] = ((payload.size shr 24) and 0xFF).toByte()
+        compressed.copyInto(envelope, 5)
+        return envelope
+    }
+
+    internal fun unwrapPayloadEnvelope(envelope: ByteArray): ByteArray {
+        if (!config.compressionEnabled || envelope.isEmpty()) return envelope
+        return when (envelope[0]) {
+            ENVELOPE_COMPRESSED -> {
+                val originalSize = (envelope[1].toInt() and 0xFF) or
+                    ((envelope[2].toInt() and 0xFF) shl 8) or
+                    ((envelope[3].toInt() and 0xFF) shl 16) or
+                    ((envelope[4].toInt() and 0xFF) shl 24)
+                val compressed = envelope.copyOfRange(5, envelope.size)
+                val c = compressor ?: Compressor()
+                c.decompress(compressed, originalSize)
+            }
+            ENVELOPE_UNCOMPRESSED -> envelope.copyOfRange(1, envelope.size)
+            else -> envelope
+        }
     }
 
     private fun dispatchChunks(s: CoroutineScope, recipient: ByteArray, chunks: List<ChunkData>, messageId: ByteArray) {

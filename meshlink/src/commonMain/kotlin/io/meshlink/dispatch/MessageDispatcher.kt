@@ -41,6 +41,7 @@ internal class MessageDispatcher(
     private val config: MeshLinkConfig,
     private val outboundTracker: OutboundTracker,
     private val sink: DispatchSink,
+    private val unwrapPayload: (ByteArray) -> ByteArray = { it },
 ) {
     suspend fun dispatch(fromPeerId: ByteArray, data: ByteArray) {
         if (data.isEmpty()) return
@@ -164,7 +165,7 @@ internal class MessageDispatcher(
                     "chunk reassembly",
                     fromPeerId.toKey(),
                 ) ?: return
-                sink.onMessageReceived(fromPeerId, decrypted)
+                sink.onMessageReceived(fromPeerId, unwrapPayload(decrypted))
             }
         }
     }
@@ -246,7 +247,7 @@ internal class MessageDispatcher(
                 "routed message",
                 routed.origin.toKey(),
             ) ?: return
-            sink.onMessageReceived(routed.origin, deliveredPayload)
+            sink.onMessageReceived(routed.origin, unwrapPayload(deliveredPayload))
             val signed = securityEngine?.sign(routed.messageId + localPeerId)
             val ackFrame = WireCodec.encodeDeliveryAck(
                 routed.messageId,

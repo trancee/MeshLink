@@ -59,6 +59,9 @@ kotlin {
                 val bluetooth by creating {
                     defFile("src/nativeInterop/cinterop/bluetooth.def")
                 }
+                val zlib by creating {
+                    defFile("src/nativeInterop/cinterop/zlib.def")
+                }
             }
         }
     }
@@ -67,6 +70,9 @@ kotlin {
             cinterops {
                 val bluetooth by creating {
                     defFile("src/nativeInterop/cinterop/bluetooth.def")
+                }
+                val zlib by creating {
+                    defFile("src/nativeInterop/cinterop/zlib.def")
                 }
             }
         }
