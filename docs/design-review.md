@@ -110,13 +110,13 @@ At 244-byte MTU, that's ~15% more payload per frame. On BLE, bandwidth is the sc
 
 ---
 
-### 9. No Message Compression, Even for Text
+### 9. ~~No Message Compression, Even for Text~~ ✅ RESOLVED
 
-**Current decision:** "Deferred to post-v1." The sealed payload flags reserve a bit for it.
+**Original decision:** "Deferred to post-v1." The sealed payload flags reserve a bit for it.
 
 **Challenge:** The design doc says "Chat messages (1–10KB) yield minimal absolute savings." This is wrong. Text compresses 50–70% with LZ4/zstd. A 1KB chat message → 300–500 bytes means the difference between needing chunking or fitting in a single BLE write. On BLE's constrained bandwidth, this is a meaningful latency reduction.
 
-**Better alternative:** **LZ4 compression for payloads > 128 bytes, on by default.** LZ4 decompression is ~4 GB/s — literally zero measurable latency on mobile. Compression is ~500 MB/s. Kotlin Multiplatform has LZ4 bindings. The flags byte already reserves bit 0; use it now.
+**Resolution:** Payload compression implemented using zlib (RFC 1950) with compress-then-encrypt ordering. Enabled by default (`compressionEnabled = true`, `compressionMinBytes = 64`). Platform implementations: `Deflater`/`Inflater` (JVM/Android), `NSData.compressedDataUsingAlgorithm(.zlib)` (Apple), zlib cinterop (Linux). Uses `0x00`/`0x01` envelope prefix inside the E2E encrypted payload — transparent to relays and backward compatible when disabled.
 
 ---
 
@@ -244,7 +244,7 @@ All eviction-related identifiers now qualified: `connectionEvicted` (ConnectionL
 | Severity | Count | Top Issues | Status |
 |----------|-------|------------|--------|
 | 🔴 Critical | 4 | ~~Mixed endianness~~ ✅, ~~no recipient forward secrecy~~ ✅, DSDV routing, no schema evolution | 2/4 resolved |
-| 🟠 Significant | 6 | ~~Unencrypted broadcasts~~ ✅, ~~wasteful 16-byte IDs~~ ✅, ~~narrow SACK~~ ✅, ~~disabled rate limits~~ ✅, ~~maxHops inconsistency~~ ✅, no compression | 5/6 resolved |
+| 🟠 Significant | 6 | ~~Unencrypted broadcasts~~ ✅, ~~wasteful 16-byte IDs~~ ✅, ~~narrow SACK~~ ✅, ~~disabled rate limits~~ ✅, ~~maxHops inconsistency~~ ✅, ~~no compression~~ ✅ | 6/6 resolved |
 | 🟡 Moderate | 8 | ~~TOFU naming~~ ✅, ~~replay persist gap~~ ✅, ~~conflated TTL/timeout~~ ✅, ~~gossip off by default~~ ✅, ~~doc duplication~~ ✅, ~~test gaps~~ ✅, ~~overconfident threat model~~ ✅, ~~preset naming~~ ✅ | 8/8 resolved |
 | 🟢 Minor | 5 | ~~sigLen waste~~ ✅, ~~timestamp inconsistency~~ ✅, ~~NACK missing reason~~ ✅, ~~design doc size~~ ✅, ~~term inconsistency~~ ✅ | 5/5 resolved |
 
@@ -267,11 +267,10 @@ All eviction-related identifiers now qualified: `connectionEvicted` (ConnectionL
 
 ## Deferred to Post-v1
 
-The following 3 findings require architectural changes or protocol-breaking modifications.
+The following 2 findings require architectural changes or protocol-breaking modifications.
 They are intentionally deferred:
 
 | # | Finding | Why Deferred |
 |---|---------|--------------|
 | **#3** | DSDV routing vs. AODV/DSR | Replacing the routing algorithm would rewrite `RoutingEngine`, `GossipCoordinator`, all gossip/route-update wire messages, and ~30 tests. Evaluate after real-world mesh deployment data. |
 | **#4** | Custom binary vs. FlatBuffers | Migrating `WireCodec` to FlatBuffers/protobuf requires a schema, code generator, and new dependency across all KMP targets. The custom format is stable and well-tested. |
-| **#9** | No message compression | Requires: (a) KMP-compatible compression library (expect/actual for Deflater/NSData/zlib), (b) payload envelope prefix for signaling, (c) changes to encryption pipeline (compress before encrypt), (d) version negotiation for backward compatibility. The broadcast flags byte reserves bits 1–7 for future use including compression. |

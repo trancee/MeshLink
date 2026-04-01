@@ -218,6 +218,13 @@ Immutable configuration data class. All fields have sensible defaults.
 |-------|------|---------|-------------|
 | `protocolVersion` | `ProtocolVersion` | `ProtocolVersion(1, 0)` | Wire protocol version (major, minor). |
 
+#### Compression
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `compressionEnabled` | `Boolean` | `true` | Enable zlib (RFC 1950) payload compression. Compression is applied before encryption (compress-then-encrypt). When disabled, no envelope prefix is added and payloads are sent raw (backward compatible). |
+| `compressionMinBytes` | `Int` | `64` | Minimum payload size in bytes before compression is attempted. Payloads smaller than this threshold are wrapped with a `0x00` (uncompressed) envelope prefix instead. |
+
 #### Security
 
 | Field | Type | Default | Description |

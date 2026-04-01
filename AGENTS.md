@@ -177,6 +177,7 @@ and `meshlink-sample/macos/` (not Gradle-managed).
 | `SecurityEngine.kt` | Noise K (E2E) + Noise XX (hop-by-hop) encryption |
 | `RoutingEngine.kt` | DSDV routing table and next-hop resolution |
 | `PowerCoordinator.kt` | Battery-adaptive power modes with hysteresis |
+| `Compressor.kt` | Payload compression expect/actual (zlib RFC 1950) |
 
 ### Expect/Actual Pattern
 
@@ -188,6 +189,7 @@ and `io.meshlink.crypto`:
 - `secureRandomBytes(size)` — CSPRNG
 - `CryptoProvider()` — Ed25519, X25519, ChaCha20-Poly1305, HKDF, SHA-256
 - `BatteryMonitor()` — battery level + charging status
+- `Compressor()` — zlib payload compression/decompression
 
 When adding a new `expect` declaration, provide `actual` implementations for
 **all 4 platform groups**: `jvmMain`, `androidMain`, `appleMain`, `linuxMain`.

@@ -230,6 +230,34 @@ val sensorConfig = MeshLinkConfig.minimalOverhead()
 | `bufferTtlMillis`               | 300,000 | Max time to keep buffered data           |
 | `keepaliveIntervalMillis`       | 0 (off) | Idle connection keepalive                |
 
+#### Compression
+
+| Field                   | Default   | Recommendation                                    |
+|-------------------------|-----------|---------------------------------------------------|
+| `compressionEnabled`    | `true`    | Leave enabled — reduces payload size for text and structured data |
+| `compressionMinBytes`   | `64`      | Payloads below this threshold are sent uncompressed (avoids overhead for tiny messages) |
+
+MeshLink compresses payloads with zlib (RFC 1950) **before** encryption
+(compress-then-encrypt). Compression is transparent — relays never see the
+uncompressed data. When enabled, each payload gets a 1-byte envelope prefix:
+`0x00` for uncompressed (below threshold) or `0x01` + compressed data.
+
+```kotlin
+val config = meshLinkConfig {
+    compressionEnabled = true       // default — enable zlib compression
+    compressionMinBytes = 64        // don't compress payloads smaller than 64 bytes
+}
+```
+
+**When to disable:** Set `compressionEnabled = false` if your payloads are
+already compressed (e.g., JPEG images, protobuf with pre-compressed fields) or
+if you need byte-for-byte backward compatibility with peers running older
+versions that don't support the compression envelope.
+
+**When to tune `compressionMinBytes`:** Increase the threshold if your small
+messages are already compact (e.g., binary sensor telemetry). Decrease it if
+even small payloads benefit from compression (e.g., verbose JSON).
+
 ### Validating Configuration
 
 Call `validate()` to check for constraint violations before use:

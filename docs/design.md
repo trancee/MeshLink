@@ -1062,7 +1062,8 @@ The sender's identity is authenticated by the Noise K handshake itself — no ex
 ```mermaid
 flowchart LR
     subgraph Sender
-        A["Plaintext\nmessage"] --> B["E2E encrypt\n(Noise K)"]
+        A["Plaintext\nmessage"] --> A2["Compress\n(zlib)"]
+        A2 --> B["E2E encrypt\n(Noise K)"]
         B --> C["Chunk\nciphertext"]
         C --> D["Hop-by-hop encrypt\n(Noise XX)"]
         D --> E["BLE transmit"]
@@ -1079,7 +1080,8 @@ flowchart LR
         L["Receive"] --> M["Hop-by-hop decrypt\n(Noise XX)"]
         M --> N["Reassemble\nchunks"]
         N --> O["E2E decrypt\n(Noise K)"]
-        O --> P["Plaintext\nmessage"]
+        O --> O2["Decompress\n(zlib)"]
+        O2 --> P["Plaintext\nmessage"]
     end
 
     E --> G
@@ -1088,6 +1090,8 @@ flowchart LR
     style I fill:#f9f,stroke:#333,stroke-width:2px
     style Relay fill:#fff3cd,stroke:#856404
 ```
+
+**Payload compression:** When `compressionEnabled = true` (default), payloads are compressed with zlib (RFC 1950) **before** E2E encryption (compress-then-encrypt). Compression wraps the payload in a 1-byte envelope: `0x00` prefix for uncompressed payloads (below `compressionMinBytes`, default 64 bytes) or `0x01` + 4-byte LE original size + zlib-compressed data. The envelope is transparent to relays — it sits inside the E2E ciphertext. Platform implementations use `java.util.zip.Deflater`/`Inflater` (JVM/Android), `NSData.compressedDataUsingAlgorithm(.zlib)` (Apple), and zlib cinterop (Linux). See [wire-format-spec.md § Compression Envelope](wire-format-spec.md#compression-envelope-inside-encrypted-payload) for the binary layout.
 
 ### Hop-by-Hop Layer: Noise XX
 
@@ -2284,7 +2288,7 @@ These are **release gates** — tests that fail these thresholds block release. 
 - Multi-device key synchronization
 - Larger payload support (>100KB) with progressive download
 - Mesh analytics/diagnostics API for consuming apps
-- Per-message compression (LZ4/zstd for higher ratio, dictionary-based compression for repetitive payloads). The sealed payload flags byte reserves bit 0 for future compression. Chat messages (1–10KB) yield minimal absolute savings; images/files are typically already compressed.
+- ~~Per-message compression~~ ✅ **Implemented** — zlib (RFC 1950) payload compression with configurable `compressionEnabled` (default `true`) and `compressionMinBytes` (default 64). Compress-then-encrypt envelope inside E2E payload. See §5.
 - Sliding window ACK window size auto-tuning based on connection quality (v1 includes basic halve/double; post-v1 adds bandwidth estimation, RTT-based adjustment, and per-peer adaptive profiles)
 - Onion-style routing for metadata protection (each hop only knows next hop)
 - Multi-Point Relay (MPR) gossip optimization — select a minimum subset of Neighbors that covers all 2-hop Peers, and only relay Gossip through MPRs. Reduces Gossip traffic by up to 75% in dense meshes (20+ Peers). Adapted from OLSR.

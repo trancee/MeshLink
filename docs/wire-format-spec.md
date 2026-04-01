@@ -508,6 +508,61 @@ receiving a message with a reserved type code must drop the message and emit an
 
 ---
 
+## Compression Envelope (Inside Encrypted Payload)
+
+The compression envelope is **not** a wire-level message type — it sits
+**inside** the encrypted payload of Routed Messages (type `0x05`). Compression
+is applied **before** encryption (`compress → encrypt` on send;
+`decrypt → decompress` on receive) and is therefore transparent to relays and
+the wire format byte tables above.
+
+When `compressionEnabled = true` (the default), every payload is wrapped in a
+1-byte envelope prefix that signals whether the content is compressed:
+
+### Uncompressed Envelope (`0x00`)
+
+Used when the payload size is below `compressionMinBytes` (default 64) or when
+compression did not reduce the payload size.
+
+```
+Byte:  0       1                    N
+      +-------+------- ... --------+
+      | 0x00  |     payload (N-1)  |
+      +-------+------- ... --------+
+```
+
+| Offset | Size | Field | Type | Endianness | Description |
+|--------|------|-------|------|------------|-------------|
+| 0 | 1 | `envelopeType` | byte | — | `0x00` — payload is uncompressed. |
+| 1… | variable | `payload` | bytes | — | Original uncompressed payload. |
+
+### Compressed Envelope (`0x01`)
+
+Used when the payload is ≥ `compressionMinBytes` and zlib reduces its size.
+
+```
+Byte:  0       1                  4   5                          N
+      +-------+------ ... -------+---+----------- ... ----------+
+      | 0x01  | originalSize(4,LE)|   |  zlib compressed data   |
+      +-------+------ ... -------+---+----------- ... ----------+
+```
+
+| Offset | Size | Field | Type | Endianness | Description |
+|--------|------|-------|------|------------|-------------|
+| 0 | 1 | `envelopeType` | byte | — | `0x01` — payload is zlib-compressed. |
+| 1–4 | 4 | `originalSize` | UInt | **LE** | Original uncompressed payload size in bytes. |
+| 5… | variable | `compressedData` | bytes | — | zlib (RFC 1950) compressed payload. |
+
+### Backward Compatibility
+
+When `compressionEnabled = false`, no envelope is added — the payload is the
+raw application data, identical to pre-compression protocol behavior. Peers
+that do not support compression will not encounter the envelope prefix because
+the envelope is inside the E2E encrypted payload and only visible after
+decryption by peers running the compression-aware version.
+
+---
+
 ## Security Considerations
 
 ### Ed25519 Signatures
