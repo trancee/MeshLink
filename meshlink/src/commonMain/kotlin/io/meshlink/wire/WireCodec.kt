@@ -17,6 +17,8 @@ object WireCodec {
     const val TYPE_KEEPALIVE: Byte = 0x08
     const val TYPE_NACK: Byte = 0x09
     const val TYPE_ROTATION: Byte = 0x0A
+    const val TYPE_ROUTE_REQUEST: Byte = 0x0B
+    const val TYPE_ROUTE_REPLY: Byte = 0x0C
 
     // keepalive: type(1) + flags(1) + timestamp(8 LE ulong)
     private const val KEEPALIVE_SIZE = 10
@@ -32,6 +34,12 @@ object WireCodec {
 
     // handshake: type(1) + step(1) + noiseMessage(variable)
     private const val HANDSHAKE_HEADER_SIZE = 2
+
+    // route_request: type(1) + origin(8) + destination(8) + requestId(4 LE) + hopCount(1) + hopLimit(1)
+    const val ROUTE_REQUEST_SIZE = 1 + PEER_ID_SIZE + PEER_ID_SIZE + 4 + 1 + 1 // 23
+
+    // route_reply: type(1) + origin(8) + destination(8) + requestId(4 LE) + hopCount(1)
+    const val ROUTE_REPLY_SIZE = 1 + PEER_ID_SIZE + PEER_ID_SIZE + 4 + 1 // 22
 
     fun encodeHandshake(step: UByte, noiseMessage: ByteArray): ByteArray {
         val buf = ByteArray(HANDSHAKE_HEADER_SIZE + noiseMessage.size)
@@ -432,6 +440,83 @@ object WireCodec {
         val reason = NackReason.fromCode(data[17].toUByte())
         return NackMessage(messageId, reason)
     }
+
+    // ── Route Request (AODV RREQ) ────────────────────────────────
+
+    fun encodeRouteRequest(
+        origin: ByteArray,
+        destination: ByteArray,
+        requestId: UInt,
+        hopCount: UByte = 0u,
+        hopLimit: UByte = 10u,
+    ): ByteArray {
+        require(origin.size == PEER_ID_SIZE) { "origin must be $PEER_ID_SIZE bytes" }
+        require(destination.size == PEER_ID_SIZE) { "destination must be $PEER_ID_SIZE bytes" }
+        val buf = ByteArray(ROUTE_REQUEST_SIZE)
+        var offset = 0
+        buf[offset++] = TYPE_ROUTE_REQUEST
+        origin.copyInto(buf, offset)
+        offset += PEER_ID_SIZE
+        destination.copyInto(buf, offset)
+        offset += PEER_ID_SIZE
+        buf.putUIntLE(offset, requestId)
+        offset += 4
+        buf[offset++] = hopCount.toByte()
+        buf[offset] = hopLimit.toByte()
+        return buf
+    }
+
+    fun decodeRouteRequest(data: ByteArray): RouteRequestMessage {
+        require(data.size >= ROUTE_REQUEST_SIZE) { "route_request too short: ${data.size}" }
+        require(data[0] == TYPE_ROUTE_REQUEST) { "not a route_request: 0x${data[0].toUByte().toString(16)}" }
+        var offset = 1
+        val origin = data.copyOfRange(offset, offset + PEER_ID_SIZE)
+        offset += PEER_ID_SIZE
+        val destination = data.copyOfRange(offset, offset + PEER_ID_SIZE)
+        offset += PEER_ID_SIZE
+        val requestId = data.getUIntLE(offset)
+        offset += 4
+        val hopCount = data[offset++].toUByte()
+        val hopLimit = data[offset].toUByte()
+        return RouteRequestMessage(origin, destination, requestId, hopCount, hopLimit)
+    }
+
+    // ── Route Reply (AODV RREP) ──────────────────────────────────
+
+    fun encodeRouteReply(
+        origin: ByteArray,
+        destination: ByteArray,
+        requestId: UInt,
+        hopCount: UByte = 0u,
+    ): ByteArray {
+        require(origin.size == PEER_ID_SIZE) { "origin must be $PEER_ID_SIZE bytes" }
+        require(destination.size == PEER_ID_SIZE) { "destination must be $PEER_ID_SIZE bytes" }
+        val buf = ByteArray(ROUTE_REPLY_SIZE)
+        var offset = 0
+        buf[offset++] = TYPE_ROUTE_REPLY
+        origin.copyInto(buf, offset)
+        offset += PEER_ID_SIZE
+        destination.copyInto(buf, offset)
+        offset += PEER_ID_SIZE
+        buf.putUIntLE(offset, requestId)
+        offset += 4
+        buf[offset] = hopCount.toByte()
+        return buf
+    }
+
+    fun decodeRouteReply(data: ByteArray): RouteReplyMessage {
+        require(data.size >= ROUTE_REPLY_SIZE) { "route_reply too short: ${data.size}" }
+        require(data[0] == TYPE_ROUTE_REPLY) { "not a route_reply: 0x${data[0].toUByte().toString(16)}" }
+        var offset = 1
+        val origin = data.copyOfRange(offset, offset + PEER_ID_SIZE)
+        offset += PEER_ID_SIZE
+        val destination = data.copyOfRange(offset, offset + PEER_ID_SIZE)
+        offset += PEER_ID_SIZE
+        val requestId = data.getUIntLE(offset)
+        offset += 4
+        val hopCount = data[offset].toUByte()
+        return RouteReplyMessage(origin, destination, requestId, hopCount)
+    }
 }
 
 // --- Little-endian helpers ---
@@ -583,5 +668,56 @@ enum class NackReason(val code: UByte) {
     companion object {
         fun fromCode(code: UByte): NackReason =
             entries.firstOrNull { it.code == code } ?: UNKNOWN
+    }
+}
+
+data class RouteRequestMessage(
+    val origin: ByteArray,
+    val destination: ByteArray,
+    val requestId: UInt,
+    val hopCount: UByte,
+    val hopLimit: UByte,
+) {
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is RouteRequestMessage) return false
+        return origin.contentEquals(other.origin) &&
+            destination.contentEquals(other.destination) &&
+            requestId == other.requestId &&
+            hopCount == other.hopCount &&
+            hopLimit == other.hopLimit
+    }
+
+    override fun hashCode(): Int {
+        var result = origin.contentHashCode()
+        result = 31 * result + destination.contentHashCode()
+        result = 31 * result + requestId.hashCode()
+        result = 31 * result + hopCount.hashCode()
+        result = 31 * result + hopLimit.hashCode()
+        return result
+    }
+}
+
+data class RouteReplyMessage(
+    val origin: ByteArray,
+    val destination: ByteArray,
+    val requestId: UInt,
+    val hopCount: UByte,
+) {
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is RouteReplyMessage) return false
+        return origin.contentEquals(other.origin) &&
+            destination.contentEquals(other.destination) &&
+            requestId == other.requestId &&
+            hopCount == other.hopCount
+    }
+
+    override fun hashCode(): Int {
+        var result = origin.contentHashCode()
+        result = 31 * result + destination.contentHashCode()
+        result = 31 * result + requestId.hashCode()
+        result = 31 * result + hopCount.hashCode()
+        return result
     }
 }

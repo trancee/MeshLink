@@ -177,6 +177,34 @@ class WireFormatFuzzTest {
     }
 
     @Test
+    fun fuzz_decodeRouteRequest_never_crashes() {
+        repeat(iterations) {
+            try {
+                WireCodec.decodeRouteRequest(randomBytes())
+            } catch (_: IllegalArgumentException) { }
+        }
+        repeat(iterations) {
+            try {
+                WireCodec.decodeRouteRequest(randomBytesWithType(WireCodec.TYPE_ROUTE_REQUEST, maxSize = 30))
+            } catch (_: IllegalArgumentException) { }
+        }
+    }
+
+    @Test
+    fun fuzz_decodeRouteReply_never_crashes() {
+        repeat(iterations) {
+            try {
+                WireCodec.decodeRouteReply(randomBytes())
+            } catch (_: IllegalArgumentException) { }
+        }
+        repeat(iterations) {
+            try {
+                WireCodec.decodeRouteReply(randomBytesWithType(WireCodec.TYPE_ROUTE_REPLY, maxSize = 28))
+            } catch (_: IllegalArgumentException) { }
+        }
+    }
+
+    @Test
     fun fuzz_advertisementDecode_never_crashes() {
         repeat(iterations) {
             try {
@@ -200,6 +228,8 @@ class WireFormatFuzzTest {
             WireCodec::decodeRouteUpdate,
             WireCodec::decodeKeepalive,
             WireCodec::decodeNack,
+            WireCodec::decodeRouteRequest,
+            WireCodec::decodeRouteReply,
             AdvertisementCodec::decode,
         )
         for (decoder in decoders) {
@@ -230,6 +260,8 @@ class WireFormatFuzzTest {
                     WireCodec.TYPE_RESUME_REQUEST  -> WireCodec.decodeResumeRequest(data)
                     WireCodec.TYPE_KEEPALIVE       -> WireCodec.decodeKeepalive(data)
                     WireCodec.TYPE_NACK            -> WireCodec.decodeNack(data)
+                    WireCodec.TYPE_ROUTE_REQUEST   -> WireCodec.decodeRouteRequest(data)
+                    WireCodec.TYPE_ROUTE_REPLY     -> WireCodec.decodeRouteReply(data)
                     else -> { /* unknown type — nothing to dispatch */ }
                 }
             } catch (_: IllegalArgumentException) { }

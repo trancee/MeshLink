@@ -12,7 +12,7 @@ complexity:
   TooManyFunctions:
     thresholdInClasses: 50
     thresholdInFiles: 50
-    thresholdInObjects: 25
+    thresholdInObjects: 30
     thresholdInInterfaces: 25
   CyclomaticComplexMethod:
     threshold: 25

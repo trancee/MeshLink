@@ -464,6 +464,88 @@ class WireFormatGoldenVectorsTest {
     }
 
     // ────────────────────────────────────────────────────────────────────
+    // RouteRequest (0x0B)
+    //   origin       = 0xA0..0xA7
+    //   destination  = 0xB0..0xB7
+    //   requestId    = 42 (LE: 2a 00 00 00)
+    //   hopCount     = 2
+    //   hopLimit     = 10
+    //
+    // Layout: type(1) + origin(8) + dest(8) + requestId(4 LE) + hopCount(1)
+    //         + hopLimit(1) = 23 bytes
+    // ────────────────────────────────────────────────────────────────────
+
+    private val routeRequestGoldenHex =
+        "0b" +                  // type: route_request
+        "a0a1a2a3a4a5a6a7" +  // origin
+        "b0b1b2b3b4b5b6b7" +  // destination
+        "2a000000" +            // requestId = 42 (LE)
+        "02" +                  // hopCount = 2
+        "0a"                    // hopLimit = 10
+
+    @Test
+    fun routeRequestGoldenVectorEncodes() {
+        val encoded = WireCodec.encodeRouteRequest(
+            origin = ByteArray(8) { (0xA0 + it).toByte() },
+            destination = ByteArray(8) { (0xB0 + it).toByte() },
+            requestId = 42u,
+            hopCount = 2u,
+            hopLimit = 10u,
+        )
+        assertEquals(routeRequestGoldenHex, encoded.toHex())
+        assertEquals(23, encoded.size)
+    }
+
+    @Test
+    fun routeRequestGoldenVectorDecodes() {
+        val decoded = WireCodec.decodeRouteRequest(hexToBytes(routeRequestGoldenHex))
+        assertContentEquals(ByteArray(8) { (0xA0 + it).toByte() }, decoded.origin)
+        assertContentEquals(ByteArray(8) { (0xB0 + it).toByte() }, decoded.destination)
+        assertEquals(42u, decoded.requestId)
+        assertEquals(2u.toUByte(), decoded.hopCount)
+        assertEquals(10u.toUByte(), decoded.hopLimit)
+    }
+
+    // ────────────────────────────────────────────────────────────────────
+    // RouteReply (0x0C)
+    //   origin       = 0xA0..0xA7
+    //   destination  = 0xB0..0xB7
+    //   requestId    = 42 (LE: 2a 00 00 00)
+    //   hopCount     = 3
+    //
+    // Layout: type(1) + origin(8) + dest(8) + requestId(4 LE) + hopCount(1)
+    //         = 22 bytes
+    // ────────────────────────────────────────────────────────────────────
+
+    private val routeReplyGoldenHex =
+        "0c" +                  // type: route_reply
+        "a0a1a2a3a4a5a6a7" +  // origin
+        "b0b1b2b3b4b5b6b7" +  // destination
+        "2a000000" +            // requestId = 42 (LE)
+        "03"                    // hopCount = 3
+
+    @Test
+    fun routeReplyGoldenVectorEncodes() {
+        val encoded = WireCodec.encodeRouteReply(
+            origin = ByteArray(8) { (0xA0 + it).toByte() },
+            destination = ByteArray(8) { (0xB0 + it).toByte() },
+            requestId = 42u,
+            hopCount = 3u,
+        )
+        assertEquals(routeReplyGoldenHex, encoded.toHex())
+        assertEquals(22, encoded.size)
+    }
+
+    @Test
+    fun routeReplyGoldenVectorDecodes() {
+        val decoded = WireCodec.decodeRouteReply(hexToBytes(routeReplyGoldenHex))
+        assertContentEquals(ByteArray(8) { (0xA0 + it).toByte() }, decoded.origin)
+        assertContentEquals(ByteArray(8) { (0xB0 + it).toByte() }, decoded.destination)
+        assertEquals(42u, decoded.requestId)
+        assertEquals(3u.toUByte(), decoded.hopCount)
+    }
+
+    // ────────────────────────────────────────────────────────────────────
     // Cross-check: encode then decode round-trip yields identical fields
     // for every message type with the golden input values.
     // ────────────────────────────────────────────────────────────────────
@@ -510,5 +592,15 @@ class WireFormatGoldenVectorsTest {
         val ka = WireCodec.decodeKeepalive(hexToBytes(keepaliveNonZeroGoldenHex))
         val reKa = WireCodec.encodeKeepalive(ka.timestampMillis, ka.flags)
         assertEquals(keepaliveNonZeroGoldenHex, reKa.toHex(), "Keepalive round-trip mismatch")
+
+        // RouteRequest
+        val rreq = WireCodec.decodeRouteRequest(hexToBytes(routeRequestGoldenHex))
+        val reRreq = WireCodec.encodeRouteRequest(rreq.origin, rreq.destination, rreq.requestId, rreq.hopCount, rreq.hopLimit)
+        assertEquals(routeRequestGoldenHex, reRreq.toHex(), "RouteRequest round-trip mismatch")
+
+        // RouteReply
+        val rrep = WireCodec.decodeRouteReply(hexToBytes(routeReplyGoldenHex))
+        val reRrep = WireCodec.encodeRouteReply(rrep.origin, rrep.destination, rrep.requestId, rrep.hopCount)
+        assertEquals(routeReplyGoldenHex, reRrep.toHex(), "RouteReply round-trip mismatch")
     }
 }
