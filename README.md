@@ -4,14 +4,14 @@ A **Kotlin Multiplatform (KMP)** BLE mesh messaging library for **Android**, **i
 
 ## Features
 
-- **Multi-hop mesh routing** — Enhanced DSDV protocol with gossip-based route advertisement, composite cost metrics, and loop prevention
+- **Multi-hop mesh routing** — Reactive AODV protocol with on-demand route discovery (RREQ/RREP), composite cost metrics, and loop prevention
 - **Two-layer encryption** — Hop-by-hop (Noise XX) and end-to-end (Noise K) using `Noise_XX_25519_ChaChaPoly_SHA256`
 - **Zero external crypto dependencies** — Pure Kotlin Ed25519/X25519, platform-native SHA-256 and ChaCha20-Poly1305
 - **Large message transfer** — Chunking, selective ACKs (SACK), AIMD congestion control, byte-offset resume
 - **Power-aware operation** — Automatic tuning of scan duty cycle, advertising interval, and chunk sizes based on battery level
 - **L2CAP support** — High-throughput data plane with automatic GATT fallback
 - **Real-time diagnostics** — 20 diagnostic event codes, health snapshots, and Flow-based event streams
-- **Identity rotation** — Rotate keys with signed gossip announcements and configurable grace periods
+- **Identity rotation** — Rotate keys with signed broadcast announcements and configurable grace periods
 
 ## Platform Support
 

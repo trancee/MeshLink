@@ -35,7 +35,7 @@ flowchart TD
         direction TB
         subgraph Row1[" "]
             direction LR
-            Routing["🗺️ Routing<br/>DSDV · Gossip<br/>Cost · Dedup"]
+            Routing["🗺️ Routing<br/>AODV · Route Discovery<br/>Cost · Dedup"]
             Transfer["📦 Transfer<br/>Chunking · SACK<br/>AIMD · Schedule"]
             Crypto["🔒 Crypto<br/>Noise XX · Noise K<br/>Trust · Replay"]
             Diag["📊 Diagnostics<br/>DiagnosticSink<br/>Health · Snapshots"]
@@ -84,10 +84,9 @@ platform-agnostic logic (in `commonMain`) and platform-specific I/O (in
 
 | File | Responsibility |
 |------|---------------|
-| `RoutingEngine.kt` | Facade consolidating routing table, presence, dedup, gossip preparation (split-horizon/poison-reverse), and adaptive timing behind sealed result types. |
-| `RoutingTable.kt` | Enhanced DSDV routing table with expiry, settling, holddown, and neighbor capacity limits. |
+| `RoutingEngine.kt` | Facade consolidating routing table, presence, dedup, AODV route discovery (RREQ/RREP handling, route cache, pending message queue), and adaptive timing behind sealed result types. |
+| `RoutingTable.kt` | AODV route cache with TTL-based expiry, settling, holddown, and neighbor capacity limits. |
 | `RouteCostCalculator.kt` | Composite cost metric from RSSI, packet loss, freshness, and stability. |
-| `GossipTracker.kt` | Differential gossip — tracks per-peer route state, computes deltas and withdrawals. |
 | `DedupSet.kt` | LRU set for message deduplication (default 10K entries). |
 | `PresenceTracker.kt` | Tracks peer liveness for route validity. |
 | `DeliveryAckRouter.kt` | Routes delivery ACKs back along the reverse path of routed messages. |
@@ -128,7 +127,7 @@ platform-agnostic logic (in `commonMain`) and platform-specific I/O (in
 | File | Responsibility |
 |------|---------------|
 | `PowerCoordinator.kt` | Facade consolidating power-mode transitions, memory-pressure evaluation, and buffer-pressure monitoring behind sealed result types. |
-| `PowerProfile.kt` | Single source of truth for all power-mode-dependent constants (advertising interval, scan timing, max connections, gossip multiplier). Replaces scattered `when(mode)` lookups. |
+| `PowerProfile.kt` | Single source of truth for all power-mode-dependent constants (advertising interval, scan timing, max connections, keepalive interval). Replaces scattered `when(mode)` lookups. |
 | `PowerModeEngine.kt` | Hysteresis-based mode transitions driven by battery level and charging state. |
 | `PowerProfile.kt` | Single source of truth for power-mode-dependent constants (intervals, limits). |
 | `TieredShedder.kt` | Three-tier memory shedding strategy (MODERATE → HIGH → CRITICAL). |
@@ -150,11 +149,11 @@ platform-agnostic logic (in `commonMain`) and platform-specific I/O (in
 | `OutboundTracker.kt` | _(internal)_ Tracks outbound message state: recipient mapping, next-hop tracking, and monotonic replay counter. |
 | `DispatchSink.kt` | _(internal)_ Callback interface grouping 8 effect callbacks for flow emissions and transport sends. |
 
-### `io.meshlink.gossip` — Gossip Coordination
+### `io.meshlink.routing` — Route Coordination
 
 | File | Responsibility |
 |------|---------------|
-| `GossipCoordinator.kt` | Coordinates routing protocol maintenance: gossip broadcasting, keepalive pings, and triggered route updates with batching and throttling. |
+| `RouteCoordinator.kt` | Coordinates route maintenance: keepalive probing of 1-hop neighbors. AODV route discovery handles all multi-hop route establishment on demand. |
 
 ### `io.meshlink.peer` — Peer Connection
 
@@ -319,16 +318,16 @@ flowchart TD
 ## Routing
 
 `RoutingEngine` consolidates routing table management, peer presence tracking,
-message deduplication, gossip preparation (split-horizon / poison-reverse), and
-adaptive gossip timing behind sealed result types (`NextHopResult`,
+message deduplication, AODV route discovery (RREQ/RREP handling), and
+route cache management behind sealed result types (`NextHopResult`,
 `RouteLearnResult`).
 
-MeshLink uses Enhanced DSDV with composite cost metrics, primary + backup
-routes, settling delay, holddown timers, and per-neighbor routing table caps.
-`GossipTracker` implements differential gossip with triggered updates.
+MeshLink uses reactive AODV (Ad-hoc On-demand Distance Vector) routing with
+composite cost metrics, primary + backup routes, TTL-based cache expiry,
+settling delay, holddown timers, and per-neighbor routing table caps.
 `DedupSet` is an LRU set (default 10K entries) for message deduplication.
 
-For protocol details, cost formula, and gossip behavior, see
+For protocol details, cost formula, and routing behavior, see
 [design.md §6](design.md#6-routing).
 
 ---
@@ -431,7 +430,7 @@ MeshLink uses a binary wire protocol (version 1.0) with 11 message types.
 |-----------|------|-------------|
 | `0x00` | `TYPE_BROADCAST` | Unencrypted broadcast message |
 | `0x01` | `TYPE_HANDSHAKE` | Noise XX handshake message |
-| `0x02` | `TYPE_ROUTE_UPDATE` | DSDV route advertisement (gossip) |
+| `0x02` | `TYPE_ROUTE_UPDATE` | Legacy route update (kept for backward compatibility, not actively sent) |
 | `0x03` | `TYPE_CHUNK` | Unicast message chunk |
 | `0x04` | `TYPE_CHUNK_ACK` | Chunk acknowledgement with SACK |
 | `0x05` | `TYPE_ROUTED_MESSAGE` | Multi-hop forwarded message |
@@ -440,6 +439,8 @@ MeshLink uses a binary wire protocol (version 1.0) with 11 message types.
 | `0x08` | `TYPE_KEEPALIVE` | Idle connection keepalive |
 | `0x09` | `TYPE_NACK` | Negative acknowledgement |
 | `0x0A` | `TYPE_ROTATION` | Identity key rotation announcement |
+| `0x0B` | `TYPE_ROUTE_REQUEST` | AODV Route Request (RREQ) |
+| `0x0C` | `TYPE_ROUTE_REPLY` | AODV Route Reply (RREP) |
 
 ### BLE Advertisement Payload
 
@@ -477,12 +478,11 @@ meshlink/
 │   │       ├── delivery/             Delivery pipeline, tracking, tombstones
 │   │       ├── diagnostics/          Events, health snapshots
 │   │       ├── dispatch/             Inbound frame dispatch
-│   │       ├── gossip/               Gossip coordination
 │   │       ├── model/                Message, PeerEvent, identifiers
 │   │       ├── peer/                 Peer connection coordination
 │   │       ├── power/                Power mode engine, profiles, policies
 │   │       ├── protocol/             Protocol version
-│   │       ├── routing/              DSDV, gossip, cost, dedup
+│   │       ├── routing/              AODV, route discovery, cost, dedup, keepalive
 │   │       ├── send/                 Send and broadcast policy chains
 │   │       ├── storage/              SecureStorage interface
 │   │       ├── transfer/             AIMD, SACK, chunking, scheduling

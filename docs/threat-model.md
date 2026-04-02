@@ -57,11 +57,11 @@ RFC-validated).
 |-----------|------|----------|------|
 | **MeshLink** | Orchestrator | `MeshLink.kt` (~830 lines) | Wiring layer connecting engines, coordinators, and transport |
 | **SecurityEngine** | Stateful engine | `crypto/SecurityEngine.kt` | Noise XX/K seal/unseal, trust store, replay guard |
-| **RoutingEngine** | Stateful engine | `routing/RoutingEngine.kt` | DSDV routing table, dedup, route cost validation |
+| **RoutingEngine** | Stateful engine | `routing/RoutingEngine.kt` | AODV route cache, RREQ dedup, route validation |
 | **TransferEngine** | Stateful engine | `transfer/TransferEngine.kt` | Chunking, reassembly, SACK, AIMD congestion control |
 | **MessageDispatcher** | Policy chain | `dispatch/MessageDispatcher.kt` | Inbound frame decode, type dispatch, validation |
 | **SendPolicyChain** | Policy chain | `send/SendPolicyChain.kt` | Outbound pre-flight checks (buffer, rate, circuit breaker) |
-| **GossipCoordinator** | Orchestrator | `gossip/GossipCoordinator.kt` | Route advertisement, keepalive |
+| **RouteCoordinator** | Orchestrator | `routing/RouteCoordinator.kt` | Keepalive, route maintenance |
 | **PeerConnectionCoordinator** | Orchestrator | `peer/PeerConnectionCoordinator.kt` | BLE discovery, handshake initiation |
 | **BleTransport** | Platform I/O | `transport/BleTransport.kt` | BLE GATT + L2CAP I/O (Android/iOS implementations) |
 | **SecureStorage** | Platform I/O | `storage/SecureStorage.kt` | Keychain (iOS) / Keystore (Android) key persistence |
@@ -78,7 +78,7 @@ RFC-validated).
 
 - **SecurityEngine → SecureStorage**: Private keys persisted to platform secure storage. Trust: platform Keystore/Keychain. Encryption: AES-256-GCM (Android) / Keychain ACL (iOS).
 
-- **GossipCoordinator → RoutingEngine**: Route updates from neighbors. Trust: optional signature verification. Validation: cost bounds, sequence number freshness, neighbor capacity cap.
+- **RouteCoordinator → RoutingEngine**: Keepalive and route maintenance updates. Trust: optional signature verification. Validation: cost bounds, sequence number freshness, neighbor capacity cap.
 
 - **MeshLink → Consuming App**: Decrypted messages, peer events, key changes emitted via Kotlin Flows. Trust: library → app boundary. Validation: none (app trusts library output).
 
@@ -100,7 +100,7 @@ flowchart TD
         SE["SecurityEngine"]
         TE["TransferEngine"]
         RE["RoutingEngine"]
-        GC["GossipCoordinator"]
+        GC["RouteCoordinator"]
         SPC["SendPolicyChain"]
     end
 
@@ -119,7 +119,7 @@ flowchart TD
     MD -->|chunks| TE
     MD -->|routes| RE
     SE -->|keys| SS
-    GC -->|gossip| RE
+    GC -->|keepalive| RE
     TE -->|reassembled| SE
     SE -->|decrypted| API
     SPC -->|sealed| BLE

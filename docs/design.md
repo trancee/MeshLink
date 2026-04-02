@@ -89,20 +89,20 @@ Base UUID: `7F3Axxxx-8FC5-11EC-B909-0242AC120002` (random 128-bit UUID with the 
 
 | Characteristic | Direction | Traffic |
 |----------------|-----------|---------|
-| **Control Write** | Central → Peripheral | Noise XX handshake, gossip announcements |
-| **Control Notify** | Peripheral → Central | Noise XX handshake responses, gossip responses |
+| **Control Write** | Central → Peripheral | Noise XX handshake, AODV control messages |
+| **Control Notify** | Peripheral → Central | Noise XX handshake responses, AODV control responses |
 | **Data Write** | Central → Peripheral | Data chunks, chunk ACKs, delivery ACKs |
 | **Data Notify** | Peripheral → Central | Data chunks, chunk ACKs, delivery ACKs |
 
-**GATT write type semantics:** Control characteristics (0x0001–0x0002) use **write-with-response** (ATT Write Request) — handshake and gossip messages are low-frequency, high-importance, and cannot tolerate silent loss. Data characteristics (0x0003–0x0004) use **write-without-response** (ATT Write Command) — chunk transfers are high-frequency and protected by SACK retransmission, so the ~15ms per-write ATT round-trip is unnecessary overhead. This split maximizes data throughput while ensuring control-plane reliability.
+**GATT write type semantics:** Control characteristics (0x0001–0x0002) use **write-with-response** (ATT Write Request) — handshake and control messages are low-frequency, high-importance, and cannot tolerate silent loss. Data characteristics (0x0003–0x0004) use **write-without-response** (ATT Write Command) — chunk transfers are high-frequency and protected by SACK retransmission, so the ~15ms per-write ATT round-trip is unnecessary overhead. This split maximizes data throughput while ensuring control-plane reliability.
 
-Every write/notification carries a **1-byte type prefix**: `0x00`=broadcast, `0x01`=handshake, `0x02`=gossip, `0x03`=chunk, `0x04`=chunk_ack, `0x05`=routed_message, `0x06`=delivery_ack, `0x07`=resume_request. This costs 0.4% overhead at 244-byte MTU but eliminates all ambiguity when multiple message types share a characteristic.
+Every write/notification carries a **1-byte type prefix**: `0x00`=broadcast, `0x01`=handshake, `0x02`=route_update (legacy), `0x03`=chunk, `0x04`=chunk_ack, `0x05`=routed_message, `0x06`=delivery_ack, `0x07`=resume_request, `0x0B`=route_request, `0x0C`=route_reply. This costs 0.4% overhead at 244-byte MTU but eliminates all ambiguity when multiple message types share a characteristic.
 
 **Reserved codes:** `0x08–0xFF` are reserved for future use. Receiving a reserved message type code → drop the message + emit `UNKNOWN_MESSAGE_TYPE` diagnostic event.
 
 **Relay forward compatibility:** Relays never inspect the inner message type of routed messages — they forward opaquely based on routing headers only. Unknown type inspection and drop happens only at the **final destination**. This enables incremental mesh upgrades: v2 nodes can use new message types through v1 relays.
 
-**Unknown hop-by-hop types:** For non-relayed hop-by-hop message types (handshake, gossip, chunk_ack), unknown type codes are dropped + `UNKNOWN_MESSAGE_TYPE` diagnostic, connection stays alive. V2 senders should gate new hop-by-hop features behind the **capability byte** exchanged during Noise XX handshake.
+**Unknown hop-by-hop types:** For non-relayed hop-by-hop message types (handshake, route_update, chunk_ack), unknown type codes are dropped + `UNKNOWN_MESSAGE_TYPE` diagnostic, connection stays alive. V2 senders should gate new hop-by-hop features behind the **capability byte** exchanged during Noise XX handshake.
 
 ```mermaid
 flowchart TD
@@ -123,10 +123,10 @@ flowchart TD
     CheckLoop -- Yes --> DropLoop["Drop (loop detected)"]
     CheckLoop -- No --> Forward["Increment hop_count\nAdd own hash to visited list\nForward via routing table"]
 
-    IsRouted -- No --> IsHandshakeGossip{"Type = 0x01 (handshake)\nor 0x02 (gossip)?"}
-    IsHandshakeGossip -- Yes --> ProcessLocal["Process locally\n(never relayed)"]
+    IsRouted -- No --> IsHandshakeControl{"Type = 0x01 (handshake)\nor 0x02 (route_update)?"}
+    IsHandshakeControl -- Yes --> ProcessLocal["Process locally\n(never relayed)"]
 
-    IsHandshakeGossip -- No --> IsChunk{"Type = 0x03 (chunk)\nor 0x04 (chunk_ack)?"}
+    IsHandshakeControl -- No --> IsChunk{"Type = 0x03 (chunk)\nor 0x04 (chunk_ack)?"}
     IsChunk -- Yes --> DirectTransfer["Direct transfer\n— process locally"]
 
     IsChunk -- No --> IsDeliveryAck{"Type = 0x06\n(delivery_ack)?"}
@@ -866,8 +866,8 @@ The backup route must use a different Next-Hop — two routes through the same N
 **Failover behavior:**
 1. Primary route fails (GATT disconnect, delivery timeout) → instantly switch to backup
 2. Promote backup to primary. **Backup routes are used regardless of age** — a stale backup is better than no route. If the backup points to a peer that has moved, the forwarding attempt fails fast (BLE connection timeout ~5s), and the message is buffered. Route cache TTL expiry cleans up truly stale entries.
-3. Wait for the next Gossip cycle to discover a new backup
-4. If no backup exists → buffer the message and wait for Gossip convergence (up to buffer TTL)
+3. Wait for the next AODV route discovery to find a new backup
+4. If no backup exists → buffer the message and wait for route discovery (up to buffer TTL)
 
 **Best-effort multi-path:** MeshLink does NOT maintain explicit backup path state — backups are a natural consequence of the AODV route cache, which may store alternative routes from intermediate RREPs. If neither primary nor backup succeeds, the message is buffered for TTL duration and a fresh route discovery is initiated. No proactive backup path probing or maintenance is performed.
 
@@ -913,7 +913,7 @@ The visited list uses **8-byte SHA-256-64 key hashes** (SHA-256 truncated to 64 
 
 ### Message Deduplication
 
-With gossip and store-and-forward, the same message can arrive at a node via multiple paths. Every node maintains a **recently-seen message ID set**, bounded by **both time and count** (whichever limit is hit first):
+With multi-hop routing and store-and-forward, the same message can arrive at a node via multiple paths. Every node maintains a **recently-seen message ID set**, bounded by **both time and count** (whichever limit is hit first):
 
 - **Time bound:** entries older than `maxHops × bufferTTL` are evicted (default: 10 × 5 min = 50 min). Each relay node starts its own independent TTL from the moment it receives a message (no shared clock required), so a message can theoretically survive `maxHops × bufferTTL` total. The dedup time bound must cover this maximum lifespan. The 50-minute dedup window (`maxHops × bufferTTL` = 10 × 5 min) covers the theoretical maximum lifespan of a message traversing the full relay chain — one `bufferTTL` per hop, sequentially. This ensures that even messages spending the maximum buffer time at each relay are caught by dedup on redelivery, preventing duplicates after app restart or during partition heal.
 - **Count bound:** default maximum 10,000 entries (configurable via `dedupMaxEntries`). Rationale: at 30 msg/s sustained, 10,000 entries provide ~333 seconds (5.5 min) of coverage — slightly above the 5-minute bufferTTL. Memory: 24 bytes × 10,000 = 240KB (acceptable). Beyond 30 msg/s, earliest entries evict before TTL; duplicate delivery handled by app-layer message ID dedup.
@@ -1035,14 +1035,14 @@ MeshLink uses two distinct encryption layers to secure messages over multi-hop r
 
 ### E2E Layer: Noise K (One-Shot, 0-RTT, Sender-Authenticated)
 
-The sender knows the recipient's static Curve25519 public key (distributed via gossip). Using the **Noise K pattern** (sender = initiator), the sender:
+The sender knows the recipient's static Curve25519 public key (exchanged during discovery/handshake). Using the **Noise K pattern** (sender = initiator), the sender:
 1. Generates an ephemeral Curve25519 keypair (`e`)
 2. Computes DH(e, rs) + DH(s, rs) where `rs` = recipient's static Curve25519 key, `s` = sender's static Curve25519 key
 3. Derives a symmetric key from the DH outputs via the Noise KDF chain (HKDF with SHA-256)
 4. Encrypts the sealed payload with ChaCha20-Poly1305 using the derived key
 5. Output: `ephemeral_pubkey(32 bytes) + ciphertext(N + 16 bytes AEAD tag)`
 
-**Preconditions:** Sender has the recipient's Curve25519 public key (from gossip-populated peer table, derived from Ed25519). Recipient has the sender's Curve25519 public key (same source). Both keys must be present before encryption/decryption is attempted — messages to unknown peers fail at send time with `recipientKeyUnknown`.
+**Preconditions:** Sender has the recipient's Curve25519 public key (from the peer table, populated during Noise XX handshake, derived from Ed25519). Recipient has the sender's Curve25519 public key (same source). Both keys must be present before encryption/decryption is attempted — messages to unknown peers fail at send time with `recipientKeyUnknown`.
 
 The recipient decrypts by: loading the sender's static Curve25519 key from the peer table, computing the same DH operations with their own static private key and the ephemeral key from the message, deriving the same symmetric key, and decrypting. If decryption succeeds, the sender is authenticated.
 
@@ -1052,9 +1052,9 @@ The recipient decrypts by: loading the sender's static Curve25519 key from the p
 - **Sender forward secrecy:** Ephemeral key per message
 - **Recipient forward secrecy:** Session-key mixing — after Noise XX handshake, a 32-byte session secret (derived from the shared chaining key) is mixed into the per-message HKDF key derivation. Session secrets are memory-only; deleted on restart. Compromising the static key without the session secret cannot decrypt past messages from that session.
 - **No server/prekey distribution needed**
-- **Prerequisite:** Recipient must know sender's public key (via gossip)
+- **Prerequisite:** Recipient must know sender's public key (via Noise XX handshake)
 
-**Edge case — message before gossip convergence:** Messages to recipients who lack the sender's public key are dropped (not buffered — buffering unverifiable messages is an attack vector). The sender's retry mechanism handles recovery; gossip propagates keys before retry timeout.
+**Edge case — message before route discovery:** Messages to recipients who lack the sender's public key are dropped (not buffered — buffering unverifiable messages is an attack vector). The sender's retry mechanism handles recovery; route discovery and handshake propagate keys before retry timeout.
 
 **Ed25519 key derivation:** The Curve25519 key is derived from the Ed25519 identity key (see Identity section above). Invalid Ed25519 public keys from peers are rejected during TOFU verification before conversion is attempted.
 
@@ -1069,7 +1069,7 @@ The recipient decrypts by: loading the sender's static Curve25519 key from the p
 
 The sender's identity is authenticated by the Noise K handshake itself — no explicit public key or signature in the payload. This saves 96 bytes per message compared to the Noise N + signature approach.
 
-**Recipient verification:** Noise K decryption succeeds only if the sender's static key matches the key used during encryption. The recipient retrieves the sender's static Curve25519 key from the gossip-populated peer table and uses it in the Noise K decryption. Failed decryption = sender authentication failure.
+**Recipient verification:** Noise K decryption succeeds only if the sender's static key matches the key used during encryption. The recipient retrieves the sender's static Curve25519 key from the peer table and uses it in the Noise K decryption. Failed decryption = sender authentication failure.
 
 **Note on broadcasts:** Broadcast messages do NOT use Noise K (no single recipient). Broadcasts are **Ed25519-signed but unencrypted** — the Ed25519 signature and sender public key are required in the broadcast envelope (see §6).
 
@@ -1209,7 +1209,7 @@ A malicious node in BLE range could flood the mesh with fake messages, exhaustin
 | Window | Monotonic-clock 60-second sliding window |
 | Enforcement | At the **relay** (earliest forwarding point), not final destination |
 | Scope | **User-level messages** only (routed_message + broadcast) |
-| Exempt | Gossip, chunk_ack, delivery_ack, handshake (control-plane) |
+| Exempt | Route control (RREQ, RREP, keepalive), chunk_ack, delivery_ack, handshake (control-plane) |
 | Counting | Per logical message (complete payload), not per chunk — keyed on first-seen `messageId` |
 | Overflow | NACK + `rateLimitHit(peer, sender)` diagnostic (once per sender per 60s window) |
 
@@ -1237,7 +1237,7 @@ An attacker with physical access to multiple devices can generate many valid Ed2
 
 Signed route discovery (§4) prevents key forgery in RREQ/RREP messages but does not prevent relay nodes from manipulating mutable routing fields (hop count inflation, RREQ suppression). MeshLink mitigates routing manipulation via a **hybrid reputation system**:
 
-**Statistical correlation (normal/low priority messages):** Each peer maintains a **local-only reputation score** per relay, tracking delivery success rates across all paths through that relay over time. If a relay appears disproportionately on failed routes vs. successful routes, it is deprioritized in path selection. Reputation scores are never gossiped — this prevents reputation poisoning attacks where a malicious peer gossips false scores to isolate a legitimate relay. Detection requires sufficient data points (~20-50 messages through a relay), so convergence time is ~10-30 minutes at typical messaging rates.
+**Statistical correlation (normal/low priority messages):** Each peer maintains a **local-only reputation score** per relay, tracking delivery success rates across all paths through that relay over time. If a relay appears disproportionately on failed routes vs. successful routes, it is deprioritized in path selection. Reputation scores are never shared — this prevents reputation poisoning attacks where a malicious peer broadcasts false scores to isolate a legitimate relay. Detection requires sufficient data points (~20-50 messages through a relay), so convergence time is ~10-30 minutes at typical messaging rates.
 
 **Routing accountability:** Local-only reputation tracking per relay based on delivery success rates (SACK completion, delivery ACK receipt). No per-hop signed ACKs in v1 — the BLE proximity requirement limits attack surface. Post-v1: signed forwarding ACKs for adversarial environments.
 
@@ -1268,21 +1268,21 @@ Signed route discovery (§4) prevents key forgery in RREQ/RREP messages but does
 
 **Key Rotation:**
 ```kotlin
-meshLink.rotateIdentity()  // generates new Ed25519 keypair, gossips rotation announcement
+meshLink.rotateIdentity()  // generates new Ed25519 keypair, broadcasts rotation announcement
 ```
 - Generates a new Ed25519 keypair and derives new Curve25519 key
 - Signs a **rotation announcement** with the OLD private key: `{oldPubKey, newPubKey, timestamp, signature}`
 - **Rotation sequence (strict ordering):**
-  1. Gossip the rotation announcement to all connected neighbors
-  2. Wait for local neighbor delivery (gossip write-with-response on Control Characteristic)
+  1. Broadcast the rotation announcement to all connected neighbors
+  2. Wait for local neighbor delivery (write-with-response on Control Characteristic)
   3. **Accept messages encrypted with old key** until all old-key Noise XX sessions are torn down (event-driven, not time-based)
   4. Tear down all active Noise XX sessions using the old key
   5. Securely erase the old private key from memory (never persisted post-rotation)
   6. Re-establish Noise XX sessions with connected neighbors using the new key
 - Peers in `softRepin` mode automatically accept the new key
 - Peers in `strict` mode fire `onKeyChanged(peer, oldKey, newKey)` — the consuming app must call `repinKey(peer)` to accept
-- **Warning:** Peers not reachable during rotation will reject future messages until they receive the announcement (via gossip or direct contact). Undecryptable messages are **dropped** — the sender retries after gossip propagates the new key.
-- **In-flight message impact:** Relays are unaffected (forward opaquely). Only the **destination** is affected if it hasn't received the rotation announcement → Noise K unseal fails → message dropped. The sender's retry mechanism (`bufferTTL`=5min) exceeds gossip convergence (~10-30s), so recovery is automatic.
+- **Warning:** Peers not reachable during rotation will reject future messages until they receive the announcement (via broadcast or direct contact). Undecryptable messages are **dropped** — the sender retries after the announcement propagates the new key.
+- **In-flight message impact:** Relays are unaffected (forward opaquely). Only the **destination** is affected if it hasn't received the rotation announcement → Noise K unseal fails → message dropped. The sender's retry mechanism (`bufferTTL`=5min) exceeds announcement propagation (~10-30s), so recovery is automatic.
 - **No post-rotation send hold** — the ~30s drop window is acceptable for this rare, user-initiated operation.
 - **Old-key session teardown:** After broadcasting the rotation announcement, old-key Noise XX sessions are kept alive for active transfers. Hard timeout: **75 seconds**. After the hard timeout, all remaining old-key sessions are forcibly closed regardless of transfer state — in-flight transfers are terminated (senders retry with new key via SACK resume). The rotating peer initiates teardown. Old key is erased only after all old-key sessions are closed. **Grace period interaction:** Key rotation old-key session grace (75s) is independent from connection eviction grace (30s). If a power mode downgrade occurs during key rotation, connections with old-key sessions receive the **longer** of the two grace periods to avoid cascade failures. Specifically: eviction grace = `max(evictionGracePeriod, remaining_rotation_grace)`.
 
@@ -1292,7 +1292,7 @@ suspend fun rotateIdentity(): Result<PublicKey>
 ```
 Behavior: (1) Generate new Ed25519 keypair, (2) store new private key in secure storage alongside old key, (3) sign rotation announcement with **old** key: `{oldPubKey, newPubKey, signature}`, (4) broadcast announcement to all connected neighbors, (5) return `Result.Success(newPublicKey)` once announcement is sent. Old-key sessions get a 75-second grace period (see key rotation teardown). Failure: `Result.Failure(keyStorageFailed)` on secure storage write failure; `IllegalStateException` if not in `running` state.
 
-**Rotation announcement wire format (carried within gossip 0x02 as a special PeerAnnouncement):**
+**Rotation announcement wire format (carried within rotation 0x0A):**
 
 | Offset | Size | Field |
 |--------|------|-------|
@@ -1313,7 +1313,7 @@ Total: 132 bytes. Receivers verify the signature against the old public key (whi
 
 When a device first discovers a peer's public key in the mesh, it **pins that key** — associating it with the peer identity. This is analogous to SSH's `known_hosts` model. Key pins are **persisted to platform secure storage** (Keychain on iOS, EncryptedSharedPreferences on Android) so they survive app restarts — without persistence, TOFU would reset on every relaunch, defeating its purpose.
 
-**TOFU pinning trigger:** Key pinning occurs **only after a successful Noise XX handshake** — NOT on gossip receipt. Gossip-delivered public keys are treated as **routing candidates** (used for route selection and address resolution) but are NOT trusted for TOFU pinning until mutual authentication via Noise XX confirms the peer actually holds the corresponding private key. This prevents a malicious relay from racing to inject a forged key via gossip before the legitimate peer's announcement arrives. Once a key is pinned via handshake, subsequent gossip announcements for that peer are validated against the pinned key.
+**TOFU pinning trigger:** Key pinning occurs **only after a successful Noise XX handshake** — NOT on route discovery. Public keys learned via AODV route discovery are treated as **routing candidates** (used for route selection and address resolution) but are NOT trusted for TOFU pinning until mutual authentication via Noise XX confirms the peer actually holds the corresponding private key. This prevents a malicious relay from racing to inject a forged key via route discovery before the legitimate peer's announcement arrives. Once a key is pinned via handshake, subsequent announcements for that peer are validated against the pinned key.
 
 - **Default behavior (`strict`):** If a previously-pinned peer appears with a different public key (e.g., user reinstalled the app), messages from that peer are **rejected**. The library invokes the **`onKeyChanged(peer, oldKey, newKey)`** callback and the consuming app must call **`repinKey(peer)`** to explicitly accept the new key. This follows the SSH model: key changes are treated as potential MITM attacks until the user (or app) confirms.
 - **Alternative mode (`softRepin`):** Silently accept the new key and re-pin. Suitable for apps where UX is prioritized over security (e.g., casual social apps). Enabled via `trustMode = .softRepin` in configuration.
@@ -1345,7 +1345,7 @@ Potential post-v1 mitigations:
 
 2. **L2CAP frame-dropping downgrade attack:** Without BLE-level encryption, an attacker can intercept the BLE connection and selectively drop L2CAP frames. This causes Noise XX nonce desynchronization → L2CAP teardown → GATT fallback (a throughput downgrade). The attacker cannot read or modify content (Noise XX prevents this) but can force the slower transport. **Mitigation:** The diagnostic stream emits `suspiciousL2capDrops(peer, count)` when repeated L2CAP teardowns occur to the same peer in a short window. Detection only — prevention would require BLE-level encryption (pairing).
 
-**Gossip poisoning (accepted risk):** A malicious node physically present in BLE range could advertise artificially low route costs, attracting traffic as a blackhole. Route cost sanity validation (§4) catches trivial attacks (cost < link cost). Sophisticated attacks with plausible costs are accepted as a v1 risk: BLE's physical proximity requirement limits the attack surface, E2E encryption prevents content access, and the attacker can only deny service. Post-v1 mitigation: reputation scoring based on delivery success rate per relay.
+**Route poisoning (accepted risk):** A malicious node physically present in BLE range could advertise artificially low route costs, attracting traffic as a blackhole. Route cost sanity validation (§4) catches trivial attacks (cost < link cost). Sophisticated attacks with plausible costs are accepted as a v1 risk: BLE's physical proximity requirement limits the attack surface, E2E encryption prevents content access, and the attacker can only deny service. Post-v1 mitigation: reputation scoring based on delivery success rate per relay.
 
 **Replay window shift (accepted risk):** A theoretical attack where a sender transmits a message with an artificially high counter value, shifting the recipient's sliding window forward and causing legitimate messages with "normal" counters to be rejected. This requires possession of the sender's private key (to produce valid Noise K ciphertext). At that point, the attacker has full impersonation capability — replay window manipulation is the least concern. Key compromise is addressed by `rotateIdentity()`.
 
@@ -1408,7 +1408,7 @@ Signature covers bytes [0, 53+N). Receivers verify using sender pubkey from enve
 - **DirectMessage:** Delivery ACK **enabled by default** — sender receives confirmation when the recipient's device has received and decrypted the message. Can be disabled per-message via `SendOptions`.
 - **Broadcast:** No delivery ACK (fire-and-forget by definition — cannot ACK to all recipients)
 
-**Delivery ACK routing:** Reverse-path unicast. On failure (2 attempts × 2s timeout = 4s total), the ACK is buffered and retried on the next gossip exchange that includes the destination. No flood fallback — avoids metadata exposure to local neighborhood.
+**Delivery ACK routing:** Reverse-path unicast. On failure (2 attempts × 2s timeout = 4s total), the ACK is buffered and retried on the next available route to the destination. No flood fallback — avoids metadata exposure to local neighborhood.
 
 **ACK authentication:** Delivery ACKs carry a **recipient Ed25519 signature** (64 bytes) over the message ID, preventing relay nodes from forging ACKs. The signed ACK layout is:
 
@@ -1421,7 +1421,7 @@ Signature covers bytes [0, 53+N). Receivers verify using sender pubkey from enve
 
 The hop-by-hop Noise XX session still protects ACKs in transit. The signature adds 64 bytes but prevents a critical attack: a malicious relay silently dropping messages while forging delivery ACKs back to the sender.
 
-**ACK signature verification:** The sender verifies the delivery ACK's Ed25519 signature using the **recipient's public key from the local peer table** (canonical trust anchor). The ACK envelope's key fields are informational only. On verification failure, retry with the recipient's **previous key** (if a key rotation was observed within the last gossip cycle). Both fail → drop + `INVALID_ACK_SIGNATURE` diagnostic.
+**ACK signature verification:** The sender verifies the delivery ACK's Ed25519 signature using the **recipient's public key from the local peer table** (canonical trust anchor). The ACK envelope's key fields are informational only. On verification failure, retry with the recipient's **previous key** (if a key rotation was observed within the last keepalive cycle). Both fail → drop + `INVALID_ACK_SIGNATURE` diagnostic.
 
 **Why default-on:** Users expect delivery ACKs for 1:1 messages; overhead is justified for the UX.
 
@@ -1446,7 +1446,7 @@ Power modes are selected **automatically** — the library consumer does not cho
 2. **Charging state**: If plugged in and no custom override, use Performance mode regardless of battery level
 3. **Battery-based tier** (default): Select mode from battery percentage thresholds
 
-| Power Mode | Battery Level | Scan Duty Cycle | Advertising Interval | Presence Timeout | Sweep Interval | Gossip Interval |
+| Power Mode | Battery Level | Scan Duty Cycle | Advertising Interval | Presence Timeout | Sweep Interval | Keepalive Interval |
 |------------|--------------|-----------------|---------------------|-----------------|----------------|-----------------|
 | **Performance** | >80% (or charging) | 80–100% | 250ms | 2.5s | 1.25s | 5s |
 | **Balanced** | 30–80% | 40–60% | 500ms | 5s | 2.5s | 15s |
@@ -1817,7 +1817,7 @@ data class DiagnosticEvent(
 ```
 **Severity levels:** `FATAL` = library entered terminal state; `ERROR` = operation failed, app should act; `WARNING` = degraded but functional; `INFO` = observability, no action needed. Apps can filter by severity without knowing every event code. New codes in future versions are automatically filtered correctly.
 
-**Unknown destination:** If the app calls `send()` with a public key that has never appeared in gossip (no route exists), `send()` returns `Result.Success` (message accepted for buffering). The message is **buffered for `bufferTTL`** (default 5 minutes). If the peer appears via gossip within the TTL window, the message is delivered normally. If the TTL expires without the peer appearing, `onTransferFailed` is emitted with reason `peerNotFound`. Apps should check `meshHealth().connectedPeers` before sending to provide appropriate UX (e.g., "No peers nearby — message will be queued for 5 minutes").
+**Unknown destination:** If the app calls `send()` with a public key that has never been discovered (no route exists), `send()` returns `Result.Success` (message accepted for buffering). The message is **buffered for `bufferTTL`** (default 5 minutes). If the peer appears via route discovery within the TTL window, the message is delivered normally. If the TTL expires without the peer appearing, `onTransferFailed` is emitted with reason `peerNotFound`. Apps should check `meshHealth().connectedPeers` before sending to provide appropriate UX (e.g., "No peers nearby — message will be queued for 5 minutes").
 
 **Delivery deadline:** If `onDeliveryConfirmed` has not fired within `bufferTTL` (default 5 minutes) after `send()`, the library fires `onTransferFailed(messageId, DELIVERY_TIMEOUT)`. The sender always receives a definitive callback — never silent failure. This deadline applies regardless of whether the message was buffered, relayed, or delivered directly.
 
@@ -1832,7 +1832,7 @@ Errors use a **two-tier structure**: a broad category + a specific code.
 | Category | Code | Retryable | Library Auto-Retries | App Guidance |
 |----------|------|-----------|---------------------|--------------|
 | **Network** | `noRoute` | Yes (transient) | No (async delivery) | Fires via `onTransferFailed` after `bufferTTL` expiry if peer never appears. `send()` itself returns `Result.Success` (message queued). |
-| **Network** | `recipientKeyUnknown` | Yes (transient) | No (async delivery) | Recipient discovered via gossip (route exists) but Curve25519 key not yet received. Fires via `onTransferFailed` if key never arrives within `bufferTTL`. Distinct from `noRoute` (no path) — the peer is known but secure channel not yet established. App can show "establishing secure channel..." |
+| **Network** | `recipientKeyUnknown` | Yes (transient) | No (async delivery) | Recipient discovered via route discovery (route exists) but Curve25519 key not yet received. Fires via `onTransferFailed` if key never arrives within `bufferTTL`. Distinct from `noRoute` (no path) — the peer is known but secure channel not yet established. App can show "establishing secure channel..." |
 | **Network** | `hopLimitExceeded` | No | No | Message can't reach destination within hop limit. Inform user peer is too far. |
 | **Network** | `bufferFull` | Yes (transient) | Yes (with backoff) | Mesh is congested. Library retries automatically; app sees error only after all retries exhausted. |
 | **Network** | `rateLimitExceeded` | Yes (after cooldown) | No | App is sending too fast. Back off for 60+ seconds. |
@@ -1991,7 +1991,7 @@ No attempt to resume active transfers — sender retry via SACK/timeout is the c
 | Scanning | Stopped |
 | Advertising | Stopped |
 | Existing connections | Kept alive |
-| Gossip exchanges | Continue on existing connections (routing table stays fresh) |
+| Keepalive exchanges | Continue on existing connections (routing table stays fresh) |
 | Relay forwarding | Continues (don't break the mesh for other peers) |
 | Own outbound sends | Queued in buffer, sent on `resume()` |
 | Inbound messages for this device | Queued in buffer (up to buffer limit), delivered in order on `resume()` |
@@ -2244,7 +2244,7 @@ This makes timeout-dependent tests complete in milliseconds (not minutes), elimi
 **VirtualMesh simulation fidelity:** VirtualMesh models ALL BLE behaviors, built incrementally per phase:
 - **Phase 0–1:** Configurable latency, packet loss, topology (multi-hop), MTU negotiation, connection limits
 - **Phase 2:** Noise XX/K handshake simulation, nonce desync on frame loss
-- **Phase 3:** Advertising collisions, scan miss rates, gossip timing, route convergence
+- **Phase 3:** Advertising collisions, scan miss rates, keepalive timing, route convergence
 - **Phase 5:** iOS background killing + state preservation relaunch, Android Doze mode, L2CAP credit exhaustion, OEM-specific BLE quirks (Samsung, OnePlus)
 
 Firebase Test Lab covers real-device BLE testing that VirtualMesh cannot model (RF interference, hardware-specific timing, thermal throttling).
@@ -2292,7 +2292,7 @@ These are **release gates** — tests that fail these thresholds block release. 
 3. **100KB multi-hop reliability** — resumable chunked transfers over 3–4 BLE hops need extensive real-device testing
 4. **Mesh scalability** — routing table overhead and deduplication set size in dense meshes (50+ devices) need profiling
 5. **Dual-role BLE stack stability** — simultaneous peripheral + central operation stresses some Android BLE stacks; requires broad device testing matrix
-6. **E2E Noise K sender authentication** — the Noise K handshake binds the sender's static key to the message; the recipient must have the sender's public key (from gossip) to decrypt. Ensure the consuming app has a way to pin/trust public keys to prevent impersonation
+6. **E2E Noise K sender authentication** — the Noise K handshake binds the sender's static key to the message; the recipient must have the sender's public key (from Noise XX handshake) to decrypt. Ensure the consuming app has a way to pin/trust public keys to prevent impersonation
 
 ### Post-v1 Candidates
 
@@ -2305,7 +2305,7 @@ These are **release gates** — tests that fail these thresholds block release. 
 - ~~Per-message compression~~ ✅ **Implemented** — zlib (RFC 1950) payload compression with configurable `compressionEnabled` (default `true`) and `compressionMinBytes` (default 64). Compress-then-encrypt envelope inside E2E payload. See §5.
 - Sliding window ACK window size auto-tuning based on connection quality (v1 includes basic halve/double; post-v1 adds bandwidth estimation, RTT-based adjustment, and per-peer adaptive profiles)
 - Onion-style routing for metadata protection (each hop only knows next hop)
-- Multi-Point Relay (MPR) gossip optimization — select a minimum subset of Neighbors that covers all 2-hop Peers, and only relay Gossip through MPRs. Reduces Gossip traffic by up to 75% in dense meshes (20+ Peers). Adapted from OLSR.
+- Multi-Point Relay (MPR) broadcast optimization — select a minimum subset of Neighbors that covers all 2-hop Peers, and only relay broadcasts through MPRs. Reduces broadcast traffic by up to 75% in dense meshes (20+ Peers). Adapted from OLSR.
 - Congestion-aware route selection — add a "load" field to Peer Announcements (buffer utilization %, active Transfer count). Factor load into route cost to proactively route around busy Relays instead of discovering congestion via NACK.
 - Neighbor Unreachability Detection (NUD) — active keepalive probing of Neighbors to detect failures faster than passive Advertisement timeout + 2 sweep intervals. Reduces failure detection to 1–2 probe intervals at the cost of additional BLE traffic.
 - Network coding at Relays — XOR-based coding to improve throughput when multiple flows share the same Relay. Significant implementation complexity for marginal BLE bandwidth gain.
@@ -2423,7 +2423,7 @@ These are **release gates** — tests that fail these thresholds block release. 
 | iOS | Auto-managed by stack; no developer control |
 | Android | API 26+ via AdvertisingSet API |
 
-**Verdict: Not suitable for data transfer.** Useful only for richer advertisements. iOS doesn't expose control. Current decision to use GATT for gossip remains correct.
+**Verdict: Not suitable for data transfer.** Useful only for richer advertisements. iOS doesn't expose control. Current decision to use GATT for control messages remains correct.
 
 ##### Outcome
 

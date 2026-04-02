@@ -104,8 +104,8 @@ Feature: BLE Mesh Peer-to-Peer Messaging
   Scenario: Message is routed across three hops via intermediate peer
     Given three peers "A", "B", and "C" in a linear chain topology
     And A is linked to B and B is linked to C but A is not linked to C
-    And gossip-based route propagation is enabled
-    When neighbor routes are established and gossip propagates
+    And AODV route discovery is enabled
+    When neighbor routes are established and route discovery propagates
     And A sends "routed hello" to C
     Then the send should succeed
     And B should relay the routed message toward C

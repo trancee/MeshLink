@@ -15,9 +15,9 @@ diagrams don't render in your viewer, paste them into the
 6. [Power Mode Transitions](#6-power-mode-transitions) — Battery-driven mode state machine
 7. [GATT Chunking & SACK Flow](#7-gatt-chunking--sack-flow) — Selective ACK and resume-on-disconnect
 8. [Engine & Coordinator Data Flow](#8-engine--coordinator-data-flow) — Sealed result types, unidirectional flow
-9. [Gossip Protocol Exchange](#9-gossip-protocol-exchange) — Differential gossip with split horizon
+9. [AODV Route Discovery](#9-aodv-route-discovery) — On-demand RREQ flood and RREP unicast
 10. [TOFU Trust Model](#10-tofi-trust-model) — Key pinning with strict/softRepin modes
-11. [Key Rotation Sequence](#11-key-rotation-sequence) — Gossip announcement, grace period, teardown
+11. [Key Rotation Sequence](#11-key-rotation-sequence) — Broadcast announcement, grace period, teardown
 
 ---
 
@@ -132,7 +132,7 @@ packet
 |------|------|
 | 0x00 | broadcast |
 | 0x01 | handshake |
-| 0x02 | gossip (route_update) |
+| 0x02 | route_update (legacy, not actively sent) |
 | 0x03 | chunk |
 | 0x04 | chunk_ack |
 | 0x05 | routed_message |
@@ -141,7 +141,9 @@ packet
 | 0x08 | keepalive |
 | 0x09 | nack |
 | 0x0A | rotation |
-| 0x0B–0xFF | reserved |
+| 0x0B | route_request (RREQ) |
+| 0x0C | route_reply (RREP) |
+| 0x0D–0xFF | reserved |
 
 ---
 
@@ -160,14 +162,14 @@ flowchart TB
 
         subgraph Engines["Stateful Engines (sealed result types)"]
             SE["SecurityEngine<br/>Noise XX/K, Trust, Replay"]
-            RE["RoutingEngine<br/>DSDV, Cost, Dedup"]
+            RE["RoutingEngine<br/>AODV, Cost, Dedup"]
             TE["TransferEngine<br/>Chunking, SACK, AIMD"]
             DP["DeliveryPipeline<br/>Confirmation, Timeout"]
         end
 
         subgraph Coordinators["Orchestrators"]
             PC["PowerCoordinator<br/>Mode transitions, Hysteresis"]
-            GC["GossipCoordinator<br/>Route gossip, Keepalive"]
+            GC["RouteCoordinator<br/>Keepalive"]
             PCC["PeerConnectionCoordinator<br/>Discovery, Handshake init"]
         end
 
@@ -307,9 +309,9 @@ title: Power Mode State Machine
 stateDiagram-v2
     [*] --> Balanced : Default on start()
 
-    state "Performance\n>80% or charging\nScan 80–100% · Ads 250ms\nGossip 5s · Conn 4/5" as Perf
-    state "Balanced\n30–80%\nScan 40–60% · Ads 500ms\nGossip 15s · Conn 3/4" as Bal
-    state "PowerSaver\n<30%\nScan 10–25% · Ads 1–2s\nGossip 30–60s · Conn 2/2" as PS
+    state "Performance\n>80% or charging\nScan 80–100% · Ads 250ms\nKeepalive 5s · Conn 4/5" as Perf
+    state "Balanced\n30–80%\nScan 40–60% · Ads 500ms\nKeepalive 15s · Conn 3/4" as Bal
+    state "PowerSaver\n<30%\nScan 10–25% · Ads 1–2s\nKeepalive 30–60s · Conn 2/2" as PS
 
     Bal --> Perf : battery ≥ 80% (immediate)
     Perf --> Bal : battery < 80% for 30s
@@ -385,14 +387,14 @@ The engine/coordinator architecture with sealed result types and unidirectional 
 flowchart TD
     subgraph Facades["Stateful Engines (sealed result types)"]
         SE["SecurityEngine<br/>🔒 Noise XX/K, Trust, Replay"]
-        RE["RoutingEngine<br/>🗺️ DSDV, Cost, Dedup"]
+        RE["RoutingEngine<br/>🗺️ AODV, Cost, Dedup"]
         TE["TransferEngine<br/>📦 Chunking, SACK, AIMD"]
         DP["DeliveryPipeline<br/>✅ Confirmation, Timeout"]
     end
 
     subgraph Orchestrators["Coordinators"]
         PC["PowerCoordinator<br/>⚡ Mode transitions"]
-        GC["GossipCoordinator<br/>📡 Route gossip, Keepalive"]
+        GC["RouteCoordinator<br/>📡 Keepalive"]
         PCC["PeerConnectionCoordinator<br/>🤝 Discovery, Handshake"]
     end
 
@@ -409,7 +411,7 @@ flowchart TD
     SPC -->|"SendDecision.Direct/Routed"| SE
     SE -->|"Sealed/Handshake bytes"| TE
     TE -->|"TransferUpdate"| DP
-    GC -->|"Route updates"| RE
+    GC -->|"Keepalive"| RE
     PCC -->|"PeerConnectionAction"| SE
     PC -->|"PowerProfile"| BLE
 
@@ -422,39 +424,45 @@ flowchart TD
 
 ---
 
-## 9. Gossip Protocol Exchange
+## 9. AODV Route Discovery
 
-Differential gossip exchange between neighbors with split horizon and triggered updates.
+On-demand route discovery using RREQ flood and RREP unicast. Routes are
+established only when a message needs to be sent — no proactive routing
+overhead.
 
 ```mermaid
 sequenceDiagram
-    participant A as Node A
-    participant B as Neighbor B
+    participant S as Source
+    participant N1 as Neighbor 1
+    participant N2 as Neighbor 2
+    participant N3 as Neighbor 3
+    participant D as Destination
 
-    Note over A: Gossip timer fires (5–60s per power mode)
+    Note over S: send(msg, dest=D) — no cached route
 
-    alt First connection to B
-        A->>B: Full routing table (all routes + seq + costs)
-        B->>A: Full routing table
-        Note over A,B: Both sides store per-neighbor last-sent seq#
-    else Subsequent cycle
-        alt Routing table changed since last exchange
-            Note over A: Build differential (entries with seq > last sent)
-            Note over A: Apply split horizon: exclude routes learned from B
-            alt Cost change > 30% (triggered update)
-                A->>B: Immediate differential (gossip 0x02)
-                Note right of A: Rate-limited: 1 triggered update per interval
-            else Normal change
-                A->>B: Differential update (gossip 0x02)
-            end
-            Note right of B: Verify, update routing table
-        else No changes
-            A->>B: Keepalive (6 bytes: entry_count=0, highest_seq)
-        end
-    end
+    S->>N1: RREQ (broadcast flood)
+    S->>N2: RREQ (broadcast flood)
 
-    Note over A,B: Poison reverse on withdrawal
-    B->>A: cost=∞ for withdrawn route (fast invalidation)
+    N1->>N1: Record reverse path → S
+    N2->>N2: Record reverse path → S
+
+    N1->>N3: RREQ (rebroadcast)
+    N3->>N3: Record reverse path → N1
+
+    N3->>D: RREQ (rebroadcast)
+    Note over D: I am the destination
+
+    D->>N3: RREP (unicast back)
+    N3->>N3: Install forward route to D
+    N3->>N1: RREP (unicast back)
+    N1->>N1: Install forward route to D
+    N1->>S: RREP (unicast back)
+
+    Note over S: Route installed, pending messages drained
+
+    S->>N1: RoutedMessage(dest=D, payload=msg)
+    N1->>N3: Forward
+    N3->>D: Forward
 ```
 
 ---
@@ -467,7 +475,7 @@ Trust-on-First-Discover key pinning with strict/softRepin modes and signed rotat
 flowchart TD
     Discover["Peer key discovered"] --> Origin{"Source?"}
 
-    Origin -->|"Gossip"| Routing["Routing candidate only\n(NOT trusted for TOFU)"]
+    Origin -->|"Route discovery"| Routing["Routing candidate only\n(NOT trusted for TOFU)"]
     Routing --> WaitNoise["Wait for Noise XX handshake"]
 
     Origin -->|"Noise XX handshake"| Authenticated["Mutually authenticated key"]
@@ -513,7 +521,7 @@ flowchart TD
 
 ## 11. Key Rotation Sequence
 
-Identity key rotation with gossip announcement, grace period, and old-key teardown.
+Identity key rotation with broadcast announcement, grace period, and old-key teardown.
 
 ```mermaid
 sequenceDiagram
@@ -530,9 +538,9 @@ sequenceDiagram
     Note over Dev: 3. Sign announcement with OLD key
 
     rect rgb(230, 240, 255)
-        Note over Dev,N2: 4. Gossip rotation announcement (132 bytes)
-        Dev->>N1: gossip 0x02: oldKey(32) | newKey(32) | seq(4) | sig(64)
-        Dev->>N2: gossip 0x02: rotation announcement
+        Note over Dev,N2: 4. Broadcast rotation announcement (132 bytes)
+        Dev->>N1: rotation 0x0A: oldKey(32) | newKey(32) | seq(4) | sig(64)
+        Dev->>N2: rotation 0x0A: rotation announcement
         N1-->>Dev: Write-with-response ACK
         N2-->>Dev: Write-with-response ACK
         Note over N1: Verify sig against pinned old key
@@ -543,7 +551,7 @@ sequenceDiagram
     deactivate Dev
 
     rect rgb(255, 243, 224)
-        Note over Dev,N2: Grace period: 5× gossip interval\n(25s Performance / 75s Balanced / 150–300s PowerSaver)
+        Note over Dev,N2: Grace period: 5× keepalive interval\n(25s Performance / 75s Balanced / 150–300s PowerSaver)
         Note over Dev: Accept messages encrypted with BOTH keys
 
         N1->>Dev: Message (old Noise K session)
