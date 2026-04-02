@@ -1,5 +1,7 @@
 package io.meshlink.diagnostics
 
+import io.meshlink.power.PowerMode
+
 /**
  * Programmatic test mode interface for automated testing and diagnostics.
  * Provides controlled triggers for mesh behaviors that are normally async.
@@ -19,7 +21,7 @@ class TestModeController(
         val reassemblyBuffers: Int,
         val tombstoneCount: Int,
         val diagnosticEventCount: Int,
-        val powerMode: String,
+        val powerMode: PowerMode,
         val started: Boolean,
         val paused: Boolean,
     )

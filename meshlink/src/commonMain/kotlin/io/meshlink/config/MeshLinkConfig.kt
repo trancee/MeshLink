@@ -17,13 +17,13 @@ data class MeshLinkConfig(
     val dedupCapacity: Int = 100_000,
     val protocolVersion: ProtocolVersion = ProtocolVersion(1, 0),
     val appId: String? = null,
-    val inboundRateLimitPerSenderPerMinute: Int = 30,
+    val inboundRateLimitPerSenderPerMin: Int = 30,
     val pendingMessageTtlMillis: Long = 0L,
     val pendingMessageCapacity: Int = 100,
-    val broadcastRateLimitPerMinute: Int = 10,
+    val broadcastRateLimitPerMin: Int = 10,
     val relayQueueCapacity: Int = 100,
     val maxHops: UByte = 10u,
-    val broadcastTTL: UByte = 2u,
+    val broadcastTtl: UByte = 2u,
     val trustMode: TrustMode = TrustMode.STRICT,
     val deliveryAckEnabled: Boolean = true,
     val diagnosticsEnabled: Boolean = false,
@@ -71,8 +71,8 @@ data class MeshLinkConfig(
             violations.add("circuitBreakerCooldownMillis must be positive when circuit breaker is enabled")
         }
         // Cross-field validation rules from design doc §14
-        if (broadcastTTL < 1u || broadcastTTL > maxHops) {
-            violations.add("broadcastTTL ($broadcastTTL) must be in range 1..maxHops ($maxHops)")
+        if (broadcastTtl < 1u || broadcastTtl > maxHops) {
+            violations.add("broadcastTtl ($broadcastTtl) must be in range 1..maxHops ($maxHops)")
         }
         if (evictionGracePeriodMillis < 5_000L || evictionGracePeriodMillis > 60_000L) {
             violations.add("evictionGracePeriodMillis ($evictionGracePeriodMillis) must be in range 5000..60000")
@@ -171,13 +171,13 @@ class MeshLinkConfigBuilder(
     var dedupCapacity: Int = 100_000,
     var protocolVersion: ProtocolVersion = ProtocolVersion(1, 0),
     var appId: String? = null,
-    var inboundRateLimitPerSenderPerMinute: Int = 30,
+    var inboundRateLimitPerSenderPerMin: Int = 30,
     var pendingMessageTtlMillis: Long = 0L,
     var pendingMessageCapacity: Int = 100,
-    var broadcastRateLimitPerMinute: Int = 10,
+    var broadcastRateLimitPerMin: Int = 10,
     var relayQueueCapacity: Int = 100,
     var maxHops: UByte = 10u,
-    var broadcastTTL: UByte = 2u,
+    var broadcastTtl: UByte = 2u,
     var trustMode: TrustMode = TrustMode.STRICT,
     var deliveryAckEnabled: Boolean = true,
     var diagnosticsEnabled: Boolean = false,
@@ -219,13 +219,13 @@ class MeshLinkConfigBuilder(
         dedupCapacity = dedupCapacity,
         protocolVersion = protocolVersion,
         appId = appId,
-        inboundRateLimitPerSenderPerMinute = inboundRateLimitPerSenderPerMinute,
+        inboundRateLimitPerSenderPerMin = inboundRateLimitPerSenderPerMin,
         pendingMessageTtlMillis = pendingMessageTtlMillis,
         pendingMessageCapacity = pendingMessageCapacity,
-        broadcastRateLimitPerMinute = broadcastRateLimitPerMinute,
+        broadcastRateLimitPerMin = broadcastRateLimitPerMin,
         relayQueueCapacity = relayQueueCapacity,
         maxHops = maxHops,
-        broadcastTTL = broadcastTTL,
+        broadcastTtl = broadcastTtl,
         trustMode = trustMode,
         deliveryAckEnabled = deliveryAckEnabled,
         diagnosticsEnabled = diagnosticsEnabled,

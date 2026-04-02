@@ -35,7 +35,7 @@ fun main() {
     println("  bufferCapacity = ${config.bufferCapacity}")
     println("  mtu            = ${config.mtu}")
     println("  maxHops        = ${config.maxHops}")
-    println("  broadcastTTL   = ${config.broadcastTTL}")
+    println("  broadcastTtl   = ${config.broadcastTtl}")
     println("  diagnostics    = ${config.diagnosticsEnabled}")
     println()
 
@@ -85,7 +85,7 @@ fun main() {
             .onSuccess { println("[SEND] Sent message: $it") }
             .onFailure { println("[SEND] Result: ${it.message} (expected - no real peers)") }
 
-        mesh.broadcast("Linux broadcast ping".encodeToByteArray(), maxHops = config.broadcastTTL)
+        mesh.broadcast("Linux broadcast ping".encodeToByteArray(), maxHops = config.broadcastTtl)
             .onSuccess { println("[BCAST] Broadcast sent: $it") }
             .onFailure { println("[BCAST] Result: ${it.message}") }
 

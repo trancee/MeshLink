@@ -302,7 +302,7 @@ class MeshLink(
         localPeerId = transport.localPeerId,
         protocolVersion = config.protocolVersion,
         isPaused = { pauseManager.isPaused },
-        localPowerMode = { PowerMode.valueOf(powerCoordinator.currentMode).ordinal },
+        localPowerMode = { powerCoordinator.currentMode.ordinal },
         localKeyHash = {
             securityEngine?.let { se ->
                 crypto?.sha256(se.localPublicKey)
@@ -427,7 +427,7 @@ class MeshLink(
         return AdvertisementCodec.encode(
             versionMajor = config.protocolVersion.major,
             versionMinor = config.protocolVersion.minor,
-            powerMode = PowerMode.valueOf(powerCoordinator.currentMode).ordinal,
+            powerMode = powerCoordinator.currentMode.ordinal,
             publicKeyHash = keyHash,
         )
     }
@@ -613,7 +613,7 @@ class MeshLink(
             reachablePeers = routingEngine.connectedPeerCount,
             bufferUtilizationPercent = utilPercent,
             activeTransfers = transferEngine.outboundCount,
-            powerMode = PowerMode.valueOf(powerCoordinator.currentMode),
+            powerMode = powerCoordinator.currentMode,
             avgRouteCost = routingEngine.avgCost(),
             relayBufferUtilization = (inboundBytes.toFloat() / cap).coerceIn(0f, 1f),
             ownBufferUtilization = (outboundBytes.toFloat() / cap).coerceIn(0f, 1f),
@@ -695,9 +695,8 @@ class MeshLink(
         }
     }
 
-    override fun setCustomPowerMode(mode: String?) {
-        val powerMode = mode?.let { PowerMode.valueOf(it) }
-        when (powerCoordinator.setCustomPowerMode(powerMode)) {
+    override fun setCustomPowerMode(mode: PowerMode?) {
+        when (powerCoordinator.setCustomPowerMode(mode)) {
             is ModeChangeResult.Changed -> emitHealthUpdate()
             is ModeChangeResult.Unchanged -> {}
         }
@@ -741,7 +740,7 @@ class MeshLink(
         checkRunningOrPaused()
         val s = requireScope()
 
-        val effectiveHops = minOf(maxHops, config.broadcastTTL)
+        val effectiveHops = minOf(maxHops, config.broadcastTtl)
         return when (val decision = broadcastPolicyChain.evaluate(payload, effectiveHops)) {
             is BroadcastDecision.BufferFull ->
                 Result.failure(IllegalArgumentException("bufferFull"))

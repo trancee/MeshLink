@@ -409,7 +409,7 @@ packet-beta
 
 **Relay-is-also-destination behavior:** When a relay discovers it is the intended recipient of a `routed_message`:
 - **DirectMessage:** Deliver locally and **stop forwarding**. Unicast has a single destination — forwarding past it wastes bandwidth and risks duplicates.
-- **Broadcast:** Deliver locally and **continue forwarding** if remaining hop count > 0. Broadcasts relay up to `broadcastTTL` hops; a relay within range that is also a listener must do both (deliver and forward). The dedup set prevents loops.
+- **Broadcast:** Deliver locally and **continue forwarding** if remaining hop count > 0. Broadcasts relay up to `broadcastTtl` hops; a relay within range that is also a listener must do both (deliver and forward). The dedup set prevents loops.
 
 - **`chunk` (0x05)** is used for **direct (single-hop) transfers only** — when sender and recipient are directly connected, chunks carry only transfer metadata (sequence number, message ID) without routing overhead.
 
@@ -483,7 +483,7 @@ packet-beta
   | `0x04` | Rate limited | Per-sender or per-neighbor rate limit exceeded |
 
 - **Single-chunk fast path:** If the E2E ciphertext fits within a single chunk (payload ≤ MTU minus envelope overhead for GATT, or ≤ L2CAP chunk size minus framing), it is sent as a single `routed_message` or `chunk` — no multi-chunk transfer setup required.
-- **`broadcast` (0x09)** is a standalone envelope for broadcast messages (signed, relay-forwarded up to `broadcastTTL` hops).
+- **`broadcast` (0x09)** is a standalone envelope for broadcast messages (signed, relay-forwarded up to `broadcastTtl` hops).
 
 ### Data Plane: L2CAP CoC (Preferred) with GATT Fallback
 
@@ -1702,9 +1702,9 @@ Potential post-v1 mitigations:
 | Mode | Description |
 |------|-------------|
 | **1:1** | E2E encrypted message to a specific recipient (Noise K — sender authenticated) |
-| **Broadcast** | **Signed** (Ed25519) but unencrypted message relayed hop-by-hop up to `broadcastTTL` hops (default 2) |
+| **Broadcast** | **Signed** (Ed25519) but unencrypted message relayed hop-by-hop up to `broadcastTtl` hops (default 2) |
 
-**Broadcast propagation model:** Broadcasts relay hop-by-hop. Each receiving peer re-sends the broadcast to all its neighbors (except the source), decrementing a hop counter. The broadcast is dropped when hop counter reaches 0 or dedup detects a duplicate. This bounds amplification: at `broadcastTTL=2` with 5 neighbors, a single broadcast generates ~10-15 relay messages. The `broadcastTTL` config parameter (default 2, range 1–`maxHops`) controls reach vs. overhead. `broadcastTTL` is configurable in the range **1–`maxHops`** (default 2). Setting `broadcastTTL > maxHops` is rejected by config validation.
+**Broadcast propagation model:** Broadcasts relay hop-by-hop. Each receiving peer re-sends the broadcast to all its neighbors (except the source), decrementing a hop counter. The broadcast is dropped when hop counter reaches 0 or dedup detects a duplicate. This bounds amplification: at `broadcastTtl=2` with 5 neighbors, a single broadcast generates ~10-15 relay messages. The `broadcastTtl` config parameter (default 2, range 1–`maxHops`) controls reach vs. overhead. `broadcastTtl` is configurable in the range **1–`maxHops`** (default 2). Setting `broadcastTtl > maxHops` is rejected by config validation.
 
 **Broadcast rate limiting:** Broadcasts have a **separate rate limit** of **10 broadcasts per minute per sender** (configurable via `broadcastRateLimit`), independent of the 20 msg/min direct message quota. This prevents broadcast-heavy apps from starving direct messages and limits mesh-wide amplification. At 10 broadcasts/min × TTL=2 × 5 neighbors ≈ 100-150 relay messages/min — acceptable on BLE.
 
@@ -1718,18 +1718,18 @@ Potential post-v1 mitigations:
 |--------|------|-------|
 | 0 | 12 bytes | Message ID (structured: 8-byte peer ID hash + 4-byte LE counter) |
 | 12 | 8 bytes | Origin peer ID (truncated key hash) |
-| 20 | 1 byte | Remaining hop count (set to `broadcastTTL` by sender, decremented by each relay; drop when 0) |
+| 20 | 1 byte | Remaining hop count (set to `broadcastTtl` by sender, decremented by each relay; drop when 0) |
 | 21 | 8 bytes | App ID hash (`SHA-256-64(appId.toUTF8())`; zero-filled if no appId) |
 | 29 | 1 byte | Flags (bit 0: `HAS_SIGNATURE` — signature + signerPublicKey present; bits 1–7: reserved) |
 | 30 | 64 bytes | Ed25519 signature (present only if `flags & 0x01`) |
 | 94 | 32 bytes | Signer Ed25519 public key (present only if `flags & 0x01`) |
 | 30 or 126 | N bytes | Payload (unencrypted, plaintext; remaining bytes) |
 
-When signed, the signature covers `messageId + origin + appIdHash + payload`. Receivers verify using the signer public key from the signature block. The remaining hop count is **not** in the signed region (it must be mutable for relay decrement), but relays cannot forge a higher TTL than the sender originally set. The `broadcastTTL` config parameter on the *receiver* side caps accepted values: broadcasts with remaining hops > local `broadcastTTL` are clamped (not rejected) to prevent legitimate high-TTL broadcasts from being dropped.
+When signed, the signature covers `messageId + origin + appIdHash + payload`. Receivers verify using the signer public key from the signature block. The remaining hop count is **not** in the signed region (it must be mutable for relay decrement), but relays cannot forge a higher TTL than the sender originally set. The `broadcastTtl` config parameter on the *receiver* side caps accepted values: broadcasts with remaining hops > local `broadcastTtl` are clamped (not rejected) to prevent legitimate high-TTL broadcasts from being dropped.
 
 **Broadcast size constraint (GATT):** On the GATT data plane, broadcasts must fit in a single GATT write. Max broadcast payload = MTU − 1 (type prefix) − 12 (messageId) − 8 (origin) − 1 (hop count) − 8 (appIdHash) − 1 (flags) − 64 (signature) − 32 (signer key) = MTU − 127 bytes (signed) or MTU − 31 bytes (unsigned). At typical 244-byte MTU, max signed payload is 117 bytes. On L2CAP, the length-prefix framing supports broadcasts up to 100KB (subject to `maxMessageSize`). `broadcast()` returns `Result.Failure(messageTooLarge)` if the payload exceeds the current transport's capacity.
 
-**Per-hop TTL clamping:** Each relay clamps the remaining broadcast TTL: `remaining_ttl = min(remaining_ttl - 1, local_broadcastTTL)`. A relay with `broadcastTTL=1` limits propagation to its immediate neighbors only. Different paths through the mesh may produce different propagation radii — this respects each peer's resource constraints.
+**Per-hop TTL clamping:** Each relay clamps the remaining broadcast TTL: `remaining_ttl = min(remaining_ttl - 1, local_broadcastTtl)`. A relay with `broadcastTtl=1` limits propagation to its immediate neighbors only. Different paths through the mesh may produce different propagation radii — this respects each peer's resource constraints.
 
 **No group messaging in v1.** Broadcast covers 'announce to everyone nearby'; proper group conversations (key agreement, membership) deferred to post-v1. **No v1 preparation for groups** — no group key fields, no reserved group types, no membership lists. Clean break: v2 group messaging will build from scratch. Existing v1 mechanisms (opaque relay forwarding, reserved wire format types 0x0C–0xFF, Noise XX capability byte) provide sufficient extensibility hooks without pre-building group primitives. YAGNI.
 
@@ -2411,7 +2411,7 @@ All configurable parameters grouped by category, with defaults, bounds, and desc
 | `bufferMaxSize` | int (bytes) | 1,048,576 (1 MB) | 262,144 (256 KB) | 8,388,608 (8 MB) | Fixed buffer pool size. Covers 10× 100KB messages at default. |
 | `evictionGracePeriod` | duration | 30s | 5s | 60s | Max time to keep connections with active transfers alive during power mode downgrade. |
 | `peerRateLimit` | int | 20 | 5 | 100 | Maximum messages per minute per originating sender, per neighbor. Uses a 60-second sliding window. |
-| `broadcastTTL` | int | 2 | 1 | maxHops | Hop limit for broadcast relay propagation. |
+| `broadcastTtl` | int | 2 | 1 | maxHops | Hop limit for broadcast relay propagation. |
 | `customPowerMode` | PowerMode? | null | — | — | Override automatic power mode with a fixed mode. When set, all automatic transitions are disabled. |
 
 #### Internal Constants (not in public API)

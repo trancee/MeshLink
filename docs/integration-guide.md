@@ -79,7 +79,7 @@ The most commonly tuned fields:
 
 - **`maxMessageSize`** — largest expected payload in bytes (default: 100,000)
 - **`maxHops`** — limit to 3–5 for latency-sensitive apps (default: 10)
-- **`broadcastTTL`** — hop limit for broadcast propagation (default: 2, range: 1–`maxHops`)
+- **`broadcastTtl`** — hop limit for broadcast propagation (default: 2, range: 1–`maxHops`)
 - **`routeCacheTtlMillis`** — increase for stable meshes, decrease for mobile (default: 60,000)
 - **`rateLimitMaxSends`** — outbound rate limit per window (default: 60; `0` = disabled)
 - **`l2capEnabled`** — high-throughput L2CAP mode with GATT fallback (default: true)
@@ -157,7 +157,7 @@ val result = mesh.broadcast(
 // Broadcasts arrive on the same `messages` flow as unicast messages
 ```
 
-> **Tip:** Use `broadcastRateLimitPerMinute` to prevent broadcast storms.
+> **Tip:** Use `broadcastRateLimitPerMin` to prevent broadcast storms.
 
 ---
 

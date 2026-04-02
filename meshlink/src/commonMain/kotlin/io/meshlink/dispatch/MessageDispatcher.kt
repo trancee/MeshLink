@@ -234,7 +234,7 @@ internal class MessageDispatcher(
             val reflooded = WireCodec.encodeBroadcast(
                 messageId = broadcast.messageId,
                 origin = broadcast.origin,
-                remainingHops = minOf((broadcast.remainingHops - 1u).toUByte(), config.broadcastTTL),
+                remainingHops = minOf((broadcast.remainingHops - 1u).toUByte(), config.broadcastTtl),
                 appIdHash = broadcast.appIdHash,
                 payload = broadcast.payload,
                 signature = broadcast.signature,

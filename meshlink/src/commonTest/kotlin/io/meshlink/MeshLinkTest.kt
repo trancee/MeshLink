@@ -4474,7 +4474,7 @@ class MeshLinkTest {
         val transport = VirtualMeshTransport(peerIdAlice)
         val config = testMeshLinkConfig {
             requireEncryption = false
-            inboundRateLimitPerSenderPerMinute = 3
+            inboundRateLimitPerSenderPerMin = 3
         }
         val alice = MeshLink(transport, config, coroutineContext)
         alice.start()
@@ -4513,7 +4513,7 @@ class MeshLinkTest {
         val transport = VirtualMeshTransport(peerIdAlice)
         val config = testMeshLinkConfig {
             requireEncryption = false
-            inboundRateLimitPerSenderPerMinute = 1
+            inboundRateLimitPerSenderPerMin = 1
         }
         val alice = MeshLink(transport, config, coroutineContext)
         alice.start()
@@ -4763,7 +4763,7 @@ class MeshLinkTest {
         val transport = VirtualMeshTransport(peerIdAlice)
         val config = testMeshLinkConfig {
             requireEncryption = false
-            broadcastRateLimitPerMinute = 10
+            broadcastRateLimitPerMin = 10
         }
         val alice = MeshLink(transport, config, coroutineContext, clock = { nowMillis })
         alice.start()
@@ -5687,7 +5687,7 @@ class MeshLinkTest {
         val transportA = VirtualMeshTransport(peerIdAlice)
         val config = testMeshLinkConfig {
             requireEncryption = false
-            inboundRateLimitPerSenderPerMinute = 2
+            inboundRateLimitPerSenderPerMin = 2
         }
         val alice = MeshLink(transportA, config, coroutineContext)
         alice.start()
@@ -5752,7 +5752,7 @@ class MeshLinkTest {
         val transportA = VirtualMeshTransport(peerIdAlice)
         val config = testMeshLinkConfig {
             requireEncryption = false
-            broadcastRateLimitPerMinute = 1
+            broadcastRateLimitPerMin = 1
         }
         val alice = MeshLink(transportA, config, coroutineContext)
         alice.start()
@@ -7423,7 +7423,7 @@ class MeshLinkTest {
         val collector = launch { charlie.messages.collect { charlieMessages.add(it) } }
         advanceUntilIdle()
 
-        // Alice broadcasts with maxHops=3 (clamped to broadcastTTL=2 by default config)
+        // Alice broadcasts with maxHops=3 (clamped to broadcastTtl=2 by default config)
         alice.broadcast("decrement test".encodeToByteArray(), maxHops = 3u)
         advanceUntilIdle()
 
@@ -7451,8 +7451,8 @@ class MeshLinkTest {
         transportBob.linkTo(transportCharlie)
 
         val alice = MeshLink(transportAlice, testMeshLinkConfig { requireEncryption = false }, coroutineContext)
-        // Bob's config limits broadcastTTL to 1
-        val bob = MeshLink(transportBob, testMeshLinkConfig { requireEncryption = false; broadcastTTL = 1u }, coroutineContext)
+        // Bob's config limits broadcastTtl to 1
+        val bob = MeshLink(transportBob, testMeshLinkConfig { requireEncryption = false; broadcastTtl = 1u }, coroutineContext)
         val charlie = MeshLink(transportCharlie, testMeshLinkConfig { requireEncryption = false }, coroutineContext)
         alice.start(); bob.start(); charlie.start()
         advanceUntilIdle()
@@ -7473,14 +7473,14 @@ class MeshLinkTest {
 
         assertEquals(1, charlieMessages.size, "Charlie should receive the broadcast")
 
-        // Bob should clamp: min(5-1, 1) = 1 (broadcastTTL=1)
+        // Bob should clamp: min(5-1, 1) = 1 (broadcastTtl=1)
         val bobBroadcastsToCharlie = transportBob.sentData.filter { (peerId, data) ->
             peerId == peerIdCharlie.toHex() && data.isNotEmpty() && data[0] == WireCodec.TYPE_BROADCAST
         }
         assertEquals(1, bobBroadcastsToCharlie.size, "Bob should forward to Charlie")
         val relayed = WireCodec.decodeBroadcast(bobBroadcastsToCharlie[0].second)
         assertEquals(1u.toUByte(), relayed.remainingHops,
-            "remainingHops should be clamped to Bob's broadcastTTL=1 (not 4)")
+            "remainingHops should be clamped to Bob's broadcastTtl=1 (not 4)")
 
         collector.cancel()
         alice.stop(); bob.stop(); charlie.stop()

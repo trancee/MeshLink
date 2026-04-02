@@ -78,14 +78,14 @@ class RateLimitPolicyTest {
 
     @Test
     fun broadcastLimitedWhenExceeded() {
-        val policy = RateLimitPolicy(MeshLinkConfig(broadcastRateLimitPerMinute = 1))
+        val policy = RateLimitPolicy(MeshLinkConfig(broadcastRateLimitPerMin = 1))
         policy.checkBroadcast()
         assertIs<RateLimitResult.Limited>(policy.checkBroadcast())
     }
 
     @Test
     fun broadcastDisabledWhenZero() {
-        val policy = RateLimitPolicy(MeshLinkConfig(broadcastRateLimitPerMinute = 0))
+        val policy = RateLimitPolicy(MeshLinkConfig(broadcastRateLimitPerMin = 0))
         assertIs<RateLimitResult.Allowed>(policy.checkBroadcast())
     }
 
@@ -140,7 +140,7 @@ class RateLimitPolicyTest {
     fun differentScopesAreIndependent() {
         val policy = RateLimitPolicy(MeshLinkConfig(
             rateLimitMaxSends = 1, rateLimitWindowMillis = 1000L,
-            broadcastRateLimitPerMinute = 1,
+            broadcastRateLimitPerMin = 1,
             handshakeRateLimitPerSec = 1,
         ))
         // Exhaust all three

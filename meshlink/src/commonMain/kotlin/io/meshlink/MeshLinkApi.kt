@@ -9,6 +9,7 @@ import io.meshlink.model.PeerDetail
 import io.meshlink.model.PeerEvent
 import io.meshlink.model.TransferFailure
 import io.meshlink.model.TransferProgress
+import io.meshlink.power.PowerMode
 import kotlinx.coroutines.flow.Flow
 
 interface MeshLinkApi {
@@ -28,7 +29,7 @@ interface MeshLinkApi {
     fun shedMemoryPressure(): List<String>
     fun addRoute(destination: String, nextHop: String, cost: Double, sequenceNumber: UInt)
     fun updateBattery(batteryPercent: Int, isCharging: Boolean)
-    fun setCustomPowerMode(mode: String?)
+    fun setCustomPowerMode(mode: PowerMode?)
     val peers: Flow<PeerEvent>
     val messages: Flow<Message>
     val deliveryConfirmations: Flow<MessageId>

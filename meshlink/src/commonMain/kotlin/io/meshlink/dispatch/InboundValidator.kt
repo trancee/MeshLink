@@ -145,8 +145,8 @@ internal class InboundValidator(
 
     /** Returns true if the inbound rate for this sender has not been exceeded. */
     fun checkInboundRate(originId: ByteArrayKey): Boolean {
-        if (config.inboundRateLimitPerSenderPerMinute <= 0) return true
-        if (deliveryPipeline.checkInboundRate(originId, config.inboundRateLimitPerSenderPerMinute)) return true
+        if (config.inboundRateLimitPerSenderPerMin <= 0) return true
+        if (deliveryPipeline.checkInboundRate(originId, config.inboundRateLimitPerSenderPerMin)) return true
         diagnosticSink.emit(DiagnosticCode.RATE_LIMIT_HIT, Severity.WARN, "inbound, origin=$originId")
         return false
     }

@@ -32,7 +32,7 @@ fun main() {
     println("  bufferCapacity = ${config.bufferCapacity}")
     println("  mtu            = ${config.mtu}")
     println("  maxHops        = ${config.maxHops}")
-    println("  broadcastTTL   = ${config.broadcastTTL}")
+    println("  broadcastTtl   = ${config.broadcastTtl}")
     println("  diagnostics    = ${config.diagnosticsEnabled}")
     println()
 
@@ -87,7 +87,7 @@ fun main() {
             .onFailure { println("📤 Send result: ${it.message} (expected — no real peers)") }
 
         // Demonstrate broadcast
-        mesh.broadcast("JVM broadcast ping".encodeToByteArray(), maxHops = config.broadcastTTL)
+        mesh.broadcast("JVM broadcast ping".encodeToByteArray(), maxHops = config.broadcastTtl)
             .onSuccess { println("📡 Broadcast sent: $it") }
             .onFailure { println("📡 Broadcast result: ${it.message}") }
 

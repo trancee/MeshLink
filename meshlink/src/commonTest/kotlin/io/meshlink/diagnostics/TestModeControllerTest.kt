@@ -2,6 +2,7 @@ package io.meshlink.diagnostics
 
 import io.meshlink.diagnostics.TestModeController.MeshSnapshot
 import io.meshlink.diagnostics.TestModeController.TestAction
+import io.meshlink.power.PowerMode
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -80,7 +81,7 @@ class TestModeControllerTest {
             reassemblyBuffers = 2,
             tombstoneCount = 1,
             diagnosticEventCount = 42,
-            powerMode = "balanced",
+            powerMode = PowerMode.BALANCED,
             started = true,
             paused = false,
         )
@@ -148,7 +149,7 @@ class TestModeControllerTest {
             reassemblyBuffers = 8,
             tombstoneCount = 3,
             diagnosticEventCount = 100,
-            powerMode = "low",
+            powerMode = PowerMode.POWER_SAVER,
             started = false,
             paused = true,
         )
@@ -160,7 +161,7 @@ class TestModeControllerTest {
         assertEquals(8, snapshot.reassemblyBuffers)
         assertEquals(3, snapshot.tombstoneCount)
         assertEquals(100, snapshot.diagnosticEventCount)
-        assertEquals("low", snapshot.powerMode)
+        assertEquals(PowerMode.POWER_SAVER, snapshot.powerMode)
         assertFalse(snapshot.started)
         assertTrue(snapshot.paused)
     }
@@ -182,8 +183,8 @@ class TestModeControllerTest {
     @Test
     fun storeSnapshotOverwritesPrevious() {
         val controller = TestModeController(enabled = true)
-        val first = MeshSnapshot(1, 1, 1, 1, 1, 1, 1, "a", true, false)
-        val second = MeshSnapshot(2, 2, 2, 2, 2, 2, 2, "b", false, true)
+        val first = MeshSnapshot(1, 1, 1, 1, 1, 1, 1, PowerMode.PERFORMANCE, true, false)
+        val second = MeshSnapshot(2, 2, 2, 2, 2, 2, 2, PowerMode.BALANCED, false, true)
 
         controller.storeSnapshot(first)
         assertEquals(first, controller.lastSnapshot())

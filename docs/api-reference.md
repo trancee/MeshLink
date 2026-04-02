@@ -84,6 +84,7 @@ scope before calling `start()`.
 | Signature | Description |
 |-----------|-------------|
 | `fun updateBattery(batteryPercent: Int, isCharging: Boolean)` | Reports current battery status. MeshLink adjusts advertising interval, scan duty, chunk sizes, and concurrent transfer limits accordingly. |
+| `fun setCustomPowerMode(mode: PowerMode?)` | Override automatic power mode. Pass a `PowerMode` to lock the mode, or `null` to resume automatic battery-based transitions. |
 
 ### Cryptography & Identity
 
@@ -171,7 +172,7 @@ Immutable configuration data class. All fields have sensible defaults.
 | `bufferCapacity` | `Int` | `1_048_576` | Total in-flight data buffer size in bytes. Must be ≥ `maxMessageSize`. |
 | `mtu` | `Int` | `185` | BLE link MTU. Effective payload per chunk = `mtu - 17` (header size). Must be > 17. |
 | `maxHops` | `UByte` | `10` | Maximum hop count for routed messages. |
-| `broadcastTTL` | `UByte` | `2` | Hop limit for broadcast relay propagation. Must be in range `1..maxHops`. Broadcasts sent via `broadcast()` are clamped to this value. Relays also clamp forwarded broadcasts to their local `broadcastTTL`. |
+| `broadcastTtl` | `UByte` | `2` | Hop limit for broadcast relay propagation. Must be in range `1..maxHops`. Broadcasts sent via `broadcast()` are clamped to this value. Relays also clamp forwarded broadcasts to their local `broadcastTtl`. |
 | `pendingMessageTtlMillis` | `Long` | `0` | TTL for queued outbound messages. `0` = never expire. |
 | `pendingMessageCapacity` | `Int` | `100` | Maximum pending outbound messages. |
 | `appId` | `String?` | `null` | Optional app identifier. Messages with a non-matching app ID are silently dropped. |
@@ -182,8 +183,8 @@ Immutable configuration data class. All fields have sensible defaults.
 |-------|------|---------|-------------|
 | `rateLimitMaxSends` | `Int` | `60` | Max outbound unicast sends per window. `0` = disabled. |
 | `rateLimitWindowMillis` | `Long` | `60_000` | Sliding window for outbound rate limiting (ms). |
-| `broadcastRateLimitPerMinute` | `Int` | `10` | Max broadcast sends per minute. `0` = disabled. |
-| `inboundRateLimitPerSenderPerMinute` | `Int` | `30` | Max inbound messages from a single sender per minute. `0` = disabled. |
+| `broadcastRateLimitPerMin` | `Int` | `10` | Max broadcast sends per minute. `0` = disabled. |
+| `inboundRateLimitPerSenderPerMin` | `Int` | `30` | Max inbound messages from a single sender per minute. `0` = disabled. |
 | `handshakeRateLimitPerSec` | `Int` | `1` | Max Noise XX handshakes per second. |
 | `nackRateLimitPerSec` | `Int` | `10` | Max NACKs per second. |
 | `neighborAggregateLimitPerMin` | `Int` | `100` | Max aggregate messages from all BLE neighbors per minute. |
@@ -282,7 +283,7 @@ configuration is valid. Enforced constraints:
 - `rateLimitWindowMillis > 0` when `rateLimitMaxSends > 0`
 - `circuitBreakerCooldownMillis > 0` when `circuitBreakerMaxFailures > 0`
 - `ackWindowMax ≥ ackWindowMin`
-- `broadcastTTL` in range `1..maxHops`
+- `broadcastTtl` in range `1..maxHops`
 - `evictionGracePeriodMillis` in range `5000..60000`
 - `l2capBackpressureWindowMillis` in range `3000..15000`
 - `powerModeThresholds` strictly descending
@@ -864,7 +865,7 @@ enum class PowerMode { PERFORMANCE, BALANCED, POWER_SAVER }
 `io.meshlink.config.MeshLinkConfigBuilder`
 
 Mutable builder class with all fields from `MeshLinkConfig`, including
-`broadcastTTL`, `trustMode`, `deliveryAckEnabled`, `diagnosticsEnabled`,
+`broadcastTtl`, `trustMode`, `deliveryAckEnabled`, `diagnosticsEnabled`,
 `customPowerMode`, `evictionGracePeriodMillis`, and
 `l2capBackpressureWindowMillis`. Used by the `meshLinkConfig {}` DSL and
 preset `overrides` blocks.

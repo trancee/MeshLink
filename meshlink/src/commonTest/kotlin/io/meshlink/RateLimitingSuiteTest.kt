@@ -39,8 +39,8 @@ class RateLimitingSuiteTest {
         assertEquals(100, config.neighborAggregateLimitPerMin)
         assertEquals(20, config.senderNeighborLimitPerMin)
         assertEquals(60, config.rateLimitMaxSends)
-        assertEquals(30, config.inboundRateLimitPerSenderPerMinute)
-        assertEquals(10, config.broadcastRateLimitPerMinute)
+        assertEquals(30, config.inboundRateLimitPerSenderPerMin)
+        assertEquals(10, config.broadcastRateLimitPerMin)
     }
 
     @Test

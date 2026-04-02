@@ -4,7 +4,7 @@ import io.meshlink.util.currentTimeMillis
 
 sealed interface ModeChangeResult {
     data object Unchanged : ModeChangeResult
-    data class Changed(val oldMode: String, val newMode: String) : ModeChangeResult
+    data class Changed(val oldMode: PowerMode, val newMode: PowerMode) : ModeChangeResult
 }
 
 /**
@@ -21,10 +21,10 @@ class PowerCoordinator(
     hysteresisMillis: Long = 30_000L,
 ) {
     private val powerModeEngine = PowerModeEngine(hysteresisMillis = hysteresisMillis, clock = clock)
-    private var _currentMode: String = "PERFORMANCE"
+    private var _currentMode: PowerMode = PowerMode.PERFORMANCE
     private var _customPowerMode: PowerMode? = null
 
-    val currentMode: String get() = _currentMode
+    val currentMode: PowerMode get() = _currentMode
     val customPowerMode: PowerMode? get() = _customPowerMode
 
     // ── Custom power mode override ────────────────────────────────
@@ -33,7 +33,7 @@ class PowerCoordinator(
         _customPowerMode = mode
         val oldMode = _currentMode
         if (mode != null) {
-            _currentMode = mode.name
+            _currentMode = mode
         }
         return if (_currentMode != oldMode) {
             ModeChangeResult.Changed(oldMode, _currentMode)
@@ -47,7 +47,7 @@ class PowerCoordinator(
     fun updateBattery(batteryPercent: Int, isCharging: Boolean): ModeChangeResult {
         if (_customPowerMode != null) return ModeChangeResult.Unchanged
         val oldMode = _currentMode
-        _currentMode = powerModeEngine.update(batteryPercent, isCharging).name
+        _currentMode = powerModeEngine.update(batteryPercent, isCharging)
         return if (_currentMode != oldMode) {
             ModeChangeResult.Changed(oldMode, _currentMode)
         } else {

@@ -19,7 +19,7 @@ class PowerCoordinatorTest {
     @Test
     fun initialModeIsPerformance() {
         val pc = coordinator()
-        assertEquals("PERFORMANCE", pc.currentMode)
+        assertEquals(PowerMode.PERFORMANCE, pc.currentMode)
     }
 
     @Test
@@ -29,13 +29,13 @@ class PowerCoordinatorTest {
         pc.updateBattery(50, isCharging = false)
         val r1 = pc.updateBattery(50, isCharging = false)
         assertIs<ModeChangeResult.Changed>(r1)
-        assertEquals("PERFORMANCE", r1.oldMode)
-        assertEquals("BALANCED", r1.newMode)
-        assertEquals("BALANCED", pc.currentMode)
+        assertEquals(PowerMode.PERFORMANCE, r1.oldMode)
+        assertEquals(PowerMode.BALANCED, r1.newMode)
+        assertEquals(PowerMode.BALANCED, pc.currentMode)
 
         pc.updateBattery(20, isCharging = false)
         pc.updateBattery(20, isCharging = false)
-        assertEquals("POWER_SAVER", pc.currentMode)
+        assertEquals(PowerMode.POWER_SAVER, pc.currentMode)
     }
 
     @Test
@@ -43,12 +43,12 @@ class PowerCoordinatorTest {
         val pc = coordinator()
         pc.updateBattery(20, isCharging = false)
         pc.updateBattery(20, isCharging = false)
-        assertEquals("POWER_SAVER", pc.currentMode)
+        assertEquals(PowerMode.POWER_SAVER, pc.currentMode)
 
         // Charging upgrade is immediate (no hysteresis)
         val result = pc.updateBattery(20, isCharging = true)
         assertIs<ModeChangeResult.Changed>(result)
-        assertEquals("PERFORMANCE", pc.currentMode)
+        assertEquals(PowerMode.PERFORMANCE, pc.currentMode)
     }
 
     @Test
@@ -56,7 +56,7 @@ class PowerCoordinatorTest {
         val pc = coordinator()
         val result = pc.updateBattery(90, isCharging = false)
         assertIs<ModeChangeResult.Unchanged>(result)
-        assertEquals("PERFORMANCE", pc.currentMode)
+        assertEquals(PowerMode.PERFORMANCE, pc.currentMode)
     }
 
     @Test
@@ -66,18 +66,18 @@ class PowerCoordinatorTest {
 
         // First call: requests downgrade, but hysteresis delays it
         pc.updateBattery(50, isCharging = false)
-        assertEquals("PERFORMANCE", pc.currentMode)
+        assertEquals(PowerMode.PERFORMANCE, pc.currentMode)
 
         // Still within hysteresis window
         now = 3000L
         pc.updateBattery(50, isCharging = false)
-        assertEquals("PERFORMANCE", pc.currentMode)
+        assertEquals(PowerMode.PERFORMANCE, pc.currentMode)
 
         // After hysteresis window
         now = 5000L
         val result = pc.updateBattery(50, isCharging = false)
         assertIs<ModeChangeResult.Changed>(result)
-        assertEquals("BALANCED", pc.currentMode)
+        assertEquals(PowerMode.BALANCED, pc.currentMode)
     }
 
     // ── 2. Memory pressure evaluation ─────────────────────────────
@@ -169,18 +169,18 @@ class PowerCoordinatorTest {
     fun customPowerMode_overrides_battery_logic() {
         val pc = coordinator()
         pc.setCustomPowerMode(PowerMode.POWER_SAVER)
-        assertEquals("POWER_SAVER", pc.currentMode)
+        assertEquals(PowerMode.POWER_SAVER, pc.currentMode)
 
         val result = pc.updateBattery(100, isCharging = true)
         assertIs<ModeChangeResult.Unchanged>(result)
-        assertEquals("POWER_SAVER", pc.currentMode)
+        assertEquals(PowerMode.POWER_SAVER, pc.currentMode)
     }
 
     @Test
     fun clearCustomPowerMode_resumes_battery_logic() {
         val pc = coordinator()
         pc.setCustomPowerMode(PowerMode.POWER_SAVER)
-        assertEquals("POWER_SAVER", pc.currentMode)
+        assertEquals(PowerMode.POWER_SAVER, pc.currentMode)
 
         pc.setCustomPowerMode(null)
         assertNull(pc.customPowerMode)
@@ -188,18 +188,18 @@ class PowerCoordinatorTest {
         // Battery logic resumes — charging should switch to PERFORMANCE
         val result = pc.updateBattery(100, isCharging = true)
         assertIs<ModeChangeResult.Changed>(result)
-        assertEquals("PERFORMANCE", pc.currentMode)
+        assertEquals(PowerMode.PERFORMANCE, pc.currentMode)
     }
 
     @Test
     fun setCustomPowerMode_returns_changed_when_different() {
         val pc = coordinator()
-        assertEquals("PERFORMANCE", pc.currentMode)
+        assertEquals(PowerMode.PERFORMANCE, pc.currentMode)
 
         val r1 = pc.setCustomPowerMode(PowerMode.BALANCED)
         assertIs<ModeChangeResult.Changed>(r1)
-        assertEquals("PERFORMANCE", r1.oldMode)
-        assertEquals("BALANCED", r1.newMode)
+        assertEquals(PowerMode.PERFORMANCE, r1.oldMode)
+        assertEquals(PowerMode.BALANCED, r1.newMode)
 
         // Same mode again → Unchanged
         val r2 = pc.setCustomPowerMode(PowerMode.BALANCED)
@@ -208,6 +208,6 @@ class PowerCoordinatorTest {
         // Clear back — mode stays BALANCED until battery update
         val r3 = pc.setCustomPowerMode(null)
         assertIs<ModeChangeResult.Unchanged>(r3)
-        assertEquals("BALANCED", pc.currentMode)
+        assertEquals(PowerMode.BALANCED, pc.currentMode)
     }
 }

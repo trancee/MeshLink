@@ -179,7 +179,7 @@ class MeshLinkViewModel(application: Application) : AndroidViewModel(application
 
     fun broadcastMessage(message: String) {
         val payloadBytes = message.encodeToByteArray()
-        meshLink.broadcast(payloadBytes, maxHops = _currentConfig.value.broadcastTTL)
+        meshLink.broadcast(payloadBytes, maxHops = _currentConfig.value.broadcastTtl)
             .onSuccess { uuid ->
                 log("📡 Broadcast (id=$uuid): $message")
             }

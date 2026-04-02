@@ -32,7 +32,7 @@ class InboundValidatorTest {
         val diagnosticSink = DiagnosticSink(bufferCapacity = 64, clock = clock)
         val config = testMeshLinkConfig {
             requireEncryption = false
-            inboundRateLimitPerSenderPerMinute = inboundRateLimit
+            inboundRateLimitPerSenderPerMin = inboundRateLimit
         }
         val deliveryPipeline = DeliveryPipeline(diagnosticSink = diagnosticSink, clock = clock)
         val rateLimitPolicy = RateLimitPolicy(config, clock)

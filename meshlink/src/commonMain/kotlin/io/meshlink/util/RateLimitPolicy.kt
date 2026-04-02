@@ -41,9 +41,9 @@ class RateLimitPolicy(
         }
 
     private val broadcastLimiter: RateLimiter? =
-        if (config.broadcastRateLimitPerMinute > 0) {
+        if (config.broadcastRateLimitPerMin > 0) {
             RateLimiter(
-                config.broadcastRateLimitPerMinute,
+                config.broadcastRateLimitPerMin,
                 60_000L,
                 clock,
             )
