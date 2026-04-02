@@ -7,7 +7,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 
 /**
  * In-process BLE transport simulator for testing.
- * Each instance represents one virtual device in the mesh.
+ * Each instance represents one virtual peer in the mesh.
  */
 class VirtualMeshTransport(
     override val localPeerId: ByteArray,

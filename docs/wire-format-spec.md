@@ -21,7 +21,7 @@ messages, the protocol defines a **10-byte BLE advertisement payload** and a
 | **Byte ordering** | Varies per field — each field table states **BE** (big-endian / network order) or **LE** (little-endian). |
 | **Type discriminator** | All framed messages share byte 0 as the type code. |
 | **Sizes** | All sizes are in bytes unless stated otherwise. Multi-byte integers are unsigned unless noted. |
-| **Key hashes** | Node identifiers and visited-list entries are 8-byte values (truncated SHA-256). |
+| **Key hashes** | Peer identifiers and visited-list entries are 8-byte values (truncated SHA-256). |
 | **Message IDs** | 16-byte random or pseudo-random identifiers. |
 | **Signature blocks** | Ed25519 signatures are 64 bytes; Ed25519 public keys are 32 bytes. |
 
@@ -217,7 +217,7 @@ Byte:   0       1                              16  17                 24
 |--------|------|-------|------|------------|-------------|
 | 0 | 1 | `type` | byte | — | `0x09` |
 | 1–16 | 16 | `messageId` | bytes | — | Unique message identifier. |
-| 17–24 | 8 | `origin` | bytes | — | Originator node ID (truncated key hash). |
+| 17–24 | 8 | `origin` | bytes | — | Originator peer ID (truncated key hash). |
 | 25 | 1 | `remainingHops` | UByte | — | TTL / remaining hop count. |
 | 26–41 | 16 | `appIdHash` | bytes | — | Application identifier hash (zero-filled if unused). |
 | 42 | 1 | `flags` | UByte | — | Bit 0: `HAS_SIGNATURE` (signature + signerPublicKey present). Bits 1–7: reserved. |
@@ -400,7 +400,7 @@ Byte:   0       1                 16  17         24  25         32
 
        For each of `vCnt` visited entries (8 bytes each):
        +------- ... --------+
-       |  visited node (8)  |
+       |  visited peer (8)  |
        +------- ... --------+
 
        Followed by: payload (remaining bytes)
@@ -410,12 +410,12 @@ Byte:   0       1                 16  17         24  25         32
 |--------|------|-------|------|------------|-------------|
 | 0 | 1 | `type` | byte | — | `0x0A` |
 | 1–16 | 16 | `messageId` | bytes | — | Unique message identifier. |
-| 17–24 | 8 | `origin` | bytes | — | Originator node ID. |
-| 25–32 | 8 | `destination` | bytes | — | Destination node ID. |
+| 17–24 | 8 | `origin` | bytes | — | Originator peer ID. |
+| 25–32 | 8 | `destination` | bytes | — | Destination peer ID. |
 | 33 | 1 | `hopLimit` | UByte | — | Maximum remaining hops. |
 | 34–41 | 8 | `replayCounter` | ULong | **LE** | Monotonic counter for replay protection. Default `0`. |
 | 42 | 1 | `visitedCount` | UByte | — | Number of visited-list entries (0–255). |
-| 43… | `vCnt × 8` | `visitedList` | bytes | — | Node IDs already visited (loop detection). |
+| 43… | `vCnt × 8` | `visitedList` | bytes | — | Peer IDs already visited (loop detection). |
 | … | variable | `payload` | bytes | — | Application payload (remaining bytes). |
 
 **Validation:**
@@ -452,7 +452,7 @@ Byte:   0       1                              16  17                 24  25
 |--------|------|-------|------|------------|-------------|
 | 0 | 1 | `type` | byte | — | `0x0B` |
 | 1–16 | 16 | `messageId` | bytes | — | ID of the message being acknowledged. |
-| 17–24 | 8 | `recipientId` | bytes | — | Node ID of the recipient confirming delivery. |
+| 17–24 | 8 | `recipientId` | bytes | — | Peer ID of the recipient confirming delivery. |
 | 25 | 1 | `flags` | UByte | — | Bit 0: `HAS_SIGNATURE`. Bits 1–7: reserved. |
 | 26–89 | 64 | `signature` | bytes | — | Ed25519 signature (present only if `flags & 0x01`). |
 | 90–121 | 32 | `signerPublicKey` | bytes | — | Ed25519 public key (present only if `flags & 0x01`). |
@@ -677,15 +677,15 @@ version negotiation and capability exchange (e.g., L2CAP support).
 
 ### Loop Detection
 
-- **Routed Messages** maintain a `visitedList` of node IDs (up to 255 entries)
+- **Routed Messages** maintain a `visitedList` of peer IDs (up to 255 entries)
   that have forwarded the message. Nodes must not forward a message if their own
   ID appears in the visited list.
 
 ### Key Identity
 
-- Node identity is derived from the **first 8 bytes of SHA-256(X25519 public
+- Peer identity is derived from the **first 8 bytes of SHA-256(X25519 public
   key)** in BLE advertisements (see Advertisement Payload).
-- Framed messages use **8-byte** truncated key hashes as node identifiers.
+- Framed messages use **8-byte** truncated key hashes as peer identifiers.
 
 ---
 

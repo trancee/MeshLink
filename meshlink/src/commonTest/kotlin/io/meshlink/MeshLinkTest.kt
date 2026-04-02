@@ -1624,7 +1624,7 @@ class MeshLinkTest {
         alice.stop()
     }
 
-    // --- Batch 7 Cycle 2: 4-node delivery ACK chain ---
+    // --- Batch 7 Cycle 2: 4-peer delivery ACK chain ---
 
     @Test
     fun fourNodeDeliveryAckRelaysBackToSender() = runTest {
@@ -1674,7 +1674,7 @@ class MeshLinkTest {
         alice.stop(); bob.stop(); charlie.stop(); dave.stop()
     }
 
-    // --- Batch 7 Cycle 1: Paused node doesn't relay routed messages ---
+    // --- Batch 7 Cycle 1: Paused peer doesn't relay routed messages ---
 
     @Test
     fun pausedNodeDoesNotRelayRoutedMessages() = runTest {
@@ -1711,7 +1711,7 @@ class MeshLinkTest {
         val relayed = transportBob.sentData.filter { (_, data) ->
             data.isNotEmpty() && data[0] == WireCodec.TYPE_ROUTED_MESSAGE
         }
-        assertEquals(0, relayed.size, "Paused node should not relay routed messages")
+        assertEquals(0, relayed.size, "Paused peer should not relay routed messages")
 
         bob.stop()
     }
@@ -1946,7 +1946,7 @@ class MeshLinkTest {
         val reflooded = transportBob.sentData.filter { (peerId, data) ->
             peerId == peerIdCharlie.toHex() && data.isNotEmpty() && data[0] == WireCodec.TYPE_BROADCAST
         }
-        assertEquals(0, reflooded.size, "Paused node should not re-flood broadcasts")
+        assertEquals(0, reflooded.size, "Paused peer should not re-flood broadcasts")
 
         bob.stop()
     }
@@ -3064,7 +3064,7 @@ class MeshLinkTest {
         alice.stop()
     }
 
-    // --- Batch 9 Cycle 5: 5-node chain relay with delivery ACK ---
+    // --- Batch 9 Cycle 5: 5-peer chain relay with delivery ACK ---
 
     @Test
     fun fiveNodeChainRelaysMessageAndDeliveryAck() = runTest {
@@ -3217,14 +3217,14 @@ class MeshLinkTest {
         transportAlice.receiveData(peerIdBob, truncated)
         advanceUntilIdle()
 
-        // Node should still be functional — send a real message
+        // Peer should still be functional — send a real message
         val received = mutableListOf<Message>()
         val collector = launch { alice.messages.collect { received.add(it) } }
         advanceUntilIdle()
 
-        // Self-send to confirm node is alive
+        // Self-send to confirm peer is alive
         val result = alice.send(peerIdAlice, "alive".encodeToByteArray())
-        assertTrue(result.isSuccess, "Node should still work after truncated data")
+        assertTrue(result.isSuccess, "Peer should still work after truncated data")
         advanceUntilIdle()
         assertEquals(1, received.size, "Should receive self-send after surviving truncated data")
 
@@ -3356,7 +3356,7 @@ class MeshLinkTest {
         alice.stop()
     }
 
-    // --- Batch 11 Cycle 7: Stopped node ignores incoming data ---
+    // --- Batch 11 Cycle 7: Stopped peer ignores incoming data ---
 
     @Test
     fun stoppedNodeIgnoresIncomingDataGracefully() = runTest {
@@ -3367,7 +3367,7 @@ class MeshLinkTest {
         transportAlice.simulateDiscovery(peerIdBob)
         advanceUntilIdle()
 
-        // Stop the node
+        // Stop the peer
         alice.stop()
         advanceUntilIdle()
 
@@ -3376,7 +3376,7 @@ class MeshLinkTest {
         transportAlice.receiveData(peerIdBob, broadcastData)
         advanceUntilIdle()
 
-        // Node is stopped — restarting should work fine
+        // Peer is stopped — restarting should work fine
         alice.start()
         advanceUntilIdle()
         val health = alice.meshHealth()
@@ -3489,7 +3489,7 @@ class MeshLinkTest {
         a.resume()
         advanceUntilIdle()
 
-        // Node still works normally
+        // Peer still works normally
         val received = mutableListOf<Message>()
         val collectJob = launch { b.messages.collect { received.add(it) } }
         advanceUntilIdle()
@@ -3606,7 +3606,7 @@ class MeshLinkTest {
         transportA.receiveData(peerIdBob, ByteArray(0))
         advanceUntilIdle()
 
-        // Node still healthy
+        // Peer still healthy
         val health = a.meshHealth()
         assertEquals(1, health.connectedPeers)
 
@@ -3723,15 +3723,15 @@ class MeshLinkTest {
         assertEquals(0, health.bufferUtilizationPercent)
         assertEquals("PERFORMANCE", health.powerMode)
 
-        // drainDiagnostics on fresh node is empty
+        // drainDiagnostics on fresh peer is empty
         val diags = a.drainDiagnostics()
-        assertTrue(diags.isEmpty(), "No diagnostics on fresh node")
+        assertTrue(diags.isEmpty(), "No diagnostics on fresh peer")
 
         // sweep with no peers returns empty
         val presenceEvicted = a.sweep(emptySet())
         assertTrue(presenceEvicted.isEmpty())
 
-        // sweepStaleTransfers on fresh node returns 0
+        // sweepStaleTransfers on fresh peer returns 0
         assertEquals(0, a.sweepStaleTransfers(maxAgeMillis = 1000))
         assertEquals(0, a.sweepStaleReassemblies(maxAgeMillis = 1000))
 
@@ -5922,7 +5922,7 @@ class MeshLinkTest {
         alice.send(peerIdBob, "hello-paused".encodeToByteArray())
         advanceUntilIdle()
 
-        assertEquals(1, received.size, "Paused node should still receive inbound messages")
+        assertEquals(1, received.size, "Paused peer should still receive inbound messages")
         assertContentEquals("hello-paused".encodeToByteArray(), received[0].payload)
 
         job.cancel()
@@ -5956,7 +5956,7 @@ class MeshLinkTest {
         alice.send(peerIdBob, "after-stop".encodeToByteArray())
         advanceUntilIdle()
 
-        assertEquals(0, received.size, "Stopped node should not emit messages")
+        assertEquals(0, received.size, "Stopped peer should not emit messages")
         job.cancel()
         alice.stop()
     }
@@ -6295,7 +6295,7 @@ class MeshLinkTest {
         transportA.receiveData(peerIdBob, unsignedAck)
         advanceUntilIdle()
 
-        // Crypto-enabled node rejects unsigned ACKs (line 956: signature.isEmpty → return)
+        // Crypto-enabled peer rejects unsigned ACKs (line 956: signature.isEmpty → return)
         assertTrue(confirmations.isEmpty(),
             "Unsigned delivery ACK must be rejected when crypto is enabled")
 
@@ -6645,7 +6645,7 @@ class MeshLinkTest {
         }
         assertEquals(0, malformed.size, "Empty data should not emit MALFORMED_DATA diagnostic")
 
-        // Node still functional after empty data
+        // Peer still functional after empty data
         val bob = MeshLink(transportB, testMeshLinkConfig { requireEncryption = false }, coroutineContext)
         bob.start()
         advanceUntilIdle()
@@ -6655,7 +6655,7 @@ class MeshLinkTest {
         val r = bob.send(peerIdAlice, "after-empty".encodeToByteArray())
         advanceUntilIdle()
         assertTrue(r.isSuccess)
-        assertEquals(1, received.size, "Node should still receive messages after empty data")
+        assertEquals(1, received.size, "Peer should still receive messages after empty data")
 
         collector.cancel()
         alice.stop(); bob.stop()

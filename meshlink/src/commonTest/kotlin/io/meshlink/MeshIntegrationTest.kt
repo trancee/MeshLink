@@ -585,7 +585,7 @@ class MeshIntegrationTest {
         alice.stop(); bob.stop()
     }
 
-    // ── Five-node full mesh discovery ──────────────────────────────
+    // ── Five-peer full mesh discovery ──────────────────────────────
 
     @Test
     fun fiveNodeFullMeshDiscovery() = runTest {
@@ -613,10 +613,10 @@ class MeshIntegrationTest {
         }
         advanceUntilIdle()
 
-        // Every node should see count-1 connected peers
+        // Every peer should see count-1 connected peers
         for (i in 0 until count) {
             val health = nodes[i].meshHealth()
-            assertEquals(count - 1, health.connectedPeers, "node $i should see ${count - 1} peers")
+            assertEquals(count - 1, health.connectedPeers, "peer $i should see ${count - 1} peers")
         }
 
         nodes.forEach { it.stop() }

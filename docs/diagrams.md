@@ -226,7 +226,7 @@ Sequence diagram showing a direct message from Sender → Relay → Recipient wi
 sequenceDiagram
     actor Sender as Sender App
     participant SLib as Sender MeshLink
-    participant Relay as Relay Node
+    participant Relay as Relay Peer
     participant RLib as Recipient MeshLink
     actor Recipient as Recipient App
 

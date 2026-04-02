@@ -50,7 +50,7 @@ class LargeScaleMeshTest {
         // Each interval propagates routes 1 more hop, so need ~50 intervals
         testScheduler.advanceTimeBy(50 * 50L + 100)
 
-        // Verify convergence: node 0 should know routes to many peers
+        // Verify convergence: peer 0 should know routes to many peers
         val healthFirst = nodes[0].meshHealth()
         val healthMiddle = nodes[25].meshHealth()
 
@@ -58,11 +58,11 @@ class LargeScaleMeshTest {
         nodes.forEach { it.stop() }
         testScheduler.advanceTimeBy(1L)
 
-        // Node 0 should have learned routes to distant peers via gossip
+        // Peer 0 should have learned routes to distant peers via gossip
         assertTrue(healthFirst.avgRouteCost > 0.0,
-            "Node 0 should have learned routes, avgRouteCost=${healthFirst.avgRouteCost}")
+            "Peer 0 should have learned routes, avgRouteCost=${healthFirst.avgRouteCost}")
         assertTrue(healthMiddle.connectedPeers >= 2,
-            "Middle node should have at least 2 connected peers, got ${healthMiddle.connectedPeers}")
+            "Middle peer should have at least 2 connected peers, got ${healthMiddle.connectedPeers}")
     }
 
     @Test
@@ -114,10 +114,10 @@ class LargeScaleMeshTest {
         nodes.forEach { it.stop() }
         testScheduler.advanceTimeBy(1L)
 
-        // Every node should know all other peers as connected
+        // Every peer should know all other peers as connected
         for (i in 0 until peerCount) {
             assertTrue(healths[i].connectedPeers >= peerCount - 1,
-                "Node $i should see ${peerCount - 1} peers, got ${healths[i].connectedPeers}")
+                "Peer $i should see ${peerCount - 1} peers, got ${healths[i].connectedPeers}")
         }
     }
 }

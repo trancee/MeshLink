@@ -60,10 +60,10 @@ import kotlin.math.sqrt
 /**
  * Mesh Visualizer screen — renders discovered peers as a circular graph on a Canvas.
  *
- * • Self node is drawn in the center with the primary color.
+ * • Local peer is drawn in the center with the primary color.
  * • Peer nodes are arranged in a circle around it.
  * • Links are drawn with color and thickness derived from RSSI signal quality.
- * • Tap a peer node to see detailed connection info.
+ * • Tap a peer to see detailed connection info.
  * • Auto-refreshes every 2 seconds.
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -390,7 +390,7 @@ private fun DrawScope.drawMeshGraph(
         )
     }
 
-    // Draw self node
+    // Draw local peer
     drawCircle(color = primaryColor, radius = selfNodeRadius, center = center)
     drawCircle(
         color = primaryColor.copy(alpha = 0.3f),

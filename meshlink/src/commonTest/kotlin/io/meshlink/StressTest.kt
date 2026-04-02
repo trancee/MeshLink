@@ -48,7 +48,7 @@ class StressTest {
             val health = nodes[i].meshHealth()
             assertEquals(
                 count - 1, health.connectedPeers,
-                "Node $i should see ${count - 1} peers but saw ${health.connectedPeers}"
+                "Peer $i should see ${count - 1} peers but saw ${health.connectedPeers}"
             )
         }
 
@@ -56,7 +56,7 @@ class StressTest {
     }
 
     @Test
-    fun `message delivery in 5-node chain`() = runTest {
+    fun `message delivery in 5-peer chain`() = runTest {
         val ids = (0 until 5).map { peerId(it) }
         val transports = ids.map { VirtualMeshTransport(it) }
 
@@ -75,7 +75,7 @@ class StressTest {
         }
         advanceUntilIdle()
 
-        // Set up forwarding routes: each node routes toward node 4
+        // Set up forwarding routes: each peer routes toward peer 4
         val hexIds = ids.map { it.toHex() }
         nodes[0].addRoute(hexIds[4], hexIds[1], 1.0, 1u)
         nodes[1].addRoute(hexIds[4], hexIds[2], 1.0, 1u)
@@ -128,7 +128,7 @@ class StressTest {
         }
         advanceUntilIdle()
 
-        // Each node sends to the next: 0→1, 1→2, 2→0
+        // Each peer sends to the next: 0→1, 1→2, 2→0
         val r0 = nodes[0].send(ids[1], "from-0".encodeToByteArray())
         val r1 = nodes[1].send(ids[2], "from-1".encodeToByteArray())
         val r2 = nodes[2].send(ids[0], "from-2".encodeToByteArray())
@@ -137,9 +137,9 @@ class StressTest {
         assertTrue(r2.isSuccess, "Send 2→0 failed: $r2")
         advanceUntilIdle()
 
-        assertEquals(1, received[0].size, "Node 0 should receive 1 message from node 2")
-        assertEquals(1, received[1].size, "Node 1 should receive 1 message from node 0")
-        assertEquals(1, received[2].size, "Node 2 should receive 1 message from node 1")
+        assertEquals(1, received[0].size, "Peer 0 should receive 1 message from peer 2")
+        assertEquals(1, received[1].size, "Peer 1 should receive 1 message from peer 0")
+        assertEquals(1, received[2].size, "Peer 2 should receive 1 message from peer 1")
 
         assertContentEquals("from-2".encodeToByteArray(), received[0][0].payload)
         assertContentEquals("from-0".encodeToByteArray(), received[1][0].payload)
@@ -154,20 +154,20 @@ class StressTest {
         val id = peerId(0)
         val transport = VirtualMeshTransport(id)
         val config = testMeshLinkConfig { requireEncryption = false }
-        val node = MeshLink(transport, config, coroutineContext)
+        val peer = MeshLink(transport, config, coroutineContext)
 
         repeat(10) { cycle ->
-            val startResult = node.start()
+            val startResult = peer.start()
             assertTrue(startResult.isSuccess, "Start cycle $cycle failed: $startResult")
             advanceUntilIdle()
-            node.stop()
+            peer.stop()
         }
 
-        // Verify the node still works after rapid cycling
-        val finalStart = node.start()
+        // Verify the peer still works after rapid cycling
+        val finalStart = peer.start()
         assertTrue(finalStart.isSuccess, "Final start after 10 cycles failed")
         advanceUntilIdle()
-        node.stop()
+        peer.stop()
     }
 
     @Test
@@ -245,7 +245,7 @@ class StressTest {
         }
         advanceUntilIdle()
 
-        // Node 0 broadcasts
+        // Peer 0 broadcasts
         val result = nodes[0].broadcast("flood".encodeToByteArray(), maxHops = 3u)
         assertTrue(result.isSuccess, "Broadcast should succeed: $result")
         advanceUntilIdle()
@@ -253,7 +253,7 @@ class StressTest {
         for (i in 0 until count - 1) {
             assertEquals(
                 1, received[i].size,
-                "Node ${i + 1} should receive broadcast but got ${received[i].size} messages"
+                "Peer ${i + 1} should receive broadcast but got ${received[i].size} messages"
             )
             assertContentEquals("flood".encodeToByteArray(), received[i][0].payload)
             assertContentEquals(ids[0], received[i][0].senderId)

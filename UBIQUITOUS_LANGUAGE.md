@@ -154,7 +154,7 @@ The following terms are commonly confused. Read this before continuing.
 | **Independent Version Downgrade** | Protocol version negotiation strategy where each peer independently computes `min(local, remote)` version. No coordination needed — both sides arrive at the same result. | Coordinated downgrade, version handshake |
 | **Link Cost** | Quality score for a single hop: linear RSSI-to-cost mapping × `loss_multiplier` + `stability_penalty` (lower is better). | Link quality, link weight |
 | **Next-Hop** | The **Neighbor** to which a **Routed Message** should be forwarded, as determined by the **Routing Table**. | Next node, relay target |
-| **Local Reputation Tracking** | Per-**Relay** delivery success rate tracking used to score neighbor reliability. Each node maintains local-only delivery success rates for its relays; relays with disproportionate failures are deprioritized in route selection. Never shared across peers (prevents reputation poisoning). Replaces former per-hop ACK design. | Forwarding ACK, relay ACK, per-hop ACK, positional blame |
+| **Local Reputation Tracking** | Per-**Relay** delivery success rate tracking used to score neighbor reliability. Each peer maintains local-only delivery success rates for its relays; relays with disproportionate failures are deprioritized in route selection. Never shared across peers (prevents reputation poisoning). Replaces former per-hop ACK design. | Forwarding ACK, relay ACK, per-hop ACK, positional blame |
 | **Per-Neighbor Routing Table Cap** | Sybil mitigation: routes learned through any single **Neighbor** are capped at 30% of the **Routing Table** entries (minimum 60 routes). Prevents a Sybil cluster from dominating path selection. Configurable via `routeTablePerNeighborCap`. | Neighbor route quota, per-neighbor limit |
 | **Primary Route** | The lowest-**Route Cost** path to a destination in the **Routing Table**. Used for forwarding by default. | Best route, preferred route |
 | **Reputation System** | Local-only per-**Relay** delivery success rate tracking. Deprioritizes relays with disproportionate failures. Never shared across peers (prevents reputation poisoning). | Relay trust, behavior scoring |
@@ -175,10 +175,10 @@ The following terms are commonly confused. Read this before continuing.
 |------|-----------|-----------------|
 | **Buffer** | The memory region (fixed 1MB default) where a **Peer** holds **Routed Messages** destined for currently-unreachable recipients (store-and-forward). | Message queue, store, cache |
 | **Buffer Eviction** | 3-tier eviction when memory is full: (1) no-route messages first, (2) relay messages, (3) own outbound messages. Within each tier, evict by priority score (ascending), then remaining TTL, then FIFO. → see design.md §4. | Tiered buffer eviction, cache eviction |
-| **Buffer TTL** | The per-node independent countdown (default 5 minutes) after which a buffered message is evicted. No shared clock — each **Peer** starts its own timer. | Message expiry, time-to-live |
+| **Buffer TTL** | The per-peer independent countdown (default 5 minutes) after which a buffered message is evicted. No shared clock — each **Peer** starts its own timer. | Message expiry, time-to-live |
 | **Dedup Set** | Time-and-count-bounded in-memory set of recently-seen **Message IDs** for deduplication (max 10k entries, age ≤ `maxHops × bufferTTL`). In-memory only in v1 — lost on crash. | Seen set, message cache |
 | **Relay Cap** | The soft limit (75%) on how much of the **Buffer** pool relay-forwarded traffic may consume. Ensures 25% of the pool reserved for own outbound messages. Only activates when both own and relay traffic compete. | Relay budget, relay limit |
-| **Relay Buffer Copy** | Per-chunk buffer at a **Relay** node during **Cut-Through Forwarding**. Evicted at the **Chunk Inactivity Timeout** (30s) or on final **Chunk ACK** from the **Next-Hop** — whichever first. Counts toward the 75% **Relay Cap**. | Relay cache, forwarding buffer |
+| **Relay Buffer Copy** | Per-chunk buffer at a **Relay** during **Cut-Through Forwarding**. Evicted at the **Chunk Inactivity Timeout** (30s) or on final **Chunk ACK** from the **Next-Hop** — whichever first. Counts toward the 75% **Relay Cap**. | Relay cache, forwarding buffer |
 
 ## Power Management
 

@@ -382,8 +382,8 @@ flowchart TD
   | 0 | 16 bytes | Message ID (UUID) |
   | 16 | 32 bytes | Destination public key (Ed25519) |
   | 48 | 1 byte | Hop count (current) |
-  | 49 | 1 byte | Visited node count (V) |
-  | 50 | V × 8 bytes | Visited node list (8-byte SHA-256-64 key hashes, max `maxHops` entries) |
+  | 49 | 1 byte | Visited count (V) |
+  | 50 | V × 8 bytes | Visited List (8-byte SHA-256-64 key hashes, max `maxHops` entries) |
   | 50 + V×8 | 2 bytes | Chunk sequence number (uint16, little-endian) |
   | 52 + V×8 | 4 bytes | Total ciphertext length (uint32, LE; **first chunk only**, seq=0. Omitted for seq>0, reducing per-chunk overhead by 4 bytes.) |
   | 56 + V×8 | C bytes | Chunk payload (E2E ciphertext fragment; for seq>0, payload starts at offset 52 + V×8) |
@@ -396,16 +396,16 @@ packet-beta
   0-127: "Message ID (UUID, 16 bytes)"
   128-383: "Destination Public Key (Ed25519, 32 bytes)"
   384-391: "Hop Count (1 byte)"
-  392-399: "Visited Node Count V (1 byte)"
+  392-399: "Visited Count V (1 byte)"
   400-527: "Visited List (V × 16 bytes, max 4 entries)"
   528-543: "Chunk Seq# (uint16 LE)"
   544-575: "Total Ciphertext Len (uint32 LE, seq=0 only)"
   576-639: "Chunk Payload (C bytes)"
 ```
 
-**Parser safety:** The visited node count (V) MUST be validated: `V ≤ maxHops` (default 10). Messages with `V > maxHops` are rejected immediately. Additionally, the total message size must not exceed the transport frame size (MTU for GATT, negotiated frame size for L2CAP). Malformed messages are dropped and logged via diagnostic events.
+**Parser safety:** The visited count (V) MUST be validated: `V ≤ maxHops` (default 10). Messages with `V > maxHops` are rejected immediately. Additionally, the total message size must not exceed the transport frame size (MTU for GATT, negotiated frame size for L2CAP). Malformed messages are dropped and logged via diagnostic events.
 
-**Forwarding predicate:** A relay node MUST NOT forward a `routed_message` if `hop_count >= maxHops`. The hop count field (offset 48) governs the TTL — it is incremented by each relay before forwarding. The visited node list governs **loop detection** — if the relay's own key hash is already in the visited list, the message is dropped (loop). These are independent checks: hop_count limits distance, visited list prevents cycles.
+**Forwarding predicate:** A relay MUST NOT forward a `routed_message` if `hop_count >= maxHops`. The hop count field (offset 48) governs the TTL — it is incremented by each relay before forwarding. The Visited List governs **loop detection** — if the relay's own key hash is already in the visited list, the message is dropped (loop). These are independent checks: hop_count limits distance, visited list prevents cycles.
 
 **Relay-is-also-destination behavior:** When a relay discovers it is the intended recipient of a `routed_message`:
 - **DirectMessage:** Deliver locally and **stop forwarding**. Unicast has a single destination — forwarding past it wastes bandwidth and risks duplicates.
@@ -603,7 +603,7 @@ All message types use a **hand-specified binary format** — no protobuf, no sch
 - Any field exceeding bounds → reject entire frame, increment `malformedFrames` diagnostic counter
 
 **Complete parser validation rule set (mandatory):**
-- `V = 0` is valid (origin node, no visited peers yet)
+- `V = 0` is valid (originator, no visited peers yet)
 - `TotalLen ≤ maxMessageSize` (default 100KB) — reject oversized messages
 - `ChunkSeq ≤ ceil(TotalLen / chunkPayloadSize)` — reject out-of-range sequence numbers
 - All public key fields must be non-zero (32 bytes of 0x00 is not a valid Ed25519 key)
@@ -618,7 +618,7 @@ Message IDs are **128-bit UUID v4** (16 bytes), generated randomly by the sender
 
 Protocol version and capability flags are bit-packed into the BLE advertisement payload (10 bytes total: 2B version+power+reserved, 8B key hash). BLE 4.x scan response allows 31 bytes max; a Service Data AD with 128-bit UUID uses 18 bytes of overhead, leaving 13 bytes — MeshLink uses 10 for a clean fit. Version negotiation occurs during the Noise XX handshake. See §12 Protocol Governance & Versioning for negotiation rules, backward compatibility policy, and the N−1 support window.
 
-**Scan response service data:** The advertisement payload is carried as BLE Service Data associated with the MeshLink 128-bit service UUID. The 6-bit version field in byte 0 allows scanning nodes to determine the remote protocol version *before* connecting — avoiding wasted handshakes on version mismatch. If a node scans an advertisement with an unsupported major version, it skips the connection entirely.
+**Scan response service data:** The advertisement payload is carried as BLE Service Data associated with the MeshLink 128-bit service UUID. The 6-bit version field in byte 0 allows scanning peers to determine the remote protocol version *before* connecting — avoiding wasted handshakes on version mismatch. If a peer scans an advertisement with an unsupported major version, it skips the connection entirely.
 
 **Scan response data:** The scan response carries a duplicate of the 16-bit service UUID (`0x7F3A`) in a Complete List of 16-bit Service UUIDs AD structure. This ensures iOS background discoverability — iOS moves service UUIDs to the "overflow area" when the app is backgrounded, making them visible only to devices already filtering for that UUID. The scan response UUID guarantees MeshLink peers remain discoverable regardless of iOS background state.
 
@@ -674,7 +674,7 @@ Since every device operates as both BLE central and peripheral, two devices disc
 **Edge cases:**
 - **Identical truncated key hashes:** Astronomically unlikely with 8 bytes (64-bit collision resistance), but if it happens, detect the duplicate during Noise XX handshake (same static key on both sessions) and tear down the second connection.
 - **One side doesn't see the other's advertisement** (e.g., iOS background overflow): The device that can see the ad connects regardless of the tie-breaking rule. If a connection already exists (the other side connected first), the new connection is rejected at the GATT level.
-- **On-demand connections for message delivery** bypass the tie-breaking convention — if a node has data to send and needs to connect to a specific peer, it initiates regardless of the tie-breaking result. Tie-breaking only governs **mutual-discovery races** (when both sides see each other's advertisement simultaneously), not one-sided reconnection needs. There is no duplicate risk because the other side is not simultaneously trying to connect.
+- **On-demand connections for message delivery** bypass the tie-breaking convention — if a peer has data to send and needs to connect to a specific peer, it initiates regardless of the tie-breaking result. Tie-breaking only governs **mutual-discovery races** (when both sides see each other's advertisement simultaneously), not one-sided reconnection needs. There is no duplicate risk because the other side is not simultaneously trying to connect.
 
 **Simultaneous connection race:** If both peers initiate connections simultaneously (both scanning at the same time), both connections may complete including Noise XX handshake. After handshake, each peer evaluates the tie-breaking rule. The peer in the wrong role (should not be Central per the rule) closes its outbound connection. The correct-role connection survives. `DUPLICATE_CONNECTION_RESOLVED` diagnostic (INFO) emitted with `{peerKey, keptRole, closedRole}`.
 
@@ -799,7 +799,7 @@ Multiple chunked transfers can be in-flight simultaneously on a single BLE conne
 
 (tracks BLE radio time + relay buffer memory: 8×100KB=800KB at Performance, 1×100KB at PowerSaver)
 
-A node NACKs with a `bufferFull` reason code when **either** limit is hit: concurrent transfer cap reached OR buffer memory full. The sender receives an explicit rejection and can retry later or try an alternate route.
+A peer NACKs with a `bufferFull` reason code when **either** limit is hit: concurrent transfer cap reached OR buffer memory full. The sender receives an explicit rejection and can retry later or try an alternate route.
 
 ```mermaid
 sequenceDiagram
@@ -1220,21 +1220,21 @@ message is queued in the pending buffer and drained when the RREP arrives.
 - **Route failure** (delivery timeout, GATT disconnect) — immediately invalidates
   the cached route and allows a fresh discovery on the next send attempt.
 
-### Loop Prevention: Visited Node List
+### Loop Prevention: Visited List
 
-Each routed message carries a **visited node list** — the public key (or truncated hash) of every node that has forwarded this message. A node that sees itself in the visited list drops the message. **Relay processing sequence:** (1) receive message, (2) check visited list for own hash → if present, DROP (loop detected), (3) **add own hash** to visited list, (4) look up next-hop in routing table, (5) forward message with updated visited list. The relay adds its hash **before forwarding** — this ensures the next relay sees the current relay in the visited list, preventing loops via asymmetric return paths. The dedup set handles concurrent multipath copies arriving at the same relay simultaneously.
+Each routed message carries a **Visited List** — the public key (or truncated hash) of every peer that has forwarded this message. A peer that sees itself in the visited list drops the message. **Relay processing sequence:** (1) receive message, (2) check visited list for own hash → if present, DROP (loop detected), (3) **add own hash** to visited list, (4) look up next-hop in routing table, (5) forward message with updated visited list. The relay adds its hash **before forwarding** — this ensures the next relay sees the current relay in the visited list, preventing loops via asymmetric return paths. The dedup set handles concurrent multipath copies arriving at the same relay simultaneously.
 
 The visited list uses **8-byte SHA-256-64 key hashes** (SHA-256 truncated to 64 bits of Curve25519 public key digests) rather than full 32-byte public keys. At 4 hops max, this costs **32 bytes** (4 × 8 bytes). Collision risk at 64 bits (~2³² birthday bound) is negligible for any practical mesh size (far exceeding any realistic number of mesh devices). The hop counter provides a secondary backstop.
 
 **Hash collision risk:** SHA-256-64 collision probability is ~N²/2⁶⁴, negligible for meshes ≤10,000 peers. No mitigation implemented. A `VISITED_LIST_LOOP_DETECTED` diagnostic is emitted whenever a message is dropped due to visited-list match, carrying `{messageId, matchedHash, hopCount}` for forensic analysis.
 
-**Origin node visited list:** The origin sender transmits with `visited_count=0` — it does not add itself to the visited list. The origin's identity is already encoded in the `sender` field of the routed_message envelope. The first relay receives V=0, adds its own hash (V=1), and forwards. This saves 8 bytes on single-hop messages.
+**Origin peer Visited List:** The origin sender transmits with `visited_count=0` — it does not add itself to the visited list. The origin's identity is already encoded in the `sender` field of the routed_message envelope. The first relay receives V=0, adds its own hash (V=1), and forwards. This saves 8 bytes on single-hop messages.
 
 ### Message Deduplication
 
-With multi-hop routing and store-and-forward, the same message can arrive at a node via multiple paths. Every node maintains a **recently-seen message ID set**, bounded by **both time and count** (whichever limit is hit first):
+With multi-hop routing and store-and-forward, the same message can arrive at a peer via multiple paths. Every peer maintains a **recently-seen message ID set**, bounded by **both time and count** (whichever limit is hit first):
 
-- **Time bound:** entries older than `maxHops × bufferTTL` are evicted (default: 10 × 5 min = 50 min). Each relay node starts its own independent TTL from the moment it receives a message (no shared clock required), so a message can theoretically survive `maxHops × bufferTTL` total. The dedup time bound must cover this maximum lifespan. The 50-minute dedup window (`maxHops × bufferTTL` = 10 × 5 min) covers the theoretical maximum lifespan of a message traversing the full relay chain — one `bufferTTL` per hop, sequentially. This ensures that even messages spending the maximum buffer time at each relay are caught by dedup on redelivery, preventing duplicates after app restart or during partition heal.
+- **Time bound:** entries older than `maxHops × bufferTTL` are evicted (default: 10 × 5 min = 50 min). Each relay starts its own independent TTL from the moment it receives a message (no shared clock required), so a message can theoretically survive `maxHops × bufferTTL` total. The dedup time bound must cover this maximum lifespan. The 50-minute dedup window (`maxHops × bufferTTL` = 10 × 5 min) covers the theoretical maximum lifespan of a message traversing the full relay chain — one `bufferTTL` per hop, sequentially. This ensures that even messages spending the maximum buffer time at each relay are caught by dedup on redelivery, preventing duplicates after app restart or during partition heal.
 - **Count bound:** default maximum 10,000 entries (configurable via `dedupMaxEntries`). Rationale: at 30 msg/s sustained, 10,000 entries provide ~333 seconds (5.5 min) of coverage — slightly above the 5-minute bufferTTL. Memory: 24 bytes × 10,000 = 240KB (acceptable). Beyond 30 msg/s, earliest entries evict before TTL; duplicate delivery handled by app-layer message ID dedup.
 - On receiving any message (routed, broadcast, or buffered), check if `messageId` is in the seen set
 - If seen → drop silently (do not forward, do not deliver to app)
@@ -1267,9 +1267,9 @@ flowchart TD
 
 When the recipient is temporarily unreachable, mesh nodes buffer encrypted messages:
 
-- **Who buffers:** Any node in the mesh (messages are E2E encrypted — buffering nodes cannot read content)
+- **Who buffers:** Any peer in the mesh (messages are E2E encrypted — buffering peers cannot read content)
 - **Default TTL:** 5 minutes (configurable by library consumer)
-- **Per-node independent TTL:** Each node starts its own 5-minute countdown from the moment it receives the message. No shared clock is needed — TTL is purely local. This means a message can theoretically survive up to `maxHops × bufferTTL` (default 20 minutes) across the full relay chain. **No wire-format TTL.** Per-node buffer TTL + visited-list loop prevention + 20-min dedup window provide sufficient message lifetime bounds.
+- **Per-peer independent TTL:** Each peer starts its own 5-minute countdown from the moment it receives the message. No shared clock is needed — TTL is purely local. This means a message can theoretically survive up to `maxHops × bufferTTL` (default 20 minutes) across the full relay chain. **No wire-format TTL.** Per-peer buffer TTL + visited-list loop prevention + 20-min dedup window provide sufficient message lifetime bounds.
 - **Buffer size:** Fixed default **1,048,576 bytes (1 MB)**, configurable via `bufferMaxSize` (min 256KB, max 8MB). Covers 10× 100KB messages. No auto-adaptive sizing in v1 — avoids platform-specific memory queries and non-deterministic behavior.
 
 **OOM handling:** If buffer allocation fails, emit `BUFFER_OOM` diagnostic and retry with half the configured size (floor: 256KB).
@@ -1314,7 +1314,7 @@ flowchart TD
 ```
 
 - The `bufferTTL` is a maximum, not a guarantee — early eviction under memory or capacity pressure is expected.
-- **Metadata exposure accepted for v1:** Buffering nodes can observe sender/recipient public keys, message sizes, and timestamps. A malicious node could build a social graph of "who talks to whom." This tradeoff is documented and deferred to post-v1.
+- **Metadata exposure accepted for v1:** Buffering peers can observe sender/recipient public keys, message sizes, and timestamps. A malicious peer could build a social graph of "who talks to whom." This tradeoff is documented and deferred to post-v1.
 
 **Relay buffer accounting:** The buffer pool is a **shared pool** for both own-outbound messages and relay-forwarded traffic, with a **75% relay cap**. Relay traffic may use up to 75% of the configured pool; the remaining **25% is reserved for the device's own outbound messages** — guaranteeing the device can always queue at least one full 100KB message regardless of relay load. The cap is soft: if no own-outbound messages are queued, relay traffic may use the full pool. The cap only activates when both own-outbound and relay traffic compete for space.
 
@@ -1350,7 +1350,7 @@ MeshLink uses two distinct encryption layers to secure messages over multi-hop r
 | Layer | Scheme | Purpose | Scope |
 |-------|--------|---------|-------|
 | **End-to-end (E2E)** | Noise K (`Noise_K_25519_ChaChaPoly_SHA256`) | Encrypt payload so only the final recipient can read it; authenticates sender | Sender → Recipient |
-| **Hop-by-hop** | Noise XX (`Noise_XX_25519_ChaChaPoly_SHA256`) | Encrypt transport between adjacent mesh nodes | Node → Adjacent Node |
+| **Hop-by-hop** | Noise XX (`Noise_XX_25519_ChaChaPoly_SHA256`) | Encrypt transport between adjacent peers | Peer → Adjacent Peer |
 
 ### E2E Layer: Noise K (One-Shot, 0-RTT, Sender-Authenticated)
 
@@ -1500,7 +1500,7 @@ sequenceDiagram
 
 ### Replay Protection
 
-A malicious relay node could record and replay a `RoutedMessage` envelope. To prevent this, the E2E encrypted payload includes a **replay counter** (uint64) per sender. The recipient maintains a **64-counter sliding window** per sender (DTLS-style, per RFC 6347 §4.1.2.6): track the highest-seen counter N and a 64-bit bitmap for counters [N−63, N]. Accept any counter in this range whose bit is unset. Reject counters < N−63 as too old, or any counter whose bit is already set as replayed. This tolerates message reordering from multi-path routing (gap typically 1-3 messages) while maintaining replay protection. The replay counter store is **global across all connections**, keyed by the sender's Ed25519 public key (not by connection). This prevents cross-connection replay attacks — if the same sender connects via two different relay paths, the same counter window applies. Cost: 16 bytes per sender in the peer table (8 bytes highest counter + 8 bytes bitmap).
+A malicious relay could record and replay a `RoutedMessage` envelope. To prevent this, the E2E encrypted payload includes a **replay counter** (uint64) per sender. The recipient maintains a **64-counter sliding window** per sender (DTLS-style, per RFC 6347 §4.1.2.6): track the highest-seen counter N and a 64-bit bitmap for counters [N−63, N]. Accept any counter in this range whose bit is unset. Reject counters < N−63 as too old, or any counter whose bit is already set as replayed. This tolerates message reordering from multi-path routing (gap typically 1-3 messages) while maintaining replay protection. The replay counter store is **global across all connections**, keyed by the sender's Ed25519 public key (not by connection). This prevents cross-connection replay attacks — if the same sender connects via two different relay paths, the same counter window applies. Cost: 16 bytes per sender in the peer table (8 bytes highest counter + 8 bytes bitmap).
 
 **Persistence requirement:** Replay counter persistence uses an **asymmetric strategy** optimized for the different risk profiles of outbound vs. inbound counters:
 
@@ -1518,7 +1518,7 @@ This creates **defense-in-depth**: replay counter (primary) + dedup set (backup)
 
 ### Denial-of-Service Protection
 
-A malicious node in BLE range could flood the mesh with fake messages, exhausting dedup sets and buffers on honest nodes. MeshLink mitigates this with two mechanisms:
+A malicious peer in BLE range could flood the mesh with fake messages, exhausting dedup sets and buffers on honest peers. MeshLink mitigates this with two mechanisms:
 
 **Per-sender-per-neighbor rate limiting:**
 
@@ -1538,11 +1538,11 @@ Rationale: 20/min = 4× typical app messaging rate (~5 msg/min). At 50 senders �
 
 **Chunk inactivity timeout:** If no new chunk is received for an in-progress transfer within **30 seconds** (configurable), the incomplete transfer is dropped and the reassembly buffer is freed. **Timer semantics:** The 30-second timer **resets on each received chunk** (last-chunk, not first-chunk). This means slow but progressing transfers stay alive — only truly stalled transfers time out. Each relay in a multi-hop path runs its **own independent** 30-second timer for the transfer segment it's processing. The timeout is measured on the **receiver side** for both GATT and L2CAP, even if the sender's L2CAP credits are temporarily exhausted. This prevents chunk flooding attacks where a sender starts transfers it never intends to complete.
 
-**Per-neighbor aggregate rate limit:** In addition to per-sender limits, each node caps **total incoming user-level messages from any single neighbor** at `neighborRateLimit` (default: **100 messages/min**, configurable). Applied after per-sender limits. Excess messages dropped with `NEIGHBOR_RATE_LIMIT_HIT(neighbor)` diagnostic. Control-plane messages are exempt. This prevents coordinated denial-of-sleep attacks where multiple senders route through a single neighbor to exhaust the target's battery (e.g., 10 senders × 20 msg/min = 200/min, capped at 100/min aggregate).
+**Per-neighbor aggregate rate limit:** In addition to per-sender limits, each peer caps **total incoming user-level messages from any single neighbor** at `neighborRateLimit` (default: **100 messages/min**, configurable). Applied after per-sender limits. Excess messages dropped with `NEIGHBOR_RATE_LIMIT_HIT(neighbor)` diagnostic. Control-plane messages are exempt. This prevents coordinated denial-of-sleep attacks where multiple senders route through a single neighbor to exhaust the target's battery (e.g., 10 senders × 20 msg/min = 200/min, capped at 100/min aggregate).
 
-**NACK rate limiting:** To prevent amplification attacks (attacker floods with many fake sender IDs, causing the node to emit a NACK for each), outgoing NACKs are rate-limited to **10 per second per neighbor**. NACKs beyond this threshold are silently dropped — the attacker receives no feedback, limiting the attack's effectiveness.
+**NACK rate limiting:** To prevent amplification attacks (attacker floods with many fake sender IDs, causing the peer to emit a NACK for each), outgoing NACKs are rate-limited to **10 per second per neighbor**. NACKs beyond this threshold are silently dropped — the attacker receives no feedback, limiting the attack's effectiveness.
 
-**Residual risk:** A coordinated attack from multiple BLE devices could still overwhelm a node (each attacker gets its own 20 msg/min quota). BLE's physical proximity requirement (~30m range) limits the practical attack surface, but this should be revisited if MeshLink is deployed in adversarial environments.
+**Residual risk:** A coordinated attack from multiple BLE devices could still overwhelm a peer (each attacker gets its own 20 msg/min quota). BLE's physical proximity requirement (~30m range) limits the practical attack surface, but this should be revisited if MeshLink is deployed in adversarial environments.
 
 ### Sybil Attack Mitigation
 
@@ -1641,7 +1641,7 @@ When a device first discovers a peer's public key in the mesh, it **pins that ke
 
 **Tradeoff:** Strict mode forces apps to handle key changes explicitly; `softRepin` available for convenience-prioritized apps.
 
-**Duplicate identity detection:** If a node observes the same Ed25519 public key advertised from two different BLE MAC addresses simultaneously, it emits `onSecurityWarning(DUPLICATE_IDENTITY, pubkey)`. The library does not resolve the conflict — the app/user decides (e.g., revoke and `rotateIdentity()`). This detects key theft but cannot prevent it.
+**Duplicate identity detection:** If a peer observes the same Ed25519 public key advertised from two different BLE MAC addresses simultaneously, it emits `onSecurityWarning(DUPLICATE_IDENTITY, pubkey)`. The library does not resolve the conflict — the app/user decides (e.g., revoke and `rotateIdentity()`). This detects key theft but cannot prevent it.
 
 **Key storage requirement:** Ed25519 private keys MUST be stored in platform secure storage (Android Keystore via EncryptedSharedPreferences, iOS Keychain). This is a security requirement, not a suggestion — storing keys in plaintext files or shared preferences would allow trivial key extraction and identity cloning. Post-v1: hardware key attestation could bind keys to specific devices, preventing cloning entirely.
 
@@ -1664,7 +1664,7 @@ Potential post-v1 mitigations:
 
 2. **L2CAP frame-dropping downgrade attack:** Without BLE-level encryption, an attacker can intercept the BLE connection and selectively drop L2CAP frames. This causes Noise XX nonce desynchronization → L2CAP teardown → GATT fallback (a throughput downgrade). The attacker cannot read or modify content (Noise XX prevents this) but can force the slower transport. **Mitigation:** The diagnostic stream emits `suspiciousL2capDrops(peer, count)` when repeated L2CAP teardowns occur to the same peer in a short window. Detection only — prevention would require BLE-level encryption (pairing).
 
-**Route poisoning (accepted risk):** A malicious node physically present in BLE range could advertise artificially low route costs, attracting traffic as a blackhole. Route cost sanity validation (§4) catches trivial attacks (cost < link cost). Sophisticated attacks with plausible costs are accepted as a v1 risk: BLE's physical proximity requirement limits the attack surface, E2E encryption prevents content access, and the attacker can only deny service. Post-v1 mitigation: reputation scoring based on delivery success rate per relay.
+**Route poisoning (accepted risk):** A malicious peer physically present in BLE range could advertise artificially low route costs, attracting traffic as a blackhole. Route cost sanity validation (§4) catches trivial attacks (cost < link cost). Sophisticated attacks with plausible costs are accepted as a v1 risk: BLE's physical proximity requirement limits the attack surface, E2E encryption prevents content access, and the attacker can only deny service. Post-v1 mitigation: reputation scoring based on delivery success rate per relay.
 
 **Replay window shift (accepted risk):** A theoretical attack where a sender transmits a message with an artificially high counter value, shifting the recipient's sliding window forward and causing legitimate messages with "normal" counters to be rejected. This requires possession of the sender's private key (to produce valid Noise K ciphertext). At that point, the attacker has full impersonation capability — replay window manipulation is the least concern. Key compromise is addressed by `rotateIdentity()`.
 
@@ -1679,7 +1679,7 @@ Potential post-v1 mitigations:
 | **1:1** | E2E encrypted message to a specific recipient (Noise K — sender authenticated) |
 | **Broadcast** | **Signed** (Ed25519) but unencrypted message relayed hop-by-hop up to `broadcastTTL` hops (default 2) |
 
-**Broadcast propagation model:** Broadcasts relay hop-by-hop. Each receiving node re-sends the broadcast to all its neighbors (except the source), decrementing a hop counter. The broadcast is dropped when hop counter reaches 0 or dedup detects a duplicate. This bounds amplification: at `broadcastTTL=2` with 5 neighbors, a single broadcast generates ~10-15 relay messages. The `broadcastTTL` config parameter (default 2, range 1–`maxHops`) controls reach vs. overhead. `broadcastTTL` is configurable in the range **1–`maxHops`** (default 2). Setting `broadcastTTL > maxHops` is rejected by config validation.
+**Broadcast propagation model:** Broadcasts relay hop-by-hop. Each receiving peer re-sends the broadcast to all its neighbors (except the source), decrementing a hop counter. The broadcast is dropped when hop counter reaches 0 or dedup detects a duplicate. This bounds amplification: at `broadcastTTL=2` with 5 neighbors, a single broadcast generates ~10-15 relay messages. The `broadcastTTL` config parameter (default 2, range 1–`maxHops`) controls reach vs. overhead. `broadcastTTL` is configurable in the range **1–`maxHops`** (default 2). Setting `broadcastTTL > maxHops` is rejected by config validation.
 
 **Broadcast rate limiting:** Broadcasts have a **separate rate limit** of **10 broadcasts per minute per sender** (configurable via `broadcastRateLimit`), independent of the 20 msg/min direct message quota. This prevents broadcast-heavy apps from starving direct messages and limits mesh-wide amplification. At 10 broadcasts/min × TTL=2 × 5 neighbors ≈ 100-150 relay messages/min — acceptable on BLE.
 
@@ -1702,7 +1702,7 @@ Signature covers bytes [0, 53+N). Receivers verify using sender pubkey from enve
 
 **Broadcast size constraint (GATT):** On the GATT data plane, broadcasts must fit in a single GATT write. Max broadcast payload = MTU − 1 (type prefix) − 16 (messageId) − 32 (sender key) − 1 (hop count) − 4 (payload length) − 64 (signature) = MTU − 118 bytes. The minimum MTU for GATT broadcasts is 119 bytes (yielding 1-byte payload); connections with MTU < 119 can still carry chunked unicast but cannot send broadcasts via GATT. At typical 244-byte MTU, max payload is 126 bytes. At 512-byte MTU, max payload is 394 bytes. On L2CAP, the length-prefix framing supports broadcasts up to 100KB (subject to `maxMessageSize`). `broadcast()` returns `Result.Failure(messageTooLarge)` if the payload exceeds the current transport's capacity.
 
-**Per-hop TTL clamping:** Each relay clamps the remaining broadcast TTL: `remaining_ttl = min(remaining_ttl - 1, local_broadcastTTL)`. A relay with `broadcastTTL=1` limits propagation to its immediate neighbors only. Different paths through the mesh may produce different propagation radii — this respects each node's resource constraints.
+**Per-hop TTL clamping:** Each relay clamps the remaining broadcast TTL: `remaining_ttl = min(remaining_ttl - 1, local_broadcastTTL)`. A relay with `broadcastTTL=1` limits propagation to its immediate neighbors only. Different paths through the mesh may produce different propagation radii — this respects each peer's resource constraints.
 
 **No group messaging in v1.** Broadcast covers 'announce to everyone nearby'; proper group conversations (key agreement, membership) deferred to post-v1. **No v1 preparation for groups** — no group key fields, no reserved group types, no membership lists. Clean break: v2 group messaging will build from scratch. Existing v1 mechanisms (opaque relay forwarding, reserved wire format types 0x0C–0xFF, Noise XX capability byte) provide sufficient extensibility hooks without pre-building group primitives. YAGNI.
 
@@ -2078,7 +2078,7 @@ Convenience APIs using listener patterns for consumers who don't use async strea
 
 **Self-send:** If the app calls `send(ownPublicKey, payload)`, the message is delivered locally via loopback — `onMessageReceived` fires with the message without touching the network. No encryption, routing, or BLE activity occurs. The callback is dispatched **asynchronously on the `callbackDispatcher`** (same behavior as BLE-delivered messages), preventing re-entrant hazards if the callback calls back into the library. This enables apps to use a uniform message handling path regardless of sender.
 
-**Replay counter interaction:** Self-send loopback does not increment the sender's replay counter — no cryptographic state is mutated. Messages arriving via wire with sender=self are impossible by design (the visited list contains the node's own key hash, causing the message to be dropped before reaching replay validation).
+**Replay counter interaction:** Self-send loopback does not increment the sender's replay counter — no cryptographic state is mutated. Messages arriving via wire with sender=self are impossible by design (the visited list contains the peer's own key hash, causing the message to be dropped before reaching replay validation).
 
 **Dedup interaction:** Self-send loopback **bypasses the dedup set entirely** — the message goes directly from `send()` → TransferEngine → `.messages` Flow. No messageId is inserted into the dedup pool. Self-messages cannot consume dedup quota or pollute the mesh dedup set. The API generates a fresh UUID for every `send()` call, so duplicate self-sends are impossible through the public API.
 
@@ -2325,7 +2325,7 @@ No attempt to resume active transfers — sender retry via SACK/timeout is the c
 - `stop()` after `pause()` performs best-effort flush of queued sends (same as normal shutdown)
 - Active relay transfers **complete normally** during pause — no interruption
 - Connection slots are **released immediately** on relay transfer completion (same rule as non-paused)
-- New inbound relay transfers are accepted during pause (the node remains a good mesh citizen)
+- New inbound relay transfers are accepted during pause (the peer remains a good mesh citizen)
 - New outbound connections are NOT initiated (no scanning), but inbound connections from neighbors are accepted
 
 **Slot release during pause:** When a relay transfer completes during `pause()`, the connection slot is released immediately. No new outbound connections are initiated, but slot accounting returns to normal. If no other transfers use the connection, it becomes eligible for normal idle eviction.
@@ -2527,7 +2527,7 @@ This enables apps to implement health indicators, adaptive behavior (reduce send
 | Layer | Tool | Purpose |
 |-------|------|---------|
 | **Unit / protocol tests** | `BleTransport` interface with in-memory mock | Test protocol correctness (chunking, encryption, routing, dedup) without BLE hardware. Instant, deterministic, runs in CI. |
-| **Integration tests** | Full BLE simulator with configurable latency, packet loss, connection drops, MTU limits | Test timing-dependent behavior, connection management, power mode transitions, presence detection. Simulates multi-node meshes. |
+| **Integration tests** | Full BLE simulator with configurable latency, packet loss, connection drops, MTU limits | Test timing-dependent behavior, connection management, power mode transitions, presence detection. Simulates multi-peer meshes. |
 | **End-to-end validation** | Physical device lab (3+ phones) | Validate real-world BLE behavior, iOS background constraints, cross-platform interop. Manual or semi-automated. |
 
 **Virtual Mesh Simulator (v1):** An in-process `VirtualMesh` that creates N simulated peers, each with their own engine system, connected through a simulated BLE transport. All `BleTransport` calls route through the virtual mesh — the mesh engine doesn't know it's simulated. Configurable per-link parameters:
