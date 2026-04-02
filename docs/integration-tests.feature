@@ -458,3 +458,58 @@ Feature: BLE Mesh Peer-to-Peer Messaging
     Then Bob should receive the message
     When Bob sends "yes I can!" to Alice
     Then Alice should NOT receive it (100% reverse packet loss)
+
+  # ═══════════════════════════════════════════════════════════════
+  # Encrypted Festival Scenarios
+  # ═══════════════════════════════════════════════════════════════
+  #
+  # Same festival topology but with Noise XX handshakes and
+  # end-to-end encryption enabled via CryptoProvider.
+
+  # ─── Encrypted Handshake Chain ──────────────────────────────
+
+  @festival @encryption @handshake
+  Scenario: Encrypted handshake chain with direct messages
+    Given a 5-peer linear chain Alice ↔ Bob ↔ Charlie ↔ Eve ↔ Frank
+    And each peer has a CryptoProvider (encryption enabled)
+    When all peers start and auto-discovery fires
+    Then all 4 adjacent pairs should complete Noise XX handshakes
+    And each peer should know its neighbor's public key
+    When Alice sends "encrypted to Bob" to Bob (adjacent, encrypted)
+    Then Bob should receive and decrypt the message
+    When Eve sends "encrypted to Frank" to Frank (adjacent, encrypted)
+    Then Frank should receive and decrypt the message
+
+  # ─── Handshake Over Lossy Link ──────────────────────────────
+
+  @festival @encryption @loss
+  Scenario: Handshake completes over lossy link
+    Given Alice and Bob linked with 30% packet loss (seeded Random(99))
+    And each peer has a CryptoProvider
+    When both peers start and auto-discovery fires
+    Then the Noise XX handshake may or may not complete (3 messages needed)
+    And if it completes, encrypted messaging should work
+    And if it fails, peer keys should be null (consistent state)
+
+  # ─── Key Rotation ───────────────────────────────────────────
+
+  @festival @encryption @rotation
+  Scenario: Key rotation breaks communication until re-handshake
+    Given Alice and Bob with completed Noise XX handshake
+    When Alice sends "before rotation" to Bob
+    Then Bob should receive and decrypt the message
+    When Alice rotates her identity (new X25519 + Ed25519 keys)
+    Then Alice's public key should change
+    And subsequent messages use the new key
+    # Note: without rotation announcement broadcast, Bob's cached
+    # key becomes stale. Re-handshake would be needed to resume
+    # encrypted communication.
+
+  # ─── Encrypted Broadcast Flood ──────────────────────────────
+
+  @festival @encryption @broadcast
+  Scenario: Encrypted broadcast flood
+    Given 5 peers in a full-mesh topology with CryptoProvider
+    When all peers start and complete handshakes
+    And Alice broadcasts "⚠ encrypted emergency" with maxHops=3
+    Then at least 3 of 4 peers should receive the broadcast

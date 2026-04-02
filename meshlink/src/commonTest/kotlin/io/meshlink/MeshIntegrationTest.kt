@@ -570,10 +570,15 @@ class MeshIntegrationTest {
             "should emit HANDSHAKE_EVENT diagnostics during handshake"
         )
 
-        // Should see at least an initiation and a completion
+        // Should see at least an initiation or response and a completion.
+        // With auto-discovery, either peer may initiate — Alice may be
+        // the responder rather than the initiator.
         assertTrue(
-            handshakeEvents.any { it.payload?.contains("initiating") == true },
-            "should log handshake initiation"
+            handshakeEvents.any {
+                it.payload?.contains("initiating") == true ||
+                    it.payload?.contains("msg received") == true
+            },
+            "should log handshake initiation or response"
         )
         assertTrue(
             handshakeEvents.any { it.payload?.contains("handshake complete") == true },
