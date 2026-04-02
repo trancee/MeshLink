@@ -56,10 +56,15 @@ class RoutingEngine(
     private val routeCacheTtlMillis: Long = 60_000L,
     private val maxHops: UByte = 10u,
     private val clock: () -> Long = { currentTimeMillis() },
+    private val keepaliveIntervalMillis: Long = 15_000L,
 ) {
     private val routingTable = RoutingTable(expiryMillis = routeCacheTtlMillis)
     private val presenceTracker = PresenceTracker()
     private val dedup = DedupSet(capacity = dedupCapacity, clock = clock)
+    private val costCalculator = RouteCostCalculator(
+        clock = clock,
+        keepaliveIntervalMillis = keepaliveIntervalMillis,
+    )
 
     // AODV reverse path: requestKey → sender who forwarded the RREQ to us
     private val reversePath = mutableMapOf<ByteArrayKey, ByteArrayKey>()
@@ -79,12 +84,52 @@ class RoutingEngine(
     fun presenceState(peerId: ByteArrayKey): PresenceState? = presenceTracker.state(peerId)
     fun connectedPeerIds(): Set<ByteArrayKey> = presenceTracker.connectedPeerIds()
     fun allPeerIds(): Set<ByteArrayKey> = presenceTracker.allPeerIds()
-    fun sweepPresence(seenPeers: Set<ByteArrayKey>): Set<ByteArrayKey> = presenceTracker.sweep(seenPeers)
+    fun sweepPresence(seenPeers: Set<ByteArrayKey>): Set<ByteArrayKey> {
+        val evicted = presenceTracker.sweep(seenPeers)
+        for (peerId in evicted) {
+            costCalculator.removePeer(peerId)
+        }
+        return evicted
+    }
 
     // ── Route management ──────────────────────────────────────────
 
     fun addRoute(destination: ByteArrayKey, nextHop: ByteArrayKey, cost: Double, sequenceNumber: UInt) {
         routingTable.addRoute(destination, nextHop, cost, sequenceNumber)
+    }
+
+    // ── Link quality measurement ──────────────────────────────────
+
+    /**
+     * Record a link quality measurement for a direct neighbor.
+     * RSSI and loss rate feed into [RouteCostCalculator] for composite cost computation.
+     */
+    fun recordLinkMeasurement(peerId: ByteArrayKey, rssi: Int, lossRate: Double) {
+        costCalculator.recordMeasurement(peerId, rssi, lossRate)
+    }
+
+    /**
+     * Record that a keepalive interval passed with stable connectivity to a neighbor.
+     * Reduces the stability penalty in route cost computation.
+     */
+    fun recordStableInterval(peerId: ByteArrayKey) {
+        costCalculator.recordStableInterval(peerId)
+    }
+
+    /**
+     * Record a GATT disconnect for a neighbor.
+     * Resets the stability counter in route cost computation.
+     */
+    fun recordLinkDisconnect(peerId: ByteArrayKey) {
+        costCalculator.recordDisconnect(peerId)
+    }
+
+    /**
+     * Compute the link cost for a direct neighbor using available quality data.
+     * Returns [RouteCostCalculator.DEFAULT_COST] if no measurement data exists.
+     */
+    fun computeLinkCost(peerId: ByteArrayKey): Double {
+        return costCalculator.computeCost(peerId)
     }
 
     fun resolveNextHop(destination: ByteArrayKey): NextHopResult {
@@ -145,7 +190,8 @@ class RoutingEngine(
         reversePath[rreqKey] = fromPeerId
 
         // Install reverse route to origin (for RREP and future traffic)
-        routingTable.addRoute(originPeerId, fromPeerId, hopCount.toDouble() + 1.0, requestId)
+        val linkCost = costCalculator.computeCost(fromPeerId)
+        routingTable.addRoute(originPeerId, fromPeerId, linkCost * (hopCount.toDouble() + 1.0), requestId)
 
         // Are we the destination?
         if (destinationPeerId == localPeerId) {
@@ -198,7 +244,8 @@ class RoutingEngine(
         hopCount: UByte,
     ): RouteReplyResult {
         // Install forward route to destination via the sender
-        routingTable.addRoute(destinationPeerId, fromPeerId, hopCount.toDouble() + 1.0, requestId)
+        val linkCost = costCalculator.computeCost(fromPeerId)
+        routingTable.addRoute(destinationPeerId, fromPeerId, linkCost * (hopCount.toDouble() + 1.0), requestId)
 
         // Are we the original requester?
         if (originPeerId == localPeerId) {
@@ -262,6 +309,7 @@ class RoutingEngine(
         rreqSeen.clear()
         nextHopFailures.clear()
         nextHopSuccesses.clear()
+        costCalculator.clear()
         nextRequestId = 0u
     }
 

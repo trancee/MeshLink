@@ -11,6 +11,9 @@ data class PowerProfile(
     val scanOnMillis: Long,
     val scanOffMillis: Long,
     val maxConnections: Int,
+    val keepaliveIntervalMillis: Long,
+    val presenceTimeoutMillis: Long,
+    val sweepIntervalMillis: Long,
 ) {
     /** Computed scan duty cycle percentage. */
     val scanDutyPercent: Int
@@ -28,6 +31,9 @@ data class PowerProfile(
             scanOnMillis = 4_000L,
             scanOffMillis = 1_000L,
             maxConnections = 8,
+            keepaliveIntervalMillis = 5_000L,
+            presenceTimeoutMillis = 2_500L,
+            sweepIntervalMillis = 1_250L,
         )
 
         val BALANCED = PowerProfile(
@@ -35,6 +41,9 @@ data class PowerProfile(
             scanOnMillis = 3_000L,
             scanOffMillis = 3_000L,
             maxConnections = 4,
+            keepaliveIntervalMillis = 15_000L,
+            presenceTimeoutMillis = 5_000L,
+            sweepIntervalMillis = 2_500L,
         )
 
         val POWER_SAVER = PowerProfile(
@@ -42,6 +51,9 @@ data class PowerProfile(
             scanOnMillis = 1_000L,
             scanOffMillis = 5_000L,
             maxConnections = 1,
+            keepaliveIntervalMillis = 30_000L,
+            presenceTimeoutMillis = 10_000L,
+            sweepIntervalMillis = 5_000L,
         )
 
         fun forMode(mode: PowerMode): PowerProfile = when (mode) {

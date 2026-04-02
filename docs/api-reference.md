@@ -121,7 +121,7 @@ class MeshLink(
 |--------------------|---------------------|------------------------|-------------|
 | `transport`        | `BleTransport`      | —                      | Platform-specific BLE transport. Required. |
 | `config`           | `MeshLinkConfig`    | `MeshLinkConfig()`     | Mesh configuration. |
-| `coroutineContext` | `CoroutineContext`  | `EmptyCoroutineContext`| Custom dispatcher for mesh coroutines. |
+| `coroutineContext` | `CoroutineContext`  | `EmptyCoroutineContext`| Custom dispatcher for mesh coroutines and callback dispatch. Pass `Dispatchers.Main` for UI-driven apps. |
 | `clock`            | `() -> Long`        | `currentTimeMillis()`  | Monotonic clock source; override for deterministic testing. |
 | `crypto`           | `CryptoProvider?`   | `null`                 | Encryption provider. **Required by default** — `start()` fails if null unless `requireEncryption = false`. Use `CryptoProvider()`. |
 | `trustStore`       | `TrustStore?`       | `null`                 | Enables key pinning when non-null. When `null` and `crypto` is provided, a `TrustStore` is created using `config.trustMode`. |

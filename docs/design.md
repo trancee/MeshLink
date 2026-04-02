@@ -258,7 +258,7 @@ flowchart TD
 
 | File | Responsibility |
 |------|---------------|
-| `DiagnosticSink.kt` | Event emission via `SharedFlow`, 19 diagnostic codes, severity levels. |
+| `DiagnosticSink.kt` | Event emission via `SharedFlow`, 21 diagnostic codes, severity levels. |
 | `MeshHealthSnapshot.kt` | Point-in-time mesh state data class. |
 
 #### `io.meshlink.storage` — Persistence
@@ -380,13 +380,13 @@ flowchart TD
   | Offset | Size | Field |
   |--------|------|-------|
   | 0 | 12 bytes | Message ID (structured) |
-  | 12 | 32 bytes | Destination public key (Ed25519) |
-  | 44 | 1 byte | Hop count (current) |
-  | 45 | 1 byte | Visited count (V) |
-  | 46 | V × 8 bytes | Visited List (8-byte SHA-256-64 key hashes, max `maxHops` entries) |
-  | 46 + V×8 | 2 bytes | Chunk sequence number (uint16, little-endian) |
-  | 48 + V×8 | 2 bytes | Total chunks (uint16, LE; **first chunk only**, seq=0. Omitted for seq>0, reducing per-chunk overhead by 2 bytes.) |
-  | 50 + V×8 | C bytes | Chunk payload (E2E ciphertext fragment; for seq>0, payload starts at offset 48 + V×8) |
+  | 12 | 8 bytes | Origin peer ID (truncated key hash) |
+  | 20 | 8 bytes | Destination peer ID (truncated key hash) |
+  | 28 | 1 byte | Hop limit (remaining hops) |
+  | 29 | 8 bytes | Replay counter (uint64, little-endian) |
+  | 37 | 1 byte | Visited count (V) |
+  | 38 | V × 8 bytes | Visited List (8-byte SHA-256-64 key hashes, max `maxHops` entries) |
+  | 38 + V×8 | variable | Chunk payload (E2E ciphertext fragment) |
 
 ```mermaid
 ---
@@ -394,18 +394,18 @@ title: "routed_message Wire Format"
 ---
 packet-beta
   0-95: "Message ID (structured, 12 bytes)"
-  96-351: "Destination Public Key (Ed25519, 32 bytes)"
-  352-359: "Hop Count (1 byte)"
-  360-367: "Visited Count V (1 byte)"
-  368-495: "Visited List (V × 8 bytes, max 4 entries)"
-  528-543: "Chunk Seq# (uint16 LE)"
-  544-559: "Total Chunks (uint16 LE, seq=0 only)"
-  560-623: "Chunk Payload (C bytes)"
+  96-159: "Origin Peer ID (8 bytes)"
+  160-223: "Destination Peer ID (8 bytes)"
+  224-231: "Hop Limit (1 byte)"
+  232-295: "Replay Counter (uint64 LE, 8 bytes)"
+  296-303: "Visited Count V (1 byte)"
+  304-367: "Visited List (V × 8 bytes)"
+  368-431: "Chunk Payload (C bytes)"
 ```
 
 **Parser safety:** The visited count (V) MUST be validated: `V ≤ maxHops` (default 10). Messages with `V > maxHops` are rejected immediately. Additionally, the total message size must not exceed the transport frame size (MTU for GATT, negotiated frame size for L2CAP). Malformed messages are dropped and logged via diagnostic events.
 
-**Forwarding predicate:** A relay MUST NOT forward a `routed_message` if `hop_count >= maxHops`. The hop count field (offset 48) governs the TTL — it is incremented by each relay before forwarding. The Visited List governs **loop detection** — if the relay's own key hash is already in the visited list, the message is dropped (loop). These are independent checks: hop_count limits distance, visited list prevents cycles.
+**Forwarding predicate:** A relay MUST NOT forward a `routed_message` if `hop_limit` has reached 0. The hop limit field (offset 28) governs the TTL — it is decremented by each relay before forwarding. The Visited List governs **loop detection** — if the relay's own key hash is already in the visited list, the message is dropped (loop). These are independent checks: hop limit bounds distance, visited list prevents cycles.
 
 **Relay-is-also-destination behavior:** When a relay discovers it is the intended recipient of a `routed_message`:
 - **DirectMessage:** Deliver locally and **stop forwarding**. Unicast has a single destination — forwarding past it wastes bandwidth and risks duplicates.
@@ -448,7 +448,7 @@ packet-beta
 
   **Protocol cap:** uint16 sequence numbers support up to ~16MB per transfer (65,535 chunks × minimum 244-byte MTU). Any increase requires a protocol version bump.
 
-- **`chunk_ack` / SACK (0x06)** — selective acknowledgement for received chunks:
+- **`chunk_ack` / SACK (0x06)** — selective acknowledgement for received chunks. Uses a 128-bit SACK bitmask (two uint64 fields) covering up to 128 chunks beyond the base sequence number. Negative acknowledgements use a separate NACK message type (0x07) with a reason code.
 
   **`chunk_ack` wire format:**
 
@@ -456,8 +456,9 @@ packet-beta
   |--------|------|-------|
   | 0 | 12 bytes | Message ID (structured: 8-byte peer ID hash + 4-byte LE counter) |
   | 12 | 2 bytes | Base sequence number (uint16, lowest unreceived chunk) |
-  | 18 | 8 bytes | SACK bitmask (uint64, little-endian; bit N = base_seq+N received) |
-  | 26 | 1 byte | Reason code: `0x00`=normal ACK, `0x01`=bufferFull (concurrent transfer cap or buffer memory), `0x02`=rateLimited. When reason ≠ `0x00`, bitmask is `0` (NACK). |
+  | 14 | 8 bytes | SACK bitmask low (uint64, little-endian; bit N = base_seq+N received, for N=0–63) |
+  | 22 | 8 bytes | SACK bitmask high (uint64, little-endian; bit N = base_seq+64+N received, for N=0–63) |
+  | 30 | 2+ bytes | TLV extension area (see wire-format-spec.md) |
 
 ```mermaid
 ---
@@ -466,9 +467,20 @@ title: "chunk_ack (SACK) Wire Format"
 packet-beta
   0-95: "Message ID (structured, 12 bytes)"
   96-111: "Base Seq# (uint16 LE)"
-  112-175: "SACK Bitmask (uint64 LE, bit N = base+N received)"
-  176-183: "Reason (1 byte: 0x00=ACK, 0x01=bufferFull, 0x02=rateLimited)"
+  112-175: "SACK Bitmask Low (uint64 LE, bits 0–63)"
+  176-239: "SACK Bitmask High (uint64 LE, bits 64–127)"
+  240-255: "TLV Extensions (2+ bytes)"
 ```
+
+  **NACK (0x07)** — negative acknowledgement with a reason code, sent as a separate message type:
+
+  | Reason Code | Name | Description |
+  |-------------|------|-------------|
+  | `0x00` | Unknown | Unspecified rejection |
+  | `0x01` | Buffer full | Concurrent transfer cap or buffer memory exceeded |
+  | `0x02` | Unknown destination | Destination peer not known |
+  | `0x03` | Decrypt failed | Payload decryption failed |
+  | `0x04` | Rate limited | Per-sender or per-neighbor rate limit exceeded |
 
 - **Single-chunk fast path:** If the E2E ciphertext fits within a single chunk (payload ≤ MTU minus envelope overhead for GATT, or ≤ L2CAP chunk size minus framing), it is sent as a single `routed_message` or `chunk` — no multi-chunk transfer setup required.
 - **`broadcast` (0x09)** is a standalone envelope for broadcast messages (signed, relay-forwarded up to `broadcastTTL` hops).
@@ -570,7 +582,7 @@ flowchart TD
     S -- No --> V["Continue"]
 ```
 
-**MTU minimum enforcement:** After MTU negotiation, if the effective MTU (minus ATT header overhead) is less than **100 bytes**, the connection is rejected with a `MTU_TOO_SMALL` diagnostic event. A routed_message header alone requires ~52 bytes; MTUs below 100 bytes cannot carry meaningful payload. No fallback or fragmentation is attempted.
+**MTU minimum enforcement:** After MTU negotiation, if the effective MTU (minus ATT header overhead) is less than **100 bytes**, the connection is rejected with a `MTU_TOO_SMALL` diagnostic event. A routed_message header alone requires ~43 bytes (with zero visited entries); MTUs below 100 bytes cannot carry meaningful payload. No fallback or fragmentation is attempted.
 
 **ATT overhead:** 3 bytes (1B opcode + 2B attribute handle). Effective chunk payload = `negotiated_MTU − 3 − 1` (1 byte for MeshLink type prefix) = `MTU − 4`. The MTU minimum rejection threshold (`MTU_TOO_SMALL`) fires when effective payload < 100 bytes, i.e., `negotiated_MTU < 104`.
 
@@ -706,7 +718,7 @@ The library handles fragmentation transparently. Consuming apps send a message; 
 **Design details:**
 - Each chunk carries a **sequence number** and **message ID**
 - The **first chunk** (sequence number 0) additionally carries the **total chunk count** (2 bytes, little-endian, uint16). This allows the receiver to: (a) pre-allocate a reassembly buffer, (b) detect transfer completion vs. connection drop, and (c) report accurate progress to the consuming app. Subsequent chunks omit this field, saving 2 bytes per chunk.
-- Receiver sends **selective ACKs (SACK)** — SACK uses a 64-bit bitmask (see chunk_ack wire format above).
+- Receiver sends **selective ACKs (SACK)** — SACK uses a 128-bit bitmask (two uint64 fields, see chunk_ack wire format above).
 - **Progress callbacks** exposed to the consuming app (`onTransferProgress`)
 - **Resumable transfers:** On connection drop, the receiver reports the **total bytes received** (byte offset) rather than a chunk sequence number. The sender resumes from that byte offset, chunked at whatever size the new connection negotiates. This enables seamless resume across transport mode changes — a transfer started on GATT (244-byte chunks) can resume on L2CAP (4096-byte chunks) or vice versa, since chunks are simply byte ranges of the E2E ciphertext. After N failed resume attempts, restart the full transfer. Resume vs. restart behavior is **configurable** by the library consumer.
 
@@ -794,7 +806,7 @@ fun onReconnect():
     consecutiveCleanRounds = 0
 ```
 
-**Single-chunk messages:** Messages that fit in a single chunk still use the standard SACK format (chunk_ack with bitmask). No special fast-path — the uniform code path minimizes branching complexity for negligible overhead (13-byte SACK vs. a custom single-chunk ACK).
+**Single-chunk messages:** Messages that fit in a single chunk still use the standard SACK format (chunk_ack with dual bitmask). No special fast-path — the uniform code path minimizes branching complexity for negligible overhead (31-byte SACK vs. a custom single-chunk ACK).
 
 **L2CAP mode differences:** On L2CAP, chunk sizes increase to per-power-mode negotiated sizes (1024–8192 bytes), and L2CAP's credit-based flow control replaces SACK. See the GATT vs. L2CAP comparison table below for a full summary. App-level NACK with `bufferFull` still applies for concurrent transfer cap and buffer limits (see §4).
 
@@ -1705,15 +1717,17 @@ Potential post-v1 mitigations:
 | Offset | Size | Field |
 |--------|------|-------|
 | 0 | 12 bytes | Message ID (structured: 8-byte peer ID hash + 4-byte LE counter) |
-| 12 | 32 bytes | Sender Ed25519 public key |
-| 44 | 1 byte | Remaining hop count (set to `broadcastTTL` by sender, decremented by each relay; drop when 0) |
-| 45 | 4 bytes | Payload length (uint32, little-endian) |
-| 49 | N bytes | Payload (unencrypted, plaintext) |
-| 49+N | 64 bytes | Ed25519 signature over bytes [0, 49+N) |
+| 12 | 8 bytes | Origin peer ID (truncated key hash) |
+| 20 | 1 byte | Remaining hop count (set to `broadcastTTL` by sender, decremented by each relay; drop when 0) |
+| 21 | 8 bytes | App ID hash (`SHA-256-64(appId.toUTF8())`; zero-filled if no appId) |
+| 29 | 1 byte | Flags (bit 0: `HAS_SIGNATURE` — signature + signerPublicKey present; bits 1–7: reserved) |
+| 30 | 64 bytes | Ed25519 signature (present only if `flags & 0x01`) |
+| 94 | 32 bytes | Signer Ed25519 public key (present only if `flags & 0x01`) |
+| 30 or 126 | N bytes | Payload (unencrypted, plaintext; remaining bytes) |
 
-Signature covers bytes [0, 53+N). Receivers verify using sender pubkey from envelope. The remaining hop count is **included in the signed region** — relays cannot forge a higher TTL without invalidating the signature. However, the sender sets the initial value, so a malicious sender could set TTL=maxHops. The `broadcastTTL` config parameter on the *receiver* side caps accepted values: broadcasts with remaining hops > local `broadcastTTL` are clamped (not rejected) to prevent legitimate high-TTL broadcasts from being dropped.
+When signed, the signature covers `messageId + origin + appIdHash + payload`. Receivers verify using the signer public key from the signature block. The remaining hop count is **not** in the signed region (it must be mutable for relay decrement), but relays cannot forge a higher TTL than the sender originally set. The `broadcastTTL` config parameter on the *receiver* side caps accepted values: broadcasts with remaining hops > local `broadcastTTL` are clamped (not rejected) to prevent legitimate high-TTL broadcasts from being dropped.
 
-**Broadcast size constraint (GATT):** On the GATT data plane, broadcasts must fit in a single GATT write. Max broadcast payload = MTU − 1 (type prefix) − 16 (messageId) − 32 (sender key) − 1 (hop count) − 4 (payload length) − 64 (signature) = MTU − 118 bytes. The minimum MTU for GATT broadcasts is 119 bytes (yielding 1-byte payload); connections with MTU < 119 can still carry chunked unicast but cannot send broadcasts via GATT. At typical 244-byte MTU, max payload is 126 bytes. At 512-byte MTU, max payload is 394 bytes. On L2CAP, the length-prefix framing supports broadcasts up to 100KB (subject to `maxMessageSize`). `broadcast()` returns `Result.Failure(messageTooLarge)` if the payload exceeds the current transport's capacity.
+**Broadcast size constraint (GATT):** On the GATT data plane, broadcasts must fit in a single GATT write. Max broadcast payload = MTU − 1 (type prefix) − 12 (messageId) − 8 (origin) − 1 (hop count) − 8 (appIdHash) − 1 (flags) − 64 (signature) − 32 (signer key) = MTU − 127 bytes (signed) or MTU − 31 bytes (unsigned). At typical 244-byte MTU, max signed payload is 117 bytes. On L2CAP, the length-prefix framing supports broadcasts up to 100KB (subject to `maxMessageSize`). `broadcast()` returns `Result.Failure(messageTooLarge)` if the payload exceeds the current transport's capacity.
 
 **Per-hop TTL clamping:** Each relay clamps the remaining broadcast TTL: `remaining_ttl = min(remaining_ttl - 1, local_broadcastTTL)`. A relay with `broadcastTTL=1` limits propagation to its immediate neighbors only. Different paths through the mesh may produce different propagation radii — this respects each peer's resource constraints.
 
@@ -1737,23 +1751,24 @@ Signature covers bytes [0, 53+N). Receivers verify using sender pubkey from enve
 
 **Decision:** Configurable per message, with sensible defaults.
 
-- **DirectMessage:** Delivery ACK **enabled by default** — sender receives confirmation when the recipient's device has received and decrypted the message. Can be disabled per-message via `SendOptions`.
+- **DirectMessage:** Delivery ACK **enabled by default** — sender receives confirmation when the recipient's device has received and decrypted the message. Can be disabled globally via `deliveryAckEnabled = false` in `MeshLinkConfig`.
 - **Broadcast:** No delivery ACK (fire-and-forget by definition — cannot ACK to all recipients)
 
 **Delivery ACK routing:** Reverse-path unicast. On failure (2 attempts × 2s timeout = 4s total), the ACK is buffered and retried on the next available route to the destination. No flood fallback — avoids metadata exposure to local neighborhood.
 
-**ACK authentication:** Delivery ACKs carry a **recipient Ed25519 signature** (64 bytes) over the message ID, preventing relay nodes from forging ACKs. The signed ACK layout is:
+**ACK authentication:** Delivery ACKs carry a **recipient Ed25519 signature** (64 bytes) over the message ID and recipient peer ID, preventing relay nodes from forging ACKs. The signed ACK wire format is:
 
 | Field | Size | Description |
 |-------|------|-------------|
 | Message ID | 12 bytes | Structured ID of the acknowledged message |
-| Sender public key | 32 bytes | Original sender's Ed25519 public key |
-| Recipient public key | 32 bytes | Recipient's Ed25519 public key |
-| Recipient signature | 64 bytes | Ed25519 signature over (message ID ‖ sender pubkey ‖ recipient pubkey) |
+| Recipient peer ID | 8 bytes | Truncated key hash of the recipient |
+| Flags | 1 byte | Bit 0: `HAS_SIGNATURE` (signature + signer pubkey present) |
+| Recipient signature | 64 bytes | Ed25519 signature over `(messageId ‖ recipientPeerId)` (present only if flags bit 0 set) |
+| Signer public key | 32 bytes | Recipient's Ed25519 public key (present only if flags bit 0 set) |
 
 The hop-by-hop Noise XX session still protects ACKs in transit. The signature adds 64 bytes but prevents a critical attack: a malicious relay silently dropping messages while forging delivery ACKs back to the sender.
 
-**ACK signature verification:** The sender verifies the delivery ACK's Ed25519 signature using the **recipient's public key from the local peer table** (canonical trust anchor). The ACK envelope's key fields are informational only. On verification failure, retry with the recipient's **previous key** (if a key rotation was observed within the last keepalive cycle). Both fail → drop + `INVALID_ACK_SIGNATURE` diagnostic.
+**ACK signature verification:** The sender verifies the delivery ACK's Ed25519 signature using the **signer public key from the ACK envelope**, cross-checked against the **recipient's public key from the local peer table** (canonical trust anchor). On verification failure, retry with the recipient's **previous key** (if a key rotation was observed within the last keepalive cycle). Both fail → drop + `INVALID_ACK_SIGNATURE` diagnostic.
 
 **Why default-on:** Users expect delivery ACKs for 1:1 messages; overhead is justified for the UX.
 
@@ -1780,9 +1795,9 @@ Power modes are selected **automatically** — the library consumer does not cho
 
 | Power Mode | Battery Level | Scan Duty Cycle | Advertising Interval | Presence Timeout | Sweep Interval | Keepalive Interval |
 |------------|--------------|-----------------|---------------------|-----------------|----------------|-----------------|
-| **Performance** | >80% (or charging) | 80–100% | 250ms | 2.5s | 1.25s | 5s |
-| **Balanced** | 30–80% | 40–60% | 500ms | 5s | 2.5s | 15s |
-| **PowerSaver** | <30% | 10–25% | 1000–2000ms | 10–20s | 5–10s | 30–60s |
+| **Performance** | >80% (or charging) | 80% | 250ms | 2.5s | 1.25s | 5s |
+| **Balanced** | 30–80% | 50% | 500ms | 5s | 2.5s | 15s |
+| **PowerSaver** | <30% | ~17% | 1000ms | 10s | 5s | 30s |
 
 ```mermaid
 stateDiagram-v2
@@ -1815,7 +1830,7 @@ stateDiagram-v2
     end note
 ```
 
-**Ratios:** Presence Timeout = 10× advertising interval. Sweep Interval = 5× advertising interval.
+**Ratios:** Presence Timeout = 10× advertising interval. Sweep Interval = 5× advertising interval. All values are defined in `PowerProfile` per mode and used by the transport and routing layers.
 
 ### Scanning Duty Cycle Implementation
 
@@ -1833,15 +1848,15 @@ Advertising intervals adapt to the current power mode per the table above. Each 
 
 ### Connection Limits Per Power Mode
 
-Connection limits scale down proportionally. The platform limit is assigned to performance mode; each lower tier reduces by 1.
+Connection limits scale with power mode. A single, platform-independent limit is used per mode.
 
-| Power Mode | Android Limit | iOS Limit |
-|------------|--------------|-----------|
-| Performance | 4 | 5 |
-| Balanced | 3 | 4 |
-| PowerSaver | 2 | 2 |
+| Power Mode | Max Connections |
+|------------|----------------|
+| Performance | 8 |
+| Balanced | 4 |
+| PowerSaver | 1 |
 
-These limits are **shared across both BLE roles** (central + peripheral): 3 outbound + 1 inbound = 4 total slots consumed. The connection manager enforces the combined count, not per-role limits.
+These limits are **shared across both BLE roles** (central + peripheral): e.g., 3 outbound + 1 inbound = 4 total slots consumed. The connection manager enforces the combined count, not per-role limits.
 
 ### BLE Connection Parameters
 
@@ -2089,7 +2104,7 @@ Convenience APIs using listener patterns for consumers who don't use async strea
 - **Relays forward all messages regardless of app ID** — this preserves mesh density for all apps sharing the physical BLE mesh
 - Apps that don't configure an appId receive all messages (backward compatible)
 
-**Self-send:** If the app calls `send(ownPublicKey, payload)`, the message is delivered locally via loopback — `onMessageReceived` fires with the message without touching the network. No encryption, routing, or BLE activity occurs. The callback is dispatched **asynchronously on the `callbackDispatcher`** (same behavior as BLE-delivered messages), preventing re-entrant hazards if the callback calls back into the library. This enables apps to use a uniform message handling path regardless of sender.
+**Self-send:** If the app calls `send(ownPublicKey, payload)`, the message is delivered locally via loopback — `onMessageReceived` fires with the message without touching the network. No encryption, routing, or BLE activity occurs. The callback is dispatched **asynchronously on the `coroutineContext`** (same behavior as BLE-delivered messages), preventing re-entrant hazards if the callback calls back into the library. This enables apps to use a uniform message handling path regardless of sender.
 
 **Replay counter interaction:** Self-send loopback does not increment the sender's replay counter — no cryptographic state is mutated. Messages arriving via wire with sender=self are impossible by design (the visited list contains the peer's own key hash, causing the message to be dropped before reaching replay validation).
 
@@ -2361,16 +2376,17 @@ MeshLink uses an **engine/coordinator pattern** with three categories of modules
 
 See [diagrams.md § Engine & Coordinator Data Flow](diagrams.md#8-engine--coordinator-data-flow) for the module interaction diagram.
 
-**API callback threading:** All callbacks to the consuming app (`onMessageReceived`, `onPeerDiscovered`, `onTransferProgress`, diagnostic events) are dispatched on a **configurable callback dispatcher** (`callbackDispatcher` config parameter, default `Dispatchers.Default`). The consuming app can specify `Dispatchers.Main` for UI-driven apps, or leave the default for background services/non-UI consumers. This follows the pattern used by Retrofit, OkHttp, and Firebase SDKs. The callback dispatcher provides two guarantees:
+**API callback threading:** All callbacks to the consuming app (`onMessageReceived`, `onPeerDiscovered`, `onTransferProgress`, diagnostic events) are dispatched on the **`coroutineContext`** passed to the `MeshLink` constructor (default `EmptyCoroutineContext`, which uses `Dispatchers.Default`). The consuming app can specify `Dispatchers.Main` for UI-driven apps, or leave the default for background services/non-UI consumers. This follows the pattern used by Retrofit, OkHttp, and Firebase SDKs. The callback dispatcher provides two guarantees:
 1. **Exception isolation:** All callbacks are wrapped in try/catch. If a callback throws, the exception is logged via the diagnostic event system and the callback is skipped — exceptions never propagate into the engine system.
 2. **Blocking tolerance:** A callback that blocks (e.g., synchronous DB write) only stalls the callback dispatcher, not the mesh engine. Engines continue processing regardless of callback latency.
 
 The consuming app can override the dispatcher at initialization:
 
 ```kotlin
-val meshLink = MeshLink(context) {
-    callbackDispatcher = Dispatchers.Main  // optional, defaults to Dispatchers.Default
-}
+val meshLink = MeshLink(
+    transport = transport,
+    coroutineContext = Dispatchers.Main  // optional, defaults to EmptyCoroutineContext
+)
 ```
 
 ### Configuration Surface
@@ -2396,7 +2412,6 @@ All configurable parameters grouped by category, with defaults, bounds, and desc
 | `evictionGracePeriod` | duration | 30s | 5s | 60s | Max time to keep connections with active transfers alive during power mode downgrade. |
 | `peerRateLimit` | int | 20 | 5 | 100 | Maximum messages per minute per originating sender, per neighbor. Uses a 60-second sliding window. |
 | `broadcastTTL` | int | 2 | 1 | maxHops | Hop limit for broadcast relay propagation. |
-| `callbackDispatcher` | CoroutineDispatcher | Dispatchers.Default | — | — | Dispatcher for all consuming app callbacks. Set to `Dispatchers.Main` for UI-driven apps. |
 | `customPowerMode` | PowerMode? | null | — | — | Override automatic power mode with a fixed mode. When set, all automatic transitions are disabled. |
 
 #### Internal Constants (not in public API)

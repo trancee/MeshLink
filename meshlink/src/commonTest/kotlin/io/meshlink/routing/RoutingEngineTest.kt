@@ -355,4 +355,94 @@ class RoutingEngineTest {
         assertEquals(0, re.nextHopFailureCount(key("relay01")))
         assertEquals(0.0, re.nextHopFailureRate(key("relay01")))
     }
+
+    // ── RouteCostCalculator integration ─────────────────────────
+
+    @Test
+    fun linkMeasurementAffectsRouteInstallationCost() {
+        val local = peerId(0xA0)
+        val peer = peerId(0xB0)
+        val dest = peerId(0xC0)
+        val re = RoutingEngine(local, clock = { 1000L })
+
+        // Record a weak signal measurement for the peer
+        re.recordLinkMeasurement(peer, rssi = -80, lossRate = 0.1)
+
+        // Simulate RREQ handling — route cost should incorporate link quality
+        re.peerSeen(peer)
+        re.handleRouteRequest(
+            fromPeerId = peer,
+            originPeerId = dest,
+            destinationPeerId = local,
+            requestId = 1u,
+            hopCount = 0u,
+            hopLimit = 10u,
+        )
+
+        // The reverse route to dest via peer should use the composite cost
+        val route = re.bestRoute(dest)
+        assertNotNull(route)
+        // With RSSI=-80 (base=6), loss=0.1 (mult=2.0), fresh (1.0), new link (+3)
+        // link_cost = 6*2.0*1.0 + 3 = 15.0; route_cost = 15.0 * (0+1) = 15.0
+        assertTrue(route.cost > 1.0, "Cost should be higher than default hop-count 1.0, got ${route.cost}")
+    }
+
+    @Test
+    fun stableIntervalReducesCost() {
+        val local = peerId(0xA0)
+        val peer = peerId(0xB0)
+        val re = RoutingEngine(local, clock = { 1000L })
+
+        re.recordLinkMeasurement(peer, rssi = -50, lossRate = 0.0)
+        val costNew = re.computeLinkCost(peer)
+
+        // After 3 stable intervals, stability penalty decays to 0
+        repeat(3) { re.recordStableInterval(peer) }
+        val costStable = re.computeLinkCost(peer)
+
+        assertTrue(costStable < costNew, "Stable link should have lower cost: $costStable < $costNew")
+    }
+
+    @Test
+    fun disconnectResetsCostStability() {
+        val local = peerId(0xA0)
+        val peer = peerId(0xB0)
+        val re = RoutingEngine(local, clock = { 1000L })
+
+        re.recordLinkMeasurement(peer, rssi = -50, lossRate = 0.0)
+        repeat(3) { re.recordStableInterval(peer) }
+        val costBefore = re.computeLinkCost(peer)
+
+        re.recordLinkDisconnect(peer)
+        val costAfter = re.computeLinkCost(peer)
+
+        assertTrue(costAfter > costBefore, "Disconnect should increase cost: $costAfter > $costBefore")
+    }
+
+    @Test
+    fun defaultCostWhenNoMeasurement() {
+        val local = peerId(0xA0)
+        val peer = peerId(0xB0)
+        val re = RoutingEngine(local, clock = { 1000L })
+
+        assertEquals(RouteCostCalculator.DEFAULT_COST, re.computeLinkCost(peer))
+    }
+
+    @Test
+    fun sweepClearsLinkState() {
+        val local = peerId(0xA0)
+        val peer = peerId(0xB0)
+        val re = RoutingEngine(local, clock = { 1000L })
+
+        re.peerSeen(peer)
+        re.recordLinkMeasurement(peer, rssi = -60, lossRate = 0.0)
+        assertTrue(re.computeLinkCost(peer) > RouteCostCalculator.DEFAULT_COST)
+
+        // Sweep with empty set — peer evicted, link state cleared
+        re.sweepPresence(emptySet())
+        re.sweepPresence(emptySet()) // 2nd sweep for 2-consecutive-miss eviction
+
+        // After eviction, cost returns to default
+        assertEquals(RouteCostCalculator.DEFAULT_COST, re.computeLinkCost(peer))
+    }
 }

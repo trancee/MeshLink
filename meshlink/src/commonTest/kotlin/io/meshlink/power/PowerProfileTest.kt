@@ -124,6 +124,9 @@ class PowerProfileTest {
             scanOnMillis = 2_000L,
             scanOffMillis = 8_000L,
             maxConnections = 2,
+            keepaliveIntervalMillis = 10_000L,
+            presenceTimeoutMillis = 5_000L,
+            sweepIntervalMillis = 2_500L,
         )
         assertEquals(20, custom.scanDutyPercent)
     }
@@ -135,6 +138,9 @@ class PowerProfileTest {
             scanOnMillis = 0L,
             scanOffMillis = 0L,
             maxConnections = 1,
+            keepaliveIntervalMillis = 10_000L,
+            presenceTimeoutMillis = 5_000L,
+            sweepIntervalMillis = 2_500L,
         )
         assertEquals(0, custom.scanDutyPercent)
     }
@@ -143,8 +149,8 @@ class PowerProfileTest {
 
     @Test
     fun dataClassEquality_sameValues_areEqual() {
-        val a = PowerProfile(250L, 4_000L, 1_000L, 8)
-        val b = PowerProfile(250L, 4_000L, 1_000L, 8)
+        val a = PowerProfile(250L, 4_000L, 1_000L, 8, 5_000L, 2_500L, 1_250L)
+        val b = PowerProfile(250L, 4_000L, 1_000L, 8, 5_000L, 2_500L, 1_250L)
         assertEquals(a, b)
     }
 }
