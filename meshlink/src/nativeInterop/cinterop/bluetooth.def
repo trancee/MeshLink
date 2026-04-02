@@ -76,6 +76,7 @@ struct sockaddr_l2 {
 #define OCF_LE_SET_SCAN_ENABLE         0x000C
 #define OCF_LE_SET_ADVERTISING_PARAMETERS 0x0006
 #define OCF_LE_SET_ADVERTISING_DATA    0x0008
+#define OCF_LE_SET_SCAN_RSP_DATA      0x0009
 #define OCF_LE_SET_ADVERTISE_ENABLE    0x000A
 
 /* Build opcode from OGF + OCF */
@@ -138,6 +139,13 @@ struct hci_le_set_adv_parameters_cp {
 /* ---------- LE advertising data ---------- */
 
 struct hci_le_set_adv_data_cp {
+    uint8_t length;
+    uint8_t data[31];
+} __attribute__((packed));
+
+/* ---------- LE scan response data ---------- */
+
+struct hci_le_set_scan_rsp_data_cp {
     uint8_t length;
     uint8_t data[31];
 } __attribute__((packed));
