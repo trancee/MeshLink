@@ -121,6 +121,7 @@ private fun ByteArray.toHex(): String = joinToString("") { "%02x".format(it) }
 /** No-op BLE transport for JVM demonstration. */
 private class DemoTransport : BleTransport {
     override val localPeerId: ByteArray = ByteArray(16) { it.toByte() }
+    override var advertisementServiceData: ByteArray = ByteArray(0)
     override suspend fun startAdvertisingAndScanning() {}
     override suspend fun stopAll() {}
     override val advertisementEvents: Flow<AdvertisementEvent> = emptyFlow()
