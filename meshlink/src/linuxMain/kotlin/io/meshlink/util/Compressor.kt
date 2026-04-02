@@ -31,6 +31,7 @@ private const val DEFAULT_MEM_LEVEL = 8
 
 private class LinuxCompressor : Compressor {
     override fun compress(data: ByteArray): ByteArray {
+        if (data.isEmpty()) return data
         val bound = compressBound(data.size.toULong()).toInt()
         val dest = ByteArray(bound)
         memScoped {
@@ -63,6 +64,7 @@ private class LinuxCompressor : Compressor {
     }
 
     override fun decompress(data: ByteArray, originalSize: Int): ByteArray {
+        if (originalSize == 0) return ByteArray(0)
         val dest = ByteArray(originalSize)
         memScoped {
             val stream = alloc<z_stream>()
