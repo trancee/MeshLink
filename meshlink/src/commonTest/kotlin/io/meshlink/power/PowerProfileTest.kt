@@ -98,23 +98,6 @@ class PowerProfileTest {
         assertEquals(1, PowerProfile.POWER_SAVER.maxConnections)
     }
 
-    // ── Gossip multiplier ───────────────────────────────────────
-
-    @Test
-    fun performance_gossipMultiplier_1x() {
-        assertEquals(1.0, PowerProfile.PERFORMANCE.gossipMultiplier)
-    }
-
-    @Test
-    fun balanced_gossipMultiplier_1_5x() {
-        assertEquals(1.5, PowerProfile.BALANCED.gossipMultiplier)
-    }
-
-    @Test
-    fun powerSaver_gossipMultiplier_3x() {
-        assertEquals(3.0, PowerProfile.POWER_SAVER.gossipMultiplier)
-    }
-
     // ── Aggressive discovery ────────────────────────────────────
 
     @Test
@@ -141,7 +124,6 @@ class PowerProfileTest {
             scanOnMillis = 2_000L,
             scanOffMillis = 8_000L,
             maxConnections = 2,
-            gossipMultiplier = 2.0,
         )
         assertEquals(20, custom.scanDutyPercent)
     }
@@ -153,7 +135,6 @@ class PowerProfileTest {
             scanOnMillis = 0L,
             scanOffMillis = 0L,
             maxConnections = 1,
-            gossipMultiplier = 1.0,
         )
         assertEquals(0, custom.scanDutyPercent)
     }
@@ -162,8 +143,8 @@ class PowerProfileTest {
 
     @Test
     fun dataClassEquality_sameValues_areEqual() {
-        val a = PowerProfile(250L, 4_000L, 1_000L, 8, 1.0)
-        val b = PowerProfile(250L, 4_000L, 1_000L, 8, 1.0)
+        val a = PowerProfile(250L, 4_000L, 1_000L, 8)
+        val b = PowerProfile(250L, 4_000L, 1_000L, 8)
         assertEquals(a, b)
     }
 }

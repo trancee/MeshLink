@@ -16,10 +16,10 @@
 The following terms are commonly confused. Read this before continuing.
 
 - **"Node" vs "Device" vs "Peer"** — **Peer** is canonical. Use "node" only in graph-theory contexts; avoid "device" except for hardware constraints.
-- **"Message" is overloaded** — **Payload** = app-level content. **Sealed/Routed Message** = encrypted envelope. Qualify control messages explicitly (e.g., "gossip message").
+- **"Message" is overloaded** — **Payload** = app-level content. **Sealed/Routed Message** = encrypted envelope. Qualify control messages explicitly (e.g., "route request message").
 - **"Eviction" has three meanings** — **Connection Eviction** (removing GATT connections), **Buffer Eviction** (removing stored messages), **Presence Eviction** (marking peers as Gone). Always qualify.
 - **"ACK" has two meanings** — **Chunk ACK** (transport-level) and **Delivery ACK** (application-level). Always use the full term.
-- **"Sequence number" has two meanings** — Chunk sequence (within a Transfer) vs. announcement sequence (DSDV routing freshness). Disambiguate explicitly.
+- **"Sequence number" has two meanings** — Chunk sequence (within a Transfer) vs. route sequence (routing freshness). Disambiguate explicitly.
 - **"Session"** — Refers specifically to a **Noise XX Session**. Avoid for any other concept.
 - **"Broadcast" vs "Advertisement"** — **Broadcast** = signed message to all mesh peers. **Advertisement** = BLE advertising packet. Never conflate.
 
@@ -52,8 +52,8 @@ The following terms are commonly confused. Read this before continuing.
 | **BLE_STACK_UNRESPONSIVE** | Diagnostic emitted when the library is `started` + actively scanning/advertising but receives zero BLE callbacks for 60 seconds. Re-emitted every 60s. Carries `silenceDuration` and `suggestedAction: RESTART_BLUETOOTH`. **Automatic recovery:** the library tears down all BLE resources and re-initializes after a 5-second cooldown, up to 3 restart attempts per hour. After 3 failed attempts → `BLE_STACK_FATAL` → stop all BLE operations. | BLE hang, stack timeout |
 | **BleTransport** | The abstraction interface between mesh logic and platform BLE (CoreBluetooth / android.bluetooth). Exposes both GATT and **L2CAP CoC** operations. | Transport layer, BLE adapter |
 | **Capability Byte** | A 1-byte bitmap exchanged during the **Noise XX Session** handshake indicating supported transport features. Bit 0 = **L2CAP CoC** supported. | Feature flags, capability flags |
-| **Control Characteristic** | The GATT characteristic pair (write + notify) carrying Noise XX handshakes and **Gossip** exchanges. | Handshake channel |
-| **Control Plane** | The GATT-based channel for low-bandwidth protocol messages (Noise XX handshakes, Gossip, ACKs). Always GATT, even when L2CAP is active. | Management plane, discovery layer, gossip layer |
+| **Control Characteristic** | The GATT characteristic pair (write + notify) carrying Noise XX handshakes and control exchanges. | Handshake channel |
+| **Control Plane** | The GATT-based channel for low-bandwidth protocol messages (Noise XX handshakes, ACKs, AODV route discovery). Always GATT, even when L2CAP is active. | Management plane, discovery layer |
 | **Credit-Based Flow Control** | Built-in **L2CAP CoC** throttling: receiver issues credits, sender pauses when exhausted. Replaces **SACK** on L2CAP connections. | L2CAP flow control, credit flow |
 | **Data Characteristic** | The GATT characteristic pair (write + notify) carrying **Chunks**, **Chunk ACKs**, and **Delivery ACKs** when **L2CAP CoC** is unavailable (**GATT Fallback** mode). | Payload channel |
 | **Data Plane** | The communication path for bulk message transfer (**Chunks**, **Routed Messages**, **Broadcasts**). Uses **L2CAP CoC** when both **Peers** support it; falls back to **Data Characteristic** (GATT) otherwise. At the logical layer, this includes routing-table-based forwarding of **Routed Messages** toward their destination. | Transfer plane, payload plane, forwarding layer |
@@ -75,9 +75,9 @@ The following terms are commonly confused. Read this before continuing.
 | **PSM Zero** | L2CAP Protocol/Service Multiplexer value of `0x0000` in the Noise XX handshake payload, signaling "no L2CAP support." Peer falls back to GATT-only data path. | PSM null, no-L2CAP flag |
 | **RSSI** | Received Signal Strength Indicator — the power level (in dBm) of a received BLE signal. Used as a linear input to **Link Cost**: cost increases linearly as RSSI decreases (stronger signal = lower cost). | Signal strength, signal level |
 | **Service Data (AD type 0x16)** | BLE advertisement data structure keyed by the 16-bit service UUID (0x7F3A). Used instead of Manufacturer-Specific Data to avoid company ID registration. Carries the MeshLink payload (version, power mode, key hash). | Manufacturer data, service advertisement |
-| **Type Prefix** | A 1-byte header on every GATT write/notification that identifies the message type: 0x00=broadcast, 0x01=handshake, 0x02=gossip, 0x03=chunk, 0x04=chunk_ack, 0x05=routed_message, 0x06=delivery_ack, 0x07=resume_request. 0x08–0xFF reserved → drop + UNKNOWN_MESSAGE_TYPE diagnostic. | Message tag, discriminator |
+| **Type Prefix** | A 1-byte header on every GATT write/notification that identifies the message type: 0x00=handshake, 0x01=keepalive, 0x02=rotation, 0x03=route_request, 0x04=route_reply, 0x05=chunk, 0x06=chunk_ack, 0x07=nack, 0x08=resume_request, 0x09=broadcast, 0x0A=routed_message, 0x0B=delivery_ack. 0x0C–0xFF reserved → drop + UNKNOWN_MESSAGE_TYPE diagnostic. | Message tag, discriminator |
 | **Wire Format** | The custom little-endian binary protocol defining all message layouts as byte-offset tables. | Protocol, serialization format, schema |
-| **Write-With-Response** | GATT ATT Write Request used for Control characteristics. Provides per-write confirmation at ~15ms cost. Used for handshakes and gossip. | ATT Write Request, confirmed write |
+| **Write-With-Response** | GATT ATT Write Request used for Control characteristics. Provides per-write confirmation at ~15ms cost. Used for handshakes and control messages. | ATT Write Request, confirmed write |
 | **Write-Without-Response** | GATT ATT Write Command used for Data characteristics. Fire-and-forget for throughput; SACK handles reliability. | ATT Write Command, unconfirmed write |
 
 ## Connections
@@ -117,7 +117,7 @@ The following terms are commonly confused. Read this before continuing.
 | Term | Definition | Aliases to avoid |
 |------|-----------|-----------------|
 | **Byte-Offset Resume** | The resume strategy on reconnection: receiver reports **total bytes received** (not chunk sequence number), sender resumes from that offset at whatever chunk size the new connection negotiates. Enables seamless resume across **GATT**↔**L2CAP CoC** transport mode changes. | Chunk resume, sequence resume |
-| **Resume Request** | Message type `0x07` sent on the **Control Characteristic** after an **L2CAP CoC** → **GATT Fallback** transport switch, carrying `{messageId, bytesReceived}` to resume an in-progress **Transfer** from the byte offset. `bytesReceived` = last fully-reassembled chunk boundary (partial frames discarded). Avoids the **Chunk Inactivity Timeout**. | Transport resume, fallback resume |
+| **Resume Request** | Message type `0x08` sent on the **Control Characteristic** after an **L2CAP CoC** → **GATT Fallback** transport switch, carrying `{messageId, bytesReceived}` to resume an in-progress **Transfer** from the byte offset. `bytesReceived` = last fully-reassembled chunk boundary (partial frames discarded). Avoids the **Chunk Inactivity Timeout**. | Transport resume, fallback resume |
 | **Chunk** | A BLE-sized byte range of E2E ciphertext, carrying a message ID and sequence number. | Fragment, packet, segment |
 | **Chunk Inactivity Timeout** | The 30-second timer that drops an incomplete **Transfer** if no new **Chunk** is received (prevents chunk flooding). | Stall timeout, idle timeout |
 | **Round-Robin (Weighted)** | The interleaving strategy when multiple **Transfers** are in-flight on one connection: weighted by transfer size — larger transfers get proportionally more send slots. Prevents small messages from starving behind large ones. | Interleaving, multiplexing |
@@ -131,56 +131,39 @@ The following terms are commonly confused. Read this before continuing.
 | Term | Definition | Aliases to avoid |
 |------|-----------|-----------------|
 | **Birational Map** | RFC 8032 conversion between Ed25519 (Edwards) and Curve25519 (Montgomery) keys. MeshLink derives Curve25519 from Ed25519 (the well-supported direction). One keypair, two uses. | Key conversion, curve mapping |
-| **E2E Encryption** | The Noise K (`Noise_K_25519_ChaChaPoly_SHA256`) one-shot encryption layer protecting **Payload** from sender to final recipient. Noise K provides built-in sender authentication (recipient must know sender's static key via **Gossip**). | Inner encryption, message encryption |
+| **E2E Encryption** | The Noise K (`Noise_K_25519_ChaChaPoly_SHA256`) one-shot encryption layer protecting **Payload** from sender to final recipient. Noise K provides built-in sender authentication (recipient must know sender's static key via AODV route discovery). | Inner encryption, message encryption |
 | **Hop-by-Hop Encryption** | The Noise XX (`Noise_XX_25519_ChaChaPoly_SHA256`) session encryption layer protecting all data between adjacent **Neighbors**. | Outer encryption, transport encryption, link encryption |
 | **Hop-by-Hop Re-encryption** | The per-**Chunk** (or per-**L2CAP Framing** unit) operation at a **Relay**: decrypt from inbound **Noise XX Session**, re-encrypt under outbound **Noise XX Session**. On **L2CAP CoC**, each framed message is an independent encryption unit. | Re-wrapping, transit encryption |
-| **Key Rotation** | Generating a new **Identity** keypair via `rotateIdentity()`, signing the announcement with the old key, and gossiping both old+new keys to all reachable **Peers**. API: `suspend fun rotateIdentity(): Result<PublicKey>` — returns new key after gossip announcement sent. **TOFU** auto-accepts signed rotations in both `strict` and `softRepin` modes. v1: single-device identity only. | Identity rotation, re-keying |
+| **Key Rotation** | Generating a new **Identity** keypair via `rotateIdentity()`, signing the announcement with the old key, and broadcasting both old+new keys to all reachable **Peers**. API: `suspend fun rotateIdentity(): Result<PublicKey>` — returns new key after rotation announcement sent. **TOFU** auto-accepts signed rotations in both `strict` and `softRepin` modes. v1: single-device identity only. | Identity rotation, re-keying |
 | **Noise XX Session** | The authenticated encrypted transport channel established via Noise XX handshake between two **Neighbors** on a GATT connection. | Transport session, encrypted channel |
-| **Recipient Key Unknown** | Error returned when a message targets a peer discovered via gossip (route exists) but whose Curve25519 public key has not yet been received. Distinct from `noRoute` (no path exists). Transient — resolves when gossip delivers the key. App can show "establishing secure channel..." | Key not found, key pending |
+| **Recipient Key Unknown** | Error returned when a message targets a peer discovered via route discovery (route exists) but whose Curve25519 public key has not yet been received. Distinct from `noRoute` (no path exists). Transient — resolves when key exchange completes. App can show "establishing secure channel..." | Key not found, key pending |
 | **Sealed Message** | The output of **E2E Encryption** — an ephemeral public key + ciphertext blob that only the recipient can decrypt. | Encrypted envelope, sealed envelope |
 | **Signature Scope** | Bytes covered by Ed25519 signature. Broadcasts: messageId + senderKey + payloadLen + payload. Delivery ACKs: messageId + senderKey + recipientKey. Sealed Messages: N/A (Noise K authenticates). | Signed data, signing input |
 
 ## Routing
 
-> See [diagrams.md § Gossip Protocol Exchange](docs/diagrams.md#9-gossip-protocol-exchange) for the full gossip sequence diagram.
+> See [diagrams.md § AODV Route Discovery](docs/diagrams.md#8-aodv-route-discovery) for the route discovery sequence diagram.
 
 | Term | Definition | Aliases to avoid |
 |------|-----------|-----------------|
 | **Backup Route** | The second-lowest-**Route Cost** path to a destination, via a **different Next-Hop** than the **Primary Route**. Enables instant failover. | Secondary route, alternative route |
 | **Cut-Through Forwarding** | The **Relay** model where **Chunks** are forwarded to the **Next-Hop** as they arrive, without waiting for full reassembly, while keeping a local buffer copy. | Pipeline forwarding, streaming relay |
-| **Enhanced DSDV** | MeshLink's proactive distance-vector algorithm (DSDV-adapted). Uses **Peer Announcements** with sequence numbers and **Route Cost** to build the **Routing Table**. Enhancements: composite cost metric, **Multipath** routes, **Triggered Updates**, **Split Horizon**, **Poison Reverse**. Routes expire naturally via **Route Expiry**. | DSDV-Lite, routing algorithm |
-| **Freshness Penalty** | Multiplier (1.5×) applied to **Link Cost** when the last loss measurement is older than 2× `gossipInterval`. Biases routing toward links with recent, proven quality data. Links with recent measurements use 1.0× (no penalty). Precedent: BATMAN-adv V TQ aging, Babel RFC 8966 §3.5.2. | Idle link penalty, staleness penalty |
-| **Gossip** | The periodic exchange of topology information (peer announcements, route updates) between **Neighbors** over GATT connections. | Flooding (different), broadcasting (different) |
-| **Gossip Interval** | The per-**Power Mode** timer between **Gossip** exchanges (5s / 15s / 30s). When no routing table changes exist, a lightweight **Gossip Suppression** keepalive is sent instead of a full differential. | Gossip cycle, gossip period |
-| **Gossip Keepalive** | The 11-byte message sent during **Gossip Suppression**: `[0x02 type | count=0 (uint16) | seq_hi (uint64 LE)]`. Count=0 distinguishes keepalive from differential gossip. Receiver compares `seq_hi` with known state; mismatch triggers full differential on next cycle. | Gossip suppression, heartbeat, gossip ping |
-| **Gossip Poisoning** | Attack where a malicious node advertises artificially low route costs to attract traffic. Mitigated by **Route Cost Validation** and **Gossip Signing** (prevents key forgery); mutable field manipulation mitigated by local-only **Reputation System**. | Route poisoning, blackhole attack |
-| **Gossip Poisoning Escalation** | Detection mechanism for **Gossip Poisoning**: Per-neighbor signature failure tracking in a rolling 1-gossip-interval window. After **5 failures** from the same neighbor → `GOSSIP_POISONING_SUSPECTED` diagnostic emitted. No blocklist — future valid announcements still accepted. Existing routes unaffected. | Gossip attack detection |
-| **Gossip Signing** | Ed25519 signature on each **Peer Announcement** covering immutable fields `(origin_pubkey, sequence_number)`. Prevents key injection attacks by malicious **Relays**. Mutable fields (hop count, route cost) protected by **Reputation System** instead. Adds +64 bytes per entry. | Announcement authentication, signed gossip |
-| **Gossip Suppression** | When no routing table changes exist, **Gossip** cycles send a lightweight keepalive (~8 bytes) instead of a full differential. Reduces stable-state traffic to near-zero. | Keepalive gossip, empty gossip |
-| **Gossip Throttling** | Automatic gossip interval increase when routing table exceeds thresholds: +50% at >100 entries, 2× at >200. Self-regulating mechanism to prevent gossip from consuming BLE bandwidth at scale. | Auto-throttle, gossip dampening |
+| **Freshness Penalty** | Multiplier (1.5×) applied to **Link Cost** when the last loss measurement is stale. Biases routing toward links with recent, proven quality data. Links with recent measurements use 1.0× (no penalty). Precedent: BATMAN-adv V TQ aging, Babel RFC 8966 §3.5.2. | Idle link penalty, staleness penalty |
 | **Handshake Rate Limiting** | Sybil mitigation: new **Noise XX Handshakes** with unknown **Peers** are rate-limited to 1 per second. **TOFU**-pinned peers are exempt. Forces Sybil devices to spend real time establishing connections. Configurable via `handshakeRateLimit`. | Connection throttle, handshake throttle |
-| **Holddown Timer** | Timer (2× gossip interval) suppressing routing changes for a recently-withdrawn destination to prevent oscillation from flapping links. | Dampening timer, route suppression |
 | **Hop** | A single relay step from one **Peer** to the next in a multi-hop delivery path. | Jump, step |
 | **Independent Version Downgrade** | Protocol version negotiation strategy where each peer independently computes `min(local, remote)` version. No coordination needed — both sides arrive at the same result. | Coordinated downgrade, version handshake |
 | **Link Cost** | Quality score for a single hop: linear RSSI-to-cost mapping × `loss_multiplier` + `stability_penalty` (lower is better). | Link quality, link weight |
 | **Next-Hop** | The **Neighbor** to which a **Routed Message** should be forwarded, as determined by the **Routing Table**. | Next node, relay target |
-| **Partition Heal Suppression** | When a full gossip exchange occurs on reconnection, routes learned from it are NOT propagated via triggered updates. They propagate via periodic gossip only, preventing gossip storms. | Reconnection flood suppression |
-| **Peer Announcement** | A **Gossip** message carrying: origin **Public Key**, sequence number, hop count, **Route Cost**, and Ed25519 signature over `(origin_pubkey, sequence_number)`. Mutable fields (hop count, cost) protected by **Reputation System**. Builds the **Routing Table**. | Route advertisement, topology update |
-| **Local Reputation Tracking** | Per-**Relay** delivery success rate tracking used to score neighbor reliability. Each node maintains local-only delivery success rates for its relays; relays with disproportionate failures are deprioritized in route selection. **Never gossiped** (prevents reputation poisoning). Replaces former per-hop ACK design. | Forwarding ACK, relay ACK, per-hop ACK, positional blame |
+| **Local Reputation Tracking** | Per-**Relay** delivery success rate tracking used to score neighbor reliability. Each node maintains local-only delivery success rates for its relays; relays with disproportionate failures are deprioritized in route selection. Never shared across peers (prevents reputation poisoning). Replaces former per-hop ACK design. | Forwarding ACK, relay ACK, per-hop ACK, positional blame |
 | **Per-Neighbor Routing Table Cap** | Sybil mitigation: routes learned through any single **Neighbor** are capped at 30% of the **Routing Table** entries (minimum 60 routes). Prevents a Sybil cluster from dominating path selection. Configurable via `routeTablePerNeighborCap`. | Neighbor route quota, per-neighbor limit |
-| **Poison Reverse** | The practice of explicitly advertising a changed route's old **Next-Hop** with **cost = ∞** (rather than simply omitting it). Prevents count-to-infinity anomalies with non-monotonic composite **Route Cost** metrics. Complements **Split Horizon**. | Reverse poison, infinity advertisement |
 | **Primary Route** | The lowest-**Route Cost** path to a destination in the **Routing Table**. Used for forwarding by default. | Best route, preferred route |
-| **Reputation System** | Local-only per-**Relay** delivery success rate tracking. Deprioritizes relays with disproportionate failures. **Never gossiped** (prevents reputation poisoning). | Relay trust, behavior scoring |
-| **Route Cost** | Cumulative cost from source to destination, derived from per-hop **Link Costs** via **Enhanced DSDV**. Includes freshness penalty (1.5× for links without recent measurement). Used for **Primary Route** selection. | Metric, weight, ETX |
-| **Route Cost Validation** | Sanity check rejecting **Peer Announcements** where `advertised_cost < local_link_cost_to_neighbor`. Prevents trivial blackhole attacks. | Cost sanity check |
-| **Route Error (RERR)** | *(Not implemented in v1.)* Routes expire naturally via **Route Expiry** at 5× **Gossip Interval**. | Route failure, link break notification |
-| **Route Expiry** | The soft-deletion of a **Routing Table** entry when no updated **Peer Announcement** has been received within 5× the **Gossip Interval**. | Route timeout, stale route cleanup |
-| **Route Settling Time** | The delay of 1 **Gossip Interval** before advertising a newly discovered route to **Neighbors**, suppressing flapping from **Peers** at the edge of BLE range. Route withdrawals propagate immediately (no settling). See also **Holddown Timer**. | Dampening |
-| **Settled Route** | A route that has survived the full **Route Settling Time** without being withdrawn or updated, and has exited the **Holddown Timer** window. Only settled routes are advertised to **Neighbors** and used for **Primary Route** selection. | Stable route, converged route |
+| **Reputation System** | Local-only per-**Relay** delivery success rate tracking. Deprioritizes relays with disproportionate failures. Never shared across peers (prevents reputation poisoning). | Relay trust, behavior scoring |
+| **Route Cost** | Cumulative cost from source to destination, derived from per-hop **Link Costs** via AODV route discovery. Includes freshness penalty (1.5× for links without recent measurement). Used for **Primary Route** selection. | Metric, weight, ETX |
+| **Route Cost Validation** | Sanity check rejecting routes where `advertised_cost < local_link_cost_to_neighbor`. Prevents trivial blackhole attacks. | Cost sanity check |
+| **Route Error (RERR)** | *(Not implemented in v1.)* Routes expire naturally via TTL-based **Route Expiry**. | Route failure, link break notification |
+| **Route Expiry** | The soft-deletion of a **Routing Table** entry when its TTL expires (`routeCacheTtlMillis`, default 60s). | Route timeout, stale route cleanup |
 | **Routed Message** | The multi-hop envelope containing a **Sealed Message** + routing metadata (sender/recipient **Public Keys**, hop count, TTL, **Visited List**). | Forwarded message, relay envelope |
-| **Routing Table** | The local data structure mapping each known **Peer** to the best **Neighbor** (next-hop) for forwarding, built from **Peer Announcements** via Enhanced DSDV. Stores primary + backup routes. | Forwarding table, route map |
-| **Split Horizon** | Routes are NOT advertised back to the **Neighbor** they were learned from during **Gossip**. Combined with **Poison Reverse** to prevent count-to-infinity. | Reverse filtering |
-| **Triggered Update** | An immediate **Gossip** exchange sent when a significant topology change is detected (new **Neighbor**, **Presence Eviction**, large **Route Cost** change), rather than waiting for the next **Gossip Interval**. Rate-limited to 1 per **Gossip Interval** per **Neighbor**. | Event-driven update, instant gossip |
+| **Routing Table** | The local data structure mapping each known **Peer** to the best **Neighbor** (next-hop) for forwarding, built from AODV route discovery. Stores primary + backup routes. | Forwarding table, route map |
 | **Visited List** | The list of 16-byte **SHA-256-128 Key Hashes** of every **Peer** that has forwarded a **Routed Message**, used for loop prevention. 64 bytes max at 4 hops. | Visited node list, path list |
 | **Visited List Loop Diagnostic** | `VISITED_LIST_LOOP_DETECTED` diagnostic emitted when a message is dropped due to visited-list match. Carries `{messageId, matchedHash, hopCount}`. SHA-256-128 collision probability is ~N²/2¹²⁸ — negligible for meshes ≤10,000 peers; no mitigation implemented. | Loop warning, collision alert |
 
@@ -206,9 +189,9 @@ The following terms are commonly confused. Read this before continuing.
 | **Custom Power Mode** | Developer override that locks the library to a specific power mode, disabling battery-based transitions and charging override. → see design.md §7. | Fixed mode, manual power |
 | **Eviction Grace Period** | 30s window during power mode downgrade where connections with active transfers are NOT evicted. Expires at 30s or transfer completion, whichever first. → see design.md §7. | Graceful drain, grace window, eviction delay |
 | **Grace Period Cascading** | Once a 30-second eviction grace period begins during power mode downgrade, further downward transitions do NOT shorten or cancel the timer — it runs to completion from T=0. Upward transitions (e.g., charger plugged in) cancel the grace period immediately since the higher mode provides sufficient connection slots. | Grace stacking, cascading grace |
-| **Graceful Drain** | The **Power Mode** transition behavior where connections with active **Transfers** are NOT evicted immediately. Gossip interval, chunk size for new transfers, and route expiry timers switch to the new mode immediately, but active transfer connections remain alive until the transfer completes or the **Eviction Grace Period** expires. Connections without active transfers are evicted immediately. | Drain period, transfer drain |
+| **Graceful Drain** | The **Power Mode** transition behavior where connections with active **Transfers** are NOT evicted immediately. Chunk size for new transfers and route expiry timers switch to the new mode immediately, but active transfer connections remain alive until the transfer completes or the **Eviction Grace Period** expires. Connections without active transfers are evicted immediately. | Drain period, transfer drain |
 | **Hysteresis** | The 30-second delay before downward **Power Mode** transitions, preventing flapping when battery oscillates near a threshold. Upward transitions are immediate. | Debounce, dampening |
-| **Power Mode** | One of three automatic tiers (Performance, Balanced, PowerSaver) selected by the precedence chain: `customPowerMode` > charging state > battery level. PowerSaver activates at <30% battery. Controls scan duty cycle, advertising interval, gossip interval, connection limits, and concurrent transfer limits. | Power state, energy mode, Ultra-Low |
+| **Power Mode** | One of three automatic tiers (Performance, Balanced, PowerSaver) selected by the precedence chain: `customPowerMode` > charging state > battery level. PowerSaver activates at <30% battery. Controls scan duty cycle, advertising interval, keepalive interval, connection limits, and concurrent transfer limits. | Power state, energy mode, Ultra-Low |
 
 ## Presence Detection
 
@@ -229,11 +212,11 @@ The following terms are commonly confused. Read this before continuing.
 |------|-----------|-----------------|
 | **Engine** | A stateful facade that consolidates a domain concern behind sealed result types. Constructed once and injected into MeshLink. Callers pattern-match on sealed results to decide effects. | Actor, manager, service |
 | **SecurityEngine** | Engine owning Noise XX/K sessions, trust store (TOFU), and replay guard state. Returns sealed results for handshake steps, seal/unseal, and trust decisions. | CryptoActor, crypto manager |
-| **RoutingEngine** | Engine owning the **Routing Table**, **Enhanced DSDV** state, and **Dedup Set**. Returns sealed results for route lookups, gossip preparation, and dedup checks. | RouterActor, routing manager |
+| **RoutingEngine** | Engine owning the **Routing Table**, AODV route discovery state, and **Dedup Set**. Returns sealed results for route lookups, RREQ/RREP processing, and dedup checks. | RouterActor, routing manager |
 | **TransferEngine** | Engine owning in-flight **Transfer** state, chunking, **SACK** windows, and **AIMD** congestion control. Returns sealed results for chunk processing and transfer lifecycle events. | TransferActor, transfer manager |
 | **DeliveryPipeline** | Engine owning delivery tracking, confirmation tombstones, and store-and-forward buffering. Returns sealed results for delivery status and buffer operations. | BufferActor, delivery tracker |
 | **Coordinator** | A stateful component that orchestrates loops or multi-step decision logic. Coordinators call engines and return sealed actions for MeshLink to execute. | Actor, controller |
-| **GossipCoordinator** | Coordinator managing the **Gossip** timer loop, differential exchange, **Triggered Updates**, and **Gossip Suppression** keepalives. | GossipActor, gossip manager |
+| **RouteCoordinator** | Coordinator managing **keepalive probing** of 1-hop neighbors. AODV route discovery handles all multi-hop route establishment on demand. | RouteActor, route manager |
 | **PeerConnectionCoordinator** | Coordinator managing BLE connection lifecycle: discovery, **Tie-Breaking Rule** evaluation, **Noise XX Session** initiation, and version negotiation. | ConnectionActor, connection manager |
 | **PowerCoordinator** | Coordinator managing **Power Mode** transitions, **Hysteresis** timers, charging override, and memory shedding during mode downgrades. | PresenceActor, power manager |
 | **Policy Chain** | A pure pre-flight evaluator that checks conditions in priority order and returns a sealed decision type (e.g., `SendDecision`, `BroadcastDecision`). Testable via function-type dependency injection. | Validator, checker |
@@ -282,8 +265,8 @@ The following terms are commonly confused. Read this before continuing.
 - A **Routed Message** is forwarded hop-by-hop using **Cut-Through Forwarding**, protected by **Hop-by-Hop Encryption** at each step
 - A **Transfer** is a single-hop chunked delivery of one **Routed Message** between two **Neighbors**, composed of many **Chunks** acknowledged by **Chunk ACKs**
 - A **Delivery ACK** confirms receipt of a **Direct Message** and is routed independently via reverse-path unicast
-- The **Control Plane** (**Gossip**) feeds the **Data Plane** (**Routing Table**) — gossip distributes **Peer Announcements** that build routes
-- **Power Mode** governs: scan duty cycle, advertising interval, **Gossip Interval**, **Connection Slot** budget, concurrent **Transfer** limits, **Sweep Timer** interval, and **Adaptive Timeout**
+- The **Control Plane** (AODV route discovery, keepalives) feeds the **Data Plane** (**Routing Table**) — route discovery establishes routes on demand
+- **Power Mode** governs: scan duty cycle, advertising interval, keepalive interval, **Connection Slot** budget, concurrent **Transfer** limits, **Sweep Timer** interval, and **Adaptive Timeout**
 
 ## Example dialogue
 
@@ -293,7 +276,7 @@ The following terms are commonly confused. Read this before continuing.
 >
 > **Dev:** "Once connected, what happens first?"
 >
-> **Domain expert:** "A Noise XX handshake establishes the **Noise XX Session** — that's the **Hop-by-Hop Encryption**. Then a full **Gossip** exchange: the new **Neighbor** sends all its **Peer Announcements**, which update our **Routing Table**. After that, **Gossip** switches to differential updates every **Gossip Interval**."
+> **Domain expert:** "A Noise XX handshake establishes the **Noise XX Session** — that's the **Hop-by-Hop Encryption**. Then the **Neighbor** is added to the connection table. Routes are discovered on demand via AODV when messages need to be sent — no proactive route exchange is needed."
 >
 > **Dev:** "If I now send a **Direct Message** to a **Peer** that's 3 hops away, what happens?"
 >

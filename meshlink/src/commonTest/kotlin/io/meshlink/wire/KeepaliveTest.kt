@@ -93,7 +93,7 @@ class KeepaliveTest {
 
     @Test
     fun decodeWrongTypeThrows() {
-        val bad = byteArrayOf(0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00) // TYPE_CHUNK
+        val bad = byteArrayOf(0x05, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00) // TYPE_CHUNK
         assertFailsWith<IllegalArgumentException> {
             WireCodec.decodeKeepalive(bad)
         }

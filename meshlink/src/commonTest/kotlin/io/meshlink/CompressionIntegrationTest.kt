@@ -20,7 +20,6 @@ class CompressionIntegrationTest {
     private val peerIdBob = ByteArray(8) { (0xB0 + it).toByte() }
 
     private fun compressionConfig(block: io.meshlink.config.MeshLinkConfigBuilder.() -> Unit = {}) = meshLinkConfig {
-        gossipIntervalMillis = 0L
         keepaliveIntervalMillis = 0L
         deliveryTimeoutMillis = 0L
         compressionEnabled = true
@@ -90,7 +89,6 @@ class CompressionIntegrationTest {
         val tBob = VirtualMeshTransport(peerIdBob)
         tAlice.linkTo(tBob)
         val config = meshLinkConfig {
-            gossipIntervalMillis = 0L
             keepaliveIntervalMillis = 0L
             deliveryTimeoutMillis = 0L
             compressionEnabled = false
@@ -154,7 +152,6 @@ class CompressionIntegrationTest {
     fun envelopeSkippedWhenCompressionDisabled() = runTest {
         val tAlice = VirtualMeshTransport(peerIdAlice)
         val config = meshLinkConfig {
-            gossipIntervalMillis = 0L
             keepaliveIntervalMillis = 0L
             deliveryTimeoutMillis = 0L
             compressionEnabled = false

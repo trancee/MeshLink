@@ -11,21 +11,20 @@ object WireCodec {
     const val TYPE_KEEPALIVE: Byte = 0x01
     const val TYPE_ROTATION: Byte = 0x02
 
-    // Routing (0x03–0x05)
+    // Routing (0x03–0x04)
     const val TYPE_ROUTE_REQUEST: Byte = 0x03
     const val TYPE_ROUTE_REPLY: Byte = 0x04
-    const val TYPE_ROUTE_UPDATE: Byte = 0x05 // Legacy DSDV — parsed but not sent
 
-    // Data Transfer (0x06–0x09)
-    const val TYPE_CHUNK: Byte = 0x06
-    const val TYPE_CHUNK_ACK: Byte = 0x07
-    const val TYPE_NACK: Byte = 0x08
-    const val TYPE_RESUME_REQUEST: Byte = 0x09
+    // Data Transfer (0x05–0x08)
+    const val TYPE_CHUNK: Byte = 0x05
+    const val TYPE_CHUNK_ACK: Byte = 0x06
+    const val TYPE_NACK: Byte = 0x07
+    const val TYPE_RESUME_REQUEST: Byte = 0x08
 
-    // Messaging (0x0A–0x0C)
-    const val TYPE_BROADCAST: Byte = 0x0A
-    const val TYPE_ROUTED_MESSAGE: Byte = 0x0B
-    const val TYPE_DELIVERY_ACK: Byte = 0x0C
+    // Messaging (0x09–0x0B)
+    const val TYPE_BROADCAST: Byte = 0x09
+    const val TYPE_ROUTED_MESSAGE: Byte = 0x0A
+    const val TYPE_DELIVERY_ACK: Byte = 0x0B
 
     // keepalive: type(1) + flags(1) + timestamp(8 LE ulong)
     private const val KEEPALIVE_SIZE = 10
@@ -330,47 +329,6 @@ object WireCodec {
         return DeliveryAckMessage(messageId, recipientId, signature, signerPublicKey, extensions)
     }
 
-    // route_update: type(1) + sender(8) + entryCount(1) + entries(N × 21)
-    // signed_route_update: route_update + signerPublicKey(32) + signature(64)
-    // each entry: destination(8) + cost(8 LE double) + sequenceNumber(4 LE uint) + hopCount(1)
-    private const val ROUTE_UPDATE_HEADER_SIZE = 1 + PEER_ID_SIZE + 1 // 10
-    private const val ROUTE_ENTRY_SIZE = PEER_ID_SIZE + 8 + 4 + 1 // 21
-    private const val SIGNER_PUBLIC_KEY_SIZE = 32
-    private const val SIGNATURE_SIZE = 64
-
-    fun encodeRouteUpdate(senderId: ByteArray, entries: List<RouteUpdateEntry>): ByteArray {
-        val buf = ByteArray(ROUTE_UPDATE_HEADER_SIZE + entries.size * ROUTE_ENTRY_SIZE)
-        var offset = 0
-        buf[offset++] = TYPE_ROUTE_UPDATE
-        senderId.copyInto(buf, offset)
-        offset += PEER_ID_SIZE
-        buf[offset++] = entries.size.toByte()
-        for (entry in entries) {
-            entry.destination.copyInto(buf, offset)
-            offset += PEER_ID_SIZE
-            buf.putDoubleBitsLE(offset, entry.cost)
-            offset += 8
-            buf.putUIntLE(offset, entry.sequenceNumber)
-            offset += 4
-            buf[offset++] = entry.hopCount.toByte()
-        }
-        return buf
-    }
-
-    fun encodeSignedRouteUpdate(
-        senderId: ByteArray,
-        entries: List<RouteUpdateEntry>,
-        signerPublicKey: ByteArray,
-        signature: ByteArray,
-    ): ByteArray {
-        val unsigned = encodeRouteUpdate(senderId, entries)
-        val buf = ByteArray(unsigned.size + SIGNER_PUBLIC_KEY_SIZE + SIGNATURE_SIZE)
-        unsigned.copyInto(buf)
-        signerPublicKey.copyInto(buf, unsigned.size)
-        signature.copyInto(buf, unsigned.size + SIGNER_PUBLIC_KEY_SIZE)
-        return buf
-    }
-
     fun encodeResumeRequest(
         messageId: ByteArray,
         bytesReceived: UInt,
@@ -401,44 +359,6 @@ object WireCodec {
             emptyList()
         }
         return ResumeRequestMessage(messageId, bytesReceived, extensions)
-    }
-
-    fun decodeRouteUpdate(data: ByteArray): RouteUpdateMessage {
-        require(data.size >= ROUTE_UPDATE_HEADER_SIZE) { "route_update too short: ${data.size}" }
-        require(data[0] == TYPE_ROUTE_UPDATE) { "not a route_update: 0x${data[0].toUByte().toString(16)}" }
-        var offset = 1
-        val senderId = data.copyOfRange(offset, offset + PEER_ID_SIZE)
-        offset += PEER_ID_SIZE
-        val entryCount = data[offset++].toInt() and 0xFF
-        val entriesEnd = ROUTE_UPDATE_HEADER_SIZE + entryCount * ROUTE_ENTRY_SIZE
-        require(data.size >= entriesEnd) {
-            "route_update truncated: expected $entriesEnd, got ${data.size}"
-        }
-        val entries = (0 until entryCount).map {
-            val destination = data.copyOfRange(offset, offset + PEER_ID_SIZE)
-            offset += PEER_ID_SIZE
-            val cost = data.getDoubleBitsLE(offset)
-            offset += 8
-            require(cost.isFinite() && cost >= 0.0) {
-                "route entry cost invalid: $cost (must be finite and non-negative)"
-            }
-            val sequenceNumber = data.getUIntLE(offset)
-            offset += 4
-            val hopCount = data[offset++].toUByte()
-            RouteUpdateEntry(destination, cost, sequenceNumber, hopCount)
-        }
-        // Check for trailing signature (signerPublicKey(32) + signature(64))
-        val remaining = data.size - entriesEnd
-        val signerPublicKey: ByteArray?
-        val signature: ByteArray?
-        if (remaining >= SIGNER_PUBLIC_KEY_SIZE + SIGNATURE_SIZE) {
-            signerPublicKey = data.copyOfRange(entriesEnd, entriesEnd + SIGNER_PUBLIC_KEY_SIZE)
-            signature = data.copyOfRange(entriesEnd + SIGNER_PUBLIC_KEY_SIZE, entriesEnd + SIGNER_PUBLIC_KEY_SIZE + SIGNATURE_SIZE)
-        } else {
-            signerPublicKey = null
-            signature = null
-        }
-        return RouteUpdateMessage(senderId, entries, signerPublicKey, signature)
     }
 
     fun encodeKeepalive(
@@ -637,14 +557,6 @@ private fun ByteArray.getUIntLE(offset: Int): UInt {
     return result.toUInt()
 }
 
-private fun ByteArray.putDoubleBitsLE(offset: Int, value: Double) {
-    putULongLE(offset, value.toRawBits().toULong())
-}
-
-private fun ByteArray.getDoubleBitsLE(offset: Int): Double {
-    return Double.fromBits(getULongLE(offset).toLong())
-}
-
 // --- Data classes ---
 
 data class ChunkMessage(
@@ -688,20 +600,6 @@ data class DeliveryAckMessage(
     val signature: ByteArray = ByteArray(0),
     val signerPublicKey: ByteArray = ByteArray(0),
     val extensions: List<TlvEntry> = emptyList(),
-)
-
-data class RouteUpdateEntry(
-    val destination: ByteArray,
-    val cost: Double,
-    val sequenceNumber: UInt,
-    val hopCount: UByte,
-)
-
-data class RouteUpdateMessage(
-    val senderId: ByteArray,
-    val entries: List<RouteUpdateEntry>,
-    val signerPublicKey: ByteArray? = null,
-    val signature: ByteArray? = null,
 )
 
 data class ResumeRequestMessage(

@@ -11,7 +11,6 @@ data class PowerProfile(
     val scanOnMillis: Long,
     val scanOffMillis: Long,
     val maxConnections: Int,
-    val gossipMultiplier: Double,
 ) {
     /** Computed scan duty cycle percentage. */
     val scanDutyPercent: Int
@@ -29,7 +28,6 @@ data class PowerProfile(
             scanOnMillis = 4_000L,
             scanOffMillis = 1_000L,
             maxConnections = 8,
-            gossipMultiplier = 1.0,
         )
 
         val BALANCED = PowerProfile(
@@ -37,7 +35,6 @@ data class PowerProfile(
             scanOnMillis = 3_000L,
             scanOffMillis = 3_000L,
             maxConnections = 4,
-            gossipMultiplier = 1.5,
         )
 
         val POWER_SAVER = PowerProfile(
@@ -45,7 +42,6 @@ data class PowerProfile(
             scanOnMillis = 1_000L,
             scanOffMillis = 5_000L,
             maxConnections = 1,
-            gossipMultiplier = 3.0,
         )
 
         fun forMode(mode: PowerMode): PowerProfile = when (mode) {

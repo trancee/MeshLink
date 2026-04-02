@@ -84,7 +84,7 @@ open meshlink/build/reports/tests/jvmTest/index.html
 
 ### Test Structure
 
-84 test files across 20 packages in `meshlink/src/commonTest/`: crypto (17),
+83 test files across 20 packages in `meshlink/src/commonTest/`: crypto (17),
 transport (9), transfer (8), util (7), power (7), wire (8), model (6),
 routing (5), dispatch (3), diagnostics (3), send (2), config (1), delivery (1),
 route (1), peer (1), protocol (1), storage (1), plus integration and stress
@@ -236,7 +236,7 @@ Test reports are uploaded as artifacts (14-day retention).
 
 Custom binary protocol — no protobuf. All parsers in `WireCodec.kt`.
 
-- **Type byte** at offset 0: `0x00` Handshake through `0x0C` DeliveryAck
+- **Type byte** at offset 0: `0x00` Handshake through `0x0B` DeliveryAck
 - **Endianness:** little-endian for chunk offsets, replay counters, SACK
   bitmasks; big-endian for protocol version, timestamps, PSM
 - **Key sizes:** 8-byte peer IDs, 32-byte Ed25519/X25519 keys, 64-byte

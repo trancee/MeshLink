@@ -96,23 +96,23 @@ Base UUID: `7F3Axxxx-8FC5-11EC-B909-0242AC120002` (random 128-bit UUID with the 
 
 **GATT write type semantics:** Control characteristics (0x0001–0x0002) use **write-with-response** (ATT Write Request) — handshake and control messages are low-frequency, high-importance, and cannot tolerate silent loss. Data characteristics (0x0003–0x0004) use **write-without-response** (ATT Write Command) — chunk transfers are high-frequency and protected by SACK retransmission, so the ~15ms per-write ATT round-trip is unnecessary overhead. This split maximizes data throughput while ensuring control-plane reliability.
 
-Every write/notification carries a **1-byte type prefix**: `0x00`=handshake, `0x01`=keepalive, `0x02`=rotation, `0x03`=route_request, `0x04`=route_reply, `0x05`=route_update (legacy), `0x06`=chunk, `0x07`=chunk_ack, `0x08`=nack, `0x09`=resume_request, `0x0A`=broadcast, `0x0B`=routed_message, `0x0C`=delivery_ack. This costs 0.4% overhead at 244-byte MTU but eliminates all ambiguity when multiple message types share a characteristic.
+Every write/notification carries a **1-byte type prefix**: `0x00`=handshake, `0x01`=keepalive, `0x02`=rotation, `0x03`=route_request, `0x04`=route_reply, `0x05`=chunk, `0x06`=chunk_ack, `0x07`=nack, `0x08`=resume_request, `0x09`=broadcast, `0x0A`=routed_message, `0x0B`=delivery_ack. This costs 0.4% overhead at 244-byte MTU but eliminates all ambiguity when multiple message types share a characteristic.
 
-**Reserved codes:** `0x0D–0xFF` are reserved for future use. Receiving a reserved message type code → drop the message + emit `UNKNOWN_MESSAGE_TYPE` diagnostic event.
+**Reserved codes:** `0x0C–0xFF` are reserved for future use. Receiving a reserved message type code → drop the message + emit `UNKNOWN_MESSAGE_TYPE` diagnostic event.
 
 **Relay forward compatibility:** Relays never inspect the inner message type of routed messages — they forward opaquely based on routing headers only. Unknown type inspection and drop happens only at the **final destination**. This enables incremental mesh upgrades: v2 nodes can use new message types through v1 relays.
 
-**Unknown hop-by-hop types:** For non-relayed hop-by-hop message types (handshake, route_update, chunk_ack), unknown type codes are dropped + `UNKNOWN_MESSAGE_TYPE` diagnostic, connection stays alive. V2 senders should gate new hop-by-hop features behind the **capability byte** exchanged during Noise XX handshake.
+**Unknown hop-by-hop types:** For non-relayed hop-by-hop message types (handshake, chunk_ack), unknown type codes are dropped + `UNKNOWN_MESSAGE_TYPE` diagnostic, connection stays alive. V2 senders should gate new hop-by-hop features behind the **capability byte** exchanged during Noise XX handshake.
 
 ```mermaid
 flowchart TD
     Start["Message received"] --> ReadType["Read 1-byte type prefix"]
 
-    ReadType --> ReservedCheck{"Type in 0x0D–0xFF?"}
+    ReadType --> ReservedCheck{"Type in 0x0C–0xFF?"}
     ReservedCheck -- Yes --> DropUnknown["Drop + UNKNOWN_MESSAGE_TYPE diagnostic"]
     DropUnknown --> End1(("End"))
 
-    ReservedCheck -- No --> IsRouted{"Type = 0x0B\n(routed_message)?"}
+    ReservedCheck -- No --> IsRouted{"Type = 0x0A\n(routed_message)?"}
 
     IsRouted -- Yes --> CheckDest["Check destination pubkey"]
     CheckDest --> IsSelf{"Destination = self?"}
@@ -123,25 +123,25 @@ flowchart TD
     CheckLoop -- Yes --> DropLoop["Drop (loop detected)"]
     CheckLoop -- No --> Forward["Increment hop_count\nAdd own hash to visited list\nForward via routing table"]
 
-    IsRouted -- No --> IsHandshakeControl{"Type = 0x00 (handshake)\nor 0x05 (route_update)?"}
+    IsRouted -- No --> IsHandshakeControl{"Type = 0x00 (handshake)?"}
     IsHandshakeControl -- Yes --> ProcessLocal["Process locally\n(never relayed)"]
 
-    IsHandshakeControl -- No --> IsChunk{"Type = 0x06 (chunk)\nor 0x07 (chunk_ack)?"}
+    IsHandshakeControl -- No --> IsChunk{"Type = 0x05 (chunk)\nor 0x06 (chunk_ack)?"}
     IsChunk -- Yes --> DirectTransfer["Direct transfer\n— process locally"]
 
-    IsChunk -- No --> IsDeliveryAck{"Type = 0x0C\n(delivery_ack)?"}
+    IsChunk -- No --> IsDeliveryAck{"Type = 0x0B\n(delivery_ack)?"}
     IsDeliveryAck -- Yes --> ConfirmDelivery["Confirm delivery\nto sender"]
 
-    IsDeliveryAck -- No --> IsResume{"Type = 0x09\n(resume_request)?"}
+    IsDeliveryAck -- No --> IsResume{"Type = 0x08\n(resume_request)?"}
     IsResume -- Yes --> ResumeTransfer["Resume transfer\nfrom byte offset"]
 
-    IsResume -- No --> IsBroadcast{"Type = 0x0A\n(broadcast)?"}
+    IsResume -- No --> IsBroadcast{"Type = 0x09\n(broadcast)?"}
     IsBroadcast -- Yes --> Broadcast["Deliver locally +\nforward if TTL > 0"]
 ```
 
 **Message type relationships:**
-- **`routed_message` (0x0B)** is the **routing envelope** — it carries routing metadata and wraps each chunk of E2E-encrypted payload. Every chunk in a multi-hop transfer is wrapped in a `routed_message` envelope.
-- **`resume_request` (0x09)** is sent on the **Control Characteristic** after an L2CAP→GATT transport fallback. It carries `{messageId (16 bytes), bytesReceived (4 bytes)}` and triggers the sender to resume the in-progress transfer on the GATT Data Characteristic from the specified byte offset. This enables transparent mid-transfer transport switching without data loss.
+- **`routed_message` (0x0A)** is the **routing envelope** — it carries routing metadata and wraps each chunk of E2E-encrypted payload. Every chunk in a multi-hop transfer is wrapped in a `routed_message` envelope.
+- **`resume_request` (0x08)** is sent on the **Control Characteristic** after an L2CAP→GATT transport fallback. It carries `{messageId (16 bytes), bytesReceived (4 bytes)}` and triggers the sender to resume the in-progress transfer on the GATT Data Characteristic from the specified byte offset. This enables transparent mid-transfer transport switching without data loss.
   - **`bytesReceived` sampling rule:** On L2CAP→GATT fallback, `bytesReceived` is the total bytes of **fully-reassembled chunks only**. Partial L2CAP frames (incomplete ciphertext that can't be decrypted) are discarded. Worst case: a few KB of the last partial chunk are retransmitted — negligible overhead vs. corruption risk.
 
   **`resume_request` wire format (on Control Characteristic, write-with-response):**
@@ -187,7 +187,7 @@ packet-beta
 - **DirectMessage:** Deliver locally and **stop forwarding**. Unicast has a single destination — forwarding past it wastes bandwidth and risks duplicates.
 - **Broadcast:** Deliver locally and **continue forwarding** if remaining hop count > 0. Broadcasts relay up to `broadcastTTL` hops; a relay within range that is also a listener must do both (deliver and forward). The dedup set prevents loops.
 
-- **`chunk` (0x06)** is used for **direct (single-hop) transfers only** — when sender and recipient are directly connected, chunks carry only transfer metadata (sequence number, message ID) without routing overhead.
+- **`chunk` (0x05)** is used for **direct (single-hop) transfers only** — when sender and recipient are directly connected, chunks carry only transfer metadata (sequence number, message ID) without routing overhead.
 
   **`chunk` wire format:**
 
@@ -211,7 +211,7 @@ packet-beta
 
   **Protocol cap:** uint16 sequence numbers support up to ~16MB per transfer (65,535 chunks × minimum 244-byte MTU). Any increase requires a protocol version bump.
 
-- **`chunk_ack` / SACK (0x07)** — selective acknowledgement for received chunks:
+- **`chunk_ack` / SACK (0x06)** — selective acknowledgement for received chunks:
 
   **`chunk_ack` wire format:**
 
@@ -234,7 +234,7 @@ packet-beta
 ```
 
 - **Single-chunk fast path:** If the E2E ciphertext fits within a single chunk (payload ≤ MTU minus envelope overhead for GATT, or ≤ L2CAP chunk size minus framing), it is sent as a single `routed_message` or `chunk` — no multi-chunk transfer setup required.
-- **`broadcast` (0x0A)** is a standalone envelope for broadcast messages (signed, relay-forwarded up to `broadcastTTL` hops).
+- **`broadcast` (0x09)** is a standalone envelope for broadcast messages (signed, relay-forwarded up to `broadcastTTL` hops).
 
 ### Data Plane: L2CAP CoC (Preferred) with GATT Fallback
 
@@ -268,7 +268,7 @@ If **either** peer lacks L2CAP support, the data plane remains on GATT data char
 
 | Offset | Size | Field |
 |--------|------|-------|
-| 0 | 1 byte | Message type (same 1-byte prefix: 0x0A broadcast, 0x06 chunk, 0x0B routed_message) |
+| 0 | 1 byte | Message type (same 1-byte prefix: 0x09 broadcast, 0x05 chunk, 0x0A routed_message) |
 | 1 | 3 bytes | Payload length (little-endian, max ~16MB) |
 | 4 | N bytes | Payload |
 
@@ -301,7 +301,7 @@ The chunk size is set once at connection establishment and **does not change** i
 
 **Fallback and degradation:**
 - If L2CAP channel setup fails (known reliability issues on some Android OEMs — Samsung, OnePlus): fall back to GATT for that connection. Mark peer as GATT-only for the session.
-- If L2CAP channel drops mid-transfer: the receiver sends a `resume_request` (0x09) to resume from the last byte offset (see §3 Chunking & Reassembly). The `transportModeChanged` diagnostic event is emitted.
+- If L2CAP channel drops mid-transfer: the receiver sends a `resume_request` (0x08) to resume from the last byte offset (see §3 Chunking & Reassembly). The `transportModeChanged` diagnostic event is emitted.
 - Attempt L2CAP open up to **3 total attempts** (1 initial + 2 retries) with exponential backoff (200ms → 800ms, base 200ms × 4ⁿ) before marking the peer GATT-only. GATT-only designation is **permanent for the current session** — the library does not retry L2CAP for that peer until the app is restarted (in case a firmware update or OS change fixes the issue). This avoids periodic retry overhead on devices with fundamentally broken L2CAP stacks.
 - L2CAP failure is **never fatal** — GATT is always available.
 
@@ -716,7 +716,7 @@ sequenceDiagram
 
 `RouteCoordinator` replaces the former `GossipCoordinator`. It is responsible
 only for **keepalive probing** of 1-hop neighbors — it does **not** perform
-periodic routing table gossip. The AODV route discovery protocol handles all
+periodic routing table exchanges. The AODV route discovery protocol handles all
 multi-hop route establishment on demand.
 
 Keepalive intervals vary by power mode — see §7 Power Management table.
@@ -729,8 +729,8 @@ Keepalive intervals vary by power mode — see §7 Power Management table.
 ### Routing Algorithm: Reactive AODV (On-Demand Route Discovery)
 
 MeshLink uses AODV (Ad-hoc On-demand Distance Vector) routing for multi-hop
-message delivery. Unlike the former proactive DSDV approach, routes are
-discovered only when needed — no continuous routing table gossip is required.
+message delivery. Routes are
+discovered only when needed — no continuous routing table exchange is required.
 
 **Core operations in `RoutingEngine`:**
 
@@ -886,7 +886,7 @@ gossip:
 | Neighbor transitions to Gone (Presence Eviction) | All cached routes using that neighbor as next-hop are invalidated. Next send to those destinations triggers fresh RREQ. |
 | Route failure (delivery timeout) | Cached route removed. Fresh RREQ flooded on next send attempt. |
 
-**No background routing traffic:** Unlike the former DSDV gossip, AODV generates
+**No background routing traffic:** AODV generates
 zero control-plane traffic when no messages are being sent. This significantly
 reduces battery drain in PowerSaver mode and on idle meshes.
 
@@ -1385,7 +1385,7 @@ Signature covers bytes [0, 53+N). Receivers verify using sender pubkey from enve
 
 **Per-hop TTL clamping:** Each relay clamps the remaining broadcast TTL: `remaining_ttl = min(remaining_ttl - 1, local_broadcastTTL)`. A relay with `broadcastTTL=1` limits propagation to its immediate neighbors only. Different paths through the mesh may produce different propagation radii — this respects each node's resource constraints.
 
-**No group messaging in v1.** Broadcast covers 'announce to everyone nearby'; proper group conversations (key agreement, membership) deferred to post-v1. **No v1 preparation for groups** — no group key fields, no reserved group types, no membership lists. Clean break: v2 group messaging will build from scratch. Existing v1 mechanisms (opaque relay forwarding, reserved wire format types 0x0D–0xFF, Noise XX capability byte) provide sufficient extensibility hooks without pre-building group primitives. YAGNI.
+**No group messaging in v1.** Broadcast covers 'announce to everyone nearby'; proper group conversations (key agreement, membership) deferred to post-v1. **No v1 preparation for groups** — no group key fields, no reserved group types, no membership lists. Clean break: v2 group messaging will build from scratch. Existing v1 mechanisms (opaque relay forwarding, reserved wire format types 0x0C–0xFF, Noise XX capability byte) provide sufficient extensibility hooks without pre-building group primitives. YAGNI.
 
 **No broadcast self-delivery:** The sender's `onMessageReceived` callback does **not** fire for broadcasts the sender originated — the sender already has the content. The dedup set filters by message ID. **Self-send exception:** Unicast `send(ownPubKey)` delivers asynchronously to `onMessageReceived` as a convenience for echo/testing. No BLE activity occurs for self-send.
 

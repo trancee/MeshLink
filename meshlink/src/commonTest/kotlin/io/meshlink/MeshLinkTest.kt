@@ -11,7 +11,6 @@ import io.meshlink.util.DeliveryOutcome
 import io.meshlink.util.toHex
 import io.meshlink.wire.AdvertisementCodec
 import io.meshlink.wire.WireCodec
-import io.meshlink.wire.RouteUpdateEntry
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.first
@@ -7224,43 +7223,6 @@ class MeshLinkTest {
 
         collectJob.cancel()
         alice.stop()
-    }
-
-    @Test
-    fun routeUpdateWithInvalidSignatureIsRejected() = runTest {
-        val transportAlice = VirtualMeshTransport(peerIdAlice)
-
-        val crypto = io.meshlink.crypto.CryptoProvider()
-        val alice = MeshLink(transportAlice, testMeshLinkConfig { requireEncryption = false }, coroutineContext, crypto = crypto)
-        alice.start()
-        testScheduler.advanceTimeBy(1L)
-
-        transportAlice.simulateDiscovery(peerIdBob)
-        testScheduler.advanceTimeBy(1L)
-
-        // Forge a signed route update with invalid signature
-        val entries = listOf(
-            RouteUpdateEntry(
-                destination = ByteArray(8) { 0x42 },
-                cost = 1.0,
-                sequenceNumber = 1u,
-                hopCount = 1u,
-            )
-        )
-        val fakeKey = ByteArray(32) { 0xFF.toByte() }
-        val fakeSignature = ByteArray(64) { 0xAA.toByte() }
-        val forgedUpdate = WireCodec.encodeSignedRouteUpdate(peerIdBob, entries, fakeKey, fakeSignature)
-        transportAlice.receiveData(peerIdBob, forgedUpdate)
-        testScheduler.advanceTimeBy(1L)
-
-        // The route should NOT have been accepted — health should show 0 avgRouteCost
-        // (no routes learned from invalid gossip)
-        val health = alice.meshHealth()
-
-        alice.stop()
-        testScheduler.advanceTimeBy(1L)
-
-        assertEquals(0.0, health.avgRouteCost, "Should not have learned route from invalid signature")
     }
 
     @Test

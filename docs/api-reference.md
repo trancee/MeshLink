@@ -177,9 +177,6 @@ Immutable configuration data class. All fields have sensible defaults.
 |-------|------|---------|-------------|
 | `routeCacheTtlMillis` | `Long` | `60_000` | Time-to-live for cached routes discovered via AODV (ms). Routes expire and are rediscovered on next send. |
 | `routeDiscoveryTimeoutMillis` | `Long` | `5_000` | Maximum time to wait for a Route Reply after flooding a Route Request (ms). Messages are queued during discovery. |
-| `gossipIntervalMillis` | `Long` | `0` | Legacy periodic route advertisement interval (ms). `0` = disabled. Retained for backward compatibility; not used by AODV routing. |
-| `triggeredUpdateThreshold` | `Double` | `0.3` | Legacy: fractional cost change that triggers an immediate route update. Retained for backward compatibility; not used by AODV routing. |
-| `triggeredUpdateBatchMillis` | `Long` | `100` | Legacy: batch window for triggered updates (ms). Retained for backward compatibility; not used by AODV routing. |
 | `relayQueueCapacity` | `Int` | `100` | Max queued relay (forwarded) messages. |
 
 #### Transfer & Congestion
@@ -519,7 +516,7 @@ data class RouteDiscovery(val rreqFrame: ByteArray)
 `io.meshlink.dispatch.DispatchSink`
 
 Callback invoked by `MeshLink` when an RREP resolves a pending route
-discovery. Replaces the former `triggerGossipUpdate()` method.
+discovery.
 
 ```kotlin
 interface DispatchSink {
@@ -589,7 +586,7 @@ All 20 diagnostic codes:
 | `PEER_PRESENCE_EVICTED` | WARN | A peer was presence-evicted (removed from the active peer list after 2 consecutive sweep misses). |
 | `BUFFER_PRESSURE` | WARN | Buffer utilization exceeded 80%. Consider shedding load. |
 | `TRANSPORT_MODE_CHANGED` | INFO | The BLE transport operating mode changed (e.g., L2CAP ↔ connectionless). |
-| `GOSSIP_TRAFFIC_REPORT` | INFO | A route advertisement exchange completed. Payload may contain route counts. |
+| `GOSSIP_TRAFFIC_REPORT` | INFO | A route exchange event completed. Payload may contain route counts. |
 | `BLE_STACK_UNRESPONSIVE` | ERROR | The BLE hardware stack is not responding. Requires recovery action. |
 | `MEMORY_PRESSURE` | ERROR | Memory threshold exceeded. Tiered shedding has been initiated. |
 | `LATE_DELIVERY_ACK` | WARN | A delivery ACK arrived after the delivery deadline had expired. |
@@ -615,7 +612,6 @@ data class MeshHealthSnapshot(
     val powerMode: String,
     val avgRouteCost: Double = 0.0,
     val relayQueueSize: Int = 0,
-    val effectiveGossipIntervalMillis: Long = 0,
 )
 ```
 
@@ -628,7 +624,6 @@ data class MeshHealthSnapshot(
 | `powerMode` | `String` | — | Current power mode: `"PERFORMANCE"`, `"BALANCED"`, or `"POWER_SAVER"`. |
 | `avgRouteCost` | `Double` | `0.0` | Average composite cost across all routes in the routing table. |
 | `relayQueueSize` | `Int` | `0` | Number of messages in the relay forwarding queue. |
-| `effectiveGossipIntervalMillis` | `Long` | `0` | Legacy gossip interval. Always `0` with AODV routing; retained for backward compatibility. |
 
 ---
 

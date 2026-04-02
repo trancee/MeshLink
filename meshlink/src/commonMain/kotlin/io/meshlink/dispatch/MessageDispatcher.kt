@@ -59,7 +59,6 @@ internal class MessageDispatcher(
                 WireCodec.TYPE_KEEPALIVE -> handleKeepalive(fromPeerId, data)
                 WireCodec.TYPE_NACK -> { /* NACK received — no-op for now */ }
                 WireCodec.TYPE_ROTATION -> handleRotationAnnouncement(fromPeerId, data)
-                WireCodec.TYPE_ROUTE_UPDATE -> { /* Legacy DSDV — ignored */ }
                 else -> {
                     diagnosticSink.emit(
                         DiagnosticCode.UNKNOWN_MESSAGE_TYPE,

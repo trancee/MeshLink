@@ -134,21 +134,6 @@ class WireFormatFuzzTest {
     }
 
     @Test
-    fun fuzz_decodeRouteUpdate_never_crashes() {
-        repeat(iterations) {
-            try {
-                WireCodec.decodeRouteUpdate(randomBytes())
-            } catch (_: IllegalArgumentException) { }
-        }
-        // Targeted: correct type, huge entryCount / NaN cost
-        repeat(iterations) {
-            try {
-                WireCodec.decodeRouteUpdate(randomBytesWithType(WireCodec.TYPE_ROUTE_UPDATE))
-            } catch (_: IllegalArgumentException) { }
-        }
-    }
-
-    @Test
     fun fuzz_decodeKeepalive_never_crashes() {
         repeat(iterations) {
             try {
@@ -225,7 +210,6 @@ class WireFormatFuzzTest {
             WireCodec::decodeBroadcast,
             WireCodec::decodeDeliveryAck,
             WireCodec::decodeResumeRequest,
-            WireCodec::decodeRouteUpdate,
             WireCodec::decodeKeepalive,
             WireCodec::decodeNack,
             WireCodec::decodeRouteRequest,
@@ -252,7 +236,6 @@ class WireFormatFuzzTest {
                 when (data[0]) {
                     WireCodec.TYPE_BROADCAST      -> WireCodec.decodeBroadcast(data)
                     WireCodec.TYPE_HANDSHAKE       -> WireCodec.decodeHandshake(data)
-                    WireCodec.TYPE_ROUTE_UPDATE    -> WireCodec.decodeRouteUpdate(data)
                     WireCodec.TYPE_CHUNK           -> WireCodec.decodeChunk(data)
                     WireCodec.TYPE_CHUNK_ACK       -> WireCodec.decodeChunkAck(data)
                     WireCodec.TYPE_ROUTED_MESSAGE  -> WireCodec.decodeRoutedMessage(data)

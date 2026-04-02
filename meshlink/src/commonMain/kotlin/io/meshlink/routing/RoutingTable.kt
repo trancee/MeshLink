@@ -4,16 +4,14 @@ import io.meshlink.util.ByteArrayKey
 import io.meshlink.util.currentTimeMillis
 
 /**
- * Enhanced DSDV routing table.
+ * AODV route cache.
  * Stores routes to mesh destinations with composite cost metric,
- * primary + backup route support, and expiry.
+ * primary + backup route support, and TTL-based expiry.
  */
 class RoutingTable(
     private val expiryMillis: Long = Long.MAX_VALUE,
     private val neighborCapFraction: Double = 1.0,
     private val maxDestinations: Int = Int.MAX_VALUE,
-    private val settlingMillis: Long = 0,
-    private val holddownMillis: Long = 0,
 ) {
 
     data class Route(
@@ -27,26 +25,18 @@ class RoutingTable(
     // destination → (nextHop → Route)
     private val routes = mutableMapOf<ByteArrayKey, MutableMap<ByteArrayKey, Route>>()
 
-    // Track when a destination entered holddown (route withdrawn with infinity cost)
-    private val holddownUntil = mutableMapOf<ByteArrayKey, Long>()
-
-    // Track when a destination last had a route change (for settling)
-    private val lastRouteChange = mutableMapOf<ByteArrayKey, Long>()
-
     fun addRoute(destination: ByteArrayKey, nextHop: ByteArrayKey, cost: Double, sequenceNumber: UInt) {
         // Sanity validation
         if (cost < 0.0 || cost.isNaN()) return
         if (cost.isInfinite()) return // Use Double.MAX_VALUE for withdrawals, not Infinity
         if (cost > MAX_ROUTE_COST && cost != Double.MAX_VALUE) return
 
-        val now = currentTime()
         val existing = routes[destination]
         if (existing != null) {
             val maxSeqNum = existing.values.maxOf { it.sequenceNumber }
             if (sequenceNumber < maxSeqNum) return
             if (sequenceNumber > maxSeqNum) {
                 existing.clear()
-                lastRouteChange[destination] = now
             }
         }
 
@@ -57,18 +47,9 @@ class RoutingTable(
             if (neighborDestCount >= cap) return // reject excess
         }
 
+        val now = currentTime()
         val route = Route(destination, nextHop, cost, sequenceNumber, now)
         routes.getOrPut(destination) { mutableMapOf() }[nextHop] = route
-
-        // If this is a withdrawal (infinity cost), start holddown
-        if (cost == Double.MAX_VALUE && holddownMillis > 0) {
-            holddownUntil[destination] = now + holddownMillis
-        }
-
-        // Track settling time
-        if (settlingMillis > 0) {
-            lastRouteChange[destination] = now
-        }
     }
 
     fun bestRoute(destination: ByteArrayKey): Route? {

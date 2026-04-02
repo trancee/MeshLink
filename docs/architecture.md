@@ -85,7 +85,7 @@ platform-agnostic logic (in `commonMain`) and platform-specific I/O (in
 | File | Responsibility |
 |------|---------------|
 | `RoutingEngine.kt` | Facade consolidating routing table, presence, dedup, AODV route discovery (RREQ/RREP handling, route cache, pending message queue), and adaptive timing behind sealed result types. |
-| `RoutingTable.kt` | AODV route cache with TTL-based expiry, settling, holddown, and neighbor capacity limits. |
+| `RoutingTable.kt` | AODV route cache with TTL-based expiry and neighbor capacity limits. |
 | `RouteCostCalculator.kt` | Composite cost metric from RSSI, packet loss, freshness, and stability. |
 | `DedupSet.kt` | LRU set for message deduplication (default 10K entries). |
 | `PresenceTracker.kt` | Tracks peer liveness for route validity. |
@@ -176,7 +176,7 @@ platform-agnostic logic (in `commonMain`) and platform-specific I/O (in
 
 | File | Responsibility |
 |------|---------------|
-| `WireCodec.kt` | Binary encoding/decoding for all 11 message types. Constants for type bytes and header sizes. |
+| `WireCodec.kt` | Binary encoding/decoding for all 12 message types. Constants for type bytes and header sizes. |
 
 ### `io.meshlink.transport` — Transport Abstraction
 
@@ -268,14 +268,13 @@ flowchart TD
     BLE["BLE Transport incomingData"] --> Decode["WireCodec.decode (type byte)"]
 
     Decode --> |"0x00 HANDSHAKE"| Handshake["PeerHandshakeManager"]
-    Decode --> |"0x06 CHUNK"| ChunkPipeline
-    Decode --> |"0x07 CHUNK_ACK"| AckUpdate["Update TransferSession"]
-    Decode --> |"0x05 ROUTE_UPDATE"| RouteLearn["RoutingEngine.learnRoutes"]
-    Decode --> |"0x0A BROADCAST"| Broadcast["Dedup → emit on messages"]
-    Decode --> |"0x0B ROUTED"| RoutedMsg["Forward or deliver"]
-    Decode --> |"0x0C DELIVERY_ACK"| DelAck["DeliveryAckRouter"]
+    Decode --> |"0x05 CHUNK"| ChunkPipeline
+    Decode --> |"0x06 CHUNK_ACK"| AckUpdate["Update TransferSession"]
+    Decode --> |"0x09 BROADCAST"| Broadcast["Dedup → emit on messages"]
+    Decode --> |"0x0A ROUTED"| RoutedMsg["Forward or deliver"]
+    Decode --> |"0x0B DELIVERY_ACK"| DelAck["DeliveryAckRouter"]
     Decode --> |"0x01 KEEPALIVE"| Keepalive["Update presence"]
-    Decode --> |"0x08 NACK"| Nack["Handle negative ack"]
+    Decode --> |"0x07 NACK"| Nack["Handle negative ack"]
     Decode --> |"0x02 ROTATION"| Rotation["TrustStore → KeyChangeEvent"]
 
     subgraph ChunkPipeline["Chunk Processing"]
@@ -324,7 +323,7 @@ route cache management behind sealed result types (`NextHopResult`,
 
 MeshLink uses reactive AODV (Ad-hoc On-demand Distance Vector) routing with
 composite cost metrics, primary + backup routes, TTL-based cache expiry,
-settling delay, holddown timers, and per-neighbor routing table caps.
+and per-neighbor routing table caps.
 `DedupSet` is an LRU set (default 10K entries) for message deduplication.
 
 For protocol details, cost formula, and routing behavior, see
@@ -422,7 +421,7 @@ Created via the `expect`/`actual` factory: `CryptoProvider()`.
 
 ## Wire Protocol
 
-MeshLink uses a binary wire protocol (version 1.0) with 11 message types.
+MeshLink uses a binary wire protocol (version 1.0) with 12 message types.
 
 ### Message Types
 
@@ -433,14 +432,13 @@ MeshLink uses a binary wire protocol (version 1.0) with 11 message types.
 | `0x02` | `TYPE_ROTATION` | Identity key rotation announcement |
 | `0x03` | `TYPE_ROUTE_REQUEST` | AODV Route Request (RREQ) |
 | `0x04` | `TYPE_ROUTE_REPLY` | AODV Route Reply (RREP) |
-| `0x05` | `TYPE_ROUTE_UPDATE` | Legacy route update (kept for backward compatibility, not actively sent) |
-| `0x06` | `TYPE_CHUNK` | Unicast message chunk |
-| `0x07` | `TYPE_CHUNK_ACK` | Chunk acknowledgement with SACK |
-| `0x08` | `TYPE_NACK` | Negative acknowledgement |
-| `0x09` | `TYPE_RESUME_REQUEST` | Resume an interrupted transfer |
-| `0x0A` | `TYPE_BROADCAST` | Unencrypted broadcast message |
-| `0x0B` | `TYPE_ROUTED_MESSAGE` | Multi-hop forwarded message |
-| `0x0C` | `TYPE_DELIVERY_ACK` | End-to-end delivery confirmation |
+| `0x05` | `TYPE_CHUNK` | Unicast message chunk |
+| `0x06` | `TYPE_CHUNK_ACK` | Chunk acknowledgement with SACK |
+| `0x07` | `TYPE_NACK` | Negative acknowledgement |
+| `0x08` | `TYPE_RESUME_REQUEST` | Resume an interrupted transfer |
+| `0x09` | `TYPE_BROADCAST` | Unencrypted broadcast message |
+| `0x0A` | `TYPE_ROUTED_MESSAGE` | Multi-hop forwarded message |
+| `0x0B` | `TYPE_DELIVERY_ACK` | End-to-end delivery confirmation |
 
 ### BLE Advertisement Payload
 

@@ -155,60 +155,6 @@ class RoutingTableTest {
         table.removeRoute(key("X"), key("Y")) // should not throw
     }
 
-    // --- DSDV Holddown Timer ---
-
-    @Test
-    fun settlingTimeDelaysRouteUpdate() {
-        var now = 1000L
-        RoutingTable.currentTime = { now }
-
-        val table = RoutingTable(settlingMillis = 100)
-
-        // Initial route accepted immediately
-        table.addRoute(key("D"), key("A"), cost = 5.0, sequenceNumber = 1u)
-        assertEquals(key("A"), table.bestRoute(key("D"))?.nextHop)
-
-        // New route with same seqnum arrives during settling period — held
-        now = 1050L
-        table.addRoute(key("D"), key("B"), cost = 3.0, sequenceNumber = 1u)
-        // During settling, the original route should still be best (settling delays new)
-        // But after settling, the better route is accepted
-        now = 1200L
-        val best = table.bestRoute(key("D"))
-        assertEquals(key("B"), best?.nextHop, "Better route should be usable after settling period")
-    }
-
-    @Test
-    fun holddownRejectsDowngradesDuringTimer() {
-        var now = 1000L
-        RoutingTable.currentTime = { now }
-
-        val table = RoutingTable(holddownMillis = 200)
-
-        // Route installed
-        table.addRoute(key("D"), key("A"), cost = 5.0, sequenceNumber = 5u)
-        assertEquals(key("A"), table.bestRoute(key("D"))?.nextHop)
-
-        // Route withdrawn (high cost = infinity, higher seqnum)
-        now = 1100L
-        table.addRoute(key("D"), key("A"), cost = Double.MAX_VALUE, sequenceNumber = 6u)
-
-        // During holddown, a new route with lower seqnum is rejected
-        now = 1150L
-        table.addRoute(key("D"), key("B"), cost = 1.0, sequenceNumber = 4u)
-        // Route with stale seqnum should still be rejected (existing behavior)
-        val best = table.bestRoute(key("D"))
-        // Only the infinity-cost route exists during holddown
-        if (best != null) {
-            assertEquals(key("A"), best.nextHop)
-        }
-
-        // After holddown, a new route with higher seqnum is accepted
-        now = 1400L
-        table.addRoute(key("D"), key("C"), cost = 2.0, sequenceNumber = 7u)
-        assertEquals(key("C"), table.bestRoute(key("D"))?.nextHop, "New route accepted after holddown")
-    }
-
     // --- Route Cost Sanity Validation ---
 
     @Test

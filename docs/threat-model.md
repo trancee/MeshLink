@@ -171,7 +171,6 @@ flowchart TD
 | **BLE GATT write** | Any BLE device writes to GATT characteristic | Untrusted → Transport | No auth before accept | `BleTransport.kt` (Android:496, Apple:393) |
 | **BLE advertisement** | Any device advertises matching UUID | Untrusted → Transport | 10-byte payload parsed without auth | `PeerConnectionCoordinator.kt` |
 | **Chunk ingestion** | First byte = 0x06 in GATT write | Transport → TransferEngine | Creates reassembly state, no rate limit | `MessageDispatcher.kt:123` |
-| **Route update** | First byte = 0x05 in GATT write | Transport → RoutingEngine | Signature optional | `MessageDispatcher.kt:91` |
 | **Broadcast relay** | First byte = 0x0A in GATT write | Transport → all peers | Signature checked but relayed to all neighbors | `MessageDispatcher.kt:185` |
 | **Handshake initiation** | First byte = 0x00 in GATT write | Transport → SecurityEngine | Rate limited (1/sec) but no peer pre-auth | `MessageDispatcher.kt:83` |
 | **Rotation announcement** | First byte = 0x02 in GATT write | Transport → SecurityEngine | Signed by old key; no timestamp freshness check | `RotationAnnouncement.kt:91` |

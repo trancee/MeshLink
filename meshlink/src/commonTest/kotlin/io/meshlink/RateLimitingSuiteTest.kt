@@ -289,9 +289,9 @@ class RateLimitingSuiteTest {
 
     @Test
     fun nackGoldenVector() {
-        // type(0x08) + messageId(16 x 0xFF) + reason(0x01 = BUFFER_FULL) + ext(0x00, 0x00)
+        // type(0x07) + messageId(16 x 0xFF) + reason(0x01 = BUFFER_FULL) + ext(0x00, 0x00)
         val golden = byteArrayOf(
-            0x08,
+            0x07,
             0xFF.toByte(), 0xFF.toByte(), 0xFF.toByte(), 0xFF.toByte(),
             0xFF.toByte(), 0xFF.toByte(), 0xFF.toByte(), 0xFF.toByte(),
             0xFF.toByte(), 0xFF.toByte(), 0xFF.toByte(), 0xFF.toByte(),

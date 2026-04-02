@@ -558,7 +558,6 @@ class MeshLink(
             powerMode = powerCoordinator.currentMode,
             avgRouteCost = routingEngine.avgCost(),
             relayQueueSize = pauseManager.relayQueueSize,
-            effectiveGossipIntervalMillis = 0L,
         )
     }
 
