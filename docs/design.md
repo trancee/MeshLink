@@ -61,6 +61,230 @@ ios/                       ← Platform-specific (~7%)
 2. Platform layers pass identical conformance tests
 3. Formal wire format RFC with test vectors ensures cross-platform correctness
 
+### Extension Points
+
+MeshLink is designed for testability and platform flexibility through three
+key interfaces:
+
+#### BleTransport
+
+**Purpose:** Abstract BLE hardware so `MeshLink` never touches platform APIs
+directly.
+
+| Implementation | Platform | Description |
+|---------------|----------|-------------|
+| `AndroidBleTransport` | Android | GATT server/client + L2CAP CoC |
+| `IosBleTransport` | iOS | CoreBluetooth central/peripheral |
+| `VirtualMeshTransport` | Tests | In-memory simulated mesh (no hardware) |
+
+#### CryptoProvider
+
+**Purpose:** Abstract cryptographic primitives for cross-platform support and
+testing.
+
+| Implementation | Description |
+|---------------|-------------|
+| `PureKotlinCryptoProvider` | Pure Kotlin crypto (used on all platforms) |
+
+Created via the `expect`/`actual` factory: `CryptoProvider()`.
+
+#### SecureStorage
+
+**Purpose:** Abstract platform-specific secure key-value storage.
+
+| Implementation | Platform | Backend |
+|---------------|----------|---------|
+| `EncryptedSharedPreferences` | Android | Android Keystore |
+| Keychain wrapper | iOS | `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly` |
+| `InMemorySecureStorage` | Tests | In-memory `Map` |
+
+### 2.1 Module Responsibilities
+
+```mermaid
+flowchart TD
+    subgraph App["Application Layer"]
+        direction LR
+        API["MeshLinkApi Interface"]
+        Flows["peers · messages · deliveryConfirmations · keyChanges"]
+        Methods["send() · broadcast() · meshHealth() · updateBattery()"]
+    end
+
+    subgraph Core["Core Engines (commonMain ~85%)"]
+        direction TB
+        subgraph Row1[" "]
+            direction LR
+            Routing["🗺️ Routing<br/>AODV · Route Discovery<br/>Cost · Dedup"]
+            Transfer["📦 Transfer<br/>Chunking · SACK<br/>AIMD · Schedule"]
+            Crypto["🔒 Crypto<br/>Noise XX · Noise K<br/>Trust · Replay"]
+            Diag["📊 Diagnostics<br/>DiagnosticSink<br/>Health · Snapshots"]
+        end
+        subgraph Row2[" "]
+            direction LR
+            Power["⚡ Power<br/>Modes · Policy<br/>Shedding · Chunks"]
+            Wire["📡 Wire<br/>Codec · Encode<br/>Decode"]
+            Util["🔧 Util<br/>RateLimit · Circuit<br/>Breaker · Pause"]
+            Storage["💾 Storage<br/>SecureStorage<br/>Keychain / Keystore"]
+        end
+    end
+
+    subgraph Transport["BLE Transport Layer"]
+        direction LR
+        BleAPI["BleTransport Interface"]
+        Android["Android<br/>GATT + L2CAP"]
+        iOS["iOS<br/>CoreBluetooth"]
+    end
+
+    App --> Core --> Transport
+```
+
+#### `io.meshlink` — Core
+
+| File | Responsibility |
+|------|---------------|
+| `MeshLinkApi.kt` | Public interface — all application-facing methods and flows. |
+| `MeshLink.kt` | Implementation: orchestrates all subsystems, owns coroutine scopes, dispatches events. |
+
+#### `io.meshlink.config` — Configuration
+
+| File | Responsibility |
+|------|---------------|
+| `MeshLinkConfig.kt` | Immutable config data class with 30+ fields, validation, presets (`smallPayloadLowLatency`, `largePayloadHighThroughput`, `minimalResourceUsage`), and DSL builder. |
+
+#### `io.meshlink.routing` — Mesh Routing
+
+| File | Responsibility |
+|------|---------------|
+| `RoutingEngine.kt` | Facade consolidating routing table, presence, dedup, AODV route discovery (RREQ/RREP handling, route cache, pending message queue), and adaptive timing behind sealed result types. |
+| `RoutingTable.kt` | AODV route cache with TTL-based expiry and neighbor capacity limits. |
+| `RouteCostCalculator.kt` | Composite cost metric from RSSI, packet loss, freshness, and stability. |
+| `DedupSet.kt` | LRU set for message deduplication (default 10K entries). |
+| `PresenceTracker.kt` | Tracks peer liveness for route validity. |
+| `DeliveryAckRouter.kt` | Routes delivery ACKs back along the reverse path of routed messages. |
+
+#### `io.meshlink.transfer` — Message Transfer
+
+| File | Responsibility |
+|------|---------------|
+| `TransferEngine.kt` | Public façade consolidating outbound chunking (AIMD/SACK) and inbound reassembly behind sealed result types. |
+| `TransferSession.kt` | _(internal)_ Sender-side state machine for multi-chunk transfers. |
+| `SackTracker.kt` | _(internal)_ Receiver-side selective acknowledgement tracking. |
+| `AimdController.kt` | _(internal)_ Additive Increase / Multiplicative Decrease congestion control. |
+| `TransferScheduler.kt` | _(internal)_ Fair round-robin scheduling across concurrent transfers with power-mode limits. |
+| `ChunkSizePolicy.kt` | _(internal)_ Power-aware chunk payload sizing. |
+| `CutThroughBuffer.kt` | _(internal)_ Receiver-side reassembly buffer for out-of-order chunks. |
+| `ResumeCalculator.kt` | _(internal)_ Resumption offset computation for interrupted transfers. |
+
+#### `io.meshlink.crypto` — Security
+
+| File | Responsibility |
+|------|---------------|
+| `SecurityEngine.kt` | Facade consolidating E2E encryption, signatures, handshakes, and peer key lifecycle. |
+| `CryptoProvider.kt` | Interface for all cryptographic primitives (Ed25519, X25519, ChaCha20-Poly1305, SHA-256, HKDF). |
+| `SecureRandom.kt` | `expect/actual` CSPRNG — delegates to `java.security.SecureRandom` (JVM/Android), `SecRandomCopyBytes` (Apple), `/dev/urandom` (Linux). |
+| `NoiseXXHandshake.kt` | Noise XX handshake — mutual authentication with forward secrecy. |
+| `PeerHandshakeManager.kt` | Multi-peer handshake orchestration and session key storage. |
+| `NoiseKSealer.kt` | Per-message end-to-end encryption using Noise K pattern. |
+| `ReplayGuard.kt` | 64-entry sliding window replay protection per sender. |
+| `TrustStore.kt` | Key pinning with STRICT and SOFT_REPIN modes. |
+
+> **CSPRNG design note:** `kotlin.random.Random.Default` happens to use platform-secure
+> sources on current Kotlin versions, but the stdlib docs do not guarantee cryptographic
+> security. `secureRandomBytes()` uses canonical platform APIs via `expect/actual`,
+> making the security contract explicit and immune to future Kotlin changes.
+
+#### `io.meshlink.power` — Power Management
+
+| File | Responsibility |
+|------|---------------|
+| `PowerCoordinator.kt` | Facade consolidating power-mode transitions, memory-pressure evaluation, and buffer-pressure monitoring behind sealed result types. |
+| `PowerProfile.kt` | Single source of truth for all power-mode-dependent constants (advertising interval, scan timing, max connections, keepalive interval). Replaces scattered `when(mode)` lookups. |
+| `PowerModeEngine.kt` | Hysteresis-based mode transitions driven by battery level and charging state. |
+| `PowerProfile.kt` | Single source of truth for power-mode-dependent constants (intervals, limits). |
+| `TieredShedder.kt` | Three-tier memory shedding strategy (MODERATE → HIGH → CRITICAL). |
+| `ConnectionLimiter.kt` | Manages per-mode connection limits with eviction on power mode downgrade. |
+
+#### `io.meshlink.send` — Send Policy
+
+| File | Responsibility |
+|------|---------------|
+| `SendPolicyChain.kt` | Pure pre-flight evaluator for outbound sends; chains buffer, pause, rate-limit, circuit-breaker, routing, and crypto checks into sealed `SendDecision`. |
+| `BroadcastPolicyChain.kt` | Pure pre-flight evaluator for broadcast sends; chains buffer and rate-limit checks, then constructs a signed encoded frame via sealed `BroadcastDecision`. |
+
+#### `io.meshlink.dispatch` — Message Dispatch
+
+| File | Responsibility |
+|------|---------------|
+| `MessageDispatcher.kt` | _(internal)_ Dispatches inbound BLE frames to typed handlers; owns decode pipeline and delegates effects via `DispatchSink`. |
+| `InboundValidator.kt` | _(internal)_ Pre-dispatch validation: signatures, replay counters, loop detection, hop limits, rate limiting, app-ID filtering, and decryption. |
+| `OutboundTracker.kt` | _(internal)_ Tracks outbound message state: recipient mapping, next-hop tracking, and monotonic replay counter. |
+| `DispatchSink.kt` | _(internal)_ Callback interface grouping 8 effect callbacks for flow emissions and transport sends. |
+
+#### `io.meshlink.routing` — Route Coordination
+
+| File | Responsibility |
+|------|---------------|
+| `RouteCoordinator.kt` | Coordinates route maintenance: keepalive probing of 1-hop neighbors. AODV route discovery handles all multi-hop route establishment on demand. |
+
+#### `io.meshlink.peer` — Peer Connection
+
+| File | Responsibility |
+|------|---------------|
+| `PeerConnectionCoordinator.kt` | Coordinates BLE peer discovery: version negotiation, routing presence, security key registration, and handshake initiation via sealed `PeerConnectionAction`. |
+
+#### `io.meshlink.model` — Domain Model
+
+| File | Responsibility |
+|------|---------------|
+| `Identifiers.kt` | Inline value classes `PeerId` and `MessageId` wrapping hex strings for compile-time type safety and correct map-key equality. |
+| `Message.kt` | Inbound message data class. |
+| `PeerEvent.kt` | Sealed interface for peer discovery/loss events. |
+| `KeyChangeEvent.kt` | Key rotation notification data class. |
+| `TransferFailure.kt` | Transfer failure event data class. |
+| `TransferProgress.kt` | Transfer progress event data class. |
+
+#### `io.meshlink.wire` — Wire Protocol
+
+| File | Responsibility |
+|------|---------------|
+| `WireCodec.kt` | Binary encoding/decoding for all 12 message types. Constants for type bytes and header sizes. |
+
+#### `io.meshlink.transport` — Transport Abstraction
+
+| File | Responsibility |
+|------|---------------|
+| `BleTransport.kt` | Interface for platform-specific BLE I/O. |
+
+#### `io.meshlink.diagnostics` — Observability
+
+| File | Responsibility |
+|------|---------------|
+| `DiagnosticSink.kt` | Event emission via `SharedFlow`, 19 diagnostic codes, severity levels. |
+| `MeshHealthSnapshot.kt` | Point-in-time mesh state data class. |
+
+#### `io.meshlink.storage` — Persistence
+
+| File | Responsibility |
+|------|---------------|
+| `SecureStorage.kt` | Interface for platform-specific secure key-value storage. |
+
+#### `io.meshlink.delivery` — Delivery Pipeline
+
+| File | Responsibility |
+|------|---------------|
+| `DeliveryPipeline.kt` | Consolidated pipeline owning delivery state tracking (PENDING→RESOLVED), tombstones, deadline timers, reverse-path relay, replay guards, inbound rate limiting, and store-and-forward buffering behind sealed result types. |
+
+#### `io.meshlink.util` — Utilities
+
+| File | Responsibility |
+|------|---------------|
+| `DeliveryOutcome.kt` | Enum of delivery outcomes (confirmed, failed variants). |
+| `RateLimitPolicy.kt` | Facade consolidating 7 rate limiters and circuit breaker behind sealed `RateLimitResult` type. |
+| `PauseManager.kt` | Manages paused state with bounded send and relay queues; returns `PauseSnapshot` on resume for deferred flush. |
+| `RateLimiter.kt` | Sliding window rate limiting (per-key token bucket). |
+| `CircuitBreaker.kt` | Fault isolation with closed → open → half-open state machine. |
+| `HexUtil.kt` | Hex encoding/decoding. |
+| `PlatformLock.kt` | Multiplatform mutex (`expect`/`actual`). |
+
 ---
 
 ## 3. Transport Layer
@@ -633,6 +857,101 @@ Based on BLE physical characteristics (3–5ms per GATT write, ~50–200ms conne
 These are estimates to be validated with real-device measurements during Phase 1. PowerSaver mode adds latency due to longer scan/advertising intervals.
 
 **PowerSaver mode warning:** When all peers are in PowerSaver mode, latency increases due to low scan duty cycles. For time-sensitive messaging, consider `customPowerMode` override or an app-level push notification fallback.
+
+### 3.1 Message Flow
+
+#### Outbound Unicast
+
+```mermaid
+flowchart TD
+    App["Application calls send(recipient, payload)"]
+    App --> PolicyChain
+
+    subgraph PolicyChain["SendPolicyChain (pre-flight)"]
+        direction TB
+        P1{"Buffer full?"} -->|Yes| Fail1["Result.failure(bufferFull)"]
+        P1 -->|No| P2{"Loopback?"}
+        P2 -->|Yes| Loopback["Deliver to self"]
+        P2 -->|No| P3{"Paused?"}
+        P3 -->|Yes| Queue["Queue in PauseManager"]
+        P3 -->|No| P4{"Rate limited?"}
+        P4 -->|Yes| Fail2["Result.failure(rateLimited)"]
+        P4 -->|No| P5{"Circuit breaker open?"}
+        P5 -->|Yes| Fail3["Result.failure(circuitBreakerOpen)"]
+        P5 -->|No| P6{"Route exists?"}
+        P6 -->|No| Fail4["Result.failure(unreachable)"]
+        P6 -->|Yes| OK["SendDecision.Direct / .Routed"]
+    end
+
+    OK --> GenID["Generate message UUID"]
+    GenID --> Seal
+
+    subgraph Seal["Noise K Seal (if crypto)"]
+        direction TB
+        S1["Generate ephemeral X25519 keypair"] --> S2["ECDH: ephemeral × recipient static"]
+        S2 --> S3["HKDF-SHA256 key derivation"]
+        S3 --> S4["ChaCha20-Poly1305 encrypt"]
+    end
+
+    Seal --> Chunk["Chunk into MTU-sized segments"]
+    Chunk --> Route{"Direct neighbor?"}
+    Route -->|Yes| Direct["Send via BleTransport"]
+    Route -->|No| Routed["Wrap as TYPE_ROUTED_MESSAGE → nextHop"]
+    Direct --> ACK["Wait for Chunk ACKs (AIMD window)"]
+    Routed --> ACK
+    ACK --> DeliveryACK["Delivery ACK received → emit confirmation"]
+```
+
+#### Inbound Unicast
+
+```mermaid
+flowchart TD
+    BLE["BLE Transport incomingData"] --> Decode["WireCodec.decode (type byte)"]
+
+    Decode --> |"0x00 HANDSHAKE"| Handshake["PeerHandshakeManager"]
+    Decode --> |"0x05 CHUNK"| ChunkPipeline
+    Decode --> |"0x06 CHUNK_ACK"| AckUpdate["Update TransferSession"]
+    Decode --> |"0x09 BROADCAST"| Broadcast["Dedup → emit on messages"]
+    Decode --> |"0x0A ROUTED"| RoutedMsg["Forward or deliver"]
+    Decode --> |"0x0B DELIVERY_ACK"| DelAck["DeliveryAckRouter"]
+    Decode --> |"0x01 KEEPALIVE"| Keepalive["Update presence"]
+    Decode --> |"0x07 NACK"| Nack["Handle negative ack"]
+    Decode --> |"0x02 ROTATION"| Rotation["TrustStore → KeyChangeEvent"]
+
+    subgraph ChunkPipeline["Chunk Processing"]
+        direction TB
+        C1["Rate limit checks"] --> C2["Dedup check"]
+        C2 --> C3["SackTracker.record(seqNum)"]
+        C3 --> C4["Send CHUNK_ACK + SACK bitmask"]
+        C4 --> C5{"All chunks received?"}
+        C5 -->|No| Wait["Wait for more chunks"]
+        C5 -->|Yes| Reassemble["Reassemble payload"]
+    end
+
+    Reassemble --> Unseal["Noise K unseal (if crypto)"]
+    Unseal --> Filter["App ID filter check"]
+    Filter --> Emit["Emit Message on messages flow"]
+    Emit --> SendAck["Send DELIVERY_ACK to sender"]
+```
+
+#### Routed Message Forwarding
+
+```mermaid
+flowchart TD
+    Recv["Receive TYPE_ROUTED_MESSAGE"] --> Check{"Am I the destination?"}
+    Check -->|Yes| Decrypt["Decrypt + deliver locally"]
+    Check -->|No| Relay
+
+    subgraph Relay["Relay Processing"]
+        direction TB
+        R1{"Hop count > 0?"} -->|No| Drop["Discard (TTL expired)"]
+        R1 -->|Yes| R2{"Seen this message ID?"}
+        R2 -->|Yes| DropDup["Discard (loop)"]
+        R2 -->|No| R3{"Relay queue has capacity?"}
+        R3 -->|No| NackFull["Send NACK(bufferFull)"]
+        R3 -->|Yes| R4["Route lookup → forward to nextHop"]
+    end
+```
 
 ---
 

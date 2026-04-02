@@ -66,7 +66,7 @@ rejected locally before reaching CI.
 ./gradlew :meshlink:macosArm64Test
 ./gradlew :meshlink:linuxX64Test
 
-# Integration tests only (18 end-to-end scenarios via VirtualMeshTransport)
+# Integration tests only (36 end-to-end scenarios via VirtualMeshTransport)
 ./gradlew :meshlink:jvmTest --tests "io.meshlink.MeshIntegrationTest" --parallel
 
 # Single test class
@@ -84,7 +84,7 @@ open meshlink/build/reports/tests/jvmTest/index.html
 
 ### Test Structure
 
-83 test files across 20 packages in `meshlink/src/commonTest/`: crypto (17),
+89 test files across 20 packages in `meshlink/src/commonTest/`: crypto (17),
 transport (9), transfer (8), util (7), power (7), wire (8), model (6),
 routing (5), dispatch (3), diagnostics (3), send (2), config (1), delivery (1),
 route (1), peer (1), protocol (1), storage (1), plus integration and stress
@@ -92,7 +92,7 @@ suites.
 
 #### Integration Test Suite (`MeshIntegrationTest.kt`)
 
-32 end-to-end scenarios exercising full MeshLink flows through the
+36 end-to-end scenarios exercising full MeshLink flows through the
 `VirtualMeshTransport`. Covers discovery, handshake, direct/broadcast/routed
 messaging, delivery confirmation, chunking, pause/resume, lifecycle, and
 diagnostics. See `docs/integration-tests.feature` for the Gherkin specification
@@ -140,31 +140,8 @@ before committing. See `detekt.yml` for the full rule set.
 
 ## Project Structure
 
-```
-meshlink/src/
-  commonMain/     ~85% of code: protocol, routing, crypto, wire format
-  commonTest/     1,201 tests using VirtualMeshTransport (in-memory BLE mock)
-  androidMain/    BLE transport, EncryptedSharedPreferences, JCA crypto (API 33+)
-  appleMain/      Shared iOS/macOS: CoreBluetooth, CryptoKit, Keychain
-  iosMain/        iOS-specific overrides
-  macosMain/      macOS-specific overrides
-  jvmMain/        Java 21 JCA crypto provider
-  linuxMain/      Raw HCI/L2CAP transport, pthread locking
-meshlink-sample/  Sample apps (android, ios, macos, jvm, linux)
-docs/             Design docs, API reference, threat model, diagrams
-```
-
-### Modules
-
-| Module | Purpose |
-|---|---|
-| `:meshlink` | Core library — all platform targets |
-| `:meshlink-sample:android` | Android sample app (Jetpack Compose) |
-| `:meshlink-sample:jvm` | JVM console sample |
-| `:meshlink-sample:linux` | Linux console sample |
-
-iOS and macOS sample apps are native Xcode projects under `meshlink-sample/ios/`
-and `meshlink-sample/macos/` (not Gradle-managed).
+See [README § Project Structure](README.md#project-structure) for the directory
+layout. Key points for agents:
 
 ### Key Entry Points
 
@@ -197,14 +174,8 @@ When adding a new `expect` declaration, provide `actual` implementations for
 
 ## Build and CI
 
-### Local Build
-
-```bash
-./gradlew detekt                                   # Lint
-./gradlew :meshlink:jvmTest --parallel             # JVM tests
-./gradlew :meshlink:compileAndroidMain             # Android compile check
-./gradlew :meshlink-sample:android:assembleDebug   # Sample app
-```
+See [README § Building](README.md#building) for full build commands. Quick
+reference for the agent workflow:
 
 ### CI Pipeline
 

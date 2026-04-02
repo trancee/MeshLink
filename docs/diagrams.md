@@ -16,7 +16,7 @@ diagrams don't render in your viewer, paste them into the
 7. [GATT Chunking & SACK Flow](#7-gatt-chunking--sack-flow) — Selective ACK and resume-on-disconnect
 8. [Engine & Coordinator Data Flow](#8-engine--coordinator-data-flow) — Sealed result types, unidirectional flow
 9. [AODV Route Discovery](#9-aodv-route-discovery) — On-demand RREQ flood and RREP unicast
-10. [TOFU Trust Model](#10-tofi-trust-model) — Key pinning with strict/softRepin modes
+10. [TOFU Trust Model](#10-tofu-trust-model) — Key pinning with strict/softRepin modes
 11. [Key Rotation Sequence](#11-key-rotation-sequence) — Broadcast announcement, grace period, teardown
 
 ---

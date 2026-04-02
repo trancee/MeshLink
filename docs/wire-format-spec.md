@@ -56,15 +56,7 @@ clamped to their respective ranges via `coerceIn`.
 
 **Decoding:** `versionMajor = byte0 >>> 4`, `powerMode = byte0 & 0x0F`.
 
-**Why 8 bytes for the key hash?** BLE 4.x scan response data is limited to 31
-bytes. A Service Data AD structure with a 128-bit UUID requires 18 bytes of
-overhead (1 length byte + 1 AD type + 16-byte UUID), leaving a maximum of 13
-bytes for the payload. The first 2 bytes carry version and power mode metadata,
-leaving 8 bytes for the key hash. An 8-byte (64-bit) truncation of SHA-256 still
-provides ~2³² collision resistance (birthday bound), which is far beyond the
-practical mesh sizes MeshLink targets. The hash serves as a probabilistic
-identifier for connection tie-breaking — full key exchange happens during the
-Noise XX handshake, where the complete 32-byte X25519 public key is verified.
+See [design.md §3](design.md) for rationale on field sizes.
 
 ---
 

@@ -1,6 +1,6 @@
 # MeshLink
 
-A **Kotlin Multiplatform (KMP)** BLE mesh messaging library for **Android**, **iOS**, and **macOS**. MeshLink enables secure, multi-hop peer-to-peer communication over Bluetooth Low Energy with ~85% shared code across platforms.
+A **Kotlin Multiplatform (KMP)** BLE mesh messaging library for **Android**, **iOS**, **macOS**, **Linux**, and **JVM**. MeshLink enables secure, multi-hop peer-to-peer communication over Bluetooth Low Energy with ~85% shared code across platforms.
 
 ## Features
 
@@ -66,7 +66,7 @@ MeshLink/
 │       ├── linuxMain/           # Linux-specific (POSIX time, battery stub)
 │       ├── androidMain/         # Android BLE, storage, services
 │       ├── jvmMain/             # JVM crypto provider
-│       └── commonTest/          # 1,140+ tests
+│       └── commonTest/          # 1,168+ tests
 ├── meshlink-sample/
 │   ├── android/                 # Jetpack Compose reference app
 │   ├── ios/                     # SwiftUI reference app
@@ -80,7 +80,7 @@ MeshLink/
 
 ## Documentation
 
-[Integration Guide](docs/integration-guide.md) · [Architecture](docs/architecture.md) · [Wire Format Spec](docs/wire-format-spec.md) · [Design](docs/design.md) · [API Reference](docs/api-reference.md) · [Threat Model](docs/threat-model.md) · [Diagrams](docs/diagrams.md)
+[Integration Guide](docs/integration-guide.md) · [Design](docs/design.md) · [Wire Format Spec](docs/wire-format-spec.md) · [API Reference](docs/api-reference.md) · [Threat Model](docs/threat-model.md) · [Diagrams](docs/diagrams.md)
 
 ## Building
 
@@ -97,7 +97,7 @@ MeshLink/
 # Run all JVM tests
 ./gradlew :meshlink:jvmTest
 
-# Run integration tests only (18 end-to-end scenarios)
+# Run integration tests only (36 end-to-end scenarios)
 ./gradlew :meshlink:jvmTest --tests "io.meshlink.MeshIntegrationTest" --parallel
 
 # Compile Android AAR
