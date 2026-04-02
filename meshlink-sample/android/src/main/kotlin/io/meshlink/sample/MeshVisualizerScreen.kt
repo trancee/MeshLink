@@ -110,7 +110,7 @@ fun MeshVisualizerScreen(viewModel: MeshLinkViewModel) {
                 )
                 AssistChip(
                     onClick = {},
-                    label = { Text("Mode: ${health.powerMode}") }
+                    label = { Text("Mode: ${health.powerMode.name}") }
                 )
             }
 

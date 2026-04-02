@@ -158,10 +158,11 @@ private fun DiagnosticEventCard(event: DiagnosticEvent) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            if (!event.payload.isNullOrBlank()) {
+            if (event.payload.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(4.dp))
+                val payloadText = event.payload.entries.joinToString(", ") { "${it.key}=${it.value}" }
                 Text(
-                    text = event.payload!!,
+                    text = payloadText,
                     style = MaterialTheme.typography.bodySmall,
                     fontFamily = FontFamily.Monospace,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -182,6 +183,7 @@ private fun severityColor(severity: Severity): Color = when (severity) {
     Severity.INFO -> Color(0xFF4CAF50)
     Severity.WARN -> Color(0xFFFFC107)
     Severity.ERROR -> Color(0xFFF44336)
+    Severity.FATAL -> Color(0xFF9C27B0)
 }
 
 private fun formatTimestamp(monotonicMillis: Long): String {

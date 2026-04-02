@@ -30,7 +30,7 @@ class MeshLinkViewModel(application: Application) : AndroidViewModel(application
 
     private val transport = AndroidBleTransport(application)
 
-    private var _currentConfig = MutableStateFlow(MeshLinkConfig.smallPayloadLowLatency())
+    private var _currentConfig = MutableStateFlow(MeshLinkConfig.smallPayloadLowLatency { diagnosticsEnabled = true })
     /** Current [MeshLinkConfig] — observable for the Settings screen. */
     val currentConfig: StateFlow<MeshLinkConfig> = _currentConfig.asStateFlow()
 
@@ -122,7 +122,7 @@ class MeshLinkViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch {
             meshLink.meshHealthFlow.collect { snapshot ->
                 _health.value = snapshot
-                log("💓 Health update: peers=${snapshot.connectedPeers}, mode=${snapshot.powerMode}")
+                log("💓 Health update: peers=${snapshot.connectedPeers}, mode=${snapshot.powerMode.name}")
             }
         }
         viewModelScope.launch {
@@ -179,7 +179,7 @@ class MeshLinkViewModel(application: Application) : AndroidViewModel(application
 
     fun broadcastMessage(message: String) {
         val payloadBytes = message.encodeToByteArray()
-        meshLink.broadcast(payloadBytes, maxHops = 3u.toUByte())
+        meshLink.broadcast(payloadBytes, maxHops = _currentConfig.value.broadcastTTL)
             .onSuccess { uuid ->
                 log("📡 Broadcast (id=$uuid): $message")
             }
@@ -196,19 +196,19 @@ class MeshLinkViewModel(application: Application) : AndroidViewModel(application
         val newConfig = when (preset) {
             "largePayloadHighThroughput" -> {
                 _currentPreset.value = ConfigPreset.FILE_TRANSFER
-                MeshLinkConfig.largePayloadHighThroughput()
+                MeshLinkConfig.largePayloadHighThroughput { diagnosticsEnabled = true }
             }
             "minimalResourceUsage" -> {
                 _currentPreset.value = ConfigPreset.POWER
-                MeshLinkConfig.minimalResourceUsage()
+                MeshLinkConfig.minimalResourceUsage { diagnosticsEnabled = true }
             }
             "minimalOverhead" -> {
                 _currentPreset.value = ConfigPreset.SENSOR
-                MeshLinkConfig.minimalOverhead()
+                MeshLinkConfig.minimalOverhead { diagnosticsEnabled = true }
             }
             else -> {
                 _currentPreset.value = ConfigPreset.CHAT
-                MeshLinkConfig.smallPayloadLowLatency()
+                MeshLinkConfig.smallPayloadLowLatency { diagnosticsEnabled = true }
             }
         }
         _currentConfig.value = newConfig

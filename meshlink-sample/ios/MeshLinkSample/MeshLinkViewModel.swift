@@ -57,13 +57,13 @@ enum ConfigPreset: String, CaseIterable, Identifiable {
     func makeConfig() -> MeshLinkConfig {
         switch self {
         case .smallPayloadLowLatency:
-            return MeshLinkConfig.companion.smallPayloadLowLatency { _ in }
+            return MeshLinkConfig.companion.smallPayloadLowLatency { $0.diagnosticsEnabled = true }
         case .largePayloadHighThroughput:
-            return MeshLinkConfig.companion.largePayloadHighThroughput { _ in }
+            return MeshLinkConfig.companion.largePayloadHighThroughput { $0.diagnosticsEnabled = true }
         case .minimalResourceUsage:
-            return MeshLinkConfig.companion.minimalResourceUsage { _ in }
+            return MeshLinkConfig.companion.minimalResourceUsage { $0.diagnosticsEnabled = true }
         case .minimalOverhead:
-            return MeshLinkConfig.companion.minimalOverhead { _ in }
+            return MeshLinkConfig.companion.minimalOverhead { $0.diagnosticsEnabled = true }
         }
     }
 }
@@ -181,7 +181,7 @@ final class MeshLinkViewModel: ObservableObject {
 
     func broadcastMessage(_ message: String) {
         let payloadBytes = stringToKotlinByteArray(message)
-        let _ = meshLink.broadcast(payload: payloadBytes, maxHops: 3)
+        let _ = meshLink.broadcast(payload: payloadBytes, maxHops: 2)
         log("📡 Broadcast: \(message)")
     }
 
@@ -233,7 +233,7 @@ final class MeshLinkViewModel: ObservableObject {
                 code: event.code.name,
                 severity: event.severity.name,
                 timestamp: Self.formatTimestamp(event.monotonicMillis),
-                payload: event.payload
+                payload: Self.formatPayload(event.payload)
             )
             if self.diagnosticEntries.count > 500 {
                 self.diagnosticEntries.removeFirst()
@@ -248,7 +248,7 @@ final class MeshLinkViewModel: ObservableObject {
         let snapshot = meshLink.meshHealth()
         connectedPeers = Int(snapshot.connectedPeers)
         reachablePeers = Int(snapshot.reachablePeers)
-        powerMode = snapshot.powerMode
+        powerMode = snapshot.powerMode.name
         bufferUsagePercent = Int(snapshot.bufferUtilizationPercent)
         activeTransfers = Int(snapshot.activeTransfers)
     }
@@ -265,6 +265,12 @@ final class MeshLinkViewModel: ObservableObject {
         let seconds = totalSeconds % 60
         let millis = monotonicMillis % 1000
         return String(format: "%02d:%02d.%03d", minutes, seconds, millis)
+    }
+
+    /// Converts the Kotlin `Map<String, Any>` payload to an optional display string.
+    private static func formatPayload(_ payload: [String: Any]) -> String? {
+        if payload.isEmpty { return nil }
+        return payload.map { "\($0.key)=\($0.value)" }.joined(separator: ", ")
     }
 }
 

@@ -143,7 +143,7 @@ fun SettingsScreen(viewModel: MeshLinkViewModel) {
                     ListItem(
                         headlineContent = { Text("Power Mode") },
                         supportingContent = { Text("Auto-detected from battery level") },
-                        trailingContent = { Text(health.powerMode) }
+                        trailingContent = { Text(health.powerMode.name) }
                     )
                     HorizontalDivider()
                     ListItem(

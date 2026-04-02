@@ -29,12 +29,14 @@ fun main() {
     println("╚══════════════════════════════════════╝")
     println()
 
-    val config = MeshLinkConfig.smallPayloadLowLatency()
+    val config = MeshLinkConfig.smallPayloadLowLatency { diagnosticsEnabled = true }
     println("Config preset: smallPayloadLowLatency")
     println("  maxMessageSize = ${config.maxMessageSize}")
     println("  bufferCapacity = ${config.bufferCapacity}")
     println("  mtu            = ${config.mtu}")
     println("  maxHops        = ${config.maxHops}")
+    println("  broadcastTTL   = ${config.broadcastTTL}")
+    println("  diagnostics    = ${config.diagnosticsEnabled}")
     println()
 
     val transport = DemoTransport()
@@ -61,7 +63,7 @@ fun main() {
         }
         launch {
             mesh.meshHealthFlow.collect { snapshot ->
-                println("[HEALTH] peers=${snapshot.connectedPeers}, mode=${snapshot.powerMode}, buffer=${snapshot.bufferUtilizationPercent}%")
+                println("[HEALTH] peers=${snapshot.connectedPeers}, mode=${snapshot.powerMode.name}, buffer=${snapshot.bufferUtilizationPercent}%")
             }
         }
 
@@ -74,7 +76,7 @@ fun main() {
         println("Mesh Health Snapshot:")
         println("  connectedPeers  = ${health.connectedPeers}")
         println("  reachablePeers  = ${health.reachablePeers}")
-        println("  powerMode       = ${health.powerMode}")
+        println("  powerMode       = ${health.powerMode.name}")
         println("  activeTransfers = ${health.activeTransfers}")
         println()
 
@@ -83,7 +85,7 @@ fun main() {
             .onSuccess { println("[SEND] Sent message: $it") }
             .onFailure { println("[SEND] Result: ${it.message} (expected - no real peers)") }
 
-        mesh.broadcast("Linux broadcast ping".encodeToByteArray(), maxHops = 3u)
+        mesh.broadcast("Linux broadcast ping".encodeToByteArray(), maxHops = config.broadcastTTL)
             .onSuccess { println("[BCAST] Broadcast sent: $it") }
             .onFailure { println("[BCAST] Result: ${it.message}") }
 
@@ -116,6 +118,7 @@ private fun ByteArray.toHex(): String = joinToString("") {
 /** No-op BLE transport for demonstration without root privileges. */
 private class DemoTransport : BleTransport {
     override val localPeerId: ByteArray = ByteArray(16) { it.toByte() }
+    override var advertisementServiceData: ByteArray = ByteArray(0)
     override suspend fun startAdvertisingAndScanning() {}
     override suspend fun stopAll() {}
     override val advertisementEvents: Flow<AdvertisementEvent> = emptyFlow()

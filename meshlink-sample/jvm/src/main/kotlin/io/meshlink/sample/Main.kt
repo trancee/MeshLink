@@ -26,12 +26,14 @@ fun main() {
     println("╚══════════════════════════════════════╝")
     println()
 
-    val config = MeshLinkConfig.smallPayloadLowLatency()
+    val config = MeshLinkConfig.smallPayloadLowLatency { diagnosticsEnabled = true }
     println("Config preset: smallPayloadLowLatency")
     println("  maxMessageSize = ${config.maxMessageSize}")
     println("  bufferCapacity = ${config.bufferCapacity}")
     println("  mtu            = ${config.mtu}")
     println("  maxHops        = ${config.maxHops}")
+    println("  broadcastTTL   = ${config.broadcastTTL}")
+    println("  diagnostics    = ${config.diagnosticsEnabled}")
     println()
 
     val transport = DemoTransport()
@@ -59,7 +61,7 @@ fun main() {
         }
         launch {
             mesh.meshHealthFlow.collect { snapshot ->
-                println("💓 Health: peers=${snapshot.connectedPeers}, mode=${snapshot.powerMode}, buffer=${snapshot.bufferUtilizationPercent}%")
+                println("💓 Health: peers=${snapshot.connectedPeers}, mode=${snapshot.powerMode.name}, buffer=${snapshot.bufferUtilizationPercent}%")
             }
         }
 
@@ -74,7 +76,7 @@ fun main() {
         println("Mesh Health Snapshot:")
         println("  connectedPeers  = ${health.connectedPeers}")
         println("  reachablePeers  = ${health.reachablePeers}")
-        println("  powerMode       = ${health.powerMode}")
+        println("  powerMode       = ${health.powerMode.name}")
         println("  activeTransfers = ${health.activeTransfers}")
         println()
 
@@ -85,7 +87,7 @@ fun main() {
             .onFailure { println("📤 Send result: ${it.message} (expected — no real peers)") }
 
         // Demonstrate broadcast
-        mesh.broadcast("JVM broadcast ping".encodeToByteArray(), maxHops = 3u)
+        mesh.broadcast("JVM broadcast ping".encodeToByteArray(), maxHops = config.broadcastTTL)
             .onSuccess { println("📡 Broadcast sent: $it") }
             .onFailure { println("📡 Broadcast result: ${it.message}") }
 

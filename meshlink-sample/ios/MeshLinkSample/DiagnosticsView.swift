@@ -32,6 +32,8 @@ struct DiagnosticsView: View {
                                      count: viewModel.diagnosticEntries.filter { $0.severity == "WARN" }.count)
                         filterButton("ERROR", filter: "ERROR",
                                      count: viewModel.diagnosticEntries.filter { $0.severity == "ERROR" }.count)
+                        filterButton("FATAL", filter: "FATAL",
+                                     count: viewModel.diagnosticEntries.filter { $0.severity == "FATAL" }.count)
                     }
                     .padding(.horizontal)
                     .padding(.vertical, 8)
@@ -104,6 +106,7 @@ struct DiagnosticsView: View {
         case "INFO": return .green
         case "WARN": return .orange
         case "ERROR": return .red
+        case "FATAL": return .purple
         default: return .blue
         }
     }
@@ -142,6 +145,7 @@ private struct DiagnosticEventRow: View {
         case "INFO": return .green
         case "WARN": return .orange
         case "ERROR": return .red
+        case "FATAL": return .purple
         default: return .gray
         }
     }
