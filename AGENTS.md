@@ -236,7 +236,7 @@ Test reports are uploaded as artifacts (14-day retention).
 
 Custom binary protocol — no protobuf. All parsers in `WireCodec.kt`.
 
-- **Type byte** at offset 0: `0x00` Broadcast through `0x0C` Route Reply
+- **Type byte** at offset 0: `0x00` Handshake through `0x0C` DeliveryAck
 - **Endianness:** little-endian for chunk offsets, replay counters, SACK
   bitmasks; big-endian for protocol version, timestamps, PSM
 - **Key sizes:** 8-byte peer IDs, 32-byte Ed25519/X25519 keys, 64-byte

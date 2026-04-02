@@ -77,7 +77,7 @@ stateDiagram-v2
 
 ## 2. Wire Format — Routed Message (Noise K Sealed Payload)
 
-Byte layout of the E2E encrypted payload inside a `routed_message` (0x05).
+Byte layout of the E2E encrypted payload inside a `routed_message` (0x0B).
 
 ```mermaid
 ---
@@ -130,19 +130,19 @@ packet
 
 | Code | Type |
 |------|------|
-| 0x00 | broadcast |
-| 0x01 | handshake |
-| 0x02 | route_update (legacy, not actively sent) |
-| 0x03 | chunk |
-| 0x04 | chunk_ack |
-| 0x05 | routed_message |
-| 0x06 | delivery_ack |
-| 0x07 | resume_request |
-| 0x08 | keepalive |
-| 0x09 | nack |
-| 0x0A | rotation |
-| 0x0B | route_request (RREQ) |
-| 0x0C | route_reply (RREP) |
+| 0x00 | handshake |
+| 0x01 | keepalive |
+| 0x02 | rotation |
+| 0x03 | route_request (RREQ) |
+| 0x04 | route_reply (RREP) |
+| 0x05 | route_update (legacy, not actively sent) |
+| 0x06 | chunk |
+| 0x07 | chunk_ack |
+| 0x08 | nack |
+| 0x09 | resume_request |
+| 0x0A | broadcast |
+| 0x0B | routed_message |
+| 0x0C | delivery_ack |
 | 0x0D–0xFF | reserved |
 
 ---
@@ -234,18 +234,18 @@ sequenceDiagram
     Sender->>SLib: send(recipientPubKey, payload)
     activate SLib
 
-    Note over SLib: Noise K encrypt (E2E)<br/>Wrap in routed_message (0x05)
+    Note over SLib: Noise K encrypt (E2E)<br/>Wrap in routed_message (0x0B)
 
-    SLib->>Relay: Noise XX encrypted chunks (0x03)
+    SLib->>Relay: Noise XX encrypted chunks (0x06)
     activate Relay
 
     Note over Relay: Decrypt hop-by-hop (Noise XX)<br/>Check visited list (loop prevention)<br/>Decrement TTL, buffer copy
 
-    Relay->>RLib: Re-encrypt + forward chunks (0x03)
+    Relay->>RLib: Re-encrypt + forward chunks (0x06)
     deactivate Relay
     activate RLib
 
-    RLib-->>Relay: chunk_ack (0x04) per SACK interval
+    RLib-->>Relay: chunk_ack (0x07) per SACK interval
 
     Note over RLib: Reassemble chunks<br/>Noise K decrypt (E2E)<br/>Dedup check (message ID)<br/>appId filter check
 
@@ -253,7 +253,7 @@ sequenceDiagram
 
     Note over RLib: Sign delivery ACK (Ed25519)
 
-    RLib-->>SLib: delivery_ack (0x06) reverse-path
+    RLib-->>SLib: delivery_ack (0x0C) reverse-path
     deactivate RLib
 
     SLib->>Sender: onDeliveryConfirmed(messageId)
@@ -341,23 +341,23 @@ sequenceDiagram
 
     Note over S,D: 100KB message → ~244 chunks at MTU 244
 
-    S->>R: chunk 0x03 (seq=0, totalLen=100KB)
+    S->>R: chunk 0x06 (seq=0, totalLen=100KB)
     R->>D: Re-encrypt + forward chunk 0
     Note right of R: Buffer copy locally
 
-    S->>R: chunk 0x03 (seq=1)
+    S->>R: chunk 0x06 (seq=1)
     R->>D: Forward chunk 1
 
-    S->>R: chunk 0x03 (seq=2..7)
+    S->>R: chunk 0x06 (seq=2..7)
     R->>D: Forward chunks 2–7
 
-    D-->>R: chunk_ack 0x04 (base=0, bitmask=0xFF)
+    D-->>R: chunk_ack 0x07 (base=0, bitmask=0xFF)
     R-->>S: Forward SACK
 
     Note over S,D: SACK every 8 chunks (AIMD: min 2, max 16)
 
     loop Chunks 8..N
-        S->>R: chunk 0x03 (seq=8..N)
+        S->>R: chunk 0x06 (seq=8..N)
         R->>D: Forward chunks
     end
 
@@ -367,7 +367,7 @@ sequenceDiagram
 
     Note over R: 30s chunk inactivity timeout
     R->>D: New Noise XX handshake
-    D->>R: resume_request 0x07 (messageId, bytesReceived)
+    D->>R: resume_request 0x09 (messageId, bytesReceived)
     R->>D: Retransmit from byte offset (from local buffer)
 
     D-->>R: Final SACK (all chunks received)
@@ -539,8 +539,8 @@ sequenceDiagram
 
     rect rgb(230, 240, 255)
         Note over Dev,N2: 4. Broadcast rotation announcement (132 bytes)
-        Dev->>N1: rotation 0x0A: oldKey(32) | newKey(32) | seq(4) | sig(64)
-        Dev->>N2: rotation 0x0A: rotation announcement
+        Dev->>N1: rotation 0x02: oldKey(32) | newKey(32) | seq(4) | sig(64)
+        Dev->>N2: rotation 0x02: rotation announcement
         N1-->>Dev: Write-with-response ACK
         N2-->>Dev: Write-with-response ACK
         Note over N1: Verify sig against pinned old key

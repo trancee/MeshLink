@@ -6,19 +6,26 @@ private const val APP_ID_HASH_SIZE = 16
 
 object WireCodec {
 
-    const val TYPE_BROADCAST: Byte = 0x00
-    const val TYPE_HANDSHAKE: Byte = 0x01
-    const val TYPE_ROUTE_UPDATE: Byte = 0x02
-    const val TYPE_CHUNK: Byte = 0x03
-    const val TYPE_CHUNK_ACK: Byte = 0x04
-    const val TYPE_ROUTED_MESSAGE: Byte = 0x05
-    const val TYPE_DELIVERY_ACK: Byte = 0x06
-    const val TYPE_RESUME_REQUEST: Byte = 0x07
-    const val TYPE_KEEPALIVE: Byte = 0x08
-    const val TYPE_NACK: Byte = 0x09
-    const val TYPE_ROTATION: Byte = 0x0A
-    const val TYPE_ROUTE_REQUEST: Byte = 0x0B
-    const val TYPE_ROUTE_REPLY: Byte = 0x0C
+    // Connection & Control (0x00–0x02)
+    const val TYPE_HANDSHAKE: Byte = 0x00
+    const val TYPE_KEEPALIVE: Byte = 0x01
+    const val TYPE_ROTATION: Byte = 0x02
+
+    // Routing (0x03–0x05)
+    const val TYPE_ROUTE_REQUEST: Byte = 0x03
+    const val TYPE_ROUTE_REPLY: Byte = 0x04
+    const val TYPE_ROUTE_UPDATE: Byte = 0x05 // Legacy DSDV — parsed but not sent
+
+    // Data Transfer (0x06–0x09)
+    const val TYPE_CHUNK: Byte = 0x06
+    const val TYPE_CHUNK_ACK: Byte = 0x07
+    const val TYPE_NACK: Byte = 0x08
+    const val TYPE_RESUME_REQUEST: Byte = 0x09
+
+    // Messaging (0x0A–0x0C)
+    const val TYPE_BROADCAST: Byte = 0x0A
+    const val TYPE_ROUTED_MESSAGE: Byte = 0x0B
+    const val TYPE_DELIVERY_ACK: Byte = 0x0C
 
     // keepalive: type(1) + flags(1) + timestamp(8 LE ulong)
     private const val KEEPALIVE_SIZE = 10

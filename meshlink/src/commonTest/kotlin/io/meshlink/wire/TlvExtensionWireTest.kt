@@ -189,12 +189,12 @@ class TlvExtensionWireTest {
 
     @Test
     fun keepaliveGoldenVectorWithExtension() {
-        // Keepalive: type(08) + flags(00) + timestamp(0000000000000000 LE)
+        // Keepalive: type(01) + flags(00) + timestamp(0000000000000000 LE)
         // + extLen(0500) + tag(01) + len(0200) + value(DEAD)
         val ext = listOf(TlvEntry(0x01u, byteArrayOf(0xDE.toByte(), 0xAD.toByte())))
         val encoded = WireCodec.encodeKeepalive(0uL, 0u, ext)
         val expected = byteArrayOf(
-            0x08, 0x00, // type + flags
+            0x01, 0x00, // type + flags
             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // timestamp
             0x05, 0x00, // extensionLength = 5
             0x01, // tag

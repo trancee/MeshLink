@@ -128,7 +128,7 @@ class RotationAnnouncementTest {
     @Test
     fun typeRotationByteIsCorrectAtPosition0() {
         val (_, encoded) = createSignedMessage()
-        assertEquals(0x0A.toByte(), encoded[0])
+        assertEquals(0x02.toByte(), encoded[0])
         assertEquals(RotationAnnouncement.TYPE_ROTATION, encoded[0])
     }
 

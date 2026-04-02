@@ -71,7 +71,7 @@ class RoutingEngineTest {
         val re = engine()
         val discovery = re.initiateRouteDiscovery(peerId(1))
         assertTrue(discovery.rreqFrame.isNotEmpty())
-        assertEquals(0x0B, discovery.rreqFrame[0].toInt(), "Frame should be TYPE_ROUTE_REQUEST")
+        assertEquals(0x03, discovery.rreqFrame[0].toInt(), "Frame should be TYPE_ROUTE_REQUEST")
     }
 
     @Test

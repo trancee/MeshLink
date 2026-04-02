@@ -267,16 +267,16 @@ flowchart TD
 flowchart TD
     BLE["BLE Transport incomingData"] --> Decode["WireCodec.decode (type byte)"]
 
-    Decode --> |"0x01 HANDSHAKE"| Handshake["PeerHandshakeManager"]
-    Decode --> |"0x03 CHUNK"| ChunkPipeline
-    Decode --> |"0x04 CHUNK_ACK"| AckUpdate["Update TransferSession"]
-    Decode --> |"0x02 ROUTE_UPDATE"| RouteLearn["RoutingEngine.learnRoutes"]
-    Decode --> |"0x00 BROADCAST"| Broadcast["Dedup → emit on messages"]
-    Decode --> |"0x05 ROUTED"| RoutedMsg["Forward or deliver"]
-    Decode --> |"0x06 DELIVERY_ACK"| DelAck["DeliveryAckRouter"]
-    Decode --> |"0x08 KEEPALIVE"| Keepalive["Update presence"]
-    Decode --> |"0x09 NACK"| Nack["Handle negative ack"]
-    Decode --> |"0x0A ROTATION"| Rotation["TrustStore → KeyChangeEvent"]
+    Decode --> |"0x00 HANDSHAKE"| Handshake["PeerHandshakeManager"]
+    Decode --> |"0x06 CHUNK"| ChunkPipeline
+    Decode --> |"0x07 CHUNK_ACK"| AckUpdate["Update TransferSession"]
+    Decode --> |"0x05 ROUTE_UPDATE"| RouteLearn["RoutingEngine.learnRoutes"]
+    Decode --> |"0x0A BROADCAST"| Broadcast["Dedup → emit on messages"]
+    Decode --> |"0x0B ROUTED"| RoutedMsg["Forward or deliver"]
+    Decode --> |"0x0C DELIVERY_ACK"| DelAck["DeliveryAckRouter"]
+    Decode --> |"0x01 KEEPALIVE"| Keepalive["Update presence"]
+    Decode --> |"0x08 NACK"| Nack["Handle negative ack"]
+    Decode --> |"0x02 ROTATION"| Rotation["TrustStore → KeyChangeEvent"]
 
     subgraph ChunkPipeline["Chunk Processing"]
         direction TB
@@ -428,19 +428,19 @@ MeshLink uses a binary wire protocol (version 1.0) with 11 message types.
 
 | Type Byte | Name | Description |
 |-----------|------|-------------|
-| `0x00` | `TYPE_BROADCAST` | Unencrypted broadcast message |
-| `0x01` | `TYPE_HANDSHAKE` | Noise XX handshake message |
-| `0x02` | `TYPE_ROUTE_UPDATE` | Legacy route update (kept for backward compatibility, not actively sent) |
-| `0x03` | `TYPE_CHUNK` | Unicast message chunk |
-| `0x04` | `TYPE_CHUNK_ACK` | Chunk acknowledgement with SACK |
-| `0x05` | `TYPE_ROUTED_MESSAGE` | Multi-hop forwarded message |
-| `0x06` | `TYPE_DELIVERY_ACK` | End-to-end delivery confirmation |
-| `0x07` | `TYPE_RESUME_REQUEST` | Resume an interrupted transfer |
-| `0x08` | `TYPE_KEEPALIVE` | Idle connection keepalive |
-| `0x09` | `TYPE_NACK` | Negative acknowledgement |
-| `0x0A` | `TYPE_ROTATION` | Identity key rotation announcement |
-| `0x0B` | `TYPE_ROUTE_REQUEST` | AODV Route Request (RREQ) |
-| `0x0C` | `TYPE_ROUTE_REPLY` | AODV Route Reply (RREP) |
+| `0x00` | `TYPE_HANDSHAKE` | Noise XX handshake message |
+| `0x01` | `TYPE_KEEPALIVE` | Idle connection keepalive |
+| `0x02` | `TYPE_ROTATION` | Identity key rotation announcement |
+| `0x03` | `TYPE_ROUTE_REQUEST` | AODV Route Request (RREQ) |
+| `0x04` | `TYPE_ROUTE_REPLY` | AODV Route Reply (RREP) |
+| `0x05` | `TYPE_ROUTE_UPDATE` | Legacy route update (kept for backward compatibility, not actively sent) |
+| `0x06` | `TYPE_CHUNK` | Unicast message chunk |
+| `0x07` | `TYPE_CHUNK_ACK` | Chunk acknowledgement with SACK |
+| `0x08` | `TYPE_NACK` | Negative acknowledgement |
+| `0x09` | `TYPE_RESUME_REQUEST` | Resume an interrupted transfer |
+| `0x0A` | `TYPE_BROADCAST` | Unencrypted broadcast message |
+| `0x0B` | `TYPE_ROUTED_MESSAGE` | Multi-hop forwarded message |
+| `0x0C` | `TYPE_DELIVERY_ACK` | End-to-end delivery confirmation |
 
 ### BLE Advertisement Payload
 

@@ -20,7 +20,7 @@ package io.meshlink.wire
  */
 object RotationAnnouncement {
 
-    const val TYPE_ROTATION: Byte = 0x0A
+    const val TYPE_ROTATION: Byte = 0x02
     const val SIZE = 201
 
     private const val KEY_SIZE = 32

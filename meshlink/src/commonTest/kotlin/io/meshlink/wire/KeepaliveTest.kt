@@ -64,7 +64,7 @@ class KeepaliveTest {
     fun goldenVector() {
         val ts = 1000uL // 0x3E8
         val expected = byteArrayOf(
-            0x08,       // TYPE_KEEPALIVE
+            0x01,       // TYPE_KEEPALIVE
             0x00,       // flags
             0xE8.toByte(), 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // timestamp LE ULong
             0x00, 0x00  // empty TLV extensions
@@ -80,7 +80,7 @@ class KeepaliveTest {
     @Test
     fun decodeTooShortThrows() {
         assertFailsWith<IllegalArgumentException> {
-            WireCodec.decodeKeepalive(byteArrayOf(0x08, 0x00, 0x01))
+            WireCodec.decodeKeepalive(byteArrayOf(0x01, 0x00, 0x01))
         }
     }
 
@@ -93,7 +93,7 @@ class KeepaliveTest {
 
     @Test
     fun decodeWrongTypeThrows() {
-        val bad = byteArrayOf(0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00) // TYPE_CHUNK
+        val bad = byteArrayOf(0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00) // TYPE_CHUNK
         assertFailsWith<IllegalArgumentException> {
             WireCodec.decodeKeepalive(bad)
         }
@@ -102,7 +102,7 @@ class KeepaliveTest {
     @Test
     fun decodeExtraBytesAreIgnored() {
         val extended = byteArrayOf(
-            0x08, 0x00,
+            0x01, 0x00,
             0xE8.toByte(), 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // 1000 LE ULong
             0x05, 0x00, // TLV extension length = 5
             0x01, 0x02, 0x00, 0xAA.toByte(), 0xBB.toByte() // tag=1, len=2, value=AA BB

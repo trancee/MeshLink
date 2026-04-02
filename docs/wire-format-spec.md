@@ -72,7 +72,7 @@ Noise XX handshake, where the complete 32-byte X25519 public key is verified.
 
 Carried **inside** the Noise XX handshake messages for protocol version
 negotiation and capability exchange. This is not a standalone framed message; it
-is embedded in the `noiseMessage` field of a Handshake message (type `0x01`).
+is embedded in the `noiseMessage` field of a Handshake message (type `0x00`).
 
 **Source:** `HandshakePayload.kt` · `SIZE = 5`
 
@@ -98,19 +98,19 @@ All framed messages begin with a 1-byte type code at offset 0.
 
 | Code | Name | Constant | Fixed Size | Description |
 |------|------|----------|------------|-------------|
-| `0x00` | Broadcast | `TYPE_BROADCAST` | Variable (min 43) | Flood-fill broadcast to all nodes. |
-| `0x01` | Handshake | `TYPE_HANDSHAKE` | Variable (min 2) | Noise XX handshake step. |
-| `0x02` | Route Update (legacy) | `TYPE_ROUTE_UPDATE` | Variable (min 10) | Legacy DSDV routing table exchange. Parsed as a no-op for backward compatibility; not sent by current implementations. |
-| `0x03` | Chunk | `TYPE_CHUNK` | Variable (min 21) | Fragment of a chunked transfer. |
-| `0x04` | Chunk ACK | `TYPE_CHUNK_ACK` | 37+ | Selective acknowledgment of chunks. Has [TLV extensions](#tlv-extension-area). |
-| `0x05` | Routed Message | `TYPE_ROUTED_MESSAGE` | Variable (min 43) | Unicast message forwarded along a route. |
-| `0x06` | Delivery ACK | `TYPE_DELIVERY_ACK` | Variable (min 28) | End-to-end delivery confirmation. Has [TLV extensions](#tlv-extension-area). |
-| `0x07` | Resume Request | `TYPE_RESUME_REQUEST` | 23+ | Request to resume a chunked transfer. Has [TLV extensions](#tlv-extension-area). |
-| `0x08` | Keepalive | `TYPE_KEEPALIVE` | 12+ | Link liveness probe. Has [TLV extensions](#tlv-extension-area). |
-| `0x09` | NACK | `TYPE_NACK` | 20+ | Negative acknowledgment with reason code. Has [TLV extensions](#tlv-extension-area). |
-| `0x0A` | Rotation Announcement | `TYPE_ROTATION` | 201 | Key rotation broadcast. |
-| `0x0B` | Route Request | `TYPE_ROUTE_REQUEST` | 25+ | AODV route request (RREQ), flooded to discover a path to a destination. Has [TLV extensions](#tlv-extension-area). |
-| `0x0C` | Route Reply | `TYPE_ROUTE_REPLY` | 24+ | AODV route reply (RREP), unicast back along the reverse path. Has [TLV extensions](#tlv-extension-area). |
+| `0x00` | Handshake | `TYPE_HANDSHAKE` | Variable (min 2) | Noise XX handshake step. |
+| `0x01` | Keepalive | `TYPE_KEEPALIVE` | 12+ | Link liveness probe. Has [TLV extensions](#tlv-extension-area). |
+| `0x02` | Rotation Announcement | `TYPE_ROTATION` | 201 | Key rotation broadcast. |
+| `0x03` | Route Request | `TYPE_ROUTE_REQUEST` | 25+ | AODV route request (RREQ), flooded to discover a path to a destination. Has [TLV extensions](#tlv-extension-area). |
+| `0x04` | Route Reply | `TYPE_ROUTE_REPLY` | 24+ | AODV route reply (RREP), unicast back along the reverse path. Has [TLV extensions](#tlv-extension-area). |
+| `0x05` | Route Update (legacy) | `TYPE_ROUTE_UPDATE` | Variable (min 10) | Legacy DSDV routing table exchange. Parsed as a no-op for backward compatibility; not sent by current implementations. |
+| `0x06` | Chunk | `TYPE_CHUNK` | Variable (min 21) | Fragment of a chunked transfer. |
+| `0x07` | Chunk ACK | `TYPE_CHUNK_ACK` | 37+ | Selective acknowledgment of chunks. Has [TLV extensions](#tlv-extension-area). |
+| `0x08` | NACK | `TYPE_NACK` | 20+ | Negative acknowledgment with reason code. Has [TLV extensions](#tlv-extension-area). |
+| `0x09` | Resume Request | `TYPE_RESUME_REQUEST` | 23+ | Request to resume a chunked transfer. Has [TLV extensions](#tlv-extension-area). |
+| `0x0A` | Broadcast | `TYPE_BROADCAST` | Variable (min 43) | Flood-fill broadcast to all nodes. |
+| `0x0B` | Routed Message | `TYPE_ROUTED_MESSAGE` | Variable (min 43) | Unicast message forwarded along a route. |
+| `0x0C` | Delivery ACK | `TYPE_DELIVERY_ACK` | Variable (min 28) | End-to-end delivery confirmation. Has [TLV extensions](#tlv-extension-area). |
 
 ---
 
@@ -163,24 +163,24 @@ The following 7 message types include a TLV extension area after their fixed bod
 
 | Message | Type Code | Fixed Body Size | Extension Area Follows |
 |---------|-----------|-----------------|----------------------|
-| Keepalive | `0x08` | 10 bytes | After byte 9 |
-| Chunk ACK | `0x04` | 35 bytes | After byte 34 |
-| NACK | `0x09` | 18 bytes | After byte 17 |
-| Resume Request | `0x07` | 21 bytes | After byte 20 |
-| Route Request | `0x0B` | 23 bytes | After byte 22 |
-| Route Reply | `0x0C` | 22 bytes | After byte 21 |
-| Delivery ACK | `0x06` | 26 bytes (+ optional 96-byte signature) | After body end |
+| Keepalive | `0x01` | 10 bytes | After byte 9 |
+| Chunk ACK | `0x07` | 35 bytes | After byte 34 |
+| NACK | `0x08` | 18 bytes | After byte 17 |
+| Resume Request | `0x09` | 21 bytes | After byte 20 |
+| Route Request | `0x03` | 23 bytes | After byte 22 |
+| Route Reply | `0x04` | 22 bytes | After byte 21 |
+| Delivery ACK | `0x0C` | 26 bytes (+ optional 96-byte signature) | After body end |
 
 ### Messages WITHOUT TLV Extensions
 
 | Message | Type Code | Reason |
 |---------|-----------|--------|
-| Chunk | `0x03` | Variable-length payload at end. |
-| Broadcast | `0x00` | Variable-length payload at end. |
-| Routed Message | `0x05` | Variable-length payload at end. |
-| Handshake | `0x01` | Noise protocol opaque bytes — structure is not MeshLink-defined. |
-| Route Update (legacy) | `0x02` | Legacy DSDV, no longer actively used. |
-| Rotation Announcement | `0x0A` | Fixed 201-byte signed payload; adding extensions would invalidate the signature. |
+| Chunk | `0x06` | Variable-length payload at end. |
+| Broadcast | `0x0A` | Variable-length payload at end. |
+| Routed Message | `0x0B` | Variable-length payload at end. |
+| Handshake | `0x00` | Noise protocol opaque bytes — structure is not MeshLink-defined. |
+| Route Update (legacy) | `0x05` | Legacy DSDV, no longer actively used. |
+| Rotation Announcement | `0x02` | Fixed 201-byte signed payload; adding extensions would invalidate the signature. |
 
 ### Forward Compatibility
 
@@ -197,7 +197,7 @@ The following 7 message types include a TLV extension area after their fixed bod
 
 ## Message Formats
 
-### 0x00 — Broadcast
+### 0x0A — Broadcast
 
 Flood-fill message propagated through the mesh. Optionally signed with Ed25519.
 
@@ -206,7 +206,7 @@ Flood-fill message propagated through the mesh. Optionally signed with Ed25519.
 ```
 Byte:   0       1                              16  17                 24
        +-------+---------- ... ----------------+---+--- ... ---------+
-       | 0x00  |         messageId (16)         |    origin (8)      |
+       | 0x0A  |         messageId (16)         |    origin (8)      |
        +-------+---------- ... ----------------+---+--- ... ---------+
 
        25      26                             41  42
@@ -225,7 +225,7 @@ Byte:   0       1                              16  17                 24
 
 | Offset | Size | Field | Type | Endianness | Description |
 |--------|------|-------|------|------------|-------------|
-| 0 | 1 | `type` | byte | — | `0x00` |
+| 0 | 1 | `type` | byte | — | `0x0A` |
 | 1–16 | 16 | `messageId` | bytes | — | Unique message identifier. |
 | 17–24 | 8 | `origin` | bytes | — | Originator node ID (truncated key hash). |
 | 25 | 1 | `remainingHops` | UByte | — | TTL / remaining hop count. |
@@ -241,7 +241,7 @@ Byte:   0       1                              16  17                 24
 
 ---
 
-### 0x01 — Handshake
+### 0x00 — Handshake
 
 Wraps a single step of the Noise XX handshake protocol.
 
@@ -250,13 +250,13 @@ Wraps a single step of the Noise XX handshake protocol.
 ```
 Byte:   0       1       2                              N
        +-------+-------+---------- ... ----------------+
-       | 0x01  | step  |     noiseMessage (variable)    |
+       | 0x00  | step  |     noiseMessage (variable)    |
        +-------+-------+---------- ... ----------------+
 ```
 
 | Offset | Size | Field | Type | Endianness | Description |
 |--------|------|-------|------|------------|-------------|
-| 0 | 1 | `type` | byte | — | `0x01` |
+| 0 | 1 | `type` | byte | — | `0x00` |
 | 1 | 1 | `step` | UByte | — | Handshake step: `0`, `1`, or `2`. |
 | 2–N | variable | `noiseMessage` | bytes | — | Noise protocol message for this step. |
 
@@ -271,7 +271,7 @@ the 5-byte payload carried inside the Noise framework messages.
 
 ---
 
-### 0x02 — Route Update (Legacy)
+### 0x05 — Route Update (Legacy)
 
 > **Legacy:** This message type was used by the former DSDV routing protocol.
 > Current implementations retain the parser for backward compatibility but treat
@@ -287,7 +287,7 @@ signed.
 ```
 Byte:   0       1                       8  9
        +-------+------- ... -----------+-------+
-       | 0x02  |     senderId (8)      | count |
+       | 0x05  |     senderId (8)      | count |
        +-------+------- ... -----------+-------+
 
        For each of `count` entries (21 bytes each):
@@ -312,7 +312,7 @@ entries:
 
 | Offset | Size | Field | Type | Endianness | Description |
 |--------|------|-------|------|------------|-------------|
-| 0 | 1 | `type` | byte | — | `0x02` |
+| 0 | 1 | `type` | byte | — | `0x05` |
 | 1–8 | 8 | `senderId` | bytes | — | Sender node ID. |
 | 9 | 1 | `entryCount` | UByte | — | Number of route entries (0–255). |
 
@@ -339,7 +339,7 @@ entries:
 
 ---
 
-### 0x0B — Route Request (RREQ)
+### 0x03 — Route Request (RREQ)
 
 AODV route discovery request. Flooded by the originator (or an intermediate
 peer with no cached route) to discover a path to a destination. Each peer
@@ -352,13 +352,13 @@ origin.
 ```
 Byte:   0       1             8  9            16 17          20 21   22  23  24
        +-------+---- ... ----+--+---- ... ----+--+--- ... ---+-----+-----+---+---+-- ... --+
-       | 0x0B  |  origin (8) |  |   dest (8)  |  | reqId(4LE)| hops|limit|extLen | TLV ...  |
+       | 0x03  |  origin (8) |  |   dest (8)  |  | reqId(4LE)| hops|limit|extLen | TLV ...  |
        +-------+---- ... ----+--+---- ... ----+--+--- ... ---+-----+-----+---+---+-- ... --+
 ```
 
 | Offset | Size | Field | Type | Endianness | Description |
 |--------|------|-------|------|------------|-------------|
-| 0 | 1 | `type` | byte | — | `0x0B` |
+| 0 | 1 | `type` | byte | — | `0x03` |
 | 1–8 | 8 | `origin` | bytes | — | Peer ID of the RREQ originator. |
 | 9–16 | 8 | `destination` | bytes | — | Peer ID of the desired destination. |
 | 17–20 | 4 | `requestId` | UInt | **LE** | Unique request identifier (scoped to origin). Used for RREQ deduplication. |
@@ -373,7 +373,7 @@ Byte:   0       1             8  9            16 17          20 21   22  23  24
 
 ---
 
-### 0x0C — Route Reply (RREP)
+### 0x04 — Route Reply (RREP)
 
 AODV route reply. Unicast back along the reverse path recorded during the
 RREQ flood. Sent by the destination peer or by an intermediate peer that
@@ -384,13 +384,13 @@ already has a cached route to the destination.
 ```
 Byte:   0       1             8  9            16 17          20 21  22  23
        +-------+---- ... ----+--+---- ... ----+--+--- ... ---+-----+---+---+-- ... --+
-       | 0x0C  |  origin (8) |  |   dest (8)  |  | reqId(4LE)| hops|extLen | TLV ...  |
+       | 0x04  |  origin (8) |  |   dest (8)  |  | reqId(4LE)| hops|extLen | TLV ...  |
        +-------+---- ... ----+--+---- ... ----+--+--- ... ---+-----+---+---+-- ... --+
 ```
 
 | Offset | Size | Field | Type | Endianness | Description |
 |--------|------|-------|------|------------|-------------|
-| 0 | 1 | `type` | byte | — | `0x0C` |
+| 0 | 1 | `type` | byte | — | `0x04` |
 | 1–8 | 8 | `origin` | bytes | — | Peer ID of the original RREQ originator (copied from the RREQ). |
 | 9–16 | 8 | `destination` | bytes | — | Peer ID of the destination (the peer that generated or relayed the RREP). |
 | 17–20 | 4 | `requestId` | UInt | **LE** | Request ID from the corresponding RREQ. |
@@ -403,7 +403,7 @@ Byte:   0       1             8  9            16 17          20 21  22  23
 
 ---
 
-### 0x03 — Chunk
+### 0x06 — Chunk
 
 Fragment of a chunked (multi-part) message transfer.
 
@@ -412,7 +412,7 @@ Fragment of a chunked (multi-part) message transfer.
 ```
 Byte:   0       1                              16  17      18  19      20  21       N
        +-------+---------- ... ----------------+---+-------+---+-------+---+-- ... --+
-       | 0x03  |         messageId (16)         | seqNum(LE)  |totalChk(LE)| payload  |
+       | 0x06  |         messageId (16)         | seqNum(LE)  |totalChk(LE)| payload  |
        +-------+---------- ... ----------------+---+-------+---+-------+---+-- ... --+
 ```
 
@@ -430,7 +430,7 @@ Byte:   0       1                              16  17      18  19      20  21   
 
 ---
 
-### 0x04 — Chunk ACK
+### 0x07 — Chunk ACK
 
 Selective acknowledgment for a chunked transfer, using a cumulative ACK
 sequence number plus a 128-bit SACK bitmask (two ULong fields) for
@@ -441,7 +441,7 @@ out-of-order reception. Covers up to 128 chunks beyond `ackSequence`.
 ```
 Byte:   0       1                              16  17      18  19                     26  27                     34  35  36
        +-------+---------- ... ----------------+---+-------+---+---------- ... --------+---+---------- ... --------+---+---+-- ... --+
-       | 0x04  |         messageId (16)         |ackSeq (LE)  | sackBitmask (8, LE)    | sackBitmaskHigh (8, LE)  |extLen | TLV ...  |
+       | 0x07  |         messageId (16)         |ackSeq (LE)  | sackBitmask (8, LE)    | sackBitmaskHigh (8, LE)  |extLen | TLV ...  |
        +-------+---------- ... ----------------+---+-------+---+---------- ... --------+---+---------- ... --------+---+---+-- ... --+
 ```
 
@@ -458,7 +458,7 @@ Byte:   0       1                              16  17      18  19               
 
 ---
 
-### 0x05 — Routed Message
+### 0x0B — Routed Message
 
 Unicast message forwarded hop-by-hop along a computed route. Includes a visited
 list for loop detection.
@@ -468,7 +468,7 @@ list for loop detection.
 ```
 Byte:   0       1                 16  17         24  25         32
        +-------+------ ... ------+---+-- ... ---+---+-- ... ---+
-       | 0x05  |  messageId (16) |  origin (8)  | destination(8)|
+       | 0x0B  |  messageId (16) |  origin (8)  | destination(8)|
        +-------+------ ... ------+---+-- ... ---+---+-- ... ---+
 
        33      34                             41  42
@@ -486,7 +486,7 @@ Byte:   0       1                 16  17         24  25         32
 
 | Offset | Size | Field | Type | Endianness | Description |
 |--------|------|-------|------|------------|-------------|
-| 0 | 1 | `type` | byte | — | `0x05` |
+| 0 | 1 | `type` | byte | — | `0x0B` |
 | 1–16 | 16 | `messageId` | bytes | — | Unique message identifier. |
 | 17–24 | 8 | `origin` | bytes | — | Originator node ID. |
 | 25–32 | 8 | `destination` | bytes | — | Destination node ID. |
@@ -502,7 +502,7 @@ Byte:   0       1                 16  17         24  25         32
 
 ---
 
-### 0x06 — Delivery ACK
+### 0x0C — Delivery ACK
 
 End-to-end delivery confirmation, optionally signed for non-repudiation.
 
@@ -511,7 +511,7 @@ End-to-end delivery confirmation, optionally signed for non-repudiation.
 ```
 Byte:   0       1                              16  17                 24  25
        +-------+---------- ... ----------------+---+--- ... ---------+-------+
-       | 0x06  |         messageId (16)         |   recipientId (8)  | flags |
+       | 0x0C  |         messageId (16)         |   recipientId (8)  | flags |
        +-------+---------- ... ----------------+---+--- ... ---------+-------+
 
        If flags bit 0 set (HAS_SIGNATURE):
@@ -528,7 +528,7 @@ Byte:   0       1                              16  17                 24  25
 
 | Offset | Size | Field | Type | Endianness | Description |
 |--------|------|-------|------|------------|-------------|
-| 0 | 1 | `type` | byte | — | `0x06` |
+| 0 | 1 | `type` | byte | — | `0x0C` |
 | 1–16 | 16 | `messageId` | bytes | — | ID of the message being acknowledged. |
 | 17–24 | 8 | `recipientId` | bytes | — | Node ID of the recipient confirming delivery. |
 | 25 | 1 | `flags` | UByte | — | Bit 0: `HAS_SIGNATURE`. Bits 1–7: reserved. |
@@ -542,7 +542,7 @@ Byte:   0       1                              16  17                 24  25
 
 ---
 
-### 0x07 — Resume Request
+### 0x09 — Resume Request
 
 Requests resumption of an interrupted chunked transfer, indicating how many
 bytes have already been received.
@@ -552,13 +552,13 @@ bytes have already been received.
 ```
 Byte:   0       1                              16  17                  20  21  22
        +-------+---------- ... ----------------+---+-------+-------+---+---+---+-- ... --+
-       | 0x07  |         messageId (16)         | bytesReceived (4,LE) |extLen | TLV ...  |
+       | 0x09  |         messageId (16)         | bytesReceived (4,LE) |extLen | TLV ...  |
        +-------+---------- ... ----------------+---+-------+-------+---+---+---+-- ... --+
 ```
 
 | Offset | Size | Field | Type | Endianness | Description |
 |--------|------|-------|------|------------|-------------|
-| 0 | 1 | `type` | byte | — | `0x07` |
+| 0 | 1 | `type` | byte | — | `0x09` |
 | 1–16 | 16 | `messageId` | bytes | — | ID of the message to resume. Must be exactly 16 bytes. |
 | 17–20 | 4 | `bytesReceived` | UInt | **LE** | Number of bytes already received. |
 | 21… | 2+ | `extensions` | [TLV](#tlv-extension-area) | **LE** | TLV extension area (minimum 2 bytes). |
@@ -567,7 +567,7 @@ Byte:   0       1                              16  17                  20  21  2
 
 ---
 
-### 0x08 — Keepalive
+### 0x01 — Keepalive
 
 Lightweight link liveness probe with a timestamp and optional flags.
 
@@ -576,13 +576,13 @@ Lightweight link liveness probe with a timestamp and optional flags.
 ```
 Byte:   0       1       2                                       9  10  11
        +-------+-------+-------+-------+-------+-------+-------+-------+-------+-------+---+---+-- ... --+
-       | 0x08  | flags |              timestampMillis (8, LE)                            |extLen | TLV ...  |
+       | 0x01  | flags |              timestampMillis (8, LE)                            |extLen | TLV ...  |
        +-------+-------+-------+-------+-------+-------+-------+-------+-------+-------+---+---+-- ... --+
 ```
 
 | Offset | Size | Field | Type | Endianness | Description |
 |--------|------|-------|------|------------|-------------|
-| 0 | 1 | `type` | byte | — | `0x08` |
+| 0 | 1 | `type` | byte | — | `0x01` |
 | 1 | 1 | `flags` | UByte | — | Reserved flags. Default `0x00`. |
 | 2–9 | 8 | `timestampMillis` | ULong | **LE** | Unix timestamp in milliseconds. |
 | 10… | 2+ | `extensions` | [TLV](#tlv-extension-area) | **LE** | TLV extension area (minimum 2 bytes). |
@@ -591,7 +591,7 @@ Byte:   0       1       2                                       9  10  11
 
 ---
 
-### 0x09 — NACK
+### 0x08 — NACK
 
 Negative acknowledgment indicating that a message could not be delivered or
 processed. Includes a reason code so the sender can distinguish failure modes.
@@ -601,13 +601,13 @@ processed. Includes a reason code so the sender can distinguish failure modes.
 ```
 Byte:   0       1                              16      17  18  19
        +-------+---------- ... ----------------+-------+---+---+-- ... --+
-       | 0x09  |         messageId (16)         |reason |extLen | TLV ...  |
+       | 0x08  |         messageId (16)         |reason |extLen | TLV ...  |
        +-------+---------- ... ----------------+-------+---+---+-- ... --+
 ```
 
 | Offset | Size | Field | Type | Endianness | Description |
 |--------|------|-------|------|------------|-------------|
-| 0 | 1 | `type` | byte | — | `0x09` |
+| 0 | 1 | `type` | byte | — | `0x08` |
 | 1–16 | 16 | `messageId` | bytes | — | ID of the message being negatively acknowledged. |
 | 17 | 1 | `reason` | UByte | — | Reason code: `0` = unknown, `1` = buffer full, `2` = unknown destination, `3` = decryption failed, `4` = rate limited. |
 | 18… | 2+ | `extensions` | [TLV](#tlv-extension-area) | **LE** | TLV extension area (minimum 2 bytes). |
@@ -616,7 +616,7 @@ Byte:   0       1                              16      17  18  19
 
 ---
 
-### 0x0A — Rotation Announcement
+### 0x02 — Rotation Announcement
 
 Announces a key rotation event. The old identity signs the announcement to prove
 the transition is authorized.
@@ -626,7 +626,7 @@ the transition is authorized.
 ```
 Byte:   0       1                              32  33                             64
        +-------+---------- ... ----------------+---+---------- ... ----------------+
-       | 0x0A  |     oldX25519Key (32)          |      newX25519Key (32)           |
+       | 0x02  |     oldX25519Key (32)          |      newX25519Key (32)           |
        +-------+---------- ... ----------------+---+---------- ... ----------------+
 
        65                             96  97                            128
@@ -642,7 +642,7 @@ Byte:   0       1                              32  33                           
 
 | Offset | Size | Field | Type | Endianness | Description |
 |--------|------|-------|------|------------|-------------|
-| 0 | 1 | `type` | byte | — | `0x0A` |
+| 0 | 1 | `type` | byte | — | `0x02` |
 | 1–32 | 32 | `oldX25519Key` | bytes | — | Previous X25519 (Diffie-Hellman) public key. |
 | 33–64 | 32 | `newX25519Key` | bytes | — | New X25519 public key. |
 | 65–96 | 32 | `oldEd25519Key` | bytes | — | Previous Ed25519 (signing) public key. |
@@ -663,7 +663,7 @@ identity authorized the rotation.
 
 ## Reserved Type Codes
 
-Type codes `0x0B`–`0xFF` are **reserved** for future use. Implementations
+Type codes `0x0D`–`0xFF` are **reserved** for future use. Implementations
 receiving a message with a reserved type code must drop the message and emit an
 `UNKNOWN_MESSAGE_TYPE` diagnostic.
 
@@ -672,7 +672,7 @@ receiving a message with a reserved type code must drop the message and emit an
 ## Compression Envelope (Inside Encrypted Payload)
 
 The compression envelope is **not** a wire-level message type — it sits
-**inside** the encrypted payload of Routed Messages (type `0x05`). Compression
+**inside** the encrypted payload of Routed Messages (type `0x0B`). Compression
 is applied **before** encryption (`compress → encrypt` on send;
 `decrypt → decompress` on receive) and is therefore transparent to relays and
 the wire format byte tables above.
@@ -739,7 +739,7 @@ decryption by peers running the compression-aware version.
 
 ### Noise XX Handshake
 
-The Handshake message (type `0x01`) wraps the Noise XX protocol, which provides:
+The Handshake message (type `0x00`) wraps the Noise XX protocol, which provides:
 
 - Mutual authentication of both peers.
 - Forward secrecy via ephemeral Diffie-Hellman key exchange.

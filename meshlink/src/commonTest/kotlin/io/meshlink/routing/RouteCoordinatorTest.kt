@@ -68,7 +68,7 @@ class RouteCoordinatorTest {
         val rc = coordinator(re, clock = { 5000L }, sendFrame = { _, data -> sentData.add(data) })
         rc.broadcastKeepalive()
         assertEquals(1, sentData.size)
-        assertEquals(0x08, sentData[0][0].toInt(), "TYPE_KEEPALIVE is 0x08")
+        assertEquals(0x01, sentData[0][0].toInt(), "TYPE_KEEPALIVE is 0x01")
     }
 
     @Test

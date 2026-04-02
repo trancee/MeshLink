@@ -127,7 +127,7 @@ class MessageDispatcherTest {
     @Test
     fun malformedDataDoesNotCrash() = runTest {
         val (dispatcher, sink) = createDispatcher()
-        // TYPE_CHUNK (0x03) with insufficient data → should throw internally, caught by dispatch
+        // TYPE_CHUNK (0x06) with insufficient data → should throw internally, caught by dispatch
         dispatcher.dispatch(peerA, byteArrayOf(WireCodec.TYPE_CHUNK))
         assertTrue(sink.messages.isEmpty())
     }
