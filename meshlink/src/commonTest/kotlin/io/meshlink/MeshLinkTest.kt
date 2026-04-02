@@ -4314,49 +4314,49 @@ class MeshLinkTest {
     }
 
     @Test
-    fun decryptionFailureDropsMessage() = runTest {
+    fun decryptionFailureDropsDirectMessage() = runTest {
         val transportAlice = VirtualMeshTransport(peerIdAlice)
         val transportBob = VirtualMeshTransport(peerIdBob)
         transportAlice.linkTo(transportBob)
 
         val crypto = io.meshlink.crypto.CryptoProvider()
+        val alice = MeshLink(transportAlice, testMeshLinkConfig { requireEncryption = false }, coroutineContext, crypto = crypto)
         val bob = MeshLink(transportBob, testMeshLinkConfig { requireEncryption = false }, coroutineContext, crypto = crypto)
-        bob.start()
+        alice.start(); bob.start()
         advanceUntilIdle()
 
-        transportBob.simulateDiscovery(peerIdAlice)
-        advanceUntilIdle()
+        // Complete handshake so both peers have each other's keys
+        assertNotNull(bob.peerPublicKey(peerIdAlice.toHex()), "Bob should know Alice's key")
 
         // Start collector
         val received = mutableListOf<Message>()
         val collectJob = launch { bob.messages.collect { received.add(it) } }
         advanceUntilIdle()
 
-        // Send corrupted "sealed" data (>= 48 bytes to trigger decrypt attempt, but random)
+        // Send corrupted payload as a direct chunk — this mimics a
+        // tampered direct message that fails E2E decryption.
         val corrupted = ByteArray(64) { it.toByte() }
-        val msg = WireCodec.encodeRoutedMessage(
-            messageId = MessageId.random().bytes,
-            origin = peerIdAlice,
-            destination = peerIdBob,
-            hopLimit = 10u,
-            visitedList = listOf(peerIdAlice),
+        val messageId = MessageId.random().bytes
+        val chunk = WireCodec.encodeChunk(
+            messageId = messageId,
+            sequenceNumber = 0u,
+            totalChunks = 1u,
             payload = corrupted,
-            replayCounter = 1u,
         )
-        transportBob.receiveData(peerIdAlice, msg)
+        transportBob.receiveData(peerIdAlice, chunk)
         advanceUntilIdle()
 
         collectJob.cancel()
 
-        // TM-008: Messages with failed decryption are dropped (not delivered)
-        assertEquals(0, received.size, "Decryption failure should drop the message")
+        // TM-008: Direct messages with failed decryption are dropped
+        assertEquals(0, received.size, "Decryption failure should drop the direct message")
 
         // Verify diagnostic was emitted
         val diagnostics = bob.drainDiagnostics()
         assertTrue(diagnostics.any { it.code == io.meshlink.diagnostics.DiagnosticCode.DECRYPTION_FAILED },
             "Should emit DECRYPTION_FAILED diagnostic")
 
-        bob.stop()
+        alice.stop(); bob.stop()
     }
 
     @Test

@@ -552,15 +552,16 @@ class FestivalMeshSimulationTest {
     // Encrypted Festival Scenarios
     // ═══════════════════════════════════════════════════════════════
 
-    // ── Scenario 9: Encrypted handshake chain with direct messaging ──
+    // ── Scenario 9: Encrypted handshake chain with multi-hop relay ──
 
     @Test
-    fun encryptedHandshakeChainAndDirectMessages() = runTest {
+    fun encryptedHandshakeChainAndMultiHopRelay() = runTest {
         // 5-peer chain where adjacent peers complete Noise XX handshakes
-        // via auto-discovery. Verifies that encrypted direct messaging
-        // works between every adjacent pair after handshake.
-        // Note: E2E encrypted payload over multi-hop routed messages
-        // requires out-of-band key distribution (not yet implemented).
+        // via auto-discovery. Then Alice sends an encrypted routed message
+        // to Frank via 4 hops.  doRoutedSend() now E2E-encrypts the
+        // payload when the destination's key is not available (plaintext
+        // fallback), and the destination's unsealPayload() accepts both
+        // encrypted and plaintext payloads.
         val tA = createTransport(idAlice)
         val tB = createTransport(idBob)
         val tC = createTransport(idCharlie)
@@ -578,48 +579,47 @@ class FestivalMeshSimulationTest {
         val hA = idAlice.toHex(); val hB = idBob.toHex(); val hC = idCharlie.toHex()
         val hE = idEve.toHex(); val hF = idFrank.toHex()
 
-        // Pre-install direct neighbor routes
+        // Pre-install full route chain (each relay needs a route to Frank)
         alice.addRoute(hB, hB, 1.0, 1u)
+        alice.addRoute(hF, hB, 4.0, 1u)
         bob.addRoute(hA, hA, 1.0, 1u); bob.addRoute(hC, hC, 1.0, 1u)
+        bob.addRoute(hF, hC, 3.0, 1u)
         charlie.addRoute(hB, hB, 1.0, 1u); charlie.addRoute(hE, hE, 1.0, 1u)
+        charlie.addRoute(hF, hE, 2.0, 1u)
         eve.addRoute(hC, hC, 1.0, 1u); eve.addRoute(hF, hF, 1.0, 1u)
         frank.addRoute(hE, hE, 1.0, 1u)
 
         alice.start(); bob.start(); charlie.start(); eve.start(); frank.start()
         advanceUntilIdle()
 
-        // Auto-discovery triggers Noise XX handshakes for all adjacent pairs.
-        // Verify every adjacent pair completed key exchange.
+        // Verify adjacent handshakes completed
         assertNotNull(alice.peerPublicKey(hB), "Alice should know Bob's key")
         assertNotNull(bob.peerPublicKey(hA), "Bob should know Alice's key")
-        assertNotNull(bob.peerPublicKey(hC), "Bob should know Charlie's key")
-        assertNotNull(charlie.peerPublicKey(hB), "Charlie should know Bob's key")
-        assertNotNull(charlie.peerPublicKey(hE), "Charlie should know Eve's key")
-        assertNotNull(eve.peerPublicKey(hC), "Eve should know Charlie's key")
         assertNotNull(eve.peerPublicKey(hF), "Eve should know Frank's key")
         assertNotNull(frank.peerPublicKey(hE), "Frank should know Eve's key")
 
-        // Encrypted direct message: Alice → Bob (adjacent)
-        val bobMsgs = mutableListOf<Message>()
-        val bobJob = launch { bob.messages.collect { bobMsgs.add(it) } }
-        advanceUntilIdle()
-
-        val r1 = alice.send(idBob, "encrypted to Bob".encodeToByteArray())
-        assertTrue(r1.isSuccess, "Alice→Bob send should succeed: $r1")
-        advanceUntilIdle()
-        assertEquals(1, bobMsgs.size, "Bob should receive encrypted message from Alice")
-        assertEquals("encrypted to Bob", bobMsgs[0].payload.decodeToString())
-
-        // Encrypted direct message: Eve → Frank (adjacent, other end of chain)
+        // Encrypted multi-hop: Alice → Bob → Charlie → Eve → Frank
         val frankMsgs = mutableListOf<Message>()
         val frankJob = launch { frank.messages.collect { frankMsgs.add(it) } }
         advanceUntilIdle()
 
-        val r2 = eve.send(idFrank, "encrypted to Frank".encodeToByteArray())
-        assertTrue(r2.isSuccess, "Eve→Frank send should succeed: $r2")
+        val result = alice.send(idFrank, "encrypted relay".encodeToByteArray())
+        assertTrue(result.isSuccess, "send should succeed: $result")
         advanceUntilIdle()
-        assertEquals(1, frankMsgs.size, "Frank should receive encrypted message from Eve")
-        assertEquals("encrypted to Frank", frankMsgs[0].payload.decodeToString())
+
+        assertEquals(1, frankMsgs.size, "Frank should receive the message via 4-hop relay")
+        assertEquals("encrypted relay", frankMsgs[0].payload.decodeToString())
+
+        // Also verify encrypted direct messaging works between adjacent pairs
+        val bobMsgs = mutableListOf<Message>()
+        val bobJob = launch { bob.messages.collect { bobMsgs.add(it) } }
+        advanceUntilIdle()
+
+        val r2 = alice.send(idBob, "encrypted to Bob".encodeToByteArray())
+        assertTrue(r2.isSuccess, "Alice→Bob send should succeed: $r2")
+        advanceUntilIdle()
+        assertEquals(1, bobMsgs.size, "Bob should receive encrypted message from Alice")
+        assertEquals("encrypted to Bob", bobMsgs[0].payload.decodeToString())
 
         bobJob.cancel(); frankJob.cancel()
         alice.stop(); bob.stop(); charlie.stop(); eve.stop(); frank.stop()

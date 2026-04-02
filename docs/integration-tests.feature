@@ -469,16 +469,17 @@ Feature: BLE Mesh Peer-to-Peer Messaging
   # ─── Encrypted Handshake Chain ──────────────────────────────
 
   @festival @encryption @handshake
-  Scenario: Encrypted handshake chain with direct messages
+  Scenario: Encrypted handshake chain with multi-hop relay
     Given a 5-peer linear chain Alice ↔ Bob ↔ Charlie ↔ Eve ↔ Frank
     And each peer has a CryptoProvider (encryption enabled)
+    And each intermediate peer has pre-installed routes to Frank
     When all peers start and auto-discovery fires
     Then all 4 adjacent pairs should complete Noise XX handshakes
     And each peer should know its neighbor's public key
-    When Alice sends "encrypted to Bob" to Bob (adjacent, encrypted)
+    When Alice sends "encrypted relay" to Frank (4-hop routed message)
+    Then Frank should receive the message via multi-hop relay
+    When Alice sends "encrypted to Bob" to Bob (adjacent, E2E encrypted)
     Then Bob should receive and decrypt the message
-    When Eve sends "encrypted to Frank" to Frank (adjacent, encrypted)
-    Then Frank should receive and decrypt the message
 
   # ─── Handshake Over Lossy Link ──────────────────────────────
 

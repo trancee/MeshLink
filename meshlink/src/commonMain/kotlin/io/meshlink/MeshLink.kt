@@ -815,13 +815,20 @@ class MeshLink(
         val messageId = messageIdGenerator.generate()
         val key = messageId.bytes.toKey()
         outboundTracker.registerNextHop(key, nextHopId)
+
+        // Compress the payload but do not E2E-encrypt: routed messages
+        // travel as plaintext because the sender typically has not performed
+        // a Noise XX handshake with the (non-adjacent) destination.  Replay
+        // counters, hop limits, and visited lists protect routing integrity.
+        val routedPayload = wrapPayloadEnvelope(payload)
+
         val encoded = WireCodec.encodeRoutedMessage(
             messageId = messageId.bytes,
             origin = transport.localPeerId,
             destination = destination,
             hopLimit = 10u,
             visitedList = listOf(transport.localPeerId),
-            payload = payload,
+            payload = routedPayload,
             replayCounter = outboundTracker.advanceReplayCounter(),
         )
         s.launch { safeSend(nextHopId.bytes, encoded) }

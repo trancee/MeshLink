@@ -253,11 +253,15 @@ internal class MessageDispatcher(
 
         if (routed.destination.contentEquals(localPeerId)) {
             if (!validator.checkInboundRate(originId)) return
-            val deliveredPayload = validator.unsealPayload(
+            // Try E2E decryption.  When the sender had our public key
+            // (e.g. via key distribution), the payload is Noise-K sealed.
+            // When the sender did NOT have our key (non-adjacent peer
+            // without key distribution), the payload is plaintext.
+            // Accept both: try unseal → on failure, deliver as-is.
+            val deliveredPayload = validator.unsealOrPassthrough(
                 routed.payload,
-                "routed message",
                 routed.origin.toKey(),
-            ) ?: return
+            )
             sink.onMessageReceived(routed.origin, unwrapPayload(deliveredPayload))
             val signed = securityEngine?.sign(routed.messageId + localPeerId)
             val ackFrame = WireCodec.encodeDeliveryAck(

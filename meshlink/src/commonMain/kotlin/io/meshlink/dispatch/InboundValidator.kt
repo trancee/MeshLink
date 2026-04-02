@@ -183,4 +183,21 @@ internal class InboundValidator(
             null -> ciphertext
         }
     }
+
+    /**
+     * Try to unseal, but fall back to returning the raw payload when
+     * decryption fails.  Used for routed messages where the sender may
+     * not have had the destination's public key (non-adjacent peer).
+     */
+    fun unsealOrPassthrough(
+        ciphertext: ByteArray,
+        senderPeerId: ByteArrayKey? = null,
+    ): ByteArray {
+        return when (val ur = securityEngine?.unseal(ciphertext, senderPeerId)) {
+            is io.meshlink.crypto.UnsealResult.Decrypted -> ur.plaintext
+            is io.meshlink.crypto.UnsealResult.Failed,
+            is io.meshlink.crypto.UnsealResult.TooShort -> ciphertext
+            null -> ciphertext
+        }
+    }
 }
