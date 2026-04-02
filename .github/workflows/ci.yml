@@ -38,6 +38,7 @@ concurrency:
 
 permissions:
   contents: read
+  checks: write
 
 jobs:
   detekt:
@@ -77,6 +78,13 @@ jobs:
 
       - name: Run JVM tests
         run: ./gradlew :meshlink:jvmTest --parallel
+
+      - name: Publish test report
+        if: always()
+        uses: mikepenz/action-junit-report@v5
+        with:
+          report_paths: 'meshlink/build/test-results/jvmTest/**/*.xml'
+          check_name: 'JVM Test Results'
 
       - name: Upload test reports
         if: always()
@@ -131,6 +139,15 @@ jobs:
       - name: Run iOS Simulator & macOS tests
         run: ./gradlew :meshlink:iosSimulatorArm64Test :meshlink:macosArm64Test --parallel
 
+      - name: Publish test report
+        if: always()
+        uses: mikepenz/action-junit-report@v5
+        with:
+          report_paths: |
+            meshlink/build/test-results/iosSimulatorArm64Test/**/*.xml
+            meshlink/build/test-results/macosArm64Test/**/*.xml
+          check_name: 'Apple Test Results'
+
       - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@v7
@@ -166,6 +183,13 @@ jobs:
 
       - name: Run Linux x64 tests
         run: ./gradlew :meshlink:linuxX64Test --parallel
+
+      - name: Publish test report
+        if: always()
+        uses: mikepenz/action-junit-report@v5
+        with:
+          report_paths: 'meshlink/build/test-results/linuxX64Test/**/*.xml'
+          check_name: 'Linux Test Results'
 
       - name: Upload test reports
         if: always()
