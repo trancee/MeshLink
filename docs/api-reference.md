@@ -77,7 +77,7 @@ scope before calling `start()`.
 
 | Signature | Description |
 |-----------|-------------|
-| `fun addRoute(destination: String, nextHop: String, cost: Double)` | Manually adds or updates a route. `destination` and `nextHop` are hex peer IDs. `cost` must be > 0. Routes added manually behave like discovered routes and are subject to TTL expiry (`routeCacheTtlMillis`). |
+| `fun addRoute(destination: String, nextHop: String, cost: Double, sequenceNumber: UInt)` | Manually adds or updates a route. `destination` and `nextHop` are hex peer IDs. `cost` must be > 0. `sequenceNumber` is the AODV sequence number for route freshness. Routes added manually behave like discovered routes and are subject to TTL expiry (`routeCacheTtlMillis`). |
 
 ### Power Management
 

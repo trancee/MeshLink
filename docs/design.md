@@ -465,7 +465,7 @@ Since every device operates as both BLE central and peripheral, two devices disc
 
 - **Maximum message size:** ~100KB (text content + profile photos)
 - **BLE MTU reality:** Negotiated MTU is typically 244–512 bytes per write
-- At 244 bytes/chunk, a 100KB payload requires **~410 chunks** for a direct (single-hop) transfer. Multi-hop routed transfers use more chunks due to the `routed_message` envelope overhead (56–148 bytes per chunk depending on hop count).
+- At 244 bytes/chunk, a 100KB payload requires **~410 chunks** for a direct (single-hop) transfer. Multi-hop routed transfers use more chunks due to the `routed_message` envelope overhead (43–123 bytes per chunk depending on hop count).
 
 ### Chunking & Reassembly
 
@@ -1561,9 +1561,9 @@ Power modes are selected **automatically** — the library consumer does not cho
 stateDiagram-v2
     [*] --> Balanced : Default start
 
-    state "Performance (4/5 conn)" as Performance
-    state "Balanced (3/4 conn)" as Balanced
-    state "PowerSaver (2/2 conn)" as PowerSaver
+    state "Performance (8 conn)" as Performance
+    state "Balanced (4 conn)" as Balanced
+    state "PowerSaver (1 conn)" as PowerSaver
 
     %% Upward transitions — immediate (no hysteresis)
     PowerSaver --> Balanced : battery ≥ 30% (immediate)
@@ -1917,14 +1917,14 @@ Not intended for business logic — purely for debugging, monitoring, and diagno
 ```kotlin
 data class DiagnosticEvent(
     val code: DiagnosticCode,        // enum of all event types
-    val severity: Severity,           // FATAL, ERROR, WARNING, INFO
+    val severity: Severity,           // FATAL, ERROR, WARN, INFO
     val monotonicMillis: Long,           // millis since boot
     val wallClockMillis: Long,           // epoch millis
     val droppedCount: Int,           // 0 if no drops since last event
     val payload: Map<String, Any>    // event-specific key-value pairs
 )
 ```
-**Severity levels:** `FATAL` = library entered terminal state; `ERROR` = operation failed, app should act; `WARNING` = degraded but functional; `INFO` = observability, no action needed. Apps can filter by severity without knowing every event code. New codes in future versions are automatically filtered correctly.
+**Severity levels:** `FATAL` = library entered terminal state; `ERROR` = operation failed, app should act; `WARN` = degraded but functional; `INFO` = observability, no action needed. Apps can filter by severity without knowing every event code. New codes in future versions are automatically filtered correctly.
 
 **Unknown destination:** If the app calls `send()` with a public key that has never been discovered (no route exists), `send()` returns `Result.Success` (message accepted for buffering). The message is **buffered for `bufferTTL`** (default 5 minutes). If the peer appears via route discovery within the TTL window, the message is delivered normally. If the TTL expires without the peer appearing, `onTransferFailed` is emitted with reason `peerNotFound`. Apps should check `meshHealth().connectedPeers` before sending to provide appropriate UX (e.g., "No peers nearby — message will be queued for 5 minutes").
 
