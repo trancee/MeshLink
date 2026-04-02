@@ -106,17 +106,19 @@ packet
 
 ```mermaid
 ---
-title: "Broadcast Envelope (fixed header + variable payload)"
+title: "Broadcast Envelope (header + optional signature + payload)"
 ---
 packet
     0-95: "Message ID (structured, 12 bytes)"
-    96-351: "Sender Ed25519 Public Key (32 bytes)"
-    352-359: "Remaining Hop Count (1 byte)"
-    360-391: "Payload Length (uint32 LE, 4 bytes)"
-    392-399: "Payload (N bytes) ..."
+    96-159: "Origin Peer ID (8 bytes)"
+    160-167: "Remaining Hop Count (1 byte)"
+    168-231: "App ID Hash (8 bytes)"
+    232-239: "Flags (1 byte)"
+    240-751: "Signature (64B) + Signer Key (32B) [if flags bit 0]"
+    752-815: "Payload (remaining bytes)"
 ```
 
-> **Note:** After the payload, a 64-byte Ed25519 signature covers bytes \[0, 49+N). Signature starts at byte offset 49+N. Total envelope = 113+N bytes.
+> **Note:** When signed, the signature covers `messageId + origin + appIdHash + payload`. The signature block (64-byte Ed25519 signature + 32-byte signer public key) is present only when `flags & 0x01`.
 
 ### GATT Message Type Prefix
 
@@ -308,9 +310,9 @@ title: Power Mode State Machine
 stateDiagram-v2
     [*] --> Balanced : Default on start()
 
-    state "Performance\n>80% or charging\nScan 80–100% · Ads 250ms\nKeepalive 5s · Conn 4/5" as Perf
-    state "Balanced\n30–80%\nScan 40–60% · Ads 500ms\nKeepalive 15s · Conn 3/4" as Bal
-    state "PowerSaver\n<30%\nScan 10–25% · Ads 1–2s\nKeepalive 30–60s · Conn 2/2" as PS
+    state "Performance\n>80% or charging\nScan 80% · Ads 250ms\nKeepalive 5s · Conn 8" as Perf
+    state "Balanced\n30–80%\nScan 50% · Ads 500ms\nKeepalive 15s · Conn 4" as Bal
+    state "PowerSaver\n<30%\nScan ~17% · Ads 1s\nKeepalive 30s · Conn 1" as PS
 
     Bal --> Perf : battery ≥ 80% (immediate)
     Perf --> Bal : battery < 80% for 30s

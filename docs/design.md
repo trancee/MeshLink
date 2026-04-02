@@ -137,153 +137,14 @@ flowchart TD
     App --> Core --> Transport
 ```
 
-#### `io.meshlink` — Core
-
-| File | Responsibility |
-|------|---------------|
-| `MeshLinkApi.kt` | Public interface — all application-facing methods and flows. |
-| `MeshLink.kt` | Implementation: orchestrates all subsystems, owns coroutine scopes, dispatches events. |
-
-#### `io.meshlink.config` — Configuration
-
-| File | Responsibility |
-|------|---------------|
-| `MeshLinkConfig.kt` | Immutable config data class with 30+ fields, validation, presets (`smallPayloadLowLatency`, `largePayloadHighThroughput`, `minimalResourceUsage`), and DSL builder. |
-
-#### `io.meshlink.routing` — Mesh Routing
-
-| File | Responsibility |
-|------|---------------|
-| `RoutingEngine.kt` | Facade consolidating routing table, presence, dedup, AODV route discovery (RREQ/RREP handling, route cache, pending message queue), and adaptive timing behind sealed result types. |
-| `RoutingTable.kt` | AODV route cache with TTL-based expiry and neighbor capacity limits. |
-| `RouteCostCalculator.kt` | Composite cost metric from RSSI, packet loss, freshness, and stability. |
-| `DedupSet.kt` | LRU set for message deduplication (default 10K entries). |
-| `PresenceTracker.kt` | Tracks peer liveness for route validity. |
-| `DeliveryPipeline.kt` | Consolidated delivery pipeline owning delivery state tracking, tombstones, deadline timers, reverse-path ACK relay, replay guards, inbound rate limiting, and store-and-forward buffering. |
-
-#### `io.meshlink.transfer` — Message Transfer
-
-| File | Responsibility |
-|------|---------------|
-| `TransferEngine.kt` | Public façade consolidating outbound chunking (AIMD/SACK) and inbound reassembly behind sealed result types. |
-| `TransferSession.kt` | _(internal)_ Sender-side state machine for multi-chunk transfers. |
-| `SackTracker.kt` | _(internal)_ Receiver-side selective acknowledgement tracking. |
-| `AimdController.kt` | _(internal)_ Additive Increase / Multiplicative Decrease congestion control. |
-| `TransferScheduler.kt` | _(internal)_ Fair round-robin scheduling across concurrent transfers with power-mode limits. |
-| `ChunkSizePolicy.kt` | _(internal)_ Power-aware chunk payload sizing. |
-| `CutThroughBuffer.kt` | _(internal)_ Receiver-side reassembly buffer for out-of-order chunks. |
-| `ResumeCalculator.kt` | _(internal)_ Resumption offset computation for interrupted transfers. |
-
-#### `io.meshlink.crypto` — Security
-
-| File | Responsibility |
-|------|---------------|
-| `SecurityEngine.kt` | Facade consolidating E2E encryption, signatures, handshakes, and peer key lifecycle. |
-| `CryptoProvider.kt` | Interface for all cryptographic primitives (Ed25519, X25519, ChaCha20-Poly1305, SHA-256, HKDF). |
-| `SecureRandom.kt` | `expect/actual` CSPRNG — delegates to `java.security.SecureRandom` (JVM/Android), `SecRandomCopyBytes` (Apple), `/dev/urandom` (Linux). |
-| `NoiseXXHandshake.kt` | Noise XX handshake — mutual authentication with forward secrecy. |
-| `PeerHandshakeManager.kt` | Multi-peer handshake orchestration and session key storage. |
-| `NoiseKSealer.kt` | Per-message end-to-end encryption using Noise K pattern. |
-| `ReplayGuard.kt` | 64-entry sliding window replay protection per sender. |
-| `TrustStore.kt` | Key pinning with STRICT and SOFT_REPIN modes. |
-
-> **CSPRNG design note:** `kotlin.random.Random.Default` happens to use platform-secure
-> sources on current Kotlin versions, but the stdlib docs do not guarantee cryptographic
-> security. `secureRandomBytes()` uses canonical platform APIs via `expect/actual`,
-> making the security contract explicit and immune to future Kotlin changes.
-
-#### `io.meshlink.power` — Power Management
-
-| File | Responsibility |
-|------|---------------|
-| `PowerCoordinator.kt` | Facade consolidating power-mode transitions, memory-pressure evaluation, and buffer-pressure monitoring behind sealed result types. |
-| `PowerProfile.kt` | Single source of truth for all power-mode-dependent constants (advertising interval, scan timing, max connections, keepalive interval). Replaces scattered `when(mode)` lookups. |
-| `PowerModeEngine.kt` | Hysteresis-based mode transitions driven by battery level and charging state. |
-| `PowerProfile.kt` | Single source of truth for power-mode-dependent constants (intervals, limits). |
-| `TieredShedder.kt` | Three-tier memory shedding strategy (MODERATE → HIGH → CRITICAL). |
-| `ConnectionLimiter.kt` | Manages per-mode connection limits with eviction on power mode downgrade. |
-
-#### `io.meshlink.send` — Send Policy
-
-| File | Responsibility |
-|------|---------------|
-| `SendPolicyChain.kt` | Pure pre-flight evaluator for outbound sends; chains buffer, pause, rate-limit, circuit-breaker, routing, and crypto checks into sealed `SendDecision`. |
-| `BroadcastPolicyChain.kt` | Pure pre-flight evaluator for broadcast sends; chains buffer and rate-limit checks, then constructs a signed encoded frame via sealed `BroadcastDecision`. |
-
-#### `io.meshlink.dispatch` — Message Dispatch
-
-| File | Responsibility |
-|------|---------------|
-| `MessageDispatcher.kt` | _(internal)_ Dispatches inbound BLE frames to typed handlers; owns decode pipeline and delegates effects via `DispatchSink`. |
-| `InboundValidator.kt` | _(internal)_ Pre-dispatch validation: signatures, replay counters, loop detection, hop limits, rate limiting, app-ID filtering, and decryption. |
-| `OutboundTracker.kt` | _(internal)_ Tracks outbound message state: recipient mapping, next-hop tracking, and monotonic replay counter. |
-| `DispatchSink.kt` | _(internal)_ Callback interface grouping 8 effect callbacks for flow emissions and transport sends. |
-
-#### `io.meshlink.routing` — Route Coordination
-
-| File | Responsibility |
-|------|---------------|
-| `RouteCoordinator.kt` | Coordinates route maintenance: keepalive probing of 1-hop neighbors. AODV route discovery handles all multi-hop route establishment on demand. |
-
-#### `io.meshlink.peer` — Peer Connection
-
-| File | Responsibility |
-|------|---------------|
-| `PeerConnectionCoordinator.kt` | Coordinates BLE peer discovery: version negotiation, routing presence, security key registration, and handshake initiation via sealed `PeerConnectionAction`. |
-
-#### `io.meshlink.model` — Domain Model
-
-| File | Responsibility |
-|------|---------------|
-| `Identifiers.kt` | Inline value classes `PeerId` and `MessageId` wrapping hex strings for compile-time type safety and correct map-key equality. |
-| `Message.kt` | Inbound message data class. |
-| `PeerEvent.kt` | Sealed interface for peer discovery/loss events. |
-| `KeyChangeEvent.kt` | Key rotation notification data class. |
-| `TransferFailure.kt` | Transfer failure event data class. |
-| `TransferProgress.kt` | Transfer progress event data class. |
-
-#### `io.meshlink.wire` — Wire Protocol
-
-| File | Responsibility |
-|------|---------------|
-| `WireCodec.kt` | Binary encoding/decoding for all 12 message types. Constants for type bytes and header sizes. |
-
-#### `io.meshlink.transport` — Transport Abstraction
-
-| File | Responsibility |
-|------|---------------|
-| `BleTransport.kt` | Interface for platform-specific BLE I/O. |
-
-#### `io.meshlink.diagnostics` — Observability
-
-| File | Responsibility |
-|------|---------------|
-| `DiagnosticSink.kt` | Event emission via `SharedFlow`, 21 diagnostic codes, severity levels. |
-| `MeshHealthSnapshot.kt` | Point-in-time mesh state data class. |
-
-#### `io.meshlink.storage` — Persistence
-
-| File | Responsibility |
-|------|---------------|
-| `SecureStorage.kt` | Interface for platform-specific secure key-value storage. |
-
-#### `io.meshlink.delivery` — Delivery Pipeline
-
-| File | Responsibility |
-|------|---------------|
-| `DeliveryPipeline.kt` | Consolidated pipeline owning delivery state tracking (PENDING→RESOLVED), tombstones, deadline timers, reverse-path relay, replay guards, inbound rate limiting, and store-and-forward buffering behind sealed result types. |
-
-#### `io.meshlink.util` — Utilities
-
-| File | Responsibility |
-|------|---------------|
-| `DeliveryOutcome.kt` | Enum of delivery outcomes (confirmed, failed variants). |
-| `RateLimitPolicy.kt` | Facade consolidating 7 rate limiters and circuit breaker behind sealed `RateLimitResult` type. |
-| `PauseManager.kt` | Manages paused state with bounded send and relay queues; returns `PauseSnapshot` on resume for deferred flush. |
-| `RateLimiter.kt` | Sliding window rate limiting (per-key token bucket). |
-| `CircuitBreaker.kt` | Fault isolation with closed → open → half-open state machine. |
-| `HexUtil.kt` | Hex encoding/decoding. |
-| `PlatformLock.kt` | Multiplatform mutex (`expect`/`actual`). |
+The core is organized into **stateful engines** (SecurityEngine, RoutingEngine,
+TransferEngine, DeliveryPipeline) that own domain state and return sealed
+result types, **coordinators** (PowerCoordinator, RouteCoordinator,
+PeerConnectionCoordinator) that orchestrate multi-step workflows, and
+**policy chains** (SendPolicyChain, BroadcastPolicyChain, MessageDispatcher)
+that apply rules and produce decisions. `MeshLink.kt` is the sole wiring
+layer — no module sends messages directly to another. See the source tree
+and [API Reference](api-reference.md) for the full module inventory.
 
 ---
 
@@ -365,122 +226,19 @@ flowchart TD
 
 **Message type relationships:**
 - **`routed_message` (0x0A)** is the **routing envelope** — it carries routing metadata and wraps each chunk of E2E-encrypted payload. Every chunk in a multi-hop transfer is wrapped in a `routed_message` envelope.
-- **`resume_request` (0x08)** is sent on the **Control Characteristic** after an L2CAP→GATT transport fallback. It carries `{messageId (12 bytes), bytesReceived (4 bytes)}` and triggers the sender to resume the in-progress transfer on the GATT Data Characteristic from the specified byte offset. This enables transparent mid-transfer transport switching without data loss.
-  - **`bytesReceived` sampling rule:** On L2CAP→GATT fallback, `bytesReceived` is the total bytes of **fully-reassembled chunks only**. Partial L2CAP frames (incomplete ciphertext that can't be decrypted) are discarded. Worst case: a few KB of the last partial chunk are retransmitted — negligible overhead vs. corruption risk.
+- **`resume_request` (0x08)** is sent on the **Control Characteristic** after an L2CAP→GATT transport fallback. It carries `{messageId, bytesReceived}` and triggers the sender to resume from the specified byte offset. `bytesReceived` counts only fully-reassembled chunks; partial L2CAP frames are discarded. See [wire-format-spec.md § Resume Request](wire-format-spec.md#0x08--resume-request) for the byte layout.
 
-  **`resume_request` wire format (on Control Characteristic, write-with-response):**
+- **`routed_message` (0x0A)** is the **routing envelope** — it carries origin/destination peer IDs (8-byte truncated hashes), hop limit, replay counter, a visited list for loop detection, and the E2E-encrypted chunk payload. See [wire-format-spec.md § Routed Message](wire-format-spec.md#0x0a--routed-message) for the byte layout.
 
-  | Offset | Size | Field |
-  |--------|------|-------|
-  | 0 | 12 bytes | Message ID (structured: 8-byte peer ID hash + 4-byte LE counter) of the in-progress transfer |
-  | 12 | 4 bytes | Bytes received (uint32, little-endian) — resume offset |
+**Parser safety:** Visited count (V) is validated: `V ≤ maxHops`. Messages exceeding bounds are rejected. Malformed messages are dropped with a diagnostic event.
 
-  **`routed_message` wire format:**
+**Forwarding predicate:** A relay MUST NOT forward a `routed_message` if `hop_limit` has reached 0. The hop limit is decremented by each relay. The visited list provides independent **loop detection** — if the relay's own key hash appears, the message is dropped.
 
-  | Offset | Size | Field |
-  |--------|------|-------|
-  | 0 | 12 bytes | Message ID (structured) |
-  | 12 | 8 bytes | Origin peer ID (truncated key hash) |
-  | 20 | 8 bytes | Destination peer ID (truncated key hash) |
-  | 28 | 1 byte | Hop limit (remaining hops) |
-  | 29 | 8 bytes | Replay counter (uint64, little-endian) |
-  | 37 | 1 byte | Visited count (V) |
-  | 38 | V × 8 bytes | Visited List (8-byte SHA-256-64 key hashes, max `maxHops` entries) |
-  | 38 + V×8 | variable | Chunk payload (E2E ciphertext fragment) |
+**Relay-is-also-destination:** DirectMessage → deliver locally and stop forwarding. Broadcast → deliver locally and continue forwarding if remaining hops > 0.
 
-```mermaid
----
-title: "routed_message Wire Format"
----
-packet-beta
-  0-95: "Message ID (structured, 12 bytes)"
-  96-159: "Origin Peer ID (8 bytes)"
-  160-223: "Destination Peer ID (8 bytes)"
-  224-231: "Hop Limit (1 byte)"
-  232-295: "Replay Counter (uint64 LE, 8 bytes)"
-  296-303: "Visited Count V (1 byte)"
-  304-367: "Visited List (V × 8 bytes)"
-  368-431: "Chunk Payload (C bytes)"
-```
+- **`chunk` (0x05)** is used for **direct (single-hop) transfers only**. The first chunk (seq=0) carries a `totalChunks` field; subsequent chunks omit it, saving 2 bytes per chunk. See [wire-format-spec.md § Chunk](wire-format-spec.md#0x05--chunk) for the byte layout. Protocol cap: uint16 sequence numbers support up to ~16MB per transfer.
 
-**Parser safety:** The visited count (V) MUST be validated: `V ≤ maxHops` (default 10). Messages with `V > maxHops` are rejected immediately. Additionally, the total message size must not exceed the transport frame size (MTU for GATT, negotiated frame size for L2CAP). Malformed messages are dropped and logged via diagnostic events.
-
-**Forwarding predicate:** A relay MUST NOT forward a `routed_message` if `hop_limit` has reached 0. The hop limit field (offset 28) governs the TTL — it is decremented by each relay before forwarding. The Visited List governs **loop detection** — if the relay's own key hash is already in the visited list, the message is dropped (loop). These are independent checks: hop limit bounds distance, visited list prevents cycles.
-
-**Relay-is-also-destination behavior:** When a relay discovers it is the intended recipient of a `routed_message`:
-- **DirectMessage:** Deliver locally and **stop forwarding**. Unicast has a single destination — forwarding past it wastes bandwidth and risks duplicates.
-- **Broadcast:** Deliver locally and **continue forwarding** if remaining hop count > 0. Broadcasts relay up to `broadcastTtl` hops; a relay within range that is also a listener must do both (deliver and forward). The dedup set prevents loops.
-
-- **`chunk` (0x05)** is used for **direct (single-hop) transfers only** — when sender and recipient are directly connected, chunks carry only transfer metadata (sequence number, message ID) without routing overhead.
-
-  **`chunk` wire format:**
-
-  The first chunk (`sequenceNumber = 0`) carries a `totalChunks` field;
-  subsequent chunks omit it, saving 2 bytes per chunk.
-
-  **First chunk (seq = 0):**
-
-  | Offset | Size | Field |
-  |--------|------|-------|
-  | 0 | 12 bytes | Message ID (structured: 8-byte peer ID hash + 4-byte LE counter) |
-  | 12 | 2 bytes | Chunk sequence number (uint16, little-endian) |
-  | 14 | 2 bytes | Total chunks (uint16, little-endian; **present only when seq=0**) |
-  | 16 | C bytes | Chunk payload (raw E2E ciphertext bytes) |
-
-  **Subsequent chunks (seq > 0):**
-
-  | Offset | Size | Field |
-  |--------|------|-------|
-  | 0 | 12 bytes | Message ID (structured: 8-byte peer ID hash + 4-byte LE counter) |
-  | 12 | 2 bytes | Chunk sequence number (uint16, little-endian) |
-  | 14 | C bytes | Chunk payload (raw E2E ciphertext bytes) |
-
-```mermaid
----
-title: "chunk Wire Format (Direct Transfer)"
----
-packet-beta
-  0-95: "Message ID (structured, 12 bytes)"
-  96-111: "Chunk Seq# (uint16 LE)"
-  112-127: "Total Chunks (uint16 LE, seq=0 only)"
-  128-159: "Chunk Payload (C bytes)"
-```
-
-  **Protocol cap:** uint16 sequence numbers support up to ~16MB per transfer (65,535 chunks × minimum 244-byte MTU). Any increase requires a protocol version bump.
-
-- **`chunk_ack` / SACK (0x06)** — selective acknowledgement for received chunks. Uses a 128-bit SACK bitmask (two uint64 fields) covering up to 128 chunks beyond the base sequence number. Negative acknowledgements use a separate NACK message type (0x07) with a reason code.
-
-  **`chunk_ack` wire format:**
-
-  | Offset | Size | Field |
-  |--------|------|-------|
-  | 0 | 12 bytes | Message ID (structured: 8-byte peer ID hash + 4-byte LE counter) |
-  | 12 | 2 bytes | Base sequence number (uint16, lowest unreceived chunk) |
-  | 14 | 8 bytes | SACK bitmask low (uint64, little-endian; bit N = base_seq+N received, for N=0–63) |
-  | 22 | 8 bytes | SACK bitmask high (uint64, little-endian; bit N = base_seq+64+N received, for N=0–63) |
-  | 30 | 2+ bytes | TLV extension area (see wire-format-spec.md) |
-
-```mermaid
----
-title: "chunk_ack (SACK) Wire Format"
----
-packet-beta
-  0-95: "Message ID (structured, 12 bytes)"
-  96-111: "Base Seq# (uint16 LE)"
-  112-175: "SACK Bitmask Low (uint64 LE, bits 0–63)"
-  176-239: "SACK Bitmask High (uint64 LE, bits 64–127)"
-  240-255: "TLV Extensions (2+ bytes)"
-```
-
-  **NACK (0x07)** — negative acknowledgement with a reason code, sent as a separate message type:
-
-  | Reason Code | Name | Description |
-  |-------------|------|-------------|
-  | `0x00` | Unknown | Unspecified rejection |
-  | `0x01` | Buffer full | Concurrent transfer cap or buffer memory exceeded |
-  | `0x02` | Unknown destination | Destination peer not known |
-  | `0x03` | Decrypt failed | Payload decryption failed |
-  | `0x04` | Rate limited | Per-sender or per-neighbor rate limit exceeded |
+- **`chunk_ack` / SACK (0x06)** — selective acknowledgement using a 128-bit SACK bitmask (two uint64 fields) covering up to 128 chunks beyond the base sequence. Negative acknowledgements use a separate **NACK (0x07)** message type with a reason code (`bufferFull`, `unknownDestination`, `decryptFailed`, `rateLimited`). See [wire-format-spec.md § Chunk ACK](wire-format-spec.md#0x06--chunk-ack) for the byte layout.
 
 - **Single-chunk fast path:** If the E2E ciphertext fits within a single chunk (payload ≤ MTU minus envelope overhead for GATT, or ≤ L2CAP chunk size minus framing), it is sent as a single `routed_message` or `chunk` — no multi-chunk transfer setup required.
 - **`broadcast` (0x09)** is a standalone envelope for broadcast messages (signed, relay-forwarded up to `broadcastTtl` hops).
@@ -1963,7 +1721,11 @@ A GATT disconnect immediately transitions a peer to **disconnected** (strong sig
 
 ---
 
-## 9. Platform Constraints
+## 9. Platform Constraints & Implementation Notes
+
+> **Note:** This section contains platform-specific implementation guidance for
+> Android and iOS BLE transports. It is forward-looking and guides platform
+> development rather than describing current shared-code behavior.
 
 ### Dual-Role BLE Requirement
 
@@ -2391,142 +2153,15 @@ val meshLink = MeshLink(
 
 ### Configuration Surface
 
-All configurable parameters grouped by category, with defaults, bounds, and descriptions. Parameters not set by the consuming app use their default value.
-
-**Public API parameters** are exposed in `MeshLinkConfig`. **Internal constants** are documented for reference but not configurable in v1; they may be promoted to public API based on developer feedback.
-
-#### Public API Parameters
-
-| Parameter | Type | Default | Min | Max | Description |
-|-----------|------|---------|-----|-----|-------------|
-| `appId` | string? | null | — | — | App-level topic filter. When set, the library computes `SHA-256-64(appId.toUTF8())` and includes the 8-byte hash in outbound messages. Inbound messages with non-matching appId are silently dropped at the recipient. Relays forward all messages regardless of appId (preserves mesh density). `null` = receive all messages. Recommended format: reverse-domain notation (e.g., `"com.mycompany.meshchat"`). Immutable after construction. |
-| `maxHops` | int | 10 | 2 | 255 | Maximum mesh relay depth. Higher = wider reach but more relay traffic and larger visited lists. |
-| `bufferTTL` | duration | 5min | 1min | 30min | Per-message buffer lifetime. Messages evicted after expiry. |
-| `maxMessageSize` | bytes | 102,400 (100 KB) | 1,024 | 1,048,576 (1 MB) | Maximum payload size accepted for sending. Larger messages are rejected with `messageTooLarge` error. |
-| `powerModeThresholds` | int[2] | [80, 30] | — | — | Battery % thresholds for Performance/Balanced/PowerSaver transitions. Must be descending. |
-| `trustMode` | enum | `strict` | — | — | Key pinning policy. `strict` (default): reject messages from peers whose key changed, require explicit `repinKey(peer)` call from app. `softRepin`: silently accept new key for known peer. Both modes emit `onKeyChanged`. |
-| `l2capEnabled` | bool | true | — | — | Enable L2CAP CoC data plane. When false, always use GATT data characteristics. |
-| `deliveryAckEnabled` | bool | true | — | — | Request signed delivery ACK for direct messages. Enabled by default for DirectMessage; always disabled for Broadcast. |
-| `diagnosticsEnabled` | bool | false | — | — | Enable the `MeshLink.diagnostics` event stream. When false, no diagnostic events are generated (zero overhead). |
-| `bufferMaxSize` | int (bytes) | 1,048,576 (1 MB) | 262,144 (256 KB) | 8,388,608 (8 MB) | Fixed buffer pool size. Covers 10× 100KB messages at default. |
-| `evictionGracePeriod` | duration | 30s | 5s | 60s | Max time to keep connections with active transfers alive during power mode downgrade. |
-| `peerRateLimit` | int | 20 | 5 | 100 | Maximum messages per minute per originating sender, per neighbor. Uses a 60-second sliding window. |
-| `broadcastTtl` | int | 2 | 1 | maxHops | Hop limit for broadcast relay propagation. |
-| `customPowerMode` | PowerMode? | null | — | — | Override automatic power mode with a fixed mode. When set, all automatic transitions are disabled. |
-
-#### Internal Constants (not in public API)
-
-##### Transport
-
-| Parameter | Type | Default | Min | Max | Description |
-|-----------|------|---------|-----|-----|-------------|
-| `chunkInactivityTimeout` | duration | 30s | 5s | 300s | Drop incomplete transfer if no chunk received within this window. Applies to both GATT and L2CAP. |
-| `resumeRetries` | int | 3 | 1 | 10 | Chunk transfer resume attempts on reconnect before restarting the full transfer. |
-| `connectionTimeout` | duration | 10s | 3s | 30s | Maximum time to wait for a GATT connection to establish before giving up. |
-| `discoveryTimeout` | duration | 10s | 3s | 30s | Maximum time for GATT service/characteristic discovery. Failure → disconnect + `DISCOVERY_TIMEOUT` diagnostic. |
-| `handshakeTimeout` | duration | 8s | 2s | 15s | Maximum time for the Noise XX handshake to complete. Connection torn down on expiry. 8s tolerates real-world BLE 2.4 GHz congestion where GATT write-with-response latency can spike to 500ms-2s under WiFi interference. |
-
-##### L2CAP
-
-| Parameter | Type | Default | Min | Max | Description |
-|-----------|------|---------|-----|-----|-------------|
-| `l2capRetryAttempts` | int | 3 | 1 | 5 | Total L2CAP channel open attempts (1 initial + retries) before marking peer GATT-only. |
-| `l2capRetryBackoffBase` | duration | 200ms | 100ms | 1s | Base delay for L2CAP retry exponential backoff (×4 per retry: 200ms → 800ms). |
-| `l2capGattOnlyCooldown` | duration\|"session" | session | — | — | GATT-only designation is permanent for the current session after `l2capRetryAttempts` failures. `"session"` means no retry until app restart. |
-| `l2capBackpressureWindow` | Duration | 7s | 3s | 15s | Rolling window for L2CAP backpressure detection. 3 consecutive >100ms writes within this window triggers GATT fallback. |
-
-##### Chunking & Flow Control (GATT Mode)
-
-| Parameter | Type | Default | Min | Max | Description |
-|-----------|------|---------|-----|-----|-------------|
-| `ackWindowInitial` | int | 8 | 2 | 16 | Initial SACK interval — send a 64-bit selective ACK every N chunks. Adaptive: halves on 2 consecutive timeouts, increases by 2 on 4 clean rounds (AIMD). |
-| `ackWindowMin` | int | 2 | 2 | 8 | Minimum SACK interval after congestion reduction. |
-| `ackWindowMax` | int | 16 | 8 | 64 | Maximum SACK interval after clean rounds. |
-| `ackTimeout` | duration | 1s | 200ms | 5s | Time to wait for a SACK before triggering retransmission of missing chunks. |
-
-##### Routing
-
-| Parameter | Type | Default | Min | Max | Description |
-|-----------|------|---------|-----|-----|-------------|
-| `routeCacheTtlMillis` | long | 60,000 | 10,000 | 600,000 | Time-to-live for cached AODV routes (ms). Routes expire and are rediscovered on next send. |
-| `routeDiscoveryTimeoutMillis` | long | 5,000 | 1,000 | 30,000 | Maximum time to wait for a Route Reply (ms). Pending messages fail with NO_ROUTE on expiry. |
-
-##### Buffering & Deduplication
-
-| Parameter | Type | Default | Min | Max | Description |
-|-----------|------|---------|-----|-----|-------------|
-| `relayBufferCap` | float | 0.75 | 0.25 | 1.0 | Maximum fraction of buffer pool usable by relay traffic. Remainder reserved for own outbound. 1.0 = no reservation. |
-| `perRelayBufferSize` | bytes | 102,400 (100 KB) | 10,240 (10 KB) | 1,048,576 (1 MB) | Per-relay-transfer buffer copy size. Confines hop failure recovery to broken hop. |
-| `dedupMaxEntries` | int | 10,000 | 1,000 | 100,000 | Maximum message IDs in the dedup set. Oldest evicted when full (LRU). |
-
-##### Messaging
-
-| Parameter | Type | Default | Min | Max | Description |
-|-----------|------|---------|-----|-----|-------------|
-| `sendRetries` | int | 3 | 1 | 10 | Send retry attempts with exponential backoff on route failure. |
-| `sendRetryBackoffBase` | duration | 500ms | 100ms | 5s | Base delay for send retry backoff (×2 per retry, jittered ±25%). |
-| `sendRetryBackoffMax` | duration | 10s | 1s | 60s | Maximum delay cap for send retries. |
-| `broadcastRateLimit` | int | 10 | 1 | 100 | Maximum broadcasts per minute per originating sender. Enforced both on inbound (remote senders) and outbound (local `broadcast()` calls). Independent of `peerRateLimit`. |
-
-##### Power Management
-
-| Parameter | Type | Default | Min | Max | Description |
-|-----------|------|---------|-----|-----|-------------|
-| `powerModeHysteresis` | duration | 30s | 10s | 120s | Delay before downward power mode transitions. Upward transitions are immediate. |
-
-##### Concurrency & Supervision
-
-| Parameter | Type | Default | Min | Max | Description |
-|-----------|------|---------|-----|-----|-------------|
-| `engineCrashThreshold` | map\<tier,int\> | `{crypto: 2, standard: 3, lenient: 5}` | 1 | 10 | Per-tier crash count within `engineCrashWindow` that triggers the circuit breaker. SecurityEngine=crypto tier, BLE transport=lenient tier, all others=standard tier. |
-| `engineCrashWindow` | duration | 60s | 10s | 300s | Time window for the engine crash circuit breaker. |
-
-##### Rate Limiting & DoS Protection
-
-| Parameter | Type | Default | Min | Max | Description |
-|-----------|------|---------|-----|-----|-------------|
-| `neighborRateLimit` | int | 100 | 20 | 1000 | Maximum total incoming user-level messages per minute from any single neighbor (aggregate across all senders). Control-plane exempt. |
-| `rateLimitEnforcement` | enum | `perSenderPerNeighbor` | — | — | Rate limit scope. `perSenderPerNeighbor` (default): keyed on (neighbor, original sender). `perNeighbor`: keyed on neighbor only (stricter). |
-| `nackRateLimitPerNeighbor` | int | 10 | 1 | 100 | Maximum outbound NACKs per second per neighbor. Excess NACKs silently dropped to prevent amplification attacks. |
-| `handshakeRateLimit` | int | 1 | 1 | 10 | Maximum new Noise XX handshakes per second with unknown peers (Sybil mitigation). TOFU-pinned peers are exempt. |
-| `routeTablePerNeighborCap` | float | 0.30 | 0.10 | 0.50 | Maximum fraction of routing table entries learnable from a single neighbor (Sybil mitigation). |
-
-##### Presence Detection
-
-| Parameter | Type | Default | Min | Max | Description |
-|-----------|------|---------|-----|-----|-------------|
-| `evictionSweepsMissed` | int | 2 | 1 | 5 | Consecutive sweep intervals with zero advertisements before marking a peer gone. |
-
-##### Trust & Security
-
-| Parameter | Type | Default | Min | Max | Description |
-|-----------|------|---------|-----|-----|-------------|
-| `replayCounterMaxEntries` | int | 1,000 | 100 | 100,000 | Maximum per-sender replay counter entries (LRU eviction when exceeded). |
-| `replayCounterEvictionAge` | duration | 30d | 1d | 365d | Evict replay counter entries with no activity older than this. |
-
-##### Android-Specific
-
-| Parameter | Type | Default | Min | Max | Description |
-|-----------|------|---------|-----|-----|-------------|
-| `notificationConfig` | NotificationConfig | (required on Android) | — | — | Foreground service notification: title, text, icon resource, notification channel ID. |
-
-#### Read-Only Runtime Properties
-
-These are not configurable but are exposed for observability:
-
-| Property | Type | Description |
-|----------|------|-------------|
-| `currentPowerMode` | PowerMode | Current automatic (or overridden) power mode |
-| `activePeerCount` | int | Number of peers in connected or disconnected state |
-| `bufferUsage` | (own: bytes, relay: bytes) | Current buffer pool usage split by own vs relay |
-| `activeTransferCount` | int | Number of in-flight chunk transfers |
-| `routeCount` | int | Number of destinations in the routing table |
-| `dataPlaneMode(peer)` | enum | Whether a specific peer connection uses L2CAP or GATT |
-| `l2capAvailable` | bool | Whether the current platform supports L2CAP CoC |
+All configurable parameters (public API and internal constants) are documented
+in the [API Reference § MeshLinkConfig](api-reference.md#meshlinkconfig) with
+defaults, bounds, and descriptions. The `MeshLinkConfig` data class validates
+all constraints at construction time.
 
 ### Mesh Health API
 
 `meshHealth()` returns a snapshot of current mesh connectivity for production diagnostics:
+
 
 ```kotlin
 data class MeshHealthSnapshot(
@@ -2673,143 +2308,38 @@ These are **release gates** — tests that fail these thresholds block release. 
 
 ## Appendix A: Decision Records
 
+Key architectural decisions with alternatives evaluated.
+
 ### A1. Cross-Platform Strategy
 
-| Approach | Pros | Cons |
-|----------|------|------|
-| **Kotlin Multiplatform (chosen)** | Single codebase for all protocol logic; eliminates protocol drift; proven in production (Cash App, Netflix, McDonald's) | Kotlin/Native debugging on iOS can be harder; Swift interop has rough edges |
-| Separate native (Swift + Kotlin) | Most idiomatic APIs per platform | Two implementations of everything; protocol drift risk; 2× maintenance |
-| Rust core + FFI | Single implementation, high performance | FFI complexity, harder to debug, barrier to contribution |
-| C/C++ core | Maximum portability | Memory safety risks, painful mobile integration |
+**Chosen: Kotlin Multiplatform.** Single codebase for protocol logic (~85%), eliminates protocol drift. Proven in production (Cash App, Netflix). Tradeoff: Kotlin/Native debugging on iOS is harder; Swift interop has rough edges.
+
+**Rejected:** Separate native implementations (2× maintenance, drift risk), Rust core + FFI (complexity, barrier to contribution), C/C++ core (memory safety risks).
 
 ### A2. Transport Layer
 
-#### Summary
+**Chosen: Hybrid GATT + L2CAP CoC** with GATT as guaranteed fallback.
 
-| Transport | Throughput | Verdict | Reason |
-|-----------|-----------|---------|--------|
-| **RFCOMM (BT Classic)** | 100–200 KB/s | ❌ Eliminated | iOS blocks Bluetooth Classic for third-party apps (MFi-only) |
-| **Bluetooth Classic (any)** | Varies | ❌ Eliminated | iOS MFi-only; higher power; requires pairing |
-| **Wi-Fi Direct / Wi-Fi Aware** | High | ❌ Eliminated | Shorter battery life, less universal support |
-| **BLE Extended Advertisements** | N/A | ❌ Not for data | iOS gives no developer control; Android API 26+ only |
-| **BLE GATT** | 10–50 KB/s | ✅ Control plane + fallback | Universal (iOS 11+ / Android 5+), no pairing, reliable |
-| **BLE L2CAP CoC** | 50–150 KB/s | ✅ Preferred data plane | 3–10× faster than GATT; credit-based flow control; no pairing with insecure variant |
+| Transport | Throughput | Verdict | Key Reason |
+|-----------|-----------|---------|------------|
+| RFCOMM (BT Classic) | 100–200 KB/s | ❌ | iOS blocks for third-party apps (MFi-only) |
+| Wi-Fi Direct | High | ❌ | Shorter battery life, less universal |
+| BLE GATT | 10–50 KB/s | ✅ Control + fallback | Universal (iOS 11+/Android 5+), no pairing |
+| BLE L2CAP CoC | 50–150 KB/s | ✅ Preferred data | 3–10× faster, credit-based flow control, no pairing |
+| Extended Advertisements | N/A | ❌ | iOS gives no developer control |
 
-#### Detailed Evaluation
-
-##### RFCOMM (Bluetooth Classic SPP)
-
-| Aspect | Detail |
-|--------|--------|
-| Throughput | 100–200 KB/s |
-| iOS support | ❌ **Blocked** — MFi certification required. No public API. |
-| Android support | ✅ API 5+ (BluetoothSocket RFCOMM) |
-| Pairing | Required |
-| Power | ~10× BLE power draw |
-
-**Verdict: Eliminated.** iOS does not expose Bluetooth Classic to third-party apps. Non-starter for cross-platform.
-
-##### BLE GATT
-
-| Aspect | Detail |
-|--------|--------|
-| Throughput | 10–20 KB/s (write-with-response), 20–50 KB/s (write-without-response) |
-| iOS support | ✅ All versions (CoreBluetooth) |
-| Android support | ✅ API 21+ (Android 5.0) |
-| Pairing | Not required |
-| Power | Low (BLE native) |
-| MTU | iOS: auto-negotiated (185–512 depending on device); Android: requestMtu() up to 517 |
-
-**Strengths:**
-- Universal compatibility across all BLE-capable devices since 2015
-- No pairing barrier — critical for mesh discovery
-- Natural message boundaries (each write = one PDU)
-
-**Weaknesses:**
-- Low throughput for bulk data (~410 chunks for 100KB at 244-byte MTU)
-- ATT protocol overhead per write (3-byte ATT header + characteristic lookup)
-- Requires app-level SACK (selective ACK) and flow control
-- 100KB transfer takes ~5–10 seconds at typical throughput
-
-##### BLE L2CAP CoC (Connection-Oriented Channels)
-
-| Aspect | Detail |
-|--------|--------|
-| Throughput | 50–150 KB/s (3–10× GATT) |
-| iOS support | ✅ iOS 11+ (CBL2CAPChannel, 2017) |
-| Android support | ✅ API 29+ / Android 10+ (createL2capChannel, 2019) |
-| Pairing | **Not required** for insecure variant |
-| Power | Same as GATT (same BLE physical layer) |
-| Flow control | Built-in credit-based (automatic backpressure) |
-
-**How it works:**
-- Peripheral publishes an L2CAP channel → system assigns a dynamic PSM (Protocol/Service Multiplexer)
-- Central opens a channel to that PSM
-- Both sides get stream I/O (InputStream/OutputStream on Android, NSStream on iOS)
-- Credit-based flow control: receiver grants credits, sender blocks when credits exhausted
-- SDU sizes up to 65,535 bytes (vs 244-byte GATT writes)
-
-**Strengths:**
-- **3–10× throughput** vs GATT — 100KB transfer drops from ~5–10s to ~1–2s
-- **Built-in flow control** — credit-based backpressure replaces our SACK
-- **No pairing** when using insecure variant (iOS: `publishL2CAPChannel(withEncryption: false)`, Android: `createInsecureL2capChannel()`)
-- Lower per-byte overhead (no ATT framing, no characteristic lookup)
-- Works in iOS background mode (with bluetooth-central/peripheral capability)
-- MeshLink already encrypts at app level (Noise XX + Noise K) — BLE-level encryption is redundant
-
-**Weaknesses:**
-- **Android fragmentation**: Known reliability issues on Samsung, OnePlus; retry logic essential
-- **Narrower device support**: Android 10+ (vs Android 5+ for GATT) — excludes ~8% of active Android devices
-- **Stream-oriented**: No natural message boundaries — must add length-prefix framing
-- **PSM discovery**: Requires out-of-band PSM exchange (via GATT characteristic or handshake)
-- **iOS MTU**: Not configurable for L2CAP; default 672 bytes (adequate but not optimal)
-
-##### BLE Extended Advertisements (Bluetooth 5.0+)
-
-| Aspect | Detail |
-|--------|--------|
-| Payload | Up to 251 bytes (vs 31 legacy) |
-| iOS | Auto-managed by stack; no developer control |
-| Android | API 26+ via AdvertisingSet API |
-
-**Verdict: Not suitable for data transfer.** Useful only for richer advertisements. iOS doesn't expose control. Current decision to use GATT for control messages remains correct.
-
-##### Outcome
-
-**Adopted: Hybrid GATT + L2CAP CoC** with GATT as guaranteed fallback.
-
-- **Zero compatibility risk** — worst case = GATT-only behavior
-- **3–10× throughput** when both peers support L2CAP
-- **Built-in flow control** — L2CAP credit-based replaces app-level SACK
-- **No pairing needed** — insecure L2CAP + Noise XX app-level encryption
-
-##### Rejected Alternatives
-
-| Transport | Why Rejected |
-|-----------|-------------|
-| **RFCOMM / Bluetooth Classic** | iOS blocks for third-party apps; requires pairing; higher power |
-| **Wi-Fi Direct** | Shorter battery life, less universal |
-| **Multipeer Connectivity** | iOS-only, Apple-controlled protocol |
-| **Nearby Connections API** | Google-only, opaque protocol |
-| **Extended Advertisements for data** | Unreliable cross-platform; iOS gives no developer control |
-| **Multiple L2CAP channels per peer** | Unclear platform limits; unnecessary complexity |
+L2CAP provides 3–10× throughput over GATT with built-in flow control. Insecure L2CAP (no BLE pairing) is safe because MeshLink encrypts at the app layer (Noise XX). GATT is always available as fallback for devices with broken L2CAP stacks (Samsung, OnePlus).
 
 ### A3. Routing Strategy
 
-| Strategy | Pros | Cons |
-|----------|------|------|
-| Flooding | Simple, resilient | Massive bandwidth waste, especially for 100KB payloads |
-| Gossip (control plane) | Resilient, low state, good for discovery | Redundant transmissions; high overhead when idle |
-| Proactive routing (DSDV) | Consistent tables, predictable latency | Continuous gossip overhead even when idle; slow convergence in mobile BLE |
-| **Reactive routing (AODV, chosen)** | Zero overhead when idle, fast discovery, proven for MANETs (RFC 3561) | Initial send has route discovery latency (~1-5s); no pre-computed paths |
-| Store-and-forward only | Simple | No active routing; relies entirely on physical movement |
+**Chosen: AODV (reactive, on-demand).** Zero overhead when idle, fast discovery, proven for MANETs (RFC 3561). Tradeoff: initial send incurs 1–5s route discovery latency.
+
+**Rejected:** Flooding (bandwidth waste), gossip (idle overhead), proactive DSDV (continuous gossip, slow convergence), store-and-forward only (no active routing).
 
 ### A4. Hop-by-Hop Encryption
 
-| Approach | Pros | Cons |
-|----------|------|------|
-| TOFU (Trust On First Use) | Simple | Vulnerable to MITM at first contact; no forward secrecy |
-| Signal Protocol (X3DH + Double Ratchet) | Per-message forward secrecy, self-healing | Requires prekey distribution server; complex to implement |
-| **Noise Protocol XX (chosen)** | No server needed, forward secrecy, simple spec, battle-tested | No per-message ratcheting |
+**Chosen: Noise Protocol XX.** No server needed, forward secrecy, simple spec, battle-tested (WireGuard, Lightning Network). Tradeoff: no per-message ratcheting.
+
+**Rejected:** TOFU alone (no forward secrecy, MITM at first contact), Signal Protocol X3DH + Double Ratchet (requires prekey distribution server).
 
 

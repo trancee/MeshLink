@@ -303,13 +303,13 @@ See [Threat Model](threat-model.md) for the security analysis.
 ```kotlin
 launch {
     mesh.diagnosticEvents.collect { event ->
-        println("[${event.severity}] ${event.code}: ${event.payload ?: ""}")
+        println("[${event.severity}] ${event.code}: ${event.payload}")
     }
 }
 ```
 
 See [API Reference § Diagnostics](api-reference.md#diagnostics) for
-`DiagnosticEvent` fields and the complete list of 20 diagnostic codes.
+`DiagnosticEvent` fields and the complete list of 21 diagnostic codes.
 
 ### Mesh Health Snapshots
 
