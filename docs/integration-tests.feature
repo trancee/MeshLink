@@ -356,3 +356,105 @@ Feature: BLE Mesh Peer-to-Peer Messaging
     Then all 5 sends should succeed
     And Bob should receive all 5 messages
     And all received payloads should match what Alice sent
+
+  # ═══════════════════════════════════════════════════════════════
+  # Festival Mesh Simulation Scenarios
+  # ═══════════════════════════════════════════════════════════════
+  #
+  # Real-world BLE mesh scenarios at a music festival, exercising
+  # multi-hop routing, dynamic topology, packet loss, connection
+  # limits, latency, and asymmetric links via VirtualMeshTransport
+  # with LinkProperties.
+  #
+  # Test class: FestivalMeshSimulationTest.kt
+
+  # ─── Multi-Hop Relay ────────────────────────────────────────
+
+  @festival @routing
+  Scenario: Multi-hop relay across festival ground
+    Given a linear chain Alice ↔ Bob ↔ Charlie ↔ Eve ↔ Frank
+    And each intermediate peer has pre-installed routes to the destination
+    And encryption is disabled
+    When Alice sends "meet at main stage" to Frank
+    Then Frank should receive the message via 4-hop relay
+    And the payload should match "meet at main stage"
+
+  # ─── Emergency Broadcast ────────────────────────────────────
+
+  @festival @broadcast
+  Scenario: Emergency broadcast reaches entire cluster
+    Given 5 peers in a full-mesh topology (all linked to each other)
+    And encryption is disabled
+    When Alice broadcasts "⚠ Emergency: exit via Gate B" with maxHops=3
+    Then all 4 other peers should receive the broadcast
+
+  # ─── Attendee Mobility ──────────────────────────────────────
+
+  @festival @mobility
+  Scenario: Attendee walks between stages
+    Given Alice ↔ Bob ↔ Charlie form a chain (Alice near Stage A, Charlie near Stage B)
+    And encryption is disabled
+    When Bob "walks" from Stage A to Stage B
+      | step | action                      |
+      | 1    | Bob unlinks from Alice       |
+      | 2    | Alice sends to Bob (fails)   |
+      | 3    | Bob links to Charlie         |
+      | 4    | Charlie sends to Bob (works) |
+    Then the send from Alice during partition should fail
+    And the send from Charlie after Bob arrives should succeed
+
+  # ─── Network Partition & Recovery ───────────────────────────
+
+  @festival @partition
+  Scenario: Network partition when bridge leaves
+    Given Stage A (Alice, Bob) ↔ Eve (bridge) ↔ Stage B (Frank, Grace)
+    And all intermediate peers have routes to Frank
+    And encryption is disabled
+    When Alice sends "before partition" to Frank
+    Then Frank should receive the message
+    When Eve stops (bridge breaks)
+    And Ivan arrives linking Bob ↔ Ivan ↔ Frank with updated routes
+    And Alice sends "after recovery" to Frank
+    Then Frank should receive the recovery message via Ivan
+
+  # ─── Packet Loss ────────────────────────────────────────────
+
+  @festival @loss
+  Scenario: Packet loss in crowded main stage area
+    Given Alice and Bob are linked with 50% packet loss (seeded Random(42))
+    And encryption is disabled
+    When Alice sends 10 messages to Bob
+    Then some messages should be received (deterministic with seed)
+    And not all 10 messages should arrive (packet loss in effect)
+
+  # ─── Connection Saturation ──────────────────────────────────
+
+  @festival @connections
+  Scenario: Connection saturation in dense crowd
+    Given Alice with maxConnections=3 is linked to 5 peers (Bob–Frank)
+    And encryption is disabled
+    When Alice sends to all 5 peers
+    Then the first 3 sends should succeed (connections established)
+    And the remaining 2 sends should fail (connection limit exceeded)
+
+  # ─── Latency Accumulation ───────────────────────────────────
+
+  @festival @latency
+  Scenario: Latency accumulates over multi-hop
+    Given a 3-hop chain Alice ↔ Bob ↔ Charlie ↔ Eve with 50ms latency per link
+    And all intermediate peers have routes to Eve
+    And encryption is disabled
+    When Alice sends "latency test" to Eve
+    Then Eve should receive the message
+    And total delivery should take ≥150ms of virtual time (3 × 50ms)
+
+  # ─── Asymmetric Links ──────────────────────────────────────
+
+  @festival @asymmetric
+  Scenario: Asymmetric link quality between peers
+    Given Alice ↔ Bob with 0% forward loss and 100% reverse loss
+    And encryption is disabled
+    When Alice sends "can you hear me?" to Bob
+    Then Bob should receive the message
+    When Bob sends "yes I can!" to Alice
+    Then Alice should NOT receive it (100% reverse packet loss)
