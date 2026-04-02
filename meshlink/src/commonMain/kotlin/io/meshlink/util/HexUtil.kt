@@ -12,7 +12,7 @@ internal fun ByteArray.toHex(): String {
         chars[i * 2] = HEX_CHARS[v ushr 4]
         chars[i * 2 + 1] = HEX_CHARS[v and 0x0F]
     }
-    return String(chars)
+    return chars.concatToString()
 }
 
 internal fun hexToBytes(hex: String): ByteArray {

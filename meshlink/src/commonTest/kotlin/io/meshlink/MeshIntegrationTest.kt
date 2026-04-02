@@ -68,7 +68,7 @@ class MeshIntegrationTest {
         val receiveJob = launch {
             val msg = bob.messages.first()
             assertContentEquals(peerIdAlice, msg.senderId)
-            assertEquals("hello mesh", String(msg.payload))
+            assertEquals("hello mesh", msg.payload.decodeToString())
         }
 
         alice.send(peerIdBob, "hello mesh".encodeToByteArray())
@@ -100,7 +100,7 @@ class MeshIntegrationTest {
 
         val receiveJob = launch {
             val msg = bob.messages.first()
-            assertEquals("encrypted hello", String(msg.payload))
+            assertEquals("encrypted hello", msg.payload.decodeToString())
         }
 
         val result = alice.send(peerIdBob, "encrypted hello".encodeToByteArray())
@@ -217,8 +217,8 @@ class MeshIntegrationTest {
 
         assertEquals(1, bobMessages.size)
         assertEquals(1, charlieMessages.size)
-        assertEquals("hello everyone", String(bobMessages[0].payload))
-        assertEquals("hello everyone", String(charlieMessages[0].payload))
+        assertEquals("hello everyone", bobMessages[0].payload.decodeToString())
+        assertEquals("hello everyone", charlieMessages[0].payload.decodeToString())
 
         alice.stop(); bob.stop(); charlie.stop()
     }
@@ -341,7 +341,7 @@ class MeshIntegrationTest {
 
         assertEquals(count, received.size)
         for (i in 0 until count) {
-            assertEquals("msg-$i", String(received[i].payload))
+            assertEquals("msg-$i", received[i].payload.decodeToString())
         }
 
         alice.stop(); bob.stop()
@@ -378,8 +378,8 @@ class MeshIntegrationTest {
         aliceCollector.join()
         bobCollector.join()
 
-        assertEquals("from bob", String(aliceReceived[0].payload))
-        assertEquals("from alice", String(bobReceived[0].payload))
+        assertEquals("from bob", aliceReceived[0].payload.decodeToString())
+        assertEquals("from alice", bobReceived[0].payload.decodeToString())
 
         alice.stop(); bob.stop()
     }
@@ -496,7 +496,7 @@ class MeshIntegrationTest {
         val receiveJob = launch {
             val msg = alice.messages.first()
             assertContentEquals(peerIdAlice, msg.senderId)
-            assertEquals("self hello", String(msg.payload))
+            assertEquals("self hello", msg.payload.decodeToString())
         }
 
         alice.send(peerIdAlice, "self hello".encodeToByteArray())
@@ -1195,7 +1195,7 @@ class MeshIntegrationTest {
 
         // All messages should be received
         assertEquals(messageCount, receivedMessages.size, "all $messageCount messages should arrive")
-        val payloads = receivedMessages.map { String(it.payload) }.toSet()
+        val payloads = receivedMessages.map { it.payload.decodeToString() }.toSet()
         for (i in 1..messageCount) {
             assertTrue("message-$i" in payloads, "message-$i should be received")
         }
