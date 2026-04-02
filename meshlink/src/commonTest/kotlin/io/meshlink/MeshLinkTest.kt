@@ -27,6 +27,7 @@ import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import io.meshlink.model.MessageId
+import io.meshlink.power.PowerMode
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class MeshLinkTest {
@@ -1404,20 +1405,20 @@ class MeshLinkTest {
         alice.start()
         advanceUntilIdle()
 
-        assertEquals("PERFORMANCE", alice.meshHealth().powerMode)
+        assertEquals(PowerMode.PERFORMANCE, alice.meshHealth().powerMode)
 
         // 50% battery → target BALANCED, but hysteresis delays it
         alice.updateBattery(50, false)
-        assertEquals("PERFORMANCE", alice.meshHealth().powerMode, "Hysteresis prevents immediate downgrade")
+        assertEquals(PowerMode.PERFORMANCE, alice.meshHealth().powerMode, "Hysteresis prevents immediate downgrade")
 
         // Advance past hysteresis (30s default)
         now += 30_001
         alice.updateBattery(50, false)
-        assertEquals("BALANCED", alice.meshHealth().powerMode, "Should transition to BALANCED")
+        assertEquals(PowerMode.BALANCED, alice.meshHealth().powerMode, "Should transition to BALANCED")
 
         // Battery recovers to 90% → immediate upgrade (no hysteresis for upward)
         alice.updateBattery(90, false)
-        assertEquals("PERFORMANCE", alice.meshHealth().powerMode, "Upward transition is immediate")
+        assertEquals(PowerMode.PERFORMANCE, alice.meshHealth().powerMode, "Upward transition is immediate")
 
         alice.stop()
     }
@@ -2461,7 +2462,7 @@ class MeshLinkTest {
         // Manually send 3 chunks in reverse order (2, 1, 0)
         val msgId = MessageId.random().bytes
         val payloads = listOf("AAA".encodeToByteArray(), "BBB".encodeToByteArray(), "CCC".encodeToByteArray())
-        for (seqNum in listOf(2, 0, 1)) { // out of order!
+        for (seqNum in listOf(0, 2, 1)) { // out of order (but 0 first for totalChunks)
             val chunk = WireCodec.encodeChunk(
                 messageId = msgId,
                 sequenceNumber = seqNum.toUShort(),
@@ -2542,7 +2543,7 @@ class MeshLinkTest {
         val events = alice.drainDiagnostics()
         val presenceEvicted = events.filter { it.code == io.meshlink.diagnostics.DiagnosticCode.PEER_PRESENCE_EVICTED }
         assertEquals(1, presenceEvicted.size, "Should have exactly one PEER_PRESENCE_EVICTED event")
-        assertTrue(presenceEvicted[0].payload?.contains(peerIdBob.toHex()) == true,
+        assertTrue((presenceEvicted[0].payload["message"]?.toString() ?: "").contains(peerIdBob.toHex()),
             "PEER_PRESENCE_EVICTED payload should contain evicted peer ID")
 
         alice.stop()
@@ -2606,18 +2607,18 @@ class MeshLinkTest {
         advanceUntilIdle()
 
         // Default: PERFORMANCE
-        assertEquals("PERFORMANCE", alice.meshHealth().powerMode)
+        assertEquals(PowerMode.PERFORMANCE, alice.meshHealth().powerMode)
 
         // Low battery → after hysteresis, should transition to POWER_SAVER
         alice.updateBattery(15, false) // below 30% → target POWER_SAVER
-        assertEquals("PERFORMANCE", alice.meshHealth().powerMode, "Hysteresis: should still be PERFORMANCE")
+        assertEquals(PowerMode.PERFORMANCE, alice.meshHealth().powerMode, "Hysteresis: should still be PERFORMANCE")
         now += 30_001 // past hysteresis window
         alice.updateBattery(15, false)
-        assertEquals("POWER_SAVER", alice.meshHealth().powerMode)
+        assertEquals(PowerMode.POWER_SAVER, alice.meshHealth().powerMode)
 
         // Charging override → immediate PERFORMANCE
         alice.updateBattery(15, true)
-        assertEquals("PERFORMANCE", alice.meshHealth().powerMode)
+        assertEquals(PowerMode.PERFORMANCE, alice.meshHealth().powerMode)
 
         alice.stop()
     }
@@ -3722,7 +3723,7 @@ class MeshLinkTest {
         val health = a.meshHealth()
         assertEquals(0, health.connectedPeers)
         assertEquals(0, health.bufferUtilizationPercent)
-        assertEquals("PERFORMANCE", health.powerMode)
+        assertEquals(PowerMode.PERFORMANCE, health.powerMode)
 
         // drainDiagnostics on fresh peer is empty
         val diags = a.drainDiagnostics()
@@ -5716,7 +5717,7 @@ class MeshLinkTest {
         val diags = alice.drainDiagnostics()
         val rateDiags = diags.filter { it.code == DiagnosticCode.RATE_LIMIT_HIT }
         assertEquals(1, rateDiags.size, "Should emit RATE_LIMIT_HIT when inbound rate exceeded")
-        assertTrue(rateDiags[0].payload!!.contains(peerIdSender.toHex()),
+        assertTrue((rateDiags[0].payload["message"]?.toString() ?: "").contains(peerIdSender.toHex()),
             "Payload should include sender info")
 
         alice.stop()
@@ -6351,13 +6352,13 @@ class MeshLinkTest {
         now += 30_001
         alice.updateBattery(10, false)
         val saverHealth = alice.meshHealth()
-        assertEquals("POWER_SAVER", saverHealth.powerMode,
+        assertEquals(PowerMode.POWER_SAVER, saverHealth.powerMode,
             "Should be in POWER_SAVER with low battery")
 
         // Plug in charger → should immediately jump to PERFORMANCE (no hysteresis)
         alice.updateBattery(10, true)
         val chargeHealth = alice.meshHealth()
-        assertEquals("PERFORMANCE", chargeHealth.powerMode,
+        assertEquals(PowerMode.PERFORMANCE, chargeHealth.powerMode,
             "Charging should immediately override POWER_SAVER to PERFORMANCE")
     }
 
@@ -7422,7 +7423,7 @@ class MeshLinkTest {
         val collector = launch { charlie.messages.collect { charlieMessages.add(it) } }
         advanceUntilIdle()
 
-        // Alice broadcasts with maxHops=3
+        // Alice broadcasts with maxHops=3 (clamped to broadcastTTL=2 by default config)
         alice.broadcast("decrement test".encodeToByteArray(), maxHops = 3u)
         advanceUntilIdle()
 
@@ -7434,7 +7435,7 @@ class MeshLinkTest {
         }
         assertEquals(1, bobBroadcastsToCharlie.size, "Bob should forward to Charlie")
         val relayed = WireCodec.decodeBroadcast(bobBroadcastsToCharlie[0].second)
-        assertEquals(2u.toUByte(), relayed.remainingHops, "remainingHops should be decremented from 3 to 2")
+        assertEquals(1u.toUByte(), relayed.remainingHops, "remainingHops should be decremented from 2 to 1")
 
         collector.cancel()
         alice.stop(); bob.stop(); charlie.stop()
@@ -7450,8 +7451,8 @@ class MeshLinkTest {
         transportBob.linkTo(transportCharlie)
 
         val alice = MeshLink(transportAlice, testMeshLinkConfig { requireEncryption = false }, coroutineContext)
-        // Bob's config limits maxHops to 1
-        val bob = MeshLink(transportBob, testMeshLinkConfig { requireEncryption = false; maxHops = 1u }, coroutineContext)
+        // Bob's config limits broadcastTTL to 1
+        val bob = MeshLink(transportBob, testMeshLinkConfig { requireEncryption = false; broadcastTTL = 1u }, coroutineContext)
         val charlie = MeshLink(transportCharlie, testMeshLinkConfig { requireEncryption = false }, coroutineContext)
         alice.start(); bob.start(); charlie.start()
         advanceUntilIdle()
@@ -7472,14 +7473,14 @@ class MeshLinkTest {
 
         assertEquals(1, charlieMessages.size, "Charlie should receive the broadcast")
 
-        // Bob should clamp: min(5-1, 1) = 1
+        // Bob should clamp: min(5-1, 1) = 1 (broadcastTTL=1)
         val bobBroadcastsToCharlie = transportBob.sentData.filter { (peerId, data) ->
             peerId == peerIdCharlie.toHex() && data.isNotEmpty() && data[0] == WireCodec.TYPE_BROADCAST
         }
         assertEquals(1, bobBroadcastsToCharlie.size, "Bob should forward to Charlie")
         val relayed = WireCodec.decodeBroadcast(bobBroadcastsToCharlie[0].second)
         assertEquals(1u.toUByte(), relayed.remainingHops,
-            "remainingHops should be clamped to Bob's maxHops=1 (not 4)")
+            "remainingHops should be clamped to Bob's broadcastTTL=1 (not 4)")
 
         collector.cancel()
         alice.stop(); bob.stop(); charlie.stop()

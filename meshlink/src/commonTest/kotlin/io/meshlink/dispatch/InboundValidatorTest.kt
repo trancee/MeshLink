@@ -224,7 +224,7 @@ class InboundValidatorTest {
         val events = sink.drain()
         assertEquals(1, events.size)
         assertEquals(DiagnosticCode.MALFORMED_DATA, events[0].code)
-        assertTrue(events[0].payload?.contains("unsigned") == true)
+        assertTrue((events[0].payload["message"]?.toString() ?: "").contains("unsigned"))
     }
 
     @Test
@@ -239,7 +239,7 @@ class InboundValidatorTest {
         ))
         val events = sink.drain()
         assertEquals(1, events.size)
-        assertTrue(events[0].payload?.contains("verification failed") == true)
+        assertTrue((events[0].payload["message"]?.toString() ?: "").contains("verification failed"))
     }
 
     @Test

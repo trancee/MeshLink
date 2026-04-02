@@ -22,28 +22,28 @@ class WireFormatGoldenVectorsTest {
     private val messageId = ByteArray(12) { (it + 1).toByte() }
 
     // ────────────────────────────────────────────────────────────────────
-    // Chunk (0x05)
+    // Chunk (0x05) — first chunk (seq=0, includes totalChunks)
     //   messageId  = 0x01..0x0C
-    //   seqNumber  = 0x0005  (LE: 05 00)
-    //   totalChunks = 0x000A (LE: 0a 00)
+    //   seqNumber  = 0x0000  (LE: 00 00)
+    //   totalChunks = 0x000A (LE: 0a 00)  [only present when seq=0]
     //   payload    = "Hello"
     //
     // Golden hex:
-    //   050102030405060708090a0b0c05000a0048656c6c6f
+    //   050102030405060708090a0b0c00000a0048656c6c6f
     // ────────────────────────────────────────────────────────────────────
 
     private val chunkGoldenHex =
         "05" +                                  // type: chunk
         "0102030405060708090a0b0c" +    // messageId
-        "0500" +                                // sequenceNumber = 5 (LE)
-        "0a00" +                                // totalChunks = 10 (LE)
+        "0000" +                                // sequenceNumber = 0 (LE)
+        "0a00" +                                // totalChunks = 10 (LE) — present because seq=0
         "48656c6c6f"                             // payload "Hello"
 
     @Test
     fun chunkGoldenVectorEncodes() {
         val encoded = WireCodec.encodeChunk(
             messageId = messageId,
-            sequenceNumber = 0x0005u,
+            sequenceNumber = 0x0000u,
             totalChunks = 0x000Au,
             payload = "Hello".encodeToByteArray(),
         )
@@ -55,9 +55,46 @@ class WireFormatGoldenVectorsTest {
         val decoded = WireCodec.decodeChunk(hexToBytes(chunkGoldenHex))
 
         assertContentEquals(messageId, decoded.messageId)
-        assertEquals(5u.toUShort(), decoded.sequenceNumber)
+        assertEquals(0u.toUShort(), decoded.sequenceNumber)
         assertEquals(10u.toUShort(), decoded.totalChunks)
         assertContentEquals("Hello".encodeToByteArray(), decoded.payload)
+    }
+
+    // ────────────────────────────────────────────────────────────────────
+    // Chunk (0x05) — subsequent chunk (seq>0, no totalChunks)
+    //   messageId  = 0x01..0x0C
+    //   seqNumber  = 0x0005  (LE: 05 00)
+    //   payload    = "World"
+    //
+    // Golden hex:
+    //   050102030405060708090a0b0c0500576f726c64
+    // ────────────────────────────────────────────────────────────────────
+
+    private val chunkSubsequentGoldenHex =
+        "05" +                                  // type: chunk
+        "0102030405060708090a0b0c" +    // messageId
+        "0500" +                                // sequenceNumber = 5 (LE)
+        "576f726c64"                             // payload "World"
+
+    @Test
+    fun chunkSubsequentGoldenVectorEncodes() {
+        val encoded = WireCodec.encodeChunk(
+            messageId = messageId,
+            sequenceNumber = 0x0005u,
+            totalChunks = 0x000Au,
+            payload = "World".encodeToByteArray(),
+        )
+        assertEquals(chunkSubsequentGoldenHex, encoded.toHex())
+    }
+
+    @Test
+    fun chunkSubsequentGoldenVectorDecodes() {
+        val decoded = WireCodec.decodeChunk(hexToBytes(chunkSubsequentGoldenHex))
+
+        assertContentEquals(messageId, decoded.messageId)
+        assertEquals(5u.toUShort(), decoded.sequenceNumber)
+        assertEquals(null, decoded.totalChunks)
+        assertContentEquals("World".encodeToByteArray(), decoded.payload)
     }
 
     // ────────────────────────────────────────────────────────────────────
@@ -487,7 +524,7 @@ class WireFormatGoldenVectorsTest {
         val reEncoded = WireCodec.encodeChunk(
             messageId = WireCodec.decodeChunk(chunkBytes).messageId,
             sequenceNumber = WireCodec.decodeChunk(chunkBytes).sequenceNumber,
-            totalChunks = WireCodec.decodeChunk(chunkBytes).totalChunks,
+            totalChunks = WireCodec.decodeChunk(chunkBytes).totalChunks!!,
             payload = WireCodec.decodeChunk(chunkBytes).payload,
         )
         assertEquals(chunkGoldenHex, reEncoded.toHex(), "Chunk round-trip mismatch")

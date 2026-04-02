@@ -12,9 +12,10 @@ class WireCodecTest {
 
     @Test
     fun chunkMessageEncodesToGoldenBytes() {
+        // First chunk (seq=0): includes totalChunks field
         val encoded = WireCodec.encodeChunk(
             messageId = testMessageId,
-            sequenceNumber = 1u,
+            sequenceNumber = 0u,
             totalChunks = 3u,
             payload = "hello".encodeToByteArray()
         )
@@ -24,7 +25,7 @@ class WireCodecTest {
             0x05,                                                           // type: chunk
             0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,               // messageId[0..7]
             0x08, 0x09, 0x0A, 0x0B,                                        // messageId[8..11]
-            0x01, 0x00,                                                     // seqNum = 1 (LE)
+            0x00, 0x00,                                                     // seqNum = 0 (LE)
             0x03, 0x00,                                                     // totalChunks = 3 (LE)
             0x68, 0x65, 0x6C, 0x6C, 0x6F                                   // "hello"
         )
@@ -33,12 +34,35 @@ class WireCodecTest {
     }
 
     @Test
+    fun chunkSubsequentEncodesWithoutTotalChunks() {
+        // Subsequent chunk (seq>0): omits totalChunks field
+        val encoded = WireCodec.encodeChunk(
+            messageId = testMessageId,
+            sequenceNumber = 1u,
+            totalChunks = 3u,
+            payload = "hello".encodeToByteArray()
+        )
+
+        // type(1) + messageId(12) + seqNum(2 LE) + payload(5) = 20 bytes (no totalChunks)
+        val expected = byteArrayOf(
+            0x05,                                                           // type: chunk
+            0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,               // messageId[0..7]
+            0x08, 0x09, 0x0A, 0x0B,                                        // messageId[8..11]
+            0x01, 0x00,                                                     // seqNum = 1 (LE)
+            0x68, 0x65, 0x6C, 0x6C, 0x6F                                   // "hello"
+        )
+
+        assertContentEquals(expected, encoded)
+    }
+
+    @Test
     fun chunkMessageDecodesFromGoldenBytes() {
+        // First chunk (seq=0): totalChunks present
         val bytes = byteArrayOf(
             0x05,
             0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
             0x08, 0x09, 0x0A, 0x0B,
-            0x01, 0x00,
+            0x00, 0x00,
             0x03, 0x00,
             0x68, 0x65, 0x6C, 0x6C, 0x6F
         )
@@ -46,8 +70,27 @@ class WireCodecTest {
         val decoded = WireCodec.decodeChunk(bytes)
 
         assertContentEquals(testMessageId, decoded.messageId)
-        assertEquals(1u.toUShort(), decoded.sequenceNumber)
+        assertEquals(0u.toUShort(), decoded.sequenceNumber)
         assertEquals(3u.toUShort(), decoded.totalChunks)
+        assertContentEquals("hello".encodeToByteArray(), decoded.payload)
+    }
+
+    @Test
+    fun chunkSubsequentDecodesWithoutTotalChunks() {
+        // Subsequent chunk (seq>0): no totalChunks field
+        val bytes = byteArrayOf(
+            0x05,
+            0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+            0x08, 0x09, 0x0A, 0x0B,
+            0x01, 0x00,
+            0x68, 0x65, 0x6C, 0x6C, 0x6F
+        )
+
+        val decoded = WireCodec.decodeChunk(bytes)
+
+        assertContentEquals(testMessageId, decoded.messageId)
+        assertEquals(1u.toUShort(), decoded.sequenceNumber)
+        assertEquals(null, decoded.totalChunks)
         assertContentEquals("hello".encodeToByteArray(), decoded.payload)
     }
 
@@ -95,14 +138,24 @@ class WireCodecTest {
 
     @Test
     fun chunkEncodeDecodeRoundTrips() {
+        // First chunk (seq=0): totalChunks preserved
         val payload = ByteArray(200) { (it % 256).toByte() }
-        val encoded = WireCodec.encodeChunk(testMessageId, 42u, 100u, payload)
-        val decoded = WireCodec.decodeChunk(encoded)
+        val encodedFirst = WireCodec.encodeChunk(testMessageId, 0u, 100u, payload)
+        val decodedFirst = WireCodec.decodeChunk(encodedFirst)
 
-        assertContentEquals(testMessageId, decoded.messageId)
-        assertEquals(42u.toUShort(), decoded.sequenceNumber)
-        assertEquals(100u.toUShort(), decoded.totalChunks)
-        assertContentEquals(payload, decoded.payload)
+        assertContentEquals(testMessageId, decodedFirst.messageId)
+        assertEquals(0u.toUShort(), decodedFirst.sequenceNumber)
+        assertEquals(100u.toUShort(), decodedFirst.totalChunks)
+        assertContentEquals(payload, decodedFirst.payload)
+
+        // Subsequent chunk (seq>0): totalChunks is null
+        val encodedSubseq = WireCodec.encodeChunk(testMessageId, 42u, 100u, payload)
+        val decodedSubseq = WireCodec.decodeChunk(encodedSubseq)
+
+        assertContentEquals(testMessageId, decodedSubseq.messageId)
+        assertEquals(42u.toUShort(), decodedSubseq.sequenceNumber)
+        assertEquals(null, decodedSubseq.totalChunks)
+        assertContentEquals(payload, decodedSubseq.payload)
     }
 
     @Test
@@ -305,15 +358,18 @@ class WireCodecTest {
 
     @Test
     fun decodeChunkRejectsSequenceExceedingTotal() {
-        // Craft chunk with sequenceNumber=10, totalChunks=3
-        val encoded = WireCodec.encodeChunk(
-            messageId = testMessageId,
-            sequenceNumber = 10u,
-            totalChunks = 3u,
-            payload = "data".encodeToByteArray(),
+        // Craft first chunk (seq=0) with totalChunks=0 (invalid: seq >= total)
+        // We need to manually build the bytes since encodeChunk would create a valid first chunk
+        val buf = byteArrayOf(
+            0x05,                                                           // type: chunk
+            0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,               // messageId[0..7]
+            0x08, 0x09, 0x0A, 0x0B,                                        // messageId[8..11]
+            0x00, 0x00,                                                     // seqNum = 0 (LE)
+            0x00, 0x00,                                                     // totalChunks = 0 (LE) — invalid
+            0x64, 0x61, 0x74, 0x61                                          // "data"
         )
         assertFailsWith<IllegalArgumentException> {
-            WireCodec.decodeChunk(encoded)
+            WireCodec.decodeChunk(buf)
         }
     }
 

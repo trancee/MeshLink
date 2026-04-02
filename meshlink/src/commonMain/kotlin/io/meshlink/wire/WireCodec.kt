@@ -34,8 +34,14 @@ object WireCodec {
     // resume_request: type(1) + messageId(12) + bytesReceived(4 LE) = 17
     private const val RESUME_REQUEST_SIZE = 1 + MESSAGE_ID_SIZE + 4 // 17
 
-    // chunk: type(1) + messageId(12) + seqNum(2 LE) + totalChunks(2 LE) + payload
-    const val CHUNK_HEADER_SIZE = 1 + MESSAGE_ID_SIZE + 2 + 2 // 17
+    // chunk: type(1) + messageId(12) + seqNum(2 LE) [+ totalChunks(2 LE) if seq==0] + payload
+    // First chunk (seq=0): 1 + 12 + 2 + 2 = 17 bytes header
+    // Subsequent chunks (seq>0): 1 + 12 + 2 = 15 bytes header
+    const val CHUNK_HEADER_SIZE_FIRST = 1 + MESSAGE_ID_SIZE + 2 + 2 // 17
+    const val CHUNK_HEADER_SIZE_SUBSEQUENT = 1 + MESSAGE_ID_SIZE + 2 // 15
+
+    @Deprecated("Use CHUNK_HEADER_SIZE_FIRST for seq=0 or CHUNK_HEADER_SIZE_SUBSEQUENT for seq>0")
+    const val CHUNK_HEADER_SIZE = CHUNK_HEADER_SIZE_FIRST
 
     // chunk_ack: type(1) + messageId(12) + ackSeq(2 LE) + sackBitmask(8 LE) + sackBitmaskHigh(8 LE)
     private const val CHUNK_ACK_SIZE = 1 + MESSAGE_ID_SIZE + 2 + 8 + 8 // 31
@@ -72,32 +78,44 @@ object WireCodec {
         totalChunks: UShort,
         payload: ByteArray,
     ): ByteArray {
-        val buf = ByteArray(CHUNK_HEADER_SIZE + payload.size)
+        val isFirst = sequenceNumber == 0u.toUShort()
+        val headerSize = if (isFirst) CHUNK_HEADER_SIZE_FIRST else CHUNK_HEADER_SIZE_SUBSEQUENT
+        val buf = ByteArray(headerSize + payload.size)
         var offset = 0
         buf[offset++] = TYPE_CHUNK
         messageId.copyInto(buf, offset)
         offset += MESSAGE_ID_SIZE
         buf.putUShortLE(offset, sequenceNumber)
         offset += 2
-        buf.putUShortLE(offset, totalChunks)
-        offset += 2
+        if (isFirst) {
+            buf.putUShortLE(offset, totalChunks)
+            offset += 2
+        }
         payload.copyInto(buf, offset)
         return buf
     }
 
     fun decodeChunk(data: ByteArray): ChunkMessage {
-        require(data.size >= CHUNK_HEADER_SIZE) { "chunk too short: ${data.size}" }
+        require(data.size >= CHUNK_HEADER_SIZE_SUBSEQUENT) { "chunk too short: ${data.size}" }
         require(data[0] == TYPE_CHUNK) { "not a chunk: 0x${data[0].toUByte().toString(16)}" }
         var offset = 1
         val messageId = data.copyOfRange(offset, offset + MESSAGE_ID_SIZE)
         offset += MESSAGE_ID_SIZE
         val sequenceNumber = data.getUShortLE(offset)
         offset += 2
-        val totalChunks = data.getUShortLE(offset)
-        offset += 2
+        val totalChunks: UShort? = if (sequenceNumber == 0u.toUShort()) {
+            require(data.size >= CHUNK_HEADER_SIZE_FIRST) { "first chunk too short: ${data.size}" }
+            val tc = data.getUShortLE(offset)
+            offset += 2
+            tc
+        } else {
+            null
+        }
         val payload = data.copyOfRange(offset, data.size)
-        require(sequenceNumber < totalChunks) {
-            "chunk sequenceNumber ($sequenceNumber) >= totalChunks ($totalChunks)"
+        if (totalChunks != null) {
+            require(sequenceNumber < totalChunks) {
+                "chunk sequenceNumber ($sequenceNumber) >= totalChunks ($totalChunks)"
+            }
         }
         return ChunkMessage(messageId, sequenceNumber, totalChunks, payload)
     }
@@ -564,7 +582,7 @@ private fun ByteArray.getUIntLE(offset: Int): UInt {
 data class ChunkMessage(
     val messageId: ByteArray,
     val sequenceNumber: UShort,
-    val totalChunks: UShort,
+    val totalChunks: UShort?,
     val payload: ByteArray,
 )
 

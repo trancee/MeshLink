@@ -12,5 +12,6 @@ fun testMeshLinkConfig(block: MeshLinkConfigBuilder.() -> Unit = {}): MeshLinkCo
         keepaliveIntervalMillis = 0L
         deliveryTimeoutMillis = 0L
         compressionEnabled = false
+        diagnosticsEnabled = true
         block()
     }

@@ -9,6 +9,7 @@ import io.meshlink.model.PeerEvent
 import io.meshlink.model.TransferFailure
 import io.meshlink.model.TransferProgress
 import io.meshlink.model.MessageId
+import io.meshlink.power.PowerMode
 import io.meshlink.transport.VirtualMeshTransport
 import io.meshlink.util.DeliveryOutcome
 import io.meshlink.util.toHex
@@ -575,13 +576,13 @@ class MeshIntegrationTest {
         // the responder rather than the initiator.
         assertTrue(
             handshakeEvents.any {
-                it.payload?.contains("initiating") == true ||
-                    it.payload?.contains("msg received") == true
+                val msg = it.payload["message"]?.toString() ?: ""
+                msg.contains("initiating") || msg.contains("msg received")
             },
             "should log handshake initiation or response"
         )
         assertTrue(
-            handshakeEvents.any { it.payload?.contains("handshake complete") == true },
+            handshakeEvents.any { (it.payload["message"]?.toString() ?: "").contains("handshake complete") },
             "should log handshake completion"
         )
 
@@ -874,7 +875,7 @@ class MeshIntegrationTest {
         // Advance past 30s hysteresis and re-evaluate
         now += 30_001
         alice.updateBattery(10, isCharging = false)
-        assertEquals("POWER_SAVER", alice.meshHealth().powerMode)
+        assertEquals(PowerMode.POWER_SAVER, alice.meshHealth().powerMode)
 
         alice.stop()
     }
@@ -891,11 +892,11 @@ class MeshIntegrationTest {
         alice.updateBattery(10, isCharging = false)
         now += 30_001
         alice.updateBattery(10, isCharging = false)
-        assertEquals("POWER_SAVER", alice.meshHealth().powerMode)
+        assertEquals(PowerMode.POWER_SAVER, alice.meshHealth().powerMode)
 
         // Now plug in — upward transition is immediate (no hysteresis)
         alice.updateBattery(10, isCharging = true)
-        assertEquals("PERFORMANCE", alice.meshHealth().powerMode)
+        assertEquals(PowerMode.PERFORMANCE, alice.meshHealth().powerMode)
 
         alice.stop()
     }
@@ -911,7 +912,7 @@ class MeshIntegrationTest {
         alice.updateBattery(50, isCharging = false)
         now += 30_001
         alice.updateBattery(50, isCharging = false)
-        assertEquals("BALANCED", alice.meshHealth().powerMode)
+        assertEquals(PowerMode.BALANCED, alice.meshHealth().powerMode)
 
         alice.stop()
     }

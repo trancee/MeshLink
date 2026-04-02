@@ -6,7 +6,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 
-enum class Severity { INFO, WARN, ERROR }
+enum class Severity { INFO, WARN, ERROR, FATAL }
 
 enum class DiagnosticCode {
     L2CAP_FALLBACK,
@@ -36,13 +36,16 @@ data class DiagnosticEvent(
     val code: DiagnosticCode,
     val severity: Severity,
     val monotonicMillis: Long,
+    val wallClockMillis: Long,
     val droppedCount: Int,
-    val payload: String?,
+    val payload: Map<String, Any>,
 )
 
 class DiagnosticSink(
     private val bufferCapacity: Int = 256,
     private val clock: () -> Long = { currentTimeMillis() },
+    private val epochClock: () -> Long = { currentTimeMillis() },
+    val enabled: Boolean = true,
 ) {
     private val _events = MutableSharedFlow<DiagnosticEvent>(
         extraBufferCapacity = bufferCapacity,
@@ -55,12 +58,15 @@ class DiagnosticSink(
     private val _legacyBuffer = ArrayDeque<DiagnosticEvent>(bufferCapacity)
 
     fun emit(code: DiagnosticCode, severity: Severity, payload: String? = null) {
+        if (!enabled) return
+        val payloadMap: Map<String, Any> = if (payload != null) mapOf("message" to payload) else emptyMap()
         val event = DiagnosticEvent(
             code = code,
             severity = severity,
             monotonicMillis = clock(),
+            wallClockMillis = epochClock(),
             droppedCount = 0,
-            payload = payload,
+            payload = payloadMap,
         )
         _events.tryEmit(event)
         if (_legacyBuffer.size >= bufferCapacity) {

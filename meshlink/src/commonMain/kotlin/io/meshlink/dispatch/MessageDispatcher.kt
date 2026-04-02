@@ -139,10 +139,17 @@ internal class MessageDispatcher(
         val chunk = WireCodec.decodeChunk(data)
         val key = chunk.messageId.toKey()
 
+        val totalChunks = chunk.totalChunks?.toInt()
+            ?: transferEngine.getInboundTotalChunks(key)
+            ?: run {
+                diagnosticSink.emit(DiagnosticCode.MALFORMED_DATA, Severity.WARN, "non-first chunk without prior first chunk")
+                return
+            }
+
         val result = transferEngine.onChunkReceived(
             key,
             chunk.sequenceNumber.toInt(),
-            chunk.totalChunks.toInt(),
+            totalChunks,
             chunk.payload,
         )
 
@@ -227,7 +234,7 @@ internal class MessageDispatcher(
             val reflooded = WireCodec.encodeBroadcast(
                 messageId = broadcast.messageId,
                 origin = broadcast.origin,
-                remainingHops = minOf((broadcast.remainingHops - 1u).toUByte(), config.maxHops),
+                remainingHops = minOf((broadcast.remainingHops - 1u).toUByte(), config.broadcastTTL),
                 appIdHash = broadcast.appIdHash,
                 payload = broadcast.payload,
                 signature = broadcast.signature,
@@ -263,14 +270,16 @@ internal class MessageDispatcher(
                 routed.origin.toKey(),
             )
             sink.onMessageReceived(routed.origin, unwrapPayload(deliveredPayload))
-            val signed = securityEngine?.sign(routed.messageId + localPeerId)
-            val ackFrame = WireCodec.encodeDeliveryAck(
-                routed.messageId,
-                localPeerId,
-                signature = signed?.signature ?: ByteArray(0),
-                signerPublicKey = signed?.signerPublicKey ?: ByteArray(0),
-            )
-            sink.sendFrame(fromPeerId, ackFrame)
+            if (config.deliveryAckEnabled) {
+                val signed = securityEngine?.sign(routed.messageId + localPeerId)
+                val ackFrame = WireCodec.encodeDeliveryAck(
+                    routed.messageId,
+                    localPeerId,
+                    signature = signed?.signature ?: ByteArray(0),
+                    signerPublicKey = signed?.signerPublicKey ?: ByteArray(0),
+                )
+                sink.sendFrame(fromPeerId, ackFrame)
+            }
             return
         }
 

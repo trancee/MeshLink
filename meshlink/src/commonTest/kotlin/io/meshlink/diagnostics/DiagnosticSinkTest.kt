@@ -30,7 +30,7 @@ class DiagnosticSinkTest {
 
         assertEquals(DiagnosticCode.ROUTE_CHANGED, collected[0].code)
         assertEquals(Severity.INFO, collected[0].severity)
-        assertEquals("route to A updated", collected[0].payload)
+        assertEquals("route to A updated", collected[0].payload["message"])
         assertEquals(100L, collected[0].monotonicMillis)
         assertEquals(0, collected[0].droppedCount)
     }
@@ -49,9 +49,9 @@ class DiagnosticSinkTest {
         @Suppress("DEPRECATION")
         sink.drainTo(collected)
         assertEquals(3, collected.size, "Buffer retains only bufferCapacity events")
-        assertEquals("event 3", collected[0].payload)
-        assertEquals("event 4", collected[1].payload)
-        assertEquals("event 5", collected[2].payload)
+        assertEquals("event 3", collected[0].payload["message"])
+        assertEquals("event 4", collected[1].payload["message"])
+        assertEquals("event 5", collected[2].payload["message"])
     }
 
     @Test
@@ -69,8 +69,8 @@ class DiagnosticSinkTest {
         @Suppress("DEPRECATION")
         sink.drainTo(events)
         assertEquals(2, events.size, "Buffer holds exactly 2")
-        assertEquals("e4", events[0].payload)
-        assertEquals("e5", events[1].payload)
+        assertEquals("e4", events[0].payload["message"])
+        assertEquals("e5", events[1].payload["message"])
     }
 
     @Test
@@ -95,7 +95,7 @@ class DiagnosticSinkTest {
         sink.drainTo(batch3)
         assertEquals(1, batch3.size)
         assertEquals(0, batch3[0].droppedCount, "Fresh emit after drain should have 0 drops")
-        assertEquals("second", batch3[0].payload)
+        assertEquals("second", batch3[0].payload["message"])
     }
 
     // --- SharedFlow reactive API tests ---
@@ -120,9 +120,9 @@ class DiagnosticSinkTest {
 
         assertEquals(2, received.size)
         assertEquals(DiagnosticCode.ROUTE_CHANGED, received[0].code)
-        assertEquals("a", received[0].payload)
+        assertEquals("a", received[0].payload["message"])
         assertEquals(DiagnosticCode.PEER_PRESENCE_EVICTED, received[1].code)
-        assertEquals("b", received[1].payload)
+        assertEquals("b", received[1].payload["message"])
     }
 
     @Test
@@ -140,8 +140,8 @@ class DiagnosticSinkTest {
         @Suppress("DEPRECATION")
         sink.drainTo(drained)
         assertEquals(2, drained.size)
-        assertEquals("ev2", drained[0].payload)
-        assertEquals("ev3", drained[1].payload)
+        assertEquals("ev2", drained[0].payload["message"])
+        assertEquals("ev3", drained[1].payload["message"])
     }
 
     @Test

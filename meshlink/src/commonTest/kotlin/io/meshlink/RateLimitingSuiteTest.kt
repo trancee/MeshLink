@@ -181,7 +181,7 @@ class RateLimitingSuiteTest {
         alice.drainDiagnostics().forEach { diagnostics.add(it) }
 
         val rateLimitEvents = diagnostics.filter {
-            it.code == DiagnosticCode.RATE_LIMIT_HIT && it.payload?.contains("NACK") == true
+            it.code == DiagnosticCode.RATE_LIMIT_HIT && (it.payload["message"]?.toString() ?: "").contains("NACK")
         }
         assertTrue(rateLimitEvents.isNotEmpty(), "Should emit RATE_LIMIT_HIT for NACK: $diagnostics")
         alice.stop()
@@ -220,7 +220,7 @@ class RateLimitingSuiteTest {
         alice.drainDiagnostics().forEach { diagnostics.add(it) }
 
         val aggregateHits = diagnostics.filter {
-            it.code == DiagnosticCode.RATE_LIMIT_HIT && it.payload?.contains("neighbor aggregate") == true
+            it.code == DiagnosticCode.RATE_LIMIT_HIT && (it.payload["message"]?.toString() ?: "").contains("neighbor aggregate")
         }
         assertTrue(aggregateHits.isNotEmpty(), "Should emit aggregate RATE_LIMIT_HIT: $diagnostics")
         alice.stop()

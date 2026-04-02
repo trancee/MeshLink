@@ -106,7 +106,7 @@ class MeshLink(
     override val transferProgress: Flow<TransferProgress> = _transferProgress.asSharedFlow()
     override val keyChanges: Flow<KeyChangeEvent> = _keyChanges.asSharedFlow()
 
-    private val _meshHealthFlow = MutableStateFlow(MeshHealthSnapshot(0, 0, 0, 0, "PERFORMANCE", 0.0))
+    private val _meshHealthFlow = MutableStateFlow(MeshHealthSnapshot(0, 0, 0, 0, PowerMode.PERFORMANCE, 0.0))
     override val meshHealthFlow: StateFlow<MeshHealthSnapshot> = _meshHealthFlow.asStateFlow()
 
     // Health flow throttle: minimum 500ms between emissions (2/sec max)
@@ -168,12 +168,42 @@ class MeshLink(
         }
     }
 
-    private var started = false
+    /**
+     * Library lifecycle state machine per design §10.
+     *
+     * Valid transitions:
+     *   start():  {UNINITIALIZED, STOPPED, RECOVERABLE} → RUNNING | RECOVERABLE | TERMINAL
+     *   pause():  {RUNNING} → PAUSED
+     *   resume(): {PAUSED} → RUNNING
+     *   stop():   always safe (no-op from UNINITIALIZED, STOPPED, TERMINAL)
+     */
+    enum class LifecycleState {
+        UNINITIALIZED,
+        RUNNING,
+        PAUSED,
+        STOPPED,
+        RECOVERABLE,
+        TERMINAL,
+    }
+
+    private var lifecycleState = LifecycleState.UNINITIALIZED
     private var scope: CoroutineScope? = null
     private val baseContext = coroutineContext
 
+    val state: LifecycleState get() = lifecycleState
+
+    private fun checkRunningOrPaused() {
+        when (lifecycleState) {
+            LifecycleState.RUNNING, LifecycleState.PAUSED -> { /* ok */ }
+            LifecycleState.TERMINAL ->
+                throw IllegalStateException("MeshLink is in terminal state")
+            else ->
+                throw IllegalStateException("MeshLink not started (state=$lifecycleState)")
+        }
+    }
+
     private fun requireScope(): CoroutineScope =
-        scope ?: throw IllegalStateException("MeshLink not started")
+        scope ?: throw IllegalStateException("MeshLink not started (state=$lifecycleState)")
 
     // Transfer engine (consolidates outbound chunking and inbound reassembly)
     private val transferEngine = TransferEngine(
@@ -199,7 +229,11 @@ class MeshLink(
     )
 
     // Diagnostic event sink
-    private val diagnosticSink = DiagnosticSink(bufferCapacity = config.diagnosticBufferCapacity, clock = clock)
+    private val diagnosticSink = DiagnosticSink(
+        bufferCapacity = config.diagnosticBufferCapacity,
+        clock = clock,
+        enabled = config.diagnosticsEnabled,
+    )
 
     // Delivery pipeline: consolidates delivery tracking, tombstones, deadlines,
     // reverse-path relay, replay guards, inbound rate limiting, and store-and-forward
@@ -264,7 +298,7 @@ class MeshLink(
         routingEngine = routingEngine,
         securityEngine = securityEngine,
         rateLimitPolicy = { rateLimitPolicy.checkHandshake(it) },
-        trustStore = trustStore,
+        trustStore = trustStore ?: (if (crypto != null) TrustStore(config.trustMode) else null),
         localPeerId = transport.localPeerId,
         protocolVersion = config.protocolVersion,
         isPaused = { pauseManager.isPaused },
@@ -399,9 +433,16 @@ class MeshLink(
     }
 
     override fun start(): Result<Unit> {
-        if (started) return Result.success(Unit)
+        when (lifecycleState) {
+            LifecycleState.RUNNING, LifecycleState.PAUSED -> return Result.success(Unit)
+            LifecycleState.TERMINAL -> throw IllegalStateException(
+                "MeshLink is in terminal state. Create a new instance."
+            )
+            LifecycleState.UNINITIALIZED, LifecycleState.STOPPED, LifecycleState.RECOVERABLE -> { /* proceed */ }
+        }
 
         if (config.requireEncryption && crypto == null) {
+            lifecycleState = LifecycleState.TERMINAL
             return Result.failure(
                 IllegalStateException(
                     "CryptoProvider is required when requireEncryption is true. " +
@@ -413,10 +454,15 @@ class MeshLink(
 
         val violations = config.validate()
         if (violations.isNotEmpty()) {
+            lifecycleState = LifecycleState.RECOVERABLE
             return Result.failure(IllegalArgumentException(violations.joinToString("; ")))
         }
 
-        started = true
+        lifecycleState = LifecycleState.RUNNING
+
+        // Apply custom power mode from config if set
+        config.customPowerMode?.let { powerCoordinator.setCustomPowerMode(it) }
+
         val exceptionHandler = kotlinx.coroutines.CoroutineExceptionHandler { _, throwable ->
             diagnosticSink.emit(DiagnosticCode.SEND_FAILED, Severity.ERROR, "Uncaught: ${throwable::class.simpleName}")
         }
@@ -475,7 +521,7 @@ class MeshLink(
         // Keepalive loop: send keepalives to detect neighbour liveness
         if (config.keepaliveIntervalMillis > 0) {
             newScope.launch {
-                routeCoordinator.runKeepaliveLoop { started }
+                routeCoordinator.runKeepaliveLoop { lifecycleState == LifecycleState.RUNNING }
             }
         }
 
@@ -483,7 +529,11 @@ class MeshLink(
     }
 
     override fun stop() {
-        started = false
+        when (lifecycleState) {
+            LifecycleState.UNINITIALIZED, LifecycleState.STOPPED, LifecycleState.TERMINAL -> return
+            LifecycleState.RUNNING, LifecycleState.PAUSED, LifecycleState.RECOVERABLE -> { /* proceed */ }
+        }
+        lifecycleState = LifecycleState.STOPPED
         // Cancel scope first to stop gossip/keepalive loops, then await transport shutdown.
         scope?.cancel()
         // Await BLE transport shutdown on Default dispatcher to avoid deadlocking test dispatchers.
@@ -527,11 +577,15 @@ class MeshLink(
     }
 
     override fun pause() {
+        if (lifecycleState != LifecycleState.RUNNING) return
+        lifecycleState = LifecycleState.PAUSED
         pauseManager.pause()
         scope?.launch { transport.stopAll() }
     }
 
     override fun resume() {
+        if (lifecycleState != LifecycleState.PAUSED) return
+        lifecycleState = LifecycleState.RUNNING
         val snapshot = pauseManager.resume()
         transport.advertisementServiceData = encodeAdvertisementPayload()
         scope?.launch { transport.startAdvertisingAndScanning() }
@@ -545,19 +599,24 @@ class MeshLink(
     }
 
     override fun meshHealth(): MeshHealthSnapshot {
-        val usedBytes = transferEngine.outboundBufferBytes() + transferEngine.inboundBufferBytes()
+        val outboundBytes = transferEngine.outboundBufferBytes()
+        val inboundBytes = transferEngine.inboundBufferBytes()
+        val usedBytes = outboundBytes + inboundBytes
         val utilPercent = if (config.bufferCapacity > 0) {
             (usedBytes * 100 / config.bufferCapacity).coerceIn(0, 100)
         } else {
             0
         }
+        val cap = config.bufferCapacity.toFloat().coerceAtLeast(1f)
         return MeshHealthSnapshot(
             connectedPeers = routingEngine.peerCount,
             reachablePeers = routingEngine.connectedPeerCount,
             bufferUtilizationPercent = utilPercent,
             activeTransfers = transferEngine.outboundCount,
-            powerMode = powerCoordinator.currentMode,
+            powerMode = PowerMode.valueOf(powerCoordinator.currentMode),
             avgRouteCost = routingEngine.avgCost(),
+            relayBufferUtilization = (inboundBytes.toFloat() / cap).coerceIn(0f, 1f),
+            ownBufferUtilization = (outboundBytes.toFloat() / cap).coerceIn(0f, 1f),
             relayQueueSize = pauseManager.relayQueueSize,
         )
     }
@@ -679,10 +738,11 @@ class MeshLink(
     }
 
     override fun broadcast(payload: ByteArray, maxHops: UByte): Result<MessageId> {
-        if (!started) throw IllegalStateException("MeshLink not started")
+        checkRunningOrPaused()
         val s = requireScope()
 
-        return when (val decision = broadcastPolicyChain.evaluate(payload, maxHops)) {
+        val effectiveHops = minOf(maxHops, config.broadcastTTL)
+        return when (val decision = broadcastPolicyChain.evaluate(payload, effectiveHops)) {
             is BroadcastDecision.BufferFull ->
                 Result.failure(IllegalArgumentException("bufferFull"))
 
@@ -705,7 +765,7 @@ class MeshLink(
     }
 
     override fun send(recipient: ByteArray, payload: ByteArray): Result<MessageId> {
-        if (!started) throw IllegalStateException("MeshLink not started")
+        checkRunningOrPaused()
         return sendLock.withLock { sendInternal(recipient, payload) }
     }
 
@@ -794,7 +854,7 @@ class MeshLink(
             else -> envelopedPayload
         }
 
-        val chunkSize = config.mtu - WireCodec.CHUNK_HEADER_SIZE
+        val chunkSize = config.mtu - WireCodec.CHUNK_HEADER_SIZE_FIRST
         val handle = transferEngine.beginSend(key, messageId, wirePayload, chunkSize)
         outboundTracker.registerRecipient(key, recipient)
 

@@ -145,6 +145,9 @@ class TransferEngine(
 
     // --- State ---
 
+    fun getInboundTotalChunks(messageId: ByteArrayKey): Int? =
+        inbound[messageId]?.totalChunks
+
     val outboundCount: Int get() = outbound.size
     val inboundCount: Int get() = inbound.size
 

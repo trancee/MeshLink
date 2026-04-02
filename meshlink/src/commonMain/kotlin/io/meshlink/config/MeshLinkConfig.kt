@@ -1,5 +1,7 @@
 package io.meshlink.config
 
+import io.meshlink.crypto.TrustMode
+import io.meshlink.power.PowerMode
 import io.meshlink.protocol.ProtocolVersion
 
 data class MeshLinkConfig(
@@ -21,6 +23,13 @@ data class MeshLinkConfig(
     val broadcastRateLimitPerMinute: Int = 10,
     val relayQueueCapacity: Int = 100,
     val maxHops: UByte = 10u,
+    val broadcastTTL: UByte = 2u,
+    val trustMode: TrustMode = TrustMode.STRICT,
+    val deliveryAckEnabled: Boolean = true,
+    val diagnosticsEnabled: Boolean = false,
+    val customPowerMode: PowerMode? = null,
+    val evictionGracePeriodMillis: Long = 30_000L,
+    val l2capBackpressureWindowMillis: Long = 7_000L,
     val ackWindowMin: Int = 2,
     val ackWindowMax: Int = 16,
     val powerModeThresholds: List<Int> = listOf(80, 30),
@@ -62,6 +71,17 @@ data class MeshLinkConfig(
             violations.add("circuitBreakerCooldownMillis must be positive when circuit breaker is enabled")
         }
         // Cross-field validation rules from design doc §14
+        if (broadcastTTL < 1u || broadcastTTL > maxHops) {
+            violations.add("broadcastTTL ($broadcastTTL) must be in range 1..maxHops ($maxHops)")
+        }
+        if (evictionGracePeriodMillis < 5_000L || evictionGracePeriodMillis > 60_000L) {
+            violations.add("evictionGracePeriodMillis ($evictionGracePeriodMillis) must be in range 5000..60000")
+        }
+        if (l2capBackpressureWindowMillis < 3_000L || l2capBackpressureWindowMillis > 15_000L) {
+            violations.add(
+                "l2capBackpressureWindowMillis ($l2capBackpressureWindowMillis) must be in range 3000..15000"
+            )
+        }
         if (ackWindowMax < ackWindowMin) {
             violations.add(
                 "ackWindowMax ($ackWindowMax) must be >= ackWindowMin ($ackWindowMin)",
@@ -157,6 +177,13 @@ class MeshLinkConfigBuilder(
     var broadcastRateLimitPerMinute: Int = 10,
     var relayQueueCapacity: Int = 100,
     var maxHops: UByte = 10u,
+    var broadcastTTL: UByte = 2u,
+    var trustMode: TrustMode = TrustMode.STRICT,
+    var deliveryAckEnabled: Boolean = true,
+    var diagnosticsEnabled: Boolean = false,
+    var customPowerMode: PowerMode? = null,
+    var evictionGracePeriodMillis: Long = 30_000L,
+    var l2capBackpressureWindowMillis: Long = 7_000L,
     var ackWindowMin: Int = 2,
     var ackWindowMax: Int = 16,
     var powerModeThresholds: List<Int> = listOf(80, 30),
@@ -198,6 +225,13 @@ class MeshLinkConfigBuilder(
         broadcastRateLimitPerMinute = broadcastRateLimitPerMinute,
         relayQueueCapacity = relayQueueCapacity,
         maxHops = maxHops,
+        broadcastTTL = broadcastTTL,
+        trustMode = trustMode,
+        deliveryAckEnabled = deliveryAckEnabled,
+        diagnosticsEnabled = diagnosticsEnabled,
+        customPowerMode = customPowerMode,
+        evictionGracePeriodMillis = evictionGracePeriodMillis,
+        l2capBackpressureWindowMillis = l2capBackpressureWindowMillis,
         ackWindowMin = ackWindowMin,
         ackWindowMax = ackWindowMax,
         powerModeThresholds = powerModeThresholds,

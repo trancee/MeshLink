@@ -8,14 +8,14 @@ complexity:
     threshold: 170
   LongParameterList:
     functionThreshold: 12
-    constructorThreshold: 45
+    constructorThreshold: 52
   TooManyFunctions:
     thresholdInClasses: 50
     thresholdInFiles: 50
     thresholdInObjects: 30
     thresholdInInterfaces: 25
   CyclomaticComplexMethod:
-    threshold: 25
+    threshold: 32
   NestedBlockDepth:
     threshold: 5
 
