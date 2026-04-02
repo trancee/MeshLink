@@ -319,3 +319,40 @@ Feature: BLE Mesh Peer-to-Peer Messaging
     And Alice has accumulated stale transfer state
     When Alice sheds memory pressure
     Then the shed operation should return the list of cleared entries
+
+  # ─── Broadcast Relay ─────────────────────────────────────────
+
+  @broadcast @routing
+  Scenario: Broadcast relays across hops with TTL decrement
+    Given three peers "A", "B", "C" in a linear chain (A↔B↔C, A cannot reach C directly)
+    And all peers are on the mesh without encryption
+    When A broadcasts a message with maxHops=3
+    Then B receives the broadcast directly
+    And B relays the broadcast to C
+    And C receives the broadcast via relay
+
+  # ─── Routing ────────────────────────────────────────────────
+
+  @routing @aodv
+  Scenario: AODV route discovery queues message and sends RREQ
+    Given a peer "Alice" is on the mesh with neighbor "Bob"
+    When Alice sends a message to an unknown peer "C"
+    Then the send should succeed (message queued for route discovery)
+    And Alice should flood an RREQ through her neighbors
+
+  @routing @diagnostics
+  Scenario: Hop limit exceeded emits diagnostic
+    Given a peer "Alice" is on the mesh without encryption
+    When Alice receives a routed message with hopLimit=0 (already exhausted)
+    Then Alice should not forward the message
+    And Alice should emit a HOP_LIMIT_EXCEEDED diagnostic event
+
+  # ─── Concurrent Transfers ───────────────────────────────────
+
+  @transfer @concurrency
+  Scenario: Concurrent transfers deliver all messages
+    Given two peers "Alice" and "Bob" are on the mesh without encryption
+    When Alice sends 5 messages to Bob concurrently
+    Then all 5 sends should succeed
+    And Bob should receive all 5 messages
+    And all received payloads should match what Alice sent
