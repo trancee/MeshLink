@@ -79,9 +79,14 @@ The most commonly tuned fields:
 
 - **`maxMessageSize`** — largest expected payload in bytes (default: 100,000)
 - **`maxHops`** — limit to 3–5 for latency-sensitive apps (default: 10)
+- **`broadcastTTL`** — hop limit for broadcast propagation (default: 2, range: 1–`maxHops`)
 - **`routeCacheTtlMillis`** — increase for stable meshes, decrease for mobile (default: 60,000)
 - **`rateLimitMaxSends`** — outbound rate limit per window (default: 60; `0` = disabled)
 - **`l2capEnabled`** — high-throughput L2CAP mode with GATT fallback (default: true)
+- **`trustMode`** — key pinning policy: `STRICT` (reject key changes) or `SOFT_REPIN` (auto-accept)
+- **`deliveryAckEnabled`** — send signed delivery ACKs for received messages (default: true)
+- **`diagnosticsEnabled`** — enable the diagnostic event stream (default: false; zero overhead when disabled)
+- **`customPowerMode`** — override automatic battery-based power mode (default: null = automatic)
 - **`pendingMessageTtlMillis`** — TTL for queued outbound messages (default: 0 = never expire)
 
 #### Compression

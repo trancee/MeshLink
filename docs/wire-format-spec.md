@@ -95,7 +95,7 @@ All framed messages begin with a 1-byte type code at offset 0.
 | `0x02` | Rotation Announcement | `TYPE_ROTATION` | 201 | Key rotation broadcast. |
 | `0x03` | Route Request | `TYPE_ROUTE_REQUEST` | 25+ | AODV route request (RREQ), flooded to discover a path to a destination. Has [TLV extensions](#tlv-extension-area). |
 | `0x04` | Route Reply | `TYPE_ROUTE_REPLY` | 24+ | AODV route reply (RREP), unicast back along the reverse path. Has [TLV extensions](#tlv-extension-area). |
-| `0x05` | Chunk | `TYPE_CHUNK` | Variable (min 21) | Fragment of a chunked transfer. |
+| `0x05` | Chunk | `TYPE_CHUNK` | Variable (min 15) | Fragment of a chunked transfer. First chunk (seq=0) has 17-byte header; subsequent chunks have 15-byte header. |
 | `0x06` | Chunk ACK | `TYPE_CHUNK_ACK` | 37+ | Selective acknowledgment of chunks. Has [TLV extensions](#tlv-extension-area). |
 | `0x07` | NACK | `TYPE_NACK` | 20+ | Negative acknowledgment with reason code. Has [TLV extensions](#tlv-extension-area). |
 | `0x08` | Resume Request | `TYPE_RESUME_REQUEST` | 23+ | Request to resume a chunked transfer. Has [TLV extensions](#tlv-extension-area). |
@@ -327,9 +327,13 @@ Byte:   0       1             8  9            16 17          20 21  22  23
 
 ### 0x05 — Chunk
 
-Fragment of a chunked (multi-part) message transfer.
+Fragment of a chunked (multi-part) message transfer. The first chunk
+(`sequenceNumber = 0`) carries the `totalChunks` field; subsequent chunks omit
+it, saving 2 bytes per chunk.
 
-**Source:** `WireCodec.kt` · `CHUNK_HEADER_SIZE = 17`
+**Source:** `WireCodec.kt` · `CHUNK_HEADER_SIZE_FIRST = 17`, `CHUNK_HEADER_SIZE_SUBSEQUENT = 15`
+
+**First chunk (seq = 0):**
 
 ```
 Byte:   0       1                              12  13      14  15      16  17       N
@@ -338,17 +342,27 @@ Byte:   0       1                              12  13      14  15      16  17   
        +-------+---------- ... ----------------+---+-------+---+-------+---+-- ... --+
 ```
 
+**Subsequent chunks (seq > 0):**
+
+```
+Byte:   0       1                              12  13      14  15       N
+       +-------+---------- ... ----------------+---+-------+---+-- ... --+
+       | 0x05  |         messageId (12)         | seqNum(LE)  | payload  |
+       +-------+---------- ... ----------------+---+-------+---+-- ... --+
+```
+
 | Offset | Size | Field | Type | Endianness | Description |
 |--------|------|-------|------|------------|-------------|
 | 0 | 1 | `type` | byte | — | `0x05` |
 | 1–12 | 12 | `messageId` | bytes | — | Identifies the overall message this chunk belongs to. Structured: 8-byte sender peer ID hash + 4-byte LE counter. |
 | 13–14 | 2 | `sequenceNumber` | UShort | **LE** | Zero-based chunk index. |
-| 15–16 | 2 | `totalChunks` | UShort | **LE** | Total number of chunks in this message. |
-| 17–N | variable | `payload` | bytes | — | Chunk payload data. |
+| 15–16 | 2 | `totalChunks` | UShort | **LE** | Total number of chunks in this message. **Present only when `sequenceNumber = 0`.** |
+| 15 or 17 | variable | `payload` | bytes | — | Chunk payload data. Starts at offset 17 for first chunk, offset 15 for subsequent chunks. |
 
 **Validation:**
-- `sequenceNumber` must be strictly less than `totalChunks`.
-- Minimum message size: 17 bytes (empty payload).
+- When `sequenceNumber = 0`: `totalChunks` must be present and `sequenceNumber < totalChunks`.
+- Minimum message size: 17 bytes for first chunk, 15 bytes for subsequent chunks.
+- The receiver must store `totalChunks` from the first chunk and use it for all subsequent chunks of the same transfer.
 
 ---
 
@@ -736,7 +750,7 @@ Quick reference for the byte order of every multi-byte field in the protocol.
 | Handshake Payload | `protocolVersion` | 2 | **BE** |
 | Handshake Payload | `l2capPsm` | 2 | **BE** |
 | Chunk | `sequenceNumber` | 2 | **LE** |
-| Chunk | `totalChunks` | 2 | **LE** |
+| Chunk | `totalChunks` | 2 | **LE** (seq=0 only) |
 | Chunk ACK | `ackSequence` | 2 | **LE** |
 | Chunk ACK | `sackBitmask` | 8 | **LE** |
 | Chunk ACK | `sackBitmaskHigh` | 8 | **LE** |

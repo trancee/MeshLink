@@ -28,10 +28,10 @@ The primary interface for all mesh networking operations. Implemented by
 
 | Signature | Description |
 |-----------|-------------|
-| `fun start(): Result<Unit>` | Starts BLE advertising, scanning, and background processing. Returns failure if already started or BLE is unavailable. |
-| `fun stop()` | Stops all networking activity and releases resources. |
-| `fun pause()` | Pauses active communication while retaining internal state. |
-| `fun resume()` | Resumes communication from a paused state. |
+| `fun start(): Result<Unit>` | Starts BLE advertising, scanning, and background processing. Valid from `UNINITIALIZED`, `STOPPED`, or `RECOVERABLE` states. Returns failure on init error (state → `RECOVERABLE` or `TERMINAL`). Throws `IllegalStateException` from `TERMINAL` state. |
+| `fun stop()` | Stops all networking activity and releases resources. Always safe to call (no-op from `UNINITIALIZED`, `STOPPED`, `TERMINAL`). Idempotent. |
+| `fun pause()` | Pauses scanning/advertising while retaining connections. No-op if not `RUNNING`. |
+| `fun resume()` | Resumes from paused state. No-op if not `PAUSED`. |
 
 ### Messaging
 
@@ -124,7 +124,32 @@ class MeshLink(
 | `coroutineContext` | `CoroutineContext`  | `EmptyCoroutineContext`| Custom dispatcher for mesh coroutines. |
 | `clock`            | `() -> Long`        | `currentTimeMillis()`  | Monotonic clock source; override for deterministic testing. |
 | `crypto`           | `CryptoProvider?`   | `null`                 | Encryption provider. **Required by default** — `start()` fails if null unless `requireEncryption = false`. Use `CryptoProvider()`. |
-| `trustStore`       | `TrustStore?`       | `null`                 | Enables key pinning when non-null. |
+| `trustStore`       | `TrustStore?`       | `null`                 | Enables key pinning when non-null. When `null` and `crypto` is provided, a `TrustStore` is created using `config.trustMode`. |
+
+### Lifecycle States
+
+```kotlin
+enum class LifecycleState {
+    UNINITIALIZED,  // Constructed, not yet started
+    RUNNING,        // start() succeeded, mesh active
+    PAUSED,         // pause() called
+    STOPPED,        // stop() completed, clean shutdown
+    RECOVERABLE,    // start() failed with retryable error — start() allowed again
+    TERMINAL,       // start() failed with non-retryable error — permanently dead
+}
+```
+
+Access via `val state: LifecycleState`.
+
+**Transition rules:**
+
+| Method | Valid from | Transitions to |
+|--------|-----------|----------------|
+| `start()` | `UNINITIALIZED`, `STOPPED`, `RECOVERABLE` | `RUNNING`, `RECOVERABLE`, or `TERMINAL` |
+| `pause()` | `RUNNING` | `PAUSED` (no-op otherwise) |
+| `resume()` | `PAUSED` | `RUNNING` (no-op otherwise) |
+| `stop()` | `RUNNING`, `PAUSED`, `RECOVERABLE` | `STOPPED` (no-op from `UNINITIALIZED`, `STOPPED`, `TERMINAL`) |
+| `start()` | `TERMINAL` | throws `IllegalStateException` |
 
 ---
 
@@ -146,6 +171,7 @@ Immutable configuration data class. All fields have sensible defaults.
 | `bufferCapacity` | `Int` | `1_048_576` | Total in-flight data buffer size in bytes. Must be ≥ `maxMessageSize`. |
 | `mtu` | `Int` | `185` | BLE link MTU. Effective payload per chunk = `mtu - 17` (header size). Must be > 17. |
 | `maxHops` | `UByte` | `10` | Maximum hop count for routed messages. |
+| `broadcastTTL` | `UByte` | `2` | Hop limit for broadcast relay propagation. Must be in range `1..maxHops`. Broadcasts sent via `broadcast()` are clamped to this value. Relays also clamp forwarded broadcasts to their local `broadcastTTL`. |
 | `pendingMessageTtlMillis` | `Long` | `0` | TTL for queued outbound messages. `0` = never expire. |
 | `pendingMessageCapacity` | `Int` | `100` | Maximum pending outbound messages. |
 | `appId` | `String?` | `null` | Optional app identifier. Messages with a non-matching app ID are silently dropped. |
@@ -195,6 +221,8 @@ Immutable configuration data class. All fields have sensible defaults.
 |-------|------|---------|-------------|
 | `l2capEnabled` | `Boolean` | `true` | Enable L2CAP connection-oriented mode. |
 | `l2capRetryAttempts` | `Int` | `3` | L2CAP connection retry count. Must be ≥ 0 when L2CAP is enabled. |
+| `l2capBackpressureWindowMillis` | `Long` | `7_000` | Rolling window for L2CAP backpressure detection (ms). 3 consecutive >100ms writes within this window triggers GATT fallback. Range: 3000–15000. |
+| `evictionGracePeriodMillis` | `Long` | `30_000` | Maximum time to keep connections with active transfers alive during power mode downgrade (ms). Range: 5000–60000. |
 | `keepaliveIntervalMillis` | `Long` | `0` | Idle connection keepalive interval (ms). `0` = disabled. |
 | `tombstoneWindowMillis` | `Long` | `120_000` | Window to ignore reordered duplicate messages (ms). |
 
@@ -203,12 +231,14 @@ Immutable configuration data class. All fields have sensible defaults.
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `powerModeThresholds` | `List<Int>` | `[80, 30]` | Battery thresholds for power mode transitions. Must be strictly descending. `[80, 30]` means: >80% = PERFORMANCE, 30–80% = BALANCED, <30% = POWER_SAVER. |
+| `customPowerMode` | `PowerMode?` | `null` | Override automatic power mode with a fixed mode. When set, battery-based transitions are disabled. |
 
 #### Diagnostics
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `diagnosticBufferCapacity` | `Int` | `256` | Maximum diagnostic events in the ring buffer. |
+| `diagnosticsEnabled` | `Boolean` | `false` | Enable the diagnostic event stream. When `false`, no diagnostic events are generated (zero overhead). |
 | `dedupCapacity` | `Int` | `100_000` | Maximum unique message IDs tracked for deduplication (TTL-based, 300 s expiry). |
 
 #### Protocol
@@ -229,6 +259,8 @@ Immutable configuration data class. All fields have sensible defaults.
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `requireEncryption` | `Boolean` | `true` | When `true`, `start()` fails if no `CryptoProvider` is supplied. Set to `false` to allow plaintext operation. |
+| `trustMode` | `TrustMode` | `STRICT` | Key pinning policy. `STRICT`: reject messages from peers whose key changed, require explicit `repinKey(peer)`. `SOFT_REPIN`: silently accept new key. Both modes emit `KeyChangeEvent`. |
+| `deliveryAckEnabled` | `Boolean` | `true` | Send signed delivery ACKs for received routed messages. When `false`, recipients do not send delivery ACKs (senders rely on SACK-based transfer completion). |
 | `maxConcurrentInboundSessions` | `Int` | `100` | Maximum concurrent inbound reassembly sessions. Limits memory exhaustion from unauthenticated chunk floods. |
 
 ### Validation
@@ -250,6 +282,9 @@ configuration is valid. Enforced constraints:
 - `rateLimitWindowMillis > 0` when `rateLimitMaxSends > 0`
 - `circuitBreakerCooldownMillis > 0` when `circuitBreakerMaxFailures > 0`
 - `ackWindowMax ≥ ackWindowMin`
+- `broadcastTTL` in range `1..maxHops`
+- `evictionGracePeriodMillis` in range `5000..60000`
+- `l2capBackpressureWindowMillis` in range `3000..15000`
 - `powerModeThresholds` strictly descending
 - `l2capRetryAttempts ≥ 0` when `l2capEnabled`
 - `chunkInactivityTimeoutMillis < bufferTtlMillis`
@@ -546,6 +581,8 @@ All diagnostic types are in the `io.meshlink.diagnostics` package.
 class DiagnosticSink(
     bufferCapacity: Int = 256,
     clock: () -> Long = { currentTimeMillis() },
+    epochClock: () -> Long = { currentTimeMillis() },
+    enabled: Boolean = true,
 )
 ```
 
@@ -553,7 +590,8 @@ Manages diagnostic event emission and buffering.
 
 | Member | Description |
 |--------|-------------|
-| `fun emit(code: DiagnosticCode, severity: Severity, payload: String? = null)` | Emits a diagnostic event to both the `SharedFlow` and the legacy buffer. |
+| `val enabled: Boolean` | Whether diagnostic events are emitted. Controlled by `MeshLinkConfig.diagnosticsEnabled`. |
+| `fun emit(code: DiagnosticCode, severity: Severity, payload: String? = null)` | Emits a diagnostic event to both the `SharedFlow` and the legacy buffer. No-op when `enabled = false`. The `payload` string is wrapped as `mapOf("message" to payload)` in the event. |
 | `val events: SharedFlow<DiagnosticEvent>` | Flow of diagnostic events. Uses `DROP_OLDEST` overflow policy. |
 | `fun drainTo(out: MutableList<DiagnosticEvent>)` | **Deprecated.** Drains buffered events into `out` and clears the buffer. Use `events` flow instead. |
 
@@ -564,28 +602,37 @@ data class DiagnosticEvent(
     val code: DiagnosticCode,
     val severity: Severity,
     val monotonicMillis: Long,
+    val wallClockMillis: Long,
     val droppedCount: Int,
-    val payload: String?,
+    val payload: Map<String, Any>,
 )
 ```
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `code` | `DiagnosticCode` | The event code identifying what happened. |
-| `severity` | `Severity` | `INFO`, `WARN`, or `ERROR`. |
+| `severity` | `Severity` | `INFO`, `WARN`, `ERROR`, or `FATAL`. |
 | `monotonicMillis` | `Long` | Monotonic clock timestamp when the event occurred. |
+| `wallClockMillis` | `Long` | Wall-clock (epoch) timestamp when the event occurred. |
 | `droppedCount` | `Int` | Number of events dropped due to buffer overflow since the last event. |
-| `payload` | `String?` | Optional diagnostic data (JSON, metrics, identifiers, etc.). |
+| `payload` | `Map<String, Any>` | Event-specific key-value pairs. Typically contains a `"message"` key with a human-readable description. |
 
 ### Severity
 
 ```kotlin
-enum class Severity { INFO, WARN, ERROR }
+enum class Severity { INFO, WARN, ERROR, FATAL }
 ```
+
+| Value | Description |
+|-------|-------------|
+| `INFO` | Observability, no action needed. |
+| `WARN` | Degraded but functional. |
+| `ERROR` | Operation failed, app should act. |
+| `FATAL` | Library entered terminal state. |
 
 ### DiagnosticCode
 
-All 20 diagnostic codes:
+All 21 diagnostic codes:
 
 | Code | Typical Severity | Description |
 |------|-----------------|-------------|
@@ -609,6 +656,7 @@ All 20 diagnostic codes:
 | `APP_ID_REJECTED` | INFO | A received message's app ID does not match the local filter. Silently dropped. |
 | `UNKNOWN_MESSAGE_TYPE` | WARN | A wire message with an unrecognized type byte was received. |
 | `DELIVERY_TIMEOUT` | WARN | End-to-end delivery ACK was not received within the configured deadline. |
+| `HANDSHAKE_EVENT` | INFO | Noise XX handshake lifecycle event (initiation, message received, completion). |
 
 ### MeshHealthSnapshot
 
@@ -618,8 +666,10 @@ data class MeshHealthSnapshot(
     val reachablePeers: Int,
     val bufferUtilizationPercent: Int,
     val activeTransfers: Int,
-    val powerMode: String,
+    val powerMode: PowerMode,
     val avgRouteCost: Double = 0.0,
+    val relayBufferUtilization: Float = 0f,
+    val ownBufferUtilization: Float = 0f,
     val relayQueueSize: Int = 0,
 )
 ```
@@ -630,8 +680,10 @@ data class MeshHealthSnapshot(
 | `reachablePeers` | `Int` | — | Total peers reachable via routing (including direct). |
 | `bufferUtilizationPercent` | `Int` | — | Percentage of buffer capacity in use (0–100). |
 | `activeTransfers` | `Int` | — | Number of in-flight message transfers. |
-| `powerMode` | `String` | — | Current power mode: `"PERFORMANCE"`, `"BALANCED"`, or `"POWER_SAVER"`. |
+| `powerMode` | `PowerMode` | — | Current power mode: `PERFORMANCE`, `BALANCED`, or `POWER_SAVER`. |
 | `avgRouteCost` | `Double` | `0.0` | Average composite cost across all routes in the routing table. |
+| `relayBufferUtilization` | `Float` | `0f` | Relay (inbound) buffer usage as fraction of total capacity (0.0–1.0). |
+| `ownBufferUtilization` | `Float` | `0f` | Own-outbound buffer usage as fraction of total capacity (0.0–1.0). |
 | `relayQueueSize` | `Int` | `0` | Number of messages in the relay forwarding queue. |
 
 ---
@@ -811,8 +863,11 @@ enum class PowerMode { PERFORMANCE, BALANCED, POWER_SAVER }
 
 `io.meshlink.config.MeshLinkConfigBuilder`
 
-Mutable builder class with all fields from `MeshLinkConfig`. Used by the
-`meshLinkConfig {}` DSL and preset `overrides` blocks.
+Mutable builder class with all fields from `MeshLinkConfig`, including
+`broadcastTTL`, `trustMode`, `deliveryAckEnabled`, `diagnosticsEnabled`,
+`customPowerMode`, `evictionGracePeriodMillis`, and
+`l2capBackpressureWindowMillis`. Used by the `meshLinkConfig {}` DSL and
+preset `overrides` blocks.
 
 ```kotlin
 class MeshLinkConfigBuilder(/* all fields with same defaults as MeshLinkConfig */) {

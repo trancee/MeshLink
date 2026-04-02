@@ -159,7 +159,7 @@ flowchart TD
 | `RouteCostCalculator.kt` | Composite cost metric from RSSI, packet loss, freshness, and stability. |
 | `DedupSet.kt` | LRU set for message deduplication (default 10K entries). |
 | `PresenceTracker.kt` | Tracks peer liveness for route validity. |
-| `DeliveryAckRouter.kt` | Routes delivery ACKs back along the reverse path of routed messages. |
+| `DeliveryPipeline.kt` | Consolidated delivery pipeline owning delivery state tracking, tombstones, deadline timers, reverse-path ACK relay, replay guards, inbound rate limiting, and store-and-forward buffering. |
 
 #### `io.meshlink.transfer` — Message Transfer
 
@@ -385,8 +385,8 @@ flowchart TD
   | 45 | 1 byte | Visited count (V) |
   | 46 | V × 8 bytes | Visited List (8-byte SHA-256-64 key hashes, max `maxHops` entries) |
   | 46 + V×8 | 2 bytes | Chunk sequence number (uint16, little-endian) |
-  | 48 + V×8 | 4 bytes | Total ciphertext length (uint32, LE; **first chunk only**, seq=0. Omitted for seq>0, reducing per-chunk overhead by 4 bytes.) |
-  | 52 + V×8 | C bytes | Chunk payload (E2E ciphertext fragment; for seq>0, payload starts at offset 48 + V×8) |
+  | 48 + V×8 | 2 bytes | Total chunks (uint16, LE; **first chunk only**, seq=0. Omitted for seq>0, reducing per-chunk overhead by 2 bytes.) |
+  | 50 + V×8 | C bytes | Chunk payload (E2E ciphertext fragment; for seq>0, payload starts at offset 48 + V×8) |
 
 ```mermaid
 ---
@@ -399,8 +399,8 @@ packet-beta
   360-367: "Visited Count V (1 byte)"
   368-495: "Visited List (V × 8 bytes, max 4 entries)"
   528-543: "Chunk Seq# (uint16 LE)"
-  544-575: "Total Ciphertext Len (uint32 LE, seq=0 only)"
-  576-639: "Chunk Payload (C bytes)"
+  544-559: "Total Chunks (uint16 LE, seq=0 only)"
+  560-623: "Chunk Payload (C bytes)"
 ```
 
 **Parser safety:** The visited count (V) MUST be validated: `V ≤ maxHops` (default 10). Messages with `V > maxHops` are rejected immediately. Additionally, the total message size must not exceed the transport frame size (MTU for GATT, negotiated frame size for L2CAP). Malformed messages are dropped and logged via diagnostic events.
@@ -415,12 +415,25 @@ packet-beta
 
   **`chunk` wire format:**
 
+  The first chunk (`sequenceNumber = 0`) carries a `totalChunks` field;
+  subsequent chunks omit it, saving 2 bytes per chunk.
+
+  **First chunk (seq = 0):**
+
   | Offset | Size | Field |
   |--------|------|-------|
   | 0 | 12 bytes | Message ID (structured: 8-byte peer ID hash + 4-byte LE counter) |
   | 12 | 2 bytes | Chunk sequence number (uint16, little-endian) |
-  | 14 | 4 bytes | Total ciphertext length (uint32, little-endian; present only when seq=0) |
-  | 14 or 18 | C bytes | Chunk payload (raw E2E ciphertext bytes) |
+  | 14 | 2 bytes | Total chunks (uint16, little-endian; **present only when seq=0**) |
+  | 16 | C bytes | Chunk payload (raw E2E ciphertext bytes) |
+
+  **Subsequent chunks (seq > 0):**
+
+  | Offset | Size | Field |
+  |--------|------|-------|
+  | 0 | 12 bytes | Message ID (structured: 8-byte peer ID hash + 4-byte LE counter) |
+  | 12 | 2 bytes | Chunk sequence number (uint16, little-endian) |
+  | 14 | C bytes | Chunk payload (raw E2E ciphertext bytes) |
 
 ```mermaid
 ---
@@ -429,8 +442,8 @@ title: "chunk Wire Format (Direct Transfer)"
 packet-beta
   0-95: "Message ID (structured, 12 bytes)"
   96-111: "Chunk Seq# (uint16 LE)"
-  112-143: "Total Len (uint32 LE, seq=0 only)"
-  144-175: "Chunk Payload (C bytes)"
+  112-127: "Total Chunks (uint16 LE, seq=0 only)"
+  128-159: "Chunk Payload (C bytes)"
 ```
 
   **Protocol cap:** uint16 sequence numbers support up to ~16MB per transfer (65,535 chunks × minimum 244-byte MTU). Any increase requires a protocol version bump.
@@ -692,7 +705,7 @@ The library handles fragmentation transparently. Consuming apps send a message; 
 
 **Design details:**
 - Each chunk carries a **sequence number** and **message ID**
-- The **first chunk** (sequence number 0) additionally carries the **total ciphertext byte length** (4 bytes, little-endian, max ~4GB). This allows the receiver to: (a) pre-allocate a reassembly buffer, (b) detect transfer completion vs. connection drop, and (c) report accurate progress to the consuming app.
+- The **first chunk** (sequence number 0) additionally carries the **total chunk count** (2 bytes, little-endian, uint16). This allows the receiver to: (a) pre-allocate a reassembly buffer, (b) detect transfer completion vs. connection drop, and (c) report accurate progress to the consuming app. Subsequent chunks omit this field, saving 2 bytes per chunk.
 - Receiver sends **selective ACKs (SACK)** — SACK uses a 64-bit bitmask (see chunk_ack wire format above).
 - **Progress callbacks** exposed to the consuming app (`onTransferProgress`)
 - **Resumable transfers:** On connection drop, the receiver reports the **total bytes received** (byte offset) rather than a chunk sequence number. The sender resumes from that byte offset, chunked at whatever size the new connection negotiates. This enables seamless resume across transport mode changes — a transfer started on GATT (244-byte chunks) can resume on L2CAP (4096-byte chunks) or vice versa, since chunks are simply byte ranges of the E2E ciphertext. After N failed resume attempts, restart the full transfer. Resume vs. restart behavior is **configurable** by the library consumer.
@@ -913,7 +926,7 @@ flowchart TD
     Decode --> |"0x06 CHUNK_ACK"| AckUpdate["Update TransferSession"]
     Decode --> |"0x09 BROADCAST"| Broadcast["Dedup → emit on messages"]
     Decode --> |"0x0A ROUTED"| RoutedMsg["Forward or deliver"]
-    Decode --> |"0x0B DELIVERY_ACK"| DelAck["DeliveryAckRouter"]
+    Decode --> |"0x0B DELIVERY_ACK"| DelAck["DeliveryPipeline"]
     Decode --> |"0x01 KEEPALIVE"| Keepalive["Update presence"]
     Decode --> |"0x07 NACK"| Nack["Handle negative ack"]
     Decode --> |"0x02 ROTATION"| Rotation["TrustStore → KeyChangeEvent"]
@@ -2502,13 +2515,15 @@ These are not configurable but are exposed for observability:
 
 ```kotlin
 data class MeshHealthSnapshot(
-    val connectedPeers: Int,        // Active GATT connections
-    val reachablePeers: Int,        // Peers in routing table (may not be directly connected)
-    val avgRouteCost: Float,        // Average route cost across all routing table entries
-    val relayBufferUtilization: Float, // 0.0–1.0, current relay buffer usage
-    val ownBufferUtilization: Float,   // 0.0–1.0, current own-outbound buffer usage
-    val activeTransfers: Int,       // In-flight chunk transfers (own + relay)
-    val powerMode: PowerMode        // Current power mode
+    val connectedPeers: Int,             // Active GATT connections
+    val reachablePeers: Int,             // Peers in routing table (may not be directly connected)
+    val bufferUtilizationPercent: Int,   // Combined buffer usage percentage (0–100)
+    val activeTransfers: Int,            // In-flight chunk transfers (own + relay)
+    val powerMode: PowerMode,            // Current power mode
+    val avgRouteCost: Double = 0.0,      // Average route cost across all routing table entries
+    val relayBufferUtilization: Float = 0f,  // 0.0–1.0, current relay buffer usage
+    val ownBufferUtilization: Float = 0f,    // 0.0–1.0, current own-outbound buffer usage
+    val relayQueueSize: Int = 0,         // Number of messages in the relay forwarding queue
 )
 ```
 
