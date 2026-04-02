@@ -19,8 +19,14 @@ internal object HmacSha256 {
         val opad = ByteArray(BLOCK_SIZE) { (paddedKey[it].toInt() xor 0x5c).toByte() }
 
         // inner = SHA-256(ipad || data)
-        val inner = Sha256.hash(ipad + data)
+        val innerInput = ByteArray(BLOCK_SIZE + data.size)
+        ipad.copyInto(innerInput)
+        data.copyInto(innerInput, BLOCK_SIZE)
+        val inner = Sha256.hash(innerInput)
         // HMAC = SHA-256(opad || inner)
-        return Sha256.hash(opad + inner)
+        val outerInput = ByteArray(BLOCK_SIZE + inner.size)
+        opad.copyInto(outerInput)
+        inner.copyInto(outerInput, BLOCK_SIZE)
+        return Sha256.hash(outerInput)
     }
 }

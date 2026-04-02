@@ -100,9 +100,14 @@ class TransferEngine(
 
         if (state.sackTracker.isComplete()) {
             inbound.remove(messageId)
-            val fullPayload = (0 until state.totalChunks)
-                .map { state.chunks[it]!! }
-                .reduce { acc, bytes -> acc + bytes }
+            val totalSize = (0 until state.totalChunks).sumOf { state.chunks[it]!!.size }
+            val fullPayload = ByteArray(totalSize)
+            var offset = 0
+            for (i in 0 until state.totalChunks) {
+                val chunk = state.chunks[i]!!
+                chunk.copyInto(fullPayload, offset)
+                offset += chunk.size
+            }
             return ChunkAcceptResult.MessageComplete(
                 ackSeq = status.ackSeq,
                 sackBitmask = status.sackBitmask,

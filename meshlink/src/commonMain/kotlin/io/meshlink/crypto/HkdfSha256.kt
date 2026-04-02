@@ -24,7 +24,11 @@ internal object HkdfSha256 {
         var offset = 0
 
         for (i in 1..n) {
-            prev = HmacSha256.mac(prk, prev + info + byteArrayOf(i.toByte()))
+            val combined = ByteArray(prev.size + info.size + 1)
+            prev.copyInto(combined)
+            info.copyInto(combined, prev.size)
+            combined[combined.size - 1] = i.toByte()
+            prev = HmacSha256.mac(prk, combined)
             val toCopy = minOf(HASH_LEN, outputLength - offset)
             prev.copyInto(okm, offset, 0, toCopy)
             offset += toCopy

@@ -831,17 +831,11 @@ class MeshLink(
     internal fun wrapPayloadEnvelope(payload: ByteArray): ByteArray {
         if (compressor == null) return payload
         if (payload.size < config.compressionMinBytes) {
-            val envelope = ByteArray(1 + payload.size)
-            envelope[0] = ENVELOPE_UNCOMPRESSED
-            payload.copyInto(envelope, 1)
-            return envelope
+            return uncompressedEnvelope(payload)
         }
         val compressed = compressor.compress(payload)
         if (compressed.size >= payload.size) {
-            val envelope = ByteArray(1 + payload.size)
-            envelope[0] = ENVELOPE_UNCOMPRESSED
-            payload.copyInto(envelope, 1)
-            return envelope
+            return uncompressedEnvelope(payload)
         }
         val envelope = ByteArray(5 + compressed.size)
         envelope[0] = ENVELOPE_COMPRESSED
@@ -850,6 +844,13 @@ class MeshLink(
         envelope[3] = ((payload.size shr 16) and 0xFF).toByte()
         envelope[4] = ((payload.size shr 24) and 0xFF).toByte()
         compressed.copyInto(envelope, 5)
+        return envelope
+    }
+
+    private fun uncompressedEnvelope(payload: ByteArray): ByteArray {
+        val envelope = ByteArray(1 + payload.size)
+        envelope[0] = ENVELOPE_UNCOMPRESSED
+        payload.copyInto(envelope, 1)
         return envelope
     }
 

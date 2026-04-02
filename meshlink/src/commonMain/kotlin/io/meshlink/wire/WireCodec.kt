@@ -3,6 +3,8 @@ package io.meshlink.wire
 private const val MESSAGE_ID_SIZE = 12
 private const val PEER_ID_SIZE = 8
 private const val APP_ID_HASH_SIZE = 8
+private val EMPTY_BYTES = ByteArray(0)
+private val EMPTY_APP_ID_HASH = ByteArray(APP_ID_HASH_SIZE)
 
 object WireCodec {
 
@@ -211,10 +213,10 @@ object WireCodec {
         messageId: ByteArray,
         origin: ByteArray,
         remainingHops: UByte,
-        appIdHash: ByteArray = ByteArray(APP_ID_HASH_SIZE),
+        appIdHash: ByteArray = EMPTY_APP_ID_HASH,
         payload: ByteArray,
-        signature: ByteArray = ByteArray(0),
-        signerPublicKey: ByteArray = ByteArray(0),
+        signature: ByteArray = EMPTY_BYTES,
+        signerPublicKey: ByteArray = EMPTY_BYTES,
     ): ByteArray {
         val sigBlock = if (signature.isNotEmpty()) ED25519_SIG_SIZE + ED25519_PUB_KEY_SIZE else 0
         val buf = ByteArray(BROADCAST_HEADER_SIZE + sigBlock + payload.size)
@@ -261,8 +263,8 @@ object WireCodec {
             signerPublicKey = data.copyOfRange(offset, offset + ED25519_PUB_KEY_SIZE)
             offset += ED25519_PUB_KEY_SIZE
         } else {
-            signature = ByteArray(0)
-            signerPublicKey = ByteArray(0)
+            signature = EMPTY_BYTES
+            signerPublicKey = EMPTY_BYTES
         }
         val payload = data.copyOfRange(offset, data.size)
         return BroadcastMessage(messageId, origin, remainingHops, appIdHash, payload, signature, signerPublicKey)
@@ -274,8 +276,8 @@ object WireCodec {
     fun encodeDeliveryAck(
         messageId: ByteArray,
         recipientId: ByteArray,
-        signature: ByteArray = ByteArray(0),
-        signerPublicKey: ByteArray = ByteArray(0),
+        signature: ByteArray = EMPTY_BYTES,
+        signerPublicKey: ByteArray = EMPTY_BYTES,
         extensions: List<TlvEntry> = emptyList(),
     ): ByteArray {
         val sigBlock = if (signature.isNotEmpty()) ED25519_SIG_SIZE + ED25519_PUB_KEY_SIZE else 0
@@ -318,8 +320,8 @@ object WireCodec {
             signerPublicKey = data.copyOfRange(offset, offset + ED25519_PUB_KEY_SIZE)
             offset += ED25519_PUB_KEY_SIZE
         } else {
-            signature = ByteArray(0)
-            signerPublicKey = ByteArray(0)
+            signature = EMPTY_BYTES
+            signerPublicKey = EMPTY_BYTES
         }
         val extensions = if (data.size > offset) {
             TlvCodec.decode(data, offset).first
@@ -590,15 +592,15 @@ data class BroadcastMessage(
     val remainingHops: UByte,
     val appIdHash: ByteArray,
     val payload: ByteArray,
-    val signature: ByteArray = ByteArray(0),
-    val signerPublicKey: ByteArray = ByteArray(0),
+    val signature: ByteArray = EMPTY_BYTES,
+    val signerPublicKey: ByteArray = EMPTY_BYTES,
 )
 
 data class DeliveryAckMessage(
     val messageId: ByteArray,
     val recipientId: ByteArray,
-    val signature: ByteArray = ByteArray(0),
-    val signerPublicKey: ByteArray = ByteArray(0),
+    val signature: ByteArray = EMPTY_BYTES,
+    val signerPublicKey: ByteArray = EMPTY_BYTES,
     val extensions: List<TlvEntry> = emptyList(),
 )
 
