@@ -425,9 +425,6 @@ class MeshLink(
 
         transport.advertisementServiceData = encodeAdvertisementPayload()
         newScope.launch {
-            transport.startAdvertisingAndScanning()
-        }
-        newScope.launch {
             transport.advertisementEvents.collect { event ->
                 when (
                     val action = peerConnectionCoordinator.onAdvertisementReceived(
@@ -470,6 +467,9 @@ class MeshLink(
             transport.incomingData.collect { incoming ->
                 handleIncomingData(incoming.peerId, incoming.data)
             }
+        }
+        newScope.launch {
+            transport.startAdvertisingAndScanning()
         }
 
         // Keepalive loop: send keepalives to detect neighbour liveness

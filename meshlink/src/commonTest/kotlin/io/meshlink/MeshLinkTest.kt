@@ -3696,6 +3696,8 @@ class MeshLinkTest {
         assertTrue(healthBefore.connectedPeers >= 1)
 
         // Stop then restart — all state should reset
+        b.stop()
+        advanceUntilIdle()
         a.stop()
         a.start()
         advanceUntilIdle()
@@ -7039,6 +7041,8 @@ class MeshLinkTest {
         assertTrue(healthBefore.connectedPeers > 0, "Should have peers before clear")
 
         // Stop and restart to trigger clearState (called at start of start())
+        bob.stop()
+        advanceUntilIdle()
         alice.stop()
         advanceUntilIdle()
         alice.start()
@@ -7094,6 +7098,8 @@ class MeshLinkTest {
             "Should receive confirmation before restart")
 
         // Stop and restart Alice (triggers clearState internally)
+        bob.stop()
+        advanceUntilIdle()
         alice.stop()
         advanceUntilIdle()
         alice.start()

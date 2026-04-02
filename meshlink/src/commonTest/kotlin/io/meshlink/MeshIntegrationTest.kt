@@ -550,18 +550,16 @@ class MeshIntegrationTest {
         val config = testMeshLinkConfig { requireEncryption = false }
         val alice = MeshLink(tAlice, config, coroutineContext, crypto = CryptoProvider())
         val bob = MeshLink(tBob, config, coroutineContext, crypto = CryptoProvider())
-        alice.start(); bob.start()
-        advanceUntilIdle()
 
         val diagnostics = mutableListOf<DiagnosticEvent>()
         val diagJob = launch {
             alice.diagnosticEvents.collect { diagnostics.add(it) }
         }
+
+        alice.start(); bob.start()
         advanceUntilIdle()
 
-        // Discover with empty advertisement to trigger handshake
-        tAlice.simulateDiscovery(peerIdBob)
-        tBob.simulateDiscovery(peerIdAlice)
+        // Auto-discovery triggers handshake; give messages time to complete
         advanceUntilIdle()
 
         diagJob.cancel()
