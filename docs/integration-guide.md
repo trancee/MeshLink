@@ -98,7 +98,7 @@ payload profile.
 
 ```kotlin
 val violations = meshLinkConfig { mtu = 10 }.validate()
-violations.forEach { println("⚠️ $it") }  // "mtu must be > 21 (chunk header size)"
+violations.forEach { println("⚠️ $it") }  // "mtu must be > 17 (chunk header size)"
 ```
 
 ---
@@ -228,7 +228,7 @@ mode flapping. Upward transitions and charging are immediate.
 | BALANCED    | 4,096 bytes       |
 | POWER_SAVER | 1,024 bytes       |
 
-The effective chunk size is `min(modeMax, mtu - 21)`.
+The effective chunk size is `min(modeMax, mtu - 17)`.
 
 ---
 

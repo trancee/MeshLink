@@ -2,7 +2,7 @@ package io.meshlink.wire
 
 private const val MESSAGE_ID_SIZE = 12
 private const val PEER_ID_SIZE = 8
-private const val APP_ID_HASH_SIZE = 16
+private const val APP_ID_HASH_SIZE = 8
 
 object WireCodec {
 
@@ -201,8 +201,8 @@ object WireCodec {
         return RoutedMessage(messageId, origin, destination, hopLimit, replayCounter, visitedList, payload)
     }
 
-    // broadcast: type(1) + messageId(16) + origin(8) + remainingHops(1) + appIdHash(16) + flags(1) + [signature(64) + signerPubKey(32)] + payload
-    private const val BROADCAST_HEADER_SIZE = 1 + MESSAGE_ID_SIZE + PEER_ID_SIZE + 1 + APP_ID_HASH_SIZE + 1 // 43
+    // broadcast: type(1) + messageId(12) + origin(8) + remainingHops(1) + appIdHash(8) + flags(1) + [signature(64) + signerPubKey(32)] + payload
+    private const val BROADCAST_HEADER_SIZE = 1 + MESSAGE_ID_SIZE + PEER_ID_SIZE + 1 + APP_ID_HASH_SIZE + 1 // 31
     private const val ED25519_SIG_SIZE = 64
     private const val ED25519_PUB_KEY_SIZE = 32
     private const val FLAG_HAS_SIGNATURE = 0x01

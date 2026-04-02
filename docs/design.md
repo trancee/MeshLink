@@ -365,39 +365,39 @@ flowchart TD
 
 **Message type relationships:**
 - **`routed_message` (0x0A)** is the **routing envelope** — it carries routing metadata and wraps each chunk of E2E-encrypted payload. Every chunk in a multi-hop transfer is wrapped in a `routed_message` envelope.
-- **`resume_request` (0x08)** is sent on the **Control Characteristic** after an L2CAP→GATT transport fallback. It carries `{messageId (16 bytes), bytesReceived (4 bytes)}` and triggers the sender to resume the in-progress transfer on the GATT Data Characteristic from the specified byte offset. This enables transparent mid-transfer transport switching without data loss.
+- **`resume_request` (0x08)** is sent on the **Control Characteristic** after an L2CAP→GATT transport fallback. It carries `{messageId (12 bytes), bytesReceived (4 bytes)}` and triggers the sender to resume the in-progress transfer on the GATT Data Characteristic from the specified byte offset. This enables transparent mid-transfer transport switching without data loss.
   - **`bytesReceived` sampling rule:** On L2CAP→GATT fallback, `bytesReceived` is the total bytes of **fully-reassembled chunks only**. Partial L2CAP frames (incomplete ciphertext that can't be decrypted) are discarded. Worst case: a few KB of the last partial chunk are retransmitted — negligible overhead vs. corruption risk.
 
   **`resume_request` wire format (on Control Characteristic, write-with-response):**
 
   | Offset | Size | Field |
   |--------|------|-------|
-  | 0 | 16 bytes | Message ID (UUID v4) of the in-progress transfer |
-  | 16 | 4 bytes | Bytes received (uint32, little-endian) — resume offset |
+  | 0 | 12 bytes | Message ID (structured: 8-byte peer ID hash + 4-byte LE counter) of the in-progress transfer |
+  | 12 | 4 bytes | Bytes received (uint32, little-endian) — resume offset |
 
   **`routed_message` wire format:**
 
   | Offset | Size | Field |
   |--------|------|-------|
-  | 0 | 16 bytes | Message ID (UUID) |
-  | 16 | 32 bytes | Destination public key (Ed25519) |
-  | 48 | 1 byte | Hop count (current) |
-  | 49 | 1 byte | Visited count (V) |
-  | 50 | V × 8 bytes | Visited List (8-byte SHA-256-64 key hashes, max `maxHops` entries) |
-  | 50 + V×8 | 2 bytes | Chunk sequence number (uint16, little-endian) |
-  | 52 + V×8 | 4 bytes | Total ciphertext length (uint32, LE; **first chunk only**, seq=0. Omitted for seq>0, reducing per-chunk overhead by 4 bytes.) |
-  | 56 + V×8 | C bytes | Chunk payload (E2E ciphertext fragment; for seq>0, payload starts at offset 52 + V×8) |
+  | 0 | 12 bytes | Message ID (structured) |
+  | 12 | 32 bytes | Destination public key (Ed25519) |
+  | 44 | 1 byte | Hop count (current) |
+  | 45 | 1 byte | Visited count (V) |
+  | 46 | V × 8 bytes | Visited List (8-byte SHA-256-64 key hashes, max `maxHops` entries) |
+  | 46 + V×8 | 2 bytes | Chunk sequence number (uint16, little-endian) |
+  | 48 + V×8 | 4 bytes | Total ciphertext length (uint32, LE; **first chunk only**, seq=0. Omitted for seq>0, reducing per-chunk overhead by 4 bytes.) |
+  | 52 + V×8 | C bytes | Chunk payload (E2E ciphertext fragment; for seq>0, payload starts at offset 48 + V×8) |
 
 ```mermaid
 ---
 title: "routed_message Wire Format"
 ---
 packet-beta
-  0-127: "Message ID (UUID, 16 bytes)"
-  128-383: "Destination Public Key (Ed25519, 32 bytes)"
-  384-391: "Hop Count (1 byte)"
-  392-399: "Visited Count V (1 byte)"
-  400-527: "Visited List (V × 16 bytes, max 4 entries)"
+  0-95: "Message ID (structured, 12 bytes)"
+  96-351: "Destination Public Key (Ed25519, 32 bytes)"
+  352-359: "Hop Count (1 byte)"
+  360-367: "Visited Count V (1 byte)"
+  368-495: "Visited List (V × 16 bytes, max 4 entries)"
   528-543: "Chunk Seq# (uint16 LE)"
   544-575: "Total Ciphertext Len (uint32 LE, seq=0 only)"
   576-639: "Chunk Payload (C bytes)"
@@ -417,20 +417,20 @@ packet-beta
 
   | Offset | Size | Field |
   |--------|------|-------|
-  | 0 | 16 bytes | Message ID (UUID v4) |
-  | 16 | 2 bytes | Chunk sequence number (uint16, little-endian) |
-  | 18 | 4 bytes | Total ciphertext length (uint32, little-endian; present only when seq=0) |
-  | 18 or 22 | C bytes | Chunk payload (raw E2E ciphertext bytes) |
+  | 0 | 12 bytes | Message ID (structured: 8-byte peer ID hash + 4-byte LE counter) |
+  | 12 | 2 bytes | Chunk sequence number (uint16, little-endian) |
+  | 14 | 4 bytes | Total ciphertext length (uint32, little-endian; present only when seq=0) |
+  | 14 or 18 | C bytes | Chunk payload (raw E2E ciphertext bytes) |
 
 ```mermaid
 ---
 title: "chunk Wire Format (Direct Transfer)"
 ---
 packet-beta
-  0-127: "Message ID (UUID, 16 bytes)"
-  128-143: "Chunk Seq# (uint16 LE)"
-  144-175: "Total Len (uint32 LE, seq=0 only)"
-  176-207: "Chunk Payload (C bytes)"
+  0-95: "Message ID (structured, 12 bytes)"
+  96-111: "Chunk Seq# (uint16 LE)"
+  112-143: "Total Len (uint32 LE, seq=0 only)"
+  144-175: "Chunk Payload (C bytes)"
 ```
 
   **Protocol cap:** uint16 sequence numbers support up to ~16MB per transfer (65,535 chunks × minimum 244-byte MTU). Any increase requires a protocol version bump.
@@ -441,8 +441,8 @@ packet-beta
 
   | Offset | Size | Field |
   |--------|------|-------|
-  | 0 | 16 bytes | Message ID (UUID v4) |
-  | 16 | 2 bytes | Base sequence number (uint16, lowest unreceived chunk) |
+  | 0 | 12 bytes | Message ID (structured: 8-byte peer ID hash + 4-byte LE counter) |
+  | 12 | 2 bytes | Base sequence number (uint16, lowest unreceived chunk) |
   | 18 | 8 bytes | SACK bitmask (uint64, little-endian; bit N = base_seq+N received) |
   | 26 | 1 byte | Reason code: `0x00`=normal ACK, `0x01`=bufferFull (concurrent transfer cap or buffer memory), `0x02`=rateLimited. When reason ≠ `0x00`, bitmask is `0` (NACK). |
 
@@ -451,10 +451,10 @@ packet-beta
 title: "chunk_ack (SACK) Wire Format"
 ---
 packet-beta
-  0-127: "Message ID (UUID, 16 bytes)"
-  128-143: "Base Seq# (uint16 LE)"
-  144-207: "SACK Bitmask (uint64 LE, bit N = base+N received)"
-  208-215: "Reason (1 byte: 0x00=ACK, 0x01=bufferFull, 0x02=rateLimited)"
+  0-95: "Message ID (structured, 12 bytes)"
+  96-111: "Base Seq# (uint16 LE)"
+  112-175: "SACK Bitmask (uint64 LE, bit N = base+N received)"
+  176-183: "Reason (1 byte: 0x00=ACK, 0x01=bufferFull, 0x02=rateLimited)"
 ```
 
 - **Single-chunk fast path:** If the E2E ciphertext fits within a single chunk (payload ≤ MTU minus envelope overhead for GATT, or ≤ L2CAP chunk size minus framing), it is sent as a single `routed_message` or `chunk` — no multi-chunk transfer setup required.
@@ -607,12 +607,12 @@ All message types use a **hand-specified binary format** — no protobuf, no sch
 - `TotalLen ≤ maxMessageSize` (default 100KB) — reject oversized messages
 - `ChunkSeq ≤ ceil(TotalLen / chunkPayloadSize)` — reject out-of-range sequence numbers
 - All public key fields must be non-zero (32 bytes of 0x00 is not a valid Ed25519 key)
-- Message ID must be non-zero (16 bytes of 0x00 is not a valid UUID)
+- Message ID must be non-zero (12 bytes of 0x00 is not a valid message ID)
 - Any validation failure → drop message + emit `MALFORMED_MESSAGE` diagnostic with failure reason
 
 ### Message ID Format
 
-Message IDs are **128-bit UUID v4** (16 bytes), generated randomly by the sender. UUID v4 provides sufficient collision resistance for the dedup set capacity.
+Message IDs are **96-bit structured** identifiers (12 bytes): 8-byte sender peer ID hash (first 8 bytes of SHA-256 of the sender's X25519 public key) + 4-byte little-endian monotonic counter (initialized from `currentTimeMillis()`). Structured IDs have zero collision risk — they are deterministic, not random — because each sender's peer ID hash is unique and the counter increments monotonically.
 
 ### Protocol Versioning & Advertisement Layout
 
@@ -883,7 +883,7 @@ flowchart TD
         P6 -->|Yes| OK["SendDecision.Direct / .Routed"]
     end
 
-    OK --> GenID["Generate message UUID"]
+    OK --> GenID["Generate structured message ID"]
     GenID --> Seal
 
     subgraph Seal["Noise K Seal (if crypto)"]
@@ -1235,7 +1235,7 @@ The visited list uses **8-byte SHA-256-64 key hashes** (SHA-256 truncated to 64 
 With multi-hop routing and store-and-forward, the same message can arrive at a peer via multiple paths. Every peer maintains a **recently-seen message ID set**, bounded by **both time and count** (whichever limit is hit first):
 
 - **Time bound:** entries older than `maxHops × bufferTTL` are evicted (default: 10 × 5 min = 50 min). Each relay starts its own independent TTL from the moment it receives a message (no shared clock required), so a message can theoretically survive `maxHops × bufferTTL` total. The dedup time bound must cover this maximum lifespan. The 50-minute dedup window (`maxHops × bufferTTL` = 10 × 5 min) covers the theoretical maximum lifespan of a message traversing the full relay chain — one `bufferTTL` per hop, sequentially. This ensures that even messages spending the maximum buffer time at each relay are caught by dedup on redelivery, preventing duplicates after app restart or during partition heal.
-- **Count bound:** default maximum 10,000 entries (configurable via `dedupMaxEntries`). Rationale: at 30 msg/s sustained, 10,000 entries provide ~333 seconds (5.5 min) of coverage — slightly above the 5-minute bufferTTL. Memory: 24 bytes × 10,000 = 240KB (acceptable). Beyond 30 msg/s, earliest entries evict before TTL; duplicate delivery handled by app-layer message ID dedup.
+- **Count bound:** default maximum 10,000 entries (configurable via `dedupMaxEntries`). Rationale: at 30 msg/s sustained, 10,000 entries provide ~333 seconds (5.5 min) of coverage — slightly above the 5-minute bufferTTL. Memory: 20 bytes × 10,000 = 200KB (acceptable). Beyond 30 msg/s, earliest entries evict before TTL; duplicate delivery handled by app-layer message ID dedup.
 - On receiving any message (routed, broadcast, or buffered), check if `messageId` is in the seen set
 - If seen → drop silently (do not forward, do not deliver to app)
 - If new → add to seen set, process normally
@@ -1281,7 +1281,7 @@ When the recipient is temporarily unreachable, mesh nodes buffer encrypted messa
 
 Each tier is triggered only if the previous tier was insufficient. A `memoryPressure` diagnostic event is emitted at each tier.
 
-**Engine state is NOT shed under memory pressure.** Routing cache and peer table are naturally bounded by `routeCacheTtlMillis` and BLE range. Shedding engine state provides negligible relief compared to the buffer (256KB–8MB configurable, typically 512KB–4MB at runtime) and dedup set (240KB) targeted by the 3 tiers. Route cache TTL expiry and sweep timers already evict stale entries. Post-v1: if Wi-Fi transport expands reachability to 1000+ peers, LRU eviction may be added.
+**Engine state is NOT shed under memory pressure.** Routing cache and peer table are naturally bounded by `routeCacheTtlMillis` and BLE range. Shedding engine state provides negligible relief compared to the buffer (256KB–8MB configurable, typically 512KB–4MB at runtime) and dedup set (200KB) targeted by the 3 tiers. Route cache TTL expiry and sweep timers already evict stale entries. Post-v1: if Wi-Fi transport expands reachability to 1000+ peers, LRU eviction may be added.
 
 - **Buffer eviction policy** (when buffer is full, applied in tier order):
 
@@ -1383,8 +1383,8 @@ The recipient decrypts by: loading the sender's static Curve25519 key from the p
 |--------|------|-------|
 | 0 | 8 bytes | Replay counter (uint64, little-endian) |
 | 8 | 1 byte | Flags (bit 0: appId present, bits 1–7: reserved (must be 0; receivers MUST silently ignore non-zero reserved bits for forward compatibility)) |
-| 9 | 0 or 16 bytes | App ID hash (`SHA-256-128(appId.toUTF8())`; present only when flags bit 0 = 1) |
-| 9 or 25 | N bytes | Message data (plaintext) |
+| 9 | 0 or 8 bytes | App ID hash (`SHA-256-64(appId.toUTF8())`; present only when flags bit 0 = 1) |
+| 9 or 17 | N bytes | Message data (plaintext) |
 
 The sender's identity is authenticated by the Noise K handshake itself — no explicit public key or signature in the payload. This saves 96 bytes per message compared to the Noise N + signature approach.
 
@@ -1691,12 +1691,12 @@ Potential post-v1 mitigations:
 
 | Offset | Size | Field |
 |--------|------|-------|
-| 0 | 16 bytes | Message ID (UUID) |
-| 16 | 32 bytes | Sender Ed25519 public key |
-| 48 | 1 byte | Remaining hop count (set to `broadcastTTL` by sender, decremented by each relay; drop when 0) |
-| 49 | 4 bytes | Payload length (uint32, little-endian) |
-| 53 | N bytes | Payload (unencrypted, plaintext) |
-| 53+N | 64 bytes | Ed25519 signature over bytes [0, 53+N) |
+| 0 | 12 bytes | Message ID (structured: 8-byte peer ID hash + 4-byte LE counter) |
+| 12 | 32 bytes | Sender Ed25519 public key |
+| 44 | 1 byte | Remaining hop count (set to `broadcastTTL` by sender, decremented by each relay; drop when 0) |
+| 45 | 4 bytes | Payload length (uint32, little-endian) |
+| 49 | N bytes | Payload (unencrypted, plaintext) |
+| 49+N | 64 bytes | Ed25519 signature over bytes [0, 49+N) |
 
 Signature covers bytes [0, 53+N). Receivers verify using sender pubkey from envelope. The remaining hop count is **included in the signed region** — relays cannot forge a higher TTL without invalidating the signature. However, the sender sets the initial value, so a malicious sender could set TTL=maxHops. The `broadcastTTL` config parameter on the *receiver* side caps accepted values: broadcasts with remaining hops > local `broadcastTTL` are clamped (not rejected) to prevent legitimate high-TTL broadcasts from being dropped.
 
@@ -1733,7 +1733,7 @@ Signature covers bytes [0, 53+N). Receivers verify using sender pubkey from enve
 
 | Field | Size | Description |
 |-------|------|-------------|
-| Message ID | 16 bytes | UUID v4 of the acknowledged message |
+| Message ID | 12 bytes | Structured ID of the acknowledged message |
 | Sender public key | 32 bytes | Original sender's Ed25519 public key |
 | Recipient public key | 32 bytes | Recipient's Ed25519 public key |
 | Recipient signature | 64 bytes | Ed25519 signature over (message ID ‖ sender pubkey ‖ recipient pubkey) |
@@ -2069,8 +2069,8 @@ Convenience APIs using listener patterns for consumers who don't use async strea
 
 ### App-Level Topic Filtering
 
-`appId` is an **immutable config parameter** set at construction via `MeshLink.configure { appId = "com.mycompany.meshchat" }`. The library computes `SHA-256-128(appId.toUTF8())` internally — the 16-byte hash is what appears in the wire format (fixed size, no length prefix needed). Recommended format: reverse-domain notation. To change the appId, create a new MeshLink instance. When set:
-- Outbound messages include the 16-byte appId hash in the payload envelope
+`appId` is an **immutable config parameter** set at construction via `MeshLink.configure { appId = "com.mycompany.meshchat" }`. The library computes `SHA-256-64(appId.toUTF8())` internally — the 8-byte hash is what appears in the wire format (fixed size, no length prefix needed). This matches the `PEER_ID_SIZE = 8` convention (both are truncated SHA-256). Recommended format: reverse-domain notation. To change the appId, create a new MeshLink instance. When set:
+- Outbound messages include the 8-byte appId hash in the payload envelope
 - Inbound messages with a non-matching appId hash are **silently dropped** at the recipient (not delivered to the app)
 - **AppId is NOT included in the BLE advertisement** — all MeshLink peers connect regardless of app. Filtering is recipient-side only, preserving cross-app relay density.
 - **Relays forward all messages regardless of app ID** — this preserves mesh density for all apps sharing the physical BLE mesh
@@ -2370,7 +2370,7 @@ All configurable parameters grouped by category, with defaults, bounds, and desc
 
 | Parameter | Type | Default | Min | Max | Description |
 |-----------|------|---------|-----|-----|-------------|
-| `appId` | string? | null | — | — | App-level topic filter. When set, the library computes `SHA-256-128(appId.toUTF8())` and includes the 16-byte hash in outbound messages. Inbound messages with non-matching appId are silently dropped at the recipient. Relays forward all messages regardless of appId (preserves mesh density). `null` = receive all messages. Recommended format: reverse-domain notation (e.g., `"com.mycompany.meshchat"`). Immutable after construction. |
+| `appId` | string? | null | — | — | App-level topic filter. When set, the library computes `SHA-256-64(appId.toUTF8())` and includes the 8-byte hash in outbound messages. Inbound messages with non-matching appId are silently dropped at the recipient. Relays forward all messages regardless of appId (preserves mesh density). `null` = receive all messages. Recommended format: reverse-domain notation (e.g., `"com.mycompany.meshchat"`). Immutable after construction. |
 | `maxHops` | int | 10 | 2 | 255 | Maximum mesh relay depth. Higher = wider reach but more relay traffic and larger visited lists. |
 | `bufferTTL` | duration | 5min | 1min | 30min | Per-message buffer lifetime. Messages evicted after expiry. |
 | `maxMessageSize` | bytes | 102,400 (100 KB) | 1,024 | 1,048,576 (1 MB) | Maximum payload size accepted for sending. Larger messages are rejected with `messageTooLarge` error. |

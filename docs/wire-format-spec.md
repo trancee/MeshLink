@@ -22,7 +22,7 @@ messages, the protocol defines a **10-byte BLE advertisement payload** and a
 | **Type discriminator** | All framed messages share byte 0 as the type code. |
 | **Sizes** | All sizes are in bytes unless stated otherwise. Multi-byte integers are unsigned unless noted. |
 | **Key hashes** | Peer identifiers and visited-list entries are 8-byte values (truncated SHA-256). |
-| **Message IDs** | 16-byte random or pseudo-random identifiers. |
+| **Message IDs** | 12-byte structured identifiers: 8-byte sender peer ID hash + 4-byte little-endian monotonic counter. |
 | **Signature blocks** | Ed25519 signatures are 64 bytes; Ed25519 public keys are 32 bytes. |
 
 ---
@@ -191,21 +191,21 @@ The following 7 message types include a TLV extension area after their fixed bod
 
 Flood-fill message propagated through the mesh. Optionally signed with Ed25519.
 
-**Source:** `WireCodec.kt` · `BROADCAST_HEADER_SIZE = 43`
+**Source:** `WireCodec.kt` · `BROADCAST_HEADER_SIZE = 31`
 
 ```
-Byte:   0       1                              16  17                 24
+Byte:   0       1                              12  13                 20
        +-------+---------- ... ----------------+---+--- ... ---------+
-       | 0x09  |         messageId (16)         |    origin (8)      |
+       | 0x09  |         messageId (12)         |    origin (8)      |
        +-------+---------- ... ----------------+---+--- ... ---------+
 
-       25      26                             41  42
-       +-------+---------- ... ----------------+-------+
-       | rHops |        appIdHash (16)         | flags |
-       +-------+---------- ... ----------------+-------+
+       21      22                     29  30
+       +-------+---------- ... --------+-------+
+       | rHops |     appIdHash (8)     | flags |
+       +-------+---------- ... --------+-------+
 
        If flags bit 0 set (HAS_SIGNATURE):
-       43                                     106  107                            138
+       31                                      94  95                             126
        +---------- ... ------------------------+---------- ... ------------------+
        |         signature (64)                |       signerPublicKey (32)      |
        +---------- ... ------------------------+---------- ... ------------------+
@@ -216,18 +216,18 @@ Byte:   0       1                              16  17                 24
 | Offset | Size | Field | Type | Endianness | Description |
 |--------|------|-------|------|------------|-------------|
 | 0 | 1 | `type` | byte | — | `0x09` |
-| 1–16 | 16 | `messageId` | bytes | — | Unique message identifier. |
-| 17–24 | 8 | `origin` | bytes | — | Originator peer ID (truncated key hash). |
-| 25 | 1 | `remainingHops` | UByte | — | TTL / remaining hop count. |
-| 26–41 | 16 | `appIdHash` | bytes | — | Application identifier hash (zero-filled if unused). |
-| 42 | 1 | `flags` | UByte | — | Bit 0: `HAS_SIGNATURE` (signature + signerPublicKey present). Bits 1–7: reserved. |
-| 43–106 | 64 | `signature` | bytes | — | Ed25519 signature (present only if `flags & 0x01`). |
-| 107–138 | 32 | `signerPublicKey` | bytes | — | Ed25519 public key of signer (present only if `flags & 0x01`). |
+| 1–12 | 12 | `messageId` | bytes | — | Structured message identifier (8-byte sender peer ID hash + 4-byte LE counter). |
+| 13–20 | 8 | `origin` | bytes | — | Originator peer ID (truncated key hash). |
+| 21 | 1 | `remainingHops` | UByte | — | TTL / remaining hop count. |
+| 22–29 | 8 | `appIdHash` | bytes | — | Application identifier hash (zero-filled if unused). |
+| 30 | 1 | `flags` | UByte | — | Bit 0: `HAS_SIGNATURE` (signature + signerPublicKey present). Bits 1–7: reserved. |
+| 31–94 | 64 | `signature` | bytes | — | Ed25519 signature (present only if `flags & 0x01`). |
+| 95–126 | 32 | `signerPublicKey` | bytes | — | Ed25519 public key of signer (present only if `flags & 0x01`). |
 | … | variable | `payload` | bytes | — | Application payload (remaining bytes). |
 
 **Validation:**
-- Minimum message size: 43 bytes (header only, `flags = 0x00`, empty payload).
-- If `flags & 0x01`, the message must contain at least `43 + 64 + 32 = 139` bytes before the payload.
+- Minimum message size: 31 bytes (header only, `flags = 0x00`, empty payload).
+- If `flags & 0x01`, the message must contain at least `31 + 64 + 32 = 127` bytes before the payload.
 
 ---
 
@@ -329,26 +329,26 @@ Byte:   0       1             8  9            16 17          20 21  22  23
 
 Fragment of a chunked (multi-part) message transfer.
 
-**Source:** `WireCodec.kt` · `CHUNK_HEADER_SIZE = 21`
+**Source:** `WireCodec.kt` · `CHUNK_HEADER_SIZE = 17`
 
 ```
-Byte:   0       1                              16  17      18  19      20  21       N
+Byte:   0       1                              12  13      14  15      16  17       N
        +-------+---------- ... ----------------+---+-------+---+-------+---+-- ... --+
-       | 0x05  |         messageId (16)         | seqNum(LE)  |totalChk(LE)| payload  |
+       | 0x05  |         messageId (12)         | seqNum(LE)  |totalChk(LE)| payload  |
        +-------+---------- ... ----------------+---+-------+---+-------+---+-- ... --+
 ```
 
 | Offset | Size | Field | Type | Endianness | Description |
 |--------|------|-------|------|------------|-------------|
 | 0 | 1 | `type` | byte | — | `0x05` |
-| 1–16 | 16 | `messageId` | bytes | — | Identifies the overall message this chunk belongs to. |
-| 17–18 | 2 | `sequenceNumber` | UShort | **LE** | Zero-based chunk index. |
-| 19–20 | 2 | `totalChunks` | UShort | **LE** | Total number of chunks in this message. |
-| 21–N | variable | `payload` | bytes | — | Chunk payload data. |
+| 1–12 | 12 | `messageId` | bytes | — | Identifies the overall message this chunk belongs to. Structured: 8-byte sender peer ID hash + 4-byte LE counter. |
+| 13–14 | 2 | `sequenceNumber` | UShort | **LE** | Zero-based chunk index. |
+| 15–16 | 2 | `totalChunks` | UShort | **LE** | Total number of chunks in this message. |
+| 17–N | variable | `payload` | bytes | — | Chunk payload data. |
 
 **Validation:**
 - `sequenceNumber` must be strictly less than `totalChunks`.
-- Minimum message size: 21 bytes (empty payload).
+- Minimum message size: 17 bytes (empty payload).
 
 ---
 
@@ -358,25 +358,25 @@ Selective acknowledgment for a chunked transfer, using a cumulative ACK
 sequence number plus a 128-bit SACK bitmask (two ULong fields) for
 out-of-order reception. Covers up to 128 chunks beyond `ackSequence`.
 
-**Source:** `WireCodec.kt` · `CHUNK_ACK_SIZE = 35` (+ TLV extension area)
+**Source:** `WireCodec.kt` · `CHUNK_ACK_SIZE = 31` (+ TLV extension area)
 
 ```
-Byte:   0       1                              16  17      18  19                     26  27                     34  35  36
+Byte:   0       1                              12  13      14  15                     22  23                     30  31  32
        +-------+---------- ... ----------------+---+-------+---+---------- ... --------+---+---------- ... --------+---+---+-- ... --+
-       | 0x06  |         messageId (16)         |ackSeq (LE)  | sackBitmask (8, LE)    | sackBitmaskHigh (8, LE)  |extLen | TLV ...  |
+       | 0x06  |         messageId (12)         |ackSeq (LE)  | sackBitmask (8, LE)    | sackBitmaskHigh (8, LE)  |extLen | TLV ...  |
        +-------+---------- ... ----------------+---+-------+---+---------- ... --------+---+---------- ... --------+---+---+-- ... --+
 ```
 
 | Offset | Size | Field | Type | Endianness | Description |
 |--------|------|-------|------|------------|-------------|
 | 0 | 1 | `type` | byte | — | `0x06` |
-| 1–16 | 16 | `messageId` | bytes | — | Message ID being acknowledged. |
-| 17–18 | 2 | `ackSequence` | UShort | **LE** | Cumulative ACK: all chunks up to this number received. |
-| 19–26 | 8 | `sackBitmask` | ULong | **LE** | Low 64 bits: SACK for chunks at offsets 0–63 beyond `ackSequence`. |
-| 27–34 | 8 | `sackBitmaskHigh` | ULong | **LE** | High 64 bits: SACK for chunks at offsets 64–127 beyond `ackSequence`. |
-| 35… | 2+ | `extensions` | [TLV](#tlv-extension-area) | **LE** | TLV extension area (minimum 2 bytes). |
+| 1–12 | 12 | `messageId` | bytes | — | Message ID being acknowledged. |
+| 13–14 | 2 | `ackSequence` | UShort | **LE** | Cumulative ACK: all chunks up to this number received. |
+| 15–22 | 8 | `sackBitmask` | ULong | **LE** | Low 64 bits: SACK for chunks at offsets 0–63 beyond `ackSequence`. |
+| 23–30 | 8 | `sackBitmaskHigh` | ULong | **LE** | High 64 bits: SACK for chunks at offsets 64–127 beyond `ackSequence`. |
+| 31… | 2+ | `extensions` | [TLV](#tlv-extension-area) | **LE** | TLV extension area (minimum 2 bytes). |
 
-**Minimum size:** 37 bytes (35-byte fixed body + 2-byte empty extension area).
+**Minimum size:** 33 bytes (31-byte fixed body + 2-byte empty extension area).
 
 ---
 
@@ -385,15 +385,15 @@ Byte:   0       1                              16  17      18  19               
 Unicast message forwarded hop-by-hop along a computed route. Includes a visited
 list for loop detection.
 
-**Source:** `WireCodec.kt` · `ROUTED_HEADER_SIZE = 43`
+**Source:** `WireCodec.kt` · `ROUTED_HEADER_SIZE = 39`
 
 ```
-Byte:   0       1                 16  17         24  25         32
+Byte:   0       1                 12  13         20  21         28
        +-------+------ ... ------+---+-- ... ---+---+-- ... ---+
-       | 0x0A  |  messageId (16) |  origin (8)  | destination(8)|
+       | 0x0A  |  messageId (12) |  origin (8)  | destination(8)|
        +-------+------ ... ------+---+-- ... ---+---+-- ... ---+
 
-       33      34                             41  42
+       29      30                             37  38
        +-------+---------- ... ----------------+-------+
        | hLim  |    replayCounter (8, LE)      | vCnt  |
        +-------+---------- ... ----------------+-------+
@@ -409,17 +409,17 @@ Byte:   0       1                 16  17         24  25         32
 | Offset | Size | Field | Type | Endianness | Description |
 |--------|------|-------|------|------------|-------------|
 | 0 | 1 | `type` | byte | — | `0x0A` |
-| 1–16 | 16 | `messageId` | bytes | — | Unique message identifier. |
-| 17–24 | 8 | `origin` | bytes | — | Originator peer ID. |
-| 25–32 | 8 | `destination` | bytes | — | Destination peer ID. |
-| 33 | 1 | `hopLimit` | UByte | — | Maximum remaining hops. |
-| 34–41 | 8 | `replayCounter` | ULong | **LE** | Monotonic counter for replay protection. Default `0`. |
-| 42 | 1 | `visitedCount` | UByte | — | Number of visited-list entries (0–255). |
-| 43… | `vCnt × 8` | `visitedList` | bytes | — | Peer IDs already visited (loop detection). |
+| 1–12 | 12 | `messageId` | bytes | — | Structured message identifier (8-byte sender peer ID hash + 4-byte LE counter). |
+| 13–20 | 8 | `origin` | bytes | — | Originator peer ID. |
+| 21–28 | 8 | `destination` | bytes | — | Destination peer ID. |
+| 29 | 1 | `hopLimit` | UByte | — | Maximum remaining hops. |
+| 30–37 | 8 | `replayCounter` | ULong | **LE** | Monotonic counter for replay protection. Default `0`. |
+| 38 | 1 | `visitedCount` | UByte | — | Number of visited-list entries (0–255). |
+| 39… | `vCnt × 8` | `visitedList` | bytes | — | Peer IDs already visited (loop detection). |
 | … | variable | `payload` | bytes | — | Application payload (remaining bytes). |
 
 **Validation:**
-- Minimum message size: 43 bytes (zero visited entries, empty payload).
+- Minimum message size: 39 bytes (zero visited entries, empty payload).
 - `visitedCount` entries must fit within the remaining data.
 
 ---
@@ -428,21 +428,21 @@ Byte:   0       1                 16  17         24  25         32
 
 End-to-end delivery confirmation, optionally signed for non-repudiation.
 
-**Source:** `WireCodec.kt` · `DELIVERY_ACK_HEADER_SIZE = 26` (+ optional signature + TLV extension area)
+**Source:** `WireCodec.kt` · `DELIVERY_ACK_HEADER_SIZE = 22` (+ optional signature + TLV extension area)
 
 ```
-Byte:   0       1                              16  17                 24  25
+Byte:   0       1                              12  13                 20  21
        +-------+---------- ... ----------------+---+--- ... ---------+-------+
-       | 0x0B  |         messageId (16)         |   recipientId (8)  | flags |
+       | 0x0B  |         messageId (12)         |   recipientId (8)  | flags |
        +-------+---------- ... ----------------+---+--- ... ---------+-------+
 
        If flags bit 0 set (HAS_SIGNATURE):
-       26                                      89  90                             121
+       22                                      85  86                             117
        +---------- ... ------------------------+---------- ... ------------------+
        |         signature (64)                |     signerPublicKey (32)        |
        +---------- ... ------------------------+---------- ... ------------------+
 
-       After body end (offset 26 or 122):
+       After body end (offset 22 or 118):
        +-------+-- ... --+
        |extLen | TLV ... |
        +-------+-- ... --+
@@ -451,16 +451,16 @@ Byte:   0       1                              16  17                 24  25
 | Offset | Size | Field | Type | Endianness | Description |
 |--------|------|-------|------|------------|-------------|
 | 0 | 1 | `type` | byte | — | `0x0B` |
-| 1–16 | 16 | `messageId` | bytes | — | ID of the message being acknowledged. |
-| 17–24 | 8 | `recipientId` | bytes | — | Peer ID of the recipient confirming delivery. |
-| 25 | 1 | `flags` | UByte | — | Bit 0: `HAS_SIGNATURE`. Bits 1–7: reserved. |
-| 26–89 | 64 | `signature` | bytes | — | Ed25519 signature (present only if `flags & 0x01`). |
-| 90–121 | 32 | `signerPublicKey` | bytes | — | Ed25519 public key (present only if `flags & 0x01`). |
-| … | 2+ | `extensions` | [TLV](#tlv-extension-area) | **LE** | TLV extension area (minimum 2 bytes). Starts at offset 26 (unsigned) or 122 (signed). |
+| 1–12 | 12 | `messageId` | bytes | — | ID of the message being acknowledged. |
+| 13–20 | 8 | `recipientId` | bytes | — | Peer ID of the recipient confirming delivery. |
+| 21 | 1 | `flags` | UByte | — | Bit 0: `HAS_SIGNATURE`. Bits 1–7: reserved. |
+| 22–85 | 64 | `signature` | bytes | — | Ed25519 signature (present only if `flags & 0x01`). |
+| 86–117 | 32 | `signerPublicKey` | bytes | — | Ed25519 public key (present only if `flags & 0x01`). |
+| … | 2+ | `extensions` | [TLV](#tlv-extension-area) | **LE** | TLV extension area (minimum 2 bytes). Starts at offset 22 (unsigned) or 118 (signed). |
 
 **Validation:**
-- Minimum message size: 28 bytes (26-byte header + 2-byte empty extension area).
-- If `flags & 0x01`, message must contain at least `26 + 64 + 32 + 2 = 124` bytes.
+- Minimum message size: 24 bytes (22-byte header + 2-byte empty extension area).
+- If `flags & 0x01`, message must contain at least `22 + 64 + 32 + 2 = 120` bytes.
 
 ---
 
@@ -469,23 +469,23 @@ Byte:   0       1                              16  17                 24  25
 Requests resumption of an interrupted chunked transfer, indicating how many
 bytes have already been received.
 
-**Source:** `WireCodec.kt` · `RESUME_REQUEST_SIZE = 21` (+ TLV extension area)
+**Source:** `WireCodec.kt` · `RESUME_REQUEST_SIZE = 17` (+ TLV extension area)
 
 ```
-Byte:   0       1                              16  17                  20  21  22
+Byte:   0       1                              12  13                  16  17  18
        +-------+---------- ... ----------------+---+-------+-------+---+---+---+-- ... --+
-       | 0x08  |         messageId (16)         | bytesReceived (4,LE) |extLen | TLV ...  |
+       | 0x08  |         messageId (12)         | bytesReceived (4,LE) |extLen | TLV ...  |
        +-------+---------- ... ----------------+---+-------+-------+---+---+---+-- ... --+
 ```
 
 | Offset | Size | Field | Type | Endianness | Description |
 |--------|------|-------|------|------------|-------------|
 | 0 | 1 | `type` | byte | — | `0x08` |
-| 1–16 | 16 | `messageId` | bytes | — | ID of the message to resume. Must be exactly 16 bytes. |
-| 17–20 | 4 | `bytesReceived` | UInt | **LE** | Number of bytes already received. |
-| 21… | 2+ | `extensions` | [TLV](#tlv-extension-area) | **LE** | TLV extension area (minimum 2 bytes). |
+| 1–12 | 12 | `messageId` | bytes | — | ID of the message to resume. Must be exactly 12 bytes. |
+| 13–16 | 4 | `bytesReceived` | UInt | **LE** | Number of bytes already received. |
+| 17… | 2+ | `extensions` | [TLV](#tlv-extension-area) | **LE** | TLV extension area (minimum 2 bytes). |
 
-**Minimum size:** 23 bytes (21-byte fixed body + 2-byte empty extension area).
+**Minimum size:** 19 bytes (17-byte fixed body + 2-byte empty extension area).
 
 ---
 
@@ -518,23 +518,23 @@ Byte:   0       1       2                                       9  10  11
 Negative acknowledgment indicating that a message could not be delivered or
 processed. Includes a reason code so the sender can distinguish failure modes.
 
-**Source:** `WireCodec.kt` · `NACK_SIZE = 18` (+ TLV extension area)
+**Source:** `WireCodec.kt` · `NACK_SIZE = 14` (+ TLV extension area)
 
 ```
-Byte:   0       1                              16      17  18  19
+Byte:   0       1                              12      13  14  15
        +-------+---------- ... ----------------+-------+---+---+-- ... --+
-       | 0x07  |         messageId (16)         |reason |extLen | TLV ...  |
+       | 0x07  |         messageId (12)         |reason |extLen | TLV ...  |
        +-------+---------- ... ----------------+-------+---+---+-- ... --+
 ```
 
 | Offset | Size | Field | Type | Endianness | Description |
 |--------|------|-------|------|------------|-------------|
 | 0 | 1 | `type` | byte | — | `0x07` |
-| 1–16 | 16 | `messageId` | bytes | — | ID of the message being negatively acknowledged. |
-| 17 | 1 | `reason` | UByte | — | Reason code: `0` = unknown, `1` = buffer full, `2` = unknown destination, `3` = decryption failed, `4` = rate limited. |
-| 18… | 2+ | `extensions` | [TLV](#tlv-extension-area) | **LE** | TLV extension area (minimum 2 bytes). |
+| 1–12 | 12 | `messageId` | bytes | — | ID of the message being negatively acknowledged. |
+| 13 | 1 | `reason` | UByte | — | Reason code: `0` = unknown, `1` = buffer full, `2` = unknown destination, `3` = decryption failed, `4` = rate limited. |
+| 14… | 2+ | `extensions` | [TLV](#tlv-extension-area) | **LE** | TLV extension area (minimum 2 bytes). |
 
-**Minimum size:** 20 bytes (18-byte fixed body + 2-byte empty extension area).
+**Minimum size:** 16 bytes (14-byte fixed body + 2-byte empty extension area).
 
 ---
 

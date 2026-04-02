@@ -45,7 +45,7 @@ class AppIdFilterTest {
         assertTrue(nullFilter.accepts(emptyHash))
         assertTrue(nullFilter.accepts(otherHash))
         assertTrue(nullFilter.accepts(null))
-        assertTrue(nullFilter.accepts(ByteArray(16))) // zeroed hash
+        assertTrue(nullFilter.accepts(ByteArray(8))) // zeroed hash
 
         // Hash determinism: same input → same output
         assertEquals(AppIdFilter.hash("test").toList(), AppIdFilter.hash("test").toList())

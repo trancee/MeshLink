@@ -13,10 +13,10 @@ class AppIdFilter(appId: String?) {
     }
 
     companion object {
-        /** Compute a 16-byte hash of the appId (truncated SHA-256). */
+        /** Compute an 8-byte hash of the appId (truncated SHA-256). */
         fun hash(appId: String): ByteArray {
             val crypto = CryptoProvider()
-            return crypto.sha256(appId.encodeToByteArray()).copyOf(16)
+            return crypto.sha256(appId.encodeToByteArray()).copyOf(8)
         }
     }
 }

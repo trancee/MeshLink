@@ -174,7 +174,7 @@ class WireCodecTest {
     @Test
     fun broadcastEncodeDecodeRoundTrips() {
         val payload = "hello mesh".encodeToByteArray()
-        val appIdHash = ByteArray(16) { (0x10 + it).toByte() }
+        val appIdHash = ByteArray(8) { (0x10 + it).toByte() }
 
         val encoded = WireCodec.encodeBroadcast(
             messageId = testMessageId,
@@ -184,8 +184,8 @@ class WireCodecTest {
             payload = payload,
         )
 
-        // type(1) + messageId(12) + origin(8) + remainingHops(1) + appIdHash(16) + sigLen(1) + payload
-        assertEquals(1 + 12 + 8 + 1 + 16 + 1 + payload.size, encoded.size)
+        // type(1) + messageId(12) + origin(8) + remainingHops(1) + appIdHash(8) + sigLen(1) + payload
+        assertEquals(1 + 12 + 8 + 1 + 8 + 1 + payload.size, encoded.size)
         assertEquals(WireCodec.TYPE_BROADCAST, encoded[0])
 
         val decoded = WireCodec.decodeBroadcast(encoded)
@@ -293,9 +293,9 @@ class WireCodecTest {
     @Test
     fun decodeBroadcastRejectsTruncatedSignature() {
         // Craft broadcast with flags=0x01 (has signature) but only 10 bytes remaining
-        val header = ByteArray(39) // BROADCAST_HEADER_SIZE = 39
+        val header = ByteArray(31) // BROADCAST_HEADER_SIZE = 31
         header[0] = WireCodec.TYPE_BROADCAST
-        header[38] = 0x01 // FLAG_HAS_SIGNATURE, but no signature bytes follow
+        header[30] = 0x01 // FLAG_HAS_SIGNATURE, but no signature bytes follow
         val truncated = header + ByteArray(10) // only 10 bytes, need 64+32=96
 
         assertFailsWith<IllegalArgumentException> {

@@ -212,18 +212,18 @@ class WireFormatGoldenVectorsTest {
     //   messageId     = 0x01..0x0C
     //   origin        = 0xBB × 8
     //   remainingHops = 3
-    //   appIdHash     = 0xCC × 16
+    //   appIdHash     = 0xCC × 8
     //   signature     = (none, sigLen = 0)
     //   payload       = "broadcast msg"
     //
-    // Layout: type(1) + msgId(12) + origin(8) + hops(1) + appIdHash(16)
-    //         + sigLen(1) + payload(13) = 52 bytes
+    // Layout: type(1) + msgId(12) + origin(8) + hops(1) + appIdHash(8)
+    //         + sigLen(1) + payload(13) = 44 bytes
     //
     // Golden hex:
     //   090102030405060708090a0b0c
     //   bbbbbbbbbbbbbbbb
     //   03
-    //   cccccccccccccccccccccccccccccccc
+    //   cccccccccccccccc
     //   00
     //   62726f616463617374206d7367
     // ────────────────────────────────────────────────────────────────────
@@ -233,7 +233,7 @@ class WireFormatGoldenVectorsTest {
         "0102030405060708090a0b0c" +    // messageId
         "bbbbbbbbbbbbbbbb" +                    // origin (8 × 0xBB)
         "03" +                                  // remainingHops = 3
-        "cccccccccccccccccccccccccccccccc" +      // appIdHash (16 × 0xCC)
+        "cccccccccccccccc" +                        // appIdHash (8 × 0xCC)
         "00" +                                  // sigLen = 0 (unsigned)
         "62726f616463617374206d7367"             // payload "broadcast msg"
 
@@ -243,11 +243,11 @@ class WireFormatGoldenVectorsTest {
             messageId = messageId,
             origin = ByteArray(8) { 0xBB.toByte() },
             remainingHops = 3u,
-            appIdHash = ByteArray(16) { 0xCC.toByte() },
+            appIdHash = ByteArray(8) { 0xCC.toByte() },
             payload = "broadcast msg".encodeToByteArray(),
         )
         assertEquals(broadcastGoldenHex, encoded.toHex())
-        assertEquals(52, encoded.size)
+        assertEquals(44, encoded.size)
     }
 
     @Test
@@ -257,7 +257,7 @@ class WireFormatGoldenVectorsTest {
         assertContentEquals(messageId, decoded.messageId)
         assertContentEquals(ByteArray(8) { 0xBB.toByte() }, decoded.origin)
         assertEquals(3u.toUByte(), decoded.remainingHops)
-        assertContentEquals(ByteArray(16) { 0xCC.toByte() }, decoded.appIdHash)
+        assertContentEquals(ByteArray(8) { 0xCC.toByte() }, decoded.appIdHash)
         assertEquals(0, decoded.signature.size)
         assertEquals(0, decoded.signerPublicKey.size)
         assertContentEquals("broadcast msg".encodeToByteArray(), decoded.payload)

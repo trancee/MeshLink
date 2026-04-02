@@ -12,7 +12,7 @@ import kotlin.test.assertTrue
 class BroadcastPolicyChainTest {
 
     private val localPeerId = ByteArray(8) { it.toByte() }
-    private val appIdHash = ByteArray(16) { 0xAA.toByte() }
+    private val appIdHash = ByteArray(8) { 0xAA.toByte() }
 
     private fun chain(
         bufferCapacity: Int = 1024,
@@ -131,10 +131,10 @@ class BroadcastPolicyChainTest {
         c.evaluate(payload, maxHops = 3u)
 
         // signedData = msgIdBytes + localPeerId + appIdHash + payload
-        // 12 (msgId) + 8 (peerId) + 16 (appIdHash) + 3 (payload) = 39
-        assertEquals(39, capturedData!!.size)
+        // 12 (msgId) + 8 (peerId) + 8 (appIdHash) + 3 (payload) = 31
+        assertEquals(31, capturedData!!.size)
         // Last 3 bytes should be the payload
-        assertTrue(capturedData.sliceArray(36..38).contentEquals(payload))
+        assertTrue(capturedData.sliceArray(28..30).contentEquals(payload))
     }
 
     // ── Dedup marking ───────────────────────────────────────────

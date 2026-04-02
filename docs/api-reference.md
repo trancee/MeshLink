@@ -37,8 +37,8 @@ The primary interface for all mesh networking operations. Implemented by
 
 | Signature | Description |
 |-----------|-------------|
-| `fun send(recipient: ByteArray, payload: ByteArray): Result<Uuid>` | Sends an encrypted unicast message. `recipient` is an 8-byte peer ID. Returns the message UUID on success. Fails if rate-limited, circuit breaker tripped, or buffer full. |
-| `fun broadcast(payload: ByteArray, maxHops: UByte): Result<Uuid>` | Broadcasts an unencrypted message to all peers within `maxHops` radius. Returns the message UUID. |
+| `fun send(recipient: ByteArray, payload: ByteArray): Result<MessageId>` | Sends an encrypted unicast message. `recipient` is an 8-byte peer ID. Returns the `MessageId` on success. Fails if rate-limited, circuit breaker tripped, or buffer full. |
+| `fun broadcast(payload: ByteArray, maxHops: UByte): Result<MessageId>` | Broadcasts an unencrypted message to all peers within `maxHops` radius. Returns the `MessageId`. |
 
 ### Event Streams
 
@@ -49,7 +49,7 @@ scope before calling `start()`.
 |----------|------|-------------|
 | `peers` | `Flow<PeerEvent>` | Emits `PeerEvent.Found` and `PeerEvent.Lost` events when BLE neighbors appear or disappear. |
 | `messages` | `Flow<Message>` | Emits received unicast and broadcast messages with `senderId` and `payload`. |
-| `deliveryConfirmations` | `Flow<Uuid>` | Emits the message UUID when the recipient acknowledges delivery. |
+| `deliveryConfirmations` | `Flow<MessageId>` | Emits the `MessageId` when the recipient acknowledges delivery. |
 | `transferProgress` | `Flow<TransferProgress>` | Emits progress updates for chunked transfers: `messageId`, `chunksAcked`, `totalChunks`, `fraction`. |
 | `transferFailures` | `Flow<TransferFailure>` | Emits when a message transfer fails, with a `DeliveryOutcome` reason. |
 | `meshHealthFlow` | `Flow<MeshHealthSnapshot>` | Emits periodic mesh health snapshots. |
@@ -142,9 +142,9 @@ Immutable configuration data class. All fields have sensible defaults.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `maxMessageSize` | `Int` | `100_000` | Maximum payload size in bytes. Messages larger than `mtu - 21` are automatically chunked. |
+| `maxMessageSize` | `Int` | `100_000` | Maximum payload size in bytes. Messages larger than `mtu - 17` are automatically chunked. |
 | `bufferCapacity` | `Int` | `1_048_576` | Total in-flight data buffer size in bytes. Must be ≥ `maxMessageSize`. |
-| `mtu` | `Int` | `185` | BLE link MTU. Effective payload per chunk = `mtu - 21` (header size). Must be > 21. |
+| `mtu` | `Int` | `185` | BLE link MTU. Effective payload per chunk = `mtu - 17` (header size). Must be > 17. |
 | `maxHops` | `UByte` | `10` | Maximum hop count for routed messages. |
 | `pendingMessageTtlMillis` | `Long` | `0` | TTL for queued outbound messages. `0` = never expire. |
 | `pendingMessageCapacity` | `Int` | `100` | Maximum pending outbound messages. |
@@ -240,7 +240,7 @@ fun validate(): List<String>
 Returns a list of constraint violation messages. An empty list means the
 configuration is valid. Enforced constraints:
 
-- `mtu > 21`
+- `mtu > 17`
 - `maxMessageSize ≤ bufferCapacity`
 - `maxMessageSize > 0`
 - `bufferCapacity > 0`
@@ -304,6 +304,15 @@ val config = meshLinkConfig {
 
 All model classes are in the `io.meshlink.model` package.
 
+### MessageId
+
+```kotlin
+@JvmInline
+value class MessageId(val hex: String)
+```
+
+A 12-byte structured message identifier, represented as a 24-character hex string. The first 8 bytes are the sender's peer ID hash (first 8 bytes of SHA-256 of the sender's X25519 public key), and the last 4 bytes are a little-endian monotonic counter initialized from `currentTimeMillis()`. Structured IDs are deterministic and have zero collision risk.
+
 ### Message
 
 ```kotlin
@@ -340,7 +349,7 @@ Emitted on the `peers` flow when BLE neighbors are discovered or lost.
 
 ```kotlin
 data class TransferProgress(
-    val messageId: Uuid,
+    val messageId: MessageId,
     val chunksAcked: Int,
     val totalChunks: Int,
 ) {
@@ -353,7 +362,7 @@ Progress update for a chunked message transfer.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `messageId` | `Uuid` | UUID of the message being transferred. |
+| `messageId` | `MessageId` | Structured message identifier of the message being transferred. |
 | `chunksAcked` | `Int` | Number of chunks acknowledged by the recipient. |
 | `totalChunks` | `Int` | Total number of chunks in the transfer. |
 | `fraction` | `Float` | Computed property: `chunksAcked / totalChunks`. Returns `1f` if `totalChunks` is 0. |
@@ -362,7 +371,7 @@ Progress update for a chunked message transfer.
 
 ```kotlin
 data class TransferFailure(
-    val messageId: Uuid,
+    val messageId: MessageId,
     val reason: DeliveryOutcome,
 )
 ```
@@ -371,7 +380,7 @@ Emitted when a message transfer fails.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `messageId` | `Uuid` | UUID of the failed message. |
+| `messageId` | `MessageId` | Structured message identifier of the failed message. |
 | `reason` | `DeliveryOutcome` | The failure reason (see [DeliveryOutcome](#deliveryoutcome)). |
 
 ### KeyChangeEvent

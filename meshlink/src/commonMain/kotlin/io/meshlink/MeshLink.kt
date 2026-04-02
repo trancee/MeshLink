@@ -243,7 +243,7 @@ class MeshLink(
         bufferCapacity = config.bufferCapacity,
         checkBroadcastRate = { rateLimitPolicy.checkBroadcast() },
         signData = securityEngine?.let { se -> { data: ByteArray -> se.sign(data) } },
-        appIdHash = config.appId?.let { AppIdFilter.hash(it) } ?: ByteArray(16),
+        appIdHash = config.appId?.let { AppIdFilter.hash(it) } ?: ByteArray(8),
         localPeerId = transport.localPeerId,
         markAsSeen = { routingEngine.isDuplicate(it) },
         generateMessageId = { messageIdGenerator.generate().bytes },

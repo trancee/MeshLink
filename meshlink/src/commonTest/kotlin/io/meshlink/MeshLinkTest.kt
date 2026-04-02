@@ -4972,7 +4972,7 @@ class MeshLinkTest {
             messageId = msgId1.bytes,
             origin = peerIdAlice,
             remainingHops = 1u,
-            appIdHash = ByteArray(16),
+            appIdHash = ByteArray(8),
             payload = "ttl1".encodeToByteArray(),
         )
         transportB.receiveData(peerIdAlice, broadcast1)
@@ -4989,7 +4989,7 @@ class MeshLinkTest {
             messageId = msgId2.bytes,
             origin = peerIdAlice,
             remainingHops = 0u,
-            appIdHash = ByteArray(16),
+            appIdHash = ByteArray(8),
             payload = "ttl0".encodeToByteArray(),
         )
         transportB.receiveData(peerIdAlice, broadcast2)
@@ -5127,7 +5127,7 @@ class MeshLinkTest {
             messageId = MessageId.random().bytes,
             origin = peerIdAlice,
             remainingHops = 3u,
-            appIdHash = ByteArray(16),
+            appIdHash = ByteArray(8),
             payload = "forged".encodeToByteArray(),
             signature = ByteArray(64) { 0xFF.toByte() },
         )
