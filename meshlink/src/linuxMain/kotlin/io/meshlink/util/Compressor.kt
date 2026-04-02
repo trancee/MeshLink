@@ -8,6 +8,7 @@ import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.ptr
 import kotlinx.cinterop.reinterpret
 import kotlinx.cinterop.sizeOf
+import kotlinx.cinterop.toKString
 import kotlinx.cinterop.usePinned
 import zlib.Z_BEST_SPEED
 import zlib.Z_DEFAULT_STRATEGY
@@ -41,7 +42,7 @@ private class LinuxCompressor : Compressor {
                 RAW_DEFLATE_WINDOW_BITS,
                 DEFAULT_MEM_LEVEL,
                 Z_DEFAULT_STRATEGY,
-                zlibVersion(),
+                zlibVersion()?.toKString(),
                 sizeOf<z_stream>().toInt()
             )
             require(initResult == Z_OK) { "deflateInit2 failed: $initResult" }
@@ -68,7 +69,7 @@ private class LinuxCompressor : Compressor {
             val initResult = inflateInit2_(
                 stream.ptr,
                 RAW_DEFLATE_WINDOW_BITS,
-                zlibVersion(),
+                zlibVersion()?.toKString(),
                 sizeOf<z_stream>().toInt()
             )
             require(initResult == Z_OK) { "inflateInit2 failed: $initResult" }
