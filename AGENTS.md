@@ -155,7 +155,7 @@ layout. Key points for agents:
 | `SecurityEngine.kt` | Noise K (E2E) + Noise XX (hop-by-hop) encryption |
 | `RoutingEngine.kt` | AODV reactive routing: route discovery, RREQ/RREP handling, route cache |
 | `PowerCoordinator.kt` | Battery-adaptive power modes with hysteresis |
-| `Compressor.kt` | Payload compression expect/actual (zlib RFC 1950) |
+| `Compressor.kt` | Payload compression expect/actual (raw DEFLATE RFC 1951) |
 
 ### Expect/Actual Pattern
 

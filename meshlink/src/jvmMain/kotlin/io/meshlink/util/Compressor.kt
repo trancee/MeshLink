@@ -6,29 +6,28 @@ import java.util.zip.Deflater
 import java.util.zip.Inflater
 
 private class JvmCompressor : Compressor {
+    private val deflater = Deflater(Deflater.BEST_SPEED, true)
+    private val inflater = Inflater(true)
+
     override fun compress(data: ByteArray): ByteArray {
-        val deflater = Deflater()
-        try {
+        synchronized(deflater) {
+            deflater.reset()
             deflater.setInput(data)
             deflater.finish()
             val buf = ByteArray(data.size + 64)
             val len = deflater.deflate(buf)
             return buf.copyOf(len)
-        } finally {
-            deflater.end()
         }
     }
 
     override fun decompress(data: ByteArray, originalSize: Int): ByteArray {
-        val inflater = Inflater()
-        try {
+        synchronized(inflater) {
+            inflater.reset()
             inflater.setInput(data)
             val buf = ByteArray(originalSize)
             val len = inflater.inflate(buf)
             require(len == originalSize) { "decompressed $len bytes, expected $originalSize" }
             return buf
-        } finally {
-            inflater.end()
         }
     }
 }

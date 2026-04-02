@@ -604,7 +604,7 @@ When `compressionEnabled = true` (the default), every payload is wrapped in a
 
 ### Uncompressed Envelope (`0x00`)
 
-Used when the payload size is below `compressionMinBytes` (default 64) or when
+Used when the payload size is below `compressionMinBytes` (default 128) or when
 compression did not reduce the payload size.
 
 ```
@@ -621,20 +621,20 @@ Byte:  0       1                    N
 
 ### Compressed Envelope (`0x01`)
 
-Used when the payload is ≥ `compressionMinBytes` and zlib reduces its size.
+Used when the payload is ≥ `compressionMinBytes` and DEFLATE reduces its size.
 
 ```
 Byte:  0       1                  4   5                          N
       +-------+------ ... -------+---+----------- ... ----------+
-      | 0x01  | originalSize(4,LE)|   |  zlib compressed data   |
+      | 0x01  | originalSize(4,LE)|   | DEFLATE compressed data |
       +-------+------ ... -------+---+----------- ... ----------+
 ```
 
 | Offset | Size | Field | Type | Endianness | Description |
 |--------|------|-------|------|------------|-------------|
-| 0 | 1 | `envelopeType` | byte | — | `0x01` — payload is zlib-compressed. |
+| 0 | 1 | `envelopeType` | byte | — | `0x01` — payload is DEFLATE-compressed. |
 | 1–4 | 4 | `originalSize` | UInt | **LE** | Original uncompressed payload size in bytes. |
-| 5… | variable | `compressedData` | bytes | — | zlib (RFC 1950) compressed payload. |
+| 5… | variable | `compressedData` | bytes | — | Raw DEFLATE (RFC 1951) compressed payload. |
 
 ### Backward Compatibility
 

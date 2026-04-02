@@ -8,6 +8,9 @@ import platform.Foundation.NSData
 import platform.Foundation.NSDataCompressionAlgorithmZlib
 import platform.Foundation.create
 
+/**
+ * Apple compressor using NSData's COMPRESSION_ZLIB which produces raw DEFLATE (RFC 1951).
+ */
 private class AppleCompressor : Compressor {
     override fun compress(data: ByteArray): ByteArray {
         val nsData = data.usePinned { pinned ->

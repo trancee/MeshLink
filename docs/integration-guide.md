@@ -86,12 +86,12 @@ The most commonly tuned fields:
 
 #### Compression
 
-MeshLink compresses payloads with zlib (RFC 1950) before encryption
+MeshLink compresses payloads with raw DEFLATE (RFC 1951) before encryption
 (compress-then-encrypt). Each payload gets a 1-byte envelope prefix: `0x00`
 (uncompressed, below threshold) or `0x01` + compressed data.
 
 Disable (`compressionEnabled = false`) if payloads are already compressed
-(e.g., JPEG, protobuf). Tune `compressionMinBytes` (default: 64) for your
+(e.g., JPEG, protobuf). Tune `compressionMinBytes` (default: 128) for your
 payload profile.
 
 ### Validating Configuration

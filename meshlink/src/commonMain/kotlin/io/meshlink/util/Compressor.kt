@@ -1,8 +1,11 @@
 package io.meshlink.util
 
 /**
- * Platform-specific DEFLATE compression using zlib format (RFC 1950).
- * All platforms must produce the same wire-compatible format.
+ * Platform-specific raw DEFLATE compression (RFC 1951).
+ *
+ * Produces raw DEFLATE streams without the zlib header/trailer — the Adler-32
+ * checksum is redundant because payloads are protected by AEAD (ChaCha20-Poly1305).
+ * Saves 6 bytes per compressed message compared to zlib-wrapped format.
  */
 interface Compressor {
     fun compress(data: ByteArray): ByteArray

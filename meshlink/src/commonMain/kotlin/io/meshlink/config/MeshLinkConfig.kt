@@ -40,7 +40,7 @@ data class MeshLinkConfig(
     val maxConcurrentInboundSessions: Int = 100,
     val requireEncryption: Boolean = true,
     val compressionEnabled: Boolean = true,
-    val compressionMinBytes: Int = 64,
+    val compressionMinBytes: Int = 128,
 ) {
     fun validate(): List<String> {
         val violations = mutableListOf<String>()
@@ -176,7 +176,7 @@ class MeshLinkConfigBuilder(
     var maxConcurrentInboundSessions: Int = 100,
     var requireEncryption: Boolean = true,
     var compressionEnabled: Boolean = true,
-    var compressionMinBytes: Int = 64,
+    var compressionMinBytes: Int = 128,
 ) {
 
     fun build(): MeshLinkConfig = MeshLinkConfig(
