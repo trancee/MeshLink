@@ -86,8 +86,8 @@ title: "Noise K Sealed Payload (with appId)"
 packet
     0-63: "Replay Counter (uint64 LE)"
     64-71: "Flags (bit 0 = 1: appId present)"
-    72-199: "App ID Hash (SHA-256-128, 16 bytes)"
-    200-263: "Message Data (N bytes, plaintext)"
+    72-135: "App ID Hash (SHA-256-64, 8 bytes)"
+    136-199: "Message Data (N bytes, plaintext)"
 ```
 
 **Variant without appId** (flags bit 0 = 0):
@@ -109,14 +109,14 @@ packet
 title: "Broadcast Envelope (fixed header + variable payload)"
 ---
 packet
-    0-127: "Message ID (UUID, 16 bytes)"
-    128-383: "Sender Ed25519 Public Key (32 bytes)"
-    384-391: "Remaining Hop Count (1 byte)"
-    392-423: "Payload Length (uint32 LE, 4 bytes)"
-    424-431: "Payload (N bytes) ..."
+    0-95: "Message ID (structured, 12 bytes)"
+    96-351: "Sender Ed25519 Public Key (32 bytes)"
+    352-359: "Remaining Hop Count (1 byte)"
+    360-391: "Payload Length (uint32 LE, 4 bytes)"
+    392-399: "Payload (N bytes) ..."
 ```
 
-> **Note:** After the payload, a 64-byte Ed25519 signature covers bytes \[0, 53+N). Signature starts at byte offset 53+N. Total envelope = 117+N bytes.
+> **Note:** After the payload, a 64-byte Ed25519 signature covers bytes \[0, 49+N). Signature starts at byte offset 49+N. Total envelope = 113+N bytes.
 
 ### GATT Message Type Prefix
 

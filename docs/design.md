@@ -397,7 +397,7 @@ packet-beta
   96-351: "Destination Public Key (Ed25519, 32 bytes)"
   352-359: "Hop Count (1 byte)"
   360-367: "Visited Count V (1 byte)"
-  368-495: "Visited List (V × 16 bytes, max 4 entries)"
+  368-495: "Visited List (V × 8 bytes, max 4 entries)"
   528-543: "Chunk Seq# (uint16 LE)"
   544-575: "Total Ciphertext Len (uint32 LE, seq=0 only)"
   576-639: "Chunk Payload (C bytes)"
@@ -2038,7 +2038,7 @@ See [Integration Guide § Quick Start](integration-guide.md#quick-start) for min
 
 **Primary async interfaces:**
 - `meshLink.peers: Flow<Peer>` — emits peer discovery and loss events. New subscriptions **replay current known peers**, then incremental updates (`onPeerDiscovered` / `onPeerLost`). **Subscription is thread-safe via `MutableStateFlow`** — replay of current state and subsequent deltas are naturally race-free with concurrent eviction/discovery events.
-- `meshLink.messages: Flow<Message>` — **forward-only event stream (no replay)**. Only messages received *after* subscription are delivered. Each `Message` carries `sender: PublicKey`, `payload: ByteArray`, `messageId: UUID`, `isBroadcast: Boolean`. **Delivered via `MutableSharedFlow`** — new subscribers immediately start receiving without race conditions.
+- `meshLink.messages: Flow<Message>` — **forward-only event stream (no replay)**. Only messages received *after* subscription are delivered. Each `Message` carries `sender: PublicKey`, `payload: ByteArray`, `messageId: MessageId`, `isBroadcast: Boolean`. **Delivered via `MutableSharedFlow`** — new subscribers immediately start receiving without race conditions.
 - `meshLink.diagnostics: Flow<DiagnosticEvent>` — optional diagnostic stream (zero cost when unsubscribed; see Diagnostic Stream section below). **Delivered via `MutableSharedFlow`.** Implemented as a single `MutableSharedFlow(extraBufferCapacity=256, onBufferOverflow=DROP_OLDEST)` — all subscribers share one buffer. A slow subscriber causes DROP_OLDEST for all subscribers (surfacing the problem rather than hiding it). On iOS, exposed as `AsyncStream` with a bounded 256-element channel.
 
 On iOS, `.peers` and `.messages` are exposed as `AsyncStream<Peer>` and `AsyncStream<Message>` via thin Swift extensions.
@@ -2080,7 +2080,7 @@ Convenience APIs using listener patterns for consumers who don't use async strea
 
 **Replay counter interaction:** Self-send loopback does not increment the sender's replay counter — no cryptographic state is mutated. Messages arriving via wire with sender=self are impossible by design (the visited list contains the peer's own key hash, causing the message to be dropped before reaching replay validation).
 
-**Dedup interaction:** Self-send loopback **bypasses the dedup set entirely** — the message goes directly from `send()` → TransferEngine → `.messages` Flow. No messageId is inserted into the dedup pool. Self-messages cannot consume dedup quota or pollute the mesh dedup set. The API generates a fresh UUID for every `send()` call, so duplicate self-sends are impossible through the public API.
+**Dedup interaction:** Self-send loopback **bypasses the dedup set entirely** — the message goes directly from `send()` → TransferEngine → `.messages` Flow. No messageId is inserted into the dedup pool. Self-messages cannot consume dedup quota or pollute the mesh dedup set. The API generates a fresh MessageId for every `send()` call, so duplicate self-sends are impossible through the public API.
 
 ### Key Events
 
@@ -2181,16 +2181,16 @@ Errors use a **two-tier structure**: a broad category + a specific code.
 
 ```kotlin
 // Recommended outbox pattern for reliable messaging
-val outbox = mutableMapOf<UUID, OutboxEntry>()
+val outbox = mutableMapOf<MessageId, OutboxEntry>()
 
 val messageId = meshLink.send(to = recipient, payload = data).getOrThrow()
 outbox[messageId] = OutboxEntry(data, recipient, sentAt = now())
 
 // In MeshLinkListener:
-override fun onDeliveryConfirmed(messageId: UUID) {
+override fun onDeliveryConfirmed(messageId: MessageId) {
     outbox.remove(messageId)  // confirmed — safe to forget
 }
-override fun onTransferFailed(messageId: UUID, reason: Reason, context: FailureContext) {
+override fun onTransferFailed(messageId: MessageId, reason: Reason, context: FailureContext) {
     val entry = outbox[messageId] ?: return
     if (entry.retryCount < MAX_RETRIES) {
         entry.retryCount++
@@ -2301,7 +2301,7 @@ No attempt to resume active transfers — sender retry via SACK/timeout is the c
 
 **`send()` ordering and backpressure:** Concurrent `send()` calls are dispatched to the MeshLink coroutine scope. Ordering guarantee: **FIFO within a single thread**. No ordering guarantee across threads — cross-thread ordering is inherently non-deterministic. If the message buffer is full, `send()` returns `Result.Failure(bufferFull)` **immediately** (non-blocking) — the app decides whether to retry, drop, or alert the user. `send()` never suspends or blocks the calling coroutine.
 
-**`send()` API surface:** Minimal: `send(recipient: PublicKey, payload: ByteArray): Result<UUID>`. On Swift, the external parameter label is `to:` per Swift naming conventions: `send(to: PublicKey, payload: Data) throws -> UUID`. No metadata parameters, no priority hints, no builder pattern. The payload is opaque bytes — the app encodes its own content type, priority, or metadata within the payload. This keeps the API surface minimal for v1; ergonomic additions (tags, options) can be added in minor versions without breaking changes.
+**`send()` API surface:** Minimal: `send(recipient: PublicKey, payload: ByteArray): Result<MessageId>`. On Swift, the external parameter label is `to:` per Swift naming conventions: `send(to: PublicKey, payload: Data) throws -> MessageId`. No metadata parameters, no priority hints, no builder pattern. The payload is opaque bytes — the app encodes its own content type, priority, or metadata within the payload. This keeps the API surface minimal for v1; ergonomic additions (tags, options) can be added in minor versions without breaking changes.
 
 **`pause()` behavior:**
 

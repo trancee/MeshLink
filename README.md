@@ -66,7 +66,7 @@ MeshLink/
 │       ├── linuxMain/           # Linux-specific (POSIX time, battery stub)
 │       ├── androidMain/         # Android BLE, storage, services
 │       ├── jvmMain/             # JVM crypto provider
-│       └── commonTest/          # 1,168+ tests
+│       └── commonTest/          # 1,166+ tests
 ├── meshlink-sample/
 │   ├── android/                 # Jetpack Compose reference app
 │   ├── ios/                     # SwiftUI reference app
