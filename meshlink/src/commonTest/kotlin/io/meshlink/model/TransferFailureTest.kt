@@ -4,15 +4,14 @@ import io.meshlink.util.DeliveryOutcome
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
-import kotlin.uuid.ExperimentalUuidApi
-import kotlin.uuid.Uuid
+import io.meshlink.model.MessageId
 
-@OptIn(ExperimentalUuidApi::class)
+
 class TransferFailureTest {
 
     @Test
     fun constructionPreservesFields() {
-        val id = Uuid.random()
+        val id = MessageId.random()
         val reason = DeliveryOutcome.FAILED_ACK_TIMEOUT
         val failure = TransferFailure(id, reason)
         assertEquals(id, failure.messageId)
@@ -21,7 +20,7 @@ class TransferFailureTest {
 
     @Test
     fun equalityComparesAllFields() {
-        val id = Uuid.random()
+        val id = MessageId.random()
         val a = TransferFailure(id, DeliveryOutcome.FAILED_ACK_TIMEOUT)
         val b = TransferFailure(id, DeliveryOutcome.FAILED_ACK_TIMEOUT)
         assertEquals(a, b)
@@ -29,7 +28,7 @@ class TransferFailureTest {
 
     @Test
     fun differentReasonNotEqual() {
-        val id = Uuid.random()
+        val id = MessageId.random()
         val a = TransferFailure(id, DeliveryOutcome.FAILED_ACK_TIMEOUT)
         val b = TransferFailure(id, DeliveryOutcome.FAILED_NO_ROUTE)
         assertNotEquals(a, b)
@@ -37,14 +36,14 @@ class TransferFailureTest {
 
     @Test
     fun differentIdNotEqual() {
-        val a = TransferFailure(Uuid.random(), DeliveryOutcome.FAILED_BUFFER_FULL)
-        val b = TransferFailure(Uuid.random(), DeliveryOutcome.FAILED_BUFFER_FULL)
+        val a = TransferFailure(MessageId.random(), DeliveryOutcome.FAILED_BUFFER_FULL)
+        val b = TransferFailure(MessageId.random(), DeliveryOutcome.FAILED_BUFFER_FULL)
         assertNotEquals(a, b)
     }
 
     @Test
     fun allDeliveryOutcomesCanBeUsed() {
-        val id = Uuid.random()
+        val id = MessageId.random()
         for (outcome in DeliveryOutcome.entries) {
             val failure = TransferFailure(id, outcome)
             assertEquals(outcome, failure.reason)

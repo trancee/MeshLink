@@ -13,7 +13,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
-import kotlin.uuid.ExperimentalUuidApi
 
 /**
  * JVM console sample demonstrating the MeshLink API.
@@ -21,7 +20,6 @@ import kotlin.uuid.ExperimentalUuidApi
  * Since JVM has no BLE hardware access, this uses a no-op transport
  * to showcase lifecycle, configuration, messaging, and diagnostics.
  */
-@OptIn(ExperimentalUuidApi::class)
 fun main() {
     println("╔══════════════════════════════════════╗")
     println("║        MeshLink — JVM Sample         ║")

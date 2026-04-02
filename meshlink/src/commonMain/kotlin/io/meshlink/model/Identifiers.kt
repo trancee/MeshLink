@@ -1,10 +1,9 @@
 package io.meshlink.model
 
+import io.meshlink.crypto.secureRandomBytes
 import io.meshlink.util.hexToBytes
 import io.meshlink.util.toHex
 import kotlin.jvm.JvmInline
-import kotlin.uuid.ExperimentalUuidApi
-import kotlin.uuid.Uuid
 
 /**
  * Type-safe peer identifier wrapping the hex-encoded peer ID string.
@@ -22,21 +21,24 @@ value class PeerId(val hex: String) {
 }
 
 /**
- * Type-safe message identifier wrapping the hex-encoded message ID string.
- * Provides [toUuid] for Kotlin UUID interop and [random] factory.
+ * Type-safe 12-byte message identifier: 8-byte sender peer ID hash +
+ * 4-byte monotonic counter (little-endian). Deterministic, zero collision
+ * risk. Use [MessageIdGenerator] for wire message IDs and [random] for
+ * non-wire identifiers (failure tracking, loopback).
  */
 @JvmInline
 value class MessageId(val hex: String) {
     val bytes: ByteArray get() = hexToBytes(hex)
-
-    @OptIn(ExperimentalUuidApi::class)
-    fun toUuid(): Uuid = Uuid.fromByteArray(bytes)
     override fun toString(): String = hex
 
     companion object {
-        fun fromBytes(bytes: ByteArray): MessageId = MessageId(bytes.toHex())
+        const val SIZE = 12
 
-        @OptIn(ExperimentalUuidApi::class)
-        fun random(): MessageId = fromBytes(Uuid.random().toByteArray())
+        fun fromBytes(bytes: ByteArray): MessageId {
+            require(bytes.size == SIZE) { "MessageId must be $SIZE bytes, got ${bytes.size}" }
+            return MessageId(bytes.toHex())
+        }
+
+        fun random(): MessageId = fromBytes(secureRandomBytes(SIZE))
     }
 }

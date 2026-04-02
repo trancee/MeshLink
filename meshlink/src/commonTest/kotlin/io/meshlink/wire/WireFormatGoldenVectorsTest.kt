@@ -18,23 +18,23 @@ import kotlin.test.assertEquals
  */
 class WireFormatGoldenVectorsTest {
 
-    // Shared: messageId = 0x01..0x10 (16 bytes)
-    private val messageId = ByteArray(16) { (it + 1).toByte() }
+    // Shared: messageId = 0x01..0x0C (12 bytes)
+    private val messageId = ByteArray(12) { (it + 1).toByte() }
 
     // ────────────────────────────────────────────────────────────────────
     // Chunk (0x05)
-    //   messageId  = 0x01..0x10
+    //   messageId  = 0x01..0x0C
     //   seqNumber  = 0x0005  (LE: 05 00)
     //   totalChunks = 0x000A (LE: 0a 00)
     //   payload    = "Hello"
     //
     // Golden hex:
-    //   050102030405060708090a0b0c0d0e0f1005000a0048656c6c6f
+    //   050102030405060708090a0b0c05000a0048656c6c6f
     // ────────────────────────────────────────────────────────────────────
 
     private val chunkGoldenHex =
         "05" +                                  // type: chunk
-        "0102030405060708090a0b0c0d0e0f10" +    // messageId
+        "0102030405060708090a0b0c" +    // messageId
         "0500" +                                // sequenceNumber = 5 (LE)
         "0a00" +                                // totalChunks = 10 (LE)
         "48656c6c6f"                             // payload "Hello"
@@ -67,16 +67,16 @@ class WireFormatGoldenVectorsTest {
     //   sackBitmask     = 0xFF00FF00FF00FF00  (LE: 00 ff 00 ff 00 ff 00 ff)
     //   sackBitmaskHigh = 0xAA55AA55AA55AA55  (LE: 55 aa 55 aa 55 aa 55 aa)
     //
-    // Layout: type(1) + msgId(16) + ackSeq(2 LE) + sackBitmask(8 LE)
-    //         + sackBitmaskHigh(8 LE) = 35 bytes
+    // Layout: type(1) + msgId(12) + ackSeq(2 LE) + sackBitmask(8 LE)
+    //         + sackBitmaskHigh(8 LE) = 31 bytes
     //
     // Golden hex:
-    //   060102030405060708090a0b0c0d0e0f10030000ff00ff00ff00ff55aa55aa55aa55aa
+    //   060102030405060708090a0b0c030000ff00ff00ff00ff55aa55aa55aa55aa
     // ────────────────────────────────────────────────────────────────────
 
     private val chunkAckGoldenHex =
         "06" +                                  // type: chunk_ack
-        "0102030405060708090a0b0c0d0e0f10" +    // messageId
+        "0102030405060708090a0b0c" +    // messageId
         "0300" +                                // ackSequence = 3 (LE)
         "00ff00ff00ff00ff" +                     // sackBitmask = 0xFF00FF00FF00FF00 (LE)
         "55aa55aa55aa55aa" +                     // sackBitmaskHigh = 0xAA55AA55AA55AA55 (LE)
@@ -105,7 +105,7 @@ class WireFormatGoldenVectorsTest {
 
     // ────────────────────────────────────────────────────────────────────
     // RoutedMessage (0x0a)
-    //   messageId    = 0x01..0x10
+    //   messageId    = 0x01..0x0C
     //   origin       = 0x11 × 8
     //   destination   = 0xAA × 8
     //   hopLimit     = 5
@@ -113,11 +113,11 @@ class WireFormatGoldenVectorsTest {
     //   visitedList  = [] (empty)
     //   payload      = "routed data"
     //
-    // Layout: type(1) + msgId(16) + origin(8) + dest(8) + hop(1)
-    //         + replay(8 LE) + visitedCount(1) + payload(11) = 54 bytes
+    // Layout: type(1) + msgId(12) + origin(8) + dest(8) + hop(1)
+    //         + replay(8 LE) + visitedCount(1) + payload(11) = 50 bytes
     //
     // Golden hex:
-    //   0a0102030405060708090a0b0c0d0e0f10
+    //   0a0102030405060708090a0b0c
     //   1111111111111111
     //   aaaaaaaaaaaaaaaa
     //   05 0000000000000000 00
@@ -126,7 +126,7 @@ class WireFormatGoldenVectorsTest {
 
     private val routedMessageGoldenHex =
         "0a" +                                  // type: routed_message
-        "0102030405060708090a0b0c0d0e0f10" +    // messageId
+        "0102030405060708090a0b0c" +    // messageId
         "1111111111111111" +                    // origin (8 × 0x11)
         "aaaaaaaaaaaaaaaa" +                    // destination (8 × 0xAA)
         "05" +                                  // hopLimit = 5
@@ -145,7 +145,7 @@ class WireFormatGoldenVectorsTest {
             payload = "routed data".encodeToByteArray(),
         )
         assertEquals(routedMessageGoldenHex, encoded.toHex())
-        assertEquals(54, encoded.size)
+        assertEquals(50, encoded.size)
     }
 
     @Test
@@ -171,7 +171,7 @@ class WireFormatGoldenVectorsTest {
 
     private val routedWithVisitedGoldenHex =
         "0a" +                                  // type
-        "0102030405060708090a0b0c0d0e0f10" +    // messageId
+        "0102030405060708090a0b0c" +    // messageId
         "1111111111111111" +                    // origin
         "aaaaaaaaaaaaaaaa" +                    // destination
         "05" +                                  // hopLimit = 5
@@ -192,7 +192,7 @@ class WireFormatGoldenVectorsTest {
             replayCounter = 0x0000000100000002uL,
         )
         assertEquals(routedWithVisitedGoldenHex, encoded.toHex())
-        assertEquals(62, encoded.size) // 54 + 8 visited entry
+        assertEquals(58, encoded.size) // 50 + 8 visited entry
     }
 
     @Test
@@ -209,18 +209,18 @@ class WireFormatGoldenVectorsTest {
 
     // ────────────────────────────────────────────────────────────────────
     // Broadcast (0x09)
-    //   messageId     = 0x01..0x10
+    //   messageId     = 0x01..0x0C
     //   origin        = 0xBB × 8
     //   remainingHops = 3
     //   appIdHash     = 0xCC × 16
     //   signature     = (none, sigLen = 0)
     //   payload       = "broadcast msg"
     //
-    // Layout: type(1) + msgId(16) + origin(8) + hops(1) + appIdHash(16)
-    //         + sigLen(1) + payload(13) = 56 bytes
+    // Layout: type(1) + msgId(12) + origin(8) + hops(1) + appIdHash(16)
+    //         + sigLen(1) + payload(13) = 52 bytes
     //
     // Golden hex:
-    //   090102030405060708090a0b0c0d0e0f10
+    //   090102030405060708090a0b0c
     //   bbbbbbbbbbbbbbbb
     //   03
     //   cccccccccccccccccccccccccccccccc
@@ -230,7 +230,7 @@ class WireFormatGoldenVectorsTest {
 
     private val broadcastGoldenHex =
         "09" +                                  // type: broadcast
-        "0102030405060708090a0b0c0d0e0f10" +    // messageId
+        "0102030405060708090a0b0c" +    // messageId
         "bbbbbbbbbbbbbbbb" +                    // origin (8 × 0xBB)
         "03" +                                  // remainingHops = 3
         "cccccccccccccccccccccccccccccccc" +      // appIdHash (16 × 0xCC)
@@ -247,7 +247,7 @@ class WireFormatGoldenVectorsTest {
             payload = "broadcast msg".encodeToByteArray(),
         )
         assertEquals(broadcastGoldenHex, encoded.toHex())
-        assertEquals(56, encoded.size)
+        assertEquals(52, encoded.size)
     }
 
     @Test
@@ -265,21 +265,21 @@ class WireFormatGoldenVectorsTest {
 
     // ────────────────────────────────────────────────────────────────────
     // DeliveryAck (0x0b)
-    //   messageId   = 0x01..0x10
+    //   messageId   = 0x01..0x0C
     //   recipientId = 0xDD × 8
     //   signature   = (none, sigLen = 0)
     //
-    // Layout: type(1) + msgId(16) + recipientId(8) + sigLen(1) = 26 bytes
+    // Layout: type(1) + msgId(12) + recipientId(8) + sigLen(1) = 22 bytes
     //
     // Golden hex:
-    //   0b0102030405060708090a0b0c0d0e0f10
+    //   0b0102030405060708090a0b0c
     //   dddddddddddddddd
     //   00
     // ────────────────────────────────────────────────────────────────────
 
     private val deliveryAckGoldenHex =
         "0b" +                                  // type: delivery_ack
-        "0102030405060708090a0b0c0d0e0f10" +    // messageId
+        "0102030405060708090a0b0c" +    // messageId
         "dddddddddddddddd" +                   // recipientId (8 × 0xDD)
         "00" +                                  // sigLen = 0 (unsigned)
         "0000"                                  // empty TLV extensions
@@ -291,7 +291,7 @@ class WireFormatGoldenVectorsTest {
             recipientId = ByteArray(8) { 0xDD.toByte() },
         )
         assertEquals(deliveryAckGoldenHex, encoded.toHex())
-        assertEquals(28, encoded.size)
+        assertEquals(24, encoded.size)
     }
 
     @Test
@@ -306,18 +306,18 @@ class WireFormatGoldenVectorsTest {
 
     // ────────────────────────────────────────────────────────────────────
     // ResumeRequest (0x08)
-    //   messageId     = 0x01..0x10
+    //   messageId     = 0x01..0x0C
     //   bytesReceived = 0x12345678  (LE: 78 56 34 12)
     //
-    // Layout: type(1) + msgId(16) + bytesReceived(4 LE) = 21 bytes
+    // Layout: type(1) + msgId(12) + bytesReceived(4 LE) = 17 bytes
     //
     // Golden hex:
-    //   080102030405060708090a0b0c0d0e0f1078563412
+    //   080102030405060708090a0b0c78563412
     // ────────────────────────────────────────────────────────────────────
 
     private val resumeRequestGoldenHex =
         "08" +                                  // type: resume_request
-        "0102030405060708090a0b0c0d0e0f10" +    // messageId
+        "0102030405060708090a0b0c" +    // messageId
         "78563412" +                            // bytesReceived = 0x12345678 (LE)
         "0000"                                  // empty TLV extensions
 
@@ -328,7 +328,7 @@ class WireFormatGoldenVectorsTest {
             bytesReceived = 0x12345678u,
         )
         assertEquals(resumeRequestGoldenHex, encoded.toHex())
-        assertEquals(23, encoded.size)
+        assertEquals(19, encoded.size)
     }
 
     @Test

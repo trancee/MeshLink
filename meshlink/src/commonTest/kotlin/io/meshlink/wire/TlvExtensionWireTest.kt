@@ -17,7 +17,7 @@ class TlvExtensionWireTest {
     )
 
     private val peerId = ByteArray(8) { (it + 1).toByte() }
-    private val messageId = ByteArray(16) { (it + 0x10).toByte() }
+    private val messageId = ByteArray(12) { (it + 0x10).toByte() }
 
     // ── Keepalive ─────────────────────────────────────────────────
 
@@ -54,7 +54,7 @@ class TlvExtensionWireTest {
 
     @Test
     fun chunkAckLegacyDecodeHasEmptyExtensions() {
-        val legacy = ByteArray(35)
+        val legacy = ByteArray(31)
         legacy[0] = WireCodec.TYPE_CHUNK_ACK
         messageId.copyInto(legacy, 1)
         val decoded = WireCodec.decodeChunkAck(legacy)
@@ -73,7 +73,7 @@ class TlvExtensionWireTest {
 
     @Test
     fun nackLegacyDecodeHasEmptyExtensions() {
-        val legacy = ByteArray(18)
+        val legacy = ByteArray(14)
         legacy[0] = WireCodec.TYPE_NACK
         messageId.copyInto(legacy, 1)
         val decoded = WireCodec.decodeNack(legacy)
@@ -154,7 +154,7 @@ class TlvExtensionWireTest {
 
     @Test
     fun deliveryAckLegacyNoSigDecodeHasEmptyExtensions() {
-        val legacy = ByteArray(26)
+        val legacy = ByteArray(22)
         legacy[0] = WireCodec.TYPE_DELIVERY_ACK
         messageId.copyInto(legacy, 1)
         val decoded = WireCodec.decodeDeliveryAck(legacy)

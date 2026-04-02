@@ -11,9 +11,7 @@ import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
-import kotlin.uuid.ExperimentalUuidApi
 
-@OptIn(ExperimentalUuidApi::class)
 class CompressionIntegrationTest {
 
     private val peerIdAlice = ByteArray(8) { (0xA0 + it).toByte() }

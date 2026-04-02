@@ -2,13 +2,12 @@ package io.meshlink.model
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.uuid.ExperimentalUuidApi
-import kotlin.uuid.Uuid
+import io.meshlink.model.MessageId
 
-@OptIn(ExperimentalUuidApi::class)
+
 class TransferProgressTest {
 
-    private val id = Uuid.random()
+    private val id = MessageId.random()
 
     // --- Batch 12 Cycle 3: fraction edge cases ---
 

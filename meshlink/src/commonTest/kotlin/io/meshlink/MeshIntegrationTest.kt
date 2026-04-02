@@ -8,6 +8,7 @@ import io.meshlink.model.Message
 import io.meshlink.model.PeerEvent
 import io.meshlink.model.TransferFailure
 import io.meshlink.model.TransferProgress
+import io.meshlink.model.MessageId
 import io.meshlink.transport.VirtualMeshTransport
 import io.meshlink.util.DeliveryOutcome
 import io.meshlink.util.toHex
@@ -27,7 +28,6 @@ import kotlin.test.assertIs
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
-import kotlin.uuid.ExperimentalUuidApi
 
 /**
  * Integration tests exercising full MeshLink flows through the VirtualMeshTransport.
@@ -36,7 +36,7 @@ import kotlin.uuid.ExperimentalUuidApi
  * peers and exercises end-to-end flows: discovery → handshake → messaging →
  * delivery confirmation → stop.
  */
-@OptIn(ExperimentalCoroutinesApi::class, ExperimentalUuidApi::class)
+@OptIn(ExperimentalCoroutinesApi::class)
 class MeshIntegrationTest {
 
     private fun peerId(index: Int) = ByteArray(8) { ((index shl 4) + it).toByte() }
@@ -164,7 +164,7 @@ class MeshIntegrationTest {
         // Bob must consume the message for the delivery ACK to fire
         val bobJob = launch { bob.messages.first() }
 
-        var confirmedId: kotlin.uuid.Uuid? = null
+        var confirmedId: MessageId? = null
         val confirmJob = launch {
             confirmedId = alice.deliveryConfirmations.first()
         }
@@ -945,7 +945,7 @@ class MeshIntegrationTest {
     // ── Diagnostics: hop limit exceeded ───────────────────────────
 
     @Test
-    @OptIn(kotlin.uuid.ExperimentalUuidApi::class)
+    
     fun hopLimitExceededEmitsDiagnostic() = runTest {
         val tAlice = VirtualMeshTransport(peerIdAlice)
         val alice = MeshLink(tAlice, testMeshLinkConfig { requireEncryption = false }, coroutineContext)
@@ -963,7 +963,7 @@ class MeshIntegrationTest {
         val sender = ByteArray(8) { 0xCC.toByte() }
         val target = ByteArray(8) { 0xDD.toByte() }
         val msg = WireCodec.encodeRoutedMessage(
-            messageId = kotlin.uuid.Uuid.random().toByteArray(),
+            messageId = MessageId.random().bytes,
             origin = sender,
             destination = target,
             hopLimit = 0u,

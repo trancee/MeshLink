@@ -17,7 +17,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlin.uuid.ExperimentalUuidApi
 
 /** Lightweight descriptor of a discovered peer for the mesh visualizer. */
 data class PeerInfo(
@@ -27,7 +26,6 @@ data class PeerInfo(
     val firstSeen: Long,
 )
 
-@OptIn(ExperimentalUuidApi::class)
 class MeshLinkViewModel(application: Application) : AndroidViewModel(application) {
 
     private val transport = AndroidBleTransport(application)

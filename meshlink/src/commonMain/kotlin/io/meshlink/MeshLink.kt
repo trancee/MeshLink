@@ -18,6 +18,7 @@ import io.meshlink.dispatch.MessageDispatcher
 import io.meshlink.dispatch.OutboundTracker
 import io.meshlink.model.KeyChangeEvent
 import io.meshlink.model.Message
+import io.meshlink.model.MessageId
 import io.meshlink.model.PeerDetail
 import io.meshlink.model.PeerEvent
 import io.meshlink.model.TransferFailure
@@ -52,6 +53,7 @@ import io.meshlink.util.toHex
 import io.meshlink.util.toKey
 import io.meshlink.util.withLock
 import io.meshlink.wire.AdvertisementCodec
+import io.meshlink.wire.MessageIdGenerator
 import io.meshlink.wire.NackReason
 import io.meshlink.wire.WireCodec
 import kotlinx.coroutines.CoroutineScope
@@ -68,15 +70,12 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
-import kotlin.uuid.ExperimentalUuidApi
-import kotlin.uuid.Uuid
 
 private const val NEXTHOP_UNRELIABLE_THRESHOLD = 0.5
 private const val NEXTHOP_MIN_SAMPLES = 3
 private const val ENVELOPE_UNCOMPRESSED: Byte = 0x00
 private const val ENVELOPE_COMPRESSED: Byte = 0x01
 
-@OptIn(ExperimentalUuidApi::class)
 class MeshLink(
     private val transport: BleTransport,
     private val config: MeshLinkConfig = MeshLinkConfig(),
@@ -89,19 +88,20 @@ class MeshLink(
     private val clock = clock
     private val sendLock = PlatformLock()
     private val compressor: Compressor? = if (config.compressionEnabled) Compressor() else null
+    private val messageIdGenerator = MessageIdGenerator(transport.localPeerId)
 
     private val rateLimitPolicy = RateLimitPolicy(config, clock)
 
     private val _peers = MutableSharedFlow<PeerEvent>(replay = 64)
     private val _messages = MutableSharedFlow<Message>(extraBufferCapacity = 64)
-    private val _deliveryConfirmations = MutableSharedFlow<Uuid>(extraBufferCapacity = 64)
+    private val _deliveryConfirmations = MutableSharedFlow<MessageId>(extraBufferCapacity = 64)
     private val _transferFailures = MutableSharedFlow<TransferFailure>(extraBufferCapacity = 64)
     private val _transferProgress = MutableSharedFlow<TransferProgress>(extraBufferCapacity = 64)
     private val _keyChanges = MutableSharedFlow<KeyChangeEvent>(extraBufferCapacity = 64)
 
     override val peers: Flow<PeerEvent> = _peers.asSharedFlow()
     override val messages: Flow<Message> = _messages.asSharedFlow()
-    override val deliveryConfirmations: Flow<Uuid> = _deliveryConfirmations.asSharedFlow()
+    override val deliveryConfirmations: Flow<MessageId> = _deliveryConfirmations.asSharedFlow()
     override val transferFailures: Flow<TransferFailure> = _transferFailures.asSharedFlow()
     override val transferProgress: Flow<TransferProgress> = _transferProgress.asSharedFlow()
     override val keyChanges: Flow<KeyChangeEvent> = _keyChanges.asSharedFlow()
@@ -246,6 +246,7 @@ class MeshLink(
         appIdHash = config.appId?.let { AppIdFilter.hash(it) } ?: ByteArray(16),
         localPeerId = transport.localPeerId,
         markAsSeen = { routingEngine.isDuplicate(it) },
+        generateMessageId = { messageIdGenerator.generate().bytes },
     )
 
     private val routeCoordinator = RouteCoordinator(
@@ -305,7 +306,7 @@ class MeshLink(
                 safeEmit(
                     _transferProgress,
                     TransferProgress(
-                        messageId = Uuid.fromByteArray(messageId),
+                        messageId = MessageId.fromBytes(messageId),
                         chunksAcked = chunksAcked,
                         totalChunks = totalChunks,
                     ),
@@ -317,7 +318,7 @@ class MeshLink(
                 outboundTracker.removeNextHop(key)?.let { nextHop ->
                     routingEngine.recordNextHopSuccess(nextHop)
                 }
-                safeEmit(_deliveryConfirmations, Uuid.fromByteArray(messageId), "deliveryConfirmations")
+                safeEmit(_deliveryConfirmations, MessageId.fromBytes(messageId), "deliveryConfirmations")
             }
             override fun onKeyChanged(event: KeyChangeEvent) {
                 _keyChanges.tryEmit(event)
@@ -495,14 +496,14 @@ class MeshLink(
         for (key in outboundTracker.allRecipientKeys()) {
             if (deliveryPipeline.recordFailure(key, DeliveryOutcome.FAILED_DELIVERY_TIMEOUT)) {
                 _transferFailures.tryEmit(
-                    TransferFailure(Uuid.fromByteArray(key.bytes), DeliveryOutcome.FAILED_DELIVERY_TIMEOUT)
+                    TransferFailure(MessageId.fromBytes(key.bytes), DeliveryOutcome.FAILED_DELIVERY_TIMEOUT)
                 )
             }
         }
         // Emit DELIVERY_TIMEOUT for queued paused messages that were never sent
         for ((_, _) in pauseManager.drainSendQueue()) {
             _transferFailures.tryEmit(
-                TransferFailure(Uuid.random(), DeliveryOutcome.FAILED_DELIVERY_TIMEOUT)
+                TransferFailure(MessageId.random(), DeliveryOutcome.FAILED_DELIVERY_TIMEOUT)
             )
         }
         clearState()
@@ -606,7 +607,7 @@ class MeshLink(
             }
             if (deliveryPipeline.recordFailure(key, DeliveryOutcome.FAILED_ACK_TIMEOUT)) {
                 _transferFailures.tryEmit(
-                    TransferFailure(Uuid.fromByteArray(key.bytes), DeliveryOutcome.FAILED_ACK_TIMEOUT)
+                    TransferFailure(MessageId.fromBytes(key.bytes), DeliveryOutcome.FAILED_ACK_TIMEOUT)
                 )
             }
         }
@@ -622,7 +623,7 @@ class MeshLink(
         val expired = deliveryPipeline.sweepExpiredPending(config.pendingMessageTtlMillis)
         repeat(expired) {
             _transferFailures.tryEmit(
-                TransferFailure(Uuid.random(), DeliveryOutcome.FAILED_DELIVERY_TIMEOUT)
+                TransferFailure(MessageId.random(), DeliveryOutcome.FAILED_DELIVERY_TIMEOUT)
             )
         }
         return expired
@@ -677,7 +678,7 @@ class MeshLink(
         return actions
     }
 
-    override fun broadcast(payload: ByteArray, maxHops: UByte): Result<Uuid> {
+    override fun broadcast(payload: ByteArray, maxHops: UByte): Result<MessageId> {
         if (!started) throw IllegalStateException("MeshLink not started")
         val s = requireScope()
 
@@ -698,22 +699,22 @@ class MeshLink(
                 for (peerId in routingEngine.allPeerIds()) {
                     s.launch { safeSend(peerId.bytes, decision.encodedFrame) }
                 }
-                Result.success(Uuid.fromByteArray(decision.messageId))
+                Result.success(MessageId.fromBytes(decision.messageId))
             }
         }
     }
 
-    override fun send(recipient: ByteArray, payload: ByteArray): Result<Uuid> {
+    override fun send(recipient: ByteArray, payload: ByteArray): Result<MessageId> {
         if (!started) throw IllegalStateException("MeshLink not started")
         return sendLock.withLock { sendInternal(recipient, payload) }
     }
 
-    private fun sendInternal(recipient: ByteArray, payload: ByteArray): Result<Uuid> {
+    private fun sendInternal(recipient: ByteArray, payload: ByteArray): Result<MessageId> {
         val s = requireScope()
 
         return when (val decision = sendPolicyChain.evaluate(recipient, payload.size)) {
             is SendDecision.BufferFull -> {
-                val failureId = Uuid.random()
+                val failureId = MessageId.random()
                 s.launch {
                     _transferFailures.emit(TransferFailure(failureId, DeliveryOutcome.FAILED_BUFFER_FULL))
                 }
@@ -721,7 +722,7 @@ class MeshLink(
             }
 
             is SendDecision.Loopback -> {
-                val messageId = Uuid.random()
+                val messageId = MessageId.random()
                 s.launch {
                     safeEmit(_messages, Message(senderId = recipient, payload = payload), "messages")
                 }
@@ -730,7 +731,7 @@ class MeshLink(
 
             is SendDecision.Paused -> {
                 pauseManager.queueSend(recipient, payload)
-                Result.success(Uuid.random())
+                Result.success(MessageId.random())
             }
 
             is SendDecision.RateLimited -> {
@@ -753,7 +754,7 @@ class MeshLink(
                 // Initiate AODV route discovery
                 val discovery = routingEngine.initiateRouteDiscovery(destKey)
                 s.launch { routeCoordinator.floodRouteRequest(discovery.rreqFrame) }
-                Result.success(Uuid.random())
+                Result.success(MessageId.random())
             }
 
             is SendDecision.MissingPublicKey -> {
@@ -766,13 +767,13 @@ class MeshLink(
         }
     }
 
-    private fun doSend(s: CoroutineScope, recipient: ByteArray, payload: ByteArray): Result<Uuid> {
-        val messageId = Uuid.random().toByteArray()
+    private fun doSend(s: CoroutineScope, recipient: ByteArray, payload: ByteArray): Result<MessageId> {
+        val messageId = messageIdGenerator.generate().bytes
         val key = messageId.toKey()
         deliveryPipeline.registerOutbound(s, key, config.deliveryTimeoutMillis) { expiredKey ->
             _transferFailures.tryEmit(
                 TransferFailure(
-                    Uuid.fromByteArray(expiredKey.bytes),
+                    MessageId.fromBytes(expiredKey.bytes),
                     DeliveryOutcome.FAILED_DELIVERY_TIMEOUT
                 )
             )
@@ -802,7 +803,7 @@ class MeshLink(
 
         dispatchChunks(s, recipient, handle.chunks, messageId)
 
-        return Result.success(Uuid.fromByteArray(messageId))
+        return Result.success(MessageId.fromBytes(messageId))
     }
 
     private fun doRoutedSend(
@@ -810,12 +811,12 @@ class MeshLink(
         destination: ByteArray,
         payload: ByteArray,
         nextHopId: ByteArrayKey,
-    ): Result<Uuid> {
-        val messageId = Uuid.random()
-        val key = messageId.toByteArray().toKey()
+    ): Result<MessageId> {
+        val messageId = messageIdGenerator.generate()
+        val key = messageId.bytes.toKey()
         outboundTracker.registerNextHop(key, nextHopId)
         val encoded = WireCodec.encodeRoutedMessage(
-            messageId = messageId.toByteArray(),
+            messageId = messageId.bytes,
             origin = transport.localPeerId,
             destination = destination,
             hopLimit = 10u,

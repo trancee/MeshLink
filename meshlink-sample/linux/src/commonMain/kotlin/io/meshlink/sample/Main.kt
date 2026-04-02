@@ -13,7 +13,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
-import kotlin.uuid.ExperimentalUuidApi
 
 /**
  * Linux console sample demonstrating the MeshLink API.
@@ -24,7 +23,6 @@ import kotlin.uuid.ExperimentalUuidApi
  * uses a no-op transport. A real implementation could bridge to BlueZ via
  * D-Bus interop.
  */
-@OptIn(ExperimentalUuidApi::class)
 fun main() {
     println("╔══════════════════════════════════════╗")
     println("║       MeshLink — Linux Sample        ║")

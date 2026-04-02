@@ -26,10 +26,9 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
-import kotlin.uuid.ExperimentalUuidApi
-import kotlin.uuid.Uuid
+import io.meshlink.model.MessageId
 
-@OptIn(ExperimentalCoroutinesApi::class, ExperimentalUuidApi::class)
+@OptIn(ExperimentalCoroutinesApi::class)
 class MeshLinkTest {
 
     private val peerIdAlice = ByteArray(8) { (0xA0 + it).toByte() }
@@ -291,7 +290,7 @@ class MeshLinkTest {
 
         // The ACK should reference the correct messageId
         val ack = WireCodec.decodeChunkAck(acksSent[0].second)
-        assertContentEquals(msgId.toByteArray(), ack.messageId)
+        assertContentEquals(msgId.bytes, ack.messageId)
 
         alice.stop(); bob.stop()
     }
@@ -317,7 +316,7 @@ class MeshLinkTest {
         val bobJob = launch { bob.messages.first() }
 
         // Subscribe for delivery confirmation before sending
-        var confirmedId: Uuid? = null
+        var confirmedId: MessageId? = null
         val confirmJob = launch {
             confirmedId = alice.deliveryConfirmations.first()
         }
@@ -749,7 +748,7 @@ class MeshLinkTest {
     @Test
     fun progressCallbackFiresWithAccurateFraction() = runTest {
         // Use a small MTU so "hello world!!" (13 bytes) splits into multiple chunks
-        // CHUNK_HEADER_SIZE = 21, MTU = 25 → chunkSize = 4 → 13/4 = 4 chunks
+        // CHUNK_HEADER_SIZE = 17, MTU = 25 → chunkSize = 8 → 13/8 = 2 chunks
         val config = testMeshLinkConfig { requireEncryption = false; mtu = 25 }
         val transportAlice = VirtualMeshTransport(peerIdAlice)
         val transportBob = VirtualMeshTransport(peerIdBob)
@@ -772,7 +771,7 @@ class MeshLinkTest {
         // Bob consumes messages
         val bobJob = launch { bob.messages.first() }
 
-        val payload = "hello world!!".encodeToByteArray() // 13 bytes → 4 chunks at chunkSize=4
+        val payload = "hello world!!".encodeToByteArray() // 13 bytes → 2 chunks at chunkSize=8
         val msgId = alice.send(peerIdBob, payload).getOrThrow()
         advanceUntilIdle()
         bobJob.join()
@@ -783,7 +782,7 @@ class MeshLinkTest {
         val last = progressEvents.last()
         assertEquals(msgId, last.messageId)
         assertEquals(1f, last.fraction, "Final progress should be 1.0")
-        assertEquals(4, last.totalChunks)
+        assertEquals(2, last.totalChunks)
 
         progressJob.cancel()
         alice.stop(); bob.stop()
@@ -793,7 +792,7 @@ class MeshLinkTest {
 
     @Test
     fun droppedChunkRetransmittedViaSack() = runTest {
-        // MTU 25 → chunkSize=4 → "abcdefghijklm" (13 bytes) → 4 chunks
+        // MTU 25 → chunkSize=8 → "abcdefghijklm" (13 bytes) → 2 chunks
         val config = testMeshLinkConfig { requireEncryption = false; mtu = 25 }
         val transportAlice = VirtualMeshTransport(peerIdAlice)
         val transportBob = VirtualMeshTransport(peerIdBob)
@@ -820,13 +819,13 @@ class MeshLinkTest {
             } else false
         }
 
-        val payload = "abcdefghijklm".encodeToByteArray() // 13 bytes → 4 chunks
+        val payload = "abcdefghijklm".encodeToByteArray() // 13 bytes → 2 chunks
 
         // Bob listens for message
         val bobJob = launch { bob.messages.first() }
 
         // Alice listens for delivery confirmation
-        var confirmedId: Uuid? = null
+        var confirmedId: MessageId? = null
         val confirmJob = launch { confirmedId = alice.deliveryConfirmations.first() }
         advanceUntilIdle()
 
@@ -1002,7 +1001,7 @@ class MeshLinkTest {
         advanceUntilIdle()
 
         // Collect all delivery confirmations
-        val confirmations = mutableListOf<Uuid>()
+        val confirmations = mutableListOf<MessageId>()
         val collector = launch { alice.deliveryConfirmations.collect { confirmations.add(it) } }
         advanceUntilIdle()
 
@@ -1020,7 +1019,7 @@ class MeshLinkTest {
 
         // Simulate a duplicate delivery ACK arriving
         val ackData = WireCodec.encodeDeliveryAck(
-            messageId = msgId.toByteArray(),
+            messageId = msgId.bytes,
             recipientId = peerIdBob,
         )
         transportAlice.receiveData(peerIdBob, ackData)
@@ -1045,14 +1044,14 @@ class MeshLinkTest {
         transportAlice.simulateDiscovery(peerIdBob)
         advanceUntilIdle()
 
-        var confirmed: Uuid? = null
+        var confirmed: MessageId? = null
         val confirmJob = launch { confirmed = alice.deliveryConfirmations.first() }
         advanceUntilIdle()
 
         // Simulate receiving a delivery ACK from Bob
-        val msgId = Uuid.random()
+        val msgId = MessageId.random()
         val ackData = WireCodec.encodeDeliveryAck(
-            messageId = msgId.toByteArray(),
+            messageId = msgId.bytes,
             recipientId = peerIdBob,
         )
         transportAlice.receiveData(peerIdBob, ackData)
@@ -1084,7 +1083,7 @@ class MeshLinkTest {
         advanceUntilIdle()
 
         // Alice sends a routed message with Bob as destination
-        val msgId = Uuid.random().toByteArray()
+        val msgId = MessageId.random().bytes
         val routedData = WireCodec.encodeRoutedMessage(
             messageId = msgId,
             origin = peerIdAlice,
@@ -1120,7 +1119,7 @@ class MeshLinkTest {
         advanceUntilIdle()
 
         // Bob receives a routed message destined for Charlie (not Bob)
-        val msgId = Uuid.random().toByteArray()
+        val msgId = MessageId.random().bytes
         val routedData = WireCodec.encodeRoutedMessage(
             messageId = msgId,
             origin = peerIdAlice,
@@ -1177,7 +1176,7 @@ class MeshLinkTest {
         advanceUntilIdle()
 
         // Bob sends a broadcast with hops=2
-        val msgId = Uuid.random().toByteArray()
+        val msgId = MessageId.random().bytes
         val broadcastData = WireCodec.encodeBroadcast(
             messageId = msgId,
             origin = peerIdBob,
@@ -1277,7 +1276,7 @@ class MeshLinkTest {
 
         // Bob receives a routed message destined for Charlie (direct neighbor)
         // Should deliver directly without needing routing table entry
-        val msgId = Uuid.random().toByteArray()
+        val msgId = MessageId.random().bytes
         val routedData = WireCodec.encodeRoutedMessage(
             messageId = msgId,
             origin = peerIdAlice,
@@ -1313,7 +1312,7 @@ class MeshLinkTest {
         transportBob.simulateDiscovery(peerIdAlice)
         advanceUntilIdle()
 
-        val confirmations = mutableListOf<Uuid>()
+        val confirmations = mutableListOf<MessageId>()
         val collector = launch { alice.deliveryConfirmations.collect { confirmations.add(it) } }
         advanceUntilIdle()
 
@@ -1326,7 +1325,7 @@ class MeshLinkTest {
         assertEquals(1, countAfterFirst, "Should have exactly 1 confirmation")
 
         // Manually send a duplicate delivery ACK back from Bob
-        val msgId = result.getOrThrow().toByteArray()
+        val msgId = result.getOrThrow().bytes
         val dupAck = WireCodec.encodeDeliveryAck(msgId, peerIdBob)
         transportAlice.receiveData(peerIdBob, dupAck)
         advanceUntilIdle()
@@ -1472,7 +1471,7 @@ class MeshLinkTest {
         transportBob.simulateDiscovery(peerIdAlice)
         advanceUntilIdle()
 
-        val confirmations = mutableListOf<Uuid>()
+        val confirmations = mutableListOf<MessageId>()
         val collector = launch { alice.deliveryConfirmations.collect { confirmations.add(it) } }
         advanceUntilIdle()
 
@@ -1653,7 +1652,7 @@ class MeshLinkTest {
         bob.addRoute(peerIdDave.toHex(), peerIdCharlie.toHex(), 1.0, 1u)
         charlie.addRoute(peerIdDave.toHex(), peerIdDave.toHex(), 1.0, 1u)
 
-        val confirmations = mutableListOf<Uuid>()
+        val confirmations = mutableListOf<MessageId>()
         val confCollector = launch { alice.deliveryConfirmations.collect { confirmations.add(it) } }
         val daveMessages = mutableListOf<Message>()
         val daveCollector = launch { dave.messages.collect { daveMessages.add(it) } }
@@ -1695,7 +1694,7 @@ class MeshLinkTest {
         advanceUntilIdle()
 
         // Send routed message through Bob destined for Charlie
-        val msgId = Uuid.random().toByteArray()
+        val msgId = MessageId.random().bytes
         val routedData = WireCodec.encodeRoutedMessage(
             messageId = msgId,
             origin = peerIdAlice,
@@ -1754,7 +1753,7 @@ class MeshLinkTest {
         transportAlice.linkTo(transportBob)
         transportBob.linkTo(transportAlice)
 
-        // mtu=30, header=21 → 9 bytes payload per chunk
+        // mtu=30, header=17 → 13 bytes payload per chunk
         val alice = MeshLink(transportAlice, testMeshLinkConfig { requireEncryption = false; mtu = 30 }, coroutineContext)
         val bob = MeshLink(transportBob, testMeshLinkConfig { requireEncryption = false; mtu = 30 }, coroutineContext)
         alice.start(); bob.start()
@@ -1768,7 +1767,7 @@ class MeshLinkTest {
         val collector = launch { bob.messages.collect { received.add(it) } }
         advanceUntilIdle()
 
-        // 50 bytes / 9 bytes per chunk = ceil(50/9) = 6 chunks
+        // 50 bytes / 13 bytes per chunk = ceil(50/13) = 4 chunks
         val payload = ByteArray(50) { (it + 1).toByte() }
         alice.send(peerIdBob, payload)
         advanceUntilIdle()
@@ -1779,9 +1778,9 @@ class MeshLinkTest {
         // Verify the number of unique chunk sequence numbers sent
         val chunkSeqNums = transportAlice.sentData
             .filter { (_, data) -> data.isNotEmpty() && data[0] == WireCodec.TYPE_CHUNK }
-            .map { (_, data) -> ((data[17].toInt() and 0xFF) or ((data[18].toInt() and 0xFF) shl 8)) }
+            .map { (_, data) -> ((data[13].toInt() and 0xFF) or ((data[14].toInt() and 0xFF) shl 8)) }
             .toSet()
-        assertEquals(6, chunkSeqNums.size, "50 bytes at 9 bytes/chunk = 6 unique chunk seqNums")
+        assertEquals(4, chunkSeqNums.size, "50 bytes at 13 bytes/chunk = 4 unique chunk seqNums")
 
         collector.cancel()
         alice.stop(); bob.stop()
@@ -1802,7 +1801,7 @@ class MeshLinkTest {
         advanceUntilIdle()
 
         // Same broadcast sent twice
-        val msgId = Uuid.random().toByteArray()
+        val msgId = MessageId.random().bytes
         val broadcastData = WireCodec.encodeBroadcast(
             messageId = msgId,
             origin = peerIdAlice,
@@ -1931,7 +1930,7 @@ class MeshLinkTest {
         advanceUntilIdle()
 
         // Send a broadcast to Bob from Alice
-        val msgId = Uuid.random().toByteArray()
+        val msgId = MessageId.random().bytes
         val broadcastData = WireCodec.encodeBroadcast(
             messageId = msgId,
             origin = peerIdAlice,
@@ -2003,7 +2002,7 @@ class MeshLinkTest {
         var dropCount = 0
         transportAlice.dropFilter = { data ->
             if (data.isNotEmpty() && data[0] == WireCodec.TYPE_CHUNK) {
-                val seqNum = ((data[17].toInt() and 0xFF) or ((data[18].toInt() and 0xFF) shl 8)).toUShort()
+                val seqNum = ((data[13].toInt() and 0xFF) or ((data[14].toInt() and 0xFF) shl 8)).toUShort()
                 if (seqNum == 1.toUShort() && dropCount == 0) {
                     dropCount++
                     true
@@ -2024,8 +2023,8 @@ class MeshLinkTest {
         val collector = launch { bob.messages.collect { received.add(it) } }
         advanceUntilIdle()
 
-        // Send payload that requires 3+ chunks with mtu=30 (header=21, payload per chunk=9)
-        val payload = "AAAAAAAAA" + "BBBBBBBBB" + "CCCCCCCCC" // 27 bytes → 3 chunks
+        // Send payload that requires 3+ chunks with mtu=30 (header=17, payload per chunk=13)
+        val payload = "AAAAAAAAAAAAA" + "BBBBBBBBBBBBB" + "CCCCCCCCCCCCC" // 39 bytes → 3 chunks
         alice.send(peerIdBob, payload.encodeToByteArray())
         advanceUntilIdle()
 
@@ -2119,7 +2118,7 @@ class MeshLinkTest {
         bob.addRoute(peerIdCharlie.toHex(), peerIdCharlie.toHex(), 1.0, 1u)
 
         // Alice collects delivery confirmations
-        val confirmations = mutableListOf<Uuid>()
+        val confirmations = mutableListOf<MessageId>()
         val confCollector = launch { alice.deliveryConfirmations.collect { confirmations.add(it) } }
         advanceUntilIdle()
 
@@ -2207,7 +2206,7 @@ class MeshLinkTest {
 
         // Send 3 distinct single-chunk messages — dedup capacity is 2
         for (i in 0 until 3) {
-            val msgId = Uuid.random().toByteArray()
+            val msgId = MessageId.random().bytes
             val chunk = WireCodec.encodeChunk(
                 messageId = msgId,
                 sequenceNumber = 0u,
@@ -2222,13 +2221,13 @@ class MeshLinkTest {
         assertEquals(3, received.size, "All 3 distinct messages should be delivered")
 
         // Now replay the first message — its dedup entry was evicted, so it delivers again
-        val replayId = Uuid.random().toByteArray() // new ID, but same payload conceptually
+        val replayId = MessageId.random().bytes // new ID, but same payload conceptually
         // Actually, to test dedup eviction, we need to replay the EXACT same messageId
         // Let's use a known ID
-        val knownId = Uuid.random().toByteArray()
+        val knownId = MessageId.random().bytes
         val chunk1 = WireCodec.encodeChunk(knownId, 0u, 1u, "first".encodeToByteArray())
-        val chunk2 = WireCodec.encodeChunk(Uuid.random().toByteArray(), 0u, 1u, "second".encodeToByteArray())
-        val chunk3 = WireCodec.encodeChunk(Uuid.random().toByteArray(), 0u, 1u, "third".encodeToByteArray())
+        val chunk2 = WireCodec.encodeChunk(MessageId.random().bytes, 0u, 1u, "second".encodeToByteArray())
+        val chunk3 = WireCodec.encodeChunk(MessageId.random().bytes, 0u, 1u, "third".encodeToByteArray())
 
         received.clear()
         transportAlice.receiveData(peerIdBob, chunk1)
@@ -2460,7 +2459,7 @@ class MeshLinkTest {
         advanceUntilIdle()
 
         // Manually send 3 chunks in reverse order (2, 1, 0)
-        val msgId = Uuid.random().toByteArray()
+        val msgId = MessageId.random().bytes
         val payloads = listOf("AAA".encodeToByteArray(), "BBB".encodeToByteArray(), "CCC".encodeToByteArray())
         for (seqNum in listOf(2, 0, 1)) { // out of order!
             val chunk = WireCodec.encodeChunk(
@@ -2643,7 +2642,7 @@ class MeshLinkTest {
         advanceUntilIdle()
 
         // Craft routed message where Bob is already in visited list (loop!)
-        val msgId = Uuid.random().toByteArray()
+        val msgId = MessageId.random().bytes
         val destId = ByteArray(8) { (0xD0 + it).toByte() } // some other destination
         bob.addRoute(destId.toHex(), peerIdCharlie.toHex(), 1.0, 1u)
         val routedData = WireCodec.encodeRoutedMessage(
@@ -2688,7 +2687,7 @@ class MeshLinkTest {
         advanceUntilIdle()
 
         // Send routed message to Charlie (not Bob) with hopLimit=0
-        val msgId = Uuid.random().toByteArray()
+        val msgId = MessageId.random().bytes
         val routedData = WireCodec.encodeRoutedMessage(
             messageId = msgId,
             origin = peerIdAlice,
@@ -2808,7 +2807,7 @@ class MeshLinkTest {
         advanceUntilIdle()
 
         // Alice sends broadcast with 0 remaining hops
-        val msgId = Uuid.random().toByteArray()
+        val msgId = MessageId.random().bytes
         val broadcastData = WireCodec.encodeBroadcast(
             messageId = msgId,
             origin = peerIdAlice,
@@ -2894,7 +2893,7 @@ class MeshLinkTest {
         advanceUntilIdle()
 
         // Alice sends routed message to Bob
-        val msgId = Uuid.random().toByteArray()
+        val msgId = MessageId.random().bytes
         val routedData = WireCodec.encodeRoutedMessage(
             messageId = msgId,
             origin = peerIdAlice,
@@ -2944,7 +2943,7 @@ class MeshLinkTest {
         bob.addRoute(peerIdDave.toHex(), peerIdCharlie.toHex(), 2.0, 1u)
 
         // Alice sends routed message to Dave through Bob
-        val msgId = Uuid.random().toByteArray()
+        val msgId = MessageId.random().bytes
         val routedData = WireCodec.encodeRoutedMessage(
             messageId = msgId,
             origin = peerIdAlice,
@@ -3110,7 +3109,7 @@ class MeshLinkTest {
         advanceUntilIdle()
 
         // A listens for delivery confirmations
-        val confirmations = mutableListOf<Uuid>()
+        val confirmations = mutableListOf<MessageId>()
         val confirmCollector = launch { a.deliveryConfirmations.collect { confirmations.add(it) } }
         advanceUntilIdle()
 
@@ -3568,7 +3567,7 @@ class MeshLinkTest {
         transportB.simulateDiscovery(peerIdAlice)
         advanceUntilIdle()
 
-        val confirmations = mutableListOf<Uuid>()
+        val confirmations = mutableListOf<MessageId>()
         val collectJob = launch { a.deliveryConfirmations.collect { confirmations.add(it) } }
         advanceUntilIdle()
 
@@ -3658,7 +3657,7 @@ class MeshLinkTest {
 
         // The ACK path now hits the "legacy" fallback (outboundTransfers[key] == null)
         // which emits deliveryConfirmation anyway
-        val confirmations = mutableListOf<Uuid>()
+        val confirmations = mutableListOf<MessageId>()
         val collectJob = launch { a.deliveryConfirmations.collect { confirmations.add(it) } }
         advanceUntilIdle()
 
@@ -3934,7 +3933,7 @@ class MeshLinkTest {
 
         // First message with counter=5 should be accepted
         val msg1 = WireCodec.encodeRoutedMessage(
-            messageId = Uuid.random().toByteArray(),
+            messageId = MessageId.random().bytes,
             origin = peerIdAlice,
             destination = peerIdBob,
             hopLimit = 10u,
@@ -3947,7 +3946,7 @@ class MeshLinkTest {
 
         // Second message with SAME counter=5 but different messageId should be rejected
         val msg2 = WireCodec.encodeRoutedMessage(
-            messageId = Uuid.random().toByteArray(),
+            messageId = MessageId.random().bytes,
             origin = peerIdAlice,
             destination = peerIdBob,
             hopLimit = 10u,
@@ -3960,7 +3959,7 @@ class MeshLinkTest {
 
         // Third message with counter=6 should be accepted
         val msg3 = WireCodec.encodeRoutedMessage(
-            messageId = Uuid.random().toByteArray(),
+            messageId = MessageId.random().bytes,
             origin = peerIdAlice,
             destination = peerIdBob,
             hopLimit = 10u,
@@ -3995,7 +3994,7 @@ class MeshLinkTest {
 
         // Message with counter=0 (legacy/unprotected) should be accepted
         val msg = WireCodec.encodeRoutedMessage(
-            messageId = Uuid.random().toByteArray(),
+            messageId = MessageId.random().bytes,
             origin = peerIdAlice,
             destination = peerIdBob,
             hopLimit = 10u,
@@ -4041,7 +4040,7 @@ class MeshLinkTest {
 
         // Inject a routed message into Bob from "Alice" destined for Charlie with counter=7
         val msg = WireCodec.encodeRoutedMessage(
-            messageId = Uuid.random().toByteArray(),
+            messageId = MessageId.random().bytes,
             origin = peerIdAlice,
             destination = peerIdCharlie,
             hopLimit = 10u,
@@ -4058,7 +4057,7 @@ class MeshLinkTest {
 
         // Now replay counter=7 directly to Charlie — should be rejected
         val replayMsg = WireCodec.encodeRoutedMessage(
-            messageId = Uuid.random().toByteArray(),
+            messageId = MessageId.random().bytes,
             origin = peerIdAlice,
             destination = peerIdCharlie,
             hopLimit = 10u,
@@ -4244,7 +4243,7 @@ class MeshLinkTest {
         val sealedPayload = aliceSealer.seal(charlie.localPublicKey!!, "routed secret".encodeToByteArray())
 
         val msg = WireCodec.encodeRoutedMessage(
-            messageId = Uuid.random().toByteArray(),
+            messageId = MessageId.random().bytes,
             origin = peerIdAlice,
             destination = peerIdCharlie,
             hopLimit = 10u,
@@ -4289,7 +4288,7 @@ class MeshLinkTest {
         val sealedPayload = aliceSealer.seal(charlie.localPublicKey!!, "opaque".encodeToByteArray())
 
         val msg = WireCodec.encodeRoutedMessage(
-            messageId = Uuid.random().toByteArray(),
+            messageId = MessageId.random().bytes,
             origin = peerIdAlice,
             destination = peerIdCharlie,
             hopLimit = 10u,
@@ -4334,7 +4333,7 @@ class MeshLinkTest {
         // Send corrupted "sealed" data (>= 48 bytes to trigger decrypt attempt, but random)
         val corrupted = ByteArray(64) { it.toByte() }
         val msg = WireCodec.encodeRoutedMessage(
-            messageId = Uuid.random().toByteArray(),
+            messageId = MessageId.random().bytes,
             origin = peerIdAlice,
             destination = peerIdBob,
             hopLimit = 10u,
@@ -4487,7 +4486,7 @@ class MeshLinkTest {
         val destId = peerIdAlice
         repeat(5) { i ->
             val msg = WireCodec.encodeRoutedMessage(
-                messageId = ByteArray(16) { (i + 1).toByte() },
+                messageId = ByteArray(12) { (i + 1).toByte() },
                 origin = originId,
                 destination = destId,
                 hopLimit = 3.toUByte(),
@@ -4524,7 +4523,7 @@ class MeshLinkTest {
         val originId = ByteArray(8) { 0x43 }
         repeat(3) { i ->
             val msg = WireCodec.encodeRoutedMessage(
-                messageId = ByteArray(16) { (i + 1).toByte() },
+                messageId = ByteArray(12) { (i + 1).toByte() },
                 origin = originId,
                 destination = peerIdAlice,
                 hopLimit = 3.toUByte(),
@@ -4725,7 +4724,7 @@ class MeshLinkTest {
         alice.start(); bob.start()
         advanceUntilIdle()
 
-        val confirmations = mutableListOf<Uuid>()
+        val confirmations = mutableListOf<MessageId>()
         val failures = mutableListOf<TransferFailure>()
         val cJob = launch { alice.deliveryConfirmations.collect { confirmations.add(it) } }
         val fJob = launch { alice.transferFailures.collect { failures.add(it) } }
@@ -4907,7 +4906,7 @@ class MeshLinkTest {
         transportB.simulateDiscovery(peerIdAlice, ByteArray(0))
         advanceUntilIdle()
 
-        val confirmations = mutableListOf<Uuid>()
+        val confirmations = mutableListOf<MessageId>()
         val cJob = launch { alice.deliveryConfirmations.collect { confirmations.add(it) } }
 
         // Send — will get confirmed via chunk ACK
@@ -4922,7 +4921,7 @@ class MeshLinkTest {
 
         // Now inject a LATE delivery ACK for the same messageId
         val lateAck = WireCodec.encodeDeliveryAck(
-            messageId = confirmedId.toByteArray(),
+            messageId = confirmedId.bytes,
             recipientId = peerIdBob,
         )
         transportA.receiveData(peerIdBob, lateAck)
@@ -4968,9 +4967,9 @@ class MeshLinkTest {
         val cJob = launch { charlie.messages.collect { charlieMessages.add(it) } }
 
         // Manually inject a broadcast with remainingHops=1 into Bob
-        val msgId1 = Uuid.random()
+        val msgId1 = MessageId.random()
         val broadcast1 = WireCodec.encodeBroadcast(
-            messageId = msgId1.toByteArray(),
+            messageId = msgId1.bytes,
             origin = peerIdAlice,
             remainingHops = 1u,
             appIdHash = ByteArray(16),
@@ -4985,9 +4984,9 @@ class MeshLinkTest {
             "Charlie should receive broadcast relayed by Bob (hops decremented to 0)")
 
         // Now inject broadcast with remainingHops=0 → Bob receives but does NOT re-flood
-        val msgId2 = Uuid.random()
+        val msgId2 = MessageId.random()
         val broadcast2 = WireCodec.encodeBroadcast(
-            messageId = msgId2.toByteArray(),
+            messageId = msgId2.bytes,
             origin = peerIdAlice,
             remainingHops = 0u,
             appIdHash = ByteArray(16),
@@ -5054,7 +5053,7 @@ class MeshLinkTest {
         advanceUntilIdle()
 
         val failures = mutableListOf<TransferFailure>()
-        val confirmations = mutableListOf<Uuid>()
+        val confirmations = mutableListOf<MessageId>()
         val fJob = launch { alice.transferFailures.collect { failures.add(it) } }
         val cJob = launch { alice.deliveryConfirmations.collect { confirmations.add(it) } }
 
@@ -5125,7 +5124,7 @@ class MeshLinkTest {
 
         // Build a broadcast with a forged (random) signature
         val forgedBroadcast = WireCodec.encodeBroadcast(
-            messageId = kotlin.uuid.Uuid.random().toByteArray(),
+            messageId = MessageId.random().bytes,
             origin = peerIdAlice,
             remainingHops = 3u,
             appIdHash = ByteArray(16),
@@ -5300,7 +5299,7 @@ class MeshLinkTest {
         assertTrue(result.isSuccess)
         advanceUntilIdle()
 
-        val confirmations = mutableListOf<kotlin.uuid.Uuid>()
+        val confirmations = mutableListOf<MessageId>()
         val job = launch { alice.deliveryConfirmations.collect { confirmations.add(it) } }
 
         // Forge a delivery ACK with the correct messageId but invalid signature
@@ -5350,7 +5349,7 @@ class MeshLinkTest {
         val peerIdSender = ByteArray(8) { (0xCC.toByte() + it).toByte() }
         for (i in 0 until 10) {
             val msg = WireCodec.encodeRoutedMessage(
-                messageId = kotlin.uuid.Uuid.random().toByteArray(),
+                messageId = MessageId.random().bytes,
                 origin = peerIdSender,
                 destination = peerIdBob,
                 hopLimit = 5u,
@@ -5411,7 +5410,7 @@ class MeshLinkTest {
         val peerIdSender = ByteArray(8) { (0xCC.toByte() + it).toByte() }
         for (i in 0 until 3) {
             val msg = WireCodec.encodeRoutedMessage(
-                messageId = kotlin.uuid.Uuid.random().toByteArray(),
+                messageId = MessageId.random().bytes,
                 origin = peerIdSender,
                 destination = peerIdBob,
                 hopLimit = 3u,
@@ -5461,7 +5460,7 @@ class MeshLinkTest {
         val peerIdSender = ByteArray(8) { (0xCC.toByte() + it).toByte() }
         for (i in 0 until 3) {
             val msg = WireCodec.encodeRoutedMessage(
-                messageId = kotlin.uuid.Uuid.random().toByteArray(),
+                messageId = MessageId.random().bytes,
                 origin = peerIdSender,
                 destination = peerIdBob,
                 hopLimit = 3u,
@@ -5525,7 +5524,7 @@ class MeshLinkTest {
         val peerIdSender = ByteArray(8) { (0xCC.toByte() + it).toByte() }
         val peerIdTarget = ByteArray(8) { (0xDD.toByte() + it).toByte() }
         val msg = WireCodec.encodeRoutedMessage(
-            messageId = kotlin.uuid.Uuid.random().toByteArray(),
+            messageId = MessageId.random().bytes,
             origin = peerIdSender,
             destination = peerIdTarget,
             hopLimit = 0u,
@@ -5557,7 +5556,7 @@ class MeshLinkTest {
         val peerIdSender = ByteArray(8) { (0xCC.toByte() + it).toByte() }
         val peerIdTarget = ByteArray(8) { (0xDD.toByte() + it).toByte() }
         val msg = WireCodec.encodeRoutedMessage(
-            messageId = kotlin.uuid.Uuid.random().toByteArray(),
+            messageId = MessageId.random().bytes,
             origin = peerIdSender,
             destination = peerIdTarget,
             hopLimit = 5u,
@@ -5590,7 +5589,7 @@ class MeshLinkTest {
 
         // First message with replayCounter=1 — accepted
         val msg1 = WireCodec.encodeRoutedMessage(
-            messageId = kotlin.uuid.Uuid.random().toByteArray(),
+            messageId = MessageId.random().bytes,
             origin = peerIdSender,
             destination = peerIdTarget,
             hopLimit = 5u,
@@ -5603,7 +5602,7 @@ class MeshLinkTest {
 
         // Second message with same replayCounter=1 but different messageId — replay!
         val msg2 = WireCodec.encodeRoutedMessage(
-            messageId = kotlin.uuid.Uuid.random().toByteArray(),
+            messageId = MessageId.random().bytes,
             origin = peerIdSender,
             destination = peerIdTarget,
             hopLimit = 5u,
@@ -5700,7 +5699,7 @@ class MeshLinkTest {
         // Send 3 routed messages from same origin — 3rd should be rate-limited
         for (i in 1..3) {
             val msg = WireCodec.encodeRoutedMessage(
-                messageId = kotlin.uuid.Uuid.random().toByteArray(),
+                messageId = MessageId.random().bytes,
                 origin = peerIdSender,
                 destination = peerIdAlice, // Alice is the destination
                 hopLimit = 5u,
@@ -5834,7 +5833,7 @@ class MeshLinkTest {
         advanceUntilIdle()
 
         // Inject partial chunks (3 of 5, each 20 bytes = 60 bytes > 50% of 100)
-        val msgId = kotlin.uuid.Uuid.random().toByteArray()
+        val msgId = MessageId.random().bytes
         for (seq in 0 until 3) {
             val chunk = WireCodec.encodeChunk(
                 messageId = msgId,
@@ -6034,12 +6033,12 @@ class MeshLinkTest {
         advanceUntilIdle()
 
         // Collect delivery confirmations
-        val confirmations = mutableListOf<kotlin.uuid.Uuid>()
+        val confirmations = mutableListOf<MessageId>()
         val job = launch { alice.deliveryConfirmations.collect { confirmations.add(it) } }
         advanceUntilIdle()
 
         // Inject a delivery ACK for a messageId that Alice never sent (orphaned)
-        val fakeMessageId = kotlin.uuid.Uuid.random().toByteArray()
+        val fakeMessageId = MessageId.random().bytes
         val ackData = WireCodec.encodeDeliveryAck(
             messageId = fakeMessageId,
             recipientId = peerIdAlice,
@@ -6049,7 +6048,7 @@ class MeshLinkTest {
 
         // Orphaned ACK should still emit on deliveryConfirmations
         assertEquals(1, confirmations.size, "Orphaned ACK should emit confirmation")
-        assertContentEquals(fakeMessageId, confirmations[0].toByteArray())
+        assertContentEquals(fakeMessageId, confirmations[0].bytes)
 
         job.cancel()
         alice.stop()
@@ -6069,7 +6068,7 @@ class MeshLinkTest {
         transportA.simulateDiscovery(peerIdBob)
         advanceUntilIdle()
 
-        val confirmations = mutableListOf<kotlin.uuid.Uuid>()
+        val confirmations = mutableListOf<MessageId>()
         val confJob = launch { alice.deliveryConfirmations.collect { confirmations.add(it) } }
         advanceUntilIdle()
 
@@ -6180,9 +6179,9 @@ class MeshLinkTest {
         b.addRoute(peerIdD.toHex(), peerIdC.toHex(), 2.0, 1u)
         c.addRoute(peerIdD.toHex(), peerIdD.toHex(), 1.0, 1u)
 
-        val aliceConfs = mutableListOf<Uuid>()
-        val bobConfs = mutableListOf<Uuid>()
-        val charlieConfs = mutableListOf<Uuid>()
+        val aliceConfs = mutableListOf<MessageId>()
+        val bobConfs = mutableListOf<MessageId>()
+        val charlieConfs = mutableListOf<MessageId>()
         val confA = launch { a.deliveryConfirmations.collect { aliceConfs.add(it) } }
         val confB = launch { b.deliveryConfirmations.collect { bobConfs.add(it) } }
         val confC = launch { c.deliveryConfirmations.collect { charlieConfs.add(it) } }
@@ -6228,7 +6227,7 @@ class MeshLinkTest {
         advanceUntilIdle()
 
         // Manually inject partial chunks (2 of 5) to create incomplete reassembly
-        val msgId = kotlin.uuid.Uuid.random().toByteArray()
+        val msgId = MessageId.random().bytes
         val chunk0 = WireCodec.encodeChunk(
             messageId = msgId, sequenceNumber = 0u, totalChunks = 5u,
             payload = ByteArray(30) { 0xAA.toByte() },
@@ -6279,7 +6278,7 @@ class MeshLinkTest {
         assertTrue(result.isSuccess)
         advanceUntilIdle()
 
-        val confirmations = mutableListOf<kotlin.uuid.Uuid>()
+        val confirmations = mutableListOf<MessageId>()
         val confJob = launch { alice.deliveryConfirmations.collect { confirmations.add(it) } }
         advanceUntilIdle()
 
@@ -6314,12 +6313,12 @@ class MeshLinkTest {
         transportA.simulateDiscovery(peerIdBob)
         advanceUntilIdle()
 
-        val confirmations = mutableListOf<kotlin.uuid.Uuid>()
+        val confirmations = mutableListOf<MessageId>()
         val confJob = launch { alice.deliveryConfirmations.collect { confirmations.add(it) } }
         advanceUntilIdle()
 
         // Inject chunk ACK for unknown/untracked messageId → legacy fallback (line 768)
-        val unknownMsgId = kotlin.uuid.Uuid.random().toByteArray()
+        val unknownMsgId = MessageId.random().bytes
         val chunkAck = WireCodec.encodeChunkAck(
             messageId = unknownMsgId,
             ackSequence = 0u,
@@ -6331,7 +6330,7 @@ class MeshLinkTest {
 
         // Legacy fallback emits confirmation directly (outboundTransfers[key] == null)
         assertEquals(1, confirmations.size, "Untracked chunk ACK should emit confirmation via legacy path")
-        assertEquals(kotlin.uuid.Uuid.fromByteArray(unknownMsgId), confirmations[0])
+        assertEquals(MessageId.fromBytes(unknownMsgId), confirmations[0])
 
         confJob.cancel()
         alice.stop()
@@ -6430,7 +6429,7 @@ class MeshLinkTest {
 
         // Inject unsigned broadcast (empty signature) from Alice
         val unsignedBroadcast = WireCodec.encodeBroadcast(
-            messageId = kotlin.uuid.Uuid.random().toByteArray(),
+            messageId = MessageId.random().bytes,
             origin = peerIdAlice,
             remainingHops = 3u,
             payload = "unsigned".encodeToByteArray(),
@@ -6508,7 +6507,7 @@ class MeshLinkTest {
         advanceUntilIdle()
 
         // Same broadcast (same messageId) arriving from two different peers
-        val msgId = kotlin.uuid.Uuid.random().toByteArray()
+        val msgId = MessageId.random().bytes
         val broadcast = WireCodec.encodeBroadcast(
             messageId = msgId,
             origin = peerIdBob,
@@ -6593,7 +6592,7 @@ class MeshLinkTest {
         transportB.simulateDiscovery(peerIdAlice)
         advanceUntilIdle()
 
-        val confirmations = mutableListOf<kotlin.uuid.Uuid>()
+        val confirmations = mutableListOf<MessageId>()
         val confJob = launch { alice.deliveryConfirmations.collect { confirmations.add(it) } }
         advanceUntilIdle()
 
@@ -6773,7 +6772,7 @@ class MeshLinkTest {
         advanceUntilIdle()
 
         // Inject routed message with hopLimit=1 destined for Charlie
-        val msgId = kotlin.uuid.Uuid.random().toByteArray()
+        val msgId = MessageId.random().bytes
         val routedMsg = WireCodec.encodeRoutedMessage(
             messageId = msgId,
             origin = peerIdAlice,
@@ -7082,7 +7081,7 @@ class MeshLinkTest {
         transportB.simulateDiscovery(peerIdAlice)
         advanceUntilIdle()
 
-        val confirmations = mutableListOf<Uuid>()
+        val confirmations = mutableListOf<MessageId>()
         val collector = launch { alice.deliveryConfirmations.collect { confirmations.add(it) } }
         advanceUntilIdle()
 

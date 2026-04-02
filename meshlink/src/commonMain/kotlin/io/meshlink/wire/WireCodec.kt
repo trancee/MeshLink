@@ -1,6 +1,6 @@
 package io.meshlink.wire
 
-private const val MESSAGE_ID_SIZE = 16
+private const val MESSAGE_ID_SIZE = 12
 private const val PEER_ID_SIZE = 8
 private const val APP_ID_HASH_SIZE = 16
 
@@ -29,14 +29,14 @@ object WireCodec {
     // keepalive: type(1) + flags(1) + timestamp(8 LE ulong)
     private const val KEEPALIVE_SIZE = 10
 
-    // resume_request: type(1) + messageId(16) + bytesReceived(4 LE) = 21
-    private const val RESUME_REQUEST_SIZE = 1 + MESSAGE_ID_SIZE + 4 // 21
+    // resume_request: type(1) + messageId(12) + bytesReceived(4 LE) = 17
+    private const val RESUME_REQUEST_SIZE = 1 + MESSAGE_ID_SIZE + 4 // 17
 
-    // chunk: type(1) + messageId(16) + seqNum(2 LE) + totalChunks(2 LE) + payload
-    const val CHUNK_HEADER_SIZE = 1 + MESSAGE_ID_SIZE + 2 + 2 // 21
+    // chunk: type(1) + messageId(12) + seqNum(2 LE) + totalChunks(2 LE) + payload
+    const val CHUNK_HEADER_SIZE = 1 + MESSAGE_ID_SIZE + 2 + 2 // 17
 
-    // chunk_ack: type(1) + messageId(16) + ackSeq(2 LE) + sackBitmask(8 LE) + sackBitmaskHigh(8 LE)
-    private const val CHUNK_ACK_SIZE = 1 + MESSAGE_ID_SIZE + 2 + 8 + 8 // 35
+    // chunk_ack: type(1) + messageId(12) + ackSeq(2 LE) + sackBitmask(8 LE) + sackBitmaskHigh(8 LE)
+    private const val CHUNK_ACK_SIZE = 1 + MESSAGE_ID_SIZE + 2 + 8 + 8 // 31
 
     // handshake: type(1) + step(1) + noiseMessage(variable)
     private const val HANDSHAKE_HEADER_SIZE = 2
@@ -334,7 +334,7 @@ object WireCodec {
         bytesReceived: UInt,
         extensions: List<TlvEntry> = emptyList(),
     ): ByteArray {
-        require(messageId.size == 16) { "messageId must be 16 bytes" }
+        require(messageId.size == MESSAGE_ID_SIZE) { "messageId must be $MESSAGE_ID_SIZE bytes" }
         val extBytes = TlvCodec.encode(extensions)
         val buf = ByteArray(RESUME_REQUEST_SIZE + extBytes.size)
         var offset = 0
@@ -388,8 +388,8 @@ object WireCodec {
         return KeepaliveMessage(flags, timestampMillis, extensions)
     }
 
-    // nack: type(1) + messageId(16) + reason(1) = 18
-    private const val NACK_SIZE = 18
+    // nack: type(1) + messageId(12) + reason(1) = 14
+    private const val NACK_SIZE = 1 + MESSAGE_ID_SIZE + 1
 
     fun encodeNack(
         messageId: ByteArray,
@@ -401,7 +401,7 @@ object WireCodec {
         val buf = ByteArray(NACK_SIZE + extBytes.size)
         buf[0] = TYPE_NACK
         messageId.copyInto(buf, 1)
-        buf[17] = reason.code.toByte()
+        buf[1 + MESSAGE_ID_SIZE] = reason.code.toByte()
         extBytes.copyInto(buf, NACK_SIZE)
         return buf
     }
@@ -410,7 +410,7 @@ object WireCodec {
         require(data.size >= NACK_SIZE) { "nack too short: ${data.size}" }
         require(data[0] == TYPE_NACK) { "not a nack: 0x${data[0].toUByte().toString(16)}" }
         val messageId = data.copyOfRange(1, 1 + MESSAGE_ID_SIZE)
-        val reason = NackReason.fromCode(data[17].toUByte())
+        val reason = NackReason.fromCode(data[1 + MESSAGE_ID_SIZE].toUByte())
         val extensions = if (data.size > NACK_SIZE) {
             TlvCodec.decode(data, NACK_SIZE).first
         } else {

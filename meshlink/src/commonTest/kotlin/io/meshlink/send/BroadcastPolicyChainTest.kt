@@ -131,10 +131,10 @@ class BroadcastPolicyChainTest {
         c.evaluate(payload, maxHops = 3u)
 
         // signedData = msgIdBytes + localPeerId + appIdHash + payload
-        // 16 (msgId) + 8 (peerId) + 16 (appIdHash) + 3 (payload) = 43
-        assertEquals(43, capturedData!!.size)
+        // 12 (msgId) + 8 (peerId) + 16 (appIdHash) + 3 (payload) = 39
+        assertEquals(39, capturedData!!.size)
         // Last 3 bytes should be the payload
-        assertTrue(capturedData.sliceArray(40..42).contentEquals(payload))
+        assertTrue(capturedData.sliceArray(36..38).contentEquals(payload))
     }
 
     // ── Dedup marking ───────────────────────────────────────────

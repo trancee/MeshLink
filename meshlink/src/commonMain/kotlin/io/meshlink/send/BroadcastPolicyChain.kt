@@ -1,12 +1,11 @@
 package io.meshlink.send
 
 import io.meshlink.crypto.SignedPayload
+import io.meshlink.model.MessageId
 import io.meshlink.util.ByteArrayKey
 import io.meshlink.util.RateLimitResult
 import io.meshlink.util.toKey
 import io.meshlink.wire.WireCodec
-import kotlin.uuid.ExperimentalUuidApi
-import kotlin.uuid.Uuid
 
 sealed interface BroadcastDecision {
     data object BufferFull : BroadcastDecision
@@ -25,7 +24,6 @@ sealed interface BroadcastDecision {
  * Dependencies are injected as function types so the chain is testable
  * without constructing full engine graphs.
  */
-@OptIn(ExperimentalUuidApi::class)
 class BroadcastPolicyChain(
     private val bufferCapacity: Int,
     private val checkBroadcastRate: () -> RateLimitResult,
@@ -33,14 +31,14 @@ class BroadcastPolicyChain(
     private val appIdHash: ByteArray,
     private val localPeerId: ByteArray,
     private val markAsSeen: (ByteArrayKey) -> Unit = {},
+    private val generateMessageId: () -> ByteArray = { MessageId.random().bytes },
 ) {
     fun evaluate(payload: ByteArray, maxHops: UByte): BroadcastDecision {
         if (payload.size > bufferCapacity) return BroadcastDecision.BufferFull
 
         if (checkBroadcastRate() is RateLimitResult.Limited) return BroadcastDecision.RateLimited
 
-        val messageId = Uuid.random()
-        val msgIdBytes = messageId.toByteArray()
+        val msgIdBytes = generateMessageId()
 
         // Sign broadcast content (remainingHops excluded — relays decrement it)
         val signedData = msgIdBytes + localPeerId + appIdHash + payload

@@ -23,7 +23,7 @@ class MessageDispatcherTest {
     private val localPeer = ByteArray(8) { 0x01 }
     private val peerA = ByteArray(8) { 0x0A }
     private val peerB = ByteArray(8) { 0x0B }
-    private val msgId = ByteArray(16) { 0xAA.toByte() }
+    private val msgId = ByteArray(12) { 0xAA.toByte() }
 
     /** Recording sink that captures all effects for assertions. */
     private class RecordingSink : DispatchSink {

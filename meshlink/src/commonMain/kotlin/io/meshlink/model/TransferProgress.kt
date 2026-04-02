@@ -1,11 +1,7 @@
 package io.meshlink.model
 
-import kotlin.uuid.ExperimentalUuidApi
-import kotlin.uuid.Uuid
-
-@OptIn(ExperimentalUuidApi::class)
 data class TransferProgress(
-    val messageId: Uuid,
+    val messageId: MessageId,
     val chunksAcked: Int,
     val totalChunks: Int,
 ) {

@@ -5,10 +5,8 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
-import kotlin.uuid.ExperimentalUuidApi
-import kotlin.uuid.Uuid
 
-@OptIn(ExperimentalUuidApi::class)
+
 class IdentifiersTest {
 
     // ── PeerId ────────────────────────────────────────────────────
@@ -68,17 +66,10 @@ class IdentifiersTest {
 
     @Test
     fun messageIdFromBytesRoundTrip() {
-        val bytes = ByteArray(16) { it.toByte() }
+        val bytes = ByteArray(12) { it.toByte() }
         val msgId = MessageId.fromBytes(bytes)
         assertEquals(bytes.toHex(), msgId.hex)
         assertTrue(bytes.contentEquals(msgId.bytes))
-    }
-
-    @Test
-    fun messageIdToUuid() {
-        val uuid = Uuid.random()
-        val msgId = MessageId.fromBytes(uuid.toByteArray())
-        assertEquals(uuid, msgId.toUuid())
     }
 
     @Test
@@ -86,15 +77,15 @@ class IdentifiersTest {
         val a = MessageId.random()
         val b = MessageId.random()
         assertNotEquals(a, b, "random IDs should differ")
-        assertEquals(32, a.hex.length, "16 bytes → 32 hex chars")
+        assertEquals(24, a.hex.length, "12 bytes → 24 hex chars")
     }
 
     @Test
     fun messageIdWorksAsMapKey() {
         val map = mutableMapOf<MessageId, Int>()
-        val id = MessageId("00112233445566778899aabbccddeeff")
+        val id = MessageId("00112233445566778899aabb")
         map[id] = 42
-        assertEquals(42, map[MessageId("00112233445566778899aabbccddeeff")])
+        assertEquals(42, map[MessageId("00112233445566778899aabb")])
     }
 
     // ── Type distinction ──────────────────────────────────────────

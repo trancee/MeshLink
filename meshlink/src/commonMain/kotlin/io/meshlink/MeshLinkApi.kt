@@ -4,22 +4,20 @@ import io.meshlink.diagnostics.DiagnosticEvent
 import io.meshlink.diagnostics.MeshHealthSnapshot
 import io.meshlink.model.KeyChangeEvent
 import io.meshlink.model.Message
+import io.meshlink.model.MessageId
 import io.meshlink.model.PeerDetail
 import io.meshlink.model.PeerEvent
 import io.meshlink.model.TransferFailure
 import io.meshlink.model.TransferProgress
 import kotlinx.coroutines.flow.Flow
-import kotlin.uuid.ExperimentalUuidApi
-import kotlin.uuid.Uuid
 
-@OptIn(ExperimentalUuidApi::class)
 interface MeshLinkApi {
     fun start(): Result<Unit>
     fun stop()
     fun pause()
     fun resume()
-    fun send(recipient: ByteArray, payload: ByteArray): Result<Uuid>
-    fun broadcast(payload: ByteArray, maxHops: UByte): Result<Uuid>
+    fun send(recipient: ByteArray, payload: ByteArray): Result<MessageId>
+    fun broadcast(payload: ByteArray, maxHops: UByte): Result<MessageId>
     fun meshHealth(): MeshHealthSnapshot
     fun drainDiagnostics(): List<DiagnosticEvent>
     val diagnosticEvents: Flow<DiagnosticEvent>
@@ -33,7 +31,7 @@ interface MeshLinkApi {
     fun setCustomPowerMode(mode: String?)
     val peers: Flow<PeerEvent>
     val messages: Flow<Message>
-    val deliveryConfirmations: Flow<Uuid>
+    val deliveryConfirmations: Flow<MessageId>
     val transferFailures: Flow<TransferFailure>
     val transferProgress: Flow<TransferProgress>
     val meshHealthFlow: Flow<MeshHealthSnapshot>
