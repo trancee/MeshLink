@@ -179,18 +179,20 @@ reference for the agent workflow:
 
 ### CI Pipeline
 
-CI runs on push/PR to `main` (skips markdown-only changes). Six jobs:
+CI runs on push/PR to `main` (skips markdown-only changes). Seven jobs:
 
 | Job | Runner | Command |
 |---|---|---|
 | Detekt | ubuntu | `./gradlew detekt` |
 | JVM Tests | ubuntu | `./gradlew :meshlink:jvmTest --parallel` |
 | Android Compile | ubuntu | `./gradlew :meshlink:compileAndroidMain` |
-| Apple Tests | macos | `:meshlink:iosSimulatorArm64Test :meshlink:macosArm64Test --parallel` |
+| iOS Simulator Tests | macos-15 | `./gradlew :meshlink:iosSimulatorArm64Test` |
+| macOS Tests | macos-15 | `./gradlew :meshlink:macosArm64Test` |
 | Linux Tests | ubuntu | `./gradlew :meshlink:linuxX64Test --parallel` |
 | Sample Apps | ubuntu | `:meshlink-sample:android:assembleDebug` + `:meshlink-sample:jvm:build` |
 
-Test reports are uploaded as artifacts (14-day retention).
+Test reports are uploaded as artifacts (14-day retention). JUnit XML results
+are published as check run annotations via `mikepenz/action-junit-report`.
 
 ## Error Handling
 
@@ -243,7 +245,7 @@ See `docs/threat-model.md` for the full threat analysis.
 - Detekt runs as a pre-commit hook — commits that fail lint are rejected locally
 - Keep commits atomic: one logical change per commit
 - Update documentation per the section below when changing APIs or behavior
-- CI must pass before merging — six jobs must all be green
+- CI must pass before merging — seven jobs must all be green
 
 ## Domain Language
 

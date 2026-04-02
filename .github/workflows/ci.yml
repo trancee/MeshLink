@@ -113,9 +113,9 @@ jobs:
       - name: Compile Android
         run: ./gradlew :meshlink:compileAndroidMain
 
-  apple-test:
-    name: iOS & macOS Tests
-    runs-on: macos-latest
+  ios-test:
+    name: iOS Simulator Tests
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v6
 
@@ -136,26 +136,63 @@ jobs:
           build-scan-terms-of-use-url: 'https://gradle.com/help/legal-terms-of-use'
           build-scan-terms-of-use-agree: 'yes'
 
-      - name: Run iOS Simulator & macOS tests
-        run: ./gradlew :meshlink:iosSimulatorArm64Test :meshlink:macosArm64Test --parallel
+      - name: Run iOS Simulator tests
+        run: ./gradlew :meshlink:iosSimulatorArm64Test
 
       - name: Publish test report
         if: always()
         uses: mikepenz/action-junit-report@v5
         with:
-          report_paths: |
-            meshlink/build/test-results/iosSimulatorArm64Test/**/*.xml
-            meshlink/build/test-results/macosArm64Test/**/*.xml
-          check_name: 'Apple Test Results'
+          report_paths: 'meshlink/build/test-results/iosSimulatorArm64Test/**/*.xml'
+          check_name: 'iOS Test Results'
 
       - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: apple-test-reports
-          path: |
-            meshlink/build/reports/tests/iosSimulatorArm64Test/
-            meshlink/build/reports/tests/macosArm64Test/
+          name: ios-test-reports
+          path: meshlink/build/reports/tests/iosSimulatorArm64Test/
+          retention-days: 14
+
+  macos-test:
+    name: macOS Tests
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: 'zulu'
+          java-version: '21'
+
+      - name: Cache Kotlin/Native compiler
+        uses: actions/cache@v5
+        with:
+          path: ~/.konan
+          key: konan-${{ runner.os }}-${{ hashFiles('**/*.gradle.kts') }}
+          restore-keys: konan-${{ runner.os }}-
+
+      - uses: gradle/actions/setup-gradle@v6
+        with:
+          build-scan-terms-of-use-url: 'https://gradle.com/help/legal-terms-of-use'
+          build-scan-terms-of-use-agree: 'yes'
+
+      - name: Run macOS tests
+        run: ./gradlew :meshlink:macosArm64Test
+
+      - name: Publish test report
+        if: always()
+        uses: mikepenz/action-junit-report@v5
+        with:
+          report_paths: 'meshlink/build/test-results/macosArm64Test/**/*.xml'
+          check_name: 'macOS Test Results'
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: macos-test-reports
+          path: meshlink/build/reports/tests/macosArm64Test/
           retention-days: 14
 
   linux-test:
