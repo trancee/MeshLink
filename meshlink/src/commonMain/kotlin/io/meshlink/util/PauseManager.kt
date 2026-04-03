@@ -7,7 +7,7 @@ sealed interface QueueResult {
 
 data class PauseSnapshot(
     val pendingSends: List<Pair<ByteArray, ByteArray>>,
-    val pendingRelays: List<Pair<ByteArray, ByteArray>>,
+    val pendingRelays: List<PauseManager.RelayEntry>,
 )
 
 /**
@@ -24,7 +24,13 @@ class PauseManager(
 ) {
     private var _paused = false
     private val sendQueue = mutableListOf<Pair<ByteArray, ByteArray>>()
-    private val relayQueue = mutableListOf<Pair<ByteArray, ByteArray>>()
+    data class RelayEntry(
+        val nextHop: ByteArray,
+        val frame: ByteArray,
+        val priority: Byte = 0,
+    )
+
+    private val relayQueue = mutableListOf<RelayEntry>()
 
     val isPaused: Boolean get() = _paused
     val sendQueueSize: Int get() = sendQueue.size
@@ -53,10 +59,12 @@ class PauseManager(
         }
     }
 
-    fun queueRelay(nextHop: ByteArray, frame: ByteArray): QueueResult {
-        relayQueue.add(nextHop to frame)
+    fun queueRelay(nextHop: ByteArray, frame: ByteArray, priority: Byte = 0): QueueResult {
+        relayQueue.add(RelayEntry(nextHop, frame, priority))
         return if (relayQueue.size > relayQueueCapacity) {
-            relayQueue.removeAt(0)
+            // Evict the lowest-priority entry (lowest priority value first, then FIFO)
+            val lowestIdx = relayQueue.indices.minByOrNull { relayQueue[it].priority } ?: 0
+            relayQueue.removeAt(lowestIdx)
             QueueResult.Evicted
         } else {
             QueueResult.Queued

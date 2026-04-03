@@ -11,7 +11,7 @@ Protocol version: 1.0
 MeshLink uses a compact binary wire protocol designed for Bluetooth Low Energy
 (BLE) mesh networking. Every framed message begins with a single **type byte**
 (offset 0) that acts as the message discriminator. Separate from the framed
-messages, the protocol defines a **10-byte BLE advertisement payload** and a
+messages, the protocol defines a **16-byte BLE advertisement payload** and a
 **5-byte Noise XX handshake payload**.
 
 ## Conventions
@@ -27,21 +27,21 @@ messages, the protocol defines a **10-byte BLE advertisement payload** and a
 
 ---
 
-## BLE Advertisement Payload (10 bytes)
+## BLE Advertisement Payload (16 bytes)
 
 Broadcast as BLE service data in the scan response for peer discovery. Not
 framed with a type byte — this is a standalone payload carried inside a
 Service Data AD structure with the MeshLink 128-bit service UUID.
 
-**Source:** `AdvertisementCodec.kt` · `SIZE = 10`
+**Source:** `AdvertisementCodec.kt` · `SIZE = 16`
 
 ```
-Byte:   0               1               2                           9
-       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-- ... --+-+-+
-       |MajVer |PwrMode|  VersionMinor |   Truncated SHA-256        |
-       |4 bits |4 bits |   (8 bits)    |   of X25519 public key     |
-       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-- ... --+-+-+
-       |<--- 1 byte --->|<-- 1 byte -->|<------- 8 bytes ---------->|
+Byte:   0               1               2       3       4                          15
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-- ... --+-+-+
+       |MajVer |PwrMode|  VersionMinor | MeshHash (LE) |   Truncated SHA-256      |
+       |4 bits |4 bits |   (8 bits)    |   (16 bits)   |   of X25519 public key   |
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-- ... --+-+-+
+       |<--- 1 byte --->|<-- 1 byte -->|<-- 2 bytes -->|<------- 12 bytes -------->|
 ```
 
 | Offset | Size | Field | Type | Endianness | Description |
@@ -49,12 +49,17 @@ Byte:   0               1               2                           9
 | 0 [7:4] | 4 bits | `versionMajor` | uint | — | Protocol major version (0–15). |
 | 0 [3:0] | 4 bits | `powerMode` | uint | — | Power mode indicator (0–15). |
 | 1 | 1 | `versionMinor` | uint8 | — | Protocol minor version (0–255). |
-| 2–9 | 8 | `keyHash` | bytes | — | First 8 bytes of `SHA-256(X25519_public_key)`. |
+| 2–3 | 2 | `meshHash` | UShort | **LE** | 16-bit FNV-1a hash of `appId`. `0x0000` = no filtering (connects to all). |
+| 4–15 | 12 | `keyHash` | bytes | — | First 12 bytes of `SHA-256(X25519_public_key)`. Identical to the 12-byte wire peer ID. |
 
 **Encoding:** `byte0 = (versionMajor << 4) | powerMode`. Both nibble values are
 clamped to their respective ranges via `coerceIn`.
 
 **Decoding:** `versionMajor = byte0 >>> 4`, `powerMode = byte0 & 0x0F`.
+
+**Mesh hash filtering:** Scanning peers compare the incoming `meshHash`
+against their own. If both are nonzero and differ, the connection is skipped.
+This eliminates cross-app processing at the BLE scan level.
 
 See [design.md §3](design.md) for rationale on field sizes.
 
@@ -698,7 +703,7 @@ version negotiation and capability exchange (e.g., L2CAP support).
 
 ### Key Identity
 
-- Peer identity is derived from the **first 8 bytes of SHA-256(X25519 public
+- Peer identity is derived from the **first 12 bytes of SHA-256(X25519 public
   key)** in BLE advertisements (see Advertisement Payload).
 - Framed messages use **12-byte** truncated key hashes as peer identifiers.
 

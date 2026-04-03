@@ -62,6 +62,7 @@ class PeerConnectionCoordinator(
     private val isPaused: () -> Boolean,
     private val localPowerMode: () -> Int = { 0 },
     private val localKeyHash: () -> ByteArray = { ByteArray(0) },
+    private val localMeshHash: UShort = 0u,
 ) {
     /**
      * Process a BLE advertisement event.
@@ -82,6 +83,13 @@ class PeerConnectionCoordinator(
             val remoteVersion = ProtocolVersion(adv.versionMajor, adv.versionMinor)
             if (protocolVersion.negotiate(remoteVersion) == null) {
                 return PeerConnectionAction.Rejected
+            }
+            // Mesh network hash filtering: skip peers from different app networks.
+            // 0 = no filter (connects to all). Non-zero must match.
+            if (localMeshHash != 0u.toUShort() && adv.meshHash != 0u.toUShort() &&
+                localMeshHash != adv.meshHash
+            ) {
+                return PeerConnectionAction.Skipped
             }
             remotePowerMode = adv.powerMode
             remoteKeyHash = adv.keyHash

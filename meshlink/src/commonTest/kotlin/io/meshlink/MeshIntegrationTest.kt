@@ -732,7 +732,7 @@ class MeshIntegrationTest {
         alice.start()
         advanceUntilIdle()
 
-        // No discovery — Bob is unknown. AODV queues and floods RREQ.
+        // No discovery — Bob is unknown. Message queued, Hello sent to trigger Updates.
         val unknownPeer = ByteArray(12) { 0xFF.toByte() }
         val result = alice.send(unknownPeer, "hello".encodeToByteArray())
         assertTrue(result.isSuccess, "send to undiscovered peer should queue for route discovery")
@@ -1132,8 +1132,9 @@ class MeshIntegrationTest {
     // ── AODV route discovery ───────────────────────────────────────
 
     @Test
-    fun aodvRouteDiscoveryQueuesAndSendsRreq() = runTest {
-        // When sending to an unknown peer, AODV queues the message and floods an RREQ
+    fun routeDiscoveryQueuesAndSendsHello() = runTest {
+        // When sending to an unknown peer, the message is queued and a Babel Hello
+        // is broadcast to neighbors to trigger route Updates.
         val tAlice = VirtualMeshTransport(peerIdAlice)
         val tBob = VirtualMeshTransport(peerIdBob)
         tAlice.linkTo(tBob)
@@ -1146,17 +1147,17 @@ class MeshIntegrationTest {
         tAlice.simulateDiscovery(peerIdBob)
         advanceUntilIdle()
 
-        // Send to unknown peer C — should succeed (queued) and flood RREQ
+        // Send to unknown peer C — should succeed (queued)
         val unknownPeer = ByteArray(12) { 0xAA.toByte() }
         val result = alice.send(unknownPeer, "find-me".encodeToByteArray())
         assertTrue(result.isSuccess, "send to unknown peer should queue for discovery")
         advanceUntilIdle()
 
-        // Verify an RREQ was flooded to neighbors
-        val rreqs = tAlice.sentData.filter { (_, data) ->
-            data.isNotEmpty() && data[0] == WireCodec.TYPE_ROUTE_REQUEST
+        // Verify a Hello was sent to neighbors to trigger route Updates
+        val hellos = tAlice.sentData.filter { (_, data) ->
+            data.isNotEmpty() && data[0] == WireCodec.TYPE_HELLO
         }
-        assertTrue(rreqs.isNotEmpty(), "Alice should flood an RREQ to discover the unknown peer")
+        assertTrue(hellos.isNotEmpty(), "Alice should send Hello to trigger route Updates")
 
         alice.stop()
     }

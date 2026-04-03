@@ -15,20 +15,18 @@ class RoutingEngineTest {
 
     private fun key(s: String) = ByteArrayKey(s.encodeToByteArray())
 
-    /** 8-byte key required by WireCodec for peer IDs in AODV frames. */
+    /** 12-byte key required by WireCodec for peer IDs in routing frames. */
     private fun peerId(index: Int) = ByteArrayKey(ByteArray(12) { ((index shl 4) + it).toByte() })
 
     private val localId = peerId(0)
     private fun engine(
         dedupCapacity: Int = 100,
         routeCacheTtlMillis: Long = 60_000L,
-        maxHops: UByte = 10u,
         clock: () -> Long = { 0L },
     ) = RoutingEngine(
         localPeerId = localId,
         dedupCapacity = dedupCapacity,
         routeCacheTtlMillis = routeCacheTtlMillis,
-        maxHops = maxHops,
         clock = clock,
     )
 
@@ -65,192 +63,6 @@ class RoutingEngineTest {
         re.addRoute(key("peer1"), key("relay"), 5.0, 1u)
         val result = re.resolveNextHop(key("peer1"))
         assertIs<NextHopResult.Direct>(result)
-    }
-
-    // ── 2. AODV Route Discovery (initiateRouteDiscovery) ──────────
-
-    @Test
-    fun initiateRouteDiscoveryReturnsRreqFrame() {
-        val re = engine()
-        val discovery = re.initiateRouteDiscovery(peerId(1))
-        assertTrue(discovery.rreqFrame.isNotEmpty())
-        assertEquals(0x03, discovery.rreqFrame[0].toInt(), "Frame should be TYPE_ROUTE_REQUEST")
-    }
-
-    @Test
-    fun initiateRouteDiscoveryIncrementsRequestId() {
-        val re = engine()
-        val d1 = re.initiateRouteDiscovery(peerId(1))
-        val d2 = re.initiateRouteDiscovery(peerId(2))
-        assertTrue(d2.requestId > d1.requestId, "Request IDs should increment")
-    }
-
-    // ── 3. AODV handleRouteRequest ────────────────────────────────
-
-    @Test
-    fun handleRouteRequestForLocalPeerReplies() {
-        val re = engine()
-        val origin = peerId(1)
-        val result = re.handleRouteRequest(
-            fromPeerId = peerId(2),
-            originPeerId = origin,
-            destinationPeerId = localId,
-            requestId = 1u,
-            hopCount = 1u,
-            hopLimit = 10u,
-        )
-        assertIs<RouteRequestResult.Reply>(result)
-        assertEquals(peerId(2), result.replyTo)
-        assertTrue(result.replyFrame.isNotEmpty())
-    }
-
-    @Test
-    fun handleRouteRequestForUnknownDestinationFloods() {
-        val re = engine()
-        val result = re.handleRouteRequest(
-            fromPeerId = peerId(2),
-            originPeerId = peerId(1),
-            destinationPeerId = peerId(9),
-            requestId = 1u,
-            hopCount = 0u,
-            hopLimit = 10u,
-        )
-        assertIs<RouteRequestResult.Flood>(result)
-        assertTrue(result.rreqFrame.isNotEmpty())
-    }
-
-    @Test
-    fun handleRouteRequestWithCachedRouteReplies() {
-        val re = engine()
-        re.addRoute(peerId(3), peerId(4), 2.0, 1u)
-        val result = re.handleRouteRequest(
-            fromPeerId = peerId(2),
-            originPeerId = peerId(1),
-            destinationPeerId = peerId(3),
-            requestId = 1u,
-            hopCount = 0u,
-            hopLimit = 10u,
-        )
-        assertIs<RouteRequestResult.Reply>(result)
-    }
-
-    @Test
-    fun handleRouteRequestDuplicateIsDropped() {
-        val re = engine()
-        re.handleRouteRequest(
-            fromPeerId = peerId(2),
-            originPeerId = peerId(1),
-            destinationPeerId = peerId(3),
-            requestId = 1u,
-            hopCount = 0u,
-            hopLimit = 10u,
-        )
-        val result = re.handleRouteRequest(
-            fromPeerId = peerId(4),
-            originPeerId = peerId(1),
-            destinationPeerId = peerId(3),
-            requestId = 1u,
-            hopCount = 0u,
-            hopLimit = 10u,
-        )
-        assertIs<RouteRequestResult.Drop>(result)
-    }
-
-    @Test
-    fun handleRouteRequestAtHopLimitIsDropped() {
-        val re = engine(maxHops = 3u)
-        val result = re.handleRouteRequest(
-            fromPeerId = peerId(2),
-            originPeerId = peerId(1),
-            destinationPeerId = peerId(3),
-            requestId = 1u,
-            hopCount = 3u,
-            hopLimit = 3u,
-        )
-        assertIs<RouteRequestResult.Drop>(result)
-    }
-
-    @Test
-    fun handleRouteRequestInstallsReverseRoute() {
-        val re = engine()
-        re.handleRouteRequest(
-            fromPeerId = peerId(2),
-            originPeerId = peerId(1),
-            destinationPeerId = peerId(3),
-            requestId = 1u,
-            hopCount = 2u,
-            hopLimit = 10u,
-        )
-        val route = re.bestRoute(peerId(1))
-        assertNotNull(route, "Reverse route to origin should be installed")
-        assertEquals(peerId(2), route.nextHop)
-    }
-
-    // ── 4. AODV handleRouteReply ──────────────────────────────────
-
-    @Test
-    fun handleRouteReplyAsOriginatorResolves() {
-        val re = engine()
-        re.initiateRouteDiscovery(peerId(3))
-        val result = re.handleRouteReply(
-            fromPeerId = peerId(2),
-            originPeerId = localId,
-            destinationPeerId = peerId(3),
-            requestId = 0u,
-            hopCount = 1u,
-        )
-        assertIs<RouteReplyResult.Resolved>(result)
-        assertEquals(peerId(3), result.destination)
-    }
-
-    @Test
-    fun handleRouteReplyInstallsForwardRoute() {
-        val re = engine()
-        re.handleRouteReply(
-            fromPeerId = peerId(2),
-            originPeerId = localId,
-            destinationPeerId = peerId(3),
-            requestId = 0u,
-            hopCount = 2u,
-        )
-        val route = re.bestRoute(peerId(3))
-        assertNotNull(route, "Forward route to destination should be installed")
-        assertEquals(peerId(2), route.nextHop)
-    }
-
-    @Test
-    fun handleRouteReplyForwardsAlongReversePath() {
-        val re = engine()
-        re.handleRouteRequest(
-            fromPeerId = peerId(2),
-            originPeerId = peerId(1),
-            destinationPeerId = peerId(3),
-            requestId = 5u,
-            hopCount = 0u,
-            hopLimit = 10u,
-        )
-        val result = re.handleRouteReply(
-            fromPeerId = peerId(4),
-            originPeerId = peerId(1),
-            destinationPeerId = peerId(3),
-            requestId = 5u,
-            hopCount = 1u,
-        )
-        assertIs<RouteReplyResult.Forward>(result)
-        assertEquals(peerId(2), result.nextHop)
-    }
-
-    @Test
-    fun handleRouteReplyWithNoReversePathDrops() {
-        val re = engine()
-        val result = re.handleRouteReply(
-            fromPeerId = peerId(2),
-            originPeerId = peerId(9),
-            destinationPeerId = peerId(3),
-            requestId = 99u,
-            hopCount = 1u,
-        )
-        assertIs<RouteReplyResult.Drop>(result)
     }
 
     // ── 5. Deduplication ──────────────────────────────────────────
@@ -363,30 +175,23 @@ class RoutingEngineTest {
 
     @Test
     fun linkMeasurementAffectsRouteInstallationCost() {
-        val local = peerId(0xA0)
-        val peer = peerId(0xB0)
-        val dest = peerId(0xC0)
+        val local = peerId(10)
+        val peer = peerId(20)
+        val dest = peerId(30)
         val re = RoutingEngine(local, clock = { 1000L })
 
         // Record a weak signal measurement for the peer
         re.recordLinkMeasurement(peer, rssi = -80, lossRate = 0.1)
 
-        // Simulate RREQ handling — route cost should incorporate link quality
+        // Use Babel Update to install a route — cost should incorporate link quality
         re.peerSeen(peer)
-        re.handleRouteRequest(
-            fromPeerId = peer,
-            originPeerId = dest,
-            destinationPeerId = local,
-            requestId = 1u,
-            hopCount = 0u,
-            hopLimit = 10u,
-        )
+        val key = ByteArray(32) { 0x11 }
+        re.handleUpdate(peer, dest, metric = 1u, seqNo = 1u, publicKey = key)
 
-        // The reverse route to dest via peer should use the composite cost
+        // The route to dest via peer should use the composite cost
         val route = re.bestRoute(dest)
         assertNotNull(route)
-        // With RSSI=-80 (base=6), loss=0.1 (mult=2.0), fresh (1.0), new link (+3)
-        // link_cost = 6*2.0*1.0 + 3 = 15.0; route_cost = 15.0 * (0+1) = 15.0
+        // metric(1) + link_cost(6*2.0*1.0 + 3 = 15.0) = 16.0
         assertTrue(route.cost > 1.0, "Cost should be higher than default hop-count 1.0, got ${route.cost}")
     }
 

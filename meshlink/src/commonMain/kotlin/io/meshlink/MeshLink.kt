@@ -53,7 +53,6 @@ import io.meshlink.util.toHex
 import io.meshlink.util.toKey
 import io.meshlink.util.withLock
 import io.meshlink.wire.AdvertisementCodec
-import io.meshlink.wire.MessageIdGenerator
 import io.meshlink.wire.NackReason
 import io.meshlink.wire.WireCodec
 import kotlinx.coroutines.CoroutineScope
@@ -88,7 +87,6 @@ class MeshLink(
     private val clock = clock
     private val sendLock = PlatformLock()
     private val compressor: Compressor? = if (config.compressionEnabled) Compressor() else null
-    private val messageIdGenerator = MessageIdGenerator()
 
     private val rateLimitPolicy = RateLimitPolicy(config, clock)
 
@@ -224,7 +222,6 @@ class MeshLink(
         localPeerId = transport.localPeerId.toKey(),
         dedupCapacity = config.dedupCapacity,
         routeCacheTtlMillis = config.routeCacheTtlMillis,
-        maxHops = config.maxHops,
         clock = clock,
     )
 
@@ -280,7 +277,7 @@ class MeshLink(
         appIdHash = config.appId?.let { AppIdFilter.hash(it) } ?: ByteArray(8),
         localPeerId = transport.localPeerId,
         markAsSeen = { routingEngine.isDuplicate(it) },
-        generateMessageId = { messageIdGenerator.generate().bytes },
+        generateMessageId = { MessageId.random().bytes },
     )
 
     private val routeCoordinator = RouteCoordinator(
@@ -309,6 +306,7 @@ class MeshLink(
                     ?.copyOfRange(0, AdvertisementCodec.KEY_HASH_SIZE)
             } ?: ByteArray(0)
         },
+        localMeshHash = AdvertisementCodec.meshHash(config.appId),
     )
 
     private val inboundValidator = InboundValidator(
@@ -429,6 +427,7 @@ class MeshLink(
             versionMinor = config.protocolVersion.minor,
             powerMode = powerCoordinator.currentMode.ordinal,
             publicKeyHash = keyHash,
+            meshHash = AdvertisementCodec.meshHash(config.appId),
         )
     }
 
@@ -463,6 +462,11 @@ class MeshLink(
         // Apply custom power mode from config if set
         config.customPowerMode?.let { powerCoordinator.setCustomPowerMode(it) }
 
+        // Register local public key in routing engine for Babel Update propagation
+        securityEngine?.localPublicKey?.let {
+            routingEngine.registerPublicKey(transport.localPeerId.toKey(), it)
+        }
+
         val exceptionHandler = kotlinx.coroutines.CoroutineExceptionHandler { _, throwable ->
             diagnosticSink.emit(DiagnosticCode.SEND_FAILED, Severity.ERROR, "Uncaught: ${throwable::class.simpleName}")
         }
@@ -485,6 +489,11 @@ class MeshLink(
                         if (action.isNewPeer) {
                             safeEmit(_peers, PeerEvent.Found(action.peerId), "peers")
                             emitHealthUpdate()
+                            // Register peer's public key in routing engine for Babel propagation
+                            val peerKey = action.peerId.toKey()
+                            securityEngine?.peerPublicKey(peerKey)?.let { pubKey ->
+                                routingEngine.registerPublicKey(peerKey, pubKey)
+                            }
                             val preExistingTransferKeys = outboundTracker.allRecipientKeys()
                             flushPendingMessages(action.peerId.toKey(), newScope)
                             resumeTransfers(action.peerId, newScope, preExistingTransferKeys)
@@ -601,8 +610,8 @@ class MeshLink(
         for ((recipient, payload) in snapshot.pendingSends) {
             doSend(s, recipient, payload)
         }
-        for ((nextHop, frame) in snapshot.pendingRelays) {
-            s.launch { safeSend(nextHop, frame) }
+        for (relay in snapshot.pendingRelays) {
+            s.launch { safeSend(relay.nextHop, relay.frame) }
         }
     }
 
@@ -744,12 +753,12 @@ class MeshLink(
         return actions
     }
 
-    override fun broadcast(payload: ByteArray, maxHops: UByte): Result<MessageId> {
+    override fun broadcast(payload: ByteArray, maxHops: UByte, priority: Byte): Result<MessageId> {
         checkRunningOrPaused()
         val s = requireScope()
 
         val effectiveHops = minOf(maxHops, config.broadcastTtl)
-        return when (val decision = broadcastPolicyChain.evaluate(payload, effectiveHops)) {
+        return when (val decision = broadcastPolicyChain.evaluate(payload, effectiveHops, priority)) {
             is BroadcastDecision.BufferFull ->
                 Result.failure(IllegalArgumentException("bufferFull"))
 
@@ -771,12 +780,12 @@ class MeshLink(
         }
     }
 
-    override fun send(recipient: ByteArray, payload: ByteArray): Result<MessageId> {
+    override fun send(recipient: ByteArray, payload: ByteArray, priority: Byte): Result<MessageId> {
         checkRunningOrPaused()
-        return sendLock.withLock { sendInternal(recipient, payload) }
+        return sendLock.withLock { sendInternal(recipient, payload, priority) }
     }
 
-    private fun sendInternal(recipient: ByteArray, payload: ByteArray): Result<MessageId> {
+    private fun sendInternal(recipient: ByteArray, payload: ByteArray, priority: Byte = 0): Result<MessageId> {
         val s = requireScope()
 
         return when (val decision = sendPolicyChain.evaluate(recipient, payload.size)) {
@@ -811,16 +820,17 @@ class MeshLink(
             }
 
             is SendDecision.Routed -> {
-                doRoutedSend(s, recipient, payload, decision.nextHopId)
+                doRoutedSend(s, recipient, payload, decision.nextHopId, priority)
             }
 
             is SendDecision.Unreachable -> {
                 val destKey = recipient.toKey()
                 val pending = pendingMessages.getOrPut(destKey) { mutableListOf() }
                 pending.add(PendingSend(recipient, payload))
-                // Initiate AODV route discovery
-                val discovery = routingEngine.initiateRouteDiscovery(destKey)
-                s.launch { routeCoordinator.floodRouteRequest(discovery.rreqFrame) }
+                // Send Babel Hello to all neighbors to trigger route Updates.
+                // If any neighbor has a route to the destination, they'll respond
+                // with an Update, which installs the route and drains pending messages.
+                s.launch { routeCoordinator.broadcastKeepalive() }
                 Result.success(MessageId.random())
             }
 
@@ -829,13 +839,19 @@ class MeshLink(
             }
 
             is SendDecision.Direct -> {
-                doSend(s, recipient, payload)
+                doSend(s, recipient, payload, priority)
             }
         }
     }
 
-    private fun doSend(s: CoroutineScope, recipient: ByteArray, payload: ByteArray): Result<MessageId> {
-        val messageId = messageIdGenerator.generate().bytes
+    @Suppress("UNUSED_PARAMETER")
+    private fun doSend(
+        s: CoroutineScope,
+        recipient: ByteArray,
+        payload: ByteArray,
+        priority: Byte = 0,
+    ): Result<MessageId> {
+        val messageId = MessageId.random().bytes
         val key = messageId.toKey()
         deliveryPipeline.registerOutbound(s, key, config.deliveryTimeoutMillis) { expiredKey ->
             _transferFailures.tryEmit(
@@ -878,16 +894,22 @@ class MeshLink(
         destination: ByteArray,
         payload: ByteArray,
         nextHopId: ByteArrayKey,
+        priority: Byte = 0,
     ): Result<MessageId> {
-        val messageId = messageIdGenerator.generate()
+        val messageId = MessageId.random()
         val key = messageId.bytes.toKey()
         outboundTracker.registerNextHop(key, nextHopId)
 
-        // Compress the payload but do not E2E-encrypt: routed messages
-        // travel as plaintext because the sender typically has not performed
-        // a Noise XX handshake with the (non-adjacent) destination.  Replay
-        // counters, hop limits, and visited lists protect routing integrity.
-        val routedPayload = wrapPayloadEnvelope(payload)
+        val envelopedPayload = wrapPayloadEnvelope(payload)
+
+        // E2E encrypt if we have the destination's public key (via Babel Update
+        // key propagation or prior Noise XX handshake). Fall back to plaintext
+        // only if no key is available.
+        val recipientId = destination.toKey()
+        val wirePayload = when (val sr = securityEngine?.seal(recipientId, envelopedPayload)) {
+            is SealResult.Sealed -> sr.ciphertext
+            else -> envelopedPayload
+        }
 
         val encoded = WireCodec.encodeRoutedMessage(
             messageId = messageId.bytes,
@@ -895,8 +917,9 @@ class MeshLink(
             destination = destination,
             hopLimit = 10u,
             visitedList = listOf(transport.localPeerId),
-            payload = routedPayload,
+            payload = wirePayload,
             replayCounter = outboundTracker.advanceReplayCounter(),
+            priority = priority,
         )
         s.launch { safeSend(nextHopId.bytes, encoded) }
         return Result.success(messageId)

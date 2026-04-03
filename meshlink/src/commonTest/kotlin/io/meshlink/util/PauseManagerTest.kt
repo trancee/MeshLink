@@ -85,7 +85,7 @@ class PauseManagerTest {
         assertEquals(2, snapshot.pendingSends.size)
         assertEquals(1, snapshot.pendingRelays.size)
         assertTrue(byteArrayOf(10).contentEquals(snapshot.pendingSends[0].second))
-        assertTrue(byteArrayOf(30).contentEquals(snapshot.pendingRelays[0].second))
+        assertTrue(byteArrayOf(30).contentEquals(snapshot.pendingRelays[0].frame))
 
         // Queues are cleared after resume
         assertEquals(0, pm.sendQueueSize)

@@ -23,7 +23,7 @@ value class PeerId(val hex: String) {
 /**
  * Type-safe 16-byte message identifier generated from the platform CSPRNG.
  * 128-bit randomness provides a birthday-bound collision probability of ~2⁻⁶⁴.
- * Use [MessageIdGenerator] for wire message IDs and [random] for
+ * Use [random] for all message IDs — wire messages and
  * non-wire identifiers (failure tracking, loopback).
  */
 @JvmInline

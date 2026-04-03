@@ -4,10 +4,29 @@ import io.meshlink.crypto.TrustMode
 import io.meshlink.power.PowerMode
 import io.meshlink.protocol.ProtocolVersion
 
+/**
+ * Immutable mesh configuration. Fields are grouped into **public API** parameters
+ * (commonly tuned by consuming apps) and **internal** parameters (protocol defaults
+ * that rarely need changing).
+ */
 data class MeshLinkConfig(
+    // ── Public API parameters ─────────────────────────────────────
     val maxMessageSize: Int = 100_000,
     val bufferCapacity: Int = 1_048_576,
     val mtu: Int = 185,
+    val maxHops: UByte = 10u,
+    val broadcastTtl: UByte = 2u,
+    val appId: String? = null,
+    val trustMode: TrustMode = TrustMode.STRICT,
+    val deliveryAckEnabled: Boolean = true,
+    val diagnosticsEnabled: Boolean = true,
+    val customPowerMode: PowerMode? = null,
+    val powerModeThresholds: List<Int> = listOf(80, 30),
+    val l2capEnabled: Boolean = true,
+    val compressionEnabled: Boolean = true,
+    val compressionMinBytes: Int = 128,
+    val requireEncryption: Boolean = true,
+    // ── Internal parameters (rarely changed by apps) ─────────────
     val rateLimitMaxSends: Int = 60,
     val rateLimitWindowMillis: Long = 60_000L,
     val circuitBreakerMaxFailures: Int = 0,
@@ -16,24 +35,15 @@ data class MeshLinkConfig(
     val diagnosticBufferCapacity: Int = 256,
     val dedupCapacity: Int = 100_000,
     val protocolVersion: ProtocolVersion = ProtocolVersion(1, 0),
-    val appId: String? = null,
     val inboundRateLimitPerSenderPerMin: Int = 30,
     val pendingMessageTtlMillis: Long = 0L,
     val pendingMessageCapacity: Int = 100,
     val broadcastRateLimitPerMin: Int = 10,
     val relayQueueCapacity: Int = 100,
-    val maxHops: UByte = 10u,
-    val broadcastTtl: UByte = 2u,
-    val trustMode: TrustMode = TrustMode.STRICT,
-    val deliveryAckEnabled: Boolean = true,
-    val diagnosticsEnabled: Boolean = true,
-    val customPowerMode: PowerMode? = null,
     val evictionGracePeriodMillis: Long = 30_000L,
     val l2capBackpressureWindowMillis: Long = 7_000L,
     val ackWindowMin: Int = 2,
     val ackWindowMax: Int = 16,
-    val powerModeThresholds: List<Int> = listOf(80, 30),
-    val l2capEnabled: Boolean = true,
     val l2capRetryAttempts: Int = 3,
     val chunkInactivityTimeoutMillis: Long = 30_000L,
     val bufferTtlMillis: Long = 300_000L,
@@ -47,9 +57,6 @@ data class MeshLinkConfig(
     val neighborAggregateLimitPerMin: Int = 100,
     val senderNeighborLimitPerMin: Int = 20,
     val maxConcurrentInboundSessions: Int = 100,
-    val requireEncryption: Boolean = true,
-    val compressionEnabled: Boolean = true,
-    val compressionMinBytes: Int = 128,
 ) {
     fun validate(): List<String> {
         val violations = mutableListOf<String>()
@@ -159,9 +166,23 @@ fun meshLinkConfig(block: MeshLinkConfigBuilder.() -> Unit = {}): MeshLinkConfig
     MeshLinkConfigBuilder().apply(block).build()
 
 class MeshLinkConfigBuilder(
+    // ── Public API parameters ─────────────────────────────────────
     var maxMessageSize: Int = 100_000,
     var bufferCapacity: Int = 1_048_576,
     var mtu: Int = 185,
+    var maxHops: UByte = 10u,
+    var broadcastTtl: UByte = 2u,
+    var appId: String? = null,
+    var trustMode: TrustMode = TrustMode.STRICT,
+    var deliveryAckEnabled: Boolean = true,
+    var diagnosticsEnabled: Boolean = true,
+    var customPowerMode: PowerMode? = null,
+    var powerModeThresholds: List<Int> = listOf(80, 30),
+    var l2capEnabled: Boolean = true,
+    var compressionEnabled: Boolean = true,
+    var compressionMinBytes: Int = 128,
+    var requireEncryption: Boolean = true,
+    // ── Internal parameters (rarely changed by apps) ─────────────
     var rateLimitMaxSends: Int = 60,
     var rateLimitWindowMillis: Long = 60_000L,
     var circuitBreakerMaxFailures: Int = 0,
@@ -170,24 +191,15 @@ class MeshLinkConfigBuilder(
     var diagnosticBufferCapacity: Int = 256,
     var dedupCapacity: Int = 100_000,
     var protocolVersion: ProtocolVersion = ProtocolVersion(1, 0),
-    var appId: String? = null,
     var inboundRateLimitPerSenderPerMin: Int = 30,
     var pendingMessageTtlMillis: Long = 0L,
     var pendingMessageCapacity: Int = 100,
     var broadcastRateLimitPerMin: Int = 10,
     var relayQueueCapacity: Int = 100,
-    var maxHops: UByte = 10u,
-    var broadcastTtl: UByte = 2u,
-    var trustMode: TrustMode = TrustMode.STRICT,
-    var deliveryAckEnabled: Boolean = true,
-    var diagnosticsEnabled: Boolean = true,
-    var customPowerMode: PowerMode? = null,
     var evictionGracePeriodMillis: Long = 30_000L,
     var l2capBackpressureWindowMillis: Long = 7_000L,
     var ackWindowMin: Int = 2,
     var ackWindowMax: Int = 16,
-    var powerModeThresholds: List<Int> = listOf(80, 30),
-    var l2capEnabled: Boolean = true,
     var l2capRetryAttempts: Int = 3,
     var chunkInactivityTimeoutMillis: Long = 30_000L,
     var bufferTtlMillis: Long = 300_000L,
@@ -201,9 +213,6 @@ class MeshLinkConfigBuilder(
     var neighborAggregateLimitPerMin: Int = 100,
     var senderNeighborLimitPerMin: Int = 20,
     var maxConcurrentInboundSessions: Int = 100,
-    var requireEncryption: Boolean = true,
-    var compressionEnabled: Boolean = true,
-    var compressionMinBytes: Int = 128,
 ) {
 
     fun build(): MeshLinkConfig = MeshLinkConfig(

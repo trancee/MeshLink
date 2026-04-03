@@ -33,7 +33,7 @@ class BroadcastPolicyChain(
     private val markAsSeen: (ByteArrayKey) -> Unit = {},
     private val generateMessageId: () -> ByteArray = { MessageId.random().bytes },
 ) {
-    fun evaluate(payload: ByteArray, maxHops: UByte): BroadcastDecision {
+    fun evaluate(payload: ByteArray, maxHops: UByte, priority: Byte = 0): BroadcastDecision {
         if (payload.size > bufferCapacity) return BroadcastDecision.BufferFull
 
         if (checkBroadcastRate() is RateLimitResult.Limited) return BroadcastDecision.RateLimited
@@ -53,6 +53,7 @@ class BroadcastPolicyChain(
             payload = payload,
             signature = signature,
             signerPublicKey = signed?.signerPublicKey ?: ByteArray(0),
+            priority = priority,
         )
 
         // Mark as seen so we don't deliver our own broadcast back

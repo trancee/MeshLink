@@ -10,32 +10,12 @@ sealed interface NextHopResult {
     data object Unreachable : NextHopResult
 }
 
-/** Result of handling an inbound RREQ (legacy AODV, kept for backward compat). */
-sealed interface RouteRequestResult {
-    data class Reply(val replyFrame: ByteArray, val replyTo: ByteArrayKey) : RouteRequestResult
-    data class Flood(val rreqFrame: ByteArray) : RouteRequestResult
-    data object Drop : RouteRequestResult
-}
-
-/** Result of handling an inbound RREP (legacy AODV, kept for backward compat). */
-sealed interface RouteReplyResult {
-    data class Forward(val rrepFrame: ByteArray, val nextHop: ByteArrayKey) : RouteReplyResult
-    data class Resolved(val destination: ByteArrayKey) : RouteReplyResult
-    data object Drop : RouteReplyResult
-}
-
-data class RouteDiscovery(
-    val rreqFrame: ByteArray,
-    val requestId: UInt,
-)
-
 /**
  * Babel-style routing engine (RFC 8966 adapted for BLE).
  *
  * Routes are propagated via Hello/Update messages. The feasibility
  * condition (D(B) < FD(A)) guarantees loop-freedom at all times.
  * Triggered updates on topology changes provide fast convergence.
- * Legacy AODV RREQ/RREP handlers are retained for backward compatibility.
  *
  * Key propagation: each Update carries a 32-byte Ed25519 public key,
  * enabling E2E encryption for non-adjacent peers.
@@ -44,7 +24,6 @@ class RoutingEngine(
     private val localPeerId: ByteArrayKey,
     private val dedupCapacity: Int = 10_000,
     private val routeCacheTtlMillis: Long = 300_000L,
-    private val maxHops: UByte = 10u,
     private val clock: () -> Long = { currentTimeMillis() },
     private val keepaliveIntervalMillis: Long = 15_000L,
 ) {
@@ -68,11 +47,6 @@ class RoutingEngine(
     // Next-hop reliability tracking
     private val nextHopFailures = mutableMapOf<ByteArrayKey, Int>()
     private val nextHopSuccesses = mutableMapOf<ByteArrayKey, Int>()
-
-    // Legacy AODV state (retained for backward compat with pending RREQ flows)
-    private val reversePath = mutableMapOf<ByteArrayKey, ByteArrayKey>()
-    private val rreqSeen = mutableMapOf<ByteArrayKey, Long>()
-    private var nextRequestId: UInt = 0u
 
     companion object {
         /** Metric value representing an unreachable destination (retraction). */
@@ -263,96 +237,14 @@ class RoutingEngine(
     /** Get the stored public key for a peer, if known. */
     fun getPublicKey(peerId: ByteArrayKey): ByteArray? = peerPublicKeys[peerId]
 
-    // ── Legacy AODV (backward compat for pending RREQ flows) ─────
-
-    fun initiateRouteDiscovery(destination: ByteArrayKey): RouteDiscovery {
-        val reqId = nextRequestId++
-        val rreqKey = rreqKey(localPeerId, reqId)
-        rreqSeen[rreqKey] = clock()
-        val frame = WireCodec.encodeRouteRequest(
-            origin = localPeerId.bytes,
-            destination = destination.bytes,
-            requestId = reqId,
-            hopCount = 0u,
-            hopLimit = maxHops,
-        )
-        return RouteDiscovery(frame, reqId)
-    }
-
-    fun handleRouteRequest(
-        fromPeerId: ByteArrayKey,
-        originPeerId: ByteArrayKey,
-        destinationPeerId: ByteArrayKey,
-        requestId: UInt,
-        hopCount: UByte,
-        hopLimit: UByte,
-    ): RouteRequestResult {
-        val rreqKey = rreqKey(originPeerId, requestId)
-        if (rreqSeen.containsKey(rreqKey)) return RouteRequestResult.Drop
-        rreqSeen[rreqKey] = clock()
-        reversePath[rreqKey] = fromPeerId
-        val linkCost = costCalculator.computeCost(fromPeerId)
-        routingTable.addRoute(originPeerId, fromPeerId, linkCost * (hopCount.toDouble() + 1.0), requestId)
-
-        if (destinationPeerId == localPeerId) {
-            val rrep = WireCodec.encodeRouteReply(
-                origin = originPeerId.bytes,
-                destination = localPeerId.bytes,
-                requestId = requestId,
-                hopCount = 0u,
-            )
-            return RouteRequestResult.Reply(rrep, fromPeerId)
-        }
-        val cached = routingTable.bestRoute(destinationPeerId)
-        if (cached != null) {
-            val rrep = WireCodec.encodeRouteReply(
-                origin = originPeerId.bytes,
-                destination = destinationPeerId.bytes,
-                requestId = requestId,
-                hopCount = (cached.cost.toInt()).toUByte(),
-            )
-            return RouteRequestResult.Reply(rrep, fromPeerId)
-        }
-        if (hopCount >= hopLimit) return RouteRequestResult.Drop
-        val reflood = WireCodec.encodeRouteRequest(
-            origin = originPeerId.bytes,
-            destination = destinationPeerId.bytes,
-            requestId = requestId,
-            hopCount = (hopCount + 1u).toUByte(),
-            hopLimit = hopLimit,
-        )
-        return RouteRequestResult.Flood(reflood)
-    }
-
-    fun handleRouteReply(
-        fromPeerId: ByteArrayKey,
-        originPeerId: ByteArrayKey,
-        destinationPeerId: ByteArrayKey,
-        requestId: UInt,
-        hopCount: UByte,
-    ): RouteReplyResult {
-        val linkCost = costCalculator.computeCost(fromPeerId)
-        routingTable.addRoute(destinationPeerId, fromPeerId, linkCost * (hopCount.toDouble() + 1.0), requestId)
-        if (originPeerId == localPeerId) return RouteReplyResult.Resolved(destinationPeerId)
-        val rreqKey = rreqKey(originPeerId, requestId)
-        val nextHop = reversePath[rreqKey] ?: return RouteReplyResult.Drop
-        val forwarded = WireCodec.encodeRouteReply(
-            origin = originPeerId.bytes,
-            destination = destinationPeerId.bytes,
-            requestId = requestId,
-            hopCount = (hopCount + 1u).toUByte(),
-        )
-        return RouteReplyResult.Forward(forwarded, nextHop)
-    }
-
-    // ── Route queries ─────────────────────────────────────────────
+    // ── Route queries ───────────────────────────────────────
 
     fun bestRoute(destination: ByteArrayKey): RoutingTable.Route? =
         routingTable.bestRoute(destination)
 
     fun allBestRoutes(): List<RoutingTable.Route> = routingTable.allBestRoutes()
 
-    // ── Health ─────────────────────────────────────────────────────
+    // ── Health ─────────────────────────────────────────────
 
     val routeCount: Int get() = routingTable.size()
     val peerCount: Int get() = presenceTracker.allPeerIds().size
@@ -360,7 +252,7 @@ class RoutingEngine(
     val dedupSize: Int get() = dedup.size()
     fun avgCost(): Double = routingTable.avgCost()
 
-    // ── Next-hop reliability tracking ──────────────────────────────
+    // ── Next-hop reliability tracking ──────────────────────
 
     fun recordNextHopFailure(nextHopId: ByteArrayKey) {
         nextHopFailures[nextHopId] = (nextHopFailures[nextHopId] ?: 0) + 1
@@ -381,36 +273,21 @@ class RoutingEngine(
     fun nextHopFailureCount(nextHopId: ByteArrayKey): Int =
         nextHopFailures[nextHopId] ?: 0
 
-    // ── Cleanup ────────────────────────────────────────────────────
+    // ── Cleanup ──────────────────────────────────────────
 
     fun clear() {
         routingTable.clear()
         presenceTracker.clear()
         dedup.clear()
-        reversePath.clear()
-        rreqSeen.clear()
         nextHopFailures.clear()
         nextHopSuccesses.clear()
         costCalculator.clear()
         feasibilityDistance.clear()
         peerPublicKeys.clear()
         localSeqNo = 0u
-        nextRequestId = 0u
     }
 
     fun clearDedup() {
         dedup.clear()
-    }
-
-    // ── Internal ───────────────────────────────────────────────────
-
-    private fun rreqKey(origin: ByteArrayKey, requestId: UInt): ByteArrayKey {
-        val key = ByteArray(origin.bytes.size + 4)
-        origin.bytes.copyInto(key)
-        key[origin.bytes.size] = (requestId.toInt() and 0xFF).toByte()
-        key[origin.bytes.size + 1] = ((requestId.toInt() shr 8) and 0xFF).toByte()
-        key[origin.bytes.size + 2] = ((requestId.toInt() shr 16) and 0xFF).toByte()
-        key[origin.bytes.size + 3] = ((requestId.toInt() shr 24) and 0xFF).toByte()
-        return ByteArrayKey(key)
     }
 }

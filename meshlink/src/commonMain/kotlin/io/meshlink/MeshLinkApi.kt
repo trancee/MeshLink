@@ -17,8 +17,8 @@ interface MeshLinkApi {
     fun stop()
     fun pause()
     fun resume()
-    fun send(recipient: ByteArray, payload: ByteArray): Result<MessageId>
-    fun broadcast(payload: ByteArray, maxHops: UByte): Result<MessageId>
+    fun send(recipient: ByteArray, payload: ByteArray, priority: Byte = 0): Result<MessageId>
+    fun broadcast(payload: ByteArray, maxHops: UByte, priority: Byte = 0): Result<MessageId>
     fun meshHealth(): MeshHealthSnapshot
     fun drainDiagnostics(): List<DiagnosticEvent>
     val diagnosticEvents: Flow<DiagnosticEvent>

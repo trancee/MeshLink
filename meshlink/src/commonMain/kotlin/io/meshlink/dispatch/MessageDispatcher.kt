@@ -9,8 +9,6 @@ import io.meshlink.diagnostics.DiagnosticCode
 import io.meshlink.diagnostics.DiagnosticSink
 import io.meshlink.diagnostics.Severity
 import io.meshlink.routing.NextHopResult
-import io.meshlink.routing.RouteReplyResult
-import io.meshlink.routing.RouteRequestResult
 import io.meshlink.routing.RoutingEngine
 import io.meshlink.transfer.ChunkAcceptResult
 import io.meshlink.transfer.TransferEngine
@@ -86,52 +84,6 @@ internal class MessageDispatcher(
         val response = se.handleHandshakeMessage(fromPeerId, data)
         if (response != null) {
             sink.sendFrame(fromPeerId, response)
-        }
-    }
-
-    private suspend fun handleRouteRequest(fromPeerId: ByteArray, data: ByteArray) {
-        val rreq = WireCodec.decodeRouteRequest(data)
-        val result = routingEngine.handleRouteRequest(
-            fromPeerId = fromPeerId.toKey(),
-            originPeerId = rreq.origin.toKey(),
-            destinationPeerId = rreq.destination.toKey(),
-            requestId = rreq.requestId,
-            hopCount = rreq.hopCount,
-            hopLimit = rreq.hopLimit,
-        )
-        when (result) {
-            is RouteRequestResult.Reply -> {
-                sink.sendFrame(result.replyTo.bytes, result.replyFrame)
-            }
-            is RouteRequestResult.Flood -> {
-                val senderId = fromPeerId.toKey()
-                for (peerId in routingEngine.connectedPeerIds()) {
-                    if (peerId != senderId) {
-                        sink.sendFrame(peerId.bytes, result.rreqFrame)
-                    }
-                }
-            }
-            is RouteRequestResult.Drop -> {}
-        }
-    }
-
-    private suspend fun handleRouteReply(fromPeerId: ByteArray, data: ByteArray) {
-        val rrep = WireCodec.decodeRouteReply(data)
-        val result = routingEngine.handleRouteReply(
-            fromPeerId = fromPeerId.toKey(),
-            originPeerId = rrep.origin.toKey(),
-            destinationPeerId = rrep.destination.toKey(),
-            requestId = rrep.requestId,
-            hopCount = rrep.hopCount,
-        )
-        when (result) {
-            is RouteReplyResult.Forward -> {
-                sink.sendFrame(result.nextHop.bytes, result.rrepFrame)
-            }
-            is RouteReplyResult.Resolved -> {
-                sink.onRouteDiscovered(result.destination)
-            }
-            is RouteReplyResult.Drop -> {}
         }
     }
 
@@ -338,7 +290,7 @@ internal class MessageDispatcher(
         )
 
         if (pauseManager.isPaused) {
-            pauseManager.queueRelay(nextHop, relayed)
+            pauseManager.queueRelay(nextHop, relayed, routed.priority)
         } else {
             sink.sendFrame(nextHop, relayed)
         }

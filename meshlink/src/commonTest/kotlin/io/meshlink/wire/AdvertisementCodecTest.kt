@@ -63,7 +63,7 @@ class AdvertisementCodecTest {
         )
 
         // Bytes 2-(2+KEY_HASH_SIZE) must be the first KEY_HASH_SIZE bytes of the hash
-        val hashSlice = encoded.copyOfRange(2, 2 + AdvertisementCodec.KEY_HASH_SIZE)
+        val hashSlice = encoded.copyOfRange(4, 4 + AdvertisementCodec.KEY_HASH_SIZE)
         assertContentEquals(expectedPrefix, hashSlice)
     }
 
@@ -127,7 +127,7 @@ class AdvertisementCodecTest {
     // ── Size ─────────────────────────────────────────────────────────────
 
     @Test
-    fun encodedPayloadIsExactly10Bytes() {
+    fun encodedPayloadIsExactly16Bytes() {
         val encoded = AdvertisementCodec.encode(
             versionMajor = 1,
             versionMinor = 0,
@@ -135,7 +135,7 @@ class AdvertisementCodecTest {
             publicKeyHash = testKeyHash,
         )
         assertEquals(AdvertisementCodec.SIZE, encoded.size)
-        assertEquals(10, encoded.size)
+        assertEquals(16, encoded.size)
     }
 
     // ── Decode validation ───────────────────────────────────────────────

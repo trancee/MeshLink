@@ -399,9 +399,15 @@ Message IDs are **128-bit random** identifiers (16 bytes) generated from the pla
 
 ### Protocol Versioning & Advertisement Layout
 
-Protocol version and capability flags are bit-packed into the BLE advertisement payload (10 bytes total: 2B version+power+reserved, 8B key hash). BLE 4.x scan response allows 31 bytes max; a Service Data AD with 128-bit UUID uses 18 bytes of overhead, leaving 13 bytes — MeshLink uses 10 for a clean fit. Version negotiation occurs during the Noise XX handshake. See §12 Protocol Governance & Versioning for negotiation rules, backward compatibility policy, and the N−1 support window.
+Protocol version, mesh network hash, and key hash are bit-packed into the BLE advertisement payload (16 bytes total: 2B version+power, 2B mesh hash, 12B key hash). The scan response uses a Service Data AD with the **16-bit UUID alias `0x7F3A`** (4 bytes overhead), leaving 27 bytes for payload — MeshLink uses 16. The 128-bit UUID is used in the advertisement data for GATT service discovery.
 
-**Scan response service data:** The advertisement payload is carried as BLE Service Data associated with the MeshLink 128-bit service UUID. The 6-bit version field in byte 0 allows scanning peers to determine the remote protocol version *before* connecting — avoiding wasted handshakes on version mismatch. If a peer scans an advertisement with an unsupported major version, it skips the connection entirely.
+> **Unified peer ID:** The 12-byte key hash in the BLE advertisement is identical to the 12-byte wire protocol peer ID (first 12 bytes of SHA-256 of the X25519 public key). No dual-ID mapping is needed — a peer's advertisement identity and wire identity are the same.
+
+**Mesh network hash:** The advertisement includes a **16-bit FNV-1a hash of the `appId`** string. Scanning peers skip connections to devices with non-matching mesh hashes, eliminating cross-app processing at the BLE scan level. When `appId` is null, the hash is `0x0000` (connects to all MeshLink peers).
+
+Version negotiation occurs during the Noise XX handshake. See §12 Protocol Governance & Versioning for negotiation rules.
+
+**Scan response service data:** The advertisement payload is carried as BLE Service Data with the 16-bit UUID alias `0x7F3A`. The 4-bit version field in byte 0 allows scanning peers to determine the remote protocol version *before* connecting — avoiding wasted handshakes on version mismatch. If a peer scans an advertisement with an unsupported major version, it skips the connection entirely.
 
 **Scan response data:** The scan response carries a duplicate of the 16-bit service UUID (`0x7F3A`) in a Complete List of 16-bit Service UUIDs AD structure. This ensures iOS background discoverability — iOS moves service UUIDs to the "overflow area" when the app is backgrounded, making them visible only to devices already filtering for that UUID. The scan response UUID guarantees MeshLink peers remain discoverable regardless of iOS background state.
 
@@ -1861,7 +1867,7 @@ Convenience APIs using listener patterns for consumers who don't use async strea
 
 ### App-Level Topic Filtering
 
-`appId` is an **immutable config parameter** set at construction via `MeshLink.configure { appId = "com.mycompany.meshchat" }`. The library computes `SHA-256-64(appId.toUTF8())` internally — the 8-byte hash is what appears in the wire format (fixed size, no length prefix needed). This matches the `PEER_ID_SIZE = 8` convention (both are truncated SHA-256). Recommended format: reverse-domain notation. To change the appId, create a new MeshLink instance. When set:
+`appId` is an **immutable config parameter** set at construction via `MeshLink.configure { appId = "com.mycompany.meshchat" }`. The library computes `SHA-256-64(appId.toUTF8())` internally — the 8-byte hash is what appears in the wire format (fixed size, no length prefix needed). The 8-byte appId hash is independent of the 12-byte peer ID size. Recommended format: reverse-domain notation. To change the appId, create a new MeshLink instance. When set:
 - Outbound messages include the 8-byte appId hash in the payload envelope
 - Inbound messages with a non-matching appId hash are **silently dropped** at the recipient (not delivered to the app)
 - **AppId is NOT included in the BLE advertisement** — all MeshLink peers connect regardless of app. Filtering is recipient-side only, preserving cross-app relay density.

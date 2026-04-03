@@ -80,21 +80,4 @@ class RouteCoordinator(
             "Babel full update: ${updates.size} routes to ${connectedPeers.size} peers",
         )
     }
-
-    /**
-     * Flood a route request to all connected neighbours.
-     * Legacy AODV support — called by MeshLink when send() finds no route.
-     */
-    suspend fun floodRouteRequest(rreqFrame: ByteArray) {
-        val connectedPeers = routingEngine.connectedPeerIds()
-        if (connectedPeers.isEmpty()) return
-        for (peerId in connectedPeers) {
-            sendFrame(peerId.bytes, rreqFrame)
-        }
-        diagnosticSink.emit(
-            DiagnosticCode.GOSSIP_TRAFFIC_REPORT,
-            Severity.INFO,
-            "RREQ flooded to ${connectedPeers.size} peers",
-        )
-    }
 }
