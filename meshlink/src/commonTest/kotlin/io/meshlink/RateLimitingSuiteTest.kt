@@ -1,6 +1,7 @@
 package io.meshlink
 
 import io.meshlink.config.MeshLinkConfig
+import io.meshlink.config.MeshLinkInternalConfig
 import io.meshlink.config.testMeshLinkConfig
 import io.meshlink.diagnostics.DiagnosticCode
 import io.meshlink.diagnostics.DiagnosticEvent
@@ -46,10 +47,12 @@ class RateLimitingSuiteTest {
     @Test
     fun configFieldsAreOverridable() {
         val config = MeshLinkConfig(
-            handshakeRateLimitPerSec = 5,
-            nackRateLimitPerSec = 20,
-            neighborAggregateLimitPerMin = 200,
-            senderNeighborLimitPerMin = 50,
+            advanced = MeshLinkInternalConfig(
+                handshakeRateLimitPerSec = 5,
+                nackRateLimitPerSec = 20,
+                neighborAggregateLimitPerMin = 200,
+                senderNeighborLimitPerMin = 50,
+            ),
         )
         assertEquals(5, config.handshakeRateLimitPerSec)
         assertEquals(20, config.nackRateLimitPerSec)

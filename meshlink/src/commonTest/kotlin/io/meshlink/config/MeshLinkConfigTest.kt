@@ -44,12 +44,14 @@ class MeshLinkConfigTest {
     @Test
     fun newConfigFieldsValidateNonNegativeAndPositive() {
         val violations = MeshLinkConfig(
-            diagnosticBufferCapacity = -1,
-            dedupCapacity = 0,
-            rateLimitMaxSends = 2,
-            rateLimitWindowMillis = 0,
-            circuitBreakerMaxFailures = 1,
-            circuitBreakerCooldownMillis = -5,
+            advanced = MeshLinkInternalConfig(
+                diagnosticBufferCapacity = -1,
+                dedupCapacity = 0,
+                rateLimitMaxSends = 2,
+                rateLimitWindowMillis = 0,
+                circuitBreakerMaxFailures = 1,
+                circuitBreakerCooldownMillis = -5,
+            ),
         ).validate()
 
         assertTrue(violations.any { "diagnosticBufferCapacity" in it }, "Should reject negative diagnosticBufferCapacity: $violations")
@@ -108,14 +110,18 @@ class MeshLinkConfigTest {
 
     @Test
     fun ackWindowMaxMustBeGreaterOrEqualToAckWindowMin() {
-        val violations = MeshLinkConfig(ackWindowMax = 1, ackWindowMin = 4).validate()
+        val violations = MeshLinkConfig(
+            advanced = MeshLinkInternalConfig(ackWindowMax = 1, ackWindowMin = 4),
+        ).validate()
         assertTrue(violations.any { "ackWindowMax" in it && "ackWindowMin" in it },
             "Should reject ackWindowMax < ackWindowMin: $violations")
     }
 
     @Test
     fun ackWindowValidWhenMaxEqualsMin() {
-        val violations = MeshLinkConfig(ackWindowMax = 4, ackWindowMin = 4).validate()
+        val violations = MeshLinkConfig(
+            advanced = MeshLinkInternalConfig(ackWindowMax = 4, ackWindowMin = 4),
+        ).validate()
         assertTrue(violations.none { "ackWindow" in it },
             "ackWindowMax == ackWindowMin should be valid: $violations")
     }
@@ -136,14 +142,20 @@ class MeshLinkConfigTest {
 
     @Test
     fun l2capRetryAttemptsMustBeNonNegativeWhenEnabled() {
-        val violations = MeshLinkConfig(l2capEnabled = true, l2capRetryAttempts = -1).validate()
+        val violations = MeshLinkConfig(
+            l2capEnabled = true,
+            advanced = MeshLinkInternalConfig(l2capRetryAttempts = -1),
+        ).validate()
         assertTrue(violations.any { "l2capRetryAttempts" in it },
             "Should reject negative l2capRetryAttempts when l2capEnabled: $violations")
     }
 
     @Test
     fun l2capRetryAttemptsNegativeAllowedWhenDisabled() {
-        val violations = MeshLinkConfig(l2capEnabled = false, l2capRetryAttempts = -1).validate()
+        val violations = MeshLinkConfig(
+            l2capEnabled = false,
+            advanced = MeshLinkInternalConfig(l2capRetryAttempts = -1),
+        ).validate()
         assertTrue(violations.none { "l2capRetryAttempts" in it },
             "Should allow negative l2capRetryAttempts when l2capEnabled is false: $violations")
     }
@@ -151,8 +163,10 @@ class MeshLinkConfigTest {
     @Test
     fun chunkInactivityTimeoutMustBeLessThanBufferTtl() {
         val violations = MeshLinkConfig(
-            chunkInactivityTimeoutMillis = 300_000L,
-            bufferTtlMillis = 300_000L,
+            advanced = MeshLinkInternalConfig(
+                chunkInactivityTimeoutMillis = 300_000L,
+                bufferTtlMillis = 300_000L,
+            ),
         ).validate()
         assertTrue(violations.any { "chunkInactivityTimeoutMillis" in it && "bufferTtlMillis" in it },
             "Should reject chunkInactivityTimeoutMillis >= bufferTtlMillis: $violations")
@@ -161,8 +175,10 @@ class MeshLinkConfigTest {
     @Test
     fun chunkInactivityTimeoutExceedingBufferTtlIsInvalid() {
         val violations = MeshLinkConfig(
-            chunkInactivityTimeoutMillis = 600_000L,
-            bufferTtlMillis = 300_000L,
+            advanced = MeshLinkInternalConfig(
+                chunkInactivityTimeoutMillis = 600_000L,
+                bufferTtlMillis = 300_000L,
+            ),
         ).validate()
         assertTrue(violations.any { "chunkInactivityTimeoutMillis" in it },
             "Should reject chunkInactivityTimeoutMillis > bufferTtlMillis: $violations")
@@ -171,13 +187,15 @@ class MeshLinkConfigTest {
     @Test
     fun multipleCrossFieldViolationsReturnedTogether() {
         val violations = MeshLinkConfig(
-            ackWindowMax = 1,
-            ackWindowMin = 8,
             powerModeThresholds = listOf(10, 90),
             l2capEnabled = true,
-            l2capRetryAttempts = -2,
-            chunkInactivityTimeoutMillis = 500_000L,
-            bufferTtlMillis = 100_000L,
+            advanced = MeshLinkInternalConfig(
+                ackWindowMax = 1,
+                ackWindowMin = 8,
+                l2capRetryAttempts = -2,
+                chunkInactivityTimeoutMillis = 500_000L,
+                bufferTtlMillis = 100_000L,
+            ),
         ).validate()
         assertTrue(violations.size >= 4,
             "Should report at least 4 cross-field violations, got ${violations.size}: $violations")
@@ -209,8 +227,10 @@ class MeshLinkConfigTest {
     @Test
     fun deliveryTimeoutExceedingBufferTtlIsInvalid() {
         val violations = MeshLinkConfig(
-            deliveryTimeoutMillis = 600_000L,
-            bufferTtlMillis = 300_000L,
+            advanced = MeshLinkInternalConfig(
+                deliveryTimeoutMillis = 600_000L,
+                bufferTtlMillis = 300_000L,
+            ),
         ).validate()
         assertTrue(
             violations.any { "deliveryTimeoutMillis" in it },
@@ -221,8 +241,10 @@ class MeshLinkConfigTest {
     @Test
     fun deliveryTimeoutEqualToBufferTtlIsValid() {
         val violations = MeshLinkConfig(
-            deliveryTimeoutMillis = 300_000L,
-            bufferTtlMillis = 300_000L,
+            advanced = MeshLinkInternalConfig(
+                deliveryTimeoutMillis = 300_000L,
+                bufferTtlMillis = 300_000L,
+            ),
         ).validate()
         assertTrue(
             violations.none { "deliveryTimeoutMillis" in it },

@@ -1,6 +1,6 @@
 package io.meshlink.util
 
-import io.meshlink.config.MeshLinkConfig
+import io.meshlink.config.meshLinkConfig
 import kotlin.test.Test
 import kotlin.test.assertIs
 
@@ -12,14 +12,14 @@ class RateLimitPolicyTest {
 
     @Test
     fun sendAllowedWhenUnderLimit() {
-        val policy = RateLimitPolicy(MeshLinkConfig(rateLimitMaxSends = 2, rateLimitWindowMillis = 1000L))
+        val policy = RateLimitPolicy(meshLinkConfig { rateLimitMaxSends = 2; rateLimitWindowMillis = 1000L })
         assertIs<RateLimitResult.Allowed>(policy.checkSend(key("peer1")))
         assertIs<RateLimitResult.Allowed>(policy.checkSend(key("peer1")))
     }
 
     @Test
     fun sendLimitedWhenExceeded() {
-        val policy = RateLimitPolicy(MeshLinkConfig(rateLimitMaxSends = 1, rateLimitWindowMillis = 1000L))
+        val policy = RateLimitPolicy(meshLinkConfig { rateLimitMaxSends = 1; rateLimitWindowMillis = 1000L })
         policy.checkSend(key("peer1"))
         val result = policy.checkSend(key("peer1"))
         assertIs<RateLimitResult.Limited>(result)
@@ -29,7 +29,7 @@ class RateLimitPolicyTest {
 
     @Test
     fun sendDisabledWhenZero() {
-        val policy = RateLimitPolicy(MeshLinkConfig(rateLimitMaxSends = 0))
+        val policy = RateLimitPolicy(meshLinkConfig { rateLimitMaxSends = 0 })
         assertIs<RateLimitResult.Allowed>(policy.checkSend(key("peer1")))
     }
 
@@ -37,17 +37,19 @@ class RateLimitPolicyTest {
 
     @Test
     fun circuitBreakerAllowsWhenClosed() {
-        val policy = RateLimitPolicy(MeshLinkConfig(circuitBreakerMaxFailures = 3, circuitBreakerWindowMillis = 1000L))
+        val policy = RateLimitPolicy(
+            meshLinkConfig { circuitBreakerMaxFailures = 3; circuitBreakerWindowMillis = 1000L }
+        )
         assertIs<RateLimitResult.Allowed>(policy.checkCircuitBreaker())
     }
 
     @Test
     fun circuitBreakerTripsAfterFailures() {
-        val policy = RateLimitPolicy(MeshLinkConfig(
-            circuitBreakerMaxFailures = 2,
-            circuitBreakerWindowMillis = 60_000L,
-            circuitBreakerCooldownMillis = 5000L,
-        ))
+        val policy = RateLimitPolicy(meshLinkConfig {
+            circuitBreakerMaxFailures = 2
+            circuitBreakerWindowMillis = 60_000L
+            circuitBreakerCooldownMillis = 5000L
+        })
         policy.recordTransportFailure()
         policy.recordTransportFailure()
         val result = policy.checkCircuitBreaker()
@@ -59,7 +61,11 @@ class RateLimitPolicyTest {
     fun circuitBreakerResetsAfterCooldown() {
         var now = 0L
         val policy = RateLimitPolicy(
-            MeshLinkConfig(circuitBreakerMaxFailures = 1, circuitBreakerWindowMillis = 60_000L, circuitBreakerCooldownMillis = 1000L),
+            meshLinkConfig {
+                circuitBreakerMaxFailures = 1
+                circuitBreakerWindowMillis = 60_000L
+                circuitBreakerCooldownMillis = 1000L
+            },
             clock = { now },
         )
         policy.recordTransportFailure()
@@ -70,7 +76,7 @@ class RateLimitPolicyTest {
 
     @Test
     fun circuitBreakerDisabledWhenZero() {
-        val policy = RateLimitPolicy(MeshLinkConfig(circuitBreakerMaxFailures = 0))
+        val policy = RateLimitPolicy(meshLinkConfig { circuitBreakerMaxFailures = 0 })
         assertIs<RateLimitResult.Allowed>(policy.checkCircuitBreaker())
     }
 
@@ -78,14 +84,14 @@ class RateLimitPolicyTest {
 
     @Test
     fun broadcastLimitedWhenExceeded() {
-        val policy = RateLimitPolicy(MeshLinkConfig(broadcastRateLimitPerMin = 1))
+        val policy = RateLimitPolicy(meshLinkConfig { broadcastRateLimitPerMin = 1 })
         policy.checkBroadcast()
         assertIs<RateLimitResult.Limited>(policy.checkBroadcast())
     }
 
     @Test
     fun broadcastDisabledWhenZero() {
-        val policy = RateLimitPolicy(MeshLinkConfig(broadcastRateLimitPerMin = 0))
+        val policy = RateLimitPolicy(meshLinkConfig { broadcastRateLimitPerMin = 0 })
         assertIs<RateLimitResult.Allowed>(policy.checkBroadcast())
     }
 
@@ -93,7 +99,7 @@ class RateLimitPolicyTest {
 
     @Test
     fun handshakeLimitedPerPeer() {
-        val policy = RateLimitPolicy(MeshLinkConfig(handshakeRateLimitPerSec = 1))
+        val policy = RateLimitPolicy(meshLinkConfig { handshakeRateLimitPerSec = 1 })
         policy.checkHandshake(key("peer1"))
         assertIs<RateLimitResult.Limited>(policy.checkHandshake(key("peer1")))
         // Different peer is still allowed
@@ -104,7 +110,7 @@ class RateLimitPolicyTest {
 
     @Test
     fun nackLimitedPerPeer() {
-        val policy = RateLimitPolicy(MeshLinkConfig(nackRateLimitPerSec = 1))
+        val policy = RateLimitPolicy(meshLinkConfig { nackRateLimitPerSec = 1 })
         policy.checkNack(key("peer1"))
         assertIs<RateLimitResult.Limited>(policy.checkNack(key("peer1")))
     }
@@ -113,7 +119,7 @@ class RateLimitPolicyTest {
 
     @Test
     fun neighborAggregateLimitedPerPeer() {
-        val policy = RateLimitPolicy(MeshLinkConfig(neighborAggregateLimitPerMin = 2))
+        val policy = RateLimitPolicy(meshLinkConfig { neighborAggregateLimitPerMin = 2 })
         policy.checkNeighborAggregate(key("peer1"))
         policy.checkNeighborAggregate(key("peer1"))
         assertIs<RateLimitResult.Limited>(policy.checkNeighborAggregate(key("peer1")))
@@ -125,7 +131,7 @@ class RateLimitPolicyTest {
 
     @Test
     fun senderNeighborRelayLimited() {
-        val policy = RateLimitPolicy(MeshLinkConfig(senderNeighborLimitPerMin = 1))
+        val policy = RateLimitPolicy(meshLinkConfig { senderNeighborLimitPerMin = 1 })
         policy.checkSenderNeighborRelay(key("origin1"), key("neighbor1"))
         val result = policy.checkSenderNeighborRelay(key("origin1"), key("neighbor1"))
         assertIs<RateLimitResult.Limited>(result)
@@ -138,11 +144,11 @@ class RateLimitPolicyTest {
 
     @Test
     fun differentScopesAreIndependent() {
-        val policy = RateLimitPolicy(MeshLinkConfig(
-            rateLimitMaxSends = 1, rateLimitWindowMillis = 1000L,
-            broadcastRateLimitPerMin = 1,
-            handshakeRateLimitPerSec = 1,
-        ))
+        val policy = RateLimitPolicy(meshLinkConfig {
+            rateLimitMaxSends = 1; rateLimitWindowMillis = 1000L
+            broadcastRateLimitPerMin = 1
+            handshakeRateLimitPerSec = 1
+        })
         // Exhaust all three
         policy.checkSend(key("peer1"))
         policy.checkBroadcast()

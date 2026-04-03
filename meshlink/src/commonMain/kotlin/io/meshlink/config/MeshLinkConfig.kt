@@ -5,9 +5,11 @@ import io.meshlink.power.PowerMode
 import io.meshlink.protocol.ProtocolVersion
 
 /**
- * Immutable mesh configuration. Fields are grouped into **public API** parameters
- * (commonly tuned by consuming apps) and **internal** parameters (protocol defaults
- * that rarely need changing).
+ * Immutable mesh configuration.
+ *
+ * Contains **public API** parameters commonly tuned by consuming apps.
+ * Internal / advanced protocol parameters live in [MeshLinkInternalConfig]
+ * and are accessible via [advanced].
  */
 data class MeshLinkConfig(
     // ── Public API parameters ─────────────────────────────────────
@@ -26,94 +28,66 @@ data class MeshLinkConfig(
     val compressionEnabled: Boolean = true,
     val compressionMinBytes: Int = 128,
     val requireEncryption: Boolean = true,
-    // ── Internal parameters (rarely changed by apps) ─────────────
-    val rateLimitMaxSends: Int = 60,
-    val rateLimitWindowMillis: Long = 60_000L,
-    val circuitBreakerMaxFailures: Int = 0,
-    val circuitBreakerWindowMillis: Long = 60_000L,
-    val circuitBreakerCooldownMillis: Long = 30_000L,
-    val diagnosticBufferCapacity: Int = 256,
-    val dedupCapacity: Int = 100_000,
-    val protocolVersion: ProtocolVersion = ProtocolVersion(1, 0),
-    val inboundRateLimitPerSenderPerMin: Int = 30,
-    val pendingMessageTtlMillis: Long = 0L,
-    val pendingMessageCapacity: Int = 100,
-    val broadcastRateLimitPerMin: Int = 10,
-    val relayQueueCapacity: Int = 100,
-    val evictionGracePeriodMillis: Long = 30_000L,
-    val l2capBackpressureWindowMillis: Long = 7_000L,
-    val ackWindowMin: Int = 2,
-    val ackWindowMax: Int = 16,
-    val l2capRetryAttempts: Int = 3,
-    val chunkInactivityTimeoutMillis: Long = 30_000L,
-    val bufferTtlMillis: Long = 300_000L,
-    val deliveryTimeoutMillis: Long = 30_000L,
-    val keepaliveIntervalMillis: Long = 0L,
-    val routeCacheTtlMillis: Long = 300_000L,
-    val routeDiscoveryTimeoutMillis: Long = 5_000L,
-    val tombstoneWindowMillis: Long = 120_000L,
-    val handshakeRateLimitPerSec: Int = 1,
-    val nackRateLimitPerSec: Int = 10,
-    val neighborAggregateLimitPerMin: Int = 100,
-    val senderNeighborLimitPerMin: Int = 20,
-    val maxConcurrentInboundSessions: Int = 100,
+    // ── Advanced / internal parameters ────────────────────────────
+    val advanced: MeshLinkInternalConfig = MeshLinkInternalConfig(),
 ) {
+
+    // ── Convenience accessors (delegate to advanced) ──────────────
+    // These keep existing call-sites compiling during migration and
+    // will be removed once all callers switch to config.advanced.xxx.
+
+    val rateLimitMaxSends: Int get() = advanced.rateLimitMaxSends
+    val rateLimitWindowMillis: Long get() = advanced.rateLimitWindowMillis
+    val circuitBreakerMaxFailures: Int get() = advanced.circuitBreakerMaxFailures
+    val circuitBreakerWindowMillis: Long get() = advanced.circuitBreakerWindowMillis
+    val circuitBreakerCooldownMillis: Long get() = advanced.circuitBreakerCooldownMillis
+    val diagnosticBufferCapacity: Int get() = advanced.diagnosticBufferCapacity
+    val dedupCapacity: Int get() = advanced.dedupCapacity
+    val protocolVersion: ProtocolVersion get() = advanced.protocolVersion
+    val inboundRateLimitPerSenderPerMin: Int get() = advanced.inboundRateLimitPerSenderPerMin
+    val pendingMessageTtlMillis: Long get() = advanced.pendingMessageTtlMillis
+    val pendingMessageCapacity: Int get() = advanced.pendingMessageCapacity
+    val broadcastRateLimitPerMin: Int get() = advanced.broadcastRateLimitPerMin
+    val relayQueueCapacity: Int get() = advanced.relayQueueCapacity
+    val evictionGracePeriodMillis: Long get() = advanced.evictionGracePeriodMillis
+    val l2capBackpressureWindowMillis: Long get() = advanced.l2capBackpressureWindowMillis
+    val ackWindowMin: Int get() = advanced.ackWindowMin
+    val ackWindowMax: Int get() = advanced.ackWindowMax
+    val l2capRetryAttempts: Int get() = advanced.l2capRetryAttempts
+    val chunkInactivityTimeoutMillis: Long get() = advanced.chunkInactivityTimeoutMillis
+    val bufferTtlMillis: Long get() = advanced.bufferTtlMillis
+    val deliveryTimeoutMillis: Long get() = advanced.deliveryTimeoutMillis
+    val keepaliveIntervalMillis: Long get() = advanced.keepaliveIntervalMillis
+    val routeCacheTtlMillis: Long get() = advanced.routeCacheTtlMillis
+    val routeDiscoveryTimeoutMillis: Long get() = advanced.routeDiscoveryTimeoutMillis
+    val tombstoneWindowMillis: Long get() = advanced.tombstoneWindowMillis
+    val handshakeRateLimitPerSec: Int get() = advanced.handshakeRateLimitPerSec
+    val nackRateLimitPerSec: Int get() = advanced.nackRateLimitPerSec
+    val neighborAggregateLimitPerMin: Int get() = advanced.neighborAggregateLimitPerMin
+    val senderNeighborLimitPerMin: Int get() = advanced.senderNeighborLimitPerMin
+    val maxConcurrentInboundSessions: Int get() = advanced.maxConcurrentInboundSessions
+
     fun validate(): List<String> {
         val violations = mutableListOf<String>()
+        // Public field validations
         if (mtu <= 21) violations.add("mtu must be > 21 (chunk header size)")
         if (maxMessageSize > bufferCapacity) {
-            violations.add(
-                "maxMessageSize ($maxMessageSize) exceeds bufferCapacity ($bufferCapacity)",
-            )
+            violations.add("maxMessageSize ($maxMessageSize) exceeds bufferCapacity ($bufferCapacity)")
         }
         if (maxMessageSize <= 0) violations.add("maxMessageSize must be positive")
         if (bufferCapacity <= 0) violations.add("bufferCapacity must be positive")
         if (mtu > maxMessageSize) violations.add("mtu ($mtu) exceeds maxMessageSize ($maxMessageSize)")
-        if (diagnosticBufferCapacity < 0) violations.add("diagnosticBufferCapacity must be non-negative")
-        if (dedupCapacity <= 0) violations.add("dedupCapacity must be positive")
-        if (rateLimitMaxSends > 0 && rateLimitWindowMillis <= 0) {
-            violations.add("rateLimitWindowMillis must be positive when rate limiting is enabled")
-        }
-        if (circuitBreakerMaxFailures > 0 && circuitBreakerCooldownMillis <= 0) {
-            violations.add("circuitBreakerCooldownMillis must be positive when circuit breaker is enabled")
-        }
-        // Cross-field validation rules from design doc §14
         if (broadcastTtl < 1u || broadcastTtl > maxHops) {
             violations.add("broadcastTtl ($broadcastTtl) must be in range 1..maxHops ($maxHops)")
-        }
-        if (evictionGracePeriodMillis < 5_000L || evictionGracePeriodMillis > 60_000L) {
-            violations.add("evictionGracePeriodMillis ($evictionGracePeriodMillis) must be in range 5000..60000")
-        }
-        if (l2capBackpressureWindowMillis < 3_000L || l2capBackpressureWindowMillis > 15_000L) {
-            violations.add(
-                "l2capBackpressureWindowMillis ($l2capBackpressureWindowMillis) must be in range 3000..15000"
-            )
-        }
-        if (ackWindowMax < ackWindowMin) {
-            violations.add(
-                "ackWindowMax ($ackWindowMax) must be >= ackWindowMin ($ackWindowMin)",
-            )
         }
         if (powerModeThresholds.size >= 2 && powerModeThresholds[0] <= powerModeThresholds[1]) {
             violations.add("powerModeThresholds must be strictly descending: [${powerModeThresholds.joinToString()}]")
         }
         if (l2capEnabled && l2capRetryAttempts < 0) {
-            violations.add(
-                "l2capRetryAttempts ($l2capRetryAttempts) must be >= 0 when l2capEnabled is true",
-            )
+            violations.add("l2capRetryAttempts ($l2capRetryAttempts) must be >= 0 when l2capEnabled is true")
         }
-        if (bufferTtlMillis > 0 && chunkInactivityTimeoutMillis >= bufferTtlMillis) {
-            violations.add(
-                "chunkInactivityTimeoutMillis ($chunkInactivityTimeoutMillis) must be < bufferTtlMillis ($bufferTtlMillis)",
-            )
-        }
-        if (maxConcurrentInboundSessions <= 0) violations.add("maxConcurrentInboundSessions must be positive")
-        if (deliveryTimeoutMillis < 0) violations.add("deliveryTimeoutMillis must be non-negative")
-        if (deliveryTimeoutMillis > 0 && bufferTtlMillis > 0 && deliveryTimeoutMillis > bufferTtlMillis) {
-            violations.add(
-                "deliveryTimeoutMillis ($deliveryTimeoutMillis) must be <= bufferTtlMillis ($bufferTtlMillis)",
-            )
-        }
+        // Internal field validations
+        violations.addAll(advanced.validate())
         return violations
     }
 
@@ -122,15 +96,19 @@ data class MeshLinkConfig(
             MeshLinkConfigBuilder(
                 maxMessageSize = 10_000,
                 bufferCapacity = 524_288,
-                deliveryTimeoutMillis = 10_000L,
-            ).apply(overrides).build()
+            ).apply {
+                advanced { deliveryTimeoutMillis = 10_000L }
+                overrides()
+            }.build()
 
         fun largePayloadHighThroughput(overrides: MeshLinkConfigBuilder.() -> Unit = {}): MeshLinkConfig =
             MeshLinkConfigBuilder(
                 maxMessageSize = 100_000,
                 bufferCapacity = 2_097_152,
-                deliveryTimeoutMillis = 120_000L,
-            ).apply(overrides).build()
+            ).apply {
+                advanced { deliveryTimeoutMillis = 120_000L }
+                overrides()
+            }.build()
 
         fun minimalResourceUsage(overrides: MeshLinkConfigBuilder.() -> Unit = {}): MeshLinkConfig =
             MeshLinkConfigBuilder(maxMessageSize = 10_000, bufferCapacity = 262_144)
@@ -140,9 +118,13 @@ data class MeshLinkConfig(
             MeshLinkConfigBuilder(
                 maxMessageSize = 1_000,
                 bufferCapacity = 65_536,
-                keepaliveIntervalMillis = 60_000L,
-                routeCacheTtlMillis = 120_000L,
-            ).apply(overrides).build()
+            ).apply {
+                advanced {
+                    keepaliveIntervalMillis = 60_000L
+                    routeCacheTtlMillis = 120_000L
+                }
+                overrides()
+            }.build()
 
         @Deprecated("Use smallPayloadLowLatency()", ReplaceWith("smallPayloadLowLatency(overrides)"))
         fun chatOptimized(overrides: MeshLinkConfigBuilder.() -> Unit = {}): MeshLinkConfig =
@@ -182,84 +164,127 @@ class MeshLinkConfigBuilder(
     var compressionEnabled: Boolean = true,
     var compressionMinBytes: Int = 128,
     var requireEncryption: Boolean = true,
-    // ── Internal parameters (rarely changed by apps) ─────────────
-    var rateLimitMaxSends: Int = 60,
-    var rateLimitWindowMillis: Long = 60_000L,
-    var circuitBreakerMaxFailures: Int = 0,
-    var circuitBreakerWindowMillis: Long = 60_000L,
-    var circuitBreakerCooldownMillis: Long = 30_000L,
-    var diagnosticBufferCapacity: Int = 256,
-    var dedupCapacity: Int = 100_000,
-    var protocolVersion: ProtocolVersion = ProtocolVersion(1, 0),
-    var inboundRateLimitPerSenderPerMin: Int = 30,
-    var pendingMessageTtlMillis: Long = 0L,
-    var pendingMessageCapacity: Int = 100,
-    var broadcastRateLimitPerMin: Int = 10,
-    var relayQueueCapacity: Int = 100,
-    var evictionGracePeriodMillis: Long = 30_000L,
-    var l2capBackpressureWindowMillis: Long = 7_000L,
-    var ackWindowMin: Int = 2,
-    var ackWindowMax: Int = 16,
-    var l2capRetryAttempts: Int = 3,
-    var chunkInactivityTimeoutMillis: Long = 30_000L,
-    var bufferTtlMillis: Long = 300_000L,
-    var deliveryTimeoutMillis: Long = 30_000L,
-    var keepaliveIntervalMillis: Long = 0L,
-    var routeCacheTtlMillis: Long = 300_000L,
-    var routeDiscoveryTimeoutMillis: Long = 5_000L,
-    var tombstoneWindowMillis: Long = 120_000L,
-    var handshakeRateLimitPerSec: Int = 1,
-    var nackRateLimitPerSec: Int = 10,
-    var neighborAggregateLimitPerMin: Int = 100,
-    var senderNeighborLimitPerMin: Int = 20,
-    var maxConcurrentInboundSessions: Int = 100,
 ) {
+    // ── Advanced / internal parameters ────────────────────────────
+    private var advancedBuilder = MeshLinkInternalConfigBuilder()
+
+    /** Configure advanced / internal parameters. */
+    fun advanced(block: MeshLinkInternalConfigBuilder.() -> Unit) {
+        advancedBuilder.apply(block)
+    }
+
+    // ── Compatibility setters for existing call-sites ────────────
+    // These forward to the advanced builder so that existing code like
+    //   meshLinkConfig { keepaliveIntervalMillis = 0L }
+    // keeps compiling. Will be removed once all callers migrate.
+
+    var rateLimitMaxSends: Int
+        get() = advancedBuilder.rateLimitMaxSends
+        set(value) { advancedBuilder.rateLimitMaxSends = value }
+    var rateLimitWindowMillis: Long
+        get() = advancedBuilder.rateLimitWindowMillis
+        set(value) { advancedBuilder.rateLimitWindowMillis = value }
+    var circuitBreakerMaxFailures: Int
+        get() = advancedBuilder.circuitBreakerMaxFailures
+        set(value) { advancedBuilder.circuitBreakerMaxFailures = value }
+    var circuitBreakerWindowMillis: Long
+        get() = advancedBuilder.circuitBreakerWindowMillis
+        set(value) { advancedBuilder.circuitBreakerWindowMillis = value }
+    var circuitBreakerCooldownMillis: Long
+        get() = advancedBuilder.circuitBreakerCooldownMillis
+        set(value) { advancedBuilder.circuitBreakerCooldownMillis = value }
+    var diagnosticBufferCapacity: Int
+        get() = advancedBuilder.diagnosticBufferCapacity
+        set(value) { advancedBuilder.diagnosticBufferCapacity = value }
+    var dedupCapacity: Int
+        get() = advancedBuilder.dedupCapacity
+        set(value) { advancedBuilder.dedupCapacity = value }
+    var protocolVersion: ProtocolVersion
+        get() = advancedBuilder.protocolVersion
+        set(value) { advancedBuilder.protocolVersion = value }
+    var inboundRateLimitPerSenderPerMin: Int
+        get() = advancedBuilder.inboundRateLimitPerSenderPerMin
+        set(value) { advancedBuilder.inboundRateLimitPerSenderPerMin = value }
+    var pendingMessageTtlMillis: Long
+        get() = advancedBuilder.pendingMessageTtlMillis
+        set(value) { advancedBuilder.pendingMessageTtlMillis = value }
+    var pendingMessageCapacity: Int
+        get() = advancedBuilder.pendingMessageCapacity
+        set(value) { advancedBuilder.pendingMessageCapacity = value }
+    var broadcastRateLimitPerMin: Int
+        get() = advancedBuilder.broadcastRateLimitPerMin
+        set(value) { advancedBuilder.broadcastRateLimitPerMin = value }
+    var relayQueueCapacity: Int
+        get() = advancedBuilder.relayQueueCapacity
+        set(value) { advancedBuilder.relayQueueCapacity = value }
+    var evictionGracePeriodMillis: Long
+        get() = advancedBuilder.evictionGracePeriodMillis
+        set(value) { advancedBuilder.evictionGracePeriodMillis = value }
+    var l2capBackpressureWindowMillis: Long
+        get() = advancedBuilder.l2capBackpressureWindowMillis
+        set(value) { advancedBuilder.l2capBackpressureWindowMillis = value }
+    var ackWindowMin: Int
+        get() = advancedBuilder.ackWindowMin
+        set(value) { advancedBuilder.ackWindowMin = value }
+    var ackWindowMax: Int
+        get() = advancedBuilder.ackWindowMax
+        set(value) { advancedBuilder.ackWindowMax = value }
+    var l2capRetryAttempts: Int
+        get() = advancedBuilder.l2capRetryAttempts
+        set(value) { advancedBuilder.l2capRetryAttempts = value }
+    var chunkInactivityTimeoutMillis: Long
+        get() = advancedBuilder.chunkInactivityTimeoutMillis
+        set(value) { advancedBuilder.chunkInactivityTimeoutMillis = value }
+    var bufferTtlMillis: Long
+        get() = advancedBuilder.bufferTtlMillis
+        set(value) { advancedBuilder.bufferTtlMillis = value }
+    var deliveryTimeoutMillis: Long
+        get() = advancedBuilder.deliveryTimeoutMillis
+        set(value) { advancedBuilder.deliveryTimeoutMillis = value }
+    var keepaliveIntervalMillis: Long
+        get() = advancedBuilder.keepaliveIntervalMillis
+        set(value) { advancedBuilder.keepaliveIntervalMillis = value }
+    var routeCacheTtlMillis: Long
+        get() = advancedBuilder.routeCacheTtlMillis
+        set(value) { advancedBuilder.routeCacheTtlMillis = value }
+    var routeDiscoveryTimeoutMillis: Long
+        get() = advancedBuilder.routeDiscoveryTimeoutMillis
+        set(value) { advancedBuilder.routeDiscoveryTimeoutMillis = value }
+    var tombstoneWindowMillis: Long
+        get() = advancedBuilder.tombstoneWindowMillis
+        set(value) { advancedBuilder.tombstoneWindowMillis = value }
+    var handshakeRateLimitPerSec: Int
+        get() = advancedBuilder.handshakeRateLimitPerSec
+        set(value) { advancedBuilder.handshakeRateLimitPerSec = value }
+    var nackRateLimitPerSec: Int
+        get() = advancedBuilder.nackRateLimitPerSec
+        set(value) { advancedBuilder.nackRateLimitPerSec = value }
+    var neighborAggregateLimitPerMin: Int
+        get() = advancedBuilder.neighborAggregateLimitPerMin
+        set(value) { advancedBuilder.neighborAggregateLimitPerMin = value }
+    var senderNeighborLimitPerMin: Int
+        get() = advancedBuilder.senderNeighborLimitPerMin
+        set(value) { advancedBuilder.senderNeighborLimitPerMin = value }
+    var maxConcurrentInboundSessions: Int
+        get() = advancedBuilder.maxConcurrentInboundSessions
+        set(value) { advancedBuilder.maxConcurrentInboundSessions = value }
 
     fun build(): MeshLinkConfig = MeshLinkConfig(
         maxMessageSize = maxMessageSize,
         bufferCapacity = bufferCapacity,
         mtu = mtu,
-        rateLimitMaxSends = rateLimitMaxSends,
-        rateLimitWindowMillis = rateLimitWindowMillis,
-        circuitBreakerMaxFailures = circuitBreakerMaxFailures,
-        circuitBreakerWindowMillis = circuitBreakerWindowMillis,
-        circuitBreakerCooldownMillis = circuitBreakerCooldownMillis,
-        diagnosticBufferCapacity = diagnosticBufferCapacity,
-        dedupCapacity = dedupCapacity,
-        protocolVersion = protocolVersion,
-        appId = appId,
-        inboundRateLimitPerSenderPerMin = inboundRateLimitPerSenderPerMin,
-        pendingMessageTtlMillis = pendingMessageTtlMillis,
-        pendingMessageCapacity = pendingMessageCapacity,
-        broadcastRateLimitPerMin = broadcastRateLimitPerMin,
-        relayQueueCapacity = relayQueueCapacity,
         maxHops = maxHops,
         broadcastTtl = broadcastTtl,
+        appId = appId,
         trustMode = trustMode,
         deliveryAckEnabled = deliveryAckEnabled,
         diagnosticsEnabled = diagnosticsEnabled,
         customPowerMode = customPowerMode,
-        evictionGracePeriodMillis = evictionGracePeriodMillis,
-        l2capBackpressureWindowMillis = l2capBackpressureWindowMillis,
-        ackWindowMin = ackWindowMin,
-        ackWindowMax = ackWindowMax,
         powerModeThresholds = powerModeThresholds,
         l2capEnabled = l2capEnabled,
-        l2capRetryAttempts = l2capRetryAttempts,
-        chunkInactivityTimeoutMillis = chunkInactivityTimeoutMillis,
-        bufferTtlMillis = bufferTtlMillis,
-        deliveryTimeoutMillis = deliveryTimeoutMillis,
-        keepaliveIntervalMillis = keepaliveIntervalMillis,
-        routeCacheTtlMillis = routeCacheTtlMillis,
-        routeDiscoveryTimeoutMillis = routeDiscoveryTimeoutMillis,
-        tombstoneWindowMillis = tombstoneWindowMillis,
-        handshakeRateLimitPerSec = handshakeRateLimitPerSec,
-        nackRateLimitPerSec = nackRateLimitPerSec,
-        neighborAggregateLimitPerMin = neighborAggregateLimitPerMin,
-        senderNeighborLimitPerMin = senderNeighborLimitPerMin,
-        maxConcurrentInboundSessions = maxConcurrentInboundSessions,
-        requireEncryption = requireEncryption,
         compressionEnabled = compressionEnabled,
         compressionMinBytes = compressionMinBytes,
+        requireEncryption = requireEncryption,
+        advanced = advancedBuilder.build(),
     )
 }
