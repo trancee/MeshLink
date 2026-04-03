@@ -95,6 +95,7 @@ scope before calling `start()`.
 | `fun peerPublicKey(peerIdHex: String): ByteArray?` | Returns the peer's Ed25519 public key obtained during handshake. `null` if peer is unknown or crypto is disabled. |
 | `fun peerDetail(peerIdHex: String): PeerDetail?` | Returns a snapshot of a single peer's connection, routing, and identity state. `null` if the peer is unknown. |
 | `fun allPeerDetails(): List<PeerDetail>` | Returns detail snapshots for all known peers. Useful for visualizers and diagnostics UIs. |
+| `fun peerFingerprint(peerIdHex: String): String?` | Returns a 12-digit symmetric safety number for out-of-band peer verification. Both sides compute the same number. `null` if either key is unavailable. |
 | `fun rotateIdentity(): Result<Unit>` | Generates a new Ed25519 identity key pair and announces the rotation to the mesh via a `ROTATION` wire message. |
 
 ---
@@ -268,6 +269,7 @@ on `MeshLinkConfig` itself (e.g., `config.keepaliveIntervalMillis`).
 | `trustMode` | `TrustMode` | `SOFT_REPIN` | Key pinning policy. `SOFT_REPIN`: silently accept new key and re-pin; emit `KeyChangeEvent` for app-level awareness. `STRICT`: reject messages from peers whose key changed, require explicit `repinKey(peer)`. Both modes emit `KeyChangeEvent`. |
 | `deliveryAckEnabled` | `Boolean` | `true` | Send signed delivery ACKs for received routed messages. When `false`, recipients do not send delivery ACKs (senders rely on SACK-based transfer completion). |
 | `visitedListEnabled` | `Boolean` | `true` | Include per-hop peer ID hashes in routed messages for loop detection. When disabled, loop prevention relies on dedup set + hop counter. Disabling saves 12–120 bytes per routed message. |
+| `paddingBlockSize` | `Int` | `0` | Pad payload envelopes to the next multiple of this block size (bytes) before E2E encryption. `0` = disabled. Set to `64` or `128` for traffic analysis resistance. |
 | `maxConcurrentInboundSessions` | `Int` | `100` | Maximum concurrent inbound reassembly sessions. Limits memory exhaustion from unauthenticated chunk floods. |
 
 ### Validation

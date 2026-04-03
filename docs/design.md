@@ -1524,17 +1524,132 @@ for log correlation but not linkable to actual peer identities.
 instead of raw hex encoding. The `PeerHandshakeManager` pattern is the
 reference implementation.
 
-### Metadata Protection — Deferred
+### Security Hardening (STRIDE-A Audit, 2026-04)
 
-v1 accepts that routing and buffering nodes learn:
-- Sender and recipient public keys
-- Message sizes and timestamps
-- Communication frequency patterns
-- Correlation between BLE advertisements (truncated key hash) and Noise XX handshake identities — an eavesdropper observing both can link advertisement activity to encrypted connection sessions
+A STRIDE-A threat model analysis identified 40 threats across 18 components
+(see `threat-model-20260403-173103/`). Eight security findings were
+implemented. This section codifies them as design-level requirements.
 
-Potential post-v1 mitigations:
+#### H1: Drop Routed Messages on Decryption Failure
+
+When a routed message (type 0x0A) arrives at the destination and E2E
+decryption fails, the message **MUST** be dropped — never delivered to the
+consuming app. Previously, `unsealOrPassthrough()` returned raw ciphertext
+as plaintext, which could deliver attacker-controlled bytes as legitimate
+content.
+
+**Rule:** `InboundValidator.unsealOrDrop()` returns `null` on decryption
+failure. `MessageDispatcher` performs an early return. The only exception:
+when no `SecurityEngine` is configured (plaintext mode), raw payloads are
+delivered.
+
+**Design rationale:** A routed message whose payload cannot be decrypted
+either has a corrupted key chain (transient — sender retries after key
+propagation) or was injected by an attacker. In both cases, dropping is
+correct. The sender’s delivery timeout triggers a retry.
+
+#### H2: Pre-Handshake Message Gate
+
+`MessageDispatcher` **MUST** reject direct transfer message types from peers
+that have not completed the Noise XX handshake. Only handshake, keepalive,
+routed messages, broadcasts, and routing control messages are accepted
+before authentication.
+
+**Blocked pre-handshake:** `TYPE_CHUNK` (0x05), `TYPE_CHUNK_ACK` (0x06),
+`TYPE_NACK` (0x07), `TYPE_RESUME_REQUEST` (0x08), `TYPE_DELIVERY_ACK` (0x0B).
+
+**Allowed pre-handshake:** `TYPE_HANDSHAKE` (0x00), `TYPE_KEEPALIVE` (0x01),
+`TYPE_ROTATION` (0x02), `TYPE_HELLO` (0x03), `TYPE_UPDATE` (0x04),
+`TYPE_BROADCAST` (0x09), `TYPE_ROUTED_MESSAGE` (0x0A).
+
+**Design rationale:** Routed messages and broadcasts may arrive from relay
+peers whose Noise XX session was established at a different hop. Direct
+transfer types (chunks, ACKs) require a direct BLE connection where the
+handshake has completed.
+
+#### H3: Peer Table Capacity Bound
+
+`PresenceTracker` **MUST** enforce a maximum peer count (`maxPeers`, default
+1000). When at capacity, new peers evict the oldest non-connected peer
+(LRU). This prevents Sybil attacks from consuming unbounded memory via
+fake BLE advertisements.
+
+**Design rationale:** An attacker can generate BLE identities trivially.
+Without a cap, `PresenceTracker.peers` and `PeerHandshakeManager.handshakes`
+grow unboundedly. The 1000-peer cap with LRU eviction ensures memory is
+bounded while preserving the most active peers.
+
+#### H4: Route Cost Sanity Validation
+
+`RoutingEngine.addRoute()` **MUST** validate that the advertised route cost
+is at least the measured link cost to the next-hop neighbor. Routes with
+costs below the link cost floor are clamped.
+
+**Design rationale:** A malicious authenticated peer can advertise
+artificially low route costs (e.g., `metric=1` for all destinations) to
+become the preferred next-hop and then drop forwarded messages (blackhole
+attack). Cost sanity validation prevents the trivial case. Sophisticated
+attacks with plausible costs require actual link quality data, which limits
+the attacker’s ability to game the metric.
+
+#### H5: Key Material Zeroization
+
+`SecurityEngine.clear()` **MUST** zeroize all sensitive key material before
+removing references — not just session secrets but also peer public keys,
+local private keys, and broadcast private keys. This extends R3 (Zeroize
+Key Material After Use) from the Cryptographic Implementation Requirements.
+
+#### H6: Safety Number Verification API
+
+`MeshLinkApi.peerFingerprint()` provides a 12-digit numeric safety number
+derived from `SHA-256(sorted(localKey, peerKey))`. The number is symmetric
+(both sides compute the same value) and deterministic.
+
+Consuming apps **SHOULD** display this number during first contact and prompt
+users to verify it matches. This mitigates TOFU’s first-contact MitM
+vulnerability — the same approach used by Signal and WhatsApp.
+
+#### H7: Payload Padding for Traffic Analysis Resistance
+
+When `paddingBlockSize > 0`, payload envelopes are padded to the next block
+boundary before encryption. Envelope type `0x02` wraps the inner envelope
+(compressed or uncompressed) with a 2-byte LE size prefix and zero padding.
+
+**Design rationale:** Without padding, an observer can distinguish message
+types by encrypted frame size (e.g., a 10-byte sensor reading vs. a 500-byte
+chat message). Padding to fixed blocks makes all messages within a block
+indistinguishable.
+
+**Default:** Disabled (`paddingBlockSize = 0`). Consuming apps in
+privacy-sensitive deployments should set `paddingBlockSize = 64` or
+`paddingBlockSize = 128`.
+
+#### H8: Platform-Native Crypto Preference
+
+The crypto provider **MUST** prefer platform-native implementations
+(JCA on JVM/Android 33+, CryptoKit on Apple) over the pure Kotlin fallback.
+Native implementations use hardware-accelerated constant-time operations
+that resist timing side channels. The pure Kotlin fallback
+(`PureKotlinCryptoProvider`) is used only on platforms without native
+support (Android API 26–32, Apple until CryptoKit interop is added, Linux).
+
+The pure Kotlin `Field25519` arithmetic uses constant-time conditional
+swap/move operations. BLE transport jitter (~5ms) provides additional
+mitigation against sub-microsecond timing measurements.
+
+### Metadata Protection — Partially Addressed
+
+v1 partially addresses metadata exposure:
+- **✅ Message padding** — configurable `paddingBlockSize` pads envelopes to fixed block boundaries before encryption, defeating size-based traffic analysis (see H7 above)
+- **✅ Safety number verification** — `peerFingerprint()` enables out-of-band identity verification to detect first-contact MitM (see H6 above)
+
+Remaining metadata exposures accepted for v1:
+- Sender and recipient public keys visible to relays
+- Communication frequency and timing patterns observable
+- Correlation between BLE advertisements (truncated key hash) and Noise XX handshake identities
+
+Post-v1 mitigations:
 - Rotating sender/recipient pseudonyms (unlinkable headers)
-- Fixed-size message padding (prevents size-based traffic analysis)
 - Onion-style routing (each hop only knows next hop, not origin/destination)
 
 **L2CAP-specific threat model (accepted risks):**

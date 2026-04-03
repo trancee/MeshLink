@@ -235,7 +235,10 @@ test in `TlvExtensionWireTest`, update `docs/wire-format-spec.md`.
   jose4j, JDOM2, Commons Lang3, and HttpClient to patched versions (see CVE
   comments in the file).
 
-See `docs/threat-model.md` for the full threat analysis.
+See `docs/threat-model.md` for the full threat analysis and STRIDE-A
+findings (FIND-01 through FIND-08). See `docs/design.md` §5 Security
+Hardening (H1–H8) for design-level requirements derived from the
+threat model.
 
 ## Pull Request Guidelines
 

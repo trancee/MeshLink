@@ -236,18 +236,33 @@ Attacker → triggers crypto edge case (e.g., malformed handshake) → exception
 
 ## Remediation status
 
+### Original threat model (TM-001 through TM-010)
+
 | ID | Status | Commit | Notes |
 |----|--------|--------|-------|
 | TM-001 | ✅ Mitigated | `fb1887b` | `maxConcurrentInboundSessions` config (default 100), `ChunkAcceptResult.Rejected` |
 | TM-002 | ✅ Mitigated | See below | `requireEncryption = true` default; `start()` fails without `CryptoProvider` |
 | TM-003 | 🟡 Partially Mitigated | `fb1887b` | TTL-based `DedupSet` with 300s expiry, capacity increased to 100K. **Residual risk:** 100K entries × 24 bytes = 2.4 MB; targeted eviction attacks can still force LRU eviction of specific entries on memory-constrained devices. |
-| TM-004 | 🟡 Partially Mitigated | See below | Unsigned routes rejected when crypto enabled; per-next-hop failure tracking with diagnostic alerts. **Residual risk:** consumers can set `requireEncryption = false`, which disables route signing. No reachability probes to detect blackhole routes. |
+| TM-004 | ✅ Mitigated | `4892559` | Unsigned routes rejected when crypto enabled; per-next-hop failure tracking; route cost sanity validation (FIND-05). |
 | TM-005 | ✅ Mitigated | `fb1887b` | Default `maxHops` reduced from 255 to 10 |
 | TM-006 | ✅ Mitigated | `fb1887b` | `expect/actual secureRandomBytes()` with platform CSPRNG implementations |
-| TM-007 | 🟡 Partially Mitigated | `47b40e8` | Rotation timestamp freshness (±30s window) and replay rejection. **Residual risk:** ±30s window assumes reasonably synchronized clocks; devices without NTP on a mesh may exceed 30s skew, causing legitimate rotations to be rejected or replays within the window to succeed. |
-| TM-008 | ✅ Mitigated | `fb1887b` | `unsealPayload()` returns null on failure; messages dropped |
+| TM-007 | 🟡 Partially Mitigated | `47b40e8` | Rotation timestamp freshness (±30s window) and replay rejection. **Residual risk:** ±30s window assumes reasonably synchronized clocks. |
+| TM-008 | ✅ Mitigated | `5728a18` | `unsealOrDrop()` returns null on failure; messages dropped (FIND-04). |
 | TM-009 | ✅ Mitigated | `fb1887b` | Diagnostic emits `throwable::class.simpleName` instead of message |
 | TM-010 | ✅ Mitigated | `fb1887b` | `BleTransport.debugLogging` changed from `public` to `internal` |
+
+### STRIDE-A findings (FIND-01 through FIND-08, 2026-04)
+
+| ID | Threat | CVSS | Status | Commit | Remediation |
+|----|--------|------|--------|--------|-------------|
+| FIND-01 | BLE advertisement information disclosure + traffic analysis | 5.3 | ✅ Mitigated | `4699607` | Configurable `paddingBlockSize` pads envelopes to block boundaries before encryption (H7). Advertisement metadata remains public by BLE design. |
+| FIND-02 | Pre-handshake unauthenticated data acceptance | 5.9 | ✅ Mitigated | `2d047de` | Pre-handshake gate rejects direct transfer messages (chunk, ACK, delivery) from unauthenticated peers (H2). |
+| FIND-03 | Sybil attack via BLE identity flooding | 5.3 | ✅ Mitigated | `0980d3f` | `PresenceTracker` capped at 1000 peers with LRU eviction (H3). |
+| FIND-04 | Decryption failure passthrough in routed messages | 6.3 | ✅ Mitigated | `5728a18` | `unsealOrDrop()` drops messages on decryption failure instead of delivering raw bytes (H1). |
+| FIND-05 | Route poisoning via authenticated peer | 6.1 | ✅ Mitigated | `4892559` | Route cost sanity validation rejects costs below link cost floor (H4). |
+| FIND-06 | In-memory key material exposure | 4.1 | ✅ Mitigated | `f3bb7fa` | `SecurityEngine.clear()` zeroizes all key material including peer keys and local private keys (H5). |
+| FIND-07 | TOFU vulnerability on first contact | 4.6 | ✅ Mitigated | `1edf5be` | `peerFingerprint()` API provides 12-digit symmetric safety number for out-of-band verification (H6). |
+| FIND-08 | Side-channel timing risk in pure Kotlin crypto | 2.3 | ✅ Mitigated | `fea9697` | JVM/Android 33+ use native JCA; pure Kotlin uses constant-time Field25519 conditionals; BLE jitter mitigates (H8). |
 
 ---
 

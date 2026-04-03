@@ -306,7 +306,39 @@ val peerKey = mesh.peerPublicKey("abcd...") // Peer's public key from handshake
 val broadcastKey = mesh.broadcastPublicKey  // Key for broadcast verification
 ```
 
-See [Threat Model](threat-model.md) for the security analysis.
+### Peer Verification (Safety Numbers)
+
+MeshLink provides a safety number API for out-of-band peer verification,
+mitigating TOFU’s first-contact vulnerability:
+
+```kotlin
+val safetyNumber = mesh.peerFingerprint(peerIdHex)
+if (safetyNumber != null) {
+    // Display to user: "Verify this number matches the other device: 483920175638"
+    showVerificationDialog(safetyNumber)
+}
+```
+
+The 12-digit numeric string is symmetric (both sides compute the same
+number) and derived from SHA-256 of both peers’ public keys.
+
+### Traffic Analysis Resistance
+
+Enable message padding to defeat size-based traffic analysis:
+
+```kotlin
+val config = meshLinkConfig {
+    advanced {
+        paddingBlockSize = 64  // pad payloads to 64-byte blocks before encryption
+    }
+}
+```
+
+When enabled, all payload envelopes are padded to the next block boundary
+before E2E encryption. An observer cannot distinguish a 10-byte sensor
+reading from a 50-byte chat message — both appear as 64-byte ciphertext.
+
+See [Threat Model](threat-model.md) for the full security analysis.
 
 ---
 
@@ -402,9 +434,16 @@ mesh.rotateIdentity().onFailure { error ->
 
 - **Always provide a `CryptoProvider`** in production. Without it, `start()`
   fails by default (`requireEncryption = true`).
-- **Use `TrustMode.STRICT`** unless you have a specific need for re-pinning.
+- **Use `TrustMode.STRICT`** for high-security deployments. Default
+  `SOFT_REPIN` prioritizes usability for casual apps.
+- **Verify peers on first contact** — call `peerFingerprint()` and display
+  the 12-digit safety number for out-of-band comparison.
 - **Monitor `keyChanges`** — alert users when a peer's key changes unexpectedly.
+- **Enable padding** — set `paddingBlockSize = 64` in privacy-sensitive
+  deployments to defeat size-based traffic analysis.
 - **Tune rate limiting** — adjust for your use case; set to `0` to disable.
+- **Use `cryptoDispatcher = Dispatchers.Default`** in production to offload
+  Noise K seal/unseal to a background thread pool.
 
 ### Resource Management
 
