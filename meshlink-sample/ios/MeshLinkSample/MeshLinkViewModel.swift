@@ -171,7 +171,7 @@ final class MeshLinkViewModel: ObservableObject {
             return
         }
         let payloadBytes = stringToKotlinByteArray(message)
-        let result = meshLink.send(recipient: recipientBytes, payload: payloadBytes)
+        let result = meshLink.send(recipient: recipientBytes, payload: payloadBytes, priority: 0)
         if result != nil {
             log("📤 Sent to \(String(recipientHex.prefix(8)))…: \(message)")
         } else {
@@ -181,7 +181,7 @@ final class MeshLinkViewModel: ObservableObject {
 
     func broadcastMessage(_ message: String) {
         let payloadBytes = stringToKotlinByteArray(message)
-        let _ = meshLink.broadcast(payload: payloadBytes, maxHops: 2)
+        let _ = meshLink.broadcast(payload: payloadBytes, maxHops: 2, priority: 0)
         log("📡 Broadcast: \(message)")
     }
 
