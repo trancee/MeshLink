@@ -188,32 +188,31 @@ internal class InboundValidator(
     }
 
     /**
-     * Try to unseal, but fall back to returning the raw payload when
-     * decryption fails.  Used for routed messages where the sender may
-     * not have had the destination's public key (non-adjacent peer).
+     * Try to unseal a routed message payload. Returns the decrypted plaintext
+     * if decryption succeeds. On failure, returns null when crypto is required
+     * (dropping the message). When crypto is not configured, returns the raw
+     * payload (plaintext mode).
      *
-     * Security note: passthrough on decryption failure is logged as a
-     * diagnostic warning. Callers should be aware that the returned
-     * payload may be unencrypted attacker-controlled data.
+     * Previously returned raw ciphertext on failure (passthrough), which could
+     * deliver attacker-controlled data to the consuming app. Now drops messages
+     * that fail decryption (FIND-04 remediation).
      */
-    fun unsealOrPassthrough(
+    fun unsealOrDrop(
         ciphertext: ByteArray,
         senderPeerId: ByteArrayKey? = null,
-    ): ByteArray {
-        return when (val ur = securityEngine?.unseal(ciphertext, senderPeerId)) {
+    ): ByteArray? {
+        val se = securityEngine ?: return ciphertext // no crypto — plaintext mode
+        return when (val ur = se.unseal(ciphertext, senderPeerId)) {
             is io.meshlink.crypto.UnsealResult.Decrypted -> ur.plaintext
             is io.meshlink.crypto.UnsealResult.Failed,
             is io.meshlink.crypto.UnsealResult.TooShort -> {
-                // Security: log when decryption fails and raw payload is passed through.
-                // This may indicate a non-encrypting sender or a potential injection attempt.
                 diagnosticSink.emit(
                     DiagnosticCode.DECRYPTION_FAILED,
                     Severity.WARN,
-                    "decryption failed, passing through raw payload (sender=$senderPeerId)",
+                    "routed message decryption failed, dropping (sender=$senderPeerId)",
                 )
-                ciphertext
+                null
             }
-            null -> ciphertext
         }
     }
 }
