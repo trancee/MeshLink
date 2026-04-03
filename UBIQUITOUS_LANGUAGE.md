@@ -31,7 +31,7 @@ The following terms are commonly confused. Read this before continuing.
 |------|-----------|-----------------|
 | **Backup Exclusion** | Identity keys are explicitly excluded from platform backup (iOS: `ThisDeviceOnly` Keychain attribute; Android: backup exclusion rules). New device = new identity, always. | Backup restore, key migration |
 | **Identity** | A static Ed25519 keypair generated on first launch — the Ed25519 public key IS the identity. A Curve25519 keypair is derived from it via the **Birational Map** for use in Noise handshakes. | Account, user, profile |
-| **Key Hash** | The 8-byte SHA-256-64 (truncated SHA-256) of a **Peer's** Curve25519 **Public Key** (derived from Ed25519 **Identity**), carried in the **Advertisement** and **Visited List**. | Fingerprint, peer hash, identity hash |
+| **Key Hash** | The 12-byte truncated SHA-256 of a **Peer's** X25519 **Public Key** (derived from Ed25519 **Identity**), carried in the **Advertisement** and used as the wire protocol peer ID. Identical to the 12-byte peer ID in all wire messages. | Fingerprint, peer hash, identity hash |
 | **Key Pinning** | Associating a discovered **Public Key** with a **Peer** identity on first contact (**TOFU**). Strict mode (default): reject changed keys, require explicit `repinKey()`. Soft re-pin mode: silently accept new keys. Both emit `onKeyChanged`. | Trusting, remembering |
 | **Keychain Accessibility Requirement** | iOS: MeshLink keys use `kSecAttrAccessibleAfterFirstUnlock` — available in background after first device unlock post-reboot. Keys are unavailable before first unlock. | Keychain protection, key accessibility |
 | **Public Key** | The Ed25519 public key that uniquely identifies a **Peer** on the mesh. The corresponding Curve25519 public key (for Noise handshakes) is derived deterministically. | Address, ID, peer ID |
@@ -46,7 +46,7 @@ The following terms are commonly confused. Read this before continuing.
 
 | Term | Definition | Aliases to avoid |
 |------|-----------|-----------------|
-| **Advertisement** | A BLE advertisement payload (10 of 24 usable bytes): bit-packed protocol version + **Power Mode** (1 byte), version minor (1 byte), and **Key Hash** (8 bytes). | Beacon, broadcast (avoid — "Broadcast" means something specific in messaging) |
+| **Advertisement** | A BLE advertisement payload (16 bytes): bit-packed protocol version + **Power Mode** (1 byte), version minor (1 byte), mesh hash (2 bytes), and **Key Hash** (12 bytes). | Beacon, broadcast (avoid — "Broadcast" means something specific in messaging) |
 | **Base UUID** | The 128-bit UUID template (`7F3Axxxx-8FC5-11EC-B909-0242AC120002`) from which all GATT characteristic UUIDs are derived using 16-bit offsets (`0x0001`–`0x0004`). The 16-bit **Service UUID** (`0x7F3A`) is embedded at the `xxxx` position. | Root UUID, UUID template |
 | **BLE Connection Establishment Sequence** | 4-step sequence: BLE connect → MTU negotiate (reject <100) → GATT discovery (10s) → Noise XX handshake (8s). Total budget: 23s. → see design.md §3. | Connection setup, pairing sequence |
 | **BLE_STACK_UNRESPONSIVE** | Diagnostic emitted when the library receives zero BLE callbacks for 60 seconds despite being started. Automatic recovery tears down and re-initializes BLE resources (up to 3 attempts/hour). After exhausting retries → `BLE_STACK_FATAL` → all BLE operations stop. | BLE hang, stack timeout |
@@ -107,7 +107,7 @@ The following terms are commonly confused. Read this before continuing.
 | **Delivery ACK** | An explicit confirmation that the recipient has received and decrypted a **Direct Message**. Sent via **reverse-path unicast**. | Read receipt (wrong — it confirms decryption, not reading), acknowledgment |
 | **Delivery Deadline** | The `bufferTTL` window after `send()` within which `onDeliveryConfirmed` must fire; otherwise `onTransferFailed(DELIVERY_TIMEOUT)` is emitted. Guarantees the sender always receives a definitive callback. | Delivery timeout, send deadline |
 | **Direct Message** | A 1:1 end-to-end encrypted message from one **Peer** to a specific recipient, sealed with Noise K. Sender authentication is built into the Noise K handshake. **Delivery ACK** is enabled by default. | Private message, DM, 1:1 message |
-| **Message ID** | A 96-bit structured identifier (8-byte peer ID hash + 4-byte monotonic counter), uniquely identifying a message across the mesh for deduplication. | Message hash, packet ID |
+| **Message ID** | A 128-bit random identifier (16 bytes) generated from the platform CSPRNG, uniquely identifying a message across the mesh for deduplication. Birthday-bound collision probability is ~2⁻⁶⁴ — negligible for any practical message volume. | Message hash, packet ID |
 | **NACK** | A negative acknowledgment sent when a **Peer** rejects an incoming message or transfer (e.g., `bufferFull`, `rateLimitExceeded`). | Rejection, refusal |
 | **NACK Rate Limit** | The per-**Neighbor** cap (10/second) on outgoing NACK responses, preventing amplification attacks from consuming radio time. | Response limiting |
 | **Payload** | The raw bytes the **Consuming App** provides to the library for sending — the application-layer content. | Data, body, content |
@@ -164,8 +164,8 @@ The following terms are commonly confused. Read this before continuing.
 | **Route Expiry** | The soft-deletion of a **Routing Table** entry when its TTL expires (`routeCacheTtlMillis`, default 60s). | Route timeout, stale route cleanup |
 | **Routed Message** | The multi-hop envelope containing a **Sealed Message** + routing metadata (sender/recipient **Public Keys**, hop count, TTL, **Visited List**). | Forwarded message, relay envelope |
 | **Routing Table** | The local data structure mapping each known **Peer** to the best **Neighbor** (next-hop) for forwarding, built from Babel Hello/Update route propagation. Stores primary + backup routes. | Forwarding table, route map |
-| **Visited List** | The list of 8-byte **SHA-256-64 Key Hashes** of every **Peer** that has forwarded a **Routed Message**, used for loop prevention. 32 bytes max at 4 hops. | Visited node list, path list |
-| **Visited List Loop Diagnostic** | `VISITED_LIST_LOOP_DETECTED` diagnostic emitted when a message is dropped due to visited-list match. Carries `{messageId, matchedHash, hopCount}`. SHA-256-64 collision probability is ~N²/2⁶⁴ — negligible for meshes ≤10,000 peers; no mitigation implemented. | Loop warning, collision alert |
+| **Visited List** | The list of 12-byte peer IDs (truncated SHA-256) of every **Peer** that has forwarded a **Routed Message**, used for loop prevention. 48 bytes at 4 hops (configurable via `visitedListEnabled`). When disabled, loop prevention relies on dedup set + hop counter. | Visited node list, path list |
+| **Visited List Loop Diagnostic** | `VISITED_LIST_LOOP_DETECTED` diagnostic emitted when a message is dropped due to visited-list match. Carries `{messageId, matchedHash, hopCount}`. Truncated SHA-256 (96-bit peer ID) collision probability is ~N²/2⁹⁶ — negligible for any practical mesh size; no mitigation implemented. | Loop warning, collision alert |
 
 ## Deduplication & Buffering
 

@@ -173,9 +173,9 @@ on `MeshLinkConfig` itself (e.g., `config.keepaliveIntervalMillis`).
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `maxMessageSize` | `Int` | `10_000` | Maximum payload size in bytes. Messages larger than `mtu - 17` are automatically chunked. Use `largePayloadHighThroughput` preset for up to 100 KB. |
+| `maxMessageSize` | `Int` | `10_000` | Maximum payload size in bytes. Messages larger than `mtu - 21` are automatically chunked. Use `largePayloadHighThroughput` preset for up to 100 KB. |
 | `bufferCapacity` | `Int` | `1_048_576` | Total in-flight data buffer size in bytes. Must be ≥ `maxMessageSize`. |
-| `mtu` | `Int` | `185` | BLE link MTU. Effective payload per chunk = `mtu - 17` (header size). Must be > 17. |
+| `mtu` | `Int` | `185` | BLE link MTU. Effective payload per chunk = `mtu - 21` (first chunk header size). Must be > 21. |
 | `maxHops` | `UByte` | `10` | Maximum hop count for routed messages. |
 | `broadcastTtl` | `UByte` | `2` | Hop limit for broadcast relay propagation. Must be in range `1..maxHops`. Broadcasts sent via `broadcast()` are clamped to this value. Relays also clamp forwarded broadcasts to their local `broadcastTtl`. |
 | `pendingMessageTtlMillis` | `Long` | `0` | TTL for queued outbound messages. `0` = never expire. |
@@ -279,7 +279,7 @@ fun validate(): List<String>
 Returns a list of constraint violation messages. An empty list means the
 configuration is valid. Enforced constraints:
 
-- `mtu > 17`
+- `mtu > 21`
 - `maxMessageSize ≤ bufferCapacity`
 - `maxMessageSize > 0`
 - `bufferCapacity > 0`
@@ -656,7 +656,7 @@ interface BleTransport {
 
 | Member | Description |
 |--------|-------------|
-| `localPeerId` | 8-byte unique identifier for this device. |
+| `localPeerId` | 12-byte unique identifier for this device (truncated SHA-256 of X25519 public key). |
 | `advertisementServiceData` | Service data payload to include in BLE advertisements (set before starting). |
 | `startAdvertisingAndScanning()` | Begin BLE advertising and scanning. |
 | `stopAll()` | Stop all BLE activity. |

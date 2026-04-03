@@ -181,7 +181,7 @@ Base UUID: `7F3Axxxx-8FC5-11EC-B909-0242AC120002` (random 128-bit UUID with the 
 
 **GATT write type semantics:** Control characteristics (0x0001–0x0002) use **write-with-response** (ATT Write Request) — handshake and control messages are low-frequency, high-importance, and cannot tolerate silent loss. Data characteristics (0x0003–0x0004) use **write-without-response** (ATT Write Command) — chunk transfers are high-frequency and protected by SACK retransmission, so the ~15ms per-write ATT round-trip is unnecessary overhead. This split maximizes data throughput while ensuring control-plane reliability.
 
-Every write/notification carries a **1-byte type prefix**: `0x00`=handshake, `0x01`=keepalive, `0x02`=rotation, `0x03`=route_request, `0x04`=route_reply, `0x05`=chunk, `0x06`=chunk_ack, `0x07`=nack, `0x08`=resume_request, `0x09`=broadcast, `0x0A`=routed_message, `0x0B`=delivery_ack. This costs 0.4% overhead at 244-byte MTU but eliminates all ambiguity when multiple message types share a characteristic.
+Every write/notification carries a **1-byte type prefix**: `0x00`=handshake, `0x01`=keepalive, `0x02`=rotation, `0x03`=hello, `0x04`=update, `0x05`=chunk, `0x06`=chunk_ack, `0x07`=nack, `0x08`=resume_request, `0x09`=broadcast, `0x0A`=routed_message, `0x0B`=delivery_ack.
 
 **Reserved codes:** `0x0C–0xFF` are reserved for future use. Receiving a reserved message type code → drop the message + emit `UNKNOWN_MESSAGE_TYPE` diagnostic event.
 
@@ -228,7 +228,7 @@ flowchart TD
 - **`routed_message` (0x0A)** is the **routing envelope** — it carries routing metadata and wraps each chunk of E2E-encrypted payload. Every chunk in a multi-hop transfer is wrapped in a `routed_message` envelope.
 - **`resume_request` (0x08)** is sent on the **Control Characteristic** after an L2CAP→GATT transport fallback. It carries `{messageId, bytesReceived}` and triggers the sender to resume from the specified byte offset. `bytesReceived` counts only fully-reassembled chunks; partial L2CAP frames are discarded. See [wire-format-spec.md § Resume Request](wire-format-spec.md#0x08--resume-request) for the byte layout.
 
-- **`routed_message` (0x0A)** is the **routing envelope** — it carries origin/destination peer IDs (8-byte truncated hashes), hop limit, replay counter, a visited list for loop detection, and the E2E-encrypted chunk payload. See [wire-format-spec.md § Routed Message](wire-format-spec.md#0x0a--routed-message) for the byte layout.
+- **`routed_message` (0x0A)** is the **routing envelope** — it carries origin/destination peer IDs (12-byte truncated hashes), hop limit, replay counter, a visited list for loop detection, and the E2E-encrypted chunk payload. See [wire-format-spec.md § Routed Message](wire-format-spec.md#0x0a--routed-message) for the byte layout.
 
 **Parser safety:** Visited count (V) is validated: `V ≤ maxHops`. Messages exceeding bounds are rejected. Malformed messages are dropped with a diagnostic event.
 
@@ -375,7 +375,7 @@ All message types use a **hand-specified binary format** — no protobuf, no sch
 
 **Design choices:**
 - **Blanket encoding rule:** All multi-byte integer fields are **unsigned little-endian** unless explicitly stated otherwise. All single-byte integer fields are **unsigned**. This applies to every wire format table in this document and the protocol RFC. (Matches ARM-native byte order on both iOS and Android.)
-- **TLV extension areas** — seven fixed/known-length message types (Keepalive, ChunkAck, Nack, ResumeRequest, RouteRequest, RouteReply, DeliveryAck) include a trailing TLV (Type-Length-Value) extension area for backward-compatible schema evolution. Adding new fields via TLV entries does not require a protocol version bump. Tags `0x00`–`0x7F` are reserved for protocol use; `0x80`–`0xFF` are available for applications. Unknown tags are preserved for forward compatibility. See [wire-format-spec.md § TLV Extension Area](wire-format-spec.md#tlv-extension-area) for the binary layout and `TlvCodec.kt` for the implementation.
+- **TLV extension areas** — five fixed/known-length message types (Keepalive, ChunkAck, Nack, ResumeRequest, DeliveryAck) include a trailing TLV (Type-Length-Value) extension area for backward-compatible schema evolution. Adding new fields via TLV entries does not require a protocol version bump. Tags `0x00`–`0x7F` are reserved for protocol use; `0x80`–`0xFF` are available for applications. Unknown tags are preserved for forward compatibility. See [wire-format-spec.md § TLV Extension Area](wire-format-spec.md#tlv-extension-area) for the binary layout and `TlvCodec.kt` for the implementation.
 - **No self-describing format** — parsers must know the protocol version to decode. This maximizes payload efficiency on the bandwidth-constrained BLE link.
 
 **Tradeoff:** The shared cross-platform test suite becomes critical — a single byte offset error = total failure. Test vectors in Phase 0 must cover every message type with exact byte-level golden outputs.
@@ -390,7 +390,7 @@ All message types use a **hand-specified binary format** — no protobuf, no sch
 - `TotalLen ≤ maxMessageSize` (default 100KB) — reject oversized messages
 - `ChunkSeq ≤ ceil(TotalLen / chunkPayloadSize)` — reject out-of-range sequence numbers
 - All public key fields must be non-zero (32 bytes of 0x00 is not a valid Ed25519 key)
-- Message ID must be non-zero (12 bytes of 0x00 is not a valid message ID)
+- Message ID must be non-zero (16 bytes of 0x00 is not a valid message ID)
 - Any validation failure → drop message + emit `MALFORMED_MESSAGE` diagnostic with failure reason
 
 ### Message ID Format
@@ -462,10 +462,10 @@ Since every device operates as both BLE central and peripheral, two devices disc
 
 **Power-mode-aware role assignment:** The higher-power device acts as central (initiator), letting the lower-power device use peripheral slave latency to save energy. Both sides compute the same result from advertisement data — no coordination needed.
 
-**Comparison method:** Key hashes are compared as unsigned byte arrays using **lexicographic (left-to-right) byte comparison**. The peer with the lexicographically higher 8-byte key hash acts as central. Both platforms must use identical comparison logic — a cross-platform golden test vector is included in Phase 0 conformance tests.
+**Comparison method:** Key hashes are compared as unsigned byte arrays using **lexicographic (left-to-right) byte comparison**. The peer with the lexicographically higher 12-byte key hash acts as central. Both platforms must use identical comparison logic — a cross-platform golden test vector is included in Phase 0 conformance tests.
 
 **Edge cases:**
-- **Identical truncated key hashes:** Astronomically unlikely with 8 bytes (64-bit collision resistance), but if it happens, detect the duplicate during Noise XX handshake (same static key on both sessions) and tear down the second connection.
+- **Identical truncated key hashes:** Astronomically unlikely with 12 bytes (96-bit collision resistance), but if it happens, detect the duplicate during Noise XX handshake (same static key on both sessions) and tear down the second connection.
 - **One side doesn't see the other's advertisement** (e.g., iOS background overflow): The device that can see the ad connects regardless of the tie-breaking rule. If a connection already exists (the other side connected first), the new connection is rejected at the GATT level.
 - **On-demand connections for message delivery** bypass the tie-breaking convention — if a peer has data to send and needs to connect to a specific peer, it initiates regardless of the tie-breaking result. Tie-breaking only governs **mutual-discovery races** (when both sides see each other's advertisement simultaneously), not one-sided reconnection needs. There is no duplicate risk because the other side is not simultaneously trying to connect.
 
@@ -1006,11 +1006,11 @@ route is installed via Update.
 
 Each routed message carries a **Visited List** — the public key (or truncated hash) of every peer that has forwarded this message. A peer that sees itself in the visited list drops the message. **Relay processing sequence:** (1) receive message, (2) check visited list for own hash → if present, DROP (loop detected), (3) **add own hash** to visited list, (4) look up next-hop in routing table, (5) forward message with updated visited list. The relay adds its hash **before forwarding** — this ensures the next relay sees the current relay in the visited list, preventing loops via asymmetric return paths. The dedup set handles concurrent multipath copies arriving at the same relay simultaneously.
 
-The visited list uses **8-byte SHA-256-64 key hashes** (SHA-256 truncated to 64 bits of Curve25519 public key digests) rather than full 32-byte public keys. At 4 hops max, this costs **32 bytes** (4 × 8 bytes). Collision risk at 64 bits (~2³² birthday bound) is negligible for any practical mesh size (far exceeding any realistic number of mesh devices). The hop counter provides a secondary backstop.
+The visited list uses **12-byte peer IDs** (truncated SHA-256 of X25519 public key) rather than full 32-byte public keys. At 4 hops, this costs **48 bytes** (4 × 12 bytes). Collision risk at 96 bits (~2⁴⁸ birthday bound) is negligible for any practical mesh size. The hop counter provides a secondary backstop.
 
-**Hash collision risk:** SHA-256-64 collision probability is ~N²/2⁶⁴, negligible for meshes ≤10,000 peers. No mitigation implemented. A `VISITED_LIST_LOOP_DETECTED` diagnostic is emitted whenever a message is dropped due to visited-list match, carrying `{messageId, matchedHash, hopCount}` for forensic analysis.
+**Hash collision risk:** Truncated SHA-256 (96-bit) collision probability is ~N²/2⁹⁶, negligible for meshes ≤10,000 peers. No mitigation implemented. A `VISITED_LIST_LOOP_DETECTED` diagnostic is emitted whenever a message is dropped due to visited-list match, carrying `{messageId, matchedHash, hopCount}` for forensic analysis.
 
-**Origin peer Visited List:** The origin sender transmits with `visited_count=0` — it does not add itself to the visited list. The origin's identity is already encoded in the `sender` field of the routed_message envelope. The first relay receives V=0, adds its own hash (V=1), and forwards. This saves 8 bytes on single-hop messages.
+**Origin peer Visited List:** The origin sender transmits with `visited_count=0` — it does not add itself to the visited list. The origin's identity is already encoded in the `sender` field of the routed_message envelope. The first relay receives V=0, adds its own hash (V=1), and forwards. This saves 12 bytes on single-hop messages.
 
 ### Message Deduplication
 
@@ -1473,18 +1473,20 @@ Potential post-v1 mitigations:
 
 | Offset | Size | Field |
 |--------|------|-------|
-| 0 | 16 bytes | Message ID (128-bit random) |
-| 12 | 8 bytes | Origin peer ID (truncated key hash) |
-| 20 | 1 byte | Remaining hop count (set to `broadcastTtl` by sender, decremented by each relay; drop when 0) |
-| 21 | 8 bytes | App ID hash (`SHA-256-64(appId.toUTF8())`; zero-filled if no appId) |
-| 29 | 1 byte | Flags (bit 0: `HAS_SIGNATURE` — signature + signerPublicKey present; bits 1–7: reserved) |
-| 30 | 64 bytes | Ed25519 signature (present only if `flags & 0x01`) |
-| 94 | 32 bytes | Signer Ed25519 public key (present only if `flags & 0x01`) |
-| 30 or 126 | N bytes | Payload (unencrypted, plaintext; remaining bytes) |
+| 0 | 1 byte | Type (0x09) |
+| 1 | 16 bytes | Message ID (128-bit random) |
+| 17 | 12 bytes | Origin peer ID (truncated key hash) |
+| 29 | 1 byte | Remaining hop count (set to `broadcastTtl` by sender, decremented by each relay; drop when 0) |
+| 30 | 8 bytes | App ID hash (`SHA-256-64(appId.toUTF8())`; zero-filled if no appId) |
+| 38 | 1 byte | Flags (bit 0: `HAS_SIGNATURE` — signature + signerPublicKey present; bits 1–7: reserved) |
+| 39 | 1 byte | Priority (-1=low, 0=normal, 1=high) |
+| 40 | 64 bytes | Ed25519 signature (present only if `flags & 0x01`) |
+| 104 | 32 bytes | Signer Ed25519 public key (present only if `flags & 0x01`) |
+| 40 or 136 | N bytes | Payload (unencrypted, plaintext; remaining bytes) |
 
 When signed, the signature covers `messageId + origin + appIdHash + payload`. Receivers verify using the signer public key from the signature block. The remaining hop count is **not** in the signed region (it must be mutable for relay decrement), but relays cannot forge a higher TTL than the sender originally set. The `broadcastTtl` config parameter on the *receiver* side caps accepted values: broadcasts with remaining hops > local `broadcastTtl` are clamped (not rejected) to prevent legitimate high-TTL broadcasts from being dropped.
 
-**Broadcast size constraint (GATT):** On the GATT data plane, broadcasts must fit in a single GATT write. Max broadcast payload = MTU − 1 (type prefix) − 12 (messageId) − 8 (origin) − 1 (hop count) − 8 (appIdHash) − 1 (flags) − 64 (signature) − 32 (signer key) = MTU − 127 bytes (signed) or MTU − 31 bytes (unsigned). At typical 244-byte MTU, max signed payload is 117 bytes. On L2CAP, the length-prefix framing supports broadcasts up to 100KB (subject to `maxMessageSize`). `broadcast()` returns `Result.Failure(messageTooLarge)` if the payload exceeds the current transport's capacity.
+**Broadcast size constraint (GATT):** On the GATT data plane, broadcasts must fit in a single GATT write. Max broadcast payload = MTU − 40 (header) − 96 (signature block) = MTU − 136 bytes (signed) or MTU − 40 bytes (unsigned). At typical 244-byte MTU, max signed payload is 108 bytes. On L2CAP, the length-prefix framing supports broadcasts up to `maxMessageSize`. `broadcast()` returns `Result.Failure(messageTooLarge)` if the payload exceeds the current transport's capacity.
 
 **Per-hop TTL clamping:** Each relay clamps the remaining broadcast TTL: `remaining_ttl = min(remaining_ttl - 1, local_broadcastTtl)`. A relay with `broadcastTtl=1` limits propagation to its immediate neighbors only. Different paths through the mesh may produce different propagation radii — this respects each peer's resource constraints.
 
@@ -1517,8 +1519,8 @@ When signed, the signature covers `messageId + origin + appIdHash + payload`. Re
 
 | Field | Size | Description |
 |-------|------|-------------|
-| Message ID | 12 bytes | Structured ID of the acknowledged message |
-| Recipient peer ID | 8 bytes | Truncated key hash of the recipient |
+| Message ID | 16 bytes | Random ID of the acknowledged message |
+| Recipient peer ID | 12 bytes | Truncated key hash of the recipient |
 | Flags | 1 byte | Bit 0: `HAS_SIGNATURE` (signature + signer pubkey present) |
 | Recipient signature | 64 bytes | Ed25519 signature over `(messageId ‖ recipientPeerId)` (present only if flags bit 0 set) |
 | Signer public key | 32 bytes | Recipient's Ed25519 public key (present only if flags bit 0 set) |

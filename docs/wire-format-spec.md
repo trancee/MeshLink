@@ -112,7 +112,7 @@ All framed messages begin with a 1-byte type code at offset 0.
 
 ## TLV Extension Area
 
-Seven fixed/known-length message types support a trailing **TLV (Type-Length-Value)
+Five fixed/known-length message types support a trailing **TLV (Type-Length-Value)
 extension area** for backward-compatible schema evolution. The extension area is
 defined and parsed by `TlvCodec.kt`.
 
@@ -155,27 +155,27 @@ Byte:   +0              +1              +2
 
 ### Messages with TLV Extensions
 
-The following 7 message types include a TLV extension area after their fixed body:
+The following 5 message types include a TLV extension area after their fixed body:
 
 | Message | Type Code | Fixed Body Size | Extension Area Follows |
 |---------|-----------|-----------------|----------------------|
 | Keepalive | `0x01` | 10 bytes | After byte 9 |
-| Chunk ACK | `0x06` | 35 bytes | After byte 34 |
+| Chunk ACK | `0x06` | 27 bytes | After byte 26 |
 | NACK | `0x07` | 18 bytes | After byte 17 |
 | Resume Request | `0x08` | 21 bytes | After byte 20 |
-| Route Request | `0x03` | 31 bytes | After byte 30 |
-| Route Reply | `0x04` | 30 bytes | After byte 29 |
 | Delivery ACK | `0x0B` | 30 bytes (+ optional 96-byte signature) | After body end |
 
 ### Messages WITHOUT TLV Extensions
 
 | Message | Type Code | Reason |
 |---------|-----------|--------|
+| Handshake | `0x00` | Noise protocol opaque bytes — structure is not MeshLink-defined. |
+| Rotation Announcement | `0x02` | Fixed 201-byte signed payload; adding extensions would invalidate the signature. |
+| Hello | `0x03` | Fixed 15-byte message; no extensibility needed. |
+| Update | `0x04` | Fixed 49-byte message; no extensibility needed. |
 | Chunk | `0x05` | Variable-length payload at end. |
 | Broadcast | `0x09` | Variable-length payload at end. |
 | Routed Message | `0x0A` | Variable-length payload at end. |
-| Handshake | `0x00` | Noise protocol opaque bytes — structure is not MeshLink-defined. |
-| Rotation Announcement | `0x02` | Fixed 201-byte signed payload; adding extensions would invalidate the signature. |
 
 ### Forward Compatibility
 
@@ -196,18 +196,18 @@ The following 7 message types include a TLV extension area after their fixed bod
 
 Flood-fill message propagated through the mesh. Optionally signed with Ed25519.
 
-**Source:** `WireCodec.kt` · `BROADCAST_HEADER_SIZE = 31`
+**Source:** `MessagingCodec.kt` · `BROADCAST_HEADER_SIZE = 40` (+ optional signature + payload)
 
 ```
-Byte:   0       1                              12  13                 20
+Byte:   0       1                              16  17                 28
        +-------+---------- ... ----------------+---+--- ... ---------+
-       | 0x09  |         messageId (12)         |    origin (8)      |
+       | 0x09  |         messageId (16)         |    origin (12)     |
        +-------+---------- ... ----------------+---+--- ... ---------+
 
-       21      22                     29  30
-       +-------+---------- ... --------+-------+
-       | rHops |     appIdHash (8)     | flags |
-       +-------+---------- ... --------+-------+
+       29      30                     37  38      39
+       +-------+---------- ... --------+-------+-------+
+       | rHops |     appIdHash (8)     | flags | prio  |
+       +-------+---------- ... --------+-------+-------+
 
        If flags bit 0 set (HAS_SIGNATURE):
        31                                      94  95                             126
@@ -400,25 +400,25 @@ Byte:   0       1                              16  17      18  19               
 Unicast message forwarded hop-by-hop along a computed route. Includes a visited
 list for loop detection.
 
-**Source:** `WireCodec.kt` · `ROUTED_HEADER_SIZE = 39`
+**Source:** `MessagingCodec.kt` · `ROUTED_HEADER_SIZE = 52`
 
 ```
-Byte:   0       1                 12  13         20  21         28
-       +-------+------ ... ------+---+-- ... ---+---+-- ... ---+
-       | 0x0A  |  messageId (12) |  origin (8)  | destination(8)|
-       +-------+------ ... ------+---+-- ... ---+---+-- ... ---+
+Byte:   0       1                              16  17           28  29           40
+       +-------+---------- ... ----------------+---+-- ... ----+---+-- ... ----+
+       | 0x0A  |       messageId (16)           | origin (12)  | dest (12)    |
+       +-------+---------- ... ----------------+---+-- ... ----+---+-- ... ----+
 
-       29      30                             37  38
+       41      42                             49  50
        +-------+---------- ... ----------------+-------+
        | hLim  |    replayCounter (8, LE)      | vCnt  |
        +-------+---------- ... ----------------+-------+
 
-       For each of `vCnt` visited entries (8 bytes each):
+       For each of `vCnt` visited entries (12 bytes each):
        +------- ... --------+
-       |  visited peer (8)  |
+       |  visited peer (12) |
        +------- ... --------+
 
-       Followed by: payload (remaining bytes)
+       Followed by: priority (1 byte) + payload (remaining bytes)
 ```
 
 | Offset | Size | Field | Type | Endianness | Description |
@@ -430,12 +430,12 @@ Byte:   0       1                 12  13         20  21         28
 | 41 | 1 | `hopLimit` | UByte | — | Maximum remaining hops. |
 | 42–49 | 8 | `replayCounter` | ULong | **LE** | Monotonic counter for replay protection. Default `0`. |
 | 50 | 1 | `visitedCount` | UByte | — | Number of visited-list entries (0–255). |
-| 51… | `vCnt × 12` | `visitedList` | bytes | — | Peer IDs already visited (loop detection). |
+| 51… | `vCnt × 12` | `visitedList` | bytes | — | 12-byte peer IDs already visited (loop detection). |
 | … | 1 | `priority` | Byte (signed) | — | Message priority: `-1` = low, `0` = normal (default), `1` = high. |
 | … | variable | `payload` | bytes | — | Application payload (remaining bytes). |
 
 **Validation:**
-- Minimum message size: 39 bytes (zero visited entries, empty payload).
+- Minimum message size: 52 bytes (zero visited entries, empty payload, includes priority byte).
 - `visitedCount` entries must fit within the remaining data.
 
 ---
