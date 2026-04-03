@@ -11,8 +11,8 @@ import kotlin.test.assertTrue
 
 class RouteCoordinatorTest {
 
-    private val localPeerId = ByteArray(8) { it.toByte() }
-    private val peerA = ByteArray(8) { (it + 0x10).toByte() }
+    private val localPeerId = ByteArray(12) { it.toByte() }
+    private val peerA = ByteArray(12) { (it + 0x10).toByte() }
     private val peerAHex = peerA.toHex()
 
     private fun routingEngine(
@@ -75,7 +75,7 @@ class RouteCoordinatorTest {
     fun keepalive_multiplePeers_sendsToEach() = runTest {
         val re = routingEngine()
         re.peerSeen(peerA.toKey())
-        val peerB = ByteArray(8) { (it + 0x20).toByte() }
+        val peerB = ByteArray(12) { (it + 0x20).toByte() }
         re.peerSeen(peerB.toKey())
 
         val sentPeers = mutableListOf<String>()
@@ -106,7 +106,7 @@ class RouteCoordinatorTest {
     fun floodRouteRequest_withPeers_sendsToAll() = runTest {
         val re = routingEngine()
         re.peerSeen(peerA.toKey())
-        val peerB = ByteArray(8) { (it + 0x20).toByte() }
+        val peerB = ByteArray(12) { (it + 0x20).toByte() }
         re.peerSeen(peerB.toKey())
 
         val sentPeers = mutableListOf<String>()
@@ -118,7 +118,7 @@ class RouteCoordinatorTest {
 
         val rreqFrame = WireCodec.encodeRouteRequest(
             origin = localPeerId,
-            destination = ByteArray(8) { 0xFF.toByte() },
+            destination = ByteArray(12) { 0xFF.toByte() },
             requestId = 1u,
         )
         rc.floodRouteRequest(rreqFrame)

@@ -50,7 +50,7 @@ data class PowerProfile(
             advertisingIntervalMillis = 1_000L,
             scanOnMillis = 1_000L,
             scanOffMillis = 5_000L,
-            maxConnections = 1,
+            maxConnections = 2,
             keepaliveIntervalMillis = 30_000L,
             presenceTimeoutMillis = 10_000L,
             sweepIntervalMillis = 5_000L,

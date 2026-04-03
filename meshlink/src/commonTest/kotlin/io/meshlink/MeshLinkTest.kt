@@ -32,8 +32,8 @@ import io.meshlink.power.PowerMode
 @OptIn(ExperimentalCoroutinesApi::class)
 class MeshLinkTest {
 
-    private val peerIdAlice = ByteArray(8) { (0xA0 + it).toByte() }
-    private val peerIdBob = ByteArray(8) { (0xB0 + it).toByte() }
+    private val peerIdAlice = ByteArray(12) { (0xA0 + it).toByte() }
+    private val peerIdBob = ByteArray(12) { (0xB0 + it).toByte() }
 
     @Test
     fun twoPeersDiscoverEachOther() = runTest {
@@ -388,7 +388,7 @@ class MeshLinkTest {
         advanceUntilIdle()
 
         // Simulate Charlie while paused — should NOT emit
-        val peerIdCharlie = ByteArray(8) { (0xC0 + it).toByte() }
+        val peerIdCharlie = ByteArray(12) { (0xC0 + it).toByte() }
         transportAlice.simulateDiscovery(peerIdCharlie)
         advanceUntilIdle()
         assertEquals(1, events.size, "Charlie should be suppressed while paused")
@@ -465,7 +465,7 @@ class MeshLinkTest {
         advanceUntilIdle()
 
         // After resume, new advertisements should work again
-        val peerIdCharlie = ByteArray(8) { (0xC0 + it).toByte() }
+        val peerIdCharlie = ByteArray(12) { (0xC0 + it).toByte() }
         transportAlice.simulateDiscovery(peerIdCharlie)
         advanceUntilIdle()
 
@@ -749,8 +749,8 @@ class MeshLinkTest {
     @Test
     fun progressCallbackFiresWithAccurateFraction() = runTest {
         // Use a small MTU so "hello world!!" (13 bytes) splits into multiple chunks
-        // CHUNK_HEADER_SIZE = 17, MTU = 25 → chunkSize = 8 → 13/8 = 2 chunks
-        val config = testMeshLinkConfig { requireEncryption = false; mtu = 25 }
+        // CHUNK_HEADER_SIZE_FIRST = 21, MTU = 30 → chunkSize = 9 → 13/9 = 2 chunks
+        val config = testMeshLinkConfig { requireEncryption = false; mtu = 30 }
         val transportAlice = VirtualMeshTransport(peerIdAlice)
         val transportBob = VirtualMeshTransport(peerIdBob)
         transportAlice.linkTo(transportBob)
@@ -772,7 +772,7 @@ class MeshLinkTest {
         // Bob consumes messages
         val bobJob = launch { bob.messages.first() }
 
-        val payload = "hello world!!".encodeToByteArray() // 13 bytes → 2 chunks at chunkSize=8
+        val payload = "hello world!!".encodeToByteArray() // 13 bytes → 2 chunks at chunkSize=9
         val msgId = alice.send(peerIdBob, payload).getOrThrow()
         advanceUntilIdle()
         bobJob.join()
@@ -793,8 +793,8 @@ class MeshLinkTest {
 
     @Test
     fun droppedChunkRetransmittedViaSack() = runTest {
-        // MTU 25 → chunkSize=8 → "abcdefghijklm" (13 bytes) → 2 chunks
-        val config = testMeshLinkConfig { requireEncryption = false; mtu = 25 }
+        // MTU 30 → chunkSize=9 → "abcdefghijklm" (13 bytes) → 2 chunks
+        val config = testMeshLinkConfig { requireEncryption = false; mtu = 30 }
         val transportAlice = VirtualMeshTransport(peerIdAlice)
         val transportBob = VirtualMeshTransport(peerIdBob)
         transportAlice.linkTo(transportBob)
@@ -1153,7 +1153,7 @@ class MeshLinkTest {
 
     // --- Cycle 1 (Wire Integration): Handle incoming broadcast ---
 
-    private val peerIdCharlie = ByteArray(8) { (0xC0 + it).toByte() }
+    private val peerIdCharlie = ByteArray(12) { (0xC0 + it).toByte() }
 
     @Test
     fun receivedBroadcastDeliversToSelfAndRefloods() = runTest {
@@ -1258,7 +1258,7 @@ class MeshLinkTest {
 
     @Test
     fun routedMessageToDirectNeighborSendsDirectly() = runTest {
-        val peerIdCharlie = ByteArray(8) { (0xC0 + it).toByte() }
+        val peerIdCharlie = ByteArray(12) { (0xC0 + it).toByte() }
         val transportBob = VirtualMeshTransport(peerIdBob)
         val transportCharlie = VirtualMeshTransport(peerIdCharlie)
         transportBob.linkTo(transportCharlie)
@@ -1427,7 +1427,7 @@ class MeshLinkTest {
 
     @Test
     fun sweepWithAllPeersSeenPreservesEveryone() = runTest {
-        val peerIdCharlie = ByteArray(8) { (0xC0 + it).toByte() }
+        val peerIdCharlie = ByteArray(12) { (0xC0 + it).toByte() }
         val transportAlice = VirtualMeshTransport(peerIdAlice)
         val alice = MeshLink(transportAlice, testMeshLinkConfig { requireEncryption = false }, coroutineContext)
         alice.start()
@@ -1531,7 +1531,7 @@ class MeshLinkTest {
 
     @Test
     fun broadcastMaxHopsOneReachesOnlyDirectNeighbors() = runTest {
-        val peerIdCharlie = ByteArray(8) { (0xC0 + it).toByte() }
+        val peerIdCharlie = ByteArray(12) { (0xC0 + it).toByte() }
         val transportAlice = VirtualMeshTransport(peerIdAlice)
         val transportBob = VirtualMeshTransport(peerIdBob)
         val transportCharlie = VirtualMeshTransport(peerIdCharlie)
@@ -1583,7 +1583,7 @@ class MeshLinkTest {
 
     @Test
     fun addRouteHigherSeqnumReplacesOldRoute() = runTest {
-        val peerIdCharlie = ByteArray(8) { (0xC0 + it).toByte() }
+        val peerIdCharlie = ByteArray(12) { (0xC0 + it).toByte() }
         val transportAlice = VirtualMeshTransport(peerIdAlice)
         val transportBob = VirtualMeshTransport(peerIdBob)
         val transportCharlie = VirtualMeshTransport(peerIdCharlie)
@@ -1592,7 +1592,7 @@ class MeshLinkTest {
         transportBob.linkTo(transportAlice)
         transportCharlie.linkTo(transportAlice)
 
-        val peerIdDest = ByteArray(8) { (0xD0 + it).toByte() }
+        val peerIdDest = ByteArray(12) { (0xD0 + it).toByte() }
         val alice = MeshLink(transportAlice, testMeshLinkConfig { requireEncryption = false }, coroutineContext)
         alice.start()
         advanceUntilIdle()
@@ -1628,8 +1628,8 @@ class MeshLinkTest {
 
     @Test
     fun fourNodeDeliveryAckRelaysBackToSender() = runTest {
-        val peerIdCharlie = ByteArray(8) { (0xC0 + it).toByte() }
-        val peerIdDave = ByteArray(8) { (0xD0 + it).toByte() }
+        val peerIdCharlie = ByteArray(12) { (0xC0 + it).toByte() }
+        val peerIdDave = ByteArray(12) { (0xD0 + it).toByte() }
         val tA = VirtualMeshTransport(peerIdAlice)
         val tB = VirtualMeshTransport(peerIdBob)
         val tC = VirtualMeshTransport(peerIdCharlie)
@@ -1678,7 +1678,7 @@ class MeshLinkTest {
 
     @Test
     fun pausedNodeDoesNotRelayRoutedMessages() = runTest {
-        val peerIdCharlie = ByteArray(8) { (0xC0 + it).toByte() }
+        val peerIdCharlie = ByteArray(12) { (0xC0 + it).toByte() }
         val transportBob = VirtualMeshTransport(peerIdBob)
         val transportCharlie = VirtualMeshTransport(peerIdCharlie)
         transportBob.linkTo(transportCharlie)
@@ -1720,7 +1720,7 @@ class MeshLinkTest {
 
     @Test
     fun sweepReturnsCorrectEvictedPeerIds() = runTest {
-        val peerIdCharlie = ByteArray(8) { (0xC0 + it).toByte() }
+        val peerIdCharlie = ByteArray(12) { (0xC0 + it).toByte() }
         val transportAlice = VirtualMeshTransport(peerIdAlice)
         val alice = MeshLink(transportAlice, testMeshLinkConfig { requireEncryption = false }, coroutineContext)
         alice.start()
@@ -1754,7 +1754,7 @@ class MeshLinkTest {
         transportAlice.linkTo(transportBob)
         transportBob.linkTo(transportAlice)
 
-        // mtu=30, header=17 → 13 bytes payload per chunk
+        // mtu=30, header=21 → 9 bytes payload per chunk
         val alice = MeshLink(transportAlice, testMeshLinkConfig { requireEncryption = false; mtu = 30 }, coroutineContext)
         val bob = MeshLink(transportBob, testMeshLinkConfig { requireEncryption = false; mtu = 30 }, coroutineContext)
         alice.start(); bob.start()
@@ -1768,7 +1768,7 @@ class MeshLinkTest {
         val collector = launch { bob.messages.collect { received.add(it) } }
         advanceUntilIdle()
 
-        // 50 bytes / 13 bytes per chunk = ceil(50/13) = 4 chunks
+        // 50 bytes / 9 bytes per chunk = ceil(50/9) = 6 chunks
         val payload = ByteArray(50) { (it + 1).toByte() }
         alice.send(peerIdBob, payload)
         advanceUntilIdle()
@@ -1779,9 +1779,9 @@ class MeshLinkTest {
         // Verify the number of unique chunk sequence numbers sent
         val chunkSeqNums = transportAlice.sentData
             .filter { (_, data) -> data.isNotEmpty() && data[0] == WireCodec.TYPE_CHUNK }
-            .map { (_, data) -> ((data[13].toInt() and 0xFF) or ((data[14].toInt() and 0xFF) shl 8)) }
+            .map { (_, data) -> ((data[17].toInt() and 0xFF) or ((data[18].toInt() and 0xFF) shl 8)) }
             .toSet()
-        assertEquals(4, chunkSeqNums.size, "50 bytes at 13 bytes/chunk = 4 unique chunk seqNums")
+        assertEquals(6, chunkSeqNums.size, "50 bytes at 9 bytes/chunk = 6 unique chunk seqNums")
 
         collector.cancel()
         alice.stop(); bob.stop()
@@ -1880,7 +1880,7 @@ class MeshLinkTest {
 
     @Test
     fun meshHealthActiveTransfersCountsDuringConcurrentSends() = runTest {
-        val peerIdCharlie = ByteArray(8) { (0xC0 + it).toByte() }
+        val peerIdCharlie = ByteArray(12) { (0xC0 + it).toByte() }
         val transportAlice = VirtualMeshTransport(peerIdAlice)
         val transportBob = VirtualMeshTransport(peerIdBob)
         val transportCharlie = VirtualMeshTransport(peerIdCharlie)
@@ -1913,7 +1913,7 @@ class MeshLinkTest {
 
     @Test
     fun pausedNodeDoesNotRefloodBroadcast() = runTest {
-        val peerIdCharlie = ByteArray(8) { (0xC0 + it).toByte() }
+        val peerIdCharlie = ByteArray(12) { (0xC0 + it).toByte() }
         val transportBob = VirtualMeshTransport(peerIdBob)
         val transportCharlie = VirtualMeshTransport(peerIdCharlie)
         transportBob.linkTo(transportCharlie)
@@ -2003,7 +2003,7 @@ class MeshLinkTest {
         var dropCount = 0
         transportAlice.dropFilter = { data ->
             if (data.isNotEmpty() && data[0] == WireCodec.TYPE_CHUNK) {
-                val seqNum = ((data[13].toInt() and 0xFF) or ((data[14].toInt() and 0xFF) shl 8)).toUShort()
+                val seqNum = ((data[17].toInt() and 0xFF) or ((data[18].toInt() and 0xFF) shl 8)).toUShort()
                 if (seqNum == 1.toUShort() && dropCount == 0) {
                     dropCount++
                     true
@@ -2096,7 +2096,7 @@ class MeshLinkTest {
 
     @Test
     fun routedDeliveryAckReachesOriginalSender() = runTest {
-        val peerIdCharlie = ByteArray(8) { (0xC0 + it).toByte() }
+        val peerIdCharlie = ByteArray(12) { (0xC0 + it).toByte() }
         val transportAlice = VirtualMeshTransport(peerIdAlice)
         val transportBob = VirtualMeshTransport(peerIdBob)
         val transportCharlie = VirtualMeshTransport(peerIdCharlie)
@@ -2359,7 +2359,7 @@ class MeshLinkTest {
 
     @Test
     fun concurrentTransfersToMultipleRecipientsWorkIndependently() = runTest {
-        val peerIdCharlie = ByteArray(8) { (0xC0 + it).toByte() }
+        val peerIdCharlie = ByteArray(12) { (0xC0 + it).toByte() }
         val transportAlice = VirtualMeshTransport(peerIdAlice)
         val transportBob = VirtualMeshTransport(peerIdBob)
         val transportCharlie = VirtualMeshTransport(peerIdCharlie)
@@ -2404,7 +2404,7 @@ class MeshLinkTest {
 
     @Test
     fun broadcastOriginPreservedThroughMultiHop() = runTest {
-        val peerIdCharlie = ByteArray(8) { (0xC0 + it).toByte() }
+        val peerIdCharlie = ByteArray(12) { (0xC0 + it).toByte() }
         val transportAlice = VirtualMeshTransport(peerIdAlice)
         val transportBob = VirtualMeshTransport(peerIdBob)
         val transportCharlie = VirtualMeshTransport(peerIdCharlie)
@@ -2627,7 +2627,7 @@ class MeshLinkTest {
 
     @Test
     fun routedMessageWithSelfInVisitedListDropped() = runTest {
-        val peerIdCharlie = ByteArray(8) { (0xC0 + it).toByte() }
+        val peerIdCharlie = ByteArray(12) { (0xC0 + it).toByte() }
         val transportBob = VirtualMeshTransport(peerIdBob)
         val transportCharlie = VirtualMeshTransport(peerIdCharlie)
         transportBob.linkTo(transportCharlie)
@@ -2644,7 +2644,7 @@ class MeshLinkTest {
 
         // Craft routed message where Bob is already in visited list (loop!)
         val msgId = MessageId.random().bytes
-        val destId = ByteArray(8) { (0xD0 + it).toByte() } // some other destination
+        val destId = ByteArray(12) { (0xD0 + it).toByte() } // some other destination
         bob.addRoute(destId.toHex(), peerIdCharlie.toHex(), 1.0, 1u)
         val routedData = WireCodec.encodeRoutedMessage(
             messageId = msgId,
@@ -2928,7 +2928,7 @@ class MeshLinkTest {
     fun routedRelayUsesRoutingTableWhenNotDirectNeighbor() = runTest {
         // Topology: Alice--Bob--Charlie--Dave
         // Bob receives routed msg for Dave but only knows Charlie directly
-        val peerIdDave = ByteArray(8) { (0xD0 + it).toByte() }
+        val peerIdDave = ByteArray(12) { (0xD0 + it).toByte() }
         val transportBob = VirtualMeshTransport(peerIdBob)
         val transportCharlie = VirtualMeshTransport(peerIdCharlie)
         transportBob.linkTo(transportCharlie)
@@ -3068,9 +3068,9 @@ class MeshLinkTest {
 
     @Test
     fun fiveNodeChainRelaysMessageAndDeliveryAck() = runTest {
-        val peerIdC = ByteArray(8) { (0xC0 + it).toByte() }
-        val peerIdD = ByteArray(8) { (0xD0 + it).toByte() }
-        val peerIdE = ByteArray(8) { (0xE0 + it).toByte() }
+        val peerIdC = ByteArray(12) { (0xC0 + it).toByte() }
+        val peerIdD = ByteArray(12) { (0xD0 + it).toByte() }
+        val peerIdE = ByteArray(12) { (0xE0 + it).toByte() }
 
         val tA = VirtualMeshTransport(peerIdAlice)
         val tB = VirtualMeshTransport(peerIdBob)
@@ -3135,7 +3135,7 @@ class MeshLinkTest {
 
     @Test
     fun sendFailsWhenRouteNextHopDisappears() = runTest {
-        val peerIdC = ByteArray(8) { (0xC0 + it).toByte() }
+        val peerIdC = ByteArray(12) { (0xC0 + it).toByte() }
         val transportAlice = VirtualMeshTransport(peerIdAlice)
         val transportBob = VirtualMeshTransport(peerIdBob)
         transportAlice.linkTo(transportBob)
@@ -3236,8 +3236,8 @@ class MeshLinkTest {
 
     @Test
     fun diamondTopologyBroadcastDeliverExactlyOnce() = runTest {
-        val peerIdC = ByteArray(8) { (0xC0 + it).toByte() }
-        val peerIdD = ByteArray(8) { (0xD0 + it).toByte() }
+        val peerIdC = ByteArray(12) { (0xC0 + it).toByte() }
+        val peerIdD = ByteArray(12) { (0xD0 + it).toByte() }
 
         // Diamond: A-B, A-C, B-D, C-D
         val tA = VirtualMeshTransport(peerIdAlice)
@@ -3286,7 +3286,7 @@ class MeshLinkTest {
 
     @Test
     fun pauseQueuePreservesMultiRecipientFifoOrder() = runTest {
-        val peerIdC = ByteArray(8) { (0xC0 + it).toByte() }
+        val peerIdC = ByteArray(12) { (0xC0 + it).toByte() }
         val transportAlice = VirtualMeshTransport(peerIdAlice)
         val transportBob = VirtualMeshTransport(peerIdBob)
         val transportC = VirtualMeshTransport(peerIdC)
@@ -3396,8 +3396,8 @@ class MeshLinkTest {
             bufferCapacity = 2048
         }
 
-        val peerA = ByteArray(8) { (0xA0 + it).toByte() }
-        val peerB = ByteArray(8) { (0xB0 + it).toByte() }
+        val peerA = ByteArray(12) { (0xA0 + it).toByte() }
+        val peerB = ByteArray(12) { (0xB0 + it).toByte() }
         val transportA = VirtualMeshTransport(peerA)
         val transportB = VirtualMeshTransport(peerB)
         transportA.linkTo(transportB)
@@ -3744,7 +3744,7 @@ class MeshLinkTest {
 
     @Test
     fun incompatibleVersionPeerNotDiscovered() = runTest {
-        val peerIdCharlie = ByteArray(8) { (0xC0 + it).toByte() }
+        val peerIdCharlie = ByteArray(12) { (0xC0 + it).toByte() }
         val transportAlice = VirtualMeshTransport(peerIdAlice)
         transportAlice.linkTo(VirtualMeshTransport(peerIdBob))
         transportAlice.linkTo(VirtualMeshTransport(peerIdCharlie))
@@ -4020,7 +4020,7 @@ class MeshLinkTest {
 
     @Test
     fun replayCounterPreservedThroughRelay() = runTest {
-        val peerIdCharlie = ByteArray(8) { (0xC0 + it).toByte() }
+        val peerIdCharlie = ByteArray(12) { (0xC0 + it).toByte() }
         val transportBob = VirtualMeshTransport(peerIdBob)
         val transportCharlie = VirtualMeshTransport(peerIdCharlie)
         transportBob.linkTo(transportCharlie)
@@ -4217,7 +4217,7 @@ class MeshLinkTest {
 
     @Test
     fun encryptedRoutedMessageDelivered() = runTest {
-        val peerIdCharlie = ByteArray(8) { (0xC0 + it).toByte() }
+        val peerIdCharlie = ByteArray(12) { (0xC0 + it).toByte() }
         val transportBob = VirtualMeshTransport(peerIdBob)
         val transportCharlie = VirtualMeshTransport(peerIdCharlie)
         transportBob.linkTo(transportCharlie)
@@ -4268,7 +4268,7 @@ class MeshLinkTest {
 
     @Test
     fun relayForwardsEncryptedPayloadOpaquely() = runTest {
-        val peerIdCharlie = ByteArray(8) { (0xC0 + it).toByte() }
+        val peerIdCharlie = ByteArray(12) { (0xC0 + it).toByte() }
         val transportBob = VirtualMeshTransport(peerIdBob)
         val transportCharlie = VirtualMeshTransport(peerIdCharlie)
         transportBob.linkTo(transportCharlie)
@@ -4485,11 +4485,11 @@ class MeshLinkTest {
         advanceUntilIdle()
 
         // Send 5 routed messages from same origin — only first 3 should arrive
-        val originId = ByteArray(8) { 0x42 }
+        val originId = ByteArray(12) { 0x42 }
         val destId = peerIdAlice
         repeat(5) { i ->
             val msg = WireCodec.encodeRoutedMessage(
-                messageId = ByteArray(12) { (i + 1).toByte() },
+                messageId = ByteArray(16) { (i + 1).toByte() },
                 origin = originId,
                 destination = destId,
                 hopLimit = 3.toUByte(),
@@ -4523,10 +4523,10 @@ class MeshLinkTest {
         val collectJob = launch { alice.messages.collect { received.add(it) } }
         advanceUntilIdle()
 
-        val originId = ByteArray(8) { 0x43 }
+        val originId = ByteArray(12) { 0x43 }
         repeat(3) { i ->
             val msg = WireCodec.encodeRoutedMessage(
-                messageId = ByteArray(12) { (i + 1).toByte() },
+                messageId = ByteArray(16) { (i + 1).toByte() },
                 origin = originId,
                 destination = peerIdAlice,
                 hopLimit = 3.toUByte(),
@@ -4609,7 +4609,7 @@ class MeshLinkTest {
         advanceUntilIdle()
 
         // Buffer a message for unknown peer
-        val unknownPeer = ByteArray(8) { (0xCC.toByte() + it).toByte() }
+        val unknownPeer = ByteArray(12) { (0xCC.toByte() + it).toByte() }
         alice.send(unknownPeer, "buffered".encodeToByteArray())
 
         val sentBeforeStop = transport.sentData.size
@@ -4798,7 +4798,7 @@ class MeshLinkTest {
         // Topology: Alice → Bob (relay) → Charlie
         val transportA = VirtualMeshTransport(peerIdAlice)
         val transportB = VirtualMeshTransport(peerIdBob)
-        val peerIdCharlie = ByteArray(8) { (0xCC.toByte() + it).toByte() }
+        val peerIdCharlie = ByteArray(12) { (0xCC.toByte() + it).toByte() }
         val transportC = VirtualMeshTransport(peerIdCharlie)
         transportA.linkTo(transportB)
         transportB.linkTo(transportA)
@@ -4948,7 +4948,7 @@ class MeshLinkTest {
         // Topology: Alice → Bob → Charlie (linear chain)
         val transportA = VirtualMeshTransport(peerIdAlice)
         val transportB = VirtualMeshTransport(peerIdBob)
-        val peerIdCharlie = ByteArray(8) { (0xCC.toByte() + it).toByte() }
+        val peerIdCharlie = ByteArray(12) { (0xCC.toByte() + it).toByte() }
         val transportC = VirtualMeshTransport(peerIdCharlie)
         transportA.linkTo(transportB)
         transportB.linkTo(transportC)
@@ -5153,7 +5153,7 @@ class MeshLinkTest {
         val crypto = io.meshlink.crypto.CryptoProvider()
         val transportA = VirtualMeshTransport(peerIdAlice)
         val transportB = VirtualMeshTransport(peerIdBob)
-        val peerIdCharlie = ByteArray(8) { (0x30 + it).toByte() }
+        val peerIdCharlie = ByteArray(12) { (0x30 + it).toByte() }
         val transportC = VirtualMeshTransport(peerIdCharlie)
 
         val alice = MeshLink(transportA, testMeshLinkConfig { requireEncryption = false }, coroutineContext, crypto = crypto)
@@ -5233,7 +5233,7 @@ class MeshLinkTest {
 
     @Test
     fun deliveryAckIncludesEd25519Signature() = runTest {
-        val peerIdCharlie = ByteArray(8) { (0x30 + it).toByte() }
+        val peerIdCharlie = ByteArray(12) { (0x30 + it).toByte() }
         val transportA = VirtualMeshTransport(peerIdAlice)
         val transportB = VirtualMeshTransport(peerIdBob)
         val transportC = VirtualMeshTransport(peerIdCharlie)
@@ -5294,7 +5294,7 @@ class MeshLinkTest {
         advanceUntilIdle()
 
         // Add route to Charlie via Bob
-        val peerIdCharlie = ByteArray(8) { (0x30 + it).toByte() }
+        val peerIdCharlie = ByteArray(12) { (0x30 + it).toByte() }
         alice.addRoute(peerIdCharlie.toHex(), peerIdBob.toHex(), 1.0, 1u)
 
         // Send routed message to register in delivery tracker
@@ -5349,7 +5349,7 @@ class MeshLinkTest {
         alice.pause()
 
         // Inject 10 routed messages destined for Bob (more than capacity of 5)
-        val peerIdSender = ByteArray(8) { (0xCC.toByte() + it).toByte() }
+        val peerIdSender = ByteArray(12) { (0xCC.toByte() + it).toByte() }
         for (i in 0 until 10) {
             val msg = WireCodec.encodeRoutedMessage(
                 messageId = MessageId.random().bytes,
@@ -5410,7 +5410,7 @@ class MeshLinkTest {
 
         // Pause and queue relay messages
         alice.pause()
-        val peerIdSender = ByteArray(8) { (0xCC.toByte() + it).toByte() }
+        val peerIdSender = ByteArray(12) { (0xCC.toByte() + it).toByte() }
         for (i in 0 until 3) {
             val msg = WireCodec.encodeRoutedMessage(
                 messageId = MessageId.random().bytes,
@@ -5460,7 +5460,7 @@ class MeshLinkTest {
 
         // Pause and queue relay messages
         alice.pause()
-        val peerIdSender = ByteArray(8) { (0xCC.toByte() + it).toByte() }
+        val peerIdSender = ByteArray(12) { (0xCC.toByte() + it).toByte() }
         for (i in 0 until 3) {
             val msg = WireCodec.encodeRoutedMessage(
                 messageId = MessageId.random().bytes,
@@ -5524,8 +5524,8 @@ class MeshLinkTest {
         advanceUntilIdle()
 
         // Inject a routed message with hopLimit=0 (already exhausted)
-        val peerIdSender = ByteArray(8) { (0xCC.toByte() + it).toByte() }
-        val peerIdTarget = ByteArray(8) { (0xDD.toByte() + it).toByte() }
+        val peerIdSender = ByteArray(12) { (0xCC.toByte() + it).toByte() }
+        val peerIdTarget = ByteArray(12) { (0xDD.toByte() + it).toByte() }
         val msg = WireCodec.encodeRoutedMessage(
             messageId = MessageId.random().bytes,
             origin = peerIdSender,
@@ -5556,8 +5556,8 @@ class MeshLinkTest {
         advanceUntilIdle()
 
         // Inject a routed message where Alice is already in the visited list (loop)
-        val peerIdSender = ByteArray(8) { (0xCC.toByte() + it).toByte() }
-        val peerIdTarget = ByteArray(8) { (0xDD.toByte() + it).toByte() }
+        val peerIdSender = ByteArray(12) { (0xCC.toByte() + it).toByte() }
+        val peerIdTarget = ByteArray(12) { (0xDD.toByte() + it).toByte() }
         val msg = WireCodec.encodeRoutedMessage(
             messageId = MessageId.random().bytes,
             origin = peerIdSender,
@@ -5587,8 +5587,8 @@ class MeshLinkTest {
         transportA.simulateDiscovery(peerIdBob)
         advanceUntilIdle()
 
-        val peerIdSender = ByteArray(8) { (0xEE.toByte() + it).toByte() }
-        val peerIdTarget = ByteArray(8) { (0xFF.toByte() + it).toByte() }
+        val peerIdSender = ByteArray(12) { (0xEE.toByte() + it).toByte() }
+        val peerIdTarget = ByteArray(12) { (0xFF.toByte() + it).toByte() }
 
         // First message with replayCounter=1 — accepted
         val msg1 = WireCodec.encodeRoutedMessage(
@@ -5697,7 +5697,7 @@ class MeshLinkTest {
         advanceUntilIdle()
 
         // Alice needs a route to receive routed messages (inbound RL only applies to routed path)
-        val peerIdSender = ByteArray(8) { (0xEE.toByte() + it).toByte() }
+        val peerIdSender = ByteArray(12) { (0xEE.toByte() + it).toByte() }
 
         // Send 3 routed messages from same origin — 3rd should be rate-limited
         for (i in 1..3) {
@@ -5968,7 +5968,7 @@ class MeshLinkTest {
         // Topology: Alice → Bob (relay, capacity=2) → Charlie
         val transportA = VirtualMeshTransport(peerIdAlice)
         val transportB = VirtualMeshTransport(peerIdBob)
-        val peerIdCharlie = ByteArray(8) { (0xCC.toByte() + it).toByte() }
+        val peerIdCharlie = ByteArray(12) { (0xCC.toByte() + it).toByte() }
         val transportC = VirtualMeshTransport(peerIdCharlie)
         transportA.linkTo(transportB)
         transportB.linkTo(transportA)
@@ -6157,8 +6157,8 @@ class MeshLinkTest {
         // Topology: Alice--Bob--Charlie--Dave
         // Relay nodes (Bob, Charlie) emit confirmations for relayed ACKs
         // because the messageId is untracked from their perspective (orphaned ACK acceptance)
-        val peerIdC = ByteArray(8) { (0xC0 + it).toByte() }
-        val peerIdD = ByteArray(8) { (0xD0 + it).toByte() }
+        val peerIdC = ByteArray(12) { (0xC0 + it).toByte() }
+        val peerIdD = ByteArray(12) { (0xD0 + it).toByte() }
         val tA = VirtualMeshTransport(peerIdAlice)
         val tB = VirtualMeshTransport(peerIdBob)
         val tC = VirtualMeshTransport(peerIdC)
@@ -6273,7 +6273,7 @@ class MeshLinkTest {
         transportA.simulateDiscovery(peerIdBob)
         advanceUntilIdle()
 
-        val peerIdC = ByteArray(8) { (0xC0 + it).toByte() }
+        val peerIdC = ByteArray(12) { (0xC0 + it).toByte() }
         alice.addRoute(peerIdC.toHex(), peerIdBob.toHex(), 1.0, 1u)
 
         // Send a message to register in delivery tracker
@@ -6491,7 +6491,7 @@ class MeshLinkTest {
 
     @Test
     fun duplicateBroadcastFromTwoPeersDeliveredOnce() = runTest {
-        val peerIdC = ByteArray(8) { (0xC0 + it).toByte() }
+        val peerIdC = ByteArray(12) { (0xC0 + it).toByte() }
         val transportA = VirtualMeshTransport(peerIdAlice)
         val transportB = VirtualMeshTransport(peerIdBob)
         val transportC = VirtualMeshTransport(peerIdC)
@@ -6536,7 +6536,7 @@ class MeshLinkTest {
     @Test
     fun routedMessageToDirectNeighborBypassesRoutingTable() = runTest {
         // Topology: Alice--Bob--Charlie, but Alice also directly knows Charlie
-        val peerIdC = ByteArray(8) { (0xC0 + it).toByte() }
+        val peerIdC = ByteArray(12) { (0xC0 + it).toByte() }
         val tA = VirtualMeshTransport(peerIdAlice)
         val tB = VirtualMeshTransport(peerIdBob)
         val tC = VirtualMeshTransport(peerIdC)
@@ -6741,8 +6741,8 @@ class MeshLinkTest {
         // Bob relays (hopLimit 2→1), Charlie is destination → delivers
         // Verify that reaching destination with hopLimit=0 still delivers
         // (destination check at line 890 runs BEFORE hop limit check at line 908)
-        val peerIdC = ByteArray(8) { (0xC0 + it).toByte() }
-        val peerIdD = ByteArray(8) { (0xD0 + it).toByte() }
+        val peerIdC = ByteArray(12) { (0xC0 + it).toByte() }
+        val peerIdD = ByteArray(12) { (0xD0 + it).toByte() }
         val tA = VirtualMeshTransport(peerIdAlice)
         val tB = VirtualMeshTransport(peerIdBob)
         val tC = VirtualMeshTransport(peerIdC)
@@ -7308,7 +7308,7 @@ class MeshLinkTest {
 
     @Test
     fun concurrentTransfersInterleaveFairly() = runTest {
-        val peerIdCharlie = ByteArray(8) { (0x30 + it).toByte() }
+        val peerIdCharlie = ByteArray(12) { (0x30 + it).toByte() }
         val transportAlice = VirtualMeshTransport(peerIdAlice)
         val transportBob = VirtualMeshTransport(peerIdBob)
         val transportCharlie = VirtualMeshTransport(peerIdCharlie)
@@ -7356,7 +7356,7 @@ class MeshLinkTest {
 
     @Test
     fun test_broadcast_ttl_zero_not_forwarded() = runTest {
-        val peerIdCharlie = ByteArray(8) { (0xC0 + it).toByte() }
+        val peerIdCharlie = ByteArray(12) { (0xC0 + it).toByte() }
         val transportAlice = VirtualMeshTransport(peerIdAlice)
         val transportBob = VirtualMeshTransport(peerIdBob)
         val transportCharlie = VirtualMeshTransport(peerIdCharlie)
@@ -7400,7 +7400,7 @@ class MeshLinkTest {
 
     @Test
     fun test_broadcast_ttl_decremented() = runTest {
-        val peerIdCharlie = ByteArray(8) { (0xC0 + it).toByte() }
+        val peerIdCharlie = ByteArray(12) { (0xC0 + it).toByte() }
         val transportAlice = VirtualMeshTransport(peerIdAlice)
         val transportBob = VirtualMeshTransport(peerIdBob)
         val transportCharlie = VirtualMeshTransport(peerIdCharlie)
@@ -7443,7 +7443,7 @@ class MeshLinkTest {
 
     @Test
     fun test_broadcast_ttl_clamped_by_local_config() = runTest {
-        val peerIdCharlie = ByteArray(8) { (0xC0 + it).toByte() }
+        val peerIdCharlie = ByteArray(12) { (0xC0 + it).toByte() }
         val transportAlice = VirtualMeshTransport(peerIdAlice)
         val transportBob = VirtualMeshTransport(peerIdBob)
         val transportCharlie = VirtualMeshTransport(peerIdCharlie)

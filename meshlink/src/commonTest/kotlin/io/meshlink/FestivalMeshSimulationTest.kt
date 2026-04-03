@@ -34,7 +34,7 @@ import kotlinx.coroutines.test.runTest
 @OptIn(ExperimentalCoroutinesApi::class)
 class FestivalMeshSimulationTest {
 
-    private fun peerId(index: Int) = ByteArray(8) { if (it == 7) index.toByte() else 0 }
+    private fun peerId(index: Int) = ByteArray(12) { if (it == 7) index.toByte() else 0 }
 
     private val idAlice = peerId(1)
     private val idBob = peerId(2)

@@ -30,10 +30,10 @@ class ConnectionLimiterTest {
         limiter.remove(limiter.connections().first())
         assertTrue(limiter.tryAdd("peer10"), "After remove, should accept")
 
-        // Downgrade to PowerSaver (limit = 1)
+        // Downgrade to PowerSaver (limit = 2)
         val connectionEvicted2 = limiter.setMode(PowerMode.POWER_SAVER)
-        assertEquals(3, connectionEvicted2.size, "Should evict 3 on downgrade to PowerSaver")
-        assertEquals(1, limiter.connectionCount())
+        assertEquals(2, connectionEvicted2.size, "Should evict 2 on downgrade to PowerSaver")
+        assertEquals(2, limiter.connectionCount())
     }
 
     // --- Batch 10 Cycle 5: FIFO eviction order ---
@@ -58,20 +58,21 @@ class ConnectionLimiterTest {
     @Test
     fun duplicatePeerAddCountsAsSecondConnection() {
         val limiter = ConnectionLimiter()
-        limiter.setMode(PowerMode.POWER_SAVER) // limit = 1
+        limiter.setMode(PowerMode.POWER_SAVER) // limit = 2
 
         assertTrue(limiter.tryAdd("A"))
-        // Adding same peer again fails because limit is reached
-        assertFalse(limiter.tryAdd("A"), "Duplicate add rejected when at limit")
-        assertEquals(1, limiter.connectionCount())
+        assertTrue(limiter.tryAdd("B"))
+        // Adding a third peer fails because limit is reached
+        assertFalse(limiter.tryAdd("C"), "Third add rejected when at limit")
+        assertEquals(2, limiter.connectionCount())
 
         // Remove then re-add works
         limiter.remove("A")
-        assertEquals(0, limiter.connectionCount())
-        assertTrue(limiter.tryAdd("A"), "Re-add after remove succeeds")
+        assertEquals(1, limiter.connectionCount())
+        assertTrue(limiter.tryAdd("C"), "Add after remove succeeds")
 
         // Remove non-existent peer is no-op
         limiter.remove("NONEXISTENT")
-        assertEquals(1, limiter.connectionCount())
+        assertEquals(2, limiter.connectionCount())
     }
 }

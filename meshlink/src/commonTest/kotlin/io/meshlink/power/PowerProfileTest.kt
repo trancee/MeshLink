@@ -95,7 +95,7 @@ class PowerProfileTest {
 
     @Test
     fun powerSaver_maxConnections_1() {
-        assertEquals(1, PowerProfile.POWER_SAVER.maxConnections)
+        assertEquals(2, PowerProfile.POWER_SAVER.maxConnections)
     }
 
     // ── Aggressive discovery ────────────────────────────────────

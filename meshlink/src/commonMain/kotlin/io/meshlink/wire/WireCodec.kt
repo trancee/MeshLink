@@ -1,12 +1,15 @@
 package io.meshlink.wire
 
-private const val MESSAGE_ID_SIZE = 12
-private const val PEER_ID_SIZE = 8
+private const val MESSAGE_ID_SIZE = 16
+private const val PEER_ID_SIZE = 12
 private const val APP_ID_HASH_SIZE = 8
 private val EMPTY_BYTES = ByteArray(0)
 private val EMPTY_APP_ID_HASH = ByteArray(APP_ID_HASH_SIZE)
 
 object WireCodec {
+
+    /** Public peer ID size for use by tests and other modules. */
+    const val PEER_ID_BYTES = PEER_ID_SIZE
 
     // Connection & Control (0x00–0x02)
     const val TYPE_HANDSHAKE: Byte = 0x00

@@ -80,7 +80,7 @@ fun main() {
         println("  activeTransfers = ${health.activeTransfers}")
         println()
 
-        val fakePeer = ByteArray(16) { (it + 0x10).toByte() }
+        val fakePeer = ByteArray(12) { (it + 0x10).toByte() }
         mesh.send(fakePeer, "Hello from Linux!".encodeToByteArray())
             .onSuccess { println("[SEND] Sent message: $it") }
             .onFailure { println("[SEND] Result: ${it.message} (expected - no real peers)") }
@@ -117,7 +117,7 @@ private fun ByteArray.toHex(): String = joinToString("") {
 
 /** No-op BLE transport for demonstration without root privileges. */
 private class DemoTransport : BleTransport {
-    override val localPeerId: ByteArray = ByteArray(16) { it.toByte() }
+    override val localPeerId: ByteArray = ByteArray(12) { it.toByte() }
     override var advertisementServiceData: ByteArray = ByteArray(0)
     override suspend fun startAdvertisingAndScanning() {}
     override suspend fun stopAll() {}

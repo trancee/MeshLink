@@ -21,9 +21,9 @@ value class PeerId(val hex: String) {
 }
 
 /**
- * Type-safe 12-byte message identifier: 8-byte sender peer ID hash +
- * 4-byte monotonic counter (little-endian). Deterministic, zero collision
- * risk. Use [MessageIdGenerator] for wire message IDs and [random] for
+ * Type-safe 16-byte message identifier generated from the platform CSPRNG.
+ * 128-bit randomness provides a birthday-bound collision probability of ~2⁻⁶⁴.
+ * Use [MessageIdGenerator] for wire message IDs and [random] for
  * non-wire identifiers (failure tracking, loopback).
  */
 @JvmInline
@@ -32,7 +32,7 @@ value class MessageId(val hex: String) {
     override fun toString(): String = hex
 
     companion object {
-        const val SIZE = 12
+        const val SIZE = 16
 
         fun fromBytes(bytes: ByteArray): MessageId {
             require(bytes.size == SIZE) { "MessageId must be $SIZE bytes, got ${bytes.size}" }

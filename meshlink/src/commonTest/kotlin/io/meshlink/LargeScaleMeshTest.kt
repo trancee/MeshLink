@@ -18,7 +18,7 @@ class LargeScaleMeshTest {
 
         // Create 50 transports with unique 16-byte peer IDs
         val transports = (0 until peerCount).map { i ->
-            VirtualMeshTransport(ByteArray(8) { if (it == 0) i.toByte() else 0 })
+            VirtualMeshTransport(ByteArray(12) { if (it == 0) i.toByte() else 0 })
         }
 
         // Link as a line: 0↔1↔2↔...↔49
@@ -72,7 +72,7 @@ class LargeScaleMeshTest {
 
         // Create 20 transports
         val transports = (0 until peerCount).map { i ->
-            VirtualMeshTransport(ByteArray(8) { if (it == 0) (0x80 + i).toByte() else 0 })
+            VirtualMeshTransport(ByteArray(12) { if (it == 0) (0x80 + i).toByte() else 0 })
         }
 
         // Full mesh: every peer linked to every other

@@ -88,7 +88,7 @@ class MeshLink(
     private val clock = clock
     private val sendLock = PlatformLock()
     private val compressor: Compressor? = if (config.compressionEnabled) Compressor() else null
-    private val messageIdGenerator = MessageIdGenerator(transport.localPeerId)
+    private val messageIdGenerator = MessageIdGenerator()
 
     private val rateLimitPolicy = RateLimitPolicy(config, clock)
 

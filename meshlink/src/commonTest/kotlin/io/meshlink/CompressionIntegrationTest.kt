@@ -14,8 +14,8 @@ import kotlin.test.assertTrue
 
 class CompressionIntegrationTest {
 
-    private val peerIdAlice = ByteArray(8) { (0xA0 + it).toByte() }
-    private val peerIdBob = ByteArray(8) { (0xB0 + it).toByte() }
+    private val peerIdAlice = ByteArray(12) { (0xA0 + it).toByte() }
+    private val peerIdBob = ByteArray(12) { (0xB0 + it).toByte() }
 
     private fun compressionConfig(block: io.meshlink.config.MeshLinkConfigBuilder.() -> Unit = {}) = meshLinkConfig {
         keepaliveIntervalMillis = 0L

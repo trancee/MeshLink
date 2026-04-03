@@ -16,8 +16,8 @@ class TlvExtensionWireTest {
         TlvEntry(0x80u, byteArrayOf(0xCC.toByte()))
     )
 
-    private val peerId = ByteArray(8) { (it + 1).toByte() }
-    private val messageId = ByteArray(12) { (it + 0x10).toByte() }
+    private val peerId = ByteArray(12) { (it + 1).toByte() }
+    private val messageId = ByteArray(16) { (it + 0x10).toByte() }
 
     // ── Keepalive ─────────────────────────────────────────────────
 
@@ -54,7 +54,7 @@ class TlvExtensionWireTest {
 
     @Test
     fun chunkAckLegacyDecodeHasEmptyExtensions() {
-        val legacy = ByteArray(31)
+        val legacy = ByteArray(35)
         legacy[0] = WireCodec.TYPE_CHUNK_ACK
         messageId.copyInto(legacy, 1)
         val decoded = WireCodec.decodeChunkAck(legacy)
@@ -73,7 +73,7 @@ class TlvExtensionWireTest {
 
     @Test
     fun nackLegacyDecodeHasEmptyExtensions() {
-        val legacy = ByteArray(14)
+        val legacy = ByteArray(18)
         legacy[0] = WireCodec.TYPE_NACK
         messageId.copyInto(legacy, 1)
         val decoded = WireCodec.decodeNack(legacy)
@@ -94,7 +94,7 @@ class TlvExtensionWireTest {
 
     @Test
     fun routeRequestWithExtensionsRoundTrips() {
-        val dest = ByteArray(8) { (it + 0x20).toByte() }
+        val dest = ByteArray(12) { (it + 0x20).toByte() }
         val encoded = WireCodec.encodeRouteRequest(
             peerId, dest, 100u, 2u, 10u, sampleExtensions
         )
@@ -107,7 +107,7 @@ class TlvExtensionWireTest {
 
     @Test
     fun routeRequestLegacyDecodeHasEmptyExtensions() {
-        val legacy = ByteArray(23)
+        val legacy = ByteArray(31)
         legacy[0] = WireCodec.TYPE_ROUTE_REQUEST
         val decoded = WireCodec.decodeRouteRequest(legacy)
         assertTrue(decoded.extensions.isEmpty())
@@ -117,7 +117,7 @@ class TlvExtensionWireTest {
 
     @Test
     fun routeReplyWithExtensionsRoundTrips() {
-        val dest = ByteArray(8) { (it + 0x30).toByte() }
+        val dest = ByteArray(12) { (it + 0x30).toByte() }
         val encoded = WireCodec.encodeRouteReply(
             peerId, dest, 200u, 3u, sampleExtensions
         )
@@ -154,7 +154,7 @@ class TlvExtensionWireTest {
 
     @Test
     fun deliveryAckLegacyNoSigDecodeHasEmptyExtensions() {
-        val legacy = ByteArray(22)
+        val legacy = ByteArray(30)
         legacy[0] = WireCodec.TYPE_DELIVERY_ACK
         messageId.copyInto(legacy, 1)
         val decoded = WireCodec.decodeDeliveryAck(legacy)

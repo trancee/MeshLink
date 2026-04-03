@@ -9,7 +9,7 @@ import kotlin.test.assertTrue
 class RouteCostCalculatorTest {
 
     private fun key(id: Int): ByteArrayKey =
-        ByteArrayKey(ByteArray(8) { id.toByte() })
+        ByteArrayKey(ByteArray(12) { id.toByte() })
 
     private val peerA = key(0x0A)
     private val peerB = key(0x0B)

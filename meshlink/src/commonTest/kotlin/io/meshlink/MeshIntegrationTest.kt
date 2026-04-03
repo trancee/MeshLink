@@ -40,7 +40,7 @@ import kotlin.test.assertTrue
 @OptIn(ExperimentalCoroutinesApi::class)
 class MeshIntegrationTest {
 
-    private fun peerId(index: Int) = ByteArray(8) { ((index shl 4) + it).toByte() }
+    private fun peerId(index: Int) = ByteArray(12) { ((index shl 4) + it).toByte() }
 
     private val peerIdAlice = peerId(0xA)
     private val peerIdBob = peerId(0xB)
@@ -733,7 +733,7 @@ class MeshIntegrationTest {
         advanceUntilIdle()
 
         // No discovery — Bob is unknown. AODV queues and floods RREQ.
-        val unknownPeer = ByteArray(8) { 0xFF.toByte() }
+        val unknownPeer = ByteArray(12) { 0xFF.toByte() }
         val result = alice.send(unknownPeer, "hello".encodeToByteArray())
         assertTrue(result.isSuccess, "send to undiscovered peer should queue for route discovery")
 
@@ -964,8 +964,8 @@ class MeshIntegrationTest {
         advanceUntilIdle()
 
         // Inject a routed message with hopLimit=0 (already exhausted)
-        val sender = ByteArray(8) { 0xCC.toByte() }
-        val target = ByteArray(8) { 0xDD.toByte() }
+        val sender = ByteArray(12) { 0xCC.toByte() }
+        val target = ByteArray(12) { 0xDD.toByte() }
         val msg = WireCodec.encodeRoutedMessage(
             messageId = MessageId.random().bytes,
             origin = sender,
@@ -1147,7 +1147,7 @@ class MeshIntegrationTest {
         advanceUntilIdle()
 
         // Send to unknown peer C — should succeed (queued) and flood RREQ
-        val unknownPeer = ByteArray(8) { 0xAA.toByte() }
+        val unknownPeer = ByteArray(12) { 0xAA.toByte() }
         val result = alice.send(unknownPeer, "find-me".encodeToByteArray())
         assertTrue(result.isSuccess, "send to unknown peer should queue for discovery")
         advanceUntilIdle()

@@ -66,7 +66,7 @@ class IdentifiersTest {
 
     @Test
     fun messageIdFromBytesRoundTrip() {
-        val bytes = ByteArray(12) { it.toByte() }
+        val bytes = ByteArray(16) { it.toByte() }
         val msgId = MessageId.fromBytes(bytes)
         assertEquals(bytes.toHex(), msgId.hex)
         assertTrue(bytes.contentEquals(msgId.bytes))
@@ -77,7 +77,7 @@ class IdentifiersTest {
         val a = MessageId.random()
         val b = MessageId.random()
         assertNotEquals(a, b, "random IDs should differ")
-        assertEquals(24, a.hex.length, "12 bytes → 24 hex chars")
+        assertEquals(32, a.hex.length, "16 bytes → 32 hex chars")
     }
 
     @Test

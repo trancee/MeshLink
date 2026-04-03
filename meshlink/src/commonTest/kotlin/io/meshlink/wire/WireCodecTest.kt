@@ -8,7 +8,7 @@ import kotlin.test.assertTrue
 
 class WireCodecTest {
 
-    private val testMessageId = ByteArray(12) { it.toByte() } // 0x00..0x0B
+    private val testMessageId = ByteArray(16) { it.toByte() } // 0x00..0x0F
 
     @Test
     fun chunkMessageEncodesToGoldenBytes() {
@@ -25,6 +25,7 @@ class WireCodecTest {
             0x05,                                                           // type: chunk
             0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,               // messageId[0..7]
             0x08, 0x09, 0x0A, 0x0B,                                        // messageId[8..11]
+            0x0C, 0x0D, 0x0E, 0x0F,                                        // messageId[12..15]
             0x00, 0x00,                                                     // seqNum = 0 (LE)
             0x03, 0x00,                                                     // totalChunks = 3 (LE)
             0x68, 0x65, 0x6C, 0x6C, 0x6F                                   // "hello"
@@ -48,6 +49,7 @@ class WireCodecTest {
             0x05,                                                           // type: chunk
             0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,               // messageId[0..7]
             0x08, 0x09, 0x0A, 0x0B,                                        // messageId[8..11]
+            0x0C, 0x0D, 0x0E, 0x0F,                                        // messageId[12..15]
             0x01, 0x00,                                                     // seqNum = 1 (LE)
             0x68, 0x65, 0x6C, 0x6C, 0x6F                                   // "hello"
         )
@@ -62,6 +64,7 @@ class WireCodecTest {
             0x05,
             0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
             0x08, 0x09, 0x0A, 0x0B,
+            0x0C, 0x0D, 0x0E, 0x0F,
             0x00, 0x00,
             0x03, 0x00,
             0x68, 0x65, 0x6C, 0x6C, 0x6F
@@ -82,6 +85,7 @@ class WireCodecTest {
             0x05,
             0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
             0x08, 0x09, 0x0A, 0x0B,
+            0x0C, 0x0D, 0x0E, 0x0F,
             0x01, 0x00,
             0x68, 0x65, 0x6C, 0x6C, 0x6F
         )
@@ -108,6 +112,7 @@ class WireCodecTest {
             0x06,                                                           // type: chunk_ack
             0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,               // messageId[0..7]
             0x08, 0x09, 0x0A, 0x0B,                                        // messageId[8..11]
+            0x0C, 0x0D, 0x0E, 0x0F,                                        // messageId[12..15]
             0x05, 0x00,                                                     // ackSeq = 5 (LE)
             0x1F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,                // sackBitmask = 0x1F (LE)
             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,                // sackBitmaskHigh = 0 (LE)
@@ -123,6 +128,7 @@ class WireCodecTest {
             0x06,
             0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
             0x08, 0x09, 0x0A, 0x0B,
+            0x0C, 0x0D, 0x0E, 0x0F,
             0x05, 0x00,
             0x1F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
@@ -171,12 +177,12 @@ class WireCodecTest {
 
     // --- Routed message (0x0a) ---
 
-    private val originId = ByteArray(8) { (0xA0 + it).toByte() }
-    private val destinationId = ByteArray(8) { (0xD0.toByte() + it).toByte() }
+    private val originId = ByteArray(12) { (0xA0 + it).toByte() }
+    private val destinationId = ByteArray(12) { (0xD0.toByte() + it).toByte() }
 
     @Test
     fun routedMessageEncodesWithVisitedListGoldenBytes() {
-        val visitedHash = ByteArray(8) { (0xF0.toByte() + it).toByte() }
+        val visitedHash = ByteArray(12) { (0xF0.toByte() + it).toByte() }
         val payload = "relay".encodeToByteArray()
 
         val encoded = WireCodec.encodeRoutedMessage(
@@ -188,17 +194,17 @@ class WireCodecTest {
             payload = payload,
         )
 
-        // type(1) + messageId(12) + origin(8) + destination(8) + hopLimit(1) + replayCounter(8) + visitedCount(1) + visited(8) + payload(5) = 52
-        assertEquals(52, encoded.size)
+        // type(1) + msgId(16) + origin(12) + dest(12) + hop(1) + replay(8) + vCount(1) + visited(12) + payload(5) = 68
+        assertEquals(68, encoded.size)
         assertEquals(0x0a, encoded[0])  // type
-        assertEquals(5.toByte(), encoded[29]) // hopLimit
-        assertEquals(1.toByte(), encoded[38]) // visitedCount (after 8-byte counter)
+        assertEquals(5.toByte(), encoded[41]) // hopLimit
+        assertEquals(1.toByte(), encoded[50]) // visitedCount
     }
 
     @Test
     fun routedMessageRoundTrips() {
-        val visited1 = ByteArray(8) { (0xF0.toByte() + it).toByte() }
-        val visited2 = ByteArray(8) { (0xE0.toByte() + it).toByte() }
+        val visited1 = ByteArray(12) { (0xF0.toByte() + it).toByte() }
+        val visited2 = ByteArray(12) { (0xE0.toByte() + it).toByte() }
         val payload = ByteArray(100) { (it % 256).toByte() }
 
         val encoded = WireCodec.encodeRoutedMessage(
@@ -238,7 +244,7 @@ class WireCodecTest {
         )
 
         // type(1) + messageId(12) + origin(8) + remainingHops(1) + appIdHash(8) + sigLen(1) + payload
-        assertEquals(1 + 12 + 8 + 1 + 8 + 1 + payload.size, encoded.size)
+        assertEquals(1 + 16 + 12 + 1 + 8 + 1 + payload.size, encoded.size)
         assertEquals(WireCodec.TYPE_BROADCAST, encoded[0])
 
         val decoded = WireCodec.decodeBroadcast(encoded)
@@ -259,8 +265,8 @@ class WireCodecTest {
             recipientId = destinationId,
         )
 
-        // type(1) + messageId(12) + recipientId(8) + sigLen(1) + ext(2) = 24
-        assertEquals(24, encoded.size)
+        // type(1) + messageId(16) + recipientId(12) + flags(1) + ext(2) = 32
+        assertEquals(32, encoded.size)
         assertEquals(WireCodec.TYPE_DELIVERY_ACK, encoded[0])
 
         val decoded = WireCodec.decodeDeliveryAck(encoded)
@@ -302,7 +308,7 @@ class WireCodecTest {
         }
 
         // Valid-length broadcast with chunk type byte
-        val broadcastData = WireCodec.encodeBroadcast(testMessageId, ByteArray(8), 3u, payload = "y".encodeToByteArray())
+        val broadcastData = WireCodec.encodeBroadcast(testMessageId, ByteArray(12), 3u, payload = "y".encodeToByteArray())
         broadcastData[0] = WireCodec.TYPE_CHUNK
         assertFailsWith<IllegalArgumentException> {
             WireCodec.decodeBroadcast(broadcastData)
@@ -314,11 +320,11 @@ class WireCodecTest {
     @Test
     fun decodeRoutedMessageRejectsTruncatedVisitedList() {
         // Build a routed message with visitedCount=5 but only enough data for 1 entry
-        val header = ByteArray(39) // ROUTED_HEADER_SIZE = 39
+        val header = ByteArray(51) // ROUTED_HEADER_SIZE = 51
         header[0] = WireCodec.TYPE_ROUTED_MESSAGE
-        header[38] = 5 // visitedCount = 5 (claims 5×8=40 bytes of visited data)
+        header[50] = 5 // visitedCount = 5 (claims 5×12=60 bytes of visited data)
         // Only provide 8 bytes of visited data (1 entry, not 5)
-        val truncated = header + ByteArray(8) + "payload".encodeToByteArray()
+        val truncated = header + ByteArray(12) + "payload".encodeToByteArray()
 
         val ex = assertFailsWith<IllegalArgumentException> {
             WireCodec.decodeRoutedMessage(truncated)
@@ -328,12 +334,12 @@ class WireCodecTest {
 
     @Test
     fun encodeRoutedMessageRejectsVisitedListOver255() {
-        val oversized = (0..255).map { ByteArray(8) { it.toByte() } } // 256 entries
+        val oversized = (0..255).map { ByteArray(12) { it.toByte() } } // 256 entries
         assertFailsWith<IllegalArgumentException> {
             WireCodec.encodeRoutedMessage(
                 messageId = testMessageId,
-                origin = ByteArray(8),
-                destination = ByteArray(8),
+                origin = ByteArray(12),
+                destination = ByteArray(12),
                 hopLimit = 10u,
                 visitedList = oversized,
                 payload = "x".encodeToByteArray()
@@ -346,9 +352,9 @@ class WireCodecTest {
     @Test
     fun decodeBroadcastRejectsTruncatedSignature() {
         // Craft broadcast with flags=0x01 (has signature) but only 10 bytes remaining
-        val header = ByteArray(31) // BROADCAST_HEADER_SIZE = 31
+        val header = ByteArray(39) // BROADCAST_HEADER_SIZE = 39
         header[0] = WireCodec.TYPE_BROADCAST
-        header[30] = 0x01 // FLAG_HAS_SIGNATURE, but no signature bytes follow
+        header[38] = 0x01 // FLAG_HAS_SIGNATURE, but no signature bytes follow
         val truncated = header + ByteArray(10) // only 10 bytes, need 64+32=96
 
         assertFailsWith<IllegalArgumentException> {
@@ -364,6 +370,7 @@ class WireCodecTest {
             0x05,                                                           // type: chunk
             0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,               // messageId[0..7]
             0x08, 0x09, 0x0A, 0x0B,                                        // messageId[8..11]
+            0x0C, 0x0D, 0x0E, 0x0F,                                        // messageId[12..15]
             0x00, 0x00,                                                     // seqNum = 0 (LE)
             0x00, 0x00,                                                     // totalChunks = 0 (LE) — invalid
             0x64, 0x61, 0x74, 0x61                                          // "data"
@@ -376,9 +383,9 @@ class WireCodecTest {
     @Test
     fun decodeDeliveryAckRejectsTruncatedSignature() {
         // Craft delivery ACK with flags=0x01 (has signature) but insufficient data
-        val header = ByteArray(22) // DELIVERY_ACK_HEADER_SIZE = 22
+        val header = ByteArray(30) // DELIVERY_ACK_HEADER_SIZE = 30
         header[0] = WireCodec.TYPE_DELIVERY_ACK
-        header[21] = 0x01 // FLAG_HAS_SIGNATURE, but no signature bytes follow
+        header[29] = 0x01 // FLAG_HAS_SIGNATURE, but no signature bytes follow
         val truncated = header + ByteArray(10) // only 10 bytes, need 64+32=96
 
         assertFailsWith<IllegalArgumentException> {
@@ -476,6 +483,7 @@ class WireCodecTest {
             0x08,                                                           // type: resume_request
             0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,               // messageId[0..7]
             0x08, 0x09, 0x0A, 0x0B,                                        // messageId[8..11]
+            0x0C, 0x0D, 0x0E, 0x0F,                                        // messageId[12..15]
             0x01, 0x02, 0x03, 0x04,                                         // bytesReceived = 0x04030201 (LE)
             0x00, 0x00                                                      // empty TLV extensions
         )
@@ -485,7 +493,7 @@ class WireCodecTest {
 
     @Test
     fun resumeRequestRoundTrip() {
-        val messageId = ByteArray(12) { (0xA0 + it).toByte() }
+        val messageId = ByteArray(16) { (0xA0 + it).toByte() }
         val bytesReceived = 123456u
 
         val encoded = WireCodec.encodeResumeRequest(messageId, bytesReceived)

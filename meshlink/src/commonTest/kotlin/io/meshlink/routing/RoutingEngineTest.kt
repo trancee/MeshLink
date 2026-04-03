@@ -13,7 +13,7 @@ class RoutingEngineTest {
     private fun key(s: String) = ByteArrayKey(s.encodeToByteArray())
 
     /** 8-byte key required by WireCodec for peer IDs in AODV frames. */
-    private fun peerId(index: Int) = ByteArrayKey(ByteArray(8) { ((index shl 4) + it).toByte() })
+    private fun peerId(index: Int) = ByteArrayKey(ByteArray(12) { ((index shl 4) + it).toByte() })
 
     private val localId = peerId(0)
     private fun engine(

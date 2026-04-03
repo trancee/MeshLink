@@ -18,7 +18,7 @@ class TransferEngineTest {
     fun sendAndReceiveAllAcksCompletes() {
         val engine = createEngine()
         val payload = "hello world".encodeToByteArray()
-        val msgId = ByteArray(12) { it.toByte() }
+        val msgId = ByteArray(16) { it.toByte() }
         val msgHex = msgId.joinToString("") { it.toUByte().toString(16).padStart(2, '0') }
 
         val handle = engine.beginSend(key(msgHex), msgId, payload, chunkSize = 100)
@@ -36,7 +36,7 @@ class TransferEngineTest {
     fun multiChunkSendWithSequentialAcks() {
         val engine = createEngine()
         val payload = ByteArray(30) { it.toByte() } // 30 bytes
-        val msgId = ByteArray(12) { 1 }
+        val msgId = ByteArray(16) { 1 }
         val msgHex = msgId.joinToString("") { it.toUByte().toString(16).padStart(2, '0') }
 
         val handle = engine.beginSend(key(msgHex), msgId, payload, chunkSize = 10)
@@ -105,7 +105,7 @@ class TransferEngineTest {
     @Test
     fun emptyPayloadProducesSingleChunk() {
         val engine = createEngine()
-        val msgId = ByteArray(12)
+        val msgId = ByteArray(16)
         val msgHex = msgId.joinToString("") { "00" }
 
         val handle = engine.beginSend(key(msgHex), msgId, ByteArray(0), chunkSize = 100)
@@ -129,7 +129,7 @@ class TransferEngineTest {
         var now = 1000L
         val engine = TransferEngine(clock = { now })
 
-        val msgId = ByteArray(12)
+        val msgId = ByteArray(16)
         val msgHex = "stale01"
         engine.beginSend(key(msgHex), msgId, "data".encodeToByteArray(), chunkSize = 100)
         assertEquals(1, engine.outboundCount)
@@ -162,7 +162,7 @@ class TransferEngineTest {
     @Test
     fun bufferBytesTracksUsage() {
         val engine = createEngine()
-        val msgId = ByteArray(12)
+        val msgId = ByteArray(16)
         engine.beginSend(key("out01"), msgId, "hello".encodeToByteArray(), chunkSize = 100)
         assertTrue(engine.outboundBufferBytes() > 0)
 
@@ -175,7 +175,7 @@ class TransferEngineTest {
     @Test
     fun clearAllResetsState() {
         val engine = createEngine()
-        val msgId = ByteArray(12)
+        val msgId = ByteArray(16)
         engine.beginSend(key("out01"), msgId, "data".encodeToByteArray(), chunkSize = 100)
         engine.onChunkReceived(key("in01"), seqNum = 0, totalChunks = 2, "data".encodeToByteArray())
 

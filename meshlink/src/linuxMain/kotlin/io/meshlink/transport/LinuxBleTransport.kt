@@ -567,7 +567,7 @@ class LinuxBleTransport(
 
     private fun derivePeerIdFromBdaddr(bdaddr: ByteArray): ByteArray {
         // Pad the 6-byte BD_ADDR to an 8-byte peer ID (zero-padded, reversed for readability)
-        val id = ByteArray(8)
+        val id = ByteArray(12)
         bdaddr.reversed().toByteArray().copyInto(id, 0, 0, minOf(6, bdaddr.size))
         return id
     }
