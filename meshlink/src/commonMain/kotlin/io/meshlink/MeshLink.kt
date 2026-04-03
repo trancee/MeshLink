@@ -387,6 +387,25 @@ class MeshLink(
     override fun peerDetail(peerIdHex: String): PeerDetail? = peerQueryService.peerDetail(peerIdHex)
     override fun allPeerDetails(): List<PeerDetail> = peerQueryService.allPeerDetails()
 
+    override fun peerFingerprint(peerIdHex: String): String? {
+        val localKey = localPublicKey ?: return null
+        val peerKey = peerPublicKey(peerIdHex) ?: return null
+        val crypto = crypto ?: return null
+
+        // Sort keys so both sides compute the same fingerprint
+        val cmp = localKey.zip(peerKey).map { (a, b) -> (a.toInt() and 0xFF) - (b.toInt() and 0xFF) }
+            .firstOrNull { it != 0 } ?: 0
+        val (first, second) = if (cmp <= 0) localKey to peerKey else peerKey to localKey
+        val hash = crypto.sha256(first + second)
+        // Convert first 6 bytes to a 12-digit numeric string
+        val sb = StringBuilder(12)
+        for (i in 0 until 6) {
+            val value = hash[i].toInt() and 0xFF
+            sb.append((value % 100).toString().padStart(2, '0'))
+        }
+        return sb.toString()
+    }
+
     private fun encodeAdvertisementPayload(): ByteArray {
         val keyHash = securityEngine?.let { se ->
             crypto?.sha256(se.localPublicKey)

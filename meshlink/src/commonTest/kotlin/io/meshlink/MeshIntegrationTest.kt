@@ -861,6 +861,39 @@ class MeshIntegrationTest {
         alice.stop()
     }
 
+    // ── Safety number fingerprint ────────────────────────────────
+
+    @Test
+    fun peerFingerprintIsSymmetric() = runTest {
+        val tA = VirtualMeshTransport(peerIdAlice)
+        val tB = VirtualMeshTransport(peerIdBob)
+        tA.linkTo(tB)
+
+        val config = testMeshLinkConfig { requireEncryption = false }
+        val alice = MeshLink(tA, config, coroutineContext, crypto = CryptoProvider())
+        val bob = MeshLink(tB, config, coroutineContext, crypto = CryptoProvider())
+
+        alice.start(); bob.start()
+        testScheduler.advanceTimeBy(1L)
+
+        tA.simulateDiscovery(peerIdBob); tB.simulateDiscovery(peerIdAlice)
+        testScheduler.advanceTimeBy(50L)
+
+        val hexA = peerIdAlice.toHex()
+        val hexB = peerIdBob.toHex()
+
+        val fpFromAlice = alice.peerFingerprint(hexB)
+        val fpFromBob = bob.peerFingerprint(hexA)
+
+        assertNotNull(fpFromAlice, "Alice should compute fingerprint for Bob")
+        assertNotNull(fpFromBob, "Bob should compute fingerprint for Alice")
+        assertEquals(fpFromAlice, fpFromBob, "Safety number must be symmetric")
+        assertEquals(12, fpFromAlice.length, "Fingerprint should be 12 digits")
+        assertTrue(fpFromAlice.all { it.isDigit() }, "Fingerprint should be numeric")
+
+        alice.stop(); bob.stop()
+    }
+
     // ── Power mode management ─────────────────────────────────────
 
     @Test

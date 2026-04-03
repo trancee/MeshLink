@@ -43,5 +43,21 @@ interface MeshLinkApi {
     fun peerPublicKey(peerIdHex: String): ByteArray?
     fun peerDetail(peerIdHex: String): PeerDetail?
     fun allPeerDetails(): List<PeerDetail>
+
+    /**
+     * Compute a human-readable safety number for verifying a peer's identity
+     * out-of-band (e.g., comparing numbers in person, QR code).
+     *
+     * Returns a 12-digit numeric string derived from the SHA-256 of both peers'
+     * public keys (local + remote), or null if either key is unavailable.
+     *
+     * The safety number is symmetric: `peerFingerprint(A, B) == peerFingerprint(B, A)`.
+     * Both sides compute the same number regardless of who initiates.
+     *
+     * Usage: consuming apps should display this number to users during first
+     * contact and prompt them to verify it matches the other device's display.
+     */
+    fun peerFingerprint(peerIdHex: String): String?
+
     fun rotateIdentity(): Result<Unit>
 }
