@@ -143,7 +143,6 @@ internal class MessageDispatcher(
                     messageId = chunk.messageId,
                     ackSequence = result.ackSeq.toUShort(),
                     sackBitmask = result.sackBitmask,
-                    sackBitmaskHigh = result.sackBitmaskHigh,
                 )
                 sink.sendFrame(fromPeerId, ack)
             }
@@ -152,7 +151,6 @@ internal class MessageDispatcher(
                     messageId = chunk.messageId,
                     ackSequence = result.ackSeq.toUShort(),
                     sackBitmask = result.sackBitmask,
-                    sackBitmaskHigh = result.sackBitmaskHigh,
                 )
                 sink.sendFrame(fromPeerId, ack)
 
@@ -172,9 +170,7 @@ internal class MessageDispatcher(
         val ack = WireCodec.decodeChunkAck(data)
         val key = ack.messageId.toKey()
         val recipient = outboundTracker.recipient(key)
-
-        val update = transferEngine.onAck(key, ack.ackSequence.toInt(), ack.sackBitmask, ack.sackBitmaskHigh)
-
+        val update = transferEngine.onAck(key, ack.ackSequence.toInt(), ack.sackBitmask)
         when (update) {
             is TransferUpdate.Complete -> {
                 outboundTracker.removeRecipient(key)

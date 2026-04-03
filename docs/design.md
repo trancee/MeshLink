@@ -238,7 +238,7 @@ flowchart TD
 
 - **`chunk` (0x05)** is used for **direct (single-hop) transfers only**. The first chunk (seq=0) carries a `totalChunks` field; subsequent chunks omit it, saving 2 bytes per chunk. See [wire-format-spec.md § Chunk](wire-format-spec.md#0x05--chunk) for the byte layout. Protocol cap: uint16 sequence numbers support up to ~16MB per transfer.
 
-- **`chunk_ack` / SACK (0x06)** — selective acknowledgement using a 128-bit SACK bitmask (two uint64 fields) covering up to 128 chunks beyond the base sequence. Negative acknowledgements use a separate **NACK (0x07)** message type with a reason code (`bufferFull`, `unknownDestination`, `decryptFailed`, `rateLimited`). See [wire-format-spec.md § Chunk ACK](wire-format-spec.md#0x06--chunk-ack) for the byte layout.
+- **`chunk_ack` / SACK (0x06)** — selective acknowledgement using a 64-bit SACK bitmask covering up to 64 chunks beyond the base sequence. Negative acknowledgements use a separate **NACK (0x07)** message type with a reason code (`bufferFull`, `unknownDestination`, `decryptFailed`, `rateLimited`). See [wire-format-spec.md § Chunk ACK](wire-format-spec.md#0x06--chunk-ack) for the byte layout.
 
 - **Single-chunk fast path:** If the E2E ciphertext fits within a single chunk (payload ≤ MTU minus envelope overhead for GATT, or ≤ L2CAP chunk size minus framing), it is sent as a single `routed_message` or `chunk` — no multi-chunk transfer setup required.
 - **`broadcast` (0x09)** is a standalone envelope for broadcast messages (signed, relay-forwarded up to `broadcastTtl` hops).
@@ -486,7 +486,7 @@ The library handles fragmentation transparently. Consuming apps send a message; 
 **Design details:**
 - Each chunk carries a **sequence number** and **message ID**
 - The **first chunk** (sequence number 0) additionally carries the **total chunk count** (2 bytes, little-endian, uint16). This allows the receiver to: (a) pre-allocate a reassembly buffer, (b) detect transfer completion vs. connection drop, and (c) report accurate progress to the consuming app. Subsequent chunks omit this field, saving 2 bytes per chunk.
-- Receiver sends **selective ACKs (SACK)** — SACK uses a 128-bit bitmask (two uint64 fields, see chunk_ack wire format above).
+- Receiver sends **selective ACKs (SACK)** — SACK uses a 64-bit bitmask covering up to 64 chunks beyond the base sequence (4× the max AIMD window of 16).
 - **Progress callbacks** exposed to the consuming app (`onTransferProgress`)
 - **Resumable transfers:** On connection drop, the receiver reports the **total bytes received** (byte offset) rather than a chunk sequence number. The sender resumes from that byte offset, chunked at whatever size the new connection negotiates. This enables seamless resume across transport mode changes — a transfer started on GATT (244-byte chunks) can resume on L2CAP (4096-byte chunks) or vice versa, since chunks are simply byte ranges of the E2E ciphertext. After N failed resume attempts, restart the full transfer. Resume vs. restart behavior is **configurable** by the library consumer.
 
@@ -574,7 +574,7 @@ fun onReconnect():
     consecutiveCleanRounds = 0
 ```
 
-**Single-chunk messages:** Messages that fit in a single chunk still use the standard SACK format (chunk_ack with dual bitmask). No special fast-path — the uniform code path minimizes branching complexity for negligible overhead (31-byte SACK vs. a custom single-chunk ACK).
+**Single-chunk messages:** Messages that fit in a single chunk still use the standard SACK format (chunk_ack with bitmask). No special fast-path — the uniform code path minimizes branching complexity for negligible overhead (27-byte SACK vs. a custom single-chunk ACK).
 
 **L2CAP mode differences:** On L2CAP, chunk sizes increase to per-power-mode negotiated sizes (1024–8192 bytes), and L2CAP's credit-based flow control replaces SACK. See the GATT vs. L2CAP comparison table below for a full summary. App-level NACK with `bufferFull` still applies for concurrent transfer cap and buffer limits (see §4).
 

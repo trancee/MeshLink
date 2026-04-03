@@ -101,7 +101,7 @@ All framed messages begin with a 1-byte type code at offset 0.
 | `0x03` | Hello | `TYPE_HELLO` / `TYPE_ROUTE_REQUEST` | 15 | Babel Hello. Periodic neighbor liveness announcement with sender peer ID and sequence number. |
 | `0x04` | Update | `TYPE_UPDATE` / `TYPE_ROUTE_REPLY` | 49 | Babel Update. Route propagation with destination, metric, sequence number, and public key. |
 | `0x05` | Chunk | `TYPE_CHUNK` | Variable (min 19) | Fragment of a chunked transfer. First chunk (seq=0) has 21-byte header; subsequent chunks have 19-byte header. |
-| `0x06` | Chunk ACK | `TYPE_CHUNK_ACK` | 37+ | Selective acknowledgment of chunks. Has [TLV extensions](#tlv-extension-area). |
+| `0x06` | Chunk ACK | `TYPE_CHUNK_ACK` | 27+ | Selective acknowledgment of chunks. Has [TLV extensions](#tlv-extension-area). |
 | `0x07` | NACK | `TYPE_NACK` | 20+ | Negative acknowledgment with reason code. Has [TLV extensions](#tlv-extension-area). |
 | `0x08` | Resume Request | `TYPE_RESUME_REQUEST` | 23+ | Request to resume a chunked transfer. Has [TLV extensions](#tlv-extension-area). |
 | `0x09` | Broadcast | `TYPE_BROADCAST` | Variable (min 40) | Flood-fill broadcast to all nodes. |
@@ -371,16 +371,16 @@ Byte:   0       1                              16  17      18  19       N
 ### 0x06 — Chunk ACK
 
 Selective acknowledgment for a chunked transfer, using a cumulative ACK
-sequence number plus a 128-bit SACK bitmask (two ULong fields) for
+sequence number plus a 64-bit SACK bitmask for
 out-of-order reception. Covers up to 128 chunks beyond `ackSequence`.
 
-**Source:** `WireCodec.kt` · `CHUNK_ACK_SIZE = 35` (+ TLV extension area)
+**Source:** `ChunkCodec.kt` · `CHUNK_ACK_SIZE = 27` (+ TLV extension area)
 
 ```
-Byte:   0       1                              16  17      18  19                     26  27                     34  35  36
-       +-------+---------- ... ----------------+---+-------+---+---------- ... --------+---+---------- ... --------+---+---+-- ... --+
-       | 0x06  |         messageId (16)         |ackSeq (LE)  | sackBitmask (8, LE)    | sackBitmaskHigh (8, LE)  |extLen | TLV ...  |
-       +-------+---------- ... ----------------+---+-------+---+---------- ... --------+---+---------- ... --------+---+---+-- ... --+
+Byte:   0       1                              16  17      18  19                     26  27  28
+       +-------+---------- ... ----------------+---+-------+---+---------- ... --------+---+---+-- ... --+
+       | 0x06  |         messageId (16)         |ackSeq (LE)  | sackBitmask (8, LE)    |extLen | TLV ...  |
+       +-------+---------- ... ----------------+---+-------+---+---------- ... --------+---+---+-- ... --+
 ```
 
 | Offset | Size | Field | Type | Endianness | Description |
@@ -388,11 +388,10 @@ Byte:   0       1                              16  17      18  19               
 | 0 | 1 | `type` | byte | — | `0x06` |
 | 1–16 | 16 | `messageId` | bytes | — | Message ID being acknowledged. |
 | 17–18 | 2 | `ackSequence` | UShort | **LE** | Cumulative ACK: all chunks up to this number received. |
-| 19–26 | 8 | `sackBitmask` | ULong | **LE** | Low 64 bits: SACK for chunks at offsets 0–63 beyond `ackSequence`. |
-| 27–34 | 8 | `sackBitmaskHigh` | ULong | **LE** | High 64 bits: SACK for chunks at offsets 64–127 beyond `ackSequence`. |
-| 35… | 2+ | `extensions` | [TLV](#tlv-extension-area) | **LE** | TLV extension area (minimum 2 bytes). |
+| 19–26 | 8 | `sackBitmask` | ULong | **LE** | 64-bit SACK for chunks at offsets 0–63 beyond `ackSequence`. |
+| 27… | 2+ | `extensions` | [TLV](#tlv-extension-area) | **LE** | TLV extension area (minimum 2 bytes). |
 
-**Minimum size:** 37 bytes (35-byte fixed body + 2-byte empty extension area).
+**Minimum size:** 29 bytes (27-byte fixed body + 2-byte empty extension area).
 
 ---
 
@@ -726,7 +725,7 @@ payload fields.
 ### Little-Endian
 
 Used for: Chunk `sequenceNumber`/`totalChunks`, Chunk ACK `ackSequence`/
-`sackBitmask`/`sackBitmaskHigh`, Routed Message `replayCounter`,
+`sackBitmask`, Routed Message `replayCounter`,
 Route Request/Reply `requestId`, Resume
 Request `bytesReceived`, Keepalive `timestampMillis`.
 
@@ -756,7 +755,6 @@ Quick reference for the byte order of every multi-byte field in the protocol.
 | Chunk | `totalChunks` | 2 | **LE** (seq=0 only) |
 | Chunk ACK | `ackSequence` | 2 | **LE** |
 | Chunk ACK | `sackBitmask` | 8 | **LE** |
-| Chunk ACK | `sackBitmaskHigh` | 8 | **LE** |
 | Routed Message | `replayCounter` | 8 | **LE** |
 | Route Request | `requestId` | 4 | **LE** |
 | Route Reply | `requestId` | 4 | **LE** |

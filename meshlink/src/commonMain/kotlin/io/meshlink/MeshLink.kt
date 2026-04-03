@@ -124,7 +124,7 @@ class MeshLink(
             val info = transferEngine.getOutboundRecipientInfo(key) ?: continue
             val recipientKey = outboundTracker.recipient(key)?.toKey() ?: continue
             if (recipientKey == peerKey && !info.isComplete && !info.isFailed) {
-                val update = transferEngine.onAck(key, -1, 0uL, 0uL)
+                val update = transferEngine.onAck(key, -1, 0uL)
                 if (update is TransferUpdate.Progress) {
                     dispatchChunks(s, outboundTracker.recipient(key)!!, update.chunksToSend, info.messageId)
                 }

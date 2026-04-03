@@ -45,7 +45,7 @@ class TlvExtensionWireTest {
 
     @Test
     fun chunkAckWithExtensionsRoundTrips() {
-        val encoded = WireCodec.encodeChunkAck(messageId, 5u, 0uL, 0uL, sampleExtensions)
+        val encoded = WireCodec.encodeChunkAck(messageId, 5u, 0uL, sampleExtensions)
         val decoded = WireCodec.decodeChunkAck(encoded)
         assertEquals(5u.toUShort(), decoded.ackSequence)
         assertEquals(2, decoded.extensions.size)

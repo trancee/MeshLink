@@ -15,12 +15,12 @@ class TransferSessionTest {
         assertFalse(session.isComplete())
 
         // Receiver got 0 and 2, but NOT 1
-        session.onAck(ackSeq = 0, sackBitmask = (1uL shl 1), sackBitmaskHigh = 0uL)
+        session.onAck(ackSeq = 0, sackBitmask = (1uL shl 1))
 
         val next = session.nextChunksToSend()
         assertEquals(listOf(1, 3, 4), next)
 
-        session.onAck(ackSeq = 4, sackBitmask = 0u, sackBitmaskHigh = 0uL)
+        session.onAck(ackSeq = 4, sackBitmask = 0u)
         assertTrue(session.isComplete())
         assertEquals(emptyList(), session.nextChunksToSend())
     }
@@ -54,7 +54,7 @@ class TransferSessionTest {
         assertEquals(listOf(0, 1, 2, 3, 4, 5), first)
 
         // ACK chunk 0 only — 1-5 are in-flight but not acked
-        session.onAck(ackSeq = 0, sackBitmask = 0u, sackBitmaskHigh = 0uL)
+        session.onAck(ackSeq = 0, sackBitmask = 0u)
 
         // Two consecutive timeouts triggers AIMD halving (window 10 → 5)
         session.onTimeout()
@@ -79,7 +79,7 @@ class TransferSessionTest {
         assertEquals(listOf(0, 1, 2), first, "Should send all 3 chunks, not 100")
 
         // After ACK, no more to send
-        session.onAck(ackSeq = 2, sackBitmask = 0u, sackBitmaskHigh = 0uL)
+        session.onAck(ackSeq = 2, sackBitmask = 0u)
         assertTrue(session.isComplete())
         assertEquals(emptyList(), session.nextChunksToSend())
     }

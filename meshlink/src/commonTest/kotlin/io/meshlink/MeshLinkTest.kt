@@ -6326,7 +6326,6 @@ class MeshLinkTest {
             messageId = unknownMsgId,
             ackSequence = 0u,
             sackBitmask = 0uL,
-            sackBitmaskHigh = 0uL
         )
         transportA.receiveData(peerIdBob, chunkAck)
         advanceUntilIdle()

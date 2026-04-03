@@ -16,7 +16,8 @@ object ChunkCodec {
     @Deprecated("Use CHUNK_HEADER_SIZE_FIRST for seq=0 or CHUNK_HEADER_SIZE_SUBSEQUENT for seq>0")
     const val CHUNK_HEADER_SIZE = CHUNK_HEADER_SIZE_FIRST
 
-    private const val CHUNK_ACK_SIZE = 1 + MESSAGE_ID_SIZE + 2 + 8 + 8 // 35
+    // chunk_ack: type(1) + messageId(16) + ackSeq(2 LE) + sackBitmask(8 LE)
+    private const val CHUNK_ACK_SIZE = 1 + MESSAGE_ID_SIZE + 2 + 8 // 27
 
     fun encodeChunk(
         messageId: ByteArray,
@@ -70,7 +71,6 @@ object ChunkCodec {
         messageId: ByteArray,
         ackSequence: UShort,
         sackBitmask: ULong,
-        sackBitmaskHigh: ULong,
         extensions: List<TlvEntry> = emptyList(),
     ): ByteArray {
         val extBytes = TlvCodec.encode(extensions)
@@ -82,8 +82,6 @@ object ChunkCodec {
         buf.putUShortLE(offset, ackSequence)
         offset += 2
         buf.putULongLE(offset, sackBitmask)
-        offset += 8
-        buf.putULongLE(offset, sackBitmaskHigh)
         extBytes.copyInto(buf, CHUNK_ACK_SIZE)
         return buf
     }
@@ -97,14 +95,12 @@ object ChunkCodec {
         val ackSequence = data.getUShortLE(offset)
         offset += 2
         val sackBitmask = data.getULongLE(offset)
-        offset += 8
-        val sackBitmaskHigh = data.getULongLE(offset)
         val extensions = if (data.size > CHUNK_ACK_SIZE) {
             TlvCodec.decode(data, CHUNK_ACK_SIZE).first
         } else {
             emptyList()
         }
-        return ChunkAckMessage(messageId, ackSequence, sackBitmask, sackBitmaskHigh, extensions)
+        return ChunkAckMessage(messageId, ackSequence, sackBitmask, extensions)
     }
 }
 
@@ -119,6 +115,5 @@ data class ChunkAckMessage(
     val messageId: ByteArray,
     val ackSequence: UShort,
     val sackBitmask: ULong,
-    val sackBitmaskHigh: ULong,
     val extensions: List<TlvEntry> = emptyList(),
 )

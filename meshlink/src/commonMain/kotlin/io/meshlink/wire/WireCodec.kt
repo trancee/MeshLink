@@ -58,9 +58,8 @@ object WireCodec {
         messageId: ByteArray,
         ackSequence: UShort,
         sackBitmask: ULong,
-        sackBitmaskHigh: ULong,
         extensions: List<TlvEntry> = emptyList(),
-    ) = ChunkCodec.encodeChunkAck(messageId, ackSequence, sackBitmask, sackBitmaskHigh, extensions)
+    ) = ChunkCodec.encodeChunkAck(messageId, ackSequence, sackBitmask, extensions)
 
     fun decodeChunkAck(data: ByteArray) = ChunkCodec.decodeChunkAck(data)
 

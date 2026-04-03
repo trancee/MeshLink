@@ -104,10 +104,8 @@ class WireCodecTest {
             messageId = testMessageId,
             ackSequence = 5u,
             sackBitmask = 0x1Fu,
-            sackBitmaskHigh = 0uL
         )
 
-        // type(1) + messageId(12) + ackSeq(2 LE) + sackBitmask(8 LE) + sackBitmaskHigh(8 LE) + ext(2) = 33
         val expected = byteArrayOf(
             0x06,                                                           // type: chunk_ack
             0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,               // messageId[0..7]
@@ -115,7 +113,6 @@ class WireCodecTest {
             0x0C, 0x0D, 0x0E, 0x0F,                                        // messageId[12..15]
             0x05, 0x00,                                                     // ackSeq = 5 (LE)
             0x1F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,                // sackBitmask = 0x1F (LE)
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,                // sackBitmaskHigh = 0 (LE)
             0x00, 0x00                                                      // empty TLV extensions
         )
 
@@ -139,7 +136,6 @@ class WireCodecTest {
         assertContentEquals(testMessageId, decoded.messageId)
         assertEquals(5u.toUShort(), decoded.ackSequence)
         assertEquals(0x1Fu.toULong(), decoded.sackBitmask)
-        assertEquals(0uL, decoded.sackBitmaskHigh)
     }
 
     @Test
@@ -166,13 +162,12 @@ class WireCodecTest {
 
     @Test
     fun chunkAckEncodeDecodeRoundTrips() {
-        val encoded = WireCodec.encodeChunkAck(testMessageId, 1000u, ULong.MAX_VALUE, 0x1234567890ABCDEFuL)
+        val encoded = WireCodec.encodeChunkAck(testMessageId, 1000u, ULong.MAX_VALUE)
         val decoded = WireCodec.decodeChunkAck(encoded)
 
         assertContentEquals(testMessageId, decoded.messageId)
         assertEquals(1000u.toUShort(), decoded.ackSequence)
         assertEquals(ULong.MAX_VALUE, decoded.sackBitmask)
-        assertEquals(0x1234567890ABCDEFuL, decoded.sackBitmaskHigh)
     }
 
     // --- Routed message (0x0a) ---

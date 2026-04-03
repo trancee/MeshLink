@@ -48,9 +48,9 @@ class TransferEngine(
         )
     }
 
-    fun onAck(messageId: ByteArrayKey, ackSeq: Int, sackBitmask: ULong, sackBitmaskHigh: ULong): TransferUpdate {
+    fun onAck(messageId: ByteArrayKey, ackSeq: Int, sackBitmask: ULong): TransferUpdate {
         val state = outbound[messageId] ?: return TransferUpdate.Unknown
-        state.session.onAck(ackSeq, sackBitmask, sackBitmaskHigh)
+        state.session.onAck(ackSeq, sackBitmask)
 
         if (state.session.isComplete()) {
             outbound.remove(messageId)
@@ -111,7 +111,6 @@ class TransferEngine(
             return ChunkAcceptResult.MessageComplete(
                 ackSeq = status.ackSeq,
                 sackBitmask = status.sackBitmask,
-                sackBitmaskHigh = status.sackBitmaskHigh,
                 reassembledPayload = fullPayload,
             )
         }
@@ -119,7 +118,6 @@ class TransferEngine(
         return ChunkAcceptResult.Ack(
             ackSeq = status.ackSeq,
             sackBitmask = status.sackBitmask,
-            sackBitmaskHigh = status.sackBitmaskHigh,
         )
     }
 
@@ -205,11 +203,10 @@ sealed interface TransferUpdate {
 }
 
 sealed interface ChunkAcceptResult {
-    data class Ack(val ackSeq: Int, val sackBitmask: ULong, val sackBitmaskHigh: ULong) : ChunkAcceptResult
+    data class Ack(val ackSeq: Int, val sackBitmask: ULong) : ChunkAcceptResult
     data class MessageComplete(
         val ackSeq: Int,
         val sackBitmask: ULong,
-        val sackBitmaskHigh: ULong,
         val reassembledPayload: ByteArray,
     ) : ChunkAcceptResult
     data object Rejected : ChunkAcceptResult
