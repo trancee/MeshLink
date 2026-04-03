@@ -50,10 +50,18 @@ import io.meshlink.config.meshLinkConfig
 
 val config = meshLinkConfig {
     maxMessageSize = 50_000
-    routeCacheTtlMillis = 120_000L
     maxHops = 5u
+    advanced {
+        routeCacheTtlMillis = 120_000L
+        keepaliveIntervalMillis = 30_000L
+    }
 }
 ```
+
+Public parameters (e.g., `maxMessageSize`, `maxHops`) are set directly on the
+builder. Internal protocol parameters live in the `advanced { }` block. For
+backward compatibility, internal parameters can also be set directly on the
+builder without the `advanced` wrapper.
 
 See [API Reference § Configuration](api-reference.md#fields) for the complete
 field list with defaults and descriptions.
@@ -85,7 +93,7 @@ The most commonly tuned fields:
 - **`l2capEnabled`** — high-throughput L2CAP mode with GATT fallback (default: true)
 - **`trustMode`** — key pinning policy: `STRICT` (reject key changes) or `SOFT_REPIN` (auto-accept)
 - **`deliveryAckEnabled`** — send signed delivery ACKs for received messages (default: true)
-- **`diagnosticsEnabled`** — enable the diagnostic event stream (default: false; zero overhead when disabled)
+- **`diagnosticsEnabled`** — enable the diagnostic event stream (default: true; zero overhead when disabled)
 - **`customPowerMode`** — override automatic battery-based power mode (default: null = automatic)
 - **`pendingMessageTtlMillis`** — TTL for queued outbound messages (default: 0 = never expire)
 
@@ -176,8 +184,9 @@ When a peer discovers a new neighbor (via BLE advertisement):
 4. Routes are accepted only if they pass the **feasibility condition**
    (metric < feasibility distance), guaranteeing loop-freedom.
 
-If no proactive route exists when `send()` is called, a fallback RREQ/RREP
-flood discovers a path on demand (typically 1–3 seconds for ≤ 5 hops).
+If no proactive route exists when `send()` is called, a fallback route
+discovery floods a Hello to all neighbors, triggering Update responses
+that install the needed route (typically 1–3 seconds for ≤ 5 hops).
 
 ### Route Cache Tuning
 

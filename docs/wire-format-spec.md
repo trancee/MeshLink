@@ -98,8 +98,8 @@ All framed messages begin with a 1-byte type code at offset 0.
 | `0x00` | Handshake | `TYPE_HANDSHAKE` | Variable (min 2) | Noise XX handshake step. |
 | `0x01` | Keepalive | `TYPE_KEEPALIVE` | 12+ | Link liveness probe. Has [TLV extensions](#tlv-extension-area). |
 | `0x02` | Rotation Announcement | `TYPE_ROTATION` | 201 | Key rotation broadcast. |
-| `0x03` | Hello / Route Request | `TYPE_HELLO` / `TYPE_ROUTE_REQUEST` | 33+ | Babel Hello / legacy AODV RREQ. Neighbor liveness and route discovery. Has [TLV extensions](#tlv-extension-area). |
-| `0x04` | Update / Route Reply | `TYPE_UPDATE` / `TYPE_ROUTE_REPLY` | 32+ | Babel Update / legacy AODV RREP. Route propagation with public key. Has [TLV extensions](#tlv-extension-area). |
+| `0x03` | Hello | `TYPE_HELLO` / `TYPE_ROUTE_REQUEST` | 15 | Babel Hello. Periodic neighbor liveness announcement with sender peer ID and sequence number. |
+| `0x04` | Update | `TYPE_UPDATE` / `TYPE_ROUTE_REPLY` | 49 | Babel Update. Route propagation with destination, metric, sequence number, and public key. |
 | `0x05` | Chunk | `TYPE_CHUNK` | Variable (min 19) | Fragment of a chunked transfer. First chunk (seq=0) has 21-byte header; subsequent chunks have 19-byte header. |
 | `0x06` | Chunk ACK | `TYPE_CHUNK_ACK` | 37+ | Selective acknowledgment of chunks. Has [TLV extensions](#tlv-extension-area). |
 | `0x07` | NACK | `TYPE_NACK` | 20+ | Negative acknowledgment with reason code. Has [TLV extensions](#tlv-extension-area). |
@@ -267,66 +267,63 @@ the 5-byte payload carried inside the Noise framework messages.
 
 ---
 
-### 0x03 — Route Request (RREQ)
+### 0x03 — Hello (Babel)
 
-Babel Hello or legacy AODV route discovery request. Flooded by the originator (or an intermediate
-peer with no cached route) to discover a path to a destination. Each peer
-that receives an RREQ records the reverse path back to the origin and
-rebroadcasts unless it has already seen the same `requestId` from the same
-origin.
+Periodic neighbor liveness announcement. Each peer sends Hello messages to
+all direct neighbors at the keepalive interval (per power mode). When a
+neighbor receives a Hello from a **new** peer, it responds with its full
+routing table as a batch of Update messages.
 
-**Source:** `WireCodec.kt` · Fixed body: **31 bytes** (+ TLV extension area)
+**Source:** `RoutingCodec.kt` · Fixed size: **15 bytes**
 
 ```
-Byte:   0       1            12  13           24 25          28 29   30  31  32
-       +-------+---- ... ----+--+---- ... ----+--+--- ... ---+-----+-----+---+---+-- ... --+
-       | 0x03  | origin (12) |  |  dest (12)  |  | reqId(4LE)| hops|limit|extLen | TLV ...  |
-       +-------+---- ... ----+--+---- ... ----+--+--- ... ---+-----+-----+---+---+-- ... --+
+Byte:   0       1            12  13     14
+       +-------+---- ... ----+--+------+------+
+       | 0x03  | sender (12) |  | seqNo (2 LE) |
+       +-------+---- ... ----+--+------+------+
 ```
 
 | Offset | Size | Field | Type | Endianness | Description |
 |--------|------|-------|------|------------|-------------|
 | 0 | 1 | `type` | byte | — | `0x03` |
-| 1–12 | 12 | `origin` | bytes | — | Peer ID of the originator. |
-| 13–24 | 12 | `destination` | bytes | — | Peer ID of the desired destination. |
-| 25–28 | 4 | `requestId` | UInt | **LE** | Unique request identifier (scoped to origin). |
-| 29 | 1 | `hopCount` | UByte | — | Number of hops traversed so far. |
-| 30 | 1 | `hopLimit` | UByte | — | Maximum hops (derived from `maxHops` config). |
-| 31… | 2+ | `extensions` | [TLV](#tlv-extension-area) | **LE** | TLV extension area (minimum 2 bytes). |
+| 1–12 | 12 | `sender` | bytes | — | Peer ID of the sender. |
+| 13–14 | 2 | `seqNo` | UShort | **LE** | Sender's current sequence number. |
 
 **Validation:**
-- Minimum size: 33 bytes (31-byte fixed body + 2-byte empty extension area).
-- `hopCount` must be < `hopLimit`; otherwise the RREQ is dropped.
-- Duplicate RREQs (same `origin` + `requestId`) are dropped.
+- Minimum size: 15 bytes.
 
 ---
 
-### 0x04 — Route Reply (RREP)
+### 0x04 — Update (Babel)
 
-Babel Update or legacy AODV route reply. Unicast back along the reverse path recorded during the
-RREQ flood. Sent by the destination peer or by an intermediate peer that
-already has a cached route to the destination.
+Route advertisement carrying a destination, metric, sequence number, and
+the destination's 32-byte Ed25519 public key (key propagation). Sent in
+response to a Hello from a new neighbor, or periodically as a full routing
+table dump (every 4× Hello interval).
 
-**Source:** `WireCodec.kt` · Fixed body: **30 bytes** (+ TLV extension area)
+An Update with `metric = 0xFFFF` is a **route retraction** (destination
+unreachable).
+
+**Source:** `RoutingCodec.kt` · Fixed size: **49 bytes**
 
 ```
-Byte:   0       1            12  13           24 25          28 29  30  31
-       +-------+---- ... ----+--+---- ... ----+--+--- ... ---+-----+---+---+-- ... --+
-       | 0x04  | origin (12) |  |  dest (12)  |  | reqId(4LE)| hops|extLen | TLV ...  |
-       +-------+---- ... ----+--+---- ... ----+--+--- ... ---+-----+---+---+-- ... --+
+Byte:   0       1            12  13     14  15     16  17           48
+       +-------+---- ... ----+--+------+---+------+---+---- ... ----+
+       | 0x04  |  dest (12)  |  |metric(2LE)| seqNo(2LE)|pubkey (32) |
+       +-------+---- ... ----+--+------+---+------+---+---- ... ----+
 ```
 
 | Offset | Size | Field | Type | Endianness | Description |
 |--------|------|-------|------|------------|-------------|
 | 0 | 1 | `type` | byte | — | `0x04` |
-| 1–12 | 12 | `origin` | bytes | — | Peer ID of the original originator. |
-| 13–24 | 12 | `destination` | bytes | — | Peer ID of the destination. |
-| 25–28 | 4 | `requestId` | UInt | **LE** | Request ID from the corresponding request. |
-| 29 | 1 | `hopCount` | UByte | — | Number of hops (incremented at each relay). |
-| 30… | 2+ | `extensions` | [TLV](#tlv-extension-area) | **LE** | TLV extension area (minimum 2 bytes). |
+| 1–12 | 12 | `destination` | bytes | — | Peer ID of the route destination. |
+| 13–14 | 2 | `metric` | UShort | **LE** | Route metric (composite cost). `0xFFFF` = unreachable (retraction). |
+| 15–16 | 2 | `seqNo` | UShort | **LE** | Route sequence number for freshness. |
+| 17–48 | 32 | `publicKey` | bytes | — | Destination's Ed25519 public key. |
 
 **Validation:**
-- Minimum size: 32 bytes (30-byte fixed body + 2-byte empty extension area).
+- Minimum size: 49 bytes.
+- `publicKey` must be 32 bytes.
 
 ---
 

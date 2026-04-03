@@ -643,7 +643,7 @@ Based on BLE physical characteristics (3–5ms per GATT write, ~50–200ms conne
 | 100KB direct (1 hop, GATT) | 4–8s | ~410 chunks × ~10–20ms per chunk + SACK rounds |
 | 100KB direct (1 hop, L2CAP) | 1–3s | ~25 chunks at 4096 bytes; credit-based flow |
 | 100KB routed (2 hops, GATT) | 8–20s | Cut-through helps; bottleneck is slowest link |
-| 1KB routed (2 hops, PowerSaver) | 5–15s | Route available via Babel Updates; fallback RREQ ~5s + handshake (8s) |
+| 1KB routed (2 hops, PowerSaver) | 5–15s | Route available via Babel Updates; Hello-triggered discovery ~3s + handshake (8s) |
 
 These are estimates to be validated with real-device measurements during Phase 1. PowerSaver mode adds latency due to longer scan/advertising intervals.
 
@@ -753,8 +753,7 @@ flowchart TD
 Neighbor discovery uses periodic Hello messages. Multi-hop routes are
 propagated via Update messages with a **feasibility condition** that
 guarantees loop-freedom at all times (D(B) < FD(A), per EIGRP/DUAL).
-Legacy AODV RREQ/RREP is retained as a fallback for on-demand route
-discovery. See [routing-protocol-analysis.md](routing-protocol-analysis.md)
+See [routing-protocol-analysis.md](routing-protocol-analysis.md)
 for the full evaluation of 7 routing RFCs.
 
 ### Route Propagation Protocol
@@ -781,17 +780,17 @@ This guarantees loop-freedom at all times (RFC 8966 §2.4, derived from EIGRP DU
 **Route retraction:**
 When a destination becomes unreachable (neighbor lost, route expired), an
 Update with `metric = 0xFFFF` (infinity) is sent to all neighbors. This
-replaces AODV's RERR mechanism with faster, more reliable convergence.
+provides faster, more reliable convergence than explicit route error messages.
 
 **Periodic full Update:**
 Every 4× Hello interval, the peer bumps its local sequence number and sends
 a full routing table dump to all neighbors. This is a safety net — triggered
 Updates handle most topology changes in real time.
 
-**Fallback RREQ/RREP:**
-If no proactive route exists when `send()` is called, the legacy AODV
-RREQ/RREP mechanism floods a route request as a last resort. This covers
-the initial cold-start case before Babel Updates have propagated.
+**On-demand fallback:**
+If no proactive route exists when `send()` is called, a Hello is broadcast
+to all neighbors, triggering Update responses that install routes. This
+covers the initial cold-start case before periodic Updates have propagated.
 
 ```mermaid
 sequenceDiagram
@@ -823,8 +822,7 @@ an expired destination triggers a fresh route discovery.
 ### RouteCoordinator
 
 `RouteCoordinator` sends periodic Babel Hello messages (which double as
-keepalive heartbeats) and periodic full routing table Updates. It also
-retains legacy RREQ flooding for fallback route discovery.
+keepalive heartbeats) and periodic full routing table Updates.
 
 Keepalive/Hello intervals vary by power mode — see §7 Power Management table.
 
@@ -837,49 +835,39 @@ Keepalive/Hello intervals vary by power mode — see §7 Power Management table.
 
 MeshLink uses Babel (RFC 8966) adapted for BLE mesh. Routes are
 propagated via Hello/Update messages with a feasibility condition
-that guarantees loop-freedom. Legacy AODV RREQ/RREP is retained
-as fallback for on-demand discovery when no proactive route exists.
+that guarantees loop-freedom at all times.
 
 **Core operations in `RoutingEngine`:**
 
-- `initiateRouteDiscovery(destination)` → `RouteDiscovery` — creates an RREQ
-  frame for the given destination and returns it for flooding.
-- `handleRouteRequest(rreqFrame, fromNeighbor)` → `RouteRequestResult` — processes
-  an incoming RREQ: returns `Reply` (if destination or cached route), `Flood`
-  (rebroadcast), or `Drop` (duplicate/expired).
-- `handleRouteReply(rrepFrame, fromNeighbor)` → `RouteReplyResult` — processes
-  an incoming RREP: returns `Forward` (relay toward originator), `Resolved`
-  (route established, drain pending), or `Drop` (no matching reverse path).
+- `handleHello(sender, seqNo)` — processes an incoming Hello. If the sender
+  is a new neighbor, responds with full routing table as Update messages.
+- `handleUpdate(destination, metric, seqNo, publicKey)` — processes an
+  incoming Update. Checks the feasibility condition and installs/updates
+  the route if accepted. Registers the destination's public key.
+- `buildRetraction(destination)` — creates an Update with `metric=0xFFFF`
+  (unreachable) for broadcasting when a neighbor is lost.
 
-**RREQ deduplication:** Each peer tracks recently seen `(origin, requestId)`
-pairs in a bounded dedup set. Duplicate RREQs are dropped without rebroadcast.
-
-**Reverse path tracking:** On receiving an RREQ, the peer records a mapping from
-`(origin, requestId)` to the neighbor that delivered the RREQ. This reverse path
-is used to unicast the RREP back to the originator.
-
-**Route cache:** Discovered routes are stored in a time-bounded cache. Each entry
-records the destination, next-hop neighbor, hop count, and a TTL timestamp.
-Entries expire after `routeCacheTtlMillis` (default 300 seconds). Expired entries
-are lazily evicted on the next lookup.
+**Route cache:** Routes are stored in a time-bounded cache. Each entry
+records the destination, next-hop neighbor, cost, sequence number, and a
+TTL timestamp. Entries expire after `routeCacheTtlMillis` (default 300
+seconds). Expired entries are lazily evicted on the next lookup.
 
 **Pending message queue:** When `MeshLink.send()` is called for a destination
-with no cached route, the message is placed in a pending queue and an RREQ is
-flooded. When the corresponding RREP arrives (`RouteReplyResult.Resolved`), the
-`DispatchSink.onRouteDiscovered()` callback fires and all queued messages for
-that destination are drained and sent.
+with no cached route, the message is placed in a pending queue and a Hello
+is broadcast to all neighbors (triggering Update responses). When an Update
+installs the needed route, `DispatchSink.onRouteDiscovered()` fires and all
+queued messages for that destination are drained and sent.
 
 ```mermaid
 flowchart TD
     A["send(msg, dest)"] --> B{"Route cached\nfor dest?"}
     B -- Yes --> C["Forward via\ncached next-hop"]
     B -- No --> D["Queue msg in\npending buffer"]
-    D --> E["initiateRouteDiscovery(dest)\n→ RouteDiscovery(rreqFrame)"]
-    E --> F["Flood RREQ to\nall neighbors"]
-    F --> G{"RREP received\nwithin timeout?"}
-    G -- Yes --> H["Install route\nin cache"]
+    D --> E["Broadcast Hello\nto all neighbors"]
+    E --> F{"Update received\nwith route to dest?"}
+    F -- Yes --> H["Install route\nin cache"]
     H --> I["onRouteDiscovered(dest)\n→ drain pending queue"]
-    G -- No --> J["Fail with\nFAILED_NO_ROUTE"]
+    F -- No --> J["Fail with\nFAILED_NO_ROUTE"]
 ```
 
 ### Route Metric: Composite Link Quality (ETX-Weighted)
@@ -941,7 +929,7 @@ flowchart LR
     Add --> Cost
 ```
 
-**Route cost** = sum of per-link costs along the path. RREP messages carry the **cumulative hop count** from the destination. The route cache selects the route with the **lowest total cost** (not just lowest hop count) when multiple routes are available.
+**Route cost** = sum of per-link costs along the path. Update messages carry the **cumulative metric** from the destination. The route cache selects the route with the **lowest total cost** (not just lowest hop count) when multiple routes are available.
 
 **Fallback:** If link quality data is unavailable (new Neighbor, no Transfers yet), cost defaults to 1.0 per hop (equivalent to hop count). Link quality improves route selection over time as data accumulates.
 
@@ -977,7 +965,7 @@ The backup route must use a different Next-Hop — two routes through the same N
 3. Wait for the next route discovery to find a new backup
 4. If no backup exists → buffer the message and wait for route discovery (up to buffer TTL)
 
-**Best-effort multi-path:** MeshLink does NOT maintain explicit backup path state — backups are a natural consequence of the route cache, which may store alternative routes from intermediate RREPs. If neither primary nor backup succeeds, the message is buffered for TTL duration and a fresh route discovery is initiated. No proactive backup path probing or maintenance is performed.
+**Best-effort multi-path:** MeshLink does NOT maintain explicit backup path state — backups are a natural consequence of the route cache, which may store alternative routes from Babel Updates via different neighbors. If neither primary nor backup succeeds, the message is buffered for TTL duration and a fresh route discovery is initiated. No proactive backup path probing or maintenance is performed.
 
 **Interaction with route failure:** When a route is detected as broken (delivery timeout, GATT disconnect), the backup (if it exists and doesn't use the same failed link) becomes primary immediately. A fresh route discovery restores full route knowledge within `routeDiscoveryTimeoutMillis`.
 
@@ -991,8 +979,8 @@ retractions:
 | Event | Action |
 |-------|--------|
 | New Neighbor discovered (GATT + Noise XX complete) | Neighbor added to connection table. No route exchange needed — routes are discovered on demand when messages are sent. |
-| Neighbor transitions to Gone (Presence Eviction) | All cached routes using that neighbor as next-hop are invalidated. Next send to those destinations triggers fresh RREQ. |
-| Route failure (delivery timeout) | Cached route removed. Fresh RREQ flooded on next send attempt. |
+| Neighbor transitions to Gone (Presence Eviction) | All cached routes using that neighbor as next-hop are invalidated. Route retraction Updates sent to remaining neighbors. |
+| Route failure (delivery timeout) | Cached route removed. Hello broadcast triggers Update-based rediscovery on next send attempt. |
 
 **Low background routing traffic:** Babel generates periodic Hello messages
 (~60 bytes per neighbor per Hello interval) and full routing table Updates
@@ -1000,12 +988,13 @@ every 4× Hello interval. This is ~0.06% of BLE bandwidth — negligible.
 Triggered Updates on topology changes provide fast convergence without
 waiting for periodic intervals.
 
-### Route Settling Time & RREQ Rate Limiting
+### Route Settling Time & Discovery Rate Limiting
 
-**RREQ rate limiting:** To prevent RREQ storms, a peer sends at most **one RREQ
-per destination per `routeDiscoveryTimeoutMillis` window**. If a second send to
-the same destination arrives while a discovery is already in progress, the
-message is queued in the pending buffer and drained when the RREP arrives.
+**Discovery rate limiting:** To prevent discovery storms, a peer sends at most **one
+Hello broadcast per destination per `routeDiscoveryTimeoutMillis` window**. If a
+second send to the same destination arrives while discovery is already in
+progress, the message is queued in the pending buffer and drained when the
+route is installed via Update.
 
 **Exceptions (immediate rediscovery):**
 - **Route failure** (delivery timeout, GATT disconnect) — immediately invalidates
@@ -1319,7 +1308,7 @@ A malicious peer in BLE range could flood the mesh with fake messages, exhaustin
 | Window | Monotonic-clock 60-second sliding window |
 | Enforcement | At the **relay** (earliest forwarding point), not final destination |
 | Scope | **User-level messages** only (routed_message + broadcast) |
-| Exempt | Route control (RREQ, RREP, keepalive), chunk_ack, delivery_ack, handshake (control-plane) |
+| Exempt | Route control (Hello, Update, keepalive), chunk_ack, delivery_ack, handshake (control-plane) |
 | Counting | Per logical message (complete payload), not per chunk — keyed on first-seen `messageId` |
 | Overflow | NACK + `rateLimitHit(peer, sender)` diagnostic (once per sender per 60s window) |
 
@@ -1345,7 +1334,7 @@ An attacker with physical access to multiple devices can generate many valid Ed2
 
 ### Routing Manipulation Mitigation
 
-Signed route discovery (§4) prevents key forgery in RREQ/RREP messages but does not prevent relay nodes from manipulating mutable routing fields (hop count inflation, RREQ suppression). MeshLink mitigates routing manipulation via a **hybrid reputation system**:
+Babel route signing prevents key forgery in Update messages but does not prevent relay nodes from manipulating mutable routing fields (metric inflation, Update suppression). MeshLink mitigates routing manipulation via a **hybrid reputation system**:
 
 **Statistical correlation (normal/low priority messages):** Each peer maintains a **local-only reputation score** per relay, tracking delivery success rates across all paths through that relay over time. If a relay appears disproportionately on failed routes vs. successful routes, it is deprioritized in path selection. Reputation scores are never shared — this prevents reputation poisoning attacks where a malicious peer broadcasts false scores to isolate a legitimate relay. Detection requires sufficient data points (~20-50 messages through a relay), so convergence time is ~10-30 minutes at typical messaging rates.
 
@@ -1910,7 +1899,7 @@ An optional `MeshLink.diagnostics → Stream<DiagnosticEvent>` for transport and
 | `peerEvicted(peer)` | Peer marked gone by sweep |
 | `bufferPressure(usedBytes, totalBytes)` | Buffer usage exceeds 80% |
 | `transportModeChanged(peer, oldMode, newMode)` | Data plane switched between L2CAP and GATT |
-| `routeDiscoveryReport` | Periodic: active route discoveries, cache size, cache hit rate, RREQ/RREP counts |
+| `routeDiscoveryReport` | Periodic: route table size, cache hit rate, Hello/Update counts |
 | `bleInitSlow(elapsed)` | CoreBluetooth initialization exceeded 30s timeout on iOS app relaunch via State Preservation |
 | `evictionFailed(peer)` | BLE.disconnect() failed during connection eviction; message queued for retry |
 | `restarted(reason)` | Library restarted after stop→start; reason is `"user"` (normal) or `"crash_recovery"` (after fatalError) |
@@ -2142,7 +2131,7 @@ MeshLink uses an **engine/coordinator pattern** with three categories of modules
 
 **Thread safety:** All mutable state is confined to a single coroutine scope per engine. Engines expose suspend functions; callers invoke them sequentially from the MeshLink coroutine scope. No locks, no shared mutable state between modules.
 
-**Routing table concurrency:** RoutingEngine processes operations sequentially within its coroutine scope — RREQ/RREP handling and forwarding lookups are serialized by construction. No concurrent access, no locking required.
+**Routing table concurrency:** RoutingEngine processes operations sequentially within its coroutine scope — Hello/Update handling and forwarding lookups are serialized by construction. No concurrent access, no locking required.
 
 See [diagrams.md § Engine & Coordinator Data Flow](diagrams.md#8-engine--coordinator-data-flow) for the module interaction diagram.
 

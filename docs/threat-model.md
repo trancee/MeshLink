@@ -55,7 +55,7 @@ RFC-validated).
 
 | Component | Type | Location | Role |
 |-----------|------|----------|------|
-| **MeshLink** | Orchestrator | `MeshLink.kt` (~830 lines) | Wiring layer connecting engines, coordinators, and transport |
+| **MeshLink** | Orchestrator | `MeshLink.kt` (~830 lines) | Wiring layer connecting engines, coordinators, and transport. Delegates to PayloadEnvelope, PeerQueryService, MeshHealthReporter, and SweepOperations. |
 | **SecurityEngine** | Stateful engine | `crypto/SecurityEngine.kt` | Noise XX/K seal/unseal, trust store, replay guard |
 | **RoutingEngine** | Stateful engine | `routing/RoutingEngine.kt` | Babel route table, feasibility distances, route validation |
 | **TransferEngine** | Stateful engine | `transfer/TransferEngine.kt` | Chunking, reassembly, SACK, AIMD congestion control |

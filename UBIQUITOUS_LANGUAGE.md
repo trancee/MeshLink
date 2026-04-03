@@ -53,7 +53,7 @@ The following terms are commonly confused. Read this before continuing.
 | **BleTransport** | The abstraction interface between mesh logic and platform BLE (CoreBluetooth / android.bluetooth). Exposes both GATT and **L2CAP CoC** operations. | Transport layer, BLE adapter |
 | **Capability Byte** | A 1-byte bitmap exchanged during the **Noise XX Session** handshake indicating supported transport features. Bit 0 = **L2CAP CoC** supported. | Feature flags, capability flags |
 | **Control Characteristic** | The GATT characteristic pair (write + notify) carrying Noise XX handshakes and control exchanges. | Handshake channel |
-| **Control Plane** | The GATT-based channel for low-bandwidth protocol messages (Noise XX handshakes, ACKs, AODV route discovery). Always GATT, even when L2CAP is active. | Management plane, discovery layer |
+| **Control Plane** | The GATT-based channel for low-bandwidth protocol messages (Noise XX handshakes, ACKs, Babel Hello/Update route exchange). Always GATT, even when L2CAP is active. | Management plane, discovery layer |
 | **Credit-Based Flow Control** | Built-in **L2CAP CoC** throttling: receiver issues credits, sender pauses when exhausted. Replaces **SACK** on L2CAP connections. | L2CAP flow control, credit flow |
 | **Data Characteristic** | The GATT characteristic pair (write + notify) carrying **Chunks**, **Chunk ACKs**, and **Delivery ACKs** when **L2CAP CoC** is unavailable (**GATT Fallback** mode). | Payload channel |
 | **Data Plane** | The communication path for bulk message transfer (**Chunks**, **Routed Messages**, **Broadcasts**). Uses **L2CAP CoC** when both **Peers** support it; falls back to GATT **Data Characteristic** otherwise. | Transfer plane, payload plane, forwarding layer |
@@ -131,7 +131,7 @@ The following terms are commonly confused. Read this before continuing.
 | Term | Definition | Aliases to avoid |
 |------|-----------|-----------------|
 | **Birational Map** | RFC 8032 conversion between Ed25519 (Edwards) and Curve25519 (Montgomery) keys. MeshLink derives Curve25519 from Ed25519 (the well-supported direction). One keypair, two uses. | Key conversion, curve mapping |
-| **E2E Encryption** | The Noise K (`Noise_K_25519_ChaChaPoly_SHA256`) one-shot encryption layer protecting **Payload** from sender to final recipient. Noise K provides built-in sender authentication (recipient must know sender's static key via AODV route discovery). | Inner encryption, message encryption |
+| **E2E Encryption** | The Noise K (`Noise_K_25519_ChaChaPoly_SHA256`) one-shot encryption layer protecting **Payload** from sender to final recipient. Noise K provides built-in sender authentication (recipient must know sender's static key via Noise XX handshake or Babel Update key propagation). | Inner encryption, message encryption |
 | **Hop-by-Hop Encryption** | The Noise XX (`Noise_XX_25519_ChaChaPoly_SHA256`) session encryption layer protecting all data between adjacent **Neighbors**. | Outer encryption, transport encryption, link encryption |
 | **Hop-by-Hop Re-encryption** | The per-**Chunk** (or per-**L2CAP Framing** unit) operation at a **Relay**: decrypt from inbound **Noise XX Session**, re-encrypt under outbound **Noise XX Session**. On **L2CAP CoC**, each framed message is an independent encryption unit. | Re-wrapping, transit encryption |
 | **Key Rotation** | Generating a new **Identity** keypair via `rotateIdentity()`, signing the announcement with the old key, and broadcasting both old+new keys to all reachable **Peers**. **TOFU** auto-accepts signed rotations in both `strict` and `softRepin` modes. v1: single-device identity only. | Identity rotation, re-keying |
@@ -142,7 +142,7 @@ The following terms are commonly confused. Read this before continuing.
 
 ## Routing
 
-> See [diagrams.md § AODV Route Discovery](docs/diagrams.md#8-aodv-route-discovery) for the route discovery sequence diagram.
+> See [diagrams.md § Babel Route Propagation](docs/diagrams.md#9-babel-route-propagation) for the route propagation sequence diagram.
 
 | Term | Definition | Aliases to avoid |
 |------|-----------|-----------------|
@@ -158,12 +158,12 @@ The following terms are commonly confused. Read this before continuing.
 | **Per-Neighbor Routing Table Cap** | Sybil mitigation: routes learned through any single **Neighbor** are capped at 30% of the **Routing Table** entries (minimum 60 routes). Prevents a Sybil cluster from dominating path selection. Configurable via `routeTablePerNeighborCap`. | Neighbor route quota, per-neighbor limit |
 | **Primary Route** | The lowest-**Route Cost** path to a destination in the **Routing Table**. Used for forwarding by default. | Best route, preferred route |
 | **Reputation System** | Local-only per-**Relay** delivery success rate tracking. Deprioritizes relays with disproportionate failures. Never shared across peers (prevents reputation poisoning). | Relay trust, behavior scoring |
-| **Route Cost** | Cumulative cost from source to destination, derived from per-hop **Link Costs** via AODV route discovery. Includes freshness penalty (1.5× for links without recent measurement). Used for **Primary Route** selection. | Metric, weight, ETX |
+| **Route Cost** | Cumulative cost from source to destination, derived from per-hop **Link Costs** via Babel Update propagation. Includes freshness penalty (1.5× for links without recent measurement). Used for **Primary Route** selection. | Metric, weight, ETX |
 | **Route Cost Validation** | Sanity check rejecting routes where `advertised_cost < local_link_cost_to_neighbor`. Prevents trivial blackhole attacks. | Cost sanity check |
-| **Route Error (RERR)** | *(Not implemented in v1.)* Routes expire naturally via TTL-based **Route Expiry**. | Route failure, link break notification |
+| **Route Retraction** | An Update with `metric = 0xFFFF` (infinity) sent when a destination becomes unreachable. Replaces the need for RERR messages. | Route failure, link break notification |
 | **Route Expiry** | The soft-deletion of a **Routing Table** entry when its TTL expires (`routeCacheTtlMillis`, default 60s). | Route timeout, stale route cleanup |
 | **Routed Message** | The multi-hop envelope containing a **Sealed Message** + routing metadata (sender/recipient **Public Keys**, hop count, TTL, **Visited List**). | Forwarded message, relay envelope |
-| **Routing Table** | The local data structure mapping each known **Peer** to the best **Neighbor** (next-hop) for forwarding, built from AODV route discovery. Stores primary + backup routes. | Forwarding table, route map |
+| **Routing Table** | The local data structure mapping each known **Peer** to the best **Neighbor** (next-hop) for forwarding, built from Babel Hello/Update route propagation. Stores primary + backup routes. | Forwarding table, route map |
 | **Visited List** | The list of 8-byte **SHA-256-64 Key Hashes** of every **Peer** that has forwarded a **Routed Message**, used for loop prevention. 32 bytes max at 4 hops. | Visited node list, path list |
 | **Visited List Loop Diagnostic** | `VISITED_LIST_LOOP_DETECTED` diagnostic emitted when a message is dropped due to visited-list match. Carries `{messageId, matchedHash, hopCount}`. SHA-256-64 collision probability is ~N²/2⁶⁴ — negligible for meshes ≤10,000 peers; no mitigation implemented. | Loop warning, collision alert |
 
@@ -212,11 +212,11 @@ The following terms are commonly confused. Read this before continuing.
 |------|-----------|-----------------|
 | **Engine** | A stateful facade that consolidates a domain concern behind sealed result types. Constructed once and injected into MeshLink. Callers pattern-match on sealed results to decide effects. | Actor, manager, service |
 | **SecurityEngine** | Engine owning Noise XX/K sessions, trust store (TOFU), and replay guard state. Returns sealed results for handshake steps, seal/unseal, and trust decisions. | CryptoActor, crypto manager |
-| **RoutingEngine** | Engine owning the **Routing Table**, AODV route discovery state, and **Dedup Set**. Returns sealed results for route lookups, RREQ/RREP processing, and dedup checks. | RouterActor, routing manager |
+| **RoutingEngine** | Engine owning the **Routing Table**, Babel route propagation state, and **Dedup Set**. Returns sealed results for route lookups, Hello/Update processing, and dedup checks. | RouterActor, routing manager |
 | **TransferEngine** | Engine owning in-flight **Transfer** state, chunking, **SACK** windows, and **AIMD** congestion control. Returns sealed results for chunk processing and transfer lifecycle events. | TransferActor, transfer manager |
 | **DeliveryPipeline** | Engine owning delivery tracking, confirmation tombstones, and store-and-forward buffering. Returns sealed results for delivery status and buffer operations. | BufferActor, delivery tracker |
 | **Coordinator** | A stateful component that orchestrates loops or multi-step decision logic. Coordinators call engines and return sealed actions for MeshLink to execute. | Actor, controller |
-| **RouteCoordinator** | Coordinator managing **keepalive probing** of 1-hop neighbors. AODV route discovery handles all multi-hop route establishment on demand. | RouteActor, route manager |
+| **RouteCoordinator** | Coordinator managing **keepalive probing** (Babel Hello) of 1-hop neighbors and periodic full routing table Updates. | RouteActor, route manager |
 | **PeerConnectionCoordinator** | Coordinator managing BLE connection lifecycle: discovery, **Tie-Breaking Rule** evaluation, **Noise XX Session** initiation, and version negotiation. | ConnectionActor, connection manager |
 | **PowerCoordinator** | Coordinator managing **Power Mode** transitions, **Hysteresis** timers, charging override, and memory shedding during mode downgrades. | PresenceActor, power manager |
 | **Policy Chain** | A pure pre-flight evaluator that checks conditions in priority order and returns a sealed decision type (e.g., `SendDecision`, `BroadcastDecision`). Testable via function-type dependency injection. | Validator, checker |
@@ -265,7 +265,7 @@ The following terms are commonly confused. Read this before continuing.
 - A **Routed Message** is forwarded hop-by-hop using **Cut-Through Forwarding**, protected by **Hop-by-Hop Encryption** at each step
 - A **Transfer** is a single-hop chunked delivery of one **Routed Message** between two **Neighbors**, composed of many **Chunks** acknowledged by **Chunk ACKs**
 - A **Delivery ACK** confirms receipt of a **Direct Message** and is routed independently via reverse-path unicast
-- The **Control Plane** (AODV route discovery, keepalives) feeds the **Data Plane** (**Routing Table**) — route discovery establishes routes on demand
+- The **Control Plane** (Babel Hello/Update route propagation, keepalives) feeds the **Data Plane** (**Routing Table**) — routes are established proactively via Updates and on demand via Hello-triggered exchanges
 - **Power Mode** governs: scan duty cycle, advertising interval, keepalive interval, **Connection Slot** budget, concurrent **Transfer** limits, **Sweep Timer** interval, and **Adaptive Timeout**
 
 ## Example dialogue
@@ -276,7 +276,7 @@ The following terms are commonly confused. Read this before continuing.
 >
 > **Dev:** "Once connected, what happens first?"
 >
-> **Domain expert:** "A Noise XX handshake establishes the **Noise XX Session** — that's the **Hop-by-Hop Encryption**. Then the **Neighbor** is added to the connection table. Routes are discovered on demand via AODV when messages need to be sent — no proactive route exchange is needed."
+> **Domain expert:** "A Noise XX handshake establishes the **Noise XX Session** — that's the **Hop-by-Hop Encryption**. Then the **Neighbor** is added to the connection table. The new neighbor triggers Babel Hello/Update exchange, which propagates routes proactively — no on-demand flooding needed."
 >
 > **Dev:** "If I now send a **Direct Message** to a **Peer** that's 3 hops away, what happens?"
 >

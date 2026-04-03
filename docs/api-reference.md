@@ -160,7 +160,11 @@ Access via `val state: LifecycleState`.
 
 For usage examples and configuration presets, see [Integration Guide § Configuration](integration-guide.md#configuration).
 
-Immutable configuration data class. All fields have sensible defaults.
+Immutable configuration data class. **Public API** parameters (commonly tuned
+by consuming apps) are direct constructor parameters. **Internal** protocol
+parameters live in the `advanced: MeshLinkInternalConfig` property and are
+accessible via `config.advanced.fieldName` or convenience delegate properties
+on `MeshLinkConfig` itself (e.g., `config.keepaliveIntervalMillis`).
 
 ### Fields
 
@@ -330,9 +334,15 @@ Constructs a `MeshLinkConfig` using a builder DSL:
 val config = meshLinkConfig {
     maxMessageSize = 50_000
     mtu = 512
-    routeCacheTtlMillis = 120_000L
+    advanced {
+        routeCacheTtlMillis = 120_000L
+    }
 }
 ```
+
+Public parameters are set directly on the builder. Internal protocol
+parameters live in the `advanced { }` block. For backward compatibility,
+internal parameters can also be set directly (without the `advanced` wrapper).
 
 ---
 
@@ -498,77 +508,6 @@ enum class DeliveryOutcome {
 | `FAILED_BUFFER_FULL` | Outbound buffer capacity was exceeded. |
 | `FAILED_PEER_OFFLINE` | Destination peer is no longer reachable. |
 | `FAILED_DELIVERY_TIMEOUT` | End-to-end delivery ACK was not received within the deadline. |
-
-### RouteRequestResult (Legacy AODV Fallback)
-
-`io.meshlink.routing.RouteRequestResult`
-
-Sealed result type returned by `RoutingEngine.handleRouteRequest()` when an
-incoming RREQ frame is processed.
-
-```kotlin
-sealed class RouteRequestResult {
-    data class Reply(val rrepFrame: ByteArray) : RouteRequestResult()
-    data class Flood(val rreqFrame: ByteArray) : RouteRequestResult()
-    data object Drop : RouteRequestResult()
-}
-```
-
-| Variant | Description |
-|---------|-------------|
-| `Reply` | This peer is the destination or has a cached route — send the contained RREP back along the reverse path. |
-| `Flood` | Rebroadcast the contained RREQ (with incremented hop count) to all neighbors. |
-| `Drop` | Duplicate or expired RREQ — discard silently. |
-
-### RouteReplyResult (Legacy AODV Fallback)
-
-`io.meshlink.routing.RouteReplyResult`
-
-Sealed result type returned by `RoutingEngine.handleRouteReply()` when an
-incoming RREP frame is processed.
-
-```kotlin
-sealed class RouteReplyResult {
-    data class Forward(val rrepFrame: ByteArray, val nextHop: ByteArray) : RouteReplyResult()
-    data class Resolved(val destination: ByteArray) : RouteReplyResult()
-    data object Drop : RouteReplyResult()
-}
-```
-
-| Variant | Description |
-|---------|-------------|
-| `Forward` | Relay the RREP toward the RREQ originator via `nextHop`. |
-| `Resolved` | This peer is the RREQ originator — the route to `destination` is now available; drain pending messages. |
-| `Drop` | No matching reverse path or stale RREP — discard silently. |
-
-### RouteDiscovery (Legacy AODV Fallback)
-
-`io.meshlink.routing.RouteDiscovery`
-
-Data class returned by `RoutingEngine.initiateRouteDiscovery()` when the
-local peer needs to find a route.
-
-```kotlin
-data class RouteDiscovery(val rreqFrame: ByteArray)
-```
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `rreqFrame` | `ByteArray` | Encoded RREQ frame ready to be flooded to all neighbors. |
-
-### DispatchSink.onRouteDiscovered
-
-`io.meshlink.dispatch.DispatchSink`
-
-Callback invoked by `MeshLink` when an RREP resolves a pending route
-discovery.
-
-```kotlin
-interface DispatchSink {
-    fun onRouteDiscovered(destination: ByteArray)
-    // ...
-}
-```
 
 ---
 
@@ -922,7 +861,7 @@ internal object TlvCodec {
 | `wireSize(entries)` | Returns the total wire size in bytes including the 2-byte prefix. |
 
 Wire messages that support TLV extensions (Keepalive, ChunkAck, Nack,
-ResumeRequest, RouteRequest, RouteReply, DeliveryAck) accept an
+ResumeRequest, DeliveryAck) accept an
 `extensions: List<TlvEntry> = emptyList()` parameter in their encode functions
 and expose an `extensions: List<TlvEntry>` field on their decoded data classes.
 See [wire-format-spec.md § TLV Extension Area](wire-format-spec.md#tlv-extension-area)

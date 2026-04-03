@@ -428,8 +428,8 @@ flowchart TD
 ## 9. Babel Route Propagation
 
 Loop-free route propagation via Hello/Update messages. Routes are
-established proactively when neighbors discover each other. Fallback
-RREQ/RREP is available for cold-start scenarios.
+established proactively when neighbors discover each other. On-demand
+Hello broadcasts trigger Update responses for cold-start scenarios.
 
 ```mermaid
 sequenceDiagram

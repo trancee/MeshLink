@@ -66,7 +66,7 @@ rejected locally before reaching CI.
 ./gradlew :meshlink:macosArm64Test
 ./gradlew :meshlink:linuxX64Test
 
-# Integration tests only (36 end-to-end scenarios via VirtualMeshTransport)
+# Integration tests only (41 end-to-end scenarios via VirtualMeshTransport)
 ./gradlew :meshlink:jvmTest --tests "io.meshlink.MeshIntegrationTest" --parallel
 
 # Single test class
@@ -92,11 +92,10 @@ suites.
 
 #### Integration Test Suite (`MeshIntegrationTest.kt`)
 
-36 end-to-end scenarios exercising full MeshLink flows through the
+41 end-to-end scenarios exercising full MeshLink flows through the
 `VirtualMeshTransport`. Covers discovery, handshake, direct/broadcast/routed
 messaging, delivery confirmation, chunking, pause/resume, lifecycle, and
-diagnostics. See `docs/integration-tests.feature` for the Gherkin specification
-of each scenario.
+diagnostics.
 
 ### Test Conventions
 
@@ -115,8 +114,7 @@ of each scenario.
 - **New engine/coordinator:** test with `VirtualMeshTransport` and injected clock
 - **New `expect`/`actual`:** add tests in `commonTest` using the expect interface
 - **New config field:** add test in `MeshLinkConfigTest`
-- **New end-to-end flow:** add scenario to `MeshIntegrationTest.kt` and update
-  `docs/integration-tests.feature`
+- **New end-to-end flow:** add scenario to `MeshIntegrationTest.kt`
 
 ## Code Style
 
@@ -153,7 +151,7 @@ layout. Key points for agents:
 | `WireCodec.kt` | Binary encode/decode + message type constants |
 | `TlvCodec.kt` | TLV extension area encoder/decoder for wire message extensibility |
 | `SecurityEngine.kt` | Noise K (E2E) + Noise XX (hop-by-hop) encryption |
-| `RoutingEngine.kt` | AODV reactive routing: route discovery, RREQ/RREP handling, route cache |
+| `RoutingEngine.kt` | Babel routing: Hello/Update propagation, feasibility condition, route cache |
 | `PowerCoordinator.kt` | Battery-adaptive power modes with hysteresis |
 | `Compressor.kt` | Payload compression expect/actual (raw DEFLATE RFC 1951) |
 
@@ -277,9 +275,6 @@ Keep documentation in sync with the implementation:
   attack surfaces or mitigations.
 - **`docs/integration-guide.md`** — Consumer-facing integration guide. Update
   when the API surface or configuration changes.
-- **`docs/integration-tests.feature`** — Gherkin specification of all
-  integration test scenarios. Update when adding or changing tests in
-  `MeshIntegrationTest.kt`.
 
 ## Debugging Tips
 

@@ -4,7 +4,7 @@ A **Kotlin Multiplatform (KMP)** BLE mesh messaging library for **Android**, **i
 
 ## Features
 
-- **Multi-hop mesh routing** — Reactive AODV protocol with on-demand route discovery (RREQ/RREP), composite cost metrics, and loop prevention
+- **Multi-hop mesh routing** — Babel-based routing (RFC 8966 adapted for BLE) with proactive route propagation, composite cost metrics, and loop-free convergence
 - **Two-layer encryption** — Hop-by-hop (Noise XX) and end-to-end (Noise K) using `Noise_XX_25519_ChaChaPoly_SHA256`
 - **Zero external crypto dependencies** — Pure Kotlin Ed25519/X25519, platform-native SHA-256 and ChaCha20-Poly1305
 - **Large message transfer** — Chunking, selective ACKs (SACK), AIMD congestion control, byte-offset resume
@@ -66,7 +66,7 @@ MeshLink/
 │       ├── linuxMain/           # Linux-specific (POSIX time, battery stub)
 │       ├── androidMain/         # Android BLE, storage, services
 │       ├── jvmMain/             # JVM crypto provider
-│       └── commonTest/          # 1,166+ tests
+│       └── commonTest/          # 1,200+ tests
 ├── meshlink-sample/
 │   ├── android/                 # Jetpack Compose reference app
 │   ├── ios/                     # SwiftUI reference app
@@ -97,7 +97,7 @@ MeshLink/
 # Run all JVM tests
 ./gradlew :meshlink:jvmTest
 
-# Run integration tests only (36 end-to-end scenarios)
+# Run integration tests only (41 end-to-end scenarios)
 ./gradlew :meshlink:jvmTest --tests "io.meshlink.MeshIntegrationTest" --parallel
 
 # Compile Android AAR
