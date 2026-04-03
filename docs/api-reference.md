@@ -266,6 +266,7 @@ on `MeshLinkConfig` itself (e.g., `config.keepaliveIntervalMillis`).
 | `requireEncryption` | `Boolean` | `true` | When `true`, `start()` fails if no `CryptoProvider` is supplied. Set to `false` to allow plaintext operation. |
 | `trustMode` | `TrustMode` | `SOFT_REPIN` | Key pinning policy. `SOFT_REPIN`: silently accept new key and re-pin; emit `KeyChangeEvent` for app-level awareness. `STRICT`: reject messages from peers whose key changed, require explicit `repinKey(peer)`. Both modes emit `KeyChangeEvent`. |
 | `deliveryAckEnabled` | `Boolean` | `true` | Send signed delivery ACKs for received routed messages. When `false`, recipients do not send delivery ACKs (senders rely on SACK-based transfer completion). |
+| `visitedListEnabled` | `Boolean` | `true` | Include per-hop peer ID hashes in routed messages for loop detection. When disabled, loop prevention relies on dedup set + hop counter. Disabling saves 12–120 bytes per routed message. |
 | `maxConcurrentInboundSessions` | `Int` | `100` | Maximum concurrent inbound reassembly sessions. Limits memory exhaustion from unauthenticated chunk floods. |
 
 ### Validation

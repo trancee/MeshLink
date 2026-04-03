@@ -237,7 +237,7 @@ internal class MessageDispatcher(
 
         if (routingEngine.isDuplicate(key)) return
         if (!validator.checkReplay(key, originId, routed.replayCounter)) return
-        if (!validator.checkLoop(key, routed.visitedList, originId)) return
+        if (config.visitedListEnabled && !validator.checkLoop(key, routed.visitedList, originId)) return
 
         if (routed.destination.contentEquals(localPeerId)) {
             if (!validator.checkInboundRate(originId)) return
@@ -277,7 +277,7 @@ internal class MessageDispatcher(
 
         deliveryPipeline.recordReversePath(key, fromPeerId)
 
-        val newVisited = routed.visitedList + listOf(localPeerId)
+        val newVisited = if (config.visitedListEnabled) routed.visitedList + listOf(localPeerId) else emptyList()
         val relayed = WireCodec.encodeRoutedMessage(
             messageId = routed.messageId,
             origin = routed.origin,

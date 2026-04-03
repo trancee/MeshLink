@@ -37,6 +37,7 @@ data class MeshLinkInternalConfig(
     val nackRateLimitPerSec: Int = 10,
     val neighborAggregateLimitPerMin: Int = 100,
     val senderNeighborLimitPerMin: Int = 20,
+    val visitedListEnabled: Boolean = true,
     val maxConcurrentInboundSessions: Int = 100,
 ) {
     fun validate(): List<String> {
@@ -106,6 +107,7 @@ class MeshLinkInternalConfigBuilder(
     var nackRateLimitPerSec: Int = 10,
     var neighborAggregateLimitPerMin: Int = 100,
     var senderNeighborLimitPerMin: Int = 20,
+    var visitedListEnabled: Boolean = true,
     var maxConcurrentInboundSessions: Int = 100,
 ) {
     fun build(): MeshLinkInternalConfig = MeshLinkInternalConfig(
@@ -138,6 +140,7 @@ class MeshLinkInternalConfigBuilder(
         nackRateLimitPerSec = nackRateLimitPerSec,
         neighborAggregateLimitPerMin = neighborAggregateLimitPerMin,
         senderNeighborLimitPerMin = senderNeighborLimitPerMin,
+        visitedListEnabled = visitedListEnabled,
         maxConcurrentInboundSessions = maxConcurrentInboundSessions,
     )
 }

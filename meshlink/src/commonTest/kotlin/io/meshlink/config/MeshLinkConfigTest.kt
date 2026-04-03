@@ -2,6 +2,7 @@ package io.meshlink.config
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class MeshLinkConfigTest {
@@ -298,5 +299,19 @@ class MeshLinkConfigTest {
     fun defaultBroadcastTtlIs2() {
         val config = MeshLinkConfig()
         assertEquals(2u.toUByte(), config.broadcastTtl)
+    }
+
+    @Test
+    fun visitedListEnabledByDefault() {
+        val config = MeshLinkConfig()
+        assertTrue(config.visitedListEnabled)
+    }
+
+    @Test
+    fun visitedListCanBeDisabledViaAdvanced() {
+        val config = meshLinkConfig {
+            advanced { visitedListEnabled = false }
+        }
+        assertFalse(config.visitedListEnabled)
     }
 }

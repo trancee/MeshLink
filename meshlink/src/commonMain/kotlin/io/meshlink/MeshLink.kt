@@ -749,7 +749,7 @@ class MeshLink(
             origin = transport.localPeerId,
             destination = destination,
             hopLimit = 10u,
-            visitedList = listOf(transport.localPeerId),
+            visitedList = if (config.visitedListEnabled) listOf(transport.localPeerId) else emptyList(),
             payload = wirePayload,
             replayCounter = outboundTracker.advanceReplayCounter(),
             priority = priority,

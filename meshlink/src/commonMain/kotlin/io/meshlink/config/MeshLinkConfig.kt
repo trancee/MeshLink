@@ -65,6 +65,7 @@ data class MeshLinkConfig(
     val nackRateLimitPerSec: Int get() = advanced.nackRateLimitPerSec
     val neighborAggregateLimitPerMin: Int get() = advanced.neighborAggregateLimitPerMin
     val senderNeighborLimitPerMin: Int get() = advanced.senderNeighborLimitPerMin
+    val visitedListEnabled: Boolean get() = advanced.visitedListEnabled
     val maxConcurrentInboundSessions: Int get() = advanced.maxConcurrentInboundSessions
 
     fun validate(): List<String> {
@@ -265,6 +266,9 @@ class MeshLinkConfigBuilder(
     var senderNeighborLimitPerMin: Int
         get() = advancedBuilder.senderNeighborLimitPerMin
         set(value) { advancedBuilder.senderNeighborLimitPerMin = value }
+    var visitedListEnabled: Boolean
+        get() = advancedBuilder.visitedListEnabled
+        set(value) { advancedBuilder.visitedListEnabled = value }
     var maxConcurrentInboundSessions: Int
         get() = advancedBuilder.maxConcurrentInboundSessions
         set(value) { advancedBuilder.maxConcurrentInboundSessions = value }
