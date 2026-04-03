@@ -193,9 +193,12 @@ class SecurityEngine(
     // --- State management ---
 
     fun clear() {
-        // Security: zeroize session secrets before removing references.
-        // Prevents old secrets from lingering in heap memory.
+        // Security: zeroize all sensitive key material before removing references.
+        // Prevents old keys/secrets from lingering in heap memory.
         sessionSecrets.values.forEach { zeroize(it) }
+        peerPublicKeys.values.forEach { zeroize(it) }
+        zeroize(localKeyPair.privateKey)
+        zeroize(broadcastKeyPair.privateKey)
         peerPublicKeys.clear()
         sessionSecrets.clear()
     }
