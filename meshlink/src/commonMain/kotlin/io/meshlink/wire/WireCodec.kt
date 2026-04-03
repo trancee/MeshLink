@@ -1,15 +1,19 @@
 package io.meshlink.wire
 
-private const val MESSAGE_ID_SIZE = 16
-private const val PEER_ID_SIZE = 12
-private const val APP_ID_HASH_SIZE = 8
-private val EMPTY_BYTES = ByteArray(0)
-private val EMPTY_APP_ID_HASH = ByteArray(APP_ID_HASH_SIZE)
-
+/**
+ * Central wire codec façade – delegates to specialised codecs while
+ * keeping a single entry-point for callers.
+ *
+ * Sub-codecs:
+ *  • [ControlCodec]   – Handshake, Keepalive, Nack, ResumeRequest
+ *  • [ChunkCodec]     – Chunk, ChunkAck
+ *  • [RoutingCodec]   – Hello (Babel), Update (Babel)
+ *  • [MessagingCodec] – RoutedMessage, Broadcast, DeliveryAck
+ */
 object WireCodec {
 
     /** Public peer ID size for use by tests and other modules. */
-    const val PEER_ID_BYTES = PEER_ID_SIZE
+    const val PEER_ID_BYTES = 12
 
     // Connection & Control (0x00–0x02)
     const val TYPE_HANDSHAKE: Byte = 0x00
@@ -33,95 +37,22 @@ object WireCodec {
     const val TYPE_ROUTED_MESSAGE: Byte = 0x0A
     const val TYPE_DELIVERY_ACK: Byte = 0x0B
 
-    // keepalive: type(1) + flags(1) + timestamp(8 LE ulong)
-    private const val KEEPALIVE_SIZE = 10
+    // ── Chunk delegates (implementation in ChunkCodec) ─────────
 
-    // resume_request: type(1) + messageId(12) + bytesReceived(4 LE) = 17
-    private const val RESUME_REQUEST_SIZE = 1 + MESSAGE_ID_SIZE + 4 // 21
-
-    // chunk: type(1) + messageId(12) + seqNum(2 LE) [+ totalChunks(2 LE) if seq==0] + payload
-    // First chunk (seq=0): 1 + 12 + 2 + 2 = 17 bytes header
-    // Subsequent chunks (seq>0): 1 + 12 + 2 = 15 bytes header
-    const val CHUNK_HEADER_SIZE_FIRST = 1 + MESSAGE_ID_SIZE + 2 + 2 // 21
-    const val CHUNK_HEADER_SIZE_SUBSEQUENT = 1 + MESSAGE_ID_SIZE + 2 // 19
+    const val CHUNK_HEADER_SIZE_FIRST = ChunkCodec.CHUNK_HEADER_SIZE_FIRST
+    const val CHUNK_HEADER_SIZE_SUBSEQUENT = ChunkCodec.CHUNK_HEADER_SIZE_SUBSEQUENT
 
     @Deprecated("Use CHUNK_HEADER_SIZE_FIRST for seq=0 or CHUNK_HEADER_SIZE_SUBSEQUENT for seq>0")
     const val CHUNK_HEADER_SIZE = CHUNK_HEADER_SIZE_FIRST
-
-    // chunk_ack: type(1) + messageId(12) + ackSeq(2 LE) + sackBitmask(8 LE) + sackBitmaskHigh(8 LE)
-    private const val CHUNK_ACK_SIZE = 1 + MESSAGE_ID_SIZE + 2 + 8 + 8 // 35
-
-    // handshake: type(1) + step(1) + noiseMessage(variable)
-    private const val HANDSHAKE_HEADER_SIZE = 2
-
-    // route_request: type(1) + origin(8) + destination(8) + requestId(4 LE) + hopCount(1) + hopLimit(1)
-
-    // route_reply: type(1) + origin(8) + destination(8) + requestId(4 LE) + hopCount(1)
-
-    fun encodeHandshake(step: UByte, noiseMessage: ByteArray): ByteArray {
-        val buf = ByteArray(HANDSHAKE_HEADER_SIZE + noiseMessage.size)
-        buf[0] = TYPE_HANDSHAKE
-        buf[1] = step.toByte()
-        noiseMessage.copyInto(buf, HANDSHAKE_HEADER_SIZE)
-        return buf
-    }
-
-    fun decodeHandshake(data: ByteArray): HandshakeMessage {
-        require(data.size >= HANDSHAKE_HEADER_SIZE) { "handshake too short: ${data.size}" }
-        require(data[0] == TYPE_HANDSHAKE) { "not a handshake: 0x${data[0].toUByte().toString(16)}" }
-        val step = data[1].toUByte()
-        require(step <= 2u) { "invalid handshake step: $step (must be 0, 1, or 2)" }
-        val noiseMessage = data.copyOfRange(HANDSHAKE_HEADER_SIZE, data.size)
-        return HandshakeMessage(step, noiseMessage)
-    }
 
     fun encodeChunk(
         messageId: ByteArray,
         sequenceNumber: UShort,
         totalChunks: UShort,
         payload: ByteArray,
-    ): ByteArray {
-        val isFirst = sequenceNumber == 0u.toUShort()
-        val headerSize = if (isFirst) CHUNK_HEADER_SIZE_FIRST else CHUNK_HEADER_SIZE_SUBSEQUENT
-        val buf = ByteArray(headerSize + payload.size)
-        var offset = 0
-        buf[offset++] = TYPE_CHUNK
-        messageId.copyInto(buf, offset)
-        offset += MESSAGE_ID_SIZE
-        buf.putUShortLE(offset, sequenceNumber)
-        offset += 2
-        if (isFirst) {
-            buf.putUShortLE(offset, totalChunks)
-            offset += 2
-        }
-        payload.copyInto(buf, offset)
-        return buf
-    }
+    ) = ChunkCodec.encodeChunk(messageId, sequenceNumber, totalChunks, payload)
 
-    fun decodeChunk(data: ByteArray): ChunkMessage {
-        require(data.size >= CHUNK_HEADER_SIZE_SUBSEQUENT) { "chunk too short: ${data.size}" }
-        require(data[0] == TYPE_CHUNK) { "not a chunk: 0x${data[0].toUByte().toString(16)}" }
-        var offset = 1
-        val messageId = data.copyOfRange(offset, offset + MESSAGE_ID_SIZE)
-        offset += MESSAGE_ID_SIZE
-        val sequenceNumber = data.getUShortLE(offset)
-        offset += 2
-        val totalChunks: UShort? = if (sequenceNumber == 0u.toUShort()) {
-            require(data.size >= CHUNK_HEADER_SIZE_FIRST) { "first chunk too short: ${data.size}" }
-            val tc = data.getUShortLE(offset)
-            offset += 2
-            tc
-        } else {
-            null
-        }
-        val payload = data.copyOfRange(offset, data.size)
-        if (totalChunks != null) {
-            require(sequenceNumber < totalChunks) {
-                "chunk sequenceNumber ($sequenceNumber) >= totalChunks ($totalChunks)"
-            }
-        }
-        return ChunkMessage(messageId, sequenceNumber, totalChunks, payload)
-    }
+    fun decodeChunk(data: ByteArray) = ChunkCodec.decodeChunk(data)
 
     fun encodeChunkAck(
         messageId: ByteArray,
@@ -129,47 +60,58 @@ object WireCodec {
         sackBitmask: ULong,
         sackBitmaskHigh: ULong,
         extensions: List<TlvEntry> = emptyList(),
-    ): ByteArray {
-        val extBytes = TlvCodec.encode(extensions)
-        val buf = ByteArray(CHUNK_ACK_SIZE + extBytes.size)
-        var offset = 0
-        buf[offset++] = TYPE_CHUNK_ACK
-        messageId.copyInto(buf, offset)
-        offset += MESSAGE_ID_SIZE
-        buf.putUShortLE(offset, ackSequence)
-        offset += 2
-        buf.putULongLE(offset, sackBitmask)
-        offset += 8
-        buf.putULongLE(offset, sackBitmaskHigh)
-        extBytes.copyInto(buf, CHUNK_ACK_SIZE)
-        return buf
-    }
+    ) = ChunkCodec.encodeChunkAck(messageId, ackSequence, sackBitmask, sackBitmaskHigh, extensions)
 
-    fun decodeChunkAck(data: ByteArray): ChunkAckMessage {
-        require(data.size >= CHUNK_ACK_SIZE) { "chunk_ack too short: ${data.size}" }
-        require(data[0] == TYPE_CHUNK_ACK) { "not a chunk_ack: 0x${data[0].toUByte().toString(16)}" }
-        var offset = 1
-        val messageId = data.copyOfRange(offset, offset + MESSAGE_ID_SIZE)
-        offset += MESSAGE_ID_SIZE
-        val ackSequence = data.getUShortLE(offset)
-        offset += 2
-        val sackBitmask = data.getULongLE(offset)
-        offset += 8
-        val sackBitmaskHigh = data.getULongLE(offset)
-        val extensions = if (data.size > CHUNK_ACK_SIZE) {
-            TlvCodec.decode(data, CHUNK_ACK_SIZE).first
-        } else {
-            emptyList()
-        }
-        return ChunkAckMessage(messageId, ackSequence, sackBitmask, sackBitmaskHigh, extensions)
-    }
+    fun decodeChunkAck(data: ByteArray) = ChunkCodec.decodeChunkAck(data)
 
-    // routed_message: type(1) + messageId(16) + origin(8) + destination(8) + hopLimit(1) + replayCounter(8 LE) + visitedCount(1) + visited(N×8) + payload
-    // routed_message: type(1) + messageId(16) + origin(12) + destination(12)
-    //   + hopLimit(1) + replayCounter(8 LE) + visitedCount(1) + visited(N×12)
-    //   + priority(1) + payload
-    private const val ROUTED_HEADER_SIZE =
-        1 + MESSAGE_ID_SIZE + PEER_ID_SIZE + PEER_ID_SIZE + 1 + 8 + 1 + 1 // 52
+    // ── Routing delegates (implementation in RoutingCodec) ───────
+
+    fun encodeHello(sender: ByteArray, seqNo: UShort) =
+        RoutingCodec.encodeHello(sender, seqNo)
+
+    fun decodeHello(data: ByteArray) = RoutingCodec.decodeHello(data)
+
+    fun encodeUpdate(
+        destination: ByteArray,
+        metric: UShort,
+        seqNo: UShort,
+        publicKey: ByteArray,
+    ) = RoutingCodec.encodeUpdate(destination, metric, seqNo, publicKey)
+
+    fun decodeUpdate(data: ByteArray) = RoutingCodec.decodeUpdate(data)
+
+    // ── Control delegates (implementation in ControlCodec) ──────
+
+    fun encodeHandshake(step: UByte, noiseMessage: ByteArray) =
+        ControlCodec.encodeHandshake(step, noiseMessage)
+
+    fun decodeHandshake(data: ByteArray) = ControlCodec.decodeHandshake(data)
+
+    fun encodeKeepalive(
+        timestampMillis: ULong,
+        flags: UByte = 0u,
+        extensions: List<TlvEntry> = emptyList(),
+    ) = ControlCodec.encodeKeepalive(timestampMillis, flags, extensions)
+
+    fun decodeKeepalive(data: ByteArray) = ControlCodec.decodeKeepalive(data)
+
+    fun encodeNack(
+        messageId: ByteArray,
+        reason: NackReason = NackReason.UNKNOWN,
+        extensions: List<TlvEntry> = emptyList(),
+    ) = ControlCodec.encodeNack(messageId, reason, extensions)
+
+    fun decodeNack(data: ByteArray) = ControlCodec.decodeNack(data)
+
+    fun encodeResumeRequest(
+        messageId: ByteArray,
+        bytesReceived: UInt,
+        extensions: List<TlvEntry> = emptyList(),
+    ) = ControlCodec.encodeResumeRequest(messageId, bytesReceived, extensions)
+
+    fun decodeResumeRequest(data: ByteArray) = ControlCodec.decodeResumeRequest(data)
+
+    // ── Messaging delegates (implementation in MessagingCodec) ──
 
     fun encodeRoutedMessage(
         messageId: ByteArray,
@@ -180,498 +122,48 @@ object WireCodec {
         payload: ByteArray,
         replayCounter: ULong = 0u,
         priority: Byte = 0,
-    ): ByteArray {
-        require(visitedList.size <= 255) { "visitedList too large: ${visitedList.size} (max 255)" }
-        val buf = ByteArray(ROUTED_HEADER_SIZE + visitedList.size * PEER_ID_SIZE + payload.size)
-        var offset = 0
-        buf[offset++] = TYPE_ROUTED_MESSAGE
-        messageId.copyInto(buf, offset)
-        offset += MESSAGE_ID_SIZE
-        origin.copyInto(buf, offset)
-        offset += PEER_ID_SIZE
-        destination.copyInto(buf, offset)
-        offset += PEER_ID_SIZE
-        buf[offset++] = hopLimit.toByte()
-        buf.putULongLE(offset, replayCounter)
-        offset += 8
-        buf[offset++] = visitedList.size.toByte()
-        for (hash in visitedList) {
-            hash.copyInto(buf, offset)
-            offset += PEER_ID_SIZE
-        }
-        buf[offset++] = priority
-        payload.copyInto(buf, offset)
-        return buf
-    }
+    ) = MessagingCodec.encodeRoutedMessage(
+        messageId,
+        origin,
+        destination,
+        hopLimit,
+        visitedList,
+        payload,
+        replayCounter,
+        priority,
+    )
 
-    fun decodeRoutedMessage(data: ByteArray): RoutedMessage {
-        require(data.size >= ROUTED_HEADER_SIZE) { "routed_message too short: ${data.size}" }
-        require(data[0] == TYPE_ROUTED_MESSAGE) { "not a routed_message: 0x${data[0].toUByte().toString(16)}" }
-        var offset = 1
-        val messageId = data.copyOfRange(offset, offset + MESSAGE_ID_SIZE)
-        offset += MESSAGE_ID_SIZE
-        val origin = data.copyOfRange(offset, offset + PEER_ID_SIZE)
-        offset += PEER_ID_SIZE
-        val destination = data.copyOfRange(offset, offset + PEER_ID_SIZE)
-        offset += PEER_ID_SIZE
-        val hopLimit = data[offset++].toUByte()
-        val replayCounter = data.getULongLE(offset)
-        offset += 8
-        val visitedCount = data[offset++].toInt() and 0xFF
-        require(data.size >= offset + visitedCount * PEER_ID_SIZE) {
-            "routed_message truncated: visitedCount=$visitedCount requires ${offset + visitedCount * PEER_ID_SIZE} bytes, got ${data.size}"
-        }
-        val visitedList = (0 until visitedCount).map {
-            val hash = data.copyOfRange(offset, offset + PEER_ID_SIZE)
-            offset += PEER_ID_SIZE
-            hash
-        }
-        require(data.size > offset) { "routed_message missing priority byte" }
-        val priority = data[offset++]
-        val payload = data.copyOfRange(offset, data.size)
-        return RoutedMessage(messageId, origin, destination, hopLimit, replayCounter, visitedList, payload, priority)
-    }
-
-    // broadcast: type(1) + messageId(12) + origin(8) + remainingHops(1) + appIdHash(8) + flags(1) + [signature(64) + signerPubKey(32)] + payload
-    // broadcast: type(1) + messageId(16) + origin(12) + remainingHops(1) + appIdHash(8) + flags(1) + priority(1) + [signature(64) + signerPubKey(32)] + payload
-    private const val BROADCAST_HEADER_SIZE = 1 + MESSAGE_ID_SIZE + PEER_ID_SIZE + 1 + APP_ID_HASH_SIZE + 1 + 1 // 40
-    private const val ED25519_SIG_SIZE = 64
-    private const val ED25519_PUB_KEY_SIZE = 32
-    private const val FLAG_HAS_SIGNATURE = 0x01
+    fun decodeRoutedMessage(data: ByteArray) = MessagingCodec.decodeRoutedMessage(data)
 
     fun encodeBroadcast(
         messageId: ByteArray,
         origin: ByteArray,
         remainingHops: UByte,
-        appIdHash: ByteArray = EMPTY_APP_ID_HASH,
+        appIdHash: ByteArray = ByteArray(8),
         payload: ByteArray,
-        signature: ByteArray = EMPTY_BYTES,
-        signerPublicKey: ByteArray = EMPTY_BYTES,
+        signature: ByteArray = ByteArray(0),
+        signerPublicKey: ByteArray = ByteArray(0),
         priority: Byte = 0,
-    ): ByteArray {
-        val sigBlock = if (signature.isNotEmpty()) ED25519_SIG_SIZE + ED25519_PUB_KEY_SIZE else 0
-        val buf = ByteArray(BROADCAST_HEADER_SIZE + sigBlock + payload.size)
-        var offset = 0
-        buf[offset++] = TYPE_BROADCAST
-        messageId.copyInto(buf, offset)
-        offset += MESSAGE_ID_SIZE
-        origin.copyInto(buf, offset)
-        offset += PEER_ID_SIZE
-        buf[offset++] = remainingHops.toByte()
-        appIdHash.copyInto(buf, offset)
-        offset += APP_ID_HASH_SIZE
-        buf[offset++] = if (signature.isNotEmpty()) FLAG_HAS_SIGNATURE.toByte() else 0
-        buf[offset++] = priority
-        if (signature.isNotEmpty()) {
-            signature.copyInto(buf, offset)
-            offset += ED25519_SIG_SIZE
-            signerPublicKey.copyInto(buf, offset)
-            offset += ED25519_PUB_KEY_SIZE
-        }
-        payload.copyInto(buf, offset)
-        return buf
-    }
+    ) = MessagingCodec.encodeBroadcast(
+        messageId,
+        origin,
+        remainingHops,
+        appIdHash,
+        payload,
+        signature,
+        signerPublicKey,
+        priority,
+    )
 
-    fun decodeBroadcast(data: ByteArray): BroadcastMessage {
-        require(data.size >= BROADCAST_HEADER_SIZE) { "broadcast too short: ${data.size}" }
-        require(data[0] == TYPE_BROADCAST) { "not a broadcast: 0x${data[0].toUByte().toString(16)}" }
-        var offset = 1
-        val messageId = data.copyOfRange(offset, offset + MESSAGE_ID_SIZE)
-        offset += MESSAGE_ID_SIZE
-        val origin = data.copyOfRange(offset, offset + PEER_ID_SIZE)
-        offset += PEER_ID_SIZE
-        val remainingHops = data[offset++].toUByte()
-        val appIdHash = data.copyOfRange(offset, offset + APP_ID_HASH_SIZE)
-        offset += APP_ID_HASH_SIZE
-        val flags = data[offset++].toInt() and 0xFF
-        val priority = data[offset++]
-        val signature: ByteArray
-        val signerPublicKey: ByteArray
-        if (flags and FLAG_HAS_SIGNATURE != 0) {
-            require(data.size >= offset + ED25519_SIG_SIZE + ED25519_PUB_KEY_SIZE) {
-                "broadcast signature truncated: requires ${offset + ED25519_SIG_SIZE + ED25519_PUB_KEY_SIZE} bytes, got ${data.size}"
-            }
-            signature = data.copyOfRange(offset, offset + ED25519_SIG_SIZE)
-            offset += ED25519_SIG_SIZE
-            signerPublicKey = data.copyOfRange(offset, offset + ED25519_PUB_KEY_SIZE)
-            offset += ED25519_PUB_KEY_SIZE
-        } else {
-            signature = EMPTY_BYTES
-            signerPublicKey = EMPTY_BYTES
-        }
-        val payload = data.copyOfRange(offset, data.size)
-        return BroadcastMessage(
-            messageId,
-            origin,
-            remainingHops,
-            appIdHash,
-            payload,
-            signature,
-            signerPublicKey,
-            priority,
-        )
-    }
-
-    // delivery_ack: type(1) + messageId(16) + recipientId(8) + flags(1) + [signature(64) + signerPubKey(32)]
-    private const val DELIVERY_ACK_HEADER_SIZE = 1 + MESSAGE_ID_SIZE + PEER_ID_SIZE + 1 // 30
+    fun decodeBroadcast(data: ByteArray) = MessagingCodec.decodeBroadcast(data)
 
     fun encodeDeliveryAck(
         messageId: ByteArray,
         recipientId: ByteArray,
-        signature: ByteArray = EMPTY_BYTES,
-        signerPublicKey: ByteArray = EMPTY_BYTES,
+        signature: ByteArray = ByteArray(0),
+        signerPublicKey: ByteArray = ByteArray(0),
         extensions: List<TlvEntry> = emptyList(),
-    ): ByteArray {
-        val sigBlock = if (signature.isNotEmpty()) ED25519_SIG_SIZE + ED25519_PUB_KEY_SIZE else 0
-        val extBytes = TlvCodec.encode(extensions)
-        val buf = ByteArray(DELIVERY_ACK_HEADER_SIZE + sigBlock + extBytes.size)
-        var offset = 0
-        buf[offset++] = TYPE_DELIVERY_ACK
-        messageId.copyInto(buf, offset)
-        offset += MESSAGE_ID_SIZE
-        recipientId.copyInto(buf, offset)
-        offset += PEER_ID_SIZE
-        buf[offset++] = if (signature.isNotEmpty()) FLAG_HAS_SIGNATURE.toByte() else 0
-        if (signature.isNotEmpty()) {
-            signature.copyInto(buf, offset)
-            offset += ED25519_SIG_SIZE
-            signerPublicKey.copyInto(buf, offset)
-            offset += ED25519_PUB_KEY_SIZE
-        }
-        extBytes.copyInto(buf, offset)
-        return buf
-    }
+    ) = MessagingCodec.encodeDeliveryAck(messageId, recipientId, signature, signerPublicKey, extensions)
 
-    fun decodeDeliveryAck(data: ByteArray): DeliveryAckMessage {
-        require(data.size >= DELIVERY_ACK_HEADER_SIZE) { "delivery_ack too short: ${data.size}" }
-        require(data[0] == TYPE_DELIVERY_ACK) { "not a delivery_ack: 0x${data[0].toUByte().toString(16)}" }
-        var offset = 1
-        val messageId = data.copyOfRange(offset, offset + MESSAGE_ID_SIZE)
-        offset += MESSAGE_ID_SIZE
-        val recipientId = data.copyOfRange(offset, offset + PEER_ID_SIZE)
-        offset += PEER_ID_SIZE
-        val flags = data[offset++].toInt() and 0xFF
-        val signature: ByteArray
-        val signerPublicKey: ByteArray
-        if (flags and FLAG_HAS_SIGNATURE != 0) {
-            require(data.size >= offset + ED25519_SIG_SIZE + ED25519_PUB_KEY_SIZE) {
-                "delivery_ack signature truncated: requires ${offset + ED25519_SIG_SIZE + ED25519_PUB_KEY_SIZE} bytes, got ${data.size}"
-            }
-            signature = data.copyOfRange(offset, offset + ED25519_SIG_SIZE)
-            offset += ED25519_SIG_SIZE
-            signerPublicKey = data.copyOfRange(offset, offset + ED25519_PUB_KEY_SIZE)
-            offset += ED25519_PUB_KEY_SIZE
-        } else {
-            signature = EMPTY_BYTES
-            signerPublicKey = EMPTY_BYTES
-        }
-        val extensions = if (data.size > offset) {
-            TlvCodec.decode(data, offset).first
-        } else {
-            emptyList()
-        }
-        return DeliveryAckMessage(messageId, recipientId, signature, signerPublicKey, extensions)
-    }
-
-    fun encodeResumeRequest(
-        messageId: ByteArray,
-        bytesReceived: UInt,
-        extensions: List<TlvEntry> = emptyList(),
-    ): ByteArray {
-        require(messageId.size == MESSAGE_ID_SIZE) { "messageId must be $MESSAGE_ID_SIZE bytes" }
-        val extBytes = TlvCodec.encode(extensions)
-        val buf = ByteArray(RESUME_REQUEST_SIZE + extBytes.size)
-        var offset = 0
-        buf[offset++] = TYPE_RESUME_REQUEST
-        messageId.copyInto(buf, offset)
-        offset += MESSAGE_ID_SIZE
-        buf.putUIntLE(offset, bytesReceived)
-        extBytes.copyInto(buf, RESUME_REQUEST_SIZE)
-        return buf
-    }
-
-    fun decodeResumeRequest(data: ByteArray): ResumeRequestMessage {
-        require(data.size >= RESUME_REQUEST_SIZE) { "resume_request too short: ${data.size}" }
-        require(data[0] == TYPE_RESUME_REQUEST) { "not a resume_request: 0x${data[0].toUByte().toString(16)}" }
-        var offset = 1
-        val messageId = data.copyOfRange(offset, offset + MESSAGE_ID_SIZE)
-        offset += MESSAGE_ID_SIZE
-        val bytesReceived = data.getUIntLE(offset)
-        val extensions = if (data.size > RESUME_REQUEST_SIZE) {
-            TlvCodec.decode(data, RESUME_REQUEST_SIZE).first
-        } else {
-            emptyList()
-        }
-        return ResumeRequestMessage(messageId, bytesReceived, extensions)
-    }
-
-    fun encodeKeepalive(
-        timestampMillis: ULong,
-        flags: UByte = 0u,
-        extensions: List<TlvEntry> = emptyList(),
-    ): ByteArray {
-        val extBytes = TlvCodec.encode(extensions)
-        val buf = ByteArray(KEEPALIVE_SIZE + extBytes.size)
-        buf[0] = TYPE_KEEPALIVE
-        buf[1] = flags.toByte()
-        buf.putULongLE(2, timestampMillis)
-        extBytes.copyInto(buf, KEEPALIVE_SIZE)
-        return buf
-    }
-
-    fun decodeKeepalive(data: ByteArray): KeepaliveMessage {
-        require(data.size >= KEEPALIVE_SIZE) { "keepalive too short: ${data.size}" }
-        require(data[0] == TYPE_KEEPALIVE) { "not a keepalive: 0x${data[0].toUByte().toString(16)}" }
-        val flags = data[1].toUByte()
-        val timestampMillis = data.getULongLE(2)
-        val extensions = if (data.size > KEEPALIVE_SIZE) {
-            TlvCodec.decode(data, KEEPALIVE_SIZE).first
-        } else {
-            emptyList()
-        }
-        return KeepaliveMessage(flags, timestampMillis, extensions)
-    }
-
-    // nack: type(1) + messageId(12) + reason(1) = 14
-    private const val NACK_SIZE = 1 + MESSAGE_ID_SIZE + 1
-
-    fun encodeNack(
-        messageId: ByteArray,
-        reason: NackReason = NackReason.UNKNOWN,
-        extensions: List<TlvEntry> = emptyList(),
-    ): ByteArray {
-        require(messageId.size == MESSAGE_ID_SIZE) { "messageId must be $MESSAGE_ID_SIZE bytes" }
-        val extBytes = TlvCodec.encode(extensions)
-        val buf = ByteArray(NACK_SIZE + extBytes.size)
-        buf[0] = TYPE_NACK
-        messageId.copyInto(buf, 1)
-        buf[1 + MESSAGE_ID_SIZE] = reason.code.toByte()
-        extBytes.copyInto(buf, NACK_SIZE)
-        return buf
-    }
-
-    fun decodeNack(data: ByteArray): NackMessage {
-        require(data.size >= NACK_SIZE) { "nack too short: ${data.size}" }
-        require(data[0] == TYPE_NACK) { "not a nack: 0x${data[0].toUByte().toString(16)}" }
-        val messageId = data.copyOfRange(1, 1 + MESSAGE_ID_SIZE)
-        val reason = NackReason.fromCode(data[1 + MESSAGE_ID_SIZE].toUByte())
-        val extensions = if (data.size > NACK_SIZE) {
-            TlvCodec.decode(data, NACK_SIZE).first
-        } else {
-            emptyList()
-        }
-        return NackMessage(messageId, reason, extensions)
-    }
-
-    // ── Babel Hello (0x03) ──────────────────────────────────────
-    // type(1) + sender(12) + seqno(2 LE) = 15
-    private const val HELLO_SIZE = 1 + PEER_ID_SIZE + 2 // 15
-
-    fun encodeHello(sender: ByteArray, seqNo: UShort): ByteArray {
-        val buf = ByteArray(HELLO_SIZE)
-        buf[0] = TYPE_HELLO
-        sender.copyInto(buf, 1)
-        buf.putUShortLE(1 + PEER_ID_SIZE, seqNo)
-        return buf
-    }
-
-    fun decodeHello(data: ByteArray): HelloMessage {
-        require(data.size >= HELLO_SIZE) { "hello too short: ${data.size}" }
-        require(data[0] == TYPE_HELLO) { "not a hello: 0x${data[0].toUByte().toString(16)}" }
-        val sender = data.copyOfRange(1, 1 + PEER_ID_SIZE)
-        val seqNo = data.getUShortLE(1 + PEER_ID_SIZE)
-        return HelloMessage(sender, seqNo)
-    }
-
-    // ── Babel Update (0x04) ─────────────────────────────────────
-    // type(1) + destination(12) + metric(2 LE) + seqno(2 LE) + pubkey(32) = 49
-    private const val UPDATE_SIZE = 1 + PEER_ID_SIZE + 2 + 2 + 32 // 49
-
-    fun encodeUpdate(
-        destination: ByteArray,
-        metric: UShort,
-        seqNo: UShort,
-        publicKey: ByteArray,
-    ): ByteArray {
-        require(publicKey.size == 32) { "publicKey must be 32 bytes" }
-        val buf = ByteArray(UPDATE_SIZE)
-        var offset = 0
-        buf[offset++] = TYPE_UPDATE
-        destination.copyInto(buf, offset)
-        offset += PEER_ID_SIZE
-        buf.putUShortLE(offset, metric)
-        offset += 2
-        buf.putUShortLE(offset, seqNo)
-        offset += 2
-        publicKey.copyInto(buf, offset)
-        return buf
-    }
-
-    fun decodeUpdate(data: ByteArray): UpdateMessage {
-        require(data.size >= UPDATE_SIZE) { "update too short: ${data.size}" }
-        require(data[0] == TYPE_UPDATE) { "not an update: 0x${data[0].toUByte().toString(16)}" }
-        var offset = 1
-        val destination = data.copyOfRange(offset, offset + PEER_ID_SIZE)
-        offset += PEER_ID_SIZE
-        val metric = data.getUShortLE(offset)
-        offset += 2
-        val seqNo = data.getUShortLE(offset)
-        offset += 2
-        val publicKey = data.copyOfRange(offset, offset + 32)
-        return UpdateMessage(destination, metric, seqNo, publicKey)
-    }
+    fun decodeDeliveryAck(data: ByteArray) = MessagingCodec.decodeDeliveryAck(data)
 }
-
-// --- Little-endian helpers ---
-
-private fun ByteArray.putUShortLE(offset: Int, value: UShort) {
-    val v = value.toInt()
-    this[offset] = v.toByte()
-    this[offset + 1] = (v shr 8).toByte()
-}
-
-private fun ByteArray.getUShortLE(offset: Int): UShort =
-    (
-        (this[offset].toInt() and 0xFF) or
-            ((this[offset + 1].toInt() and 0xFF) shl 8)
-        ).toUShort()
-
-private fun ByteArray.putULongLE(offset: Int, value: ULong) {
-    val v = value.toLong()
-    for (i in 0..7) {
-        this[offset + i] = (v shr (i * 8)).toByte()
-    }
-}
-
-private fun ByteArray.getULongLE(offset: Int): ULong {
-    var result = 0L
-    for (i in 0..7) {
-        result = result or ((this[offset + i].toLong() and 0xFF) shl (i * 8))
-    }
-    return result.toULong()
-}
-
-private fun ByteArray.putUIntLE(offset: Int, value: UInt) {
-    val v = value.toInt()
-    for (i in 0..3) {
-        this[offset + i] = (v shr (i * 8)).toByte()
-    }
-}
-
-private fun ByteArray.getUIntLE(offset: Int): UInt {
-    var result = 0
-    for (i in 0..3) {
-        result = result or ((this[offset + i].toInt() and 0xFF) shl (i * 8))
-    }
-    return result.toUInt()
-}
-
-// --- Data classes ---
-
-data class ChunkMessage(
-    val messageId: ByteArray,
-    val sequenceNumber: UShort,
-    val totalChunks: UShort?,
-    val payload: ByteArray,
-)
-
-data class ChunkAckMessage(
-    val messageId: ByteArray,
-    val ackSequence: UShort,
-    val sackBitmask: ULong,
-    val sackBitmaskHigh: ULong,
-    val extensions: List<TlvEntry> = emptyList(),
-)
-
-data class RoutedMessage(
-    val messageId: ByteArray,
-    val origin: ByteArray,
-    val destination: ByteArray,
-    val hopLimit: UByte,
-    val replayCounter: ULong,
-    val visitedList: List<ByteArray>,
-    val payload: ByteArray,
-    val priority: Byte = 0,
-)
-
-data class BroadcastMessage(
-    val messageId: ByteArray,
-    val origin: ByteArray,
-    val remainingHops: UByte,
-    val appIdHash: ByteArray,
-    val payload: ByteArray,
-    val signature: ByteArray = EMPTY_BYTES,
-    val signerPublicKey: ByteArray = EMPTY_BYTES,
-    val priority: Byte = 0,
-)
-
-data class DeliveryAckMessage(
-    val messageId: ByteArray,
-    val recipientId: ByteArray,
-    val signature: ByteArray = EMPTY_BYTES,
-    val signerPublicKey: ByteArray = EMPTY_BYTES,
-    val extensions: List<TlvEntry> = emptyList(),
-)
-
-data class ResumeRequestMessage(
-    val messageId: ByteArray,
-    val bytesReceived: UInt,
-    val extensions: List<TlvEntry> = emptyList(),
-) {
-    override fun equals(other: Any?): Boolean {
-        if (this === other) return true
-        if (other !is ResumeRequestMessage) return false
-        return messageId.contentEquals(other.messageId) &&
-            bytesReceived == other.bytesReceived &&
-            extensions == other.extensions
-    }
-
-    override fun hashCode(): Int {
-        var result = messageId.contentHashCode()
-        result = 31 * result + bytesReceived.hashCode()
-        result = 31 * result + extensions.hashCode()
-        return result
-    }
-}
-
-data class HandshakeMessage(
-    val step: UByte,
-    val noiseMessage: ByteArray,
-)
-
-data class KeepaliveMessage(
-    val flags: UByte,
-    val timestampMillis: ULong,
-    val extensions: List<TlvEntry> = emptyList(),
-)
-
-data class NackMessage(
-    val messageId: ByteArray,
-    val reason: NackReason = NackReason.UNKNOWN,
-    val extensions: List<TlvEntry> = emptyList(),
-)
-
-enum class NackReason(val code: UByte) {
-    UNKNOWN(0u),
-    BUFFER_FULL(1u),
-    UNKNOWN_DESTINATION(2u),
-    DECRYPT_FAILED(3u),
-    RATE_LIMITED(4u);
-
-    companion object {
-        fun fromCode(code: UByte): NackReason =
-            entries.firstOrNull { it.code == code } ?: UNKNOWN
-    }
-}
-
-data class HelloMessage(
-    val sender: ByteArray,
-    val seqNo: UShort,
-)
-
-data class UpdateMessage(
-    val destination: ByteArray,
-    val metric: UShort,
-    val seqNo: UShort,
-    val publicKey: ByteArray,
-)
