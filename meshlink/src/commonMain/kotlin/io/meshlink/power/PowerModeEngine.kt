@@ -6,6 +6,7 @@ enum class PowerMode { PERFORMANCE, BALANCED, POWER_SAVER }
 
 class PowerModeEngine(
     private val hysteresisMillis: Long = 30_000,
+    private val deadZonePercent: Int = 2,
     private val clock: () -> Long = { currentTimeMillis() },
 ) {
     private var currentMode: PowerMode = PowerMode.PERFORMANCE
@@ -20,7 +21,7 @@ class PowerModeEngine(
             return currentMode
         }
 
-        val targetMode = modeForBattery(batteryPercent)
+        val targetMode = modeForBattery(batteryPercent, currentMode)
 
         // Upward transition (higher power) → immediate
         if (targetMode.ordinal < currentMode.ordinal) {
@@ -51,9 +52,31 @@ class PowerModeEngine(
         return currentMode
     }
 
-    private fun modeForBattery(percent: Int): PowerMode = when {
-        percent > 80 -> PowerMode.PERFORMANCE
-        percent >= 30 -> PowerMode.BALANCED
-        else -> PowerMode.POWER_SAVER
+    /**
+     * Determine target power mode with a ±[deadZonePercent] band around thresholds.
+     *
+     * Downward crossings require the battery to drop [deadZonePercent] below the
+     * threshold; upward crossings require it to rise [deadZonePercent] above.
+     * This prevents flapping when battery oscillates near a boundary.
+     */
+    private fun modeForBattery(percent: Int, current: PowerMode): PowerMode {
+        val dz = deadZonePercent
+        return when (current) {
+            PowerMode.PERFORMANCE -> when {
+                percent > 80 - dz -> PowerMode.PERFORMANCE
+                percent >= 30 - dz -> PowerMode.BALANCED
+                else -> PowerMode.POWER_SAVER
+            }
+            PowerMode.BALANCED -> when {
+                percent > 80 + dz -> PowerMode.PERFORMANCE
+                percent >= 30 - dz -> PowerMode.BALANCED
+                else -> PowerMode.POWER_SAVER
+            }
+            PowerMode.POWER_SAVER -> when {
+                percent > 80 + dz -> PowerMode.PERFORMANCE
+                percent >= 30 + dz -> PowerMode.BALANCED
+                else -> PowerMode.POWER_SAVER
+            }
+        }
     }
 }
