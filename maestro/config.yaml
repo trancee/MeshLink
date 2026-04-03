@@ -1,0 +1,3 @@
+flows:
+  - flows/e2e/**
+  - flows/ios/**

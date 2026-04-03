@@ -188,9 +188,17 @@ CI runs on push/PR to `main` (skips markdown-only changes). Seven jobs:
 | macOS Tests | macos-15 | `./gradlew :meshlink:macosArm64Test` |
 | Linux Tests | ubuntu | `./gradlew :meshlink:linuxX64Test --parallel` |
 | Sample Apps | ubuntu | `:meshlink-sample:android:assembleDebug` + `:meshlink-sample:jvm:build` |
+| Android E2E | ubuntu | `maestro-runner` flows on emulator (API 33) |
+| iOS E2E | macos-15 | `maestro-runner` flows on simulator (iPhone 16) |
 
 Test reports are uploaded as artifacts (14-day retention). JUnit XML results
 are published as check run annotations via `mikepenz/action-junit-report`.
+
+A separate **Maestro E2E** workflow (`.github/workflows/maestro-e2e.yml`) runs
+UI flows against the sample app using `maestro-runner`. It triggers on changes
+to `meshlink-sample/`, `maestro/`, or itself, and can be triggered manually via
+`workflow_dispatch`. Android flows run on an emulator; iOS flows run on a
+simulator.
 
 ## Error Handling
 

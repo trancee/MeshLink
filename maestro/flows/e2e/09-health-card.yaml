@@ -1,0 +1,21 @@
+appId: io.meshlink.sample
+name: Health Card Display
+tags:
+  - smoke
+  - health
+---
+- launchApp:
+    clearState: true
+
+# Verify all health fields are displayed on Chat screen
+- assertVisible: "Mesh Health"
+- assertVisible:
+    text: "Connected peers: .*"
+- assertVisible:
+    text: "Reachable peers: .*"
+- assertVisible:
+    text: "Power mode: .*"
+- assertVisible:
+    text: "Buffer usage: .*%"
+- assertVisible:
+    text: "Active transfers: .*"

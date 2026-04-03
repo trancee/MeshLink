@@ -1,0 +1,42 @@
+appId: io.meshlink.sample
+name: Diagnostics Screen
+tags:
+  - diagnostics
+---
+- launchApp:
+    clearState: true
+
+# Navigate to diagnostics
+- tapOn: "Diagnostics"
+- assertVisible: "Diagnostics"
+
+# Should show empty state (text includes newline, use regex)
+- assertVisible:
+    text: "No diagnostic events yet.*"
+
+# Verify filter chips exist
+- assertVisible:
+    text: "All.*"
+
+# Start mesh to generate diagnostic events
+- tapOn: "Chat"
+- runFlow: ../subflows/start-mesh.yaml
+
+# Go back to diagnostics — should have events now
+- tapOn: "Diagnostics"
+
+# Wait for diagnostic events to appear
+- extendedWaitUntil:
+    visible:
+      text: "INFO.*"
+    timeout: 10000
+
+# Test severity filter chips
+- tapOn:
+    text: "INFO.*"
+- tapOn:
+    text: "All.*"
+
+# Stop mesh
+- tapOn: "Chat"
+- runFlow: ../subflows/stop-mesh.yaml

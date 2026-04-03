@@ -1,0 +1,33 @@
+appId: io.meshlink.sample
+name: Settings - Config Presets
+tags:
+  - settings
+---
+- launchApp:
+    clearState: true
+
+# Go to Settings
+- tapOn: "Settings"
+- assertVisible: "Config Preset"
+
+# Default preset should be Chat (Small Payload / Low Latency)
+- assertVisible: "Small Payload / Low Latency"
+
+# Switch to File Transfer preset
+- tapOn: "Large Payload / High Throughput"
+- assertVisible: "Large messages, big buffer"
+
+# Switch to Power Saving preset
+- tapOn: "Minimal Resource Usage"
+- assertVisible: "Reduced resource usage"
+
+# Switch to Sensor preset
+- tapOn: "Minimal Overhead"
+- assertVisible: "Tiny messages, long intervals"
+
+# Reset to defaults
+- scrollUntilVisible:
+    element:
+      text: "Reset to Defaults"
+    direction: DOWN
+- tapOn: "Reset to Defaults"

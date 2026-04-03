@@ -1,0 +1,31 @@
+appId: io.meshlink.sample
+name: "[iOS] Broadcast Message"
+tags:
+  - smoke
+  - messaging
+  - ios
+---
+- launchApp:
+    clearState: true
+
+# Start mesh first
+- runFlow: ../subflows/start-mesh.yaml
+
+# Default recipient is Broadcast
+- assertVisible: "📡 Broadcast"
+
+# Type a message in the text field
+- tapOn:
+    text: "Message"
+- inputText: "Hello mesh network!"
+
+# Tap the send button (icon-only antenna button)
+- tapOn:
+    id: "antenna.radiowaves.left.and.right"
+
+# Verify broadcast appears in event log
+- assertVisible:
+    text: ".*Broadcast.*Hello mesh network.*"
+
+# Stop mesh
+- runFlow: ../subflows/stop-mesh.yaml

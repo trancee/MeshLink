@@ -1,0 +1,37 @@
+appId: io.meshlink.sample
+name: App Launch and Navigation
+tags:
+  - smoke
+  - navigation
+---
+- launchApp:
+    clearState: true
+
+# Chat tab is shown by default
+- assertVisible: "MeshLink Sample"
+- assertVisible: "Mesh Health"
+- assertVisible: "Start Mesh"
+- assertVisible: "Recipient"
+- assertVisible: "Event Log"
+
+# Navigate to Mesh tab
+- tapOn: "Mesh"
+- assertVisible: "Mesh Visualizer"
+- assertVisible: "No peers discovered yet"
+
+# Navigate to Diagnostics tab
+- tapOn: "Diagnostics"
+- assertVisible: "Diagnostics"
+- assertVisible:
+    text: "No diagnostic events yet.*"
+
+# Navigate to Settings tab
+- tapOn: "Settings"
+- assertVisible: "Settings"
+- assertVisible: "Mesh Status"
+- assertVisible: "Config Preset"
+- assertVisible: "MTU"
+
+# Navigate back to Chat
+- tapOn: "Chat"
+- assertVisible: "MeshLink Sample"

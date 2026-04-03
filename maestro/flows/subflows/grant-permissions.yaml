@@ -1,0 +1,52 @@
+appId: io.meshlink.sample
+name: Grant Permissions
+tags:
+  - subflow
+---
+# ── Android 12+ BLE permission dialogs ──
+- runFlow:
+    when:
+      platform: Android
+      visible: "Allow"
+    commands:
+      - tapOn:
+          text: "Allow"
+          optional: true
+          label: "Grant Bluetooth scan permission"
+      - tapOn:
+          text: "Allow"
+          optional: true
+          label: "Grant Bluetooth connect permission"
+      - tapOn:
+          text: "Allow"
+          optional: true
+          label: "Grant Bluetooth advertise permission"
+
+- runFlow:
+    when:
+      platform: Android
+      visible: "While using the app"
+    commands:
+      - tapOn:
+          text: "While using the app"
+          label: "Grant location permission"
+
+- runFlow:
+    when:
+      platform: Android
+      visible: "Precise"
+    commands:
+      - tapOn:
+          text: "Precise"
+          optional: true
+          label: "Select precise location"
+
+# ── iOS Bluetooth permission dialog ──
+- runFlow:
+    when:
+      platform: iOS
+      visible: "Would Like to Use Bluetooth"
+    commands:
+      - tapOn:
+          text: "OK"
+          label: "Grant Bluetooth permission"

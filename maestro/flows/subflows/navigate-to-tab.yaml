@@ -1,0 +1,8 @@
+appId: io.meshlink.sample
+name: Navigate to Tab
+tags:
+  - subflow
+env:
+  TAB_NAME: "Chat"
+---
+- tapOn: ${TAB_NAME}

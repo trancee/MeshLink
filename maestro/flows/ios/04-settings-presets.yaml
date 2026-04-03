@@ -1,0 +1,35 @@
+appId: io.meshlink.sample
+name: "[iOS] Settings - Config Presets"
+tags:
+  - settings
+  - ios
+---
+- launchApp:
+    clearState: true
+
+# Go to Settings
+- tapOn: "Settings"
+- assertVisible: "Configuration Preset"
+
+# iOS uses a segmented picker with short labels
+# Default preset is Chat
+- assertVisible: "Chat"
+
+# Switch to File Transfer preset
+- tapOn: "File Transfer"
+- assertVisible: "Larger messages and buffers for file transfer workloads."
+
+# Switch to Power Saver preset
+- tapOn: "Power Saver"
+- assertVisible: "Reduced buffer sizes and longer intervals to save battery."
+
+# Switch to Sensor preset
+- tapOn: "Sensor"
+- assertVisible: "Tiny payloads with minimal buffering for sensor data."
+
+# Reset to defaults
+- scrollUntilVisible:
+    element:
+      text: "Reset to Defaults"
+    direction: DOWN
+- tapOn: "Reset to Defaults"

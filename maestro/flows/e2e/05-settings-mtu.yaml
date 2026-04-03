@@ -1,0 +1,37 @@
+appId: io.meshlink.sample
+name: Settings - MTU Slider
+tags:
+  - settings
+---
+- launchApp:
+    clearState: true
+
+# Go to Settings
+- tapOn: "Settings"
+
+# Verify MTU section exists
+- scrollUntilVisible:
+    element:
+      text: "MTU"
+    direction: DOWN
+- assertVisible:
+    text: "Current: .* bytes"
+
+# Verify Configuration Details section
+- scrollUntilVisible:
+    element:
+      text: "Configuration Details"
+    direction: DOWN
+- assertVisible: "Power Mode"
+- scrollUntilVisible:
+    element:
+      text: "Max Message Size"
+    direction: DOWN
+- scrollUntilVisible:
+    element:
+      text: "Buffer Capacity"
+    direction: DOWN
+- scrollUntilVisible:
+    element:
+      text: "Buffer Usage"
+    direction: DOWN

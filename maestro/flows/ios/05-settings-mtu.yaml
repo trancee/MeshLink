@@ -1,0 +1,25 @@
+appId: io.meshlink.sample
+name: "[iOS] Settings - MTU and Config Details"
+tags:
+  - settings
+  - ios
+---
+- launchApp:
+    clearState: true
+
+# Go to Settings
+- tapOn: "Settings"
+
+# Verify MTU section (SwiftUI Form headers are uppercased)
+- assertVisible: "MTU"
+- assertVisible:
+    text: ".* bytes"
+
+# Verify Configuration Details section
+- scrollUntilVisible:
+    element:
+      text: "CURRENT CONFIGURATION"
+    direction: DOWN
+- assertVisible: "Power Mode"
+- assertVisible: "Max Message Size"
+- assertVisible: "Buffer Capacity"

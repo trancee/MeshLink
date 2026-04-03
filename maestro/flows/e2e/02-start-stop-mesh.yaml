@@ -1,0 +1,25 @@
+appId: io.meshlink.sample
+name: Start and Stop Mesh
+tags:
+  - smoke
+  - lifecycle
+---
+- launchApp:
+    clearState: true
+
+# Verify initial state
+- assertVisible: "Start Mesh"
+- assertVisible:
+    text: "Connected peers: 0"
+
+# Start the mesh
+- runFlow: ../subflows/start-mesh.yaml
+
+# Verify health card updates
+- assertVisible: "Stop Mesh"
+
+# Stop the mesh
+- runFlow: ../subflows/stop-mesh.yaml
+
+# Verify stopped state
+- assertVisible: "Start Mesh"

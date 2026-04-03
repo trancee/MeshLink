@@ -1,0 +1,8 @@
+appId: io.meshlink.sample
+name: Start Mesh
+tags:
+  - subflow
+---
+- tapOn: "Start Mesh"
+- runFlow: grant-permissions.yaml
+- assertVisible: "Stop Mesh"

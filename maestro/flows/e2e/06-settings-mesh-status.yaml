@@ -1,0 +1,32 @@
+appId: io.meshlink.sample
+name: Settings - Mesh Status
+tags:
+  - settings
+  - lifecycle
+---
+- launchApp:
+    clearState: true
+
+# Check settings before starting mesh
+- tapOn: "Settings"
+- assertVisible: "Stopped"
+
+# Go back to Chat and start mesh
+- tapOn: "Chat"
+- runFlow: ../subflows/start-mesh.yaml
+
+# Return to Settings and verify running state
+- tapOn: "Settings"
+- assertVisible: "Running"
+- assertVisible:
+    text: "Connected Peers"
+- assertVisible:
+    text: "Uptime"
+
+# Stop mesh from Chat
+- tapOn: "Chat"
+- runFlow: ../subflows/stop-mesh.yaml
+
+# Verify settings shows stopped
+- tapOn: "Settings"
+- assertVisible: "Stopped"

@@ -1,0 +1,28 @@
+appId: io.meshlink.sample
+name: "[iOS] Mesh Visualizer"
+tags:
+  - mesh
+  - ios
+---
+- launchApp:
+    clearState: true
+
+# Navigate to Mesh tab
+- tapOn: "Mesh"
+- assertVisible: "Mesh Visualizer"
+
+# Should show empty state before peers are found
+- assertVisible: "No Peers Discovered"
+- assertVisible: "Start the mesh to discover nearby peers."
+
+# Verify status badges
+- assertVisible: "Stopped"
+
+# Verify legend
+- scrollUntilVisible:
+    element:
+      text: "Strong"
+    direction: DOWN
+- assertVisible: "Strong"
+- assertVisible: "Moderate"
+- assertVisible: "Weak"

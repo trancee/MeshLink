@@ -1,0 +1,25 @@
+appId: io.meshlink.sample
+name: Send Button Disabled Without Message
+tags:
+  - messaging
+  - validation
+---
+- launchApp:
+    clearState: true
+
+# Start mesh so send button can potentially be enabled
+- runFlow: ../subflows/start-mesh.yaml
+
+# Verify send/broadcast button is visible
+- assertVisible: "Broadcast"
+
+# Type a message — button should become enabled
+- tapOn:
+    text: "Message"
+- inputText: "Test"
+
+# Clear the message
+- eraseText: 4
+
+# Stop mesh
+- runFlow: ../subflows/stop-mesh.yaml

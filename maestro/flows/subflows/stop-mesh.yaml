@@ -1,0 +1,7 @@
+appId: io.meshlink.sample
+name: Stop Mesh
+tags:
+  - subflow
+---
+- tapOn: "Stop Mesh"
+- assertVisible: "Start Mesh"

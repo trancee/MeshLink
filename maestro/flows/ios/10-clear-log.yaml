@@ -1,0 +1,25 @@
+appId: io.meshlink.sample
+name: "[iOS] Clear Event Log"
+tags:
+  - messaging
+  - ios
+---
+- launchApp:
+    clearState: true
+
+# Start mesh to generate log entries
+- runFlow: ../subflows/start-mesh.yaml
+
+# Verify log has entries
+- assertVisible:
+    text: ".*Mesh started.*"
+
+# Tap "Clear Log" in the toolbar
+- tapOn: "Clear Log"
+
+# Log should be empty (full text includes the hint)
+- assertVisible:
+    text: "No events yet.*"
+
+# Stop mesh
+- runFlow: ../subflows/stop-mesh.yaml

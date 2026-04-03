@@ -1,0 +1,47 @@
+appId: io.meshlink.sample
+name: "[iOS] Settings - Mesh Status"
+tags:
+  - settings
+  - lifecycle
+  - ios
+---
+- launchApp:
+    clearState: true
+
+# Check settings before starting mesh
+- tapOn: "Settings"
+- scrollUntilVisible:
+    element:
+      text: "MESH STATUS"
+    direction: DOWN
+- assertVisible: "Stopped"
+
+# Go back to Chat tab (use tab bar icon to avoid conflict with preset picker)
+- tapOn:
+    text: "Chat"
+    below: "Tab Bar"
+- runFlow: ../subflows/start-mesh.yaml
+
+# Return to Settings and verify running state
+- tapOn: "Settings"
+- scrollUntilVisible:
+    element:
+      text: "MESH STATUS"
+    direction: DOWN
+- assertVisible: "Running"
+- assertVisible: "Connected Peers"
+- assertVisible: "Reachable Peers"
+
+# Stop mesh from Chat
+- tapOn:
+    text: "Chat"
+    below: "Tab Bar"
+- runFlow: ../subflows/stop-mesh.yaml
+
+# Verify settings shows stopped
+- tapOn: "Settings"
+- scrollUntilVisible:
+    element:
+      text: "MESH STATUS"
+    direction: DOWN
+- assertVisible: "Stopped"
