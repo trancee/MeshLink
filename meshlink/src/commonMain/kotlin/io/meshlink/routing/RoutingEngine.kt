@@ -71,12 +71,28 @@ class RoutingEngine(
 
     // ── Route management ──────────────────────────────────────────
 
+    /**
+     * Add or update a route. Includes sanity validation: the advertised cost
+     * must be at least the link cost to the next-hop neighbor. Routes with
+     * suspiciously low costs (potential blackhole attack) are rejected.
+     */
     fun addRoute(
         destination: ByteArrayKey,
         nextHop: ByteArrayKey,
         cost: Double,
         sequenceNumber: UInt,
     ) {
+        // Route cost sanity check (FIND-05 mitigation):
+        // The cost to reach a destination via a neighbor cannot be lower
+        // than the link cost to that neighbor itself.
+        val linkCost = if (costCalculator.hasData(nextHop)) costCalculator.computeCost(nextHop) else null
+        if (linkCost != null && cost < linkCost && cost > 0.0) {
+            // Suspiciously low cost — clamp to at least the link cost.
+            // This prevents trivial blackhole attacks where a malicious peer
+            // advertises cost=0.1 for all destinations.
+            routingTable.addRoute(destination, nextHop, linkCost, sequenceNumber)
+            return
+        }
         routingTable.addRoute(destination, nextHop, cost, sequenceNumber)
     }
 
