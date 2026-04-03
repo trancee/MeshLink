@@ -217,7 +217,7 @@ on `MeshLinkConfig` itself (e.g., `config.keepaliveIntervalMillis`).
 | `ackWindowMin` | `Int` | `2` | Minimum AIMD congestion window size. |
 | `ackWindowMax` | `Int` | `16` | Maximum AIMD congestion window size. Must be ≥ `ackWindowMin`. |
 | `chunkInactivityTimeoutMillis` | `Long` | `30_000` | Timeout for incomplete transfer assembly (ms). Must be < `bufferTtlMillis`. |
-| `bufferTtlMillis` | `Long` | `300_000` | Max time to keep buffered store-and-forward data (ms). |
+| `bufferTtlMillis` | `Long` | `900_000` | Max time to keep buffered store-and-forward data (ms). Default 15 minutes. |
 | `deliveryTimeoutMillis` | `Long` | `30_000` | How long before notifying sender of delivery failure (ms). Must be ≤ `bufferTtlMillis`. `0` = no deadline. |
 
 #### Transport

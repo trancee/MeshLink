@@ -220,7 +220,7 @@ class MeshLinkConfigTest {
         assertEquals(true, config.l2capEnabled)
         assertEquals(3, config.l2capRetryAttempts)
         assertEquals(30_000L, config.chunkInactivityTimeoutMillis)
-        assertEquals(300_000L, config.bufferTtlMillis)
+        assertEquals(900_000L, config.bufferTtlMillis)
         assertEquals(30_000L, config.deliveryTimeoutMillis)
     }
 

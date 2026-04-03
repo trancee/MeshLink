@@ -1016,8 +1016,8 @@ The visited list uses **8-byte SHA-256-64 key hashes** (SHA-256 truncated to 64 
 
 With multi-hop routing and store-and-forward, the same message can arrive at a peer via multiple paths. Every peer maintains a **recently-seen message ID set**, bounded by **both time and count** (whichever limit is hit first):
 
-- **Time bound:** entries older than `maxHops × bufferTTL` are evicted (default: 10 × 5 min = 50 min). Each relay starts its own independent TTL from the moment it receives a message (no shared clock required), so a message can theoretically survive `maxHops × bufferTTL` total. The dedup time bound must cover this maximum lifespan. The 50-minute dedup window (`maxHops × bufferTTL` = 10 × 5 min) covers the theoretical maximum lifespan of a message traversing the full relay chain — one `bufferTTL` per hop, sequentially. This ensures that even messages spending the maximum buffer time at each relay are caught by dedup on redelivery, preventing duplicates after app restart or during partition heal.
-- **Count bound:** default maximum 10,000 entries (configurable via `dedupMaxEntries`). Rationale: at 30 msg/s sustained, 10,000 entries provide ~333 seconds (5.5 min) of coverage — slightly above the 5-minute bufferTTL. Memory: 20 bytes × 10,000 = 200KB (acceptable). Beyond 30 msg/s, earliest entries evict before TTL; duplicate delivery handled by app-layer message ID dedup.
+- **Time bound:** entries older than `maxHops × bufferTTL` are evicted (default: 10 × 15 min = 150 min). Each relay starts its own independent TTL from the moment it receives a message (no shared clock required), so a message can theoretically survive `maxHops × bufferTTL` total. The dedup time bound must cover this maximum lifespan.
+- **Count bound:** default maximum 10,000 entries (configurable via `dedupMaxEntries`). Rationale: at 30 msg/s sustained, 10,000 entries provide ~333 seconds (~5.5 min) of coverage. Memory: 20 bytes × 10,000 = 200KB (acceptable). Beyond 30 msg/s, earliest entries evict before TTL; duplicate delivery handled by app-layer message ID dedup.
 - On receiving any message (routed, broadcast, or buffered), check if `messageId` is in the seen set
 - If seen → drop silently (do not forward, do not deliver to app)
 - If new → add to seen set, process normally
@@ -1050,8 +1050,8 @@ flowchart TD
 When the recipient is temporarily unreachable, mesh nodes buffer encrypted messages:
 
 - **Who buffers:** Any peer in the mesh (messages are E2E encrypted — buffering peers cannot read content)
-- **Default TTL:** 5 minutes (configurable by library consumer)
-- **Per-peer independent TTL:** Each peer starts its own 5-minute countdown from the moment it receives the message. No shared clock is needed — TTL is purely local. This means a message can theoretically survive up to `maxHops × bufferTTL` (default 20 minutes) across the full relay chain. **No wire-format TTL.** Per-peer buffer TTL + visited-list loop prevention + 20-min dedup window provide sufficient message lifetime bounds.
+- **Default TTL:** 15 minutes (configurable by library consumer)
+- **Per-peer independent TTL:** Each peer starts its own 15-minute countdown from the moment it receives the message. No shared clock is needed — TTL is purely local. This means a message can theoretically survive up to `maxHops × bufferTTL` (default 150 minutes) across the full relay chain. **No wire-format TTL.** Per-peer buffer TTL + visited-list loop prevention + dedup window provide sufficient message lifetime bounds.
 - **Buffer size:** Fixed default **1,048,576 bytes (1 MB)**, configurable via `bufferMaxSize` (min 256KB, max 8MB). Covers 10× 100KB messages. No auto-adaptive sizing in v1 — avoids platform-specific memory queries and non-deterministic behavior.
 
 **OOM handling:** If buffer allocation fails, emit `BUFFER_OOM` diagnostic and retry with half the configured size (floor: 256KB).
@@ -1296,7 +1296,7 @@ This creates **defense-in-depth**: replay counter (primary) + dedup set (backup)
 
 **Physical tamper resistance:** Physical device compromise (flash memory access, counter reset) is outside the threat model. An attacker with physical access can extract the Ed25519 private key, making counter manipulation redundant. Apps requiring tamper resistance should use hardware-backed keystores (Android StrongBox, iOS Secure Enclave) for identity storage — MeshLink supports this via the platform secure storage abstraction.
 
-**Counter store eviction policy:** Per-sender replay counter store: **1,000 entries** (configurable via `replayCounterMaxEntries`, LRU) with **30-day** inactivity threshold (measured in **monotonic uptime**, consistent with buffer and dedup TTLs). On app relaunch after reboot, all persisted entries' last-activity timestamps are reset to "now" (monotonic) — the 30-day window restarts from each reboot. The LRU capacity (1,000 entries) provides a hard eviction backstop regardless of time. Rationale: at 30 msg/s sustained with 50 unique senders, 1,000 entries cover the full 5-minute bufferTTL. Memory: 16 bytes × 1,000 = 16 KB (negligible). Beyond 50 senders, oldest entries evict; brief replay window for rare senders — acceptable. Evicted senders' messages are accepted regardless of counter value. Apps in adversarial environments should add application-layer deduplication.
+**Counter store eviction policy:** Per-sender replay counter store: **1,000 entries** (configurable via `replayCounterMaxEntries`, LRU) with **30-day** inactivity threshold. Memory: 16 bytes × 1,000 = 16 KB (negligible).
 
 ### Denial-of-Service Protection
 
@@ -1501,7 +1501,7 @@ When signed, the signature covers `messageId + origin + appIdHash + payload`. Re
 **Decision:** Ephemeral — messages exist only in transit.
 
 - The library does not persist messages to disk
-- Short-lived mesh buffering (5-min default TTL) bridges temporary disconnections
+- Short-lived mesh buffering (15-min default TTL) bridges temporary disconnections
 - **The consuming app may implement its own persistence layer** on top of the library's message delivery callbacks — this is explicitly out of scope for the library
 
 ### Delivery Confirmation
