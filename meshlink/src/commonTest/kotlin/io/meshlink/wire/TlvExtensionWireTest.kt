@@ -90,45 +90,6 @@ class TlvExtensionWireTest {
         assertEquals(2, decoded.extensions.size)
     }
 
-    // ── RouteRequest ──────────────────────────────────────────────
-
-    @Test
-    fun routeRequestWithExtensionsRoundTrips() {
-        val dest = ByteArray(12) { (it + 0x20).toByte() }
-        val encoded = WireCodec.encodeRouteRequest(
-            peerId, dest, 100u, 2u, 10u, sampleExtensions
-        )
-        val decoded = WireCodec.decodeRouteRequest(encoded)
-        assertEquals(100u, decoded.requestId)
-        assertEquals(2u.toUByte(), decoded.hopCount)
-        assertEquals(2, decoded.extensions.size)
-        assertEquals(0x80u.toUByte(), decoded.extensions[1].tag)
-    }
-
-    @Test
-    fun routeRequestLegacyDecodeHasEmptyExtensions() {
-        val legacy = ByteArray(31)
-        legacy[0] = WireCodec.TYPE_ROUTE_REQUEST
-        val decoded = WireCodec.decodeRouteRequest(legacy)
-        assertTrue(decoded.extensions.isEmpty())
-    }
-
-    // ── RouteReply ────────────────────────────────────────────────
-
-    @Test
-    fun routeReplyWithExtensionsRoundTrips() {
-        val dest = ByteArray(12) { (it + 0x30).toByte() }
-        val encoded = WireCodec.encodeRouteReply(
-            peerId, dest, 200u, 3u, sampleExtensions
-        )
-        val decoded = WireCodec.decodeRouteReply(encoded)
-        assertEquals(200u, decoded.requestId)
-        assertEquals(3u.toUByte(), decoded.hopCount)
-        assertEquals(2, decoded.extensions.size)
-    }
-
-    // ── DeliveryAck ───────────────────────────────────────────────
-
     @Test
     fun deliveryAckWithExtensionsRoundTrips() {
         val encoded = WireCodec.encodeDeliveryAck(

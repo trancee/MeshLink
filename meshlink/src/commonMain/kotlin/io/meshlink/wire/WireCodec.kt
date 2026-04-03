@@ -55,10 +55,8 @@ object WireCodec {
     private const val HANDSHAKE_HEADER_SIZE = 2
 
     // route_request: type(1) + origin(8) + destination(8) + requestId(4 LE) + hopCount(1) + hopLimit(1)
-    const val ROUTE_REQUEST_SIZE = 1 + PEER_ID_SIZE + PEER_ID_SIZE + 4 + 1 + 1 // 23
 
     // route_reply: type(1) + origin(8) + destination(8) + requestId(4 LE) + hopCount(1)
-    const val ROUTE_REPLY_SIZE = 1 + PEER_ID_SIZE + PEER_ID_SIZE + 4 + 1 // 22
 
     fun encodeHandshake(step: UByte, noiseMessage: ByteArray): ByteArray {
         val buf = ByteArray(HANDSHAKE_HEADER_SIZE + noiseMessage.size)
@@ -465,99 +463,6 @@ object WireCodec {
         return NackMessage(messageId, reason, extensions)
     }
 
-    // ── Route Request (AODV RREQ) ────────────────────────────────
-
-    fun encodeRouteRequest(
-        origin: ByteArray,
-        destination: ByteArray,
-        requestId: UInt,
-        hopCount: UByte = 0u,
-        hopLimit: UByte = 10u,
-        extensions: List<TlvEntry> = emptyList(),
-    ): ByteArray {
-        require(origin.size == PEER_ID_SIZE) { "origin must be $PEER_ID_SIZE bytes" }
-        require(destination.size == PEER_ID_SIZE) { "destination must be $PEER_ID_SIZE bytes" }
-        val extBytes = TlvCodec.encode(extensions)
-        val buf = ByteArray(ROUTE_REQUEST_SIZE + extBytes.size)
-        var offset = 0
-        buf[offset++] = TYPE_ROUTE_REQUEST
-        origin.copyInto(buf, offset)
-        offset += PEER_ID_SIZE
-        destination.copyInto(buf, offset)
-        offset += PEER_ID_SIZE
-        buf.putUIntLE(offset, requestId)
-        offset += 4
-        buf[offset++] = hopCount.toByte()
-        buf[offset] = hopLimit.toByte()
-        extBytes.copyInto(buf, ROUTE_REQUEST_SIZE)
-        return buf
-    }
-
-    fun decodeRouteRequest(data: ByteArray): RouteRequestMessage {
-        require(data.size >= ROUTE_REQUEST_SIZE) { "route_request too short: ${data.size}" }
-        require(data[0] == TYPE_ROUTE_REQUEST) { "not a route_request: 0x${data[0].toUByte().toString(16)}" }
-        var offset = 1
-        val origin = data.copyOfRange(offset, offset + PEER_ID_SIZE)
-        offset += PEER_ID_SIZE
-        val destination = data.copyOfRange(offset, offset + PEER_ID_SIZE)
-        offset += PEER_ID_SIZE
-        val requestId = data.getUIntLE(offset)
-        offset += 4
-        val hopCount = data[offset++].toUByte()
-        val hopLimit = data[offset].toUByte()
-        val extensions = if (data.size > ROUTE_REQUEST_SIZE) {
-            TlvCodec.decode(data, ROUTE_REQUEST_SIZE).first
-        } else {
-            emptyList()
-        }
-        return RouteRequestMessage(origin, destination, requestId, hopCount, hopLimit, extensions)
-    }
-
-    // ── Route Reply (AODV RREP) ──────────────────────────────────
-
-    fun encodeRouteReply(
-        origin: ByteArray,
-        destination: ByteArray,
-        requestId: UInt,
-        hopCount: UByte = 0u,
-        extensions: List<TlvEntry> = emptyList(),
-    ): ByteArray {
-        require(origin.size == PEER_ID_SIZE) { "origin must be $PEER_ID_SIZE bytes" }
-        require(destination.size == PEER_ID_SIZE) { "destination must be $PEER_ID_SIZE bytes" }
-        val extBytes = TlvCodec.encode(extensions)
-        val buf = ByteArray(ROUTE_REPLY_SIZE + extBytes.size)
-        var offset = 0
-        buf[offset++] = TYPE_ROUTE_REPLY
-        origin.copyInto(buf, offset)
-        offset += PEER_ID_SIZE
-        destination.copyInto(buf, offset)
-        offset += PEER_ID_SIZE
-        buf.putUIntLE(offset, requestId)
-        offset += 4
-        buf[offset] = hopCount.toByte()
-        extBytes.copyInto(buf, ROUTE_REPLY_SIZE)
-        return buf
-    }
-
-    fun decodeRouteReply(data: ByteArray): RouteReplyMessage {
-        require(data.size >= ROUTE_REPLY_SIZE) { "route_reply too short: ${data.size}" }
-        require(data[0] == TYPE_ROUTE_REPLY) { "not a route_reply: 0x${data[0].toUByte().toString(16)}" }
-        var offset = 1
-        val origin = data.copyOfRange(offset, offset + PEER_ID_SIZE)
-        offset += PEER_ID_SIZE
-        val destination = data.copyOfRange(offset, offset + PEER_ID_SIZE)
-        offset += PEER_ID_SIZE
-        val requestId = data.getUIntLE(offset)
-        offset += 4
-        val hopCount = data[offset].toUByte()
-        val extensions = if (data.size > ROUTE_REPLY_SIZE) {
-            TlvCodec.decode(data, ROUTE_REPLY_SIZE).first
-        } else {
-            emptyList()
-        }
-        return RouteReplyMessage(origin, destination, requestId, hopCount, extensions)
-    }
-
     // ── Babel Hello (0x03) ──────────────────────────────────────
     // type(1) + sender(12) + seqno(2 LE) = 15
     private const val HELLO_SIZE = 1 + PEER_ID_SIZE + 2 // 15
@@ -756,63 +661,6 @@ enum class NackReason(val code: UByte) {
     companion object {
         fun fromCode(code: UByte): NackReason =
             entries.firstOrNull { it.code == code } ?: UNKNOWN
-    }
-}
-
-data class RouteRequestMessage(
-    val origin: ByteArray,
-    val destination: ByteArray,
-    val requestId: UInt,
-    val hopCount: UByte,
-    val hopLimit: UByte,
-    val extensions: List<TlvEntry> = emptyList(),
-) {
-    override fun equals(other: Any?): Boolean {
-        if (this === other) return true
-        if (other !is RouteRequestMessage) return false
-        return origin.contentEquals(other.origin) &&
-            destination.contentEquals(other.destination) &&
-            requestId == other.requestId &&
-            hopCount == other.hopCount &&
-            hopLimit == other.hopLimit &&
-            extensions == other.extensions
-    }
-
-    override fun hashCode(): Int {
-        var result = origin.contentHashCode()
-        result = 31 * result + destination.contentHashCode()
-        result = 31 * result + requestId.hashCode()
-        result = 31 * result + hopCount.hashCode()
-        result = 31 * result + hopLimit.hashCode()
-        result = 31 * result + extensions.hashCode()
-        return result
-    }
-}
-
-data class RouteReplyMessage(
-    val origin: ByteArray,
-    val destination: ByteArray,
-    val requestId: UInt,
-    val hopCount: UByte,
-    val extensions: List<TlvEntry> = emptyList(),
-) {
-    override fun equals(other: Any?): Boolean {
-        if (this === other) return true
-        if (other !is RouteReplyMessage) return false
-        return origin.contentEquals(other.origin) &&
-            destination.contentEquals(other.destination) &&
-            requestId == other.requestId &&
-            hopCount == other.hopCount &&
-            extensions == other.extensions
-    }
-
-    override fun hashCode(): Int {
-        var result = origin.contentHashCode()
-        result = 31 * result + destination.contentHashCode()
-        result = 31 * result + requestId.hashCode()
-        result = 31 * result + hopCount.hashCode()
-        result = 31 * result + extensions.hashCode()
-        return result
     }
 }
 
