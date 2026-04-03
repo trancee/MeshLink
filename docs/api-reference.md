@@ -126,6 +126,7 @@ class MeshLink(
 | `clock`            | `() -> Long`        | `currentTimeMillis()`  | Monotonic clock source; override for deterministic testing. |
 | `crypto`           | `CryptoProvider?`   | `null`                 | Encryption provider. **Required by default** — `start()` fails if null unless `requireEncryption = false`. Use `CryptoProvider()`. |
 | `trustStore`       | `TrustStore?`       | `null`                 | Enables key pinning when non-null. When `null` and `crypto` is provided, a `TrustStore` is created using `config.trustMode`. |
+| `cryptoDispatcher` | `CoroutineContext?` | `null` (= `coroutineContext`) | Dispatcher for CPU-intensive crypto operations (Noise K seal/unseal). Defaults to the `coroutineContext` parameter. In production, pass `Dispatchers.Default` to offload crypto to a background thread pool and prevent blocking the main mesh scope. |
 
 ### Lifecycle States
 

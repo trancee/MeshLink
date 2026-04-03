@@ -40,6 +40,7 @@ internal class MessageDispatcher(
     private val outboundTracker: OutboundTracker,
     private val sink: DispatchSink,
     private val unwrapPayload: (ByteArray) -> ByteArray = { it },
+    private val cryptoDispatcher: kotlin.coroutines.CoroutineContext = kotlinx.coroutines.Dispatchers.Default,
 ) {
     suspend fun dispatch(fromPeerId: ByteArray, data: ByteArray) {
         if (data.isEmpty()) return
@@ -156,11 +157,13 @@ internal class MessageDispatcher(
 
                 if (routingEngine.isDuplicate(key)) return
 
-                val decrypted = validator.unsealPayload(
-                    result.reassembledPayload,
-                    "chunk reassembly",
-                    fromPeerId.toKey(),
-                ) ?: return
+                val decrypted = kotlinx.coroutines.withContext(cryptoDispatcher) {
+                    validator.unsealPayload(
+                        result.reassembledPayload,
+                        "chunk reassembly",
+                        fromPeerId.toKey(),
+                    )
+                } ?: return
                 sink.onMessageReceived(fromPeerId, unwrapPayload(decrypted))
             }
         }
@@ -242,10 +245,12 @@ internal class MessageDispatcher(
             // When the sender did NOT have our key (non-adjacent peer
             // without key distribution), the payload is plaintext.
             // Accept both: try unseal → on failure, deliver as-is.
-            val deliveredPayload = validator.unsealOrPassthrough(
-                routed.payload,
-                routed.origin.toKey(),
-            )
+            val deliveredPayload = kotlinx.coroutines.withContext(cryptoDispatcher) {
+                validator.unsealOrPassthrough(
+                    routed.payload,
+                    routed.origin.toKey(),
+                )
+            }
             sink.onMessageReceived(routed.origin, unwrapPayload(deliveredPayload))
             if (config.deliveryAckEnabled) {
                 val signed = securityEngine?.sign(routed.messageId + localPeerId)

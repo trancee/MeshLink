@@ -78,9 +78,11 @@ class MeshLink(
     clock: () -> Long = { currentTimeMillis() },
     private val crypto: CryptoProvider? = null,
     private val trustStore: TrustStore? = null,
+    cryptoDispatcher: CoroutineContext? = null,
 ) : MeshLinkApi {
 
     private val clock = clock
+    private val effectiveCryptoDispatcher: CoroutineContext = cryptoDispatcher ?: coroutineContext
     private val sendLock = PlatformLock()
 
     private val rateLimitPolicy = RateLimitPolicy(config, clock)
@@ -325,6 +327,7 @@ class MeshLink(
         outboundTracker = outboundTracker,
         sink = MeshLinkDispatchSink(),
         unwrapPayload = payloadEnvelope::unwrap,
+        cryptoDispatcher = effectiveCryptoDispatcher,
     )
 
     // ── Named DispatchSink (was anonymous object) ───────────────

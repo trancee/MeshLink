@@ -30,6 +30,7 @@ val mesh = MeshLink(
     transport = bleTransport,
     config = meshLinkConfig { maxMessageSize = 50_000 },
     crypto = CryptoProvider(),
+    cryptoDispatcher = Dispatchers.Default, // offload crypto to background threads
 )
 mesh.start()
 ```
