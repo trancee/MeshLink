@@ -411,7 +411,9 @@ Version negotiation occurs during the Noise XX handshake. See §12 Protocol Gove
 
 **Scan response data:** The scan response carries a duplicate of the 16-bit service UUID (`0x7F3A`) in a Complete List of 16-bit Service UUIDs AD structure. This ensures iOS background discoverability — iOS moves service UUIDs to the "overflow area" when the app is backgrounded, making them visible only to devices already filtering for that UUID. The scan response UUID guarantees MeshLink peers remain discoverable regardless of iOS background state.
 
-**No mesh network ID** — all MeshLink devices see each other regardless of which app is using the library. The library provides **app-level topic filtering**: consuming apps set `appId` in `MeshLinkConfig` at construction time. Messages with non-matching app IDs are silently dropped at the recipient (not relayed). Relays forward all messages regardless of app ID — this preserves mesh density for all apps sharing the physical mesh. Apps that don't set an appId receive all messages.
+**Mesh network isolation:** The BLE advertisement includes a **16-bit FNV-1a mesh hash** of the `appId` string. Scanning peers skip connections to devices with non-matching mesh hashes, isolating different apps at the BLE scan level — before any GATT connection or handshake occurs. When `appId` is null, the mesh hash is `0x0000`, which matches all peers (backward compatible).
+
+As a second layer, inbound messages with a non-matching `appId` hash are silently dropped at the recipient. This handles the case where peers with `appId = null` relay messages from one app network to another.
 
 > **Scaling note:** In deployments where many apps share the physical BLE mesh, every device must decode, validate, and dedup-check messages from *all* apps before applying the appId filter. The filter itself is cheap (8-byte hash comparison), but the per-message processing cost scales with the total mesh-wide message volume across all apps. For single-app deployments this is a non-issue. For multi-app deployments (e.g., 10+ apps at a festival), monitor `bufferUtilizationPercent` and consider tuning rate limits.
 
@@ -1859,8 +1861,8 @@ Convenience APIs using listener patterns for consumers who don't use async strea
 `appId` is an **immutable config parameter** set at construction via `MeshLink.configure { appId = "com.mycompany.meshchat" }`. The library computes `SHA-256-64(appId.toUTF8())` internally — the 8-byte hash is what appears in the wire format (fixed size, no length prefix needed). The 8-byte appId hash is independent of the 12-byte peer ID size. Recommended format: reverse-domain notation. To change the appId, create a new MeshLink instance. When set:
 - Outbound messages include the 8-byte appId hash in the payload envelope
 - Inbound messages with a non-matching appId hash are **silently dropped** at the recipient (not delivered to the app)
-- **AppId is NOT included in the BLE advertisement** — all MeshLink peers connect regardless of app. Filtering is recipient-side only, preserving cross-app relay density.
-- **Relays forward all messages regardless of app ID** — this preserves mesh density for all apps sharing the physical BLE mesh
+- **AppId drives pre-connection filtering** — the BLE advertisement carries a 16-bit mesh hash of the `appId`. Peers with non-matching mesh hashes never connect. `appId = null` (mesh hash `0x0000`) connects to all peers.
+- As a second layer, inbound messages with a non-matching appId hash are silently dropped at the recipient
 - Apps that don't configure an appId receive all messages (backward compatible)
 
 **Self-send:** If the app calls `send(ownPublicKey, payload)`, the message is delivered locally via loopback — `onMessageReceived` fires with the message without touching the network. No encryption, routing, or BLE activity occurs. The callback is dispatched **asynchronously on the `coroutineContext`** (same behavior as BLE-delivered messages), preventing re-entrant hazards if the callback calls back into the library. This enables apps to use a uniform message handling path regardless of sender.

@@ -234,7 +234,7 @@ The following terms are commonly confused. Read this before continuing.
 
 | Term | Definition | Aliases to avoid |
 |------|-----------|-----------------|
-| **App Filter Hash** | SHA-256-64 hash of the developer-provided appId string. 8 bytes fixed size in the wire format. Zero hash = no filter. NOT included in BLE advertisement; filtering is recipient-side only. | App ID hash, filter hash |
+| **App Filter Hash** | SHA-256-64 hash of the developer-provided appId string. 8 bytes fixed size in the wire format. Zero hash = no filter. A 16-bit FNV-1a mesh hash of the appId is included in the BLE advertisement for pre-connection filtering; recipient-side appId hash check is a second layer. | App ID hash, filter hash |
 | **appId** | Immutable config parameter (`SHA-256-64` hash in wire format). Inbound messages with non-matching hash silently dropped; relays forward regardless. → see design.md §10. | setAppFilter, app filter, topic filter |
 | **Backward Compatibility (Protocol)** | Each major protocol version MUST accept connections from the previous major version and speak the older protocol (downgrade). Prevents mesh partitioning during rollout. | Version downgrade, protocol compat |
 | **BLE Connection Parameters** | The BLE connection interval, slave latency, and supervision timeout. MeshLink **requests** optimal values per activity state (active transfer: 15ms/0; idle: 100ms/4) but the OS makes the final decision. Actual negotiated values logged via **Diagnostic Stream**. | Connection interval, BLE params |
