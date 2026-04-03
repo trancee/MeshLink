@@ -646,3 +646,51 @@ Feature: BLE Mesh Peer-to-Peer Messaging
     When CryptoProvider() is called
     Then it should return PureKotlinCryptoProvider
     And all crypto operations should still be correct
+
+  # ─── Babel Routing Protocol (RFC 8966 adapted) ─────────────
+
+  @routing @babel @feasibility
+  Scenario: Feasibility condition prevents routing loop
+    Given three peers Alice, Bob, and Charlie in a line
+    And Alice has a route to Charlie via Bob (metric=3, seqno=1)
+    When Alice receives an Update for Charlie from another neighbor
+      with same seqno=1 but worse metric=5 (>= FD)
+    Then Alice should reject the update (infeasible)
+    And Alice's route to Charlie should remain via Bob
+
+  @routing @babel @feasibility
+  Scenario: Better metric with same seqno is accepted
+    Given Alice has a route to destination D via neighbor N1 (metric=10, seqno=1)
+    When Alice receives an Update for D from N2 with metric=1, seqno=1
+    Then Alice should accept the update (metric < FD)
+    And Alice's route to D should switch to N2
+
+  @routing @babel @retraction
+  Scenario: Route retraction removes unreachable destination
+    Given Alice has a route to Charlie via Bob
+    When Bob sends a retraction Update for Charlie (metric=0xFFFF)
+    Then Alice should remove the route to Charlie
+    And subsequent messages to Charlie should trigger route discovery
+
+  @routing @babel @retraction
+  Scenario: Triggered retraction on peer loss
+    Given three peers Alice, Bob, and Charlie
+    And Alice has routes to both Bob and Charlie
+    When Bob disconnects (BLE connection lost)
+    Then Alice should send a retraction Update for Bob to Charlie
+    And Charlie should update its routing table accordingly
+
+  @routing @babel @periodic
+  Scenario: Periodic full routing table update
+    Given two peers Alice and Bob with established connection
+    And keepalive interval is 5 seconds
+    When 20 seconds elapse (4× Hello interval)
+    Then Alice should have sent a full routing table Update to Bob
+    And Bob should have sent a full routing table Update to Alice
+
+  @routing @babel @convergence
+  Scenario: Multi-hop route convergence via Babel Updates
+    Given four peers in a line: Alice → Bob → Charlie → Dave
+    When all peers discover their neighbors and exchange Hellos
+    Then Bob should propagate Dave's route (learned from Charlie) to Alice
+    And Alice should have a route to Dave via Bob after convergence

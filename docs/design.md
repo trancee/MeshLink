@@ -742,13 +742,14 @@ flowchart TD
 
 ## 4. Mesh Routing
 
-### Hybrid Architecture: Keepalive + Reactive Routing (AODV)
+### Hybrid Architecture: Babel Routing (RFC 8966 adapted for BLE)
 
-Neighbor discovery uses lightweight keepalives over GATT connections, while
-multi-hop routes are discovered **on-demand** using AODV (Ad-hoc On-demand
-Distance Vector, RFC 3561). This eliminates proactive gossip overhead — routes
-are only established when a message needs to be sent. See
-[Appendix A](#appendix-a-decision-records) for alternatives evaluated.
+Neighbor discovery uses periodic Hello messages. Multi-hop routes are
+propagated via Update messages with a **feasibility condition** that
+guarantees loop-freedom at all times (D(B) < FD(A), per EIGRP/DUAL).
+Legacy AODV RREQ/RREP is retained as a fallback for on-demand route
+discovery. See [routing-protocol-analysis.md](routing-protocol-analysis.md)
+for the full evaluation of 7 routing RFCs.
 
 ### Route Discovery Protocol
 
@@ -830,11 +831,12 @@ Keepalive intervals vary by power mode — see §7 Power Management table.
 - **Default max hops:** **10** (configurable)
 - **Rationale:** At ≤10 hops, the mesh covers a wide area while keeping per-message relay traffic bounded; higher values increase reach but reduce reliability and increase latency.
 
-### Routing Algorithm: Reactive AODV (On-Demand Route Discovery)
+### Routing Algorithm: Babel (Loop-Free Distance Vector)
 
-MeshLink uses AODV (Ad-hoc On-demand Distance Vector) routing for multi-hop
-message delivery. Routes are
-discovered only when needed — no continuous routing table exchange is required.
+MeshLink uses Babel (RFC 8966) adapted for BLE mesh. Routes are
+propagated via Hello/Update messages with a feasibility condition
+that guarantees loop-freedom. Legacy AODV RREQ/RREP is retained
+as fallback for on-demand discovery when no proactive route exists.
 
 **Core operations in `RoutingEngine`:**
 
@@ -981,8 +983,8 @@ The backup route must use a different Next-Hop — two routes through the same N
 
 ### Topology Change Handling
 
-With AODV, topology changes are handled reactively rather than via periodic
-gossip:
+With Babel, topology changes are handled via triggered Updates and route
+retractions:
 
 | Event | Action |
 |-------|--------|
@@ -990,9 +992,11 @@ gossip:
 | Neighbor transitions to Gone (Presence Eviction) | All cached routes using that neighbor as next-hop are invalidated. Next send to those destinations triggers fresh RREQ. |
 | Route failure (delivery timeout) | Cached route removed. Fresh RREQ flooded on next send attempt. |
 
-**No background routing traffic:** AODV generates
-zero control-plane traffic when no messages are being sent. This significantly
-reduces battery drain in PowerSaver mode and on idle meshes.
+**Low background routing traffic:** Babel generates periodic Hello messages
+(~60 bytes per neighbor per Hello interval) and full routing table Updates
+every 4× Hello interval. This is ~0.06% of BLE bandwidth — negligible.
+Triggered Updates on topology changes provide fast convergence without
+waiting for periodic intervals.
 
 ### Route Settling Time & RREQ Rate Limiting
 
@@ -2334,9 +2338,9 @@ L2CAP provides 3–10× throughput over GATT with built-in flow control. Insecur
 
 ### A3. Routing Strategy
 
-**Chosen: AODV (reactive, on-demand).** Zero overhead when idle, fast discovery, proven for MANETs (RFC 3561). Tradeoff: initial send incurs 1–5s route discovery latency.
+**Chosen: Babel (RFC 8966, adapted for BLE).** Loop-free at all times via feasibility condition. Native composite metrics. Heterogeneous timer support maps to PowerProfile. Key propagation via Update messages. Tradeoff: ~60 bytes/5s Hello overhead (0.06% BLE bandwidth). See [routing-protocol-analysis.md](routing-protocol-analysis.md).
 
-**Rejected:** Flooding (bandwidth waste), gossip (idle overhead), proactive DSDV (continuous gossip, slow convergence), store-and-forward only (no active routing).
+**Rejected:** AODV (no loop-free guarantee during convergence, RREQ flooding expensive), flooding (bandwidth waste), gossip (idle overhead), proactive DSDV (continuous gossip).
 
 ### A4. Hop-by-Hop Encryption
 

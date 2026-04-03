@@ -573,12 +573,12 @@ class WireCodecTest {
     @Test
     fun helloEncodeDecodeRoundTrips() {
         val sender = originId
-        val encoded = WireCodec.encodeHello(sender, seqno = 42u)
+        val encoded = WireCodec.encodeHello(sender, seqNo = 42u)
         assertEquals(WireCodec.TYPE_HELLO, encoded[0])
 
         val decoded = WireCodec.decodeHello(encoded)
         assertContentEquals(sender, decoded.sender)
-        assertEquals(42u.toUShort(), decoded.seqno)
+        assertEquals(42u.toUShort(), decoded.seqNo)
     }
 
     @Test
@@ -589,7 +589,7 @@ class WireCodecTest {
         val encoded = WireCodec.encodeUpdate(
             destination = dest,
             metric = 150u,
-            seqno = 7u,
+            seqNo = 7u,
             publicKey = pubKey,
         )
         assertEquals(WireCodec.TYPE_UPDATE, encoded[0])
@@ -598,7 +598,7 @@ class WireCodecTest {
         val decoded = WireCodec.decodeUpdate(encoded)
         assertContentEquals(dest, decoded.destination)
         assertEquals(150u.toUShort(), decoded.metric)
-        assertEquals(7u.toUShort(), decoded.seqno)
+        assertEquals(7u.toUShort(), decoded.seqNo)
         assertContentEquals(pubKey, decoded.publicKey)
     }
 
@@ -608,7 +608,7 @@ class WireCodecTest {
             WireCodec.encodeUpdate(
                 destination = destinationId,
                 metric = 1u,
-                seqno = 1u,
+                seqNo = 1u,
                 publicKey = ByteArray(16), // too short
             )
         }

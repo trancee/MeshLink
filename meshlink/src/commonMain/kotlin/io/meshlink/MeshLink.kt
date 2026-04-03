@@ -507,6 +507,14 @@ class MeshLink(
                 val action = peerConnectionCoordinator.onPeerLost(event.peerId)
                 safeEmit(_peers, PeerEvent.Lost(action.peerId), "peers")
                 emitHealthUpdate()
+                // Babel: send route retraction for the lost peer to remaining neighbors
+                val lostKey = event.peerId.toKey()
+                val retraction = routingEngine.buildRetraction(lostKey)
+                for (peerId in routingEngine.connectedPeerIds()) {
+                    if (peerId != lostKey) {
+                        launch { safeSend(peerId.bytes, retraction) }
+                    }
+                }
             }
         }
         newScope.launch {

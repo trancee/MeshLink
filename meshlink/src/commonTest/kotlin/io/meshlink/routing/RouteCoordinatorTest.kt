@@ -55,7 +55,7 @@ class RouteCoordinatorTest {
         val sentPeers = mutableListOf<String>()
         val rc = coordinator(re, sendFrame = { id, _ -> sentPeers.add(id.toHex()) })
         rc.broadcastKeepalive()
-        assertEquals(1, sentPeers.size)
+        assertEquals(2, sentPeers.size, "keepalive + hello")
         assertEquals(peerAHex, sentPeers[0])
     }
 
@@ -67,7 +67,7 @@ class RouteCoordinatorTest {
         val sentData = mutableListOf<ByteArray>()
         val rc = coordinator(re, clock = { 5000L }, sendFrame = { _, data -> sentData.add(data) })
         rc.broadcastKeepalive()
-        assertEquals(1, sentData.size)
+        assertEquals(2, sentData.size, "keepalive + hello")
         assertEquals(0x01, sentData[0][0].toInt(), "TYPE_KEEPALIVE is 0x01")
     }
 
@@ -81,7 +81,7 @@ class RouteCoordinatorTest {
         val sentPeers = mutableListOf<String>()
         val rc = coordinator(re, sendFrame = { id, _ -> sentPeers.add(id.toHex()) })
         rc.broadcastKeepalive()
-        assertEquals(2, sentPeers.size)
+        assertEquals(4, sentPeers.size, "2 peers × 2 frames")
         assertTrue(sentPeers.contains(peerAHex))
         assertTrue(sentPeers.contains(peerB.toHex()))
     }

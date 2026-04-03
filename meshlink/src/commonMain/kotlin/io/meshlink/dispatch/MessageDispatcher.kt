@@ -139,7 +139,7 @@ internal class MessageDispatcher(
         val hello = WireCodec.decodeHello(data)
         val updates = routingEngine.handleHello(
             fromPeerId = fromPeerId.toKey(),
-            senderSeqno = hello.seqno,
+            senderSeqNo = hello.seqNo,
         )
         // Send routing table updates back to the new neighbor
         for (update in updates) {
@@ -154,7 +154,7 @@ internal class MessageDispatcher(
             fromPeerId = fromPeerId.toKey(),
             destination = destKey,
             metric = update.metric,
-            seqno = update.seqno,
+            seqNo = update.seqNo,
             publicKey = update.publicKey,
         )
         // If a new public key was propagated, register it with the security engine

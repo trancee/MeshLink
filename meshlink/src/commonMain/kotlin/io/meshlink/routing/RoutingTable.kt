@@ -70,6 +70,10 @@ class RoutingTable(
         if (destRoutes.isEmpty()) routes.remove(destination)
     }
 
+    fun removeRoutesVia(destination: ByteArrayKey, nextHop: ByteArrayKey) {
+        removeRoute(destination, nextHop)
+    }
+
     fun avgCost(): Double {
         val allRoutes = routes.values.flatMap { it.values }
         if (allRoutes.isEmpty()) return 0.0

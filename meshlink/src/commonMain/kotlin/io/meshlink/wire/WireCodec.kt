@@ -562,11 +562,11 @@ object WireCodec {
     // type(1) + sender(12) + seqno(2 LE) = 15
     private const val HELLO_SIZE = 1 + PEER_ID_SIZE + 2 // 15
 
-    fun encodeHello(sender: ByteArray, seqno: UShort): ByteArray {
+    fun encodeHello(sender: ByteArray, seqNo: UShort): ByteArray {
         val buf = ByteArray(HELLO_SIZE)
         buf[0] = TYPE_HELLO
         sender.copyInto(buf, 1)
-        buf.putUShortLE(1 + PEER_ID_SIZE, seqno)
+        buf.putUShortLE(1 + PEER_ID_SIZE, seqNo)
         return buf
     }
 
@@ -574,8 +574,8 @@ object WireCodec {
         require(data.size >= HELLO_SIZE) { "hello too short: ${data.size}" }
         require(data[0] == TYPE_HELLO) { "not a hello: 0x${data[0].toUByte().toString(16)}" }
         val sender = data.copyOfRange(1, 1 + PEER_ID_SIZE)
-        val seqno = data.getUShortLE(1 + PEER_ID_SIZE)
-        return HelloMessage(sender, seqno)
+        val seqNo = data.getUShortLE(1 + PEER_ID_SIZE)
+        return HelloMessage(sender, seqNo)
     }
 
     // ── Babel Update (0x04) ─────────────────────────────────────
@@ -585,7 +585,7 @@ object WireCodec {
     fun encodeUpdate(
         destination: ByteArray,
         metric: UShort,
-        seqno: UShort,
+        seqNo: UShort,
         publicKey: ByteArray,
     ): ByteArray {
         require(publicKey.size == 32) { "publicKey must be 32 bytes" }
@@ -596,7 +596,7 @@ object WireCodec {
         offset += PEER_ID_SIZE
         buf.putUShortLE(offset, metric)
         offset += 2
-        buf.putUShortLE(offset, seqno)
+        buf.putUShortLE(offset, seqNo)
         offset += 2
         publicKey.copyInto(buf, offset)
         return buf
@@ -610,10 +610,10 @@ object WireCodec {
         offset += PEER_ID_SIZE
         val metric = data.getUShortLE(offset)
         offset += 2
-        val seqno = data.getUShortLE(offset)
+        val seqNo = data.getUShortLE(offset)
         offset += 2
         val publicKey = data.copyOfRange(offset, offset + 32)
-        return UpdateMessage(destination, metric, seqno, publicKey)
+        return UpdateMessage(destination, metric, seqNo, publicKey)
     }
 }
 
@@ -818,12 +818,12 @@ data class RouteReplyMessage(
 
 data class HelloMessage(
     val sender: ByteArray,
-    val seqno: UShort,
+    val seqNo: UShort,
 )
 
 data class UpdateMessage(
     val destination: ByteArray,
     val metric: UShort,
-    val seqno: UShort,
+    val seqNo: UShort,
     val publicKey: ByteArray,
 )

@@ -1,6 +1,7 @@
 package io.meshlink.routing
 
 import io.meshlink.util.ByteArrayKey
+import io.meshlink.wire.WireCodec
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
@@ -457,7 +458,7 @@ class RoutingEngineTest {
         val re = RoutingEngine(local, clock = { 1000L })
 
         // First hello from a new neighbor should return update frames
-        val updates = re.handleHello(neighbor, senderSeqno = 1u)
+        val updates = re.handleHello(neighbor, senderSeqNo = 1u)
         assertTrue(updates.isNotEmpty(), "Should send routing table to new neighbor")
     }
 
@@ -467,8 +468,8 @@ class RoutingEngineTest {
         val neighbor = peerId(2)
         val re = RoutingEngine(local, clock = { 1000L })
 
-        re.handleHello(neighbor, senderSeqno = 1u) // first hello
-        val updates = re.handleHello(neighbor, senderSeqno = 2u) // second hello
+        re.handleHello(neighbor, senderSeqNo = 1u) // first hello
+        val updates = re.handleHello(neighbor, senderSeqNo = 2u) // second hello
         assertTrue(updates.isEmpty(), "Known neighbor should not trigger full update")
     }
 
@@ -481,7 +482,7 @@ class RoutingEngineTest {
         val re = RoutingEngine(local, clock = { 1000L })
 
         re.peerSeen(neighbor)
-        val propagated = re.handleUpdate(neighbor, dest, metric = 2u, seqno = 1u, publicKey = destKey)
+        val propagated = re.handleUpdate(neighbor, dest, metric = 2u, seqNo = 1u, publicKey = destKey)
 
         assertNotNull(propagated, "Should propagate public key")
         assertContentEquals(destKey, propagated)
@@ -498,13 +499,13 @@ class RoutingEngineTest {
         val re = RoutingEngine(local, clock = { 1000L })
 
         re.peerSeen(neighbor)
-        re.handleUpdate(neighbor, dest, metric = 5u, seqno = 10u, publicKey = key)
+        re.handleUpdate(neighbor, dest, metric = 5u, seqNo = 10u, publicKey = key)
         val route1 = re.bestRoute(dest)!!
 
         // Older seqno should be rejected
-        re.handleUpdate(neighbor, dest, metric = 1u, seqno = 5u, publicKey = key)
+        re.handleUpdate(neighbor, dest, metric = 1u, seqNo = 5u, publicKey = key)
         val route2 = re.bestRoute(dest)!!
-        assertEquals(route1.sequenceNumber, route2.sequenceNumber, "Older seqno rejected")
+        assertEquals(route1.sequenceNumber, route2.sequenceNumber, "Older seqNo rejected")
     }
 
     @Test
@@ -516,10 +517,10 @@ class RoutingEngineTest {
         val re = RoutingEngine(local, clock = { 1000L })
 
         re.peerSeen(neighbor)
-        re.handleUpdate(neighbor, dest, metric = 5u, seqno = 1u, publicKey = key)
+        re.handleUpdate(neighbor, dest, metric = 5u, seqNo = 1u, publicKey = key)
 
         // Newer seqno should be accepted even with worse metric
-        re.handleUpdate(neighbor, dest, metric = 100u, seqno = 2u, publicKey = key)
+        re.handleUpdate(neighbor, dest, metric = 100u, seqNo = 2u, publicKey = key)
         val route = re.bestRoute(dest)!!
         assertEquals(2u, route.sequenceNumber)
     }
@@ -531,12 +532,12 @@ class RoutingEngineTest {
         val hello = re.buildHello()
         val decoded = io.meshlink.wire.WireCodec.decodeHello(hello)
         assertContentEquals(local.bytes, decoded.sender)
-        assertEquals(0u.toUShort(), decoded.seqno)
+        assertEquals(0u.toUShort(), decoded.seqNo)
 
-        re.bumpSeqno()
+        re.bumpSeqNo()
         val hello2 = re.buildHello()
         val decoded2 = io.meshlink.wire.WireCodec.decodeHello(hello2)
-        assertEquals(1u.toUShort(), decoded2.seqno)
+        assertEquals(1u.toUShort(), decoded2.seqNo)
     }
 
     @Test
@@ -549,5 +550,116 @@ class RoutingEngineTest {
         assertNull(re.getPublicKey(peer))
         re.registerPublicKey(peer, key)
         assertContentEquals(key, re.getPublicKey(peer))
+    }
+
+    // ── Babel feasibility distance ───────────────────────────
+
+    @Test
+    fun feasibilityDistancePreventsLoop() {
+        val local = peerId(1)
+        val neighbor1 = peerId(2)
+        val neighbor2 = peerId(3)
+        val dest = peerId(4)
+        val key = ByteArray(32) { 0x11 }
+        val re = RoutingEngine(local, clock = { 1000L })
+        re.peerSeen(neighbor1)
+        re.peerSeen(neighbor2)
+
+        // Install route via neighbor1 with metric 3 (becomes FD)
+        re.handleUpdate(neighbor1, dest, metric = 3u, seqNo = 1u, publicKey = key)
+        val route1 = re.bestRoute(dest)!!
+
+        // Update from neighbor2 with same seqno but metric 5 (>= FD) — rejected
+        re.handleUpdate(neighbor2, dest, metric = 5u, seqNo = 1u, publicKey = key)
+        val route2 = re.bestRoute(dest)!!
+        assertEquals(route1.nextHop, route2.nextHop, "Infeasible update rejected")
+    }
+
+    @Test
+    fun feasibilityDistanceAllowsBetterMetricSameSeqno() {
+        val local = peerId(1)
+        val neighbor1 = peerId(2)
+        val neighbor2 = peerId(3)
+        val dest = peerId(4)
+        val key = ByteArray(32) { 0x11 }
+        val re = RoutingEngine(local, clock = { 1000L })
+        re.peerSeen(neighbor1)
+        re.peerSeen(neighbor2)
+
+        // Install route with metric 10 (FD = 10 + link cost)
+        re.handleUpdate(neighbor1, dest, metric = 10u, seqNo = 1u, publicKey = key)
+        // Better metric from neighbor2 (< FD) — accepted
+        re.handleUpdate(neighbor2, dest, metric = 1u, seqNo = 1u, publicKey = key)
+        val route = re.bestRoute(dest)!!
+        assertEquals(neighbor2, route.nextHop, "Better metric should be accepted")
+    }
+
+    // ── Babel retraction ─────────────────────────────────
+
+    @Test
+    fun retractionRemovesRoute() {
+        val local = peerId(1)
+        val neighbor = peerId(2)
+        val dest = peerId(3)
+        val key = ByteArray(32) { 0x11 }
+        val re = RoutingEngine(local, clock = { 1000L })
+        re.peerSeen(neighbor)
+
+        re.handleUpdate(neighbor, dest, metric = 5u, seqNo = 1u, publicKey = key)
+        assertNotNull(re.bestRoute(dest))
+
+        // Retract with metric = 0xFFFF
+        re.handleUpdate(neighbor, dest, metric = 0xFFFFu, seqNo = 1u, publicKey = key)
+        assertNull(re.bestRoute(dest), "Retraction should remove route")
+    }
+
+    @Test
+    fun buildRetractionEncodesInfinityMetric() {
+        val local = peerId(1)
+        val dest = peerId(2)
+        val re = RoutingEngine(local, clock = { 1000L })
+
+        val retraction = re.buildRetraction(dest)
+        val decoded = WireCodec.decodeUpdate(retraction)
+        assertEquals(0xFFFFu.toUShort(), decoded.metric, "Retraction metric should be 0xFFFF")
+    }
+
+    // ── Babel periodic update ─────────────────────────────
+
+    @Test
+    fun fullUpdateSetIncludesSelfAndRoutes() {
+        val local = peerId(1)
+        val neighbor = peerId(2)
+        val dest = peerId(3)
+        val key = ByteArray(32) { 0x22 }
+        val re = RoutingEngine(local, clock = { 1000L })
+        re.peerSeen(neighbor)
+        re.handleUpdate(neighbor, dest, metric = 5u, seqNo = 1u, publicKey = key)
+
+        val updates = re.buildFullUpdateSet()
+        // Should include self + 1 route = 2 updates
+        assertEquals(2, updates.size, "Full update: self + 1 route")
+
+        val decoded = updates.map { WireCodec.decodeUpdate(it) }
+        // First update should be self (metric 0)
+        assertEquals(0u.toUShort(), decoded[0].metric, "Self route should have metric 0")
+    }
+
+    @Test
+    fun bumpSeqNoIncrements() {
+        val local = peerId(1)
+        val re = RoutingEngine(local, clock = { 1000L })
+
+        val hello1 = WireCodec.decodeHello(re.buildHello())
+        assertEquals(0u.toUShort(), hello1.seqNo)
+
+        re.bumpSeqNo()
+        val hello2 = WireCodec.decodeHello(re.buildHello())
+        assertEquals(1u.toUShort(), hello2.seqNo)
+
+        re.bumpSeqNo()
+        re.bumpSeqNo()
+        val hello3 = WireCodec.decodeHello(re.buildHello())
+        assertEquals(3u.toUShort(), hello3.seqNo)
     }
 }
