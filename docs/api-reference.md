@@ -172,7 +172,7 @@ on `MeshLinkConfig` itself (e.g., `config.keepaliveIntervalMillis`).
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `maxMessageSize` | `Int` | `100_000` | Maximum payload size in bytes. Messages larger than `mtu - 17` are automatically chunked. |
+| `maxMessageSize` | `Int` | `10_000` | Maximum payload size in bytes. Messages larger than `mtu - 17` are automatically chunked. Use `largePayloadHighThroughput` preset for up to 100 KB. |
 | `bufferCapacity` | `Int` | `1_048_576` | Total in-flight data buffer size in bytes. Must be ≥ `maxMessageSize`. |
 | `mtu` | `Int` | `185` | BLE link MTU. Effective payload per chunk = `mtu - 17` (header size). Must be > 17. |
 | `maxHops` | `UByte` | `10` | Maximum hop count for routed messages. |

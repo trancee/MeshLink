@@ -13,7 +13,7 @@ import io.meshlink.protocol.ProtocolVersion
  */
 data class MeshLinkConfig(
     // ── Public API parameters ─────────────────────────────────────
-    val maxMessageSize: Int = 100_000,
+    val maxMessageSize: Int = 10_000,
     val bufferCapacity: Int = 1_048_576,
     val mtu: Int = 185,
     val maxHops: UByte = 10u,
@@ -149,7 +149,7 @@ fun meshLinkConfig(block: MeshLinkConfigBuilder.() -> Unit = {}): MeshLinkConfig
 
 class MeshLinkConfigBuilder(
     // ── Public API parameters ─────────────────────────────────────
-    var maxMessageSize: Int = 100_000,
+    var maxMessageSize: Int = 10_000,
     var bufferCapacity: Int = 1_048_576,
     var mtu: Int = 185,
     var maxHops: UByte = 10u,

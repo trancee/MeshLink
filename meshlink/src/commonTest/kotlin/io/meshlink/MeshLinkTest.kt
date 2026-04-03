@@ -192,7 +192,7 @@ class MeshLinkTest {
     @Test
     fun configDslDefaultsAppliedWhenNoOverrides() {
         val config = testMeshLinkConfig { requireEncryption = false }
-        assertEquals(100_000, config.maxMessageSize)
+        assertEquals(10_000, config.maxMessageSize)
         assertEquals(1_048_576, config.bufferCapacity)
         assertEquals(185, config.mtu)
     }

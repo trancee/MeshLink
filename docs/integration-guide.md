@@ -85,7 +85,7 @@ val sensorConfig = MeshLinkConfig.minimalOverhead()
 
 The most commonly tuned fields:
 
-- **`maxMessageSize`** — largest expected payload in bytes (default: 100,000)
+- **`maxMessageSize`** — largest expected payload in bytes (default: 10,000; use `largePayloadHighThroughput` preset for 100 KB)
 - **`maxHops`** — limit to 3–5 for latency-sensitive apps (default: 10)
 - **`broadcastTtl`** — hop limit for broadcast propagation (default: 2, range: 1–`maxHops`)
 - **``routeCacheTtlMillis`** — increase for stable meshes, decrease for mobile (default: 300,000)
