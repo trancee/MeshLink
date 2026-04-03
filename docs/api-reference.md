@@ -37,7 +37,7 @@ The primary interface for all mesh networking operations. Implemented by
 
 | Signature | Description |
 |-----------|-------------|
-| `fun send(recipient: ByteArray, payload: ByteArray): Result<MessageId>` | Sends an encrypted unicast message. `recipient` is a 12-byte peer ID. Returns the `MessageId` on success. Fails if rate-limited, circuit breaker tripped, or buffer full. |
+| `fun send(recipient: ByteArray, payload: ByteArray): Result<SendResult>` | Sends an encrypted unicast message. `recipient` is a 12-byte peer ID. Returns `SendResult.Sent` when transmission starts, or `SendResult.Queued` when the message is deferred (paused or route pending). Fails if rate-limited, circuit breaker tripped, or buffer full. |
 | `fun broadcast(payload: ByteArray, maxHops: UByte): Result<MessageId>` | Broadcasts an unencrypted message to all peers within `maxHops` radius. Returns the `MessageId`. |
 
 ### Event Streams

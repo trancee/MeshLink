@@ -23,6 +23,8 @@ import io.meshlink.model.Message
 import io.meshlink.model.MessageId
 import io.meshlink.model.PeerDetail
 import io.meshlink.model.PeerEvent
+import io.meshlink.model.QueueReason
+import io.meshlink.model.SendResult
 import io.meshlink.model.TransferFailure
 import io.meshlink.model.TransferProgress
 import io.meshlink.peer.PeerConnectionAction
@@ -641,12 +643,12 @@ class MeshLink(
         }
     }
 
-    override fun send(recipient: ByteArray, payload: ByteArray, priority: Byte): Result<MessageId> {
+    override fun send(recipient: ByteArray, payload: ByteArray, priority: Byte): Result<SendResult> {
         checkRunningOrPaused()
         return sendLock.withLock { sendInternal(recipient, payload, priority) }
     }
 
-    private fun sendInternal(recipient: ByteArray, payload: ByteArray, priority: Byte = 0): Result<MessageId> {
+    private fun sendInternal(recipient: ByteArray, payload: ByteArray, priority: Byte = 0): Result<SendResult> {
         val s = requireScope()
         return when (val decision = sendPolicyChain.evaluate(recipient, payload.size)) {
             is SendDecision.BufferFull -> {
@@ -659,11 +661,11 @@ class MeshLink(
             is SendDecision.Loopback -> {
                 val messageId = MessageId.random()
                 s.launch { safeEmit(_messages, Message(senderId = recipient, payload = payload), "messages") }
-                Result.success(messageId)
+                Result.success(SendResult.Sent(messageId))
             }
             is SendDecision.Paused -> {
                 pauseManager.queueSend(recipient, payload)
-                Result.success(MessageId.random())
+                Result.success(SendResult.Queued(MessageId.random(), QueueReason.PAUSED))
             }
             is SendDecision.RateLimited -> {
                 diagnosticSink.emit(DiagnosticCode.RATE_LIMIT_HIT, Severity.WARN, "recipient=${decision.key}")
@@ -678,7 +680,7 @@ class MeshLink(
                 val pending = pendingMessages.getOrPut(destKey) { mutableListOf() }
                 pending.add(PendingSend(recipient, payload))
                 s.launch { routeCoordinator.broadcastKeepalive() }
-                Result.success(MessageId.random())
+                Result.success(SendResult.Queued(MessageId.random(), QueueReason.ROUTE_PENDING))
             }
             is SendDecision.MissingPublicKey ->
                 Result.failure(IllegalStateException("Recipient public key unknown"))
@@ -693,7 +695,7 @@ class MeshLink(
         recipient: ByteArray,
         payload: ByteArray,
         priority: Byte = 0,
-    ): Result<MessageId> {
+    ): Result<SendResult> {
         val messageId = MessageId.random().bytes
         val key = messageId.toKey()
         deliveryPipeline.registerOutbound(s, key, config.deliveryTimeoutMillis) { expiredKey ->
@@ -722,7 +724,7 @@ class MeshLink(
         healthReporter.checkBufferPressure()
         dispatchChunks(s, recipient, handle.chunks, messageId)
 
-        return Result.success(MessageId.fromBytes(messageId))
+        return Result.success(SendResult.Sent(MessageId.fromBytes(messageId)))
     }
 
     private fun doRoutedSend(
@@ -731,7 +733,7 @@ class MeshLink(
         payload: ByteArray,
         nextHopId: ByteArrayKey,
         priority: Byte = 0,
-    ): Result<MessageId> {
+    ): Result<SendResult> {
         val messageId = MessageId.random()
         val key = messageId.bytes.toKey()
         outboundTracker.registerNextHop(key, nextHopId)
@@ -755,7 +757,7 @@ class MeshLink(
             priority = priority,
         )
         s.launch { safeSend(nextHopId.bytes, encoded) }
-        return Result.success(messageId)
+        return Result.success(SendResult.Sent(messageId))
     }
 
     // Keep internal visibility for CompressionIntegrationTest

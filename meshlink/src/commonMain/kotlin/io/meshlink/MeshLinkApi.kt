@@ -7,6 +7,7 @@ import io.meshlink.model.Message
 import io.meshlink.model.MessageId
 import io.meshlink.model.PeerDetail
 import io.meshlink.model.PeerEvent
+import io.meshlink.model.SendResult
 import io.meshlink.model.TransferFailure
 import io.meshlink.model.TransferProgress
 import io.meshlink.power.PowerMode
@@ -17,7 +18,7 @@ interface MeshLinkApi {
     fun stop()
     fun pause()
     fun resume()
-    fun send(recipient: ByteArray, payload: ByteArray, priority: Byte = 0): Result<MessageId>
+    fun send(recipient: ByteArray, payload: ByteArray, priority: Byte = 0): Result<SendResult>
     fun broadcast(payload: ByteArray, maxHops: UByte, priority: Byte = 0): Result<MessageId>
     fun meshHealth(): MeshHealthSnapshot
     fun drainDiagnostics(): List<DiagnosticEvent>

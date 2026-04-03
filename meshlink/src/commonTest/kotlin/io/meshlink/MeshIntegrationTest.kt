@@ -172,7 +172,7 @@ class MeshIntegrationTest {
         }
         advanceUntilIdle()
 
-        val msgId = alice.send(peerIdBob, "ack me".encodeToByteArray()).getOrThrow()
+        val msgId = alice.send(peerIdBob, "ack me".encodeToByteArray()).getOrThrow().messageId
         advanceUntilIdle()
         bobJob.join()
         confirmJob.join()
@@ -809,7 +809,7 @@ class MeshIntegrationTest {
 
         val bobJob = launch { bob.messages.first() }
 
-        val msgId = alice.send(peerIdBob, ByteArray(2000)).getOrThrow()
+        val msgId = alice.send(peerIdBob, ByteArray(2000)).getOrThrow().messageId
         advanceUntilIdle()
         bobJob.join()
         advanceUntilIdle()

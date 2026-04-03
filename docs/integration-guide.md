@@ -126,8 +126,11 @@ val result = mesh.send(
     payload = data,
 )
 
-result.onSuccess { messageId ->
-    println("Queued message $messageId")
+result.onSuccess { sendResult ->
+    when (sendResult) {
+        is SendResult.Sent -> println("Sending message ${sendResult.messageId}")
+        is SendResult.Queued -> println("Queued: ${sendResult.reason} (${sendResult.messageId})")
+    }
 }.onFailure { error ->
     println("Send failed: ${error.message}")
 }

@@ -279,7 +279,7 @@ class MeshLinkTest {
         // Bob listens so reassembly completes
         val receiveJob = launch { bob.messages.first() }
 
-        val msgId = alice.send(peerIdBob, "hello".encodeToByteArray()).getOrThrow()
+        val msgId = alice.send(peerIdBob, "hello".encodeToByteArray()).getOrThrow().messageId
         advanceUntilIdle()
         receiveJob.join()
 
@@ -323,7 +323,7 @@ class MeshLinkTest {
         }
         advanceUntilIdle()
 
-        val msgId = alice.send(peerIdBob, "hello".encodeToByteArray()).getOrThrow()
+        val msgId = alice.send(peerIdBob, "hello".encodeToByteArray()).getOrThrow().messageId
         advanceUntilIdle()
         bobJob.join()
         advanceUntilIdle()
@@ -773,7 +773,7 @@ class MeshLinkTest {
         val bobJob = launch { bob.messages.first() }
 
         val payload = "hello world!!".encodeToByteArray() // 13 bytes → 2 chunks at chunkSize=9
-        val msgId = alice.send(peerIdBob, payload).getOrThrow()
+        val msgId = alice.send(peerIdBob, payload).getOrThrow().messageId
         advanceUntilIdle()
         bobJob.join()
         advanceUntilIdle()
@@ -830,7 +830,7 @@ class MeshLinkTest {
         val confirmJob = launch { confirmedId = alice.deliveryConfirmations.first() }
         advanceUntilIdle()
 
-        val msgId = alice.send(peerIdBob, payload).getOrThrow()
+        val msgId = alice.send(peerIdBob, payload).getOrThrow().messageId
         advanceUntilIdle()
         bobJob.join()
         advanceUntilIdle()
@@ -1009,7 +1009,7 @@ class MeshLinkTest {
         // Bob consumes messages
         val bobJob = launch { bob.messages.first() }
 
-        val msgId = alice.send(peerIdBob, "hello".encodeToByteArray()).getOrThrow()
+        val msgId = alice.send(peerIdBob, "hello".encodeToByteArray()).getOrThrow().messageId
         advanceUntilIdle()
         bobJob.join()
         advanceUntilIdle()
@@ -1326,7 +1326,7 @@ class MeshLinkTest {
         assertEquals(1, countAfterFirst, "Should have exactly 1 confirmation")
 
         // Manually send a duplicate delivery ACK back from Bob
-        val msgId = result.getOrThrow().bytes
+        val msgId = result.getOrThrow().messageId.bytes
         val dupAck = WireCodec.encodeDeliveryAck(msgId, peerIdBob)
         transportAlice.receiveData(peerIdBob, dupAck)
         advanceUntilIdle()
@@ -1478,7 +1478,7 @@ class MeshLinkTest {
 
         val result = alice.send(peerIdBob, "small".encodeToByteArray())
         assertTrue(result.isSuccess)
-        val messageId = result.getOrThrow()
+        val messageId = result.getOrThrow().messageId
         advanceUntilIdle()
 
         // Should get exactly one delivery confirmation matching the message ID
@@ -1984,7 +1984,7 @@ class MeshLinkTest {
         val lastProgress = progressEvents.last()
         assertEquals(3, lastProgress.totalChunks, "Should report 3 total chunks")
         assertEquals(3, lastProgress.chunksAcked, "All chunks should be acked")
-        assertEquals(result.getOrThrow(), lastProgress.messageId, "Message ID should match")
+        assertEquals(result.getOrThrow().messageId, lastProgress.messageId, "Message ID should match")
 
         collector.cancel()
         alice.stop(); bob.stop()
@@ -2126,7 +2126,7 @@ class MeshLinkTest {
         // Alice sends routed message to Charlie via Bob
         val result = alice.send(peerIdCharlie, "hello!".encodeToByteArray())
         assertTrue(result.isSuccess)
-        val messageId = result.getOrThrow()
+        val messageId = result.getOrThrow().messageId
         advanceUntilIdle()
 
         // Charlie receives → sends delivery ACK back to Bob → Bob relays ACK to Alice
@@ -6136,7 +6136,7 @@ class MeshLinkTest {
         val result = alice.send(peerIdBob, "timeout-test".encodeToByteArray())
         advanceUntilIdle()
         assertTrue(result.isSuccess)
-        val messageId = result.getOrThrow()
+        val messageId = result.getOrThrow().messageId
 
         // Advance clock past timeout and sweep
         now += 3000
@@ -6200,11 +6200,11 @@ class MeshLinkTest {
 
         assertEquals(1, received.size, "Dave should receive the message")
         assertEquals(1, aliceConfs.size, "Alice (sender) should get delivery confirmation")
-        assertEquals(result.getOrThrow(), aliceConfs[0])
+        assertEquals(result.getOrThrow().messageId, aliceConfs[0])
 
         // Relay nodes ALSO emit confirmations (orphaned ACK acceptance:
         // messageId is untracked → deliveryConfirmations emits)
-        val msgId = result.getOrThrow()
+        val msgId = result.getOrThrow().messageId
         assertTrue(bobConfs.any { it == msgId },
             "Bob (relay) emits confirmation via orphaned ACK path")
         assertTrue(charlieConfs.any { it == msgId },
