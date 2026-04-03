@@ -91,7 +91,7 @@ The most commonly tuned fields:
 - **``routeCacheTtlMillis`** — increase for stable meshes, decrease for mobile (default: 300,000)
 - **`rateLimitMaxSends`** — outbound rate limit per window (default: 60; `0` = disabled)
 - **`l2capEnabled`** — high-throughput L2CAP mode with GATT fallback (default: true)
-- **`trustMode`** — key pinning policy: `STRICT` (reject key changes) or `SOFT_REPIN` (auto-accept)
+- **`trustMode`** — key pinning policy: `SOFT_REPIN` (auto-accept key changes, default) or `STRICT` (reject key changes)
 - **`deliveryAckEnabled`** — send signed delivery ACKs for received messages (default: true)
 - **`diagnosticsEnabled`** — enable the diagnostic event stream (default: true; zero overhead when disabled)
 - **`customPowerMode`** — override automatic battery-based power mode (default: null = automatic)
@@ -278,8 +278,8 @@ pair; ephemeral keys are discarded after use (per-message forward secrecy).
 
 | Mode          | Behavior on Key Change                          |
 |---------------|------------------------------------------------|
+| `SOFT_REPIN` (default) | Accept new key and re-pin; emit `KeyChangeEvent`|
 | `STRICT`      | Reject the peer; emit `KeyChangeEvent`          |
-| `SOFT_REPIN`  | Accept new key and re-pin; emit `KeyChangeEvent`|
 
 ### Monitoring Key Changes
 

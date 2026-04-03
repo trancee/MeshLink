@@ -264,7 +264,7 @@ on `MeshLinkConfig` itself (e.g., `config.keepaliveIntervalMillis`).
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `requireEncryption` | `Boolean` | `true` | When `true`, `start()` fails if no `CryptoProvider` is supplied. Set to `false` to allow plaintext operation. |
-| `trustMode` | `TrustMode` | `STRICT` | Key pinning policy. `STRICT`: reject messages from peers whose key changed, require explicit `repinKey(peer)`. `SOFT_REPIN`: silently accept new key. Both modes emit `KeyChangeEvent`. |
+| `trustMode` | `TrustMode` | `SOFT_REPIN` | Key pinning policy. `SOFT_REPIN`: silently accept new key and re-pin; emit `KeyChangeEvent` for app-level awareness. `STRICT`: reject messages from peers whose key changed, require explicit `repinKey(peer)`. Both modes emit `KeyChangeEvent`. |
 | `deliveryAckEnabled` | `Boolean` | `true` | Send signed delivery ACKs for received routed messages. When `false`, recipients do not send delivery ACKs (senders rely on SACK-based transfer completion). |
 | `maxConcurrentInboundSessions` | `Int` | `100` | Maximum concurrent inbound reassembly sessions. Limits memory exhaustion from unauthenticated chunk floods. |
 
