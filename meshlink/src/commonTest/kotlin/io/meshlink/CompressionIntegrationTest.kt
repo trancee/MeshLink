@@ -1,8 +1,10 @@
 package io.meshlink
 
 import io.meshlink.config.meshLinkConfig
+import io.meshlink.config.testMeshLinkConfig
 import io.meshlink.crypto.CryptoProvider
 import io.meshlink.transport.VirtualMeshTransport
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -163,5 +165,32 @@ class CompressionIntegrationTest {
 
         val unwrapped = meshLink.unwrapPayloadEnvelope(wrapped)
         assertContentEquals(payload, unwrapped, "Should return raw payload when compression disabled")
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun paddedEnvelopeRoundTrips() = runTest {
+        val transport = VirtualMeshTransport(ByteArray(12) { 0x01 })
+        val config = testMeshLinkConfig {
+            compressionEnabled = true
+            requireEncryption = false
+            paddingBlockSize = 64  // pad to 64-byte blocks
+        }
+        val meshLink = MeshLink(transport, config, coroutineContext)
+        meshLink.start()
+        testScheduler.advanceTimeBy(1)
+
+        val payload = "hello world".encodeToByteArray() // 11 bytes
+        val wrapped = meshLink.wrapPayloadEnvelope(payload)
+
+        // Wrapped should be a multiple of 64 bytes
+        assertEquals(0, wrapped.size % 64, "Padded envelope should be a multiple of block size")
+        assertTrue(wrapped.size >= 64, "Should be at least one block")
+        assertEquals(0x02.toByte(), wrapped[0], "First byte should be PADDED envelope type")
+
+        val unwrapped = meshLink.unwrapPayloadEnvelope(wrapped)
+        assertContentEquals(payload, unwrapped, "Round-trip should preserve payload")
+
+        meshLink.stop()
     }
 }

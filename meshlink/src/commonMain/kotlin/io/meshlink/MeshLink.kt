@@ -224,6 +224,7 @@ class MeshLink(
         compressor = if (config.compressionEnabled) io.meshlink.util.Compressor() else null,
         compressionMinBytes = config.compressionMinBytes,
         compressionEnabled = config.compressionEnabled,
+        paddingBlockSize = config.paddingBlockSize,
     )
 
     private val peerQueryService = PeerQueryService(

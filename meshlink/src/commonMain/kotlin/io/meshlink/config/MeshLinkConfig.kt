@@ -69,6 +69,7 @@ data class MeshLinkConfig(
     val neighborAggregateLimitPerMin: Int get() = advanced.neighborAggregateLimitPerMin
     val senderNeighborLimitPerMin: Int get() = advanced.senderNeighborLimitPerMin
     val visitedListEnabled: Boolean get() = advanced.visitedListEnabled
+    val paddingBlockSize: Int get() = advanced.paddingBlockSize
     val maxConcurrentInboundSessions: Int get() = advanced.maxConcurrentInboundSessions
 
     fun validate(): List<String> {
@@ -273,6 +274,9 @@ class MeshLinkConfigBuilder(
     var visitedListEnabled: Boolean
         get() = advancedBuilder.visitedListEnabled
         set(value) { advancedBuilder.visitedListEnabled = value }
+    var paddingBlockSize: Int
+        get() = advancedBuilder.paddingBlockSize
+        set(value) { advancedBuilder.paddingBlockSize = value }
     var maxConcurrentInboundSessions: Int
         get() = advancedBuilder.maxConcurrentInboundSessions
         set(value) { advancedBuilder.maxConcurrentInboundSessions = value }
