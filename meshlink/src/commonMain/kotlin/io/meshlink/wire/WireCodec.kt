@@ -201,7 +201,7 @@ object WireCodec {
             hash.copyInto(buf, offset)
             offset += PEER_ID_SIZE
         }
-        buf[offset++] = priority.toByte()
+        buf[offset++] = priority
         payload.copyInto(buf, offset)
         return buf
     }
@@ -263,7 +263,7 @@ object WireCodec {
         appIdHash.copyInto(buf, offset)
         offset += APP_ID_HASH_SIZE
         buf[offset++] = if (signature.isNotEmpty()) FLAG_HAS_SIGNATURE.toByte() else 0
-        buf[offset++] = priority.toByte()
+        buf[offset++] = priority
         if (signature.isNotEmpty()) {
             signature.copyInto(buf, offset)
             offset += ED25519_SIG_SIZE

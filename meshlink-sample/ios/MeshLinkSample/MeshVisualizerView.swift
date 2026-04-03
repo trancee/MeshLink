@@ -116,7 +116,7 @@ struct MeshVisualizerView: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         }
-        .frame(maxHeight: .infinity)
+        .frame(maxWidth: .infinity, minHeight: 320)
     }
 
     // MARK: - Mesh Graph with Tap Targets
