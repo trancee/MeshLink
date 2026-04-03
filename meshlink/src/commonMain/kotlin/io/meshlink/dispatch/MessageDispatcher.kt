@@ -44,6 +44,31 @@ internal class MessageDispatcher(
 ) {
     suspend fun dispatch(fromPeerId: ByteArray, data: ByteArray) {
         if (data.isEmpty()) return
+
+        // Security gate (FIND-02): reject direct transfer messages from
+        // peers that haven't completed Noise XX authentication.
+        // Routed messages, broadcasts, and routing control are allowed
+        // because they may arrive from relay peers.
+        val preAuthAllowed = data[0] == WireCodec.TYPE_HANDSHAKE ||
+            data[0] == WireCodec.TYPE_KEEPALIVE ||
+            data[0] == WireCodec.TYPE_ROUTED_MESSAGE ||
+            data[0] == WireCodec.TYPE_BROADCAST ||
+            data[0] == WireCodec.TYPE_ROUTE_REQUEST ||
+            data[0] == WireCodec.TYPE_ROUTE_REPLY ||
+            data[0] == WireCodec.TYPE_ROTATION
+        if (securityEngine != null && !preAuthAllowed) {
+            if (!securityEngine.isHandshakeComplete(fromPeerId)) {
+                diagnosticSink.emit(
+                    DiagnosticCode.MALFORMED_DATA,
+                    Severity.WARN,
+                    "pre-handshake message rejected:" +
+                        " type=0x${data[0].toUByte().toString(16)}," +
+                        " peer=${fromPeerId.toKey()}",
+                )
+                return
+            }
+        }
+
         try {
             when (data[0]) {
                 WireCodec.TYPE_HANDSHAKE -> handleHandshake(fromPeerId, data)
