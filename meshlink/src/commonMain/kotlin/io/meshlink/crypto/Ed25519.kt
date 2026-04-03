@@ -1,5 +1,7 @@
 package io.meshlink.crypto
 
+import io.meshlink.util.constantTimeEquals
+
 /**
  * Pure Kotlin Ed25519 (EdDSA on edwards25519) per RFC 8032 Section 5.1.
  *
@@ -80,7 +82,9 @@ internal object Ed25519 {
         val R2 = try { geFromBytes(rBytes) } catch (_: Exception) { return false }
         val rhs = geAdd(R2, kA)
 
-        return geToBytes(sB).contentEquals(geToBytes(rhs))
+        // Security: constant-time comparison prevents timing side-channel
+        // attacks that could leak information about the expected point encoding.
+        return constantTimeEquals(geToBytes(sB), geToBytes(rhs))
     }
 
     // ── Curve constants ─────────────────────────────────────────────────

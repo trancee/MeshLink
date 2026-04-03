@@ -156,4 +156,41 @@ class PersistedTrustStoreTest {
         assertContentEquals(key1, snap.pins["peer1"])
         assertContentEquals(key2, snap.pins["peer2"])
     }
+
+    // ── index integrity ───────────────────────────────────────────────────────
+
+    @Test
+    fun tamperedIndexDigestRebuildsSafely() {
+        // Pin two peers normally
+        val ts = PersistedTrustStore(TrustMode.STRICT, storage)
+        ts.verify("peer1", key1)
+        ts.verify("peer2", key2)
+
+        // Tamper with the index digest
+        storage.put(PersistedTrustStore.INDEX_DIGEST_KEY, ByteArray(32) { 0xFF.toByte() })
+
+        // Reload — should detect digest mismatch, rebuild from pin entries
+        val ts2 = PersistedTrustStore(TrustMode.STRICT, storage)
+        assertIs<VerifyResult.Trusted>(ts2.verify("peer1", key1))
+        assertIs<VerifyResult.Trusted>(ts2.verify("peer2", key2))
+    }
+
+    @Test
+    fun tamperedIndexWithFakePeerIdIgnoresOrphanedEntry() {
+        // Pin one peer normally
+        val ts = PersistedTrustStore(TrustMode.STRICT, storage)
+        ts.verify("peer1", key1)
+
+        // Tamper: add a fake peer to the index CSV (no matching pin data)
+        val indexCsv = storage.get(PersistedTrustStore.INDEX_KEY)!!.decodeToString()
+        storage.put(PersistedTrustStore.INDEX_KEY, "$indexCsv,fakePeer".encodeToByteArray())
+        // Invalidate digest so rebuild triggers
+        storage.put(PersistedTrustStore.INDEX_DIGEST_KEY, ByteArray(32))
+
+        // Reload — fakePeer has no pin entry, so it should be ignored
+        val ts2 = PersistedTrustStore(TrustMode.STRICT, storage)
+        val snap = ts2.snapshot()
+        assertEquals(1, snap.pins.size, "Only peer1 should survive rebuild")
+        assertIs<VerifyResult.Trusted>(ts2.verify("peer1", key1))
+    }
 }

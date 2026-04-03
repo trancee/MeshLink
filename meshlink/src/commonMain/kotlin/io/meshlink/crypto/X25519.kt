@@ -23,9 +23,21 @@ internal object X25519 {
 
     /**
      * Compute the X25519 shared secret from a private key and a peer's public key.
+     *
+     * Per RFC 7748 §6.1, the output is checked for the all-zero value to prevent
+     * small-subgroup attacks where a malicious public key forces a predictable secret.
+     *
+     * @throws IllegalArgumentException if the shared secret is the all-zero value.
      */
     fun sharedSecret(privateKey: ByteArray, publicKey: ByteArray): ByteArray {
-        return scalarMult(privateKey, publicKey)
+        val result = scalarMult(privateKey, publicKey)
+        // Security: reject all-zero shared secrets (RFC 7748 §6.1).
+        // A malicious low-order public key produces an all-zero result,
+        // which would make the derived encryption key predictable.
+        var acc = 0
+        for (b in result) acc = acc or b.toInt()
+        require(acc != 0) { "X25519 shared secret is the all-zero value (low-order public key)" }
+        return result
     }
 
     /**

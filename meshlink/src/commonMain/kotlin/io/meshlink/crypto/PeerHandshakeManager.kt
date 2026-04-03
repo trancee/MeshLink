@@ -4,7 +4,7 @@ import io.meshlink.diagnostics.DiagnosticCode
 import io.meshlink.diagnostics.DiagnosticSink
 import io.meshlink.diagnostics.Severity
 import io.meshlink.util.ByteArrayKey
-import io.meshlink.util.toHex
+import io.meshlink.util.diagnosticPeerId
 import io.meshlink.util.toKey
 import io.meshlink.wire.WireCodec
 
@@ -20,6 +20,8 @@ class PeerHandshakeManager(
     private val localStaticKeyPair: CryptoKeyPair,
     private val localPayload: ByteArray = byteArrayOf(),
     private val diagnosticSink: DiagnosticSink? = null,
+    /** When true, peer IDs in diagnostics are hashed to prevent traffic analysis. */
+    private val redactPeerIds: Boolean = false,
 ) {
     // peerId → handshake state machine
     private val handshakes = mutableMapOf<ByteArrayKey, NoiseXXHandshake>()
@@ -35,11 +37,11 @@ class PeerHandshakeManager(
         val key = peerId.toKey()
         if (sessionKeys.containsKey(key)) return null // already complete
 
-        val hexPrefix = peerId.toHex().take(8)
+        val peerLabel = diagnosticPeerId(peerId, redactPeerIds)
         diagnosticSink?.emit(
             DiagnosticCode.HANDSHAKE_EVENT,
             Severity.INFO,
-            "initiating Noise XX handshake (role=initiator, peer=$hexPrefix…)",
+            "initiating Noise XX handshake (role=initiator, peer=$peerLabel…)",
         )
         val hs = NoiseXXHandshake.initiator(crypto, localStaticKeyPair)
         handshakes[key] = hs
@@ -47,7 +49,7 @@ class PeerHandshakeManager(
         diagnosticSink?.emit(
             DiagnosticCode.HANDSHAKE_EVENT,
             Severity.INFO,
-            "→ msg1 sent (step=0, ${msg1.size}B ephemeral key, peer=$hexPrefix…)",
+            "→ msg1 sent (step=0, ${msg1.size}B ephemeral key, peer=$peerLabel…)",
         )
         return WireCodec.encodeHandshake(step = 0u, noiseMessage = msg1)
     }
@@ -58,7 +60,7 @@ class PeerHandshakeManager(
      */
     fun handleIncoming(fromPeerId: ByteArray, wireData: ByteArray): ByteArray? {
         val key = fromPeerId.toKey()
-        val hexPrefix = fromPeerId.toHex().take(8)
+        val peerLabel = diagnosticPeerId(fromPeerId, redactPeerIds)
         val hsMsg = WireCodec.decodeHandshake(wireData)
 
         // If we receive a step-0 message but already have an in-progress initiator
@@ -68,7 +70,7 @@ class PeerHandshakeManager(
             diagnosticSink?.emit(
                 DiagnosticCode.HANDSHAKE_EVENT,
                 Severity.INFO,
-                "⚠ handshake collision detected — resetting to responder (peer=$hexPrefix…)",
+                "⚠ handshake collision detected — resetting to responder (peer=$peerLabel…)",
             )
             handshakes[key] = NoiseXXHandshake.responder(crypto, localStaticKeyPair)
         }
@@ -83,7 +85,7 @@ class PeerHandshakeManager(
         diagnosticSink?.emit(
             DiagnosticCode.HANDSHAKE_EVENT,
             Severity.INFO,
-            "← msg received (step=${hsMsg.step}, ${hsMsg.noiseMessage.size}B, role=$role, peer=$hexPrefix…)",
+            "← msg received (step=${hsMsg.step}, ${hsMsg.noiseMessage.size}B, role=$role, peer=$peerLabel…)",
         )
 
         // Read the incoming message
@@ -95,7 +97,7 @@ class PeerHandshakeManager(
             diagnosticSink?.emit(
                 DiagnosticCode.HANDSHAKE_EVENT,
                 Severity.INFO,
-                "✅ handshake complete (role=$role, peer=$hexPrefix…) — session keys derived",
+                "✅ handshake complete (role=$role, peer=$peerLabel…) — session keys derived",
             )
             return null
         }
@@ -107,7 +109,7 @@ class PeerHandshakeManager(
         diagnosticSink?.emit(
             DiagnosticCode.HANDSHAKE_EVENT,
             Severity.INFO,
-            "→ msg sent (step=$responseStep, ${response.size}B, role=$role, peer=$hexPrefix…)",
+            "→ msg sent (step=$responseStep, ${response.size}B, role=$role, peer=$peerLabel…)",
         )
 
         if (hs.isComplete) {
@@ -116,7 +118,7 @@ class PeerHandshakeManager(
             diagnosticSink?.emit(
                 DiagnosticCode.HANDSHAKE_EVENT,
                 Severity.INFO,
-                "✅ handshake complete (role=$role, peer=$hexPrefix…) — session keys derived",
+                "✅ handshake complete after response (role=$role, peer=$peerLabel…) — session keys derived",
             )
         }
 

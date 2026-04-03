@@ -22,6 +22,9 @@ data class MeshLinkConfig(
     val trustMode: TrustMode = TrustMode.SOFT_REPIN,
     val deliveryAckEnabled: Boolean = true,
     val diagnosticsEnabled: Boolean = true,
+    /** When true, peer IDs in diagnostic messages are replaced with
+     *  short hashes to prevent traffic analysis from log output. */
+    val diagnosticRedactPeerIds: Boolean = false,
     val customPowerMode: PowerMode? = null,
     val powerModeThresholds: List<Int> = listOf(80, 30),
     val l2capEnabled: Boolean = true,
@@ -159,6 +162,7 @@ class MeshLinkConfigBuilder(
     var trustMode: TrustMode = TrustMode.SOFT_REPIN,
     var deliveryAckEnabled: Boolean = true,
     var diagnosticsEnabled: Boolean = true,
+    var diagnosticRedactPeerIds: Boolean = false,
     var customPowerMode: PowerMode? = null,
     var powerModeThresholds: List<Int> = listOf(80, 30),
     var l2capEnabled: Boolean = true,
@@ -283,6 +287,7 @@ class MeshLinkConfigBuilder(
         trustMode = trustMode,
         deliveryAckEnabled = deliveryAckEnabled,
         diagnosticsEnabled = diagnosticsEnabled,
+        diagnosticRedactPeerIds = diagnosticRedactPeerIds,
         customPowerMode = customPowerMode,
         powerModeThresholds = powerModeThresholds,
         l2capEnabled = l2capEnabled,

@@ -1,5 +1,7 @@
 package io.meshlink.crypto
 
+import io.meshlink.util.zeroize
+
 /**
  * Noise K E2E sealer for per-message encryption.
  *
@@ -29,10 +31,16 @@ class NoiseKSealer(private val crypto: CryptoProvider) {
     ): ByteArray {
         val ephemeral = crypto.generateX25519KeyPair()
         val sharedSecret = crypto.x25519SharedSecret(ephemeral.privateKey, recipientStaticPub)
+        // Security: zeroize ephemeral private key immediately after DH.
+        zeroize(ephemeral.privateKey)
         val ikm = if (sessionSecret != null) sharedSecret + sessionSecret else sharedSecret
         val key = crypto.hkdfSha256(ikm, byteArrayOf(), "NoiseK-seal".encodeToByteArray(), 32)
+        // Security: zeroize intermediate key material.
+        zeroize(sharedSecret)
+        zeroize(ikm)
         val nonce = ByteArray(12) // zero nonce is safe because key is unique per message
         val ciphertext = crypto.aeadEncrypt(key, nonce, plaintext, ephemeral.publicKey)
+        zeroize(key)
         return ephemeral.publicKey + ciphertext
     }
 
@@ -55,7 +63,12 @@ class NoiseKSealer(private val crypto: CryptoProvider) {
         val sharedSecret = crypto.x25519SharedSecret(recipientStaticPriv, ephemeralPub)
         val ikm = if (sessionSecret != null) sharedSecret + sessionSecret else sharedSecret
         val key = crypto.hkdfSha256(ikm, byteArrayOf(), "NoiseK-seal".encodeToByteArray(), 32)
+        // Security: zeroize intermediate key material.
+        zeroize(sharedSecret)
+        zeroize(ikm)
         val nonce = ByteArray(12)
-        return crypto.aeadDecrypt(key, nonce, ciphertext, ephemeralPub)
+        val plaintext = crypto.aeadDecrypt(key, nonce, ciphertext, ephemeralPub)
+        zeroize(key)
+        return plaintext
     }
 }

@@ -4,6 +4,7 @@ import io.meshlink.diagnostics.DiagnosticSink
 import io.meshlink.model.KeyChangeEvent
 import io.meshlink.util.ByteArrayKey
 import io.meshlink.util.toKey
+import io.meshlink.util.zeroize
 import io.meshlink.wire.RotationAnnouncement
 
 /**
@@ -19,6 +20,7 @@ class SecurityEngine(
     private val clock: () -> Long = { 0L },
     private val rotationFreshnessWindowMillis: Long = 30_000L,
     diagnosticSink: DiagnosticSink? = null,
+    redactPeerIds: Boolean = false,
 ) {
     private var localKeyPair: CryptoKeyPair = crypto.generateX25519KeyPair()
     private var broadcastKeyPair: CryptoKeyPair = crypto.generateEd25519KeyPair()
@@ -33,6 +35,7 @@ class SecurityEngine(
         localKeyPair,
         localPayload = handshakePayload,
         diagnosticSink = diagnosticSink,
+        redactPeerIds = redactPeerIds,
     )
 
     // --- Public key accessors ---
@@ -176,14 +179,23 @@ class SecurityEngine(
     // --- Identity rotation ---
 
     fun rotateIdentity() {
+        // Security: zeroize old key material before replacing.
+        // Reduces the window for memory-dump attacks.
+        zeroize(localKeyPair.privateKey)
+        zeroize(broadcastKeyPair.privateKey)
         localKeyPair = crypto.generateX25519KeyPair()
         sealer = NoiseKSealer(crypto)
         broadcastKeyPair = crypto.generateEd25519KeyPair()
+        // Clear stale session state from old identity
+        clear()
     }
 
     // --- State management ---
 
     fun clear() {
+        // Security: zeroize session secrets before removing references.
+        // Prevents old secrets from lingering in heap memory.
+        sessionSecrets.values.forEach { zeroize(it) }
         peerPublicKeys.clear()
         sessionSecrets.clear()
     }

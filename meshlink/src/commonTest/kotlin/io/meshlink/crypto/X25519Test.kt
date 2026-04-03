@@ -4,6 +4,7 @@ import io.meshlink.util.toHex
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 
 class X25519Test {
 
@@ -163,6 +164,20 @@ class X25519Test {
 
         val expectedAfter1000 = hexToBytes("684cf59ba83309552800ef566f2f4d3c1c3887c49360e3875f2eb94d99532c51")
         assertContentEquals(expectedAfter1000, k, "Iterated result after 1000 iterations mismatch")
+    }
+
+    // --- RFC 7748 §6.1: reject all-zero shared secret (small-subgroup attack) ---
+
+    @Test
+    fun testSharedSecretRejectsAllZeroResult() {
+        // An all-zero public key is a low-order point that produces an all-zero
+        // shared secret. Per RFC 7748 §6.1, implementations MUST reject this.
+        val privateKey = hexToBytes("77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a")
+        val zeroPublicKey = ByteArray(32) // all zeros — low-order point
+
+        assertFailsWith<IllegalArgumentException>("Expected rejection of all-zero shared secret") {
+            X25519.sharedSecret(privateKey, zeroPublicKey)
+        }
     }
 
     // RFC 7748 §5.2: 1,000,000 iteration vector — disabled by default (takes minutes in pure Kotlin)

@@ -1427,6 +1427,103 @@ When a device first discovers a peer's public key in the mesh, it **pins that ke
 
 **Key storage requirement:** Ed25519 private keys MUST be stored in platform secure storage (Android Keystore via EncryptedSharedPreferences, iOS Keychain). This is a security requirement, not a suggestion — storing keys in plaintext files or shared preferences would allow trivial key extraction and identity cloning. Post-v1: hardware key attestation could bind keys to specific devices, preventing cloning entirely.
 
+### Cryptographic Implementation Requirements
+
+The following requirements apply to **all** cryptographic code in the library —
+existing implementations and future additions. These were identified during a
+security review (2026-04) and codified here so they are considered in the
+planning phase for any future feature work.
+
+#### R1: Validate X25519 Shared Secrets (RFC 7748 §6.1)
+
+All X25519 shared-secret computations **MUST** check for the all-zero output.
+A malicious peer can supply a low-order public key (e.g., all zeros or a point
+on a small subgroup) that produces a predictable zero shared secret, making
+derived encryption keys trivially recoverable. This affects Noise K (E2E) and
+Noise XX (hop-by-hop) alike.
+
+**Requirement:** After every `scalarMult` operation used to derive a shared
+secret, verify the result is non-zero using a constant-time accumulator.
+Reject with an error if zero.
+
+#### R2: Constant-Time Comparison for All Security-Sensitive Bytes
+
+All comparisons of security-sensitive byte arrays (AEAD tags, signatures,
+public-key pins, session secrets) **MUST** use constant-time comparison to
+prevent timing side-channel attacks. Kotlin's `contentEquals` short-circuits
+on the first differing byte and **MUST NOT** be used in security contexts.
+
+**Requirement:** Use the shared `io.meshlink.util.constantTimeEquals()` utility
+for any comparison where the data being compared is secret or where early
+termination could leak information to an attacker who can measure timing.
+This includes:
+- AEAD authentication tag verification
+- Ed25519 signature verification (point comparison)
+- Trust store key-pin matching
+- Any future MAC or hash comparison in a verification path
+
+#### R3: Zeroize Key Material After Use
+
+Private keys, shared secrets, session keys, and intermediate key derivation
+material (IKM, PRK) **MUST** be overwritten with zeros as soon as they are no
+longer needed. This reduces the window during which sensitive material is
+readable from process memory (cold-boot attacks, core dumps, debug attach).
+
+**Requirement:** Call `io.meshlink.util.zeroize()` on:
+- Ephemeral private keys immediately after DH computation
+- HKDF input key material and derived keys after use
+- Session secrets when removed from per-peer maps
+- Old private keys during identity rotation (before dereferencing)
+
+Note: On JVM, `ByteArray.fill(0)` is best-effort (GC may retain copies), but
+it still significantly reduces the practical attack window.
+
+#### R4: Replay Counter Zero Must Not Bypass Protection
+
+When encryption is required (`requireEncryption = true` and `SecurityEngine`
+is active), inbound messages with `replayCounter = 0` **MUST** be rejected.
+Counter zero is only acceptable when running without encryption — allowing it
+with encryption active would let an attacker replay captured messages by
+zeroing the counter field.
+
+**Requirement:** Any new message type or flow that carries a replay counter
+must enforce this rule. The check lives in `InboundValidator.checkReplay()`.
+
+#### R5: Decryption Failure Must Be Logged
+
+When decryption fails and the raw payload is passed through (e.g., for relay
+scenarios where the sender lacked the destination's key), a diagnostic
+warning **MUST** be emitted. Silent passthrough masks potential injection
+attacks and makes debugging impossible.
+
+**Requirement:** All code paths that fall through on decryption failure must
+emit `DiagnosticCode.DECRYPTION_FAILED` with context about the sender and
+failure reason.
+
+#### R6: Trust Store Index Integrity
+
+The persisted trust store index (CSV list of pinned peer IDs) **MUST** be
+protected with an HMAC digest to detect tampering. On load, if the digest
+fails verification, the index must be rebuilt from individual pin entries
+that still pass validation.
+
+**Requirement:** When adding new persisted indexes or catalogs to
+`SecureStorage`, include an HMAC digest alongside the data. The digest key
+can be a fixed domain-separation string (the goal is integrity detection,
+not confidentiality — the `SecureStorage` backend provides encryption).
+
+#### R7: Diagnostic Privacy — Redact Peer Identifiers
+
+Diagnostic messages **MUST** support peer ID redaction to prevent traffic
+analysis from log output. When `diagnosticRedactPeerIds = true`, peer IDs
+in diagnostic payloads are replaced with short SHA-256 hashes that are useful
+for log correlation but not linkable to actual peer identities.
+
+**Requirement:** All new diagnostic emissions that include peer IDs must use
+`io.meshlink.util.diagnosticPeerId(peerId, config.diagnosticRedactPeerIds)`
+instead of raw hex encoding. The `PeerHandshakeManager` pattern is the
+reference implementation.
+
 ### Metadata Protection — Deferred
 
 v1 accepts that routing and buffering nodes learn:

@@ -1,5 +1,7 @@
 package io.meshlink.crypto
 
+import io.meshlink.util.constantTimeEquals
+
 enum class TrustMode { STRICT, SOFT_REPIN }
 
 sealed interface VerifyResult {
@@ -18,7 +20,9 @@ class TrustStore private constructor(val mode: TrustMode, private val pins: Muta
             pins[peerId] = publicKey.copyOf()
             return VerifyResult.FirstSeen
         }
-        if (pinned.contentEquals(publicKey)) {
+        // Security: constant-time comparison prevents timing side-channel leaks
+        // about stored peer keys.
+        if (constantTimeEquals(pinned, publicKey)) {
             return VerifyResult.Trusted
         }
         return when (mode) {

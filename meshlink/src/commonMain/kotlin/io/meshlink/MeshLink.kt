@@ -214,6 +214,7 @@ class MeshLink(
             ).encode(),
             clock = clock,
             diagnosticSink = diagnosticSink,
+            redactPeerIds = config.diagnosticRedactPeerIds,
         )
     }
 

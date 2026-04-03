@@ -1,5 +1,7 @@
 package io.meshlink.crypto
 
+import io.meshlink.util.constantTimeEquals
+
 /**
  * Pure Kotlin ChaCha20-Poly1305 AEAD implementation per RFC 8439.
  * Provides a fallback for platforms without JCA ChaCha20-Poly1305 support.
@@ -301,12 +303,7 @@ internal object ChaCha20Poly1305 {
         return data
     }
 
-    private fun constantTimeEquals(a: ByteArray, b: ByteArray): Boolean {
-        if (a.size != b.size) return false
-        var acc = 0
-        for (i in a.indices) acc = acc or (a[i].toInt() xor b[i].toInt())
-        return acc == 0
-    }
+    // Tag comparison delegated to io.meshlink.util.constantTimeEquals
 
     /**
      * Encrypts [plaintext] with ChaCha20-Poly1305 AEAD.

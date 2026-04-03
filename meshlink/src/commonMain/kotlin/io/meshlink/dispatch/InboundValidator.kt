@@ -109,7 +109,10 @@ internal class InboundValidator(
 
     /** Returns true if the replay counter is acceptable. */
     fun checkReplay(key: ByteArrayKey, originId: ByteArrayKey, replayCounter: ULong): Boolean {
-        if (replayCounter == 0uL) return true
+        // When counter is zero: accept only if crypto is not actively enforced.
+        // Security: when encryption is required AND a security engine is present,
+        // counter=0 would bypass replay protection, enabling message replay attacks.
+        if (replayCounter == 0uL) return !(config.requireEncryption && cryptoRequired)
         if (deliveryPipeline.checkReplay(originId, replayCounter)) return true
         diagnosticSink.emit(
             DiagnosticCode.REPLAY_REJECTED,
@@ -188,6 +191,10 @@ internal class InboundValidator(
      * Try to unseal, but fall back to returning the raw payload when
      * decryption fails.  Used for routed messages where the sender may
      * not have had the destination's public key (non-adjacent peer).
+     *
+     * Security note: passthrough on decryption failure is logged as a
+     * diagnostic warning. Callers should be aware that the returned
+     * payload may be unencrypted attacker-controlled data.
      */
     fun unsealOrPassthrough(
         ciphertext: ByteArray,
@@ -196,7 +203,16 @@ internal class InboundValidator(
         return when (val ur = securityEngine?.unseal(ciphertext, senderPeerId)) {
             is io.meshlink.crypto.UnsealResult.Decrypted -> ur.plaintext
             is io.meshlink.crypto.UnsealResult.Failed,
-            is io.meshlink.crypto.UnsealResult.TooShort -> ciphertext
+            is io.meshlink.crypto.UnsealResult.TooShort -> {
+                // Security: log when decryption fails and raw payload is passed through.
+                // This may indicate a non-encrypting sender or a potential injection attempt.
+                diagnosticSink.emit(
+                    DiagnosticCode.DECRYPTION_FAILED,
+                    Severity.WARN,
+                    "decryption failed, passing through raw payload (sender=$senderPeerId)",
+                )
+                ciphertext
+            }
             null -> ciphertext
         }
     }
