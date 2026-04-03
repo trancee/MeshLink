@@ -80,7 +80,7 @@ The most commonly tuned fields:
 - **`maxMessageSize`** — largest expected payload in bytes (default: 100,000)
 - **`maxHops`** — limit to 3–5 for latency-sensitive apps (default: 10)
 - **`broadcastTtl`** — hop limit for broadcast propagation (default: 2, range: 1–`maxHops`)
-- **`routeCacheTtlMillis`** — increase for stable meshes, decrease for mobile (default: 60,000)
+- **``routeCacheTtlMillis`** — increase for stable meshes, decrease for mobile (default: 300,000)
 - **`rateLimitMaxSends`** — outbound rate limit per window (default: 60; `0` = disabled)
 - **`l2capEnabled`** — high-throughput L2CAP mode with GATT fallback (default: true)
 - **`trustMode`** — key pinning policy: `STRICT` (reject key changes) or `SOFT_REPIN` (auto-accept)
@@ -163,19 +163,21 @@ val result = mesh.broadcast(
 
 ## Multi-Hop Routing
 
-MeshLink uses AODV (Ad-hoc On-demand Distance Vector) reactive routing.
-Routes are discovered automatically when you send a message to a peer that
-is not a direct neighbor — no configuration is needed.
+MeshLink uses Babel (RFC 8966, adapted for BLE) for loop-free routing.
+Routes are propagated automatically via Hello/Update messages — no
+configuration is needed.
 
-### How Route Discovery Works
+### How Route Propagation Works
 
-When you call `send()` for a peer with no cached route:
-1. MeshLink queues the message and floods a **Route Request (RREQ)**.
-2. Intermediate peers relay the RREQ until it reaches the destination.
-3. The destination sends a **Route Reply (RREP)** back along the reverse path.
-4. The route is cached and pending messages are drained automatically.
+When a peer discovers a new neighbor (via BLE advertisement):
+1. The peer sends a **Hello** message to the neighbor.
+2. The neighbor responds with **Update** messages for all known routes.
+3. Each Update carries the destination's public key for E2E encryption.
+4. Routes are accepted only if they pass the **feasibility condition**
+   (metric < feasibility distance), guaranteeing loop-freedom.
 
-Discovery typically completes in **1–3 seconds** for meshes ≤ 5 hops.
+If no proactive route exists when `send()` is called, a fallback RREQ/RREP
+flood discovers a path on demand (typically 1–3 seconds for ≤ 5 hops).
 
 ### Route Cache Tuning
 

@@ -37,7 +37,7 @@ KMP abstracts shared protocol logic (~85% of codebase); platform-specific BLE tr
 shared/                    ← KMP module (Kotlin, ~85% of code)
   ├── protocol/            ← Wire format, serialization, message types
   ├── crypto/              ← Noise handshake state machine, encryption
-  ├── mesh/                ← Routing (AODV), keepalive, presence, dedup, buffering
+  ├── mesh/                ← Routing (Babel), keepalive, presence, dedup, buffering
   ├── transport/           ← Chunking, ACKs, flow control
   └── power/               ← Power mode state machine
 android/                   ← Platform-specific (~8%)
@@ -113,7 +113,7 @@ flowchart TD
         direction TB
         subgraph Row1[" "]
             direction LR
-            Routing["🗺️ Routing<br/>AODV · Route Discovery<br/>Cost · Dedup"]
+            Routing["🗺️ Routing<br/>Babel · Route Discovery<br/>Cost · Dedup"]
             Transfer["📦 Transfer<br/>Chunking · SACK<br/>AIMD · Schedule"]
             Crypto["🔒 Crypto<br/>Noise XX · Noise K<br/>Trust · Replay"]
             Diag["📊 Diagnostics<br/>DiagnosticSink<br/>Health · Snapshots"]
@@ -174,8 +174,8 @@ Base UUID: `7F3Axxxx-8FC5-11EC-B909-0242AC120002` (random 128-bit UUID with the 
 
 | Characteristic | Direction | Traffic |
 |----------------|-----------|---------|
-| **Control Write** | Central → Peripheral | Noise XX handshake, AODV control messages |
-| **Control Notify** | Peripheral → Central | Noise XX handshake responses, AODV control responses |
+| **Control Write** | Central → Peripheral | Noise XX handshake, routing control messages (Babel Hello/Update) |
+| **Control Notify** | Peripheral → Central | Noise XX handshake responses, routing control responses |
 | **Data Write** | Central → Peripheral | Data chunks, chunk ACKs, delivery ACKs |
 | **Data Notify** | Peripheral → Central | Data chunks, chunk ACKs, delivery ACKs |
 
@@ -340,7 +340,7 @@ flowchart TD
     S -- No --> V["Continue"]
 ```
 
-**MTU minimum enforcement:** After MTU negotiation, if the effective MTU (minus ATT header overhead) is less than **100 bytes**, the connection is rejected with a `MTU_TOO_SMALL` diagnostic event. A routed_message header alone requires ~43 bytes (with zero visited entries); MTUs below 100 bytes cannot carry meaningful payload. No fallback or fragmentation is attempted.
+**MTU minimum enforcement:** After MTU negotiation, if the effective MTU (minus ATT header overhead) is less than **100 bytes**, the connection is rejected with a `MTU_TOO_SMALL` diagnostic event. A routed_message header alone requires ~52 bytes (with zero visited entries); MTUs below 100 bytes cannot carry meaningful payload. No fallback or fragmentation is attempted.
 
 **ATT overhead:** 3 bytes (1B opcode + 2B attribute handle). Effective chunk payload = `negotiated_MTU − 3 − 1` (1 byte for MeshLink type prefix) = `MTU − 4`. The MTU minimum rejection threshold (`MTU_TOO_SMALL`) fires when effective payload < 100 bytes, i.e., `negotiated_MTU < 104`.
 
@@ -637,7 +637,7 @@ Based on BLE physical characteristics (3–5ms per GATT write, ~50–200ms conne
 | 100KB direct (1 hop, GATT) | 4–8s | ~410 chunks × ~10–20ms per chunk + SACK rounds |
 | 100KB direct (1 hop, L2CAP) | 1–3s | ~25 chunks at 4096 bytes; credit-based flow |
 | 100KB routed (2 hops, GATT) | 8–20s | Cut-through helps; bottleneck is slowest link |
-| 1KB routed (2 hops, PowerSaver) | 5–15s | Route discovery RREQ/RREP (~5s timeout) + handshake (8s) |
+| 1KB routed (2 hops, PowerSaver) | 5–15s | Route available via Babel Updates; fallback RREQ ~5s + handshake (8s) |
 
 These are estimates to be validated with real-device measurements during Phase 1. PowerSaver mode adds latency due to longer scan/advertising intervals.
 
@@ -751,80 +751,76 @@ Legacy AODV RREQ/RREP is retained as a fallback for on-demand route
 discovery. See [routing-protocol-analysis.md](routing-protocol-analysis.md)
 for the full evaluation of 7 routing RFCs.
 
-### Route Discovery Protocol
+### Route Propagation Protocol
 
-Route discovery uses two new wire message types (`TYPE_ROUTE_REQUEST` 0x03 and
-`TYPE_ROUTE_REPLY` 0x04) exchanged over GATT connections. BLE advertisements
-carry only self-announcement data (truncated public key hash, power mode,
-protocol version).
+Routes are propagated via two wire message types on GATT connections:
+- **Hello (0x03)**: Periodic neighbor liveness announcement carrying the sender's
+  peer ID and sequence number.
+- **Update (0x04)**: Route advertisement carrying destination, metric, sequence
+  number, and the destination's 32-byte Ed25519 public key (key propagation).
 
-**RREQ flooding** (Route Request):
-When MeshLink needs to send a message to a peer with no known route, it:
-1. Queues the outbound message in a **pending message buffer**.
-2. Constructs an RREQ frame containing `origin`, `destination`, `requestId`,
-   `hopCount`, and `hopLimit`.
-3. Floods the RREQ to all connected neighbors.
-4. Each intermediate peer records the **reverse path** (mapping
-   `origin + requestId → neighbor that sent the RREQ`) and rebroadcasts.
-5. Duplicate RREQs (same `origin + requestId`) are dropped.
+**Hello → triggered Update flow:**
+When a peer receives a Hello from a **new** neighbor (not yet in the presence
+table), it responds with its full routing table as a batch of Update messages.
+Hellos from known neighbors are treated as keepalives only — no Update flood.
 
-**RREP unicast** (Route Reply):
-When the RREQ reaches the destination (or an intermediate peer with a cached
-route to the destination):
-1. The peer constructs an RREP containing `origin`, `destination`, `requestId`,
-   and `hopCount`.
-2. The RREP is unicast back along the reverse path recorded during the RREQ
-   flood.
-3. Each intermediate peer installs a **forward route** to the destination via
-   the neighbor that sent the RREP.
-4. When the RREP reaches the originator, the route is resolved and all pending
-   messages for that destination are drained from the pending buffer.
+**Feasibility condition (loop prevention):**
+Each peer tracks a **feasibility distance** (FD) per destination — the minimum
+metric it has ever advertised. An incoming Update is accepted only if:
+- The Update's sequence number is strictly newer than the existing route, OR
+- The Update's sequence number is the same AND `metric < FD`
 
-**Intermediate RREP:** If an intermediate peer already has a cached, non-expired
-route to the RREQ destination, it may reply directly with an RREP without
-further flooding. This reduces discovery latency and RREQ traffic.
+This guarantees loop-freedom at all times (RFC 8966 §2.4, derived from EIGRP DUAL).
 
-**Route cache with TTL:** Discovered routes are cached for `routeCacheTtlMillis`
-(default 60 seconds). After expiry, the next send to that destination triggers a
-fresh route discovery. The short TTL ensures routes adapt to topology changes in
-mobile BLE meshes.
+**Route retraction:**
+When a destination becomes unreachable (neighbor lost, route expired), an
+Update with `metric = 0xFFFF` (infinity) is sent to all neighbors. This
+replaces AODV's RERR mechanism with faster, more reliable convergence.
 
-**Discovery timeout:** If no RREP is received within `routeDiscoveryTimeoutMillis`
-(default 5 seconds), the pending messages fail with `FAILED_NO_ROUTE`.
+**Periodic full Update:**
+Every 4× Hello interval, the peer bumps its local sequence number and sends
+a full routing table dump to all neighbors. This is a safety net — triggered
+Updates handle most topology changes in real time.
+
+**Fallback RREQ/RREP:**
+If no proactive route exists when `send()` is called, the legacy AODV
+RREQ/RREP mechanism floods a route request as a last resort. This covers
+the initial cold-start case before Babel Updates have propagated.
 
 ```mermaid
 sequenceDiagram
-    participant A as Peer A (origin)
+    participant A as Peer A
     participant B as Peer B (relay)
-    participant C as Peer C (relay)
-    participant D as Peer D (destination)
+    participant C as Peer C
 
-    Note over A: send(msg, dest=D) — no route cached
-    A->>A: Queue msg in pending buffer
-    A->>B: RREQ(origin=A, dest=D, reqId=1, hops=0)
-    A->>C: RREQ(origin=A, dest=D, reqId=1, hops=0)
-    B->>B: Record reverse path: A+1 → A
-    B->>D: RREQ(origin=A, dest=D, reqId=1, hops=1)
-    C->>C: Record reverse path: A+1 → A
-    C->>D: RREQ(origin=A, dest=D, reqId=1, hops=1)
-    D->>D: I am the destination
-    D->>B: RREP(origin=A, dest=D, reqId=1, hops=0)
-    Note over D: RREQ from C is duplicate — dropped
-    B->>B: Install route: D via neighbor that sent RREP
-    B->>A: RREP(origin=A, dest=D, reqId=1, hops=1)
-    A->>A: Route resolved — drain pending messages
-    A->>B: RoutedMessage(dest=D, payload=msg)
-    B->>D: RoutedMessage(dest=D, payload=msg)
+    Note over A,C: A and B are neighbors; B and C are neighbors
+
+    A->>B: Hello (seqNo=1)
+    Note over B: New neighbor A → send full routing table
+    B->>A: Update(dest=C, metric=1, seqNo=1, pubkey=C_key)
+    Note over A: Feasibility check: metric < FD? → Accept
+    Note over A: Install route: C via B (cost=1+linkCost)
+    Note over A: Register C's public key for E2E encryption
+
+    B->>A: Update(dest=B, metric=0, seqNo=1, pubkey=B_key)
+    Note over A: Install direct route to B
+
+    Note over A,C: A can now send E2E-encrypted messages to C via B
+    A->>B: RoutedMessage(dest=C, Noise K encrypted)
+    B->>C: Forward (re-encrypted hop-by-hop)
 ```
 
-### RouteCoordinator (Keepalive Only)
+**Route cache with TTL:** Routes expire after `routeCacheTtlMillis` (default
+300 seconds). Expired routes are lazily removed on lookup. The next send to
+an expired destination triggers a fresh route discovery.
 
-`RouteCoordinator` replaces the former `GossipCoordinator`. It is responsible
-only for **keepalive probing** of 1-hop neighbors — it does **not** perform
-periodic routing table exchanges. The AODV route discovery protocol handles all
-multi-hop route establishment on demand.
+### RouteCoordinator
 
-Keepalive intervals vary by power mode — see §7 Power Management table.
+`RouteCoordinator` sends periodic Babel Hello messages (which double as
+keepalive heartbeats) and periodic full routing table Updates. It also
+retains legacy RREQ flooding for fallback route discovery.
+
+Keepalive/Hello intervals vary by power mode — see §7 Power Management table.
 
 ### Hop Limits
 
@@ -858,7 +854,7 @@ is used to unicast the RREP back to the originator.
 
 **Route cache:** Discovered routes are stored in a time-bounded cache. Each entry
 records the destination, next-hop neighbor, hop count, and a TTL timestamp.
-Entries expire after `routeCacheTtlMillis` (default 60 seconds). Expired entries
+Entries expire after `routeCacheTtlMillis` (default 300 seconds). Expired entries
 are lazily evicted on the next lookup.
 
 **Pending message queue:** When `MeshLink.send()` is called for a destination
@@ -945,8 +941,8 @@ flowchart LR
 
 ### Route Expiry
 
-Routes in the AODV route cache expire after `routeCacheTtlMillis` (default
-60 seconds). Expired entries are lazily removed on the next route lookup. If a
+Routes in the route cache expire after `routeCacheTtlMillis` (default
+300 seconds). Expired entries are lazily removed on the next route lookup. If a
 message needs to be sent to an expired destination, a fresh route discovery is
 triggered automatically.
 
@@ -956,7 +952,7 @@ device's power state.
 
 ### Route Failure Recovery
 
-**Route failure recovery:** Broken routes are detected via delivery timeout and removed from the route cache immediately. The next send attempt to the same destination triggers a fresh AODV route discovery. Post-v1: RERR (Route Error) propagation for faster convergence in large meshes.
+**Route failure recovery:** Broken routes are detected via delivery timeout and removed from the route cache immediately. The next send attempt to the same destination triggers a fresh route discovery. Route retractions (metric=0xFFFF) propagate failure information to neighbors for fast convergence.
 
 ### Multipath Routing (Backup Routes)
 
@@ -972,14 +968,14 @@ The backup route must use a different Next-Hop — two routes through the same N
 **Failover behavior:**
 1. Primary route fails (GATT disconnect, delivery timeout) → instantly switch to backup
 2. Promote backup to primary. **Backup routes are used regardless of age** — a stale backup is better than no route. If the backup points to a peer that has moved, the forwarding attempt fails fast (BLE connection timeout ~5s), and the message is buffered. Route cache TTL expiry cleans up truly stale entries.
-3. Wait for the next AODV route discovery to find a new backup
+3. Wait for the next route discovery to find a new backup
 4. If no backup exists → buffer the message and wait for route discovery (up to buffer TTL)
 
-**Best-effort multi-path:** MeshLink does NOT maintain explicit backup path state — backups are a natural consequence of the AODV route cache, which may store alternative routes from intermediate RREPs. If neither primary nor backup succeeds, the message is buffered for TTL duration and a fresh route discovery is initiated. No proactive backup path probing or maintenance is performed.
+**Best-effort multi-path:** MeshLink does NOT maintain explicit backup path state — backups are a natural consequence of the route cache, which may store alternative routes from intermediate RREPs. If neither primary nor backup succeeds, the message is buffered for TTL duration and a fresh route discovery is initiated. No proactive backup path probing or maintenance is performed.
 
-**Interaction with route failure:** When a route is detected as broken (delivery timeout, GATT disconnect), the backup (if it exists and doesn't use the same failed link) becomes primary immediately. A fresh AODV route discovery restores full route knowledge within `routeDiscoveryTimeoutMillis`.
+**Interaction with route failure:** When a route is detected as broken (delivery timeout, GATT disconnect), the backup (if it exists and doesn't use the same failed link) becomes primary immediately. A fresh route discovery restores full route knowledge within `routeDiscoveryTimeoutMillis`.
 
-**Routing table authority:** The route cache is the sole authority for next-hop selection, even when a direct GATT connection exists to the destination. The composite route cost already accounts for direct link quality — a poor direct link (Marginal RSSI, high loss) will have a higher cost than a relay path through strong links. Bypassing the route cache for direct connections would undermine the quality-aware routing that AODV provides.
+**Routing table authority:** The route cache is the sole authority for next-hop selection, even when a direct GATT connection exists to the destination. The composite route cost already accounts for direct link quality — a poor direct link (Marginal RSSI, high loss) will have a higher cost than a relay path through strong links. Bypassing the route cache for direct connections would undermine the quality-aware routing that the route cache provides.
 
 ### Topology Change Handling
 
@@ -1421,7 +1417,7 @@ Total: 132 bytes. Receivers verify the signature against the old public key (whi
 
 When a device first discovers a peer's public key in the mesh, it **pins that key** — associating it with the peer identity. This is analogous to SSH's `known_hosts` model. Key pins are **persisted to platform secure storage** (Keychain on iOS, EncryptedSharedPreferences on Android) so they survive app restarts — without persistence, TOFU would reset on every relaunch, defeating its purpose.
 
-**TOFU pinning trigger:** Key pinning occurs **only after a successful Noise XX handshake** — NOT on route discovery. Public keys learned via AODV route discovery are treated as **routing candidates** (used for route selection and address resolution) but are NOT trusted for TOFU pinning until mutual authentication via Noise XX confirms the peer actually holds the corresponding private key. This prevents a malicious relay from racing to inject a forged key via route discovery before the legitimate peer's announcement arrives. Once a key is pinned via handshake, subsequent announcements for that peer are validated against the pinned key.
+**TOFU pinning trigger:** Key pinning occurs **only after a successful Noise XX handshake** — NOT on route discovery. Public keys learned via Babel Updates are treated as **routing candidates** (used for route selection and address resolution) but are NOT trusted for TOFU pinning until mutual authentication via Noise XX confirms the peer actually holds the corresponding private key. This prevents a malicious relay from racing to inject a forged key via route discovery before the legitimate peer's announcement arrives. Once a key is pinned via handshake, subsequent announcements for that peer are validated against the pinned key.
 
 - **Default behavior (`strict`):** If a previously-pinned peer appears with a different public key (e.g., user reinstalled the app), messages from that peer are **rejected**. The library invokes the **`onKeyChanged(peer, oldKey, newKey)`** callback and the consuming app must call **`repinKey(peer)`** to explicitly accept the new key. This follows the SSH model: key changes are treated as potential MITM attacks until the user (or app) confirms.
 - **Alternative mode (`softRepin`):** Silently accept the new key and re-pin. Suitable for apps where UX is prioritized over security (e.g., casual social apps). Enabled via `trustMode = .softRepin` in configuration.
@@ -1569,7 +1565,7 @@ stateDiagram-v2
 
     state "Performance (8 conn)" as Performance
     state "Balanced (4 conn)" as Balanced
-    state "PowerSaver (1 conn)" as PowerSaver
+    state "PowerSaver (2 conn)" as PowerSaver
 
     %% Upward transitions — immediate (no hysteresis)
     PowerSaver --> Balanced : battery ≥ 30% (immediate)
@@ -1618,7 +1614,7 @@ Connection limits scale with power mode. A single, platform-independent limit is
 |------------|----------------|
 | Performance | 8 |
 | Balanced | 4 |
-| PowerSaver | 1 |
+| PowerSaver | 2 |
 
 These limits are **shared across both BLE roles** (central + peripheral): e.g., 3 outbound + 1 inbound = 4 total slots consumed. The connection manager enforces the combined count, not per-role limits.
 
@@ -1794,7 +1790,7 @@ iOS imposes severe restrictions on background BLE:
 
 **Decision:** Best-effort background operation using **BLE State Preservation and Restoration**. When iOS terminates the app, CoreBluetooth saves BLE state and relaunches it. This does NOT guarantee continuous mesh participation.
 
-**On relaunch:** The library starts from `uninitialized` state (same codepath as cold start). The app calls `MeshLink(context) { config }` + `start()`. CoreBluetooth-restored connections get fresh Noise XX handshakes. Identity keypair, TOFU key pins, replay counters, and dedup set are restored from secure storage; all other state is rebuilt via AODV route discovery on first send.
+**On relaunch:** The library starts from `uninitialized` state (same codepath as cold start). The app calls `MeshLink(context) { config }` + `start()`. CoreBluetooth-restored connections get fresh Noise XX handshakes. Identity keypair, TOFU key pins, replay counters, and dedup set are restored from secure storage; all other state is rebuilt via Babel route propagation on first neighbor contact.
 
 See **Restart semantics** table in §10 for full crash recovery state.
 
@@ -1816,8 +1812,8 @@ See **Restart semantics** table in §10 for full crash recovery state.
 | Suspension Duration | Impact | Reconnection Time |
 |---|---|---|
 | < 30s | None (grace period) | Instant |
-| 30s – 5 min | In-flight transfers lost | 5–15s (AODV route rediscovery) |
-| 5 min – 2 hr | All buffered messages + transfers lost | 5–15s (full routing rebuild via AODV) |
+| 30s – 5 min | In-flight transfers lost | 5–15s (Babel route propagation) |
+| 5 min – 2 hr | All buffered messages + transfers lost | 5–15s (full routing rebuild via Babel) |
 | > 2 hr | All state lost except identity/TOFU | 5–15s (equivalent to cold start) |
 
 **Recommendation:** For time-sensitive messaging, implement a push notification channel. MeshLink handles reconnection automatically on wake (~5–15s). BLE State Preservation is unreliable for suspensions >5 minutes.
@@ -2086,7 +2082,7 @@ Fail-fast behavior ensures developers catch integration mistakes immediately dur
 | Replay counters | Restored (write-ahead, no gap) |
 | TOFU trust store | Restored from secure storage |
 | Dedup set | Empty — in-memory only, not persisted (recent messages may be redelivered) |
-| Routing table | Rebuilt via AODV route discovery on first send (~1-5s per destination) |
+| Routing table | Rebuilt via Babel Hello/Update exchange on first neighbor contact |
 | Active transfers | Lost — senders retry |
 | Buffered messages | Lost — senders retry |
 | Engine state | Fresh (all engines restarted) |

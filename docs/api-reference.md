@@ -37,7 +37,7 @@ The primary interface for all mesh networking operations. Implemented by
 
 | Signature | Description |
 |-----------|-------------|
-| `fun send(recipient: ByteArray, payload: ByteArray): Result<MessageId>` | Sends an encrypted unicast message. `recipient` is an 8-byte peer ID. Returns the `MessageId` on success. Fails if rate-limited, circuit breaker tripped, or buffer full. |
+| `fun send(recipient: ByteArray, payload: ByteArray): Result<MessageId>` | Sends an encrypted unicast message. `recipient` is an 12-byte peer ID. Returns the `MessageId` on success. Fails if rate-limited, circuit breaker tripped, or buffer full. |
 | `fun broadcast(payload: ByteArray, maxHops: UByte): Result<MessageId>` | Broadcasts an unencrypted message to all peers within `maxHops` radius. Returns the `MessageId`. |
 
 ### Event Streams
@@ -77,7 +77,7 @@ scope before calling `start()`.
 
 | Signature | Description |
 |-----------|-------------|
-| `fun addRoute(destination: String, nextHop: String, cost: Double, sequenceNumber: UInt)` | Manually adds or updates a route. `destination` and `nextHop` are hex peer IDs. `cost` must be > 0. `sequenceNumber` is the AODV sequence number for route freshness. Routes added manually behave like discovered routes and are subject to TTL expiry (`routeCacheTtlMillis`). |
+| `fun addRoute(destination: String, nextHop: String, cost: Double, sequenceNumber: UInt)` | Manually adds or updates a route. `destination` and `nextHop` are hex peer IDs. `cost` must be > 0. `sequenceNumber` is the Babel sequence number for route freshness. Routes added manually behave like discovered routes and are subject to TTL expiry (`routeCacheTtlMillis`). |
 
 ### Power Management
 
@@ -202,7 +202,7 @@ Immutable configuration data class. All fields have sensible defaults.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `routeCacheTtlMillis` | `Long` | `60_000` | Time-to-live for cached routes discovered via AODV (ms). Routes expire and are rediscovered on next send. |
+| `routeCacheTtlMillis` | `Long` | `300_000` | Time-to-live for cached routes (ms). Routes expire and are refreshed via Babel Updates or on-demand discovery. |
 | `routeDiscoveryTimeoutMillis` | `Long` | `5_000` | Maximum time to wait for a Route Reply after flooding a Route Request (ms). Messages are queued during discovery. |
 | `relayQueueCapacity` | `Int` | `100` | Max queued relay (forwarded) messages. |
 
@@ -362,7 +362,7 @@ Represents a received unicast or broadcast message.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `senderId` | `ByteArray` | 8-byte peer ID of the sender. |
+| `senderId` | `ByteArray` | 12-byte peer ID of the sender. |
 | `payload` | `ByteArray` | Decrypted message content. |
 
 ### PeerEvent
@@ -378,8 +378,8 @@ Emitted on the `peers` flow when BLE neighbors are discovered or lost.
 
 | Subclass | Field | Description |
 |----------|-------|-------------|
-| `Found` | `peerId: ByteArray` | 8-byte ID of the newly found peer. |
-| `Lost` | `peerId: ByteArray` | 8-byte ID of the peer that is no longer reachable. |
+| `Found` | `peerId: ByteArray` | 12-byte ID of the newly found peer. |
+| `Lost` | `peerId: ByteArray` | 12-byte ID of the peer that is no longer reachable. |
 
 ### TransferProgress
 
@@ -433,7 +433,7 @@ Emitted when a peer rotates their Ed25519 identity key.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `peerId` | `ByteArray` | 8-byte ID of the peer. |
+| `peerId` | `ByteArray` | 12-byte ID of the peer. |
 | `previousKey` | `ByteArray` | The peer's previous Ed25519 public key. |
 | `newKey` | `ByteArray` | The peer's new Ed25519 public key. |
 
@@ -463,12 +463,12 @@ Snapshot of a single peer's connection, routing, and identity state. Returned by
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `peerIdHex` | `String` | Hex-encoded 8-byte peer ID. |
+| `peerIdHex` | `String` | Hex-encoded 12-byte peer ID. |
 | `presenceState` | `PresenceState` | `CONNECTED`, `DISCONNECTED`, or `GONE`. |
 | `isDirectNeighbor` | `Boolean` | `true` if the peer is within 1-hop BLE range. |
 | `routeNextHop` | `String?` | Hex ID of the next-hop peer on the best route. `null` if no route exists. |
 | `routeCost` | `Double?` | Composite link quality cost of the best route. `null` if no route. |
-| `routeSequenceNumber` | `UInt?` | AODV request sequence number of the best route. |
+| `routeSequenceNumber` | `UInt?` | Babel route sequence number of the best route. |
 | `publicKeyHex` | `String?` | Ed25519 public key as hex. `null` if crypto is disabled or peer is unknown. |
 | `nextHopFailureRate` | `Double` | Delivery failure rate via this peer as next-hop (0.0–1.0). |
 | `nextHopFailureCount` | `Int` | Total recorded delivery failures via this peer. |
@@ -499,7 +499,7 @@ enum class DeliveryOutcome {
 | `FAILED_PEER_OFFLINE` | Destination peer is no longer reachable. |
 | `FAILED_DELIVERY_TIMEOUT` | End-to-end delivery ACK was not received within the deadline. |
 
-### RouteRequestResult
+### RouteRequestResult (Legacy AODV Fallback)
 
 `io.meshlink.routing.RouteRequestResult`
 
@@ -520,7 +520,7 @@ sealed class RouteRequestResult {
 | `Flood` | Rebroadcast the contained RREQ (with incremented hop count) to all neighbors. |
 | `Drop` | Duplicate or expired RREQ — discard silently. |
 
-### RouteReplyResult
+### RouteReplyResult (Legacy AODV Fallback)
 
 `io.meshlink.routing.RouteReplyResult`
 
@@ -541,7 +541,7 @@ sealed class RouteReplyResult {
 | `Resolved` | This peer is the RREQ originator — the route to `destination` is now available; drain pending messages. |
 | `Drop` | No matching reverse path or stale RREP — discard silently. |
 
-### RouteDiscovery
+### RouteDiscovery (Legacy AODV Fallback)
 
 `io.meshlink.routing.RouteDiscovery`
 

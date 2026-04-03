@@ -15,7 +15,7 @@ diagrams don't render in your viewer, paste them into the
 6. [Power Mode Transitions](#6-power-mode-transitions) — Battery-driven mode state machine
 7. [GATT Chunking & SACK Flow](#7-gatt-chunking--sack-flow) — Selective ACK and resume-on-disconnect
 8. [Engine & Coordinator Data Flow](#8-engine--coordinator-data-flow) — Sealed result types, unidirectional flow
-9. [AODV Route Discovery](#9-aodv-route-discovery) — On-demand RREQ flood and RREP unicast
+9. [Babel Route Propagation](#9-babel-route-propagation) — Hello/Update route propagation with feasibility condition
 10. [TOFU Trust Model](#10-tofu-trust-model) — Key pinning with strict/softRepin modes
 11. [Key Rotation Sequence](#11-key-rotation-sequence) — Broadcast announcement, grace period, teardown
 
@@ -135,8 +135,8 @@ packet
 | 0x00 | handshake |
 | 0x01 | keepalive |
 | 0x02 | rotation |
-| 0x03 | route_request (RREQ) |
-| 0x04 | route_reply (RREP) |
+| 0x03 | hello (Babel) |
+| 0x04 | update (Babel) |
 | 0x05 | chunk |
 | 0x06 | chunk_ack |
 | 0x07 | nack |
@@ -163,7 +163,7 @@ flowchart TB
 
         subgraph Engines["Stateful Engines (sealed result types)"]
             SE["SecurityEngine<br/>Noise XX/K, Trust, Replay"]
-            RE["RoutingEngine<br/>AODV, Cost, Dedup"]
+            RE["RoutingEngine<br/>Babel, Cost, Dedup"]
             TE["TransferEngine<br/>Chunking, SACK, AIMD"]
             DP["DeliveryPipeline<br/>Confirmation, Timeout"]
         end
@@ -312,7 +312,7 @@ stateDiagram-v2
 
     state "Performance\n>80% or charging\nScan 80% · Ads 250ms\nKeepalive 5s · Conn 8" as Perf
     state "Balanced\n30–80%\nScan 50% · Ads 500ms\nKeepalive 15s · Conn 4" as Bal
-    state "PowerSaver\n<30%\nScan ~17% · Ads 1s\nKeepalive 30s · Conn 1" as PS
+    state "PowerSaver\n<30%\nScan ~17% · Ads 1s\nKeepalive 30s · Conn 2" as PS
 
     Bal --> Perf : battery ≥ 80% (immediate)
     Perf --> Bal : battery < 80% for 30s
@@ -388,7 +388,7 @@ The engine/coordinator architecture with sealed result types and unidirectional 
 flowchart TD
     subgraph Facades["Stateful Engines (sealed result types)"]
         SE["SecurityEngine<br/>🔒 Noise XX/K, Trust, Replay"]
-        RE["RoutingEngine<br/>🗺️ AODV, Cost, Dedup"]
+        RE["RoutingEngine<br/>Babel, Cost, Dedup"]
         TE["TransferEngine<br/>📦 Chunking, SACK, AIMD"]
         DP["DeliveryPipeline<br/>✅ Confirmation, Timeout"]
     end
@@ -425,45 +425,38 @@ flowchart TD
 
 ---
 
-## 9. AODV Route Discovery
+## 9. Babel Route Propagation
 
-On-demand route discovery using RREQ flood and RREP unicast. Routes are
-established only when a message needs to be sent — no proactive routing
-overhead.
+Loop-free route propagation via Hello/Update messages. Routes are
+established proactively when neighbors discover each other. Fallback
+RREQ/RREP is available for cold-start scenarios.
 
 ```mermaid
 sequenceDiagram
-    participant S as Source
-    participant N1 as Neighbor 1
-    participant N2 as Neighbor 2
-    participant N3 as Neighbor 3
-    participant D as Destination
+    participant A as Peer A
+    participant B as Peer B (relay)
+    participant C as Peer C
 
-    Note over S: send(msg, dest=D) — no cached route
+    Note over A,C: B is connected to both A and C
 
-    S->>N1: RREQ (broadcast flood)
-    S->>N2: RREQ (broadcast flood)
+    A->>B: Hello (seqNo=0)
+    Note over B: New neighbor A → send full routing table
 
-    N1->>N1: Record reverse path → S
-    N2->>N2: Record reverse path → S
+    B->>A: Update(dest=C, metric=1, seqNo=1, pubkey=C_key)
+    B->>A: Update(dest=B, metric=0, seqNo=1, pubkey=B_key)
 
-    N1->>N3: RREQ (rebroadcast)
-    N3->>N3: Record reverse path → N1
+    Note over A: Feasibility check for each Update
+    Note over A: Install route: C via B
+    Note over A: Register C's public key
 
-    N3->>D: RREQ (rebroadcast)
-    Note over D: I am the destination
+    Note over A,C: Later: A sends a message to C
 
-    D->>N3: RREP (unicast back)
-    N3->>N3: Install forward route to D
-    N3->>N1: RREP (unicast back)
-    N1->>N1: Install forward route to D
-    N1->>S: RREP (unicast back)
+    A->>B: RoutedMessage(dest=C, Noise K encrypted)
+    B->>C: Forward (re-encrypted hop-by-hop)
 
-    Note over S: Route installed, pending messages drained
-
-    S->>N1: RoutedMessage(dest=D, payload=msg)
-    N1->>N3: Forward
-    N3->>D: Forward
+    Note over A,C: If B loses connection to C:
+    B->>A: Update(dest=C, metric=0xFFFF) [retraction]
+    Note over A: Remove route to C
 ```
 
 ---

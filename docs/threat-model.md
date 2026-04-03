@@ -57,7 +57,7 @@ RFC-validated).
 |-----------|------|----------|------|
 | **MeshLink** | Orchestrator | `MeshLink.kt` (~830 lines) | Wiring layer connecting engines, coordinators, and transport |
 | **SecurityEngine** | Stateful engine | `crypto/SecurityEngine.kt` | Noise XX/K seal/unseal, trust store, replay guard |
-| **RoutingEngine** | Stateful engine | `routing/RoutingEngine.kt` | AODV route cache, RREQ dedup, route validation |
+| **RoutingEngine** | Stateful engine | `routing/RoutingEngine.kt` | Babel route table, feasibility distances, route validation |
 | **TransferEngine** | Stateful engine | `transfer/TransferEngine.kt` | Chunking, reassembly, SACK, AIMD congestion control |
 | **MessageDispatcher** | Policy chain | `dispatch/MessageDispatcher.kt` | Inbound frame decode, type dispatch, validation |
 | **SendPolicyChain** | Policy chain | `send/SendPolicyChain.kt` | Outbound pre-flight checks (buffer, rate, circuit breaker) |

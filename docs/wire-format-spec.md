@@ -93,8 +93,8 @@ All framed messages begin with a 1-byte type code at offset 0.
 | `0x00` | Handshake | `TYPE_HANDSHAKE` | Variable (min 2) | Noise XX handshake step. |
 | `0x01` | Keepalive | `TYPE_KEEPALIVE` | 12+ | Link liveness probe. Has [TLV extensions](#tlv-extension-area). |
 | `0x02` | Rotation Announcement | `TYPE_ROTATION` | 201 | Key rotation broadcast. |
-| `0x03` | Route Request | `TYPE_ROUTE_REQUEST` | 25+ | AODV route request (RREQ), flooded to discover a path to a destination. Has [TLV extensions](#tlv-extension-area). |
-| `0x04` | Route Reply | `TYPE_ROUTE_REPLY` | 24+ | AODV route reply (RREP), unicast back along the reverse path. Has [TLV extensions](#tlv-extension-area). |
+| `0x03` | Hello / Route Request | `TYPE_HELLO` / `TYPE_ROUTE_REQUEST` | 25+ | Babel Hello / legacy AODV RREQ. Neighbor liveness and route discovery.. Has [TLV extensions](#tlv-extension-area). |
+| `0x04` | Update / Route Reply | `TYPE_UPDATE` / `TYPE_ROUTE_REPLY` | 24+ | Babel Update / legacy AODV RREP. Route propagation with public key.. Has [TLV extensions](#tlv-extension-area). |
 | `0x05` | Chunk | `TYPE_CHUNK` | Variable (min 15) | Fragment of a chunked transfer. First chunk (seq=0) has 17-byte header; subsequent chunks have 15-byte header. |
 | `0x06` | Chunk ACK | `TYPE_CHUNK_ACK` | 37+ | Selective acknowledgment of chunks. Has [TLV extensions](#tlv-extension-area). |
 | `0x07` | NACK | `TYPE_NACK` | 20+ | Negative acknowledgment with reason code. Has [TLV extensions](#tlv-extension-area). |
@@ -264,7 +264,7 @@ the 5-byte payload carried inside the Noise framework messages.
 
 ### 0x03 — Route Request (RREQ)
 
-AODV route discovery request. Flooded by the originator (or an intermediate
+Babel Hello or legacy AODV route discovery request. Flooded by the originator (or an intermediate
 peer with no cached route) to discover a path to a destination. Each peer
 that receives an RREQ records the reverse path back to the origin and
 rebroadcasts unless it has already seen the same `requestId` from the same
@@ -298,7 +298,7 @@ Byte:   0       1             8  9            16 17          20 21   22  23  24
 
 ### 0x04 — Route Reply (RREP)
 
-AODV route reply. Unicast back along the reverse path recorded during the
+Babel Update or legacy AODV route reply. Unicast back along the reverse path recorded during the
 RREQ flood. Sent by the destination peer or by an intermediate peer that
 already has a cached route to the destination.
 
