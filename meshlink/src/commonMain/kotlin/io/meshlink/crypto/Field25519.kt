@@ -7,6 +7,15 @@ package io.meshlink.crypto
  * limbs [0,2,4,6,8] carry 26 bits; limbs [1,3,5,7,9] carry 25 bits.
  *
  * Shared by both X25519 and Ed25519 implementations.
+ *
+ * **Constant-time properties:** All operations on secret data use
+ * constant-time conditionals ([cswap], [cmov]) that avoid branches.
+ * Loop bounds and array indices depend only on public limb structure
+ * (alternating 26/25-bit widths), not on secret values. The JVM JIT
+ * compiler may theoretically introduce variable-time behavior, but
+ * BLE transport jitter (~5ms) makes sub-microsecond timing attacks
+ * impractical. On JVM and Android 33+, platform-native JCA crypto
+ * is used instead of this implementation.
  */
 internal object Field25519 {
 

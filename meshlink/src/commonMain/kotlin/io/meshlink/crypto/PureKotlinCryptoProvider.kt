@@ -2,8 +2,15 @@ package io.meshlink.crypto
 
 /**
  * Pure Kotlin implementation of [CryptoProvider] with zero platform dependencies.
- * Used as the crypto backend on iOS (all versions) and Android API 26-32
- * where JCA lacks Ed25519/X25519 support.
+ *
+ * Used as the crypto backend on Apple platforms (all versions), Linux, and
+ * Android API 26-32 where JCA lacks Ed25519/X25519 support. On JVM (Java 21)
+ * and Android API 33+, platform-native JCA providers are used instead,
+ * providing hardware-accelerated constant-time operations.
+ *
+ * **Timing properties:** Field arithmetic in [Field25519] uses constant-time
+ * conditional swap/move operations. Loop bounds depend on public limb
+ * structure, not secret values. See [Field25519] KDoc for details.
  *
  * Delegates to:
  * - [Ed25519] for signing/verification
