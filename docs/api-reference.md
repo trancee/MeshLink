@@ -37,7 +37,7 @@ The primary interface for all mesh networking operations. Implemented by
 
 | Signature | Description |
 |-----------|-------------|
-| `fun send(recipient: ByteArray, payload: ByteArray): Result<MessageId>` | Sends an encrypted unicast message. `recipient` is an 12-byte peer ID. Returns the `MessageId` on success. Fails if rate-limited, circuit breaker tripped, or buffer full. |
+| `fun send(recipient: ByteArray, payload: ByteArray): Result<MessageId>` | Sends an encrypted unicast message. `recipient` is a 12-byte peer ID. Returns the `MessageId` on success. Fails if rate-limited, circuit breaker tripped, or buffer full. |
 | `fun broadcast(payload: ByteArray, maxHops: UByte): Result<MessageId>` | Broadcasts an unencrypted message to all peers within `maxHops` radius. Returns the `MessageId`. |
 
 ### Event Streams
@@ -239,7 +239,7 @@ Immutable configuration data class. All fields have sensible defaults.
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `diagnosticBufferCapacity` | `Int` | `256` | Maximum diagnostic events in the ring buffer. |
-| `diagnosticsEnabled` | `Boolean` | `false` | Enable the diagnostic event stream. When `false`, no diagnostic events are generated (zero overhead). |
+| `diagnosticsEnabled` | `Boolean` | `true` | Enable the diagnostic event stream. When `false`, no diagnostic events are generated (zero overhead). |
 | `dedupCapacity` | `Int` | `100_000` | Maximum unique message IDs tracked for deduplication (TTL-based, 300 s expiry). |
 
 #### Protocol

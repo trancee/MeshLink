@@ -37,19 +37,19 @@ object WireCodec {
     private const val KEEPALIVE_SIZE = 10
 
     // resume_request: type(1) + messageId(12) + bytesReceived(4 LE) = 17
-    private const val RESUME_REQUEST_SIZE = 1 + MESSAGE_ID_SIZE + 4 // 17
+    private const val RESUME_REQUEST_SIZE = 1 + MESSAGE_ID_SIZE + 4 // 21
 
     // chunk: type(1) + messageId(12) + seqNum(2 LE) [+ totalChunks(2 LE) if seq==0] + payload
     // First chunk (seq=0): 1 + 12 + 2 + 2 = 17 bytes header
     // Subsequent chunks (seq>0): 1 + 12 + 2 = 15 bytes header
-    const val CHUNK_HEADER_SIZE_FIRST = 1 + MESSAGE_ID_SIZE + 2 + 2 // 17
-    const val CHUNK_HEADER_SIZE_SUBSEQUENT = 1 + MESSAGE_ID_SIZE + 2 // 15
+    const val CHUNK_HEADER_SIZE_FIRST = 1 + MESSAGE_ID_SIZE + 2 + 2 // 21
+    const val CHUNK_HEADER_SIZE_SUBSEQUENT = 1 + MESSAGE_ID_SIZE + 2 // 19
 
     @Deprecated("Use CHUNK_HEADER_SIZE_FIRST for seq=0 or CHUNK_HEADER_SIZE_SUBSEQUENT for seq>0")
     const val CHUNK_HEADER_SIZE = CHUNK_HEADER_SIZE_FIRST
 
     // chunk_ack: type(1) + messageId(12) + ackSeq(2 LE) + sackBitmask(8 LE) + sackBitmaskHigh(8 LE)
-    private const val CHUNK_ACK_SIZE = 1 + MESSAGE_ID_SIZE + 2 + 8 + 8 // 31
+    private const val CHUNK_ACK_SIZE = 1 + MESSAGE_ID_SIZE + 2 + 8 + 8 // 35
 
     // handshake: type(1) + step(1) + noiseMessage(variable)
     private const val HANDSHAKE_HEADER_SIZE = 2
@@ -315,7 +315,7 @@ object WireCodec {
     }
 
     // delivery_ack: type(1) + messageId(16) + recipientId(8) + flags(1) + [signature(64) + signerPubKey(32)]
-    private const val DELIVERY_ACK_HEADER_SIZE = 1 + MESSAGE_ID_SIZE + PEER_ID_SIZE + 1 // 26
+    private const val DELIVERY_ACK_HEADER_SIZE = 1 + MESSAGE_ID_SIZE + PEER_ID_SIZE + 1 // 30
 
     fun encodeDeliveryAck(
         messageId: ByteArray,
