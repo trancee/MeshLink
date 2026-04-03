@@ -250,4 +250,22 @@ class WireFormatFuzzTest {
             } catch (_: IllegalArgumentException) { }
         }
     }
+
+    @Test
+    fun fuzz_decodeHello_never_crashes() {
+        repeat(iterations) {
+            try {
+                WireCodec.decodeHello(randomBytes())
+            } catch (_: IllegalArgumentException) { }
+        }
+    }
+
+    @Test
+    fun fuzz_decodeUpdate_never_crashes() {
+        repeat(iterations) {
+            try {
+                WireCodec.decodeUpdate(randomBytes())
+            } catch (_: IllegalArgumentException) { }
+        }
+    }
 }

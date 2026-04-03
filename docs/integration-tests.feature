@@ -514,3 +514,135 @@ Feature: BLE Mesh Peer-to-Peer Messaging
     When all peers start and complete handshakes
     And Alice broadcasts "⚠ encrypted emergency" with maxHops=3
     Then at least 3 of 4 peers should receive the broadcast
+
+  # ─── Protocol Changes (v1.1) ───────────────────────────────
+
+  # --- 12-byte Peer IDs & 16-byte Message IDs ---
+
+  @protocol @wire-format
+  Scenario: Messages use 12-byte peer IDs and 16-byte message IDs
+    Given two peers "Alice" and "Bob" on the mesh
+    When Alice sends a message to Bob
+    Then the routed message origin field should be 12 bytes
+    And the routed message destination field should be 12 bytes
+    And the message ID should be 16 bytes (128-bit random)
+
+  @protocol @wire-format
+  Scenario: Message IDs are globally unique
+    Given a single peer "Alice"
+    When Alice generates 1000 message IDs
+    Then all 1000 IDs should be unique
+
+  # --- Priority Field ---
+
+  @protocol @priority
+  Scenario: Priority field preserved through relay
+    Given three peers Alice → Relay → Bob in a line topology
+    When Alice sends a high-priority (1) routed message to Bob
+    Then the relayed message received by Bob should have priority = 1
+
+  @protocol @priority
+  Scenario: Broadcast priority preserved through relay
+    Given three peers Alice → Relay → Bob in a line topology
+    When Alice broadcasts a low-priority (-1) message with maxHops=2
+    Then the relayed broadcast received by Bob should have priority = -1
+
+  @protocol @priority
+  Scenario: Default priority is normal (0)
+    Given two peers "Alice" and "Bob" on the mesh
+    When Alice sends a message without specifying priority
+    Then the message should arrive with priority = 0
+
+  # --- Babel Routing ---
+
+  @routing @babel
+  Scenario: Hello triggers full routing table update to new neighbor
+    Given two peers "Alice" and "Bob" with no prior contact
+    When Alice discovers Bob (BLE advertisement)
+    And Alice sends a Hello to Bob
+    Then Bob should respond with Update frames for all known routes
+
+  @routing @babel
+  Scenario: Hello from known neighbor does not trigger update flood
+    Given Alice and Bob have an established connection
+    When Alice sends another Hello to Bob
+    Then Bob should not send routing table updates
+
+  @routing @babel
+  Scenario: Update installs route with feasibility check
+    Given three peers Alice, Bob, and Charlie
+    And Bob has a route to Charlie with seqno=5 and metric=3
+    When Alice receives an Update from Bob for Charlie (seqno=5, metric=3)
+    Then Alice should install a route to Charlie via Bob
+
+  @routing @babel
+  Scenario: Update with older seqno is rejected (loop prevention)
+    Given Alice has a route to Charlie (seqno=10, metric=5)
+    When Alice receives an Update for Charlie with seqno=5 (older)
+    Then Alice should reject the update
+    And Alice's route to Charlie should remain unchanged
+
+  @routing @babel
+  Scenario: Update with newer seqno accepted even with worse metric
+    Given Alice has a route to Charlie (seqno=1, metric=2)
+    When Alice receives an Update for Charlie with seqno=2 and metric=100
+    Then Alice should accept the update (newer seqno = fresher route)
+
+  # --- Key Propagation ---
+
+  @routing @key-propagation @encryption
+  Scenario: Public key propagated via Babel Update
+    Given three peers Alice, Bob, and Charlie
+    And Bob has Charlie's Ed25519 public key from Noise XX handshake
+    When Bob sends a Babel Update for Charlie to Alice
+    Then the Update should contain Charlie's 32-byte public key
+    And Alice should register Charlie's key for E2E encryption
+
+  @routing @key-propagation @encryption
+  Scenario: Multi-hop E2E encryption via propagated keys
+    Given three peers Alice → Bob → Charlie in a line
+    And Bob has completed Noise XX handshakes with both Alice and Charlie
+    When Bob propagates Charlie's public key to Alice via Update
+    And Alice sends an encrypted message to Charlie
+    Then the message should be E2E encrypted with Noise K
+    And Charlie should be able to decrypt it
+
+  # --- Config Defaults ---
+
+  @config
+  Scenario: Route cache TTL defaults to 5 minutes
+    Given a default MeshLinkConfig
+    Then routeCacheTtlMillis should be 300000
+
+  @config
+  Scenario: Diagnostics enabled by default
+    Given a default MeshLinkConfig
+    Then diagnosticsEnabled should be true
+
+  @config
+  Scenario: PowerSaver allows 2 connections
+    Given a peer in PowerSaver mode (battery < 30%)
+    Then the maximum connection count should be 2
+    And the peer should be able to relay messages (not just leaf node)
+
+  # --- Platform-Native Crypto ---
+
+  @crypto @platform
+  Scenario: JVM uses JCA crypto provider
+    Given a JVM environment with Java 21+
+    When CryptoProvider() is called
+    Then it should return a JvmCryptoProvider (hardware-accelerated)
+
+  @crypto @platform
+  Scenario: Android API 33+ uses JCA crypto provider
+    Given an Android device with API level 33+
+    When CryptoProvider() is called
+    Then it should return AndroidJcaCryptoProvider
+    And Ed25519/X25519 should be hardware-accelerated
+
+  @crypto @platform
+  Scenario: Android API 26-32 falls back to pure Kotlin
+    Given an Android device with API level 26
+    When CryptoProvider() is called
+    Then it should return PureKotlinCryptoProvider
+    And all crypto operations should still be correct

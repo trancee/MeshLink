@@ -77,6 +77,12 @@ class RoutingEngine(
     private val nextHopFailures = mutableMapOf<ByteArrayKey, Int>()
     private val nextHopSuccesses = mutableMapOf<ByteArrayKey, Int>()
 
+    // ── Key propagation (populated from Babel Updates) ──────────
+    private val peerPublicKeys = mutableMapOf<ByteArrayKey, ByteArray>()
+
+    // Babel sequence number for route freshness
+    private var localSeqno: UShort = 0u
+
     // ── Presence ──────────────────────────────────────────────────
 
     fun peerSeen(peerId: ByteArrayKey) = presenceTracker.peerSeen(peerId)
@@ -299,6 +305,102 @@ class RoutingEngine(
 
     fun nextHopFailureCount(nextHopId: ByteArrayKey): Int = nextHopFailures[nextHopId] ?: 0
 
+    // ── Babel Hello/Update ───────────────────────────────────
+
+    /** Build a Hello frame for this peer. */
+    fun buildHello(): ByteArray {
+        return WireCodec.encodeHello(localPeerId.bytes, localSeqno)
+    }
+
+    /** Increment the local sequence number (called periodically). */
+    fun bumpSeqno() {
+        localSeqno++
+    }
+
+    /**
+     * Handle an inbound Hello. Returns Update frames to send back
+     * (full routing table dump for new neighbors, empty for known ones).
+     */
+    fun handleHello(
+        fromPeerId: ByteArrayKey,
+        @Suppress("UNUSED_PARAMETER") senderSeqno: UShort,
+    ): List<ByteArray> {
+        val isNew = presenceTracker.state(fromPeerId) == null
+        presenceTracker.peerSeen(fromPeerId)
+
+        if (!isNew) return emptyList()
+
+        // New neighbor — send our full routing table as Updates
+        return buildFullUpdateSet()
+    }
+
+    /**
+     * Handle an inbound Update. Applies Babel feasibility condition:
+     * accept only if seqno is newer or (same seqno and better metric).
+     * Returns the destination's public key if one was propagated.
+     */
+    fun handleUpdate(
+        fromPeerId: ByteArrayKey,
+        destination: ByteArrayKey,
+        metric: UShort,
+        seqno: UShort,
+        publicKey: ByteArray,
+    ): ByteArray? {
+        // Skip self-routes
+        if (destination == localPeerId) return null
+
+        val existing = routingTable.bestRoute(destination)
+        val totalMetric = metric.toDouble() + costCalculator.computeCost(fromPeerId)
+
+        // Feasibility condition: accept if seqno is strictly newer,
+        // or same seqno with lower metric (loop-free per Babel RFC 8966 §3.5.1)
+        if (existing != null) {
+            val existingSeqno = existing.sequenceNumber
+            if (seqno < existingSeqno.toUShort()) return null
+            if (seqno == existingSeqno.toUShort() && totalMetric >= existing.cost) return null
+        }
+
+        routingTable.addRoute(destination, fromPeerId, totalMetric, seqno.toUInt())
+
+        // Store propagated public key
+        if (publicKey.isNotEmpty() && !publicKey.all { it == 0.toByte() }) {
+            peerPublicKeys[destination] = publicKey.copyOf()
+            return publicKey
+        }
+        return null
+    }
+
+    /** Build Update frames for the full routing table (for new neighbor). */
+    fun buildFullUpdateSet(): List<ByteArray> {
+        val updates = mutableListOf<ByteArray>()
+        // Advertise self with metric 0
+        val selfKey = peerPublicKeys[localPeerId] ?: ByteArray(32)
+        updates.add(WireCodec.encodeUpdate(localPeerId.bytes, 0u, localSeqno, selfKey))
+        // Advertise all known routes
+        for (route in routingTable.allBestRoutes()) {
+            val destKey = peerPublicKeys[route.destination] ?: ByteArray(32)
+            updates.add(
+                WireCodec.encodeUpdate(
+                    route.destination.bytes,
+                    route.cost.toInt().coerceIn(0, 65535).toUShort(),
+                    route.sequenceNumber.toUShort(),
+                    destKey,
+                )
+            )
+        }
+        return updates
+    }
+
+    // ── Key propagation ─────────────────────────────────────
+
+    /** Store a public key for a peer (e.g., from Noise XX handshake). */
+    fun registerPublicKey(peerId: ByteArrayKey, publicKey: ByteArray) {
+        peerPublicKeys[peerId] = publicKey.copyOf()
+    }
+
+    /** Get the stored public key for a peer, if known. */
+    fun getPublicKey(peerId: ByteArrayKey): ByteArray? = peerPublicKeys[peerId]
+
     // ── Cleanup ────────────────────────────────────────────────────
 
     fun clear() {
@@ -310,6 +412,8 @@ class RoutingEngine(
         nextHopFailures.clear()
         nextHopSuccesses.clear()
         costCalculator.clear()
+        peerPublicKeys.clear()
+        localSeqno = 0u
         nextRequestId = 0u
     }
 

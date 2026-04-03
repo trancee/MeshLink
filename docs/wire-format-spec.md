@@ -21,8 +21,8 @@ messages, the protocol defines a **10-byte BLE advertisement payload** and a
 | **Byte ordering** | Varies per field — each field table states **BE** (big-endian / network order) or **LE** (little-endian). |
 | **Type discriminator** | All framed messages share byte 0 as the type code. |
 | **Sizes** | All sizes are in bytes unless stated otherwise. Multi-byte integers are unsigned unless noted. |
-| **Key hashes** | Peer identifiers and visited-list entries are 8-byte values (truncated SHA-256). |
-| **Message IDs** | 12-byte structured identifiers: 8-byte sender peer ID hash + 4-byte little-endian monotonic counter. |
+| **Key hashes** | Peer identifiers and visited-list entries are 12-byte values (truncated SHA-256, 96-bit collision resistance). |
+| **Message IDs** | 16-byte random identifiers generated from platform CSPRNG (128-bit entropy). |
 | **Signature blocks** | Ed25519 signatures are 64 bytes; Ed25519 public keys are 32 bytes. |
 
 ---
@@ -100,7 +100,7 @@ All framed messages begin with a 1-byte type code at offset 0.
 | `0x07` | NACK | `TYPE_NACK` | 20+ | Negative acknowledgment with reason code. Has [TLV extensions](#tlv-extension-area). |
 | `0x08` | Resume Request | `TYPE_RESUME_REQUEST` | 23+ | Request to resume a chunked transfer. Has [TLV extensions](#tlv-extension-area). |
 | `0x09` | Broadcast | `TYPE_BROADCAST` | Variable (min 43) | Flood-fill broadcast to all nodes. |
-| `0x0A` | Routed Message | `TYPE_ROUTED_MESSAGE` | Variable (min 43) | Unicast message forwarded along a route. |
+| `0x0A` | Routed Message | `TYPE_ROUTED_MESSAGE` | Variable (min 52) | Unicast message forwarded along a route. Includes priority field. |
 | `0x0B` | Delivery ACK | `TYPE_DELIVERY_ACK` | Variable (min 28) | End-to-end delivery confirmation. Has [TLV extensions](#tlv-extension-area). |
 
 ---
@@ -216,18 +216,19 @@ Byte:   0       1                              12  13                 20
 | Offset | Size | Field | Type | Endianness | Description |
 |--------|------|-------|------|------------|-------------|
 | 0 | 1 | `type` | byte | — | `0x09` |
-| 1–12 | 12 | `messageId` | bytes | — | Structured message identifier (8-byte sender peer ID hash + 4-byte LE counter). |
-| 13–20 | 8 | `origin` | bytes | — | Originator peer ID (truncated key hash). |
-| 21 | 1 | `remainingHops` | UByte | — | TTL / remaining hop count. |
-| 22–29 | 8 | `appIdHash` | bytes | — | Application identifier hash (zero-filled if unused). |
-| 30 | 1 | `flags` | UByte | — | Bit 0: `HAS_SIGNATURE` (signature + signerPublicKey present). Bits 1–7: reserved. |
-| 31–94 | 64 | `signature` | bytes | — | Ed25519 signature (present only if `flags & 0x01`). |
-| 95–126 | 32 | `signerPublicKey` | bytes | — | Ed25519 public key of signer (present only if `flags & 0x01`). |
+| 1–16 | 16 | `messageId` | bytes | — | 16-byte random message identifier. |
+| 17–28 | 12 | `origin` | bytes | — | Originator peer ID (truncated key hash). |
+| 29 | 1 | `remainingHops` | UByte | — | TTL / remaining hop count. |
+| 30–37 | 8 | `appIdHash` | bytes | — | Application identifier hash (zero-filled if unused). |
+| 38 | 1 | `flags` | UByte | — | Bit 0: `HAS_SIGNATURE` (signature + signerPublicKey present). Bits 1–7: reserved. |
+| 39 | 1 | `priority` | Byte (signed) | — | Message priority: `-1` = low, `0` = normal (default), `1` = high. |
+| 40–103 | 64 | `signature` | bytes | — | Ed25519 signature (present only if `flags & 0x01`). |
+| 104–135 | 32 | `signerPublicKey` | bytes | — | Ed25519 public key of signer (present only if `flags & 0x01`). |
 | … | variable | `payload` | bytes | — | Application payload (remaining bytes). |
 
 **Validation:**
-- Minimum message size: 31 bytes (header only, `flags = 0x00`, empty payload).
-- If `flags & 0x01`, the message must contain at least `31 + 64 + 32 = 127` bytes before the payload.
+- Minimum message size: 40 bytes (header with priority, `flags = 0x00`, empty payload).
+- If `flags & 0x01`, the message must contain at least `40 + 64 + 32 = 136` bytes before the payload.
 
 ---
 
@@ -354,7 +355,7 @@ Byte:   0       1                              12  13      14  15       N
 | Offset | Size | Field | Type | Endianness | Description |
 |--------|------|-------|------|------------|-------------|
 | 0 | 1 | `type` | byte | — | `0x05` |
-| 1–12 | 12 | `messageId` | bytes | — | Identifies the overall message this chunk belongs to. Structured: 8-byte sender peer ID hash + 4-byte LE counter. |
+| 1–12 | 12 | `messageId` | bytes | — | Identifies the overall message this chunk belongs to (16-byte random). |
 | 13–14 | 2 | `sequenceNumber` | UShort | **LE** | Zero-based chunk index. |
 | 15–16 | 2 | `totalChunks` | UShort | **LE** | Total number of chunks in this message. **Present only when `sequenceNumber = 0`.** |
 | 15 or 17 | variable | `payload` | bytes | — | Chunk payload data. Starts at offset 17 for first chunk, offset 15 for subsequent chunks. |
@@ -423,13 +424,14 @@ Byte:   0       1                 12  13         20  21         28
 | Offset | Size | Field | Type | Endianness | Description |
 |--------|------|-------|------|------------|-------------|
 | 0 | 1 | `type` | byte | — | `0x0A` |
-| 1–12 | 12 | `messageId` | bytes | — | Structured message identifier (8-byte sender peer ID hash + 4-byte LE counter). |
-| 13–20 | 8 | `origin` | bytes | — | Originator peer ID. |
-| 21–28 | 8 | `destination` | bytes | — | Destination peer ID. |
-| 29 | 1 | `hopLimit` | UByte | — | Maximum remaining hops. |
-| 30–37 | 8 | `replayCounter` | ULong | **LE** | Monotonic counter for replay protection. Default `0`. |
-| 38 | 1 | `visitedCount` | UByte | — | Number of visited-list entries (0–255). |
-| 39… | `vCnt × 8` | `visitedList` | bytes | — | Peer IDs already visited (loop detection). |
+| 1–16 | 16 | `messageId` | bytes | — | 16-byte random message identifier. |
+| 17–28 | 12 | `origin` | bytes | — | Originator peer ID (truncated SHA-256). |
+| 29–40 | 12 | `destination` | bytes | — | Destination peer ID (truncated SHA-256). |
+| 41 | 1 | `hopLimit` | UByte | — | Maximum remaining hops. |
+| 42–49 | 8 | `replayCounter` | ULong | **LE** | Monotonic counter for replay protection. Default `0`. |
+| 50 | 1 | `visitedCount` | UByte | — | Number of visited-list entries (0–255). |
+| 51… | `vCnt × 12` | `visitedList` | bytes | — | Peer IDs already visited (loop detection). |
+| … | 1 | `priority` | Byte (signed) | — | Message priority: `-1` = low, `0` = normal (default), `1` = high. |
 | … | variable | `payload` | bytes | — | Application payload (remaining bytes). |
 
 **Validation:**
@@ -699,7 +701,7 @@ version negotiation and capability exchange (e.g., L2CAP support).
 
 - Peer identity is derived from the **first 8 bytes of SHA-256(X25519 public
   key)** in BLE advertisements (see Advertisement Payload).
-- Framed messages use **8-byte** truncated key hashes as peer identifiers.
+- Framed messages use **12-byte** truncated key hashes as peer identifiers.
 
 ---
 

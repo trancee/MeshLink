@@ -395,7 +395,7 @@ All message types use a **hand-specified binary format** — no protobuf, no sch
 
 ### Message ID Format
 
-Message IDs are **96-bit structured** identifiers (12 bytes): 8-byte sender peer ID hash (first 8 bytes of SHA-256 of the sender's X25519 public key) + 4-byte little-endian monotonic counter (initialized from `currentTimeMillis()`). Structured IDs have zero collision risk — they are deterministic, not random — because each sender's peer ID hash is unique and the counter increments monotonically.
+Message IDs are **128-bit random** identifiers (16 bytes) generated from the platform CSPRNG. With 128 bits of entropy, the birthday-bound collision probability is ~2⁻⁶⁴ — negligible for any practical message volume. No counter or peer ID prefix is needed.
 
 ### Protocol Versioning & Advertisement Layout
 
@@ -406,6 +406,8 @@ Protocol version and capability flags are bit-packed into the BLE advertisement 
 **Scan response data:** The scan response carries a duplicate of the 16-bit service UUID (`0x7F3A`) in a Complete List of 16-bit Service UUIDs AD structure. This ensures iOS background discoverability — iOS moves service UUIDs to the "overflow area" when the app is backgrounded, making them visible only to devices already filtering for that UUID. The scan response UUID guarantees MeshLink peers remain discoverable regardless of iOS background state.
 
 **No mesh network ID** — all MeshLink devices see each other regardless of which app is using the library. The library provides **app-level topic filtering**: consuming apps set `appId` in `MeshLinkConfig` at construction time. Messages with non-matching app IDs are silently dropped at the recipient (not relayed). Relays forward all messages regardless of app ID — this preserves mesh density for all apps sharing the physical mesh. Apps that don't set an appId receive all messages.
+
+> **Scaling note:** In deployments where many apps share the physical BLE mesh, every device must decode, validate, and dedup-check messages from *all* apps before applying the appId filter. The filter itself is cheap (8-byte hash comparison), but the per-message processing cost scales with the total mesh-wide message volume across all apps. For single-app deployments this is a non-issue. For multi-app deployments (e.g., 10+ apps at a festival), monitor `bufferUtilizationPercent` and consider tuning rate limits.
 
 ### Connection Strategy
 
@@ -1474,7 +1476,7 @@ Potential post-v1 mitigations:
 
 | Offset | Size | Field |
 |--------|------|-------|
-| 0 | 12 bytes | Message ID (structured: 8-byte peer ID hash + 4-byte LE counter) |
+| 0 | 16 bytes | Message ID (128-bit random) |
 | 12 | 8 bytes | Origin peer ID (truncated key hash) |
 | 20 | 1 byte | Remaining hop count (set to `broadcastTtl` by sender, decremented by each relay; drop when 0) |
 | 21 | 8 bytes | App ID hash (`SHA-256-64(appId.toUTF8())`; zero-filled if no appId) |

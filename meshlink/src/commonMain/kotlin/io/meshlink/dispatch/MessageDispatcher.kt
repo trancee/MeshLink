@@ -51,8 +51,8 @@ internal class MessageDispatcher(
                 WireCodec.TYPE_CHUNK -> handleChunk(fromPeerId, data)
                 WireCodec.TYPE_CHUNK_ACK -> handleChunkAck(data)
                 WireCodec.TYPE_BROADCAST -> handleBroadcast(fromPeerId, data)
-                WireCodec.TYPE_ROUTE_REQUEST -> handleRouteRequest(fromPeerId, data)
-                WireCodec.TYPE_ROUTE_REPLY -> handleRouteReply(fromPeerId, data)
+                WireCodec.TYPE_ROUTE_REQUEST -> handleHello(fromPeerId, data)
+                WireCodec.TYPE_ROUTE_REPLY -> handleUpdate(fromPeerId, data)
                 WireCodec.TYPE_ROUTED_MESSAGE -> handleRoutedMessage(fromPeerId, data)
                 WireCodec.TYPE_DELIVERY_ACK -> handleDeliveryAck(data)
                 WireCodec.TYPE_RESUME_REQUEST -> handleResumeRequest(data)
@@ -132,6 +132,34 @@ internal class MessageDispatcher(
                 sink.onRouteDiscovered(result.destination)
             }
             is RouteReplyResult.Drop -> {}
+        }
+    }
+
+    private suspend fun handleHello(fromPeerId: ByteArray, data: ByteArray) {
+        val hello = WireCodec.decodeHello(data)
+        val updates = routingEngine.handleHello(
+            fromPeerId = fromPeerId.toKey(),
+            senderSeqno = hello.seqno,
+        )
+        // Send routing table updates back to the new neighbor
+        for (update in updates) {
+            sink.sendFrame(fromPeerId, update)
+        }
+    }
+
+    private suspend fun handleUpdate(fromPeerId: ByteArray, data: ByteArray) {
+        val update = WireCodec.decodeUpdate(data)
+        val destKey = update.destination.toKey()
+        val propagatedKey = routingEngine.handleUpdate(
+            fromPeerId = fromPeerId.toKey(),
+            destination = destKey,
+            metric = update.metric,
+            seqno = update.seqno,
+            publicKey = update.publicKey,
+        )
+        // If a new public key was propagated, register it with the security engine
+        if (propagatedKey != null) {
+            securityEngine?.registerPeerKey(destKey, propagatedKey)
         }
     }
 
@@ -239,6 +267,7 @@ internal class MessageDispatcher(
                 payload = broadcast.payload,
                 signature = broadcast.signature,
                 signerPublicKey = broadcast.signerPublicKey,
+                priority = broadcast.priority,
             )
             val senderId = fromPeerId.toKey()
             for (peerId in routingEngine.allPeerIds()) {
@@ -305,6 +334,7 @@ internal class MessageDispatcher(
             visitedList = newVisited,
             payload = routed.payload,
             replayCounter = routed.replayCounter,
+            priority = routed.priority,
         )
 
         if (pauseManager.isPaused) {

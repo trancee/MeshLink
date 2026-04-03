@@ -2,10 +2,12 @@ package io.meshlink.routing
 
 import io.meshlink.util.ByteArrayKey
 import kotlin.test.Test
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class RoutingEngineTest {
@@ -444,5 +446,108 @@ class RoutingEngineTest {
 
         // After eviction, cost returns to default
         assertEquals(RouteCostCalculator.DEFAULT_COST, re.computeLinkCost(peer))
+    }
+
+    // ── Babel Hello/Update ──────────────────────────────────────
+
+    @Test
+    fun helloFromNewNeighborTriggersFullUpdate() {
+        val local = peerId(1)
+        val neighbor = peerId(2)
+        val re = RoutingEngine(local, clock = { 1000L })
+
+        // First hello from a new neighbor should return update frames
+        val updates = re.handleHello(neighbor, senderSeqno = 1u)
+        assertTrue(updates.isNotEmpty(), "Should send routing table to new neighbor")
+    }
+
+    @Test
+    fun helloFromKnownNeighborReturnsEmpty() {
+        val local = peerId(1)
+        val neighbor = peerId(2)
+        val re = RoutingEngine(local, clock = { 1000L })
+
+        re.handleHello(neighbor, senderSeqno = 1u) // first hello
+        val updates = re.handleHello(neighbor, senderSeqno = 2u) // second hello
+        assertTrue(updates.isEmpty(), "Known neighbor should not trigger full update")
+    }
+
+    @Test
+    fun updateInstallsRouteAndPropagatesKey() {
+        val local = peerId(1)
+        val neighbor = peerId(2)
+        val dest = peerId(3)
+        val destKey = ByteArray(32) { (0xDD + it).toByte() }
+        val re = RoutingEngine(local, clock = { 1000L })
+
+        re.peerSeen(neighbor)
+        val propagated = re.handleUpdate(neighbor, dest, metric = 2u, seqno = 1u, publicKey = destKey)
+
+        assertNotNull(propagated, "Should propagate public key")
+        assertContentEquals(destKey, propagated)
+        assertNotNull(re.bestRoute(dest), "Route should be installed")
+        assertContentEquals(destKey, re.getPublicKey(dest))
+    }
+
+    @Test
+    fun updateFeasibilityRejectsOlderSeqno() {
+        val local = peerId(1)
+        val neighbor = peerId(2)
+        val dest = peerId(3)
+        val key = ByteArray(32) { 0x11 }
+        val re = RoutingEngine(local, clock = { 1000L })
+
+        re.peerSeen(neighbor)
+        re.handleUpdate(neighbor, dest, metric = 5u, seqno = 10u, publicKey = key)
+        val route1 = re.bestRoute(dest)!!
+
+        // Older seqno should be rejected
+        re.handleUpdate(neighbor, dest, metric = 1u, seqno = 5u, publicKey = key)
+        val route2 = re.bestRoute(dest)!!
+        assertEquals(route1.sequenceNumber, route2.sequenceNumber, "Older seqno rejected")
+    }
+
+    @Test
+    fun updateFeasibilityAcceptsNewerSeqno() {
+        val local = peerId(1)
+        val neighbor = peerId(2)
+        val dest = peerId(3)
+        val key = ByteArray(32) { 0x11 }
+        val re = RoutingEngine(local, clock = { 1000L })
+
+        re.peerSeen(neighbor)
+        re.handleUpdate(neighbor, dest, metric = 5u, seqno = 1u, publicKey = key)
+
+        // Newer seqno should be accepted even with worse metric
+        re.handleUpdate(neighbor, dest, metric = 100u, seqno = 2u, publicKey = key)
+        val route = re.bestRoute(dest)!!
+        assertEquals(2u, route.sequenceNumber)
+    }
+
+    @Test
+    fun buildHelloEncodesCorrectly() {
+        val local = peerId(1)
+        val re = RoutingEngine(local, clock = { 1000L })
+        val hello = re.buildHello()
+        val decoded = io.meshlink.wire.WireCodec.decodeHello(hello)
+        assertContentEquals(local.bytes, decoded.sender)
+        assertEquals(0u.toUShort(), decoded.seqno)
+
+        re.bumpSeqno()
+        val hello2 = re.buildHello()
+        val decoded2 = io.meshlink.wire.WireCodec.decodeHello(hello2)
+        assertEquals(1u.toUShort(), decoded2.seqno)
+    }
+
+    @Test
+    fun registerAndGetPublicKey() {
+        val local = peerId(1)
+        val peer = peerId(2)
+        val key = ByteArray(32) { 0xAA.toByte() }
+        val re = RoutingEngine(local, clock = { 1000L })
+
+        assertNull(re.getPublicKey(peer))
+        re.registerPublicKey(peer, key)
+        assertContentEquals(key, re.getPublicKey(peer))
     }
 }

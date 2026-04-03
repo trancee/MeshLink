@@ -347,7 +347,7 @@ All model classes are in the `io.meshlink.model` package.
 value class MessageId(val hex: String)
 ```
 
-A 12-byte structured message identifier, represented as a 24-character hex string. The first 8 bytes are the sender's peer ID hash (first 8 bytes of SHA-256 of the sender's X25519 public key), and the last 4 bytes are a little-endian monotonic counter initialized from `currentTimeMillis()`. Structured IDs are deterministic and have zero collision risk.
+A 16-byte random message identifier, represented as a 32-character hex string. Generated from the platform CSPRNG with 128 bits of entropy. Birthday-bound collision probability is ~2⁻⁶⁴ — negligible for any practical message volume.
 
 ### Message
 

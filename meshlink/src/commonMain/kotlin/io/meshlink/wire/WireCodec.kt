@@ -16,9 +16,11 @@ object WireCodec {
     const val TYPE_KEEPALIVE: Byte = 0x01
     const val TYPE_ROTATION: Byte = 0x02
 
-    // Routing (0x03–0x04)
+    // Routing (0x03–0x04) — Babel Hello/Update (was AODV RREQ/RREP)
     const val TYPE_ROUTE_REQUEST: Byte = 0x03
     const val TYPE_ROUTE_REPLY: Byte = 0x04
+    const val TYPE_HELLO: Byte = TYPE_ROUTE_REQUEST
+    const val TYPE_UPDATE: Byte = TYPE_ROUTE_REPLY
 
     // Data Transfer (0x05–0x08)
     const val TYPE_CHUNK: Byte = 0x05
@@ -165,7 +167,11 @@ object WireCodec {
     }
 
     // routed_message: type(1) + messageId(16) + origin(8) + destination(8) + hopLimit(1) + replayCounter(8 LE) + visitedCount(1) + visited(N×8) + payload
-    private const val ROUTED_HEADER_SIZE = 1 + MESSAGE_ID_SIZE + PEER_ID_SIZE + PEER_ID_SIZE + 1 + 8 + 1 // 43
+    // routed_message: type(1) + messageId(16) + origin(12) + destination(12)
+    //   + hopLimit(1) + replayCounter(8 LE) + visitedCount(1) + visited(N×12)
+    //   + priority(1) + payload
+    private const val ROUTED_HEADER_SIZE =
+        1 + MESSAGE_ID_SIZE + PEER_ID_SIZE + PEER_ID_SIZE + 1 + 8 + 1 + 1 // 52
 
     fun encodeRoutedMessage(
         messageId: ByteArray,
@@ -175,6 +181,7 @@ object WireCodec {
         visitedList: List<ByteArray>,
         payload: ByteArray,
         replayCounter: ULong = 0u,
+        priority: Byte = 0,
     ): ByteArray {
         require(visitedList.size <= 255) { "visitedList too large: ${visitedList.size} (max 255)" }
         val buf = ByteArray(ROUTED_HEADER_SIZE + visitedList.size * PEER_ID_SIZE + payload.size)
@@ -194,6 +201,7 @@ object WireCodec {
             hash.copyInto(buf, offset)
             offset += PEER_ID_SIZE
         }
+        buf[offset++] = priority.toByte()
         payload.copyInto(buf, offset)
         return buf
     }
@@ -220,12 +228,15 @@ object WireCodec {
             offset += PEER_ID_SIZE
             hash
         }
+        require(data.size > offset) { "routed_message missing priority byte" }
+        val priority = data[offset++]
         val payload = data.copyOfRange(offset, data.size)
-        return RoutedMessage(messageId, origin, destination, hopLimit, replayCounter, visitedList, payload)
+        return RoutedMessage(messageId, origin, destination, hopLimit, replayCounter, visitedList, payload, priority)
     }
 
     // broadcast: type(1) + messageId(12) + origin(8) + remainingHops(1) + appIdHash(8) + flags(1) + [signature(64) + signerPubKey(32)] + payload
-    private const val BROADCAST_HEADER_SIZE = 1 + MESSAGE_ID_SIZE + PEER_ID_SIZE + 1 + APP_ID_HASH_SIZE + 1 // 31
+    // broadcast: type(1) + messageId(16) + origin(12) + remainingHops(1) + appIdHash(8) + flags(1) + priority(1) + [signature(64) + signerPubKey(32)] + payload
+    private const val BROADCAST_HEADER_SIZE = 1 + MESSAGE_ID_SIZE + PEER_ID_SIZE + 1 + APP_ID_HASH_SIZE + 1 + 1 // 40
     private const val ED25519_SIG_SIZE = 64
     private const val ED25519_PUB_KEY_SIZE = 32
     private const val FLAG_HAS_SIGNATURE = 0x01
@@ -238,6 +249,7 @@ object WireCodec {
         payload: ByteArray,
         signature: ByteArray = EMPTY_BYTES,
         signerPublicKey: ByteArray = EMPTY_BYTES,
+        priority: Byte = 0,
     ): ByteArray {
         val sigBlock = if (signature.isNotEmpty()) ED25519_SIG_SIZE + ED25519_PUB_KEY_SIZE else 0
         val buf = ByteArray(BROADCAST_HEADER_SIZE + sigBlock + payload.size)
@@ -251,6 +263,7 @@ object WireCodec {
         appIdHash.copyInto(buf, offset)
         offset += APP_ID_HASH_SIZE
         buf[offset++] = if (signature.isNotEmpty()) FLAG_HAS_SIGNATURE.toByte() else 0
+        buf[offset++] = priority.toByte()
         if (signature.isNotEmpty()) {
             signature.copyInto(buf, offset)
             offset += ED25519_SIG_SIZE
@@ -273,6 +286,7 @@ object WireCodec {
         val appIdHash = data.copyOfRange(offset, offset + APP_ID_HASH_SIZE)
         offset += APP_ID_HASH_SIZE
         val flags = data[offset++].toInt() and 0xFF
+        val priority = data[offset++]
         val signature: ByteArray
         val signerPublicKey: ByteArray
         if (flags and FLAG_HAS_SIGNATURE != 0) {
@@ -288,7 +302,16 @@ object WireCodec {
             signerPublicKey = EMPTY_BYTES
         }
         val payload = data.copyOfRange(offset, data.size)
-        return BroadcastMessage(messageId, origin, remainingHops, appIdHash, payload, signature, signerPublicKey)
+        return BroadcastMessage(
+            messageId,
+            origin,
+            remainingHops,
+            appIdHash,
+            payload,
+            signature,
+            signerPublicKey,
+            priority,
+        )
     }
 
     // delivery_ack: type(1) + messageId(16) + recipientId(8) + flags(1) + [signature(64) + signerPubKey(32)]
@@ -534,6 +557,64 @@ object WireCodec {
         }
         return RouteReplyMessage(origin, destination, requestId, hopCount, extensions)
     }
+
+    // ── Babel Hello (0x03) ──────────────────────────────────────
+    // type(1) + sender(12) + seqno(2 LE) = 15
+    private const val HELLO_SIZE = 1 + PEER_ID_SIZE + 2 // 15
+
+    fun encodeHello(sender: ByteArray, seqno: UShort): ByteArray {
+        val buf = ByteArray(HELLO_SIZE)
+        buf[0] = TYPE_HELLO
+        sender.copyInto(buf, 1)
+        buf.putUShortLE(1 + PEER_ID_SIZE, seqno)
+        return buf
+    }
+
+    fun decodeHello(data: ByteArray): HelloMessage {
+        require(data.size >= HELLO_SIZE) { "hello too short: ${data.size}" }
+        require(data[0] == TYPE_HELLO) { "not a hello: 0x${data[0].toUByte().toString(16)}" }
+        val sender = data.copyOfRange(1, 1 + PEER_ID_SIZE)
+        val seqno = data.getUShortLE(1 + PEER_ID_SIZE)
+        return HelloMessage(sender, seqno)
+    }
+
+    // ── Babel Update (0x04) ─────────────────────────────────────
+    // type(1) + destination(12) + metric(2 LE) + seqno(2 LE) + pubkey(32) = 49
+    private const val UPDATE_SIZE = 1 + PEER_ID_SIZE + 2 + 2 + 32 // 49
+
+    fun encodeUpdate(
+        destination: ByteArray,
+        metric: UShort,
+        seqno: UShort,
+        publicKey: ByteArray,
+    ): ByteArray {
+        require(publicKey.size == 32) { "publicKey must be 32 bytes" }
+        val buf = ByteArray(UPDATE_SIZE)
+        var offset = 0
+        buf[offset++] = TYPE_UPDATE
+        destination.copyInto(buf, offset)
+        offset += PEER_ID_SIZE
+        buf.putUShortLE(offset, metric)
+        offset += 2
+        buf.putUShortLE(offset, seqno)
+        offset += 2
+        publicKey.copyInto(buf, offset)
+        return buf
+    }
+
+    fun decodeUpdate(data: ByteArray): UpdateMessage {
+        require(data.size >= UPDATE_SIZE) { "update too short: ${data.size}" }
+        require(data[0] == TYPE_UPDATE) { "not an update: 0x${data[0].toUByte().toString(16)}" }
+        var offset = 1
+        val destination = data.copyOfRange(offset, offset + PEER_ID_SIZE)
+        offset += PEER_ID_SIZE
+        val metric = data.getUShortLE(offset)
+        offset += 2
+        val seqno = data.getUShortLE(offset)
+        offset += 2
+        val publicKey = data.copyOfRange(offset, offset + 32)
+        return UpdateMessage(destination, metric, seqno, publicKey)
+    }
 }
 
 // --- Little-endian helpers ---
@@ -605,6 +686,7 @@ data class RoutedMessage(
     val replayCounter: ULong,
     val visitedList: List<ByteArray>,
     val payload: ByteArray,
+    val priority: Byte = 0,
 )
 
 data class BroadcastMessage(
@@ -615,6 +697,7 @@ data class BroadcastMessage(
     val payload: ByteArray,
     val signature: ByteArray = EMPTY_BYTES,
     val signerPublicKey: ByteArray = EMPTY_BYTES,
+    val priority: Byte = 0,
 )
 
 data class DeliveryAckMessage(
@@ -732,3 +815,15 @@ data class RouteReplyMessage(
         return result
     }
 }
+
+data class HelloMessage(
+    val sender: ByteArray,
+    val seqno: UShort,
+)
+
+data class UpdateMessage(
+    val destination: ByteArray,
+    val metric: UShort,
+    val seqno: UShort,
+    val publicKey: ByteArray,
+)

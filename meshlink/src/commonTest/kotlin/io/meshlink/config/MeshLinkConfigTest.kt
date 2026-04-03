@@ -257,4 +257,24 @@ class MeshLinkConfigTest {
         val sensor = MeshLinkConfig.sensorOptimized()
         assertEquals(MeshLinkConfig.minimalOverhead(), sensor)
     }
+
+    // --- Updated default values ---
+
+    @Test
+    fun defaultRouteCacheTtlIs300Seconds() {
+        val config = MeshLinkConfig()
+        assertEquals(300_000L, config.routeCacheTtlMillis)
+    }
+
+    @Test
+    fun defaultDiagnosticsEnabledIsTrue() {
+        val config = MeshLinkConfig()
+        assertTrue(config.diagnosticsEnabled)
+    }
+
+    @Test
+    fun defaultBroadcastTtlIs2() {
+        val config = MeshLinkConfig()
+        assertEquals(2u.toUByte(), config.broadcastTtl)
+    }
 }

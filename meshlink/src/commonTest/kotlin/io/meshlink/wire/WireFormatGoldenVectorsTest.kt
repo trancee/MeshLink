@@ -169,6 +169,7 @@ class WireFormatGoldenVectorsTest {
         "05" +                                  // hopLimit = 5
         "0000000000000000" +                    // replayCounter = 0 (LE)
         "00" +                                  // visitedCount = 0
+        "00" +                                  // priority = 0 (normal)
         "726f757465642064617461"                 // payload "routed data"
 
     @Test
@@ -182,7 +183,7 @@ class WireFormatGoldenVectorsTest {
             payload = "routed data".encodeToByteArray(),
         )
         assertEquals(routedMessageGoldenHex, encoded.toHex())
-        assertEquals(62, encoded.size)
+        assertEquals(63, encoded.size)
     }
 
     @Test
@@ -214,7 +215,8 @@ class WireFormatGoldenVectorsTest {
         "05" +                                  // hopLimit = 5
         "0200000001000000" +                    // replayCounter = 0x0000000100000002 (LE)
         "01" +                                  // visitedCount = 1
-        "eeeeeeeeeeeeeeeeeeeeeeee" +                    // visited[0] (8 × 0xEE)
+        "eeeeeeeeeeeeeeeeeeeeeeee" +                    // visited[0] (12 × 0xEE)
+        "00" +                                  // priority = 0 (normal)
         "726f757465642064617461"                 // payload "routed data"
 
     @Test
@@ -229,7 +231,7 @@ class WireFormatGoldenVectorsTest {
             replayCounter = 0x0000000100000002uL,
         )
         assertEquals(routedWithVisitedGoldenHex, encoded.toHex())
-        assertEquals(74, encoded.size) // 62 + 12 visited entry
+        assertEquals(75, encoded.size) // 62 + 12 visited entry
     }
 
     @Test
@@ -271,7 +273,8 @@ class WireFormatGoldenVectorsTest {
         "bbbbbbbbbbbbbbbbbbbbbbbb" +                    // origin (12 × 0xBB)
         "03" +                                  // remainingHops = 3
         "cccccccccccccccc" +                        // appIdHash (8 × 0xCC)
-        "00" +                                  // sigLen = 0 (unsigned)
+        "00" +                                  // flags = 0 (unsigned)
+        "00" +                                  // priority = 0 (normal)
         "62726f616463617374206d7367"             // payload "broadcast msg"
 
     @Test
@@ -284,7 +287,7 @@ class WireFormatGoldenVectorsTest {
             payload = "broadcast msg".encodeToByteArray(),
         )
         assertEquals(broadcastGoldenHex, encoded.toHex())
-        assertEquals(52, encoded.size)
+        assertEquals(53, encoded.size)
     }
 
     @Test
