@@ -1,5 +1,8 @@
 package io.meshlink.crypto
 
+import io.meshlink.wire.getUShortBE
+import io.meshlink.wire.putUShortBE
+
 /**
  * 5-byte payload carried inside Noise XX handshake messages
  * for protocol version negotiation and capability exchange.
@@ -16,11 +19,9 @@ data class HandshakePayload(
 ) {
     fun encode(): ByteArray {
         val data = ByteArray(SIZE)
-        data[0] = (protocolVersion.toInt() ushr 8).toByte()
-        data[1] = (protocolVersion.toInt() and 0xFF).toByte()
+        data.putUShortBE(0, protocolVersion)
         data[2] = capabilityFlags.toByte()
-        data[3] = (l2capPsm.toInt() ushr 8).toByte()
-        data[4] = (l2capPsm.toInt() and 0xFF).toByte()
+        data.putUShortBE(3, l2capPsm)
         return data
     }
 
@@ -30,9 +31,9 @@ data class HandshakePayload(
 
         fun decode(data: ByteArray): HandshakePayload {
             require(data.size >= SIZE) { "Handshake payload too short: ${data.size} < $SIZE" }
-            val version = ((data[0].toInt() and 0xFF) shl 8 or (data[1].toInt() and 0xFF)).toUShort()
+            val version = data.getUShortBE(0)
             val caps = data[2].toUByte()
-            val psm = ((data[3].toInt() and 0xFF) shl 8 or (data[4].toInt() and 0xFF)).toUShort()
+            val psm = data.getUShortBE(3)
             return HandshakePayload(version, caps, psm)
         }
     }

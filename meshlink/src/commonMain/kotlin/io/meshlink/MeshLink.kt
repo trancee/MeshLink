@@ -87,6 +87,11 @@ class MeshLink(
 
     private val rateLimitPolicy = RateLimitPolicy(config, clock)
 
+    companion object {
+        /** Maximum time to wait for transport shutdown during [stop]. */
+        private const val STOP_TIMEOUT_MILLIS = 5_000L
+    }
+
     private val _peers = MutableSharedFlow<PeerEvent>(replay = 64)
     private val _messages = MutableSharedFlow<Message>(extraBufferCapacity = 64)
     private val _deliveryConfirmations = MutableSharedFlow<MessageId>(extraBufferCapacity = 64)
@@ -288,6 +293,12 @@ class MeshLink(
 
     private val pendingMessages = mutableMapOf<ByteArrayKey, MutableList<PendingSend>>()
 
+    /** Message queued while waiting for route discovery. */
+    private data class PendingSend(
+        val recipient: ByteArray,
+        val payload: ByteArray,
+    )
+
     private val peerConnectionCoordinator = PeerConnectionCoordinator(
         routingEngine = routingEngine,
         securityEngine = securityEngine,
@@ -297,12 +308,7 @@ class MeshLink(
         protocolVersion = config.protocolVersion,
         isPaused = { pauseManager.isPaused },
         localPowerMode = { powerCoordinator.currentMode.ordinal },
-        localKeyHash = {
-            securityEngine?.let { se ->
-                crypto?.sha256(se.localPublicKey)
-                    ?.copyOfRange(0, AdvertisementCodec.KEY_HASH_SIZE)
-            } ?: ByteArray(0)
-        },
+        localKeyHash = { localPublicKeyHash()?.copyOfRange(0, AdvertisementCodec.KEY_HASH_SIZE) ?: ByteArray(0) },
         localMeshHash = AdvertisementCodec.meshHash(config.appId),
     )
 
@@ -408,9 +414,7 @@ class MeshLink(
     }
 
     private fun encodeAdvertisementPayload(): ByteArray {
-        val keyHash = securityEngine?.let { se ->
-            crypto?.sha256(se.localPublicKey)
-        } ?: ByteArray(AdvertisementCodec.KEY_HASH_SIZE)
+        val keyHash = localPublicKeyHash()
         return AdvertisementCodec.encode(
             versionMajor = config.protocolVersion.major,
             versionMinor = config.protocolVersion.minor,
@@ -547,7 +551,7 @@ class MeshLink(
         lifecycleState = LifecycleState.STOPPED
         scope?.cancel()
         runBlocking(kotlinx.coroutines.Dispatchers.Default) {
-            withTimeoutOrNull(5_000L) { transport.stopAll() }
+            withTimeoutOrNull(STOP_TIMEOUT_MILLIS) { transport.stopAll() }
         }
         deliveryPipeline.cancelAllDeadlines()
         for (key in outboundTracker.allRecipientKeys()) {
@@ -713,6 +717,19 @@ class MeshLink(
         }
     }
 
+    /** Wrap payload in compression envelope and E2E encrypt if crypto is available. */
+    private fun wrapAndSeal(recipientId: ByteArrayKey, payload: ByteArray): ByteArray {
+        val envelopedPayload = payloadEnvelope.wrap(payload)
+        return when (val sr = securityEngine?.seal(recipientId, envelopedPayload)) {
+            is SealResult.Sealed -> sr.ciphertext
+            else -> envelopedPayload
+        }
+    }
+
+    /** Compute the SHA-256 hash of the local public key (for advertisement and peer ID). */
+    private fun localPublicKeyHash(): ByteArray =
+        securityEngine?.let { se -> crypto?.sha256(se.localPublicKey) } ?: ByteArray(AdvertisementCodec.KEY_HASH_SIZE)
+
     @Suppress("UNUSED_PARAMETER")
     private fun doSend(
         s: CoroutineScope,
@@ -733,13 +750,8 @@ class MeshLink(
             }
         }
 
-        val envelopedPayload = payloadEnvelope.wrap(payload)
-
         val recipientId = recipient.toKey()
-        val wirePayload = when (val sr = securityEngine?.seal(recipientId, envelopedPayload)) {
-            is SealResult.Sealed -> sr.ciphertext
-            else -> envelopedPayload
-        }
+        val wirePayload = wrapAndSeal(recipientId, payload)
 
         val chunkSize = config.mtu - WireCodec.CHUNK_HEADER_SIZE_FIRST
         val handle = transferEngine.beginSend(key, messageId, wirePayload, chunkSize)
@@ -762,19 +774,14 @@ class MeshLink(
         val key = messageId.bytes.toKey()
         outboundTracker.registerNextHop(key, nextHopId)
 
-        val envelopedPayload = payloadEnvelope.wrap(payload)
-
         val recipientId = destination.toKey()
-        val wirePayload = when (val sr = securityEngine?.seal(recipientId, envelopedPayload)) {
-            is SealResult.Sealed -> sr.ciphertext
-            else -> envelopedPayload
-        }
+        val wirePayload = wrapAndSeal(recipientId, payload)
 
         val encoded = WireCodec.encodeRoutedMessage(
             messageId = messageId.bytes,
             origin = transport.localPeerId,
             destination = destination,
-            hopLimit = 10u,
+            hopLimit = config.maxHops,
             visitedList = if (config.visitedListEnabled) listOf(transport.localPeerId) else emptyList(),
             payload = wirePayload,
             replayCounter = outboundTracker.advanceReplayCounter(),
@@ -847,8 +854,3 @@ class MeshLink(
         }
     }
 }
-
-private data class PendingSend(
-    val recipient: ByteArray,
-    val payload: ByteArray,
-)

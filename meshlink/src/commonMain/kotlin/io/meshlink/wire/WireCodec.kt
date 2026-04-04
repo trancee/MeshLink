@@ -20,11 +20,15 @@ object WireCodec {
     const val TYPE_KEEPALIVE: Byte = 0x01
     const val TYPE_ROTATION: Byte = 0x02
 
-    // Routing (0x03–0x04) — Babel Hello/Update (was AODV RREQ/RREP)
-    const val TYPE_ROUTE_REQUEST: Byte = 0x03
-    const val TYPE_ROUTE_REPLY: Byte = 0x04
-    const val TYPE_HELLO: Byte = TYPE_ROUTE_REQUEST
-    const val TYPE_UPDATE: Byte = TYPE_ROUTE_REPLY
+    // Routing (0x03–0x04) — Babel Hello/Update
+    const val TYPE_HELLO: Byte = 0x03
+    const val TYPE_UPDATE: Byte = 0x04
+
+    @Deprecated("Renamed to TYPE_HELLO", ReplaceWith("TYPE_HELLO"))
+    const val TYPE_ROUTE_REQUEST: Byte = TYPE_HELLO
+
+    @Deprecated("Renamed to TYPE_UPDATE", ReplaceWith("TYPE_UPDATE"))
+    const val TYPE_ROUTE_REPLY: Byte = TYPE_UPDATE
 
     // Data Transfer (0x05–0x08)
     const val TYPE_CHUNK: Byte = 0x05

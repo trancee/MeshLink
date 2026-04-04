@@ -144,29 +144,4 @@ object RotationAnnouncement {
         buf.putULongBE(offset, timestampMillis)
         return buf
     }
-
-    private fun ByteArray.putULongBE(offset: Int, value: ULong) {
-        val v = value.toLong()
-        this[offset] = (v shr 56).toByte()
-        this[offset + 1] = (v shr 48).toByte()
-        this[offset + 2] = (v shr 40).toByte()
-        this[offset + 3] = (v shr 32).toByte()
-        this[offset + 4] = (v shr 24).toByte()
-        this[offset + 5] = (v shr 16).toByte()
-        this[offset + 6] = (v shr 8).toByte()
-        this[offset + 7] = v.toByte()
-    }
-
-    private fun ByteArray.getULongBE(offset: Int): ULong {
-        return (
-            ((this[offset].toLong() and 0xFF) shl 56) or
-                ((this[offset + 1].toLong() and 0xFF) shl 48) or
-                ((this[offset + 2].toLong() and 0xFF) shl 40) or
-                ((this[offset + 3].toLong() and 0xFF) shl 32) or
-                ((this[offset + 4].toLong() and 0xFF) shl 24) or
-                ((this[offset + 5].toLong() and 0xFF) shl 16) or
-                ((this[offset + 6].toLong() and 0xFF) shl 8) or
-                (this[offset + 7].toLong() and 0xFF)
-            ).toULong()
-    }
 }
