@@ -27,9 +27,11 @@ tags:
 - tapOn: "Minimal Overhead"
 - assertVisible: "Tiny messages, long intervals"
 
-# Reset to defaults
-- scrollUntilVisible:
-    element:
-      text: "Reset to Defaults"
-    direction: DOWN
+# Scroll down and reset to defaults
+- swipe:
+    direction: UP
+    duration: 1000
+- swipe:
+    direction: UP
+    duration: 1000
 - tapOn: "Reset to Defaults"

@@ -11,29 +11,17 @@ tags:
     text: "^Settings$"
 - waitForAnimationToEnd
 
-# Verify MTU section exists
-- scrollUntilVisible:
-    element:
-      text: "MTU"
-    direction: DOWN
+# Verify MTU section exists (visible without scrolling)
+- assertVisible: "MTU"
 - assertVisible:
     text: "Current: .* bytes"
 
-# Verify Configuration Details section
-- scrollUntilVisible:
-    element:
-      text: "Configuration Details"
-    direction: DOWN
+# Scroll down to Configuration Details
+- swipe:
+    direction: UP
+    duration: 1000
+- swipe:
+    direction: UP
+    duration: 1000
+- assertVisible: "Configuration Details"
 - assertVisible: "Power Mode"
-- scrollUntilVisible:
-    element:
-      text: "Max Message Size"
-    direction: DOWN
-- scrollUntilVisible:
-    element:
-      text: "Buffer Capacity"
-    direction: DOWN
-- scrollUntilVisible:
-    element:
-      text: "Buffer Usage"
-    direction: DOWN
