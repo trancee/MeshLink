@@ -39,10 +39,12 @@ jobs:
   android-e2e:
     name: Android E2E Tests
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 25
 
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
 
       # ── Toolchain ────────────────────────────────────────────────────
       - uses: actions/setup-java@v5
@@ -55,11 +57,7 @@ jobs:
           build-scan-terms-of-use-url: 'https://gradle.com/help/legal-terms-of-use'
           build-scan-terms-of-use-agree: 'yes'
 
-      # ── Build sample APK ─────────────────────────────────────────────
-      - name: Build Android sample APK
-        run: ./gradlew :meshlink-sample:android:assembleDebug
-
-      # ── Enable KVM for hardware acceleration ─────────────────────────
+      # ── Enable KVM (must happen before emulator-runner) ──────────────
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
@@ -77,15 +75,24 @@ jobs:
             ~/.android/adb*
           key: avd-api-33-${{ runner.os }}
 
-      # ── Install maestro-runner ────────────────────────────────────────
-      - name: Install maestro-runner
+      # ── Build APK + install maestro-runner in parallel ───────────────
+      - name: Build APK & install maestro-runner
         run: |
+          # Start APK build in background
+          ./gradlew :meshlink-sample:android:assembleDebug &
+          GRADLE_PID=$!
+
+          # Download and install maestro-runner while Gradle builds
           curl -fsSL -o maestro-runner.tar.gz \
             "https://github.com/devicelab-dev/maestro-runner/releases/download/v${MAESTRO_RUNNER_VERSION}/maestro-runner-${MAESTRO_RUNNER_VERSION}-linux-amd64.tar.gz"
           tar xzf maestro-runner.tar.gz --warning=no-unknown-keyword
           sudo mv maestro-runner/bin/maestro-runner /usr/local/bin/
           sudo chmod +x /usr/local/bin/maestro-runner
+          rm -rf maestro-runner maestro-runner.tar.gz
           maestro-runner --version
+
+          # Wait for Gradle to finish
+          wait $GRADLE_PID
 
       # ── Boot emulator & run flows ────────────────────────────────────
       - name: Run Android E2E flows
@@ -102,14 +109,14 @@ jobs:
 
       # ── Upload reports ────────────────────────────────────────────────
       - name: Publish JUnit report
-        if: always()
+        if: success() || failure()
         uses: mikepenz/action-junit-report@v6
         with:
           report_paths: 'reports/android/junit-report.xml'
           check_name: 'Android E2E Results'
 
       - name: Upload E2E reports
-        if: always()
+        if: success() || failure()
         uses: actions/upload-artifact@v7
         with:
           name: android-e2e-reports
@@ -119,10 +126,12 @@ jobs:
   ios-e2e:
     name: iOS E2E Tests
     runs-on: macos-15
-    timeout-minutes: 30
+    timeout-minutes: 25
 
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
 
       # ── Toolchain ────────────────────────────────────────────────────
       - uses: actions/setup-java@v5
@@ -135,9 +144,35 @@ jobs:
           build-scan-terms-of-use-url: 'https://gradle.com/help/legal-terms-of-use'
           build-scan-terms-of-use-agree: 'yes'
 
-      # ── Build XCFramework (required by Package.swift binaryTarget) ──
-      - name: Build MeshLink XCFramework
-        run: ./gradlew :meshlink:assembleMeshLinkXCFramework
+      - name: Cache Kotlin/Native compiler
+        uses: actions/cache@v5
+        with:
+          path: ~/.konan
+          key: konan-${{ runner.os }}-${{ hashFiles('**/*.gradle.kts') }}
+          restore-keys: konan-${{ runner.os }}-
+
+      # ── Build XCFramework + boot simulator + install maestro-runner ──
+      #    All three run in parallel to overlap I/O-bound work.
+      - name: Build XCFramework, boot simulator & install maestro-runner
+        run: |
+          # Start XCFramework build in background
+          ./gradlew :meshlink:assembleMeshLinkXCFramework &
+          GRADLE_PID=$!
+
+          # Boot simulator while Gradle compiles Kotlin/Native
+          xcrun simctl boot "iPhone 16" 2>/dev/null || true
+
+          # Download and install maestro-runner
+          curl -fsSL -o maestro-runner.tar.gz \
+            "https://github.com/devicelab-dev/maestro-runner/releases/download/v${MAESTRO_RUNNER_VERSION}/maestro-runner-${MAESTRO_RUNNER_VERSION}-darwin-arm64.tar.gz"
+          tar xzf maestro-runner.tar.gz
+          sudo mv maestro-runner/bin/maestro-runner /usr/local/bin/
+          sudo chmod +x /usr/local/bin/maestro-runner
+          rm -rf maestro-runner maestro-runner.tar.gz
+          maestro-runner --version
+
+          # Wait for Gradle to finish
+          wait $GRADLE_PID
 
       # ── Build iOS sample app ──────────────────────────────────────────
       - name: Build iOS sample app
@@ -153,23 +188,8 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             | xcpretty || true
 
-      # ── Install maestro-runner ────────────────────────────────────────
-      - name: Install maestro-runner
-        run: |
-          curl -fsSL -o maestro-runner.tar.gz \
-            "https://github.com/devicelab-dev/maestro-runner/releases/download/v${MAESTRO_RUNNER_VERSION}/maestro-runner-${MAESTRO_RUNNER_VERSION}-darwin-arm64.tar.gz"
-          tar xzf maestro-runner.tar.gz
-          sudo mv maestro-runner/bin/maestro-runner /usr/local/bin/
-          sudo chmod +x /usr/local/bin/maestro-runner
-          maestro-runner --version
-
-      # ── Boot simulator & run flows ───────────────────────────────────
-      - name: Boot iOS Simulator
-        run: |
-          xcrun simctl boot "iPhone 16" || true
-          xcrun simctl list devices booted
-
-      - name: Install app & run iOS E2E flows
+      # ── Run flows ────────────────────────────────────────────────────
+      - name: Run iOS E2E flows
         run: |
           APP_PATH=$(find meshlink-sample/ios/build -name "*.app" -path "*/Debug-iphonesimulator/*" -not -path "*/dSYMs/*" | head -1)
           echo "APP_PATH=$APP_PATH"
@@ -179,14 +199,14 @@ jobs:
 
       # ── Upload reports ────────────────────────────────────────────────
       - name: Publish JUnit report
-        if: always()
+        if: success() || failure()
         uses: mikepenz/action-junit-report@v6
         with:
           report_paths: 'reports/ios/junit-report.xml'
           check_name: 'iOS E2E Results'
 
       - name: Upload E2E reports
-        if: always()
+        if: success() || failure()
         uses: actions/upload-artifact@v7
         with:
           name: ios-e2e-reports
