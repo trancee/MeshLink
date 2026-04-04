@@ -86,9 +86,9 @@ jobs:
           curl -fsSL -o maestro-runner.tar.gz \
             "https://github.com/devicelab-dev/maestro-runner/releases/download/v${MAESTRO_RUNNER_VERSION}/maestro-runner-${MAESTRO_RUNNER_VERSION}-linux-amd64.tar.gz"
           tar xzf maestro-runner.tar.gz --warning=no-unknown-keyword
-          sudo mv maestro-runner/bin/maestro-runner /usr/local/bin/
-          sudo chmod +x /usr/local/bin/maestro-runner
-          rm -rf maestro-runner maestro-runner.tar.gz
+          sudo mv maestro-runner /opt/maestro-runner
+          sudo ln -sf /opt/maestro-runner/bin/maestro-runner /usr/local/bin/maestro-runner
+          rm -f maestro-runner.tar.gz
           maestro-runner --version
 
           # Wait for Gradle to finish
@@ -166,9 +166,9 @@ jobs:
           curl -fsSL -o maestro-runner.tar.gz \
             "https://github.com/devicelab-dev/maestro-runner/releases/download/v${MAESTRO_RUNNER_VERSION}/maestro-runner-${MAESTRO_RUNNER_VERSION}-darwin-arm64.tar.gz"
           tar xzf maestro-runner.tar.gz
-          sudo mv maestro-runner/bin/maestro-runner /usr/local/bin/
-          sudo chmod +x /usr/local/bin/maestro-runner
-          rm -rf maestro-runner maestro-runner.tar.gz
+          sudo mv maestro-runner /opt/maestro-runner
+          sudo ln -sf /opt/maestro-runner/bin/maestro-runner /usr/local/bin/maestro-runner
+          rm -f maestro-runner.tar.gz
           maestro-runner --version
 
           # Wait for Gradle to finish
