@@ -152,12 +152,16 @@ jobs:
           restore-keys: konan-${{ runner.os }}-
 
       # Cache the WDA build (~283MB) to skip the 5-10 min xcodebuild on subsequent runs.
-      # Key includes maestro-runner version (WDA version is bundled with it).
+      # Key includes maestro-runner version AND Xcode version (WDA must match simulator SDK).
+      - name: Get Xcode version
+        id: xcode
+        run: echo "version=$(xcodebuild -version | head -1 | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+
       - name: Cache WebDriverAgent build
         uses: actions/cache@v5
         with:
           path: /tmp/wda-cache
-          key: wda-${{ runner.os }}-${{ env.MAESTRO_RUNNER_VERSION }}
+          key: wda-${{ runner.os }}-${{ env.MAESTRO_RUNNER_VERSION }}-xcode${{ steps.xcode.outputs.version }}
 
       # ── Build iOS Simulator framework + boot simulator + install maestro-runner ──
       #    Only build the simulator slice (not arm64 device or macOS) — saves ~3 min.
@@ -181,10 +185,10 @@ jobs:
           maestro-runner --version
 
           # Restore WDA build cache (if available)
-          sudo mkdir -p /usr/local/cache
+          sudo mkdir -p /opt/maestro-runner/cache
           if [ -d /tmp/wda-cache/wda-builds ]; then
             echo "Restoring WDA build cache..."
-            sudo cp -R /tmp/wda-cache/wda-builds /usr/local/cache/
+            sudo cp -R /tmp/wda-cache/wda-builds /opt/maestro-runner/cache/
           fi
 
           # Wait for Gradle to finish
@@ -227,9 +231,9 @@ jobs:
       - name: Save WDA build cache
         if: success() || failure()
         run: |
-          if [ -d /usr/local/cache/wda-builds ]; then
+          if [ -d /opt/maestro-runner/cache/wda-builds ]; then
             mkdir -p /tmp/wda-cache
-            cp -R /usr/local/cache/wda-builds /tmp/wda-cache/
+            cp -R /opt/maestro-runner/cache/wda-builds /tmp/wda-cache/
           fi
 
       # ── Upload reports ────────────────────────────────────────────────
