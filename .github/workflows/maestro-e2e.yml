@@ -151,13 +151,13 @@ jobs:
           key: konan-${{ runner.os }}-${{ hashFiles('**/*.gradle.kts') }}
           restore-keys: konan-${{ runner.os }}-
 
-      # ── Build XCFramework + boot simulator + install maestro-runner ──
-      #    All three run in parallel to overlap I/O-bound work.
-      - name: Build XCFramework, boot simulator & install maestro-runner
+      # ── Build iOS Simulator framework + boot simulator + install maestro-runner ──
+      #    Only build the simulator slice (not arm64 device or macOS) — saves ~3 min.
+      #    All three tasks run in parallel to overlap I/O-bound work.
+      - name: Build framework, boot simulator & install maestro-runner
         run: |
-          # Build only the release XCFramework (Package.swift references release path).
-          # This skips the debug variant, saving ~50% of K/N link time.
-          ./gradlew :meshlink:assembleMeshLinkReleaseXCFramework --build-cache --parallel &
+          # Build only the iOS Simulator framework (skips IosArm64 + MacosArm64 compilation)
+          ./gradlew :meshlink:linkReleaseFrameworkIosSimulatorArm64 --build-cache --parallel &
           GRADLE_PID=$!
 
           # Boot simulator while Gradle compiles Kotlin/Native
@@ -174,6 +174,14 @@ jobs:
 
           # Wait for Gradle to finish
           wait $GRADLE_PID
+
+          # Create a single-slice XCFramework at the path Package.swift expects
+          FRAMEWORK_DIR="meshlink/build/bin/iosSimulatorArm64/releaseFramework"
+          XCFW_OUT="meshlink/build/XCFrameworks/release/MeshLink.xcframework"
+          rm -rf "$XCFW_OUT"
+          xcodebuild -create-xcframework \
+            -framework "$FRAMEWORK_DIR/MeshLink.framework" \
+            -output "$XCFW_OUT"
 
       # ── Build iOS sample app ──────────────────────────────────────────
       - name: Build iOS sample app
