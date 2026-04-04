@@ -700,17 +700,8 @@ interface CryptoProvider {
 }
 ```
 
-| Method | Description |
-|--------|-------------|
-| `generateEd25519KeyPair()` | Generate an Ed25519 signing key pair. |
-| `sign(privateKey, data)` | Produce an Ed25519 signature. |
-| `verify(publicKey, data, signature)` | Verify an Ed25519 signature. |
-| `generateX25519KeyPair()` | Generate an X25519 key-agreement key pair. |
-| `x25519SharedSecret(privateKey, publicKey)` | Compute an X25519 shared secret. |
-| `aeadEncrypt(key, nonce, plaintext, aad)` | Encrypt with ChaCha20-Poly1305 AEAD. |
-| `aeadDecrypt(key, nonce, ciphertext, aad)` | Decrypt with ChaCha20-Poly1305 AEAD. |
-| `sha256(data)` | Compute SHA-256 hash. |
-| `hkdfSha256(ikm, salt, info, length)` | Derive keys using HKDF-SHA256. |
+Ed25519 for signing/verification, X25519 for key agreement, ChaCha20-Poly1305
+for AEAD encryption, SHA-256 for hashing, and HKDF-SHA256 for key derivation.
 
 **Factory:**
 

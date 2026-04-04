@@ -64,39 +64,10 @@ ios/                       ← Platform-specific (~7%)
 ### Extension Points
 
 MeshLink is designed for testability and platform flexibility through three
-key interfaces:
-
-#### BleTransport
-
-**Purpose:** Abstract BLE hardware so `MeshLink` never touches platform APIs
-directly.
-
-| Implementation | Platform | Description |
-|---------------|----------|-------------|
-| `AndroidBleTransport` | Android | GATT server/client + L2CAP CoC |
-| `IosBleTransport` | iOS | CoreBluetooth central/peripheral |
-| `VirtualMeshTransport` | Tests | In-memory simulated mesh (no hardware) |
-
-#### CryptoProvider
-
-**Purpose:** Abstract cryptographic primitives for cross-platform support and
-testing.
-
-| Implementation | Description |
-|---------------|-------------|
-| `PureKotlinCryptoProvider` | Pure Kotlin crypto (used on all platforms) |
-
-Created via the `expect`/`actual` factory: `CryptoProvider()`.
-
-#### SecureStorage
-
-**Purpose:** Abstract platform-specific secure key-value storage.
-
-| Implementation | Platform | Backend |
-|---------------|----------|---------|
-| `EncryptedSharedPreferences` | Android | Android Keystore |
-| Keychain wrapper | iOS | `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly` |
-| `InMemorySecureStorage` | Tests | In-memory `Map` |
+key interfaces: `BleTransport` (BLE hardware abstraction), `CryptoProvider`
+(cross-platform crypto primitives), and `SecureStorage` (platform-specific
+key persistence). See [API Reference § Extension Points](api-reference.md#extension-points)
+for interface signatures, implementations, and associated data classes.
 
 ### 2.1 Module Responsibilities
 
@@ -181,7 +152,7 @@ Base UUID: `7F3Axxxx-8FC5-11EC-B909-0242AC120002` (random 128-bit UUID with the 
 
 **GATT write type semantics:** Control characteristics (0x0001–0x0002) use **write-with-response** (ATT Write Request) — handshake and control messages are low-frequency, high-importance, and cannot tolerate silent loss. Data characteristics (0x0003–0x0004) use **write-without-response** (ATT Write Command) — chunk transfers are high-frequency and protected by SACK retransmission, so the ~15ms per-write ATT round-trip is unnecessary overhead. This split maximizes data throughput while ensuring control-plane reliability.
 
-Every write/notification carries a **1-byte type prefix**: `0x00`=handshake, `0x01`=keepalive, `0x02`=rotation, `0x03`=hello, `0x04`=update, `0x05`=chunk, `0x06`=chunk_ack, `0x07`=nack, `0x08`=resume_request, `0x09`=broadcast, `0x0A`=routed_message, `0x0B`=delivery_ack.
+Every write/notification carries a **1-byte type prefix** identifying the message type. See [wire-format-spec.md § Message Types](wire-format-spec.md#message-types) for the complete type table and byte layouts.
 
 **Reserved codes:** `0x0C–0xFF` are reserved for future use. Receiving a reserved message type code → drop the message + emit `UNKNOWN_MESSAGE_TYPE` diagnostic event.
 
@@ -189,40 +160,7 @@ Every write/notification carries a **1-byte type prefix**: `0x00`=handshake, `0x
 
 **Unknown hop-by-hop types:** For non-relayed hop-by-hop message types (handshake, chunk_ack), unknown type codes are dropped + `UNKNOWN_MESSAGE_TYPE` diagnostic, connection stays alive. V2 senders should gate new hop-by-hop features behind the **capability byte** exchanged during Noise XX handshake.
 
-```mermaid
-flowchart TD
-    Start["Message received"] --> ReadType["Read 1-byte type prefix"]
-
-    ReadType --> ReservedCheck{"Type in 0x0C–0xFF?"}
-    ReservedCheck -- Yes --> DropUnknown["Drop + UNKNOWN_MESSAGE_TYPE diagnostic"]
-    DropUnknown --> End1(("End"))
-
-    ReservedCheck -- No --> IsRouted{"Type = 0x0A\n(routed_message)?"}
-
-    IsRouted -- Yes --> CheckDest["Check destination pubkey"]
-    CheckDest --> IsSelf{"Destination = self?"}
-    IsSelf -- Yes --> DecryptE2E["Decrypt E2E (Noise K)\n→ deliver to app"]
-    IsSelf -- No --> CheckHops{"hop_count ≥ maxHops?"}
-    CheckHops -- Yes --> DropTTL["Drop (TTL exceeded)"]
-    CheckHops -- No --> CheckLoop{"Own hash in\nvisited list?"}
-    CheckLoop -- Yes --> DropLoop["Drop (loop detected)"]
-    CheckLoop -- No --> Forward["Increment hop_count\nAdd own hash to visited list\nForward via routing table"]
-
-    IsRouted -- No --> IsHandshakeControl{"Type = 0x00 (handshake)?"}
-    IsHandshakeControl -- Yes --> ProcessLocal["Process locally\n(never relayed)"]
-
-    IsHandshakeControl -- No --> IsChunk{"Type = 0x05 (chunk)\nor 0x06 (chunk_ack)?"}
-    IsChunk -- Yes --> DirectTransfer["Direct transfer\n— process locally"]
-
-    IsChunk -- No --> IsDeliveryAck{"Type = 0x0B\n(delivery_ack)?"}
-    IsDeliveryAck -- Yes --> ConfirmDelivery["Confirm delivery\nto sender"]
-
-    IsDeliveryAck -- No --> IsResume{"Type = 0x08\n(resume_request)?"}
-    IsResume -- Yes --> ResumeTransfer["Resume transfer\nfrom byte offset"]
-
-    IsResume -- No --> IsBroadcast{"Type = 0x09\n(broadcast)?"}
-    IsBroadcast -- Yes --> Broadcast["Deliver locally +\nforward if TTL > 0"]
-```
+**Message dispatch flow:** See [diagrams.md § Architecture Overview](diagrams.md#3-architecture-overview) for the engine/coordinator architecture diagram.
 
 **Message type relationships:**
 - **`routed_message` (0x0A)** is the **routing envelope** — it carries origin/destination peer IDs (12-byte truncated hashes), hop limit, replay counter, a visited list for loop detection, and the E2E-encrypted chunk payload. Every chunk in a multi-hop transfer is wrapped in a `routed_message` envelope. See [wire-format-spec.md § Routed Message](wire-format-spec.md#0x0a--routed-message) for the byte layout.
@@ -350,29 +288,15 @@ flowchart TD
 
 ### Wire Format: Custom Binary Protocol
 
-> 📋 **Canonical reference:** [wire-format-spec.md](wire-format-spec.md) has the complete byte-level specification for all message types. This section covers design rationale only.
+> 📋 **Canonical reference:** [wire-format-spec.md](wire-format-spec.md) has the complete byte-level specification for all message types.
 
-All message types use a **hand-specified binary format** — no protobuf, no schema language. Every message layout is documented as byte-offset tables in the protocol RFC.
+All message types use a **hand-specified binary format** — no protobuf, no schema language. Design rationale:
 
-**Design choices:**
-- **Blanket encoding rule:** All multi-byte integer fields are **unsigned little-endian** unless explicitly stated otherwise. All single-byte integer fields are **unsigned**. This applies to every wire format table in this document and the protocol RFC. (Matches ARM-native byte order on both iOS and Android.)
-- **TLV extension areas** — five fixed/known-length message types (Keepalive, ChunkAck, Nack, ResumeRequest, DeliveryAck) include a trailing TLV (Type-Length-Value) extension area for backward-compatible schema evolution. Adding new fields via TLV entries does not require a protocol version bump. Tags `0x00`–`0x7F` are reserved for protocol use; `0x80`–`0xFF` are available for applications. Unknown tags are preserved for forward compatibility. See [wire-format-spec.md § TLV Extension Area](wire-format-spec.md#tlv-extension-area) for the binary layout and `TlvCodec.kt` for the implementation.
-- **No self-describing format** — parsers must know the protocol version to decode. This maximizes payload efficiency on the bandwidth-constrained BLE link.
+- **Little-endian by default:** All multi-byte integer fields are unsigned little-endian unless explicitly stated otherwise (matches ARM-native byte order on both iOS and Android).
+- **TLV extension areas** — five fixed-length message types (Keepalive, ChunkAck, Nack, ResumeRequest, DeliveryAck) include trailing TLV extensions for backward-compatible schema evolution. See [wire-format-spec.md § TLV Extension Area](wire-format-spec.md#tlv-extension-area).
+- **No self-describing format** — parsers must know the protocol version to decode. Maximizes payload efficiency on bandwidth-constrained BLE.
 
-**Tradeoff:** The shared cross-platform test suite becomes critical — a single byte offset error = total failure. Test vectors in Phase 0 must cover every message type with exact byte-level golden outputs.
-
-**Safe parsing rules (mandatory in RFC):** All variable-length fields must be validated before reading:
-- `visited_count`: verify `header_size + V×16 ≤ frame_size` AND `V ≤ maxHops`
-- `payload_length`: verify `offset + payload_length ≤ frame_size`
-- Any field exceeding bounds → reject entire frame, increment `malformedFrames` diagnostic counter
-
-**Complete parser validation rule set (mandatory):**
-- `V = 0` is valid (originator, no visited peers yet)
-- `TotalLen ≤ maxMessageSize` (default 100KB) — reject oversized messages
-- `ChunkSeq ≤ ceil(TotalLen / chunkPayloadSize)` — reject out-of-range sequence numbers
-- All public key fields must be non-zero (32 bytes of 0x00 is not a valid Ed25519 key)
-- Message ID must be non-zero (16 bytes of 0x00 is not a valid message ID)
-- Any validation failure → drop message + emit `MALFORMED_MESSAGE` diagnostic with failure reason
+**Safe parsing rules (mandatory):** All variable-length fields are validated before reading. Any validation failure → drop message + emit `MALFORMED_MESSAGE` diagnostic. See wire-format-spec.md for per-message validation requirements.
 
 ### Message ID Format
 
@@ -380,23 +304,17 @@ Message IDs are **128-bit random** identifiers (16 bytes) generated from the pla
 
 ### Protocol Versioning & Advertisement Layout
 
-Protocol version, mesh network hash, and key hash are bit-packed into the BLE advertisement payload (16 bytes total: 2B version+power, 2B mesh hash, 12B key hash). The scan response uses a Service Data AD with the **16-bit UUID alias `0x7F3A`** (4 bytes overhead), leaving 27 bytes for payload — MeshLink uses 16. The 128-bit UUID is used in the advertisement data for GATT service discovery.
+Protocol version, mesh network hash, and key hash are bit-packed into the BLE advertisement payload (16 bytes total). See [wire-format-spec.md § BLE Advertisement Payload](wire-format-spec.md#ble-advertisement-payload-16-bytes) for the byte layout.
 
-> **Unified peer ID:** The 12-byte key hash in the BLE advertisement is identical to the 12-byte wire protocol peer ID (first 12 bytes of SHA-256 of the X25519 public key). No dual-ID mapping is needed — a peer's advertisement identity and wire identity are the same.
+> **Unified peer ID:** The 12-byte key hash in the BLE advertisement is identical to the 12-byte wire protocol peer ID (first 12 bytes of SHA-256 of the X25519 public key). No dual-ID mapping is needed.
 
-**Mesh network hash:** The advertisement includes a **16-bit FNV-1a hash of the `appId`** string. Scanning peers skip connections to devices with non-matching mesh hashes, eliminating cross-app processing at the BLE scan level. When `appId` is null, the hash is `0x0000` (connects to all MeshLink peers).
+**Mesh network isolation:** The advertisement includes a **16-bit FNV-1a hash of the `appId`** string. Scanning peers skip connections to devices with non-matching mesh hashes, isolating different apps at the BLE scan level — before any GATT connection or handshake occurs. When `appId` is null, the hash is `0x0000`, which matches all peers (backward compatible). As a second layer, inbound messages with a non-matching `appId` hash are silently dropped at the recipient.
 
-Version negotiation occurs during the Noise XX handshake. See §12 Protocol Governance & Versioning for negotiation rules.
+**Version pre-check:** The 4-bit version field in byte 0 allows scanning peers to determine the remote protocol version *before* connecting. If a peer scans an advertisement with an unsupported major version, it skips the connection entirely. Version negotiation occurs during the Noise XX handshake (see §12).
 
-**Scan response service data:** The advertisement payload is carried as BLE Service Data with the 16-bit UUID alias `0x7F3A`. The 4-bit version field in byte 0 allows scanning peers to determine the remote protocol version *before* connecting — avoiding wasted handshakes on version mismatch. If a peer scans an advertisement with an unsupported major version, it skips the connection entirely.
+**iOS background discoverability:** The scan response carries a duplicate of the 16-bit service UUID (`0x7F3A`) in a Complete List of 16-bit Service UUIDs AD structure, ensuring MeshLink peers remain discoverable regardless of iOS background state.
 
-**Scan response data:** The scan response carries a duplicate of the 16-bit service UUID (`0x7F3A`) in a Complete List of 16-bit Service UUIDs AD structure. This ensures iOS background discoverability — iOS moves service UUIDs to the "overflow area" when the app is backgrounded, making them visible only to devices already filtering for that UUID. The scan response UUID guarantees MeshLink peers remain discoverable regardless of iOS background state.
-
-**Mesh network isolation:** The BLE advertisement includes a **16-bit FNV-1a mesh hash** of the `appId` string. Scanning peers skip connections to devices with non-matching mesh hashes, isolating different apps at the BLE scan level — before any GATT connection or handshake occurs. When `appId` is null, the mesh hash is `0x0000`, which matches all peers (backward compatible).
-
-As a second layer, inbound messages with a non-matching `appId` hash are silently dropped at the recipient. This handles the case where peers with `appId = null` relay messages from one app network to another.
-
-> **Scaling note:** In deployments where many apps share the physical BLE mesh, every device must decode, validate, and dedup-check messages from *all* apps before applying the appId filter. The filter itself is cheap (8-byte hash comparison), but the per-message processing cost scales with the total mesh-wide message volume across all apps. For single-app deployments this is a non-issue. For multi-app deployments (e.g., 10+ apps at a festival), monitor `bufferUtilizationPercent` and consider tuning rate limits.
+> **Scaling note:** In multi-app deployments (10+ apps at a festival), per-message processing cost scales with total mesh-wide message volume. Monitor `bufferUtilizationPercent` and consider tuning rate limits.
 
 ### Connection Strategy
 
@@ -775,28 +693,7 @@ If no proactive route exists when `send()` is called, a Hello is broadcast
 to all neighbors, triggering Update responses that install routes. This
 covers the initial cold-start case before periodic Updates have propagated.
 
-```mermaid
-sequenceDiagram
-    participant A as Peer A
-    participant B as Peer B (relay)
-    participant C as Peer C
-
-    Note over A,C: A and B are neighbors; B and C are neighbors
-
-    A->>B: Hello (seqNo=1)
-    Note over B: New neighbor A → send full routing table
-    B->>A: Update(dest=C, metric=1, seqNo=1, pubkey=C_key)
-    Note over A: Feasibility check: metric < FD? → Accept
-    Note over A: Install route: C via B (cost=1+linkCost)
-    Note over A: Register C's public key for E2E encryption
-
-    B->>A: Update(dest=B, metric=0, seqNo=1, pubkey=B_key)
-    Note over A: Install direct route to B
-
-    Note over A,C: A can now send E2E-encrypted messages to C via B
-    A->>B: RoutedMessage(dest=C, Noise K encrypted)
-    B->>C: Forward (re-encrypted hop-by-hop)
-```
+See [diagrams.md § Babel Route Propagation](diagrams.md#9-babel-route-propagation) for the Hello/Update sequence diagram.
 
 **Route cache with TTL:** Routes expire after `routeCacheTtlMillis` (default
 300 seconds). Expired routes are lazily removed on lookup. The next send to
@@ -814,11 +711,7 @@ Keepalive/Hello intervals vary by power mode — see §7 Power Management table.
 - **Default max hops:** **10** (configurable)
 - **Rationale:** At ≤10 hops, the mesh covers a wide area while keeping per-message relay traffic bounded; higher values increase reach but reduce reliability and increase latency.
 
-### Routing Algorithm: Babel (Loop-Free Distance Vector)
-
-MeshLink uses Babel (RFC 8966) adapted for BLE mesh. Routes are
-propagated via Hello/Update messages with a feasibility condition
-that guarantees loop-freedom at all times.
+### Routing Algorithm: Implementation Details
 
 **Core operations in `RoutingEngine`:**
 
@@ -830,28 +723,13 @@ that guarantees loop-freedom at all times.
 - `buildRetraction(destination)` — creates an Update with `metric=0xFFFF`
   (unreachable) for broadcasting when a neighbor is lost.
 
-**Route cache:** Routes are stored in a time-bounded cache. Each entry
-records the destination, next-hop neighbor, cost, sequence number, and a
-TTL timestamp. Entries expire after `routeCacheTtlMillis` (default 300
-seconds). Expired entries are lazily evicted on the next lookup.
+**Route cache:** Routes are stored in a time-bounded cache (`routeCacheTtlMillis`,
+default 300s). Expired entries are lazily evicted on the next lookup.
 
-**Pending message queue:** When `MeshLink.send()` is called for a destination
-with no cached route, the message is placed in a pending queue and a Hello
-is broadcast to all neighbors (triggering Update responses). When an Update
-installs the needed route, `DispatchSink.onRouteDiscovered()` fires and all
-queued messages for that destination are drained and sent.
-
-```mermaid
-flowchart TD
-    A["send(msg, dest)"] --> B{"Route cached\nfor dest?"}
-    B -- Yes --> C["Forward via\ncached next-hop"]
-    B -- No --> D["Queue msg in\npending buffer"]
-    D --> E["Broadcast Hello\nto all neighbors"]
-    E --> F{"Update received\nwith route to dest?"}
-    F -- Yes --> H["Install route\nin cache"]
-    H --> I["onRouteDiscovered(dest)\n→ drain pending queue"]
-    F -- No --> J["Fail with\nFAILED_NO_ROUTE"]
-```
+**Pending message queue:** When `send()` is called for a destination with no
+cached route, the message is queued and a Hello is broadcast to all neighbors.
+When an Update installs the needed route, all queued messages for that
+destination are drained and sent.
 
 ### Route Metric: Composite Link Quality (ETX-Weighted)
 
@@ -916,20 +794,15 @@ flowchart LR
 
 **Fallback:** If link quality data is unavailable (new Neighbor, no Transfers yet), cost defaults to 1.0 per hop (equivalent to hop count). Link quality improves route selection over time as data accumulates.
 
-### Route Expiry
+### Route Expiry & Failure Recovery
 
-Routes in the route cache expire after `routeCacheTtlMillis` (default
-300 seconds). Expired entries are lazily removed on the next route lookup. If a
-message needs to be sent to an expired destination, a fresh route discovery is
-triggered automatically.
+Routes expire after `routeCacheTtlMillis` (default 300s). Expired entries are
+lazily removed on lookup; the next send triggers fresh route discovery. Route
+cache TTL is not affected by power mode transitions.
 
-**Power mode interaction:** Route cache TTL is not affected by power mode
-transitions. The short, fixed TTL ensures routes stay fresh regardless of the
-device's power state.
-
-### Route Failure Recovery
-
-**Route failure recovery:** Broken routes are detected via delivery timeout and removed from the route cache immediately. The next send attempt to the same destination triggers a fresh route discovery. Route retractions (metric=0xFFFF) propagate failure information to neighbors for fast convergence.
+Broken routes (detected via delivery timeout) are removed immediately. Route
+retractions (`metric=0xFFFF`) propagate failure information to neighbors for
+fast convergence.
 
 ### Multipath Routing (Backup Routes)
 
@@ -995,36 +868,19 @@ The visited list uses **12-byte peer IDs** (truncated SHA-256 of X25519 public k
 
 ### Message Deduplication
 
-With multi-hop routing and store-and-forward, the same message can arrive at a peer via multiple paths. Every peer maintains a **recently-seen message ID set**, bounded by **both time and count** (whichever limit is hit first):
+Every peer maintains a **recently-seen message ID set**, bounded by both time and count:
 
-- **Time bound:** entries older than `maxHops × bufferTTL` are evicted (default: 10 × 15 min = 150 min). Each relay starts its own independent TTL from the moment it receives a message (no shared clock required), so a message can theoretically survive `maxHops × bufferTTL` total. The dedup time bound must cover this maximum lifespan.
-- **Count bound:** default maximum 10,000 entries (configurable via `dedupMaxEntries`). Rationale: at 30 msg/s sustained, 10,000 entries provide ~333 seconds (~5.5 min) of coverage. Memory: 20 bytes × 10,000 = 200KB (acceptable). Beyond 30 msg/s, earliest entries evict before TTL; duplicate delivery handled by app-layer message ID dedup.
-- On receiving any message (routed, broadcast, or buffered), check if `messageId` is in the seen set
-- If seen → drop silently (do not forward, do not deliver to app)
-- If new → add to seen set, process normally
+- **Time bound:** entries older than `maxHops × bufferTTL` are evicted (default: 150 min).
+- **Count bound:** 100,000 entries (configurable via `dedupCapacity`). Memory: ~2.4 MB.
+- On receiving any message, check if `messageId` is in the seen set. If seen → drop silently. If new → add and process normally.
 
-This is critical to prevent duplicate delivery to the consuming app and redundant mesh bandwidth usage.
+**Implementation details:**
+- **In-memory only** — on crash, recent messages may be redelivered; apps should deduplicate by messageId.
+- **LRU eviction** — oldest entries evicted first regardless of sender.
+- **Monotonic clock** — immune to NTP jumps, timezone changes, and user clock manipulation.
+- **Serial processing** — DeliveryPipeline owns the dedup set and processes operations within its coroutine scope (zero contention).
 
-**Dedup persistence:** In-memory only. On crash, messages from the last few seconds may be redelivered — consuming apps should deduplicate by messageId. Disk persistence deferred to post-v1.
-
-**Concurrency model:** The dedup set is **in-memory** — all lookups hit the in-memory `HashMap` directly (zero contention). DeliveryPipeline owns the dedup set and processes operations serially within its coroutine scope.
-
-**Clock handling:** Dedup TTL uses **monotonic system uptime** (`SystemClock.elapsedRealtime()` on Android, `ProcessInfo.systemUptime` on iOS), immune to user clock changes.
-
-**Clock source rule (applies to all timers):** All operational timers in the library (buffer TTL, dedup window, route cache TTL, sweep timers, chunk inactivity timeout, handshake timeout, SACK retransmission, engine circuit breaker) use **monotonic clock** — immune to NTP jumps, timezone changes, and user clock manipulation. The only exception: replay counter 30-day per-sender expiry uses wall-clock (requires calendar-scale duration; monotonic resets on reboot). **NTP jumps never affect library behavior** beyond replay counter housekeeping.
-
-**Dedup eviction:** LRU — oldest entries evicted first regardless of sender.
-
-**Dedup capacity scaling:** At sustained mesh-wide rates up to ~30 msg/s (~90 active senders), the 10,000-entry dedup set provides full 5-minute TTL coverage. Beyond this, earliest entries may evict before TTL expiry, resulting in rare duplicate delivery handled by app-layer message ID dedup. At 50 peers × 20 msg/min = ~17 msg/s, the dedup set comfortably provides >10 minutes of coverage — 2× the default `bufferTTL`.
-
-```mermaid
-flowchart TD
-    A["Receive message\nwith messageId"] --> B{"messageId in\ndedup set?"}
-    B -- Yes --> C["Drop silently\n(no forward, no deliver)"]
-    B -- No --> D["Add messageId\nto dedup set"]
-    D --> E["Process message\n(forward/deliver)"]
-    D --> F["Continue\n(in-memory only)"]
-```
+> **Clock source rule:** All operational timers in the library use **monotonic clock**. The only exception: replay counter 30-day per-sender expiry uses wall-clock (requires calendar-scale duration; monotonic resets on reboot).
 
 ### Message Buffering (Store-and-Forward)
 
@@ -1077,13 +933,11 @@ flowchart TD
 ```
 
 - The `bufferTTL` is a maximum, not a guarantee — early eviction under memory or capacity pressure is expected.
-- **Metadata exposure accepted for v1:** Buffering peers can observe sender/recipient public keys, message sizes, and timestamps. A malicious peer could build a social graph of "who talks to whom." This tradeoff is documented and deferred to post-v1.
+- **Metadata exposure accepted for v1:** Buffering peers can observe sender/recipient public keys, message sizes, and timestamps. Deferred to post-v1.
 
-**Relay buffer accounting:** The buffer pool is a **shared pool** for both own-outbound messages and relay-forwarded traffic, with a **75% relay cap**. Relay traffic may use up to 75% of the configured pool; the remaining **25% is reserved for the device's own outbound messages** — guaranteeing the device can always queue at least one full 100KB message regardless of relay load. The cap is soft: if no own-outbound messages are queued, relay traffic may use the full pool. The cap only activates when both own-outbound and relay traffic compete for space.
+**Relay buffer accounting:** The buffer pool is **shared** for own-outbound and relay traffic, with a **75% relay cap** (soft — relay can use full pool when no own-outbound messages are queued). The remaining **25% is reserved** for the device's own outbound messages.
 
-**Buffer eviction policy:** When the relay buffer is full, messages are evicted by **priority first** (lowest priority evicted first), then **TTL** (closest to expiry evicted first), then **FIFO** (oldest arrival first). This prevents priority inversion where high-priority messages are evicted before low-priority ones simply because they have shorter TTL. Precedent: Bluetooth Mesh spec §3.5.3.4 uses priority+TTL composite key; Thread (OpenThread) uses priority+remaining_lifetime.
-
-**Sort key:** `(priority ASC, remaining_ttl_ms ASC, arrival_time ASC)`. Priority uses the existing `message_priority` field (0=low, 1=normal, 2=high). Within the same priority level, exact remaining TTL in milliseconds determines order — no bucketing. FIFO (arrival order) breaks ties when both priority and remaining TTL are identical.
+**Buffer eviction policy:** Messages evicted by **priority ascending** (lowest first), then **remaining TTL ascending** (closest to expiry first), then **FIFO** (oldest arrival first). Sort key: `(priority ASC, remaining_ttl_ms ASC, arrival_time ASC)`. Eviction is applied in tier order: Tier 1 (no-route messages), Tier 2 (relay messages with routes), Tier 3 (own outbound). When relay traffic hits 75%, new relay messages evict the lowest-value existing relay message.
 
 ### Relay Forwarding Model: Cut-Through with Local Buffer
 
@@ -1140,52 +994,15 @@ The recipient decrypts by: loading the sender's static Curve25519 key from the p
 
 **Ed25519 key derivation:** The Curve25519 key is derived from the Ed25519 identity key (see Identity section above). Invalid Ed25519 public keys from peers are rejected during TOFU verification before conversion is attempted.
 
-**Sealed payload layout (Noise K):**
+**Sealed payload layout:** See [diagrams.md § Wire Format — Routed Message](diagrams.md#2-wire-format--routed-message-noise-k-sealed-payload) for the byte layout.
 
-| Offset | Size | Field |
-|--------|------|-------|
-| 0 | 8 bytes | Replay counter (uint64, little-endian) |
-| 8 | 1 byte | Flags (bit 0: appId present, bits 1–7: reserved (must be 0; receivers MUST silently ignore non-zero reserved bits for forward compatibility)) |
-| 9 | 0 or 8 bytes | App ID hash (`SHA-256-64(appId.toUTF8())`; present only when flags bit 0 = 1) |
-| 9 or 17 | N bytes | Message data (plaintext) |
+The sender's identity is authenticated by the Noise K handshake itself — no explicit public key or signature in the payload.
 
-The sender's identity is authenticated by the Noise K handshake itself — no explicit public key or signature in the payload. This saves 96 bytes per message compared to the Noise N + signature approach.
+**Recipient verification:** Noise K decryption succeeds only if the sender's static key matches. Failed decryption = sender authentication failure.
 
-**Recipient verification:** Noise K decryption succeeds only if the sender's static key matches the key used during encryption. The recipient retrieves the sender's static Curve25519 key from the peer table and uses it in the Noise K decryption. Failed decryption = sender authentication failure.
+**Note on broadcasts:** Broadcast messages do NOT use Noise K. They are **Ed25519-signed but unencrypted** (see §6).
 
-**Note on broadcasts:** Broadcast messages do NOT use Noise K (no single recipient). Broadcasts are **Ed25519-signed but unencrypted** — the Ed25519 signature and sender public key are required in the broadcast envelope (see §6).
-
-```mermaid
-flowchart LR
-    subgraph Sender
-        A["Plaintext\nmessage"] --> A2["Compress\n(zlib)"]
-        A2 --> B["E2E encrypt\n(Noise K)"]
-        B --> C["Chunk\nciphertext"]
-        C --> D["Hop-by-hop encrypt\n(Noise XX)"]
-        D --> E["BLE transmit"]
-    end
-
-    subgraph Relay
-        G["Receive"] --> H["Hop-by-hop decrypt\n(Noise XX inbound)"]
-        H --> I["E2E ciphertext\n(opaque)"]
-        I --> J["Hop-by-hop re-encrypt\n(Noise XX outbound)"]
-        J --> K["Forward"]
-    end
-
-    subgraph Recipient
-        L["Receive"] --> M["Hop-by-hop decrypt\n(Noise XX)"]
-        M --> N["Reassemble\nchunks"]
-        N --> O["E2E decrypt\n(Noise K)"]
-        O --> O2["Decompress\n(zlib)"]
-        O2 --> P["Plaintext\nmessage"]
-    end
-
-    E --> G
-    K --> L
-
-    style I fill:#f9f,stroke:#333,stroke-width:2px
-    style Relay fill:#fff3cd,stroke:#856404
-```
+The encryption pipeline is: compress → E2E encrypt (Noise K) → chunk → hop-by-hop encrypt (Noise XX) → BLE transmit. Relays decrypt/re-encrypt the hop-by-hop layer only (E2E ciphertext is opaque). See [diagrams.md § Multi-Hop Routed Message Flow](diagrams.md#4-multi-hop-routed-message-flow) for the full sequence diagram.
 
 **Payload compression:** When `compressionEnabled = true` (default), payloads are compressed with raw DEFLATE (RFC 1951) **before** E2E encryption (compress-then-encrypt). Compression wraps the payload in a 1-byte envelope: `0x00` prefix for uncompressed payloads (below `compressionMinBytes`, default 128 bytes) or `0x01` + 4-byte LE original size + raw DEFLATE data. The envelope is transparent to relays — it sits inside the E2E ciphertext. Platform implementations use `java.util.zip.Deflater(BEST_SPEED, true)`/`Inflater(true)` with instance reuse (JVM/Android), Apple's `COMPRESSION_ZLIB` which already produces raw DEFLATE (Apple), and `deflateInit2` with `windowBits = -15` for raw DEFLATE (Linux). See [wire-format-spec.md § Compression Envelope](wire-format-spec.md#compression-envelope-inside-encrypted-payload) for the binary layout.
 
@@ -1222,42 +1039,7 @@ Both payloads are encrypted and use the **blanket little-endian encoding rule**:
 
 **Payload framing:** The Noise framework delivers handshake payloads as discrete `ByteArray` blobs — they are length-delimited by the Noise protocol itself. There is no risk of trailing bytes polluting the BLE read buffer. Receivers read the first 5 bytes `{version, capability, PSM}` and silently discard any trailing bytes in the same blob.
 
-```mermaid
-sequenceDiagram
-    participant I as Initiator (Central)
-    participant R as Responder (Peripheral)
-
-    note over I,R: Total handshake budget: 23 seconds
-
-    rect rgb(230, 240, 255)
-        note right of I: Phase 1 — BLE Setup
-        I->>R: BLE Connect (OS-level GATT)
-        note over I,R: Timeout: 10s
-        I->>R: MTU Negotiation
-        I->>R: GATT Service Discovery
-        note over I,R: Timeout: 10s
-    end
-
-    rect rgb(255, 240, 230)
-        note right of I: Phase 2 — Noise XX Handshake
-        I->>R: Message 1: → e (ephemeral key, unencrypted)
-        note left of I: Initiator state:<br/>has ephemeral keypair
-
-        R->>I: Message 2: ← e, ee, s, es<br/>+ payload [encrypted]<br/>(version, capability, L2CAP PSM)
-        note right of R: Responder state:<br/>has both keypairs,<br/>shared secrets ee, es
-
-        I->>R: Message 3: → s, se<br/>+ payload [encrypted]<br/>(version, capability, L2CAP PSM)
-        note left of I: Initiator state:<br/>has both keypairs,<br/>all shared secrets
-    end
-
-    note over I,R: Both sides now know:<br/>protocol version, L2CAP capability, PSM
-
-    rect rgb(230, 255, 230)
-        note right of I: Phase 3 — Secure Channel Ready
-        I-->>R: Encrypted application data
-        R-->>I: Encrypted application data
-    end
-```
+See [diagrams.md § Noise XX Handshake](diagrams.md#5-noise-xx-handshake) for the full 3-message sequence diagram.
 
 **Noise XX failure recovery:** If the handshake fails mid-way (partial bytes exchanged, invalid message, or `handshakeTimeout` expires after 8 seconds): discard all Noise state for that session, disconnect the GATT connection, and let normal BLE discovery re-establish contact. No immediate retry — the next connection attempt occurs when BLE scanning re-discovers the peer's advertisement. This avoids handshake storms when a peer is temporarily misbehaving. 8s tolerates real-world BLE 2.4 GHz congestion where GATT write-with-response latency can spike to 500ms-2s under WiFi interference. **Per-message failure behavior:** Message 1 invalid/corrupt → responder silently disconnects (no Noise state created). Message 2 invalid → initiator discards Noise state + disconnects + emits `HANDSHAKE_FAILED` diagnostic. Message 3 invalid → responder discards Noise state + disconnects + emits `HANDSHAKE_FAILED`. In all cases, the peer is NOT blocklisted — the next BLE discovery triggers a fresh handshake attempt.
 
@@ -1374,16 +1156,7 @@ suspend fun rotateIdentity(): Result<PublicKey>
 ```
 Behavior: (1) Generate new Ed25519 keypair, (2) store new private key in secure storage alongside old key, (3) sign rotation announcement with **old** key: `{oldPubKey, newPubKey, signature}`, (4) broadcast announcement to all connected neighbors, (5) return `Result.Success(newPublicKey)` once announcement is sent. Old-key sessions get a 75-second grace period (see key rotation teardown). Failure: `Result.Failure(keyStorageFailed)` on secure storage write failure; `IllegalStateException` if not in `running` state.
 
-**Rotation announcement wire format (carried within rotation 0x02):**
-
-| Offset | Size | Field |
-|--------|------|-------|
-| 0 | 32 bytes | Old Ed25519 public key |
-| 32 | 32 bytes | New Ed25519 public key |
-| 64 | 4 bytes | Rotation sequence number (uint32, little-endian; must be > current seq for this origin) |
-| 68 | 64 bytes | Ed25519 signature over bytes [0, 68) using the OLD private key |
-
-Total: 132 bytes. Receivers verify the signature against the old public key (which must match their pinned key for this peer).
+**Rotation announcement wire format:** See [wire-format-spec.md § Rotation Announcement](wire-format-spec.md#0x02--rotation-announcement) for the 201-byte byte layout. The 132-byte inner payload includes old/new keys, sequence number, and an Ed25519 signature by the old key.
 
 **Concurrent sends during rotation:** `rotateIdentity()` takes effect immediately — it does NOT wait for in-flight transfers to complete. Messages currently being sent use the old key; recipients accept both old and new keys during the rotation grace period (75 seconds). `KEY_ROTATION_WITH_INFLIGHT(activeTransfers: N)` diagnostic emitted if transfers are active at rotation time. If a recipient receives a message encrypted with an unknown key during a rotation window, the message is buffered for up to one keepalive interval pending rotation announcement arrival; on timeout, `onTransferFailed(messageId, keyRotationPending)` fires on the sender side (via delivery ACK timeout).
 
@@ -1662,26 +1435,9 @@ Post-v1 mitigations:
 
 **Broadcast signing:** Ed25519-signed (sender identity key) for authenticity and integrity without confidentiality:
 
-**Broadcast envelope wire format:**
+**Broadcast wire format:** See [wire-format-spec.md § Broadcast](wire-format-spec.md#0x09--broadcast) for the byte layout. The signature covers `messageId + origin + appIdHash + payload`. The remaining hop count is **not** signed (mutable for relay decrement). Receivers clamp incoming `broadcastTtl` to their local config value.
 
-| Offset | Size | Field |
-|--------|------|-------|
-| 0 | 1 byte | Type (0x09) |
-| 1 | 16 bytes | Message ID (128-bit random) |
-| 17 | 12 bytes | Origin peer ID (truncated key hash) |
-| 29 | 1 byte | Remaining hop count (set to `broadcastTtl` by sender, decremented by each relay; drop when 0) |
-| 30 | 8 bytes | App ID hash (`SHA-256-64(appId.toUTF8())`; zero-filled if no appId) |
-| 38 | 1 byte | Flags (bit 0: `HAS_SIGNATURE` — signature + signerPublicKey present; bits 1–7: reserved) |
-| 39 | 1 byte | Priority (-1=low, 0=normal, 1=high) |
-| 40 | 64 bytes | Ed25519 signature (present only if `flags & 0x01`) |
-| 104 | 32 bytes | Signer Ed25519 public key (present only if `flags & 0x01`) |
-| 40 or 136 | N bytes | Payload (unencrypted, plaintext; remaining bytes) |
-
-When signed, the signature covers `messageId + origin + appIdHash + payload`. Receivers verify using the signer public key from the signature block. The remaining hop count is **not** in the signed region (it must be mutable for relay decrement), but relays cannot forge a higher TTL than the sender originally set. The `broadcastTtl` config parameter on the *receiver* side caps accepted values: broadcasts with remaining hops > local `broadcastTtl` are clamped (not rejected) to prevent legitimate high-TTL broadcasts from being dropped.
-
-**Broadcast size constraint (GATT):** On the GATT data plane, broadcasts must fit in a single GATT write. Max broadcast payload = MTU − 40 (header) − 96 (signature block) = MTU − 136 bytes (signed) or MTU − 40 bytes (unsigned). At typical 244-byte MTU, max signed payload is 108 bytes. On L2CAP, the length-prefix framing supports broadcasts up to `maxMessageSize`. `broadcast()` returns `Result.Failure(messageTooLarge)` if the payload exceeds the current transport's capacity.
-
-**Per-hop TTL clamping:** Each relay clamps the remaining broadcast TTL: `remaining_ttl = min(remaining_ttl - 1, local_broadcastTtl)`. A relay with `broadcastTtl=1` limits propagation to its immediate neighbors only. Different paths through the mesh may produce different propagation radii — this respects each peer's resource constraints.
+**Broadcast size constraint (GATT):** Broadcasts must fit in a single GATT write. Max signed payload = MTU − 136 bytes (at typical 244-byte MTU: 108 bytes). On L2CAP, broadcasts can be up to `maxMessageSize`.
 
 **No group messaging in v1.** Broadcast covers 'announce to everyone nearby'; proper group conversations (key agreement, membership) deferred to post-v1. **No v1 preparation for groups** — no group key fields, no reserved group types, no membership lists. Clean break: v2 group messaging will build from scratch. Existing v1 mechanisms (opaque relay forwarding, reserved wire format types 0x0C–0xFF, Noise XX capability byte) provide sufficient extensibility hooks without pre-building group primitives. YAGNI.
 
@@ -1708,19 +1464,9 @@ When signed, the signature covers `messageId + origin + appIdHash + payload`. Re
 
 **Delivery ACK routing:** Reverse-path unicast. On failure (2 attempts × 2s timeout = 4s total), the ACK is buffered and retried on the next available route to the destination. No flood fallback — avoids metadata exposure to local neighborhood.
 
-**ACK authentication:** Delivery ACKs carry a **recipient Ed25519 signature** (64 bytes) over the message ID and recipient peer ID, preventing relay nodes from forging ACKs. The signed ACK wire format is:
+**ACK authentication:** Delivery ACKs carry a **recipient Ed25519 signature** over the message ID and recipient peer ID, preventing relay nodes from forging ACKs. See [wire-format-spec.md § Delivery ACK](wire-format-spec.md#0x0b--delivery-ack) for the byte layout. The signature prevents a critical attack: a malicious relay silently dropping messages while forging delivery ACKs.
 
-| Field | Size | Description |
-|-------|------|-------------|
-| Message ID | 16 bytes | Random ID of the acknowledged message |
-| Recipient peer ID | 12 bytes | Truncated key hash of the recipient |
-| Flags | 1 byte | Bit 0: `HAS_SIGNATURE` (signature + signer pubkey present) |
-| Recipient signature | 64 bytes | Ed25519 signature over `(messageId ‖ recipientPeerId)` (present only if flags bit 0 set) |
-| Signer public key | 32 bytes | Recipient's Ed25519 public key (present only if flags bit 0 set) |
-
-The hop-by-hop Noise XX session still protects ACKs in transit. The signature adds 64 bytes but prevents a critical attack: a malicious relay silently dropping messages while forging delivery ACKs back to the sender.
-
-**ACK signature verification:** The sender verifies the delivery ACK's Ed25519 signature using the **signer public key from the ACK envelope**, cross-checked against the **recipient's public key from the local peer table** (canonical trust anchor). On verification failure, retry with the recipient's **previous key** (if a key rotation was observed within the last keepalive cycle). Both fail → drop + `INVALID_ACK_SIGNATURE` diagnostic.
+**ACK signature verification:** The sender verifies using the **signer public key from the ACK envelope**, cross-checked against the **recipient's public key from the local peer table**. On failure, retry with the recipient's **previous key** (if a key rotation was observed within the last keepalive cycle). Both fail → drop + `INVALID_ACK_SIGNATURE` diagnostic.
 
 **Why default-on:** Users expect delivery ACKs for 1:1 messages; overhead is justified for the UX.
 
@@ -1751,38 +1497,9 @@ Power modes are selected **automatically** — the library consumer does not cho
 | **Balanced** | 30–80% | 50% | 500ms | 5s | 2.5s | 15s |
 | **PowerSaver** | <30% | ~17% | 1000ms | 10s | 5s | 30s |
 
-```mermaid
-stateDiagram-v2
-    [*] --> Balanced : Default start
+See [diagrams.md § Power Mode Transitions](diagrams.md#6-power-mode-transitions) for the state machine diagram.
 
-    state "Performance (8 conn)" as Performance
-    state "Balanced (4 conn)" as Balanced
-    state "PowerSaver (2 conn)" as PowerSaver
-
-    %% Upward transitions — immediate (no hysteresis)
-    PowerSaver --> Balanced : battery ≥ 30% (immediate)
-    Balanced --> Performance : battery ≥ 80% (immediate)
-
-    %% Downward transitions — 30s hysteresis delay
-    Performance --> Balanced : battery < 80% for 30s
-    Balanced --> PowerSaver : battery < 30% for 30s
-
-    %% Charging override — any state to Performance
-    PowerSaver --> Performance : Charging detected (override)
-    Balanced --> Performance : Charging detected (override)
-
-    note right of Performance
-        Asymmetric hysteresis:
-        Up = immediate transition
-        Down = 30s sustained delay
-        ──────────────────────
-        customPowerMode override
-        has highest priority and
-        can force any state at any time
-    end note
-```
-
-**Ratios:** Presence Timeout = 10× advertising interval. Sweep Interval = 5× advertising interval. All values are defined in `PowerProfile` per mode and used by the transport and routing layers.
+**Ratios:** Presence Timeout = 10× advertising interval. Sweep Interval = 5× advertising interval.
 
 ### Scanning Duty Cycle Implementation
 
@@ -1963,41 +1680,23 @@ notification channel. MeshLink handles reconnection automatically on wake.
 
 > **Complete reference:** See [API Reference](api-reference.md) for the full
 > `MeshLinkApi` interface, `MeshLinkConfig` fields, model classes, diagnostics,
-> and extension points. This section covers design principles only.
+> and extension points.
 
 ### Design Principles
 
-1. **Kotlin Flow for all event streams.** `peers`, `messages`,
-   `deliveryConfirmations`, `transferProgress`, `transferFailures`,
-   `keyChanges`, `meshHealthFlow`, and `diagnosticEvents` are all `Flow`
-   instances. On iOS, thin extensions wrap these as `AsyncStream`.
-
-2. **`Result<T>` for expected failures.** Public functions return `Result`
-   for operational errors (buffer full, rate limited, no route).
-   `IllegalStateException` is thrown only for API misuse (calling `send()`
-   before `start()`).
-
-3. **`SendResult` distinguishes sent from queued.** `send()` returns
-   `Result<SendResult>` where `SendResult.Sent` means transmission started
-   and `SendResult.Queued` means the message is deferred (paused or route
-   pending). Both carry a `messageId`.
-
-4. **6-state lifecycle.** `UNINITIALIZED → RUNNING ⇄ PAUSED → STOPPED`.
-   Also `RECOVERABLE` (retryable failure) and `TERMINAL` (permanent).
-   `stop()` never throws. `start()` from `TERMINAL` throws.
-
-5. **Thread-safe.** All public methods dispatch to the MeshLink coroutine
-   scope. Calling `send()` from callbacks is safe (no re-entrancy).
-
-6. **Exception isolation.** Callback exceptions are caught and logged via
-   the diagnostic system — they never crash the mesh engine.
-
-7. **Immutable config.** `MeshLinkConfig` is a data class. Config changes
-   require a new `MeshLink` instance.
+1. **Kotlin Flow for all event streams.** On iOS, thin extensions wrap these as `AsyncStream`.
+2. **`Result<T>` for expected failures.** `IllegalStateException` only for API misuse.
+3. **`SendResult` distinguishes sent from queued.**
+4. **6-state lifecycle.** See [diagrams.md § Library State Machine](diagrams.md#1-library-state-machine).
+5. **Thread-safe.** All public methods dispatch to the MeshLink coroutine scope.
+6. **Exception isolation.** Callback exceptions never crash the mesh engine.
+7. **Immutable config.** Config changes require a new `MeshLink` instance.
 
 ### Concurrency Model
 
-MeshLink uses an **engine/coordinator pattern**:
+MeshLink uses an **engine/coordinator pattern** with sealed result types
+and unidirectional data flow. See [diagrams.md § Engine & Coordinator Data Flow](diagrams.md#8-engine--coordinator-data-flow)
+for the module interaction diagram.
 
 | Category | Modules | Role |
 |----------|---------|------|
@@ -2005,17 +1704,9 @@ MeshLink uses an **engine/coordinator pattern**:
 | **Coordinators** | PowerCoordinator, RouteCoordinator, PeerConnectionCoordinator | Orchestrate multi-step workflows |
 | **Policy Chains** | SendPolicyChain, BroadcastPolicyChain, MessageDispatcher | Apply rules, produce decisions |
 
-Engines return sealed result types; the caller pattern-matches and dispatches
-effects. No module sends messages directly to another. All mutable state is
-confined to a single coroutine scope per engine — no locks, no shared mutable
-state between modules.
-
-CPU-intensive crypto operations (Noise K seal/unseal) can be offloaded to a
-separate dispatcher via the `cryptoDispatcher` constructor parameter
-(default: same as `coroutineContext`; production: `Dispatchers.Default`).
-
-See [diagrams.md § Engine & Coordinator Data Flow](diagrams.md#8-engine--coordinator-data-flow)
-for the module interaction diagram.
+All mutable state is confined to a single coroutine scope per engine —
+no locks, no shared mutable state between modules. CPU-intensive crypto
+operations can be offloaded via the `cryptoDispatcher` constructor parameter.
 
 ## 11. Testing Strategy
 

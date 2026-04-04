@@ -401,14 +401,8 @@ mesh.rotateIdentity().onFailure { error ->
 }
 ```
 
-### Lifecycle
-
-| Method     | From State      | To State       | Description                   |
-|------------|-----------------|----------------|-------------------------------|
-| `start()`  | Stopped         | Running        | Begin advertising & scanning  |
-| `pause()`  | Running         | Paused         | Suspend activity, keep state  |
-| `resume()` | Paused          | Running        | Resume from pause             |
-| `stop()`   | Running/Paused  | Stopped        | Full shutdown                 |
+See [API Reference § Lifecycle States](api-reference.md#lifecycle-states)
+for the full 6-state lifecycle and transition rules.
 
 ---
 
