@@ -14,24 +14,30 @@ tags:
 - assertVisible: "Recipient"
 - assertVisible: "Event Log"
 
-# Navigate to Mesh tab
-- tapOn: "Mesh"
+# Navigate to Mesh tab (use index to avoid matching "Mesh Health")
+- tapOn:
+    text: "^Mesh$"
+- waitForAnimationToEnd
 - assertVisible: "Mesh Visualizer"
 - assertVisible: "No peers discovered yet"
 
 # Navigate to Diagnostics tab
-- tapOn: "Diagnostics"
-- assertVisible: "Diagnostics"
+- tapOn:
+    text: "^Diagnostics$"
+- waitForAnimationToEnd
 - assertVisible:
     text: "No diagnostic events yet.*"
 
 # Navigate to Settings tab
-- tapOn: "Settings"
-- assertVisible: "Settings"
+- tapOn:
+    text: "^Settings$"
+- waitForAnimationToEnd
 - assertVisible: "Mesh Status"
 - assertVisible: "Config Preset"
 - assertVisible: "MTU"
 
 # Navigate back to Chat
-- tapOn: "Chat"
+- tapOn:
+    text: "^Chat$"
+- waitForAnimationToEnd
 - assertVisible: "MeshLink Sample"

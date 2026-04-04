@@ -7,7 +7,9 @@ tags:
     clearState: true
 
 # Navigate to diagnostics
-- tapOn: "Diagnostics"
+- tapOn:
+    text: "^Diagnostics$"
+- waitForAnimationToEnd
 - assertVisible: "Diagnostics"
 
 # Should show empty state (text includes newline, use regex)
@@ -19,11 +21,15 @@ tags:
     text: "All.*"
 
 # Start mesh to generate diagnostic events
-- tapOn: "Chat"
+- tapOn:
+    text: "^Chat$"
+- waitForAnimationToEnd
 - runFlow: ../subflows/start-mesh.yaml
 
 # Go back to diagnostics — should have events now
-- tapOn: "Diagnostics"
+- tapOn:
+    text: "^Diagnostics$"
+- waitForAnimationToEnd
 
 # Wait for diagnostic events to appear
 - extendedWaitUntil:
@@ -38,5 +44,7 @@ tags:
     text: "All.*"
 
 # Stop mesh
-- tapOn: "Chat"
+- tapOn:
+    text: "^Chat$"
+- waitForAnimationToEnd
 - runFlow: ../subflows/stop-mesh.yaml

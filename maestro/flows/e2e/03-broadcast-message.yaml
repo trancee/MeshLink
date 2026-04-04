@@ -19,10 +19,9 @@ tags:
 - inputText: "Hello mesh network!"
 - hideKeyboard
 
-# Tap the send button (below the message input, not the dropdown label)
+# Tap the send button — use exact match to avoid hitting "📡 Broadcast"
 - tapOn:
-    text: "Broadcast"
-    below: "Message"
+    text: "^Broadcast$"
 
 # Verify broadcast appears in event log
 - assertVisible:

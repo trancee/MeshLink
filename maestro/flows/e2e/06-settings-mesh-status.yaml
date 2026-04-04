@@ -8,15 +8,21 @@ tags:
     clearState: true
 
 # Check settings before starting mesh
-- tapOn: "Settings"
+- tapOn:
+    text: "^Settings$"
+- waitForAnimationToEnd
 - assertVisible: "Stopped"
 
 # Go back to Chat and start mesh
-- tapOn: "Chat"
+- tapOn:
+    text: "^Chat$"
+- waitForAnimationToEnd
 - runFlow: ../subflows/start-mesh.yaml
 
 # Return to Settings and verify running state
-- tapOn: "Settings"
+- tapOn:
+    text: "^Settings$"
+- waitForAnimationToEnd
 - assertVisible: "Running"
 - assertVisible:
     text: "Connected Peers"
@@ -24,9 +30,13 @@ tags:
     text: "Uptime"
 
 # Stop mesh from Chat
-- tapOn: "Chat"
+- tapOn:
+    text: "^Chat$"
+- waitForAnimationToEnd
 - runFlow: ../subflows/stop-mesh.yaml
 
 # Verify settings shows stopped
-- tapOn: "Settings"
+- tapOn:
+    text: "^Settings$"
+- waitForAnimationToEnd
 - assertVisible: "Stopped"

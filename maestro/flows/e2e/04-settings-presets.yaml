@@ -7,7 +7,9 @@ tags:
     clearState: true
 
 # Go to Settings
-- tapOn: "Settings"
+- tapOn:
+    text: "^Settings$"
+- waitForAnimationToEnd
 - assertVisible: "Config Preset"
 
 # Default preset should be Chat (Small Payload / Low Latency)

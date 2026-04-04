@@ -7,7 +7,9 @@ tags:
     clearState: true
 
 # Go to Settings
-- tapOn: "Settings"
+- tapOn:
+    text: "^Settings$"
+- waitForAnimationToEnd
 
 # Verify MTU section exists
 - scrollUntilVisible:
