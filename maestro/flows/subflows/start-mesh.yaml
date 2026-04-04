@@ -4,5 +4,6 @@ tags:
   - subflow
 ---
 - tapOn: "Start Mesh"
-- runFlow: grant-permissions.yaml
+# Permissions are already granted (app is pre-installed by maestro-runner).
+# On first launch with clearState, call grant-permissions.yaml manually.
 - assertVisible: "Stop Mesh"
