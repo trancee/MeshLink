@@ -380,7 +380,7 @@ packet
 
 Selective acknowledgment for a chunked transfer, using a cumulative ACK
 sequence number plus a 64-bit SACK bitmask for
-out-of-order reception. Covers up to 128 chunks beyond `ackSequence`.
+out-of-order reception. Covers up to 64 chunks beyond `ackSequence`.
 
 **Source:** `ChunkCodec.kt` · `CHUNK_ACK_SIZE = 27` (+ TLV extension area)
 

@@ -37,8 +37,8 @@ The primary interface for all mesh networking operations. Implemented by
 
 | Signature | Description |
 |-----------|-------------|
-| `fun send(recipient: ByteArray, payload: ByteArray): Result<SendResult>` | Sends an encrypted unicast message. `recipient` is a 12-byte peer ID. Returns `SendResult.Sent` when transmission starts, or `SendResult.Queued` when the message is deferred (paused or route pending). Fails if rate-limited, circuit breaker tripped, or buffer full. |
-| `fun broadcast(payload: ByteArray, maxHops: UByte): Result<MessageId>` | Broadcasts an unencrypted message to all peers within `maxHops` radius. Returns the `MessageId`. |
+| `fun send(recipient: ByteArray, payload: ByteArray, priority: Byte = 0): Result<SendResult>` | Sends an encrypted unicast message. `recipient` is a 12-byte peer ID. `priority` controls buffer eviction order (`-1` low, `0` normal, `1` high; default `0`). Returns `SendResult.Sent` when transmission starts, or `SendResult.Queued` when the message is deferred (paused or route pending). Fails if rate-limited, circuit breaker tripped, or buffer full. |
+| `fun broadcast(payload: ByteArray, maxHops: UByte, priority: Byte = 0): Result<MessageId>` | Broadcasts an unencrypted message to all peers within `maxHops` radius. `priority` controls buffer eviction order (default `0`). Returns the `MessageId`. |
 
 ### Event Streams
 
@@ -265,6 +265,7 @@ on `MeshLinkConfig` itself (e.g., `config.keepaliveIntervalMillis`).
 |-------|------|---------|-------------|
 | `diagnosticBufferCapacity` | `Int` | `256` | Maximum diagnostic events in the ring buffer. |
 | `diagnosticsEnabled` | `Boolean` | `true` | Enable the diagnostic event stream. When `false`, no diagnostic events are generated (zero overhead). |
+| `diagnosticRedactPeerIds` | `Boolean` | `false` | When `true`, peer IDs in diagnostic event payloads are replaced with short SHA-256 hashes to prevent traffic analysis from log output. |
 | `dedupCapacity` | `Int` | `100_000` | Maximum unique message IDs tracked for deduplication (TTL-based, 300 s expiry). |
 
 #### Protocol

@@ -8,7 +8,7 @@ package io.meshlink.wire
  * Wire format for key rotation announcements.
  *
  * Format:
- *   Byte 0:       TYPE_ROTATION (0x0A)
+ *   Byte 0:       TYPE_ROTATION (0x02)
  *   Bytes 1-32:   Old X25519 public key (32 bytes)
  *   Bytes 33-64:  New X25519 public key (32 bytes)
  *   Bytes 65-96:  Old Ed25519 public key (32 bytes)

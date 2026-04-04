@@ -12,6 +12,9 @@ over Bluetooth Low Energy with no servers or internet required.
 Java 21, kotlinx-coroutines 1.10.2, Noise protocol (K + XX), Ed25519/X25519,
 ChaCha20-Poly1305, detekt 1.23.8.
 
+**Key sizes:** 12-byte peer IDs (truncated SHA-256), 16-byte message IDs,
+32-byte Ed25519/X25519 keys, 64-byte signatures.
+
 ## Setup
 
 ```bash
