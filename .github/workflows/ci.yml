@@ -65,7 +65,7 @@ jobs:
       # Gradle resolves the task graph once, shares configuration cache,
       # and avoids a second daemon startup.
       - name: Run detekt + JVM tests
-        run: ./gradlew detekt :meshlink:jvmTest --parallel
+        run: ./gradlew detekt :meshlink:jvmTest --parallel --build-cache
 
       - name: Publish test report
         if: success() || failure()
@@ -87,6 +87,8 @@ jobs:
     name: Android Compile + Samples
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      GRADLE_OPTS: -Dorg.gradle.daemon=false
     steps:
       - uses: actions/checkout@v6
         with:
@@ -101,16 +103,22 @@ jobs:
         with:
           build-scan-terms-of-use-url: 'https://gradle.com/help/legal-terms-of-use'
           build-scan-terms-of-use-agree: 'yes'
+          cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
 
       # Single Gradle invocation compiles the library AND both sample apps.
       - name: Compile Android + build samples
-        run: ./gradlew :meshlink:compileAndroidMain :meshlink-sample:android:assembleDebug :meshlink-sample:jvm:build --parallel
+        run: ./gradlew :meshlink:compileAndroidMain :meshlink-sample:android:assembleDebug :meshlink-sample:jvm:build --parallel --build-cache
 
   # ── iOS + macOS tests in one job (saves a macOS runner boot ~2-3 min) ──
   apple-test:
     name: iOS + macOS Tests
     runs-on: macos-15
     timeout-minutes: 25
+    env:
+      GRADLE_OPTS: >-
+        -Dorg.gradle.daemon=false
+        -Dorg.gradle.workers.max=3
+        -Dkotlin.native.jvmArgs=-Xmx3g
     steps:
       - uses: actions/checkout@v6
         with:
@@ -132,11 +140,12 @@ jobs:
         with:
           build-scan-terms-of-use-url: 'https://gradle.com/help/legal-terms-of-use'
           build-scan-terms-of-use-agree: 'yes'
+          cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
 
       # Run both Apple test suites in one Gradle invocation.
       # Kotlin/Native compilation is shared between iOS and macOS targets.
       - name: Run iOS + macOS tests
-        run: ./gradlew :meshlink:iosSimulatorArm64Test :meshlink:macosArm64Test --parallel
+        run: ./gradlew :meshlink:iosSimulatorArm64Test :meshlink:macosArm64Test --parallel --build-cache
 
       - name: Publish iOS test report
         if: success() || failure()
@@ -166,6 +175,8 @@ jobs:
     name: Linux Tests
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      GRADLE_OPTS: -Dorg.gradle.daemon=false
     steps:
       - uses: actions/checkout@v6
         with:
@@ -187,9 +198,10 @@ jobs:
         with:
           build-scan-terms-of-use-url: 'https://gradle.com/help/legal-terms-of-use'
           build-scan-terms-of-use-agree: 'yes'
+          cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
 
       - name: Run Linux x64 tests
-        run: ./gradlew :meshlink:linuxX64Test --parallel
+        run: ./gradlew :meshlink:linuxX64Test --parallel --build-cache
 
       - name: Publish test report
         if: success() || failure()

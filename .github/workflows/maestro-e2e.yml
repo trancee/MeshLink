@@ -127,6 +127,11 @@ jobs:
     name: iOS E2E Tests
     runs-on: macos-15
     timeout-minutes: 25
+    env:
+      GRADLE_OPTS: >-
+        -Dorg.gradle.daemon=false
+        -Dorg.gradle.workers.max=3
+        -Dkotlin.native.jvmArgs=-Xmx3g
 
     steps:
       - uses: actions/checkout@v6
@@ -143,6 +148,7 @@ jobs:
         with:
           build-scan-terms-of-use-url: 'https://gradle.com/help/legal-terms-of-use'
           build-scan-terms-of-use-agree: 'yes'
+          cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
 
       - name: Cache Kotlin/Native compiler
         uses: actions/cache@v5
