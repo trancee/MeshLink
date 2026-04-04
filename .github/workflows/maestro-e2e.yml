@@ -82,7 +82,7 @@ jobs:
         run: |
           curl -fsSL -o maestro-runner.tar.gz \
             "https://github.com/devicelab-dev/maestro-runner/releases/download/v${MAESTRO_RUNNER_VERSION}/maestro-runner-${MAESTRO_RUNNER_VERSION}-linux-amd64.tar.gz"
-          tar xzf maestro-runner.tar.gz
+          tar xzf maestro-runner.tar.gz --warning=no-unknown-keyword
           sudo mv maestro-runner/bin/maestro-runner /usr/local/bin/
           sudo chmod +x /usr/local/bin/maestro-runner
           maestro-runner --version
@@ -98,18 +98,12 @@ jobs:
           disable-animations: true
           script: |
             adb install meshlink-sample/android/build/outputs/apk/debug/android-debug.apk
-
-            maestro-runner \
-              --platform android \
-              --output ./reports/android \
-              --flatten \
-              --wait-for-idle-timeout 500 \
-              maestro/flows/e2e/
+            maestro-runner --platform android --output ./reports/android --flatten --wait-for-idle-timeout 500 test maestro/flows/e2e/
 
       # ── Upload reports ────────────────────────────────────────────────
       - name: Publish JUnit report
         if: always()
-        uses: mikepenz/action-junit-report@v5
+        uses: mikepenz/action-junit-report@v6
         with:
           report_paths: 'reports/android/junit-report.xml'
           check_name: 'Android E2E Results'
@@ -141,21 +135,14 @@ jobs:
           build-scan-terms-of-use-url: 'https://gradle.com/help/legal-terms-of-use'
           build-scan-terms-of-use-agree: 'yes'
 
+      # ── Build XCFramework (required by Package.swift binaryTarget) ──
+      - name: Build MeshLink XCFramework
+        run: ./gradlew :meshlink:assembleMeshLinkXCFramework
+
       # ── Build iOS sample app ──────────────────────────────────────────
       - name: Build iOS sample app
         working-directory: meshlink-sample/ios
         run: |
-          xcodebuild build-for-testing \
-            -project MeshLinkSample.xcodeproj \
-            -scheme MeshLinkSample \
-            -sdk iphonesimulator \
-            -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
-            -derivedDataPath build \
-            CODE_SIGN_IDENTITY="-" \
-            CODE_SIGNING_ALLOWED=NO \
-            | xcpretty || true
-
-          # Also build .app for maestro-runner
           xcodebuild build \
             -project MeshLinkSample.xcodeproj \
             -scheme MeshLinkSample \
@@ -184,20 +171,16 @@ jobs:
 
       - name: Install app & run iOS E2E flows
         run: |
-          APP_PATH=$(find meshlink-sample/ios/build -name "*.app" -path "*/Debug-iphonesimulator/*" | head -1)
+          APP_PATH=$(find meshlink-sample/ios/build -name "*.app" -path "*/Debug-iphonesimulator/*" -not -path "*/dSYMs/*" | head -1)
+          echo "APP_PATH=$APP_PATH"
+          test -d "$APP_PATH" || { echo "Error: .app not found"; exit 1; }
 
-          maestro-runner \
-            --platform ios \
-            --app-file "$APP_PATH" \
-            --output ./reports/ios \
-            --flatten \
-            --typing-frequency 20 \
-            maestro/flows/ios/
+          maestro-runner --platform ios --app-file "$APP_PATH" --output ./reports/ios --flatten --typing-frequency 20 test maestro/flows/ios/
 
       # ── Upload reports ────────────────────────────────────────────────
       - name: Publish JUnit report
         if: always()
-        uses: mikepenz/action-junit-report@v5
+        uses: mikepenz/action-junit-report@v6
         with:
           report_paths: 'reports/ios/junit-report.xml'
           check_name: 'iOS E2E Results'

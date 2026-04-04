@@ -81,7 +81,7 @@ jobs:
 
       - name: Publish test report
         if: always()
-        uses: mikepenz/action-junit-report@v5
+        uses: mikepenz/action-junit-report@v6
         with:
           report_paths: 'meshlink/build/test-results/jvmTest/**/*.xml'
           check_name: 'JVM Test Results'
@@ -141,7 +141,7 @@ jobs:
 
       - name: Publish test report
         if: always()
-        uses: mikepenz/action-junit-report@v5
+        uses: mikepenz/action-junit-report@v6
         with:
           report_paths: 'meshlink/build/test-results/iosSimulatorArm64Test/**/*.xml'
           check_name: 'iOS Test Results'
@@ -182,7 +182,7 @@ jobs:
 
       - name: Publish test report
         if: always()
-        uses: mikepenz/action-junit-report@v5
+        uses: mikepenz/action-junit-report@v6
         with:
           report_paths: 'meshlink/build/test-results/macosArm64Test/**/*.xml'
           check_name: 'macOS Test Results'
@@ -223,7 +223,7 @@ jobs:
 
       - name: Publish test report
         if: always()
-        uses: mikepenz/action-junit-report@v5
+        uses: mikepenz/action-junit-report@v6
         with:
           report_paths: 'meshlink/build/test-results/linuxX64Test/**/*.xml'
           check_name: 'Linux Test Results'
