@@ -165,64 +165,23 @@ and connect to other MeshLink devices over BLE. Runtime permissions
 
 #### UI Tests (Maestro)
 
-The Android sample app includes [Maestro](https://maestro.mobile.dev/) UI
-automation flows covering navigation, lifecycle, messaging, settings, and
-diagnostics.
-
-**Prerequisites:**
-
-- Maestro CLI installed (`curl -fsSL "https://get.maestro.mobile.dev" | bash`)
-- Android emulator running or device connected
-- Debug APK installed:
-  ```bash
-  ./gradlew :meshlink-sample:android:assembleDebug
-  adb install meshlink-sample/android/build/outputs/apk/debug/android-debug.apk
-  ```
-
-**Running:**
+Both the Android and iOS sample apps include [Maestro](https://maestro.mobile.dev/)
+UI automation flows covering navigation, lifecycle, messaging, settings, and
+diagnostics (10 flows each).
 
 ```bash
-# All UI tests
+# Android (emulator or device required)
 maestro test maestro/flows/android/
+
+# iOS (Simulator required)
+maestro --platform=ios test maestro/flows/ios/
 
 # Smoke tests only
 maestro test maestro/flows/android/ --include-tags=smoke
-
-# Single flow
-maestro test maestro/flows/android/01-app-launch-navigation.yaml
-
-# Continuous mode (re-runs on every YAML save — great for development)
-maestro test maestro/flows/android/01-app-launch-navigation.yaml -c
-
-# Generate JUnit report
-maestro test maestro/flows/android/ --format=JUNIT --output=report.xml
 ```
 
-**Flow structure:**
-
-```
-maestro/
-├── config.yaml                        # Workspace config
-└── flows/
-    ├── android/                       # 10 Android end-to-end flows
-    │   ├── 01-app-launch-navigation   # Tab navigation (smoke)
-    │   ├── 02-start-stop-mesh         # Mesh lifecycle (smoke)
-    │   ├── 03-broadcast-message       # Broadcast messaging (smoke)
-    │   ├── 04-settings-presets        # Config preset switching
-    │   ├── 05-settings-mtu            # MTU & config details
-    │   ├── 06-settings-mesh-status    # Running/Stopped state sync
-    │   ├── 07-diagnostics             # Severity filters & events
-    │   ├── 08-mesh-visualizer         # Canvas graph & legend
-    │   ├── 09-health-card             # Health snapshot fields
-    │   └── 10-send-validation         # Button enable/disable
-    ├── ios/                           # 10 iOS end-to-end flows
-    │   └── (mirrors android/ with SwiftUI-specific selectors)
-    └── subflows/                      # Shared building blocks
-        ├── grant-permissions.yaml     # BLE + Location (Android & iOS)
-        ├── navigate-to-tab.yaml       # Parameterized tab navigation
-        ├── start-mesh.yaml            # Start + permissions + verify
-        └── stop-mesh.yaml             # Stop + verify
-```
+See `maestro/flows/` for the full flow listing and shared subflows. Install
+Maestro CLI with `curl -fsSL "https://get.maestro.mobile.dev" | bash`.
 
 #### iOS (SwiftUI)
 
@@ -233,62 +192,6 @@ open meshlink-sample/ios/MeshLinkSample.xcodeproj
 
 Build the XCFramework, open the pre-configured Xcode project, and hit ⌘R.
 See [meshlink-sample/ios/README.md](meshlink-sample/ios/README.md) for details.
-
-#### iOS UI Tests (Maestro)
-
-The iOS sample app has its own set of Maestro flows under `maestro/flows/ios/`,
-tailored to the SwiftUI interface (different labels, segmented picker, icon-only
-buttons, etc.).
-
-**Prerequisites:**
-
-- macOS with Xcode 15+ and Simulator
-- Maestro CLI installed (`curl -fsSL "https://get.maestro.mobile.dev" | bash`)
-- iOS sample app running on a Simulator:
-  ```bash
-  ./gradlew :meshlink:assembleMeshLinkXCFramework
-  open meshlink-sample/ios/MeshLinkSample.xcodeproj
-  # Build & Run on Simulator (⌘R) in Xcode
-  ```
-
-**Running:**
-
-```bash
-# All iOS flows
-maestro --platform=ios test maestro/flows/ios/
-
-# Smoke tests only
-maestro --platform=ios test maestro/flows/ios/ --include-tags=smoke
-
-# Single flow
-maestro --platform=ios test maestro/flows/ios/01-app-launch-navigation.yaml
-
-# Continuous mode
-maestro --platform=ios test maestro/flows/ios/01-app-launch-navigation.yaml -c
-
-# Target a specific simulator
-maestro --device="iPhone 16" --platform=ios test maestro/flows/ios/
-```
-
-**iOS flow structure:**
-
-```
-maestro/flows/ios/
-├── 01-app-launch-navigation     # Tab navigation (smoke)
-├── 02-start-stop-mesh           # Mesh lifecycle (smoke)
-├── 03-broadcast-message         # Broadcast via icon button (smoke)
-├── 04-settings-presets          # Segmented picker presets
-├── 05-settings-mtu              # MTU & current configuration
-├── 06-settings-mesh-status      # Running/Stopped in Form section
-├── 07-diagnostics               # Severity filters, clear button
-├── 08-mesh-visualizer           # Canvas graph, status badges, legend
-├── 09-health-card               # Health snapshot fields
-└── 10-clear-log                 # Clear Log toolbar button
-```
-
-> **Note:** BLE does not work on the iOS Simulator. Flows that start the mesh
-> will run but won't discover real peers. Use a physical device for full BLE
-> testing.
 
 #### macOS (SwiftUI)
 

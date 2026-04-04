@@ -667,6 +667,7 @@ System boundary for BLE hardware.
 ```kotlin
 interface BleTransport {
     val localPeerId: ByteArray
+    var advertisementServiceData: ByteArray
     suspend fun startAdvertisingAndScanning()
     suspend fun stopAll()
     val advertisementEvents: Flow<AdvertisementEvent>

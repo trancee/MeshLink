@@ -146,17 +146,9 @@ However, it was rejected for three reasons:
 3. **Disproportionate effort.** 14–18 weeks of porting + ongoing maintenance
    for marginal gain on the ~10–20% of messages above 4 KB.
 
-## Wire envelope format
+## Wire Envelope Format
 
-Unchanged — the envelope prefix scheme is independent of the compression
-algorithm:
-
-```
-Uncompressed: [0x00][raw payload...]
-Compressed:   [0x01][originalSize: 4 bytes LE][DEFLATE stream...]
-```
-
-The only change is that the compressed data is now a raw DEFLATE stream
-(RFC 1951) instead of a zlib-wrapped stream (RFC 1950). This is a breaking
-wire format change — peers running the old zlib format cannot decompress
-raw DEFLATE payloads. Protocol version negotiation handles this.
+See [wire-format-spec.md § Compression Envelope](docs/wire-format-spec.md#compression-envelope-inside-encrypted-payload)
+for the byte layout. The only change from zlib is that compressed data is now
+raw DEFLATE (RFC 1951) instead of zlib-wrapped (RFC 1950). This is a breaking
+wire format change handled by protocol version negotiation.
