@@ -10,3 +10,7 @@ local.properties
 # iOS
 .swiftpm/
 xcuserdata/
+
+# Maestro Runner
+drivers/
+reports/

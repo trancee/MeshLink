@@ -97,8 +97,7 @@ jobs:
           emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect
           disable-animations: true
           script: |
-            APK_PATH=$(find meshlink-sample/android/build -name "*.apk" -path "*/debug/*" | head -1)
-            adb install "$APK_PATH"
+            adb install meshlink-sample/android/build/outputs/apk/debug/android-debug.apk
 
             maestro-runner \
               --platform android \

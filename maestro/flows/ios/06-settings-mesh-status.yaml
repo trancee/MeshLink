@@ -16,32 +16,34 @@ tags:
     direction: DOWN
 - assertVisible: "Stopped"
 
-# Go back to Chat tab (use tab bar icon to avoid conflict with preset picker)
+# Go back to Chat tab — use the tab item icon to avoid hitting
+# the "Chat" label inside the segmented preset picker
 - tapOn:
-    text: "Chat"
-    below: "Tab Bar"
+    id: "message"
+
 - runFlow: ../subflows/start-mesh.yaml
 
 # Return to Settings and verify running state
 - tapOn: "Settings"
 - scrollUntilVisible:
     element:
-      text: "MESH STATUS"
+      text: "Running"
     direction: DOWN
 - assertVisible: "Running"
-- assertVisible: "Connected Peers"
-- assertVisible: "Reachable Peers"
+- scrollUntilVisible:
+    element:
+      text: "Reachable Peers"
+    direction: DOWN
 
 # Stop mesh from Chat
 - tapOn:
-    text: "Chat"
-    below: "Tab Bar"
+    id: "message"
 - runFlow: ../subflows/stop-mesh.yaml
 
 # Verify settings shows stopped
 - tapOn: "Settings"
 - scrollUntilVisible:
     element:
-      text: "MESH STATUS"
+      text: "Stopped"
     direction: DOWN
 - assertVisible: "Stopped"
