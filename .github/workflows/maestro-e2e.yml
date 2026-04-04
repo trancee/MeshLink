@@ -105,6 +105,13 @@ jobs:
           disable-animations: true
           script: |
             adb install meshlink-sample/android/build/outputs/apk/debug/android-debug.apk
+
+            # Pre-grant permissions so flows never see permission dialogs
+            adb shell pm grant io.meshlink.sample android.permission.BLUETOOTH_SCAN
+            adb shell pm grant io.meshlink.sample android.permission.BLUETOOTH_CONNECT
+            adb shell pm grant io.meshlink.sample android.permission.BLUETOOTH_ADVERTISE
+            adb shell pm grant io.meshlink.sample android.permission.ACCESS_FINE_LOCATION
+
             maestro-runner --platform android --output ./reports/android --flatten --wait-for-idle-timeout 500 test maestro/flows/e2e/
 
       # ── Upload reports ────────────────────────────────────────────────
@@ -230,6 +237,10 @@ jobs:
           APP_PATH=$(find meshlink-sample/ios/build -name "*.app" -path "*/Debug-iphonesimulator/*" -not -path "*/dSYMs/*" | head -1)
           echo "APP_PATH=$APP_PATH"
           test -d "$APP_PATH" || { echo "Error: .app not found"; exit 1; }
+
+          # Pre-grant permissions so flows never see permission dialogs
+          xcrun simctl privacy booted grant bluetooth io.meshlink.sample 2>/dev/null || true
+          xcrun simctl privacy booted grant location-always io.meshlink.sample 2>/dev/null || true
 
           maestro-runner --platform ios --app-file "$APP_PATH" --output ./reports/ios --flatten --typing-frequency 20 test maestro/flows/ios/
 

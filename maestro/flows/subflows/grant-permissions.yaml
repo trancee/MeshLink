@@ -3,13 +3,14 @@ name: Grant Permissions
 tags:
   - subflow
 ---
+# Called only when a permission dialog is blocking mesh start.
+# In CI, permissions are pre-granted via adb/simctl so this never runs.
+# Locally, this handles first-launch permission dialogs.
+
 # ── Android 12+ BLE permission dialogs ──
-# Only attempt if a permission dialog is actually showing.
-# Single visibility check (~1s) instead of 5 optional taps (~35s).
 - runFlow:
     when:
       platform: Android
-      visible: "Allow"
     commands:
       - tapOn:
           text: "Allow"
@@ -31,7 +32,7 @@ tags:
 - runFlow:
     when:
       platform: iOS
-      visible: "Would Like to Use Bluetooth"
     commands:
       - tapOn:
           text: "OK"
+          optional: true

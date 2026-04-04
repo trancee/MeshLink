@@ -4,6 +4,11 @@ tags:
   - subflow
 ---
 - tapOn: "Start Mesh"
-# Permissions are already granted (app is pre-installed by maestro-runner).
-# On first launch with clearState, call grant-permissions.yaml manually.
+# If permissions are already granted (CI pre-grants via adb/simctl),
+# "Stop Mesh" appears immediately. If not (local dev first launch),
+# a permission dialog blocks — tap through it then verify.
+- runFlow:
+    when:
+      notVisible: "Stop Mesh"
+    file: grant-permissions.yaml
 - assertVisible: "Stop Mesh"
