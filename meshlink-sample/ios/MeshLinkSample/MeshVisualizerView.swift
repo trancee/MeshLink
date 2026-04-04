@@ -216,11 +216,11 @@ struct MeshVisualizerView: View {
 
     private func circularPositions(count: Int, center: CGPoint, radius: CGFloat) -> [CGPoint] {
         guard count > 0 else { return [] }
-        return (0..<count).map { i in
-            let angle = (2 * .pi / Double(count)) * Double(i) - .pi / 2
+        return (0..<count).map { (i: Int) -> CGPoint in
+            let angle: Double = (2.0 * .pi / Double(count)) * Double(i) - .pi / 2.0
             return CGPoint(
-                x: center.x + radius * cos(angle),
-                y: center.y + radius * sin(angle)
+                x: center.x + radius * CGFloat(cos(angle)),
+                y: center.y + radius * CGFloat(sin(angle))
             )
         }
     }
