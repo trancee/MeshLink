@@ -5,8 +5,7 @@ tags:
   - navigation
   - ios
 ---
-- launchApp:
-    clearState: true
+- launchApp
 
 # Chat tab is shown by default
 - assertVisible: "MeshLink Sample"

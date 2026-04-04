@@ -5,8 +5,7 @@ tags:
   - lifecycle
   - ios
 ---
-- launchApp:
-    clearState: true
+- launchApp
 
 # Verify initial state
 - assertVisible: "Start Mesh"

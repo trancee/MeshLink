@@ -3,8 +3,7 @@ name: Settings - Config Presets
 tags:
   - settings
 ---
-- launchApp:
-    clearState: true
+- launchApp
 
 # Go to Settings
 - tapOn:

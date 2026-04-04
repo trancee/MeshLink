@@ -5,8 +5,7 @@ tags:
   - lifecycle
   - ios
 ---
-- launchApp:
-    clearState: true
+- launchApp
 
 # Check settings before starting mesh
 - tapOn: "Settings"

@@ -4,8 +4,7 @@ tags:
   - diagnostics
   - ios
 ---
-- launchApp:
-    clearState: true
+- launchApp
 
 # Navigate to diagnostics
 - tapOn: "Diagnostics"

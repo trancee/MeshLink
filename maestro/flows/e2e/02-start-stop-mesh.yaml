@@ -4,8 +4,7 @@ tags:
   - smoke
   - lifecycle
 ---
-- launchApp:
-    clearState: true
+- launchApp
 
 # Verify initial state
 - assertVisible: "Start Mesh"

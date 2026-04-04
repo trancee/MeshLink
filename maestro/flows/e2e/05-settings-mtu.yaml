@@ -3,8 +3,7 @@ name: Settings - MTU Slider
 tags:
   - settings
 ---
-- launchApp:
-    clearState: true
+- launchApp
 
 # Go to Settings
 - tapOn:

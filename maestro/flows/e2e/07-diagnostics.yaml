@@ -3,8 +3,7 @@ name: Diagnostics Screen
 tags:
   - diagnostics
 ---
-- launchApp:
-    clearState: true
+- launchApp
 
 # Navigate to diagnostics
 - tapOn:

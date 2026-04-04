@@ -4,8 +4,7 @@ tags:
   - settings
   - ios
 ---
-- launchApp:
-    clearState: true
+- launchApp
 
 # Go to Settings
 - tapOn: "Settings"

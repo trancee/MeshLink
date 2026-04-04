@@ -4,8 +4,7 @@ tags:
   - settings
   - lifecycle
 ---
-- launchApp:
-    clearState: true
+- launchApp
 
 # Check settings before starting mesh
 - tapOn:

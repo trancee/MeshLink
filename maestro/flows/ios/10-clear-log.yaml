@@ -4,8 +4,7 @@ tags:
   - messaging
   - ios
 ---
-- launchApp:
-    clearState: true
+- launchApp
 
 # Start mesh to generate log entries
 - runFlow: ../subflows/start-mesh.yaml

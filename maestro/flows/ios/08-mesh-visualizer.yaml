@@ -4,8 +4,7 @@ tags:
   - mesh
   - ios
 ---
-- launchApp:
-    clearState: true
+- launchApp
 
 # Navigate to Mesh tab
 - tapOn: "Mesh"

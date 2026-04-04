@@ -4,8 +4,7 @@ tags:
   - smoke
   - health
 ---
-- launchApp:
-    clearState: true
+- launchApp
 
 # Verify all health fields are displayed on Chat screen
 - assertVisible: "Mesh Health"

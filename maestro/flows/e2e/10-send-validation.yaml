@@ -4,8 +4,7 @@ tags:
   - messaging
   - validation
 ---
-- launchApp:
-    clearState: true
+- launchApp
 
 # Start mesh so send button can potentially be enabled
 - runFlow: ../subflows/start-mesh.yaml

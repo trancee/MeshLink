@@ -4,8 +4,7 @@ tags:
   - smoke
   - messaging
 ---
-- launchApp:
-    clearState: true
+- launchApp
 
 # Start mesh first
 - runFlow: ../subflows/start-mesh.yaml
