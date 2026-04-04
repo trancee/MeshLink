@@ -151,6 +151,14 @@ jobs:
           key: konan-${{ runner.os }}-${{ hashFiles('**/*.gradle.kts') }}
           restore-keys: konan-${{ runner.os }}-
 
+      # Cache the WDA build (~283MB) to skip the 5-10 min xcodebuild on subsequent runs.
+      # Key includes maestro-runner version (WDA version is bundled with it).
+      - name: Cache WebDriverAgent build
+        uses: actions/cache@v5
+        with:
+          path: /tmp/wda-cache
+          key: wda-${{ runner.os }}-${{ env.MAESTRO_RUNNER_VERSION }}
+
       # ── Build iOS Simulator framework + boot simulator + install maestro-runner ──
       #    Only build the simulator slice (not arm64 device or macOS) — saves ~3 min.
       #    All three tasks run in parallel to overlap I/O-bound work.
@@ -171,6 +179,13 @@ jobs:
           sudo ln -sf /opt/maestro-runner/bin/maestro-runner /usr/local/bin/maestro-runner
           rm -f maestro-runner.tar.gz
           maestro-runner --version
+
+          # Restore WDA build cache (if available)
+          sudo mkdir -p /usr/local/cache
+          if [ -d /tmp/wda-cache/wda-builds ]; then
+            echo "Restoring WDA build cache..."
+            sudo cp -R /tmp/wda-cache/wda-builds /usr/local/cache/
+          fi
 
           # Wait for Gradle to finish
           wait $GRADLE_PID
@@ -207,6 +222,15 @@ jobs:
           test -d "$APP_PATH" || { echo "Error: .app not found"; exit 1; }
 
           maestro-runner --platform ios --app-file "$APP_PATH" --output ./reports/ios --flatten --typing-frequency 20 test maestro/flows/ios/
+
+      # ── Save WDA build cache for next run ─────────────────────────────
+      - name: Save WDA build cache
+        if: success() || failure()
+        run: |
+          if [ -d /usr/local/cache/wda-builds ]; then
+            mkdir -p /tmp/wda-cache
+            cp -R /usr/local/cache/wda-builds /tmp/wda-cache/
+          fi
 
       # ── Upload reports ────────────────────────────────────────────────
       - name: Publish JUnit report
