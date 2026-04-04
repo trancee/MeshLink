@@ -190,6 +190,8 @@ jobs:
 
       # ── Run flows ────────────────────────────────────────────────────
       - name: Run iOS E2E flows
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           APP_PATH=$(find meshlink-sample/ios/build -name "*.app" -path "*/Debug-iphonesimulator/*" -not -path "*/dSYMs/*" | head -1)
           echo "APP_PATH=$APP_PATH"
