@@ -87,6 +87,7 @@ jobs:
             "https://github.com/devicelab-dev/maestro-runner/releases/download/v${MAESTRO_RUNNER_VERSION}/maestro-runner-${MAESTRO_RUNNER_VERSION}-linux-amd64.tar.gz"
           tar xzf maestro-runner.tar.gz --warning=no-unknown-keyword
           sudo mv maestro-runner /opt/maestro-runner
+          sudo chmod -R a+rw /opt/maestro-runner
           sudo ln -sf /opt/maestro-runner/bin/maestro-runner /usr/local/bin/maestro-runner
           rm -f maestro-runner.tar.gz
           maestro-runner --version
@@ -193,15 +194,16 @@ jobs:
             "https://github.com/devicelab-dev/maestro-runner/releases/download/v${MAESTRO_RUNNER_VERSION}/maestro-runner-${MAESTRO_RUNNER_VERSION}-darwin-arm64.tar.gz"
           tar xzf maestro-runner.tar.gz
           sudo mv maestro-runner /opt/maestro-runner
+          sudo chmod -R a+rw /opt/maestro-runner
           sudo ln -sf /opt/maestro-runner/bin/maestro-runner /usr/local/bin/maestro-runner
           rm -f maestro-runner.tar.gz
           maestro-runner --version
 
           # Restore WDA build cache (if available)
-          sudo mkdir -p /opt/maestro-runner/cache
+          mkdir -p /opt/maestro-runner/cache
           if [ -d /tmp/wda-cache/wda-builds ]; then
             echo "Restoring WDA build cache..."
-            sudo cp -R /tmp/wda-cache/wda-builds /opt/maestro-runner/cache/
+            cp -R /tmp/wda-cache/wda-builds /opt/maestro-runner/cache/
           fi
 
           # Wait for Gradle to finish
