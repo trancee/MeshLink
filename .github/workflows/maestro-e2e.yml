@@ -134,10 +134,8 @@ jobs:
   ios-e2e:
     name: iOS E2E Tests
     runs-on: macos-15
-    timeout-minutes: 25
+    timeout-minutes: 20
     env:
-      # Don't disable the daemon — it causes a costly single-use daemon fork
-      # when JVM args differ. Let Gradle manage the daemon lifecycle.
       GRADLE_OPTS: >-
         -Dorg.gradle.workers.max=3
         -Dkotlin.native.jvmArgs=-Xmx3g
@@ -168,8 +166,16 @@ jobs:
           key: konan-${{ runner.os }}-${{ hashFiles('**/*.gradle.kts') }}
           restore-keys: konan-${{ runner.os }}-
 
-      # Cache the WDA build (~283MB) to skip the 5-10 min xcodebuild on subsequent runs.
-      # Key includes maestro-runner version AND Xcode version (WDA must match simulator SDK).
+      # Cache the K/N debug framework (~44MB) to skip the 3+ min link step.
+      # Key is based on source files — framework only changes when code changes.
+      - name: Cache MeshLink framework
+        id: framework-cache
+        uses: actions/cache@v5
+        with:
+          path: meshlink/build/bin/iosSimulatorArm64/debugFramework
+          key: framework-ios-sim-debug-${{ hashFiles('meshlink/src/**/*.kt', '**/*.gradle.kts') }}
+
+      # Cache the WDA build (~283MB) to skip the 5-10 min xcodebuild.
       - name: Get Xcode version
         id: xcode
         run: echo "version=$(xcodebuild -version | head -1 | awk '{print $2}')" >> "$GITHUB_OUTPUT"
@@ -180,21 +186,22 @@ jobs:
           path: /tmp/wda-cache
           key: wda-${{ runner.os }}-${{ env.MAESTRO_RUNNER_VERSION }}-xcode${{ steps.xcode.outputs.version }}
 
-      # ── Build iOS Simulator framework + boot simulator + install maestro-runner ──
-      #    Uses debug framework (5× faster link — skips LLVM optimizations).
-      #    Only builds the simulator slice (not arm64 device or macOS).
-      #    All three tasks run in parallel to overlap I/O-bound work.
-      - name: Build framework, boot simulator & install maestro-runner
+      # ── Parallel setup: build framework + boot simulator + install maestro-runner ──
+      - name: Setup (framework, simulator, maestro-runner)
         run: |
-          # Debug framework links ~5× faster than release (no LLVM opts).
-          # For E2E UI tests, debug performance is perfectly fine.
-          ./gradlew :meshlink:linkDebugFrameworkIosSimulatorArm64 --build-cache --parallel &
-          GRADLE_PID=$!
+          # 1. Build framework only if cache missed
+          if [ "${{ steps.framework-cache.outputs.cache-hit }}" != "true" ]; then
+            echo "Cache miss — building debug framework..."
+            ./gradlew :meshlink:linkDebugFrameworkIosSimulatorArm64 --build-cache --parallel &
+            GRADLE_PID=$!
+          else
+            echo "Cache hit — skipping framework build"
+          fi
 
-          # Boot simulator while Gradle compiles Kotlin/Native
+          # 2. Boot simulator in parallel
           xcrun simctl boot "iPhone 16" 2>/dev/null || true
 
-          # Download and install maestro-runner
+          # 3. Install maestro-runner in parallel
           curl -fsSL -o maestro-runner.tar.gz \
             "https://github.com/devicelab-dev/maestro-runner/releases/download/v${MAESTRO_RUNNER_VERSION}/maestro-runner-${MAESTRO_RUNNER_VERSION}-darwin-arm64.tar.gz"
           tar xzf maestro-runner.tar.gz
@@ -202,19 +209,20 @@ jobs:
           sudo chmod -R a+rw /opt/maestro-runner
           sudo ln -sf /opt/maestro-runner/bin/maestro-runner /usr/local/bin/maestro-runner
           rm -f maestro-runner.tar.gz
-          maestro-runner --version
 
-          # Restore WDA build cache (if available)
+          # 4. Restore WDA build cache
           mkdir -p /opt/maestro-runner/cache
           if [ -d /tmp/wda-cache/wda-builds ]; then
             echo "Restoring WDA build cache..."
             cp -R /tmp/wda-cache/wda-builds /opt/maestro-runner/cache/
           fi
 
-          # Wait for Gradle to finish
-          wait $GRADLE_PID
+          # 5. Wait for framework build (if started)
+          if [ -n "${GRADLE_PID:-}" ]; then
+            wait $GRADLE_PID
+          fi
 
-          # Create a single-slice XCFramework at the path Package.swift expects
+          # 6. Create XCFramework at the path Package.swift expects
           FRAMEWORK_DIR="meshlink/build/bin/iosSimulatorArm64/debugFramework"
           XCFW_OUT="meshlink/build/XCFrameworks/release/MeshLink.xcframework"
           rm -rf "$XCFW_OUT"
