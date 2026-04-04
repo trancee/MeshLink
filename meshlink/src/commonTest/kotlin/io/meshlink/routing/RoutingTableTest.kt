@@ -54,9 +54,7 @@ class RoutingTableTest {
     @Test
     fun routeExpiresAfterThreshold() {
         var now = 1000L
-        RoutingTable.currentTime = { now }
-
-        val table = RoutingTable(expiryMillis = 500)
+        val table = RoutingTable(expiryMillis = 500, clock = { now })
 
         table.addRoute(destination = key("D"), nextHop = key("A"), cost = 5.0, sequenceNumber = 1u)
         assertEquals(key("A"), table.bestRoute(key("D"))?.nextHop)

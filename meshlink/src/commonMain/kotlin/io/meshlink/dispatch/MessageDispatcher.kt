@@ -19,6 +19,9 @@ import io.meshlink.util.toHex
 import io.meshlink.util.toKey
 import io.meshlink.wire.RotationAnnouncement
 import io.meshlink.wire.WireCodec
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlin.coroutines.CoroutineContext
 
 /**
  * Dispatches inbound BLE frames to typed handlers. Owns the dispatch table,
@@ -40,7 +43,7 @@ internal class MessageDispatcher(
     private val outboundTracker: OutboundTracker,
     private val sink: DispatchSink,
     private val unwrapPayload: (ByteArray) -> ByteArray = { it },
-    private val cryptoDispatcher: kotlin.coroutines.CoroutineContext = kotlinx.coroutines.Dispatchers.Default,
+    private val cryptoDispatcher: CoroutineContext = Dispatchers.Default,
 ) {
     suspend fun dispatch(fromPeerId: ByteArray, data: ByteArray) {
         if (data.isEmpty()) return
@@ -53,8 +56,8 @@ internal class MessageDispatcher(
             data[0] == WireCodec.TYPE_KEEPALIVE ||
             data[0] == WireCodec.TYPE_ROUTED_MESSAGE ||
             data[0] == WireCodec.TYPE_BROADCAST ||
-            data[0] == WireCodec.TYPE_ROUTE_REQUEST ||
-            data[0] == WireCodec.TYPE_ROUTE_REPLY ||
+            data[0] == WireCodec.TYPE_HELLO ||
+            data[0] == WireCodec.TYPE_UPDATE ||
             data[0] == WireCodec.TYPE_ROTATION
         if (securityEngine != null && !preAuthAllowed) {
             if (!securityEngine.isHandshakeComplete(fromPeerId)) {
@@ -75,8 +78,8 @@ internal class MessageDispatcher(
                 WireCodec.TYPE_CHUNK -> handleChunk(fromPeerId, data)
                 WireCodec.TYPE_CHUNK_ACK -> handleChunkAck(data)
                 WireCodec.TYPE_BROADCAST -> handleBroadcast(fromPeerId, data)
-                WireCodec.TYPE_ROUTE_REQUEST -> handleHello(fromPeerId, data)
-                WireCodec.TYPE_ROUTE_REPLY -> handleUpdate(fromPeerId, data)
+                WireCodec.TYPE_HELLO -> handleHello(fromPeerId, data)
+                WireCodec.TYPE_UPDATE -> handleUpdate(fromPeerId, data)
                 WireCodec.TYPE_ROUTED_MESSAGE -> handleRoutedMessage(fromPeerId, data)
                 WireCodec.TYPE_DELIVERY_ACK -> handleDeliveryAck(data)
                 WireCodec.TYPE_RESUME_REQUEST -> handleResumeRequest(data)
@@ -182,7 +185,7 @@ internal class MessageDispatcher(
 
                 if (routingEngine.isDuplicate(key)) return
 
-                val decrypted = kotlinx.coroutines.withContext(cryptoDispatcher) {
+                val decrypted = withContext(cryptoDispatcher) {
                     validator.unsealPayload(
                         result.reassembledPayload,
                         "chunk reassembly",
@@ -269,7 +272,7 @@ internal class MessageDispatcher(
             // (e.g. via key distribution), the payload is Noise-K sealed.
             // Try E2E decryption. Drop messages that fail decryption
             // rather than delivering attacker-controlled raw bytes.
-            val deliveredPayload = kotlinx.coroutines.withContext(cryptoDispatcher) {
+            val deliveredPayload = withContext(cryptoDispatcher) {
                 validator.unsealOrDrop(
                     routed.payload,
                     routed.origin.toKey(),

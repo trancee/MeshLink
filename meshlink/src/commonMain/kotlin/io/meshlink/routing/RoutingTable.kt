@@ -4,7 +4,7 @@ import io.meshlink.util.ByteArrayKey
 import io.meshlink.util.currentTimeMillis
 
 /**
- * AODV route cache.
+ * Babel route cache.
  * Stores routes to mesh destinations with composite cost metric,
  * primary + backup route support, and TTL-based expiry.
  */
@@ -12,6 +12,7 @@ class RoutingTable(
     private val expiryMillis: Long = Long.MAX_VALUE,
     private val neighborCapFraction: Double = 1.0,
     private val maxDestinations: Int = Int.MAX_VALUE,
+    private val clock: () -> Long = { currentTimeMillis() },
 ) {
 
     data class Route(
@@ -19,7 +20,7 @@ class RoutingTable(
         val nextHop: ByteArrayKey,
         val cost: Double,
         val sequenceNumber: UInt,
-        val timestamp: Long = currentTime(),
+        val timestamp: Long,
     )
 
     // destination → (nextHop → Route)
@@ -47,13 +48,13 @@ class RoutingTable(
             if (neighborDestCount >= cap) return // reject excess
         }
 
-        val now = currentTime()
+        val now = clock()
         val route = Route(destination, nextHop, cost, sequenceNumber, now)
         routes.getOrPut(destination) { mutableMapOf() }[nextHop] = route
     }
 
     fun bestRoute(destination: ByteArrayKey): Route? {
-        val now = currentTime()
+        val now = clock()
         val destRoutes = routes[destination] ?: return null
         // Remove expired routes
         destRoutes.values.removeAll { now - it.timestamp > expiryMillis }
@@ -92,6 +93,5 @@ class RoutingTable(
 
     companion object {
         const val MAX_ROUTE_COST = 1_000_000.0
-        internal var currentTime: () -> Long = { currentTimeMillis() }
     }
 }

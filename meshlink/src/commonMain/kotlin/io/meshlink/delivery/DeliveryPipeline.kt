@@ -43,6 +43,11 @@ class DeliveryPipeline(
     private val tombstoneWindowMillis: Long = 120_000L,
     private val diagnosticSink: DiagnosticSink,
 ) {
+    companion object {
+        /** Sliding window for inbound rate limiting. */
+        private const val RATE_WINDOW_MILLIS = 60_000L
+    }
+
     // -- Delivery tracking (was DeliveryTracker) --
     private enum class DeliveryState { PENDING, RESOLVED }
 
@@ -131,7 +136,7 @@ class DeliveryPipeline(
         if (limitPerMinute <= 0) return true
         val now = clock()
         val pruned = (inboundRateCounts[originId] ?: emptyList())
-            .filter { now - it <= 60_000L }
+            .filter { now - it <= RATE_WINDOW_MILLIS }
         if (pruned.size >= limitPerMinute) {
             inboundRateCounts[originId] = pruned
             return false

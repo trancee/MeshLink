@@ -22,12 +22,12 @@ sealed interface NextHopResult {
  */
 class RoutingEngine(
     private val localPeerId: ByteArrayKey,
-    private val dedupCapacity: Int = 10_000,
+    private val dedupCapacity: Int = 100_000,
     private val routeCacheTtlMillis: Long = 300_000L,
     private val clock: () -> Long = { currentTimeMillis() },
     private val keepaliveIntervalMillis: Long = 15_000L,
 ) {
-    private val routingTable = RoutingTable(expiryMillis = routeCacheTtlMillis)
+    private val routingTable = RoutingTable(expiryMillis = routeCacheTtlMillis, clock = clock)
     private val presenceTracker = PresenceTracker()
     private val dedup = DedupSet(capacity = dedupCapacity, clock = clock)
     private val costCalculator = RouteCostCalculator(

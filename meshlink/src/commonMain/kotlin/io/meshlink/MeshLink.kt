@@ -58,7 +58,9 @@ import io.meshlink.util.withLock
 import io.meshlink.wire.AdvertisementCodec
 import io.meshlink.wire.NackReason
 import io.meshlink.wire.WireCodec
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
@@ -456,7 +458,7 @@ class MeshLink(
             routingEngine.registerPublicKey(transport.localPeerId.toKey(), it)
         }
 
-        val exceptionHandler = kotlinx.coroutines.CoroutineExceptionHandler { _, throwable ->
+        val exceptionHandler = CoroutineExceptionHandler { _, throwable ->
             diagnosticSink.emit(
                 DiagnosticCode.SEND_FAILED,
                 Severity.ERROR,
@@ -550,7 +552,7 @@ class MeshLink(
         }
         lifecycleState = LifecycleState.STOPPED
         scope?.cancel()
-        runBlocking(kotlinx.coroutines.Dispatchers.Default) {
+        runBlocking(Dispatchers.Default) {
             withTimeoutOrNull(STOP_TIMEOUT_MILLIS) { transport.stopAll() }
         }
         deliveryPipeline.cancelAllDeadlines()

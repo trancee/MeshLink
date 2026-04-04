@@ -2,6 +2,7 @@ package io.meshlink.dispatch
 
 import io.meshlink.config.MeshLinkConfig
 import io.meshlink.crypto.SecurityEngine
+import io.meshlink.crypto.UnsealResult
 import io.meshlink.delivery.DeliveryPipeline
 import io.meshlink.diagnostics.DiagnosticCode
 import io.meshlink.diagnostics.DiagnosticSink
@@ -69,10 +70,10 @@ internal class InboundValidator(
     }
 
     /**
-     * Returns true if the broadcast signature is valid (or crypto is off).
-     * Rejects unsigned broadcasts when crypto is enabled.
+     * Returns true if the signature is valid (or crypto is off).
+     * Rejects unsigned payloads when crypto is enabled.
      */
-    fun validateBroadcastSignature(
+    fun validateSignature(
         signature: ByteArray,
         signerPublicKey: ByteArray,
         signedData: ByteArray,
@@ -82,19 +83,19 @@ internal class InboundValidator(
         return se.verify(signerPublicKey, signedData, signature)
     }
 
-    /**
-     * Returns true if the delivery-ACK signature is valid.
-     * Rejects unsigned ACKs when crypto is enabled.
-     */
+    /** @see validateSignature */
+    fun validateBroadcastSignature(
+        signature: ByteArray,
+        signerPublicKey: ByteArray,
+        signedData: ByteArray,
+    ): Boolean = validateSignature(signature, signerPublicKey, signedData)
+
+    /** @see validateSignature */
     fun validateDeliveryAckSignature(
         signature: ByteArray,
         signerPublicKey: ByteArray,
         signedData: ByteArray,
-    ): Boolean {
-        val se = securityEngine ?: return true
-        if (signature.isEmpty()) return false
-        return se.verify(signerPublicKey, signedData, signature)
-    }
+    ): Boolean = validateSignature(signature, signerPublicKey, signedData)
 
     // ── App-ID filtering ───────────────────────────────────────────
 
@@ -174,12 +175,12 @@ internal class InboundValidator(
         senderPeerId: ByteArrayKey? = null,
     ): ByteArray? {
         return when (val ur = securityEngine?.unseal(ciphertext, senderPeerId)) {
-            is io.meshlink.crypto.UnsealResult.Decrypted -> ur.plaintext
-            is io.meshlink.crypto.UnsealResult.Failed -> {
+            is UnsealResult.Decrypted -> ur.plaintext
+            is UnsealResult.Failed -> {
                 diagnosticSink.emit(DiagnosticCode.DECRYPTION_FAILED, Severity.WARN, context)
                 null
             }
-            is io.meshlink.crypto.UnsealResult.TooShort -> {
+            is UnsealResult.TooShort -> {
                 diagnosticSink.emit(DiagnosticCode.DECRYPTION_FAILED, Severity.WARN, "$context (too short)")
                 null
             }
@@ -203,9 +204,9 @@ internal class InboundValidator(
     ): ByteArray? {
         val se = securityEngine ?: return ciphertext // no crypto — plaintext mode
         return when (val ur = se.unseal(ciphertext, senderPeerId)) {
-            is io.meshlink.crypto.UnsealResult.Decrypted -> ur.plaintext
-            is io.meshlink.crypto.UnsealResult.Failed,
-            is io.meshlink.crypto.UnsealResult.TooShort -> {
+            is UnsealResult.Decrypted -> ur.plaintext
+            is UnsealResult.Failed,
+            is UnsealResult.TooShort -> {
                 diagnosticSink.emit(
                     DiagnosticCode.DECRYPTION_FAILED,
                     Severity.WARN,
