@@ -207,7 +207,10 @@ class MeshLink(
         diagnosticSink = diagnosticSink,
     )
 
-    private val powerCoordinator = PowerCoordinator(clock = clock)
+    private val powerCoordinator = PowerCoordinator(
+        clock = clock,
+        thresholds = config.powerModeThresholds,
+    )
 
     private val appIdFilter = AppIdFilter(config.appId)
 

@@ -227,6 +227,7 @@ mesh.addRoute(
     destination = "peer-hex-id",
     nextHop = "neighbor-hex-id",
     cost = 1.5,
+    sequenceNumber = 1u,
 )
 ```
 

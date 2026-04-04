@@ -673,6 +673,31 @@ packet
 | 1–4 | 4 | `originalSize` | UInt | **LE** | Original uncompressed payload size in bytes. |
 | 5… | variable | `compressedData` | bytes | — | Raw DEFLATE (RFC 1951) compressed payload. |
 
+### Padded Envelope (`0x02`)
+
+Used when `paddingBlockSize > 0`. Wraps the inner envelope (compressed or
+uncompressed) with a 2-byte LE size prefix and zero-pads to the next block
+boundary. Applied after compression, before E2E encryption.
+
+```mermaid
+---
+title: "Padded Envelope"
+---
+packet
+0-7: "0x02"
+8-23: "innerSize (2B LE)"
+24-31: "inner envelope + zero padding ..."
+```
+
+| Offset | Size | Field | Type | Endianness | Description |
+|--------|------|-------|------|------------|-------------|
+| 0 | 1 | `envelopeType` | byte | — | `0x02` — payload is padded. |
+| 1–2 | 2 | `innerSize` | UShort | **LE** | Byte length of the inner envelope (max 65535). |
+| 3… | `innerSize` | `inner` | bytes | — | Inner envelope (`0x00` uncompressed or `0x01` compressed). |
+| 3+innerSize… | variable | `padding` | bytes | — | Zero bytes padding to the next `paddingBlockSize` boundary. |
+
+**Total size:** `ceil((3 + innerSize) / paddingBlockSize) * paddingBlockSize`.
+
 ### Backward Compatibility
 
 When `compressionEnabled = false`, no envelope is added — the payload is the

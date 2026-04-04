@@ -308,7 +308,7 @@ The 3-tier automatic power management system with battery-driven transitions.
 title: Power Mode State Machine
 ---
 stateDiagram-v2
-    [*] --> Balanced : Default on start()
+    [*] --> Performance : Default on start()
 
     state "Performance\n>80% or charging\nScan 80% · Ads 250ms\nKeepalive 5s · Conn 8" as Perf
     state "Balanced\n30–80%\nScan 50% · Ads 500ms\nKeepalive 15s · Conn 4" as Bal

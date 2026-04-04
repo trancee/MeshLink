@@ -210,4 +210,29 @@ class PowerCoordinatorTest {
         assertIs<ModeChangeResult.Unchanged>(r3)
         assertEquals(PowerMode.BALANCED, pc.currentMode)
     }
+
+    @Test
+    fun customThresholds_wire_through() {
+        val pc = PowerCoordinator(
+            clock = { 0L },
+            hysteresisMillis = 0L,
+            thresholds = listOf(90, 50),
+        )
+        assertEquals(PowerMode.PERFORMANCE, pc.currentMode)
+
+        // 60% is between 50 and 90 → BALANCED with custom thresholds
+        pc.updateBattery(60, isCharging = false)
+        pc.updateBattery(60, isCharging = false)
+        assertEquals(PowerMode.BALANCED, pc.currentMode)
+
+        // 40% is below 50 → POWER_SAVER
+        pc.updateBattery(40, isCharging = false)
+        pc.updateBattery(40, isCharging = false)
+        assertEquals(PowerMode.POWER_SAVER, pc.currentMode)
+
+        // 95% is above 90 → PERFORMANCE
+        val result = pc.updateBattery(95, isCharging = false)
+        assertIs<ModeChangeResult.Changed>(result)
+        assertEquals(PowerMode.PERFORMANCE, pc.currentMode)
+    }
 }

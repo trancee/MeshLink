@@ -7,8 +7,12 @@ enum class PowerMode { PERFORMANCE, BALANCED, POWER_SAVER }
 class PowerModeEngine(
     private val hysteresisMillis: Long = 30_000,
     private val deadZonePercent: Int = 2,
+    private val thresholds: List<Int> = listOf(80, 30),
     private val clock: () -> Long = { currentTimeMillis() },
 ) {
+    private val upperThreshold: Int = thresholds.getOrElse(0) { 80 }
+    private val lowerThreshold: Int = thresholds.getOrElse(1) { 30 }
+
     private var currentMode: PowerMode = PowerMode.PERFORMANCE
     private var pendingDowngrade: PowerMode? = null
     private var downgradeRequestedAt: Long = 0
@@ -61,20 +65,22 @@ class PowerModeEngine(
      */
     private fun modeForBattery(percent: Int, current: PowerMode): PowerMode {
         val dz = deadZonePercent
+        val hi = upperThreshold
+        val lo = lowerThreshold
         return when (current) {
             PowerMode.PERFORMANCE -> when {
-                percent > 80 - dz -> PowerMode.PERFORMANCE
-                percent >= 30 - dz -> PowerMode.BALANCED
+                percent > hi - dz -> PowerMode.PERFORMANCE
+                percent >= lo - dz -> PowerMode.BALANCED
                 else -> PowerMode.POWER_SAVER
             }
             PowerMode.BALANCED -> when {
-                percent > 80 + dz -> PowerMode.PERFORMANCE
-                percent >= 30 - dz -> PowerMode.BALANCED
+                percent > hi + dz -> PowerMode.PERFORMANCE
+                percent >= lo - dz -> PowerMode.BALANCED
                 else -> PowerMode.POWER_SAVER
             }
             PowerMode.POWER_SAVER -> when {
-                percent > 80 + dz -> PowerMode.PERFORMANCE
-                percent >= 30 + dz -> PowerMode.BALANCED
+                percent > hi + dz -> PowerMode.PERFORMANCE
+                percent >= lo + dz -> PowerMode.BALANCED
                 else -> PowerMode.POWER_SAVER
             }
         }

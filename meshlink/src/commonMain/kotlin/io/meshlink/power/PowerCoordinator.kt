@@ -19,8 +19,13 @@ sealed interface ModeChangeResult {
 class PowerCoordinator(
     clock: () -> Long = { currentTimeMillis() },
     hysteresisMillis: Long = 30_000L,
+    thresholds: List<Int> = listOf(80, 30),
 ) {
-    private val powerModeEngine = PowerModeEngine(hysteresisMillis = hysteresisMillis, clock = clock)
+    private val powerModeEngine = PowerModeEngine(
+        hysteresisMillis = hysteresisMillis,
+        thresholds = thresholds,
+        clock = clock,
+    )
     private var _currentMode: PowerMode = PowerMode.PERFORMANCE
     private var _customPowerMode: PowerMode? = null
 

@@ -1554,7 +1554,7 @@ When battery level crosses a threshold and the power mode changes:
 **Inbound connections during downgrade:** Accepted (BLE stack cannot selectively reject at connection level). If accepting exceeds the new budget, the existing connection with the lowest priority score is evicted. If the newcomer has lower priority than all existing connections and the budget is full, the newcomer is disconnected after handshake with `CONNECTION_REJECTED` diagnostic.
 
 **Hysteresis:** Two layers prevent mode flapping:
-1. **Level-based dead zone (±2%):** Downward crossings require the battery to drop 2% below the threshold; upward crossings require rising 2% above. A device at 79% stays in Performance (threshold 80-2=78). Configurable via `deadZonePercent`.
+1. **Level-based dead zone (±2%):** Downward crossings require the battery to drop 2% below the threshold; upward crossings require rising 2% above. A device at 79% stays in Performance (threshold 80−2=78).
 2. **Time-based delay (30s):** After leaving the dead zone, downward transitions require the battery to remain below for 30 seconds continuously. Upward transitions are immediate.
 
 **Cascading transitions during grace:** Once a 30-second grace period starts, further **downward** transitions do NOT shorten or cancel it — the timer runs to completion regardless of additional battery drops. The 30-second window is already short enough that further power savings are negligible. However, an **upward** transition (e.g., charger plugged in) **cancels the grace period immediately** — the higher power mode provides sufficient connection slots, making the grace period unnecessary.

@@ -10,7 +10,7 @@ A **Kotlin Multiplatform (KMP)** BLE mesh messaging library for **Android**, **i
 - **Large message transfer** — Chunking, selective ACKs (SACK), AIMD congestion control, byte-offset resume
 - **Power-aware operation** — Automatic tuning of scan duty cycle, advertising interval, and chunk sizes based on battery level
 - **L2CAP support** — High-throughput data plane with automatic GATT fallback
-- **Real-time diagnostics** — 20 diagnostic event codes, health snapshots, and Flow-based event streams
+- **Real-time diagnostics** — 21 diagnostic event codes, health snapshots, and Flow-based event streams
 - **Identity rotation** — Rotate keys with signed broadcast announcements and configurable grace periods
 
 ## Platform Support

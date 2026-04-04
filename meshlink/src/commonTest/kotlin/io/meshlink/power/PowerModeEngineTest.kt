@@ -127,4 +127,33 @@ class PowerModeEngineTest {
         engine.update(74, false) // below dead zone
         assertEquals(PowerMode.BALANCED, engine.update(74, false))
     }
+
+    @Test
+    fun customThresholds() {
+        var now = 0L
+        val engine = PowerModeEngine(
+            hysteresisMillis = 0,
+            thresholds = listOf(90, 50),
+            clock = { now },
+        )
+
+        // Custom thresholds: >90 = PERFORMANCE, 50-90 = BALANCED, <50 = POWER_SAVER
+        assertEquals(PowerMode.PERFORMANCE, engine.update(95, false))
+
+        // Drop below 90-2=88 → BALANCED
+        now += 1
+        engine.update(87, false)
+        assertEquals(PowerMode.BALANCED, engine.update(87, false))
+
+        // Drop below 50-2=48 → POWER_SAVER
+        now += 1
+        engine.update(47, false)
+        assertEquals(PowerMode.POWER_SAVER, engine.update(47, false))
+
+        // Rise above 50+2=52 → BALANCED
+        assertEquals(PowerMode.BALANCED, engine.update(53, false))
+
+        // Rise above 90+2=92 → PERFORMANCE
+        assertEquals(PowerMode.PERFORMANCE, engine.update(93, false))
+    }
 }
