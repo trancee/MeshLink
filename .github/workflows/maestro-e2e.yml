@@ -112,7 +112,7 @@ jobs:
             adb shell pm grant io.meshlink.sample android.permission.BLUETOOTH_ADVERTISE
             adb shell pm grant io.meshlink.sample android.permission.ACCESS_FINE_LOCATION
 
-            maestro-runner --platform android --output ./reports/android --flatten --wait-for-idle-timeout 500 test maestro/flows/e2e/
+            maestro-runner --platform android --output ./reports/android --flatten --wait-for-idle-timeout 500 test maestro/flows/android/
 
       # ── Upload reports ────────────────────────────────────────────────
       - name: Publish JUnit report

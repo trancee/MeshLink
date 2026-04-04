@@ -183,19 +183,19 @@ diagnostics.
 
 ```bash
 # All UI tests
-maestro test maestro/flows/e2e/
+maestro test maestro/flows/android/
 
 # Smoke tests only
-maestro test maestro/flows/e2e/ --include-tags=smoke
+maestro test maestro/flows/android/ --include-tags=smoke
 
 # Single flow
-maestro test maestro/flows/e2e/01-app-launch-navigation.yaml
+maestro test maestro/flows/android/01-app-launch-navigation.yaml
 
 # Continuous mode (re-runs on every YAML save — great for development)
-maestro test maestro/flows/e2e/01-app-launch-navigation.yaml -c
+maestro test maestro/flows/android/01-app-launch-navigation.yaml -c
 
 # Generate JUnit report
-maestro test maestro/flows/e2e/ --format=JUNIT --output=report.xml
+maestro test maestro/flows/android/ --format=JUNIT --output=report.xml
 ```
 
 **Flow structure:**
@@ -204,7 +204,7 @@ maestro test maestro/flows/e2e/ --format=JUNIT --output=report.xml
 maestro/
 ├── config.yaml                        # Workspace config
 └── flows/
-    ├── e2e/                           # 10 Android end-to-end flows
+    ├── android/                       # 10 Android end-to-end flows
     │   ├── 01-app-launch-navigation   # Tab navigation (smoke)
     │   ├── 02-start-stop-mesh         # Mesh lifecycle (smoke)
     │   ├── 03-broadcast-message       # Broadcast messaging (smoke)
@@ -216,7 +216,7 @@ maestro/
     │   ├── 09-health-card             # Health snapshot fields
     │   └── 10-send-validation         # Button enable/disable
     ├── ios/                           # 10 iOS end-to-end flows
-    │   └── (mirrors e2e/ with SwiftUI-specific selectors)
+    │   └── (mirrors android/ with SwiftUI-specific selectors)
     └── subflows/                      # Shared building blocks
         ├── grant-permissions.yaml     # BLE + Location (Android & iOS)
         ├── navigate-to-tab.yaml       # Parameterized tab navigation
