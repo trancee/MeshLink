@@ -79,7 +79,7 @@ jobs:
       - name: Build APK & install maestro-runner
         run: |
           # Start APK build in background
-          ./gradlew :meshlink-sample:android:assembleDebug &
+          ./gradlew :meshlink-sample:android:assembleDebug --build-cache --parallel &
           GRADLE_PID=$!
 
           # Download and install maestro-runner while Gradle builds
@@ -157,7 +157,7 @@ jobs:
         run: |
           # Build only the release XCFramework (Package.swift references release path).
           # This skips the debug variant, saving ~50% of K/N link time.
-          ./gradlew :meshlink:assembleMeshLinkReleaseXCFramework &
+          ./gradlew :meshlink:assembleMeshLinkReleaseXCFramework --build-cache --parallel &
           GRADLE_PID=$!
 
           # Boot simulator while Gradle compiles Kotlin/Native
