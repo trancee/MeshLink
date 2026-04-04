@@ -136,8 +136,9 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 25
     env:
+      # Don't disable the daemon — it causes a costly single-use daemon fork
+      # when JVM args differ. Let Gradle manage the daemon lifecycle.
       GRADLE_OPTS: >-
-        -Dorg.gradle.daemon=false
         -Dorg.gradle.workers.max=3
         -Dkotlin.native.jvmArgs=-Xmx3g
       MAESTRO_RUNNER_HOME: /opt/maestro-runner
@@ -180,12 +181,14 @@ jobs:
           key: wda-${{ runner.os }}-${{ env.MAESTRO_RUNNER_VERSION }}-xcode${{ steps.xcode.outputs.version }}
 
       # ── Build iOS Simulator framework + boot simulator + install maestro-runner ──
-      #    Only build the simulator slice (not arm64 device or macOS) — saves ~3 min.
+      #    Uses debug framework (5× faster link — skips LLVM optimizations).
+      #    Only builds the simulator slice (not arm64 device or macOS).
       #    All three tasks run in parallel to overlap I/O-bound work.
       - name: Build framework, boot simulator & install maestro-runner
         run: |
-          # Build only the iOS Simulator framework (skips IosArm64 + MacosArm64 compilation)
-          ./gradlew :meshlink:linkReleaseFrameworkIosSimulatorArm64 --build-cache --parallel &
+          # Debug framework links ~5× faster than release (no LLVM opts).
+          # For E2E UI tests, debug performance is perfectly fine.
+          ./gradlew :meshlink:linkDebugFrameworkIosSimulatorArm64 --build-cache --parallel &
           GRADLE_PID=$!
 
           # Boot simulator while Gradle compiles Kotlin/Native
@@ -212,7 +215,7 @@ jobs:
           wait $GRADLE_PID
 
           # Create a single-slice XCFramework at the path Package.swift expects
-          FRAMEWORK_DIR="meshlink/build/bin/iosSimulatorArm64/releaseFramework"
+          FRAMEWORK_DIR="meshlink/build/bin/iosSimulatorArm64/debugFramework"
           XCFW_OUT="meshlink/build/XCFrameworks/release/MeshLink.xcframework"
           rm -rf "$XCFW_OUT"
           xcodebuild -create-xcframework \

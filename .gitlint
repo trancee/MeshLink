@@ -1,0 +1,20 @@
+[general]
+# Enforce conventional commits
+contrib=contrib-title-conventional-commits
+# Don't require a body
+ignore=body-is-missing,B6
+
+# Max line lengths
+[title-max-length]
+line-length=100
+
+[body-max-line-length]
+line-length=160
+
+# Title must not end with a period
+[title-must-not-contain-word]
+words=WIP,wip
+
+# Conventional commit types allowed
+[contrib-title-conventional-commits]
+types=feat,fix,refactor,perf,test,docs,style,build,ci,chore,revert

@@ -8,3 +8,10 @@ repos:
         language: system
         pass_filenames: false
         always_run: true
+
+      - id: gitlint
+        name: gitlint
+        description: Lint commit message (conventional commits)
+        entry: gitlint --staged --msg-filename
+        language: system
+        stages: [commit-msg]
