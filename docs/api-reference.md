@@ -144,6 +144,25 @@ enum class LifecycleState {
 
 Access via `val state: LifecycleState`.
 
+```mermaid
+stateDiagram-v2
+    [*] --> UNINITIALIZED
+    UNINITIALIZED --> RUNNING : start() success
+    UNINITIALIZED --> RECOVERABLE : start() retryable
+    UNINITIALIZED --> TERMINAL : start() fatal
+    RUNNING --> PAUSED : pause()
+    PAUSED --> RUNNING : resume()
+    RUNNING --> STOPPED : stop()
+    PAUSED --> STOPPED : stop()
+    RECOVERABLE --> STOPPED : stop()
+    RECOVERABLE --> RUNNING : start() retry
+    RECOVERABLE --> TERMINAL : start() fatal
+    STOPPED --> RUNNING : start()
+    STOPPED --> RECOVERABLE : start() retryable
+    STOPPED --> TERMINAL : start() fatal
+    TERMINAL --> [*] : Create new instance
+```
+
 **Transition rules:**
 
 | Method | Valid from | Transitions to |

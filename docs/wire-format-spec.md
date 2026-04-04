@@ -35,13 +35,16 @@ Service Data AD structure with the MeshLink 128-bit service UUID.
 
 **Source:** `AdvertisementCodec.kt` · `SIZE = 16`
 
-```
-Byte:   0               1               2       3       4                          15
-       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-- ... --+-+-+
-       |MajVer |PwrMode|  VersionMinor | MeshHash (LE) |   Truncated SHA-256      |
-       |4 bits |4 bits |   (8 bits)    |   (16 bits)   |   of X25519 public key   |
-       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-- ... --+-+-+
-       |<--- 1 byte --->|<-- 1 byte -->|<-- 2 bytes -->|<------- 12 bytes -------->|
+```mermaid
+---
+title: "BLE Advertisement Payload (16 bytes)"
+---
+packet
+0-3: "MajVer (4b)"
+4-7: "PwrMode (4b)"
+8-15: "VersionMinor"
+16-31: "meshHash (LE)"
+32-127: "Truncated SHA-256 of X25519 public key (12 bytes)"
 ```
 
 | Offset | Size | Field | Type | Endianness | Description |
@@ -73,12 +76,14 @@ is embedded in the `noiseMessage` field of a Handshake message (type `0x00`).
 
 **Source:** `HandshakePayload.kt` · `SIZE = 5`
 
-```
-Byte:   0       1       2       3       4
-       +-------+-------+-------+-------+-------+
-       | protocolVersion (BE)  | caps  | l2capPsm (BE) |
-       |      UShort           | UByte |    UShort      |
-       +-------+-------+-------+-------+-------+
+```mermaid
+---
+title: "Noise XX Handshake Payload (5 bytes)"
+---
+packet
+0-15: "protocolVersion (BE)"
+16-23: "capabilityFlags"
+24-39: "l2capPsm (BE)"
 ```
 
 | Offset | Size | Field | Type | Endianness | Description |
@@ -120,23 +125,15 @@ defined and parsed by `TlvCodec.kt`.
 
 The extension area is appended immediately after the fixed body of a message:
 
-```
-Byte:   +0              +1              +2
-       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-- ... --+
-       |   extensionLength (2, LE)     | TLV entries ...        |
-       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-- ... --+
-```
-
-- **extensionLength** (UShort LE, 2 bytes) — total byte length of all TLV
-  entries that follow. When no extensions are present, this is `0x00 0x00`
-  (2 bytes of zero-overhead).
-- Each TLV entry has a 3-byte header plus its value:
-
-```
-       +-------+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+--- ... ---+
-       |  tag  |     length (2, LE)            |  value    |
-       | 1 byte|        UShort                 | len bytes |
-       +-------+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+--- ... ---+
+```mermaid
+---
+title: "TLV Extension Area"
+---
+packet
+0-15: "extensionLength (2B LE)"
+16-23: "tag"
+24-39: "length (2B LE)"
+40-47: "value (len bytes) ..."
 ```
 
 | Field | Size | Type | Endianness | Description |
@@ -198,24 +195,19 @@ Flood-fill message propagated through the mesh. Optionally signed with Ed25519.
 
 **Source:** `MessagingCodec.kt` · `BROADCAST_HEADER_SIZE = 40` (+ optional signature + payload)
 
-```
-Byte:   0       1                              16  17                 28
-       +-------+---------- ... ----------------+---+--- ... ---------+
-       | 0x09  |         messageId (16)         |    origin (12)     |
-       +-------+---------- ... ----------------+---+--- ... ---------+
-
-       29      30                     37  38      39
-       +-------+---------- ... --------+-------+-------+
-       | rHops |     appIdHash (8)     | flags | prio  |
-       +-------+---------- ... --------+-------+-------+
-
-       If flags bit 0 set (HAS_SIGNATURE):
-       31                                      94  95                             126
-       +---------- ... ------------------------+---------- ... ------------------+
-       |         signature (64)                |       signerPublicKey (32)      |
-       +---------- ... ------------------------+---------- ... ------------------+
-
-       Followed by: payload (remaining bytes)
+```mermaid
+---
+title: "Broadcast (0x09)"
+---
+packet
+0-7: "0x09"
+8-135: "messageId (16 bytes)"
+136-231: "origin (12 bytes)"
+232-239: "rHops"
+240-303: "appIdHash (8 bytes)"
+304-311: "flags"
+312-319: "priority"
+320-327: "[signature 64B + key 32B if signed] + payload ..."
 ```
 
 | Offset | Size | Field | Type | Endianness | Description |
@@ -243,11 +235,14 @@ Wraps a single step of the Noise XX handshake protocol.
 
 **Source:** `WireCodec.kt` · `HANDSHAKE_HEADER_SIZE = 2`
 
-```
-Byte:   0       1       2                              N
-       +-------+-------+---------- ... ----------------+
-       | 0x00  | step  |     noiseMessage (variable)    |
-       +-------+-------+---------- ... ----------------+
+```mermaid
+---
+title: "Handshake (0x00)"
+---
+packet
+0-7: "0x00"
+8-15: "step"
+16-23: "noiseMessage (variable) ..."
 ```
 
 | Offset | Size | Field | Type | Endianness | Description |
@@ -276,11 +271,14 @@ routing table as a batch of Update messages.
 
 **Source:** `RoutingCodec.kt` · Fixed size: **15 bytes**
 
-```
-Byte:   0       1            12  13     14
-       +-------+---- ... ----+--+------+------+
-       | 0x03  | sender (12) |  | seqNo (2 LE) |
-       +-------+---- ... ----+--+------+------+
+```mermaid
+---
+title: "Hello / Babel (0x03)"
+---
+packet
+0-7: "0x03"
+8-103: "sender (12 bytes)"
+104-119: "seqNo (LE)"
 ```
 
 | Offset | Size | Field | Type | Endianness | Description |
@@ -306,11 +304,16 @@ unreachable).
 
 **Source:** `RoutingCodec.kt` · Fixed size: **49 bytes**
 
-```
-Byte:   0       1            12  13     14  15     16  17           48
-       +-------+---- ... ----+--+------+---+------+---+---- ... ----+
-       | 0x04  |  dest (12)  |  |metric(2LE)| seqNo(2LE)|pubkey (32) |
-       +-------+---- ... ----+--+------+---+------+---+---- ... ----+
+```mermaid
+---
+title: "Update / Babel (0x04)"
+---
+packet
+0-7: "0x04"
+8-103: "destination (12 bytes)"
+104-119: "metric (LE)"
+120-135: "seqNo (LE)"
+136-391: "publicKey (32 bytes)"
 ```
 
 | Offset | Size | Field | Type | Endianness | Description |
@@ -335,22 +338,27 @@ it, saving 2 bytes per chunk.
 
 **Source:** `WireCodec.kt` · `CHUNK_HEADER_SIZE_FIRST = 21`, `CHUNK_HEADER_SIZE_SUBSEQUENT = 19`
 
-**First chunk (seq = 0):**
-
+```mermaid
+---
+title: "Chunk — First (seq=0, 0x05)"
+---
+packet
+0-7: "0x05"
+8-135: "messageId (16 bytes)"
+136-151: "seqNum (LE)"
+152-167: "totalChunks (LE)"
+168-175: "payload ..."
 ```
-Byte:   0       1                              16  17      18  19      20  21       N
-       +-------+---------- ... ----------------+---+-------+---+-------+---+-- ... --+
-       | 0x05  |         messageId (16)         | seqNum(LE)  |totalChk(LE)| payload  |
-       +-------+---------- ... ----------------+---+-------+---+-------+---+-- ... --+
-```
 
-**Subsequent chunks (seq > 0):**
-
-```
-Byte:   0       1                              16  17      18  19       N
-       +-------+---------- ... ----------------+---+-------+---+-- ... --+
-       | 0x05  |         messageId (16)         | seqNum(LE)  | payload  |
-       +-------+---------- ... ----------------+---+-------+---+-- ... --+
+```mermaid
+---
+title: "Chunk — Subsequent (seq>0, 0x05)"
+---
+packet
+0-7: "0x05"
+8-135: "messageId (16 bytes)"
+136-151: "seqNum (LE)"
+152-159: "payload ..."
 ```
 
 | Offset | Size | Field | Type | Endianness | Description |
@@ -376,11 +384,17 @@ out-of-order reception. Covers up to 128 chunks beyond `ackSequence`.
 
 **Source:** `ChunkCodec.kt` · `CHUNK_ACK_SIZE = 27` (+ TLV extension area)
 
-```
-Byte:   0       1                              16  17      18  19                     26  27  28
-       +-------+---------- ... ----------------+---+-------+---+---------- ... --------+---+---+-- ... --+
-       | 0x06  |         messageId (16)         |ackSeq (LE)  | sackBitmask (8, LE)    |extLen | TLV ...  |
-       +-------+---------- ... ----------------+---+-------+---+---------- ... --------+---+---+-- ... --+
+```mermaid
+---
+title: "Chunk ACK (0x06)"
+---
+packet
+0-7: "0x06"
+8-135: "messageId (16 bytes)"
+136-151: "ackSequence (LE)"
+152-215: "sackBitmask (8B LE)"
+216-231: "extLen (LE)"
+232-239: "TLV ..."
 ```
 
 | Offset | Size | Field | Type | Endianness | Description |
@@ -402,23 +416,19 @@ list for loop detection.
 
 **Source:** `MessagingCodec.kt` · `ROUTED_HEADER_SIZE = 52`
 
-```
-Byte:   0       1                              16  17           28  29           40
-       +-------+---------- ... ----------------+---+-- ... ----+---+-- ... ----+
-       | 0x0A  |       messageId (16)           | origin (12)  | dest (12)    |
-       +-------+---------- ... ----------------+---+-- ... ----+---+-- ... ----+
-
-       41      42                             49  50
-       +-------+---------- ... ----------------+-------+
-       | hLim  |    replayCounter (8, LE)      | vCnt  |
-       +-------+---------- ... ----------------+-------+
-
-       For each of `vCnt` visited entries (12 bytes each):
-       +------- ... --------+
-       |  visited peer (12) |
-       +------- ... --------+
-
-       Followed by: priority (1 byte) + payload (remaining bytes)
+```mermaid
+---
+title: "Routed Message (0x0A)"
+---
+packet
+0-7: "0x0A"
+8-135: "messageId (16 bytes)"
+136-231: "origin (12 bytes)"
+232-327: "destination (12 bytes)"
+328-335: "hopLimit"
+336-399: "replayCounter (8B LE)"
+400-407: "visitedCount"
+408-415: "visited[] + priority + payload ..."
 ```
 
 | Offset | Size | Field | Type | Endianness | Description |
@@ -446,22 +456,16 @@ End-to-end delivery confirmation, optionally signed for non-repudiation.
 
 **Source:** `WireCodec.kt` · `DELIVERY_ACK_HEADER_SIZE = 30` (+ optional signature + TLV extension area)
 
-```
-Byte:   0       1                              16  17                 28  29
-       +-------+---------- ... ----------------+---+--- ... ---------+-------+
-       | 0x0B  |         messageId (16)         |   recipientId (12) | flags |
-       +-------+---------- ... ----------------+---+--- ... ---------+-------+
-
-       If flags bit 0 set (HAS_SIGNATURE):
-       30                                      93  94                             125
-       +---------- ... ------------------------+---------- ... ------------------+
-       |         signature (64)                |     signerPublicKey (32)        |
-       +---------- ... ------------------------+---------- ... ------------------+
-
-       After body end (offset 30 or 126):
-       +-------+-- ... --+
-       |extLen | TLV ... |
-       +-------+-- ... --+
+```mermaid
+---
+title: "Delivery ACK (0x0B)"
+---
+packet
+0-7: "0x0B"
+8-135: "messageId (16 bytes)"
+136-231: "recipientId (12 bytes)"
+232-239: "flags"
+240-247: "[sig 64B + key 32B if signed] + TLV ..."
 ```
 
 | Offset | Size | Field | Type | Endianness | Description |
@@ -487,11 +491,16 @@ bytes have already been received.
 
 **Source:** `WireCodec.kt` · `RESUME_REQUEST_SIZE = 21` (+ TLV extension area)
 
-```
-Byte:   0       1                              16  17                  20  21  22
-       +-------+---------- ... ----------------+---+-------+-------+---+---+---+-- ... --+
-       | 0x08  |         messageId (16)         | bytesReceived (4,LE) |extLen | TLV ...  |
-       +-------+---------- ... ----------------+---+-------+-------+---+---+---+-- ... --+
+```mermaid
+---
+title: "Resume Request (0x08)"
+---
+packet
+0-7: "0x08"
+8-135: "messageId (16 bytes)"
+136-167: "bytesReceived (4B LE)"
+168-183: "extLen (LE)"
+184-191: "TLV ..."
 ```
 
 | Offset | Size | Field | Type | Endianness | Description |
@@ -511,11 +520,16 @@ Lightweight link liveness probe with a timestamp and optional flags.
 
 **Source:** `WireCodec.kt` · `KEEPALIVE_SIZE = 10` (+ TLV extension area)
 
-```
-Byte:   0       1       2                                       9  10  11
-       +-------+-------+-------+-------+-------+-------+-------+-------+-------+-------+---+---+-- ... --+
-       | 0x01  | flags |              timestampMillis (8, LE)                            |extLen | TLV ...  |
-       +-------+-------+-------+-------+-------+-------+-------+-------+-------+-------+---+---+-- ... --+
+```mermaid
+---
+title: "Keepalive (0x01)"
+---
+packet
+0-7: "0x01"
+8-15: "flags"
+16-79: "timestampMillis (8B LE)"
+80-95: "extLen (LE)"
+96-103: "TLV ..."
 ```
 
 | Offset | Size | Field | Type | Endianness | Description |
@@ -536,11 +550,16 @@ processed. Includes a reason code so the sender can distinguish failure modes.
 
 **Source:** `WireCodec.kt` · `NACK_SIZE = 18` (+ TLV extension area)
 
-```
-Byte:   0       1                              16      17  18  19
-       +-------+---------- ... ----------------+-------+---+---+-- ... --+
-       | 0x07  |         messageId (16)         |reason |extLen | TLV ...  |
-       +-------+---------- ... ----------------+-------+---+---+-- ... --+
+```mermaid
+---
+title: "NACK (0x07)"
+---
+packet
+0-7: "0x07"
+8-135: "messageId (16 bytes)"
+136-143: "reason"
+144-159: "extLen (LE)"
+160-167: "TLV ..."
 ```
 
 | Offset | Size | Field | Type | Endianness | Description |
@@ -561,21 +580,18 @@ the transition is authorized.
 
 **Source:** `RotationAnnouncement.kt` · `SIZE = 201`
 
-```
-Byte:   0       1                              32  33                             64
-       +-------+---------- ... ----------------+---+---------- ... ----------------+
-       | 0x02  |     oldX25519Key (32)          |      newX25519Key (32)           |
-       +-------+---------- ... ----------------+---+---------- ... ----------------+
-
-       65                             96  97                            128
-       +---------- ... ----------------+---+---------- ... ----------------+
-       |      oldEd25519Key (32)       |      newEd25519Key (32)          |
-       +---------- ... ----------------+---+---------- ... ----------------+
-
-       129                           136  137                           200
-       +---------- ... ----------------+---+---------- ... ----------------+
-       | timestampMillis (8, BE ULong)     |        signature (64)            |
-       +---------- ... ----------------+---+---------- ... ----------------+
+```mermaid
+---
+title: "Rotation Announcement (0x02, 201 bytes)"
+---
+packet
+0-7: "0x02"
+8-263: "oldX25519Key (32 bytes)"
+264-519: "newX25519Key (32 bytes)"
+520-775: "oldEd25519Key (32 bytes)"
+776-1031: "newEd25519Key (32 bytes)"
+1032-1095: "timestampMillis (8B BE)"
+1096-1607: "signature (64 bytes)"
 ```
 
 | Offset | Size | Field | Type | Endianness | Description |
@@ -623,11 +639,13 @@ When `compressionEnabled = true` (the default), every payload is wrapped in a
 Used when the payload size is below `compressionMinBytes` (default 128) or when
 compression did not reduce the payload size.
 
-```
-Byte:  0       1                    N
-      +-------+------- ... --------+
-      | 0x00  |     payload (N-1)  |
-      +-------+------- ... --------+
+```mermaid
+---
+title: "Uncompressed Envelope"
+---
+packet
+0-7: "0x00"
+8-15: "payload (N-1 bytes) ..."
 ```
 
 | Offset | Size | Field | Type | Endianness | Description |
@@ -639,11 +657,14 @@ Byte:  0       1                    N
 
 Used when the payload is ≥ `compressionMinBytes` and DEFLATE reduces its size.
 
-```
-Byte:  0       1                  4   5                          N
-      +-------+------ ... -------+---+----------- ... ----------+
-      | 0x01  | originalSize(4,LE)|   | DEFLATE compressed data |
-      +-------+------ ... -------+---+----------- ... ----------+
+```mermaid
+---
+title: "Compressed Envelope"
+---
+packet
+0-7: "0x01"
+8-39: "originalSize (4B LE)"
+40-47: "DEFLATE data ..."
 ```
 
 | Offset | Size | Field | Type | Endianness | Description |

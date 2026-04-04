@@ -118,6 +118,25 @@ violations.forEach { println("⚠️ $it") }  // "mtu must be > 17 (chunk header
 
 ## Sending & Receiving Messages
 
+### Message Lifecycle
+
+```mermaid
+flowchart LR
+    Send["App calls\nsend()"] --> Policy{"Rate limit?\nBuffer full?"}
+    Policy -->|Fail| Err["Result.failure"]
+    Policy -->|Pass| Encrypt["Noise K\nE2E encrypt"]
+    Encrypt --> Chunk["Chunk into\nMTU segments"]
+    Chunk --> HopEnc["Noise XX\nhop-by-hop"]
+    HopEnc --> BLE["BLE\ntransmit"]
+    BLE --> Relay{"Direct\nneighbor?"}
+    Relay -->|Yes| Dest
+    Relay -->|No| Fwd["Relay\nforwards"]
+    Fwd --> Dest["Recipient\ndecrypts"]
+    Dest --> App["messages\nFlow emits"]
+    Dest --> ACK["Delivery\nACK"]
+    ACK --> Confirm["deliveryConfirmations\nFlow emits"]
+```
+
 ### Unicast Messages
 
 ```kotlin
@@ -254,6 +273,22 @@ The effective chunk size is `min(modeMax, mtu - 17)`.
 ## Encryption & Trust
 
 MeshLink provides two layers of encryption when a `CryptoProvider` is supplied.
+
+```mermaid
+flowchart LR
+    subgraph E2E["End-to-End (Noise K)"]
+        direction LR
+        S["Sender"] -.->|"sealed payload\n(only recipient reads)"| R["Recipient"]
+    end
+    subgraph H2H1["Hop-by-Hop"]
+        direction LR
+        S2["Sender"] -->|"Noise XX"| Relay["Relay"]
+    end
+    subgraph H2H2["Hop-by-Hop"]
+        direction LR
+        Relay2["Relay"] -->|"Noise XX"| R2["Recipient"]
+    end
+```
 
 ### Enabling Encryption
 

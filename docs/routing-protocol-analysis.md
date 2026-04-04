@@ -75,6 +75,19 @@ for MANETs.
 
 ### Head-to-Head Comparison
 
+```mermaid
+---
+title: "AODV vs Babel"
+---
+radar-beta
+  axis lf["Loop Freedom"], lat["First-Msg Latency"], met["Metric Support"]
+  axis fd["Failure Detection"], key["Key Propagation"], rq["Route Quality"]
+  curve aodv["AODV"]{2, 2, 1, 1, 1, 2}
+  curve babel["Babel"]{5, 5, 5, 5, 5, 5}
+  max 5
+  min 0
+```
+
 | Property | AODV | Babel | Winner |
 |----------|------|-------|--------|
 | Loop freedom | Not during convergence | Always (feasibility condition) | **Babel** |

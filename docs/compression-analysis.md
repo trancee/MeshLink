@@ -69,6 +69,25 @@ on Android/JVM/Linux without external libraries.
 
 **Keep DEFLATE (switch from zlib wrapper to raw DEFLATE).**
 
+```mermaid
+flowchart TD
+    Start["Choose compression\nalgorithm"] --> Dep{"Zero external\ndependencies?"}
+    Dep -->|No| Reject1["Reject Brotli,\nZstandard"]
+    Dep -->|Yes| Mem{"Encoder memory\n< 64 KB?"}
+    Mem -->|No| Reject2["Reject LZFSE\n(685 KB)"]
+    Mem -->|Yes| Small{"Good ratio on\nsub-1KB payloads?"}
+    Small -->|No| Reject3["Reject LZ4,\nLZVN-only"]
+    Small -->|Yes| Overhead{"Minimal per-msg\noverhead?"}
+    Overhead -->|No| Reject4["Reject gzip\n(18B overhead)"]
+    Overhead -->|Yes| Winner["Raw DEFLATE\n< 1B overhead\n32 KB memory\nall platforms"]
+
+    style Winner fill:#d4edda,stroke:#28a745
+    style Reject1 fill:#f8d7da,stroke:#dc3545
+    style Reject2 fill:#f8d7da,stroke:#dc3545
+    style Reject3 fill:#f8d7da,stroke:#dc3545
+    style Reject4 fill:#f8d7da,stroke:#dc3545
+```
+
 ### Rationale
 
 1. **Zero external dependencies** — Brotli and Zstandard both require native C

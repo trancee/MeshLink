@@ -206,6 +206,29 @@ Attacker → triggers crypto edge case (e.g., malformed handshake) → exception
 
 ---
 
+## Threat Priority Map
+
+```mermaid
+quadrantChart
+    title Threat Likelihood vs Impact
+    x-axis Low Likelihood --> High Likelihood
+    y-axis Low Impact --> High Impact
+    quadrant-1 Critical
+    quadrant-2 Monitor
+    quadrant-3 Accept
+    quadrant-4 Mitigate
+    TM-001 Memory Exhaustion: [0.85, 0.85]
+    TM-002 Plaintext Fallback: [0.80, 0.90]
+    TM-003 Dedup Exhaustion: [0.55, 0.55]
+    TM-004 Route Poisoning: [0.50, 0.75]
+    TM-005 Broadcast Amplification: [0.50, 0.80]
+    TM-006 Weak PRNG: [0.50, 0.85]
+    TM-007 Rotation Replay: [0.25, 0.75]
+    TM-008 Decrypt Fallback: [0.50, 0.50]
+    TM-009 Exception Leak: [0.20, 0.20]
+    TM-010 Debug Logging: [0.15, 0.20]
+```
+
 ## Threat model table
 
 | ID | Threat source | Prerequisites | Threat action | Impact | Impacted assets | Existing controls (evidence) | Gaps | Recommended mitigations | Detection ideas | Likelihood | Impact severity | Priority |
