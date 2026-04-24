@@ -29,10 +29,10 @@ import javax.crypto.spec.SecretKeySpec
  * real cryptographic operations without native libraries. It is not a shipping target.
  *
  * Key-encoding conventions (shared with AndroidCryptoProvider / libsodium):
- *   - Ed25519 private key: 64 bytes = seed (32) || compressed public key (32).
- *   - Ed25519 public key: 32 bytes, RFC 8032 compressed point (little-endian y + x-sign bit).
- *   - X25519 private key: 32 bytes, raw scalar.
- *   - X25519 public key: 32 bytes, little-endian u-coordinate (RFC 7748).
+ * - Ed25519 private key: 64 bytes = seed (32) || compressed public key (32).
+ * - Ed25519 public key: 32 bytes, RFC 8032 compressed point (little-endian y + x-sign bit).
+ * - X25519 private key: 32 bytes, raw scalar.
+ * - X25519 public key: 32 bytes, little-endian u-coordinate (RFC 7748).
  */
 internal class JvmCryptoProvider : CryptoProvider {
 
@@ -45,14 +45,17 @@ internal class JvmCryptoProvider : CryptoProvider {
         val edPriv = kp.private as EdECPrivateKey
 
         val pubKeyBytes = encodeEd25519PublicKey(edPub)
-        val seed = edPriv.bytes.orElseThrow { IllegalStateException("Ed25519 private key has no seed") }
+        val seed =
+            edPriv.bytes.orElseThrow { IllegalStateException("Ed25519 private key has no seed") }
         // 64-byte private key = seed (32) || public key (32) — matches libsodium convention.
         val privKeyBytes = seed + pubKeyBytes
         return KeyPair(publicKey = pubKeyBytes, privateKey = privKeyBytes)
     }
 
     override fun sign(privateKey: ByteArray, message: ByteArray): ByteArray {
-        require(privateKey.size == 64) { "Ed25519 private key must be 64 bytes, got ${privateKey.size}" }
+        require(privateKey.size == 64) {
+            "Ed25519 private key must be 64 bytes, got ${privateKey.size}"
+        }
         // First 32 bytes are the seed.
         val seed = privateKey.copyOf(32)
         val keySpec = EdECPrivateKeySpec(NamedParameterSpec.ED25519, seed)
@@ -64,7 +67,9 @@ internal class JvmCryptoProvider : CryptoProvider {
     }
 
     override fun verify(publicKey: ByteArray, message: ByteArray, signature: ByteArray): Boolean {
-        require(publicKey.size == 32) { "Ed25519 public key must be 32 bytes, got ${publicKey.size}" }
+        require(publicKey.size == 32) {
+            "Ed25519 public key must be 32 bytes, got ${publicKey.size}"
+        }
         return try {
             val pubKey = decodeEd25519PublicKey(publicKey)
             val sig = java.security.Signature.getInstance("Ed25519")
@@ -84,20 +89,25 @@ internal class JvmCryptoProvider : CryptoProvider {
         val xecPriv = kp.private as XECPrivateKey
         val xecPub = kp.public as XECPublicKey
 
-        val privKeyBytes = xecPriv.scalar
-            .orElseThrow { IllegalStateException("X25519 private key has no scalar") }
+        val privKeyBytes =
+            xecPriv.scalar.orElseThrow { IllegalStateException("X25519 private key has no scalar") }
         val pubKeyBytes = bigIntegerToLittleEndian32(xecPub.u)
         return KeyPair(publicKey = pubKeyBytes, privateKey = privKeyBytes)
     }
 
     override fun x25519SharedSecret(privateKey: ByteArray, publicKey: ByteArray): ByteArray {
-        require(privateKey.size == 32) { "X25519 private key must be 32 bytes, got ${privateKey.size}" }
-        require(publicKey.size == 32) { "X25519 public key must be 32 bytes, got ${publicKey.size}" }
+        require(privateKey.size == 32) {
+            "X25519 private key must be 32 bytes, got ${privateKey.size}"
+        }
+        require(publicKey.size == 32) {
+            "X25519 public key must be 32 bytes, got ${publicKey.size}"
+        }
         val kf = KeyFactory.getInstance("X25519")
         val privKey = kf.generatePrivate(XECPrivateKeySpec(NamedParameterSpec.X25519, privateKey))
-        val pubKey = kf.generatePublic(
-            XECPublicKeySpec(NamedParameterSpec.X25519, littleEndian32ToBigInteger(publicKey))
-        )
+        val pubKey =
+            kf.generatePublic(
+                XECPublicKeySpec(NamedParameterSpec.X25519, littleEndian32ToBigInteger(publicKey))
+            )
         val ka = KeyAgreement.getInstance("X25519")
         ka.init(privKey)
         ka.doPhase(pubKey, true)
@@ -147,7 +157,12 @@ internal class JvmCryptoProvider : CryptoProvider {
 
     // ── HKDF-SHA-256 (RFC 5869) ───────────────────────────────────────────────
 
-    override fun hkdfSha256(salt: ByteArray, ikm: ByteArray, info: ByteArray, length: Int): ByteArray {
+    override fun hkdfSha256(
+        salt: ByteArray,
+        ikm: ByteArray,
+        info: ByteArray,
+        length: Int,
+    ): ByteArray {
         require(length in 1..(255 * 32)) { "HKDF output length out of bounds: $length" }
 
         // Extract: PRK = HMAC-SHA256(salt, IKM). Per RFC 5869 §2.2: if salt is empty, use zeros.
@@ -178,8 +193,8 @@ internal class JvmCryptoProvider : CryptoProvider {
     // ── Key encoding helpers ──────────────────────────────────────────────────
 
     /**
-     * Encodes an [EdECPublicKey] as a 32-byte RFC 8032 compressed point:
-     * little-endian y-coordinate with the sign bit of x in the MSB of the last byte.
+     * Encodes an [EdECPublicKey] as a 32-byte RFC 8032 compressed point: little-endian y-coordinate
+     * with the sign bit of x in the MSB of the last byte.
      */
     private fun encodeEd25519PublicKey(key: EdECPublicKey): ByteArray {
         val point = key.point
@@ -194,9 +209,7 @@ internal class JvmCryptoProvider : CryptoProvider {
         return bytes
     }
 
-    /**
-     * Decodes a 32-byte RFC 8032 compressed Ed25519 point into a JDK [EdECPublicKey].
-     */
+    /** Decodes a 32-byte RFC 8032 compressed Ed25519 point into a JDK [EdECPublicKey]. */
     private fun decodeEd25519PublicKey(rawPubKey: ByteArray): java.security.PublicKey {
         val bytes = rawPubKey.copyOf()
         val xOdd = (bytes[31].toInt() and 0x80) != 0
@@ -208,7 +221,8 @@ internal class JvmCryptoProvider : CryptoProvider {
     }
 
     /**
-     * Converts a [BigInteger] to a 32-byte little-endian unsigned representation (RFC 7748 u-coord).
+     * Converts a [BigInteger] to a 32-byte little-endian unsigned representation (RFC 7748
+     * u-coord).
      */
     private fun bigIntegerToLittleEndian32(value: BigInteger): ByteArray {
         val beBytes = value.toByteArray() // big-endian, possibly with leading 0x00 sign byte

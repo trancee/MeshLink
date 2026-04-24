@@ -44,7 +44,10 @@ class CryptoProviderTest {
         val message = "authentic message".encodeToByteArray()
         val signature = provider.sign(kp.privateKey, message)
         val tampered = "tampered message".encodeToByteArray()
-        assertFalse(provider.verify(kp.publicKey, tampered, signature), "Wrong message must not verify")
+        assertFalse(
+            provider.verify(kp.publicKey, tampered, signature),
+            "Wrong message must not verify",
+        )
     }
 
     @Test
@@ -88,7 +91,7 @@ class CryptoProviderTest {
         assertEquals(
             plaintext.size + 16,
             ciphertext.size,
-            "Ciphertext must be plaintext.size + 16 (Poly1305 tag)"
+            "Ciphertext must be plaintext.size + 16 (Poly1305 tag)",
         )
 
         val decrypted = provider.aeadDecrypt(key, nonce, ciphertext, aad)
@@ -110,16 +113,41 @@ class CryptoProviderTest {
     @Test
     fun sha256OfEmptyInputMatchesRfcVector() {
         // SHA-256("") = e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
-        val expected = byteArrayOf(
-            0xe3.toByte(), 0xb0.toByte(), 0xc4.toByte(), 0x42.toByte(),
-            0x98.toByte(), 0xfc.toByte(), 0x1c.toByte(), 0x14.toByte(),
-            0x9a.toByte(), 0xfb.toByte(), 0xf4.toByte(), 0xc8.toByte(),
-            0x99.toByte(), 0x6f.toByte(), 0xb9.toByte(), 0x24.toByte(),
-            0x27.toByte(), 0xae.toByte(), 0x41.toByte(), 0xe4.toByte(),
-            0x64.toByte(), 0x9b.toByte(), 0x93.toByte(), 0x4c.toByte(),
-            0xa4.toByte(), 0x95.toByte(), 0x99.toByte(), 0x1b.toByte(),
-            0x78.toByte(), 0x52.toByte(), 0xb8.toByte(), 0x55.toByte(),
-        )
+        val expected =
+            byteArrayOf(
+                0xe3.toByte(),
+                0xb0.toByte(),
+                0xc4.toByte(),
+                0x42.toByte(),
+                0x98.toByte(),
+                0xfc.toByte(),
+                0x1c.toByte(),
+                0x14.toByte(),
+                0x9a.toByte(),
+                0xfb.toByte(),
+                0xf4.toByte(),
+                0xc8.toByte(),
+                0x99.toByte(),
+                0x6f.toByte(),
+                0xb9.toByte(),
+                0x24.toByte(),
+                0x27.toByte(),
+                0xae.toByte(),
+                0x41.toByte(),
+                0xe4.toByte(),
+                0x64.toByte(),
+                0x9b.toByte(),
+                0x93.toByte(),
+                0x4c.toByte(),
+                0xa4.toByte(),
+                0x95.toByte(),
+                0x99.toByte(),
+                0x1b.toByte(),
+                0x78.toByte(),
+                0x52.toByte(),
+                0xb8.toByte(),
+                0x55.toByte(),
+            )
         val actual = provider.sha256(byteArrayOf())
         assertContentEquals(expected, actual, "SHA-256 of empty input must match RFC vector")
     }

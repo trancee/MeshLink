@@ -1,7 +1,8 @@
-@file:OptIn(ExperimentalKotlinGradlePluginApi::class)
+@file:OptIn(ExperimentalKotlinGradlePluginApi::class, ExperimentalBCVApi::class)
 
 import kotlinx.kover.gradle.plugin.dsl.AggregationType
 import kotlinx.kover.gradle.plugin.dsl.CoverageUnit
+import kotlinx.validation.ExperimentalBCVApi
 import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
@@ -28,6 +29,9 @@ kotlin {
         minSdk = 29
 
         compilerOptions { jvmTarget.set(JvmTarget.JVM_11) }
+
+        // Enable JVM host-side Android unit tests (androidHostTest source set).
+        withHostTest {}
     }
 
     iosArm64()
