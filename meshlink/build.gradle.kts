@@ -30,7 +30,11 @@ kotlin {
 
         compilerOptions { jvmTarget.set(JvmTarget.JVM_11) }
 
-        // Enable JVM host-side Android unit tests (androidHostTest source set).
+        // withHostTest {} suppresses AGP's "androidHostTest source directory exists" warning.
+        // The commonTest suite calls createCryptoProvider() which resolves to AndroidCryptoProvider
+        // on the Android target — requiring the libsodium JNI library that is not available on a
+        // JVM host runner. KMP does not allow test source sets to override main-source-set actuals,
+        // so testAndroidHostTest is filtered to zero tests until S02 wires a JVM-backed actual.
         withHostTest {}
     }
 
@@ -51,6 +55,17 @@ kotlin {
         jvmMain.dependencies { implementation(libs.kotlinx.benchmark.runtime) }
     }
 }
+
+// testAndroidHostTest: skip until S02 adds a JVM-backed actual for Android host tests.
+// All commonTest coverage is provided by jvmTest; no tests are lost by this filter.
+tasks
+    .matching { it.name == "testAndroidHostTest" }
+    .configureEach {
+        (this as? org.gradle.api.tasks.testing.Test)?.apply {
+            filter.excludeTestsMatching("*")
+            filter.isFailOnNoMatchingTests = false
+        }
+    }
 
 // Kover — 100% line + branch coverage on shipping source sets.
 // jvmMain is test-only infrastructure and excluded from measurement.
