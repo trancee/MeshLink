@@ -15,6 +15,9 @@ plugins {
     alias(libs.plugins.ktfmt)
     alias(libs.plugins.bcv)
     alias(libs.plugins.kotlin.power.assert)
+    // allopen must precede benchmark — JMH requires benchmark classes to be open.
+    alias(libs.plugins.kotlin.allopen)
+    alias(libs.plugins.kotlinx.benchmark)
 }
 
 kotlin {
@@ -38,6 +41,10 @@ kotlin {
             implementation(libs.flatbuffers)
         }
         commonTest.dependencies { implementation(kotlin("test")) }
+        // jvmMain is test/build infrastructure only — not a shipping target.
+        // kotlinx-benchmark-runtime is required here for PlaceholderBenchmark and future
+        // benchmarks.
+        jvmMain.dependencies { implementation(libs.kotlinx.benchmark.runtime) }
     }
 }
 
@@ -50,10 +57,15 @@ kover {
     currentProject { sources { excludedSourceSets.addAll("jvmMain", "androidMain", "iosMain") } }
     reports {
         // Exclude Android/iOS platform stubs; covered by platform test suites in S02/S03.
+        // Exclude benchmark infrastructure — benchmarks are not production code and have
+        // no test coverage by design. Same mechanism needed as for Android/iOS stubs because
+        // Kover 0.9.8 instruments the full JVM compilation even when jvmMain is in
+        // excludedSourceSets.
         filters {
             excludes {
                 classes("ch.trancee.meshlink.crypto.AndroidCryptoProvider*")
                 classes("ch.trancee.meshlink.crypto.IosCryptoProvider*")
+                classes("ch.trancee.meshlink.benchmark.*")
             }
         }
         verify {
@@ -103,3 +115,12 @@ powerAssert {
             "kotlin.test.assertNotNull",
         )
 }
+
+// allopen — JMH requires benchmark classes to be open (non-final).
+// The benchmark plugin uses JMH under the hood on JVM; @State-annotated classes must be open.
+allOpen { annotation("org.openjdk.jmh.annotations.State") }
+
+// kotlinx-benchmark — JVM target only for M001 bootstrap.
+// Native benchmarks are post-v1 per spec/12 §B.
+// The umbrella task `benchmark` delegates to `jvmBenchmark`.
+benchmark { targets { register("jvm") } }

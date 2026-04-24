@@ -10,10 +10,11 @@ kotlinxBenchmark    = "0.4.16"
 flatbuffers         = "25.2.10"
 
 [libraries]
-kotlinx-coroutines-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version.ref = "coroutines" }
+kotlinx-coroutines-core    = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core",    version.ref = "coroutines" }
 # NOTE: flatbuffers-kotlin does not exist on Maven Central as a separate artifact.
 # flatbuffers-java covers JVM/Android usage; KMP support is embedded.
-flatbuffers = { group = "com.google.flatbuffers", name = "flatbuffers-java", version.ref = "flatbuffers" }
+flatbuffers                = { group = "com.google.flatbuffers", name = "flatbuffers-java",           version.ref = "flatbuffers" }
+kotlinx-benchmark-runtime  = { group = "org.jetbrains.kotlinx", name = "kotlinx-benchmark-runtime",  version.ref = "kotlinxBenchmark" }
 
 [plugins]
 kotlin-multiplatform              = { id = "org.jetbrains.kotlin.multiplatform",                      version.ref = "kotlin" }
@@ -24,4 +25,5 @@ detekt                            = { id = "io.gitlab.arturbosch.detekt",       
 ktfmt                             = { id = "com.ncorti.ktfmt.gradle",                                 version.ref = "ktfmt" }
 bcv                               = { id = "org.jetbrains.kotlinx.binary-compatibility-validator",    version.ref = "bcv" }
 kotlinx-benchmark                 = { id = "org.jetbrains.kotlinx.benchmark",                        version.ref = "kotlinxBenchmark" }
+kotlin-allopen                    = { id = "org.jetbrains.kotlin.plugin.allopen",                     version.ref = "kotlin" }
 kotlin-power-assert               = { id = "org.jetbrains.kotlin.plugin.power-assert",               version.ref = "kotlin" }
