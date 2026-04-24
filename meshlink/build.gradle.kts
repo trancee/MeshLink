@@ -1,3 +1,8 @@
+@file:OptIn(ExperimentalKotlinGradlePluginApi::class)
+
+import kotlinx.kover.gradle.plugin.dsl.AggregationType
+import kotlinx.kover.gradle.plugin.dsl.CoverageUnit
+import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -19,9 +24,7 @@ kotlin {
         compileSdk = 36
         minSdk = 29
 
-        compilerOptions {
-            jvmTarget.set(JvmTarget.JVM_11)
-        }
+        compilerOptions { jvmTarget.set(JvmTarget.JVM_11) }
     }
 
     iosArm64()
@@ -34,16 +37,59 @@ kotlin {
             implementation(libs.kotlinx.coroutines.core)
             implementation(libs.flatbuffers)
         }
-        commonTest.dependencies {
-            implementation(kotlin("test"))
+        commonTest.dependencies { implementation(kotlin("test")) }
+    }
+}
+
+// Kover — 100% line + branch coverage on shipping source sets.
+// jvmMain is test-only infrastructure and excluded from measurement.
+kover {
+    currentProject { sources { excludedSourceSets.addAll("jvmMain") } }
+    reports {
+        verify {
+            rule("100% line coverage") {
+                bound {
+                    minValue = 100
+                    coverageUnits = CoverageUnit.LINE
+                    aggregationForGroup = AggregationType.COVERED_PERCENTAGE
+                }
+            }
+            rule("100% branch coverage") {
+                bound {
+                    minValue = 100
+                    coverageUnits = CoverageUnit.BRANCH
+                    aggregationForGroup = AggregationType.COVERED_PERCENTAGE
+                }
+            }
         }
     }
 }
 
-// Kover — coverage rules (100% line + branch) are configured in subsequent tasks.
-kover {
+ktfmt { kotlinLangStyle() }
+
+// Detekt — static analysis configuration. Config at detekt.yml in project root.
+detekt {
+    config.setFrom(rootDir.resolve("detekt.yml"))
+    buildUponDefaultConfig = true
 }
 
-ktfmt {
-    kotlinLangStyle()
+// BCV — public ABI tracking.
+// KLib validation (iOS) requires macOS/Xcode; disabled automatically on Linux CI.
+// On macOS, iOS KLib artifacts are produced and validated per spec/13 §4.
+val isMacOs = System.getProperty("os.name").contains("Mac OS X", ignoreCase = true)
+
+apiValidation { klib { enabled = isMacOs } }
+
+// Kotlin Power Assert — transform kotlin.test assertions for richer failure diagnostics.
+powerAssert {
+    functions =
+        listOf(
+            "kotlin.assert",
+            "kotlin.test.assertEquals",
+            "kotlin.test.assertNotEquals",
+            "kotlin.test.assertTrue",
+            "kotlin.test.assertFalse",
+            "kotlin.test.assertNull",
+            "kotlin.test.assertNotNull",
+        )
 }

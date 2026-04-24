@@ -1,0 +1,12 @@
+#!/bin/sh
+# MeshLink pre-commit hook — enforces code formatting and static analysis.
+# Per D002: no external tooling dependency; plain Gradle invocation.
+set -e
+
+echo "Running ktfmt format check…"
+./gradlew :meshlink:ktfmtCheck --quiet
+
+echo "Running detekt static analysis…"
+./gradlew :meshlink:detekt --quiet
+
+echo "Pre-commit checks passed."
