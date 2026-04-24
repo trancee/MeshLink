@@ -1,0 +1,3 @@
+headers = sodium.h
+headerFilter = sodium.h sodium/**
+staticLibraries = libsodium.a

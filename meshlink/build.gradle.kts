@@ -38,8 +38,18 @@ kotlin {
         withHostTest {}
     }
 
-    iosArm64()
-    iosSimulatorArm64()
+    val iosArm64 = iosArm64()
+    val iosSimulatorArm64 = iosSimulatorArm64()
+
+    listOf(iosArm64, iosSimulatorArm64).forEach { target ->
+        target.compilations.getByName("main").cinterops {
+            val libsodium by creating {
+                defFile(project.file("src/iosMain/interop/libsodium.def"))
+                includeDirs("src/iosMain/interop/include")
+                extraOpts("-libraryPath", "${projectDir}/src/iosMain/interop/lib/${target.name}")
+            }
+        }
+    }
 
     jvm()
 
