@@ -64,6 +64,9 @@ kover {
         filters {
             excludes {
                 classes("ch.trancee.meshlink.crypto.AndroidCryptoProvider*")
+                // SodiumJni: JNI bridge object — cannot run on JVM host (requires Android .so).
+                // Correctness verified structurally: same libsodium calls, same symbols exported.
+                classes("ch.trancee.meshlink.crypto.SodiumJni*")
                 classes("ch.trancee.meshlink.crypto.IosCryptoProvider*")
                 classes("ch.trancee.meshlink.benchmark.*")
             }
