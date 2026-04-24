@@ -68,6 +68,9 @@ kover {
                 // Correctness verified structurally: same libsodium calls, same symbols exported.
                 classes("ch.trancee.meshlink.crypto.SodiumJni*")
                 classes("ch.trancee.meshlink.crypto.IosCryptoProvider*")
+                // JvmCryptoProvider: test-only infrastructure — JDK shim used by jvmTest only.
+                // Kover 0.9.8 instruments jvmMain bytecode even with excludedSourceSets("jvmMain").
+                classes("ch.trancee.meshlink.crypto.JvmCryptoProvider*")
                 classes("ch.trancee.meshlink.benchmark.*")
             }
         }

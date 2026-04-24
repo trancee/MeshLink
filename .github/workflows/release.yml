@@ -10,12 +10,12 @@ jobs:
     name: Publish Android
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-java@v5
         with:
           distribution: 'zulu'
           java-version: '21'
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v6
       # TODO: Implement Android AAR publishing to Maven Central once signing and
       #       OSSRH publishing are configured (post-M001).
       - name: Publish to Maven Central (TODO)
@@ -31,12 +31,12 @@ jobs:
     name: Publish iOS XCFramework
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-java@v5
         with:
           distribution: 'zulu'
           java-version: '21'
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v6
       # TODO: Assemble XCFramework (iosArm64 + iosSimulatorArm64) and attach it
       #       as a GitHub Release asset once the iOS implementation is complete (S03).
       - name: Assemble XCFramework and create release (TODO)
