@@ -44,8 +44,18 @@ kotlin {
 // Kover — 100% line + branch coverage on shipping source sets.
 // jvmMain is test-only infrastructure and excluded from measurement.
 kover {
-    currentProject { sources { excludedSourceSets.addAll("jvmMain") } }
+    // jvmMain: test-only infrastructure — not a shipping target.
+    // androidMain: S02 will add JNI implementation + Android unit tests; excluded until then.
+    // iosMain: S03 will add cinterop implementation + iOS tests; excluded until then.
+    currentProject { sources { excludedSourceSets.addAll("jvmMain", "androidMain", "iosMain") } }
     reports {
+        // Exclude Android/iOS platform stubs; covered by platform test suites in S02/S03.
+        filters {
+            excludes {
+                classes("ch.trancee.meshlink.crypto.AndroidCryptoProvider*")
+                classes("ch.trancee.meshlink.crypto.IosCryptoProvider*")
+            }
+        }
         verify {
             rule("100% line coverage") {
                 bound {

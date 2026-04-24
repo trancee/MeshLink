@@ -1,0 +1,29 @@
+public abstract interface class ch/trancee/meshlink/crypto/CryptoProvider {
+	public abstract fun aeadDecrypt ([B[B[B[B)[B
+	public abstract fun aeadEncrypt ([B[B[B[B)[B
+	public abstract fun generateEd25519KeyPair ()Lch/trancee/meshlink/crypto/KeyPair;
+	public abstract fun generateX25519KeyPair ()Lch/trancee/meshlink/crypto/KeyPair;
+	public abstract fun hkdfSha256 ([B[B[BI)[B
+	public abstract fun sha256 ([B)[B
+	public abstract fun sign ([B[B)[B
+	public abstract fun verify ([B[B[B)Z
+	public abstract fun x25519SharedSecret ([B[B)[B
+}
+
+public final class ch/trancee/meshlink/crypto/JvmCryptoProviderKt {
+	public static final fun createCryptoProvider ()Lch/trancee/meshlink/crypto/CryptoProvider;
+}
+
+public final class ch/trancee/meshlink/crypto/KeyPair {
+	public fun <init> ([B[B)V
+	public final fun component1 ()[B
+	public final fun component2 ()[B
+	public final fun copy ([B[B)Lch/trancee/meshlink/crypto/KeyPair;
+	public static synthetic fun copy$default (Lch/trancee/meshlink/crypto/KeyPair;[B[BILjava/lang/Object;)Lch/trancee/meshlink/crypto/KeyPair;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getPrivateKey ()[B
+	public final fun getPublicKey ()[B
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
