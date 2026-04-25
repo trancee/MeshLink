@@ -15,6 +15,8 @@ interface BleTransport {
 
     suspend fun sendToPeer(peerId: ByteArray, data: ByteArray): SendResult
 
+    suspend fun disconnect(peerId: ByteArray)
+
     val incomingData: Flow<IncomingData>
 }
 

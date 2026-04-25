@@ -165,6 +165,44 @@ class VirtualMeshTransportTest {
         assertFailsWith<IllegalArgumentException> { transport.advanceTo(500L) }
     }
 
+    // ── Disconnect tests ──────────────────────────────────────────────────────
+
+    @Test
+    fun disconnectRemovesBidirectionalLinkAndEmitsPeerLostOnBothSides() = runTest {
+        val transportA = VirtualMeshTransport(byteArrayOf(0x01), testScheduler)
+        val transportB = VirtualMeshTransport(byteArrayOf(0x02), testScheduler)
+        transportA.linkTo(transportB)
+
+        val eventsA = mutableListOf<PeerLostEvent>()
+        val eventsB = mutableListOf<PeerLostEvent>()
+        val jobA = launch { transportA.peerLostEvents.collect { eventsA.add(it) } }
+        val jobB = launch { transportB.peerLostEvents.collect { eventsB.add(it) } }
+        testScheduler.runCurrent()
+
+        transportA.disconnect(byteArrayOf(0x02))
+        testScheduler.runCurrent()
+
+        // Both sides see a MANUAL_DISCONNECT event
+        assertEquals(1, eventsA.size)
+        assertEquals(PeerLostEvent(byteArrayOf(0x02), PeerLostReason.MANUAL_DISCONNECT), eventsA[0])
+        assertEquals(1, eventsB.size)
+        assertEquals(PeerLostEvent(byteArrayOf(0x01), PeerLostReason.MANUAL_DISCONNECT), eventsB[0])
+
+        // Link is removed — further sends fail
+        assertIs<SendResult.Failure>(transportA.sendToPeer(byteArrayOf(0x02), byteArrayOf(0xAA.toByte())))
+        assertIs<SendResult.Failure>(transportB.sendToPeer(byteArrayOf(0x01), byteArrayOf(0xBB.toByte())))
+
+        jobA.cancel()
+        jobB.cancel()
+    }
+
+    @Test
+    fun disconnectUnlinkedPeerIsNoOp() = runTest {
+        val transport = VirtualMeshTransport(byteArrayOf(0x01), testScheduler)
+        // Should not throw — silent no-op for an unlinked peer
+        transport.disconnect(byteArrayOf(0x99.toByte()))
+    }
+
     // ── SentFrame equals/hashCode ──────────────────────────────────────────────
 
     @Test

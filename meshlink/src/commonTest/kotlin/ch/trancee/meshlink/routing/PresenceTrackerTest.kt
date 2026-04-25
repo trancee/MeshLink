@@ -281,4 +281,64 @@ class PresenceTrackerTest {
         val f2 = OutboundFrame(null, msg1)
         assertEquals(f1.hashCode(), f2.hashCode())
     }
+
+    // ----------------------------------------------------------------
+    // PresenceTracker.connectedPeers() + updatePresenceTimeout()
+    // ----------------------------------------------------------------
+
+    @Test
+    fun `connectedPeers is empty when no peers have connected`() {
+        val tracker = PresenceTracker()
+        assertEquals(0, tracker.connectedPeers().size)
+    }
+
+    @Test
+    fun `connectedPeers returns peer after onPeerConnected`() {
+        val tracker = PresenceTracker()
+        val peerId = byteArrayOf(0x01, 0x02)
+        tracker.onPeerConnected(peerId)
+        val peers = tracker.connectedPeers()
+        assertEquals(1, peers.size)
+        assertTrue(peers.any { it.contentEquals(peerId) })
+    }
+
+    @Test
+    fun `connectedPeers removes peer after onPeerDisconnected`() {
+        val tracker = PresenceTracker()
+        val peerId = byteArrayOf(0x03, 0x04)
+        tracker.onPeerConnected(peerId)
+        assertEquals(1, tracker.connectedPeers().size)
+        tracker.onPeerDisconnected(peerId)
+        assertEquals(0, tracker.connectedPeers().size)
+    }
+
+    @Test
+    fun `connectedPeers tracks multiple peers independently`() {
+        val tracker = PresenceTracker()
+        val peerA = byteArrayOf(0x0A)
+        val peerB = byteArrayOf(0x0B)
+        tracker.onPeerConnected(peerA)
+        tracker.onPeerConnected(peerB)
+        assertEquals(2, tracker.connectedPeers().size)
+        tracker.onPeerDisconnected(peerA)
+        val remaining = tracker.connectedPeers()
+        assertEquals(1, remaining.size)
+        assertTrue(remaining.any { it.contentEquals(peerB) })
+    }
+
+    @Test
+    fun `updatePresenceTimeout stores new timeout value`() {
+        val tracker = PresenceTracker()
+        assertEquals(30_000L, tracker.presenceTimeoutMs)
+        tracker.updatePresenceTimeout(5_000L)
+        assertEquals(5_000L, tracker.presenceTimeoutMs)
+    }
+
+    @Test
+    fun `updatePresenceTimeout can be called multiple times`() {
+        val tracker = PresenceTracker()
+        tracker.updatePresenceTimeout(1_000L)
+        tracker.updatePresenceTimeout(60_000L)
+        assertEquals(60_000L, tracker.presenceTimeoutMs)
+    }
 }

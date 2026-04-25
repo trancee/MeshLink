@@ -29,11 +29,24 @@ class PresenceTracker {
     private val _peerEvents = MutableSharedFlow<PeerEvent>(replay = 0, extraBufferCapacity = 64)
     val peerEvents: Flow<PeerEvent> = _peerEvents
 
+    private val _connectedPeers = HashSet<List<Byte>>()
+
+    var presenceTimeoutMs: Long = 30_000L
+        private set
+
     fun onPeerConnected(peerId: ByteArray) {
+        _connectedPeers.add(peerId.toList())
         _peerEvents.tryEmit(PeerEvent.Connected(peerId.copyOf()))
     }
 
     fun onPeerDisconnected(peerId: ByteArray) {
+        _connectedPeers.remove(peerId.toList())
         _peerEvents.tryEmit(PeerEvent.Disconnected(peerId.copyOf()))
+    }
+
+    fun connectedPeers(): Set<ByteArray> = _connectedPeers.map { it.toByteArray() }.toSet()
+
+    fun updatePresenceTimeout(newTimeoutMs: Long) {
+        presenceTimeoutMs = newTimeoutMs
     }
 }

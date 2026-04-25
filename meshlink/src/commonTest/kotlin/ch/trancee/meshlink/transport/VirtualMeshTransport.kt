@@ -95,6 +95,15 @@ class VirtualMeshTransport(
         writeFailures.remove(ByteArrayKey(peerId))
     }
 
+    override suspend fun disconnect(peerId: ByteArray) {
+        val key = ByteArrayKey(peerId)
+        val (other, _) = links[key] ?: return
+        links.remove(key)
+        other.links.remove(ByteArrayKey(localPeerId))
+        other._peerLostEvents.emit(PeerLostEvent(localPeerId.copyOf(), PeerLostReason.MANUAL_DISCONNECT))
+        _peerLostEvents.emit(PeerLostEvent(peerId.copyOf(), PeerLostReason.MANUAL_DISCONNECT))
+    }
+
     override suspend fun sendToPeer(peerId: ByteArray, data: ByteArray): SendResult {
         if (ByteArrayKey(peerId) in writeFailures) {
             return SendResult.Failure("Simulated write failure")
