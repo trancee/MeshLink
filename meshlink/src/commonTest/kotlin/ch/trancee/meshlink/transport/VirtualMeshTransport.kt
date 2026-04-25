@@ -131,6 +131,8 @@ class VirtualMeshTransport(
 
     override suspend fun startAdvertisingAndScanning() {}
 
+    override suspend fun requestConnectionPriority(peerId: ByteArray, highPriority: Boolean) {}
+
     private var stopHanging = false
 
     /** Makes the next [stopAll] call block indefinitely (simulates a hung stop). */

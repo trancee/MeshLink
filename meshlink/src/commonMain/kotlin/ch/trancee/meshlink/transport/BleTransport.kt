@@ -17,6 +17,8 @@ interface BleTransport {
 
     suspend fun disconnect(peerId: ByteArray)
 
+    suspend fun requestConnectionPriority(peerId: ByteArray, highPriority: Boolean)
+
     val incomingData: Flow<IncomingData>
 }
 
