@@ -17,17 +17,17 @@ data class Broadcast(
 ) : WireMessage {
     override val type = MessageType.BROADCAST
 
-    override fun encode(wb: WriteBuffer) {
-        wb.startTable(9)
-        wb.addByteVector(0, messageId)
-        wb.addByteVector(1, origin)
-        wb.addUByte(2, remainingHops)
-        wb.addUShort(3, appIdHash)
-        wb.addUByte(4, flags)
-        wb.addByte(5, priority)
-        if (signature != null) wb.addByteVector(6, signature)
-        if (signerKey != null) wb.addByteVector(7, signerKey)
-        wb.addByteVector(8, payload)
+    override fun encode(buffer: WriteBuffer) {
+        buffer.startTable(9)
+        buffer.addByteVector(0, messageId)
+        buffer.addByteVector(1, origin)
+        buffer.addUByte(2, remainingHops)
+        buffer.addUShort(3, appIdHash)
+        buffer.addUByte(4, flags)
+        buffer.addByte(5, priority)
+        if (signature != null) buffer.addByteVector(6, signature)
+        if (signerKey != null) buffer.addByteVector(7, signerKey)
+        buffer.addByteVector(8, payload)
     }
 
     override fun equals(other: Any?): Boolean {
@@ -60,17 +60,17 @@ data class Broadcast(
     }
 
     companion object {
-        fun decode(rb: ReadBuffer): Broadcast =
+        fun decode(buffer: ReadBuffer): Broadcast =
             Broadcast(
-                messageId = rb.getByteArray(0) ?: ByteArray(16),
-                origin = rb.getByteArray(1) ?: ByteArray(12),
-                remainingHops = rb.getUByte(2),
-                appIdHash = rb.getUShort(3),
-                flags = rb.getUByte(4),
-                priority = rb.getByte(5),
-                signature = rb.getByteArray(6),
-                signerKey = rb.getByteArray(7),
-                payload = rb.getByteArray(8) ?: ByteArray(0),
+                messageId = buffer.getByteArray(0) ?: ByteArray(16),
+                origin = buffer.getByteArray(1) ?: ByteArray(12),
+                remainingHops = buffer.getUByte(2),
+                appIdHash = buffer.getUShort(3),
+                flags = buffer.getUByte(4),
+                priority = buffer.getByte(5),
+                signature = buffer.getByteArray(6),
+                signerKey = buffer.getByteArray(7),
+                payload = buffer.getByteArray(8) ?: ByteArray(0),
             )
     }
 }

@@ -14,19 +14,19 @@ class TransferFoundationTest {
 
     @Test
     fun `TransferConfig default values`() {
-        val cfg = TransferConfig()
-        assertEquals(244, cfg.chunkSize)
-        assertEquals(4, cfg.acksBeforeDouble)
-        assertEquals(8, cfg.acksBeforeQuad)
-        assertEquals(30_000L, cfg.inactivityBaseTimeoutMillis)
-        assertEquals(3, cfg.maxResumeAttempts)
-        assertEquals(5, cfg.maxNackRetries)
-        assertEquals(500L, cfg.nackBaseBackoffMillis)
+        val config = TransferConfig()
+        assertEquals(244, config.chunkSize)
+        assertEquals(4, config.acksBeforeDouble)
+        assertEquals(8, config.acksBeforeQuad)
+        assertEquals(30_000L, config.inactivityBaseTimeoutMillis)
+        assertEquals(3, config.maxResumeAttempts)
+        assertEquals(5, config.maxNackRetries)
+        assertEquals(500L, config.nackBaseBackoffMillis)
     }
 
     @Test
     fun `TransferConfig custom values override defaults`() {
-        val cfg =
+        val config =
             TransferConfig(
                 chunkSize = 512,
                 acksBeforeDouble = 2,
@@ -36,13 +36,13 @@ class TransferFoundationTest {
                 maxNackRetries = 3,
                 nackBaseBackoffMillis = 250L,
             )
-        assertEquals(512, cfg.chunkSize)
-        assertEquals(2, cfg.acksBeforeDouble)
-        assertEquals(4, cfg.acksBeforeQuad)
-        assertEquals(10_000L, cfg.inactivityBaseTimeoutMillis)
-        assertEquals(5, cfg.maxResumeAttempts)
-        assertEquals(3, cfg.maxNackRetries)
-        assertEquals(250L, cfg.nackBaseBackoffMillis)
+        assertEquals(512, config.chunkSize)
+        assertEquals(2, config.acksBeforeDouble)
+        assertEquals(4, config.acksBeforeQuad)
+        assertEquals(10_000L, config.inactivityBaseTimeoutMillis)
+        assertEquals(5, config.maxResumeAttempts)
+        assertEquals(3, config.maxNackRetries)
+        assertEquals(250L, config.nackBaseBackoffMillis)
     }
 
     // ──────────────────────────────────────────────────────────────────────

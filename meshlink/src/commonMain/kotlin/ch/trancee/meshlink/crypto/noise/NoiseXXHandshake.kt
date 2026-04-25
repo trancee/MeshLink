@@ -67,11 +67,11 @@ internal class NoiseXXInitiator(crypto: CryptoProvider, staticKeyPair: KeyPair) 
     /**
      * Reads message 2 (← e, ee, s, es).
      *
-     * @param msg The received message bytes.
+     * @param message The received message bytes.
      * @return The decrypted payload from the responder.
      * @throws IllegalStateException if authentication fails.
      */
-    fun readMessage2(msg: ByteArray): ByteArray = handshakeState.readMessage(msg)
+    fun readMessage2(message: ByteArray): ByteArray = handshakeState.readMessage(message)
 
     /**
      * Writes message 3 (→ s, se).
@@ -119,10 +119,10 @@ internal class NoiseXXResponder(crypto: CryptoProvider, staticKeyPair: KeyPair) 
     /**
      * Reads message 1 (→ e) from the initiator.
      *
-     * @param msg The received message bytes.
+     * @param message The received message bytes.
      * @return The payload from the initiator (typically empty in message 1).
      */
-    fun readMessage1(msg: ByteArray): ByteArray = handshakeState.readMessage(msg)
+    fun readMessage1(message: ByteArray): ByteArray = handshakeState.readMessage(message)
 
     /**
      * Writes message 2 (← e, ee, s, es).
@@ -136,11 +136,11 @@ internal class NoiseXXResponder(crypto: CryptoProvider, staticKeyPair: KeyPair) 
     /**
      * Reads message 3 (→ s, se) from the initiator.
      *
-     * @param msg The received message bytes.
+     * @param message The received message bytes.
      * @return The decrypted payload from the initiator.
      * @throws IllegalStateException if authentication fails.
      */
-    fun readMessage3(msg: ByteArray): ByteArray = handshakeState.readMessage(msg)
+    fun readMessage3(message: ByteArray): ByteArray = handshakeState.readMessage(message)
 
     /**
      * Finalizes the handshake and returns a [NoiseSession].

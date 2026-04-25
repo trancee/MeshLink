@@ -52,7 +52,7 @@ private constructor(
     private val totalChunks: UShort = chunks.size.toUShort()
     private var senderSack = SackTracker()
     private val rateController = ObservationRateController(config)
-    private var nextIdxToSend: Int = 0
+    private var nextIndexToSend: Int = 0
     private var ackTimeoutCount: Int = 0
     private var probeFailureCount: Int = 0
     private var nackRetryCount: Int = 0
@@ -322,8 +322,8 @@ private constructor(
                                     event.req.bytesReceived.toLong(),
                                     chunkSizePolicy.size,
                                 )
-                            nextIdxToSend = (alignedOffset / chunkSizePolicy.size).toInt()
-                            resetSenderSackToIndex(nextIdxToSend)
+                            nextIndexToSend = (alignedOffset / chunkSizePolicy.size).toInt()
+                            resetSenderSackToIndex(nextIndexToSend)
                             senderDisconnected = false
                             inDegradationMode = false
                             ackTimeoutCount = 0
@@ -343,35 +343,35 @@ private constructor(
         val rate = if (isGattMode) rateController.currentRate() else chunks.size
         var sent = 0
         val (ackSeq, _) = senderSack.buildAck()
-        val baseIdx = if (ackSeq == UShort.MAX_VALUE) 0 else ackSeq.toInt() + 1
+        val baseIndex = if (ackSeq == UShort.MAX_VALUE) 0 else ackSeq.toInt() + 1
 
         // Re-send missing chunks already within the window.
-        var idx = baseIdx
-        while (sent < rate && idx < nextIdxToSend) {
-            if (senderSack.isMissing(idx.toUShort())) {
-                emitChunk(idx)
+        var index = baseIndex
+        while (sent < rate && index < nextIndexToSend) {
+            if (senderSack.isMissing(index.toUShort())) {
+                emitChunk(index)
                 sent++
             }
-            idx++
+            index++
         }
 
         // Send new (first-time) chunks.
-        while (sent < rate && nextIdxToSend < chunks.size) {
-            emitChunk(nextIdxToSend)
-            nextIdxToSend++
+        while (sent < rate && nextIndexToSend < chunks.size) {
+            emitChunk(nextIndexToSend)
+            nextIndexToSend++
             sent++
         }
     }
 
     private suspend fun sendProbe() {
         val (ackSeq, _) = senderSack.buildAck()
-        val probeIdx = if (ackSeq == UShort.MAX_VALUE) 0 else ackSeq.toInt() + 1
-        emitChunk(probeIdx)
+        val probeIndex = if (ackSeq == UShort.MAX_VALUE) 0 else ackSeq.toInt() + 1
+        emitChunk(probeIndex)
     }
 
-    private suspend fun emitChunk(idx: Int) {
+    private suspend fun emitChunk(index: Int) {
         outboundFlow.emit(
-            OutboundFrame(peerId, Chunk(messageId, idx.toUShort(), totalChunks, chunks[idx]))
+            OutboundFrame(peerId, Chunk(messageId, index.toUShort(), totalChunks, chunks[index]))
         )
     }
 
@@ -397,10 +397,10 @@ private constructor(
         }
     }
 
-    /** Reconstructs the sender's SackTracker as if chunks 0..(idx-1) are all acknowledged. */
-    private fun resetSenderSackToIndex(idx: Int) {
+    /** Reconstructs the sender's SackTracker as if chunks 0..(index-1) are all acknowledged. */
+    private fun resetSenderSackToIndex(index: Int) {
         senderSack = SackTracker()
-        for (i in 0 until idx) {
+        for (i in 0 until index) {
             senderSack.markReceived(i.toUShort())
         }
     }
@@ -422,14 +422,14 @@ private constructor(
             totalChunksExpected = chunk.totalChunks.toInt()
             receiverBuffer = arrayOfNulls(totalChunksExpected)
         }
-        val seqIdx = chunk.seqNum.toInt()
-        if (seqIdx >= totalChunksExpected) return
+        val sequenceIndex = chunk.seqNo.toInt()
+        if (sequenceIndex >= totalChunksExpected) return
 
-        if (receiverBuffer[seqIdx] == null) {
-            receiverBuffer[seqIdx] = chunk.payload
+        if (receiverBuffer[sequenceIndex] == null) {
+            receiverBuffer[sequenceIndex] = chunk.payload
             chunksReceived++
             receiverBytesReceived += chunk.payload.size
-            receiverSack.markReceived(chunk.seqNum)
+            receiverSack.markReceived(chunk.seqNo)
         }
 
         resetReceiverInactivityTimer()

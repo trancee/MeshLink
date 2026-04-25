@@ -176,7 +176,7 @@ class TransferSessionTest {
     }
 
     @Test
-    fun `receiver ignores out-of-bounds seqNum`() = runTest {
+    fun `receiver ignores out-of-bounds seqNo`() = runTest {
         val events = makeEvents()
         val eventList = mutableListOf<TransferEvent>()
         backgroundScope.launch { makeOutbound().collect {} }
@@ -197,7 +197,7 @@ class TransferSessionTest {
             )
         session.start()
         session.onChunk(chunk(0, 2)) // sets totalChunksExpected=2
-        session.onChunk(chunk(2, 2)) // seqIdx=2 >= totalChunksExpected=2 → ignored
+        session.onChunk(chunk(2, 2)) // sequenceIndex=2 >= totalChunksExpected=2 → ignored
         runCurrent()
 
         val progresses = eventList.filterIsInstance<TransferEvent.ChunkProgress>()
@@ -730,7 +730,7 @@ class TransferSessionTest {
             backgroundScope.launch { events.collect { eventList.add(it) } }
 
             // Long inactivity so the timer never fires during this test
-            val cfg =
+            val config =
                 TransferConfig(
                     inactivityBaseTimeoutMillis = 60_000L,
                     maxNackRetries = 2,
@@ -743,7 +743,7 @@ class TransferSessionTest {
                     byteArrayOf(1),
                     Priority.NORMAL,
                     1,
-                    cfg,
+                    config,
                     ChunkSizePolicy.fixed(10),
                     true,
                     backgroundScope,
@@ -910,7 +910,7 @@ class TransferSessionTest {
         assertTrue(chunks.isNotEmpty())
         // Probe should be for chunk 1 (ackSeq+1 = 0+1 = 1)
         val probeChunk = chunks.last().message as Chunk
-        assertEquals(1u, probeChunk.seqNum)
+        assertEquals(1u, probeChunk.seqNo)
     }
 
     // ──────────────────────────────────────────────────────────────────────
@@ -984,13 +984,13 @@ class TransferSessionTest {
         runCurrent()
         frames.clear()
 
-        // Resume from beginning (bytesReceived=0 → nextIdxToSend=0)
+        // Resume from beginning (bytesReceived=0 → nextIndexToSend=0)
         session.onResumeRequest(ResumeRequest(msgId, 0u))
         runCurrent()
 
         val chunks = frames.filter { it.message is Chunk }
         assertTrue(chunks.isNotEmpty())
-        assertEquals(0u, (chunks[0].message as Chunk).seqNum)
+        assertEquals(0u, (chunks[0].message as Chunk).seqNo)
     }
 
     @Test
@@ -1053,7 +1053,7 @@ class TransferSessionTest {
         backgroundScope.launch { events.collect {} }
 
         // 5 chunks of 1 byte each; after disconnect, resume claims 2 bytes received
-        // → alignedOffset = 2/1 * 1 = 2, nextIdxToSend=2, resetSenderSackToIndex(2)
+        // → alignedOffset = 2/1 * 1 = 2, nextIndexToSend=2, resetSenderSackToIndex(2)
         // → loop runs for i in 0..1 (marks chunks 0 and 1 as received)
         val session =
             TransferSession.sender(
@@ -1076,14 +1076,14 @@ class TransferSessionTest {
         runCurrent()
         frames.clear()
 
-        // bytesReceived=2 → nextIdxToSend=2, resetSenderSackToIndex(2) → loop body executed twice
+        // bytesReceived=2 → nextIndexToSend=2, resetSenderSackToIndex(2) → loop body executed twice
         session.onResumeRequest(ResumeRequest(msgId, 2u))
         runCurrent()
 
         val chunks = frames.filter { it.message is Chunk }
         assertTrue(chunks.isNotEmpty())
         // Resumed from chunk index 2 (first unACKed after 2 bytes)
-        assertEquals(2u, (chunks[0].message as Chunk).seqNum)
+        assertEquals(2u, (chunks[0].message as Chunk).seqNo)
     }
 
     @Test
@@ -1163,29 +1163,29 @@ class TransferSessionTest {
             runCurrent()
             // After ACK: ackSeq=0 (chunk 0 cumulative), chunk 2 marked via SACK bitmap (bit 1),
             // ackSeq stays at 0 (chunk 1 still missing, bit 0 not set). rate=2.
-            // sendBatch: baseIdx=1, nextIdxToSend=1 → no re-sends; new-chunk loop sends 1,2.
+            // sendBatch: baseIndex=1, nextIndexToSend=1 → no re-sends; new-chunk loop sends 1,2.
             frames.clear()
 
-            // Trigger NACK → sendBatch re-runs with baseIdx=1, nextIdxToSend=3:
-            //   idx=1: isMissing(1)? bit 0 from ackSeq=0 → clear → TRUE → re-send
-            //   idx=2: isMissing(2)? bit 1 from ackSeq=0 → SET (chunk 2 via SACK) → FALSE → skip
+            // Trigger NACK → sendBatch re-runs with baseIndex=1, nextIndexToSend=3:
+            //   index=1: isMissing(1)? bit 0 from ackSeq=0 → clear → TRUE → re-send
+            //   index=2: isMissing(2)? bit 1 from ackSeq=0 → SET (chunk 2 via SACK) → FALSE → skip
             session.onNack(Nack(msgId, NACK_REASON_BUFFER_FULL))
             advanceTimeBy(config.nackBaseBackoffMillis + 1L)
             runCurrent()
 
             val chunksSent =
-                frames.filter { it.message is Chunk }.map { (it.message as Chunk).seqNum.toInt() }
+                frames.filter { it.message is Chunk }.map { (it.message as Chunk).seqNo.toInt() }
             // Chunk 2 should NOT be re-sent (it's in SACK bitmap), chunk 1 SHOULD be re-sent
             assertFalse(chunksSent.contains(2), "chunk 2 should not be re-sent (marked in SACK)")
             assertTrue(chunksSent.contains(1), "chunk 1 should be re-sent (missing)")
         }
 
     // ──────────────────────────────────────────────────────────────────────
-    // Sender — rate controller + baseIdx after ACK
+    // Sender — rate controller + baseIndex after ACK
     // ──────────────────────────────────────────────────────────────────────
 
     @Test
-    fun `sender sendBatch uses ackSeq+1 as baseIdx after first ACK`() = runTest {
+    fun `sender sendBatch uses ackSeq+1 as baseIndex after first ACK`() = runTest {
         val outbound = makeOutbound()
         val frames = mutableListOf<OutboundFrame>()
         backgroundScope.launch { outbound.collect { frames.add(it) } }
@@ -1214,14 +1214,14 @@ class TransferSessionTest {
             )
         session.start()
         runCurrent()
-        // Chunk 0 sent (rate=1, ackSeq=MAX_VALUE → baseIdx=0)
+        // Chunk 0 sent (rate=1, ackSeq=MAX_VALUE → baseIndex=0)
         assertEquals(1, frames.filter { it.message is Chunk }.size)
 
-        session.onChunkAck(ack(0)) // ACK chunk 0 → ackSeq=0, rate→2, baseIdx=1
+        session.onChunkAck(ack(0)) // ACK chunk 0 → ackSeq=0, rate→2, baseIndex=1
         runCurrent()
 
-        // After first ACK: sendBatch with rate=2, baseIdx=1 (ackSeq+1).
-        // Sends chunks 1 and 2 (new). No re-sends since nextIdxToSend was 1 and now advances.
+        // After first ACK: sendBatch with rate=2, baseIndex=1 (ackSeq+1).
+        // Sends chunks 1 and 2 (new). No re-sends since nextIndexToSend was 1 and now advances.
         val allChunks = frames.filter { it.message is Chunk }
         assertTrue(allChunks.size >= 2) // at least chunks 0, 1, and possibly 2
     }

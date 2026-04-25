@@ -16,21 +16,21 @@ data class RoutedMessage(
 ) : WireMessage {
     override val type = MessageType.ROUTED_MESSAGE
 
-    override fun encode(wb: WriteBuffer) {
-        wb.startTable(8)
-        wb.addByteVector(0, messageId)
-        wb.addByteVector(1, origin)
-        wb.addByteVector(2, destination)
-        wb.addUByte(3, hopLimit)
+    override fun encode(buffer: WriteBuffer) {
+        buffer.startTable(8)
+        buffer.addByteVector(0, messageId)
+        buffer.addByteVector(1, origin)
+        buffer.addByteVector(2, destination)
+        buffer.addUByte(3, hopLimit)
         // Flatten List<ByteArray> to single byte array (N × 12 bytes).
         val flat = ByteArray(visitedList.size * 12)
         for ((i, peer) in visitedList.withIndex()) {
             peer.copyInto(flat, i * 12)
         }
-        wb.addByteVector(4, flat)
-        wb.addByte(5, priority)
-        wb.addULong(6, originationTime)
-        wb.addByteVector(7, payload)
+        buffer.addByteVector(4, flat)
+        buffer.addByte(5, priority)
+        buffer.addULong(6, originationTime)
+        buffer.addByteVector(7, payload)
     }
 
     override fun equals(other: Any?): Boolean {
@@ -60,19 +60,19 @@ data class RoutedMessage(
     }
 
     companion object {
-        fun decode(rb: ReadBuffer): RoutedMessage {
-            val flatVisited = rb.getByteArray(4) ?: ByteArray(0)
+        fun decode(buffer: ReadBuffer): RoutedMessage {
+            val flatVisited = buffer.getByteArray(4) ?: ByteArray(0)
             val peerCount = flatVisited.size / 12
             val visited = List(peerCount) { i -> flatVisited.copyOfRange(i * 12, i * 12 + 12) }
             return RoutedMessage(
-                messageId = rb.getByteArray(0) ?: ByteArray(16),
-                origin = rb.getByteArray(1) ?: ByteArray(12),
-                destination = rb.getByteArray(2) ?: ByteArray(12),
-                hopLimit = rb.getUByte(3),
+                messageId = buffer.getByteArray(0) ?: ByteArray(16),
+                origin = buffer.getByteArray(1) ?: ByteArray(12),
+                destination = buffer.getByteArray(2) ?: ByteArray(12),
+                hopLimit = buffer.getUByte(3),
                 visitedList = visited,
-                priority = rb.getByte(5),
-                originationTime = rb.getULong(6),
-                payload = rb.getByteArray(7) ?: ByteArray(0),
+                priority = buffer.getByte(5),
+                originationTime = buffer.getULong(6),
+                payload = buffer.getByteArray(7) ?: ByteArray(0),
             )
         }
     }

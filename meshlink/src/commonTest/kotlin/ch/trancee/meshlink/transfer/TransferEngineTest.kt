@@ -22,7 +22,7 @@ class TransferEngineTest {
     private val peerA = ByteArray(4) { 0xAA.toByte() }
     private val peerB = ByteArray(4) { 0xBB.toByte() }
 
-    private val cfg =
+    private val config =
         TransferConfig(
             inactivityBaseTimeoutMillis = 5_000L, // long so tests don't fire accidental timeouts
             maxNackRetries = 2,
@@ -36,7 +36,7 @@ class TransferEngineTest {
 
     @Test
     fun `send emits chunk to outboundChunks and exposes events flow`() = runTest {
-        val engine = TransferEngine(backgroundScope, cfg, ChunkSizePolicy.fixed(10), true)
+        val engine = TransferEngine(backgroundScope, config, ChunkSizePolicy.fixed(10), true)
         val frames = mutableListOf<OutboundFrame>()
         backgroundScope.launch { engine.outboundChunks.collect { frames.add(it) } }
         backgroundScope.launch { engine.events.collect {} }
@@ -55,7 +55,7 @@ class TransferEngineTest {
 
     @Test
     fun `onIncomingChunk creates receiver session on first chunk`() = runTest {
-        val engine = TransferEngine(backgroundScope, cfg, ChunkSizePolicy.fixed(10), true)
+        val engine = TransferEngine(backgroundScope, config, ChunkSizePolicy.fixed(10), true)
         val frames = mutableListOf<OutboundFrame>()
         val eventList = mutableListOf<TransferEvent>()
         backgroundScope.launch { engine.outboundChunks.collect { frames.add(it) } }
@@ -73,7 +73,7 @@ class TransferEngineTest {
 
     @Test
     fun `onIncomingChunk reuses existing session for same messageId`() = runTest {
-        val engine = TransferEngine(backgroundScope, cfg, ChunkSizePolicy.fixed(10), true)
+        val engine = TransferEngine(backgroundScope, config, ChunkSizePolicy.fixed(10), true)
         val eventList = mutableListOf<TransferEvent>()
         backgroundScope.launch { engine.outboundChunks.collect {} }
         backgroundScope.launch { engine.events.collect { eventList.add(it) } }
@@ -96,7 +96,7 @@ class TransferEngineTest {
 
     @Test
     fun `onIncomingChunkAck routes to matching sender session`() = runTest {
-        val engine = TransferEngine(backgroundScope, cfg, ChunkSizePolicy.fixed(10), true)
+        val engine = TransferEngine(backgroundScope, config, ChunkSizePolicy.fixed(10), true)
         val frames = mutableListOf<OutboundFrame>()
         backgroundScope.launch { engine.outboundChunks.collect { frames.add(it) } }
         backgroundScope.launch { engine.events.collect {} }
@@ -115,7 +115,7 @@ class TransferEngineTest {
 
     @Test
     fun `onIncomingChunkAck with unknown messageId is a no-op`() = runTest {
-        val engine = TransferEngine(backgroundScope, cfg, ChunkSizePolicy.fixed(10), true)
+        val engine = TransferEngine(backgroundScope, config, ChunkSizePolicy.fixed(10), true)
         backgroundScope.launch { engine.outboundChunks.collect {} }
         backgroundScope.launch { engine.events.collect {} }
 
@@ -127,7 +127,7 @@ class TransferEngineTest {
 
     @Test
     fun `onIncomingNack routes to matching sender session`() = runTest {
-        val engine = TransferEngine(backgroundScope, cfg, ChunkSizePolicy.fixed(10), true)
+        val engine = TransferEngine(backgroundScope, config, ChunkSizePolicy.fixed(10), true)
         val frames = mutableListOf<OutboundFrame>()
         backgroundScope.launch { engine.outboundChunks.collect { frames.add(it) } }
         backgroundScope.launch { engine.events.collect {} }
@@ -143,7 +143,7 @@ class TransferEngineTest {
 
     @Test
     fun `onIncomingNack with unknown messageId is a no-op`() = runTest {
-        val engine = TransferEngine(backgroundScope, cfg, ChunkSizePolicy.fixed(10), true)
+        val engine = TransferEngine(backgroundScope, config, ChunkSizePolicy.fixed(10), true)
         backgroundScope.launch { engine.outboundChunks.collect {} }
         backgroundScope.launch { engine.events.collect {} }
 
@@ -154,7 +154,7 @@ class TransferEngineTest {
 
     @Test
     fun `onIncomingResumeRequest routes to matching sender session`() = runTest {
-        val engine = TransferEngine(backgroundScope, cfg, ChunkSizePolicy.fixed(10), true)
+        val engine = TransferEngine(backgroundScope, config, ChunkSizePolicy.fixed(10), true)
         val frames = mutableListOf<OutboundFrame>()
         backgroundScope.launch { engine.outboundChunks.collect { frames.add(it) } }
         backgroundScope.launch { engine.events.collect {} }
@@ -175,7 +175,7 @@ class TransferEngineTest {
 
     @Test
     fun `onIncomingResumeRequest with unknown messageId is a no-op`() = runTest {
-        val engine = TransferEngine(backgroundScope, cfg, ChunkSizePolicy.fixed(10), true)
+        val engine = TransferEngine(backgroundScope, config, ChunkSizePolicy.fixed(10), true)
         backgroundScope.launch { engine.outboundChunks.collect {} }
         backgroundScope.launch { engine.events.collect {} }
 
@@ -190,7 +190,7 @@ class TransferEngineTest {
 
     @Test
     fun `onPeerDisconnect notifies sessions with matching peerId`() = runTest {
-        val engine = TransferEngine(backgroundScope, cfg, ChunkSizePolicy.fixed(10), true)
+        val engine = TransferEngine(backgroundScope, config, ChunkSizePolicy.fixed(10), true)
         backgroundScope.launch { engine.outboundChunks.collect {} }
         backgroundScope.launch { engine.events.collect {} }
 
@@ -207,7 +207,7 @@ class TransferEngineTest {
 
     @Test
     fun `onPeerDisconnect with no matching session is a no-op`() = runTest {
-        val engine = TransferEngine(backgroundScope, cfg, ChunkSizePolicy.fixed(10), true)
+        val engine = TransferEngine(backgroundScope, config, ChunkSizePolicy.fixed(10), true)
         backgroundScope.launch { engine.outboundChunks.collect {} }
         backgroundScope.launch { engine.events.collect {} }
 
@@ -217,7 +217,7 @@ class TransferEngineTest {
 
     @Test
     fun `onPeerReconnect notifies sessions with matching peerId`() = runTest {
-        val engine = TransferEngine(backgroundScope, cfg, ChunkSizePolicy.fixed(10), true)
+        val engine = TransferEngine(backgroundScope, config, ChunkSizePolicy.fixed(10), true)
         backgroundScope.launch { engine.outboundChunks.collect {} }
         backgroundScope.launch { engine.events.collect {} }
 
@@ -233,7 +233,7 @@ class TransferEngineTest {
 
     @Test
     fun `onPeerReconnect with no matching session is a no-op`() = runTest {
-        val engine = TransferEngine(backgroundScope, cfg, ChunkSizePolicy.fixed(10), true)
+        val engine = TransferEngine(backgroundScope, config, ChunkSizePolicy.fixed(10), true)
         backgroundScope.launch { engine.outboundChunks.collect {} }
         backgroundScope.launch { engine.events.collect {} }
 
@@ -247,7 +247,7 @@ class TransferEngineTest {
 
     @Test
     fun `onMemoryPressure evicts LOW priority sessions and emits TransferFailed`() = runTest {
-        val engine = TransferEngine(backgroundScope, cfg, ChunkSizePolicy.fixed(10), true)
+        val engine = TransferEngine(backgroundScope, config, ChunkSizePolicy.fixed(10), true)
         val eventList = mutableListOf<TransferEvent>()
         backgroundScope.launch { engine.outboundChunks.collect {} }
         backgroundScope.launch { engine.events.collect { eventList.add(it) } }
@@ -267,7 +267,7 @@ class TransferEngineTest {
 
     @Test
     fun `onMemoryPressure falls back to NORMAL when no LOW sessions exist`() = runTest {
-        val engine = TransferEngine(backgroundScope, cfg, ChunkSizePolicy.fixed(10), true)
+        val engine = TransferEngine(backgroundScope, config, ChunkSizePolicy.fixed(10), true)
         val eventList = mutableListOf<TransferEvent>()
         backgroundScope.launch { engine.outboundChunks.collect {} }
         backgroundScope.launch { engine.events.collect { eventList.add(it) } }
@@ -287,7 +287,7 @@ class TransferEngineTest {
 
     @Test
     fun `onMemoryPressure does not evict HIGH sessions`() = runTest {
-        val engine = TransferEngine(backgroundScope, cfg, ChunkSizePolicy.fixed(10), true)
+        val engine = TransferEngine(backgroundScope, config, ChunkSizePolicy.fixed(10), true)
         val eventList = mutableListOf<TransferEvent>()
         backgroundScope.launch { engine.outboundChunks.collect {} }
         backgroundScope.launch { engine.events.collect { eventList.add(it) } }
@@ -303,7 +303,7 @@ class TransferEngineTest {
 
     @Test
     fun `onMemoryPressure with no sessions is a no-op`() = runTest {
-        val engine = TransferEngine(backgroundScope, cfg, ChunkSizePolicy.fixed(10), true)
+        val engine = TransferEngine(backgroundScope, config, ChunkSizePolicy.fixed(10), true)
         backgroundScope.launch { engine.outboundChunks.collect {} }
         backgroundScope.launch { engine.events.collect {} }
 
@@ -318,7 +318,7 @@ class TransferEngineTest {
 
     @Test
     fun `removeSession removes session from engine so subsequent routing is a no-op`() = runTest {
-        val engine = TransferEngine(backgroundScope, cfg, ChunkSizePolicy.fixed(10), true)
+        val engine = TransferEngine(backgroundScope, config, ChunkSizePolicy.fixed(10), true)
         val frames = mutableListOf<OutboundFrame>()
         backgroundScope.launch { engine.outboundChunks.collect { frames.add(it) } }
         backgroundScope.launch { engine.events.collect {} }

@@ -29,10 +29,16 @@ import ch.trancee.meshlink.wire.InboundValidator
 import ch.trancee.meshlink.wire.Keepalive
 import ch.trancee.meshlink.wire.Nack
 import ch.trancee.meshlink.wire.ResumeRequest
-import ch.trancee.meshlink.wire.RotationAnnouncementMsg
+import ch.trancee.meshlink.wire.RotationAnnouncementMessage
 import ch.trancee.meshlink.wire.RoutedMessage
 import ch.trancee.meshlink.wire.Update
 import ch.trancee.meshlink.wire.WireCodec
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
+import kotlin.test.assertTrue
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
@@ -41,12 +47,6 @@ import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertFailsWith
-import kotlin.test.assertFalse
-import kotlin.test.assertNotNull
-import kotlin.test.assertTrue
 
 private const val NACK_REASON_BUFFER_FULL: UByte = 0u
 
@@ -84,49 +84,63 @@ class DeliveryPipelineTest {
         val routingTable = RoutingTable(clock)
         val trustStorage = InMemorySecureStorage()
         val trustStore = TrustStore(trustStorage)
-        val routingEngine = RoutingEngine(
-            routingTable = routingTable,
-            localPeerId = identity.keyHash,
-            localEdPublicKey = identity.edKeyPair.publicKey,
-            localDhPublicKey = identity.dhKeyPair.publicKey,
-            scope = scope,
-            clock = clock,
-            config = routingConfig,
-        )
-        val routingDedupSet = DedupSet(routingConfig.dedupCapacity, routingConfig.dedupTtlMillis, clock)
+        val routingEngine =
+            RoutingEngine(
+                routingTable = routingTable,
+                localPeerId = identity.keyHash,
+                localEdPublicKey = identity.edKeyPair.publicKey,
+                localDhPublicKey = identity.dhKeyPair.publicKey,
+                scope = scope,
+                clock = clock,
+                config = routingConfig,
+            )
+        val routingDedupSet =
+            DedupSet(routingConfig.dedupCapacity, routingConfig.dedupTtlMillis, clock)
         val presenceTracker = PresenceTracker()
-        val routeCoordinator = RouteCoordinator(
-            localPeerId = identity.keyHash,
-            localEdPublicKey = identity.edKeyPair.publicKey,
-            localDhPublicKey = identity.dhKeyPair.publicKey,
-            routingTable = routingTable,
-            routingEngine = routingEngine,
-            dedupSet = routingDedupSet,
-            presenceTracker = presenceTracker,
-            trustStore = trustStore,
-            scope = scope,
-            clock = clock,
-            config = routingConfig,
-        )
-        val transferEngine = TransferEngine(scope, transferConfig, ChunkSizePolicy.fixed(4096), true)
+        val routeCoordinator =
+            RouteCoordinator(
+                localPeerId = identity.keyHash,
+                localEdPublicKey = identity.edKeyPair.publicKey,
+                localDhPublicKey = identity.dhKeyPair.publicKey,
+                routingTable = routingTable,
+                routingEngine = routingEngine,
+                dedupSet = routingDedupSet,
+                presenceTracker = presenceTracker,
+                trustStore = trustStore,
+                scope = scope,
+                clock = clock,
+                config = routingConfig,
+            )
+        val transferEngine =
+            TransferEngine(scope, transferConfig, ChunkSizePolicy.fixed(4096), true)
         val replayGuard = ReplayGuard()
         val messageDedupSet = DedupSet(10_000, 2_700_000L, clock)
-        val pipeline = DeliveryPipeline(
-            scope = scope,
-            transport = transport,
-            routeCoordinator = routeCoordinator,
-            transferEngine = transferEngine,
-            inboundValidator = InboundValidator,
-            localIdentity = identity,
-            cryptoProvider = crypto,
-            trustStore = trustStore,
-            replayGuard = replayGuard,
-            dedupSet = messageDedupSet,
-            config = config,
-            clock = clock,
+        val pipeline =
+            DeliveryPipeline(
+                scope = scope,
+                transport = transport,
+                routeCoordinator = routeCoordinator,
+                transferEngine = transferEngine,
+                inboundValidator = InboundValidator,
+                localIdentity = identity,
+                cryptoProvider = crypto,
+                trustStore = trustStore,
+                replayGuard = replayGuard,
+                dedupSet = messageDedupSet,
+                config = config,
+                clock = clock,
+            )
+        return PipelineNode(
+            crypto,
+            identity,
+            transport,
+            routingTable,
+            routeCoordinator,
+            transferEngine,
+            trustStore,
+            replayGuard,
+            pipeline,
         )
-        return PipelineNode(crypto, identity, transport, routingTable, routeCoordinator,
-            transferEngine, trustStore, replayGuard, pipeline)
     }
 
     private fun relaxedConfig(
@@ -136,51 +150,64 @@ class DeliveryPipelineTest {
         outboundUnicastLimit: Int = 200,
         broadcastLimit: Int = 200,
         circuitBreaker: MessagingConfig.CircuitBreakerConfig =
-            MessagingConfig.CircuitBreakerConfig(windowMs = 60_000L, maxFailures = 3, cooldownMs = 5_000L),
-    ) = MessagingConfig(
-        appIdHash = appIdHash,
-        requireBroadcastSignatures = requireBroadcastSignatures,
-        allowUnsignedBroadcasts = allowUnsignedBroadcasts,
-        maxBufferedMessages = maxBufferedMessages,
-        outboundUnicastLimit = outboundUnicastLimit,
-        outboundUnicastWindowMs = 60_000L,
-        broadcastLimit = broadcastLimit,
-        broadcastWindowMs = 60_000L,
-        relayPerSenderPerNeighborLimit = 200,
-        relayPerSenderPerNeighborWindowMs = 60_000L,
-        perNeighborAggregateLimit = 200,
-        perNeighborAggregateWindowMs = 60_000L,
-        perSenderInboundLimit = 200,
-        perSenderInboundWindowMs = 60_000L,
-        handshakeLimit = 200,
-        handshakeWindowMs = 60_000L,
-        nackLimit = 200,
-        nackWindowMs = 60_000L,
-        highPriorityTtlMs = 10_000L,
-        normalPriorityTtlMs = 10_000L,
-        lowPriorityTtlMs = 10_000L,
-        circuitBreaker = circuitBreaker,
-    )
+            MessagingConfig.CircuitBreakerConfig(
+                windowMs = 60_000L,
+                maxFailures = 3,
+                cooldownMs = 5_000L,
+            ),
+    ) =
+        MessagingConfig(
+            appIdHash = appIdHash,
+            requireBroadcastSignatures = requireBroadcastSignatures,
+            allowUnsignedBroadcasts = allowUnsignedBroadcasts,
+            maxBufferedMessages = maxBufferedMessages,
+            outboundUnicastLimit = outboundUnicastLimit,
+            outboundUnicastWindowMs = 60_000L,
+            broadcastLimit = broadcastLimit,
+            broadcastWindowMs = 60_000L,
+            relayPerSenderPerNeighborLimit = 200,
+            relayPerSenderPerNeighborWindowMs = 60_000L,
+            perNeighborAggregateLimit = 200,
+            perNeighborAggregateWindowMs = 60_000L,
+            perSenderInboundLimit = 200,
+            perSenderInboundWindowMs = 60_000L,
+            handshakeLimit = 200,
+            handshakeWindowMs = 60_000L,
+            nackLimit = 200,
+            nackWindowMs = 60_000L,
+            highPriorityTtlMs = 10_000L,
+            normalPriorityTtlMs = 10_000L,
+            lowPriorityTtlMs = 10_000L,
+            circuitBreaker = circuitBreaker,
+        )
 
     private fun connect(a: PipelineNode, b: PipelineNode, clock: () -> Long) {
         a.transport.linkTo(b.transport)
         val expiresAt = clock() + 600_000L
-        a.routingTable.install(RouteEntry(
-            destination = b.identity.keyHash,
-            nextHop = b.identity.keyHash,
-            metric = 1.0, seqNo = 0u, feasibilityDistance = 1.0,
-            expiresAt = expiresAt,
-            ed25519PublicKey = b.identity.edKeyPair.publicKey,
-            x25519PublicKey = b.identity.dhKeyPair.publicKey,
-        ))
-        b.routingTable.install(RouteEntry(
-            destination = a.identity.keyHash,
-            nextHop = a.identity.keyHash,
-            metric = 1.0, seqNo = 0u, feasibilityDistance = 1.0,
-            expiresAt = expiresAt,
-            ed25519PublicKey = a.identity.edKeyPair.publicKey,
-            x25519PublicKey = a.identity.dhKeyPair.publicKey,
-        ))
+        a.routingTable.install(
+            RouteEntry(
+                destination = b.identity.keyHash,
+                nextHop = b.identity.keyHash,
+                metric = 1.0,
+                seqNo = 0u,
+                feasibilityDistance = 1.0,
+                expiresAt = expiresAt,
+                ed25519PublicKey = b.identity.edKeyPair.publicKey,
+                x25519PublicKey = b.identity.dhKeyPair.publicKey,
+            )
+        )
+        b.routingTable.install(
+            RouteEntry(
+                destination = a.identity.keyHash,
+                nextHop = a.identity.keyHash,
+                metric = 1.0,
+                seqNo = 0u,
+                feasibilityDistance = 1.0,
+                expiresAt = expiresAt,
+                ed25519PublicKey = a.identity.edKeyPair.publicKey,
+                x25519PublicKey = a.identity.dhKeyPair.publicKey,
+            )
+        )
         a.routeCoordinator.onPeerConnected(PeerInfo(b.identity.keyHash, 0, -50, 0.0))
         b.routeCoordinator.onPeerConnected(PeerInfo(a.identity.keyHash, 0, -50, 0.0))
         a.trustStore.pinKey(b.identity.keyHash, b.identity.dhKeyPair.publicKey)
@@ -250,9 +277,10 @@ class DeliveryPipelineTest {
         injector.linkTo(alice.transport)
         alice.routeCoordinator.onPeerConnected(PeerInfo(fakePeer, 0, -50, 0.0))
 
-        injector.sendToPeer(alice.identity.keyHash, WireCodec.encode(
-            Update(destId, 1u, 1u, ByteArray(32) { it.toByte() }, dhKey)
-        ))
+        injector.sendToPeer(
+            alice.identity.keyHash,
+            WireCodec.encode(Update(destId, 1u, 1u, ByteArray(32) { it.toByte() }, dhKey)),
+        )
         runCurrent()
 
         assertNotNull(alice.routingTable.lookupNextHop(destId), "Route installed")
@@ -273,8 +301,10 @@ class DeliveryPipelineTest {
         val fakePeer = ByteArray(12) { 0x55 }
         val injector = VirtualMeshTransport(fakePeer, testScheduler)
         injector.linkTo(alice.transport)
-        injector.sendToPeer(alice.identity.keyHash,
-            WireCodec.encode(Chunk(msgId, 0u, 1u, byteArrayOf(1, 2, 3))))
+        injector.sendToPeer(
+            alice.identity.keyHash,
+            WireCodec.encode(Chunk(msgId, 0u, 1u, byteArrayOf(1, 2, 3))),
+        )
         runCurrent()
 
         assertTrue(events.any { it is TransferEvent.AssemblyComplete })
@@ -286,7 +316,9 @@ class DeliveryPipelineTest {
         val clock: () -> Long = { clockMs }
         val alice = makeNode(backgroundScope, testScheduler, clock)
         val capturedChunks = mutableListOf<ch.trancee.meshlink.routing.OutboundFrame>()
-        backgroundScope.launch { alice.transferEngine.outboundChunks.collect { capturedChunks.add(it) } }
+        backgroundScope.launch {
+            alice.transferEngine.outboundChunks.collect { capturedChunks.add(it) }
+        }
         backgroundScope.launch { alice.transferEngine.events.collect {} }
 
         val msgId = ByteArray(16) { 0xBB.toByte() }
@@ -296,8 +328,10 @@ class DeliveryPipelineTest {
 
         val injector = VirtualMeshTransport(fakePeer, testScheduler)
         injector.linkTo(alice.transport)
-        injector.sendToPeer(alice.identity.keyHash,
-            WireCodec.encode(ch.trancee.meshlink.wire.ChunkAck(msgId, 1u, 0uL)))
+        injector.sendToPeer(
+            alice.identity.keyHash,
+            WireCodec.encode(ch.trancee.meshlink.wire.ChunkAck(msgId, 1u, 0uL)),
+        )
         runCurrent()
         // No crash
     }
@@ -315,17 +349,22 @@ class DeliveryPipelineTest {
         val fakePeer = ByteArray(12) { 0x99.toByte() }
         val injector = VirtualMeshTransport(fakePeer, testScheduler)
         injector.linkTo(alice.transport)
-        injector.sendToPeer(alice.identity.keyHash, WireCodec.encode(Broadcast(
-            messageId = ByteArray(16) { 0xCC.toByte() },
-            origin = fakePeer,
-            remainingHops = 2u,
-            appIdHash = 0x0201u.toUShort(),
-            flags = 0u,
-            priority = 0,
-            signature = null,
-            signerKey = null,
-            payload = byteArrayOf(0xAB.toByte()),
-        )))
+        injector.sendToPeer(
+            alice.identity.keyHash,
+            WireCodec.encode(
+                Broadcast(
+                    messageId = ByteArray(16) { 0xCC.toByte() },
+                    origin = fakePeer,
+                    remainingHops = 2u,
+                    appIdHash = 0x0201u.toUShort(),
+                    flags = 0u,
+                    priority = 0,
+                    signature = null,
+                    signerKey = null,
+                    payload = byteArrayOf(0xAB.toByte()),
+                )
+            ),
+        )
         runCurrent()
 
         assertEquals(1, received.size)
@@ -338,13 +377,19 @@ class DeliveryPipelineTest {
         val clock: () -> Long = { clockMs }
         val alice = makeNode(backgroundScope, testScheduler, clock)
         val confirmations = mutableListOf<Delivered>()
-        backgroundScope.launch { alice.pipeline.deliveryConfirmations.collect { confirmations.add(it) } }
+        backgroundScope.launch {
+            alice.pipeline.deliveryConfirmations.collect { confirmations.add(it) }
+        }
 
         val fakePeer = ByteArray(12) { 0x77 }
         val injector = VirtualMeshTransport(fakePeer, testScheduler)
         injector.linkTo(alice.transport)
-        injector.sendToPeer(alice.identity.keyHash,
-            WireCodec.encode(DeliveryAck(ByteArray(16) { 0xDD.toByte() }, alice.identity.keyHash, 0u, null)))
+        injector.sendToPeer(
+            alice.identity.keyHash,
+            WireCodec.encode(
+                DeliveryAck(ByteArray(16) { 0xDD.toByte() }, alice.identity.keyHash, 0u, null)
+            ),
+        )
         runCurrent()
 
         assertTrue(confirmations.isEmpty())
@@ -360,8 +405,7 @@ class DeliveryPipelineTest {
         val fakePeer = ByteArray(12) { 0x78 }
         val injector = VirtualMeshTransport(fakePeer, testScheduler)
         injector.linkTo(alice.transport)
-        injector.sendToPeer(alice.identity.keyHash,
-            WireCodec.encode(Handshake(1u, ByteArray(32))))
+        injector.sendToPeer(alice.identity.keyHash, WireCodec.encode(Handshake(1u, ByteArray(32))))
         runCurrent()
         // No crash
     }
@@ -376,8 +420,7 @@ class DeliveryPipelineTest {
         val fakePeer = ByteArray(12) { 0x79 }
         val injector = VirtualMeshTransport(fakePeer, testScheduler)
         injector.linkTo(alice.transport)
-        injector.sendToPeer(alice.identity.keyHash,
-            WireCodec.encode(Keepalive(0u, 0uL, 244u)))
+        injector.sendToPeer(alice.identity.keyHash, WireCodec.encode(Keepalive(0u, 0uL, 244u)))
         runCurrent()
         // No crash
     }
@@ -395,16 +438,20 @@ class DeliveryPipelineTest {
         val newDhKp = crypto.generateX25519KeyPair()
         val nonce = ByteArray(8) { 1 }
         val rotNonce = ByteArray(8) { 1 }
-        val rot = RotationAnnouncementMsg(
-            oldX25519Key = ByteArray(32),
-            newX25519Key = newDhKp.publicKey,
-            oldEd25519Key = oldEdKp.publicKey,
-            newEd25519Key = newEdKp.publicKey,
-            rotationNonce = 1uL,
-            timestampMillis = 0uL,
-            signature = crypto.sign(oldEdKp.privateKey,
-                newEdKp.publicKey + newDhKp.publicKey + rotNonce),
-        )
+        val rot =
+            RotationAnnouncementMessage(
+                oldX25519Key = ByteArray(32),
+                newX25519Key = newDhKp.publicKey,
+                oldEd25519Key = oldEdKp.publicKey,
+                newEd25519Key = newEdKp.publicKey,
+                rotationNonce = 1uL,
+                timestampMillis = 0uL,
+                signature =
+                    crypto.sign(
+                        oldEdKp.privateKey,
+                        newEdKp.publicKey + newDhKp.publicKey + rotNonce,
+                    ),
+            )
         val fakePeer = ByteArray(12) { 0x7A }
         val injector = VirtualMeshTransport(fakePeer, testScheduler)
         injector.linkTo(alice.transport)
@@ -437,8 +484,8 @@ class DeliveryPipelineTest {
     fun `inbound Nack beyond rate limit silently dropped`() = runTest {
         var clockMs = 0L
         val clock: () -> Long = { clockMs }
-        val cfg = relaxedConfig().copy(nackLimit = 1, nackWindowMs = 60_000L)
-        val alice = makeNode(backgroundScope, testScheduler, clock, cfg)
+        val config = relaxedConfig().copy(nackLimit = 1, nackWindowMs = 60_000L)
+        val alice = makeNode(backgroundScope, testScheduler, clock, config)
         backgroundScope.launch { alice.transferEngine.outboundChunks.collect {} }
         backgroundScope.launch { alice.transferEngine.events.collect {} }
 
@@ -465,8 +512,10 @@ class DeliveryPipelineTest {
         val fakePeer = ByteArray(12) { 0x7D }
         val injector = VirtualMeshTransport(fakePeer, testScheduler)
         injector.linkTo(alice.transport)
-        injector.sendToPeer(alice.identity.keyHash,
-            WireCodec.encode(ResumeRequest(ByteArray(16) { 0xF1.toByte() }, 10u)))
+        injector.sendToPeer(
+            alice.identity.keyHash,
+            WireCodec.encode(ResumeRequest(ByteArray(16) { 0xF1.toByte() }, 10u)),
+        )
         runCurrent()
         // No crash
     }
@@ -498,7 +547,9 @@ class DeliveryPipelineTest {
         val received = mutableListOf<InboundMessage>()
         val confirmations = mutableListOf<Delivered>()
         backgroundScope.launch { alice.pipeline.messages.collect { received.add(it) } }
-        backgroundScope.launch { alice.pipeline.deliveryConfirmations.collect { confirmations.add(it) } }
+        backgroundScope.launch {
+            alice.pipeline.deliveryConfirmations.collect { confirmations.add(it) }
+        }
         runCurrent() // start collectors
 
         val result = alice.pipeline.send(alice.identity.keyHash, byteArrayOf(0xFF.toByte()))
@@ -542,9 +593,9 @@ class DeliveryPipelineTest {
     fun `send rate limited returns Queued PAUSED`() = runTest {
         var clockMs = 0L
         val clock: () -> Long = { clockMs }
-        val cfg = relaxedConfig(outboundUnicastLimit = 1)
-        val alice = makeNode(backgroundScope, testScheduler, clock, cfg)
-        val bob = makeNode(backgroundScope, testScheduler, clock, cfg)
+        val config = relaxedConfig(outboundUnicastLimit = 1)
+        val alice = makeNode(backgroundScope, testScheduler, clock, config)
+        val bob = makeNode(backgroundScope, testScheduler, clock, config)
         connect(alice, bob, clock)
         drainFlows(backgroundScope, alice)
 
@@ -560,11 +611,22 @@ class DeliveryPipelineTest {
     fun `send when circuit breaker open returns Queued PAUSED`() = runTest {
         var clockMs = 0L
         val clock: () -> Long = { clockMs }
-        val cbCfg = MessagingConfig.CircuitBreakerConfig(windowMs = 60_000L, maxFailures = 1, cooldownMs = 30_000L)
-        val cfg = relaxedConfig(circuitBreaker = cbCfg)
-        val alice = makeNode(backgroundScope, testScheduler, clock, cfg,
-            TransferConfig(inactivityBaseTimeoutMillis = 100L))
-        val bob = makeNode(backgroundScope, testScheduler, clock, cfg)
+        val circuitBreakerConfig =
+            MessagingConfig.CircuitBreakerConfig(
+                windowMs = 60_000L,
+                maxFailures = 1,
+                cooldownMs = 30_000L,
+            )
+        val config = relaxedConfig(circuitBreaker = circuitBreakerConfig)
+        val alice =
+            makeNode(
+                backgroundScope,
+                testScheduler,
+                clock,
+                config,
+                TransferConfig(inactivityBaseTimeoutMillis = 100L),
+            )
+        val bob = makeNode(backgroundScope, testScheduler, clock, config)
         connect(alice, bob, clock)
         val failures = mutableListOf<DeliveryFailed>()
         backgroundScope.launch { alice.pipeline.transferFailures.collect { failures.add(it) } }
@@ -586,7 +648,13 @@ class DeliveryPipelineTest {
     fun `send oversized payload throws IllegalArgumentException`() = runTest {
         var clockMs = 0L
         val clock: () -> Long = { clockMs }
-        val alice = makeNode(backgroundScope, testScheduler, clock, relaxedConfig().copy(maxMessageSize = 5))
+        val alice =
+            makeNode(
+                backgroundScope,
+                testScheduler,
+                clock,
+                relaxedConfig().copy(maxMessageSize = 5),
+            )
         val bob = makeNode(backgroundScope, testScheduler, clock)
         connect(alice, bob, clock)
 
@@ -664,7 +732,13 @@ class DeliveryPipelineTest {
     fun `broadcast oversized throws IllegalArgumentException`() = runTest {
         var clockMs = 0L
         val clock: () -> Long = { clockMs }
-        val alice = makeNode(backgroundScope, testScheduler, clock, relaxedConfig().copy(maxBroadcastSize = 5))
+        val alice =
+            makeNode(
+                backgroundScope,
+                testScheduler,
+                clock,
+                relaxedConfig().copy(maxBroadcastSize = 5),
+            )
 
         assertFailsWith<IllegalArgumentException> { alice.pipeline.broadcast(ByteArray(10)) }
     }
@@ -673,7 +747,8 @@ class DeliveryPipelineTest {
     fun `broadcast rate limited throws IllegalStateException`() = runTest {
         var clockMs = 0L
         val clock: () -> Long = { clockMs }
-        val alice = makeNode(backgroundScope, testScheduler, clock, relaxedConfig(broadcastLimit = 1))
+        val alice =
+            makeNode(backgroundScope, testScheduler, clock, relaxedConfig(broadcastLimit = 1))
 
         alice.pipeline.broadcast(byteArrayOf(1))
         assertFailsWith<IllegalStateException> { alice.pipeline.broadcast(byteArrayOf(2)) }
@@ -683,9 +758,10 @@ class DeliveryPipelineTest {
     fun `broadcast with signatures sends signed message`() = runTest {
         var clockMs = 1_000L
         val clock: () -> Long = { clockMs }
-        val cfg = relaxedConfig(requireBroadcastSignatures = true, allowUnsignedBroadcasts = false)
-        val alice = makeNode(backgroundScope, testScheduler, clock, cfg)
-        val bob = makeNode(backgroundScope, testScheduler, clock, cfg)
+        val config =
+            relaxedConfig(requireBroadcastSignatures = true, allowUnsignedBroadcasts = false)
+        val alice = makeNode(backgroundScope, testScheduler, clock, config)
+        val bob = makeNode(backgroundScope, testScheduler, clock, config)
         connect(alice, bob, clock)
         val received = mutableListOf<InboundMessage>()
         backgroundScope.launch { bob.pipeline.messages.collect { received.add(it) } }
@@ -713,7 +789,18 @@ class DeliveryPipelineTest {
         val framesBefore = alice.transport.sentFrames.size
 
         // Inject own broadcast back as if echoed
-        val echo = Broadcast(messageId, alice.identity.keyHash, 1u, 0x0201u.toUShort(), 0u, 0, null, null, byteArrayOf(0xDE.toByte()))
+        val echo =
+            Broadcast(
+                messageId,
+                alice.identity.keyHash,
+                1u,
+                0x0201u.toUShort(),
+                0u,
+                0,
+                null,
+                null,
+                byteArrayOf(0xDE.toByte()),
+            )
         val injector = VirtualMeshTransport(bob.identity.keyHash, testScheduler)
         injector.linkTo(alice.transport)
         injector.sendToPeer(alice.identity.keyHash, WireCodec.encode(echo))
@@ -735,9 +822,22 @@ class DeliveryPipelineTest {
         val thirdParty = ByteArray(12) { 0x31 }
         val injector = VirtualMeshTransport(bob.identity.keyHash, testScheduler)
         injector.linkTo(alice.transport)
-        injector.sendToPeer(alice.identity.keyHash, WireCodec.encode(
-            Broadcast(ByteArray(16) { 0x31 }, thirdParty, 0u, 0x0201u.toUShort(), 0u, 0, null, null, byteArrayOf(1))
-        ))
+        injector.sendToPeer(
+            alice.identity.keyHash,
+            WireCodec.encode(
+                Broadcast(
+                    ByteArray(16) { 0x31 },
+                    thirdParty,
+                    0u,
+                    0x0201u.toUShort(),
+                    0u,
+                    0,
+                    null,
+                    null,
+                    byteArrayOf(1),
+                )
+            ),
+        )
         runCurrent()
 
         assertEquals(framesBeforeInject, alice.transport.sentFrames.size, "hops=0 not relayed")
@@ -747,8 +847,9 @@ class DeliveryPipelineTest {
     fun `broadcast unsigned accepted when allowUnsigned true`() = runTest {
         var clockMs = 1_000L
         val clock: () -> Long = { clockMs }
-        val cfg = relaxedConfig(requireBroadcastSignatures = true, allowUnsignedBroadcasts = true)
-        val alice = makeNode(backgroundScope, testScheduler, clock, cfg)
+        val config =
+            relaxedConfig(requireBroadcastSignatures = true, allowUnsignedBroadcasts = true)
+        val alice = makeNode(backgroundScope, testScheduler, clock, config)
         val received = mutableListOf<InboundMessage>()
         backgroundScope.launch { alice.pipeline.messages.collect { received.add(it) } }
         drainFlows(backgroundScope, alice)
@@ -757,9 +858,22 @@ class DeliveryPipelineTest {
         val fakePeer = ByteArray(12) { 0x40 }
         val injector = VirtualMeshTransport(fakePeer, testScheduler)
         injector.linkTo(alice.transport)
-        injector.sendToPeer(alice.identity.keyHash, WireCodec.encode(
-            Broadcast(ByteArray(16) { 0x40 }, fakePeer, 0u, 0x0201u.toUShort(), 0u, 0, null, null, byteArrayOf(0x55))
-        ))
+        injector.sendToPeer(
+            alice.identity.keyHash,
+            WireCodec.encode(
+                Broadcast(
+                    ByteArray(16) { 0x40 },
+                    fakePeer,
+                    0u,
+                    0x0201u.toUShort(),
+                    0u,
+                    0,
+                    null,
+                    null,
+                    byteArrayOf(0x55),
+                )
+            ),
+        )
         runCurrent()
 
         assertEquals(1, received.size)
@@ -769,8 +883,9 @@ class DeliveryPipelineTest {
     fun `broadcast unsigned dropped when requireSignatures and not allowUnsigned`() = runTest {
         var clockMs = 1_000L
         val clock: () -> Long = { clockMs }
-        val cfg = relaxedConfig(requireBroadcastSignatures = true, allowUnsignedBroadcasts = false)
-        val alice = makeNode(backgroundScope, testScheduler, clock, cfg)
+        val config =
+            relaxedConfig(requireBroadcastSignatures = true, allowUnsignedBroadcasts = false)
+        val alice = makeNode(backgroundScope, testScheduler, clock, config)
         val received = mutableListOf<InboundMessage>()
         backgroundScope.launch { alice.pipeline.messages.collect { received.add(it) } }
         drainFlows(backgroundScope, alice)
@@ -778,9 +893,22 @@ class DeliveryPipelineTest {
         val fakePeer = ByteArray(12) { 0x41 }
         val injector = VirtualMeshTransport(fakePeer, testScheduler)
         injector.linkTo(alice.transport)
-        injector.sendToPeer(alice.identity.keyHash, WireCodec.encode(
-            Broadcast(ByteArray(16) { 0x41 }, fakePeer, 0u, 0x0201u.toUShort(), 0u, 0, null, null, byteArrayOf(0x56))
-        ))
+        injector.sendToPeer(
+            alice.identity.keyHash,
+            WireCodec.encode(
+                Broadcast(
+                    ByteArray(16) { 0x41 },
+                    fakePeer,
+                    0u,
+                    0x0201u.toUShort(),
+                    0u,
+                    0,
+                    null,
+                    null,
+                    byteArrayOf(0x56),
+                )
+            ),
+        )
         runCurrent()
 
         assertTrue(received.isEmpty())
@@ -790,8 +918,9 @@ class DeliveryPipelineTest {
     fun `broadcast invalid signature dropped`() = runTest {
         var clockMs = 1_000L
         val clock: () -> Long = { clockMs }
-        val cfg = relaxedConfig(requireBroadcastSignatures = true, allowUnsignedBroadcasts = false)
-        val alice = makeNode(backgroundScope, testScheduler, clock, cfg)
+        val config =
+            relaxedConfig(requireBroadcastSignatures = true, allowUnsignedBroadcasts = false)
+        val alice = makeNode(backgroundScope, testScheduler, clock, config)
         val received = mutableListOf<InboundMessage>()
         backgroundScope.launch { alice.pipeline.messages.collect { received.add(it) } }
         drainFlows(backgroundScope, alice)
@@ -799,10 +928,22 @@ class DeliveryPipelineTest {
         val fakePeer = ByteArray(12) { 0x42 }
         val injector = VirtualMeshTransport(fakePeer, testScheduler)
         injector.linkTo(alice.transport)
-        injector.sendToPeer(alice.identity.keyHash, WireCodec.encode(
-            Broadcast(ByteArray(16) { 0x42 }, fakePeer, 0u, 0x0201u.toUShort(), 1u, 0,
-                ByteArray(64), ByteArray(32) { it.toByte() }, byteArrayOf(0x57))
-        ))
+        injector.sendToPeer(
+            alice.identity.keyHash,
+            WireCodec.encode(
+                Broadcast(
+                    ByteArray(16) { 0x42 },
+                    fakePeer,
+                    0u,
+                    0x0201u.toUShort(),
+                    1u,
+                    0,
+                    ByteArray(64),
+                    ByteArray(32) { it.toByte() },
+                    byteArrayOf(0x57),
+                )
+            ),
+        )
         runCurrent()
 
         assertTrue(received.isEmpty(), "Invalid sig dropped")
@@ -812,8 +953,9 @@ class DeliveryPipelineTest {
     fun `broadcast with null sig field dropped when HAS_SIGNATURE flag set`() = runTest {
         var clockMs = 1_000L
         val clock: () -> Long = { clockMs }
-        val cfg = relaxedConfig(requireBroadcastSignatures = false, allowUnsignedBroadcasts = true)
-        val alice = makeNode(backgroundScope, testScheduler, clock, cfg)
+        val config =
+            relaxedConfig(requireBroadcastSignatures = false, allowUnsignedBroadcasts = true)
+        val alice = makeNode(backgroundScope, testScheduler, clock, config)
         val received = mutableListOf<InboundMessage>()
         backgroundScope.launch { alice.pipeline.messages.collect { received.add(it) } }
         drainFlows(backgroundScope, alice)
@@ -822,10 +964,22 @@ class DeliveryPipelineTest {
         val injector = VirtualMeshTransport(fakePeer, testScheduler)
         injector.linkTo(alice.transport)
         // flags=1 (HAS_SIGNATURE) but signature=null (missing field on wire)
-        injector.sendToPeer(alice.identity.keyHash, WireCodec.encode(
-            Broadcast(ByteArray(16) { 0x43 }, fakePeer, 0u, 0x0201u.toUShort(), 1u, 0,
-                null, null, byteArrayOf(0x58))
-        ))
+        injector.sendToPeer(
+            alice.identity.keyHash,
+            WireCodec.encode(
+                Broadcast(
+                    ByteArray(16) { 0x43 },
+                    fakePeer,
+                    0u,
+                    0x0201u.toUShort(),
+                    1u,
+                    0,
+                    null,
+                    null,
+                    byteArrayOf(0x58),
+                )
+            ),
+        )
         runCurrent()
 
         assertTrue(received.isEmpty(), "Null sig with HAS_SIGNATURE flag → dropped")
@@ -852,8 +1006,9 @@ class DeliveryPipelineTest {
     fun `broadcast per-sender inbound rate limit drops excess`() = runTest {
         var clockMs = 0L
         val clock: () -> Long = { clockMs }
-        val cfg = relaxedConfig().copy(perSenderInboundLimit = 1, perSenderInboundWindowMs = 60_000L)
-        val alice = makeNode(backgroundScope, testScheduler, clock, cfg)
+        val config =
+            relaxedConfig().copy(perSenderInboundLimit = 1, perSenderInboundWindowMs = 60_000L)
+        val alice = makeNode(backgroundScope, testScheduler, clock, config)
         val received = mutableListOf<InboundMessage>()
         backgroundScope.launch { alice.pipeline.messages.collect { received.add(it) } }
         drainFlows(backgroundScope, alice)
@@ -863,15 +1018,41 @@ class DeliveryPipelineTest {
         val injector = VirtualMeshTransport(fakePeer, testScheduler)
         injector.linkTo(alice.transport)
 
-        injector.sendToPeer(alice.identity.keyHash, WireCodec.encode(
-            Broadcast(ByteArray(16) { 0x50 }, fakePeer, 0u, 0x0201u.toUShort(), 0u, 0, null, null, byteArrayOf(1))
-        ))
+        injector.sendToPeer(
+            alice.identity.keyHash,
+            WireCodec.encode(
+                Broadcast(
+                    ByteArray(16) { 0x50 },
+                    fakePeer,
+                    0u,
+                    0x0201u.toUShort(),
+                    0u,
+                    0,
+                    null,
+                    null,
+                    byteArrayOf(1),
+                )
+            ),
+        )
         runCurrent()
         assertEquals(1, received.size)
 
-        injector.sendToPeer(alice.identity.keyHash, WireCodec.encode(
-            Broadcast(ByteArray(16) { 0x51 }, fakePeer, 0u, 0x0201u.toUShort(), 0u, 0, null, null, byteArrayOf(2))
-        ))
+        injector.sendToPeer(
+            alice.identity.keyHash,
+            WireCodec.encode(
+                Broadcast(
+                    ByteArray(16) { 0x51 },
+                    fakePeer,
+                    0u,
+                    0x0201u.toUShort(),
+                    0u,
+                    0,
+                    null,
+                    null,
+                    byteArrayOf(2),
+                )
+            ),
+        )
         runCurrent()
         assertEquals(1, received.size, "Rate limited")
     }
@@ -892,10 +1073,21 @@ class DeliveryPipelineTest {
 
         val injector = VirtualMeshTransport(bob.identity.keyHash, testScheduler)
         injector.linkTo(alice.transport)
-        injector.sendToPeer(alice.identity.keyHash, WireCodec.encode(
-            RoutedMessage(ByteArray(16) { 0x60 }, bob.identity.keyHash, carol.identity.keyHash,
-                3u, listOf(bob.identity.keyHash), 0, 1u, byteArrayOf(0x60))
-        ))
+        injector.sendToPeer(
+            alice.identity.keyHash,
+            WireCodec.encode(
+                RoutedMessage(
+                    ByteArray(16) { 0x60 },
+                    bob.identity.keyHash,
+                    carol.identity.keyHash,
+                    3u,
+                    listOf(bob.identity.keyHash),
+                    0,
+                    1u,
+                    byteArrayOf(0x60),
+                )
+            ),
+        )
         runCurrent()
 
         assertTrue(alice.transport.sentFrames.isNotEmpty())
@@ -913,10 +1105,21 @@ class DeliveryPipelineTest {
         val framesBefore = alice.transport.sentFrames.size
         val injector = VirtualMeshTransport(ByteArray(12) { 0x61 }, testScheduler)
         injector.linkTo(alice.transport)
-        injector.sendToPeer(alice.identity.keyHash, WireCodec.encode(
-            RoutedMessage(ByteArray(16) { 0x61 }, ByteArray(12) { 0x61 }, carol.identity.keyHash,
-                0u, listOf(ByteArray(12) { 0x61 }), 0, 1u, byteArrayOf(1))
-        ))
+        injector.sendToPeer(
+            alice.identity.keyHash,
+            WireCodec.encode(
+                RoutedMessage(
+                    ByteArray(16) { 0x61 },
+                    ByteArray(12) { 0x61 },
+                    carol.identity.keyHash,
+                    0u,
+                    listOf(ByteArray(12) { 0x61 }),
+                    0,
+                    1u,
+                    byteArrayOf(1),
+                )
+            ),
+        )
         runCurrent()
 
         assertEquals(framesBefore, alice.transport.sentFrames.size)
@@ -934,10 +1137,21 @@ class DeliveryPipelineTest {
         val framesBefore = alice.transport.sentFrames.size
         val injector = VirtualMeshTransport(ByteArray(12) { 0x62 }, testScheduler)
         injector.linkTo(alice.transport)
-        injector.sendToPeer(alice.identity.keyHash, WireCodec.encode(
-            RoutedMessage(ByteArray(16) { 0x62 }, ByteArray(12) { 0x62 }, carol.identity.keyHash,
-                3u, listOf(ByteArray(12) { 0x62 }, alice.identity.keyHash), 0, 1u, byteArrayOf(1))
-        ))
+        injector.sendToPeer(
+            alice.identity.keyHash,
+            WireCodec.encode(
+                RoutedMessage(
+                    ByteArray(16) { 0x62 },
+                    ByteArray(12) { 0x62 },
+                    carol.identity.keyHash,
+                    3u,
+                    listOf(ByteArray(12) { 0x62 }, alice.identity.keyHash),
+                    0,
+                    1u,
+                    byteArrayOf(1),
+                )
+            ),
+        )
         runCurrent()
 
         assertEquals(framesBefore, alice.transport.sentFrames.size)
@@ -953,10 +1167,21 @@ class DeliveryPipelineTest {
         val framesBefore = alice.transport.sentFrames.size
         val injector = VirtualMeshTransport(ByteArray(12) { 0x70 }, testScheduler)
         injector.linkTo(alice.transport)
-        injector.sendToPeer(alice.identity.keyHash, WireCodec.encode(
-            RoutedMessage(ByteArray(16) { 0x63 }, ByteArray(12) { 0x70 }, ByteArray(12) { 0x63 },
-                3u, listOf(ByteArray(12) { 0x70 }), 0, 1u, byteArrayOf(1))
-        ))
+        injector.sendToPeer(
+            alice.identity.keyHash,
+            WireCodec.encode(
+                RoutedMessage(
+                    ByteArray(16) { 0x63 },
+                    ByteArray(12) { 0x70 },
+                    ByteArray(12) { 0x63 },
+                    3u,
+                    listOf(ByteArray(12) { 0x70 }),
+                    0,
+                    1u,
+                    byteArrayOf(1),
+                )
+            ),
+        )
         runCurrent()
 
         assertEquals(framesBefore, alice.transport.sentFrames.size)
@@ -966,9 +1191,14 @@ class DeliveryPipelineTest {
     fun `relay RoutedMessage relay rate limit drops excess`() = runTest {
         var clockMs = 0L
         val clock: () -> Long = { clockMs }
-        val cfg = relaxedConfig().copy(relayPerSenderPerNeighborLimit = 1, relayPerSenderPerNeighborWindowMs = 60_000L)
-        val alice = makeNode(backgroundScope, testScheduler, clock, cfg)
-        val carol = makeNode(backgroundScope, testScheduler, clock, cfg)
+        val config =
+            relaxedConfig()
+                .copy(
+                    relayPerSenderPerNeighborLimit = 1,
+                    relayPerSenderPerNeighborWindowMs = 60_000L,
+                )
+        val alice = makeNode(backgroundScope, testScheduler, clock, config)
+        val carol = makeNode(backgroundScope, testScheduler, clock, config)
         connect(alice, carol, clock)
         drainFlows(backgroundScope, alice)
         runCurrent() // start collectors
@@ -977,17 +1207,39 @@ class DeliveryPipelineTest {
         val injector = VirtualMeshTransport(thirdParty, testScheduler)
         injector.linkTo(alice.transport)
 
-        injector.sendToPeer(alice.identity.keyHash, WireCodec.encode(
-            RoutedMessage(ByteArray(16) { 0x01 }, thirdParty, carol.identity.keyHash, 3u,
-                listOf(thirdParty), 0, 1u, byteArrayOf(1))
-        ))
+        injector.sendToPeer(
+            alice.identity.keyHash,
+            WireCodec.encode(
+                RoutedMessage(
+                    ByteArray(16) { 0x01 },
+                    thirdParty,
+                    carol.identity.keyHash,
+                    3u,
+                    listOf(thirdParty),
+                    0,
+                    1u,
+                    byteArrayOf(1),
+                )
+            ),
+        )
         runCurrent()
         val after1 = alice.transport.sentFrames.size
 
-        injector.sendToPeer(alice.identity.keyHash, WireCodec.encode(
-            RoutedMessage(ByteArray(16) { 0x02 }, thirdParty, carol.identity.keyHash, 3u,
-                listOf(thirdParty), 0, 2u, byteArrayOf(2))
-        ))
+        injector.sendToPeer(
+            alice.identity.keyHash,
+            WireCodec.encode(
+                RoutedMessage(
+                    ByteArray(16) { 0x02 },
+                    thirdParty,
+                    carol.identity.keyHash,
+                    3u,
+                    listOf(thirdParty),
+                    0,
+                    2u,
+                    byteArrayOf(2),
+                )
+            ),
+        )
         runCurrent()
         assertEquals(after1, alice.transport.sentFrames.size, "Relay rate limited")
     }
@@ -996,13 +1248,15 @@ class DeliveryPipelineTest {
     fun `relay RoutedMessage neighbor aggregate rate limit drops excess`() = runTest {
         var clockMs = 0L
         val clock: () -> Long = { clockMs }
-        val cfg = relaxedConfig().copy(
-            relayPerSenderPerNeighborLimit = 200,
-            perNeighborAggregateLimit = 1,
-            perNeighborAggregateWindowMs = 60_000L,
-        )
-        val alice = makeNode(backgroundScope, testScheduler, clock, cfg)
-        val carol = makeNode(backgroundScope, testScheduler, clock, cfg)
+        val config =
+            relaxedConfig()
+                .copy(
+                    relayPerSenderPerNeighborLimit = 200,
+                    perNeighborAggregateLimit = 1,
+                    perNeighborAggregateWindowMs = 60_000L,
+                )
+        val alice = makeNode(backgroundScope, testScheduler, clock, config)
+        val carol = makeNode(backgroundScope, testScheduler, clock, config)
         connect(alice, carol, clock)
         drainFlows(backgroundScope, alice)
         runCurrent() // start collectors
@@ -1011,17 +1265,39 @@ class DeliveryPipelineTest {
         val injector = VirtualMeshTransport(thirdParty, testScheduler)
         injector.linkTo(alice.transport)
 
-        injector.sendToPeer(alice.identity.keyHash, WireCodec.encode(
-            RoutedMessage(ByteArray(16) { 0x10 }, ByteArray(12) { 0x10 }, carol.identity.keyHash, 3u,
-                listOf(ByteArray(12) { 0x10 }), 0, 1u, byteArrayOf(1))
-        ))
+        injector.sendToPeer(
+            alice.identity.keyHash,
+            WireCodec.encode(
+                RoutedMessage(
+                    ByteArray(16) { 0x10 },
+                    ByteArray(12) { 0x10 },
+                    carol.identity.keyHash,
+                    3u,
+                    listOf(ByteArray(12) { 0x10 }),
+                    0,
+                    1u,
+                    byteArrayOf(1),
+                )
+            ),
+        )
         runCurrent()
         val after1 = alice.transport.sentFrames.size
 
-        injector.sendToPeer(alice.identity.keyHash, WireCodec.encode(
-            RoutedMessage(ByteArray(16) { 0x11 }, ByteArray(12) { 0x11 }, carol.identity.keyHash, 3u,
-                listOf(ByteArray(12) { 0x11 }), 0, 2u, byteArrayOf(2))
-        ))
+        injector.sendToPeer(
+            alice.identity.keyHash,
+            WireCodec.encode(
+                RoutedMessage(
+                    ByteArray(16) { 0x11 },
+                    ByteArray(12) { 0x11 },
+                    carol.identity.keyHash,
+                    3u,
+                    listOf(ByteArray(12) { 0x11 }),
+                    0,
+                    2u,
+                    byteArrayOf(2),
+                )
+            ),
+        )
         runCurrent()
         assertEquals(after1, alice.transport.sentFrames.size, "Aggregate limit drops excess")
     }
@@ -1040,10 +1316,21 @@ class DeliveryPipelineTest {
 
         val injector = VirtualMeshTransport(fakeSender, testScheduler)
         injector.linkTo(alice.transport)
-        injector.sendToPeer(alice.identity.keyHash, WireCodec.encode(
-            RoutedMessage(ByteArray(16) { 0x80.toByte() }, fakeSender, alice.identity.keyHash,
-                3u, listOf(fakeSender), 0, 1u, ByteArray(48) { 0x80.toByte() }) // garbage ciphertext
-        ))
+        injector.sendToPeer(
+            alice.identity.keyHash,
+            WireCodec.encode(
+                RoutedMessage(
+                    ByteArray(16) { 0x80.toByte() },
+                    fakeSender,
+                    alice.identity.keyHash,
+                    3u,
+                    listOf(fakeSender),
+                    0,
+                    1u,
+                    ByteArray(48) { 0x80.toByte() },
+                ) // garbage ciphertext
+            ),
+        )
         runCurrent()
 
         assertTrue(received.isEmpty(), "Decryption failure → dropped")
@@ -1063,10 +1350,21 @@ class DeliveryPipelineTest {
 
         val injector = VirtualMeshTransport(unknownSender, testScheduler)
         injector.linkTo(alice.transport)
-        injector.sendToPeer(alice.identity.keyHash, WireCodec.encode(
-            RoutedMessage(ByteArray(16) { 0x81.toByte() }, unknownSender, alice.identity.keyHash,
-                3u, listOf(unknownSender), 0, 1u, ByteArray(48))
-        ))
+        injector.sendToPeer(
+            alice.identity.keyHash,
+            WireCodec.encode(
+                RoutedMessage(
+                    ByteArray(16) { 0x81.toByte() },
+                    unknownSender,
+                    alice.identity.keyHash,
+                    3u,
+                    listOf(unknownSender),
+                    0,
+                    1u,
+                    ByteArray(48),
+                )
+            ),
+        )
         runCurrent()
 
         assertTrue(received.isEmpty(), "Unknown sender key → dropped")
@@ -1083,7 +1381,9 @@ class DeliveryPipelineTest {
         connect(alice, bob, clock)
 
         val confirmations = mutableListOf<Delivered>()
-        backgroundScope.launch { alice.pipeline.deliveryConfirmations.collect { confirmations.add(it) } }
+        backgroundScope.launch {
+            alice.pipeline.deliveryConfirmations.collect { confirmations.add(it) }
+        }
         drainFlows(backgroundScope, alice)
         drainFlows(backgroundScope, bob)
         runCurrent() // start collectors
@@ -1103,7 +1403,9 @@ class DeliveryPipelineTest {
         val bob = makeNode(backgroundScope, testScheduler, clock)
         connect(alice, bob, clock)
         val confirmations = mutableListOf<Delivered>()
-        backgroundScope.launch { alice.pipeline.deliveryConfirmations.collect { confirmations.add(it) } }
+        backgroundScope.launch {
+            alice.pipeline.deliveryConfirmations.collect { confirmations.add(it) }
+        }
         drainFlows(backgroundScope, alice)
 
         // Get a message into pendingDeliveries by sending to bob
@@ -1111,14 +1413,18 @@ class DeliveryPipelineTest {
         runCurrent()
 
         // Inject a bad ACK for an unknown messageId
-        val badAck = DeliveryAck(ByteArray(16) { 0x99.toByte() }, alice.identity.keyHash, 1u, ByteArray(64))
+        val badAck =
+            DeliveryAck(ByteArray(16) { 0x99.toByte() }, alice.identity.keyHash, 1u, ByteArray(64))
         val fakePeer = ByteArray(12) { 0x91.toByte() }
         val injector = VirtualMeshTransport(fakePeer, testScheduler)
         injector.linkTo(alice.transport)
         injector.sendToPeer(alice.identity.keyHash, WireCodec.encode(badAck))
         runCurrent()
 
-        assertTrue(confirmations.isEmpty() || confirmations.none { it.messageId.contentEquals(ByteArray(16) { 0x99.toByte() }) })
+        assertTrue(
+            confirmations.isEmpty() ||
+                confirmations.none { it.messageId.contentEquals(ByteArray(16) { 0x99.toByte() }) }
+        )
     }
 
     @Test
@@ -1130,7 +1436,9 @@ class DeliveryPipelineTest {
         alice.trustStore.pinKey(unknown, ByteArray(32) { it.toByte() })
 
         val confirmations = mutableListOf<Delivered>()
-        backgroundScope.launch { alice.pipeline.deliveryConfirmations.collect { confirmations.add(it) } }
+        backgroundScope.launch {
+            alice.pipeline.deliveryConfirmations.collect { confirmations.add(it) }
+        }
 
         // Buffer a message (no route → pending)
         alice.pipeline.send(unknown, byteArrayOf(1))
@@ -1162,8 +1470,18 @@ class DeliveryPipelineTest {
         assertEquals(0, alice.transport.sentFrames.size)
 
         // Install route and register neighbor
-        alice.routingTable.install(RouteEntry(unknown, unknown, 1.0, 1u, 1.0,
-            clock() + 600_000L, ByteArray(32), ByteArray(32)))
+        alice.routingTable.install(
+            RouteEntry(
+                unknown,
+                unknown,
+                1.0,
+                1u,
+                1.0,
+                clock() + 600_000L,
+                ByteArray(32),
+                ByteArray(32),
+            )
+        )
         val fakeTransport = VirtualMeshTransport(unknown, testScheduler)
         fakeTransport.linkTo(alice.transport)
         alice.routeCoordinator.onPeerConnected(PeerInfo(unknown, 0, -50, 0.0))
@@ -1179,8 +1497,8 @@ class DeliveryPipelineTest {
     fun `buffer evicts when maxBufferedMessages exceeded`() = runTest {
         var clockMs = 0L
         val clock: () -> Long = { clockMs }
-        val cfg = relaxedConfig(maxBufferedMessages = 2)
-        val alice = makeNode(backgroundScope, testScheduler, clock, cfg)
+        val config = relaxedConfig(maxBufferedMessages = 2)
+        val alice = makeNode(backgroundScope, testScheduler, clock, config)
         val failures = mutableListOf<DeliveryFailed>()
         backgroundScope.launch { alice.pipeline.transferFailures.collect { failures.add(it) } }
 
@@ -1204,8 +1522,10 @@ class DeliveryPipelineTest {
     fun `buffer TTL expiry emits DeliveryFailed TIMED_OUT`() = runTest {
         var clockMs = 0L
         val clock: () -> Long = { clockMs }
-        val cfg = relaxedConfig().copy(highPriorityTtlMs = 100L, normalPriorityTtlMs = 100L, lowPriorityTtlMs = 100L)
-        val alice = makeNode(backgroundScope, testScheduler, clock, cfg)
+        val config =
+            relaxedConfig()
+                .copy(highPriorityTtlMs = 100L, normalPriorityTtlMs = 100L, lowPriorityTtlMs = 100L)
+        val alice = makeNode(backgroundScope, testScheduler, clock, config)
         val failures = mutableListOf<DeliveryFailed>()
         backgroundScope.launch { alice.pipeline.transferFailures.collect { failures.add(it) } }
         runCurrent() // start collectors
@@ -1227,11 +1547,22 @@ class DeliveryPipelineTest {
     fun `circuit breaker opens after maxFailures`() = runTest {
         var clockMs = 0L
         val clock: () -> Long = { clockMs }
-        val cbCfg = MessagingConfig.CircuitBreakerConfig(windowMs = 60_000L, maxFailures = 2, cooldownMs = 10_000L)
-        val cfg = relaxedConfig(circuitBreaker = cbCfg)
-        val alice = makeNode(backgroundScope, testScheduler, clock, cfg,
-            TransferConfig(inactivityBaseTimeoutMillis = 50L))
-        val bob = makeNode(backgroundScope, testScheduler, clock, cfg)
+        val circuitBreakerConfig =
+            MessagingConfig.CircuitBreakerConfig(
+                windowMs = 60_000L,
+                maxFailures = 2,
+                cooldownMs = 10_000L,
+            )
+        val config = relaxedConfig(circuitBreaker = circuitBreakerConfig)
+        val alice =
+            makeNode(
+                backgroundScope,
+                testScheduler,
+                clock,
+                config,
+                TransferConfig(inactivityBaseTimeoutMillis = 50L),
+            )
+        val bob = makeNode(backgroundScope, testScheduler, clock, config)
         connect(alice, bob, clock)
         val failures = mutableListOf<DeliveryFailed>()
         backgroundScope.launch { alice.pipeline.transferFailures.collect { failures.add(it) } }
@@ -1253,11 +1584,22 @@ class DeliveryPipelineTest {
     fun `circuit breaker half-open after cooldown`() = runTest {
         var clockMs = 0L
         val clock: () -> Long = { clockMs }
-        val cbCfg = MessagingConfig.CircuitBreakerConfig(windowMs = 60_000L, maxFailures = 1, cooldownMs = 1_000L)
-        val cfg = relaxedConfig(circuitBreaker = cbCfg)
-        val alice = makeNode(backgroundScope, testScheduler, clock, cfg,
-            TransferConfig(inactivityBaseTimeoutMillis = 50L))
-        val bob = makeNode(backgroundScope, testScheduler, clock, cfg)
+        val circuitBreakerConfig =
+            MessagingConfig.CircuitBreakerConfig(
+                windowMs = 60_000L,
+                maxFailures = 1,
+                cooldownMs = 1_000L,
+            )
+        val config = relaxedConfig(circuitBreaker = circuitBreakerConfig)
+        val alice =
+            makeNode(
+                backgroundScope,
+                testScheduler,
+                clock,
+                config,
+                TransferConfig(inactivityBaseTimeoutMillis = 50L),
+            )
+        val bob = makeNode(backgroundScope, testScheduler, clock, config)
         connect(alice, bob, clock)
         backgroundScope.launch { alice.pipeline.transferFailures.collect {} }
         backgroundScope.launch { alice.pipeline.transferProgress.collect {} }
@@ -1270,8 +1612,10 @@ class DeliveryPipelineTest {
         runCurrent()
 
         // CB open → PAUSED
-        assertEquals(SendResult.Queued(QueuedReason.PAUSED),
-            alice.pipeline.send(bob.identity.keyHash, byteArrayOf(2)))
+        assertEquals(
+            SendResult.Queued(QueuedReason.PAUSED),
+            alice.pipeline.send(bob.identity.keyHash, byteArrayOf(2)),
+        )
 
         // Advance clock past cooldown
         clockMs = 2_000L
@@ -1287,16 +1631,29 @@ class DeliveryPipelineTest {
     fun `circuit breaker closes on success after half-open`() = runTest {
         var clockMs = 0L
         val clock: () -> Long = { clockMs }
-        val cbCfg = MessagingConfig.CircuitBreakerConfig(windowMs = 60_000L, maxFailures = 1, cooldownMs = 500L)
-        val cfg = relaxedConfig(circuitBreaker = cbCfg)
-        val alice = makeNode(backgroundScope, testScheduler, clock, cfg,
-            TransferConfig(inactivityBaseTimeoutMillis = 50L))
-        val bob = makeNode(backgroundScope, testScheduler, clock, cfg)
+        val circuitBreakerConfig =
+            MessagingConfig.CircuitBreakerConfig(
+                windowMs = 60_000L,
+                maxFailures = 1,
+                cooldownMs = 500L,
+            )
+        val config = relaxedConfig(circuitBreaker = circuitBreakerConfig)
+        val alice =
+            makeNode(
+                backgroundScope,
+                testScheduler,
+                clock,
+                config,
+                TransferConfig(inactivityBaseTimeoutMillis = 50L),
+            )
+        val bob = makeNode(backgroundScope, testScheduler, clock, config)
         connect(alice, bob, clock)
         backgroundScope.launch { alice.pipeline.transferFailures.collect {} }
         backgroundScope.launch { alice.pipeline.transferProgress.collect {} }
         val confirmations = mutableListOf<Delivered>()
-        backgroundScope.launch { alice.pipeline.deliveryConfirmations.collect { confirmations.add(it) } }
+        backgroundScope.launch {
+            alice.pipeline.deliveryConfirmations.collect { confirmations.add(it) }
+        }
         drainFlows(backgroundScope, bob)
 
         // Open CB
@@ -1325,10 +1682,15 @@ class DeliveryPipelineTest {
     fun `circuit breaker ignores MEMORY_PRESSURE failures`() = runTest {
         var clockMs = 0L
         val clock: () -> Long = { clockMs }
-        val cbCfg = MessagingConfig.CircuitBreakerConfig(windowMs = 60_000L, maxFailures = 1, cooldownMs = 30_000L)
-        val cfg = relaxedConfig(circuitBreaker = cbCfg)
-        val alice = makeNode(backgroundScope, testScheduler, clock, cfg)
-        val bob = makeNode(backgroundScope, testScheduler, clock, cfg)
+        val circuitBreakerConfig =
+            MessagingConfig.CircuitBreakerConfig(
+                windowMs = 60_000L,
+                maxFailures = 1,
+                cooldownMs = 30_000L,
+            )
+        val config = relaxedConfig(circuitBreaker = circuitBreakerConfig)
+        val alice = makeNode(backgroundScope, testScheduler, clock, config)
+        val bob = makeNode(backgroundScope, testScheduler, clock, config)
         connect(alice, bob, clock)
         val failures = mutableListOf<DeliveryFailed>()
         backgroundScope.launch { alice.pipeline.transferFailures.collect { failures.add(it) } }
@@ -1350,11 +1712,22 @@ class DeliveryPipelineTest {
     fun `circuit breaker half-open failure re-opens`() = runTest {
         var clockMs = 0L
         val clock: () -> Long = { clockMs }
-        val cbCfg = MessagingConfig.CircuitBreakerConfig(windowMs = 60_000L, maxFailures = 1, cooldownMs = 500L)
-        val cfg = relaxedConfig(circuitBreaker = cbCfg)
-        val alice = makeNode(backgroundScope, testScheduler, clock, cfg,
-            TransferConfig(inactivityBaseTimeoutMillis = 50L))
-        val bob = makeNode(backgroundScope, testScheduler, clock, cfg)
+        val circuitBreakerConfig =
+            MessagingConfig.CircuitBreakerConfig(
+                windowMs = 60_000L,
+                maxFailures = 1,
+                cooldownMs = 500L,
+            )
+        val config = relaxedConfig(circuitBreaker = circuitBreakerConfig)
+        val alice =
+            makeNode(
+                backgroundScope,
+                testScheduler,
+                clock,
+                config,
+                TransferConfig(inactivityBaseTimeoutMillis = 50L),
+            )
+        val bob = makeNode(backgroundScope, testScheduler, clock, config)
         connect(alice, bob, clock)
         backgroundScope.launch { alice.pipeline.transferFailures.collect {} }
         backgroundScope.launch { alice.pipeline.transferProgress.collect {} }
@@ -1381,7 +1754,11 @@ class DeliveryPipelineTest {
         runCurrent()
 
         val r = alice.pipeline.send(bob.identity.keyHash, byteArrayOf(3))
-        assertEquals(SendResult.Queued(QueuedReason.PAUSED), r, "CB re-opened after half-open failure")
+        assertEquals(
+            SendResult.Queued(QueuedReason.PAUSED),
+            r,
+            "CB re-opened after half-open failure",
+        )
     }
 
     // ── TransferEngine events ─────────────────────────────────────────────────
@@ -1390,8 +1767,13 @@ class DeliveryPipelineTest {
     fun `transferFailures flow emits for own unicast session timeout`() = runTest {
         var clockMs = 0L
         val clock: () -> Long = { clockMs }
-        val alice = makeNode(backgroundScope, testScheduler, clock,
-            transferConfig = TransferConfig(inactivityBaseTimeoutMillis = 50L))
+        val alice =
+            makeNode(
+                backgroundScope,
+                testScheduler,
+                clock,
+                transferConfig = TransferConfig(inactivityBaseTimeoutMillis = 50L),
+            )
         val bob = makeNode(backgroundScope, testScheduler, clock)
         connect(alice, bob, clock)
         val failures = mutableListOf<DeliveryFailed>()
@@ -1413,8 +1795,13 @@ class DeliveryPipelineTest {
     fun `transferFailed for unknown session silently dropped`() = runTest {
         var clockMs = 0L
         val clock: () -> Long = { clockMs }
-        val alice = makeNode(backgroundScope, testScheduler, clock,
-            transferConfig = TransferConfig(inactivityBaseTimeoutMillis = 50L))
+        val alice =
+            makeNode(
+                backgroundScope,
+                testScheduler,
+                clock,
+                transferConfig = TransferConfig(inactivityBaseTimeoutMillis = 50L),
+            )
         val failures = mutableListOf<DeliveryFailed>()
         backgroundScope.launch { alice.pipeline.transferFailures.collect { failures.add(it) } }
         backgroundScope.launch { alice.transferEngine.outboundChunks.collect {} }
@@ -1463,11 +1850,21 @@ class DeliveryPipelineTest {
 
         val injector = VirtualMeshTransport(ByteArray(12) { 0xD0.toByte() }, testScheduler)
         injector.linkTo(alice.transport)
-        injector.sendToPeer(alice.identity.keyHash, WireCodec.encode(
-            RoutedMessage(ByteArray(16) { 0xD0.toByte() }, ByteArray(12) { 0xD0.toByte() },
-                carol.identity.keyHash, 3u, listOf(ByteArray(12) { 0xD0.toByte() }), 0, 1u,
-                ByteArray(100) { it.toByte() })
-        ))
+        injector.sendToPeer(
+            alice.identity.keyHash,
+            WireCodec.encode(
+                RoutedMessage(
+                    ByteArray(16) { 0xD0.toByte() },
+                    ByteArray(12) { 0xD0.toByte() },
+                    carol.identity.keyHash,
+                    3u,
+                    listOf(ByteArray(12) { 0xD0.toByte() }),
+                    0,
+                    1u,
+                    ByteArray(100) { it.toByte() },
+                )
+            ),
+        )
         runCurrent()
 
         assertTrue(progress.isEmpty(), "Relay session excluded from progress")
@@ -1498,12 +1895,18 @@ class DeliveryPipelineTest {
     fun `mapFailureReason BUFFER_FULL_RETRY_EXHAUSTED via nack exhaustion`() = runTest {
         var clockMs = 0L
         val clock: () -> Long = { clockMs }
-        val alice = makeNode(backgroundScope, testScheduler, clock,
-            transferConfig = TransferConfig(
-                inactivityBaseTimeoutMillis = 30_000L,
-                maxNackRetries = 1,
-                nackBaseBackoffMillis = 10L,
-            ))
+        val alice =
+            makeNode(
+                backgroundScope,
+                testScheduler,
+                clock,
+                transferConfig =
+                    TransferConfig(
+                        inactivityBaseTimeoutMillis = 30_000L,
+                        maxNackRetries = 1,
+                        nackBaseBackoffMillis = 10L,
+                    ),
+            )
         val bob = makeNode(backgroundScope, testScheduler, clock)
         connect(alice, bob, clock)
 
@@ -1523,7 +1926,10 @@ class DeliveryPipelineTest {
 
         if (capturedMsgIds.isNotEmpty()) {
             val msgId = capturedMsgIds.first()
-            alice.transferEngine.onIncomingNack(bob.identity.keyHash, Nack(msgId, NACK_REASON_BUFFER_FULL))
+            alice.transferEngine.onIncomingNack(
+                bob.identity.keyHash,
+                Nack(msgId, NACK_REASON_BUFFER_FULL),
+            )
             runCurrent()
             advanceTimeBy(100L)
             runCurrent()
@@ -1548,7 +1954,10 @@ class DeliveryPipelineTest {
         val fakePeer = ByteArray(12) { 0xE0.toByte() }
         val injector = VirtualMeshTransport(fakePeer, testScheduler)
         injector.linkTo(alice.transport)
-        injector.sendToPeer(alice.identity.keyHash, WireCodec.encode(Chunk(msgId, 0u, 1u, keepalivePayload)))
+        injector.sendToPeer(
+            alice.identity.keyHash,
+            WireCodec.encode(Chunk(msgId, 0u, 1u, keepalivePayload)),
+        )
         runCurrent()
 
         assertTrue(received.isEmpty(), "Keepalive assembled payload → ignored")
@@ -1568,7 +1977,10 @@ class DeliveryPipelineTest {
         val fakePeer = ByteArray(12) { 0xE1.toByte() }
         val injector = VirtualMeshTransport(fakePeer, testScheduler)
         injector.linkTo(alice.transport)
-        injector.sendToPeer(alice.identity.keyHash, WireCodec.encode(Chunk(msgId, 0u, 1u, ByteArray(0))))
+        injector.sendToPeer(
+            alice.identity.keyHash,
+            WireCodec.encode(Chunk(msgId, 0u, 1u, ByteArray(0))),
+        )
         runCurrent()
 
         assertTrue(received.isEmpty(), "Malformed assembled payload → ignored")
@@ -1585,15 +1997,28 @@ class DeliveryPipelineTest {
         runCurrent() // start collectors
 
         val thirdParty = ByteArray(12) { 0xE2.toByte() }
-        val broadcastPayload = WireCodec.encode(Broadcast(
-            ByteArray(16) { 0xE2.toByte() }, thirdParty, 0u, 0x0201u.toUShort(), 0u, 0,
-            null, null, byteArrayOf(0xAB.toByte())
-        ))
+        val broadcastPayload =
+            WireCodec.encode(
+                Broadcast(
+                    ByteArray(16) { 0xE2.toByte() },
+                    thirdParty,
+                    0u,
+                    0x0201u.toUShort(),
+                    0u,
+                    0,
+                    null,
+                    null,
+                    byteArrayOf(0xAB.toByte()),
+                )
+            )
         val msgId = ByteArray(16) { 0xE3.toByte() }
         val fakePeer = ByteArray(12) { 0xE3.toByte() }
         val injector = VirtualMeshTransport(fakePeer, testScheduler)
         injector.linkTo(alice.transport)
-        injector.sendToPeer(alice.identity.keyHash, WireCodec.encode(Chunk(msgId, 0u, 1u, broadcastPayload)))
+        injector.sendToPeer(
+            alice.identity.keyHash,
+            WireCodec.encode(Chunk(msgId, 0u, 1u, broadcastPayload)),
+        )
         runCurrent()
 
         assertEquals(1, received.size)
@@ -1610,9 +2035,18 @@ class DeliveryPipelineTest {
         val bob = makeNode(backgroundScope, testScheduler, clock)
         // One-way: alice→bob only
         alice.transport.linkTo(bob.transport)
-        alice.routingTable.install(RouteEntry(bob.identity.keyHash, bob.identity.keyHash,
-            1.0, 0u, 1.0, clock() + 600_000L,
-            bob.identity.edKeyPair.publicKey, bob.identity.dhKeyPair.publicKey))
+        alice.routingTable.install(
+            RouteEntry(
+                bob.identity.keyHash,
+                bob.identity.keyHash,
+                1.0,
+                0u,
+                1.0,
+                clock() + 600_000L,
+                bob.identity.edKeyPair.publicKey,
+                bob.identity.dhKeyPair.publicKey,
+            )
+        )
         alice.routeCoordinator.onPeerConnected(PeerInfo(bob.identity.keyHash, 0, -50, 0.0))
         alice.trustStore.pinKey(bob.identity.keyHash, bob.identity.dhKeyPair.publicKey)
         bob.trustStore.pinKey(alice.identity.keyHash, alice.identity.dhKeyPair.publicKey)
@@ -1632,14 +2066,26 @@ class DeliveryPipelineTest {
         runCurrent()
 
         // Now add reverse route and inject Hello to trigger drainAckBuffer
-        bob.routingTable.install(RouteEntry(alice.identity.keyHash, alice.identity.keyHash,
-            1.0, 0u, 1.0, clock() + 600_000L,
-            alice.identity.edKeyPair.publicKey, alice.identity.dhKeyPair.publicKey))
+        bob.routingTable.install(
+            RouteEntry(
+                alice.identity.keyHash,
+                alice.identity.keyHash,
+                1.0,
+                0u,
+                1.0,
+                clock() + 600_000L,
+                alice.identity.edKeyPair.publicKey,
+                alice.identity.dhKeyPair.publicKey,
+            )
+        )
         bob.routeCoordinator.onPeerConnected(PeerInfo(alice.identity.keyHash, 0, -50, 0.0))
 
         val helloInjector = VirtualMeshTransport(alice.identity.keyHash, testScheduler)
         helloInjector.linkTo(bob.transport)
-        helloInjector.sendToPeer(bob.identity.keyHash, WireCodec.encode(Hello(alice.identity.keyHash, 1u, 0u)))
+        helloInjector.sendToPeer(
+            bob.identity.keyHash,
+            WireCodec.encode(Hello(alice.identity.keyHash, 1u, 0u)),
+        )
         runCurrent()
         advanceUntilIdle()
 
@@ -1654,11 +2100,11 @@ class DeliveryPipelineTest {
         val id2 = byteArrayOf(1, 2, 3)
         val d1 = Delivered(id1)
         val d2 = Delivered(id2)
-        assertEquals(d1, d1)          // same reference
-        assertEquals(d1, d2)          // equal content
+        assertEquals(d1, d1) // same reference
+        assertEquals(d1, d2) // equal content
         assertEquals(d1.hashCode(), d2.hashCode())
-        assertFalse(d1.equals("other"))  // !is Delivered
-        assertFalse(d1 == Delivered(byteArrayOf(1, 2, 4)))  // different bytes
+        assertFalse(d1.equals("other")) // !is Delivered
+        assertFalse(d1 == Delivered(byteArrayOf(1, 2, 4))) // different bytes
     }
 
     @Test

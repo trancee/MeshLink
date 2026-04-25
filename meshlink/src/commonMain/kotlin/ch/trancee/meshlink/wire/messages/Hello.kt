@@ -3,11 +3,11 @@ package ch.trancee.meshlink.wire
 data class Hello(val sender: ByteArray, val seqNo: UShort, val routeDigest: UInt) : WireMessage {
     override val type = MessageType.HELLO
 
-    override fun encode(wb: WriteBuffer) {
-        wb.startTable(3)
-        wb.addByteVector(0, sender)
-        wb.addUShort(1, seqNo)
-        wb.addUInt(2, routeDigest)
+    override fun encode(buffer: WriteBuffer) {
+        buffer.startTable(3)
+        buffer.addByteVector(0, sender)
+        buffer.addUShort(1, seqNo)
+        buffer.addUInt(2, routeDigest)
     }
 
     override fun equals(other: Any?): Boolean {
@@ -22,11 +22,11 @@ data class Hello(val sender: ByteArray, val seqNo: UShort, val routeDigest: UInt
         31 * (31 * sender.contentHashCode() + seqNo.hashCode()) + routeDigest.hashCode()
 
     companion object {
-        fun decode(rb: ReadBuffer): Hello =
+        fun decode(buffer: ReadBuffer): Hello =
             Hello(
-                sender = rb.getByteArray(0) ?: ByteArray(12),
-                seqNo = rb.getUShort(1),
-                routeDigest = rb.getUInt(2),
+                sender = buffer.getByteArray(0) ?: ByteArray(12),
+                seqNo = buffer.getUShort(1),
+                routeDigest = buffer.getUInt(2),
             )
     }
 }

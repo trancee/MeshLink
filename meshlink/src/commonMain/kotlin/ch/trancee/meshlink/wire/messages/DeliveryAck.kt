@@ -12,12 +12,12 @@ data class DeliveryAck(
 ) : WireMessage {
     override val type = MessageType.DELIVERY_ACK
 
-    override fun encode(wb: WriteBuffer) {
-        wb.startTable(4)
-        wb.addByteVector(0, messageId)
-        wb.addByteVector(1, recipientId)
-        wb.addUByte(2, flags)
-        if (signature != null) wb.addByteVector(3, signature)
+    override fun encode(buffer: WriteBuffer) {
+        buffer.startTable(4)
+        buffer.addByteVector(0, messageId)
+        buffer.addByteVector(1, recipientId)
+        buffer.addUByte(2, flags)
+        if (signature != null) buffer.addByteVector(3, signature)
     }
 
     override fun equals(other: Any?): Boolean {
@@ -39,12 +39,12 @@ data class DeliveryAck(
     }
 
     companion object {
-        fun decode(rb: ReadBuffer): DeliveryAck =
+        fun decode(buffer: ReadBuffer): DeliveryAck =
             DeliveryAck(
-                messageId = rb.getByteArray(0) ?: ByteArray(16),
-                recipientId = rb.getByteArray(1) ?: ByteArray(12),
-                flags = rb.getUByte(2),
-                signature = rb.getByteArray(3),
+                messageId = buffer.getByteArray(0) ?: ByteArray(16),
+                recipientId = buffer.getByteArray(1) ?: ByteArray(12),
+                flags = buffer.getUByte(2),
+                signature = buffer.getByteArray(3),
             )
     }
 }

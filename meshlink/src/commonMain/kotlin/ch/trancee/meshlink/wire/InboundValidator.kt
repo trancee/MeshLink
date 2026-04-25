@@ -34,8 +34,8 @@ object InboundValidator {
         // IllegalArgumentException from ReadBuffer init or getByteArray is caught here.
         val payload = data.copyOfRange(1, data.size)
         return try {
-            val rb = ReadBuffer(payload)
-            checkFields(messageType, rb) ?: Valid(WireCodec.decode(data))
+            val buffer = ReadBuffer(payload)
+            checkFields(messageType, buffer) ?: Valid(WireCodec.decode(data))
         } catch (e: IllegalArgumentException) {
             MalformedStructure("Invalid FlatBuffers structure")
         }
@@ -44,43 +44,43 @@ object InboundValidator {
     // ── Per-type field constraints ────────────────────────────────────────────
 
     /**
-     * Returns a [Rejected] if any fixed-size byte-array field in [rb] has the wrong length, null if
-     * all checks pass.
+     * Returns a [Rejected] if any fixed-size byte-array field in [buffer] has the wrong length,
+     * null if all checks pass.
      *
      * May propagate [IllegalArgumentException] if a vector's data extends past the buffer end —
      * callers must catch.
      */
-    private fun checkFields(type: MessageType, rb: ReadBuffer): Rejected? =
+    private fun checkFields(type: MessageType, buffer: ReadBuffer): Rejected? =
         when (type) {
             MessageType.ROTATION_ANNOUNCEMENT ->
-                rb.checkSize(0, "oldX25519Key", 32)
-                    ?: rb.checkSize(1, "newX25519Key", 32)
-                    ?: rb.checkSize(2, "oldEd25519Key", 32)
-                    ?: rb.checkSize(3, "newEd25519Key", 32)
-                    ?: rb.checkSize(6, "signature", 64)
-            MessageType.HELLO -> rb.checkSize(0, "sender", 12)
+                buffer.checkSize(0, "oldX25519Key", 32)
+                    ?: buffer.checkSize(1, "newX25519Key", 32)
+                    ?: buffer.checkSize(2, "oldEd25519Key", 32)
+                    ?: buffer.checkSize(3, "newEd25519Key", 32)
+                    ?: buffer.checkSize(6, "signature", 64)
+            MessageType.HELLO -> buffer.checkSize(0, "sender", 12)
             MessageType.UPDATE ->
-                rb.checkSize(0, "destination", 12)
-                    ?: rb.checkSize(3, "ed25519PublicKey", 32)
-                    ?: rb.checkSize(4, "x25519PublicKey", 32)
-            MessageType.CHUNK -> rb.checkSize(0, "messageId", 16)
-            MessageType.CHUNK_ACK -> rb.checkSize(0, "messageId", 16)
-            MessageType.NACK -> rb.checkSize(0, "messageId", 16)
-            MessageType.RESUME_REQUEST -> rb.checkSize(0, "messageId", 16)
+                buffer.checkSize(0, "destination", 12)
+                    ?: buffer.checkSize(3, "ed25519PublicKey", 32)
+                    ?: buffer.checkSize(4, "x25519PublicKey", 32)
+            MessageType.CHUNK -> buffer.checkSize(0, "messageId", 16)
+            MessageType.CHUNK_ACK -> buffer.checkSize(0, "messageId", 16)
+            MessageType.NACK -> buffer.checkSize(0, "messageId", 16)
+            MessageType.RESUME_REQUEST -> buffer.checkSize(0, "messageId", 16)
             MessageType.BROADCAST ->
-                rb.checkSize(0, "messageId", 16)
-                    ?: rb.checkSize(1, "origin", 12)
-                    ?: rb.checkSize(6, "signature", 64)
-                    ?: rb.checkSize(7, "signerKey", 32)
+                buffer.checkSize(0, "messageId", 16)
+                    ?: buffer.checkSize(1, "origin", 12)
+                    ?: buffer.checkSize(6, "signature", 64)
+                    ?: buffer.checkSize(7, "signerKey", 32)
             MessageType.ROUTED_MESSAGE ->
-                rb.checkSize(0, "messageId", 16)
-                    ?: rb.checkSize(1, "origin", 12)
-                    ?: rb.checkSize(2, "destination", 12)
-                    ?: rb.checkVisitedList(4)
+                buffer.checkSize(0, "messageId", 16)
+                    ?: buffer.checkSize(1, "origin", 12)
+                    ?: buffer.checkSize(2, "destination", 12)
+                    ?: buffer.checkVisitedList(4)
             MessageType.DELIVERY_ACK ->
-                rb.checkSize(0, "messageId", 16)
-                    ?: rb.checkSize(1, "recipientId", 12)
-                    ?: rb.checkSize(3, "signature", 64)
+                buffer.checkSize(0, "messageId", 16)
+                    ?: buffer.checkSize(1, "recipientId", 12)
+                    ?: buffer.checkSize(3, "signature", 64)
             // HANDSHAKE and KEEPALIVE have no fixed-size byte-array constraints.
             // UNKNOWN is unreachable — validate() returns UnknownType before reaching here.
             // Using else covers all remaining enum values so UNKNOWN maps to the same target

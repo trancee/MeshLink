@@ -4,11 +4,11 @@ data class ChunkAck(val messageId: ByteArray, val ackSequence: UShort, val sackB
     WireMessage {
     override val type = MessageType.CHUNK_ACK
 
-    override fun encode(wb: WriteBuffer) {
-        wb.startTable(3)
-        wb.addByteVector(0, messageId)
-        wb.addUShort(1, ackSequence)
-        wb.addULong(2, sackBitmask)
+    override fun encode(buffer: WriteBuffer) {
+        buffer.startTable(3)
+        buffer.addByteVector(0, messageId)
+        buffer.addUShort(1, ackSequence)
+        buffer.addULong(2, sackBitmask)
     }
 
     override fun equals(other: Any?): Boolean {
@@ -23,11 +23,11 @@ data class ChunkAck(val messageId: ByteArray, val ackSequence: UShort, val sackB
         31 * (31 * messageId.contentHashCode() + ackSequence.hashCode()) + sackBitmask.hashCode()
 
     companion object {
-        fun decode(rb: ReadBuffer): ChunkAck =
+        fun decode(buffer: ReadBuffer): ChunkAck =
             ChunkAck(
-                messageId = rb.getByteArray(0) ?: ByteArray(16),
-                ackSequence = rb.getUShort(1),
-                sackBitmask = rb.getULong(2),
+                messageId = buffer.getByteArray(0) ?: ByteArray(16),
+                ackSequence = buffer.getUShort(1),
+                sackBitmask = buffer.getULong(2),
             )
     }
 }

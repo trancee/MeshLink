@@ -33,8 +33,8 @@ private val DEFAULT_HOP_LIMIT: UByte = 5u
 /**
  * Central protocol dispatcher and messaging API.
  *
- * Subscribes to [BleTransport.incomingData] and [TransferEngine.events] to route inbound frames
- * and reassembled payloads; exposes [send] (unicast) and [broadcast] (flood-fill) for outbound
+ * Subscribes to [BleTransport.incomingData] and [TransferEngine.events] to route inbound frames and
+ * reassembled payloads; exposes [send] (unicast) and [broadcast] (flood-fill) for outbound
  * messages. All policy layers — rate limiters, circuit breaker, store-and-forward buffer, and
  * Delivery-ACK lifecycle — live here.
  *
@@ -142,9 +142,7 @@ internal class DeliveryPipeline(
         }
 
         // 3. Handle TransferEngine events
-        scope.launch {
-            transferEngine.events.collect { event -> handleTransferEvent(event) }
-        }
+        scope.launch { transferEngine.events.collect { event -> handleTransferEvent(event) } }
     }
 
     // ── Public API ────────────────────────────────────────────────────────────
@@ -188,7 +186,10 @@ internal class DeliveryPipeline(
 
         // Circuit breaker check.
         val cbKey = recipient.asList()
-        val cb = circuitBreakers.getOrPut(cbKey) { PerDestinationCircuitBreaker(config.circuitBreaker, clock) }
+        val cb =
+            circuitBreakers.getOrPut(cbKey) {
+                PerDestinationCircuitBreaker(config.circuitBreaker, clock)
+            }
         if (!cb.canSend()) return SendResult.Queued(QueuedReason.PAUSED)
 
         // Size check — fail fast before encryption.
@@ -241,7 +242,9 @@ internal class DeliveryPipeline(
             pendingDeliveries[MessageIdKey(messageId)] =
                 PendingDelivery(recipient, recipientEdPubKey, expiresAt)
             evictBufferIfFull()
-            sendBuffer.add(BufferedMessage(messageId, recipient, encoded, priority, clock(), expiresAt))
+            sendBuffer.add(
+                BufferedMessage(messageId, recipient, encoded, priority, clock(), expiresAt)
+            )
             return SendResult.Queued(QueuedReason.ROUTE_PENDING)
         }
 
@@ -330,7 +333,7 @@ internal class DeliveryPipeline(
                 when (val msg = result.message) {
                     is ch.trancee.meshlink.wire.Handshake -> return
                     is ch.trancee.meshlink.wire.Keepalive -> return
-                    is ch.trancee.meshlink.wire.RotationAnnouncementMsg -> return
+                    is ch.trancee.meshlink.wire.RotationAnnouncementMessage -> return
                     is ch.trancee.meshlink.wire.Hello -> {
                         routeCoordinator.processInbound(fromPeerId, msg)
                         drainBuffer()
@@ -554,7 +557,9 @@ internal class DeliveryPipeline(
                         PerDestinationCircuitBreaker(config.circuitBreaker, clock)
                     }
                 cb.onFailure(event.reason)
-                _transferFailures.tryEmit(DeliveryFailed(event.messageId, mapFailureReason(event.reason)))
+                _transferFailures.tryEmit(
+                    DeliveryFailed(event.messageId, mapFailureReason(event.reason))
+                )
             }
             is TransferEvent.ChunkProgress -> {
                 if (ownUnicastSessions.contains(MessageIdKey(event.messageId))) {
@@ -626,7 +631,12 @@ internal class DeliveryPipeline(
             }
             val nextHop = routeCoordinator.lookupNextHop(entry.recipientId) ?: continue
             it.remove()
-            transferEngine.send(entry.messageId, entry.encodedRoutedMessage, nextHop, entry.priority)
+            transferEngine.send(
+                entry.messageId,
+                entry.encodedRoutedMessage,
+                nextHop,
+                entry.priority,
+            )
             ownUnicastSessions.add(MessageIdKey(entry.messageId))
         }
     }
@@ -650,8 +660,7 @@ internal class DeliveryPipeline(
             val victim =
                 sendBuffer.minWithOrNull(
                     compareBy<BufferedMessage> { it.priority.wire }.thenBy { it.enqueuedAt }
-                )
-                    ?: break
+                ) ?: break
             sendBuffer.remove(victim)
             pendingDeliveries.remove(MessageIdKey(victim.messageId))
             _transferFailures.tryEmit(DeliveryFailed(victim.messageId, DeliveryOutcome.TIMED_OUT))

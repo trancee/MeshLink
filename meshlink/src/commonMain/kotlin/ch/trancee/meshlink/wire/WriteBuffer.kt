@@ -5,12 +5,12 @@ package ch.trancee.meshlink.wire
  *
  * Usage pattern (one table per [WriteBuffer] instance):
  * ```kotlin
- * val wb = WriteBuffer()
- * wb.startTable(numFields = 3)
- * wb.addUByte(0, flagsValue)
- * wb.addULong(1, timestampValue)
- * wb.addUShort(2, chunkSizeValue)
- * val bytes: ByteArray = wb.finish()
+ * val buffer = WriteBuffer()
+ * buffer.startTable(numFields = 3)
+ * buffer.addUByte(0, flagsValue)
+ * buffer.addULong(1, timestampValue)
+ * buffer.addUShort(2, chunkSizeValue)
+ * val bytes: ByteArray = buffer.finish()
  * ```
  *
  * Fields not added are marked absent (vtable offset 0); [ReadBuffer] returns their defaults.

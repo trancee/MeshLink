@@ -1,12 +1,12 @@
 package ch.trancee.meshlink.wire
 
 /**
- * Named with Msg suffix to avoid clash with [ch.trancee.meshlink.crypto.RotationAnnouncement].
+ * Named with Message suffix to avoid clash with [ch.trancee.meshlink.crypto.RotationAnnouncement].
  *
  * Fields: 4×32-byte public keys, a monotonic rotation nonce, a wall-clock timestamp, and a 64-byte
  * Ed25519 signature over all preceding fields using the OLD Ed25519 key.
  */
-data class RotationAnnouncementMsg(
+data class RotationAnnouncementMessage(
     val oldX25519Key: ByteArray,
     val newX25519Key: ByteArray,
     val oldEd25519Key: ByteArray,
@@ -17,20 +17,20 @@ data class RotationAnnouncementMsg(
 ) : WireMessage {
     override val type = MessageType.ROTATION_ANNOUNCEMENT
 
-    override fun encode(wb: WriteBuffer) {
-        wb.startTable(7)
-        wb.addByteVector(0, oldX25519Key)
-        wb.addByteVector(1, newX25519Key)
-        wb.addByteVector(2, oldEd25519Key)
-        wb.addByteVector(3, newEd25519Key)
-        wb.addULong(4, rotationNonce)
-        wb.addULong(5, timestampMillis)
-        wb.addByteVector(6, signature)
+    override fun encode(buffer: WriteBuffer) {
+        buffer.startTable(7)
+        buffer.addByteVector(0, oldX25519Key)
+        buffer.addByteVector(1, newX25519Key)
+        buffer.addByteVector(2, oldEd25519Key)
+        buffer.addByteVector(3, newEd25519Key)
+        buffer.addULong(4, rotationNonce)
+        buffer.addULong(5, timestampMillis)
+        buffer.addByteVector(6, signature)
     }
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
-        if (other !is RotationAnnouncementMsg) return false
+        if (other !is RotationAnnouncementMessage) return false
         return rotationNonce == other.rotationNonce &&
             timestampMillis == other.timestampMillis &&
             oldX25519Key.contentEquals(other.oldX25519Key) &&
@@ -52,15 +52,15 @@ data class RotationAnnouncementMsg(
     }
 
     companion object {
-        fun decode(rb: ReadBuffer): RotationAnnouncementMsg =
-            RotationAnnouncementMsg(
-                oldX25519Key = rb.getByteArray(0) ?: ByteArray(32),
-                newX25519Key = rb.getByteArray(1) ?: ByteArray(32),
-                oldEd25519Key = rb.getByteArray(2) ?: ByteArray(32),
-                newEd25519Key = rb.getByteArray(3) ?: ByteArray(32),
-                rotationNonce = rb.getULong(4),
-                timestampMillis = rb.getULong(5),
-                signature = rb.getByteArray(6) ?: ByteArray(64),
+        fun decode(buffer: ReadBuffer): RotationAnnouncementMessage =
+            RotationAnnouncementMessage(
+                oldX25519Key = buffer.getByteArray(0) ?: ByteArray(32),
+                newX25519Key = buffer.getByteArray(1) ?: ByteArray(32),
+                oldEd25519Key = buffer.getByteArray(2) ?: ByteArray(32),
+                newEd25519Key = buffer.getByteArray(3) ?: ByteArray(32),
+                rotationNonce = buffer.getULong(4),
+                timestampMillis = buffer.getULong(5),
+                signature = buffer.getByteArray(6) ?: ByteArray(64),
             )
     }
 }

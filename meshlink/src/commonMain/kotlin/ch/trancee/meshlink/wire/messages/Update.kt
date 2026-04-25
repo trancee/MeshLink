@@ -9,13 +9,13 @@ data class Update(
 ) : WireMessage {
     override val type = MessageType.UPDATE
 
-    override fun encode(wb: WriteBuffer) {
-        wb.startTable(5)
-        wb.addByteVector(0, destination)
-        wb.addUShort(1, metric)
-        wb.addUShort(2, seqNo)
-        wb.addByteVector(3, ed25519PublicKey)
-        wb.addByteVector(4, x25519PublicKey)
+    override fun encode(buffer: WriteBuffer) {
+        buffer.startTable(5)
+        buffer.addByteVector(0, destination)
+        buffer.addUShort(1, metric)
+        buffer.addUShort(2, seqNo)
+        buffer.addByteVector(3, ed25519PublicKey)
+        buffer.addByteVector(4, x25519PublicKey)
     }
 
     override fun equals(other: Any?): Boolean {
@@ -38,13 +38,13 @@ data class Update(
     }
 
     companion object {
-        fun decode(rb: ReadBuffer): Update =
+        fun decode(buffer: ReadBuffer): Update =
             Update(
-                destination = rb.getByteArray(0) ?: ByteArray(12),
-                metric = rb.getUShort(1),
-                seqNo = rb.getUShort(2),
-                ed25519PublicKey = rb.getByteArray(3) ?: ByteArray(32),
-                x25519PublicKey = rb.getByteArray(4) ?: ByteArray(32),
+                destination = buffer.getByteArray(0) ?: ByteArray(12),
+                metric = buffer.getUShort(1),
+                seqNo = buffer.getUShort(2),
+                ed25519PublicKey = buffer.getByteArray(3) ?: ByteArray(32),
+                x25519PublicKey = buffer.getByteArray(4) ?: ByteArray(32),
             )
     }
 }

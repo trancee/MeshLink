@@ -193,28 +193,24 @@ class MessagingFoundationTest {
 
     @Test
     fun `InboundMessage differs kind`() {
-        assertFalse(makeMsg(kind = MessageKind.UNICAST).equals(makeMsg(kind = MessageKind.BROADCAST)))
+        assertFalse(
+            makeMsg(kind = MessageKind.UNICAST).equals(makeMsg(kind = MessageKind.BROADCAST))
+        )
     }
 
     @Test
     fun `InboundMessage differs messageId`() {
-        assertFalse(
-            makeMsg(messageId = byteArrayOf(1)).equals(makeMsg(messageId = byteArrayOf(2)))
-        )
+        assertFalse(makeMsg(messageId = byteArrayOf(1)).equals(makeMsg(messageId = byteArrayOf(2))))
     }
 
     @Test
     fun `InboundMessage differs senderId`() {
-        assertFalse(
-            makeMsg(senderId = byteArrayOf(1)).equals(makeMsg(senderId = byteArrayOf(2)))
-        )
+        assertFalse(makeMsg(senderId = byteArrayOf(1)).equals(makeMsg(senderId = byteArrayOf(2))))
     }
 
     @Test
     fun `InboundMessage differs payload`() {
-        assertFalse(
-            makeMsg(payload = byteArrayOf(0)).equals(makeMsg(payload = byteArrayOf(1)))
-        )
+        assertFalse(makeMsg(payload = byteArrayOf(0)).equals(makeMsg(payload = byteArrayOf(1))))
     }
 
     // ── SlidingWindowRateLimiter ─────────────────────────────────────────────
@@ -328,31 +324,31 @@ class MessagingFoundationTest {
 
     @Test
     fun `MessagingConfig default values`() {
-        val cfg = makeConfig()
-        assertEquals(2_700_000L, cfg.highPriorityTtlMs)
-        assertEquals(900_000L, cfg.normalPriorityTtlMs)
-        assertEquals(300_000L, cfg.lowPriorityTtlMs)
-        assertEquals(100, cfg.maxBufferedMessages)
-        assertEquals(2u, cfg.broadcastTtl)
-        assertEquals(10_000, cfg.maxBroadcastSize)
-        assertEquals(102_400, cfg.maxMessageSize)
-        assertTrue(cfg.requireBroadcastSignatures)
-        assertFalse(cfg.allowUnsignedBroadcasts)
-        assertEquals(60, cfg.outboundUnicastLimit)
-        assertEquals(60_000L, cfg.outboundUnicastWindowMs)
-        assertEquals(10, cfg.broadcastLimit)
-        assertEquals(60_000L, cfg.broadcastWindowMs)
-        assertEquals(20, cfg.relayPerSenderPerNeighborLimit)
-        assertEquals(60_000L, cfg.relayPerSenderPerNeighborWindowMs)
-        assertEquals(100, cfg.perNeighborAggregateLimit)
-        assertEquals(60_000L, cfg.perNeighborAggregateWindowMs)
-        assertEquals(30, cfg.perSenderInboundLimit)
-        assertEquals(60_000L, cfg.perSenderInboundWindowMs)
-        assertEquals(1, cfg.handshakeLimit)
-        assertEquals(1_000L, cfg.handshakeWindowMs)
-        assertEquals(10, cfg.nackLimit)
-        assertEquals(1_000L, cfg.nackWindowMs)
-        assertEquals(MessagingConfig.CircuitBreakerConfig(), cfg.circuitBreaker)
+        val config = makeConfig()
+        assertEquals(2_700_000L, config.highPriorityTtlMs)
+        assertEquals(900_000L, config.normalPriorityTtlMs)
+        assertEquals(300_000L, config.lowPriorityTtlMs)
+        assertEquals(100, config.maxBufferedMessages)
+        assertEquals(2u, config.broadcastTtl)
+        assertEquals(10_000, config.maxBroadcastSize)
+        assertEquals(102_400, config.maxMessageSize)
+        assertTrue(config.requireBroadcastSignatures)
+        assertFalse(config.allowUnsignedBroadcasts)
+        assertEquals(60, config.outboundUnicastLimit)
+        assertEquals(60_000L, config.outboundUnicastWindowMs)
+        assertEquals(10, config.broadcastLimit)
+        assertEquals(60_000L, config.broadcastWindowMs)
+        assertEquals(20, config.relayPerSenderPerNeighborLimit)
+        assertEquals(60_000L, config.relayPerSenderPerNeighborWindowMs)
+        assertEquals(100, config.perNeighborAggregateLimit)
+        assertEquals(60_000L, config.perNeighborAggregateWindowMs)
+        assertEquals(30, config.perSenderInboundLimit)
+        assertEquals(60_000L, config.perSenderInboundWindowMs)
+        assertEquals(1, config.handshakeLimit)
+        assertEquals(1_000L, config.handshakeWindowMs)
+        assertEquals(10, config.nackLimit)
+        assertEquals(1_000L, config.nackWindowMs)
+        assertEquals(MessagingConfig.CircuitBreakerConfig(), config.circuitBreaker)
     }
 
     @Test
@@ -365,64 +361,70 @@ class MessagingFoundationTest {
 
     @Test
     fun `MessagingConfig custom values`() {
-        val cb = MessagingConfig.CircuitBreakerConfig(windowMs = 10_000, maxFailures = 5, cooldownMs = 5_000)
-        val cfg = MessagingConfig(
-            highPriorityTtlMs = 1_000,
-            normalPriorityTtlMs = 2_000,
-            lowPriorityTtlMs = 3_000,
-            maxBufferedMessages = 50,
-            broadcastTtl = 3u,
-            maxBroadcastSize = 5_000,
-            maxMessageSize = 50_000,
-            appIdHash = byteArrayOf(0xAB.toByte(), 0xCD.toByte()),
-            requireBroadcastSignatures = false,
-            allowUnsignedBroadcasts = true,
-            outboundUnicastLimit = 30,
-            outboundUnicastWindowMs = 30_000,
-            broadcastLimit = 5,
-            broadcastWindowMs = 30_000,
-            relayPerSenderPerNeighborLimit = 10,
-            relayPerSenderPerNeighborWindowMs = 30_000,
-            perNeighborAggregateLimit = 50,
-            perNeighborAggregateWindowMs = 30_000,
-            perSenderInboundLimit = 15,
-            perSenderInboundWindowMs = 30_000,
-            handshakeLimit = 2,
-            handshakeWindowMs = 2_000,
-            nackLimit = 5,
-            nackWindowMs = 500,
-            circuitBreaker = cb,
-        )
-        assertEquals(1_000L, cfg.highPriorityTtlMs)
-        assertEquals(2_000L, cfg.normalPriorityTtlMs)
-        assertEquals(3_000L, cfg.lowPriorityTtlMs)
-        assertEquals(50, cfg.maxBufferedMessages)
-        assertEquals(3u, cfg.broadcastTtl)
-        assertEquals(5_000, cfg.maxBroadcastSize)
-        assertEquals(50_000, cfg.maxMessageSize)
-        assertFalse(cfg.requireBroadcastSignatures)
-        assertTrue(cfg.allowUnsignedBroadcasts)
-        assertEquals(30, cfg.outboundUnicastLimit)
-        assertEquals(30_000L, cfg.outboundUnicastWindowMs)
-        assertEquals(5, cfg.broadcastLimit)
-        assertEquals(30_000L, cfg.broadcastWindowMs)
-        assertEquals(10, cfg.relayPerSenderPerNeighborLimit)
-        assertEquals(30_000L, cfg.relayPerSenderPerNeighborWindowMs)
-        assertEquals(50, cfg.perNeighborAggregateLimit)
-        assertEquals(30_000L, cfg.perNeighborAggregateWindowMs)
-        assertEquals(15, cfg.perSenderInboundLimit)
-        assertEquals(30_000L, cfg.perSenderInboundWindowMs)
-        assertEquals(2, cfg.handshakeLimit)
-        assertEquals(2_000L, cfg.handshakeWindowMs)
-        assertEquals(5, cfg.nackLimit)
-        assertEquals(500L, cfg.nackWindowMs)
-        assertEquals(cb, cfg.circuitBreaker)
+        val cb =
+            MessagingConfig.CircuitBreakerConfig(
+                windowMs = 10_000,
+                maxFailures = 5,
+                cooldownMs = 5_000,
+            )
+        val config =
+            MessagingConfig(
+                highPriorityTtlMs = 1_000,
+                normalPriorityTtlMs = 2_000,
+                lowPriorityTtlMs = 3_000,
+                maxBufferedMessages = 50,
+                broadcastTtl = 3u,
+                maxBroadcastSize = 5_000,
+                maxMessageSize = 50_000,
+                appIdHash = byteArrayOf(0xAB.toByte(), 0xCD.toByte()),
+                requireBroadcastSignatures = false,
+                allowUnsignedBroadcasts = true,
+                outboundUnicastLimit = 30,
+                outboundUnicastWindowMs = 30_000,
+                broadcastLimit = 5,
+                broadcastWindowMs = 30_000,
+                relayPerSenderPerNeighborLimit = 10,
+                relayPerSenderPerNeighborWindowMs = 30_000,
+                perNeighborAggregateLimit = 50,
+                perNeighborAggregateWindowMs = 30_000,
+                perSenderInboundLimit = 15,
+                perSenderInboundWindowMs = 30_000,
+                handshakeLimit = 2,
+                handshakeWindowMs = 2_000,
+                nackLimit = 5,
+                nackWindowMs = 500,
+                circuitBreaker = cb,
+            )
+        assertEquals(1_000L, config.highPriorityTtlMs)
+        assertEquals(2_000L, config.normalPriorityTtlMs)
+        assertEquals(3_000L, config.lowPriorityTtlMs)
+        assertEquals(50, config.maxBufferedMessages)
+        assertEquals(3u, config.broadcastTtl)
+        assertEquals(5_000, config.maxBroadcastSize)
+        assertEquals(50_000, config.maxMessageSize)
+        assertFalse(config.requireBroadcastSignatures)
+        assertTrue(config.allowUnsignedBroadcasts)
+        assertEquals(30, config.outboundUnicastLimit)
+        assertEquals(30_000L, config.outboundUnicastWindowMs)
+        assertEquals(5, config.broadcastLimit)
+        assertEquals(30_000L, config.broadcastWindowMs)
+        assertEquals(10, config.relayPerSenderPerNeighborLimit)
+        assertEquals(30_000L, config.relayPerSenderPerNeighborWindowMs)
+        assertEquals(50, config.perNeighborAggregateLimit)
+        assertEquals(30_000L, config.perNeighborAggregateWindowMs)
+        assertEquals(15, config.perSenderInboundLimit)
+        assertEquals(30_000L, config.perSenderInboundWindowMs)
+        assertEquals(2, config.handshakeLimit)
+        assertEquals(2_000L, config.handshakeWindowMs)
+        assertEquals(5, config.nackLimit)
+        assertEquals(500L, config.nackWindowMs)
+        assertEquals(cb, config.circuitBreaker)
     }
 
     @Test
     fun `MessagingConfig same reference equals`() {
-        val cfg = makeConfig()
-        assertEquals(cfg, cfg)
+        val config = makeConfig()
+        assertEquals(config, config)
     }
 
     @Test
@@ -597,7 +599,9 @@ class MessagingFoundationTest {
     fun `MessagingConfig differs circuitBreaker`() {
         val base = makeConfig()
         assertFalse(
-            base.equals(base.copy(circuitBreaker = MessagingConfig.CircuitBreakerConfig(maxFailures = 99)))
+            base.equals(
+                base.copy(circuitBreaker = MessagingConfig.CircuitBreakerConfig(maxFailures = 99))
+            )
         )
     }
 }

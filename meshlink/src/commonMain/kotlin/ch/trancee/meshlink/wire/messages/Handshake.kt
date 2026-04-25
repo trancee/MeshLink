@@ -3,10 +3,10 @@ package ch.trancee.meshlink.wire
 data class Handshake(val step: UByte, val noiseMessage: ByteArray) : WireMessage {
     override val type = MessageType.HANDSHAKE
 
-    override fun encode(wb: WriteBuffer) {
-        wb.startTable(2)
-        wb.addUByte(0, step)
-        wb.addByteVector(1, noiseMessage)
+    override fun encode(buffer: WriteBuffer) {
+        buffer.startTable(2)
+        buffer.addUByte(0, step)
+        buffer.addByteVector(1, noiseMessage)
     }
 
     override fun equals(other: Any?): Boolean {
@@ -18,7 +18,10 @@ data class Handshake(val step: UByte, val noiseMessage: ByteArray) : WireMessage
     override fun hashCode(): Int = 31 * step.hashCode() + noiseMessage.contentHashCode()
 
     companion object {
-        fun decode(rb: ReadBuffer): Handshake =
-            Handshake(step = rb.getUByte(0), noiseMessage = rb.getByteArray(1) ?: ByteArray(0))
+        fun decode(buffer: ReadBuffer): Handshake =
+            Handshake(
+                step = buffer.getUByte(0),
+                noiseMessage = buffer.getByteArray(1) ?: ByteArray(0),
+            )
     }
 }

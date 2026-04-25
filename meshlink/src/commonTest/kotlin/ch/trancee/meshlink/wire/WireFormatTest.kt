@@ -82,7 +82,7 @@ class WireFormatTest {
     @Test
     fun rotationAnnouncementRoundTrip() {
         val msg =
-            RotationAnnouncementMsg(
+            RotationAnnouncementMessage(
                 oldX25519Key = ByteArray(32) { it.toByte() },
                 newX25519Key = ByteArray(32) { (it + 32).toByte() },
                 oldEd25519Key = ByteArray(32) { (it + 64).toByte() },
@@ -91,7 +91,7 @@ class WireFormatTest {
                 timestampMillis = 1_000_000UL,
                 signature = ByteArray(64) { it.toByte() },
             )
-        val decoded = roundTrip(msg) as RotationAnnouncementMsg
+        val decoded = roundTrip(msg) as RotationAnnouncementMessage
         assertEquals(msg.rotationNonce, decoded.rotationNonce)
         assertEquals(msg.timestampMillis, decoded.timestampMillis)
         assertContentEquals(msg.oldX25519Key, decoded.oldX25519Key)
@@ -104,7 +104,7 @@ class WireFormatTest {
     @Test
     fun rotationAnnouncementGoldenTypeByteAndDeterminism() {
         val msg =
-            RotationAnnouncementMsg(
+            RotationAnnouncementMessage(
                 oldX25519Key = ByteArray(32) { 0x01 },
                 newX25519Key = ByteArray(32) { 0x02 },
                 oldEd25519Key = ByteArray(32) { 0x03 },
@@ -117,7 +117,7 @@ class WireFormatTest {
         assertEquals(0x02.toByte(), encoded[0])
         assertContentEquals(
             encoded,
-            WireCodec.encode(WireCodec.decode(encoded) as RotationAnnouncementMsg),
+            WireCodec.encode(WireCodec.decode(encoded) as RotationAnnouncementMessage),
         )
     }
 
@@ -186,20 +186,20 @@ class WireFormatTest {
         val msg =
             Chunk(
                 ByteArray(16) { it.toByte() },
-                seqNum = 3u,
+                seqNo = 3u,
                 totalChunks = 10u,
                 payload = byteArrayOf(0xAA.toByte(), 0xBB.toByte()),
             )
         val decoded = roundTrip(msg) as Chunk
         assertContentEquals(msg.messageId, decoded.messageId)
-        assertEquals(msg.seqNum, decoded.seqNum)
+        assertEquals(msg.seqNo, decoded.seqNo)
         assertEquals(msg.totalChunks, decoded.totalChunks)
         assertContentEquals(msg.payload, decoded.payload)
     }
 
     @Test
     fun chunkEmptyPayload() {
-        val msg = Chunk(ByteArray(16), seqNum = 1u, totalChunks = 0u, payload = ByteArray(0))
+        val msg = Chunk(ByteArray(16), seqNo = 1u, totalChunks = 0u, payload = ByteArray(0))
         val decoded = roundTrip(msg) as Chunk
         assertContentEquals(ByteArray(0), decoded.payload)
         assertEquals(0u.toUShort(), decoded.totalChunks)
@@ -431,7 +431,7 @@ class WireFormatTest {
             listOf(
                 Handshake(1u, byteArrayOf(0x01)),
                 Keepalive(0u, 0UL, 0u),
-                RotationAnnouncementMsg(
+                RotationAnnouncementMessage(
                     ByteArray(32),
                     ByteArray(32),
                     ByteArray(32),
@@ -475,10 +475,10 @@ class WireFormatTest {
     fun wireCodecDecodeThrowsOnUnknownType() {
         // Build a valid FlatBuffers payload (so ReadBuffer init succeeds), then prepend 0xFF type
         // byte. WireCodec.decode must throw when MessageType.UNKNOWN is dispatched.
-        val wb = WriteBuffer()
-        wb.startTable(1)
-        wb.addUByte(0, 42u)
-        val payload = wb.finish()
+        val buffer = WriteBuffer()
+        buffer.startTable(1)
+        buffer.addUByte(0, 42u)
+        val payload = buffer.finish()
         val frame = byteArrayOf(0xFF.toByte()) + payload
         assertFailsWith<IllegalArgumentException> { WireCodec.decode(frame) }
     }
@@ -500,9 +500,9 @@ class WireFormatTest {
         assertEquals(h.hashCode(), h2.hashCode())
         assertFalse(h.equals("not a handshake")) // other !is Handshake → false
 
-        // RotationAnnouncementMsg
+        // RotationAnnouncementMessage
         val r =
-            RotationAnnouncementMsg(
+            RotationAnnouncementMessage(
                 ByteArray(32) { 1 },
                 ByteArray(32) { 2 },
                 ByteArray(32) { 3 },
@@ -512,7 +512,7 @@ class WireFormatTest {
                 ByteArray(64) { 5 },
             )
         val r2 =
-            RotationAnnouncementMsg(
+            RotationAnnouncementMessage(
                 ByteArray(32) { 1 },
                 ByteArray(32) { 2 },
                 ByteArray(32) { 3 },
@@ -679,76 +679,76 @@ class WireFormatTest {
     fun decodeAbsentRequiredFieldsUsesDefault() {
         // Handshake: noiseMessage absent → ByteArray(0)
         run {
-            val wb = WriteBuffer()
-            wb.startTable(2)
-            wb.addUByte(0, 1u) // noiseMessage (field 1) absent
-            val frame = byteArrayOf(MessageType.HANDSHAKE.code.toByte()) + wb.finish()
+            val buffer = WriteBuffer()
+            buffer.startTable(2)
+            buffer.addUByte(0, 1u) // noiseMessage (field 1) absent
+            val frame = byteArrayOf(MessageType.HANDSHAKE.code.toByte()) + buffer.finish()
             val decoded = WireCodec.decode(frame) as Handshake
             assertEquals(0, decoded.noiseMessage.size)
         }
 
         // Hello: sender absent → ByteArray(12)
         run {
-            val wb = WriteBuffer()
-            wb.startTable(3)
-            wb.addUShort(1, 1u)
-            wb.addUInt(2, 0u)
-            val frame = byteArrayOf(MessageType.HELLO.code.toByte()) + wb.finish()
+            val buffer = WriteBuffer()
+            buffer.startTable(3)
+            buffer.addUShort(1, 1u)
+            buffer.addUInt(2, 0u)
+            val frame = byteArrayOf(MessageType.HELLO.code.toByte()) + buffer.finish()
             val decoded = WireCodec.decode(frame) as Hello
             assertEquals(12, decoded.sender.size)
         }
 
         // Chunk: messageId absent → ByteArray(16)
         run {
-            val wb = WriteBuffer()
-            wb.startTable(4)
-            wb.addUShort(1, 0u)
-            wb.addUShort(2, 1u)
-            wb.addByteVector(3, ByteArray(4))
-            val frame = byteArrayOf(MessageType.CHUNK.code.toByte()) + wb.finish()
+            val buffer = WriteBuffer()
+            buffer.startTable(4)
+            buffer.addUShort(1, 0u)
+            buffer.addUShort(2, 1u)
+            buffer.addByteVector(3, ByteArray(4))
+            val frame = byteArrayOf(MessageType.CHUNK.code.toByte()) + buffer.finish()
             val decoded = WireCodec.decode(frame) as Chunk
             assertEquals(16, decoded.messageId.size)
         }
 
         // Chunk: payload absent → ByteArray(0) via ?: fallback in Chunk.decode()
         run {
-            val wb = WriteBuffer()
-            wb.startTable(3) // only fields 0-2; field 3 (payload) not present in vtable
-            wb.addByteVector(0, ByteArray(16) { it.toByte() })
-            wb.addUShort(1, 3u)
-            wb.addUShort(2, 7u)
-            val frame = byteArrayOf(MessageType.CHUNK.code.toByte()) + wb.finish()
+            val buffer = WriteBuffer()
+            buffer.startTable(3) // only fields 0-2; field 3 (payload) not present in vtable
+            buffer.addByteVector(0, ByteArray(16) { it.toByte() })
+            buffer.addUShort(1, 3u)
+            buffer.addUShort(2, 7u)
+            val frame = byteArrayOf(MessageType.CHUNK.code.toByte()) + buffer.finish()
             val decoded = WireCodec.decode(frame) as Chunk
             assertEquals(0, decoded.payload.size) // ?: ByteArray(0) null branch
         }
 
         // ChunkAck: messageId absent → ByteArray(16)
         run {
-            val wb = WriteBuffer()
-            wb.startTable(3)
-            wb.addUShort(1, 0u)
-            wb.addULong(2, 0UL)
-            val frame = byteArrayOf(MessageType.CHUNK_ACK.code.toByte()) + wb.finish()
+            val buffer = WriteBuffer()
+            buffer.startTable(3)
+            buffer.addUShort(1, 0u)
+            buffer.addULong(2, 0UL)
+            val frame = byteArrayOf(MessageType.CHUNK_ACK.code.toByte()) + buffer.finish()
             val decoded = WireCodec.decode(frame) as ChunkAck
             assertEquals(16, decoded.messageId.size)
         }
 
         // Nack: messageId absent → ByteArray(16)
         run {
-            val wb = WriteBuffer()
-            wb.startTable(2)
-            wb.addUByte(1, 0u)
-            val frame = byteArrayOf(MessageType.NACK.code.toByte()) + wb.finish()
+            val buffer = WriteBuffer()
+            buffer.startTable(2)
+            buffer.addUByte(1, 0u)
+            val frame = byteArrayOf(MessageType.NACK.code.toByte()) + buffer.finish()
             val decoded = WireCodec.decode(frame) as Nack
             assertEquals(16, decoded.messageId.size)
         }
 
         // ResumeRequest: messageId absent → ByteArray(16)
         run {
-            val wb = WriteBuffer()
-            wb.startTable(2)
-            wb.addUInt(1, 0u)
-            val frame = byteArrayOf(MessageType.RESUME_REQUEST.code.toByte()) + wb.finish()
+            val buffer = WriteBuffer()
+            buffer.startTable(2)
+            buffer.addUInt(1, 0u)
+            val frame = byteArrayOf(MessageType.RESUME_REQUEST.code.toByte()) + buffer.finish()
             val decoded = WireCodec.decode(frame) as ResumeRequest
             assertEquals(16, decoded.messageId.size)
         }
@@ -756,10 +756,10 @@ class WireFormatTest {
         // Broadcast: messageId absent → ByteArray(16); origin absent → ByteArray(12); payload
         // absent → ByteArray(0)
         run {
-            val wb = WriteBuffer()
-            wb.startTable(9)
-            wb.addUByte(2, 1u)
-            val frame = byteArrayOf(MessageType.BROADCAST.code.toByte()) + wb.finish()
+            val buffer = WriteBuffer()
+            buffer.startTable(9)
+            buffer.addUByte(2, 1u)
+            val frame = byteArrayOf(MessageType.BROADCAST.code.toByte()) + buffer.finish()
             val decoded = WireCodec.decode(frame) as Broadcast
             assertEquals(16, decoded.messageId.size)
             assertEquals(12, decoded.origin.size)
@@ -768,12 +768,12 @@ class WireFormatTest {
 
         // RoutedMessage: messageId/origin/destination/payload absent → defaults
         run {
-            val wb = WriteBuffer()
-            wb.startTable(8)
-            wb.addUByte(3, 2u)
-            wb.addByte(5, 0)
-            wb.addULong(6, 0UL)
-            val frame = byteArrayOf(MessageType.ROUTED_MESSAGE.code.toByte()) + wb.finish()
+            val buffer = WriteBuffer()
+            buffer.startTable(8)
+            buffer.addUByte(3, 2u)
+            buffer.addByte(5, 0)
+            buffer.addULong(6, 0UL)
+            val frame = byteArrayOf(MessageType.ROUTED_MESSAGE.code.toByte()) + buffer.finish()
             val decoded = WireCodec.decode(frame) as RoutedMessage
             assertEquals(16, decoded.messageId.size)
             assertEquals(12, decoded.origin.size)
@@ -781,15 +781,16 @@ class WireFormatTest {
             assertEquals(0, decoded.payload.size)
         }
 
-        // RotationAnnouncementMsg: all key fields absent → ByteArray(32) defaults, signature →
+        // RotationAnnouncementMessage: all key fields absent → ByteArray(32) defaults, signature →
         // ByteArray(64)
         run {
-            val wb = WriteBuffer()
-            wb.startTable(7)
-            wb.addULong(4, 1UL)
-            wb.addULong(5, 2UL)
-            val frame = byteArrayOf(MessageType.ROTATION_ANNOUNCEMENT.code.toByte()) + wb.finish()
-            val decoded = WireCodec.decode(frame) as RotationAnnouncementMsg
+            val buffer = WriteBuffer()
+            buffer.startTable(7)
+            buffer.addULong(4, 1UL)
+            buffer.addULong(5, 2UL)
+            val frame =
+                byteArrayOf(MessageType.ROTATION_ANNOUNCEMENT.code.toByte()) + buffer.finish()
+            val decoded = WireCodec.decode(frame) as RotationAnnouncementMessage
             assertEquals(32, decoded.oldX25519Key.size)
             assertEquals(32, decoded.newX25519Key.size)
             assertEquals(32, decoded.oldEd25519Key.size)
@@ -800,11 +801,11 @@ class WireFormatTest {
         // Update: destination/ed25519PublicKey/x25519PublicKey absent → ByteArray(12)/ByteArray(32)
         // defaults
         run {
-            val wb = WriteBuffer()
-            wb.startTable(5)
-            wb.addUShort(1, 100u)
-            wb.addUShort(2, 1u)
-            val frame = byteArrayOf(MessageType.UPDATE.code.toByte()) + wb.finish()
+            val buffer = WriteBuffer()
+            buffer.startTable(5)
+            buffer.addUShort(1, 100u)
+            buffer.addUShort(2, 1u)
+            val frame = byteArrayOf(MessageType.UPDATE.code.toByte()) + buffer.finish()
             val decoded = WireCodec.decode(frame) as Update
             assertEquals(12, decoded.destination.size)
             assertEquals(32, decoded.ed25519PublicKey.size)
@@ -813,10 +814,10 @@ class WireFormatTest {
 
         // DeliveryAck: messageId/recipientId absent → defaults
         run {
-            val wb = WriteBuffer()
-            wb.startTable(4)
-            wb.addUByte(2, 0u)
-            val frame = byteArrayOf(MessageType.DELIVERY_ACK.code.toByte()) + wb.finish()
+            val buffer = WriteBuffer()
+            buffer.startTable(4)
+            buffer.addUByte(2, 0u)
+            val frame = byteArrayOf(MessageType.DELIVERY_ACK.code.toByte()) + buffer.finish()
             val decoded = WireCodec.decode(frame) as DeliveryAck
             assertEquals(16, decoded.messageId.size)
             assertEquals(12, decoded.recipientId.size)
@@ -877,12 +878,12 @@ class WireFormatTest {
             assertFalse(base.equals(Nack(ByteArray(16) { 0x08 }, 1u))) // messageId
         }
 
-        // Chunk: seqNum; totalChunks; messageId; payload
+        // Chunk: seqNo; totalChunks; messageId; payload
         run {
             val base = Chunk(ByteArray(16) { 0xAA.toByte() }, 0u, 2u, byteArrayOf(0x01))
             assertFalse(
                 base.equals(Chunk(ByteArray(16) { 0xAA.toByte() }, 1u, 2u, byteArrayOf(0x01)))
-            ) // seqNum
+            ) // seqNo
             assertFalse(
                 base.equals(Chunk(ByteArray(16) { 0xAA.toByte() }, 0u, 3u, byteArrayOf(0x01)))
             ) // totalChunks
@@ -961,10 +962,10 @@ class WireFormatTest {
             ) // x25519Key
         }
 
-        // RotationAnnouncementMsg: one condition per field
+        // RotationAnnouncementMessage: one condition per field
         run {
             val base =
-                RotationAnnouncementMsg(
+                RotationAnnouncementMessage(
                     ByteArray(32) { 1 },
                     ByteArray(32) { 2 },
                     ByteArray(32) { 3 },
@@ -975,7 +976,7 @@ class WireFormatTest {
                 )
             assertFalse(
                 base.equals(
-                    RotationAnnouncementMsg(
+                    RotationAnnouncementMessage(
                         ByteArray(32) { 1 },
                         ByteArray(32) { 2 },
                         ByteArray(32) { 3 },
@@ -988,7 +989,7 @@ class WireFormatTest {
             ) // nonce
             assertFalse(
                 base.equals(
-                    RotationAnnouncementMsg(
+                    RotationAnnouncementMessage(
                         ByteArray(32) { 1 },
                         ByteArray(32) { 2 },
                         ByteArray(32) { 3 },
@@ -1001,7 +1002,7 @@ class WireFormatTest {
             ) // timestamp
             assertFalse(
                 base.equals(
-                    RotationAnnouncementMsg(
+                    RotationAnnouncementMessage(
                         ByteArray(32) { 9 },
                         ByteArray(32) { 2 },
                         ByteArray(32) { 3 },
@@ -1014,7 +1015,7 @@ class WireFormatTest {
             ) // oldX25519
             assertFalse(
                 base.equals(
-                    RotationAnnouncementMsg(
+                    RotationAnnouncementMessage(
                         ByteArray(32) { 1 },
                         ByteArray(32) { 9 },
                         ByteArray(32) { 3 },
@@ -1027,7 +1028,7 @@ class WireFormatTest {
             ) // newX25519
             assertFalse(
                 base.equals(
-                    RotationAnnouncementMsg(
+                    RotationAnnouncementMessage(
                         ByteArray(32) { 1 },
                         ByteArray(32) { 2 },
                         ByteArray(32) { 9 },
@@ -1040,7 +1041,7 @@ class WireFormatTest {
             ) // oldEd25519
             assertFalse(
                 base.equals(
-                    RotationAnnouncementMsg(
+                    RotationAnnouncementMessage(
                         ByteArray(32) { 1 },
                         ByteArray(32) { 2 },
                         ByteArray(32) { 3 },
@@ -1053,7 +1054,7 @@ class WireFormatTest {
             ) // newEd25519
             assertFalse(
                 base.equals(
-                    RotationAnnouncementMsg(
+                    RotationAnnouncementMessage(
                         ByteArray(32) { 1 },
                         ByteArray(32) { 2 },
                         ByteArray(32) { 3 },

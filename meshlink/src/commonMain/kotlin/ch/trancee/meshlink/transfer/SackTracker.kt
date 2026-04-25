@@ -14,22 +14,22 @@ class SackTracker {
     private var sackBitmap: ULong = 0uL
 
     /**
-     * Computes the zero-based offset of [seqNum] relative to the current [ackSequence], handling
+     * Computes the zero-based offset of [seqNo] relative to the current [ackSequence], handling
      * UShort wraparound. Returns a value in [0, 65535]. Offset 0 means the chunk immediately after
      * ackSequence. Offset >= 64 means out-of-window or already acknowledged.
      */
-    private fun offset(seqNum: UShort): UInt =
-        ((seqNum.toUInt() + 65536u - ackSequence.toUInt() - 1u) and 0xFFFFu)
+    private fun offset(seqNo: UShort): UInt =
+        ((seqNo.toUInt() + 65536u - ackSequence.toUInt() - 1u) and 0xFFFFu)
 
     /**
-     * Records [seqNum] as received. Advances [ackSequence] and shifts the bitmap while consecutive
+     * Records [seqNo] as received. Advances [ackSequence] and shifts the bitmap while consecutive
      * chunks are filled.
      */
-    fun markReceived(seqNum: UShort) {
-        val off = offset(seqNum)
-        if (off >= 64u) return
+    fun markReceived(seqNo: UShort) {
+        val offset = offset(seqNo)
+        if (offset >= 64u) return
 
-        sackBitmap = sackBitmap or (1uL shl off.toInt())
+        sackBitmap = sackBitmap or (1uL shl offset.toInt())
 
         // Advance ackSequence as long as the next chunk is already in the bitmap.
         while (sackBitmap and 1uL != 0uL) {
@@ -42,18 +42,18 @@ class SackTracker {
     fun buildAck(): Pair<UShort, ULong> = Pair(ackSequence, sackBitmap)
 
     /**
-     * Returns true if [seqNum] is within the 64-chunk window and has NOT been received. Returns
-     * false when [seqNum] is outside the window (already acknowledged or too far ahead).
+     * Returns true if [seqNo] is within the 64-chunk window and has NOT been received. Returns
+     * false when [seqNo] is outside the window (already acknowledged or too far ahead).
      */
-    fun isMissing(seqNum: UShort): Boolean {
-        val off = offset(seqNum)
-        if (off >= 64u) return false
-        return (sackBitmap shr off.toInt()) and 1uL == 0uL
+    fun isMissing(seqNo: UShort): Boolean {
+        val offset = offset(seqNo)
+        if (offset >= 64u) return false
+        return (sackBitmap shr offset.toInt()) and 1uL == 0uL
     }
 
     /**
-     * Returns true if the sender is allowed to send [seqNum] (i.e., it falls within the 64-chunk
+     * Returns true if the sender is allowed to send [seqNo] (i.e., it falls within the 64-chunk
      * inflight window: ackSequence+1 … ackSequence+64).
      */
-    fun canSend(seqNum: UShort): Boolean = offset(seqNum) < 64u
+    fun canSend(seqNo: UShort): Boolean = offset(seqNo) < 64u
 }

@@ -197,15 +197,15 @@ internal class HandshakeState(
         // In Noise XX, readTokenS is always reached after a mixKey call (ee or es),
         // so the symmetric state always has an active key. The static public key is
         // therefore always AEAD-encrypted: DH_LEN + TAG_LEN bytes.
-        val len = DH_LEN + TAG_LEN
-        if (message.size < offset + len) {
+        val length = DH_LEN + TAG_LEN
+        if (message.size < offset + length) {
             throw IllegalArgumentException(
-                "Message too short to read static key: need ${offset + len}, got ${message.size}"
+                "Message too short to read static key: need ${offset + length}, got ${message.size}"
             )
         }
-        val encryptedStatic = message.copyOfRange(offset, offset + len)
+        val encryptedStatic = message.copyOfRange(offset, offset + length)
         remoteStatic = symmetricState.decryptAndHash(encryptedStatic)
-        return offset + len
+        return offset + length
     }
 
     // ── Token: ee ────────────────────────────────────────────────────────────

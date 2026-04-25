@@ -4,19 +4,19 @@ data class Keepalive(val flags: UByte, val timestampMillis: ULong, val proposedC
     WireMessage {
     override val type = MessageType.KEEPALIVE
 
-    override fun encode(wb: WriteBuffer) {
-        wb.startTable(3)
-        wb.addUByte(0, flags)
-        wb.addULong(1, timestampMillis)
-        wb.addUShort(2, proposedChunkSize)
+    override fun encode(buffer: WriteBuffer) {
+        buffer.startTable(3)
+        buffer.addUByte(0, flags)
+        buffer.addULong(1, timestampMillis)
+        buffer.addUShort(2, proposedChunkSize)
     }
 
     companion object {
-        fun decode(rb: ReadBuffer): Keepalive =
+        fun decode(buffer: ReadBuffer): Keepalive =
             Keepalive(
-                flags = rb.getUByte(0),
-                timestampMillis = rb.getULong(1),
-                proposedChunkSize = rb.getUShort(2),
+                flags = buffer.getUByte(0),
+                timestampMillis = buffer.getULong(1),
+                proposedChunkSize = buffer.getUShort(2),
             )
     }
 }

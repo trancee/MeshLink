@@ -57,7 +57,7 @@ class InboundValidatorTest {
     @Test
     fun rotationAnnouncementValidFrame() {
         val msg =
-            RotationAnnouncementMsg(
+            RotationAnnouncementMessage(
                 oldX25519Key = ByteArray(32) { 1 },
                 newX25519Key = ByteArray(32) { 2 },
                 oldEd25519Key = ByteArray(32) { 3 },
@@ -72,7 +72,7 @@ class InboundValidatorTest {
     @Test
     fun rotationAnnouncementWrongOldX25519Key() {
         val msg =
-            RotationAnnouncementMsg(
+            RotationAnnouncementMessage(
                 oldX25519Key = ByteArray(31), // wrong — one byte short
                 newX25519Key = ByteArray(32),
                 oldEd25519Key = ByteArray(32),
@@ -91,7 +91,7 @@ class InboundValidatorTest {
     @Test
     fun rotationAnnouncementWrongNewX25519Key() {
         val msg =
-            RotationAnnouncementMsg(
+            RotationAnnouncementMessage(
                 oldX25519Key = ByteArray(32), // correct
                 newX25519Key = ByteArray(31), // wrong
                 oldEd25519Key = ByteArray(32),
@@ -108,7 +108,7 @@ class InboundValidatorTest {
     @Test
     fun rotationAnnouncementWrongOldEd25519Key() {
         val msg =
-            RotationAnnouncementMsg(
+            RotationAnnouncementMessage(
                 oldX25519Key = ByteArray(32),
                 newX25519Key = ByteArray(32), // correct
                 oldEd25519Key = ByteArray(31), // wrong
@@ -125,7 +125,7 @@ class InboundValidatorTest {
     @Test
     fun rotationAnnouncementWrongNewEd25519Key() {
         val msg =
-            RotationAnnouncementMsg(
+            RotationAnnouncementMessage(
                 oldX25519Key = ByteArray(32),
                 newX25519Key = ByteArray(32),
                 oldEd25519Key = ByteArray(32), // correct
@@ -142,7 +142,7 @@ class InboundValidatorTest {
     @Test
     fun rotationAnnouncementWrongSignature() {
         val msg =
-            RotationAnnouncementMsg(
+            RotationAnnouncementMessage(
                 oldX25519Key = ByteArray(32),
                 newX25519Key = ByteArray(32),
                 oldEd25519Key = ByteArray(32),
@@ -245,7 +245,7 @@ class InboundValidatorTest {
         val msg =
             Chunk(
                 messageId = ByteArray(16),
-                seqNum = 0u,
+                seqNo = 0u,
                 totalChunks = 3u,
                 payload = byteArrayOf(0x42),
             )
@@ -256,7 +256,7 @@ class InboundValidatorTest {
     fun chunkWrongMessageId() {
         // messageId exactly 15 bytes — one short
         val msg =
-            Chunk(messageId = ByteArray(15), seqNum = 0u, totalChunks = 1u, payload = ByteArray(0))
+            Chunk(messageId = ByteArray(15), seqNo = 0u, totalChunks = 1u, payload = ByteArray(0))
         val r = assertRejected(validate(msg))
         assertIs<InvalidFieldSize>(r)
         assertEquals("messageId", r.field)
@@ -503,17 +503,17 @@ class InboundValidatorTest {
     fun routedMessageVisitedListNotDivisibleBy12() {
         // Construct a frame with visitedList = 13 bytes (not divisible by 12).
         // Must be crafted via WriteBuffer since the encoder always flattens List<ByteArray>.
-        val wb = WriteBuffer()
-        wb.startTable(8)
-        wb.addByteVector(0, ByteArray(16)) // messageId
-        wb.addByteVector(1, ByteArray(12)) // origin
-        wb.addByteVector(2, ByteArray(12)) // destination
-        wb.addUByte(3, 1u) // hopLimit
-        wb.addByteVector(4, ByteArray(13)) // visitedList — 13 bytes, not divisible by 12
-        wb.addByte(5, 0) // priority
-        wb.addULong(6, 0UL) // originationTime
-        wb.addByteVector(7, ByteArray(0)) // payload
-        val payload = wb.finish()
+        val buffer = WriteBuffer()
+        buffer.startTable(8)
+        buffer.addByteVector(0, ByteArray(16)) // messageId
+        buffer.addByteVector(1, ByteArray(12)) // origin
+        buffer.addByteVector(2, ByteArray(12)) // destination
+        buffer.addUByte(3, 1u) // hopLimit
+        buffer.addByteVector(4, ByteArray(13)) // visitedList — 13 bytes, not divisible by 12
+        buffer.addByte(5, 0) // priority
+        buffer.addULong(6, 0UL) // originationTime
+        buffer.addByteVector(7, ByteArray(0)) // payload
+        val payload = buffer.finish()
         val frame = byteArrayOf(MessageType.ROUTED_MESSAGE.code.toByte()) + payload
         val r = assertRejected(InboundValidator.validate(frame))
         assertIs<InvalidFieldSize>(r)
@@ -524,17 +524,17 @@ class InboundValidatorTest {
     @Test
     fun routedMessageAbsentVisitedList() {
         // visitedList field absent — covers the null path in checkVisitedList.
-        val wb = WriteBuffer()
-        wb.startTable(8)
-        wb.addByteVector(0, ByteArray(16)) // messageId
-        wb.addByteVector(1, ByteArray(12)) // origin
-        wb.addByteVector(2, ByteArray(12)) // destination
-        wb.addUByte(3, 1u) // hopLimit
+        val buffer = WriteBuffer()
+        buffer.startTable(8)
+        buffer.addByteVector(0, ByteArray(16)) // messageId
+        buffer.addByteVector(1, ByteArray(12)) // origin
+        buffer.addByteVector(2, ByteArray(12)) // destination
+        buffer.addUByte(3, 1u) // hopLimit
         // field 4 (visitedList) intentionally absent
-        wb.addByte(5, 0) // priority
-        wb.addULong(6, 0UL) // originationTime
-        wb.addByteVector(7, ByteArray(0)) // payload
-        val payload = wb.finish()
+        buffer.addByte(5, 0) // priority
+        buffer.addULong(6, 0UL) // originationTime
+        buffer.addByteVector(7, ByteArray(0)) // payload
+        val payload = buffer.finish()
         val frame = byteArrayOf(MessageType.ROUTED_MESSAGE.code.toByte()) + payload
         // Absent visitedList is valid: decoded as empty list.
         val result = InboundValidator.validate(frame)
