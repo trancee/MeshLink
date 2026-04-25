@@ -5,6 +5,7 @@ import ch.trancee.meshlink.wire.Chunk
 import ch.trancee.meshlink.wire.ChunkAck
 import ch.trancee.meshlink.wire.Nack
 import ch.trancee.meshlink.wire.ResumeRequest
+import kotlin.math.min
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -12,23 +13,23 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
-import kotlin.math.min
 
 /** NACK reason code indicating the remote receiver's buffer is full. */
 const val NACK_REASON_BUFFER_FULL: UByte = 0u
 
-private const val DEGRADATION_PAUSE_MS = 2_000L
+private const val DEGRADATION_PAUSE_MILLIS = 2_000L
 private const val ACK_TIMEOUTS_TO_DEGRADE = 3
 private const val MAX_PROBE_FAILURES = 3
 
 /**
  * Per-transfer state machine for both sender and receiver roles.
  *
- * Use [sender] / [receiver] factory methods to construct, then call [start] to begin execution.
- * All timers use `delay()` in coroutines launched on [scope]; TestCoroutineScheduler drives them
- * via `advanceTo()` in tests.
+ * Use [sender] / [receiver] factory methods to construct, then call [start] to begin execution. All
+ * timers use `delay()` in coroutines launched on [scope]; TestCoroutineScheduler drives them via
+ * `advanceTo()` in tests.
  */
-class TransferSession private constructor(
+class TransferSession
+private constructor(
     val messageId: ByteArray,
     var peerId: ByteArray,
     val priority: Priority,
@@ -43,7 +44,7 @@ class TransferSession private constructor(
     payload: ByteArray?,
 ) {
     val isSender: Boolean = payload != null
-    private val inactivityTimeoutMs = config.inactivityBaseTimeoutMs * min(hopCount, 4)
+    private val inactivityTimeoutMillis = config.inactivityBaseTimeoutMillis * min(hopCount, 4)
 
     // ── Sender state ──────────────────────────────────────────────────────
     private val chunks: List<ByteArray> =
@@ -63,10 +64,15 @@ class TransferSession private constructor(
     // ── Sender event channel ──────────────────────────────────────────────
     private sealed interface SenderEvent {
         data class Ack(val ack: ChunkAck) : SenderEvent
+
         data class Nack(val nack: ch.trancee.meshlink.wire.Nack) : SenderEvent
+
         data class Resume(val req: ResumeRequest) : SenderEvent
+
         data object Disconnect : SenderEvent
+
         data class Reconnect(val newPeerId: ByteArray) : SenderEvent
+
         data object InactivityTimeout : SenderEvent
     }
 
@@ -139,10 +145,7 @@ class TransferSession private constructor(
             if (payload.isEmpty()) return listOf(ByteArray(0))
             val count = (payload.size + chunkSize - 1) / chunkSize
             return (0 until count).map { i ->
-                payload.copyOfRange(
-                    i * chunkSize,
-                    minOf((i + 1) * chunkSize, payload.size),
-                )
+                payload.copyOfRange(i * chunkSize, minOf((i + 1) * chunkSize, payload.size))
             }
         }
     }
@@ -203,7 +206,7 @@ class TransferSession private constructor(
     private fun resetSenderInactivityTimer() {
         senderInactivityJob?.cancel()
         senderInactivityJob = scope.launch {
-            delay(inactivityTimeoutMs)
+            delay(inactivityTimeoutMillis)
             senderEvents.trySend(SenderEvent.InactivityTimeout)
         }
     }
@@ -253,7 +256,8 @@ class TransferSession private constructor(
                                 return
                             }
                             val backoff =
-                                config.nackBaseBackoffMs shl (nackRetryCount - 1).coerceAtMost(7)
+                                config.nackBaseBackoffMillis shl
+                                    (nackRetryCount - 1).coerceAtMost(7)
                             delay(backoff)
                             sendBatch()
                         }
@@ -271,7 +275,7 @@ class TransferSession private constructor(
                                 )
                                 return
                             }
-                            delay(DEGRADATION_PAUSE_MS)
+                            delay(DEGRADATION_PAUSE_MILLIS)
                             sendProbe()
                             resetSenderInactivityTimer()
                         } else {
@@ -279,7 +283,7 @@ class TransferSession private constructor(
                             if (ackTimeoutCount >= ACK_TIMEOUTS_TO_DEGRADE) {
                                 ackTimeoutCount = 0
                                 inDegradationMode = true
-                                delay(DEGRADATION_PAUSE_MS)
+                                delay(DEGRADATION_PAUSE_MILLIS)
                                 sendProbe()
                                 resetSenderInactivityTimer()
                             } else {
@@ -409,8 +413,10 @@ class TransferSession private constructor(
     private fun resetReceiverInactivityTimer() {
         receiverInactivityJob?.cancel()
         receiverInactivityJob = scope.launch {
-            delay(inactivityTimeoutMs)
-            eventFlow.emit(TransferEvent.TransferFailed(messageId, FailureReason.INACTIVITY_TIMEOUT))
+            delay(inactivityTimeoutMillis)
+            eventFlow.emit(
+                TransferEvent.TransferFailed(messageId, FailureReason.INACTIVITY_TIMEOUT)
+            )
         }
     }
 

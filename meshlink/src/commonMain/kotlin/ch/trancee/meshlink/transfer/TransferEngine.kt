@@ -11,23 +11,24 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.launch
 
 /**
- * Hook called by the transport layer when available memory is critically low.
- * [TransferEngine] implements this interface and evicts sessions in priority order.
+ * Hook called by the transport layer when available memory is critically low. [TransferEngine]
+ * implements this interface and evicts sessions in priority order.
  */
 fun interface MemoryPressureListener {
     fun onMemoryPressure()
 }
 
 /**
- * Coordinates multiple concurrent [TransferSession]s, routes inbound wire messages,
- * and exposes [outboundChunks] and [events] flows consumed by the transport layer.
+ * Coordinates multiple concurrent [TransferSession]s, routes inbound wire messages, and exposes
+ * [outboundChunks] and [events] flows consumed by the transport layer.
  *
- * @param scope  CoroutineScope for all session coroutines. Pass `backgroundScope` in tests
- *               to avoid `UncompletedCoroutinesError` (MEM095).
+ * @param scope CoroutineScope for all session coroutines. Pass `backgroundScope` in tests to avoid
+ *   `UncompletedCoroutinesError` (MEM095).
  * @param config Transfer configuration (timeouts, retries, backoff).
- * @param chunkSizePolicy Chunk-size strategy: [ChunkSizePolicy.GATT] (244 B) or [ChunkSizePolicy.L2CAP] (4 096 B).
+ * @param chunkSizePolicy Chunk-size strategy: [ChunkSizePolicy.GATT] (244 B) or
+ *   [ChunkSizePolicy.L2CAP] (4 096 B).
  * @param isGattMode When true, SACK and rate controller are active; ChunkAck messages are sent.
- *                   When false, sender blasts all chunks without expecting ACKs.
+ *   When false, sender blasts all chunks without expecting ACKs.
  */
 class TransferEngine(
     private val scope: CoroutineScope,
@@ -43,8 +44,10 @@ class TransferEngine(
 
     private val _events = MutableSharedFlow<TransferEvent>(extraBufferCapacity = 64)
 
-    /** Typed transfer events: [TransferEvent.AssemblyComplete], [TransferEvent.TransferFailed],
-     *  [TransferEvent.ChunkProgress]. */
+    /**
+     * Typed transfer events: [TransferEvent.AssemblyComplete], [TransferEvent.TransferFailed],
+     * [TransferEvent.ChunkProgress].
+     */
     val events: SharedFlow<TransferEvent> = _events
 
     private val scheduler = TransferScheduler()
@@ -55,8 +58,8 @@ class TransferEngine(
     // ── Outbound (sender) ─────────────────────────────────────────────────
 
     /**
-     * Creates a sender [TransferSession] for [payload], registers it with [TransferScheduler],
-     * and starts sending.
+     * Creates a sender [TransferSession] for [payload], registers it with [TransferScheduler], and
+     * starts sending.
      */
     fun send(
         messageId: ByteArray,
@@ -87,8 +90,8 @@ class TransferEngine(
     // ── Inbound routing ───────────────────────────────────────────────────
 
     /**
-     * Routes an incoming [Chunk] to the receiver [TransferSession] for [chunk.messageId],
-     * creating one on first sight.
+     * Routes an incoming [Chunk] to the receiver [TransferSession] for [chunk.messageId], creating
+     * one on first sight.
      */
     fun onIncomingChunk(peerId: ByteArray, chunk: Chunk) {
         val key = chunk.messageId.asList()
@@ -156,9 +159,7 @@ class TransferEngine(
 
         if (toEvict.isEmpty()) {
             toEvict +=
-                sessions.values
-                    .filter { it.priority == Priority.NORMAL }
-                    .map { it.messageId }
+                sessions.values.filter { it.priority == Priority.NORMAL }.map { it.messageId }
         }
 
         for (id in toEvict) {

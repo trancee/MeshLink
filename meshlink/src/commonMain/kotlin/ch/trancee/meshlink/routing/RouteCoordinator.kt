@@ -28,13 +28,13 @@ internal fun computeLinkCost(
     rssi: Int,
     lossRate: Double,
     millisSinceLastHello: Long,
-    keepaliveIntervalMs: Long,
+    keepaliveIntervalMillis: Long,
     consecutiveStableIntervals: Int,
 ): Double {
     val rssiBaseCost = max(1.0, (-rssi - 50).toDouble() / 5.0)
     val lossMultiplier = 1.0 + (lossRate * 10.0)
     val freshnessPenalty =
-        1.0 + 0.5 * min(1.0, millisSinceLastHello.toDouble() / (4.0 * keepaliveIntervalMs))
+        1.0 + 0.5 * min(1.0, millisSinceLastHello.toDouble() / (4.0 * keepaliveIntervalMillis))
     val stabilityPenalty = max(0.0, 3.0 - consecutiveStableIntervals.toDouble())
     return rssiBaseCost * lossMultiplier * freshnessPenalty + stabilityPenalty
 }
@@ -47,7 +47,7 @@ internal fun computeLinkCost(
  */
 internal class NeighborState(
     val peerInfo: PeerInfo,
-    val lastHelloTimeMs: Long,
+    val lastHelloTimeMillis: Long,
     val consecutiveStableIntervals: Int,
 )
 
@@ -72,7 +72,7 @@ internal class RouteCoordinator(
     private val presenceTracker: PresenceTracker,
     private val trustStore: TrustStore,
     private val scope: CoroutineScope,
-    private val getCurrentTimeMs: () -> Long,
+    private val clock: () -> Long,
     private val config: RoutingConfig,
 ) {
     private val _outboundFrames = MutableSharedFlow<OutboundFrame>(extraBufferCapacity = 64)
@@ -83,7 +83,7 @@ internal class RouteCoordinator(
     // Per-neighbour state keyed by peerId.asList() for content-equality semantics (MEM047).
     private val neighborStates: HashMap<List<Byte>, NeighborState> = HashMap()
 
-    // Rate-limit on-demand discovery: destKey → lastDiscoveryAttemptMs.
+    // Rate-limit on-demand discovery: destKey → lastDiscoveryAttemptMillis.
     private val discoveryAttempts: HashMap<List<Byte>, Long> = HashMap()
 
     // ── onPeerConnected ───────────────────────────────────────────────────────
@@ -100,7 +100,7 @@ internal class RouteCoordinator(
                 rssi = peerInfo.rssi,
                 lossRate = peerInfo.lossRate,
                 millisSinceLastHello = 0L,
-                keepaliveIntervalMs = config.helloIntervalMs,
+                keepaliveIntervalMillis = config.helloIntervalMillis,
                 consecutiveStableIntervals = 0,
             )
         routingTable.install(
@@ -110,7 +110,7 @@ internal class RouteCoordinator(
                 metric = linkCost,
                 seqNo = 0u,
                 feasibilityDistance = linkCost,
-                expiresAt = getCurrentTimeMs() + config.routeExpiryMs,
+                expiresAt = clock() + config.routeExpiryMillis,
                 ed25519PublicKey = ByteArray(32),
                 x25519PublicKey = ByteArray(32),
             )
@@ -131,7 +131,7 @@ internal class RouteCoordinator(
         neighborStates[peerInfo.peerId.asList()] =
             NeighborState(
                 peerInfo = peerInfo,
-                lastHelloTimeMs = getCurrentTimeMs(),
+                lastHelloTimeMillis = clock(),
                 consecutiveStableIntervals = 0,
             )
     }
@@ -177,7 +177,7 @@ internal class RouteCoordinator(
                     neighborStates[fromPeerId.asList()] =
                         NeighborState(
                             peerInfo = neighborState.peerInfo,
-                            lastHelloTimeMs = getCurrentTimeMs(),
+                            lastHelloTimeMillis = clock(),
                             consecutiveStableIntervals =
                                 neighborState.consecutiveStableIntervals + 1,
                         )
@@ -190,9 +190,8 @@ internal class RouteCoordinator(
                         computeLinkCost(
                             rssi = neighborState.peerInfo.rssi,
                             lossRate = neighborState.peerInfo.lossRate,
-                            millisSinceLastHello =
-                                getCurrentTimeMs() - neighborState.lastHelloTimeMs,
-                            keepaliveIntervalMs = config.helloIntervalMs,
+                            millisSinceLastHello = clock() - neighborState.lastHelloTimeMillis,
+                            keepaliveIntervalMillis = config.helloIntervalMillis,
                             consecutiveStableIntervals = neighborState.consecutiveStableIntervals,
                         )
                     } else {
@@ -216,7 +215,7 @@ internal class RouteCoordinator(
      *
      * Returns the next-hop [ByteArray] when a valid route exists. When no route is known, emits a
      * Hello broadcast for on-demand discovery (rate-limited per destination by
-     * [RoutingConfig.routeDiscoveryTimeoutMs]) and returns `null`.
+     * [RoutingConfig.routeDiscoveryTimeoutMillis]) and returns `null`.
      */
     fun lookupNextHop(destination: ByteArray): ByteArray? {
         val nextHop = routingTable.lookupNextHop(destination)
@@ -224,8 +223,8 @@ internal class RouteCoordinator(
 
         val destKey = destination.asList()
         val lastAttempt = discoveryAttempts[destKey]
-        val now = getCurrentTimeMs()
-        if (lastAttempt == null || now - lastAttempt > config.routeDiscoveryTimeoutMs) {
+        val now = clock()
+        if (lastAttempt == null || now - lastAttempt > config.routeDiscoveryTimeoutMillis) {
             discoveryAttempts[destKey] = now
             _outboundFrames.tryEmit(
                 OutboundFrame(

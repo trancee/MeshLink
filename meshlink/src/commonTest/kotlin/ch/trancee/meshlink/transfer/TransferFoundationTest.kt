@@ -18,10 +18,10 @@ class TransferFoundationTest {
         assertEquals(244, cfg.chunkSize)
         assertEquals(4, cfg.acksBeforeDouble)
         assertEquals(8, cfg.acksBeforeQuad)
-        assertEquals(30_000L, cfg.inactivityBaseTimeoutMs)
+        assertEquals(30_000L, cfg.inactivityBaseTimeoutMillis)
         assertEquals(3, cfg.maxResumeAttempts)
         assertEquals(5, cfg.maxNackRetries)
-        assertEquals(500L, cfg.nackBaseBackoffMs)
+        assertEquals(500L, cfg.nackBaseBackoffMillis)
     }
 
     @Test
@@ -31,18 +31,18 @@ class TransferFoundationTest {
                 chunkSize = 512,
                 acksBeforeDouble = 2,
                 acksBeforeQuad = 4,
-                inactivityBaseTimeoutMs = 10_000L,
+                inactivityBaseTimeoutMillis = 10_000L,
                 maxResumeAttempts = 5,
                 maxNackRetries = 3,
-                nackBaseBackoffMs = 250L,
+                nackBaseBackoffMillis = 250L,
             )
         assertEquals(512, cfg.chunkSize)
         assertEquals(2, cfg.acksBeforeDouble)
         assertEquals(4, cfg.acksBeforeQuad)
-        assertEquals(10_000L, cfg.inactivityBaseTimeoutMs)
+        assertEquals(10_000L, cfg.inactivityBaseTimeoutMillis)
         assertEquals(5, cfg.maxResumeAttempts)
         assertEquals(3, cfg.maxNackRetries)
-        assertEquals(250L, cfg.nackBaseBackoffMs)
+        assertEquals(250L, cfg.nackBaseBackoffMillis)
     }
 
     // ──────────────────────────────────────────────────────────────────────

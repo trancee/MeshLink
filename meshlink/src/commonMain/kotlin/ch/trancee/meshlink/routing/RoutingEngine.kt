@@ -27,7 +27,7 @@ internal class RoutingEngine(
     private val localEdPublicKey: ByteArray,
     private val localDhPublicKey: ByteArray,
     private val scope: CoroutineScope,
-    private val getCurrentTimeMs: () -> Long,
+    private val clock: () -> Long,
     private val config: RoutingConfig,
 ) {
     // Feasibility distances: destinationKey → best-ever accepted total cost.
@@ -107,7 +107,7 @@ internal class RoutingEngine(
                 metric = totalCost,
                 seqNo = update.seqNo,
                 feasibilityDistance = totalCost,
-                expiresAt = getCurrentTimeMs() + config.routeExpiryMs,
+                expiresAt = clock() + config.routeExpiryMillis,
                 ed25519PublicKey = update.ed25519PublicKey,
                 x25519PublicKey = update.x25519PublicKey,
             )
@@ -212,14 +212,16 @@ internal class RoutingEngine(
      * full-dump fires before the Hello at the same virtual timestamp — enabling test coverage of
      * the empty-table (loop-not-entered) path.
      *
-     * - Full-dump timer (every helloIntervalMs × fullDumpMultiplier): emits Updates for all routes.
-     * - Hello timer (every helloIntervalMs): installs self-route, emits Hello + self-route Update.
+     * - Full-dump timer (every helloIntervalMillis × fullDumpMultiplier): emits Updates for all
+     *   routes.
+     * - Hello timer (every helloIntervalMillis): installs self-route, emits Hello + self-route
+     *   Update.
      */
     fun startTimers() {
         // Full-dump timer — launched first
         scope.launch {
             while (true) {
-                delay(config.helloIntervalMs * config.fullDumpMultiplier)
+                delay(config.helloIntervalMillis * config.fullDumpMultiplier)
                 for (route in routingTable.allRoutes()) {
                     val encodedMetric =
                         minOf(floor(route.metric * 100.0), 65534.0).toInt().toUShort()
@@ -243,7 +245,7 @@ internal class RoutingEngine(
         // Hello timer — launched second
         scope.launch {
             while (true) {
-                delay(config.helloIntervalMs)
+                delay(config.helloIntervalMillis)
                 localSeqNo = ((localSeqNo.toInt() + 1) and 0xFFFF).toUShort()
 
                 // Install / refresh self-route

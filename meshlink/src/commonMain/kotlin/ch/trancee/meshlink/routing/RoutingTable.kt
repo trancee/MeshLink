@@ -33,7 +33,7 @@ internal class RouteEntry(
     val seqNo: UShort,
     val feasibilityDistance:
         Double, // FD at time of install (authoritative copy lives in RoutingEngine)
-    val expiresAt: Long, // epoch-ms; compared against getCurrentTimeMs()
+    val expiresAt: Long, // epoch-ms; compared against clock()
     val ed25519PublicKey: ByteArray, // 32 bytes
     val x25519PublicKey: ByteArray, // 32 bytes
 ) {
@@ -71,7 +71,7 @@ internal class RouteEntry(
  * All expiry is lazy: stale entries are evicted on first access after their [RouteEntry.expiresAt]
  * timestamp passes.
  */
-internal class RoutingTable(private val getCurrentTimeMs: () -> Long) {
+internal class RoutingTable(private val clock: () -> Long) {
 
     private val routes: HashMap<List<Byte>, RouteEntry> = HashMap()
     private var digest: UInt = 0u
@@ -123,7 +123,7 @@ internal class RoutingTable(private val getCurrentTimeMs: () -> Long) {
     fun lookupNextHop(destination: ByteArray): ByteArray? {
         val key = destination.asList()
         val entry = routes[key] ?: return null
-        if (getCurrentTimeMs() > entry.expiresAt) {
+        if (clock() > entry.expiresAt) {
             routes.remove(key)
             digest = digest xor entryHash(entry.destination, entry.seqNo)
             return null
@@ -139,7 +139,7 @@ internal class RoutingTable(private val getCurrentTimeMs: () -> Long) {
     fun lookupRoute(destination: ByteArray): RouteEntry? {
         val key = destination.asList()
         val entry = routes[key] ?: return null
-        if (getCurrentTimeMs() > entry.expiresAt) {
+        if (clock() > entry.expiresAt) {
             routes.remove(key)
             digest = digest xor entryHash(entry.destination, entry.seqNo)
             return null
@@ -152,7 +152,7 @@ internal class RoutingTable(private val getCurrentTimeMs: () -> Long) {
 
     /** Return all non-expired routes, evicting stale entries lazily as a side-effect. */
     fun allRoutes(): List<RouteEntry> {
-        val now = getCurrentTimeMs()
+        val now = clock()
         val keysToRemove = mutableListOf<List<Byte>>()
         val entriesToRemove = mutableListOf<RouteEntry>()
         for ((key, entry) in routes) {

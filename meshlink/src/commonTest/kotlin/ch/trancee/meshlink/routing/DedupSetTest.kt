@@ -14,7 +14,7 @@ class DedupSetTest {
     @Test
     fun `add then isDuplicate returns true`() {
         var now = 1000L
-        val dedup = DedupSet(capacity = 100, ttlMs = 60_000L) { now }
+        val dedup = DedupSet(capacity = 100, ttlMillis = 60_000L) { now }
         val id = byteArrayOf(1, 2, 3)
         dedup.add(id)
         assertTrue(dedup.isDuplicate(id))
@@ -23,14 +23,14 @@ class DedupSetTest {
     @Test
     fun `unknown ID returns false`() {
         var now = 1000L
-        val dedup = DedupSet(capacity = 100, ttlMs = 60_000L) { now }
+        val dedup = DedupSet(capacity = 100, ttlMillis = 60_000L) { now }
         assertFalse(dedup.isDuplicate(byteArrayOf(9, 8, 7)))
     }
 
     @Test
     fun `TTL-expired entry returns false after clock advance`() {
         var now = 1000L
-        val dedup = DedupSet(capacity = 100, ttlMs = 5_000L) { now }
+        val dedup = DedupSet(capacity = 100, ttlMillis = 5_000L) { now }
         val id = byteArrayOf(4, 5, 6)
         dedup.add(id)
         now += 5_001L
@@ -40,7 +40,7 @@ class DedupSetTest {
     @Test
     fun `count eviction removes oldest when over capacity`() {
         var now = 1000L
-        val dedup = DedupSet(capacity = 2, ttlMs = 60_000L) { now }
+        val dedup = DedupSet(capacity = 2, ttlMillis = 60_000L) { now }
         val id1 = byteArrayOf(1)
         val id2 = byteArrayOf(2)
         val id3 = byteArrayOf(3)
@@ -56,7 +56,7 @@ class DedupSetTest {
     @Test
     fun `LRU recently-accessed entry survives count eviction over unaccessed`() {
         var now = 1000L
-        val dedup = DedupSet(capacity = 2, ttlMs = 60_000L) { now }
+        val dedup = DedupSet(capacity = 2, ttlMillis = 60_000L) { now }
         val id1 = byteArrayOf(1)
         val id2 = byteArrayOf(2)
         val id3 = byteArrayOf(3)
@@ -74,7 +74,7 @@ class DedupSetTest {
     @Test
     fun `re-add same ID updates timestamp`() {
         var now = 1000L
-        val dedup = DedupSet(capacity = 100, ttlMs = 5_000L) { now }
+        val dedup = DedupSet(capacity = 100, ttlMillis = 5_000L) { now }
         val id = byteArrayOf(7, 8)
         dedup.add(id)
         now += 4_500L
@@ -88,7 +88,7 @@ class DedupSetTest {
     @Test
     fun `size reflects count`() {
         var now = 1000L
-        val dedup = DedupSet(capacity = 100, ttlMs = 60_000L) { now }
+        val dedup = DedupSet(capacity = 100, ttlMillis = 60_000L) { now }
         assertEquals(0, dedup.size)
         dedup.add(byteArrayOf(1))
         assertEquals(1, dedup.size)
@@ -102,14 +102,14 @@ class DedupSetTest {
 
     @Test
     fun `isDuplicate on empty set returns false`() {
-        val dedup = DedupSet(capacity = 100, ttlMs = 60_000L) { 0L }
+        val dedup = DedupSet(capacity = 100, ttlMillis = 60_000L) { 0L }
         assertFalse(dedup.isDuplicate(byteArrayOf(0, 1, 2)))
     }
 
     @Test
     fun `add with zero-length messageId does not throw`() {
         var now = 0L
-        val dedup = DedupSet(capacity = 100, ttlMs = 60_000L) { now }
+        val dedup = DedupSet(capacity = 100, ttlMillis = 60_000L) { now }
         dedup.add(byteArrayOf())
         assertTrue(dedup.isDuplicate(byteArrayOf()))
     }
@@ -117,7 +117,7 @@ class DedupSetTest {
     @Test
     fun `capacity 1 evicts immediately on second add`() {
         var now = 0L
-        val dedup = DedupSet(capacity = 1, ttlMs = 60_000L) { now }
+        val dedup = DedupSet(capacity = 1, ttlMillis = 60_000L) { now }
         val id1 = byteArrayOf(1)
         val id2 = byteArrayOf(2)
         dedup.add(id1)
@@ -128,22 +128,22 @@ class DedupSetTest {
     }
 
     @Test
-    fun `TTL boundary - entry at exactly ttlMs elapsed returns false`() {
+    fun `TTL boundary - entry at exactly ttlMillis elapsed returns false`() {
         var now = 1000L
-        val dedup = DedupSet(capacity = 100, ttlMs = 5_000L) { now }
+        val dedup = DedupSet(capacity = 100, ttlMillis = 5_000L) { now }
         val id = byteArrayOf(42)
         dedup.add(id)
-        now += 5_001L // strictly greater than ttlMs
+        now += 5_001L // strictly greater than ttlMillis
         assertFalse(dedup.isDuplicate(id))
     }
 
     @Test
     fun `TTL boundary - entry just within ttl returns true`() {
         var now = 1000L
-        val dedup = DedupSet(capacity = 100, ttlMs = 5_000L) { now }
+        val dedup = DedupSet(capacity = 100, ttlMillis = 5_000L) { now }
         val id = byteArrayOf(43)
         dedup.add(id)
-        now += 4_999L // strictly less than ttlMs
+        now += 4_999L // strictly less than ttlMillis
         assertTrue(dedup.isDuplicate(id))
     }
 }

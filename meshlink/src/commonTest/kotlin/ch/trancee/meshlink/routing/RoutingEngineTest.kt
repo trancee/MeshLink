@@ -61,7 +61,7 @@ class RoutingEngineTest {
             localEdPublicKey = localEdKey,
             localDhPublicKey = localDhKey,
             scope = scope,
-            getCurrentTimeMs = clock,
+            clock = clock,
             config = config,
         )
 
@@ -199,7 +199,7 @@ class RoutingEngineTest {
     fun `processUpdate FD set but route expired returns false`() {
         var now = 0L
         val table = RoutingTable { now }
-        val config = RoutingConfig(routeExpiryMs = 1000L)
+        val config = RoutingConfig(routeExpiryMillis = 1000L)
         val engine = makeEngine(table, { now }, kotlinx.coroutines.GlobalScope, config)
 
         // Install with very short expiry
@@ -466,7 +466,7 @@ class RoutingEngineTest {
                 table,
                 { testScheduler.currentTime },
                 backgroundScope,
-                RoutingConfig(helloIntervalMs = 1000L),
+                RoutingConfig(helloIntervalMillis = 1000L),
             )
 
         engine.startTimers()
@@ -487,7 +487,7 @@ class RoutingEngineTest {
                 table,
                 { testScheduler.currentTime },
                 backgroundScope,
-                RoutingConfig(helloIntervalMs = 1000L),
+                RoutingConfig(helloIntervalMillis = 1000L),
             )
 
         val received = mutableListOf<OutboundFrame>()
@@ -519,7 +519,7 @@ class RoutingEngineTest {
                 backgroundScope,
                 // fullDumpMultiplier=1: full dump fires at same time as Hello each tick
                 // full dump is launched first → fires before Hello on same tick
-                RoutingConfig(helloIntervalMs = 1000L, fullDumpMultiplier = 1),
+                RoutingConfig(helloIntervalMillis = 1000L, fullDumpMultiplier = 1),
             )
 
         val received = mutableListOf<OutboundFrame>()
@@ -562,7 +562,7 @@ class RoutingEngineTest {
                 table,
                 { testScheduler.currentTime },
                 backgroundScope,
-                RoutingConfig(helloIntervalMs = 100L),
+                RoutingConfig(helloIntervalMillis = 100L),
             )
         engine.localSeqNo = 65535u
         engine.startTimers()

@@ -5,7 +5,11 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.test.TestCoroutineScheduler
 
-data class VirtualLink(val rssi: Int = -50, val packetLoss: Double = 0.0, val latencyMs: Long = 0L)
+data class VirtualLink(
+    val rssi: Int = -50,
+    val packetLoss: Double = 0.0,
+    val latencyMillis: Long = 0L,
+)
 
 data class SentFrame(val destination: ByteArray, val data: ByteArray) {
     override fun equals(other: Any?): Boolean {
@@ -104,15 +108,15 @@ class VirtualMeshTransport(
     }
 
     /**
-     * Advances the [TestCoroutineScheduler] to an absolute [timeMs] timestamp. Throws
-     * [IllegalArgumentException] if [timeMs] is in the past.
+     * Advances the [TestCoroutineScheduler] to an absolute [timeMillis] timestamp. Throws
+     * [IllegalArgumentException] if [timeMillis] is in the past.
      */
     @OptIn(ExperimentalCoroutinesApi::class)
-    fun advanceTo(timeMs: Long) {
-        if (timeMs < testScheduler.currentTime) {
+    fun advanceTo(timeMillis: Long) {
+        if (timeMillis < testScheduler.currentTime) {
             throw IllegalArgumentException("Cannot go back in time")
         }
-        testScheduler.advanceTimeBy(timeMs - testScheduler.currentTime)
+        testScheduler.advanceTimeBy(timeMillis - testScheduler.currentTime)
     }
 
     override suspend fun startAdvertisingAndScanning() {}

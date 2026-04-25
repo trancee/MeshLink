@@ -33,10 +33,11 @@ class RoutingTest {
     private val edKeyC = ByteArray(32) { (it + 2).toByte() }
     private val dhKeyC = ByteArray(32) { (it + 34).toByte() }
 
-    private var clockMs = 0L
-    private val clock: () -> Long = { clockMs }
+    private var clockMillis = 0L
+    private val clock: () -> Long = { clockMillis }
 
-    private val config = RoutingConfig(helloIntervalMs = 1_000L, routeDiscoveryTimeoutMs = 5_000L)
+    private val config =
+        RoutingConfig(helloIntervalMillis = 1_000L, routeDiscoveryTimeoutMillis = 5_000L)
 
     // ── test node factory ──────────────────────────────────────────────────────
 
@@ -63,10 +64,10 @@ class RoutingTest {
                 localEdPublicKey = edKey,
                 localDhPublicKey = dhKey,
                 scope = scope,
-                getCurrentTimeMs = clock,
+                clock = clock,
                 config = config,
             )
-        val dedupSet = DedupSet(config.dedupCapacity, config.dedupTtlMs, clock)
+        val dedupSet = DedupSet(config.dedupCapacity, config.dedupTtlMillis, clock)
         val presenceTracker = PresenceTracker()
         val coordinator =
             RouteCoordinator(
@@ -79,7 +80,7 @@ class RoutingTest {
                 presenceTracker = presenceTracker,
                 trustStore = trustStore,
                 scope = scope,
-                getCurrentTimeMs = clock,
+                clock = clock,
                 config = config,
             )
         return TestNode(table, storage, trustStore, coordinator)
@@ -257,32 +258,39 @@ class RoutingTest {
     // ── (g) on-demand rate limiting ───────────────────────────────────────────
 
     @Test
-    fun `lookupNextHop rate-limits on-demand discovery within routeDiscoveryTimeoutMs`() = runTest {
-        val nodeA = makeNode(peerIdA, edKeyA, dhKeyA, backgroundScope)
+    fun `lookupNextHop rate-limits on-demand discovery within routeDiscoveryTimeoutMillis`() =
+        runTest {
+            val nodeA = makeNode(peerIdA, edKeyA, dhKeyA, backgroundScope)
 
-        val collected = mutableListOf<OutboundFrame>()
-        backgroundScope.launch { nodeA.coordinator.outboundFrames.collect { collected.add(it) } }
-        testScheduler.runCurrent()
+            val collected = mutableListOf<OutboundFrame>()
+            backgroundScope.launch {
+                nodeA.coordinator.outboundFrames.collect { collected.add(it) }
+            }
+            testScheduler.runCurrent()
 
-        // First lookup — discovery Hello emitted.
-        nodeA.coordinator.lookupNextHop(destC)
-        testScheduler.runCurrent()
-        val countAfterFirst = collected.count { it.peerId == null && it.message is Hello }
-        assertEquals(1, countAfterFirst)
+            // First lookup — discovery Hello emitted.
+            nodeA.coordinator.lookupNextHop(destC)
+            testScheduler.runCurrent()
+            val countAfterFirst = collected.count { it.peerId == null && it.message is Hello }
+            assertEquals(1, countAfterFirst)
 
-        // Second lookup within timeout — no additional Hello.
-        nodeA.coordinator.lookupNextHop(destC)
-        testScheduler.runCurrent()
-        val countAfterSecond = collected.count { it.peerId == null && it.message is Hello }
-        assertEquals(1, countAfterSecond, "Discovery must be rate-limited within timeout window")
+            // Second lookup within timeout — no additional Hello.
+            nodeA.coordinator.lookupNextHop(destC)
+            testScheduler.runCurrent()
+            val countAfterSecond = collected.count { it.peerId == null && it.message is Hello }
+            assertEquals(
+                1,
+                countAfterSecond,
+                "Discovery must be rate-limited within timeout window",
+            )
 
-        // Advance past the timeout and try again — new Hello should be emitted.
-        clockMs += config.routeDiscoveryTimeoutMs + 1L
-        nodeA.coordinator.lookupNextHop(destC)
-        testScheduler.runCurrent()
-        val countAfterExpiry = collected.count { it.peerId == null && it.message is Hello }
-        assertEquals(2, countAfterExpiry, "Discovery should fire again after timeout expires")
-    }
+            // Advance past the timeout and try again — new Hello should be emitted.
+            clockMillis += config.routeDiscoveryTimeoutMillis + 1L
+            nodeA.coordinator.lookupNextHop(destC)
+            testScheduler.runCurrent()
+            val countAfterExpiry = collected.count { it.peerId == null && it.message is Hello }
+            assertEquals(2, countAfterExpiry, "Discovery should fire again after timeout expires")
+        }
 
     // ── (h) seqNo wraparound: seqNo=65535 → seqNo=0 accepted ─────────────────
 
@@ -365,7 +373,7 @@ class RoutingTest {
                 rssi = -50,
                 lossRate = 0.0,
                 millisSinceLastHello = 0L,
-                keepaliveIntervalMs = 5_000L,
+                keepaliveIntervalMillis = 5_000L,
                 consecutiveStableIntervals = 10,
             )
         assertEquals(1.0, cost, "RSSI -50, no loss, stable link → cost 1.0")
@@ -380,7 +388,7 @@ class RoutingTest {
                 rssi = -70,
                 lossRate = 0.0,
                 millisSinceLastHello = 0L,
-                keepaliveIntervalMs = 5_000L,
+                keepaliveIntervalMillis = 5_000L,
                 consecutiveStableIntervals = 10,
             )
         assertEquals(4.0, cost, "RSSI -70, no loss, stable link → cost 4.0")
@@ -395,7 +403,7 @@ class RoutingTest {
                 rssi = -50,
                 lossRate = 0.05,
                 millisSinceLastHello = 0L,
-                keepaliveIntervalMs = 5_000L,
+                keepaliveIntervalMillis = 5_000L,
                 consecutiveStableIntervals = 10,
             )
         assertEquals(1.5, cost, "5% loss should give lossMultiplier=1.5 → cost 1.5")
@@ -411,7 +419,7 @@ class RoutingTest {
                 rssi = -50,
                 lossRate = 0.0,
                 millisSinceLastHello = Long.MAX_VALUE / 2,
-                keepaliveIntervalMs = 5_000L,
+                keepaliveIntervalMillis = 5_000L,
                 consecutiveStableIntervals = 10,
             )
         assertEquals(1.5, cost, "Stale hello → freshnessPenalty capped at 1.5 → cost 1.5")
@@ -426,7 +434,7 @@ class RoutingTest {
                 rssi = -50,
                 lossRate = 0.0,
                 millisSinceLastHello = 0L,
-                keepaliveIntervalMs = 5_000L,
+                keepaliveIntervalMillis = 5_000L,
                 consecutiveStableIntervals = 0,
             )
         assertEquals(4.0, cost, "New link (0 stable intervals) should add 3.0 stability penalty")
@@ -440,7 +448,7 @@ class RoutingTest {
                 rssi = 0,
                 lossRate = 0.0,
                 millisSinceLastHello = 0L,
-                keepaliveIntervalMs = 5_000L,
+                keepaliveIntervalMillis = 5_000L,
                 consecutiveStableIntervals = 10,
             )
         assertEquals(1.0, cost, "RSSI=0 should clamp rssiBaseCost to 1.0")
@@ -454,7 +462,7 @@ class RoutingTest {
                 rssi = -50,
                 lossRate = 1.0,
                 millisSinceLastHello = 0L,
-                keepaliveIntervalMs = 5_000L,
+                keepaliveIntervalMillis = 5_000L,
                 consecutiveStableIntervals = 10,
             )
         assertEquals(11.0, cost, "100% loss → lossMultiplier=11.0 → cost 11.0")
@@ -578,8 +586,8 @@ class RoutingTest {
 
         nodeA.coordinator.start()
 
-        // Advance past helloIntervalMs so the Hello timer fires.
-        testScheduler.advanceTimeBy(config.helloIntervalMs + 1L)
+        // Advance past helloIntervalMillis so the Hello timer fires.
+        testScheduler.advanceTimeBy(config.helloIntervalMillis + 1L)
 
         // Engine should have emitted Hello and self-route Update via the coordinator flow.
         assertTrue(
@@ -671,7 +679,7 @@ class RoutingTest {
         )
 
         // Advance clock by 1 second, send Hello from A.
-        clockMs += 1_000L
+        clockMillis += 1_000L
         val digest = nodeB.table.routeDigest()
         nodeB.coordinator.processInbound(peerIdA, Hello(peerIdA, 2u, digest))
 
