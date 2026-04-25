@@ -164,4 +164,26 @@ allOpen { annotation("org.openjdk.jmh.annotations.State") }
 // kotlinx-benchmark — JVM target only for M001 bootstrap.
 // Native benchmarks are post-v1 per spec/12 §B.
 // The umbrella task `benchmark` delegates to `jvmBenchmark`.
-benchmark { targets { register("jvm") } }
+benchmark {
+    configurations {
+        // "main" — used by ./gradlew benchmark / jvmBenchmark for local dev.
+        // Reduced from the 10 s per-iteration default; still accurate enough for
+        // local profiling of crypto and wire-format hot paths.
+        named("main") {
+            warmups = 5
+            iterations = 5
+            iterationTime = 1
+            iterationTimeUnit = "s"
+        }
+        // "ci" — used by ./gradlew jvmCiBenchmark in CI.
+        // Short iteration time keeps the benchmark job under ~30 s while still
+        // detecting large regressions (>15% per spec/12 §B).
+        register("ci") {
+            warmups = 2
+            iterations = 3
+            iterationTime = 300
+            iterationTimeUnit = "ms"
+        }
+    }
+    targets { register("jvm") }
+}

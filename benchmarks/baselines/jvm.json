@@ -3,8 +3,8 @@
     "benchmark": "ch.trancee.meshlink.benchmark.PlaceholderBenchmark.integerAddition",
     "mode": "thrpt",
     "primaryMetric": {
-      "score": 4610870908.158911,
-      "scoreError": 163547751.9837877,
+      "score": 4411699038.312999,
+      "scoreError": 1219345115.5088525,
       "scoreUnit": "ops/s"
     }
   }
