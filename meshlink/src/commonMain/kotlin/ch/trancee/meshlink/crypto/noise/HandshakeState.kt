@@ -34,8 +34,11 @@ internal class HandshakeState(
     private val symmetricState: SymmetricState = SymmetricState(crypto)
     private val ephemeralKeyPair: KeyPair = crypto.generateX25519KeyPair()
 
-    private var remoteEphemeral: ByteArray? = null
-    private var remoteStatic: ByteArray? = null
+    // Non-nullable: ByteArray(0) is the sentinel for "not yet received".
+    // In Noise XX the fields are always populated before any DH operation reads them,
+    // so nullable-guard ?: throws in the token methods would be dead code.
+    private var remoteEphemeral: ByteArray = ByteArray(0)
+    private var remoteStatic: ByteArray = ByteArray(0)
 
     /** Protocol step counter shared across writeMessage and readMessage calls (0–3). */
     private var step: Int = 0
@@ -153,8 +156,12 @@ internal class HandshakeState(
      *
      * @throws IllegalStateException if the remote static key has not yet been received.
      */
-    fun getRemoteStaticKey(): ByteArray =
-        remoteStatic?.copyOf() ?: throw IllegalStateException("Remote static key not yet received")
+    fun getRemoteStaticKey(): ByteArray {
+        if (remoteStatic.isEmpty()) {
+            throw IllegalStateException("Remote static key not yet received")
+        }
+        return remoteStatic.copyOf()
+    }
 
     /** Returns the handshake hash for channel binding (Noise §11.2). */
     fun getHandshakeHash(): ByteArray = symmetricState.getHandshakeHash()
@@ -187,9 +194,10 @@ internal class HandshakeState(
     // ── Token: s (read) ───────────────────────────────────────────────────────
 
     private fun readTokenS(message: ByteArray, offset: Int): Int {
-        // If a key is present, the static key is encrypted: DH_LEN + TAG_LEN bytes.
-        // Before the first mixKey, it is sent in cleartext: DH_LEN bytes.
-        val len = if (symmetricState.hasKey()) DH_LEN + TAG_LEN else DH_LEN
+        // In Noise XX, readTokenS is always reached after a mixKey call (ee or es),
+        // so the symmetric state always has an active key. The static public key is
+        // therefore always AEAD-encrypted: DH_LEN + TAG_LEN bytes.
+        val len = DH_LEN + TAG_LEN
         if (message.size < offset + len) {
             throw IllegalArgumentException(
                 "Message too short to read static key: need ${offset + len}, got ${message.size}"
@@ -203,28 +211,21 @@ internal class HandshakeState(
     // ── Token: ee ────────────────────────────────────────────────────────────
 
     private fun mixTokenEE() {
-        val re =
-            remoteEphemeral
-                ?: throw IllegalStateException("Remote ephemeral not available for 'ee'")
-        symmetricState.mixKey(crypto.x25519SharedSecret(ephemeralKeyPair.privateKey, re))
+        // remoteEphemeral is always set by readTokenE before this is called in XX.
+        symmetricState.mixKey(
+            crypto.x25519SharedSecret(ephemeralKeyPair.privateKey, remoteEphemeral)
+        )
     }
 
     // ── Token: es ────────────────────────────────────────────────────────────
 
     private fun mixTokenES() {
+        // Initiator: DH(e, rs); Responder: DH(s, re). Both fields are guaranteed set in XX.
         val dh =
             if (isInitiator) {
-                // Initiator: DH(e, rs)
-                val rs =
-                    remoteStatic
-                        ?: throw IllegalStateException("Remote static not available for 'es'")
-                crypto.x25519SharedSecret(ephemeralKeyPair.privateKey, rs)
+                crypto.x25519SharedSecret(ephemeralKeyPair.privateKey, remoteStatic)
             } else {
-                // Responder: DH(s, re)
-                val re =
-                    remoteEphemeral
-                        ?: throw IllegalStateException("Remote ephemeral not available for 'es'")
-                crypto.x25519SharedSecret(staticKeyPair.privateKey, re)
+                crypto.x25519SharedSecret(staticKeyPair.privateKey, remoteEphemeral)
             }
         symmetricState.mixKey(dh)
     }
@@ -232,19 +233,12 @@ internal class HandshakeState(
     // ── Token: se ────────────────────────────────────────────────────────────
 
     private fun mixTokenSE() {
+        // Initiator: DH(s, re); Responder: DH(e, rs). Both fields are guaranteed set in XX.
         val dh =
             if (isInitiator) {
-                // Initiator: DH(s, re)
-                val re =
-                    remoteEphemeral
-                        ?: throw IllegalStateException("Remote ephemeral not available for 'se'")
-                crypto.x25519SharedSecret(staticKeyPair.privateKey, re)
+                crypto.x25519SharedSecret(staticKeyPair.privateKey, remoteEphemeral)
             } else {
-                // Responder: DH(e, rs)
-                val rs =
-                    remoteStatic
-                        ?: throw IllegalStateException("Remote static not available for 'se'")
-                crypto.x25519SharedSecret(ephemeralKeyPair.privateKey, rs)
+                crypto.x25519SharedSecret(ephemeralKeyPair.privateKey, remoteStatic)
             }
         symmetricState.mixKey(dh)
     }
