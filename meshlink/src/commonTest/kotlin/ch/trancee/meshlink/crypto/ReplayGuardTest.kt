@@ -72,7 +72,7 @@ class ReplayGuardTest {
         // After N=64, window=[1..64]. Counter 1 is at pos=63 — the leftmost slot.
         val guard = ReplayGuard()
         assertTrue(guard.check(64uL)) // N=64
-        assertTrue(guard.check(1uL))  // pos=63 — left edge, not seen → accept
+        assertTrue(guard.check(1uL)) // pos=63 — left edge, not seen → accept
         assertFalse(guard.check(1uL)) // pos=63 — duplicate
     }
 
@@ -103,8 +103,8 @@ class ReplayGuardTest {
         assertTrue(guard.check(1uL))
         assertTrue(guard.check(200uL)) // window=[137..200]
         assertFalse(guard.check(100uL)) // pos=100 ≥ 64 → too old
-        assertFalse(guard.check(50uL))  // pos=150 ≥ 64 → too old
-        assertFalse(guard.check(1uL))   // pos=199 ≥ 64 → too old
+        assertFalse(guard.check(50uL)) // pos=150 ≥ 64 → too old
+        assertFalse(guard.check(1uL)) // pos=199 ≥ 64 → too old
     }
 
     // ── Near-overflow counter values ──────────────────────────────────────────
@@ -113,10 +113,10 @@ class ReplayGuardTest {
     fun nearMaxCounterValuesWorkCorrectly() {
         val guard = ReplayGuard()
         val max = ULong.MAX_VALUE
-        assertTrue(guard.check(max - 1uL))   // N=max-1
-        assertTrue(guard.check(max))          // N=max, shift=1
-        assertFalse(guard.check(max))         // duplicate
-        assertFalse(guard.check(max - 1uL))  // duplicate
-        assertTrue(guard.check(max - 63uL))  // left edge: pos=63, not seen → accept
+        assertTrue(guard.check(max - 1uL)) // N=max-1
+        assertTrue(guard.check(max)) // N=max, shift=1
+        assertFalse(guard.check(max)) // duplicate
+        assertFalse(guard.check(max - 1uL)) // duplicate
+        assertTrue(guard.check(max - 63uL)) // left edge: pos=63, not seen → accept
     }
 }

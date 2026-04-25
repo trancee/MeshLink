@@ -19,8 +19,8 @@ internal class RotationAnnouncement(
 ) {
     companion object {
         /**
-         * Creates and signs a [RotationAnnouncement]. The payload signed is
-         * `newEdPublicKey ‖ newDhPublicKey ‖ nonce_LE8`, using [oldEdKeyPair]'s private key.
+         * Creates and signs a [RotationAnnouncement]. The payload signed is `newEdPublicKey ‖
+         * newDhPublicKey ‖ nonce_LE8`, using [oldEdKeyPair]'s private key.
          */
         fun create(
             crypto: CryptoProvider,

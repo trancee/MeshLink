@@ -59,9 +59,8 @@ class IdentityTest {
         val storage = InMemorySecureStorage()
         val identity = Identity.loadOrGenerate(crypto, storage)
 
-        val expected = crypto.sha256(
-            identity.edKeyPair.publicKey + identity.dhKeyPair.publicKey
-        ).copyOf(12)
+        val expected =
+            crypto.sha256(identity.edKeyPair.publicKey + identity.dhKeyPair.publicKey).copyOf(12)
 
         assertContentEquals(expected, identity.keyHash)
     }
@@ -78,7 +77,7 @@ class IdentityTest {
 
         assertTrue(
             RotationAnnouncement.verify(crypto, oldEdPublicKey, announcement),
-            "Announcement must verify against the OLD Ed25519 public key"
+            "Announcement must verify against the OLD Ed25519 public key",
         )
         assertEquals(32, announcement.newEdPublicKey.size)
         assertEquals(32, announcement.newDhPublicKey.size)
@@ -123,7 +122,7 @@ class IdentityTest {
         assertContentEquals(announcement.newDhPublicKey, rotated.dhKeyPair.publicKey)
         assertFalse(
             original.edKeyPair.publicKey.contentEquals(rotated.edKeyPair.publicKey),
-            "New identity should have different keys after rotation"
+            "New identity should have different keys after rotation",
         )
     }
 
@@ -190,16 +189,17 @@ class IdentityTest {
         // Flip a byte in the signature
         val tamperedSig = announcement.signature.copyOf()
         tamperedSig[0] = (tamperedSig[0].toInt() xor 0x01).toByte()
-        val tampered = RotationAnnouncement(
-            announcement.newEdPublicKey,
-            announcement.newDhPublicKey,
-            announcement.rotationNonce,
-            tamperedSig,
-        )
+        val tampered =
+            RotationAnnouncement(
+                announcement.newEdPublicKey,
+                announcement.newDhPublicKey,
+                announcement.rotationNonce,
+                tamperedSig,
+            )
 
         assertFalse(
             RotationAnnouncement.verify(crypto, oldEdPublicKey, tampered),
-            "Tampered signature must not verify"
+            "Tampered signature must not verify",
         )
     }
 
@@ -215,7 +215,7 @@ class IdentityTest {
         val wrongKeyPair = crypto.generateEd25519KeyPair()
         assertFalse(
             RotationAnnouncement.verify(crypto, wrongKeyPair.publicKey, announcement),
-            "Wrong old public key must not verify"
+            "Wrong old public key must not verify",
         )
     }
 

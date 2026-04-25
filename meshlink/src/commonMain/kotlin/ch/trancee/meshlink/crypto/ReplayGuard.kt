@@ -4,8 +4,8 @@ package ch.trancee.meshlink.crypto
  * Per-sender replay protection using a 64-bit sliding window per RFC 9147 §4.5.3.
  *
  * Tracks the highest-seen 64-bit counter [highestCounter] plus a 64-bit [bitmap] covering
- * `[highestCounter - 63, highestCounter]`. Bit 0 of the bitmap represents [highestCounter],
- * bit k represents `highestCounter - k`, bit 63 represents the left edge.
+ * `[highestCounter - 63, highestCounter]`. Bit 0 of the bitmap represents [highestCounter], bit k
+ * represents `highestCounter - k`, bit 63 represents the left edge.
  *
  * **Rejection is silent.** No diagnostic is emitted on rejection to prevent traffic analysis
  * side-channels (RFC 9147 §6.4).

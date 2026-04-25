@@ -12,11 +12,8 @@ import ch.trancee.meshlink.storage.SecureStorage
  * Construction is via [loadOrGenerate]: if all four key bytes are present in [SecureStorage] they
  * are loaded; otherwise fresh keypairs are generated and persisted.
  */
-internal class Identity private constructor(
-    val edKeyPair: KeyPair,
-    val dhKeyPair: KeyPair,
-    val keyHash: ByteArray,
-) {
+internal class Identity
+private constructor(val edKeyPair: KeyPair, val dhKeyPair: KeyPair, val keyHash: ByteArray) {
     // ── Equality ─────────────────────────────────────────────────────────────
 
     override fun equals(other: Any?): Boolean {
@@ -30,9 +27,9 @@ internal class Identity private constructor(
     // ── Key rotation ─────────────────────────────────────────────────────────
 
     /**
-     * Generates fresh keypairs, increments the rotation nonce, signs a
-     * [RotationAnnouncement] with the OLD Ed25519 private key, and persists the new keys + nonce
-     * to [storage]. Returns the signed announcement so it can be broadcast to peers.
+     * Generates fresh keypairs, increments the rotation nonce, signs a [RotationAnnouncement] with
+     * the OLD Ed25519 private key, and persists the new keys + nonce to [storage]. Returns the
+     * signed announcement so it can be broadcast to peers.
      *
      * The signing payload is `newEdPub ‖ newDhPub ‖ nonce_LE8`.
      */
@@ -41,19 +38,21 @@ internal class Identity private constructor(
         val newDhKeyPair = crypto.generateX25519KeyPair()
 
         val storedNonce = storage.get(KEY_NONCE)
-        val newNonce: ULong = if (storedNonce != null) {
-            decodeULong(storedNonce) + 1UL
-        } else {
-            1UL
-        }
+        val newNonce: ULong =
+            if (storedNonce != null) {
+                decodeULong(storedNonce) + 1UL
+            } else {
+                1UL
+            }
 
-        val announcement = RotationAnnouncement.create(
-            crypto = crypto,
-            oldEdKeyPair = edKeyPair,
-            newEdPublicKey = newEdKeyPair.publicKey,
-            newDhPublicKey = newDhKeyPair.publicKey,
-            nonce = newNonce,
-        )
+        val announcement =
+            RotationAnnouncement.create(
+                crypto = crypto,
+                oldEdKeyPair = edKeyPair,
+                newEdPublicKey = newEdKeyPair.publicKey,
+                newDhPublicKey = newDhKeyPair.publicKey,
+                nonce = newNonce,
+            )
 
         storage.put(KEY_ED_PRIV, newEdKeyPair.privateKey)
         storage.put(KEY_ED_PUB, newEdKeyPair.publicKey)
@@ -102,8 +101,8 @@ internal class Identity private constructor(
         // ── Nonce encoding (little-endian 8-byte ULong) ──────────────────────
 
         /**
-         * Encodes [value] as an 8-byte little-endian byte array (LSB first).
-         * Internal so tests can verify round-trip correctness.
+         * Encodes [value] as an 8-byte little-endian byte array (LSB first). Internal so tests can
+         * verify round-trip correctness.
          */
         internal fun encodeULong(value: ULong): ByteArray {
             val bytes = ByteArray(8)
@@ -116,8 +115,8 @@ internal class Identity private constructor(
         }
 
         /**
-         * Decodes an 8-byte little-endian byte array into a [ULong] (LSB first).
-         * Internal so tests can verify round-trip correctness.
+         * Decodes an 8-byte little-endian byte array into a [ULong] (LSB first). Internal so tests
+         * can verify round-trip correctness.
          */
         internal fun decodeULong(bytes: ByteArray): ULong {
             var result = 0UL
