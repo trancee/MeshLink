@@ -1,0 +1,36 @@
+version: 2
+
+updates:
+  # Gradle — library, plugin, and build-tool dependencies
+  - package-ecosystem: "gradle"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 10
+    groups:
+      kotlin:
+        patterns:
+          - "org.jetbrains.kotlin*"
+          - "org.jetbrains.kotlinx*"
+      android:
+        patterns:
+          - "com.android*"
+          - "com.google.flatbuffers*"
+      quality:
+        patterns:
+          - "io.gitlab.arturbosch.detekt*"
+          - "com.ncorti.ktfmt*"
+          - "org.jetbrains.kotlinx.kover*"
+          - "org.jetbrains.kotlinx.binary-compatibility-validator*"
+
+  # GitHub Actions workflow dependencies
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    groups:
+      actions:
+        patterns:
+          - "*"
