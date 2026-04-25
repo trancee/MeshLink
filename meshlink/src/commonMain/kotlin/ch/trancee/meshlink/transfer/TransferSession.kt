@@ -240,6 +240,13 @@ private constructor(
                             updateSenderSackFromAck(event.ack)
                             rateController.onAck()
                             nackRetryCount = 0
+                            // Emit sender-side progress so DeliveryPipeline can track own sessions.
+                            val (ackSeq, _) = senderSack.buildAck()
+                            val ackedCount =
+                                if (ackSeq == UShort.MAX_VALUE) 0 else ackSeq.toInt() + 1
+                            eventFlow.emit(
+                                TransferEvent.ChunkProgress(messageId, ackedCount, chunks.size)
+                            )
                             if (allChunksAcked()) return
                             sendBatch()
                         }

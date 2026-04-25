@@ -253,6 +253,24 @@ internal class DeliveryPipeline(
         pendingDeliveries[MessageIdKey(messageId)] =
             PendingDelivery(recipient, recipientEdPubKey, expiresAt)
         ownUnicastSessions.add(MessageIdKey(messageId))
+        // Start a delivery-ACK deadline timer. If no DeliveryAck arrives within one
+        // inactivity-timeout window, treat the pending delivery as timed out.
+        val ackDeadline = transferEngine.ackDeadlineMillis
+        val capturedMsgId = messageId.copyOf()
+        val capturedRecipient = recipient.copyOf()
+        scope.launch {
+            delay(ackDeadline)
+            val k = MessageIdKey(capturedMsgId)
+            if (!pendingDeliveries.containsKey(k)) return@launch // already resolved
+            pendingDeliveries.remove(k)
+            ownUnicastSessions.remove(k)
+            val cb =
+                circuitBreakers.getOrPut(capturedRecipient.asList()) {
+                    PerDestinationCircuitBreaker(config.circuitBreaker, clock)
+                }
+            cb.onFailure(FailureReason.INACTIVITY_TIMEOUT)
+            _transferFailures.tryEmit(DeliveryFailed(capturedMsgId, DeliveryOutcome.TIMED_OUT))
+        }
         return SendResult.Sent
     }
 
@@ -522,6 +540,11 @@ internal class DeliveryPipeline(
         // Single-signal rule: remove then emit.
         pendingDeliveries.remove(key)
         ownUnicastSessions.remove(key)
+        // Signal circuit-breaker success so the CB closes after a confirmed delivery.
+        val cbKey = pending.recipientId.asList()
+        circuitBreakers
+            .getOrPut(cbKey) { PerDestinationCircuitBreaker(config.circuitBreaker, clock) }
+            .onSuccess()
         _deliveryConfirmations.tryEmit(Delivered(msg.messageId))
     }
 
@@ -539,6 +562,7 @@ internal class DeliveryPipeline(
         when (wireMsg) {
             is RoutedMessage -> handleInboundRoutedMessage(fromPeerId, wireMsg)
             is Broadcast -> handleInboundBroadcast(fromPeerId, wireMsg)
+            is DeliveryAck -> handleInboundDeliveryAck(wireMsg)
             else -> return
         }
     }

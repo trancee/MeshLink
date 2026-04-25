@@ -9,12 +9,10 @@ enum class MessageKind {
 }
 
 /**
- * A fully-decoded message received from a peer, emitted on
- * [DeliveryPipeline.messages].
+ * A fully-decoded message received from a peer, emitted on [DeliveryPipeline.messages].
  *
- * Custom [equals]/[hashCode] delegate ByteArray fields to [contentEquals]/[contentHashCode] so
- * that two logically-identical messages compare equal even if their arrays are distinct heap
- * objects.
+ * Custom [equals]/[hashCode] delegate ByteArray fields to [contentEquals]/[contentHashCode] so that
+ * two logically-identical messages compare equal even if their arrays are distinct heap objects.
  */
 data class InboundMessage(
     val messageId: ByteArray,

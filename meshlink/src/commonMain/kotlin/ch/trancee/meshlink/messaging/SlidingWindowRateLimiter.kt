@@ -4,12 +4,12 @@ package ch.trancee.meshlink.messaging
  * True sliding-window rate limiter backed by a [LongArray] circular buffer of event timestamps.
  * O(1) amortised per [tryAcquire] call; no heap allocations after construction.
  *
- * @param limit     Maximum events allowed within [windowMs]. A limit of 0 always rejects.
- * @param windowMs  Width of the sliding window in milliseconds. A window of 0 ms means every
- *                  previously recorded entry is immediately expired, so [tryAcquire] effectively
- *                  allows every call (up to [limit] per "instant").
- * @param clock     Monotonic timestamp source; must be non-decreasing. Defaults to the platform
- *                  wall clock but should be injected for deterministic tests.
+ * @param limit Maximum events allowed within [windowMs]. A limit of 0 always rejects.
+ * @param windowMs Width of the sliding window in milliseconds. A window of 0 ms means every
+ *   previously recorded entry is immediately expired, so [tryAcquire] effectively allows every call
+ *   (up to [limit] per "instant").
+ * @param clock Monotonic timestamp source; must be non-decreasing. Defaults to the platform wall
+ *   clock but should be injected for deterministic tests.
  */
 class SlidingWindowRateLimiter(
     private val limit: Int,

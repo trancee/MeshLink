@@ -4,8 +4,8 @@ package ch.trancee.meshlink.messaging
  * All tuning parameters for the messaging and delivery subsystem.
  *
  * [appIdHash] is required and scopes broadcast messages to a specific application. Custom
- * [equals]/[hashCode] use [ByteArray.contentEquals]/[ByteArray.contentHashCode] for [appIdHash]
- * and structural comparison for all other fields.
+ * [equals]/[hashCode] use [ByteArray.contentEquals]/[ByteArray.contentHashCode] for [appIdHash] and
+ * structural comparison for all other fields.
  */
 data class MessagingConfig(
     /** TTL for HIGH-priority messages in the store-and-forward buffer (ms). Default: 45 min. */

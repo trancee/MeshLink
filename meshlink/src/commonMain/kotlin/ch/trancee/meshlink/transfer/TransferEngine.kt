@@ -55,6 +55,10 @@ class TransferEngine(
     /** Keyed by `messageId.asList()` for content-equality semantics (MEM047). */
     private val sessions = mutableMapOf<List<Byte>, TransferSession>()
 
+    /** Deadline for delivery-ACK timeout — same as the per-hop inactivity window. */
+    internal val ackDeadlineMillis: Long
+        get() = config.inactivityBaseTimeoutMillis
+
     // ── Outbound (sender) ─────────────────────────────────────────────────
 
     /**
