@@ -101,6 +101,12 @@ kover {
                 // Kover 0.9.8 instruments jvmMain bytecode even with excludedSourceSets("jvmMain").
                 classes("ch.trancee.meshlink.crypto.JvmCryptoProvider*")
                 classes("ch.trancee.meshlink.benchmark.*")
+                // Platform storage stubs — full implementations deferred to M002+.
+                // Excluded because they throw NotImplementedError and have no test coverage by
+                // design; koverGenerateArtifactAndroid instruments androidMain bytecode regardless
+                // of excludedSourceSets.
+                classes("ch.trancee.meshlink.storage.AndroidSecureStorage*")
+                classes("ch.trancee.meshlink.storage.IosSecureStorage*")
             }
         }
         verify {
