@@ -4,7 +4,7 @@ import kotlinx.coroutines.flow.Flow
 
 interface BleTransport {
     val localPeerId: ByteArray
-    val advertisementServiceData: ByteArray
+    var advertisementServiceData: ByteArray
 
     suspend fun startAdvertisingAndScanning()
 
