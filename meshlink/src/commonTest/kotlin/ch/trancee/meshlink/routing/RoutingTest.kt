@@ -652,7 +652,7 @@ class RoutingTest {
         val retractions = collected.filter { frame ->
             frame.peerId == null &&
                 frame.message is Update &&
-                (frame.message as Update).metric == METRIC_RETRACTION
+                frame.message.metric == METRIC_RETRACTION
         }
         assertTrue(retractions.isNotEmpty(), "Disconnect should broadcast retraction Updates")
     }

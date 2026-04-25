@@ -1919,7 +1919,7 @@ class DeliveryPipelineTest {
         val capturedMsgIds = mutableListOf<ByteArray>()
         backgroundScope.launch {
             alice.transferEngine.outboundChunks.collect { frame ->
-                if (frame.message is Chunk) capturedMsgIds.add((frame.message as Chunk).messageId)
+                if (frame.message is Chunk) capturedMsgIds.add(frame.message.messageId)
             }
         }
         backgroundScope.launch { alice.pipeline.transferProgress.collect {} }

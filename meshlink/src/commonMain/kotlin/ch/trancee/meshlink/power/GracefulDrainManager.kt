@@ -31,7 +31,8 @@ class GracefulDrainManager(
             if (ts == null || ts.bytesPerSecond < config.minThroughputBytesPerSec) {
                 // Idle or stalled: evict immediately.
                 val key = PeerKey(connection.peerId)
-                graceTimers.remove(key)?.job?.cancel()
+                val removed = graceTimers.remove(key)
+                if (removed != null) removed.job.cancel()
                 onEvict(connection.peerId)
             } else {
                 // Active transfer: compute a grace period proportional to the estimated
@@ -49,7 +50,8 @@ class GracefulDrainManager(
                 val deadline = clock() + graceMs
                 val key = PeerKey(connection.peerId)
                 // Cancel any existing timer for this peer before starting a new one.
-                graceTimers.remove(key)?.job?.cancel()
+                val existing = graceTimers.remove(key)
+                if (existing != null) existing.job.cancel()
                 val job = scope.launch {
                     delay(graceMs)
                     graceTimers.remove(key)
