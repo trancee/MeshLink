@@ -47,8 +47,9 @@ internal fun noiseKOpen(
     val ciphertext = sealed.copyOfRange(DH_LEN, sealed.size)
     val dhER = crypto.x25519SharedSecret(recipientStaticKeyPair.privateKey, ephemeralPubKey)
     val dhSS =
-        dhCache?.getOrCompute(crypto, recipientStaticKeyPair.privateKey, senderStaticPublicKey)
-            ?: crypto.x25519SharedSecret(recipientStaticKeyPair.privateKey, senderStaticPublicKey)
+        if (dhCache != null)
+            dhCache.getOrCompute(crypto, recipientStaticKeyPair.privateKey, senderStaticPublicKey)
+        else crypto.x25519SharedSecret(recipientStaticKeyPair.privateKey, senderStaticPublicKey)
     val ikm = dhER + dhSS + sessionSecret
     val hkdfOut = crypto.hkdfSha256(ByteArray(0), ikm, NOISE_K_INFO, HKDF_OUTPUT_LEN)
     val key = hkdfOut.copyOfRange(0, KEY_LEN)

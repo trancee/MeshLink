@@ -41,8 +41,9 @@ internal fun noiseKSeal(
     val ephemeral = crypto.generateX25519KeyPair()
     val dhER = crypto.x25519SharedSecret(ephemeral.privateKey, recipientStaticPublicKey)
     val dhSR =
-        dhCache?.getOrCompute(crypto, senderStaticKeyPair.privateKey, recipientStaticPublicKey)
-            ?: crypto.x25519SharedSecret(senderStaticKeyPair.privateKey, recipientStaticPublicKey)
+        if (dhCache != null)
+            dhCache.getOrCompute(crypto, senderStaticKeyPair.privateKey, recipientStaticPublicKey)
+        else crypto.x25519SharedSecret(senderStaticKeyPair.privateKey, recipientStaticPublicKey)
     val ikm = dhER + dhSR + sessionSecret
     val hkdfOut = crypto.hkdfSha256(ByteArray(0), ikm, NOISE_K_INFO, HKDF_OUTPUT_LEN)
     val key = hkdfOut.copyOfRange(0, KEY_LEN)
