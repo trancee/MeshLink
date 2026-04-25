@@ -1,0 +1,93 @@
+// MeshLink FlatBuffers Schema — reference documentation only, not used for codegen.
+// All 12 wire message types as defined in spec/04-wire-format.md §3.
+// Codec implemented by hand in commonMain/wire/ (pure-Kotlin, no flatc dependency).
+
+namespace ch.trancee.meshlink.wire;
+
+table Handshake {
+  step: ubyte;
+  noise_message: [ubyte];
+}
+
+table Keepalive {
+  flags: ubyte;
+  timestamp_millis: ulong;
+  proposed_chunk_size: ushort;
+}
+
+table RotationAnnouncement {
+  old_x25519_key: [ubyte];
+  new_x25519_key: [ubyte];
+  old_ed25519_key: [ubyte];
+  new_ed25519_key: [ubyte];
+  rotation_nonce: ulong;
+  timestamp_millis: ulong;
+  signature: [ubyte];
+}
+
+table Hello {
+  sender: [ubyte];
+  seq_no: ushort;
+  route_digest: uint;
+}
+
+table Update {
+  destination: [ubyte];
+  metric: ushort;
+  seq_no: ushort;
+  ed25519_public_key: [ubyte];
+  x25519_public_key: [ubyte];
+}
+
+table Chunk {
+  message_id: [ubyte];
+  seq_num: ushort;
+  total_chunks: ushort;
+  payload: [ubyte];
+}
+
+table ChunkAck {
+  message_id: [ubyte];
+  ack_sequence: ushort;
+  sack_bitmask: ulong;
+}
+
+table Nack {
+  message_id: [ubyte];
+  reason: ubyte;
+}
+
+table ResumeRequest {
+  message_id: [ubyte];
+  bytes_received: uint;
+}
+
+table Broadcast {
+  message_id: [ubyte];
+  origin: [ubyte];
+  remaining_hops: ubyte;
+  app_id_hash: ushort;
+  flags: ubyte;
+  priority: byte;
+  signature: [ubyte];
+  signer_key: [ubyte];
+  payload: [ubyte];
+}
+
+table RoutedMessage {
+  message_id: [ubyte];
+  origin: [ubyte];
+  destination: [ubyte];
+  hop_limit: ubyte;
+  visited_list: [ubyte];
+  priority: byte;
+  origination_time: ulong;
+  payload: [ubyte];
+}
+
+table DeliveryAck {
+  message_id: [ubyte];
+  recipient_id: [ubyte];
+  flags: ubyte;
+  signature: [ubyte];
+}

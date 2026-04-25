@@ -27,3 +27,362 @@ public final class ch/trancee/meshlink/crypto/KeyPair {
 	public fun toString ()Ljava/lang/String;
 }
 
+public final class ch/trancee/meshlink/wire/Broadcast : ch/trancee/meshlink/wire/WireMessage {
+	public static final field Companion Lch/trancee/meshlink/wire/Broadcast$Companion;
+	public synthetic fun <init> ([B[BBSBB[B[B[BLkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()[B
+	public final fun component2 ()[B
+	public final fun component3-w2LRezQ ()B
+	public final fun component4-Mh2AYeg ()S
+	public final fun component5-w2LRezQ ()B
+	public final fun component6 ()B
+	public final fun component7 ()[B
+	public final fun component8 ()[B
+	public final fun component9 ()[B
+	public final fun copy-SSXGxCc ([B[BBSBB[B[B[B)Lch/trancee/meshlink/wire/Broadcast;
+	public static synthetic fun copy-SSXGxCc$default (Lch/trancee/meshlink/wire/Broadcast;[B[BBSBB[B[B[BILjava/lang/Object;)Lch/trancee/meshlink/wire/Broadcast;
+	public fun encode (Lch/trancee/meshlink/wire/WriteBuffer;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAppIdHash-Mh2AYeg ()S
+	public final fun getFlags-w2LRezQ ()B
+	public final fun getMessageId ()[B
+	public final fun getOrigin ()[B
+	public final fun getPayload ()[B
+	public final fun getPriority ()B
+	public final fun getRemainingHops-w2LRezQ ()B
+	public final fun getSignature ()[B
+	public final fun getSignerKey ()[B
+	public fun getType ()Lch/trancee/meshlink/wire/MessageType;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class ch/trancee/meshlink/wire/Broadcast$Companion {
+	public final fun decode (Lch/trancee/meshlink/wire/ReadBuffer;)Lch/trancee/meshlink/wire/Broadcast;
+}
+
+public final class ch/trancee/meshlink/wire/Chunk : ch/trancee/meshlink/wire/WireMessage {
+	public static final field Companion Lch/trancee/meshlink/wire/Chunk$Companion;
+	public synthetic fun <init> ([BSS[BLkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()[B
+	public final fun component2-Mh2AYeg ()S
+	public final fun component3-Mh2AYeg ()S
+	public final fun component4 ()[B
+	public final fun copy-RZsLDPo ([BSS[B)Lch/trancee/meshlink/wire/Chunk;
+	public static synthetic fun copy-RZsLDPo$default (Lch/trancee/meshlink/wire/Chunk;[BSS[BILjava/lang/Object;)Lch/trancee/meshlink/wire/Chunk;
+	public fun encode (Lch/trancee/meshlink/wire/WriteBuffer;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getMessageId ()[B
+	public final fun getPayload ()[B
+	public final fun getSeqNum-Mh2AYeg ()S
+	public final fun getTotalChunks-Mh2AYeg ()S
+	public fun getType ()Lch/trancee/meshlink/wire/MessageType;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class ch/trancee/meshlink/wire/Chunk$Companion {
+	public final fun decode (Lch/trancee/meshlink/wire/ReadBuffer;)Lch/trancee/meshlink/wire/Chunk;
+}
+
+public final class ch/trancee/meshlink/wire/ChunkAck : ch/trancee/meshlink/wire/WireMessage {
+	public static final field Companion Lch/trancee/meshlink/wire/ChunkAck$Companion;
+	public synthetic fun <init> ([BSJLkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()[B
+	public final fun component2-Mh2AYeg ()S
+	public final fun component3-s-VKNKU ()J
+	public final fun copy-0JtHdIo ([BSJ)Lch/trancee/meshlink/wire/ChunkAck;
+	public static synthetic fun copy-0JtHdIo$default (Lch/trancee/meshlink/wire/ChunkAck;[BSJILjava/lang/Object;)Lch/trancee/meshlink/wire/ChunkAck;
+	public fun encode (Lch/trancee/meshlink/wire/WriteBuffer;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAckSequence-Mh2AYeg ()S
+	public final fun getMessageId ()[B
+	public final fun getSackBitmask-s-VKNKU ()J
+	public fun getType ()Lch/trancee/meshlink/wire/MessageType;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class ch/trancee/meshlink/wire/ChunkAck$Companion {
+	public final fun decode (Lch/trancee/meshlink/wire/ReadBuffer;)Lch/trancee/meshlink/wire/ChunkAck;
+}
+
+public final class ch/trancee/meshlink/wire/DeliveryAck : ch/trancee/meshlink/wire/WireMessage {
+	public static final field Companion Lch/trancee/meshlink/wire/DeliveryAck$Companion;
+	public synthetic fun <init> ([B[BB[BLkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()[B
+	public final fun component2 ()[B
+	public final fun component3-w2LRezQ ()B
+	public final fun component4 ()[B
+	public final fun copy-SpDDLgk ([B[BB[B)Lch/trancee/meshlink/wire/DeliveryAck;
+	public static synthetic fun copy-SpDDLgk$default (Lch/trancee/meshlink/wire/DeliveryAck;[B[BB[BILjava/lang/Object;)Lch/trancee/meshlink/wire/DeliveryAck;
+	public fun encode (Lch/trancee/meshlink/wire/WriteBuffer;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getFlags-w2LRezQ ()B
+	public final fun getMessageId ()[B
+	public final fun getRecipientId ()[B
+	public final fun getSignature ()[B
+	public fun getType ()Lch/trancee/meshlink/wire/MessageType;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class ch/trancee/meshlink/wire/DeliveryAck$Companion {
+	public final fun decode (Lch/trancee/meshlink/wire/ReadBuffer;)Lch/trancee/meshlink/wire/DeliveryAck;
+}
+
+public final class ch/trancee/meshlink/wire/Handshake : ch/trancee/meshlink/wire/WireMessage {
+	public static final field Companion Lch/trancee/meshlink/wire/Handshake$Companion;
+	public synthetic fun <init> (B[BLkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1-w2LRezQ ()B
+	public final fun component2 ()[B
+	public final fun copy-0ky7B_Q (B[B)Lch/trancee/meshlink/wire/Handshake;
+	public static synthetic fun copy-0ky7B_Q$default (Lch/trancee/meshlink/wire/Handshake;B[BILjava/lang/Object;)Lch/trancee/meshlink/wire/Handshake;
+	public fun encode (Lch/trancee/meshlink/wire/WriteBuffer;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getNoiseMessage ()[B
+	public final fun getStep-w2LRezQ ()B
+	public fun getType ()Lch/trancee/meshlink/wire/MessageType;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class ch/trancee/meshlink/wire/Handshake$Companion {
+	public final fun decode (Lch/trancee/meshlink/wire/ReadBuffer;)Lch/trancee/meshlink/wire/Handshake;
+}
+
+public final class ch/trancee/meshlink/wire/Hello : ch/trancee/meshlink/wire/WireMessage {
+	public static final field Companion Lch/trancee/meshlink/wire/Hello$Companion;
+	public synthetic fun <init> ([BSILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()[B
+	public final fun component2-Mh2AYeg ()S
+	public final fun component3-pVg5ArA ()I
+	public final fun copy-urKXcQA ([BSI)Lch/trancee/meshlink/wire/Hello;
+	public static synthetic fun copy-urKXcQA$default (Lch/trancee/meshlink/wire/Hello;[BSIILjava/lang/Object;)Lch/trancee/meshlink/wire/Hello;
+	public fun encode (Lch/trancee/meshlink/wire/WriteBuffer;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getRouteDigest-pVg5ArA ()I
+	public final fun getSender ()[B
+	public final fun getSeqNo-Mh2AYeg ()S
+	public fun getType ()Lch/trancee/meshlink/wire/MessageType;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class ch/trancee/meshlink/wire/Hello$Companion {
+	public final fun decode (Lch/trancee/meshlink/wire/ReadBuffer;)Lch/trancee/meshlink/wire/Hello;
+}
+
+public final class ch/trancee/meshlink/wire/Keepalive : ch/trancee/meshlink/wire/WireMessage {
+	public static final field Companion Lch/trancee/meshlink/wire/Keepalive$Companion;
+	public synthetic fun <init> (BJSLkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1-w2LRezQ ()B
+	public final fun component2-s-VKNKU ()J
+	public final fun component3-Mh2AYeg ()S
+	public final fun copy-y3XtU5Y (BJS)Lch/trancee/meshlink/wire/Keepalive;
+	public static synthetic fun copy-y3XtU5Y$default (Lch/trancee/meshlink/wire/Keepalive;BJSILjava/lang/Object;)Lch/trancee/meshlink/wire/Keepalive;
+	public fun encode (Lch/trancee/meshlink/wire/WriteBuffer;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getFlags-w2LRezQ ()B
+	public final fun getProposedChunkSize-Mh2AYeg ()S
+	public final fun getTimestampMillis-s-VKNKU ()J
+	public fun getType ()Lch/trancee/meshlink/wire/MessageType;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class ch/trancee/meshlink/wire/Keepalive$Companion {
+	public final fun decode (Lch/trancee/meshlink/wire/ReadBuffer;)Lch/trancee/meshlink/wire/Keepalive;
+}
+
+public final class ch/trancee/meshlink/wire/MessageType : java/lang/Enum {
+	public static final field BROADCAST Lch/trancee/meshlink/wire/MessageType;
+	public static final field CHUNK Lch/trancee/meshlink/wire/MessageType;
+	public static final field CHUNK_ACK Lch/trancee/meshlink/wire/MessageType;
+	public static final field Companion Lch/trancee/meshlink/wire/MessageType$Companion;
+	public static final field DELIVERY_ACK Lch/trancee/meshlink/wire/MessageType;
+	public static final field HANDSHAKE Lch/trancee/meshlink/wire/MessageType;
+	public static final field HELLO Lch/trancee/meshlink/wire/MessageType;
+	public static final field KEEPALIVE Lch/trancee/meshlink/wire/MessageType;
+	public static final field NACK Lch/trancee/meshlink/wire/MessageType;
+	public static final field RESUME_REQUEST Lch/trancee/meshlink/wire/MessageType;
+	public static final field ROTATION_ANNOUNCEMENT Lch/trancee/meshlink/wire/MessageType;
+	public static final field ROUTED_MESSAGE Lch/trancee/meshlink/wire/MessageType;
+	public static final field UNKNOWN Lch/trancee/meshlink/wire/MessageType;
+	public static final field UPDATE Lch/trancee/meshlink/wire/MessageType;
+	public final fun getCode-w2LRezQ ()B
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lch/trancee/meshlink/wire/MessageType;
+	public static fun values ()[Lch/trancee/meshlink/wire/MessageType;
+}
+
+public final class ch/trancee/meshlink/wire/MessageType$Companion {
+	public final fun fromByte-7apg3OU (B)Lch/trancee/meshlink/wire/MessageType;
+}
+
+public final class ch/trancee/meshlink/wire/Nack : ch/trancee/meshlink/wire/WireMessage {
+	public static final field Companion Lch/trancee/meshlink/wire/Nack$Companion;
+	public synthetic fun <init> ([BBLkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()[B
+	public final fun component2-w2LRezQ ()B
+	public final fun copy-EK-6454 ([BB)Lch/trancee/meshlink/wire/Nack;
+	public static synthetic fun copy-EK-6454$default (Lch/trancee/meshlink/wire/Nack;[BBILjava/lang/Object;)Lch/trancee/meshlink/wire/Nack;
+	public fun encode (Lch/trancee/meshlink/wire/WriteBuffer;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getMessageId ()[B
+	public final fun getReason-w2LRezQ ()B
+	public fun getType ()Lch/trancee/meshlink/wire/MessageType;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class ch/trancee/meshlink/wire/Nack$Companion {
+	public final fun decode (Lch/trancee/meshlink/wire/ReadBuffer;)Lch/trancee/meshlink/wire/Nack;
+}
+
+public final class ch/trancee/meshlink/wire/ReadBuffer {
+	public fun <init> ([B)V
+	public final fun getByte (IB)B
+	public static synthetic fun getByte$default (Lch/trancee/meshlink/wire/ReadBuffer;IBILjava/lang/Object;)B
+	public final fun getByteArray (I)[B
+	public final fun getUByte--By5Qlo (IB)B
+	public static synthetic fun getUByte--By5Qlo$default (Lch/trancee/meshlink/wire/ReadBuffer;IBILjava/lang/Object;)B
+	public final fun getUInt-8fN1j4Y (II)I
+	public static synthetic fun getUInt-8fN1j4Y$default (Lch/trancee/meshlink/wire/ReadBuffer;IIILjava/lang/Object;)I
+	public final fun getULong-pml5SS0 (IJ)J
+	public static synthetic fun getULong-pml5SS0$default (Lch/trancee/meshlink/wire/ReadBuffer;IJILjava/lang/Object;)J
+	public final fun getUShort-KH5fvcE (IS)S
+	public static synthetic fun getUShort-KH5fvcE$default (Lch/trancee/meshlink/wire/ReadBuffer;ISILjava/lang/Object;)S
+}
+
+public final class ch/trancee/meshlink/wire/ResumeRequest : ch/trancee/meshlink/wire/WireMessage {
+	public static final field Companion Lch/trancee/meshlink/wire/ResumeRequest$Companion;
+	public synthetic fun <init> ([BILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()[B
+	public final fun component2-pVg5ArA ()I
+	public final fun copy-Qn1smSk ([BI)Lch/trancee/meshlink/wire/ResumeRequest;
+	public static synthetic fun copy-Qn1smSk$default (Lch/trancee/meshlink/wire/ResumeRequest;[BIILjava/lang/Object;)Lch/trancee/meshlink/wire/ResumeRequest;
+	public fun encode (Lch/trancee/meshlink/wire/WriteBuffer;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getBytesReceived-pVg5ArA ()I
+	public final fun getMessageId ()[B
+	public fun getType ()Lch/trancee/meshlink/wire/MessageType;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class ch/trancee/meshlink/wire/ResumeRequest$Companion {
+	public final fun decode (Lch/trancee/meshlink/wire/ReadBuffer;)Lch/trancee/meshlink/wire/ResumeRequest;
+}
+
+public final class ch/trancee/meshlink/wire/RotationAnnouncementMsg : ch/trancee/meshlink/wire/WireMessage {
+	public static final field Companion Lch/trancee/meshlink/wire/RotationAnnouncementMsg$Companion;
+	public synthetic fun <init> ([B[B[B[BJJ[BLkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()[B
+	public final fun component2 ()[B
+	public final fun component3 ()[B
+	public final fun component4 ()[B
+	public final fun component5-s-VKNKU ()J
+	public final fun component6-s-VKNKU ()J
+	public final fun component7 ()[B
+	public final fun copy-YEVqc2Q ([B[B[B[BJJ[B)Lch/trancee/meshlink/wire/RotationAnnouncementMsg;
+	public static synthetic fun copy-YEVqc2Q$default (Lch/trancee/meshlink/wire/RotationAnnouncementMsg;[B[B[B[BJJ[BILjava/lang/Object;)Lch/trancee/meshlink/wire/RotationAnnouncementMsg;
+	public fun encode (Lch/trancee/meshlink/wire/WriteBuffer;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getNewEd25519Key ()[B
+	public final fun getNewX25519Key ()[B
+	public final fun getOldEd25519Key ()[B
+	public final fun getOldX25519Key ()[B
+	public final fun getRotationNonce-s-VKNKU ()J
+	public final fun getSignature ()[B
+	public final fun getTimestampMillis-s-VKNKU ()J
+	public fun getType ()Lch/trancee/meshlink/wire/MessageType;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class ch/trancee/meshlink/wire/RotationAnnouncementMsg$Companion {
+	public final fun decode (Lch/trancee/meshlink/wire/ReadBuffer;)Lch/trancee/meshlink/wire/RotationAnnouncementMsg;
+}
+
+public final class ch/trancee/meshlink/wire/RoutedMessage : ch/trancee/meshlink/wire/WireMessage {
+	public static final field Companion Lch/trancee/meshlink/wire/RoutedMessage$Companion;
+	public synthetic fun <init> ([B[B[BBLjava/util/List;BJ[BLkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()[B
+	public final fun component2 ()[B
+	public final fun component3 ()[B
+	public final fun component4-w2LRezQ ()B
+	public final fun component5 ()Ljava/util/List;
+	public final fun component6 ()B
+	public final fun component7-s-VKNKU ()J
+	public final fun component8 ()[B
+	public final fun copy-lTBImfU ([B[B[BBLjava/util/List;BJ[B)Lch/trancee/meshlink/wire/RoutedMessage;
+	public static synthetic fun copy-lTBImfU$default (Lch/trancee/meshlink/wire/RoutedMessage;[B[B[BBLjava/util/List;BJ[BILjava/lang/Object;)Lch/trancee/meshlink/wire/RoutedMessage;
+	public fun encode (Lch/trancee/meshlink/wire/WriteBuffer;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDestination ()[B
+	public final fun getHopLimit-w2LRezQ ()B
+	public final fun getMessageId ()[B
+	public final fun getOrigin ()[B
+	public final fun getOriginationTime-s-VKNKU ()J
+	public final fun getPayload ()[B
+	public final fun getPriority ()B
+	public fun getType ()Lch/trancee/meshlink/wire/MessageType;
+	public final fun getVisitedList ()Ljava/util/List;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class ch/trancee/meshlink/wire/RoutedMessage$Companion {
+	public final fun decode (Lch/trancee/meshlink/wire/ReadBuffer;)Lch/trancee/meshlink/wire/RoutedMessage;
+}
+
+public final class ch/trancee/meshlink/wire/Update : ch/trancee/meshlink/wire/WireMessage {
+	public static final field Companion Lch/trancee/meshlink/wire/Update$Companion;
+	public synthetic fun <init> ([BSS[B[BLkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()[B
+	public final fun component2-Mh2AYeg ()S
+	public final fun component3-Mh2AYeg ()S
+	public final fun component4 ()[B
+	public final fun component5 ()[B
+	public final fun copy-teyeJnE ([BSS[B[B)Lch/trancee/meshlink/wire/Update;
+	public static synthetic fun copy-teyeJnE$default (Lch/trancee/meshlink/wire/Update;[BSS[B[BILjava/lang/Object;)Lch/trancee/meshlink/wire/Update;
+	public fun encode (Lch/trancee/meshlink/wire/WriteBuffer;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDestination ()[B
+	public final fun getEd25519PublicKey ()[B
+	public final fun getMetric-Mh2AYeg ()S
+	public final fun getSeqNo-Mh2AYeg ()S
+	public fun getType ()Lch/trancee/meshlink/wire/MessageType;
+	public final fun getX25519PublicKey ()[B
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class ch/trancee/meshlink/wire/Update$Companion {
+	public final fun decode (Lch/trancee/meshlink/wire/ReadBuffer;)Lch/trancee/meshlink/wire/Update;
+}
+
+public final class ch/trancee/meshlink/wire/WireCodec {
+	public static final field INSTANCE Lch/trancee/meshlink/wire/WireCodec;
+	public final fun decode ([B)Lch/trancee/meshlink/wire/WireMessage;
+	public final fun encode (Lch/trancee/meshlink/wire/WireMessage;)[B
+}
+
+public abstract interface class ch/trancee/meshlink/wire/WireMessage {
+	public abstract fun encode (Lch/trancee/meshlink/wire/WriteBuffer;)V
+	public abstract fun getType ()Lch/trancee/meshlink/wire/MessageType;
+}
+
+public final class ch/trancee/meshlink/wire/WriteBuffer {
+	public fun <init> ()V
+	public final fun addByte (IB)V
+	public final fun addByteVector (I[B)V
+	public final fun addUByte-EK-6454 (IB)V
+	public final fun addUInt-Qn1smSk (II)V
+	public final fun addULong-2TYgG_w (IJ)V
+	public final fun addUShort-i8woANY (IS)V
+	public final fun finish ()[B
+	public final fun startTable (I)V
+}
+

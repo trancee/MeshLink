@@ -54,15 +54,16 @@ kotlin {
     jvm()
 
     sourceSets {
-        commonMain.dependencies {
-            implementation(libs.kotlinx.coroutines.core)
-            implementation(libs.flatbuffers)
-        }
+        commonMain.dependencies { implementation(libs.kotlinx.coroutines.core) }
         commonTest.dependencies { implementation(kotlin("test")) }
         // jvmMain is test/build infrastructure only — not a shipping target.
-        // kotlinx-benchmark-runtime is required here for PlaceholderBenchmark and future
-        // benchmarks.
-        jvmMain.dependencies { implementation(libs.kotlinx.benchmark.runtime) }
+        // flatbuffers-java is JVM-only (no Kotlin/Native variant); moved from commonMain so
+        // iOS compilation is not broken. Pure-Kotlin codec in commonMain/wire/ handles runtime
+        // serialisation; flatbuffers-java is available here for benchmarks only.
+        jvmMain.dependencies {
+            implementation(libs.kotlinx.benchmark.runtime)
+            implementation(libs.flatbuffers)
+        }
     }
 }
 
