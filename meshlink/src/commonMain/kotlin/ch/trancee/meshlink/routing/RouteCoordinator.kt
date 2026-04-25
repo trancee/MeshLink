@@ -236,6 +236,23 @@ internal class RouteCoordinator(
         return null
     }
 
+    // ── connectedPeers ────────────────────────────────────────────────────────
+
+    /**
+     * Returns the peer IDs of all currently-connected neighbours (keys of [neighborStates]
+     * converted back from `List<Byte>` to [ByteArray]).
+     */
+    fun connectedPeers(): List<ByteArray> = neighborStates.keys.map { it.toByteArray() }
+
+    // ── lookupEdPublicKey ─────────────────────────────────────────────────────
+
+    /**
+     * Returns the Ed25519 public key for [destination] from the routing table, or `null` if no
+     * valid route exists.
+     */
+    fun lookupEdPublicKey(destination: ByteArray): ByteArray? =
+        routingTable.lookupRoute(destination)?.ed25519PublicKey
+
     // ── isDuplicate ───────────────────────────────────────────────────────────
 
     /**
