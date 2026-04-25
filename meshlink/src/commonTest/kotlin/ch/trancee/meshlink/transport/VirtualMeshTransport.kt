@@ -1,6 +1,7 @@
 package ch.trancee.meshlink.transport
 
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.test.TestCoroutineScheduler
@@ -121,5 +122,21 @@ class VirtualMeshTransport(
 
     override suspend fun startAdvertisingAndScanning() {}
 
-    override suspend fun stopAll() {}
+    private var stopHanging = false
+
+    /** Makes the next [stopAll] call block indefinitely (simulates a hung stop). */
+    fun simulateStopHang() {
+        stopHanging = true
+    }
+
+    /** Clears the stop-hang flag so [stopAll] completes normally again. */
+    fun clearStopHang() {
+        stopHanging = false
+    }
+
+    override suspend fun stopAll() {
+        if (stopHanging) {
+            delay(Long.MAX_VALUE / 2)
+        }
+    }
 }
