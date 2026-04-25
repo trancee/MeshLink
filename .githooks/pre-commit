@@ -4,21 +4,30 @@
 #
 # ktfmt runs in format (not check) mode: staged Kotlin files are auto-fixed
 # and re-staged so every commit contains formatted code without requiring a
-# separate format-then-add step from the developer.  This prevents the
-# working-tree vs. staged-index divergence that caused CI failures when
-# ktfmtCheck passed (working tree already formatted) but the unformatted
-# staged content was what actually landed in the commit.
+# separate format-then-add step from the developer.
+#
+# --rerun-tasks bypasses the Gradle build cache for ktfmtFormat so the task
+# always executes.  Without this flag, Gradle can serve a UP-TO-DATE cache
+# hit and skip formatting entirely, leaving unformatted files in the staged
+# index — which is exactly what caused the CI ktfmtCheck failures.
+#
+# ktfmtCheck runs after re-staging as a hard gate: if any staged file is still
+# malformatted (e.g. because it was not covered by ktfmtFormat for any reason),
+# the commit is aborted with an actionable error.
 set -e
 
 STAGED_KT=$(git diff --cached --name-only --diff-filter=ACMR | grep '\.kt$' || true)
 
 if [ -n "$STAGED_KT" ]; then
     echo "Running ktfmt…"
-    ./gradlew :meshlink:ktfmtFormat --quiet
+    ./gradlew :meshlink:ktfmtFormat --rerun-tasks --quiet
     # Re-stage the formatted versions of all Kotlin files that were staged
     # before this hook ran.  Uses null-delimited xargs to handle any path
     # containing spaces or special characters.
     printf '%s\n' "$STAGED_KT" | tr '\n' '\0' | xargs -0 git add
+
+    echo "Verifying ktfmt (check)…"
+    ./gradlew :meshlink:ktfmtCheck --rerun-tasks --quiet
 fi
 
 echo "Running detekt…"

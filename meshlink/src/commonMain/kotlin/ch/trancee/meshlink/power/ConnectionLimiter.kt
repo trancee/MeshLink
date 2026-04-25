@@ -6,9 +6,9 @@ class ConnectionLimiter(private var maxConnections: Int) {
     private val connections = mutableMapOf<PeerKey, ManagedConnection>()
 
     /**
-     * Tries to acquire a slot for [peerId].  Returns true if the peer already has a slot or a
-     * new slot is available (in which case the connection is registered).  Returns false if the
-     * limit is already reached.
+     * Tries to acquire a slot for [peerId]. Returns true if the peer already has a slot or a new
+     * slot is available (in which case the connection is registered). Returns false if the limit is
+     * already reached.
      */
     fun tryAcquire(peerId: ByteArray, priority: Priority): Boolean {
         val key = PeerKey(peerId)
@@ -18,7 +18,7 @@ class ConnectionLimiter(private var maxConnections: Int) {
         return true
     }
 
-    /** Removes the connection record for [peerId].  No-op if not present. */
+    /** Removes the connection record for [peerId]. No-op if not present. */
     fun release(peerId: ByteArray) {
         connections.remove(PeerKey(peerId))
     }
@@ -32,8 +32,8 @@ class ConnectionLimiter(private var maxConnections: Int) {
     fun currentConnections(): List<ManagedConnection> = connections.values.toList()
 
     /**
-     * Updates the [TransferStatus] for an existing connection.  If [status] is null the transfer
-     * field is cleared (idle).  No-op if the peer is not registered.
+     * Updates the [TransferStatus] for an existing connection. If [status] is null the transfer
+     * field is cleared (idle). No-op if the peer is not registered.
      */
     fun updateTransferStatus(peerId: ByteArray, status: TransferStatus?) {
         val key = PeerKey(peerId)

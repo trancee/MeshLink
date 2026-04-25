@@ -4,6 +4,7 @@ import ch.trancee.meshlink.transfer.Priority
 
 sealed interface EvictionDecision {
     object Accept : EvictionDecision
+
     object Reject : EvictionDecision
 
     class EvictAndAccept(val evictPeerId: ByteArray) : EvictionDecision {
@@ -34,19 +35,17 @@ class TieredShedder {
         if (candidates.isEmpty()) return EvictionDecision.Reject
 
         // Prefer idle/stalled connections, then lower priority within each category.
-        val sorted = candidates.sortedWith(
-            compareBy(
-                { if (isIdleOrStalled(it, minThroughputBytesPerSec)) 0 else 1 },
-                { it.priority.ordinal },
-            ),
-        )
+        val sorted =
+            candidates.sortedWith(
+                compareBy(
+                    { if (isIdleOrStalled(it, minThroughputBytesPerSec)) 0 else 1 },
+                    { it.priority.ordinal },
+                )
+            )
         return EvictionDecision.EvictAndAccept(sorted[0].peerId)
     }
 
-    private fun isIdleOrStalled(
-        conn: ManagedConnection,
-        minThroughputBytesPerSec: Float,
-    ): Boolean {
+    private fun isIdleOrStalled(conn: ManagedConnection, minThroughputBytesPerSec: Float): Boolean {
         val ts = conn.transferStatus ?: return true
         return ts.bytesPerSecond < minThroughputBytesPerSec
     }

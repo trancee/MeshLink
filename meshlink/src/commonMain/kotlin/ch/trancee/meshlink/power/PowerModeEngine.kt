@@ -22,6 +22,7 @@ class PowerModeEngine(
     // Replaces the two separate fields (downgradeTimerTargetTier + downgradeTimerStartedAt)
     // with a single nullable holder to avoid !! operators on co-required fields.
     private class DowngradeTimer(val targetTier: PowerTier, val startedAt: Long)
+
     private var downgradeTimer: DowngradeTimer? = null
 
     fun start() {
@@ -61,11 +62,12 @@ class PowerModeEngine(
         }
 
         // d. Compute raw target tier from battery level
-        val targetTier = when {
-            battery > config.performanceThreshold -> PowerTier.PERFORMANCE
-            battery < config.powerSaverThreshold -> PowerTier.POWER_SAVER
-            else -> PowerTier.BALANCED
-        }
+        val targetTier =
+            when {
+                battery > config.performanceThreshold -> PowerTier.PERFORMANCE
+                battery < config.powerSaverThreshold -> PowerTier.POWER_SAVER
+                else -> PowerTier.BALANCED
+            }
 
         // e. Upward (improving): targetTier is better than currentTier
         if (targetTier.ordinal < currentTier.ordinal) {
@@ -92,7 +94,8 @@ class PowerModeEngine(
                     newTimer = DowngradeTimer(targetTier = targetTier, startedAt = now)
                 } else {
                     // Target same or better: update target but keep timer running
-                    newTimer = DowngradeTimer(targetTier = targetTier, startedAt = existing.startedAt)
+                    newTimer =
+                        DowngradeTimer(targetTier = targetTier, startedAt = existing.startedAt)
                 }
                 downgradeTimer = newTimer
                 if (now - newTimer.startedAt >= config.hysteresisDelayMs) {
@@ -123,11 +126,12 @@ class PowerModeEngine(
     }
 
     /** Returns the threshold that separates the two tiers we are crossing. */
-    private fun thresholdForTransition(from: PowerTier, to: PowerTier): Float = when (to) {
-        PowerTier.PERFORMANCE -> config.performanceThreshold
-        PowerTier.POWER_SAVER -> config.powerSaverThreshold
-        PowerTier.BALANCED ->
-            if (to.ordinal < from.ordinal) config.powerSaverThreshold  // upward from POWER_SAVER
-            else config.performanceThreshold                             // downward from PERFORMANCE
-    }
+    private fun thresholdForTransition(from: PowerTier, to: PowerTier): Float =
+        when (to) {
+            PowerTier.PERFORMANCE -> config.performanceThreshold
+            PowerTier.POWER_SAVER -> config.powerSaverThreshold
+            PowerTier.BALANCED ->
+                if (to.ordinal < from.ordinal) config.powerSaverThreshold // upward from POWER_SAVER
+                else config.performanceThreshold // downward from PERFORMANCE
+        }
 }

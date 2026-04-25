@@ -20,8 +20,8 @@ class GracefulDrainManager(
     private val graceTimers = mutableMapOf<PeerKey, GraceEntry>()
 
     /**
-     * Evicts each connection in [connectionsToEvict].  Idle/stalled connections are evicted
-     * immediately via [onEvict].  Active connections receive a grace period before eviction.
+     * Evicts each connection in [connectionsToEvict]. Idle/stalled connections are evicted
+     * immediately via [onEvict]. Active connections receive a grace period before eviction.
      *
      * If a grace timer already exists for a peer it is cancelled and replaced.
      */
@@ -35,13 +35,17 @@ class GracefulDrainManager(
                 onEvict(connection.peerId)
             } else {
                 // Active transfer: compute a grace period proportional to the estimated
-                // remaining transfer time, clamped to [evictionGracePeriodMs, maxEvictionGracePeriodMs].
+                // remaining transfer time, clamped to [evictionGracePeriodMs,
+                // maxEvictionGracePeriodMs].
                 val estimatedRemainingMs =
-                    ((connection.transferStatus.remainingBytes.toDouble() / connection.transferStatus.bytesPerSecond) * 1000.0).toLong()
-                val graceMs = minOf(
-                    config.maxEvictionGracePeriodMs,
-                    maxOf(config.evictionGracePeriodMs, estimatedRemainingMs),
-                )
+                    ((connection.transferStatus.remainingBytes.toDouble() /
+                            connection.transferStatus.bytesPerSecond) * 1000.0)
+                        .toLong()
+                val graceMs =
+                    minOf(
+                        config.maxEvictionGracePeriodMs,
+                        maxOf(config.evictionGracePeriodMs, estimatedRemainingMs),
+                    )
                 val deadline = clock() + graceMs
                 val key = PeerKey(connection.peerId)
                 // Cancel any existing timer for this peer before starting a new one.
@@ -51,12 +55,13 @@ class GracefulDrainManager(
                     graceTimers.remove(key)
                     onEvict(connection.peerId)
                 }
-                graceTimers[key] = GraceEntry(
-                    deadline = deadline,
-                    job = job,
-                    managedConnection = connection,
-                    onEvict = onEvict,
-                )
+                graceTimers[key] =
+                    GraceEntry(
+                        deadline = deadline,
+                        job = job,
+                        managedConnection = connection,
+                        onEvict = onEvict,
+                    )
             }
         }
     }

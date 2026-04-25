@@ -184,6 +184,10 @@ class DeliveryPipelineTest {
     private fun connect(a: PipelineNode, b: PipelineNode, clock: () -> Long) {
         a.transport.linkTo(b.transport)
         val expiresAt = clock() + 600_000L
+        // onPeerConnected installs a zero-key route entry; the real-key install below must
+        // come AFTER so it overwrites and the Ed25519/X25519 keys are stored correctly.
+        a.routeCoordinator.onPeerConnected(PeerInfo(b.identity.keyHash, 0, -50, 0.0))
+        b.routeCoordinator.onPeerConnected(PeerInfo(a.identity.keyHash, 0, -50, 0.0))
         a.routingTable.install(
             RouteEntry(
                 destination = b.identity.keyHash,
@@ -208,8 +212,6 @@ class DeliveryPipelineTest {
                 x25519PublicKey = a.identity.dhKeyPair.publicKey,
             )
         )
-        a.routeCoordinator.onPeerConnected(PeerInfo(b.identity.keyHash, 0, -50, 0.0))
-        b.routeCoordinator.onPeerConnected(PeerInfo(a.identity.keyHash, 0, -50, 0.0))
         a.trustStore.pinKey(b.identity.keyHash, b.identity.dhKeyPair.publicKey)
         b.trustStore.pinKey(a.identity.keyHash, a.identity.dhKeyPair.publicKey)
     }
@@ -1733,7 +1735,9 @@ class DeliveryPipelineTest {
         backgroundScope.launch { alice.pipeline.transferProgress.collect {} }
         backgroundScope.launch { alice.pipeline.deliveryConfirmations.collect {} }
         runCurrent() // start collectors
-        // Bob does NOT drain flows → ACK never sent → probe times out → HALF_OPEN → OPEN
+        // Simulate a broken link: chunks are emitted but never reach Bob, so Alice's
+        // ACK deadline always fires and the CB opens / re-opens as intended.
+        alice.transport.simulateWriteFailure(bob.identity.keyHash)
 
         // Open CB
         alice.pipeline.send(bob.identity.keyHash, byteArrayOf(1))
