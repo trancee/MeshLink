@@ -104,6 +104,7 @@ jobs:
         run: |
           python3 - <<'PYEOF'
           import json, glob, os, sys
+          REGRESSION_THRESHOLD = 15.0  # % — matches spec/12 §B ±10-15% guideline
           try:
               files = sorted(glob.glob(
                   'meshlink/build/reports/benchmarks/**/*.json', recursive=True))
@@ -115,19 +116,49 @@ jobs:
                       data = json.load(fp)
                   if isinstance(data, list):
                       results.extend(data)
-              rows = ''.join(
-                  f'| `{r["benchmark"].rsplit(".", 1)[-1]}` '
-                  f'| {r["primaryMetric"]["score"]:,.0f} '
-                  f'| \u00b1{r["primaryMetric"]["scoreError"]:,.0f} '
-                  f'| {r["primaryMetric"]["scoreUnit"]} |\n'
-                  for r in results
-              )
-              md = (
-                  '## \u26a1 Benchmarks\n'
-                  '| Benchmark | Score | Error | Unit |\n'
-                  '|-----------|------:|------:|------|\n'
-                  + rows
-              )
+
+              # Load committed baseline for delta comparison.
+              baseline = {}
+              baseline_path = 'benchmarks/baselines/jvm.json'
+              if os.path.exists(baseline_path):
+                  with open(baseline_path) as f:
+                      for r in json.load(f):
+                          baseline[r['benchmark']] = r['primaryMetric']['score']
+
+              has_baseline = bool(baseline)
+              header = ('| Benchmark | Score | ±Error | Unit | vs Baseline |\n'
+                        '|-----------|------:|-------:|------|:-----------:|\n'
+                        if has_baseline else
+                        '| Benchmark | Score | ±Error | Unit |\n'
+                        '|-----------|------:|-------:|------|\n')
+              rows = []
+              regressions = []
+              for r in results:
+                  name = r['benchmark'].rsplit('.', 1)[-1]
+                  m = r['primaryMetric']
+                  score, error, unit = m['score'], m['scoreError'], m['scoreUnit']
+                  row = (f'| `{name}` | {score:,.0f} | \u00b1{error:,.0f} | {unit} |')
+                  if has_baseline:
+                      base = baseline.get(r['benchmark'])
+                      if base and base > 0:
+                          delta = (score - base) / base * 100
+                          sign = '+' if delta >= 0 else ''
+                          if delta < -REGRESSION_THRESHOLD:
+                              badge = f'\U0001f534 {sign}{delta:.1f}%'
+                              regressions.append(f'`{name}`: {sign}{delta:.1f}%')
+                          elif delta > REGRESSION_THRESHOLD:
+                              badge = f'\U0001f7e2 {sign}{delta:.1f}%'
+                          else:
+                              badge = f'{sign}{delta:.1f}%'
+                          row += f' {badge} |'
+                      else:
+                          row += ' new |'
+                  rows.append(row + '\n')
+
+              warning = (f'\n> \u26a0\ufe0f Regressions \u003e{REGRESSION_THRESHOLD:.0f}%: '
+                         + ', '.join(regressions) + '\n'
+                         if regressions else '')
+              md = ('## \u26a1 Benchmarks\n' + header + ''.join(rows) + warning)
               with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as f:
                   f.write(md)
           except Exception as e:
