@@ -50,6 +50,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v6
         with:
           cache-provider: basic
+          cache-read-only: true
       - name: Verify 100% line and branch coverage
         run: ./gradlew :meshlink:koverVerify :meshlink:koverHtmlReport :meshlink:koverXmlReport
       - name: Post coverage to job summary
@@ -97,6 +98,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v6
         with:
           cache-provider: basic
+          cache-read-only: true
       - name: Run benchmarks (warn-only)
         run: ./gradlew :meshlink:benchmark
       - name: Post benchmark results to job summary
