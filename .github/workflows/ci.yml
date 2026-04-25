@@ -45,7 +45,31 @@ jobs:
           java-version: '21'
       - uses: gradle/actions/setup-gradle@v6
       - name: Verify 100% line and branch coverage
-        run: ./gradlew :meshlink:koverVerify :meshlink:koverHtmlReport
+        run: ./gradlew :meshlink:koverVerify :meshlink:koverHtmlReport :meshlink:koverXmlReport
+      - name: Post coverage to job summary
+        run: |
+          python3 - <<'PYEOF'
+          import xml.etree.ElementTree as ET, os, sys
+          try:
+              root = ET.parse('meshlink/build/reports/kover/report.xml').getroot()
+              totals = {c.get('type'): c for c in root.findall('counter')}
+              def pct(c):
+                  if c is None: return 'n/a'
+                  missed, covered = int(c.get('missed', 0)), int(c.get('covered', 0))
+                  total = missed + covered
+                  return f'{100.0 * covered / total:.1f}%' if total else '100.0%'
+              md = (
+                  '## \U0001f4ca Coverage\n'
+                  '| Metric | Coverage |\n'
+                  '|--------|---------:|\n'
+                  f'| Lines    | {pct(totals.get("LINE"))} |\n'
+                  f'| Branches | {pct(totals.get("BRANCH"))} |\n'
+              )
+              with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as f:
+                  f.write(md)
+          except Exception as e:
+              print(f'Coverage summary failed: {e}', file=sys.stderr)
+          PYEOF
       - name: Upload HTML coverage report
         uses: actions/upload-artifact@v7
         with:
@@ -67,3 +91,43 @@ jobs:
       - uses: gradle/actions/setup-gradle@v6
       - name: Run benchmarks (warn-only)
         run: ./gradlew :meshlink:benchmark
+      - name: Post benchmark results to job summary
+        if: always()
+        run: |
+          python3 - <<'PYEOF'
+          import json, glob, os, sys
+          try:
+              files = sorted(glob.glob(
+                  'meshlink/build/reports/benchmarks/**/*.json', recursive=True))
+              if not files:
+                  sys.exit(0)
+              results = []
+              for f in files:
+                  with open(f) as fp:
+                      data = json.load(fp)
+                  if isinstance(data, list):
+                      results.extend(data)
+              rows = ''.join(
+                  f'| `{r["benchmark"].rsplit(".", 1)[-1]}` '
+                  f'| {r["primaryMetric"]["score"]:,.0f} '
+                  f'| \u00b1{r["primaryMetric"]["scoreError"]:,.0f} '
+                  f'| {r["primaryMetric"]["scoreUnit"]} |\n'
+                  for r in results
+              )
+              md = (
+                  '## \u26a1 Benchmarks\n'
+                  '| Benchmark | Score | Error | Unit |\n'
+                  '|-----------|------:|------:|------|\n'
+                  + rows
+              )
+              with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as f:
+                  f.write(md)
+          except Exception as e:
+              print(f'Benchmark summary failed: {e}', file=sys.stderr)
+          PYEOF
+      - name: Upload benchmark report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: benchmark-report
+          path: meshlink/build/reports/benchmarks/
