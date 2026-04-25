@@ -28,15 +28,28 @@ jobs:
           - language: actions
             build-mode: none
           - language: c-cpp
-            # JNI/sodium C files — autobuild works fine on Linux
-            build-mode: autobuild
+            # autobuild cannot detect NDK/Gradle; compile the JNI bridge manually
+            build-mode: manual
           - language: java-kotlin
-            # KMP projects cannot be autobuild by CodeQL; scan sources directly
-            build-mode: none
+            # build-mode: none is unsupported for Android SDK projects (KMP);
+            # instrument the JVM-target Gradle compilation instead
+            build-mode: manual
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
+
+      # Set up JDK for java-kotlin compilation and for JNI headers used by c-cpp
+      - name: Set up JDK 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: zulu
+          java-version: '21'
+
+      # c-cpp only: install libsodium headers needed by meshlink_sodium.c
+      - name: Install libsodium
+        if: matrix.language == 'c-cpp'
+        run: sudo apt-get install -y libsodium-dev
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v4
@@ -44,9 +57,26 @@ jobs:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
 
-      - if: matrix.build-mode == 'autobuild'
-        name: Autobuild
-        uses: github/codeql-action/autobuild@v4
+      # java-kotlin manual build: compile the JVM target under CodeQL's tracer
+      - name: Build (java-kotlin)
+        if: matrix.language == 'java-kotlin'
+        run: ./gradlew :meshlink:compileKotlinJvm
+
+      # c-cpp manual build: compile the JNI bridge with gcc under CodeQL's tracer.
+      # android/log.h is only available in the Android NDK; provide a stub so the
+      # compilation succeeds on a standard Linux runner (LOGE is defined but unused).
+      - name: Build (c-cpp)
+        if: matrix.language == 'c-cpp'
+        run: |
+          mkdir -p /tmp/fake-headers/android
+          printf '#pragma once\n#define ANDROID_LOG_ERROR 6\n#define __android_log_print(prio,tag,...) ((void)0)\n' \
+            > /tmp/fake-headers/android/log.h
+          gcc -c meshlink/src/androidMain/cpp/meshlink_sodium.c \
+            -I"$JAVA_HOME/include" \
+            -I"$JAVA_HOME/include/linux" \
+            -I/tmp/fake-headers \
+            $(pkg-config --cflags libsodium) \
+            -o /tmp/meshlink_sodium.o
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v4
