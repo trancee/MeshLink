@@ -10,16 +10,16 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
 
 /**
- * Babel-adapted routing engine.  Processes inbound Hello and Update messages, enforces the
- * feasibility condition for loop-free routing, tracks differential updates per neighbour,
- * and originates the self-route and Hello broadcasts on a virtual clock.
+ * Babel-adapted routing engine. Processes inbound Hello and Update messages, enforces the
+ * feasibility condition for loop-free routing, tracks differential updates per neighbour, and
+ * originates the self-route and Hello broadcasts on a virtual clock.
  *
  * The feasibility condition (RFC 8966 §2.4, simplified):
- *  1. Retraction (metric=0xFFFF): remove route + clear FD if seqNo is newer.
- *  2. No FD yet → accept unconditionally.
- *  3. Newer seqNo → accept, reset FD = totalCost.
- *  4. Same seqNo AND totalCost < FD → accept, update FD.
- *  5. Otherwise → reject.
+ * 1. Retraction (metric=0xFFFF): remove route + clear FD if seqNo is newer.
+ * 2. No FD yet → accept unconditionally.
+ * 3. Newer seqNo → accept, reset FD = totalCost.
+ * 4. Same seqNo AND totalCost < FD → accept, update FD.
+ * 5. Otherwise → reject.
  */
 internal class RoutingEngine(
     private val routingTable: RoutingTable,
@@ -84,7 +84,9 @@ internal class RoutingEngine(
         }
 
         // Step 4: same seqNo AND strictly lower cost → accept, update FD
-        if (existingRoute != null && update.seqNo == existingRoute.seqNo && totalCost < existingFd) {
+        if (
+            existingRoute != null && update.seqNo == existingRoute.seqNo && totalCost < existingFd
+        ) {
             doInstall(fromPeerId, dest, update, totalCost)
             return true
         }
@@ -120,7 +122,8 @@ internal class RoutingEngine(
      *
      * - New neighbour (not yet in tracking map): full dump.
      * - Known neighbour, digest mismatch: full dump.
-     * - Known neighbour, digest match: differential (routes whose seqNo changed + always self-route).
+     * - Known neighbour, digest match: differential (routes whose seqNo changed + always
+     *   self-route).
      *
      * Updates [neighborLastSentSeqNo] after building the response.
      */
@@ -164,8 +167,8 @@ internal class RoutingEngine(
     // ── retractRoutesVia ──────────────────────────────────────────────────────
 
     /**
-     * Retract all routes whose next-hop is [nextHopPeerId] and return retraction Updates.
-     * Called when a neighbour disconnects.
+     * Retract all routes whose next-hop is [nextHopPeerId] and return retraction Updates. Called
+     * when a neighbour disconnects.
      */
     fun retractRoutesVia(nextHopPeerId: ByteArray): List<Update> {
         val retractions = mutableListOf<Update>()
@@ -205,9 +208,9 @@ internal class RoutingEngine(
     /**
      * Start the Hello timer and full-dump timer coroutines in [scope].
      *
-     * Full-dump timer is launched first so that when [RoutingConfig.fullDumpMultiplier] == 1
-     * the full-dump fires before the Hello at the same virtual timestamp — enabling test coverage
-     * of the empty-table (loop-not-entered) path.
+     * Full-dump timer is launched first so that when [RoutingConfig.fullDumpMultiplier] == 1 the
+     * full-dump fires before the Hello at the same virtual timestamp — enabling test coverage of
+     * the empty-table (loop-not-entered) path.
      *
      * - Full-dump timer (every helloIntervalMs × fullDumpMultiplier): emits Updates for all routes.
      * - Hello timer (every helloIntervalMs): installs self-route, emits Hello + self-route Update.
@@ -223,13 +226,14 @@ internal class RoutingEngine(
                     _outboundMessages.emit(
                         OutboundFrame(
                             peerId = null,
-                            message = Update(
-                                destination = route.destination,
-                                metric = encodedMetric,
-                                seqNo = route.seqNo,
-                                ed25519PublicKey = route.ed25519PublicKey,
-                                x25519PublicKey = route.x25519PublicKey,
-                            ),
+                            message =
+                                Update(
+                                    destination = route.destination,
+                                    metric = encodedMetric,
+                                    seqNo = route.seqNo,
+                                    ed25519PublicKey = route.ed25519PublicKey,
+                                    x25519PublicKey = route.x25519PublicKey,
+                                ),
                         )
                     )
                 }
@@ -261,11 +265,12 @@ internal class RoutingEngine(
                 _outboundMessages.emit(
                     OutboundFrame(
                         peerId = null,
-                        message = Hello(
-                            sender = localPeerId,
-                            seqNo = localSeqNo,
-                            routeDigest = routingTable.routeDigest(),
-                        ),
+                        message =
+                            Hello(
+                                sender = localPeerId,
+                                seqNo = localSeqNo,
+                                routeDigest = routingTable.routeDigest(),
+                            ),
                     )
                 )
 
@@ -273,13 +278,14 @@ internal class RoutingEngine(
                 _outboundMessages.emit(
                     OutboundFrame(
                         peerId = null,
-                        message = Update(
-                            destination = localPeerId,
-                            metric = 0u,
-                            seqNo = localSeqNo,
-                            ed25519PublicKey = localEdPublicKey,
-                            x25519PublicKey = localDhPublicKey,
-                        ),
+                        message =
+                            Update(
+                                destination = localPeerId,
+                                metric = 0u,
+                                seqNo = localSeqNo,
+                                ed25519PublicKey = localEdPublicKey,
+                                x25519PublicKey = localDhPublicKey,
+                            ),
                     )
                 )
             }

@@ -10,8 +10,8 @@ internal fun isSeqNoNewer(a: UShort, b: UShort): Boolean =
     a != b && ((a.toInt() - b.toInt()) and 0xFFFF) < 0x8000
 
 /**
- * FNV-1a 32-bit hash.  Offset basis = 2166136261, prime = 16777619.
- * Bytes are treated as unsigned 8-bit values via masking.
+ * FNV-1a 32-bit hash. Offset basis = 2166136261, prime = 16777619. Bytes are treated as unsigned
+ * 8-bit values via masking.
  */
 internal fun fnv1a32(data: ByteArray): UInt {
     var hash = 2166136261u
@@ -23,18 +23,19 @@ internal fun fnv1a32(data: ByteArray): UInt {
 }
 
 /**
- * A single best-path route entry.  Four ByteArray fields use [contentEquals]/[contentHashCode]
- * for value-based equality — never use the data class default (identity-based for arrays).
+ * A single best-path route entry. Four ByteArray fields use [contentEquals]/[contentHashCode] for
+ * value-based equality — never use the data class default (identity-based for arrays).
  */
 internal class RouteEntry(
-    val destination: ByteArray,       // 12 bytes: peer ID
-    val nextHop: ByteArray,           // 12 bytes: next-hop peer ID
+    val destination: ByteArray, // 12 bytes: peer ID
+    val nextHop: ByteArray, // 12 bytes: next-hop peer ID
     val metric: Double,
     val seqNo: UShort,
-    val feasibilityDistance: Double,  // FD at time of install (authoritative copy lives in RoutingEngine)
-    val expiresAt: Long,              // epoch-ms; compared against getCurrentTimeMs()
-    val ed25519PublicKey: ByteArray,  // 32 bytes
-    val x25519PublicKey: ByteArray,   // 32 bytes
+    val feasibilityDistance:
+        Double, // FD at time of install (authoritative copy lives in RoutingEngine)
+    val expiresAt: Long, // epoch-ms; compared against getCurrentTimeMs()
+    val ed25519PublicKey: ByteArray, // 32 bytes
+    val x25519PublicKey: ByteArray, // 32 bytes
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
@@ -64,7 +65,7 @@ internal class RouteEntry(
 
 /**
  * Single-best-path route store keyed by destination (as `List<Byte>` for Kover-safe content
- * equality — see MEM047).  Digest is maintained incrementally via XOR-fold of per-entry FNV-1a
+ * equality — see MEM047). Digest is maintained incrementally via XOR-fold of per-entry FNV-1a
  * hashes so callers can detect lost updates in O(1).
  *
  * All expiry is lazy: stale entries are evicted on first access after their [RouteEntry.expiresAt]
@@ -77,15 +78,16 @@ internal class RoutingTable(private val getCurrentTimeMs: () -> Long) {
 
     /** Compute the XOR component for one table entry (dest + seqNo-LE). */
     private fun entryHash(destination: ByteArray, seqNo: UShort): UInt {
-        val seqBytes = byteArrayOf(
-            (seqNo.toInt() and 0xFF).toByte(),
-            ((seqNo.toInt() shr 8) and 0xFF).toByte(),
-        )
+        val seqBytes =
+            byteArrayOf(
+                (seqNo.toInt() and 0xFF).toByte(),
+                ((seqNo.toInt() shr 8) and 0xFF).toByte(),
+            )
         return fnv1a32(destination + seqBytes)
     }
 
     /**
-     * Install [entry] into the table.  If a route for [entry.destination] already exists it is
+     * Install [entry] into the table. If a route for [entry.destination] already exists it is
      * replaced and its hash is XORed out of the digest before the new hash is XORed in.
      *
      * @return the previous entry for this destination, or null if none.
@@ -148,9 +150,7 @@ internal class RoutingTable(private val getCurrentTimeMs: () -> Long) {
     /** XOR-fold route digest for lost-update detection. */
     fun routeDigest(): UInt = digest
 
-    /**
-     * Return all non-expired routes, evicting stale entries lazily as a side-effect.
-     */
+    /** Return all non-expired routes, evicting stale entries lazily as a side-effect. */
     fun allRoutes(): List<RouteEntry> {
         val now = getCurrentTimeMs()
         val keysToRemove = mutableListOf<List<Byte>>()

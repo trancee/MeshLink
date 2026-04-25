@@ -2,10 +2,7 @@ package ch.trancee.meshlink.routing
 
 import ch.trancee.meshlink.wire.WireMessage
 
-data class OutboundFrame(
-    val peerId: ByteArray?,
-    val message: WireMessage,
-) {
+data class OutboundFrame(val peerId: ByteArray?, val message: WireMessage) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (other !is OutboundFrame) return false

@@ -7,7 +7,8 @@ class DedupSet(
 ) {
     private val entries: LinkedHashMap<List<Byte>, Long> = LinkedHashMap()
 
-    val size: Int get() = entries.size
+    val size: Int
+        get() = entries.size
 
     fun isDuplicate(messageId: ByteArray): Boolean {
         val key = messageId.asList()
