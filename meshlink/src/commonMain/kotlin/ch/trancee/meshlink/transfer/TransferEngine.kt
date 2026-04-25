@@ -151,23 +151,20 @@ class TransferEngine(
      * session.
      */
     override fun onMemoryPressure() {
-        val toEvict =
-            sessions.values
-                .filter { it.priority == Priority.LOW }
-                .map { it.messageId }
-                .toMutableList()
+        var toEvict: List<TransferSession> = sessions.values.filter { it.priority == Priority.LOW }
 
         if (toEvict.isEmpty()) {
-            toEvict +=
-                sessions.values.filter { it.priority == Priority.NORMAL }.map { it.messageId }
+            toEvict = sessions.values.filter { it.priority == Priority.NORMAL }
         }
 
-        for (id in toEvict) {
-            val session = sessions.remove(id.asList()) ?: continue
-            scheduler.deregister(id)
+        for (session in toEvict) {
+            sessions.remove(session.messageId.asList())
+            scheduler.deregister(session.messageId)
             session.cancel()
             scope.launch {
-                _events.emit(TransferEvent.TransferFailed(id, FailureReason.MEMORY_PRESSURE))
+                _events.emit(
+                    TransferEvent.TransferFailed(session.messageId, FailureReason.MEMORY_PRESSURE)
+                )
             }
         }
     }

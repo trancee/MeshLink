@@ -48,7 +48,7 @@ private constructor(
 
     // ── Sender state ──────────────────────────────────────────────────────
     private val chunks: List<ByteArray> =
-        payload?.let { splitIntoChunks(it, chunkSizePolicy.size) } ?: emptyList()
+        if (payload != null) splitIntoChunks(payload, chunkSizePolicy.size) else emptyList()
     private val totalChunks: UShort = chunks.size.toUShort()
     private var senderSack = SackTracker()
     private val rateController = ObservationRateController(config)
@@ -59,7 +59,9 @@ private constructor(
     private var resumeAttempts: Int = 0
     private var senderDisconnected: Boolean = false
     private var inDegradationMode: Boolean = false
-    private var senderInactivityJob: Job? = null
+    // Initialised to a cancelled Job so .cancel() is always safe (idempotent on an already-
+    // cancelled Job) regardless of whether resetSenderInactivityTimer() has run yet.
+    private var senderInactivityJob: Job = Job().also { it.cancel() }
 
     // ── Sender event channel ──────────────────────────────────────────────
     private sealed interface SenderEvent {
@@ -84,7 +86,8 @@ private constructor(
     private var totalChunksExpected: Int = -1
     private var chunksReceived: Int = 0
     private var receiverBytesReceived: Long = 0L
-    private var receiverInactivityJob: Job? = null
+    // Same cancelled-Job sentinel pattern as senderInactivityJob.
+    private var receiverInactivityJob: Job = Job().also { it.cancel() }
 
     // ── Factory ───────────────────────────────────────────────────────────
     companion object {
@@ -157,8 +160,8 @@ private constructor(
     }
 
     fun cancel() {
-        senderInactivityJob?.cancel()
-        receiverInactivityJob?.cancel()
+        senderInactivityJob.cancel()
+        receiverInactivityJob.cancel()
         senderEvents.close()
     }
 
@@ -188,7 +191,7 @@ private constructor(
         if (isSender) {
             senderEvents.trySend(SenderEvent.Disconnect)
         } else {
-            receiverInactivityJob?.cancel()
+            receiverInactivityJob.cancel()
         }
     }
 
@@ -204,7 +207,7 @@ private constructor(
     // ── Sender internals ──────────────────────────────────────────────────
 
     private fun resetSenderInactivityTimer() {
-        senderInactivityJob?.cancel()
+        senderInactivityJob.cancel()
         senderInactivityJob = scope.launch {
             delay(inactivityTimeoutMillis)
             senderEvents.trySend(SenderEvent.InactivityTimeout)
@@ -212,12 +215,11 @@ private constructor(
     }
 
     private suspend fun senderLoop() {
-        if (chunks.isEmpty()) return
         try {
             resetSenderInactivityTimer()
             sendBatch()
             // L2CAP: no ACKs expected — done as soon as all chunks are emitted.
-            if (!isGattMode && nextIdxToSend >= chunks.size) return
+            if (!isGattMode) return
 
             while (true) {
                 val event =
@@ -293,7 +295,7 @@ private constructor(
                         }
                     }
                     is SenderEvent.Disconnect -> {
-                        senderInactivityJob?.cancel()
+                        senderInactivityJob.cancel()
                         senderDisconnected = true
                     }
                     is SenderEvent.Reconnect -> {
@@ -333,7 +335,7 @@ private constructor(
                 }
             }
         } finally {
-            senderInactivityJob?.cancel()
+            senderInactivityJob.cancel()
         }
     }
 
@@ -345,10 +347,8 @@ private constructor(
 
         // Re-send missing chunks already within the window.
         var idx = baseIdx
-        while (sent < rate && idx < nextIdxToSend && idx < chunks.size) {
-            val seq = idx.toUShort()
-            if (!senderSack.canSend(seq)) break
-            if (senderSack.isMissing(seq)) {
+        while (sent < rate && idx < nextIdxToSend) {
+            if (senderSack.isMissing(idx.toUShort())) {
                 emitChunk(idx)
                 sent++
             }
@@ -357,8 +357,6 @@ private constructor(
 
         // Send new (first-time) chunks.
         while (sent < rate && nextIdxToSend < chunks.size) {
-            val seq = nextIdxToSend.toUShort()
-            if (isGattMode && !senderSack.canSend(seq)) break
             emitChunk(nextIdxToSend)
             nextIdxToSend++
             sent++
@@ -368,7 +366,7 @@ private constructor(
     private suspend fun sendProbe() {
         val (ackSeq, _) = senderSack.buildAck()
         val probeIdx = if (ackSeq == UShort.MAX_VALUE) 0 else ackSeq.toInt() + 1
-        if (probeIdx < chunks.size) emitChunk(probeIdx)
+        emitChunk(probeIdx)
     }
 
     private suspend fun emitChunk(idx: Int) {
@@ -378,9 +376,8 @@ private constructor(
     }
 
     private fun allChunksAcked(): Boolean {
-        if (chunks.isEmpty()) return true
-        val (ackSeq, bitmap) = senderSack.buildAck()
-        return ackSeq.toInt() == chunks.size - 1 && bitmap == 0uL
+        val (ackSeq, _) = senderSack.buildAck()
+        return ackSeq.toInt() == chunks.size - 1
     }
 
     private fun updateSenderSackFromAck(ack: ChunkAck) {
@@ -411,7 +408,7 @@ private constructor(
     // ── Receiver internals ────────────────────────────────────────────────
 
     private fun resetReceiverInactivityTimer() {
-        receiverInactivityJob?.cancel()
+        receiverInactivityJob.cancel()
         receiverInactivityJob = scope.launch {
             delay(inactivityTimeoutMillis)
             eventFlow.emit(
@@ -426,7 +423,7 @@ private constructor(
             receiverBuffer = arrayOfNulls(totalChunksExpected)
         }
         val seqIdx = chunk.seqNum.toInt()
-        if (seqIdx < 0 || seqIdx >= totalChunksExpected) return
+        if (seqIdx >= totalChunksExpected) return
 
         if (receiverBuffer[seqIdx] == null) {
             receiverBuffer[seqIdx] = chunk.payload
@@ -444,7 +441,7 @@ private constructor(
         }
 
         if (chunksReceived == totalChunksExpected) {
-            receiverInactivityJob?.cancel()
+            receiverInactivityJob.cancel()
             eventFlow.emit(TransferEvent.AssemblyComplete(messageId, assemblePayload(), peerId))
         }
     }
@@ -464,14 +461,13 @@ private constructor(
     }
 
     private fun assemblePayload(): ByteArray {
-        val size = receiverBuffer.sumOf { it?.size ?: 0 }
-        val result = ByteArray(size)
+        // All slots are guaranteed non-null when this is called (all chunks received).
+        @Suppress("UNCHECKED_CAST") val filled = receiverBuffer as Array<ByteArray>
+        val result = ByteArray(filled.sumOf { it.size })
         var offset = 0
-        for (data in receiverBuffer) {
-            if (data != null) {
-                data.copyInto(result, offset)
-                offset += data.size
-            }
+        for (chunk in filled) {
+            chunk.copyInto(result, offset)
+            offset += chunk.size
         }
         return result
     }
