@@ -45,7 +45,7 @@ jobs:
           java-version: '21'
       - uses: gradle/actions/setup-gradle@v6
       - name: Verify 100% line and branch coverage
-        run: ./gradlew :meshlink:koverVerify
+        run: ./gradlew :meshlink:koverVerify :meshlink:koverHtmlReport
       - name: Upload HTML coverage report
         uses: actions/upload-artifact@v7
         with:
