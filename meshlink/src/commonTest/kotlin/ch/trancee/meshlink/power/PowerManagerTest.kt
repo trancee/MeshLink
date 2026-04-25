@@ -680,7 +680,7 @@ class ConnectionLimiterTest {
         limiter.updateTransferStatus(byteArrayOf(1), TransferStatus(2000f, 5000L))
         val conn = limiter.currentConnections().first { it.peerId.contentEquals(byteArrayOf(1)) }
         assertNotNull(conn.transferStatus)
-        assertEquals(2000f, conn.transferStatus!!.bytesPerSecond)
+        assertEquals(2000f, conn.transferStatus.bytesPerSecond)
     }
 
     @Test
@@ -745,7 +745,7 @@ class TieredShedderTest {
             )
         val result = shedder.evaluate(byteArrayOf(3), Priority.HIGH, conns, 2, minThroughput)
         assertTrue(result is EvictionDecision.EvictAndAccept)
-        assertContentEquals(byteArrayOf(2), (result as EvictionDecision.EvictAndAccept).evictPeerId)
+        assertContentEquals(byteArrayOf(2), result.evictPeerId)
     }
 
     @Test
@@ -781,7 +781,7 @@ class TieredShedderTest {
             )
         val result = shedder.evaluate(byteArrayOf(0x0C), Priority.HIGH, conns, 2, minThroughput)
         assertTrue(result is EvictionDecision.EvictAndAccept)
-        assertContentEquals(stalledPeer, (result as EvictionDecision.EvictAndAccept).evictPeerId)
+        assertContentEquals(stalledPeer, result.evictPeerId)
     }
 }
 
