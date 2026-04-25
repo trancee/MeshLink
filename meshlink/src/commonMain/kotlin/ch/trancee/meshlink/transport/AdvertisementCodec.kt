@@ -52,19 +52,23 @@ object AdvertisementCodec {
      * @throws IllegalArgumentException if any field value is out of range.
      */
     fun encode(payload: AdvertisementPayload): ByteArray {
-        require(payload.protocolVersion in 0..7) {
-            "protocolVersion must be 0–7, got ${payload.protocolVersion}"
-        }
-        require(payload.powerMode in 0..2) {
-            "powerMode must be 0–2 (3 is reserved), got ${payload.powerMode}"
-        }
+        if (payload.protocolVersion !in 0..7)
+            throw IllegalArgumentException(
+                "protocolVersion must be 0–7, got ${payload.protocolVersion}"
+            )
+        if (payload.powerMode !in 0..2)
+            throw IllegalArgumentException(
+                "powerMode must be 0–2 (3 is reserved), got ${payload.powerMode}"
+            )
         val psm = payload.l2capPsm.toInt()
-        require(psm == 0 || psm in 128..255) {
-            "l2capPsm must be 0 (GATT-only) or 128–255, got $psm"
-        }
-        require(payload.keyHash.size == 12) {
-            "keyHash must be exactly 12 bytes, got ${payload.keyHash.size}"
-        }
+        if (psm in 1..127)
+            throw IllegalArgumentException(
+                "l2capPsm must be 0 (GATT-only) or 128–255, got $psm"
+            )
+        if (payload.keyHash.size != 12)
+            throw IllegalArgumentException(
+                "keyHash must be exactly 12 bytes, got ${payload.keyHash.size}"
+            )
 
         val bytes = ByteArray(16)
         bytes[0] = ((payload.protocolVersion shl 5) or (payload.powerMode shl 3)).toByte()
@@ -82,9 +86,8 @@ object AdvertisementCodec {
      * @throws IllegalArgumentException if [bytes] is not exactly 16 bytes.
      */
     fun decode(bytes: ByteArray): AdvertisementPayload {
-        require(bytes.size == 16) {
-            "Expected exactly 16 bytes, got ${bytes.size}"
-        }
+        if (bytes.size != 16)
+            throw IllegalArgumentException("Expected exactly 16 bytes, got ${bytes.size}")
 
         val b0 = bytes[0].toInt() and 0xFF
         val protocolVersion = (b0 ushr 5) and 0x07
