@@ -3,9 +3,9 @@ package ch.trancee.meshlink.transfer
 /**
  * Observation-based send-rate controller.
  *
- * Rate starts at 1 chunk per round-trip. After [TransferConfig.acksBeforeDouble] consecutive
- * ACKs, rate doubles to 2. After [TransferConfig.acksBeforeQuad] additional consecutive ACKs
- * at rate 2, rate quadruples to 4 (maximum). Any timeout resets the rate to 1.
+ * Rate starts at 1 chunk per round-trip. After [TransferConfig.acksBeforeDouble] consecutive ACKs,
+ * rate doubles to 2. After [TransferConfig.acksBeforeQuad] additional consecutive ACKs at rate 2,
+ * rate quadruples to 4 (maximum). Any timeout resets the rate to 1.
  */
 class ObservationRateController(private val config: TransferConfig) {
     private var consecutiveAcks: Int = 0

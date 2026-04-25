@@ -23,10 +23,7 @@ sealed interface TransferEvent {
         }
     }
 
-    data class TransferFailed(
-        val messageId: ByteArray,
-        val reason: FailureReason,
-    ) : TransferEvent {
+    data class TransferFailed(val messageId: ByteArray, val reason: FailureReason) : TransferEvent {
         override fun equals(other: Any?): Boolean {
             if (this === other) return true
             if (other !is TransferFailed) return false

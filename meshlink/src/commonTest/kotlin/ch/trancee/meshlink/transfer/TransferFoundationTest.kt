@@ -332,17 +332,17 @@ class TransferFoundationTest {
         // bit 2 set: offset(2) = (2+65536-65535-1)&0xFFFF = 2
         assertEquals(4uL, bitmap)
 
-        assertTrue(tracker.isMissing(0u))  // bit 0 clear
-        assertTrue(tracker.isMissing(1u))  // bit 1 clear
+        assertTrue(tracker.isMissing(0u)) // bit 0 clear
+        assertTrue(tracker.isMissing(1u)) // bit 1 clear
         assertFalse(tracker.isMissing(2u)) // bit 2 set
     }
 
     @Test
     fun `SackTracker out-of-order receive then gap filled advances ackSequence`() {
         val tracker = SackTracker()
-        tracker.markReceived(2u)  // bitmap bit 2 set
-        tracker.markReceived(0u)  // fills bit 0, advances once; bitmap has bit for chunk 2 remaining
-        tracker.markReceived(1u)  // fills the gap; advance through chunk 1 and chunk 2
+        tracker.markReceived(2u) // bitmap bit 2 set
+        tracker.markReceived(0u) // fills bit 0, advances once; bitmap has bit for chunk 2 remaining
+        tracker.markReceived(1u) // fills the gap; advance through chunk 1 and chunk 2
         val (ackSeq, bitmap) = tracker.buildAck()
         assertEquals(2u.toUShort(), ackSeq)
         assertEquals(0uL, bitmap)
@@ -383,8 +383,8 @@ class TransferFoundationTest {
         assertTrue(tracker.canSend(66u))
         // chunk 67 is at offset 64 → canSend = false
         assertFalse(tracker.canSend(67u))
-        assertTrue(tracker.isMissing(3u))   // in window, not received
-        assertTrue(tracker.isMissing(66u))  // in window, not received (off=63, bit clear)
+        assertTrue(tracker.isMissing(3u)) // in window, not received
+        assertTrue(tracker.isMissing(66u)) // in window, not received (off=63, bit clear)
     }
 
     @Test
@@ -392,7 +392,7 @@ class TransferFoundationTest {
         val tracker = SackTracker()
         tracker.markReceived(5u) // offset 5 from initial ackSeq=65535
         assertFalse(tracker.isMissing(5u)) // bit 5 set
-        assertTrue(tracker.isMissing(4u))  // bit 4 clear
+        assertTrue(tracker.isMissing(4u)) // bit 4 clear
     }
 
     // ──────────────────────────────────────────────────────────────────────
@@ -421,7 +421,8 @@ class TransferFoundationTest {
 
     @Test
     fun `ObservationRateController stays at 2 below quad threshold`() {
-        val ctrl = ObservationRateController(TransferConfig(acksBeforeDouble = 4, acksBeforeQuad = 8))
+        val ctrl =
+            ObservationRateController(TransferConfig(acksBeforeDouble = 4, acksBeforeQuad = 8))
         repeat(4) { ctrl.onAck() } // advance to rate 2 (resets counter to 0)
         repeat(7) { ctrl.onAck() } // one less than quad threshold
         assertEquals(2, ctrl.currentRate())
@@ -429,7 +430,8 @@ class TransferFoundationTest {
 
     @Test
     fun `ObservationRateController ramps to 4 after acksBeforeQuad more ACKs`() {
-        val ctrl = ObservationRateController(TransferConfig(acksBeforeDouble = 4, acksBeforeQuad = 8))
+        val ctrl =
+            ObservationRateController(TransferConfig(acksBeforeDouble = 4, acksBeforeQuad = 8))
         repeat(4) { ctrl.onAck() } // → rate 2
         repeat(8) { ctrl.onAck() } // → rate 4
         assertEquals(4, ctrl.currentRate())
@@ -437,7 +439,8 @@ class TransferFoundationTest {
 
     @Test
     fun `ObservationRateController stays at 4 after additional ACKs`() {
-        val ctrl = ObservationRateController(TransferConfig(acksBeforeDouble = 4, acksBeforeQuad = 8))
+        val ctrl =
+            ObservationRateController(TransferConfig(acksBeforeDouble = 4, acksBeforeQuad = 8))
         repeat(4) { ctrl.onAck() } // → rate 2
         repeat(8) { ctrl.onAck() } // → rate 4
         repeat(10) { ctrl.onAck() } // still 4
@@ -461,7 +464,8 @@ class TransferFoundationTest {
 
     @Test
     fun `ObservationRateController timeout at rate 4 resets to 1`() {
-        val ctrl = ObservationRateController(TransferConfig(acksBeforeDouble = 4, acksBeforeQuad = 8))
+        val ctrl =
+            ObservationRateController(TransferConfig(acksBeforeDouble = 4, acksBeforeQuad = 8))
         repeat(4) { ctrl.onAck() } // → rate 2
         repeat(8) { ctrl.onAck() } // → rate 4
         ctrl.onTimeout()

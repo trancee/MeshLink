@@ -7,16 +7,17 @@ typealias TransferSessionId = ByteArray
  * Weighted round-robin scheduler for concurrent transfer sessions.
  *
  * Priority weights:
- * - [Priority.HIGH]   — 3 slots per cycle (scheduled every call)
+ * - [Priority.HIGH] — 3 slots per cycle (scheduled every call)
  * - [Priority.NORMAL] — 1 slot per cycle (scheduled every call)
- * - [Priority.LOW]    — 1 slot, skipped on every even-numbered call (skip-alternate)
+ * - [Priority.LOW] — 1 slot, skipped on every even-numbered call (skip-alternate)
  *
- * [nextBatch] returns up to [maxConcurrent] unique session IDs per call, honouring
- * the weighted ordering and the alternating LOW exclusion.
+ * [nextBatch] returns up to [maxConcurrent] unique session IDs per call, honouring the weighted
+ * ordering and the alternating LOW exclusion.
  */
 class TransferScheduler(maxConcurrent: Int = 4) {
     private var _maxConcurrent = maxConcurrent
-    val maxConcurrent: Int get() = _maxConcurrent
+    val maxConcurrent: Int
+        get() = _maxConcurrent
 
     private var callCount = 0
     private val sessionMap = LinkedHashMap<List<Byte>, Priority>()
@@ -39,9 +40,9 @@ class TransferScheduler(maxConcurrent: Int = 4) {
     /**
      * Returns the next batch of up to [maxConcurrent] session IDs, weighted by priority.
      *
-     * HIGH sessions appear three times in the candidate list before deduplication, ensuring
-     * they occupy the first slots when [maxConcurrent] < total sessions.
-     * LOW sessions are omitted on every even call (skip-alternate).
+     * HIGH sessions appear three times in the candidate list before deduplication, ensuring they
+     * occupy the first slots when [maxConcurrent] < total sessions. LOW sessions are omitted on
+     * every even call (skip-alternate).
      */
     fun nextBatch(): List<TransferSessionId> {
         callCount++
