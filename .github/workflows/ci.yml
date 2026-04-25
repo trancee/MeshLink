@@ -18,7 +18,7 @@ jobs:
           java-version: '21'
       - uses: gradle/actions/setup-gradle@v6
         with:
-          cache-provider: basic
+          add-job-summary: never
       - name: Run ktfmt check and detekt
         run: ./gradlew :meshlink:ktfmtCheck :meshlink:detekt
 
@@ -33,7 +33,7 @@ jobs:
           java-version: '21'
       - uses: gradle/actions/setup-gradle@v6
         with:
-          cache-provider: basic
+          add-job-summary: never
       - name: Run all tests (commonTest on JVM)
         run: ./gradlew :meshlink:allTests
 
@@ -49,8 +49,7 @@ jobs:
           java-version: '21'
       - uses: gradle/actions/setup-gradle@v6
         with:
-          cache-provider: basic
-          cache-read-only: true
+          add-job-summary: never
       - name: Verify 100% line and branch coverage
         run: ./gradlew :meshlink:koverVerify :meshlink:koverHtmlReport :meshlink:koverXmlReport
       - name: Post coverage to job summary
@@ -97,8 +96,7 @@ jobs:
           java-version: '21'
       - uses: gradle/actions/setup-gradle@v6
         with:
-          cache-provider: basic
-          cache-read-only: true
+          add-job-summary: never
       - name: Run benchmarks (warn-only)
         run: ./gradlew :meshlink:benchmark
       - name: Post benchmark results to job summary

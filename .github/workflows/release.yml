@@ -17,7 +17,7 @@ jobs:
           java-version: '21'
       - uses: gradle/actions/setup-gradle@v6
         with:
-          cache-provider: basic
+          add-job-summary: never
       # TODO: Implement Android AAR publishing to Maven Central once signing and
       #       OSSRH publishing are configured (post-M001).
       - name: Publish to Maven Central (TODO)
@@ -40,7 +40,7 @@ jobs:
           java-version: '21'
       - uses: gradle/actions/setup-gradle@v6
         with:
-          cache-provider: basic
+          add-job-summary: never
       # TODO: Assemble XCFramework (iosArm64 + iosSimulatorArm64) and attach it
       #       as a GitHub Release asset once the iOS implementation is complete (S03).
       - name: Assemble XCFramework and create release (TODO)
