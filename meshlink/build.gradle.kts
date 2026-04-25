@@ -81,6 +81,14 @@ tasks
         }
     }
 
+// jvmTest: increase metaspace for Kover instrumentation agent under integration-test load.
+tasks.matching { it.name == "jvmTest" }.configureEach {
+    (this as? org.gradle.api.tasks.testing.Test)?.jvmArgs(
+        "-Xmx1g",
+        "-XX:MaxMetaspaceSize=512m",
+    )
+}
+
 // Kover — 100% line + branch coverage on shipping source sets.
 // jvmMain is test-only infrastructure and excluded from measurement.
 kover {

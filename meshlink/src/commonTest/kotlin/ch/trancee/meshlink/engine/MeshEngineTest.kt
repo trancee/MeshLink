@@ -10,8 +10,10 @@ import ch.trancee.meshlink.power.PowerTier
 import ch.trancee.meshlink.power.StubBatteryMonitor
 import ch.trancee.meshlink.storage.InMemorySecureStorage
 import ch.trancee.meshlink.transport.VirtualMeshTransport
+import ch.trancee.meshlink.transport.PeerLostReason
 import ch.trancee.meshlink.wire.Handshake
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -402,6 +404,247 @@ class MeshEngineTest {
                 clock = { testScheduler.currentTime },
             )
         assertTrue(PowerTier.entries.contains(engine.currentTier))
+        engine.stop()
+    }
+
+    // ── NoiseHandshakeManager null-callback coverage ───────────────────────────
+
+    @Test
+    fun `onAdvertisementSeen null sendHandshake does not crash for unknown peer`() {
+        val (mgr, _) = makeHandshakeManager()
+        val peerId = ByteArray(12) { 0x44.toByte() }
+        // sendHandshake is null — ?.invoke() takes the null branch
+        mgr.onHandshakeComplete = { _ -> }
+        mgr.sendHandshake = null
+        mgr.onAdvertisementSeen(peerId, ByteArray(1)) // must not throw
+    }
+
+    @Test
+    fun `onAdvertisementSeen null onHandshakeComplete does not crash for pinned peer`() {
+        val (mgr, trustStore) = makeHandshakeManager()
+        val peerId = ByteArray(12) { 0x55.toByte() }
+        trustStore.pinKey(peerId, crypto.generateX25519KeyPair().publicKey)
+        mgr.onHandshakeComplete = null // null branch
+        mgr.onAdvertisementSeen(peerId, ByteArray(1)) // must not throw
+    }
+
+    @Test
+    fun `handleStep1 null sendHandshake does not crash`() {
+        val (mgr, _) = makeHandshakeManager()
+        val peerId = ByteArray(12) { 0x56.toByte() }
+        mgr.sendHandshake = null // null branch
+        val initiator = NoiseXXInitiator(crypto, crypto.generateX25519KeyPair())
+        val msg1 = initiator.writeMessage1()
+        mgr.onInboundHandshake(peerId, Handshake(step = 1u, noiseMessage = msg1))
+    }
+
+    @Test
+    fun `handleStep2 null sendHandshake and null onHandshakeComplete do not crash`() {
+        // Set up an initiating state by calling onAdvertisementSeen first (with sendHandshake set)
+        val (mgr, _) = makeHandshakeManager()
+        val storageRemote = InMemorySecureStorage()
+        val identityRemote = Identity.loadOrGenerate(crypto, storageRemote)
+        val peerIdRemote = identityRemote.keyHash
+
+        // Phase 1: initiate with callbacks set so step1 is sent
+        var step1Bytes: ByteArray? = null
+        mgr.sendHandshake = { _, msg -> if (msg.step == 1u.toUByte()) step1Bytes = msg.noiseMessage }
+        mgr.onHandshakeComplete = { _ -> }
+        mgr.onAdvertisementSeen(peerIdRemote, ByteArray(1))
+        assertNotNull(step1Bytes)
+
+        // Phase 2: null both callbacks, then send a valid step2 back
+        mgr.sendHandshake = null
+        mgr.onHandshakeComplete = null
+        val remoteResponder = NoiseXXResponder(crypto, identityRemote.dhKeyPair)
+        remoteResponder.readMessage1(step1Bytes!!)
+        val msg2 = remoteResponder.writeMessage2()
+        mgr.onInboundHandshake(peerIdRemote, Handshake(step = 2u, noiseMessage = msg2))
+        // null paths of both sendHandshake?.invoke() and onHandshakeComplete?.invoke() covered
+    }
+
+    @Test
+    fun `handleStep3 null onHandshakeComplete does not crash`() {
+        val (mgr, _) = makeHandshakeManager()
+        val peerIdRemote = ByteArray(12) { 0x77.toByte() }
+
+        // Become responding by receiving valid step1
+        val remoteInitiator = NoiseXXInitiator(crypto, crypto.generateX25519KeyPair())
+        val msg1 = remoteInitiator.writeMessage1()
+        var step2Bytes: ByteArray? = null
+        mgr.sendHandshake = { _, msg -> if (msg.step == 2u.toUByte()) step2Bytes = msg.noiseMessage }
+        mgr.onInboundHandshake(peerIdRemote, Handshake(step = 1u, noiseMessage = msg1))
+        assertNotNull(step2Bytes)
+
+        // Now null the onHandshakeComplete callback and send valid step3
+        mgr.onHandshakeComplete = null
+        remoteInitiator.readMessage2(step2Bytes!!)
+        val msg3 = remoteInitiator.writeMessage3()
+        mgr.onInboundHandshake(peerIdRemote, Handshake(step = 3u, noiseMessage = msg3))
+        // null branch of onHandshakeComplete?.invoke() in handleStep3 covered
+    }
+
+    // ── MeshEngine flow-subscription coverage ─────────────────────────────────
+
+    @Test
+    fun `start subscribes to peerLostEvents`() = runTest {
+        val storage = InMemorySecureStorage()
+        val identity = Identity.loadOrGenerate(crypto, storage)
+        val transport = VirtualMeshTransport(identity.keyHash, testScheduler)
+        val engine =
+            MeshEngine.create(
+                identity = identity,
+                cryptoProvider = crypto,
+                transport = transport,
+                storage = storage,
+                batteryMonitor = StubBatteryMonitor(level = 0.9f),
+                scope = backgroundScope,
+                clock = { testScheduler.currentTime },
+            )
+        engine.start()
+        testScheduler.runCurrent()
+        // Simulate peer lost — covers peerLostEvents collection lambda body
+        transport.simulatePeerLost(ByteArray(12) { 0xDE.toByte() })
+        testScheduler.runCurrent()
+        engine.stop()
+    }
+
+    @Test
+    fun `start subscribes to advertisementEvents and initiates handshake`() = runTest {
+        val storage = InMemorySecureStorage()
+        val identity = Identity.loadOrGenerate(crypto, storage)
+        val transport = VirtualMeshTransport(identity.keyHash, testScheduler)
+        val engine =
+            MeshEngine.create(
+                identity = identity,
+                cryptoProvider = crypto,
+                transport = transport,
+                storage = storage,
+                batteryMonitor = StubBatteryMonitor(level = 0.9f),
+                scope = backgroundScope,
+                clock = { testScheduler.currentTime },
+            )
+        engine.start()
+        testScheduler.runCurrent()
+        // Unknown peer advertisement — covers advertisementEvents body, sendHandshake callback body
+        val unknownPeer = ByteArray(12) { 0xEE.toByte() }
+        transport.simulateDiscovery(unknownPeer, PowerTierCodec.encode(PowerTier.BALANCED), -55)
+        testScheduler.runCurrent()
+        engine.stop()
+    }
+
+    @Test
+    fun `onHandshakeComplete acquired path covers connection wiring`() = runTest {
+        val storage = InMemorySecureStorage()
+        val identity = Identity.loadOrGenerate(crypto, storage)
+        val transport = VirtualMeshTransport(identity.keyHash, testScheduler)
+        val knownPeerId = ByteArray(12) { 0xCA.toByte() }
+        // Pin the peer's key so reconnect shortcut fires onHandshakeComplete
+        TrustStore(storage).pinKey(knownPeerId, crypto.generateX25519KeyPair().publicKey)
+        val engine =
+            MeshEngine.create(
+                identity = identity,
+                cryptoProvider = crypto,
+                transport = transport,
+                storage = storage,
+                batteryMonitor = StubBatteryMonitor(level = 0.9f),
+                scope = backgroundScope,
+                clock = { testScheduler.currentTime },
+            )
+        engine.start()
+        testScheduler.runCurrent()
+        // Known peer → reconnect shortcut → onHandshakeComplete fires with cached data
+        transport.simulateDiscovery(
+            knownPeerId,
+            PowerTierCodec.encode(PowerTier.BALANCED),
+            -60,
+        )
+        testScheduler.runCurrent()
+        engine.stop()
+    }
+
+    @Test
+    fun `onHandshakeComplete not-acquired path covers disconnect branch`() = runTest {
+        val storage = InMemorySecureStorage()
+        val identity = Identity.loadOrGenerate(crypto, storage)
+        val transport = VirtualMeshTransport(identity.keyHash, testScheduler)
+        val knownPeerId = ByteArray(12) { 0xCB.toByte() }
+        TrustStore(storage).pinKey(knownPeerId, crypto.generateX25519KeyPair().publicKey)
+        // maxConnections = 0 → tryAcquireConnection always returns false → disconnect branch
+        val config =
+            MeshEngineConfig(
+                power =
+                    ch.trancee.meshlink.power.PowerConfig(
+                        performanceMaxConnections = 0,
+                        balancedMaxConnections = 0,
+                        powerSaverMaxConnections = 0,
+                    )
+            )
+        val engine =
+            MeshEngine.create(
+                identity = identity,
+                cryptoProvider = crypto,
+                transport = transport,
+                storage = storage,
+                batteryMonitor = StubBatteryMonitor(level = 0.9f),
+                scope = backgroundScope,
+                clock = { testScheduler.currentTime },
+                config = config,
+            )
+        engine.start()
+        testScheduler.runCurrent()
+        transport.simulateDiscovery(knownPeerId, PowerTierCodec.encode(PowerTier.BALANCED), -60)
+        testScheduler.runCurrent()
+        engine.stop()
+    }
+
+    @Test
+    fun `send delegates to deliveryPipeline`() = runTest {
+        val storage = InMemorySecureStorage()
+        val identity = Identity.loadOrGenerate(crypto, storage)
+        val transport = VirtualMeshTransport(identity.keyHash, testScheduler)
+        val engine =
+            MeshEngine.create(
+                identity = identity,
+                cryptoProvider = crypto,
+                transport = transport,
+                storage = storage,
+                batteryMonitor = StubBatteryMonitor(level = 0.9f),
+                scope = backgroundScope,
+                clock = { testScheduler.currentTime },
+            )
+        engine.start()
+        // Self-send shortcut: delivery pipeline accepts messages to local identity
+        val result = engine.send(identity.keyHash, "hello".encodeToByteArray())
+        assertNotNull(result)
+        engine.stop()
+    }
+
+    @Test
+    fun `broadcast delegates to deliveryPipeline`() = runTest {
+        val storage = InMemorySecureStorage()
+        val identity = Identity.loadOrGenerate(crypto, storage)
+        val transport = VirtualMeshTransport(identity.keyHash, testScheduler)
+        val config = MeshEngineConfig(
+            messaging = ch.trancee.meshlink.messaging.MessagingConfig(
+                appIdHash = ByteArray(4) { it.toByte() },
+            )
+        )
+        val engine =
+            MeshEngine.create(
+                identity = identity,
+                cryptoProvider = crypto,
+                transport = transport,
+                storage = storage,
+                batteryMonitor = StubBatteryMonitor(level = 0.9f),
+                scope = backgroundScope,
+                clock = { testScheduler.currentTime },
+                config = config,
+            )
+        engine.start()
+        val msgId = engine.broadcast("hello".encodeToByteArray(), 3u)
+        assertNotNull(msgId)
+        assertEquals(16, msgId.size)
         engine.stop()
     }
 }

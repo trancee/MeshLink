@@ -112,7 +112,7 @@ internal class RouteCoordinator(
                 feasibilityDistance = linkCost,
                 expiresAt = clock() + config.routeExpiryMillis,
                 ed25519PublicKey = ByteArray(32),
-                x25519PublicKey = ByteArray(32),
+                x25519PublicKey = trustStore.getPinnedKey(peerInfo.peerId) ?: ByteArray(32),
             )
         )
         routingEngine.registerNeighbor(peerInfo.peerId)
