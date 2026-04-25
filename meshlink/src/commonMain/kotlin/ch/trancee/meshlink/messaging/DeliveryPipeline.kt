@@ -391,15 +391,22 @@ internal class DeliveryPipeline(
     private fun handleInboundRoutedMessage(fromPeerId: ByteArray, msg: RoutedMessage) {
         if (msg.destination.contentEquals(localIdentity.keyHash)) {
             // Message is addressed to us — decrypt and deliver.
-            val senderPubKey = trustStore.getPinnedKey(msg.origin) ?: return
+            val senderPubKey = trustStore.getPinnedKey(msg.origin)
+            println("DBG handleInboundRoutedMessage: senderPubKey=${senderPubKey?.size}, dest=${msg.destination.size}")
+            senderPubKey ?: return
             val plaintext =
                 try {
-                    noiseKOpen(cryptoProvider, localIdentity.dhKeyPair, senderPubKey, msg.payload)
+                    noiseKOpen(cryptoProvider, localIdentity.dhKeyPair, senderPubKey, msg.payload).also {
+                        println("DBG noiseKOpen OK, plaintext=${it.size}")
+                    }
                 } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+                    println("DBG noiseKOpen FAILED: $e")
                     return // AEAD tag verification failed — silently drop.
                 }
             // Replay guard uses originationTime as the monotonic counter.
-            if (!replayGuard.check(msg.originationTime)) return
+            val replayOk = replayGuard.check(msg.originationTime)
+            println("DBG replayGuard.check(${msg.originationTime}) = $replayOk")
+            if (!replayOk) return
 
             _messages.tryEmit(
                 InboundMessage(
@@ -526,8 +533,11 @@ internal class DeliveryPipeline(
     }
 
     private fun handleInboundDeliveryAck(msg: DeliveryAck) {
+        println("DBG handleInboundDeliveryAck: msgId=${msg.messageId.size}, recipientId=${msg.recipientId.size}, flags=${msg.flags}")
         val key = MessageIdKey(msg.messageId)
-        val pending = pendingDeliveries[key] ?: return // unknown message ID — silently drop
+        val pending = pendingDeliveries[key]
+        println("DBG pending=$pending (pendingDeliveries size=${pendingDeliveries.size})")
+        pending ?: return // unknown message ID — silently drop
 
         // Signature verification.
         val hasSignature = (msg.flags.toInt() and ACK_FLAG_HAS_SIGNATURE) != 0
