@@ -1,12 +1,27 @@
 #!/bin/sh
 # MeshLink pre-commit hook — enforces code formatting and static analysis.
 # Per D002: no external tooling dependency; plain Gradle invocation.
+#
+# ktfmt runs in format (not check) mode: staged Kotlin files are auto-fixed
+# and re-staged so every commit contains formatted code without requiring a
+# separate format-then-add step from the developer.  This prevents the
+# working-tree vs. staged-index divergence that caused CI failures when
+# ktfmtCheck passed (working tree already formatted) but the unformatted
+# staged content was what actually landed in the commit.
 set -e
 
-echo "Running ktfmt format check…"
-./gradlew :meshlink:ktfmtCheck --quiet
+STAGED_KT=$(git diff --cached --name-only --diff-filter=ACMR | grep '\.kt$' || true)
 
-echo "Running detekt static analysis…"
+if [ -n "$STAGED_KT" ]; then
+    echo "Running ktfmt…"
+    ./gradlew :meshlink:ktfmtFormat --quiet
+    # Re-stage the formatted versions of all Kotlin files that were staged
+    # before this hook ran.  Uses null-delimited xargs to handle any path
+    # containing spaces or special characters.
+    printf '%s\n' "$STAGED_KT" | tr '\n' '\0' | xargs -0 git add
+fi
+
+echo "Running detekt…"
 ./gradlew :meshlink:detekt --quiet
 
 echo "Pre-commit checks passed."

@@ -46,7 +46,7 @@ class DedupSetTest {
         val id3 = byteArrayOf(3)
         dedup.add(id1)
         dedup.add(id2)
-        dedup.add(id3)  // should evict id1
+        dedup.add(id3) // should evict id1
         assertEquals(2, dedup.size)
         assertFalse(dedup.isDuplicate(id1))
         assertTrue(dedup.isDuplicate(id2))
@@ -80,7 +80,7 @@ class DedupSetTest {
         now += 4_500L
         // Re-add resets the TTL clock
         dedup.add(id)
-        now += 4_500L  // total 9000ms from first add, but only 4500ms from re-add
+        now += 4_500L // total 9000ms from first add, but only 4500ms from re-add
         // Entry was re-added at now=5500; current time is 10000; elapsed = 4500 ≤ 5000
         assertTrue(dedup.isDuplicate(id))
     }
@@ -133,7 +133,7 @@ class DedupSetTest {
         val dedup = DedupSet(capacity = 100, ttlMs = 5_000L) { now }
         val id = byteArrayOf(42)
         dedup.add(id)
-        now += 5_001L  // strictly greater than ttlMs
+        now += 5_001L // strictly greater than ttlMs
         assertFalse(dedup.isDuplicate(id))
     }
 
@@ -143,7 +143,7 @@ class DedupSetTest {
         val dedup = DedupSet(capacity = 100, ttlMs = 5_000L) { now }
         val id = byteArrayOf(43)
         dedup.add(id)
-        now += 4_999L  // strictly less than ttlMs
+        now += 4_999L // strictly less than ttlMs
         assertTrue(dedup.isDuplicate(id))
     }
 }

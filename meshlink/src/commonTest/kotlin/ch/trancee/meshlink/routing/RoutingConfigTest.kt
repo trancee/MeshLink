@@ -19,15 +19,16 @@ class RoutingConfigTest {
 
     @Test
     fun `RoutingConfig custom values override defaults`() {
-        val config = RoutingConfig(
-            helloIntervalMs = 1_000L,
-            fullDumpMultiplier = 5,
-            routeExpiryMs = 60_000L,
-            dedupCapacity = 10_000,
-            dedupTtlMs = 1_000_000L,
-            routeDiscoveryTimeoutMs = 2_000L,
-            defaultLinkCost = 2.0,
-        )
+        val config =
+            RoutingConfig(
+                helloIntervalMs = 1_000L,
+                fullDumpMultiplier = 5,
+                routeExpiryMs = 60_000L,
+                dedupCapacity = 10_000,
+                dedupTtlMs = 1_000_000L,
+                routeDiscoveryTimeoutMs = 2_000L,
+                defaultLinkCost = 2.0,
+            )
         assertEquals(1_000L, config.helloIntervalMs)
         assertEquals(5, config.fullDumpMultiplier)
         assertEquals(60_000L, config.routeExpiryMs)

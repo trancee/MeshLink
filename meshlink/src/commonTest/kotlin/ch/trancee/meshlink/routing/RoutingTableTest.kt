@@ -24,7 +24,17 @@ class RoutingTableTest {
         expiresAt: Long = Long.MAX_VALUE,
         ed25519PublicKey: ByteArray = ByteArray(32) { it.toByte() },
         x25519PublicKey: ByteArray = ByteArray(32) { (it + 32).toByte() },
-    ) = RouteEntry(destination, nextHop, metric, seqNo, feasibilityDistance, expiresAt, ed25519PublicKey, x25519PublicKey)
+    ) =
+        RouteEntry(
+            destination,
+            nextHop,
+            metric,
+            seqNo,
+            feasibilityDistance,
+            expiresAt,
+            ed25519PublicKey,
+            x25519PublicKey,
+        )
 
     // ----------------------------------------------------------------
     // (a) install + lookupNextHop round-trip
@@ -237,7 +247,17 @@ class RoutingTableTest {
         val ed = ByteArray(32) { it.toByte() }
         val x25 = ByteArray(32) { (it + 32).toByte() }
         val a = RouteEntry(dest, nextHop, 1.0, 10u, 0.5, 5000L, ed, x25)
-        val b = RouteEntry(dest.copyOf(), nextHop.copyOf(), 1.0, 10u, 0.5, 5000L, ed.copyOf(), x25.copyOf())
+        val b =
+            RouteEntry(
+                dest.copyOf(),
+                nextHop.copyOf(),
+                1.0,
+                10u,
+                0.5,
+                5000L,
+                ed.copyOf(),
+                x25.copyOf(),
+            )
         assertTrue(a.equals(b))
         assertEquals(a.hashCode(), b.hashCode())
     }
@@ -373,7 +393,7 @@ class RoutingTableTest {
         table.install(entry)
         assertNotEquals(0u, table.routeDigest())
         time = 2000L
-        table.lookupNextHop(entry.destination)  // triggers lazy eviction
+        table.lookupNextHop(entry.destination) // triggers lazy eviction
         assertEquals(0u, table.routeDigest())
     }
 
@@ -384,7 +404,7 @@ class RoutingTableTest {
         val entry = makeEntry(expiresAt = 1500L)
         table.install(entry)
         time = 2000L
-        table.lookupRoute(entry.destination)  // triggers lazy eviction
+        table.lookupRoute(entry.destination) // triggers lazy eviction
         assertEquals(0u, table.routeDigest())
     }
 

@@ -40,28 +40,30 @@ class RoutingEngineTest {
         seqNo: UShort = 100u,
         edKey: ByteArray = peerAEdKey,
         dhKey: ByteArray = peerADhKey,
-    ) = Update(
-        destination = destination,
-        metric = metric,
-        seqNo = seqNo,
-        ed25519PublicKey = edKey,
-        x25519PublicKey = dhKey,
-    )
+    ) =
+        Update(
+            destination = destination,
+            metric = metric,
+            seqNo = seqNo,
+            ed25519PublicKey = edKey,
+            x25519PublicKey = dhKey,
+        )
 
     private fun makeEngine(
         table: RoutingTable,
         clock: () -> Long,
         scope: kotlinx.coroutines.CoroutineScope,
         config: RoutingConfig = RoutingConfig(),
-    ) = RoutingEngine(
-        routingTable = table,
-        localPeerId = localPeerId,
-        localEdPublicKey = localEdKey,
-        localDhPublicKey = localDhKey,
-        scope = scope,
-        getCurrentTimeMs = clock,
-        config = config,
-    )
+    ) =
+        RoutingEngine(
+            routingTable = table,
+            localPeerId = localPeerId,
+            localEdPublicKey = localEdKey,
+            localDhPublicKey = localDhKey,
+            scope = scope,
+            getCurrentTimeMs = clock,
+            config = config,
+        )
 
     // ── processUpdate: feasibility condition ───────────────────────────────────
 
@@ -141,11 +143,8 @@ class RoutingEngineTest {
         assertNotNull(table.lookupRoute(destA))
 
         // Retraction with newer seqNo=101
-        val accepted = engine.processUpdate(
-            peerA,
-            makeUpdate(seqNo = 101u, metric = METRIC_RETRACTION),
-            0.0,
-        )
+        val accepted =
+            engine.processUpdate(peerA, makeUpdate(seqNo = 101u, metric = METRIC_RETRACTION), 0.0)
         assertTrue(accepted)
         assertNull(table.lookupRoute(destA))
     }
@@ -158,11 +157,8 @@ class RoutingEngineTest {
         val engine = makeEngine(table, { now }, kotlinx.coroutines.GlobalScope)
 
         assertTrue(engine.processUpdate(peerA, makeUpdate(seqNo = 100u, metric = 100u), 0.0))
-        val rejected = engine.processUpdate(
-            peerA,
-            makeUpdate(seqNo = 99u, metric = METRIC_RETRACTION),
-            0.0,
-        )
+        val rejected =
+            engine.processUpdate(peerA, makeUpdate(seqNo = 99u, metric = METRIC_RETRACTION), 0.0)
         assertFalse(rejected)
         assertNotNull(table.lookupRoute(destA))
     }
@@ -193,11 +189,8 @@ class RoutingEngineTest {
         val table = RoutingTable { now }
         val engine = makeEngine(table, { now }, kotlinx.coroutines.GlobalScope)
 
-        val result = engine.processUpdate(
-            peerA,
-            makeUpdate(seqNo = 1u, metric = METRIC_RETRACTION),
-            0.0,
-        )
+        val result =
+            engine.processUpdate(peerA, makeUpdate(seqNo = 1u, metric = METRIC_RETRACTION), 0.0)
         assertFalse(result)
     }
 
@@ -335,10 +328,10 @@ class RoutingEngineTest {
         val updates = engine.processHello(peerB, Hello(peerB, 2u, table.routeDigest()))
         val dests = updates.map { it.destination.toList() }.toSet()
 
-        assertFalse(dests.contains(destA.toList()))       // unchanged: excluded
-        assertTrue(dests.contains(destB.toList()))         // seqNo changed
-        assertTrue(dests.contains(destC.toList()))         // new/untracked
-        assertTrue(dests.contains(localPeerId.toList()))   // self-route always included
+        assertFalse(dests.contains(destA.toList())) // unchanged: excluded
+        assertTrue(dests.contains(destB.toList())) // seqNo changed
+        assertTrue(dests.contains(destC.toList())) // new/untracked
+        assertTrue(dests.contains(localPeerId.toList())) // self-route always included
     }
 
     // negative: new neighbour, empty routing table → returns []
@@ -438,7 +431,8 @@ class RoutingEngineTest {
         installRoute(table, destA, peerA, 100u)
         engine.registerNeighbor(peerB)
 
-        // Registered neighbor with matching digest → differential (empty because sentSeqNos unknown)
+        // Registered neighbor with matching digest → differential (empty because sentSeqNos
+        // unknown)
         // sentSeqNo for destA is null → included (sentSeqNo == null branch)
         val updates = engine.processHello(peerB, Hello(peerB, 1u, table.routeDigest()))
         // destA has no sentSeqNo → included in differential
@@ -467,12 +461,13 @@ class RoutingEngineTest {
     @Test
     fun `self-route is installed after helloInterval elapses`() = runTest {
         val table = RoutingTable { testScheduler.currentTime }
-        val engine = makeEngine(
-            table,
-            { testScheduler.currentTime },
-            backgroundScope,
-            RoutingConfig(helloIntervalMs = 1000L),
-        )
+        val engine =
+            makeEngine(
+                table,
+                { testScheduler.currentTime },
+                backgroundScope,
+                RoutingConfig(helloIntervalMs = 1000L),
+            )
 
         engine.startTimers()
         testScheduler.runCurrent() // let timer coroutines reach first delay()
@@ -487,12 +482,13 @@ class RoutingEngineTest {
     @Test
     fun `Hello is emitted on outboundMessages after helloInterval`() = runTest {
         val table = RoutingTable { testScheduler.currentTime }
-        val engine = makeEngine(
-            table,
-            { testScheduler.currentTime },
-            backgroundScope,
-            RoutingConfig(helloIntervalMs = 1000L),
-        )
+        val engine =
+            makeEngine(
+                table,
+                { testScheduler.currentTime },
+                backgroundScope,
+                RoutingConfig(helloIntervalMs = 1000L),
+            )
 
         val received = mutableListOf<OutboundFrame>()
         val job = launch { engine.outboundMessages.collect { received.add(it) } }
@@ -516,14 +512,15 @@ class RoutingEngineTest {
     @Test
     fun `full dump emits Updates for routes and handles empty table`() = runTest {
         val table = RoutingTable { testScheduler.currentTime }
-        val engine = makeEngine(
-            table,
-            { testScheduler.currentTime },
-            backgroundScope,
-            // fullDumpMultiplier=1: full dump fires at same time as Hello each tick
-            // full dump is launched first → fires before Hello on same tick
-            RoutingConfig(helloIntervalMs = 1000L, fullDumpMultiplier = 1),
-        )
+        val engine =
+            makeEngine(
+                table,
+                { testScheduler.currentTime },
+                backgroundScope,
+                // fullDumpMultiplier=1: full dump fires at same time as Hello each tick
+                // full dump is launched first → fires before Hello on same tick
+                RoutingConfig(helloIntervalMs = 1000L, fullDumpMultiplier = 1),
+            )
 
         val received = mutableListOf<OutboundFrame>()
         val job = launch { engine.outboundMessages.collect { received.add(it) } }
@@ -560,12 +557,13 @@ class RoutingEngineTest {
     @Test
     fun `localSeqNo wraps around from 65535 to 0`() = runTest {
         val table = RoutingTable { testScheduler.currentTime }
-        val engine = makeEngine(
-            table,
-            { testScheduler.currentTime },
-            backgroundScope,
-            RoutingConfig(helloIntervalMs = 100L),
-        )
+        val engine =
+            makeEngine(
+                table,
+                { testScheduler.currentTime },
+                backgroundScope,
+                RoutingConfig(helloIntervalMs = 100L),
+            )
         engine.localSeqNo = 65535u
         engine.startTimers()
         testScheduler.advanceTimeBy(100L)

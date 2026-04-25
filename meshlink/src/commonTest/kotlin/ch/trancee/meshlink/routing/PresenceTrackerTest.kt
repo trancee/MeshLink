@@ -91,8 +91,7 @@ class PresenceTrackerTest {
     @Test
     fun `PeerEvent Connected equals identity`() {
         val e = PeerEvent.Connected(byteArrayOf(1, 2))
-        @Suppress("ReplaceCallWithBinaryOperator")
-        assertTrue(e.equals(e))
+        @Suppress("ReplaceCallWithBinaryOperator") assertTrue(e.equals(e))
     }
 
     @Test
@@ -120,8 +119,7 @@ class PresenceTrackerTest {
     @Test
     fun `PeerEvent Connected equals null returns false`() {
         val e = PeerEvent.Connected(byteArrayOf(1, 2))
-        @Suppress("ReplaceCallWithBinaryOperator")
-        assertFalse(e.equals(null))
+        @Suppress("ReplaceCallWithBinaryOperator") assertFalse(e.equals(null))
     }
 
     // ----------------------------------------------------------------
@@ -131,8 +129,7 @@ class PresenceTrackerTest {
     @Test
     fun `PeerEvent Disconnected equals identity`() {
         val e = PeerEvent.Disconnected(byteArrayOf(3, 4))
-        @Suppress("ReplaceCallWithBinaryOperator")
-        assertTrue(e.equals(e))
+        @Suppress("ReplaceCallWithBinaryOperator") assertTrue(e.equals(e))
     }
 
     @Test
@@ -160,8 +157,7 @@ class PresenceTrackerTest {
     @Test
     fun `PeerEvent Disconnected equals null returns false`() {
         val e = PeerEvent.Disconnected(byteArrayOf(3, 4))
-        @Suppress("ReplaceCallWithBinaryOperator")
-        assertFalse(e.equals(null))
+        @Suppress("ReplaceCallWithBinaryOperator") assertFalse(e.equals(null))
     }
 
     // ----------------------------------------------------------------
@@ -171,8 +167,7 @@ class PresenceTrackerTest {
     @Test
     fun `PeerInfo equals identity`() {
         val p = PeerInfo(byteArrayOf(1), 0x01, -70, 0.1)
-        @Suppress("ReplaceCallWithBinaryOperator")
-        assertTrue(p.equals(p))
+        @Suppress("ReplaceCallWithBinaryOperator") assertTrue(p.equals(p))
     }
 
     @Test
@@ -227,8 +222,7 @@ class PresenceTrackerTest {
     @Test
     fun `OutboundFrame equals identity`() {
         val f = OutboundFrame(byteArrayOf(1), msg1)
-        @Suppress("ReplaceCallWithBinaryOperator")
-        assertTrue(f.equals(f))
+        @Suppress("ReplaceCallWithBinaryOperator") assertTrue(f.equals(f))
     }
 
     @Test

@@ -56,30 +56,32 @@ class RoutingTest {
         val table = RoutingTable(clock)
         val storage = InMemorySecureStorage()
         val trustStore = TrustStore(storage)
-        val engine = RoutingEngine(
-            routingTable = table,
-            localPeerId = localId,
-            localEdPublicKey = edKey,
-            localDhPublicKey = dhKey,
-            scope = scope,
-            getCurrentTimeMs = clock,
-            config = config,
-        )
+        val engine =
+            RoutingEngine(
+                routingTable = table,
+                localPeerId = localId,
+                localEdPublicKey = edKey,
+                localDhPublicKey = dhKey,
+                scope = scope,
+                getCurrentTimeMs = clock,
+                config = config,
+            )
         val dedupSet = DedupSet(config.dedupCapacity, config.dedupTtlMs, clock)
         val presenceTracker = PresenceTracker()
-        val coordinator = RouteCoordinator(
-            localPeerId = localId,
-            localEdPublicKey = edKey,
-            localDhPublicKey = dhKey,
-            routingTable = table,
-            routingEngine = engine,
-            dedupSet = dedupSet,
-            presenceTracker = presenceTracker,
-            trustStore = trustStore,
-            scope = scope,
-            getCurrentTimeMs = clock,
-            config = config,
-        )
+        val coordinator =
+            RouteCoordinator(
+                localPeerId = localId,
+                localEdPublicKey = edKey,
+                localDhPublicKey = dhKey,
+                routingTable = table,
+                routingEngine = engine,
+                dedupSet = dedupSet,
+                presenceTracker = presenceTracker,
+                trustStore = trustStore,
+                scope = scope,
+                getCurrentTimeMs = clock,
+                config = config,
+            )
         return TestNode(table, storage, trustStore, coordinator)
     }
 
@@ -108,13 +110,14 @@ class RoutingTest {
         nodeB.coordinator.onPeerConnected(makePeerInfo(peerIdA))
 
         // A announces route to destC
-        val update = Update(
-            destination = destC,
-            metric = 200u,   // wire metric 200 = 2.0
-            seqNo = 100u,
-            ed25519PublicKey = edKeyC,
-            x25519PublicKey = dhKeyC,
-        )
+        val update =
+            Update(
+                destination = destC,
+                metric = 200u, // wire metric 200 = 2.0
+                seqNo = 100u,
+                ed25519PublicKey = edKeyC,
+                x25519PublicKey = dhKeyC,
+            )
         nodeB.coordinator.processInbound(peerIdA, update)
 
         // B should now route to destC via A
@@ -131,7 +134,13 @@ class RoutingTest {
         // First Update — accepted, installs route to destC.
         nodeB.coordinator.processInbound(
             peerIdA,
-            Update(destC, metric = 200u, seqNo = 100u, ed25519PublicKey = edKeyC, x25519PublicKey = dhKeyC),
+            Update(
+                destC,
+                metric = 200u,
+                seqNo = 100u,
+                ed25519PublicKey = edKeyC,
+                x25519PublicKey = dhKeyC,
+            ),
         )
         val firstRoute = nodeB.table.lookupRoute(destC)
         assertNotNull(firstRoute)
@@ -140,7 +149,13 @@ class RoutingTest {
         // Second Update — same seqNo but higher wire metric → must be rejected by feasibility.
         nodeB.coordinator.processInbound(
             peerIdA,
-            Update(destC, metric = 5000u, seqNo = 100u, ed25519PublicKey = edKeyC, x25519PublicKey = dhKeyC),
+            Update(
+                destC,
+                metric = 5000u,
+                seqNo = 100u,
+                ed25519PublicKey = edKeyC,
+                x25519PublicKey = dhKeyC,
+            ),
         )
 
         // Route should still reflect the FIRST accepted metric.
@@ -164,7 +179,13 @@ class RoutingTest {
         // Install a second route on B so B's digest is non-trivial.
         nodeB.coordinator.processInbound(
             peerIdA,
-            Update(destC, metric = 200u, seqNo = 100u, ed25519PublicKey = edKeyC, x25519PublicKey = dhKeyC),
+            Update(
+                destC,
+                metric = 200u,
+                seqNo = 100u,
+                ed25519PublicKey = edKeyC,
+                x25519PublicKey = dhKeyC,
+            ),
         )
 
         collected.clear()
@@ -172,7 +193,7 @@ class RoutingTest {
         // A sends a Hello with a digest that does NOT match B's current digest → full dump.
         val mismatchDigest = nodeB.table.routeDigest() xor 0xDEADBEEFu
         nodeB.coordinator.processInbound(peerIdA, Hello(peerIdA, 2u, mismatchDigest))
-        testScheduler.runCurrent()  // flush subscriber continuation
+        testScheduler.runCurrent() // flush subscriber continuation
 
         // B should have emitted its full table back to A.
         val toA = collected.filter { it.peerId?.contentEquals(peerIdA) == true }
@@ -194,7 +215,13 @@ class RoutingTest {
         // Install an additional route via A so retraction loop is non-trivial.
         nodeB.coordinator.processInbound(
             peerIdA,
-            Update(destC, metric = 100u, seqNo = 50u, ed25519PublicKey = edKeyC, x25519PublicKey = dhKeyC),
+            Update(
+                destC,
+                metric = 100u,
+                seqNo = 50u,
+                ed25519PublicKey = edKeyC,
+                x25519PublicKey = dhKeyC,
+            ),
         )
 
         // Disconnect A.
@@ -217,7 +244,7 @@ class RoutingTest {
 
         // No route to destC — should trigger on-demand discovery.
         val result = nodeA.coordinator.lookupNextHop(destC)
-        testScheduler.runCurrent()  // flush subscriber continuation
+        testScheduler.runCurrent() // flush subscriber continuation
 
         assertNull(result)
         // A Hello broadcast (peerId == null) should have been emitted.
@@ -267,14 +294,26 @@ class RoutingTest {
         // Install a route with the maximum seqNo (65535).
         nodeB.coordinator.processInbound(
             peerIdA,
-            Update(destC, metric = 200u, seqNo = 65535u, ed25519PublicKey = edKeyC, x25519PublicKey = dhKeyC),
+            Update(
+                destC,
+                metric = 200u,
+                seqNo = 65535u,
+                ed25519PublicKey = edKeyC,
+                x25519PublicKey = dhKeyC,
+            ),
         )
         assertEquals(65535u.toUShort(), nodeB.table.lookupRoute(destC)?.seqNo)
 
         // seqNo=0 must be treated as newer than 65535 (RFC 8966 §2.1 modular arithmetic).
         nodeB.coordinator.processInbound(
             peerIdA,
-            Update(destC, metric = 100u, seqNo = 0u, ed25519PublicKey = edKeyC, x25519PublicKey = dhKeyC),
+            Update(
+                destC,
+                metric = 100u,
+                seqNo = 0u,
+                ed25519PublicKey = edKeyC,
+                x25519PublicKey = dhKeyC,
+            ),
         )
         assertEquals(0u.toUShort(), nodeB.table.lookupRoute(destC)?.seqNo)
     }
@@ -297,13 +336,14 @@ class RoutingTest {
         val nodeB = makeNode(peerIdB, edKeyB, dhKeyB, backgroundScope)
         nodeB.coordinator.onPeerConnected(makePeerInfo(peerIdA))
 
-        val update = Update(
-            destination = destC,
-            metric = 100u,
-            seqNo = 1u,
-            ed25519PublicKey = edKeyC,
-            x25519PublicKey = dhKeyC,
-        )
+        val update =
+            Update(
+                destination = destC,
+                metric = 100u,
+                seqNo = 1u,
+                ed25519PublicKey = edKeyC,
+                x25519PublicKey = dhKeyC,
+            )
         nodeB.coordinator.processInbound(peerIdA, update)
 
         // TrustStore must have pinned dhKeyC for destC (destination = peerKeyHash here).
@@ -320,13 +360,14 @@ class RoutingTest {
         // lossMultiplier = 1.0
         // freshnessPenalty = 1.0 (0ms since hello)
         // stabilityPenalty = max(0.0, 3-10) = 0.0
-        val cost = computeLinkCost(
-            rssi = -50,
-            lossRate = 0.0,
-            millisSinceLastHello = 0L,
-            keepaliveIntervalMs = 5_000L,
-            consecutiveStableIntervals = 10,
-        )
+        val cost =
+            computeLinkCost(
+                rssi = -50,
+                lossRate = 0.0,
+                millisSinceLastHello = 0L,
+                keepaliveIntervalMs = 5_000L,
+                consecutiveStableIntervals = 10,
+            )
         assertEquals(1.0, cost, "RSSI -50, no loss, stable link → cost 1.0")
     }
 
@@ -334,13 +375,14 @@ class RoutingTest {
     fun `computeLinkCost RSSI -70 no loss fresh stable produces cost 4_0`() {
         // rssiBaseCost = max(1.0, (70-50)/5) = 4.0
         // lossMultiplier = 1.0, freshnessPenalty = 1.0, stabilityPenalty = 0.0
-        val cost = computeLinkCost(
-            rssi = -70,
-            lossRate = 0.0,
-            millisSinceLastHello = 0L,
-            keepaliveIntervalMs = 5_000L,
-            consecutiveStableIntervals = 10,
-        )
+        val cost =
+            computeLinkCost(
+                rssi = -70,
+                lossRate = 0.0,
+                millisSinceLastHello = 0L,
+                keepaliveIntervalMs = 5_000L,
+                consecutiveStableIntervals = 10,
+            )
         assertEquals(4.0, cost, "RSSI -70, no loss, stable link → cost 4.0")
     }
 
@@ -348,13 +390,14 @@ class RoutingTest {
     fun `computeLinkCost with 5pct loss adds correct multiplier`() {
         // rssiBaseCost = 1.0 (rssi=-50), lossMultiplier = 1.0 + 0.05*10 = 1.5
         // freshnessPenalty = 1.0, stabilityPenalty = 0.0
-        val cost = computeLinkCost(
-            rssi = -50,
-            lossRate = 0.05,
-            millisSinceLastHello = 0L,
-            keepaliveIntervalMs = 5_000L,
-            consecutiveStableIntervals = 10,
-        )
+        val cost =
+            computeLinkCost(
+                rssi = -50,
+                lossRate = 0.05,
+                millisSinceLastHello = 0L,
+                keepaliveIntervalMs = 5_000L,
+                consecutiveStableIntervals = 10,
+            )
         assertEquals(1.5, cost, "5% loss should give lossMultiplier=1.5 → cost 1.5")
     }
 
@@ -363,13 +406,14 @@ class RoutingTest {
         // rssiBaseCost = 1.0, lossMultiplier = 1.0
         // millisSince >> 4*keepalive → min(1.0, big) = 1.0 → freshnessPenalty = 1.5
         // stabilityPenalty = 0.0
-        val cost = computeLinkCost(
-            rssi = -50,
-            lossRate = 0.0,
-            millisSinceLastHello = Long.MAX_VALUE / 2,
-            keepaliveIntervalMs = 5_000L,
-            consecutiveStableIntervals = 10,
-        )
+        val cost =
+            computeLinkCost(
+                rssi = -50,
+                lossRate = 0.0,
+                millisSinceLastHello = Long.MAX_VALUE / 2,
+                keepaliveIntervalMs = 5_000L,
+                consecutiveStableIntervals = 10,
+            )
         assertEquals(1.5, cost, "Stale hello → freshnessPenalty capped at 1.5 → cost 1.5")
     }
 
@@ -377,39 +421,42 @@ class RoutingTest {
     fun `computeLinkCost new link adds 3_0 stability penalty`() {
         // rssiBaseCost = 1.0, lossMultiplier = 1.0, freshnessPenalty = 1.0
         // stabilityPenalty = max(0.0, 3-0) = 3.0
-        val cost = computeLinkCost(
-            rssi = -50,
-            lossRate = 0.0,
-            millisSinceLastHello = 0L,
-            keepaliveIntervalMs = 5_000L,
-            consecutiveStableIntervals = 0,
-        )
+        val cost =
+            computeLinkCost(
+                rssi = -50,
+                lossRate = 0.0,
+                millisSinceLastHello = 0L,
+                keepaliveIntervalMs = 5_000L,
+                consecutiveStableIntervals = 0,
+            )
         assertEquals(4.0, cost, "New link (0 stable intervals) should add 3.0 stability penalty")
     }
 
     @Test
     fun `computeLinkCost extreme RSSI 0 is clamped to rssiBaseCost 1_0`() {
         // -rssi-50 = -50 → negative → max(1.0, -10.0) = 1.0
-        val cost = computeLinkCost(
-            rssi = 0,
-            lossRate = 0.0,
-            millisSinceLastHello = 0L,
-            keepaliveIntervalMs = 5_000L,
-            consecutiveStableIntervals = 10,
-        )
+        val cost =
+            computeLinkCost(
+                rssi = 0,
+                lossRate = 0.0,
+                millisSinceLastHello = 0L,
+                keepaliveIntervalMs = 5_000L,
+                consecutiveStableIntervals = 10,
+            )
         assertEquals(1.0, cost, "RSSI=0 should clamp rssiBaseCost to 1.0")
     }
 
     @Test
     fun `computeLinkCost 100pct loss gives maximum lossMultiplier`() {
         // rssiBaseCost = 1.0, lossMultiplier = 1.0 + 1.0*10 = 11.0
-        val cost = computeLinkCost(
-            rssi = -50,
-            lossRate = 1.0,
-            millisSinceLastHello = 0L,
-            keepaliveIntervalMs = 5_000L,
-            consecutiveStableIntervals = 10,
-        )
+        val cost =
+            computeLinkCost(
+                rssi = -50,
+                lossRate = 1.0,
+                millisSinceLastHello = 0L,
+                keepaliveIntervalMs = 5_000L,
+                consecutiveStableIntervals = 10,
+            )
         assertEquals(11.0, cost, "100% loss → lossMultiplier=11.0 → cost 11.0")
     }
 
@@ -423,7 +470,10 @@ class RoutingTest {
         testScheduler.runCurrent()
 
         // Keepalive is not a routing message — must produce no outbound frames.
-        nodeA.coordinator.processInbound(peerIdB, Keepalive(flags = 0u, timestampMillis = 0u, proposedChunkSize = 512u))
+        nodeA.coordinator.processInbound(
+            peerIdB,
+            Keepalive(flags = 0u, timestampMillis = 0u, proposedChunkSize = 512u),
+        )
 
         assertEquals(0, collected.size, "Non-routing message must not produce outbound frames")
     }
@@ -440,13 +490,14 @@ class RoutingTest {
         // peerIdB was never registered via onPeerConnected.
         val nodeA = makeNode(peerIdA, edKeyA, dhKeyA, backgroundScope)
 
-        val update = Update(
-            destination = destC,
-            metric = 100u,
-            seqNo = 1u,
-            ed25519PublicKey = edKeyC,
-            x25519PublicKey = dhKeyC,
-        )
+        val update =
+            Update(
+                destination = destC,
+                metric = 100u,
+                seqNo = 1u,
+                ed25519PublicKey = edKeyC,
+                x25519PublicKey = dhKeyC,
+            )
         // Should accept (no FD yet) using defaultLinkCost — must not throw.
         nodeA.coordinator.processInbound(peerIdB, update)
         assertContentEquals(peerIdB, nodeA.coordinator.lookupNextHop(destC))
@@ -468,14 +519,26 @@ class RoutingTest {
         // First Update — accepted.
         nodeB.coordinator.processInbound(
             peerIdA,
-            Update(destC, metric = 200u, seqNo = 100u, ed25519PublicKey = edKeyC, x25519PublicKey = dhKeyC),
+            Update(
+                destC,
+                metric = 200u,
+                seqNo = 100u,
+                ed25519PublicKey = edKeyC,
+                x25519PublicKey = dhKeyC,
+            ),
         )
 
         // Craft a rejected Update: same seqNo + higher cost (feasibility rejects it).
         val differentDhKey = ByteArray(32) { 0xFF.toByte() }
         nodeB.coordinator.processInbound(
             peerIdA,
-            Update(destC, metric = 9999u, seqNo = 100u, ed25519PublicKey = edKeyC, x25519PublicKey = differentDhKey),
+            Update(
+                destC,
+                metric = 9999u,
+                seqNo = 100u,
+                ed25519PublicKey = edKeyC,
+                x25519PublicKey = differentDhKey,
+            ),
         )
 
         // TrustStore should still have the FIRST key (rejected update must not re-pin).
@@ -540,7 +603,7 @@ class RoutingTest {
         testScheduler.runCurrent()
 
         nodeA.coordinator.onPeerConnected(makePeerInfo(peerIdB))
-        testScheduler.runCurrent()  // flush subscriber continuation
+        testScheduler.runCurrent() // flush subscriber continuation
 
         // Should have emitted at least the direct route Update to peerIdB.
         assertTrue(
@@ -564,16 +627,23 @@ class RoutingTest {
         nodeB.coordinator.onPeerConnected(makePeerInfo(peerIdA))
         nodeB.coordinator.processInbound(
             peerIdA,
-            Update(destC, metric = 100u, seqNo = 50u, ed25519PublicKey = edKeyC, x25519PublicKey = dhKeyC),
+            Update(
+                destC,
+                metric = 100u,
+                seqNo = 50u,
+                ed25519PublicKey = edKeyC,
+                x25519PublicKey = dhKeyC,
+            ),
         )
         collected.clear()
 
         nodeB.coordinator.onPeerDisconnected(peerIdA)
-        testScheduler.runCurrent()  // flush subscriber continuation
+        testScheduler.runCurrent() // flush subscriber continuation
 
         // Retraction Updates are broadcast (peerId == null) with metric == METRIC_RETRACTION.
         val retractions = collected.filter { frame ->
-            frame.peerId == null && frame.message is Update &&
+            frame.peerId == null &&
+                frame.message is Update &&
                 (frame.message as Update).metric == METRIC_RETRACTION
         }
         assertTrue(retractions.isNotEmpty(), "Disconnect should broadcast retraction Updates")
@@ -587,10 +657,17 @@ class RoutingTest {
 
         nodeB.coordinator.onPeerConnected(makePeerInfo(peerIdA, rssi = -50, lossRate = 0.0))
 
-        // Install a route so that processHello has something to diff and next Hello from A is processed.
+        // Install a route so that processHello has something to diff and next Hello from A is
+        // processed.
         nodeB.coordinator.processInbound(
             peerIdA,
-            Update(destC, metric = 100u, seqNo = 1u, ed25519PublicKey = edKeyC, x25519PublicKey = dhKeyC),
+            Update(
+                destC,
+                metric = 100u,
+                seqNo = 1u,
+                ed25519PublicKey = edKeyC,
+                x25519PublicKey = dhKeyC,
+            ),
         )
 
         // Advance clock by 1 second, send Hello from A.
