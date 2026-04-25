@@ -16,3 +16,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "MeshLink"
 include(":meshlink")
+include(":meshlink-testing")

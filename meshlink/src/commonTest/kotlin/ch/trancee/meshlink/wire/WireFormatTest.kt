@@ -710,6 +710,18 @@ class WireFormatTest {
             assertEquals(16, decoded.messageId.size)
         }
 
+        // Chunk: payload absent → ByteArray(0) via ?: fallback in Chunk.decode()
+        run {
+            val wb = WriteBuffer()
+            wb.startTable(3) // only fields 0-2; field 3 (payload) not present in vtable
+            wb.addByteVector(0, ByteArray(16) { it.toByte() })
+            wb.addUShort(1, 3u)
+            wb.addUShort(2, 7u)
+            val frame = byteArrayOf(MessageType.CHUNK.code.toByte()) + wb.finish()
+            val decoded = WireCodec.decode(frame) as Chunk
+            assertEquals(0, decoded.payload.size) // ?: ByteArray(0) null branch
+        }
+
         // ChunkAck: messageId absent → ByteArray(16)
         run {
             val wb = WriteBuffer()
@@ -820,6 +832,14 @@ class WireFormatTest {
      */
     @Test
     fun messageEqualsFalseBranchCoverage() {
+        // Handshake: step differs (short-circuit: step != other.step → false without checking
+        // noiseMessage)
+        run {
+            val a = Handshake(1u, byteArrayOf(0x01))
+            val b = Handshake(2u, byteArrayOf(0x01))
+            assertFalse(a.equals(b))
+        }
+
         // Handshake: noiseMessage differs
         run {
             val a = Handshake(1u, byteArrayOf(0x01))

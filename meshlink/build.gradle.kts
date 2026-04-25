@@ -55,7 +55,10 @@ kotlin {
 
     sourceSets {
         commonMain.dependencies { implementation(libs.kotlinx.coroutines.core) }
-        commonTest.dependencies { implementation(kotlin("test")) }
+        commonTest.dependencies {
+            implementation(kotlin("test"))
+            implementation(libs.kotlinx.coroutines.test)
+        }
         // jvmMain is test/build infrastructure only — not a shipping target.
         // flatbuffers-java is JVM-only (no Kotlin/Native variant); moved from commonMain so
         // iOS compilation is not broken. Pure-Kotlin codec in commonMain/wire/ handles runtime
