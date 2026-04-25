@@ -7,7 +7,6 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
-import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
@@ -69,7 +68,9 @@ class PowerManagerTest {
         assertEquals(PowerTier.PERFORMANCE, pm.currentTier)
 
         // Bootstrap fires after 500ms
-        testScheduler.advanceTimeBy(fastConfig.bootstrapDurationMs + fastConfig.batteryPollIntervalMs)
+        testScheduler.advanceTimeBy(
+            fastConfig.bootstrapDurationMs + fastConfig.batteryPollIntervalMs
+        )
         // Battery at 90% → stays PERFORMANCE
         assertEquals(PowerTier.PERFORMANCE, pm.currentTier)
     }
@@ -78,12 +79,13 @@ class PowerManagerTest {
     fun `onFirstConnectionEstablished when bootstrap already ended via timeout covers null job branch`() =
         runTest {
             val stub = StubBatteryMonitor(level = 0.90f)
-            val pm =
-                PowerManager(backgroundScope, stub, { testScheduler.currentTime }, fastConfig)
+            val pm = PowerManager(backgroundScope, stub, { testScheduler.currentTime }, fastConfig)
             testScheduler.runCurrent()
 
             // Let bootstrap timeout fire → bootstrapJob becomes null
-            testScheduler.advanceTimeBy(fastConfig.bootstrapDurationMs + fastConfig.batteryPollIntervalMs)
+            testScheduler.advanceTimeBy(
+                fastConfig.bootstrapDurationMs + fastConfig.batteryPollIntervalMs
+            )
             testScheduler.runCurrent()
 
             // Call with bootstrapJob == null → covers the if(job != null) false branch
@@ -102,8 +104,13 @@ class PowerManagerTest {
         pm.onFirstConnectionEstablished()
 
         stub.level = 0.78f // Below performanceThreshold − hysteresis (0.80 − 0.02 = 0.78)
-        // Timer starts at first poll. Advance past hysteresis delay + one extra poll to guarantee fire.
-        testScheduler.advanceTimeBy(fastConfig.batteryPollIntervalMs + fastConfig.hysteresisDelayMs + fastConfig.batteryPollIntervalMs)
+        // Timer starts at first poll. Advance past hysteresis delay + one extra poll to guarantee
+        // fire.
+        testScheduler.advanceTimeBy(
+            fastConfig.batteryPollIntervalMs +
+                fastConfig.hysteresisDelayMs +
+                fastConfig.batteryPollIntervalMs
+        )
         testScheduler.runCurrent()
         assertEquals(PowerTier.BALANCED, pm.currentTier)
     }
@@ -116,7 +123,11 @@ class PowerManagerTest {
         pm.onFirstConnectionEstablished()
 
         stub.level = 0.79f // Above 0.78 → dead band, no downgrade timer started
-        testScheduler.advanceTimeBy(fastConfig.batteryPollIntervalMs + fastConfig.hysteresisDelayMs + fastConfig.batteryPollIntervalMs)
+        testScheduler.advanceTimeBy(
+            fastConfig.batteryPollIntervalMs +
+                fastConfig.hysteresisDelayMs +
+                fastConfig.batteryPollIntervalMs
+        )
         testScheduler.runCurrent()
         assertEquals(PowerTier.PERFORMANCE, pm.currentTier)
     }
@@ -152,7 +163,11 @@ class PowerManagerTest {
         pm.onFirstConnectionEstablished()
 
         stub.level = 0.20f // Below powerSaverThreshold − hysteresis (0.30 − 0.02 = 0.28)
-        testScheduler.advanceTimeBy(fastConfig.batteryPollIntervalMs + fastConfig.hysteresisDelayMs + fastConfig.batteryPollIntervalMs)
+        testScheduler.advanceTimeBy(
+            fastConfig.batteryPollIntervalMs +
+                fastConfig.hysteresisDelayMs +
+                fastConfig.batteryPollIntervalMs
+        )
         testScheduler.runCurrent()
         assertEquals(PowerTier.POWER_SAVER, pm.currentTier)
     }
@@ -169,9 +184,12 @@ class PowerManagerTest {
         testScheduler.runCurrent()
         assertEquals(PowerTier.BALANCED, pm.currentTier)
 
-        // Now drop to POWER_SAVER range from BALANCED (removes custom mode, evaluates with new battery)
+        // Now drop to POWER_SAVER range from BALANCED (removes custom mode, evaluates with new
+        // battery)
         stub.level = 0.20f
-        pm.setCustomMode(null) // evaluateBattery: currentTier=BALANCED, battery=0.20 → POWER_SAVER downgrade starts
+        pm.setCustomMode(
+            null
+        ) // evaluateBattery: currentTier=BALANCED, battery=0.20 → POWER_SAVER downgrade starts
         testScheduler.advanceTimeBy(fastConfig.hysteresisDelayMs + fastConfig.batteryPollIntervalMs)
         testScheduler.runCurrent()
         assertEquals(PowerTier.POWER_SAVER, pm.currentTier)
@@ -200,8 +218,7 @@ class PowerManagerTest {
     fun `upward false branch BALANCED to PERFORMANCE battery just above threshold but below hysteresis`() =
         runTest {
             val stub = StubBatteryMonitor(level = 0.90f)
-            val pm =
-                PowerManager(backgroundScope, stub, { testScheduler.currentTime }, fastConfig)
+            val pm = PowerManager(backgroundScope, stub, { testScheduler.currentTime }, fastConfig)
             testScheduler.runCurrent()
             pm.onFirstConnectionEstablished()
 
@@ -210,7 +227,8 @@ class PowerManagerTest {
             pm.setCustomMode(PowerTier.BALANCED)
             testScheduler.runCurrent()
             pm.setCustomMode(null)
-            // evaluateBattery: BALANCED→PERFORMANCE upward, battery(0.81) >= 0.82? NO → stays BALANCED
+            // evaluateBattery: BALANCED→PERFORMANCE upward, battery(0.81) >= 0.82? NO → stays
+            // BALANCED
             testScheduler.runCurrent()
             assertEquals(PowerTier.BALANCED, pm.currentTier)
         }
@@ -492,9 +510,15 @@ class PowerManagerTest {
 
         pm.tryAcquireConnection(byteArrayOf(1), Priority.NORMAL)
         // Update status — no crash, stored internally
-        pm.updateConnectionStatus(byteArrayOf(1), TransferStatus(bytesPerSecond = 2000f, remainingBytes = 10_000L))
+        pm.updateConnectionStatus(
+            byteArrayOf(1),
+            TransferStatus(bytesPerSecond = 2000f, remainingBytes = 10_000L),
+        )
         // Unknown peer — no crash (no-op)
-        pm.updateConnectionStatus(byteArrayOf(99), TransferStatus(bytesPerSecond = 100f, remainingBytes = 1_000L))
+        pm.updateConnectionStatus(
+            byteArrayOf(99),
+            TransferStatus(bytesPerSecond = 100f, remainingBytes = 1_000L),
+        )
     }
 
     @Test
@@ -691,7 +715,8 @@ class TieredShedderTest {
 
     @Test
     fun `evaluate returns Accept when below max connections`() {
-        val result = shedder.evaluate(byteArrayOf(1), Priority.NORMAL, emptyList(), 4, minThroughput)
+        val result =
+            shedder.evaluate(byteArrayOf(1), Priority.NORMAL, emptyList(), 4, minThroughput)
         assertEquals(EvictionDecision.Accept, result)
     }
 
@@ -727,9 +752,7 @@ class TieredShedderTest {
     fun `evaluate isIdleOrStalled covers stalled path`() {
         // Peer with stalled transfer (bps < minThroughput)
         val conns =
-            listOf(
-                ManagedConnection(byteArrayOf(1), Priority.LOW, TransferStatus(100f, 10_000L))
-            )
+            listOf(ManagedConnection(byteArrayOf(1), Priority.LOW, TransferStatus(100f, 10_000L)))
         val result = shedder.evaluate(byteArrayOf(2), Priority.HIGH, conns, 1, minThroughput)
         assertTrue(result is EvictionDecision.EvictAndAccept)
     }
@@ -738,15 +761,27 @@ class TieredShedderTest {
     fun `evaluate isIdleOrStalled covers active path`() {
         // Peer with active transfer (bps >= minThroughput) — still evictable if only candidate
         val conns =
-            listOf(
-                ManagedConnection(
-                    byteArrayOf(1),
-                    Priority.LOW,
-                    TransferStatus(5_000f, 10_000L),
-                )
-            )
+            listOf(ManagedConnection(byteArrayOf(1), Priority.LOW, TransferStatus(5_000f, 10_000L)))
         val result = shedder.evaluate(byteArrayOf(2), Priority.HIGH, conns, 1, minThroughput)
         assertTrue(result is EvictionDecision.EvictAndAccept)
+    }
+
+    @Test
+    fun `evaluate sort with two candidates exercises both isIdleOrStalled branches in comparator`() {
+        // Two LOW candidates: one stalled (bps < minThroughput) and one active (bps >=
+        // minThroughput).
+        // sortedWith calls the comparator for both — stalled returns 0, active returns 1.
+        // The stalled peer should be chosen first (lower sort key).
+        val stalledPeer = byteArrayOf(0x0A)
+        val activePeer = byteArrayOf(0x0B)
+        val conns =
+            listOf(
+                ManagedConnection(activePeer, Priority.LOW, TransferStatus(5_000f, 10_000L)),
+                ManagedConnection(stalledPeer, Priority.LOW, TransferStatus(100f, 10_000L)),
+            )
+        val result = shedder.evaluate(byteArrayOf(0x0C), Priority.HIGH, conns, 2, minThroughput)
+        assertTrue(result is EvictionDecision.EvictAndAccept)
+        assertContentEquals(stalledPeer, (result as EvictionDecision.EvictAndAccept).evictPeerId)
     }
 }
 
@@ -778,8 +813,7 @@ class GracefulDrainManagerTest {
     fun `drain immediately evicts stalled connection`() = runTest {
         val mgr = GracefulDrainManager({ testScheduler.currentTime }, testConfig, backgroundScope)
         val evicted = mutableListOf<ByteArray>()
-        val conn =
-            ManagedConnection(byteArrayOf(1), Priority.NORMAL, TransferStatus(100f, 1_000L))
+        val conn = ManagedConnection(byteArrayOf(1), Priority.NORMAL, TransferStatus(100f, 1_000L))
 
         mgr.drain(listOf(conn)) { evicted.add(it) }
         assertEquals(1, evicted.size)
@@ -1220,10 +1254,13 @@ class PowerModeEngineDirectTest {
         engine.onBootstrapEnd()
 
         stub.level = 0.78f
-        t = 0L; engine.evaluateBattery() // start timer for BALANCED at startedAt=0
-        t = 100L; engine.evaluateBattery() // same target, keep timer, 100 < 1000
+        t = 0L
+        engine.evaluateBattery() // start timer for BALANCED at startedAt=0
+        t = 100L
+        engine.evaluateBattery() // same target, keep timer, 100 < 1000
         assertEquals(PowerTier.PERFORMANCE, engine.currentTier) // no transition yet
-        t = 1000L; engine.evaluateBattery() // 1000 >= 1000 → BALANCED
+        t = 1000L
+        engine.evaluateBattery() // 1000 >= 1000 → BALANCED
         assertEquals(PowerTier.BALANCED, engine.currentTier)
     }
 }

@@ -1225,4 +1225,43 @@ class TransferSessionTest {
         val allChunks = frames.filter { it.message is Chunk }
         assertTrue(allChunks.size >= 2) // at least chunks 0, 1, and possibly 2
     }
+
+    @Test
+    fun `sender ack with MAX_VALUE ackSequence reports ackedCount zero in ChunkProgress`() =
+        runTest {
+            val outbound = makeOutbound()
+            val events = makeEvents()
+            val eventList = mutableListOf<TransferEvent>()
+            backgroundScope.launch { outbound.collect {} }
+            backgroundScope.launch { events.collect { eventList.add(it) } }
+
+            // Single-chunk payload so the session is alive but doesn't auto-complete on one ACK.
+            // The MAX_VALUE ACK means "receiver has nothing yet" — sender stays open.
+            val session =
+                TransferSession.sender(
+                    msgId,
+                    peerId,
+                    ByteArray(4) { it.toByte() },
+                    Priority.NORMAL,
+                    1,
+                    fastConfig,
+                    ChunkSizePolicy.fixed(4096), // 1 chunk
+                    true,
+                    backgroundScope,
+                    outbound,
+                    events,
+                )
+            session.start()
+            runCurrent()
+
+            // Send a ChunkAck with ackSequence=MAX_VALUE and zero bitmask:
+            // updateSenderSackFromAck does a no-op loop (start==end), so senderSack remains
+            // empty. buildAck() returns MAX_VALUE → ackedCount = 0.
+            session.onChunkAck(ChunkAck(msgId, UShort.MAX_VALUE, 0uL))
+            runCurrent()
+
+            val progress = eventList.filterIsInstance<TransferEvent.ChunkProgress>()
+            assertTrue(progress.isNotEmpty())
+            assertEquals(0, progress.first().chunksReceived)
+        }
 }

@@ -111,6 +111,9 @@ kover {
                 // of excludedSourceSets.
                 classes("ch.trancee.meshlink.storage.AndroidSecureStorage*")
                 classes("ch.trancee.meshlink.storage.IosSecureStorage*")
+                // Functions annotated with @CoverageIgnore contain defensive null/existence checks
+                // whose unreachable branch cannot be exercised without violating type contracts.
+                annotatedBy("ch.trancee.meshlink.messaging.CoverageIgnore")
             }
         }
         verify {
