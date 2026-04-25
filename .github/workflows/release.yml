@@ -5,10 +5,15 @@ on:
     tags:
       - 'v*'
 
+# Deny all permissions by default; each job grants only what it needs.
+permissions: {}
+
 jobs:
   publish-android:
     name: Publish Android
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-java@v5
@@ -32,6 +37,8 @@ jobs:
   publish-ios:
     name: Publish iOS XCFramework
     runs-on: macos-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-java@v5
