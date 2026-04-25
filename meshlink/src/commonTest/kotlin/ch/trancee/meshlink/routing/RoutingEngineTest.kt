@@ -69,10 +69,10 @@ class RoutingEngineTest {
 
     // (a) newer seqNo accepted, FD reset to new totalCost
     @Test
-    fun `processUpdate newer seqNo is accepted and FD is reset`() {
+    fun `processUpdate newer seqNo is accepted and FD is reset`() = runTest {
         var now = 0L
         val table = RoutingTable { now }
-        val engine = makeEngine(table, { now }, kotlinx.coroutines.GlobalScope)
+        val engine = makeEngine(table, { now }, backgroundScope)
 
         // First install: seqNo=100, wire metric=200 → totalCost=2.0
         assertTrue(engine.processUpdate(peerA, makeUpdate(seqNo = 100u, metric = 200u), 0.0))
@@ -89,10 +89,10 @@ class RoutingEngineTest {
 
     // (b) same seqNo + lower metric accepted
     @Test
-    fun `processUpdate same seqNo lower metric is accepted`() {
+    fun `processUpdate same seqNo lower metric is accepted`() = runTest {
         var now = 0L
         val table = RoutingTable { now }
-        val engine = makeEngine(table, { now }, kotlinx.coroutines.GlobalScope)
+        val engine = makeEngine(table, { now }, backgroundScope)
 
         // FD = 2.0
         assertTrue(engine.processUpdate(peerA, makeUpdate(seqNo = 100u, metric = 200u), 0.0))
@@ -105,10 +105,10 @@ class RoutingEngineTest {
 
     // (c) same seqNo + higher metric rejected
     @Test
-    fun `processUpdate same seqNo higher metric is rejected`() {
+    fun `processUpdate same seqNo higher metric is rejected`() = runTest {
         var now = 0L
         val table = RoutingTable { now }
-        val engine = makeEngine(table, { now }, kotlinx.coroutines.GlobalScope)
+        val engine = makeEngine(table, { now }, backgroundScope)
 
         assertTrue(engine.processUpdate(peerA, makeUpdate(seqNo = 100u, metric = 100u), 0.0))
         val rejected = engine.processUpdate(peerA, makeUpdate(seqNo = 100u, metric = 200u), 0.0)
@@ -119,10 +119,10 @@ class RoutingEngineTest {
 
     // (d) stale seqNo rejected
     @Test
-    fun `processUpdate stale seqNo is rejected`() {
+    fun `processUpdate stale seqNo is rejected`() = runTest {
         var now = 0L
         val table = RoutingTable { now }
-        val engine = makeEngine(table, { now }, kotlinx.coroutines.GlobalScope)
+        val engine = makeEngine(table, { now }, backgroundScope)
 
         // Install with seqNo=101
         assertTrue(engine.processUpdate(peerA, makeUpdate(seqNo = 101u, metric = 200u), 0.0))
@@ -134,10 +134,10 @@ class RoutingEngineTest {
 
     // (e) retraction with newer seqNo removes route and clears FD
     @Test
-    fun `processUpdate retraction with newer seqNo removes route and clears FD`() {
+    fun `processUpdate retraction with newer seqNo removes route and clears FD`() = runTest {
         var now = 0L
         val table = RoutingTable { now }
-        val engine = makeEngine(table, { now }, kotlinx.coroutines.GlobalScope)
+        val engine = makeEngine(table, { now }, backgroundScope)
 
         assertTrue(engine.processUpdate(peerA, makeUpdate(seqNo = 100u, metric = 100u), 0.0))
         assertNotNull(table.lookupRoute(destA))
@@ -151,10 +151,10 @@ class RoutingEngineTest {
 
     // (f) retraction with stale seqNo rejected
     @Test
-    fun `processUpdate retraction with stale seqNo is rejected`() {
+    fun `processUpdate retraction with stale seqNo is rejected`() = runTest {
         var now = 0L
         val table = RoutingTable { now }
-        val engine = makeEngine(table, { now }, kotlinx.coroutines.GlobalScope)
+        val engine = makeEngine(table, { now }, backgroundScope)
 
         assertTrue(engine.processUpdate(peerA, makeUpdate(seqNo = 100u, metric = 100u), 0.0))
         val rejected =
@@ -165,10 +165,10 @@ class RoutingEngineTest {
 
     // (g) after FD cleared by retraction, any finite metric is accepted
     @Test
-    fun `processUpdate after retraction clears FD any metric is accepted`() {
+    fun `processUpdate after retraction clears FD any metric is accepted`() = runTest {
         var now = 0L
         val table = RoutingTable { now }
-        val engine = makeEngine(table, { now }, kotlinx.coroutines.GlobalScope)
+        val engine = makeEngine(table, { now }, backgroundScope)
 
         assertTrue(engine.processUpdate(peerA, makeUpdate(seqNo = 100u, metric = 100u), 0.0))
         // Retract to clear FD
@@ -184,10 +184,10 @@ class RoutingEngineTest {
 
     // retraction for unknown destination returns false (existingRoute == null path)
     @Test
-    fun `processUpdate retraction for unknown destination returns false`() {
+    fun `processUpdate retraction for unknown destination returns false`() = runTest {
         var now = 0L
         val table = RoutingTable { now }
-        val engine = makeEngine(table, { now }, kotlinx.coroutines.GlobalScope)
+        val engine = makeEngine(table, { now }, backgroundScope)
 
         val result =
             engine.processUpdate(peerA, makeUpdate(seqNo = 1u, metric = METRIC_RETRACTION), 0.0)
@@ -196,11 +196,11 @@ class RoutingEngineTest {
 
     // FD exists but route has expired — existingRoute == null in step 3/4
     @Test
-    fun `processUpdate FD set but route expired returns false`() {
+    fun `processUpdate FD set but route expired returns false`() = runTest {
         var now = 0L
         val table = RoutingTable { now }
         val config = RoutingConfig(routeExpiryMillis = 1000L)
-        val engine = makeEngine(table, { now }, kotlinx.coroutines.GlobalScope, config)
+        val engine = makeEngine(table, { now }, backgroundScope, config)
 
         // Install with very short expiry
         assertTrue(engine.processUpdate(peerA, makeUpdate(seqNo = 100u, metric = 100u), 0.0))
@@ -218,10 +218,10 @@ class RoutingEngineTest {
 
     // negative: same seqNo, metric == FD (not strictly less) → rejected
     @Test
-    fun `processUpdate same seqNo metric equal to FD is rejected`() {
+    fun `processUpdate same seqNo metric equal to FD is rejected`() = runTest {
         var now = 0L
         val table = RoutingTable { now }
-        val engine = makeEngine(table, { now }, kotlinx.coroutines.GlobalScope)
+        val engine = makeEngine(table, { now }, backgroundScope)
 
         // FD = 1.0 (metric=100u, linkCost=0)
         assertTrue(engine.processUpdate(peerA, makeUpdate(seqNo = 100u, metric = 100u), 0.0))
@@ -232,10 +232,10 @@ class RoutingEngineTest {
 
     // (l) seqNo wraparound: 0 is accepted after 65535
     @Test
-    fun `processUpdate seqNo 0 after 65535 is accepted as newer`() {
+    fun `processUpdate seqNo 0 after 65535 is accepted as newer`() = runTest {
         var now = 0L
         val table = RoutingTable { now }
-        val engine = makeEngine(table, { now }, kotlinx.coroutines.GlobalScope)
+        val engine = makeEngine(table, { now }, backgroundScope)
 
         assertTrue(engine.processUpdate(peerA, makeUpdate(seqNo = 65535u, metric = 200u), 0.0))
         val accepted = engine.processUpdate(peerA, makeUpdate(seqNo = 0u, metric = 100u), 0.0)
@@ -270,10 +270,10 @@ class RoutingEngineTest {
 
     // (h) new neighbour → full dump
     @Test
-    fun `processHello new neighbor returns full dump`() {
+    fun `processHello new neighbor returns full dump`() = runTest {
         var now = 0L
         val table = RoutingTable { now }
-        val engine = makeEngine(table, { now }, kotlinx.coroutines.GlobalScope)
+        val engine = makeEngine(table, { now }, backgroundScope)
 
         installRoute(table, destA, peerA, 100u)
         installRoute(table, destB, peerA, 200u)
@@ -287,10 +287,10 @@ class RoutingEngineTest {
 
     // (i) digest mismatch → full dump
     @Test
-    fun `processHello digest mismatch triggers full dump`() {
+    fun `processHello digest mismatch triggers full dump`() = runTest {
         var now = 0L
         val table = RoutingTable { now }
-        val engine = makeEngine(table, { now }, kotlinx.coroutines.GlobalScope)
+        val engine = makeEngine(table, { now }, backgroundScope)
 
         installRoute(table, destA, peerA, 100u)
         engine.registerNeighbor(peerB)
@@ -304,10 +304,10 @@ class RoutingEngineTest {
 
     // (j) digest match → differential updates only
     @Test
-    fun `processHello digest match returns differential updates`() {
+    fun `processHello digest match returns differential updates`() = runTest {
         var now = 0L
         val table = RoutingTable { now }
-        val engine = makeEngine(table, { now }, kotlinx.coroutines.GlobalScope)
+        val engine = makeEngine(table, { now }, backgroundScope)
 
         // Install self-route, routeA (seqNo=10), routeB (seqNo=20)
         installRoute(table, localPeerId, localPeerId, 1u, 0.0, localEdKey, localDhKey)
@@ -336,10 +336,10 @@ class RoutingEngineTest {
 
     // negative: new neighbour, empty routing table → returns []
     @Test
-    fun `processHello new neighbor with empty table returns empty list`() {
+    fun `processHello new neighbor with empty table returns empty list`() = runTest {
         var now = 0L
         val table = RoutingTable { now }
-        val engine = makeEngine(table, { now }, kotlinx.coroutines.GlobalScope)
+        val engine = makeEngine(table, { now }, backgroundScope)
 
         val updates = engine.processHello(peerA, Hello(peerA, 1u, 0u))
         assertTrue(updates.isEmpty())
@@ -347,10 +347,10 @@ class RoutingEngineTest {
 
     // negative: digest mismatch, empty table → returns []
     @Test
-    fun `processHello digest mismatch with empty table returns empty list`() {
+    fun `processHello digest mismatch with empty table returns empty list`() = runTest {
         var now = 0L
         val table = RoutingTable { now }
-        val engine = makeEngine(table, { now }, kotlinx.coroutines.GlobalScope)
+        val engine = makeEngine(table, { now }, backgroundScope)
 
         engine.registerNeighbor(peerA)
         val updates = engine.processHello(peerA, Hello(peerA, 1u, 0xFFFFFFFFu))
@@ -359,10 +359,10 @@ class RoutingEngineTest {
 
     // negative: digest match, empty table → differential loop not entered, returns []
     @Test
-    fun `processHello digest match with empty table returns empty list`() {
+    fun `processHello digest match with empty table returns empty list`() = runTest {
         var now = 0L
         val table = RoutingTable { now }
-        val engine = makeEngine(table, { now }, kotlinx.coroutines.GlobalScope)
+        val engine = makeEngine(table, { now }, backgroundScope)
 
         engine.registerNeighbor(peerA)
         // Both table and hello routeDigest are 0 → match
@@ -372,10 +372,10 @@ class RoutingEngineTest {
 
     // negative: new neighbour, table has only self-route → returns self-route only
     @Test
-    fun `processHello new neighbor with only self-route returns self-route only`() {
+    fun `processHello new neighbor with only self-route returns self-route only`() = runTest {
         var now = 0L
         val table = RoutingTable { now }
-        val engine = makeEngine(table, { now }, kotlinx.coroutines.GlobalScope)
+        val engine = makeEngine(table, { now }, backgroundScope)
 
         installRoute(table, localPeerId, localPeerId, 1u, 0.0, localEdKey, localDhKey)
         val updates = engine.processHello(peerA, Hello(peerA, 1u, 0u))
@@ -387,10 +387,10 @@ class RoutingEngineTest {
 
     // (m) retractRoutesVia: removes matching routes and returns retraction Updates
     @Test
-    fun `retractRoutesVia removes routes via peer and leaves others`() {
+    fun `retractRoutesVia removes routes via peer and leaves others`() = runTest {
         var now = 0L
         val table = RoutingTable { now }
-        val engine = makeEngine(table, { now }, kotlinx.coroutines.GlobalScope)
+        val engine = makeEngine(table, { now }, backgroundScope)
 
         // Install route via peerA and route via peerB
         installRoute(table, destA, peerA, 100u)
@@ -411,10 +411,10 @@ class RoutingEngineTest {
 
     // negative: retractRoutesVia for non-existent peer → empty list (empty loop)
     @Test
-    fun `retractRoutesVia non-existent peer returns empty list`() {
+    fun `retractRoutesVia non-existent peer returns empty list`() = runTest {
         var now = 0L
         val table = RoutingTable { now }
-        val engine = makeEngine(table, { now }, kotlinx.coroutines.GlobalScope)
+        val engine = makeEngine(table, { now }, backgroundScope)
 
         val result = engine.retractRoutesVia(peerA)
         assertTrue(result.isEmpty())
@@ -423,10 +423,10 @@ class RoutingEngineTest {
     // ── registerNeighbor / unregisterNeighbor ─────────────────────────────────
 
     @Test
-    fun `registerNeighbor then processHello uses digest check not new-neighbor path`() {
+    fun `registerNeighbor then processHello uses digest check not new-neighbor path`() = runTest {
         var now = 0L
         val table = RoutingTable { now }
-        val engine = makeEngine(table, { now }, kotlinx.coroutines.GlobalScope)
+        val engine = makeEngine(table, { now }, backgroundScope)
 
         installRoute(table, destA, peerA, 100u)
         engine.registerNeighbor(peerB)
@@ -441,10 +441,10 @@ class RoutingEngineTest {
     }
 
     @Test
-    fun `unregisterNeighbor removes tracking so next hello is treated as new neighbor`() {
+    fun `unregisterNeighbor removes tracking so next hello is treated as new neighbor`() = runTest {
         var now = 0L
         val table = RoutingTable { now }
-        val engine = makeEngine(table, { now }, kotlinx.coroutines.GlobalScope)
+        val engine = makeEngine(table, { now }, backgroundScope)
 
         engine.registerNeighbor(peerA)
         engine.unregisterNeighbor(peerA)
@@ -574,10 +574,10 @@ class RoutingEngineTest {
 
     // metric encoding in routeToUpdate: ensure wire metric round-trips through processHello
     @Test
-    fun `routeToUpdate encodes metric correctly via processHello full dump`() {
+    fun `routeToUpdate encodes metric correctly via processHello full dump`() = runTest {
         var now = 0L
         val table = RoutingTable { now }
-        val engine = makeEngine(table, { now }, kotlinx.coroutines.GlobalScope)
+        val engine = makeEngine(table, { now }, backgroundScope)
 
         // Install route with stored metric 2.0 (wire equivalent 200)
         installRoute(table, destA, peerA, 100u, 2.0)
