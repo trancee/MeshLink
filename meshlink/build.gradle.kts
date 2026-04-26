@@ -141,6 +141,11 @@ kover {
                 // onBind) require the Android runtime and cannot be tested on JVM host.
                 // Correctness verified by Android instrumentation tests in S04.
                 classes("ch.trancee.meshlink.transport.MeshLinkService*")
+                // IosBleTransport: CoreBluetooth callbacks (CBCentralManager, CBPeripheralManager,
+                // CBL2CAPChannel) require a real iOS BLE stack and cannot run on JVM host.
+                // Per D024, correctness is proven by S04 two-device integration test on real
+                // hardware (iOS + Android). Also excludes inner delegate classes (*$*Delegate*).
+                classes("ch.trancee.meshlink.transport.IosBleTransport*")
                 // Functions annotated with @CoverageIgnore contain defensive null/existence checks
                 // whose unreachable branch cannot be exercised without violating type contracts.
                 annotatedBy("ch.trancee.meshlink.messaging.CoverageIgnore")
