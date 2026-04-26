@@ -106,9 +106,13 @@ internal class DeliveryPipeline(
     // ── Rate limiters ─────────────────────────────────────────────────────────
 
     private val outboundUnicastLimiter =
-        SlidingWindowRateLimiter(config.outboundUnicastLimit, config.outboundUnicastWindowMs, clock)
+        SlidingWindowRateLimiter(
+            config.outboundUnicastLimit,
+            config.outboundUnicastWindowMillis,
+            clock,
+        )
     private val broadcastLimiter =
-        SlidingWindowRateLimiter(config.broadcastLimit, config.broadcastWindowMs, clock)
+        SlidingWindowRateLimiter(config.broadcastLimit, config.broadcastWindowMillis, clock)
 
     // Lazy-instantiated per (sender, neighbor) pair
     private val relayLimiters = HashMap<PeerPair, SlidingWindowRateLimiter>()
@@ -244,13 +248,13 @@ internal class DeliveryPipeline(
         val recipientEdPubKey = routeCoordinator.lookupEdPublicKey(recipient) ?: ByteArray(32)
 
         // Compute TTL.
-        val ttlMs =
+        val ttlMillis =
             when (priority) {
-                Priority.HIGH -> config.highPriorityTtlMs
-                Priority.NORMAL -> config.normalPriorityTtlMs
-                Priority.LOW -> config.lowPriorityTtlMs
+                Priority.HIGH -> config.highPriorityTtlMillis
+                Priority.NORMAL -> config.normalPriorityTtlMillis
+                Priority.LOW -> config.lowPriorityTtlMillis
             }
-        val expiresAt = clock() + ttlMs
+        val expiresAt = clock() + ttlMillis
 
         // Route lookup.
         val nextHop = routeCoordinator.lookupNextHop(recipient)
@@ -378,7 +382,7 @@ internal class DeliveryPipeline(
                             nackLimiters.getOrPut(fromPeerId.asList()) {
                                 SlidingWindowRateLimiter(
                                     config.nackLimit,
-                                    config.nackWindowMs,
+                                    config.nackWindowMillis,
                                     clock,
                                 )
                             }
@@ -451,7 +455,7 @@ internal class DeliveryPipeline(
                 relayLimiters.getOrPut(relayKey) {
                     SlidingWindowRateLimiter(
                         config.relayPerSenderPerNeighborLimit,
-                        config.relayPerSenderPerNeighborWindowMs,
+                        config.relayPerSenderPerNeighborWindowMillis,
                         clock,
                     )
                 }
@@ -460,7 +464,7 @@ internal class DeliveryPipeline(
                 neighborAggregateLimiters.getOrPut(fromPeerId.asList()) {
                     SlidingWindowRateLimiter(
                         config.perNeighborAggregateLimit,
-                        config.perNeighborAggregateWindowMs,
+                        config.perNeighborAggregateWindowMillis,
                         clock,
                     )
                 }
@@ -489,7 +493,7 @@ internal class DeliveryPipeline(
             inboundSenderLimiters.getOrPut(msg.origin.asList()) {
                 SlidingWindowRateLimiter(
                     config.perSenderInboundLimit,
-                    config.perSenderInboundWindowMs,
+                    config.perSenderInboundWindowMillis,
                     clock,
                 )
             }
@@ -530,7 +534,7 @@ internal class DeliveryPipeline(
                 relayLimiters.getOrPut(PeerPair(MessageIdKey(peer), MessageIdKey(msg.origin))) {
                     SlidingWindowRateLimiter(
                         config.relayPerSenderPerNeighborLimit,
-                        config.relayPerSenderPerNeighborWindowMs,
+                        config.relayPerSenderPerNeighborWindowMillis,
                         clock,
                     )
                 }
@@ -539,7 +543,7 @@ internal class DeliveryPipeline(
                 neighborAggregateLimiters.getOrPut(peer.asList()) {
                     SlidingWindowRateLimiter(
                         config.perNeighborAggregateLimit,
-                        config.perNeighborAggregateWindowMs,
+                        config.perNeighborAggregateWindowMillis,
                         clock,
                     )
                 }
@@ -639,7 +643,7 @@ internal class DeliveryPipeline(
         val encodedAck = WireCodec.encode(ack)
 
         val retryDelays = longArrayOf(2_000L, 4_000L, 8_000L)
-        for (delayMs in retryDelays) {
+        for (delayMillis in retryDelays) {
             val nextHop = routeCoordinator.lookupNextHop(targetId)
             if (nextHop != null) {
                 // Wrap the ACK in a RoutedMessage so relay nodes forward it hop-by-hop
@@ -662,7 +666,7 @@ internal class DeliveryPipeline(
                 transferEngine.send(generateMessageId(), payload, nextHop, Priority.NORMAL)
                 return
             }
-            delay(delayMs)
+            delay(delayMillis)
         }
         // All retries failed — buffer for later delivery.
         if (ackBuffer.size < 50) {
@@ -812,7 +816,7 @@ internal class DeliveryPipeline(
         fun canSend(): Boolean {
             if (state == CircuitBreakerState.CLOSED) return true
             if (state == CircuitBreakerState.OPEN) {
-                if (clock() - openedAt >= cbConfig.cooldownMs) {
+                if (clock() - openedAt >= cbConfig.cooldownMillis) {
                     state = CircuitBreakerState.HALF_OPEN
                     return true
                 }
@@ -832,11 +836,11 @@ internal class DeliveryPipeline(
             val now = clock()
             // Evict expired timestamps first so the list may become empty before we add the new
             // one.
-            // (If addLast ran first, `now - now = 0` can never exceed windowMs, making the
+            // (If addLast ran first, `now - now = 0` can never exceed windowMillis, making the
             // isNotEmpty()=false exit path unreachable in JaCoCo's coverage tracking.)
             while (
                 failureTimestamps.isNotEmpty() &&
-                    now - failureTimestamps.first() > cbConfig.windowMs
+                    now - failureTimestamps.first() > cbConfig.windowMillis
             ) {
                 failureTimestamps.removeFirst()
             }

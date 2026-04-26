@@ -76,7 +76,7 @@ internal class NoiseHandshakeManager(
         // Rate limit: skip if the last attempt is within the rolling window.
         val lastAttempt = lastHandshakeAttempt[peerKey]
         val now = clock()
-        if (lastAttempt != null && now - lastAttempt < config.rateLimitWindowMs) {
+        if (lastAttempt != null && now - lastAttempt < config.rateLimitWindowMillis) {
             return
         }
 

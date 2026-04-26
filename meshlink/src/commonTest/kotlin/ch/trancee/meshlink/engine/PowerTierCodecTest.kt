@@ -69,14 +69,14 @@ class PowerTierCodecTest {
     fun `HandshakeConfig default values`() {
         val cfg = HandshakeConfig()
         assertEquals(10, cfg.maxConcurrentHandshakes)
-        assertEquals(1_000L, cfg.rateLimitWindowMs)
+        assertEquals(1_000L, cfg.rateLimitWindowMillis)
     }
 
     @Test
     fun `HandshakeConfig custom values override defaults`() {
-        val cfg = HandshakeConfig(maxConcurrentHandshakes = 5, rateLimitWindowMs = 500L)
+        val cfg = HandshakeConfig(maxConcurrentHandshakes = 5, rateLimitWindowMillis = 500L)
         assertEquals(5, cfg.maxConcurrentHandshakes)
-        assertEquals(500L, cfg.rateLimitWindowMs)
+        assertEquals(500L, cfg.rateLimitWindowMillis)
     }
 
     // ── MeshEngineConfig default values ───────────────────────────────────────

@@ -52,10 +52,10 @@ class MeshEngineIntegrationTest {
                 ),
             power =
                 PowerConfig(
-                    batteryPollIntervalMs =
+                    batteryPollIntervalMillis =
                         300_000L, // does NOT fire during routing-propagation advance
-                    bootstrapDurationMs = 100L,
-                    hysteresisDelayMs = 100L,
+                    bootstrapDurationMillis = 100L,
+                    hysteresisDelayMillis = 100L,
                     performanceThreshold = 0.80f,
                     powerSaverThreshold = 0.30f,
                     performanceMaxConnections = 6,
@@ -335,9 +335,9 @@ class MeshEngineIntegrationTest {
             integrationConfig.copy(
                 power =
                     integrationConfig.power.copy(
-                        batteryPollIntervalMs = 200L,
-                        bootstrapDurationMs = 100L,
-                        hysteresisDelayMs = 100L,
+                        batteryPollIntervalMillis = 200L,
+                        bootstrapDurationMillis = 100L,
+                        hysteresisDelayMillis = 100L,
                     )
             )
         val storageA = InMemorySecureStorage()
@@ -365,7 +365,8 @@ class MeshEngineIntegrationTest {
         // Drop battery below POWER_SAVER threshold (0.30f)
         batteryMonitorA.level = 0.15f
 
-        // Advance past bootstrapDurationMs (100ms) + batteryPollInterval (200ms) + hysteresisDelay
+        // Advance past bootstrapDurationMillis (100ms) + batteryPollInterval (200ms) +
+        // hysteresisDelay
         // (100ms)
         testScheduler.advanceTimeBy(600L)
         testScheduler.runCurrent()
@@ -455,9 +456,9 @@ class MeshEngineIntegrationTest {
             integrationConfig.copy(
                 power =
                     integrationConfig.power.copy(
-                        batteryPollIntervalMs = 200L,
-                        bootstrapDurationMs = 100L,
-                        hysteresisDelayMs = 100L,
+                        batteryPollIntervalMillis = 200L,
+                        bootstrapDurationMillis = 100L,
+                        hysteresisDelayMillis = 100L,
                     )
             )
         val mesh =

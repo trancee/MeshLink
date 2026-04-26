@@ -218,14 +218,14 @@ class MessagingFoundationTest {
     @Test
     fun `SlidingWindowRateLimiter empty window allows on first call`() {
         var now = 0L
-        val rl = SlidingWindowRateLimiter(limit = 3, windowMs = 1_000, clock = { now })
+        val rl = SlidingWindowRateLimiter(limit = 3, windowMillis = 1_000, clock = { now })
         assertTrue(rl.tryAcquire())
     }
 
     @Test
     fun `SlidingWindowRateLimiter allows up to limit`() {
         var now = 0L
-        val rl = SlidingWindowRateLimiter(limit = 3, windowMs = 1_000, clock = { now })
+        val rl = SlidingWindowRateLimiter(limit = 3, windowMillis = 1_000, clock = { now })
         assertTrue(rl.tryAcquire())
         assertTrue(rl.tryAcquire())
         assertTrue(rl.tryAcquire())
@@ -234,7 +234,7 @@ class MessagingFoundationTest {
     @Test
     fun `SlidingWindowRateLimiter rejects at limit plus one`() {
         var now = 0L
-        val rl = SlidingWindowRateLimiter(limit = 3, windowMs = 1_000, clock = { now })
+        val rl = SlidingWindowRateLimiter(limit = 3, windowMillis = 1_000, clock = { now })
         repeat(3) { assertTrue(rl.tryAcquire()) }
         assertFalse(rl.tryAcquire()) // count >= limit → reject
     }
@@ -242,7 +242,7 @@ class MessagingFoundationTest {
     @Test
     fun `SlidingWindowRateLimiter window expiry re-allows`() {
         var now = 0L
-        val rl = SlidingWindowRateLimiter(limit = 2, windowMs = 1_000, clock = { now })
+        val rl = SlidingWindowRateLimiter(limit = 2, windowMillis = 1_000, clock = { now })
         assertTrue(rl.tryAcquire())
         assertTrue(rl.tryAcquire())
         assertFalse(rl.tryAcquire()) // full
@@ -254,7 +254,7 @@ class MessagingFoundationTest {
     fun `SlidingWindowRateLimiter clock-driven partial eviction`() {
         // Add 2 events at t=0, then advance so only the first is expired.
         var now = 0L
-        val rl = SlidingWindowRateLimiter(limit = 3, windowMs = 1_000, clock = { now })
+        val rl = SlidingWindowRateLimiter(limit = 3, windowMillis = 1_000, clock = { now })
         assertTrue(rl.tryAcquire()) // t=0
         now = 500L
         assertTrue(rl.tryAcquire()) // t=500
@@ -269,7 +269,7 @@ class MessagingFoundationTest {
     fun `SlidingWindowRateLimiter entry within window blocks eviction`() {
         // Fill to limit, advance to just before window expiry — should still be full.
         var now = 0L
-        val rl = SlidingWindowRateLimiter(limit = 2, windowMs = 1_000, clock = { now })
+        val rl = SlidingWindowRateLimiter(limit = 2, windowMillis = 1_000, clock = { now })
         assertTrue(rl.tryAcquire())
         assertTrue(rl.tryAcquire())
         now = 999L // still within window
@@ -279,17 +279,17 @@ class MessagingFoundationTest {
     @Test
     fun `SlidingWindowRateLimiter rapid-fire at boundary limit 1`() {
         var now = 0L
-        val rl = SlidingWindowRateLimiter(limit = 1, windowMs = 500, clock = { now })
+        val rl = SlidingWindowRateLimiter(limit = 1, windowMillis = 500, clock = { now })
         assertTrue(rl.tryAcquire())
         assertFalse(rl.tryAcquire()) // same instant, still within window
-        now = 500L // exactly at boundary (>= windowMs)
+        now = 500L // exactly at boundary (>= windowMillis)
         assertTrue(rl.tryAcquire()) // evicted, allowed
     }
 
     @Test
     fun `SlidingWindowRateLimiter limit zero rejects everything`() {
         var now = 0L
-        val rl = SlidingWindowRateLimiter(limit = 0, windowMs = 1_000, clock = { now })
+        val rl = SlidingWindowRateLimiter(limit = 0, windowMillis = 1_000, clock = { now })
         assertFalse(rl.tryAcquire())
         now = 5_000L
         assertFalse(rl.tryAcquire())
@@ -298,7 +298,7 @@ class MessagingFoundationTest {
     @Test
     fun `SlidingWindowRateLimiter window zero expires entries immediately`() {
         var now = 0L
-        val rl = SlidingWindowRateLimiter(limit = 2, windowMs = 0, clock = { now })
+        val rl = SlidingWindowRateLimiter(limit = 2, windowMillis = 0, clock = { now })
         assertTrue(rl.tryAcquire()) // records at t=0
         assertTrue(rl.tryAcquire()) // t=0 - t=0 = 0 >= 0 → evicted; count < 2, allowed
         assertTrue(rl.tryAcquire()) // same logic, entries always evicted
@@ -307,7 +307,7 @@ class MessagingFoundationTest {
     @Test
     fun `SlidingWindowRateLimiter all entries evicted restores full capacity`() {
         var now = 0L
-        val rl = SlidingWindowRateLimiter(limit = 3, windowMs = 100, clock = { now })
+        val rl = SlidingWindowRateLimiter(limit = 3, windowMillis = 100, clock = { now })
         repeat(3) { assertTrue(rl.tryAcquire()) }
         assertFalse(rl.tryAcquire())
         now = 200L // all 3 entries expired
@@ -325,9 +325,9 @@ class MessagingFoundationTest {
     @Test
     fun `MessagingConfig default values`() {
         val config = makeConfig()
-        assertEquals(2_700_000L, config.highPriorityTtlMs)
-        assertEquals(900_000L, config.normalPriorityTtlMs)
-        assertEquals(300_000L, config.lowPriorityTtlMs)
+        assertEquals(2_700_000L, config.highPriorityTtlMillis)
+        assertEquals(900_000L, config.normalPriorityTtlMillis)
+        assertEquals(300_000L, config.lowPriorityTtlMillis)
         assertEquals(100, config.maxBufferedMessages)
         assertEquals(2u, config.broadcastTtl)
         assertEquals(10_000, config.maxBroadcastSize)
@@ -335,43 +335,43 @@ class MessagingFoundationTest {
         assertTrue(config.requireBroadcastSignatures)
         assertFalse(config.allowUnsignedBroadcasts)
         assertEquals(60, config.outboundUnicastLimit)
-        assertEquals(60_000L, config.outboundUnicastWindowMs)
+        assertEquals(60_000L, config.outboundUnicastWindowMillis)
         assertEquals(10, config.broadcastLimit)
-        assertEquals(60_000L, config.broadcastWindowMs)
+        assertEquals(60_000L, config.broadcastWindowMillis)
         assertEquals(20, config.relayPerSenderPerNeighborLimit)
-        assertEquals(60_000L, config.relayPerSenderPerNeighborWindowMs)
+        assertEquals(60_000L, config.relayPerSenderPerNeighborWindowMillis)
         assertEquals(100, config.perNeighborAggregateLimit)
-        assertEquals(60_000L, config.perNeighborAggregateWindowMs)
+        assertEquals(60_000L, config.perNeighborAggregateWindowMillis)
         assertEquals(30, config.perSenderInboundLimit)
-        assertEquals(60_000L, config.perSenderInboundWindowMs)
+        assertEquals(60_000L, config.perSenderInboundWindowMillis)
         assertEquals(1, config.handshakeLimit)
-        assertEquals(1_000L, config.handshakeWindowMs)
+        assertEquals(1_000L, config.handshakeWindowMillis)
         assertEquals(10, config.nackLimit)
-        assertEquals(1_000L, config.nackWindowMs)
+        assertEquals(1_000L, config.nackWindowMillis)
         assertEquals(MessagingConfig.CircuitBreakerConfig(), config.circuitBreaker)
     }
 
     @Test
     fun `MessagingConfig CircuitBreakerConfig defaults`() {
         val cb = MessagingConfig.CircuitBreakerConfig()
-        assertEquals(60_000L, cb.windowMs)
+        assertEquals(60_000L, cb.windowMillis)
         assertEquals(3, cb.maxFailures)
-        assertEquals(30_000L, cb.cooldownMs)
+        assertEquals(30_000L, cb.cooldownMillis)
     }
 
     @Test
     fun `MessagingConfig custom values`() {
         val cb =
             MessagingConfig.CircuitBreakerConfig(
-                windowMs = 10_000,
+                windowMillis = 10_000,
                 maxFailures = 5,
-                cooldownMs = 5_000,
+                cooldownMillis = 5_000,
             )
         val config =
             MessagingConfig(
-                highPriorityTtlMs = 1_000,
-                normalPriorityTtlMs = 2_000,
-                lowPriorityTtlMs = 3_000,
+                highPriorityTtlMillis = 1_000,
+                normalPriorityTtlMillis = 2_000,
+                lowPriorityTtlMillis = 3_000,
                 maxBufferedMessages = 50,
                 broadcastTtl = 3u,
                 maxBroadcastSize = 5_000,
@@ -380,24 +380,24 @@ class MessagingFoundationTest {
                 requireBroadcastSignatures = false,
                 allowUnsignedBroadcasts = true,
                 outboundUnicastLimit = 30,
-                outboundUnicastWindowMs = 30_000,
+                outboundUnicastWindowMillis = 30_000,
                 broadcastLimit = 5,
-                broadcastWindowMs = 30_000,
+                broadcastWindowMillis = 30_000,
                 relayPerSenderPerNeighborLimit = 10,
-                relayPerSenderPerNeighborWindowMs = 30_000,
+                relayPerSenderPerNeighborWindowMillis = 30_000,
                 perNeighborAggregateLimit = 50,
-                perNeighborAggregateWindowMs = 30_000,
+                perNeighborAggregateWindowMillis = 30_000,
                 perSenderInboundLimit = 15,
-                perSenderInboundWindowMs = 30_000,
+                perSenderInboundWindowMillis = 30_000,
                 handshakeLimit = 2,
-                handshakeWindowMs = 2_000,
+                handshakeWindowMillis = 2_000,
                 nackLimit = 5,
-                nackWindowMs = 500,
+                nackWindowMillis = 500,
                 circuitBreaker = cb,
             )
-        assertEquals(1_000L, config.highPriorityTtlMs)
-        assertEquals(2_000L, config.normalPriorityTtlMs)
-        assertEquals(3_000L, config.lowPriorityTtlMs)
+        assertEquals(1_000L, config.highPriorityTtlMillis)
+        assertEquals(2_000L, config.normalPriorityTtlMillis)
+        assertEquals(3_000L, config.lowPriorityTtlMillis)
         assertEquals(50, config.maxBufferedMessages)
         assertEquals(3u, config.broadcastTtl)
         assertEquals(5_000, config.maxBroadcastSize)
@@ -405,19 +405,19 @@ class MessagingFoundationTest {
         assertFalse(config.requireBroadcastSignatures)
         assertTrue(config.allowUnsignedBroadcasts)
         assertEquals(30, config.outboundUnicastLimit)
-        assertEquals(30_000L, config.outboundUnicastWindowMs)
+        assertEquals(30_000L, config.outboundUnicastWindowMillis)
         assertEquals(5, config.broadcastLimit)
-        assertEquals(30_000L, config.broadcastWindowMs)
+        assertEquals(30_000L, config.broadcastWindowMillis)
         assertEquals(10, config.relayPerSenderPerNeighborLimit)
-        assertEquals(30_000L, config.relayPerSenderPerNeighborWindowMs)
+        assertEquals(30_000L, config.relayPerSenderPerNeighborWindowMillis)
         assertEquals(50, config.perNeighborAggregateLimit)
-        assertEquals(30_000L, config.perNeighborAggregateWindowMs)
+        assertEquals(30_000L, config.perNeighborAggregateWindowMillis)
         assertEquals(15, config.perSenderInboundLimit)
-        assertEquals(30_000L, config.perSenderInboundWindowMs)
+        assertEquals(30_000L, config.perSenderInboundWindowMillis)
         assertEquals(2, config.handshakeLimit)
-        assertEquals(2_000L, config.handshakeWindowMs)
+        assertEquals(2_000L, config.handshakeWindowMillis)
         assertEquals(5, config.nackLimit)
-        assertEquals(500L, config.nackWindowMs)
+        assertEquals(500L, config.nackWindowMillis)
         assertEquals(cb, config.circuitBreaker)
     }
 
@@ -448,31 +448,31 @@ class MessagingFoundationTest {
     }
 
     // Individual field-change tests — cover each && false branch in equals():
-    // equals order: highPriorityTtlMs, normalPriorityTtlMs, lowPriorityTtlMs,
+    // equals order: highPriorityTtlMillis, normalPriorityTtlMillis, lowPriorityTtlMillis,
     //   maxBufferedMessages, broadcastTtl, maxBroadcastSize, maxMessageSize,
     //   appIdHash, requireBroadcastSignatures, allowUnsignedBroadcasts,
-    //   outboundUnicastLimit, outboundUnicastWindowMs, broadcastLimit, broadcastWindowMs,
-    //   relayPerSenderPerNeighborLimit, relayPerSenderPerNeighborWindowMs,
-    //   perNeighborAggregateLimit, perNeighborAggregateWindowMs,
-    //   perSenderInboundLimit, perSenderInboundWindowMs,
-    //   handshakeLimit, handshakeWindowMs, nackLimit, nackWindowMs, circuitBreaker
+    //   outboundUnicastLimit, outboundUnicastWindowMillis, broadcastLimit, broadcastWindowMillis,
+    //   relayPerSenderPerNeighborLimit, relayPerSenderPerNeighborWindowMillis,
+    //   perNeighborAggregateLimit, perNeighborAggregateWindowMillis,
+    //   perSenderInboundLimit, perSenderInboundWindowMillis,
+    //   handshakeLimit, handshakeWindowMillis, nackLimit, nackWindowMillis, circuitBreaker
 
     @Test
-    fun `MessagingConfig differs highPriorityTtlMs`() {
+    fun `MessagingConfig differs highPriorityTtlMillis`() {
         val base = makeConfig()
-        assertFalse(base.equals(base.copy(highPriorityTtlMs = 1L)))
+        assertFalse(base.equals(base.copy(highPriorityTtlMillis = 1L)))
     }
 
     @Test
-    fun `MessagingConfig differs normalPriorityTtlMs`() {
+    fun `MessagingConfig differs normalPriorityTtlMillis`() {
         val base = makeConfig()
-        assertFalse(base.equals(base.copy(normalPriorityTtlMs = 1L)))
+        assertFalse(base.equals(base.copy(normalPriorityTtlMillis = 1L)))
     }
 
     @Test
-    fun `MessagingConfig differs lowPriorityTtlMs`() {
+    fun `MessagingConfig differs lowPriorityTtlMillis`() {
         val base = makeConfig()
-        assertFalse(base.equals(base.copy(lowPriorityTtlMs = 1L)))
+        assertFalse(base.equals(base.copy(lowPriorityTtlMillis = 1L)))
     }
 
     @Test
@@ -518,9 +518,9 @@ class MessagingFoundationTest {
     }
 
     @Test
-    fun `MessagingConfig differs outboundUnicastWindowMs`() {
+    fun `MessagingConfig differs outboundUnicastWindowMillis`() {
         val base = makeConfig()
-        assertFalse(base.equals(base.copy(outboundUnicastWindowMs = 1L)))
+        assertFalse(base.equals(base.copy(outboundUnicastWindowMillis = 1L)))
     }
 
     @Test
@@ -530,9 +530,9 @@ class MessagingFoundationTest {
     }
 
     @Test
-    fun `MessagingConfig differs broadcastWindowMs`() {
+    fun `MessagingConfig differs broadcastWindowMillis`() {
         val base = makeConfig()
-        assertFalse(base.equals(base.copy(broadcastWindowMs = 1L)))
+        assertFalse(base.equals(base.copy(broadcastWindowMillis = 1L)))
     }
 
     @Test
@@ -542,9 +542,9 @@ class MessagingFoundationTest {
     }
 
     @Test
-    fun `MessagingConfig differs relayPerSenderPerNeighborWindowMs`() {
+    fun `MessagingConfig differs relayPerSenderPerNeighborWindowMillis`() {
         val base = makeConfig()
-        assertFalse(base.equals(base.copy(relayPerSenderPerNeighborWindowMs = 1L)))
+        assertFalse(base.equals(base.copy(relayPerSenderPerNeighborWindowMillis = 1L)))
     }
 
     @Test
@@ -554,9 +554,9 @@ class MessagingFoundationTest {
     }
 
     @Test
-    fun `MessagingConfig differs perNeighborAggregateWindowMs`() {
+    fun `MessagingConfig differs perNeighborAggregateWindowMillis`() {
         val base = makeConfig()
-        assertFalse(base.equals(base.copy(perNeighborAggregateWindowMs = 1L)))
+        assertFalse(base.equals(base.copy(perNeighborAggregateWindowMillis = 1L)))
     }
 
     @Test
@@ -566,9 +566,9 @@ class MessagingFoundationTest {
     }
 
     @Test
-    fun `MessagingConfig differs perSenderInboundWindowMs`() {
+    fun `MessagingConfig differs perSenderInboundWindowMillis`() {
         val base = makeConfig()
-        assertFalse(base.equals(base.copy(perSenderInboundWindowMs = 1L)))
+        assertFalse(base.equals(base.copy(perSenderInboundWindowMillis = 1L)))
     }
 
     @Test
@@ -578,9 +578,9 @@ class MessagingFoundationTest {
     }
 
     @Test
-    fun `MessagingConfig differs handshakeWindowMs`() {
+    fun `MessagingConfig differs handshakeWindowMillis`() {
         val base = makeConfig()
-        assertFalse(base.equals(base.copy(handshakeWindowMs = 1L)))
+        assertFalse(base.equals(base.copy(handshakeWindowMillis = 1L)))
     }
 
     @Test
@@ -590,9 +590,9 @@ class MessagingFoundationTest {
     }
 
     @Test
-    fun `MessagingConfig differs nackWindowMs`() {
+    fun `MessagingConfig differs nackWindowMillis`() {
         val base = makeConfig()
-        assertFalse(base.equals(base.copy(nackWindowMs = 1L)))
+        assertFalse(base.equals(base.copy(nackWindowMillis = 1L)))
     }
 
     @Test

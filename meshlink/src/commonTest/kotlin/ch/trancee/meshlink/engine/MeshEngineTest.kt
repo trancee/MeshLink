@@ -124,7 +124,7 @@ class MeshEngineTest {
         val (mgr, _) =
             makeHandshakeManager(
                 clock = { now },
-                config = HandshakeConfig(rateLimitWindowMs = 2000L),
+                config = HandshakeConfig(rateLimitWindowMillis = 2000L),
             )
         val peerId = ByteArray(12) { 0x10 }
         var sendCount = 0

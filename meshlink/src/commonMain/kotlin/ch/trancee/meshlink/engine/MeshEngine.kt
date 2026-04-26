@@ -164,7 +164,7 @@ private constructor(
     private fun handleTierChange(tier: PowerTier) {
         val profile = powerManager.profile()
         transferScheduler.updateMaxConcurrent(profile.maxConnections)
-        presenceTracker.updatePresenceTimeout(profile.presenceTimeoutMs)
+        presenceTracker.updatePresenceTimeout(profile.presenceTimeoutMillis)
         transport.advertisementServiceData = PowerTierCodec.encode(tier)
     }
 

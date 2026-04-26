@@ -7,9 +7,9 @@ object BleConnectionParameterPolicy {
         IDLE,
     }
 
-    data class ConnectionParameters(val intervalMs: Float, val slaveLatency: Int)
+    data class ConnectionParameters(val intervalMillis: Float, val slaveLatency: Int)
 
-    val BULK = ConnectionParameters(intervalMs = 7.5f, slaveLatency = 0)
-    val ACTIVE = ConnectionParameters(intervalMs = 15f, slaveLatency = 0)
-    val IDLE = ConnectionParameters(intervalMs = 100f, slaveLatency = 4)
+    val BULK = ConnectionParameters(intervalMillis = 7.5f, slaveLatency = 0)
+    val ACTIVE = ConnectionParameters(intervalMillis = 15f, slaveLatency = 0)
+    val IDLE = ConnectionParameters(intervalMillis = 100f, slaveLatency = 4)
 }

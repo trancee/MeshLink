@@ -125,14 +125,14 @@ class DeliveryPipelineBranchCoverageTest {
         requireBroadcastSignatures: Boolean = false,
         allowUnsignedBroadcasts: Boolean = true,
         nackLimit: Int = 200,
-        nackWindowMs: Long = 60_000L,
+        nackWindowMillis: Long = 60_000L,
         maxBufferedMessages: Int = 5,
         outboundUnicastLimit: Int = 200,
         circuitBreaker: MessagingConfig.CircuitBreakerConfig =
             MessagingConfig.CircuitBreakerConfig(
-                windowMs = 60_000L,
+                windowMillis = 60_000L,
                 maxFailures = 3,
-                cooldownMs = 5_000L,
+                cooldownMillis = 5_000L,
             ),
     ) =
         MessagingConfig(
@@ -141,22 +141,22 @@ class DeliveryPipelineBranchCoverageTest {
             allowUnsignedBroadcasts = allowUnsignedBroadcasts,
             maxBufferedMessages = maxBufferedMessages,
             outboundUnicastLimit = outboundUnicastLimit,
-            outboundUnicastWindowMs = 60_000L,
+            outboundUnicastWindowMillis = 60_000L,
             broadcastLimit = 200,
-            broadcastWindowMs = 60_000L,
+            broadcastWindowMillis = 60_000L,
             relayPerSenderPerNeighborLimit = 200,
-            relayPerSenderPerNeighborWindowMs = 60_000L,
+            relayPerSenderPerNeighborWindowMillis = 60_000L,
             perNeighborAggregateLimit = 200,
-            perNeighborAggregateWindowMs = 60_000L,
+            perNeighborAggregateWindowMillis = 60_000L,
             perSenderInboundLimit = 200,
-            perSenderInboundWindowMs = 60_000L,
+            perSenderInboundWindowMillis = 60_000L,
             handshakeLimit = 200,
-            handshakeWindowMs = 60_000L,
+            handshakeWindowMillis = 60_000L,
             nackLimit = nackLimit,
-            nackWindowMs = nackWindowMs,
-            highPriorityTtlMs = 10_000L,
-            normalPriorityTtlMs = 10_000L,
-            lowPriorityTtlMs = 10_000L,
+            nackWindowMillis = nackWindowMillis,
+            highPriorityTtlMillis = 10_000L,
+            normalPriorityTtlMillis = 10_000L,
+            lowPriorityTtlMillis = 10_000L,
             circuitBreaker = circuitBreaker,
         )
 
@@ -279,7 +279,7 @@ class DeliveryPipelineBranchCoverageTest {
                     backgroundScope,
                     testScheduler,
                     clock,
-                    relaxed(nackLimit = 1, nackWindowMs = 60_000L),
+                    relaxed(nackLimit = 1, nackWindowMillis = 60_000L),
                 )
             backgroundScope.launch { alice.transferEngine.outboundChunks.collect {} }
             backgroundScope.launch { alice.transferEngine.events.collect {} }
@@ -580,13 +580,13 @@ class DeliveryPipelineBranchCoverageTest {
 
     @Test
     fun `sendDeliveryAckWithRetry drops entries when ackBuffer reaches 50`() = runTest {
-        var clockMs = 1_000L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 1_000L
+        val clock: () -> Long = { clockMillis }
         val cbConfig =
             MessagingConfig.CircuitBreakerConfig(
-                windowMs = 3_600_000L,
+                windowMillis = 3_600_000L,
                 maxFailures = 500,
-                cooldownMs = 1L,
+                cooldownMillis = 1L,
             )
         val alice =
             makeNode(
@@ -599,7 +599,7 @@ class DeliveryPipelineBranchCoverageTest {
         // Manual one-way: direct routing-table entry WITHOUT onPeerConnected to prevent
         // routing protocol from propagating alice's route to bob.
         alice.transport.linkTo(bob.transport)
-        val expiresAt = clockMs + 600_000L
+        val expiresAt = clockMillis + 600_000L
         alice.routingTable.install(
             RouteEntry(
                 bob.identity.keyHash,
@@ -620,10 +620,10 @@ class DeliveryPipelineBranchCoverageTest {
         backgroundScope.launch { alice.pipeline.transferFailures.collect {} }
         runCurrent()
 
-        // Send 55 messages with UNIQUE originationTime (clockMs increments per send)
+        // Send 55 messages with UNIQUE originationTime (clockMillis increments per send)
         // so bob's ReplayGuard accepts each one and launches sendDeliveryAckWithRetry.
         repeat(55) { i ->
-            clockMs = 1_000L + i // unique originationTime per message
+            clockMillis = 1_000L + i // unique originationTime per message
             alice.pipeline.send(bob.identity.keyHash, byteArrayOf(i.toByte()))
             runCurrent()
             advanceTimeBy(15_000L) // exhaust bob's retry delays (2s+4s+8s) → ackBuffer fills
@@ -637,14 +637,14 @@ class DeliveryPipelineBranchCoverageTest {
 
     @Test
     fun `drainAckBuffer continues when no route for buffered ack target`() = runTest {
-        var clockMs = 1_000L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 1_000L
+        val clock: () -> Long = { clockMillis }
         val alice = makeNode(backgroundScope, testScheduler, clock)
         val bob = makeNode(backgroundScope, testScheduler, clock)
         // Manual one-way setup WITHOUT onPeerConnected to prevent the routing protocol
         // from advertising alice's route to bob (which would allow bob to route ACKs back).
         alice.transport.linkTo(bob.transport)
-        val expiresAt = clockMs + 600_000L
+        val expiresAt = clockMillis + 600_000L
         // Only install alice→bob route DIRECTLY in the routing table (no onPeerConnected call).
         // onPeerConnected triggers routing protocol Hello/Update announcements that propagate
         // alice's route to bob — bypassing that prevents bob from discovering alice's route.
@@ -715,19 +715,20 @@ class DeliveryPipelineBranchCoverageTest {
     // ── PerDestinationCircuitBreaker.onFailure: timestamp eviction loop ───────
 
     @Test
-    fun `circuitBreaker onFailure evicts timestamps older than windowMs before threshold check`() =
+    fun `circuitBreaker onFailure evicts timestamps older than windowMillis before threshold check`() =
         runTest {
-            var clockMs = 1L // non-zero so ReplayGuard doesn't reject (counter=0 always rejected)
-            val clock: () -> Long = { clockMs }
+            var clockMillis =
+                1L // non-zero so ReplayGuard doesn't reject (counter=0 always rejected)
+            val clock: () -> Long = { clockMillis }
             // maxFailures=5: we add 4 failures at clock=1 (won't open CB), then 1 at clock=600
-            // (>windowMs=500).
+            // (>windowMillis=500).
             // The 5th failure evicts the 4 old timestamps → failureTimestamps=[600] → size=1 < 5 →
             // CB CLOSED.
             val cbConfig =
                 MessagingConfig.CircuitBreakerConfig(
-                    windowMs = 500L,
+                    windowMillis = 500L,
                     maxFailures = 5,
-                    cooldownMs = 30_000L,
+                    cooldownMillis = 30_000L,
                 )
             val alice =
                 makeNode(
@@ -741,7 +742,7 @@ class DeliveryPipelineBranchCoverageTest {
             // Manual one-way WITHOUT onPeerConnected: prevents routing protocol from
             // propagating alice's route to bob (which would allow bob to send DeliveryAcks back).
             alice.transport.linkTo(bob.transport)
-            val exp = clockMs + 600_000L
+            val exp = clockMillis + 600_000L
             alice.routingTable.install(
                 RouteEntry(
                     bob.identity.keyHash,
@@ -761,12 +762,13 @@ class DeliveryPipelineBranchCoverageTest {
             backgroundScope.launch { alice.pipeline.deliveryConfirmations.collect {} }
             runCurrent()
 
-            // 4 failures at clockMs=1: send msgs with unique originationTime to avoid ReplayGuard
+            // 4 failures at clockMillis=1: send msgs with unique originationTime to avoid
+            // ReplayGuard
             // rejection
             // bob's ReplayGuard accepts each unique message; alice's ackDeadline fires → onFailure
             // at clock=1
             repeat(4) { i ->
-                clockMs = 1L + i // unique originationTime
+                clockMillis = 1L + i // unique originationTime
                 alice.pipeline.send(bob.identity.keyHash, byteArrayOf(i.toByte()))
                 runCurrent()
                 advanceTimeBy(100L) // fires ackDeadline(50ms); clock()=1+i → onFailure at 1+i
@@ -774,11 +776,11 @@ class DeliveryPipelineBranchCoverageTest {
             }
 
             // failureTimestamps=[1,2,3,4], size=4 < maxFailures=5 → CB still CLOSED
-            clockMs = 600L // advance real clock past windowMs=500
+            clockMillis = 600L // advance real clock past windowMillis=500
 
             // 5th failure at clock=600: evicts old timestamps (600-1=599 > 500) → [600], size=1 →
             // CLOSED
-            clockMs = 600L
+            clockMillis = 600L
             alice.pipeline.send(bob.identity.keyHash, byteArrayOf(4))
             runCurrent()
             advanceTimeBy(

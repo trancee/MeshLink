@@ -329,9 +329,9 @@ class PresenceTrackerTest {
     @Test
     fun `updatePresenceTimeout stores new timeout value`() {
         val tracker = PresenceTracker()
-        assertEquals(30_000L, tracker.presenceTimeoutMs)
+        assertEquals(30_000L, tracker.presenceTimeoutMillis)
         tracker.updatePresenceTimeout(5_000L)
-        assertEquals(5_000L, tracker.presenceTimeoutMs)
+        assertEquals(5_000L, tracker.presenceTimeoutMillis)
     }
 
     @Test
@@ -339,6 +339,6 @@ class PresenceTrackerTest {
         val tracker = PresenceTracker()
         tracker.updatePresenceTimeout(1_000L)
         tracker.updatePresenceTimeout(60_000L)
-        assertEquals(60_000L, tracker.presenceTimeoutMs)
+        assertEquals(60_000L, tracker.presenceTimeoutMillis)
     }
 }

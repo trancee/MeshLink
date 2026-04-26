@@ -31,7 +31,7 @@ class PresenceTracker {
 
     private val _connectedPeers = HashSet<List<Byte>>()
 
-    var presenceTimeoutMs: Long = 30_000L
+    var presenceTimeoutMillis: Long = 30_000L
         private set
 
     fun onPeerConnected(peerId: ByteArray) {
@@ -46,7 +46,7 @@ class PresenceTracker {
 
     fun connectedPeers(): Set<ByteArray> = _connectedPeers.map { it.toByteArray() }.toSet()
 
-    fun updatePresenceTimeout(newTimeoutMs: Long) {
-        presenceTimeoutMs = newTimeoutMs
+    fun updatePresenceTimeout(newTimeoutMillis: Long) {
+        presenceTimeoutMillis = newTimeoutMillis
     }
 }

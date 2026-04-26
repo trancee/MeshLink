@@ -126,7 +126,7 @@ class PowerManager(
 
         // Bootstrap timer: auto-end bootstrap if no connection is established within the window.
         bootstrapJob = scope.launch {
-            delay(config.bootstrapDurationMs)
+            delay(config.bootstrapDurationMillis)
             bootstrapJob = null
             powerModeEngine.onBootstrapEnd()
         }

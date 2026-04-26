@@ -21,11 +21,11 @@ class PowerManagerTest {
 
     private val fastConfig =
         PowerConfig(
-            batteryPollIntervalMs = 100L,
-            hysteresisDelayMs = 1_000L,
-            bootstrapDurationMs = 500L,
-            evictionGracePeriodMs = 200L,
-            maxEvictionGracePeriodMs = 1_000L,
+            batteryPollIntervalMillis = 100L,
+            hysteresisDelayMillis = 1_000L,
+            bootstrapDurationMillis = 500L,
+            evictionGracePeriodMillis = 200L,
+            maxEvictionGracePeriodMillis = 1_000L,
             minThroughputBytesPerSec = 1_024f,
             performanceMaxConnections = 6,
             balancedMaxConnections = 4,
@@ -69,7 +69,7 @@ class PowerManagerTest {
 
         // Bootstrap fires after 500ms
         testScheduler.advanceTimeBy(
-            fastConfig.bootstrapDurationMs + fastConfig.batteryPollIntervalMs
+            fastConfig.bootstrapDurationMillis + fastConfig.batteryPollIntervalMillis
         )
         // Battery at 90% → stays PERFORMANCE
         assertEquals(PowerTier.PERFORMANCE, pm.currentTier)
@@ -84,7 +84,7 @@ class PowerManagerTest {
 
             // Let bootstrap timeout fire → bootstrapJob becomes null
             testScheduler.advanceTimeBy(
-                fastConfig.bootstrapDurationMs + fastConfig.batteryPollIntervalMs
+                fastConfig.bootstrapDurationMillis + fastConfig.batteryPollIntervalMillis
             )
             testScheduler.runCurrent()
 
@@ -107,9 +107,9 @@ class PowerManagerTest {
         // Timer starts at first poll. Advance past hysteresis delay + one extra poll to guarantee
         // fire.
         testScheduler.advanceTimeBy(
-            fastConfig.batteryPollIntervalMs +
-                fastConfig.hysteresisDelayMs +
-                fastConfig.batteryPollIntervalMs
+            fastConfig.batteryPollIntervalMillis +
+                fastConfig.hysteresisDelayMillis +
+                fastConfig.batteryPollIntervalMillis
         )
         testScheduler.runCurrent()
         assertEquals(PowerTier.BALANCED, pm.currentTier)
@@ -124,9 +124,9 @@ class PowerManagerTest {
 
         stub.level = 0.79f // Above 0.78 → dead band, no downgrade timer started
         testScheduler.advanceTimeBy(
-            fastConfig.batteryPollIntervalMs +
-                fastConfig.hysteresisDelayMs +
-                fastConfig.batteryPollIntervalMs
+            fastConfig.batteryPollIntervalMillis +
+                fastConfig.hysteresisDelayMillis +
+                fastConfig.batteryPollIntervalMillis
         )
         testScheduler.runCurrent()
         assertEquals(PowerTier.PERFORMANCE, pm.currentTier)
@@ -141,16 +141,18 @@ class PowerManagerTest {
 
         // Start a downgrade timer for BALANCED (battery=0.78, first poll starts timer)
         stub.level = 0.78f
-        testScheduler.advanceTimeBy(fastConfig.batteryPollIntervalMs) // timer starts
+        testScheduler.advanceTimeBy(fastConfig.batteryPollIntervalMillis) // timer starts
         assertEquals(PowerTier.PERFORMANCE, pm.currentTier)
 
         // Battery drops further — cascading: timer restarts for POWER_SAVER
         stub.level = 0.20f
-        testScheduler.advanceTimeBy(fastConfig.batteryPollIntervalMs) // cascading restart
+        testScheduler.advanceTimeBy(fastConfig.batteryPollIntervalMillis) // cascading restart
         assertEquals(PowerTier.PERFORMANCE, pm.currentTier)
 
         // Advance full hysteresis delay from restart point → POWER_SAVER
-        testScheduler.advanceTimeBy(fastConfig.hysteresisDelayMs + fastConfig.batteryPollIntervalMs)
+        testScheduler.advanceTimeBy(
+            fastConfig.hysteresisDelayMillis + fastConfig.batteryPollIntervalMillis
+        )
         testScheduler.runCurrent()
         assertEquals(PowerTier.POWER_SAVER, pm.currentTier)
     }
@@ -164,9 +166,9 @@ class PowerManagerTest {
 
         stub.level = 0.20f // Below powerSaverThreshold − hysteresis (0.30 − 0.02 = 0.28)
         testScheduler.advanceTimeBy(
-            fastConfig.batteryPollIntervalMs +
-                fastConfig.hysteresisDelayMs +
-                fastConfig.batteryPollIntervalMs
+            fastConfig.batteryPollIntervalMillis +
+                fastConfig.hysteresisDelayMillis +
+                fastConfig.batteryPollIntervalMillis
         )
         testScheduler.runCurrent()
         assertEquals(PowerTier.POWER_SAVER, pm.currentTier)
@@ -190,7 +192,9 @@ class PowerManagerTest {
         pm.setCustomMode(
             null
         ) // evaluateBattery: currentTier=BALANCED, battery=0.20 → POWER_SAVER downgrade starts
-        testScheduler.advanceTimeBy(fastConfig.hysteresisDelayMs + fastConfig.batteryPollIntervalMs)
+        testScheduler.advanceTimeBy(
+            fastConfig.hysteresisDelayMillis + fastConfig.batteryPollIntervalMillis
+        )
         testScheduler.runCurrent()
         assertEquals(PowerTier.POWER_SAVER, pm.currentTier)
     }
@@ -210,7 +214,7 @@ class PowerManagerTest {
 
         // Battery 82% → above performanceThreshold + hysteresis (0.80 + 0.02 = 0.82)
         stub.level = 0.82f
-        testScheduler.advanceTimeBy(fastConfig.batteryPollIntervalMs)
+        testScheduler.advanceTimeBy(fastConfig.batteryPollIntervalMillis)
         assertEquals(PowerTier.PERFORMANCE, pm.currentTier)
     }
 
@@ -275,12 +279,14 @@ class PowerManagerTest {
         pm.onFirstConnectionEstablished()
 
         stub.level = 0.78f // starts downgrade timer
-        testScheduler.advanceTimeBy(fastConfig.batteryPollIntervalMs)
+        testScheduler.advanceTimeBy(fastConfig.batteryPollIntervalMillis)
         assertEquals(PowerTier.PERFORMANCE, pm.currentTier)
 
         // Battery rises into deadband (0.79 > 0.78) → timer cancelled
         stub.level = 0.79f
-        testScheduler.advanceTimeBy(fastConfig.hysteresisDelayMs + fastConfig.batteryPollIntervalMs)
+        testScheduler.advanceTimeBy(
+            fastConfig.hysteresisDelayMillis + fastConfig.batteryPollIntervalMillis
+        )
         testScheduler.runCurrent()
         assertEquals(PowerTier.PERFORMANCE, pm.currentTier)
     }
@@ -321,7 +327,7 @@ class PowerManagerTest {
         val countBefore = emitted.size
 
         stub.isCharging = true // already PERFORMANCE → no new emission
-        testScheduler.advanceTimeBy(fastConfig.batteryPollIntervalMs)
+        testScheduler.advanceTimeBy(fastConfig.batteryPollIntervalMillis)
         testScheduler.runCurrent()
 
         assertEquals(countBefore, emitted.size)
@@ -335,11 +341,13 @@ class PowerManagerTest {
         testScheduler.runCurrent()
         pm.onFirstConnectionEstablished()
 
-        testScheduler.advanceTimeBy(fastConfig.batteryPollIntervalMs)
+        testScheduler.advanceTimeBy(fastConfig.batteryPollIntervalMillis)
         assertEquals(PowerTier.PERFORMANCE, pm.currentTier) // charging → PERFORMANCE
 
         stub.isCharging = false
-        testScheduler.advanceTimeBy(fastConfig.batteryPollIntervalMs + fastConfig.hysteresisDelayMs)
+        testScheduler.advanceTimeBy(
+            fastConfig.batteryPollIntervalMillis + fastConfig.hysteresisDelayMillis
+        )
         assertEquals(PowerTier.BALANCED, pm.currentTier)
     }
 
@@ -408,7 +416,9 @@ class PowerManagerTest {
         testScheduler.runCurrent()
 
         stub.level = 0.78f
-        testScheduler.advanceTimeBy(fastConfig.batteryPollIntervalMs + fastConfig.hysteresisDelayMs)
+        testScheduler.advanceTimeBy(
+            fastConfig.batteryPollIntervalMillis + fastConfig.hysteresisDelayMillis
+        )
         testScheduler.runCurrent()
 
         assertTrue(emitted.contains(PowerTier.BALANCED))
@@ -583,7 +593,7 @@ class PowerManagerTest {
         assertEquals(0, evictions.size) // not evicted yet
 
         // Advance past grace period → onEvict lambda fires
-        testScheduler.advanceTimeBy(fastConfig.maxEvictionGracePeriodMs + 100L)
+        testScheduler.advanceTimeBy(fastConfig.maxEvictionGracePeriodMillis + 100L)
         testScheduler.runCurrent()
         assertEquals(1, evictions.size)
         job.cancel()
@@ -794,8 +804,8 @@ class GracefulDrainManagerTest {
 
     private val testConfig =
         PowerConfig(
-            evictionGracePeriodMs = 200L,
-            maxEvictionGracePeriodMs = 1_000L,
+            evictionGracePeriodMillis = 200L,
+            maxEvictionGracePeriodMillis = 1_000L,
             minThroughputBytesPerSec = 1_024f,
         )
 
@@ -829,7 +839,7 @@ class GracefulDrainManagerTest {
         mgr.drain(listOf(conn)) { evicted.add(it) }
         assertEquals(0, evicted.size) // grace period active
 
-        testScheduler.advanceTimeBy(testConfig.maxEvictionGracePeriodMs + 100L)
+        testScheduler.advanceTimeBy(testConfig.maxEvictionGracePeriodMillis + 100L)
         testScheduler.runCurrent()
         assertEquals(1, evicted.size)
         assertEquals(1, mgr.activeGraceCount() + evicted.size) // combined is 1
@@ -849,7 +859,7 @@ class GracefulDrainManagerTest {
         mgr.drain(listOf(conn)) { evicted.add(it) }
         assertEquals(1, mgr.activeGraceCount()) // still just one timer
 
-        testScheduler.advanceTimeBy(testConfig.maxEvictionGracePeriodMs + 100L)
+        testScheduler.advanceTimeBy(testConfig.maxEvictionGracePeriodMillis + 100L)
         testScheduler.runCurrent()
         assertEquals(1, evicted.size) // only one eviction
     }
@@ -904,10 +914,10 @@ class PowerProfileTest {
     fun `forTier PERFORMANCE returns correct spec values`() {
         val profile = PowerProfile.forTier(PowerTier.PERFORMANCE, config)
         assertEquals(80, profile.scanDutyPercent)
-        assertEquals(250L, profile.adIntervalMs)
-        assertEquals(5_000L, profile.keepaliveMs)
-        assertEquals(1_500L, profile.presenceTimeoutMs)
-        assertEquals(1_250L, profile.sweepIntervalMs)
+        assertEquals(250L, profile.adIntervalMillis)
+        assertEquals(5_000L, profile.keepaliveMillis)
+        assertEquals(1_500L, profile.presenceTimeoutMillis)
+        assertEquals(1_250L, profile.sweepIntervalMillis)
         assertEquals(config.performanceMaxConnections, profile.maxConnections)
     }
 
@@ -915,10 +925,10 @@ class PowerProfileTest {
     fun `forTier BALANCED returns correct spec values`() {
         val profile = PowerProfile.forTier(PowerTier.BALANCED, config)
         assertEquals(50, profile.scanDutyPercent)
-        assertEquals(500L, profile.adIntervalMs)
-        assertEquals(15_000L, profile.keepaliveMs)
-        assertEquals(4_000L, profile.presenceTimeoutMs)
-        assertEquals(2_500L, profile.sweepIntervalMs)
+        assertEquals(500L, profile.adIntervalMillis)
+        assertEquals(15_000L, profile.keepaliveMillis)
+        assertEquals(4_000L, profile.presenceTimeoutMillis)
+        assertEquals(2_500L, profile.sweepIntervalMillis)
         assertEquals(config.balancedMaxConnections, profile.maxConnections)
     }
 
@@ -926,10 +936,10 @@ class PowerProfileTest {
     fun `forTier POWER_SAVER returns correct spec values`() {
         val profile = PowerProfile.forTier(PowerTier.POWER_SAVER, config)
         assertEquals(17, profile.scanDutyPercent)
-        assertEquals(1_000L, profile.adIntervalMs)
-        assertEquals(30_000L, profile.keepaliveMs)
-        assertEquals(10_000L, profile.presenceTimeoutMs)
-        assertEquals(5_000L, profile.sweepIntervalMs)
+        assertEquals(1_000L, profile.adIntervalMillis)
+        assertEquals(30_000L, profile.keepaliveMillis)
+        assertEquals(10_000L, profile.presenceTimeoutMillis)
+        assertEquals(5_000L, profile.sweepIntervalMillis)
         assertEquals(config.powerSaverMaxConnections, profile.maxConnections)
     }
 
@@ -968,19 +978,19 @@ class BleConnectionParameterPolicyTest {
 
     @Test
     fun `BULK constant has correct parameters`() {
-        assertEquals(7.5f, BleConnectionParameterPolicy.BULK.intervalMs)
+        assertEquals(7.5f, BleConnectionParameterPolicy.BULK.intervalMillis)
         assertEquals(0, BleConnectionParameterPolicy.BULK.slaveLatency)
     }
 
     @Test
     fun `ACTIVE constant has correct parameters`() {
-        assertEquals(15f, BleConnectionParameterPolicy.ACTIVE.intervalMs)
+        assertEquals(15f, BleConnectionParameterPolicy.ACTIVE.intervalMillis)
         assertEquals(0, BleConnectionParameterPolicy.ACTIVE.slaveLatency)
     }
 
     @Test
     fun `IDLE constant has correct parameters`() {
-        assertEquals(100f, BleConnectionParameterPolicy.IDLE.intervalMs)
+        assertEquals(100f, BleConnectionParameterPolicy.IDLE.intervalMillis)
         assertEquals(4, BleConnectionParameterPolicy.IDLE.slaveLatency)
     }
 
@@ -1222,7 +1232,7 @@ class PowerModeEngineDirectTest {
     /** Direct evaluateBattery call covering cascading timer-restart else-if branch. */
     @Test
     fun `cascading downgrade timer restart covers else-if branch`() = runTest {
-        val config = PowerConfig(hysteresisDelayMs = 100L, batteryPollIntervalMs = 5_000L)
+        val config = PowerConfig(hysteresisDelayMillis = 100L, batteryPollIntervalMillis = 5_000L)
         val stub = StubBatteryMonitor(level = 0.90f)
         var t = 0L
         val engine = PowerModeEngine(backgroundScope, stub, { t }, config)
@@ -1247,7 +1257,7 @@ class PowerModeEngineDirectTest {
     /** Direct evaluateBattery: keep-timer else branch (target same, timer not expired). */
     @Test
     fun `keep timer else branch when target unchanged`() = runTest {
-        val config = PowerConfig(hysteresisDelayMs = 1_000L, batteryPollIntervalMs = 5_000L)
+        val config = PowerConfig(hysteresisDelayMillis = 1_000L, batteryPollIntervalMillis = 5_000L)
         val stub = StubBatteryMonitor(level = 0.90f)
         var t = 0L
         val engine = PowerModeEngine(backgroundScope, stub, { t }, config)

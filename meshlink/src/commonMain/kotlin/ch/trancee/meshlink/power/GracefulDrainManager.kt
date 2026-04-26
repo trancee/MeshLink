@@ -36,24 +36,24 @@ class GracefulDrainManager(
                 onEvict(connection.peerId)
             } else {
                 // Active transfer: compute a grace period proportional to the estimated
-                // remaining transfer time, clamped to [evictionGracePeriodMs,
-                // maxEvictionGracePeriodMs].
-                val estimatedRemainingMs =
+                // remaining transfer time, clamped to [evictionGracePeriodMillis,
+                // maxEvictionGracePeriodMillis].
+                val estimatedRemainingMillis =
                     ((connection.transferStatus.remainingBytes.toDouble() /
                             connection.transferStatus.bytesPerSecond) * 1000.0)
                         .toLong()
-                val graceMs =
+                val graceMillis =
                     minOf(
-                        config.maxEvictionGracePeriodMs,
-                        maxOf(config.evictionGracePeriodMs, estimatedRemainingMs),
+                        config.maxEvictionGracePeriodMillis,
+                        maxOf(config.evictionGracePeriodMillis, estimatedRemainingMillis),
                     )
-                val deadline = clock() + graceMs
+                val deadline = clock() + graceMillis
                 val key = PeerKey(connection.peerId)
                 // Cancel any existing timer for this peer before starting a new one.
                 val existing = graceTimers.remove(key)
                 if (existing != null) existing.job.cancel()
                 val job = scope.launch {
-                    delay(graceMs)
+                    delay(graceMillis)
                     graceTimers.remove(key)
                     onEvict(connection.peerId)
                 }

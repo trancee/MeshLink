@@ -29,7 +29,7 @@ class PowerModeEngine(
         scope.launch {
             while (true) {
                 evaluateBattery()
-                delay(config.batteryPollIntervalMs)
+                delay(config.batteryPollIntervalMillis)
             }
         }
     }
@@ -98,7 +98,7 @@ class PowerModeEngine(
                         DowngradeTimer(targetTier = targetTier, startedAt = existing.startedAt)
                 }
                 downgradeTimer = newTimer
-                if (now - newTimer.startedAt >= config.hysteresisDelayMs) {
+                if (now - newTimer.startedAt >= config.hysteresisDelayMillis) {
                     currentTier = newTimer.targetTier
                     downgradeTimer = null
                     tierChanges.tryEmit(currentTier)

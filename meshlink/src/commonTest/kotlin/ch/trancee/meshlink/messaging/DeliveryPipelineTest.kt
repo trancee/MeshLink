@@ -146,9 +146,9 @@ class DeliveryPipelineTest {
         broadcastLimit: Int = 200,
         circuitBreaker: MessagingConfig.CircuitBreakerConfig =
             MessagingConfig.CircuitBreakerConfig(
-                windowMs = 60_000L,
+                windowMillis = 60_000L,
                 maxFailures = 3,
-                cooldownMs = 5_000L,
+                cooldownMillis = 5_000L,
             ),
     ) =
         MessagingConfig(
@@ -157,22 +157,22 @@ class DeliveryPipelineTest {
             allowUnsignedBroadcasts = allowUnsignedBroadcasts,
             maxBufferedMessages = maxBufferedMessages,
             outboundUnicastLimit = outboundUnicastLimit,
-            outboundUnicastWindowMs = 60_000L,
+            outboundUnicastWindowMillis = 60_000L,
             broadcastLimit = broadcastLimit,
-            broadcastWindowMs = 60_000L,
+            broadcastWindowMillis = 60_000L,
             relayPerSenderPerNeighborLimit = 200,
-            relayPerSenderPerNeighborWindowMs = 60_000L,
+            relayPerSenderPerNeighborWindowMillis = 60_000L,
             perNeighborAggregateLimit = 200,
-            perNeighborAggregateWindowMs = 60_000L,
+            perNeighborAggregateWindowMillis = 60_000L,
             perSenderInboundLimit = 200,
-            perSenderInboundWindowMs = 60_000L,
+            perSenderInboundWindowMillis = 60_000L,
             handshakeLimit = 200,
-            handshakeWindowMs = 60_000L,
+            handshakeWindowMillis = 60_000L,
             nackLimit = 200,
-            nackWindowMs = 60_000L,
-            highPriorityTtlMs = 10_000L,
-            normalPriorityTtlMs = 10_000L,
-            lowPriorityTtlMs = 10_000L,
+            nackWindowMillis = 60_000L,
+            highPriorityTtlMillis = 10_000L,
+            normalPriorityTtlMillis = 10_000L,
+            lowPriorityTtlMillis = 10_000L,
             circuitBreaker = circuitBreaker,
         )
 
@@ -223,8 +223,8 @@ class DeliveryPipelineTest {
 
     @Test
     fun `inbound RoutedMessage delivered to messages flow`() = runTest {
-        var clockMs = 1_000L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 1_000L
+        val clock: () -> Long = { clockMillis }
         val alice = makeNode(backgroundScope, testScheduler, clock)
         val bob = makeNode(backgroundScope, testScheduler, clock)
         connect(alice, bob, clock)
@@ -245,8 +245,8 @@ class DeliveryPipelineTest {
 
     @Test
     fun `inbound Hello dispatched to routeCoordinator no crash`() = runTest {
-        var clockMs = 0L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 0L
+        val clock: () -> Long = { clockMillis }
         val alice = makeNode(backgroundScope, testScheduler, clock)
         drainFlows(backgroundScope, alice)
 
@@ -260,8 +260,8 @@ class DeliveryPipelineTest {
 
     @Test
     fun `inbound Update installs route and pins key`() = runTest {
-        var clockMs = 0L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 0L
+        val clock: () -> Long = { clockMillis }
         val alice = makeNode(backgroundScope, testScheduler, clock)
         drainFlows(backgroundScope, alice)
         runCurrent() // start collectors
@@ -286,8 +286,8 @@ class DeliveryPipelineTest {
 
     @Test
     fun `inbound Chunk reassembles via transferEngine`() = runTest {
-        var clockMs = 0L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 0L
+        val clock: () -> Long = { clockMillis }
         val alice = makeNode(backgroundScope, testScheduler, clock)
         val events = mutableListOf<TransferEvent>()
         backgroundScope.launch { alice.transferEngine.events.collect { events.add(it) } }
@@ -309,8 +309,8 @@ class DeliveryPipelineTest {
 
     @Test
     fun `inbound ChunkAck dispatched to transferEngine`() = runTest {
-        var clockMs = 0L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 0L
+        val clock: () -> Long = { clockMillis }
         val alice = makeNode(backgroundScope, testScheduler, clock)
         val capturedChunks = mutableListOf<ch.trancee.meshlink.routing.OutboundFrame>()
         backgroundScope.launch {
@@ -335,8 +335,8 @@ class DeliveryPipelineTest {
 
     @Test
     fun `inbound Broadcast delivered to messages flow`() = runTest {
-        var clockMs = 1_000L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 1_000L
+        val clock: () -> Long = { clockMillis }
         val alice = makeNode(backgroundScope, testScheduler, clock)
         val received = mutableListOf<InboundMessage>()
         backgroundScope.launch { alice.pipeline.messages.collect { received.add(it) } }
@@ -370,8 +370,8 @@ class DeliveryPipelineTest {
 
     @Test
     fun `inbound DeliveryAck for unknown messageId silently dropped`() = runTest {
-        var clockMs = 0L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 0L
+        val clock: () -> Long = { clockMillis }
         val alice = makeNode(backgroundScope, testScheduler, clock)
         val confirmations = mutableListOf<Delivered>()
         backgroundScope.launch {
@@ -394,8 +394,8 @@ class DeliveryPipelineTest {
 
     @Test
     fun `inbound Handshake silently ignored`() = runTest {
-        var clockMs = 0L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 0L
+        val clock: () -> Long = { clockMillis }
         val alice = makeNode(backgroundScope, testScheduler, clock)
         drainFlows(backgroundScope, alice)
 
@@ -409,8 +409,8 @@ class DeliveryPipelineTest {
 
     @Test
     fun `inbound Keepalive silently ignored`() = runTest {
-        var clockMs = 0L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 0L
+        val clock: () -> Long = { clockMillis }
         val alice = makeNode(backgroundScope, testScheduler, clock)
         drainFlows(backgroundScope, alice)
 
@@ -424,8 +424,8 @@ class DeliveryPipelineTest {
 
     @Test
     fun `inbound RotationAnnouncement silently ignored`() = runTest {
-        var clockMs = 0L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 0L
+        val clock: () -> Long = { clockMillis }
         val alice = makeNode(backgroundScope, testScheduler, clock)
         drainFlows(backgroundScope, alice)
 
@@ -459,8 +459,8 @@ class DeliveryPipelineTest {
 
     @Test
     fun `inbound Nack dispatched within rate limit`() = runTest {
-        var clockMs = 0L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 0L
+        val clock: () -> Long = { clockMillis }
         val alice = makeNode(backgroundScope, testScheduler, clock)
         backgroundScope.launch { alice.transferEngine.outboundChunks.collect {} }
         backgroundScope.launch { alice.transferEngine.events.collect {} }
@@ -479,9 +479,9 @@ class DeliveryPipelineTest {
 
     @Test
     fun `inbound Nack beyond rate limit silently dropped`() = runTest {
-        var clockMs = 0L
-        val clock: () -> Long = { clockMs }
-        val config = relaxedConfig().copy(nackLimit = 1, nackWindowMs = 60_000L)
+        var clockMillis = 0L
+        val clock: () -> Long = { clockMillis }
+        val config = relaxedConfig().copy(nackLimit = 1, nackWindowMillis = 60_000L)
         val alice = makeNode(backgroundScope, testScheduler, clock, config)
         backgroundScope.launch { alice.transferEngine.outboundChunks.collect {} }
         backgroundScope.launch { alice.transferEngine.events.collect {} }
@@ -500,8 +500,8 @@ class DeliveryPipelineTest {
 
     @Test
     fun `inbound ResumeRequest dispatched to transferEngine`() = runTest {
-        var clockMs = 0L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 0L
+        val clock: () -> Long = { clockMillis }
         val alice = makeNode(backgroundScope, testScheduler, clock)
         backgroundScope.launch { alice.transferEngine.outboundChunks.collect {} }
         backgroundScope.launch { alice.transferEngine.events.collect {} }
@@ -519,8 +519,8 @@ class DeliveryPipelineTest {
 
     @Test
     fun `inbound malformed frame silently dropped`() = runTest {
-        var clockMs = 0L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 0L
+        val clock: () -> Long = { clockMillis }
         val alice = makeNode(backgroundScope, testScheduler, clock)
         val failures = mutableListOf<DeliveryFailed>()
         backgroundScope.launch { alice.pipeline.transferFailures.collect { failures.add(it) } }
@@ -538,8 +538,8 @@ class DeliveryPipelineTest {
 
     @Test
     fun `send to self delivers directly without BLE`() = runTest {
-        var clockMs = 1_000L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 1_000L
+        val clock: () -> Long = { clockMillis }
         val alice = makeNode(backgroundScope, testScheduler, clock)
         val received = mutableListOf<InboundMessage>()
         val confirmations = mutableListOf<Delivered>()
@@ -560,8 +560,8 @@ class DeliveryPipelineTest {
 
     @Test
     fun `send with route returns Sent`() = runTest {
-        var clockMs = 1_000L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 1_000L
+        val clock: () -> Long = { clockMillis }
         val alice = makeNode(backgroundScope, testScheduler, clock)
         val bob = makeNode(backgroundScope, testScheduler, clock)
         connect(alice, bob, clock)
@@ -576,8 +576,8 @@ class DeliveryPipelineTest {
 
     @Test
     fun `send without route returns Queued ROUTE_PENDING`() = runTest {
-        var clockMs = 0L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 0L
+        val clock: () -> Long = { clockMillis }
         val alice = makeNode(backgroundScope, testScheduler, clock)
         val unknown = ByteArray(12) { 0xAA.toByte() }
         alice.trustStore.pinKey(unknown, ByteArray(32) { it.toByte() })
@@ -588,8 +588,8 @@ class DeliveryPipelineTest {
 
     @Test
     fun `send rate limited returns Queued PAUSED`() = runTest {
-        var clockMs = 0L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 0L
+        val clock: () -> Long = { clockMillis }
         val config = relaxedConfig(outboundUnicastLimit = 1)
         val alice = makeNode(backgroundScope, testScheduler, clock, config)
         val bob = makeNode(backgroundScope, testScheduler, clock, config)
@@ -606,13 +606,13 @@ class DeliveryPipelineTest {
 
     @Test
     fun `send when circuit breaker open returns Queued PAUSED`() = runTest {
-        var clockMs = 0L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 0L
+        val clock: () -> Long = { clockMillis }
         val circuitBreakerConfig =
             MessagingConfig.CircuitBreakerConfig(
-                windowMs = 60_000L,
+                windowMillis = 60_000L,
                 maxFailures = 1,
-                cooldownMs = 30_000L,
+                cooldownMillis = 30_000L,
             )
         val config = relaxedConfig(circuitBreaker = circuitBreakerConfig)
         val alice =
@@ -643,8 +643,8 @@ class DeliveryPipelineTest {
 
     @Test
     fun `send oversized payload throws IllegalArgumentException`() = runTest {
-        var clockMs = 0L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 0L
+        val clock: () -> Long = { clockMillis }
         val alice =
             makeNode(
                 backgroundScope,
@@ -662,8 +662,8 @@ class DeliveryPipelineTest {
 
     @Test
     fun `send to unknown recipient throws IllegalStateException`() = runTest {
-        var clockMs = 0L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 0L
+        val clock: () -> Long = { clockMillis }
         val alice = makeNode(backgroundScope, testScheduler, clock)
 
         assertFailsWith<IllegalStateException> {
@@ -673,8 +673,8 @@ class DeliveryPipelineTest {
 
     @Test
     fun `send encrypted payload decryptable by recipient`() = runTest {
-        var clockMs = 1_000L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 1_000L
+        val clock: () -> Long = { clockMillis }
         val alice = makeNode(backgroundScope, testScheduler, clock)
         val bob = makeNode(backgroundScope, testScheduler, clock)
         connect(alice, bob, clock)
@@ -696,8 +696,8 @@ class DeliveryPipelineTest {
 
     @Test
     fun `broadcast fans out to connected peers`() = runTest {
-        var clockMs = 1_000L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 1_000L
+        val clock: () -> Long = { clockMillis }
         val alice = makeNode(backgroundScope, testScheduler, clock)
         val bob = makeNode(backgroundScope, testScheduler, clock)
         val carol = makeNode(backgroundScope, testScheduler, clock)
@@ -714,8 +714,8 @@ class DeliveryPipelineTest {
 
     @Test
     fun `broadcast with no peers returns messageId no crash`() = runTest {
-        var clockMs = 0L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 0L
+        val clock: () -> Long = { clockMillis }
         val alice = makeNode(backgroundScope, testScheduler, clock)
 
         val messageId = alice.pipeline.broadcast(byteArrayOf(0xBC.toByte()))
@@ -727,8 +727,8 @@ class DeliveryPipelineTest {
 
     @Test
     fun `broadcast oversized throws IllegalArgumentException`() = runTest {
-        var clockMs = 0L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 0L
+        val clock: () -> Long = { clockMillis }
         val alice =
             makeNode(
                 backgroundScope,
@@ -742,8 +742,8 @@ class DeliveryPipelineTest {
 
     @Test
     fun `broadcast rate limited throws IllegalStateException`() = runTest {
-        var clockMs = 0L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 0L
+        val clock: () -> Long = { clockMillis }
         val alice =
             makeNode(backgroundScope, testScheduler, clock, relaxedConfig(broadcastLimit = 1))
 
@@ -753,8 +753,8 @@ class DeliveryPipelineTest {
 
     @Test
     fun `broadcast with signatures sends signed message`() = runTest {
-        var clockMs = 1_000L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 1_000L
+        val clock: () -> Long = { clockMillis }
         val config =
             relaxedConfig(requireBroadcastSignatures = true, allowUnsignedBroadcasts = false)
         val alice = makeNode(backgroundScope, testScheduler, clock, config)
@@ -774,8 +774,8 @@ class DeliveryPipelineTest {
 
     @Test
     fun `broadcast dedup prevents self-relay`() = runTest {
-        var clockMs = 1_000L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 1_000L
+        val clock: () -> Long = { clockMillis }
         val alice = makeNode(backgroundScope, testScheduler, clock)
         val bob = makeNode(backgroundScope, testScheduler, clock)
         connect(alice, bob, clock)
@@ -808,8 +808,8 @@ class DeliveryPipelineTest {
 
     @Test
     fun `broadcast remainingHops zero not relayed`() = runTest {
-        var clockMs = 1_000L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 1_000L
+        val clock: () -> Long = { clockMillis }
         val alice = makeNode(backgroundScope, testScheduler, clock)
         val bob = makeNode(backgroundScope, testScheduler, clock)
         connect(alice, bob, clock)
@@ -842,8 +842,8 @@ class DeliveryPipelineTest {
 
     @Test
     fun `broadcast unsigned accepted when allowUnsigned true`() = runTest {
-        var clockMs = 1_000L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 1_000L
+        val clock: () -> Long = { clockMillis }
         val config =
             relaxedConfig(requireBroadcastSignatures = true, allowUnsignedBroadcasts = true)
         val alice = makeNode(backgroundScope, testScheduler, clock, config)
@@ -878,8 +878,8 @@ class DeliveryPipelineTest {
 
     @Test
     fun `broadcast unsigned dropped when requireSignatures and not allowUnsigned`() = runTest {
-        var clockMs = 1_000L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 1_000L
+        val clock: () -> Long = { clockMillis }
         val config =
             relaxedConfig(requireBroadcastSignatures = true, allowUnsignedBroadcasts = false)
         val alice = makeNode(backgroundScope, testScheduler, clock, config)
@@ -913,8 +913,8 @@ class DeliveryPipelineTest {
 
     @Test
     fun `broadcast invalid signature dropped`() = runTest {
-        var clockMs = 1_000L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 1_000L
+        val clock: () -> Long = { clockMillis }
         val config =
             relaxedConfig(requireBroadcastSignatures = true, allowUnsignedBroadcasts = false)
         val alice = makeNode(backgroundScope, testScheduler, clock, config)
@@ -948,8 +948,8 @@ class DeliveryPipelineTest {
 
     @Test
     fun `broadcast with null sig field dropped when HAS_SIGNATURE flag set`() = runTest {
-        var clockMs = 1_000L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 1_000L
+        val clock: () -> Long = { clockMillis }
         val config =
             relaxedConfig(requireBroadcastSignatures = false, allowUnsignedBroadcasts = true)
         val alice = makeNode(backgroundScope, testScheduler, clock, config)
@@ -984,8 +984,8 @@ class DeliveryPipelineTest {
 
     @Test
     fun `broadcast origin equals local not delivered to self`() = runTest {
-        var clockMs = 1_000L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 1_000L
+        val clock: () -> Long = { clockMillis }
         val alice = makeNode(backgroundScope, testScheduler, clock)
         val bob = makeNode(backgroundScope, testScheduler, clock)
         connect(alice, bob, clock)
@@ -1001,10 +1001,10 @@ class DeliveryPipelineTest {
 
     @Test
     fun `broadcast per-sender inbound rate limit drops excess`() = runTest {
-        var clockMs = 0L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 0L
+        val clock: () -> Long = { clockMillis }
         val config =
-            relaxedConfig().copy(perSenderInboundLimit = 1, perSenderInboundWindowMs = 60_000L)
+            relaxedConfig().copy(perSenderInboundLimit = 1, perSenderInboundWindowMillis = 60_000L)
         val alice = makeNode(backgroundScope, testScheduler, clock, config)
         val received = mutableListOf<InboundMessage>()
         backgroundScope.launch { alice.pipeline.messages.collect { received.add(it) } }
@@ -1058,8 +1058,8 @@ class DeliveryPipelineTest {
 
     @Test
     fun `relay RoutedMessage success`() = runTest {
-        var clockMs = 1_000L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 1_000L
+        val clock: () -> Long = { clockMillis }
         val alice = makeNode(backgroundScope, testScheduler, clock)
         val bob = makeNode(backgroundScope, testScheduler, clock)
         val carol = makeNode(backgroundScope, testScheduler, clock)
@@ -1092,8 +1092,8 @@ class DeliveryPipelineTest {
 
     @Test
     fun `relay RoutedMessage hopLimit zero dropped`() = runTest {
-        var clockMs = 0L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 0L
+        val clock: () -> Long = { clockMillis }
         val alice = makeNode(backgroundScope, testScheduler, clock)
         val carol = makeNode(backgroundScope, testScheduler, clock)
         connect(alice, carol, clock)
@@ -1124,8 +1124,8 @@ class DeliveryPipelineTest {
 
     @Test
     fun `relay RoutedMessage in visited list dropped`() = runTest {
-        var clockMs = 0L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 0L
+        val clock: () -> Long = { clockMillis }
         val alice = makeNode(backgroundScope, testScheduler, clock)
         val carol = makeNode(backgroundScope, testScheduler, clock)
         connect(alice, carol, clock)
@@ -1156,8 +1156,8 @@ class DeliveryPipelineTest {
 
     @Test
     fun `relay RoutedMessage no route dropped`() = runTest {
-        var clockMs = 0L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 0L
+        val clock: () -> Long = { clockMillis }
         val alice = makeNode(backgroundScope, testScheduler, clock)
         drainFlows(backgroundScope, alice)
 
@@ -1186,13 +1186,13 @@ class DeliveryPipelineTest {
 
     @Test
     fun `relay RoutedMessage relay rate limit drops excess`() = runTest {
-        var clockMs = 0L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 0L
+        val clock: () -> Long = { clockMillis }
         val config =
             relaxedConfig()
                 .copy(
                     relayPerSenderPerNeighborLimit = 1,
-                    relayPerSenderPerNeighborWindowMs = 60_000L,
+                    relayPerSenderPerNeighborWindowMillis = 60_000L,
                 )
         val alice = makeNode(backgroundScope, testScheduler, clock, config)
         val carol = makeNode(backgroundScope, testScheduler, clock, config)
@@ -1243,14 +1243,14 @@ class DeliveryPipelineTest {
 
     @Test
     fun `relay RoutedMessage neighbor aggregate rate limit drops excess`() = runTest {
-        var clockMs = 0L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 0L
+        val clock: () -> Long = { clockMillis }
         val config =
             relaxedConfig()
                 .copy(
                     relayPerSenderPerNeighborLimit = 200,
                     perNeighborAggregateLimit = 1,
-                    perNeighborAggregateWindowMs = 60_000L,
+                    perNeighborAggregateWindowMillis = 60_000L,
                 )
         val alice = makeNode(backgroundScope, testScheduler, clock, config)
         val carol = makeNode(backgroundScope, testScheduler, clock, config)
@@ -1301,8 +1301,8 @@ class DeliveryPipelineTest {
 
     @Test
     fun `inbound RoutedMessage to self decryption failure dropped`() = runTest {
-        var clockMs = 1_000L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 1_000L
+        val clock: () -> Long = { clockMillis }
         val alice = makeNode(backgroundScope, testScheduler, clock)
         val received = mutableListOf<InboundMessage>()
         backgroundScope.launch { alice.pipeline.messages.collect { received.add(it) } }
@@ -1335,8 +1335,8 @@ class DeliveryPipelineTest {
 
     @Test
     fun `inbound RoutedMessage to self no sender key dropped`() = runTest {
-        var clockMs = 1_000L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 1_000L
+        val clock: () -> Long = { clockMillis }
         val alice = makeNode(backgroundScope, testScheduler, clock)
         val received = mutableListOf<InboundMessage>()
         backgroundScope.launch { alice.pipeline.messages.collect { received.add(it) } }
@@ -1371,8 +1371,8 @@ class DeliveryPipelineTest {
 
     @Test
     fun `full delivery round trip emits Delivered on sender`() = runTest {
-        var clockMs = 1_000L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 1_000L
+        val clock: () -> Long = { clockMillis }
         val alice = makeNode(backgroundScope, testScheduler, clock)
         val bob = makeNode(backgroundScope, testScheduler, clock)
         connect(alice, bob, clock)
@@ -1394,8 +1394,8 @@ class DeliveryPipelineTest {
 
     @Test
     fun `delivery ACK with invalid signature is dropped`() = runTest {
-        var clockMs = 1_000L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 1_000L
+        val clock: () -> Long = { clockMillis }
         val alice = makeNode(backgroundScope, testScheduler, clock)
         val bob = makeNode(backgroundScope, testScheduler, clock)
         connect(alice, bob, clock)
@@ -1426,8 +1426,8 @@ class DeliveryPipelineTest {
 
     @Test
     fun `delivery ACK no-signature path accepted`() = runTest {
-        var clockMs = 1_000L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 1_000L
+        val clock: () -> Long = { clockMillis }
         val alice = makeNode(backgroundScope, testScheduler, clock)
         val unknown = ByteArray(12) { 0x92.toByte() }
         alice.trustStore.pinKey(unknown, ByteArray(32) { it.toByte() })
@@ -1455,8 +1455,8 @@ class DeliveryPipelineTest {
 
     @Test
     fun `buffered message drains when route becomes available`() = runTest {
-        var clockMs = 0L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 0L
+        val clock: () -> Long = { clockMillis }
         val alice = makeNode(backgroundScope, testScheduler, clock)
         val unknown = ByteArray(12) { 0xA0.toByte() }
         alice.trustStore.pinKey(unknown, ByteArray(32) { it.toByte() })
@@ -1492,8 +1492,8 @@ class DeliveryPipelineTest {
 
     @Test
     fun `buffer evicts when maxBufferedMessages exceeded`() = runTest {
-        var clockMs = 0L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 0L
+        val clock: () -> Long = { clockMillis }
         val config = relaxedConfig(maxBufferedMessages = 2)
         val alice = makeNode(backgroundScope, testScheduler, clock, config)
         val failures = mutableListOf<DeliveryFailed>()
@@ -1517,11 +1517,15 @@ class DeliveryPipelineTest {
 
     @Test
     fun `buffer TTL expiry emits DeliveryFailed TIMED_OUT`() = runTest {
-        var clockMs = 0L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 0L
+        val clock: () -> Long = { clockMillis }
         val config =
             relaxedConfig()
-                .copy(highPriorityTtlMs = 100L, normalPriorityTtlMs = 100L, lowPriorityTtlMs = 100L)
+                .copy(
+                    highPriorityTtlMillis = 100L,
+                    normalPriorityTtlMillis = 100L,
+                    lowPriorityTtlMillis = 100L,
+                )
         val alice = makeNode(backgroundScope, testScheduler, clock, config)
         val failures = mutableListOf<DeliveryFailed>()
         backgroundScope.launch { alice.pipeline.transferFailures.collect { failures.add(it) } }
@@ -1531,7 +1535,7 @@ class DeliveryPipelineTest {
         alice.trustStore.pinKey(unknown, ByteArray(32) { it.toByte() })
         alice.pipeline.send(unknown, byteArrayOf(1))
 
-        clockMs = 500L // advance past TTL
+        clockMillis = 500L // advance past TTL
         alice.pipeline.send(alice.identity.keyHash, byteArrayOf(2)) // triggers drainBuffer
         runCurrent()
 
@@ -1542,13 +1546,13 @@ class DeliveryPipelineTest {
 
     @Test
     fun `circuit breaker opens after maxFailures`() = runTest {
-        var clockMs = 0L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 0L
+        val clock: () -> Long = { clockMillis }
         val circuitBreakerConfig =
             MessagingConfig.CircuitBreakerConfig(
-                windowMs = 60_000L,
+                windowMillis = 60_000L,
                 maxFailures = 2,
-                cooldownMs = 10_000L,
+                cooldownMillis = 10_000L,
             )
         val config = relaxedConfig(circuitBreaker = circuitBreakerConfig)
         val alice =
@@ -1579,13 +1583,13 @@ class DeliveryPipelineTest {
 
     @Test
     fun `circuit breaker half-open after cooldown`() = runTest {
-        var clockMs = 0L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 0L
+        val clock: () -> Long = { clockMillis }
         val circuitBreakerConfig =
             MessagingConfig.CircuitBreakerConfig(
-                windowMs = 60_000L,
+                windowMillis = 60_000L,
                 maxFailures = 1,
-                cooldownMs = 1_000L,
+                cooldownMillis = 1_000L,
             )
         val config = relaxedConfig(circuitBreaker = circuitBreakerConfig)
         val alice =
@@ -1615,7 +1619,7 @@ class DeliveryPipelineTest {
         )
 
         // Advance clock past cooldown
-        clockMs = 2_000L
+        clockMillis = 2_000L
         advanceTimeBy(1_800L)
         runCurrent()
 
@@ -1626,13 +1630,13 @@ class DeliveryPipelineTest {
 
     @Test
     fun `circuit breaker closes on success after half-open`() = runTest {
-        var clockMs = 0L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 0L
+        val clock: () -> Long = { clockMillis }
         val circuitBreakerConfig =
             MessagingConfig.CircuitBreakerConfig(
-                windowMs = 60_000L,
+                windowMillis = 60_000L,
                 maxFailures = 1,
-                cooldownMs = 500L,
+                cooldownMillis = 500L,
             )
         val config = relaxedConfig(circuitBreaker = circuitBreakerConfig)
         val alice =
@@ -1660,7 +1664,7 @@ class DeliveryPipelineTest {
         runCurrent()
 
         // Past cooldown
-        clockMs = 1_000L
+        clockMillis = 1_000L
         advanceTimeBy(800L)
         runCurrent()
 
@@ -1670,20 +1674,20 @@ class DeliveryPipelineTest {
         advanceUntilIdle()
 
         // After success, CB should be closed — subsequent send should pass
-        clockMs = 2_000L
+        clockMillis = 2_000L
         val afterSuccess = alice.pipeline.send(bob.identity.keyHash, byteArrayOf(3))
         assertEquals(SendResult.Sent, afterSuccess)
     }
 
     @Test
     fun `circuit breaker ignores MEMORY_PRESSURE failures`() = runTest {
-        var clockMs = 0L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 0L
+        val clock: () -> Long = { clockMillis }
         val circuitBreakerConfig =
             MessagingConfig.CircuitBreakerConfig(
-                windowMs = 60_000L,
+                windowMillis = 60_000L,
                 maxFailures = 1,
-                cooldownMs = 30_000L,
+                cooldownMillis = 30_000L,
             )
         val config = relaxedConfig(circuitBreaker = circuitBreakerConfig)
         val alice = makeNode(backgroundScope, testScheduler, clock, config)
@@ -1707,13 +1711,13 @@ class DeliveryPipelineTest {
 
     @Test
     fun `circuit breaker half-open failure re-opens`() = runTest {
-        var clockMs = 0L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 0L
+        val clock: () -> Long = { clockMillis }
         val circuitBreakerConfig =
             MessagingConfig.CircuitBreakerConfig(
-                windowMs = 60_000L,
+                windowMillis = 60_000L,
                 maxFailures = 1,
-                cooldownMs = 500L,
+                cooldownMillis = 500L,
             )
         val config = relaxedConfig(circuitBreaker = circuitBreakerConfig)
         val alice =
@@ -1740,7 +1744,7 @@ class DeliveryPipelineTest {
         advanceTimeBy(200L)
         runCurrent()
 
-        clockMs = 1_000L
+        clockMillis = 1_000L
         advanceTimeBy(800L)
         runCurrent()
 
@@ -1764,8 +1768,8 @@ class DeliveryPipelineTest {
 
     @Test
     fun `transferFailures flow emits for own unicast session timeout`() = runTest {
-        var clockMs = 0L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 0L
+        val clock: () -> Long = { clockMillis }
         val alice =
             makeNode(
                 backgroundScope,
@@ -1792,8 +1796,8 @@ class DeliveryPipelineTest {
 
     @Test
     fun `transferFailed for unknown session silently dropped`() = runTest {
-        var clockMs = 0L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 0L
+        val clock: () -> Long = { clockMillis }
         val alice =
             makeNode(
                 backgroundScope,
@@ -1818,8 +1822,8 @@ class DeliveryPipelineTest {
 
     @Test
     fun `transferProgress emits for own unicast sessions only`() = runTest {
-        var clockMs = 0L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 0L
+        val clock: () -> Long = { clockMillis }
         val alice = makeNode(backgroundScope, testScheduler, clock)
         val bob = makeNode(backgroundScope, testScheduler, clock)
         connect(alice, bob, clock)
@@ -1837,8 +1841,8 @@ class DeliveryPipelineTest {
 
     @Test
     fun `transferProgress not emitted for relay sessions`() = runTest {
-        var clockMs = 0L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 0L
+        val clock: () -> Long = { clockMillis }
         val alice = makeNode(backgroundScope, testScheduler, clock)
         val carol = makeNode(backgroundScope, testScheduler, clock)
         connect(alice, carol, clock)
@@ -1871,8 +1875,8 @@ class DeliveryPipelineTest {
 
     @Test
     fun `mapFailureReason MEMORY_PRESSURE maps to SEND_FAILED`() = runTest {
-        var clockMs = 0L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 0L
+        val clock: () -> Long = { clockMillis }
         val alice = makeNode(backgroundScope, testScheduler, clock)
         val bob = makeNode(backgroundScope, testScheduler, clock)
         connect(alice, bob, clock)
@@ -1892,8 +1896,8 @@ class DeliveryPipelineTest {
 
     @Test
     fun `mapFailureReason BUFFER_FULL_RETRY_EXHAUSTED via nack exhaustion`() = runTest {
-        var clockMs = 0L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 0L
+        val clock: () -> Long = { clockMillis }
         val alice =
             makeNode(
                 backgroundScope,
@@ -1940,8 +1944,8 @@ class DeliveryPipelineTest {
 
     @Test
     fun `assemblyComplete with non-protocol payload silently ignored`() = runTest {
-        var clockMs = 1_000L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 1_000L
+        val clock: () -> Long = { clockMillis }
         val alice = makeNode(backgroundScope, testScheduler, clock)
         val received = mutableListOf<InboundMessage>()
         backgroundScope.launch { alice.pipeline.messages.collect { received.add(it) } }
@@ -1964,8 +1968,8 @@ class DeliveryPipelineTest {
 
     @Test
     fun `assemblyComplete with malformed payload silently ignored`() = runTest {
-        var clockMs = 1_000L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 1_000L
+        val clock: () -> Long = { clockMillis }
         val alice = makeNode(backgroundScope, testScheduler, clock)
         val received = mutableListOf<InboundMessage>()
         backgroundScope.launch { alice.pipeline.messages.collect { received.add(it) } }
@@ -1987,8 +1991,8 @@ class DeliveryPipelineTest {
 
     @Test
     fun `assemblyComplete with Broadcast payload handles correctly`() = runTest {
-        var clockMs = 1_000L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 1_000L
+        val clock: () -> Long = { clockMillis }
         val alice = makeNode(backgroundScope, testScheduler, clock)
         val received = mutableListOf<InboundMessage>()
         backgroundScope.launch { alice.pipeline.messages.collect { received.add(it) } }
@@ -2028,8 +2032,8 @@ class DeliveryPipelineTest {
 
     @Test
     fun `ack buffer drains when route becomes available via Hello`() = runTest {
-        var clockMs = 1_000L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 1_000L
+        val clock: () -> Long = { clockMillis }
         val alice = makeNode(backgroundScope, testScheduler, clock)
         val bob = makeNode(backgroundScope, testScheduler, clock)
         // One-way: alice→bob only
@@ -2215,9 +2219,9 @@ class DeliveryPipelineCoverageTest {
         broadcastLimit: Int = 200,
         circuitBreaker: MessagingConfig.CircuitBreakerConfig =
             MessagingConfig.CircuitBreakerConfig(
-                windowMs = 60_000L,
+                windowMillis = 60_000L,
                 maxFailures = 3,
-                cooldownMs = 5_000L,
+                cooldownMillis = 5_000L,
             ),
     ) =
         MessagingConfig(
@@ -2226,22 +2230,22 @@ class DeliveryPipelineCoverageTest {
             allowUnsignedBroadcasts = allowUnsignedBroadcasts,
             maxBufferedMessages = maxBufferedMessages,
             outboundUnicastLimit = outboundUnicastLimit,
-            outboundUnicastWindowMs = 60_000L,
+            outboundUnicastWindowMillis = 60_000L,
             broadcastLimit = broadcastLimit,
-            broadcastWindowMs = 60_000L,
+            broadcastWindowMillis = 60_000L,
             relayPerSenderPerNeighborLimit = 200,
-            relayPerSenderPerNeighborWindowMs = 60_000L,
+            relayPerSenderPerNeighborWindowMillis = 60_000L,
             perNeighborAggregateLimit = 200,
-            perNeighborAggregateWindowMs = 60_000L,
+            perNeighborAggregateWindowMillis = 60_000L,
             perSenderInboundLimit = 200,
-            perSenderInboundWindowMs = 60_000L,
+            perSenderInboundWindowMillis = 60_000L,
             handshakeLimit = 200,
-            handshakeWindowMs = 60_000L,
+            handshakeWindowMillis = 60_000L,
             nackLimit = 200,
-            nackWindowMs = 60_000L,
-            highPriorityTtlMs = 10_000L,
-            normalPriorityTtlMs = 10_000L,
-            lowPriorityTtlMs = 10_000L,
+            nackWindowMillis = 60_000L,
+            highPriorityTtlMillis = 10_000L,
+            normalPriorityTtlMillis = 10_000L,
+            lowPriorityTtlMillis = 10_000L,
             circuitBreaker = circuitBreaker,
         )
 
@@ -2314,9 +2318,10 @@ class DeliveryPipelineCoverageTest {
 
     @Test
     fun `send with Priority HIGH uses highPriorityTtl for pending delivery`() = runTest {
-        var clockMs = 0L
-        val clock: () -> Long = { clockMs }
-        val config = relaxedConfig().copy(highPriorityTtlMs = 100L, normalPriorityTtlMs = 10_000L)
+        var clockMillis = 0L
+        val clock: () -> Long = { clockMillis }
+        val config =
+            relaxedConfig().copy(highPriorityTtlMillis = 100L, normalPriorityTtlMillis = 10_000L)
         val alice = makeNode(backgroundScope, testScheduler, clock, config)
         val failures = mutableListOf<DeliveryFailed>()
         backgroundScope.launch { alice.pipeline.transferFailures.collect { failures.add(it) } }
@@ -2327,7 +2332,7 @@ class DeliveryPipelineCoverageTest {
 
         // HIGH priority → expiresAt = 0 + 100ms
         alice.pipeline.send(unknown, byteArrayOf(1), Priority.HIGH)
-        clockMs = 500L // advance past highPriorityTtlMs=100
+        clockMillis = 500L // advance past highPriorityTtlMillis=100
 
         // self-send triggers drainBuffer() which finds expired HIGH-priority entry
         alice.pipeline.send(alice.identity.keyHash, byteArrayOf(2))
@@ -2343,8 +2348,8 @@ class DeliveryPipelineCoverageTest {
 
     @Test
     fun `broadcast with single-byte appIdHash uses zero for second byte`() = runTest {
-        var clockMs = 0L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 0L
+        val clock: () -> Long = { clockMillis }
         val config = relaxedConfig().copy(appIdHash = byteArrayOf(0xAB.toByte()))
         val alice = makeNode(backgroundScope, testScheduler, clock, config)
         val bob = makeNode(backgroundScope, testScheduler, clock, config)
@@ -2361,8 +2366,8 @@ class DeliveryPipelineCoverageTest {
 
     @Test
     fun `broadcast relay skips the peer that sent the broadcast`() = runTest {
-        var clockMs = 0L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 0L
+        val clock: () -> Long = { clockMillis }
         val alice = makeNode(backgroundScope, testScheduler, clock)
         val bob = makeNode(backgroundScope, testScheduler, clock)
         val carol = makeNode(backgroundScope, testScheduler, clock)
@@ -2401,13 +2406,13 @@ class DeliveryPipelineCoverageTest {
 
     @Test
     fun `broadcast relay rate limit per-sender-per-neighbor drops second broadcast`() = runTest {
-        var clockMs = 0L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 0L
+        val clock: () -> Long = { clockMillis }
         val config =
             relaxedConfig()
                 .copy(
                     relayPerSenderPerNeighborLimit = 1,
-                    relayPerSenderPerNeighborWindowMs = 60_000L,
+                    relayPerSenderPerNeighborWindowMillis = 60_000L,
                 )
         val alice = makeNode(backgroundScope, testScheduler, clock, config)
         val carol = makeNode(backgroundScope, testScheduler, clock, config)
@@ -2467,14 +2472,14 @@ class DeliveryPipelineCoverageTest {
     @Test
     fun `broadcast relay neighbor aggregate limit drops second broadcast from different sender`() =
         runTest {
-            var clockMs = 0L
-            val clock: () -> Long = { clockMs }
+            var clockMillis = 0L
+            val clock: () -> Long = { clockMillis }
             val config =
                 relaxedConfig()
                     .copy(
                         relayPerSenderPerNeighborLimit = 200,
                         perNeighborAggregateLimit = 1,
-                        perNeighborAggregateWindowMs = 60_000L,
+                        perNeighborAggregateWindowMillis = 60_000L,
                     )
             val alice = makeNode(backgroundScope, testScheduler, clock, config)
             val carol = makeNode(backgroundScope, testScheduler, clock, config)
@@ -2568,8 +2573,8 @@ class DeliveryPipelineCoverageTest {
 
     @Test
     fun `handleInboundDeliveryAck unsigned ACK confirms delivery for known pending`() = runTest {
-        var clockMs = 1_000L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 1_000L
+        val clock: () -> Long = { clockMillis }
         val alice = makeNode(backgroundScope, testScheduler, clock)
         val bob = makeNode(backgroundScope, testScheduler, clock)
         connectOneWay(alice, bob, clock)
@@ -2606,8 +2611,8 @@ class DeliveryPipelineCoverageTest {
 
     @Test
     fun `handleInboundDeliveryAck signed with null sig drops for known pending`() = runTest {
-        var clockMs = 1_000L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 1_000L
+        val clock: () -> Long = { clockMillis }
         val alice = makeNode(backgroundScope, testScheduler, clock)
         val bob = makeNode(backgroundScope, testScheduler, clock)
         connectOneWay(alice, bob, clock)
@@ -2644,8 +2649,8 @@ class DeliveryPipelineCoverageTest {
 
     @Test
     fun `handleInboundDeliveryAck invalid sig drops for known pending`() = runTest {
-        var clockMs = 1_000L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 1_000L
+        val clock: () -> Long = { clockMillis }
         val alice = makeNode(backgroundScope, testScheduler, clock)
         val bob = makeNode(backgroundScope, testScheduler, clock)
         connectOneWay(alice, bob, clock)
@@ -2684,11 +2689,15 @@ class DeliveryPipelineCoverageTest {
 
     @Test
     fun `evictBufferIfFull removes expired entries before checking capacity`() = runTest {
-        var clockMs = 0L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 0L
+        val clock: () -> Long = { clockMillis }
         val config =
             relaxedConfig(maxBufferedMessages = 2)
-                .copy(highPriorityTtlMs = 100L, normalPriorityTtlMs = 100L, lowPriorityTtlMs = 100L)
+                .copy(
+                    highPriorityTtlMillis = 100L,
+                    normalPriorityTtlMillis = 100L,
+                    lowPriorityTtlMillis = 100L,
+                )
         val alice = makeNode(backgroundScope, testScheduler, clock, config)
         val failures = mutableListOf<DeliveryFailed>()
         backgroundScope.launch { alice.pipeline.transferFailures.collect { failures.add(it) } }
@@ -2704,7 +2713,7 @@ class DeliveryPipelineCoverageTest {
         alice.pipeline.send(r1, byteArrayOf(1))
         alice.pipeline.send(r2, byteArrayOf(2))
 
-        clockMs = 500L // advance past TTL=100ms so both entries are expired
+        clockMillis = 500L // advance past TTL=100ms so both entries are expired
 
         // 3rd send triggers evictBufferIfFull: expired r1/r2 removed first → r3 fits
         alice.pipeline.send(r3, byteArrayOf(3))
@@ -2718,13 +2727,13 @@ class DeliveryPipelineCoverageTest {
 
     @Test
     fun `circuit breaker canSend allows probe when state already HALF_OPEN`() = runTest {
-        var clockMs = 0L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 0L
+        val clock: () -> Long = { clockMillis }
         val cbConfig =
             MessagingConfig.CircuitBreakerConfig(
-                windowMs = 60_000L,
+                windowMillis = 60_000L,
                 maxFailures = 1,
-                cooldownMs = 1_000L,
+                cooldownMillis = 1_000L,
             )
         val alice =
             makeNode(
@@ -2755,7 +2764,7 @@ class DeliveryPipelineCoverageTest {
         runCurrent()
 
         // Advance past cooldown → CB transitions to HALF_OPEN on next canSend()
-        clockMs = 2_000L
+        clockMillis = 2_000L
         advanceTimeBy(1_800L)
         runCurrent()
 
@@ -2774,15 +2783,16 @@ class DeliveryPipelineCoverageTest {
     fun `circuit breaker onFailure evicts expired timestamps before threshold check`() = runTest {
         // Strategy: use connectOneWay + bob.trustStore.removePinForPeer so bob never sends a
         // DeliveryAck. Alice's pending delivery stays alive until ackDeadline fires.
-        // Two failures at clockMs=0 → failureTimestamps=[0,0]. Then clockMs=600 (>windowMs=500).
+        // Two failures at clockMillis=0 → failureTimestamps=[0,0]. Then clockMillis=600
+        // (>windowMillis=500).
         // Third failure: evicts [0,0] → adds [600] → size=1 < maxFailures=3 → CB stays CLOSED.
-        var clockMs = 0L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 0L
+        val clock: () -> Long = { clockMillis }
         val cbConfig =
             MessagingConfig.CircuitBreakerConfig(
-                windowMs = 500L,
+                windowMillis = 500L,
                 maxFailures = 3,
-                cooldownMs = 30_000L,
+                cooldownMillis = 30_000L,
             )
         val alice =
             makeNode(
@@ -2800,13 +2810,13 @@ class DeliveryPipelineCoverageTest {
         backgroundScope.launch { alice.pipeline.deliveryConfirmations.collect {} }
         runCurrent()
 
-        // Failure 1 at clockMs=0: send → bob ChunkAcks → senderLoop exits → ackDeadline at t=50
+        // Failure 1 at clockMillis=0: send → bob ChunkAcks → senderLoop exits → ackDeadline at t=50
         alice.pipeline.send(bob.identity.keyHash, byteArrayOf(1))
         runCurrent()
         advanceTimeBy(100L) // fires ackDeadline; clock()=0 → onFailure(INACTIVITY_TIMEOUT) at 0
         runCurrent() // failureTimestamps=[0]
 
-        // Failure 2 at clockMs=0 (virtual t=100)
+        // Failure 2 at clockMillis=0 (virtual t=100)
         alice.pipeline.send(bob.identity.keyHash, byteArrayOf(2))
         runCurrent()
         advanceTimeBy(100L) // ackDeadline at clock()=0 → failureTimestamps=[0,0]
@@ -2819,7 +2829,7 @@ class DeliveryPipelineCoverageTest {
         runCurrent() // ackDeadline for #3 fires, clock()=0 → [0,0,0] → CB opens!
 
         // Oops — 3 failures at clock=0 opens CB. Advance clock past cooldown to reset.
-        clockMs = 30_500L // past cooldown=30_000
+        clockMillis = 30_500L // past cooldown=30_000
         advanceTimeBy(100L)
         runCurrent()
         // CB: OPEN → canSend() checks clock()-openedAt=30_500-0=30_500 >= cooldown=30_000 →
@@ -2829,9 +2839,9 @@ class DeliveryPipelineCoverageTest {
         advanceTimeBy(100L)
         runCurrent() // ackDeadline for probe fires → onFailure re-opens CB
 
-        // Now do the eviction test properly: set clock >> windowMs between failures
+        // Now do the eviction test properly: set clock >> windowMillis between failures
         // First: close CB by advancing past cooldown again + make sure onSuccess fires
-        clockMs = 70_000L // way past cooldown
+        clockMillis = 70_000L // way past cooldown
         advanceTimeBy(100L)
         runCurrent()
 
@@ -2839,7 +2849,7 @@ class DeliveryPipelineCoverageTest {
         // Then send a successful message (bob needs to deliver ACK to alice for onSuccess).
         // Instead: use a fresh node pair for cleaner isolation.
         // The eviction path itself was exercised above: when failure at clock=30_500 fires,
-        // onFailure evicts [0,0,...] timestamps older than windowMs=500ms.
+        // onFailure evicts [0,0,...] timestamps older than windowMillis=500ms.
         // This is sufficient coverage for the while loop body at lines 773-777.
     }
 
@@ -2847,14 +2857,14 @@ class DeliveryPipelineCoverageTest {
 
     @Test
     fun `sendDeliveryAckWithRetry silently discards ACK when ackBuffer at 50 capacity`() = runTest {
-        var clockMs = 1_000L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 1_000L
+        val clock: () -> Long = { clockMillis }
         // High CB maxFailures so alice can keep sending for 51+ iterations
         val cbConfig =
             MessagingConfig.CircuitBreakerConfig(
-                windowMs = 3_600_000L,
+                windowMillis = 3_600_000L,
                 maxFailures = 500,
-                cooldownMs = 1L,
+                cooldownMillis = 1L,
             )
         val alice =
             makeNode(
@@ -2886,8 +2896,8 @@ class DeliveryPipelineCoverageTest {
 
     @Test
     fun `drainAckBuffer skips entries whose target has no route`() = runTest {
-        var clockMs = 1_000L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 1_000L
+        val clock: () -> Long = { clockMillis }
         val alice = makeNode(backgroundScope, testScheduler, clock)
         val bob = makeNode(backgroundScope, testScheduler, clock)
         // connectOneWay: alice→bob route installed, bob CAN process alice's message,
@@ -2918,8 +2928,8 @@ class DeliveryPipelineCoverageTest {
 
     @Test
     fun `ack deadline timer no-ops when delivery already confirmed before it fires`() = runTest {
-        var clockMs = 1_000L
-        val clock: () -> Long = { clockMs }
+        var clockMillis = 1_000L
+        val clock: () -> Long = { clockMillis }
         val alice = makeNode(backgroundScope, testScheduler, clock)
         val bob = makeNode(backgroundScope, testScheduler, clock)
         connect(alice, bob, clock)
@@ -2949,8 +2959,8 @@ class DeliveryPipelineCoverageTest {
     @Test
     fun `handleTransferEvent fires mapDeliveryFailureReason for BUFFER_FULL before ackDeadline`() =
         runTest {
-            var clockMs = 0L
-            val clock: () -> Long = { clockMs }
+            var clockMillis = 0L
+            val clock: () -> Long = { clockMillis }
             // No transport link — alice's chunks never reach bob, senderLoop stays alive.
             // maxNackRetries=0: first NACK immediately fires BUFFER_FULL_RETRY_EXHAUSTED at t=0
             // (before the ackDeadline at t=5000ms), so the pending delivery is still present.
