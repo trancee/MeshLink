@@ -1,10 +1,24 @@
 // Force minimum secure versions for vulnerable transitive build-classpath dependencies
 // brought in by AGP 9.x. All are build-only (not shipped in the library artifact).
 // Dependabot alerts: #1 httpclient XSS, #2 commons-lang3 recursion, #3 jdom2 XXE,
-//                   #4 jose4j DoS, #5 bcpkix broken crypto, #6 bcprov LDAP injection.
+//                   #4 jose4j DoS, #5 bcpkix broken crypto, #6 bcprov LDAP injection,
+//                   #7 bcprov timing channel,
+//                   #8–#19 Netty (HTTP/2 rapid reset, HTTP smuggling, DoS, CRLF, SslHandler crash).
+//
+// Root cause for Netty: AGP 9.x → com.android.tools.utp:* → io.grpc:grpc-netty:1.57.2
+//                        → io.netty:*:4.1.93.Final (all 4.1.x artifacts pinned below).
 buildscript {
     configurations.all {
         resolutionStrategy.eachDependency {
+            // Netty: force entire io.netty group to 4.1.132.Final (latest 4.1.x).
+            // Covers alerts #8–#19: HTTP/2 rapid reset (CVE-2023-44487), HTTP/2 CONTINUATION
+            // frame flood (CVE-2024-29025), HTTP smuggling (CVE-2025-24970/CVE-2025-25193),
+            // CRLF injection, zip-bomb DoS, SslHandler crash, Windows named-pipe DoS.
+            if (requested.group == "io.netty") {
+                useVersion("4.1.132.Final")
+                because("Multiple Netty CVEs (HTTP/2 rapid reset, smuggling, DoS) fixed by 4.1.132.Final")
+            }
+
             when ("${requested.group}:${requested.name}") {
                 "org.apache.httpcomponents:httpclient" -> {
                     useVersion("4.5.14")
@@ -28,8 +42,24 @@ buildscript {
                 }
                 "org.bouncycastle:bcprov-jdk18on" -> {
                     useVersion("1.84")
-                    because("CVE-2024-34447: LDAP injection vulnerability; fixed in 1.84")
+                    because("CVE-2024-34447 LDAP injection + CVE-2024-30171 timing channel; fixed in 1.84")
                 }
+            }
+        }
+    }
+}
+
+// Force io.netty at the project-dependency level too. AGP's UTP test infrastructure
+// (com.android.tools.utp:* → io.grpc:grpc-netty) exposes Netty as project-level
+// configurations, not buildscript classpath, so buildscript {} above is insufficient.
+// Both grpc-netty:1.57.2 (→ 4.1.93.Final) and grpc-netty:1.69.1 (→ 4.1.110.Final)
+// paths are covered by forcing the entire io.netty group across all subprojects.
+allprojects {
+    configurations.all {
+        resolutionStrategy.eachDependency {
+            if (requested.group == "io.netty") {
+                useVersion("4.1.132.Final")
+                because("Multiple Netty CVEs (HTTP/2 rapid reset, smuggling, DoS) fixed by 4.1.132.Final")
             }
         }
     }
