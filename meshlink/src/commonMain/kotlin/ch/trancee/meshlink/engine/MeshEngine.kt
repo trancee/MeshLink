@@ -58,6 +58,11 @@ private constructor(
     private val powerManager: PowerManager,
     private val transferScheduler: TransferScheduler,
     private val noiseHandshakeManager: NoiseHandshakeManager,
+    /**
+     * Exposed so [ch.trancee.meshlink.api.MeshLink] can build [RoutingSnapshot] without traversing
+     * the private [RouteCoordinator] hierarchy.
+     */
+    internal val routingTable: RoutingTable,
 ) {
     // ── Public SharedFlow surfaces ────────────────────────────────────────────
 
@@ -467,6 +472,7 @@ private constructor(
                 powerManager = powerManager,
                 transferScheduler = transferScheduler,
                 noiseHandshakeManager = noiseHandshakeManager,
+                routingTable = routingTable,
             )
         }
     }
