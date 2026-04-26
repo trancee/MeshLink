@@ -706,4 +706,58 @@ class MeshLinkConfigTest {
         val config = meshLinkConfig("com.example.test")
         assertNull(config.power.customPowerMode)
     }
+
+    // ── Direct builder build() coverage (internal paths) ─────────────────────
+
+    @Test
+    fun messagingConfigBuilderBuildDefaults() {
+        val builder = MessagingConfigBuilder()
+        val cfg = builder.build()
+        assertEquals(102_400, cfg.maxMessageSize)
+        assertEquals(1_048_576, cfg.bufferCapacity)
+        assertEquals(2, cfg.broadcastTtl)
+        assertEquals(10_000, cfg.maxBroadcastSize)
+    }
+
+    @Test
+    fun messagingConfigBuilderBuildCustomValues() {
+        val builder =
+            MessagingConfigBuilder().apply {
+                maxMessageSize = 512
+                bufferCapacity = 131_072
+                broadcastTtl = 3
+                maxBroadcastSize = 5_000
+            }
+        val cfg = builder.build()
+        assertEquals(512, cfg.maxMessageSize)
+        assertEquals(131_072, cfg.bufferCapacity)
+        assertEquals(3, cfg.broadcastTtl)
+        assertEquals(5_000, cfg.maxBroadcastSize)
+    }
+
+    @Test
+    fun routingConfigBuilderBuildDefaults() {
+        val builder = RoutingConfigBuilder()
+        val cfg = builder.build()
+        assertEquals(210_000L, cfg.routeCacheTtlMillis)
+        assertEquals(10, cfg.maxHops)
+        assertEquals(25_000, cfg.dedupCapacity)
+        assertEquals(2_700_000L, cfg.maxMessageAgeMillis)
+    }
+
+    @Test
+    fun routingConfigBuilderBuildCustomValues() {
+        val builder =
+            RoutingConfigBuilder().apply {
+                routeCacheTtlMillis = 60_000L
+                maxHops = 5
+                dedupCapacity = 10_000
+                maxMessageAgeMillis = 900_000L
+            }
+        val cfg = builder.build()
+        assertEquals(60_000L, cfg.routeCacheTtlMillis)
+        assertEquals(5, cfg.maxHops)
+        assertEquals(10_000, cfg.dedupCapacity)
+        assertEquals(900_000L, cfg.maxMessageAgeMillis)
+    }
 }
