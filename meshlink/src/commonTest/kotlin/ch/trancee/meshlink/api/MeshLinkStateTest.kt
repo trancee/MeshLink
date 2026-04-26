@@ -269,9 +269,12 @@ class MeshLinkStateTest {
         machine.transition(LifecycleEvent.Resume) // invalid from RUNNING
 
         assertEquals(1, diagnostics.size)
-        val diag = assertIs<DiagnosticEvent.InvalidStateTransition>(diagnostics[0])
-        assertEquals(MeshLinkState.RUNNING, diag.from)
-        assertEquals("Resume", diag.trigger)
+        val diag = diagnostics[0]
+        assertEquals(DiagnosticCode.INVALID_STATE_TRANSITION, diag.code)
+        assertEquals(DiagnosticLevel.WARN, diag.severity)
+        val payload = assertIs<DiagnosticPayload.InvalidStateTransition>(diag.payload)
+        assertEquals(MeshLinkState.RUNNING.name, payload.from)
+        assertEquals("Resume", payload.trigger)
     }
 
     @Test
@@ -666,10 +669,27 @@ class MeshLinkStateTest {
     }
 
     @Test
-    fun `DiagnosticEvent InvalidStateTransition - construction`() {
-        val evt = DiagnosticEvent.InvalidStateTransition(MeshLinkState.RUNNING, "Resume")
-        assertEquals(MeshLinkState.RUNNING, evt.from)
-        assertEquals("Resume", evt.trigger)
+    fun `DiagnosticEvent - construction and fields`() {
+        val payload = DiagnosticPayload.InvalidStateTransition("RUNNING", "Resume")
+        val evt =
+            DiagnosticEvent(
+                code = DiagnosticCode.INVALID_STATE_TRANSITION,
+                severity = DiagnosticLevel.WARN,
+                monotonicMillis = 1000L,
+                wallClockMillis = 2000L,
+                droppedCount = 0,
+                payload = payload,
+            )
+        assertEquals(DiagnosticCode.INVALID_STATE_TRANSITION, evt.code)
+        assertEquals(DiagnosticLevel.WARN, evt.severity)
+        assertEquals(1000L, evt.monotonicMillis)
+        assertEquals(2000L, evt.wallClockMillis)
+        assertEquals(0, evt.droppedCount)
+        val p = assertIs<DiagnosticPayload.InvalidStateTransition>(evt.payload)
+        assertEquals("RUNNING", p.from)
+        assertEquals("Resume", p.trigger)
+        val copy = evt.copy(droppedCount = 3)
+        assertEquals(3, copy.droppedCount)
     }
 
     @Test

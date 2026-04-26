@@ -71,8 +71,9 @@ internal sealed class TransitionResult {
     data object Success : TransitionResult()
 
     /**
-     * The transition was invalid for the current state. [state] is unchanged. A
-     * [DiagnosticEvent.InvalidStateTransition] has been emitted via the [onDiagnostic] callback.
+     * The transition was invalid for the current state. [state] is unchanged. A diagnostic event
+     * with [DiagnosticCode.INVALID_STATE_TRANSITION] has been emitted via the [onDiagnostic]
+     * callback.
      */
     data class InvalidTransition(val from: MeshLinkState, val event: LifecycleEvent) :
         TransitionResult()
@@ -226,7 +227,16 @@ internal class MeshLinkStateMachine(
         }
 
     private fun invalidTransition(from: MeshLinkState, event: LifecycleEvent): TransitionResult {
-        onDiagnostic(DiagnosticEvent.InvalidStateTransition(from, event.displayName))
+        onDiagnostic(
+            DiagnosticEvent(
+                code = DiagnosticCode.INVALID_STATE_TRANSITION,
+                severity = DiagnosticCode.INVALID_STATE_TRANSITION.severity,
+                monotonicMillis = nowMs(),
+                wallClockMillis = nowMs(),
+                droppedCount = 0,
+                payload = DiagnosticPayload.InvalidStateTransition(from.name, event.displayName),
+            )
+        )
         return TransitionResult.InvalidTransition(from, event)
     }
 

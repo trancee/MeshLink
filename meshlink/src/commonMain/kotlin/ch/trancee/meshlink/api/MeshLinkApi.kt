@@ -118,7 +118,7 @@ public data class KeyChangeEvent(
 
 // ── DiagnosticEvent ───────────────────────────────────────────────────────────
 
-/** Level for [DiagnosticEvent.Log] entries. */
+/** Severity level for a [DiagnosticEvent]. */
 public enum class DiagnosticLevel {
     DEBUG,
     INFO,
@@ -127,21 +127,24 @@ public enum class DiagnosticLevel {
 }
 
 /**
- * Events emitted on the [MeshLinkApi.diagnosticEvents] flow for observability.
+ * A single structured diagnostic event emitted on [MeshLinkApi.diagnosticEvents].
  *
- * Additional subtypes are added in future milestones (S02+): `BleStackUnresponsive`,
- * `ConfigClamped`, `ReplayDetected`, etc.
+ * @param code The [DiagnosticCode] identifying which condition was observed.
+ * @param severity Severity copied from [code] at emission time for convenient filtering.
+ * @param monotonicMillis Monotonic timestamp (ms) when the event was constructed.
+ * @param wallClockMillis Wall-clock timestamp (ms) when the event was constructed.
+ * @param droppedCount Number of diagnostic events dropped since the previous emitted event due to
+ *   ring-buffer overflow. Zero under normal load.
+ * @param payload Type-safe payload specific to [code].
  */
-public sealed class DiagnosticEvent {
-    /**
-     * An invalid [MeshLinkApi] lifecycle transition was attempted.
-     *
-     * @param from State at the time of the invalid transition.
-     * @param trigger Display name of the event that triggered the invalid attempt.
-     */
-    public data class InvalidStateTransition(val from: MeshLinkState, val trigger: String) :
-        DiagnosticEvent()
-}
+public data class DiagnosticEvent(
+    val code: DiagnosticCode,
+    val severity: DiagnosticLevel,
+    val monotonicMillis: Long,
+    val wallClockMillis: Long,
+    val droppedCount: Int,
+    val payload: DiagnosticPayload,
+)
 
 // ── MeshHealthSnapshot ────────────────────────────────────────────────────────
 

@@ -14,6 +14,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
+import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -146,8 +147,11 @@ class MeshLinkTest {
 
         val event = mesh.lastDiagnosticEvent
         assertNotNull(event, "Expected a diagnostic event in replay cache")
-        assertTrue(event is DiagnosticEvent.InvalidStateTransition)
-        assertEquals(MeshLinkState.RUNNING, (event as DiagnosticEvent.InvalidStateTransition).from)
+        assertEquals(DiagnosticCode.INVALID_STATE_TRANSITION, event.code)
+        assertEquals(
+            MeshLinkState.RUNNING.name,
+            assertIs<DiagnosticPayload.InvalidStateTransition>(event.payload).from,
+        )
 
         mesh.stop()
     }
@@ -160,10 +164,10 @@ class MeshLinkTest {
 
         val event = mesh.lastDiagnosticEvent
         assertNotNull(event, "Expected a diagnostic event in replay cache")
-        assertTrue(event is DiagnosticEvent.InvalidStateTransition)
+        assertEquals(DiagnosticCode.INVALID_STATE_TRANSITION, event.code)
         assertEquals(
-            MeshLinkState.UNINITIALIZED,
-            (event as DiagnosticEvent.InvalidStateTransition).from,
+            MeshLinkState.UNINITIALIZED.name,
+            assertIs<DiagnosticPayload.InvalidStateTransition>(event.payload).from,
         )
 
         mesh.stopEngineForTest()
@@ -180,8 +184,11 @@ class MeshLinkTest {
 
         val event = mesh.lastDiagnosticEvent
         assertNotNull(event, "Expected a diagnostic event in replay cache")
-        assertTrue(event is DiagnosticEvent.InvalidStateTransition)
-        assertEquals(MeshLinkState.PAUSED, (event as DiagnosticEvent.InvalidStateTransition).from)
+        assertEquals(DiagnosticCode.INVALID_STATE_TRANSITION, event.code)
+        assertEquals(
+            MeshLinkState.PAUSED.name,
+            assertIs<DiagnosticPayload.InvalidStateTransition>(event.payload).from,
+        )
 
         mesh.stop()
     }
@@ -195,8 +202,11 @@ class MeshLinkTest {
 
         val event = mesh.lastDiagnosticEvent
         assertNotNull(event, "Expected a diagnostic event in replay cache")
-        assertTrue(event is DiagnosticEvent.InvalidStateTransition)
-        assertEquals(MeshLinkState.RUNNING, (event as DiagnosticEvent.InvalidStateTransition).from)
+        assertEquals(DiagnosticCode.INVALID_STATE_TRANSITION, event.code)
+        assertEquals(
+            MeshLinkState.RUNNING.name,
+            assertIs<DiagnosticPayload.InvalidStateTransition>(event.payload).from,
+        )
 
         mesh.stop()
     }
