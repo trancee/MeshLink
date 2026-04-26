@@ -434,7 +434,9 @@ internal class DeliveryPipeline(
                 )
             )
             // Send delivery ACK asynchronously with retries.
-            scope.launch { sendDeliveryAckWithRetry(msg.messageId, msg.origin) }
+            // senderPubKey is captured here (already validated non-null above) so
+            // sendDeliveryAckWithRetry can use it directly without a second null check.
+            scope.launch { sendDeliveryAckWithRetry(msg.messageId, msg.origin, senderPubKey) }
         } else {
             // Not for us — relay if possible.
             if (msg.hopLimit == 0u.toUByte()) return
@@ -620,6 +622,7 @@ internal class DeliveryPipeline(
     private suspend fun sendDeliveryAckWithRetry(
         originalMessageId: ByteArray,
         targetId: ByteArray,
+        senderKey: ByteArray,
     ) {
         val signature =
             cryptoProvider.sign(
@@ -642,32 +645,20 @@ internal class DeliveryPipeline(
                 // Wrap the ACK in a RoutedMessage so relay nodes forward it hop-by-hop
                 // back to the original sender. A raw DeliveryAck would be silently dropped
                 // by relay nodes that don't have the message ID in their pendingDeliveries.
-                val senderKey = trustStore.getPinnedKey(targetId)
-                val payload =
-                    if (senderKey != null) {
-                        val sealed =
-                            noiseKSeal(
-                                cryptoProvider,
-                                localIdentity.dhKeyPair,
-                                senderKey,
-                                encodedAck,
-                            )
-                        val routedAck =
-                            RoutedMessage(
-                                messageId = generateMessageId(),
-                                origin = localIdentity.keyHash,
-                                destination = targetId,
-                                hopLimit = DEFAULT_HOP_LIMIT,
-                                visitedList = listOf(localIdentity.keyHash),
-                                priority = Priority.NORMAL.wire,
-                                originationTime = clock().toULong(),
-                                payload = sealed,
-                            )
-                        WireCodec.encode(routedAck)
-                    } else {
-                        // Sender key not yet known (direct connection only) — send raw.
-                        encodedAck
-                    }
+                val sealed =
+                    noiseKSeal(cryptoProvider, localIdentity.dhKeyPair, senderKey, encodedAck)
+                val routedAck =
+                    RoutedMessage(
+                        messageId = generateMessageId(),
+                        origin = localIdentity.keyHash,
+                        destination = targetId,
+                        hopLimit = DEFAULT_HOP_LIMIT,
+                        visitedList = listOf(localIdentity.keyHash),
+                        priority = Priority.NORMAL.wire,
+                        originationTime = clock().toULong(),
+                        payload = sealed,
+                    )
+                val payload = WireCodec.encode(routedAck)
                 transferEngine.send(generateMessageId(), payload, nextHop, Priority.NORMAL)
                 return
             }

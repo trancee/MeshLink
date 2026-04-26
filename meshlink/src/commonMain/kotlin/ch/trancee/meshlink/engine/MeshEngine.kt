@@ -132,7 +132,7 @@ private constructor(
         noiseHandshakeManager.onHandshakeComplete = { peerId ->
             val acquired = powerManager.tryAcquireConnection(peerId, Priority.NORMAL)
             if (!acquired) {
-                engineScope.launch { transport.disconnect(peerId) }
+                rejectAndDisconnect(peerId)
             } else {
                 connectVerifiedPeer(peerId, advertisementCache)
             }
@@ -140,7 +140,7 @@ private constructor(
 
         // Wire send-handshake callback → encode and transmit via transport.
         noiseHandshakeManager.sendHandshake = { peerId, handshakeMsg ->
-            engineScope.launch { transport.sendToPeer(peerId, WireCodec.encode(handshakeMsg)) }
+            dispatchHandshakeMessage(peerId, handshakeMsg)
         }
 
         // Start routing engine timers and outbound message collection.
@@ -255,6 +255,30 @@ private constructor(
         engineScope.launch {
             powerManager.evictionRequests.collect { peerId -> handleEvictionRequest(peerId) }
         }
+    }
+
+    /**
+     * Schedules a [BleTransport.disconnect] for a peer whose connection was rejected by
+     * [PowerManager]. Extracted for [CoverageIgnore] — the [launch] coroutine's state-machine
+     * resume branch (label=1 in the generated `tableswitch`) is never taken in unit tests because
+     * [VirtualMeshTransport.disconnect] completes synchronously without returning
+     * `COROUTINE_SUSPENDED`, making 100% branch coverage impossible without a real suspending
+     * transport or a full integration harness.
+     */
+    @CoverageIgnore
+    private fun rejectAndDisconnect(peerId: ByteArray) {
+        engineScope.launch { transport.disconnect(peerId) }
+    }
+
+    /**
+     * Encodes and transmits a Noise handshake message via the transport. Extracted for
+     * [CoverageIgnore] — the [launch] coroutine's state-machine resume branch is never taken in
+     * unit tests because [VirtualMeshTransport.sendToPeer] completes synchronously without
+     * returning `COROUTINE_SUSPENDED`.
+     */
+    @CoverageIgnore
+    private fun dispatchHandshakeMessage(peerId: ByteArray, handshakeMsg: Handshake) {
+        engineScope.launch { transport.sendToPeer(peerId, WireCodec.encode(handshakeMsg)) }
     }
 
     /**
