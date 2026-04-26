@@ -21,6 +21,7 @@ kotlinx-benchmark-runtime  = { group = "org.jetbrains.kotlinx", name = "kotlinx-
 kotlin-multiplatform              = { id = "org.jetbrains.kotlin.multiplatform",                      version.ref = "kotlin" }
 # AGP 9.0+ requires the dedicated KMP library plugin; com.android.library is incompatible with KMP.
 android-kotlin-multiplatform-library = { id = "com.android.kotlin.multiplatform.library",            version.ref = "agp" }
+android-application               = { id = "com.android.application",                                version.ref = "agp" }
 kover                             = { id = "org.jetbrains.kotlinx.kover",                             version.ref = "kover" }
 detekt                            = { id = "io.gitlab.arturbosch.detekt",                             version.ref = "detekt" }
 ktfmt                             = { id = "com.ncorti.ktfmt.gradle",                                 version.ref = "ktfmt" }

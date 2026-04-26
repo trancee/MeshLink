@@ -13,6 +13,9 @@ import android.os.PowerManager
 import android.util.Log
 import ch.trancee.meshlink.crypto.CryptoProvider
 import ch.trancee.meshlink.crypto.Identity
+import ch.trancee.meshlink.engine.MeshEngine
+import ch.trancee.meshlink.engine.MeshEngineConfig
+import ch.trancee.meshlink.power.FixedBatteryMonitor
 import ch.trancee.meshlink.power.PowerTier
 import ch.trancee.meshlink.storage.InMemorySecureStorage
 import kotlinx.coroutines.CoroutineScope
@@ -24,15 +27,18 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 
 /**
- * Abstract Android foreground service that owns the [AndroidBleTransport] lifecycle.
+ * Abstract Android foreground service that owns the [AndroidBleTransport] and [MeshEngine]
+ * lifecycle.
  *
  * Subclasses implement [createBleTransportConfig], [createCryptoProvider], and
- * [createForegroundNotification]. The service declares foreground type
- * [ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE] on Android 14+ (API 34); on API 29–33 it
- * calls the two-argument [startForeground] overload.
+ * [createForegroundNotification]. Optionally override [createMeshEngineConfig] to supply
+ * subsystem-specific tuning (e.g. shortened routing timers for test harnesses).
  *
- * Key storage uses [InMemorySecureStorage] in S02 — EncryptedSharedPreferences persistence is wired
- * in S05.
+ * The service declares foreground type [ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE] on
+ * Android 14+ (API 34); on API 29–33 it calls the two-argument [startForeground] overload.
+ *
+ * Key storage uses [InMemorySecureStorage] in S02/S04 — EncryptedSharedPreferences persistence is
+ * wired in S05.
  *
  * The concrete subclass must be declared in the consuming app's AndroidManifest.xml. No `<service>`
  * element is declared in the library manifest.
@@ -53,9 +59,18 @@ abstract class MeshLinkService : Service() {
      */
     abstract fun createForegroundNotification(): Notification
 
+    /**
+     * Returns the [MeshEngineConfig] used to construct [MeshEngine].
+     *
+     * Override in subclasses to supply custom subsystem tuning — e.g. shortened routing timers for
+     * integration test harnesses. Defaults to [MeshEngineConfig] with all defaults.
+     */
+    open fun createMeshEngineConfig(): MeshEngineConfig = MeshEngineConfig()
+
     // ── State ────────────────────────────────────────────────────────────────
 
     private lateinit var transport: AndroidBleTransport
+    private lateinit var meshEngine: MeshEngine
     private val serviceScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private lateinit var powerTierFlow: MutableStateFlow<PowerTier>
 
@@ -77,6 +92,12 @@ abstract class MeshLinkService : Service() {
          * and [onCreate] has completed.
          */
         fun getTransport(): BleTransport = transport
+
+        /**
+         * Returns the running [MeshEngine]. Only safe to call after the service has been started
+         * and [onCreate] has completed.
+         */
+        fun getEngine(): MeshEngine = meshEngine
     }
 
     override fun onBind(intent: Intent): IBinder = LocalBinder()
@@ -90,7 +111,7 @@ abstract class MeshLinkService : Service() {
 
         val crypto = createCryptoProvider()
         val config = createBleTransportConfig()
-        // S02: InMemorySecureStorage — identity is ephemeral per process lifetime.
+        // S02/S04: InMemorySecureStorage — identity is ephemeral per process lifetime.
         // S05 will wire EncryptedSharedPreferences for persistent identity.
         val identity = Identity.loadOrGenerate(crypto, InMemorySecureStorage())
         powerTierFlow = MutableStateFlow(PowerTier.PERFORMANCE)
@@ -105,6 +126,22 @@ abstract class MeshLinkService : Service() {
                 powerTierFlow = powerTierFlow,
             )
 
+        // MeshEngine is created inside :meshlink where internal types (Identity, SecureStorage,
+        // AndroidBleTransport) are accessible. MeshEngine.create() is internal.
+        // A separate InMemorySecureStorage is used for engine key material so it is independent
+        // of the identity storage above.
+        meshEngine =
+            MeshEngine.create(
+                identity = identity,
+                cryptoProvider = crypto,
+                transport = transport,
+                storage = InMemorySecureStorage(),
+                batteryMonitor = FixedBatteryMonitor(1.0f),
+                scope = serviceScope,
+                clock = { System.currentTimeMillis() },
+                config = createMeshEngineConfig(),
+            )
+
         // startForeground must be called promptly (within ~5 s on Android 12+).
         val notification = createForegroundNotification()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
@@ -117,10 +154,11 @@ abstract class MeshLinkService : Service() {
             startForeground(NOTIFICATION_ID, notification)
         }
 
+        // MeshEngine.start() handles transport.startAdvertisingAndScanning() internally.
         serviceScope.launch {
-            runCatching { transport.startAdvertisingAndScanning() }
+            runCatching { meshEngine.start() }
                 .onFailure { e ->
-                    Log.e(TAG, "BLE transport start failed: ${e.message} — stopping service")
+                    Log.e(TAG, "MeshEngine start failed: ${e.message} — stopping service")
                     stopSelf()
                 }
         }
@@ -138,9 +176,10 @@ abstract class MeshLinkService : Service() {
         unregisterThermalListener()
         unregisterMemoryCallbacks()
 
-        if (::transport.isInitialized) {
-            // stopAll() has an internal 5 s timeout — runBlocking is bounded here.
-            runBlocking { transport.stopAll() }
+        if (::meshEngine.isInitialized) {
+            // meshEngine.stop() cancels the engine scope and calls transport.stopAll().
+            // Bounded by the engine's internal 5 s timeout.
+            runBlocking { meshEngine.stop() }
         }
         serviceScope.cancel()
     }

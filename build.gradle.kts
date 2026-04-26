@@ -42,6 +42,8 @@ plugins {
     // AGP 9.0+: com.android.library is no longer compatible with KMP modules.
     // Use the dedicated Android-KMP library plugin instead.
     alias(libs.plugins.android.kotlin.multiplatform.library) apply false
+    // Standard Android app plugin for :meshlink-sample test harness.
+    alias(libs.plugins.android.application) apply false
     alias(libs.plugins.kover) apply false
     alias(libs.plugins.detekt) apply false
     alias(libs.plugins.ktfmt) apply false
