@@ -10,17 +10,14 @@ import ch.trancee.meshlink.power.PowerTier
 import ch.trancee.meshlink.power.StubBatteryMonitor
 import ch.trancee.meshlink.storage.InMemorySecureStorage
 import ch.trancee.meshlink.transport.VirtualMeshTransport
-import ch.trancee.meshlink.transport.PeerLostReason
 import ch.trancee.meshlink.wire.Handshake
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.test.advanceUntilIdle
-import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.runTest
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class MeshEngineTest {
@@ -61,7 +58,7 @@ class MeshEngineTest {
         mgr.onAdvertisementSeen(peerId, ByteArray(1))
 
         assertNotNull(completed)
-        assertTrue(completed!!.contentEquals(peerId))
+        assertTrue(completed.contentEquals(peerId))
     }
 
     @Test
@@ -110,9 +107,9 @@ class MeshEngineTest {
 
         // Both sides should have completed the handshake
         assertNotNull(completedA)
-        assertTrue(completedA!!.contentEquals(peerIdB))
+        assertTrue(completedA.contentEquals(peerIdB))
         assertNotNull(completedB)
-        assertTrue(completedB!!.contentEquals(peerIdA))
+        assertTrue(completedB.contentEquals(peerIdA))
 
         // Keys should be pinned on both sides
         assertNotNull(trustA.getPinnedKey(peerIdB))
@@ -124,10 +121,11 @@ class MeshEngineTest {
     @Test
     fun `rate limiter suppresses second initiation within window`() {
         var now = 1000L
-        val (mgr, _) = makeHandshakeManager(
-            clock = { now },
-            config = HandshakeConfig(rateLimitWindowMs = 2000L),
-        )
+        val (mgr, _) =
+            makeHandshakeManager(
+                clock = { now },
+                config = HandshakeConfig(rateLimitWindowMs = 2000L),
+            )
         val peerId = ByteArray(12) { 0x10 }
         var sendCount = 0
         mgr.sendHandshake = { _, _ -> sendCount++ }
@@ -448,7 +446,9 @@ class MeshEngineTest {
 
         // Phase 1: initiate with callbacks set so step1 is sent
         var step1Bytes: ByteArray? = null
-        mgr.sendHandshake = { _, msg -> if (msg.step == 1u.toUByte()) step1Bytes = msg.noiseMessage }
+        mgr.sendHandshake = { _, msg ->
+            if (msg.step == 1u.toUByte()) step1Bytes = msg.noiseMessage
+        }
         mgr.onHandshakeComplete = { _ -> }
         mgr.onAdvertisementSeen(peerIdRemote, ByteArray(1))
         assertNotNull(step1Bytes)
@@ -457,7 +457,7 @@ class MeshEngineTest {
         mgr.sendHandshake = null
         mgr.onHandshakeComplete = null
         val remoteResponder = NoiseXXResponder(crypto, identityRemote.dhKeyPair)
-        remoteResponder.readMessage1(step1Bytes!!)
+        remoteResponder.readMessage1(step1Bytes)
         val msg2 = remoteResponder.writeMessage2()
         mgr.onInboundHandshake(peerIdRemote, Handshake(step = 2u, noiseMessage = msg2))
         // null paths of both sendHandshake?.invoke() and onHandshakeComplete?.invoke() covered
@@ -472,13 +472,15 @@ class MeshEngineTest {
         val remoteInitiator = NoiseXXInitiator(crypto, crypto.generateX25519KeyPair())
         val msg1 = remoteInitiator.writeMessage1()
         var step2Bytes: ByteArray? = null
-        mgr.sendHandshake = { _, msg -> if (msg.step == 2u.toUByte()) step2Bytes = msg.noiseMessage }
+        mgr.sendHandshake = { _, msg ->
+            if (msg.step == 2u.toUByte()) step2Bytes = msg.noiseMessage
+        }
         mgr.onInboundHandshake(peerIdRemote, Handshake(step = 1u, noiseMessage = msg1))
         assertNotNull(step2Bytes)
 
         // Now null the onHandshakeComplete callback and send valid step3
         mgr.onHandshakeComplete = null
-        remoteInitiator.readMessage2(step2Bytes!!)
+        remoteInitiator.readMessage2(step2Bytes)
         val msg3 = remoteInitiator.writeMessage3()
         mgr.onInboundHandshake(peerIdRemote, Handshake(step = 3u, noiseMessage = msg3))
         // null branch of onHandshakeComplete?.invoke() in handleStep3 covered
@@ -554,11 +556,7 @@ class MeshEngineTest {
         engine.start()
         testScheduler.runCurrent()
         // Known peer → reconnect shortcut → onHandshakeComplete fires with cached data
-        transport.simulateDiscovery(
-            knownPeerId,
-            PowerTierCodec.encode(PowerTier.BALANCED),
-            -60,
-        )
+        transport.simulateDiscovery(knownPeerId, PowerTierCodec.encode(PowerTier.BALANCED), -60)
         testScheduler.runCurrent()
         engine.stop()
     }
@@ -625,11 +623,13 @@ class MeshEngineTest {
         val storage = InMemorySecureStorage()
         val identity = Identity.loadOrGenerate(crypto, storage)
         val transport = VirtualMeshTransport(identity.keyHash, testScheduler)
-        val config = MeshEngineConfig(
-            messaging = ch.trancee.meshlink.messaging.MessagingConfig(
-                appIdHash = ByteArray(4) { it.toByte() },
+        val config =
+            MeshEngineConfig(
+                messaging =
+                    ch.trancee.meshlink.messaging.MessagingConfig(
+                        appIdHash = ByteArray(4) { it.toByte() }
+                    )
             )
-        )
         val engine =
             MeshEngine.create(
                 identity = identity,
