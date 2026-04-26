@@ -6,13 +6,13 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.test.TestCoroutineScheduler
 
-data class VirtualLink(
+internal data class VirtualLink(
     val rssi: Int = -50,
     val packetLoss: Double = 0.0,
     val latencyMillis: Long = 0L,
 )
 
-data class SentFrame(val destination: ByteArray, val data: ByteArray) {
+internal data class SentFrame(val destination: ByteArray, val data: ByteArray) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (other !is SentFrame) return false
@@ -22,7 +22,10 @@ data class SentFrame(val destination: ByteArray, val data: ByteArray) {
     override fun hashCode(): Int = 31 * destination.contentHashCode() + data.contentHashCode()
 }
 
-class VirtualMeshTransport(
+// Suppress EXPOSED_* warnings: BleTransport is `internal`; its members reference internal types,
+// and overrides in this internal test helper cannot widen or restrict that visibility.
+@Suppress("EXPOSED_PROPERTY_TYPE", "EXPOSED_FUNCTION_RETURN_TYPE", "EXPOSED_PARAMETER_TYPE")
+internal class VirtualMeshTransport(
     override val localPeerId: ByteArray,
     private val testScheduler: TestCoroutineScheduler,
 ) : BleTransport {
@@ -45,7 +48,7 @@ class VirtualMeshTransport(
     private val writeFailures = mutableSetOf<ByteArrayKey>()
 
     private val _sentFrames = mutableListOf<SentFrame>()
-    val sentFrames: List<SentFrame>
+    internal val sentFrames: List<SentFrame>
         get() = _sentFrames.toList()
 
     private class ByteArrayKey(val bytes: ByteArray) {
@@ -58,40 +61,32 @@ class VirtualMeshTransport(
         override fun hashCode(): Int = bytes.contentHashCode()
     }
 
-    /** Creates a bidirectional link between this transport and [other]. */
-    fun linkTo(other: VirtualMeshTransport, link: VirtualLink = VirtualLink()) {
+    internal fun linkTo(other: VirtualMeshTransport, link: VirtualLink = VirtualLink()) {
         links[ByteArrayKey(other.localPeerId)] = Pair(other, link)
         other.links[ByteArrayKey(localPeerId)] = Pair(this, link)
     }
 
-    /** Removes the bidirectional link between this transport and [other]. */
-    fun unlink(other: VirtualMeshTransport) {
+    internal fun unlink(other: VirtualMeshTransport) {
         links.remove(ByteArrayKey(other.localPeerId))
         other.links.remove(ByteArrayKey(localPeerId))
     }
 
-    /** Emits an [AdvertisementEvent] on [advertisementEvents] as if the peer were discovered. */
-    suspend fun simulateDiscovery(peerId: ByteArray, serviceData: ByteArray, rssi: Int) {
+    internal suspend fun simulateDiscovery(peerId: ByteArray, serviceData: ByteArray, rssi: Int) {
         _advertisementEvents.emit(AdvertisementEvent(peerId, serviceData, rssi))
     }
 
-    /** Emits a [PeerLostEvent] on [peerLostEvents] as if the peer connection were dropped. */
-    suspend fun simulatePeerLost(
+    internal suspend fun simulatePeerLost(
         peerId: ByteArray,
         reason: PeerLostReason = PeerLostReason.CONNECTION_LOST,
     ) {
         _peerLostEvents.emit(PeerLostEvent(peerId, reason))
     }
 
-    /**
-     * Marks [peerId] so that the next [sendToPeer] call targeting it returns [SendResult.Failure].
-     */
-    fun simulateWriteFailure(peerId: ByteArray) {
+    internal fun simulateWriteFailure(peerId: ByteArray) {
         writeFailures.add(ByteArrayKey(peerId))
     }
 
-    /** Clears a previously set write-failure for [peerId]. */
-    fun clearWriteFailure(peerId: ByteArray) {
+    internal fun clearWriteFailure(peerId: ByteArray) {
         writeFailures.remove(ByteArrayKey(peerId))
     }
 
@@ -119,12 +114,8 @@ class VirtualMeshTransport(
         return SendResult.Success
     }
 
-    /**
-     * Advances the [TestCoroutineScheduler] to an absolute [timeMillis] timestamp. Throws
-     * [IllegalArgumentException] if [timeMillis] is in the past.
-     */
     @OptIn(ExperimentalCoroutinesApi::class)
-    fun advanceTo(timeMillis: Long) {
+    internal fun advanceTo(timeMillis: Long) {
         if (timeMillis < testScheduler.currentTime) {
             throw IllegalArgumentException("Cannot go back in time")
         }
@@ -137,13 +128,11 @@ class VirtualMeshTransport(
 
     private var stopHanging = false
 
-    /** Makes the next [stopAll] call block indefinitely (simulates a hung stop). */
-    fun simulateStopHang() {
+    internal fun simulateStopHang() {
         stopHanging = true
     }
 
-    /** Clears the stop-hang flag so [stopAll] completes normally again. */
-    fun clearStopHang() {
+    internal fun clearStopHang() {
         stopHanging = false
     }
 

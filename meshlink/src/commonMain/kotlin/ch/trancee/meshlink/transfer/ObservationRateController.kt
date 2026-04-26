@@ -7,7 +7,7 @@ package ch.trancee.meshlink.transfer
  * rate doubles to 2. After [TransferConfig.acksBeforeQuad] additional consecutive ACKs at rate 2,
  * rate quadruples to 4 (maximum). Any timeout resets the rate to 1.
  */
-class ObservationRateController(private val config: TransferConfig) {
+internal class ObservationRateController(private val config: TransferConfig) {
     private var consecutiveAcks: Int = 0
     private var rate: Int = 1
 

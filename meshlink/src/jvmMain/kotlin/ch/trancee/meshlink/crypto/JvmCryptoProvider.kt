@@ -244,4 +244,4 @@ internal class JvmCryptoProvider : CryptoProvider {
     }
 }
 
-actual fun createCryptoProvider(): CryptoProvider = JvmCryptoProvider()
+internal actual fun createCryptoProvider(): CryptoProvider = JvmCryptoProvider()

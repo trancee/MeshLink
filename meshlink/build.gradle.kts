@@ -19,9 +19,14 @@ plugins {
     // allopen must precede benchmark — JMH requires benchmark classes to be open.
     alias(libs.plugins.kotlin.allopen)
     alias(libs.plugins.kotlinx.benchmark)
+    // SKIE — generates Swift-friendly AsyncStream/async func wrappers for public KMP API.
+    // iOS-only effect; no JVM/Android impact. Version 0.10.11 supports Kotlin 2.3.20+.
+    alias(libs.plugins.skie)
 }
 
 kotlin {
+    explicitApi()
+
     // Android-KMP plugin (AGP 9.0+): android {} block is inside kotlin {}, not top-level.
     android {
         namespace = "ch.trancee.meshlink"
@@ -188,6 +193,13 @@ detekt {
 val isMacOs = System.getProperty("os.name").contains("Mac OS X", ignoreCase = true)
 
 apiValidation { klib { enabled = isMacOs } }
+
+// SKIE — disabled until SKIE adds support for Kotlin 2.3.21.
+// SKIE 0.10.11 supports up to Kotlin 2.3.20; re-enable after the next SKIE release.
+// When re-enabled on macOS+Xcode, FlowAdapter and AsyncStream wrappers are generated
+// automatically for all public Flow/StateFlow members of MeshLinkApi.
+// TODO(S03/skie-enable): remove isEnabled=false once SKIE supports Kotlin 2.3.21.
+skie { isEnabled = false }
 
 // Kotlin Power Assert — transform kotlin.test assertions for richer failure diagnostics.
 powerAssert {

@@ -8,7 +8,7 @@ package ch.trancee.meshlink.messaging
  * the public API (see MEM098). With a hand-written override, a test can pass any non- MessageIdKey
  * value to cover that branch.
  */
-class MessageIdKey(val bytes: ByteArray) {
+internal class MessageIdKey(val bytes: ByteArray) {
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true

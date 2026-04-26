@@ -1,6 +1,6 @@
 package ch.trancee.meshlink.power
 
-data class PowerProfile(
+internal data class PowerProfile(
     val scanDutyPercent: Int,
     val adIntervalMillis: Long,
     val keepaliveMillis: Long,

@@ -8,7 +8,7 @@ package ch.trancee.meshlink.crypto
  * [equals] and [hashCode] use content-equality so two [KeyPair] instances with identical byte
  * contents compare as equal, regardless of array identity.
  */
-data class KeyPair(val publicKey: ByteArray, val privateKey: ByteArray) {
+internal data class KeyPair(val publicKey: ByteArray, val privateKey: ByteArray) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (other !is KeyPair) return false

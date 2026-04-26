@@ -204,7 +204,7 @@ public data class MeshLinkConfig(
      *
      * The [appId] is hashed via FNV-1a to a 2-byte [ByteArray] used to scope broadcast messages.
      */
-    public fun toMeshEngineConfig(): MeshEngineConfig {
+    internal fun toMeshEngineConfig(): MeshEngineConfig {
         val appIdHash = deriveAppIdHash()
         val bufferedMessages =
             (messaging.bufferCapacity / messaging.maxMessageSize).coerceAtLeast(1)
@@ -249,7 +249,7 @@ public data class MeshLinkConfig(
      * The [appId] is passed directly; the transport layer derives the 16-bit mesh hash internally
      * via [MeshHashFilter.computeMeshHash].
      */
-    public fun toBleTransportConfig(): BleTransportConfig =
+    internal fun toBleTransportConfig(): BleTransportConfig =
         BleTransportConfig(
             appId = appId,
             forceL2cap = transport.forceL2cap,

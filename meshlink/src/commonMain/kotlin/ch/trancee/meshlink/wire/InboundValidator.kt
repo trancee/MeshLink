@@ -13,7 +13,7 @@ package ch.trancee.meshlink.wire
  * 4. Per-type field-size checks — fixed-size byte-array fields must have exact sizes.
  * 5. Decode via [WireCodec] and wrap in [Valid].
  */
-object InboundValidator {
+internal object InboundValidator {
 
     private const val MIN_FRAME_SIZE = 5 // 1 type byte + 4 bytes minimum FlatBuffers root offset
 

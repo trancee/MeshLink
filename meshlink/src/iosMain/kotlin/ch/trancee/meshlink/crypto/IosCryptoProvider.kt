@@ -223,4 +223,4 @@ internal class IosCryptoProvider : CryptoProvider {
     }
 }
 
-actual fun createCryptoProvider(): CryptoProvider = IosCryptoProvider()
+internal actual fun createCryptoProvider(): CryptoProvider = IosCryptoProvider()

@@ -13,7 +13,7 @@ package ch.trancee.meshlink.transport
  *   200 ms).
  * @param clock Monotonic time source returning epoch milliseconds; injected for testability.
  */
-class WriteLatencyTracker(
+internal class WriteLatencyTracker(
     private val windowMs: Long = 7_000L,
     private val threshold: Int = 5,
     private val latencyThresholdMs: Long = 200L,

@@ -9,7 +9,7 @@ package ch.trancee.meshlink.transfer
  *
  * Sequence numbers are 16-bit unsigned (UShort) and wrap at 65535 → 0.
  */
-class SackTracker {
+internal class SackTracker {
     private var ackSequence: UShort = UShort.MAX_VALUE
     private var sackBitmap: ULong = 0uL
 

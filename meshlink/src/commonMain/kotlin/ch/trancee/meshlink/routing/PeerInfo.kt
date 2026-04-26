@@ -1,6 +1,6 @@
 package ch.trancee.meshlink.routing
 
-data class PeerInfo(
+internal data class PeerInfo(
     val peerId: ByteArray,
     val powerMode: Byte,
     val rssi: Int,

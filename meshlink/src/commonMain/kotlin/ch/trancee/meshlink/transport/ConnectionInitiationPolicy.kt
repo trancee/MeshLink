@@ -13,7 +13,7 @@ import kotlin.random.Random
  *    comparison) initiates.
  * 3. If both keyHashes are identical, neither initiates (tie → false).
  */
-object ConnectionInitiationPolicy {
+internal object ConnectionInitiationPolicy {
 
     /**
      * Returns true if the local device should initiate the connection to the remote device.

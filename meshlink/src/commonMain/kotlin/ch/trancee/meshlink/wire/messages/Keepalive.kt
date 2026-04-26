@@ -1,7 +1,10 @@
 package ch.trancee.meshlink.wire
 
-data class Keepalive(val flags: UByte, val timestampMillis: ULong, val proposedChunkSize: UShort) :
-    WireMessage {
+internal data class Keepalive(
+    val flags: UByte,
+    val timestampMillis: ULong,
+    val proposedChunkSize: UShort,
+) : WireMessage {
     override val type = MessageType.KEEPALIVE
 
     override fun encode(buffer: WriteBuffer) {

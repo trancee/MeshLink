@@ -1,6 +1,6 @@
 package ch.trancee.meshlink.power
 
-object BleConnectionParameterPolicy {
+internal object BleConnectionParameterPolicy {
     enum class ConnectionState {
         BULK,
         ACTIVE,

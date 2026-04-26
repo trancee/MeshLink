@@ -4,7 +4,7 @@ package ch.trancee.meshlink.wire
  * Unicast routed message. [visitedList] is flattened to a single [ByteArray] on the wire (N × 12
  * bytes) and parsed back to `List<ByteArray>` on decode. Each element is a 12-byte peer Key Hash.
  */
-data class RoutedMessage(
+internal data class RoutedMessage(
     val messageId: ByteArray,
     val origin: ByteArray,
     val destination: ByteArray,

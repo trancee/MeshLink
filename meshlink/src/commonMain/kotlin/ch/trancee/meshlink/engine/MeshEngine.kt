@@ -48,7 +48,7 @@ import kotlinx.coroutines.launch
  * **Usage**: obtain an instance via [create], then call [start]. Subscribe to the SharedFlow
  * surfaces before calling [start] to avoid missing early events.
  */
-class MeshEngine
+internal class MeshEngine
 private constructor(
     private val engineScope: CoroutineScope,
     private val transport: BleTransport,

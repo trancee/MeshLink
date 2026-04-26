@@ -7,7 +7,7 @@ package ch.trancee.meshlink.transport
  * Bluetooth Base UUID suffix (`00805f9b34fb`); the Service and Characteristic UUIDs use
  * `000000000000`.
  */
-object GattConstants {
+internal object GattConstants {
     /** 32-bit Bluetooth Base UUID for BLE advertisement service data. */
     const val ADVERTISEMENT_UUID = "4d455348-0000-1000-8000-00805f9b34fb"
 

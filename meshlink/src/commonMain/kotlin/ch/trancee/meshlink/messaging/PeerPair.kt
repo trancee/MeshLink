@@ -6,4 +6,4 @@ package ch.trancee.meshlink.messaging
  * Data class is safe here because [MessageIdKey] already has correct structural [equals]/[hashCode]
  * semantics, so the data-class-generated implementations are correct.
  */
-data class PeerPair(val neighbor: MessageIdKey, val sender: MessageIdKey)
+internal data class PeerPair(val neighbor: MessageIdKey, val sender: MessageIdKey)

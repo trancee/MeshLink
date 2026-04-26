@@ -3,7 +3,7 @@ package ch.trancee.meshlink.routing
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 
-sealed class PeerEvent {
+internal sealed class PeerEvent {
     data class Connected(val peerId: ByteArray) : PeerEvent() {
         override fun equals(other: Any?): Boolean {
             if (this === other) return true
@@ -25,7 +25,7 @@ sealed class PeerEvent {
     }
 }
 
-class PresenceTracker {
+internal class PresenceTracker {
     private val _peerEvents = MutableSharedFlow<PeerEvent>(replay = 0, extraBufferCapacity = 64)
     val peerEvents: Flow<PeerEvent> = _peerEvents
 

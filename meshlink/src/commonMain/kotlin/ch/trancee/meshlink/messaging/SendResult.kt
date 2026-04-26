@@ -1,7 +1,7 @@
 package ch.trancee.meshlink.messaging
 
 /** Result returned by [DeliveryPipeline.send]. */
-sealed interface SendResult {
+internal sealed interface SendResult {
     /** Message was accepted and handed off for immediate transmission. */
     object Sent : SendResult
 

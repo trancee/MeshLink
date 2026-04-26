@@ -1,6 +1,6 @@
 package ch.trancee.meshlink.wire
 
-data class Handshake(val step: UByte, val noiseMessage: ByteArray) : WireMessage {
+internal data class Handshake(val step: UByte, val noiseMessage: ByteArray) : WireMessage {
     override val type = MessageType.HANDSHAKE
 
     override fun encode(buffer: WriteBuffer) {

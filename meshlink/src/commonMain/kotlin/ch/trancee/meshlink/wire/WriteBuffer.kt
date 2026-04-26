@@ -26,7 +26,7 @@ package ch.trancee.meshlink.wire
  * [vectors: length-prefix (uint32 LE) + data, each 4-aligned]
  * ```
  */
-class WriteBuffer {
+internal class WriteBuffer {
 
     private var numFields = 0
     private val scalarFields = mutableMapOf<Int, ByteArray>()

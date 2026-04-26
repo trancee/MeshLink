@@ -13,7 +13,7 @@ package ch.trancee.meshlink.transport
  *   0x00.
  * @param forceGatt When true, skip L2CAP and always use GATT even if PSM is advertised.
  */
-data class BleTransportConfig(
+internal data class BleTransportConfig(
     val appId: String,
     val maxConnections: Int = 6,
     val forceL2cap: Boolean = false,

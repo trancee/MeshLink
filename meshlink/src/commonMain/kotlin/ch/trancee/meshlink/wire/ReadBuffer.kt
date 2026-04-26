@@ -15,7 +15,7 @@ package ch.trancee.meshlink.wire
  * All integers are little-endian. Field indices are 0-based. Missing optional fields return their
  * declared default values.
  */
-class ReadBuffer(private val bb: ByteArray) {
+internal class ReadBuffer(private val bb: ByteArray) {
 
     private val tableOffset: Int
     private val vtableOffset: Int

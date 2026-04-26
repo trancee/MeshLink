@@ -7,7 +7,7 @@ package ch.trancee.meshlink.engine
  * @param rateLimitWindowMillis Rolling window (ms) over which per-peer handshake initiations are
  *   counted.
  */
-data class HandshakeConfig(
+internal data class HandshakeConfig(
     val maxConcurrentHandshakes: Int = 10,
     val rateLimitWindowMillis: Long = 1_000L,
 )

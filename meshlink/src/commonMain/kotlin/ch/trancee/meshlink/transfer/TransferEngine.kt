@@ -14,7 +14,7 @@ import kotlinx.coroutines.launch
  * Hook called by the transport layer when available memory is critically low. [TransferEngine]
  * implements this interface and evicts sessions in priority order.
  */
-fun interface MemoryPressureListener {
+internal fun interface MemoryPressureListener {
     fun onMemoryPressure()
 }
 
@@ -30,7 +30,7 @@ fun interface MemoryPressureListener {
  * @param isGattMode When true, SACK and rate controller are active; ChunkAck messages are sent.
  *   When false, sender blasts all chunks without expecting ACKs.
  */
-class TransferEngine(
+internal class TransferEngine(
     private val scope: CoroutineScope,
     private val config: TransferConfig = TransferConfig(),
     private val chunkSizePolicy: ChunkSizePolicy = ChunkSizePolicy.GATT,

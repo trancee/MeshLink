@@ -1,6 +1,6 @@
 package ch.trancee.meshlink.transfer
 
-data class TransferConfig(
+internal data class TransferConfig(
     val chunkSize: Int = 244,
     val acksBeforeDouble: Int = 4,
     val acksBeforeQuad: Int = 8,

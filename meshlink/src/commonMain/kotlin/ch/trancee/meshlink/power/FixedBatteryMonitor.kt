@@ -9,7 +9,7 @@ package ch.trancee.meshlink.power
  *
  * @param level Fixed battery level to report, in the range [0.0, 1.0]. Defaults to full (1.0f).
  */
-class FixedBatteryMonitor(private val level: Float = 1.0f) : BatteryMonitor {
+internal class FixedBatteryMonitor(private val level: Float = 1.0f) : BatteryMonitor {
     override fun readBatteryLevel(): Float = level
 
     override val isCharging: Boolean = false

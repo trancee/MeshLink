@@ -2,7 +2,7 @@ package ch.trancee.meshlink.power
 
 import ch.trancee.meshlink.transfer.Priority
 
-class ConnectionLimiter(private var maxConnections: Int) {
+internal class ConnectionLimiter(private var maxConnections: Int) {
     private val connections = mutableMapOf<PeerKey, ManagedConnection>()
 
     /**

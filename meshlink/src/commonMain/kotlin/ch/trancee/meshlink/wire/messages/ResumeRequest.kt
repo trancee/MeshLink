@@ -1,6 +1,6 @@
 package ch.trancee.meshlink.wire
 
-data class ResumeRequest(val messageId: ByteArray, val bytesReceived: UInt) : WireMessage {
+internal data class ResumeRequest(val messageId: ByteArray, val bytesReceived: UInt) : WireMessage {
     override val type = MessageType.RESUME_REQUEST
 
     override fun encode(buffer: WriteBuffer) {

@@ -1,6 +1,6 @@
 package ch.trancee.meshlink.power
 
-interface BatteryMonitor {
+internal interface BatteryMonitor {
     fun readBatteryLevel(): Float
 
     val isCharging: Boolean

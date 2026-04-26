@@ -5,7 +5,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
 
-class PowerModeEngine(
+internal class PowerModeEngine(
     private val scope: CoroutineScope,
     private val batteryMonitor: BatteryMonitor,
     private val clock: () -> Long,

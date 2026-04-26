@@ -19,7 +19,7 @@ import kotlinx.coroutines.launch
  * Consumers subscribe to [tierChanges] (for scan/ad parameter updates) and [evictionRequests] (to
  * disconnect peers that were evicted).
  */
-class PowerManager(
+internal class PowerManager(
     private val scope: CoroutineScope,
     batteryMonitor: BatteryMonitor,
     clock: () -> Long,

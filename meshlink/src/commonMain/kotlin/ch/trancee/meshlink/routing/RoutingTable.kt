@@ -1,6 +1,6 @@
 package ch.trancee.meshlink.routing
 
-val METRIC_RETRACTION: UShort = 0xFFFFu.toUShort()
+internal val METRIC_RETRACTION: UShort = 0xFFFFu.toUShort()
 
 /**
  * Returns true when sequence number [a] is strictly newer than [b] using RFC 8966 §2.1 modular

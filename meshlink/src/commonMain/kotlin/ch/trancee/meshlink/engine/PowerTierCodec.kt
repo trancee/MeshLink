@@ -8,7 +8,7 @@ import ch.trancee.meshlink.power.PowerTier
  * Encoding: 0x00 = PERFORMANCE, 0x01 = BALANCED, 0x02 = POWER_SAVER. Decoding falls back to
  * BALANCED on an empty array or an unknown byte value.
  */
-object PowerTierCodec {
+internal object PowerTierCodec {
 
     fun encode(tier: PowerTier): ByteArray =
         when (tier) {

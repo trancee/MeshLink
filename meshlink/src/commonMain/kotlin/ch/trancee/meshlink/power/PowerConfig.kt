@@ -1,6 +1,6 @@
 package ch.trancee.meshlink.power
 
-data class PowerConfig(
+internal data class PowerConfig(
     val performanceThreshold: Float = 0.80f,
     val powerSaverThreshold: Float = 0.30f,
     val hysteresisPercent: Float = 0.02f,

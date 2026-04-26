@@ -44,21 +44,21 @@ import kotlinx.coroutines.runBlocking
  * The concrete subclass must be declared in the consuming app's AndroidManifest.xml. No `<service>`
  * element is declared in the library manifest.
  */
-abstract class MeshLinkService : Service() {
+internal abstract class MeshLinkService : Service() {
 
     // ── Abstract factory methods ─────────────────────────────────────────────
 
     /** Returns the [BleTransportConfig] used to construct [AndroidBleTransport]. */
-    abstract fun createBleTransportConfig(): BleTransportConfig
+    internal abstract fun createBleTransportConfig(): BleTransportConfig
 
     /** Returns a [CryptoProvider] implementation (e.g. AndroidCryptoProvider). */
-    abstract fun createCryptoProvider(): CryptoProvider
+    internal abstract fun createCryptoProvider(): CryptoProvider
 
     /**
      * Returns the [Notification] for the foreground service. The notification channel must be
      * created by the subclass before this method is invoked during [onCreate].
      */
-    abstract fun createForegroundNotification(): Notification
+    internal abstract fun createForegroundNotification(): Notification
 
     /**
      * Returns the [MeshEngineConfig] used to construct [MeshEngine].
@@ -66,7 +66,7 @@ abstract class MeshLinkService : Service() {
      * Override in subclasses to supply custom subsystem tuning — e.g. shortened routing timers for
      * integration test harnesses. Defaults to [MeshEngineConfig] with all defaults.
      */
-    open fun createMeshEngineConfig(): MeshEngineConfig = MeshEngineConfig()
+    internal open fun createMeshEngineConfig(): MeshEngineConfig = MeshEngineConfig()
 
     // ── State ────────────────────────────────────────────────────────────────
 
@@ -82,23 +82,23 @@ abstract class MeshLinkService : Service() {
         private const val TAG = "MeshLinkService"
 
         /** Notification ID used when calling [startForeground]. */
-        const val NOTIFICATION_ID = 1001
+        internal const val NOTIFICATION_ID = 1001
     }
 
     // ── Binder ───────────────────────────────────────────────────────────────
 
-    inner class LocalBinder : Binder() {
+    internal inner class LocalBinder : Binder() {
         /**
          * Returns the running [BleTransport]. Only safe to call after the service has been started
          * and [onCreate] has completed.
          */
-        fun getTransport(): BleTransport = transport
+        internal fun getTransport(): BleTransport = transport
 
         /**
          * Returns the running [MeshEngine]. Only safe to call after the service has been started
          * and [onCreate] has completed.
          */
-        fun getEngine(): MeshEngine = meshEngine
+        internal fun getEngine(): MeshEngine = meshEngine
     }
 
     override fun onBind(intent: Intent): IBinder = LocalBinder()

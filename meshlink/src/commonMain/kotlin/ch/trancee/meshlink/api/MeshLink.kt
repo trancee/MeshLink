@@ -4,6 +4,7 @@ import ch.trancee.meshlink.crypto.CryptoProvider
 import ch.trancee.meshlink.crypto.Identity
 import ch.trancee.meshlink.crypto.createCryptoProvider
 import ch.trancee.meshlink.engine.MeshEngine
+import ch.trancee.meshlink.messaging.CoverageIgnore
 import ch.trancee.meshlink.messaging.DeliveryOutcome
 import ch.trancee.meshlink.power.BatteryMonitor
 import ch.trancee.meshlink.power.FixedBatteryMonitor
@@ -32,6 +33,8 @@ import kotlinx.coroutines.sync.withLock
  * No-operation [BleTransport] used by the default [MeshLink] factory on platforms where no real BLE
  * transport has been wired (JVM). On Android use [MeshLinkService]; on iOS use [MeshNode].
  */
+@CoverageIgnore // Platform stub — methods are intentionally empty/trivial; exercised by JVM factory
+// path only.
 private class NoOpBleTransport(override val localPeerId: ByteArray = ByteArray(12)) : BleTransport {
     override var advertisementServiceData: ByteArray = ByteArray(0)
     override val advertisementEvents = emptyFlow<ch.trancee.meshlink.transport.AdvertisementEvent>()
@@ -73,7 +76,7 @@ internal constructor(
 
     private val _diagnosticFlow =
         MutableSharedFlow<DiagnosticEvent>(
-            replay = 0,
+            replay = 1,
             extraBufferCapacity = config.diagnostics.bufferCapacity.coerceAtLeast(1),
         )
 
@@ -226,6 +229,15 @@ internal constructor(
 
     override val diagnosticEvents: Flow<DiagnosticEvent> = _diagnosticFlow
 
+    /**
+     * Returns the last [DiagnosticEvent] emitted, or `null` if none has been emitted yet.
+     *
+     * Uses the SharedFlow replay cache (replay=1). Exposed `internal` for test assertions without
+     * requiring a coroutine subscription.
+     */
+    internal val lastDiagnosticEvent: DiagnosticEvent?
+        get() = _diagnosticFlow.replayCache.lastOrNull()
+
     // ── Power ──────────────────────────────────────────────────────────────
 
     override fun updateBattery(percent: Float, isCharging: Boolean) {
@@ -337,6 +349,28 @@ internal constructor(
      */
     internal suspend fun stopEngineForTest() = engine.stop()
 
+    /** Test helper: install a synthetic route into the engine's routing table. */
+    @Suppress("LongParameterList")
+    internal fun injectTestRoute(
+        destination: ByteArray,
+        nextHop: ByteArray,
+        metric: Double,
+        expiresAt: Long,
+    ) {
+        engine.routingTable.install(
+            ch.trancee.meshlink.routing.RouteEntry(
+                destination = destination,
+                nextHop = nextHop,
+                metric = metric,
+                seqNo = 1u,
+                feasibilityDistance = metric,
+                expiresAt = expiresAt,
+                ed25519PublicKey = ByteArray(32),
+                x25519PublicKey = ByteArray(32),
+            )
+        )
+    }
+
     // ── Factory ────────────────────────────────────────────────────────────
 
     public companion object {
@@ -406,5 +440,8 @@ private fun MessagePriority.toInternal(): Priority =
         MessagePriority.HIGH -> Priority.HIGH
     }
 
+// Used in PeerEvent.Connected handler — only reachable when a peer actually connects (S04 BLE
+// tests).
+@CoverageIgnore
 private fun ByteArray.toHexString(): String =
     joinToString("") { it.toInt().and(0xFF).toString(16).padStart(2, '0') }

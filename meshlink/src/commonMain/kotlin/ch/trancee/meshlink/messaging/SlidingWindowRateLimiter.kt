@@ -11,7 +11,7 @@ package ch.trancee.meshlink.messaging
  * @param clock Monotonic timestamp source; must be non-decreasing. Defaults to the platform wall
  *   clock but should be injected for deterministic tests.
  */
-class SlidingWindowRateLimiter(
+internal class SlidingWindowRateLimiter(
     private val limit: Int,
     private val windowMillis: Long,
     private val clock: () -> Long,

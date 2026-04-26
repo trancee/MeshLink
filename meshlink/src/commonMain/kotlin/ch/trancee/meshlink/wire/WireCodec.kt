@@ -1,12 +1,12 @@
 package ch.trancee.meshlink.wire
 
-sealed interface WireMessage {
+internal sealed interface WireMessage {
     val type: MessageType
 
     fun encode(buffer: WriteBuffer)
 }
 
-object WireCodec {
+internal object WireCodec {
     fun encode(message: WireMessage): ByteArray {
         val buffer = WriteBuffer()
         message.encode(buffer)

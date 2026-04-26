@@ -1,6 +1,6 @@
 package ch.trancee.meshlink.power
 
-data class PeerKey(val bytes: ByteArray) {
+internal data class PeerKey(val bytes: ByteArray) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (other == null || other !is PeerKey) return false

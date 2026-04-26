@@ -1,6 +1,6 @@
 package ch.trancee.meshlink.transport
 
-enum class FrameType(val code: Byte) {
+internal enum class FrameType(val code: Byte) {
     DATA(0x00),
     ACK(0x01),
     CLOSE(0x02);
@@ -10,7 +10,7 @@ enum class FrameType(val code: Byte) {
     }
 }
 
-class L2capFrame(val type: FrameType, val payload: ByteArray) {
+internal class L2capFrame(val type: FrameType, val payload: ByteArray) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (other !is L2capFrame) return false
@@ -20,7 +20,7 @@ class L2capFrame(val type: FrameType, val payload: ByteArray) {
     override fun hashCode(): Int = 31 * type.hashCode() + payload.contentHashCode()
 }
 
-object L2capFrameCodec {
+internal object L2capFrameCodec {
     fun encode(type: FrameType, payload: ByteArray): ByteArray {
         if (payload.size > 65535)
             throw IllegalArgumentException("Payload exceeds max L2CAP frame size: ${payload.size}")

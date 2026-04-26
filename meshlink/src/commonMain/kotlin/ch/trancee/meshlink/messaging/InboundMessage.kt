@@ -3,7 +3,7 @@ package ch.trancee.meshlink.messaging
 import ch.trancee.meshlink.transfer.Priority
 
 /** Whether an [InboundMessage] was delivered via unicast routing or broadcast flood-fill. */
-enum class MessageKind {
+internal enum class MessageKind {
     UNICAST,
     BROADCAST,
 }
@@ -14,7 +14,7 @@ enum class MessageKind {
  * Custom [equals]/[hashCode] delegate ByteArray fields to [contentEquals]/[contentHashCode] so that
  * two logically-identical messages compare equal even if their arrays are distinct heap objects.
  */
-data class InboundMessage(
+internal data class InboundMessage(
     val messageId: ByteArray,
     val senderId: ByteArray,
     val payload: ByteArray,

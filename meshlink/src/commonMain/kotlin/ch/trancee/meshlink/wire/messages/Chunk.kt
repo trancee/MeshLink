@@ -1,6 +1,6 @@
 package ch.trancee.meshlink.wire
 
-data class Chunk(
+internal data class Chunk(
     val messageId: ByteArray,
     val seqNo: UShort,
     val totalChunks: UShort,

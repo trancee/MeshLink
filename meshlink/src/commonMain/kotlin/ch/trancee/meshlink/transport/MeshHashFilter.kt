@@ -7,7 +7,7 @@ package ch.trancee.meshlink.transport
  * payloads against a local hash. The zero value (0x0000) is reserved for universal-broadcast
  * advertisements that match any local hash.
  */
-object MeshHashFilter {
+internal object MeshHashFilter {
 
     private const val FNV_OFFSET_BASIS = 2166136261u // 0x811c9dc5
     private const val FNV_PRIME = 16777619u // 0x01000193

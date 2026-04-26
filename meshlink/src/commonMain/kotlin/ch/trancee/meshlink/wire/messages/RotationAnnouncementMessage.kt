@@ -6,7 +6,7 @@ package ch.trancee.meshlink.wire
  * Fields: 4×32-byte public keys, a monotonic rotation nonce, a wall-clock timestamp, and a 64-byte
  * Ed25519 signature over all preceding fields using the OLD Ed25519 key.
  */
-data class RotationAnnouncementMessage(
+internal data class RotationAnnouncementMessage(
     val oldX25519Key: ByteArray,
     val newX25519Key: ByteArray,
     val oldEd25519Key: ByteArray,

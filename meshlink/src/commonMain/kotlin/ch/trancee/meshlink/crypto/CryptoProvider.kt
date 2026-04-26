@@ -8,7 +8,7 @@ package ch.trancee.meshlink.crypto
  *
  * All key and nonce parameters are raw byte arrays. See each function for expected sizes.
  */
-interface CryptoProvider {
+internal interface CryptoProvider {
     /**
      * Generates a new Ed25519 signing key pair (RFC 8032).
      *

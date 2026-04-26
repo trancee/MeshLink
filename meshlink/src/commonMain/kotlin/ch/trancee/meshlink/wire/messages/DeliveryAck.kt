@@ -4,7 +4,7 @@ package ch.trancee.meshlink.wire
  * Delivery ACK. [signature] is optional — absent when `flags bit 0 (HAS_SIGNATURE)` is clear. No
  * signerPublicKey field — verified against the pinned Ed25519 key (saves 32B per ACK).
  */
-data class DeliveryAck(
+internal data class DeliveryAck(
     val messageId: ByteArray,
     val recipientId: ByteArray,
     val flags: UByte,

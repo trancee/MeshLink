@@ -1,7 +1,10 @@
 package ch.trancee.meshlink.wire
 
-data class ChunkAck(val messageId: ByteArray, val ackSequence: UShort, val sackBitmask: ULong) :
-    WireMessage {
+internal data class ChunkAck(
+    val messageId: ByteArray,
+    val ackSequence: UShort,
+    val sackBitmask: ULong,
+) : WireMessage {
     override val type = MessageType.CHUNK_ACK
 
     override fun encode(buffer: WriteBuffer) {

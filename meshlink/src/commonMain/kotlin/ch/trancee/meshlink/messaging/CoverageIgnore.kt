@@ -8,6 +8,6 @@ package ch.trancee.meshlink.messaging
  * types that are contractually non-null in their usage context). The Kover `annotatedBy` filter in
  * `reports.filters.excludes` excludes annotated methods from line and branch coverage statistics.
  */
-@Target(AnnotationTarget.FUNCTION)
+@Target(AnnotationTarget.FUNCTION, AnnotationTarget.CLASS)
 @Retention(AnnotationRetention.BINARY)
 internal annotation class CoverageIgnore

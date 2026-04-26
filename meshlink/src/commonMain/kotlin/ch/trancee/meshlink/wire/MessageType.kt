@@ -4,7 +4,7 @@ package ch.trancee.meshlink.wire
  * One-byte type discriminator that precedes every wire message. Codes 0x00–0x0B are defined;
  * 0x0C–0xFF are reserved. Unknown codes map to [UNKNOWN] — callers should drop such frames.
  */
-enum class MessageType(val code: UByte) {
+internal enum class MessageType(val code: UByte) {
     HANDSHAKE(0x00u),
     KEEPALIVE(0x01u),
     ROTATION_ANNOUNCEMENT(0x02u),

@@ -7,7 +7,7 @@ package ch.trancee.meshlink.transport
  * retries are exhausted [nextDelayMs] returns `null` and [isExhausted] becomes `true`. Call [reset]
  * to restart the sequence after a successful connection.
  */
-class L2capRetryScheduler {
+internal class L2capRetryScheduler {
 
     private val delays = longArrayOf(60_000L, 120_000L, 300_000L)
     private var index = 0

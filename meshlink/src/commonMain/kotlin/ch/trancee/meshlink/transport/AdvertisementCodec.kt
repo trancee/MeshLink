@@ -13,7 +13,7 @@ package ch.trancee.meshlink.transport
  * Bytes 4–15    keyHash          12 bytes first 12 bytes of SHA-256(Ed25519Pub ‖ X25519Pub)
  * ```
  */
-object AdvertisementCodec {
+internal object AdvertisementCodec {
 
     /**
      * Decoded advertisement fields. The [keyHash] field uses content-based [equals]/[hashCode] so

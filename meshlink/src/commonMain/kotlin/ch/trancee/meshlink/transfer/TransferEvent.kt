@@ -1,6 +1,6 @@
 package ch.trancee.meshlink.transfer
 
-sealed interface TransferEvent {
+internal sealed interface TransferEvent {
 
     data class AssemblyComplete(
         val messageId: ByteArray,

@@ -1,6 +1,6 @@
 package ch.trancee.meshlink.wire
 
-data class Update(
+internal data class Update(
     val destination: ByteArray,
     val metric: UShort,
     val seqNo: UShort,

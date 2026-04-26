@@ -2,7 +2,7 @@ package ch.trancee.meshlink.transport
 
 import kotlinx.coroutines.flow.Flow
 
-interface BleTransport {
+internal interface BleTransport {
     val localPeerId: ByteArray
     var advertisementServiceData: ByteArray
 
@@ -22,13 +22,17 @@ interface BleTransport {
     val incomingData: Flow<IncomingData>
 }
 
-sealed interface SendResult {
+internal sealed interface SendResult {
     data object Success : SendResult
 
     data class Failure(val reason: String) : SendResult
 }
 
-data class AdvertisementEvent(val peerId: ByteArray, val serviceData: ByteArray, val rssi: Int) {
+internal data class AdvertisementEvent(
+    val peerId: ByteArray,
+    val serviceData: ByteArray,
+    val rssi: Int,
+) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (other !is AdvertisementEvent) return false
@@ -41,13 +45,13 @@ data class AdvertisementEvent(val peerId: ByteArray, val serviceData: ByteArray,
         31 * (31 * peerId.contentHashCode() + serviceData.contentHashCode()) + rssi.hashCode()
 }
 
-enum class PeerLostReason {
+internal enum class PeerLostReason {
     CONNECTION_LOST,
     TIMEOUT,
     MANUAL_DISCONNECT,
 }
 
-data class PeerLostEvent(val peerId: ByteArray, val reason: PeerLostReason) {
+internal data class PeerLostEvent(val peerId: ByteArray, val reason: PeerLostReason) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (other !is PeerLostEvent) return false
@@ -57,7 +61,7 @@ data class PeerLostEvent(val peerId: ByteArray, val reason: PeerLostReason) {
     override fun hashCode(): Int = 31 * peerId.contentHashCode() + reason.hashCode()
 }
 
-data class IncomingData(val peerId: ByteArray, val data: ByteArray) {
+internal data class IncomingData(val peerId: ByteArray, val data: ByteArray) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (other !is IncomingData) return false

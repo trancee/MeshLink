@@ -1,6 +1,6 @@
 package ch.trancee.meshlink.routing
 
-class DedupSet(
+internal class DedupSet(
     private val capacity: Int,
     private val ttlMillis: Long,
     private val clock: () -> Long,

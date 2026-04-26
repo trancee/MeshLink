@@ -1,6 +1,6 @@
 package ch.trancee.meshlink.wire
 
-data class Nack(val messageId: ByteArray, val reason: UByte) : WireMessage {
+internal data class Nack(val messageId: ByteArray, val reason: UByte) : WireMessage {
     override val type = MessageType.NACK
 
     override fun encode(buffer: WriteBuffer) {

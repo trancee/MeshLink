@@ -5,7 +5,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-class GracefulDrainManager(
+internal class GracefulDrainManager(
     private val clock: () -> Long,
     private val config: PowerConfig,
     private val scope: CoroutineScope,

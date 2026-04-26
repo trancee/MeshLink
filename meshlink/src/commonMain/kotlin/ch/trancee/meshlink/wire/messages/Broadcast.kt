@@ -4,7 +4,7 @@ package ch.trancee.meshlink.wire
  * Flood-fill broadcast message. [signature] and [signerKey] are optional — absent when `flags bit 0
  * (HAS_SIGNATURE)` is clear. [remainingHops] is NOT signed (decremented per relay).
  */
-data class Broadcast(
+internal data class Broadcast(
     val messageId: ByteArray,
     val origin: ByteArray,
     val remainingHops: UByte,

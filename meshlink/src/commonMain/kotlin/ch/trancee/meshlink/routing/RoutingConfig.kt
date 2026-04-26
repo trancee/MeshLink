@@ -1,6 +1,6 @@
 package ch.trancee.meshlink.routing
 
-data class RoutingConfig(
+internal data class RoutingConfig(
     val helloIntervalMillis: Long = 5_000L,
     val fullDumpMultiplier: Int = 10,
     val routeExpiryMillis: Long = 210_000L,

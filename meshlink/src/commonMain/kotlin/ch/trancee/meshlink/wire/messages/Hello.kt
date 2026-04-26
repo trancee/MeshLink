@@ -1,6 +1,7 @@
 package ch.trancee.meshlink.wire
 
-data class Hello(val sender: ByteArray, val seqNo: UShort, val routeDigest: UInt) : WireMessage {
+internal data class Hello(val sender: ByteArray, val seqNo: UShort, val routeDigest: UInt) :
+    WireMessage {
     override val type = MessageType.HELLO
 
     override fun encode(buffer: WriteBuffer) {

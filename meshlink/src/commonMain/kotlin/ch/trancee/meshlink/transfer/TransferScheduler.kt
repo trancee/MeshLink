@@ -1,7 +1,7 @@
 package ch.trancee.meshlink.transfer
 
 /** Identifies a transfer session by the message ID (a 16-byte ByteArray). */
-typealias TransferSessionId = ByteArray
+internal typealias TransferSessionId = ByteArray
 
 /**
  * Weighted round-robin scheduler for concurrent transfer sessions.
@@ -14,7 +14,7 @@ typealias TransferSessionId = ByteArray
  * [nextBatch] returns up to [maxConcurrent] unique session IDs per call, honouring the weighted
  * ordering and the alternating LOW exclusion.
  */
-class TransferScheduler(maxConcurrent: Int = 4) {
+internal class TransferScheduler(maxConcurrent: Int = 4) {
     private var _maxConcurrent = maxConcurrent
     val maxConcurrent: Int
         get() = _maxConcurrent

@@ -13,7 +13,7 @@ import ch.trancee.meshlink.transfer.TransferConfig
  * [messaging] defaults to [MessagingConfig] with an empty [appIdHash]; callers should always supply
  * an application-specific hash.
  */
-data class MeshEngineConfig(
+internal data class MeshEngineConfig(
     val routing: RoutingConfig = RoutingConfig(),
     val messaging: MessagingConfig = MessagingConfig(appIdHash = ByteArray(0)),
     val transfer: TransferConfig = TransferConfig(),

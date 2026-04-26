@@ -1,6 +1,6 @@
 package ch.trancee.meshlink.transfer
 
-enum class Priority(val wire: Byte) {
+internal enum class Priority(val wire: Byte) {
     LOW(-1),
     NORMAL(0),
     HIGH(1);

@@ -1,7 +1,7 @@
 package ch.trancee.meshlink.messaging
 
 /** Reason why a [SendResult.Queued] message was not sent immediately. */
-enum class QueuedReason {
+internal enum class QueuedReason {
     /** A rate limiter is currently paused; message buffered for later retry. */
     PAUSED,
 

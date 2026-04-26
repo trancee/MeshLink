@@ -53,4 +53,4 @@ internal class AndroidCryptoProvider : CryptoProvider {
     ): ByteArray = SodiumJni.hkdfSha256(salt, ikm, info, length)
 }
 
-actual fun createCryptoProvider(): CryptoProvider = AndroidCryptoProvider()
+internal actual fun createCryptoProvider(): CryptoProvider = AndroidCryptoProvider()

@@ -2,7 +2,7 @@ package ch.trancee.meshlink.power
 
 import ch.trancee.meshlink.transfer.Priority
 
-sealed interface EvictionDecision {
+internal sealed interface EvictionDecision {
     object Accept : EvictionDecision
 
     object Reject : EvictionDecision
@@ -18,7 +18,7 @@ sealed interface EvictionDecision {
     }
 }
 
-class TieredShedder {
+internal class TieredShedder {
 
     fun evaluate(
         newPeerId: ByteArray,

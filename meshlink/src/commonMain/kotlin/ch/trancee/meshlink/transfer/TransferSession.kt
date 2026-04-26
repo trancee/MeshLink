@@ -15,7 +15,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
 
 /** NACK reason code indicating the remote receiver's buffer is full. */
-const val NACK_REASON_BUFFER_FULL: UByte = 0u
+internal const val NACK_REASON_BUFFER_FULL: UByte = 0u
 
 private const val DEGRADATION_PAUSE_MILLIS = 2_000L
 private const val ACK_TIMEOUTS_TO_DEGRADE = 3
@@ -28,7 +28,7 @@ private const val MAX_PROBE_FAILURES = 3
  * timers use `delay()` in coroutines launched on [scope]; TestCoroutineScheduler drives them via
  * `advanceTo()` in tests.
  */
-class TransferSession
+internal class TransferSession
 private constructor(
     val messageId: ByteArray,
     var peerId: ByteArray,

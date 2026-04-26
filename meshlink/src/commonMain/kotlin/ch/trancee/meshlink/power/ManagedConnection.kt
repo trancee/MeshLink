@@ -2,7 +2,7 @@ package ch.trancee.meshlink.power
 
 import ch.trancee.meshlink.transfer.Priority
 
-data class ManagedConnection(
+internal data class ManagedConnection(
     val peerId: ByteArray,
     val priority: Priority,
     val transferStatus: TransferStatus? = null,
