@@ -14,6 +14,7 @@ import ch.trancee.meshlink.transfer.Priority
 import ch.trancee.meshlink.transfer.TransferEngine
 import ch.trancee.meshlink.transfer.TransferEvent
 import ch.trancee.meshlink.transport.BleTransport
+import ch.trancee.meshlink.transport.Logger
 import ch.trancee.meshlink.wire.Broadcast
 import ch.trancee.meshlink.wire.DeliveryAck
 import ch.trancee.meshlink.wire.InboundValidator
@@ -427,6 +428,9 @@ internal class DeliveryPipeline(
                 return
             }
 
+            val senderHex =
+                msg.origin.take(4).joinToString("") { it.toUByte().toString(16).padStart(2, '0') }
+            Logger.d("MeshLink", "message received sender=$senderHex... size=${plaintext.size}")
             _messages.tryEmit(
                 InboundMessage(
                     messageId = msg.messageId,

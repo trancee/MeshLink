@@ -5,6 +5,7 @@ import ch.trancee.meshlink.crypto.Identity
 import ch.trancee.meshlink.crypto.TrustStore
 import ch.trancee.meshlink.crypto.noise.NoiseXXInitiator
 import ch.trancee.meshlink.crypto.noise.NoiseXXResponder
+import ch.trancee.meshlink.transport.Logger
 import ch.trancee.meshlink.wire.Handshake
 
 /**
@@ -148,6 +149,13 @@ internal class NoiseHandshakeManager(
             activeHandshakes.remove(peerKey)
             trustStore.pinKey(peerId, session.getRemoteStaticKey())
             sendHandshake?.invoke(peerId, Handshake(step = 3u, noiseMessage = msg3))
+            val elapsedInitiator = clock() - state.startedAt
+            val peerHexI =
+                peerId.take(4).joinToString("") { it.toUByte().toString(16).padStart(2, '0') }
+            Logger.d(
+                "MeshLink",
+                "Noise XX complete (initiator) peer=$peerHexI... elapsed=${elapsedInitiator}ms",
+            )
             onHandshakeComplete?.invoke(peerId)
         } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
             activeHandshakes.remove(peerKey)
@@ -165,6 +173,13 @@ internal class NoiseHandshakeManager(
             val session = state.responder.finalize()
             activeHandshakes.remove(peerKey)
             trustStore.pinKey(peerId, session.getRemoteStaticKey())
+            val elapsedResponder = clock() - state.startedAt
+            val peerHexR =
+                peerId.take(4).joinToString("") { it.toUByte().toString(16).padStart(2, '0') }
+            Logger.d(
+                "MeshLink",
+                "Noise XX complete (responder) peer=$peerHexR... elapsed=${elapsedResponder}ms",
+            )
             onHandshakeComplete?.invoke(peerId)
         } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
             activeHandshakes.remove(peerKey)

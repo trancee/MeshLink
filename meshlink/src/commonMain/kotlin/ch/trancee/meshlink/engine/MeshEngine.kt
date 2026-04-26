@@ -26,6 +26,7 @@ import ch.trancee.meshlink.transfer.TransferEngine
 import ch.trancee.meshlink.transfer.TransferEvent
 import ch.trancee.meshlink.transfer.TransferScheduler
 import ch.trancee.meshlink.transport.BleTransport
+import ch.trancee.meshlink.transport.Logger
 import ch.trancee.meshlink.wire.Handshake
 import ch.trancee.meshlink.wire.InboundValidator
 import ch.trancee.meshlink.wire.Valid
@@ -145,6 +146,9 @@ private constructor(
 
         // Start routing engine timers and outbound message collection.
         routeCoordinator.start()
+
+        // Log delivery confirmations for diagnostic observability.
+        launchDeliveryConfirmationLogging()
     }
 
     /** Stops the MeshEngine: cancels all internal coroutines and halts the transport. */
@@ -311,6 +315,24 @@ private constructor(
     }
 
     // ── Public messaging API ──────────────────────────────────────────────────
+
+    /**
+     * Subscribes to [DeliveryPipeline.deliveryConfirmations] and logs each confirmed delivery.
+     * Extracted for [CoverageIgnore] — confirmed delivery requires a full Noise XX handshake +
+     * message transfer + ACK round-trip, which is an S04 real-hardware integration scenario.
+     */
+    @CoverageIgnore
+    private fun launchDeliveryConfirmationLogging() {
+        engineScope.launch {
+            deliveryPipeline.deliveryConfirmations.collect { delivered ->
+                val msgHex =
+                    delivered.messageId.take(4).joinToString("") {
+                        it.toUByte().toString(16).padStart(2, '0')
+                    }
+                Logger.d("MeshLink", "delivery confirmed msgId=$msgHex...")
+            }
+        }
+    }
 
     /**
      * Sends [payload] to [recipient]. Delegates to [DeliveryPipeline.send].

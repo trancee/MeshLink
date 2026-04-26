@@ -149,6 +149,9 @@ kover {
                 // Functions annotated with @CoverageIgnore contain defensive null/existence checks
                 // whose unreachable branch cannot be exercised without violating type contracts.
                 annotatedBy("ch.trancee.meshlink.messaging.CoverageIgnore")
+                // Logger: expect/actual platform-log bridge; per D024 pattern excluded from
+                // unit test coverage — correctness verified by S04 two-device integration test.
+                classes("ch.trancee.meshlink.transport.Logger*")
             }
         }
         verify {
