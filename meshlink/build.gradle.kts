@@ -74,9 +74,7 @@ kotlin {
             implementation(kotlin("test"))
             implementation(libs.kotlinx.coroutines.test)
         }
-        androidMain.dependencies {
-            implementation(libs.androidx.security.crypto)
-        }
+        androidMain.dependencies { implementation(libs.androidx.security.crypto) }
         // jvmMain is test/build infrastructure only — not a shipping target.
         // flatbuffers-java is JVM-only (no Kotlin/Native variant); moved from commonMain so
         // iOS compilation is not broken. Pure-Kotlin codec in commonMain/wire/ handles runtime

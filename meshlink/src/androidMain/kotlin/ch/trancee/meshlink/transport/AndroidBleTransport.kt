@@ -68,9 +68,9 @@ internal class AndroidBleTransport(
     private val identity: Identity,
     private val scope: CoroutineScope,
     private val powerTierFlow: MutableStateFlow<PowerTier>,
-    @Suppress("UnusedPrivateProperty") private val probeCache: OemL2capProbeCache,
-    @Suppress("UnusedPrivateProperty") private val oemSlotTracker: OemSlotTracker,
-    @Suppress("UnusedPrivateProperty") private val bootstrapMode: Boolean,
+    private val probeCache: OemL2capProbeCache,
+    private val oemSlotTracker: OemSlotTracker,
+    private val bootstrapMode: Boolean,
 ) : BleTransport {
 
     companion object {
@@ -92,6 +92,7 @@ internal class AndroidBleTransport(
         private const val GATT_MTU_TIMEOUT_MS = 5_000L
         private const val GATT_DISCOVER_TIMEOUT_MS = 10_000L
         private const val STOP_ALL_TIMEOUT_MS = 5_000L
+        private const val BOOTSTRAP_DURATION_MILLIS = 60_000L
         private const val GATT_WRITE_RETRIES = 3
         private const val MTU_REQUEST = 517
         private const val MIN_EFFECTIVE_MTU = 100
@@ -133,6 +134,10 @@ internal class AndroidBleTransport(
     private var scanRestartJob: Job? = null
     private var powerObserverJob: Job? = null
     private var btStateReceiver: BroadcastReceiver? = null
+    private var bootstrapTimerJob: Job? = null
+    private var bootstrapStartMillis: Long = 0L
+    private val bootstrapActive = AtomicBoolean(false)
+    @Volatile private var useSoftwareFilter: Boolean = false
 
     private val peerKeyHashByMac = ConcurrentHashMap<String, ByteArray>()
     private val macByKeyHashHex = ConcurrentHashMap<String, String>()
@@ -237,7 +242,27 @@ internal class AndroidBleTransport(
             advCallback,
         )
 
+        if (bootstrapMode) {
+            bootstrapStartMillis = System.currentTimeMillis()
+            bootstrapActive.set(true)
+            Logger.d(TAG, "Bootstrap mode active duration=60000ms")
+        }
+
         startScan(powerTierFlow.value)
+
+        if (bootstrapActive.get()) {
+            bootstrapTimerJob = scope.launch {
+                delay(BOOTSTRAP_DURATION_MILLIS)
+                if (bootstrapActive.compareAndSet(true, false)) {
+                    val elapsedMillis = System.currentTimeMillis() - bootstrapStartMillis
+                    Logger.d(TAG, "Bootstrap mode ended elapsed=${elapsedMillis}ms reason=timeout")
+                    if (isRunning.get()) {
+                        stopScan()
+                        startScan(powerTierFlow.value)
+                    }
+                }
+            }
+        }
 
         scanRestartJob = scope.launch {
             delay(SCAN_RESTART_INTERVAL_MS)
@@ -252,9 +277,13 @@ internal class AndroidBleTransport(
         powerObserverJob = scope.launch {
             powerTierFlow.collect { tier ->
                 if (isRunning.get()) {
-                    Log.d(TAG, "Power tier → $tier")
-                    stopScan()
-                    startScan(tier)
+                    if (bootstrapActive.get()) {
+                        Log.d(TAG, "Power tier → $tier (deferred, bootstrap active)")
+                    } else {
+                        Log.d(TAG, "Power tier → $tier")
+                        stopScan()
+                        startScan(tier)
+                    }
                 }
             }
         }
@@ -269,6 +298,9 @@ internal class AndroidBleTransport(
         Log.d(TAG, "stopAll() begin")
         val result = runCatching {
             withTimeout(STOP_ALL_TIMEOUT_MS) {
+                bootstrapTimerJob?.cancel()
+                bootstrapTimerJob = null
+                bootstrapActive.set(false)
                 scanRestartJob?.cancel()
                 powerObserverJob?.cancel()
                 stopScan()
@@ -345,8 +377,20 @@ internal class AndroidBleTransport(
     private inner class GattServerCallback : BluetoothGattServerCallback() {
         override fun onConnectionStateChange(device: BluetoothDevice, status: Int, newState: Int) {
             when (newState) {
-                BluetoothProfile.STATE_CONNECTED ->
+                BluetoothProfile.STATE_CONNECTED -> {
                     Log.d(TAG, "GATT server: connected mac=${device.address}")
+                    // Scan filter fallback: unknown device means hardware UUID filter failed
+                    if (!seenPayloadsByMac.containsKey(device.address) && !useSoftwareFilter) {
+                        Logger.d(TAG, "Scan filter fallback activated (hardware filter broken)")
+                        useSoftwareFilter = true
+                        scope.launch {
+                            if (isRunning.get()) {
+                                stopScan()
+                                startScan(powerTierFlow.value)
+                            }
+                        }
+                    }
+                }
                 BluetoothProfile.STATE_DISCONNECTED -> {
                     gattServerSubscribersByMac.remove(device.address)
                     peerKeyHashByMac[device.address]?.let { kh ->
@@ -548,21 +592,33 @@ internal class AndroidBleTransport(
 
     private fun startScan(powerTier: PowerTier) {
         val scanMode =
-            when (powerTier) {
-                PowerTier.PERFORMANCE -> ScanSettings.SCAN_MODE_LOW_LATENCY
-                PowerTier.BALANCED -> ScanSettings.SCAN_MODE_BALANCED
-                PowerTier.POWER_SAVER -> ScanSettings.SCAN_MODE_LOW_POWER
+            if (bootstrapActive.get()) {
+                ScanSettings.SCAN_MODE_LOW_LATENCY
+            } else {
+                when (powerTier) {
+                    PowerTier.PERFORMANCE -> ScanSettings.SCAN_MODE_LOW_LATENCY
+                    PowerTier.BALANCED -> ScanSettings.SCAN_MODE_BALANCED
+                    PowerTier.POWER_SAVER -> ScanSettings.SCAN_MODE_LOW_POWER
+                }
+            }
+        val filters =
+            if (useSoftwareFilter) {
+                emptyList()
+            } else {
+                listOf(
+                    ScanFilter.Builder()
+                        .setServiceData(ADVERTISEMENT_PARCEL_UUID, null, null)
+                        .build()
+                )
             }
         val cb = buildScanCallback()
         scanCallback = cb
         btAdapter.bluetoothLeScanner?.startScan(
-            listOf(
-                ScanFilter.Builder().setServiceData(ADVERTISEMENT_PARCEL_UUID, null, null).build()
-            ),
+            filters,
             ScanSettings.Builder().setScanMode(scanMode).setReportDelay(0).build(),
             cb,
         )
-        Log.d(TAG, "BLE scan started scanMode=$scanMode")
+        Log.d(TAG, "BLE scan started scanMode=$scanMode softwareFilter=$useSoftwareFilter")
     }
 
     private fun stopScan() {
@@ -600,12 +656,26 @@ internal class AndroidBleTransport(
                     rssi = result.rssi,
                 )
             )
+            // End bootstrap mode on first peer discovered
+            if (bootstrapActive.compareAndSet(true, false)) {
+                val elapsedMillis = System.currentTimeMillis() - bootstrapStartMillis
+                bootstrapTimerJob?.cancel()
+                bootstrapTimerJob = null
+                Logger.d(TAG, "Bootstrap mode ended elapsed=${elapsedMillis}ms reason=peer_found")
+                if (isRunning.get()) {
+                    stopScan()
+                    startScan(powerTierFlow.value)
+                }
+            }
         }
 
+        val effectiveSlots = oemSlotTracker.effectiveSlots(oemKey())
+        val currentConnections = l2capConnections.size + gattClients.size
         if (
             !connectionJobs.containsKey(keyHashHex) &&
                 !l2capConnections.containsKey(keyHashHex) &&
                 !gattClients.containsKey(keyHashHex) &&
+                effectiveSlots > currentConnections &&
                 ConnectionInitiationPolicy.shouldInitiate(
                     identity.keyHash,
                     powerTierFlow.value.ordinal,
@@ -660,6 +730,19 @@ internal class AndroidBleTransport(
                     return
                 }
         val hex = bytesToHex(keyHash)
+        // OemSlotTracker gating: reject inbound if at effective slot capacity
+        val effectiveSlots = oemSlotTracker.effectiveSlots(oemKey())
+        val currentConnections = l2capConnections.size + gattClients.size
+        if (effectiveSlots <= currentConnections) {
+            Log.w(
+                TAG,
+                "OemSlotTracker: inbound L2CAP rejected at capacity" +
+                    " oemKey=${oemKey()} effectiveSlots=$effectiveSlots" +
+                    " connections=$currentConnections",
+            )
+            socket.close()
+            return
+        }
         Log.d(TAG, "L2CAP inbound from $hex mac=$mac")
         registerL2capConnection(hex, socket)
     }
@@ -675,6 +758,12 @@ internal class AndroidBleTransport(
                 }
                 .getOrElse { e ->
                     Log.w(TAG, "L2CAP connect failed $keyHashHex: ${e.message}")
+                    oemSlotTracker.recordFailure(oemKey())
+                    Logger.d(
+                        TAG,
+                        "OemSlotTracker reduced ${oemKey()}" +
+                            " slots=${oemSlotTracker.effectiveSlots(oemKey())}",
+                    )
                     scheduleL2capRetry(device, psm, keyHashHex)
                     return
                 }
@@ -1122,4 +1211,6 @@ internal class AndroidBleTransport(
 
     private fun hasPermission(permission: String): Boolean =
         context.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED
+
+    private fun oemKey(): String = "${Build.MANUFACTURER}|${Build.MODEL}|${Build.VERSION.SDK_INT}"
 }
