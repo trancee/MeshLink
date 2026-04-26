@@ -1,5 +1,6 @@
 package ch.trancee.meshlink.api
 
+import ch.trancee.meshlink.messaging.CoverageIgnore
 import kotlin.time.TimeSource
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -56,6 +57,8 @@ internal sealed class LifecycleEvent {
     data object TransientFailure : LifecycleEvent()
 
     /** Short display name for diagnostic messages. */
+    @get:CoverageIgnore // `simpleName` is always non-null for sealed class objects; ?: branch
+    // unreachable
     internal val displayName: String
         get() = this::class.simpleName ?: "UnknownEvent"
 }

@@ -4,13 +4,20 @@ import ch.trancee.meshlink.crypto.createCryptoProvider
 import ch.trancee.meshlink.power.PowerTier
 import ch.trancee.meshlink.power.StubBatteryMonitor
 import ch.trancee.meshlink.storage.InMemorySecureStorage
+import ch.trancee.meshlink.transport.AdvertisementEvent
+import ch.trancee.meshlink.transport.BleTransport
+import ch.trancee.meshlink.transport.IncomingData
+import ch.trancee.meshlink.transport.PeerLostEvent
+import ch.trancee.meshlink.transport.SendResult
 import ch.trancee.meshlink.transport.VirtualMeshTransport
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
@@ -357,5 +364,164 @@ class MeshLinkTest {
         assertEquals(MeshLinkState.UNINITIALIZED, sm.state.value)
         // Verify DEFAULT_CLOCK produces a non-negative monotonic time.
         assertTrue(MeshLinkStateMachine.DEFAULT_CLOCK() >= 0L)
+    }
+
+    // ── start() catch block ──────────────────────────────────────────────
+
+    /**
+     * A BleTransport whose startAdvertisingAndScanning always throws, so the engine start fails.
+     */
+    private class FailingTransport : BleTransport {
+        override val localPeerId: ByteArray = ByteArray(12)
+        override var advertisementServiceData: ByteArray = ByteArray(16)
+        override val advertisementEvents = emptyFlow<AdvertisementEvent>()
+        override val peerLostEvents = emptyFlow<PeerLostEvent>()
+        override val incomingData = emptyFlow<IncomingData>()
+
+        override suspend fun startAdvertisingAndScanning(): Unit = error("injected start failure")
+
+        override suspend fun stopAll() {}
+
+        override suspend fun sendToPeer(peerId: ByteArray, data: ByteArray) = SendResult.Success
+
+        override suspend fun disconnect(peerId: ByteArray) {}
+
+        override suspend fun requestConnectionPriority(peerId: ByteArray, highPriority: Boolean) {}
+    }
+
+    @Test
+    fun `start transitions to RECOVERABLE and rethrows when engine fails`() = runTest {
+        val mesh =
+            MeshLink.create(
+                config = meshLinkConfig("ch.trancee.test.fail"),
+                cryptoProvider = crypto,
+                transport = FailingTransport(),
+                storage = InMemorySecureStorage(),
+                batteryMonitor = StubBatteryMonitor(),
+                parentScope = this,
+                clock = { testScheduler.currentTime },
+            )
+        assertFailsWith<IllegalStateException> { mesh.start() }
+        // UNINITIALIZED + StartFailure → TERMINAL (per FSM spec: no recovery from initial failure)
+        assertEquals(MeshLinkState.TERMINAL, mesh.state.value)
+        // Clean up engine coroutines (public stop() throws from TERMINAL; use internal helper).
+        mesh.stopEngineForTest()
+    }
+
+    // ── stop() from PAUSED state (uncovered stop branch) ─────────────────
+
+    @Test
+    fun `stop from PAUSED state succeeds`() = runTest {
+        val mesh = makeMesh()
+        mesh.start()
+        mesh.pause()
+        assertEquals(MeshLinkState.PAUSED, mesh.state.value)
+        mesh.stop()
+        assertEquals(MeshLinkState.STOPPED, mesh.state.value)
+    }
+
+    // ── start/stop from RECOVERABLE state covers the `!= RECOVERABLE` branch condition ──
+
+    @Test
+    fun `stop from RECOVERABLE state succeeds`() = runTest {
+        val mesh = makeMesh()
+        mesh.start()
+        mesh.triggerTransientFailureForTest()
+        assertEquals(MeshLinkState.RECOVERABLE, mesh.state.value)
+        mesh.stop()
+        assertEquals(MeshLinkState.STOPPED, mesh.state.value)
+    }
+
+    @Test
+    fun `restart from RECOVERABLE state succeeds`() = runTest {
+        val mesh = makeMesh()
+        mesh.start()
+        mesh.triggerTransientFailureForTest()
+        assertEquals(MeshLinkState.RECOVERABLE, mesh.state.value)
+        mesh.start()
+        assertEquals(MeshLinkState.RUNNING, mesh.state.value)
+        mesh.stop()
+    }
+
+    // ── equals() null and self branches for all public data types ─────────
+
+    @Test
+    fun `all public data types handle equals(null) and equals(self) correctly`() {
+        val id12 = ByteArray(12) { it.toByte() }
+        val id32 = ByteArray(32) { it.toByte() }
+
+        // MessageId
+        val msgId = MessageId(id12)
+        assertFalse(msgId.equals(null))
+        assertTrue(msgId == msgId)
+
+        // ReceivedMessage
+        val recvMsg = ReceivedMessage(msgId, id12, byteArrayOf(1), 0L)
+        assertFalse(recvMsg.equals(null))
+        assertTrue(recvMsg == recvMsg)
+
+        // PeerEvent.Found / Lost
+        val detail = PeerDetail(id12, id32, "aa", true, 0L, TrustMode.STRICT)
+        val found = PeerEvent.Found(id12, detail)
+        val lost = PeerEvent.Lost(id12)
+        assertFalse(found.equals(null))
+        assertFalse(lost.equals(null))
+        assertTrue(found == found)
+        assertTrue(lost == lost)
+
+        // PeerDetail
+        assertFalse(detail.equals(null))
+        assertTrue(detail == detail)
+
+        // KeyChangeEvent
+        val kce = KeyChangeEvent(id12, null, id32)
+        assertFalse(kce.equals(null))
+        assertTrue(kce == kce)
+
+        // TransferProgress
+        val tp = TransferProgress(id12, id12, 0L, 100L)
+        assertFalse(tp.equals(null))
+        assertTrue(tp == tp)
+
+        // TransferFailure variants
+        val tfTimeout = TransferFailure.Timeout(id12, id12)
+        val tfPeerUnavail = TransferFailure.PeerUnavailable(id12, id12)
+        val tfCancelled = TransferFailure.Cancelled(id12)
+        assertFalse(tfTimeout.equals(null))
+        assertFalse(tfPeerUnavail.equals(null))
+        assertFalse(tfCancelled.equals(null))
+        assertTrue(tfTimeout == tfTimeout)
+        assertTrue(tfPeerUnavail == tfPeerUnavail)
+        assertTrue(tfCancelled == tfCancelled)
+    }
+
+    // ── RoutingEntry equals: all branch paths ─────────────────────────────
+
+    @Test
+    fun `RoutingEntry equals covers all branch paths`() = runTest {
+        val mesh = makeMesh()
+        mesh.start()
+        mesh.injectTestRoute(
+            ByteArray(12) { 0x01 },
+            ByteArray(12) { 0x02 },
+            1.0,
+            testScheduler.currentTime + 60_000L,
+        )
+        val snapshot = mesh.routingSnapshot()
+        val base = snapshot.routes.first()
+
+        // null → false (covers other !is RoutingEntry branch)
+        assertFalse(base.equals(null))
+        // different destination → false (covers destination.contentEquals false branch)
+        assertFalse(base == base.copy(destination = ByteArray(12) { 0xFF.toByte() }))
+        // different nextHop → false (covers nextHop.contentEquals false branch)
+        assertFalse(base == base.copy(nextHop = ByteArray(12) { 0xFF.toByte() }))
+        // different cost → false
+        assertFalse(base == base.copy(cost = base.cost + 1))
+        // different seqNo → false
+        assertFalse(base == base.copy(seqNo = base.seqNo + 1))
+        // same instance → true
+        assertTrue(base == base)
+        mesh.stop()
     }
 }

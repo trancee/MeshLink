@@ -198,8 +198,9 @@ apiValidation { klib { enabled = isMacOs } }
 // SKIE 0.10.11 supports up to Kotlin 2.3.20; re-enable after the next SKIE release.
 // When re-enabled on macOS+Xcode, FlowAdapter and AsyncStream wrappers are generated
 // automatically for all public Flow/StateFlow members of MeshLinkApi.
-// TODO(S03/skie-enable): remove isEnabled=false once SKIE supports Kotlin 2.3.21.
-skie { isEnabled = false }
+// TODO(S03/skie-enable): SKIE 0.10.11 supports Kotlin 2.3.20 (this version). Re-evaluate on next
+// Kotlin bump.
+skie {}
 
 // Kotlin Power Assert — transform kotlin.test assertions for richer failure diagnostics.
 powerAssert {

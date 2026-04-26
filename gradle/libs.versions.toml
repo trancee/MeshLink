@@ -1,5 +1,5 @@
 [versions]
-kotlin              = "2.3.21"
+kotlin              = "2.3.20"
 agp                 = "9.2.0"
 coroutines          = "1.10.2"
 kover               = "0.9.8"
