@@ -382,8 +382,6 @@ class MeshEngineIntegrationTest {
     }
 
     // ── Scenario 4: B disconnect + reconnect, A→C transfer completes ─────────
-    // BLOCKER: seqNo=0u on reconnect (R004) — must fix before M003 milestone completion
-    @kotlin.test.Ignore
     @Test
     fun `scenario4 B disconnect and reconnect allows transfer to C`() = runTest {
         val mesh = setupThreeNodeMesh(testScheduler, backgroundScope = backgroundScope)
@@ -428,8 +426,6 @@ class MeshEngineIntegrationTest {
     }
 
     // ── Scenario 5: Return path C→A ───────────────────────────────────────────
-    // BLOCKER: seqNo=0u on reconnect (R004) — must fix before M003 milestone completion
-    @kotlin.test.Ignore
     @Test
     fun `scenario5 C sends to A via return path`() = runTest {
         val mesh = setupThreeNodeMesh(testScheduler, backgroundScope = backgroundScope)
