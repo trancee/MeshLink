@@ -89,6 +89,23 @@ private constructor(
     val currentTier: PowerTier
         get() = powerManager.currentTier
 
+    /**
+     * Returns the number of peers with an active presence-tracked connection.
+     *
+     * Exposed so [ch.trancee.meshlink.api.MeshLink] can fill [MeshHealthSnapshot] without accessing
+     * [presenceTracker] directly.
+     */
+    internal fun connectedPeerCount(): Int = presenceTracker.connectedPeers().size
+
+    /**
+     * Returns the current [PowerTier] in effect.
+     *
+     * Exposed so [ch.trancee.meshlink.api.MeshLink] can fill [MeshHealthSnapshot] without accessing
+     * [powerManager] directly.
+     */
+    internal val currentPowerTier: PowerTier
+        get() = powerManager.currentTier
+
     // ── Lifecycle ─────────────────────────────────────────────────────────────
 
     /**

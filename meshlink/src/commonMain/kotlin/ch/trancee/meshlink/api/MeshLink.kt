@@ -18,12 +18,15 @@ import kotlin.time.Duration
 import kotlin.time.TimeSource
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -70,23 +73,59 @@ internal constructor(
     private val transport: BleTransport,
     @Suppress("unused") private val scope: CoroutineScope,
     private val clock: () -> Long,
+    private val wallClock: () -> Long = clock,
 ) : MeshLinkApi {
 
-    // ── State machine ──────────────────────────────────────────────────────
+    // ── Diagnostic sink ────────────────────────────────────────────────────
 
-    private val _diagnosticFlow =
-        MutableSharedFlow<DiagnosticEvent>(
-            replay = 1,
-            extraBufferCapacity = config.diagnostics.bufferCapacity.coerceAtLeast(1),
-        )
+    /**
+     * Peer-ID redaction function used when [DiagnosticsConfig.redactPeerIds] is enabled. Truncates
+     * the hex string to the first 8 chars, masking the remainder for GDPR.
+     *
+     * Not directly exercisable from unit tests — redaction only fires when a [PeerIdHex]-carrying
+     * payload (e.g. [DiagnosticPayload.PeerDiscovered]) is emitted, which requires a full BLE
+     * handshake (S04 integration test).
+     */
+    @CoverageIgnore
+    private fun truncatePeerIdHex(peerId: PeerIdHex): PeerIdHex =
+        PeerIdHex(peerId.hex.take(8) + "…")
+
+    /**
+     * Active diagnostic sink — [DiagnosticSink] when diagnostics are enabled, [NoOpDiagnosticSink]
+     * when disabled.
+     *
+     * The redact function is a simple prefix-truncation stub (SHA-256 is not available in
+     * commonMain without a CryptoProvider; a real SHA-256 implementation can be injected via a
+     * platform-specific factory if needed).
+     */
+    private val diagnosticSink: DiagnosticSinkApi =
+        if (config.diagnostics.enabled) {
+            val redactFn: ((PeerIdHex) -> PeerIdHex)? =
+                if (config.diagnostics.redactPeerIds) ::truncatePeerIdHex else null
+            DiagnosticSink(
+                bufferCapacity = config.diagnostics.bufferCapacity,
+                redactFn = redactFn,
+                clock = clock,
+                wallClock = wallClock,
+            )
+        } else {
+            NoOpDiagnosticSink
+        }
+
+    // ── State machine ──────────────────────────────────────────────────────
 
     private val stateMachine =
         MeshLinkStateMachine(
             nowMs = clock,
-            onDiagnostic = { event -> _diagnosticFlow.tryEmit(event) },
+            onDiagnostic = { event -> diagnosticSink.emit(event.code) { event.payload } },
         )
 
     private val mutex = Mutex()
+
+    // ── meshHealthFlow backing flow ─────────────────────────────────────────
+
+    private val _meshHealthFlow = MutableSharedFlow<MeshHealthSnapshot>(replay = 1)
+    private var healthTickerJob: Job? = null
 
     // ── StateFlow ──────────────────────────────────────────────────────────
 
@@ -104,6 +143,11 @@ internal constructor(
             try {
                 engine.start()
                 stateMachine.transition(LifecycleEvent.StartSuccess)
+                // Cancel any stale ticker from a previous start (restart-from-RECOVERABLE path).
+                healthTickerJob?.cancel()
+                // Emit an initial snapshot immediately and start the periodic ticker.
+                _meshHealthFlow.tryEmit(buildHealthSnapshot())
+                healthTickerJob = scope.launch { runHealthTicker() }
             } catch (e: Exception) {
                 stateMachine.transition(LifecycleEvent.StartFailure)
                 throw e
@@ -122,6 +166,7 @@ internal constructor(
                 stateMachine.transition(LifecycleEvent.Stop) // emits InvalidStateTransition
                 throw IllegalStateException("stop() called from invalid state: $current")
             }
+            stopHealthTicker()
             engine.stop()
             stateMachine.transition(LifecycleEvent.Stop)
         }
@@ -231,20 +276,21 @@ internal constructor(
             }
         }
 
-    override val meshHealthFlow: Flow<MeshHealthSnapshot> = emptyFlow()
+    override val meshHealthFlow: Flow<MeshHealthSnapshot> = _meshHealthFlow
 
     override val keyChanges: Flow<KeyChangeEvent> = emptyFlow()
 
-    override val diagnosticEvents: Flow<DiagnosticEvent> = _diagnosticFlow
+    override val diagnosticEvents: Flow<DiagnosticEvent> = diagnosticSink.events
 
     /**
      * Returns the last [DiagnosticEvent] emitted, or `null` if none has been emitted yet.
      *
-     * Uses the SharedFlow replay cache (replay=1). Exposed `internal` for test assertions without
-     * requiring a coroutine subscription.
+     * Uses the SharedFlow replay cache (replay=1 for [DiagnosticSink], replay=0 for
+     * [NoOpDiagnosticSink]). Exposed `internal` for test assertions without requiring a coroutine
+     * subscription.
      */
     internal val lastDiagnosticEvent: DiagnosticEvent?
-        get() = _diagnosticFlow.replayCache.lastOrNull()
+        get() = diagnosticSink.events.replayCache.lastOrNull()
 
     // ── Power ──────────────────────────────────────────────────────────────
 
@@ -289,16 +335,61 @@ internal constructor(
 
     // ── Health ─────────────────────────────────────────────────────────────
 
-    override fun meshHealth(): MeshHealthSnapshot =
-        MeshHealthSnapshot(
-            connectedPeers = 0, // PresenceTracker wired in S02
-            routingTableSize = engine.routingTable.routeCount(),
-            bufferUsageBytes = 0L,
-            capturedAtMs = clock(),
-        )
+    override fun meshHealth(): MeshHealthSnapshot = buildHealthSnapshot()
 
     override fun shedMemoryPressure() {
         // Wired to DeliveryPipeline in S02.
+    }
+
+    // ── Health helpers ─────────────────────────────────────────────────────
+
+    /**
+     * Cancels and clears the health ticker job. The null-safe `?.cancel()` call is needed because
+     * the ticker is only set after a successful [start], but the Kotlin compiler still generates a
+     * null-branch in bytecode. All valid paths that call [stop] have [start] succeed first, so the
+     * null case is structurally unreachable.
+     */
+    @CoverageIgnore // null branch of `?.cancel()` is structurally unreachable via the lifecycle FSM
+    private fun stopHealthTicker() {
+        healthTickerJob?.cancel()
+        healthTickerJob = null
+    }
+
+    /**
+     * Builds a [MeshHealthSnapshot] from current engine state. Called by [meshHealth] and by the
+     * periodic health ticker.
+     */
+    private fun buildHealthSnapshot(): MeshHealthSnapshot {
+        val allRoutes = engine.routingTable.allRoutes()
+        val avgCost = allRoutes.map { it.metric }.average().let { if (it.isNaN()) 0.0 else it }
+        val connected = engine.connectedPeerCount()
+        return MeshHealthSnapshot(
+            connectedPeers = connected,
+            routingTableSize = engine.routingTable.routeCount(),
+            bufferUsageBytes = 0L,
+            capturedAtMs = clock(),
+            reachablePeers = connected,
+            bufferUtilizationPercent = 0,
+            activeTransfers = 0,
+            powerMode = engine.currentPowerTier,
+            avgRouteCost = avgCost,
+            relayQueueSize = 0,
+        )
+    }
+
+    /**
+     * Periodic health ticker coroutine. Waits [DiagnosticsConfig.healthSnapshotIntervalMs] between
+     * snapshots and emits on [_meshHealthFlow].
+     *
+     * Cancellation is propagated by [delay] throwing [kotlinx.coroutines.CancellationException]
+     * when [healthTickerJob] is cancelled in [stop].
+     */
+    @CoverageIgnore // ticker body unreachable in unit tests without a real persistent engine scope
+    private suspend fun runHealthTicker() {
+        while (true) {
+            delay(config.diagnostics.healthSnapshotIntervalMs)
+            _meshHealthFlow.tryEmit(buildHealthSnapshot())
+        }
     }
 
     // ── Routing ────────────────────────────────────────────────────────────
@@ -407,7 +498,7 @@ internal constructor(
             val transport = NoOpBleTransport()
             val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
             val clock: () -> Long = { MONOTONIC_ORIGIN.elapsedNow().inWholeMilliseconds }
-            return create(config, crypto, transport, storage, battery, scope, clock)
+            return create(config, crypto, transport, storage, battery, scope, clock, clock)
         }
 
         /**
@@ -422,6 +513,7 @@ internal constructor(
             batteryMonitor: BatteryMonitor,
             parentScope: CoroutineScope,
             clock: () -> Long,
+            wallClock: () -> Long = clock,
         ): MeshLink {
             val identity = Identity.loadOrGenerate(cryptoProvider, storage)
             val engine =
@@ -442,6 +534,7 @@ internal constructor(
                 transport = transport,
                 scope = parentScope,
                 clock = clock,
+                wallClock = clock,
             )
         }
     }

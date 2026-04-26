@@ -119,11 +119,14 @@ public data class RoutingConfig(
  * @param bufferCapacity Maximum number of diagnostic events buffered in the event ring.
  * @param redactPeerIds When true, peer identifiers are replaced with truncated hashes in all
  *   diagnostic output (GDPR mode).
+ * @param healthSnapshotIntervalMs Interval in milliseconds between [MeshHealthSnapshot] emissions
+ *   on [MeshLinkApi.meshHealthFlow]. Default: 5 000 ms.
  */
 public data class DiagnosticsConfig(
     val enabled: Boolean = true,
     val bufferCapacity: Int = 1_000,
     val redactPeerIds: Boolean = false,
+    val healthSnapshotIntervalMs: Long = 5_000L,
 )
 
 /**
@@ -484,12 +487,14 @@ public class DiagnosticsConfigBuilder {
     public var enabled: Boolean = true
     public var bufferCapacity: Int = 1_000
     public var redactPeerIds: Boolean = false
+    public var healthSnapshotIntervalMs: Long = 5_000L
 
     internal fun build(): DiagnosticsConfig =
         DiagnosticsConfig(
             enabled = enabled,
             bufferCapacity = bufferCapacity,
             redactPeerIds = redactPeerIds,
+            healthSnapshotIntervalMs = healthSnapshotIntervalMs,
         )
 }
 

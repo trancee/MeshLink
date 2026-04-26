@@ -1,5 +1,6 @@
 package ch.trancee.meshlink.api
 
+import ch.trancee.meshlink.power.PowerTier
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -708,6 +709,13 @@ class MeshLinkStateTest {
         assertEquals(12, snap.routingTableSize)
         assertEquals(65536L, snap.bufferUsageBytes)
         assertEquals(9000L, snap.capturedAtMs)
+        // New fields have defaults — existing positional constructor still compiles.
+        assertEquals(0, snap.reachablePeers)
+        assertEquals(0, snap.bufferUtilizationPercent)
+        assertEquals(0, snap.activeTransfers)
+        assertEquals(PowerTier.BALANCED, snap.powerMode)
+        assertEquals(0.0, snap.avgRouteCost)
+        assertEquals(0, snap.relayQueueSize)
         val copy = snap.copy(connectedPeers = 5)
         assertEquals(5, copy.connectedPeers)
     }
