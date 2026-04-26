@@ -8,6 +8,12 @@ updates:
       interval: "weekly"
       day: "monday"
     open-pull-requests-limit: 10
+    ignore:
+      # Transitive build-classpath deps pinned to patched versions via
+      # buildscript resolutionStrategy — not direct dependencies in the
+      # version catalog, so Dependabot cannot locate or update them.
+      - dependency-name: "org.bouncycastle:bcprov-jdk18on"
+      - dependency-name: "org.bouncycastle:bcpkix-jdk18on"
     groups:
       kotlin:
         patterns:
