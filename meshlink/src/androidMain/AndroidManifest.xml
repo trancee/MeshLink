@@ -1,2 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest />
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- BLE scanning: neverForLocation avoids ACCESS_FINE_LOCATION requirement (API 31+). -->
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_SCAN"
+        android:usesPermissionFlags="neverForLocation" />
+
+    <!-- BLE advertising (API 31+). -->
+    <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
+
+    <!-- GATT connect / L2CAP open (API 31+). -->
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+
+    <!-- Required to call startForeground(). -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+
+    <!-- Required for FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE on API 34+. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+
+    <!--
+        No <service> element is declared here. The consuming app must declare its
+        MeshLinkService subclass in its own AndroidManifest.xml with the appropriate
+        android:foregroundServiceType="connectedDevice" attribute.
+    -->
+
+</manifest>

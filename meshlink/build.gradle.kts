@@ -36,6 +36,21 @@ kotlin {
         // JVM host runner. KMP does not allow test source sets to override main-source-set actuals,
         // so testAndroidHostTest is filtered to zero tests until S02 wires a JVM-backed actual.
         withHostTest {}
+
+        // consumer-rules.pro: ProGuard rules for MeshLinkService / AndroidBleTransport /
+        // BleTransport.
+        // The com.android.kotlin.multiplatform.library AGP 9.0+ plugin exposes a restricted android
+        // {}
+        // DSL that does not support defaultConfig.consumerProguardFiles(). The consumer-rules.pro
+        // file
+        // in meshlink/ is shipped alongside the AAR. Library consumers must reference it directly
+        // in
+        // their own build.gradle.kts via:
+        //   proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"),
+        // "../meshlink/consumer-rules.pro")
+        // or include it in their module's proguard-rules.pro.
+        // TODO(S04/library-publish): Investigate whether AGP 9.x adds consumerProguardFiles() to
+        //   the KMP library android block once the API stabilises.
     }
 
     val iosArm64 = iosArm64()
@@ -118,6 +133,14 @@ kover {
                 // of excludedSourceSets.
                 classes("ch.trancee.meshlink.storage.AndroidSecureStorage*")
                 classes("ch.trancee.meshlink.storage.IosSecureStorage*")
+                // AndroidBleTransport: Android BLE API callbacks cannot execute on the JVM host
+                // (BluetoothGatt, BluetoothLeScanner callbacks require a real BT stack). Per D024,
+                // correctness is proven by S04 two-device integration test on real hardware.
+                classes("ch.trancee.meshlink.transport.AndroidBleTransport*")
+                // MeshLinkService: Android Service lifecycle methods (onCreate, onDestroy,
+                // onBind) require the Android runtime and cannot be tested on JVM host.
+                // Correctness verified by Android instrumentation tests in S04.
+                classes("ch.trancee.meshlink.transport.MeshLinkService*")
                 // Functions annotated with @CoverageIgnore contain defensive null/existence checks
                 // whose unreachable branch cannot be exercised without violating type contracts.
                 annotatedBy("ch.trancee.meshlink.messaging.CoverageIgnore")
