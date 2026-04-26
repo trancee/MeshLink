@@ -178,7 +178,8 @@ kover {
                 // unit test coverage — correctness verified by S04 two-device integration test.
                 classes("ch.trancee.meshlink.transport.Logger*")
                 // MeshLinkAndroidFactory: public Android factory that wires AndroidBleTransport.
-                // Requires real Android BLE stack — correctness proven by S06 two-device integration
+                // Requires real Android BLE stack — correctness proven by S06 two-device
+                // integration
                 // test on real hardware. Excluded from JVM host coverage per D024 pattern.
                 classes("ch.trancee.meshlink.api.MeshLinkAndroidFactoryKt*")
                 // MeshLinkIosFactory: public iOS factory that wires IosBleTransport.

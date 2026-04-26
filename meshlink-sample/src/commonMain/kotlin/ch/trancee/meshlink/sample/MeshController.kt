@@ -2,14 +2,12 @@ package ch.trancee.meshlink.sample
 
 import ch.trancee.meshlink.api.DiagnosticEvent
 import ch.trancee.meshlink.api.MeshHealthSnapshot
-import ch.trancee.meshlink.api.MeshLink
 import ch.trancee.meshlink.api.MeshLinkApi
 import ch.trancee.meshlink.api.MeshLinkConfig
 import ch.trancee.meshlink.api.MeshLinkState
 import ch.trancee.meshlink.api.MessagePriority
 import ch.trancee.meshlink.api.PeerEvent
 import ch.trancee.meshlink.api.ReceivedMessage
-import ch.trancee.meshlink.api.meshLinkConfig
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -26,21 +24,24 @@ import kotlinx.coroutines.launch
  * `rememberCoroutineScope()` from the root [App] composable, so all collectors are cancelled
  * automatically when the composition leaves the tree.
  *
+ * @param meshLink Platform-specific [MeshLinkApi] instance, created by [createPlatformMeshLink].
+ *   On Android this is backed by [ch.trancee.meshlink.transport.AndroidBleTransport]; on iOS by
+ *   [ch.trancee.meshlink.transport.IosBleTransport].
+ * @param config The [MeshLinkConfig] that was used to create [meshLink]. Exposed so UI screens
+ *   can display configuration values without needing access to private MeshLink internals.
  * @param scope Lifecycle-scoped [CoroutineScope] used to collect MeshLink event flows.
  */
-class MeshController(private val scope: CoroutineScope) {
-
-    // ── MeshLink instance ──────────────────────────────────────────────────
-
+class MeshController(
+    /** Underlying MeshLink API instance. Exposed for advanced consumers; prefer the typed flows. */
+    val meshLink: MeshLinkApi,
     /**
      * The [MeshLinkConfig] used to construct this controller's [MeshLinkApi] instance. Exposed so
      * UI screens can display configuration values (appId, maxMessageSize, trustMode) without
      * needing access to private MeshLink internals.
      */
-    val config: MeshLinkConfig = meshLinkConfig("ch.trancee.meshlink.sample") {}
-
-    /** Underlying MeshLink API instance. Exposed for advanced consumers; prefer the typed flows. */
-    val meshLink: MeshLinkApi = MeshLink(config)
+    val config: MeshLinkConfig,
+    private val scope: CoroutineScope,
+) {
 
     // ── Lifecycle state ────────────────────────────────────────────────────
 

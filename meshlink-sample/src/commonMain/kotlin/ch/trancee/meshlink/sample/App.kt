@@ -17,6 +17,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import ch.trancee.meshlink.api.meshLinkConfig
 
 /**
  * Root composable for the MeshLink reference app.
@@ -27,13 +28,21 @@ import androidx.navigation.compose.rememberNavController
  * MeshLink instances.
  *
  * [MeshController] is created once via [remember] and lives as long as the composition scope. The
- * engine is started via [LaunchedEffect] immediately after first composition so that state Flows
- * emit live data by the time any screen renders.
+ * platform-specific [ch.trancee.meshlink.api.MeshLinkApi] is obtained from
+ * [createPlatformMeshLink]:
+ * - Android: [ch.trancee.meshlink.api.MeshLink.createAndroid] backed by
+ *   [ch.trancee.meshlink.transport.AndroidBleTransport]
+ * - iOS: [ch.trancee.meshlink.api.MeshLink.createIos] backed by
+ *   [ch.trancee.meshlink.transport.IosBleTransport]
+ *
+ * The engine is started via [LaunchedEffect] immediately after first composition so that state
+ * Flows emit live data by the time any screen renders.
  */
 @Composable
 fun App() {
     val scope = rememberCoroutineScope()
-    val controller = remember(scope) { MeshController(scope) }
+    val config = remember { meshLinkConfig("ch.trancee.meshlink.sample") {} }
+    val controller = remember(scope) { MeshController(createPlatformMeshLink(config), config, scope) }
 
     // Start the MeshLink engine on first composition; the scope cancels it on disposal.
     LaunchedEffect(controller) {
