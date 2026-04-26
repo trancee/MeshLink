@@ -2,7 +2,6 @@ package ch.trancee.meshlink.engine
 
 import ch.trancee.meshlink.crypto.CryptoProvider
 import ch.trancee.meshlink.crypto.Identity
-import ch.trancee.meshlink.crypto.ReplayGuard
 import ch.trancee.meshlink.crypto.TrustStore
 import ch.trancee.meshlink.messaging.CoverageIgnore
 import ch.trancee.meshlink.messaging.Delivered
@@ -347,7 +346,6 @@ private constructor(
 
             // ── Crypto / trust layer ──────────────────────────────────────────
             val trustStore = TrustStore(storage)
-            val replayGuard = ReplayGuard()
 
             // ── Routing layer ─────────────────────────────────────────────────
             val routingTable = RoutingTable(clock)
@@ -396,7 +394,6 @@ private constructor(
                     localIdentity = identity,
                     cryptoProvider = cryptoProvider,
                     trustStore = trustStore,
-                    replayGuard = replayGuard,
                     dedupSet = dedupSet,
                     config = config.messaging,
                     clock = clock,

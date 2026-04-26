@@ -1,7 +1,6 @@
 package ch.trancee.meshlink.messaging
 
 import ch.trancee.meshlink.crypto.Identity
-import ch.trancee.meshlink.crypto.ReplayGuard
 import ch.trancee.meshlink.crypto.TrustStore
 import ch.trancee.meshlink.crypto.createCryptoProvider
 import ch.trancee.meshlink.routing.DedupSet
@@ -64,7 +63,6 @@ class DeliveryPipelineBranchCoverageTest {
         val routeCoordinator: RouteCoordinator,
         val transferEngine: TransferEngine,
         val trustStore: TrustStore,
-        val replayGuard: ReplayGuard,
         val pipeline: DeliveryPipeline,
     )
 
@@ -106,7 +104,6 @@ class DeliveryPipelineBranchCoverageTest {
                 rc,
             )
         val te = TransferEngine(scope, tConfig, ChunkSizePolicy.fixed(4096), true)
-        val rg = ReplayGuard()
         val pipeline =
             DeliveryPipeline(
                 scope,
@@ -117,12 +114,11 @@ class DeliveryPipelineBranchCoverageTest {
                 identity,
                 crypto,
                 ts,
-                rg,
                 DedupSet(10_000, 2_700_000L, clock),
                 config,
                 clock,
             )
-        return Node(identity, transport, rt, rdc, te, ts, rg, pipeline)
+        return Node(identity, transport, rt, rdc, te, ts, pipeline)
     }
 
     private fun relaxed(

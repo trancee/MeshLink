@@ -2,7 +2,6 @@ package ch.trancee.meshlink.messaging
 
 import ch.trancee.meshlink.crypto.CryptoProvider
 import ch.trancee.meshlink.crypto.Identity
-import ch.trancee.meshlink.crypto.ReplayGuard
 import ch.trancee.meshlink.crypto.TrustStore
 import ch.trancee.meshlink.crypto.createCryptoProvider
 import ch.trancee.meshlink.routing.DedupSet
@@ -65,7 +64,6 @@ class DeliveryPipelineTest {
         val routeCoordinator: RouteCoordinator,
         val transferEngine: TransferEngine,
         val trustStore: TrustStore,
-        val replayGuard: ReplayGuard,
         val pipeline: DeliveryPipeline,
     )
 
@@ -113,7 +111,6 @@ class DeliveryPipelineTest {
             )
         val transferEngine =
             TransferEngine(scope, transferConfig, ChunkSizePolicy.fixed(4096), true)
-        val replayGuard = ReplayGuard()
         val messageDedupSet = DedupSet(10_000, 2_700_000L, clock)
         val pipeline =
             DeliveryPipeline(
@@ -125,7 +122,6 @@ class DeliveryPipelineTest {
                 localIdentity = identity,
                 cryptoProvider = crypto,
                 trustStore = trustStore,
-                replayGuard = replayGuard,
                 dedupSet = messageDedupSet,
                 config = config,
                 clock = clock,
@@ -138,7 +134,6 @@ class DeliveryPipelineTest {
             routeCoordinator,
             transferEngine,
             trustStore,
-            replayGuard,
             pipeline,
         )
     }
@@ -2138,7 +2133,6 @@ class DeliveryPipelineCoverageTest {
         val routeCoordinator: RouteCoordinator,
         val transferEngine: TransferEngine,
         val trustStore: TrustStore,
-        val replayGuard: ReplayGuard,
         val pipeline: DeliveryPipeline,
     )
 
@@ -2186,7 +2180,6 @@ class DeliveryPipelineCoverageTest {
             )
         val transferEngine =
             TransferEngine(scope, transferConfig, ChunkSizePolicy.fixed(4096), true)
-        val replayGuard = ReplayGuard()
         val messageDedupSet = DedupSet(10_000, 2_700_000L, clock)
         val pipeline =
             DeliveryPipeline(
@@ -2198,7 +2191,6 @@ class DeliveryPipelineCoverageTest {
                 identity,
                 crypto,
                 trustStore,
-                replayGuard,
                 messageDedupSet,
                 config,
                 clock,
@@ -2211,7 +2203,6 @@ class DeliveryPipelineCoverageTest {
             routeCoordinator,
             transferEngine,
             trustStore,
-            replayGuard,
             pipeline,
         )
     }

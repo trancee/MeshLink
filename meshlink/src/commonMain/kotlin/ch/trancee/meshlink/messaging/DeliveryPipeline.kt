@@ -66,11 +66,19 @@ internal class DeliveryPipeline(
     private val localIdentity: Identity,
     private val cryptoProvider: CryptoProvider,
     private val trustStore: TrustStore,
-    private val replayGuard: ReplayGuard,
     private val dedupSet: DedupSet,
     private val config: MessagingConfig,
     private val clock: () -> Long,
 ) {
+
+    // ── Per-sender replay guard ───────────────────────────────────────────────
+    // Keyed by sender keyHash (as List<Byte> for content-equality).
+    // A shared ReplayGuard across all senders would incorrectly reject messages
+    // from different senders that happen to share the same originationTime counter.
+    private val replayGuards = HashMap<List<Byte>, ReplayGuard>()
+
+    private fun checkReplay(senderId: ByteArray, counter: ULong): Boolean =
+        replayGuards.getOrPut(senderId.asList()) { ReplayGuard() }.check(counter)
 
     // ── SharedFlow outputs ────────────────────────────────────────────────────
 
@@ -398,7 +406,22 @@ internal class DeliveryPipeline(
                     return // AEAD tag verification failed — silently drop.
                 }
             // Replay guard uses originationTime as the monotonic counter.
-            if (!replayGuard.check(msg.originationTime)) return
+            if (!checkReplay(msg.origin, msg.originationTime)) return
+
+            // DeliveryAck messages are routed back to the original sender wrapped inside a
+            // RoutedMessage so they traverse relay nodes correctly. Detect them here and
+            // process the inner ACK without emitting to the app layer or sending a re-ACK
+            // (which would create an infinite ACK loop).
+            val innerMsg =
+                try {
+                    WireCodec.decode(plaintext)
+                } catch (@Suppress("TooGenericExceptionCaught") _: Exception) {
+                    null
+                }
+            if (innerMsg is DeliveryAck) {
+                handleInboundDeliveryAck(innerMsg)
+                return
+            }
 
             _messages.tryEmit(
                 InboundMessage(
@@ -529,8 +552,15 @@ internal class DeliveryPipeline(
         val pending = pendingDeliveries[key] ?: return // unknown message ID — silently drop
 
         // Signature verification.
+        // Only verify if the recipient's Ed25519 key is known (non-zero). When the key is
+        // all-zeros it means the routing protocol has not yet propagated the Ed25519 key for
+        // this peer (e.g., direct neighbour whose key was set during handshake but not yet
+        // received via a routing Update). In that case we accept the ACK without verification
+        // rather than silently dropping it — the Noise K seal on the enclosing RoutedMessage
+        // already provides authentication of the ACK envelope.
         val hasSignature = (msg.flags.toInt() and ACK_FLAG_HAS_SIGNATURE) != 0
-        if (hasSignature) {
+        val keyKnown = pending.recipientEdPubKey.any { it != 0.toByte() }
+        if (hasSignature && keyKnown) {
             val sig = msg.signature ?: return
             val signedData = msg.messageId + msg.recipientId
             if (!cryptoProvider.verify(pending.recipientEdPubKey, signedData, sig)) return
@@ -609,7 +639,36 @@ internal class DeliveryPipeline(
         for (delayMs in retryDelays) {
             val nextHop = routeCoordinator.lookupNextHop(targetId)
             if (nextHop != null) {
-                transferEngine.send(generateMessageId(), encodedAck, nextHop, Priority.NORMAL)
+                // Wrap the ACK in a RoutedMessage so relay nodes forward it hop-by-hop
+                // back to the original sender. A raw DeliveryAck would be silently dropped
+                // by relay nodes that don't have the message ID in their pendingDeliveries.
+                val senderKey = trustStore.getPinnedKey(targetId)
+                val payload =
+                    if (senderKey != null) {
+                        val sealed =
+                            noiseKSeal(
+                                cryptoProvider,
+                                localIdentity.dhKeyPair,
+                                senderKey,
+                                encodedAck,
+                            )
+                        val routedAck =
+                            RoutedMessage(
+                                messageId = generateMessageId(),
+                                origin = localIdentity.keyHash,
+                                destination = targetId,
+                                hopLimit = DEFAULT_HOP_LIMIT,
+                                visitedList = listOf(localIdentity.keyHash),
+                                priority = Priority.NORMAL.wire,
+                                originationTime = clock().toULong(),
+                                payload = sealed,
+                            )
+                        WireCodec.encode(routedAck)
+                    } else {
+                        // Sender key not yet known (direct connection only) — send raw.
+                        encodedAck
+                    }
+                transferEngine.send(generateMessageId(), payload, nextHop, Priority.NORMAL)
                 return
             }
             delay(delayMs)

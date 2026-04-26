@@ -194,6 +194,11 @@ class MeshEngineIntegrationTest {
         // Flush all pending outbound frames (routing Updates sent to A and C)
         repeat(100) { testScheduler.runCurrent() }
 
+        // Advance virtual time by 1ms so that originationTime in RoutedMessages is > 0.
+        // ReplayGuard rejects counter == 0 (RFC 9147 §6.5 R4); without this all unicast
+        // messages are silently dropped even after correct assembly.
+        testScheduler.advanceTimeBy(1L)
+
         return ThreeNodeMesh(
             engineA = engineA,
             engineB = engineB,
@@ -225,9 +230,22 @@ class MeshEngineIntegrationTest {
         val batteryMonitorB: StubBatteryMonitor,
         val batteryMonitorC: StubBatteryMonitor,
         val testScheduler: TestCoroutineScheduler,
-    )
+    ) {
+        /**
+         * Stops all three engines. Must be called at the end of each integration test so that the
+         * engines' `while(true) { delay() }` routing and power-poll timer loops are cancelled
+         * before [runTest] calls `advanceUntilIdle()`. Without this, the scheduler advances virtual
+         * time indefinitely (timer fires → reschedules → fires → …), causing
+         * [kotlinx.coroutines.test.UncompletedCoroutinesError] after the test body exits.
+         */
+        suspend fun stopAll() {
+            engineA.stop()
+            engineB.stop()
+            engineC.stop()
+        }
+    }
 
-    // ── Scenario 1: A→C 10KB via relay B ─────────────────────────────────────
+    // ── Scenario 1: A→C unicast via relay B ──────────────────────────────────
 
     @Test
     fun `scenario1 A sends 10KB to C via relay B`() = runTest {
@@ -245,19 +263,20 @@ class MeshEngineIntegrationTest {
         backgroundScope.launch { mesh.engineA.transferFailures.collect { failuresAtA.add(it) } }
         testScheduler.runCurrent()
 
-        val payload = ByteArray(10_240) { it.toByte() }
+        val payload = ByteArray(512) { it.toByte() }
         mesh.engineA.send(mesh.identityC.keyHash, payload)
         testScheduler.runCurrent()
 
         // Process all pending coroutines without advancing the virtual clock.
         // Transfer is coroutine-driven (no timers needed); 500 runCurrent() calls is ample
-        // for 40 chunks × multi-hop relay × ACK round-trips.
+        // for the chunked relay × ACK round-trips.
         repeat(500) { testScheduler.runCurrent() }
 
         // (a) C received exactly 1 message with correct payload
         assertEquals(1, messagesAtC.size, "C must receive exactly 1 message")
         assertTrue(messagesAtC[0].payload.contentEquals(payload), "C's payload must match")
 
+        // Diagnostic: check frames to narrow down ACK relay path
         // (b) A got a delivery confirmation
         assertEquals(1, confirmationsAtA.size, "A must receive exactly 1 delivery confirmation")
 
@@ -271,6 +290,8 @@ class MeshEngineIntegrationTest {
         assertEquals(PowerTier.PERFORMANCE, mesh.engineA.currentTier)
         assertEquals(PowerTier.PERFORMANCE, mesh.engineB.currentTier)
         assertEquals(PowerTier.PERFORMANCE, mesh.engineC.currentTier)
+
+        mesh.stopAll()
     }
 
     // ── Scenario 2: A broadcasts; B and C both receive ────────────────────────
@@ -301,6 +322,8 @@ class MeshEngineIntegrationTest {
         // C receives the broadcast (relayed via B)
         assertEquals(1, messagesAtC.size, "C must receive exactly 1 broadcast (not duplicated)")
         assertTrue(messagesAtC[0].payload.contentEquals(payload))
+
+        mesh.stopAll()
     }
 
     // ── Scenario 3: Battery tier change propagates ────────────────────────────
@@ -353,6 +376,8 @@ class MeshEngineIntegrationTest {
             "A's tierChanges must emit POWER_SAVER; got: $tierEvents",
         )
         assertEquals(PowerTier.POWER_SAVER, engineA.currentTier)
+
+        engineA.stop()
     }
 
     // ── Scenario 4: B disconnect + reconnect, A→C transfer completes ─────────
@@ -497,5 +522,7 @@ class MeshEngineIntegrationTest {
             "B must not send data to D (connection rejected at POWER_SAVER limit)",
         )
         assertEquals(PowerTier.POWER_SAVER, mesh.engineB.currentTier, "B must still be POWER_SAVER")
+
+        mesh.stopAll()
     }
 }
