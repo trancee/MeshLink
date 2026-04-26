@@ -4,7 +4,9 @@ import ch.trancee.meshlink.api.DiagnosticEvent
 import ch.trancee.meshlink.api.MeshHealthSnapshot
 import ch.trancee.meshlink.api.MeshLink
 import ch.trancee.meshlink.api.MeshLinkApi
+import ch.trancee.meshlink.api.MeshLinkConfig
 import ch.trancee.meshlink.api.MeshLinkState
+import ch.trancee.meshlink.api.MessagePriority
 import ch.trancee.meshlink.api.PeerEvent
 import ch.trancee.meshlink.api.ReceivedMessage
 import ch.trancee.meshlink.api.meshLinkConfig
@@ -30,9 +32,15 @@ class MeshController(private val scope: CoroutineScope) {
 
     // ── MeshLink instance ──────────────────────────────────────────────────
 
+    /**
+     * The [MeshLinkConfig] used to construct this controller's [MeshLinkApi] instance. Exposed so
+     * UI screens can display configuration values (appId, maxMessageSize, trustMode) without
+     * needing access to private MeshLink internals.
+     */
+    val config: MeshLinkConfig = meshLinkConfig("ch.trancee.meshlink.sample") {}
+
     /** Underlying MeshLink API instance. Exposed for advanced consumers; prefer the typed flows. */
-    val meshLink: MeshLinkApi =
-        MeshLink(meshLinkConfig("ch.trancee.meshlink.sample") {})
+    val meshLink: MeshLinkApi = MeshLink(config)
 
     // ── Lifecycle state ────────────────────────────────────────────────────
 
@@ -122,6 +130,12 @@ class MeshController(private val scope: CoroutineScope) {
     /** Stops the MeshLink engine (RUNNING / PAUSED / RECOVERABLE → STOPPED). */
     suspend fun stop() = meshLink.stop()
 
+    /** Pauses BLE advertising/scanning (RUNNING → PAUSED). */
+    suspend fun pause() = meshLink.pause()
+
+    /** Resumes BLE advertising/scanning (PAUSED → RUNNING). */
+    suspend fun resume() = meshLink.resume()
+
     // ── Send helper ────────────────────────────────────────────────────────
 
     /**
@@ -132,6 +146,26 @@ class MeshController(private val scope: CoroutineScope) {
      */
     suspend fun send(recipient: ByteArray, text: String) {
         meshLink.send(recipient = recipient, payload = text.encodeToByteArray())
+    }
+
+    /**
+     * UTF-8 encodes [text] and broadcasts it to all reachable peers.
+     *
+     * Uses [MeshLinkConfig.RoutingConfig.maxHops] as the hop limit so the broadcast
+     * respects the app's configured mesh reach.
+     *
+     * @param text Human-readable message text.
+     * @param priority Delivery priority. Defaults to [MessagePriority.NORMAL].
+     */
+    suspend fun broadcast(
+        text: String,
+        priority: MessagePriority = MessagePriority.NORMAL,
+    ) {
+        meshLink.broadcast(
+            payload = text.encodeToByteArray(),
+            maxHops = config.routing.maxHops,
+            priority = priority,
+        )
     }
 
     // ── Constants ──────────────────────────────────────────────────────────

@@ -116,7 +116,7 @@ fun App() {
                 modifier = Modifier.padding(innerPadding),
             ) {
                 composable<ChatRoute> {
-                    PlaceholderScreen(label = "Chat", controller = controller)
+                    ChatScreen(controller = controller)
                 }
                 composable<MeshVisualizerRoute> {
                     PlaceholderScreen(label = "Mesh Visualizer", controller = controller)
@@ -125,7 +125,7 @@ fun App() {
                     PlaceholderScreen(label = "Diagnostics", controller = controller)
                 }
                 composable<SettingsRoute> {
-                    PlaceholderScreen(label = "Settings", controller = controller)
+                    SettingsScreen(controller = controller)
                 }
             }
         }
