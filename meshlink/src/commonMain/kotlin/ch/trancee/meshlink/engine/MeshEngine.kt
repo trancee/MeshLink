@@ -319,7 +319,7 @@ private constructor(
         peerId: ByteArray,
         advertisementCache: HashMap<List<Byte>, Pair<ByteArray, Int>>,
     ) {
-        val cached = advertisementCache.getOrDefault(peerId.asList(), Pair(ByteArray(0), -70))
+        val cached = advertisementCache[peerId.asList()] ?: Pair(ByteArray(0), -70)
         val serviceData = cached.first
         val rssi = cached.second
         val peerInfo =

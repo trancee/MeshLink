@@ -10,6 +10,7 @@ bcv                 = "0.18.1"
 kotlinxBenchmark    = "0.4.16"
 flatbuffers         = "25.2.10"
 androidx-security-crypto = "1.1.0-alpha06"
+dokka               = "2.0.0"
 
 [libraries]
 kotlinx-coroutines-core    = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core",    version.ref = "coroutines" }
@@ -33,3 +34,4 @@ kotlinx-benchmark                 = { id = "org.jetbrains.kotlinx.benchmark",   
 kotlin-allopen                    = { id = "org.jetbrains.kotlin.plugin.allopen",                     version.ref = "kotlin" }
 kotlin-power-assert               = { id = "org.jetbrains.kotlin.plugin.power-assert",               version.ref = "kotlin" }
 skie                              = { id = "co.touchlab.skie",                                        version.ref = "skie" }
+dokka                             = { id = "org.jetbrains.dokka",                                     version.ref = "dokka" }

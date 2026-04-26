@@ -10,7 +10,7 @@ permissions: {}
 
 jobs:
   publish-android:
-    name: Publish Android
+    name: Publish Android + JVM
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -23,11 +23,15 @@ jobs:
       - uses: gradle/actions/setup-gradle@v6
         with:
           add-job-summary: never
-      # TODO: Implement Android AAR publishing to Maven Central once signing and
-      #       OSSRH publishing are configured (post-M001).
-      - name: Publish to Maven Central (TODO)
-        run: |
-          echo "TODO: ./gradlew :meshlink:publishAllPublicationsToMavenCentralRepository"
+      # Publishes Android AAR, JVM JAR, and kotlinMultiplatform metadata publications.
+      # kotlin.native.ignoreDisabledTargets=true (gradle.properties) ensures iOS targets
+      # are skipped on Linux; only the Android and JVM publications are uploaded here.
+      - name: Publish Android + JVM to Maven Central (OSSRH)
+        run: >-
+          ./gradlew
+          :meshlink:publishAllPublicationsToOSSRHRepository
+          :meshlink-testing:publishAllPublicationsToOSSRHRepository
+          --no-parallel
         env:
           MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
           MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
@@ -35,7 +39,7 @@ jobs:
           SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
 
   publish-ios:
-    name: Publish iOS XCFramework
+    name: Publish iOS KLibs
     runs-on: macos-latest
     permissions:
       contents: read
@@ -48,11 +52,19 @@ jobs:
       - uses: gradle/actions/setup-gradle@v6
         with:
           add-job-summary: never
-      # TODO: Assemble XCFramework (iosArm64 + iosSimulatorArm64) and attach it
-      #       as a GitHub Release asset once the iOS implementation is complete (S03).
-      - name: Assemble XCFramework and create release (TODO)
-        run: |
-          echo "TODO: ./gradlew :meshlink:assembleMeshLinkXCFramework"
+      # Build libsodium static libraries for iOS targets (required by cinterop).
+      - name: Build libsodium for iOS
+        run: bash scripts/build-ios-libsodium.sh
+      # Publish iOS KLib publications (iosArm64 + iosSimulatorArm64) for both modules.
+      # The Android/JVM/kotlinMultiplatform publications are handled by publish-android.
+      - name: Publish iOS KLibs to Maven Central (OSSRH)
+        run: >-
+          ./gradlew
+          :meshlink:publishIosArm64PublicationToOSSRHRepository
+          :meshlink:publishIosSimulatorArm64PublicationToOSSRHRepository
+          :meshlink-testing:publishIosArm64PublicationToOSSRHRepository
+          :meshlink-testing:publishIosSimulatorArm64PublicationToOSSRHRepository
+          --no-parallel
         env:
           MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
           MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}

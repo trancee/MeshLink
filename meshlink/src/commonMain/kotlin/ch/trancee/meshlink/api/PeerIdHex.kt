@@ -1,5 +1,7 @@
 package ch.trancee.meshlink.api
 
+import kotlin.jvm.JvmInline
+
 /**
  * Hex-encoded peer identity string used in [DiagnosticPayload] fields.
  *
