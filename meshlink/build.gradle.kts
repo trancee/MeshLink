@@ -6,6 +6,7 @@ import kotlinx.validation.ExperimentalBCVApi
 import org.gradle.api.publish.maven.MavenPublication
 import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import org.jetbrains.kotlin.gradle.plugin.mpp.apple.XCFrameworkConfig
 
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
@@ -73,6 +74,19 @@ kotlin {
                 includeDirs("src/iosMain/interop/include")
                 extraOpts("-libraryPath", "${projectDir}/src/iosMain/interop/lib/${target.name}")
             }
+        }
+    }
+
+    // XCFramework — iosArm64 + iosSimulatorArm64 slices for SPM binary distribution.
+    // assembleMeshLinkXCFramework / assembleMeshLinkReleaseXCFramework tasks are generated
+    // automatically by the KMP Gradle plugin once XCFrameworkConfig is registered.
+    // release.yml zips the Release XCFramework, computes SHA-256, and updates Package.swift.
+    val xcf = XCFrameworkConfig(project, "MeshLink")
+    listOf(iosArm64, iosSimulatorArm64).forEach { target ->
+        target.binaries.framework {
+            baseName = "MeshLink"
+            isStatic = true
+            xcf.add(this)
         }
     }
 
