@@ -11,11 +11,11 @@ import kotlinx.benchmark.State
 /**
  * Benchmarks for the transfer layer hot path.
  *
- * - [chunk1KB] / [chunk10KB] / [chunk100KB] — split a payload into GATT-sized (244-byte) chunks
- *   and encode each as a [Chunk] wire message. Measures the full sender-side preparation cost.
- * - [sackProcessing] — [SackTracker.markReceived] + [SackTracker.buildAck] for sequential
- *   delivery. Each invocation marks the next expected seqNo, advancing the window by 1. Wraps
- *   at 65 535 → 0 naturally.
+ * - [chunk1KB] / [chunk10KB] / [chunk100KB] — split a payload into GATT-sized (244-byte) chunks and
+ *   encode each as a [Chunk] wire message. Measures the full sender-side preparation cost.
+ * - [sackProcessing] — [SackTracker.markReceived] + [SackTracker.buildAck] for sequential delivery.
+ *   Each invocation marks the next expected seqNo, advancing the window by 1. Wraps at 65 535 → 0
+ *   naturally.
  * - [reassembly] — concatenate pre-chunked byte arrays into the final payload. Measures only the
  *   receiver-side assembly step (chunk allocation excluded from the hot path).
  */
@@ -47,27 +47,21 @@ internal class TransferBenchmark {
         val count10K = (payload10KB.size + chunkSize - 1) / chunkSize
         preChunked10K =
             (0 until count10K).map { i ->
-                payload10KB.copyOfRange(
-                    i * chunkSize,
-                    minOf((i + 1) * chunkSize, payload10KB.size),
-                )
+                payload10KB.copyOfRange(i * chunkSize, minOf((i + 1) * chunkSize, payload10KB.size))
             }
     }
 
     /**
-     * Split + encode a 1 KB payload into GATT chunks. Returns the total number of bytes produced
-     * to prevent dead-code elimination.
+     * Split + encode a 1 KB payload into GATT chunks. Returns the total number of bytes produced to
+     * prevent dead-code elimination.
      */
-    @Benchmark
-    fun chunk1KB(): Int = chunkAndEncode(payload1KB)
+    @Benchmark fun chunk1KB(): Int = chunkAndEncode(payload1KB)
 
     /** Split + encode a 10 KB payload. */
-    @Benchmark
-    fun chunk10KB(): Int = chunkAndEncode(payload10KB)
+    @Benchmark fun chunk10KB(): Int = chunkAndEncode(payload10KB)
 
     /** Split + encode a 100 KB payload. */
-    @Benchmark
-    fun chunk100KB(): Int = chunkAndEncode(payload100KB)
+    @Benchmark fun chunk100KB(): Int = chunkAndEncode(payload100KB)
 
     /**
      * Receiver-side SACK processing for sequential delivery. Each invocation marks the next
@@ -103,7 +97,8 @@ internal class TransferBenchmark {
         for (i in 0 until count) {
             val chunkPayload =
                 payload.copyOfRange(i * chunkSize, minOf((i + 1) * chunkSize, payload.size))
-            val encoded = WireCodec.encode(Chunk(msgId, i.toUShort(), count.toUShort(), chunkPayload))
+            val encoded =
+                WireCodec.encode(Chunk(msgId, i.toUShort(), count.toUShort(), chunkPayload))
             totalBytes += encoded.size
         }
         return totalBytes

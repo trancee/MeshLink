@@ -8,8 +8,7 @@ import kotlin.test.assertTrue
  * Verifies that [GattConstants] UUID values match spec §3 exactly.
  *
  * All UUIDs share the `4d455348` ("MESH" in ASCII hex) prefix. The Advertisement UUID uses the
- * Bluetooth Base UUID suffix (`00805f9b34fb`); Service and Characteristic UUIDs use
- * `000000000000`.
+ * Bluetooth Base UUID suffix (`00805f9b34fb`); Service and Characteristic UUIDs use `000000000000`.
  */
 class GattConstantsTest {
 
@@ -49,14 +48,15 @@ class GattConstantsTest {
 
     @Test
     fun allUuidsShareMeshPrefix() {
-        val uuids = listOf(
-            GattConstants.ADVERTISEMENT_UUID,
-            GattConstants.SERVICE_UUID,
-            GattConstants.CONTROL_WRITE_UUID,
-            GattConstants.CONTROL_NOTIFY_UUID,
-            GattConstants.DATA_WRITE_UUID,
-            GattConstants.DATA_NOTIFY_UUID,
-        )
+        val uuids =
+            listOf(
+                GattConstants.ADVERTISEMENT_UUID,
+                GattConstants.SERVICE_UUID,
+                GattConstants.CONTROL_WRITE_UUID,
+                GattConstants.CONTROL_NOTIFY_UUID,
+                GattConstants.DATA_WRITE_UUID,
+                GattConstants.DATA_NOTIFY_UUID,
+            )
         for (uuid in uuids) {
             assertTrue(uuid.startsWith("4d455348"), "Expected MESH prefix: $uuid")
         }
@@ -69,13 +69,14 @@ class GattConstantsTest {
 
     @Test
     fun serviceAndCharacteristicUuidsUseZeroSuffix() {
-        val characteristicUuids = listOf(
-            GattConstants.SERVICE_UUID,
-            GattConstants.CONTROL_WRITE_UUID,
-            GattConstants.CONTROL_NOTIFY_UUID,
-            GattConstants.DATA_WRITE_UUID,
-            GattConstants.DATA_NOTIFY_UUID,
-        )
+        val characteristicUuids =
+            listOf(
+                GattConstants.SERVICE_UUID,
+                GattConstants.CONTROL_WRITE_UUID,
+                GattConstants.CONTROL_NOTIFY_UUID,
+                GattConstants.DATA_WRITE_UUID,
+                GattConstants.DATA_NOTIFY_UUID,
+            )
         for (uuid in characteristicUuids) {
             assertTrue(uuid.endsWith("000000000000"), "Expected zero suffix: $uuid")
         }

@@ -16,8 +16,8 @@ import kotlinx.coroutines.Job
  * Benchmarks for the Babel routing hot path.
  *
  * - [routeLookup500] / [routeLookup2000] — next-hop resolution in tables of different sizes.
- * - [feasibilityCheck] — processUpdate feasibility gate via [RoutingEngine] (covers install and
- *   FD check paths in proportion proportional to 1024 distinct destinations).
+ * - [feasibilityCheck] — processUpdate feasibility gate via [RoutingEngine] (covers install and FD
+ *   check paths in proportion proportional to 1024 distinct destinations).
  * - [routeDigest500] — O(1) XOR-fold digest read on a 500-entry table.
  *
  * [RoutingEngine] is constructed with a passive [CoroutineScope] — [startTimers] is intentionally
@@ -34,8 +34,8 @@ internal class RoutingBenchmark {
 
     /**
      * Pre-built Update messages for 1 024 distinct destinations. The first pass (seqNo=100u)
-     * exercises the "no FD yet → unconditional accept" path; subsequent passes exercise the
-     * "same seqNo / cost not lower → reject" steady-state path.
+     * exercises the "no FD yet → unconditional accept" path; subsequent passes exercise the "same
+     * seqNo / cost not lower → reject" steady-state path.
      */
     private lateinit var feasUpdates: Array<Update>
     private val feasPeer: ByteArray = ByteArray(12) { 0x55 }

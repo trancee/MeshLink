@@ -70,26 +70,29 @@ class AdvertisementCodecTest {
     @Test
     fun byteZero_protocolVersion5_powerMode2() {
         // (5 shl 5) = 0xA0, (2 shl 3) = 0x10 → byte[0] = 0xB0
-        val encoded = AdvertisementCodec.encode(
-            AdvertisementCodec.AdvertisementPayload(5, 2, 0u, 0u, key12Zeros)
-        )
+        val encoded =
+            AdvertisementCodec.encode(
+                AdvertisementCodec.AdvertisementPayload(5, 2, 0u, 0u, key12Zeros)
+            )
         assertEquals(0xB0.toByte(), encoded[0])
     }
 
     @Test
     fun byteZero_protocolVersion0_powerMode0() {
-        val encoded = AdvertisementCodec.encode(
-            AdvertisementCodec.AdvertisementPayload(0, 0, 0u, 0u, key12Zeros)
-        )
+        val encoded =
+            AdvertisementCodec.encode(
+                AdvertisementCodec.AdvertisementPayload(0, 0, 0u, 0u, key12Zeros)
+            )
         assertEquals(0x00.toByte(), encoded[0])
     }
 
     @Test
     fun byteZero_protocolVersion7_powerMode2() {
         // (7 shl 5) = 0xE0, (2 shl 3) = 0x10 → byte[0] = 0xF0
-        val encoded = AdvertisementCodec.encode(
-            AdvertisementCodec.AdvertisementPayload(7, 2, 0u, 0u, key12Zeros)
-        )
+        val encoded =
+            AdvertisementCodec.encode(
+                AdvertisementCodec.AdvertisementPayload(7, 2, 0u, 0u, key12Zeros)
+            )
         assertEquals(0xF0.toByte(), encoded[0])
     }
 
@@ -98,9 +101,10 @@ class AdvertisementCodecTest {
     @Test
     fun meshHashLittleEndianEncode() {
         // meshHash=0xABCD → bytes[1]=0xCD (low byte), bytes[2]=0xAB (high byte)
-        val encoded = AdvertisementCodec.encode(
-            AdvertisementCodec.AdvertisementPayload(0, 0, 0xABCDu, 0u, key12Zeros)
-        )
+        val encoded =
+            AdvertisementCodec.encode(
+                AdvertisementCodec.AdvertisementPayload(0, 0, 0xABCDu, 0u, key12Zeros)
+            )
         assertEquals(0xCD.toByte(), encoded[1])
         assertEquals(0xAB.toByte(), encoded[2])
     }
@@ -118,25 +122,28 @@ class AdvertisementCodecTest {
 
     @Test
     fun l2capPsmZeroEncodesAs0x00() {
-        val encoded = AdvertisementCodec.encode(
-            AdvertisementCodec.AdvertisementPayload(0, 0, 0u, 0u, key12Zeros)
-        )
+        val encoded =
+            AdvertisementCodec.encode(
+                AdvertisementCodec.AdvertisementPayload(0, 0, 0u, 0u, key12Zeros)
+            )
         assertEquals(0x00.toByte(), encoded[3])
     }
 
     @Test
     fun l2capPsm128EncodesAs0x80() {
-        val encoded = AdvertisementCodec.encode(
-            AdvertisementCodec.AdvertisementPayload(0, 0, 0u, 128u, key12Zeros)
-        )
+        val encoded =
+            AdvertisementCodec.encode(
+                AdvertisementCodec.AdvertisementPayload(0, 0, 0u, 128u, key12Zeros)
+            )
         assertEquals(0x80.toByte(), encoded[3])
     }
 
     @Test
     fun l2capPsm255EncodesAs0xFF() {
-        val encoded = AdvertisementCodec.encode(
-            AdvertisementCodec.AdvertisementPayload(0, 0, 0u, 255u, key12Zeros)
-        )
+        val encoded =
+            AdvertisementCodec.encode(
+                AdvertisementCodec.AdvertisementPayload(0, 0, 0u, 255u, key12Zeros)
+            )
         assertEquals(0xFF.toByte(), encoded[3])
     }
 
@@ -146,7 +153,9 @@ class AdvertisementCodecTest {
     fun encodeRejectsProtocolVersionAboveMax() {
         // protocolVersion=8 > 7 → covers the `protocolVersion > 7` branch
         assertFailsWith<IllegalArgumentException> {
-            AdvertisementCodec.encode(AdvertisementCodec.AdvertisementPayload(8, 0, 0u, 0u, key12Zeros))
+            AdvertisementCodec.encode(
+                AdvertisementCodec.AdvertisementPayload(8, 0, 0u, 0u, key12Zeros)
+            )
         }
     }
 
@@ -154,7 +163,9 @@ class AdvertisementCodecTest {
     fun encodeRejectsProtocolVersionNegative() {
         // protocolVersion=-1 < 0 → covers the `protocolVersion < 0` short-circuit branch
         assertFailsWith<IllegalArgumentException> {
-            AdvertisementCodec.encode(AdvertisementCodec.AdvertisementPayload(-1, 0, 0u, 0u, key12Zeros))
+            AdvertisementCodec.encode(
+                AdvertisementCodec.AdvertisementPayload(-1, 0, 0u, 0u, key12Zeros)
+            )
         }
     }
 
@@ -162,7 +173,9 @@ class AdvertisementCodecTest {
     fun encodeRejectsPowerModeReserved() {
         // powerMode=3 > 2 → covers the `powerMode > 2` branch
         assertFailsWith<IllegalArgumentException> {
-            AdvertisementCodec.encode(AdvertisementCodec.AdvertisementPayload(0, 3, 0u, 0u, key12Zeros))
+            AdvertisementCodec.encode(
+                AdvertisementCodec.AdvertisementPayload(0, 3, 0u, 0u, key12Zeros)
+            )
         }
     }
 
@@ -170,7 +183,9 @@ class AdvertisementCodecTest {
     fun encodeRejectsPowerModeAboveReserved() {
         // powerMode=4 > 2 (spec allows any out-of-range Int)
         assertFailsWith<IllegalArgumentException> {
-            AdvertisementCodec.encode(AdvertisementCodec.AdvertisementPayload(0, 4, 0u, 0u, key12Zeros))
+            AdvertisementCodec.encode(
+                AdvertisementCodec.AdvertisementPayload(0, 4, 0u, 0u, key12Zeros)
+            )
         }
     }
 
@@ -178,7 +193,9 @@ class AdvertisementCodecTest {
     fun encodeRejectsPowerModeNegative() {
         // powerMode=-1 < 0 → covers the `powerMode < 0` short-circuit branch
         assertFailsWith<IllegalArgumentException> {
-            AdvertisementCodec.encode(AdvertisementCodec.AdvertisementPayload(0, -1, 0u, 0u, key12Zeros))
+            AdvertisementCodec.encode(
+                AdvertisementCodec.AdvertisementPayload(0, -1, 0u, 0u, key12Zeros)
+            )
         }
     }
 
@@ -186,7 +203,9 @@ class AdvertisementCodecTest {
     fun encodeRejectsL2capPsmLowerInvalidBound() {
         // psm=1 → lowest value in invalid range 1–127
         assertFailsWith<IllegalArgumentException> {
-            AdvertisementCodec.encode(AdvertisementCodec.AdvertisementPayload(0, 0, 0u, 1u, key12Zeros))
+            AdvertisementCodec.encode(
+                AdvertisementCodec.AdvertisementPayload(0, 0, 0u, 1u, key12Zeros)
+            )
         }
     }
 
@@ -194,21 +213,27 @@ class AdvertisementCodecTest {
     fun encodeRejectsL2capPsmUpperInvalidBound() {
         // psm=127 → highest value in invalid range 1–127
         assertFailsWith<IllegalArgumentException> {
-            AdvertisementCodec.encode(AdvertisementCodec.AdvertisementPayload(0, 0, 0u, 127u, key12Zeros))
+            AdvertisementCodec.encode(
+                AdvertisementCodec.AdvertisementPayload(0, 0, 0u, 127u, key12Zeros)
+            )
         }
     }
 
     @Test
     fun encodeRejectsKeyHashTooShort() {
         assertFailsWith<IllegalArgumentException> {
-            AdvertisementCodec.encode(AdvertisementCodec.AdvertisementPayload(0, 0, 0u, 0u, ByteArray(11)))
+            AdvertisementCodec.encode(
+                AdvertisementCodec.AdvertisementPayload(0, 0, 0u, 0u, ByteArray(11))
+            )
         }
     }
 
     @Test
     fun encodeRejectsKeyHashTooLong() {
         assertFailsWith<IllegalArgumentException> {
-            AdvertisementCodec.encode(AdvertisementCodec.AdvertisementPayload(0, 0, 0u, 0u, ByteArray(13)))
+            AdvertisementCodec.encode(
+                AdvertisementCodec.AdvertisementPayload(0, 0, 0u, 0u, ByteArray(13))
+            )
         }
     }
 

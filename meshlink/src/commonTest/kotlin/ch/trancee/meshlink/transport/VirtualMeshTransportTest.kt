@@ -189,8 +189,12 @@ class VirtualMeshTransportTest {
         assertEquals(PeerLostEvent(byteArrayOf(0x01), PeerLostReason.MANUAL_DISCONNECT), eventsB[0])
 
         // Link is removed — further sends fail
-        assertIs<SendResult.Failure>(transportA.sendToPeer(byteArrayOf(0x02), byteArrayOf(0xAA.toByte())))
-        assertIs<SendResult.Failure>(transportB.sendToPeer(byteArrayOf(0x01), byteArrayOf(0xBB.toByte())))
+        assertIs<SendResult.Failure>(
+            transportA.sendToPeer(byteArrayOf(0x02), byteArrayOf(0xAA.toByte()))
+        )
+        assertIs<SendResult.Failure>(
+            transportB.sendToPeer(byteArrayOf(0x01), byteArrayOf(0xBB.toByte()))
+        )
 
         jobA.cancel()
         jobB.cancel()

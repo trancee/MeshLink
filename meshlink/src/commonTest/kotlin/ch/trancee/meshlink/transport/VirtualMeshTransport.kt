@@ -100,7 +100,9 @@ class VirtualMeshTransport(
         val (other, _) = links[key] ?: return
         links.remove(key)
         other.links.remove(ByteArrayKey(localPeerId))
-        other._peerLostEvents.emit(PeerLostEvent(localPeerId.copyOf(), PeerLostReason.MANUAL_DISCONNECT))
+        other._peerLostEvents.emit(
+            PeerLostEvent(localPeerId.copyOf(), PeerLostReason.MANUAL_DISCONNECT)
+        )
         _peerLostEvents.emit(PeerLostEvent(peerId.copyOf(), PeerLostReason.MANUAL_DISCONNECT))
     }
 

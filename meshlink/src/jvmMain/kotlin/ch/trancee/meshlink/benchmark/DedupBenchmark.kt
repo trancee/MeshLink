@@ -12,8 +12,8 @@ import kotlinx.benchmark.State
  * - [insertAndLookup10K] — [DedupSet.add] + [DedupSet.isDuplicate] at 10 000-entry capacity.
  *   Eviction fires on [add] when the set is full.
  * - [insertAndLookup25K] — same on a 25 000-entry set (matches [RoutingConfig.dedupCapacity]).
- * - [eviction] — isolated cost of inserting into a full 10 K set (triggers LRU eviction only;
- *   no [isDuplicate] call in the hot path).
+ * - [eviction] — isolated cost of inserting into a full 10 K set (triggers LRU eviction only; no
+ *   [isDuplicate] call in the hot path).
  *
  * Clock is pinned to a fixed timestamp so entries never TTL-expire during the benchmark, isolating
  * the LRU eviction path from the TTL eviction path.
@@ -49,9 +49,7 @@ internal class DedupBenchmark {
 
         // 10 000 distinct "new" keys — different hash domain from pre-fill keys.
         insertKeys =
-            Array(10_000) { i ->
-                ByteArray(16) { b -> ((i * 31 + b + 100_000) and 0xFF).toByte() }
-            }
+            Array(10_000) { i -> ByteArray(16) { b -> ((i * 31 + b + 100_000) and 0xFF).toByte() } }
     }
 
     /**
