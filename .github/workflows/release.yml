@@ -70,3 +70,59 @@ jobs:
           MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
           SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
           SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
+
+  publish-xcframework:
+    name: Assemble and Publish XCFramework
+    runs-on: macos-latest
+    permissions:
+      contents: write
+    steps:
+      # fetch-depth: 0 ensures all branches are available so we can check out main
+      # after building on the tag commit in order to push the Package.swift update.
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-java@v5
+        with:
+          distribution: 'zulu'
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v6
+        with:
+          add-job-summary: never
+      # Build libsodium static libraries for iOS targets (required by cinterop).
+      - name: Build libsodium for iOS
+        run: bash scripts/build-ios-libsodium.sh
+      # Assemble the release XCFramework (iosArm64 + iosSimulatorArm64).
+      - name: Assemble XCFramework
+        run: ./gradlew :meshlink:assembleMeshLinkReleaseXCFramework
+      # Zip from inside the output directory so the archive root is MeshLink.xcframework/.
+      - name: Zip XCFramework
+        run: |
+          cd meshlink/build/XCFrameworks/release
+          zip -r ../../../../MeshLink.xcframework.zip MeshLink.xcframework
+      # Export CHECKSUM so subsequent steps can reference it via $CHECKSUM.
+      - name: Compute SHA-256 checksum
+        run: echo "CHECKSUM=$(shasum -a 256 MeshLink.xcframework.zip | awk '{print $1}')" >> "$GITHUB_ENV"
+      # Update both the download URL (version tag) and the checksum in Package.swift.
+      - name: Update Package.swift checksum and URL
+        run: |
+          sed -i '' "s|releases/download/[^/]*/|releases/download/${GITHUB_REF_NAME}/|g" Package.swift
+          sed -i '' "s/checksum: \".*\"/checksum: \"${CHECKSUM}\"/" Package.swift
+      # Upload the zip as a release asset; --clobber replaces any prior upload of the same name.
+      - name: Upload XCFramework to GitHub Release
+        run: gh release upload "$GITHUB_REF_NAME" MeshLink.xcframework.zip --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # Save the updated Package.swift, switch to main, restore it, then commit and push.
+      # git checkout main would otherwise overwrite Package.swift with the pre-tag version.
+      - name: Commit and push Package.swift
+        run: |
+          cp Package.swift /tmp/Package.swift.updated
+          git fetch origin main
+          git checkout main
+          cp /tmp/Package.swift.updated Package.swift
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Package.swift
+          git commit -m "chore: update Package.swift checksum for ${GITHUB_REF_NAME}"
+          git push origin main
