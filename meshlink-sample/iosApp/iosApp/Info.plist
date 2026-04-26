@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+    "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- ── Required Bluetooth usage description ──────────────────────────── -->
+    <!--
+        iOS 13+ requires NSBluetoothAlwaysUsageDescription for any app that uses CoreBluetooth.
+        The string is shown to the user on first CBCentralManager / CBPeripheralManager
+        initialisation.
+    -->
+    <key>NSBluetoothAlwaysUsageDescription</key>
+    <string>MeshLink uses Bluetooth to discover nearby mesh peers and exchange encrypted messages directly between devices.</string>
+
+    <!-- ── Background execution modes ───────────────────────────────────── -->
+    <!--
+        Both modes are required:
+        - bluetooth-central  : CBCentralManager state restoration — OS relaunches the app in the
+                               background and delivers pending peripheral connections.
+        - bluetooth-peripheral: CBPeripheralManager advertising — OS re-enables advertising after
+                               the app is suspended.
+        See: https://developer.apple.com/documentation/corebluetooth/cbcentralmanager
+             "Core Bluetooth Background Processing for iOS Apps"
+    -->
+    <key>UIBackgroundModes</key>
+    <array>
+        <string>bluetooth-central</string>
+        <string>bluetooth-peripheral</string>
+    </array>
+
+    <!-- ── Standard app keys ─────────────────────────────────────────────── -->
+    <key>CFBundleDevelopmentRegion</key>
+    <string>$(DEVELOPMENT_LANGUAGE)</string>
+
+    <key>CFBundleExecutable</key>
+    <string>$(EXECUTABLE_NAME)</string>
+
+    <key>CFBundleIdentifier</key>
+    <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+
+    <key>CFBundleName</key>
+    <string>$(PRODUCT_NAME)</string>
+
+    <key>CFBundlePackageType</key>
+    <string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
+
+    <key>CFBundleShortVersionString</key>
+    <string>1.0</string>
+
+    <key>CFBundleVersion</key>
+    <string>1</string>
+
+    <key>LSRequiresIPhoneOS</key>
+    <true/>
+
+    <key>UIApplicationSceneManifest</key>
+    <dict>
+        <key>UIApplicationSupportsMultipleScenes</key>
+        <false/>
+    </dict>
+
+    <key>UILaunchScreen</key>
+    <dict/>
+
+    <key>UISupportedInterfaceOrientations</key>
+    <array>
+        <string>UIInterfaceOrientationPortrait</string>
+        <string>UIInterfaceOrientationLandscapeLeft</string>
+        <string>UIInterfaceOrientationLandscapeRight</string>
+    </array>
+</dict>
+</plist>
