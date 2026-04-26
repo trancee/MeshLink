@@ -11,6 +11,11 @@ kotlinxBenchmark    = "0.4.16"
 flatbuffers         = "25.2.10"
 androidx-security-crypto = "1.1.0-alpha06"
 dokka               = "2.0.0"
+compose-multiplatform   = "1.10.1"
+navigation-compose      = "2.9.2"
+lifecycle               = "2.10.0"
+activity-compose        = "1.10.0"
+serialization           = "1.8.1"
 
 [libraries]
 kotlinx-coroutines-core    = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core",    version.ref = "coroutines" }
@@ -20,6 +25,14 @@ androidx-security-crypto   = { group = "androidx.security",     name = "security
 # flatbuffers-java covers JVM/Android usage; KMP support is embedded.
 flatbuffers                = { group = "com.google.flatbuffers", name = "flatbuffers-java",           version.ref = "flatbuffers" }
 kotlinx-benchmark-runtime  = { group = "org.jetbrains.kotlinx", name = "kotlinx-benchmark-runtime",  version.ref = "kotlinxBenchmark" }
+# Compose Multiplatform — JetBrains multiplatform variants of AndroidX components
+navigation-compose             = { group = "org.jetbrains.androidx.navigation", name = "navigation-compose",          version.ref = "navigation-compose" }
+lifecycle-viewmodel-compose    = { group = "org.jetbrains.androidx.lifecycle",  name = "lifecycle-viewmodel-compose", version.ref = "lifecycle" }
+lifecycle-runtime-compose      = { group = "org.jetbrains.androidx.lifecycle",  name = "lifecycle-runtime-compose",   version.ref = "lifecycle" }
+# Android-only: Activity Compose entrypoint
+androidx-activity-compose      = { group = "androidx.activity",                 name = "activity-compose",            version.ref = "activity-compose" }
+# KotlinX serialization runtime (used in navigation route serialization)
+kotlinx-serialization-core     = { group = "org.jetbrains.kotlinx",             name = "kotlinx-serialization-core",  version.ref = "serialization" }
 
 [plugins]
 kotlin-multiplatform              = { id = "org.jetbrains.kotlin.multiplatform",                      version.ref = "kotlin" }
@@ -35,3 +48,8 @@ kotlin-allopen                    = { id = "org.jetbrains.kotlin.plugin.allopen"
 kotlin-power-assert               = { id = "org.jetbrains.kotlin.plugin.power-assert",               version.ref = "kotlin" }
 skie                              = { id = "co.touchlab.skie",                                        version.ref = "skie" }
 dokka                             = { id = "org.jetbrains.dokka",                                     version.ref = "dokka" }
+# Compose Multiplatform
+compose-multiplatform             = { id = "org.jetbrains.compose",                                  version.ref = "compose-multiplatform" }
+# Compose compiler plugin: version MUST match the Kotlin version (Kotlin 2.x)
+compose-compiler                  = { id = "org.jetbrains.kotlin.plugin.compose",                    version.ref = "kotlin" }
+kotlin-serialization              = { id = "org.jetbrains.kotlin.plugin.serialization",              version.ref = "kotlin" }

@@ -7,7 +7,7 @@
     <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
 
-    <!-- Foreground service -->
+    <!-- Foreground service — re-added in S06 when BLE transport is wired -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
 
@@ -31,10 +31,7 @@
             </intent-filter>
         </activity>
 
-        <service
-            android:name=".SampleMeshService"
-            android:exported="false"
-            android:foregroundServiceType="connectedDevice" />
+        <!-- SampleMeshService re-added in S06 when BLE transport is wired -->
 
     </application>
 

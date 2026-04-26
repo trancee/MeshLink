@@ -107,4 +107,8 @@ plugins {
     alias(libs.plugins.kotlinx.benchmark) apply false
     alias(libs.plugins.kotlin.power.assert) apply false
     alias(libs.plugins.dokka) apply false
+    // Compose Multiplatform
+    alias(libs.plugins.compose.multiplatform) apply false
+    alias(libs.plugins.compose.compiler) apply false
+    alias(libs.plugins.kotlin.serialization) apply false
 }
