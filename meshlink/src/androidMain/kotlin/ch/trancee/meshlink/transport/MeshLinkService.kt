@@ -17,6 +17,7 @@ import ch.trancee.meshlink.engine.MeshEngine
 import ch.trancee.meshlink.engine.MeshEngineConfig
 import ch.trancee.meshlink.power.FixedBatteryMonitor
 import ch.trancee.meshlink.power.PowerTier
+import ch.trancee.meshlink.storage.AndroidSecureStorage
 import ch.trancee.meshlink.storage.InMemorySecureStorage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -111,9 +112,30 @@ abstract class MeshLinkService : Service() {
 
         val crypto = createCryptoProvider()
         val config = createBleTransportConfig()
-        // S02/S04: InMemorySecureStorage — identity is ephemeral per process lifetime.
-        // S05 will wire EncryptedSharedPreferences for persistent identity.
-        val identity = Identity.loadOrGenerate(crypto, InMemorySecureStorage())
+
+        // S05: Persistent identity storage via EncryptedSharedPreferences.
+        // isFirstLaunch is checked BEFORE Identity.loadOrGenerate() writes identity keys.
+        val storage = AndroidSecureStorage(this)
+        val isFirstLaunch = !storage.contains("meshlink.identity.ed25519.public")
+        Log.d(TAG, "MeshLinkService storage ready isFirstLaunch=$isFirstLaunch")
+
+        val identity = Identity.loadOrGenerate(crypto, storage)
+        if (isFirstLaunch) {
+            Log.d(TAG, "Identity generated and persisted to EncryptedSharedPreferences")
+        } else {
+            Log.d(TAG, "Identity loaded from EncryptedSharedPreferences")
+        }
+
+        // Restore OEM L2CAP probe cache from persistent storage.
+        val probeCache = OemL2capProbeCache()
+        probeCache.restore(storage)
+        Log.d(TAG, "OemL2capProbeCache restored entries=${probeCache.size}")
+
+        // Construct OEM slot tracker backed by persistent storage.
+        val oemSlotTracker =
+            OemSlotTracker(storage, config.maxConnections) { System.currentTimeMillis() }
+        Log.d(TAG, "OemSlotTracker constructed maxConnections=${config.maxConnections}")
+
         powerTierFlow = MutableStateFlow(PowerTier.PERFORMANCE)
 
         transport =
@@ -124,6 +146,9 @@ abstract class MeshLinkService : Service() {
                 identity = identity,
                 scope = serviceScope,
                 powerTierFlow = powerTierFlow,
+                probeCache = probeCache,
+                oemSlotTracker = oemSlotTracker,
+                bootstrapMode = isFirstLaunch,
             )
 
         // MeshEngine is created inside :meshlink where internal types (Identity, SecureStorage,

@@ -68,6 +68,9 @@ internal class AndroidBleTransport(
     private val identity: Identity,
     private val scope: CoroutineScope,
     private val powerTierFlow: MutableStateFlow<PowerTier>,
+    @Suppress("UnusedPrivateProperty") private val probeCache: OemL2capProbeCache,
+    @Suppress("UnusedPrivateProperty") private val oemSlotTracker: OemSlotTracker,
+    @Suppress("UnusedPrivateProperty") private val bootstrapMode: Boolean,
 ) : BleTransport {
 
     companion object {
