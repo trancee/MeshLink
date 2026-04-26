@@ -5,9 +5,9 @@ import ch.trancee.meshlink.crypto.Identity
 import ch.trancee.meshlink.crypto.ReplayGuard
 import ch.trancee.meshlink.crypto.TrustStore
 import ch.trancee.meshlink.messaging.CoverageIgnore
+import ch.trancee.meshlink.messaging.Delivered
 import ch.trancee.meshlink.messaging.DeliveryFailed
 import ch.trancee.meshlink.messaging.DeliveryPipeline
-import ch.trancee.meshlink.messaging.Delivered
 import ch.trancee.meshlink.messaging.InboundMessage
 import ch.trancee.meshlink.messaging.SendResult
 import ch.trancee.meshlink.power.BatteryMonitor
@@ -48,7 +48,8 @@ import kotlinx.coroutines.launch
  * **Usage**: obtain an instance via [create], then call [start]. Subscribe to the SharedFlow
  * surfaces before calling [start] to avoid missing early events.
  */
-class MeshEngine private constructor(
+class MeshEngine
+private constructor(
     private val engineScope: CoroutineScope,
     private val transport: BleTransport,
     private val deliveryPipeline: DeliveryPipeline,
@@ -70,7 +71,8 @@ class MeshEngine private constructor(
     val transferFailures: SharedFlow<DeliveryFailed> = deliveryPipeline.transferFailures
 
     /** Chunk-level transfer progress for own unicast sessions. */
-    val transferProgress: SharedFlow<TransferEvent.ChunkProgress> = deliveryPipeline.transferProgress
+    val transferProgress: SharedFlow<TransferEvent.ChunkProgress> =
+        deliveryPipeline.transferProgress
 
     /** Peer connect/disconnect events sourced from [PresenceTracker]. */
     val peerEvents: Flow<PeerEvent> = presenceTracker.peerEvents
@@ -139,18 +141,14 @@ class MeshEngine private constructor(
 
         // Wire send-handshake callback → encode and transmit via transport.
         noiseHandshakeManager.sendHandshake = { peerId, handshakeMsg ->
-            engineScope.launch {
-                transport.sendToPeer(peerId, WireCodec.encode(handshakeMsg))
-            }
+            engineScope.launch { transport.sendToPeer(peerId, WireCodec.encode(handshakeMsg)) }
         }
 
         // Start routing engine timers and outbound message collection.
         routeCoordinator.start()
     }
 
-    /**
-     * Stops the MeshEngine: cancels all internal coroutines and halts the transport.
-     */
+    /** Stops the MeshEngine: cancels all internal coroutines and halts the transport. */
     suspend fun stop() {
         engineScope.cancel()
         transport.stopAll()
@@ -159,9 +157,9 @@ class MeshEngine private constructor(
     // ── @CoverageIgnore helpers — correct but not reachable via unit-test harness ──────────────
 
     /**
-     * Handles a tier-change event from [PowerManager]. Extracted for [CoverageIgnore] — the
-     * lambda requires advancing past the bootstrap window and triggering a battery threshold
-     * crossing, which is not feasible in unit tests without a full integration harness.
+     * Handles a tier-change event from [PowerManager]. Extracted for [CoverageIgnore] — the lambda
+     * requires advancing past the bootstrap window and triggering a battery threshold crossing,
+     * which is not feasible in unit tests without a full integration harness.
      */
     @CoverageIgnore
     private fun handleTierChange(tier: PowerTier) {
@@ -172,9 +170,9 @@ class MeshEngine private constructor(
     }
 
     /**
-     * Handles an eviction request from [PowerManager]. Extracted for [CoverageIgnore] — the
-     * lambda requires a connected peer AND a tier reduction that forces eviction, which requires
-     * a full integration harness to reproduce reliably in tests.
+     * Handles an eviction request from [PowerManager]. Extracted for [CoverageIgnore] — the lambda
+     * requires a connected peer AND a tier reduction that forces eviction, which requires a full
+     * integration harness to reproduce reliably in tests.
      */
     @CoverageIgnore
     private suspend fun handleEvictionRequest(peerId: ByteArray) {
@@ -185,9 +183,9 @@ class MeshEngine private constructor(
 
     /**
      * Sends a unicast routing frame to a specific peer. Extracted for [CoverageIgnore] — the
-     * unicast path in the outboundFrames subscription fires only after a full peer connection
-     * is established (requiring a complete Noise XX handshake), which needs a full integration
-     * harness rather than unit-test scope.
+     * unicast path in the outboundFrames subscription fires only after a full peer connection is
+     * established (requiring a complete Noise XX handshake), which needs a full integration harness
+     * rather than unit-test scope.
      */
     @CoverageIgnore
     private suspend fun sendUnicastFrame(peerId: ByteArray, encoded: ByteArray) {
@@ -197,8 +195,8 @@ class MeshEngine private constructor(
     /**
      * Launches a subscription on [BleTransport.incomingData] that routes [Handshake] wire messages
      * to [NoiseHandshakeManager.onInboundHandshake]. Extracted for [CoverageIgnore] — this path
-     * requires a full two-device integration harness (linked transports, real Noise XX exchange)
-     * to exercise at unit-test level. [DeliveryPipeline] already subscribes to the same flow but
+     * requires a full two-device integration harness (linked transports, real Noise XX exchange) to
+     * exercise at unit-test level. [DeliveryPipeline] already subscribes to the same flow but
      * silently drops Handshake messages; both collectors coexist on the SharedFlow.
      */
     @CoverageIgnore
@@ -214,10 +212,10 @@ class MeshEngine private constructor(
     }
 
     /**
-     * Launches the [RouteCoordinator.outboundFrames] subscription in [engineScope].
-     * Extracted for [CoverageIgnore]: the unicast path (`frame.peerId != null`) fires only after
-     * a full Noise XX handshake completes AND the routing engine has emitted Updates — which
-     * requires a full two-device integration harness with linked transports.
+     * Launches the [RouteCoordinator.outboundFrames] subscription in [engineScope]. Extracted for
+     * [CoverageIgnore]: the unicast path (`frame.peerId != null`) fires only after a full Noise XX
+     * handshake completes AND the routing engine has emitted Updates — which requires a full
+     * two-device integration harness with linked transports.
      */
     @CoverageIgnore
     private fun launchOutboundFramesSubscription() {
@@ -236,25 +234,22 @@ class MeshEngine private constructor(
     }
 
     /**
-     * Launches the [PowerManager.tierChanges] subscription in [engineScope].
-     * Extracted for [CoverageIgnore]: triggering a real tier transition requires advancing past
-     * the bootstrap window AND the battery-poll interval, which needs either a fast clock or
-     * advancing virtual time — both of which interact poorly with the routing timer coroutines
-     * that also run on the test scheduler.
+     * Launches the [PowerManager.tierChanges] subscription in [engineScope]. Extracted for
+     * [CoverageIgnore]: triggering a real tier transition requires advancing past the bootstrap
+     * window AND the battery-poll interval, which needs either a fast clock or advancing virtual
+     * time — both of which interact poorly with the routing timer coroutines that also run on the
+     * test scheduler.
      */
     @CoverageIgnore
     private fun launchTierChangesSubscription() {
-        engineScope.launch {
-            powerManager.tierChanges.collect { tier -> handleTierChange(tier) }
-        }
+        engineScope.launch { powerManager.tierChanges.collect { tier -> handleTierChange(tier) } }
     }
 
     /**
-     * Launches the [PowerManager.evictionRequests] subscription in [engineScope].
-     * Extracted for [CoverageIgnore]: eviction only fires when a tier downgrade reduces
-     * [maxConnections] below the count of currently-connected peers — which requires both
-     * an established connection AND a subsequent tier change, making it an integration-level
-     * scenario not suitable for unit tests.
+     * Launches the [PowerManager.evictionRequests] subscription in [engineScope]. Extracted for
+     * [CoverageIgnore]: eviction only fires when a tier downgrade reduces [maxConnections] below
+     * the count of currently-connected peers — which requires both an established connection AND a
+     * subsequent tier change, making it an integration-level scenario not suitable for unit tests.
      */
     @CoverageIgnore
     private fun launchEvictionRequestsSubscription() {
@@ -267,8 +262,8 @@ class MeshEngine private constructor(
      * Registers a verified peer after [PowerManager] accepts the connection. Extracted for
      * [CoverageIgnore] — the `serviceData.isEmpty()` fallback path only fires when
      * [NoiseHandshakeManager.onHandshakeComplete] is triggered without a prior advertisement
-     * (responder-initiated handshakes), which requires a full two-device integration harness
-     * to exercise without coupling unit tests to transport internals.
+     * (responder-initiated handshakes), which requires a full two-device integration harness to
+     * exercise without coupling unit tests to transport internals.
      */
     @CoverageIgnore
     private fun connectVerifiedPeer(
@@ -278,13 +273,15 @@ class MeshEngine private constructor(
         val cached = advertisementCache.getOrDefault(peerId.asList(), Pair(ByteArray(0), -70))
         val serviceData = cached.first
         val rssi = cached.second
-        val peerInfo = PeerInfo(
-            peerId = peerId,
-            powerMode = if (serviceData.isNotEmpty()) serviceData[0] else
-                PowerTierCodec.encode(PowerTier.BALANCED)[0],
-            rssi = rssi,
-            lossRate = 0.0,
-        )
+        val peerInfo =
+            PeerInfo(
+                peerId = peerId,
+                powerMode =
+                    if (serviceData.isNotEmpty()) serviceData[0]
+                    else PowerTierCodec.encode(PowerTier.BALANCED)[0],
+                rssi = rssi,
+                lossRate = 0.0,
+            )
         routeCoordinator.onPeerConnected(peerInfo)
         // Note: presenceTracker.onPeerConnected is called inside routeCoordinator.
         powerManager.onFirstConnectionEstablished()
@@ -295,8 +292,8 @@ class MeshEngine private constructor(
     /**
      * Sends [payload] to [recipient]. Delegates to [DeliveryPipeline.send].
      *
-     * @return [SendResult.Sent] when accepted for immediate transmission, [SendResult.Queued]
-     *   when deferred.
+     * @return [SendResult.Sent] when accepted for immediate transmission, [SendResult.Queued] when
+     *   deferred.
      */
     suspend fun send(
         recipient: ByteArray,
@@ -321,8 +318,8 @@ class MeshEngine private constructor(
         /**
          * Creates a fully-wired [MeshEngine] instance with all subsystems instantiated.
          *
-         * The engine creates a child [CoroutineScope] internally — calling [stop] cancels only
-         * the engine's scope, not the parent [scope].
+         * The engine creates a child [CoroutineScope] internally — calling [stop] cancels only the
+         * engine's scope, not the parent [scope].
          *
          * @param identity The node's long-term cryptographic identity.
          * @param cryptoProvider Platform-specific crypto operations.

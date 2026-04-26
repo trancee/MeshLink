@@ -28,9 +28,9 @@ internal class NoiseHandshakeManager(
     /**
      * Invoked when a handshake completes and [peerId] is authenticated.
      *
-     * Note: signature omits the [ch.trancee.meshlink.crypto.noise.NoiseSession] because the
-     * session keys are not consumed by [MeshEngine]'s wiring — only the peer identity matters
-     * for connection slot acquisition and routing registration.
+     * Note: signature omits the [ch.trancee.meshlink.crypto.noise.NoiseSession] because the session
+     * keys are not consumed by [MeshEngine]'s wiring — only the peer identity matters for
+     * connection slot acquisition and routing registration.
      */
     var onHandshakeComplete: ((peerId: ByteArray) -> Unit)? = null
 
@@ -46,11 +46,12 @@ internal class NoiseHandshakeManager(
     /**
      * Per-peer in-flight handshake state.
      *
-     * Plain inner classes (not data classes) to avoid the auto-generated `!is` branch in
-     * `equals()` that Kover cannot cover via the public API (MEM113/MEM047).
+     * Plain inner classes (not data classes) to avoid the auto-generated `!is` branch in `equals()`
+     * that Kover cannot cover via the public API (MEM113/MEM047).
      */
     internal sealed class NoiseXXState {
         class Initiating(val initiator: NoiseXXInitiator, val startedAt: Long) : NoiseXXState()
+
         class Responding(val responder: NoiseXXResponder, val startedAt: Long) : NoiseXXState()
     }
 
@@ -134,9 +135,7 @@ internal class NoiseHandshakeManager(
         }
     }
 
-    /**
-     * Step 2: we are the initiator. Read msg2 (`e, ee, s, es`), write msg3 (`s, se`), finalize.
-     */
+    /** Step 2: we are the initiator. Read msg2 (`e, ee, s, es`), write msg3 (`s, se`), finalize. */
     private fun handleStep2(peerId: ByteArray, handshake: Handshake) {
         val peerKey = peerId.asList()
         val state = activeHandshakes[peerKey]

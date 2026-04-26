@@ -62,9 +62,7 @@ object AdvertisementCodec {
             )
         val psm = payload.l2capPsm.toInt()
         if (psm in 1..127)
-            throw IllegalArgumentException(
-                "l2capPsm must be 0 (GATT-only) or 128–255, got $psm"
-            )
+            throw IllegalArgumentException("l2capPsm must be 0 (GATT-only) or 128–255, got $psm")
         if (payload.keyHash.size != 12)
             throw IllegalArgumentException(
                 "keyHash must be exactly 12 bytes, got ${payload.keyHash.size}"
@@ -73,8 +71,8 @@ object AdvertisementCodec {
         val bytes = ByteArray(16)
         bytes[0] = ((payload.protocolVersion shl 5) or (payload.powerMode shl 3)).toByte()
         val meshHashInt = payload.meshHash.toInt()
-        bytes[1] = (meshHashInt and 0xFF).toByte()           // little-endian low byte
-        bytes[2] = ((meshHashInt ushr 8) and 0xFF).toByte()  // little-endian high byte
+        bytes[1] = (meshHashInt and 0xFF).toByte() // little-endian low byte
+        bytes[2] = ((meshHashInt ushr 8) and 0xFF).toByte() // little-endian high byte
         bytes[3] = payload.l2capPsm.toByte()
         payload.keyHash.copyInto(bytes, destinationOffset = 4)
         return bytes
