@@ -1,7 +1,7 @@
 # meshlink-sample
 
 Two-device integration harness for MeshLink S04 hardware verification.
-Targets Android (`:meshlink-sample` module) and iOS (`iosApp/`).
+Targets Android (`:meshlink-sample` module) and iOS (`MeshLinkSample/`).
 
 ---
 
@@ -58,16 +58,16 @@ For a debug build (larger binary, assertions enabled):
 ### Step 2 — Open the Xcode project
 
 ```bash
-open meshlink-sample/iosApp/iosApp.xcodeproj
+open meshlink-sample/MeshLinkSample/MeshLinkSample.xcodeproj
 ```
 
-> **Note:** `iosApp.xcodeproj` is a minimal hand-authored project file sufficient for building and
+> **Note:** `MeshLinkSample.xcodeproj` is a minimal hand-authored project file sufficient for building and
 > running the sample. A full xcworkspace / SwiftPM integration can be added when the library is
 > distributed via SPM (planned for M004/S02).
 
 ### Step 3 — Add the XCFramework to the Xcode project
 
-1. In the Xcode project navigator select the **iosApp** target.
+1. In the Xcode project navigator select the **MeshLinkSample** target.
 2. Go to **General → Frameworks, Libraries, and Embedded Content**.
 3. Click **+** → **Add Other… → Add Files…**.
 4. Navigate to `meshlink/build/XCFrameworks/release/MeshLink.xcframework` and click **Add**.
@@ -76,7 +76,7 @@ open meshlink-sample/iosApp/iosApp.xcodeproj
 ### Step 4 — Configure signing
 
 Set your Team in **Signing & Capabilities** or add `DEVELOPMENT_TEAM = <team-id>` to
-`iosApp/iosApp.xcodeproj/project.pbxproj`.
+`MeshLinkSample/MeshLinkSample.xcodeproj/project.pbxproj`.
 
 ### Step 5 — Run on device
 
@@ -103,7 +103,7 @@ See [S04-UAT.md](../.gsd/milestones/M003/slices/S04/S04-UAT.md) for the full run
 
 | Step | Android | iOS |
 |------|---------|-----|
-| 1 | Install + launch sample APK | Install + launch iosApp |
+| 1 | Install + launch sample APK | Install + launch MeshLinkSample |
 | 2 | Grant all Bluetooth permissions | Grant Bluetooth permission |
 | 3 | Tap **Start** (or let auto-start) | Tap **Start** |
 | 4 | Watch `adb logcat -s MeshLink:D` | Watch Console.app `[MeshLink]` |
@@ -133,8 +133,8 @@ meshlink-sample/
 │   └── kotlin/ch/trancee/meshlink/sample/
 │       ├── SampleMeshService.kt      # extends MeshLinkService
 │       └── MainActivity.kt           # Start/Stop + event log
-└── iosApp/
-    └── iosApp/
+└── MeshLinkSample/
+    └── MeshLinkSample/
         ├── SampleApp.swift           # @main SwiftUI entry
         ├── MeshEngineBridge.swift    # ObservableObject wrapping MeshNode
         ├── ContentView.swift         # Start/Stop buttons + scrolling log

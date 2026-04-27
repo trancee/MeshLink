@@ -415,7 +415,7 @@ Build and install on Android:
 adb install meshlink-sample/build/outputs/apk/debug/*.apk
 ```
 
-Build for iOS: open `iosApp/iosApp.xcodeproj` in Xcode 15+, select your device, and run.
+Build for iOS: open `MeshLinkSample/MeshLinkSample.xcodeproj` in Xcode 15+, select your device, and run.
 
 ---
 
