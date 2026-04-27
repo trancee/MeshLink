@@ -63,7 +63,7 @@ MeshLink's security relies on:
 | X25519 | Diffie-Hellman within Noise handshakes |
 | ChaCha20-Poly1305 | AEAD encryption on all transport frames |
 | RFC 9147 §4.5.3 sliding-window replay guard | 64-bit sequence number replay protection |
-| libsodium 1.0.20 | Underlying crypto primitives (Android JNI + iOS cinterop) |
+| libsodium 1.0.22 | Underlying crypto primitives (Android JNI + iOS cinterop) |
 
 If you identify a flaw in how any of these are composed or implemented, please report it privately.
 

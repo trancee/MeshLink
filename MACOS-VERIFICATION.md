@@ -27,7 +27,7 @@ java -version   # should print 21.x; if not: brew install --cask zulu21
 
 ## Gap 1 — Build libsodium for iOS
 
-Downloads libsodium 1.0.20 source and cross-compiles static libraries for `iosArm64` and
+Downloads libsodium 1.0.22 source and cross-compiles static libraries for `iosArm64` and
 `iosSimulatorArm64`. Required by the cinterop binding in `:meshlink`. Needs internet access
 and Xcode command-line tools. Only needs to run once per machine.
 

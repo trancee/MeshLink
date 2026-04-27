@@ -1,7 +1,7 @@
 package ch.trancee.meshlink.crypto
 
 /**
- * Thin JNI binding to libmeshlink_sodium.so (libsodium 1.0.20).
+ * Thin JNI binding to libmeshlink_sodium.so (libsodium 1.0.22).
  *
  * This object is the sole entry point into the native library. It mirrors the 10 functions exported
  * by meshlink_sodium.c. All methods are `@JvmStatic` so the JNI mangling follows the

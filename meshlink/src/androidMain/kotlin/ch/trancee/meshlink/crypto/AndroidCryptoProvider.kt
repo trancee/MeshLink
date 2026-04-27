@@ -1,7 +1,7 @@
 package ch.trancee.meshlink.crypto
 
 /**
- * Android implementation of [CryptoProvider] backed by libsodium 1.0.20 via JNI.
+ * Android implementation of [CryptoProvider] backed by libsodium 1.0.22 via JNI.
  *
  * All cryptographic operations are thin delegations to [SodiumJni], which is the sole entry point
  * into the native `libmeshlink_sodium.so` library. The library is loaded and initialised once when

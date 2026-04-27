@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # scripts/build-ios-libsodium.sh
-# Build libsodium 1.0.20 static libraries for iOS device and simulator targets.
+# Build libsodium 1.0.22 static libraries for iOS device and simulator targets.
 #
 # Requires:
 #   - macOS with Xcode command-line tools (xcrun, clang)
@@ -18,7 +18,7 @@ if [[ "$(uname)" != "Darwin" ]]; then
     exit 1
 fi
 
-LIBSODIUM_VERSION="1.0.20"
+LIBSODIUM_VERSION="1.0.22"
 LIBSODIUM_URL="https://download.libsodium.org/libsodium/releases/libsodium-${LIBSODIUM_VERSION}.tar.gz"
 IOS_MIN_VERSION="14.0"
 
