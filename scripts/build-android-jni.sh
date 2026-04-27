@@ -94,21 +94,47 @@ for ABI in "arm64-v8a" "armeabi-v7a" "x86_64"; do
     OUT_DIR="${JNI_LIBS}/${ABI}"
     mkdir -p "${OUT_DIR}"
 
+    # Write a linker version script that exports only JNI entry points.
+    # Everything else (all 700+ libsodium symbols) becomes local/hidden.
+    VERSION_SCRIPT="${OUT_DIR}/version.script"
+    cat > "${VERSION_SCRIPT}" <<'VEOF'
+{
+    global: Java_*;
+    local: *;
+};
+VEOF
+
     echo "Building ${ABI} → ${OUT_DIR}/libmeshlink_sodium.so"
     "${CC}" \
         -shared \
         -fPIC \
-        -O2 \
+        -Os \
         -Wall \
+        -flto \
+        -ffunction-sections \
+        -fdata-sections \
+        -fvisibility=hidden \
         -o "${OUT_DIR}/libmeshlink_sodium.so" \
         "${CPP_SRC}/meshlink_sodium.c" \
         -I"${VENDOR}/include" \
         -L"${VENDOR}/lib" \
-        -Wl,--whole-archive "${VENDOR}/lib/libsodium.a" -Wl,--no-whole-archive \
+        -lsodium \
+        -Wl,--gc-sections \
+        -Wl,--icf=all \
+        -Wl,--version-script="${VERSION_SCRIPT}" \
+        -Wl,-z,max-page-size=16384 \
         -llog \
         -landroid \
         && echo "  ✓ ${ABI}" \
         || { echo "  ✗ ${ABI} FAILED" >&2; SUCCESS=false; }
+
+    rm -f "${VERSION_SCRIPT}"
+
+    # Strip debug symbols and non-exported locals.
+    STRIP="${TOOLCHAIN}/bin/llvm-strip"
+    if [[ -x "${STRIP}" ]]; then
+        "${STRIP}" --strip-unneeded "${OUT_DIR}/libmeshlink_sodium.so" 2>/dev/null || true
+    fi
 done
 
 if [[ "${SUCCESS}" != "true" ]]; then
@@ -117,13 +143,14 @@ if [[ "${SUCCESS}" != "true" ]]; then
 fi
 
 echo ""
-echo "Build complete. Verifying ELF output:"
-echo "(Note: to verify Android Kotlin compilation, run: ./gradlew :meshlink:compileAndroidMain)"
+echo "Build complete. Verifying output:"
 for ABI in "arm64-v8a" "armeabi-v7a" "x86_64"; do
     SO="${JNI_LIBS}/${ABI}/libmeshlink_sodium.so"
     if [[ -f "${SO}" ]]; then
-        file "${SO}"
+        SIZE="$(ls -lh "${SO}" | awk '{print $5}')"
+        EXPORTS="$("${TOOLCHAIN}/bin/llvm-nm" -D --defined-only "${SO}" 2>/dev/null | grep -c ' T ' || echo '?')"
+        echo "  ${ABI}: ${SIZE}, ${EXPORTS} exports — $(file -b "${SO}")"
     else
-        echo "MISSING: ${SO}" >&2
+        echo "  MISSING: ${SO}" >&2
     fi
 done

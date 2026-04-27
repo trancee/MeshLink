@@ -97,10 +97,15 @@ host_for_abi() {
 }
 
 cflags_for_abi() {
+    # -Os: optimize for size
+    # -flto: LTO object files — enables cross-TU dead-code elimination at JNI link time
+    # -ffunction-sections -fdata-sections: one ELF section per function/global so
+    #   the linker's --gc-sections can strip individual unused functions
+    # -fvisibility=hidden: default-hide all symbols; only JNI exports are visible
     case "$1" in
-        arm64-v8a)   echo "-Os -march=armv8-a+crypto" ;;
-        armeabi-v7a) echo "-Os -mfloat-abi=softfp -mfpu=vfpv3-d16 -mthumb -marm -march=armv7-a" ;;
-        x86_64)      echo "-Os -march=westmere" ;;
+        arm64-v8a)   echo "-Os -flto -ffunction-sections -fdata-sections -fvisibility=hidden -march=armv8-a+crypto" ;;
+        armeabi-v7a) echo "-Os -flto -ffunction-sections -fdata-sections -fvisibility=hidden -mfloat-abi=softfp -mfpu=vfpv3-d16 -mthumb -marm -march=armv7-a" ;;
+        x86_64)      echo "-Os -flto -ffunction-sections -fdata-sections -fvisibility=hidden -march=westmere" ;;
     esac
 }
 
@@ -132,10 +137,12 @@ build_for_abi() {
     (
         cd "${SRC_COPY}"
 
-        # Full build — MeshLink uses AEAD, Ed25519, X25519, SHA-256, HKDF which
-        # are excluded by --enable-minimal.
+        # Full build — MeshLink uses AEAD, Ed25519, X25519, SHA-256, HKDF.
+        # Unused functions are eliminated at JNI link time via LTO + --gc-sections.
         export LIBSODIUM_FULL_BUILD=1
 
+        # Use NDK's llvm-ar/llvm-ranlib so libtool produces valid ELF/LTO archives.
+        # macOS system ar cannot handle cross-compiled ELF objects or LTO bitcode.
         ./configure \
             --host="${HOST}" \
             --prefix="${INSTALL_DIR}" \
@@ -145,6 +152,8 @@ build_for_abi() {
             --disable-pie \
             --with-sysroot="${TOOLCHAIN}/sysroot" \
             CC="${CC}" \
+            AR="${NDK_AR}" \
+            RANLIB="${NDK_RANLIB}" \
             CFLAGS="${ABI_CFLAGS}" \
             LDFLAGS="-Wl,-z,max-page-size=16384" \
             > /dev/null 2>&1
@@ -153,47 +162,26 @@ build_for_abi() {
         make install > /dev/null 2>&1
     )
 
-    # On macOS, libtool delegates to the system `ar` which cannot create ELF
-    # archives — the installed libsodium.a is empty (96 bytes). Repack the
-    # archive using the NDK's llvm-ar from the compiled object files.
-    #
-    # With --disable-shared, libtool places *_la-*.o files directly in the
-    # source tree (not in .libs/ subdirectories).
+    # Copy headers and the installed static library.
     local OUT_DIR="${VENDOR_DIR}/${ABI}"
     mkdir -p "${OUT_DIR}/include" "${OUT_DIR}/lib"
-
-    # Copy headers from the install tree.
     cp -R "${INSTALL_DIR}/include/"* "${OUT_DIR}/include/"
 
-    # Collect unique .o files produced by libtool (named *_la-*.o).
-    local OBJ_LIST="${BUILD_DIR}/${ABI}-objs.txt"
-    : > "${OBJ_LIST}"
-    local seen=""
-    while IFS= read -r obj; do
-        local bname
-        bname="$(basename "${obj}")"
-        case "${seen}" in
-            *" ${bname} "*) continue ;;  # duplicate — skip
-        esac
-        seen="${seen} ${bname} "
-        echo "${obj}" >> "${OBJ_LIST}"
-    done < <(find "${SRC_COPY}/src/libsodium" -name '*_la-*.o' -print)
-
-    local OBJ_COUNT
-    OBJ_COUNT="$(wc -l < "${OBJ_LIST}" | tr -d ' ')"
-    if [[ "${OBJ_COUNT}" -eq 0 ]]; then
-        echo "  ERROR: No object files found for ${ABI}" >&2
+    # Verify the archive is not empty (macOS ar fallback produces 96-byte stubs).
+    local LIB_SIZE
+    LIB_SIZE="$(wc -c < "${INSTALL_DIR}/lib/libsodium.a" | tr -d ' ')"
+    if [[ "${LIB_SIZE}" -lt 1000 ]]; then
+        echo "  ERROR: libsodium.a is suspiciously small (${LIB_SIZE} bytes) for ${ABI}" >&2
+        echo "  Hint: configure may have fallen back to macOS system ar." >&2
         return 1
     fi
-
-    "${NDK_AR}" rcs "${OUT_DIR}/lib/libsodium.a" $(cat "${OBJ_LIST}")
-    "${NDK_RANLIB}" "${OUT_DIR}/lib/libsodium.a"
+    cp "${INSTALL_DIR}/lib/libsodium.a" "${OUT_DIR}/lib/libsodium.a"
 
     local MEMBER_COUNT
     MEMBER_COUNT="$("${NDK_AR}" t "${OUT_DIR}/lib/libsodium.a" | wc -l | tr -d ' ')"
     local FILE_SIZE
     FILE_SIZE="$(ls -lh "${OUT_DIR}/lib/libsodium.a" | awk '{print $5}')"
-    echo "  ✓ ${ABI} → ${OUT_DIR}/lib/libsodium.a (${FILE_SIZE}, ${MEMBER_COUNT} objects)"
+    echo "  ✓ ${ABI} → ${FILE_SIZE}, ${MEMBER_COUNT} objects (LTO bitcode)"
 }
 
 # ── Build all ABIs ───────────────────────────────────────────────────────────
