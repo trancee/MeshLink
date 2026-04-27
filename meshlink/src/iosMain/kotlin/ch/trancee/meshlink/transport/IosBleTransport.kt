@@ -1,5 +1,9 @@
 @file:Suppress("WildcardImport", "TooManyFunctions", "LargeClass")
-@file:OptIn(ExperimentalForeignApi::class, kotlinx.coroutines.ExperimentalCoroutinesApi::class, kotlinx.coroutines.DelicateCoroutinesApi::class)
+@file:OptIn(
+    ExperimentalForeignApi::class,
+    kotlinx.coroutines.ExperimentalCoroutinesApi::class,
+    kotlinx.coroutines.DelicateCoroutinesApi::class,
+)
 
 package ch.trancee.meshlink.transport
 

@@ -3,9 +3,9 @@
 
 package ch.trancee.meshlink.storage
 
+import cnames.structs.__CFDictionary
 import kotlinx.cinterop.*
 import platform.CoreFoundation.CFRelease
-import cnames.structs.__CFDictionary
 import platform.Foundation.*
 import platform.Security.*
 
@@ -29,8 +29,8 @@ internal class IosSecureStorage : SecureStorage {
     // ── CF ↔ ObjC bridge helpers ──────────────────────────────────────────────
 
     /**
-     * Toll-free bridge: reinterprets a CoreFoundation pointer (CFStringRef, CFTypeRef, etc.)
-     * as the equivalent Foundation object for use with NSDictionary APIs.
+     * Toll-free bridge: reinterprets a CoreFoundation pointer (CFStringRef, CFTypeRef, etc.) as the
+     * equivalent Foundation object for use with NSDictionary APIs.
      */
     private fun cfToNS(ref: CPointer<*>?): Any {
         requireNotNull(ref) { "Null CF reference" }
@@ -39,20 +39,19 @@ internal class IosSecureStorage : SecureStorage {
     }
 
     /**
-     * Toll-free bridge: obtains a CFDictionaryRef from an NSMutableDictionary.
-     * The returned pointer is only valid while the Kotlin reference to the dictionary is alive.
+     * Toll-free bridge: obtains a CFDictionaryRef from an NSMutableDictionary. The returned pointer
+     * is only valid while the Kotlin reference to the dictionary is alive.
      */
     @Suppress("NOTHING_TO_INLINE")
     private inline fun NSMutableDictionary.cfDictRef(): CPointer<__CFDictionary> =
         interpretCPointer<__CFDictionary>(this.objcPtr()) ?: error("Null NSDictionary objcPtr")
 
     /**
-     * Convenience: sets a key-value pair using toll-free bridged CF references as keys.
-     * Avoids the NSCopyingProtocol cast boilerplate at each call site.
+     * Convenience: sets a key-value pair using toll-free bridged CF references as keys. Avoids the
+     * NSCopyingProtocol cast boilerplate at each call site.
      */
     private fun NSMutableDictionary.cfPut(key: CPointer<*>?, value: Any?) {
-        @Suppress("UNCHECKED_CAST")
-        setObject(value, forKey = cfToNS(key) as NSCopyingProtocol)
+        @Suppress("UNCHECKED_CAST") setObject(value, forKey = cfToNS(key) as NSCopyingProtocol)
     }
 
     // ── Base query ────────────────────────────────────────────────────────────
@@ -85,8 +84,7 @@ internal class IosSecureStorage : SecureStorage {
 
             val resultPtr = resultRef.value ?: return null
             try {
-                val data =
-                    interpretObjCPointerOrNull<NSData>(resultPtr.rawValue) ?: return null
+                val data = interpretObjCPointerOrNull<NSData>(resultPtr.rawValue) ?: return null
                 nsDataToByteArray(data)
             } finally {
                 // Balance the +1 CF retain from SecItemCopyMatching
@@ -99,17 +97,14 @@ internal class IosSecureStorage : SecureStorage {
         val nsData = byteArrayToNSData(value)
 
         // Try add first
-        val addQuery =
-            baseQuery(key).apply { cfPut(kSecValueData, nsData) }
+        val addQuery = baseQuery(key).apply { cfPut(kSecValueData, nsData) }
         val addStatus = SecItemAdd(addQuery.cfDictRef(), null)
 
         if (addStatus == errSecDuplicateItem) {
             // Item exists — update it
             val findQuery = baseQuery(key)
-            val updateAttrs =
-                NSMutableDictionary().apply { cfPut(kSecValueData, nsData) }
-            val updateStatus =
-                SecItemUpdate(findQuery.cfDictRef(), updateAttrs.cfDictRef())
+            val updateAttrs = NSMutableDictionary().apply { cfPut(kSecValueData, nsData) }
+            val updateStatus = SecItemUpdate(findQuery.cfDictRef(), updateAttrs.cfDictRef())
             if (updateStatus != errSecSuccess) {
                 println("IosSecureStorage update($key) failed status=$updateStatus")
             }
