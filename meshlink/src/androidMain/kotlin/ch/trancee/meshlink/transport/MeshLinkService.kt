@@ -19,6 +19,7 @@ import ch.trancee.meshlink.power.FixedBatteryMonitor
 import ch.trancee.meshlink.power.PowerTier
 import ch.trancee.meshlink.storage.AndroidSecureStorage
 import ch.trancee.meshlink.storage.InMemorySecureStorage
+import kotlin.time.TimeSource
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -155,6 +156,7 @@ internal abstract class MeshLinkService : Service() {
         // AndroidBleTransport) are accessible. MeshEngine.create() is internal.
         // A separate InMemorySecureStorage is used for engine key material so it is independent
         // of the identity storage above.
+        val monoOrigin = TimeSource.Monotonic.markNow()
         meshEngine =
             MeshEngine.create(
                 identity = identity,
@@ -163,7 +165,7 @@ internal abstract class MeshLinkService : Service() {
                 storage = InMemorySecureStorage(),
                 batteryMonitor = FixedBatteryMonitor(1.0f),
                 scope = serviceScope,
-                clock = { System.currentTimeMillis() },
+                clock = { monoOrigin.elapsedNow().inWholeMilliseconds },
                 config = createMeshEngineConfig(),
             )
 

@@ -6,11 +6,11 @@ import ch.trancee.meshlink.power.FixedBatteryMonitor
 import ch.trancee.meshlink.power.PowerTier
 import ch.trancee.meshlink.storage.IosSecureStorage
 import ch.trancee.meshlink.transport.IosBleTransport
+import kotlin.time.TimeSource
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
-import platform.Foundation.NSDate
 
 private const val TAG = "MeshLinkIosFactory"
 
@@ -70,7 +70,8 @@ public fun MeshLink.Companion.createIos(
         )
     println("[$TAG] IosBleTransport created localPeerId=${transport.localPeerId.size}b")
 
-    val clock: () -> Long = { (NSDate().timeIntervalSince1970 * 1_000.0).toLong() }
+    val origin = TimeSource.Monotonic.markNow()
+    val clock: () -> Long = { origin.elapsedNow().inWholeMilliseconds }
     return MeshLink.create(
         config = config,
         cryptoProvider = crypto,

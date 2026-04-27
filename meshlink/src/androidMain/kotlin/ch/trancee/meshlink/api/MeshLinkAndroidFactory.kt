@@ -10,6 +10,7 @@ import ch.trancee.meshlink.storage.AndroidSecureStorage
 import ch.trancee.meshlink.transport.AndroidBleTransport
 import ch.trancee.meshlink.transport.OemL2capProbeCache
 import ch.trancee.meshlink.transport.OemSlotTracker
+import kotlin.time.TimeSource
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -78,7 +79,8 @@ public fun MeshLink.Companion.createAndroid(context: Context, config: MeshLinkCo
         )
     Log.d(TAG, "AndroidBleTransport created localPeerId=${transport.localPeerId.size}b")
 
-    val clock: () -> Long = { System.currentTimeMillis() }
+    val origin = TimeSource.Monotonic.markNow()
+    val clock: () -> Long = { origin.elapsedNow().inWholeMilliseconds }
     return MeshLink.create(
         config = config,
         cryptoProvider = crypto,

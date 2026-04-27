@@ -12,11 +12,11 @@ import ch.trancee.meshlink.storage.IosSecureStorage
 import ch.trancee.meshlink.transfer.Priority
 import ch.trancee.meshlink.transport.BleTransportConfig
 import ch.trancee.meshlink.transport.IosBleTransport
+import kotlin.time.TimeSource
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
-import platform.Foundation.NSDate
 
 /**
  * Public Kotlin/Native facade that Swift/Obj-C callers use to operate a MeshLink node on iOS.
@@ -68,6 +68,8 @@ class MeshNode(
             restorationIdentifier = restorationIdentifier,
         )
 
+    private val monoOrigin = TimeSource.Monotonic.markNow()
+
     private val engine: MeshEngine =
         MeshEngine.create(
             identity = identity,
@@ -76,7 +78,7 @@ class MeshNode(
             storage = storage,
             batteryMonitor = FixedBatteryMonitor(),
             scope = scope,
-            clock = { (NSDate().timeIntervalSince1970 * 1_000.0).toLong() },
+            clock = { monoOrigin.elapsedNow().inWholeMilliseconds },
             config = config,
         )
 
