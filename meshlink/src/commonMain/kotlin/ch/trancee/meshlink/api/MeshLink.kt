@@ -384,7 +384,6 @@ internal constructor(
      * Cancellation is propagated by [delay] throwing [kotlinx.coroutines.CancellationException]
      * when [healthTickerJob] is cancelled in [stop].
      */
-    @CoverageIgnore // ticker body unreachable in unit tests without a real persistent engine scope
     private suspend fun runHealthTicker() {
         while (true) {
             delay(config.diagnostics.healthSnapshotIntervalMillis)
