@@ -20,7 +20,7 @@ kotlin {
 }
 
 group = property("GROUP").toString()
-version = property("VERSION_NAME").toString()
+version = property("VERSION").toString()
 
 // Dokka 2.0.0: Generate HTML docs and bundle them as the javadoc JAR required by Maven Central.
 val dokkaJavadocJar by tasks.registering(Jar::class) {

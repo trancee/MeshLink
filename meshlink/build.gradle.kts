@@ -278,7 +278,7 @@ benchmark {
 // ── Maven Central publishing ──────────────────────────────────────────────────
 group = property("GROUP").toString()
 
-version = property("VERSION_NAME").toString()
+version = property("VERSION").toString()
 
 // Dokka 2.0.0: Generate HTML docs and bundle them as the javadoc JAR required by Maven Central.
 // `from(task)` implicitly wires the dependency and copies the task's output into the JAR.
