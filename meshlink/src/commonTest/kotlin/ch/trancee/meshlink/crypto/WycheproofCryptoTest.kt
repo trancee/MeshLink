@@ -7,7 +7,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
- * Run all Wycheproof test vectors (984 vectors) against the platform CryptoProvider.
+ * Run all Wycheproof test vectors (1070 vectors) against the platform CryptoProvider.
  *
  * Covers edge cases that RFC reference vectors don't: malleability, non-canonical
  * encodings, low-order points, truncated signatures, Poly1305 edge cases, etc.
@@ -143,6 +143,36 @@ class WycheproofCryptoTest {
                 "AEAD decrypt tc${v.tcId} must reject (${v.comment}, flags=${v.flags})",
             ) {
                 provider.aeadDecrypt(v.key, v.nonce, v.ciphertextWithTag, v.aad)
+            }
+        }
+    }
+
+    // ── HKDF-SHA-256 — 86 vectors ────────────────────────────────────────────
+
+    @Test
+    fun hkdfValidVectorsMatchExpected() {
+        val valid = WycheproofHkdfVectors.vectors.filter { it.valid }
+        assertTrue(valid.isNotEmpty(), "Must have valid HKDF vectors")
+        for (v in valid) {
+            val okm = provider.hkdfSha256(v.salt, v.ikm, v.info, v.size)
+            assertContentEquals(
+                v.okm,
+                okm,
+                "HKDF tc${v.tcId} output mismatch (${v.comment})",
+            )
+        }
+    }
+
+    @Test
+    fun hkdfInvalidVectorsMustReject() {
+        // Invalid vectors request output exceeding HKDF maximum (255 * 32 = 8160 bytes).
+        val invalid = WycheproofHkdfVectors.vectors.filter { !it.valid }
+        assertTrue(invalid.isNotEmpty(), "Must have invalid HKDF vectors")
+        for (v in invalid) {
+            assertFailsWith<Exception>(
+                "HKDF tc${v.tcId} must reject (${v.comment}, flags=${v.flags})",
+            ) {
+                provider.hkdfSha256(v.salt, v.ikm, v.info, v.size)
             }
         }
     }
