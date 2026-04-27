@@ -18,13 +18,7 @@ kotlin {
 
     // iOS targets — native compilation only runs on macOS; skipped on Linux via
     // kotlin.native.ignoreDisabledTargets=true in gradle.properties.
-    iosArm64 {
-        binaries.framework {
-            baseName = "MeshLinkSample"
-            isStatic = true
-        }
-    }
-    iosSimulatorArm64 {
+    iosArm64("ios") {
         binaries.framework {
             baseName = "MeshLinkSample"
             isStatic = true

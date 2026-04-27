@@ -55,15 +55,13 @@ jobs:
       # Build libsodium static libraries for iOS targets (required by cinterop).
       - name: Build libsodium for iOS
         run: bash scripts/build-ios-libsodium.sh
-      # Publish iOS KLib publications (iosArm64 + iosSimulatorArm64) for both modules.
+      # Publish iOS KLib publication (ios) for both modules.
       # The Android/JVM/kotlinMultiplatform publications are handled by publish-android.
       - name: Publish iOS KLibs to Maven Central (OSSRH)
         run: >-
           ./gradlew
-          :meshlink:publishIosArm64PublicationToOSSRHRepository
-          :meshlink:publishIosSimulatorArm64PublicationToOSSRHRepository
-          :meshlink-testing:publishIosArm64PublicationToOSSRHRepository
-          :meshlink-testing:publishIosSimulatorArm64PublicationToOSSRHRepository
+          :meshlink:publishIosPublicationToOSSRHRepository
+          :meshlink-testing:publishIosPublicationToOSSRHRepository
           --no-parallel
         env:
           MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
@@ -92,7 +90,7 @@ jobs:
       # Build libsodium static libraries for iOS targets (required by cinterop).
       - name: Build libsodium for iOS
         run: bash scripts/build-ios-libsodium.sh
-      # Assemble the release XCFramework (iosArm64 + iosSimulatorArm64).
+      # Assemble the release XCFramework (iosArm64).
       - name: Assemble XCFramework
         run: ./gradlew :meshlink:assembleMeshLinkReleaseXCFramework
       # Zip from inside the output directory so the archive root is MeshLink.xcframework/.

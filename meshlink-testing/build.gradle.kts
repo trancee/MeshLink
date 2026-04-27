@@ -12,8 +12,7 @@ plugins {
 
 kotlin {
     jvm()
-    iosArm64()
-    iosSimulatorArm64()
+    iosArm64("ios")
     sourceSets {
         commonMain.dependencies { api(project(":meshlink")) }
     }

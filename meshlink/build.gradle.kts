@@ -64,30 +64,25 @@ kotlin {
         //   the KMP library android block once the API stabilises.
     }
 
-    val iosArm64 = iosArm64()
-    val iosSimulatorArm64 = iosSimulatorArm64()
+    val ios = iosArm64("ios")
 
-    listOf(iosArm64, iosSimulatorArm64).forEach { target ->
-        target.compilations.getByName("main").cinterops {
-            val libsodium by creating {
-                defFile(project.file("src/iosMain/interop/libsodium.def"))
-                includeDirs("src/iosMain/interop/include")
-                extraOpts("-libraryPath", "${projectDir}/src/iosMain/interop/lib/${target.name}")
-            }
+    ios.compilations.getByName("main").cinterops {
+        val libsodium by creating {
+            defFile(project.file("src/iosMain/interop/libsodium.def"))
+            includeDirs("src/iosMain/interop/include")
+            extraOpts("-libraryPath", "${projectDir}/src/iosMain/interop/lib/${ios.name}")
         }
     }
 
-    // XCFramework — iosArm64 + iosSimulatorArm64 slices for SPM binary distribution.
+    // XCFramework — iOS arm64 slice for SPM binary distribution.
     // assembleMeshLinkXCFramework / assembleMeshLinkReleaseXCFramework tasks are generated
     // automatically by the KMP Gradle plugin once XCFrameworkConfig is registered.
     // release.yml zips the Release XCFramework, computes SHA-256, and updates Package.swift.
     val xcf = XCFrameworkConfig(project, "MeshLink")
-    listOf(iosArm64, iosSimulatorArm64).forEach { target ->
-        target.binaries.framework {
-            baseName = "MeshLink"
-            isStatic = true
-            xcf.add(this)
-        }
+    ios.binaries.framework {
+        baseName = "MeshLink"
+        isStatic = true
+        xcf.add(this)
     }
 
     jvm()
@@ -222,12 +217,9 @@ val isMacOs = System.getProperty("os.name").contains("Mac OS X", ignoreCase = tr
 
 apiValidation { klib { enabled = isMacOs } }
 
-// SKIE — disabled until SKIE adds support for Kotlin 2.3.21.
-// SKIE 0.10.11 supports up to Kotlin 2.3.20; re-enable after the next SKIE release.
-// When re-enabled on macOS+Xcode, FlowAdapter and AsyncStream wrappers are generated
-// automatically for all public Flow/StateFlow members of MeshLinkApi.
-// TODO(S03/skie-enable): SKIE 0.10.11 supports Kotlin 2.3.20 (this version). Re-evaluate on next
-// Kotlin bump.
+// SKIE 0.10.11 — generates Swift-friendly AsyncStream/async func wrappers for all
+// public Flow/StateFlow members of MeshLinkApi.  Active on macOS+Xcode builds.
+// Supports Kotlin ≤ 2.3.20 (current version).  Re-evaluate compatibility on Kotlin bumps.
 skie {}
 
 // Kotlin Power Assert — transform kotlin.test assertions for richer failure diagnostics.

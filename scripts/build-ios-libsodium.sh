@@ -9,8 +9,7 @@
 # Usage: bash scripts/build-ios-libsodium.sh
 #
 # Output:
-#   meshlink/src/iosMain/interop/lib/iosArm64/libsodium.a       (arm64 device)
-#   meshlink/src/iosMain/interop/lib/iosSimulatorArm64/libsodium.a  (arm64 simulator)
+#   meshlink/src/iosMain/interop/lib/ios/libsodium.a       (arm64 device)
 set -euo pipefail
 
 if [[ "$(uname)" != "Darwin" ]]; then
@@ -37,7 +36,7 @@ SRC_DIR="${BUILD_DIR}/libsodium-${LIBSODIUM_VERSION}"
 
 # ── Build helper ─────────────────────────────────────────────────────────────
 build_for_target() {
-    local TARGET_NAME="$1"  # iosArm64 or iosSimulatorArm64
+    local TARGET_NAME="$1"  # ios (arm64 device)
     local SDK="$2"          # iphoneos or iphonesimulator
     local TARGET_TRIPLE="$3" # e.g. arm64-apple-ios14.0 or arm64-apple-ios14.0-simulator
 
@@ -77,18 +76,11 @@ build_for_target() {
 
 # ── arm64 device ─────────────────────────────────────────────────────────────
 build_for_target \
-    "iosArm64" \
+    "ios" \
     "iphoneos" \
     "arm64-apple-ios${IOS_MIN_VERSION}"
 
-# ── arm64 simulator (Apple Silicon / Rosetta-free) ───────────────────────────
-build_for_target \
-    "iosSimulatorArm64" \
-    "iphonesimulator" \
-    "arm64-apple-ios${IOS_MIN_VERSION}-simulator"
-
 echo ""
 echo "Build complete."
-echo "  Device:    ${INTEROP_DIR}/lib/iosArm64/libsodium.a"
-echo "  Simulator: ${INTEROP_DIR}/lib/iosSimulatorArm64/libsodium.a"
+echo "  Device: ${INTEROP_DIR}/lib/ios/libsodium.a"
 echo "(Note: to verify iOS Kotlin compilation, run on macOS: ./gradlew :meshlink:compileKotlinIosArm64)"
