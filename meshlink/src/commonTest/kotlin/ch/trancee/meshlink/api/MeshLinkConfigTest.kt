@@ -36,7 +36,7 @@ class MeshLinkConfigTest {
         assertEquals(true, config.transport.l2capEnabled)
         assertEquals(false, config.transport.forceL2cap)
         assertEquals(false, config.transport.forceGatt)
-        assertEquals(30_000L, config.transport.bootstrapDurationMs)
+        assertEquals(30_000L, config.transport.bootstrapDurationMillis)
         assertEquals(3, config.transport.l2capRetryAttempts)
     }
 
@@ -120,14 +120,14 @@ class MeshLinkConfigTest {
                     mtu = 244
                     l2capEnabled = false
                     forceGatt = true
-                    bootstrapDurationMs = 10_000L
+                    bootstrapDurationMillis = 10_000L
                     l2capRetryAttempts = 5
                 }
             }
         assertEquals(244, config.transport.mtu)
         assertEquals(false, config.transport.l2capEnabled)
         assertEquals(true, config.transport.forceGatt)
-        assertEquals(10_000L, config.transport.bootstrapDurationMs)
+        assertEquals(10_000L, config.transport.bootstrapDurationMillis)
         assertEquals(5, config.transport.l2capRetryAttempts)
     }
 
@@ -530,7 +530,7 @@ class MeshLinkConfigTest {
                     }
                     evictionGracePeriodMillis = 60_000L
                 }
-                transport { bootstrapDurationMs = 20_000L }
+                transport { bootstrapDurationMillis = 20_000L }
             }
         val engineConfig = config.toMeshEngineConfig()
         assertEquals(0.75f, engineConfig.power.performanceThreshold)

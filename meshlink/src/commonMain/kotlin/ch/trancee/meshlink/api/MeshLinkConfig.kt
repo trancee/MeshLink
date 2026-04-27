@@ -34,8 +34,8 @@ public data class MessagingConfig(
  *   does not support L2CAP.
  * @param forceL2cap Skip GATT fallback and always open L2CAP even if PSM is advertised as 0x00.
  * @param forceGatt Skip L2CAP and always use GATT even if PSM is advertised.
- * @param bootstrapDurationMs Duration in milliseconds to stay in PERFORMANCE power tier on startup
- *   regardless of battery level.
+ * @param bootstrapDurationMillis Duration in milliseconds to stay in PERFORMANCE power tier on
+ *   startup regardless of battery level.
  * @param l2capRetryAttempts Number of L2CAP connection retries before falling back to GATT.
  */
 public data class TransportConfig(
@@ -43,7 +43,7 @@ public data class TransportConfig(
     val l2capEnabled: Boolean = true,
     val forceL2cap: Boolean = false,
     val forceGatt: Boolean = false,
-    val bootstrapDurationMs: Long = 30_000L,
+    val bootstrapDurationMillis: Long = 30_000L,
     val l2capRetryAttempts: Int = 3,
 )
 
@@ -119,14 +119,14 @@ public data class RoutingConfig(
  * @param bufferCapacity Maximum number of diagnostic events buffered in the event ring.
  * @param redactPeerIds When true, peer identifiers are replaced with truncated hashes in all
  *   diagnostic output (GDPR mode).
- * @param healthSnapshotIntervalMs Interval in milliseconds between [MeshHealthSnapshot] emissions
- *   on [MeshLinkApi.meshHealthFlow]. Default: 5 000 ms.
+ * @param healthSnapshotIntervalMillis Interval in milliseconds between [MeshHealthSnapshot]
+ *   emissions on [MeshLinkApi.meshHealthFlow]. Default: 5 000 ms.
  */
 public data class DiagnosticsConfig(
     val enabled: Boolean = true,
     val bufferCapacity: Int = 1_000,
     val redactPeerIds: Boolean = false,
-    val healthSnapshotIntervalMs: Long = 5_000L,
+    val healthSnapshotIntervalMillis: Long = 5_000L,
 )
 
 /**
@@ -239,7 +239,7 @@ public data class MeshLinkConfig(
                     performanceThreshold = power.powerModeThresholds.performanceThreshold,
                     powerSaverThreshold = power.powerModeThresholds.powerSaverThreshold,
                     evictionGracePeriodMillis = power.evictionGracePeriodMillis,
-                    bootstrapDurationMillis = transport.bootstrapDurationMs,
+                    bootstrapDurationMillis = transport.bootstrapDurationMillis,
                 ),
             handshake = HandshakeConfig(),
             chunkSize = if (transport.l2capEnabled) ChunkSizePolicy.L2CAP else ChunkSizePolicy.GATT,
@@ -403,7 +403,7 @@ public class TransportConfigBuilder {
     public var l2capEnabled: Boolean = true
     public var forceL2cap: Boolean = false
     public var forceGatt: Boolean = false
-    public var bootstrapDurationMs: Long = 30_000L
+    public var bootstrapDurationMillis: Long = 30_000L
     public var l2capRetryAttempts: Int = 3
 
     internal fun build(): TransportConfig =
@@ -412,7 +412,7 @@ public class TransportConfigBuilder {
             l2capEnabled = l2capEnabled,
             forceL2cap = forceL2cap,
             forceGatt = forceGatt,
-            bootstrapDurationMs = bootstrapDurationMs,
+            bootstrapDurationMillis = bootstrapDurationMillis,
             l2capRetryAttempts = l2capRetryAttempts,
         )
 }
@@ -487,14 +487,14 @@ public class DiagnosticsConfigBuilder {
     public var enabled: Boolean = true
     public var bufferCapacity: Int = 1_000
     public var redactPeerIds: Boolean = false
-    public var healthSnapshotIntervalMs: Long = 5_000L
+    public var healthSnapshotIntervalMillis: Long = 5_000L
 
     internal fun build(): DiagnosticsConfig =
         DiagnosticsConfig(
             enabled = enabled,
             bufferCapacity = bufferCapacity,
             redactPeerIds = redactPeerIds,
-            healthSnapshotIntervalMs = healthSnapshotIntervalMs,
+            healthSnapshotIntervalMillis = healthSnapshotIntervalMillis,
         )
 }
 

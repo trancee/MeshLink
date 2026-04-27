@@ -116,7 +116,7 @@ internal constructor(
 
     private val stateMachine =
         MeshLinkStateMachine(
-            nowMs = clock,
+            nowMillis = clock,
             onDiagnostic = { event -> diagnosticSink.emit(event.code) { event.payload } },
         )
 
@@ -227,7 +227,7 @@ internal constructor(
                                 staticPublicKey = stubKey,
                                 fingerprint = event.peerId.toHexString(),
                                 isConnected = true,
-                                lastSeenTimestampMs = clock(),
+                                lastSeenTimestampMillis = clock(),
                                 trustMode = TrustMode.STRICT,
                             ),
                     )
@@ -244,7 +244,7 @@ internal constructor(
                 id = MessageId(msg.messageId),
                 senderId = msg.senderId,
                 payload = msg.payload,
-                receivedAtMs = msg.receivedAt,
+                receivedAtMillis = msg.receivedAt,
             )
         }
 
@@ -367,7 +367,7 @@ internal constructor(
             connectedPeers = connected,
             routingTableSize = engine.routingTable.routeCount(),
             bufferUsageBytes = 0L,
-            capturedAtMs = clock(),
+            capturedAtMillis = clock(),
             reachablePeers = connected,
             bufferUtilizationPercent = 0,
             activeTransfers = 0,
@@ -378,8 +378,8 @@ internal constructor(
     }
 
     /**
-     * Periodic health ticker coroutine. Waits [DiagnosticsConfig.healthSnapshotIntervalMs] between
-     * snapshots and emits on [_meshHealthFlow].
+     * Periodic health ticker coroutine. Waits [DiagnosticsConfig.healthSnapshotIntervalMillis]
+     * between snapshots and emits on [_meshHealthFlow].
      *
      * Cancellation is propagated by [delay] throwing [kotlinx.coroutines.CancellationException]
      * when [healthTickerJob] is cancelled in [stop].
@@ -387,7 +387,7 @@ internal constructor(
     @CoverageIgnore // ticker body unreachable in unit tests without a real persistent engine scope
     private suspend fun runHealthTicker() {
         while (true) {
-            delay(config.diagnostics.healthSnapshotIntervalMs)
+            delay(config.diagnostics.healthSnapshotIntervalMillis)
             _meshHealthFlow.tryEmit(buildHealthSnapshot())
         }
     }
@@ -395,8 +395,8 @@ internal constructor(
     // ── Routing ────────────────────────────────────────────────────────────
 
     override fun routingSnapshot(): RoutingSnapshot {
-        val nowMs = clock()
-        val ttlMs = config.routing.routeCacheTtlMillis
+        val nowMillis = clock()
+        val ttlMillis = config.routing.routeCacheTtlMillis
         val routes =
             engine.routingTable
                 .allRoutes()
@@ -406,11 +406,11 @@ internal constructor(
                         nextHop = entry.nextHop,
                         cost = entry.metric.toInt(),
                         seqNo = entry.seqNo.toInt(),
-                        ageMs = (ttlMs - (entry.expiresAt - nowMs)).coerceAtLeast(0L),
+                        ageMillis = (ttlMillis - (entry.expiresAt - nowMillis)).coerceAtLeast(0L),
                     )
                 }
                 .sortedBy { it.cost }
-        return RoutingSnapshot(capturedAtMs = nowMs, routes = routes)
+        return RoutingSnapshot(capturedAtMillis = nowMillis, routes = routes)
     }
 
     // ── GDPR ───────────────────────────────────────────────────────────────

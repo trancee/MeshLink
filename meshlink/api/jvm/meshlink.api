@@ -263,8 +263,8 @@ public final class ch/trancee/meshlink/api/DiagnosticPayload$MessageAgeExceeded 
 	public final fun copy (JJ)Lch/trancee/meshlink/api/DiagnosticPayload$MessageAgeExceeded;
 	public static synthetic fun copy$default (Lch/trancee/meshlink/api/DiagnosticPayload$MessageAgeExceeded;JJILjava/lang/Object;)Lch/trancee/meshlink/api/DiagnosticPayload$MessageAgeExceeded;
 	public fun equals (Ljava/lang/Object;)Z
-	public final fun getAgeMs ()J
-	public final fun getMaxAgeMs ()J
+	public final fun getAgeMillis ()J
+	public final fun getMaxAgeMillis ()J
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
 }
@@ -314,7 +314,7 @@ public final class ch/trancee/meshlink/api/DiagnosticPayload$RateLimitHit : ch/t
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getLimit ()I
 	public final fun getPeerId-PvxMuPU ()Ljava/lang/String;
-	public final fun getWindowMs ()J
+	public final fun getWindowMillis ()J
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
 }
@@ -413,7 +413,7 @@ public final class ch/trancee/meshlink/api/DiagnosticsConfig {
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getBufferCapacity ()I
 	public final fun getEnabled ()Z
-	public final fun getHealthSnapshotIntervalMs ()J
+	public final fun getHealthSnapshotIntervalMillis ()J
 	public final fun getRedactPeerIds ()Z
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
@@ -423,11 +423,11 @@ public final class ch/trancee/meshlink/api/DiagnosticsConfigBuilder {
 	public fun <init> ()V
 	public final fun getBufferCapacity ()I
 	public final fun getEnabled ()Z
-	public final fun getHealthSnapshotIntervalMs ()J
+	public final fun getHealthSnapshotIntervalMillis ()J
 	public final fun getRedactPeerIds ()Z
 	public final fun setBufferCapacity (I)V
 	public final fun setEnabled (Z)V
-	public final fun setHealthSnapshotIntervalMs (J)V
+	public final fun setHealthSnapshotIntervalMillis (J)V
 	public final fun setRedactPeerIds (Z)V
 }
 
@@ -469,7 +469,7 @@ public final class ch/trancee/meshlink/api/MeshHealthSnapshot {
 	public final fun getAvgRouteCost ()D
 	public final fun getBufferUsageBytes ()J
 	public final fun getBufferUtilizationPercent ()I
-	public final fun getCapturedAtMs ()J
+	public final fun getCapturedAtMillis ()J
 	public final fun getConnectedPeers ()I
 	public final fun getPowerMode ()Lch/trancee/meshlink/power/PowerTier;
 	public final fun getReachablePeers ()I
@@ -699,7 +699,7 @@ public final class ch/trancee/meshlink/api/PeerDetail {
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getFingerprint ()Ljava/lang/String;
 	public final fun getId ()[B
-	public final fun getLastSeenTimestampMs ()J
+	public final fun getLastSeenTimestampMillis ()J
 	public final fun getStaticPublicKey ()[B
 	public final fun getTrustMode ()Lch/trancee/meshlink/api/TrustMode;
 	public fun hashCode ()I
@@ -837,7 +837,7 @@ public final class ch/trancee/meshlink/api/ReceivedMessage {
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getId ()Lch/trancee/meshlink/api/MessageId;
 	public final fun getPayload ()[B
-	public final fun getReceivedAtMs ()J
+	public final fun getReceivedAtMillis ()J
 	public final fun getSenderId ()[B
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
@@ -884,7 +884,7 @@ public final class ch/trancee/meshlink/api/RoutingEntry {
 	public final fun copy ([B[BIIJ)Lch/trancee/meshlink/api/RoutingEntry;
 	public static synthetic fun copy$default (Lch/trancee/meshlink/api/RoutingEntry;[B[BIIJILjava/lang/Object;)Lch/trancee/meshlink/api/RoutingEntry;
 	public fun equals (Ljava/lang/Object;)Z
-	public final fun getAgeMs ()J
+	public final fun getAgeMillis ()J
 	public final fun getCost ()I
 	public final fun getDestination ()[B
 	public final fun getNextHop ()[B
@@ -900,7 +900,7 @@ public final class ch/trancee/meshlink/api/RoutingSnapshot {
 	public final fun copy (JLjava/util/List;)Lch/trancee/meshlink/api/RoutingSnapshot;
 	public static synthetic fun copy$default (Lch/trancee/meshlink/api/RoutingSnapshot;JLjava/util/List;ILjava/lang/Object;)Lch/trancee/meshlink/api/RoutingSnapshot;
 	public fun equals (Ljava/lang/Object;)Z
-	public final fun getCapturedAtMs ()J
+	public final fun getCapturedAtMillis ()J
 	public final fun getRoutes ()Ljava/util/List;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
@@ -1042,7 +1042,7 @@ public final class ch/trancee/meshlink/api/TransportConfig {
 	public final fun copy (IZZZJI)Lch/trancee/meshlink/api/TransportConfig;
 	public static synthetic fun copy$default (Lch/trancee/meshlink/api/TransportConfig;IZZZJIILjava/lang/Object;)Lch/trancee/meshlink/api/TransportConfig;
 	public fun equals (Ljava/lang/Object;)Z
-	public final fun getBootstrapDurationMs ()J
+	public final fun getBootstrapDurationMillis ()J
 	public final fun getForceGatt ()Z
 	public final fun getForceL2cap ()Z
 	public final fun getL2capEnabled ()Z
@@ -1054,13 +1054,13 @@ public final class ch/trancee/meshlink/api/TransportConfig {
 
 public final class ch/trancee/meshlink/api/TransportConfigBuilder {
 	public fun <init> ()V
-	public final fun getBootstrapDurationMs ()J
+	public final fun getBootstrapDurationMillis ()J
 	public final fun getForceGatt ()Z
 	public final fun getForceL2cap ()Z
 	public final fun getL2capEnabled ()Z
 	public final fun getL2capRetryAttempts ()I
 	public final fun getMtu ()I
-	public final fun setBootstrapDurationMs (J)V
+	public final fun setBootstrapDurationMillis (J)V
 	public final fun setForceGatt (Z)V
 	public final fun setForceL2cap (Z)V
 	public final fun setL2capEnabled (Z)V

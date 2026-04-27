@@ -260,7 +260,7 @@ class MeshLinkTest {
         mesh.start()
         val snapshot = mesh.routingSnapshot()
         assertNotNull(snapshot)
-        assertTrue(snapshot.capturedAtMs >= 0L)
+        assertTrue(snapshot.capturedAtMillis >= 0L)
         assertTrue(snapshot.routes.isEmpty()) // no peers connected
         mesh.stop()
     }
@@ -285,7 +285,7 @@ class MeshLinkTest {
         assertTrue(health.connectedPeers >= 0)
         assertTrue(health.routingTableSize >= 0)
         assertTrue(health.bufferUsageBytes >= 0L)
-        assertTrue(health.capturedAtMs >= 0L)
+        assertTrue(health.capturedAtMillis >= 0L)
         // New fields
         assertTrue(health.reachablePeers >= 0)
         assertTrue(health.bufferUtilizationPercent >= 0)
@@ -328,7 +328,7 @@ class MeshLinkTest {
         mesh.start()
         testScheduler.runCurrent()
         assertTrue(collected.isNotEmpty(), "Expected at least one snapshot after start")
-        assertTrue(collected.first().capturedAtMs >= 0L)
+        assertTrue(collected.first().capturedAtMillis >= 0L)
         mesh.stop()
         collectJob.cancel()
     }
@@ -338,7 +338,7 @@ class MeshLinkTest {
         val mesh =
             makeMesh(
                 meshLinkConfig("ch.trancee.test") {
-                    diagnostics { healthSnapshotIntervalMs = 1_000L }
+                    diagnostics { healthSnapshotIntervalMillis = 1_000L }
                 }
             )
         val collected = mutableListOf<MeshHealthSnapshot>()

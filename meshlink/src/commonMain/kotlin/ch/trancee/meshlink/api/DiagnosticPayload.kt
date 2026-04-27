@@ -28,7 +28,7 @@ public sealed interface DiagnosticPayload {
     public data class ReplayRejected(val peerId: PeerIdHex) : DiagnosticPayload
 
     /** Payload for [DiagnosticCode.RATE_LIMIT_HIT]. */
-    public data class RateLimitHit(val peerId: PeerIdHex, val limit: Int, val windowMs: Long) :
+    public data class RateLimitHit(val peerId: PeerIdHex, val limit: Int, val windowMillis: Long) :
         DiagnosticPayload
 
     /** Payload for [DiagnosticCode.BUFFER_PRESSURE]. */
@@ -48,7 +48,8 @@ public sealed interface DiagnosticPayload {
     public data class HopLimitExceeded(val hops: Int, val maxHops: Int) : DiagnosticPayload
 
     /** Payload for [DiagnosticCode.MESSAGE_AGE_EXCEEDED]. */
-    public data class MessageAgeExceeded(val ageMs: Long, val maxAgeMs: Long) : DiagnosticPayload
+    public data class MessageAgeExceeded(val ageMillis: Long, val maxAgeMillis: Long) :
+        DiagnosticPayload
 
     // ── Log tier ─────────────────────────────────────────────────────────────
 

@@ -43,13 +43,13 @@ public data class MessageId(val bytes: ByteArray) {
  * @param id Unique identifier for deduplication.
  * @param senderId Key hash (12 bytes) of the originating peer.
  * @param payload Raw application payload.
- * @param receivedAtMs Monotonic timestamp (ms) when the message was delivered locally.
+ * @param receivedAtMillis Monotonic timestamp (ms) when the message was delivered locally.
  */
 public data class ReceivedMessage(
     val id: MessageId,
     val senderId: ByteArray,
     val payload: ByteArray,
-    val receivedAtMs: Long,
+    val receivedAtMillis: Long,
 ) {
     override fun equals(other: Any?): Boolean = other is ReceivedMessage && id == other.id
 
@@ -57,7 +57,7 @@ public data class ReceivedMessage(
 
     override fun toString(): String =
         "ReceivedMessage(id=$id, senderId=${senderId.contentToString()}, " +
-            "payloadSize=${payload.size}, receivedAtMs=$receivedAtMs)"
+            "payloadSize=${payload.size}, receivedAtMillis=$receivedAtMillis)"
 }
 
 // ── PeerEvent ─────────────────────────────────────────────────────────────────
@@ -157,7 +157,7 @@ public data class DiagnosticEvent(
  * @param connectedPeers Number of peers with an active Noise session.
  * @param routingTableSize Number of routes in the local routing table.
  * @param bufferUsageBytes Current store-and-forward buffer occupancy in bytes.
- * @param capturedAtMs Monotonic timestamp (ms) when this snapshot was taken.
+ * @param capturedAtMillis Monotonic timestamp (ms) when this snapshot was taken.
  * @param reachablePeers Number of peers reachable within the routing table (may include multi-hop).
  * @param bufferUtilizationPercent Combined buffer utilization as a percentage (0–100).
  * @param activeTransfers Number of currently active chunked-transfer sessions.
@@ -169,7 +169,7 @@ public data class MeshHealthSnapshot(
     val connectedPeers: Int,
     val routingTableSize: Int,
     val bufferUsageBytes: Long,
-    val capturedAtMs: Long,
+    val capturedAtMillis: Long,
     val reachablePeers: Int = 0,
     val bufferUtilizationPercent: Int = 0,
     val activeTransfers: Int = 0,

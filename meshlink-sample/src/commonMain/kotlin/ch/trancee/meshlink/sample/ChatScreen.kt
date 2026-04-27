@@ -161,7 +161,7 @@ private fun MessageItem(msg: ReceivedMessage, modifier: Modifier = Modifier) {
                 color = MaterialTheme.colorScheme.primary,
             )
             Text(
-                text = "${msg.payload.size}B · +${msg.receivedAtMs % 100_000}ms",
+                text = "${msg.payload.size}B · +${msg.receivedAtMillis % 100_000}ms",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

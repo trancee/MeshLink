@@ -757,7 +757,7 @@ internal class IosBleTransport(
                 )
         ) {
             val stagger =
-                ConnectionInitiationPolicy.staggerDelayMs(identity.keyHash, payload.keyHash)
+                ConnectionInitiationPolicy.staggerDelayMillis(identity.keyHash, payload.keyHash)
             val psm = payload.l2capPsm.toInt()
             val job = scope.launch {
                 if (stagger > 0) delay(stagger)

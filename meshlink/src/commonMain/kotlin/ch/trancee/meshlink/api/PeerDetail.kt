@@ -11,7 +11,8 @@ package ch.trancee.meshlink.api
  *   store.
  * @param fingerprint Human-readable hex string of [id] (24 hex chars).
  * @param isConnected Whether this peer is currently connected.
- * @param lastSeenTimestampMs Monotonic timestamp (ms) of the most recent contact with this peer.
+ * @param lastSeenTimestampMillis Monotonic timestamp (ms) of the most recent contact with this
+ *   peer.
  * @param trustMode The current trust disposition toward this peer.
  */
 public data class PeerDetail(
@@ -19,7 +20,7 @@ public data class PeerDetail(
     val staticPublicKey: ByteArray,
     val fingerprint: String,
     val isConnected: Boolean,
-    val lastSeenTimestampMs: Long,
+    val lastSeenTimestampMillis: Long,
     val trustMode: TrustMode,
 ) {
     override fun equals(other: Any?): Boolean = other is PeerDetail && id.contentEquals(other.id)
@@ -28,5 +29,5 @@ public data class PeerDetail(
 
     override fun toString(): String =
         "PeerDetail(fingerprint=$fingerprint, isConnected=$isConnected, " +
-            "lastSeenTimestampMs=$lastSeenTimestampMs, trustMode=$trustMode)"
+            "lastSeenTimestampMillis=$lastSeenTimestampMillis, trustMode=$trustMode)"
 }

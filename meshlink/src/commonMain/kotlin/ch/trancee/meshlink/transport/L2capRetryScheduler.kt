@@ -4,8 +4,8 @@ package ch.trancee.meshlink.transport
  * Finite state machine for L2CAP channel open retry scheduling.
  *
  * Provides up to 3 retry delays (60 s, 120 s, 300 s) for failed L2CAP open attempts. Once all
- * retries are exhausted [nextDelayMs] returns `null` and [isExhausted] becomes `true`. Call [reset]
- * to restart the sequence after a successful connection.
+ * retries are exhausted [nextDelayMillis] returns `null` and [isExhausted] becomes `true`. Call
+ * [reset] to restart the sequence after a successful connection.
  */
 internal class L2capRetryScheduler {
 
@@ -17,7 +17,7 @@ internal class L2capRetryScheduler {
      *
      * Sequence: 60_000 → 120_000 → 300_000 → null.
      */
-    fun nextDelayMs(): Long? {
+    fun nextDelayMillis(): Long? {
         if (index >= delays.size) return null
         return delays[index++]
     }
@@ -28,7 +28,7 @@ internal class L2capRetryScheduler {
     }
 
     /**
-     * `true` when all three retries have been consumed and the next call to [nextDelayMs] would
+     * `true` when all three retries have been consumed and the next call to [nextDelayMillis] would
      * return `null`.
      */
     val isExhausted: Boolean

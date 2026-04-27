@@ -80,26 +80,26 @@ class ConnectionInitiationPolicyTest {
         assertTrue(ConnectionInitiationPolicy.shouldInitiate(local, 0, remote, 0))
     }
 
-    // ── staggerDelayMs ────────────────────────────────────────────────────────
+    // ── staggerDelayMillis ────────────────────────────────────────────────────────
 
     @Test
     fun staggerDelayDeterministicForSameInputs() {
         val kh1 = keyHash(0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C)
         val kh2 = keyHash(0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x00, 0x11, 0x22, 0x33, 0x44, 0x55)
-        val delay1 = ConnectionInitiationPolicy.staggerDelayMs(kh1, kh2)
-        val delay2 = ConnectionInitiationPolicy.staggerDelayMs(kh1, kh2)
+        val delay1 = ConnectionInitiationPolicy.staggerDelayMillis(kh1, kh2)
+        val delay2 = ConnectionInitiationPolicy.staggerDelayMillis(kh1, kh2)
         assertEquals(delay1, delay2)
         assertTrue(delay1 in 0L until 2_000L)
     }
 
     @Test
     fun staggerDelaySymmetricXorCommutativity() {
-        // XOR is commutative so staggerDelayMs(A, B) == staggerDelayMs(B, A)
+        // XOR is commutative so staggerDelayMillis(A, B) == staggerDelayMillis(B, A)
         val kh1 = keyHash(0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C)
         val kh2 = keyHash(0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x00, 0x11, 0x22, 0x33, 0x44, 0x55)
         assertEquals(
-            ConnectionInitiationPolicy.staggerDelayMs(kh1, kh2),
-            ConnectionInitiationPolicy.staggerDelayMs(kh2, kh1),
+            ConnectionInitiationPolicy.staggerDelayMillis(kh1, kh2),
+            ConnectionInitiationPolicy.staggerDelayMillis(kh2, kh1),
         )
     }
 
@@ -133,33 +133,33 @@ class ConnectionInitiationPolicyTest {
         }
     }
 
-    // ── staggerDelayMs validation ─────────────────────────────────────────────
+    // ── staggerDelayMillis validation ─────────────────────────────────────────────
 
     @Test
     fun staggerDelayLocalKeyHashTooShortThrows() {
         assertFailsWith<IllegalArgumentException> {
-            ConnectionInitiationPolicy.staggerDelayMs(ByteArray(11), ByteArray(12))
+            ConnectionInitiationPolicy.staggerDelayMillis(ByteArray(11), ByteArray(12))
         }
     }
 
     @Test
     fun staggerDelayLocalKeyHashTooLongThrows() {
         assertFailsWith<IllegalArgumentException> {
-            ConnectionInitiationPolicy.staggerDelayMs(ByteArray(13), ByteArray(12))
+            ConnectionInitiationPolicy.staggerDelayMillis(ByteArray(13), ByteArray(12))
         }
     }
 
     @Test
     fun staggerDelayRemoteKeyHashTooShortThrows() {
         assertFailsWith<IllegalArgumentException> {
-            ConnectionInitiationPolicy.staggerDelayMs(ByteArray(12), ByteArray(11))
+            ConnectionInitiationPolicy.staggerDelayMillis(ByteArray(12), ByteArray(11))
         }
     }
 
     @Test
     fun staggerDelayRemoteKeyHashTooLongThrows() {
         assertFailsWith<IllegalArgumentException> {
-            ConnectionInitiationPolicy.staggerDelayMs(ByteArray(12), ByteArray(13))
+            ConnectionInitiationPolicy.staggerDelayMillis(ByteArray(12), ByteArray(13))
         }
     }
 }

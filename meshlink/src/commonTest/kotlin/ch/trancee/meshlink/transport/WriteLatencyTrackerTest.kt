@@ -13,9 +13,9 @@ class WriteLatencyTrackerTest {
         var time = 0L
         val tracker =
             WriteLatencyTracker(
-                windowMs = 5_000L,
+                windowMillis = 5_000L,
                 threshold = 5,
-                latencyThresholdMs = 200L,
+                latencyThresholdMillis = 200L,
                 clock = { time },
             )
         for (t in 1..4) {
@@ -29,9 +29,9 @@ class WriteLatencyTrackerTest {
         var time = 0L
         val tracker =
             WriteLatencyTracker(
-                windowMs = 5_000L,
+                windowMillis = 5_000L,
                 threshold = 5,
-                latencyThresholdMs = 200L,
+                latencyThresholdMillis = 200L,
                 clock = { time },
             )
         for (t in 1..4) {
@@ -49,9 +49,9 @@ class WriteLatencyTrackerTest {
         var time = 0L
         val tracker =
             WriteLatencyTracker(
-                windowMs = 1_000L,
+                windowMillis = 1_000L,
                 threshold = 3,
-                latencyThresholdMs = 200L,
+                latencyThresholdMillis = 200L,
                 clock = { time },
             )
         time = 0L
@@ -72,9 +72,9 @@ class WriteLatencyTrackerTest {
         var time = 0L
         val tracker =
             WriteLatencyTracker(
-                windowMs = 5_000L,
+                windowMillis = 5_000L,
                 threshold = 3,
-                latencyThresholdMs = 200L,
+                latencyThresholdMillis = 200L,
                 clock = { time },
             )
         time = 0L
@@ -93,9 +93,9 @@ class WriteLatencyTrackerTest {
         var time = 0L
         val tracker =
             WriteLatencyTracker(
-                windowMs = 5_000L,
+                windowMillis = 5_000L,
                 threshold = 2,
-                latencyThresholdMs = 200L,
+                latencyThresholdMillis = 200L,
                 clock = { time },
             )
         time = 0L
@@ -115,12 +115,12 @@ class WriteLatencyTrackerTest {
         var time = 0L
         val tracker =
             WriteLatencyTracker(
-                windowMs = 5_000L,
+                windowMillis = 5_000L,
                 threshold = 1,
-                latencyThresholdMs = 200L,
+                latencyThresholdMillis = 200L,
                 clock = { time },
             )
-        // durationMs = 200 is NOT strictly > 200 → not counted → false
+        // durationMillis = 200 is NOT strictly > 200 → not counted → false
         assertFalse(tracker.recordWrite(200L))
     }
 
@@ -129,9 +129,9 @@ class WriteLatencyTrackerTest {
         var time = 0L
         val tracker =
             WriteLatencyTracker(
-                windowMs = 5_000L,
+                windowMillis = 5_000L,
                 threshold = 1,
-                latencyThresholdMs = 200L,
+                latencyThresholdMillis = 200L,
                 clock = { time },
             )
         assertFalse(tracker.recordWrite(100L))
@@ -142,12 +142,12 @@ class WriteLatencyTrackerTest {
         var time = 0L
         val tracker =
             WriteLatencyTracker(
-                windowMs = 5_000L,
+                windowMillis = 5_000L,
                 threshold = 1,
-                latencyThresholdMs = 200L,
+                latencyThresholdMillis = 200L,
                 clock = { time },
             )
-        // durationMs = 201 > 200 → counted; threshold=1 → true
+        // durationMillis = 201 > 200 → counted; threshold=1 → true
         assertTrue(tracker.recordWrite(201L))
     }
 }

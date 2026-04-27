@@ -20,8 +20,8 @@ class MeshLinkStateTest {
 
     private val diagnostics = mutableListOf<DiagnosticEvent>()
 
-    private fun fsm(nowMs: () -> Long = { 0L }): MeshLinkStateMachine =
-        MeshLinkStateMachine(nowMs = nowMs, onDiagnostic = { diagnostics += it })
+    private fun fsm(nowMillis: () -> Long = { 0L }): MeshLinkStateMachine =
+        MeshLinkStateMachine(nowMillis = nowMillis, onDiagnostic = { diagnostics += it })
 
     /** Convenience: apply a sequence of events and assert each is a Success. */
     private fun MeshLinkStateMachine.applyAll(vararg events: LifecycleEvent) {
@@ -132,7 +132,7 @@ class MeshLinkStateTest {
     @Test
     fun `oscillation bound - 3 failures within 60s transitions to TERMINAL`() {
         var fakeTime = 0L
-        val machine = fsm(nowMs = { fakeTime })
+        val machine = fsm(nowMillis = { fakeTime })
         machine.applyAll(LifecycleEvent.StartSuccess, LifecycleEvent.TransientFailure)
 
         // First failure: stays RECOVERABLE
@@ -168,7 +168,7 @@ class MeshLinkStateTest {
     @Test
     fun `RECOVERABLE - second startFailure is still Success`() {
         var fakeTime = 0L
-        val machine = fsm(nowMs = { fakeTime })
+        val machine = fsm(nowMillis = { fakeTime })
         machine.applyAll(LifecycleEvent.StartSuccess, LifecycleEvent.TransientFailure)
         machine.transition(LifecycleEvent.StartFailure) // 1st
 
@@ -183,7 +183,7 @@ class MeshLinkStateTest {
     @Test
     fun `oscillation window - failures older than 60s are pruned and not counted`() {
         var fakeTime = 0L
-        val machine = fsm(nowMs = { fakeTime })
+        val machine = fsm(nowMillis = { fakeTime })
         machine.applyAll(LifecycleEvent.StartSuccess, LifecycleEvent.TransientFailure)
 
         // Two failures at t=0 and t=30s
@@ -206,7 +206,7 @@ class MeshLinkStateTest {
     @Test
     fun `StartSuccess from RECOVERABLE clears failure history`() {
         var fakeTime = 0L
-        val machine = fsm(nowMs = { fakeTime })
+        val machine = fsm(nowMillis = { fakeTime })
         machine.applyAll(LifecycleEvent.StartSuccess, LifecycleEvent.TransientFailure)
 
         // 2 failures → then success clears history
@@ -236,7 +236,7 @@ class MeshLinkStateTest {
     @Test
     fun `Stop from RECOVERABLE clears failure history`() {
         var fakeTime = 0L
-        val machine = fsm(nowMs = { fakeTime })
+        val machine = fsm(nowMillis = { fakeTime })
         machine.applyAll(LifecycleEvent.StartSuccess, LifecycleEvent.TransientFailure)
         machine.transition(LifecycleEvent.StartFailure) // 1st failure
         machine.transition(LifecycleEvent.Stop) // stop clears history, STOPPED
@@ -630,13 +630,13 @@ class MeshLinkStateTest {
     fun `RoutingSnapshot - construction and copy`() {
         val snap =
             RoutingSnapshot(
-                capturedAtMs = 9000L,
+                capturedAtMillis = 9000L,
                 routes = listOf(RoutingEntry(byteArrayOf(1), byteArrayOf(2), 3, 0, 100L)),
             )
-        assertEquals(9000L, snap.capturedAtMs)
+        assertEquals(9000L, snap.capturedAtMillis)
         assertEquals(1, snap.routes.size)
-        val copy = snap.copy(capturedAtMs = 10_000L)
-        assertEquals(10_000L, copy.capturedAtMs)
+        val copy = snap.copy(capturedAtMillis = 10_000L)
+        assertEquals(10_000L, copy.capturedAtMillis)
     }
 
     @Test
@@ -708,7 +708,7 @@ class MeshLinkStateTest {
         assertEquals(3, snap.connectedPeers)
         assertEquals(12, snap.routingTableSize)
         assertEquals(65536L, snap.bufferUsageBytes)
-        assertEquals(9000L, snap.capturedAtMs)
+        assertEquals(9000L, snap.capturedAtMillis)
         // New fields have defaults — existing positional constructor still compiles.
         assertEquals(0, snap.reachablePeers)
         assertEquals(0, snap.bufferUtilizationPercent)
@@ -805,7 +805,7 @@ class MeshLinkStateTest {
     fun `pruneOldFailures is a no-op when timestamps list is empty`() {
         // Transition to RECOVERABLE and immediately call StartFailure → prune on empty list
         var fakeTime = 100_000L // start at 100s
-        val machine = fsm(nowMs = { fakeTime })
+        val machine = fsm(nowMillis = { fakeTime })
         machine.applyAll(LifecycleEvent.StartSuccess, LifecycleEvent.TransientFailure)
 
         // First failure: failedStartTimestamps is empty before prune (no-op)

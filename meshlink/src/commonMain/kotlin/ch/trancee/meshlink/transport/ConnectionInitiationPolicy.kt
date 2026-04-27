@@ -59,7 +59,7 @@ internal object ConnectionInitiationPolicy {
      * @param remoteKeyHash 12-byte key-hash for the remote peer.
      * @throws IllegalArgumentException if either keyHash is not exactly 12 bytes.
      */
-    fun staggerDelayMs(localKeyHash: ByteArray, remoteKeyHash: ByteArray): Long {
+    fun staggerDelayMillis(localKeyHash: ByteArray, remoteKeyHash: ByteArray): Long {
         if (localKeyHash.size != 12)
             throw IllegalArgumentException(
                 "localKeyHash must be 12 bytes, got ${localKeyHash.size}"

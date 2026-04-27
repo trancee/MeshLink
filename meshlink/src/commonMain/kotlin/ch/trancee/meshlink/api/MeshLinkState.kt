@@ -98,12 +98,12 @@ internal sealed class TransitionResult {
  * [MeshLinkState.RECOVERABLE] within [OSCILLATION_WINDOW_MS] milliseconds automatically transitions
  * the state to [MeshLinkState.TERMINAL].
  *
- * @param nowMs Returns current elapsed time in milliseconds (monotonic). Injected for deterministic
- *   testing.
+ * @param nowMillis Returns current elapsed time in milliseconds (monotonic). Injected for
+ *   deterministic testing.
  * @param onDiagnostic Invoked with a [DiagnosticEvent] when an invalid transition is attempted.
  */
 internal class MeshLinkStateMachine(
-    private val nowMs: () -> Long = DEFAULT_CLOCK,
+    private val nowMillis: () -> Long = DEFAULT_CLOCK,
     private val onDiagnostic: (DiagnosticEvent) -> Unit = {},
 ) {
     private val _state: MutableStateFlow<MeshLinkState> =
@@ -113,7 +113,7 @@ internal class MeshLinkStateMachine(
     val state: StateFlow<MeshLinkState> = _state.asStateFlow()
 
     /**
-     * Timestamps (from [nowMs]) of failed [LifecycleEvent.StartFailure] calls while in
+     * Timestamps (from [nowMillis]) of failed [LifecycleEvent.StartFailure] calls while in
      * [MeshLinkState.RECOVERABLE], used to evaluate the oscillation bound.
      */
     private val failedStartTimestamps: ArrayDeque<Long> = ArrayDeque()
@@ -175,7 +175,7 @@ internal class MeshLinkStateMachine(
             }
             MeshLinkState.RECOVERABLE -> {
                 pruneOldFailures()
-                failedStartTimestamps.addLast(nowMs())
+                failedStartTimestamps.addLast(nowMillis())
                 if (failedStartTimestamps.size >= OSCILLATION_MAX_FAILURES) {
                     failedStartTimestamps.clear()
                     _state.value = MeshLinkState.TERMINAL
@@ -231,8 +231,8 @@ internal class MeshLinkStateMachine(
             DiagnosticEvent(
                 code = DiagnosticCode.INVALID_STATE_TRANSITION,
                 severity = DiagnosticCode.INVALID_STATE_TRANSITION.severity,
-                monotonicMillis = nowMs(),
-                wallClockMillis = nowMs(),
+                monotonicMillis = nowMillis(),
+                wallClockMillis = nowMillis(),
                 droppedCount = 0,
                 payload = DiagnosticPayload.InvalidStateTransition(from.name, event.displayName),
             )
@@ -245,7 +245,7 @@ internal class MeshLinkStateMachine(
      * Called before recording a new failure in [onStartFailure].
      */
     private fun pruneOldFailures() {
-        val cutoff = nowMs() - OSCILLATION_WINDOW_MS
+        val cutoff = nowMillis() - OSCILLATION_WINDOW_MS
         while (failedStartTimestamps.isNotEmpty() && failedStartTimestamps.first() < cutoff) {
             failedStartTimestamps.removeFirst()
         }

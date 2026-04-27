@@ -100,7 +100,7 @@ private fun DiagnosticPayload.redacted(fn: (PeerIdHex) -> PeerIdHex): Diagnostic
         is DiagnosticPayload.RotationFailed -> this
         is DiagnosticPayload.ReplayRejected -> DiagnosticPayload.ReplayRejected(fn(peerId))
         is DiagnosticPayload.RateLimitHit ->
-            DiagnosticPayload.RateLimitHit(fn(peerId), limit, windowMs)
+            DiagnosticPayload.RateLimitHit(fn(peerId), limit, windowMillis)
         is DiagnosticPayload.BufferPressure -> this
         is DiagnosticPayload.MemoryPressure -> this
         is DiagnosticPayload.NexthopUnreliable ->

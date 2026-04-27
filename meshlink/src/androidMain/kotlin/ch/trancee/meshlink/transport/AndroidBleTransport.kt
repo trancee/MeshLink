@@ -684,7 +684,7 @@ internal class AndroidBleTransport(
                 )
         ) {
             val stagger =
-                ConnectionInitiationPolicy.staggerDelayMs(identity.keyHash, payload.keyHash)
+                ConnectionInitiationPolicy.staggerDelayMillis(identity.keyHash, payload.keyHash)
             val psm = payload.l2capPsm.toInt()
             val device = result.device
             val job = scope.launch {
@@ -886,9 +886,9 @@ internal class AndroidBleTransport(
     }
 
     private fun scheduleL2capRetry(device: BluetoothDevice, psm: Int, keyHashHex: String) {
-        val delayMs = L2capRetryScheduler().nextDelayMs() ?: return
+        val delayMillis = L2capRetryScheduler().nextDelayMillis() ?: return
         scope.launch {
-            delay(delayMs)
+            delay(delayMillis)
             if (isRunning.get() && !l2capConnections.containsKey(keyHashHex))
                 initiateL2cap(device, psm, keyHashHex)
         }
