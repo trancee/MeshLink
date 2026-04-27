@@ -88,7 +88,7 @@ ls meshlink/build/XCFrameworks/release/MeshLink.xcframework/
 ### 3b — Build the iOS sample app in Xcode
 
 ```bash
-open meshlink-sample/MeshLinkSample/MeshLinkSample.xcodeproj
+open meshlink-sample/iosApp/MeshLinkSample.xcodeproj
 ```
 
 In Xcode:
@@ -158,7 +158,7 @@ adb -s <device-serial> install -r \
 **iOS:**
 
 ```bash
-open meshlink-sample/MeshLinkSample/MeshLinkSample.xcodeproj
+open meshlink-sample/iosApp/MeshLinkSample.xcodeproj
 # Select the physical iOS device → Product → Run (⌘R)
 ```
 

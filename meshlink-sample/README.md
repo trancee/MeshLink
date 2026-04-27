@@ -1,7 +1,7 @@
 # meshlink-sample
 
 Two-device integration harness for MeshLink S04 hardware verification.
-Targets Android (`:meshlink-sample` module) and iOS (`MeshLinkSample/`).
+Targets Android (`:meshlink-sample` module) and iOS (`iosApp/`).
 
 ---
 
@@ -58,7 +58,7 @@ For a debug build (larger binary, assertions enabled):
 ### Step 2 — Open the Xcode project
 
 ```bash
-open meshlink-sample/MeshLinkSample/MeshLinkSample.xcodeproj
+open meshlink-sample/iosApp/MeshLinkSample.xcodeproj
 ```
 
 > **Note:** `MeshLinkSample.xcodeproj` is a minimal hand-authored project file sufficient for building and
@@ -76,7 +76,7 @@ open meshlink-sample/MeshLinkSample/MeshLinkSample.xcodeproj
 ### Step 4 — Configure signing
 
 Set your Team in **Signing & Capabilities** or add `DEVELOPMENT_TEAM = <team-id>` to
-`MeshLinkSample/MeshLinkSample.xcodeproj/project.pbxproj`.
+`iosApp/MeshLinkSample.xcodeproj/project.pbxproj`.
 
 ### Step 5 — Run on device
 
@@ -133,7 +133,7 @@ meshlink-sample/
 │   └── kotlin/ch/trancee/meshlink/sample/
 │       ├── SampleMeshService.kt      # extends MeshLinkService
 │       └── MainActivity.kt           # Start/Stop + event log
-└── MeshLinkSample/
+└── iosApp/
     └── MeshLinkSample/
         ├── SampleApp.swift           # @main SwiftUI entry
         ├── MeshEngineBridge.swift    # ObservableObject wrapping MeshNode
