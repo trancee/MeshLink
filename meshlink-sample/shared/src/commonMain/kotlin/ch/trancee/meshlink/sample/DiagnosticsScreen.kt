@@ -169,7 +169,8 @@ private fun HealthCard(snapshot: MeshHealthSnapshot?, modifier: Modifier = Modif
                 HealthRow("Routing table size", "${snapshot.routingTableSize}")
                 HealthRow("Buffer usage", "${snapshot.bufferUsageBytes} B (${snapshot.bufferUtilizationPercent}%)")
                 HealthRow("Power mode", snapshot.powerMode.name)
-                HealthRow("Avg route cost", "%.2f".format(snapshot.avgRouteCost))
+                val costStr = ((snapshot.avgRouteCost * 100).toLong() / 100.0).toString()
+                HealthRow("Avg route cost", costStr)
             }
         }
     }

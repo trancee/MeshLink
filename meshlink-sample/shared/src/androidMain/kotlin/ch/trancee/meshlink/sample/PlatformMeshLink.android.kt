@@ -7,15 +7,15 @@ import ch.trancee.meshlink.api.MeshLinkConfig
 import ch.trancee.meshlink.api.createAndroid
 
 /**
- * Android application context injected by [MainActivity.onCreate] before [App] is first
- * composed. Using [applicationContext] ensures this reference outlives the Activity without
- * leaking a windowed context.
+ * Android application context injected by the host Activity's `onCreate` before [App] is first
+ * composed. Using [android.app.Application.getApplicationContext] ensures this reference outlives
+ * the Activity without leaking a windowed context.
  *
- * `lateinit` is intentional: it is always set in [MainActivity.onCreate] before
+ * `lateinit` is intentional: it is always set in the host Activity's `onCreate` before
  * [createPlatformMeshLink] is invoked (which happens inside a Compose `remember` block
  * triggered by `setContent { App() }`).
  */
-internal lateinit var appContext: Context
+lateinit var appContext: Context
 
 /**
  * Android actual for [createPlatformMeshLink]: creates a [MeshLink] backed by

@@ -21,3 +21,5 @@ rootProject.name = "MeshLink"
 include(":meshlink")
 include(":meshlink-testing")
 include(":meshlink-sample")
+include(":meshlink-sample:shared")
+include(":meshlink-sample:androidApp")

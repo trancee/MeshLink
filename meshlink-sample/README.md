@@ -1,7 +1,7 @@
 # meshlink-sample
 
 Two-device integration harness for MeshLink S04 hardware verification.
-Targets Android (`:meshlink-sample` module) and iOS (`iosApp/`).
+Targets Android (`:meshlink-sample:androidApp`) and iOS (`iosApp/`).
 
 ---
 
@@ -15,8 +15,8 @@ Targets Android (`:meshlink-sample` module) and iOS (`iosApp/`).
 ### Build & install
 ```bash
 # From repository root
-./gradlew :meshlink-sample:assembleDebug
-adb install -r meshlink-sample/build/outputs/apk/debug/meshlink-sample-debug.apk
+./gradlew :meshlink-sample:androidApp:assembleDebug
+adb install -r meshlink-sample/androidApp/build/outputs/apk/debug/androidApp-debug.apk
 ```
 
 ### Runtime log filter
@@ -25,8 +25,7 @@ adb logcat -s MeshLink:D
 ```
 
 ### GATT-only mode (force GATT, disable L2CAP)
-Add `-DFORCE_GATT=true` to the Gradle command, or edit `BuildConfig.FORCE_GATT` in
-`meshlink-sample/build.gradle.kts` and rebuild.
+Add `-PFORCE_GATT=true` to the Gradle command and rebuild.
 
 ---
 
@@ -116,7 +115,7 @@ Total Noise XX handshake time should be **≤ 28 s** from scan to first ACK.
 
 ### Quick reference: GATT fallback path
 
-1. On the Android device, set `FORCE_GATT=true` in `BuildConfig` and reinstall.
+1. On the Android device, set `FORCE_GATT=true` via `-PFORCE_GATT=true` and reinstall.
 2. Repeat the L2CAP test above — the log should show `GATT` connection path instead of `L2CAP`.
 3. Delivery ACK must still be observed on both ends.
 
@@ -126,19 +125,24 @@ Total Noise XX handshake time should be **≤ 28 s** from scan to first ACK.
 
 ```
 meshlink-sample/
-├── build.gradle.kts                  # Android app module (com.android.application)
-├── proguard-rules.pro
-├── src/main/
-│   ├── AndroidManifest.xml
-│   └── kotlin/ch/trancee/meshlink/sample/
-│       ├── SampleMeshService.kt      # extends MeshLinkService
-│       └── MainActivity.kt           # Start/Stop + event log
+├── build.gradle.kts                  # Container project (no build logic)
+├── shared/
+│   ├── build.gradle.kts              # KMP module (commonMain + iosMain + androidMain)
+│   └── src/
+│       ├── commonMain/               # Compose Multiplatform UI (App, screens, MeshController)
+│       ├── androidMain/              # PlatformMeshLink.android.kt (expect/actual)
+│       └── iosMain/                  # PlatformMeshLink.ios.kt + MainViewController.kt
+├── androidApp/
+│   ├── build.gradle.kts              # Pure Android app (com.android.application)
+│   └── src/main/
+│       ├── AndroidManifest.xml
+│       └── kotlin/.../MainActivity.kt
 └── iosApp/
     └── MeshLinkSample/
         ├── SampleApp.swift           # @main SwiftUI entry
-        ├── MeshEngineBridge.swift    # ObservableObject wrapping MeshNode
-        ├── ContentView.swift         # Start/Stop buttons + scrolling log
-        └── Info.plist                # BLE usage + background modes
+        ├── MeshEngineBridge.swift     # ObservableObject wrapping MeshLink.createIos()
+        ├── ContentView.swift          # Start/Stop buttons + scrolling log
+        └── Info.plist                 # BLE usage + background modes
 ```
 
 The shared Kotlin library lives in the `:meshlink` module at the repository root.
