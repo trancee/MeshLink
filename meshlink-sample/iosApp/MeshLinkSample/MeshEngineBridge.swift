@@ -23,21 +23,21 @@ final class MeshEngineBridge: ObservableObject {
 
     /// Public MeshLink API created via the iOS factory extension.
     ///
-    /// `appId` in the config must match the Android `BleTransportConfig.appId` in
-    /// `SampleMeshService.kt` so both sides recognise each other's BLE advertisements.
-    /// The `restorationIdentifier` must match the app's bundle ID for proper CoreBluetooth
-    /// state restoration.
-    private let mesh: MeshLink = MeshLink.companion.createIos(
-        config: MeshLinkConfig(
-            transport: TransportConfig(appId: "ch.trancee.meshlink.sample"),
-            messaging: MessagingConfig(),
-            routing: RoutingConfig(),
-            power: PowerConfig(),
-            security: SecurityConfig(),
-            diagnostics: DiagnosticsConfig()
-        ),
-        restorationIdentifier: "ch.trancee.meshlink.sample"
-    )
+    /// Uses the `meshLinkConfig` DSL builder which avoids the module/class name
+    /// collision (`MeshLink` module vs `MeshLink` class) and provides defaults
+    /// for all config sub-objects.
+    ///
+    /// `appId` must match the Android `BleTransportConfig.appId` in
+    /// `SampleMeshService.kt` so both sides recognise each other's BLE
+    /// advertisements.  The `restorationIdentifier` must match the app's bundle
+    /// ID for proper CoreBluetooth state restoration.
+    private let mesh: MeshLinkApi = {
+        let config = meshLinkConfig(appId: "ch.trancee.meshlink.sample") { _ in }
+        return MeshLink_.companion.createIos(
+            config: config,
+            restorationIdentifier: "ch.trancee.meshlink.sample"
+        )
+    }()
 
     private var flowTasks: [Task<Void, Never>] = []
 
@@ -67,7 +67,7 @@ final class MeshEngineBridge: ObservableObject {
 
         Task {
             do {
-                try await mesh.stop(timeout: KotlinDuration.companion.ZERO)
+                try await mesh.stop(timeout: 0)
             } catch {
                 self.log("⚠️ stop() threw: \(error)")
             }
@@ -80,7 +80,7 @@ final class MeshEngineBridge: ObservableObject {
     /// Sends a 512-byte test payload to `recipient` (12-byte key hash).
     func sendTestPayload(to recipient: KotlinByteArray) {
         let payload = KotlinByteArray(size: 512)
-        for i in 0..<512 { payload.set(index: i, value: Int8(bitPattern: UInt8(i & 0xFF))) }
+        for i in 0..<512 { payload.set(index: Int32(i), value: Int8(bitPattern: UInt8(i & 0xFF))) }
 
         Task {
             do {
@@ -102,17 +102,15 @@ final class MeshEngineBridge: ObservableObject {
         // Peer events
         let peerTask = Task {
             for await event in mesh.peers {
-                switch event {
-                case let found as PeerEventFound:
+                switch onEnum(of: event) {
+                case .found(let found):
                     let hex = found.id.hexString
                     self.log("🔵 Peer found: \(hex.prefix(8))…")
                     // Auto-send 512-byte test payload on first peer connection.
                     self.sendTestPayload(to: found.id)
-                case let lost as PeerEventLost:
+                case .lost(let lost):
                     let hex = lost.id.hexString
                     self.log("🔴 Peer lost: \(hex.prefix(8))…")
-                default:
-                    self.log("📡 PeerEvent: \(event)")
                 }
             }
         }

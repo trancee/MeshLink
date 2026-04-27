@@ -19,7 +19,7 @@
 		B3000101 /* MeshEngineBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeshEngineBridge.swift; sourceTree = "<group>"; };
 		B3000102 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		B3000103 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		B3000110 /* MeshLink.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = MeshLink.xcframework; path = "../../../meshlink/build/XCFrameworks/release/MeshLink.xcframework"; sourceTree = "<group>"; };
+		B3000110 /* MeshLink.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = MeshLink.xcframework; path = "../../meshlink/build/XCFrameworks/release/MeshLink.xcframework"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */

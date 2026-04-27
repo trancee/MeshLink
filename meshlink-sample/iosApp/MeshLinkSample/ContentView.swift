@@ -23,6 +23,7 @@ struct ContentView: View {
 
     // ── Control bar ────────────────────────────────────────────────────────────
 
+    @ViewBuilder
     private var controlBar: some View {
         HStack(spacing: 16) {
             Button(action: { bridge.startEngine() }) {
