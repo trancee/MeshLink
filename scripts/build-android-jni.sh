@@ -46,25 +46,35 @@ if [[ -z "${NDK:-}" || ! -d "${NDK}" ]]; then
 fi
 echo "NDK: ${NDK}"
 
-HOST_TAG="linux-x86_64"
+HOST_TAG="$(uname -s | tr '[:upper:]' '[:lower:]')-x86_64"
 TOOLCHAIN="${NDK}/toolchains/llvm/prebuilt/${HOST_TAG}"
 if [[ ! -d "${TOOLCHAIN}" ]]; then
-    # Fallback for Windows host (unlikely in CI)
-    HOST_TAG="windows-x86_64"
+    # Apple Silicon NDK still ships as darwin-x86_64 (Rosetta-compatible).
+    # Fall back to scanning the prebuilt directory for whatever host tag exists.
+    HOST_TAG="$(ls "${NDK}/toolchains/llvm/prebuilt/" 2>/dev/null | head -1)"
     TOOLCHAIN="${NDK}/toolchains/llvm/prebuilt/${HOST_TAG}"
+fi
+if [[ ! -d "${TOOLCHAIN}" ]]; then
+    echo "ERROR: NDK toolchain not found in ${NDK}/toolchains/llvm/prebuilt/" >&2
+    exit 1
 fi
 echo "Toolchain: ${TOOLCHAIN}"
 
 # ── Build per ABI ────────────────────────────────────────────────────────────
-declare -A ABI_TRIPLE=(
-    ["arm64-v8a"]="aarch64-linux-android${API_LEVEL}"
-    ["armeabi-v7a"]="armv7a-linux-androideabi${API_LEVEL}"
-    ["x86_64"]="x86_64-linux-android${API_LEVEL}"
-)
+# Maps ABI to NDK target triple. Written as a function instead of declare -A
+# because macOS ships bash 3.2 which lacks associative array support.
+triple_for_abi() {
+    case "$1" in
+        arm64-v8a)   echo "aarch64-linux-android${API_LEVEL}" ;;
+        armeabi-v7a) echo "armv7a-linux-androideabi${API_LEVEL}" ;;
+        x86_64)      echo "x86_64-linux-android${API_LEVEL}" ;;
+        *) echo "UNKNOWN" ;;
+    esac
+}
 
 SUCCESS=true
 for ABI in "arm64-v8a" "armeabi-v7a" "x86_64"; do
-    TRIPLE="${ABI_TRIPLE[$ABI]}"
+    TRIPLE="$(triple_for_abi "${ABI}")"
     CC="${TOOLCHAIN}/bin/${TRIPLE}-clang"
 
     if [[ ! -x "${CC}" ]]; then
