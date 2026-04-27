@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # scripts/build-ios-libsodium.sh
-# Build libsodium 1.0.22 static libraries for iOS device and simulator targets.
+# Build libsodium 1.0.22 static library for iOS arm64 device.
+#
+# Compiles with LTO bitcode and per-function sections so the Kotlin/Native
+# linker can eliminate unused libsodium code when building the framework.
 #
 # Requires:
 #   - macOS with Xcode command-line tools (xcrun, clang)
@@ -27,6 +30,8 @@ INTEROP_DIR="${PROJECT_ROOT}/meshlink/src/iosMain/interop"
 BUILD_DIR="$(mktemp -d)"
 trap 'rm -rf "${BUILD_DIR}"' EXIT
 
+NPROC="$(sysctl -n hw.logicalcpu 2>/dev/null || echo 4)"
+
 # ── Download libsodium source ────────────────────────────────────────────────
 echo "Downloading libsodium ${LIBSODIUM_VERSION}..."
 TARBALL="${BUILD_DIR}/libsodium.tar.gz"
@@ -34,53 +39,79 @@ curl -fsSL "${LIBSODIUM_URL}" -o "${TARBALL}"
 (cd "${BUILD_DIR}" && tar -xzf libsodium.tar.gz)
 SRC_DIR="${BUILD_DIR}/libsodium-${LIBSODIUM_VERSION}"
 
-# ── Build helper ─────────────────────────────────────────────────────────────
-build_for_target() {
-    local TARGET_NAME="$1"  # ios (arm64 device)
-    local SDK="$2"          # iphoneos or iphonesimulator
-    local TARGET_TRIPLE="$3" # e.g. arm64-apple-ios14.0 or arm64-apple-ios14.0-simulator
+# ── Build ────────────────────────────────────────────────────────────────────
+echo ""
+echo "Building ios (arm64 device, sdk=iphoneos)..."
 
-    echo ""
-    echo "Building ${TARGET_NAME} (sdk=${SDK}, target=${TARGET_TRIPLE})..."
+BUILD_SUBDIR="${BUILD_DIR}/build-ios"
+mkdir -p "${BUILD_SUBDIR}"
 
-    local BUILD_SUBDIR="${BUILD_DIR}/build-${TARGET_NAME}"
-    mkdir -p "${BUILD_SUBDIR}"
+OUT_DIR="${INTEROP_DIR}/lib/ios"
+mkdir -p "${OUT_DIR}"
 
-    local OUT_DIR="${INTEROP_DIR}/lib/${TARGET_NAME}"
-    mkdir -p "${OUT_DIR}"
+SYSROOT="$(xcrun --sdk iphoneos --show-sdk-path)"
+CC="$(xcrun --sdk iphoneos --find clang)"
+AR="$(xcrun --sdk iphoneos --find ar)"
+RANLIB="$(xcrun --sdk iphoneos --find ranlib)"
+TARGET_TRIPLE="arm64-apple-ios${IOS_MIN_VERSION}"
 
-    local SYSROOT
-    SYSROOT="$(xcrun --sdk "${SDK}" --show-sdk-path)"
+# Size-optimized CFLAGS:
+#   -Os:                    optimize for size
+#   -ffunction-sections:    one section per function — enables dead-code stripping
+#   -fdata-sections:        one section per global — enables dead-data stripping
+#   -fvisibility=hidden:    hide all symbols by default (only cinterop-declared
+#                           functions are pulled in by Kotlin/Native)
+#   -march=armv8-a+crypto:  enable ARMv8 crypto intrinsics (AES, SHA, PMULL)
+#
+# Note: -flto is intentionally omitted. Kotlin/Native uses its own LLVM backend
+# and does not consume Apple clang LTO bitcode — it needs native Mach-O objects.
+CFLAGS="-arch arm64 -isysroot ${SYSROOT} -target ${TARGET_TRIPLE}"
+CFLAGS="${CFLAGS} -mios-version-min=${IOS_MIN_VERSION}"
+CFLAGS="${CFLAGS} -Os -ffunction-sections -fdata-sections -fvisibility=hidden"
+CFLAGS="${CFLAGS} -march=armv8-a+crypto"
 
-    local CC
-    CC="$(xcrun --sdk "${SDK}" --find clang)"
+(
+    cd "${BUILD_SUBDIR}"
 
-    (
-        cd "${BUILD_SUBDIR}"
-        "${SRC_DIR}/configure" \
-            --host="arm-apple-ios" \
-            --prefix="${BUILD_SUBDIR}/install" \
-            --enable-static \
-            --disable-shared \
-            CC="${CC}" \
-            CFLAGS="-arch arm64 -isysroot ${SYSROOT} -target ${TARGET_TRIPLE} -mios-version-min=${IOS_MIN_VERSION} -O2" \
-            LDFLAGS="-arch arm64 -isysroot ${SYSROOT} -target ${TARGET_TRIPLE} -mios-version-min=${IOS_MIN_VERSION}"
+    # Full build — MeshLink uses AEAD, Ed25519, X25519, SHA-256, HKDF.
+    # Unused code is eliminated when the framework is linked.
+    export LIBSODIUM_FULL_BUILD=1
 
-        make -j"$(sysctl -n hw.logicalcpu)"
-        make install
-    )
+    "${SRC_DIR}/configure" \
+        --host="arm-apple-ios" \
+        --prefix="${BUILD_SUBDIR}/install" \
+        --enable-static \
+        --disable-shared \
+        --disable-soname-versions \
+        CC="${CC}" \
+        AR="${AR}" \
+        RANLIB="${RANLIB}" \
+        CFLAGS="${CFLAGS}" \
+        LDFLAGS="-arch arm64 -isysroot ${SYSROOT} -target ${TARGET_TRIPLE} -mios-version-min=${IOS_MIN_VERSION}" \
+        > /dev/null 2>&1
 
-    cp "${BUILD_SUBDIR}/install/lib/libsodium.a" "${OUT_DIR}/libsodium.a"
-    echo "  ✓ ${TARGET_NAME} → ${OUT_DIR}/libsodium.a"
-}
+    make -j"${NPROC}" > /dev/null 2>&1
+    make install > /dev/null 2>&1
+)
 
-# ── arm64 device ─────────────────────────────────────────────────────────────
-build_for_target \
-    "ios" \
-    "iphoneos" \
-    "arm64-apple-ios${IOS_MIN_VERSION}"
+# Verify the archive is non-trivial.
+INSTALLED_LIB="${BUILD_SUBDIR}/install/lib/libsodium.a"
+LIB_SIZE="$(wc -c < "${INSTALLED_LIB}" | tr -d ' ')"
+if [[ "${LIB_SIZE}" -lt 1000 ]]; then
+    echo "  ERROR: libsodium.a is suspiciously small (${LIB_SIZE} bytes)" >&2
+    exit 1
+fi
+
+cp "${INSTALLED_LIB}" "${OUT_DIR}/libsodium.a"
+
+# Strip local symbols and debug info. Apple's ar/ranlib handles Mach-O archives natively.
+strip -S "${OUT_DIR}/libsodium.a" 2>/dev/null || true
+ranlib "${OUT_DIR}/libsodium.a" 2>/dev/null || true
+
+MEMBER_COUNT="$(ar t "${OUT_DIR}/libsodium.a" | wc -l | tr -d ' ')"
+FILE_SIZE="$(ls -lh "${OUT_DIR}/libsodium.a" | awk '{print $5}')"
+echo "  ✓ ios → ${OUT_DIR}/libsodium.a (${FILE_SIZE}, ${MEMBER_COUNT} objects)"
 
 echo ""
 echo "Build complete."
 echo "  Device: ${INTEROP_DIR}/lib/ios/libsodium.a"
-echo "(Note: to verify iOS Kotlin compilation, run on macOS: ./gradlew :meshlink:compileKotlinIosArm64)"
