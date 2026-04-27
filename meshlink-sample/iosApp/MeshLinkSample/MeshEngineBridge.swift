@@ -2,7 +2,7 @@ import Foundation
 import MeshLink          // Generated from :meshlink XCFramework
 import Combine
 
-/// Observable bridge between the Kotlin `MeshNode` facade and SwiftUI views.
+/// Observable bridge between the Kotlin `MeshLink` public API and SwiftUI views.
 ///
 /// **Lifecycle:** `start()` is called when the bridge is created; `stop()` is called when the
 /// application moves to the background or when the user explicitly presses Stop.  The engine
@@ -21,15 +21,22 @@ final class MeshEngineBridge: ObservableObject {
 
     // ── Engine ─────────────────────────────────────────────────────────────────
 
-    /// Kotlin-native facade created once per bridge instance.
+    /// Public MeshLink API created via the iOS factory extension.
     ///
-    /// `appId` must match the Android `BleTransportConfig.appId` in `SampleMeshService.kt` so
-    /// both sides recognise each other's BLE advertisements.
-    private let node = MeshNode(
-        appId: "ch.trancee.meshlink.sample",
-        restorationIdentifier: "ch.trancee.meshlink.sample.ble",
-        config: MeshEngineConfig(),
-        scope: MainScope()          // MainScope() is provided by the KMP coroutines helper
+    /// `appId` in the config must match the Android `BleTransportConfig.appId` in
+    /// `SampleMeshService.kt` so both sides recognise each other's BLE advertisements.
+    /// The `restorationIdentifier` must match the app's bundle ID for proper CoreBluetooth
+    /// state restoration.
+    private let mesh: MeshLink = MeshLink.companion.createIos(
+        config: MeshLinkConfig(
+            transport: TransportConfig(appId: "ch.trancee.meshlink.sample"),
+            messaging: MessagingConfig(),
+            routing: RoutingConfig(),
+            power: PowerConfig(),
+            security: SecurityConfig(),
+            diagnostics: DiagnosticsConfig()
+        ),
+        restorationIdentifier: "ch.trancee.meshlink.sample"
     )
 
     private var flowTasks: [Task<Void, Never>] = []
@@ -38,16 +45,16 @@ final class MeshEngineBridge: ObservableObject {
 
     func startEngine() {
         guard !isRunning else { return }
-        log("▶ Starting MeshNode…")
+        log("▶ Starting MeshLink…")
 
         // Subscribe to all three flows before starting the engine.
         subscribeFlows()
 
         Task {
             do {
-                try await node.start()
+                try await mesh.start()
                 await MainActor.run { self.isRunning = true }
-                self.log("✅ MeshNode started")
+                self.log("✅ MeshLink started")
             } catch {
                 self.log("❌ start() failed: \(error)")
             }
@@ -56,33 +63,33 @@ final class MeshEngineBridge: ObservableObject {
 
     func stopEngine() {
         guard isRunning else { return }
-        log("■ Stopping MeshNode…")
+        log("■ Stopping MeshLink…")
 
         Task {
             do {
-                try await node.stop()
+                try await mesh.stop(timeout: KotlinDuration.companion.ZERO)
             } catch {
                 self.log("⚠️ stop() threw: \(error)")
             }
             await MainActor.run { self.isRunning = false }
-            self.log("✅ MeshNode stopped")
+            self.log("✅ MeshLink stopped")
             self.cancelFlowTasks()
         }
     }
 
-    /// Sends a 512-byte test payload to `recipient` (32-byte key-hash, hex-encoded for display).
+    /// Sends a 512-byte test payload to `recipient` (12-byte key hash).
     func sendTestPayload(to recipient: KotlinByteArray) {
         let payload = KotlinByteArray(size: 512)
         for i in 0..<512 { payload.set(index: i, value: Int8(bitPattern: UInt8(i & 0xFF))) }
 
         Task {
             do {
-                let result = try await node.send(
+                try await mesh.send(
                     recipient: recipient,
                     payload: payload,
-                    priority: Priority.normal
+                    priority: MessagePriority.normal
                 )
-                self.log("📤 send → \(result)")
+                self.log("📤 send dispatched")
             } catch {
                 self.log("❌ send failed: \(error)")
             }
@@ -94,38 +101,34 @@ final class MeshEngineBridge: ObservableObject {
     private func subscribeFlows() {
         // Peer events
         let peerTask = Task {
-            for await event in node.peerEvents {
-                let msg: String
+            for await event in mesh.peers {
                 switch event {
-                case let connected as PeerEventConnected:
-                    let hex = connected.peerKeyHash.hexString
-                    self.log("🔵 Peer connected: \(hex.prefix(8))…")
+                case let found as PeerEventFound:
+                    let hex = found.id.hexString
+                    self.log("🔵 Peer found: \(hex.prefix(8))…")
                     // Auto-send 512-byte test payload on first peer connection.
-                    self.sendTestPayload(to: connected.peerKeyHash)
-                    msg = ""
-                case let disconnected as PeerEventDisconnected:
-                    let hex = disconnected.peerKeyHash.hexString
-                    self.log("🔴 Peer disconnected: \(hex.prefix(8))…")
-                    msg = ""
+                    self.sendTestPayload(to: found.id)
+                case let lost as PeerEventLost:
+                    let hex = lost.id.hexString
+                    self.log("🔴 Peer lost: \(hex.prefix(8))…")
                 default:
-                    msg = "📡 PeerEvent: \(event)"
+                    self.log("📡 PeerEvent: \(event)")
                 }
-                if !msg.isEmpty { self.log(msg) }
             }
         }
 
         // Inbound messages
         let msgTask = Task {
-            for await msg in node.messages {
-                let fromHex = msg.sender.hexString
+            for await msg in mesh.messages {
+                let fromHex = msg.senderId.hexString
                 self.log("📨 Message from \(fromHex.prefix(8))… — \(msg.payload.size) bytes")
             }
         }
 
         // Delivery confirmations
         let ackTask = Task {
-            for await ack in node.deliveryConfirmations {
-                let idHex = ack.messageId.hexString
+            for await ack in mesh.deliveryConfirmations {
+                let idHex = ack.bytes.hexString
                 self.log("✅ Delivery ACK: msgId=\(idHex.prefix(8))…")
             }
         }

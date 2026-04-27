@@ -47,7 +47,7 @@ import kotlinx.coroutines.flow.SharedFlow
  *   two-device integration test.
  * @param scope [CoroutineScope] that governs this node's lifetime. Cancel to shut down cleanly.
  */
-class MeshNode(
+internal class MeshNode(
     appId: String = "ch.trancee.meshlink",
     restorationIdentifier: String = "ch.trancee.meshlink",
     config: MeshEngineConfig = MeshEngineConfig(),

@@ -1,5 +1,5 @@
 @file:Suppress("WildcardImport", "TooManyFunctions", "LargeClass")
-@file:OptIn(ExperimentalForeignApi::class)
+@file:OptIn(ExperimentalForeignApi::class, kotlinx.coroutines.ExperimentalCoroutinesApi::class, kotlinx.coroutines.DelicateCoroutinesApi::class)
 
 package ch.trancee.meshlink.transport
 
@@ -7,6 +7,7 @@ import ch.trancee.meshlink.crypto.CryptoProvider
 import ch.trancee.meshlink.crypto.Identity
 import ch.trancee.meshlink.power.PowerTier
 import kotlin.concurrent.AtomicInt
+import kotlin.concurrent.Volatile
 import kotlinx.cinterop.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -60,12 +61,12 @@ internal class IosBleTransport(
 
     // ── CBUUID singletons ─────────────────────────────────────────────────────
 
-    private val advertisementCBUUID = CBUUID.UUIDWithString(GattConstants.ADVERTISEMENT_UUID)!!
-    private val serviceCBUUID = CBUUID.UUIDWithString(GattConstants.SERVICE_UUID)!!
-    private val controlWriteCBUUID = CBUUID.UUIDWithString(GattConstants.CONTROL_WRITE_UUID)!!
-    private val controlNotifyCBUUID = CBUUID.UUIDWithString(GattConstants.CONTROL_NOTIFY_UUID)!!
-    private val dataWriteCBUUID = CBUUID.UUIDWithString(GattConstants.DATA_WRITE_UUID)!!
-    private val dataNotifyCBUUID = CBUUID.UUIDWithString(GattConstants.DATA_NOTIFY_UUID)!!
+    private val advertisementCBUUID = CBUUID.UUIDWithString(GattConstants.ADVERTISEMENT_UUID)
+    private val serviceCBUUID = CBUUID.UUIDWithString(GattConstants.SERVICE_UUID)
+    private val controlWriteCBUUID = CBUUID.UUIDWithString(GattConstants.CONTROL_WRITE_UUID)
+    private val controlNotifyCBUUID = CBUUID.UUIDWithString(GattConstants.CONTROL_NOTIFY_UUID)
+    private val dataWriteCBUUID = CBUUID.UUIDWithString(GattConstants.DATA_WRITE_UUID)
+    private val dataNotifyCBUUID = CBUUID.UUIDWithString(GattConstants.DATA_NOTIFY_UUID)
 
     // ── BleTransport properties ───────────────────────────────────────────────
 
@@ -125,7 +126,7 @@ internal class IosBleTransport(
     private val subscribedCentralsByKeyHashHex = HashMap<String, CBCentral>()
     private val pendingL2capPsms = HashMap<String, Int>()
     private val connectionJobs = HashMap<String, Job>()
-    private val lruOrder = LinkedHashMap<String, Unit>(16, 0.75f, true)
+    private val lruOrder = LinkedHashMap<String, Unit>()
     private val localMeshHash: UShort = MeshHashFilter.computeMeshHash(config.appId)
     private val l2capProbeCache = OemL2capProbeCache()
 
@@ -269,6 +270,7 @@ internal class IosBleTransport(
             }
         }
 
+        @ObjCSignatureOverride
         override fun centralManager(
             central: CBCentralManager,
             didFailToConnectPeripheral: CBPeripheral,
@@ -284,6 +286,7 @@ internal class IosBleTransport(
             }
         }
 
+        @ObjCSignatureOverride
         override fun centralManager(
             central: CBCentralManager,
             didDisconnectPeripheral: CBPeripheral,
@@ -367,6 +370,7 @@ internal class IosBleTransport(
             scope.launch { registerInboundL2cap(didOpenL2CAPChannel) }
         }
 
+        @ObjCSignatureOverride
         override fun peripheralManager(
             peripheral: CBPeripheralManager,
             central: CBCentral,
@@ -375,6 +379,7 @@ internal class IosBleTransport(
             println("$TAG central subscribed uuid=${didSubscribeToCharacteristic.UUID}")
         }
 
+        @ObjCSignatureOverride
         override fun peripheralManager(
             peripheral: CBPeripheralManager,
             central: CBCentral,
@@ -448,7 +453,7 @@ internal class IosBleTransport(
 
         override fun peripheral(
             peripheral: CBPeripheral,
-            didDiscoverCharacteristicsFor: CBService,
+            didDiscoverCharacteristicsForService: CBService,
             error: NSError?,
         ) {
             if (error != null) {
@@ -457,7 +462,7 @@ internal class IosBleTransport(
                 return
             }
             val state = gattCentrals[keyHashHex] ?: return
-            didDiscoverCharacteristicsFor.characteristics
+            didDiscoverCharacteristicsForService.characteristics
                 ?.filterIsInstance<CBCharacteristic>()
                 ?.forEach { char ->
                     when (char.UUID) {
@@ -484,11 +489,11 @@ internal class IosBleTransport(
 
         override fun peripheral(
             peripheral: CBPeripheral,
-            didUpdateValueFor: CBCharacteristic,
+            didUpdateValueForCharacteristic: CBCharacteristic,
             error: NSError?,
         ) {
             if (error != null) return
-            val data = didUpdateValueFor.value?.toByteArray() ?: return
+            val data = didUpdateValueForCharacteristic.value?.toByteArray() ?: return
             hexToBytes(keyHashHex)?.let { peerId ->
                 scope.launch { _incomingData.emit(IncomingData(peerId, data)) }
             }
@@ -603,7 +608,7 @@ internal class IosBleTransport(
         subscribedCentralsByKeyHashHex.clear()
         pendingL2capPsms.clear()
         l2capProbeCache.clear()
-        synchronized(lruOrder) { lruOrder.clear() }
+        lruLock.withLock { lruOrder.clear() }
 
         val elapsed = (NSDate.timeIntervalSinceReferenceDate * 1_000).toLong() - t0
         if (elapsed > STOP_ALL_TIMEOUT_MS) {
@@ -780,7 +785,7 @@ internal class IosBleTransport(
         println("$TAG connecting to $keyHashHex psm=$psm")
     }
 
-    private fun initiateGattCentral(peripheral: CBPeripheral, keyHashHex: String) {
+    private suspend fun initiateGattCentral(peripheral: CBPeripheral, keyHashHex: String) {
         val state = GattCentralState(peripheral)
         gattCentrals[keyHashHex] = state
         trackLru(keyHashHex)
@@ -828,7 +833,7 @@ internal class IosBleTransport(
             while (isRunning.value != 0 && l2capConnections.containsKey(keyHashHex)) {
                 runLoop.runMode(
                     NSDefaultRunLoopMode,
-                    beforeDate = NSDate.dateWithTimeIntervalSinceNow(L2CAP_RUNLOOP_POLL_SEC)!!,
+                    beforeDate = NSDate.dateWithTimeIntervalSinceNow(L2CAP_RUNLOOP_POLL_SEC),
                 )
             }
 
@@ -992,7 +997,12 @@ internal class IosBleTransport(
         dataNotifyChar = dataNot
 
         val service = CBMutableService(type = serviceCBUUID, primary = true)
-        service.characteristics = listOf(ctrlWrite, ctrlNotify, dataWrite, dataNot)
+        // CBMutableService.characteristics is read-only in K/N (inherited from CBService).
+        // Use Key-Value Coding to invoke the Obj-C readwrite setter directly.
+        (service as NSObject).setValue(
+            listOf(ctrlWrite, ctrlNotify, dataWrite, dataNot),
+            forKey = "characteristics",
+        )
         gattService = service
         peripheralManager?.addService(service)
     }
@@ -1030,8 +1040,8 @@ internal class IosBleTransport(
             ) { _ ->
                 val state = NSProcessInfo.processInfo.thermalState
                 if (
-                    state == NSProcessInfoThermalStateSeriousThermalState ||
-                        state == NSProcessInfoThermalStateCriticalThermalState
+                    state == NSProcessInfoThermalState.NSProcessInfoThermalStateSerious ||
+                        state == NSProcessInfoThermalState.NSProcessInfoThermalStateCritical
                 ) {
                     println("$TAG thermal pressure=$state → POWER_SAVER")
                     scope.launch { powerTierFlow.value = PowerTier.POWER_SAVER }
@@ -1039,7 +1049,7 @@ internal class IosBleTransport(
             }
         memoryObserver =
             nc.addObserverForName(
-                name = UIApplicationDidReceiveMemoryWarningNotification,
+                name = "UIApplicationDidReceiveMemoryWarningNotification",
                 `object` = null,
                 queue = null,
             ) { _ ->
@@ -1058,20 +1068,24 @@ internal class IosBleTransport(
 
     // ── LRU eviction ─────────────────────────────────────────────────────────
 
-    private fun trackLru(keyHashHex: String) {
-        synchronized(lruOrder) { lruOrder[keyHashHex] = Unit }
+    private val lruLock = Mutex()
+
+    private suspend fun trackLru(keyHashHex: String) {
+        lruLock.withLock {
+            // Simulate access-order LRU: remove and re-insert moves entry to the end
+            lruOrder.remove(keyHashHex)
+            lruOrder[keyHashHex] = Unit
+        }
     }
 
-    private fun evictLruIfFull() {
-        val evict: String?
-        synchronized(lruOrder) {
-            evict =
-                if (
-                    l2capConnections.size + gattCentrals.size >= config.maxConnections &&
-                        lruOrder.isNotEmpty()
-                )
-                    lruOrder.keys.first().also { lruOrder.remove(it) }
-                else null
+    private suspend fun evictLruIfFull() {
+        val evict: String? = lruLock.withLock {
+            if (
+                l2capConnections.size + gattCentrals.size >= config.maxConnections &&
+                    lruOrder.isNotEmpty()
+            )
+                lruOrder.keys.first().also { lruOrder.remove(it) }
+            else null
         }
         evict?.let { hex ->
             println("$TAG LRU eviction: $hex")
@@ -1117,14 +1131,14 @@ internal class IosBleTransport(
     }
 
     private fun ByteArray.toNSData(): NSData {
-        if (isEmpty()) return NSData.data()!!
-        return usePinned { pinned -> NSData.dataWithBytes(pinned.addressOf(0), size.toULong())!! }
+        if (isEmpty()) return NSData.data()
+        return usePinned { pinned -> NSData.dataWithBytes(pinned.addressOf(0), size.toULong()) }
     }
 
     // ── Hex / bytes helpers ───────────────────────────────────────────────────
 
     private fun bytesToHex(bytes: ByteArray): String =
-        bytes.joinToString("") { "%02x".format(it.toInt() and 0xFF) }
+        bytes.joinToString("") { (it.toInt() and 0xFF).toString(16).padStart(2, '0') }
 
     private fun hexToBytes(hex: String): ByteArray? {
         if (hex.length % 2 != 0) return null
