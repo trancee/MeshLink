@@ -1,5 +1,8 @@
 package ch.trancee.meshlink.engine
 
+import ch.trancee.meshlink.api.DiagnosticCode
+import ch.trancee.meshlink.api.DiagnosticPayload
+import ch.trancee.meshlink.api.toPeerIdHex
 import ch.trancee.meshlink.crypto.CryptoProvider
 import ch.trancee.meshlink.crypto.Identity
 import ch.trancee.meshlink.crypto.TrustStore
@@ -132,9 +135,21 @@ internal class NoiseHandshakeManager(
             val msg2 = responder.writeMessage2()
             activeHandshakes[peerKey] = NoiseXXState.Responding(responder, now)
             sendHandshake?.invoke(peerId, Handshake(step = 2u, noiseMessage = msg2))
+            diagnosticSink.emit(DiagnosticCode.HANDSHAKE_EVENT) {
+                DiagnosticPayload.HandshakeEvent(
+                    peerId = peerId.toPeerIdHex(),
+                    stage = "step1_responding",
+                )
+            }
         } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
             // Malformed or unauthenticated message — discard silently.
             activeHandshakes.remove(peerKey)
+            diagnosticSink.emit(DiagnosticCode.HANDSHAKE_EVENT) {
+                DiagnosticPayload.HandshakeEvent(
+                    peerId = peerId.toPeerIdHex(),
+                    stage = "step1_failed",
+                )
+            }
         }
     }
 
@@ -158,9 +173,24 @@ internal class NoiseHandshakeManager(
                 "MeshLink",
                 "Noise XX complete (initiator) peer=$peerHexI... elapsed=${elapsedInitiator}ms",
             )
+            diagnosticSink.emit(DiagnosticCode.PEER_DISCOVERED) {
+                DiagnosticPayload.PeerDiscovered(peerId = peerId.toPeerIdHex())
+            }
+            diagnosticSink.emit(DiagnosticCode.HANDSHAKE_EVENT) {
+                DiagnosticPayload.HandshakeEvent(
+                    peerId = peerId.toPeerIdHex(),
+                    stage = "step2_complete",
+                )
+            }
             onHandshakeComplete?.invoke(peerId)
         } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
             activeHandshakes.remove(peerKey)
+            diagnosticSink.emit(DiagnosticCode.HANDSHAKE_EVENT) {
+                DiagnosticPayload.HandshakeEvent(
+                    peerId = peerId.toPeerIdHex(),
+                    stage = "step2_failed",
+                )
+            }
         }
     }
 
@@ -182,9 +212,24 @@ internal class NoiseHandshakeManager(
                 "MeshLink",
                 "Noise XX complete (responder) peer=$peerHexR... elapsed=${elapsedResponder}ms",
             )
+            diagnosticSink.emit(DiagnosticCode.PEER_DISCOVERED) {
+                DiagnosticPayload.PeerDiscovered(peerId = peerId.toPeerIdHex())
+            }
+            diagnosticSink.emit(DiagnosticCode.HANDSHAKE_EVENT) {
+                DiagnosticPayload.HandshakeEvent(
+                    peerId = peerId.toPeerIdHex(),
+                    stage = "step3_complete",
+                )
+            }
             onHandshakeComplete?.invoke(peerId)
         } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
             activeHandshakes.remove(peerKey)
+            diagnosticSink.emit(DiagnosticCode.HANDSHAKE_EVENT) {
+                DiagnosticPayload.HandshakeEvent(
+                    peerId = peerId.toPeerIdHex(),
+                    stage = "step3_failed",
+                )
+            }
         }
     }
 }

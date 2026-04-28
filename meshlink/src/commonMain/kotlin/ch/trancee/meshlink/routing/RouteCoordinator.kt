@@ -1,7 +1,10 @@
 package ch.trancee.meshlink.routing
 
+import ch.trancee.meshlink.api.DiagnosticCode
+import ch.trancee.meshlink.api.DiagnosticPayload
 import ch.trancee.meshlink.api.DiagnosticSinkApi
 import ch.trancee.meshlink.api.NoOpDiagnosticSink
+import ch.trancee.meshlink.api.toPeerIdHex
 import ch.trancee.meshlink.crypto.TrustStore
 import ch.trancee.meshlink.wire.Hello
 import ch.trancee.meshlink.wire.Update
@@ -137,6 +140,13 @@ internal class RouteCoordinator(
                 lastHelloTimeMillis = clock(),
                 consecutiveStableIntervals = 0,
             )
+
+        diagnosticSink.emit(DiagnosticCode.ROUTE_CHANGED) {
+            DiagnosticPayload.RouteChanged(
+                destination = peerInfo.peerId.toPeerIdHex(),
+                cost = linkCost,
+            )
+        }
     }
 
     // ── onPeerDisconnected ────────────────────────────────────────────────────
@@ -203,6 +213,14 @@ internal class RouteCoordinator(
                 val accepted = routingEngine.processUpdate(fromPeerId, message, linkCost)
                 if (accepted) {
                     trustStore.pinKey(message.destination, message.x25519PublicKey)
+                    val totalCost =
+                        routingTable.lookupRoute(message.destination)?.metric ?: linkCost
+                    diagnosticSink.emit(DiagnosticCode.ROUTE_CHANGED) {
+                        DiagnosticPayload.RouteChanged(
+                            destination = message.destination.toPeerIdHex(),
+                            cost = totalCost,
+                        )
+                    }
                 }
             }
             else -> {
