@@ -1,5 +1,8 @@
 package ch.trancee.meshlink.messaging
 
+import ch.trancee.meshlink.api.DiagnosticCode
+import ch.trancee.meshlink.api.DiagnosticPayload
+import ch.trancee.meshlink.api.toPeerIdHex
 import ch.trancee.meshlink.crypto.CryptoProvider
 import ch.trancee.meshlink.crypto.Identity
 import ch.trancee.meshlink.crypto.ReplayGuard
@@ -360,7 +363,12 @@ internal class DeliveryPipeline(
 
     private fun handleIncomingData(fromPeerId: ByteArray, data: ByteArray) {
         when (val result = inboundValidator.validate(data)) {
-            is Rejected -> return
+            is Rejected -> {
+                diagnosticSink.emit(DiagnosticCode.MALFORMED_DATA) {
+                    DiagnosticPayload.MalformedData(reason = "InboundValidator rejected frame")
+                }
+                return
+            }
             is Valid ->
                 when (val msg = result.message) {
                     is ch.trancee.meshlink.wire.Handshake -> return
@@ -410,10 +418,21 @@ internal class DeliveryPipeline(
                 try {
                     noiseKOpen(cryptoProvider, localIdentity.dhKeyPair, senderPubKey, msg.payload)
                 } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
-                    return // AEAD tag verification failed — silently drop.
+                    diagnosticSink.emit(DiagnosticCode.DECRYPTION_FAILED) {
+                        DiagnosticPayload.DecryptionFailed(
+                            peerId = msg.origin.toPeerIdHex(),
+                            reason = e.message ?: "AEAD verification failed",
+                        )
+                    }
+                    return // AEAD tag verification failed — drop.
                 }
             // Replay guard uses originationTime as the monotonic counter.
-            if (!checkReplay(msg.origin, msg.originationTime)) return
+            if (!checkReplay(msg.origin, msg.originationTime)) {
+                diagnosticSink.emit(DiagnosticCode.REPLAY_REJECTED) {
+                    DiagnosticPayload.ReplayRejected(peerId = msg.origin.toPeerIdHex())
+                }
+                return
+            }
 
             // DeliveryAck messages are routed back to the original sender wrapped inside a
             // RoutedMessage so they traverse relay nodes correctly. Detect them here and
@@ -449,8 +468,21 @@ internal class DeliveryPipeline(
             scope.launch { sendDeliveryAckWithRetry(msg.messageId, msg.origin, senderPubKey) }
         } else {
             // Not for us — relay if possible.
-            if (msg.hopLimit == 0u.toUByte()) return
-            if (msg.visitedList.any { it.contentEquals(localIdentity.keyHash) }) return
+            if (msg.hopLimit == 0u.toUByte()) {
+                diagnosticSink.emit(DiagnosticCode.HOP_LIMIT_EXCEEDED) {
+                    DiagnosticPayload.HopLimitExceeded(
+                        hops = msg.visitedList.size,
+                        maxHops = DEFAULT_HOP_LIMIT.toInt(),
+                    )
+                }
+                return
+            }
+            if (msg.visitedList.any { it.contentEquals(localIdentity.keyHash) }) {
+                diagnosticSink.emit(DiagnosticCode.LOOP_DETECTED) {
+                    DiagnosticPayload.LoopDetected(destination = msg.destination.toPeerIdHex())
+                }
+                return
+            }
             val nextHop = routeCoordinator.lookupNextHop(msg.destination) ?: return
 
             // Relay rate limiters.
@@ -601,7 +633,12 @@ internal class DeliveryPipeline(
             is RoutedMessage -> handleInboundRoutedMessage(fromPeerId, wireMsg)
             is Broadcast -> handleInboundBroadcast(fromPeerId, wireMsg)
             is DeliveryAck -> handleInboundDeliveryAck(wireMsg)
-            else -> return
+            else -> {
+                diagnosticSink.emit(DiagnosticCode.UNKNOWN_MESSAGE_TYPE) {
+                    DiagnosticPayload.UnknownMessageType(typeCode = -1)
+                }
+                return
+            }
         }
     }
 
@@ -750,6 +787,9 @@ internal class DeliveryPipeline(
             // Delivery not yet confirmed — treat as timed out.
             ownUnicastSessions.remove(key)
             cb.onFailure(FailureReason.INACTIVITY_TIMEOUT)
+            diagnosticSink.emit(DiagnosticCode.DELIVERY_TIMEOUT) {
+                DiagnosticPayload.DeliveryTimeout(messageIdHex = capturedMsgId.toPeerIdHex().hex)
+            }
             _transferFailures.tryEmit(DeliveryFailed(capturedMsgId, DeliveryOutcome.TIMED_OUT))
         }
     }
@@ -759,7 +799,15 @@ internal class DeliveryPipeline(
      * provides a non-null [OutboundFrame.peerId]; the `!!` assertion enforces this contract.
      */
     private suspend fun forwardOutboundChunk(frame: OutboundFrame) {
-        transport.sendToPeer(frame.peerId!!, WireCodec.encode(frame.message))
+        val result = transport.sendToPeer(frame.peerId!!, WireCodec.encode(frame.message))
+        if (result is ch.trancee.meshlink.transport.SendResult.Failure) {
+            diagnosticSink.emit(DiagnosticCode.SEND_FAILED) {
+                DiagnosticPayload.SendFailed(
+                    peerId = frame.peerId.toPeerIdHex(),
+                    reason = result.reason,
+                )
+            }
+        }
     }
 
     private fun generateMessageId(): ByteArray {

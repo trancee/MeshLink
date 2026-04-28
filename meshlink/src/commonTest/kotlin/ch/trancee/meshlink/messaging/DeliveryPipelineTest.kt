@@ -129,6 +129,7 @@ class DeliveryPipelineTest {
                 dedupSet = messageDedupSet,
                 config = config,
                 clock = clock,
+                diagnosticSink = diagnosticSink,
             )
         return PipelineNode(
             crypto,
