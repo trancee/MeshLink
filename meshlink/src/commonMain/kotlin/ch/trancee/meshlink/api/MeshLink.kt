@@ -4,7 +4,6 @@ import ch.trancee.meshlink.crypto.CryptoProvider
 import ch.trancee.meshlink.crypto.Identity
 import ch.trancee.meshlink.crypto.createCryptoProvider
 import ch.trancee.meshlink.engine.MeshEngine
-import ch.trancee.meshlink.messaging.CoverageIgnore
 import ch.trancee.meshlink.messaging.DeliveryOutcome
 import ch.trancee.meshlink.power.BatteryMonitor
 import ch.trancee.meshlink.power.FixedBatteryMonitor
@@ -39,7 +38,7 @@ import kotlinx.coroutines.sync.withLock
  * Inlined as an anonymous object inside the companion factory. This private class exists only to
  * satisfy the `MeshLink(config)` default-transport path.
  */
-private object NoOpBleTransportInstance : BleTransport {
+internal object NoOpBleTransportInstance : BleTransport {
     override val localPeerId: ByteArray = ByteArray(12)
     override var advertisementServiceData: ByteArray = ByteArray(0)
     override val advertisementEvents = emptyFlow<ch.trancee.meshlink.transport.AdvertisementEvent>()
@@ -186,10 +185,6 @@ internal constructor(
 
     // ── Event streams ──────────────────────────────────────────────────────
 
-    // Flow map lambdas below are excluded from line coverage: they only execute when the engine
-    // emits items, which requires full BLE/peer-discovery activity tested in S04+.
-
-    @get:CoverageIgnore
     override val peers: Flow<PeerEvent> =
         engine.peerEvents.map { event ->
             when (event) {
@@ -214,7 +209,6 @@ internal constructor(
             }
         }
 
-    @get:CoverageIgnore
     override val messages: Flow<ReceivedMessage> =
         engine.messages.map { msg ->
             ReceivedMessage(
@@ -225,11 +219,9 @@ internal constructor(
             )
         }
 
-    @get:CoverageIgnore
     override val deliveryConfirmations: Flow<MessageId> =
         engine.deliveryConfirmations.map { MessageId(it.messageId) }
 
-    @get:CoverageIgnore
     override val transferProgress: Flow<TransferProgress> =
         engine.transferProgress.map { progress ->
             TransferProgress(
@@ -241,7 +233,6 @@ internal constructor(
             )
         }
 
-    @get:CoverageIgnore
     override val transferFailures: Flow<TransferFailure> =
         engine.transferFailures.map { failure ->
             when (failure.outcome) {

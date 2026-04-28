@@ -201,11 +201,6 @@ private constructor(
         presenceTracker.onPeerDisconnected(peerId)
     }
 
-    /** Sends a unicast routing frame to a specific peer via the BLE transport. */
-    private suspend fun sendUnicastFrame(peerId: ByteArray, encoded: ByteArray) {
-        transport.sendToPeer(peerId, encoded)
-    }
-
     /**
      * Launches a subscription on [BleTransport.incomingData] that routes [Handshake] wire messages
      * to [NoiseHandshakeManager.onInboundHandshake]. [DeliveryPipeline] already subscribes to the

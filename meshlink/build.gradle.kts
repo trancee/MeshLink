@@ -167,9 +167,6 @@ kover {
                 // Per D024, correctness is proven by S04 two-device integration test on real
                 // hardware (iOS + Android). Also excludes inner delegate classes (*$*Delegate*).
                 classes("ch.trancee.meshlink.transport.IosBleTransport*")
-                // Functions annotated with @CoverageIgnore contain defensive null/existence checks
-                // whose unreachable branch cannot be exercised without violating type contracts.
-                annotatedBy("ch.trancee.meshlink.messaging.CoverageIgnore")
                 // Logger: expect/actual platform-log bridge; per D024 pattern excluded from
                 // unit test coverage — correctness verified by S04 two-device integration test.
                 classes("ch.trancee.meshlink.transport.Logger*")
@@ -204,6 +201,37 @@ kover {
 }
 
 ktfmt { kotlinLangStyle() }
+
+// ── CI guard: prevent @CoverageIgnore reintroduction ──────────────────────────
+// Scans commonMain sources for the annotation. Fails the build if found. Wired into `check`.
+val noCoverageIgnore by tasks.registering {
+    group = "verification"
+    description = "Fails if any @CoverageIgnore annotation appears in commonMain sources."
+    doLast {
+        val srcDir = file("src/commonMain/kotlin")
+        val violations = mutableListOf<String>()
+        srcDir
+            .walkTopDown()
+            .filter { it.extension == "kt" }
+            .forEach { f ->
+                f.readLines().forEachIndexed { idx, line ->
+                    if (line.contains("@CoverageIgnore") || line.contains("@get:CoverageIgnore")) {
+                        violations.add("${f.relativeTo(projectDir)}:${idx + 1}: $line")
+                    }
+                }
+            }
+        if (violations.isNotEmpty()) {
+            error(
+                buildString {
+                    appendLine("@CoverageIgnore annotation found — remove it and cover the code:")
+                    violations.forEach { appendLine("  $it") }
+                }
+            )
+        }
+    }
+}
+
+tasks.named("check") { dependsOn(noCoverageIgnore) }
 
 // Detekt — static analysis configuration. Config at detekt.yml in project root.
 detekt {
