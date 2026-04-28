@@ -155,6 +155,9 @@ internal class DeliveryPipeline(
     /** Monotonic counter used to make generated message IDs unique per clock tick. */
     private var msgIdCounter = 0L
 
+    /** Active cut-through relay buffers, keyed by inbound TransferEngine session messageId. */
+    private val cutThroughBuffers = HashMap<MessageIdKey, CutThroughBuffer>()
+
     // ── Init: background coroutines ───────────────────────────────────────────
 
     init {
@@ -361,7 +364,7 @@ internal class DeliveryPipeline(
 
     // ── Inbound handlers ──────────────────────────────────────────────────────
 
-    private fun handleIncomingData(fromPeerId: ByteArray, data: ByteArray) {
+    private suspend fun handleIncomingData(fromPeerId: ByteArray, data: ByteArray) {
         when (val result = inboundValidator.validate(data)) {
             is Rejected -> {
                 diagnosticSink.emit(DiagnosticCode.MALFORMED_DATA) {
@@ -384,8 +387,7 @@ internal class DeliveryPipeline(
                         drainBuffer()
                         drainAckBuffer()
                     }
-                    is ch.trancee.meshlink.wire.Chunk ->
-                        transferEngine.onIncomingChunk(fromPeerId, msg)
+                    is ch.trancee.meshlink.wire.Chunk -> handleIncomingChunk(fromPeerId, msg)
                     is ch.trancee.meshlink.wire.ChunkAck ->
                         transferEngine.onIncomingChunkAck(fromPeerId, msg)
                     is ch.trancee.meshlink.wire.Nack -> {
@@ -407,6 +409,180 @@ internal class DeliveryPipeline(
                     is Broadcast -> handleInboundBroadcast(fromPeerId, msg)
                     is DeliveryAck -> handleInboundDeliveryAck(msg)
                 }
+        }
+    }
+
+    // ── Relay eligibility ───────────────────────────────────────────────────
+
+    /**
+     * Checks whether an inbound message is eligible for relay: hop-limit > 0, no routing loop,
+     * route exists, and per-sender/per-neighbor rate limiters pass.
+     *
+     * @return The next-hop peer ID if eligible, or `null` if the message should be dropped/ignored.
+     */
+    private fun isRelayEligible(
+        destination: ByteArray,
+        hopLimit: UByte,
+        visitedList: List<ByteArray>,
+        fromPeerId: ByteArray,
+        origin: ByteArray,
+    ): ByteArray? {
+        if (hopLimit == 0u.toUByte()) {
+            diagnosticSink.emit(DiagnosticCode.HOP_LIMIT_EXCEEDED) {
+                DiagnosticPayload.HopLimitExceeded(
+                    hops = visitedList.size,
+                    maxHops = DEFAULT_HOP_LIMIT.toInt(),
+                )
+            }
+            return null
+        }
+        if (visitedList.any { it.contentEquals(localIdentity.keyHash) }) {
+            diagnosticSink.emit(DiagnosticCode.LOOP_DETECTED) {
+                DiagnosticPayload.LoopDetected(destination = destination.toPeerIdHex())
+            }
+            return null
+        }
+        val nextHop = routeCoordinator.lookupNextHop(destination) ?: return null
+
+        // Relay rate limiters.
+        val senderKey = MessageIdKey(origin)
+        val neighborKey = MessageIdKey(fromPeerId)
+        val relayKey = PeerPair(neighborKey, senderKey)
+        val relayLimiter =
+            relayLimiters.getOrPut(relayKey) {
+                SlidingWindowRateLimiter(
+                    config.relayPerSenderPerNeighborLimit,
+                    config.relayPerSenderPerNeighborWindowMillis,
+                    clock,
+                )
+            }
+        if (!relayLimiter.tryAcquire()) return null
+        val neighborAggLimiter =
+            neighborAggregateLimiters.getOrPut(fromPeerId.asList()) {
+                SlidingWindowRateLimiter(
+                    config.perNeighborAggregateLimit,
+                    config.perNeighborAggregateWindowMillis,
+                    clock,
+                )
+            }
+        if (!neighborAggLimiter.tryAcquire()) return null
+
+        return nextHop
+    }
+
+    // ── Cut-through chunk dispatch ────────────────────────────────────────────
+
+    /**
+     * Dispatches an inbound [ch.trancee.meshlink.wire.Chunk] through the cut-through relay path
+     * when applicable, falling back to [TransferEngine] for self-bound messages, parse failures, or
+     * late-arriving chunks without a prior chunk 0.
+     */
+    private suspend fun handleIncomingChunk(
+        fromPeerId: ByteArray,
+        msg: ch.trancee.meshlink.wire.Chunk,
+    ) {
+        val key = MessageIdKey(msg.messageId)
+
+        // 1. Existing CutThroughBuffer → forward chunk to it.
+        val existing = cutThroughBuffers[key]
+        if (existing != null) {
+            existing.onSubsequentChunk(msg)
+            if (existing.state == CutThroughBuffer.State.Complete) {
+                cutThroughBuffers.remove(key)
+            }
+            return
+        }
+
+        // 2. No buffer + chunk 0 → try to activate cut-through relay.
+        if (msg.seqNo == 0u.toUShort()) {
+            // Parse routing header from chunk 0 payload.
+            val header: CutThroughBuffer.RoutingHeaderView
+            try {
+                header = CutThroughBuffer.RoutingHeaderView(msg.payload)
+            } catch (@Suppress("TooGenericExceptionCaught") _: Exception) {
+                // Not a RoutedMessage or header parse failure → TransferEngine.
+                transferEngine.onIncomingChunk(fromPeerId, msg)
+                return
+            }
+
+            // Self-bound → TransferEngine (decrypt-and-deliver path).
+            if (header.destination.contentEquals(localIdentity.keyHash)) {
+                transferEngine.onIncomingChunk(fromPeerId, msg)
+                return
+            }
+
+            // Check relay eligibility (hop limit, loop, route, rate limiters).
+            val nextHop =
+                isRelayEligible(
+                    header.destination,
+                    header.hopLimit,
+                    header.visitedListEntries,
+                    fromPeerId,
+                    header.origin,
+                )
+            if (nextHop == null) {
+                // Not eligible → TransferEngine (fallback to full-reassembly relay).
+                transferEngine.onIncomingChunk(fromPeerId, msg)
+                return
+            }
+
+            // Create CutThroughBuffer with sendFn wired to transport.sendToPeer.
+            val relayMsgId = generateMessageId()
+            val buffer =
+                CutThroughBuffer(
+                    relayMessageId = relayMsgId,
+                    nextHop = nextHop,
+                    localKeyHash = localIdentity.keyHash,
+                    chunkSize = transferEngine.chunkSize,
+                    sendFn = { peerId, data ->
+                        transport.sendToPeer(peerId, data) is
+                            ch.trancee.meshlink.transport.SendResult.Success
+                    },
+                    diagnosticSink = diagnosticSink,
+                )
+
+            val activated = buffer.onChunk0(msg)
+            if (!activated) {
+                // CutThroughBuffer fell back (e.g. byte surgery failure) → TransferEngine.
+                transferEngine.onIncomingChunk(fromPeerId, msg)
+                return
+            }
+
+            if (buffer.state == CutThroughBuffer.State.Complete) {
+                // Single-chunk message already forwarded — no buffer to store.
+                return
+            }
+
+            // Store buffer and launch inactivity timeout.
+            cutThroughBuffers[key] = buffer
+            val timeout = transferEngine.ackDeadlineMillis
+            val capturedKey = MessageIdKey(msg.messageId.copyOf())
+            scope.launch {
+                delay(timeout)
+                evictCutThroughBuffer(capturedKey)
+            }
+            return
+        }
+
+        // 3. No buffer + seqNo != 0 → late arrival (chunk 0 not yet seen). TransferEngine.
+        transferEngine.onIncomingChunk(fromPeerId, msg)
+    }
+
+    /**
+     * Evicts a [CutThroughBuffer] on inactivity timeout. If the buffer is still active or pending,
+     * marks it timed out and removes from the map.
+     */
+    private fun evictCutThroughBuffer(key: MessageIdKey) {
+        val buffer = cutThroughBuffers[key] ?: return
+        if (
+            buffer.state == CutThroughBuffer.State.Active ||
+                buffer.state == CutThroughBuffer.State.Pending
+        ) {
+            buffer.markTimedOut()
+            cutThroughBuffers.remove(key)
+            diagnosticSink.emit(DiagnosticCode.DELIVERY_TIMEOUT) {
+                DiagnosticPayload.DeliveryTimeout(messageIdHex = "cut-through-evicted")
+            }
         }
     }
 
@@ -468,46 +644,15 @@ internal class DeliveryPipeline(
             // sendDeliveryAckWithRetry can use it directly without a second null check.
             scope.launch { sendDeliveryAckWithRetry(msg.messageId, msg.origin, senderPubKey) }
         } else {
-            // Not for us — relay if possible.
-            if (msg.hopLimit == 0u.toUByte()) {
-                diagnosticSink.emit(DiagnosticCode.HOP_LIMIT_EXCEEDED) {
-                    DiagnosticPayload.HopLimitExceeded(
-                        hops = msg.visitedList.size,
-                        maxHops = DEFAULT_HOP_LIMIT.toInt(),
-                    )
-                }
-                return
-            }
-            if (msg.visitedList.any { it.contentEquals(localIdentity.keyHash) }) {
-                diagnosticSink.emit(DiagnosticCode.LOOP_DETECTED) {
-                    DiagnosticPayload.LoopDetected(destination = msg.destination.toPeerIdHex())
-                }
-                return
-            }
-            val nextHop = routeCoordinator.lookupNextHop(msg.destination) ?: return
-
-            // Relay rate limiters.
-            val senderKey = MessageIdKey(msg.origin)
-            val neighborKey = MessageIdKey(fromPeerId)
-            val relayKey = PeerPair(neighborKey, senderKey)
-            val relayLimiter =
-                relayLimiters.getOrPut(relayKey) {
-                    SlidingWindowRateLimiter(
-                        config.relayPerSenderPerNeighborLimit,
-                        config.relayPerSenderPerNeighborWindowMillis,
-                        clock,
-                    )
-                }
-            if (!relayLimiter.tryAcquire()) return
-            val neighborAggLimiter =
-                neighborAggregateLimiters.getOrPut(fromPeerId.asList()) {
-                    SlidingWindowRateLimiter(
-                        config.perNeighborAggregateLimit,
-                        config.perNeighborAggregateWindowMillis,
-                        clock,
-                    )
-                }
-            if (!neighborAggLimiter.tryAcquire()) return
+            // Not for us — relay if possible (full-reassembly fallback path).
+            val nextHop =
+                isRelayEligible(
+                    msg.destination,
+                    msg.hopLimit,
+                    msg.visitedList,
+                    fromPeerId,
+                    msg.origin,
+                ) ?: return
 
             val newHopLimit = (msg.hopLimit.toUInt() - 1u).toUByte()
             val newVisited = msg.visitedList + localIdentity.keyHash

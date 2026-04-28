@@ -61,6 +61,10 @@ internal class TransferEngine(
     internal val ackDeadlineMillis: Long
         get() = config.inactivityBaseTimeoutMillis
 
+    /** Maximum chunk payload size (bytes). Used by CutThroughBuffer for overflow split. */
+    internal val chunkSize: Int
+        get() = chunkSizePolicy.size
+
     // ── Outbound (sender) ─────────────────────────────────────────────────
 
     /**
