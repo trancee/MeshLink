@@ -1,6 +1,9 @@
 package ch.trancee.meshlink.messaging
 
+import ch.trancee.meshlink.api.DiagnosticCode
+import ch.trancee.meshlink.api.DiagnosticPayload
 import ch.trancee.meshlink.api.DiagnosticSinkApi
+import ch.trancee.meshlink.api.toPeerIdHex
 import ch.trancee.meshlink.wire.Chunk
 import ch.trancee.meshlink.wire.WireCodec
 
@@ -33,7 +36,7 @@ internal class CutThroughBuffer(
     private val localKeyHash: ByteArray,
     private val chunkSize: Int,
     private val sendFn: suspend (peerId: ByteArray, data: ByteArray) -> Boolean,
-    @Suppress("unused") private val diagnosticSink: DiagnosticSinkApi,
+    private val diagnosticSink: DiagnosticSinkApi,
 ) {
 
     // ── State machine ─────────────────────────────────────────────────────────
@@ -112,6 +115,15 @@ internal class CutThroughBuffer(
         state = State.Active
         val originalTotalChunks = chunk.totalChunks.toInt()
 
+        // Diagnostic: cut-through relay activated.
+        val dstHex = header.destination.toPeerIdHex()
+        val nextHopHex = nextHop.toPeerIdHex()
+        diagnosticSink.emit(DiagnosticCode.ROUTE_CHANGED) {
+            DiagnosticPayload.TextMessage(
+                "cut-through relay activated: dst=$dstHex nextHop=$nextHopHex totalChunks=$originalTotalChunks"
+            )
+        }
+
         // Determine if overflow split is needed.
         if (modifiedBytes.size <= chunkSize) {
             // No split: single-chunk message or modified bytes still fit.
@@ -120,7 +132,13 @@ internal class CutThroughBuffer(
             val ok = forwardChunk(0.toUShort(), forwardTotalChunks, modifiedBytes)
             forwardedCount++
             if (!ok) {
-                /* continue despite send failure — logged in T03 */
+                val peerIdHex = nextHop.toPeerIdHex()
+                diagnosticSink.emit(DiagnosticCode.SEND_FAILED) {
+                    DiagnosticPayload.SendFailed(
+                        peerId = peerIdHex,
+                        reason = "cut-through chunk forwarding failed",
+                    )
+                }
             }
             if (forwardTotalChunks == 1.toUShort()) {
                 state = State.Complete
@@ -136,13 +154,25 @@ internal class CutThroughBuffer(
             val ok0 = forwardChunk(0.toUShort(), forwardTotalChunks, chunk0Bytes)
             forwardedCount++
             if (!ok0) {
-                /* continue */
+                val peerIdHex = nextHop.toPeerIdHex()
+                diagnosticSink.emit(DiagnosticCode.SEND_FAILED) {
+                    DiagnosticPayload.SendFailed(
+                        peerId = peerIdHex,
+                        reason = "cut-through chunk forwarding failed",
+                    )
+                }
             }
 
             val ok1 = forwardChunk(1.toUShort(), forwardTotalChunks, overflowBytes)
             forwardedCount++
             if (!ok1) {
-                /* continue */
+                val peerIdHex = nextHop.toPeerIdHex()
+                diagnosticSink.emit(DiagnosticCode.SEND_FAILED) {
+                    DiagnosticPayload.SendFailed(
+                        peerId = peerIdHex,
+                        reason = "cut-through chunk forwarding failed",
+                    )
+                }
             }
 
             if (originalTotalChunks == 1) {
@@ -164,8 +194,17 @@ internal class CutThroughBuffer(
         if (state != State.Active) return
 
         val adjustedSeqNo = (chunk.seqNo.toInt() + seqNoOffset).toUShort()
-        forwardChunk(adjustedSeqNo, forwardTotalChunks, chunk.payload)
+        val ok = forwardChunk(adjustedSeqNo, forwardTotalChunks, chunk.payload)
         forwardedCount++
+        if (!ok) {
+            val peerIdHex = nextHop.toPeerIdHex()
+            diagnosticSink.emit(DiagnosticCode.SEND_FAILED) {
+                DiagnosticPayload.SendFailed(
+                    peerId = peerIdHex,
+                    reason = "cut-through chunk forwarding failed",
+                )
+            }
+        }
 
         // Check for completion: total forwarded = forwardTotalChunks.
         val expectedForwards = forwardTotalChunks.toInt()
