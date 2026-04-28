@@ -136,11 +136,20 @@ private constructor(
     class Builder {
         private val nodeNames = mutableListOf<String>()
         private val linkSpecs = mutableListOf<LinkSpec>()
+        private val nodeConfigs = mutableMapOf<String, MeshEngineConfig>()
 
         /** Add a node with the given human-readable name. Identity is auto-generated. */
         fun node(name: String): Builder {
             require(name !in nodeNames) { "Duplicate node name: $name" }
             nodeNames.add(name)
+            return this
+        }
+
+        /** Add a node with a custom [MeshEngineConfig] override. */
+        fun node(name: String, config: MeshEngineConfig): Builder {
+            require(name !in nodeNames) { "Duplicate node name: $name" }
+            nodeNames.add(name)
+            nodeConfigs[name] = config
             return this
         }
 
@@ -187,7 +196,7 @@ private constructor(
                         batteryMonitor = batteryMonitor,
                         scope = backgroundScope,
                         clock = clock,
-                        config = integrationConfig,
+                        config = nodeConfigs[name] ?: integrationConfig,
                     )
 
                 builtNodes[name] =
