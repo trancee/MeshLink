@@ -65,6 +65,10 @@ private class NoOpBleTransport(override val localPeerId: ByteArray = ByteArray(1
  * **Obtain an instance** via `MeshLink(config)` (companion factory) for production use, or via the
  * internal [MeshLink.create] factory in tests.
  */
+// The framework is also named "MeshLink", so ObjC/Swift would see a name collision.
+// @ObjCName exports this as "MeshLinkClient" in Swift while keeping the Kotlin name unchanged.
+@OptIn(kotlin.experimental.ExperimentalObjCName::class)
+@kotlin.native.ObjCName("MeshLinkClient")
 public class MeshLink
 internal constructor(
     private val config: MeshLinkConfig,

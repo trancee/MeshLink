@@ -82,6 +82,7 @@ kotlin {
     ios.binaries.framework {
         baseName = "MeshLink"
         isStatic = true
+        binaryOption("bundleId", "ch.trancee.meshlink")
         xcf.add(this)
     }
 

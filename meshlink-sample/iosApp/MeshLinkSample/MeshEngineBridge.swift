@@ -33,7 +33,7 @@ final class MeshEngineBridge: ObservableObject {
     /// ID for proper CoreBluetooth state restoration.
     private let mesh: MeshLinkApi = {
         let config = meshLinkConfig(appId: "ch.trancee.meshlink.sample") { _ in }
-        return MeshLink_.companion.createIos(
+        return MeshLinkClient.companion.createIos(
             config: config,
             restorationIdentifier: "ch.trancee.meshlink.sample"
         )
