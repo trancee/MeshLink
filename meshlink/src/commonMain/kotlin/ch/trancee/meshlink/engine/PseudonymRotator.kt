@@ -155,15 +155,18 @@ internal class PseudonymRotator(
             cryptoProvider: CryptoProvider,
         ): Boolean {
             if (receivedPseudonym.size != PSEUDONYM_LENGTH) return false
-            // Check epochs [epoch-1, epoch, epoch+1], skipping negative epochs.
-            val startEpoch = maxOf(0L, epoch - 1)
-            val endEpoch = epoch + 1
-            for (e in startEpoch..endEpoch) {
-                val expected =
-                    cryptoProvider.hmacSha256(peerKeyHash, epochToBytes(e)).copyOf(PSEUDONYM_LENGTH)
-                if (expected.contentEquals(receivedPseudonym)) return true
-            }
-            return false
+
+            // Explicit per-epoch checks instead of a LongRange loop to avoid a
+            // compiler-generated empty-range branch that can never be hit.
+            fun matchesEpoch(e: Long): Boolean =
+                cryptoProvider
+                    .hmacSha256(peerKeyHash, epochToBytes(e))
+                    .copyOf(PSEUDONYM_LENGTH)
+                    .contentEquals(receivedPseudonym)
+
+            return matchesEpoch(epoch) ||
+                matchesEpoch(epoch + 1) ||
+                (epoch > 0L && matchesEpoch(epoch - 1))
         }
     }
 }

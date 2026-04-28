@@ -276,6 +276,46 @@ class PseudonymRotationIntegrationTest {
         harness.stopAll()
     }
 
+    // ── Test 6: unknown peer 16-byte advertisement skips verification ───────
+
+    @Test
+    fun `engine skips pseudonym verification for unknown peer`() = runTest {
+        val harness =
+            MeshTestHarness.builder()
+                .node("A", pseudonymTestConfig)
+                .node("B", pseudonymTestConfig)
+                .link("A", "B")
+                .build(testScheduler, backgroundScope)
+
+        harness.awaitConvergence()
+
+        val nodeB = harness["B"]
+
+        // Build a 16-byte advertisement from a completely unknown peer ID.
+        val unknownKeyHash = ByteArray(12) { (it * 13 + 7).toByte() }
+        val fakePseudonym = ByteArray(12) { 0xCD.toByte() }
+        val ad16 = build16ByteAdvertisement(fakePseudonym)
+
+        // Simulate B receiving a 16-byte advertisement from the unknown peer.
+        nodeB.transport.simulateDiscovery(unknownKeyHash, ad16, -60)
+        repeat(10) { testScheduler.runCurrent() }
+
+        // No DECRYPTION_FAILED diagnostic should fire — unknown peers skip verification.
+        val sink = nodeB.diagnosticSink as ch.trancee.meshlink.api.DiagnosticSink
+        val mismatchEvents =
+            sink.events.replayCache.filter {
+                it.code == ch.trancee.meshlink.api.DiagnosticCode.DECRYPTION_FAILED &&
+                    (it.payload as? ch.trancee.meshlink.api.DiagnosticPayload.DecryptionFailed)
+                        ?.reason == "pseudonym verification mismatch"
+            }
+        assertTrue(
+            mismatchEvents.isEmpty(),
+            "No DECRYPTION_FAILED mismatch should fire for unknown peer",
+        )
+
+        harness.stopAll()
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     /**
