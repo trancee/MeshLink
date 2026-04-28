@@ -111,7 +111,7 @@ internal class PseudonymRotator(
         const val EPOCH_DURATION_MS: Long = 900_000L
 
         /** Pseudonym length in bytes (truncated HMAC-SHA-256). */
-        private const val PSEUDONYM_LENGTH = 12
+        internal const val PSEUDONYM_LENGTH = 12
 
         /** Encodes [epoch] as an 8-byte little-endian byte array. */
         internal fun epochToBytes(epoch: Long): ByteArray {
@@ -133,5 +133,37 @@ internal class PseudonymRotator(
                 ((bytes[1].toInt() and 0xFF) shl 8) or
                 ((bytes[2].toInt() and 0xFF) shl 16) or
                 ((bytes[3].toInt() and 0xFF) shl 24)
+
+        /**
+         * Verifies a received pseudonym against a known peer's [peerKeyHash] with ±1 epoch
+         * tolerance.
+         *
+         * Computes HMAC-SHA-256(peerKeyHash, epochToBytes(e))[0:12] for each epoch in `[epoch - 1,
+         * epoch, epoch + 1]` (skipping negative epochs). Returns `true` if any match the
+         * [receivedPseudonym].
+         *
+         * @param peerKeyHash The 12-byte identity hash of the peer (known from Noise XX handshake).
+         * @param receivedPseudonym The 12-byte pseudonym extracted from the peer's advertisement.
+         * @param epoch The current epoch number at the verifying node.
+         * @param cryptoProvider Platform crypto for HMAC-SHA-256.
+         * @return `true` if the pseudonym matches any of the three tolerance epochs.
+         */
+        internal fun verifyPseudonym(
+            peerKeyHash: ByteArray,
+            receivedPseudonym: ByteArray,
+            epoch: Long,
+            cryptoProvider: CryptoProvider,
+        ): Boolean {
+            if (receivedPseudonym.size != PSEUDONYM_LENGTH) return false
+            // Check epochs [epoch-1, epoch, epoch+1], skipping negative epochs.
+            val startEpoch = maxOf(0L, epoch - 1)
+            val endEpoch = epoch + 1
+            for (e in startEpoch..endEpoch) {
+                val expected =
+                    cryptoProvider.hmacSha256(peerKeyHash, epochToBytes(e)).copyOf(PSEUDONYM_LENGTH)
+                if (expected.contentEquals(receivedPseudonym)) return true
+            }
+            return false
+        }
     }
 }

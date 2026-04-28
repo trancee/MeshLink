@@ -1,5 +1,8 @@
 package ch.trancee.meshlink.engine
 
+import ch.trancee.meshlink.api.DiagnosticCode
+import ch.trancee.meshlink.api.DiagnosticPayload
+import ch.trancee.meshlink.api.toPeerIdHex
 import ch.trancee.meshlink.crypto.CryptoProvider
 import ch.trancee.meshlink.crypto.Identity
 import ch.trancee.meshlink.crypto.TrustStore
@@ -63,6 +66,8 @@ private constructor(
      */
     internal val routingTable: RoutingTable,
     private val pseudonymRotator: PseudonymRotator,
+    private val cryptoProvider: CryptoProvider,
+    private val diagnosticSink: ch.trancee.meshlink.api.DiagnosticSinkApi,
 ) {
     // ── Public SharedFlow surfaces ────────────────────────────────────────────
 
@@ -133,6 +138,36 @@ private constructor(
             transport.advertisementEvents.collect { event ->
                 advertisementCache[event.peerId.asList()] = Pair(event.serviceData, event.rssi)
                 noiseHandshakeManager.onAdvertisementSeen(event.peerId, event.serviceData)
+
+                // Pseudonym verification for known (already-connected) peers.
+                // If serviceData carries a full 16-byte advertisement, bytes 4–15 are
+                // the peer's pseudonym. Verify it against the peer's keyHash using HMAC
+                // with ±1 epoch tolerance.
+                if (event.serviceData.size >= 16) {
+                    val connected = presenceTracker.connectedPeers()
+                    val peerKeyHash = event.peerId
+                    val isKnownPeer = connected.any { it.contentEquals(peerKeyHash) }
+                    if (isKnownPeer) {
+                        val receivedPseudonym = event.serviceData.copyOfRange(4, 16)
+                        val epoch = pseudonymRotator.currentEpoch()
+                        val valid =
+                            PseudonymRotator.verifyPseudonym(
+                                peerKeyHash,
+                                receivedPseudonym,
+                                epoch,
+                                cryptoProvider,
+                            )
+                        if (!valid) {
+                            val peerIdHex = peerKeyHash.toPeerIdHex()
+                            diagnosticSink.emit(DiagnosticCode.DECRYPTION_FAILED) {
+                                DiagnosticPayload.DecryptionFailed(
+                                    peerIdHex,
+                                    "pseudonym verification mismatch",
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
 
@@ -484,6 +519,7 @@ private constructor(
                         transport.advertisementServiceData =
                             PowerTierCodec.encode(powerManager.currentTier)
                     },
+                    epochDurationMs = config.epochDurationMs,
                 )
 
             return MeshEngine(
@@ -497,6 +533,8 @@ private constructor(
                 noiseHandshakeManager = noiseHandshakeManager,
                 routingTable = routingTable,
                 pseudonymRotator = pseudonymRotator,
+                cryptoProvider = cryptoProvider,
+                diagnosticSink = diagnosticSink,
             )
         }
     }

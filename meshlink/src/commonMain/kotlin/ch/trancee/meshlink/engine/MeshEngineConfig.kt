@@ -20,4 +20,6 @@ internal data class MeshEngineConfig(
     val power: PowerConfig = PowerConfig(),
     val handshake: HandshakeConfig = HandshakeConfig(),
     val chunkSize: ChunkSizePolicy = ChunkSizePolicy.GATT,
+    /** Pseudonym rotation epoch duration in milliseconds. Default: 15 minutes. */
+    val epochDurationMs: Long = PseudonymRotator.EPOCH_DURATION_MS,
 )
