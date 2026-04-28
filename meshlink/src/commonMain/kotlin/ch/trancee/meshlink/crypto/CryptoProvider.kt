@@ -93,6 +93,16 @@ internal interface CryptoProvider {
     fun sha256(input: ByteArray): ByteArray
 
     /**
+     * Computes HMAC-SHA-256 (RFC 2104) of [data] under [key].
+     *
+     * @param key The HMAC key (arbitrary length; keys shorter than 32 bytes are valid per RFC
+     *   2104).
+     * @param data The message to authenticate.
+     * @return A 32-byte HMAC-SHA-256 authentication tag.
+     */
+    fun hmacSha256(key: ByteArray, data: ByteArray): ByteArray
+
+    /**
      * Derives key material using HKDF-SHA-256 (RFC 5869).
      *
      * @param salt Optional salt; pass an empty array if no salt is available.

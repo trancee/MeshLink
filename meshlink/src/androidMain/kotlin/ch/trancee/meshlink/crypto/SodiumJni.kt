@@ -3,7 +3,7 @@ package ch.trancee.meshlink.crypto
 /**
  * Thin JNI binding to libmeshlink_sodium.so (libsodium 1.0.22).
  *
- * This object is the sole entry point into the native library. It mirrors the 10 functions exported
+ * This object is the sole entry point into the native library. It mirrors the 11 functions exported
  * by meshlink_sodium.c. All methods are `@JvmStatic` so the JNI mangling follows the
  * `Java_ch_trancee_meshlink_crypto_SodiumJni_<method>` pattern.
  *
@@ -64,6 +64,10 @@ internal object SodiumJni {
     // ── SHA-256 (RFC 6234) ─────────────────────────────────────────────────
     /** Returns the 32-byte SHA-256 digest. */
     @JvmStatic external fun sha256(input: ByteArray): ByteArray
+
+    // ── HMAC-SHA-256 (RFC 2104) ─────────────────────────────────────────────
+    /** Returns the 32-byte HMAC-SHA-256 authentication tag. */
+    @JvmStatic external fun hmacSha256(key: ByteArray, data: ByteArray): ByteArray
 
     // ── HKDF-SHA-256 (RFC 5869) ────────────────────────────────────────────
     /** Returns derived key material of the requested [length] (max 8160 bytes). */

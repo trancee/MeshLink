@@ -4,7 +4,7 @@
  * Package: ch.trancee.meshlink.crypto
  * Kotlin companion: SodiumJni.kt (object SodiumJni, external @JvmStatic methods)
  *
- * Exposes all 9 CryptoProvider operations:
+ * Exposes all 10 CryptoProvider operations:
  *   1.  generateEd25519KeyPair  — crypto_sign_keypair
  *   2.  sign                    — crypto_sign_ed25519_detached
  *   3.  verify                  — crypto_sign_ed25519_verify_detached
@@ -13,7 +13,8 @@
  *   6.  aeadEncrypt             — crypto_aead_chacha20poly1305_ietf_encrypt
  *   7.  aeadDecrypt             — crypto_aead_chacha20poly1305_ietf_decrypt
  *   8.  sha256                  — crypto_hash_sha256
- *   9.  hkdfSha256              — HMAC-SHA256 extract + expand (RFC 5869)
+ *   9.  hmacSha256              — crypto_auth_hmacsha256_init/update/final
+ *  10.  hkdfSha256              — HMAC-SHA256 extract + expand (RFC 5869)
  *
  * All functions return byte arrays on success or throw Java exceptions on failure.
  * sodium_init() is called once from a static initialiser in SodiumJni.kt.
@@ -361,7 +362,36 @@ Java_ch_trancee_meshlink_crypto_SodiumJni_sha256(JNIEnv *env, jclass cls, jbyteA
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
- * 10. hkdfSha256(salt, ikm, info, length): ByteArray
+ * 10. hmacSha256(key, data): ByteArray (32 bytes)
+ *     HMAC-SHA-256 (RFC 2104) via libsodium's streaming HMAC state machine.
+ * ───────────────────────────────────────────────────────────────────────── */
+JNIEXPORT jbyteArray JNICALL
+Java_ch_trancee_meshlink_crypto_SodiumJni_hmacSha256(JNIEnv *env, jclass cls,
+                                                      jbyteArray jKey, jbyteArray jData) {
+    (void)cls;
+    jbyte *key     = (*env)->GetByteArrayElements(env, jKey,  NULL);
+    jbyte *data    = (*env)->GetByteArrayElements(env, jData, NULL);
+    jsize  keyLen  = (*env)->GetArrayLength(env, jKey);
+    jsize  dataLen = (*env)->GetArrayLength(env, jData);
+
+    unsigned char out[crypto_auth_hmacsha256_BYTES];
+    crypto_auth_hmacsha256_state st;
+    crypto_auth_hmacsha256_init(&st, (unsigned char *)key, (size_t)keyLen);
+    if (dataLen > 0) {
+        crypto_auth_hmacsha256_update(&st, (unsigned char *)data, (unsigned long long)dataLen);
+    }
+    crypto_auth_hmacsha256_final(&st, out);
+
+    (*env)->ReleaseByteArrayElements(env, jKey,  key,  JNI_ABORT);
+    (*env)->ReleaseByteArrayElements(env, jData, data, JNI_ABORT);
+
+    jbyteArray result = (*env)->NewByteArray(env, crypto_auth_hmacsha256_BYTES);
+    (*env)->SetByteArrayRegion(env, result, 0, crypto_auth_hmacsha256_BYTES, (jbyte *)out);
+    return result;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * 11. hkdfSha256(salt, ikm, info, length): ByteArray
  *     RFC 5869 HKDF-SHA-256 implemented via libsodium HMAC-SHA-256 primitives.
  *
  *     Extract:  PRK = HMAC-SHA-256(salt, IKM)

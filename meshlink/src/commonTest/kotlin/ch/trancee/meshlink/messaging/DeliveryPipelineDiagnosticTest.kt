@@ -524,6 +524,9 @@ class DeliveryPipelineDiagnosticTest {
 
                 override fun sha256(input: ByteArray) = realCrypto.sha256(input)
 
+                override fun hmacSha256(key: ByteArray, data: ByteArray) =
+                    realCrypto.hmacSha256(key, data)
+
                 override fun hkdfSha256(
                     salt: ByteArray,
                     ikm: ByteArray,

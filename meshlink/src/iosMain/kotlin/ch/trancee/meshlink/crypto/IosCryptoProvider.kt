@@ -169,6 +169,9 @@ internal class IosCryptoProvider : CryptoProvider {
         return out
     }
 
+    override fun hmacSha256(key: ByteArray, data: ByteArray): ByteArray =
+        hmacSha256Vararg(key, data)
+
     override fun hkdfSha256(
         salt: ByteArray,
         ikm: ByteArray,
@@ -177,13 +180,13 @@ internal class IosCryptoProvider : CryptoProvider {
     ): ByteArray {
         require(length in 1..8160) { "HKDF output length out of bounds: $length" }
         val effectiveSalt = if (salt.isEmpty()) ByteArray(32) else salt
-        val prk = hmacSha256(effectiveSalt, ikm)
+        val prk = hmacSha256Vararg(effectiveSalt, ikm)
         val okm = ByteArray(length)
         val n = (length + 31) / 32
         var t = ByteArray(0)
         var offset = 0
         for (i in 1..n) {
-            t = hmacSha256(prk, t, info, byteArrayOf(i.toByte()))
+            t = hmacSha256Vararg(prk, t, info, byteArrayOf(i.toByte()))
             val toCopy = minOf(32, length - offset)
             t.copyInto(okm, offset, 0, toCopy)
             offset += toCopy
@@ -193,10 +196,10 @@ internal class IosCryptoProvider : CryptoProvider {
 
     /**
      * Computes HMAC-SHA-256(key, chunk1 || chunk2 || ...) via libsodium's streaming HMAC-SHA-256
-     * state machine. Empty chunks are skipped (no-op update). Used by [hkdfSha256] for both the
-     * extract and expand phases (RFC 5869).
+     * state machine. Empty chunks are skipped (no-op update). Used by [hmacSha256] and [hkdfSha256]
+     * for both the extract and expand phases (RFC 5869).
      */
-    private fun hmacSha256(key: ByteArray, vararg data: ByteArray): ByteArray {
+    private fun hmacSha256Vararg(key: ByteArray, vararg data: ByteArray): ByteArray {
         val out = ByteArray(32)
         memScoped {
             val state = alloc<crypto_auth_hmacsha256_state>()

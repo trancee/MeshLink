@@ -155,6 +155,14 @@ internal class JvmCryptoProvider : CryptoProvider {
     override fun sha256(input: ByteArray): ByteArray =
         MessageDigest.getInstance("SHA-256").digest(input)
 
+    // ── HMAC-SHA-256 (RFC 2104) ──────────────────────────────────────────────
+
+    override fun hmacSha256(key: ByteArray, data: ByteArray): ByteArray {
+        val mac = Mac.getInstance("HmacSHA256")
+        mac.init(SecretKeySpec(key, "HmacSHA256"))
+        return mac.doFinal(data)
+    }
+
     // ── HKDF-SHA-256 (RFC 5869) ───────────────────────────────────────────────
 
     override fun hkdfSha256(

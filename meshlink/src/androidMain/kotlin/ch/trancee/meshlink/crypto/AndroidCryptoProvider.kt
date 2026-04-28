@@ -45,6 +45,9 @@ internal class AndroidCryptoProvider : CryptoProvider {
 
     override fun sha256(input: ByteArray): ByteArray = SodiumJni.sha256(input)
 
+    override fun hmacSha256(key: ByteArray, data: ByteArray): ByteArray =
+        SodiumJni.hmacSha256(key, data)
+
     override fun hkdfSha256(
         salt: ByteArray,
         ikm: ByteArray,
