@@ -25,6 +25,8 @@ internal class NoiseHandshakeManager(
     private val trustStore: TrustStore,
     private val config: HandshakeConfig,
     private val clock: () -> Long,
+    private val diagnosticSink: ch.trancee.meshlink.api.DiagnosticSinkApi =
+        ch.trancee.meshlink.api.NoOpDiagnosticSink,
 ) {
     /**
      * Invoked when a handshake completes and [peerId] is authenticated.

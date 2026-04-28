@@ -70,6 +70,8 @@ internal class DeliveryPipeline(
     private val dedupSet: DedupSet,
     private val config: MessagingConfig,
     private val clock: () -> Long,
+    private val diagnosticSink: ch.trancee.meshlink.api.DiagnosticSinkApi =
+        ch.trancee.meshlink.api.NoOpDiagnosticSink,
 ) {
 
     // ── Per-sender replay guard ───────────────────────────────────────────────

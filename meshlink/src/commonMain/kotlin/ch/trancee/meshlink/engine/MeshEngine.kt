@@ -406,6 +406,8 @@ private constructor(
             scope: CoroutineScope,
             clock: () -> Long,
             config: MeshEngineConfig = MeshEngineConfig(),
+            diagnosticSink: ch.trancee.meshlink.api.DiagnosticSinkApi =
+                ch.trancee.meshlink.api.NoOpDiagnosticSink,
         ): MeshEngine {
             // Engine scope is a child of the passed scope so cancelling `engineScope` does not
             // propagate upward and does not affect the test scope in unit tests.
@@ -426,6 +428,7 @@ private constructor(
                     scope = engineScope,
                     clock = clock,
                     config = config.routing,
+                    diagnosticSink = diagnosticSink,
                 )
             val dedupSet =
                 DedupSet(config.routing.dedupCapacity, config.routing.dedupTtlMillis, clock)
@@ -446,7 +449,13 @@ private constructor(
                 )
 
             // ── Transfer layer ────────────────────────────────────────────────
-            val transferEngine = TransferEngine(engineScope, config.transfer, config.chunkSize)
+            val transferEngine =
+                TransferEngine(
+                    engineScope,
+                    config.transfer,
+                    config.chunkSize,
+                    diagnosticSink = diagnosticSink,
+                )
             val initialMaxConnections =
                 PowerProfile.forTier(PowerTier.BALANCED, config.power).maxConnections
             val transferScheduler = TransferScheduler(maxConcurrent = initialMaxConnections)
@@ -465,10 +474,18 @@ private constructor(
                     dedupSet = dedupSet,
                     config = config.messaging,
                     clock = clock,
+                    diagnosticSink = diagnosticSink,
                 )
 
             // ── Power management ──────────────────────────────────────────────
-            val powerManager = PowerManager(engineScope, batteryMonitor, clock, config.power)
+            val powerManager =
+                PowerManager(
+                    engineScope,
+                    batteryMonitor,
+                    clock,
+                    config.power,
+                    diagnosticSink = diagnosticSink,
+                )
 
             // ── Noise handshake manager ───────────────────────────────────────
             val noiseHandshakeManager =
@@ -478,6 +495,7 @@ private constructor(
                     trustStore = trustStore,
                     config = config.handshake,
                     clock = clock,
+                    diagnosticSink = diagnosticSink,
                 )
 
             return MeshEngine(

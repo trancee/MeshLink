@@ -29,6 +29,8 @@ internal class RoutingEngine(
     private val scope: CoroutineScope,
     private val clock: () -> Long,
     private val config: RoutingConfig,
+    private val diagnosticSink: ch.trancee.meshlink.api.DiagnosticSinkApi =
+        ch.trancee.meshlink.api.NoOpDiagnosticSink,
 ) {
     // Feasibility distances: destinationKey → best-ever accepted total cost.
     private val feasibilityDistances: HashMap<List<Byte>, Double> = HashMap()

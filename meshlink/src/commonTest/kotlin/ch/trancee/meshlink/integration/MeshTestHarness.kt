@@ -1,7 +1,7 @@
 package ch.trancee.meshlink.integration
 
+import ch.trancee.meshlink.api.DiagnosticSink
 import ch.trancee.meshlink.api.DiagnosticSinkApi
-import ch.trancee.meshlink.api.NoOpDiagnosticSink
 import ch.trancee.meshlink.crypto.CryptoProvider
 import ch.trancee.meshlink.crypto.Identity
 import ch.trancee.meshlink.crypto.createCryptoProvider
@@ -185,7 +185,13 @@ private constructor(
                 val identity = Identity.loadOrGenerate(crypto, storage)
                 val transport = VirtualMeshTransport(identity.keyHash, testScheduler)
                 val batteryMonitor = StubBatteryMonitor(level = 1.0f)
-                val diagnosticSink: DiagnosticSinkApi = NoOpDiagnosticSink
+                val diagnosticSink: DiagnosticSinkApi =
+                    DiagnosticSink(
+                        bufferCapacity = 128,
+                        redactFn = null,
+                        clock = clock,
+                        wallClock = clock,
+                    )
 
                 val engine =
                     MeshEngine.create(
@@ -197,6 +203,7 @@ private constructor(
                         scope = backgroundScope,
                         clock = clock,
                         config = nodeConfigs[name] ?: integrationConfig,
+                        diagnosticSink = diagnosticSink,
                     )
 
                 builtNodes[name] =

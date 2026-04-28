@@ -78,6 +78,7 @@ internal constructor(
     @Suppress("unused") private val scope: CoroutineScope,
     private val clock: () -> Long,
     private val wallClock: () -> Long = clock,
+    private val diagnosticSink: DiagnosticSinkApi = NoOpDiagnosticSink,
 ) : MeshLinkApi {
 
     // ── Diagnostic sink ────────────────────────────────────────────────────
@@ -94,27 +95,9 @@ internal constructor(
     private fun truncatePeerIdHex(peerId: PeerIdHex): PeerIdHex =
         PeerIdHex(peerId.hex.take(8) + "…")
 
-    /**
-     * Active diagnostic sink — [DiagnosticSink] when diagnostics are enabled, [NoOpDiagnosticSink]
-     * when disabled.
-     *
-     * The redact function is a simple prefix-truncation stub (SHA-256 is not available in
-     * commonMain without a CryptoProvider; a real SHA-256 implementation can be injected via a
-     * platform-specific factory if needed).
-     */
-    private val diagnosticSink: DiagnosticSinkApi =
-        if (config.diagnostics.enabled) {
-            val redactFn: ((PeerIdHex) -> PeerIdHex)? =
-                if (config.diagnostics.redactPeerIds) ::truncatePeerIdHex else null
-            DiagnosticSink(
-                bufferCapacity = config.diagnostics.bufferCapacity,
-                redactFn = redactFn,
-                clock = clock,
-                wallClock = wallClock,
-            )
-        } else {
-            NoOpDiagnosticSink
-        }
+    // diagnosticSink is now a constructor parameter — no in-line initialization needed.
+    // The factory method creates the appropriate sink (live or no-op) and passes it to both
+    // MeshEngine.create() and this constructor.
 
     // ── State machine ──────────────────────────────────────────────────────
 
@@ -519,6 +502,24 @@ internal constructor(
             wallClock: () -> Long = clock,
         ): MeshLink {
             val identity = Identity.loadOrGenerate(cryptoProvider, storage)
+
+            // Build the diagnostic sink early so it can be shared with MeshEngine + subsystems.
+            val diagnosticSink: DiagnosticSinkApi =
+                if (config.diagnostics.enabled) {
+                    val redactFn: ((PeerIdHex) -> PeerIdHex)? =
+                        if (config.diagnostics.redactPeerIds)
+                            { peerId -> PeerIdHex(peerId.hex.take(8) + "…") }
+                        else null
+                    DiagnosticSink(
+                        bufferCapacity = config.diagnostics.bufferCapacity,
+                        redactFn = redactFn,
+                        clock = clock,
+                        wallClock = wallClock,
+                    )
+                } else {
+                    NoOpDiagnosticSink
+                }
+
             val engine =
                 MeshEngine.create(
                     identity = identity,
@@ -529,6 +530,7 @@ internal constructor(
                     scope = parentScope,
                     clock = clock,
                     config = config.toMeshEngineConfig(),
+                    diagnosticSink = diagnosticSink,
                 )
             return MeshLink(
                 config = config,
@@ -538,6 +540,7 @@ internal constructor(
                 scope = parentScope,
                 clock = clock,
                 wallClock = clock,
+                diagnosticSink = diagnosticSink,
             )
         }
     }

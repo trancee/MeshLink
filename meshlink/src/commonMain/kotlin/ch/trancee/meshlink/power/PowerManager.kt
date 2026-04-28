@@ -24,6 +24,8 @@ internal class PowerManager(
     batteryMonitor: BatteryMonitor,
     clock: () -> Long,
     private val config: PowerConfig = PowerConfig(),
+    private val diagnosticSink: ch.trancee.meshlink.api.DiagnosticSinkApi =
+        ch.trancee.meshlink.api.NoOpDiagnosticSink,
 ) {
     private val powerModeEngine = PowerModeEngine(scope, batteryMonitor, clock, config)
     private val connectionLimiter =

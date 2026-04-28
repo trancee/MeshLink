@@ -35,6 +35,8 @@ internal class TransferEngine(
     private val config: TransferConfig = TransferConfig(),
     private val chunkSizePolicy: ChunkSizePolicy = ChunkSizePolicy.GATT,
     private val isGattMode: Boolean = true,
+    private val diagnosticSink: ch.trancee.meshlink.api.DiagnosticSinkApi =
+        ch.trancee.meshlink.api.NoOpDiagnosticSink,
 ) : MemoryPressureListener {
 
     private val _outboundChunks = MutableSharedFlow<OutboundFrame>(extraBufferCapacity = 64)
