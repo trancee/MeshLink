@@ -62,6 +62,7 @@ private constructor(
      * the private [RouteCoordinator] hierarchy.
      */
     internal val routingTable: RoutingTable,
+    private val pseudonymRotator: PseudonymRotator,
 ) {
     // ── Public SharedFlow surfaces ────────────────────────────────────────────
 
@@ -113,8 +114,14 @@ private constructor(
      * Must be called once after construction. Call [stop] to tear down.
      */
     suspend fun start() {
-        // Set initial advertisement data from current power tier.
-        transport.advertisementServiceData = PowerTierCodec.encode(powerManager.currentTier)
+        // Start pseudonym rotation before advertising — ensures no window of raw keyHash exposure.
+        // PseudonymRotator.start() computes the initial pseudonym and invokes onRotation
+        // synchronously, so transport.advertisementPseudonym is set before any advertisement goes
+        // out.
+        pseudonymRotator.start()
+
+        // Set initial advertisement data from current power tier and pseudonym.
+        updateAdvertisementData()
 
         // Start BLE advertising and scanning.
         transport.startAdvertisingAndScanning()
@@ -188,7 +195,18 @@ private constructor(
         val profile = powerManager.profile()
         transferScheduler.updateMaxConcurrent(profile.maxConnections)
         presenceTracker.updatePresenceTimeout(profile.presenceTimeoutMillis)
-        transport.advertisementServiceData = PowerTierCodec.encode(tier)
+        updateAdvertisementData()
+    }
+
+    /**
+     * Composes the full advertisement state: encodes current power tier via [PowerTierCodec],
+     * ensures the transport's [BleTransport.advertisementPseudonym] reflects the current pseudonym
+     * from [PseudonymRotator], and writes the encoded tier to
+     * [BleTransport.advertisementServiceData].
+     */
+    private fun updateAdvertisementData() {
+        transport.advertisementPseudonym = pseudonymRotator.currentPseudonym()
+        transport.advertisementServiceData = PowerTierCodec.encode(powerManager.currentTier)
     }
 
     /**
@@ -450,6 +468,24 @@ private constructor(
                     diagnosticSink = diagnosticSink,
                 )
 
+            // ── Pseudonym rotation ────────────────────────────────────────────
+            // onRotation callback is set to a no-op here; MeshEngine.start() wires the
+            // real callback that updates transport advertisement data. The rotator is
+            // started in start() to ensure no window of raw keyHash exposure.
+            val pseudonymRotator =
+                PseudonymRotator(
+                    keyHash = identity.keyHash,
+                    cryptoProvider = cryptoProvider,
+                    scope = engineScope,
+                    clock = clock,
+                    diagnosticSink = diagnosticSink,
+                    onRotation = { newPseudonym ->
+                        transport.advertisementPseudonym = newPseudonym
+                        transport.advertisementServiceData =
+                            PowerTierCodec.encode(powerManager.currentTier)
+                    },
+                )
+
             return MeshEngine(
                 engineScope = engineScope,
                 transport = transport,
@@ -460,6 +496,7 @@ private constructor(
                 transferScheduler = transferScheduler,
                 noiseHandshakeManager = noiseHandshakeManager,
                 routingTable = routingTable,
+                pseudonymRotator = pseudonymRotator,
             )
         }
     }

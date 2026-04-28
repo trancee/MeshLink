@@ -41,6 +41,7 @@ import kotlinx.coroutines.sync.withLock
 internal object NoOpBleTransportInstance : BleTransport {
     override val localPeerId: ByteArray = ByteArray(12)
     override var advertisementServiceData: ByteArray = ByteArray(0)
+    override var advertisementPseudonym: ByteArray = ByteArray(12)
     override val advertisementEvents = emptyFlow<ch.trancee.meshlink.transport.AdvertisementEvent>()
     override val peerLostEvents = emptyFlow<ch.trancee.meshlink.transport.PeerLostEvent>()
     override val incomingData = emptyFlow<ch.trancee.meshlink.transport.IncomingData>()

@@ -76,6 +76,7 @@ internal class IosBleTransport(
 
     override val localPeerId: ByteArray = identity.keyHash.copyOf()
     override var advertisementServiceData: ByteArray = ByteArray(0)
+    override var advertisementPseudonym: ByteArray = identity.keyHash.copyOf()
 
     // ── Flows ─────────────────────────────────────────────────────────────────
 
@@ -1020,7 +1021,7 @@ internal class IosBleTransport(
                 powerMode = powerTierFlow.value.ordinal,
                 meshHash = localMeshHash,
                 l2capPsm = publishedPsm.toUByte(),
-                keyHash = identity.keyHash,
+                keyHash = advertisementPseudonym,
             )
         val encoded = AdvertisementCodec.encode(payload)
         advertisementServiceData = encoded

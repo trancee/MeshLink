@@ -31,6 +31,7 @@ internal class VirtualMeshTransport(
 ) : BleTransport {
 
     override var advertisementServiceData: ByteArray = ByteArray(16)
+    override var advertisementPseudonym: ByteArray = ByteArray(12)
 
     private val _advertisementEvents =
         MutableSharedFlow<AdvertisementEvent>(replay = 0, extraBufferCapacity = 64)

@@ -521,6 +521,7 @@ class MeshLinkTest {
     private class FailingTransport : BleTransport {
         override val localPeerId: ByteArray = ByteArray(12)
         override var advertisementServiceData: ByteArray = ByteArray(16)
+        override var advertisementPseudonym: ByteArray = ByteArray(12)
         override val advertisementEvents = emptyFlow<AdvertisementEvent>()
         override val peerLostEvents = emptyFlow<PeerLostEvent>()
         override val incomingData = emptyFlow<IncomingData>()

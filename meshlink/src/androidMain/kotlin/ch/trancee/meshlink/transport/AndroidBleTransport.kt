@@ -110,6 +110,7 @@ internal class AndroidBleTransport(
 
     override val localPeerId: ByteArray = identity.keyHash.copyOf()
     override var advertisementServiceData: ByteArray = ByteArray(0)
+    override var advertisementPseudonym: ByteArray = identity.keyHash.copyOf()
 
     private val localMeshHash: UShort = MeshHashFilter.computeMeshHash(config.appId)
     private val isRunning = AtomicBoolean(false)
@@ -199,7 +200,7 @@ internal class AndroidBleTransport(
                 powerMode = powerTierFlow.value.ordinal,
                 meshHash = localMeshHash,
                 l2capPsm = psm.toUByte(),
-                keyHash = identity.keyHash,
+                keyHash = advertisementPseudonym,
             )
         val encodedPayload = AdvertisementCodec.encode(payload)
         advertisementServiceData = encodedPayload
