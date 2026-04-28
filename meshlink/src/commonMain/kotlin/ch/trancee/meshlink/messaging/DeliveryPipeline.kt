@@ -418,10 +418,11 @@ internal class DeliveryPipeline(
                 try {
                     noiseKOpen(cryptoProvider, localIdentity.dhKeyPair, senderPubKey, msg.payload)
                 } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+                    val reason = e.message ?: "AEAD verification failed"
                     diagnosticSink.emit(DiagnosticCode.DECRYPTION_FAILED) {
                         DiagnosticPayload.DecryptionFailed(
                             peerId = msg.origin.toPeerIdHex(),
-                            reason = e.message ?: "AEAD verification failed",
+                            reason = reason,
                         )
                     }
                     return // AEAD tag verification failed — drop.

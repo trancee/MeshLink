@@ -73,8 +73,10 @@ class DeliveryPipelineDiagnosticTest {
         clock: () -> Long,
         config: MessagingConfig = relaxedConfig(),
         transferConfig: TransferConfig = TransferConfig(inactivityBaseTimeoutMillis = 5_000L),
+        cryptoOverride: CryptoProvider? = null,
     ): PipelineNode {
         val crypto = createCryptoProvider()
+        val pipelineCrypto = cryptoOverride ?: crypto
         val idStorage = InMemorySecureStorage()
         val identity = Identity.loadOrGenerate(crypto, idStorage)
         val transport = VirtualMeshTransport(identity.keyHash, testScheduler)
@@ -123,7 +125,7 @@ class DeliveryPipelineDiagnosticTest {
                 transferEngine = transferEngine,
                 inboundValidator = InboundValidator,
                 localIdentity = identity,
-                cryptoProvider = crypto,
+                cryptoProvider = pipelineCrypto,
                 trustStore = trustStore,
                 dedupSet = messageDedupSet,
                 config = config,
@@ -474,5 +476,90 @@ class DeliveryPipelineDiagnosticTest {
         assertNotNull(event, "Expected UNKNOWN_MESSAGE_TYPE diagnostic event")
         assertEquals(DiagnosticCode.UNKNOWN_MESSAGE_TYPE, event.code)
         assertIs<DiagnosticPayload.UnknownMessageType>(event.payload)
+    }
+
+    // 9. DECRYPTION_FAILED with null exception message — covers the elvis ?: fallback
+    @Test
+    fun decryptionFailedFallbackReasonWhenExceptionMessageIsNull() = runTest {
+        var time = 0L
+        val realCrypto = createCryptoProvider()
+
+        // Wrap the real CryptoProvider: delegate everything except aeadDecrypt, which throws
+        // RuntimeException() with null message to exercise the `e.message ?: "..."` fallback.
+        val nullMsgCrypto =
+            object : CryptoProvider {
+                override fun generateEd25519KeyPair() = realCrypto.generateEd25519KeyPair()
+
+                override fun sign(privateKey: ByteArray, message: ByteArray) =
+                    realCrypto.sign(privateKey, message)
+
+                override fun verify(
+                    publicKey: ByteArray,
+                    message: ByteArray,
+                    signature: ByteArray,
+                ) = realCrypto.verify(publicKey, message, signature)
+
+                override fun generateX25519KeyPair() = realCrypto.generateX25519KeyPair()
+
+                override fun x25519SharedSecret(privateKey: ByteArray, publicKey: ByteArray) =
+                    realCrypto.x25519SharedSecret(privateKey, publicKey)
+
+                override fun aeadEncrypt(
+                    key: ByteArray,
+                    nonce: ByteArray,
+                    plaintext: ByteArray,
+                    aad: ByteArray,
+                ) = realCrypto.aeadEncrypt(key, nonce, plaintext, aad)
+
+                @Suppress("TooGenericExceptionThrown")
+                override fun aeadDecrypt(
+                    key: ByteArray,
+                    nonce: ByteArray,
+                    ciphertext: ByteArray,
+                    aad: ByteArray,
+                ): ByteArray {
+                    // Throw with null message to cover the elvis fallback branch.
+                    throw RuntimeException()
+                }
+
+                override fun sha256(input: ByteArray) = realCrypto.sha256(input)
+
+                override fun hkdfSha256(
+                    salt: ByteArray,
+                    ikm: ByteArray,
+                    info: ByteArray,
+                    length: Int,
+                ) = realCrypto.hkdfSha256(salt, ikm, info, length)
+            }
+
+        val sender = makeNode(backgroundScope, testScheduler, { time })
+        val receiver =
+            makeNode(backgroundScope, testScheduler, { time }, cryptoOverride = nullMsgCrypto)
+        linkNodes(sender, receiver, { time })
+        drainFlows(backgroundScope, receiver)
+        runCurrent()
+
+        // Build a RoutedMessage with garbage payload — noiseKOpen will call aeadDecrypt which
+        // throws RuntimeException() with null message.
+        val badMsg =
+            RoutedMessage(
+                messageId = ByteArray(16) { it.toByte() },
+                origin = sender.identity.keyHash,
+                destination = receiver.identity.keyHash,
+                hopLimit = 5u,
+                visitedList = listOf(sender.identity.keyHash),
+                priority = Priority.NORMAL.wire,
+                originationTime = 1000uL,
+                payload = ByteArray(64) { 0xBB.toByte() },
+            )
+        val encoded = WireCodec.encode(badMsg)
+        receiver.transport.injectRawIncoming(sender.identity.keyHash, encoded)
+        runCurrent()
+
+        val event = receiver.diagnosticSink.events.replayCache.lastOrNull()
+        assertNotNull(event, "Expected DECRYPTION_FAILED diagnostic event")
+        assertEquals(DiagnosticCode.DECRYPTION_FAILED, event.code)
+        val payload = assertIs<DiagnosticPayload.DecryptionFailed>(event.payload)
+        assertEquals("AEAD verification failed", payload.reason) // fallback reason used
     }
 }
