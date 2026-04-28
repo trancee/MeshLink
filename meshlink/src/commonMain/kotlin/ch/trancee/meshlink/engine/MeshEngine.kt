@@ -3,7 +3,6 @@ package ch.trancee.meshlink.engine
 import ch.trancee.meshlink.crypto.CryptoProvider
 import ch.trancee.meshlink.crypto.Identity
 import ch.trancee.meshlink.crypto.TrustStore
-import ch.trancee.meshlink.messaging.CoverageIgnore
 import ch.trancee.meshlink.messaging.Delivered
 import ch.trancee.meshlink.messaging.DeliveryFailed
 import ch.trancee.meshlink.messaging.DeliveryPipeline
@@ -179,14 +178,12 @@ private constructor(
         transport.stopAll()
     }
 
-    // ── @CoverageIgnore helpers — correct but not reachable via unit-test harness ──────────────
+    // ── Internal helpers ────────────────────────────────────────────────────────
 
     /**
-     * Handles a tier-change event from [PowerManager]. Extracted for [CoverageIgnore] — the lambda
-     * requires advancing past the bootstrap window and triggering a battery threshold crossing,
-     * which is not feasible in unit tests without a full integration harness.
+     * Handles a tier-change event from [PowerManager]. Updates the transfer scheduler, presence
+     * timeout, and advertisement data to reflect the new power tier.
      */
-    @CoverageIgnore
     private fun handleTierChange(tier: PowerTier) {
         val profile = powerManager.profile()
         transferScheduler.updateMaxConcurrent(profile.maxConnections)
@@ -195,36 +192,25 @@ private constructor(
     }
 
     /**
-     * Handles an eviction request from [PowerManager]. Extracted for [CoverageIgnore] — the lambda
-     * requires a connected peer AND a tier reduction that forces eviction, which requires a full
-     * integration harness to reproduce reliably in tests.
+     * Handles an eviction request from [PowerManager]. Disconnects the peer and removes it from
+     * routing and presence tracking.
      */
-    @CoverageIgnore
     private suspend fun handleEvictionRequest(peerId: ByteArray) {
         transport.disconnect(peerId)
         routeCoordinator.onPeerDisconnected(peerId)
         presenceTracker.onPeerDisconnected(peerId)
     }
 
-    /**
-     * Sends a unicast routing frame to a specific peer. Extracted for [CoverageIgnore] — the
-     * unicast path in the outboundFrames subscription fires only after a full peer connection is
-     * established (requiring a complete Noise XX handshake), which needs a full integration harness
-     * rather than unit-test scope.
-     */
-    @CoverageIgnore
+    /** Sends a unicast routing frame to a specific peer via the BLE transport. */
     private suspend fun sendUnicastFrame(peerId: ByteArray, encoded: ByteArray) {
         transport.sendToPeer(peerId, encoded)
     }
 
     /**
      * Launches a subscription on [BleTransport.incomingData] that routes [Handshake] wire messages
-     * to [NoiseHandshakeManager.onInboundHandshake]. Extracted for [CoverageIgnore] — this path
-     * requires a full two-device integration harness (linked transports, real Noise XX exchange) to
-     * exercise at unit-test level. [DeliveryPipeline] already subscribes to the same flow but
-     * silently drops Handshake messages; both collectors coexist on the SharedFlow.
+     * to [NoiseHandshakeManager.onInboundHandshake]. [DeliveryPipeline] already subscribes to the
+     * same flow but silently drops Handshake messages; both collectors coexist on the SharedFlow.
      */
-    @CoverageIgnore
     private fun launchInboundHandshakeSubscription() {
         engineScope.launch {
             transport.incomingData.collect { incoming ->
@@ -237,12 +223,9 @@ private constructor(
     }
 
     /**
-     * Launches the [RouteCoordinator.outboundFrames] subscription in [engineScope]. Extracted for
-     * [CoverageIgnore]: the unicast path (`frame.peerId != null`) fires only after a full Noise XX
-     * handshake completes AND the routing engine has emitted Updates — which requires a full
-     * two-device integration harness with linked transports.
+     * Launches the [RouteCoordinator.outboundFrames] subscription in [engineScope]. Unicast frames
+     * are sent to a specific peer; broadcast frames are flooded to all connected peers.
      */
-    @CoverageIgnore
     private fun launchOutboundFramesSubscription() {
         engineScope.launch {
             routeCoordinator.outboundFrames.collect { frame ->
@@ -259,24 +242,17 @@ private constructor(
     }
 
     /**
-     * Launches the [PowerManager.tierChanges] subscription in [engineScope]. Extracted for
-     * [CoverageIgnore]: triggering a real tier transition requires advancing past the bootstrap
-     * window AND the battery-poll interval, which needs either a fast clock or advancing virtual
-     * time — both of which interact poorly with the routing timer coroutines that also run on the
-     * test scheduler.
+     * Launches the [PowerManager.tierChanges] subscription in [engineScope]. Delegates to
+     * [handleTierChange] for each emitted tier.
      */
-    @CoverageIgnore
     private fun launchTierChangesSubscription() {
         engineScope.launch { powerManager.tierChanges.collect { tier -> handleTierChange(tier) } }
     }
 
     /**
-     * Launches the [PowerManager.evictionRequests] subscription in [engineScope]. Extracted for
-     * [CoverageIgnore]: eviction only fires when a tier downgrade reduces [maxConnections] below
-     * the count of currently-connected peers — which requires both an established connection AND a
-     * subsequent tier change, making it an integration-level scenario not suitable for unit tests.
+     * Launches the [PowerManager.evictionRequests] subscription in [engineScope]. Delegates to
+     * [handleEvictionRequest] for each eviction request.
      */
-    @CoverageIgnore
     private fun launchEvictionRequestsSubscription() {
         engineScope.launch {
             powerManager.evictionRequests.collect { peerId -> handleEvictionRequest(peerId) }
@@ -285,36 +261,21 @@ private constructor(
 
     /**
      * Schedules a [BleTransport.disconnect] for a peer whose connection was rejected by
-     * [PowerManager]. Extracted for [CoverageIgnore] — the [launch] coroutine's state-machine
-     * resume branch (label=1 in the generated `tableswitch`) is never taken in unit tests because
-     * [VirtualMeshTransport.disconnect] completes synchronously without returning
-     * `COROUTINE_SUSPENDED`, making 100% branch coverage impossible without a real suspending
-     * transport or a full integration harness.
+     * [PowerManager].
      */
-    @CoverageIgnore
     private fun rejectAndDisconnect(peerId: ByteArray) {
         engineScope.launch { transport.disconnect(peerId) }
     }
 
-    /**
-     * Encodes and transmits a Noise handshake message via the transport. Extracted for
-     * [CoverageIgnore] — the [launch] coroutine's state-machine resume branch is never taken in
-     * unit tests because [VirtualMeshTransport.sendToPeer] completes synchronously without
-     * returning `COROUTINE_SUSPENDED`.
-     */
-    @CoverageIgnore
+    /** Encodes and transmits a Noise handshake message via the transport. */
     private fun dispatchHandshakeMessage(peerId: ByteArray, handshakeMsg: Handshake) {
         engineScope.launch { transport.sendToPeer(peerId, WireCodec.encode(handshakeMsg)) }
     }
 
     /**
-     * Registers a verified peer after [PowerManager] accepts the connection. Extracted for
-     * [CoverageIgnore] — the `serviceData.isEmpty()` fallback path only fires when
-     * [NoiseHandshakeManager.onHandshakeComplete] is triggered without a prior advertisement
-     * (responder-initiated handshakes), which requires a full two-device integration harness to
-     * exercise without coupling unit tests to transport internals.
+     * Registers a verified peer after [PowerManager] accepts the connection. Builds [PeerInfo] from
+     * cached advertisement data and registers with [RouteCoordinator].
      */
-    @CoverageIgnore
     private fun connectVerifiedPeer(
         peerId: ByteArray,
         advertisementCache: HashMap<List<Byte>, Pair<ByteArray, Int>>,
@@ -338,12 +299,7 @@ private constructor(
 
     // ── Public messaging API ──────────────────────────────────────────────────
 
-    /**
-     * Subscribes to [DeliveryPipeline.deliveryConfirmations] and logs each confirmed delivery.
-     * Extracted for [CoverageIgnore] — confirmed delivery requires a full Noise XX handshake +
-     * message transfer + ACK round-trip, which is an S04 real-hardware integration scenario.
-     */
-    @CoverageIgnore
+    /** Subscribes to [DeliveryPipeline.deliveryConfirmations] and logs each confirmed delivery. */
     private fun launchDeliveryConfirmationLogging() {
         engineScope.launch {
             deliveryPipeline.deliveryConfirmations.collect { delivered ->

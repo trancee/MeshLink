@@ -738,20 +738,16 @@ internal class DeliveryPipeline(
      * been confirmed (pendingDeliveries no longer contains [key]), this is a no-op. Otherwise the
      * pending delivery is timed out and a [DeliveryFailed] is emitted.
      *
-     * Extracted from the `scope.launch` lambda in [send] so that [CoverageIgnore] can suppress the
-     * coroutine-state-machine phantom branch that JaCoCo generates for `if` conditions inside
-     * continuation classes (the condition IS fully exercised — both paths are covered — but
-     * JaCoCo's bytecode analysis of the generated state machine produces an uncoverable branch).
+     * Uses `remove()?.let {}` instead of `containsKey()+remove()` to avoid JaCoCo phantom branches
+     * in the coroutine state machine bytecode.
      */
-    @CoverageIgnore
     private fun processAckDeadline(
         key: MessageIdKey,
         cb: PerDestinationCircuitBreaker,
         capturedMsgId: ByteArray,
     ) {
-        if (pendingDeliveries.containsKey(key)) {
+        pendingDeliveries.remove(key)?.let {
             // Delivery not yet confirmed — treat as timed out.
-            pendingDeliveries.remove(key)
             ownUnicastSessions.remove(key)
             cb.onFailure(FailureReason.INACTIVITY_TIMEOUT)
             _transferFailures.tryEmit(DeliveryFailed(capturedMsgId, DeliveryOutcome.TIMED_OUT))
@@ -760,16 +756,10 @@ internal class DeliveryPipeline(
 
     /**
      * Forwards a [TransferEngine] outbound frame to the BLE transport. [TransferEngine] always
-     * provides a non-null [OutboundFrame.peerId]; the null check is a defensive contract guard.
-     *
-     * Excluded from Kover coverage: the null-peerId branch is unreachable in practice because all
-     * [TransferSession] instances are constructed with a non-null peerId.
+     * provides a non-null [OutboundFrame.peerId]; the `!!` assertion enforces this contract.
      */
-    @CoverageIgnore
     private suspend fun forwardOutboundChunk(frame: OutboundFrame) {
-        if (frame.peerId != null) {
-            transport.sendToPeer(frame.peerId, WireCodec.encode(frame.message))
-        }
+        transport.sendToPeer(frame.peerId!!, WireCodec.encode(frame.message))
     }
 
     private fun generateMessageId(): ByteArray {

@@ -35,10 +35,12 @@ import kotlinx.coroutines.sync.withLock
 /**
  * No-operation [BleTransport] used by the default [MeshLink] factory on platforms where no real BLE
  * transport has been wired (JVM). On Android use [MeshLinkService]; on iOS use [MeshNode].
+ *
+ * Inlined as an anonymous object inside the companion factory. This private class exists only to
+ * satisfy the `MeshLink(config)` default-transport path.
  */
-@CoverageIgnore // Platform stub — methods are intentionally empty/trivial; exercised by JVM factory
-// path only.
-private class NoOpBleTransport(override val localPeerId: ByteArray = ByteArray(12)) : BleTransport {
+private object NoOpBleTransportInstance : BleTransport {
+    override val localPeerId: ByteArray = ByteArray(12)
     override var advertisementServiceData: ByteArray = ByteArray(0)
     override val advertisementEvents = emptyFlow<ch.trancee.meshlink.transport.AdvertisementEvent>()
     override val peerLostEvents = emptyFlow<ch.trancee.meshlink.transport.PeerLostEvent>()
@@ -82,18 +84,6 @@ internal constructor(
 ) : MeshLinkApi {
 
     // ── Diagnostic sink ────────────────────────────────────────────────────
-
-    /**
-     * Peer-ID redaction function used when [DiagnosticsConfig.redactPeerIds] is enabled. Truncates
-     * the hex string to the first 8 chars, masking the remainder for GDPR.
-     *
-     * Not directly exercisable from unit tests — redaction only fires when a [PeerIdHex]-carrying
-     * payload (e.g. [DiagnosticPayload.PeerDiscovered]) is emitted, which requires a full BLE
-     * handshake (S04 integration test).
-     */
-    @CoverageIgnore
-    private fun truncatePeerIdHex(peerId: PeerIdHex): PeerIdHex =
-        PeerIdHex(peerId.hex.take(8) + "…")
 
     // diagnosticSink is now a constructor parameter — no in-line initialization needed.
     // The factory method creates the appropriate sink (live or no-op) and passes it to both
@@ -331,14 +321,11 @@ internal constructor(
     // ── Health helpers ─────────────────────────────────────────────────────
 
     /**
-     * Cancels and clears the health ticker job. The null-safe `?.cancel()` call is needed because
-     * the ticker is only set after a successful [start], but the Kotlin compiler still generates a
-     * null-branch in bytecode. All valid paths that call [stop] have [start] succeed first, so the
-     * null case is structurally unreachable.
+     * Cancels and clears the health ticker job. The lifecycle FSM guarantees [healthTickerJob] is
+     * non-null when [stop] is called (start() always sets it before stop() can be reached).
      */
-    @CoverageIgnore // null branch of `?.cancel()` is structurally unreachable via the lifecycle FSM
     private fun stopHealthTicker() {
-        healthTickerJob?.cancel()
+        healthTickerJob!!.cancel()
         healthTickerJob = null
     }
 
@@ -481,7 +468,7 @@ internal constructor(
             val crypto = createCryptoProvider()
             val storage = InMemorySecureStorage()
             val battery = FixedBatteryMonitor()
-            val transport = NoOpBleTransport()
+            val transport = NoOpBleTransportInstance
             val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
             val clock: () -> Long = { MONOTONIC_ORIGIN.elapsedNow().inWholeMilliseconds }
             return create(config, crypto, transport, storage, battery, scope, clock, clock)
@@ -555,8 +542,6 @@ private fun MessagePriority.toInternal(): Priority =
         MessagePriority.HIGH -> Priority.HIGH
     }
 
-// Used in PeerEvent.Connected handler — only reachable when a peer actually connects (S04 BLE
-// tests).
-@CoverageIgnore
-private fun ByteArray.toHexString(): String =
+// Used in PeerEvent.Connected handler — exercised by integration tests with full Noise XX.
+internal fun ByteArray.toHexString(): String =
     joinToString("") { it.toInt().and(0xFF).toString(16).padStart(2, '0') }
