@@ -112,3 +112,20 @@ plugins {
     alias(libs.plugins.compose.compiler) apply false
     alias(libs.plugins.kotlin.serialization) apply false
 }
+
+// Auto-configure git hooks path on every Gradle sync so .githooks/pre-commit
+// (ktfmt + detekt) is active for all contributors without manual setup.
+tasks.register<Exec>("installGitHooks") {
+    description = "Point core.hooksPath at .githooks/ for pre-commit enforcement"
+    group = "verification"
+    commandLine("git", "config", "core.hooksPath", ".githooks")
+    // Don't fail the build if git is not available (e.g. CI containers).
+    isIgnoreExitValue = true
+}
+
+// Wire installGitHooks into the build so it runs once on first task execution.
+// prepareKotlinBuildScriptModel is triggered by every IDE sync; regular builds
+// hit it via the root project evaluation.
+tasks.matching { it.name == "prepareKotlinBuildScriptModel" }.configureEach {
+    dependsOn("installGitHooks")
+}
