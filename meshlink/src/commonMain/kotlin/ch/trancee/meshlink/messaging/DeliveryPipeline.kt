@@ -158,6 +158,14 @@ internal class DeliveryPipeline(
     /** Active cut-through relay buffers, keyed by inbound TransferEngine session messageId. */
     private val cutThroughBuffers = HashMap<MessageIdKey, CutThroughBuffer>()
 
+    /**
+     * Session IDs for which cut-through relay has already forwarded chunks. When TransferEngine
+     * fires AssemblyComplete for these, the assembled payload is dropped (not relayed again)
+     * because the cut-through path already forwarded the chunks. The TransferEngine receiver
+     * session exists solely to generate ChunkAcks back to the upstream sender.
+     */
+    private val cutThroughHandledSessions = HashSet<MessageIdKey>()
+
     // ── Init: background coroutines ───────────────────────────────────────────
 
     init {
@@ -487,6 +495,8 @@ internal class DeliveryPipeline(
         val existing = cutThroughBuffers[key]
         if (existing != null) {
             existing.onSubsequentChunk(msg)
+            // Also pass to TransferEngine for ChunkAck generation (upstream sender needs ACKs).
+            transferEngine.onIncomingChunk(fromPeerId, msg)
             if (existing.state == CutThroughBuffer.State.Complete) {
                 cutThroughBuffers.remove(key)
             }
@@ -561,11 +571,18 @@ internal class DeliveryPipeline(
 
             if (buffer.state == CutThroughBuffer.State.Complete) {
                 // Single-chunk message already forwarded — no buffer to store.
+                // Also pass to TransferEngine for ChunkAck + mark as cut-through handled.
+                cutThroughHandledSessions.add(key)
+                transferEngine.onIncomingChunk(fromPeerId, msg)
                 return
             }
 
             // Store buffer and launch inactivity timeout.
             cutThroughBuffers[key] = buffer
+            // Track session as cut-through handled so assembly-triggered relay is suppressed.
+            cutThroughHandledSessions.add(key)
+            // Also pass chunk 0 to TransferEngine for ChunkAck generation.
+            transferEngine.onIncomingChunk(fromPeerId, msg)
             val timeout = transferEngine.ackDeadlineMillis
             val capturedKey = MessageIdKey(msg.messageId.copyOf())
             scope.launch {
@@ -781,6 +798,14 @@ internal class DeliveryPipeline(
         payload: ByteArray,
         fromPeerId: ByteArray,
     ) {
+        // If this session was handled by cut-through relay, the chunks have already been forwarded.
+        // The TransferEngine receiver session only existed for ChunkAck generation — drop the
+        // assembled payload to avoid a duplicate relay.
+        val sessionKey = MessageIdKey(sessionId)
+        if (cutThroughHandledSessions.remove(sessionKey)) {
+            return
+        }
+
         val wireMsg =
             try {
                 WireCodec.decode(payload)
