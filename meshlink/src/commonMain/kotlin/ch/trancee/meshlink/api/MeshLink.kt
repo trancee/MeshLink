@@ -185,64 +185,18 @@ internal constructor(
 
     // ── Event streams ──────────────────────────────────────────────────────
 
-    override val peers: Flow<PeerEvent> =
-        engine.peerEvents.map { event ->
-            when (event) {
-                is ch.trancee.meshlink.routing.PeerEvent.Connected -> {
-                    // staticPublicKey wired to TrustStore in S02; stub with empty key for S01.
-                    val stubKey = ByteArray(32)
-                    PeerEvent.Found(
-                        id = event.peerId,
-                        detail =
-                            PeerDetail(
-                                id = event.peerId,
-                                staticPublicKey = stubKey,
-                                fingerprint = event.peerId.toHexString(),
-                                isConnected = true,
-                                lastSeenTimestampMillis = clock(),
-                                trustMode = TrustMode.STRICT,
-                            ),
-                    )
-                }
-                is ch.trancee.meshlink.routing.PeerEvent.Disconnected ->
-                    PeerEvent.Lost(event.peerId)
-            }
-        }
+    override val peers: Flow<PeerEvent> = engine.peerEvents.map { mapPeerEvent(it, clock) }
 
-    override val messages: Flow<ReceivedMessage> =
-        engine.messages.map { msg ->
-            ReceivedMessage(
-                id = MessageId(msg.messageId),
-                senderId = msg.senderId,
-                payload = msg.payload,
-                receivedAtMillis = msg.receivedAt,
-            )
-        }
+    override val messages: Flow<ReceivedMessage> = engine.messages.map(::mapInboundMessage)
 
     override val deliveryConfirmations: Flow<MessageId> =
-        engine.deliveryConfirmations.map { MessageId(it.messageId) }
+        engine.deliveryConfirmations.map { mapDelivered(it) }
 
     override val transferProgress: Flow<TransferProgress> =
-        engine.transferProgress.map { progress ->
-            TransferProgress(
-                transferId = progress.messageId,
-                // recipient is not tracked at TransferEngine layer; zero-filled stub for S01.
-                recipient = ByteArray(12),
-                bytesTransferred = progress.chunksReceived.toLong(),
-                totalBytes = progress.totalChunks.toLong(),
-            )
-        }
+        engine.transferProgress.map(::mapChunkProgress)
 
     override val transferFailures: Flow<TransferFailure> =
-        engine.transferFailures.map { failure ->
-            when (failure.outcome) {
-                DeliveryOutcome.TIMED_OUT ->
-                    TransferFailure.Timeout(failure.messageId, ByteArray(12))
-                DeliveryOutcome.DESTINATION_UNREACHABLE ->
-                    TransferFailure.PeerUnavailable(failure.messageId, ByteArray(12))
-                DeliveryOutcome.SEND_FAILED -> TransferFailure.Cancelled(failure.messageId)
-            }
-        }
+        engine.transferFailures.map(::mapDeliveryFailed)
 
     override val meshHealthFlow: Flow<MeshHealthSnapshot> = _meshHealthFlow
 
@@ -536,3 +490,75 @@ private fun MessagePriority.toInternal(): Priority =
 // Used in PeerEvent.Connected handler — exercised by integration tests with full Noise XX.
 internal fun ByteArray.toHexString(): String =
     joinToString("") { it.toInt().and(0xFF).toString(16).padStart(2, '0') }
+
+// ── Flow property mappers (extracted for testability — M005/S01) ──────────
+
+/**
+ * Maps engine-level [ch.trancee.meshlink.routing.PeerEvent] to the public [PeerEvent] type.
+ * Extracted from the inline `.map { }` lambda so Kover can instrument and verify coverage of each
+ * branch without coroutine FlowCollector phantom branches.
+ */
+internal fun mapPeerEvent(
+    event: ch.trancee.meshlink.routing.PeerEvent,
+    clock: () -> Long,
+): PeerEvent =
+    when (event) {
+        is ch.trancee.meshlink.routing.PeerEvent.Connected -> {
+            // staticPublicKey wired to TrustStore in S02; stub with empty key for S01.
+            val stubKey = ByteArray(32)
+            PeerEvent.Found(
+                id = event.peerId,
+                detail =
+                    PeerDetail(
+                        id = event.peerId,
+                        staticPublicKey = stubKey,
+                        fingerprint = event.peerId.toHexString(),
+                        isConnected = true,
+                        lastSeenTimestampMillis = clock(),
+                        trustMode = TrustMode.STRICT,
+                    ),
+            )
+        }
+        is ch.trancee.meshlink.routing.PeerEvent.Disconnected -> PeerEvent.Lost(event.peerId)
+    }
+
+/** Maps engine-level [ch.trancee.meshlink.messaging.InboundMessage] to [ReceivedMessage]. */
+internal fun mapInboundMessage(msg: ch.trancee.meshlink.messaging.InboundMessage): ReceivedMessage =
+    ReceivedMessage(
+        id = MessageId(msg.messageId),
+        senderId = msg.senderId,
+        payload = msg.payload,
+        receivedAtMillis = msg.receivedAt,
+    )
+
+/** Maps engine-level [ch.trancee.meshlink.messaging.Delivered] to [MessageId]. */
+internal fun mapDelivered(delivered: ch.trancee.meshlink.messaging.Delivered): MessageId =
+    MessageId(delivered.messageId)
+
+/**
+ * Maps engine-level [ch.trancee.meshlink.transfer.TransferEvent.ChunkProgress] to
+ * [TransferProgress].
+ */
+internal fun mapChunkProgress(
+    progress: ch.trancee.meshlink.transfer.TransferEvent.ChunkProgress
+): TransferProgress =
+    TransferProgress(
+        transferId = progress.messageId,
+        // recipient is not tracked at TransferEngine layer; zero-filled stub for S01.
+        recipient = ByteArray(12),
+        bytesTransferred = progress.chunksReceived.toLong(),
+        totalBytes = progress.totalChunks.toLong(),
+    )
+
+/** Maps engine-level [ch.trancee.meshlink.messaging.DeliveryFailed] to [TransferFailure]. */
+internal fun mapDeliveryFailed(
+    failure: ch.trancee.meshlink.messaging.DeliveryFailed
+): TransferFailure =
+    when (failure.outcome) {
+        ch.trancee.meshlink.messaging.DeliveryOutcome.TIMED_OUT ->
+            TransferFailure.Timeout(failure.messageId, ByteArray(12))
+        ch.trancee.meshlink.messaging.DeliveryOutcome.DESTINATION_UNREACHABLE ->
+            TransferFailure.PeerUnavailable(failure.messageId, ByteArray(12))
+        ch.trancee.meshlink.messaging.DeliveryOutcome.SEND_FAILED ->
+            TransferFailure.Cancelled(failure.messageId)
+    }

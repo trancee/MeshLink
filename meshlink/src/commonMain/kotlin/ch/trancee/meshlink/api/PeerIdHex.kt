@@ -9,3 +9,12 @@ import kotlin.jvm.JvmInline
  * truncated SHA-256 hash before the event is emitted by [DiagnosticSink].
  */
 @JvmInline public value class PeerIdHex(public val hex: String)
+
+/**
+ * Converts this [ByteArray] to a [PeerIdHex] by hex-encoding each byte (lowercase, zero-padded).
+ *
+ * Used at every diagnostic emit site to convert raw peer identity bytes into the hex-string wrapper
+ * expected by [DiagnosticPayload] fields.
+ */
+internal fun ByteArray.toPeerIdHex(): PeerIdHex =
+    PeerIdHex(joinToString("") { it.toUByte().toString(16).padStart(2, '0') })

@@ -397,6 +397,7 @@ private constructor(
                     scope = engineScope,
                     clock = clock,
                     config = config.routing,
+                    diagnosticSink = diagnosticSink,
                 )
 
             // ── Transfer layer ────────────────────────────────────────────────

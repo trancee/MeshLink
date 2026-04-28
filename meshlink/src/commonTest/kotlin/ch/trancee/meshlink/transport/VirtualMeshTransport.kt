@@ -122,6 +122,15 @@ internal class VirtualMeshTransport(
         testScheduler.advanceTimeBy(timeMillis - testScheduler.currentTime)
     }
 
+    /**
+     * Injects raw bytes directly into [_incomingData] without going through the link/encoding
+     * layer. Bypasses L2CAP framing so tests can inject malformed, truncated, or otherwise invalid
+     * wire bytes.
+     */
+    internal suspend fun injectRawIncoming(fromPeerId: ByteArray, rawBytes: ByteArray) {
+        _incomingData.emit(IncomingData(fromPeerId.copyOf(), rawBytes))
+    }
+
     override suspend fun startAdvertisingAndScanning() {}
 
     override suspend fun requestConnectionPriority(peerId: ByteArray, highPriority: Boolean) {}

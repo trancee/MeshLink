@@ -1,5 +1,7 @@
 package ch.trancee.meshlink.routing
 
+import ch.trancee.meshlink.api.DiagnosticSinkApi
+import ch.trancee.meshlink.api.NoOpDiagnosticSink
 import ch.trancee.meshlink.crypto.TrustStore
 import ch.trancee.meshlink.wire.Hello
 import ch.trancee.meshlink.wire.Update
@@ -74,6 +76,7 @@ internal class RouteCoordinator(
     private val scope: CoroutineScope,
     private val clock: () -> Long,
     private val config: RoutingConfig,
+    private val diagnosticSink: DiagnosticSinkApi = NoOpDiagnosticSink,
 ) {
     private val _outboundFrames = MutableSharedFlow<OutboundFrame>(extraBufferCapacity = 64)
 

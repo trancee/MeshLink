@@ -1,5 +1,7 @@
 package ch.trancee.meshlink.messaging
 
+import ch.trancee.meshlink.api.DiagnosticSinkApi
+import ch.trancee.meshlink.api.NoOpDiagnosticSink
 import ch.trancee.meshlink.crypto.CryptoProvider
 import ch.trancee.meshlink.crypto.Identity
 import ch.trancee.meshlink.crypto.TrustStore
@@ -73,6 +75,7 @@ class DeliveryPipelineTest {
         clock: () -> Long,
         config: MessagingConfig = relaxedConfig(),
         transferConfig: TransferConfig = TransferConfig(inactivityBaseTimeoutMillis = 5_000L),
+        diagnosticSink: DiagnosticSinkApi = NoOpDiagnosticSink,
     ): PipelineNode {
         val crypto = createCryptoProvider()
         val idStorage = InMemorySecureStorage()
@@ -108,6 +111,7 @@ class DeliveryPipelineTest {
                 scope = scope,
                 clock = clock,
                 config = routingConfig,
+                diagnosticSink = diagnosticSink,
             )
         val transferEngine =
             TransferEngine(scope, transferConfig, ChunkSizePolicy.fixed(4096), true)
@@ -2146,6 +2150,7 @@ class DeliveryPipelineCoverageTest {
         clock: () -> Long,
         config: MessagingConfig = relaxedConfig(),
         transferConfig: TransferConfig = TransferConfig(inactivityBaseTimeoutMillis = 5_000L),
+        diagnosticSink: DiagnosticSinkApi = NoOpDiagnosticSink,
     ): PipelineNode {
         val crypto = createCryptoProvider()
         val idStorage = InMemorySecureStorage()
@@ -2181,6 +2186,7 @@ class DeliveryPipelineCoverageTest {
                 scope = scope,
                 clock = clock,
                 config = routingConfig,
+                diagnosticSink = diagnosticSink,
             )
         val transferEngine =
             TransferEngine(scope, transferConfig, ChunkSizePolicy.fixed(4096), true)

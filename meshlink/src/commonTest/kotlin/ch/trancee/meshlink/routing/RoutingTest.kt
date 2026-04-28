@@ -1,5 +1,7 @@
 package ch.trancee.meshlink.routing
 
+import ch.trancee.meshlink.api.DiagnosticSinkApi
+import ch.trancee.meshlink.api.NoOpDiagnosticSink
 import ch.trancee.meshlink.crypto.TrustStore
 import ch.trancee.meshlink.storage.InMemorySecureStorage
 import ch.trancee.meshlink.wire.Hello
@@ -53,6 +55,7 @@ class RoutingTest {
         edKey: ByteArray,
         dhKey: ByteArray,
         scope: kotlinx.coroutines.CoroutineScope,
+        diagnosticSink: DiagnosticSinkApi = NoOpDiagnosticSink,
     ): TestNode {
         val table = RoutingTable(clock)
         val storage = InMemorySecureStorage()
@@ -82,6 +85,7 @@ class RoutingTest {
                 scope = scope,
                 clock = clock,
                 config = config,
+                diagnosticSink = diagnosticSink,
             )
         return TestNode(table, storage, trustStore, coordinator)
     }
