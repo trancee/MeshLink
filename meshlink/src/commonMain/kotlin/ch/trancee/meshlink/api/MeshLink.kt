@@ -156,7 +156,7 @@ internal constructor(
                 throw IllegalStateException("stop() called from invalid state: $current")
             }
             stopHealthTicker()
-            engine.stop()
+            engine.stop(timeout)
             stateMachine.transition(LifecycleEvent.Stop)
         }
     }

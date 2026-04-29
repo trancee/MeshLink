@@ -7,6 +7,7 @@ import ch.trancee.meshlink.crypto.Identity
 import ch.trancee.meshlink.crypto.KeyChangeEvent
 import ch.trancee.meshlink.crypto.createCryptoProvider
 import ch.trancee.meshlink.messaging.InboundMessage
+import ch.trancee.meshlink.storage.InMemorySecureStorage
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -416,6 +417,111 @@ class StubApiWiringIntegrationTest {
             0,
             harness["A"].engine.bufferUtilizationPercent(),
             "bufferUtilizationPercent must be 0 when buffer capacity is 0",
+        )
+
+        harness.stopAll()
+    }
+
+    // ── Scenario 12: bufferSizeBytes with buffered messages ─────────────────
+
+    @Test
+    fun `bufferSizeBytes returns non-zero when messages are buffered`() = runTest {
+        val harness =
+            MeshTestHarness.builder()
+                .node("A")
+                .node("B")
+                .node("C") // not linked — no route from A to C
+                .link("A", "B")
+                .build(testScheduler, backgroundScope)
+
+        harness.awaitConvergence()
+
+        // Send a message to C (pinned via handshake, but no route from A) → stored in sendBuffer.
+        // C is a valid node with a pinned key (because MeshTestHarness creates all nodes),
+        // but A has no route to C. Use DeliveryPipeline directly via engine.send.
+        val cId = harness["C"].identity.keyHash
+        // First pin C's key in A's trust store by starting C's engine and triggering a
+        // lookup. Actually, the simplest approach: call broadcast on A which always works
+        // and goes through a different path, OR just verify the buffer via a send that gets
+        // queued.
+        //
+        // Actually — send() throws if key not pinned. Let's use a 3-node topology where
+        // A↔B but B is NOT linked to C. Send from A to C will find no route → buffer.
+        // But C's key must be pinned in A. After convergence, B knows about C (if linked).
+        // Since C isn't linked at all, its key is NOT pinned in A.
+        //
+        // Simplest fix: use the pipeline's internal sendBuffer by sending to B when B is
+        // disconnected. Let's disconnect B first, then send.
+        val bId = harness["B"].identity.keyHash
+
+        // Disconnect B from A's perspective.
+        harness["A"].transport.simulatePeerLost(bId)
+        testScheduler.runCurrent()
+
+        // Now send to B — route to B should be gone or expired.
+        // Actually route may still exist (not expired). Let me instead expire it.
+        // Use a node that was never connected: create a fake peerId that IS pinned.
+        // Pin a fake key in A's storage.
+        val fakeId = ByteArray(12) { 0xCC.toByte() }
+        val sb = StringBuilder()
+        for (b in fakeId) {
+            val v = b.toInt() and 0xFF
+            sb.append("0123456789abcdef"[v shr 4])
+            sb.append("0123456789abcdef"[v and 0xF])
+        }
+        harness["A"].storage.put("meshlink.trust.$sb", ByteArray(32) { 0x11.toByte() })
+
+        // Send to fakeId — no route exists → buffered.
+        val result = harness["A"].engine.send(fakeId, ByteArray(50) { it.toByte() })
+        testScheduler.runCurrent()
+
+        val size = harness["A"].engine.bufferSizeBytes()
+        assertTrue(size > 0, "bufferSizeBytes must be > 0 when a message is buffered, got $size")
+
+        harness.stopAll()
+    }
+
+    // ── Scenario 13: TrustStore onKeyChange callback fires through engine ────
+
+    @Test
+    fun `TrustStore callback fires through engine creating pending key change`() = runTest {
+        // Pre-populate A's storage with a WRONG pinned key for B.
+        // When A↔B handshake completes, TrustStore.pinKey detects mismatch → fires onKeyChange.
+        val crypto = createCryptoProvider()
+
+        // Create B's identity first to know its keyHash.
+        val storageB = ch.trancee.meshlink.storage.InMemorySecureStorage()
+        val identityB = Identity.loadOrGenerate(crypto, storageB)
+        val bKeyHash = identityB.keyHash
+
+        // Create A's storage and pin a WRONG key for B.
+        val storageA = ch.trancee.meshlink.storage.InMemorySecureStorage()
+        Identity.loadOrGenerate(crypto, storageA) // Generate A's identity in its storage.
+        val sb = StringBuilder()
+        for (b in bKeyHash) {
+            val v = b.toInt() and 0xFF
+            sb.append("0123456789abcdef"[v shr 4])
+            sb.append("0123456789abcdef"[v and 0xF])
+        }
+        val trustKey = "meshlink.trust.$sb"
+        storageA.put(trustKey, ByteArray(32) { 0xFF.toByte() }) // Wrong key!
+
+        val harness =
+            MeshTestHarness.builder()
+                .nodeWithStorage("A", storageA)
+                .nodeWithStorage("B", storageB)
+                .link("A", "B")
+                .build(testScheduler, backgroundScope)
+
+        // During handshake, B presents real static key. A's TrustStore finds mismatch →
+        // fires onKeyChange callback → MeshEngine.onKeyChange() → pending list.
+        harness.awaitConvergence()
+        testScheduler.runCurrent()
+
+        val pending = harness["A"].engine.pendingKeyChangesList()
+        assertTrue(
+            pending.any { it.peerId.contentEquals(bKeyHash) },
+            "TrustStore callback should have fired via engine, creating a pending key change for B",
         )
 
         harness.stopAll()

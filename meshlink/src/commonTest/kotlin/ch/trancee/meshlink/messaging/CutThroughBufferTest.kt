@@ -1101,4 +1101,171 @@ class CutThroughBufferTest {
         assertEquals(msg.priority, decoded.priority)
         assertEquals(msg.originationTime, decoded.originationTime)
     }
+
+    // ── modifyChunk0 keyHash validation ─────────────────────────────────────
+
+    @Test
+    fun `modifyChunk0 throws on wrong-size keyHash`() {
+        val msg = multiChunkMessage(hopLimit = 5u)
+        val wireBytes = WireCodec.encode(msg)
+        val header = CutThroughBuffer.RoutingHeaderView(wireBytes)
+
+        // Too short (11 bytes)
+        assertFailsWith<IllegalArgumentException> {
+            CutThroughBuffer.modifyChunk0(wireBytes, 4u, ByteArray(11), header)
+        }
+        // Too long (13 bytes)
+        assertFailsWith<IllegalArgumentException> {
+            CutThroughBuffer.modifyChunk0(wireBytes, 4u, ByteArray(13), header)
+        }
+    }
+
+    // ── No-split multi-chunk: forwardTotalChunks > 1 without overflow ───────
+
+    @Test
+    fun `multi-chunk message without overflow split stays Active after chunk 0`() = runTest {
+        val (log, sendFn) = recordingSendFn()
+        // Create a multi-chunk message with small payload but use huge chunkSize so
+        // chunk 0 + 12 still fits within chunkSize. The message is multi-chunk because
+        // the original chunkSize used for chunking is small, but relay chunkSize is large.
+        val msg = multiChunkMessage(hopLimit = 5u, payloadSize = 500)
+        val originalChunkSize = 244
+        val chunks = encodeAndChunk(msg, originalChunkSize)
+        assertTrue(chunks.size > 1, "Must be multi-chunk")
+
+        // Relay uses a large chunkSize so modified chunk 0 fits without overflow.
+        val relayChunkSize = chunks[0].size + 100 // plenty of room after +12 modification
+        val buf =
+            CutThroughBuffer(
+                relayMessageId = relayMessageId,
+                nextHop = nextHop,
+                localKeyHash = localKeyHash,
+                chunkSize = relayChunkSize,
+                sendFn = sendFn,
+                diagnosticSink = NoOpDiagnosticSink,
+            )
+
+        val chunk0 = Chunk(messageId, 0u, chunks.size.toUShort(), chunks[0])
+        val activated = buf.onChunk0(chunk0)
+
+        assertTrue(activated)
+        // Should be Active (not Complete) because totalChunks > 1.
+        assertEquals(CutThroughBuffer.State.Active, buf.state)
+        // Only 1 chunk forwarded (no split).
+        assertEquals(1, log.size)
+
+        // Forward remaining chunks to reach Complete.
+        for (i in 1 until chunks.size) {
+            val chunk = Chunk(messageId, i.toUShort(), chunks.size.toUShort(), chunks[i])
+            buf.onSubsequentChunk(chunk)
+        }
+        assertEquals(CutThroughBuffer.State.Complete, buf.state)
+    }
+
+    // ── modifyChunk0 with payload field absent ─────────────────────────────
+
+    @Test
+    fun `modifyChunk0 handles payload field absent in FlatBuffer`() {
+        // Craft a FlatBuffer where payload field (7) is absent (offset = 0 in vtable).
+        // This exercises the `if (header.payloadUoffsetAbs > 0)` false branch.
+        val writeBuffer = ch.trancee.meshlink.wire.WriteBuffer()
+        writeBuffer.startTable(8)
+        writeBuffer.addUByte(3, 5u) // hopLimit = 5
+        writeBuffer.addByte(5, 0) // priority
+        writeBuffer.addULong(6, 100UL) // originationTime
+        writeBuffer.addByteVector(0, messageId) // messageId (16 bytes)
+        writeBuffer.addByteVector(1, origin) // origin (12 bytes)
+        writeBuffer.addByteVector(2, destination) // destination (12 bytes)
+        writeBuffer.addByteVector(4, ByteArray(0)) // visitedList → empty
+        // Field 7 (payload) intentionally NOT added → payloadUoffsetAbs = 0.
+        val fbBytes = writeBuffer.finish()
+        val chunk0Payload = byteArrayOf(0x0A) + fbBytes
+
+        val header = CutThroughBuffer.RoutingHeaderView(chunk0Payload)
+        assertEquals(0, header.payloadUoffsetAbs, "Payload field must be absent")
+
+        val modified = CutThroughBuffer.modifyChunk0(chunk0Payload, 4u, localKeyHash, header)
+        val modifiedHeader = CutThroughBuffer.RoutingHeaderView(modified)
+
+        assertEquals(4.toUByte(), modifiedHeader.hopLimit)
+        assertEquals(1, modifiedHeader.visitedListEntries.size)
+        assertContentEquals(localKeyHash, modifiedHeader.visitedListEntries[0])
+        assertContentEquals(destination, modifiedHeader.destination)
+        assertContentEquals(origin, modifiedHeader.origin)
+        assertContentEquals(messageId, modifiedHeader.messageId)
+    }
+
+    // ── modifyChunk0 with vectors after visitedList (hand-crafted bytes) ────
+
+    @Test
+    fun `modifyChunk0 adjusts uoffsets for vectors positioned after visitedList`() {
+        // The standard WriteBuffer always places vectors in field-index order, so fields 0,1,2
+        // are always BEFORE field 4 (visitedList). To exercise the vectorFieldsAfterVisitedList
+        // loop body, we take a valid encoded message and manually rearrange the byte layout so
+        // that field 0's vector data is AFTER visitedList data, then fix up the uoffset.
+        val msg = singleChunkMessage(hopLimit = 5u)
+        val wireBytes = WireCodec.encode(msg)
+        val originalHeader = CutThroughBuffer.RoutingHeaderView(wireBytes)
+
+        // Approach: Append field 0 (messageId) data at the END of the buffer (after all vectors),
+        // and update field 0's uoffset to point there. This makes field 0's vecDataStart >
+        // visitedListDataEndAbs.
+        val TYPE_OFFSET = 1
+        val fb = wireBytes.copyOfRange(1, wireBytes.size) // FlatBuffer bytes (without type byte)
+
+        // Find field 0's uoffset position (from RoutingHeaderView internals):
+        // tableOffset = readIntLE(fb, 0)
+        val tableOffset =
+            (fb[0].toInt() and 0xFF) or
+                ((fb[1].toInt() and 0xFF) shl 8) or
+                ((fb[2].toInt() and 0xFF) shl 16) or
+                ((fb[3].toInt() and 0xFF) shl 24)
+        val soffset =
+            (fb[tableOffset].toInt() and 0xFF) or
+                ((fb[tableOffset + 1].toInt() and 0xFF) shl 8) or
+                ((fb[tableOffset + 2].toInt() and 0xFF) shl 16) or
+                ((fb[tableOffset + 3].toInt() and 0xFF) shl 24)
+        val vtableOffset = tableOffset + soffset
+        // field 0 slot in vtable: vtableOffset + 4 + 0*2
+        val field0Slot = vtableOffset + 4
+        val field0RelOffset =
+            ((fb[field0Slot].toInt() and 0xFF) or ((fb[field0Slot + 1].toInt() and 0xFF) shl 8))
+        val field0AbsPos = tableOffset + field0RelOffset // uoffset_t position in fb
+
+        // Read original uoffset to find original messageId vector.
+        val origUoffset = CutThroughBuffer.readUIntLE(fb, field0AbsPos).toInt()
+        val origVecStart = field0AbsPos + origUoffset
+        val vecLen = CutThroughBuffer.readUIntLE(fb, origVecStart).toInt()
+        val origVecData = fb.copyOfRange(origVecStart + 4, origVecStart + 4 + vecLen)
+
+        // Append messageId vector data at the very end of the fb (after visitedList data end).
+        val appendPos = fb.size // new vector position = end of current buffer
+        val newFb = fb + ByteArray(4 + vecLen) // length prefix + data
+        CutThroughBuffer.writeUIntLE(newFb, appendPos, vecLen.toUInt())
+        origVecData.copyInto(newFb, appendPos + 4)
+
+        // Update field 0's uoffset to point to the new position.
+        val newUoffset = (appendPos - field0AbsPos).toUInt()
+        CutThroughBuffer.writeUIntLE(newFb, field0AbsPos, newUoffset)
+
+        // Reconstruct chunk payload with type byte.
+        val newChunkPayload = byteArrayOf(0x0A) + newFb
+        val header = CutThroughBuffer.RoutingHeaderView(newChunkPayload)
+
+        // Now field 0's vector data is after visitedList data.
+        assertTrue(
+            header.vectorFieldsAfterVisitedList.isNotEmpty(),
+            "Expected at least one vector after visitedList",
+        )
+
+        // modifyChunk0 should adjust the uoffset for field 0.
+        val modified = CutThroughBuffer.modifyChunk0(newChunkPayload, 4u, localKeyHash, header)
+        val modifiedHeader = CutThroughBuffer.RoutingHeaderView(modified)
+
+        assertEquals(4.toUByte(), modifiedHeader.hopLimit)
+        assertEquals(1, modifiedHeader.visitedListEntries.size)
+        assertContentEquals(localKeyHash, modifiedHeader.visitedListEntries[0])
+        // messageId should still be readable (its uoffset was adjusted by +12).
+        assertContentEquals(messageId, modifiedHeader.messageId)
+    }
 }

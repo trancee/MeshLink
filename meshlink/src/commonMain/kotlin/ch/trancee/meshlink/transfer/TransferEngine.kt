@@ -5,10 +5,13 @@ import ch.trancee.meshlink.wire.Chunk
 import ch.trancee.meshlink.wire.ChunkAck
 import ch.trancee.meshlink.wire.Nack
 import ch.trancee.meshlink.wire.ResumeRequest
+import kotlin.time.Duration
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * Hook called by the transport layer when available memory is critically low. [TransferEngine]
@@ -189,4 +192,17 @@ internal class TransferEngine(
 
     /** Returns the number of active transfer sessions (both sender and receiver). */
     internal fun activeSessionCount(): Int = sessions.size
+
+    /**
+     * Polls [sessions] until empty or [timeout] expires. Returns the number of sessions still
+     * active when the method returns (0 = clean drain).
+     */
+    internal suspend fun awaitDrain(timeout: Duration): Int {
+        withTimeoutOrNull(timeout) {
+            while (sessions.isNotEmpty()) {
+                delay(50)
+            }
+        }
+        return sessions.size
+    }
 }

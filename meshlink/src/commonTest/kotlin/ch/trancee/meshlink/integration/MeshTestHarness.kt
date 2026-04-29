@@ -137,6 +137,7 @@ private constructor(
         private val nodeNames = mutableListOf<String>()
         private val linkSpecs = mutableListOf<LinkSpec>()
         private val nodeConfigs = mutableMapOf<String, MeshEngineConfig>()
+        private val nodeStorages = mutableMapOf<String, ch.trancee.meshlink.storage.SecureStorage>()
 
         /** Add a node with the given human-readable name. Identity is auto-generated. */
         fun node(name: String): Builder {
@@ -150,6 +151,17 @@ private constructor(
             require(name !in nodeNames) { "Duplicate node name: $name" }
             nodeNames.add(name)
             nodeConfigs[name] = config
+            return this
+        }
+
+        /** Add a node with pre-populated storage (for key-change / migration tests). */
+        fun nodeWithStorage(
+            name: String,
+            storage: ch.trancee.meshlink.storage.SecureStorage,
+        ): Builder {
+            require(name !in nodeNames) { "Duplicate node name: $name" }
+            nodeNames.add(name)
+            nodeStorages[name] = storage
             return this
         }
 
@@ -181,7 +193,8 @@ private constructor(
             // ── Create per-node artifacts ─────────────────────────────────────
             val builtNodes = mutableMapOf<String, MeshNode>()
             for (name in nodeNames) {
-                val storage = InMemorySecureStorage()
+                val storage =
+                    (nodeStorages[name] as? InMemorySecureStorage) ?: InMemorySecureStorage()
                 val identity = Identity.loadOrGenerate(crypto, storage)
                 val transport = VirtualMeshTransport(identity.keyHash, testScheduler)
                 val batteryMonitor = StubBatteryMonitor(level = 1.0f)

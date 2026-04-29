@@ -34,6 +34,8 @@ import ch.trancee.meshlink.wire.Handshake
 import ch.trancee.meshlink.wire.InboundValidator
 import ch.trancee.meshlink.wire.Valid
 import ch.trancee.meshlink.wire.WireCodec
+import kotlin.concurrent.Volatile
+import kotlin.time.Duration
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
@@ -78,6 +80,15 @@ private constructor(
     private val clock: () -> Long,
     private val routeExpiryMillis: Long,
 ) {
+    // ── Drain state ───────────────────────────────────────────────────────────
+
+    /** Set to `true` when [stop] is called with a non-zero timeout. Guards [send]/[broadcast]. */
+    @Volatile private var draining = false
+
+    /** Exposed for test assertions — `true` while graceful drain is in progress. */
+    internal val isDraining: Boolean
+        get() = draining
+
     // ── Public SharedFlow surfaces ────────────────────────────────────────────
 
     /** All received messages — unicast and broadcast. */
@@ -227,8 +238,23 @@ private constructor(
         launchDeliveryConfirmationLogging()
     }
 
-    /** Stops the MeshEngine: cancels all internal coroutines and halts the transport. */
-    suspend fun stop() {
+    /**
+     * Stops the MeshEngine. When [timeout] is positive, enters graceful drain mode: blocks new
+     * [send]/[broadcast] calls, then waits up to [timeout] for in-flight transfers to complete. Any
+     * sessions remaining after the deadline are force-cancelled and a
+     * [DiagnosticCode.DELIVERY_TIMEOUT] diagnostic is emitted. When [timeout] is zero (default),
+     * tears down immediately.
+     */
+    suspend fun stop(timeout: Duration = Duration.ZERO) {
+        if (timeout > Duration.ZERO) {
+            draining = true
+            val remaining = transferEngine.awaitDrain(timeout)
+            if (remaining > 0) {
+                diagnosticSink.emit(DiagnosticCode.DELIVERY_TIMEOUT) {
+                    DiagnosticPayload.TextMessage("force_cancelled=$remaining")
+                }
+            }
+        }
         meshStateManager.stop()
         engineScope.cancel()
         transport.stopAll()
@@ -379,23 +405,31 @@ private constructor(
      *
      * @return [SendResult.Sent] when accepted for immediate transmission, [SendResult.Queued] when
      *   deferred.
+     * @throws IllegalStateException if the engine is draining (graceful stop in progress).
      */
     suspend fun send(
         recipient: ByteArray,
         payload: ByteArray,
         priority: Priority = Priority.NORMAL,
-    ): SendResult = deliveryPipeline.send(recipient, payload, priority)
+    ): SendResult {
+        check(!draining) { "MeshLink is stopping" }
+        return deliveryPipeline.send(recipient, payload, priority)
+    }
 
     /**
      * Flood-fills [payload] to all connected neighbours. Delegates to [DeliveryPipeline.broadcast].
      *
      * @return The 16-byte message ID assigned to this broadcast.
+     * @throws IllegalStateException if the engine is draining (graceful stop in progress).
      */
     suspend fun broadcast(
         payload: ByteArray,
         maxHops: UByte,
         priority: Priority = Priority.NORMAL,
-    ): ByteArray = deliveryPipeline.broadcast(payload, maxHops, priority)
+    ): ByteArray {
+        check(!draining) { "MeshLink is stopping" }
+        return deliveryPipeline.broadcast(payload, maxHops, priority)
+    }
 
     // ── Pending key changes tracking ──────────────────────────────────────────
 
@@ -651,8 +685,9 @@ private constructor(
      */
     internal fun setCustomPowerMode(mode: ch.trancee.meshlink.power.PowerTier?) {
         powerManager.setCustomMode(mode)
+        val modeName = if (mode == null) "AUTO" else mode.name
         diagnosticSink.emit(DiagnosticCode.HANDSHAKE_EVENT) {
-            DiagnosticPayload.TextMessage("custom_power_mode_set mode=${mode?.name ?: "AUTO"}")
+            DiagnosticPayload.TextMessage("custom_power_mode_set mode=$modeName")
         }
     }
 
@@ -730,7 +765,7 @@ private constructor(
                 TrustStore(
                     storage = storage,
                     onKeyChange = { event ->
-                        engineRef?.onKeyChange(event)
+                        engineRef!!.onKeyChange(event)
                         false
                     },
                 )

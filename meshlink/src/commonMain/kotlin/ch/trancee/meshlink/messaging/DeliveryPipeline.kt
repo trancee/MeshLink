@@ -568,10 +568,9 @@ internal class DeliveryPipeline(
                 header = CutThroughBuffer.RoutingHeaderView(msg.payload)
             } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
                 // Not a RoutedMessage or header parse failure → TransferEngine.
-                val reason = e.message ?: "unknown parse error"
                 diagnosticSink.emit(DiagnosticCode.MALFORMED_DATA) {
                     DiagnosticPayload.MalformedData(
-                        reason = "chunk 0 routing header parse failed: $reason"
+                        reason = "chunk 0 routing header parse failed: ${e.message}"
                     )
                 }
                 transferEngine.onIncomingChunk(fromPeerId, msg)
@@ -614,21 +613,10 @@ internal class DeliveryPipeline(
                     diagnosticSink = diagnosticSink,
                 )
 
-            val activated = buffer.onChunk0(msg)
-            if (!activated) {
-                // CutThroughBuffer fell back (e.g. byte surgery failure) → TransferEngine.
-                diagnosticSink.emit(DiagnosticCode.MALFORMED_DATA) {
-                    DiagnosticPayload.MalformedData(
-                        reason = "cut-through buffer fallback: chunk 0 byte surgery failed"
-                    )
-                }
-                transferEngine.onIncomingChunk(fromPeerId, msg)
-                return
-            }
-
-            if (buffer.state == CutThroughBuffer.State.Complete) {
-                // Single-chunk message already forwarded — no buffer to store.
-                // Also pass to TransferEngine for ChunkAck + mark as cut-through handled.
+            buffer.onChunk0(msg)
+            if (buffer.state != CutThroughBuffer.State.Active) {
+                // Complete (single-chunk forwarded) or Fallback (byte surgery error) —
+                // pass to TransferEngine for ChunkAck and don't store buffer in map.
                 cutThroughHandledSessions.add(key)
                 transferEngine.onIncomingChunk(fromPeerId, msg)
                 return
@@ -658,17 +646,11 @@ internal class DeliveryPipeline(
      * marks it timed out and removes from the map.
      */
     private fun evictCutThroughBuffer(key: MessageIdKey) {
-        val buffer = cutThroughBuffers[key] ?: return
-        if (
-            buffer.state == CutThroughBuffer.State.Active ||
-                buffer.state == CutThroughBuffer.State.Pending
-        ) {
-            buffer.markTimedOut()
-            cutThroughBuffers.remove(key)
-            val msgIdHex = key.bytes.joinToString("") { it.toUByte().toString(16).padStart(2, '0') }
-            diagnosticSink.emit(DiagnosticCode.DELIVERY_TIMEOUT) {
-                DiagnosticPayload.DeliveryTimeout(messageIdHex = msgIdHex)
-            }
+        val buffer = cutThroughBuffers.remove(key) ?: return
+        buffer.markTimedOut()
+        val msgIdHex = key.bytes.joinToString("") { it.toUByte().toString(16).padStart(2, '0') }
+        diagnosticSink.emit(DiagnosticCode.DELIVERY_TIMEOUT) {
+            DiagnosticPayload.DeliveryTimeout(messageIdHex = msgIdHex)
         }
     }
 

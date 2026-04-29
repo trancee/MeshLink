@@ -1015,4 +1015,56 @@ class DeliveryPipelineCutThroughTest {
             } ?: true
         assertTrue(timeoutCount, "Eviction of completed buffer should be a no-op")
     }
+
+    // ── Cut-through eviction with diagnostic verification ────────────────────
+
+    @Test
+    fun `inactivity timeout evicts active buffer and emits DELIVERY_TIMEOUT`() = runTest {
+        var clockMillis = 1_000L
+        val clock: () -> Long = { clockMillis }
+        val sink = CapturingSink()
+        val transferConfig = TransferConfig(inactivityBaseTimeoutMillis = 50L)
+        val bob =
+            makeNode(
+                backgroundScope,
+                testScheduler,
+                clock,
+                transferConfig = transferConfig,
+                diagnosticSink = sink,
+            )
+        val carol = makeNode(backgroundScope, testScheduler, clock)
+        connect(bob, carol, clock)
+        drainFlows(backgroundScope, bob)
+        drainFlows(backgroundScope, carol)
+        runCurrent()
+
+        val aliceId = ByteArray(12) { 0xAA.toByte() }
+        val aliceTransport = VirtualMeshTransport(aliceId, testScheduler)
+        aliceTransport.linkTo(bob.transport)
+
+        val msg =
+            relayRoutedMessage(
+                origin = aliceId,
+                destination = carol.identity.keyHash,
+                payloadSize = 5000,
+            )
+        val chunkPayloads = encodeAndChunk(msg)
+        assertTrue(chunkPayloads.size >= 2, "Need multi-chunk")
+
+        val sessionId = ByteArray(16) { 0xE0.toByte() }
+        val chunk0 =
+            Chunk(sessionId, 0u.toUShort(), chunkPayloads.size.toUShort(), chunkPayloads[0])
+        aliceTransport.sendToPeer(bob.identity.keyHash, WireCodec.encode(chunk0))
+        runCurrent()
+
+        // Advance time past the ack deadline (50ms) to trigger eviction.
+        advanceTimeBy(100L)
+        advanceUntilIdle()
+
+        // The eviction should have fired and emitted DELIVERY_TIMEOUT.
+        assertTrue(
+            sink.codes.contains(DiagnosticCode.DELIVERY_TIMEOUT),
+            "Eviction of active buffer must emit DELIVERY_TIMEOUT, got: ${sink.codes}",
+        )
+    }
 }
