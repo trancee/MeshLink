@@ -60,15 +60,15 @@ per-device slot tracking customisation hooks are not exposed.
 
 ## Export Control
 
-> ⚠️ **Pre-publish obligation for the library maintainer:**
->
-> MeshLink incorporates libsodium (strong encryption — ChaCha20-Poly1305, Ed25519, X25519).
-> Before publishing `ch.trancee:meshlink` to Maven Central or any public repository,
-> the library maintainer **must** file an Encryption Registration Notification (ERN) via
-> [SNAP-R](https://snapr.bis.doc.gov/) under EAR §740.17(b)(2)(i) (ECCN 5D002).
->
-> This filing is a legal obligation under US Export Administration Regulations (EAR).
-> CI does **not** enforce this — completion is the maintainer's responsibility.
+MeshLink uses strong cryptography (ChaCha20-Poly1305, Ed25519, X25519) and is classified under
+**ECCN 5D002**. Full details — including the algorithm inventory, TSU §740.13(e) open-source
+exemption analysis, and notification requirements — are documented in
+**[`EXPORT_CONTROL.md`](EXPORT_CONTROL.md)**.
+
+> ⚠️ **Pre-publish obligation:** Before publishing to Maven Central or any public repository,
+> the library maintainer must file the TSU §740.13(e) notification with BIS and NSA as
+> described in `EXPORT_CONTROL.md`. CI does **not** enforce this — completion is the
+> maintainer's responsibility.
 
 ---
 
