@@ -339,9 +339,6 @@ internal class CutThroughBuffer(
             buf[pos + 2] = ((i ushr 16) and 0xFF).toByte()
             buf[pos + 3] = ((i ushr 24) and 0xFF).toByte()
         }
-
-        internal fun readUShortLE(buf: ByteArray, pos: Int): UShort =
-            ((buf[pos].toInt() and 0xFF) or ((buf[pos + 1].toInt() and 0xFF) shl 8)).toUShort()
     }
 
     // ── RoutingHeaderView ─────────────────────────────────────────────────────

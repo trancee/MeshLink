@@ -5,6 +5,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
@@ -42,11 +43,15 @@ class PresenceTrackerTest {
         val job = launch { tracker.peerEvents.collect { events.add(it) } }
         testScheduler.runCurrent()
 
+        // Must connect first so disconnect is a valid transition (not idempotent no-op on unknown)
+        tracker.onPeerConnected(peerId)
+        testScheduler.runCurrent()
+
         tracker.onPeerDisconnected(peerId)
         testScheduler.runCurrent()
 
-        assertEquals(1, events.size)
-        assertEquals(PeerEvent.Disconnected(peerId), events[0])
+        assertEquals(2, events.size)
+        assertEquals(PeerEvent.Disconnected(peerId), events[1])
         job.cancel()
     }
 
@@ -157,6 +162,44 @@ class PresenceTrackerTest {
     @Test
     fun `PeerEvent Disconnected equals null returns false`() {
         val e = PeerEvent.Disconnected(byteArrayOf(3, 4))
+        @Suppress("ReplaceCallWithBinaryOperator") assertFalse(e.equals(null))
+    }
+
+    // ----------------------------------------------------------------
+    // PeerEvent.Gone — equals/hashCode branch coverage
+    // ----------------------------------------------------------------
+
+    @Test
+    fun `PeerEvent Gone equals identity`() {
+        val e = PeerEvent.Gone(byteArrayOf(5, 6))
+        @Suppress("ReplaceCallWithBinaryOperator") assertTrue(e.equals(e))
+    }
+
+    @Test
+    fun `PeerEvent Gone equals same peerId`() {
+        val e1 = PeerEvent.Gone(byteArrayOf(5, 6))
+        val e2 = PeerEvent.Gone(byteArrayOf(5, 6))
+        assertEquals(e1, e2)
+        assertEquals(e1.hashCode(), e2.hashCode())
+    }
+
+    @Test
+    fun `PeerEvent Gone equals different peerId returns false`() {
+        val e1 = PeerEvent.Gone(byteArrayOf(5, 6))
+        val e2 = PeerEvent.Gone(byteArrayOf(0, 0))
+        assertNotEquals(e1, e2)
+    }
+
+    @Test
+    fun `PeerEvent Gone equals different subclass returns false`() {
+        val e1 = PeerEvent.Gone(byteArrayOf(5, 6))
+        val e2 = PeerEvent.Connected(byteArrayOf(5, 6))
+        assertFalse(e1 == e2)
+    }
+
+    @Test
+    fun `PeerEvent Gone equals null returns false`() {
+        val e = PeerEvent.Gone(byteArrayOf(5, 6))
         @Suppress("ReplaceCallWithBinaryOperator") assertFalse(e.equals(null))
     }
 
@@ -309,6 +352,7 @@ class PresenceTrackerTest {
         tracker.onPeerConnected(peerId)
         assertEquals(1, tracker.connectedPeers().size)
         tracker.onPeerDisconnected(peerId)
+        // Disconnected peers are still tracked but no longer in connectedPeers().
         assertEquals(0, tracker.connectedPeers().size)
     }
 
@@ -340,5 +384,377 @@ class PresenceTrackerTest {
         tracker.updatePresenceTimeout(1_000L)
         tracker.updatePresenceTimeout(60_000L)
         assertEquals(60_000L, tracker.presenceTimeoutMillis)
+    }
+
+    // ----------------------------------------------------------------
+    // Three-state FSM: Connected → Disconnected → Gone
+    // ----------------------------------------------------------------
+
+    @Test
+    fun `onPeerConnected sets peer to CONNECTED state`() {
+        val tracker = PresenceTracker()
+        val peerId = byteArrayOf(0x01)
+        tracker.onPeerConnected(peerId)
+        assertEquals(InternalPeerState.CONNECTED, tracker.peerState(peerId))
+    }
+
+    @Test
+    fun `onPeerDisconnected transitions Connected to DISCONNECTED`() {
+        val tracker = PresenceTracker()
+        val peerId = byteArrayOf(0x01)
+        tracker.onPeerConnected(peerId)
+        tracker.onPeerDisconnected(peerId)
+        assertEquals(InternalPeerState.DISCONNECTED, tracker.peerState(peerId))
+    }
+
+    @Test
+    fun `peerState returns null for unknown peer`() {
+        val tracker = PresenceTracker()
+        assertNull(tracker.peerState(byteArrayOf(0x09)))
+    }
+
+    @Test
+    fun `idempotent disconnect does not emit second Disconnected event`() = runTest {
+        val tracker = PresenceTracker()
+        val peerId = byteArrayOf(0x01)
+        val events = mutableListOf<PeerEvent>()
+
+        val job = launch { tracker.peerEvents.collect { events.add(it) } }
+        testScheduler.runCurrent()
+
+        tracker.onPeerConnected(peerId)
+        tracker.onPeerDisconnected(peerId)
+        tracker.onPeerDisconnected(peerId) // second disconnect — should be no-op
+        testScheduler.runCurrent()
+
+        // Should have Connected + exactly one Disconnected
+        assertEquals(2, events.size)
+        assertTrue(events[0] is PeerEvent.Connected)
+        assertTrue(events[1] is PeerEvent.Disconnected)
+        job.cancel()
+    }
+
+    @Test
+    fun `rapid disconnect then reconnect resets to CONNECTED`() = runTest {
+        val tracker = PresenceTracker()
+        val peerId = byteArrayOf(0x01)
+        val events = mutableListOf<PeerEvent>()
+
+        val job = launch { tracker.peerEvents.collect { events.add(it) } }
+        testScheduler.runCurrent()
+
+        tracker.onPeerConnected(peerId)
+        tracker.onPeerDisconnected(peerId)
+        tracker.onPeerConnected(peerId) // reconnect
+        testScheduler.runCurrent()
+
+        assertEquals(InternalPeerState.CONNECTED, tracker.peerState(peerId))
+        assertEquals(3, events.size)
+        assertTrue(events[2] is PeerEvent.Connected)
+        job.cancel()
+    }
+
+    @Test
+    fun `sweep increments sweepCount for Disconnected peers below threshold`() {
+        val tracker = PresenceTracker()
+        val peerId = byteArrayOf(0x01)
+        tracker.onPeerConnected(peerId)
+        tracker.onPeerDisconnected(peerId)
+
+        // First sweep: sweepCount 0 → 1
+        val gone1 = tracker.sweep()
+        assertTrue(gone1.isEmpty())
+        assertEquals(InternalPeerState.DISCONNECTED, tracker.peerState(peerId))
+    }
+
+    @Test
+    fun `sweep evicts Disconnected peer after sweepCount reaches 2`() = runTest {
+        val tracker = PresenceTracker()
+        val peerId = byteArrayOf(0x01)
+        val events = mutableListOf<PeerEvent>()
+
+        val job = launch { tracker.peerEvents.collect { events.add(it) } }
+        testScheduler.runCurrent()
+
+        tracker.onPeerConnected(peerId)
+        tracker.onPeerDisconnected(peerId)
+        testScheduler.runCurrent()
+
+        tracker.sweep() // sweepCount 0 → 1
+        tracker.sweep() // sweepCount 1 → 2
+        val gone = tracker.sweep() // sweepCount 2 ≥ 2 → evict
+        testScheduler.runCurrent()
+
+        assertEquals(1, gone.size)
+        assertTrue(gone[0].contentEquals(peerId))
+        assertNull(tracker.peerState(peerId)) // peer removed
+        // Should have emitted Gone event
+        assertTrue(events.any { it is PeerEvent.Gone && it.peerId.contentEquals(peerId) })
+        job.cancel()
+    }
+
+    @Test
+    fun `sweep does not touch Connected peers`() {
+        val tracker = PresenceTracker()
+        val peerId = byteArrayOf(0x01)
+        tracker.onPeerConnected(peerId)
+
+        val gone = tracker.sweep()
+        assertTrue(gone.isEmpty())
+        assertEquals(InternalPeerState.CONNECTED, tracker.peerState(peerId))
+    }
+
+    @Test
+    fun `sweep returns empty list when no peers are tracked`() {
+        val tracker = PresenceTracker()
+        assertTrue(tracker.sweep().isEmpty())
+    }
+
+    @Test
+    fun `connect after Gone treats as fresh peer`() = runTest {
+        val tracker = PresenceTracker()
+        val peerId = byteArrayOf(0x01)
+        val events = mutableListOf<PeerEvent>()
+
+        val job = launch { tracker.peerEvents.collect { events.add(it) } }
+        testScheduler.runCurrent()
+
+        // Full lifecycle: connect → disconnect → sweep to Gone
+        tracker.onPeerConnected(peerId)
+        tracker.onPeerDisconnected(peerId)
+        tracker.sweep() // sweepCount 0 → 1
+        tracker.sweep() // sweepCount 1 → 2
+        tracker.sweep() // evict → Gone
+        testScheduler.runCurrent()
+
+        assertNull(tracker.peerState(peerId))
+
+        // Reconnect after Gone — should be treated as fresh
+        tracker.onPeerConnected(peerId)
+        testScheduler.runCurrent()
+
+        assertEquals(InternalPeerState.CONNECTED, tracker.peerState(peerId))
+        val lastEvent = events.last()
+        assertTrue(lastEvent is PeerEvent.Connected && lastEvent.peerId.contentEquals(peerId))
+        job.cancel()
+    }
+
+    @Test
+    fun `onPeerDisconnected on unknown peer adds as DISCONNECTED and emits event`() = runTest {
+        val tracker = PresenceTracker()
+        val peerId = byteArrayOf(0x09)
+        val events = mutableListOf<PeerEvent>()
+
+        val job = launch { tracker.peerEvents.collect { events.add(it) } }
+        testScheduler.runCurrent()
+
+        tracker.onPeerDisconnected(peerId) // peer never connected
+        testScheduler.runCurrent()
+
+        assertEquals(InternalPeerState.DISCONNECTED, tracker.peerState(peerId))
+        assertEquals(1, events.size)
+        assertTrue(events[0] is PeerEvent.Disconnected)
+        job.cancel()
+    }
+
+    @Test
+    fun `connectedPeers excludes Disconnected peers`() {
+        val tracker = PresenceTracker()
+        val peerA = byteArrayOf(0x0A)
+        val peerB = byteArrayOf(0x0B)
+        tracker.onPeerConnected(peerA)
+        tracker.onPeerConnected(peerB)
+        tracker.onPeerDisconnected(peerA)
+
+        val connected = tracker.connectedPeers()
+        assertEquals(1, connected.size)
+        assertTrue(connected.any { it.contentEquals(peerB) })
+        assertFalse(connected.any { it.contentEquals(peerA) })
+    }
+
+    // ----------------------------------------------------------------
+    // onPeerActivity + clock injection
+    // ----------------------------------------------------------------
+
+    @Test
+    fun `onPeerActivity updates lastSeenMillis`() {
+        var now = 1000L
+        val tracker = PresenceTracker(clock = { now })
+        val peerId = byteArrayOf(0x01)
+
+        tracker.onPeerConnected(peerId)
+        val statesBefore = tracker.allPeerStates()
+        assertEquals(1000L, statesBefore[peerId.toList()]!!.lastSeenMillis)
+
+        now = 5000L
+        tracker.onPeerActivity(peerId)
+        val statesAfter = tracker.allPeerStates()
+        assertEquals(5000L, statesAfter[peerId.toList()]!!.lastSeenMillis)
+    }
+
+    @Test
+    fun `onPeerActivity is no-op for unknown peer`() {
+        val tracker = PresenceTracker()
+        // Should not throw
+        tracker.onPeerActivity(byteArrayOf(0x09))
+        assertNull(tracker.peerState(byteArrayOf(0x09)))
+    }
+
+    @Test
+    fun `clock is used for lastSeenMillis on connect`() {
+        var now = 42L
+        val tracker = PresenceTracker(clock = { now })
+        val peerId = byteArrayOf(0x01)
+
+        tracker.onPeerConnected(peerId)
+        assertEquals(42L, tracker.allPeerStates()[peerId.toList()]!!.lastSeenMillis)
+    }
+
+    // ----------------------------------------------------------------
+    // allPeerStates()
+    // ----------------------------------------------------------------
+
+    @Test
+    fun `allPeerStates returns snapshot of all tracked peers`() {
+        val tracker = PresenceTracker()
+        val peerA = byteArrayOf(0x0A)
+        val peerB = byteArrayOf(0x0B)
+        tracker.onPeerConnected(peerA)
+        tracker.onPeerConnected(peerB)
+        tracker.onPeerDisconnected(peerB)
+
+        val states = tracker.allPeerStates()
+        assertEquals(2, states.size)
+        assertEquals(InternalPeerState.CONNECTED, states[peerA.toList()]!!.state)
+        assertEquals(InternalPeerState.DISCONNECTED, states[peerB.toList()]!!.state)
+    }
+
+    @Test
+    fun `allPeerStates is a copy and does not leak internal state`() {
+        val tracker = PresenceTracker()
+        val peerId = byteArrayOf(0x01)
+        tracker.onPeerConnected(peerId)
+
+        val snapshot = tracker.allPeerStates() as HashMap
+        snapshot.clear() // clear the copy
+
+        // Internal state unaffected
+        assertEquals(1, tracker.allPeerStates().size)
+    }
+
+    // ----------------------------------------------------------------
+    // sweepCount tracking across sweeps
+    // ----------------------------------------------------------------
+
+    @Test
+    fun `sweepCount resets on reconnect`() {
+        val tracker = PresenceTracker()
+        val peerId = byteArrayOf(0x01)
+
+        tracker.onPeerConnected(peerId)
+        tracker.onPeerDisconnected(peerId)
+        tracker.sweep() // sweepCount 0 → 1
+
+        // Reconnect resets sweepCount to 0
+        tracker.onPeerConnected(peerId)
+        assertEquals(0, tracker.allPeerStates()[peerId.toList()]!!.sweepCount)
+    }
+
+    @Test
+    fun `sweep handles mixed Connected and Disconnected peers`() = runTest {
+        val tracker = PresenceTracker()
+        val peerA = byteArrayOf(0x0A) // will be Connected
+        val peerB = byteArrayOf(0x0B) // will be Disconnected, swept to Gone
+        val peerC = byteArrayOf(0x0C) // will be Disconnected, not yet Gone
+
+        tracker.onPeerConnected(peerA)
+        tracker.onPeerConnected(peerB)
+        tracker.onPeerConnected(peerC)
+        tracker.onPeerDisconnected(peerB)
+        tracker.onPeerDisconnected(peerC)
+
+        // 3 sweeps: peerB and peerC both Disconnected
+        tracker.sweep() // both: sweepCount 0 → 1
+        tracker.sweep() // both: sweepCount 1 → 2
+
+        // Reconnect peerC before eviction
+        tracker.onPeerConnected(peerC)
+
+        val gone = tracker.sweep() // peerB: sweepCount 2 → evict; peerC: Connected (skip)
+
+        // Only peerB should be Gone
+        assertEquals(1, gone.size)
+        assertTrue(gone[0].contentEquals(peerB))
+
+        // peerA still Connected, peerC reconnected as Connected
+        assertEquals(InternalPeerState.CONNECTED, tracker.peerState(peerA))
+        assertEquals(InternalPeerState.CONNECTED, tracker.peerState(peerC))
+        assertNull(tracker.peerState(peerB))
+    }
+
+    @Test
+    fun `onPeerDisconnected resets sweepCount to 0`() {
+        val tracker = PresenceTracker()
+        val peerId = byteArrayOf(0x01)
+        tracker.onPeerConnected(peerId)
+        tracker.onPeerDisconnected(peerId)
+
+        assertEquals(0, tracker.allPeerStates()[peerId.toList()]!!.sweepCount)
+    }
+
+    @Test
+    fun `sweep progressive increments before eviction`() {
+        val tracker = PresenceTracker()
+        val peerId = byteArrayOf(0x01)
+        tracker.onPeerConnected(peerId)
+        tracker.onPeerDisconnected(peerId)
+
+        // Sweep 1: count 0 → 1
+        tracker.sweep()
+        assertEquals(1, tracker.allPeerStates()[peerId.toList()]!!.sweepCount)
+
+        // Sweep 2: count 1 → 2
+        tracker.sweep()
+        assertEquals(2, tracker.allPeerStates()[peerId.toList()]!!.sweepCount)
+
+        // Sweep 3: count 2 ≥ 2 → evict
+        val gone = tracker.sweep()
+        assertEquals(1, gone.size)
+        assertNull(tracker.peerState(peerId))
+    }
+
+    // ----------------------------------------------------------------
+    // Duplicate peerLostEvent (onPeerDisconnected called after Gone)
+    // ----------------------------------------------------------------
+
+    @Test
+    fun `disconnect after Gone adds peer as Disconnected again`() = runTest {
+        val tracker = PresenceTracker()
+        val peerId = byteArrayOf(0x01)
+        val events = mutableListOf<PeerEvent>()
+
+        val job = launch { tracker.peerEvents.collect { events.add(it) } }
+        testScheduler.runCurrent()
+
+        // Full lifecycle to Gone
+        tracker.onPeerConnected(peerId)
+        tracker.onPeerDisconnected(peerId)
+        tracker.sweep()
+        tracker.sweep()
+        tracker.sweep() // evict
+        testScheduler.runCurrent()
+
+        assertNull(tracker.peerState(peerId))
+        events.clear()
+
+        // Late disconnect event arrives for already-Gone peer
+        tracker.onPeerDisconnected(peerId)
+        testScheduler.runCurrent()
+
+        // Should be added as DISCONNECTED (edge case: unknown peer)
+        assertEquals(InternalPeerState.DISCONNECTED, tracker.peerState(peerId))
+        assertEquals(1, events.size)
+        assertTrue(events[0] is PeerEvent.Disconnected)
+        job.cancel()
     }
 }

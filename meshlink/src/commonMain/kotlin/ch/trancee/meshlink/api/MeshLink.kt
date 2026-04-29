@@ -521,6 +521,7 @@ internal fun mapPeerEvent(
             )
         }
         is ch.trancee.meshlink.routing.PeerEvent.Disconnected -> PeerEvent.Lost(event.peerId)
+        is ch.trancee.meshlink.routing.PeerEvent.Gone -> PeerEvent.Lost(event.peerId)
     }
 
 /** Maps engine-level [ch.trancee.meshlink.messaging.InboundMessage] to [ReceivedMessage]. */
