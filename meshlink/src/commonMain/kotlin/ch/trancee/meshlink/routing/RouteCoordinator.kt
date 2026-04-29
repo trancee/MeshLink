@@ -162,7 +162,9 @@ internal class RouteCoordinator(
         for (retraction in retractions) {
             _outboundFrames.tryEmit(OutboundFrame(peerId = null, message = retraction))
         }
-        presenceTracker.onPeerDisconnected(peerId)
+        // Note: presenceTracker.onPeerDisconnected is NOT called here.
+        // MeshEngine's peerLostEvents handler calls presenceTracker directly.
+        // MeshStateManager calls this method on Gone for route/neighbor cleanup only.
         routingEngine.unregisterNeighbor(peerId)
         neighborStates.remove(peerId.asList())
     }

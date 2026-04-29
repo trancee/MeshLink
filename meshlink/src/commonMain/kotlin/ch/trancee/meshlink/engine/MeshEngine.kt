@@ -68,6 +68,7 @@ private constructor(
     private val pseudonymRotator: PseudonymRotator,
     private val cryptoProvider: CryptoProvider,
     private val diagnosticSink: ch.trancee.meshlink.api.DiagnosticSinkApi,
+    private val meshStateManager: MeshStateManager,
 ) {
     // ── Public SharedFlow surfaces ────────────────────────────────────────────
 
@@ -171,12 +172,13 @@ private constructor(
             }
         }
 
-        // Wire peer-lost events → power manager, routing, presence.
+        // Wire peer-lost events → presence tracker (triggers Disconnected state).
+        // Route cleanup is deferred to MeshStateManager sweep when the peer transitions to Gone.
+        // Power release remains immediate to free connection slots for new peers.
         engineScope.launch {
             transport.peerLostEvents.collect { event ->
                 powerManager.releaseConnection(event.peerId)
-                routeCoordinator.onPeerDisconnected(event.peerId)
-                // Note: presenceTracker.onPeerDisconnected is called inside routeCoordinator.
+                presenceTracker.onPeerDisconnected(event.peerId)
             }
         }
 
@@ -210,12 +212,16 @@ private constructor(
         // Start routing engine timers and outbound message collection.
         routeCoordinator.start()
 
+        // Start the periodic sweep timer for peer lifecycle management.
+        meshStateManager.start(engineScope)
+
         // Log delivery confirmations for diagnostic observability.
         launchDeliveryConfirmationLogging()
     }
 
     /** Stops the MeshEngine: cancels all internal coroutines and halts the transport. */
     suspend fun stop() {
+        meshStateManager.stop()
         engineScope.cancel()
         transport.stopAll()
     }
