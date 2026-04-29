@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/nicegram/MeshLink/actions/workflows/ci.yml/badge.svg)](https://github.com/nicegram/MeshLink/actions/workflows/ci.yml)
 [![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)](docs/explanation/why-full-coverage.md)
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![License](https://img.shields.io/badge/license-Unlicense-blue.svg)](LICENSE)
 
 **Encrypted, serverless mesh networking over Bluetooth Low Energy.**
 
@@ -105,4 +105,4 @@ For AI agents rebuilding this project from scratch: see [`SPEC.md`](SPEC.md) —
 
 ## License
 
-[MIT](LICENSE)
+[Unlicense](LICENSE) — public domain.
