@@ -34,14 +34,14 @@ Internal interface backed by libsodium on each platform. All operations are cons
 Each node has a persistent identity containing:
 
 ```kotlin
-internal data class Identity(
-    val ed25519KeyPair: KeyPair,   // Signing (broadcasts, rotation announcements)
-    val x25519KeyPair: KeyPair,    // DH (Noise handshakes)
-    val keyHash: ByteArray,        // SHA-256(ed25519Pub || x25519Pub)[0:20] — the peer ID
+internal class Identity(
+    val edKeyPair: KeyPair,    // Ed25519 signing (broadcasts, rotation announcements)
+    val dhKeyPair: KeyPair,    // X25519 DH (Noise handshakes)
+    val keyHash: ByteArray,    // SHA-256(ed25519Pub || x25519Pub)[0:12] — the peer ID
 )
 ```
 
-The `keyHash` (20 bytes, hex-encoded as `PeerIdHex`) is the canonical peer identifier used in routing tables, trust stores, and the public API.
+The `keyHash` (12 bytes) is the canonical peer identifier used in routing tables, trust stores, and the public API.
 
 ---
 
@@ -124,4 +124,4 @@ Each Noise transport session maintains:
 | X25519 private | 32 bytes | Clamped scalar | SecureStorage only |
 | ChaCha20 key | 32 bytes | Raw | CipherState (ephemeral, never persisted) |
 | Nonce | 12 bytes (AEAD) / 8 bytes (Noise) | Little-endian counter | CipherState |
-| Key hash (peer ID) | 20 bytes | SHA-256 truncated | Everywhere |
+| Key hash (peer ID) | 12 bytes | SHA-256 truncated | Everywhere |

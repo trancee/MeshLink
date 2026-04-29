@@ -2,111 +2,79 @@
 
 ## MeshLinkApi
 
-The public interface implemented by `MeshLink`. All methods are safe to call from any thread.
+The public interface implemented by `MeshLink`. All methods are thread-safe.
 
 ### Lifecycle
 
 | Method | Signature | Description |
 |--------|-----------|-------------|
-| `start` | `fun start()` | Begin advertising, scanning, and accepting connections. Transitions state to `Starting` → `Running`. |
-| `stop` | `fun stop(timeout: Duration = Duration.ZERO)` | Teardown. If `timeout > 0`, blocks new operations and awaits in-flight transfers before teardown. `Duration.ZERO` = immediate. |
+| `start` | `suspend fun start()` | Begin advertising, scanning, and accepting connections. |
+| `stop` | `suspend fun stop(timeout: Duration = Duration.ZERO)` | Teardown. If `timeout > 0`, awaits in-flight transfers before closing. |
 
 ### Messaging
 
 | Method | Signature | Description |
 |--------|-----------|-------------|
-| `send` | `suspend fun send(recipient: PeerIdHex, data: ByteArray): SendResult` | E2E encrypted unicast via Babel routing. Noise K sealed. Chunked if > MTU. |
-| `broadcast` | `fun broadcast(data: ByteArray)` | Flood-fill to all reachable peers. Ed25519 signed. TTL-bounded. |
+| `send` | `suspend fun send(recipient: ByteArray, payload: ByteArray, priority: MessagePriority = NORMAL)` | E2E encrypted unicast via Babel routing. Noise K sealed. Chunked if > MTU. |
+| `broadcast` | `suspend fun broadcast(payload: ByteArray, maxHops: Int, priority: MessagePriority = NORMAL)` | Flood-fill to all reachable peers. Ed25519 signed. TTL-bounded by `maxHops`. |
 
 ### Peer Management
 
 | Method | Signature | Description |
 |--------|-----------|-------------|
-| `peerDetail` | `fun peerDetail(peerId: PeerIdHex): PeerDetail?` | Live peer info (state, connection time, route metric). Null if unknown. |
-| `allPeerDetails` | `fun allPeerDetails(): List<PeerDetail>` | All known peers with their current state. |
-| `peerFingerprint` | `fun peerFingerprint(peerId: PeerIdHex): String` | 12-digit safety number from Ed25519 public key. |
-| `forgetPeer` | `fun forgetPeer(peerId: PeerIdHex)` | Clears trust, routing, and delivery state for the peer. |
-| `acceptKeyChange` | `fun acceptKeyChange(peerId: PeerIdHex)` | Accept a pending TOFU key change (Prompt mode). |
-| `rejectKeyChange` | `fun rejectKeyChange(peerId: PeerIdHex)` | Reject a pending TOFU key change. |
+| `peerDetail` | `fun peerDetail(id: ByteArray): PeerDetail?` | Live peer info (state, route metric). Null if unknown. |
+| `allPeerDetails` | `fun allPeerDetails(): List<PeerDetail>` | All known peers with current state. |
+| `peerFingerprint` | `fun peerFingerprint(id: ByteArray): String?` | Safety number from Ed25519 public key. |
+| `forgetPeer` | `suspend fun forgetPeer(peerId: ByteArray)` | Clears trust, routing, and delivery state for the peer. |
+| `acceptKeyChange` | `suspend fun acceptKeyChange(peerId: ByteArray)` | Accept a pending TOFU key change (Prompt mode). |
+| `rejectKeyChange` | `suspend fun rejectKeyChange(peerId: ByteArray)` | Reject a pending TOFU key change. |
 
 ### Identity
 
 | Method | Signature | Description |
 |--------|-----------|-------------|
-| `rotateIdentity` | `fun rotateIdentity()` | Generate new keypair, broadcast RotationAnnouncement signed by old key. |
-| `localPeerId` | `val localPeerId: PeerIdHex` | This device's peer ID (hex-encoded key hash). |
-
-### Observability
-
-| Method | Signature | Description |
-|--------|-----------|-------------|
-| `peerEvents` | `val peerEvents: Flow<List<PeerEvent>>` | Found, Lost, StateChanged, KeyChangeDetected events. |
-| `incomingMessages` | `val incomingMessages: Flow<InboundMessage>` | Decrypted messages from peers. |
-| `diagnosticEvents` | `val diagnosticEvents: Flow<DiagnosticEvent>` | Protocol events (27 codes, 3 severity tiers). |
-| `meshHealthFlow` | `val meshHealthFlow: Flow<MeshHealthSnapshot>` | Periodic health snapshots. |
-| `meshHealth` | `fun meshHealth(): MeshHealthSnapshot` | Point-in-time health read. |
-| `routingSnapshot` | `fun routingSnapshot(): RoutingSnapshot` | Current routing table state. |
+| `rotateIdentity` | `suspend fun rotateIdentity()` | Generate new keypair, broadcast RotationAnnouncement signed by old key. |
+| `localPublicKey` | `val localPublicKey: ByteArray` | This device's Ed25519 public key. |
 
 ### Power & System
 
 | Method | Signature | Description |
 |--------|-----------|-------------|
-| `updateBattery` | `fun updateBattery(level: Float, isCharging: Boolean)` | Report battery state. Drives power tier transitions. |
-| `setCustomPowerMode` | `fun setCustomPowerMode(tier: PowerTier?)` | Override automatic tier. Null = return to automatic. |
+| `updateBattery` | `fun updateBattery(percent: Float, isCharging: Boolean)` | Report battery state. Drives power tier transitions. |
+| `setCustomPowerMode` | `fun setCustomPowerMode(mode: PowerTier? = null)` | Override automatic tier. Null = return to automatic. |
 | `shedMemoryPressure` | `fun shedMemoryPressure()` | Aggressively free internal buffers. |
-| `factoryReset` | `fun factoryReset()` | Wipe all state: identity, trust, routes, storage. |
+| `factoryReset` | `suspend fun factoryReset()` | Wipe all state: identity, trust, routes, storage. |
+| `meshHealth` | `fun meshHealth(): MeshHealthSnapshot` | Point-in-time health read. |
+| `routingSnapshot` | `fun routingSnapshot(): RoutingSnapshot` | Current routing table state. |
 
----
+### Flows (Observability)
 
-## MeshLinkConfig
-
-DSL builder with 8 sub-configs:
-
-```kotlin
-val config = MeshLinkConfig {
-    appId = "com.example.myapp"           // Required. Mesh isolation key.
-    trust { mode = TrustMode.PROMPT }
-    power { lowBatteryThreshold = 0.15f }
-    transport { maxConnections = 7 }
-    routing { helloIntervalMillis = 4000L }
-    transfer { maxChunkSize = 512 }
-    messaging { rateLimitPerSecond = 10 }
-    diagnostics { bufferSize = 256 }
-    regulatoryRegion = RegulatoryRegion.DEFAULT  // or .EU
-}
-```
-
-### Presets
-
-| Preset | Use case |
-|--------|----------|
-| `MeshLinkConfig.default()` | General purpose |
-| `MeshLinkConfig.lowPower()` | Battery-constrained devices |
-| `MeshLinkConfig.highThroughput()` | Charging/plugged-in, max performance |
-| `MeshLinkConfig.minimal()` | Testing, minimal resource usage |
+| Property | Type | Description |
+|----------|------|-------------|
+| `state` | `StateFlow<MeshLinkState>` | Lifecycle state changes. |
+| `peers` | `Flow<PeerEvent>` | Found, Lost, StateChanged events. |
+| `messages` | `Flow<ReceivedMessage>` | Decrypted inbound messages. |
+| `keyChanges` | `Flow<KeyChangeEvent>` | TOFU key rotation notifications. |
+| `deliveryConfirmations` | `Flow<MessageId>` | Delivery ACKs for sent messages. |
+| `transferProgress` | `Flow<TransferProgress>` | Chunked transfer progress updates. |
+| `transferFailures` | `Flow<TransferFailure>` | Transfer session failures. |
+| `meshHealthFlow` | `Flow<MeshHealthSnapshot>` | Periodic health snapshots. |
+| `diagnosticEvents` | `Flow<DiagnosticEvent>` | Protocol events (27 codes, 3 severity tiers). |
 
 ---
 
 ## MeshLinkState
 
-Lifecycle FSM states:
-
-```
-Idle → Starting → Running → Stopping → Stopped
-                     ↑                      │
-                     └──────────────────────┘  (restart)
-```
-
-Oscillation bounds prevent rapid start/stop cycling.
-
----
-
-## SendResult
+Lifecycle FSM:
 
 ```kotlin
-sealed interface SendResult {
-    data class Queued(val messageId: MessageId) : SendResult
-    data class Failed(val reason: FailureReason) : SendResult
+enum class MeshLinkState {
+    UNINITIALIZED,  // Created but start() not yet called
+    RUNNING,        // Active — advertising, scanning, routing
+    PAUSED,         // Temporarily suspended (OS background)
+    STOPPED,        // Clean shutdown via stop()
+    RECOVERABLE,    // Error state that can be recovered from
+    TERMINAL,       // Unrecoverable failure
 }
 ```
 
@@ -115,11 +83,10 @@ sealed interface SendResult {
 ## PeerEvent
 
 ```kotlin
-sealed interface PeerEvent {
-    data class Found(val peerId: PeerIdHex) : PeerEvent
-    data class Lost(val peerId: PeerIdHex) : PeerEvent
-    data class StateChanged(val peerId: PeerIdHex, val state: PeerState) : PeerEvent
-    data class KeyChangeDetected(val peerId: PeerIdHex, ...) : PeerEvent
+sealed class PeerEvent {
+    data class Found(val id: ByteArray, val detail: PeerDetail) : PeerEvent()
+    data class Lost(val id: ByteArray) : PeerEvent()
+    data class StateChanged(val id: ByteArray, val state: PeerState) : PeerEvent()
 }
 ```
 
@@ -131,15 +98,37 @@ sealed interface PeerEvent {
 enum class PeerState { CONNECTED, DISCONNECTED }
 ```
 
-Note: `GONE` is not a public state — Gone peers are evicted and emit `PeerEvent.Lost`.
+Peers in the `Gone` internal state emit `PeerEvent.Lost` and disappear from `allPeerDetails()`.
+
+---
+
+## ReceivedMessage
+
+```kotlin
+data class ReceivedMessage(
+    val id: MessageId,
+    val senderId: ByteArray,
+    val payload: ByteArray,
+    val receivedAtMillis: Long,
+)
+```
+
+---
+
+## MessagePriority
+
+```kotlin
+enum class MessagePriority { LOW, NORMAL, HIGH }
+```
+
+Affects TTL and transfer scheduling order.
 
 ---
 
 ## PeerIdHex
 
-Value class wrapping a hex-encoded key hash string. Used throughout the public API instead of raw `ByteArray` or `String`.
+Internal value class used in `DiagnosticPayload` fields only. The public API uses raw `ByteArray` for peer identifiers.
 
 ```kotlin
-@JvmInline
-value class PeerIdHex(val hex: String)
+@JvmInline value class PeerIdHex(val hex: String)
 ```

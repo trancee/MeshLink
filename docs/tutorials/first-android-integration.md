@@ -16,6 +16,8 @@ dependencies {
 }
 ```
 
+Minimum SDK: 29 (Android 10).
+
 ## 2. Declare permissions
 
 In `AndroidManifest.xml`:
@@ -35,7 +37,7 @@ No `ACCESS_FINE_LOCATION` needed — the `neverForLocation` flag tells the syste
 
 ```kotlin
 import ch.trancee.meshlink.api.MeshLink
-import ch.trancee.meshlink.api.MeshLinkConfig
+import ch.trancee.meshlink.api.meshLinkConfig
 
 class MainActivity : ComponentActivity() {
     private lateinit var meshLink: MeshLink
@@ -43,8 +45,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val config = MeshLinkConfig {
-            appId = "com.example.myapp"  // isolates your mesh from other MeshLink apps
+        val config = meshLinkConfig("com.example.myapp") {
+            // appId isolates your mesh from other MeshLink apps
         }
         meshLink = MeshLink.createAndroid(this, config)
     }
@@ -77,22 +79,25 @@ private fun requestPermissions() {
 
 ```kotlin
 private fun startMesh() {
-    meshLink.start()
+    lifecycleScope.launch {
+        meshLink.start()
+    }
 
     // Observe peer discovery
     lifecycleScope.launch {
-        meshLink.peerEvents.collect { events ->
-            for (event in events) {
-                when (event) {
-                    is PeerEvent.Found -> println("Discovered: ${event.peerId}")
-                    is PeerEvent.Lost -> println("Lost: ${event.peerId}")
-                    is PeerEvent.StateChanged -> println("${event.peerId} → ${event.state}")
-                    else -> {}
-                }
+        meshLink.peers.collect { event ->
+            when (event) {
+                is PeerEvent.Found -> println("Discovered: ${event.id.toHex()}")
+                is PeerEvent.Lost -> println("Lost: ${event.id.toHex()}")
+                is PeerEvent.StateChanged -> println("${event.id.toHex()} → ${event.state}")
             }
         }
     }
 }
+
+// Helper to display peer IDs
+private fun ByteArray.toHex(): String =
+    joinToString("") { it.toUByte().toString(16).padStart(2, '0') }
 ```
 
 ## 6. Send a message
@@ -101,24 +106,22 @@ Once you see a peer discovered, send them a message:
 
 ```kotlin
 lifecycleScope.launch {
-    val result = meshLink.send(
-        recipient = discoveredPeerId,
-        data = "Hello from Android!".encodeToByteArray()
+    meshLink.send(
+        recipient = discoveredPeerId,  // ByteArray from PeerEvent.Found
+        payload = "Hello from Android!".encodeToByteArray(),
     )
-    when (result) {
-        is SendResult.Queued -> println("Message queued for delivery")
-        is SendResult.Failed -> println("Send failed: ${result.reason}")
-    }
 }
 ```
+
+The call suspends until the message is queued for delivery. E2E encryption (Noise K) is applied automatically.
 
 ## 7. Receive messages
 
 ```kotlin
 lifecycleScope.launch {
-    meshLink.incomingMessages.collect { message ->
-        val text = message.data.decodeToString()
-        println("From ${message.sender}: $text")
+    meshLink.messages.collect { message ->
+        val text = message.payload.decodeToString()
+        println("From ${message.senderId.toHex()}: $text")
     }
 }
 ```
@@ -127,8 +130,10 @@ lifecycleScope.launch {
 
 ```kotlin
 override fun onDestroy() {
-    meshLink.stop()  // immediate teardown
-    // or: meshLink.stop(timeout = 5.seconds)  // graceful drain
+    lifecycleScope.launch {
+        meshLink.stop()  // immediate teardown
+        // or: meshLink.stop(timeout = 5.seconds)  // graceful drain
+    }
     super.onDestroy()
 }
 ```

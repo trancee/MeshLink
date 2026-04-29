@@ -43,10 +43,10 @@ class MeshController: ObservableObject {
     private var meshLink: MeshLink?
 
     func initialize() {
-        let config = MeshLinkConfig {
-            $0.appId = "com.example.myapp"
-        }
-        meshLink = MeshLink.createIos(config: config)
+        let config = MeshLinkConfigCompanion.shared.smallPayloadLowLatency(
+            appId: "com.example.myapp"
+        )
+        meshLink = MeshLink.companion.createIos(config: config)
     }
 }
 ```
@@ -56,8 +56,8 @@ SKIE generates Swift-native async APIs automatically — `Flow` becomes `AsyncSe
 ## 4. Start the mesh
 
 ```swift
-func start() {
-    meshLink?.start()
+func start() async {
+    try? await meshLink?.start()
 }
 ```
 
@@ -67,16 +67,14 @@ func start() {
 func observePeers() async {
     guard let mesh = meshLink else { return }
 
-    for await events in mesh.peerEvents {
-        for event in events {
-            switch onEnum(of: event) {
-            case .found(let found):
-                print("Discovered: \(found.peerId)")
-            case .lost(let lost):
-                print("Lost: \(lost.peerId)")
-            case .stateChanged(let change):
-                print("\(change.peerId) → \(change.state)")
-            }
+    for await event in mesh.peers {
+        switch onEnum(of: event) {
+        case .found(let found):
+            print("Discovered: \(found.id.toHex())")
+        case .lost(let lost):
+            print("Lost: \(lost.id.toHex())")
+        case .stateChanged(let change):
+            print("\(change.id.toHex()) → \(change.state)")
         }
     }
 }
@@ -87,16 +85,11 @@ Note the `onEnum(of:)` pattern — SKIE generates this for exhaustive switching 
 ## 6. Send a message
 
 ```swift
-func send(to peer: PeerIdHex, text: String) async {
+func send(to peerId: KotlinByteArray, text: String) async {
     guard let mesh = meshLink else { return }
 
-    let data = KotlinByteArray(size: Int32(text.utf8.count))
-    for (i, byte) in text.utf8.enumerated() {
-        data.set(index: Int32(i), value: Int8(bitPattern: byte))
-    }
-
-    let result = try? await mesh.send(recipient: peer, data: data)
-    // Handle result
+    let data = text.utf8ToKotlinByteArray()
+    try? await mesh.send(recipient: peerId, payload: data, priority: .normal)
 }
 ```
 
@@ -106,11 +99,9 @@ func send(to peer: PeerIdHex, text: String) async {
 func observeMessages() async {
     guard let mesh = meshLink else { return }
 
-    for await message in mesh.incomingMessages {
-        let bytes = message.data
-        let text = String(bytes: (0..<bytes.size).map { UInt8(bitPattern: bytes.get(index: $0)) },
-                         encoding: .utf8) ?? ""
-        print("From \(message.sender): \(text)")
+    for await message in mesh.messages {
+        let text = message.payload.toSwiftString()
+        print("From \(message.senderId.toHex()): \(text)")
     }
 }
 ```
@@ -118,8 +109,8 @@ func observeMessages() async {
 ## 8. Stop cleanly
 
 ```swift
-func stop() {
-    meshLink?.stop()  // immediate teardown
+func stop() async {
+    try? await meshLink?.stop(timeout: .zero)
 }
 ```
 

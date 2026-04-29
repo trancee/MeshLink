@@ -34,17 +34,13 @@ Key changes are silently rejected. The peer is treated as untrusted and connecti
 
 ### TrustMode.PROMPT
 
-Key changes fire a `PeerEvent.KeyChangeDetected` event. Your app decides:
+Key changes fire a `KeyChangeEvent` on the `keyChanges` flow. Your app decides:
 
 ```kotlin
-meshLink.peerEvents.collect { events ->
-    for (event in events) {
-        if (event is PeerEvent.KeyChangeDetected) {
-            // Show user: "Device X has a new identity. Accept?"
-            if (userAccepts) meshLink.acceptKeyChange(event.peerId)
-            else meshLink.rejectKeyChange(event.peerId)
-        }
-    }
+meshLink.keyChanges.collect { event ->
+    // Show user: "Device X has a new identity. Accept?"
+    if (userAccepts) meshLink.acceptKeyChange(event.peerId)
+    else meshLink.rejectKeyChange(event.peerId)
 }
 ```
 

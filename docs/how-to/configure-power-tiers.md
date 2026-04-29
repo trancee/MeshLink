@@ -12,7 +12,7 @@ MeshLink doesn't read battery directly — your app reports it:
 
 ```kotlin
 // Call periodically or on battery change broadcast
-meshLink.updateBattery(level = 0.45f, isCharging = false)
+meshLink.updateBattery(percent = 0.45f, isCharging = false)
 ```
 
 ### 2. Understand the three tiers
@@ -43,12 +43,13 @@ meshLink.setCustomPowerMode(PowerTier.PERFORMANCE)
 ### 5. Configure thresholds (optional)
 
 ```kotlin
-val config = MeshLinkConfig {
+val config = meshLinkConfig("com.example.myapp") {
     power {
-        lowBatteryThreshold = 0.15f      // default: 0.20
-        highBatteryThreshold = 0.85f     // default: 0.80
-        hysteresisPercent = 0.03f        // default: 0.02
-        downgradeDelayMillis = 45_000L   // default: 30_000
+        powerModeThresholds {
+            powerSaverThreshold = 0.15f      // default: 0.30
+            performanceThreshold = 0.85f     // default: 0.80
+        }
+        evictionGracePeriodMillis = 45_000L  // default: 30_000
     }
 }
 ```

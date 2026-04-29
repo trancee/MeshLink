@@ -8,33 +8,25 @@ A peer has rotated their identity keys and your app needs to decide whether to a
 
 ### 1. Choose your trust mode
 
-In `MeshLinkConfig`:
-
 ```kotlin
-val config = MeshLinkConfig {
-    trust {
-        mode = TrustMode.PROMPT  // or TrustMode.STRICT
-    }
+val config = meshLinkConfig("com.example.myapp") {
+    security { trustMode = TrustMode.PROMPT }  // or TrustMode.STRICT
 }
 ```
 
 - **STRICT:** Key changes are silently rejected. The peer is treated as untrusted. No callback.
-- **PROMPT:** Your app receives a callback and decides whether to accept the new key.
+- **PROMPT:** Your app receives a `KeyChangeEvent` and decides whether to accept.
 
 ### 2. Handle key-change events (PROMPT mode)
 
 ```kotlin
-meshLink.peerEvents.collect { events ->
-    for (event in events) {
-        if (event is PeerEvent.KeyChangeDetected) {
-            // Show UI: "Peer X has a new identity key. Accept?"
-            val accepted = showKeyChangeDialog(event.peerId, event.oldFingerprint, event.newFingerprint)
-            if (accepted) {
-                meshLink.acceptKeyChange(event.peerId)
-            } else {
-                meshLink.rejectKeyChange(event.peerId)
-            }
-        }
+meshLink.keyChanges.collect { event ->
+    // Show UI: "Peer X has a new identity key. Accept?"
+    val accepted = showKeyChangeDialog(event.peerId, event.oldFingerprint, event.newFingerprint)
+    if (accepted) {
+        meshLink.acceptKeyChange(event.peerId)
+    } else {
+        meshLink.rejectKeyChange(event.peerId)
     }
 }
 ```
@@ -55,7 +47,7 @@ This:
 ### 4. Verify a peer's fingerprint out-of-band
 
 ```kotlin
-val fingerprint: String = meshLink.peerFingerprint(peerId)
+val fingerprint: String? = meshLink.peerFingerprint(peerId)
 // Display: "ab:cd:ef:12:34:56:78:9a:bc:de:f0:12"
 // Compare visually or via QR code
 ```
@@ -67,7 +59,7 @@ val fingerprint: String = meshLink.peerFingerprint(peerId)
 3. Each receiving peer:
    - Verifies the signature against the **old** public key (which they have pinned)
    - In STRICT mode: rejects (peer becomes untrusted)
-   - In PROMPT mode: fires `KeyChangeDetected` event and waits for app decision
+   - In PROMPT mode: emits `KeyChangeEvent` and waits for app decision
    - If accepted: updates pinned key, re-derives key hash, updates all routing/trust state
 
 ## Security considerations

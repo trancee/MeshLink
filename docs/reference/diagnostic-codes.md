@@ -9,6 +9,7 @@ All 27 codes grouped by severity tier. Each code has a fixed `DiagnosticLevel` a
 | ERROR | System integrity at risk | Immediate app attention required |
 | WARN | Degraded but operational | Monitor, may need intervention |
 | INFO | Normal protocol activity | Informational, no action needed |
+| DEBUG | Verbose internal state | Not emitted unless explicitly enabled |
 
 ---
 

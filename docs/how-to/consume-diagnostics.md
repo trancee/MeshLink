@@ -10,9 +10,11 @@ You're integrating MeshLink and want runtime visibility into protocol behavior �
 
 ```kotlin
 val meshLink = MeshLink.createAndroid(context, config)
-meshLink.start()
 
-// Collect all events
+scope.launch {
+    meshLink.start()
+}
+
 scope.launch {
     meshLink.diagnosticEvents.collect { event ->
         log("${event.severity} ${event.code}: ${event.payload}")
@@ -24,16 +26,17 @@ scope.launch {
 
 ```kotlin
 meshLink.diagnosticEvents
-    .filter { it.severity == Severity.CRITICAL || it.severity == Severity.THRESHOLD }
+    .filter { it.severity == DiagnosticLevel.ERROR || it.severity == DiagnosticLevel.WARN }
     .collect { event ->
         alertOps(event)
     }
 ```
 
-Severity tiers:
-- **Critical (4 codes):** Decryption failed, handshake failed, identity compromised, storage corruption
-- **Threshold (8 codes):** Buffer full, transfer timeout, route expired, connection limit reached
-- **Log (15 codes):** Peer discovered, route changed, handshake event, transfer progress
+Severity levels:
+- **ERROR** — system integrity at risk, immediate attention needed
+- **WARN** — degraded but operational, monitor
+- **INFO** — normal protocol activity, informational
+- **DEBUG** — verbose internal state (not emitted by default)
 
 ### 3. Read point-in-time health
 
@@ -52,20 +55,22 @@ meshLink.meshHealthFlow.collect { snapshot ->
 }
 ```
 
+Emits every `diagnostics.healthSnapshotIntervalMillis` (default: 5000ms).
+
 ### 5. React to specific codes
 
 ```kotlin
 meshLink.diagnosticEvents.collect { event ->
     when (event.code) {
-        DiagnosticCode.HANDSHAKE_FAILED -> {
-            val payload = event.payload as DiagnosticPayload.HandshakeFailed
-            log("Handshake failed with ${payload.peerId}: ${payload.reason}")
+        DiagnosticCode.HANDSHAKE_EVENT -> {
+            val payload = event.payload as DiagnosticPayload.HandshakeEvent
+            log("Handshake with ${payload.peerId}: ${payload.stage}")
         }
         DiagnosticCode.ROUTE_CHANGED -> {
             val payload = event.payload as DiagnosticPayload.RouteChanged
-            log("Route to ${payload.destination} via ${payload.nextHop}, metric=${payload.metric}")
+            log("Route to ${payload.destination}: cost=${payload.cost}")
         }
-        DiagnosticCode.BUFFER_FULL -> {
+        DiagnosticCode.BUFFER_PRESSURE -> {
             // Back-pressure: slow down sends
         }
         else -> {}
@@ -73,15 +78,21 @@ meshLink.diagnosticEvents.collect { event ->
 }
 ```
 
-### 6. Opt out entirely (zero overhead)
+### 6. Disable diagnostics entirely (zero overhead)
 
-If you don't need diagnostics, pass nothing — `NoOpDiagnosticSink` is the default internally. The `diagnosticEvents` flow simply never emits. Payload lambdas are never evaluated.
+```kotlin
+val config = meshLinkConfig("com.example.myapp") {
+    diagnostics { enabled = false }
+}
+```
+
+When disabled, the entire diagnostic pipeline is short-circuited. No allocations, no flow emissions.
 
 ## Performance notes
 
-- Diagnostic payloads use lazy evaluation: `diagnosticSink.emit(code) { expensivePayload }` — the lambda only runs if someone is collecting
-- The SharedFlow uses `DROP_OLDEST` with a ring buffer — if you collect slowly, old events are dropped (check `droppedCount` on MeshHealthSnapshot)
-- Zero allocation when no collector is attached
+- Payload lambdas are evaluated lazily: `diagnosticSink.emit(code) { expensivePayload }` — the lambda only runs if a collector is attached
+- The SharedFlow uses `DROP_OLDEST` — if you collect slowly, old events are silently dropped (check `DiagnosticEvent.droppedCount`)
+- Zero allocation when no collector is attached and `enabled = true`
 
 ## iOS (Swift)
 

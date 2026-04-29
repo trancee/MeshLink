@@ -93,13 +93,11 @@ The fix: `RouteCoordinator` maintains a per-destination seqNo counter starting a
 From the app's perspective:
 
 ```kotlin
-meshLink.peerEvents.collect { events ->
-    for (event in events) {
-        when (event) {
-            is PeerEvent.Found -> addPeerToUI(event.peerId)
-            is PeerEvent.StateChanged -> updatePeerState(event.peerId, event.state)
-            is PeerEvent.Lost -> removePeerFromUI(event.peerId)
-        }
+meshLink.peers.collect { event ->
+    when (event) {
+        is PeerEvent.Found -> addPeerToUI(event.id)
+        is PeerEvent.StateChanged -> updatePeerState(event.id, event.state)
+        is PeerEvent.Lost -> removePeerFromUI(event.id)
     }
 }
 ```
