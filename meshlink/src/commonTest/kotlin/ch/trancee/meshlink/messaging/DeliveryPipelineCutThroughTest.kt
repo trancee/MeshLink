@@ -1007,13 +1007,8 @@ class DeliveryPipelineCutThroughTest {
 
         // No crash, no spurious diagnostics beyond the normal ones.
         // The key assertion: no DELIVERY_TIMEOUT emitted (buffer completed, not timed out).
-        val timeoutCount =
-            (bob as? PipelineNode)?.let { _ ->
-                // We can't access sink from PipelineNode (it uses NoOpDiagnosticSink by default).
-                // The main verification is that no exception was thrown.
-                true
-            } ?: true
-        assertTrue(timeoutCount, "Eviction of completed buffer should be a no-op")
+        // The main verification is that no exception was thrown during eviction.
+        assertTrue(true, "Eviction of completed buffer should be a no-op")
     }
 
     // ── Cut-through eviction with diagnostic verification ────────────────────

@@ -22,9 +22,6 @@ internal data class SentFrame(val destination: ByteArray, val data: ByteArray) {
     override fun hashCode(): Int = 31 * destination.contentHashCode() + data.contentHashCode()
 }
 
-// Suppress EXPOSED_* warnings: BleTransport is `internal`; its members reference internal types,
-// and overrides in this internal test helper cannot widen or restrict that visibility.
-@Suppress("EXPOSED_PROPERTY_TYPE", "EXPOSED_FUNCTION_RETURN_TYPE", "EXPOSED_PARAMETER_TYPE")
 internal class VirtualMeshTransport(
     override val localPeerId: ByteArray,
     private val testScheduler: TestCoroutineScheduler,

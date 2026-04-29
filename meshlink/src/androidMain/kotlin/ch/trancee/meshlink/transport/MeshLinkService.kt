@@ -256,6 +256,10 @@ internal abstract class MeshLinkService : Service() {
                     /* no-op */
                 }
 
+                @Deprecated(
+                    "Deprecated in API 34+",
+                    ReplaceWith("onTrimMemory(TRIM_MEMORY_COMPLETE)"),
+                )
                 override fun onLowMemory() {
                     /* no-op */
                 }

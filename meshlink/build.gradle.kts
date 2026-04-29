@@ -33,6 +33,9 @@ plugins {
 kotlin {
     explicitApi()
 
+    // Suppress Beta warning for expect/actual classes (KT-61573).
+    // Logger uses expect/actual object; this is stable in practice and tracked for promotion.
+    compilerOptions { freeCompilerArgs.add("-Xexpect-actual-classes") }
     // Android-KMP plugin (AGP 9.0+): android {} block is inside kotlin {}, not top-level.
     android {
         namespace = "ch.trancee.meshlink"

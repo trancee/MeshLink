@@ -1,3 +1,7 @@
+@file:Suppress("DEPRECATION") // EncryptedSharedPreferences/MasterKey deprecated by Google;
+
+// no drop-in replacement available yet. Tracked upstream: b/297099023.
+
 package ch.trancee.meshlink.storage
 
 import android.content.Context

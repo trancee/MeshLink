@@ -530,6 +530,10 @@ internal class AndroidBleTransport(
             dispatchIncomingGattData(keyHashHex, value)
         }
 
+        @Deprecated(
+            "Deprecated in API 33+",
+            ReplaceWith("onCharacteristicChanged(gatt, characteristic, value)"),
+        )
         override fun onCharacteristicChanged(
             gatt: BluetoothGatt,
             characteristic: BluetoothGattCharacteristic,

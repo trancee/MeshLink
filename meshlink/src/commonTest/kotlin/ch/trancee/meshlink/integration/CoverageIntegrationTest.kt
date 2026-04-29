@@ -225,7 +225,7 @@ class CoverageIntegrationTest {
         harness.awaitConvergence()
 
         // Center now has 2 connections (A and B). Drop battery to trigger POWER_SAVER.
-        val centerBattery = harness["Center"].batteryMonitor as StubBatteryMonitor
+        val centerBattery = harness["Center"].batteryMonitor
         centerBattery.level = 0.10f // Well below powerSaverThreshold (0.30)
         centerBattery.isCharging = false
 
