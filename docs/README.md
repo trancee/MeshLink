@@ -66,3 +66,8 @@ Background, context, and the "why" behind design decisions. Read these to unders
 | [Why 100% Coverage for Crypto](explanation/why-full-coverage.md) | How coverage serves correctness in a protocol library |
 | [The MeshEngine Coordinator Pattern](explanation/meshengine-pattern.md) | Why MeshLink is thin and MeshEngine owns all logic |
 | [Cut-Through vs Store-and-Forward](explanation/cut-through-relay.md) | Why relay nodes pipeline chunks instead of reassembling |
+| [The Trust Model](explanation/trust-model.md) | TOFU, key pinning, Strict vs Prompt, rotation announcements |
+| [Transfer Reliability](explanation/transfer-reliability.md) | SACK bitmaps, retransmission, resume, chunk sizing |
+| [Power Management Design](explanation/power-management.md) | Tier transitions, hysteresis, bootstrap, TieredShedder |
+| [Privacy by Design](explanation/privacy-pseudonyms.md) | Pseudonym rotation, advertisement unlinkability, threat model |
+| [Regulatory Compliance](explanation/regulatory-compliance.md) | EU ETSI clamping, region model, OS vs app-layer responsibility |
