@@ -50,6 +50,15 @@ internal class NoiseHandshakeManager(
     private val lastHandshakeAttempt = HashMap<List<Byte>, Long>()
 
     /**
+     * Clears all active handshake states. Called during identity rotation to invalidate all
+     * in-flight Noise sessions — peers must re-handshake with the new identity.
+     */
+    internal fun invalidateAllSessions() {
+        activeHandshakes.clear()
+        lastHandshakeAttempt.clear()
+    }
+
+    /**
      * Per-peer in-flight handshake state.
      *
      * Plain inner classes (not data classes) to avoid the auto-generated `!is` branch in `equals()`

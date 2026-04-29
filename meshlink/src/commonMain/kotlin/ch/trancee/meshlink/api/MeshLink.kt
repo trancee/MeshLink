@@ -23,9 +23,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.flatMapConcat
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.transform
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -109,6 +110,16 @@ internal constructor(
 
     override val state: StateFlow<MeshLinkState> = stateMachine.state
 
+    // ── State guard ────────────────────────────────────────────────────────
+
+    /** Throws [IllegalStateException] if the FSM is not in [MeshLinkState.RUNNING]. */
+    private fun requireRunning(methodName: String) {
+        val current = stateMachine.state.value
+        if (current != MeshLinkState.RUNNING) {
+            throw IllegalStateException("$methodName() called from invalid state: $current")
+        }
+    }
+
     // ── Lifecycle ──────────────────────────────────────────────────────────
 
     override suspend fun start() {
@@ -187,8 +198,7 @@ internal constructor(
 
     // ── Event streams ──────────────────────────────────────────────────────
 
-    override val peers: Flow<PeerEvent> =
-        engine.peerEvents.transform { event -> for (e in mapPeerEvent(event, clock)) emit(e) }
+    override val peers: Flow<PeerEvent> = mapPeerEventsFlow(engine.peerEvents, clock)
 
     override val messages: Flow<ReceivedMessage> = engine.messages.map(::mapInboundMessage)
 
@@ -232,31 +242,35 @@ internal constructor(
     override val localPublicKey: ByteArray
         get() = identity.edKeyPair.publicKey
 
-    override fun peerPublicKey(id: ByteArray): ByteArray? = null // TrustStore wired in S02
+    override fun peerPublicKey(id: ByteArray): ByteArray? = engine.peerPublicKey(id)
 
     override fun peerDetail(id: ByteArray): PeerDetail? = null
 
     override fun allPeerDetails(): List<PeerDetail> = emptyList()
 
-    override fun peerFingerprint(id: ByteArray): String? = null
+    override fun peerFingerprint(id: ByteArray): String? = engine.peerFingerprint(id)
 
     override suspend fun rotateIdentity() {
-        // Wired to Identity.rotateKeys + broadcast in S02.
+        requireRunning("rotateIdentity")
+        engine.rotateIdentity()
     }
 
     override suspend fun repinKey(id: ByteArray) {
-        // Wired to TrustStore.repinKey in S02.
+        requireRunning("repinKey")
+        engine.repinKey(id)
     }
 
     override suspend fun acceptKeyChange(peerId: ByteArray) {
-        // Wired to TrustStore in S02.
+        requireRunning("acceptKeyChange")
+        engine.acceptKeyChange(peerId)
     }
 
     override suspend fun rejectKeyChange(peerId: ByteArray) {
-        // Wired to TrustStore in S02.
+        requireRunning("rejectKeyChange")
+        engine.rejectKeyChange(peerId)
     }
 
-    override fun pendingKeyChanges(): List<KeyChangeEvent> = emptyList()
+    override fun pendingKeyChanges(): List<KeyChangeEvent> = engine.pendingKeyChangesList()
 
     // ── Health ─────────────────────────────────────────────────────────────
 
@@ -495,6 +509,19 @@ internal fun ByteArray.toHexString(): String =
     joinToString("") { it.toInt().and(0xFF).toString(16).padStart(2, '0') }
 
 // ── Flow property mappers (extracted for testability — M005/S01) ──────────
+
+/**
+ * Maps a flow of engine-level peer events to a flow of public [PeerEvent]s.
+ *
+ * Extracted to a top-level function to avoid coroutine state machine phantom branches in MeshLink's
+ * property initializer (Kover/JaCoCo MEM249). The function body is a simple flatMapConcat; the
+ * mapPeerEvent transform logic is verified by unit tests.
+ */
+@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+internal fun mapPeerEventsFlow(
+    source: Flow<ch.trancee.meshlink.routing.PeerEvent>,
+    clock: () -> Long,
+): Flow<PeerEvent> = source.flatMapConcat { event -> mapPeerEvent(event, clock).asFlow() }
 
 /**
  * Maps engine-level [ch.trancee.meshlink.routing.PeerEvent] to a list of public [PeerEvent]s.

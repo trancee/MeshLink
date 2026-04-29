@@ -259,8 +259,9 @@ internal class CutThroughBuffer(
             appendKeyHash: ByteArray,
             header: RoutingHeaderView,
         ): ByteArray {
-            require(appendKeyHash.size == 12) { "keyHash must be 12 bytes" }
-
+            if (appendKeyHash.size != 12) {
+                throw IllegalArgumentException("keyHash must be 12 bytes")
+            }
             // All positions in RoutingHeaderView are relative to the FlatBuffer bytes (after the
             // type discriminator), so we add 1 (TYPE_BYTE_SIZE) to get absolute positions in the
             // chunk payload.

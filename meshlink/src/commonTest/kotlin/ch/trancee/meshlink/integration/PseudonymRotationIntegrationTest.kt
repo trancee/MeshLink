@@ -15,6 +15,7 @@ import kotlin.test.Test
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -252,6 +253,11 @@ class PseudonymRotationIntegrationTest {
         val nodeB = harness["B"]
         val aKeyHash = nodeA.identity.keyHash
 
+        // Collect diagnostic events from B BEFORE triggering.
+        val diagnosticEvents = mutableListOf<ch.trancee.meshlink.api.DiagnosticEvent>()
+        backgroundScope.launch { nodeB.diagnosticSink.events.collect { diagnosticEvents.add(it) } }
+        testScheduler.runCurrent()
+
         // Build a 16-byte advertisement with INVALID pseudonym bytes 4–15.
         val invalidPseudonym = ByteArray(12) { 0xAB.toByte() }
         val ad16 = build16ByteAdvertisement(invalidPseudonym)
@@ -261,13 +267,11 @@ class PseudonymRotationIntegrationTest {
         repeat(10) { testScheduler.runCurrent() }
 
         // A WARN DECRYPTION_FAILED diagnostic should have been emitted at B.
-        val sink = nodeB.diagnosticSink as ch.trancee.meshlink.api.DiagnosticSink
-        val mismatchEvents =
-            sink.events.replayCache.filter {
-                it.code == ch.trancee.meshlink.api.DiagnosticCode.DECRYPTION_FAILED &&
-                    (it.payload as? ch.trancee.meshlink.api.DiagnosticPayload.DecryptionFailed)
-                        ?.reason == "pseudonym verification mismatch"
-            }
+        val mismatchEvents = diagnosticEvents.filter {
+            it.code == ch.trancee.meshlink.api.DiagnosticCode.DECRYPTION_FAILED &&
+                (it.payload as? ch.trancee.meshlink.api.DiagnosticPayload.DecryptionFailed)
+                    ?.reason == "pseudonym verification mismatch"
+        }
         assertTrue(
             mismatchEvents.isNotEmpty(),
             "DECRYPTION_FAILED diagnostic must fire on pseudonym mismatch",

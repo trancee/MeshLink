@@ -32,7 +32,7 @@ import kotlinx.coroutines.launch
  * @param epochDurationMs Epoch length in milliseconds (default 15 minutes, configurable for tests).
  */
 internal class PseudonymRotator(
-    private val keyHash: ByteArray,
+    private var keyHash: ByteArray,
     private val cryptoProvider: CryptoProvider,
     private val scope: CoroutineScope,
     private val clock: () -> Long,
@@ -41,6 +41,14 @@ internal class PseudonymRotator(
     private val epochDurationMs: Long = EPOCH_DURATION_MS,
 ) {
     private var _currentPseudonym: ByteArray = ByteArray(0)
+
+    /**
+     * Replaces the HMAC key used for pseudonym computation. Called after identity rotation so that
+     * future pseudonym epochs use the new identity's key hash.
+     */
+    internal fun updateKeyHash(newKeyHash: ByteArray) {
+        keyHash = newKeyHash
+    }
 
     /** Returns the last-computed 12-byte pseudonym. Empty before [start] is called. */
     fun currentPseudonym(): ByteArray = _currentPseudonym

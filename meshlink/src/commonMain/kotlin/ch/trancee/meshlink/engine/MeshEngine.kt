@@ -69,6 +69,10 @@ private constructor(
     private val cryptoProvider: CryptoProvider,
     private val diagnosticSink: ch.trancee.meshlink.api.DiagnosticSinkApi,
     private val meshStateManager: MeshStateManager,
+    private val trustStore: TrustStore,
+    private val identity: Identity,
+    private val storage: SecureStorage,
+    private val transferEngine: TransferEngine,
 ) {
     // ── Public SharedFlow surfaces ────────────────────────────────────────────
 
@@ -389,6 +393,114 @@ private constructor(
         priority: Priority = Priority.NORMAL,
     ): ByteArray = deliveryPipeline.broadcast(payload, maxHops, priority)
 
+    // ── Pending key changes tracking ──────────────────────────────────────────
+
+    /**
+     * Pending key change events keyed by peerId.asList(). Populated when [TrustStore.pinKey]
+     * rejects a changed key in STRICT mode (via [NoiseHandshakeManager] callback). Consumers
+     * resolve via [acceptKeyChange] or [rejectKeyChange].
+     */
+    private val pendingKeyChanges =
+        LinkedHashMap<List<Byte>, ch.trancee.meshlink.crypto.KeyChangeEvent>()
+
+    /**
+     * Called by the TrustStore onKeyChange callback. Records the pending change for later
+     * resolution by the public API.
+     */
+    internal fun onKeyChange(event: ch.trancee.meshlink.crypto.KeyChangeEvent) {
+        pendingKeyChanges[event.peerKeyHash.asList()] = event
+    }
+
+    // ── Identity & Trust internal API ─────────────────────────────────────────
+
+    /**
+     * Rotates the local identity keypair. Generates new keys, broadcasts a signed
+     * [RotationAnnouncement], invalidates all Noise sessions, cancels in-flight transfers, and
+     * updates the pseudonym rotator.
+     */
+    internal suspend fun rotateIdentity() {
+        val announcement = identity.rotateKeys(cryptoProvider, storage)
+        // Broadcast the rotation announcement as raw payload (newEdPub ‖ newDhPub ‖ nonce ‖ sig).
+        val announcementPayload =
+            announcement.newEdPublicKey +
+                announcement.newDhPublicKey +
+                ch.trancee.meshlink.crypto.Identity.encodeULong(announcement.rotationNonce) +
+                announcement.signature
+        deliveryPipeline.broadcast(announcementPayload, maxHops = 3u, Priority.HIGH)
+        // Invalidate all Noise sessions — peers must re-handshake with the new identity.
+        noiseHandshakeManager.invalidateAllSessions()
+        // Cancel low/normal priority in-flight transfers.
+        transferEngine.onMemoryPressure()
+        // Update pseudonym rotator with new key hash.
+        val newKeyHash =
+            cryptoProvider
+                .sha256(announcement.newEdPublicKey + announcement.newDhPublicKey)
+                .copyOf(12)
+        pseudonymRotator.updateKeyHash(newKeyHash)
+        diagnosticSink.emit(DiagnosticCode.HANDSHAKE_EVENT) {
+            DiagnosticPayload.TextMessage("identity_rotated")
+        }
+    }
+
+    /** Returns the pinned X25519 static public key for [peerId], or `null` if not pinned. */
+    internal fun peerPublicKey(peerId: ByteArray): ByteArray? = trustStore.getPinnedKey(peerId)
+
+    /**
+     * Returns the human-readable fingerprint for [peerId] as uppercase colon-separated hex of the
+     * peerId bytes (e.g. `A1:B2:C3:D4:E5:F6:A7:B8:C9:D0:E1:F2`), or `null` if the peer is not
+     * pinned in the trust store.
+     */
+    internal fun peerFingerprint(peerId: ByteArray): String? {
+        trustStore.getPinnedKey(peerId) ?: return null
+        return peerId.joinToString(":") {
+            it.toInt().and(0xFF).toString(16).padStart(2, '0').uppercase()
+        }
+    }
+
+    /**
+     * Re-pins the current key for [peerId] using the pending key change's new key. No-op if there
+     * is no pending change for this peer.
+     */
+    internal fun repinKey(peerId: ByteArray) {
+        val pending = pendingKeyChanges.remove(peerId.asList()) ?: return
+        trustStore.repinKey(peerId, pending.newKey)
+        diagnosticSink.emit(DiagnosticCode.HANDSHAKE_EVENT) {
+            DiagnosticPayload.TextMessage("key_repinned peer=${peerId.toPeerIdHex().hex}")
+        }
+    }
+
+    /** Accepts the pending key change for [peerId], updating the trust store to the new key. */
+    internal fun acceptKeyChange(peerId: ByteArray) {
+        val pending = pendingKeyChanges.remove(peerId.asList()) ?: return
+        trustStore.repinKey(peerId, pending.newKey)
+        diagnosticSink.emit(DiagnosticCode.HANDSHAKE_EVENT) {
+            DiagnosticPayload.TextMessage("key_change_accepted peer=${peerId.toPeerIdHex().hex}")
+        }
+    }
+
+    /**
+     * Rejects the pending key change for [peerId]. Keeps the old key, removes the pending entry,
+     * and disconnects the peer.
+     */
+    internal suspend fun rejectKeyChange(peerId: ByteArray) {
+        pendingKeyChanges.remove(peerId.asList()) ?: return
+        // Disconnect the peer — they presented an untrusted key.
+        transport.disconnect(peerId)
+        diagnosticSink.emit(DiagnosticCode.HANDSHAKE_EVENT) {
+            DiagnosticPayload.TextMessage("key_change_rejected peer=${peerId.toPeerIdHex().hex}")
+        }
+    }
+
+    /** Returns all pending [KeyChangeEvent]s as public API types. */
+    internal fun pendingKeyChangesList(): List<ch.trancee.meshlink.api.KeyChangeEvent> =
+        pendingKeyChanges.values.map { internal ->
+            ch.trancee.meshlink.api.KeyChangeEvent(
+                peerId = internal.peerKeyHash,
+                oldKey = internal.oldKey,
+                newKey = internal.newKey,
+            )
+        }
+
     // ── Factory ───────────────────────────────────────────────────────────────
 
     companion object {
@@ -425,7 +537,17 @@ private constructor(
                 CoroutineScope(scope.coroutineContext + Job(scope.coroutineContext[Job]))
 
             // ── Crypto / trust layer ──────────────────────────────────────────
-            val trustStore = TrustStore(storage)
+            // Use a late-binding holder so the TrustStore's onKeyChange callback can forward
+            // to MeshEngine.onKeyChange() even though MeshEngine hasn't been constructed yet.
+            var engineRef: MeshEngine? = null
+            val trustStore =
+                TrustStore(
+                    storage = storage,
+                    onKeyChange = { event ->
+                        engineRef?.onKeyChange(event)
+                        false
+                    },
+                )
 
             // ── Routing layer ─────────────────────────────────────────────────
             val routingTable = RoutingTable(clock)
@@ -538,21 +660,28 @@ private constructor(
                     diagnosticSink = diagnosticSink,
                 )
 
-            return MeshEngine(
-                engineScope = engineScope,
-                transport = transport,
-                deliveryPipeline = deliveryPipeline,
-                routeCoordinator = routeCoordinator,
-                presenceTracker = presenceTracker,
-                powerManager = powerManager,
-                transferScheduler = transferScheduler,
-                noiseHandshakeManager = noiseHandshakeManager,
-                routingTable = routingTable,
-                pseudonymRotator = pseudonymRotator,
-                cryptoProvider = cryptoProvider,
-                diagnosticSink = diagnosticSink,
-                meshStateManager = meshStateManager,
-            )
+            val engine =
+                MeshEngine(
+                    engineScope = engineScope,
+                    transport = transport,
+                    deliveryPipeline = deliveryPipeline,
+                    routeCoordinator = routeCoordinator,
+                    presenceTracker = presenceTracker,
+                    powerManager = powerManager,
+                    transferScheduler = transferScheduler,
+                    noiseHandshakeManager = noiseHandshakeManager,
+                    routingTable = routingTable,
+                    pseudonymRotator = pseudonymRotator,
+                    cryptoProvider = cryptoProvider,
+                    diagnosticSink = diagnosticSink,
+                    meshStateManager = meshStateManager,
+                    trustStore = trustStore,
+                    identity = identity,
+                    storage = storage,
+                    transferEngine = transferEngine,
+                )
+            engineRef = engine
+            return engine
         }
     }
 }

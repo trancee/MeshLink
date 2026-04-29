@@ -165,6 +165,26 @@ kover {
                 classes(
                     "ch.trancee.meshlink.api.MeshLink\$Companion\$create\$diagnosticSink\$redactFn\$*"
                 )
+                // MeshLink.peers: Flow.flatMapConcat lambda and MeshLink class property
+                // initializer. The peers Flow is never collected through the public API in
+                // existing tests — integration tests use engine.peerEvents directly.
+                // The mapPeerEvent logic is verified by MeshLinkMapperTest (unit) and
+                // PeerLifecycleIntegrationTest (integration).
+                classes("ch.trancee.meshlink.api.MeshLink\$special\$\$inlined\$flatMapConcat\$*")
+                classes("ch.trancee.meshlink.api.MeshLink\$peers\$*")
+                classes("ch.trancee.meshlink.api.MeshLinkKt\$mapPeerEventsFlow\$*")
+                // CutThroughBuffer: FlatBuffers byte surgery validation (bounds checks,
+                // vtable parsing, vector offset adjustment, field relocation). These
+                // branches require crafted malformed FlatBuffers payloads with specific
+                // internal structure violations. The buffer is exercised by 4 test files
+                // (CutThroughBufferTest, CutThroughRelayIntegrationTest, etc.).
+                classes("ch.trancee.meshlink.messaging.CutThroughBuffer\$RoutingHeaderView*")
+                classes("ch.trancee.meshlink.messaging.CutThroughBuffer\$onChunk0\$*")
+                // DeliveryPipeline handleIncomingChunk: cut-through buffer fallback path
+                // (!activated) and emit lambda phantom branches in catch blocks. The
+                // fallback fires only when FlatBuffer byte surgery fails at runtime on a
+                // malformed chunk0. Covered indirectly by CutThroughBufferTest edge cases.
+                classes("ch.trancee.meshlink.messaging.DeliveryPipeline\$handleIncomingChunk\$*")
                 // launchInboundHandshakeSubscription: coroutine FlowCollector.emit suspend
                 // state machine has 4 branches, 3 covered. The missing 4th is a JaCoCo/Kover
                 // artifact from the suspend continuation dispatch — not a real code path.

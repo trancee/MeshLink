@@ -10,7 +10,6 @@ import ch.trancee.meshlink.transport.VirtualLink
 import ch.trancee.meshlink.transport.VirtualMeshTransport
 import ch.trancee.meshlink.wire.Handshake
 import ch.trancee.meshlink.wire.WireCodec
-import kotlin.test.Ignore
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -178,8 +177,6 @@ class MeshEngineIntegrationTest {
 
     // ── Scenario 4: B disconnect + reconnect, A→C transfer completes ─────────
 
-    // BLOCKER: seqNo=0u on reconnect — fixed in S05
-    @Ignore
     @Test
     fun `scenario4 B disconnect and reconnect allows transfer to C`() = runTest {
         val harness =
@@ -232,8 +229,6 @@ class MeshEngineIntegrationTest {
 
     // ── Scenario 5: Return path C→A ───────────────────────────────────────────
 
-    // BLOCKER: seqNo=0u on reconnect — fixed in S05
-    @Ignore
     @Test
     fun `scenario5 C sends to A via return path`() = runTest {
         val harness =

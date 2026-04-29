@@ -5,6 +5,7 @@ import ch.trancee.meshlink.crypto.Identity
 import ch.trancee.meshlink.crypto.TrustStore
 import ch.trancee.meshlink.crypto.createCryptoProvider
 import ch.trancee.meshlink.routing.DedupSet
+import ch.trancee.meshlink.routing.PeerInfo
 import ch.trancee.meshlink.routing.PresenceTracker
 import ch.trancee.meshlink.routing.RouteCoordinator
 import ch.trancee.meshlink.routing.RoutingConfig
@@ -224,5 +225,40 @@ class DeliveryPipelineCancelTest {
         runCurrent()
 
         assertEquals(0, failures.size, "Expected no DeliveryFailed events")
+    }
+
+    @Test
+    fun `cancelMessagesFor drains pendingDeliveries when route existed at send time`() = runTest {
+        var now = 0L
+        val clock: () -> Long = { now }
+        val node = makeNode(backgroundScope, testScheduler, clock)
+
+        val crypto = createCryptoProvider()
+        val remoteStorage = InMemorySecureStorage()
+        val remoteIdentity = Identity.loadOrGenerate(crypto, remoteStorage)
+        node.trustStore.pinKey(remoteIdentity.keyHash, remoteIdentity.dhKeyPair.publicKey)
+
+        // Install a route so send() bypasses sendBuffer and goes directly to transfer.
+        node.routeCoordinator.onPeerConnected(
+            PeerInfo(peerId = remoteIdentity.keyHash, powerMode = 0, rssi = -50, lossRate = 0.0)
+        )
+        node.routeCoordinator.start()
+        runCurrent()
+
+        val failures = mutableListOf<DeliveryFailed>()
+        backgroundScope.launch { node.pipeline.transferFailures.collect { failures.add(it) } }
+        runCurrent()
+
+        // Send with route → message goes to TransferEngine (pendingDeliveries populated,
+        // sendBuffer empty for this message).
+        node.pipeline.send(remoteIdentity.keyHash, byteArrayOf(1, 2, 3))
+        runCurrent()
+
+        // cancelMessagesFor should drain pendingDeliveries (second loop).
+        node.pipeline.cancelMessagesFor(remoteIdentity.keyHash)
+        runCurrent()
+
+        assertEquals(1, failures.size, "Expected 1 DeliveryFailed from pendingDeliveries drain")
+        assertTrue(failures.all { it.outcome == DeliveryOutcome.TIMED_OUT })
     }
 }
