@@ -19,26 +19,42 @@ class L2capFrameCodecTest {
 
     @Test
     fun dataFrameRoundTrip() {
+        // Arrange
         val payload = byteArrayOf(0x01, 0x02, 0x03)
+
+        // Act
         val encoded = L2capFrameCodec.encode(FrameType.DATA, payload)
         val decoded = L2capFrameCodec.decode(encoded)
+
+        // Assert
         assertEquals(FrameType.DATA, decoded.type)
         assertContentEquals(payload, decoded.payload)
     }
 
     @Test
     fun ackFrameRoundTrip() {
+        // Arrange
         val payload = byteArrayOf(0xAA.toByte(), 0xBB.toByte())
+
+        // Act
         val encoded = L2capFrameCodec.encode(FrameType.ACK, payload)
         val decoded = L2capFrameCodec.decode(encoded)
+
+        // Assert
         assertEquals(FrameType.ACK, decoded.type)
         assertContentEquals(payload, decoded.payload)
     }
 
     @Test
     fun closeFrameWithEmptyPayload() {
-        val encoded = L2capFrameCodec.encode(FrameType.CLOSE, ByteArray(0))
+        // Arrange
+        val payload = ByteArray(0)
+
+        // Act
+        val encoded = L2capFrameCodec.encode(FrameType.CLOSE, payload)
         val decoded = L2capFrameCodec.decode(encoded)
+
+        // Assert
         assertEquals(FrameType.CLOSE, decoded.type)
         assertTrue(decoded.payload.isEmpty())
     }
@@ -47,21 +63,34 @@ class L2capFrameCodecTest {
 
     @Test
     fun fromByteReturnsDataFor0x00() {
-        assertEquals(FrameType.DATA, FrameType.fromByte(0x00))
+        // Act
+        val result = FrameType.fromByte(0x00)
+
+        // Assert
+        assertEquals(FrameType.DATA, result)
     }
 
     @Test
     fun fromByteReturnsAckFor0x01() {
-        assertEquals(FrameType.ACK, FrameType.fromByte(0x01))
+        // Act
+        val result = FrameType.fromByte(0x01)
+
+        // Assert
+        assertEquals(FrameType.ACK, result)
     }
 
     @Test
     fun fromByteReturnsCloseFor0x02() {
-        assertEquals(FrameType.CLOSE, FrameType.fromByte(0x02))
+        // Act
+        val result = FrameType.fromByte(0x02)
+
+        // Assert
+        assertEquals(FrameType.CLOSE, result)
     }
 
     @Test
     fun fromByteReturnsNullForUnknownByte() {
+        // Act & Assert
         assertNull(FrameType.fromByte(0x03))
         assertNull(FrameType.fromByte(0xFF.toByte()))
     }
@@ -70,8 +99,13 @@ class L2capFrameCodecTest {
 
     @Test
     fun encodeProducesCorrectHeaderBytes() {
+        // Arrange
         val payload = byteArrayOf(0x11, 0x22, 0x33)
+
+        // Act
         val frame = L2capFrameCodec.encode(FrameType.DATA, payload)
+
+        // Assert
         assertEquals(FrameType.DATA.code, frame[0])
         assertEquals(3.toByte(), frame[1]) // little-endian low byte of length
         assertEquals(0.toByte(), frame[2]) // little-endian high byte of length
@@ -80,180 +114,426 @@ class L2capFrameCodecTest {
 
     @Test
     fun encodeWithMaxSizePayload() {
+        // Arrange
         val payload = ByteArray(65535) { 0x42 }
+
+        // Act
         val frame = L2capFrameCodec.encode(FrameType.DATA, payload)
+
+        // Assert
         assertEquals(3 + 65535, frame.size)
-        // 65535 = 0xFFFF in little-endian
-        assertEquals(0xFF.toByte(), frame[1])
+        assertEquals(0xFF.toByte(), frame[1]) // 65535 = 0xFFFF little-endian
         assertEquals(0xFF.toByte(), frame[2])
     }
 
     @Test
     fun encodeRejectsOversizedPayload() {
+        // Arrange
+        val oversizedPayload = ByteArray(65536)
+
+        // Act & Assert
         assertFailsWith<IllegalArgumentException> {
-            L2capFrameCodec.encode(FrameType.DATA, ByteArray(65536))
+            L2capFrameCodec.encode(FrameType.DATA, oversizedPayload)
         }
     }
 
     // ── Decode error paths ────────────────────────────────────────────────────
 
     @Test
-    fun decodeRejectsFrameShorterThan3Bytes() {
+    fun decodeRejectsEmptyFrame() {
+        // Act & Assert
         assertFailsWith<IllegalArgumentException> { L2capFrameCodec.decode(ByteArray(0)) }
+    }
+
+    @Test
+    fun decodeRejectsOneByteFrame() {
+        // Act & Assert
         assertFailsWith<IllegalArgumentException> { L2capFrameCodec.decode(ByteArray(1)) }
+    }
+
+    @Test
+    fun decodeRejectsTwoByteFrame() {
+        // Act & Assert
         assertFailsWith<IllegalArgumentException> { L2capFrameCodec.decode(ByteArray(2)) }
     }
 
     @Test
     fun decodeRejectsUnknownFrameType() {
-        // type=0xFF, length=0 — valid structure but unknown type
+        // Arrange — type=0xFF, length=0 — valid structure but unknown type
         val frame = byteArrayOf(0xFF.toByte(), 0x00, 0x00)
+
+        // Act & Assert
         assertFailsWith<IllegalArgumentException> { L2capFrameCodec.decode(frame) }
     }
 
     @Test
     fun decodeRejectsTruncatedPayload() {
-        // Header declares length=100 but only 5 bytes of payload follow
+        // Arrange — header declares length=100 but only 5 bytes of payload follow
         val frame = ByteArray(3 + 5)
         frame[0] = FrameType.DATA.code
-        frame[1] = 100.toByte() // low byte
-        frame[2] = 0x00 // high byte
+        frame[1] = 100.toByte()
+        frame[2] = 0x00
+
+        // Act & Assert
         assertFailsWith<IllegalArgumentException> { L2capFrameCodec.decode(frame) }
     }
 
     // ── L2capFrame equals/hashCode ─────────────────────────────────────────────
 
     @Test
-    fun l2capFrameEqualsAndHashCode() {
-        val payload = byteArrayOf(0x01, 0x02)
-        val frame = L2capFrame(FrameType.DATA, payload)
+    fun l2capFrameEqualsIdentity() {
+        // Arrange
+        val frame = L2capFrame(FrameType.DATA, byteArrayOf(0x01, 0x02))
 
-        // Identity check (this === other → true)
-        assertTrue(frame.equals(frame))
+        // Act
+        val result = frame.equals(frame)
 
-        // Different reference, same content (field equality path)
+        // Assert
+        assertTrue(result)
+    }
+
+    @Test
+    fun l2capFrameEqualsSameContent() {
+        // Arrange
+        val frame = L2capFrame(FrameType.DATA, byteArrayOf(0x01, 0x02))
         val frame2 = L2capFrame(FrameType.DATA, byteArrayOf(0x01, 0x02))
-        assertTrue(frame.equals(frame2))
+
+        // Act
+        val result = frame.equals(frame2)
+
+        // Assert
+        assertTrue(result)
         assertEquals(frame.hashCode(), frame2.hashCode())
+    }
 
-        // Wrong type (other !is L2capFrame → false)
-        assertFalse(frame.equals("not a frame"))
+    @Test
+    fun l2capFrameNotEqualsWrongType() {
+        // Arrange
+        val frame = L2capFrame(FrameType.DATA, byteArrayOf(0x01, 0x02))
 
-        // type differs → false (short-circuits payload check)
-        assertFalse(frame.equals(L2capFrame(FrameType.ACK, byteArrayOf(0x01, 0x02))))
+        // Act
+        val result = frame.equals("not a frame")
 
-        // payload differs → false (type matches, contentEquals fails)
-        assertFalse(frame.equals(L2capFrame(FrameType.DATA, byteArrayOf(0x03, 0x04))))
+        // Assert
+        assertFalse(result)
+    }
+
+    @Test
+    fun l2capFrameNotEqualsDifferentFrameType() {
+        // Arrange
+        val frame = L2capFrame(FrameType.DATA, byteArrayOf(0x01, 0x02))
+        val other = L2capFrame(FrameType.ACK, byteArrayOf(0x01, 0x02))
+
+        // Act
+        val result = frame.equals(other)
+
+        // Assert
+        assertFalse(result)
+    }
+
+    @Test
+    fun l2capFrameNotEqualsDifferentPayload() {
+        // Arrange
+        val frame = L2capFrame(FrameType.DATA, byteArrayOf(0x01, 0x02))
+        val other = L2capFrame(FrameType.DATA, byteArrayOf(0x03, 0x04))
+
+        // Act
+        val result = frame.equals(other)
+
+        // Assert
+        assertFalse(result)
     }
 
     // ── AdvertisementEvent equals/hashCode ────────────────────────────────────
 
     @Test
-    fun advertisementEventEqualsAndHashCode() {
+    fun advertisementEventEqualsIdentity() {
+        // Arrange
+        val ae = AdvertisementEvent(byteArrayOf(0x01), byteArrayOf(0x02, 0x03), -70)
+
+        // Act
+        val result = ae.equals(ae)
+
+        // Assert
+        assertTrue(result)
+    }
+
+    @Test
+    fun advertisementEventEqualsSameContent() {
+        // Arrange
+        val ae = AdvertisementEvent(byteArrayOf(0x01), byteArrayOf(0x02, 0x03), -70)
+        val ae2 = AdvertisementEvent(byteArrayOf(0x01), byteArrayOf(0x02, 0x03), -70)
+
+        // Act
+        val result = ae.equals(ae2)
+
+        // Assert
+        assertTrue(result)
+        assertEquals(ae.hashCode(), ae2.hashCode())
+    }
+
+    @Test
+    fun advertisementEventNotEqualsWrongType() {
+        // Arrange
+        val ae = AdvertisementEvent(byteArrayOf(0x01), byteArrayOf(0x02, 0x03), -70)
+
+        // Act
+        val result = ae.equals("x")
+
+        // Assert
+        assertFalse(result)
+    }
+
+    @Test
+    fun advertisementEventNotEqualsDifferentPeerId() {
+        // Arrange
+        val ae = AdvertisementEvent(byteArrayOf(0x01), byteArrayOf(0x02, 0x03), -70)
+        val other = AdvertisementEvent(byteArrayOf(0xFF.toByte()), byteArrayOf(0x02, 0x03), -70)
+
+        // Act
+        val result = ae.equals(other)
+
+        // Assert
+        assertFalse(result)
+    }
+
+    @Test
+    fun advertisementEventNotEqualsDifferentServiceData() {
+        // Arrange
+        val peerId = byteArrayOf(0x01)
+        val ae = AdvertisementEvent(peerId, byteArrayOf(0x02, 0x03), -70)
+        val other = AdvertisementEvent(peerId, byteArrayOf(0xFF.toByte()), -70)
+
+        // Act
+        val result = ae.equals(other)
+
+        // Assert
+        assertFalse(result)
+    }
+
+    @Test
+    fun advertisementEventNotEqualsDifferentRssi() {
+        // Arrange
         val peerId = byteArrayOf(0x01)
         val serviceData = byteArrayOf(0x02, 0x03)
-        val rssi = -70
-        val ae = AdvertisementEvent(peerId, serviceData, rssi)
+        val ae = AdvertisementEvent(peerId, serviceData, -70)
+        val other = AdvertisementEvent(peerId, serviceData, -99)
 
-        // Identity check
-        assertTrue(ae.equals(ae))
+        // Act
+        val result = ae.equals(other)
 
-        // All fields equal (different references)
-        val ae2 = AdvertisementEvent(byteArrayOf(0x01), byteArrayOf(0x02, 0x03), -70)
-        assertTrue(ae.equals(ae2))
-        assertEquals(ae.hashCode(), ae2.hashCode())
-
-        // Wrong type
-        assertFalse(ae.equals("x"))
-
-        // peerId differs → false (short-circuits serviceData and rssi)
-        assertFalse(ae.equals(AdvertisementEvent(byteArrayOf(0xFF.toByte()), serviceData, rssi)))
-
-        // serviceData differs → false (peerId matches; short-circuits rssi)
-        assertFalse(ae.equals(AdvertisementEvent(peerId, byteArrayOf(0xFF.toByte()), rssi)))
-
-        // rssi differs → false (peerId and serviceData match)
-        assertFalse(ae.equals(AdvertisementEvent(peerId, serviceData, -99)))
+        // Assert
+        assertFalse(result)
     }
 
     // ── PeerLostEvent equals/hashCode ─────────────────────────────────────────
 
     @Test
-    fun peerLostEventEqualsAndHashCode() {
-        val peerId = byteArrayOf(0x01)
-        val reason = PeerLostReason.CONNECTION_LOST
-        val ple = PeerLostEvent(peerId, reason)
+    fun peerLostEventEqualsIdentity() {
+        // Arrange
+        val ple = PeerLostEvent(byteArrayOf(0x01), PeerLostReason.CONNECTION_LOST)
 
-        // Identity check
-        assertTrue(ple.equals(ple))
+        // Act
+        val result = ple.equals(ple)
 
-        // All fields equal (different references)
+        // Assert
+        assertTrue(result)
+    }
+
+    @Test
+    fun peerLostEventEqualsSameContent() {
+        // Arrange
+        val ple = PeerLostEvent(byteArrayOf(0x01), PeerLostReason.CONNECTION_LOST)
         val ple2 = PeerLostEvent(byteArrayOf(0x01), PeerLostReason.CONNECTION_LOST)
-        assertTrue(ple.equals(ple2))
+
+        // Act
+        val result = ple.equals(ple2)
+
+        // Assert
+        assertTrue(result)
         assertEquals(ple.hashCode(), ple2.hashCode())
+    }
 
-        // Wrong type
-        assertFalse(ple.equals(42))
+    @Test
+    fun peerLostEventNotEqualsWrongType() {
+        // Arrange
+        val ple = PeerLostEvent(byteArrayOf(0x01), PeerLostReason.CONNECTION_LOST)
 
-        // peerId differs → false (short-circuits reason)
-        assertFalse(ple.equals(PeerLostEvent(byteArrayOf(0xFF.toByte()), reason)))
+        // Act
+        val result = ple.equals(42)
 
-        // reason differs → false (peerId matches)
-        assertFalse(ple.equals(PeerLostEvent(peerId, PeerLostReason.TIMEOUT)))
+        // Assert
+        assertFalse(result)
+    }
+
+    @Test
+    fun peerLostEventNotEqualsDifferentPeerId() {
+        // Arrange
+        val ple = PeerLostEvent(byteArrayOf(0x01), PeerLostReason.CONNECTION_LOST)
+        val other = PeerLostEvent(byteArrayOf(0xFF.toByte()), PeerLostReason.CONNECTION_LOST)
+
+        // Act
+        val result = ple.equals(other)
+
+        // Assert
+        assertFalse(result)
+    }
+
+    @Test
+    fun peerLostEventNotEqualsDifferentReason() {
+        // Arrange
+        val peerId = byteArrayOf(0x01)
+        val ple = PeerLostEvent(peerId, PeerLostReason.CONNECTION_LOST)
+        val other = PeerLostEvent(peerId, PeerLostReason.TIMEOUT)
+
+        // Act
+        val result = ple.equals(other)
+
+        // Assert
+        assertFalse(result)
     }
 
     // ── IncomingData equals/hashCode ──────────────────────────────────────────
 
     @Test
-    fun incomingDataEqualsAndHashCode() {
-        val peerId = byteArrayOf(0x01)
-        val data = byteArrayOf(0x02, 0x03)
-        val id = IncomingData(peerId, data)
+    fun incomingDataEqualsIdentity() {
+        // Arrange
+        val id = IncomingData(byteArrayOf(0x01), byteArrayOf(0x02, 0x03))
 
-        // Identity check
-        assertTrue(id.equals(id))
+        // Act
+        val result = id.equals(id)
 
-        // All fields equal (different references)
+        // Assert
+        assertTrue(result)
+    }
+
+    @Test
+    fun incomingDataEqualsSameContent() {
+        // Arrange
+        val id = IncomingData(byteArrayOf(0x01), byteArrayOf(0x02, 0x03))
         val id2 = IncomingData(byteArrayOf(0x01), byteArrayOf(0x02, 0x03))
-        assertTrue(id.equals(id2))
+
+        // Act
+        val result = id.equals(id2)
+
+        // Assert
+        assertTrue(result)
         assertEquals(id.hashCode(), id2.hashCode())
+    }
 
-        // Wrong type
-        assertFalse(id.equals("x"))
+    @Test
+    fun incomingDataNotEqualsWrongType() {
+        // Arrange
+        val id = IncomingData(byteArrayOf(0x01), byteArrayOf(0x02, 0x03))
 
-        // peerId differs → false (short-circuits data)
-        assertFalse(id.equals(IncomingData(byteArrayOf(0xFF.toByte()), data)))
+        // Act
+        val result = id.equals("x")
 
-        // data differs → false (peerId matches)
-        assertFalse(id.equals(IncomingData(peerId, byteArrayOf(0xFF.toByte()))))
+        // Assert
+        assertFalse(result)
+    }
+
+    @Test
+    fun incomingDataNotEqualsDifferentPeerId() {
+        // Arrange
+        val id = IncomingData(byteArrayOf(0x01), byteArrayOf(0x02, 0x03))
+        val other = IncomingData(byteArrayOf(0xFF.toByte()), byteArrayOf(0x02, 0x03))
+
+        // Act
+        val result = id.equals(other)
+
+        // Assert
+        assertFalse(result)
+    }
+
+    @Test
+    fun incomingDataNotEqualsDifferentData() {
+        // Arrange
+        val peerId = byteArrayOf(0x01)
+        val id = IncomingData(peerId, byteArrayOf(0x02, 0x03))
+        val other = IncomingData(peerId, byteArrayOf(0xFF.toByte()))
+
+        // Act
+        val result = id.equals(other)
+
+        // Assert
+        assertFalse(result)
     }
 
     // ── SendResult equals/hashCode ────────────────────────────────────────────
 
     @Test
-    fun sendResultFailureEqualsAndHashCode() {
+    fun sendResultFailureEqualsIdentity() {
+        // Arrange
         val f = SendResult.Failure("write error")
 
-        // Identity check
-        assertTrue(f.equals(f))
+        // Act
+        val result = f.equals(f)
 
-        // All fields equal (different reference)
-        val f2 = SendResult.Failure("write error")
-        assertTrue(f.equals(f2))
-        assertEquals(f.hashCode(), f2.hashCode())
-
-        // Wrong type
-        assertFalse(f.equals("write error"))
-
-        // reason differs → false
-        assertFalse(f.equals(SendResult.Failure("other error")))
+        // Assert
+        assertTrue(result)
     }
 
     @Test
-    fun sendResultSuccessEqualsAndHashCode() {
-        // data object — singleton: equals iff same instance
-        assertTrue(SendResult.Success.equals(SendResult.Success))
-        assertFalse(SendResult.Success.equals(SendResult.Failure("x")))
+    fun sendResultFailureEqualsSameReason() {
+        // Arrange
+        val f = SendResult.Failure("write error")
+        val f2 = SendResult.Failure("write error")
+
+        // Act
+        val result = f.equals(f2)
+
+        // Assert
+        assertTrue(result)
+        assertEquals(f.hashCode(), f2.hashCode())
+    }
+
+    @Test
+    fun sendResultFailureNotEqualsWrongType() {
+        // Arrange
+        val f = SendResult.Failure("write error")
+
+        // Act
+        val result = f.equals("write error")
+
+        // Assert
+        assertFalse(result)
+    }
+
+    @Test
+    fun sendResultFailureNotEqualsDifferentReason() {
+        // Arrange
+        val f = SendResult.Failure("write error")
+        val other = SendResult.Failure("other error")
+
+        // Act
+        val result = f.equals(other)
+
+        // Assert
+        assertFalse(result)
+    }
+
+    @Test
+    fun sendResultSuccessEqualsSelf() {
+        // Act
+        val result = SendResult.Success.equals(SendResult.Success)
+
+        // Assert
+        assertTrue(result)
+    }
+
+    @Test
+    fun sendResultSuccessNotEqualsFailure() {
+        // Act
+        val result = SendResult.Success.equals(SendResult.Failure("x"))
+
+        // Assert
+        assertFalse(result)
+    }
+
+    @Test
+    fun sendResultSuccessHashCodeConsistent() {
+        // Act & Assert
         assertEquals(SendResult.Success.hashCode(), SendResult.Success.hashCode())
     }
 
@@ -261,6 +541,7 @@ class L2capFrameCodecTest {
 
     @Test
     fun sendResultSealedHierarchyInstances() {
+        // Assert
         assertIs<SendResult>(SendResult.Success)
         assertIs<SendResult>(SendResult.Failure("err"))
     }

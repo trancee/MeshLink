@@ -11,60 +11,93 @@ class MeshHashFilterTest {
 
     @Test
     fun knownVectorApp1() {
-        // "app1" → FNV-1a 32-bit XOR-fold → 0xF70B (independently verified)
-        assertEquals(0xF70Bu.toUShort(), MeshHashFilter.computeMeshHash("app1"))
+        // Act
+        val result = MeshHashFilter.computeMeshHash("app1")
+
+        // Assert — "app1" → FNV-1a 32-bit XOR-fold → 0xF70B
+        assertEquals(0xF70Bu.toUShort(), result)
     }
 
     @Test
     fun knownVectorTest() {
-        // "test" → FNV-1a 32-bit XOR-fold → 0xDE35 (independently verified)
-        assertEquals(0xDE35u.toUShort(), MeshHashFilter.computeMeshHash("test"))
+        // Act
+        val result = MeshHashFilter.computeMeshHash("test")
+
+        // Assert — "test" → FNV-1a 32-bit XOR-fold → 0xDE35
+        assertEquals(0xDE35u.toUShort(), result)
     }
 
     @Test
     fun knownVectorA() {
-        // "a" → FNV-1a 32-bit XOR-fold → 0xCD20 (independently verified)
-        assertEquals(0xCD20u.toUShort(), MeshHashFilter.computeMeshHash("a"))
+        // Act
+        val result = MeshHashFilter.computeMeshHash("a")
+
+        // Assert — "a" → FNV-1a 32-bit XOR-fold → 0xCD20
+        assertEquals(0xCD20u.toUShort(), result)
     }
 
     // ── computeMeshHash: zero substitution ───────────────────────────────────
 
     @Test
     fun zeroSubstitutedToOne() {
-        // "76349" produces raw XOR-fold 0x0000, which must be substituted to 0x0001.
-        // This tests the true branch of: if (result == 0.toUShort()) return 1.toUShort()
-        assertEquals(0x0001u.toUShort(), MeshHashFilter.computeMeshHash("76349"))
+        // Act — "76349" produces raw XOR-fold 0x0000, which must be substituted to 0x0001
+        val result = MeshHashFilter.computeMeshHash("76349")
+
+        // Assert
+        assertEquals(0x0001u.toUShort(), result)
     }
 
     // ── matches: universal broadcast (0x0000) ─────────────────────────────────
 
     @Test
     fun universalHashMatchesAnyLocalHash() {
-        // payloadMeshHash = 0x0000 is a universal broadcast → matches anything
-        assertTrue(MeshHashFilter.matches(0x0000u.toUShort(), 0x1234u.toUShort()))
-        assertTrue(MeshHashFilter.matches(0x0000u.toUShort(), 0xF70Bu.toUShort()))
+        // Arrange — payloadMeshHash = 0x0000 is a universal broadcast
+        val universalHash = 0x0000u.toUShort()
+
+        // Act & Assert
+        assertTrue(MeshHashFilter.matches(universalHash, 0x1234u.toUShort()))
+        assertTrue(MeshHashFilter.matches(universalHash, 0xF70Bu.toUShort()))
     }
 
     // ── matches: exact match ──────────────────────────────────────────────────
 
     @Test
     fun sameNonZeroHashMatches() {
-        // Non-zero payloadMeshHash that equals localMeshHash → true
-        // Tests the false/true path: first condition false, second condition true
-        assertTrue(MeshHashFilter.matches(0xF70Bu.toUShort(), 0xF70Bu.toUShort()))
+        // Arrange
+        val hash = 0xF70Bu.toUShort()
+
+        // Act
+        val result = MeshHashFilter.matches(hash, hash)
+
+        // Assert
+        assertTrue(result)
     }
 
     // ── matches: mismatch ─────────────────────────────────────────────────────
 
     @Test
     fun differentNonZeroHashesDoNotMatch() {
-        // Non-zero payloadMeshHash that differs from localMeshHash → false
-        // Tests the false/false path: both conditions false
-        assertFalse(MeshHashFilter.matches(0xF70Bu.toUShort(), 0xDE35u.toUShort()))
+        // Arrange
+        val payloadHash = 0xF70Bu.toUShort()
+        val localHash = 0xDE35u.toUShort()
+
+        // Act
+        val result = MeshHashFilter.matches(payloadHash, localHash)
+
+        // Assert
+        assertFalse(result)
     }
 
     @Test
     fun differentHashesNoMatchAlternativePair() {
-        assertFalse(MeshHashFilter.matches(0x1234u.toUShort(), 0x5678u.toUShort()))
+        // Arrange
+        val payloadHash = 0x1234u.toUShort()
+        val localHash = 0x5678u.toUShort()
+
+        // Act
+        val result = MeshHashFilter.matches(payloadHash, localHash)
+
+        // Assert
+        assertFalse(result)
     }
 }

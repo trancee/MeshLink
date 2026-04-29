@@ -10,113 +10,281 @@ class ReplayGuardTest {
 
     @Test
     fun counterZeroAlwaysRejected() {
+        // Arrange
         val guard = ReplayGuard()
-        assertFalse(guard.check(0uL))
+
+        // Act
+        val result = guard.check(0uL)
+
+        // Assert
+        assertFalse(result)
     }
 
     // ── Case 2: counter advances window ──────────────────────────────────────
 
     @Test
     fun firstValidCounterAccepted() {
+        // Arrange
         val guard = ReplayGuard()
-        assertTrue(guard.check(1uL))
+
+        // Act
+        val result = guard.check(1uL)
+
+        // Assert
+        assertTrue(result)
     }
 
     @Test
-    fun sequentialCountersAccepted() {
+    fun sequentialCountersAllAccepted() {
+        // Arrange
         val guard = ReplayGuard()
-        assertTrue(guard.check(1uL))
-        assertTrue(guard.check(2uL))
-        assertTrue(guard.check(3uL))
-        assertTrue(guard.check(4uL))
-        assertTrue(guard.check(5uL))
+        guard.check(1uL)
+        guard.check(2uL)
+        guard.check(3uL)
+        guard.check(4uL)
+
+        // Act
+        val result = guard.check(5uL)
+
+        // Assert
+        assertTrue(result)
     }
 
     // ── Case 4: duplicate within window ──────────────────────────────────────
 
     @Test
     fun duplicateCounterRejected() {
+        // Arrange
         val guard = ReplayGuard()
-        assertTrue(guard.check(10uL))
-        assertFalse(guard.check(10uL))
+        guard.check(10uL)
+
+        // Act
+        val result = guard.check(10uL)
+
+        // Assert
+        assertFalse(result)
     }
 
     // ── Case 3: in-window counter not yet seen ────────────────────────────────
 
     @Test
-    fun windowAdvanceOldCounterInWindowAccepted() {
-        // After N=10, advance to N=20. Counter 15 is in [N-63..N] = [-43..20] and unseen.
+    fun unseenCounterWithinWindowAccepted() {
+        // Arrange — advance to N=20; counter 15 is in [N-63..N] and unseen
         val guard = ReplayGuard()
-        assertTrue(guard.check(10uL))
-        assertTrue(guard.check(20uL)) // N=20; counter 10 now sits at bit 10
-        assertTrue(guard.check(15uL)) // in window, not seen → accept
-        assertFalse(guard.check(15uL)) // now seen → duplicate
-        assertFalse(guard.check(10uL)) // in window, already seen → duplicate
+        guard.check(10uL)
+        guard.check(20uL)
+
+        // Act
+        val result = guard.check(15uL)
+
+        // Assert
+        assertTrue(result)
+    }
+
+    @Test
+    fun previouslySeenCounterWithinWindowRejected() {
+        // Arrange — advance to N=20, then mark counter 15 as seen
+        val guard = ReplayGuard()
+        guard.check(10uL)
+        guard.check(20uL)
+        guard.check(15uL)
+
+        // Act
+        val result = guard.check(15uL)
+
+        // Assert
+        assertFalse(result)
+    }
+
+    @Test
+    fun previouslyAdvancedCounterWithinWindowRejected() {
+        // Arrange — counter 10 was seen during advance to N=20
+        val guard = ReplayGuard()
+        guard.check(10uL)
+        guard.check(20uL)
+
+        // Act
+        val result = guard.check(10uL)
+
+        // Assert
+        assertFalse(result)
     }
 
     // ── Case 5: counter below left edge of window ────────────────────────────
 
     @Test
-    fun windowAdvanceOldCounterOutsideWindowRejected() {
-        // After N=65, window=[2..65]. Counter 1 sits at pos=64 → too old.
+    fun counterOutsideWindowRejectedAfterAdvance() {
+        // Arrange — after N=65, window=[2..65]. Counter 1 at pos=64 → too old.
         val guard = ReplayGuard()
-        assertTrue(guard.check(1uL))
-        assertTrue(guard.check(65uL)) // shift=64 → bitmap zeroed, only bit 0 (counter 65) set
-        assertFalse(guard.check(1uL)) // pos=64 ≥ 64 → too old
+        guard.check(1uL)
+        guard.check(65uL)
+
+        // Act
+        val result = guard.check(1uL)
+
+        // Assert
+        assertFalse(result)
     }
 
     // ── Window boundary: left edge exactly at N-63 ───────────────────────────
 
     @Test
     fun counterAtLeftEdgeOfWindowAccepted() {
-        // After N=64, window=[1..64]. Counter 1 is at pos=63 — the leftmost slot.
+        // Arrange — after N=64, window=[1..64]. Counter 1 is at pos=63 (leftmost slot).
         val guard = ReplayGuard()
-        assertTrue(guard.check(64uL)) // N=64
-        assertTrue(guard.check(1uL)) // pos=63 — left edge, not seen → accept
-        assertFalse(guard.check(1uL)) // pos=63 — duplicate
+        guard.check(64uL)
+
+        // Act
+        val result = guard.check(1uL)
+
+        // Assert
+        assertTrue(result)
+    }
+
+    @Test
+    fun counterAtLeftEdgeDuplicateRejected() {
+        // Arrange — counter 1 already seen at left edge
+        val guard = ReplayGuard()
+        guard.check(64uL)
+        guard.check(1uL)
+
+        // Act
+        val result = guard.check(1uL)
+
+        // Assert
+        assertFalse(result)
     }
 
     @Test
     fun counterOneBelowWindowLeftEdgeRejected() {
-        // After N=65, window=[2..65]. Counter 1 → pos=64 ≥ 64 → too old.
+        // Arrange — after N=65, window=[2..65]. Counter 1 → pos=64 ≥ 64 → too old.
         val guard = ReplayGuard()
-        assertTrue(guard.check(65uL)) // N=65, window=[2..65]
-        assertFalse(guard.check(1uL)) // pos=64 ≥ 64 → rejected
+        guard.check(65uL)
+
+        // Act
+        val result = guard.check(1uL)
+
+        // Assert
+        assertFalse(result)
     }
 
     // ── Large-gap advance: shift ≥ 64 zeroes the entire bitmap ───────────────
 
     @Test
-    fun largeGapAdvanceResetsBitmapCorrectly() {
-        // jump of 198 ≥ 64 → bitmap must be zeroed before setting bit 0 for counter 200
+    fun largeGapAdvanceAcceptsNewCounter() {
+        // Arrange — jump of 198 ≥ 64 → bitmap zeroed, only bit 0 (counter 200) set
         val guard = ReplayGuard()
-        assertTrue(guard.check(1uL))
-        assertTrue(guard.check(2uL))
-        assertTrue(guard.check(200uL)) // shift=198 ≥ 64 → bitmap=0 then bit 0 set
-        assertFalse(guard.check(200uL)) // duplicate — bit 0 is set
+        guard.check(1uL)
+        guard.check(2uL)
+
+        // Act
+        val result = guard.check(200uL)
+
+        // Assert
+        assertTrue(result)
     }
 
     @Test
-    fun intermediateCountersRejectedAfterLargeGap() {
-        // After large gap to 200, counters below window=[137..200] are too old.
+    fun largeGapAdvanceDuplicateRejected() {
+        // Arrange — counter 200 already seen after large gap
         val guard = ReplayGuard()
-        assertTrue(guard.check(1uL))
-        assertTrue(guard.check(200uL)) // window=[137..200]
-        assertFalse(guard.check(100uL)) // pos=100 ≥ 64 → too old
-        assertFalse(guard.check(50uL)) // pos=150 ≥ 64 → too old
-        assertFalse(guard.check(1uL)) // pos=199 ≥ 64 → too old
+        guard.check(1uL)
+        guard.check(2uL)
+        guard.check(200uL)
+
+        // Act
+        val result = guard.check(200uL)
+
+        // Assert
+        assertFalse(result)
+    }
+
+    @Test
+    fun counterBelowWindowAfterLargeGapRejected() {
+        // Arrange — after large gap to 200, window=[137..200]. Counter 100 is too old.
+        val guard = ReplayGuard()
+        guard.check(1uL)
+        guard.check(200uL)
+
+        // Act
+        val result = guard.check(100uL)
+
+        // Assert
+        assertFalse(result)
+    }
+
+    @Test
+    fun veryOldCounterAfterLargeGapRejected() {
+        // Arrange — after large gap to 200, counter 50 at pos=150 ≥ 64 → too old
+        val guard = ReplayGuard()
+        guard.check(1uL)
+        guard.check(200uL)
+
+        // Act
+        val result = guard.check(50uL)
+
+        // Assert
+        assertFalse(result)
     }
 
     // ── Near-overflow counter values ──────────────────────────────────────────
 
     @Test
-    fun nearMaxCounterValuesWorkCorrectly() {
+    fun nearMaxCounterAdvanceAccepted() {
+        // Arrange
         val guard = ReplayGuard()
         val max = ULong.MAX_VALUE
-        assertTrue(guard.check(max - 1uL)) // N=max-1
-        assertTrue(guard.check(max)) // N=max, shift=1
-        assertFalse(guard.check(max)) // duplicate
-        assertFalse(guard.check(max - 1uL)) // duplicate
-        assertTrue(guard.check(max - 63uL)) // left edge: pos=63, not seen → accept
+        guard.check(max - 1uL)
+
+        // Act
+        val result = guard.check(max)
+
+        // Assert
+        assertTrue(result)
+    }
+
+    @Test
+    fun nearMaxCounterDuplicateRejected() {
+        // Arrange
+        val guard = ReplayGuard()
+        val max = ULong.MAX_VALUE
+        guard.check(max - 1uL)
+        guard.check(max)
+
+        // Act
+        val result = guard.check(max)
+
+        // Assert
+        assertFalse(result)
+    }
+
+    @Test
+    fun nearMaxCounterPreviouslySeenRejected() {
+        // Arrange — max-1 was seen, then max advanced window
+        val guard = ReplayGuard()
+        val max = ULong.MAX_VALUE
+        guard.check(max - 1uL)
+        guard.check(max)
+
+        // Act
+        val result = guard.check(max - 1uL)
+
+        // Assert
+        assertFalse(result)
+    }
+
+    @Test
+    fun nearMaxCounterLeftEdgeAccepted() {
+        // Arrange — max-63 is at left edge of window, not previously seen
+        val guard = ReplayGuard()
+        val max = ULong.MAX_VALUE
+        guard.check(max - 1uL)
+        guard.check(max)
+
+        // Act
+        val result = guard.check(max - 63uL)
+
+        // Assert
+        assertTrue(result)
     }
 }

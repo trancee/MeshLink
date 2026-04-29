@@ -104,25 +104,37 @@ class RoutingTableTest {
 
     @Test
     fun `lookupNextHop returns null after expiry and removes entry`() {
+        // Arrange
         var time = 1000L
         val table = RoutingTable { time }
         val entry = makeEntry(expiresAt = 2000L)
         table.install(entry)
-        assertNotNull(table.lookupNextHop(entry.destination))
+        assertNotNull(table.lookupNextHop(entry.destination)) // precondition: route exists
+
+        // Act
         time = 2001L
-        assertNull(table.lookupNextHop(entry.destination))
+        val result = table.lookupNextHop(entry.destination)
+
+        // Assert
+        assertNull(result)
         assertEquals(0, table.routeCount())
     }
 
     @Test
     fun `lookupRoute returns null after expiry and removes entry`() {
+        // Arrange
         var time = 1000L
         val table = RoutingTable { time }
         val entry = makeEntry(expiresAt = 2000L)
         table.install(entry)
-        assertNotNull(table.lookupRoute(entry.destination))
+        assertNotNull(table.lookupRoute(entry.destination)) // precondition: route exists
+
+        // Act
         time = 2001L
-        assertNull(table.lookupRoute(entry.destination))
+        val result = table.lookupRoute(entry.destination)
+
+        // Assert
+        assertNull(result)
         assertEquals(0, table.routeCount())
     }
 
@@ -180,24 +192,43 @@ class RoutingTableTest {
 
     @Test
     fun `fnv1a32 empty input returns FNV offset basis`() {
-        assertEquals(2166136261u, fnv1a32(ByteArray(0)))
+        // Act
+        val result = fnv1a32(ByteArray(0))
+
+        // Assert
+        assertEquals(2166136261u, result)
     }
 
     @Test
     fun `fnv1a32 of ASCII a returns known value 0xe40c292c`() {
-        // FNV-1a 32-bit hash of single byte 0x61 ('a') = 0xe40c292c = 3826002220
-        assertEquals(3826002220u, fnv1a32(byteArrayOf(0x61.toByte())))
+        // Act — FNV-1a 32-bit hash of single byte 0x61 ('a') = 0xe40c292c = 3826002220
+        val result = fnv1a32(byteArrayOf(0x61.toByte()))
+
+        // Assert
+        assertEquals(3826002220u, result)
     }
 
     @Test
     fun `fnv1a32 is deterministic`() {
+        // Arrange
         val data = byteArrayOf(0x01, 0x02, 0x03, 0xFF.toByte())
-        assertEquals(fnv1a32(data), fnv1a32(data))
+
+        // Act
+        val first = fnv1a32(data)
+        val second = fnv1a32(data)
+
+        // Assert
+        assertEquals(first, second)
     }
 
     @Test
     fun `fnv1a32 different inputs produce different hashes`() {
-        assertNotEquals(fnv1a32(byteArrayOf(0x01)), fnv1a32(byteArrayOf(0x02)))
+        // Act
+        val hashA = fnv1a32(byteArrayOf(0x01))
+        val hashB = fnv1a32(byteArrayOf(0x02))
+
+        // Assert
+        assertNotEquals(hashA, hashB)
     }
 
     // ----------------------------------------------------------------
@@ -206,28 +237,47 @@ class RoutingTableTest {
 
     @Test
     fun `isSeqNoNewer a greater than b returns true`() {
-        assertTrue(isSeqNoNewer(100u, 50u))
+        // Act
+        val result = isSeqNoNewer(100u, 50u)
+
+        // Assert
+        assertTrue(result)
     }
 
     @Test
     fun `isSeqNoNewer a less than b returns false`() {
-        assertFalse(isSeqNoNewer(50u, 100u))
+        // Act
+        val result = isSeqNoNewer(50u, 100u)
+
+        // Assert
+        assertFalse(result)
     }
 
     @Test
     fun `isSeqNoNewer equal values returns false`() {
-        assertFalse(isSeqNoNewer(50u, 50u))
+        // Act
+        val result = isSeqNoNewer(50u, 50u)
+
+        // Assert
+        assertFalse(result)
     }
 
     @Test
     fun `isSeqNoNewer wraparound zero is newer than 65535`() {
-        // RFC 8966 §2.1: seqno 0 follows 65535
-        assertTrue(isSeqNoNewer(0u, 65535u))
+        // Act — RFC 8966 §2.1: seqno 0 follows 65535
+        val result = isSeqNoNewer(0u, 65535u)
+
+        // Assert
+        assertTrue(result)
     }
 
     @Test
     fun `isSeqNoNewer wraparound 65535 is not newer than zero`() {
-        assertFalse(isSeqNoNewer(65535u, 0u))
+        // Act
+        val result = isSeqNoNewer(65535u, 0u)
+
+        // Assert
+        assertFalse(result)
     }
 
     // ----------------------------------------------------------------
@@ -330,6 +380,7 @@ class RoutingTableTest {
 
     @Test
     fun `allRoutes returns only non-expired entries and evicts expired`() {
+        // Arrange
         var time = 1000L
         val table = RoutingTable { time }
         val valid = makeEntry(destination = ByteArray(12) { 1 }, expiresAt = Long.MAX_VALUE)
@@ -337,25 +388,30 @@ class RoutingTableTest {
         table.install(valid)
         table.install(expired)
 
+        // Act
         time = 2000L
         val routes = table.allRoutes()
+
+        // Assert
         assertEquals(1, routes.size)
         assertContentEquals(valid.destination, routes[0].destination)
-        // Expired entry was removed from the table
         assertEquals(1, table.routeCount())
     }
 
     @Test
     fun `allRoutes updates digest when evicting expired entries`() {
+        // Arrange
         var time = 1000L
         val table = RoutingTable { time }
         val entry = makeEntry(expiresAt = 1500L)
         table.install(entry)
-        val digestAfterInstall = table.routeDigest()
-        assertNotEquals(0u, digestAfterInstall)
+        assertNotEquals(0u, table.routeDigest()) // precondition: non-zero after install
+
+        // Act
         time = 2000L
         table.allRoutes()
-        // Digest should be back to 0u (XOR-fold with the same entry hash)
+
+        // Assert — digest should be back to 0u (XOR-fold with the same entry hash)
         assertEquals(0u, table.routeDigest())
     }
 
@@ -365,18 +421,31 @@ class RoutingTableTest {
 
     @Test
     fun `allRoutes on empty table returns empty list`() {
+        // Arrange
         val table = RoutingTable { 1000L }
-        assertEquals(emptyList(), table.allRoutes())
+
+        // Act
+        val routes = table.allRoutes()
+
+        // Assert
+        assertEquals(emptyList(), routes)
     }
 
     @Test
     fun `retract non-existent destination returns null`() {
+        // Arrange
         val table = RoutingTable { 1000L }
-        assertNull(table.retract(ByteArray(12)))
+
+        // Act
+        val result = table.retract(ByteArray(12))
+
+        // Assert
+        assertNull(result)
     }
 
     @Test
     fun `isSeqNoNewer with equal values returns false - negative case`() {
+        // Act & Assert
         assertFalse(isSeqNoNewer(0u, 0u))
         assertFalse(isSeqNoNewer(65535u, 65535u))
     }
@@ -387,24 +456,35 @@ class RoutingTableTest {
 
     @Test
     fun `routeDigest reverts to 0 after lazy eviction via lookupNextHop`() {
+        // Arrange
         var time = 1000L
         val table = RoutingTable { time }
         val entry = makeEntry(expiresAt = 1500L)
         table.install(entry)
-        assertNotEquals(0u, table.routeDigest())
+        assertNotEquals(0u, table.routeDigest()) // precondition: digest is non-zero
+
+        // Act
         time = 2000L
         table.lookupNextHop(entry.destination) // triggers lazy eviction
+
+        // Assert
         assertEquals(0u, table.routeDigest())
     }
 
     @Test
     fun `routeDigest reverts to 0 after lazy eviction via lookupRoute`() {
+        // Arrange
         var time = 1000L
         val table = RoutingTable { time }
         val entry = makeEntry(expiresAt = 1500L)
         table.install(entry)
+        assertNotEquals(0u, table.routeDigest()) // precondition: digest is non-zero
+
+        // Act
         time = 2000L
         table.lookupRoute(entry.destination) // triggers lazy eviction
+
+        // Assert
         assertEquals(0u, table.routeDigest())
     }
 
@@ -413,15 +493,57 @@ class RoutingTableTest {
     // ----------------------------------------------------------------
 
     @Test
-    fun `routeCount reflects installed and retracted routes`() {
+    fun `routeCount starts at zero`() {
+        // Arrange
         val table = RoutingTable { 1000L }
-        assertEquals(0, table.routeCount())
+
+        // Act
+        val count = table.routeCount()
+
+        // Assert
+        assertEquals(0, count)
+    }
+
+    @Test
+    fun `routeCount increments after install`() {
+        // Arrange
+        val table = RoutingTable { 1000L }
         table.install(makeEntry(destination = ByteArray(12) { 1 }))
-        assertEquals(1, table.routeCount())
+
+        // Act
+        val count = table.routeCount()
+
+        // Assert
+        assertEquals(1, count)
+    }
+
+    @Test
+    fun `routeCount reflects multiple installs`() {
+        // Arrange
+        val table = RoutingTable { 1000L }
+        table.install(makeEntry(destination = ByteArray(12) { 1 }))
         table.install(makeEntry(destination = ByteArray(12) { 2 }))
-        assertEquals(2, table.routeCount())
+
+        // Act
+        val count = table.routeCount()
+
+        // Assert
+        assertEquals(2, count)
+    }
+
+    @Test
+    fun `routeCount decrements after retract`() {
+        // Arrange
+        val table = RoutingTable { 1000L }
+        table.install(makeEntry(destination = ByteArray(12) { 1 }))
+        table.install(makeEntry(destination = ByteArray(12) { 2 }))
         table.retract(ByteArray(12) { 1 })
-        assertEquals(1, table.routeCount())
+
+        // Act
+        val count = table.routeCount()
+
+        // Assert
+        assertEquals(1, count)
     }
 
     // ----------------------------------------------------------------
@@ -430,13 +552,18 @@ class RoutingTableTest {
 
     @Test
     fun `allRoutes with all valid routes returns all and does not modify digest`() {
+        // Arrange
         val table = RoutingTable { 1000L }
         val e1 = makeEntry(destination = ByteArray(12) { 1 })
         val e2 = makeEntry(destination = ByteArray(12) { 2 })
         table.install(e1)
         table.install(e2)
         val digestBefore = table.routeDigest()
+
+        // Act
         val routes = table.allRoutes()
+
+        // Assert
         assertEquals(2, routes.size)
         assertEquals(digestBefore, table.routeDigest())
     }
