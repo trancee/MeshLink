@@ -22,8 +22,7 @@ private const val TAG = "MeshLinkAndroidFactory"
  * Creates a [MeshLink] instance backed by [AndroidBleTransport], [AndroidCryptoProvider], and
  * [AndroidSecureStorage].
  *
- * Identity is loaded from (or generated into) Android Keystore-backed
- * [EncryptedSharedPreferences][androidx.security.crypto.EncryptedSharedPreferences] via
+ * Identity is loaded from (or generated into) Android Keystore-backed DataStore via
  * [AndroidSecureStorage]. [PowerTier] starts at [PowerTier.BALANCED]; call [MeshLink.updateBattery]
  * to enable automatic tier selection based on battery level.
  *
@@ -48,9 +47,9 @@ public fun MeshLink.Companion.createAndroid(context: Context, config: MeshLinkCo
     val crypto = AndroidCryptoProvider()
     val identity = Identity.loadOrGenerate(crypto, storage)
     if (isFirstLaunch) {
-        Log.d(TAG, "Identity generated and persisted to EncryptedSharedPreferences")
+        Log.d(TAG, "Identity generated and persisted to secure DataStore")
     } else {
-        Log.d(TAG, "Identity loaded from EncryptedSharedPreferences")
+        Log.d(TAG, "Identity loaded from secure DataStore")
     }
 
     val probeCache = OemL2capProbeCache()

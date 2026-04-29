@@ -9,7 +9,7 @@ ktfmt               = "0.26.0"
 bcv                 = "0.18.1"
 kotlinxBenchmark    = "0.4.16"
 flatbuffers         = "25.2.10"
-androidx-security-crypto = "1.1.0"
+androidx-datastore       = "1.1.7"
 dokka               = "2.2.0"
 compose-multiplatform   = "1.10.3"
 navigation-compose      = "2.9.2"
@@ -20,7 +20,7 @@ serialization           = "1.8.1"
 [libraries]
 kotlinx-coroutines-core    = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core",    version.ref = "coroutines" }
 kotlinx-coroutines-test    = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test",    version.ref = "coroutines" }
-androidx-security-crypto   = { group = "androidx.security",     name = "security-crypto",             version.ref = "androidx-security-crypto" }
+androidx-datastore-prefs   = { group = "androidx.datastore",    name = "datastore-preferences",       version.ref = "androidx-datastore" }
 # NOTE: flatbuffers-kotlin does not exist on Maven Central as a separate artifact.
 # flatbuffers-java covers JVM/Android usage; KMP support is embedded.
 flatbuffers                = { group = "com.google.flatbuffers", name = "flatbuffers-java",           version.ref = "flatbuffers" }

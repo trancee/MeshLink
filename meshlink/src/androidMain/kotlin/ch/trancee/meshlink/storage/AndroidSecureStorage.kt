@@ -1,52 +1,136 @@
-@file:Suppress("DEPRECATION") // EncryptedSharedPreferences/MasterKey deprecated by Google;
-
-// no drop-in replacement available yet. Tracked upstream: b/297099023.
-
 package ch.trancee.meshlink.storage
 
 import android.content.Context
+import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyProperties
 import android.util.Base64
-import androidx.security.crypto.EncryptedSharedPreferences
-import androidx.security.crypto.MasterKey
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.preferencesDataStore
+import java.security.KeyStore
+import javax.crypto.Cipher
+import javax.crypto.KeyGenerator
+import javax.crypto.SecretKey
+import javax.crypto.spec.GCMParameterSpec
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.runBlocking
+
+/** DataStore instance scoped to the application process. */
+private val Context.meshLinkDataStore: DataStore<Preferences> by
+    preferencesDataStore(name = "meshlink_secure_prefs")
 
 /**
- * Android Keystore-backed [SecureStorage] using [EncryptedSharedPreferences].
+ * Android Keystore-backed [SecureStorage] using Preferences DataStore + AES-256-GCM.
  *
- * Keys are encrypted with AES256-SIV; values are encrypted with AES256-GCM. The master key is
- * stored in the Android Keystore under [MasterKey.DEFAULT_MASTER_KEY_ALIAS]. Byte arrays are stored
- * as Base64-encoded strings (NO_WRAP) because [EncryptedSharedPreferences] only supports string
- * values natively.
+ * Values are encrypted with a hardware-backed AES-256-GCM key stored in the Android Keystore. Each
+ * value is prefixed with the 12-byte GCM IV before Base64-encoding for DataStore storage. Keys
+ * (preference names) are stored as-is — they contain no sensitive data (only logical identifiers
+ * like "identity_ed_private").
  *
- * Excluded from Kover per D024 — Android Keystore and EncryptedSharedPreferences require the full
- * Android runtime and cannot execute on a JVM host test runner.
+ * This replaces the deprecated [androidx.security.crypto.EncryptedSharedPreferences] while
+ * providing equivalent security guarantees:
+ * - AES-256-GCM for value confidentiality and integrity
+ * - Hardware-backed key storage via Android Keystore
+ * - No plaintext secrets on disk
  *
- * @param context Android context used to open the shared preferences file and access the Keystore.
+ * DataStore operations are synchronous via [runBlocking] because [SecureStorage] is a synchronous
+ * interface and callers are already on background threads (engine coroutine scope). The data set is
+ * small (a handful of crypto keys) so blocking is negligible.
+ *
+ * Excluded from Kover per D024 — Android Keystore requires the full Android runtime.
+ *
+ * @param context Android context used to access DataStore and the Keystore.
  */
 internal class AndroidSecureStorage(context: Context) : SecureStorage {
 
-    private val prefs =
-        EncryptedSharedPreferences.create(
-            context,
-            "meshlink_secure_prefs",
-            MasterKey.Builder(context, MasterKey.DEFAULT_MASTER_KEY_ALIAS)
-                .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-                .build(),
-            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
+    private val dataStore: DataStore<Preferences> = context.meshLinkDataStore
+    private val secretKey: SecretKey = getOrCreateKey()
+
+    override fun get(key: String): ByteArray? = runBlocking {
+        val prefKey = stringPreferencesKey(key)
+        dataStore.data
+            .map { prefs -> prefs[prefKey] }
+            .first()
+            ?.let { encoded -> decrypt(Base64.decode(encoded, Base64.NO_WRAP)) }
+    }
+
+    override fun put(key: String, value: ByteArray) = runBlocking {
+        val prefKey = stringPreferencesKey(key)
+        val encrypted = encrypt(value)
+        dataStore.edit { prefs ->
+            prefs[prefKey] = Base64.encodeToString(encrypted, Base64.NO_WRAP)
+        }
+        Unit
+    }
+
+    override fun remove(key: String) = runBlocking {
+        val prefKey = stringPreferencesKey(key)
+        dataStore.edit { prefs -> prefs.remove(prefKey) }
+        Unit
+    }
+
+    override fun contains(key: String): Boolean = runBlocking {
+        val prefKey = stringPreferencesKey(key)
+        dataStore.data.map { prefs -> prefs.contains(prefKey) }.first()
+    }
+
+    override fun clear() = runBlocking {
+        dataStore.edit { prefs -> prefs.clear() }
+        Unit
+    }
+
+    // ── Encryption helpers ────────────────────────────────────────────────────
+
+    /** Encrypts [plaintext] with AES-256-GCM. Returns IV (12 bytes) || ciphertext+tag. */
+    private fun encrypt(plaintext: ByteArray): ByteArray {
+        val cipher = Cipher.getInstance(TRANSFORMATION)
+        cipher.init(Cipher.ENCRYPT_MODE, secretKey)
+        val iv = cipher.iv // 12 bytes generated by the provider
+        val ciphertext = cipher.doFinal(plaintext)
+        return iv + ciphertext
+    }
+
+    /** Decrypts [data] formatted as IV (12 bytes) || ciphertext+tag. */
+    private fun decrypt(data: ByteArray): ByteArray {
+        require(data.size > GCM_IV_LENGTH) { "Encrypted data too short" }
+        val iv = data.copyOfRange(0, GCM_IV_LENGTH)
+        val ciphertext = data.copyOfRange(GCM_IV_LENGTH, data.size)
+        val cipher = Cipher.getInstance(TRANSFORMATION)
+        cipher.init(Cipher.DECRYPT_MODE, secretKey, GCMParameterSpec(GCM_TAG_LENGTH_BITS, iv))
+        return cipher.doFinal(ciphertext)
+    }
+
+    // ── Keystore key management ───────────────────────────────────────────────
+
+    private fun getOrCreateKey(): SecretKey {
+        val keyStore = KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
+        val existing = keyStore.getEntry(KEY_ALIAS, null)
+        if (existing is KeyStore.SecretKeyEntry) {
+            return existing.secretKey
+        }
+        val keyGen = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, ANDROID_KEYSTORE)
+        keyGen.init(
+            KeyGenParameterSpec.Builder(
+                    KEY_ALIAS,
+                    KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT,
+                )
+                .setKeySize(AES_KEY_SIZE_BITS)
+                .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+                .build()
         )
-
-    override fun get(key: String): ByteArray? {
-        val encoded = prefs.getString(key, null) ?: return null
-        return Base64.decode(encoded, Base64.NO_WRAP)
+        return keyGen.generateKey()
     }
 
-    override fun put(key: String, value: ByteArray) {
-        prefs.edit().putString(key, Base64.encodeToString(value, Base64.NO_WRAP)).apply()
+    private companion object {
+        const val ANDROID_KEYSTORE = "AndroidKeyStore"
+        const val KEY_ALIAS = "meshlink_datastore_master_key"
+        const val TRANSFORMATION = "AES/GCM/NoPadding"
+        const val GCM_IV_LENGTH = 12
+        const val GCM_TAG_LENGTH_BITS = 128
+        const val AES_KEY_SIZE_BITS = 256
     }
-
-    override fun remove(key: String) {
-        prefs.edit().remove(key).apply()
-    }
-
-    override fun contains(key: String): Boolean = prefs.contains(key)
 }

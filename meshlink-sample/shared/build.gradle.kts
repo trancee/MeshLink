@@ -22,6 +22,7 @@ kotlin {
         binaries.framework {
             baseName = "MeshLinkSample"
             isStatic = true
+            binaryOption("bundleId", "ch.trancee.meshlink.sample")
         }
     }
 

@@ -39,8 +39,7 @@ import kotlinx.coroutines.runBlocking
  * The service declares foreground type [ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE] on
  * Android 14+ (API 34); on API 29–33 it calls the two-argument [startForeground] overload.
  *
- * Key storage uses [InMemorySecureStorage] in S02/S04 — EncryptedSharedPreferences persistence is
- * wired in S05.
+ * Key storage uses [InMemorySecureStorage] in S02/S04 — DataStore persistence is wired in S05.
  *
  * The concrete subclass must be declared in the consuming app's AndroidManifest.xml. No `<service>`
  * element is declared in the library manifest.
@@ -114,7 +113,7 @@ internal abstract class MeshLinkService : Service() {
         val crypto = createCryptoProvider()
         val config = createBleTransportConfig()
 
-        // S05: Persistent identity storage via EncryptedSharedPreferences.
+        // S05: Persistent identity storage via DataStore + Android Keystore.
         // isFirstLaunch is checked BEFORE Identity.loadOrGenerate() writes identity keys.
         val storage = AndroidSecureStorage(this)
         val isFirstLaunch = !storage.contains("meshlink.identity.ed25519.public")
@@ -122,9 +121,9 @@ internal abstract class MeshLinkService : Service() {
 
         val identity = Identity.loadOrGenerate(crypto, storage)
         if (isFirstLaunch) {
-            Log.d(TAG, "Identity generated and persisted to EncryptedSharedPreferences")
+            Log.d(TAG, "Identity generated and persisted to secure DataStore")
         } else {
-            Log.d(TAG, "Identity loaded from EncryptedSharedPreferences")
+            Log.d(TAG, "Identity loaded from secure DataStore")
         }
 
         // Restore OEM L2CAP probe cache from persistent storage.

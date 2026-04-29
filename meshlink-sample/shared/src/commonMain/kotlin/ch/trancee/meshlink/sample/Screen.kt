@@ -1,7 +1,7 @@
 package ch.trancee.meshlink.sample
 
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Chat
+import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.Hub
 import androidx.compose.material.icons.filled.MonitorHeart
 import androidx.compose.material.icons.filled.Settings
@@ -38,7 +38,7 @@ sealed class Screen(
     val icon: ImageVector,
     val route: Any,
 ) {
-    object Chat : Screen("Chat", Icons.Default.Chat, ChatRoute)
+    object Chat : Screen("Chat", Icons.AutoMirrored.Default.Chat, ChatRoute)
     object MeshVisualizer : Screen("Mesh", Icons.Default.Hub, MeshVisualizerRoute)
     object Diagnostics : Screen("Diagnostics", Icons.Default.MonitorHeart, DiagnosticsRoute)
     object Settings : Screen("Settings", Icons.Default.Settings, SettingsRoute)
