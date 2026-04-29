@@ -79,3 +79,31 @@ Noise ChaCha20-Poly1305. The `DiagnosticsConfig.redactPeerIds = true` flag trunc
 hashes in diagnostic output to 8 hex characters. `forgetPeer(peerId)` erases all data for a given
 peer. `factoryReset()` wipes all locally stored keys and state. No telemetry or analytics is
 collected by the library.
+
+---
+
+## Implementation Order (Proven Path)
+
+The following milestone/slice ordering was validated during implementation and avoids circular
+dependencies. Each milestone builds on the surfaces stabilized by the prior one:
+
+| Milestone | Scope | Key Dependency |
+|-----------|-------|----------------|
+| M001 | Crypto primitives + project scaffolding | None |
+| M002 | Protocol engine (wire, routing, transfer, messaging, power) | M001 crypto |
+| M003 | Platform BLE transports (Android + iOS) | M002 BleTransport interface |
+| M004 | Public API, distribution (Maven Central, SPM), reference app | M003 transports |
+| M005 | Polish (stub wiring, diagnostics, coverage hardening, seqNo fix) | M004 public API |
+
+Within M002, the slice order matters:
+
+1. **Wire Format** — all slices depend on wire types
+2. **VirtualMeshTransport** — all slices depend on test infrastructure
+3. **Routing** — highest algorithmic complexity (Babel feasibility)
+4. **Transfer** — depends on routing for path selection
+5. **Messaging** — depends on routing + transfer
+6. **Power** — parallel-capable but ordered before integration
+7. **Integration** — capstone proving composition + benchmarks
+
+This ordering ensures each slice establishes stable surfaces for downstream slices. Risk-first
+within dependency constraints.

@@ -442,3 +442,183 @@ Build for iOS: open `iosApp/MeshLinkSample.xcodeproj` in Xcode 15+, select your 
 | `CONFIG_CLAMPED` diagnostic events on start | Config field out of allowed range | Check `config.clampWarnings` list after `meshLinkConfig { }` returns |
 | Messages not delivered | Peer is offline, or buffer full | Messages are buffered up to `bufferCapacity` bytes; check `MeshHealthSnapshot.bufferUtilizationPercent` |
 | Xcode: `MeshLink not found` in SPM resolve | Checksum mismatch | Delete DerivedData, re-resolve SPM package. If building from source, run `./gradlew :meshlink:assembleMeshLinkXCFramework` first |
+
+---
+
+## Architecture & Implementation Notes
+
+This section documents key architectural decisions, patterns, and gotchas discovered during
+implementation. It is intended as guidance for greenfield implementors of the same specification.
+
+### Module Structure
+
+```
+:meshlink            — Main library module (KMP: commonMain, androidMain, iosMain, jvmMain)
+:meshlink-testing    — Published test utilities (re-exports from :meshlink's testing package)
+:meshlink-sample     — Compose Multiplatform reference app (androidApp + shared + iosApp)
+```
+
+The `:meshlink-testing` module declares `api(project(":meshlink"))` — all public types from
+`:meshlink` are transitively available. The testing utilities (`VirtualMeshTransport`,
+`linkedTransports()`, `createForTest()`) live in `:meshlink`'s source under
+`ch.trancee.meshlink.testing` because they need access to `internal` types (`BleTransport`).
+The `:meshlink-testing` module serves only as a separate publication coordinate.
+
+### Internal vs Public API Boundary
+
+`BleTransport` and all transport event types (`AdvertisementEvent`, `IncomingData`, `PeerLostEvent`,
+`SendResult`) are `internal`. Platform transports (`AndroidBleTransport`, `IosBleTransport`) are
+internal to `:meshlink`. External modules cannot instantiate them directly.
+
+**Consequence for test utilities:** `VirtualMeshTransport` uses a **composition pattern** — a
+`public` outer class holding a `private inner class TransportImpl : BleTransport`. The public
+class exposes only test-facing methods (`linkTo`, `simulateDiscovery`, `injectRawIncoming`).
+The internal `BleTransport` delegate is accessed via an `internal val transport` property,
+which `createForTest()` passes to `MeshLink.create()`.
+
+**Why not make BleTransport public?** It leaks low-level BLE semantics (L2CAP frames, GATT
+writes, raw advertisements) that consumers should never interact with. The public API surface
+is `MeshLinkApi` — lifecycle, messages, peers, health.
+
+### Engine Composition
+
+`MeshEngine` is the internal coordinator. It composes all subsystems:
+
+```
+MeshEngine
+├── DeliveryPipeline (message routing, relay, store-and-forward)
+│   ├── RouteCoordinator (route management, outbound frame emission)
+│   │   ├── RoutingEngine (Babel-inspired DV with feasibility)
+│   │   └── RoutingTable
+│   ├── TransferEngine (chunked transfer, ACK, timeout)
+│   │   └── TransferScheduler (priority queue)
+│   └── ReplayGuard (sliding-window nonce dedup)
+├── NoiseHandshakeManager (Noise XX lifecycle per peer)
+├── PresenceTracker (peer lifecycle FSM: Connected → Disconnected → Gone)
+├── PowerManager (tier selection, bootstrap, battery)
+│   └── PowerTierController
+├── PseudonymRotator (HMAC-based BLE address rotation)
+├── TrustStore (TOFU/STRICT/PROMPT key pinning)
+├── Identity (Ed25519 + X25519 keypair, rotation)
+└── DiagnosticSink (ring-buffer event emission)
+```
+
+`MeshLink` is a thin shell over `MeshEngine` — it owns the lifecycle FSM (`MeshLinkState`),
+maps internal event types to public API types, and guards method calls with state checks.
+
+### Key Architectural Decisions
+
+| Decision | Choice | Why |
+|----------|--------|-----|
+| Noise handshake | XX only (no IK) | One code path eliminates wrong-key fallback race; 60-80ms reconnect overhead acceptable |
+| Wire format | Pure-Kotlin FlatBuffers codec | `flatbuffers-java` is JVM-only — breaks iOS KMP compilation if in commonMain |
+| Crypto provider | libsodium via thin JNI (Android) / cinterop (iOS) | No runtime deps; custom bindings are ~200 lines each; platform parity |
+| Routing | Babel-inspired distance-vector with feasibility condition | RFC 8966 proven; monotonic seqNo prevents count-to-infinity |
+| Cut-through relay | Byte-level FlatBuffer surgery on chunk 0 | Cannot re-encode multi-chunk messages (only chunk 0 available at relay) |
+| Power management | 3-tier (PERFORMANCE/BALANCED/POWER_SAVER) + bootstrap override | Automatic tier selection from battery %; bootstrap override prevents thrashing on start |
+| Peer lifecycle | 3-state FSM in PresenceTracker (Connected/Disconnected/Gone) | Two-sweep eviction prevents premature removal during brief disconnections |
+| Pseudonym rotation | HMAC-SHA256(keyHash, epoch_counter)[0:12] | Platform-agnostic (commonMain); timer/stagger in PseudonymRotator |
+| Public API events | `keyChanges` wired via `MutableSharedFlow` with `tryEmit` | `onKeyChange` callback is synchronous (TrustStore context); `tryEmit` is non-suspending |
+| Testing module | Composition pattern (public wrapper + internal delegate) | Kotlin `explicitApi()` prevents public class from exposing internal interface types |
+
+### Conventions
+
+| Convention | Rule |
+|------------|------|
+| Time fields | Use `Millis` suffix, never `Ms`. Example: `keyChangeTimeoutMillis`, not `keyChangeTimeoutMs` |
+| Config clamping | Out-of-range values are clamped silently; warnings are collected in `config.clampWarnings` |
+| ByteArray equality | All data classes with `ByteArray` fields override `equals`/`hashCode` using `contentEquals`/`contentHashCode` |
+| Kover coverage | 100% line + branch on commonMain. Platform source sets excluded (require real hardware). Test infrastructure excluded by package. |
+| BCV (Binary Compatibility) | `explicitApi()` enforced. API baseline committed. `apiCheck` runs on every PR. |
+| Diagnostic codes | 27 codes: 4 critical, 8 threshold, 15 log. All emitted via `DiagnosticSink.emit(code) { payload }`. |
+| Sealed interfaces | All implementing classes must be in the **same package** (not just same module) — Kotlin sealed interface rule. |
+
+### Gotchas for Greenfield Implementors
+
+1. **AGP 9.0 + KMP incompatibility.** AGP 9.0+ blocks `com.android.library` combined with
+   `org.jetbrains.kotlin.multiplatform`. Use `com.android.kotlin.multiplatform.library` for
+   the library module. For application modules, add `android.builtInKotlin=false` and
+   `android.newDsl=false` to the **root** `gradle.properties` (subproject-level doesn't work).
+
+2. **PowerManager launches coroutines immediately on `MeshEngine.create()`.** The battery-poll
+   loop (`while(true) { delay(batteryPollIntervalMillis) }`) and bootstrap timer start on the
+   engine scope at construction time — not on `start()`. Any `advanceUntilIdle()` in tests while
+   the engine is alive will loop forever through virtual time. Always call `engine.stop()` before
+   `advanceUntilIdle()`.
+
+3. **flatbuffers-java is JVM-only.** It has no Kotlin/Native variant. Placing it in commonMain
+   dependencies breaks iOS compilation. The wire codec must be a pure-Kotlin implementation of
+   the FlatBuffers binary format.
+
+4. **Kotlin sealed interfaces require same-package implementations.** Classes in a sub-package
+   (e.g. `wire.messages`) cannot implement a sealed interface declared in `wire`. All
+   implementations must share the same `package` declaration.
+
+5. **`explicitApi()` and internal interface composition.** A `public` class implementing an
+   `internal` interface cannot have its override members be public (Kotlin visibility rules). Use
+   the composition pattern: public outer class with a `private inner class` implementing the
+   internal interface, exposed via an `internal val`.
+
+6. **CutThroughBuffer performs byte-level FlatBuffer surgery.** For multi-chunk relay, only
+   chunk 0 contains the routing header. You cannot re-encode the full `RoutedMessage` — instead,
+   decrement `hopLimit` in-place and append to `visitedList` by shifting bytes and updating
+   all `uoffset_t` fields after the insertion point.
+
+7. **GitHub Actions tag-push checkout.** When a tag push triggers a workflow, the runner starts
+   in detached HEAD state. A job that needs to commit back to `main` must use `fetch-depth: 0`.
+   Files modified between tag creation and `git checkout main` must be saved to `/tmp` and
+   restored afterward.
+
+8. **ktfmt formatting is non-obvious.** `kotlinLangStyle()` enforces specific blank-line rules
+   and trailing-comma placement that differ from hand-formatting. Always run `ktfmtFormat` after
+   creating new Kotlin files — don't rely on manual formatting to match.
+
+9. **`stop()` accepts a `Duration` parameter.** `stop()` (zero duration) immediately terminates.
+   `stop(timeout = 5.seconds)` attempts graceful drain of in-flight transfers first. The default
+   is `Duration.ZERO` — immediate stop.
+
+10. **RegulatoryRegion clamping.** When `region(RegulatoryRegion.EU)` is set, the config builder
+    automatically clamps `advertisementIntervalMillis` to ≥ 300 and `scanDutyCyclePercent` to
+    ≤ 70 (ETSI EN 300 328). Clamped fields appear in `config.clampWarnings`.
+
+### Flow Architecture
+
+All public reactive surfaces on `MeshLinkApi` follow the same pattern:
+
+```
+Internal subsystem (SharedFlow/MutableSharedFlow)
+    ↓ exposed as val on MeshEngine
+        ↓ .map { internalType → publicType } in MeshLink
+            ↓ exposed as Flow<PublicType> on MeshLinkApi
+```
+
+Consumers collect cold `Flow` instances. The underlying `SharedFlow` has `extraBufferCapacity`
+to avoid backpressure blocking internal subsystems. `keyChanges` uses `tryEmit` (non-suspending)
+because the emission site is a synchronous callback from `TrustStore`.
+
+### Testing Strategy
+
+| Layer | How tested |
+|-------|-----------|
+| Crypto primitives | Wycheproof test vectors (ECDH, Ed25519, AEAD, HMAC, HKDF) |
+| Protocol logic (routing, transfer, messaging) | Unit tests with `VirtualMeshTransport` in commonTest |
+| Engine integration | Multi-node `MeshTestHarness` with full Noise XX handshake |
+| Public API | `MeshLinkTest` verifying state transitions, flow emission, error guards |
+| Platform BLE | Excluded from unit tests (require hardware). Proven by S06 two-device UAT |
+| Coverage | 100% Kover on commonMain. Platform and testing packages excluded. |
+
+The `MeshTestHarness` builds N-node topologies with configurable link properties (packet loss,
+latency, RSSI). It supports full Noise XX handshakes between nodes and virtual-time advancement
+for timeout testing.
+
+For published test utilities (consumer-facing):
+
+```kotlin
+// In your test:
+val (transportA, transportB) = linkedTransports()
+val meshA = MeshLink.createForTest(config, transport = transportA)
+val meshB = MeshLink.createForTest(config, transport = transportB)
+meshA.start()
+meshB.start()
+// Send from A, receive on B — no BLE hardware needed
+```
