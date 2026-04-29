@@ -230,11 +230,11 @@ internal constructor(
     // ── Power ──────────────────────────────────────────────────────────────
 
     override fun updateBattery(percent: Float, isCharging: Boolean) {
-        // Wired to PowerManager in S02.
+        engine.updateBattery(percent, isCharging)
     }
 
     override fun setCustomPowerMode(mode: PowerTier?) {
-        // Wired to PowerManager in S02.
+        engine.setCustomPowerMode(mode)
     }
 
     // ── Identity & Trust ──────────────────────────────────────────────────
@@ -379,7 +379,8 @@ internal constructor(
         cost: Int,
         seqNo: Int,
     ) {
-        // RoutingTable injection wired in S02.
+        requireRunning("addRoute")
+        engine.addRoute(destination, nextHop, cost, seqNo)
     }
 
     // ── Internal teardown ─────────────────────────────────────────────────

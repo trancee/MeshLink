@@ -465,6 +465,43 @@ class MeshLinkTest {
         mesh.factoryReset()
     }
 
+    // ── Power/routing state guards ────────────────────────────────────────
+
+    @Test
+    fun `updateBattery works from any state`() = runTest {
+        val mesh = makeMesh()
+        // Before start — should not throw.
+        mesh.updateBattery(0.5f, true)
+        mesh.start()
+        mesh.updateBattery(0.8f, false)
+        mesh.stop()
+        // After stop — should not throw.
+        mesh.updateBattery(0.3f, true)
+        mesh.stopEngineForTest()
+    }
+
+    @Test
+    fun `setCustomPowerMode works from any state`() = runTest {
+        val mesh = makeMesh()
+        // Before start — should not throw.
+        mesh.setCustomPowerMode(PowerTier.POWER_SAVER)
+        mesh.start()
+        mesh.setCustomPowerMode(PowerTier.PERFORMANCE)
+        mesh.stop()
+        // After stop — should not throw.
+        mesh.setCustomPowerMode(null)
+        mesh.stopEngineForTest()
+    }
+
+    @Test
+    fun `addRoute from non-RUNNING throws IllegalStateException`() = runTest {
+        val mesh = makeMesh()
+        @OptIn(ExperimentalMeshLinkApi::class)
+        val result = runCatching { mesh.addRoute(ByteArray(12), ByteArray(12), 1, 1) }
+        assertTrue(result.exceptionOrNull() is IllegalStateException)
+        mesh.stopEngineForTest()
+    }
+
     // ── toInternal: LOW and HIGH priority paths ───────────────────────────
 
     @Test

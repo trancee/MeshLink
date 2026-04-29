@@ -20,6 +20,7 @@ import ch.trancee.meshlink.routing.PeerEvent
 import ch.trancee.meshlink.routing.PeerInfo
 import ch.trancee.meshlink.routing.PresenceTracker
 import ch.trancee.meshlink.routing.RouteCoordinator
+import ch.trancee.meshlink.routing.RouteEntry
 import ch.trancee.meshlink.routing.RoutingEngine
 import ch.trancee.meshlink.routing.RoutingTable
 import ch.trancee.meshlink.storage.SecureStorage
@@ -73,6 +74,9 @@ private constructor(
     private val identity: Identity,
     private val storage: SecureStorage,
     private val transferEngine: TransferEngine,
+    private val batteryMonitor: BatteryMonitor,
+    private val clock: () -> Long,
+    private val routeExpiryMillis: Long,
 ) {
     // ── Public SharedFlow surfaces ────────────────────────────────────────────
 
@@ -627,6 +631,57 @@ private constructor(
     /** Returns the number of active cut-through relay buffers. */
     internal fun relayQueueSize(): Int = deliveryPipeline.relayQueueSize()
 
+    // ── Power delegation ──────────────────────────────────────────────────────
+
+    /**
+     * Reports an externally-observed battery state to the underlying [BatteryMonitor]. The next
+     * PowerModeEngine poll cycle will pick up the new values.
+     */
+    internal fun updateBattery(percent: Float, isCharging: Boolean) {
+        batteryMonitor.reportBattery(percent, isCharging)
+        diagnosticSink.emit(DiagnosticCode.HANDSHAKE_EVENT) {
+            DiagnosticPayload.TextMessage(
+                "battery_updated percent=${(percent * 100).toInt()} charging=$isCharging"
+            )
+        }
+    }
+
+    /**
+     * Pins or restores automatic power tier selection. Delegates to [PowerManager.setCustomMode].
+     */
+    internal fun setCustomPowerMode(mode: ch.trancee.meshlink.power.PowerTier?) {
+        powerManager.setCustomMode(mode)
+        diagnosticSink.emit(DiagnosticCode.HANDSHAKE_EVENT) {
+            DiagnosticPayload.TextMessage("custom_power_mode_set mode=${mode?.name ?: "AUTO"}")
+        }
+    }
+
+    // ── Routing delegation ────────────────────────────────────────────────────
+
+    /**
+     * Installs a manual route entry into the [RoutingTable]. Constructs a [RouteEntry] with zeroed
+     * public keys and expiry derived from [routeExpiryMillis].
+     */
+    internal fun addRoute(destination: ByteArray, nextHop: ByteArray, cost: Int, seqNo: Int) {
+        val entry =
+            RouteEntry(
+                destination = destination,
+                nextHop = nextHop,
+                metric = cost.toDouble(),
+                seqNo = seqNo.toUShort(),
+                feasibilityDistance = cost.toDouble(),
+                expiresAt = clock() + routeExpiryMillis,
+                ed25519PublicKey = ByteArray(32),
+                x25519PublicKey = ByteArray(32),
+            )
+        routingTable.install(entry)
+        diagnosticSink.emit(DiagnosticCode.ROUTE_CHANGED) {
+            DiagnosticPayload.TextMessage(
+                "manual_route_installed dest=${destination.toList().hashCode()} cost=$cost seqNo=$seqNo"
+            )
+        }
+    }
+
     /** Test helper: inject a peer directly into the presence tracker. */
     internal fun injectTestPeer(peerId: ByteArray) {
         presenceTracker.onPeerConnected(peerId)
@@ -810,6 +865,9 @@ private constructor(
                     identity = identity,
                     storage = storage,
                     transferEngine = transferEngine,
+                    batteryMonitor = batteryMonitor,
+                    clock = clock,
+                    routeExpiryMillis = config.routing.routeExpiryMillis,
                 )
             engineRef = engine
             return engine
