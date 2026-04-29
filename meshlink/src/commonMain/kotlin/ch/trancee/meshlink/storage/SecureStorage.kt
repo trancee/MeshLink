@@ -38,4 +38,15 @@ internal interface SecureStorage {
      * @return `true` if the key exists.
      */
     fun contains(key: String): Boolean
+
+    /**
+     * Removes all stored key-value pairs.
+     *
+     * Used by [ch.trancee.meshlink.api.MeshLink.factoryReset] to wipe all local secrets. Platform
+     * implementations should clear both the in-memory cache and the underlying secure store.
+     *
+     * Default implementation is a no-op for backward compatibility with platform implementations
+     * that have not yet overridden this method.
+     */
+    fun clear() {}
 }

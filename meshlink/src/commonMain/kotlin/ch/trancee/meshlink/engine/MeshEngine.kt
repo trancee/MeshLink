@@ -501,6 +501,137 @@ private constructor(
             )
         }
 
+    // ── Peer lifecycle internal API ───────────────────────────────────────────
+
+    /**
+     * Returns a [PeerDetail][ch.trancee.meshlink.api.PeerDetail] for the given [peerId], or `null`
+     * if the peer is not tracked by the presence tracker.
+     *
+     * Assembles data from [PresenceTracker] (state, lastSeenMillis), [TrustStore] (static public
+     * key), and computed fingerprint (colon-separated hex of peerId bytes).
+     */
+    internal fun peerDetail(peerId: ByteArray): ch.trancee.meshlink.api.PeerDetail? {
+        val allPeers = presenceTracker.allPeerStates()
+        val presence = allPeers[peerId.toList()] ?: return null
+        val staticKey = trustStore.getPinnedKey(peerId) ?: ByteArray(32)
+        val fingerprint =
+            peerId.joinToString(":") {
+                it.toInt().and(0xFF).toString(16).padStart(2, '0').uppercase()
+            }
+        val peerState =
+            when (presence.state) {
+                ch.trancee.meshlink.routing.InternalPeerState.CONNECTED ->
+                    ch.trancee.meshlink.api.PeerState.CONNECTED
+                ch.trancee.meshlink.routing.InternalPeerState.DISCONNECTED ->
+                    ch.trancee.meshlink.api.PeerState.DISCONNECTED
+            }
+        return ch.trancee.meshlink.api.PeerDetail(
+            id = peerId,
+            staticPublicKey = staticKey,
+            fingerprint = fingerprint,
+            state = peerState,
+            lastSeenTimestampMillis = presence.lastSeenMillis,
+            trustMode = ch.trancee.meshlink.api.TrustMode.STRICT,
+        )
+    }
+
+    /**
+     * Returns details for all tracked peers. Iterates [PresenceTracker.allPeerStates] and assembles
+     * a [PeerDetail] for each.
+     */
+    internal fun allPeerDetails(): List<ch.trancee.meshlink.api.PeerDetail> {
+        val allPeers = presenceTracker.allPeerStates()
+        return allPeers.map { (keyList, _) ->
+            val peerId = keyList.toByteArray()
+            peerDetail(peerId)!!
+        }
+    }
+
+    // ── Cleanup internal API ──────────────────────────────────────────────────
+
+    /**
+     * Forgets a peer completely — clears all subsystem state including trust (GDPR).
+     *
+     * If the peer is unknown (not in PresenceTracker), emits a LOG diagnostic and returns
+     * (idempotent). If Connected: disconnects transport, cancels in-flight transfers for this peer,
+     * retracts routes, cancels pending messages, releases power slot, removes from presence
+     * tracking, and removes the TrustStore pin.
+     */
+    internal suspend fun forgetPeer(peerId: ByteArray) {
+        val allPeers = presenceTracker.allPeerStates()
+        if (!allPeers.containsKey(peerId.toList())) {
+            diagnosticSink.emit(DiagnosticCode.HANDSHAKE_EVENT) {
+                DiagnosticPayload.TextMessage(
+                    "forget_peer_unknown peer=${peerId.toPeerIdHex().hex}"
+                )
+            }
+            return
+        }
+        // Disconnect transport (swallow errors — peer is being forgotten).
+        runCatching { transport.disconnect(peerId) }
+        // Cancel in-flight transfers.
+        transferEngine.onPeerDisconnect(peerId)
+        // Retract routes.
+        routeCoordinator.onPeerDisconnected(peerId)
+        // Cancel pending messages in delivery pipeline.
+        deliveryPipeline.cancelMessagesFor(peerId)
+        // Release power manager connection slot.
+        powerManager.releaseConnection(peerId)
+        // Remove from presence tracker.
+        presenceTracker.onPeerDisconnected(peerId)
+        // Remove TrustStore pin (GDPR — key difference from Gone).
+        trustStore.removePinForPeer(peerId)
+        diagnosticSink.emit(DiagnosticCode.HANDSHAKE_EVENT) {
+            DiagnosticPayload.TextMessage("peer_forgotten peer=${peerId.toPeerIdHex().hex}")
+        }
+    }
+
+    /**
+     * Factory-resets all local storage. Requires engine to be STOPPED (enforced at MeshLink layer).
+     * If storage.clear() throws, the exception is rethrown (indicates storage backend failure).
+     */
+    internal fun factoryReset() {
+        storage.clear()
+    }
+
+    /**
+     * Sheds memory pressure by evicting low-priority messages from the delivery pipeline and
+     * cancelling low-priority transfers. Emits a LOG diagnostic with eviction counts.
+     */
+    internal fun shedMemoryPressure() {
+        // Evict LOW priority in-flight transfers, then NORMAL if no LOW exist.
+        transferEngine.onMemoryPressure()
+        diagnosticSink.emit(DiagnosticCode.HANDSHAKE_EVENT) {
+            DiagnosticPayload.TextMessage("memory_pressure_shed")
+        }
+    }
+
+    // ── Health query internal API ─────────────────────────────────────────────
+
+    /** Returns total bytes buffered in the store-and-forward buffer. */
+    internal fun bufferSizeBytes(): Long = deliveryPipeline.bufferSizeBytes()
+
+    /**
+     * Returns buffer utilisation as a percentage (0–100). Derived from bufferSizeBytes /
+     * bufferCapacityBytes × 100.
+     */
+    internal fun bufferUtilizationPercent(): Int {
+        val capacity = deliveryPipeline.bufferCapacityBytes()
+        if (capacity == 0L) return 0
+        return ((deliveryPipeline.bufferSizeBytes() * 100) / capacity).toInt().coerceIn(0, 100)
+    }
+
+    /** Returns the number of active transfer sessions. */
+    internal fun activeTransferCount(): Int = transferEngine.activeSessionCount()
+
+    /** Returns the number of active cut-through relay buffers. */
+    internal fun relayQueueSize(): Int = deliveryPipeline.relayQueueSize()
+
+    /** Test helper: inject a peer directly into the presence tracker. */
+    internal fun injectTestPeer(peerId: ByteArray) {
+        presenceTracker.onPeerConnected(peerId)
+    }
+
     // ── Factory ───────────────────────────────────────────────────────────────
 
     companion object {

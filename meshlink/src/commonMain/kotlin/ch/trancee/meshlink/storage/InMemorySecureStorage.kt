@@ -21,4 +21,8 @@ internal class InMemorySecureStorage : SecureStorage {
     }
 
     override fun contains(key: String): Boolean = map.containsKey(key)
+
+    override fun clear() {
+        map.clear()
+    }
 }

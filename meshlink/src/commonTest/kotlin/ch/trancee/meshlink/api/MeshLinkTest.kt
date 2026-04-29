@@ -459,9 +459,10 @@ class MeshLinkTest {
         // health/routing stubs
         mesh.shedMemoryPressure()
         mesh.forgetPeer(ByteArray(12))
-        mesh.factoryReset()
         @OptIn(ExperimentalMeshLinkApi::class) mesh.addRoute(ByteArray(12), ByteArray(12), 1, 1)
         mesh.stop()
+        // factoryReset requires STOPPED state.
+        mesh.factoryReset()
     }
 
     // ── toInternal: LOW and HIGH priority paths ───────────────────────────

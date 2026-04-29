@@ -244,9 +244,15 @@ internal constructor(
 
     override fun peerPublicKey(id: ByteArray): ByteArray? = engine.peerPublicKey(id)
 
-    override fun peerDetail(id: ByteArray): PeerDetail? = null
+    override fun peerDetail(id: ByteArray): PeerDetail? {
+        if (stateMachine.state.value != MeshLinkState.RUNNING) return null
+        return engine.peerDetail(id)
+    }
 
-    override fun allPeerDetails(): List<PeerDetail> = emptyList()
+    override fun allPeerDetails(): List<PeerDetail> {
+        if (stateMachine.state.value != MeshLinkState.RUNNING) return emptyList()
+        return engine.allPeerDetails()
+    }
 
     override fun peerFingerprint(id: ByteArray): String? = engine.peerFingerprint(id)
 
@@ -277,7 +283,8 @@ internal constructor(
     override fun meshHealth(): MeshHealthSnapshot = buildHealthSnapshot()
 
     override fun shedMemoryPressure() {
-        // Wired to DeliveryPipeline in S02.
+        requireRunning("shedMemoryPressure")
+        engine.shedMemoryPressure()
     }
 
     // ── Health helpers ─────────────────────────────────────────────────────
@@ -302,14 +309,14 @@ internal constructor(
         return MeshHealthSnapshot(
             connectedPeers = connected,
             routingTableSize = engine.routingTable.routeCount(),
-            bufferUsageBytes = 0L,
+            bufferUsageBytes = engine.bufferSizeBytes(),
             capturedAtMillis = clock(),
             reachablePeers = connected,
-            bufferUtilizationPercent = 0,
-            activeTransfers = 0,
+            bufferUtilizationPercent = engine.bufferUtilizationPercent(),
+            activeTransfers = engine.activeTransferCount(),
             powerMode = engine.currentPowerTier,
             avgRouteCost = avgCost,
-            relayQueueSize = 0,
+            relayQueueSize = engine.relayQueueSize(),
         )
     }
 
@@ -351,11 +358,16 @@ internal constructor(
     // ── GDPR ───────────────────────────────────────────────────────────────
 
     override suspend fun forgetPeer(peerId: ByteArray) {
-        // TrustStore + RoutingTable + DeliveryPipeline wired in S02.
+        requireRunning("forgetPeer")
+        engine.forgetPeer(peerId)
     }
 
     override suspend fun factoryReset() {
-        // Storage wipe wired in S02.
+        val current = stateMachine.state.value
+        if (current != MeshLinkState.STOPPED && current != MeshLinkState.UNINITIALIZED) {
+            throw IllegalStateException("factoryReset() called from invalid state: $current")
+        }
+        engine.factoryReset()
     }
 
     // ── Experimental ──────────────────────────────────────────────────────
@@ -411,6 +423,11 @@ internal constructor(
                 x25519PublicKey = ByteArray(32),
             )
         )
+    }
+
+    /** Test helper: inject a peer into the engine's presence tracker. */
+    internal fun injectTestPeer(peerId: ByteArray) {
+        engine.injectTestPeer(peerId)
     }
 
     // ── Factory ────────────────────────────────────────────────────────────

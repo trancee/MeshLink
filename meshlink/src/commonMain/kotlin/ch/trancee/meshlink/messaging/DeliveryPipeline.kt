@@ -403,6 +403,30 @@ internal class DeliveryPipeline(
         }
     }
 
+    // ── Health query methods ──────────────────────────────────────────────────
+
+    /**
+     * Returns the total size (bytes) of buffered messages in the store-and-forward buffer. Each
+     * entry's contribution is the [BufferedMessage.encodedRoutedMessage] size.
+     */
+    internal fun bufferSizeBytes(): Long = sendBuffer.sumOf {
+        it.encodedRoutedMessage.size.toLong()
+    }
+
+    /**
+     * Returns the maximum buffer capacity in bytes. Derived from
+     * [MessagingConfig.maxBufferedMessages] × [MessagingConfig.maxMessageSize] as an upper-bound
+     * estimate. Real utilisation is tracked by [bufferSizeBytes].
+     */
+    internal fun bufferCapacityBytes(): Long =
+        config.maxBufferedMessages.toLong() * config.maxMessageSize.toLong()
+
+    /**
+     * Returns the number of active cut-through relay buffers. These represent messages being
+     * relayed through this node without full re-assembly.
+     */
+    internal fun relayQueueSize(): Int = cutThroughBuffers.size
+
     // ── Inbound handlers ──────────────────────────────────────────────────────
 
     private suspend fun handleIncomingData(fromPeerId: ByteArray, data: ByteArray) {

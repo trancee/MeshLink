@@ -186,4 +186,7 @@ internal class TransferEngine(
         sessions.remove(messageId.asList())
         scheduler.deregister(messageId)
     }
+
+    /** Returns the number of active transfer sessions (both sender and receiver). */
+    internal fun activeSessionCount(): Int = sessions.size
 }
