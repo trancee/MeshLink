@@ -33,6 +33,16 @@ lifecycle-runtime-compose      = { group = "org.jetbrains.androidx.lifecycle",  
 androidx-activity-compose      = { group = "androidx.activity",                 name = "activity-compose",            version.ref = "activity-compose" }
 # KotlinX serialization runtime (used in navigation route serialization)
 kotlinx-serialization-core     = { group = "org.jetbrains.kotlinx",             name = "kotlinx-serialization-core",  version.ref = "serialization" }
+# Compose Multiplatform — direct artifact coordinates (compose.* accessors deprecated in 1.8+).
+# Versions are pinned per-artifact by the Compose Multiplatform plugin; not all use the plugin version.
+compose-runtime                    = { group = "org.jetbrains.compose.runtime",     name = "runtime",                     version.ref = "compose-multiplatform" }
+compose-foundation                 = { group = "org.jetbrains.compose.foundation",  name = "foundation",                  version.ref = "compose-multiplatform" }
+compose-material3                  = { group = "org.jetbrains.compose.material3",   name = "material3",                   version = "1.9.0" }
+compose-ui                         = { group = "org.jetbrains.compose.ui",          name = "ui",                          version.ref = "compose-multiplatform" }
+compose-components-resources       = { group = "org.jetbrains.compose.components",  name = "components-resources",        version.ref = "compose-multiplatform" }
+# material-icons-extended: pinned to 1.7.3 by upstream; no newer multiplatform artifact available.
+# See: https://kotlinlang.org/docs/multiplatform/whats-new-compose-180.html
+compose-material-icons-extended    = { group = "org.jetbrains.compose.material",    name = "material-icons-extended",     version = "1.7.3" }
 
 [plugins]
 kotlin-multiplatform              = { id = "org.jetbrains.kotlin.multiplatform",                      version.ref = "kotlin" }
