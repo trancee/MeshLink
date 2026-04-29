@@ -1275,6 +1275,19 @@ final class ch.trancee.meshlink.api/TransportConfigBuilder { // ch.trancee.meshl
         final fun <set-scanDutyCyclePercent>(kotlin/Int) // ch.trancee.meshlink.api/TransportConfigBuilder.scanDutyCyclePercent.<set-scanDutyCyclePercent>|<set-scanDutyCyclePercent>(kotlin.Int){}[0]
 }
 
+final class ch.trancee.meshlink.testing/VirtualMeshTransport { // ch.trancee.meshlink.testing/VirtualMeshTransport|null[0]
+    constructor <init>(kotlin/ByteArray) // ch.trancee.meshlink.testing/VirtualMeshTransport.<init>|<init>(kotlin.ByteArray){}[0]
+
+    final val peerId // ch.trancee.meshlink.testing/VirtualMeshTransport.peerId|{}peerId[0]
+        final fun <get-peerId>(): kotlin/ByteArray // ch.trancee.meshlink.testing/VirtualMeshTransport.peerId.<get-peerId>|<get-peerId>(){}[0]
+
+    final fun linkTo(ch.trancee.meshlink.testing/VirtualMeshTransport) // ch.trancee.meshlink.testing/VirtualMeshTransport.linkTo|linkTo(ch.trancee.meshlink.testing.VirtualMeshTransport){}[0]
+    final fun unlink(ch.trancee.meshlink.testing/VirtualMeshTransport) // ch.trancee.meshlink.testing/VirtualMeshTransport.unlink|unlink(ch.trancee.meshlink.testing.VirtualMeshTransport){}[0]
+    final suspend fun injectRawIncoming(kotlin/ByteArray, kotlin/ByteArray) // ch.trancee.meshlink.testing/VirtualMeshTransport.injectRawIncoming|injectRawIncoming(kotlin.ByteArray;kotlin.ByteArray){}[0]
+    final suspend fun simulateDiscovery(kotlin/ByteArray, kotlin/ByteArray, kotlin/Int = ...) // ch.trancee.meshlink.testing/VirtualMeshTransport.simulateDiscovery|simulateDiscovery(kotlin.ByteArray;kotlin.ByteArray;kotlin.Int){}[0]
+    final suspend fun simulatePeerLost(kotlin/ByteArray) // ch.trancee.meshlink.testing/VirtualMeshTransport.simulatePeerLost|simulatePeerLost(kotlin.ByteArray){}[0]
+}
+
 final value class ch.trancee.meshlink.api/PeerIdHex { // ch.trancee.meshlink.api/PeerIdHex|null[0]
     constructor <init>(kotlin/String) // ch.trancee.meshlink.api/PeerIdHex.<init>|<init>(kotlin.String){}[0]
 
@@ -1381,4 +1394,6 @@ sealed class ch.trancee.meshlink.api/TransferFailure { // ch.trancee.meshlink.ap
 }
 
 final fun (ch.trancee.meshlink.api/MeshLink.Companion).ch.trancee.meshlink.api/createIos(ch.trancee.meshlink.api/MeshLinkConfig, kotlin/String = ...): ch.trancee.meshlink.api/MeshLink // ch.trancee.meshlink.api/createIos|createIos@ch.trancee.meshlink.api.MeshLink.Companion(ch.trancee.meshlink.api.MeshLinkConfig;kotlin.String){}[0]
+final fun (ch.trancee.meshlink.api/MeshLink.Companion).ch.trancee.meshlink.testing/createForTest(ch.trancee.meshlink.api/MeshLinkConfig, ch.trancee.meshlink.testing/VirtualMeshTransport, kotlinx.coroutines/CoroutineScope = ...): ch.trancee.meshlink.api/MeshLink // ch.trancee.meshlink.testing/createForTest|createForTest@ch.trancee.meshlink.api.MeshLink.Companion(ch.trancee.meshlink.api.MeshLinkConfig;ch.trancee.meshlink.testing.VirtualMeshTransport;kotlinx.coroutines.CoroutineScope){}[0]
 final fun ch.trancee.meshlink.api/meshLinkConfig(kotlin/String, kotlin/Function1<ch.trancee.meshlink.api/MeshLinkConfigBuilder, kotlin/Unit> = ...): ch.trancee.meshlink.api/MeshLinkConfig // ch.trancee.meshlink.api/meshLinkConfig|meshLinkConfig(kotlin.String;kotlin.Function1<ch.trancee.meshlink.api.MeshLinkConfigBuilder,kotlin.Unit>){}[0]
+final fun ch.trancee.meshlink.testing/linkedTransports(): kotlin/Pair<ch.trancee.meshlink.testing/VirtualMeshTransport, ch.trancee.meshlink.testing/VirtualMeshTransport> // ch.trancee.meshlink.testing/linkedTransports|linkedTransports(){}[0]

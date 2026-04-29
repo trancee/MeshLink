@@ -282,7 +282,7 @@ lifecycleScope.launch {
 val health = mesh.meshHealth()
 println("${health.connectedPeers} peers, ${health.routingTableSize} routes")
 
-// Periodic snapshots (emitted every DiagnosticsConfig.healthSnapshotIntervalMs)
+// Periodic snapshots (emitted every DiagnosticsConfig.healthSnapshotIntervalMillis)
 lifecycleScope.launch {
     mesh.meshHealthFlow.collect { snapshot ->
         updateHealthBar(snapshot)
@@ -354,7 +354,7 @@ val config = meshLinkConfig("com.example.myapp") {
         l2capEnabled      = true       // prefer L2CAP CoC over GATT; default true
         forceL2cap        = false      // never fall back to GATT
         forceGatt         = false      // always use GATT
-        bootstrapDurationMs = 30_000L  // stay in PERFORMANCE tier on start
+        bootstrapDurationMillis = 30_000L  // stay in PERFORMANCE tier on start
     }
     security {
         requireEncryption = true       // reject plaintext; default true
@@ -376,7 +376,7 @@ val config = meshLinkConfig("com.example.myapp") {
     diagnostics {
         enabled           = true
         redactPeerIds     = false      // set true for GDPR: truncates peer IDs to 8 chars
-        healthSnapshotIntervalMs = 5_000L
+        healthSnapshotIntervalMillis = 5_000L
     }
     rateLimiting {
         maxSends          = 60         // unicast messages/minute

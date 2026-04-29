@@ -142,6 +142,9 @@ kover {
         // excludedSourceSets.
         filters {
             excludes {
+                // testing package: public test utilities for integrators — not production code.
+                // Coverage is structural (compilation + integration test usage).
+                packages("ch.trancee.meshlink.testing")
                 classes("ch.trancee.meshlink.crypto.AndroidCryptoProvider*")
                 // SodiumJni: JNI bridge object — cannot run on JVM host (requires Android .so).
                 // Correctness verified structurally: same libsodium calls, same symbols exported.

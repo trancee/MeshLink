@@ -1126,3 +1126,20 @@ public final class ch/trancee/meshlink/power/PowerTier : java/lang/Enum {
 	public static fun values ()[Lch/trancee/meshlink/power/PowerTier;
 }
 
+public final class ch/trancee/meshlink/testing/TestFactoriesKt {
+	public static final fun createForTest (Lch/trancee/meshlink/api/MeshLink$Companion;Lch/trancee/meshlink/api/MeshLinkConfig;Lch/trancee/meshlink/testing/VirtualMeshTransport;Lkotlinx/coroutines/CoroutineScope;)Lch/trancee/meshlink/api/MeshLink;
+	public static synthetic fun createForTest$default (Lch/trancee/meshlink/api/MeshLink$Companion;Lch/trancee/meshlink/api/MeshLinkConfig;Lch/trancee/meshlink/testing/VirtualMeshTransport;Lkotlinx/coroutines/CoroutineScope;ILjava/lang/Object;)Lch/trancee/meshlink/api/MeshLink;
+	public static final fun linkedTransports ()Lkotlin/Pair;
+}
+
+public final class ch/trancee/meshlink/testing/VirtualMeshTransport {
+	public fun <init> ([B)V
+	public final fun getPeerId ()[B
+	public final fun injectRawIncoming ([B[BLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun linkTo (Lch/trancee/meshlink/testing/VirtualMeshTransport;)V
+	public final fun simulateDiscovery ([B[BILkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun simulateDiscovery$default (Lch/trancee/meshlink/testing/VirtualMeshTransport;[B[BILkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun simulatePeerLost ([BLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun unlink (Lch/trancee/meshlink/testing/VirtualMeshTransport;)V
+}
+
