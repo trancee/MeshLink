@@ -10,10 +10,10 @@ All notable changes to MeshLink are documented here. Format follows [Keep a Chan
 - `MeshLinkApi` interface with lifecycle, messaging, peer management, identity, and observability methods
 - `meshLinkConfig {}` DSL builder with 8 sub-configs (messaging, transport, security, power, routing, diagnostics, rateLimiting, transfer)
 - 4 config presets: `smallPayloadLowLatency`, `largePayloadHighThroughput`, `minimalResourceUsage`, `sensorTelemetry`
-- `MeshLinkState` lifecycle FSM (Idle → Starting → Running → Stopping → Stopped)
-- `PeerEvent` sealed interface (Found, Lost, StateChanged, KeyChangeDetected)
-- `PeerIdHex` value class for type-safe peer identifiers
-- `DiagnosticEvent` flow with 27 codes across 3 severity tiers
+- `MeshLinkState` lifecycle FSM (UNINITIALIZED → RUNNING → PAUSED → STOPPED / RECOVERABLE / TERMINAL)
+- `PeerEvent` sealed class (Found, Lost, StateChanged)
+- `KeyChangeEvent` for TOFU key rotation notifications
+- `DiagnosticEvent` flow with 27 codes across 4 severity levels (DEBUG, INFO, WARN, ERROR)
 - `MeshHealthSnapshot` point-in-time and periodic health reporting
 - `RegulatoryRegion.EU` with automatic ETSI EN 300 328 clamping
 - Platform factories: `MeshLink.createAndroid()`, `MeshLink.createIos()`
@@ -64,7 +64,7 @@ All notable changes to MeshLink are documented here. Format follows [Keep a Chan
 - `meshlink-testing` module with `MeshTestHarness` for consumer integration tests
 
 #### Quality
-- 1460+ JVM tests at 100% line and branch coverage (Kover)
+- 1550+ JVM tests at 100% line and branch coverage (Kover)
 - Zero `@CoverageIgnore` annotations
 - BCV API baselines (JVM + KLib)
 - 5 benchmark suites (kotlinx-benchmark)

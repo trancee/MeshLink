@@ -22,16 +22,16 @@ per-device slot tracking customisation hooks are not exposed.
 
 | Section | Title | Status | Evidence |
 |---------|-------|--------|----------|
-| §4 | Identity & Key Management | ✅ Implemented | `Identity.loadOrGenerate`, Ed25519 keypair, `IosSecureStorage` / `AndroidSecureStorage`, `TrustStore`, key-rotation announce; 1 517 unit tests pass, Kover 100% |
-| §5 | Cryptography | ✅ Implemented | Noise XX handshake (ChaCha20-Poly1305), Ed25519 sign/verify, X25519 DH; Wycheproof test vectors (all suites pass); constant-time equality (`ConstantTimeEquals`); libsodium JNI + cinterop; 1 517 unit tests pass |
+| §4 | Identity & Key Management | ✅ Implemented | `Identity.loadOrGenerate`, Ed25519 keypair, `IosSecureStorage` / `AndroidSecureStorage`, `TrustStore`, key-rotation announce; 1 553 unit tests pass, Kover 100% |
+| §5 | Cryptography | ✅ Implemented | Noise XX handshake (ChaCha20-Poly1305), Ed25519 sign/verify, X25519 DH; Wycheproof test vectors (all suites pass); constant-time equality (`ConstantTimeEquals`); libsodium JNI + cinterop; 1 553 unit tests pass |
 | §6 | Transport | ✅ Implemented | `AndroidBleTransport` (L2CAP CoC + GATT GATT fallback, `OemSlotTracker`, `OemL2capProbeCache`, `MeshHashFilter`); `IosBleTransport` (CoreBluetooth central+peripheral, L2CAP CoC, GATT fallback, state restoration); `VirtualMeshTransport` for integration testing; S06 two-device manual UAT |
-| §7 | Routing | ✅ Implemented | Babel-inspired distance-vector with feasibility condition (`RoutingEngine`, `RoutingTable`), dedup set (`DedupSet`), presence tracking (`PresenceTracker`); 1 517 unit tests pass, Kover 100% |
-| §8 | Messaging | ✅ Implemented | Unicast with store-and-forward (`DeliveryPipeline`), broadcast with Ed25519 signature and TTL flood-fill, replay guard, rate limiting, priority queues, GDPR `forgetPeer` + `factoryReset`; 1 517 unit tests pass, Kover 100% |
-| §9 | Chunked Transfer | ✅ Implemented | `TransferEngine` with chunk-level ACK, inactivity timeout (scaled by hop count), concurrent session limit, `TransferFailure.Timeout` / `PeerUnavailable` / `Cancelled` events; 1 517 unit tests pass, Kover 100% |
-| §10 | Power Management | ✅ Implemented | `PowerTierController` with PERFORMANCE / BALANCED / POWER_SAVER tiers, battery-level thresholds, bootstrap override, `setCustomPowerMode`, per-tier connection limits, peer eviction; 1 517 unit tests pass, Kover 100% |
-| §11 | Diagnostics & Observability | ✅ Implemented | All 27 `DiagnosticCode` values (4 critical, 8 threshold, 15 log), `DiagnosticSink` ring-buffer with drop counter, `MeshHealthSnapshot` periodic emission, `DiagnosticsConfig.redactPeerIds` GDPR truncation, `DiagnosticsScreen` in reference app; 1 517 unit tests pass |
+| §7 | Routing | ✅ Implemented | Babel-inspired distance-vector with feasibility condition (`RoutingEngine`, `RoutingTable`), dedup set (`DedupSet`), presence tracking (`PresenceTracker`); 1 553 unit tests pass, Kover 100% |
+| §8 | Messaging | ✅ Implemented | Unicast with store-and-forward (`DeliveryPipeline`), broadcast with Ed25519 signature and TTL flood-fill, replay guard, rate limiting, priority queues, GDPR `forgetPeer` + `factoryReset`; 1 553 unit tests pass, Kover 100% |
+| §9 | Chunked Transfer | ✅ Implemented | `TransferEngine` with chunk-level ACK, inactivity timeout (scaled by hop count), concurrent session limit, `TransferFailure.Timeout` / `PeerUnavailable` / `Cancelled` events; 1 553 unit tests pass, Kover 100% |
+| §10 | Power Management | ✅ Implemented | `PowerTierController` with PERFORMANCE / BALANCED / POWER_SAVER tiers, battery-level thresholds, bootstrap override, `setCustomPowerMode`, per-tier connection limits, peer eviction; 1 553 unit tests pass, Kover 100% |
+| §11 | Diagnostics & Observability | ✅ Implemented | All 27 `DiagnosticCode` values across 4 severity levels (DEBUG, INFO, WARN, ERROR), `DiagnosticSink` ring-buffer with drop counter, `MeshHealthSnapshot` periodic emission, `DiagnosticsConfig.redactPeerIds` GDPR truncation, `DiagnosticsScreen` in reference app; 1 553 unit tests pass |
 | §12 | OEM Hardening | ⚠️ Partial | `explicitApi()` enforced, BCV baseline locked (`meshlink/api/jvm/meshlink.api`), `@ExperimentalMeshLinkApi` annotation, ProGuard consumer rules in AAR, `OemSlotTracker` + `OemL2capProbeCache` extension points; hardware-attestation and custom slot-tracker injection API deferred to post-1.0 |
-| §13 | Public API | ✅ Implemented | `MeshLinkApi` interface (lifecycle, messaging, flows, power, identity, health, routing, GDPR), `MeshLinkConfig` DSL with validation + clamping, `MeshLinkState` FSM (5 states, guarded transitions), `MeshLink(config)` JVM factory, `MeshLink.createAndroid(context, config)` Android factory, `MeshLink.createIos(config)` iOS factory; BCV check passes |
+| §13 | Public API | ✅ Implemented | `MeshLinkApi` interface (lifecycle, messaging, flows, power, identity, health, routing, GDPR), `MeshLinkConfig` DSL with validation + clamping, `MeshLinkState` FSM (6 states, guarded transitions), `MeshLink(config)` JVM factory, `MeshLink.createAndroid(context, config)` Android factory, `MeshLink.createIos(config)` iOS factory; BCV check passes |
 
 ---
 
@@ -39,7 +39,7 @@ per-device slot tracking customisation hooks are not exposed.
 
 | Class | Evidence |
 |-------|----------|
-| Unit tests | 1 517 `@Test` methods in 47 test files across `commonTest`; runs via `./gradlew :meshlink:jvmTest` (CI) |
+| Unit tests | 1 553 `@Test` methods in 75 test files across `commonTest`; runs via `./gradlew :meshlink:jvmTest` (CI) |
 | Coverage | 100% line + branch on `commonMain` enforced by Kover 0.9.8 (`./gradlew :meshlink:koverVerify`); `androidMain` / `iosMain` factory classes excluded per D024 (require real BLE hardware) |
 | Binary compatibility | BCV baseline committed at `meshlink/api/jvm/meshlink.api`; enforced by `./gradlew apiCheck` on every PR |
 | Cryptographic vectors | Wycheproof test vectors (ECDH X25519, Ed25519, ChaCha20-Poly1305, HMAC-SHA-256, HKDF) — all suites pass |

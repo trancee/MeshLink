@@ -125,7 +125,7 @@ CI runs all gates. All must pass before merge.
 | Job | What it validates |
 |-----|-------------------|
 | Lint | ktfmt formatting + Detekt static analysis |
-| Test | All 1460+ tests pass |
+| Test | All 1550+ tests pass |
 | Coverage | 100% line + branch (Kover) |
 | Benchmark | Performance regression check (warn-only, not blocking) |
 | Docs | All relative markdown links resolve |

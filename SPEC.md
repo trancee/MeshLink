@@ -63,7 +63,7 @@ kotlin {
 2. `./gradlew detekt` — static analysis
 3. `./gradlew :meshlink:koverVerify` — 100% LINE + BRANCH coverage
 4. `./gradlew :meshlink:apiCheck` — BCV binary compat
-5. `./gradlew :meshlink:jvmTest` — all tests (1460+)
+5. `./gradlew :meshlink:jvmTest` — all tests (1550+)
 
 ### 2.5 CI Pipeline (GitHub Actions)
 
@@ -279,7 +279,7 @@ Handles full inbound frame dispatch:
 
 ### 9.3 Rate Limiting
 
-`SlidingWindowRateLimiter` + circuit breaker. `send()` returns sealed `SendResult`. `broadcast()` floods with Ed25519 signature.
+`SlidingWindowRateLimiter` + circuit breaker. `send()` suspends and throws on rate-limit violation. `broadcast()` floods with Ed25519 signature.
 
 ---
 
@@ -306,17 +306,27 @@ Performance / Balanced / PowerSaver — adjusts scan duty cycle, connection coun
 ```kotlin
 public class MeshLink : MeshLinkApi {
     public companion object {
-        // Android
         public fun createAndroid(context: Context, config: MeshLinkConfig): MeshLink
-        // iOS
-        public fun createIos(config: MeshLinkConfig, restorationIdentifier: String = "ch.trancee.meshlink"): MeshLink
+        public fun createIos(config: MeshLinkConfig): MeshLink
     }
-    public fun start()
-    public fun stop(timeout: Duration = Duration.ZERO)  // graceful drain if timeout > 0
-    public suspend fun send(recipient: PeerIdHex, data: ByteArray): SendResult
-    public fun broadcast(data: ByteArray)
+    public val localPublicKey: ByteArray
+    public val state: StateFlow<MeshLinkState>
+    public val peers: Flow<PeerEvent>
+    public val messages: Flow<ReceivedMessage>
+    public val keyChanges: Flow<KeyChangeEvent>
+    public val deliveryConfirmations: Flow<MessageId>
+    public val transferProgress: Flow<TransferProgress>
+    public val transferFailures: Flow<TransferFailure>
+    public val meshHealthFlow: Flow<MeshHealthSnapshot>
+    public val diagnosticEvents: Flow<DiagnosticEvent>
+
+    public suspend fun start()
+    public suspend fun stop(timeout: Duration = Duration.ZERO)
+    public suspend fun send(recipient: ByteArray, payload: ByteArray, priority: MessagePriority = NORMAL)
+    public suspend fun broadcast(payload: ByteArray, maxHops: Int, priority: MessagePriority = NORMAL)
     public fun routingSnapshot(): RoutingSnapshot
-    // ... 30+ methods total
+    public fun meshHealth(): MeshHealthSnapshot
+    // ... 17 methods total
 }
 ```
 
@@ -326,7 +336,7 @@ DSL builder with 8 sub-configs and 4 presets. `RegulatoryRegion` enum (DEFAULT, 
 
 ### 11.3 Diagnostics
 
-- 27 `DiagnosticCode` enum values (4 Critical, 8 Threshold, 15 Log)
+- 27 `DiagnosticCode` enum values across 4 levels (DEBUG, INFO, WARN, ERROR)
 - 28 typed `DiagnosticPayload` subtypes
 - `DiagnosticSink`: SharedFlow ring-buffer with DROP_OLDEST, lazy payload evaluation
 - `NoOpDiagnosticSink`: Zero-overhead opt-out
@@ -335,11 +345,11 @@ DSL builder with 8 sub-configs and 4 presets. `RegulatoryRegion` enum (DEFAULT, 
 
 ### 11.4 State Machine
 
-`MeshLinkState` lifecycle FSM with oscillation bounds. States: Idle → Starting → Running → Stopping → Stopped.
+`MeshLinkState` lifecycle FSM with oscillation bounds. States: UNINITIALIZED → RUNNING → PAUSED → STOPPED (or RECOVERABLE / TERMINAL on failure).
 
 ### 11.5 Value Classes
 
-`PeerIdHex` for diagnostic payload fields — not raw Strings.
+`PeerIdHex` for diagnostic payload fields only (internal). Public API uses raw `ByteArray` for peer IDs (12-byte key hash).
 
 ---
 
@@ -393,7 +403,7 @@ Compose Multiplatform 4-screen app: Chat, Mesh Visualizer, Diagnostics, Settings
 
 ### 14.3 Test Count
 
-1460+ JVM tests across 50+ test classes.
+1550+ JVM tests across 50+ test classes.
 
 ### 14.4 Wycheproof Vectors
 
@@ -568,7 +578,7 @@ Use `Millis` suffix (not `Ms`) for all Long/Int fields representing millisecond 
 # Full verification suite
 ./gradlew :meshlink:jvmTest :meshlink:koverVerify :meshlink:apiCheck :meshlink:detekt :meshlink:ktfmtCheck
 
-# Expected: BUILD SUCCESSFUL, 1460+ tests pass, 100% coverage, no API diff
+# Expected: BUILD SUCCESSFUL, 1550+ tests pass, 100% coverage, no API diff
 
 # Publish locally
 ./gradlew publishToMavenLocal
