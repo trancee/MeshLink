@@ -12,12 +12,16 @@ package ch.trancee.meshlink.transport
  * @param forceL2cap When true, skip GATT fallback and always open L2CAP even if PSM advertised as
  *   0x00.
  * @param forceGatt When true, skip L2CAP and always use GATT even if PSM is advertised.
+ * @param advertisementIntervalMillis BLE advertisement interval in milliseconds.
+ * @param scanDutyCyclePercent Percentage of time spent actively scanning (1–100).
  */
 internal data class BleTransportConfig(
     val appId: String,
     val maxConnections: Int = 6,
     val forceL2cap: Boolean = false,
     val forceGatt: Boolean = false,
+    val advertisementIntervalMillis: Long = 250L,
+    val scanDutyCyclePercent: Int = 100,
 ) {
     companion object {
         /** Protocol version embedded in every advertisement (spec §7, byte 0 [7:5]). */

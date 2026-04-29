@@ -569,10 +569,11 @@ public final class ch/trancee/meshlink/api/MeshLinkApi$DefaultImpls {
 
 public final class ch/trancee/meshlink/api/MeshLinkConfig {
 	public static final field Companion Lch/trancee/meshlink/api/MeshLinkConfig$Companion;
-	public fun <init> (Ljava/lang/String;Lch/trancee/meshlink/api/MessagingConfig;Lch/trancee/meshlink/api/TransportConfig;Lch/trancee/meshlink/api/SecurityConfig;Lch/trancee/meshlink/api/PowerConfig;Lch/trancee/meshlink/api/RoutingConfig;Lch/trancee/meshlink/api/DiagnosticsConfig;Lch/trancee/meshlink/api/RateLimitConfig;Lch/trancee/meshlink/api/TransferConfig;Ljava/util/List;)V
-	public synthetic fun <init> (Ljava/lang/String;Lch/trancee/meshlink/api/MessagingConfig;Lch/trancee/meshlink/api/TransportConfig;Lch/trancee/meshlink/api/SecurityConfig;Lch/trancee/meshlink/api/PowerConfig;Lch/trancee/meshlink/api/RoutingConfig;Lch/trancee/meshlink/api/DiagnosticsConfig;Lch/trancee/meshlink/api/RateLimitConfig;Lch/trancee/meshlink/api/TransferConfig;Ljava/util/List;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Ljava/lang/String;Lch/trancee/meshlink/api/MessagingConfig;Lch/trancee/meshlink/api/TransportConfig;Lch/trancee/meshlink/api/SecurityConfig;Lch/trancee/meshlink/api/PowerConfig;Lch/trancee/meshlink/api/RoutingConfig;Lch/trancee/meshlink/api/DiagnosticsConfig;Lch/trancee/meshlink/api/RateLimitConfig;Lch/trancee/meshlink/api/TransferConfig;Lch/trancee/meshlink/api/RegulatoryRegion;Ljava/util/List;)V
+	public synthetic fun <init> (Ljava/lang/String;Lch/trancee/meshlink/api/MessagingConfig;Lch/trancee/meshlink/api/TransportConfig;Lch/trancee/meshlink/api/SecurityConfig;Lch/trancee/meshlink/api/PowerConfig;Lch/trancee/meshlink/api/RoutingConfig;Lch/trancee/meshlink/api/DiagnosticsConfig;Lch/trancee/meshlink/api/RateLimitConfig;Lch/trancee/meshlink/api/TransferConfig;Lch/trancee/meshlink/api/RegulatoryRegion;Ljava/util/List;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun component1 ()Ljava/lang/String;
-	public final fun component10 ()Ljava/util/List;
+	public final fun component10 ()Lch/trancee/meshlink/api/RegulatoryRegion;
+	public final fun component11 ()Ljava/util/List;
 	public final fun component2 ()Lch/trancee/meshlink/api/MessagingConfig;
 	public final fun component3 ()Lch/trancee/meshlink/api/TransportConfig;
 	public final fun component4 ()Lch/trancee/meshlink/api/SecurityConfig;
@@ -581,8 +582,8 @@ public final class ch/trancee/meshlink/api/MeshLinkConfig {
 	public final fun component7 ()Lch/trancee/meshlink/api/DiagnosticsConfig;
 	public final fun component8 ()Lch/trancee/meshlink/api/RateLimitConfig;
 	public final fun component9 ()Lch/trancee/meshlink/api/TransferConfig;
-	public final fun copy (Ljava/lang/String;Lch/trancee/meshlink/api/MessagingConfig;Lch/trancee/meshlink/api/TransportConfig;Lch/trancee/meshlink/api/SecurityConfig;Lch/trancee/meshlink/api/PowerConfig;Lch/trancee/meshlink/api/RoutingConfig;Lch/trancee/meshlink/api/DiagnosticsConfig;Lch/trancee/meshlink/api/RateLimitConfig;Lch/trancee/meshlink/api/TransferConfig;Ljava/util/List;)Lch/trancee/meshlink/api/MeshLinkConfig;
-	public static synthetic fun copy$default (Lch/trancee/meshlink/api/MeshLinkConfig;Ljava/lang/String;Lch/trancee/meshlink/api/MessagingConfig;Lch/trancee/meshlink/api/TransportConfig;Lch/trancee/meshlink/api/SecurityConfig;Lch/trancee/meshlink/api/PowerConfig;Lch/trancee/meshlink/api/RoutingConfig;Lch/trancee/meshlink/api/DiagnosticsConfig;Lch/trancee/meshlink/api/RateLimitConfig;Lch/trancee/meshlink/api/TransferConfig;Ljava/util/List;ILjava/lang/Object;)Lch/trancee/meshlink/api/MeshLinkConfig;
+	public final fun copy (Ljava/lang/String;Lch/trancee/meshlink/api/MessagingConfig;Lch/trancee/meshlink/api/TransportConfig;Lch/trancee/meshlink/api/SecurityConfig;Lch/trancee/meshlink/api/PowerConfig;Lch/trancee/meshlink/api/RoutingConfig;Lch/trancee/meshlink/api/DiagnosticsConfig;Lch/trancee/meshlink/api/RateLimitConfig;Lch/trancee/meshlink/api/TransferConfig;Lch/trancee/meshlink/api/RegulatoryRegion;Ljava/util/List;)Lch/trancee/meshlink/api/MeshLinkConfig;
+	public static synthetic fun copy$default (Lch/trancee/meshlink/api/MeshLinkConfig;Ljava/lang/String;Lch/trancee/meshlink/api/MessagingConfig;Lch/trancee/meshlink/api/TransportConfig;Lch/trancee/meshlink/api/SecurityConfig;Lch/trancee/meshlink/api/PowerConfig;Lch/trancee/meshlink/api/RoutingConfig;Lch/trancee/meshlink/api/DiagnosticsConfig;Lch/trancee/meshlink/api/RateLimitConfig;Lch/trancee/meshlink/api/TransferConfig;Lch/trancee/meshlink/api/RegulatoryRegion;Ljava/util/List;ILjava/lang/Object;)Lch/trancee/meshlink/api/MeshLinkConfig;
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getAppId ()Ljava/lang/String;
 	public final fun getClampWarnings ()Ljava/util/List;
@@ -590,6 +591,7 @@ public final class ch/trancee/meshlink/api/MeshLinkConfig {
 	public final fun getMessaging ()Lch/trancee/meshlink/api/MessagingConfig;
 	public final fun getPower ()Lch/trancee/meshlink/api/PowerConfig;
 	public final fun getRateLimiting ()Lch/trancee/meshlink/api/RateLimitConfig;
+	public final fun getRegion ()Lch/trancee/meshlink/api/RegulatoryRegion;
 	public final fun getRouting ()Lch/trancee/meshlink/api/RoutingConfig;
 	public final fun getSecurity ()Lch/trancee/meshlink/api/SecurityConfig;
 	public final fun getTransfer ()Lch/trancee/meshlink/api/TransferConfig;
@@ -612,6 +614,7 @@ public final class ch/trancee/meshlink/api/MeshLinkConfigBuilder {
 	public final fun messaging (Lkotlin/jvm/functions/Function1;)V
 	public final fun power (Lkotlin/jvm/functions/Function1;)V
 	public final fun rateLimiting (Lkotlin/jvm/functions/Function1;)V
+	public final fun region (Lch/trancee/meshlink/api/RegulatoryRegion;)V
 	public final fun routing (Lkotlin/jvm/functions/Function1;)V
 	public final fun security (Lkotlin/jvm/functions/Function1;)V
 	public final fun transfer (Lkotlin/jvm/functions/Function1;)V
@@ -865,6 +868,14 @@ public final class ch/trancee/meshlink/api/ReceivedMessage {
 	public fun toString ()Ljava/lang/String;
 }
 
+public final class ch/trancee/meshlink/api/RegulatoryRegion : java/lang/Enum {
+	public static final field DEFAULT Lch/trancee/meshlink/api/RegulatoryRegion;
+	public static final field EU Lch/trancee/meshlink/api/RegulatoryRegion;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lch/trancee/meshlink/api/RegulatoryRegion;
+	public static fun values ()[Lch/trancee/meshlink/api/RegulatoryRegion;
+}
+
 public final class ch/trancee/meshlink/api/RoutingConfig {
 	public fun <init> ()V
 	public fun <init> (JIIJ)V
@@ -1053,41 +1064,49 @@ public final class ch/trancee/meshlink/api/TransferProgress {
 
 public final class ch/trancee/meshlink/api/TransportConfig {
 	public fun <init> ()V
-	public fun <init> (IZZZJI)V
-	public synthetic fun <init> (IZZZJIILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (IZZZJIJI)V
+	public synthetic fun <init> (IZZZJIJIILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun component1 ()I
 	public final fun component2 ()Z
 	public final fun component3 ()Z
 	public final fun component4 ()Z
 	public final fun component5 ()J
 	public final fun component6 ()I
-	public final fun copy (IZZZJI)Lch/trancee/meshlink/api/TransportConfig;
-	public static synthetic fun copy$default (Lch/trancee/meshlink/api/TransportConfig;IZZZJIILjava/lang/Object;)Lch/trancee/meshlink/api/TransportConfig;
+	public final fun component7 ()J
+	public final fun component8 ()I
+	public final fun copy (IZZZJIJI)Lch/trancee/meshlink/api/TransportConfig;
+	public static synthetic fun copy$default (Lch/trancee/meshlink/api/TransportConfig;IZZZJIJIILjava/lang/Object;)Lch/trancee/meshlink/api/TransportConfig;
 	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAdvertisementIntervalMillis ()J
 	public final fun getBootstrapDurationMillis ()J
 	public final fun getForceGatt ()Z
 	public final fun getForceL2cap ()Z
 	public final fun getL2capEnabled ()Z
 	public final fun getL2capRetryAttempts ()I
 	public final fun getMtu ()I
+	public final fun getScanDutyCyclePercent ()I
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
 }
 
 public final class ch/trancee/meshlink/api/TransportConfigBuilder {
 	public fun <init> ()V
+	public final fun getAdvertisementIntervalMillis ()J
 	public final fun getBootstrapDurationMillis ()J
 	public final fun getForceGatt ()Z
 	public final fun getForceL2cap ()Z
 	public final fun getL2capEnabled ()Z
 	public final fun getL2capRetryAttempts ()I
 	public final fun getMtu ()I
+	public final fun getScanDutyCyclePercent ()I
+	public final fun setAdvertisementIntervalMillis (J)V
 	public final fun setBootstrapDurationMillis (J)V
 	public final fun setForceGatt (Z)V
 	public final fun setForceL2cap (Z)V
 	public final fun setL2capEnabled (Z)V
 	public final fun setL2capRetryAttempts (I)V
 	public final fun setMtu (I)V
+	public final fun setScanDutyCyclePercent (I)V
 }
 
 public final class ch/trancee/meshlink/api/TrustMode : java/lang/Enum {

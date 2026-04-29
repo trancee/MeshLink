@@ -131,6 +131,19 @@ internal constructor(
             }
             try {
                 engine.start()
+                // Emit CONFIG_CLAMPED diagnostic for each field that was clamped during build().
+                for (warning in config.clampWarnings) {
+                    // Format is always "fieldName: reason" — see MeshLinkConfigBuilder.build().
+                    val field = warning.substringBefore(':')
+                    val detail = warning.substringAfter(": ")
+                    diagnosticSink.emit(DiagnosticCode.CONFIG_CLAMPED) {
+                        DiagnosticPayload.ConfigClamped(
+                            field = field,
+                            original = detail,
+                            clamped = detail,
+                        )
+                    }
+                }
                 stateMachine.transition(LifecycleEvent.StartSuccess)
                 // Cancel any stale ticker from a previous start (restart-from-RECOVERABLE path).
                 healthTickerJob?.cancel()

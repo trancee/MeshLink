@@ -37,6 +37,10 @@ public data class MessagingConfig(
  * @param bootstrapDurationMillis Duration in milliseconds to stay in PERFORMANCE power tier on
  *   startup regardless of battery level.
  * @param l2capRetryAttempts Number of L2CAP connection retries before falling back to GATT.
+ * @param advertisementIntervalMillis BLE advertisement interval in milliseconds. Subject to
+ *   regulatory clamping (e.g. EU requires ≥ 300 ms).
+ * @param scanDutyCyclePercent Percentage of time spent actively scanning (1–100). Subject to
+ *   regulatory clamping (e.g. EU requires ≤ 70 %).
  */
 public data class TransportConfig(
     val mtu: Int = 517,
@@ -45,6 +49,8 @@ public data class TransportConfig(
     val forceGatt: Boolean = false,
     val bootstrapDurationMillis: Long = 30_000L,
     val l2capRetryAttempts: Int = 3,
+    val advertisementIntervalMillis: Long = 250L,
+    val scanDutyCyclePercent: Int = 100,
 )
 
 /**
@@ -186,6 +192,7 @@ public data class TransferConfig(
  * @param diagnostics Diagnostic event pipeline configuration.
  * @param rateLimiting Outbound rate-limit configuration.
  * @param transfer Chunked-transfer tuning.
+ * @param region Regulatory region controlling transport parameter clamping.
  * @param clampWarnings Populated by [MeshLinkConfigBuilder.build] when a best-effort field is
  *   clamped. MeshLink emits a `CONFIG_CLAMPED` diagnostic for each entry on start.
  */
@@ -199,6 +206,7 @@ public data class MeshLinkConfig(
     val diagnostics: DiagnosticsConfig = DiagnosticsConfig(),
     val rateLimiting: RateLimitConfig = RateLimitConfig(),
     val transfer: TransferConfig = TransferConfig(),
+    val region: RegulatoryRegion = RegulatoryRegion.DEFAULT,
     val clampWarnings: List<String> = emptyList(),
 ) {
 
@@ -257,6 +265,8 @@ public data class MeshLinkConfig(
             appId = appId,
             forceL2cap = transport.forceL2cap,
             forceGatt = transport.forceGatt,
+            advertisementIntervalMillis = transport.advertisementIntervalMillis,
+            scanDutyCyclePercent = transport.scanDutyCyclePercent,
         )
 
     /**
@@ -405,6 +415,8 @@ public class TransportConfigBuilder {
     public var forceGatt: Boolean = false
     public var bootstrapDurationMillis: Long = 30_000L
     public var l2capRetryAttempts: Int = 3
+    public var advertisementIntervalMillis: Long = 250L
+    public var scanDutyCyclePercent: Int = 100
 
     internal fun build(): TransportConfig =
         TransportConfig(
@@ -414,6 +426,8 @@ public class TransportConfigBuilder {
             forceGatt = forceGatt,
             bootstrapDurationMillis = bootstrapDurationMillis,
             l2capRetryAttempts = l2capRetryAttempts,
+            advertisementIntervalMillis = advertisementIntervalMillis,
+            scanDutyCyclePercent = scanDutyCyclePercent,
         )
 }
 
@@ -556,6 +570,13 @@ public class MeshLinkConfigBuilder(private val appId: String) {
     private val rateLimitingBuilder = RateLimitConfigBuilder()
     private val transferBuilder = TransferConfigBuilder()
 
+    private var _region: RegulatoryRegion = RegulatoryRegion.DEFAULT
+
+    /** Set the regulatory region for transport parameter clamping. */
+    public fun region(region: RegulatoryRegion) {
+        _region = region
+    }
+
     /** Configure the messaging subsystem. */
     public fun messaging(block: MessagingConfigBuilder.() -> Unit) {
         messagingBuilder.block()
@@ -655,6 +676,24 @@ public class MeshLinkConfigBuilder(private val appId: String) {
             dedupCapacity = 50_000
         }
 
+        // 5. Regulatory region clamping (EU: ETSI EN 300 328)
+        var advertisementIntervalMillis = transportBuilder.advertisementIntervalMillis
+        var scanDutyCyclePercent = transportBuilder.scanDutyCyclePercent
+        if (_region == RegulatoryRegion.EU) {
+            if (advertisementIntervalMillis < 300L) {
+                clampWarnings.add(
+                    "advertisementIntervalMillis: clamped $advertisementIntervalMillis → 300 (EU minimum 300 ms)"
+                )
+                advertisementIntervalMillis = 300L
+            }
+            if (scanDutyCyclePercent > 70) {
+                clampWarnings.add(
+                    "scanDutyCyclePercent: clamped $scanDutyCyclePercent → 70 (EU maximum 70%)"
+                )
+                scanDutyCyclePercent = 70
+            }
+        }
+
         // ── Safety-critical validation (throws) ───────────────────────────────
         // Evaluated after clamps so bufferCapacity has already been raised to ≥ 64 KB.
         if (maxMessageSize > bufferCapacity) {
@@ -681,13 +720,20 @@ public class MeshLinkConfigBuilder(private val appId: String) {
         return MeshLinkConfig(
             appId = appId,
             messaging = messaging,
-            transport = transportBuilder.build(),
+            transport =
+                transportBuilder
+                    .build()
+                    .copy(
+                        advertisementIntervalMillis = advertisementIntervalMillis,
+                        scanDutyCyclePercent = scanDutyCyclePercent,
+                    ),
             security = securityBuilder.build(),
             power = powerBuilder.build(),
             routing = routing,
             diagnostics = diagnosticsBuilder.build(),
             rateLimiting = rateLimitingBuilder.build(),
             transfer = transferBuilder.build(),
+            region = _region,
             clampWarnings = clampWarnings,
         )
     }

@@ -99,6 +99,17 @@ final enum class ch.trancee.meshlink.api/PeerState : kotlin/Enum<ch.trancee.mesh
     final fun values(): kotlin/Array<ch.trancee.meshlink.api/PeerState> // ch.trancee.meshlink.api/PeerState.values|values#static(){}[0]
 }
 
+final enum class ch.trancee.meshlink.api/RegulatoryRegion : kotlin/Enum<ch.trancee.meshlink.api/RegulatoryRegion> { // ch.trancee.meshlink.api/RegulatoryRegion|null[0]
+    enum entry DEFAULT // ch.trancee.meshlink.api/RegulatoryRegion.DEFAULT|null[0]
+    enum entry EU // ch.trancee.meshlink.api/RegulatoryRegion.EU|null[0]
+
+    final val entries // ch.trancee.meshlink.api/RegulatoryRegion.entries|#static{}entries[0]
+        final fun <get-entries>(): kotlin.enums/EnumEntries<ch.trancee.meshlink.api/RegulatoryRegion> // ch.trancee.meshlink.api/RegulatoryRegion.entries.<get-entries>|<get-entries>#static(){}[0]
+
+    final fun valueOf(kotlin/String): ch.trancee.meshlink.api/RegulatoryRegion // ch.trancee.meshlink.api/RegulatoryRegion.valueOf|valueOf#static(kotlin.String){}[0]
+    final fun values(): kotlin/Array<ch.trancee.meshlink.api/RegulatoryRegion> // ch.trancee.meshlink.api/RegulatoryRegion.values|values#static(){}[0]
+}
+
 final enum class ch.trancee.meshlink.api/TrustMode : kotlin/Enum<ch.trancee.meshlink.api/TrustMode> { // ch.trancee.meshlink.api/TrustMode|null[0]
     enum entry PROMPT // ch.trancee.meshlink.api/TrustMode.PROMPT|null[0]
     enum entry STRICT // ch.trancee.meshlink.api/TrustMode.STRICT|null[0]
@@ -752,7 +763,7 @@ final class ch.trancee.meshlink.api/MeshLink : ch.trancee.meshlink.api/MeshLinkA
 }
 
 final class ch.trancee.meshlink.api/MeshLinkConfig { // ch.trancee.meshlink.api/MeshLinkConfig|null[0]
-    constructor <init>(kotlin/String, ch.trancee.meshlink.api/MessagingConfig = ..., ch.trancee.meshlink.api/TransportConfig = ..., ch.trancee.meshlink.api/SecurityConfig = ..., ch.trancee.meshlink.api/PowerConfig = ..., ch.trancee.meshlink.api/RoutingConfig = ..., ch.trancee.meshlink.api/DiagnosticsConfig = ..., ch.trancee.meshlink.api/RateLimitConfig = ..., ch.trancee.meshlink.api/TransferConfig = ..., kotlin.collections/List<kotlin/String> = ...) // ch.trancee.meshlink.api/MeshLinkConfig.<init>|<init>(kotlin.String;ch.trancee.meshlink.api.MessagingConfig;ch.trancee.meshlink.api.TransportConfig;ch.trancee.meshlink.api.SecurityConfig;ch.trancee.meshlink.api.PowerConfig;ch.trancee.meshlink.api.RoutingConfig;ch.trancee.meshlink.api.DiagnosticsConfig;ch.trancee.meshlink.api.RateLimitConfig;ch.trancee.meshlink.api.TransferConfig;kotlin.collections.List<kotlin.String>){}[0]
+    constructor <init>(kotlin/String, ch.trancee.meshlink.api/MessagingConfig = ..., ch.trancee.meshlink.api/TransportConfig = ..., ch.trancee.meshlink.api/SecurityConfig = ..., ch.trancee.meshlink.api/PowerConfig = ..., ch.trancee.meshlink.api/RoutingConfig = ..., ch.trancee.meshlink.api/DiagnosticsConfig = ..., ch.trancee.meshlink.api/RateLimitConfig = ..., ch.trancee.meshlink.api/TransferConfig = ..., ch.trancee.meshlink.api/RegulatoryRegion = ..., kotlin.collections/List<kotlin/String> = ...) // ch.trancee.meshlink.api/MeshLinkConfig.<init>|<init>(kotlin.String;ch.trancee.meshlink.api.MessagingConfig;ch.trancee.meshlink.api.TransportConfig;ch.trancee.meshlink.api.SecurityConfig;ch.trancee.meshlink.api.PowerConfig;ch.trancee.meshlink.api.RoutingConfig;ch.trancee.meshlink.api.DiagnosticsConfig;ch.trancee.meshlink.api.RateLimitConfig;ch.trancee.meshlink.api.TransferConfig;ch.trancee.meshlink.api.RegulatoryRegion;kotlin.collections.List<kotlin.String>){}[0]
 
     final val appId // ch.trancee.meshlink.api/MeshLinkConfig.appId|{}appId[0]
         final fun <get-appId>(): kotlin/String // ch.trancee.meshlink.api/MeshLinkConfig.appId.<get-appId>|<get-appId>(){}[0]
@@ -766,6 +777,8 @@ final class ch.trancee.meshlink.api/MeshLinkConfig { // ch.trancee.meshlink.api/
         final fun <get-power>(): ch.trancee.meshlink.api/PowerConfig // ch.trancee.meshlink.api/MeshLinkConfig.power.<get-power>|<get-power>(){}[0]
     final val rateLimiting // ch.trancee.meshlink.api/MeshLinkConfig.rateLimiting|{}rateLimiting[0]
         final fun <get-rateLimiting>(): ch.trancee.meshlink.api/RateLimitConfig // ch.trancee.meshlink.api/MeshLinkConfig.rateLimiting.<get-rateLimiting>|<get-rateLimiting>(){}[0]
+    final val region // ch.trancee.meshlink.api/MeshLinkConfig.region|{}region[0]
+        final fun <get-region>(): ch.trancee.meshlink.api/RegulatoryRegion // ch.trancee.meshlink.api/MeshLinkConfig.region.<get-region>|<get-region>(){}[0]
     final val routing // ch.trancee.meshlink.api/MeshLinkConfig.routing|{}routing[0]
         final fun <get-routing>(): ch.trancee.meshlink.api/RoutingConfig // ch.trancee.meshlink.api/MeshLinkConfig.routing.<get-routing>|<get-routing>(){}[0]
     final val security // ch.trancee.meshlink.api/MeshLinkConfig.security|{}security[0]
@@ -776,7 +789,8 @@ final class ch.trancee.meshlink.api/MeshLinkConfig { // ch.trancee.meshlink.api/
         final fun <get-transport>(): ch.trancee.meshlink.api/TransportConfig // ch.trancee.meshlink.api/MeshLinkConfig.transport.<get-transport>|<get-transport>(){}[0]
 
     final fun component1(): kotlin/String // ch.trancee.meshlink.api/MeshLinkConfig.component1|component1(){}[0]
-    final fun component10(): kotlin.collections/List<kotlin/String> // ch.trancee.meshlink.api/MeshLinkConfig.component10|component10(){}[0]
+    final fun component10(): ch.trancee.meshlink.api/RegulatoryRegion // ch.trancee.meshlink.api/MeshLinkConfig.component10|component10(){}[0]
+    final fun component11(): kotlin.collections/List<kotlin/String> // ch.trancee.meshlink.api/MeshLinkConfig.component11|component11(){}[0]
     final fun component2(): ch.trancee.meshlink.api/MessagingConfig // ch.trancee.meshlink.api/MeshLinkConfig.component2|component2(){}[0]
     final fun component3(): ch.trancee.meshlink.api/TransportConfig // ch.trancee.meshlink.api/MeshLinkConfig.component3|component3(){}[0]
     final fun component4(): ch.trancee.meshlink.api/SecurityConfig // ch.trancee.meshlink.api/MeshLinkConfig.component4|component4(){}[0]
@@ -785,7 +799,7 @@ final class ch.trancee.meshlink.api/MeshLinkConfig { // ch.trancee.meshlink.api/
     final fun component7(): ch.trancee.meshlink.api/DiagnosticsConfig // ch.trancee.meshlink.api/MeshLinkConfig.component7|component7(){}[0]
     final fun component8(): ch.trancee.meshlink.api/RateLimitConfig // ch.trancee.meshlink.api/MeshLinkConfig.component8|component8(){}[0]
     final fun component9(): ch.trancee.meshlink.api/TransferConfig // ch.trancee.meshlink.api/MeshLinkConfig.component9|component9(){}[0]
-    final fun copy(kotlin/String = ..., ch.trancee.meshlink.api/MessagingConfig = ..., ch.trancee.meshlink.api/TransportConfig = ..., ch.trancee.meshlink.api/SecurityConfig = ..., ch.trancee.meshlink.api/PowerConfig = ..., ch.trancee.meshlink.api/RoutingConfig = ..., ch.trancee.meshlink.api/DiagnosticsConfig = ..., ch.trancee.meshlink.api/RateLimitConfig = ..., ch.trancee.meshlink.api/TransferConfig = ..., kotlin.collections/List<kotlin/String> = ...): ch.trancee.meshlink.api/MeshLinkConfig // ch.trancee.meshlink.api/MeshLinkConfig.copy|copy(kotlin.String;ch.trancee.meshlink.api.MessagingConfig;ch.trancee.meshlink.api.TransportConfig;ch.trancee.meshlink.api.SecurityConfig;ch.trancee.meshlink.api.PowerConfig;ch.trancee.meshlink.api.RoutingConfig;ch.trancee.meshlink.api.DiagnosticsConfig;ch.trancee.meshlink.api.RateLimitConfig;ch.trancee.meshlink.api.TransferConfig;kotlin.collections.List<kotlin.String>){}[0]
+    final fun copy(kotlin/String = ..., ch.trancee.meshlink.api/MessagingConfig = ..., ch.trancee.meshlink.api/TransportConfig = ..., ch.trancee.meshlink.api/SecurityConfig = ..., ch.trancee.meshlink.api/PowerConfig = ..., ch.trancee.meshlink.api/RoutingConfig = ..., ch.trancee.meshlink.api/DiagnosticsConfig = ..., ch.trancee.meshlink.api/RateLimitConfig = ..., ch.trancee.meshlink.api/TransferConfig = ..., ch.trancee.meshlink.api/RegulatoryRegion = ..., kotlin.collections/List<kotlin/String> = ...): ch.trancee.meshlink.api/MeshLinkConfig // ch.trancee.meshlink.api/MeshLinkConfig.copy|copy(kotlin.String;ch.trancee.meshlink.api.MessagingConfig;ch.trancee.meshlink.api.TransportConfig;ch.trancee.meshlink.api.SecurityConfig;ch.trancee.meshlink.api.PowerConfig;ch.trancee.meshlink.api.RoutingConfig;ch.trancee.meshlink.api.DiagnosticsConfig;ch.trancee.meshlink.api.RateLimitConfig;ch.trancee.meshlink.api.TransferConfig;ch.trancee.meshlink.api.RegulatoryRegion;kotlin.collections.List<kotlin.String>){}[0]
     final fun equals(kotlin/Any?): kotlin/Boolean // ch.trancee.meshlink.api/MeshLinkConfig.equals|equals(kotlin.Any?){}[0]
     final fun hashCode(): kotlin/Int // ch.trancee.meshlink.api/MeshLinkConfig.hashCode|hashCode(){}[0]
     final fun toString(): kotlin/String // ch.trancee.meshlink.api/MeshLinkConfig.toString|toString(){}[0]
@@ -806,6 +820,7 @@ final class ch.trancee.meshlink.api/MeshLinkConfigBuilder { // ch.trancee.meshli
     final fun messaging(kotlin/Function1<ch.trancee.meshlink.api/MessagingConfigBuilder, kotlin/Unit>) // ch.trancee.meshlink.api/MeshLinkConfigBuilder.messaging|messaging(kotlin.Function1<ch.trancee.meshlink.api.MessagingConfigBuilder,kotlin.Unit>){}[0]
     final fun power(kotlin/Function1<ch.trancee.meshlink.api/PowerConfigBuilder, kotlin/Unit>) // ch.trancee.meshlink.api/MeshLinkConfigBuilder.power|power(kotlin.Function1<ch.trancee.meshlink.api.PowerConfigBuilder,kotlin.Unit>){}[0]
     final fun rateLimiting(kotlin/Function1<ch.trancee.meshlink.api/RateLimitConfigBuilder, kotlin/Unit>) // ch.trancee.meshlink.api/MeshLinkConfigBuilder.rateLimiting|rateLimiting(kotlin.Function1<ch.trancee.meshlink.api.RateLimitConfigBuilder,kotlin.Unit>){}[0]
+    final fun region(ch.trancee.meshlink.api/RegulatoryRegion) // ch.trancee.meshlink.api/MeshLinkConfigBuilder.region|region(ch.trancee.meshlink.api.RegulatoryRegion){}[0]
     final fun routing(kotlin/Function1<ch.trancee.meshlink.api/RoutingConfigBuilder, kotlin/Unit>) // ch.trancee.meshlink.api/MeshLinkConfigBuilder.routing|routing(kotlin.Function1<ch.trancee.meshlink.api.RoutingConfigBuilder,kotlin.Unit>){}[0]
     final fun security(kotlin/Function1<ch.trancee.meshlink.api/SecurityConfigBuilder, kotlin/Unit>) // ch.trancee.meshlink.api/MeshLinkConfigBuilder.security|security(kotlin.Function1<ch.trancee.meshlink.api.SecurityConfigBuilder,kotlin.Unit>){}[0]
     final fun transfer(kotlin/Function1<ch.trancee.meshlink.api/TransferConfigBuilder, kotlin/Unit>) // ch.trancee.meshlink.api/MeshLinkConfigBuilder.transfer|transfer(kotlin.Function1<ch.trancee.meshlink.api.TransferConfigBuilder,kotlin.Unit>){}[0]
@@ -1198,8 +1213,10 @@ final class ch.trancee.meshlink.api/TransferProgress { // ch.trancee.meshlink.ap
 }
 
 final class ch.trancee.meshlink.api/TransportConfig { // ch.trancee.meshlink.api/TransportConfig|null[0]
-    constructor <init>(kotlin/Int = ..., kotlin/Boolean = ..., kotlin/Boolean = ..., kotlin/Boolean = ..., kotlin/Long = ..., kotlin/Int = ...) // ch.trancee.meshlink.api/TransportConfig.<init>|<init>(kotlin.Int;kotlin.Boolean;kotlin.Boolean;kotlin.Boolean;kotlin.Long;kotlin.Int){}[0]
+    constructor <init>(kotlin/Int = ..., kotlin/Boolean = ..., kotlin/Boolean = ..., kotlin/Boolean = ..., kotlin/Long = ..., kotlin/Int = ..., kotlin/Long = ..., kotlin/Int = ...) // ch.trancee.meshlink.api/TransportConfig.<init>|<init>(kotlin.Int;kotlin.Boolean;kotlin.Boolean;kotlin.Boolean;kotlin.Long;kotlin.Int;kotlin.Long;kotlin.Int){}[0]
 
+    final val advertisementIntervalMillis // ch.trancee.meshlink.api/TransportConfig.advertisementIntervalMillis|{}advertisementIntervalMillis[0]
+        final fun <get-advertisementIntervalMillis>(): kotlin/Long // ch.trancee.meshlink.api/TransportConfig.advertisementIntervalMillis.<get-advertisementIntervalMillis>|<get-advertisementIntervalMillis>(){}[0]
     final val bootstrapDurationMillis // ch.trancee.meshlink.api/TransportConfig.bootstrapDurationMillis|{}bootstrapDurationMillis[0]
         final fun <get-bootstrapDurationMillis>(): kotlin/Long // ch.trancee.meshlink.api/TransportConfig.bootstrapDurationMillis.<get-bootstrapDurationMillis>|<get-bootstrapDurationMillis>(){}[0]
     final val forceGatt // ch.trancee.meshlink.api/TransportConfig.forceGatt|{}forceGatt[0]
@@ -1212,6 +1229,8 @@ final class ch.trancee.meshlink.api/TransportConfig { // ch.trancee.meshlink.api
         final fun <get-l2capRetryAttempts>(): kotlin/Int // ch.trancee.meshlink.api/TransportConfig.l2capRetryAttempts.<get-l2capRetryAttempts>|<get-l2capRetryAttempts>(){}[0]
     final val mtu // ch.trancee.meshlink.api/TransportConfig.mtu|{}mtu[0]
         final fun <get-mtu>(): kotlin/Int // ch.trancee.meshlink.api/TransportConfig.mtu.<get-mtu>|<get-mtu>(){}[0]
+    final val scanDutyCyclePercent // ch.trancee.meshlink.api/TransportConfig.scanDutyCyclePercent|{}scanDutyCyclePercent[0]
+        final fun <get-scanDutyCyclePercent>(): kotlin/Int // ch.trancee.meshlink.api/TransportConfig.scanDutyCyclePercent.<get-scanDutyCyclePercent>|<get-scanDutyCyclePercent>(){}[0]
 
     final fun component1(): kotlin/Int // ch.trancee.meshlink.api/TransportConfig.component1|component1(){}[0]
     final fun component2(): kotlin/Boolean // ch.trancee.meshlink.api/TransportConfig.component2|component2(){}[0]
@@ -1219,7 +1238,9 @@ final class ch.trancee.meshlink.api/TransportConfig { // ch.trancee.meshlink.api
     final fun component4(): kotlin/Boolean // ch.trancee.meshlink.api/TransportConfig.component4|component4(){}[0]
     final fun component5(): kotlin/Long // ch.trancee.meshlink.api/TransportConfig.component5|component5(){}[0]
     final fun component6(): kotlin/Int // ch.trancee.meshlink.api/TransportConfig.component6|component6(){}[0]
-    final fun copy(kotlin/Int = ..., kotlin/Boolean = ..., kotlin/Boolean = ..., kotlin/Boolean = ..., kotlin/Long = ..., kotlin/Int = ...): ch.trancee.meshlink.api/TransportConfig // ch.trancee.meshlink.api/TransportConfig.copy|copy(kotlin.Int;kotlin.Boolean;kotlin.Boolean;kotlin.Boolean;kotlin.Long;kotlin.Int){}[0]
+    final fun component7(): kotlin/Long // ch.trancee.meshlink.api/TransportConfig.component7|component7(){}[0]
+    final fun component8(): kotlin/Int // ch.trancee.meshlink.api/TransportConfig.component8|component8(){}[0]
+    final fun copy(kotlin/Int = ..., kotlin/Boolean = ..., kotlin/Boolean = ..., kotlin/Boolean = ..., kotlin/Long = ..., kotlin/Int = ..., kotlin/Long = ..., kotlin/Int = ...): ch.trancee.meshlink.api/TransportConfig // ch.trancee.meshlink.api/TransportConfig.copy|copy(kotlin.Int;kotlin.Boolean;kotlin.Boolean;kotlin.Boolean;kotlin.Long;kotlin.Int;kotlin.Long;kotlin.Int){}[0]
     final fun equals(kotlin/Any?): kotlin/Boolean // ch.trancee.meshlink.api/TransportConfig.equals|equals(kotlin.Any?){}[0]
     final fun hashCode(): kotlin/Int // ch.trancee.meshlink.api/TransportConfig.hashCode|hashCode(){}[0]
     final fun toString(): kotlin/String // ch.trancee.meshlink.api/TransportConfig.toString|toString(){}[0]
@@ -1228,6 +1249,9 @@ final class ch.trancee.meshlink.api/TransportConfig { // ch.trancee.meshlink.api
 final class ch.trancee.meshlink.api/TransportConfigBuilder { // ch.trancee.meshlink.api/TransportConfigBuilder|null[0]
     constructor <init>() // ch.trancee.meshlink.api/TransportConfigBuilder.<init>|<init>(){}[0]
 
+    final var advertisementIntervalMillis // ch.trancee.meshlink.api/TransportConfigBuilder.advertisementIntervalMillis|{}advertisementIntervalMillis[0]
+        final fun <get-advertisementIntervalMillis>(): kotlin/Long // ch.trancee.meshlink.api/TransportConfigBuilder.advertisementIntervalMillis.<get-advertisementIntervalMillis>|<get-advertisementIntervalMillis>(){}[0]
+        final fun <set-advertisementIntervalMillis>(kotlin/Long) // ch.trancee.meshlink.api/TransportConfigBuilder.advertisementIntervalMillis.<set-advertisementIntervalMillis>|<set-advertisementIntervalMillis>(kotlin.Long){}[0]
     final var bootstrapDurationMillis // ch.trancee.meshlink.api/TransportConfigBuilder.bootstrapDurationMillis|{}bootstrapDurationMillis[0]
         final fun <get-bootstrapDurationMillis>(): kotlin/Long // ch.trancee.meshlink.api/TransportConfigBuilder.bootstrapDurationMillis.<get-bootstrapDurationMillis>|<get-bootstrapDurationMillis>(){}[0]
         final fun <set-bootstrapDurationMillis>(kotlin/Long) // ch.trancee.meshlink.api/TransportConfigBuilder.bootstrapDurationMillis.<set-bootstrapDurationMillis>|<set-bootstrapDurationMillis>(kotlin.Long){}[0]
@@ -1246,6 +1270,9 @@ final class ch.trancee.meshlink.api/TransportConfigBuilder { // ch.trancee.meshl
     final var mtu // ch.trancee.meshlink.api/TransportConfigBuilder.mtu|{}mtu[0]
         final fun <get-mtu>(): kotlin/Int // ch.trancee.meshlink.api/TransportConfigBuilder.mtu.<get-mtu>|<get-mtu>(){}[0]
         final fun <set-mtu>(kotlin/Int) // ch.trancee.meshlink.api/TransportConfigBuilder.mtu.<set-mtu>|<set-mtu>(kotlin.Int){}[0]
+    final var scanDutyCyclePercent // ch.trancee.meshlink.api/TransportConfigBuilder.scanDutyCyclePercent|{}scanDutyCyclePercent[0]
+        final fun <get-scanDutyCyclePercent>(): kotlin/Int // ch.trancee.meshlink.api/TransportConfigBuilder.scanDutyCyclePercent.<get-scanDutyCyclePercent>|<get-scanDutyCyclePercent>(){}[0]
+        final fun <set-scanDutyCyclePercent>(kotlin/Int) // ch.trancee.meshlink.api/TransportConfigBuilder.scanDutyCyclePercent.<set-scanDutyCyclePercent>|<set-scanDutyCyclePercent>(kotlin.Int){}[0]
 }
 
 final value class ch.trancee.meshlink.api/PeerIdHex { // ch.trancee.meshlink.api/PeerIdHex|null[0]
