@@ -78,6 +78,30 @@ jobs:
           name: coverage-report
           path: meshlink/build/reports/kover/html/
 
+  docs:
+    name: Docs Link Check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install markdown-link-check
+        run: npm install -g markdown-link-check@3
+      - name: Check links in docs/
+        run: |
+          set +e
+          EXIT=0
+          while IFS= read -r file; do
+            echo "::group::$file"
+            markdown-link-check "$file" --config .github/mlc-config.json --quiet
+            if [ $? -ne 0 ]; then EXIT=1; fi
+            echo "::endgroup::"
+          done < <(find docs/ README.md SPEC.md -name '*.md' -type f | sort)
+          exit $EXIT
+
   benchmark:
     name: Benchmark
     runs-on: ubuntu-latest
