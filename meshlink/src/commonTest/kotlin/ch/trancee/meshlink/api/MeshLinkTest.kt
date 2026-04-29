@@ -609,7 +609,7 @@ class MeshLinkTest {
         assertTrue(recvMsg == recvMsg)
 
         // PeerEvent.Found / Lost
-        val detail = PeerDetail(id12, id32, "aa", true, 0L, TrustMode.STRICT)
+        val detail = PeerDetail(id12, id32, "aa", PeerState.CONNECTED, 0L, TrustMode.STRICT)
         val found = PeerEvent.Found(id12, detail)
         val lost = PeerEvent.Lost(id12)
         assertFalse(found.equals(null))
@@ -680,18 +680,23 @@ class MeshLinkTest {
         val peerId = ByteArray(12) { it.toByte() }
         val event = ch.trancee.meshlink.routing.PeerEvent.Connected(peerId)
         val result = mapPeerEvent(event) { 42L }
-        assertIs<PeerEvent.Found>(result)
-        assertTrue(result.id.contentEquals(peerId))
-        assertEquals(42L, result.detail.lastSeenTimestampMillis)
+        assertEquals(2, result.size)
+        assertIs<PeerEvent.Found>(result[0])
+        assertTrue((result[0] as PeerEvent.Found).id.contentEquals(peerId))
+        assertEquals(42L, (result[0] as PeerEvent.Found).detail.lastSeenTimestampMillis)
+        assertIs<PeerEvent.StateChanged>(result[1])
+        assertEquals(PeerState.CONNECTED, (result[1] as PeerEvent.StateChanged).state)
     }
 
     @Test
-    fun `mapPeerEvent Disconnected produces Lost`() {
+    fun `mapPeerEvent Disconnected produces StateChanged DISCONNECTED`() {
         val peerId = ByteArray(12) { it.toByte() }
         val event = ch.trancee.meshlink.routing.PeerEvent.Disconnected(peerId)
         val result = mapPeerEvent(event) { 0L }
-        assertIs<PeerEvent.Lost>(result)
-        assertTrue(result.id.contentEquals(peerId))
+        assertEquals(1, result.size)
+        assertIs<PeerEvent.StateChanged>(result[0])
+        assertEquals(PeerState.DISCONNECTED, (result[0] as PeerEvent.StateChanged).state)
+        assertTrue((result[0] as PeerEvent.StateChanged).id.contentEquals(peerId))
     }
 
     @Test

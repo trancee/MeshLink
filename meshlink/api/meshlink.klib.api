@@ -88,6 +88,17 @@ final enum class ch.trancee.meshlink.api/MessagePriority : kotlin/Enum<ch.trance
     final fun values(): kotlin/Array<ch.trancee.meshlink.api/MessagePriority> // ch.trancee.meshlink.api/MessagePriority.values|values#static(){}[0]
 }
 
+final enum class ch.trancee.meshlink.api/PeerState : kotlin/Enum<ch.trancee.meshlink.api/PeerState> { // ch.trancee.meshlink.api/PeerState|null[0]
+    enum entry CONNECTED // ch.trancee.meshlink.api/PeerState.CONNECTED|null[0]
+    enum entry DISCONNECTED // ch.trancee.meshlink.api/PeerState.DISCONNECTED|null[0]
+
+    final val entries // ch.trancee.meshlink.api/PeerState.entries|#static{}entries[0]
+        final fun <get-entries>(): kotlin.enums/EnumEntries<ch.trancee.meshlink.api/PeerState> // ch.trancee.meshlink.api/PeerState.entries.<get-entries>|<get-entries>#static(){}[0]
+
+    final fun valueOf(kotlin/String): ch.trancee.meshlink.api/PeerState // ch.trancee.meshlink.api/PeerState.valueOf|valueOf#static(kotlin.String){}[0]
+    final fun values(): kotlin/Array<ch.trancee.meshlink.api/PeerState> // ch.trancee.meshlink.api/PeerState.values|values#static(){}[0]
+}
+
 final enum class ch.trancee.meshlink.api/TrustMode : kotlin/Enum<ch.trancee.meshlink.api/TrustMode> { // ch.trancee.meshlink.api/TrustMode|null[0]
     enum entry PROMPT // ch.trancee.meshlink.api/TrustMode.PROMPT|null[0]
     enum entry STRICT // ch.trancee.meshlink.api/TrustMode.STRICT|null[0]
@@ -854,7 +865,7 @@ final class ch.trancee.meshlink.api/MessagingConfigBuilder { // ch.trancee.meshl
 }
 
 final class ch.trancee.meshlink.api/PeerDetail { // ch.trancee.meshlink.api/PeerDetail|null[0]
-    constructor <init>(kotlin/ByteArray, kotlin/ByteArray, kotlin/String, kotlin/Boolean, kotlin/Long, ch.trancee.meshlink.api/TrustMode) // ch.trancee.meshlink.api/PeerDetail.<init>|<init>(kotlin.ByteArray;kotlin.ByteArray;kotlin.String;kotlin.Boolean;kotlin.Long;ch.trancee.meshlink.api.TrustMode){}[0]
+    constructor <init>(kotlin/ByteArray, kotlin/ByteArray, kotlin/String, ch.trancee.meshlink.api/PeerState, kotlin/Long, ch.trancee.meshlink.api/TrustMode) // ch.trancee.meshlink.api/PeerDetail.<init>|<init>(kotlin.ByteArray;kotlin.ByteArray;kotlin.String;ch.trancee.meshlink.api.PeerState;kotlin.Long;ch.trancee.meshlink.api.TrustMode){}[0]
 
     final val fingerprint // ch.trancee.meshlink.api/PeerDetail.fingerprint|{}fingerprint[0]
         final fun <get-fingerprint>(): kotlin/String // ch.trancee.meshlink.api/PeerDetail.fingerprint.<get-fingerprint>|<get-fingerprint>(){}[0]
@@ -864,6 +875,8 @@ final class ch.trancee.meshlink.api/PeerDetail { // ch.trancee.meshlink.api/Peer
         final fun <get-isConnected>(): kotlin/Boolean // ch.trancee.meshlink.api/PeerDetail.isConnected.<get-isConnected>|<get-isConnected>(){}[0]
     final val lastSeenTimestampMillis // ch.trancee.meshlink.api/PeerDetail.lastSeenTimestampMillis|{}lastSeenTimestampMillis[0]
         final fun <get-lastSeenTimestampMillis>(): kotlin/Long // ch.trancee.meshlink.api/PeerDetail.lastSeenTimestampMillis.<get-lastSeenTimestampMillis>|<get-lastSeenTimestampMillis>(){}[0]
+    final val state // ch.trancee.meshlink.api/PeerDetail.state|{}state[0]
+        final fun <get-state>(): ch.trancee.meshlink.api/PeerState // ch.trancee.meshlink.api/PeerDetail.state.<get-state>|<get-state>(){}[0]
     final val staticPublicKey // ch.trancee.meshlink.api/PeerDetail.staticPublicKey|{}staticPublicKey[0]
         final fun <get-staticPublicKey>(): kotlin/ByteArray // ch.trancee.meshlink.api/PeerDetail.staticPublicKey.<get-staticPublicKey>|<get-staticPublicKey>(){}[0]
     final val trustMode // ch.trancee.meshlink.api/PeerDetail.trustMode|{}trustMode[0]
@@ -872,10 +885,10 @@ final class ch.trancee.meshlink.api/PeerDetail { // ch.trancee.meshlink.api/Peer
     final fun component1(): kotlin/ByteArray // ch.trancee.meshlink.api/PeerDetail.component1|component1(){}[0]
     final fun component2(): kotlin/ByteArray // ch.trancee.meshlink.api/PeerDetail.component2|component2(){}[0]
     final fun component3(): kotlin/String // ch.trancee.meshlink.api/PeerDetail.component3|component3(){}[0]
-    final fun component4(): kotlin/Boolean // ch.trancee.meshlink.api/PeerDetail.component4|component4(){}[0]
+    final fun component4(): ch.trancee.meshlink.api/PeerState // ch.trancee.meshlink.api/PeerDetail.component4|component4(){}[0]
     final fun component5(): kotlin/Long // ch.trancee.meshlink.api/PeerDetail.component5|component5(){}[0]
     final fun component6(): ch.trancee.meshlink.api/TrustMode // ch.trancee.meshlink.api/PeerDetail.component6|component6(){}[0]
-    final fun copy(kotlin/ByteArray = ..., kotlin/ByteArray = ..., kotlin/String = ..., kotlin/Boolean = ..., kotlin/Long = ..., ch.trancee.meshlink.api/TrustMode = ...): ch.trancee.meshlink.api/PeerDetail // ch.trancee.meshlink.api/PeerDetail.copy|copy(kotlin.ByteArray;kotlin.ByteArray;kotlin.String;kotlin.Boolean;kotlin.Long;ch.trancee.meshlink.api.TrustMode){}[0]
+    final fun copy(kotlin/ByteArray = ..., kotlin/ByteArray = ..., kotlin/String = ..., ch.trancee.meshlink.api/PeerState = ..., kotlin/Long = ..., ch.trancee.meshlink.api/TrustMode = ...): ch.trancee.meshlink.api/PeerDetail // ch.trancee.meshlink.api/PeerDetail.copy|copy(kotlin.ByteArray;kotlin.ByteArray;kotlin.String;ch.trancee.meshlink.api.PeerState;kotlin.Long;ch.trancee.meshlink.api.TrustMode){}[0]
     final fun equals(kotlin/Any?): kotlin/Boolean // ch.trancee.meshlink.api/PeerDetail.equals|equals(kotlin.Any?){}[0]
     final fun hashCode(): kotlin/Int // ch.trancee.meshlink.api/PeerDetail.hashCode|hashCode(){}[0]
     final fun toString(): kotlin/String // ch.trancee.meshlink.api/PeerDetail.toString|toString(){}[0]
@@ -1274,6 +1287,22 @@ sealed class ch.trancee.meshlink.api/PeerEvent { // ch.trancee.meshlink.api/Peer
         final fun equals(kotlin/Any?): kotlin/Boolean // ch.trancee.meshlink.api/PeerEvent.Lost.equals|equals(kotlin.Any?){}[0]
         final fun hashCode(): kotlin/Int // ch.trancee.meshlink.api/PeerEvent.Lost.hashCode|hashCode(){}[0]
         final fun toString(): kotlin/String // ch.trancee.meshlink.api/PeerEvent.Lost.toString|toString(){}[0]
+    }
+
+    final class StateChanged : ch.trancee.meshlink.api/PeerEvent { // ch.trancee.meshlink.api/PeerEvent.StateChanged|null[0]
+        constructor <init>(kotlin/ByteArray, ch.trancee.meshlink.api/PeerState) // ch.trancee.meshlink.api/PeerEvent.StateChanged.<init>|<init>(kotlin.ByteArray;ch.trancee.meshlink.api.PeerState){}[0]
+
+        final val id // ch.trancee.meshlink.api/PeerEvent.StateChanged.id|{}id[0]
+            final fun <get-id>(): kotlin/ByteArray // ch.trancee.meshlink.api/PeerEvent.StateChanged.id.<get-id>|<get-id>(){}[0]
+        final val state // ch.trancee.meshlink.api/PeerEvent.StateChanged.state|{}state[0]
+            final fun <get-state>(): ch.trancee.meshlink.api/PeerState // ch.trancee.meshlink.api/PeerEvent.StateChanged.state.<get-state>|<get-state>(){}[0]
+
+        final fun component1(): kotlin/ByteArray // ch.trancee.meshlink.api/PeerEvent.StateChanged.component1|component1(){}[0]
+        final fun component2(): ch.trancee.meshlink.api/PeerState // ch.trancee.meshlink.api/PeerEvent.StateChanged.component2|component2(){}[0]
+        final fun copy(kotlin/ByteArray = ..., ch.trancee.meshlink.api/PeerState = ...): ch.trancee.meshlink.api/PeerEvent.StateChanged // ch.trancee.meshlink.api/PeerEvent.StateChanged.copy|copy(kotlin.ByteArray;ch.trancee.meshlink.api.PeerState){}[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // ch.trancee.meshlink.api/PeerEvent.StateChanged.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // ch.trancee.meshlink.api/PeerEvent.StateChanged.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // ch.trancee.meshlink.api/PeerEvent.StateChanged.toString|toString(){}[0]
     }
 }
 

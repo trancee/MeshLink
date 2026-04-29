@@ -370,6 +370,39 @@ internal class DeliveryPipeline(
         return messageId
     }
 
+    /**
+     * Cancels all pending messages for [peerId] — called by MeshStateManager on Gone transition.
+     *
+     * Removes matching entries from [sendBuffer] (emitting [DeliveryFailed] TIMED_OUT for each),
+     * [pendingDeliveries], and [ownUnicastSessions].
+     */
+    internal fun cancelMessagesFor(peerId: ByteArray) {
+        // 1. Drain matching entries from sendBuffer.
+        val bufferIt = sendBuffer.iterator()
+        while (bufferIt.hasNext()) {
+            val entry = bufferIt.next()
+            if (entry.recipientId.contentEquals(peerId)) {
+                bufferIt.remove()
+                pendingDeliveries.remove(MessageIdKey(entry.messageId))
+                ownUnicastSessions.remove(MessageIdKey(entry.messageId))
+                _transferFailures.tryEmit(
+                    DeliveryFailed(entry.messageId, DeliveryOutcome.TIMED_OUT)
+                )
+            }
+        }
+
+        // 2. Drain matching entries from pendingDeliveries.
+        val pendingIt = pendingDeliveries.entries.iterator()
+        while (pendingIt.hasNext()) {
+            val (key, pending) = pendingIt.next()
+            if (pending.recipientId.contentEquals(peerId)) {
+                pendingIt.remove()
+                ownUnicastSessions.remove(key)
+                _transferFailures.tryEmit(DeliveryFailed(key.bytes, DeliveryOutcome.TIMED_OUT))
+            }
+        }
+    }
+
     // ── Inbound handlers ──────────────────────────────────────────────────────
 
     private suspend fun handleIncomingData(fromPeerId: ByteArray, data: ByteArray) {

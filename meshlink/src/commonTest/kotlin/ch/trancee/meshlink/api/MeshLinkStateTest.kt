@@ -594,8 +594,16 @@ class MeshLinkStateTest {
     fun `PeerDetail - content equality via id`() {
         val id = byteArrayOf(1, 2, 3)
         val key = byteArrayOf(4, 5, 6)
-        val d1 = PeerDetail(id, key, "abc", true, 1000L, TrustMode.STRICT)
-        val d2 = PeerDetail(id.copyOf(), key.copyOf(), "xyz", false, 2000L, TrustMode.STRICT)
+        val d1 = PeerDetail(id, key, "abc", PeerState.CONNECTED, 1000L, TrustMode.STRICT)
+        val d2 =
+            PeerDetail(
+                id.copyOf(),
+                key.copyOf(),
+                "xyz",
+                PeerState.DISCONNECTED,
+                2000L,
+                TrustMode.STRICT,
+            )
         assertEquals(d1, d2) // same id bytes → equal
         assertEquals(d1.hashCode(), d2.hashCode())
         assertTrue(d1.toString().contains("abc"))
@@ -603,8 +611,24 @@ class MeshLinkStateTest {
 
     @Test
     fun `PeerDetail - different ids not equal`() {
-        val d1 = PeerDetail(byteArrayOf(1), byteArrayOf(9), "fp1", true, 0L, TrustMode.STRICT)
-        val d2 = PeerDetail(byteArrayOf(2), byteArrayOf(9), "fp2", true, 0L, TrustMode.STRICT)
+        val d1 =
+            PeerDetail(
+                byteArrayOf(1),
+                byteArrayOf(9),
+                "fp1",
+                PeerState.CONNECTED,
+                0L,
+                TrustMode.STRICT,
+            )
+        val d2 =
+            PeerDetail(
+                byteArrayOf(2),
+                byteArrayOf(9),
+                "fp2",
+                PeerState.CONNECTED,
+                0L,
+                TrustMode.STRICT,
+            )
         assertFalse(d1 == d2)
     }
 
@@ -642,7 +666,8 @@ class MeshLinkStateTest {
     @Test
     fun `PeerEvent Found - content equality`() {
         val id = byteArrayOf(7, 8, 9)
-        val detail = PeerDetail(id, byteArrayOf(10), "fp", true, 0L, TrustMode.STRICT)
+        val detail =
+            PeerDetail(id, byteArrayOf(10), "fp", PeerState.CONNECTED, 0L, TrustMode.STRICT)
         val e1 = PeerEvent.Found(id, detail)
         val e2 = PeerEvent.Found(id.copyOf(), detail)
         assertEquals(e1, e2)

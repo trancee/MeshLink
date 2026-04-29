@@ -89,8 +89,36 @@ internal class RouteCoordinator(
     // Per-neighbour state keyed by peerId.asList() for content-equality semantics (MEM047).
     private val neighborStates: HashMap<List<Byte>, NeighborState> = HashMap()
 
+    // Per-destination seqNo counter — monotonically incrementing on each route re-installation
+    // to ensure differential routing propagation after reconnect (D044, MEM239).
+    private val destinationSeqNos: HashMap<List<Byte>, UShort> = HashMap()
+
     // Rate-limit on-demand discovery: destKey → lastDiscoveryAttemptMillis.
     private val discoveryAttempts: HashMap<List<Byte>, Long> = HashMap()
+
+    // ── seqNo helpers ─────────────────────────────────────────────────────────
+
+    /**
+     * Returns the next monotonically-increasing sequence number for [peerId].
+     *
+     * First connection returns 1u; subsequent reconnects increment from the last value. Ensures
+     * differential routing sees a change and re-propagates routes (MEM239, D044).
+     */
+    internal fun nextSeqNoFor(peerId: ByteArray): UShort {
+        val key = peerId.asList()
+        val current = destinationSeqNos[key] ?: 0u
+        val next = (current + 1u).toUShort()
+        destinationSeqNos[key] = next
+        return next
+    }
+
+    /**
+     * Removes the seqNo counter for [peerId]. Called on Gone cleanup so the next connection after
+     * full eviction starts fresh at 1u.
+     */
+    internal fun removeSeqNo(peerId: ByteArray) {
+        destinationSeqNos.remove(peerId.asList())
+    }
 
     // ── onPeerConnected ───────────────────────────────────────────────────────
 
@@ -114,7 +142,7 @@ internal class RouteCoordinator(
                 destination = peerInfo.peerId,
                 nextHop = peerInfo.peerId,
                 metric = linkCost,
-                seqNo = 0u,
+                seqNo = nextSeqNoFor(peerInfo.peerId),
                 feasibilityDistance = linkCost,
                 expiresAt = clock() + config.routeExpiryMillis,
                 ed25519PublicKey = ByteArray(32),

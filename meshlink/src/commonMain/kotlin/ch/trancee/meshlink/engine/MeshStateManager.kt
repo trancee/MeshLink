@@ -40,6 +40,7 @@ internal class MeshStateManager(
     private val presenceTracker: PresenceTracker,
     private val routeCoordinator: RouteCoordinator,
     private val powerManager: PowerManager,
+    private val deliveryPipeline: ch.trancee.meshlink.messaging.DeliveryPipeline? = null,
     private val diagnosticSink: DiagnosticSinkApi = NoOpDiagnosticSink,
     private val sweepIntervalMillis: Long = 30_000L,
 ) {
@@ -93,6 +94,12 @@ internal class MeshStateManager(
 
                     // Route retraction + neighbor removal.
                     routeCoordinator.onPeerDisconnected(peerId)
+
+                    // Remove per-destination seqNo counter (D044).
+                    routeCoordinator.removeSeqNo(peerId)
+
+                    // Cancel pending messages for the gone peer.
+                    deliveryPipeline?.cancelMessagesFor(peerId)
 
                     // Release the power connection slot.
                     powerManager.releaseConnection(peerId)

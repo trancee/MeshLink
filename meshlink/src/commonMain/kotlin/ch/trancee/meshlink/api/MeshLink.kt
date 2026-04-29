@@ -25,6 +25,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.transform
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -186,7 +187,8 @@ internal constructor(
 
     // ── Event streams ──────────────────────────────────────────────────────
 
-    override val peers: Flow<PeerEvent> = engine.peerEvents.map { mapPeerEvent(it, clock) }
+    override val peers: Flow<PeerEvent> =
+        engine.peerEvents.transform { event -> for (e in mapPeerEvent(event, clock)) emit(e) }
 
     override val messages: Flow<ReceivedMessage> = engine.messages.map(::mapInboundMessage)
 
@@ -495,33 +497,41 @@ internal fun ByteArray.toHexString(): String =
 // ── Flow property mappers (extracted for testability — M005/S01) ──────────
 
 /**
- * Maps engine-level [ch.trancee.meshlink.routing.PeerEvent] to the public [PeerEvent] type.
- * Extracted from the inline `.map { }` lambda so Kover can instrument and verify coverage of each
- * branch without coroutine FlowCollector phantom branches.
+ * Maps engine-level [ch.trancee.meshlink.routing.PeerEvent] to a list of public [PeerEvent]s.
+ *
+ * - Connected → [Found, StateChanged(CONNECTED)]
+ * - Disconnected → [StateChanged(DISCONNECTED)]
+ * - Gone → [Lost]
+ *
+ * Per MEM271: Gone emits only Lost (no StateChanged with a non-existent GONE value).
  */
 internal fun mapPeerEvent(
     event: ch.trancee.meshlink.routing.PeerEvent,
     clock: () -> Long,
-): PeerEvent =
+): List<PeerEvent> =
     when (event) {
         is ch.trancee.meshlink.routing.PeerEvent.Connected -> {
             // staticPublicKey wired to TrustStore in S02; stub with empty key for S01.
             val stubKey = ByteArray(32)
-            PeerEvent.Found(
-                id = event.peerId,
-                detail =
-                    PeerDetail(
-                        id = event.peerId,
-                        staticPublicKey = stubKey,
-                        fingerprint = event.peerId.toHexString(),
-                        isConnected = true,
-                        lastSeenTimestampMillis = clock(),
-                        trustMode = TrustMode.STRICT,
-                    ),
+            listOf(
+                PeerEvent.Found(
+                    id = event.peerId,
+                    detail =
+                        PeerDetail(
+                            id = event.peerId,
+                            staticPublicKey = stubKey,
+                            fingerprint = event.peerId.toHexString(),
+                            state = PeerState.CONNECTED,
+                            lastSeenTimestampMillis = clock(),
+                            trustMode = TrustMode.STRICT,
+                        ),
+                ),
+                PeerEvent.StateChanged(id = event.peerId, state = PeerState.CONNECTED),
             )
         }
-        is ch.trancee.meshlink.routing.PeerEvent.Disconnected -> PeerEvent.Lost(event.peerId)
-        is ch.trancee.meshlink.routing.PeerEvent.Gone -> PeerEvent.Lost(event.peerId)
+        is ch.trancee.meshlink.routing.PeerEvent.Disconnected ->
+            listOf(PeerEvent.StateChanged(id = event.peerId, state = PeerState.DISCONNECTED))
+        is ch.trancee.meshlink.routing.PeerEvent.Gone -> listOf(PeerEvent.Lost(event.peerId))
     }
 
 /** Maps engine-level [ch.trancee.meshlink.messaging.InboundMessage] to [ReceivedMessage]. */

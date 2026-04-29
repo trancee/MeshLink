@@ -86,6 +86,22 @@ public sealed class PeerEvent {
 
         override fun hashCode(): Int = id.contentHashCode()
     }
+
+    /**
+     * A peer's lifecycle state changed (connected ↔ disconnected).
+     *
+     * Emitted alongside [Found] on initial connection, and on subsequent BLE link drops /
+     * reconnects within the grace period.
+     *
+     * @param id Key hash (12 bytes) of the peer.
+     * @param state The peer's new lifecycle state.
+     */
+    public data class StateChanged(val id: ByteArray, val state: PeerState) : PeerEvent() {
+        override fun equals(other: Any?): Boolean =
+            other is StateChanged && id.contentEquals(other.id) && state == other.state
+
+        override fun hashCode(): Int = id.contentHashCode() * 31 + state.hashCode()
+    }
 }
 
 // ── KeyChangeEvent (public) ───────────────────────────────────────────────────

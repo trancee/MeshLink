@@ -687,19 +687,20 @@ public final class ch/trancee/meshlink/api/MessagingConfigBuilder {
 }
 
 public final class ch/trancee/meshlink/api/PeerDetail {
-	public fun <init> ([B[BLjava/lang/String;ZJLch/trancee/meshlink/api/TrustMode;)V
+	public fun <init> ([B[BLjava/lang/String;Lch/trancee/meshlink/api/PeerState;JLch/trancee/meshlink/api/TrustMode;)V
 	public final fun component1 ()[B
 	public final fun component2 ()[B
 	public final fun component3 ()Ljava/lang/String;
-	public final fun component4 ()Z
+	public final fun component4 ()Lch/trancee/meshlink/api/PeerState;
 	public final fun component5 ()J
 	public final fun component6 ()Lch/trancee/meshlink/api/TrustMode;
-	public final fun copy ([B[BLjava/lang/String;ZJLch/trancee/meshlink/api/TrustMode;)Lch/trancee/meshlink/api/PeerDetail;
-	public static synthetic fun copy$default (Lch/trancee/meshlink/api/PeerDetail;[B[BLjava/lang/String;ZJLch/trancee/meshlink/api/TrustMode;ILjava/lang/Object;)Lch/trancee/meshlink/api/PeerDetail;
+	public final fun copy ([B[BLjava/lang/String;Lch/trancee/meshlink/api/PeerState;JLch/trancee/meshlink/api/TrustMode;)Lch/trancee/meshlink/api/PeerDetail;
+	public static synthetic fun copy$default (Lch/trancee/meshlink/api/PeerDetail;[B[BLjava/lang/String;Lch/trancee/meshlink/api/PeerState;JLch/trancee/meshlink/api/TrustMode;ILjava/lang/Object;)Lch/trancee/meshlink/api/PeerDetail;
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getFingerprint ()Ljava/lang/String;
 	public final fun getId ()[B
 	public final fun getLastSeenTimestampMillis ()J
+	public final fun getState ()Lch/trancee/meshlink/api/PeerState;
 	public final fun getStaticPublicKey ()[B
 	public final fun getTrustMode ()Lch/trancee/meshlink/api/TrustMode;
 	public fun hashCode ()I
@@ -734,6 +735,19 @@ public final class ch/trancee/meshlink/api/PeerEvent$Lost : ch/trancee/meshlink/
 	public fun toString ()Ljava/lang/String;
 }
 
+public final class ch/trancee/meshlink/api/PeerEvent$StateChanged : ch/trancee/meshlink/api/PeerEvent {
+	public fun <init> ([BLch/trancee/meshlink/api/PeerState;)V
+	public final fun component1 ()[B
+	public final fun component2 ()Lch/trancee/meshlink/api/PeerState;
+	public final fun copy ([BLch/trancee/meshlink/api/PeerState;)Lch/trancee/meshlink/api/PeerEvent$StateChanged;
+	public static synthetic fun copy$default (Lch/trancee/meshlink/api/PeerEvent$StateChanged;[BLch/trancee/meshlink/api/PeerState;ILjava/lang/Object;)Lch/trancee/meshlink/api/PeerEvent$StateChanged;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getId ()[B
+	public final fun getState ()Lch/trancee/meshlink/api/PeerState;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
 public final class ch/trancee/meshlink/api/PeerIdHex {
 	public static final synthetic fun box-impl (Ljava/lang/String;)Lch/trancee/meshlink/api/PeerIdHex;
 	public static fun constructor-impl (Ljava/lang/String;)Ljava/lang/String;
@@ -746,6 +760,14 @@ public final class ch/trancee/meshlink/api/PeerIdHex {
 	public fun toString ()Ljava/lang/String;
 	public static fun toString-impl (Ljava/lang/String;)Ljava/lang/String;
 	public final synthetic fun unbox-impl ()Ljava/lang/String;
+}
+
+public final class ch/trancee/meshlink/api/PeerState : java/lang/Enum {
+	public static final field CONNECTED Lch/trancee/meshlink/api/PeerState;
+	public static final field DISCONNECTED Lch/trancee/meshlink/api/PeerState;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lch/trancee/meshlink/api/PeerState;
+	public static fun values ()[Lch/trancee/meshlink/api/PeerState;
 }
 
 public final class ch/trancee/meshlink/api/PowerConfig {

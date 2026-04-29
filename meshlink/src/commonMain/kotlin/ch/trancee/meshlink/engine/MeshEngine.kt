@@ -534,6 +534,7 @@ private constructor(
                     presenceTracker = presenceTracker,
                     routeCoordinator = routeCoordinator,
                     powerManager = powerManager,
+                    deliveryPipeline = deliveryPipeline,
                     diagnosticSink = diagnosticSink,
                 )
 

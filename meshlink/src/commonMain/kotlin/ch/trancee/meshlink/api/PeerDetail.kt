@@ -10,7 +10,7 @@ package ch.trancee.meshlink.api
  * @param staticPublicKey The peer's X25519 static public key (32 bytes), as pinned in the trust
  *   store.
  * @param fingerprint Human-readable hex string of [id] (24 hex chars).
- * @param isConnected Whether this peer is currently connected.
+ * @param state The peer's current lifecycle state.
  * @param lastSeenTimestampMillis Monotonic timestamp (ms) of the most recent contact with this
  *   peer.
  * @param trustMode The current trust disposition toward this peer.
@@ -19,15 +19,21 @@ public data class PeerDetail(
     val id: ByteArray,
     val staticPublicKey: ByteArray,
     val fingerprint: String,
-    val isConnected: Boolean,
+    val state: PeerState,
     val lastSeenTimestampMillis: Long,
     val trustMode: TrustMode,
 ) {
+    /**
+     * Whether this peer is currently connected. Derived from [state] for backward compatibility.
+     */
+    val isConnected: Boolean
+        get() = state == PeerState.CONNECTED
+
     override fun equals(other: Any?): Boolean = other is PeerDetail && id.contentEquals(other.id)
 
     override fun hashCode(): Int = id.contentHashCode()
 
     override fun toString(): String =
-        "PeerDetail(fingerprint=$fingerprint, isConnected=$isConnected, " +
+        "PeerDetail(fingerprint=$fingerprint, state=$state, isConnected=$isConnected, " +
             "lastSeenTimestampMillis=$lastSeenTimestampMillis, trustMode=$trustMode)"
 }
