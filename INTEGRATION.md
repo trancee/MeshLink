@@ -206,8 +206,8 @@ val mesh = MeshLink.createAndroid(context, config)  // UNINITIALIZED
 mesh.start()    // UNINITIALIZED → RUNNING
 mesh.pause()    // RUNNING → PAUSED
 mesh.resume()   // PAUSED → RUNNING
-mesh.stop()     // RUNNING → STOPPED
-mesh.stop(gracefulDrainTimeout)  // drains in-flight transfers first
+mesh.stop()     // RUNNING → STOPPED (immediate)
+mesh.stop(timeout = 5.seconds)  // drains in-flight transfers first
 ```
 
 States: `UNINITIALIZED`, `RUNNING`, `PAUSED`, `STOPPED`, `RECOVERABLE`, `TERMINAL`.
@@ -351,15 +351,21 @@ val config = meshLinkConfig("com.example.myapp") {
         maxBroadcastSize  = 10_000     // bytes
     }
     transport {
+        mtu               = 517        // BLE ATT MTU; default 517
         l2capEnabled      = true       // prefer L2CAP CoC over GATT; default true
         forceL2cap        = false      // never fall back to GATT
         forceGatt         = false      // always use GATT
         bootstrapDurationMillis = 30_000L  // stay in PERFORMANCE tier on start
+        l2capRetryAttempts = 3         // L2CAP connection retries before GATT fallback
+        advertisementIntervalMillis = 250L  // BLE ad interval (ms); subject to region clamping
+        scanDutyCyclePercent = 100     // scan duty cycle %; subject to region clamping
     }
     security {
         requireEncryption = true       // reject plaintext; default true
         trustMode         = TrustMode.STRICT  // reject unknown keys; PROMPT prompts
         requireBroadcastSignatures = true
+        keyChangeTimeoutMillis = 30_000L  // timeout for PROMPT trust mode resolution
+        ackJitterMaxMillis = 500L      // max random jitter added to ACK timing
     }
     power {
         evictionGracePeriodMillis = 30_000L
@@ -372,20 +378,26 @@ val config = meshLinkConfig("com.example.myapp") {
         maxHops           = 10         // max relay hops; clamped to [1, 20]
         routeCacheTtlMillis = 210_000L
         dedupCapacity     = 25_000     // clamped to [1000, 50000]
+        maxMessageAgeMillis = 2_700_000L  // discard messages older than this
     }
     diagnostics {
         enabled           = true
+        bufferCapacity    = 1_000      // max buffered diagnostic events
         redactPeerIds     = false      // set true for GDPR: truncates peer IDs to 8 chars
         healthSnapshotIntervalMillis = 5_000L
     }
     rateLimiting {
         maxSends          = 60         // unicast messages/minute
         broadcastLimit    = 10         // broadcasts/minute
+        handshakeLimit    = 1          // concurrent handshakes/peer/minute
     }
     transfer {
         chunkInactivityTimeout    = 30_000L  // ms before transfer times out
         maxConcurrentTransfers    = 4
+        ackTimeoutMultiplier      = 1.0f   // multiplier for adaptive ACK timeout
+        degradationThreshold      = 0.5f   // link quality below this triggers degradation
     }
+    region(RegulatoryRegion.EU)  // ETSI EN 300 328: ad interval ≥ 300 ms, scan duty ≤ 70%
 }
 ```
 
