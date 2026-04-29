@@ -442,7 +442,7 @@ private constructor(
                 )
             val dedupSet =
                 DedupSet(config.routing.dedupCapacity, config.routing.dedupTtlMillis, clock)
-            val presenceTracker = PresenceTracker()
+            val presenceTracker = PresenceTracker(clock)
             val routeCoordinator =
                 RouteCoordinator(
                     localPeerId = identity.keyHash,
@@ -528,6 +528,15 @@ private constructor(
                     epochDurationMs = config.epochDurationMs,
                 )
 
+            // ── Sweep orchestrator ────────────────────────────────────────────
+            val meshStateManager =
+                MeshStateManager(
+                    presenceTracker = presenceTracker,
+                    routeCoordinator = routeCoordinator,
+                    powerManager = powerManager,
+                    diagnosticSink = diagnosticSink,
+                )
+
             return MeshEngine(
                 engineScope = engineScope,
                 transport = transport,
@@ -541,6 +550,7 @@ private constructor(
                 pseudonymRotator = pseudonymRotator,
                 cryptoProvider = cryptoProvider,
                 diagnosticSink = diagnosticSink,
+                meshStateManager = meshStateManager,
             )
         }
     }

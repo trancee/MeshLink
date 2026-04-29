@@ -4,9 +4,11 @@ import ch.trancee.meshlink.api.DiagnosticCode
 import ch.trancee.meshlink.api.DiagnosticPayload
 import ch.trancee.meshlink.api.DiagnosticSinkApi
 import ch.trancee.meshlink.api.NoOpDiagnosticSink
+import ch.trancee.meshlink.api.PeerIdHex
 import ch.trancee.meshlink.api.toPeerIdHex
 import ch.trancee.meshlink.power.PowerManager
 import ch.trancee.meshlink.routing.InternalPeerState
+import ch.trancee.meshlink.routing.PeerEvent
 import ch.trancee.meshlink.routing.PresenceTracker
 import ch.trancee.meshlink.routing.RouteCoordinator
 import ch.trancee.meshlink.transport.Logger
@@ -24,9 +26,15 @@ import kotlinx.coroutines.launch
  * 2. For each Gone peer: retracts routes, releases power slot, and removes neighbor state via
  *    [RouteCoordinator.onPeerDisconnected].
  *
- * Emits diagnostic events per S02 pattern:
+ * Also subscribes to [PresenceTracker.peerEvents] to emit diagnostic events on state transitions:
+ * - LOG on Connected→Disconnected transition
+ * - LOG on Disconnected→Connected reconnect
+ *
+ * Emits 4 diagnostic events per S02 pattern:
  * - LOG on sweep tick (peer count, disconnected count)
+ * - LOG on Connected→Disconnected transition
  * - THRESHOLD on Gone eviction (peerId)
+ * - LOG on Disconnected→Connected reconnect
  */
 internal class MeshStateManager(
     private val presenceTracker: PresenceTracker,
@@ -36,14 +44,19 @@ internal class MeshStateManager(
     private val sweepIntervalMillis: Long = 30_000L,
 ) {
     private var sweepJob: Job? = null
+    private var peerEventsJob: Job? = null
 
     /**
-     * Start the periodic sweep timer in the given [scope].
+     * Start the periodic sweep timer and peer-event diagnostic subscription in the given [scope].
      *
-     * Each tick calls [PresenceTracker.sweep] and for every newly-Gone peer runs cross-subsystem
-     * cleanup: route retraction + neighbor removal + power release.
+     * Each sweep tick calls [PresenceTracker.sweep] and for every newly-Gone peer runs
+     * cross-subsystem cleanup: route retraction + neighbor removal + power release.
+     *
+     * The peer-events subscription emits LOG diagnostics on Connected→Disconnected and
+     * Disconnected→Connected transitions.
      */
     fun start(scope: CoroutineScope) {
+        // ── Sweep timer ───────────────────────────────────────────────────────
         sweepJob = scope.launch {
             while (true) {
                 delay(sweepIntervalMillis)
@@ -62,7 +75,10 @@ internal class MeshStateManager(
                 )
                 diagnosticSink.emit(DiagnosticCode.ROUTE_CHANGED) {
                     DiagnosticPayload.RouteChanged(
-                        destination = "sweep:peers=$connectedCount,disconnected=$disconnectedCount",
+                        destination =
+                            PeerIdHex(
+                                "sweep:peers=$connectedCount,disconnected=$disconnectedCount"
+                            ),
                         cost = 0.0,
                     )
                 }
@@ -88,11 +104,44 @@ internal class MeshStateManager(
                 }
             }
         }
+
+        // ── Peer-event diagnostics ────────────────────────────────────────────
+        peerEventsJob = scope.launch {
+            presenceTracker.peerEvents.collect { event ->
+                when (event) {
+                    is PeerEvent.Disconnected -> {
+                        val peerIdHex = event.peerId.toPeerIdHex()
+                        Logger.d("MeshStateManager", "peer disconnected: $peerIdHex")
+                        diagnosticSink.emit(DiagnosticCode.ROUTE_CHANGED) {
+                            DiagnosticPayload.RouteChanged(
+                                destination = PeerIdHex("transition:disconnected:${peerIdHex.hex}"),
+                                cost = -1.0,
+                            )
+                        }
+                    }
+                    is PeerEvent.Connected -> {
+                        val peerIdHex = event.peerId.toPeerIdHex()
+                        Logger.d("MeshStateManager", "peer reconnected: $peerIdHex")
+                        diagnosticSink.emit(DiagnosticCode.ROUTE_CHANGED) {
+                            DiagnosticPayload.RouteChanged(
+                                destination = PeerIdHex("transition:connected:${peerIdHex.hex}"),
+                                cost = 0.0,
+                            )
+                        }
+                    }
+                    is PeerEvent.Gone -> {
+                        // Gone cleanup is handled in the sweep loop above.
+                    }
+                }
+            }
+        }
     }
 
-    /** Cancel the sweep timer. Safe to call multiple times. */
+    /** Cancel the sweep timer and peer-event subscription. Safe to call multiple times. */
     fun stop() {
         sweepJob?.cancel()
         sweepJob = null
+        peerEventsJob?.cancel()
+        peerEventsJob = null
     }
 }
