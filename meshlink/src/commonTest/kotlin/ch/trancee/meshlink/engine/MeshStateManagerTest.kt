@@ -189,7 +189,7 @@ class MeshStateManagerTest {
     }
 
     @Test
-    fun `peer evicted after 3 sweep ticks (sweepCount reaches 2)`() = runTest {
+    fun `peer evicted after 3 sweep ticks - sweepCount reaches 2`() = runTest {
         val h =
             buildHarness(
                 backgroundScope,

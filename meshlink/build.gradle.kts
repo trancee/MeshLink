@@ -291,8 +291,11 @@ ktfmt { kotlinLangStyle() }
 val noCoverageIgnore by tasks.registering {
     group = "verification"
     description = "Fails if any @CoverageIgnore annotation appears in commonMain sources."
+    // Resolve eagerly outside doLast so the configuration cache doesn't capture a Project
+    // reference.
+    val srcDir = file("src/commonMain/kotlin")
+    val projDir = projectDir
     doLast {
-        val srcDir = file("src/commonMain/kotlin")
         val violations = mutableListOf<String>()
         srcDir
             .walkTopDown()
@@ -300,7 +303,7 @@ val noCoverageIgnore by tasks.registering {
             .forEach { f ->
                 f.readLines().forEachIndexed { idx, line ->
                     if (line.contains("@CoverageIgnore") || line.contains("@get:CoverageIgnore")) {
-                        violations.add("${f.relativeTo(projectDir)}:${idx + 1}: $line")
+                        violations.add("${f.relativeTo(projDir)}:${idx + 1}: $line")
                     }
                 }
             }

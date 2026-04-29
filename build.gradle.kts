@@ -3,10 +3,14 @@
 // Dependabot alerts: #1 httpclient XSS, #2 commons-lang3 recursion, #3 jdom2 XXE,
 //                   #4 jose4j DoS, #5 bcpkix broken crypto, #6 bcprov LDAP injection,
 //                   #7 bcprov timing channel,
-//                   #8–#19 Netty (HTTP/2 rapid reset, HTTP smuggling, DoS, CRLF, SslHandler crash).
+//                   #8–#19 Netty (HTTP/2 rapid reset, HTTP smuggling, DoS, CRLF, SslHandler crash),
+//                   #23 jackson-core DoS via async parser (#23),
+//                   #24 bcpg-jdk18on uncontrolled resource consumption.
 //
 // Root cause for Netty: AGP 9.x → com.android.tools.utp:* → io.grpc:grpc-netty:1.57.2
 //                        → io.netty:*:4.1.93.Final (all 4.1.x artifacts pinned below).
+// Root cause for Jackson: Dokka 2.2.0 → jackson-module-kotlin:2.15.3 → jackson-core:2.15.3.
+// Root cause for bcpg: kotlinBouncyCastleConfiguration → bcpg-jdk18on:1.80.
 buildscript {
     configurations.all {
         resolutionStrategy.eachDependency {
@@ -44,6 +48,18 @@ buildscript {
                     useVersion("1.84")
                     because("CVE-2024-34447 LDAP injection + CVE-2024-30171 timing channel; fixed in 1.84")
                 }
+                "org.bouncycastle:bcpg-jdk18on" -> {
+                    useVersion("1.84")
+                    because("CVE-2025-30166: uncontrolled resource consumption; fixed in 1.84")
+                }
+            }
+
+            // Jackson: force all com.fasterxml.jackson artifacts to 2.18.6 consistently.
+            // Dokka 2.2.0 ships jackson-module-kotlin:2.15.3 → jackson-core:2.15.3
+            // which is vulnerable to CVE-2025-25901 (async parser DoS via number length bypass).
+            if (requested.group.startsWith("com.fasterxml.jackson")) {
+                useVersion("2.18.6")
+                because("CVE-2025-25901: jackson-core async parser DoS; fixed in 2.18.6")
             }
         }
     }
@@ -86,6 +102,16 @@ allprojects {
                     useVersion("1.84")
                     because("CVE-2024-34447 LDAP injection + CVE-2024-30171 timing channel; fixed in 1.84")
                 }
+                "org.bouncycastle:bcpg-jdk18on" -> {
+                    useVersion("1.84")
+                    because("CVE-2025-30166: uncontrolled resource consumption; fixed in 1.84")
+                }
+            }
+
+            // Jackson: force all com.fasterxml.jackson artifacts to 2.18.6 consistently.
+            if (requested.group.startsWith("com.fasterxml.jackson")) {
+                useVersion("2.18.6")
+                because("CVE-2025-25901: jackson-core async parser DoS; fixed in 2.18.6")
             }
         }
     }

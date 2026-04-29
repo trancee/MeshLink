@@ -90,6 +90,7 @@ fun MeshVisualizerScreen(controller: MeshController, modifier: Modifier = Modifi
                     when (event) {
                         is PeerEvent.Found -> "found-${event.id.contentHashCode()}"
                         is PeerEvent.Lost -> "lost-${event.id.contentHashCode()}"
+                        is PeerEvent.StateChanged -> "state-${event.id.contentHashCode()}-${event.state.name}"
                     }
                 }) { event ->
                     PeerEventItem(event)
@@ -212,6 +213,25 @@ private fun PeerEventItem(event: PeerEvent, modifier: Modifier = Modifier) {
                     text = "$idHex… (lost)",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                )
+            }
+        }
+
+        is PeerEvent.StateChanged -> {
+            val idHex = event.id.joinToString("") {
+                (it.toInt() and 0xFF).toString(16).padStart(2, '0')
+            }.take(16)
+            Row(
+                modifier = modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "$idHex… → ${event.state.name}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }

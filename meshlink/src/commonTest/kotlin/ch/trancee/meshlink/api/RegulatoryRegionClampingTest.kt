@@ -172,7 +172,7 @@ class RegulatoryRegionClampingTest {
     }
 
     @Test
-    fun `EU region with exact boundary values (300ms and 70 percent) produces no warnings`() {
+    fun `EU region with exact boundary values 300ms and 70 percent produces no warnings`() {
         val config =
             meshLinkConfig("com.example.test") {
                 transport {

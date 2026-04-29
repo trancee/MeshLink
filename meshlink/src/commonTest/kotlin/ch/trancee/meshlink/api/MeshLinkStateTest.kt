@@ -520,7 +520,7 @@ class MeshLinkStateTest {
     }
 
     @Test
-    fun `RECOVERABLE + TransientFailure → invalid (already RECOVERABLE)`() {
+    fun `RECOVERABLE + TransientFailure → invalid - already RECOVERABLE`() {
         val machine = fsm()
         machine.applyAll(LifecycleEvent.StartSuccess, LifecycleEvent.TransientFailure)
         val result = machine.transition(LifecycleEvent.TransientFailure)

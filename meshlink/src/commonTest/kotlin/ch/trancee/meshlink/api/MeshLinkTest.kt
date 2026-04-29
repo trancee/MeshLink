@@ -632,7 +632,7 @@ class MeshLinkTest {
     // ── equals() null and self branches for all public data types ─────────
 
     @Test
-    fun `all public data types handle equals(null) and equals(self) correctly`() {
+    fun `all public data types handle equals-null and equals-self correctly`() {
         val id12 = ByteArray(12) { it.toByte() }
         val id32 = ByteArray(32) { it.toByte() }
 

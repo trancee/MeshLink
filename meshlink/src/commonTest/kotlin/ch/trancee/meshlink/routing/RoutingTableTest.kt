@@ -376,7 +376,7 @@ class RoutingTableTest {
     }
 
     @Test
-    fun `isSeqNoNewer with equal values returns false (negative)`() {
+    fun `isSeqNoNewer with equal values returns false - negative case`() {
         assertFalse(isSeqNoNewer(0u, 0u))
         assertFalse(isSeqNoNewer(65535u, 65535u))
     }
