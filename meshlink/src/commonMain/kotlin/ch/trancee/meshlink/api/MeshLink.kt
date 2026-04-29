@@ -226,7 +226,14 @@ internal constructor(
 
     override val meshHealthFlow: Flow<MeshHealthSnapshot> = _meshHealthFlow
 
-    override val keyChanges: Flow<KeyChangeEvent> = emptyFlow()
+    override val keyChanges: Flow<KeyChangeEvent> =
+        engine.keyChanges.map { internal ->
+            KeyChangeEvent(
+                peerId = internal.peerKeyHash,
+                oldKey = internal.oldKey,
+                newKey = internal.newKey,
+            )
+        }
 
     override val diagnosticEvents: Flow<DiagnosticEvent> = diagnosticSink.events
 
@@ -408,6 +415,10 @@ internal constructor(
      * including [MeshLinkState.UNINITIALIZED].
      */
     internal suspend fun stopEngineForTest() = engine.stop()
+
+    /** Test helper: expose the underlying engine for direct interaction in tests. */
+    internal val engineForTest: MeshEngine
+        get() = engine
 
     /**
      * Test helper: fire a [LifecycleEvent.TransientFailure] transition on the FSM so tests can

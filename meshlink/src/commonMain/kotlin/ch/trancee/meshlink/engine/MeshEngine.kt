@@ -40,7 +40,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
 
 /**
@@ -109,6 +111,13 @@ private constructor(
 
     /** Power-tier transition events sourced from [PowerManager]. */
     val tierChanges: SharedFlow<PowerTier> = powerManager.tierChanges
+
+    private val _keyChanges =
+        MutableSharedFlow<ch.trancee.meshlink.crypto.KeyChangeEvent>(extraBufferCapacity = 16)
+
+    /** Emits when a peer presents a public key that differs from the pinned value. */
+    val keyChanges: SharedFlow<ch.trancee.meshlink.crypto.KeyChangeEvent> =
+        _keyChanges.asSharedFlow()
 
     /** The current power tier (direct read, no suspension). */
     val currentTier: PowerTier
@@ -447,6 +456,7 @@ private constructor(
      */
     internal fun onKeyChange(event: ch.trancee.meshlink.crypto.KeyChangeEvent) {
         pendingKeyChanges[event.peerKeyHash.asList()] = event
+        _keyChanges.tryEmit(event)
     }
 
     // ── Identity & Trust internal API ─────────────────────────────────────────

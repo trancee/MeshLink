@@ -804,4 +804,38 @@ class MeshLinkTest {
             )
         assertIs<TransferFailure.Cancelled>(mapDeliveryFailed(f))
     }
+
+    // ── keyChanges flow wiring ────────────────────────────────────────────
+
+    @Test
+    fun `keyChanges flow emits when engine receives a key change`() = runTest {
+        val mesh = makeMesh()
+        mesh.start()
+
+        val collected = mutableListOf<KeyChangeEvent>()
+        val job = backgroundScope.launch { mesh.keyChanges.collect { collected.add(it) } }
+        testScheduler.runCurrent() // ensure collector is subscribed
+
+        // Inject a key change via the engine's internal hook
+        val peerId = ByteArray(12) { 0xAA.toByte() }
+        val oldKey = ByteArray(32) { 0x11 }
+        val newKey = ByteArray(32) { 0x22 }
+        val internalEvent =
+            ch.trancee.meshlink.crypto.KeyChangeEvent(
+                peerKeyHash = peerId,
+                oldKey = oldKey,
+                newKey = newKey,
+            )
+        mesh.engineForTest.onKeyChange(internalEvent)
+        testScheduler.runCurrent()
+
+        assertEquals(1, collected.size, "keyChanges must emit exactly one event")
+        assertTrue(collected[0].peerId.contentEquals(peerId))
+        assertTrue(collected[0].oldKey!!.contentEquals(oldKey))
+        assertTrue(collected[0].newKey.contentEquals(newKey))
+
+        job.cancel()
+        mesh.stop()
+        mesh.stopEngineForTest()
+    }
 }
