@@ -12,12 +12,13 @@ import java.util.*
 /**
  * Tab identifiers for the TUI.
  */
-enum class Tab(val label: String) {
-    LOG("Log"),
-    PEERS("Peers"),
-    ROUTING("Routing"),
-    HEALTH("Health"),
-    SEND("Send"),
+enum class Tab(val label: String, val key: Char) {
+    LOG("Log", '1'),
+    PEERS("Peers", '2'),
+    ROUTING("Routing", '3'),
+    HEALTH("Health", '4'),
+    NETWORK("Network", '5'),
+    SEND("Send", '6'),
 }
 
 /**
@@ -25,13 +26,17 @@ enum class Tab(val label: String) {
  */
 class AppState {
     var activeTab: Tab = Tab.LOG
-    var selectedNode: Int = 0  // Index into network.nodes
+    var selectedNode: Int = 0
     var logOffset: Int = 0
     var inputBuffer: String = ""
     var inputMode: Boolean = false
-    var sendTarget: Int = 1  // Default target for send
+    var commandMode: Boolean = false  // ':' command input
+    var sendTarget: Int = 1
     var running: Boolean = true
     val logEntries: MutableList<LogEntry> = mutableListOf()
+    var statusMessage: String = ""   // Transient feedback message
+    var statusExpiry: Long = 0       // millis timestamp when status message expires
+    var networkCursor: Int = 0       // Cursor in network tab
 }
 
 /**
@@ -53,9 +58,8 @@ class MeshLinkTui(
         scope.launch {
             network.log.collect { entry ->
                 state.logEntries.add(entry)
-                // Auto-scroll if at bottom
                 val (_, rows) = backend.size()
-                val visibleLines = rows - 6 // header + footer + borders
+                val visibleLines = rows - 6
                 if (state.logOffset >= state.logEntries.size - visibleLines - 2) {
                     state.logOffset = (state.logEntries.size - visibleLines).coerceAtLeast(0)
                 }
@@ -80,14 +84,14 @@ class MeshLinkTui(
                 Constraint.Length(1),  // Tab bar
                 Constraint.Fill(),    // Main content
                 Constraint.Length(1),  // Status bar
-                Constraint.Length(1),  // Help line
+                Constraint.Length(1),  // Help / command line
             ).split(area)
             val (tabArea, contentArea, statusArea, helpArea) = layout
 
             renderTabBar(buf, tabArea)
             renderContent(buf, contentArea)
             renderStatusBar(buf, statusArea)
-            renderHelp(buf, helpArea)
+            renderHelpOrCommand(buf, helpArea)
         }
     }
 
@@ -99,7 +103,7 @@ class MeshLinkTui(
         var x = area.x + 1
         for (tab in Tab.entries) {
             val style = if (tab == state.activeTab) activeStyle else tabStyle
-            val label = " ${tab.label} "
+            val label = " ${tab.key}:${tab.label} "
             buf.setString(x, area.y, label, style)
             x += label.length + 1
         }
@@ -107,7 +111,7 @@ class MeshLinkTui(
         // Node selector on right
         val nodes = network.nodes
         if (nodes.isNotEmpty()) {
-            val nodeName = nodes[state.selectedNode].name
+            val nodeName = nodes.getOrNull(state.selectedNode)?.name ?: "?"
             val nodeLabel = "Node: $nodeName"
             buf.setString(area.right - nodeLabel.length - 2, area.y, nodeLabel, tabStyle.bold())
         }
@@ -119,6 +123,7 @@ class MeshLinkTui(
             Tab.PEERS -> renderPeersTab(buf, area)
             Tab.ROUTING -> renderRoutingTab(buf, area)
             Tab.HEALTH -> renderHealthTab(buf, area)
+            Tab.NETWORK -> renderNetworkTab(buf, area)
             Tab.SEND -> renderSendTab(buf, area)
         }
     }
@@ -131,10 +136,15 @@ class MeshLinkTui(
         val lines = state.logEntries.map { entry ->
             val time = dateFormat.format(Date(entry.timestampMillis))
             val style = when {
-                "FAILED" in entry.message -> Style.DEFAULT.fg(Color.Red)
+                "FAILED" in entry.message || "FLOOD" in entry.message && "failed" in entry.message -> Style.DEFAULT.fg(Color.Red)
                 "received" in entry.message -> Style.DEFAULT.fg(Color.Green)
-                "started" in entry.message -> Style.DEFAULT.fg(Color.LightBlue)
+                "started" in entry.message || "ready" in entry.message -> Style.DEFAULT.fg(Color.LightBlue)
                 "broadcast" in entry.message || "→" in entry.message -> Style.DEFAULT.fg(Color.Yellow)
+                "PARTITION" in entry.message || "disconnected" in entry.message -> Style.DEFAULT.fg(Color.Red).bold()
+                "HEAL" in entry.message || "reconnect" in entry.message -> Style.DEFAULT.fg(Color.Green).bold()
+                "Topology" in entry.message -> Style.DEFAULT.fg(Color.Magenta).bold()
+                "+" in entry.message.take(3) -> Style.DEFAULT.fg(Color.Green)
+                "-" in entry.message.take(3) -> Style.DEFAULT.fg(Color.Red)
                 else -> Style.DEFAULT.fg(Color.White)
             }
             "[$time] ${entry.message}" to style
@@ -215,10 +225,10 @@ class MeshLinkTui(
 
         for (node in network.nodes) {
             val health = node.meshLink.meshHealth()
-            val state = node.meshLink.state.value
+            val meshState = node.meshLink.state.value
 
             lines.add("  ╭─ ${node.name} (${node.peerIdHex.take(8)}...) ─────────────────" to Style.DEFAULT.fg(Color.Cyan))
-            lines.add("  │  State:            ${state.name}" to stateStyle(state))
+            lines.add("  │  State:            ${meshState.name}" to stateStyle(meshState))
             lines.add("  │  Connected Peers:  ${health.connectedPeers}" to Style.DEFAULT)
             lines.add("  │  Routing Table:    ${health.routingTableSize} routes" to Style.DEFAULT)
             lines.add("  │  Buffer Usage:     ${health.bufferUsageBytes} bytes (${health.bufferUtilizationPercent}%)" to Style.DEFAULT)
@@ -229,6 +239,68 @@ class MeshLinkTui(
             lines.add("  ╰──────────────────────────────────────" to Style.DEFAULT.fg(Color.DarkGray))
             lines.add("" to Style.DEFAULT)
         }
+        renderLines(buf, inner, lines)
+    }
+
+    private fun renderNetworkTab(buf: Buffer, area: Rect) {
+        val block = Block(title = "Network Topology", borderStyle = Style.DEFAULT.fg(Color.Magenta))
+        block.render(buf, area)
+        val inner = block.inner(area)
+
+        val lines = mutableListOf<Pair<String, Style>>()
+        lines.add("" to Style.DEFAULT)
+
+        // Topology visualization
+        lines.add("  Nodes (${network.nodes.size}):" to Style.DEFAULT.bold())
+        for ((i, node) in network.nodes.withIndex()) {
+            val meshState = node.meshLink.state.value
+            val prefix = if (i == state.networkCursor) " ▶" else "  "
+            val stateIcon = when (meshState) {
+                ch.trancee.meshlink.api.MeshLinkState.RUNNING -> "●"
+                ch.trancee.meshlink.api.MeshLinkState.PAUSED -> "◐"
+                ch.trancee.meshlink.api.MeshLinkState.STOPPED -> "○"
+                else -> "?"
+            }
+            val stateColor = when (meshState) {
+                ch.trancee.meshlink.api.MeshLinkState.RUNNING -> Color.Green
+                ch.trancee.meshlink.api.MeshLinkState.PAUSED -> Color.Yellow
+                ch.trancee.meshlink.api.MeshLinkState.STOPPED -> Color.Red
+                else -> Color.White
+            }
+            val connectedPeers = node.meshLink.allPeerDetails().count {
+                it.state == ch.trancee.meshlink.api.PeerState.CONNECTED
+            }
+            val linkCount = network.links.count { it.first == i || it.second == i }
+            lines.add(
+                "$prefix $stateIcon ${node.name.padEnd(10)} │ links=$linkCount peers=$connectedPeers │ ${node.peerIdHex.take(8)}..."
+                    to Style.DEFAULT.fg(stateColor)
+            )
+        }
+
+        lines.add("" to Style.DEFAULT)
+        lines.add("  Links:" to Style.DEFAULT.bold())
+        if (network.links.isEmpty()) {
+            lines.add("    (no links)" to Style.DEFAULT.dim())
+        } else {
+            for ((a, b) in network.links) {
+                val nameA = network.nodes.getOrNull(a)?.name ?: "?"
+                val nameB = network.nodes.getOrNull(b)?.name ?: "?"
+                lines.add("    $nameA ↔ $nameB" to Style.DEFAULT.fg(Color.Cyan))
+            }
+        }
+
+        lines.add("" to Style.DEFAULT)
+        lines.add("  ─── Actions ──────────────────────────────────────────" to Style.DEFAULT.fg(Color.DarkGray))
+        lines.add("  [a] Add node   [d] Remove selected   [p] Pause/Resume" to Style.DEFAULT.dim())
+        lines.add("  [l] Link sel → next   [u] Unlink sel → next" to Style.DEFAULT.dim())
+        lines.add("  [x] Disconnect selected   [r] Reconnect selected" to Style.DEFAULT.dim())
+        lines.add("  [↑/↓] Move cursor" to Style.DEFAULT.dim())
+        lines.add("" to Style.DEFAULT)
+        lines.add("  ─── Scenarios ────────────────────────────────────────" to Style.DEFAULT.fg(Color.DarkGray))
+        lines.add("  [:] Command mode — type scenarios below:" to Style.DEFAULT.dim())
+        lines.add("    :star  :ring  :line  :mesh  :partition  :heal" to Style.DEFAULT.fg(Color.Yellow))
+        lines.add("    :add <name>   :flood <from> <to> <count>" to Style.DEFAULT.fg(Color.Yellow))
+
         renderLines(buf, inner, lines)
     }
 
@@ -245,12 +317,12 @@ class MeshLinkTui(
         lines.add("  From:    ${from.name} (${from.peerIdHex.take(8)}...)" to Style.DEFAULT.fg(Color.Cyan))
         lines.add("  To:      ${to.name} (${to.peerIdHex.take(8)}...)  [Tab to change]" to Style.DEFAULT.fg(Color.Green))
         lines.add("" to Style.DEFAULT)
-        lines.add("  ┌─ Message ${"─".repeat(inner.width - 14)}┐" to Style.DEFAULT.fg(Color.DarkGray))
+        lines.add("  ┌─ Message ${"─".repeat((inner.width - 14).coerceAtLeast(1))}┐" to Style.DEFAULT.fg(Color.DarkGray))
 
         val cursor = if (state.inputMode) "▌" else ""
         val inputDisplay = "  │ ${state.inputBuffer}$cursor"
         lines.add(inputDisplay to Style.DEFAULT.fg(if (state.inputMode) Color.White else Color.DarkGray))
-        lines.add("  └${"─".repeat(inner.width - 4)}┘" to Style.DEFAULT.fg(Color.DarkGray))
+        lines.add("  └${"─".repeat((inner.width - 4).coerceAtLeast(1))}┘" to Style.DEFAULT.fg(Color.DarkGray))
         lines.add("" to Style.DEFAULT)
 
         if (state.inputMode) {
@@ -265,19 +337,40 @@ class MeshLinkTui(
         val statusStyle = Style.DEFAULT.bg(Color.Blue).fg(Color.White)
         val nodes = network.nodes
         val nodeCount = nodes.size
-        val status = " MeshLink TUI │ Nodes: $nodeCount │ Active: ${state.activeTab.label} │ Selected: ${nodes.getOrNull(state.selectedNode)?.name ?: "?"}"
+        val linkCount = network.links.size
+
+        // Show transient status message if active
+        val now = System.currentTimeMillis()
+        val extra = if (state.statusMessage.isNotEmpty() && now < state.statusExpiry) {
+            " │ ${state.statusMessage}"
+        } else {
+            state.statusMessage = ""
+            ""
+        }
+
+        val status = " MeshLink TUI │ Nodes: $nodeCount │ Links: $linkCount │ Tab: ${state.activeTab.label}$extra"
         ch.trancee.meshlink.tui.widgets.renderStatusBar(buf, area, status, statusStyle)
     }
 
-    private fun renderHelp(buf: Buffer, area: Rect) {
-        val helpStyle = Style.DEFAULT.fg(Color.DarkGray)
-        val help = " [1-5] Tabs │ [←/→] Switch node │ [q] Quit │ [↑/↓] Scroll log"
-        buf.setString(area.x, area.y, help.take(area.width), helpStyle)
+    private fun renderHelpOrCommand(buf: Buffer, area: Rect) {
+        if (state.commandMode) {
+            val cmdStyle = Style.DEFAULT.fg(Color.White).bg(Color.Black)
+            buf.fill(area, " ", cmdStyle)
+            buf.setString(area.x, area.y, ":${state.inputBuffer}▌", cmdStyle)
+        } else {
+            val helpStyle = Style.DEFAULT.fg(Color.DarkGray)
+            val help = " [1-6] Tabs │ [←/→] Node │ [:] Command │ [q] Quit │ [↑/↓] Scroll"
+            buf.setString(area.x, area.y, help.take(area.width), helpStyle)
+        }
     }
 
     private suspend fun handleInput() {
         val event = renderer.pollEvent(50) ?: return
 
+        if (state.commandMode) {
+            handleCommandMode(event)
+            return
+        }
         if (state.inputMode) {
             handleInputMode(event)
             return
@@ -290,30 +383,98 @@ class MeshLinkTui(
                 '2' -> state.activeTab = Tab.PEERS
                 '3' -> state.activeTab = Tab.ROUTING
                 '4' -> state.activeTab = Tab.HEALTH
-                '5' -> state.activeTab = Tab.SEND
+                '5' -> state.activeTab = Tab.NETWORK
+                '6' -> state.activeTab = Tab.SEND
+                ':' -> { state.commandMode = true; state.inputBuffer = "" }
                 'i' -> if (state.activeTab == Tab.SEND) { state.inputMode = true }
                 'b' -> if (state.activeTab == Tab.SEND) {
                     scope.launch { network.broadcastMessage(state.selectedNode, "Hello mesh!") }
                 }
+                // Network tab actions
+                'a' -> if (state.activeTab == Tab.NETWORK) {
+                    scope.launch {
+                        val idx = network.addNode()
+                        network.startNode(idx)
+                        showStatus("Node added: ${network.nodes[idx].name}")
+                    }
+                }
+                'd' -> if (state.activeTab == Tab.NETWORK && network.nodes.size > 1) {
+                    scope.launch {
+                        val name = network.nodes.getOrNull(state.networkCursor)?.name ?: return@launch
+                        network.removeNode(state.networkCursor)
+                        state.networkCursor = state.networkCursor.coerceAtMost(network.nodes.size - 1)
+                        state.selectedNode = state.selectedNode.coerceAtMost(network.nodes.size - 1)
+                        showStatus("Removed $name")
+                    }
+                }
+                'p' -> if (state.activeTab == Tab.NETWORK) {
+                    scope.launch {
+                        val node = network.nodes.getOrNull(state.networkCursor) ?: return@launch
+                        if (node.meshLink.state.value == ch.trancee.meshlink.api.MeshLinkState.PAUSED) {
+                            network.resumeNode(state.networkCursor)
+                        } else {
+                            network.pauseNode(state.networkCursor)
+                        }
+                    }
+                }
+                'l' -> if (state.activeTab == Tab.NETWORK) {
+                    val next = (state.networkCursor + 1) % network.nodes.size
+                    if (next != state.networkCursor) {
+                        network.linkNodes(state.networkCursor, next)
+                        scope.launch {
+                            network.triggerDiscovery(state.networkCursor, next)
+                            delay(200)
+                            network.triggerDiscovery(next, state.networkCursor)
+                        }
+                        showStatus("Linked ${network.nodes[state.networkCursor].name} ↔ ${network.nodes[next].name}")
+                    }
+                }
+                'u' -> if (state.activeTab == Tab.NETWORK) {
+                    val next = (state.networkCursor + 1) % network.nodes.size
+                    if (next != state.networkCursor) {
+                        network.unlinkNodes(state.networkCursor, next)
+                        showStatus("Unlinked ${network.nodes[state.networkCursor].name} ↔ ${network.nodes[next].name}")
+                    }
+                }
+                'x' -> if (state.activeTab == Tab.NETWORK) {
+                    scope.launch { network.simulateDisconnect(state.networkCursor) }
+                }
+                'r' -> if (state.activeTab == Tab.NETWORK) {
+                    scope.launch { network.simulateReconnect(state.networkCursor) }
+                }
                 else -> {}
             }
             KeyCode.Left -> {
-                state.selectedNode = (state.selectedNode - 1 + network.nodes.size) % network.nodes.size
+                if (network.nodes.isNotEmpty()) {
+                    state.selectedNode = (state.selectedNode - 1 + network.nodes.size) % network.nodes.size
+                }
             }
             KeyCode.Right -> {
-                state.selectedNode = (state.selectedNode + 1) % network.nodes.size
+                if (network.nodes.isNotEmpty()) {
+                    state.selectedNode = (state.selectedNode + 1) % network.nodes.size
+                }
             }
             KeyCode.Up -> {
-                state.logOffset = (state.logOffset - 1).coerceAtLeast(0)
+                if (state.activeTab == Tab.NETWORK) {
+                    state.networkCursor = (state.networkCursor - 1).coerceAtLeast(0)
+                } else {
+                    state.logOffset = (state.logOffset - 1).coerceAtLeast(0)
+                }
             }
             KeyCode.Down -> {
-                state.logOffset = (state.logOffset + 1).coerceAtMost(state.logEntries.size)
+                if (state.activeTab == Tab.NETWORK) {
+                    state.networkCursor = (state.networkCursor + 1).coerceAtMost(network.nodes.size - 1)
+                } else {
+                    state.logOffset = (state.logOffset + 1).coerceAtMost(state.logEntries.size)
+                }
             }
             KeyCode.Tab -> {
                 if (state.activeTab == Tab.SEND) {
-                    state.sendTarget = (state.sendTarget + 1) % network.nodes.size
-                    if (state.sendTarget == state.selectedNode) {
+                    if (network.nodes.size > 1) {
                         state.sendTarget = (state.sendTarget + 1) % network.nodes.size
+                        if (state.sendTarget == state.selectedNode) {
+                            state.sendTarget = (state.sendTarget + 1) % network.nodes.size
+                        }
                     }
                 }
             }
@@ -343,6 +504,90 @@ class MeshLinkTui(
             }
             else -> {}
         }
+    }
+
+    private suspend fun handleCommandMode(event: KeyEvent) {
+        when (event.code) {
+            KeyCode.Escape -> {
+                state.commandMode = false
+                state.inputBuffer = ""
+            }
+            KeyCode.Enter -> {
+                val cmd = state.inputBuffer.trim()
+                state.commandMode = false
+                state.inputBuffer = ""
+                executeCommand(cmd)
+            }
+            KeyCode.Backspace -> {
+                state.inputBuffer = state.inputBuffer.dropLast(1)
+            }
+            is KeyCode.Char -> {
+                state.inputBuffer += event.code.c
+            }
+            else -> {}
+        }
+    }
+
+    private fun executeCommand(cmd: String) {
+        val parts = cmd.split(" ").filter { it.isNotBlank() }
+        if (parts.isEmpty()) return
+
+        when (parts[0].lowercase()) {
+            "star" -> scope.launch { network.scenarioStar() }
+            "ring" -> scope.launch { network.scenarioRing() }
+            "line" -> scope.launch { network.scenarioLine() }
+            "mesh" -> scope.launch { network.scenarioFullMesh() }
+            "partition" -> scope.launch { network.scenarioPartition() }
+            "heal" -> scope.launch { network.scenarioHeal() }
+            "add" -> {
+                val name = parts.getOrNull(1)
+                scope.launch {
+                    val idx = network.addNode(name)
+                    network.startNode(idx)
+                    showStatus("Added: ${network.nodes[idx].name}")
+                }
+            }
+            "flood" -> {
+                val from = parts.getOrNull(1)?.toIntOrNull() ?: 0
+                val to = parts.getOrNull(2)?.toIntOrNull() ?: 1
+                val count = parts.getOrNull(3)?.toIntOrNull() ?: 50
+                scope.launch { network.floodMessages(from, to, count) }
+            }
+            "link" -> {
+                val a = parts.getOrNull(1)?.toIntOrNull()
+                val b = parts.getOrNull(2)?.toIntOrNull()
+                if (a != null && b != null) {
+                    network.linkNodes(a, b)
+                    scope.launch {
+                        network.triggerDiscovery(a, b)
+                        delay(200)
+                        network.triggerDiscovery(b, a)
+                    }
+                    showStatus("Linked ${network.nodes.getOrNull(a)?.name} ↔ ${network.nodes.getOrNull(b)?.name}")
+                } else {
+                    showStatus("Usage: :link <idx> <idx>")
+                }
+            }
+            "unlink" -> {
+                val a = parts.getOrNull(1)?.toIntOrNull()
+                val b = parts.getOrNull(2)?.toIntOrNull()
+                if (a != null && b != null) {
+                    network.unlinkNodes(a, b)
+                    showStatus("Unlinked")
+                } else {
+                    showStatus("Usage: :unlink <idx> <idx>")
+                }
+            }
+            "help" -> {
+                showStatus("star|ring|line|mesh|partition|heal|add|flood|link|unlink")
+            }
+            else -> showStatus("Unknown: $cmd (try :help)")
+        }
+    }
+
+    private fun showStatus(message: String) {
+        state.statusMessage = message
+        state.statusExpiry = System.currentTimeMillis() + 4_000
     }
 
     private fun stateStyle(state: ch.trancee.meshlink.api.MeshLinkState): Style = when (state) {

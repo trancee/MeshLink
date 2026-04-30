@@ -13,13 +13,38 @@ import java.io.PrintStream
  *   java -jar meshlink-tui/build/libs/meshlink-tui-all.jar
  *
  * Controls:
- *   [1-5]   Switch tabs (Log, Peers, Routing, Health, Send)
+ *   [1-6]   Switch tabs (Log, Peers, Routing, Health, Network, Send)
  *   [←/→]   Switch active node
- *   [↑/↓]   Scroll log
- *   [i]     Enter input mode (Send tab)
- *   [b]     Broadcast message (Send tab)
- *   [Tab]   Switch send target (Send tab)
+ *   [↑/↓]   Scroll log / move cursor (Network tab)
+ *   [:]     Enter command mode
  *   [q]     Quit
+ *
+ * Network tab shortcuts:
+ *   [a]     Add new node
+ *   [d]     Remove selected node
+ *   [p]     Pause/resume selected node
+ *   [l]     Link selected → next node
+ *   [u]     Unlink selected → next node
+ *   [x]     Simulate disconnect for selected node
+ *   [r]     Reconnect selected node
+ *
+ * Send tab shortcuts:
+ *   [i]     Enter input mode
+ *   [b]     Broadcast message
+ *   [Tab]   Switch send target
+ *
+ * Commands (type ':' then command, then Enter):
+ *   :star             Reconfigure as star topology
+ *   :ring             Reconfigure as ring topology
+ *   :line             Reconfigure as line topology
+ *   :mesh             Reconfigure as full mesh
+ *   :partition        Split network into two halves
+ *   :heal             Reconnect partitioned halves
+ *   :add <name>       Add a named node
+ *   :flood <f> <t> <n>  Send N messages from node f to node t
+ *   :link <a> <b>     Link nodes at indices a and b
+ *   :unlink <a> <b>   Unlink nodes at indices a and b
+ *   :help             Show available commands
  */
 fun main() {
     runBlocking {
