@@ -596,6 +596,18 @@ class MessagingFoundationTest {
     }
 
     @Test
+    fun `MessagingConfig differs maxTrackedPeers`() {
+        val base = makeConfig()
+        assertFalse(base.equals(base.copy(maxTrackedPeers = 1)))
+    }
+
+    @Test
+    fun `MessagingConfig differs ackJitterMaxMillis`() {
+        val base = makeConfig()
+        assertFalse(base.equals(base.copy(ackJitterMaxMillis = 999L)))
+    }
+
+    @Test
     fun `MessagingConfig differs circuitBreaker`() {
         val base = makeConfig()
         assertFalse(
