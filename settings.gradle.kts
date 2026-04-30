@@ -20,6 +20,7 @@ dependencyResolutionManagement {
 rootProject.name = "MeshLink"
 include(":meshlink")
 include(":meshlink-testing")
+include(":meshlink-tui")
 include(":meshlink-sample")
 include(":meshlink-sample:shared")
 include(":meshlink-sample:androidApp")
