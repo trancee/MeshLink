@@ -1,6 +1,7 @@
 package ch.trancee.meshlink.transfer
 
 import ch.trancee.meshlink.routing.OutboundFrame
+import ch.trancee.meshlink.util.jitterMillis
 import ch.trancee.meshlink.wire.Chunk
 import ch.trancee.meshlink.wire.ChunkAck
 import ch.trancee.meshlink.wire.Nack
@@ -267,7 +268,7 @@ private constructor(
                             val backoff =
                                 config.nackBaseBackoffMillis shl
                                     (nackRetryCount - 1).coerceAtMost(7)
-                            delay(backoff)
+                            delay(backoff + jitterMillis(config.backoffJitterMaxMillis))
                             sendBatch()
                         }
                     }

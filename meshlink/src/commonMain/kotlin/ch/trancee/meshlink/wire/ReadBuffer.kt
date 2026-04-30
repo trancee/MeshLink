@@ -14,21 +14,27 @@ package ch.trancee.meshlink.wire
  *
  * All integers are little-endian. Field indices are 0-based. Missing optional fields return their
  * declared default values.
+ *
+ * @param bb Backing byte array.
+ * @param baseOffset Logical start offset within [bb]. All internal offsets are relative to this.
  */
-internal class ReadBuffer(private val bb: ByteArray) {
+internal class ReadBuffer(private val bb: ByteArray, private val baseOffset: Int = 0) {
 
     private val tableOffset: Int
     private val vtableOffset: Int
+    private val logicalSize: Int
+        get() = bb.size - baseOffset
 
     init {
-        if (bb.size < 4) throw IllegalArgumentException("Buffer too short for root offset")
-        tableOffset = readIntLE(0)
-        if (tableOffset < 0 || tableOffset + 4 > bb.size) {
+        if (logicalSize < 4) throw IllegalArgumentException("Buffer too short for root offset")
+        val rootOffset = readIntLE(baseOffset)
+        tableOffset = baseOffset + rootOffset
+        if (rootOffset < 0 || tableOffset + 4 > bb.size) {
             throw IllegalArgumentException("Root offset out of bounds")
         }
         val soffset = readIntLE(tableOffset)
         vtableOffset = tableOffset + soffset
-        if (vtableOffset < 0 || vtableOffset + 4 > bb.size) {
+        if (vtableOffset < baseOffset || vtableOffset + 4 > bb.size) {
             throw IllegalArgumentException("Vtable offset out of bounds")
         }
     }

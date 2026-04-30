@@ -1,5 +1,7 @@
 package ch.trancee.meshlink.routing
 
+import ch.trancee.meshlink.util.ByteArrayKey
+import ch.trancee.meshlink.util.jitterMillis
 import ch.trancee.meshlink.wire.Hello
 import ch.trancee.meshlink.wire.Update
 import kotlin.math.floor
@@ -33,11 +35,12 @@ internal class RoutingEngine(
         ch.trancee.meshlink.api.NoOpDiagnosticSink,
 ) {
     // Feasibility distances: destinationKey → best-ever accepted total cost.
-    private val feasibilityDistances: HashMap<List<Byte>, Double> = HashMap()
+    private val feasibilityDistances: HashMap<ByteArrayKey, Double> = HashMap()
 
     // Per-neighbour, per-destination last-sent seqNo for differential tracking.
     // neighbourKey → (destinationKey → lastSentSeqNo)
-    private val neighborLastSentSeqNo: HashMap<List<Byte>, HashMap<List<Byte>, UShort>> = HashMap()
+    private val neighborLastSentSeqNo: HashMap<ByteArrayKey, HashMap<ByteArrayKey, UShort>> =
+        HashMap()
 
     // Local sequence number incremented on each Hello tick.
     internal var localSeqNo: UShort = 0u
@@ -55,7 +58,7 @@ internal class RoutingEngine(
      */
     fun processUpdate(fromPeerId: ByteArray, update: Update, linkCost: Double): Boolean {
         val dest = update.destination
-        val destKey = dest.asList()
+        val destKey = ByteArrayKey(dest)
 
         // Retraction: metric == 0xFFFF
         if (update.metric == METRIC_RETRACTION) {
@@ -114,7 +117,7 @@ internal class RoutingEngine(
                 x25519PublicKey = update.x25519PublicKey,
             )
         )
-        feasibilityDistances[dest.asList()] = totalCost
+        feasibilityDistances[ByteArrayKey(dest)] = totalCost
     }
 
     // ── processHello ──────────────────────────────────────────────────────────
@@ -130,7 +133,7 @@ internal class RoutingEngine(
      * Updates [neighborLastSentSeqNo] after building the response.
      */
     fun processHello(fromPeerId: ByteArray, hello: Hello): List<Update> {
-        val neighborKey = fromPeerId.asList()
+        val neighborKey = ByteArrayKey(fromPeerId)
         val existingNeighborSeqNos = neighborLastSentSeqNo[neighborKey]
         val allRoutes = routingTable.allRoutes()
         val updates = mutableListOf<Update>()
@@ -149,7 +152,7 @@ internal class RoutingEngine(
             // Digest match: differential — changed routes plus always self-route
             for (route in allRoutes) {
                 val isSelf = route.destination.contentEquals(localPeerId)
-                val sentSeqNo = existingNeighborSeqNos[route.destination.asList()]
+                val sentSeqNo = existingNeighborSeqNos[ByteArrayKey(route.destination)]
                 if (isSelf || sentSeqNo == null || sentSeqNo != route.seqNo) {
                     updates.add(routeToUpdate(route))
                 }
@@ -157,9 +160,9 @@ internal class RoutingEngine(
         }
 
         // Update tracking map to reflect what we just sent
-        val newSeqNos = HashMap<List<Byte>, UShort>()
+        val newSeqNos = HashMap<ByteArrayKey, UShort>()
         for (route in allRoutes) {
-            newSeqNos[route.destination.asList()] = route.seqNo
+            newSeqNos[ByteArrayKey(route.destination)] = route.seqNo
         }
         neighborLastSentSeqNo[neighborKey] = newSeqNos
 
@@ -177,7 +180,7 @@ internal class RoutingEngine(
         for (route in routingTable.allRoutes()) {
             if (route.nextHop.contentEquals(nextHopPeerId)) {
                 routingTable.retract(route.destination)
-                feasibilityDistances.remove(route.destination.asList())
+                feasibilityDistances.remove(ByteArrayKey(route.destination))
                 val newSeqNo = ((route.seqNo.toInt() + 1) and 0xFFFF).toUShort()
                 retractions.add(
                     Update(
@@ -197,12 +200,12 @@ internal class RoutingEngine(
 
     /** Register a neighbour for differential tracking (starts with an empty seqNo map). */
     fun registerNeighbor(peerId: ByteArray) {
-        neighborLastSentSeqNo[peerId.asList()] = HashMap()
+        neighborLastSentSeqNo[ByteArrayKey(peerId)] = HashMap()
     }
 
     /** Unregister a neighbour, clearing its differential tracking state. */
     fun unregisterNeighbor(peerId: ByteArray) {
-        neighborLastSentSeqNo.remove(peerId.asList())
+        neighborLastSentSeqNo.remove(ByteArrayKey(peerId))
     }
 
     // ── timers ────────────────────────────────────────────────────────────────
@@ -223,7 +226,10 @@ internal class RoutingEngine(
         // Full-dump timer — launched first
         scope.launch {
             while (true) {
-                delay(config.helloIntervalMillis * config.fullDumpMultiplier)
+                delay(
+                    config.helloIntervalMillis * config.fullDumpMultiplier +
+                        jitterMillis(config.timerJitterMaxMillis)
+                )
                 for (route in routingTable.allRoutes()) {
                     val encodedMetric =
                         minOf(floor(route.metric * 100.0), 65534.0).toInt().toUShort()
@@ -247,7 +253,7 @@ internal class RoutingEngine(
         // Hello timer — launched second
         scope.launch {
             while (true) {
-                delay(config.helloIntervalMillis)
+                delay(config.helloIntervalMillis + jitterMillis(config.timerJitterMaxMillis))
                 localSeqNo = ((localSeqNo.toInt() + 1) and 0xFFFF).toUShort()
 
                 // Install / refresh self-route
@@ -263,7 +269,7 @@ internal class RoutingEngine(
                         x25519PublicKey = localDhPublicKey,
                     )
                 )
-                feasibilityDistances[localPeerId.asList()] = 0.0
+                feasibilityDistances[ByteArrayKey(localPeerId)] = 0.0
 
                 // Emit Hello broadcast
                 _outboundMessages.emit(

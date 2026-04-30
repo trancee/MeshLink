@@ -50,6 +50,10 @@ internal data class MessagingConfig(
     /** Max NACKs from a single peer per [nackWindowMillis]. */
     val nackLimit: Int = 10,
     val nackWindowMillis: Long = 1_000,
+    /** Maximum tracked peers for per-peer rate limiters and circuit breakers (LRU eviction). */
+    val maxTrackedPeers: Int = 256,
+    /** Maximum random jitter (ms) added to ACK deadline timers to desynchronize retransmissions. */
+    val ackJitterMaxMillis: Long = 0,
     val circuitBreaker: CircuitBreakerConfig = CircuitBreakerConfig(),
 ) {
     /** Circuit-breaker parameters for the outbound send path. */
@@ -89,6 +93,8 @@ internal data class MessagingConfig(
             handshakeWindowMillis == other.handshakeWindowMillis &&
             nackLimit == other.nackLimit &&
             nackWindowMillis == other.nackWindowMillis &&
+            maxTrackedPeers == other.maxTrackedPeers &&
+            ackJitterMaxMillis == other.ackJitterMaxMillis &&
             circuitBreaker == other.circuitBreaker
     }
 
@@ -117,6 +123,8 @@ internal data class MessagingConfig(
         h = 31 * h + handshakeWindowMillis.hashCode()
         h = 31 * h + nackLimit.hashCode()
         h = 31 * h + nackWindowMillis.hashCode()
+        h = 31 * h + maxTrackedPeers.hashCode()
+        h = 31 * h + ackJitterMaxMillis.hashCode()
         h = 31 * h + circuitBreaker.hashCode()
         return h
     }

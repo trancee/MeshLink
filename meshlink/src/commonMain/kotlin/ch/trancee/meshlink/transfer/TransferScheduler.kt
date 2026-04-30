@@ -1,5 +1,7 @@
 package ch.trancee.meshlink.transfer
 
+import ch.trancee.meshlink.util.ByteArrayKey
+
 /** Identifies a transfer session by the message ID (a 16-byte ByteArray). */
 internal typealias TransferSessionId = ByteArray
 
@@ -20,16 +22,16 @@ internal class TransferScheduler(maxConcurrent: Int = 4) {
         get() = _maxConcurrent
 
     private var callCount = 0
-    private val sessionMap = LinkedHashMap<List<Byte>, Priority>()
+    private val sessionMap = LinkedHashMap<ByteArrayKey, Priority>()
 
     /** Adds or replaces the registration for [id] with the given [priority]. */
     fun register(id: TransferSessionId, priority: Priority) {
-        sessionMap[id.asList()] = priority
+        sessionMap[ByteArrayKey(id)] = priority
     }
 
     /** Removes the session identified by [id] from the scheduler. */
     fun deregister(id: TransferSessionId) {
-        sessionMap.remove(id.asList())
+        sessionMap.remove(ByteArrayKey(id))
     }
 
     /** Updates the maximum number of sessions returned per [nextBatch] call. */
@@ -58,7 +60,7 @@ internal class TransferScheduler(maxConcurrent: Int = 4) {
             if (includeLow) addAll(low)
         }
 
-        val seen = mutableSetOf<List<Byte>>()
-        return candidates.filter { seen.add(it) }.take(_maxConcurrent).map { it.toByteArray() }
+        val seen = mutableSetOf<ByteArrayKey>()
+        return candidates.filter { seen.add(it) }.take(_maxConcurrent).map { it.bytes }
     }
 }

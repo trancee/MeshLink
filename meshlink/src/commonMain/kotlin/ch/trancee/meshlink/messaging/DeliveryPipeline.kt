@@ -7,6 +7,7 @@ import ch.trancee.meshlink.crypto.CryptoProvider
 import ch.trancee.meshlink.crypto.Identity
 import ch.trancee.meshlink.crypto.ReplayGuard
 import ch.trancee.meshlink.crypto.TrustStore
+import ch.trancee.meshlink.crypto.noise.DhCache
 import ch.trancee.meshlink.crypto.noise.noiseKOpen
 import ch.trancee.meshlink.crypto.noise.noiseKSeal
 import ch.trancee.meshlink.routing.DedupSet
@@ -18,6 +19,10 @@ import ch.trancee.meshlink.transfer.TransferEngine
 import ch.trancee.meshlink.transfer.TransferEvent
 import ch.trancee.meshlink.transport.BleTransport
 import ch.trancee.meshlink.transport.Logger
+import ch.trancee.meshlink.util.ByteArrayKey
+import ch.trancee.meshlink.util.LruMap
+import ch.trancee.meshlink.util.jitterMillis
+import ch.trancee.meshlink.util.toHex
 import ch.trancee.meshlink.wire.Broadcast
 import ch.trancee.meshlink.wire.DeliveryAck
 import ch.trancee.meshlink.wire.InboundValidator
@@ -77,14 +82,19 @@ internal class DeliveryPipeline(
         ch.trancee.meshlink.api.NoOpDiagnosticSink,
 ) {
 
+    // ── DH shared-secret cache ────────────────────────────────────────────────
+    // Caches DH(s, rs) per remote public key to avoid recomputing the expensive
+    // X25519 scalar multiplication on every seal/open. Cleared on key rotation.
+    private val dhCache = DhCache()
+
     // ── Per-sender replay guard ───────────────────────────────────────────────
-    // Keyed by sender keyHash (as List<Byte> for content-equality).
+    // Keyed by sender keyHash (as ByteArrayKey for content-equality without boxing).
     // A shared ReplayGuard across all senders would incorrectly reject messages
     // from different senders that happen to share the same originationTime counter.
-    private val replayGuards = HashMap<List<Byte>, ReplayGuard>()
+    private val replayGuards = LruMap<ByteArrayKey, ReplayGuard>(config.maxTrackedPeers)
 
     private fun checkReplay(senderId: ByteArray, counter: ULong): Boolean =
-        replayGuards.getOrPut(senderId.asList()) { ReplayGuard() }.check(counter)
+        replayGuards.getOrPut(ByteArrayKey(senderId)) { ReplayGuard() }.check(counter)
 
     // ── SharedFlow outputs ────────────────────────────────────────────────────
 
@@ -121,19 +131,23 @@ internal class DeliveryPipeline(
         SlidingWindowRateLimiter(config.broadcastLimit, config.broadcastWindowMillis, clock)
 
     // Lazy-instantiated per (sender, neighbor) pair
-    private val relayLimiters = HashMap<PeerPair, SlidingWindowRateLimiter>()
+    private val relayLimiters = LruMap<PeerPair, SlidingWindowRateLimiter>(config.maxTrackedPeers)
 
     // Lazy-instantiated per neighbour
-    private val neighborAggregateLimiters = HashMap<List<Byte>, SlidingWindowRateLimiter>()
+    private val neighborAggregateLimiters =
+        LruMap<ByteArrayKey, SlidingWindowRateLimiter>(config.maxTrackedPeers)
 
     // Lazy-instantiated per inbound sender
-    private val inboundSenderLimiters = HashMap<List<Byte>, SlidingWindowRateLimiter>()
+    private val inboundSenderLimiters =
+        LruMap<ByteArrayKey, SlidingWindowRateLimiter>(config.maxTrackedPeers)
 
     // Lazy-instantiated per unknown peer (for handshake traffic)
-    private val handshakeLimiters = HashMap<List<Byte>, SlidingWindowRateLimiter>()
+    private val handshakeLimiters =
+        LruMap<ByteArrayKey, SlidingWindowRateLimiter>(config.maxTrackedPeers)
 
     // Lazy-instantiated per neighbour (for NACK traffic)
-    private val nackLimiters = HashMap<List<Byte>, SlidingWindowRateLimiter>()
+    private val nackLimiters =
+        LruMap<ByteArrayKey, SlidingWindowRateLimiter>(config.maxTrackedPeers)
 
     // ── Internal state ────────────────────────────────────────────────────────
 
@@ -147,7 +161,8 @@ internal class DeliveryPipeline(
     private val sendBuffer = mutableListOf<BufferedMessage>()
 
     /** Per-destination circuit breakers. */
-    private val circuitBreakers = HashMap<List<Byte>, PerDestinationCircuitBreaker>()
+    private val circuitBreakers =
+        LruMap<ByteArrayKey, PerDestinationCircuitBreaker>(config.maxTrackedPeers)
 
     /** Pending ACKs that could not be sent (no route). Drained when route becomes available. */
     private val ackBuffer = ArrayDeque<AckRetryEntry>()
@@ -223,7 +238,7 @@ internal class DeliveryPipeline(
         if (!outboundUnicastLimiter.tryAcquire()) return SendResult.Queued(QueuedReason.PAUSED)
 
         // Circuit breaker check.
-        val cbKey = recipient.asList()
+        val cbKey = ByteArrayKey(recipient)
         val cb =
             circuitBreakers.getOrPut(cbKey) {
                 PerDestinationCircuitBreaker(config.circuitBreaker, clock)
@@ -244,7 +259,13 @@ internal class DeliveryPipeline(
 
         // Noise K seal: encrypt user payload.
         val sealedPayload =
-            noiseKSeal(cryptoProvider, localIdentity.dhKeyPair, recipientPubKey, payload)
+            noiseKSeal(
+                cryptoProvider,
+                localIdentity.dhKeyPair,
+                recipientPubKey,
+                payload,
+                dhCache = dhCache,
+            )
 
         // Build the outer RoutedMessage.
         val messageId = generateMessageId()
@@ -292,8 +313,8 @@ internal class DeliveryPipeline(
             PendingDelivery(recipient, recipientEdPubKey, expiresAt, cb)
         ownUnicastSessions.add(MessageIdKey(messageId))
         // Start a delivery-ACK deadline timer. If no DeliveryAck arrives within one
-        // inactivity-timeout window, treat the pending delivery as timed out.
-        val ackDeadline = transferEngine.ackDeadlineMillis
+        // inactivity-timeout window (+ jitter), treat the pending delivery as timed out.
+        val ackDeadline = transferEngine.ackDeadlineMillis + jitterMillis(config.ackJitterMaxMillis)
         val capturedMsgId = messageId.copyOf()
         scope.launch {
             delay(ackDeadline)
@@ -457,7 +478,7 @@ internal class DeliveryPipeline(
                         transferEngine.onIncomingChunkAck(fromPeerId, msg)
                     is ch.trancee.meshlink.wire.Nack -> {
                         val nackLimiter =
-                            nackLimiters.getOrPut(fromPeerId.asList()) {
+                            nackLimiters.getOrPut(ByteArrayKey(fromPeerId)) {
                                 SlidingWindowRateLimiter(
                                     config.nackLimit,
                                     config.nackWindowMillis,
@@ -523,7 +544,7 @@ internal class DeliveryPipeline(
             }
         if (!relayLimiter.tryAcquire()) return null
         val neighborAggLimiter =
-            neighborAggregateLimiters.getOrPut(fromPeerId.asList()) {
+            neighborAggregateLimiters.getOrPut(ByteArrayKey(fromPeerId)) {
                 SlidingWindowRateLimiter(
                     config.perNeighborAggregateLimit,
                     config.perNeighborAggregateWindowMillis,
@@ -648,7 +669,7 @@ internal class DeliveryPipeline(
     private fun evictCutThroughBuffer(key: MessageIdKey) {
         val buffer = cutThroughBuffers.remove(key) ?: return
         buffer.markTimedOut()
-        val msgIdHex = key.bytes.joinToString("") { it.toUByte().toString(16).padStart(2, '0') }
+        val msgIdHex = key.bytes.toHex()
         diagnosticSink.emit(DiagnosticCode.DELIVERY_TIMEOUT) {
             DiagnosticPayload.DeliveryTimeout(messageIdHex = msgIdHex)
         }
@@ -660,7 +681,13 @@ internal class DeliveryPipeline(
             val senderPubKey = trustStore.getPinnedKey(msg.origin) ?: return
             val plaintext =
                 try {
-                    noiseKOpen(cryptoProvider, localIdentity.dhKeyPair, senderPubKey, msg.payload)
+                    noiseKOpen(
+                        cryptoProvider,
+                        localIdentity.dhKeyPair,
+                        senderPubKey,
+                        msg.payload,
+                        dhCache = dhCache,
+                    )
                 } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
                     val reason = e.message ?: "AEAD verification failed"
                     diagnosticSink.emit(DiagnosticCode.DECRYPTION_FAILED) {
@@ -694,8 +721,7 @@ internal class DeliveryPipeline(
                 return
             }
 
-            val senderHex =
-                msg.origin.take(4).joinToString("") { it.toUByte().toString(16).padStart(2, '0') }
+            val senderHex = msg.origin.toHex(limit = 4)
             Logger.d("MeshLink", "message received sender=$senderHex... size=${plaintext.size}")
             _messages.tryEmit(
                 InboundMessage(
@@ -742,7 +768,7 @@ internal class DeliveryPipeline(
 
         // Per-sender inbound rate limit.
         val senderLimiter =
-            inboundSenderLimiters.getOrPut(msg.origin.asList()) {
+            inboundSenderLimiters.getOrPut(ByteArrayKey(msg.origin)) {
                 SlidingWindowRateLimiter(
                     config.perSenderInboundLimit,
                     config.perSenderInboundWindowMillis,
@@ -792,7 +818,7 @@ internal class DeliveryPipeline(
                 }
             if (!relayLimiter.tryAcquire()) continue
             val neighborAggLimiter =
-                neighborAggregateLimiters.getOrPut(peer.asList()) {
+                neighborAggregateLimiters.getOrPut(ByteArrayKey(peer)) {
                     SlidingWindowRateLimiter(
                         config.perNeighborAggregateLimit,
                         config.perNeighborAggregateWindowMillis,
@@ -915,7 +941,13 @@ internal class DeliveryPipeline(
                 // back to the original sender. A raw DeliveryAck would be silently dropped
                 // by relay nodes that don't have the message ID in their pendingDeliveries.
                 val sealed =
-                    noiseKSeal(cryptoProvider, localIdentity.dhKeyPair, senderKey, encodedAck)
+                    noiseKSeal(
+                        cryptoProvider,
+                        localIdentity.dhKeyPair,
+                        senderKey,
+                        encodedAck,
+                        dhCache = dhCache,
+                    )
                 val routedAck =
                     RoutedMessage(
                         messageId = generateMessageId(),

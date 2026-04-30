@@ -225,6 +225,7 @@ public data class MeshLinkConfig(
                     routeExpiryMillis = routing.routeCacheTtlMillis,
                     dedupCapacity = routing.dedupCapacity,
                     dedupTtlMillis = routing.maxMessageAgeMillis,
+                    timerJitterMaxMillis = 1_000L,
                 ),
             messaging =
                 ch.trancee.meshlink.messaging.MessagingConfig(
@@ -237,10 +238,12 @@ public data class MeshLinkConfig(
                     outboundUnicastLimit = rateLimiting.maxSends,
                     broadcastLimit = rateLimiting.broadcastLimit,
                     handshakeLimit = rateLimiting.handshakeLimit,
+                    ackJitterMaxMillis = security.ackJitterMaxMillis,
                 ),
             transfer =
                 ch.trancee.meshlink.transfer.TransferConfig(
-                    inactivityBaseTimeoutMillis = transfer.chunkInactivityTimeout
+                    inactivityBaseTimeoutMillis = transfer.chunkInactivityTimeout,
+                    backoffJitterMaxMillis = 200L,
                 ),
             power =
                 ch.trancee.meshlink.power.PowerConfig(

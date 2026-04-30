@@ -1,6 +1,7 @@
 package ch.trancee.meshlink.transfer
 
 import ch.trancee.meshlink.routing.OutboundFrame
+import ch.trancee.meshlink.util.ByteArrayKey
 import ch.trancee.meshlink.wire.Chunk
 import ch.trancee.meshlink.wire.ChunkAck
 import ch.trancee.meshlink.wire.Nack
@@ -57,8 +58,8 @@ internal class TransferEngine(
 
     private val scheduler = TransferScheduler()
 
-    /** Keyed by `messageId.asList()` for content-equality semantics (MEM047). */
-    private val sessions = mutableMapOf<List<Byte>, TransferSession>()
+    /** Keyed by `ByteArrayKey(messageId)` for content-equality without boxing (MEM047). */
+    private val sessions = mutableMapOf<ByteArrayKey, TransferSession>()
 
     /** Deadline for delivery-ACK timeout — same as the per-hop inactivity window. */
     internal val ackDeadlineMillis: Long
@@ -95,7 +96,7 @@ internal class TransferEngine(
                 _outboundChunks,
                 _events,
             )
-        sessions[messageId.asList()] = session
+        sessions[ByteArrayKey(messageId)] = session
         scheduler.register(messageId, priority)
         session.start()
     }
@@ -107,7 +108,7 @@ internal class TransferEngine(
      * one on first sight.
      */
     fun onIncomingChunk(peerId: ByteArray, chunk: Chunk) {
-        val key = chunk.messageId.asList()
+        val key = ByteArrayKey(chunk.messageId)
         val session =
             sessions.getOrPut(key) {
                 TransferSession.receiver(
@@ -129,17 +130,17 @@ internal class TransferEngine(
 
     /** Routes an incoming [ChunkAck] to the matching sender session. */
     fun onIncomingChunkAck(peerId: ByteArray, chunkAck: ChunkAck) {
-        sessions[chunkAck.messageId.asList()]?.onChunkAck(chunkAck)
+        sessions[ByteArrayKey(chunkAck.messageId)]?.onChunkAck(chunkAck)
     }
 
     /** Routes an incoming [Nack] to the matching sender session. */
     fun onIncomingNack(peerId: ByteArray, nack: Nack) {
-        sessions[nack.messageId.asList()]?.onNack(nack)
+        sessions[ByteArrayKey(nack.messageId)]?.onNack(nack)
     }
 
     /** Routes an incoming [ResumeRequest] to the matching sender session. */
     fun onIncomingResumeRequest(peerId: ByteArray, req: ResumeRequest) {
-        sessions[req.messageId.asList()]?.onResumeRequest(req)
+        sessions[ByteArrayKey(req.messageId)]?.onResumeRequest(req)
     }
 
     // ── Connectivity events ───────────────────────────────────────────────
@@ -171,7 +172,7 @@ internal class TransferEngine(
         }
 
         for (session in toEvict) {
-            sessions.remove(session.messageId.asList())
+            sessions.remove(ByteArrayKey(session.messageId))
             scheduler.deregister(session.messageId)
             session.cancel()
             scope.launch {
@@ -186,7 +187,7 @@ internal class TransferEngine(
 
     /** Removes a completed or cancelled session from the registry. */
     internal fun removeSession(messageId: ByteArray) {
-        sessions.remove(messageId.asList())
+        sessions.remove(ByteArrayKey(messageId))
         scheduler.deregister(messageId)
     }
 

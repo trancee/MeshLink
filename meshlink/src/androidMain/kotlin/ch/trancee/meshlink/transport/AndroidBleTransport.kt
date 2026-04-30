@@ -148,6 +148,7 @@ internal class AndroidBleTransport(
     private val phyGattByKeyHashHex = ConcurrentHashMap<String, BluetoothGatt>()
     private val gattServerSubscribersByMac = ConcurrentHashMap<String, Boolean>()
     private val connectionJobs = ConcurrentHashMap<String, Job>()
+    private val l2capRetrySchedulers = ConcurrentHashMap<String, L2capRetryScheduler>()
     private val lruOrder = LinkedHashMap<String, Unit>(16, 0.75f, true)
     private val lruLock = Any()
 
@@ -781,6 +782,7 @@ internal class AndroidBleTransport(
     ) {
         val conn = L2capConnection(socket)
         l2capConnections[keyHashHex] = conn
+        l2capRetrySchedulers.remove(keyHashHex) // Reset retry state on successful connect
         trackLru(keyHashHex)
         scope.launch { l2capReadLoop(keyHashHex, conn) }
         scope.launch { l2capKeepalive(keyHashHex, conn) }
@@ -846,15 +848,23 @@ internal class AndroidBleTransport(
             delay(KEEPALIVE_INTERVAL_MS)
             if (!l2capConnections.containsKey(keyHashHex)) break
             runCatching {
-                withContext(Dispatchers.IO) {
-                    conn.writeMutex.withLock {
-                        conn.outputStream.write(
-                            L2capFrameCodec.encode(FrameType.DATA, ByteArray(0))
-                        )
-                        conn.outputStream.flush()
+                    withContext(Dispatchers.IO) {
+                        conn.writeMutex.withLock {
+                            conn.outputStream.write(
+                                L2capFrameCodec.encode(FrameType.DATA, ByteArray(0))
+                            )
+                            conn.outputStream.flush()
+                        }
                     }
                 }
-            }
+                .onFailure {
+                    Log.w(TAG, "Keepalive write failed for $keyHashHex: ${it.message}")
+                    closeL2capConnection(keyHashHex)
+                    hexToBytes(keyHashHex)?.let { id ->
+                        _peerLostEvents.emit(PeerLostEvent(id, PeerLostReason.CONNECTION_LOST))
+                    }
+                    return
+                }
         }
     }
 
@@ -891,7 +901,8 @@ internal class AndroidBleTransport(
     }
 
     private fun scheduleL2capRetry(device: BluetoothDevice, psm: Int, keyHashHex: String) {
-        val delayMillis = L2capRetryScheduler().nextDelayMillis() ?: return
+        val scheduler = l2capRetrySchedulers.getOrPut(keyHashHex) { L2capRetryScheduler() }
+        val delayMillis = scheduler.nextDelayMillis() ?: return
         scope.launch {
             delay(delayMillis)
             if (isRunning.get() && !l2capConnections.containsKey(keyHashHex))

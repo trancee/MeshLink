@@ -20,12 +20,11 @@ internal enum class MessageType(val code: UByte) {
     UNKNOWN(0xFFu);
 
     companion object {
+        // O(1) lookup table indexed by type byte (0x00..0x0B → enum value, else UNKNOWN).
+        private val LOOKUP =
+            Array(256) { code -> entries.find { it.code == code.toUByte() } ?: UNKNOWN }
+
         /** Returns the [MessageType] for [byte], or [UNKNOWN] if the code is not recognised. */
-        fun fromByte(byte: UByte): MessageType {
-            for (t in entries) {
-                if (t.code == byte) return t
-            }
-            return UNKNOWN
-        }
+        fun fromByte(byte: UByte): MessageType = LOOKUP[byte.toInt()]
     }
 }

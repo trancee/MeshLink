@@ -1,5 +1,6 @@
 package ch.trancee.meshlink.routing
 
+import ch.trancee.meshlink.util.ByteArrayKey
 import ch.trancee.meshlink.wire.Keepalive
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -584,12 +585,12 @@ class PresenceTrackerTest {
 
         tracker.onPeerConnected(peerId)
         val statesBefore = tracker.allPeerStates()
-        assertEquals(1000L, statesBefore[peerId.toList()]!!.lastSeenMillis)
+        assertEquals(1000L, statesBefore[ByteArrayKey(peerId)]!!.lastSeenMillis)
 
         now = 5000L
         tracker.onPeerActivity(peerId)
         val statesAfter = tracker.allPeerStates()
-        assertEquals(5000L, statesAfter[peerId.toList()]!!.lastSeenMillis)
+        assertEquals(5000L, statesAfter[ByteArrayKey(peerId)]!!.lastSeenMillis)
     }
 
     @Test
@@ -607,7 +608,7 @@ class PresenceTrackerTest {
         val peerId = byteArrayOf(0x01)
 
         tracker.onPeerConnected(peerId)
-        assertEquals(42L, tracker.allPeerStates()[peerId.toList()]!!.lastSeenMillis)
+        assertEquals(42L, tracker.allPeerStates()[ByteArrayKey(peerId)]!!.lastSeenMillis)
     }
 
     // ----------------------------------------------------------------
@@ -625,8 +626,8 @@ class PresenceTrackerTest {
 
         val states = tracker.allPeerStates()
         assertEquals(2, states.size)
-        assertEquals(InternalPeerState.CONNECTED, states[peerA.toList()]!!.state)
-        assertEquals(InternalPeerState.DISCONNECTED, states[peerB.toList()]!!.state)
+        assertEquals(InternalPeerState.CONNECTED, states[ByteArrayKey(peerA)]!!.state)
+        assertEquals(InternalPeerState.DISCONNECTED, states[ByteArrayKey(peerB)]!!.state)
     }
 
     @Test
@@ -657,7 +658,7 @@ class PresenceTrackerTest {
 
         // Reconnect resets sweepCount to 0
         tracker.onPeerConnected(peerId)
-        assertEquals(0, tracker.allPeerStates()[peerId.toList()]!!.sweepCount)
+        assertEquals(0, tracker.allPeerStates()[ByteArrayKey(peerId)]!!.sweepCount)
     }
 
     @Test
@@ -699,7 +700,7 @@ class PresenceTrackerTest {
         tracker.onPeerConnected(peerId)
         tracker.onPeerDisconnected(peerId)
 
-        assertEquals(0, tracker.allPeerStates()[peerId.toList()]!!.sweepCount)
+        assertEquals(0, tracker.allPeerStates()[ByteArrayKey(peerId)]!!.sweepCount)
     }
 
     @Test
@@ -711,11 +712,11 @@ class PresenceTrackerTest {
 
         // Sweep 1: count 0 → 1
         tracker.sweep()
-        assertEquals(1, tracker.allPeerStates()[peerId.toList()]!!.sweepCount)
+        assertEquals(1, tracker.allPeerStates()[ByteArrayKey(peerId)]!!.sweepCount)
 
         // Sweep 2: count 1 → 2
         tracker.sweep()
-        assertEquals(2, tracker.allPeerStates()[peerId.toList()]!!.sweepCount)
+        assertEquals(2, tracker.allPeerStates()[ByteArrayKey(peerId)]!!.sweepCount)
 
         // Sweep 3: count 2 ≥ 2 → evict
         val gone = tracker.sweep()

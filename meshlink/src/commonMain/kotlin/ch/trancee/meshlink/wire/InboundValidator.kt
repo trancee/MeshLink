@@ -32,9 +32,8 @@ internal object InboundValidator {
 
         // Steps 3–5 — structural + field-size validation, then decode.
         // IllegalArgumentException from ReadBuffer init or getByteArray is caught here.
-        val payload = data.copyOfRange(1, data.size)
         return try {
-            val buffer = ReadBuffer(payload)
+            val buffer = ReadBuffer(data, baseOffset = 1)
             checkFields(messageType, buffer) ?: Valid(WireCodec.decode(data))
         } catch (e: IllegalArgumentException) {
             MalformedStructure("Invalid FlatBuffers structure")

@@ -1,17 +1,19 @@
 package ch.trancee.meshlink.routing
 
+import ch.trancee.meshlink.util.ByteArrayKey
+
 internal class DedupSet(
     private val capacity: Int,
     private val ttlMillis: Long,
     private val clock: () -> Long,
 ) {
-    private val entries: LinkedHashMap<List<Byte>, Long> = LinkedHashMap()
+    private val entries: LinkedHashMap<ByteArrayKey, Long> = LinkedHashMap()
 
     val size: Int
         get() = entries.size
 
     fun isDuplicate(messageId: ByteArray): Boolean {
-        val key = messageId.asList()
+        val key = ByteArrayKey(messageId)
         val storedTimestamp = entries[key] ?: return false
         if (clock() - storedTimestamp > ttlMillis) {
             entries.remove(key)
@@ -24,7 +26,7 @@ internal class DedupSet(
     }
 
     fun add(messageId: ByteArray) {
-        val key = messageId.asList()
+        val key = ByteArrayKey(messageId)
         entries[key] = clock()
         while (entries.size > capacity) {
             entries.remove(entries.keys.first())

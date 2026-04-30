@@ -61,7 +61,7 @@ internal class NoiseXXInitiator(crypto: CryptoProvider, staticKeyPair: KeyPair) 
      * @param payload Optional application payload to include.
      * @return The serialized message bytes.
      */
-    fun writeMessage1(payload: ByteArray = ByteArray(0)): ByteArray =
+    fun writeMessage1(payload: ByteArray = EMPTY_BYTE_ARRAY): ByteArray =
         handshakeState.writeMessage(payload)
 
     /**
@@ -79,7 +79,7 @@ internal class NoiseXXInitiator(crypto: CryptoProvider, staticKeyPair: KeyPair) 
      * @param payload Optional application payload.
      * @return The serialized message bytes.
      */
-    fun writeMessage3(payload: ByteArray = ByteArray(0)): ByteArray =
+    fun writeMessage3(payload: ByteArray = EMPTY_BYTE_ARRAY): ByteArray =
         handshakeState.writeMessage(payload)
 
     /**
@@ -130,7 +130,7 @@ internal class NoiseXXResponder(crypto: CryptoProvider, staticKeyPair: KeyPair) 
      * @param payload Optional application payload.
      * @return The serialized message bytes.
      */
-    fun writeMessage2(payload: ByteArray = ByteArray(0)): ByteArray =
+    fun writeMessage2(payload: ByteArray = EMPTY_BYTE_ARRAY): ByteArray =
         handshakeState.writeMessage(payload)
 
     /**

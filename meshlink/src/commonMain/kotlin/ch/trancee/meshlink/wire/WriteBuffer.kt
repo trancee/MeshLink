@@ -25,40 +25,52 @@ package ch.trancee.meshlink.wire
  * [table: soffset (int32 LE) + inline scalar/offset fields (with natural alignment)]
  * [vectors: length-prefix (uint32 LE) + data, each 4-aligned]
  * ```
+ *
+ * **Performance:** Scalar fields are stored as (value, size, alignment) tuples and written directly
+ * into the output buffer — no intermediate ByteArray allocation per field.
  */
 internal class WriteBuffer {
 
     private var numFields = 0
-    private val scalarFields = mutableMapOf<Int, ByteArray>()
-    private val vectorFields = mutableMapOf<Int, ByteArray>()
+
+    // Scalar fields stored as raw Long values + size/alignment metadata.
+    // Avoids allocating a ByteArray per scalar field.
+    private val scalarValues = LongArray(MAX_FIELDS)
+    private val scalarSizes = IntArray(MAX_FIELDS) // 0 = absent
+    private val vectorFields = arrayOfNulls<ByteArray>(MAX_FIELDS)
 
     // ── Table building ────────────────────────────────────────────────────────
 
     /** Initialise state for one table with [numFields] field slots (0-based indices). */
     fun startTable(numFields: Int) {
         this.numFields = numFields
-        scalarFields.clear()
-        vectorFields.clear()
+        scalarSizes.fill(0, 0, numFields)
+        for (i in 0 until numFields) vectorFields[i] = null
     }
 
     fun addUByte(fieldIndex: Int, value: UByte) {
-        scalarFields[fieldIndex] = byteArrayOf(value.toByte())
+        scalarValues[fieldIndex] = value.toLong()
+        scalarSizes[fieldIndex] = 1
     }
 
     fun addByte(fieldIndex: Int, value: Byte) {
-        scalarFields[fieldIndex] = byteArrayOf(value)
+        scalarValues[fieldIndex] = value.toLong()
+        scalarSizes[fieldIndex] = 1
     }
 
     fun addUShort(fieldIndex: Int, value: UShort) {
-        scalarFields[fieldIndex] = leUShort(value)
+        scalarValues[fieldIndex] = value.toLong()
+        scalarSizes[fieldIndex] = 2
     }
 
     fun addUInt(fieldIndex: Int, value: UInt) {
-        scalarFields[fieldIndex] = leUInt(value)
+        scalarValues[fieldIndex] = value.toLong()
+        scalarSizes[fieldIndex] = 4
     }
 
     fun addULong(fieldIndex: Int, value: ULong) {
-        scalarFields[fieldIndex] = leULong(value)
+        scalarValues[fieldIndex] = value.toLong()
+        scalarSizes[fieldIndex] = 8
     }
 
     /** Stores [data] as a length-prefixed vector; the field holds a relative uoffset_t. */
@@ -84,15 +96,15 @@ internal class WriteBuffer {
         var absPos = tableStart + 4 // first byte after soffset
 
         for (fi in 0 until numFields) {
+            val size = scalarSizes[fi]
             when {
-                scalarFields.containsKey(fi) -> {
-                    val bytes = scalarFields[fi]!!
-                    val align = bytes.size.coerceIn(1, 8)
+                size > 0 -> {
+                    val align = size.coerceIn(1, 8)
                     absPos = alignUp(absPos, align)
                     fieldOffsets[fi] = absPos - tableStart
-                    absPos += bytes.size
+                    absPos += size
                 }
-                vectorFields.containsKey(fi) -> {
+                vectorFields[fi] != null -> {
                     absPos = alignUp(absPos, 4) // uoffset_t is uint32
                     fieldOffsets[fi] = absPos - tableStart
                     absPos += 4
@@ -103,12 +115,14 @@ internal class WriteBuffer {
         val tableBodyEnd = absPos
 
         // Place vectors after the table body (each 4-aligned: length + data).
-        val vectorPositions = mutableMapOf<Int, Int>()
+        data class VecPos(val fieldIndex: Int, val position: Int)
+
+        val vecPositions = mutableListOf<VecPos>()
         var vecPos = tableBodyEnd
-        for (fi in vectorFields.keys.sorted()) {
-            val data = vectorFields[fi]!!
+        for (fi in 0 until numFields) {
+            val data = vectorFields[fi] ?: continue
             vecPos = alignUp(vecPos, 4)
-            vectorPositions[fi] = vecPos
+            vecPositions.add(VecPos(fi, vecPos))
             vecPos += 4 + data.size
         }
 
@@ -129,18 +143,21 @@ internal class WriteBuffer {
         // soffset at table start (int32 LE): points from table to vtable (negative).
         writeInt(buf, tableStart, vtablePos - tableStart)
 
-        // Scalar fields.
-        for ((fi, bytes) in scalarFields) {
-            bytes.copyInto(buf, tableStart + fieldOffsets[fi])
+        // Scalar fields — write directly from Long values, no intermediate arrays.
+        for (fi in 0 until numFields) {
+            val size = scalarSizes[fi]
+            if (size == 0) continue
+            val pos = tableStart + fieldOffsets[fi]
+            writeScalar(buf, pos, scalarValues[fi], size)
         }
 
         // Vector offset fields + vector data.
-        for ((fi, data) in vectorFields) {
-            val fieldAbsPos = tableStart + fieldOffsets[fi]
-            val vecAbsPos = vectorPositions[fi]!!
-            writeUInt(buf, fieldAbsPos, (vecAbsPos - fieldAbsPos).toUInt())
-            writeUInt(buf, vecAbsPos, data.size.toUInt())
-            data.copyInto(buf, vecAbsPos + 4)
+        for (vp in vecPositions) {
+            val fieldAbsPos = tableStart + fieldOffsets[vp.fieldIndex]
+            writeUInt(buf, fieldAbsPos, (vp.position - fieldAbsPos).toUInt())
+            val data = vectorFields[vp.fieldIndex]!!
+            writeUInt(buf, vp.position, data.size.toUInt())
+            data.copyInto(buf, vp.position + 4)
         }
 
         return buf
@@ -151,27 +168,13 @@ internal class WriteBuffer {
     private fun alignUp(pos: Int, align: Int): Int =
         if (pos % align == 0) pos else pos + (align - pos % align)
 
-    private fun leUShort(v: UShort): ByteArray =
-        byteArrayOf((v.toInt() and 0xFF).toByte(), ((v.toInt() ushr 8) and 0xFF).toByte())
-
-    private fun leUInt(v: UInt): ByteArray {
-        val i = v.toInt()
-        return byteArrayOf(
-            (i and 0xFF).toByte(),
-            ((i ushr 8) and 0xFF).toByte(),
-            ((i ushr 16) and 0xFF).toByte(),
-            ((i ushr 24) and 0xFF).toByte(),
-        )
-    }
-
-    private fun leULong(v: ULong): ByteArray {
-        val b = ByteArray(8)
-        var x = v
-        for (i in 0 until 8) {
-            b[i] = (x and 0xFFUL).toByte()
-            x = x shr 8
+    /** Writes [size] bytes of [value] in little-endian at [pos] in [buf]. */
+    private fun writeScalar(buf: ByteArray, pos: Int, value: Long, size: Int) {
+        var v = value
+        for (i in 0 until size) {
+            buf[pos + i] = (v and 0xFF).toByte()
+            v = v ushr 8
         }
-        return b
     }
 
     private fun writeUShort(buf: ByteArray, pos: Int, v: UShort) {
@@ -188,4 +191,9 @@ internal class WriteBuffer {
     }
 
     private fun writeInt(buf: ByteArray, pos: Int, v: Int) = writeUInt(buf, pos, v.toUInt())
+
+    private companion object {
+        /** Maximum supported fields per table. Keeps pre-allocated arrays small. */
+        const val MAX_FIELDS = 16
+    }
 }

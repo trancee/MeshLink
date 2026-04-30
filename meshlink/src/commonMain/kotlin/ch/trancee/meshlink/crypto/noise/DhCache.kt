@@ -1,6 +1,7 @@
 package ch.trancee.meshlink.crypto.noise
 
 import ch.trancee.meshlink.crypto.CryptoProvider
+import ch.trancee.meshlink.util.ByteArrayKey
 
 /**
  * Cache for DH static-static shared secrets used in Noise K seal/open.
@@ -13,7 +14,7 @@ import ch.trancee.meshlink.crypto.CryptoProvider
  */
 internal class DhCache {
 
-    private val cache = HashMap<List<Byte>, ByteArray>()
+    private val cache = HashMap<ByteArrayKey, ByteArray>()
 
     /** Returns the number of cached DH secrets. */
     val size: Int
@@ -32,7 +33,7 @@ internal class DhCache {
         localStaticPrivate: ByteArray,
         remoteStaticPublic: ByteArray,
     ): ByteArray {
-        val key = remoteStaticPublic.asList()
+        val key = ByteArrayKey(remoteStaticPublic)
         val cached = cache[key]
         if (cached != null) return cached
         val computed = crypto.x25519SharedSecret(localStaticPrivate, remoteStaticPublic)

@@ -1,5 +1,7 @@
 package ch.trancee.meshlink.routing
 
+import ch.trancee.meshlink.util.ByteArrayKey
+
 internal val METRIC_RETRACTION: UShort = 0xFFFFu.toUShort()
 
 /**
@@ -64,8 +66,8 @@ internal class RouteEntry(
 }
 
 /**
- * Single-best-path route store keyed by destination (as `List<Byte>` for Kover-safe content
- * equality — see MEM047). Digest is maintained incrementally via XOR-fold of per-entry FNV-1a
+ * Single-best-path route store keyed by destination (as [ByteArrayKey] for content-equality without
+ * autoboxing — see MEM047). Digest is maintained incrementally via XOR-fold of per-entry FNV-1a
  * hashes so callers can detect lost updates in O(1).
  *
  * All expiry is lazy: stale entries are evicted on first access after their [RouteEntry.expiresAt]
@@ -73,7 +75,7 @@ internal class RouteEntry(
  */
 internal class RoutingTable(private val clock: () -> Long) {
 
-    private val routes: HashMap<List<Byte>, RouteEntry> = HashMap()
+    private val routes: HashMap<ByteArrayKey, RouteEntry> = HashMap()
     private var digest: UInt = 0u
 
     /** Compute the XOR component for one table entry (dest + seqNo-LE). */
@@ -93,7 +95,7 @@ internal class RoutingTable(private val clock: () -> Long) {
      * @return the previous entry for this destination, or null if none.
      */
     fun install(entry: RouteEntry): RouteEntry? {
-        val key = entry.destination.asList()
+        val key = ByteArrayKey(entry.destination)
         val existing = routes[key]
         if (existing != null) {
             digest = digest xor entryHash(existing.destination, existing.seqNo)
@@ -109,7 +111,7 @@ internal class RoutingTable(private val clock: () -> Long) {
      * @return the removed entry, or null if no route was present.
      */
     fun retract(destination: ByteArray): RouteEntry? {
-        val key = destination.asList()
+        val key = ByteArrayKey(destination)
         val existing = routes.remove(key) ?: return null
         digest = digest xor entryHash(existing.destination, existing.seqNo)
         return existing
@@ -121,7 +123,7 @@ internal class RoutingTable(private val clock: () -> Long) {
      * @return the next-hop bytes, or null if unknown or expired.
      */
     fun lookupNextHop(destination: ByteArray): ByteArray? {
-        val key = destination.asList()
+        val key = ByteArrayKey(destination)
         val entry = routes[key] ?: return null
         if (clock() > entry.expiresAt) {
             routes.remove(key)
@@ -137,7 +139,7 @@ internal class RoutingTable(private val clock: () -> Long) {
      * @return the full entry, or null if unknown or expired.
      */
     fun lookupRoute(destination: ByteArray): RouteEntry? {
-        val key = destination.asList()
+        val key = ByteArrayKey(destination)
         val entry = routes[key] ?: return null
         if (clock() > entry.expiresAt) {
             routes.remove(key)
@@ -153,7 +155,7 @@ internal class RoutingTable(private val clock: () -> Long) {
     /** Return all non-expired routes, evicting stale entries lazily as a side-effect. */
     fun allRoutes(): List<RouteEntry> {
         val now = clock()
-        val keysToRemove = mutableListOf<List<Byte>>()
+        val keysToRemove = mutableListOf<ByteArrayKey>()
         val entriesToRemove = mutableListOf<RouteEntry>()
         for ((key, entry) in routes) {
             if (now > entry.expiresAt) {

@@ -34,11 +34,11 @@ internal class HandshakeState(
     private val symmetricState: SymmetricState = SymmetricState(crypto)
     private val ephemeralKeyPair: KeyPair = crypto.generateX25519KeyPair()
 
-    // Non-nullable: ByteArray(0) is the sentinel for "not yet received".
+    // Non-nullable: EMPTY_BYTE_ARRAY is the sentinel for "not yet received".
     // In Noise XX the fields are always populated before any DH operation reads them,
     // so nullable-guard ?: throws in the token methods would be dead code.
-    private var remoteEphemeral: ByteArray = ByteArray(0)
-    private var remoteStatic: ByteArray = ByteArray(0)
+    private var remoteEphemeral: ByteArray = EMPTY_BYTE_ARRAY
+    private var remoteStatic: ByteArray = EMPTY_BYTE_ARRAY
 
     /** Protocol step counter shared across writeMessage and readMessage calls (0–3). */
     private var step: Int = 0
@@ -52,7 +52,7 @@ internal class HandshakeState(
 
     init {
         symmetricState.initializeSymmetric(PROTOCOL_NAME)
-        symmetricState.mixHash(ByteArray(0)) // empty prologue per Noise spec §5.3
+        symmetricState.mixHash(EMPTY_BYTE_ARRAY) // empty prologue per Noise spec §5.3
     }
 
     /**
@@ -67,7 +67,7 @@ internal class HandshakeState(
      * @return The serialized handshake message bytes.
      * @throws IllegalStateException if called in an invalid state.
      */
-    fun writeMessage(payload: ByteArray = ByteArray(0)): ByteArray {
+    fun writeMessage(payload: ByteArray = EMPTY_BYTE_ARRAY): ByteArray {
         val parts = mutableListOf<ByteArray>()
         when {
             isInitiator && step == 0 -> {
@@ -94,7 +94,15 @@ internal class HandshakeState(
         parts.add(symmetricState.encryptAndHash(payload))
         step++
         if (step == 3) splitResult = symmetricState.split()
-        return parts.fold(ByteArray(0)) { acc, bytes -> acc + bytes }
+        // Single allocation: compute total size, then copy sequentially.
+        val totalSize = parts.sumOf { it.size }
+        val result = ByteArray(totalSize)
+        var offset = 0
+        for (part in parts) {
+            part.copyInto(result, offset)
+            offset += part.size
+        }
+        return result
     }
 
     /**

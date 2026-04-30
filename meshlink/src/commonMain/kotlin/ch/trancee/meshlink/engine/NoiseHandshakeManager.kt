@@ -9,6 +9,8 @@ import ch.trancee.meshlink.crypto.TrustStore
 import ch.trancee.meshlink.crypto.noise.NoiseXXInitiator
 import ch.trancee.meshlink.crypto.noise.NoiseXXResponder
 import ch.trancee.meshlink.transport.Logger
+import ch.trancee.meshlink.util.ByteArrayKey
+import ch.trancee.meshlink.util.toHex
 import ch.trancee.meshlink.wire.Handshake
 
 /**
@@ -44,10 +46,10 @@ internal class NoiseHandshakeManager(
     var sendHandshake: ((peerId: ByteArray, handshakeMsg: Handshake) -> Unit)? = null
 
     // Active handshake states keyed by peerId.asList() (MEM047/MEM098 convention).
-    private val activeHandshakes = HashMap<List<Byte>, NoiseXXState>()
+    private val activeHandshakes = HashMap<ByteArrayKey, NoiseXXState>()
 
     // Rate limiter: peerId.asList() → timestamp of last handshake initiation attempt.
-    private val lastHandshakeAttempt = HashMap<List<Byte>, Long>()
+    private val lastHandshakeAttempt = HashMap<ByteArrayKey, Long>()
 
     /**
      * Clears all active handshake states. Called during identity rotation to invalidate all
@@ -86,7 +88,7 @@ internal class NoiseHandshakeManager(
             return
         }
 
-        val peerKey = peerId.asList()
+        val peerKey = ByteArrayKey(peerId)
 
         // Rate limit: skip if the last attempt is within the rolling window.
         val lastAttempt = lastHandshakeAttempt[peerKey]
@@ -130,7 +132,7 @@ internal class NoiseHandshakeManager(
 
     /** Step 1: we are the responder. Read msg1, write msg2, register Responding state. */
     private fun handleStep1(peerId: ByteArray, handshake: Handshake) {
-        val peerKey = peerId.asList()
+        val peerKey = ByteArrayKey(peerId)
         val now = clock()
 
         // Reject if at concurrency cap.
@@ -164,7 +166,7 @@ internal class NoiseHandshakeManager(
 
     /** Step 2: we are the initiator. Read msg2 (`e, ee, s, es`), write msg3 (`s, se`), finalize. */
     private fun handleStep2(peerId: ByteArray, handshake: Handshake) {
-        val peerKey = peerId.asList()
+        val peerKey = ByteArrayKey(peerId)
         val state = activeHandshakes[peerKey]
         if (state !is NoiseXXState.Initiating) return
 
@@ -176,8 +178,7 @@ internal class NoiseHandshakeManager(
             trustStore.pinKey(peerId, session.getRemoteStaticKey())
             sendHandshake?.invoke(peerId, Handshake(step = 3u, noiseMessage = msg3))
             val elapsedInitiator = clock() - state.startedAt
-            val peerHexI =
-                peerId.take(4).joinToString("") { it.toUByte().toString(16).padStart(2, '0') }
+            val peerHexI = peerId.toHex(limit = 4)
             Logger.d(
                 "MeshLink",
                 "Noise XX complete (initiator) peer=$peerHexI... elapsed=${elapsedInitiator}ms",
@@ -205,7 +206,7 @@ internal class NoiseHandshakeManager(
 
     /** Step 3: we are the responder. Read msg3 (`s, se`), finalize. */
     private fun handleStep3(peerId: ByteArray, handshake: Handshake) {
-        val peerKey = peerId.asList()
+        val peerKey = ByteArrayKey(peerId)
         val state = activeHandshakes[peerKey]
         if (state !is NoiseXXState.Responding) return
 
@@ -215,8 +216,7 @@ internal class NoiseHandshakeManager(
             activeHandshakes.remove(peerKey)
             trustStore.pinKey(peerId, session.getRemoteStaticKey())
             val elapsedResponder = clock() - state.startedAt
-            val peerHexR =
-                peerId.take(4).joinToString("") { it.toUByte().toString(16).padStart(2, '0') }
+            val peerHexR = peerId.toHex(limit = 4)
             Logger.d(
                 "MeshLink",
                 "Noise XX complete (responder) peer=$peerHexR... elapsed=${elapsedResponder}ms",

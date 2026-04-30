@@ -41,7 +41,7 @@ internal class SymmetricState(private val crypto: CryptoProvider) {
      * cipher key (resetting the nonce counter to 0).
      */
     fun mixKey(ikm: ByteArray) {
-        val output = crypto.hkdfSha256(ck, ikm, ByteArray(0), 64)
+        val output = crypto.hkdfSha256(ck, ikm, EMPTY_BYTE_ARRAY, 64)
         ck = output.copyOfRange(0, 32)
         cipherState.initializeKey(output.copyOfRange(32, 64))
     }
@@ -62,7 +62,7 @@ internal class SymmetricState(private val crypto: CryptoProvider) {
      * input, last 32 bytes → new cipher key.
      */
     fun mixKeyAndHash(ikm: ByteArray) {
-        val output = crypto.hkdfSha256(ck, ikm, ByteArray(0), 96)
+        val output = crypto.hkdfSha256(ck, ikm, EMPTY_BYTE_ARRAY, 96)
         ck = output.copyOfRange(0, 32)
         mixHash(output.copyOfRange(32, 64))
         cipherState.initializeKey(output.copyOfRange(64, 96))
@@ -97,7 +97,7 @@ internal class SymmetricState(private val crypto: CryptoProvider) {
      * (responder→initiator).
      */
     fun split(): Pair<CipherState, CipherState> {
-        val output = crypto.hkdfSha256(ck, ByteArray(0), ByteArray(0), 64)
+        val output = crypto.hkdfSha256(ck, EMPTY_BYTE_ARRAY, EMPTY_BYTE_ARRAY, 64)
         val c1 = CipherState(crypto)
         c1.initializeKey(output.copyOfRange(0, 32))
         val c2 = CipherState(crypto)

@@ -20,8 +20,7 @@ internal object WireCodec {
     fun decode(data: ByteArray): WireMessage {
         if (data.isEmpty()) throw IllegalArgumentException("Empty wire frame")
         val typeCode = data[0].toUByte()
-        val payload = data.copyOfRange(1, data.size)
-        val buffer = ReadBuffer(payload)
+        val buffer = ReadBuffer(data, baseOffset = 1)
         return when (MessageType.fromByte(typeCode)) {
             MessageType.HANDSHAKE -> Handshake.decode(buffer)
             MessageType.KEEPALIVE -> Keepalive.decode(buffer)

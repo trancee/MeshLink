@@ -23,7 +23,8 @@ internal class NoiseSession(
      *
      * @return The ciphertext concatenated with a 16-byte Poly1305 authentication tag.
      */
-    fun encrypt(plaintext: ByteArray): ByteArray = sendState.encryptWithAd(ByteArray(0), plaintext)
+    fun encrypt(plaintext: ByteArray): ByteArray =
+        sendState.encryptWithAd(EMPTY_BYTE_ARRAY, plaintext)
 
     /**
      * Decrypts [ciphertext] using the receive [CipherState] with empty associated data.
@@ -32,7 +33,7 @@ internal class NoiseSession(
      * @throws IllegalStateException if the authentication tag verification fails.
      */
     fun decrypt(ciphertext: ByteArray): ByteArray =
-        receiveState.decryptWithAd(ByteArray(0), ciphertext)
+        receiveState.decryptWithAd(EMPTY_BYTE_ARRAY, ciphertext)
 
     /** Returns the remote peer's static X25519 public key (32 bytes). */
     fun getRemoteStaticKey(): ByteArray = remoteStaticKey.copyOf()

@@ -12,8 +12,15 @@ import ch.trancee.meshlink.crypto.CryptoProvider
  */
 internal class CipherState(private val crypto: CryptoProvider) {
 
-    private var k: ByteArray = ByteArray(0) // empty = no key
+    private var k: ByteArray = EMPTY_BYTE_ARRAY // empty = no key
     private var n: Long = 0L
+
+    /**
+     * Reusable 12-byte nonce buffer. Bytes 0–3 are always zero (IETF ChaCha20-Poly1305 format).
+     * Only bytes 4–11 are written by [writeNonce]. Safe because CipherState is single-threaded (one
+     * per Noise session direction).
+     */
+    private val nonceBuffer = ByteArray(12)
 
     /** Returns true if this CipherState holds an initialized key. */
     fun hasKey(): Boolean = k.isNotEmpty()
@@ -38,9 +45,9 @@ internal class CipherState(private val crypto: CryptoProvider) {
      */
     fun encryptWithAd(ad: ByteArray, plaintext: ByteArray): ByteArray {
         if (!hasKey()) return plaintext
-        val nonce = encodeNonce(n)
+        writeNonce(n)
         n++
-        return crypto.aeadEncrypt(k, nonce, plaintext, ad)
+        return crypto.aeadEncrypt(k, nonceBuffer, plaintext, ad)
     }
 
     /**
@@ -52,9 +59,9 @@ internal class CipherState(private val crypto: CryptoProvider) {
      */
     fun decryptWithAd(ad: ByteArray, ciphertext: ByteArray): ByteArray {
         if (!hasKey()) return ciphertext
-        val nonce = encodeNonce(n)
+        writeNonce(n)
         n++
-        return crypto.aeadDecrypt(k, nonce, ciphertext, ad)
+        return crypto.aeadDecrypt(k, nonceBuffer, ciphertext, ad)
     }
 
     /** Noise §11.3 Rekey stub. Not used in v1; included for spec completeness. */
@@ -62,11 +69,25 @@ internal class CipherState(private val crypto: CryptoProvider) {
         // Not implemented in v1.
     }
 
+    /**
+     * Writes a 64-bit nonce counter into [nonceBuffer] in-place (bytes 4–11, little-endian). Bytes
+     * 0–3 stay zero — IETF ChaCha20-Poly1305 format per Noise spec §12.
+     */
+    private fun writeNonce(counter: Long) {
+        var v = counter
+        for (i in 4..11) {
+            nonceBuffer[i] = (v and 0xFF).toByte()
+            v = v ushr 8
+        }
+    }
+
     companion object {
         /**
          * Encodes a 64-bit nonce counter as the 12-byte IETF ChaCha20-Poly1305 nonce.
          *
          * Noise spec §12 (ChaChaPoly): 4 zero bytes ‖ little-endian 64-bit counter.
+         *
+         * Retained for use by callers outside [CipherState] (e.g. test utilities).
          */
         internal fun encodeNonce(counter: Long): ByteArray {
             val nonce = ByteArray(12) // bytes 0–3 remain 0 by default

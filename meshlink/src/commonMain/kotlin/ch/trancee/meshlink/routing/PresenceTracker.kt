@@ -1,5 +1,6 @@
 package ch.trancee.meshlink.routing
 
+import ch.trancee.meshlink.util.ByteArrayKey
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 
@@ -63,7 +64,7 @@ internal class PresenceTracker(private val clock: () -> Long = { 0L }) {
     private val _peerEvents = MutableSharedFlow<PeerEvent>(replay = 0, extraBufferCapacity = 64)
     val peerEvents: Flow<PeerEvent> = _peerEvents
 
-    private val _peers = HashMap<List<Byte>, PeerPresence>()
+    private val _peers = HashMap<ByteArrayKey, PeerPresence>()
 
     var presenceTimeoutMillis: Long = 30_000L
         private set
@@ -75,7 +76,7 @@ internal class PresenceTracker(private val clock: () -> Long = { 0L }) {
      * was Gone (evicted) and reconnects is treated as a fresh peer.
      */
     fun onPeerConnected(peerId: ByteArray) {
-        _peers[peerId.toList()] =
+        _peers[ByteArrayKey(peerId)] =
             PeerPresence(
                 state = InternalPeerState.CONNECTED,
                 lastSeenMillis = clock(),
@@ -91,7 +92,7 @@ internal class PresenceTracker(private val clock: () -> Long = { 0L }) {
      * is a no-op (no event emitted). If the peer is unknown, adds it as Disconnected.
      */
     fun onPeerDisconnected(peerId: ByteArray) {
-        val key = peerId.toList()
+        val key = ByteArrayKey(peerId)
         val existing = _peers[key]
         if (existing != null && existing.state == InternalPeerState.DISCONNECTED) {
             // Already disconnected — idempotent no-op.
@@ -112,7 +113,7 @@ internal class PresenceTracker(private val clock: () -> Long = { 0L }) {
      * No-op if the peer is not currently tracked.
      */
     fun onPeerActivity(peerId: ByteArray) {
-        val key = peerId.toList()
+        val key = ByteArrayKey(peerId)
         val existing = _peers[key] ?: return
         _peers[key] = existing.copy(lastSeenMillis = clock())
     }
@@ -133,7 +134,7 @@ internal class PresenceTracker(private val clock: () -> Long = { 0L }) {
 
             if (presence.sweepCount >= 2) {
                 // Evict — transition to Gone.
-                val peerId = key.toByteArray()
+                val peerId = key.bytes
                 gonePeers.add(peerId)
                 _peerEvents.tryEmit(PeerEvent.Gone(peerId.copyOf()))
                 iterator.remove()
@@ -149,17 +150,17 @@ internal class PresenceTracker(private val clock: () -> Long = { 0L }) {
     fun connectedPeers(): Set<ByteArray> =
         _peers.entries
             .filter { it.value.state == InternalPeerState.CONNECTED }
-            .map { it.key.toByteArray() }
+            .map { it.key.bytes }
             .toSet()
 
     /** Query the internal state of a specific peer, or null if not tracked. */
-    fun peerState(peerId: ByteArray): InternalPeerState? = _peers[peerId.toList()]?.state
+    fun peerState(peerId: ByteArray): InternalPeerState? = _peers[ByteArrayKey(peerId)]?.state
 
     /**
      * Returns a snapshot of all tracked peers and their presence records. Used by MeshStateManager
      * for sweep coordination and health reporting.
      */
-    fun allPeerStates(): Map<List<Byte>, PeerPresence> = HashMap(_peers)
+    fun allPeerStates(): Map<ByteArrayKey, PeerPresence> = HashMap(_peers)
 
     fun updatePresenceTimeout(newTimeoutMillis: Long) {
         presenceTimeoutMillis = newTimeoutMillis

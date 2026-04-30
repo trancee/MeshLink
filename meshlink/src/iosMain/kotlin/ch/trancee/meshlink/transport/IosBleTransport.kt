@@ -181,7 +181,46 @@ internal class IosBleTransport(
         NSObject(), NSStreamDelegateProtocol {
 
         @Volatile var keyHashHex: String = ""
-        private var accumBuffer = ByteArray(0)
+
+        /**
+         * Growable receive buffer. Uses a single backing array with read/write cursors to avoid
+         * O(n²) copying from repeated `accumBuffer += newData` (each append previously copied the
+         * entire existing buffer). Compaction only occurs when the consumed prefix exceeds half the
+         * buffer — amortized O(1) per byte.
+         */
+        private var buf = ByteArray(4096)
+        private var readPos = 0
+        private var writePos = 0
+
+        private val available: Int
+            get() = writePos - readPos
+
+        private fun ensureCapacity(needed: Int) {
+            val remaining = buf.size - writePos
+            if (remaining >= needed) return
+            // Try compaction first
+            if (readPos > buf.size / 2) {
+                buf.copyInto(buf, 0, readPos, writePos)
+                writePos -= readPos
+                readPos = 0
+                if (buf.size - writePos >= needed) return
+            }
+            // Grow
+            val newSize = maxOf(buf.size * 2, writePos + needed)
+            val newBuf = ByteArray(newSize)
+            buf.copyInto(newBuf, 0, readPos, writePos)
+            writePos -= readPos
+            readPos = 0
+            buf = newBuf
+        }
+
+        private fun consume(count: Int) {
+            readPos += count
+            if (readPos == writePos) {
+                readPos = 0
+                writePos = 0
+            }
+        }
 
         override fun stream(aStream: NSStream, handleEvent: NSStreamEvent) {
             when {
@@ -205,20 +244,23 @@ internal class IosBleTransport(
                     val n =
                         inputStream.read(pinned.addressOf(0).reinterpret(), 4096.toULong()).toInt()
                     if (n <= 0) break
-                    accumBuffer += tmpBuf.copyOf(n)
+                    ensureCapacity(n)
+                    tmpBuf.copyInto(buf, writePos, 0, n)
+                    writePos += n
                     parseFrames()
                 }
             }
         }
 
         private fun parseFrames() {
-            while (accumBuffer.size >= 3) {
-                val frameType = FrameType.fromByte(accumBuffer[0]) ?: break
+            while (available >= 3) {
+                val frameType = FrameType.fromByte(buf[readPos]) ?: break
                 val length =
-                    (accumBuffer[1].toInt() and 0xFF) or ((accumBuffer[2].toInt() and 0xFF) shl 8)
-                if (accumBuffer.size < 3 + length) break
-                val payload = accumBuffer.copyOfRange(3, 3 + length)
-                accumBuffer = accumBuffer.copyOfRange(3 + length, accumBuffer.size)
+                    (buf[readPos + 1].toInt() and 0xFF) or
+                        ((buf[readPos + 2].toInt() and 0xFF) shl 8)
+                if (available < 3 + length) break
+                val payload = buf.copyOfRange(readPos + 3, readPos + 3 + length)
+                consume(3 + length)
                 when (frameType) {
                     FrameType.DATA -> {
                         if (payload.isNotEmpty()) {
@@ -857,6 +899,14 @@ internal class IosBleTransport(
             if (!l2capConnections.containsKey(keyHashHex)) break
             val frame = L2capFrameCodec.encode(FrameType.DATA, ByteArray(0))
             runCatching { conn.writeMutex.withLock { writeToStream(conn.outputStream, frame) } }
+                .onFailure {
+                    println("$TAG Keepalive write failed for $keyHashHex: ${it.message}")
+                    closeL2capConnection(keyHashHex)
+                    hexToBytes(keyHashHex)?.let { id ->
+                        _peerLostEvents.emit(PeerLostEvent(id, PeerLostReason.CONNECTION_LOST))
+                    }
+                    return
+                }
         }
     }
 

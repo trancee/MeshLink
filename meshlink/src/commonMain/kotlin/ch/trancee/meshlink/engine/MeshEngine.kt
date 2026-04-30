@@ -30,6 +30,8 @@ import ch.trancee.meshlink.transfer.TransferEvent
 import ch.trancee.meshlink.transfer.TransferScheduler
 import ch.trancee.meshlink.transport.BleTransport
 import ch.trancee.meshlink.transport.Logger
+import ch.trancee.meshlink.util.ByteArrayKey
+import ch.trancee.meshlink.util.toHex
 import ch.trancee.meshlink.wire.Handshake
 import ch.trancee.meshlink.wire.InboundValidator
 import ch.trancee.meshlink.wire.Valid
@@ -38,6 +40,7 @@ import kotlin.concurrent.Volatile
 import kotlin.time.Duration
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -162,10 +165,10 @@ private constructor(
 
         // Wire advertisement events → handshake manager.
         // Cache last-seen advertisement per peer for PeerInfo construction on connect.
-        val advertisementCache = HashMap<List<Byte>, Pair<ByteArray, Int>>()
+        val advertisementCache = HashMap<ByteArrayKey, Pair<ByteArray, Int>>()
         engineScope.launch {
             transport.advertisementEvents.collect { event ->
-                advertisementCache[event.peerId.asList()] = Pair(event.serviceData, event.rssi)
+                advertisementCache[ByteArrayKey(event.peerId)] = Pair(event.serviceData, event.rssi)
                 noiseHandshakeManager.onAdvertisementSeen(event.peerId, event.serviceData)
 
                 // Pseudonym verification for known (already-connected) peers.
@@ -375,9 +378,9 @@ private constructor(
      */
     private fun connectVerifiedPeer(
         peerId: ByteArray,
-        advertisementCache: HashMap<List<Byte>, Pair<ByteArray, Int>>,
+        advertisementCache: HashMap<ByteArrayKey, Pair<ByteArray, Int>>,
     ) {
-        val cached = advertisementCache[peerId.asList()] ?: Pair(ByteArray(0), -70)
+        val cached = advertisementCache[ByteArrayKey(peerId)] ?: Pair(ByteArray(0), -70)
         val serviceData = cached.first
         val rssi = cached.second
         val peerInfo =
@@ -400,10 +403,7 @@ private constructor(
     private fun launchDeliveryConfirmationLogging() {
         engineScope.launch {
             deliveryPipeline.deliveryConfirmations.collect { delivered ->
-                val msgHex =
-                    delivered.messageId.take(4).joinToString("") {
-                        it.toUByte().toString(16).padStart(2, '0')
-                    }
+                val msgHex = delivered.messageId.toHex(limit = 4)
                 Logger.d("MeshLink", "delivery confirmed msgId=$msgHex...")
             }
         }
@@ -448,14 +448,14 @@ private constructor(
      * resolve via [acceptKeyChange] or [rejectKeyChange].
      */
     private val pendingKeyChanges =
-        LinkedHashMap<List<Byte>, ch.trancee.meshlink.crypto.KeyChangeEvent>()
+        LinkedHashMap<ByteArrayKey, ch.trancee.meshlink.crypto.KeyChangeEvent>()
 
     /**
      * Called by the TrustStore onKeyChange callback. Records the pending change for later
      * resolution by the public API.
      */
     internal fun onKeyChange(event: ch.trancee.meshlink.crypto.KeyChangeEvent) {
-        pendingKeyChanges[event.peerKeyHash.asList()] = event
+        pendingKeyChanges[ByteArrayKey(event.peerKeyHash)] = event
         _keyChanges.tryEmit(event)
     }
 
@@ -510,7 +510,7 @@ private constructor(
      * is no pending change for this peer.
      */
     internal fun repinKey(peerId: ByteArray) {
-        val pending = pendingKeyChanges.remove(peerId.asList()) ?: return
+        val pending = pendingKeyChanges.remove(ByteArrayKey(peerId)) ?: return
         trustStore.repinKey(peerId, pending.newKey)
         diagnosticSink.emit(DiagnosticCode.HANDSHAKE_EVENT) {
             DiagnosticPayload.TextMessage("key_repinned peer=${peerId.toPeerIdHex().hex}")
@@ -519,7 +519,7 @@ private constructor(
 
     /** Accepts the pending key change for [peerId], updating the trust store to the new key. */
     internal fun acceptKeyChange(peerId: ByteArray) {
-        val pending = pendingKeyChanges.remove(peerId.asList()) ?: return
+        val pending = pendingKeyChanges.remove(ByteArrayKey(peerId)) ?: return
         trustStore.repinKey(peerId, pending.newKey)
         diagnosticSink.emit(DiagnosticCode.HANDSHAKE_EVENT) {
             DiagnosticPayload.TextMessage("key_change_accepted peer=${peerId.toPeerIdHex().hex}")
@@ -531,7 +531,7 @@ private constructor(
      * and disconnects the peer.
      */
     internal suspend fun rejectKeyChange(peerId: ByteArray) {
-        pendingKeyChanges.remove(peerId.asList()) ?: return
+        pendingKeyChanges.remove(ByteArrayKey(peerId)) ?: return
         // Disconnect the peer — they presented an untrusted key.
         transport.disconnect(peerId)
         diagnosticSink.emit(DiagnosticCode.HANDSHAKE_EVENT) {
@@ -560,7 +560,7 @@ private constructor(
      */
     internal fun peerDetail(peerId: ByteArray): ch.trancee.meshlink.api.PeerDetail? {
         val allPeers = presenceTracker.allPeerStates()
-        val presence = allPeers[peerId.toList()] ?: return null
+        val presence = allPeers[ByteArrayKey(peerId)] ?: return null
         val staticKey = trustStore.getPinnedKey(peerId) ?: ByteArray(32)
         val fingerprint =
             peerId.joinToString(":") {
@@ -590,7 +590,7 @@ private constructor(
     internal fun allPeerDetails(): List<ch.trancee.meshlink.api.PeerDetail> {
         val allPeers = presenceTracker.allPeerStates()
         return allPeers.map { (keyList, _) ->
-            val peerId = keyList.toByteArray()
+            val peerId = keyList.bytes
             peerDetail(peerId)!!
         }
     }
@@ -607,7 +607,7 @@ private constructor(
      */
     internal suspend fun forgetPeer(peerId: ByteArray) {
         val allPeers = presenceTracker.allPeerStates()
-        if (!allPeers.containsKey(peerId.toList())) {
+        if (!allPeers.containsKey(ByteArrayKey(peerId))) {
             diagnosticSink.emit(DiagnosticCode.HANDSHAKE_EVENT) {
                 DiagnosticPayload.TextMessage(
                     "forget_peer_unknown peer=${peerId.toPeerIdHex().hex}"
@@ -722,7 +722,7 @@ private constructor(
         routingTable.install(entry)
         diagnosticSink.emit(DiagnosticCode.ROUTE_CHANGED) {
             DiagnosticPayload.TextMessage(
-                "manual_route_installed dest=${destination.toList().hashCode()} cost=$cost seqNo=$seqNo"
+                "manual_route_installed dest=${ByteArrayKey(destination).hashCode()} cost=$cost seqNo=$seqNo"
             )
         }
     }
@@ -764,8 +764,10 @@ private constructor(
         ): MeshEngine {
             // Engine scope is a child of the passed scope so cancelling `engineScope` does not
             // propagate upward and does not affect the test scope in unit tests.
+            // SupervisorJob ensures a single child failure (e.g. one peer's read loop crashing)
+            // does not cancel the entire engine scope and bring down all other connections.
             val engineScope =
-                CoroutineScope(scope.coroutineContext + Job(scope.coroutineContext[Job]))
+                CoroutineScope(scope.coroutineContext + SupervisorJob(scope.coroutineContext[Job]))
 
             // ── Crypto / trust layer ──────────────────────────────────────────
             // Use a late-binding holder so the TrustStore's onKeyChange callback can forward

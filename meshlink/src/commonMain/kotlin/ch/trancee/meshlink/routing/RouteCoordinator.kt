@@ -6,6 +6,7 @@ import ch.trancee.meshlink.api.DiagnosticSinkApi
 import ch.trancee.meshlink.api.NoOpDiagnosticSink
 import ch.trancee.meshlink.api.toPeerIdHex
 import ch.trancee.meshlink.crypto.TrustStore
+import ch.trancee.meshlink.util.ByteArrayKey
 import ch.trancee.meshlink.wire.Hello
 import ch.trancee.meshlink.wire.Update
 import ch.trancee.meshlink.wire.WireMessage
@@ -87,14 +88,14 @@ internal class RouteCoordinator(
     val outboundFrames: Flow<OutboundFrame> = _outboundFrames
 
     // Per-neighbour state keyed by peerId.asList() for content-equality semantics (MEM047).
-    private val neighborStates: HashMap<List<Byte>, NeighborState> = HashMap()
+    private val neighborStates: HashMap<ByteArrayKey, NeighborState> = HashMap()
 
     // Per-destination seqNo counter — monotonically incrementing on each route re-installation
     // to ensure differential routing propagation after reconnect (D044, MEM239).
-    private val destinationSeqNos: HashMap<List<Byte>, UShort> = HashMap()
+    private val destinationSeqNos: HashMap<ByteArrayKey, UShort> = HashMap()
 
     // Rate-limit on-demand discovery: destKey → lastDiscoveryAttemptMillis.
-    private val discoveryAttempts: HashMap<List<Byte>, Long> = HashMap()
+    private val discoveryAttempts: HashMap<ByteArrayKey, Long> = HashMap()
 
     // ── seqNo helpers ─────────────────────────────────────────────────────────
 
@@ -105,7 +106,7 @@ internal class RouteCoordinator(
      * differential routing sees a change and re-propagates routes (MEM239, D044).
      */
     internal fun nextSeqNoFor(peerId: ByteArray): UShort {
-        val key = peerId.asList()
+        val key = ByteArrayKey(peerId)
         val current = destinationSeqNos[key] ?: 0u
         val next = (current + 1u).toUShort()
         destinationSeqNos[key] = next
@@ -117,7 +118,7 @@ internal class RouteCoordinator(
      * full eviction starts fresh at 1u.
      */
     internal fun removeSeqNo(peerId: ByteArray) {
-        destinationSeqNos.remove(peerId.asList())
+        destinationSeqNos.remove(ByteArrayKey(peerId))
     }
 
     // ── onPeerConnected ───────────────────────────────────────────────────────
@@ -162,7 +163,7 @@ internal class RouteCoordinator(
             _outboundFrames.tryEmit(OutboundFrame(peerId = peerInfo.peerId, message = update))
         }
 
-        neighborStates[peerInfo.peerId.asList()] =
+        neighborStates[ByteArrayKey(peerInfo.peerId)] =
             NeighborState(
                 peerInfo = peerInfo,
                 lastHelloTimeMillis = clock(),
@@ -194,7 +195,7 @@ internal class RouteCoordinator(
         // MeshEngine's peerLostEvents handler calls presenceTracker directly.
         // MeshStateManager calls this method on Gone for route/neighbor cleanup only.
         routingEngine.unregisterNeighbor(peerId)
-        neighborStates.remove(peerId.asList())
+        neighborStates.remove(ByteArrayKey(peerId))
     }
 
     // ── processInbound ────────────────────────────────────────────────────────
@@ -215,9 +216,9 @@ internal class RouteCoordinator(
                 for (update in updates) {
                     _outboundFrames.tryEmit(OutboundFrame(peerId = fromPeerId, message = update))
                 }
-                val neighborState = neighborStates[fromPeerId.asList()]
+                val neighborState = neighborStates[ByteArrayKey(fromPeerId)]
                 if (neighborState != null) {
-                    neighborStates[fromPeerId.asList()] =
+                    neighborStates[ByteArrayKey(fromPeerId)] =
                         NeighborState(
                             peerInfo = neighborState.peerInfo,
                             lastHelloTimeMillis = clock(),
@@ -227,7 +228,7 @@ internal class RouteCoordinator(
                 }
             }
             is Update -> {
-                val neighborState = neighborStates[fromPeerId.asList()]
+                val neighborState = neighborStates[ByteArrayKey(fromPeerId)]
                 val linkCost =
                     if (neighborState != null) {
                         computeLinkCost(
@@ -272,7 +273,7 @@ internal class RouteCoordinator(
         val nextHop = routingTable.lookupNextHop(destination)
         if (nextHop != null) return nextHop
 
-        val destKey = destination.asList()
+        val destKey = ByteArrayKey(destination)
         val lastAttempt = discoveryAttempts[destKey]
         val now = clock()
         if (lastAttempt == null || now - lastAttempt > config.routeDiscoveryTimeoutMillis) {
@@ -293,7 +294,7 @@ internal class RouteCoordinator(
      * Returns the peer IDs of all currently-connected neighbours (keys of [neighborStates]
      * converted back from `List<Byte>` to [ByteArray]).
      */
-    fun connectedPeers(): List<ByteArray> = neighborStates.keys.map { it.toByteArray() }
+    fun connectedPeers(): List<ByteArray> = neighborStates.keys.map { it.bytes }
 
     // ── lookupEdPublicKey ─────────────────────────────────────────────────────
 
