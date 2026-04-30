@@ -43,3 +43,8 @@ vendor/
 coverage/
 .cache/
 tmp/
+
+# Extension system
+.specify/extensions/.cache/
+.specify/extensions/.backup/
+.specify/extensions/*/local-config.yml
