@@ -1,5 +1,5 @@
 [versions]
-kotlin              = "2.3.20"
+kotlin              = "2.3.21"
 agp                 = "9.2.0"
 coroutines          = "1.10.2"
 kover               = "0.9.8"
@@ -15,7 +15,7 @@ compose-multiplatform   = "1.10.3"
 navigation-compose      = "2.9.2"
 lifecycle               = "2.10.0"
 activity-compose        = "1.13.0"
-serialization           = "1.8.1"
+serialization           = "1.11.0"
 
 [libraries]
 kotlinx-coroutines-core    = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core",    version.ref = "coroutines" }
