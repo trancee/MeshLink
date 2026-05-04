@@ -44,7 +44,7 @@ android {
 dependencies {
     implementation(project(":meshlink-sample:shared"))
     implementation(libs.androidx.activity.compose)
-    implementation(platform("androidx.compose:compose-bom:2025.05.00"))
+    implementation(platform("androidx.compose:compose-bom:2026.04.01"))
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.foundation:foundation")
     implementation("androidx.compose.ui:ui")
