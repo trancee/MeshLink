@@ -60,13 +60,13 @@ description: "Task list for MeshLink Offline BLE Mesh SDK"
 
 ### Validation for User Story 1 (REQUIRED) ⚠️
 
-- [ ] T011 [P] [US1] Add API contract tests for lifecycle, TOFU pinning, `deliveryRetryDeadline` validation, `MeshLinkException` wrapping, shared `DiagnosticCode` contract stability, trust-failure outcomes, and direct-message Android/iOS parity expectations in `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/api/MeshLinkApiContractTest.kt`
-- [ ] T012 [P] [US1] Add two-peer offline direct messaging integration tests for direct send/receive, restart recovery, and end-to-end payload confidentiality in `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/integration/DirectMessagingIntegrationTest.kt`
+- [X] T011 [P] [US1] Add API contract tests for lifecycle, TOFU pinning, `deliveryRetryDeadline` validation, `MeshLinkException` wrapping, shared `DiagnosticCode` contract stability, trust-failure outcomes, and direct-message Android/iOS parity expectations in `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/api/MeshLinkApiContractTest.kt`
+- [X] T012 [P] [US1] Add two-peer offline direct messaging integration tests for direct send/receive, restart recovery, and end-to-end payload confidentiality in `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/integration/DirectMessagingIntegrationTest.kt`
 - [ ] T013 [US1] Validate the first-message flow, including default `deliveryRetryDeadline` guidance and proof-integration behavior, against `specs/001-ble-mesh-sdk/quickstart.md`, `samples/proof-android/`, and `samples/proof-ios/`, then record any corrections directly in the affected docs
 
 ### Implementation for User Story 1
 
-- [ ] T014 [P] [US1] Implement `LocalIdentity`, `TrustRecord`, pseudonym rotation, and the TOFU trust store in `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/identity/` and `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/trust/`
+- [X] T014 [P] [US1] Implement `LocalIdentity`, `TrustRecord`, pseudonym rotation, and the TOFU trust store in `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/identity/` and `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/trust/`
 - [ ] T015 [P] [US1] Implement the Noise XX hop-handshake manager, Noise K end-to-end payload sealing/opening, and trust-failure diagnostic emission in `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/crypto/` and `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/diagnostics/`
 - [ ] T016 [P] [US1] Implement Android direct BLE transport, secure storage, and the Android factory in `meshlink/src/androidMain/kotlin/ch/trancee/meshlink/platform/android/AndroidBleTransport.kt`, `meshlink/src/androidMain/kotlin/ch/trancee/meshlink/platform/android/AndroidSecureStorage.kt`, and `meshlink/src/androidMain/kotlin/ch/trancee/meshlink/platform/android/AndroidMeshLinkFactory.kt`
 - [ ] T017 [P] [US1] Implement iOS direct BLE transport, secure storage, and the iOS factory in `meshlink/src/iosMain/kotlin/ch/trancee/meshlink/platform/ios/IosBleTransport.kt`, `meshlink/src/iosMain/kotlin/ch/trancee/meshlink/platform/ios/IosSecureStorage.kt`, and `meshlink/src/iosMain/kotlin/ch/trancee/meshlink/platform/ios/IosMeshLinkFactory.kt`

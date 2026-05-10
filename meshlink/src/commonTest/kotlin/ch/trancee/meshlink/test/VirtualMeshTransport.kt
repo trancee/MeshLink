@@ -9,6 +9,7 @@ import ch.trancee.meshlink.transport.TransportSendResult
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.runBlocking
 
 internal class VirtualMeshTransport(
     internal val localPeerId: PeerId,
@@ -58,15 +59,21 @@ internal class VirtualMeshTransport(
     }
 
     internal fun connect(peerId: PeerId, mode: TransportMode = TransportMode.GATT): Unit {
-        mutableEvents.tryEmit(TransportEvent.PeerDiscovered(peerId = peerId, transportMode = mode))
+        runBlocking {
+            mutableEvents.emit(TransportEvent.PeerDiscovered(peerId = peerId, transportMode = mode))
+        }
     }
 
     internal fun disconnect(peerId: PeerId): Unit {
-        mutableEvents.tryEmit(TransportEvent.PeerLost(peerId = peerId))
+        runBlocking {
+            mutableEvents.emit(TransportEvent.PeerLost(peerId = peerId))
+        }
     }
 
     internal fun receive(senderPeerId: PeerId, payload: ByteArray): Unit {
-        mutableEvents.tryEmit(TransportEvent.FrameReceived(peerId = senderPeerId, payload = payload))
+        runBlocking {
+            mutableEvents.emit(TransportEvent.FrameReceived(peerId = senderPeerId, payload = payload))
+        }
     }
 
     internal fun lastSentFrame(): ByteArray? {

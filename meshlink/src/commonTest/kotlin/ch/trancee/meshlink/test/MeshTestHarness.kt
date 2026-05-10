@@ -5,6 +5,7 @@ import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.config.MeshLinkConfig
 import ch.trancee.meshlink.config.meshLinkConfig
 import ch.trancee.meshlink.engine.MeshEngine
+import ch.trancee.meshlink.identity.LocalIdentity
 
 internal class MeshTestHarness {
     private val network = VirtualMeshNetwork()
@@ -21,6 +22,8 @@ internal class MeshTestHarness {
         val config = defaultConfig(appId = "$peerIdValue-$identityLabel")
         val api = MeshEngine.create(
             config = config,
+            localIdentity = LocalIdentity.fromPeerId(peerId = peerId, identitySeed = "$peerIdValue-$identityLabel"),
+            secureStorage = storage,
             bleTransport = transport,
             diagnosticSink = diagnosticSink,
         )

@@ -9,9 +9,12 @@ import ch.trancee.meshlink.transport.OutboundFrame
 import ch.trancee.meshlink.transport.TransportEvent
 import ch.trancee.meshlink.transport.TransportSendResult
 import ch.trancee.meshlink.engine.MeshEngine
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -106,14 +109,18 @@ class MeshLinkApiContractTest {
         receiver.api.start()
         trustedSender.api.start()
         replacedSender.api.start()
+        val trustFailure = async {
+            withTimeout(1_000) {
+                receiver.api.diagnosticEvents.first { it.code == DiagnosticCode.TRUST_FAILURE }
+            }
+        }
 
         // Act
         trustedSender.api.send(receiver.peerId, "hello".encodeToByteArray())
         replacedSender.api.send(receiver.peerId, "hello-again".encodeToByteArray())
 
         // Assert
-        assertTrue(
-            receiver.diagnosticSink.events().any { it.code == DiagnosticCode.TRUST_FAILURE },
-        )
+        assertEquals(DiagnosticCode.TRUST_FAILURE, trustFailure.await().code)
+        assertTrue(receiver.diagnosticSink.events().any { it.code == DiagnosticCode.TRUST_FAILURE })
     }
 }

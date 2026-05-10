@@ -4,6 +4,7 @@ import ch.trancee.meshlink.api.InboundMessage
 import ch.trancee.meshlink.api.MeshLinkState
 import ch.trancee.meshlink.api.SendResult
 import ch.trancee.meshlink.test.MeshTestHarness
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -25,10 +26,13 @@ class DirectMessagingIntegrationTest {
 
         sender.api.start()
         receiver.api.start()
+        val receivedMessageDeferred = async {
+            withTimeout(1_000) { receiver.api.messages.first() }
+        }
 
         // Act
         val sendResult = sender.api.send(receiver.peerId, payload)
-        val receivedMessage = withTimeout(1_000) { receiver.api.messages.first() }
+        val receivedMessage = receivedMessageDeferred.await()
 
         // Assert
         assertIs<SendResult.Sent>(sendResult)
@@ -44,14 +48,21 @@ class DirectMessagingIntegrationTest {
         val receiver = harness.createNode("peer-b")
         sender.api.start()
         receiver.api.start()
+        val firstMessageDeferred = async {
+            withTimeout(1_000) { receiver.api.messages.first() }
+        }
         sender.api.send(receiver.peerId, "first".encodeToByteArray())
+        firstMessageDeferred.await()
         receiver.api.stop()
 
         // Act
         val restartedReceiver = harness.restartNode(receiver)
         restartedReceiver.api.start()
+        val receivedMessageDeferred = async {
+            withTimeout(1_000) { restartedReceiver.api.messages.first() }
+        }
         val sendResult = sender.api.send(restartedReceiver.peerId, "second".encodeToByteArray())
-        val receivedMessage = withTimeout(1_000) { restartedReceiver.api.messages.first() }
+        val receivedMessage = receivedMessageDeferred.await()
 
         // Assert
         assertIs<SendResult.Sent>(sendResult)
@@ -68,6 +79,9 @@ class DirectMessagingIntegrationTest {
 
         sender.api.start()
         receiver.api.start()
+        val receivedMessageDeferred = async {
+            withTimeout(1_000) { receiver.api.messages.first() }
+        }
 
         // Act
         val sendResult = sender.api.send(receiver.peerId, plaintext.encodeToByteArray())
@@ -77,7 +91,7 @@ class DirectMessagingIntegrationTest {
         assertIs<SendResult.Sent>(sendResult)
         assertNotNull(lastFrame)
         assertFalse(lastFrame.decodeToString().contains(plaintext))
-        val receivedMessage: InboundMessage = withTimeout(1_000) { receiver.api.messages.first() }
+        val receivedMessage: InboundMessage = receivedMessageDeferred.await()
         assertEquals(plaintext, receivedMessage.payload.decodeToString())
     }
 }
