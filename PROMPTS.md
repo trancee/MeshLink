@@ -9,3 +9,5 @@ servers, no user accounts.
 - Large message transfer with chunking, SACK, and flow control
 - Power-aware operation (auto-adjusts radio behavior by battery state)
 - Cross-platform — Android, iOS (shared code via KMP)
+
+/speckit.plan Use KMP for implementation with no external dependencies

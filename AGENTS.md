@@ -1,6 +1,7 @@
 <!-- SPECKIT START -->
-For additional context about technologies to be used, project structure,
-shell commands, and other important information, read the current plan
+Current implementation plan: `specs/001-ble-mesh-sdk/plan.md`
+Read this plan for the active feature's technologies, project structure,
+shell commands, and task-specific guidance.
 <!-- SPECKIT END -->
 
 Before implementation or best-practice-oriented work begins, read the relevant
