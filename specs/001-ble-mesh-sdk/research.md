@@ -114,14 +114,17 @@ metric first, preserving room for ETX-style link costing later.
 - Reactive on-demand routing — rejected because the spec calls for proactive route
   propagation and fast reconvergence.
 
-## Decision: Keep large-payload delivery bounded: 64 KiB maximum, in-memory retry windows, and no retry persistence across restart
+## Decision: Keep large-payload delivery bounded with a configurable in-memory delivery deadline and no retry persistence across restart
 
-**Rationale:** Clarification locked in a 64 KiB v1 limit, explicit pre-transfer rejection
-above that limit, bounded retry windows when no route exists, and no persisted retry
-queue across restart. The transfer design will therefore keep session state in memory
-only, expose explicit unreachable/expired/size-limit outcomes, and model ACK state in
-common code so later selective-ack improvements remain possible without changing the
-public API.
+**Rationale:** Clarification locked in a 64 KiB v1 limit, explicit pre-transfer
+rejection above that limit, and no persisted retry queue across restart. For the
+no-route case, the public API exposes a configurable `deliveryRetryDeadline`
+rather than a fixed retry count or hardcoded wall-clock constant. While no route
+exists, the runtime schedules attempts using bounded, jittered exponential
+backoff and retries immediately when topology updates reveal a valid path.
+Session and scheduler state remain in memory only, expose explicit unreachable
+and size-limit outcomes, and keep ACK state in common code so later
+selective-ack improvements remain possible without changing the public API.
 
 **Alternatives considered:**
 - Unlimited payloads — rejected because the spec now defines a bounded release limit.

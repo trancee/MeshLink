@@ -10,7 +10,7 @@
 ### Session 2026-05-10
 
 - Q: What first-contact peer trust model should MeshLink use? → A: TOFU (trust on first use).
-- Q: What should happen when no valid route exists for a message? → A: Retry for a bounded local window, then fail if no route appears.
+- Q: What should happen when no valid route exists for a message? → A: Retry until the configured local delivery deadline expires. While no route is available, the SDK schedules retries with bounded, jittered exponential backoff and retries immediately when topology updates reveal a valid route.
 - Q: What should happen when a payload exceeds the v1 transfer limit? → A: Reject the payload before transfer starts and return an explicit size-limit error.
 - Q: Should pending retries survive an app or SDK restart? → A: No; pending retries are in-memory only and do not survive restart.
 - Q: How should MeshLink handle an untrusted or identity-changed peer? → A: Reject the peer and emit an explicit trust-failure diagnostic.
@@ -26,9 +26,10 @@ accounts.
 **Why this priority**: This proves the core MeshLink promise: secure,
 serverless, offline messaging between mobile devices.
 
-**Independent Test**: Can be fully tested by running a sample app on two
-supported devices with internet disabled, starting the SDK on both devices, and
-sending addressed messages in both directions without any backend dependency.
+**Independent Test**: Can be fully tested by running the provided proof
+integrations on two supported devices with internet disabled, starting the SDK
+on both devices, and sending addressed messages in both directions without any
+backend dependency.
 
 **Acceptance Scenarios**:
 
@@ -67,6 +68,10 @@ payloads while introducing packet loss to confirm relay, retry, and reassembly.
    lost in transit, **When** the sender continues transfer, **Then** the SDK
    retransmits only the missing chunks needed for completion and the recipient
    reconstructs the original payload intact.
+3. **Given** a large transfer is already in progress and the current route
+   disappears, **When** an alternate valid route appears before the configured
+   delivery deadline expires, **Then** MeshLink resumes the transfer from the
+   missing chunk set instead of restarting the transfer from byte zero.
 
 ---
 
@@ -93,20 +98,30 @@ error behavior.
    delivery within the documented low-power limits.
 2. **Given** the same integration workflow is exercised on Android and iOS,
    **When** the app initializes, starts, pauses, resumes, and stops MeshLink,
-   **Then** both platforms expose the same lifecycle states, error categories,
-   and diagnostic meanings to the host application.
+   **Then** both platforms expose the same lifecycle states, sealed exception
+   categories, and 26-code diagnostic meanings to the host application.
 
 ### Edge Cases
 
 - If a destination peer is temporarily unreachable and no valid route exists,
-  the SDK retries for a bounded local window and then reports an explicit
-  delivery failure if no route appears.
-- How does the SDK handle route changes while a large transfer is already in
-  progress?
-- What happens when chunks arrive out of order, arrive twice, or are partially
-  acknowledged?
-- How does the system behave when battery state changes in the middle of a
-  transfer?
+  the SDK keeps delivery state in memory until the configured local delivery
+  deadline expires, schedules attempts with bounded, jittered exponential
+  backoff while no route exists, retries immediately when topology updates
+  reveal a valid route, and returns an explicit unreachable outcome if no route
+  appears before expiry.
+- If a route changes while a large transfer is already in progress, the sender
+  keeps the active transfer session and missing-chunk scoreboard, rebinds the
+  session to the best newly valid next hop, and resumes from the missing chunk
+  set if a valid route appears before the configured delivery deadline expires.
+- If chunks arrive out of order or arrive twice, the receiver buffers unseen
+  chunks by chunk index, discards duplicates, and acknowledges only the missing
+  ranges still required for completion. Partial acknowledgements MUST NOT cause
+  already accepted chunks to be retransmitted.
+- If battery state changes in the middle of a transfer, the active transfer
+  continues best-effort under the current delivery deadline while subsequent
+  scan, advertise, and connection tuning follow the new power policy. Any
+  resulting delivery failure MUST surface as an explicit timeout or unreachable
+  outcome rather than silent cancellation.
 - If the app or SDK restarts, pending in-memory retries are lost, stale route
   or session state is rebuilt on rejoin, and the host application must
   resubmit any message that still needs delivery.
@@ -116,8 +131,9 @@ error behavior.
 - If the host application asks to send a payload larger than the supported
   transfer limit for the current release, the SDK rejects it before transfer
   begins and returns an explicit size-limit error.
-- How does behavior remain consistent when Android and iOS devices participate
-  in the same mesh topology?
+- Android and iOS devices MUST interoperate in the same mesh topology using the
+  same wire format, routing semantics, delivery outcomes, lifecycle meanings,
+  error categories, and diagnostic semantics.
 
 ## Requirements *(mandatory)*
 
@@ -134,19 +150,25 @@ error behavior.
   or revoked, reject participation from that peer, and emit an explicit
   trust-failure diagnostic.
 - **FR-004**: The system MUST allow trusted peers to exchange addressed
-  end-to-end encrypted messages.
+  end-to-end encrypted messages whose plaintext is accessible only to the
+  origin and final destination peers.
 - **FR-005**: The system MUST apply hop-by-hop protection on every adjacent mesh
-  link independently of end-to-end protection.
+  link independently of end-to-end protection so relay nodes can forward
+  traffic without access to end-to-end plaintext.
 - **FR-006**: The system MUST maintain proactive route knowledge and choose
   multi-hop delivery paths without requiring the host application to manage
   intermediary nodes manually.
 - **FR-007**: The system MUST continue delivery attempts when topology changes
   occur by updating routes and retrying over a valid path when one exists.
-  When no valid route exists, the system MUST retry for a bounded local window
-  and then fail the delivery with an explicit unreachable or expired outcome if
-  no route appears.
-- **FR-008**: Pending delivery retries MUST remain in-memory only for the
-  bounded local retry window and MUST NOT survive an app or SDK restart.
+  When no valid route exists, the system MUST keep the delivery pending until
+  the configured local delivery deadline expires, MUST schedule retries using
+  bounded, jittered exponential backoff while no route is available, MUST
+  attempt delivery immediately when topology updates reveal a valid path before
+  expiry, and MUST fail with an explicit unreachable outcome if no route
+  appears before the deadline.
+- **FR-008**: Pending delivery retries MUST remain in-memory only until the
+  configured local delivery deadline expires and MUST NOT survive an app or SDK
+  restart.
 - **FR-009**: The system MUST support payloads larger than a single BLE frame
   through chunking, selective acknowledgement, retransmission, reassembly, and
   flow control. Payloads larger than the supported release limit MUST be
@@ -162,8 +184,9 @@ error behavior.
   radio activity when battery conditions worsen and MUST make the current power
   mode observable to the host application.
 - **FR-014**: The system MUST expose equivalent public capabilities,
-  configuration concepts, lifecycle states, error categories, and diagnostics
-  on Android and iOS.
+  configuration concepts, lifecycle states, one shared 26-code diagnostic
+  catalog with identical severity tiers and payload shapes, and one sealed
+  commonMain exception hierarchy with matching categories on Android and iOS.
 - **FR-015**: The system MUST function entirely offline after installation and
   required operating-system permissions are granted.
 - **FR-016**: The system MUST preserve backward compatibility for deployed wire
@@ -230,9 +253,10 @@ error behavior.
 
 ### Measurable Outcomes
 
-- **SC-001**: A mobile app team can integrate MeshLink into a reference sample
-  app and complete a first encrypted offline message exchange between two
-  devices in 30 minutes or less using the published quickstart.
+- **SC-001**: A mobile app team can use the runnable proof integrations in
+  `samples/proof-android` and `samples/proof-ios` as reference
+  implementations and complete a first encrypted offline message exchange
+  between two devices in 30 minutes or less using the published quickstart.
 - **SC-002**: In a three-device topology with no internet and no direct path
   between sender and recipient, addressed messages are delivered through the
   mesh without manual route selection, and route recovery after a topology

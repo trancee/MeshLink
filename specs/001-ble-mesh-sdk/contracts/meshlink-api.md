@@ -20,6 +20,30 @@ object MeshLink {
 - Platform factories return the same `MeshLinkApi` contract.
 - Platform-specific parameters stay in factory methods, not in the shared DSL.
 
+### Configuration DSL
+
+```kotlin
+fun meshLinkConfig(block: MeshLinkConfigBuilder.() -> Unit): MeshLinkConfig
+
+@MeshLinkDsl
+class MeshLinkConfigBuilder {
+    var appId: String
+    var regulatoryRegion: RegulatoryRegion = RegulatoryRegion.DEFAULT
+    var powerMode: PowerMode = PowerMode.Automatic
+    var deliveryRetryDeadline: Duration = 15.seconds
+}
+```
+
+**Contract notes**
+- `deliveryRetryDeadline` bounds only in-memory retry scheduling while no valid
+  route exists.
+- While no route exists, the runtime uses bounded, jittered exponential
+  backoff internally and retries immediately when topology updates reveal a
+  valid path.
+- Backoff coefficients remain internal in v1; only the deadline is public
+  configuration.
+- `deliveryRetryDeadline` MUST be greater than `Duration.ZERO`.
+
 ### Main interface
 
 ```kotlin
@@ -78,21 +102,93 @@ interface MeshLinkApi {
 - `receivedAt`
 - `priority`
 
+### `DiagnosticCode`
+
+The SDK exposes one shared cross-platform catalog of exactly 26 diagnostic
+codes:
+
+- `MESH_STARTED`
+- `MESH_PAUSED`
+- `MESH_RESUMED`
+- `MESH_STOPPED`
+- `TRUST_ESTABLISHED`
+- `TRUST_FAILURE`
+- `HOP_SESSION_ESTABLISHED`
+- `HOP_SESSION_FAILED`
+- `ROUTE_DISCOVERED`
+- `ROUTE_UPDATED`
+- `ROUTE_RETRACTED`
+- `ROUTE_EXPIRED`
+- `ROUTE_CONVERGED`
+- `NO_ROUTE_AVAILABLE`
+- `DELIVERY_QUEUED`
+- `DELIVERY_RETRY_SCHEDULED`
+- `DELIVERY_RETRYING`
+- `DELIVERY_SUCCEEDED`
+- `DELIVERY_UNREACHABLE`
+- `TRANSFER_STARTED`
+- `TRANSFER_PROGRESS`
+- `TRANSFER_COMPLETED`
+- `TRANSFER_FAILED`
+- `SIZE_LIMIT_REJECTED`
+- `TRANSPORT_MODE_CHANGED`
+- `POWER_MODE_CHANGED`
+
+**Severity mapping**
+- `INFO`: `MESH_STARTED`, `MESH_PAUSED`, `MESH_RESUMED`, `MESH_STOPPED`,
+  `TRUST_ESTABLISHED`, `ROUTE_DISCOVERED`, `ROUTE_CONVERGED`,
+  `DELIVERY_QUEUED`, `DELIVERY_SUCCEEDED`, `TRANSFER_STARTED`,
+  `TRANSFER_COMPLETED`, `TRANSPORT_MODE_CHANGED`, `POWER_MODE_CHANGED`
+- `DEBUG`: `HOP_SESSION_ESTABLISHED`, `ROUTE_UPDATED`, `TRANSFER_PROGRESS`
+- `WARN`: `HOP_SESSION_FAILED`, `ROUTE_RETRACTED`, `ROUTE_EXPIRED`,
+  `NO_ROUTE_AVAILABLE`, `DELIVERY_RETRY_SCHEDULED`, `DELIVERY_RETRYING`,
+  `SIZE_LIMIT_REJECTED`
+- `ERROR`: `TRUST_FAILURE`, `DELIVERY_UNREACHABLE`, `TRANSFER_FAILED`
+
+### `MeshLinkException`
+
+All thrown public exceptions derive from one sealed hierarchy defined in
+`commonMain`.
+
+- `InvalidConfiguration`
+- `InvalidStateTransition`
+- `PermissionDenied`
+- `TransportFailure`
+- `StorageFailure`
+- `CryptoFailure`
+- `PlatformFailure`
+
+**Contract notes**
+- Expected delivery outcomes remain modeled by `SendResult`, not exceptions.
+- Platform exceptions from Android and iOS APIs MUST be wrapped in the matching
+  `MeshLinkException` subtype before crossing the public API surface.
+- Wrapped exceptions preserve the original cause for diagnostics and debugging.
+
 ### `DiagnosticEvent`
-- `code`
-- `severity`
+- `code`: one value from the shared 26-code `DiagnosticCode` catalog
+- `severity`: fixed per code across all targets
 - `stage`
 - `peerSuffix?`
-- `reason?`
-- `metadata`
+- `reason?`: stable typed failure or state category
+- `metadata`: bounded, redacted, shape-stable payload
 
 ## Behavioral Guarantees
 
 - Public API semantics are identical across Android and iOS.
-- `send()` never silently downgrades trust or payload-size behavior.
+- `diagnosticEvents` use the full shared 26-code `DiagnosticCode` catalog with
+  identical severities and payload shapes across Android and iOS.
+- All thrown public exceptions derive from `MeshLinkException`; platform
+  exceptions are wrapped and MUST NOT leak directly to consumers.
+- `send()` never silently downgrades trust, routing, or payload-size behavior.
+- End-to-end plaintext is available only to the origin and final destination peers.
+- Relay nodes operate only on hop-to-hop protected envelopes and MUST NOT receive end-to-end plaintext for forwarded messages.
 - Payloads above 64 KiB fail before transfer starts.
 - Identity mismatches fail closed and emit trust-failure diagnostics.
-- Pending retries do not survive restart; callers must resubmit after restart.
+- When no valid route exists, `send()` may remain pending until delivery
+  succeeds or `deliveryRetryDeadline` expires; retry progress remains observable
+  through diagnostics.
+- Pending retries do not survive restart; callers must resubmit after restart
+  even if the prior `deliveryRetryDeadline` had not yet expired.
 - Public API does not expose platform BLE classes directly.
 
 ## Compatibility Rules

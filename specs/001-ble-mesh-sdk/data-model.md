@@ -106,14 +106,17 @@ Represents an in-flight large-payload delivery attempt.
 - `maxChunkPayloadBytes`
 - `highestContiguousAck`
 - `selectiveRanges`: missing/received chunk scoreboard for bounded retransmission
-- `retryBudgetRemaining`
-- `deadlineAt`
+- `retryAttempt`: no-route retry attempt counter used by the backoff scheduler
+- `nextRetryAt`: next scheduled retry instant while no valid route exists
+- `deadlineAt`: absolute expiry derived from `MeshLinkConfig.deliveryRetryDeadline`
 - `state`: `PendingStart` | `InProgress` | `Completing` | `Completed` |
   `Failed` | `Aborted`
 
 **Rules**
 - Session state is in-memory only and never survives app or SDK restart.
-- When no route exists, retries continue only inside the bounded local window.
+- When no route exists, retries continue only until `deadlineAt`; scheduling
+  uses bounded, jittered exponential backoff and resets to immediate retry when
+  topology updates reveal a valid route.
 - Oversized payloads never create a `TransferSession`.
 
 ### DiagnosticEvent
@@ -121,12 +124,12 @@ Represents an in-flight large-payload delivery attempt.
 Represents a structured diagnostic emitted by any subsystem.
 
 **Fields**
-- `code`: stable diagnostic code
-- `severity`: `Debug` | `Info` | `Warn` | `Error`
+- `code`: one value from the shared 26-code `DiagnosticCode` catalog
+- `severity`: fixed per code as `Debug` | `Info` | `Warn` | `Error`
 - `stage`: subsystem or lifecycle stage
 - `peerSuffix`: redacted peer reference when applicable
-- `reason`: typed failure category
-- `metadata`: bounded, redacted contextual fields
+- `reason`: stable typed failure or state category
+- `metadata`: bounded, redacted, shape-stable contextual fields
 - `emittedAt`
 
 **Rules**

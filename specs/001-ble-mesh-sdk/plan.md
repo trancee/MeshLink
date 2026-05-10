@@ -9,25 +9,39 @@
 
 Implement MeshLink as a Kotlin Multiplatform, library-first SDK centered on a
 single shared `meshlink` module. The public API remains a thin `MeshLinkApi` /
-`MeshLink` shell over an internal `MeshEngine` coordinator. Routing, transfer,
-trust, diagnostics, power policy, and the wire codec live in `commonMain`.
-Android and iOS source sets provide BLE transport and secure-storage glue only.
-To satisfy the user's “no external dependencies” request, the runtime ships no
-additional third-party libraries beyond the constitutionally allowed
+`MeshLink` shell over an internal `MeshEngine` coordinator. Security is split
+between Noise XX hop-to-hop sessions on each adjacent link and Noise K
+end-to-end payload sealing between the origin and final destination peers.
+Diagnostics use one shared 26-code `DiagnosticCode` catalog in `commonMain`,
+and all thrown public failures derive from a sealed `MeshLinkException`
+hierarchy in `commonMain`; platform exceptions are wrapped before crossing the
+public API surface. `MeshLinkConfig` exposes a configurable
+`deliveryRetryDeadline` in
+`kotlin.time.Duration` for the no-route case. While a delivery has no valid
+route, shared runtime code schedules attempts with bounded, jittered
+exponential backoff and retries immediately when topology updates reveal a
+valid path. Retry scheduler state remains in memory only and is discarded on
+app or SDK restart. Routing, transfer, trust, diagnostics, power policy, and
+the wire codec live in `commonMain`. Android and iOS source sets provide BLE
+transport and secure-storage glue only. The repository also ships runnable
+proof integrations in `samples/proof-android` and `samples/proof-ios` for
+quickstart validation and automated reference-hardware benchmarks. To satisfy
+the user's “no external dependencies” request, the runtime ships no additional
+third-party libraries beyond the constitutionally allowed
 `kotlinx-coroutines-core`; codec, routing, and crypto-provider logic remain
 in-repo.
 
 ## Technical Context
 
-**Language/Version**: Kotlin 2.3.x, Kotlin Multiplatform, JVM toolchain 17  
-**Primary Dependencies**: Runtime: Kotlin stdlib + `kotlinx-coroutines-core` only; Build/Test: `kotlin-test`, Binary Compatibility Validator, Kover, Power-assert, kotlinx-benchmark  
+**Language/Version**: Kotlin 2.3.10, Kotlin Multiplatform, JVM toolchain 17  
+**Primary Dependencies**: Runtime: Kotlin stdlib 2.3.10 + `kotlinx-coroutines-core` 1.10.2 only; Build/Test: exact pinned versions of `kotlin-test`, Binary Compatibility Validator, Kover, Power-assert, and kotlinx-benchmark declared in `gradle/libs.versions.toml`  
 **Storage**: Platform secure storage for pinned trust material and local identity; in-memory route, transfer, retry, and presence state  
-**Testing**: `kotlin-test` across targets, JVM/Android unit tests, iOS tests, canonical `MeshTestHarness` + `VirtualMeshTransport`, Wycheproof vectors, API checks, benchmarks via kotlinx-benchmark  
+**Testing**: `kotlin-test` across targets, JVM/Android unit tests, iOS tests, canonical `MeshTestHarness` + `VirtualMeshTransport`, Wycheproof vectors, API checks, JVM benchmarks via kotlinx-benchmark, Android proof-app automated benchmarks for transport/low-power/cold-start targets, iOS proof-app automated benchmarks for transport/low-power/cold-start targets, and harness-driven memory/convergence measurements  
 **Target Platform**: Android API 29+, iOS 15+, JVM benchmark/reference target  
-**Project Type**: Kotlin Multiplatform library SDK with benchmark and proof/sample companions  
-**Performance Goals**: ≥80 KB/s Android L2CAP, ≥60 KB/s iOS L2CAP, 50 ms p95 for 1-hop 256 B message, 8 MB steady-state heap at 8 peers, ≤5% scan duty in LOW mode, 3 s route convergence for 10-node topology, <1 µs JVM codec encode/decode  
-**Constraints**: Offline-only; no servers or accounts; TOFU trust pinning; 64 KiB release payload limit; bounded in-memory retry window; no retry persistence across restart; L2CAP-first with GATT fallback; no additional third-party runtime dependencies  
-**Constitutional Constraints**: `explicitApi()` required; Detekt + ktfmt gates; BCV-tracked public API; 100% line/branch coverage; Power-assert diagnostics; Wycheproof validation; canonical virtual harness for integration tests; Android/iOS parity for API, docs, state, and diagnostics; benchmark evidence for crypto/routing/codec paths; all shared logic in `commonMain`; no external crypto library; FlatBuffers wire compatibility; runtime dependency budget limited to `kotlinx-coroutines-core`  
+**Project Type**: Kotlin Multiplatform library SDK with benchmark module and runnable Android/iOS proof integrations  
+**Performance Goals**: ≥80 KB/s Android L2CAP, ≥60 KB/s iOS L2CAP, 50 ms p95 for 1-hop 256 B message, 8 MB steady-state heap at 8 peers, ≤5% scan duty in LOW mode, <500 ms from `mesh.start()` to first advertisement, 3 s route convergence for 10-node topology, <1 µs JVM codec encode/decode  
+**Constraints**: Offline-only; no servers or accounts; TOFU trust pinning; 64 KiB release payload limit; configurable in-memory delivery retry deadline; no retry persistence across restart; bounded, jittered exponential backoff for no-route scheduling; immediate retry on route availability; L2CAP-first with GATT fallback; no additional third-party runtime dependencies  
+**Constitutional Constraints**: `explicitApi()` required; Detekt + ktfmt gates; BCV-tracked public API; 100% line/branch coverage; Power-assert diagnostics; Wycheproof validation; canonical virtual harness for integration tests; Android/iOS parity for API, docs, state, diagnostics, the shared 26-code diagnostic catalog, and the sealed `MeshLinkException` hierarchy; benchmark evidence for crypto, routing lookup, wire codec, route convergence, transport throughput/latency, steady-state memory, LOW-power duty cycle, and cold-start paths; all shared logic in `commonMain`; no external crypto library; FlatBuffers wire compatibility; runtime dependency budget limited to `kotlinx-coroutines-core`  
 **Applicable Skills**: kotlin-multiplatform, kotlin-gradle-plugin, gradle-build-tool, kotlin-api-guidelines, android-ble, core-bluetooth, kmp-ios-integration, flatbuffers, babel-rfc8966, noise-protocol-framework, tcp-sack-rfc2018  
 **Scale/Scope**: One shared SDK module, two mobile targets, one public API surface, 8-peer steady-state mesh, 10-node convergence validation topology, 64 KiB maximum v1 payload
 
@@ -46,9 +60,11 @@ in-repo.
 - [x] Story slices remain independently valuable: each planned user story can be
       implemented, validated, and demonstrated on its own, or any dependency is
       explicitly justified in Complexity Tracking.
-- [x] All unknowns are surfaced: every open question is resolved in `research.md`,
-      and the user constraint on KMP plus no new runtime dependencies has been
-      translated into concrete architectural decisions.
+- [x] Open questions are tracked explicitly: transfer and mixed-platform edge
+      cases remain documented in `spec.md` and are covered by explicit
+      implementation and validation work in `tasks.md`, while the user
+      constraint on KMP plus no new runtime dependencies has been translated
+      into concrete architectural decisions.
 - [x] Validation and evidence are defined: each user story has a clear
       verification approach, and the plan identifies applicable automated tests,
       compatibility checks, documentation-parity work, and benchmark evidence.

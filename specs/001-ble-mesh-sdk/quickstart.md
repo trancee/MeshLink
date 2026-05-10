@@ -28,10 +28,13 @@ encrypted message exchange without servers or user accounts.
 Configure the SDK with a single cross-platform DSL.
 
 ```kotlin
+import kotlin.time.Duration.Companion.seconds
+
 val config = meshLinkConfig {
     appId = "demo.meshlink"
     regulatoryRegion = RegulatoryRegion.DEFAULT
     powerMode = PowerMode.Automatic
+    deliveryRetryDeadline = 15.seconds // optional; omit to use the default
 }
 ```
 
@@ -78,8 +81,12 @@ Expected outcome:
 
 ## 8. Validate bounded failure behavior
 
-- Attempt a send while no route exists and confirm bounded retry followed by an
-  explicit unreachable or expired outcome.
+- Attempt a send while no route exists and confirm MeshLink keeps delivery state
+  in memory until the configured `deliveryRetryDeadline` expires, emits
+  retry-related diagnostics while the route is unavailable, and returns
+  `SendResult.NotSent(UNREACHABLE)` if no route appears before expiry.
+- Restore a valid route before the deadline expires and confirm MeshLink retries
+  immediately without requiring the host application to resubmit the message.
 - Attempt a send larger than 64 KiB and confirm immediate size-limit rejection.
 
 ## 9. Run local quality gates
@@ -95,4 +102,5 @@ Recommended local gates once the implementation exists:
 ## Expected first proof point
 
 A reviewer should be able to complete a first offline message exchange between
-both devices in 30 minutes or less using this flow and the platform sample apps.
+both devices in 30 minutes or less using this flow and the runnable proof
+integrations in `samples/proof-android` and `samples/proof-ios`.

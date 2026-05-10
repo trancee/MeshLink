@@ -55,7 +55,7 @@ auto_commit:
     enabled: false
     message: "docs: add checklist"
   after_analyze:
-    enabled: false
+    enabled: true
     message: "docs: add analysis report"
   after_taskstoissues:
     enabled: false
