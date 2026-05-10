@@ -28,10 +28,10 @@ description: "Task list for MeshLink Offline BLE Mesh SDK"
 
 **Purpose**: Create the KMP project skeleton, module layout, and baseline build files.
 
-- [ ] T001 Create the multi-module Gradle skeleton in `settings.gradle.kts`, `gradle/libs.versions.toml`, and `gradle.properties`
-- [ ] T002 Create the KMP runtime and benchmark module build files in `meshlink/build.gradle.kts` and `benchmarks/build.gradle.kts`
-- [ ] T003 [P] Scaffold source-set directories under `meshlink/src/commonMain/kotlin/com/meshlink/`, `meshlink/src/commonTest/kotlin/com/meshlink/`, `meshlink/src/androidMain/kotlin/com/meshlink/platform/android/`, `meshlink/src/androidUnitTest/kotlin/com/meshlink/platform/android/`, `meshlink/src/iosMain/kotlin/com/meshlink/platform/ios/`, and `meshlink/src/iosTest/kotlin/com/meshlink/platform/ios/`
-- [ ] T004 [P] Scaffold runnable proof integration projects in `samples/proof-android/` and `samples/proof-ios/`, including README placeholders, minimal build wiring, and first-message quickstart entry points
+- [X] T001 Create the multi-module Gradle skeleton in `settings.gradle.kts`, `gradle/libs.versions.toml`, and `gradle.properties`
+- [X] T002 Create the KMP runtime and benchmark module build files in `meshlink/build.gradle.kts` and `benchmarks/build.gradle.kts`
+- [X] T003 [P] Scaffold source-set directories under `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/`, `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/`, `meshlink/src/androidMain/kotlin/ch/trancee/meshlink/platform/android/`, `meshlink/src/androidUnitTest/kotlin/ch/trancee/meshlink/platform/android/`, `meshlink/src/iosMain/kotlin/ch/trancee/meshlink/platform/ios/`, and `meshlink/src/iosTest/kotlin/ch/trancee/meshlink/platform/ios/`
+- [X] T004 [P] Scaffold runnable proof integration projects in `samples/proof-android/` and `samples/proof-ios/`, including README placeholders, minimal build wiring, and first-message quickstart entry points
 
 ---
 
@@ -41,12 +41,12 @@ description: "Task list for MeshLink Offline BLE Mesh SDK"
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete.
 
-- [ ] T005 Configure explicit API, ktfmt, Detekt, Kover, Power-assert, BCV, and benchmark plugin wiring in `meshlink/build.gradle.kts`, `benchmarks/build.gradle.kts`, and `gradle.properties`
-- [ ] T006 [P] Create the public API shell, configuration/result/state types, including `MeshLinkConfig.deliveryRetryDeadline`, and the sealed `MeshLinkException` hierarchy in `meshlink/src/commonMain/kotlin/com/meshlink/api/` and `meshlink/src/commonMain/kotlin/com/meshlink/config/`
-- [ ] T007 [P] Create platform-neutral abstractions for `BleTransport`, `CryptoProvider`, `SecureStorage`, and `DiagnosticSink`, plus the shared 26-code `DiagnosticCode` catalog and stable diagnostic payload shapes in `meshlink/src/commonMain/kotlin/com/meshlink/transport/`, `meshlink/src/commonMain/kotlin/com/meshlink/crypto/`, `meshlink/src/commonMain/kotlin/com/meshlink/storage/`, and `meshlink/src/commonMain/kotlin/com/meshlink/diagnostics/`
-- [ ] T008 [P] Create the `MeshEngine` coordinator skeleton and factory entry points in `meshlink/src/commonMain/kotlin/com/meshlink/engine/MeshEngine.kt` and `meshlink/src/commonMain/kotlin/com/meshlink/api/MeshLink.kt`
-- [ ] T009 [P] Create canonical harness infrastructure in `meshlink/src/commonTest/kotlin/com/meshlink/test/MeshTestHarness.kt` and `meshlink/src/commonTest/kotlin/com/meshlink/test/VirtualMeshTransport.kt`
-- [ ] T010 [P] Create pure-Kotlin wire buffer primitives and envelope skeletons in `meshlink/src/commonMain/kotlin/com/meshlink/wire/ReadBuffer.kt`, `meshlink/src/commonMain/kotlin/com/meshlink/wire/WriteBuffer.kt`, and `meshlink/src/commonMain/kotlin/com/meshlink/wire/WireEnvelope.kt`
+- [X] T005 Configure explicit API, ktfmt, Detekt, Kover, Power-assert, BCV, and benchmark plugin wiring in `meshlink/build.gradle.kts`, `benchmarks/build.gradle.kts`, and `gradle.properties`
+- [X] T006 [P] Create the public API shell, configuration/result/state types, including `MeshLinkConfig.deliveryRetryDeadline`, and the sealed `MeshLinkException` hierarchy in `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/api/` and `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/config/`
+- [X] T007 [P] Create platform-neutral abstractions for `BleTransport`, `CryptoProvider`, `SecureStorage`, and `DiagnosticSink`, plus the shared 26-code `DiagnosticCode` catalog and stable diagnostic payload shapes in `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/transport/`, `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/crypto/`, `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/storage/`, and `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/diagnostics/`
+- [X] T008 [P] Create the `MeshEngine` coordinator skeleton and factory entry points in `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/engine/MeshEngine.kt` and `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/api/MeshLink.kt`
+- [X] T009 [P] Create canonical harness infrastructure in `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/test/MeshTestHarness.kt` and `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/test/VirtualMeshTransport.kt`
+- [X] T010 [P] Create pure-Kotlin wire buffer primitives and envelope skeletons in `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/wire/ReadBuffer.kt`, `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/wire/WriteBuffer.kt`, and `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/wire/WireEnvelope.kt`
 
 **Checkpoint**: Build, API, transport, diagnostics, and test harness foundations are ready.
 
@@ -60,17 +60,17 @@ description: "Task list for MeshLink Offline BLE Mesh SDK"
 
 ### Validation for User Story 1 (REQUIRED) ⚠️
 
-- [ ] T011 [P] [US1] Add API contract tests for lifecycle, TOFU pinning, `deliveryRetryDeadline` validation, `MeshLinkException` wrapping, shared `DiagnosticCode` contract stability, trust-failure outcomes, and direct-message Android/iOS parity expectations in `meshlink/src/commonTest/kotlin/com/meshlink/api/MeshLinkApiContractTest.kt`
-- [ ] T012 [P] [US1] Add two-peer offline direct messaging integration tests for direct send/receive, restart recovery, and end-to-end payload confidentiality in `meshlink/src/commonTest/kotlin/com/meshlink/integration/DirectMessagingIntegrationTest.kt`
+- [ ] T011 [P] [US1] Add API contract tests for lifecycle, TOFU pinning, `deliveryRetryDeadline` validation, `MeshLinkException` wrapping, shared `DiagnosticCode` contract stability, trust-failure outcomes, and direct-message Android/iOS parity expectations in `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/api/MeshLinkApiContractTest.kt`
+- [ ] T012 [P] [US1] Add two-peer offline direct messaging integration tests for direct send/receive, restart recovery, and end-to-end payload confidentiality in `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/integration/DirectMessagingIntegrationTest.kt`
 - [ ] T013 [US1] Validate the first-message flow, including default `deliveryRetryDeadline` guidance and proof-integration behavior, against `specs/001-ble-mesh-sdk/quickstart.md`, `samples/proof-android/`, and `samples/proof-ios/`, then record any corrections directly in the affected docs
 
 ### Implementation for User Story 1
 
-- [ ] T014 [P] [US1] Implement `LocalIdentity`, `TrustRecord`, pseudonym rotation, and the TOFU trust store in `meshlink/src/commonMain/kotlin/com/meshlink/identity/` and `meshlink/src/commonMain/kotlin/com/meshlink/trust/`
-- [ ] T015 [P] [US1] Implement the Noise XX hop-handshake manager, Noise K end-to-end payload sealing/opening, and trust-failure diagnostic emission in `meshlink/src/commonMain/kotlin/com/meshlink/crypto/` and `meshlink/src/commonMain/kotlin/com/meshlink/diagnostics/`
-- [ ] T016 [P] [US1] Implement Android direct BLE transport, secure storage, and the Android factory in `meshlink/src/androidMain/kotlin/com/meshlink/platform/android/AndroidBleTransport.kt`, `meshlink/src/androidMain/kotlin/com/meshlink/platform/android/AndroidSecureStorage.kt`, and `meshlink/src/androidMain/kotlin/com/meshlink/platform/android/AndroidMeshLinkFactory.kt`
-- [ ] T017 [P] [US1] Implement iOS direct BLE transport, secure storage, and the iOS factory in `meshlink/src/iosMain/kotlin/com/meshlink/platform/ios/IosBleTransport.kt`, `meshlink/src/iosMain/kotlin/com/meshlink/platform/ios/IosSecureStorage.kt`, and `meshlink/src/iosMain/kotlin/com/meshlink/platform/ios/IosMeshLinkFactory.kt`
-- [ ] T018 [US1] Integrate direct send/receive lifecycle flows with hop-to-hop and end-to-end security layering in `meshlink/src/commonMain/kotlin/com/meshlink/engine/MeshEngine.kt`, `meshlink/src/commonMain/kotlin/com/meshlink/api/MeshLink.kt`, and `meshlink/src/commonMain/kotlin/com/meshlink/transport/`, then implement and document the proof flow in `samples/proof-android/` and `samples/proof-ios/`
+- [ ] T014 [P] [US1] Implement `LocalIdentity`, `TrustRecord`, pseudonym rotation, and the TOFU trust store in `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/identity/` and `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/trust/`
+- [ ] T015 [P] [US1] Implement the Noise XX hop-handshake manager, Noise K end-to-end payload sealing/opening, and trust-failure diagnostic emission in `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/crypto/` and `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/diagnostics/`
+- [ ] T016 [P] [US1] Implement Android direct BLE transport, secure storage, and the Android factory in `meshlink/src/androidMain/kotlin/ch/trancee/meshlink/platform/android/AndroidBleTransport.kt`, `meshlink/src/androidMain/kotlin/ch/trancee/meshlink/platform/android/AndroidSecureStorage.kt`, and `meshlink/src/androidMain/kotlin/ch/trancee/meshlink/platform/android/AndroidMeshLinkFactory.kt`
+- [ ] T017 [P] [US1] Implement iOS direct BLE transport, secure storage, and the iOS factory in `meshlink/src/iosMain/kotlin/ch/trancee/meshlink/platform/ios/IosBleTransport.kt`, `meshlink/src/iosMain/kotlin/ch/trancee/meshlink/platform/ios/IosSecureStorage.kt`, and `meshlink/src/iosMain/kotlin/ch/trancee/meshlink/platform/ios/IosMeshLinkFactory.kt`
+- [ ] T018 [US1] Integrate direct send/receive lifecycle flows with hop-to-hop and end-to-end security layering in `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/engine/MeshEngine.kt`, `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/api/MeshLink.kt`, and `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/transport/`, then implement and document the proof flow in `samples/proof-android/` and `samples/proof-ios/`
 
 **Checkpoint**: User Story 1 should deliver first-contact trust, direct offline messaging, restart recovery, trust-failure visibility, two-layer security, and direct-message parity evidence without servers or accounts.
 
@@ -88,18 +88,18 @@ retransmission semantics.
 
 ### Validation for User Story 2 (REQUIRED) ⚠️
 
-- [ ] T019 [P] [US2] Add wire contract tests driven by `specs/001-ble-mesh-sdk/contracts/wire-envelope.md` in `meshlink/src/commonTest/kotlin/com/meshlink/wire/WireEnvelopeContractTest.kt`
-- [ ] T020 [P] [US2] Add multi-node routing, reconvergence, and relay-confidentiality integration tests in `meshlink/src/commonTest/kotlin/com/meshlink/integration/MeshRoutingIntegrationTest.kt`
-- [ ] T021 [P] [US2] Add bounded large-transfer, route-change resume, duplicate/out-of-order chunk, partial-ACK, and 64 KiB limit integration tests in `meshlink/src/commonTest/kotlin/com/meshlink/integration/LargeTransferIntegrationTest.kt`
+- [ ] T019 [P] [US2] Add wire contract tests driven by `specs/001-ble-mesh-sdk/contracts/wire-envelope.md` in `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/wire/WireEnvelopeContractTest.kt`
+- [ ] T020 [P] [US2] Add multi-node routing, reconvergence, and relay-confidentiality integration tests in `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/integration/MeshRoutingIntegrationTest.kt`
+- [ ] T021 [P] [US2] Add bounded large-transfer, route-change resume, duplicate/out-of-order chunk, partial-ACK, and 64 KiB limit integration tests in `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/integration/LargeTransferIntegrationTest.kt`
 - [ ] T022 [US2] Validate multi-hop send, configured no-route retry deadline behavior, bounded exponential-backoff retry scheduling, immediate retry on route availability, and size-limit behavior against `specs/001-ble-mesh-sdk/quickstart.md` and `specs/001-ble-mesh-sdk/contracts/wire-envelope.md`
 
 ### Implementation for User Story 2
 
-- [ ] T023 [P] [US2] Implement route tables, seqno freshness, feasibility checks, route digests, and differential updates in `meshlink/src/commonMain/kotlin/com/meshlink/routing/`
-- [ ] T024 [P] [US2] Implement peer lifecycle coordination and route cleanup in `meshlink/src/commonMain/kotlin/com/meshlink/presence/` and `meshlink/src/commonMain/kotlin/com/meshlink/engine/`
-- [ ] T025 [P] [US2] Implement FlatBuffers-compatible message, routing, and transfer codecs in `meshlink/src/commonMain/kotlin/com/meshlink/wire/`
-- [ ] T026 [P] [US2] Implement `TransferSession`, ACK scoreboard, configurable delivery-deadline plumbing, and pre-transfer size-limit rejection in `meshlink/src/commonMain/kotlin/com/meshlink/transfer/`
-- [ ] T027 [US2] Implement no-route retry scheduling with bounded, jittered exponential backoff and immediate retry on route availability in `meshlink/src/commonMain/kotlin/com/meshlink/engine/DeliveryRetryScheduler.kt`, integrate it through `meshlink/src/commonMain/kotlin/com/meshlink/engine/MeshEngine.kt`, `meshlink/src/commonMain/kotlin/com/meshlink/transport/`, and `meshlink/src/commonMain/kotlin/com/meshlink/diagnostics/`, then update `samples/proof-android/README.md` and `samples/proof-ios/README.md` for multi-hop evidence
+- [ ] T023 [P] [US2] Implement route tables, seqno freshness, feasibility checks, route digests, and differential updates in `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/routing/`
+- [ ] T024 [P] [US2] Implement peer lifecycle coordination and route cleanup in `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/presence/` and `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/engine/`
+- [ ] T025 [P] [US2] Implement FlatBuffers-compatible message, routing, and transfer codecs in `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/wire/`
+- [ ] T026 [P] [US2] Implement `TransferSession`, ACK scoreboard, configurable delivery-deadline plumbing, and pre-transfer size-limit rejection in `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/transfer/`
+- [ ] T027 [US2] Implement no-route retry scheduling with bounded, jittered exponential backoff and immediate retry on route availability in `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/engine/DeliveryRetryScheduler.kt`, integrate it through `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/engine/MeshEngine.kt`, `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/transport/`, and `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/diagnostics/`, then update `samples/proof-android/README.md` and `samples/proof-ios/README.md` for multi-hop evidence
 
 **Checkpoint**: User Story 2 should deliver proactive routing, explicit unreachable/expired outcomes, and bounded large-payload delivery across at least one relay hop.
 
@@ -113,16 +113,16 @@ retransmission semantics.
 
 ### Validation for User Story 3 (REQUIRED) ⚠️
 
-- [ ] T028 [P] [US3] Add shared power-tier, hysteresis, bootstrap, and region-clamp tests in `meshlink/src/commonTest/kotlin/com/meshlink/power/PowerPolicyTest.kt`
-- [ ] T029 [P] [US3] Add parity tests for lifecycle states, the 26-code diagnostic catalog, severity tiers, payload shapes, `MeshLinkException` categories, and error categories in `meshlink/src/commonTest/kotlin/com/meshlink/api/CrossPlatformParityTest.kt`
+- [ ] T028 [P] [US3] Add shared power-tier, hysteresis, bootstrap, and region-clamp tests in `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/power/PowerPolicyTest.kt`
+- [ ] T029 [P] [US3] Add parity tests for lifecycle states, the 26-code diagnostic catalog, severity tiers, payload shapes, `MeshLinkException` categories, and error categories in `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/api/CrossPlatformParityTest.kt`
 - [ ] T030 [US3] Validate Android/iOS parity and power-mode expectations against `specs/001-ble-mesh-sdk/quickstart.md` and `specs/001-ble-mesh-sdk/contracts/meshlink-api.md`
 
 ### Implementation for User Story 3
 
-- [ ] T031 [P] [US3] Implement shared `PowerPolicy`, hysteresis, bootstrap, and regulatory clamp logic in `meshlink/src/commonMain/kotlin/com/meshlink/power/`
-- [ ] T032 [P] [US3] Implement Android battery and transport tuning hooks in `meshlink/src/androidMain/kotlin/com/meshlink/platform/android/AndroidPowerMonitor.kt` and `meshlink/src/androidMain/kotlin/com/meshlink/platform/android/AndroidBleTransport.kt`
-- [ ] T033 [P] [US3] Implement iOS battery and transport tuning hooks in `meshlink/src/iosMain/kotlin/com/meshlink/platform/ios/IosPowerMonitor.kt` and `meshlink/src/iosMain/kotlin/com/meshlink/platform/ios/IosBleTransport.kt`
-- [ ] T034 [US3] Normalize diagnostics, the 26-code diagnostic catalog, `MeshLinkException` KDoc, `specs/001-ble-mesh-sdk/contracts/meshlink-api.md`, and parity docs in `meshlink/src/commonMain/kotlin/com/meshlink/api/`, `meshlink/src/commonMain/kotlin/com/meshlink/diagnostics/`, `samples/proof-android/README.md`, `samples/proof-ios/README.md`, and `specs/001-ble-mesh-sdk/quickstart.md`
+- [ ] T031 [P] [US3] Implement shared `PowerPolicy`, hysteresis, bootstrap, and regulatory clamp logic in `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/power/`
+- [ ] T032 [P] [US3] Implement Android battery and transport tuning hooks in `meshlink/src/androidMain/kotlin/ch/trancee/meshlink/platform/android/AndroidPowerMonitor.kt` and `meshlink/src/androidMain/kotlin/ch/trancee/meshlink/platform/android/AndroidBleTransport.kt`
+- [ ] T033 [P] [US3] Implement iOS battery and transport tuning hooks in `meshlink/src/iosMain/kotlin/ch/trancee/meshlink/platform/ios/IosPowerMonitor.kt` and `meshlink/src/iosMain/kotlin/ch/trancee/meshlink/platform/ios/IosBleTransport.kt`
+- [ ] T034 [US3] Normalize diagnostics, the 26-code diagnostic catalog, `MeshLinkException` KDoc, `specs/001-ble-mesh-sdk/contracts/meshlink-api.md`, and parity docs in `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/api/`, `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/diagnostics/`, `samples/proof-android/README.md`, `samples/proof-ios/README.md`, and `specs/001-ble-mesh-sdk/quickstart.md`
 
 **Checkpoint**: User Story 3 should deliver shared power behavior and the same developer-visible lifecycle and diagnostic semantics on Android and iOS.
 
@@ -134,11 +134,11 @@ retransmission semantics.
 
 - [ ] T035 [P] Sync `specs/001-ble-mesh-sdk/spec.md`, `specs/001-ble-mesh-sdk/plan.md`, `specs/001-ble-mesh-sdk/tasks.md`, and `specs/001-ble-mesh-sdk/quickstart.md` with the implemented behavior
 - [ ] T036 Run format, static analysis, coverage, and API compatibility gates against `settings.gradle.kts`, `meshlink/build.gradle.kts`, `benchmarks/build.gradle.kts`, and update `meshlink/api/meshlink.api` as needed
-- [ ] T037 [P] Add remaining Wycheproof vectors and regression coverage in `meshlink/src/commonTest/resources/wycheproof/` and `meshlink/src/commonTest/kotlin/com/meshlink/crypto/WycheproofRegressionTest.kt`
-- [ ] T038 [P] Implement JVM benchmark suites in `benchmarks/src/jvmMain/kotlin/com/meshlink/benchmarks/CryptoBenchmark.kt`, `benchmarks/src/jvmMain/kotlin/com/meshlink/benchmarks/RoutingBenchmark.kt`, `benchmarks/src/jvmMain/kotlin/com/meshlink/benchmarks/WireCodecBenchmark.kt`, and `benchmarks/src/jvmMain/kotlin/com/meshlink/benchmarks/ConvergenceBenchmark.kt`
-- [ ] T039 [P] Add Android automated proof-app benchmarks for throughput, latency, LOW-power scan duty, and cold start in `samples/proof-android/app/src/androidTest/kotlin/com/meshlink/proof/android/TransportPerformanceBenchmark.kt`, `samples/proof-android/app/src/androidTest/kotlin/com/meshlink/proof/android/PowerProfileBenchmark.kt`, and `samples/proof-android/app/src/androidTest/kotlin/com/meshlink/proof/android/ColdStartBenchmark.kt`
+- [ ] T037 [P] Add remaining Wycheproof vectors and regression coverage in `meshlink/src/commonTest/resources/wycheproof/` and `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/crypto/WycheproofRegressionTest.kt`
+- [ ] T038 [P] Implement JVM benchmark suites in `benchmarks/src/jvmMain/kotlin/ch/trancee/meshlink/benchmarks/CryptoBenchmark.kt`, `benchmarks/src/jvmMain/kotlin/ch/trancee/meshlink/benchmarks/RoutingBenchmark.kt`, `benchmarks/src/jvmMain/kotlin/ch/trancee/meshlink/benchmarks/WireCodecBenchmark.kt`, and `benchmarks/src/jvmMain/kotlin/ch/trancee/meshlink/benchmarks/ConvergenceBenchmark.kt`
+- [ ] T039 [P] Add Android automated proof-app benchmarks for throughput, latency, LOW-power scan duty, and cold start in `samples/proof-android/app/src/androidTest/kotlin/ch/trancee/meshlink/proof/android/TransportPerformanceBenchmark.kt`, `samples/proof-android/app/src/androidTest/kotlin/ch/trancee/meshlink/proof/android/PowerProfileBenchmark.kt`, and `samples/proof-android/app/src/androidTest/kotlin/ch/trancee/meshlink/proof/android/ColdStartBenchmark.kt`
 - [ ] T040 [P] Add iOS automated proof-app benchmarks for throughput, latency, LOW-power scan duty, and cold start in `samples/proof-ios/ProofBenchmarks/TransportPerformanceBenchmark.swift`, `samples/proof-ios/ProofBenchmarks/PowerProfileBenchmark.swift`, and `samples/proof-ios/ProofBenchmarks/ColdStartBenchmark.swift`
-- [ ] T041 [P] Add 8-peer steady-state memory-budget validation and allocation measurement in `meshlink/src/commonTest/kotlin/com/meshlink/integration/MemoryBudgetIntegrationTest.kt` and `benchmarks/src/jvmMain/kotlin/com/meshlink/benchmarks/MemoryBudgetBenchmark.kt`
+- [ ] T041 [P] Add 8-peer steady-state memory-budget validation and allocation measurement in `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/integration/MemoryBudgetIntegrationTest.kt` and `benchmarks/src/jvmMain/kotlin/ch/trancee/meshlink/benchmarks/MemoryBudgetBenchmark.kt`
 - [ ] T042 [P] Record JVM, Android, iOS, convergence, cold-start, power, and memory baselines in `benchmarks/README.md` and `specs/001-ble-mesh-sdk/research.md`
 - [ ] T043 [P] Update Android/iOS public API and workflow docs parity in `samples/proof-android/README.md`, `samples/proof-ios/README.md`, and `docs/explanation/trust-model.md`
 - [ ] T044 Run the full two-device quickstart validation using `specs/001-ble-mesh-sdk/quickstart.md`, `samples/proof-android/`, and `samples/proof-ios/`
@@ -185,12 +185,12 @@ retransmission semantics.
 
 ```bash
 # Launch story-2 validation work together:
-Task: "Add multi-node routing and reconvergence integration tests in meshlink/src/commonTest/kotlin/com/meshlink/integration/MeshRoutingIntegrationTest.kt"
-Task: "Add bounded large-transfer and 64 KiB limit integration tests in meshlink/src/commonTest/kotlin/com/meshlink/integration/LargeTransferIntegrationTest.kt"
+Task: "Add multi-node routing and reconvergence integration tests in meshlink/src/commonTest/kotlin/ch/trancee/meshlink/integration/MeshRoutingIntegrationTest.kt"
+Task: "Add bounded large-transfer and 64 KiB limit integration tests in meshlink/src/commonTest/kotlin/ch/trancee/meshlink/integration/LargeTransferIntegrationTest.kt"
 
 # Launch story-2 subsystem implementation together:
-Task: "Implement route tables, seqno freshness, feasibility checks, route digests, and differential updates in meshlink/src/commonMain/kotlin/com/meshlink/routing/"
-Task: "Implement `TransferSession`, ACK scoreboard, configurable delivery-deadline plumbing, and pre-transfer size-limit rejection in `meshlink/src/commonMain/kotlin/com/meshlink/transfer/`"
+Task: "Implement route tables, seqno freshness, feasibility checks, route digests, and differential updates in meshlink/src/commonMain/kotlin/ch/trancee/meshlink/routing/"
+Task: "Implement `TransferSession`, ACK scoreboard, configurable delivery-deadline plumbing, and pre-transfer size-limit rejection in `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/transfer/`"
 ```
 
 ---

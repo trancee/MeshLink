@@ -106,7 +106,7 @@ meshlink/
 ├── api/
 │   └── meshlink.api
 └── src/
-    ├── commonMain/kotlin/com/meshlink/
+    ├── commonMain/kotlin/ch/trancee/meshlink/
     │   ├── api/
     │   ├── config/
     │   ├── crypto/
@@ -122,16 +122,16 @@ meshlink/
     │   ├── trust/
     │   └── wire/
     ├── commonTest/
-    │   ├── kotlin/com/meshlink/
+    │   ├── kotlin/ch/trancee/meshlink/
     │   └── resources/wycheproof/
-    ├── androidMain/kotlin/com/meshlink/platform/android/
-    ├── androidUnitTest/kotlin/com/meshlink/platform/android/
-    ├── iosMain/kotlin/com/meshlink/platform/ios/
-    └── iosTest/kotlin/com/meshlink/platform/ios/
+    ├── androidMain/kotlin/ch/trancee/meshlink/platform/android/
+    ├── androidUnitTest/kotlin/ch/trancee/meshlink/platform/android/
+    ├── iosMain/kotlin/ch/trancee/meshlink/platform/ios/
+    └── iosTest/kotlin/ch/trancee/meshlink/platform/ios/
 
 benchmarks/
 ├── build.gradle.kts
-└── src/jvmMain/kotlin/com/meshlink/benchmarks/
+└── src/jvmMain/kotlin/ch/trancee/meshlink/benchmarks/
 
 samples/
 ├── proof-android/

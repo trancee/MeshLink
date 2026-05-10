@@ -2,14 +2,31 @@
 .gradle/
 .kotlin/
 build/
+out/
 
-# Android Studio
+# JVM / Kotlin artifacts
+*.class
+*.jar
+*.iml
+*.log
+.env*
+
+# Android Studio / IDEs
 .idea/
+.vscode/
 local.properties
 
-# iOS
+# iOS / SwiftPM / Xcode
 .swiftpm/
 xcuserdata/
+DerivedData/
+Packages/
+
+# Universal OS / editor noise
+.DS_Store
+Thumbs.db
+*.tmp
+*.swp
 
 # Pi
 .context/

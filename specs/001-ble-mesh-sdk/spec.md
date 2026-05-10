@@ -125,6 +125,10 @@ error behavior.
 - If the app or SDK restarts, pending in-memory retries are lost, stale route
   or session state is rebuilt on rejoin, and the host application must
   resubmit any message that still needs delivery.
+- If the host application explicitly revokes or forgets a trusted peer and that
+  peer later reappears with the same identity, the SDK MUST treat it as a new
+  first-contact candidate and require a fresh TOFU trust decision instead of
+  silently restoring the prior trust relationship.
 - If an untrusted or identity-changed peer attempts to participate in end-to-end
   delivery, the SDK rejects that peer and emits an explicit trust-failure
   diagnostic.
@@ -143,12 +147,18 @@ error behavior.
   devices without requiring internet connectivity, backend services, or user
   account creation.
 - **FR-002**: The system MUST establish peer trust using trust on first use
-  (TOFU) by accepting a previously unseen peer identity on first successful
-  contact and persisting that identity locally for subsequent verification.
+  (TOFU) by accepting a previously unseen peer identity only after the first
+  hop-to-hop authenticated handshake completes successfully and the peer’s
+  static identity keys are verified as internally consistent. At that point,
+  the system MUST persist the peer identity locally for subsequent
+  verification.
 - **FR-003**: The system MUST treat an unexpected identity change for a
-  previously trusted peer as untrusted until the stored trust record is reset
-  or revoked, reject participation from that peer, and emit an explicit
-  trust-failure diagnostic.
+  previously trusted peer as identity-changed and therefore untrusted until the
+  stored trust record is reset or revoked, reject participation from that peer,
+  and emit an explicit trust-failure diagnostic.
+- **FR-003a**: If a host application explicitly resets, forgets, or revokes a
+  peer trust record, any later contact from that peer MUST be handled as a new
+  trust decision and MUST NOT silently restore the prior trust state.
 - **FR-004**: The system MUST allow trusted peers to exchange addressed
   end-to-end encrypted messages whose plaintext is accessible only to the
   origin and final destination peers.
@@ -189,6 +199,12 @@ error behavior.
   commonMain exception hierarchy with matching categories on Android and iOS.
 - **FR-015**: The system MUST function entirely offline after installation and
   required operating-system permissions are granted.
+- **FR-015a**: The system MUST minimize persisted local trust and diagnostic
+  data. Persisted trust records MUST contain only the peer identity material
+  required for TOFU verification and timestamps needed for auditability.
+  Developer-visible diagnostics MUST remain redacted and MUST NOT persist full
+  peer identifiers, plaintext payloads, or decrypted message content unless the
+  host application explicitly stores such data outside the SDK.
 - **FR-016**: The system MUST preserve backward compatibility for deployed wire
   formats, or explicitly version and document incompatible changes.
 - **FR-017**: The system MUST provide integration documentation and quickstart
@@ -202,6 +218,20 @@ error behavior.
 
 - **Peer Identity**: A stable device-scoped identity the SDK uses to establish
   TOFU trust, detect unexpected identity changes, and address destinations.
+
+### Trust State Vocabulary
+
+- **Trusted**: A peer with a persisted TOFU record whose current presented
+  identity matches the pinned trust record.
+- **Untrusted**: A peer that does not currently have an accepted trust record
+  for active participation.
+- **Identity-changed**: A peer whose presented identity conflicts with a
+  previously persisted trust record; this is a subtype of untrusted state until
+  the host application resets or revokes the old record.
+- **Revoked**: A peer whose previous trust record was explicitly removed or
+  invalidated by host-application action; any future contact is treated as a
+  new TOFU decision.
+
 - **Mesh Node**: A participating device that can originate, relay, and receive
   traffic while advertising current reachability.
 - **Secure Session**: The active security context for hop-by-hop and end-to-end
@@ -263,10 +293,10 @@ error behavior.
   change completes within 3 seconds.
 - **SC-003**: A 64 KB payload can be delivered intact across the mesh despite
   partial chunk loss, without restarting the transfer from byte zero.
-- **SC-004**: On supported reference Android and iOS hardware, a 1-hop,
-  256-byte end-to-end message completes within 50 ms at p95 after connection
-  establishment, and single-hop transfer sustains at least 80 KB/s on Android
-  and 60 KB/s on iOS.
+- **SC-004**: On the project’s reference benchmark hardware—Android Pixel 6 or
+  newer and iPhone 12 or newer—a 1-hop, 256-byte end-to-end message completes
+  within 50 ms at p95 after connection establishment, and single-hop transfer
+  sustains at least 80 KB/s on Android and 60 KB/s on iOS.
 - **SC-005**: With up to 8 connected peers and an active routing table,
   steady-state heap allocation remains at or below 8 MB.
 - **SC-006**: In LOW power mode, scan duty cycle remains at or below 5% while
@@ -279,8 +309,9 @@ error behavior.
 ## Assumptions
 
 - The host application owns user-facing identity presentation, trust reset or
-  revocation UX, and recipient selection; MeshLink uses TOFU for first-contact
-  trust and does not introduce its own account system.
+  revocation UX, recipient selection, and any application-level persistence of
+  message content; MeshLink uses TOFU for first-contact trust and does not
+  introduce its own account system.
 - The initial release scope focuses on addressed peer-to-peer messaging rather
   than higher-level group or channel semantics.
 - The maximum supported payload size for the initial release is 64 KB per
@@ -289,7 +320,8 @@ error behavior.
   host application is responsible for resubmitting any message that still needs
   delivery after restart.
 - Supported platforms for this feature are Android API 29 or newer and iOS 15
-  or newer.
+  or newer. Performance success criteria are evaluated on the project’s
+  reference benchmark hardware: Pixel 6+ for Android and iPhone 12+ for iOS.
 - Devices grant required BLE and background-execution permissions supported by
   the operating system.
 - The SDK is expected to operate with zero internet connectivity for all core
