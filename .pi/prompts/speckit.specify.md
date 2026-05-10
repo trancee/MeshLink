@@ -108,6 +108,7 @@ Given that feature description, do this:
    - The spec directory and file are always created by this command, never by the hook
 
 4. Load `.specify/templates/spec-template.md` to understand required sections.
+   - **IF EXISTS**: Read root `constitution.md` to capture project-specific constraints for the Constitutional Alignment section.
 
 5. Follow this execution flow:
     1. Parse user description from arguments
@@ -127,12 +128,15 @@ Given that feature description, do this:
     5. Generate Functional Requirements
        Each requirement must be testable
        Use reasonable defaults for unspecified details (document assumptions in Assumptions section)
-    6. Define Success Criteria
+    6. Fill Constitutional Alignment
+       Map applicable obligations from root `constitution.md` into the dedicated section
+       If the file does not exist, infer constraints from repo context or mark items not applicable with justification
+    7. Define Success Criteria
        Create measurable, technology-agnostic outcomes
        Include both quantitative metrics (time, performance, volume) and qualitative measures (user satisfaction, task completion)
        Each criterion must be verifiable without implementation details
-    7. Identify Key Entities (if data involved)
-    8. Return: SUCCESS (spec ready for planning)
+    8. Identify Key Entities (if data involved)
+    9. Return: SUCCESS (spec ready for planning)
 
 6. Write the specification to SPEC_FILE using the template structure, replacing placeholders with concrete details derived from the feature description (arguments) while preserving section order and headings.
 
@@ -164,6 +168,7 @@ Given that feature description, do this:
       - [ ] Edge cases are identified
       - [ ] Scope is clearly bounded
       - [ ] Dependencies and assumptions identified
+      - [ ] Constitutional Alignment captures applicable project constraints or justified non-applicability
       
       ## Feature Readiness
       

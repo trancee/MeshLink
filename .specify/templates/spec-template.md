@@ -11,6 +11,8 @@
   IMPORTANT: User stories should be PRIORITIZED as user journeys ordered by importance.
   Each user story/journey must be INDEPENDENTLY TESTABLE - meaning if you implement just ONE of them,
   you should still have a viable MVP (Minimum Viable Product) that delivers value.
+  Each story MUST remain independently valuable and demonstrable without requiring
+  lower-priority stories to be complete.
   
   Assign priorities (P1, P2, P3, etc.) to each story, where P1 is the most critical.
   Think of each story as a standalone slice of functionality that can be:
@@ -80,6 +82,9 @@
 <!--
   ACTION REQUIRED: The content in this section represents placeholders.
   Fill them out with the right functional requirements.
+  Every requirement MUST be specific, testable, and traceable to at least one
+  user story, edge case, or explicit business constraint. Use `NEEDS CLARIFICATION`
+  instead of guessing when critical details are unknown.
 -->
 
 ### Functional Requirements
@@ -100,11 +105,36 @@
 - **[Entity 1]**: [What it represents, key attributes without implementation]
 - **[Entity 2]**: [What it represents, relationships to other entities]
 
+## Constitutional Alignment *(mandatory)*
+
+<!--
+  ACTION REQUIRED: Map this feature to the governing project constraints defined
+  in the root `constitution.md`. State "Not applicable" only with a short,
+  defensible reason.
+-->
+
+- **Code Quality & API Surface**: [Detekt/ktfmt/BCV/explicit API/TODO/dependency pinning impact]
+- **Testing & Benchmarking**: [coverage, Power-assert, Wycheproof, harness, benchmark impact]
+- **Cross-Platform Consistency**: [MeshLinkApi/DSL/events/errors/state/doc parity impact]
+- **Performance & Technical Constraints**: [budgets, offline behavior, min platforms, provider abstraction, wire compatibility, runtime dependency budget]
+
+## Out of Scope *(mandatory)*
+
+<!--
+  ACTION REQUIRED: List explicit non-goals and excluded work so reviewers can
+  distinguish intentional scope boundaries from missing requirements.
+-->
+
+- [Non-goal or excluded scenario]
+- [Deferred enhancement explicitly not included in this feature]
+
 ## Success Criteria *(mandatory)*
 
 <!--
   ACTION REQUIRED: Define measurable success criteria.
   These must be technology-agnostic and measurable.
+  If the feature touches performance-sensitive paths, include the relevant
+  MeshLink throughput, latency, memory, battery, convergence, or codec targets.
 -->
 
 ### Measurable Outcomes
@@ -120,6 +150,8 @@
   ACTION REQUIRED: The content in this section represents placeholders.
   Fill them out with the right assumptions based on reasonable defaults
   chosen when the feature description did not specify certain details.
+  Record only assumptions you are willing to defend. High-risk assumptions MUST
+  be resolved during planning or explicitly marked `NEEDS CLARIFICATION`.
 -->
 
 - [Assumption about target users, e.g., "Users have stable internet connectivity"]

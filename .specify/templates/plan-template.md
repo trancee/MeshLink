@@ -25,13 +25,35 @@
 **Project Type**: [e.g., library/cli/web-service/mobile-app/compiler/desktop-app or NEEDS CLARIFICATION]  
 **Performance Goals**: [domain-specific, e.g., 1000 req/s, 10k lines/sec, 60 fps or NEEDS CLARIFICATION]  
 **Constraints**: [domain-specific, e.g., <200ms p95, <100MB memory, offline-capable or NEEDS CLARIFICATION]  
+**Constitutional Constraints**: [applicable rules from root `constitution.md`, e.g., API parity, 100% coverage, benchmark evidence, offline-only, exact dependency budget or NEEDS CLARIFICATION]  
 **Scale/Scope**: [domain-specific, e.g., 10k users, 1M LOC, 50 screens or NEEDS CLARIFICATION]
 
 ## Constitution Check
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-[Gates determined based on constitution file]
+- [ ] Spec-first evidence exists: the plan references an approved `spec.md` with
+      prioritized user stories, acceptance scenarios, measurable requirements,
+      assumptions, explicit out-of-scope boundaries, and a Constitutional
+      Alignment section.
+- [ ] Root-constitution impact is mapped: applicable obligations from
+      `constitution.md` are listed in Technical Context and carried into the
+      design, especially code quality, testing, parity, performance, and
+      compatibility constraints.
+- [ ] Story slices remain independently valuable: each planned user story can be
+      implemented, validated, and demonstrated on its own, or any dependency is
+      explicitly justified in Complexity Tracking.
+- [ ] All unknowns are surfaced: every open question is marked `NEEDS CLARIFICATION`
+      in Technical Context or resolved in `research.md`; no silent assumptions remain.
+- [ ] Validation and evidence are defined: each user story has a clear
+      verification approach, and the plan identifies applicable automated tests,
+      compatibility checks, documentation-parity work, and benchmark evidence.
+- [ ] High-risk MeshLink changes are called out: public API, crypto-provider,
+      wire-format, runtime-dependency, minimum-platform, and cross-platform
+      event/error/state changes are explicitly marked when touched.
+- [ ] Artifact sync is planned: `research.md`, `data-model.md`, `quickstart.md`,
+      `contracts/`, tasks, and agent guidance updates are listed where
+      applicable, and the plan avoids assistant-vendor-specific instructions.
 
 ## Project Structure
 
@@ -89,6 +111,21 @@ api/
 
 ios/ or android/
 └── [platform-specific structure: feature modules, UI flows, platform tests]
+
+# [REMOVE IF UNUSED] Option 4: Kotlin Multiplatform library (MeshLink-style)
+meshlink/
+├── build.gradle.kts
+├── src/
+│   ├── commonMain/
+│   ├── commonTest/
+│   ├── androidMain/
+│   ├── androidUnitTest/
+│   ├── iosMain/
+│   └── iosTest/
+└── api/
+
+benchmarks/
+└── [benchmark suites and baselines]
 ```
 
 **Structure Decision**: [Document the selected structure and reference the real
