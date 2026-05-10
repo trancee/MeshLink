@@ -111,7 +111,7 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 4. **Load feature context**: Read from FEATURE_DIR:
    - spec.md: Feature requirements and scope
-   - plan.md (if exists): Technical details, dependencies
+   - plan.md (if exists): Technical details, dependencies, and `Applicable Skills`
    - tasks.md (if exists): Implementation tasks
 
    **Context Loading Strategy**:
@@ -119,6 +119,7 @@ You **MUST** consider the user input before proceeding (if not empty).
    - Prefer summarizing long sections into concise scenario/requirement bullets
    - Use progressive disclosure: add follow-on retrieval only if gaps detected
    - If source docs are large, generate interim summary items instead of embedding raw text
+   - Before drafting the checklist, read any skills that are clearly relevant to the requested best-practice or quality domain, and record them for the final report
 
 5. **Generate checklist** - Create "Unit Tests for Requirements":
    - Create `FEATURE_DIR/checklists/` directory if it doesn't exist
@@ -245,6 +246,7 @@ You **MUST** consider the user input before proceeding (if not empty).
    - Depth level
    - Actor/timing
    - Any explicit user-specified must-have items incorporated
+   - `Skills Used` summary listing consulted skills, or `None`
 
 **Important**: Each `/speckit.checklist` command invocation uses a short, descriptive checklist filename and either creates a new file or appends to an existing one. This allows:
 

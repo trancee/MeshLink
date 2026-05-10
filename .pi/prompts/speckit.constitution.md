@@ -102,6 +102,7 @@ Follow this execution flow:
 8. Output a final summary to the user with:
    - New version and bump rationale.
    - Any files flagged for manual follow-up.
+   - `Skills Used` summary listing consulted skills, or `None`.
    - Suggested commit message (e.g., `docs: amend constitution to vX.Y.Z (principle additions + governance update)`).
 
 Formatting & Style Requirements:

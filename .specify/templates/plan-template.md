@@ -26,6 +26,7 @@
 **Performance Goals**: [domain-specific, e.g., 1000 req/s, 10k lines/sec, 60 fps or NEEDS CLARIFICATION]  
 **Constraints**: [domain-specific, e.g., <200ms p95, <100MB memory, offline-capable or NEEDS CLARIFICATION]  
 **Constitutional Constraints**: [applicable rules from root `constitution.md`, e.g., API parity, 100% coverage, benchmark evidence, offline-only, exact dependency budget or NEEDS CLARIFICATION]  
+**Applicable Skills**: [relevant project/global skills to consult before implementation or best-practice work, or None]  
 **Scale/Scope**: [domain-specific, e.g., 10k users, 1M LOC, 50 screens or NEEDS CLARIFICATION]
 
 ## Constitution Check
@@ -48,6 +49,9 @@
 - [ ] Validation and evidence are defined: each user story has a clear
       verification approach, and the plan identifies applicable automated tests,
       compatibility checks, documentation-parity work, and benchmark evidence.
+- [ ] Relevant skills are identified: the plan lists the project/global skills
+      that MUST be consulted before implementation or best-practice-heavy work,
+      or explicitly records that no specialized skill applies.
 - [ ] High-risk MeshLink changes are called out: public API, crypto-provider,
       wire-format, runtime-dependency, minimum-platform, and cross-platform
       event/error/state changes are explicitly marked when touched.

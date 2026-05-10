@@ -99,6 +99,11 @@ Load only the minimal necessary context from each artifact:
 - Load `.specify/memory/constitution.md` for workflow-principle validation
 - Load root `constitution.md` if present for project-specific engineering-rule validation
 
+**From relevant skills (when applicable):**
+
+- Before analysis begins, read any skills that are clearly relevant to the domain being analyzed or the best-practice lens being applied.
+- If no specialized skill applies, record that explicitly in the final report.
+
 ### 3. Build Semantic Models
 
 Create internal representations (do not include raw artifacts in output):
@@ -187,11 +192,12 @@ Output a Markdown report (no file writes) with the following structure:
 
 ### 7. Provide Next Actions
 
-At end of report, output a concise Next Actions block:
+At end of report, output a concise Next Actions block followed by a `Skills Used` section:
 
 - If CRITICAL issues exist: Recommend resolving before `/speckit.implement`
 - If only LOW/MEDIUM: User may proceed, but provide improvement suggestions
 - Provide explicit command suggestions: e.g., "Run /speckit.specify with refinement", "Run /speckit.plan to adjust architecture", "Manually edit tasks.md to add coverage for 'performance-metrics'"
+- `Skills Used`: List each consulted skill and why it mattered to the analysis, or explicitly state `None`
 
 ### 8. Offer Remediation
 

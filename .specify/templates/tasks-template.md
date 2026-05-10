@@ -10,6 +10,8 @@ description: "Task list template for feature implementation"
 
 **Validation**: Every user story MUST include validation tasks. When work changes code, contracts, or data models, include automated tests or contract/integration checks. For documentation-only work, include manual verification or reader-test tasks. When applicable, add explicit work for the root `constitution.md` obligations: formatting, static analysis, API compatibility, cross-platform parity, Wycheproof or harness coverage, benchmarks, and compatibility validation.
 
+**Skill Use**: Before starting implementation or best-practice-heavy work, read the relevant skills listed in plan.md or otherwise applicable to the task. Completion summaries MUST include a `Skills Used` section or explicitly state that no specialized skill applied.
+
 **Organization**: Tasks are grouped by user story to enable independent implementation and testing of each story.
 
 ## Format: `[ID] [P?] [Story] Description`
@@ -184,6 +186,7 @@ Examples of foundational tasks (adjust based on your project):
 ### Within Each User Story
 
 - Validation tasks MUST be defined before implementation starts
+- Applicable skills from plan.md or the project skill catalog MUST be consulted before implementation or best-practice-heavy work begins
 - Executable behavior changes MUST have automated tests or contract/integration checks
 - When feasible, automated tests SHOULD be written and observed failing before implementation
 - Applicable API-compatibility, parity, benchmark, vector, harness, dependency, and wire-compatibility tasks MUST be included when those surfaces change
@@ -256,6 +259,7 @@ With multiple developers:
 - Each user story MUST include at least one validation task
 - Verify automated tests or contract checks fail before implementing when the work changes executable behavior
 - Add explicit tasks for any applicable project-constitution obligations instead of leaving them implicit
+- Completion reports MUST include the relevant `Skills Used` summary alongside verification evidence or explicitly state `None`
 - Commit after each task or logical group
 - Stop at any checkpoint to validate story independently
 - Avoid: vague tasks, same file conflicts, cross-story dependencies that break independence

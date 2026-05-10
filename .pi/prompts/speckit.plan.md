@@ -58,9 +58,14 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 2. **Load context**: Read FEATURE_SPEC, `.specify/memory/constitution.md`, and root `constitution.md` if it exists. Load IMPL_PLAN template (already copied).
 
-3. **Execute plan workflow**: Follow the structure in IMPL_PLAN template to:
+3. **Identify relevant skills before planning**:
+   - Review the available skill catalog and read any skills that are clearly relevant to the feature's domain, implementation stack, or best-practice constraints.
+   - Record the selected skills in the plan's `Applicable Skills` field, or explicitly state `None` if no specialized skill applies.
+
+4. **Execute plan workflow**: Follow the structure in IMPL_PLAN template to:
    - Fill Technical Context (mark unknowns as "NEEDS CLARIFICATION")
    - Carry forward the spec's Constitutional Alignment and applicable rules from root `constitution.md`
+   - Record `Applicable Skills` for downstream implementation and best-practice work
    - Fill Constitution Check section from both constitutions
    - Evaluate gates (ERROR if violations unjustified)
    - Phase 0: Generate research.md (resolve all NEEDS CLARIFICATION and constitutional unknowns)
@@ -68,9 +73,9 @@ You **MUST** consider the user input before proceeding (if not empty).
    - Phase 1: Update agent context by running the agent script
    - Re-evaluate Constitution Check post-design
 
-4. **Stop and report**: Command ends after Phase 2 planning. Report branch, IMPL_PLAN path, and generated artifacts.
+5. **Stop and report**: Command ends after Phase 2 planning. Report branch, IMPL_PLAN path, generated artifacts, and a `Skills Used` summary.
 
-5. **Check for extension hooks**: After reporting, check if `.specify/extensions.yml` exists in the project root.
+6. **Check for extension hooks**: After reporting, check if `.specify/extensions.yml` exists in the project root.
    - If it exists, read it and look for entries under the `hooks.after_plan` key
    - If the YAML cannot be parsed or is invalid, skip hook checking silently and continue normally
    - Filter out hooks where `enabled` is explicitly `false`. Treat hooks without an `enabled` field as enabled by default.

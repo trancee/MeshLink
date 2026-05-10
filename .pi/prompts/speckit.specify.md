@@ -109,6 +109,7 @@ Given that feature description, do this:
 
 4. Load `.specify/templates/spec-template.md` to understand required sections.
    - **IF EXISTS**: Read root `constitution.md` to capture project-specific constraints for the Constitutional Alignment section.
+   - Read any skills that are clearly relevant to the feature domain, documentation task, or best-practice expectations before drafting. If no specialized skill applies, record `None` in the completion report.
 
 5. Follow this execution flow:
     1. Parse user description from arguments
@@ -237,6 +238,7 @@ Given that feature description, do this:
    - `SPECIFY_FEATURE_DIRECTORY` — the feature directory path
    - `SPEC_FILE` — the spec file path
    - Checklist results summary
+   - `Skills Used` summary listing consulted skills, or `None`
    - Readiness for the next phase (`/speckit.clarify` or `/speckit.plan`)
 
 9. **Check for extension hooks**: After reporting completion, check if `.specify/extensions.yml` exists in the project root.

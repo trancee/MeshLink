@@ -1,40 +1,28 @@
 <!--
 Sync Impact Report
-Version change: 1.0.0 -> 1.1.0
+Version change: 1.1.0 -> 1.2.0
 Modified principles:
-- I. Specification-First Delivery (expanded with root-constitution traceability)
-- III. Measurable, Bounded Requirements -> III. Measurable, Bounded, Constitution-Aware Requirements
-- IV. Evidence-Backed Planning and Validation (expanded with project evidence gates)
-- V. Artifact Synchronization and Integration Neutrality (expanded with dual-constitution precedence)
+- IV. Evidence-Backed Planning and Validation -> IV. Evidence-Backed Planning, Skill-First Execution, and Validation
+- V. Artifact Synchronization and Integration Neutrality (expanded with skills reporting obligations)
 Added sections:
-- MeshLink Constraint Mapping
+- Skill Invocation & Reporting
 Removed sections:
 - None
 Templates requiring updates:
 - ✅ updated: .specify/templates/plan-template.md
-- ✅ updated: .specify/templates/spec-template.md
 - ✅ updated: .specify/templates/tasks-template.md
+- ✅ verified: .specify/templates/spec-template.md (no new spec section required)
 - ✅ verified: .specify/templates/commands/*.md (directory absent; no command templates to sync)
-- ✅ updated: .pi/prompts/speckit.plan.md
+- ✅ updated: AGENTS.md
 - ✅ updated: .pi/prompts/speckit.specify.md
+- ✅ updated: .pi/prompts/speckit.clarify.md
+- ✅ updated: .pi/prompts/speckit.plan.md
 - ✅ updated: .pi/prompts/speckit.tasks.md
-- ✅ updated: .pi/prompts/speckit.analyze.md
 - ✅ updated: .pi/prompts/speckit.implement.md
+- ✅ updated: .pi/prompts/speckit.analyze.md
+- ✅ updated: .pi/prompts/speckit.checklist.md
 - ✅ updated: .pi/prompts/speckit.constitution.md
-- ✅ updated: .pi/prompts/speckit.git.commit.md
-- ✅ updated: .pi/prompts/speckit.git.initialize.md
-- ✅ updated: .specify/extensions/git/git-config.yml
-- ✅ updated: .specify/extensions/git/config-template.yml
-- ✅ updated: .specify/extensions/git/extension.yml
-- ✅ updated: .specify/extensions/git/README.md
-- ✅ updated: .specify/extensions/git/commands/speckit.git.commit.md
-- ✅ updated: .specify/extensions/git/commands/speckit.git.initialize.md
-- ✅ updated: .specify/extensions/git/scripts/bash/auto-commit.sh
-- ✅ updated: .specify/extensions/git/scripts/bash/initialize-repo.sh
-- ✅ updated: .specify/extensions/git/scripts/powershell/auto-commit.ps1
-- ✅ updated: .specify/extensions/git/scripts/powershell/initialize-repo.ps1
 - ✅ verified: constitution.md (root project constitution consumed as authoritative source)
-- ✅ verified: AGENTS.md (no constitution-specific updates required)
 Follow-up TODOs:
 - None
 -->
@@ -76,19 +64,23 @@ Specifications MUST declare assumptions and out-of-scope items, and MUST use
 unknown. Rationale: reviewers must know which MeshLink constraints are in play
 before design begins.
 
-### IV. Evidence-Backed Planning and Validation
+### IV. Evidence-Backed Planning, Skill-First Execution, and Validation
 Implementation plans MUST convert each applicable constitutional constraint into
 concrete evidence. Plans and tasks MUST record the required verification for
 formatting and static analysis, API compatibility, explicit public API impact,
 coverage expectations, Wycheproof vectors, harness-based integration tests,
 cross-platform API and documentation parity, performance benchmarks, wire
 compatibility, dependency-budget impact, and offline or minimum-platform
-constraints when applicable. Each user story MUST define a validation path.
-Changes to code, contracts, or data models MUST include automated tests or
+constraints when applicable. Before implementation or best-practice-oriented
+work begins, relevant skill files from the project skill catalog MUST be
+identified and read, or the operator MUST explicitly record that no specialized
+skill applies. Each user story MUST define a validation path. Changes to code,
+contracts, or data models MUST include automated tests or
 contract/integration checks, and performance-sensitive work MUST include
 benchmark evidence or an explicit non-applicability statement. Completion
-claims MUST cite fresh evidence from the current change. Rationale: verification
-is part of the deliverable, not a postscript.
+claims MUST cite fresh evidence from the current change. Rationale: domain
+constraints and best practices must shape the work before code changes start,
+not after the fact.
 
 ### V. Artifact Synchronization and Integration Neutrality
 The root `constitution.md`, this constitution, templates, specs, plans, tasks,
@@ -98,7 +90,9 @@ MUST not assume a single AI assistant or vendor when generic wording is
 possible. Placeholders, stale references, and deferred follow-ups MUST be
 removed or explicitly tracked in the document that owns them. When both
 constitutions apply, derived artifacts MUST satisfy both and MUST not silently
-downgrade the stricter project rule. Rationale: this repository is a reusable
+downgrade the stricter project rule. Task-completion reports for governed
+workflow steps MUST include a `Skills Used` summary listing consulted skills or
+explicitly stating `None`. Rationale: this repository is a reusable
 specification system for a security-sensitive project; stale or vendor-locked
 instructions erode trust and reuse.
 
@@ -109,7 +103,8 @@ instructions erode trust and reuse.
   impact, test and benchmark obligations, cross-platform parity, dependency
   changes, and compatibility risks.
 - `plan.md` MUST translate each applicable constraint into research tasks,
-  design decisions, constitution checks, and evidence-producing work items.
+  design decisions, constitution checks, evidence-producing work items, and
+  applicable skill guidance.
 - `tasks.md` MUST add explicit work for API compatibility review,
   documentation parity, benchmark generation, Wycheproof or harness coverage,
   dependency pinning, or FlatBuffers compatibility validation whenever those
@@ -117,6 +112,20 @@ instructions erode trust and reuse.
 - Features that modify public APIs, crypto-provider usage, wire formats,
   runtime dependencies, minimum platform support, or cross-platform
   event/error/state behavior MUST be called out as high-risk in the plan.
+
+## Skill Invocation & Reporting
+
+- `plan.md` MUST include an `Applicable Skills` entry naming the skills that
+  downstream implementation or best-practice-heavy work MUST consult, or the
+  explicit value `None`.
+- Before implementation, analysis, checklist generation, or other
+  best-practice-oriented work begins, the operator or agent MUST read the
+  relevant skill files and apply their guidance during execution.
+- When a task completes, the user-facing report MUST include a `Skills Used`
+  summary with each consulted skill and a short rationale, or an explicit
+  statement that no specialized skill applied.
+- Reviews MUST reject governed task outputs that omit required skill loading or
+  the required `Skills Used` summary when applicable.
 
 ## Artifact Standards
 
@@ -126,9 +135,9 @@ instructions erode trust and reuse.
   exist.
 - `spec.md` MUST include sections for Out of Scope, Assumptions, and
   Constitutional Alignment.
-- `plan.md` MUST include Constitution Check items for both constitutions and
-  MUST record benchmark baselines or the reason benchmarks do not apply when
-  performance-sensitive paths change.
+- `plan.md` MUST include Constitution Check items for both constitutions, MUST
+  record benchmark baselines or the reason benchmarks do not apply when
+  performance-sensitive paths change, and MUST include `Applicable Skills`.
 - `tasks.md` MUST include validation tasks for every story and cross-cutting
   tasks for any required parity, compatibility, or benchmark evidence.
 - Documents MUST preserve stable identifiers for traceability, including user
@@ -149,14 +158,16 @@ instructions erode trust and reuse.
   and MUST be re-evaluated after design artifacts are produced.
 - Reviews MUST reject unresolved placeholders, unsupported "done" claims,
   unjustified complexity, any story breakdown that violates independence or
-  measurability rules, and any plan or task list that omits applicable
-  root-constitution obligations.
+  measurability rules, any plan or task list that omits applicable
+  root-constitution obligations, and any governed completion report that omits
+  the required `Skills Used` summary.
 - Automation, templates, and hook-produced commit guidance MUST preserve the
   feature-branch workflow and Conventional Commit expectations defined by root
   `constitution.md`.
-- When a governance change alters required sections, quality gates, or review
-  expectations, the dependent templates and guidance MUST be updated in the same
-  change or explicitly recorded as a follow-up TODO.
+- When a governance change alters required sections, quality gates, review
+  expectations, skill-loading expectations, or reporting expectations, the
+  dependent templates and guidance MUST be updated in the same change or
+  explicitly recorded as a follow-up TODO.
 
 ## Governance
 
@@ -177,9 +188,10 @@ MAJOR for incompatible principle removals or redefinitions, MINOR for new
 principles or materially expanded obligations, and PATCH for clarifications,
 wording improvements, or non-semantic refinements.
 
-Compliance review is mandatory for every specification, plan, task list, and
-completion claim. Any non-compliance with either constitution MUST block
-approval until the artifact is corrected or the constitutions are amended
-through the documented process.
+Compliance review is mandatory for every specification, plan, task list,
+implementation report, analysis report, checklist report, and completion claim.
+Any non-compliance with either constitution MUST block approval until the
+artifact is corrected or the constitutions are amended through the documented
+process.
 
-**Version**: 1.1.0 | **Ratified**: 2026-05-10 | **Last Amended**: 2026-05-10
+**Version**: 1.2.0 | **Ratified**: 2026-05-10 | **Last Amended**: 2026-05-10
