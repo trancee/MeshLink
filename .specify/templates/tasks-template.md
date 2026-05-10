@@ -190,6 +190,9 @@ Examples of foundational tasks (adjust based on your project):
 - Executable behavior changes MUST have automated tests or contract/integration checks
 - When feasible, automated tests SHOULD be written and observed failing before implementation
 - Applicable API-compatibility, parity, benchmark, vector, harness, dependency, and wire-compatibility tasks MUST be included when those surfaces change
+- Any file-modifying work batch MUST end with a Conventional Commit before the
+  next sequential task, phase, or governed command continues unless an enabled
+  auto-commit hook performs that commit.
 - Models before services
 - Services before endpoints
 - Core implementation before integration
@@ -260,6 +263,7 @@ With multiple developers:
 - Verify automated tests or contract checks fail before implementing when the work changes executable behavior
 - Add explicit tasks for any applicable project-constitution obligations instead of leaving them implicit
 - Completion reports MUST include the relevant `Skills Used` summary alongside verification evidence or explicitly state `None`
-- Commit after each task or logical group
+- File-modifying governed work MUST be committed with a Conventional Commit
+  before continuing to the next task, phase, or command
 - Stop at any checkpoint to validate story independently
 - Avoid: vague tasks, same file conflicts, cross-story dependencies that break independence

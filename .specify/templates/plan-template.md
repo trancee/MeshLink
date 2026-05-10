@@ -52,6 +52,9 @@
 - [ ] Relevant skills are identified: the plan lists the project/global skills
       that MUST be consulted before implementation or best-practice-heavy work,
       or explicitly records that no specialized skill applies.
+- [ ] Commit discipline is planned: file-modifying governed work will be
+      committed before subsequent workflow steps continue, either manually or
+      through enabled auto-commit hooks using Conventional Commits.
 - [ ] High-risk MeshLink changes are called out: public API, crypto-provider,
       wire-format, runtime-dependency, minimum-platform, and cross-platform
       event/error/state changes are explicitly marked when touched.

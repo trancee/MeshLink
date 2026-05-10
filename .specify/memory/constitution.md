@@ -1,11 +1,10 @@
 <!--
 Sync Impact Report
-Version change: 1.1.0 -> 1.2.0
+Version change: 1.2.0 -> 1.3.0
 Modified principles:
-- IV. Evidence-Backed Planning and Validation -> IV. Evidence-Backed Planning, Skill-First Execution, and Validation
-- V. Artifact Synchronization and Integration Neutrality (expanded with skills reporting obligations)
+- V. Artifact Synchronization and Integration Neutrality -> V. Artifact Synchronization, Commit Discipline, and Integration Neutrality
 Added sections:
-- Skill Invocation & Reporting
+- None
 Removed sections:
 - None
 Templates requiring updates:
@@ -14,14 +13,11 @@ Templates requiring updates:
 - ✅ verified: .specify/templates/spec-template.md (no new spec section required)
 - ✅ verified: .specify/templates/commands/*.md (directory absent; no command templates to sync)
 - ✅ updated: AGENTS.md
-- ✅ updated: .pi/prompts/speckit.specify.md
-- ✅ updated: .pi/prompts/speckit.clarify.md
-- ✅ updated: .pi/prompts/speckit.plan.md
-- ✅ updated: .pi/prompts/speckit.tasks.md
 - ✅ updated: .pi/prompts/speckit.implement.md
-- ✅ updated: .pi/prompts/speckit.analyze.md
-- ✅ updated: .pi/prompts/speckit.checklist.md
 - ✅ updated: .pi/prompts/speckit.constitution.md
+- ✅ updated: .specify/extensions/git/git-config.yml
+- ✅ updated: .specify/extensions/git/config-template.yml
+- ✅ updated: .specify/extensions/git/README.md
 - ✅ verified: constitution.md (root project constitution consumed as authoritative source)
 Follow-up TODOs:
 - None
@@ -82,7 +78,7 @@ claims MUST cite fresh evidence from the current change. Rationale: domain
 constraints and best practices must shape the work before code changes start,
 not after the fact.
 
-### V. Artifact Synchronization and Integration Neutrality
+### V. Artifact Synchronization, Commit Discipline, and Integration Neutrality
 The root `constitution.md`, this constitution, templates, specs, plans, tasks,
 quickstarts, and agent guidance MUST remain synchronized whenever process or
 governance changes. Repo guidance MUST use integration-neutral language and
@@ -90,11 +86,15 @@ MUST not assume a single AI assistant or vendor when generic wording is
 possible. Placeholders, stale references, and deferred follow-ups MUST be
 removed or explicitly tracked in the document that owns them. When both
 constitutions apply, derived artifacts MUST satisfy both and MUST not silently
-downgrade the stricter project rule. Task-completion reports for governed
-workflow steps MUST include a `Skills Used` summary listing consulted skills or
+downgrade the stricter project rule. Whenever governed work changes repository
+files, the operator or agent MUST create a Conventional Commit before
+continuing to another governed task, phase, or command. Enabled auto-commit
+hooks MAY satisfy this requirement, but uncommitted file changes MUST NOT be
+carried across workflow steps. Task-completion reports for governed workflow
+steps MUST include a `Skills Used` summary listing consulted skills or
 explicitly stating `None`. Rationale: this repository is a reusable
 specification system for a security-sensitive project; stale or vendor-locked
-instructions erode trust and reuse.
+instructions and uncheckpointed changes erode trust and reuse.
 
 ## MeshLink Constraint Mapping
 
@@ -156,6 +156,9 @@ instructions erode trust and reuse.
   approved intent without updating the upstream artifact first.
 - The Constitution Check in each plan is a blocking gate before Phase 0 research
   and MUST be re-evaluated after design artifacts are produced.
+- After any governed step that modifies repository files, work MUST pause for a
+  Conventional Commit before further governed work continues, unless the next
+  immediate action is the enabled auto-commit hook or the manual commit itself.
 - Reviews MUST reject unresolved placeholders, unsupported "done" claims,
   unjustified complexity, any story breakdown that violates independence or
   measurability rules, any plan or task list that omits applicable
@@ -194,4 +197,4 @@ Any non-compliance with either constitution MUST block approval until the
 artifact is corrected or the constitutions are amended through the documented
 process.
 
-**Version**: 1.2.0 | **Ratified**: 2026-05-10 | **Last Amended**: 2026-05-10
+**Version**: 1.3.0 | **Ratified**: 2026-05-10 | **Last Amended**: 2026-05-10

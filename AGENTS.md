@@ -6,3 +6,7 @@ shell commands, and task-specific guidance.
 
 Before implementation or best-practice-oriented work begins, read the relevant
 skill files and include a `Skills Used` summary in the completion report.
+
+After making repository changes, create a Conventional Commit before
+continuing to another governed task, phase, or command unless an enabled
+auto-commit hook performs that commit for you.

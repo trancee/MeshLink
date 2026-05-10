@@ -10,7 +10,7 @@ This extension provides Git operations as an optional, self-contained module. It
 - **Feature branch creation** with sequential (`001-feature-name`) or timestamp (`20260319-143022-feature-name`) numbering
 - **Branch validation** to ensure branches follow naming conventions
 - **Git remote detection** for GitHub integration (e.g., issue creation)
-- **Auto-commit** after core commands (configurable per-command with custom Conventional Commit messages)
+- **Auto-commit** after core commands (enabled in this repo for file-modifying after-hooks, configurable per-command with custom Conventional Commit messages)
 
 ## Commands
 
@@ -56,10 +56,14 @@ branch_numbering: sequential
 # Custom commit message for git init
 init_commit_message: "chore: initial commit from Specify template"
 
-# Auto-commit per command (all disabled by default)
-# Example: enable auto-commit after specify
+# Auto-commit per command
+# This repo enables auto-commit after file-modifying core commands so work is
+# committed before the next governed step continues.
 auto_commit:
   default: false
+  after_constitution:
+    enabled: true
+    message: "docs: add project constitution"
   after_specify:
     enabled: true
     message: "docs: add specification"

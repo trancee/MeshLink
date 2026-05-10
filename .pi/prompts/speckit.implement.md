@@ -161,11 +161,16 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 9. Progress tracking and error handling:
    - Report progress after each completed task
+   - After any file-modifying work batch, create a Conventional Commit before
+     continuing to the next sequential task, phase, or command unless an
+     enabled auto-commit hook performs that commit automatically
    - Halt execution if any non-parallel task fails
    - For parallel tasks [P], continue with successful tasks, report failed ones
    - Provide clear error messages with context for debugging
    - Suggest next steps if implementation cannot proceed
    - **IMPORTANT** For completed tasks, make sure to mark the task off as [X] in the tasks file.
+   - **IMPORTANT** Do not carry uncommitted file changes across governed
+     workflow steps; commit them before continuing.
 
 10. Completion validation:
    - Verify all required tasks are completed

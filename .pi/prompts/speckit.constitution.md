@@ -99,7 +99,11 @@ Follow this execution flow:
 
 7. Write the completed constitution back to `.specify/memory/constitution.md` (overwrite).
 
-8. Output a final summary to the user with:
+8. If this command changes repository files, create a Conventional Commit before
+   continuing to any other governed work unless an enabled auto-commit hook
+   performs that commit.
+
+9. Output a final summary to the user with:
    - New version and bump rationale.
    - Any files flagged for manual follow-up.
    - `Skills Used` summary listing consulted skills, or `None`.

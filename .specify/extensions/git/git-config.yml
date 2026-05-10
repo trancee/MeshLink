@@ -34,29 +34,29 @@ auto_commit:
     enabled: false
     message: "chore: save progress before issue sync"
   after_constitution:
-    enabled: false
+    enabled: true
     message: "docs: add project constitution"
   after_specify:
-    enabled: false
+    enabled: true
     message: "docs: add specification"
   after_clarify:
-    enabled: false
+    enabled: true
     message: "docs: clarify specification"
   after_plan:
-    enabled: false
+    enabled: true
     message: "docs: add implementation plan"
   after_tasks:
-    enabled: false
+    enabled: true
     message: "docs: add tasks"
   after_implement:
-    enabled: false
+    enabled: true
     message: "chore: implementation progress"
   after_checklist:
-    enabled: false
+    enabled: true
     message: "docs: add checklist"
   after_analyze:
     enabled: true
     message: "docs: add analysis report"
   after_taskstoissues:
-    enabled: false
+    enabled: true
     message: "chore: sync tasks to issues"
