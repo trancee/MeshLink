@@ -220,10 +220,17 @@ internal class MeshEngine private constructor(
         private const val MAX_SUPPORTED_PAYLOAD_BYTES: Int = 64 * 1024
         private val INITIAL_BACKOFF = 250.milliseconds
 
-        internal fun create(config: MeshLinkConfig, platformContext: Any? = null): MeshLinkApi {
+        internal fun create(
+            config: MeshLinkConfig,
+            platformContext: Any? = null,
+            bleTransport: BleTransport? = null,
+            diagnosticSink: DiagnosticSink? = null,
+        ): MeshLinkApi {
             return MeshEngine(
                 config = config,
                 platformContext = platformContext,
+                bleTransport = bleTransport,
+                diagnosticSink = diagnosticSink,
             )
         }
     }

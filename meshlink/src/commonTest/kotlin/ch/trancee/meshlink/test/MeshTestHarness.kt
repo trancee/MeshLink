@@ -1,26 +1,62 @@
 package ch.trancee.meshlink.test
 
 import ch.trancee.meshlink.api.MeshLinkApi
-import ch.trancee.meshlink.api.MeshLink
+import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.config.MeshLinkConfig
 import ch.trancee.meshlink.config.meshLinkConfig
+import ch.trancee.meshlink.engine.MeshEngine
 
 internal class MeshTestHarness {
-    private val transports: MutableList<VirtualMeshTransport> = mutableListOf()
+    private val network = VirtualMeshNetwork()
+    private val handles: MutableList<NodeHandle> = mutableListOf()
 
-    internal fun createNode(config: MeshLinkConfig = defaultConfig()): MeshLinkApi {
-        val transport = VirtualMeshTransport()
-        transports += transport
-        return MeshLink.createIos(config)
+    internal fun createNode(
+        peerIdValue: String,
+        identityLabel: String = "default",
+        storage: InMemorySecureStorage = InMemorySecureStorage(),
+    ): NodeHandle {
+        val peerId = PeerId(peerIdValue)
+        val transport = VirtualMeshTransport(localPeerId = peerId, network = network)
+        val diagnosticSink = RecordingDiagnosticSink()
+        val config = defaultConfig(appId = "$peerIdValue-$identityLabel")
+        val api = MeshEngine.create(
+            config = config,
+            bleTransport = transport,
+            diagnosticSink = diagnosticSink,
+        )
+        val handle = NodeHandle(
+            peerId = peerId,
+            api = api,
+            transport = transport,
+            storage = storage,
+            diagnosticSink = diagnosticSink,
+        )
+        handles += handle
+        return handle
     }
 
-    internal fun transportCount(): Int {
-        return transports.size
+    internal fun restartNode(handle: NodeHandle): NodeHandle {
+        return createNode(
+            peerIdValue = handle.peerId.value,
+            storage = handle.storage,
+        )
     }
 
-    private fun defaultConfig(): MeshLinkConfig {
+    internal fun lastDeliveredFrame(): ByteArray? {
+        return handles.mapNotNull { it.transport.lastSentFrame() }.lastOrNull()
+    }
+
+    private fun defaultConfig(appId: String): MeshLinkConfig {
         return meshLinkConfig {
-            appId = "test.meshlink"
+            this.appId = appId
         }
     }
 }
+
+internal class NodeHandle internal constructor(
+    internal val peerId: PeerId,
+    internal val api: MeshLinkApi,
+    internal val transport: VirtualMeshTransport,
+    internal val storage: InMemorySecureStorage,
+    internal val diagnosticSink: RecordingDiagnosticSink,
+)
