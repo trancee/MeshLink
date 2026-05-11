@@ -875,6 +875,7 @@ private constructor(
                 }
             }
 
+            var transferProgressObserved = false
             activeSession?.let { session ->
                 var routeAvailable =
                     sendTransferTowardsDestination(
@@ -917,14 +918,46 @@ private constructor(
                     peerSuffix = peerId.value.takeLast(6),
                     metadata =
                         mapOf(
-                            "ackedChunks" to (session.totalChunks - missingChunks.size).toString(),
+                            "ackedChunks" to session.acknowledgedChunkCount().toString(),
                             "totalChunks" to session.totalChunks.toString(),
                         ),
                 )
                 lastRouteAvailable = routeAvailable
                 if (!routeAvailable) {
                     scheduleRetryDiagnostic(peerId = peerId, priority = priority)
+                } else {
+                    val acknowledgedChunkCountBeforeSettlement = session.acknowledgedChunkCount()
+                    val acknowledgedChunkCountAfterSettlement =
+                        session.awaitAcknowledgementSettlement(
+                            maximumWait =
+                                (config.deliveryRetryDeadline - startedAt.elapsedNow())
+                                    .coerceAtMost(TRANSFER_ACK_SETTLEMENT_TIMEOUT),
+                            idleWindow = TRANSFER_ACK_IDLE_WINDOW,
+                        )
+                    if (acknowledgedChunkCountAfterSettlement >= session.totalChunks) {
+                        sendTransferTowardsDestination(
+                            session.destinationPeerId,
+                            WireFrame.TransferComplete(session.transferId),
+                            "transfer.complete",
+                        )
+                        outboundTransfers.remove(session.transferId)
+                        emitDiagnostic(
+                            code = DiagnosticCode.TRANSFER_COMPLETED,
+                            severity = DiagnosticSeverity.INFO,
+                            stage = "transfer.send.complete",
+                            peerSuffix = peerId.value.takeLast(6),
+                        )
+                        return SendResult.Sent
+                    }
+                    transferProgressObserved =
+                        acknowledgedChunkCountAfterSettlement >
+                            acknowledgedChunkCountBeforeSettlement
                 }
+            }
+
+            if (transferProgressObserved) {
+                attempt = 0
+                continue
             }
 
             val noRouteRetry = !lastRouteAvailable
@@ -1041,12 +1074,14 @@ private constructor(
     private suspend fun handleTransferChunk(peerId: PeerId, frame: WireFrame.TransferChunk): Unit {
         val inboundSession = inboundTransfers[frame.transferId]
         if (inboundSession != null) {
-            inboundSession.acceptChunk(frame)
-            sendEncryptedWireFrame(
-                inboundSession.upstreamPeerId,
-                inboundSession.asAckFrame(),
-                "transfer.ack.chunk",
-            )
+            val shouldAcknowledge = inboundSession.acceptChunk(frame)
+            if (shouldAcknowledge) {
+                sendEncryptedWireFrame(
+                    inboundSession.upstreamPeerId,
+                    inboundSession.asAckFrame(),
+                    "transfer.ack.chunk",
+                )
+            }
             return
         }
         val relaySession = relayTransfers[frame.transferId] ?: return
@@ -1477,7 +1512,9 @@ private constructor(
     internal companion object {
         private const val MAX_SUPPORTED_PAYLOAD_BYTES: Int = 64 * 1024
         private const val INLINE_MESSAGE_PAYLOAD_BYTES: Int = 1_024
-        private const val TRANSFER_CHUNK_PAYLOAD_BYTES: Int = 256
+        private const val TRANSFER_CHUNK_PAYLOAD_BYTES: Int = 392
+        private val TRANSFER_ACK_SETTLEMENT_TIMEOUT = 500.milliseconds
+        private val TRANSFER_ACK_IDLE_WINDOW = 25.milliseconds
         private val HANDSHAKE_TIMEOUT = 1.seconds
         private val INITIAL_BACKOFF = 250.milliseconds
 

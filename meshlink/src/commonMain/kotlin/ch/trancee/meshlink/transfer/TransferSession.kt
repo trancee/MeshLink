@@ -2,6 +2,11 @@ package ch.trancee.meshlink.transfer
 
 import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.wire.WireFrame
+import kotlin.time.Duration
+import kotlin.time.TimeSource
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
 
 internal class OutboundTransferSession
 internal constructor(
@@ -15,6 +20,8 @@ internal constructor(
 ) {
     internal val chunks: List<ByteArray> = chunks.map { chunk -> chunk.copyOf() }
     private val acknowledgedChunks: BooleanArray = BooleanArray(chunks.size)
+    private val acknowledgedChunkCountFlow: MutableStateFlow<Int> = MutableStateFlow(0)
+    private var acknowledgedChunkCount: Int = 0
 
     internal val totalChunks: Int
         get() = chunks.size
@@ -33,12 +40,20 @@ internal constructor(
 
     internal fun markAcknowledged(ackFrame: WireFrame.TransferAck): Unit {
         val selectiveBitSet = ackFrame.selectiveRanges
+        var updatedAcknowledgedChunkCount = acknowledgedChunkCount
         repeat(totalChunks) { chunkIndex ->
             if (
                 chunkIndex <= ackFrame.highestContiguousAck || selectiveBitSet.isMarked(chunkIndex)
             ) {
-                acknowledgedChunks[chunkIndex] = true
+                if (!acknowledgedChunks[chunkIndex]) {
+                    acknowledgedChunks[chunkIndex] = true
+                    updatedAcknowledgedChunkCount += 1
+                }
             }
+        }
+        if (updatedAcknowledgedChunkCount != acknowledgedChunkCount) {
+            acknowledgedChunkCount = updatedAcknowledgedChunkCount
+            acknowledgedChunkCountFlow.value = updatedAcknowledgedChunkCount
         }
     }
 
@@ -46,8 +61,39 @@ internal constructor(
         return acknowledgedChunks.indices.filter { chunkIndex -> !acknowledgedChunks[chunkIndex] }
     }
 
+    internal fun acknowledgedChunkCount(): Int {
+        return acknowledgedChunkCount
+    }
+
+    internal suspend fun awaitAcknowledgementSettlement(
+        maximumWait: Duration,
+        idleWindow: Duration,
+    ): Int {
+        if (maximumWait <= Duration.ZERO) {
+            return acknowledgedChunkCount
+        }
+        var observedAcknowledgedChunks = acknowledgedChunkCount
+        if (observedAcknowledgedChunks >= totalChunks) {
+            return observedAcknowledgedChunks
+        }
+        val startedAt = TimeSource.Monotonic.markNow()
+        while (startedAt.elapsedNow() < maximumWait) {
+            val remainingBudget = maximumWait - startedAt.elapsedNow()
+            val waitWindow = remainingBudget.coerceAtMost(idleWindow)
+            val progressedAcknowledgedChunks =
+                withTimeoutOrNull(waitWindow) {
+                    acknowledgedChunkCountFlow.first { count -> count > observedAcknowledgedChunks }
+                } ?: return acknowledgedChunkCount
+            observedAcknowledgedChunks = progressedAcknowledgedChunks
+            if (observedAcknowledgedChunks >= totalChunks) {
+                return observedAcknowledgedChunks
+            }
+        }
+        return acknowledgedChunkCount
+    }
+
     internal fun isComplete(): Boolean {
-        return acknowledgedChunks.all { acknowledged -> acknowledged }
+        return acknowledgedChunkCount >= totalChunks
     }
 }
 
@@ -63,14 +109,19 @@ internal constructor(
     internal val maxChunkPayloadBytes: Int,
 ) {
     private val receivedChunks: Array<ByteArray?> = arrayOfNulls(totalChunks)
+    private var newlyReceivedChunksSinceLastAck: Int = 0
 
-    internal fun acceptChunk(frame: WireFrame.TransferChunk): Unit {
+    internal fun acceptChunk(frame: WireFrame.TransferChunk): Boolean {
         if (frame.chunkIndex !in 0 until totalChunks) {
-            return
+            return false
         }
-        if (receivedChunks[frame.chunkIndex] == null) {
+        val duplicateChunk = receivedChunks[frame.chunkIndex] != null
+        if (!duplicateChunk) {
             receivedChunks[frame.chunkIndex] = frame.payload.copyOf()
+            newlyReceivedChunksSinceLastAck += 1
         }
+        return duplicateChunk || isComplete() ||
+            newlyReceivedChunksSinceLastAck >= ACK_BATCH_CHUNK_COUNT
     }
 
     internal fun highestContiguousAck(): Int {
@@ -107,11 +158,16 @@ internal constructor(
     }
 
     internal fun asAckFrame(): WireFrame.TransferAck {
+        newlyReceivedChunksSinceLastAck = 0
         return WireFrame.TransferAck(
             transferId = transferId,
             highestContiguousAck = highestContiguousAck(),
             selectiveRanges = selectiveRangesBitSet(),
         )
+    }
+
+    private companion object {
+        private const val ACK_BATCH_CHUNK_COUNT: Int = 64
     }
 }
 

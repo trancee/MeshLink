@@ -352,7 +352,7 @@ internal class AndroidBleTransport(
                 "registered L2CAP link for ${hintPeerId.value.takeLast(6)} addr=${socket.remoteDevice.address}"
             )
             link.readLoopJob = coroutineScope.launch {
-                val readBuffer = ByteArray(DEFAULT_SOCKET_READ_BUFFER_BYTES)
+                val readBuffer = ByteArray(link.maxReceivePacketSize.coerceAtLeast(DEFAULT_SOCKET_READ_BUFFER_BYTES))
                 try {
                     while (true) {
                         val read = link.inputStream.read(readBuffer)
@@ -512,11 +512,11 @@ internal class AndroidBleTransport(
     ) : Closeable {
         val inputStream: InputStream = socket.inputStream
         private val outputStream = socket.outputStream
+        val maxReceivePacketSize: Int = socket.maxReceivePacketSize
         var readLoopJob: Job? = null
 
         suspend fun write(payload: ByteArray): Unit {
             outputStream.write(incomingFrames.encode(payload))
-            outputStream.flush()
         }
 
         override fun close(): Unit {
