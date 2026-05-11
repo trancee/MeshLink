@@ -16,13 +16,15 @@ Represents the local device identity used for trust, transport, and addressing.
 - `peerId`: 20-byte stable key hash used as the canonical node identifier
 - `ed25519PublicKey`: public signing key
 - `x25519PublicKey`: public DH key
-- `currentPseudonym`: 12-byte rotating advertisement pseudonym
-- `pseudonymEpoch`: 15-minute epoch counter used to derive the current pseudonym
+- `advertisementKeyHash`: first 12 bytes of `SHA-256(Ed25519Pub || X25519Pub)`
+- `meshHash`: 16-bit FNV-1a app identifier hash used for pre-connection filtering
 
 **Rules**
 - `peerId` is stable across restarts unless the device identity is reset.
-- `currentPseudonym` rotates by epoch and never appears in the trust store as the
-  canonical identity.
+- `advertisementKeyHash` is stable for a given identity and is used only as a
+  discovery hint, not as the canonical trust-store identity.
+- `meshHash` isolates applications into separate meshes and substitutes `0x0001`
+  when the computed folded hash would otherwise be `0x0000`.
 
 ### TrustRecord
 

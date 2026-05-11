@@ -14,6 +14,7 @@
 - Q: What should happen when a payload exceeds the v1 transfer limit? → A: Reject the payload before transfer starts and return an explicit size-limit error.
 - Q: Should pending retries survive an app or SDK restart? → A: No; pending retries are in-memory only and do not survive restart.
 - Q: How should MeshLink handle an untrusted or identity-changed peer? → A: Reject the peer and emit an explicit trust-failure diagnostic.
+- Q: What BLE discovery UUIDs and advertisement payload should MeshLink use? → A: Advertise the fixed discovery UUID `4d455348-0000-1000-8000-00805f9b34fb` plus a second 128-bit service UUID that carries the 16-byte MeshLink discovery payload, use GATT fallback service UUID `4d455348-0001-1000-8000-000000000000`, count fallback characteristic UUIDs upward from `4d455348-0002-1000-8000-000000000000`, and fit everything in a single advertisement with no scan response.
 
 ## User Scenarios & Testing *(mandatory)*
 

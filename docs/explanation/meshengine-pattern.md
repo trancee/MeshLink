@@ -38,7 +38,7 @@ internal class MeshEngine private constructor(
     private val handshakeManager: NoiseHandshakeManager,
     private val presenceTracker: PresenceTracker,
     private val meshStateManager: MeshStateManager,
-    private val pseudonymRotator: PseudonymRotator,
+    private val advertisementCodec: AdvertisementCodec,
     private val trustStore: TrustStore,
     private val identity: Identity,
     private val storage: SecureStorage,

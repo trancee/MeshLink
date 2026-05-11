@@ -27,16 +27,23 @@ For a mesh networking library transferring 10KB+ payloads, GATT's overhead is un
 
 ## How the PSM is discovered
 
-The 16-byte advertisement payload places the L2CAP PSM at byte offset 3. The scanning device reads it from the scan result **before any connection is established**:
+MeshLink advertises two service UUIDs in a single advertisement packet with no
+scan response:
+
+- fixed discovery UUID: `4d455348-0000-1000-8000-00805f9b34fb`
+- second 128-bit service UUID carrying the raw 16-byte MeshLink discovery payload
+
+The second UUID encodes the payload bytes directly, and byte offset 3 carries the
+L2CAP PSM hint:
 
 ```
-[Protocol version: 1B] [Mesh hash: 2B] [PSM: 1B] [Pseudonym: 12B]
+[Version+Power bits: 1B] [Mesh hash: 2B] [PSM: 1B] [Key hash: 12B]
 ```
 
 - PSM = 0x00: This peer is GATT-only (old device, OEM limitation)
 - PSM = 128–255: Valid L2CAP dynamic PSM — connect directly
 
-This avoids the "chicken-and-egg" problem: you don't need to connect via GATT to learn the PSM. It's in the ad.
+This avoids the "chicken-and-egg" problem: you don't need to connect via GATT to learn the PSM. It's in the advertisement payload UUID.
 
 ## When GATT fallback activates
 
@@ -44,7 +51,14 @@ This avoids the "chicken-and-egg" problem: you don't need to connect via GATT to
 2. **L2CAP connection fails** — OEM chipset bug, iOS limitation, radio contention
 3. **OemL2capProbeCache returns false** — we've learned this device model doesn't support L2CAP reliably
 
-The GATT fallback uses a 5-characteristic server layout: one for data TX, one for data RX (notifications), one for control, one for MTU exchange, one for service identification.
+The GATT fallback uses a fixed MeshLink service UUID and five counting characteristic UUIDs:
+
+- Service: `4d455348-0001-1000-8000-000000000000`
+- Characteristics: `4d455348-0002-1000-8000-000000000000` through `4d455348-0006-1000-8000-000000000000`
+
+The logical layout remains one characteristic for data TX, one for data RX
+(notifications), one for control, one for MTU exchange, and one for service
+identification.
 
 ## OEM reality
 
