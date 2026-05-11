@@ -7,6 +7,7 @@ later physical-device validation tasks.
 
 - direct KMP integration notes are expected in this directory
 - the SwiftUI entry point is scaffolded under `ProofApp/`
+- the proof app now installs an iOS `CryptoKit` bridge at startup via `ProofApp/MeshLinkCryptoBridge.swift`
 - benchmark source files will live under `ProofBenchmarks/`
 
 ## Next Steps
