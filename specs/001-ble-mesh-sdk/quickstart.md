@@ -103,4 +103,4 @@ Recommended local gates once the implementation exists:
 
 A reviewer should be able to complete a first offline message exchange between
 both devices in 30 minutes or less using this flow and the runnable proof
-integrations in `samples/proof-android` and `samples/proof-ios`.
+integrations in `meshlink-sample/android` and `meshlink-sample/ios`.

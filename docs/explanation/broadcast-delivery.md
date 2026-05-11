@@ -72,8 +72,8 @@ Proof surfaces should show only suffix-only identifiers, byte counts, digest sum
 S06 keeps the same public contract across the proof surfaces:
 
 - the JVM demo shows bounded broadcast publish summaries and bounded inbound broadcast logs
-- `proof-android` renders broadcast publish outcomes, inbound broadcasts, and duplicate/drop diagnostics with redacted fields only
-- `ProofIOS` renders the same bounded proof shape: a broadcast action, a dedicated inbound broadcast section, and structured broadcast plus continuity diagnostics
+- the Android sample renders broadcast publish outcomes, inbound broadcasts, and duplicate/drop diagnostics with redacted fields only
+- the iOS sample renders the same bounded proof shape: a broadcast action, a dedicated inbound broadcast section, and structured broadcast plus continuity diagnostics
 
 In every client, inbound broadcasts stay off the direct-message surface. `Inbound messages` remains unicast-only; broadcast evidence belongs on the dedicated broadcast surface.
 

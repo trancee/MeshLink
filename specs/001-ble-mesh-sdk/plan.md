@@ -24,7 +24,7 @@ valid path. Retry scheduler state remains in memory only and is discarded on
 app or SDK restart. Routing, transfer, trust, diagnostics, power policy, and
 the wire codec live in `commonMain`. Android and iOS source sets provide BLE
 transport and secure-storage glue only. The repository also ships runnable
-proof integrations in `samples/proof-android` and `samples/proof-ios` for
+proof integrations in `meshlink-sample/android` and `meshlink-sample/ios` for
 quickstart validation and automated reference-hardware benchmarks. To satisfy
 the user's “no external dependencies” request, the runtime ships no additional
 third-party libraries beyond the constitutionally allowed
@@ -133,9 +133,9 @@ benchmarks/
 ├── build.gradle.kts
 └── src/jvmMain/kotlin/ch/trancee/meshlink/benchmarks/
 
-samples/
-├── proof-android/
-└── proof-ios/
+meshlink-sample/
+├── android/
+└── ios/
 ```
 
 **Structure Decision**: Use one KMP runtime module (`meshlink`) plus one JVM-only

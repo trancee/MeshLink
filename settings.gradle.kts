@@ -18,7 +18,7 @@ rootProject.name = "meshlink"
 
 include(":meshlink")
 include(":benchmarks")
-include(":samples:proof-android:app")
+include(":meshlink-sample:android:app")
 
-project(":samples:proof-android:app").projectDir = file("samples/proof-android/app")
-project(":samples:proof-android:app").name = "proof-android-app"
+project(":meshlink-sample:android:app").projectDir = file("meshlink-sample/android/app")
+project(":meshlink-sample:android:app").name = "meshlink-sample-android-app"

@@ -285,7 +285,7 @@ error behavior.
 ### Measurable Outcomes
 
 - **SC-001**: A mobile app team can use the runnable proof integrations in
-  `samples/proof-android` and `samples/proof-ios` as reference
+  `meshlink-sample/android` and `meshlink-sample/ios` as reference
   implementations and complete a first encrypted offline message exchange
   between two devices in 30 minutes or less using the published quickstart.
 - **SC-002**: In a three-device topology with no internet and no direct path
