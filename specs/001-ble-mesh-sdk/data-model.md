@@ -158,8 +158,8 @@ Represents the shared power-management policy snapshot.
 
 ## Relationships
 
-- `LocalIdentity` owns the local key material used to create `peerId` and
-  pseudonyms.
+- `LocalIdentity` owns the local key material used to create `peerId` and the
+  advertised discovery key hash.
 - `TrustRecord` binds a remote `peerId` to pinned keys.
 - `PeerPresence` references a `TrustRecord` and may own zero or more `RouteEntry`
   instances through that peer.
