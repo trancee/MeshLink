@@ -116,20 +116,25 @@ Android 12 failures are therefore consistent with the broader platform contract.
 **Chosen solution:** MeshLink should prefer the official Android `XDH`
 algorithm name, probe the full primitive set at runtime with real
 keygen/sign/agreement/AEAD operations, and fall back to an in-repo pure-Kotlin
-implementation for `X25519` and `Ed25519` when any required JCA primitive is
-unavailable. Raw key material must stay provider-agnostic so persisted
-identities survive switching between the JCA-backed and software providers.
+Ed25519 implementation when `Ed25519` JCA support is missing but `XDH` and
+`ChaCha20-Poly1305` remain available. The fallback uses TweetNaCl-style 16-limb
+field arithmetic on primitive arrays, thread-local SHA-512 digests, and an
+identity-key expansion cache so the hot path avoids `BigInteger` and repeated
+seed re-hashing. Raw key material stays provider-agnostic so persisted
+identities survive switching between the JCA-backed and software paths.
 
 **Real device evidence (2026-05-11):**
-- Samsung `SM-G970U1`, Android 12 / API 31: `XDH`/`X25519` and `Ed25519`
-  primitives are unavailable (`NoSuchAlgorithmException` / missing
-  `NamedParameterSpec` class), while `ChaCha20-Poly1305` works. Current
-  `MeshLink.createAndroid()` fails here without a software fallback.
+- Samsung `SM-G970U1`, Android 12 / API 31: `XDH` works, `X25519`
+  `KeyPairGenerator` alias does not, `Ed25519` JCA is unavailable, and
+  `ChaCha20-Poly1305` works. After installing the in-repo Ed25519 fallback,
+  `MeshLink.createAndroid()` succeeds on-device even though the JCA Ed25519
+  probe still fails.
 - OPPO `CPH2689`, Android 16 / API 36: `Ed25519` and `ChaCha20-Poly1305`
   work, but Conscrypt's `OpenSSLXDHKeyPairGenerator` rejects
   `initialize(AlgorithmParameterSpec)` with `InvalidAlgorithmParameterException`.
   This means `XDH` key generation must use `generateKeyPair()` directly instead
-  of `NamedParameterSpec.X25519` initialization on Android.
+  of `NamedParameterSpec.X25519` initialization on Android. With that fix,
+  `MeshLink.createAndroid()` also succeeds on-device.
 
 **Alternatives considered:**
 - Assuming `X25519` / `Ed25519` JCA works on all Android 12+ devices — rejected

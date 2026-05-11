@@ -96,9 +96,9 @@ private object AndroidCryptoDiagnostics {
             verifier.initVerify(keyPair.public)
             verifier.update(message)
             check(verifier.verify(signature)) { "signature verification failed" }
-            "Ed25519 keygen + sign + verify: PASS (${signature.size} bytes)"
+            "JCA Ed25519 keygen + sign + verify: PASS (${signature.size} bytes)"
         }.getOrElse { error ->
-            "Ed25519 keygen + sign + verify: FAIL ${error.javaClass.simpleName}: ${error.message.orEmpty()}"
+            "JCA Ed25519 keygen + sign + verify: FAIL ${error.javaClass.simpleName}: ${error.message.orEmpty()}"
         }
     }
 

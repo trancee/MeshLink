@@ -13,8 +13,8 @@ internal class AndroidJcaCapabilityReport internal constructor(
     internal val supportsEd25519: Boolean,
     internal val supportsChaCha20Poly1305: Boolean,
 ) {
-    internal val supportsNoisePrimitives: Boolean
-        get() = supportsX25519 && supportsEd25519 && supportsChaCha20Poly1305
+    internal val supportsMeshLinkRuntime: Boolean
+        get() = supportsX25519 && supportsChaCha20Poly1305
 }
 
 internal object AndroidJcaCapabilityProbe {
