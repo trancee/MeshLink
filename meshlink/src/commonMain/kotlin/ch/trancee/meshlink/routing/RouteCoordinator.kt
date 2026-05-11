@@ -4,6 +4,9 @@ import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.trust.TrustRecord
 import ch.trancee.meshlink.wire.WireFrame
 import ch.trancee.meshlink.wire.WriteBuffer
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 internal class RouteCoordinator internal constructor(
     private val localPeerId: PeerId,
@@ -13,6 +16,9 @@ internal class RouteCoordinator internal constructor(
     private val selectedRoutes: MutableMap<String, RouteEntry> = linkedMapOf()
     private val feasibilityDistances: MutableMap<String, FeasibilityDistance> = linkedMapOf()
     private val peerDigests: MutableMap<String, ByteArray> = linkedMapOf()
+    private val mutableTopologyVersion: MutableStateFlow<Long> = MutableStateFlow(0L)
+
+    internal val topologyVersion: StateFlow<Long> = mutableTopologyVersion.asStateFlow()
 
     internal fun onPeerConnected(peerId: PeerId, trustRecord: TrustRecord): List<RoutingAdvertisement> {
         connectedPeers += peerId.value
@@ -59,6 +65,7 @@ internal class RouteCoordinator internal constructor(
             frame = routeDigestFrame(),
         )
 
+        advanceTopologyVersion()
         return advertisements.deduplicated()
     }
 
@@ -88,6 +95,9 @@ internal class RouteCoordinator internal constructor(
                     frame = routeDigestFrame(),
                 )
             }
+        }
+        if (removedRoutes.isNotEmpty()) {
+            advanceTopologyVersion()
         }
         return advertisements.deduplicated()
     }
@@ -120,6 +130,7 @@ internal class RouteCoordinator internal constructor(
 
         selectedRoutes[update.destinationPeerId.value] = candidate
         updateFeasibilityDistance(candidate)
+        advanceTopologyVersion()
         return connectedPeers
             .filterNot { connectedPeerId -> connectedPeerId == fromPeerId.value || connectedPeerId == candidate.nextHopPeerId.value }
             .flatMap { connectedPeerId ->
@@ -148,6 +159,7 @@ internal class RouteCoordinator internal constructor(
 
         selectedRoutes.remove(retraction.destinationPeerId.value)
         feasibilityDistances.remove(retraction.destinationPeerId.value)
+        advanceTopologyVersion()
         return connectedPeers
             .filterNot { connectedPeerId -> connectedPeerId == fromPeerId.value }
             .flatMap { connectedPeerId ->
@@ -247,6 +259,10 @@ internal class RouteCoordinator internal constructor(
             ((hash shr 16) and 0xFFu).toByte(),
             ((hash shr 24) and 0xFFu).toByte(),
         )
+    }
+
+    private fun advanceTopologyVersion(): Unit {
+        mutableTopologyVersion.value += 1L
     }
 
     private fun List<RoutingAdvertisement>.deduplicated(): List<RoutingAdvertisement> {

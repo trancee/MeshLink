@@ -4,7 +4,9 @@ import ch.trancee.meshlink.api.InboundMessage
 import ch.trancee.meshlink.api.MeshLinkState
 import ch.trancee.meshlink.api.SendResult
 import ch.trancee.meshlink.test.MeshTestHarness
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -26,7 +28,8 @@ class DirectMessagingIntegrationTest {
 
         sender.api.start()
         receiver.api.start()
-        val receivedMessageDeferred = async {
+        delay(250)
+        val receivedMessageDeferred = async(start = CoroutineStart.UNDISPATCHED) {
             withTimeout(1_000) { receiver.api.messages.first() }
         }
 
@@ -48,7 +51,8 @@ class DirectMessagingIntegrationTest {
         val receiver = harness.createNode("peer-b")
         sender.api.start()
         receiver.api.start()
-        val firstMessageDeferred = async {
+        delay(250)
+        val firstMessageDeferred = async(start = CoroutineStart.UNDISPATCHED) {
             withTimeout(1_000) { receiver.api.messages.first() }
         }
         sender.api.send(receiver.peerId, "first".encodeToByteArray())
@@ -58,7 +62,7 @@ class DirectMessagingIntegrationTest {
         // Act
         val restartedReceiver = harness.restartNode(receiver)
         restartedReceiver.api.start()
-        val receivedMessageDeferred = async {
+        val receivedMessageDeferred = async(start = CoroutineStart.UNDISPATCHED) {
             withTimeout(1_000) { restartedReceiver.api.messages.first() }
         }
         val sendResult = sender.api.send(restartedReceiver.peerId, "second".encodeToByteArray())
@@ -79,7 +83,8 @@ class DirectMessagingIntegrationTest {
 
         sender.api.start()
         receiver.api.start()
-        val receivedMessageDeferred = async {
+        delay(250)
+        val receivedMessageDeferred = async(start = CoroutineStart.UNDISPATCHED) {
             withTimeout(1_000) { receiver.api.messages.first() }
         }
 

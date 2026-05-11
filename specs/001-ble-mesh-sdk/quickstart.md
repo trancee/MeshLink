@@ -64,6 +64,8 @@ Verify that both devices reach `Running` and begin peer discovery.
 - Disable Wi-Fi and cellular if you want to prove the offline path explicitly.
 - Keep the devices within direct BLE range for the first validation run.
 - On first contact, MeshLink uses TOFU and persists the peer identity locally.
+- For the multi-hop validation path, use the shared harness or a three-device
+  topology where the sender can reach the destination only through a relay.
 
 ## 6. Send the first message
 
@@ -93,11 +95,14 @@ Proof-app note:
 ## 8. Validate bounded failure behavior
 
 - Attempt a send while no route exists and confirm MeshLink keeps delivery state
-  in memory until the configured `deliveryRetryDeadline` expires, emits
-  retry-related diagnostics while the route is unavailable, and returns
+  in memory until the configured `deliveryRetryDeadline` expires, schedules
+  bounded, jittered exponential-backoff retries while the route is unavailable,
+  emits retry-related diagnostics during that window, and returns
   `SendResult.NotSent(UNREACHABLE)` if no route appears before expiry.
 - Restore a valid route before the deadline expires and confirm MeshLink retries
   immediately without requiring the host application to resubmit the message.
+- Attempt a routed 64 KiB send while the transport enforces a 512-byte per-hop
+  delivery ceiling and confirm the payload still arrives intact.
 - Attempt a send larger than 64 KiB and confirm immediate size-limit rejection.
 
 ## 9. Run local quality gates

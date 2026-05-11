@@ -55,7 +55,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
 import kotlin.time.Duration.Companion.milliseconds
@@ -74,6 +73,7 @@ internal class MeshEngine private constructor(
     private val trustStore = TofuTrustStore(secureStorage)
     private val presenceTracker = PeerPresenceTracker()
     private val routeCoordinator = RouteCoordinator(localIdentity.peerId)
+    private val deliveryRetryScheduler = DeliveryRetryScheduler(routeCoordinator.topologyVersion)
     private var transportCollectionJob: Job? = null
     private val hopSessions: MutableMap<String, HopSession> = linkedMapOf()
     private val pendingInitiatorHandshakes: MutableMap<String, PendingInitiatorHandshake> = linkedMapOf()
@@ -192,112 +192,60 @@ internal class MeshEngine private constructor(
             return sendLargePayload(peerId = peerId, payload = payload, priority = priority)
         }
 
-        val nextHopPeerId = routeCoordinator.nextHopFor(peerId) ?: peerId
-        return when (val sessionOutcome = ensureHopSession(nextHopPeerId)) {
-            is SessionEstablishmentOutcome.Established -> {
-                val recipientTrust = trustStore.read(peerId.value) ?: routeCoordinator.routeFor(peerId)?.let { route ->
-                    val learnedTrust = TrustRecord(
-                        peerIdValue = route.destinationPeerId.value,
-                        identityFingerprint = localIdentity.cryptoProvider.sha256(
-                            route.ed25519PublicKey + route.x25519PublicKey,
-                        ).toHexString(),
-                        ed25519PublicKey = route.ed25519PublicKey,
-                        x25519PublicKey = route.x25519PublicKey,
-                    )
-                    trustStore.write(learnedTrust)
-                    emitDiagnostic(
-                        code = DiagnosticCode.TRUST_ESTABLISHED,
-                        severity = DiagnosticSeverity.INFO,
-                        stage = "trust.routeUpdate",
-                        peerSuffix = peerId.value.takeLast(6),
-                        reason = DiagnosticReason.STATE_CHANGE,
-                    )
-                    learnedTrust
+        val startedAt = TimeSource.Monotonic.markNow()
+        var attempt = 0
+        var topologyVersion = routeCoordinator.topologyVersion.value
+        while (startedAt.elapsedNow() < config.deliveryRetryDeadline) {
+            when (val sendResult = attemptInlineSend(peerId = peerId, payload = payload, priority = priority)) {
+                is SendResult.Sent -> return sendResult
+                is SendResult.NotSent -> {
+                    if (sendResult.reason != SendFailureReason.UNREACHABLE) {
+                        return sendResult
+                    }
                 }
-                if (recipientTrust == null) {
-                    emitDiagnostic(
-                        code = DiagnosticCode.TRUST_FAILURE,
-                        severity = DiagnosticSeverity.ERROR,
-                        stage = "delivery.send.noTrust",
-                        peerSuffix = peerId.value.takeLast(6),
-                        reason = DiagnosticReason.TRUST_FAILURE,
-                    )
-                    return SendResult.NotSent(SendFailureReason.TRUST_FAILURE)
-                }
-
-                val sealedPayload = runCatching {
-                    MessageSealer.seal(
-                        plaintext = payload,
-                        senderIdentity = localIdentity,
-                        recipientTrust = recipientTrust,
-                    )
-                }.getOrElse { exception ->
-                    emitHopSessionFailed(
-                        peerId = peerId,
-                        stage = "delivery.send.encrypt",
-                        reason = DiagnosticReason.TRUST_FAILURE,
-                        metadata = mapOf("cause" to exception::class.simpleName.orEmpty()),
-                    )
-                    return SendResult.NotSent(SendFailureReason.TRUST_FAILURE)
-                }
-
-                val innerEnvelope = DirectMessageEnvelope(
-                    senderPeerId = localIdentity.peerId,
-                    senderFingerprint = localIdentity.identityFingerprint,
-                    senderEd25519PublicKey = localIdentity.ed25519PublicKey,
-                    senderX25519PublicKey = localIdentity.x25519PublicKey,
-                    ciphertext = sealedPayload,
-                ).encode()
-                val routedMessage = WireFrame.Message(
-                    messageId = createMessageId(),
-                    originPeerId = localIdentity.peerId,
-                    destinationPeerId = peerId,
-                    priority = priority,
-                    ttlMillis = ttlMillisFor(priority),
-                    encryptedPayload = innerEnvelope,
+            }
+            emitDiagnostic(
+                code = DiagnosticCode.DELIVERY_RETRY_SCHEDULED,
+                severity = DiagnosticSeverity.WARN,
+                stage = "delivery.retryScheduled",
+                peerSuffix = peerId.value.takeLast(6),
+                reason = DiagnosticReason.DELIVERY_RETRY,
+                metadata = mapOf("attempt" to attempt.toString()),
+            )
+            when (
+                val wakeup = deliveryRetryScheduler.awaitRetry(
+                    attempt = attempt,
+                    remainingBudget = config.deliveryRetryDeadline - startedAt.elapsedNow(),
+                    lastObservedTopologyVersion = topologyVersion,
                 )
-                val encryptedFrame = runCatching {
-                    encryptHopPayload(sessionOutcome.session, WireCodec.encode(routedMessage))
-                }.getOrElse { exception ->
-                    emitHopSessionFailed(
-                        peerId = nextHopPeerId,
-                        stage = "delivery.send.transportEncrypt",
-                        reason = DiagnosticReason.DELIVERY_FAILURE,
-                        metadata = mapOf("cause" to exception::class.simpleName.orEmpty()),
-                    )
-                    return SendResult.NotSent(SendFailureReason.UNREACHABLE)
+            ) {
+                is RetryWakeup.DeadlineExpired -> break
+                is RetryWakeup.TimerElapsed -> {
+                    topologyVersion = wakeup.topologyVersion
+                    attempt += 1
                 }
-
-                when (
-                    sendDirectWireFrame(
-                        peerId = nextHopPeerId,
-                        frame = DirectWireFrame.Data(encryptedFrame),
-                        action = "send.data",
-                    )
-                ) {
-                    TransportSendResult.Delivered -> {
-                        emitDiagnostic(
-                            code = DiagnosticCode.DELIVERY_SUCCEEDED,
-                            severity = DiagnosticSeverity.INFO,
-                            stage = "delivery.send",
-                            peerSuffix = peerId.value.takeLast(6),
-                        )
-                        SendResult.Sent
-                    }
-
-                    is TransportSendResult.Dropped -> {
-                        scheduleRetryDiagnostic(peerId = peerId, priority = priority)
-                        SendResult.NotSent(SendFailureReason.UNREACHABLE)
-                    }
+                is RetryWakeup.TopologyChanged -> {
+                    topologyVersion = wakeup.topologyVersion
+                    attempt = 0
                 }
             }
-
-            SessionEstablishmentOutcome.TrustFailure -> SendResult.NotSent(SendFailureReason.TRUST_FAILURE)
-            SessionEstablishmentOutcome.Unreachable -> {
-                scheduleRetryDiagnostic(peerId = peerId, priority = priority)
-                SendResult.NotSent(SendFailureReason.UNREACHABLE)
-            }
+            emitDiagnostic(
+                code = DiagnosticCode.DELIVERY_RETRYING,
+                severity = DiagnosticSeverity.WARN,
+                stage = "delivery.retrying",
+                peerSuffix = peerId.value.takeLast(6),
+                reason = DiagnosticReason.DELIVERY_RETRY,
+                metadata = mapOf("attempt" to attempt.toString()),
+            )
         }
+        emitDiagnostic(
+            code = DiagnosticCode.DELIVERY_UNREACHABLE,
+            severity = DiagnosticSeverity.ERROR,
+            stage = "delivery.retryExpired",
+            peerSuffix = peerId.value.takeLast(6),
+            reason = DiagnosticReason.DELIVERY_FAILURE,
+        )
+        return SendResult.NotSent(SendFailureReason.UNREACHABLE)
     }
 
     override suspend fun forgetPeer(peerId: PeerId): ForgetPeerResult {
@@ -643,35 +591,143 @@ internal class MeshEngine private constructor(
         )
     }
 
-    private suspend fun sendLargePayload(
+    private suspend fun attemptInlineSend(
         peerId: PeerId,
         payload: ByteArray,
         priority: DeliveryPriority,
     ): SendResult {
-        val recipientTrust = trustStore.read(peerId.value) ?: routeCoordinator.routeFor(peerId)?.let { route ->
-            val learnedTrust = TrustRecord(
-                peerIdValue = route.destinationPeerId.value,
-                identityFingerprint = localIdentity.cryptoProvider.sha256(
-                    route.ed25519PublicKey + route.x25519PublicKey,
-                ).toHexString(),
-                ed25519PublicKey = route.ed25519PublicKey,
-                x25519PublicKey = route.x25519PublicKey,
-            )
-            trustStore.write(learnedTrust)
-            emitDiagnostic(
-                code = DiagnosticCode.TRUST_ESTABLISHED,
-                severity = DiagnosticSeverity.INFO,
-                stage = "trust.routeUpdate",
-                peerSuffix = peerId.value.takeLast(6),
-                reason = DiagnosticReason.STATE_CHANGE,
-            )
-            learnedTrust
-        }
-        if (recipientTrust == null) {
-            scheduleRetryDiagnostic(peerId = peerId, priority = priority)
-            return SendResult.NotSent(SendFailureReason.UNREACHABLE)
-        }
+        val nextHopPeerId = routeCoordinator.nextHopFor(peerId) ?: peerId
+        return when (val sessionOutcome = ensureHopSession(nextHopPeerId)) {
+            is SessionEstablishmentOutcome.Established -> {
+                val recipientTrust = resolveRecipientTrust(peerId)
+                if (recipientTrust == null) {
+                    emitDiagnostic(
+                        code = DiagnosticCode.TRUST_FAILURE,
+                        severity = DiagnosticSeverity.ERROR,
+                        stage = "delivery.send.noTrust",
+                        peerSuffix = peerId.value.takeLast(6),
+                        reason = DiagnosticReason.TRUST_FAILURE,
+                    )
+                    return SendResult.NotSent(SendFailureReason.TRUST_FAILURE)
+                }
 
+                val sealedPayload = runCatching {
+                    MessageSealer.seal(
+                        plaintext = payload,
+                        senderIdentity = localIdentity,
+                        recipientTrust = recipientTrust,
+                    )
+                }.getOrElse { exception ->
+                    emitHopSessionFailed(
+                        peerId = peerId,
+                        stage = "delivery.send.encrypt",
+                        reason = DiagnosticReason.TRUST_FAILURE,
+                        metadata = mapOf("cause" to exception::class.simpleName.orEmpty()),
+                    )
+                    return SendResult.NotSent(SendFailureReason.TRUST_FAILURE)
+                }
+
+                val innerEnvelope = DirectMessageEnvelope(
+                    senderPeerId = localIdentity.peerId,
+                    senderFingerprint = localIdentity.identityFingerprint,
+                    senderEd25519PublicKey = localIdentity.ed25519PublicKey,
+                    senderX25519PublicKey = localIdentity.x25519PublicKey,
+                    ciphertext = sealedPayload,
+                ).encode()
+                val routedMessage = WireFrame.Message(
+                    messageId = createMessageId(),
+                    originPeerId = localIdentity.peerId,
+                    destinationPeerId = peerId,
+                    priority = priority,
+                    ttlMillis = ttlMillisFor(priority),
+                    encryptedPayload = innerEnvelope,
+                )
+                val encryptedFrame = runCatching {
+                    encryptHopPayload(sessionOutcome.session, WireCodec.encode(routedMessage))
+                }.getOrElse { exception ->
+                    emitHopSessionFailed(
+                        peerId = nextHopPeerId,
+                        stage = "delivery.send.transportEncrypt",
+                        reason = DiagnosticReason.DELIVERY_FAILURE,
+                        metadata = mapOf("cause" to exception::class.simpleName.orEmpty()),
+                    )
+                    return SendResult.NotSent(SendFailureReason.UNREACHABLE)
+                }
+
+                when (
+                    sendDirectWireFrame(
+                        peerId = nextHopPeerId,
+                        frame = DirectWireFrame.Data(encryptedFrame),
+                        action = "send.data",
+                    )
+                ) {
+                    TransportSendResult.Delivered -> {
+                        emitDiagnostic(
+                            code = DiagnosticCode.DELIVERY_SUCCEEDED,
+                            severity = DiagnosticSeverity.INFO,
+                            stage = "delivery.send",
+                            peerSuffix = peerId.value.takeLast(6),
+                        )
+                        SendResult.Sent
+                    }
+
+                    is TransportSendResult.Dropped -> {
+                        scheduleRetryDiagnostic(peerId = peerId, priority = priority)
+                        SendResult.NotSent(SendFailureReason.UNREACHABLE)
+                    }
+                }
+            }
+
+            SessionEstablishmentOutcome.TrustFailure -> SendResult.NotSent(SendFailureReason.TRUST_FAILURE)
+            SessionEstablishmentOutcome.Unreachable -> {
+                scheduleRetryDiagnostic(peerId = peerId, priority = priority)
+                SendResult.NotSent(SendFailureReason.UNREACHABLE)
+            }
+        }
+    }
+
+    private suspend fun resolveRecipientTrust(peerId: PeerId): TrustRecord? {
+        val existingTrust = trustStore.read(peerId.value)
+        if (existingTrust != null) {
+            return existingTrust
+        }
+        val route = routeCoordinator.routeFor(peerId) ?: return null
+        val learnedTrust = TrustRecord(
+            peerIdValue = route.destinationPeerId.value,
+            identityFingerprint = localIdentity.cryptoProvider.sha256(
+                route.ed25519PublicKey + route.x25519PublicKey,
+            ).toHexString(),
+            ed25519PublicKey = route.ed25519PublicKey,
+            x25519PublicKey = route.x25519PublicKey,
+        )
+        trustStore.write(learnedTrust)
+        emitDiagnostic(
+            code = DiagnosticCode.TRUST_ESTABLISHED,
+            severity = DiagnosticSeverity.INFO,
+            stage = "trust.routeUpdate",
+            peerSuffix = peerId.value.takeLast(6),
+            reason = DiagnosticReason.STATE_CHANGE,
+        )
+        return learnedTrust
+    }
+
+    private sealed class OutboundTransferPreparation {
+        data object PendingRoute : OutboundTransferPreparation()
+
+        class Ready internal constructor(
+            internal val session: OutboundTransferSession,
+        ) : OutboundTransferPreparation()
+
+        class Failed internal constructor(
+            internal val result: SendResult,
+        ) : OutboundTransferPreparation()
+    }
+
+    private suspend fun prepareOutboundTransferSession(
+        peerId: PeerId,
+        payload: ByteArray,
+    ): OutboundTransferPreparation {
+        val recipientTrust = resolveRecipientTrust(peerId) ?: return OutboundTransferPreparation.PendingRoute
         val sealedPayload = runCatching {
             MessageSealer.seal(
                 plaintext = payload,
@@ -685,7 +741,9 @@ internal class MeshEngine private constructor(
                 reason = DiagnosticReason.TRUST_FAILURE,
                 metadata = mapOf("cause" to exception::class.simpleName.orEmpty()),
             )
-            return SendResult.NotSent(SendFailureReason.TRUST_FAILURE)
+            return OutboundTransferPreparation.Failed(
+                SendResult.NotSent(SendFailureReason.TRUST_FAILURE),
+            )
         }
         val innerEnvelope = DirectMessageEnvelope(
             senderPeerId = localIdentity.peerId,
@@ -711,61 +769,145 @@ internal class MeshEngine private constructor(
             stage = "transfer.send.start",
             peerSuffix = peerId.value.takeLast(6),
         )
+        return OutboundTransferPreparation.Ready(session)
+    }
 
+    private suspend fun sendLargePayload(
+        peerId: PeerId,
+        payload: ByteArray,
+        priority: DeliveryPriority,
+    ): SendResult {
         val startedAt = TimeSource.Monotonic.markNow()
-        var retryDelay = TRANSFER_INITIAL_RETRY_DELAY
+        var attempt = 0
+        var topologyVersion = routeCoordinator.topologyVersion.value
+        var activeSession: OutboundTransferSession? = null
+        var lastRouteAvailable = false
+
         while (startedAt.elapsedNow() < config.deliveryRetryDeadline) {
-            sendTransferTowardsDestination(session.destinationPeerId, session.asStartFrame(), "transfer.start")
-            val missingChunks = session.missingChunkIndices()
-            if (missingChunks.isEmpty()) {
-                sendTransferTowardsDestination(
+            if (activeSession == null) {
+                when (val preparation = prepareOutboundTransferSession(peerId = peerId, payload = payload)) {
+                    OutboundTransferPreparation.PendingRoute -> {
+                        lastRouteAvailable = false
+                        scheduleRetryDiagnostic(peerId = peerId, priority = priority)
+                    }
+                    is OutboundTransferPreparation.Ready -> {
+                        activeSession = preparation.session
+                    }
+                    is OutboundTransferPreparation.Failed -> return preparation.result
+                }
+            }
+
+            activeSession?.let { session ->
+                var routeAvailable = sendTransferTowardsDestination(
                     session.destinationPeerId,
-                    WireFrame.TransferComplete(session.transferId),
-                    "transfer.complete",
+                    session.asStartFrame(),
+                    "transfer.start",
                 )
-                outboundTransfers.remove(session.transferId)
+                val missingChunks = session.missingChunkIndices()
+                if (missingChunks.isEmpty()) {
+                    sendTransferTowardsDestination(
+                        session.destinationPeerId,
+                        WireFrame.TransferComplete(session.transferId),
+                        "transfer.complete",
+                    )
+                    outboundTransfers.remove(session.transferId)
+                    emitDiagnostic(
+                        code = DiagnosticCode.TRANSFER_COMPLETED,
+                        severity = DiagnosticSeverity.INFO,
+                        stage = "transfer.send.complete",
+                        peerSuffix = peerId.value.takeLast(6),
+                    )
+                    return SendResult.Sent
+                }
+                missingChunks.forEach { chunkIndex ->
+                    routeAvailable = sendTransferTowardsDestination(
+                        session.destinationPeerId,
+                        WireFrame.TransferChunk(
+                            transferId = session.transferId,
+                            chunkIndex = chunkIndex,
+                            payload = session.chunks[chunkIndex],
+                        ),
+                        "transfer.chunk",
+                    ) || routeAvailable
+                }
                 emitDiagnostic(
-                    code = DiagnosticCode.TRANSFER_COMPLETED,
-                    severity = DiagnosticSeverity.INFO,
-                    stage = "transfer.send.complete",
+                    code = DiagnosticCode.TRANSFER_PROGRESS,
+                    severity = DiagnosticSeverity.DEBUG,
+                    stage = "transfer.send.progress",
                     peerSuffix = peerId.value.takeLast(6),
-                )
-                return SendResult.Sent
-            }
-            missingChunks.forEach { chunkIndex ->
-                sendTransferTowardsDestination(
-                    session.destinationPeerId,
-                    WireFrame.TransferChunk(
-                        transferId = session.transferId,
-                        chunkIndex = chunkIndex,
-                        payload = session.chunks[chunkIndex],
+                    metadata = mapOf(
+                        "ackedChunks" to (session.totalChunks - missingChunks.size).toString(),
+                        "totalChunks" to session.totalChunks.toString(),
                     ),
-                    "transfer.chunk",
+                )
+                lastRouteAvailable = routeAvailable
+                if (!routeAvailable) {
+                    scheduleRetryDiagnostic(peerId = peerId, priority = priority)
+                }
+            }
+
+            val noRouteRetry = !lastRouteAvailable
+            if (noRouteRetry) {
+                emitDiagnostic(
+                    code = DiagnosticCode.DELIVERY_RETRY_SCHEDULED,
+                    severity = DiagnosticSeverity.WARN,
+                    stage = "transfer.retryScheduled",
+                    peerSuffix = peerId.value.takeLast(6),
+                    reason = DiagnosticReason.DELIVERY_RETRY,
+                    metadata = mapOf("attempt" to attempt.toString()),
                 )
             }
-            emitDiagnostic(
-                code = DiagnosticCode.TRANSFER_PROGRESS,
-                severity = DiagnosticSeverity.DEBUG,
-                stage = "transfer.send.progress",
-                peerSuffix = peerId.value.takeLast(6),
-                metadata = mapOf(
-                    "ackedChunks" to (session.totalChunks - missingChunks.size).toString(),
-                    "totalChunks" to session.totalChunks.toString(),
-                ),
-            )
-            delay(retryDelay)
-            retryDelay = (retryDelay * 2).coerceAtMost(MAX_TRANSFER_RETRY_DELAY)
+            when (
+                val wakeup = deliveryRetryScheduler.awaitRetry(
+                    attempt = attempt,
+                    remainingBudget = config.deliveryRetryDeadline - startedAt.elapsedNow(),
+                    lastObservedTopologyVersion = topologyVersion,
+                )
+            ) {
+                is RetryWakeup.DeadlineExpired -> break
+                is RetryWakeup.TimerElapsed -> {
+                    topologyVersion = wakeup.topologyVersion
+                    attempt += 1
+                }
+                is RetryWakeup.TopologyChanged -> {
+                    topologyVersion = wakeup.topologyVersion
+                    attempt = 0
+                }
+            }
+            if (noRouteRetry) {
+                emitDiagnostic(
+                    code = DiagnosticCode.DELIVERY_RETRYING,
+                    severity = DiagnosticSeverity.WARN,
+                    stage = "transfer.retrying",
+                    peerSuffix = peerId.value.takeLast(6),
+                    reason = DiagnosticReason.DELIVERY_RETRY,
+                    metadata = mapOf("attempt" to attempt.toString()),
+                )
+            }
         }
 
-        outboundTransfers.remove(session.transferId)
-        emitDiagnostic(
-            code = DiagnosticCode.TRANSFER_FAILED,
-            severity = DiagnosticSeverity.ERROR,
-            stage = "transfer.send.timeout",
-            peerSuffix = peerId.value.takeLast(6),
-            reason = DiagnosticReason.TRANSFER_FAILURE,
-        )
-        return SendResult.NotSent(SendFailureReason.TRANSFER_TIMED_OUT)
+        activeSession?.let { session ->
+            outboundTransfers.remove(session.transferId)
+        }
+        return if (!lastRouteAvailable) {
+            emitDiagnostic(
+                code = DiagnosticCode.DELIVERY_UNREACHABLE,
+                severity = DiagnosticSeverity.ERROR,
+                stage = "transfer.retryExpired",
+                peerSuffix = peerId.value.takeLast(6),
+                reason = DiagnosticReason.DELIVERY_FAILURE,
+            )
+            SendResult.NotSent(SendFailureReason.UNREACHABLE)
+        } else {
+            emitDiagnostic(
+                code = DiagnosticCode.TRANSFER_FAILED,
+                severity = DiagnosticSeverity.ERROR,
+                stage = "transfer.send.timeout",
+                peerSuffix = peerId.value.takeLast(6),
+                reason = DiagnosticReason.TRANSFER_FAILURE,
+            )
+            SendResult.NotSent(SendFailureReason.TRANSFER_TIMED_OUT)
+        }
     }
 
     private suspend fun sendTransferTowardsDestination(
@@ -1188,8 +1330,6 @@ internal class MeshEngine private constructor(
         private const val TRANSFER_CHUNK_PAYLOAD_BYTES: Int = 256
         private val HANDSHAKE_TIMEOUT = 1.seconds
         private val INITIAL_BACKOFF = 250.milliseconds
-        private val TRANSFER_INITIAL_RETRY_DELAY = 100.milliseconds
-        private val MAX_TRANSFER_RETRY_DELAY = 500.milliseconds
 
         private fun noiseNonce(value: ULong): ByteArray {
             val nonce = ByteArray(12)

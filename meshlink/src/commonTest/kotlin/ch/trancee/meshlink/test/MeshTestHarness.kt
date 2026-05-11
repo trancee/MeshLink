@@ -23,11 +23,12 @@ internal class MeshTestHarness {
         peerIdValue: String,
         identityLabel: String = "default",
         storage: InMemorySecureStorage = InMemorySecureStorage(),
+        configOverride: MeshLinkConfig? = null,
     ): NodeHandle {
         val peerId = PeerId(peerIdValue)
         val transport = VirtualMeshTransport(localPeerId = peerId, network = network)
         val diagnosticSink = RecordingDiagnosticSink()
-        val config = defaultConfig(appId = "$peerIdValue-$identityLabel")
+        val config = configOverride ?: defaultConfig(appId = "$peerIdValue-$identityLabel")
         val api = MeshEngine.create(
             config = config,
             localIdentity = LocalIdentity.fromPeerId(peerId = peerId, identitySeed = "$peerIdValue-$identityLabel"),

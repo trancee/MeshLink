@@ -18,14 +18,24 @@ The current proof app has been exercised on two attached Android phones:
 - OPPO `CPH2689` (Android 16 / API 36)
 - Samsung `SM-G970U1` (Android 12 / API 31)
 
-Observed proof point:
+Observed physical proof point:
 
 - L2CAP advertisement PSM negotiation succeeds
 - Noise XX hop session establishment succeeds
 - provider-backed encrypted direct-message delivery succeeds from OPPO to Samsung
 - Samsung receives and logs the decrypted `hello mesh` payload
 
+Shared harness evidence now also covers the common US2 runtime:
+
+- three-node multi-hop routing succeeds across one relay hop
+- route reconvergence succeeds after a topology change
+- relays forward without surfacing end-to-end plaintext to app consumers
+- 64 KiB routed transfer succeeds when the virtual network enforces a 512-byte per-delivery ceiling
+- no-route retry uses bounded, jittered exponential backoff until `deliveryRetryDeadline` expires and then returns `UNREACHABLE`
+- sends retry early when topology updates reveal a route before the deadline expires
+
 ## Next Steps
 
-Later implementation tasks should add iOS parity for the proof flow, refine
-GATT fallback coverage, and add automated benchmark instrumentation.
+Later implementation tasks should extend this harness-verified US2 behavior to
+physical-device proof evidence, refine GATT fallback coverage, and add automated
+benchmark instrumentation.

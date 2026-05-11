@@ -101,7 +101,11 @@ Fields or frame families:
 **Rules**
 - Large-payload sessions are bounded to 64 KiB in v1.
 - Oversized payloads are rejected before any transfer frame is emitted.
-- Retry windows are bounded and in-memory only.
+- Retry windows are bounded, in-memory only, and use bounded, jittered
+  exponential backoff while no valid route exists.
+- When topology updates reveal a valid route before the retry deadline expires,
+  the sender retries immediately without requiring the original send request to
+  be recreated.
 - Transfer state does not survive restart.
 - ACK state must support contiguous progress plus bounded selective ranges so
   missing chunks can be identified without redefining the public API later.

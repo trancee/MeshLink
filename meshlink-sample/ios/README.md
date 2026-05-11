@@ -76,6 +76,14 @@ Verified in this repository state:
 - `xcodebuild -project meshlink-sample/ios/ProofApp.xcodeproj -scheme ProofApp -destination 'id=00008120-00011DEE0105A01E' -allowProvisioningUpdates DEVELOPMENT_TEAM=<local-team-id> build`
 - `xcrun devicectl device install app --device 00008120-00011DEE0105A01E <built-app-path>`
 
+Shared harness evidence now also covers the common US2 runtime:
+
+- three-node routed delivery across a relay hop
+- route reconvergence after topology change
+- 64 KiB routed transfer over a 512-byte per-delivery virtual link budget
+- bounded, jittered exponential-backoff no-route retry expiry with `UNREACHABLE`
+- immediate retry when a route appears before `deliveryRetryDeadline` expires
+
 Current manual blocker:
 
 - the installed app launch is still denied on the attached iPhone 15 until the

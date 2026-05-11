@@ -6,20 +6,20 @@ import ch.trancee.meshlink.transport.OutboundFrame
 import ch.trancee.meshlink.transport.TransportEvent
 import ch.trancee.meshlink.transport.TransportMode
 import ch.trancee.meshlink.transport.TransportSendResult
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.flow.receiveAsFlow
 
 internal class VirtualMeshTransport(
     internal val localPeerId: PeerId,
     private val network: VirtualMeshNetwork,
 ) : BleTransport {
-    private val mutableEvents: MutableSharedFlow<TransportEvent> = MutableSharedFlow(extraBufferCapacity = 32)
+    private var eventChannel: Channel<TransportEvent> = Channel(capacity = Channel.UNLIMITED)
     private val sentFrames: MutableList<ByteArray> = mutableListOf()
     private var started: Boolean = false
 
-    override val events: Flow<TransportEvent> = mutableEvents.asSharedFlow()
+    override val events: Flow<TransportEvent>
+        get() = eventChannel.receiveAsFlow()
 
     override suspend fun start(): Unit {
         started = true
@@ -39,6 +39,7 @@ internal class VirtualMeshTransport(
         started = false
         sentFrames.clear()
         network.unregister(localPeerId)
+        eventChannel = Channel(capacity = Channel.UNLIMITED)
     }
 
     override suspend fun send(frame: OutboundFrame): TransportSendResult {
@@ -62,20 +63,20 @@ internal class VirtualMeshTransport(
     }
 
     internal fun connect(peerId: PeerId, mode: TransportMode = TransportMode.GATT): Unit {
-        runBlocking {
-            mutableEvents.emit(TransportEvent.PeerDiscovered(peerId = peerId, transportMode = mode))
-        }
+        dispatchEvent(TransportEvent.PeerDiscovered(peerId = peerId, transportMode = mode))
     }
 
     internal fun disconnect(peerId: PeerId): Unit {
-        runBlocking {
-            mutableEvents.emit(TransportEvent.PeerLost(peerId = peerId))
-        }
+        dispatchEvent(TransportEvent.PeerLost(peerId = peerId))
     }
 
     internal fun receive(senderPeerId: PeerId, payload: ByteArray): Unit {
-        runBlocking {
-            mutableEvents.emit(TransportEvent.FrameReceived(peerId = senderPeerId, payload = payload))
+        dispatchEvent(TransportEvent.FrameReceived(peerId = senderPeerId, payload = payload))
+    }
+
+    private fun dispatchEvent(event: TransportEvent): Unit {
+        check(eventChannel.trySend(event).isSuccess) {
+            "virtual transport event buffer overflowed for ${localPeerId.value}"
         }
     }
 

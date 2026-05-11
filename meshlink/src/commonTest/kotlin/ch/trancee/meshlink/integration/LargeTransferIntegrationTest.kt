@@ -2,6 +2,7 @@ package ch.trancee.meshlink.integration
 
 import ch.trancee.meshlink.api.SendFailureReason
 import ch.trancee.meshlink.api.SendResult
+import ch.trancee.meshlink.config.meshLinkConfig
 import ch.trancee.meshlink.test.MeshTestHarness
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
@@ -15,6 +16,9 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.TimeSource
 
 class LargeTransferIntegrationTest {
     @Test
@@ -84,6 +88,38 @@ class LargeTransferIntegrationTest {
         // Assert
         assertIs<SendResult.Sent>(sendResult)
         assertContentEquals(payload, receivedMessage.payload)
+    }
+
+    @Test
+    fun `large transfers return unreachable when no route appears before the configured deadline`() = runBlocking {
+        // Arrange
+        val harness = MeshTestHarness()
+        val sender = harness.createNode(
+            peerIdValue = "peer-a",
+            configOverride = meshLinkConfig {
+                appId = "peer-a-default"
+                deliveryRetryDeadline = 500.milliseconds
+            },
+        )
+        val relay = harness.createNode("peer-b")
+        val recipient = harness.createNode("peer-c")
+        val payload = ByteArray(2 * 1024) { index -> ((index * 5) % 251).toByte() }
+
+        harness.linkPeers(sender, relay)
+        sender.api.start()
+        relay.api.start()
+        recipient.api.start()
+        delay(250)
+        val startedAt = TimeSource.Monotonic.markNow()
+
+        // Act
+        val sendResult = sender.api.send(recipient.peerId, payload)
+
+        // Assert
+        val notSent = assertIs<SendResult.NotSent>(sendResult)
+        assertEquals(SendFailureReason.UNREACHABLE, notSent.reason)
+        assertTrue(startedAt.elapsedNow() >= 500.milliseconds)
+        assertNull(withTimeoutOrNull(500) { recipient.api.messages.first() })
     }
 
     @Test
