@@ -1,6 +1,7 @@
 package ch.trancee.meshlink.transport
 
 import ch.trancee.meshlink.api.PeerId
+import ch.trancee.meshlink.power.PowerPolicy
 import kotlinx.coroutines.flow.Flow
 
 internal enum class TransportMode {
@@ -53,6 +54,8 @@ internal interface BleTransport {
     suspend fun resume(): Unit
 
     suspend fun stop(): Unit
+
+    suspend fun updatePowerPolicy(policy: PowerPolicy): Unit = Unit
 
     suspend fun send(frame: OutboundFrame): TransportSendResult
 }

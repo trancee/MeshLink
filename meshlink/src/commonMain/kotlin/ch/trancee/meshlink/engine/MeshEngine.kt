@@ -25,6 +25,8 @@ import ch.trancee.meshlink.diagnostics.DiagnosticSeverity
 import ch.trancee.meshlink.diagnostics.DiagnosticSink
 import ch.trancee.meshlink.identity.LocalIdentity
 import ch.trancee.meshlink.identity.toHexString
+import ch.trancee.meshlink.power.PowerPolicy
+import ch.trancee.meshlink.power.PowerPolicyController
 import ch.trancee.meshlink.presence.PeerPresenceTracker
 import ch.trancee.meshlink.presence.PresenceTransition
 import ch.trancee.meshlink.routing.RouteCoordinator
@@ -70,10 +72,16 @@ internal class MeshEngine private constructor(
     private val diagnosticSink: DiagnosticSink? = null,
 ) : MeshLinkApi {
     private val coroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val engineClock = TimeSource.Monotonic.markNow()
     private val trustStore = TofuTrustStore(secureStorage)
     private val presenceTracker = PeerPresenceTracker()
     private val routeCoordinator = RouteCoordinator(localIdentity.peerId)
     private val deliveryRetryScheduler = DeliveryRetryScheduler(routeCoordinator.topologyVersion)
+    private val powerPolicyController = PowerPolicyController(
+        configuredMode = config.powerMode,
+        region = config.regulatoryRegion,
+    )
+    private var currentPowerPolicy: PowerPolicy = powerPolicyController.currentPolicy(nowMillis = 0L)
     private var transportCollectionJob: Job? = null
     private val hopSessions: MutableMap<String, HopSession> = linkedMapOf()
     private val pendingInitiatorHandshakes: MutableMap<String, PendingInitiatorHandshake> = linkedMapOf()
@@ -102,6 +110,8 @@ internal class MeshEngine private constructor(
             return StartResult.AlreadyRunning
         }
         ensureTransportCollector()
+        currentPowerPolicy = powerPolicyController.onMeshStarted(powerPolicyNowMillis())
+        runPlatformCall("updatePowerPolicy") { bleTransport?.updatePowerPolicy(currentPowerPolicy) }
         runPlatformCall("start") { bleTransport?.start() }
         mutableState.value = MeshLinkState.Running
         emitDiagnostic(
@@ -133,6 +143,8 @@ internal class MeshEngine private constructor(
             return ResumeResult.AlreadyRunning
         }
         ensureTransportCollector()
+        currentPowerPolicy = powerPolicyController.currentPolicy(powerPolicyNowMillis())
+        runPlatformCall("updatePowerPolicy") { bleTransport?.updatePowerPolicy(currentPowerPolicy) }
         runPlatformCall("resume") { bleTransport?.resume() }
         mutableState.value = MeshLinkState.Running
         emitDiagnostic(
@@ -261,14 +273,26 @@ internal class MeshEngine private constructor(
 
     override fun updateBattery(level: Float, isCharging: Boolean): Unit {
         val clampedLevel = level.coerceIn(0f, 1f)
+        val policy = powerPolicyController.onBatterySnapshot(
+            level = clampedLevel,
+            isCharging = isCharging,
+            nowMillis = powerPolicyNowMillis(),
+        )
+        currentPowerPolicy = policy
+        if (bleTransport != null) {
+            coroutineScope.launch {
+                runPlatformCall("updatePowerPolicy") { bleTransport.updatePowerPolicy(policy) }
+            }
+        }
         emitDiagnostic(
             code = DiagnosticCode.POWER_MODE_CHANGED,
             severity = DiagnosticSeverity.INFO,
             stage = "power.updateBattery",
             reason = DiagnosticReason.POWER_CHANGE,
-            metadata = mapOf(
-                "level" to clampedLevel.toString(),
-                "isCharging" to isCharging.toString(),
+            metadata = powerPolicyMetadata(
+                policy = policy,
+                level = clampedLevel,
+                isCharging = isCharging,
             ),
         )
     }
@@ -1256,6 +1280,30 @@ internal class MeshEngine private constructor(
             reason = reason,
             metadata = metadata,
         )
+    }
+
+    private fun powerPolicyNowMillis(): Long {
+        return engineClock.elapsedNow().inWholeMilliseconds
+    }
+
+    private fun powerPolicyMetadata(
+        policy: PowerPolicy,
+        level: Float,
+        isCharging: Boolean,
+    ): Map<String, String> {
+        return buildMap {
+            put("level", level.toString())
+            put("isCharging", isCharging.toString())
+            put("tier", policy.tier.name)
+            put("advertisementIntervalMillis", policy.advertisementIntervalMillis.toString())
+            put("scanDutyCyclePercent", policy.scanDutyCyclePercent.toString())
+            put("maxConnections", policy.maxConnections.toString())
+            put("chunkBudgetBytes", policy.chunkBudgetBytes.toString())
+            put("region", policy.region.name)
+            if (policy.clampWarnings.isNotEmpty()) {
+                put("clampWarnings", policy.clampWarnings.joinToString(separator = " | "))
+            }
+        }
     }
 
     private fun emitDiagnostic(
