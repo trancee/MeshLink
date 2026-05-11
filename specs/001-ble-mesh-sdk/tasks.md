@@ -90,7 +90,7 @@ retransmission semantics.
 
 - [X] T019 [P] [US2] Add wire contract tests driven by `specs/001-ble-mesh-sdk/contracts/wire-envelope.md` in `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/wire/WireEnvelopeContractTest.kt`
 - [X] T020 [P] [US2] Add multi-node routing, reconvergence, and relay-confidentiality integration tests in `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/integration/MeshRoutingIntegrationTest.kt`
-- [ ] T021 [P] [US2] Add bounded large-transfer, route-change resume, duplicate/out-of-order chunk, partial-ACK, and 64 KiB limit integration tests in `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/integration/LargeTransferIntegrationTest.kt`
+- [X] T021 [P] [US2] Add bounded large-transfer, route-change resume, duplicate/out-of-order chunk, partial-ACK, and 64 KiB limit integration tests in `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/integration/LargeTransferIntegrationTest.kt`
 - [ ] T022 [US2] Validate multi-hop send, configured no-route retry deadline behavior, bounded exponential-backoff retry scheduling, immediate retry on route availability, and size-limit behavior against `specs/001-ble-mesh-sdk/quickstart.md` and `specs/001-ble-mesh-sdk/contracts/wire-envelope.md`
 
 ### Implementation for User Story 2

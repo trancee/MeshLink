@@ -46,15 +46,18 @@ internal class VirtualMeshTransport(
             return TransportSendResult.Dropped("virtual transport is not started")
         }
         sentFrames += frame.payload.copyOf()
-        val delivered = network.deliver(
-            senderPeerId = localPeerId,
-            recipientPeerId = frame.peerId,
-            payload = frame.payload,
-        )
-        return if (delivered) {
-            TransportSendResult.Delivered
-        } else {
-            TransportSendResult.Dropped("recipient is unavailable")
+        return when (
+            network.deliver(
+                senderPeerId = localPeerId,
+                recipientPeerId = frame.peerId,
+                payload = frame.payload,
+            )
+        ) {
+            DeliveryOutcome.Delivered,
+            DeliveryOutcome.AcceptedButDropped,
+            -> TransportSendResult.Delivered
+
+            DeliveryOutcome.RecipientUnavailable -> TransportSendResult.Dropped("recipient is unavailable")
         }
     }
 

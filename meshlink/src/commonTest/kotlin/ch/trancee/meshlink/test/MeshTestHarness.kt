@@ -61,6 +61,26 @@ internal class MeshTestHarness {
         return handle.transport.sentFrames()
     }
 
+    internal fun setMaximumPayloadBytesPerDelivery(limit: Int?): Unit {
+        network.setMaximumPayloadBytesPerDelivery(limit)
+    }
+
+    internal fun dropNextDeliveries(sender: NodeHandle, recipient: NodeHandle, count: Int = 1): Unit {
+        network.dropNextDeliveries(sender.peerId, recipient.peerId, count)
+    }
+
+    internal fun duplicateNextDeliveries(sender: NodeHandle, recipient: NodeHandle, count: Int = 1): Unit {
+        network.duplicateNextDeliveries(sender.peerId, recipient.peerId, count)
+    }
+
+    internal fun holdNextDeliveries(sender: NodeHandle, recipient: NodeHandle, count: Int = 1): Unit {
+        network.holdNextDeliveries(sender.peerId, recipient.peerId, count)
+    }
+
+    internal fun releaseHeldDeliveries(sender: NodeHandle, recipient: NodeHandle): Unit {
+        network.releaseHeldDeliveries(sender.peerId, recipient.peerId)
+    }
+
     private fun defaultConfig(appId: String): MeshLinkConfig {
         return meshLinkConfig {
             this.appId = appId
