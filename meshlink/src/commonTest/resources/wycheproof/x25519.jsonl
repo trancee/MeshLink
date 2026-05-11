@@ -1,0 +1,3 @@
+# Extracted from C2SP Wycheproof testvectors_v1/x25519_test.json
+{"tcId":1,"result":"valid","comment":"Normal case","private":"c8a9d5a91091ad851c668b0736c1c9a02936c0d3ad62670858088047ba057475","public":"504a36999f489cd2fdbc08baff3d88fa00569ba986cba22548ffde80f9806829","shared":"436a2c040cf45fea9b29a0cb81b1f41458f863d0d61b453d0a982720d6d61320"}
+{"tcId":34,"result":"valid","comment":"Edge case public key","private":"a8386f7f16c50731d64f82e6a170b142a4e34f31fd7768fcb8902925e7d1e25a","public":"0400000000000000000000000000000000000000000000000000000000000000","shared":"34b7e4fa53264420d9f943d15513902342b386b172a0b0b7c8b8f2dd3d669f59"}

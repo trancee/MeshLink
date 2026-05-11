@@ -1,0 +1,3 @@
+# Extracted from C2SP Wycheproof testvectors_v1/hmac_sha256_test.json
+{"tcId":1,"result":"valid","comment":"Empty message","key":"1e225cafb90339bba1b24076d4206c3e79c355805d851682bc818baa4f5a7779","msg":"","tag":"b175b57d89ea6cb606fb3363f2538abd73a4c00b4a1386905bac809004cf1933"}
+{"tcId":28,"result":"invalid","comment":"Flipped bit 0 in tag","key":"000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f","msg":"","tag":"d28b42096d80f45f826b44a9d5607de72496a415d3f4a1a8c88e3bb9da8dc1cb"}
