@@ -114,12 +114,22 @@ cannot be assumed to expose a uniform provider surface. User-reported Samsung
 Android 12 failures are therefore consistent with the broader platform contract.
 
 **Chosen solution:** MeshLink should prefer the official Android `XDH`
-algorithm name with `NamedParameterSpec.X25519`, probe the full primitive set
-at runtime with real keygen/sign/agreement/AEAD operations, and fall back to an
-in-repo pure-Kotlin implementation for `X25519` and `Ed25519` when any required
-JCA primitive is unavailable. Raw key material must stay provider-agnostic so
-persisted identities survive switching between the JCA-backed and software
-providers.
+algorithm name, probe the full primitive set at runtime with real
+keygen/sign/agreement/AEAD operations, and fall back to an in-repo pure-Kotlin
+implementation for `X25519` and `Ed25519` when any required JCA primitive is
+unavailable. Raw key material must stay provider-agnostic so persisted
+identities survive switching between the JCA-backed and software providers.
+
+**Real device evidence (2026-05-11):**
+- Samsung `SM-G970U1`, Android 12 / API 31: `XDH`/`X25519` and `Ed25519`
+  primitives are unavailable (`NoSuchAlgorithmException` / missing
+  `NamedParameterSpec` class), while `ChaCha20-Poly1305` works. Current
+  `MeshLink.createAndroid()` fails here without a software fallback.
+- OPPO `CPH2689`, Android 16 / API 36: `Ed25519` and `ChaCha20-Poly1305`
+  work, but Conscrypt's `OpenSSLXDHKeyPairGenerator` rejects
+  `initialize(AlgorithmParameterSpec)` with `InvalidAlgorithmParameterException`.
+  This means `XDH` key generation must use `generateKeyPair()` directly instead
+  of `NamedParameterSpec.X25519` initialization on Android.
 
 **Alternatives considered:**
 - Assuming `X25519` / `Ed25519` JCA works on all Android 12+ devices — rejected

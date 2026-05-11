@@ -7,7 +7,7 @@ later physical-device validation tasks.
 
 - minimal Android app wiring
 - dependency on the shared `:meshlink` module
-- a first-message entry point in `MainActivity`
+- an on-device crypto and factory diagnostic surface in `MainActivity`
 
 ## Next Steps
 

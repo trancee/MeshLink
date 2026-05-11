@@ -3,7 +3,6 @@ package ch.trancee.meshlink.platform.android
 import java.security.KeyFactory
 import java.security.KeyPairGenerator
 import java.security.Signature
-import java.security.spec.NamedParameterSpec
 import javax.crypto.Cipher
 import javax.crypto.KeyAgreement
 import javax.crypto.spec.IvParameterSpec
@@ -33,7 +32,6 @@ internal object AndroidJcaCapabilityProbe {
 
     private fun probeX25519(): Unit {
         val keyPairGenerator = xdhKeyPairGenerator()
-        keyPairGenerator.initialize(NamedParameterSpec.X25519)
         val alice = keyPairGenerator.generateKeyPair()
         val bob = keyPairGenerator.generateKeyPair()
 

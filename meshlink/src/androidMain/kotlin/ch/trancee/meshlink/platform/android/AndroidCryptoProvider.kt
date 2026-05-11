@@ -1,23 +1,15 @@
 package ch.trancee.meshlink.platform.android
 
+import ch.trancee.meshlink.api.MeshLinkException
 import ch.trancee.meshlink.crypto.CryptoProvider
 import ch.trancee.meshlink.crypto.Ed25519KeyPair
 import ch.trancee.meshlink.crypto.X25519KeyPair
-import java.math.BigInteger
 import java.security.KeyFactory
 import java.security.KeyPairGenerator
 import java.security.MessageDigest
 import java.security.Signature
-import java.security.interfaces.EdECPrivateKey
-import java.security.interfaces.EdECPublicKey
-import java.security.interfaces.XECPrivateKey
-import java.security.interfaces.XECPublicKey
-import java.security.spec.EdECPoint
-import java.security.spec.EdECPrivateKeySpec
-import java.security.spec.EdECPublicKeySpec
-import java.security.spec.NamedParameterSpec
-import java.security.spec.XECPrivateKeySpec
-import java.security.spec.XECPublicKeySpec
+import java.security.spec.PKCS8EncodedKeySpec
+import java.security.spec.X509EncodedKeySpec
 import javax.crypto.Cipher
 import javax.crypto.Mac
 import javax.crypto.spec.IvParameterSpec
@@ -39,20 +31,19 @@ internal class AndroidCryptoProvider : CryptoProvider {
     }
 
     override fun generateX25519KeyPair(): X25519KeyPair {
-        val generator = xdhKeyPairGenerator()
-        generator.initialize(NamedParameterSpec.X25519)
-        val keyPair = generator.generateKeyPair()
-        val privateKey = (keyPair.private as XECPrivateKey).scalar.orElseThrow()
-        val publicKey = bigIntegerToLittleEndian((keyPair.public as XECPublicKey).u, 32)
-        return X25519KeyPair(privateKey = privateKey, publicKey = publicKey)
+        val keyPair = xdhKeyPairGenerator().generateKeyPair()
+        return X25519KeyPair(
+            privateKey = decodePkcs8Raw(keyPair.private.encoded, X25519_PKCS8_PREAMBLE, "X25519 private"),
+            publicKey = decodeX509Raw(keyPair.public.encoded, X25519_X509_PREAMBLE, "X25519 public"),
+        )
     }
 
     override fun generateEd25519KeyPair(): Ed25519KeyPair {
-        val generator = KeyPairGenerator.getInstance("Ed25519")
-        val keyPair = generator.generateKeyPair()
-        val privateKey = (keyPair.private as EdECPrivateKey).bytes.orElseThrow()
-        val publicKey = encodeEd25519PublicKey(keyPair.public as EdECPublicKey)
-        return Ed25519KeyPair(privateKey = privateKey, publicKey = publicKey)
+        val keyPair = KeyPairGenerator.getInstance("Ed25519").generateKeyPair()
+        return Ed25519KeyPair(
+            privateKey = decodePkcs8Raw(keyPair.private.encoded, ED25519_PKCS8_PREAMBLE, "Ed25519 private"),
+            publicKey = decodeX509Raw(keyPair.public.encoded, ED25519_X509_PREAMBLE, "Ed25519 public"),
+        )
     }
 
     override fun x25519(privateKey: ByteArray, publicKey: ByteArray): ByteArray {
@@ -101,46 +92,64 @@ internal class AndroidCryptoProvider : CryptoProvider {
     }
 
     private fun x25519PrivateKey(bytes: ByteArray) =
-        xdhKeyFactory().generatePrivate(XECPrivateKeySpec(NamedParameterSpec.X25519, bytes))
+        xdhKeyFactory().generatePrivate(PKCS8EncodedKeySpec(X25519_PKCS8_PREAMBLE + bytes))
 
     private fun x25519PublicKey(bytes: ByteArray) =
-        xdhKeyFactory().generatePublic(
-            XECPublicKeySpec(NamedParameterSpec.X25519, littleEndianToBigInteger(bytes)),
-        )
+        xdhKeyFactory().generatePublic(X509EncodedKeySpec(X25519_X509_PREAMBLE + bytes))
 
     private fun ed25519PrivateKey(bytes: ByteArray) =
-        KeyFactory.getInstance("Ed25519").generatePrivate(EdECPrivateKeySpec(NamedParameterSpec.ED25519, bytes))
+        KeyFactory.getInstance("Ed25519").generatePrivate(PKCS8EncodedKeySpec(ED25519_PKCS8_PREAMBLE + bytes))
 
     private fun ed25519PublicKey(bytes: ByteArray) =
-        KeyFactory.getInstance("Ed25519").generatePublic(
-            EdECPublicKeySpec(NamedParameterSpec.ED25519, decodeEd25519Point(bytes)),
+        KeyFactory.getInstance("Ed25519").generatePublic(X509EncodedKeySpec(ED25519_X509_PREAMBLE + bytes))
+
+    private fun decodePkcs8Raw(encoded: ByteArray, preamble: ByteArray, label: String): ByteArray {
+        if (!encoded.startsWith(preamble)) {
+            throw MeshLinkException.CryptoFailure("$label key does not use the expected PKCS#8 encoding")
+        }
+        return encoded.copyOfRange(preamble.size, encoded.size)
+    }
+
+    private fun decodeX509Raw(encoded: ByteArray, preamble: ByteArray, label: String): ByteArray {
+        if (!encoded.startsWith(preamble)) {
+            throw MeshLinkException.CryptoFailure("$label key does not use the expected X.509 encoding")
+        }
+        return encoded.copyOfRange(preamble.size, encoded.size)
+    }
+
+    private fun ByteArray.startsWith(prefix: ByteArray): Boolean {
+        return size >= prefix.size && prefix.indices.all { index -> this[index] == prefix[index] }
+    }
+
+    private companion object {
+        private val X25519_PKCS8_PREAMBLE = byteArrayOf(
+            0x30, 0x2e,
+            0x02, 0x01, 0x00,
+            0x30, 0x05,
+            0x06, 0x03, 0x2b, 0x65, 0x6e,
+            0x04, 0x22, 0x04, 0x20,
         )
 
-    private fun encodeEd25519PublicKey(publicKey: EdECPublicKey): ByteArray {
-        val point = publicKey.point
-        val yBytes = bigIntegerToLittleEndian(point.y, 32)
-        if (point.isXOdd) {
-            yBytes[31] = (yBytes[31].toInt() or 0x80).toByte()
-        }
-        return yBytes
-    }
+        private val X25519_X509_PREAMBLE = byteArrayOf(
+            0x30, 0x2a,
+            0x30, 0x05,
+            0x06, 0x03, 0x2b, 0x65, 0x6e,
+            0x03, 0x21, 0x00,
+        )
 
-    private fun decodeEd25519Point(bytes: ByteArray): EdECPoint {
-        require(bytes.size == 32) { "Ed25519 public key must be 32 bytes" }
-        val yBytes = bytes.copyOf()
-        val xOdd = (yBytes[31].toInt() and 0x80) != 0
-        yBytes[31] = (yBytes[31].toInt() and 0x7F).toByte()
-        return EdECPoint(xOdd, littleEndianToBigInteger(yBytes))
-    }
+        private val ED25519_PKCS8_PREAMBLE = byteArrayOf(
+            0x30, 0x2e,
+            0x02, 0x01, 0x00,
+            0x30, 0x05,
+            0x06, 0x03, 0x2b, 0x65, 0x70,
+            0x04, 0x22, 0x04, 0x20,
+        )
 
-    private fun littleEndianToBigInteger(bytes: ByteArray): BigInteger {
-        return BigInteger(1, bytes.reversedArray())
-    }
-
-    private fun bigIntegerToLittleEndian(value: BigInteger, size: Int): ByteArray {
-        val bigEndian = value.toByteArray().let { if (it.size > size) it.copyOfRange(it.size - size, it.size) else it }
-        val padded = ByteArray(size)
-        bigEndian.copyInto(padded, destinationOffset = size - bigEndian.size)
-        return padded.reversedArray()
+        private val ED25519_X509_PREAMBLE = byteArrayOf(
+            0x30, 0x2a,
+            0x30, 0x05,
+            0x06, 0x03, 0x2b, 0x65, 0x70,
+            0x03, 0x21, 0x00,
+        )
     }
 }
