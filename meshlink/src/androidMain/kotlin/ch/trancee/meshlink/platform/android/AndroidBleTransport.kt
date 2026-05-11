@@ -163,8 +163,12 @@ internal class AndroidBleTransport(
 
         val link = activeLinksByHint[peer.hintPeerId.value]
         if (link == null) {
-            log("send(${frame.peerId.value.takeLast(6)}) no active link, triggering connect")
-            connectIfNeeded(peer)
+            if (shouldInitiateL2cap(peer.keyHash)) {
+                log("send(${frame.peerId.value.takeLast(6)}) no active link, triggering connect")
+                connectIfNeeded(peer)
+            } else {
+                log("send(${frame.peerId.value.takeLast(6)}) waiting for inbound L2CAP link")
+            }
             return TransportSendResult.Dropped("Android BLE L2CAP connection is not ready")
         }
 
@@ -205,6 +209,9 @@ internal class AndroidBleTransport(
         log(
             "scan found ${hintPeerId.value.takeLast(6)} mode=$transportMode psm=${payload.l2capPsm} addr=${result.device.address}"
         )
+        if (transportMode == TransportMode.L2CAP) {
+            promoteTemporaryLink(address = result.device.address, hintPeerId = hintPeerId)
+        }
         val discoveredPeer = discoveredPeers[hintPeerId.value]
         if (discoveredPeer == null) {
             discoveredPeers[hintPeerId.value] =
@@ -280,6 +287,31 @@ internal class AndroidBleTransport(
         adapter.cancelDiscovery()
     }
 
+    private fun promoteTemporaryLink(address: String, hintPeerId: PeerId): Unit {
+        val temporaryHint = temporaryHintByAddress[address] ?: return
+        val promoted =
+            synchronized(activeLinksByHint) {
+                val link = activeLinksByHint.remove(temporaryHint) ?: return@synchronized false
+                if (activeLinksByHint.containsKey(hintPeerId.value)) {
+                    log(
+                        "closing temporary L2CAP link ${temporaryHint.takeLast(6)} because ${hintPeerId.value.takeLast(6)} already has an active link"
+                    )
+                    closeQuietly(link)
+                    return@synchronized false
+                }
+                link.peerHintId = hintPeerId
+                activeLinksByHint[hintPeerId.value] = link
+                true
+            }
+        temporaryHintByAddress.remove(address)
+        peerHintByAddress[address] = hintPeerId.value
+        if (promoted) {
+            log(
+                "promoted temporary L2CAP link ${temporaryHint.takeLast(6)} -> ${hintPeerId.value.takeLast(6)} addr=$address"
+            )
+        }
+    }
+
     private fun launchAcceptLoop(serverSocket: BluetoothServerSocket): Unit {
         acceptLoopJob = coroutineScope.launch {
             while (true) {
@@ -329,16 +361,26 @@ internal class AndroidBleTransport(
                         }
                         val decodedFrames = link.incomingFrames.append(readBuffer.copyOf(read))
                         decodedFrames.forEach { payload ->
+                            val currentPeerId = link.peerHintId
+                            if (payload.isEmpty()) {
+                                log(
+                                    "ignoring empty frame from ${currentPeerId.value.takeLast(6)}"
+                                )
+                                return@forEach
+                            }
                             log(
-                                "received ${payload.size} bytes from ${hintPeerId.value.takeLast(6)}"
+                                "received ${payload.size} bytes from ${currentPeerId.value.takeLast(6)}"
                             )
                             mutableEvents.emit(
-                                TransportEvent.FrameReceived(peerId = hintPeerId, payload = payload)
+                                TransportEvent.FrameReceived(
+                                    peerId = currentPeerId,
+                                    payload = payload,
+                                )
                             )
                         }
                     }
                 } finally {
-                    closeLink(hintPeer = hintPeerId.value, reason = "socket closed")
+                    closeLink(hintPeer = link.peerHintId.value, reason = "socket closed")
                 }
             }
         }
@@ -464,7 +506,7 @@ internal class AndroidBleTransport(
     }
 
     private class L2capLink(
-        val peerHintId: PeerId,
+        var peerHintId: PeerId,
         val socket: BluetoothSocket,
         val incomingFrames: AndroidL2capFrameBuffer,
     ) : Closeable {

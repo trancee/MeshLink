@@ -61,6 +61,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeout
 
 internal class MeshEngine
@@ -583,7 +585,7 @@ private constructor(
     }
 
     private suspend fun handleRoutedMessageFrame(peerId: PeerId, frame: WireFrame.Message): Unit {
-        if (frame.destinationPeerId.value != localIdentity.peerId.value) {
+        if (!isLocalPeerId(frame.destinationPeerId)) {
             forwardMessageToNextHop(frame)
             return
         }
@@ -705,11 +707,13 @@ private constructor(
                         ttlMillis = ttlMillisFor(priority),
                         encryptedPayload = innerEnvelope,
                     )
-                val encryptedFrame =
+                when (
                     runCatching {
-                            encryptHopPayload(
-                                sessionOutcome.session,
-                                WireCodec.encode(routedMessage),
+                            sendEncryptedDirectWireFrame(
+                                peerId = nextHopPeerId,
+                                session = sessionOutcome.session,
+                                frame = routedMessage,
+                                action = "send.data",
                             )
                         }
                         .getOrElse { exception ->
@@ -721,13 +725,6 @@ private constructor(
                             )
                             return SendResult.NotSent(SendFailureReason.UNREACHABLE)
                         }
-
-                when (
-                    sendDirectWireFrame(
-                        peerId = nextHopPeerId,
-                        frame = DirectWireFrame.Data(encryptedFrame),
-                        action = "send.data",
-                    )
                 ) {
                     TransportSendResult.Delivered -> {
                         emitDiagnostic(
@@ -1003,7 +1000,7 @@ private constructor(
     }
 
     private suspend fun handleTransferStart(peerId: PeerId, frame: WireFrame.TransferStart): Unit {
-        if (frame.destinationPeerId.value == localIdentity.peerId.value) {
+        if (isLocalPeerId(frame.destinationPeerId)) {
             val existingSession = inboundTransfers[frame.transferId]
             if (existingSession != null) {
                 existingSession.upstreamPeerId = peerId
@@ -1138,6 +1135,11 @@ private constructor(
         }
     }
 
+    private fun isLocalPeerId(peerId: PeerId): Boolean {
+        return peerId.value == localIdentity.peerId.value ||
+            peerId.value == localIdentity.advertisementKeyHash.toHexString()
+    }
+
     private fun dispatchRoutingAdvertisements(advertisements: List<RoutingAdvertisement>): Unit {
         advertisements.forEach { advertisement ->
             coroutineScope.launch {
@@ -1158,8 +1160,15 @@ private constructor(
         val sessionOutcome = ensureHopSession(peerId)
         val session =
             (sessionOutcome as? SessionEstablishmentOutcome.Established)?.session ?: return false
-        val encryptedFrame =
-            runCatching { encryptHopPayload(session, WireCodec.encode(frame)) }
+        return when (
+            runCatching {
+                    sendEncryptedDirectWireFrame(
+                        peerId = peerId,
+                        session = session,
+                        frame = frame,
+                        action = action,
+                    )
+                }
                 .getOrElse { exception ->
                     emitHopSessionFailed(
                         peerId = peerId,
@@ -1169,12 +1178,6 @@ private constructor(
                     )
                     return false
                 }
-        return when (
-            sendDirectWireFrame(
-                peerId = peerId,
-                frame = DirectWireFrame.Data(encryptedFrame),
-                action = action,
-            )
         ) {
             TransportSendResult.Delivered -> true
             is TransportSendResult.Dropped -> {
@@ -1308,6 +1311,23 @@ private constructor(
             bleTransport ?: return TransportSendResult.Dropped("BLE transport is unavailable")
         return runPlatformCall(action) {
             transport.send(OutboundFrame(peerId = peerId, payload = frame.encode()))
+        }
+    }
+
+    private suspend fun sendEncryptedDirectWireFrame(
+        peerId: PeerId,
+        session: HopSession,
+        frame: WireFrame,
+        action: String,
+    ): TransportSendResult {
+        val encodedFrame = WireCodec.encode(frame)
+        return session.outboundMutex.withLock {
+            val encryptedFrame = encryptHopPayload(session, encodedFrame)
+            sendDirectWireFrame(
+                peerId = peerId,
+                frame = DirectWireFrame.Data(encryptedFrame),
+                action = action,
+            )
         }
     }
 
@@ -1499,6 +1519,7 @@ private sealed class SessionEstablishmentOutcome {
 private class HopSession internal constructor(sendKey: ByteArray, receiveKey: ByteArray) {
     internal val sendKey: ByteArray = sendKey.copyOf()
     internal val receiveKey: ByteArray = receiveKey.copyOf()
+    internal val outboundMutex: Mutex = Mutex()
     internal var sendNonce: ULong = 0u
     internal var receiveNonce: ULong = 0u
 }
