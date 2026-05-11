@@ -442,7 +442,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
     }
 
     private fun log(message: String): Unit {
-        NSLog("MeshLinkTransport %@", message)
+        println("MeshLinkTransport $message")
     }
 
     private class DiscoveredPeer(
