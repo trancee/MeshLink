@@ -1,5 +1,6 @@
 package ch.trancee.meshlink.platform.ios
 
+import ch.trancee.meshlink.transport.BleDiscoveryContract
 import ch.trancee.meshlink.transport.BleTransport
 import ch.trancee.meshlink.transport.OutboundFrame
 import ch.trancee.meshlink.transport.TransportEvent
@@ -9,6 +10,9 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 
 internal class IosBleTransport : BleTransport {
+    private val discoveryServiceUuid: String = BleDiscoveryContract.ADVERTISEMENT_SERVICE_UUID
+    private val gattServiceUuid: String = BleDiscoveryContract.GATT_FALLBACK_SERVICE_UUID
+    private val gattCharacteristicUuids: List<String> = BleDiscoveryContract.GATT_CHARACTERISTIC_UUIDS
     private val mutableEvents = MutableSharedFlow<TransportEvent>(extraBufferCapacity = 16)
     private var started: Boolean = false
 

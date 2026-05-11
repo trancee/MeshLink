@@ -3,6 +3,7 @@ package ch.trancee.meshlink.platform.android
 import android.bluetooth.BluetoothManager
 import android.content.Context
 import ch.trancee.meshlink.api.PeerId
+import ch.trancee.meshlink.transport.BleDiscoveryContract
 import ch.trancee.meshlink.transport.BleTransport
 import ch.trancee.meshlink.transport.OutboundFrame
 import ch.trancee.meshlink.transport.TransportEvent
@@ -14,6 +15,9 @@ import kotlinx.coroutines.flow.asSharedFlow
 internal class AndroidBleTransport(
     private val context: Context,
 ) : BleTransport {
+    private val discoveryServiceUuid: String = BleDiscoveryContract.ADVERTISEMENT_SERVICE_UUID
+    private val gattServiceUuid: String = BleDiscoveryContract.GATT_FALLBACK_SERVICE_UUID
+    private val gattCharacteristicUuids: List<String> = BleDiscoveryContract.GATT_CHARACTERISTIC_UUIDS
     private val mutableEvents = MutableSharedFlow<TransportEvent>(extraBufferCapacity = 16)
     private var started: Boolean = false
 
