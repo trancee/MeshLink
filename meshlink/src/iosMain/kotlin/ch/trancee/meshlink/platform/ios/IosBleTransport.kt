@@ -4,6 +4,7 @@ package ch.trancee.meshlink.platform.ios
 
 import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.identity.toHexString
+import ch.trancee.meshlink.power.PowerPolicy
 import ch.trancee.meshlink.transport.BleDiscoveryContract
 import ch.trancee.meshlink.transport.BleDiscoveryPayload
 import ch.trancee.meshlink.transport.BlePowerMode
@@ -59,6 +60,7 @@ internal class IosBleTransport(
     private val pendingConnectionsByHint: MutableMap<String, String> = linkedMapOf()
     private val temporaryHintByIdentifier: MutableMap<String, String> = linkedMapOf()
 
+    private var currentPowerProfile: IosPowerProfile = IosPowerMonitor.defaultProfile()
     private var currentDiscoveryPayload: BleDiscoveryPayload = discoveryPayload(l2capPsm = 0u)
     private var centralManager: CBCentralManager? = null
     private var peripheralManager: CBPeripheralManager? = null
@@ -90,6 +92,17 @@ internal class IosBleTransport(
     override suspend fun stop(): Unit {
         stopTransport(clearPeers = true)
         started = false
+    }
+
+    override suspend fun updatePowerPolicy(policy: PowerPolicy): Unit {
+        currentPowerProfile = IosPowerMonitor.profileFor(policy)
+        currentDiscoveryPayload = discoveryPayload(currentDiscoveryPayload.l2capPsm)
+        if (!started) {
+            return
+        }
+        centralManager?.stopScan()
+        centralManager?.let(::startScanIfReady)
+        startAdvertisingIfReady()
     }
 
     override suspend fun send(frame: OutboundFrame): TransportSendResult {
@@ -367,7 +380,7 @@ internal class IosBleTransport(
     private fun discoveryPayload(l2capPsm: UByte): BleDiscoveryPayload {
         return BleDiscoveryPayload(
             protocolVersion = 1,
-            powerMode = BlePowerMode.BALANCED,
+            powerMode = currentPowerProfile.discoveryPowerMode,
             meshHash = BleDiscoveryContract.computeMeshHash(appId),
             l2capPsm = l2capPsm,
             keyHash = localKeyHash,

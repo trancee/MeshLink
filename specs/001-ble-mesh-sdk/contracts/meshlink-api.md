@@ -70,6 +70,17 @@ interface MeshLinkApi {
 }
 ```
 
+**`updateBattery` contract notes**
+- `level` is clamped into the inclusive `0.0..1.0` range before policy evaluation.
+- `PowerMode.Automatic` uses shared commonMain policy logic with bootstrap,
+  hysteresis, and regulatory-region clamping.
+- Fixed `PowerMode` values keep the requested tier regardless of battery level,
+  while still exposing the current effective policy snapshot through diagnostics.
+- Each call emits a `POWER_MODE_CHANGED` diagnostic whose metadata keys are:
+  `level`, `isCharging`, `tier`, `advertisementIntervalMillis`,
+  `scanDutyCyclePercent`, `maxConnections`, `chunkBudgetBytes`, and `region`.
+  `clampWarnings` appears only when a regional clamp was applied.
+
 ## Public Types
 
 ### `MeshLinkState`
@@ -177,6 +188,8 @@ All thrown public exceptions derive from one sealed hierarchy defined in
 - Public API semantics are identical across Android and iOS.
 - `diagnosticEvents` use the full shared 26-code `DiagnosticCode` catalog with
   identical severities and payload shapes across Android and iOS.
+- `POWER_MODE_CHANGED` carries the same metadata keys and tier names on Android
+  and iOS for identical power-policy inputs.
 - All thrown public exceptions derive from `MeshLinkException`; platform
   exceptions are wrapped and MUST NOT leak directly to consumers.
 - `send()` never silently downgrades trust, routing, or payload-size behavior.

@@ -58,6 +58,10 @@ Collect:
 - `messages`
 
 Verify that both devices reach `Running` and begin peer discovery.
+If the host app forwards battery state with `updateBattery(level, isCharging)`,
+confirm that `diagnosticEvents` emits `POWER_MODE_CHANGED` entries whose
+metadata includes `tier`, `advertisementIntervalMillis`,
+`scanDutyCyclePercent`, `maxConnections`, `chunkBudgetBytes`, and `region`.
 
 ## 5. Keep both devices offline and within BLE range
 

@@ -9,6 +9,7 @@ This app is the iOS reference host for the MeshLink quickstart.
 - the Swift-installed `CryptoKit` bridge required by `IosCryptoProvider`
 - direct KMP framework integration through a pre-build Gradle script that runs `:meshlink:embedAndSignAppleFrameworkForXcode`
 - the default MeshLink `deliveryRetryDeadline` behavior; the proof app leaves the default 15-second deadline unchanged
+- shared `POWER_MODE_CHANGED` diagnostics that expose `tier`, `advertisementIntervalMillis`, `scanDutyCyclePercent`, `maxConnections`, `chunkBudgetBytes`, and `region`
 
 ## Build and run
 

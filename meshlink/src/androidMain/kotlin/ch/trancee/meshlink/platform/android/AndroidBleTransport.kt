@@ -19,6 +19,7 @@ import android.os.ParcelUuid
 import android.util.Log
 import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.identity.toHexString
+import ch.trancee.meshlink.power.PowerPolicy
 import ch.trancee.meshlink.transport.BleDiscoveryContract
 import ch.trancee.meshlink.transport.BleDiscoveryPayload
 import ch.trancee.meshlink.transport.BlePowerMode
@@ -64,6 +65,7 @@ internal class AndroidBleTransport(
     private var l2capServerSocket: BluetoothServerSocket? = null
     private var acceptLoopJob: Job? = null
     private var started: Boolean = false
+    private var currentPowerProfile: AndroidPowerProfile = AndroidPowerMonitor.defaultProfile()
     private var currentDiscoveryPayload: BleDiscoveryPayload = discoveryPayload(l2capPsm = 0u)
 
     override val events: Flow<TransportEvent> = mutableEvents.asSharedFlow()
@@ -115,6 +117,18 @@ internal class AndroidBleTransport(
     override suspend fun stop(): Unit {
         stopTransports(clearPeers = true)
         started = false
+    }
+
+    override suspend fun updatePowerPolicy(policy: PowerPolicy): Unit {
+        currentPowerProfile = AndroidPowerMonitor.profileFor(policy)
+        currentDiscoveryPayload = discoveryPayload(currentDiscoveryPayload.l2capPsm)
+        if (!started) {
+            return
+        }
+        scanner?.stopScan(scanCallback)
+        advertiser?.stopAdvertising(advertiseCallback)
+        scanner?.startScan(scanFilters(), scanSettings(), scanCallback)
+        advertiser?.startAdvertising(advertiseSettings(), advertiseData(currentDiscoveryPayload), advertiseCallback)
     }
 
     override suspend fun send(frame: OutboundFrame): TransportSendResult {
@@ -300,9 +314,9 @@ internal class AndroidBleTransport(
 
     private fun advertiseSettings(): AdvertiseSettings {
         return AdvertiseSettings.Builder()
-            .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_BALANCED)
+            .setAdvertiseMode(currentPowerProfile.advertiseMode)
             .setConnectable(true)
-            .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_MEDIUM)
+            .setTxPowerLevel(currentPowerProfile.txPowerLevel)
             .build()
     }
 
@@ -316,14 +330,14 @@ internal class AndroidBleTransport(
 
     private fun scanSettings(): ScanSettings {
         return ScanSettings.Builder()
-            .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
+            .setScanMode(currentPowerProfile.scanMode)
             .build()
     }
 
     private fun discoveryPayload(l2capPsm: UByte): BleDiscoveryPayload {
         return BleDiscoveryPayload(
             protocolVersion = 1,
-            powerMode = BlePowerMode.BALANCED,
+            powerMode = currentPowerProfile.discoveryPowerMode,
             meshHash = BleDiscoveryContract.computeMeshHash(appId),
             l2capPsm = l2capPsm,
             keyHash = localKeyHash,
