@@ -25,6 +25,10 @@ import ch.trancee.meshlink.diagnostics.DiagnosticSeverity
 import ch.trancee.meshlink.diagnostics.DiagnosticSink
 import ch.trancee.meshlink.identity.LocalIdentity
 import ch.trancee.meshlink.identity.toHexString
+import ch.trancee.meshlink.presence.PeerPresenceTracker
+import ch.trancee.meshlink.presence.PresenceTransition
+import ch.trancee.meshlink.routing.RouteCoordinator
+import ch.trancee.meshlink.routing.RoutingAdvertisement
 import ch.trancee.meshlink.storage.InMemorySecureStorage
 import ch.trancee.meshlink.storage.SecureStorage
 import ch.trancee.meshlink.transport.BleTransport
@@ -33,6 +37,8 @@ import ch.trancee.meshlink.transport.TransportEvent
 import ch.trancee.meshlink.transport.TransportSendResult
 import ch.trancee.meshlink.trust.TofuTrustStore
 import ch.trancee.meshlink.trust.TrustRecord
+import ch.trancee.meshlink.wire.WireCodec
+import ch.trancee.meshlink.wire.WireFrame
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
@@ -61,10 +67,13 @@ internal class MeshEngine private constructor(
 ) : MeshLinkApi {
     private val coroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val trustStore = TofuTrustStore(secureStorage)
+    private val presenceTracker = PeerPresenceTracker()
+    private val routeCoordinator = RouteCoordinator(localIdentity.peerId)
     private var transportCollectionJob: Job? = null
     private val hopSessions: MutableMap<String, HopSession> = linkedMapOf()
     private val pendingInitiatorHandshakes: MutableMap<String, PendingInitiatorHandshake> = linkedMapOf()
     private val pendingResponderHandshakes: MutableMap<String, PendingResponderHandshake> = linkedMapOf()
+    private var nextMessageSequenceNumber: Long = 1L
 
     private val mutableState: MutableStateFlow<MeshLinkState> =
         MutableStateFlow(MeshLinkState.Uninitialized)
@@ -169,9 +178,28 @@ internal class MeshEngine private constructor(
             return SendResult.NotSent(SendFailureReason.UNREACHABLE)
         }
 
-        return when (val sessionOutcome = ensureHopSession(peerId)) {
+        val nextHopPeerId = routeCoordinator.nextHopFor(peerId) ?: peerId
+        return when (val sessionOutcome = ensureHopSession(nextHopPeerId)) {
             is SessionEstablishmentOutcome.Established -> {
-                val recipientTrust = trustStore.read(peerId.value)
+                val recipientTrust = trustStore.read(peerId.value) ?: routeCoordinator.routeFor(peerId)?.let { route ->
+                    val learnedTrust = TrustRecord(
+                        peerIdValue = route.destinationPeerId.value,
+                        identityFingerprint = localIdentity.cryptoProvider.sha256(
+                            route.ed25519PublicKey + route.x25519PublicKey,
+                        ).toHexString(),
+                        ed25519PublicKey = route.ed25519PublicKey,
+                        x25519PublicKey = route.x25519PublicKey,
+                    )
+                    trustStore.write(learnedTrust)
+                    emitDiagnostic(
+                        code = DiagnosticCode.TRUST_ESTABLISHED,
+                        severity = DiagnosticSeverity.INFO,
+                        stage = "trust.routeUpdate",
+                        peerSuffix = peerId.value.takeLast(6),
+                        reason = DiagnosticReason.STATE_CHANGE,
+                    )
+                    learnedTrust
+                }
                 if (recipientTrust == null) {
                     emitDiagnostic(
                         code = DiagnosticCode.TRUST_FAILURE,
@@ -206,11 +234,19 @@ internal class MeshEngine private constructor(
                     senderX25519PublicKey = localIdentity.x25519PublicKey,
                     ciphertext = sealedPayload,
                 ).encode()
+                val routedMessage = WireFrame.Message(
+                    messageId = createMessageId(),
+                    originPeerId = localIdentity.peerId,
+                    destinationPeerId = peerId,
+                    priority = priority,
+                    ttlMillis = ttlMillisFor(priority),
+                    encryptedPayload = innerEnvelope,
+                )
                 val encryptedFrame = runCatching {
-                    encryptHopPayload(sessionOutcome.session, innerEnvelope)
+                    encryptHopPayload(sessionOutcome.session, WireCodec.encode(routedMessage))
                 }.getOrElse { exception ->
                     emitHopSessionFailed(
-                        peerId = peerId,
+                        peerId = nextHopPeerId,
                         stage = "delivery.send.transportEncrypt",
                         reason = DiagnosticReason.DELIVERY_FAILURE,
                         metadata = mapOf("cause" to exception::class.simpleName.orEmpty()),
@@ -220,7 +256,7 @@ internal class MeshEngine private constructor(
 
                 when (
                     sendDirectWireFrame(
-                        peerId = peerId,
+                        peerId = nextHopPeerId,
                         frame = DirectWireFrame.Data(encryptedFrame),
                         action = "send.data",
                     )
@@ -288,7 +324,15 @@ internal class MeshEngine private constructor(
         when (event) {
             is TransportEvent.FrameReceived -> handleInboundFrame(event)
             is TransportEvent.PeerDiscovered -> {
-                mutablePeerEvents.emit(PeerEvent.Found(event.peerId, PeerConnectionState.CONNECTED))
+                when (presenceTracker.onPeerConnected(event.peerId)) {
+                    PresenceTransition.FOUND -> {
+                        mutablePeerEvents.emit(PeerEvent.Found(event.peerId, PeerConnectionState.CONNECTED))
+                    }
+                    PresenceTransition.STATE_CHANGED -> {
+                        mutablePeerEvents.emit(PeerEvent.StateChanged(event.peerId, PeerConnectionState.CONNECTED))
+                    }
+                }
+                prewarmHopSession(event.peerId)
                 emitDiagnostic(
                     code = DiagnosticCode.ROUTE_DISCOVERED,
                     severity = DiagnosticSeverity.INFO,
@@ -303,7 +347,10 @@ internal class MeshEngine private constructor(
                     SessionEstablishmentOutcome.Unreachable,
                 )
                 pendingResponderHandshakes.remove(event.peerId.value)
-                mutablePeerEvents.emit(PeerEvent.Lost(event.peerId))
+                dispatchRoutingAdvertisements(routeCoordinator.onPeerDisconnected(event.peerId))
+                if (presenceTracker.onPeerDisconnected(event.peerId)) {
+                    mutablePeerEvents.emit(PeerEvent.Lost(event.peerId))
+                }
                 emitDiagnostic(
                     code = DiagnosticCode.ROUTE_EXPIRED,
                     severity = DiagnosticSeverity.WARN,
@@ -416,6 +463,7 @@ internal class MeshEngine private constructor(
                 hopSessions[peerId.value] = session
                 pendingInitiatorHandshakes.remove(peerId.value)
                 pending.sessionDeferred.complete(SessionEstablishmentOutcome.Established(session))
+                dispatchRoutingAdvertisements(routeCoordinator.onPeerConnected(peerId, trustRecord))
                 emitHopSessionEstablished(peerId, stage = "transport.handshake.message2.complete")
             }
 
@@ -465,6 +513,7 @@ internal class MeshEngine private constructor(
             return
         }
         hopSessions[peerId.value] = HopSession(sendKey = result.sendKey, receiveKey = result.receiveKey)
+        dispatchRoutingAdvertisements(routeCoordinator.onPeerConnected(peerId, trustRecord))
         emitHopSessionEstablished(peerId, stage = "transport.handshake.message3.complete")
     }
 
@@ -488,8 +537,8 @@ internal class MeshEngine private constructor(
             )
             return
         }
-        val envelope = runCatching {
-            DirectMessageEnvelope.decode(decryptedEnvelopeBytes)
+        val frame = runCatching {
+            WireCodec.decode(decryptedEnvelopeBytes)
         }.getOrElse { exception ->
             emitHopSessionFailed(
                 peerId = peerId,
@@ -499,8 +548,42 @@ internal class MeshEngine private constructor(
             )
             return
         }
+
+        when (frame) {
+            is WireFrame.Message -> handleRoutedMessageFrame(peerId = peerId, frame = frame)
+            is WireFrame.RouteUpdate -> dispatchRoutingAdvertisements(routeCoordinator.onRouteUpdate(peerId, frame))
+            is WireFrame.RouteRetraction -> dispatchRoutingAdvertisements(routeCoordinator.onRouteRetraction(peerId, frame))
+            is WireFrame.RouteDigest -> routeCoordinator.onRouteDigest(peerId, frame)
+            is WireFrame.Hello -> Unit
+            is WireFrame.Ihu -> Unit
+            is WireFrame.SeqNoRequest -> Unit
+            is WireFrame.TransferStart -> Unit
+            is WireFrame.TransferChunk -> Unit
+            is WireFrame.TransferAck -> Unit
+            is WireFrame.TransferComplete -> Unit
+            is WireFrame.TransferAbort -> Unit
+        }
+    }
+
+    private suspend fun handleRoutedMessageFrame(peerId: PeerId, frame: WireFrame.Message): Unit {
+        if (frame.destinationPeerId.value != localIdentity.peerId.value) {
+            forwardMessageToNextHop(frame)
+            return
+        }
+
+        val envelope = runCatching {
+            DirectMessageEnvelope.decode(frame.encryptedPayload)
+        }.getOrElse { exception ->
+            emitHopSessionFailed(
+                peerId = peerId,
+                stage = "transport.data.messageEnvelope",
+                reason = DiagnosticReason.DELIVERY_FAILURE,
+                metadata = mapOf("cause" to exception::class.simpleName.orEmpty()),
+            )
+            return
+        }
         val senderTrust = verifyAndPersistTrust(
-            peerId = peerId,
+            peerId = envelope.senderPeerId,
             remoteEd25519PublicKey = envelope.senderEd25519PublicKey,
             remoteX25519PublicKey = envelope.senderX25519PublicKey,
             expectedFingerprint = envelope.senderFingerprint,
@@ -516,7 +599,7 @@ internal class MeshEngine private constructor(
                 code = DiagnosticCode.TRUST_FAILURE,
                 severity = DiagnosticSeverity.ERROR,
                 stage = "transport.data.open",
-                peerSuffix = peerId.value.takeLast(6),
+                peerSuffix = envelope.senderPeerId.value.takeLast(6),
                 reason = DiagnosticReason.TRUST_FAILURE,
                 metadata = mapOf("cause" to exception::class.simpleName.orEmpty()),
             )
@@ -524,12 +607,78 @@ internal class MeshEngine private constructor(
         }
         mutableMessages.emit(
             InboundMessage(
-                originPeerId = envelope.senderPeerId,
+                originPeerId = frame.originPeerId,
                 payload = plaintext,
                 receivedAtEpochMillis = 0L,
-                priority = DeliveryPriority.NORMAL,
+                priority = frame.priority,
             ),
         )
+    }
+
+    private fun prewarmHopSession(peerId: PeerId): Unit {
+        if (localIdentity.peerId.value >= peerId.value) {
+            return
+        }
+        coroutineScope.launch {
+            ensureHopSession(peerId)
+        }
+    }
+
+    private fun forwardMessageToNextHop(frame: WireFrame.Message): Unit {
+        val nextHopPeerId = routeCoordinator.nextHopFor(frame.destinationPeerId) ?: return
+        coroutineScope.launch {
+            sendEncryptedWireFrame(
+                peerId = nextHopPeerId,
+                frame = frame,
+                action = "forward.message",
+            )
+        }
+    }
+
+    private fun dispatchRoutingAdvertisements(advertisements: List<RoutingAdvertisement>): Unit {
+        advertisements.forEach { advertisement ->
+            coroutineScope.launch {
+                sendEncryptedWireFrame(
+                    peerId = advertisement.targetPeerId,
+                    frame = advertisement.frame,
+                    action = "routing.advertise",
+                )
+            }
+        }
+    }
+
+    private suspend fun sendEncryptedWireFrame(
+        peerId: PeerId,
+        frame: WireFrame,
+        action: String,
+    ): Unit {
+        val sessionOutcome = ensureHopSession(peerId)
+        val session = (sessionOutcome as? SessionEstablishmentOutcome.Established)?.session ?: return
+        val encryptedFrame = runCatching {
+            encryptHopPayload(session, WireCodec.encode(frame))
+        }.getOrElse { exception ->
+            emitHopSessionFailed(
+                peerId = peerId,
+                stage = "$action.encrypt",
+                reason = DiagnosticReason.DELIVERY_FAILURE,
+                metadata = mapOf("cause" to exception::class.simpleName.orEmpty()),
+            )
+            return
+        }
+        when (
+            sendDirectWireFrame(
+                peerId = peerId,
+                frame = DirectWireFrame.Data(encryptedFrame),
+                action = action,
+            )
+        ) {
+            TransportSendResult.Delivered -> Unit
+            is TransportSendResult.Dropped -> emitHopSessionFailed(
+                peerId = peerId,
+                stage = "$action.send",
+                reason = DiagnosticReason.DELIVERY_FAILURE,
+            )
+        }
     }
 
     private suspend fun ensureHopSession(peerId: PeerId): SessionEstablishmentOutcome {
@@ -738,6 +887,20 @@ internal class MeshEngine private constructor(
                 "retryBackoffBaseMs" to INITIAL_BACKOFF.inWholeMilliseconds.toString(),
             ),
         )
+    }
+
+    private fun createMessageId(): String {
+        val current = nextMessageSequenceNumber
+        nextMessageSequenceNumber += 1L
+        return "${localIdentity.peerId.value.takeLast(6)}-$current"
+    }
+
+    private fun ttlMillisFor(priority: DeliveryPriority): Int {
+        return when (priority) {
+            DeliveryPriority.HIGH -> 45 * 60 * 1_000
+            DeliveryPriority.NORMAL -> 15 * 60 * 1_000
+            DeliveryPriority.LOW -> 5 * 60 * 1_000
+        }
     }
 
     private suspend fun <T> runPlatformCall(action: String, block: suspend () -> T): T {

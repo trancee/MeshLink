@@ -20,7 +20,12 @@ internal sealed class WireFrame {
         public val metric: Int,
         public val seqNo: Long,
         public val feasibilityMetric: Int,
-    ) : WireFrame()
+        destinationEd25519PublicKey: ByteArray,
+        destinationX25519PublicKey: ByteArray,
+    ) : WireFrame() {
+        public val destinationEd25519PublicKey: ByteArray = destinationEd25519PublicKey.copyOf()
+        public val destinationX25519PublicKey: ByteArray = destinationX25519PublicKey.copyOf()
+    }
 
     internal class RouteRetraction internal constructor(
         public val destinationPeerId: PeerId,
@@ -125,6 +130,8 @@ internal object WireCodec {
                 metric = table.readInt(ROUTE_UPDATE_METRIC_FIELD_INDEX),
                 seqNo = table.readLong(ROUTE_UPDATE_SEQ_NO_FIELD_INDEX),
                 feasibilityMetric = table.readInt(ROUTE_UPDATE_FEASIBILITY_FIELD_INDEX),
+                destinationEd25519PublicKey = requireByteVector(table, ROUTE_UPDATE_ED25519_FIELD_INDEX, "ROUTE_UPDATE.destinationEd25519PublicKey"),
+                destinationX25519PublicKey = requireByteVector(table, ROUTE_UPDATE_X25519_FIELD_INDEX, "ROUTE_UPDATE.destinationX25519PublicKey"),
             )
 
             WireEnvelopeType.ROUTE_RETRACTION -> WireFrame.RouteRetraction(
@@ -200,6 +207,8 @@ internal object WireCodec {
                 .addInt(ROUTE_UPDATE_METRIC_FIELD_INDEX, frame.metric)
                 .addLong(ROUTE_UPDATE_SEQ_NO_FIELD_INDEX, frame.seqNo)
                 .addInt(ROUTE_UPDATE_FEASIBILITY_FIELD_INDEX, frame.feasibilityMetric)
+                .addByteVector(ROUTE_UPDATE_ED25519_FIELD_INDEX, frame.destinationEd25519PublicKey)
+                .addByteVector(ROUTE_UPDATE_X25519_FIELD_INDEX, frame.destinationX25519PublicKey)
                 .finish()
 
             is WireFrame.RouteRetraction -> FlatBufferTableBuilder(fieldCount = ROUTE_RETRACTION_FIELD_COUNT)
@@ -309,12 +318,14 @@ internal object WireCodec {
     private const val IHU_PEER_ID_FIELD_INDEX: Int = 0
     private const val IHU_RECEIVE_COST_FIELD_INDEX: Int = 1
 
-    private const val ROUTE_UPDATE_FIELD_COUNT: Int = 5
+    private const val ROUTE_UPDATE_FIELD_COUNT: Int = 7
     private const val ROUTE_UPDATE_DESTINATION_FIELD_INDEX: Int = 0
     private const val ROUTE_UPDATE_NEXT_HOP_FIELD_INDEX: Int = 1
     private const val ROUTE_UPDATE_METRIC_FIELD_INDEX: Int = 2
     private const val ROUTE_UPDATE_SEQ_NO_FIELD_INDEX: Int = 3
     private const val ROUTE_UPDATE_FEASIBILITY_FIELD_INDEX: Int = 4
+    private const val ROUTE_UPDATE_ED25519_FIELD_INDEX: Int = 5
+    private const val ROUTE_UPDATE_X25519_FIELD_INDEX: Int = 6
 
     private const val ROUTE_RETRACTION_FIELD_COUNT: Int = 2
     private const val ROUTE_RETRACTION_DESTINATION_FIELD_INDEX: Int = 0

@@ -51,6 +51,8 @@ class WireEnvelopeContractTest {
                 metric = 3,
                 seqNo = 4_294_967_300L,
                 feasibilityMetric = 2,
+                destinationEd25519PublicKey = byteArrayOf(1, 2, 3, 4),
+                destinationX25519PublicKey = byteArrayOf(5, 6, 7, 8),
             ),
             WireFrame.RouteRetraction(
                 destinationPeerId = PeerId("destination-peer-003"),
@@ -177,6 +179,8 @@ class WireEnvelopeContractTest {
                 assertEquals(expected.metric, decoded.metric)
                 assertEquals(expected.seqNo, decoded.seqNo)
                 assertEquals(expected.feasibilityMetric, decoded.feasibilityMetric)
+                assertContentEquals(expected.destinationEd25519PublicKey, decoded.destinationEd25519PublicKey)
+                assertContentEquals(expected.destinationX25519PublicKey, decoded.destinationX25519PublicKey)
             }
 
             is WireFrame.RouteRetraction -> {

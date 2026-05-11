@@ -4,6 +4,7 @@ import ch.trancee.meshlink.api.InboundMessage
 import ch.trancee.meshlink.api.SendResult
 import ch.trancee.meshlink.test.MeshTestHarness
 import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -30,6 +31,7 @@ class MeshRoutingIntegrationTest {
         sender.api.start()
         relay.api.start()
         recipient.api.start()
+        delay(250)
         val receivedMessageDeferred = async {
             withTimeout(1_000) { recipient.api.messages.first() }
         }
@@ -61,6 +63,7 @@ class MeshRoutingIntegrationTest {
         firstRelay.api.start()
         recipient.api.start()
         alternateRelay.api.start()
+        delay(250)
 
         val firstMessageDeferred = async {
             withTimeout(1_000) { recipient.api.messages.first() }
@@ -71,6 +74,7 @@ class MeshRoutingIntegrationTest {
         harness.unlinkPeers(firstRelay, recipient)
         harness.linkPeers(sender, alternateRelay)
         harness.linkPeers(alternateRelay, recipient)
+        delay(250)
         val secondMessageDeferred = async {
             withTimeout(1_000) { recipient.api.messages.first() }
         }
@@ -99,6 +103,7 @@ class MeshRoutingIntegrationTest {
         sender.api.start()
         relay.api.start()
         recipient.api.start()
+        delay(250)
         val relayMessageDeferred = async {
             withTimeoutOrNull(500) { relay.api.messages.first() }
         }
