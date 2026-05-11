@@ -11,6 +11,14 @@ internal class MeshTestHarness {
     private val network = VirtualMeshNetwork()
     private val handles: MutableList<NodeHandle> = mutableListOf()
 
+    internal fun linkPeers(first: NodeHandle, second: NodeHandle): Unit {
+        network.linkPeers(first.peerId, second.peerId)
+    }
+
+    internal fun unlinkPeers(first: NodeHandle, second: NodeHandle): Unit {
+        network.unlinkPeers(first.peerId, second.peerId)
+    }
+
     internal fun createNode(
         peerIdValue: String,
         identityLabel: String = "default",
@@ -47,6 +55,10 @@ internal class MeshTestHarness {
 
     internal fun lastDeliveredFrame(): ByteArray? {
         return handles.mapNotNull { it.transport.lastSentFrame() }.lastOrNull()
+    }
+
+    internal fun sentFrames(handle: NodeHandle): List<ByteArray> {
+        return handle.transport.sentFrames()
     }
 
     private fun defaultConfig(appId: String): MeshLinkConfig {

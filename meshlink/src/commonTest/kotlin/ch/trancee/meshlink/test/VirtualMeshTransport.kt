@@ -79,4 +79,8 @@ internal class VirtualMeshTransport(
     internal fun lastSentFrame(): ByteArray? {
         return sentFrames.lastOrNull()?.copyOf()
     }
+
+    internal fun sentFrames(): List<ByteArray> {
+        return sentFrames.map { frame -> frame.copyOf() }
+    }
 }
