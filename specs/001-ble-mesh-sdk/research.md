@@ -145,9 +145,12 @@ identities survive switching between the JCA-backed and software paths.
 - iOS direct transport now has a compile-verified CoreBluetooth L2CAP path in
   `IosBleTransport.kt`, including PSM publication, advertisement, central
   connection/open-channel flow, incoming/outgoing channel registration, and
-  framed stream IO. Simulator compilation and an iOS-target framing test pass,
-  but real-device validation remains blocked until the attached iPhone 15 is
-  online/trusted by Xcode again.
+  framed stream IO. The repo now also contains a committed `meshlink-sample/ios`
+  Xcode project generated from `project.yml`; simulator build succeeds, physical
+  iPhone 15 build succeeds when a local development team is supplied, and app
+  installation via `devicectl` succeeds. The remaining real-device blocker is
+  first launch: iOS still denies opening the app until the developer profile is
+  explicitly trusted on the phone.
 
 **Alternatives considered:**
 - Assuming `X25519` / `Ed25519` JCA works on all Android 12+ devices — rejected

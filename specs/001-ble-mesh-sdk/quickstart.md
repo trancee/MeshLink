@@ -25,7 +25,9 @@ encrypted message exchange without servers or user accounts.
 
 ## 2. Create a MeshLink configuration
 
-Configure the SDK with a single cross-platform DSL.
+Configure the SDK with a single cross-platform DSL. The proof apps keep the
+default `deliveryRetryDeadline` of 15 seconds; override it only when you want
+to exercise the no-route retry window explicitly.
 
 ```kotlin
 import kotlin.time.Duration.Companion.seconds
@@ -42,6 +44,9 @@ val config = meshLinkConfig {
 
 - Android host apps call the Android factory and pass the Android context.
 - iOS host apps construct the exported framework object through the iOS factory.
+- The committed iOS proof sample now includes an Xcode project plus an XcodeGen
+  spec. Local iPhone builds still require a development team selection in Xcode
+  or a `DEVELOPMENT_TEAM=<your-team-id>` CLI override.
 - Both factories return the same `MeshLinkApi` surface.
 
 ## 4. Start the SDK and observe peers and diagnostics
@@ -72,6 +77,12 @@ Expected outcome:
 - `SendResult.Sent` on the sender
 - an inbound message on `messages` for the recipient
 - no backend or account interaction
+
+Proof-app note:
+- Android proof validation has already completed on attached hardware.
+- The iOS proof app now builds for both simulator and physical iPhone, but the
+  first physical launch may still require trusting the developer profile on the
+  phone before the app can be opened.
 
 ## 7. Validate restart and trust behavior
 

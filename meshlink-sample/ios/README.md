@@ -1,28 +1,90 @@
 # Proof iOS Integration
 
-This scaffold hosts the iOS proof app used by the MeshLink quickstart and
-later physical-device validation tasks.
+This app is the iOS reference host for the MeshLink quickstart.
 
-## Current Scope
+## What the repo now contains
 
-- direct KMP integration notes are expected in this directory
-- the SwiftUI entry point now includes a proof view model and control surface under `ProofApp/`
-- the proof app installs an iOS `CryptoKit` bridge at startup via `ProofApp/MeshLinkCryptoBridge.swift`
-- the shared library now contains a compile-verified CoreBluetooth L2CAP direct-transport path in `meshlink/src/iosMain/kotlin/ch/trancee/meshlink/platform/ios/IosBleTransport.kt`
-- the Swift proof layer typechecks against the generated MeshLink framework, including start/stop/send actions and Flow collectors for state, peers, diagnostics, and messages
-- benchmark source files will live under `ProofBenchmarks/`
+- a committed `ProofApp.xcodeproj` plus a matching `project.yml` XcodeGen spec
+- a SwiftUI proof UI with Start / Stop / Send Hello controls, peer visibility, diagnostics, and inbound-message logging
+- the Swift-installed `CryptoKit` bridge required by `IosCryptoProvider`
+- direct KMP framework integration through a pre-build Gradle script that runs `:meshlink:embedAndSignAppleFrameworkForXcode`
+- the default MeshLink `deliveryRetryDeadline` behavior; the proof app leaves the default 15-second deadline unchanged
 
-## Current Validation
+## Build and run
+
+### Regenerate the Xcode project (optional)
+
+The committed Xcode project is ready to open directly. If the project spec changes,
+regenerate it with:
+
+```bash
+cd meshlink-sample/ios
+xcodegen --spec project.yml
+```
+
+### Build for the simulator
+
+```bash
+xcodebuild \
+  -project meshlink-sample/ios/ProofApp.xcodeproj \
+  -scheme ProofApp \
+  -destination 'id=6C7DD73A-EC9C-46F9-B0B9-DD136F748621' \
+  build
+```
+
+### Build for a physical iPhone
+
+You need a local Apple development team for device signing. Either:
+
+- open `ProofApp.xcodeproj` in Xcode and select a team under Signing & Capabilities, or
+- pass `DEVELOPMENT_TEAM=<your-team-id>` to `xcodebuild`
+
+Example CLI build:
+
+```bash
+xcodebuild \
+  -project meshlink-sample/ios/ProofApp.xcodeproj \
+  -scheme ProofApp \
+  -destination 'id=<your-device-udid>' \
+  -allowProvisioningUpdates \
+  DEVELOPMENT_TEAM=<your-team-id> \
+  build
+```
+
+### Install and launch on a physical iPhone
+
+```bash
+xcrun devicectl device install app \
+  --device <your-device-udid> \
+  ~/Library/Developer/Xcode/DerivedData/ProofApp-*/Build/Products/Debug-iphoneos/ProofApp.app
+
+xcrun devicectl device process launch \
+  --device <your-device-udid> \
+  ch.trancee.meshlink.proof.ios
+```
+
+On the first local device run, iOS may refuse to launch the app until the
+developer profile has been trusted on the phone.
+
+## Current validation status
+
+Verified in this repository state:
 
 - `./gradlew :meshlink:compileKotlinIosSimulatorArm64`
 - `./gradlew :meshlink:iosSimulatorArm64Test --tests '*IosL2capFrameBufferTest'`
-- `xcrun swiftc -typecheck -target arm64-apple-ios15.0-simulator -sdk $(xcrun --show-sdk-path --sdk iphonesimulator) -F meshlink/build/bin/iosSimulatorArm64/debugFramework meshlink-sample/ios/ProofApp/*.swift`
+- `xcodebuild -project meshlink-sample/ios/ProofApp.xcodeproj -scheme ProofApp -destination 'id=6C7DD73A-EC9C-46F9-B0B9-DD136F748621' build`
+- `xcodebuild -project meshlink-sample/ios/ProofApp.xcodeproj -scheme ProofApp -destination 'id=00008120-00011DEE0105A01E' -allowProvisioningUpdates DEVELOPMENT_TEAM=<local-team-id> build`
+- `xcrun devicectl device install app --device 00008120-00011DEE0105A01E <built-app-path>`
 
-Real-device validation is still pending because the attached iPhone 15 remains
-offline/untrusted in local Xcode tooling.
+Current manual blocker:
 
-## Next Steps
+- the installed app launch is still denied on the attached iPhone 15 until the
+  developer profile is explicitly trusted on the device
 
-Later implementation tasks should wire the SwiftUI proof UI to the shared
-MeshLink runtime, add real-device iOS proof validation, and add benchmark
-instrumentation.
+## What to do once the phone trusts the build
+
+1. Launch the app on the iPhone.
+2. Tap **Start MeshLink**.
+3. Wait for a nearby Android or iOS proof peer to appear.
+4. Tap **Send Hello**.
+5. Confirm the diagnostics and inbound-message log match the quickstart flow.

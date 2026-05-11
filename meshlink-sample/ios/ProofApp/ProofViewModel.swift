@@ -9,10 +9,18 @@ final class ProofViewModel: ObservableObject {
     @Published private(set) var logs: [String] = []
 
     private let api: MeshLinkApi
-    private let stateCollector: FlowCollector
-    private let peerCollector: FlowCollector
-    private let diagnosticCollector: FlowCollector
-    private let messageCollector: FlowCollector
+    private lazy var stateCollector: FlowCollector = FlowCollector { [weak self] value in
+        self?.stateText = String(describing: value ?? "Unknown")
+    }
+    private lazy var peerCollector: FlowCollector = FlowCollector { [weak self] value in
+        self?.handlePeerEvent(value)
+    }
+    private lazy var diagnosticCollector: FlowCollector = FlowCollector { [weak self] value in
+        self?.handleDiagnosticEvent(value)
+    }
+    private lazy var messageCollector: FlowCollector = FlowCollector { [weak self] value in
+        self?.handleInboundMessage(value)
+    }
 
     init() {
         let config = MeshLinkConfigKt.meshLinkConfig { builder in
@@ -21,19 +29,6 @@ final class ProofViewModel: ObservableObject {
             builder.powerMode = PowerMode.Automatic.shared
         }
         self.api = MeshLink.shared.createIos(config: config)
-
-        self.stateCollector = FlowCollector { [weak self] value in
-            self?.stateText = String(describing: value ?? "Unknown")
-        }
-        self.peerCollector = FlowCollector { [weak self] value in
-            self?.handlePeerEvent(value)
-        }
-        self.diagnosticCollector = FlowCollector { [weak self] value in
-            self?.handleDiagnosticEvent(value)
-        }
-        self.messageCollector = FlowCollector { [weak self] value in
-            self?.handleInboundMessage(value)
-        }
 
         bindFlows()
     }

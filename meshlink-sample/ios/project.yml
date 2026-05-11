@@ -1,0 +1,41 @@
+name: ProofApp
+options:
+  minimumXcodeGenVersion: 2.45.0
+  deploymentTarget:
+    iOS: "15.0"
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    DEVELOPMENT_ASSET_PATHS: '""'
+    ENABLE_USER_SCRIPT_SANDBOXING: NO
+    FRAMEWORK_SEARCH_PATHS: '$(inherited) "$(SRCROOT)/../../meshlink/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)"'
+    GENERATE_INFOPLIST_FILE: NO
+    INFOPLIST_FILE: Support/Info.plist
+    LD_RUNPATH_SEARCH_PATHS: '$(inherited) @executable_path/Frameworks'
+    OTHER_LDFLAGS: '$(inherited) -framework MeshLink'
+    PRODUCT_NAME: "$(TARGET_NAME)"
+targets:
+  ProofApp:
+    type: application
+    platform: iOS
+    deploymentTarget: "15.0"
+    productBundleIdentifier: ch.trancee.meshlink.proof.ios
+    sources:
+      - path: ProofApp
+    preBuildScripts:
+      - name: Build MeshLink framework
+        basedOnDependencyAnalysis: false
+        script: |
+          if [ "YES" = "$OVERRIDE_KOTLIN_BUILD_IDE_SUPPORTED" ]; then
+              echo "Skipping Gradle build task invocation due to OVERRIDE_KOTLIN_BUILD_IDE_SUPPORTED environment variable set to \"YES\""
+              exit 0
+          fi
+          cd "$SRCROOT/../.."
+          ./gradlew :meshlink:embedAndSignAppleFrameworkForXcode
+    settings:
+      base:
+        ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS: NO
+        CODE_SIGN_STYLE: Automatic
+        INFOPLIST_FILE: Support/Info.plist
+        PRODUCT_BUNDLE_IDENTIFIER: ch.trancee.meshlink.proof.ios
+        TARGETED_DEVICE_FAMILY: "1"
