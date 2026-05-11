@@ -88,7 +88,7 @@ retransmission semantics.
 
 ### Validation for User Story 2 (REQUIRED) ⚠️
 
-- [ ] T019 [P] [US2] Add wire contract tests driven by `specs/001-ble-mesh-sdk/contracts/wire-envelope.md` in `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/wire/WireEnvelopeContractTest.kt`
+- [X] T019 [P] [US2] Add wire contract tests driven by `specs/001-ble-mesh-sdk/contracts/wire-envelope.md` in `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/wire/WireEnvelopeContractTest.kt`
 - [ ] T020 [P] [US2] Add multi-node routing, reconvergence, and relay-confidentiality integration tests in `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/integration/MeshRoutingIntegrationTest.kt`
 - [ ] T021 [P] [US2] Add bounded large-transfer, route-change resume, duplicate/out-of-order chunk, partial-ACK, and 64 KiB limit integration tests in `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/integration/LargeTransferIntegrationTest.kt`
 - [ ] T022 [US2] Validate multi-hop send, configured no-route retry deadline behavior, bounded exponential-backoff retry scheduling, immediate retry on route availability, and size-limit behavior against `specs/001-ble-mesh-sdk/quickstart.md` and `specs/001-ble-mesh-sdk/contracts/wire-envelope.md`
@@ -97,7 +97,7 @@ retransmission semantics.
 
 - [ ] T023 [P] [US2] Implement route tables, seqno freshness, feasibility checks, route digests, and differential updates in `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/routing/`
 - [ ] T024 [P] [US2] Implement peer lifecycle coordination and route cleanup in `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/presence/` and `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/engine/`
-- [ ] T025 [P] [US2] Implement FlatBuffers-compatible message, routing, and transfer codecs in `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/wire/`
+- [X] T025 [P] [US2] Implement FlatBuffers-compatible message, routing, and transfer codecs in `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/wire/`
 - [ ] T026 [P] [US2] Implement `TransferSession`, ACK scoreboard, configurable delivery-deadline plumbing, and pre-transfer size-limit rejection in `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/transfer/`
 - [ ] T027 [US2] Implement no-route retry scheduling with bounded, jittered exponential backoff and immediate retry on route availability in `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/engine/DeliveryRetryScheduler.kt`, integrate it through `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/engine/MeshEngine.kt`, `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/transport/`, and `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/diagnostics/`, then update `meshlink-sample/android/README.md` and `meshlink-sample/ios/README.md` for multi-hop evidence
 
