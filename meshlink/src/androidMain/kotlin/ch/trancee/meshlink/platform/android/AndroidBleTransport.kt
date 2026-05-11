@@ -174,7 +174,6 @@ internal class AndroidBleTransport(
 
         return runCatching {
                 transportMutex.withLock { link.write(frame.payload) }
-                log("send(${frame.peerId.value.takeLast(6)}) delivered ${frame.payload.size} bytes")
                 TransportSendResult.Delivered
             }
             .getOrElse { error ->
@@ -206,13 +205,22 @@ internal class AndroidBleTransport(
         val hintPeerId = PeerId(payload.keyHash.toHexString())
         val transportMode =
             if (payload.l2capPsm.toInt() == 0) TransportMode.GATT else TransportMode.L2CAP
-        log(
-            "scan found ${hintPeerId.value.takeLast(6)} mode=$transportMode psm=${payload.l2capPsm} addr=${result.device.address}"
-        )
         if (transportMode == TransportMode.L2CAP) {
             promoteTemporaryLink(address = result.device.address, hintPeerId = hintPeerId)
         }
         val discoveredPeer = discoveredPeers[hintPeerId.value]
+        if (
+            discoveredPeer != null &&
+                discoveredPeer.device.address == result.device.address &&
+                discoveredPeer.l2capPsm == payload.l2capPsm.toInt() &&
+                discoveredPeer.transportMode == transportMode
+        ) {
+            peerHintByAddress[result.device.address] = hintPeerId.value
+            return
+        }
+        log(
+            "scan found ${hintPeerId.value.takeLast(6)} mode=$transportMode psm=${payload.l2capPsm} addr=${result.device.address}"
+        )
         if (discoveredPeer == null) {
             discoveredPeers[hintPeerId.value] =
                 DiscoveredPeer(
@@ -368,9 +376,6 @@ internal class AndroidBleTransport(
                                 )
                                 return@forEach
                             }
-                            log(
-                                "received ${payload.size} bytes from ${currentPeerId.value.takeLast(6)}"
-                            )
                             mutableEvents.emit(
                                 TransportEvent.FrameReceived(
                                     peerId = currentPeerId,
