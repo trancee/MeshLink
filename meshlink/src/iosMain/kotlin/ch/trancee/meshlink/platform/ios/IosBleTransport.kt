@@ -61,6 +61,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
     private var centralManager: CBCentralManager? = null
     private var peripheralManager: CBPeripheralManager? = null
     private var started: Boolean = false
+    private var discoverySuspended: Boolean = false
 
     private val centralDelegate = IosCentralDelegate(this)
     private val peripheralClientDelegate = IosPeripheralClientDelegate(this)
@@ -96,9 +97,28 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
         if (!started) {
             return
         }
-        centralManager?.stopScan()
-        centralManager?.let(::startScanIfReady)
-        startAdvertisingIfReady()
+        refreshDiscoveryState()
+    }
+
+    override suspend fun setDiscoverySuspended(suspended: Boolean): Unit {
+        if (discoverySuspended == suspended) {
+            return
+        }
+        discoverySuspended = suspended
+        if (!started) {
+            return
+        }
+        log("discovery suspended=$suspended")
+        refreshDiscoveryState()
+    }
+
+    override fun maximumPayloadBytesPerDelivery(peerId: PeerId): Int? {
+        val peer = resolvePeer(peerId) ?: return null
+        return if (activeLinkFor(peer) != null) {
+            LARGE_DELIVERY_PAYLOAD_BUDGET_BYTES
+        } else {
+            null
+        }
     }
 
     override suspend fun send(frame: OutboundFrame): TransportSendResult {
@@ -117,10 +137,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
             return TransportSendResult.Dropped("iOS BLE GATT fallback transport is not implemented")
         }
 
-        val link =
-            activeLinksByHint[peer.hintPeerId.value]
-                ?: activeLinksByHint[
-                    temporaryHintByIdentifier[peer.peripheral.identifier.UUIDString.lowercase()]]
+        val link = activeLinkFor(peer)
         if (link == null) {
             connectIfNeeded(peer)
             log("send(${frame.peerId.value.takeLast(6)}) no active link, triggering connect")
@@ -142,7 +159,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
     }
 
     internal fun startScanIfReady(central: CBCentralManager): Unit {
-        if (!started || central.state != CBManagerStatePoweredOn) {
+        if (!started || discoverySuspended || central.state != CBManagerStatePoweredOn) {
             return
         }
         central.scanForPeripheralsWithServices(
@@ -172,7 +189,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
 
     internal fun startAdvertisingIfReady(): Unit {
         val peripheral = peripheralManager ?: return
-        if (!started || peripheral.state != CBManagerStatePoweredOn) {
+        if (!started || discoverySuspended || peripheral.state != CBManagerStatePoweredOn) {
             return
         }
         peripheral.stopAdvertising()
@@ -370,6 +387,16 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
         return compareUnsigned(localKeyHash, remoteKeyHash) < 0
     }
 
+    private fun activeLinkFor(peer: DiscoveredPeer): IosL2capLink? {
+        activeLinksByHint[peer.hintPeerId.value]?.let { activeLink ->
+            return activeLink
+        }
+        val temporaryHint =
+            temporaryHintByIdentifier[peer.peripheral.identifier.UUIDString.lowercase()]
+                ?: return null
+        return activeLinksByHint[temporaryHint]
+    }
+
     private fun resolvePeer(peerId: PeerId): DiscoveredPeer? {
         discoveredPeers[peerId.value]?.let {
             return it
@@ -388,6 +415,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
     }
 
     private fun stopTransport(clearPeers: Boolean): Unit {
+        discoverySuspended = false
         centralManager?.stopScan()
         peripheralManager?.stopAdvertising()
         val psm = currentDiscoveryPayload.l2capPsm.toInt()
@@ -412,6 +440,13 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
         link.readLoopJob?.cancel()
         link.close()
         mutableEvents.tryEmit(TransportEvent.PeerLost(PeerId(hintPeer)))
+    }
+
+    private fun refreshDiscoveryState(): Unit {
+        centralManager?.stopScan()
+        peripheralManager?.stopAdvertising()
+        centralManager?.let(::startScanIfReady)
+        startAdvertisingIfReady()
     }
 
     private fun discoveryPayload(l2capPsm: UByte): BleDiscoveryPayload {
@@ -502,12 +537,13 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
         }
 
         private companion object {
-            private const val STREAM_BUFFER_BYTES: Int = 1024
+            private const val STREAM_BUFFER_BYTES: Int = 16 * 1024
         }
     }
 
     private companion object {
-        private const val STREAM_POLL_INTERVAL_MS: Long = 50
+        private const val LARGE_DELIVERY_PAYLOAD_BUDGET_BYTES: Int = 128 * 1024
+        private const val STREAM_POLL_INTERVAL_MS: Long = 5
         private const val TEMPORARY_PEER_PREFIX: String = "cb-"
     }
 }

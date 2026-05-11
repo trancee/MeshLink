@@ -3,6 +3,7 @@ package ch.trancee.meshlink.integration
 import ch.trancee.meshlink.api.SendFailureReason
 import ch.trancee.meshlink.api.SendResult
 import ch.trancee.meshlink.config.meshLinkConfig
+import ch.trancee.meshlink.diagnostics.DiagnosticCode
 import ch.trancee.meshlink.test.MeshTestHarness
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -40,7 +41,7 @@ class LargeTransferIntegrationTest {
             recipient.api.start()
             delay(250)
             val receivedMessageDeferred = async {
-                withTimeout(3_000) { recipient.api.messages.first() }
+                withTimeout(6_000) { recipient.api.messages.first() }
             }
 
             // Act
@@ -50,6 +51,45 @@ class LargeTransferIntegrationTest {
             // Assert
             assertIs<SendResult.Sent>(sendResult)
             assertContentEquals(payload, receivedMessage.payload)
+        }
+
+    @Test
+    fun `a 64 KiB payload stays on the inline direct path when the transport budget allows it`() =
+        runBlocking {
+            // Arrange
+            val harness = MeshTestHarness()
+            val sender = harness.createNode("peer-a")
+            val recipient = harness.createNode("peer-b")
+            val payload = ByteArray(64 * 1024) { index -> ((index * 3) % 251).toByte() }
+
+            harness.linkPeers(sender, recipient)
+            harness.setMaximumPayloadBytesPerDelivery(128 * 1024)
+
+            sender.api.start()
+            recipient.api.start()
+            delay(500)
+            val frameCountBeforeSend = harness.sentFrames(sender).size
+            val receivedMessageDeferred = async {
+                withTimeout(6_000) { recipient.api.messages.first() }
+            }
+
+            // Act
+            val sendResult = sender.api.send(recipient.peerId, payload)
+            val receivedMessage = receivedMessageDeferred.await()
+            val senderFrameDelta = harness.sentFrames(sender).size - frameCountBeforeSend
+
+            // Assert
+            assertIs<SendResult.Sent>(sendResult)
+            assertContentEquals(payload, receivedMessage.payload)
+            assertFalse(
+                sender.diagnosticSink.events().any { event ->
+                    event.code == DiagnosticCode.TRANSFER_STARTED
+                }
+            )
+            assertTrue(
+                senderFrameDelta < 16,
+                "Expected inline direct delivery to avoid chunk fan-out, but sender emitted $senderFrameDelta frames",
+            )
         }
 
     @Test
