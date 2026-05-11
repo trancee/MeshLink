@@ -14,8 +14,6 @@ internal object MessageSealer {
     ): ByteArray {
         val provider = senderIdentity.cryptoProvider
         val associatedData = associatedData(
-            senderPeerIdValue = senderIdentity.peerId.value,
-            recipientPeerIdValue = recipientTrust.peerIdValue,
             senderEd25519PublicKey = senderIdentity.ed25519PublicKey,
             senderX25519PublicKey = senderIdentity.x25519PublicKey,
             recipientEd25519PublicKey = recipientTrust.ed25519PublicKey,
@@ -70,8 +68,6 @@ internal object MessageSealer {
 
         val provider = recipientIdentity.cryptoProvider
         val associatedData = associatedData(
-            senderPeerIdValue = senderTrust.peerIdValue,
-            recipientPeerIdValue = recipientIdentity.peerId.value,
             senderEd25519PublicKey = senderTrust.ed25519PublicKey,
             senderX25519PublicKey = senderTrust.x25519PublicKey,
             recipientEd25519PublicKey = recipientIdentity.ed25519PublicKey,
@@ -128,20 +124,12 @@ internal object MessageSealer {
     }
 
     private fun associatedData(
-        senderPeerIdValue: String,
-        recipientPeerIdValue: String,
         senderEd25519PublicKey: ByteArray,
         senderX25519PublicKey: ByteArray,
         recipientEd25519PublicKey: ByteArray,
         recipientX25519PublicKey: ByteArray,
     ): ByteArray {
         val buffer = WriteBuffer()
-        val senderPeerIdBytes = senderPeerIdValue.encodeToByteArray()
-        val recipientPeerIdBytes = recipientPeerIdValue.encodeToByteArray()
-        buffer.writeIntLittleEndian(senderPeerIdBytes.size)
-        buffer.writeBytes(senderPeerIdBytes)
-        buffer.writeIntLittleEndian(recipientPeerIdBytes.size)
-        buffer.writeBytes(recipientPeerIdBytes)
         buffer.writeIntLittleEndian(senderEd25519PublicKey.size)
         buffer.writeBytes(senderEd25519PublicKey)
         buffer.writeIntLittleEndian(senderX25519PublicKey.size)

@@ -138,10 +138,12 @@ class MeshLinkApiContractTest {
         val harness = MeshTestHarness()
         val receiver = harness.createNode("peer-receiver")
         val trustedSender = harness.createNode("peer-sender")
-        val replacedSender = harness.createNode("peer-sender", identityLabel = "rotated")
 
         receiver.api.start()
         trustedSender.api.start()
+        trustedSender.api.send(receiver.peerId, "hello".encodeToByteArray())
+
+        val replacedSender = harness.createNode("peer-sender", identityLabel = "rotated")
         replacedSender.api.start()
         val trustFailure = async {
             withTimeout(1_000) {
@@ -150,7 +152,6 @@ class MeshLinkApiContractTest {
         }
 
         // Act
-        trustedSender.api.send(receiver.peerId, "hello".encodeToByteArray())
         replacedSender.api.send(receiver.peerId, "hello-again".encodeToByteArray())
 
         // Assert

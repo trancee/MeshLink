@@ -4,6 +4,7 @@ import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.crypto.CryptoProvider
 import ch.trancee.meshlink.crypto.Ed25519KeyPair
 import ch.trancee.meshlink.crypto.NoiseIdentity
+import ch.trancee.meshlink.crypto.PlaceholderCryptoProvider
 import ch.trancee.meshlink.crypto.X25519KeyPair
 
 internal class LocalIdentity internal constructor(
@@ -28,21 +29,23 @@ internal class LocalIdentity internal constructor(
         internal fun fromPeerId(peerId: PeerId, identitySeed: String): LocalIdentity {
             val noiseIdentity = NoiseIdentity(
                 ed25519KeyPair = Ed25519KeyPair(
-                    privateKey = deterministicBytes("$identitySeed|ed25519|private", size = KEY_SIZE_BYTES),
-                    publicKey = deterministicBytes("$identitySeed|ed25519|public", size = KEY_SIZE_BYTES),
+                    privateKey = deterministicBytes("$identitySeed|ed25519", size = KEY_SIZE_BYTES),
+                    publicKey = deterministicBytes("$identitySeed|ed25519", size = KEY_SIZE_BYTES),
                 ),
                 x25519KeyPair = X25519KeyPair(
-                    privateKey = deterministicBytes("$identitySeed|x25519|private", size = KEY_SIZE_BYTES),
-                    publicKey = deterministicBytes("$identitySeed|x25519|public", size = KEY_SIZE_BYTES),
+                    privateKey = deterministicBytes("$identitySeed|x25519", size = KEY_SIZE_BYTES),
+                    publicKey = deterministicBytes("$identitySeed|x25519", size = KEY_SIZE_BYTES),
                 ),
             )
-            val pseudoHash = deterministicBytes("$identitySeed|fingerprint", size = HASH_SIZE_BYTES)
+            val publicKeyHash = PlaceholderCryptoProvider.sha256(
+                noiseIdentity.ed25519KeyPair.publicKey + noiseIdentity.x25519KeyPair.publicKey,
+            )
             return LocalIdentity(
                 peerId = peerId,
-                identityFingerprint = pseudoHash.toHexString(),
+                identityFingerprint = publicKeyHash.toHexString(),
                 noiseIdentity = noiseIdentity,
-                cryptoProvider = ThrowingCryptoProvider,
-                advertisementKeyHash = pseudoHash.copyOfRange(0, ADVERTISEMENT_KEY_HASH_SIZE_BYTES),
+                cryptoProvider = PlaceholderCryptoProvider,
+                advertisementKeyHash = publicKeyHash.copyOfRange(0, ADVERTISEMENT_KEY_HASH_SIZE_BYTES),
             )
         }
 
@@ -90,61 +93,5 @@ internal fun ByteArray.toHexString(): String {
     return joinToString(separator = "") { byte ->
         val value = byte.toInt() and 0xFF
         value.toString(radix = 16).padStart(length = 2, padChar = '0')
-    }
-}
-
-private object ThrowingCryptoProvider : CryptoProvider {
-    override fun randomBytes(size: Int): ByteArray {
-        throw unsupported()
-    }
-
-    override fun sha256(input: ByteArray): ByteArray {
-        throw unsupported()
-    }
-
-    override fun hmacSha256(key: ByteArray, data: ByteArray): ByteArray {
-        throw unsupported()
-    }
-
-    override fun generateX25519KeyPair(): X25519KeyPair {
-        throw unsupported()
-    }
-
-    override fun generateEd25519KeyPair(): Ed25519KeyPair {
-        throw unsupported()
-    }
-
-    override fun x25519(privateKey: ByteArray, publicKey: ByteArray): ByteArray {
-        throw unsupported()
-    }
-
-    override fun ed25519Sign(privateKey: ByteArray, message: ByteArray): ByteArray {
-        throw unsupported()
-    }
-
-    override fun ed25519Verify(publicKey: ByteArray, message: ByteArray, signature: ByteArray): Boolean {
-        throw unsupported()
-    }
-
-    override fun chacha20Poly1305Seal(
-        key: ByteArray,
-        nonce: ByteArray,
-        aad: ByteArray,
-        plaintext: ByteArray,
-    ): ByteArray {
-        throw unsupported()
-    }
-
-    override fun chacha20Poly1305Open(
-        key: ByteArray,
-        nonce: ByteArray,
-        aad: ByteArray,
-        ciphertext: ByteArray,
-    ): ByteArray {
-        throw unsupported()
-    }
-
-    private fun unsupported(): IllegalStateException {
-        return IllegalStateException("Real cryptography is unavailable for placeholder LocalIdentity instances")
     }
 }
