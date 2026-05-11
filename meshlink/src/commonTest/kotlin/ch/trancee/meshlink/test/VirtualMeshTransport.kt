@@ -42,6 +42,10 @@ internal class VirtualMeshTransport(
         eventChannel = Channel(capacity = Channel.UNLIMITED)
     }
 
+    override fun maximumPayloadBytesPerDelivery(peerId: PeerId): Int? {
+        return network.maximumPayloadBytesPerDelivery()
+    }
+
     override suspend fun send(frame: OutboundFrame): TransportSendResult {
         if (!started) {
             return TransportSendResult.Dropped("virtual transport is not started")

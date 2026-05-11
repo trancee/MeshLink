@@ -3,11 +3,9 @@ package ch.trancee.meshlink.proof.android
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
-import org.junit.Ignore
 import org.junit.Test
 import org.junit.runner.RunWith
 
-@Ignore("Blocked by physical Android transport DirectWireFrame truncation during benchmark sends")
 @RunWith(AndroidJUnit4::class)
 class TransportPerformanceBenchmark {
     @Test
@@ -22,7 +20,7 @@ class TransportPerformanceBenchmark {
 
         try {
             // Act
-            val logLine = BenchmarkTestSupport.waitForLogLine("BENCHMARK transport", 20_000)
+            val logLine = BenchmarkTestSupport.waitForLogLine("BENCHMARK transport bytes=", 20_000)
             val elapsedMs = BenchmarkTestSupport.extractElapsedMs(logLine)
             val result = BenchmarkTestSupport.extractResult(logLine)
 
@@ -54,7 +52,7 @@ class TransportPerformanceBenchmark {
 
         try {
             // Act
-            val logLine = BenchmarkTestSupport.waitForLogLine("BENCHMARK transport", 30_000)
+            val logLine = BenchmarkTestSupport.waitForLogLine("BENCHMARK transport bytes=", 30_000)
             val throughputKilobytesPerSecond =
                 BenchmarkTestSupport.extractThroughputKilobytesPerSecond(logLine)
             val result = BenchmarkTestSupport.extractResult(logLine)

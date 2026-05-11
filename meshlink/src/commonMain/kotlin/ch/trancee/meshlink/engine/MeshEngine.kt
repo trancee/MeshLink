@@ -204,68 +204,12 @@ private constructor(
             scheduleRetryDiagnostic(peerId = peerId, priority = priority)
             return SendResult.NotSent(SendFailureReason.UNREACHABLE)
         }
-        if (payload.size > INLINE_MESSAGE_PAYLOAD_BYTES) {
+        val shouldUseInlineDelivery =
+            payload.size <= INLINE_MESSAGE_PAYLOAD_BYTES || shouldAttemptLargeInlineSend(peerId)
+        if (!shouldUseInlineDelivery) {
             return sendLargePayload(peerId = peerId, payload = payload, priority = priority)
         }
-
-        val startedAt = TimeSource.Monotonic.markNow()
-        var attempt = 0
-        var topologyVersion = routeCoordinator.topologyVersion.value
-        while (startedAt.elapsedNow() < config.deliveryRetryDeadline) {
-            when (
-                val sendResult =
-                    attemptInlineSend(peerId = peerId, payload = payload, priority = priority)
-            ) {
-                is SendResult.Sent -> return sendResult
-                is SendResult.NotSent -> {
-                    if (sendResult.reason != SendFailureReason.UNREACHABLE) {
-                        return sendResult
-                    }
-                }
-            }
-            emitDiagnostic(
-                code = DiagnosticCode.DELIVERY_RETRY_SCHEDULED,
-                severity = DiagnosticSeverity.WARN,
-                stage = "delivery.retryScheduled",
-                peerSuffix = peerId.value.takeLast(6),
-                reason = DiagnosticReason.DELIVERY_RETRY,
-                metadata = mapOf("attempt" to attempt.toString()),
-            )
-            when (
-                val wakeup =
-                    deliveryRetryScheduler.awaitRetry(
-                        attempt = attempt,
-                        remainingBudget = config.deliveryRetryDeadline - startedAt.elapsedNow(),
-                        lastObservedTopologyVersion = topologyVersion,
-                    )
-            ) {
-                is RetryWakeup.DeadlineExpired -> break
-                is RetryWakeup.TimerElapsed -> {
-                    topologyVersion = wakeup.topologyVersion
-                    attempt += 1
-                }
-                is RetryWakeup.TopologyChanged -> {
-                    topologyVersion = wakeup.topologyVersion
-                    attempt = 0
-                }
-            }
-            emitDiagnostic(
-                code = DiagnosticCode.DELIVERY_RETRYING,
-                severity = DiagnosticSeverity.WARN,
-                stage = "delivery.retrying",
-                peerSuffix = peerId.value.takeLast(6),
-                reason = DiagnosticReason.DELIVERY_RETRY,
-                metadata = mapOf("attempt" to attempt.toString()),
-            )
-        }
-        emitDiagnostic(
-            code = DiagnosticCode.DELIVERY_UNREACHABLE,
-            severity = DiagnosticSeverity.ERROR,
-            stage = "delivery.retryExpired",
-            peerSuffix = peerId.value.takeLast(6),
-            reason = DiagnosticReason.DELIVERY_FAILURE,
-        )
-        return SendResult.NotSent(SendFailureReason.UNREACHABLE)
+        return sendInlinePayload(peerId = peerId, payload = payload, priority = priority)
     }
 
     override suspend fun forgetPeer(peerId: PeerId): ForgetPeerResult {
@@ -649,6 +593,71 @@ private constructor(
                 priority = priority,
             )
         )
+    }
+
+    private suspend fun sendInlinePayload(
+        peerId: PeerId,
+        payload: ByteArray,
+        priority: DeliveryPriority,
+    ): SendResult {
+        val startedAt = TimeSource.Monotonic.markNow()
+        var attempt = 0
+        var topologyVersion = routeCoordinator.topologyVersion.value
+        while (startedAt.elapsedNow() < config.deliveryRetryDeadline) {
+            when (
+                val sendResult =
+                    attemptInlineSend(peerId = peerId, payload = payload, priority = priority)
+            ) {
+                is SendResult.Sent -> return sendResult
+                is SendResult.NotSent -> {
+                    if (sendResult.reason != SendFailureReason.UNREACHABLE) {
+                        return sendResult
+                    }
+                }
+            }
+            emitDiagnostic(
+                code = DiagnosticCode.DELIVERY_RETRY_SCHEDULED,
+                severity = DiagnosticSeverity.WARN,
+                stage = "delivery.retryScheduled",
+                peerSuffix = peerId.value.takeLast(6),
+                reason = DiagnosticReason.DELIVERY_RETRY,
+                metadata = mapOf("attempt" to attempt.toString()),
+            )
+            when (
+                val wakeup =
+                    deliveryRetryScheduler.awaitRetry(
+                        attempt = attempt,
+                        remainingBudget = config.deliveryRetryDeadline - startedAt.elapsedNow(),
+                        lastObservedTopologyVersion = topologyVersion,
+                    )
+            ) {
+                is RetryWakeup.DeadlineExpired -> break
+                is RetryWakeup.TimerElapsed -> {
+                    topologyVersion = wakeup.topologyVersion
+                    attempt += 1
+                }
+                is RetryWakeup.TopologyChanged -> {
+                    topologyVersion = wakeup.topologyVersion
+                    attempt = 0
+                }
+            }
+            emitDiagnostic(
+                code = DiagnosticCode.DELIVERY_RETRYING,
+                severity = DiagnosticSeverity.WARN,
+                stage = "delivery.retrying",
+                peerSuffix = peerId.value.takeLast(6),
+                reason = DiagnosticReason.DELIVERY_RETRY,
+                metadata = mapOf("attempt" to attempt.toString()),
+            )
+        }
+        emitDiagnostic(
+            code = DiagnosticCode.DELIVERY_UNREACHABLE,
+            severity = DiagnosticSeverity.ERROR,
+            stage = "delivery.retryExpired",
+            peerSuffix = peerId.value.takeLast(6),
+            reason = DiagnosticReason.DELIVERY_FAILURE,
+        )
+        return SendResult.NotSent(SendFailureReason.UNREACHABLE)
     }
 
     private suspend fun attemptInlineSend(
@@ -1177,6 +1186,15 @@ private constructor(
         }
     }
 
+    private fun shouldAttemptLargeInlineSend(peerId: PeerId): Boolean {
+        val nextHopPeerId = routeCoordinator.nextHopFor(peerId) ?: peerId
+        if (nextHopPeerId.value != peerId.value) {
+            return false
+        }
+        val transportBudget = bleTransport?.maximumPayloadBytesPerDelivery(nextHopPeerId) ?: return false
+        return transportBudget >= LARGE_INLINE_SEND_TRANSPORT_BUDGET_BYTES
+    }
+
     private fun isLocalPeerId(peerId: PeerId): Boolean {
         return peerId.value == localIdentity.peerId.value ||
             peerId.value == localIdentity.advertisementKeyHash.toHexString()
@@ -1519,6 +1537,7 @@ private constructor(
     internal companion object {
         private const val MAX_SUPPORTED_PAYLOAD_BYTES: Int = 64 * 1024
         private const val INLINE_MESSAGE_PAYLOAD_BYTES: Int = 1_024
+        private const val LARGE_INLINE_SEND_TRANSPORT_BUDGET_BYTES: Int = 16 * 1024
         private const val TRANSFER_CHUNK_PAYLOAD_BYTES: Int = 392
         private val TRANSFER_ACK_SETTLEMENT_TIMEOUT = 500.milliseconds
         private val TRANSFER_ACK_IDLE_WINDOW = 25.milliseconds

@@ -61,6 +61,10 @@ internal class VirtualMeshNetwork {
         maximumPayloadBytesPerDelivery = limit
     }
 
+    internal fun maximumPayloadBytesPerDelivery(): Int? {
+        return maximumPayloadBytesPerDelivery
+    }
+
     internal fun dropNextDeliveries(
         senderPeerId: PeerId,
         recipientPeerId: PeerId,

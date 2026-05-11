@@ -143,6 +143,11 @@ internal class AndroidBleTransport(
         refreshDiscoveryState()
     }
 
+    override fun maximumPayloadBytesPerDelivery(peerId: PeerId): Int? {
+        val peer = resolvePeer(peerId) ?: return null
+        return activeLinksByHint[peer.hintPeerId.value]?.maxTransmitPacketSize
+    }
+
     override suspend fun send(frame: OutboundFrame): TransportSendResult {
         if (!started) {
             log("send(${frame.peerId.value.takeLast(6)}) dropped: transport not started")
@@ -533,6 +538,7 @@ internal class AndroidBleTransport(
         val inputStream: InputStream = socket.inputStream
         private val outputStream = socket.outputStream
         val maxReceivePacketSize: Int = socket.maxReceivePacketSize
+        val maxTransmitPacketSize: Int = socket.maxTransmitPacketSize
         var readLoopJob: Job? = null
 
         suspend fun write(payload: ByteArray): Unit {
