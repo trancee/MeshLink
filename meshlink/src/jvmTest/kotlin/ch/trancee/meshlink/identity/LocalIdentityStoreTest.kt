@@ -1,0 +1,69 @@
+package ch.trancee.meshlink.identity
+
+import ch.trancee.meshlink.api.MeshLinkException
+import ch.trancee.meshlink.crypto.JvmCryptoProvider
+import ch.trancee.meshlink.storage.InMemorySecureStorage
+import kotlinx.coroutines.runBlocking
+import kotlin.test.Test
+import kotlin.test.assertContentEquals
+import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertTrue
+
+class LocalIdentityStoreTest {
+    private val provider = JvmCryptoProvider()
+
+    @Test
+    fun `loadOrCreate persists and reloads the same local identity`() = runBlocking {
+        // Arrange
+        val storage = InMemorySecureStorage()
+        val appId = "demo.meshlink"
+
+        // Act
+        val firstIdentity = LocalIdentityStore.loadOrCreate(
+            appId = appId,
+            secureStorage = storage,
+            provider = provider,
+        )
+        val secondIdentity = LocalIdentityStore.loadOrCreate(
+            appId = appId,
+            secureStorage = storage,
+            provider = provider,
+        )
+
+        // Assert
+        assertEquals(firstIdentity.peerId.value, secondIdentity.peerId.value)
+        assertEquals(firstIdentity.identityFingerprint, secondIdentity.identityFingerprint)
+        assertContentEquals(firstIdentity.ed25519PublicKey, secondIdentity.ed25519PublicKey)
+        assertContentEquals(firstIdentity.x25519PublicKey, secondIdentity.x25519PublicKey)
+        assertEquals(12, firstIdentity.advertisementKeyHash.size)
+        assertTrue(firstIdentity.peerId.value.isNotBlank(), "Provider-backed identities should derive a stable peer id")
+    }
+
+    @Test
+    fun `loadOrCreate fails closed when stored key material is incomplete`() {
+        // Arrange
+        val storage = InMemorySecureStorage()
+        val appId = "broken.meshlink"
+        runBlocking {
+            storage.write("identity:$appId:ed25519-private", ByteArray(32) { 0x01.toByte() })
+        }
+
+        // Act
+        val exception = assertFailsWith<MeshLinkException.StorageFailure> {
+            runBlocking {
+                LocalIdentityStore.loadOrCreate(
+                    appId = appId,
+                    secureStorage = storage,
+                    provider = provider,
+                )
+            }
+        }
+
+        // Assert
+        assertTrue(
+            actual = exception.message.orEmpty().contains("incomplete"),
+            message = "Incomplete stored identities must fail closed instead of silently rotating keys",
+        )
+    }
+}

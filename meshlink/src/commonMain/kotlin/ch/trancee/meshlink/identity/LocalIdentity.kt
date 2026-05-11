@@ -1,24 +1,91 @@
 package ch.trancee.meshlink.identity
 
 import ch.trancee.meshlink.api.PeerId
+import ch.trancee.meshlink.crypto.CryptoProvider
+import ch.trancee.meshlink.crypto.Ed25519KeyPair
+import ch.trancee.meshlink.crypto.NoiseIdentity
+import ch.trancee.meshlink.crypto.X25519KeyPair
 
 internal class LocalIdentity internal constructor(
     internal val peerId: PeerId,
     internal val identityFingerprint: String,
+    internal val noiseIdentity: NoiseIdentity,
+    advertisementKeyHash: ByteArray,
 ) {
+    internal val advertisementKeyHash: ByteArray = advertisementKeyHash.copyOf()
+    internal val ed25519PublicKey: ByteArray = noiseIdentity.ed25519KeyPair.publicKey.copyOf()
+    internal val x25519PublicKey: ByteArray = noiseIdentity.x25519KeyPair.publicKey.copyOf()
+
     internal companion object {
         internal fun fromAppId(appId: String): LocalIdentity {
-            return LocalIdentity(
+            return fromPeerId(
                 peerId = PeerId(appId),
-                identityFingerprint = appId.reversed(),
+                identitySeed = appId,
             )
         }
 
         internal fun fromPeerId(peerId: PeerId, identitySeed: String): LocalIdentity {
+            val noiseIdentity = NoiseIdentity(
+                ed25519KeyPair = Ed25519KeyPair(
+                    privateKey = deterministicBytes("$identitySeed|ed25519|private", size = KEY_SIZE_BYTES),
+                    publicKey = deterministicBytes("$identitySeed|ed25519|public", size = KEY_SIZE_BYTES),
+                ),
+                x25519KeyPair = X25519KeyPair(
+                    privateKey = deterministicBytes("$identitySeed|x25519|private", size = KEY_SIZE_BYTES),
+                    publicKey = deterministicBytes("$identitySeed|x25519|public", size = KEY_SIZE_BYTES),
+                ),
+            )
+            val pseudoHash = deterministicBytes("$identitySeed|fingerprint", size = HASH_SIZE_BYTES)
             return LocalIdentity(
                 peerId = peerId,
-                identityFingerprint = identitySeed.reversed(),
+                identityFingerprint = pseudoHash.toHexString(),
+                noiseIdentity = noiseIdentity,
+                advertisementKeyHash = pseudoHash.copyOfRange(0, ADVERTISEMENT_KEY_HASH_SIZE_BYTES),
             )
         }
+
+        internal fun fromNoiseIdentity(
+            noiseIdentity: NoiseIdentity,
+            provider: CryptoProvider,
+            peerId: PeerId? = null,
+        ): LocalIdentity {
+            val publicKeyHash = provider.sha256(
+                noiseIdentity.ed25519KeyPair.publicKey + noiseIdentity.x25519KeyPair.publicKey,
+            )
+            val derivedPeerId = peerId ?: PeerId(publicKeyHash.copyOfRange(0, PEER_ID_SIZE_BYTES).toHexString())
+            return LocalIdentity(
+                peerId = derivedPeerId,
+                identityFingerprint = publicKeyHash.toHexString(),
+                noiseIdentity = noiseIdentity,
+                advertisementKeyHash = publicKeyHash.copyOfRange(0, ADVERTISEMENT_KEY_HASH_SIZE_BYTES),
+            )
+        }
+
+        private const val ADVERTISEMENT_KEY_HASH_SIZE_BYTES: Int = 12
+        private const val HASH_SIZE_BYTES: Int = 32
+        private const val KEY_SIZE_BYTES: Int = 32
+        private const val PEER_ID_SIZE_BYTES: Int = 20
+    }
+}
+
+private fun deterministicBytes(seed: String, size: Int): ByteArray {
+    val encodedSeed = seed.encodeToByteArray()
+    val seedBytes = if (encodedSeed.isNotEmpty()) encodedSeed else byteArrayOf(0)
+    var state = 0x811C9DC5.toInt()
+    val output = ByteArray(size) { index ->
+        val mixedInput = (seedBytes[index % seedBytes.size].toInt() and 0xFF) + index
+        state = (state xor mixedInput) * 16777619
+        (state ushr ((index and 3) * 8)).toByte()
+    }
+    if (output.all { byte -> byte == 0.toByte() }) {
+        output[0] = 1
+    }
+    return output
+}
+
+internal fun ByteArray.toHexString(): String {
+    return joinToString(separator = "") { byte ->
+        val value = byte.toInt() and 0xFF
+        value.toString(radix = 16).padStart(length = 2, padChar = '0')
     }
 }

@@ -20,6 +20,7 @@ class IosCryptoProviderTest {
     @Test
     fun randomBytesFailsWhenBridgeIsMissing(): Unit {
         // Arrange
+        IosCryptoBridgeRegistry.clear()
         val provider = IosCryptoProvider()
 
         // Act

@@ -164,6 +164,8 @@ internal class MeshEngine private constructor(
         val frame = DirectMessageEnvelope(
             senderPeerId = localIdentity.peerId,
             senderFingerprint = localIdentity.identityFingerprint,
+            senderEd25519PublicKey = localIdentity.ed25519PublicKey,
+            senderX25519PublicKey = localIdentity.x25519PublicKey,
             ciphertext = ciphertext,
         ).encode()
 
@@ -271,6 +273,8 @@ internal class MeshEngine private constructor(
                 TrustRecord(
                     peerIdValue = envelope.senderPeerId.value,
                     identityFingerprint = envelope.senderFingerprint,
+                    ed25519PublicKey = envelope.senderEd25519PublicKey,
+                    x25519PublicKey = envelope.senderX25519PublicKey,
                 ),
             )
             emitDiagnostic(
@@ -280,7 +284,11 @@ internal class MeshEngine private constructor(
                 peerSuffix = envelope.senderPeerId.value.takeLast(6),
                 reason = DiagnosticReason.STATE_CHANGE,
             )
-        } else if (existingTrust.identityFingerprint != envelope.senderFingerprint) {
+        } else if (
+            existingTrust.identityFingerprint != envelope.senderFingerprint ||
+            !existingTrust.ed25519PublicKey.contentEquals(envelope.senderEd25519PublicKey) ||
+            !existingTrust.x25519PublicKey.contentEquals(envelope.senderX25519PublicKey)
+        ) {
             emitDiagnostic(
                 code = DiagnosticCode.TRUST_FAILURE,
                 severity = DiagnosticSeverity.ERROR,
