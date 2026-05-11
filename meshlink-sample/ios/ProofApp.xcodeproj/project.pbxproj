@@ -9,14 +9,34 @@
 /* Begin PBXBuildFile section */
 		23F2C7D99A97B029F1FA632E /* ProofViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 449C6808F0174CE46FCA8BC6 /* ProofViewModel.swift */; };
 		395F70816C081CC331C99357 /* ProofApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B450AC2ED51A141367368720 /* ProofApp.swift */; };
+		4CA77348EDB28F13CDC12398 /* PowerProfileBenchmark.swift in Sources */ = {isa = PBXBuildFile; fileRef = 033612DB1CD3421011142A10 /* PowerProfileBenchmark.swift */; };
+		72FF2746CA1351980C970D33 /* BenchmarkTestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8425B56578082E0CBC21735 /* BenchmarkTestSupport.swift */; };
 		73745979D47B3AAA29F4E34F /* MeshLinkCryptoBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3E69802EF0E01D926EA6A44 /* MeshLinkCryptoBridge.swift */; };
+		A27123E5BC9F56E96A7FE533 /* ColdStartBenchmark.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6469225EB29E7FF131D51123 /* ColdStartBenchmark.swift */; };
+		B0D984C35FA81B7616E60ABF /* TransportPerformanceBenchmark.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38B26770518856564F031445 /* TransportPerformanceBenchmark.swift */; };
 		BE842C02B2F375FC0A1E79C7 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBAAE7CF0C372ED368DA9E48 /* ContentView.swift */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		2129C3DB42154218EDC719B0 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 8FFDD2185888DC8152A12ED4 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = DB0146505CF03793A890B674;
+			remoteInfo = ProofApp;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
+		033612DB1CD3421011142A10 /* PowerProfileBenchmark.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PowerProfileBenchmark.swift; sourceTree = "<group>"; };
+		38B26770518856564F031445 /* TransportPerformanceBenchmark.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransportPerformanceBenchmark.swift; sourceTree = "<group>"; };
+		41FA7EB63D3FCC9D89A53CC6 /* ProofBenchmarks.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = ProofBenchmarks.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		42AE38A6A4182F543FAA1B57 /* ProofApp.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = ProofApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		449C6808F0174CE46FCA8BC6 /* ProofViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProofViewModel.swift; sourceTree = "<group>"; };
+		6469225EB29E7FF131D51123 /* ColdStartBenchmark.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColdStartBenchmark.swift; sourceTree = "<group>"; };
+		81F2E52ACDF038035D9F5DFC /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		B450AC2ED51A141367368720 /* ProofApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProofApp.swift; sourceTree = "<group>"; };
+		D8425B56578082E0CBC21735 /* BenchmarkTestSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BenchmarkTestSupport.swift; sourceTree = "<group>"; };
 		DBAAE7CF0C372ED368DA9E48 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		F3E69802EF0E01D926EA6A44 /* MeshLinkCryptoBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeshLinkCryptoBridge.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -37,6 +57,7 @@
 			isa = PBXGroup;
 			children = (
 				42AE38A6A4182F543FAA1B57 /* ProofApp.app */,
+				41FA7EB63D3FCC9D89A53CC6 /* ProofBenchmarks.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -45,13 +66,44 @@
 			isa = PBXGroup;
 			children = (
 				02B76BFC51556B90B73C0F24 /* ProofApp */,
+				DF30AE0347A16DD3AFDD08A2 /* ProofBenchmarks */,
 				380966D4691BE45E22767550 /* Products */,
 			);
+			sourceTree = "<group>";
+		};
+		DF30AE0347A16DD3AFDD08A2 /* ProofBenchmarks */ = {
+			isa = PBXGroup;
+			children = (
+				81F2E52ACDF038035D9F5DFC /* .gitkeep */,
+				D8425B56578082E0CBC21735 /* BenchmarkTestSupport.swift */,
+				6469225EB29E7FF131D51123 /* ColdStartBenchmark.swift */,
+				033612DB1CD3421011142A10 /* PowerProfileBenchmark.swift */,
+				38B26770518856564F031445 /* TransportPerformanceBenchmark.swift */,
+			);
+			path = ProofBenchmarks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		9CA1C241FDE55639E674CC1B /* ProofBenchmarks */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 6BFB9C84050D7E8FFAE59AD4 /* Build configuration list for PBXNativeTarget "ProofBenchmarks" */;
+			buildPhases = (
+				9ACD186B230107838A37216C /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				5E42725F9035A1950EE2DD3A /* PBXTargetDependency */,
+			);
+			name = ProofBenchmarks;
+			packageProductDependencies = (
+			);
+			productName = ProofBenchmarks;
+			productReference = 41FA7EB63D3FCC9D89A53CC6 /* ProofBenchmarks.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 		DB0146505CF03793A890B674 /* ProofApp */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 66B187FD1E527C52B5EC6541 /* Build configuration list for PBXNativeTarget "ProofApp" */;
@@ -79,6 +131,9 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
+					9CA1C241FDE55639E674CC1B = {
+						TestTargetID = DB0146505CF03793A890B674;
+					};
 					DB0146505CF03793A890B674 = {
 						ProvisioningStyle = Automatic;
 					};
@@ -99,6 +154,7 @@
 			projectRoot = "";
 			targets = (
 				DB0146505CF03793A890B674 /* ProofApp */,
+				9CA1C241FDE55639E674CC1B /* ProofBenchmarks */,
 			);
 		};
 /* End PBXProject section */
@@ -126,6 +182,17 @@
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		9ACD186B230107838A37216C /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				72FF2746CA1351980C970D33 /* BenchmarkTestSupport.swift in Sources */,
+				A27123E5BC9F56E96A7FE533 /* ColdStartBenchmark.swift in Sources */,
+				4CA77348EDB28F13CDC12398 /* PowerProfileBenchmark.swift in Sources */,
+				B0D984C35FA81B7616E60ABF /* TransportPerformanceBenchmark.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		D9EFF91F26D600D0DEEB6B7A /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -138,6 +205,14 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		5E42725F9035A1950EE2DD3A /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = DB0146505CF03793A890B674 /* ProofApp */;
+			targetProxy = 2129C3DB42154218EDC719B0 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		19C4D9698999F3277C114F23 /* Debug */ = {
@@ -241,6 +316,38 @@
 			};
 			name = Release;
 		};
+		32B7E5B5797B9053FC669000 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = ProofApp;
+			};
+			name = Release;
+		};
+		8688613BA8A5E39FBD843D4E /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = ProofApp;
+			};
+			name = Debug;
+		};
 		C2A0AB75D78438DE6E475AD1 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -319,6 +426,15 @@
 			buildConfigurations = (
 				19C4D9698999F3277C114F23 /* Debug */,
 				1B53D1FCEAF9DEEA590A2F0A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		6BFB9C84050D7E8FFAE59AD4 /* Build configuration list for PBXNativeTarget "ProofBenchmarks" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				8688613BA8A5E39FBD843D4E /* Debug */,
+				32B7E5B5797B9053FC669000 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;

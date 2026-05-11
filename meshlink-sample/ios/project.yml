@@ -39,3 +39,12 @@ targets:
         INFOPLIST_FILE: Support/Info.plist
         PRODUCT_BUNDLE_IDENTIFIER: ch.trancee.meshlink.proof.ios
         TARGETED_DEVICE_FAMILY: "1"
+
+  ProofBenchmarks:
+    type: bundle.ui-testing
+    platform: iOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: ProofBenchmarks
+    dependencies:
+      - target: ProofApp

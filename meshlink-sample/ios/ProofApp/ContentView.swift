@@ -7,6 +7,7 @@ struct ContentView: View {
         VStack(alignment: .leading, spacing: 16) {
             Text("State: \(viewModel.stateText)")
                 .font(.headline)
+                .accessibilityIdentifier("proof.state")
 
             if viewModel.peers.isEmpty {
                 Text("Peers: none")
@@ -43,6 +44,12 @@ struct ContentView: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
+
+            Text(viewModel.logText)
+                .font(.system(size: 1))
+                .opacity(0.01)
+                .frame(maxWidth: .infinity, maxHeight: 1, alignment: .leading)
+                .accessibilityIdentifier("proof.logsAggregate")
         }
         .padding()
     }
