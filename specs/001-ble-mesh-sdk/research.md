@@ -142,6 +142,12 @@ identities survive switching between the JCA-backed and software paths.
   The responder side needed to tolerate accepted L2CAP sockets before scan
   discovery caught up, so the transport now binds unknown inbound sockets to a
   temporary address-based peer handle instead of discarding them immediately.
+- iOS direct transport now has a compile-verified CoreBluetooth L2CAP path in
+  `IosBleTransport.kt`, including PSM publication, advertisement, central
+  connection/open-channel flow, incoming/outgoing channel registration, and
+  framed stream IO. Simulator compilation and an iOS-target framing test pass,
+  but real-device validation remains blocked until the attached iPhone 15 is
+  online/trusted by Xcode again.
 
 **Alternatives considered:**
 - Assuming `X25519` / `Ed25519` JCA works on all Android 12+ devices — rejected
