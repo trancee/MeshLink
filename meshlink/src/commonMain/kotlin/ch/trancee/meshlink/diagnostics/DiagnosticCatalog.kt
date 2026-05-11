@@ -15,13 +15,11 @@ internal object DiagnosticCatalog {
             DiagnosticCode.TRANSFER_STARTED,
             DiagnosticCode.TRANSFER_COMPLETED,
             DiagnosticCode.TRANSPORT_MODE_CHANGED,
-            DiagnosticCode.POWER_MODE_CHANGED,
-            -> DiagnosticSeverity.INFO
+            DiagnosticCode.POWER_MODE_CHANGED -> DiagnosticSeverity.INFO
 
             DiagnosticCode.HOP_SESSION_ESTABLISHED,
             DiagnosticCode.ROUTE_UPDATED,
-            DiagnosticCode.TRANSFER_PROGRESS,
-            -> DiagnosticSeverity.DEBUG
+            DiagnosticCode.TRANSFER_PROGRESS -> DiagnosticSeverity.DEBUG
 
             DiagnosticCode.HOP_SESSION_FAILED,
             DiagnosticCode.ROUTE_RETRACTED,
@@ -29,13 +27,11 @@ internal object DiagnosticCatalog {
             DiagnosticCode.NO_ROUTE_AVAILABLE,
             DiagnosticCode.DELIVERY_RETRY_SCHEDULED,
             DiagnosticCode.DELIVERY_RETRYING,
-            DiagnosticCode.SIZE_LIMIT_REJECTED,
-            -> DiagnosticSeverity.WARN
+            DiagnosticCode.SIZE_LIMIT_REJECTED -> DiagnosticSeverity.WARN
 
             DiagnosticCode.TRUST_FAILURE,
             DiagnosticCode.DELIVERY_UNREACHABLE,
-            DiagnosticCode.TRANSFER_FAILED,
-            -> DiagnosticSeverity.ERROR
+            DiagnosticCode.TRANSFER_FAILED -> DiagnosticSeverity.ERROR
         }
     }
 }

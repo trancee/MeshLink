@@ -13,33 +13,38 @@ internal object MessageSealer {
         recipientTrust: TrustRecord,
     ): ByteArray {
         val provider = senderIdentity.cryptoProvider
-        val associatedData = associatedData(
-            senderEd25519PublicKey = senderIdentity.ed25519PublicKey,
-            senderX25519PublicKey = senderIdentity.x25519PublicKey,
-            recipientEd25519PublicKey = recipientTrust.ed25519PublicKey,
-            recipientX25519PublicKey = recipientTrust.x25519PublicKey,
-        )
-        val sharedSecret = provider.x25519(
-            privateKey = senderIdentity.noiseIdentity.x25519KeyPair.privateKey,
-            publicKey = recipientTrust.x25519PublicKey,
-        )
+        val associatedData =
+            associatedData(
+                senderEd25519PublicKey = senderIdentity.ed25519PublicKey,
+                senderX25519PublicKey = senderIdentity.x25519PublicKey,
+                recipientEd25519PublicKey = recipientTrust.ed25519PublicKey,
+                recipientX25519PublicKey = recipientTrust.x25519PublicKey,
+            )
+        val sharedSecret =
+            provider.x25519(
+                privateKey = senderIdentity.noiseIdentity.x25519KeyPair.privateKey,
+                publicKey = recipientTrust.x25519PublicKey,
+            )
         requireContributorySharedSecret(sharedSecret)
-        val key = deriveEncryptionKey(
-            provider = provider,
-            sharedSecret = sharedSecret,
-            associatedData = associatedData,
-        )
+        val key =
+            deriveEncryptionKey(
+                provider = provider,
+                sharedSecret = sharedSecret,
+                associatedData = associatedData,
+            )
         val nonce = provider.randomBytes(NONCE_SIZE_BYTES)
-        val ciphertext = provider.chacha20Poly1305Seal(
-            key = key,
-            nonce = nonce,
-            aad = associatedData,
-            plaintext = plaintext,
-        )
-        val signature = provider.ed25519Sign(
-            privateKey = senderIdentity.noiseIdentity.ed25519KeyPair.privateKey,
-            message = associatedData + nonce + ciphertext,
-        )
+        val ciphertext =
+            provider.chacha20Poly1305Seal(
+                key = key,
+                nonce = nonce,
+                aad = associatedData,
+                plaintext = plaintext,
+            )
+        val signature =
+            provider.ed25519Sign(
+                privateKey = senderIdentity.noiseIdentity.ed25519KeyPair.privateKey,
+                message = associatedData + nonce + ciphertext,
+            )
 
         val buffer = WriteBuffer()
         buffer.writeByte(CURRENT_VERSION.toByte())
@@ -67,31 +72,35 @@ internal object MessageSealer {
         val signature = buffer.readBytes(buffer.readIntLittleEndian())
 
         val provider = recipientIdentity.cryptoProvider
-        val associatedData = associatedData(
-            senderEd25519PublicKey = senderTrust.ed25519PublicKey,
-            senderX25519PublicKey = senderTrust.x25519PublicKey,
-            recipientEd25519PublicKey = recipientIdentity.ed25519PublicKey,
-            recipientX25519PublicKey = recipientIdentity.x25519PublicKey,
-        )
-        val isValidSignature = provider.ed25519Verify(
-            publicKey = senderTrust.ed25519PublicKey,
-            message = associatedData + nonce + ciphertext,
-            signature = signature,
-        )
+        val associatedData =
+            associatedData(
+                senderEd25519PublicKey = senderTrust.ed25519PublicKey,
+                senderX25519PublicKey = senderTrust.x25519PublicKey,
+                recipientEd25519PublicKey = recipientIdentity.ed25519PublicKey,
+                recipientX25519PublicKey = recipientIdentity.x25519PublicKey,
+            )
+        val isValidSignature =
+            provider.ed25519Verify(
+                publicKey = senderTrust.ed25519PublicKey,
+                message = associatedData + nonce + ciphertext,
+                signature = signature,
+            )
         if (!isValidSignature) {
             throw MeshLinkException.CryptoFailure("Signed payload verification failed")
         }
 
-        val sharedSecret = provider.x25519(
-            privateKey = recipientIdentity.noiseIdentity.x25519KeyPair.privateKey,
-            publicKey = senderTrust.x25519PublicKey,
-        )
+        val sharedSecret =
+            provider.x25519(
+                privateKey = recipientIdentity.noiseIdentity.x25519KeyPair.privateKey,
+                publicKey = senderTrust.x25519PublicKey,
+            )
         requireContributorySharedSecret(sharedSecret)
-        val key = deriveEncryptionKey(
-            provider = provider,
-            sharedSecret = sharedSecret,
-            associatedData = associatedData,
-        )
+        val key =
+            deriveEncryptionKey(
+                provider = provider,
+                sharedSecret = sharedSecret,
+                associatedData = associatedData,
+            )
         return provider.chacha20Poly1305Open(
             key = key,
             nonce = nonce,

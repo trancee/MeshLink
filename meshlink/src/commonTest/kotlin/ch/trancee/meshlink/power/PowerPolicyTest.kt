@@ -10,11 +10,12 @@ class PowerPolicyTest {
     @Test
     fun `automatic mode stays in performance during bootstrap even on low battery`() {
         // Arrange
-        val controller = PowerPolicyController(
-            configuredMode = PowerMode.Automatic,
-            region = RegulatoryRegion.DEFAULT,
-            bootstrapDurationMillis = 30_000L,
-        )
+        val controller =
+            PowerPolicyController(
+                configuredMode = PowerMode.Automatic,
+                region = RegulatoryRegion.DEFAULT,
+                bootstrapDurationMillis = 30_000L,
+            )
         controller.onBatterySnapshot(level = 0.10f, isCharging = false, nowMillis = 0L)
         controller.onMeshStarted(nowMillis = 0L)
 
@@ -30,11 +31,12 @@ class PowerPolicyTest {
     @Test
     fun `automatic mode drops to power saver after bootstrap expires`() {
         // Arrange
-        val controller = PowerPolicyController(
-            configuredMode = PowerMode.Automatic,
-            region = RegulatoryRegion.DEFAULT,
-            bootstrapDurationMillis = 30_000L,
-        )
+        val controller =
+            PowerPolicyController(
+                configuredMode = PowerMode.Automatic,
+                region = RegulatoryRegion.DEFAULT,
+                bootstrapDurationMillis = 30_000L,
+            )
         controller.onBatterySnapshot(level = 0.10f, isCharging = false, nowMillis = 0L)
         controller.onMeshStarted(nowMillis = 0L)
 
@@ -50,11 +52,12 @@ class PowerPolicyTest {
     @Test
     fun `hysteresis keeps power saver active until the recovery threshold is crossed`() {
         // Arrange
-        val controller = PowerPolicyController(
-            configuredMode = PowerMode.Automatic,
-            region = RegulatoryRegion.DEFAULT,
-            bootstrapDurationMillis = 0L,
-        )
+        val controller =
+            PowerPolicyController(
+                configuredMode = PowerMode.Automatic,
+                region = RegulatoryRegion.DEFAULT,
+                bootstrapDurationMillis = 0L,
+            )
         controller.onBatterySnapshot(level = 0.27f, isCharging = false, nowMillis = 0L)
         controller.onMeshStarted(nowMillis = 0L)
         controller.currentPolicy(nowMillis = 0L)
@@ -73,11 +76,12 @@ class PowerPolicyTest {
     @Test
     fun `eu region clamps the performance tier to compliant advertise and scan limits`() {
         // Arrange
-        val controller = PowerPolicyController(
-            configuredMode = PowerMode.Performance,
-            region = RegulatoryRegion.EU,
-            bootstrapDurationMillis = 0L,
-        )
+        val controller =
+            PowerPolicyController(
+                configuredMode = PowerMode.Performance,
+                region = RegulatoryRegion.EU,
+                bootstrapDurationMillis = 0L,
+            )
 
         // Act
         val policy = controller.currentPolicy(nowMillis = 0L)
@@ -86,7 +90,9 @@ class PowerPolicyTest {
         assertEquals(PowerTier.PERFORMANCE, policy.tier)
         assertEquals(300L, policy.advertisementIntervalMillis)
         assertEquals(70, policy.scanDutyCyclePercent)
-        assertTrue(policy.clampWarnings.any { warning -> warning.contains("advertisementIntervalMillis") })
+        assertTrue(
+            policy.clampWarnings.any { warning -> warning.contains("advertisementIntervalMillis") }
+        )
         assertTrue(policy.clampWarnings.any { warning -> warning.contains("scanDutyCyclePercent") })
     }
 }

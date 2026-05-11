@@ -1,6 +1,7 @@
 package ch.trancee.meshlink.crypto
 
-internal class NoiseIdentity internal constructor(
+internal class NoiseIdentity
+internal constructor(
     internal val ed25519KeyPair: Ed25519KeyPair,
     internal val x25519KeyPair: X25519KeyPair,
 ) {

@@ -6,7 +6,8 @@ import ch.trancee.meshlink.transport.TransportMode
 internal class VirtualMeshNetwork {
     private val transports: MutableMap<String, VirtualMeshTransport> = linkedMapOf()
     private val linkedPeers: MutableSet<LinkKey> = linkedSetOf()
-    private val heldDeliveries: MutableMap<DirectedLinkKey, MutableList<PendingDelivery>> = linkedMapOf()
+    private val heldDeliveries: MutableMap<DirectedLinkKey, MutableList<PendingDelivery>> =
+        linkedMapOf()
     private val dropRules: MutableMap<DirectedLinkKey, Int> = linkedMapOf()
     private val duplicateRules: MutableMap<DirectedLinkKey, Int> = linkedMapOf()
     private val holdRules: MutableMap<DirectedLinkKey, Int> = linkedMapOf()
@@ -25,9 +26,7 @@ internal class VirtualMeshNetwork {
 
     internal fun unregister(peerId: PeerId): Unit {
         transports.remove(peerId.value)
-        transports.values.forEach { other ->
-            other.disconnect(peerId)
-        }
+        transports.values.forEach { other -> other.disconnect(peerId) }
     }
 
     internal fun linkPeers(first: PeerId, second: PeerId): Unit {
@@ -62,17 +61,29 @@ internal class VirtualMeshNetwork {
         maximumPayloadBytesPerDelivery = limit
     }
 
-    internal fun dropNextDeliveries(senderPeerId: PeerId, recipientPeerId: PeerId, count: Int = 1): Unit {
+    internal fun dropNextDeliveries(
+        senderPeerId: PeerId,
+        recipientPeerId: PeerId,
+        count: Int = 1,
+    ): Unit {
         val key = DirectedLinkKey.of(senderPeerId, recipientPeerId)
         dropRules[key] = (dropRules[key] ?: 0) + count
     }
 
-    internal fun duplicateNextDeliveries(senderPeerId: PeerId, recipientPeerId: PeerId, count: Int = 1): Unit {
+    internal fun duplicateNextDeliveries(
+        senderPeerId: PeerId,
+        recipientPeerId: PeerId,
+        count: Int = 1,
+    ): Unit {
         val key = DirectedLinkKey.of(senderPeerId, recipientPeerId)
         duplicateRules[key] = (duplicateRules[key] ?: 0) + count
     }
 
-    internal fun holdNextDeliveries(senderPeerId: PeerId, recipientPeerId: PeerId, count: Int = 1): Unit {
+    internal fun holdNextDeliveries(
+        senderPeerId: PeerId,
+        recipientPeerId: PeerId,
+        count: Int = 1,
+    ): Unit {
         val key = DirectedLinkKey.of(senderPeerId, recipientPeerId)
         holdRules[key] = (holdRules[key] ?: 0) + count
     }
@@ -86,18 +97,27 @@ internal class VirtualMeshNetwork {
         }
     }
 
-    internal fun deliver(senderPeerId: PeerId, recipientPeerId: PeerId, payload: ByteArray): DeliveryOutcome {
+    internal fun deliver(
+        senderPeerId: PeerId,
+        recipientPeerId: PeerId,
+        payload: ByteArray,
+    ): DeliveryOutcome {
         if (!areLinked(senderPeerId, recipientPeerId)) {
             return DeliveryOutcome.RecipientUnavailable
         }
-        val recipient = transports[recipientPeerId.value] ?: return DeliveryOutcome.RecipientUnavailable
+        val recipient =
+            transports[recipientPeerId.value] ?: return DeliveryOutcome.RecipientUnavailable
         val key = DirectedLinkKey.of(senderPeerId, recipientPeerId)
 
-        if (maximumPayloadBytesPerDelivery != null && payload.size > maximumPayloadBytesPerDelivery!!) {
+        if (
+            maximumPayloadBytesPerDelivery != null &&
+                payload.size > maximumPayloadBytesPerDelivery!!
+        ) {
             return DeliveryOutcome.AcceptedButDropped
         }
         if (holdRules.consume(key)) {
-            heldDeliveries.getOrPut(key) { mutableListOf() } += PendingDelivery(senderPeerId, recipientPeerId, payload.copyOf())
+            heldDeliveries.getOrPut(key) { mutableListOf() } +=
+                PendingDelivery(senderPeerId, recipientPeerId, payload.copyOf())
             return DeliveryOutcome.Delivered
         }
         if (dropRules.consume(key)) {
@@ -129,10 +149,7 @@ internal class VirtualMeshNetwork {
     }
 }
 
-private class LinkKey private constructor(
-    private val left: String,
-    private val right: String,
-) {
+private class LinkKey private constructor(private val left: String, private val right: String) {
     override fun equals(other: Any?): Boolean {
         if (this === other) {
             return true
@@ -160,7 +177,8 @@ private class LinkKey private constructor(
     }
 }
 
-private class DirectedLinkKey private constructor(
+private class DirectedLinkKey
+private constructor(
     private val senderPeerIdValue: String,
     private val recipientPeerIdValue: String,
 ) {
@@ -171,7 +189,8 @@ private class DirectedLinkKey private constructor(
         if (other !is DirectedLinkKey) {
             return false
         }
-        return senderPeerIdValue == other.senderPeerIdValue && recipientPeerIdValue == other.recipientPeerIdValue
+        return senderPeerIdValue == other.senderPeerIdValue &&
+            recipientPeerIdValue == other.recipientPeerIdValue
     }
 
     override fun hashCode(): Int {
@@ -187,7 +206,8 @@ private class DirectedLinkKey private constructor(
     }
 }
 
-private class PendingDelivery internal constructor(
+private class PendingDelivery
+internal constructor(
     internal val senderPeerId: PeerId,
     internal val recipientPeerId: PeerId,
     payload: ByteArray,

@@ -55,10 +55,10 @@ internal class VirtualMeshTransport(
             )
         ) {
             DeliveryOutcome.Delivered,
-            DeliveryOutcome.AcceptedButDropped,
-            -> TransportSendResult.Delivered
+            DeliveryOutcome.AcceptedButDropped -> TransportSendResult.Delivered
 
-            DeliveryOutcome.RecipientUnavailable -> TransportSendResult.Dropped("recipient is unavailable")
+            DeliveryOutcome.RecipientUnavailable ->
+                TransportSendResult.Dropped("recipient is unavailable")
         }
     }
 

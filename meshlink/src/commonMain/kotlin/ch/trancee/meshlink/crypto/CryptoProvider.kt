@@ -1,14 +1,10 @@
 package ch.trancee.meshlink.crypto
 
-internal class X25519KeyPair internal constructor(
-    internal val privateKey: ByteArray,
-    internal val publicKey: ByteArray,
-)
+internal class X25519KeyPair
+internal constructor(internal val privateKey: ByteArray, internal val publicKey: ByteArray)
 
-internal class Ed25519KeyPair internal constructor(
-    internal val privateKey: ByteArray,
-    internal val publicKey: ByteArray,
-)
+internal class Ed25519KeyPair
+internal constructor(internal val privateKey: ByteArray, internal val publicKey: ByteArray)
 
 internal interface CryptoProvider {
     fun randomBytes(size: Int): ByteArray

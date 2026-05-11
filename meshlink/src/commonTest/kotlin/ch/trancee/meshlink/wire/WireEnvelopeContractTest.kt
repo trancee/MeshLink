@@ -12,14 +12,15 @@ class WireEnvelopeContractTest {
     @Test
     fun `message frame round-trips through a FlatBuffers-compatible envelope`() {
         // Arrange
-        val frame = WireFrame.Message(
-            messageId = "message-001",
-            originPeerId = PeerId("origin-peer-001"),
-            destinationPeerId = PeerId("destination-peer-001"),
-            priority = DeliveryPriority.NORMAL,
-            ttlMillis = 30_000,
-            encryptedPayload = byteArrayOf(1, 2, 3, 4, 5),
-        )
+        val frame =
+            WireFrame.Message(
+                messageId = "message-001",
+                originPeerId = PeerId("origin-peer-001"),
+                destinationPeerId = PeerId("destination-peer-001"),
+                priority = DeliveryPriority.NORMAL,
+                ttlMillis = 30_000,
+                encryptedPayload = byteArrayOf(1, 2, 3, 4, 5),
+            )
 
         // Act
         val encoded = WireCodec.encode(frame)
@@ -27,7 +28,10 @@ class WireEnvelopeContractTest {
         val decoded = WireCodec.decode(encoded)
 
         // Assert
-        assertTrue(encoded.size > frame.encryptedPayload.size, "The envelope should add FlatBuffer table metadata")
+        assertTrue(
+            encoded.size > frame.encryptedPayload.size,
+            "The envelope should add FlatBuffer table metadata",
+        )
         assertEquals(WireCodec.CURRENT_WIRE_VERSION, envelope.version)
         assertEquals(WireEnvelopeType.MESSAGE, envelope.type)
         assertFrameEquals(frame, decoded)
@@ -36,37 +40,32 @@ class WireEnvelopeContractTest {
     @Test
     fun `routing control frames round-trip through the shared wire codec`() {
         // Arrange
-        val frames = listOf<WireFrame>(
-            WireFrame.Hello(
-                peerId = PeerId("hello-peer-001"),
-                helloIntervalMillis = 2_000,
-            ),
-            WireFrame.Ihu(
-                peerId = PeerId("ihu-peer-001"),
-                receiveCost = 96,
-            ),
-            WireFrame.RouteUpdate(
-                destinationPeerId = PeerId("destination-peer-002"),
-                nextHopPeerId = PeerId("next-hop-peer-002"),
-                metric = 3,
-                seqNo = 4_294_967_300L,
-                feasibilityMetric = 2,
-                destinationEd25519PublicKey = byteArrayOf(1, 2, 3, 4),
-                destinationX25519PublicKey = byteArrayOf(5, 6, 7, 8),
-            ),
-            WireFrame.RouteRetraction(
-                destinationPeerId = PeerId("destination-peer-003"),
-                seqNo = 77,
-            ),
-            WireFrame.SeqNoRequest(
-                destinationPeerId = PeerId("destination-peer-004"),
-                requestedSeqNo = 101,
-            ),
-            WireFrame.RouteDigest(
-                peerId = PeerId("digest-peer-001"),
-                digest = byteArrayOf(9, 8, 7, 6),
-            ),
-        )
+        val frames =
+            listOf<WireFrame>(
+                WireFrame.Hello(peerId = PeerId("hello-peer-001"), helloIntervalMillis = 2_000),
+                WireFrame.Ihu(peerId = PeerId("ihu-peer-001"), receiveCost = 96),
+                WireFrame.RouteUpdate(
+                    destinationPeerId = PeerId("destination-peer-002"),
+                    nextHopPeerId = PeerId("next-hop-peer-002"),
+                    metric = 3,
+                    seqNo = 4_294_967_300L,
+                    feasibilityMetric = 2,
+                    destinationEd25519PublicKey = byteArrayOf(1, 2, 3, 4),
+                    destinationX25519PublicKey = byteArrayOf(5, 6, 7, 8),
+                ),
+                WireFrame.RouteRetraction(
+                    destinationPeerId = PeerId("destination-peer-003"),
+                    seqNo = 77,
+                ),
+                WireFrame.SeqNoRequest(
+                    destinationPeerId = PeerId("destination-peer-004"),
+                    requestedSeqNo = 101,
+                ),
+                WireFrame.RouteDigest(
+                    peerId = PeerId("digest-peer-001"),
+                    digest = byteArrayOf(9, 8, 7, 6),
+                ),
+            )
 
         // Act
         val decodedFrames = frames.map { frame -> WireCodec.decode(WireCodec.encode(frame)) }
@@ -80,34 +79,30 @@ class WireEnvelopeContractTest {
     @Test
     fun `transfer frames round-trip through the shared wire codec`() {
         // Arrange
-        val frames = listOf<WireFrame>(
-            WireFrame.TransferStart(
-                transferId = "transfer-001",
-                messageId = "message-001",
-                originPeerId = PeerId("origin-peer-001"),
-                destinationPeerId = PeerId("destination-peer-001"),
-                totalBytes = 65_520,
-                totalChunks = 64,
-                maxChunkPayloadBytes = 1_024,
-            ),
-            WireFrame.TransferChunk(
-                transferId = "transfer-001",
-                chunkIndex = 7,
-                payload = byteArrayOf(3, 1, 4, 1, 5, 9),
-            ),
-            WireFrame.TransferAck(
-                transferId = "transfer-001",
-                highestContiguousAck = 5,
-                selectiveRanges = byteArrayOf(0, 5, 9, 12),
-            ),
-            WireFrame.TransferComplete(
-                transferId = "transfer-001",
-            ),
-            WireFrame.TransferAbort(
-                transferId = "transfer-002",
-                reasonCode = 42,
-            ),
-        )
+        val frames =
+            listOf<WireFrame>(
+                WireFrame.TransferStart(
+                    transferId = "transfer-001",
+                    messageId = "message-001",
+                    originPeerId = PeerId("origin-peer-001"),
+                    destinationPeerId = PeerId("destination-peer-001"),
+                    totalBytes = 65_520,
+                    totalChunks = 64,
+                    maxChunkPayloadBytes = 1_024,
+                ),
+                WireFrame.TransferChunk(
+                    transferId = "transfer-001",
+                    chunkIndex = 7,
+                    payload = byteArrayOf(3, 1, 4, 1, 5, 9),
+                ),
+                WireFrame.TransferAck(
+                    transferId = "transfer-001",
+                    highestContiguousAck = 5,
+                    selectiveRanges = byteArrayOf(0, 5, 9, 12),
+                ),
+                WireFrame.TransferComplete(transferId = "transfer-001"),
+                WireFrame.TransferAbort(transferId = "transfer-002", reasonCode = 42),
+            )
 
         // Act
         val decodedFrames = frames.map { frame -> WireCodec.decode(WireCodec.encode(frame)) }
@@ -122,12 +117,13 @@ class WireEnvelopeContractTest {
     fun `decoder ignores unknown future envelope fields`() {
         // Arrange
         val payload = byteArrayOf(0x01, 0x02, 0x03)
-        val encoded = FlatBufferTableBuilder(fieldCount = 4)
-            .addByte(fieldIndex = 0, value = WireCodec.CURRENT_WIRE_VERSION.toByte())
-            .addByte(fieldIndex = 1, value = WireEnvelopeType.MESSAGE.code)
-            .addByteVector(fieldIndex = 2, value = payload)
-            .addInt(fieldIndex = 3, value = 99)
-            .finish()
+        val encoded =
+            FlatBufferTableBuilder(fieldCount = 4)
+                .addByte(fieldIndex = 0, value = WireCodec.CURRENT_WIRE_VERSION.toByte())
+                .addByte(fieldIndex = 1, value = WireEnvelopeType.MESSAGE.code)
+                .addByteVector(fieldIndex = 2, value = payload)
+                .addInt(fieldIndex = 3, value = 99)
+                .finish()
 
         // Act
         val decoded = WireEnvelope.decode(encoded)
@@ -141,17 +137,11 @@ class WireEnvelopeContractTest {
     @Test
     fun `decoder rejects truncated wire envelopes`() {
         // Arrange
-        val encoded = WireCodec.encode(
-            WireFrame.TransferComplete(
-                transferId = "transfer-003",
-            ),
-        )
+        val encoded = WireCodec.encode(WireFrame.TransferComplete(transferId = "transfer-003"))
         val truncated = encoded.copyOf(encoded.size - 1)
 
         // Act
-        val failure = assertFailsWith<IllegalStateException> {
-            WireCodec.decode(truncated)
-        }
+        val failure = assertFailsWith<IllegalStateException> { WireCodec.decode(truncated) }
 
         // Assert
         assertTrue(
@@ -181,8 +171,14 @@ class WireEnvelopeContractTest {
                 assertEquals(expected.metric, decoded.metric)
                 assertEquals(expected.seqNo, decoded.seqNo)
                 assertEquals(expected.feasibilityMetric, decoded.feasibilityMetric)
-                assertContentEquals(expected.destinationEd25519PublicKey, decoded.destinationEd25519PublicKey)
-                assertContentEquals(expected.destinationX25519PublicKey, decoded.destinationX25519PublicKey)
+                assertContentEquals(
+                    expected.destinationEd25519PublicKey,
+                    decoded.destinationEd25519PublicKey,
+                )
+                assertContentEquals(
+                    expected.destinationX25519PublicKey,
+                    decoded.destinationX25519PublicKey,
+                )
             }
 
             is WireFrame.RouteRetraction -> {

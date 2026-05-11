@@ -3,10 +3,9 @@ package ch.trancee.meshlink.platform.ios
 import ch.trancee.meshlink.storage.SecureStorage
 import platform.Foundation.NSUserDefaults
 
-internal class IosSecureStorage(
-    appId: String,
-) : SecureStorage {
-    private val defaults = NSUserDefaults(suiteName = "meshlink.$appId") ?: NSUserDefaults.standardUserDefaults()
+internal class IosSecureStorage(appId: String) : SecureStorage {
+    private val defaults =
+        NSUserDefaults(suiteName = "meshlink.$appId") ?: NSUserDefaults.standardUserDefaults()
 
     override suspend fun read(key: String): ByteArray? {
         val encoded = defaults.stringForKey(key) ?: return null

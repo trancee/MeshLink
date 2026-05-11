@@ -4,9 +4,7 @@ import ch.trancee.meshlink.power.PowerPolicy
 import ch.trancee.meshlink.power.PowerTier
 import ch.trancee.meshlink.transport.BlePowerMode
 
-internal class IosPowerProfile internal constructor(
-    internal val discoveryPowerMode: BlePowerMode,
-)
+internal class IosPowerProfile internal constructor(internal val discoveryPowerMode: BlePowerMode)
 
 internal object IosPowerMonitor {
     internal fun defaultProfile(): IosPowerProfile {

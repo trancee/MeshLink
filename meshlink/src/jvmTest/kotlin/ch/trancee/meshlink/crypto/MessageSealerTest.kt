@@ -13,23 +13,27 @@ class MessageSealerTest {
     @Test
     fun `message sealer round trips between trusted peers`() {
         // Arrange
-        val senderIdentity = LocalIdentity.fromNoiseIdentity(NoiseIdentity.generate(provider), provider)
-        val recipientIdentity = LocalIdentity.fromNoiseIdentity(NoiseIdentity.generate(provider), provider)
+        val senderIdentity =
+            LocalIdentity.fromNoiseIdentity(NoiseIdentity.generate(provider), provider)
+        val recipientIdentity =
+            LocalIdentity.fromNoiseIdentity(NoiseIdentity.generate(provider), provider)
         val senderTrust = trustRecordFor(senderIdentity)
         val recipientTrust = trustRecordFor(recipientIdentity)
         val plaintext = "hello end to end mesh".encodeToByteArray()
 
         // Act
-        val sealedPayload = MessageSealer.seal(
-            plaintext = plaintext,
-            senderIdentity = senderIdentity,
-            recipientTrust = recipientTrust,
-        )
-        val decryptedPayload = MessageSealer.open(
-            sealedPayload = sealedPayload,
-            recipientIdentity = recipientIdentity,
-            senderTrust = senderTrust,
-        )
+        val sealedPayload =
+            MessageSealer.seal(
+                plaintext = plaintext,
+                senderIdentity = senderIdentity,
+                recipientTrust = recipientTrust,
+            )
+        val decryptedPayload =
+            MessageSealer.open(
+                sealedPayload = sealedPayload,
+                recipientIdentity = recipientIdentity,
+                senderTrust = senderTrust,
+            )
 
         // Assert
         assertFalse(
@@ -42,18 +46,22 @@ class MessageSealerTest {
     @Test
     fun `message sealer fails closed for tampered payloads`() {
         // Arrange
-        val senderIdentity = LocalIdentity.fromNoiseIdentity(NoiseIdentity.generate(provider), provider)
-        val recipientIdentity = LocalIdentity.fromNoiseIdentity(NoiseIdentity.generate(provider), provider)
+        val senderIdentity =
+            LocalIdentity.fromNoiseIdentity(NoiseIdentity.generate(provider), provider)
+        val recipientIdentity =
+            LocalIdentity.fromNoiseIdentity(NoiseIdentity.generate(provider), provider)
         val senderTrust = trustRecordFor(senderIdentity)
         val recipientTrust = trustRecordFor(recipientIdentity)
-        val sealedPayload = MessageSealer.seal(
-            plaintext = "tamper me".encodeToByteArray(),
-            senderIdentity = senderIdentity,
-            recipientTrust = recipientTrust,
-        )
-        val tamperedPayload = sealedPayload.copyOf().also { payload ->
-            payload[payload.lastIndex] = (payload.last().toInt() xor 0x01).toByte()
-        }
+        val sealedPayload =
+            MessageSealer.seal(
+                plaintext = "tamper me".encodeToByteArray(),
+                senderIdentity = senderIdentity,
+                recipientTrust = recipientTrust,
+            )
+        val tamperedPayload =
+            sealedPayload.copyOf().also { payload ->
+                payload[payload.lastIndex] = (payload.last().toInt() xor 0x01).toByte()
+            }
 
         // Act / Assert
         assertFailsWith<Exception> {

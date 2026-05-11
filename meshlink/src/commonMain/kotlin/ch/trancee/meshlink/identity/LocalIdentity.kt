@@ -7,7 +7,8 @@ import ch.trancee.meshlink.crypto.NoiseIdentity
 import ch.trancee.meshlink.crypto.PlaceholderCryptoProvider
 import ch.trancee.meshlink.crypto.X25519KeyPair
 
-internal class LocalIdentity internal constructor(
+internal class LocalIdentity
+internal constructor(
     internal val peerId: PeerId,
     internal val identityFingerprint: String,
     internal val noiseIdentity: NoiseIdentity,
@@ -20,32 +21,38 @@ internal class LocalIdentity internal constructor(
 
     internal companion object {
         internal fun fromAppId(appId: String): LocalIdentity {
-            return fromPeerId(
-                peerId = PeerId(appId),
-                identitySeed = appId,
-            )
+            return fromPeerId(peerId = PeerId(appId), identitySeed = appId)
         }
 
         internal fun fromPeerId(peerId: PeerId, identitySeed: String): LocalIdentity {
-            val noiseIdentity = NoiseIdentity(
-                ed25519KeyPair = Ed25519KeyPair(
-                    privateKey = deterministicBytes("$identitySeed|ed25519", size = KEY_SIZE_BYTES),
-                    publicKey = deterministicBytes("$identitySeed|ed25519", size = KEY_SIZE_BYTES),
-                ),
-                x25519KeyPair = X25519KeyPair(
-                    privateKey = deterministicBytes("$identitySeed|x25519", size = KEY_SIZE_BYTES),
-                    publicKey = deterministicBytes("$identitySeed|x25519", size = KEY_SIZE_BYTES),
-                ),
-            )
-            val publicKeyHash = PlaceholderCryptoProvider.sha256(
-                noiseIdentity.ed25519KeyPair.publicKey + noiseIdentity.x25519KeyPair.publicKey,
-            )
+            val noiseIdentity =
+                NoiseIdentity(
+                    ed25519KeyPair =
+                        Ed25519KeyPair(
+                            privateKey =
+                                deterministicBytes("$identitySeed|ed25519", size = KEY_SIZE_BYTES),
+                            publicKey =
+                                deterministicBytes("$identitySeed|ed25519", size = KEY_SIZE_BYTES),
+                        ),
+                    x25519KeyPair =
+                        X25519KeyPair(
+                            privateKey =
+                                deterministicBytes("$identitySeed|x25519", size = KEY_SIZE_BYTES),
+                            publicKey =
+                                deterministicBytes("$identitySeed|x25519", size = KEY_SIZE_BYTES),
+                        ),
+                )
+            val publicKeyHash =
+                PlaceholderCryptoProvider.sha256(
+                    noiseIdentity.ed25519KeyPair.publicKey + noiseIdentity.x25519KeyPair.publicKey
+                )
             return LocalIdentity(
                 peerId = peerId,
                 identityFingerprint = publicKeyHash.toHexString(),
                 noiseIdentity = noiseIdentity,
                 cryptoProvider = PlaceholderCryptoProvider,
-                advertisementKeyHash = publicKeyHash.copyOfRange(0, ADVERTISEMENT_KEY_HASH_SIZE_BYTES),
+                advertisementKeyHash =
+                    publicKeyHash.copyOfRange(0, ADVERTISEMENT_KEY_HASH_SIZE_BYTES),
             )
         }
 
@@ -54,16 +61,19 @@ internal class LocalIdentity internal constructor(
             provider: CryptoProvider,
             peerId: PeerId? = null,
         ): LocalIdentity {
-            val publicKeyHash = provider.sha256(
-                noiseIdentity.ed25519KeyPair.publicKey + noiseIdentity.x25519KeyPair.publicKey,
-            )
-            val derivedPeerId = peerId ?: PeerId(publicKeyHash.copyOfRange(0, PEER_ID_SIZE_BYTES).toHexString())
+            val publicKeyHash =
+                provider.sha256(
+                    noiseIdentity.ed25519KeyPair.publicKey + noiseIdentity.x25519KeyPair.publicKey
+                )
+            val derivedPeerId =
+                peerId ?: PeerId(publicKeyHash.copyOfRange(0, PEER_ID_SIZE_BYTES).toHexString())
             return LocalIdentity(
                 peerId = derivedPeerId,
                 identityFingerprint = publicKeyHash.toHexString(),
                 noiseIdentity = noiseIdentity,
                 cryptoProvider = provider,
-                advertisementKeyHash = publicKeyHash.copyOfRange(0, ADVERTISEMENT_KEY_HASH_SIZE_BYTES),
+                advertisementKeyHash =
+                    publicKeyHash.copyOfRange(0, ADVERTISEMENT_KEY_HASH_SIZE_BYTES),
             )
         }
 
@@ -78,11 +88,12 @@ private fun deterministicBytes(seed: String, size: Int): ByteArray {
     val encodedSeed = seed.encodeToByteArray()
     val seedBytes = if (encodedSeed.isNotEmpty()) encodedSeed else byteArrayOf(0)
     var state = 0x811C9DC5.toInt()
-    val output = ByteArray(size) { index ->
-        val mixedInput = (seedBytes[index % seedBytes.size].toInt() and 0xFF) + index
-        state = (state xor mixedInput) * 16777619
-        (state ushr ((index and 3) * 8)).toByte()
-    }
+    val output =
+        ByteArray(size) { index ->
+            val mixedInput = (seedBytes[index % seedBytes.size].toInt() and 0xFF) + index
+            state = (state xor mixedInput) * 16777619
+            (state ushr ((index and 3) * 8)).toByte()
+        }
     if (output.all { byte -> byte == 0.toByte() }) {
         output[0] = 1
     }

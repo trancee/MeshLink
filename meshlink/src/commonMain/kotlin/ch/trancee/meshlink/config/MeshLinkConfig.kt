@@ -4,8 +4,7 @@ import ch.trancee.meshlink.api.MeshLinkException
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
-@DslMarker
-public annotation class MeshLinkDsl
+@DslMarker public annotation class MeshLinkDsl
 
 public enum class RegulatoryRegion {
     DEFAULT,
@@ -22,7 +21,8 @@ public sealed class PowerMode {
     public data object PowerSaver : PowerMode()
 }
 
-public class MeshLinkConfig public constructor(
+public class MeshLinkConfig
+public constructor(
     public val appId: String,
     public val regulatoryRegion: RegulatoryRegion,
     public val powerMode: PowerMode,
@@ -34,7 +34,7 @@ public class MeshLinkConfig public constructor(
         }
         if (deliveryRetryDeadline <= Duration.ZERO) {
             throw MeshLinkException.InvalidConfiguration(
-                "deliveryRetryDeadline must be greater than zero",
+                "deliveryRetryDeadline must be greater than zero"
             )
         }
     }

@@ -9,7 +9,8 @@ internal enum class PowerTier {
     POWER_SAVER,
 }
 
-internal class PowerPolicy internal constructor(
+internal class PowerPolicy
+internal constructor(
     internal val tier: PowerTier,
     internal val advertisementIntervalMillis: Long,
     internal val scanDutyCyclePercent: Int,
@@ -21,7 +22,8 @@ internal class PowerPolicy internal constructor(
     internal val clampWarnings: List<String> = clampWarnings.toList()
 }
 
-internal class PowerPolicyController internal constructor(
+internal class PowerPolicyController
+internal constructor(
     private val configuredMode: PowerMode,
     private val region: RegulatoryRegion,
     private val performanceThreshold: Float = DEFAULT_PERFORMANCE_THRESHOLD,
@@ -41,7 +43,11 @@ internal class PowerPolicyController internal constructor(
         return currentPolicy(nowMillis)
     }
 
-    internal fun onBatterySnapshot(level: Float, isCharging: Boolean, nowMillis: Long): PowerPolicy {
+    internal fun onBatterySnapshot(
+        level: Float,
+        isCharging: Boolean,
+        nowMillis: Long,
+    ): PowerPolicy {
         batteryLevel = level.coerceIn(0.0f, 1.0f)
         charging = isCharging
         return currentPolicy(nowMillis)
@@ -120,32 +126,35 @@ internal class PowerPolicyController internal constructor(
 
     private fun basePolicyFor(tier: PowerTier): PowerPolicy {
         return when (tier) {
-            PowerTier.PERFORMANCE -> PowerPolicy(
-                tier = tier,
-                advertisementIntervalMillis = 250L,
-                scanDutyCyclePercent = 100,
-                maxConnections = 7,
-                chunkBudgetBytes = 4 * 1024,
-                region = region,
-            )
+            PowerTier.PERFORMANCE ->
+                PowerPolicy(
+                    tier = tier,
+                    advertisementIntervalMillis = 250L,
+                    scanDutyCyclePercent = 100,
+                    maxConnections = 7,
+                    chunkBudgetBytes = 4 * 1024,
+                    region = region,
+                )
 
-            PowerTier.BALANCED -> PowerPolicy(
-                tier = tier,
-                advertisementIntervalMillis = 500L,
-                scanDutyCyclePercent = 50,
-                maxConnections = 5,
-                chunkBudgetBytes = 2 * 1024,
-                region = region,
-            )
+            PowerTier.BALANCED ->
+                PowerPolicy(
+                    tier = tier,
+                    advertisementIntervalMillis = 500L,
+                    scanDutyCyclePercent = 50,
+                    maxConnections = 5,
+                    chunkBudgetBytes = 2 * 1024,
+                    region = region,
+                )
 
-            PowerTier.POWER_SAVER -> PowerPolicy(
-                tier = tier,
-                advertisementIntervalMillis = 1_000L,
-                scanDutyCyclePercent = 5,
-                maxConnections = 3,
-                chunkBudgetBytes = 512,
-                region = region,
-            )
+            PowerTier.POWER_SAVER ->
+                PowerPolicy(
+                    tier = tier,
+                    advertisementIntervalMillis = 1_000L,
+                    scanDutyCyclePercent = 5,
+                    maxConnections = 3,
+                    chunkBudgetBytes = 512,
+                    region = region,
+                )
         }
     }
 
@@ -158,11 +167,13 @@ internal class PowerPolicyController internal constructor(
         val clampWarnings = mutableListOf<String>()
         if (advertisementIntervalMillis < EU_MIN_ADVERTISEMENT_INTERVAL_MILLIS) {
             advertisementIntervalMillis = EU_MIN_ADVERTISEMENT_INTERVAL_MILLIS
-            clampWarnings += "advertisementIntervalMillis clamped to $EU_MIN_ADVERTISEMENT_INTERVAL_MILLIS for EU compliance"
+            clampWarnings +=
+                "advertisementIntervalMillis clamped to $EU_MIN_ADVERTISEMENT_INTERVAL_MILLIS for EU compliance"
         }
         if (scanDutyCyclePercent > EU_MAX_SCAN_DUTY_CYCLE_PERCENT) {
             scanDutyCyclePercent = EU_MAX_SCAN_DUTY_CYCLE_PERCENT
-            clampWarnings += "scanDutyCyclePercent clamped to $EU_MAX_SCAN_DUTY_CYCLE_PERCENT for EU compliance"
+            clampWarnings +=
+                "scanDutyCyclePercent clamped to $EU_MAX_SCAN_DUTY_CYCLE_PERCENT for EU compliance"
         }
         return PowerPolicy(
             tier = policy.tier,

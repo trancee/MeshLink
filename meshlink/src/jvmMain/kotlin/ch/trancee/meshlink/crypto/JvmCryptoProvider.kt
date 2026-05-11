@@ -67,7 +67,11 @@ internal class JvmCryptoProvider : CryptoProvider {
         return signature.sign()
     }
 
-    override fun ed25519Verify(publicKey: ByteArray, message: ByteArray, signature: ByteArray): Boolean {
+    override fun ed25519Verify(
+        publicKey: ByteArray,
+        message: ByteArray,
+        signature: ByteArray,
+    ): Boolean {
         val verifier = Signature.getInstance("Ed25519")
         verifier.initVerify(ed25519PublicKey(publicKey))
         verifier.update(message)
@@ -99,20 +103,24 @@ internal class JvmCryptoProvider : CryptoProvider {
     }
 
     private fun x25519PrivateKey(bytes: ByteArray) =
-        KeyFactory.getInstance("X25519").generatePrivate(XECPrivateKeySpec(NamedParameterSpec.X25519, bytes))
+        KeyFactory.getInstance("X25519")
+            .generatePrivate(XECPrivateKeySpec(NamedParameterSpec.X25519, bytes))
 
     private fun x25519PublicKey(bytes: ByteArray) =
-        KeyFactory.getInstance("X25519").generatePublic(
-            XECPublicKeySpec(NamedParameterSpec.X25519, littleEndianToBigInteger(bytes)),
-        )
+        KeyFactory.getInstance("X25519")
+            .generatePublic(
+                XECPublicKeySpec(NamedParameterSpec.X25519, littleEndianToBigInteger(bytes))
+            )
 
     private fun ed25519PrivateKey(bytes: ByteArray) =
-        KeyFactory.getInstance("Ed25519").generatePrivate(EdECPrivateKeySpec(NamedParameterSpec.ED25519, bytes))
+        KeyFactory.getInstance("Ed25519")
+            .generatePrivate(EdECPrivateKeySpec(NamedParameterSpec.ED25519, bytes))
 
     private fun ed25519PublicKey(bytes: ByteArray) =
-        KeyFactory.getInstance("Ed25519").generatePublic(
-            EdECPublicKeySpec(NamedParameterSpec.ED25519, decodeEd25519Point(bytes)),
-        )
+        KeyFactory.getInstance("Ed25519")
+            .generatePublic(
+                EdECPublicKeySpec(NamedParameterSpec.ED25519, decodeEd25519Point(bytes))
+            )
 
     private fun encodeEd25519PublicKey(publicKey: EdECPublicKey): ByteArray {
         val point = publicKey.point
@@ -136,7 +144,10 @@ internal class JvmCryptoProvider : CryptoProvider {
     }
 
     private fun bigIntegerToLittleEndian(value: BigInteger, size: Int): ByteArray {
-        val bigEndian = value.toByteArray().let { if (it.size > size) it.copyOfRange(it.size - size, it.size) else it }
+        val bigEndian =
+            value.toByteArray().let {
+                if (it.size > size) it.copyOfRange(it.size - size, it.size) else it
+            }
         val padded = ByteArray(size)
         bigEndian.copyInto(padded, destinationOffset = size - bigEndian.size)
         return padded.reversedArray()

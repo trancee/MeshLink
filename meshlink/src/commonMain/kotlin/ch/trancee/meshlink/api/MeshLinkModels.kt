@@ -85,20 +85,19 @@ public enum class PeerConnectionState {
 }
 
 public sealed class PeerEvent {
-    public class Found public constructor(
-        public val peerId: PeerId,
-        public val state: PeerConnectionState,
-    ) : PeerEvent()
+    public class Found
+    public constructor(public val peerId: PeerId, public val state: PeerConnectionState) :
+        PeerEvent()
 
-    public class StateChanged public constructor(
-        public val peerId: PeerId,
-        public val state: PeerConnectionState,
-    ) : PeerEvent()
+    public class StateChanged
+    public constructor(public val peerId: PeerId, public val state: PeerConnectionState) :
+        PeerEvent()
 
     public class Lost public constructor(public val peerId: PeerId) : PeerEvent()
 }
 
-public class InboundMessage public constructor(
+public class InboundMessage
+public constructor(
     public val originPeerId: PeerId,
     payload: ByteArray,
     public val receivedAtEpochMillis: Long,

@@ -32,7 +32,8 @@ internal object PlaceholderCryptoProvider : CryptoProvider {
     override fun x25519(privateKey: ByteArray, publicKey: ByteArray): ByteArray {
         val left = privateKey.copyOf()
         val right = publicKey.copyOf()
-        val combined = if (lexicographicallyCompare(left, right) <= 0) left + right else right + left
+        val combined =
+            if (lexicographicallyCompare(left, right) <= 0) left + right else right + left
         return pseudoHash(combined, HASH_SIZE_BYTES)
     }
 
@@ -40,7 +41,11 @@ internal object PlaceholderCryptoProvider : CryptoProvider {
         return expandDigest(pseudoHash(privateKey + message, HASH_SIZE_BYTES), SIGNATURE_SIZE_BYTES)
     }
 
-    override fun ed25519Verify(publicKey: ByteArray, message: ByteArray, signature: ByteArray): Boolean {
+    override fun ed25519Verify(
+        publicKey: ByteArray,
+        message: ByteArray,
+        signature: ByteArray,
+    ): Boolean {
         return signature.contentEquals(ed25519Sign(publicKey, message))
     }
 
@@ -51,9 +56,10 @@ internal object PlaceholderCryptoProvider : CryptoProvider {
         plaintext: ByteArray,
     ): ByteArray {
         val keystream = expandDigest(pseudoHash(key + nonce + aad, HASH_SIZE_BYTES), plaintext.size)
-        val ciphertext = ByteArray(plaintext.size) { index ->
-            (plaintext[index].toInt() xor keystream[index].toInt()).toByte()
-        }
+        val ciphertext =
+            ByteArray(plaintext.size) { index ->
+                (plaintext[index].toInt() xor keystream[index].toInt()).toByte()
+            }
         val tag = pseudoHash(key + nonce + aad + ciphertext, HASH_SIZE_BYTES).copyOf(TAG_SIZE_BYTES)
         return ciphertext + tag
     }
@@ -65,15 +71,21 @@ internal object PlaceholderCryptoProvider : CryptoProvider {
         ciphertext: ByteArray,
     ): ByteArray {
         if (ciphertext.size < TAG_SIZE_BYTES) {
-            throw MeshLinkException.CryptoFailure("Ciphertext is too short to contain an authentication tag")
+            throw MeshLinkException.CryptoFailure(
+                "Ciphertext is too short to contain an authentication tag"
+            )
         }
         val cipherBytes = ciphertext.copyOfRange(0, ciphertext.size - TAG_SIZE_BYTES)
         val actualTag = ciphertext.copyOfRange(ciphertext.size - TAG_SIZE_BYTES, ciphertext.size)
-        val expectedTag = pseudoHash(key + nonce + aad + cipherBytes, HASH_SIZE_BYTES).copyOf(TAG_SIZE_BYTES)
+        val expectedTag =
+            pseudoHash(key + nonce + aad + cipherBytes, HASH_SIZE_BYTES).copyOf(TAG_SIZE_BYTES)
         if (!actualTag.contentEquals(expectedTag)) {
-            throw MeshLinkException.CryptoFailure("Ciphertext authentication tag verification failed")
+            throw MeshLinkException.CryptoFailure(
+                "Ciphertext authentication tag verification failed"
+            )
         }
-        val keystream = expandDigest(pseudoHash(key + nonce + aad, HASH_SIZE_BYTES), cipherBytes.size)
+        val keystream =
+            expandDigest(pseudoHash(key + nonce + aad, HASH_SIZE_BYTES), cipherBytes.size)
         return ByteArray(cipherBytes.size) { index ->
             (cipherBytes[index].toInt() xor keystream[index].toInt()).toByte()
         }
@@ -82,11 +94,12 @@ internal object PlaceholderCryptoProvider : CryptoProvider {
     private fun pseudoHash(input: ByteArray, outputSize: Int): ByteArray {
         var state = 0x811C9DC5.toInt()
         val safeInput = if (input.isNotEmpty()) input else byteArrayOf(0)
-        val output = ByteArray(outputSize) { index ->
-            val mixed = (safeInput[index % safeInput.size].toInt() and 0xFF) + index
-            state = (state xor mixed) * 16777619
-            (state ushr ((index and 3) * 8)).toByte()
-        }
+        val output =
+            ByteArray(outputSize) { index ->
+                val mixed = (safeInput[index % safeInput.size].toInt() and 0xFF) + index
+                state = (state xor mixed) * 16777619
+                (state ushr ((index and 3) * 8)).toByte()
+            }
         if (output.all { it == 0.toByte() }) {
             output[0] = 1
         }

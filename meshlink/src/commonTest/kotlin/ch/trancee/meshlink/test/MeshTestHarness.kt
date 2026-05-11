@@ -29,29 +29,32 @@ internal class MeshTestHarness {
         val transport = VirtualMeshTransport(localPeerId = peerId, network = network)
         val diagnosticSink = RecordingDiagnosticSink()
         val config = configOverride ?: defaultConfig(appId = "$peerIdValue-$identityLabel")
-        val api = MeshEngine.create(
-            config = config,
-            localIdentity = LocalIdentity.fromPeerId(peerId = peerId, identitySeed = "$peerIdValue-$identityLabel"),
-            secureStorage = storage,
-            bleTransport = transport,
-            diagnosticSink = diagnosticSink,
-        )
-        val handle = NodeHandle(
-            peerId = peerId,
-            api = api,
-            transport = transport,
-            storage = storage,
-            diagnosticSink = diagnosticSink,
-        )
+        val api =
+            MeshEngine.create(
+                config = config,
+                localIdentity =
+                    LocalIdentity.fromPeerId(
+                        peerId = peerId,
+                        identitySeed = "$peerIdValue-$identityLabel",
+                    ),
+                secureStorage = storage,
+                bleTransport = transport,
+                diagnosticSink = diagnosticSink,
+            )
+        val handle =
+            NodeHandle(
+                peerId = peerId,
+                api = api,
+                transport = transport,
+                storage = storage,
+                diagnosticSink = diagnosticSink,
+            )
         handles += handle
         return handle
     }
 
     internal fun restartNode(handle: NodeHandle): NodeHandle {
-        return createNode(
-            peerIdValue = handle.peerId.value,
-            storage = handle.storage,
-        )
+        return createNode(peerIdValue = handle.peerId.value, storage = handle.storage)
     }
 
     internal fun lastDeliveredFrame(): ByteArray? {
@@ -66,15 +69,27 @@ internal class MeshTestHarness {
         network.setMaximumPayloadBytesPerDelivery(limit)
     }
 
-    internal fun dropNextDeliveries(sender: NodeHandle, recipient: NodeHandle, count: Int = 1): Unit {
+    internal fun dropNextDeliveries(
+        sender: NodeHandle,
+        recipient: NodeHandle,
+        count: Int = 1,
+    ): Unit {
         network.dropNextDeliveries(sender.peerId, recipient.peerId, count)
     }
 
-    internal fun duplicateNextDeliveries(sender: NodeHandle, recipient: NodeHandle, count: Int = 1): Unit {
+    internal fun duplicateNextDeliveries(
+        sender: NodeHandle,
+        recipient: NodeHandle,
+        count: Int = 1,
+    ): Unit {
         network.duplicateNextDeliveries(sender.peerId, recipient.peerId, count)
     }
 
-    internal fun holdNextDeliveries(sender: NodeHandle, recipient: NodeHandle, count: Int = 1): Unit {
+    internal fun holdNextDeliveries(
+        sender: NodeHandle,
+        recipient: NodeHandle,
+        count: Int = 1,
+    ): Unit {
         network.holdNextDeliveries(sender.peerId, recipient.peerId, count)
     }
 
@@ -83,13 +98,12 @@ internal class MeshTestHarness {
     }
 
     private fun defaultConfig(appId: String): MeshLinkConfig {
-        return meshLinkConfig {
-            this.appId = appId
-        }
+        return meshLinkConfig { this.appId = appId }
     }
 }
 
-internal class NodeHandle internal constructor(
+internal class NodeHandle
+internal constructor(
     internal val peerId: PeerId,
     internal val api: MeshLinkApi,
     internal val transport: VirtualMeshTransport,

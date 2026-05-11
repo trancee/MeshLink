@@ -42,9 +42,10 @@ internal actual fun createIosMeshLink(config: MeshLinkConfig): MeshLinkApi {
         config = config,
         localIdentity = localIdentity,
         secureStorage = secureStorage,
-        bleTransport = IosBleTransport(
-            appId = config.appId,
-            advertisementKeyHash = localIdentity.advertisementKeyHash,
-        ),
+        bleTransport =
+            IosBleTransport(
+                appId = config.appId,
+                advertisementKeyHash = localIdentity.advertisementKeyHash,
+            ),
     )
 }

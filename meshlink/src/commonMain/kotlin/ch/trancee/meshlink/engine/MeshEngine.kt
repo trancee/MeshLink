@@ -44,6 +44,9 @@ import ch.trancee.meshlink.trust.TofuTrustStore
 import ch.trancee.meshlink.trust.TrustRecord
 import ch.trancee.meshlink.wire.WireCodec
 import ch.trancee.meshlink.wire.WireFrame
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.TimeSource
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
@@ -59,11 +62,9 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
-import kotlin.time.Duration.Companion.milliseconds
-import kotlin.time.Duration.Companion.seconds
-import kotlin.time.TimeSource
 
-internal class MeshEngine private constructor(
+internal class MeshEngine
+private constructor(
     private val config: MeshLinkConfig,
     private val platformContext: Any?,
     private val localIdentity: LocalIdentity,
@@ -77,15 +78,16 @@ internal class MeshEngine private constructor(
     private val presenceTracker = PeerPresenceTracker()
     private val routeCoordinator = RouteCoordinator(localIdentity.peerId)
     private val deliveryRetryScheduler = DeliveryRetryScheduler(routeCoordinator.topologyVersion)
-    private val powerPolicyController = PowerPolicyController(
-        configuredMode = config.powerMode,
-        region = config.regulatoryRegion,
-    )
-    private var currentPowerPolicy: PowerPolicy = powerPolicyController.currentPolicy(nowMillis = 0L)
+    private val powerPolicyController =
+        PowerPolicyController(configuredMode = config.powerMode, region = config.regulatoryRegion)
+    private var currentPowerPolicy: PowerPolicy =
+        powerPolicyController.currentPolicy(nowMillis = 0L)
     private var transportCollectionJob: Job? = null
     private val hopSessions: MutableMap<String, HopSession> = linkedMapOf()
-    private val pendingInitiatorHandshakes: MutableMap<String, PendingInitiatorHandshake> = linkedMapOf()
-    private val pendingResponderHandshakes: MutableMap<String, PendingResponderHandshake> = linkedMapOf()
+    private val pendingInitiatorHandshakes: MutableMap<String, PendingInitiatorHandshake> =
+        linkedMapOf()
+    private val pendingResponderHandshakes: MutableMap<String, PendingResponderHandshake> =
+        linkedMapOf()
     private val outboundTransfers: MutableMap<String, OutboundTransferSession> = linkedMapOf()
     private val inboundTransfers: MutableMap<String, InboundTransferSession> = linkedMapOf()
     private val relayTransfers: MutableMap<String, RelayTransferSession> = linkedMapOf()
@@ -208,7 +210,10 @@ internal class MeshEngine private constructor(
         var attempt = 0
         var topologyVersion = routeCoordinator.topologyVersion.value
         while (startedAt.elapsedNow() < config.deliveryRetryDeadline) {
-            when (val sendResult = attemptInlineSend(peerId = peerId, payload = payload, priority = priority)) {
+            when (
+                val sendResult =
+                    attemptInlineSend(peerId = peerId, payload = payload, priority = priority)
+            ) {
                 is SendResult.Sent -> return sendResult
                 is SendResult.NotSent -> {
                     if (sendResult.reason != SendFailureReason.UNREACHABLE) {
@@ -225,11 +230,12 @@ internal class MeshEngine private constructor(
                 metadata = mapOf("attempt" to attempt.toString()),
             )
             when (
-                val wakeup = deliveryRetryScheduler.awaitRetry(
-                    attempt = attempt,
-                    remainingBudget = config.deliveryRetryDeadline - startedAt.elapsedNow(),
-                    lastObservedTopologyVersion = topologyVersion,
-                )
+                val wakeup =
+                    deliveryRetryScheduler.awaitRetry(
+                        attempt = attempt,
+                        remainingBudget = config.deliveryRetryDeadline - startedAt.elapsedNow(),
+                        lastObservedTopologyVersion = topologyVersion,
+                    )
             ) {
                 is RetryWakeup.DeadlineExpired -> break
                 is RetryWakeup.TimerElapsed -> {
@@ -273,11 +279,12 @@ internal class MeshEngine private constructor(
 
     override fun updateBattery(level: Float, isCharging: Boolean): Unit {
         val clampedLevel = level.coerceIn(0f, 1f)
-        val policy = powerPolicyController.onBatterySnapshot(
-            level = clampedLevel,
-            isCharging = isCharging,
-            nowMillis = powerPolicyNowMillis(),
-        )
+        val policy =
+            powerPolicyController.onBatterySnapshot(
+                level = clampedLevel,
+                isCharging = isCharging,
+                nowMillis = powerPolicyNowMillis(),
+            )
         currentPowerPolicy = policy
         if (bleTransport != null) {
             coroutineScope.launch {
@@ -289,11 +296,8 @@ internal class MeshEngine private constructor(
             severity = DiagnosticSeverity.INFO,
             stage = "power.updateBattery",
             reason = DiagnosticReason.POWER_CHANGE,
-            metadata = powerPolicyMetadata(
-                policy = policy,
-                level = clampedLevel,
-                isCharging = isCharging,
-            ),
+            metadata =
+                powerPolicyMetadata(policy = policy, level = clampedLevel, isCharging = isCharging),
         )
     }
 
@@ -301,9 +305,10 @@ internal class MeshEngine private constructor(
         if (bleTransport == null || transportCollectionJob != null) {
             return
         }
-        transportCollectionJob = coroutineScope.launch(start = CoroutineStart.UNDISPATCHED) {
-            bleTransport.events.collect { event -> handleTransportEvent(event) }
-        }
+        transportCollectionJob =
+            coroutineScope.launch(start = CoroutineStart.UNDISPATCHED) {
+                bleTransport.events.collect { event -> handleTransportEvent(event) }
+            }
     }
 
     private suspend fun handleTransportEvent(event: TransportEvent): Unit {
@@ -312,10 +317,14 @@ internal class MeshEngine private constructor(
             is TransportEvent.PeerDiscovered -> {
                 when (presenceTracker.onPeerConnected(event.peerId)) {
                     PresenceTransition.FOUND -> {
-                        mutablePeerEvents.emit(PeerEvent.Found(event.peerId, PeerConnectionState.CONNECTED))
+                        mutablePeerEvents.emit(
+                            PeerEvent.Found(event.peerId, PeerConnectionState.CONNECTED)
+                        )
                     }
                     PresenceTransition.STATE_CHANGED -> {
-                        mutablePeerEvents.emit(PeerEvent.StateChanged(event.peerId, PeerConnectionState.CONNECTED))
+                        mutablePeerEvents.emit(
+                            PeerEvent.StateChanged(event.peerId, PeerConnectionState.CONNECTED)
+                        )
                     }
                 }
                 prewarmHopSession(event.peerId)
@@ -329,9 +338,10 @@ internal class MeshEngine private constructor(
             }
             is TransportEvent.PeerLost -> {
                 hopSessions.remove(event.peerId.value)
-                pendingInitiatorHandshakes.remove(event.peerId.value)?.sessionDeferred?.complete(
-                    SessionEstablishmentOutcome.Unreachable,
-                )
+                pendingInitiatorHandshakes
+                    .remove(event.peerId.value)
+                    ?.sessionDeferred
+                    ?.complete(SessionEstablishmentOutcome.Unreachable)
                 pendingResponderHandshakes.remove(event.peerId.value)
                 dispatchRoutingAdvertisements(routeCoordinator.onPeerDisconnected(event.peerId))
                 if (presenceTracker.onPeerDisconnected(event.peerId)) {
@@ -359,26 +369,31 @@ internal class MeshEngine private constructor(
 
     private suspend fun handleInboundFrame(event: TransportEvent.FrameReceived): Unit {
         when (val frame = DirectWireFrame.decode(event.payload)) {
-            is DirectWireFrame.HandshakeMessage1 -> handleHandshakeMessage1(event.peerId, frame.payload)
-            is DirectWireFrame.HandshakeMessage2 -> handleHandshakeMessage2(event.peerId, frame.payload)
-            is DirectWireFrame.HandshakeMessage3 -> handleHandshakeMessage3(event.peerId, frame.payload)
+            is DirectWireFrame.HandshakeMessage1 ->
+                handleHandshakeMessage1(event.peerId, frame.payload)
+            is DirectWireFrame.HandshakeMessage2 ->
+                handleHandshakeMessage2(event.peerId, frame.payload)
+            is DirectWireFrame.HandshakeMessage3 ->
+                handleHandshakeMessage3(event.peerId, frame.payload)
             is DirectWireFrame.Data -> handleEncryptedDataFrame(event.peerId, frame.payload)
         }
     }
 
     private suspend fun handleHandshakeMessage1(peerId: PeerId, payload: ByteArray): Unit {
         val manager = NoiseXXHandshakeManager(localIdentity.cryptoProvider)
-        val message2 = runCatching {
-            manager.processMessage1AndCreateMessage2(localIdentity.noiseIdentity, payload)
-        }.getOrElse { exception ->
-            emitHopSessionFailed(
-                peerId = peerId,
-                stage = "transport.handshake.message1",
-                reason = DiagnosticReason.DELIVERY_FAILURE,
-                metadata = mapOf("cause" to exception::class.simpleName.orEmpty()),
-            )
-            return
-        }
+        val message2 =
+            runCatching {
+                    manager.processMessage1AndCreateMessage2(localIdentity.noiseIdentity, payload)
+                }
+                .getOrElse { exception ->
+                    emitHopSessionFailed(
+                        peerId = peerId,
+                        stage = "transport.handshake.message1",
+                        reason = DiagnosticReason.DELIVERY_FAILURE,
+                        metadata = mapOf("cause" to exception::class.simpleName.orEmpty()),
+                    )
+                    return
+                }
         pendingResponderHandshakes[peerId.value] = PendingResponderHandshake(manager)
         when (
             sendDirectWireFrame(
@@ -400,32 +415,40 @@ internal class MeshEngine private constructor(
     }
 
     private suspend fun handleHandshakeMessage2(peerId: PeerId, payload: ByteArray): Unit {
-        val pending = pendingInitiatorHandshakes[peerId.value] ?: run {
-            emitHopSessionFailed(
+        val pending =
+            pendingInitiatorHandshakes[peerId.value]
+                ?: run {
+                    emitHopSessionFailed(
+                        peerId = peerId,
+                        stage = "transport.handshake.message2.unexpected",
+                        reason = DiagnosticReason.DELIVERY_FAILURE,
+                    )
+                    return
+                }
+        val result =
+            runCatching {
+                    pending.manager.processMessage2AndCreateMessage3(
+                        localIdentity.noiseIdentity,
+                        payload,
+                    )
+                }
+                .getOrElse { exception ->
+                    pendingInitiatorHandshakes.remove(peerId.value)
+                    pending.sessionDeferred.complete(SessionEstablishmentOutcome.Unreachable)
+                    emitHopSessionFailed(
+                        peerId = peerId,
+                        stage = "transport.handshake.message2.process",
+                        reason = DiagnosticReason.DELIVERY_FAILURE,
+                        metadata = mapOf("cause" to exception::class.simpleName.orEmpty()),
+                    )
+                    return
+                }
+        val trustRecord =
+            verifyAndPersistTrust(
                 peerId = peerId,
-                stage = "transport.handshake.message2.unexpected",
-                reason = DiagnosticReason.DELIVERY_FAILURE,
+                remoteEd25519PublicKey = result.remoteEd25519PublicKey,
+                remoteX25519PublicKey = result.remoteStaticPublicKey,
             )
-            return
-        }
-        val result = runCatching {
-            pending.manager.processMessage2AndCreateMessage3(localIdentity.noiseIdentity, payload)
-        }.getOrElse { exception ->
-            pendingInitiatorHandshakes.remove(peerId.value)
-            pending.sessionDeferred.complete(SessionEstablishmentOutcome.Unreachable)
-            emitHopSessionFailed(
-                peerId = peerId,
-                stage = "transport.handshake.message2.process",
-                reason = DiagnosticReason.DELIVERY_FAILURE,
-                metadata = mapOf("cause" to exception::class.simpleName.orEmpty()),
-            )
-            return
-        }
-        val trustRecord = verifyAndPersistTrust(
-            peerId = peerId,
-            remoteEd25519PublicKey = result.remoteEd25519PublicKey,
-            remoteX25519PublicKey = result.remoteStaticPublicKey,
-        )
         if (trustRecord == null) {
             pendingInitiatorHandshakes.remove(peerId.value)
             pending.sessionDeferred.complete(SessionEstablishmentOutcome.TrustFailure)
@@ -466,30 +489,33 @@ internal class MeshEngine private constructor(
     }
 
     private suspend fun handleHandshakeMessage3(peerId: PeerId, payload: ByteArray): Unit {
-        val pending = pendingResponderHandshakes.remove(peerId.value) ?: run {
-            emitHopSessionFailed(
+        val pending =
+            pendingResponderHandshakes.remove(peerId.value)
+                ?: run {
+                    emitHopSessionFailed(
+                        peerId = peerId,
+                        stage = "transport.handshake.message3.unexpected",
+                        reason = DiagnosticReason.DELIVERY_FAILURE,
+                    )
+                    return
+                }
+        val result =
+            runCatching { pending.manager.processMessage3(localIdentity.noiseIdentity, payload) }
+                .getOrElse { exception ->
+                    emitHopSessionFailed(
+                        peerId = peerId,
+                        stage = "transport.handshake.message3.process",
+                        reason = DiagnosticReason.DELIVERY_FAILURE,
+                        metadata = mapOf("cause" to exception::class.simpleName.orEmpty()),
+                    )
+                    return
+                }
+        val trustRecord =
+            verifyAndPersistTrust(
                 peerId = peerId,
-                stage = "transport.handshake.message3.unexpected",
-                reason = DiagnosticReason.DELIVERY_FAILURE,
+                remoteEd25519PublicKey = result.remoteEd25519PublicKey,
+                remoteX25519PublicKey = result.remoteStaticPublicKey,
             )
-            return
-        }
-        val result = runCatching {
-            pending.manager.processMessage3(localIdentity.noiseIdentity, payload)
-        }.getOrElse { exception ->
-            emitHopSessionFailed(
-                peerId = peerId,
-                stage = "transport.handshake.message3.process",
-                reason = DiagnosticReason.DELIVERY_FAILURE,
-                metadata = mapOf("cause" to exception::class.simpleName.orEmpty()),
-            )
-            return
-        }
-        val trustRecord = verifyAndPersistTrust(
-            peerId = peerId,
-            remoteEd25519PublicKey = result.remoteEd25519PublicKey,
-            remoteX25519PublicKey = result.remoteStaticPublicKey,
-        )
         if (trustRecord == null) {
             emitHopSessionFailed(
                 peerId = peerId,
@@ -498,47 +524,52 @@ internal class MeshEngine private constructor(
             )
             return
         }
-        hopSessions[peerId.value] = HopSession(sendKey = result.sendKey, receiveKey = result.receiveKey)
+        hopSessions[peerId.value] =
+            HopSession(sendKey = result.sendKey, receiveKey = result.receiveKey)
         dispatchRoutingAdvertisements(routeCoordinator.onPeerConnected(peerId, trustRecord))
         emitHopSessionEstablished(peerId, stage = "transport.handshake.message3.complete")
     }
 
     private suspend fun handleEncryptedDataFrame(peerId: PeerId, payload: ByteArray): Unit {
-        val session = hopSessions[peerId.value] ?: run {
-            emitHopSessionFailed(
-                peerId = peerId,
-                stage = "transport.data.noSession",
-                reason = DiagnosticReason.DELIVERY_FAILURE,
-            )
-            return
-        }
-        val decryptedEnvelopeBytes = runCatching {
-            decryptHopPayload(session, payload)
-        }.getOrElse { exception ->
-            emitHopSessionFailed(
-                peerId = peerId,
-                stage = "transport.data.decrypt",
-                reason = DiagnosticReason.DELIVERY_FAILURE,
-                metadata = mapOf("cause" to exception::class.simpleName.orEmpty()),
-            )
-            return
-        }
-        val frame = runCatching {
-            WireCodec.decode(decryptedEnvelopeBytes)
-        }.getOrElse { exception ->
-            emitHopSessionFailed(
-                peerId = peerId,
-                stage = "transport.data.decode",
-                reason = DiagnosticReason.DELIVERY_FAILURE,
-                metadata = mapOf("cause" to exception::class.simpleName.orEmpty()),
-            )
-            return
-        }
+        val session =
+            hopSessions[peerId.value]
+                ?: run {
+                    emitHopSessionFailed(
+                        peerId = peerId,
+                        stage = "transport.data.noSession",
+                        reason = DiagnosticReason.DELIVERY_FAILURE,
+                    )
+                    return
+                }
+        val decryptedEnvelopeBytes =
+            runCatching { decryptHopPayload(session, payload) }
+                .getOrElse { exception ->
+                    emitHopSessionFailed(
+                        peerId = peerId,
+                        stage = "transport.data.decrypt",
+                        reason = DiagnosticReason.DELIVERY_FAILURE,
+                        metadata = mapOf("cause" to exception::class.simpleName.orEmpty()),
+                    )
+                    return
+                }
+        val frame =
+            runCatching { WireCodec.decode(decryptedEnvelopeBytes) }
+                .getOrElse { exception ->
+                    emitHopSessionFailed(
+                        peerId = peerId,
+                        stage = "transport.data.decode",
+                        reason = DiagnosticReason.DELIVERY_FAILURE,
+                        metadata = mapOf("cause" to exception::class.simpleName.orEmpty()),
+                    )
+                    return
+                }
 
         when (frame) {
             is WireFrame.Message -> handleRoutedMessageFrame(peerId = peerId, frame = frame)
-            is WireFrame.RouteUpdate -> dispatchRoutingAdvertisements(routeCoordinator.onRouteUpdate(peerId, frame))
-            is WireFrame.RouteRetraction -> dispatchRoutingAdvertisements(routeCoordinator.onRouteRetraction(peerId, frame))
+            is WireFrame.RouteUpdate ->
+                dispatchRoutingAdvertisements(routeCoordinator.onRouteUpdate(peerId, frame))
+            is WireFrame.RouteRetraction ->
+                dispatchRoutingAdvertisements(routeCoordinator.onRouteRetraction(peerId, frame))
             is WireFrame.RouteDigest -> routeCoordinator.onRouteDigest(peerId, frame)
             is WireFrame.Hello -> Unit
             is WireFrame.Ihu -> Unit
@@ -571,47 +602,50 @@ internal class MeshEngine private constructor(
         encryptedPayload: ByteArray,
         priority: DeliveryPriority,
     ): Unit {
-        val envelope = runCatching {
-            DirectMessageEnvelope.decode(encryptedPayload)
-        }.getOrElse { exception ->
-            emitHopSessionFailed(
-                peerId = immediatePeerId,
-                stage = "transport.data.messageEnvelope",
-                reason = DiagnosticReason.DELIVERY_FAILURE,
-                metadata = mapOf("cause" to exception::class.simpleName.orEmpty()),
-            )
-            return
-        }
-        val senderTrust = verifyAndPersistTrust(
-            peerId = envelope.senderPeerId,
-            remoteEd25519PublicKey = envelope.senderEd25519PublicKey,
-            remoteX25519PublicKey = envelope.senderX25519PublicKey,
-            expectedFingerprint = envelope.senderFingerprint,
-        ) ?: return
-        val plaintext = runCatching {
-            MessageSealer.open(
-                sealedPayload = envelope.ciphertext,
-                recipientIdentity = localIdentity,
-                senderTrust = senderTrust,
-            )
-        }.getOrElse { exception ->
-            emitDiagnostic(
-                code = DiagnosticCode.TRUST_FAILURE,
-                severity = DiagnosticSeverity.ERROR,
-                stage = "transport.data.open",
-                peerSuffix = envelope.senderPeerId.value.takeLast(6),
-                reason = DiagnosticReason.TRUST_FAILURE,
-                metadata = mapOf("cause" to exception::class.simpleName.orEmpty()),
-            )
-            return
-        }
+        val envelope =
+            runCatching { DirectMessageEnvelope.decode(encryptedPayload) }
+                .getOrElse { exception ->
+                    emitHopSessionFailed(
+                        peerId = immediatePeerId,
+                        stage = "transport.data.messageEnvelope",
+                        reason = DiagnosticReason.DELIVERY_FAILURE,
+                        metadata = mapOf("cause" to exception::class.simpleName.orEmpty()),
+                    )
+                    return
+                }
+        val senderTrust =
+            verifyAndPersistTrust(
+                peerId = envelope.senderPeerId,
+                remoteEd25519PublicKey = envelope.senderEd25519PublicKey,
+                remoteX25519PublicKey = envelope.senderX25519PublicKey,
+                expectedFingerprint = envelope.senderFingerprint,
+            ) ?: return
+        val plaintext =
+            runCatching {
+                    MessageSealer.open(
+                        sealedPayload = envelope.ciphertext,
+                        recipientIdentity = localIdentity,
+                        senderTrust = senderTrust,
+                    )
+                }
+                .getOrElse { exception ->
+                    emitDiagnostic(
+                        code = DiagnosticCode.TRUST_FAILURE,
+                        severity = DiagnosticSeverity.ERROR,
+                        stage = "transport.data.open",
+                        peerSuffix = envelope.senderPeerId.value.takeLast(6),
+                        reason = DiagnosticReason.TRUST_FAILURE,
+                        metadata = mapOf("cause" to exception::class.simpleName.orEmpty()),
+                    )
+                    return
+                }
         mutableMessages.emit(
             InboundMessage(
                 originPeerId = originPeerId,
                 payload = plaintext,
                 receivedAtEpochMillis = 0L,
                 priority = priority,
-            ),
+            )
         )
     }
 
@@ -635,48 +669,58 @@ internal class MeshEngine private constructor(
                     return SendResult.NotSent(SendFailureReason.TRUST_FAILURE)
                 }
 
-                val sealedPayload = runCatching {
-                    MessageSealer.seal(
-                        plaintext = payload,
-                        senderIdentity = localIdentity,
-                        recipientTrust = recipientTrust,
-                    )
-                }.getOrElse { exception ->
-                    emitHopSessionFailed(
-                        peerId = peerId,
-                        stage = "delivery.send.encrypt",
-                        reason = DiagnosticReason.TRUST_FAILURE,
-                        metadata = mapOf("cause" to exception::class.simpleName.orEmpty()),
-                    )
-                    return SendResult.NotSent(SendFailureReason.TRUST_FAILURE)
-                }
+                val sealedPayload =
+                    runCatching {
+                            MessageSealer.seal(
+                                plaintext = payload,
+                                senderIdentity = localIdentity,
+                                recipientTrust = recipientTrust,
+                            )
+                        }
+                        .getOrElse { exception ->
+                            emitHopSessionFailed(
+                                peerId = peerId,
+                                stage = "delivery.send.encrypt",
+                                reason = DiagnosticReason.TRUST_FAILURE,
+                                metadata = mapOf("cause" to exception::class.simpleName.orEmpty()),
+                            )
+                            return SendResult.NotSent(SendFailureReason.TRUST_FAILURE)
+                        }
 
-                val innerEnvelope = DirectMessageEnvelope(
-                    senderPeerId = localIdentity.peerId,
-                    senderFingerprint = localIdentity.identityFingerprint,
-                    senderEd25519PublicKey = localIdentity.ed25519PublicKey,
-                    senderX25519PublicKey = localIdentity.x25519PublicKey,
-                    ciphertext = sealedPayload,
-                ).encode()
-                val routedMessage = WireFrame.Message(
-                    messageId = createMessageId(),
-                    originPeerId = localIdentity.peerId,
-                    destinationPeerId = peerId,
-                    priority = priority,
-                    ttlMillis = ttlMillisFor(priority),
-                    encryptedPayload = innerEnvelope,
-                )
-                val encryptedFrame = runCatching {
-                    encryptHopPayload(sessionOutcome.session, WireCodec.encode(routedMessage))
-                }.getOrElse { exception ->
-                    emitHopSessionFailed(
-                        peerId = nextHopPeerId,
-                        stage = "delivery.send.transportEncrypt",
-                        reason = DiagnosticReason.DELIVERY_FAILURE,
-                        metadata = mapOf("cause" to exception::class.simpleName.orEmpty()),
+                val innerEnvelope =
+                    DirectMessageEnvelope(
+                            senderPeerId = localIdentity.peerId,
+                            senderFingerprint = localIdentity.identityFingerprint,
+                            senderEd25519PublicKey = localIdentity.ed25519PublicKey,
+                            senderX25519PublicKey = localIdentity.x25519PublicKey,
+                            ciphertext = sealedPayload,
+                        )
+                        .encode()
+                val routedMessage =
+                    WireFrame.Message(
+                        messageId = createMessageId(),
+                        originPeerId = localIdentity.peerId,
+                        destinationPeerId = peerId,
+                        priority = priority,
+                        ttlMillis = ttlMillisFor(priority),
+                        encryptedPayload = innerEnvelope,
                     )
-                    return SendResult.NotSent(SendFailureReason.UNREACHABLE)
-                }
+                val encryptedFrame =
+                    runCatching {
+                            encryptHopPayload(
+                                sessionOutcome.session,
+                                WireCodec.encode(routedMessage),
+                            )
+                        }
+                        .getOrElse { exception ->
+                            emitHopSessionFailed(
+                                peerId = nextHopPeerId,
+                                stage = "delivery.send.transportEncrypt",
+                                reason = DiagnosticReason.DELIVERY_FAILURE,
+                                metadata = mapOf("cause" to exception::class.simpleName.orEmpty()),
+                            )
+                            return SendResult.NotSent(SendFailureReason.UNREACHABLE)
+                        }
 
                 when (
                     sendDirectWireFrame(
@@ -702,7 +746,8 @@ internal class MeshEngine private constructor(
                 }
             }
 
-            SessionEstablishmentOutcome.TrustFailure -> SendResult.NotSent(SendFailureReason.TRUST_FAILURE)
+            SessionEstablishmentOutcome.TrustFailure ->
+                SendResult.NotSent(SendFailureReason.TRUST_FAILURE)
             SessionEstablishmentOutcome.Unreachable -> {
                 scheduleRetryDiagnostic(peerId = peerId, priority = priority)
                 SendResult.NotSent(SendFailureReason.UNREACHABLE)
@@ -716,14 +761,16 @@ internal class MeshEngine private constructor(
             return existingTrust
         }
         val route = routeCoordinator.routeFor(peerId) ?: return null
-        val learnedTrust = TrustRecord(
-            peerIdValue = route.destinationPeerId.value,
-            identityFingerprint = localIdentity.cryptoProvider.sha256(
-                route.ed25519PublicKey + route.x25519PublicKey,
-            ).toHexString(),
-            ed25519PublicKey = route.ed25519PublicKey,
-            x25519PublicKey = route.x25519PublicKey,
-        )
+        val learnedTrust =
+            TrustRecord(
+                peerIdValue = route.destinationPeerId.value,
+                identityFingerprint =
+                    localIdentity.cryptoProvider
+                        .sha256(route.ed25519PublicKey + route.x25519PublicKey)
+                        .toHexString(),
+                ed25519PublicKey = route.ed25519PublicKey,
+                x25519PublicKey = route.x25519PublicKey,
+            )
         trustStore.write(learnedTrust)
         emitDiagnostic(
             code = DiagnosticCode.TRUST_ESTABLISHED,
@@ -738,54 +785,61 @@ internal class MeshEngine private constructor(
     private sealed class OutboundTransferPreparation {
         data object PendingRoute : OutboundTransferPreparation()
 
-        class Ready internal constructor(
-            internal val session: OutboundTransferSession,
-        ) : OutboundTransferPreparation()
+        class Ready internal constructor(internal val session: OutboundTransferSession) :
+            OutboundTransferPreparation()
 
-        class Failed internal constructor(
-            internal val result: SendResult,
-        ) : OutboundTransferPreparation()
+        class Failed internal constructor(internal val result: SendResult) :
+            OutboundTransferPreparation()
     }
 
     private suspend fun prepareOutboundTransferSession(
         peerId: PeerId,
         payload: ByteArray,
     ): OutboundTransferPreparation {
-        val recipientTrust = resolveRecipientTrust(peerId) ?: return OutboundTransferPreparation.PendingRoute
-        val sealedPayload = runCatching {
-            MessageSealer.seal(
-                plaintext = payload,
-                senderIdentity = localIdentity,
-                recipientTrust = recipientTrust,
+        val recipientTrust =
+            resolveRecipientTrust(peerId) ?: return OutboundTransferPreparation.PendingRoute
+        val sealedPayload =
+            runCatching {
+                    MessageSealer.seal(
+                        plaintext = payload,
+                        senderIdentity = localIdentity,
+                        recipientTrust = recipientTrust,
+                    )
+                }
+                .getOrElse { exception ->
+                    emitHopSessionFailed(
+                        peerId = peerId,
+                        stage = "transfer.encrypt",
+                        reason = DiagnosticReason.TRUST_FAILURE,
+                        metadata = mapOf("cause" to exception::class.simpleName.orEmpty()),
+                    )
+                    return OutboundTransferPreparation.Failed(
+                        SendResult.NotSent(SendFailureReason.TRUST_FAILURE)
+                    )
+                }
+        val innerEnvelope =
+            DirectMessageEnvelope(
+                    senderPeerId = localIdentity.peerId,
+                    senderFingerprint = localIdentity.identityFingerprint,
+                    senderEd25519PublicKey = localIdentity.ed25519PublicKey,
+                    senderX25519PublicKey = localIdentity.x25519PublicKey,
+                    ciphertext = sealedPayload,
+                )
+                .encode()
+        val chunks =
+            innerEnvelope.asList().chunked(TRANSFER_CHUNK_PAYLOAD_BYTES).map { chunk ->
+                chunk.toByteArray()
+            }
+        val session =
+            OutboundTransferSession(
+                transferId = createTransferId(),
+                messageId = createMessageId(),
+                originPeerId = localIdentity.peerId,
+                destinationPeerId = peerId,
+                chunks = chunks,
+                totalBytes = innerEnvelope.size,
+                maxChunkPayloadBytes = TRANSFER_CHUNK_PAYLOAD_BYTES,
             )
-        }.getOrElse { exception ->
-            emitHopSessionFailed(
-                peerId = peerId,
-                stage = "transfer.encrypt",
-                reason = DiagnosticReason.TRUST_FAILURE,
-                metadata = mapOf("cause" to exception::class.simpleName.orEmpty()),
-            )
-            return OutboundTransferPreparation.Failed(
-                SendResult.NotSent(SendFailureReason.TRUST_FAILURE),
-            )
-        }
-        val innerEnvelope = DirectMessageEnvelope(
-            senderPeerId = localIdentity.peerId,
-            senderFingerprint = localIdentity.identityFingerprint,
-            senderEd25519PublicKey = localIdentity.ed25519PublicKey,
-            senderX25519PublicKey = localIdentity.x25519PublicKey,
-            ciphertext = sealedPayload,
-        ).encode()
-        val chunks = innerEnvelope.asList().chunked(TRANSFER_CHUNK_PAYLOAD_BYTES).map { chunk -> chunk.toByteArray() }
-        val session = OutboundTransferSession(
-            transferId = createTransferId(),
-            messageId = createMessageId(),
-            originPeerId = localIdentity.peerId,
-            destinationPeerId = peerId,
-            chunks = chunks,
-            totalBytes = innerEnvelope.size,
-            maxChunkPayloadBytes = TRANSFER_CHUNK_PAYLOAD_BYTES,
-        )
         outboundTransfers[session.transferId] = session
         emitDiagnostic(
             code = DiagnosticCode.TRANSFER_STARTED,
@@ -809,7 +863,10 @@ internal class MeshEngine private constructor(
 
         while (startedAt.elapsedNow() < config.deliveryRetryDeadline) {
             if (activeSession == null) {
-                when (val preparation = prepareOutboundTransferSession(peerId = peerId, payload = payload)) {
+                when (
+                    val preparation =
+                        prepareOutboundTransferSession(peerId = peerId, payload = payload)
+                ) {
                     OutboundTransferPreparation.PendingRoute -> {
                         lastRouteAvailable = false
                         scheduleRetryDiagnostic(peerId = peerId, priority = priority)
@@ -822,11 +879,12 @@ internal class MeshEngine private constructor(
             }
 
             activeSession?.let { session ->
-                var routeAvailable = sendTransferTowardsDestination(
-                    session.destinationPeerId,
-                    session.asStartFrame(),
-                    "transfer.start",
-                )
+                var routeAvailable =
+                    sendTransferTowardsDestination(
+                        session.destinationPeerId,
+                        session.asStartFrame(),
+                        "transfer.start",
+                    )
                 val missingChunks = session.missingChunkIndices()
                 if (missingChunks.isEmpty()) {
                     sendTransferTowardsDestination(
@@ -844,25 +902,27 @@ internal class MeshEngine private constructor(
                     return SendResult.Sent
                 }
                 missingChunks.forEach { chunkIndex ->
-                    routeAvailable = sendTransferTowardsDestination(
-                        session.destinationPeerId,
-                        WireFrame.TransferChunk(
-                            transferId = session.transferId,
-                            chunkIndex = chunkIndex,
-                            payload = session.chunks[chunkIndex],
-                        ),
-                        "transfer.chunk",
-                    ) || routeAvailable
+                    routeAvailable =
+                        sendTransferTowardsDestination(
+                            session.destinationPeerId,
+                            WireFrame.TransferChunk(
+                                transferId = session.transferId,
+                                chunkIndex = chunkIndex,
+                                payload = session.chunks[chunkIndex],
+                            ),
+                            "transfer.chunk",
+                        ) || routeAvailable
                 }
                 emitDiagnostic(
                     code = DiagnosticCode.TRANSFER_PROGRESS,
                     severity = DiagnosticSeverity.DEBUG,
                     stage = "transfer.send.progress",
                     peerSuffix = peerId.value.takeLast(6),
-                    metadata = mapOf(
-                        "ackedChunks" to (session.totalChunks - missingChunks.size).toString(),
-                        "totalChunks" to session.totalChunks.toString(),
-                    ),
+                    metadata =
+                        mapOf(
+                            "ackedChunks" to (session.totalChunks - missingChunks.size).toString(),
+                            "totalChunks" to session.totalChunks.toString(),
+                        ),
                 )
                 lastRouteAvailable = routeAvailable
                 if (!routeAvailable) {
@@ -882,11 +942,12 @@ internal class MeshEngine private constructor(
                 )
             }
             when (
-                val wakeup = deliveryRetryScheduler.awaitRetry(
-                    attempt = attempt,
-                    remainingBudget = config.deliveryRetryDeadline - startedAt.elapsedNow(),
-                    lastObservedTopologyVersion = topologyVersion,
-                )
+                val wakeup =
+                    deliveryRetryScheduler.awaitRetry(
+                        attempt = attempt,
+                        remainingBudget = config.deliveryRetryDeadline - startedAt.elapsedNow(),
+                        lastObservedTopologyVersion = topologyVersion,
+                    )
             ) {
                 is RetryWakeup.DeadlineExpired -> break
                 is RetryWakeup.TimerElapsed -> {
@@ -910,9 +971,7 @@ internal class MeshEngine private constructor(
             }
         }
 
-        activeSession?.let { session ->
-            outboundTransfers.remove(session.transferId)
-        }
+        activeSession?.let { session -> outboundTransfers.remove(session.transferId) }
         return if (!lastRouteAvailable) {
             emitDiagnostic(
                 code = DiagnosticCode.DELIVERY_UNREACHABLE,
@@ -949,16 +1008,17 @@ internal class MeshEngine private constructor(
             if (existingSession != null) {
                 existingSession.upstreamPeerId = peerId
             } else {
-                inboundTransfers[frame.transferId] = InboundTransferSession(
-                    transferId = frame.transferId,
-                    messageId = frame.messageId,
-                    originPeerId = frame.originPeerId,
-                    destinationPeerId = frame.destinationPeerId,
-                    upstreamPeerId = peerId,
-                    totalBytes = frame.totalBytes,
-                    totalChunks = frame.totalChunks,
-                    maxChunkPayloadBytes = frame.maxChunkPayloadBytes,
-                )
+                inboundTransfers[frame.transferId] =
+                    InboundTransferSession(
+                        transferId = frame.transferId,
+                        messageId = frame.messageId,
+                        originPeerId = frame.originPeerId,
+                        destinationPeerId = frame.destinationPeerId,
+                        upstreamPeerId = peerId,
+                        totalBytes = frame.totalBytes,
+                        totalChunks = frame.totalChunks,
+                        maxChunkPayloadBytes = frame.maxChunkPayloadBytes,
+                    )
             }
             val ackFrame = inboundTransfers[frame.transferId]?.asAckFrame() ?: return
             sendEncryptedWireFrame(peerId, ackFrame, "transfer.ack.start")
@@ -969,13 +1029,14 @@ internal class MeshEngine private constructor(
         if (relaySession != null) {
             relaySession.upstreamPeerId = peerId
         } else {
-            relayTransfers[frame.transferId] = RelayTransferSession(
-                transferId = frame.transferId,
-                messageId = frame.messageId,
-                originPeerId = frame.originPeerId,
-                destinationPeerId = frame.destinationPeerId,
-                upstreamPeerId = peerId,
-            )
+            relayTransfers[frame.transferId] =
+                RelayTransferSession(
+                    transferId = frame.transferId,
+                    messageId = frame.messageId,
+                    originPeerId = frame.originPeerId,
+                    destinationPeerId = frame.destinationPeerId,
+                    upstreamPeerId = peerId,
+                )
         }
         sendTransferTowardsDestination(frame.destinationPeerId, frame, "transfer.forward.start")
     }
@@ -984,11 +1045,19 @@ internal class MeshEngine private constructor(
         val inboundSession = inboundTransfers[frame.transferId]
         if (inboundSession != null) {
             inboundSession.acceptChunk(frame)
-            sendEncryptedWireFrame(inboundSession.upstreamPeerId, inboundSession.asAckFrame(), "transfer.ack.chunk")
+            sendEncryptedWireFrame(
+                inboundSession.upstreamPeerId,
+                inboundSession.asAckFrame(),
+                "transfer.ack.chunk",
+            )
             return
         }
         val relaySession = relayTransfers[frame.transferId] ?: return
-        sendTransferTowardsDestination(relaySession.destinationPeerId, frame, "transfer.forward.chunk")
+        sendTransferTowardsDestination(
+            relaySession.destinationPeerId,
+            frame,
+            "transfer.forward.chunk",
+        )
     }
 
     private fun handleTransferAck(peerId: PeerId, frame: WireFrame.TransferAck): Unit {
@@ -1003,7 +1072,10 @@ internal class MeshEngine private constructor(
         }
     }
 
-    private suspend fun handleTransferComplete(peerId: PeerId, frame: WireFrame.TransferComplete): Unit {
+    private suspend fun handleTransferComplete(
+        peerId: PeerId,
+        frame: WireFrame.TransferComplete,
+    ): Unit {
         val inboundSession = inboundTransfers.remove(frame.transferId)
         if (inboundSession != null) {
             if (inboundSession.isComplete()) {
@@ -1017,14 +1089,22 @@ internal class MeshEngine private constructor(
             return
         }
         val relaySession = relayTransfers.remove(frame.transferId) ?: return
-        sendTransferTowardsDestination(relaySession.destinationPeerId, frame, "transfer.forward.complete")
+        sendTransferTowardsDestination(
+            relaySession.destinationPeerId,
+            frame,
+            "transfer.forward.complete",
+        )
     }
 
     private suspend fun handleTransferAbort(peerId: PeerId, frame: WireFrame.TransferAbort): Unit {
         inboundTransfers.remove(frame.transferId)
         val relaySession = relayTransfers.remove(frame.transferId)
         if (relaySession != null) {
-            sendTransferTowardsDestination(relaySession.destinationPeerId, frame, "transfer.forward.abort")
+            sendTransferTowardsDestination(
+                relaySession.destinationPeerId,
+                frame,
+                "transfer.forward.abort",
+            )
             return
         }
         val outboundSession = outboundTransfers.remove(frame.transferId)
@@ -1044,9 +1124,7 @@ internal class MeshEngine private constructor(
         if (localIdentity.peerId.value >= peerId.value) {
             return
         }
-        coroutineScope.launch {
-            ensureHopSession(peerId)
-        }
+        coroutineScope.launch { ensureHopSession(peerId) }
     }
 
     private fun forwardMessageToNextHop(frame: WireFrame.Message): Unit {
@@ -1078,18 +1156,19 @@ internal class MeshEngine private constructor(
         action: String,
     ): Boolean {
         val sessionOutcome = ensureHopSession(peerId)
-        val session = (sessionOutcome as? SessionEstablishmentOutcome.Established)?.session ?: return false
-        val encryptedFrame = runCatching {
-            encryptHopPayload(session, WireCodec.encode(frame))
-        }.getOrElse { exception ->
-            emitHopSessionFailed(
-                peerId = peerId,
-                stage = "$action.encrypt",
-                reason = DiagnosticReason.DELIVERY_FAILURE,
-                metadata = mapOf("cause" to exception::class.simpleName.orEmpty()),
-            )
-            return false
-        }
+        val session =
+            (sessionOutcome as? SessionEstablishmentOutcome.Established)?.session ?: return false
+        val encryptedFrame =
+            runCatching { encryptHopPayload(session, WireCodec.encode(frame)) }
+                .getOrElse { exception ->
+                    emitHopSessionFailed(
+                        peerId = peerId,
+                        stage = "$action.encrypt",
+                        reason = DiagnosticReason.DELIVERY_FAILURE,
+                        metadata = mapOf("cause" to exception::class.simpleName.orEmpty()),
+                    )
+                    return false
+                }
         return when (
             sendDirectWireFrame(
                 peerId = peerId,
@@ -1123,7 +1202,8 @@ internal class MeshEngine private constructor(
         val manager = NoiseXXHandshakeManager(localIdentity.cryptoProvider)
         val message1 = manager.createMessage1(localIdentity.noiseIdentity)
         val sessionDeferred = CompletableDeferred<SessionEstablishmentOutcome>()
-        pendingInitiatorHandshakes[peerId.value] = PendingInitiatorHandshake(manager, sessionDeferred)
+        pendingInitiatorHandshakes[peerId.value] =
+            PendingInitiatorHandshake(manager, sessionDeferred)
         when (
             sendDirectWireFrame(
                 peerId = peerId,
@@ -1131,7 +1211,8 @@ internal class MeshEngine private constructor(
                 action = "handshake.message1",
             )
         ) {
-            TransportSendResult.Delivered -> return awaitSessionEstablishment(peerId, sessionDeferred)
+            TransportSendResult.Delivered ->
+                return awaitSessionEstablishment(peerId, sessionDeferred)
             is TransportSendResult.Dropped -> {
                 pendingInitiatorHandshakes.remove(peerId.value)
                 emitHopSessionFailed(
@@ -1149,9 +1230,7 @@ internal class MeshEngine private constructor(
         sessionDeferred: CompletableDeferred<SessionEstablishmentOutcome>,
     ): SessionEstablishmentOutcome {
         return try {
-            withTimeout(HANDSHAKE_TIMEOUT.inWholeMilliseconds) {
-                sessionDeferred.await()
-            }
+            withTimeout(HANDSHAKE_TIMEOUT.inWholeMilliseconds) { sessionDeferred.await() }
         } catch (_: TimeoutCancellationException) {
             pendingInitiatorHandshakes.remove(peerId.value)
             emitHopSessionFailed(
@@ -1169,9 +1248,10 @@ internal class MeshEngine private constructor(
         remoteX25519PublicKey: ByteArray,
         expectedFingerprint: String? = null,
     ): TrustRecord? {
-        val fingerprint = localIdentity.cryptoProvider.sha256(
-            remoteEd25519PublicKey + remoteX25519PublicKey,
-        ).toHexString()
+        val fingerprint =
+            localIdentity.cryptoProvider
+                .sha256(remoteEd25519PublicKey + remoteX25519PublicKey)
+                .toHexString()
         if (expectedFingerprint != null && expectedFingerprint != fingerprint) {
             emitDiagnostic(
                 code = DiagnosticCode.TRUST_FAILURE,
@@ -1185,12 +1265,13 @@ internal class MeshEngine private constructor(
 
         val existingTrust = trustStore.read(peerId.value)
         if (existingTrust == null) {
-            val trustRecord = TrustRecord(
-                peerIdValue = peerId.value,
-                identityFingerprint = fingerprint,
-                ed25519PublicKey = remoteEd25519PublicKey,
-                x25519PublicKey = remoteX25519PublicKey,
-            )
+            val trustRecord =
+                TrustRecord(
+                    peerIdValue = peerId.value,
+                    identityFingerprint = fingerprint,
+                    ed25519PublicKey = remoteEd25519PublicKey,
+                    x25519PublicKey = remoteX25519PublicKey,
+                )
             trustStore.write(trustRecord)
             emitDiagnostic(
                 code = DiagnosticCode.TRUST_ESTABLISHED,
@@ -1203,8 +1284,8 @@ internal class MeshEngine private constructor(
         }
         if (
             existingTrust.identityFingerprint != fingerprint ||
-            !existingTrust.ed25519PublicKey.contentEquals(remoteEd25519PublicKey) ||
-            !existingTrust.x25519PublicKey.contentEquals(remoteX25519PublicKey)
+                !existingTrust.ed25519PublicKey.contentEquals(remoteEd25519PublicKey) ||
+                !existingTrust.x25519PublicKey.contentEquals(remoteX25519PublicKey)
         ) {
             emitDiagnostic(
                 code = DiagnosticCode.TRUST_FAILURE,
@@ -1223,35 +1304,33 @@ internal class MeshEngine private constructor(
         frame: DirectWireFrame,
         action: String,
     ): TransportSendResult {
-        val transport = bleTransport ?: return TransportSendResult.Dropped("BLE transport is unavailable")
+        val transport =
+            bleTransport ?: return TransportSendResult.Dropped("BLE transport is unavailable")
         return runPlatformCall(action) {
-            transport.send(
-                OutboundFrame(
-                    peerId = peerId,
-                    payload = frame.encode(),
-                ),
-            )
+            transport.send(OutboundFrame(peerId = peerId, payload = frame.encode()))
         }
     }
 
     private fun encryptHopPayload(session: HopSession, plaintext: ByteArray): ByteArray {
-        val ciphertext = localIdentity.cryptoProvider.chacha20Poly1305Seal(
-            key = session.sendKey,
-            nonce = noiseNonce(session.sendNonce),
-            aad = byteArrayOf(),
-            plaintext = plaintext,
-        )
+        val ciphertext =
+            localIdentity.cryptoProvider.chacha20Poly1305Seal(
+                key = session.sendKey,
+                nonce = noiseNonce(session.sendNonce),
+                aad = byteArrayOf(),
+                plaintext = plaintext,
+            )
         session.sendNonce += 1u
         return ciphertext
     }
 
     private fun decryptHopPayload(session: HopSession, ciphertext: ByteArray): ByteArray {
-        val plaintext = localIdentity.cryptoProvider.chacha20Poly1305Open(
-            key = session.receiveKey,
-            nonce = noiseNonce(session.receiveNonce),
-            aad = byteArrayOf(),
-            ciphertext = ciphertext,
-        )
+        val plaintext =
+            localIdentity.cryptoProvider.chacha20Poly1305Open(
+                key = session.receiveKey,
+                nonce = noiseNonce(session.receiveNonce),
+                aad = byteArrayOf(),
+                ciphertext = ciphertext,
+            )
         session.receiveNonce += 1u
         return plaintext
     }
@@ -1314,14 +1393,15 @@ internal class MeshEngine private constructor(
         reason: DiagnosticReason? = null,
         metadata: Map<String, String> = emptyMap(),
     ): Unit {
-        val event = DiagnosticEvent(
-            code = code,
-            severity = severity,
-            stage = stage,
-            peerSuffix = peerSuffix,
-            reason = reason,
-            metadata = metadata,
-        )
+        val event =
+            DiagnosticEvent(
+                code = code,
+                severity = severity,
+                stage = stage,
+                peerSuffix = peerSuffix,
+                reason = reason,
+                metadata = metadata,
+            )
         mutableDiagnostics.tryEmit(event)
         diagnosticSink?.emit(event)
     }
@@ -1333,11 +1413,13 @@ internal class MeshEngine private constructor(
             stage = "delivery.noRoute",
             peerSuffix = peerId.value.takeLast(6),
             reason = DiagnosticReason.DELIVERY_FAILURE,
-            metadata = mapOf(
-                "priority" to priority.name,
-                "retryDeadlineMs" to config.deliveryRetryDeadline.inWholeMilliseconds.toString(),
-                "retryBackoffBaseMs" to INITIAL_BACKOFF.inWholeMilliseconds.toString(),
-            ),
+            metadata =
+                mapOf(
+                    "priority" to priority.name,
+                    "retryDeadlineMs" to
+                        config.deliveryRetryDeadline.inWholeMilliseconds.toString(),
+                    "retryBackoffBaseMs" to INITIAL_BACKOFF.inWholeMilliseconds.toString(),
+                ),
         )
     }
 
@@ -1381,9 +1463,7 @@ internal class MeshEngine private constructor(
 
         private fun noiseNonce(value: ULong): ByteArray {
             val nonce = ByteArray(12)
-            repeat(8) { index ->
-                nonce[4 + index] = ((value shr (index * 8)) and 0xFFu).toByte()
-            }
+            repeat(8) { index -> nonce[4 + index] = ((value shr (index * 8)) and 0xFFu).toByte() }
             return nonce
         }
 
@@ -1408,30 +1488,26 @@ internal class MeshEngine private constructor(
 }
 
 private sealed class SessionEstablishmentOutcome {
-    internal class Established internal constructor(
-        internal val session: HopSession,
-    ) : SessionEstablishmentOutcome()
+    internal class Established internal constructor(internal val session: HopSession) :
+        SessionEstablishmentOutcome()
 
     internal data object TrustFailure : SessionEstablishmentOutcome()
 
     internal data object Unreachable : SessionEstablishmentOutcome()
 }
 
-private class HopSession internal constructor(
-    sendKey: ByteArray,
-    receiveKey: ByteArray,
-) {
+private class HopSession internal constructor(sendKey: ByteArray, receiveKey: ByteArray) {
     internal val sendKey: ByteArray = sendKey.copyOf()
     internal val receiveKey: ByteArray = receiveKey.copyOf()
     internal var sendNonce: ULong = 0u
     internal var receiveNonce: ULong = 0u
 }
 
-private class PendingInitiatorHandshake internal constructor(
+private class PendingInitiatorHandshake
+internal constructor(
     internal val manager: NoiseXXHandshakeManager,
     internal val sessionDeferred: CompletableDeferred<SessionEstablishmentOutcome>,
 )
 
-private class PendingResponderHandshake internal constructor(
-    internal val manager: NoiseXXHandshakeManager,
-)
+private class PendingResponderHandshake
+internal constructor(internal val manager: NoiseXXHandshakeManager)

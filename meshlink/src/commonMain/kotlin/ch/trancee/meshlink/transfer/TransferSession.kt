@@ -3,7 +3,8 @@ package ch.trancee.meshlink.transfer
 import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.wire.WireFrame
 
-internal class OutboundTransferSession internal constructor(
+internal class OutboundTransferSession
+internal constructor(
     internal val transferId: String,
     internal val messageId: String,
     internal val originPeerId: PeerId,
@@ -33,7 +34,9 @@ internal class OutboundTransferSession internal constructor(
     internal fun markAcknowledged(ackFrame: WireFrame.TransferAck): Unit {
         val selectiveBitSet = ackFrame.selectiveRanges
         repeat(totalChunks) { chunkIndex ->
-            if (chunkIndex <= ackFrame.highestContiguousAck || selectiveBitSet.isMarked(chunkIndex)) {
+            if (
+                chunkIndex <= ackFrame.highestContiguousAck || selectiveBitSet.isMarked(chunkIndex)
+            ) {
                 acknowledgedChunks[chunkIndex] = true
             }
         }
@@ -48,7 +51,8 @@ internal class OutboundTransferSession internal constructor(
     }
 }
 
-internal class InboundTransferSession internal constructor(
+internal class InboundTransferSession
+internal constructor(
     internal val transferId: String,
     internal val messageId: String,
     internal val originPeerId: PeerId,
@@ -111,7 +115,8 @@ internal class InboundTransferSession internal constructor(
     }
 }
 
-internal class RelayTransferSession internal constructor(
+internal class RelayTransferSession
+internal constructor(
     internal val transferId: String,
     internal val messageId: String,
     internal val originPeerId: PeerId,

@@ -42,7 +42,11 @@ internal class IosCryptoProvider : CryptoProvider {
         return callbacks().ed25519Sign(privateKey.copyOf(), message.copyOf()).copyOf()
     }
 
-    override fun ed25519Verify(publicKey: ByteArray, message: ByteArray, signature: ByteArray): Boolean {
+    override fun ed25519Verify(
+        publicKey: ByteArray,
+        message: ByteArray,
+        signature: ByteArray,
+    ): Boolean {
         return callbacks().ed25519Verify(publicKey.copyOf(), message.copyOf(), signature.copyOf())
     }
 
@@ -52,12 +56,9 @@ internal class IosCryptoProvider : CryptoProvider {
         aad: ByteArray,
         plaintext: ByteArray,
     ): ByteArray {
-        return callbacks().chacha20Poly1305Seal(
-            key.copyOf(),
-            nonce.copyOf(),
-            aad.copyOf(),
-            plaintext.copyOf(),
-        ).copyOf()
+        return callbacks()
+            .chacha20Poly1305Seal(key.copyOf(), nonce.copyOf(), aad.copyOf(), plaintext.copyOf())
+            .copyOf()
     }
 
     override fun chacha20Poly1305Open(
@@ -66,12 +67,9 @@ internal class IosCryptoProvider : CryptoProvider {
         aad: ByteArray,
         ciphertext: ByteArray,
     ): ByteArray {
-        return callbacks().chacha20Poly1305Open(
-            key.copyOf(),
-            nonce.copyOf(),
-            aad.copyOf(),
-            ciphertext.copyOf(),
-        ).copyOf()
+        return callbacks()
+            .chacha20Poly1305Open(key.copyOf(), nonce.copyOf(), aad.copyOf(), ciphertext.copyOf())
+            .copyOf()
     }
 
     private fun callbacks() = IosCryptoBridgeRegistry.requireCallbacks()

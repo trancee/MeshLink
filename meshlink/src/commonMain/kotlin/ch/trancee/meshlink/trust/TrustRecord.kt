@@ -1,6 +1,7 @@
 package ch.trancee.meshlink.trust
 
-internal class TrustRecord internal constructor(
+internal class TrustRecord
+internal constructor(
     internal val peerIdValue: String,
     internal val identityFingerprint: String,
     ed25519PublicKey: ByteArray,

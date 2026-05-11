@@ -22,13 +22,13 @@ import ch.trancee.meshlink.identity.toHexString
 import ch.trancee.meshlink.power.PowerPolicy
 import ch.trancee.meshlink.transport.BleDiscoveryContract
 import ch.trancee.meshlink.transport.BleDiscoveryPayload
-import ch.trancee.meshlink.transport.BlePowerMode
 import ch.trancee.meshlink.transport.BleTransport
 import ch.trancee.meshlink.transport.OutboundFrame
 import ch.trancee.meshlink.transport.TransportEvent
 import ch.trancee.meshlink.transport.TransportMode
 import ch.trancee.meshlink.transport.TransportSendResult
-import kotlinx.coroutines.CompletableDeferred
+import java.io.Closeable
+import java.io.InputStream
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -40,8 +40,6 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import java.io.Closeable
-import java.io.InputStream
 
 internal class AndroidBleTransport(
     private val context: Context,
@@ -72,34 +70,43 @@ internal class AndroidBleTransport(
 
     private val advertiseCallback = object : AdvertiseCallback() {}
 
-    private val scanCallback = object : ScanCallback() {
-        override fun onScanResult(callbackType: Int, result: ScanResult) {
-            handleScanResult(result)
-        }
+    private val scanCallback =
+        object : ScanCallback() {
+            override fun onScanResult(callbackType: Int, result: ScanResult) {
+                handleScanResult(result)
+            }
 
-        override fun onBatchScanResults(results: MutableList<ScanResult>) {
-            results.forEach(::handleScanResult)
+            override fun onBatchScanResults(results: MutableList<ScanResult>) {
+                results.forEach(::handleScanResult)
+            }
         }
-    }
 
     override suspend fun start(): Unit {
-        val bluetoothManager = context.getSystemService(BluetoothManager::class.java)
-            ?: error("BluetoothManager is unavailable")
+        val bluetoothManager =
+            context.getSystemService(BluetoothManager::class.java)
+                ?: error("BluetoothManager is unavailable")
         val adapter = bluetoothManager.adapter ?: error("BluetoothAdapter is unavailable")
         bluetoothAdapter = adapter
         advertiser = adapter.bluetoothLeAdvertiser
         scanner = adapter.bluetoothLeScanner
 
-        val serverSocket = runCatching { adapter.listenUsingL2capChannel() }
-            .onFailure { error -> log("L2CAP server socket unavailable: ${error.message.orEmpty()}") }
-            .getOrNull()
+        val serverSocket =
+            runCatching { adapter.listenUsingL2capChannel() }
+                .onFailure { error ->
+                    log("L2CAP server socket unavailable: ${error.message.orEmpty()}")
+                }
+                .getOrNull()
         l2capServerSocket = serverSocket
         currentDiscoveryPayload = discoveryPayload(l2capPsm = (serverSocket?.psm ?: 0).toUByte())
         log("start() with l2capPsm=${currentDiscoveryPayload.l2capPsm}")
         serverSocket?.let(::launchAcceptLoop)
 
         scanner?.startScan(scanFilters(), scanSettings(), scanCallback)
-        advertiser?.startAdvertising(advertiseSettings(), advertiseData(currentDiscoveryPayload), advertiseCallback)
+        advertiser?.startAdvertising(
+            advertiseSettings(),
+            advertiseData(currentDiscoveryPayload),
+            advertiseCallback,
+        )
         started = true
     }
 
@@ -128,7 +135,11 @@ internal class AndroidBleTransport(
         scanner?.stopScan(scanCallback)
         advertiser?.stopAdvertising(advertiseCallback)
         scanner?.startScan(scanFilters(), scanSettings(), scanCallback)
-        advertiser?.startAdvertising(advertiseSettings(), advertiseData(currentDiscoveryPayload), advertiseCallback)
+        advertiser?.startAdvertising(
+            advertiseSettings(),
+            advertiseData(currentDiscoveryPayload),
+            advertiseCallback,
+        )
     }
 
     override suspend fun send(frame: OutboundFrame): TransportSendResult {
@@ -137,13 +148,17 @@ internal class AndroidBleTransport(
             return TransportSendResult.Dropped("Android BLE transport is not started")
         }
 
-        val peer = resolvePeer(frame.peerId)
-            ?: return TransportSendResult.Dropped("Android BLE peer has not been discovered").also {
-                log("send(${frame.peerId.value.takeLast(6)}) dropped: peer not discovered")
-            }
+        val peer =
+            resolvePeer(frame.peerId)
+                ?: return TransportSendResult.Dropped("Android BLE peer has not been discovered")
+                    .also {
+                        log("send(${frame.peerId.value.takeLast(6)}) dropped: peer not discovered")
+                    }
         if (peer.transportMode != TransportMode.L2CAP || peer.l2capPsm == 0) {
             log("send(${frame.peerId.value.takeLast(6)}) dropped: peer is GATT-only")
-            return TransportSendResult.Dropped("Android BLE GATT fallback transport is not implemented")
+            return TransportSendResult.Dropped(
+                "Android BLE GATT fallback transport is not implemented"
+            )
         }
 
         val link = activeLinksByHint[peer.hintPeerId.value]
@@ -154,21 +169,29 @@ internal class AndroidBleTransport(
         }
 
         return runCatching {
-            transportMutex.withLock {
-                link.write(frame.payload)
+                transportMutex.withLock { link.write(frame.payload) }
+                log("send(${frame.peerId.value.takeLast(6)}) delivered ${frame.payload.size} bytes")
+                TransportSendResult.Delivered
             }
-            log("send(${frame.peerId.value.takeLast(6)}) delivered ${frame.payload.size} bytes")
-            TransportSendResult.Delivered
-        }.getOrElse { error ->
-            closeLink(hintPeer = peer.hintPeerId.value, reason = "send failed: ${error.message.orEmpty()}")
-            TransportSendResult.Dropped("Android BLE send failed: ${error.message.orEmpty()}")
-        }
+            .getOrElse { error ->
+                closeLink(
+                    hintPeer = peer.hintPeerId.value,
+                    reason = "send failed: ${error.message.orEmpty()}",
+                )
+                TransportSendResult.Dropped("Android BLE send failed: ${error.message.orEmpty()}")
+            }
     }
 
     private fun handleScanResult(result: ScanResult): Unit {
-        val serviceUuids = result.scanRecord?.serviceUuids?.map { parcelUuid -> parcelUuid.uuid.toString() } ?: return
-        val payloadUuid = serviceUuids.firstOrNull { uuid -> uuid != BleDiscoveryContract.ADVERTISEMENT_SERVICE_UUID } ?: return
-        val payload = runCatching { BleDiscoveryPayload.fromUuidString(payloadUuid) }.getOrNull() ?: return
+        val serviceUuids =
+            result.scanRecord?.serviceUuids?.map { parcelUuid -> parcelUuid.uuid.toString() }
+                ?: return
+        val payloadUuid =
+            serviceUuids.firstOrNull { uuid ->
+                uuid != BleDiscoveryContract.ADVERTISEMENT_SERVICE_UUID
+            } ?: return
+        val payload =
+            runCatching { BleDiscoveryPayload.fromUuidString(payloadUuid) }.getOrNull() ?: return
         if (payload.meshHash != currentDiscoveryPayload.meshHash) {
             return
         }
@@ -177,19 +200,25 @@ internal class AndroidBleTransport(
         }
 
         val hintPeerId = PeerId(payload.keyHash.toHexString())
-        val transportMode = if (payload.l2capPsm.toInt() == 0) TransportMode.GATT else TransportMode.L2CAP
-        log("scan found ${hintPeerId.value.takeLast(6)} mode=$transportMode psm=${payload.l2capPsm} addr=${result.device.address}")
+        val transportMode =
+            if (payload.l2capPsm.toInt() == 0) TransportMode.GATT else TransportMode.L2CAP
+        log(
+            "scan found ${hintPeerId.value.takeLast(6)} mode=$transportMode psm=${payload.l2capPsm} addr=${result.device.address}"
+        )
         val discoveredPeer = discoveredPeers[hintPeerId.value]
         if (discoveredPeer == null) {
-            discoveredPeers[hintPeerId.value] = DiscoveredPeer(
-                hintPeerId = hintPeerId,
-                keyHash = payload.keyHash,
-                device = result.device,
-                l2capPsm = payload.l2capPsm.toInt(),
-                transportMode = transportMode,
-            )
+            discoveredPeers[hintPeerId.value] =
+                DiscoveredPeer(
+                    hintPeerId = hintPeerId,
+                    keyHash = payload.keyHash,
+                    device = result.device,
+                    l2capPsm = payload.l2capPsm.toInt(),
+                    transportMode = transportMode,
+                )
             peerHintByAddress[result.device.address] = hintPeerId.value
-            mutableEvents.tryEmit(TransportEvent.PeerDiscovered(peerId = hintPeerId, transportMode = transportMode))
+            mutableEvents.tryEmit(
+                TransportEvent.PeerDiscovered(peerId = hintPeerId, transportMode = transportMode)
+            )
         } else {
             discoveredPeer.device = result.device
             discoveredPeer.l2capPsm = payload.l2capPsm.toInt()
@@ -197,7 +226,10 @@ internal class AndroidBleTransport(
             if (discoveredPeer.transportMode != transportMode) {
                 discoveredPeer.transportMode = transportMode
                 mutableEvents.tryEmit(
-                    TransportEvent.TransportModeChanged(peerId = hintPeerId, transportMode = transportMode),
+                    TransportEvent.TransportModeChanged(
+                        peerId = hintPeerId,
+                        transportMode = transportMode,
+                    )
                 )
             }
         }
@@ -217,22 +249,32 @@ internal class AndroidBleTransport(
             log("connectIfNeeded(${peer.hintPeerId.value.takeLast(6)}) skipped: no PSM")
             return
         }
-        if (activeLinksByHint.containsKey(peer.hintPeerId.value) || pendingConnectJobsByHint.containsKey(peer.hintPeerId.value)) {
-            log("connectIfNeeded(${peer.hintPeerId.value.takeLast(6)}) skipped: already active or pending")
+        if (
+            activeLinksByHint.containsKey(peer.hintPeerId.value) ||
+                pendingConnectJobsByHint.containsKey(peer.hintPeerId.value)
+        ) {
+            log(
+                "connectIfNeeded(${peer.hintPeerId.value.takeLast(6)}) skipped: already active or pending"
+            )
             return
         }
         val adapter = bluetoothAdapter ?: return
         pendingConnectJobsByHint[peer.hintPeerId.value] = coroutineScope.launch {
             runCatching {
-                log("connecting L2CAP to ${peer.hintPeerId.value.takeLast(6)} psm=${peer.l2capPsm} addr=${peer.device.address}")
-                val socket = peer.device.createL2capChannel(peer.l2capPsm)
-                socket.connect()
-                log("L2CAP connect succeeded for ${peer.hintPeerId.value.takeLast(6)}")
-                registerConnectedSocket(peer.hintPeerId, socket)
-            }.onFailure { error ->
-                log("L2CAP connect failed for ${peer.hintPeerId.value.takeLast(6)}: ${error.message.orEmpty()}")
-                closeQuietly(activeLinksByHint.remove(peer.hintPeerId.value))
-            }
+                    log(
+                        "connecting L2CAP to ${peer.hintPeerId.value.takeLast(6)} psm=${peer.l2capPsm} addr=${peer.device.address}"
+                    )
+                    val socket = peer.device.createL2capChannel(peer.l2capPsm)
+                    socket.connect()
+                    log("L2CAP connect succeeded for ${peer.hintPeerId.value.takeLast(6)}")
+                    registerConnectedSocket(peer.hintPeerId, socket)
+                }
+                .onFailure { error ->
+                    log(
+                        "L2CAP connect failed for ${peer.hintPeerId.value.takeLast(6)}: ${error.message.orEmpty()}"
+                    )
+                    closeQuietly(activeLinksByHint.remove(peer.hintPeerId.value))
+                }
             pendingConnectJobsByHint.remove(peer.hintPeerId.value)
         }
         adapter.cancelDiscovery()
@@ -241,13 +283,16 @@ internal class AndroidBleTransport(
     private fun launchAcceptLoop(serverSocket: BluetoothServerSocket): Unit {
         acceptLoopJob = coroutineScope.launch {
             while (true) {
-                val socket = runCatching { serverSocket.accept() }.getOrElse { error ->
-                    log("L2CAP accept loop stopped: ${error.message.orEmpty()}")
-                    break
-                }
+                val socket =
+                    runCatching { serverSocket.accept() }
+                        .getOrElse { error ->
+                            log("L2CAP accept loop stopped: ${error.message.orEmpty()}")
+                            break
+                        }
                 log("accepted L2CAP socket from ${socket.remoteDevice.address}")
-                val hintPeerId = peerHintByAddress[socket.remoteDevice.address]?.let(::PeerId)
-                    ?: temporaryPeerId(socket.remoteDevice.address)
+                val hintPeerId =
+                    peerHintByAddress[socket.remoteDevice.address]?.let(::PeerId)
+                        ?: temporaryPeerId(socket.remoteDevice.address)
                 if (hintPeerId.value.startsWith(TEMPORARY_PEER_PREFIX)) {
                     log("binding accepted socket to temporary peer ${hintPeerId.value}")
                 }
@@ -263,14 +308,17 @@ internal class AndroidBleTransport(
                 closeQuietly(socket)
                 return
             }
-            val link = L2capLink(
-                peerHintId = hintPeerId,
-                socket = socket,
-                incomingFrames = AndroidL2capFrameBuffer(),
-            )
+            val link =
+                L2capLink(
+                    peerHintId = hintPeerId,
+                    socket = socket,
+                    incomingFrames = AndroidL2capFrameBuffer(),
+                )
             activeLinksByHint[hintPeerId.value] = link
             peerHintByAddress[socket.remoteDevice.address] = hintPeerId.value
-            log("registered L2CAP link for ${hintPeerId.value.takeLast(6)} addr=${socket.remoteDevice.address}")
+            log(
+                "registered L2CAP link for ${hintPeerId.value.takeLast(6)} addr=${socket.remoteDevice.address}"
+            )
             link.readLoopJob = coroutineScope.launch {
                 val readBuffer = ByteArray(DEFAULT_SOCKET_READ_BUFFER_BYTES)
                 try {
@@ -281,12 +329,11 @@ internal class AndroidBleTransport(
                         }
                         val decodedFrames = link.incomingFrames.append(readBuffer.copyOf(read))
                         decodedFrames.forEach { payload ->
-                            log("received ${payload.size} bytes from ${hintPeerId.value.takeLast(6)}")
+                            log(
+                                "received ${payload.size} bytes from ${hintPeerId.value.takeLast(6)}"
+                            )
                             mutableEvents.emit(
-                                TransportEvent.FrameReceived(
-                                    peerId = hintPeerId,
-                                    payload = payload,
-                                ),
+                                TransportEvent.FrameReceived(peerId = hintPeerId, payload = payload)
                             )
                         }
                     }
@@ -298,7 +345,9 @@ internal class AndroidBleTransport(
     }
 
     private fun resolvePeer(peerId: PeerId): DiscoveredPeer? {
-        discoveredPeers[peerId.value]?.let { return it }
+        discoveredPeers[peerId.value]?.let {
+            return it
+        }
         return discoveredPeers.values.firstOrNull { discoveredPeer ->
             peerId.value.startsWith(discoveredPeer.hintPeerId.value)
         }
@@ -323,15 +372,15 @@ internal class AndroidBleTransport(
     private fun scanFilters(): List<ScanFilter> {
         return listOf(
             ScanFilter.Builder()
-                .setServiceUuid(ParcelUuid.fromString(BleDiscoveryContract.ADVERTISEMENT_SERVICE_UUID))
-                .build(),
+                .setServiceUuid(
+                    ParcelUuid.fromString(BleDiscoveryContract.ADVERTISEMENT_SERVICE_UUID)
+                )
+                .build()
         )
     }
 
     private fun scanSettings(): ScanSettings {
-        return ScanSettings.Builder()
-            .setScanMode(currentPowerProfile.scanMode)
-            .build()
+        return ScanSettings.Builder().setScanMode(currentPowerProfile.scanMode).build()
     }
 
     private fun discoveryPayload(l2capPsm: UByte): BleDiscoveryPayload {
@@ -381,9 +430,10 @@ internal class AndroidBleTransport(
     }
 
     private fun temporaryPeerId(address: String): PeerId {
-        val temporaryHint = temporaryHintByAddress.getOrPut(address) {
-            TEMPORARY_PEER_PREFIX + address.lowercase().replace(":", "")
-        }
+        val temporaryHint =
+            temporaryHintByAddress.getOrPut(address) {
+                TEMPORARY_PEER_PREFIX + address.lowercase().replace(":", "")
+            }
         return PeerId(temporaryHint)
     }
 

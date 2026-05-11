@@ -2,7 +2,8 @@ package ch.trancee.meshlink.crypto
 
 import ch.trancee.meshlink.api.MeshLinkException
 
-internal class NoiseXXHandshakeResult internal constructor(
+internal class NoiseXXHandshakeResult
+internal constructor(
     internal val message3: ByteArray,
     internal val sendKey: ByteArray,
     internal val receiveKey: ByteArray,
@@ -10,16 +11,16 @@ internal class NoiseXXHandshakeResult internal constructor(
     internal val remoteEd25519PublicKey: ByteArray,
 )
 
-internal class NoiseXXResponderResult internal constructor(
+internal class NoiseXXResponderResult
+internal constructor(
     internal val sendKey: ByteArray,
     internal val receiveKey: ByteArray,
     internal val remoteStaticPublicKey: ByteArray,
     internal val remoteEd25519PublicKey: ByteArray,
 )
 
-internal class NoiseXXHandshakeManager internal constructor(
-    private val cryptoProvider: CryptoProvider,
-) {
+internal class NoiseXXHandshakeManager
+internal constructor(private val cryptoProvider: CryptoProvider) {
     private var initiatorState: HandshakeState? = null
     private var responderState: HandshakeState? = null
 
@@ -36,7 +37,9 @@ internal class NoiseXXHandshakeManager internal constructor(
         responderIdentity: NoiseIdentity,
         message1: ByteArray,
     ): ByteArray {
-        require(message1.size == KEY_SIZE_BYTES) { "Noise XX message 1 must contain one X25519 public key" }
+        require(message1.size == KEY_SIZE_BYTES) {
+            "Noise XX message 1 must contain one X25519 public key"
+        }
         val state = HandshakeState.initialize(cryptoProvider)
         state.remoteEphemeralPublicKey = message1.copyOf()
         state.mixHash(message1)
@@ -44,16 +47,24 @@ internal class NoiseXXHandshakeManager internal constructor(
         val responderEphemeralKeyPair = cryptoProvider.generateX25519KeyPair()
         state.localEphemeralKeyPair = responderEphemeralKeyPair
         state.mixHash(responderEphemeralKeyPair.publicKey)
-        state.mixKey(cryptoProvider.x25519(responderEphemeralKeyPair.privateKey, state.remoteEphemeralPublicKey!!))
+        state.mixKey(
+            cryptoProvider.x25519(
+                responderEphemeralKeyPair.privateKey,
+                state.remoteEphemeralPublicKey!!,
+            )
+        )
 
         val responderStaticPayload = encodeStaticPayload(responderIdentity)
         val encryptedStatic = state.encryptAndHash(responderStaticPayload)
-        state.mixKey(cryptoProvider.x25519(responderIdentity.x25519KeyPair.privateKey, state.remoteEphemeralPublicKey!!))
+        state.mixKey(
+            cryptoProvider.x25519(
+                responderIdentity.x25519KeyPair.privateKey,
+                state.remoteEphemeralPublicKey!!,
+            )
+        )
         val encryptedPayload = state.encryptAndHash(byteArrayOf())
 
-        responderState = state.apply {
-            localStaticIdentity = responderIdentity
-        }
+        responderState = state.apply { localStaticIdentity = responderIdentity }
 
         return responderEphemeralKeyPair.publicKey + encryptedStatic + encryptedPayload
     }
@@ -62,22 +73,44 @@ internal class NoiseXXHandshakeManager internal constructor(
         initiatorIdentity: NoiseIdentity,
         message2: ByteArray,
     ): NoiseXXHandshakeResult {
-        val state = initiatorState ?: throw MeshLinkException.InvalidStateTransition("Noise XX initiator state is not initialized")
+        val state =
+            initiatorState
+                ?: throw MeshLinkException.InvalidStateTransition(
+                    "Noise XX initiator state is not initialized"
+                )
         require(message2.size == MESSAGE2_SIZE_BYTES) { "Noise XX message 2 size is invalid" }
 
         val responderEphemeralPublicKey = message2.copyOfRange(0, KEY_SIZE_BYTES)
         state.remoteEphemeralPublicKey = responderEphemeralPublicKey
         state.mixHash(responderEphemeralPublicKey)
-        state.mixKey(cryptoProvider.x25519(state.localEphemeralKeyPair!!.privateKey, responderEphemeralPublicKey))
+        state.mixKey(
+            cryptoProvider.x25519(
+                state.localEphemeralKeyPair!!.privateKey,
+                responderEphemeralPublicKey,
+            )
+        )
 
-        val encryptedStatic = message2.copyOfRange(KEY_SIZE_BYTES, KEY_SIZE_BYTES + ENCRYPTED_STATIC_PAYLOAD_SIZE_BYTES)
+        val encryptedStatic =
+            message2.copyOfRange(
+                KEY_SIZE_BYTES,
+                KEY_SIZE_BYTES + ENCRYPTED_STATIC_PAYLOAD_SIZE_BYTES,
+            )
         val responderStaticPayload = state.decryptAndHash(encryptedStatic)
         val decodedResponderStatic = decodeStaticPayload(responderStaticPayload)
         state.remoteStaticPublicKey = decodedResponderStatic.x25519PublicKey
         state.remoteEd25519PublicKey = decodedResponderStatic.ed25519PublicKey
-        state.mixKey(cryptoProvider.x25519(state.localEphemeralKeyPair!!.privateKey, decodedResponderStatic.x25519PublicKey))
+        state.mixKey(
+            cryptoProvider.x25519(
+                state.localEphemeralKeyPair!!.privateKey,
+                decodedResponderStatic.x25519PublicKey,
+            )
+        )
 
-        val encryptedPayload = message2.copyOfRange(KEY_SIZE_BYTES + ENCRYPTED_STATIC_PAYLOAD_SIZE_BYTES, message2.size)
+        val encryptedPayload =
+            message2.copyOfRange(
+                KEY_SIZE_BYTES + ENCRYPTED_STATIC_PAYLOAD_SIZE_BYTES,
+                message2.size,
+            )
         val payload = state.decryptAndHash(encryptedPayload)
         if (payload.isNotEmpty()) {
             throw MeshLinkException.CryptoFailure("Noise XX message 2 payload must be empty")
@@ -85,7 +118,12 @@ internal class NoiseXXHandshakeManager internal constructor(
 
         val initiatorStaticPayload = encodeStaticPayload(initiatorIdentity)
         val encryptedInitiatorStatic = state.encryptAndHash(initiatorStaticPayload)
-        state.mixKey(cryptoProvider.x25519(initiatorIdentity.x25519KeyPair.privateKey, responderEphemeralPublicKey))
+        state.mixKey(
+            cryptoProvider.x25519(
+                initiatorIdentity.x25519KeyPair.privateKey,
+                responderEphemeralPublicKey,
+            )
+        )
         val encryptedInitiatorPayload = state.encryptAndHash(byteArrayOf())
         val split = state.split()
         val message3 = encryptedInitiatorStatic + encryptedInitiatorPayload
@@ -103,7 +141,11 @@ internal class NoiseXXHandshakeManager internal constructor(
         responderIdentity: NoiseIdentity,
         message3: ByteArray,
     ): NoiseXXResponderResult {
-        val state = responderState ?: throw MeshLinkException.InvalidStateTransition("Noise XX responder state is not initialized")
+        val state =
+            responderState
+                ?: throw MeshLinkException.InvalidStateTransition(
+                    "Noise XX responder state is not initialized"
+                )
         require(message3.size == MESSAGE3_SIZE_BYTES) { "Noise XX message 3 size is invalid" }
 
         val encryptedInitiatorStatic = message3.copyOfRange(0, ENCRYPTED_STATIC_PAYLOAD_SIZE_BYTES)
@@ -111,9 +153,15 @@ internal class NoiseXXHandshakeManager internal constructor(
         val decodedInitiatorStatic = decodeStaticPayload(initiatorStaticPayload)
         state.remoteStaticPublicKey = decodedInitiatorStatic.x25519PublicKey
         state.remoteEd25519PublicKey = decodedInitiatorStatic.ed25519PublicKey
-        state.mixKey(cryptoProvider.x25519(state.localEphemeralKeyPair!!.privateKey, decodedInitiatorStatic.x25519PublicKey))
+        state.mixKey(
+            cryptoProvider.x25519(
+                state.localEphemeralKeyPair!!.privateKey,
+                decodedInitiatorStatic.x25519PublicKey,
+            )
+        )
 
-        val encryptedPayload = message3.copyOfRange(ENCRYPTED_STATIC_PAYLOAD_SIZE_BYTES, message3.size)
+        val encryptedPayload =
+            message3.copyOfRange(ENCRYPTED_STATIC_PAYLOAD_SIZE_BYTES, message3.size)
         val payload = state.decryptAndHash(encryptedPayload)
         if (payload.isNotEmpty()) {
             throw MeshLinkException.CryptoFailure("Noise XX message 3 payload must be empty")
@@ -133,7 +181,9 @@ internal class NoiseXXHandshakeManager internal constructor(
     }
 
     private fun decodeStaticPayload(payload: ByteArray): DecodedStaticPayload {
-        require(payload.size == STATIC_PAYLOAD_SIZE_BYTES) { "Noise XX static payload size is invalid" }
+        require(payload.size == STATIC_PAYLOAD_SIZE_BYTES) {
+            "Noise XX static payload size is invalid"
+        }
         return DecodedStaticPayload(
             x25519PublicKey = payload.copyOfRange(0, KEY_SIZE_BYTES),
             ed25519PublicKey = payload.copyOfRange(KEY_SIZE_BYTES, STATIC_PAYLOAD_SIZE_BYTES),
@@ -145,7 +195,8 @@ internal class NoiseXXHandshakeManager internal constructor(
         val ed25519PublicKey: ByteArray,
     )
 
-    private class HandshakeState private constructor(
+    private class HandshakeState
+    private constructor(
         private val cryptoProvider: CryptoProvider,
         private var chainingKey: ByteArray,
         private var handshakeHash: ByteArray,
@@ -163,7 +214,14 @@ internal class NoiseXXHandshakeManager internal constructor(
         }
 
         fun mixKey(inputKeyMaterial: ByteArray): Unit {
-            val okm = hkdfSha256(cryptoProvider, chainingKey, inputKeyMaterial, byteArrayOf(), HASH_LEN_BYTES * 2)
+            val okm =
+                hkdfSha256(
+                    cryptoProvider,
+                    chainingKey,
+                    inputKeyMaterial,
+                    byteArrayOf(),
+                    HASH_LEN_BYTES * 2,
+                )
             chainingKey = okm.copyOfRange(0, HASH_LEN_BYTES)
             cipherKey = okm.copyOfRange(HASH_LEN_BYTES, HASH_LEN_BYTES * 2)
             nonce = 0u
@@ -171,12 +229,13 @@ internal class NoiseXXHandshakeManager internal constructor(
 
         fun encryptAndHash(plaintext: ByteArray): ByteArray {
             val key = cipherKey ?: return plaintext.also(::mixHash)
-            val ciphertext = cryptoProvider.chacha20Poly1305Seal(
-                key = key,
-                nonce = noiseNonce(nonce),
-                aad = handshakeHash,
-                plaintext = plaintext,
-            )
+            val ciphertext =
+                cryptoProvider.chacha20Poly1305Seal(
+                    key = key,
+                    nonce = noiseNonce(nonce),
+                    aad = handshakeHash,
+                    plaintext = plaintext,
+                )
             nonce += 1u
             mixHash(ciphertext)
             return ciphertext
@@ -184,30 +243,40 @@ internal class NoiseXXHandshakeManager internal constructor(
 
         fun decryptAndHash(ciphertext: ByteArray): ByteArray {
             val key = cipherKey ?: return ciphertext.also(::mixHash)
-            val plaintext = cryptoProvider.chacha20Poly1305Open(
-                key = key,
-                nonce = noiseNonce(nonce),
-                aad = handshakeHash,
-                ciphertext = ciphertext,
-            )
+            val plaintext =
+                cryptoProvider.chacha20Poly1305Open(
+                    key = key,
+                    nonce = noiseNonce(nonce),
+                    aad = handshakeHash,
+                    ciphertext = ciphertext,
+                )
             nonce += 1u
             mixHash(ciphertext)
             return plaintext
         }
 
         fun split(): Pair<ByteArray, ByteArray> {
-            val okm = hkdfSha256(cryptoProvider, chainingKey, byteArrayOf(), byteArrayOf(), HASH_LEN_BYTES * 2)
-            return okm.copyOfRange(0, HASH_LEN_BYTES) to okm.copyOfRange(HASH_LEN_BYTES, HASH_LEN_BYTES * 2)
+            val okm =
+                hkdfSha256(
+                    cryptoProvider,
+                    chainingKey,
+                    byteArrayOf(),
+                    byteArrayOf(),
+                    HASH_LEN_BYTES * 2,
+                )
+            return okm.copyOfRange(0, HASH_LEN_BYTES) to
+                okm.copyOfRange(HASH_LEN_BYTES, HASH_LEN_BYTES * 2)
         }
 
         companion object {
             fun initialize(cryptoProvider: CryptoProvider): HandshakeState {
                 val protocolName = NOISE_PROTOCOL_NAME.encodeToByteArray()
-                val handshakeHash = if (protocolName.size <= HASH_LEN_BYTES) {
-                    protocolName + ByteArray(HASH_LEN_BYTES - protocolName.size)
-                } else {
-                    cryptoProvider.sha256(protocolName)
-                }
+                val handshakeHash =
+                    if (protocolName.size <= HASH_LEN_BYTES) {
+                        protocolName + ByteArray(HASH_LEN_BYTES - protocolName.size)
+                    } else {
+                        cryptoProvider.sha256(protocolName)
+                    }
                 return HandshakeState(
                     cryptoProvider = cryptoProvider,
                     chainingKey = handshakeHash.copyOf(),
@@ -220,9 +289,7 @@ internal class NoiseXXHandshakeManager internal constructor(
     private companion object {
         fun noiseNonce(value: ULong): ByteArray {
             val nonce = ByteArray(12)
-            repeat(8) { index ->
-                nonce[4 + index] = ((value shr (index * 8)) and 0xFFu).toByte()
-            }
+            repeat(8) { index -> nonce[4 + index] = ((value shr (index * 8)) and 0xFFu).toByte() }
             return nonce
         }
 
@@ -231,10 +298,15 @@ internal class NoiseXXHandshakeManager internal constructor(
         private const val KEY_SIZE_BYTES: Int = 32
         private const val STATIC_PAYLOAD_SIZE_BYTES: Int = 64
         private const val AEAD_TAG_SIZE_BYTES: Int = 16
-        private const val ENCRYPTED_STATIC_PAYLOAD_SIZE_BYTES: Int = STATIC_PAYLOAD_SIZE_BYTES + AEAD_TAG_SIZE_BYTES
+        private const val ENCRYPTED_STATIC_PAYLOAD_SIZE_BYTES: Int =
+            STATIC_PAYLOAD_SIZE_BYTES + AEAD_TAG_SIZE_BYTES
         private const val ENCRYPTED_EMPTY_PAYLOAD_SIZE_BYTES: Int = AEAD_TAG_SIZE_BYTES
-        private const val MESSAGE2_SIZE_BYTES: Int = KEY_SIZE_BYTES + ENCRYPTED_STATIC_PAYLOAD_SIZE_BYTES + ENCRYPTED_EMPTY_PAYLOAD_SIZE_BYTES
-        private const val MESSAGE3_SIZE_BYTES: Int = ENCRYPTED_STATIC_PAYLOAD_SIZE_BYTES + ENCRYPTED_EMPTY_PAYLOAD_SIZE_BYTES
+        private const val MESSAGE2_SIZE_BYTES: Int =
+            KEY_SIZE_BYTES +
+                ENCRYPTED_STATIC_PAYLOAD_SIZE_BYTES +
+                ENCRYPTED_EMPTY_PAYLOAD_SIZE_BYTES
+        private const val MESSAGE3_SIZE_BYTES: Int =
+            ENCRYPTED_STATIC_PAYLOAD_SIZE_BYTES + ENCRYPTED_EMPTY_PAYLOAD_SIZE_BYTES
     }
 }
 
@@ -253,7 +325,8 @@ internal fun hkdfSha256(
     var offset = 0
     var counter = 1
     while (offset < outputLength) {
-        previous = provider.hmacSha256(pseudoRandomKey, previous + info + byteArrayOf(counter.toByte()))
+        previous =
+            provider.hmacSha256(pseudoRandomKey, previous + info + byteArrayOf(counter.toByte()))
         val bytesToCopy = minOf(previous.size, outputLength - offset)
         previous.copyOfRange(0, bytesToCopy).copyInto(output, destinationOffset = offset)
         offset += bytesToCopy

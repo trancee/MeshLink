@@ -24,14 +24,14 @@ class IosCryptoProviderTest {
         val provider = IosCryptoProvider()
 
         // Act
-        val exception = assertFailsWith<MeshLinkException.PlatformFailure> {
-            provider.randomBytes(size = 4)
-        }
+        val exception =
+            assertFailsWith<MeshLinkException.PlatformFailure> { provider.randomBytes(size = 4) }
 
         // Assert
         assertTrue(
             actual = exception.message.orEmpty().contains("IosCryptoBridge.install"),
-            message = "Missing bridge failures should direct iOS callers to install native callbacks",
+            message =
+                "Missing bridge failures should direct iOS callers to install native callbacks",
         )
     }
 
@@ -42,16 +42,24 @@ class IosCryptoProviderTest {
         val expected = byteArrayOf(1, 2, 3, 4)
         installTestBridge(
             randomBytes = { size ->
-                assertEquals(expected.size, size, "The provider should forward the requested random byte count")
+                assertEquals(
+                    expected.size,
+                    size,
+                    "The provider should forward the requested random byte count",
+                )
                 expected.copyOf()
-            },
+            }
         )
 
         // Act
         val actual = provider.randomBytes(size = expected.size)
 
         // Assert
-        assertContentEquals(expected, actual, "The provider should return the bytes produced by the installed bridge")
+        assertContentEquals(
+            expected,
+            actual,
+            "The provider should return the bytes produced by the installed bridge",
+        )
     }
 
     @Test
@@ -66,15 +74,23 @@ class IosCryptoProviderTest {
                     privateKey = expectedPrivateKey.copyOf(),
                     publicKey = expectedPublicKey.copyOf(),
                 )
-            },
+            }
         )
 
         // Act
         val actual = provider.generateX25519KeyPair()
 
         // Assert
-        assertContentEquals(expectedPrivateKey, actual.privateKey, "The provider should expose the bridged X25519 private key")
-        assertContentEquals(expectedPublicKey, actual.publicKey, "The provider should expose the bridged X25519 public key")
+        assertContentEquals(
+            expectedPrivateKey,
+            actual.privateKey,
+            "The provider should expose the bridged X25519 private key",
+        )
+        assertContentEquals(
+            expectedPublicKey,
+            actual.publicKey,
+            "The provider should expose the bridged X25519 public key",
+        )
     }
 
     private fun installTestBridge(
@@ -90,8 +106,14 @@ class IosCryptoProviderTest {
         x25519: (ByteArray, ByteArray) -> ByteArray = { _, publicKey -> publicKey },
         ed25519Sign: (ByteArray, ByteArray) -> ByteArray = { _, message -> message },
         ed25519Verify: (ByteArray, ByteArray, ByteArray) -> Boolean = { _, _, _ -> true },
-        chacha20Poly1305Seal: (ByteArray, ByteArray, ByteArray, ByteArray) -> ByteArray = { _, _, _, plaintext -> plaintext },
-        chacha20Poly1305Open: (ByteArray, ByteArray, ByteArray, ByteArray) -> ByteArray = { _, _, _, ciphertext -> ciphertext },
+        chacha20Poly1305Seal: (ByteArray, ByteArray, ByteArray, ByteArray) -> ByteArray =
+            { _, _, _, plaintext ->
+                plaintext
+            },
+        chacha20Poly1305Open: (ByteArray, ByteArray, ByteArray, ByteArray) -> ByteArray =
+            { _, _, _, ciphertext ->
+                ciphertext
+            },
     ): Unit {
         IosCryptoBridge.install(
             randomBytes = randomBytes,

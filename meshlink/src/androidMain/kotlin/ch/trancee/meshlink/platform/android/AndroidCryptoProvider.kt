@@ -33,7 +33,8 @@ internal class AndroidCryptoProvider : CryptoProvider {
     override fun generateX25519KeyPair(): X25519KeyPair {
         val keyPair = xdhKeyPairGenerator().generateKeyPair()
         return X25519KeyPair(
-            privateKey = decodePkcs8Raw(keyPair.private.encoded, X25519_PKCS8_PREAMBLE, "X25519 private"),
+            privateKey =
+                decodePkcs8Raw(keyPair.private.encoded, X25519_PKCS8_PREAMBLE, "X25519 private"),
             publicKey = decodeX509Raw(keyPair.public.encoded, X25519_X509_PREAMBLE, "X25519 public"),
         )
     }
@@ -41,8 +42,10 @@ internal class AndroidCryptoProvider : CryptoProvider {
     override fun generateEd25519KeyPair(): Ed25519KeyPair {
         val keyPair = KeyPairGenerator.getInstance("Ed25519").generateKeyPair()
         return Ed25519KeyPair(
-            privateKey = decodePkcs8Raw(keyPair.private.encoded, ED25519_PKCS8_PREAMBLE, "Ed25519 private"),
-            publicKey = decodeX509Raw(keyPair.public.encoded, ED25519_X509_PREAMBLE, "Ed25519 public"),
+            privateKey =
+                decodePkcs8Raw(keyPair.private.encoded, ED25519_PKCS8_PREAMBLE, "Ed25519 private"),
+            publicKey =
+                decodeX509Raw(keyPair.public.encoded, ED25519_X509_PREAMBLE, "Ed25519 public"),
         )
     }
 
@@ -60,7 +63,11 @@ internal class AndroidCryptoProvider : CryptoProvider {
         return signature.sign()
     }
 
-    override fun ed25519Verify(publicKey: ByteArray, message: ByteArray, signature: ByteArray): Boolean {
+    override fun ed25519Verify(
+        publicKey: ByteArray,
+        message: ByteArray,
+        signature: ByteArray,
+    ): Boolean {
         val verifier = Signature.getInstance("Ed25519")
         verifier.initVerify(ed25519PublicKey(publicKey))
         verifier.update(message)
@@ -98,21 +105,27 @@ internal class AndroidCryptoProvider : CryptoProvider {
         xdhKeyFactory().generatePublic(X509EncodedKeySpec(X25519_X509_PREAMBLE + bytes))
 
     private fun ed25519PrivateKey(bytes: ByteArray) =
-        KeyFactory.getInstance("Ed25519").generatePrivate(PKCS8EncodedKeySpec(ED25519_PKCS8_PREAMBLE + bytes))
+        KeyFactory.getInstance("Ed25519")
+            .generatePrivate(PKCS8EncodedKeySpec(ED25519_PKCS8_PREAMBLE + bytes))
 
     private fun ed25519PublicKey(bytes: ByteArray) =
-        KeyFactory.getInstance("Ed25519").generatePublic(X509EncodedKeySpec(ED25519_X509_PREAMBLE + bytes))
+        KeyFactory.getInstance("Ed25519")
+            .generatePublic(X509EncodedKeySpec(ED25519_X509_PREAMBLE + bytes))
 
     private fun decodePkcs8Raw(encoded: ByteArray, preamble: ByteArray, label: String): ByteArray {
         if (!encoded.startsWith(preamble)) {
-            throw MeshLinkException.CryptoFailure("$label key does not use the expected PKCS#8 encoding")
+            throw MeshLinkException.CryptoFailure(
+                "$label key does not use the expected PKCS#8 encoding"
+            )
         }
         return encoded.copyOfRange(preamble.size, encoded.size)
     }
 
     private fun decodeX509Raw(encoded: ByteArray, preamble: ByteArray, label: String): ByteArray {
         if (!encoded.startsWith(preamble)) {
-            throw MeshLinkException.CryptoFailure("$label key does not use the expected X.509 encoding")
+            throw MeshLinkException.CryptoFailure(
+                "$label key does not use the expected X.509 encoding"
+            )
         }
         return encoded.copyOfRange(preamble.size, encoded.size)
     }
@@ -122,34 +135,50 @@ internal class AndroidCryptoProvider : CryptoProvider {
     }
 
     private companion object {
-        private val X25519_PKCS8_PREAMBLE = byteArrayOf(
-            0x30, 0x2e,
-            0x02, 0x01, 0x00,
-            0x30, 0x05,
-            0x06, 0x03, 0x2b, 0x65, 0x6e,
-            0x04, 0x22, 0x04, 0x20,
-        )
+        private val X25519_PKCS8_PREAMBLE =
+            byteArrayOf(
+                0x30,
+                0x2e,
+                0x02,
+                0x01,
+                0x00,
+                0x30,
+                0x05,
+                0x06,
+                0x03,
+                0x2b,
+                0x65,
+                0x6e,
+                0x04,
+                0x22,
+                0x04,
+                0x20,
+            )
 
-        private val X25519_X509_PREAMBLE = byteArrayOf(
-            0x30, 0x2a,
-            0x30, 0x05,
-            0x06, 0x03, 0x2b, 0x65, 0x6e,
-            0x03, 0x21, 0x00,
-        )
+        private val X25519_X509_PREAMBLE =
+            byteArrayOf(0x30, 0x2a, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x6e, 0x03, 0x21, 0x00)
 
-        private val ED25519_PKCS8_PREAMBLE = byteArrayOf(
-            0x30, 0x2e,
-            0x02, 0x01, 0x00,
-            0x30, 0x05,
-            0x06, 0x03, 0x2b, 0x65, 0x70,
-            0x04, 0x22, 0x04, 0x20,
-        )
+        private val ED25519_PKCS8_PREAMBLE =
+            byteArrayOf(
+                0x30,
+                0x2e,
+                0x02,
+                0x01,
+                0x00,
+                0x30,
+                0x05,
+                0x06,
+                0x03,
+                0x2b,
+                0x65,
+                0x70,
+                0x04,
+                0x22,
+                0x04,
+                0x20,
+            )
 
-        private val ED25519_X509_PREAMBLE = byteArrayOf(
-            0x30, 0x2a,
-            0x30, 0x05,
-            0x06, 0x03, 0x2b, 0x65, 0x70,
-            0x03, 0x21, 0x00,
-        )
+        private val ED25519_X509_PREAMBLE =
+            byteArrayOf(0x30, 0x2a, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x03, 0x21, 0x00)
     }
 }

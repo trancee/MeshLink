@@ -13,21 +13,9 @@ plugins {
 
 kotlin {
     explicitApi()
-    jvm {
-        compilerOptions {
-            jvmTarget.set(JvmTarget.JVM_17)
-        }
-    }
-    androidTarget {
-        compilerOptions {
-            jvmTarget.set(JvmTarget.JVM_17)
-        }
-    }
-    listOf(
-        iosX64(),
-        iosArm64(),
-        iosSimulatorArm64(),
-    ).forEach { iosTarget ->
+    jvm { compilerOptions { jvmTarget.set(JvmTarget.JVM_17) } }
+    androidTarget { compilerOptions { jvmTarget.set(JvmTarget.JVM_17) } }
+    listOf(iosX64(), iosArm64(), iosSimulatorArm64()).forEach { iosTarget ->
         iosTarget.binaries.framework {
             baseName = "MeshLink"
             isStatic = true
@@ -35,26 +23,14 @@ kotlin {
     }
     applyDefaultHierarchyTemplate()
 
-    compilerOptions {
-        progressiveMode.set(true)
-    }
+    compilerOptions { progressiveMode.set(true) }
 
     sourceSets {
-        commonMain.dependencies {
-            api(libs.kotlinx.coroutines.core)
-        }
-        commonTest.dependencies {
-            implementation(libs.kotlin.test)
-        }
-        jvmTest.dependencies {
-            implementation(libs.kotlin.test)
-        }
-        androidUnitTest.dependencies {
-            implementation(libs.kotlin.test)
-        }
-        iosTest.dependencies {
-            implementation(libs.kotlin.test)
-        }
+        commonMain.dependencies { api(libs.kotlinx.coroutines.core) }
+        commonTest.dependencies { implementation(libs.kotlin.test) }
+        jvmTest.dependencies { implementation(libs.kotlin.test) }
+        androidUnitTest.dependencies { implementation(libs.kotlin.test) }
+        iosTest.dependencies { implementation(libs.kotlin.test) }
     }
 }
 
@@ -62,9 +38,7 @@ android {
     namespace = "ch.trancee.meshlink"
     compileSdk = 35
 
-    defaultConfig {
-        minSdk = 29
-    }
+    defaultConfig { minSdk = 29 }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -78,21 +52,18 @@ detekt {
     parallel = true
 }
 
-tasks.withType<Detekt>().configureEach {
-    jvmTarget = "17"
-}
+tasks.withType<Detekt>().configureEach { jvmTarget = "17" }
 
-ktfmt {
-    kotlinLangStyle()
-}
+ktfmt { kotlinLangStyle() }
 
 @OptIn(ExperimentalKotlinGradlePluginApi::class)
 powerAssert {
-    functions = listOf(
-        "kotlin.assert",
-        "kotlin.test.assertEquals",
-        "kotlin.test.assertFalse",
-        "kotlin.test.assertTrue",
-    )
+    functions =
+        listOf(
+            "kotlin.assert",
+            "kotlin.test.assertEquals",
+            "kotlin.test.assertFalse",
+            "kotlin.test.assertTrue",
+        )
     includedSourceSets = listOf("commonTest", "jvmTest", "androidUnitTest", "iosTest")
 }

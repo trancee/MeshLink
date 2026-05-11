@@ -37,9 +37,7 @@ private fun writeIntLittleEndian(target: ByteArray, offset: Int, value: Int): Un
 }
 
 private fun writeLongLittleEndian(target: ByteArray, offset: Int, value: Long): Unit {
-    repeat(8) { index ->
-        target[offset + index] = ((value shr (index * 8)) and 0xFF).toByte()
-    }
+    repeat(8) { index -> target[offset + index] = ((value shr (index * 8)) and 0xFF).toByte() }
 }
 
 private sealed class FlatBufferField(
@@ -47,33 +45,28 @@ private sealed class FlatBufferField(
     internal val size: Int,
     internal val alignment: Int,
 ) {
-    internal class ByteField internal constructor(
-        index: Int,
-        internal val value: Byte,
-    ) : FlatBufferField(index = index, size = 1, alignment = 1)
+    internal class ByteField internal constructor(index: Int, internal val value: Byte) :
+        FlatBufferField(index = index, size = 1, alignment = 1)
 
-    internal class IntField internal constructor(
-        index: Int,
-        internal val value: Int,
-    ) : FlatBufferField(index = index, size = 4, alignment = 4)
+    internal class IntField internal constructor(index: Int, internal val value: Int) :
+        FlatBufferField(index = index, size = 4, alignment = 4)
 
-    internal class LongField internal constructor(
-        index: Int,
-        internal val value: Long,
-    ) : FlatBufferField(index = index, size = 8, alignment = 8)
+    internal class LongField internal constructor(index: Int, internal val value: Long) :
+        FlatBufferField(index = index, size = 8, alignment = 8)
 
-    internal class OffsetField internal constructor(
-        index: Int,
-        internal val objectBytes: ByteArray,
-    ) : FlatBufferField(index = index, size = 4, alignment = 4)
+    internal class OffsetField
+    internal constructor(index: Int, internal val objectBytes: ByteArray) :
+        FlatBufferField(index = index, size = 4, alignment = 4)
 }
 
-internal class FlatBufferTableBuilder internal constructor(
-    private val fieldCount: Int,
-) {
+internal class FlatBufferTableBuilder internal constructor(private val fieldCount: Int) {
     private val fields: MutableMap<Int, FlatBufferField> = linkedMapOf()
 
-    internal fun addByte(fieldIndex: Int, value: Byte, defaultValue: Byte = 0): FlatBufferTableBuilder {
+    internal fun addByte(
+        fieldIndex: Int,
+        value: Byte,
+        defaultValue: Byte = 0,
+    ): FlatBufferTableBuilder {
         validateFieldIndex(fieldIndex)
         if (value != defaultValue) {
             fields[fieldIndex] = FlatBufferField.ByteField(fieldIndex, value)
@@ -81,7 +74,11 @@ internal class FlatBufferTableBuilder internal constructor(
         return this
     }
 
-    internal fun addInt(fieldIndex: Int, value: Int, defaultValue: Int = 0): FlatBufferTableBuilder {
+    internal fun addInt(
+        fieldIndex: Int,
+        value: Int,
+        defaultValue: Int = 0,
+    ): FlatBufferTableBuilder {
         validateFieldIndex(fieldIndex)
         if (value != defaultValue) {
             fields[fieldIndex] = FlatBufferField.IntField(fieldIndex, value)
@@ -89,7 +86,11 @@ internal class FlatBufferTableBuilder internal constructor(
         return this
     }
 
-    internal fun addLong(fieldIndex: Int, value: Long, defaultValue: Long = 0): FlatBufferTableBuilder {
+    internal fun addLong(
+        fieldIndex: Int,
+        value: Long,
+        defaultValue: Long = 0,
+    ): FlatBufferTableBuilder {
         validateFieldIndex(fieldIndex)
         if (value != defaultValue) {
             fields[fieldIndex] = FlatBufferField.LongField(fieldIndex, value)
@@ -99,7 +100,8 @@ internal class FlatBufferTableBuilder internal constructor(
 
     internal fun addString(fieldIndex: Int, value: String): FlatBufferTableBuilder {
         validateFieldIndex(fieldIndex)
-        fields[fieldIndex] = FlatBufferField.OffsetField(fieldIndex, encodeStringObject(value.encodeToByteArray()))
+        fields[fieldIndex] =
+            FlatBufferField.OffsetField(fieldIndex, encodeStringObject(value.encodeToByteArray()))
         return this
     }
 
@@ -111,7 +113,8 @@ internal class FlatBufferTableBuilder internal constructor(
 
     internal fun finish(): ByteArray {
         val presentFields = fields.values.sortedBy { field -> field.index }
-        val maxAlignment = presentFields.maxOfOrNull { field -> field.alignment }?.coerceAtLeast(4) ?: 4
+        val maxAlignment =
+            presentFields.maxOfOrNull { field -> field.alignment }?.coerceAtLeast(4) ?: 4
         val fieldOffsets = IntArray(fieldCount)
 
         var objectCursor = 4
@@ -141,7 +144,11 @@ internal class FlatBufferTableBuilder internal constructor(
         writeShortLittleEndian(encoded, vtableStart, vtableSize)
         writeShortLittleEndian(encoded, vtableStart + 2, objectSize)
         repeat(fieldCount) { fieldIndex ->
-            writeShortLittleEndian(encoded, vtableStart + 4 + (fieldIndex * 2), fieldOffsets[fieldIndex])
+            writeShortLittleEndian(
+                encoded,
+                vtableStart + 4 + (fieldIndex * 2),
+                fieldOffsets[fieldIndex],
+            )
         }
         writeIntLittleEndian(encoded, tableStart, tableStart - vtableStart)
 
@@ -149,8 +156,10 @@ internal class FlatBufferTableBuilder internal constructor(
             val fieldPosition = tableStart + fieldOffsets[field.index]
             when (field) {
                 is FlatBufferField.ByteField -> encoded[fieldPosition] = field.value
-                is FlatBufferField.IntField -> writeIntLittleEndian(encoded, fieldPosition, field.value)
-                is FlatBufferField.LongField -> writeLongLittleEndian(encoded, fieldPosition, field.value)
+                is FlatBufferField.IntField ->
+                    writeIntLittleEndian(encoded, fieldPosition, field.value)
+                is FlatBufferField.LongField ->
+                    writeLongLittleEndian(encoded, fieldPosition, field.value)
                 is FlatBufferField.OffsetField -> {
                     val objectStart = offsetFieldStarts.getValue(field.index)
                     writeIntLittleEndian(encoded, fieldPosition, objectStart - fieldPosition)
@@ -181,15 +190,15 @@ internal class FlatBufferTableBuilder internal constructor(
 
     private fun validateFieldIndex(fieldIndex: Int): Unit {
         if (fieldIndex !in 0 until fieldCount) {
-            throw IllegalStateException("FlatBuffer field index $fieldIndex is outside 0 until $fieldCount")
+            throw IllegalStateException(
+                "FlatBuffer field index $fieldIndex is outside 0 until $fieldCount"
+            )
         }
     }
 }
 
-internal class FlatBufferTable private constructor(
-    private val bytes: ByteArray,
-    private val tableStart: Int,
-) {
+internal class FlatBufferTable
+private constructor(private val bytes: ByteArray, private val tableStart: Int) {
     private val vtableStart: Int
     private val vtableSize: Int
     private val objectSize: Int

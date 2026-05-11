@@ -1,8 +1,6 @@
 package ch.trancee.meshlink.wire
 
-internal enum class WireEnvelopeType private constructor(
-    internal val code: Byte,
-) {
+internal enum class WireEnvelopeType private constructor(internal val code: Byte) {
     HELLO(1),
     IHU(2),
     ROUTE_UPDATE(3),
@@ -14,18 +12,20 @@ internal enum class WireEnvelopeType private constructor(
     TRANSFER_CHUNK(9),
     TRANSFER_ACK(10),
     TRANSFER_COMPLETE(11),
-    TRANSFER_ABORT(12),
-    ;
+    TRANSFER_ABORT(12);
 
     internal companion object {
         internal fun fromCode(code: Byte): WireEnvelopeType {
             return entries.firstOrNull { type -> type.code == code }
-                ?: throw IllegalStateException("Unknown WireEnvelopeType code ${code.toInt() and 0xFF}")
+                ?: throw IllegalStateException(
+                    "Unknown WireEnvelopeType code ${code.toInt() and 0xFF}"
+                )
         }
     }
 }
 
-internal class WireEnvelope internal constructor(
+internal class WireEnvelope
+internal constructor(
     internal val version: UByte,
     internal val type: WireEnvelopeType,
     payload: ByteArray,
@@ -48,8 +48,9 @@ internal class WireEnvelope internal constructor(
 
         internal fun decode(bytes: ByteArray): WireEnvelope {
             val table = FlatBufferTable.fromRoot(bytes)
-            val payload = table.readByteVector(PAYLOAD_FIELD_INDEX)
-                ?: throw IllegalStateException("WireEnvelope payload is missing")
+            val payload =
+                table.readByteVector(PAYLOAD_FIELD_INDEX)
+                    ?: throw IllegalStateException("WireEnvelope payload is missing")
             return WireEnvelope(
                 version = table.readByte(VERSION_FIELD_INDEX).toUByte(),
                 type = WireEnvelopeType.fromCode(table.readByte(TYPE_FIELD_INDEX)),

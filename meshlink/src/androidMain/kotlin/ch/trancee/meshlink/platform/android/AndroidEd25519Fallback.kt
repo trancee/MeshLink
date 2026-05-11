@@ -6,51 +6,44 @@ import java.security.MessageDigest
 import java.util.WeakHashMap
 
 /**
- * Pure Kotlin Ed25519 fallback for Android devices that expose XDH and
- * ChaCha20-Poly1305 through JCA but do not provide Ed25519 key or signature
- * primitives (for example Samsung Android 12 devices observed during
- * validation).
+ * Pure Kotlin Ed25519 fallback for Android devices that expose XDH and ChaCha20-Poly1305 through
+ * JCA but do not provide Ed25519 key or signature primitives (for example Samsung Android 12
+ * devices observed during validation).
  *
- * The implementation follows RFC 8032 with TweetNaCl-style 16-limb field
- * arithmetic so the hot path stays on primitive arrays instead of `BigInteger`.
- * Expanded private keys are cached by `ByteArray` object identity to avoid
- * repeatedly hashing and recomputing the public key for long-lived local
- * identities during signing.
+ * The implementation follows RFC 8032 with TweetNaCl-style 16-limb field arithmetic so the hot path
+ * stays on primitive arrays instead of `BigInteger`. Expanded private keys are cached by
+ * `ByteArray` object identity to avoid repeatedly hashing and recomputing the public key for
+ * long-lived local identities during signing.
  */
-internal class AndroidEd25519Fallback(
-    private val randomBytesProvider: (Int) -> ByteArray,
-) {
+internal class AndroidEd25519Fallback(private val randomBytesProvider: (Int) -> ByteArray) {
     private val expandedPrivateKeys = WeakHashMap<ByteArray, ExpandedPrivateKey>()
-    private val sha512Digests = object : ThreadLocal<MessageDigest>() {
-        override fun initialValue(): MessageDigest {
-            return MessageDigest.getInstance("SHA-512")
+    private val sha512Digests =
+        object : ThreadLocal<MessageDigest>() {
+            override fun initialValue(): MessageDigest {
+                return MessageDigest.getInstance("SHA-512")
+            }
         }
-    }
 
     internal fun generateKeyPair(): Ed25519KeyPair {
-        val privateKey = requireSized(
-            value = randomBytesProvider(PRIVATE_KEY_SIZE_BYTES).copyOf(),
-            expectedSize = PRIVATE_KEY_SIZE_BYTES,
-            label = "Ed25519 private",
-        )
+        val privateKey =
+            requireSized(
+                value = randomBytesProvider(PRIVATE_KEY_SIZE_BYTES).copyOf(),
+                expectedSize = PRIVATE_KEY_SIZE_BYTES,
+                label = "Ed25519 private",
+            )
         val expanded = expandedPrivateKey(privateKey)
-        return Ed25519KeyPair(
-            privateKey = privateKey,
-            publicKey = expanded.publicKey.copyOf(),
-        )
+        return Ed25519KeyPair(privateKey = privateKey, publicKey = expanded.publicKey.copyOf())
     }
 
     internal fun deriveKeyPair(privateKey: ByteArray): Ed25519KeyPair {
-        val seed = requireSized(
-            value = privateKey,
-            expectedSize = PRIVATE_KEY_SIZE_BYTES,
-            label = "Ed25519 private",
-        )
+        val seed =
+            requireSized(
+                value = privateKey,
+                expectedSize = PRIVATE_KEY_SIZE_BYTES,
+                label = "Ed25519 private",
+            )
         val expanded = expandedPrivateKey(seed)
-        return Ed25519KeyPair(
-            privateKey = seed.copyOf(),
-            publicKey = expanded.publicKey.copyOf(),
-        )
+        return Ed25519KeyPair(privateKey = seed.copyOf(), publicKey = expanded.publicKey.copyOf())
     }
 
     internal fun sign(privateKey: ByteArray, message: ByteArray): ByteArray {
@@ -95,7 +88,10 @@ internal class AndroidEd25519Fallback(
             return false
         }
 
-        val reducedChallenge = reduceScalar(sha512(signature.copyOfRange(0, PUBLIC_KEY_SIZE_BYTES), publicKey, message))
+        val reducedChallenge =
+            reduceScalar(
+                sha512(signature.copyOfRange(0, PUBLIC_KEY_SIZE_BYTES), publicKey, message)
+            )
         val leftSide = Point()
         scalarMultiply(leftSide, publicPoint, reducedChallenge)
 
@@ -109,11 +105,12 @@ internal class AndroidEd25519Fallback(
     }
 
     private fun expandedPrivateKey(privateKey: ByteArray): ExpandedPrivateKey {
-        val seed = requireSized(
-            value = privateKey,
-            expectedSize = PRIVATE_KEY_SIZE_BYTES,
-            label = "Ed25519 private",
-        )
+        val seed =
+            requireSized(
+                value = privateKey,
+                expectedSize = PRIVATE_KEY_SIZE_BYTES,
+                label = "Ed25519 private",
+            )
         synchronized(expandedPrivateKeys) {
             expandedPrivateKeys[seed]?.let { cached ->
                 return cached
@@ -127,15 +124,9 @@ internal class AndroidEd25519Fallback(
         scalarBase(publicPoint, scalar)
         val publicKey = ByteArray(PUBLIC_KEY_SIZE_BYTES)
         pack(publicKey, publicPoint)
-        val expanded = ExpandedPrivateKey(
-            scalar = scalar,
-            prefix = prefix,
-            publicKey = publicKey,
-        )
+        val expanded = ExpandedPrivateKey(scalar = scalar, prefix = prefix, publicKey = publicKey)
 
-        synchronized(expandedPrivateKeys) {
-            expandedPrivateKeys[seed] = expanded
-        }
+        synchronized(expandedPrivateKeys) { expandedPrivateKeys[seed] = expanded }
         return expanded
     }
 
@@ -289,7 +280,12 @@ internal class AndroidEd25519Fallback(
         }
     }
 
-    private fun multiply(output: LongArray, left: LongArray, right: LongArray, temp: LongArray): Unit {
+    private fun multiply(
+        output: LongArray,
+        left: LongArray,
+        right: LongArray,
+        temp: LongArray,
+    ): Unit {
         temp.fill(0)
         for (leftIndex in 0 until FIELD_ELEMENT_SIZE) {
             val leftValue = left[leftIndex]
@@ -356,9 +352,7 @@ internal class AndroidEd25519Fallback(
     private fun pack25519(output: ByteArray, input: LongArray): Unit {
         val reduced = input.copyOf()
         val candidate = fieldElement()
-        repeat(3) {
-            carry(reduced)
-        }
+        repeat(3) { carry(reduced) }
         repeat(2) {
             candidate[0] = reduced[0] - 0xffedL
             for (index in 1 until FIELD_ELEMENT_SIZE - 1) {
@@ -378,7 +372,8 @@ internal class AndroidEd25519Fallback(
 
     private fun unpack25519(output: LongArray, input: ByteArray): Unit {
         for (index in 0 until FIELD_ELEMENT_SIZE) {
-            output[index] = input[index * 2].toUnsignedLong() + (input[(index * 2) + 1].toUnsignedLong() shl 8)
+            output[index] =
+                input[index * 2].toUnsignedLong() + (input[(index * 2) + 1].toUnsignedLong() shl 8)
         }
         output[15] = output[15] and 0x7fffL
     }
@@ -410,7 +405,11 @@ internal class AndroidEd25519Fallback(
             var outputIndex = index - SCALAR_SIZE_BYTES
             val outputLimit = index - 12
             while (outputIndex < outputLimit) {
-                input[outputIndex] += carry - (16L * input[index] * GROUP_ORDER[outputIndex - (index - SCALAR_SIZE_BYTES)])
+                input[outputIndex] +=
+                    carry -
+                        (16L *
+                            input[index] *
+                            GROUP_ORDER[outputIndex - (index - SCALAR_SIZE_BYTES)])
                 carry = (input[outputIndex] + 128L) shr 8
                 input[outputIndex] -= carry shl 8
                 outputIndex += 1
@@ -457,10 +456,10 @@ internal class AndroidEd25519Fallback(
     ): Boolean {
         var diff = 0
         for (index in 0 until length) {
-            diff = diff or (
-                (first[firstOffset + index].toInt() and 0xFF) xor
-                    (second[secondOffset + index].toInt() and 0xFF)
-                )
+            diff =
+                diff or
+                    ((first[firstOffset + index].toInt() and 0xFF) xor
+                        (second[secondOffset + index].toInt() and 0xFF))
         }
         return diff == 0
     }
@@ -484,11 +483,7 @@ internal class AndroidEd25519Fallback(
         return (toInt() and 0xFF).toLong()
     }
 
-    private class ExpandedPrivateKey(
-        scalar: ByteArray,
-        prefix: ByteArray,
-        publicKey: ByteArray,
-    ) {
+    private class ExpandedPrivateKey(scalar: ByteArray, prefix: ByteArray, publicKey: ByteArray) {
         val scalar: ByteArray = scalar.copyOf()
         val prefix: ByteArray = prefix.copyOf()
         val publicKey: ByteArray = publicKey.copyOf()
@@ -534,56 +529,146 @@ internal class AndroidEd25519Fallback(
         private const val SCALAR_SIZE_BYTES: Int = 32
         private const val SIGNATURE_SIZE_BYTES: Int = 64
 
-        private val FIELD_ZERO = longArrayOf(
-            0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L,
-            0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L,
-        )
+        private val FIELD_ZERO =
+            longArrayOf(0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L)
 
-        private val FIELD_ONE = longArrayOf(
-            1L, 0L, 0L, 0L, 0L, 0L, 0L, 0L,
-            0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L,
-        )
+        private val FIELD_ONE =
+            longArrayOf(1L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L)
 
-        private val D = longArrayOf(
-            0x78a3L, 0x1359L, 0x4dcaL, 0x75ebL,
-            0xd8abL, 0x4141L, 0x0a4dL, 0x0070L,
-            0xe898L, 0x7779L, 0x4079L, 0x8cc7L,
-            0xfe73L, 0x2b6fL, 0x6ceeL, 0x5203L,
-        )
+        private val D =
+            longArrayOf(
+                0x78a3L,
+                0x1359L,
+                0x4dcaL,
+                0x75ebL,
+                0xd8abL,
+                0x4141L,
+                0x0a4dL,
+                0x0070L,
+                0xe898L,
+                0x7779L,
+                0x4079L,
+                0x8cc7L,
+                0xfe73L,
+                0x2b6fL,
+                0x6ceeL,
+                0x5203L,
+            )
 
-        private val D2 = longArrayOf(
-            0xf159L, 0x26b2L, 0x9b94L, 0xebd6L,
-            0xb156L, 0x8283L, 0x149aL, 0x00e0L,
-            0xd130L, 0xeef3L, 0x80f2L, 0x198eL,
-            0xfce7L, 0x56dfL, 0xd9dcL, 0x2406L,
-        )
+        private val D2 =
+            longArrayOf(
+                0xf159L,
+                0x26b2L,
+                0x9b94L,
+                0xebd6L,
+                0xb156L,
+                0x8283L,
+                0x149aL,
+                0x00e0L,
+                0xd130L,
+                0xeef3L,
+                0x80f2L,
+                0x198eL,
+                0xfce7L,
+                0x56dfL,
+                0xd9dcL,
+                0x2406L,
+            )
 
-        private val BASE_X = longArrayOf(
-            0xd51aL, 0x8f25L, 0x2d60L, 0xc956L,
-            0xa7b2L, 0x9525L, 0xc760L, 0x692cL,
-            0xdc5cL, 0xfdd6L, 0xe231L, 0xc0a4L,
-            0x53feL, 0xcd6eL, 0x36d3L, 0x2169L,
-        )
+        private val BASE_X =
+            longArrayOf(
+                0xd51aL,
+                0x8f25L,
+                0x2d60L,
+                0xc956L,
+                0xa7b2L,
+                0x9525L,
+                0xc760L,
+                0x692cL,
+                0xdc5cL,
+                0xfdd6L,
+                0xe231L,
+                0xc0a4L,
+                0x53feL,
+                0xcd6eL,
+                0x36d3L,
+                0x2169L,
+            )
 
-        private val BASE_Y = longArrayOf(
-            0x6658L, 0x6666L, 0x6666L, 0x6666L,
-            0x6666L, 0x6666L, 0x6666L, 0x6666L,
-            0x6666L, 0x6666L, 0x6666L, 0x6666L,
-            0x6666L, 0x6666L, 0x6666L, 0x6666L,
-        )
+        private val BASE_Y =
+            longArrayOf(
+                0x6658L,
+                0x6666L,
+                0x6666L,
+                0x6666L,
+                0x6666L,
+                0x6666L,
+                0x6666L,
+                0x6666L,
+                0x6666L,
+                0x6666L,
+                0x6666L,
+                0x6666L,
+                0x6666L,
+                0x6666L,
+                0x6666L,
+                0x6666L,
+            )
 
-        private val SQRT_MINUS_ONE = longArrayOf(
-            0xa0b0L, 0x4a0eL, 0x1b27L, 0xc4eeL,
-            0xe478L, 0xad2fL, 0x1806L, 0x2f43L,
-            0xd7a7L, 0x3dfbL, 0x0099L, 0x2b4dL,
-            0xdf0bL, 0x4fc1L, 0x2480L, 0x2b83L,
-        )
+        private val SQRT_MINUS_ONE =
+            longArrayOf(
+                0xa0b0L,
+                0x4a0eL,
+                0x1b27L,
+                0xc4eeL,
+                0xe478L,
+                0xad2fL,
+                0x1806L,
+                0x2f43L,
+                0xd7a7L,
+                0x3dfbL,
+                0x0099L,
+                0x2b4dL,
+                0xdf0bL,
+                0x4fc1L,
+                0x2480L,
+                0x2b83L,
+            )
 
-        private val GROUP_ORDER = longArrayOf(
-            0xedL, 0xd3L, 0xf5L, 0x5cL, 0x1aL, 0x63L, 0x12L, 0x58L,
-            0xd6L, 0x9cL, 0xf7L, 0xa2L, 0xdeL, 0xf9L, 0xdeL, 0x14L,
-            0x00L, 0x00L, 0x00L, 0x00L, 0x00L, 0x00L, 0x00L, 0x00L,
-            0x00L, 0x00L, 0x00L, 0x00L, 0x00L, 0x00L, 0x00L, 0x10L,
-        )
+        private val GROUP_ORDER =
+            longArrayOf(
+                0xedL,
+                0xd3L,
+                0xf5L,
+                0x5cL,
+                0x1aL,
+                0x63L,
+                0x12L,
+                0x58L,
+                0xd6L,
+                0x9cL,
+                0xf7L,
+                0xa2L,
+                0xdeL,
+                0xf9L,
+                0xdeL,
+                0x14L,
+                0x00L,
+                0x00L,
+                0x00L,
+                0x00L,
+                0x00L,
+                0x00L,
+                0x00L,
+                0x00L,
+                0x00L,
+                0x00L,
+                0x00L,
+                0x00L,
+                0x00L,
+                0x00L,
+                0x00L,
+                0x10L,
+            )
     }
 }

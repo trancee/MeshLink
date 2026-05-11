@@ -3,13 +3,11 @@ package ch.trancee.meshlink.api
 /**
  * Raw 32-byte key material returned by an iOS-native cryptography bridge.
  *
- * Both Curve25519 key agreement keys and Ed25519 signing keys use 32-byte
- * private and public key encodings in MeshLink's current iOS bridge contract.
+ * Both Curve25519 key agreement keys and Ed25519 signing keys use 32-byte private and public key
+ * encodings in MeshLink's current iOS bridge contract.
  */
-public class IosCryptoRawKeyPair public constructor(
-    public val privateKey: ByteArray,
-    public val publicKey: ByteArray,
-) {
+public class IosCryptoRawKeyPair
+public constructor(public val privateKey: ByteArray, public val publicKey: ByteArray) {
     init {
         require(privateKey.size == KEY_SIZE_BYTES) { "privateKey must be 32 bytes" }
         require(publicKey.size == KEY_SIZE_BYTES) { "publicKey must be 32 bytes" }
@@ -23,10 +21,9 @@ public class IosCryptoRawKeyPair public constructor(
 /**
  * Registers iOS-native cryptography callbacks for MeshLink.
  *
- * Install these callbacks during iOS application startup before any future
- * MeshLink runtime path needs real cryptography. The callbacks must be backed
- * by Apple-native implementations, such as CryptoKit, and must follow the
- * MeshLink contract for raw key material and AEAD output:
+ * Install these callbacks during iOS application startup before any future MeshLink runtime path
+ * needs real cryptography. The callbacks must be backed by Apple-native implementations, such as
+ * CryptoKit, and must follow the MeshLink contract for raw key material and AEAD output:
  *
  * - X25519 keys use 32-byte raw private/public encodings
  * - Ed25519 keys use 32-byte raw private/public encodings
@@ -58,12 +55,13 @@ public object IosCryptoBridge {
                 ed25519Verify = ed25519Verify,
                 chacha20Poly1305Seal = chacha20Poly1305Seal,
                 chacha20Poly1305Open = chacha20Poly1305Open,
-            ),
+            )
         )
     }
 }
 
-internal class IosCryptoCallbacks internal constructor(
+internal class IosCryptoCallbacks
+internal constructor(
     internal val randomBytes: (Int) -> ByteArray,
     internal val sha256: (ByteArray) -> ByteArray,
     internal val hmacSha256: (ByteArray, ByteArray) -> ByteArray,
@@ -88,8 +86,10 @@ internal object IosCryptoBridgeRegistry {
     }
 
     internal fun requireCallbacks(): IosCryptoCallbacks {
-        return callbacks ?: throw MeshLinkException.PlatformFailure(
-            message = "iOS crypto bridge is not installed. Call IosCryptoBridge.install(...) during app startup.",
-        )
+        return callbacks
+            ?: throw MeshLinkException.PlatformFailure(
+                message =
+                    "iOS crypto bridge is not installed. Call IosCryptoBridge.install(...) during app startup."
+            )
     }
 }

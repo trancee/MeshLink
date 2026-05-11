@@ -48,7 +48,8 @@ public enum class DiagnosticReason {
     TRANSPORT_CHANGE,
 }
 
-public class DiagnosticEvent public constructor(
+public class DiagnosticEvent
+public constructor(
     public val code: DiagnosticCode,
     public val severity: DiagnosticSeverity,
     public val stage: String,

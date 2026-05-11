@@ -9,7 +9,8 @@ internal enum class TransportMode {
     GATT,
 }
 
-internal class OutboundFrame internal constructor(
+internal class OutboundFrame
+internal constructor(
     internal val peerId: PeerId,
     payload: ByteArray,
     internal val preferredMode: TransportMode? = null,
@@ -24,24 +25,20 @@ internal sealed class TransportSendResult {
 }
 
 internal sealed class TransportEvent {
-    internal class PeerDiscovered internal constructor(
-        internal val peerId: PeerId,
-        internal val transportMode: TransportMode,
-    ) : TransportEvent()
+    internal class PeerDiscovered
+    internal constructor(internal val peerId: PeerId, internal val transportMode: TransportMode) :
+        TransportEvent()
 
     internal class PeerLost internal constructor(internal val peerId: PeerId) : TransportEvent()
 
-    internal class FrameReceived internal constructor(
-        internal val peerId: PeerId,
-        payload: ByteArray,
-    ) : TransportEvent() {
+    internal class FrameReceived
+    internal constructor(internal val peerId: PeerId, payload: ByteArray) : TransportEvent() {
         internal val payload: ByteArray = payload.copyOf()
     }
 
-    internal class TransportModeChanged internal constructor(
-        internal val peerId: PeerId,
-        internal val transportMode: TransportMode,
-    ) : TransportEvent()
+    internal class TransportModeChanged
+    internal constructor(internal val peerId: PeerId, internal val transportMode: TransportMode) :
+        TransportEvent()
 }
 
 internal interface BleTransport {

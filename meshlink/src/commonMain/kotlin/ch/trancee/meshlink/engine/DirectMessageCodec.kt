@@ -5,7 +5,8 @@ import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.wire.ReadBuffer
 import ch.trancee.meshlink.wire.WriteBuffer
 
-internal class DirectMessageEnvelope internal constructor(
+internal class DirectMessageEnvelope
+internal constructor(
     internal val senderPeerId: PeerId,
     internal val senderFingerprint: String,
     senderEd25519PublicKey: ByteArray,
@@ -52,9 +53,7 @@ internal class DirectMessageEnvelope internal constructor(
     }
 }
 
-internal sealed class DirectWireFrame protected constructor(
-    payload: ByteArray,
-) {
+internal sealed class DirectWireFrame protected constructor(payload: ByteArray) {
     internal val payload: ByteArray = payload.copyOf()
 
     internal fun encode(): ByteArray {
@@ -67,15 +66,18 @@ internal sealed class DirectWireFrame protected constructor(
 
     internal abstract val type: DirectWireFrameType
 
-    internal class HandshakeMessage1 internal constructor(payload: ByteArray) : DirectWireFrame(payload) {
+    internal class HandshakeMessage1 internal constructor(payload: ByteArray) :
+        DirectWireFrame(payload) {
         override val type: DirectWireFrameType = DirectWireFrameType.HANDSHAKE_MESSAGE_1
     }
 
-    internal class HandshakeMessage2 internal constructor(payload: ByteArray) : DirectWireFrame(payload) {
+    internal class HandshakeMessage2 internal constructor(payload: ByteArray) :
+        DirectWireFrame(payload) {
         override val type: DirectWireFrameType = DirectWireFrameType.HANDSHAKE_MESSAGE_2
     }
 
-    internal class HandshakeMessage3 internal constructor(payload: ByteArray) : DirectWireFrame(payload) {
+    internal class HandshakeMessage3 internal constructor(payload: ByteArray) :
+        DirectWireFrame(payload) {
         override val type: DirectWireFrameType = DirectWireFrameType.HANDSHAKE_MESSAGE_3
     }
 
@@ -98,19 +100,18 @@ internal sealed class DirectWireFrame protected constructor(
     }
 }
 
-internal enum class DirectWireFrameType private constructor(
-    internal val code: Byte,
-) {
+internal enum class DirectWireFrameType private constructor(internal val code: Byte) {
     HANDSHAKE_MESSAGE_1(1),
     HANDSHAKE_MESSAGE_2(2),
     HANDSHAKE_MESSAGE_3(3),
-    DATA(4),
-    ;
+    DATA(4);
 
     internal companion object {
         internal fun fromCode(code: Byte): DirectWireFrameType {
             return entries.firstOrNull { it.code == code }
-                ?: throw MeshLinkException.TransportFailure("Unknown direct wire frame type ${code.toInt() and 0xFF}")
+                ?: throw MeshLinkException.TransportFailure(
+                    "Unknown direct wire frame type ${code.toInt() and 0xFF}"
+                )
         }
     }
 }

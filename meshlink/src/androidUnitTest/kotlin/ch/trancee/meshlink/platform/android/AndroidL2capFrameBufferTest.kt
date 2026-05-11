@@ -68,14 +68,10 @@ class AndroidL2capFrameBufferTest {
         val oversizedHeader = byteArrayOf(9, 0, 0, 0)
 
         // Act
-        val error = assertFailsWith<MeshLinkException.TransportFailure> {
-            buffer.append(oversizedHeader)
-        }
+        val error =
+            assertFailsWith<MeshLinkException.TransportFailure> { buffer.append(oversizedHeader) }
 
         // Assert
-        assertEquals(
-            "L2CAP frame exceeds max size 8 bytes",
-            error.message,
-        )
+        assertEquals("L2CAP frame exceeds max size 8 bytes", error.message)
     }
 }

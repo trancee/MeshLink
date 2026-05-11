@@ -8,7 +8,8 @@ import javax.crypto.KeyAgreement
 import javax.crypto.spec.IvParameterSpec
 import javax.crypto.spec.SecretKeySpec
 
-internal class AndroidJcaCapabilityReport internal constructor(
+internal class AndroidJcaCapabilityReport
+internal constructor(
     internal val supportsX25519: Boolean,
     internal val supportsEd25519: Boolean,
     internal val supportsChaCha20Poly1305: Boolean,
@@ -45,7 +46,9 @@ internal object AndroidJcaCapabilityProbe {
         bobAgreement.doPhase(alice.public, true)
         val bobSecret = bobAgreement.generateSecret()
 
-        check(aliceSecret.contentEquals(bobSecret)) { "X25519 agreement produced mismatched shared secrets" }
+        check(aliceSecret.contentEquals(bobSecret)) {
+            "X25519 agreement produced mismatched shared secrets"
+        }
     }
 
     private fun probeEd25519(): Unit {
@@ -70,35 +73,39 @@ internal object AndroidJcaCapabilityProbe {
         val plaintext = byteArrayOf(0x01, 0x02, 0x03)
 
         val encryptCipher = Cipher.getInstance("ChaCha20-Poly1305")
-        encryptCipher.init(Cipher.ENCRYPT_MODE, SecretKeySpec(key, "ChaCha20"), IvParameterSpec(nonce))
+        encryptCipher.init(
+            Cipher.ENCRYPT_MODE,
+            SecretKeySpec(key, "ChaCha20"),
+            IvParameterSpec(nonce),
+        )
         encryptCipher.updateAAD(aad)
         val ciphertext = encryptCipher.doFinal(plaintext)
 
         val decryptCipher = Cipher.getInstance("ChaCha20-Poly1305")
-        decryptCipher.init(Cipher.DECRYPT_MODE, SecretKeySpec(key, "ChaCha20"), IvParameterSpec(nonce))
+        decryptCipher.init(
+            Cipher.DECRYPT_MODE,
+            SecretKeySpec(key, "ChaCha20"),
+            IvParameterSpec(nonce),
+        )
         decryptCipher.updateAAD(aad)
         val decrypted = decryptCipher.doFinal(ciphertext)
 
-        check(decrypted.contentEquals(plaintext)) { "ChaCha20-Poly1305 round-trip failed during capability probe" }
+        check(decrypted.contentEquals(plaintext)) {
+            "ChaCha20-Poly1305 round-trip failed during capability probe"
+        }
     }
 }
 
 internal fun xdhKeyPairGenerator(): KeyPairGenerator {
-    return firstAvailable("XDH", "X25519") { algorithm ->
-        KeyPairGenerator.getInstance(algorithm)
-    }
+    return firstAvailable("XDH", "X25519") { algorithm -> KeyPairGenerator.getInstance(algorithm) }
 }
 
 internal fun xdhKeyAgreement(): KeyAgreement {
-    return firstAvailable("XDH", "X25519") { algorithm ->
-        KeyAgreement.getInstance(algorithm)
-    }
+    return firstAvailable("XDH", "X25519") { algorithm -> KeyAgreement.getInstance(algorithm) }
 }
 
 internal fun xdhKeyFactory(): KeyFactory {
-    return firstAvailable("XDH", "X25519") { algorithm ->
-        KeyFactory.getInstance(algorithm)
-    }
+    return firstAvailable("XDH", "X25519") { algorithm -> KeyFactory.getInstance(algorithm) }
 }
 
 private inline fun <T> firstAvailable(

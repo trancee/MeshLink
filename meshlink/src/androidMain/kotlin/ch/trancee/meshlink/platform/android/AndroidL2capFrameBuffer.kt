@@ -3,7 +3,7 @@ package ch.trancee.meshlink.platform.android
 import ch.trancee.meshlink.api.MeshLinkException
 
 internal class AndroidL2capFrameBuffer(
-    private val maxFrameSizeBytes: Int = DEFAULT_MAX_FRAME_SIZE_BYTES,
+    private val maxFrameSizeBytes: Int = DEFAULT_MAX_FRAME_SIZE_BYTES
 ) {
     private var buffer: ByteArray = ByteArray(INITIAL_CAPACITY_BYTES)
     private var size: Int = 0
@@ -11,7 +11,9 @@ internal class AndroidL2capFrameBuffer(
 
     internal fun encode(frame: ByteArray): ByteArray {
         if (frame.size > maxFrameSizeBytes) {
-            throw MeshLinkException.TransportFailure("L2CAP frame exceeds max size $maxFrameSizeBytes bytes")
+            throw MeshLinkException.TransportFailure(
+                "L2CAP frame exceeds max size $maxFrameSizeBytes bytes"
+            )
         }
         return ByteArray(LENGTH_PREFIX_SIZE_BYTES + frame.size).also { encoded ->
             writeIntLittleEndian(encoded, 0, frame.size)
@@ -29,7 +31,9 @@ internal class AndroidL2capFrameBuffer(
             val frameSize = readIntLittleEndian(buffer, readOffset)
             if (frameSize < 0 || frameSize > maxFrameSizeBytes) {
                 clear()
-                throw MeshLinkException.TransportFailure("L2CAP frame exceeds max size $maxFrameSizeBytes bytes")
+                throw MeshLinkException.TransportFailure(
+                    "L2CAP frame exceeds max size $maxFrameSizeBytes bytes"
+                )
             }
             val frameStart = readOffset + LENGTH_PREFIX_SIZE_BYTES
             if (size - frameStart < frameSize) {

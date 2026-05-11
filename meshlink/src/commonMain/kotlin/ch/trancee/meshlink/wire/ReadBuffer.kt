@@ -1,9 +1,7 @@
 package ch.trancee.meshlink.wire
 
-internal class ReadBuffer internal constructor(
-    private val bytes: ByteArray,
-    private var position: Int = 0,
-) {
+internal class ReadBuffer
+internal constructor(private val bytes: ByteArray, private var position: Int = 0) {
     internal fun remaining(): Int {
         return bytes.size - position
     }
@@ -16,8 +14,7 @@ internal class ReadBuffer internal constructor(
     internal fun readShortLittleEndian(): Short {
         ensureAvailable(2)
         val value =
-            (bytes[position].toInt() and 0xFF) or
-                ((bytes[position + 1].toInt() and 0xFF) shl 8)
+            (bytes[position].toInt() and 0xFF) or ((bytes[position + 1].toInt() and 0xFF) shl 8)
         position += 2
         return value.toShort()
     }

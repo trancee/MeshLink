@@ -7,7 +7,8 @@ internal enum class BlePowerMode {
     RESERVED,
 }
 
-internal class BleDiscoveryPayload internal constructor(
+internal class BleDiscoveryPayload
+internal constructor(
     internal val protocolVersion: Int,
     internal val powerMode: BlePowerMode,
     internal val meshHash: UShort,
@@ -28,7 +29,8 @@ internal class BleDiscoveryPayload internal constructor(
 
     internal fun encode(): ByteArray {
         val bytes = ByteArray(PAYLOAD_SIZE_BYTES)
-        bytes[0] = (((protocolVersion and 0x07) shl 5) or ((powerMode.ordinal and 0x03) shl 3)).toByte()
+        bytes[0] =
+            (((protocolVersion and 0x07) shl 5) or ((powerMode.ordinal and 0x03) shl 3)).toByte()
         bytes[1] = (meshHash.toInt() and 0xFF).toByte()
         bytes[2] = ((meshHash.toInt() shr 8) and 0xFF).toByte()
         bytes[3] = l2capPsm.toByte()
@@ -45,11 +47,14 @@ internal class BleDiscoveryPayload internal constructor(
         internal const val KEY_HASH_SIZE_BYTES: Int = 12
 
         internal fun decode(bytes: ByteArray): BleDiscoveryPayload {
-            require(bytes.size == PAYLOAD_SIZE_BYTES) { "payload must be exactly $PAYLOAD_SIZE_BYTES bytes" }
+            require(bytes.size == PAYLOAD_SIZE_BYTES) {
+                "payload must be exactly $PAYLOAD_SIZE_BYTES bytes"
+            }
             val header = bytes[0].toInt() and 0xFF
             val protocolVersion = (header shr 5) and 0x07
             val powerModeOrdinal = (header shr 3) and 0x03
-            val meshHash = (((bytes[2].toInt() and 0xFF) shl 8) or (bytes[1].toInt() and 0xFF)).toUShort()
+            val meshHash =
+                (((bytes[2].toInt() and 0xFF) shl 8) or (bytes[1].toInt() and 0xFF)).toUShort()
             val l2capPsm = bytes[3].toUByte()
             val keyHash = bytes.copyOfRange(4, 16)
             return BleDiscoveryPayload(
@@ -71,13 +76,14 @@ internal object BleDiscoveryContract {
     private const val HEX_DIGITS = "0123456789abcdef"
     internal const val ADVERTISEMENT_SERVICE_UUID: String = "4d455348-0000-1000-8000-00805f9b34fb"
     internal const val GATT_FALLBACK_SERVICE_UUID: String = "4d455348-0001-1000-8000-000000000000"
-    internal val GATT_CHARACTERISTIC_UUIDS: List<String> = listOf(
-        "4d455348-0002-1000-8000-000000000000",
-        "4d455348-0003-1000-8000-000000000000",
-        "4d455348-0004-1000-8000-000000000000",
-        "4d455348-0005-1000-8000-000000000000",
-        "4d455348-0006-1000-8000-000000000000",
-    )
+    internal val GATT_CHARACTERISTIC_UUIDS: List<String> =
+        listOf(
+            "4d455348-0002-1000-8000-000000000000",
+            "4d455348-0003-1000-8000-000000000000",
+            "4d455348-0004-1000-8000-000000000000",
+            "4d455348-0005-1000-8000-000000000000",
+            "4d455348-0006-1000-8000-000000000000",
+        )
 
     internal fun advertisedServiceUuids(payload: BleDiscoveryPayload): List<String> {
         return listOf(ADVERTISEMENT_SERVICE_UUID, payload.payloadUuidString())
@@ -85,18 +91,20 @@ internal object BleDiscoveryContract {
 
     internal fun computeMeshHash(appId: String): UShort {
         val hash = fnv1a32(appId.encodeToByteArray())
-        val folded = (((hash ushr 16) xor (hash and 0xFFFF)) and 0xFFFF).let { if (it == 0) 1 else it }
+        val folded =
+            (((hash ushr 16) xor (hash and 0xFFFF)) and 0xFFFF).let { if (it == 0) 1 else it }
         return folded.toUShort()
     }
 
     internal fun uuidStringFromBytes(bytes: ByteArray): String {
         require(bytes.size == 16) { "UUID payload must be 16 bytes" }
-        val hex = bytes.joinToString(separator = "") { byte ->
-            val value = byte.toInt() and 0xFF
-            val high = HEX_DIGITS[(value ushr 4) and 0x0F]
-            val low = HEX_DIGITS[value and 0x0F]
-            "$high$low"
-        }
+        val hex =
+            bytes.joinToString(separator = "") { byte ->
+                val value = byte.toInt() and 0xFF
+                val high = HEX_DIGITS[(value ushr 4) and 0x0F]
+                val low = HEX_DIGITS[value and 0x0F]
+                "$high$low"
+            }
         return buildString(36) {
             append(hex.substring(0, 8))
             append('-')
