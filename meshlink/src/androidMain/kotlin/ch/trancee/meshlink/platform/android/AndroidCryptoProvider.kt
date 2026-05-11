@@ -19,7 +19,6 @@ import java.security.spec.NamedParameterSpec
 import java.security.spec.XECPrivateKeySpec
 import java.security.spec.XECPublicKeySpec
 import javax.crypto.Cipher
-import javax.crypto.KeyAgreement
 import javax.crypto.Mac
 import javax.crypto.spec.IvParameterSpec
 import javax.crypto.spec.SecretKeySpec
@@ -40,7 +39,7 @@ internal class AndroidCryptoProvider : CryptoProvider {
     }
 
     override fun generateX25519KeyPair(): X25519KeyPair {
-        val generator = KeyPairGenerator.getInstance("X25519")
+        val generator = xdhKeyPairGenerator()
         generator.initialize(NamedParameterSpec.X25519)
         val keyPair = generator.generateKeyPair()
         val privateKey = (keyPair.private as XECPrivateKey).scalar.orElseThrow()
@@ -57,7 +56,7 @@ internal class AndroidCryptoProvider : CryptoProvider {
     }
 
     override fun x25519(privateKey: ByteArray, publicKey: ByteArray): ByteArray {
-        val keyAgreement = KeyAgreement.getInstance("X25519")
+        val keyAgreement = xdhKeyAgreement()
         keyAgreement.init(x25519PrivateKey(privateKey))
         keyAgreement.doPhase(x25519PublicKey(publicKey), true)
         return keyAgreement.generateSecret()
@@ -102,10 +101,10 @@ internal class AndroidCryptoProvider : CryptoProvider {
     }
 
     private fun x25519PrivateKey(bytes: ByteArray) =
-        KeyFactory.getInstance("X25519").generatePrivate(XECPrivateKeySpec(NamedParameterSpec.X25519, bytes))
+        xdhKeyFactory().generatePrivate(XECPrivateKeySpec(NamedParameterSpec.X25519, bytes))
 
     private fun x25519PublicKey(bytes: ByteArray) =
-        KeyFactory.getInstance("X25519").generatePublic(
+        xdhKeyFactory().generatePublic(
             XECPublicKeySpec(NamedParameterSpec.X25519, littleEndianToBigInteger(bytes)),
         )
 

@@ -101,6 +101,36 @@ and Wycheproof-backed validation.
 - Platform crypto libraries directly in public/common code — rejected because the
   constitution forbids external crypto libraries in the shipped artifact.
 
+## Decision: Treat Android JCA support for X25519 and Ed25519 as opportunistic, not guaranteed
+
+**Rationale:** Android's own generated crypto support data in
+`platform/libcore/tools/docs/crypto/data/crypto_support.json` lists `XDH` for
+`KeyAgreement`, `KeyFactory`, and `KeyPairGenerator` as **33+**, and `Ed25519`
+for `Signature` as **33+**, while `ChaCha20` is **28+**. That means Android 12
+(API 31) is outside the documented JCA support window for the exact Noise XX
+primitive set. Public issue tracker entry `399856239` also shows `Ed25519`
+support mismatches surfacing even on newer Android releases, so vendor images
+cannot be assumed to expose a uniform provider surface. User-reported Samsung
+Android 12 failures are therefore consistent with the broader platform contract.
+
+**Chosen solution:** MeshLink should prefer the official Android `XDH`
+algorithm name with `NamedParameterSpec.X25519`, probe the full primitive set
+at runtime with real keygen/sign/agreement/AEAD operations, and fall back to an
+in-repo pure-Kotlin implementation for `X25519` and `Ed25519` when any required
+JCA primitive is unavailable. Raw key material must stay provider-agnostic so
+persisted identities survive switching between the JCA-backed and software
+providers.
+
+**Alternatives considered:**
+- Assuming `X25519` / `Ed25519` JCA works on all Android 12+ devices — rejected
+  because the documented Android support window starts later and OEM/provider
+  variance is real.
+- Shipping an external crypto runtime for fallback — rejected because the
+  project forbids additional third-party runtime dependencies.
+- Failing hard on unsupported devices with no fallback — rejected because it
+  would exclude known OEM/device combinations that can still be supported with
+  in-repo software primitives.
+
 ## Decision: Use Babel-inspired proactive routing with feasibility distance, seqno freshness, and differential updates
 
 **Rationale:** The feature explicitly calls for Babel-style routing. Existing repo notes
