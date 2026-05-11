@@ -1,112 +1,113 @@
-# The Trust Model: TOFU and Key Pinning
+# The Trust Model: TOFU Pinning in MeshLink
 
 ## The problem
 
-MeshLink operates without servers, certificate authorities, or user accounts. When two devices meet over BLE for the first time, neither has any prior knowledge of the other's identity. How do you build trust from nothing?
+MeshLink is intentionally offline-first. There is no account system, no
+certificate authority, and no backend that can tell a device which peer keys are
+"correct". The SDK still needs a practical way to decide whether a peer should
+be trusted for encrypted messaging.
 
-## Trust-on-First-Use (TOFU)
+## Trust on first use (TOFU)
 
-The same model SSH uses. The first time you connect to a peer:
+MeshLink uses **trust on first use**.
 
-1. Noise XX handshake exchanges static public keys (Ed25519 + X25519)
-2. Both sides compute the peer's key hash: `SHA-256(ed25519Pub || x25519Pub)[0:20]`
-3. The key hash is pinned in `TrustStore` — this peer ID is now associated with these keys
-4. All future connections to this peer must present the same keys
+On the first successful authenticated contact with a peer:
 
-No certificate chain, no PKI, no registration server. Trust is established by physical proximity — you're standing near this device, so you trust it.
+1. The hop-to-hop Noise XX handshake completes.
+2. MeshLink verifies the remote static identity material is internally
+   consistent.
+3. The peer's identity is pinned locally as a `TrustRecord`.
+4. Future contacts with that peer must present the same Ed25519 and X25519
+   public keys.
 
-## What happens when keys change
+This is the same operational model many developers already know from SSH: the
+first encounter establishes continuity, and later encounters are checked against
+that original pin.
 
-A peer's keys might change because:
-- They rotated intentionally (privacy, compromise recovery)
-- Their device was factory-reset (key loss)
-- An attacker is impersonating them (MITM)
+## What is pinned
 
-MeshLink can't distinguish these cases cryptographically. It can only tell you: "this peer ID now presents different keys than before."
+Each `TrustRecord` persists the minimum identity material needed for continuity:
 
-## Two trust modes
+- `peerId`
+- `ed25519PublicKey`
+- `x25519PublicKey`
+- `firstSeenAt`
+- `lastVerifiedAt`
+- `status`
 
-### TrustMode.STRICT (default)
+The pinned keys are stored in platform secure storage through MeshLink's
+`SecureStorage` abstraction.
 
-Key changes are silently rejected. The peer is treated as untrusted and connections are refused.
+## What happens when a peer identity changes
 
-**When to use:** IoT deployments, automated systems, any case where key changes indicate a problem.
+If a previously trusted peer presents different keys later, MeshLink fails
+closed.
 
-### TrustMode.PROMPT
+Current behavior in this repository state:
 
-Key changes fire a `KeyChangeEvent` on the `keyChanges` flow. Your app decides:
+- the original trust record is **not** overwritten automatically
+- the attempted contact is treated as untrusted
+- `DiagnosticCode.TRUST_FAILURE` is emitted with redacted metadata
+- delivery returns an explicit trust-failure outcome instead of silently
+  downgrading or accepting the new identity
 
-```kotlin
-meshLink.keyChanges.collect { event ->
-    // Show user: "Device X has a new identity. Accept?"
-    if (userAccepts) meshLink.acceptKeyChange(event.peerId)
-    else meshLink.rejectKeyChange(event.peerId)
-}
-```
+This keeps identity continuity deterministic and prevents accidental trust
+replacement.
 
-If the app doesn't respond within `keyChangeTimeoutMillis` (default 30s), the change is auto-rejected.
+## Why this fits an offline mesh
 
-**When to use:** Consumer apps, social mesh networking, any case where users manage trust relationships.
+TOFU is a pragmatic fit for MeshLink's constraints:
 
-## Rotation announcements
+- **No servers required** — trust decisions remain fully local
+- **No provisioning ceremony required** — the first message flow stays simple
+- **Works across Android and iOS** — the trust semantics live in shared
+  `commonMain` logic
+- **Fails closed on mismatch** — unexpected identity changes surface explicitly
 
-When a peer intentionally rotates keys, the process is:
+The trade-off is the classic TOFU limitation: if the very first encounter is
+already being intercepted, continuity will be pinned to the attacker's identity.
+MeshLink does not claim to solve that first-contact problem automatically.
 
-1. Peer generates new Ed25519 + X25519 keypairs
-2. Peer creates `RotationAnnouncement(newEd25519Pub, newX25519Pub)`
-3. Peer signs the announcement with the **old** Ed25519 private key
-4. Announcement is broadcast to all connected neighbors
+## Trust and delivery
 
-Receiving peers verify the signature against the old pinned key. If valid:
-- STRICT: still rejects (policy: no key changes, period)
-- PROMPT: fires the event with extra context ("signed rotation" vs "unsigned mismatch")
+Once a peer is trusted:
 
-This lets the app show different UI for "intentional rotation" vs "suspicious change."
+- hop-to-hop sessions can be established for adjacent links
+- end-to-end payload sealing can use the pinned static identity for the final
+  destination
+- relay nodes can forward traffic without learning end-to-end plaintext
 
-## Why not verify out-of-band automatically?
+If trust cannot be established or verified, MeshLink does not silently retry in
+plaintext or expose partially trusted delivery.
 
-Some systems (Signal, WhatsApp) use safety numbers — a fingerprint you compare visually or via QR code. MeshLink provides this:
+## Restart behavior
 
-```kotlin
-val fingerprint = meshLink.peerFingerprint(peerId)
-// "ab:cd:ef:12:34:56:78:9a:bc:de:f0:12"
-```
+Pinned trust survives SDK and app restarts because it is stored locally. Pending
+retry state does **not** survive restart, but previously trusted peers can be
+contacted again without re-enrollment as long as their identity material is
+unchanged.
 
-But it's opt-in. For the "Tinder without Internet" use case, forcing fingerprint verification on every new encounter would destroy the user experience. TOFU is the pragmatic compromise.
+## Diagnostics you should expect
 
-## TrustStore internals
+Applications integrating MeshLink should watch `diagnosticEvents` for:
 
-```
-TrustStore
-├── pinned: Map<KeyHash, PinnedKey>   // key hash → (ed25519Pub, x25519Pub, firstSeen)
-├── pending: Map<KeyHash, PendingKeyChange>  // awaiting app decision (PROMPT mode)
-└── rejected: Set<KeyHash>            // explicitly rejected, won't attempt connection
-```
+- `TRUST_ESTABLISHED` when a new peer is pinned successfully
+- `TRUST_FAILURE` when a previously pinned peer presents a different identity
 
-- `pinned` is persisted via `SecureStorage` (survives app restart)
-- `pending` is in-memory only (cleared on restart — timeout will have fired)
-- `rejected` is in-memory (cleared on restart — peer can try again next session)
+These diagnostics are redacted by design: they provide peer suffixes and stable
+reason codes, not full peer identifiers or plaintext payload content.
 
-## What trust provides
+## What MeshLink trust does and does not provide
 
-Once a peer is in `TrustStore.pinned`:
-- Noise XX handshake verifies the peer presents the pinned static key
-- If the peer presents a different key, handshake is aborted before any data exchange
-- Routing and transfer only proceed with pinned peers
-- The public API never exposes a peer that hasn't completed a verified handshake
+### MeshLink trust provides
 
-## Deterministic fail-closed crypto policy evidence
+- local continuity checking for peer identities
+- deterministic fail-closed behavior on identity mismatch
+- a serverless way to support encrypted offline messaging
 
-Trust decisions and crypto-policy failures are separate, and both must fail closed.
+### MeshLink trust does not provide
 
-- Malformed advertisements are rejected before a peer becomes reachable and surface `DiagnosticPayload.TrustFailure` at `DIRECT_ADVERTISEMENT` plus `DiagnosticPayload.SendFailure` at `TRUST_VALIDATION`.
-- Shared-secret failures, including all-zero or rejected X25519 outputs, surface `DiagnosticPayload.SendFailure` at `DIRECT_ENCRYPTION`; runtime does not derive HKDF output, dispatch transport frames, or fall back to plaintext.
-- The maintained local corpus, provider matrix, and gate live in [Crypto Vector Policy](../rfcs/crypto/vector-policy.md) and `bash scripts/verify-m002-automated.sh`.
-- Failures are reported with provider labels, runtime stages, tcIds or bucket ids, and reason codes only. Secret bytes stay redacted.
-
-## What trust does NOT provide
-
-- **Authentication of identity:** TOFU proves key continuity, not real-world identity
-- **Protection against first-contact MITM:** If an attacker is present during the first encounter, they can pin their own key. This is the fundamental TOFU limitation.
-- **Non-repudiation:** MeshLink doesn't prove who sent a message to third parties
-- **Forward secrecy of trust decisions:** If a pinned key is later compromised, past communications could theoretically be decrypted (but Noise ephemeral keys provide forward secrecy for transport)
+- proof of a peer's real-world identity
+- automatic first-contact MITM resistance
+- certificate management or remote revocation infrastructure
+- silent trust migration when keys change

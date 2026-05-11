@@ -140,7 +140,7 @@ retransmission semantics.
 - [ ] T040 [P] Add iOS automated proof-app benchmarks for throughput, latency, LOW-power scan duty, and cold start in `meshlink-sample/ios/ProofBenchmarks/TransportPerformanceBenchmark.swift`, `meshlink-sample/ios/ProofBenchmarks/PowerProfileBenchmark.swift`, and `meshlink-sample/ios/ProofBenchmarks/ColdStartBenchmark.swift`
 - [ ] T041 [P] Add 8-peer steady-state memory-budget validation and allocation measurement in `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/integration/MemoryBudgetIntegrationTest.kt` and `benchmarks/src/jvmMain/kotlin/ch/trancee/meshlink/benchmarks/MemoryBudgetBenchmark.kt`
 - [ ] T042 [P] Record JVM, Android, iOS, convergence, cold-start, power, and memory baselines in `benchmarks/README.md` and `specs/001-ble-mesh-sdk/research.md`
-- [ ] T043 [P] Update Android/iOS public API and workflow docs parity in `meshlink-sample/android/README.md`, `meshlink-sample/ios/README.md`, and `docs/explanation/trust-model.md`
+- [X] T043 [P] Update Android/iOS public API and workflow docs parity in `meshlink-sample/android/README.md`, `meshlink-sample/ios/README.md`, and `docs/explanation/trust-model.md`
 - [ ] T044 Run the full two-device quickstart validation using `specs/001-ble-mesh-sdk/quickstart.md`, `meshlink-sample/android/`, and `meshlink-sample/ios/`
 
 ---
