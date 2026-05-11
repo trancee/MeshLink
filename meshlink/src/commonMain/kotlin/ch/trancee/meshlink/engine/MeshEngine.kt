@@ -858,7 +858,9 @@ private constructor(
         var activeSession: OutboundTransferSession? = null
         var lastRouteAvailable = false
 
-        while (startedAt.elapsedNow() < config.deliveryRetryDeadline) {
+        runPlatformCall("transfer.discoverySuspend") { bleTransport?.setDiscoverySuspended(true) }
+        try {
+            while (startedAt.elapsedNow() < config.deliveryRetryDeadline) {
             if (activeSession == null) {
                 when (
                     val preparation =
@@ -1001,25 +1003,30 @@ private constructor(
             }
         }
 
-        activeSession?.let { session -> outboundTransfers.remove(session.transferId) }
-        return if (!lastRouteAvailable) {
-            emitDiagnostic(
-                code = DiagnosticCode.DELIVERY_UNREACHABLE,
-                severity = DiagnosticSeverity.ERROR,
-                stage = "transfer.retryExpired",
-                peerSuffix = peerId.value.takeLast(6),
-                reason = DiagnosticReason.DELIVERY_FAILURE,
-            )
-            SendResult.NotSent(SendFailureReason.UNREACHABLE)
-        } else {
-            emitDiagnostic(
-                code = DiagnosticCode.TRANSFER_FAILED,
-                severity = DiagnosticSeverity.ERROR,
-                stage = "transfer.send.timeout",
-                peerSuffix = peerId.value.takeLast(6),
-                reason = DiagnosticReason.TRANSFER_FAILURE,
-            )
-            SendResult.NotSent(SendFailureReason.TRANSFER_TIMED_OUT)
+            activeSession?.let { session -> outboundTransfers.remove(session.transferId) }
+            return if (!lastRouteAvailable) {
+                emitDiagnostic(
+                    code = DiagnosticCode.DELIVERY_UNREACHABLE,
+                    severity = DiagnosticSeverity.ERROR,
+                    stage = "transfer.retryExpired",
+                    peerSuffix = peerId.value.takeLast(6),
+                    reason = DiagnosticReason.DELIVERY_FAILURE,
+                )
+                SendResult.NotSent(SendFailureReason.UNREACHABLE)
+            } else {
+                emitDiagnostic(
+                    code = DiagnosticCode.TRANSFER_FAILED,
+                    severity = DiagnosticSeverity.ERROR,
+                    stage = "transfer.send.timeout",
+                    peerSuffix = peerId.value.takeLast(6),
+                    reason = DiagnosticReason.TRANSFER_FAILURE,
+                )
+                SendResult.NotSent(SendFailureReason.TRANSFER_TIMED_OUT)
+            }
+        } finally {
+            runPlatformCall("transfer.discoveryResume") {
+                bleTransport?.setDiscoverySuspended(false)
+            }
         }
     }
 

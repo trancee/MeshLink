@@ -63,6 +63,7 @@ internal class AndroidBleTransport(
     private var l2capServerSocket: BluetoothServerSocket? = null
     private var acceptLoopJob: Job? = null
     private var started: Boolean = false
+    private var discoverySuspended: Boolean = false
     private var currentPowerProfile: AndroidPowerProfile = AndroidPowerMonitor.defaultProfile()
     private var currentDiscoveryPayload: BleDiscoveryPayload = discoveryPayload(l2capPsm = 0u)
 
@@ -101,13 +102,8 @@ internal class AndroidBleTransport(
         log("start() with l2capPsm=${currentDiscoveryPayload.l2capPsm}")
         serverSocket?.let(::launchAcceptLoop)
 
-        scanner?.startScan(scanFilters(), scanSettings(), scanCallback)
-        advertiser?.startAdvertising(
-            advertiseSettings(),
-            advertiseData(currentDiscoveryPayload),
-            advertiseCallback,
-        )
         started = true
+        refreshDiscoveryState()
     }
 
     override suspend fun pause(): Unit {
@@ -132,14 +128,19 @@ internal class AndroidBleTransport(
         if (!started) {
             return
         }
-        scanner?.stopScan(scanCallback)
-        advertiser?.stopAdvertising(advertiseCallback)
-        scanner?.startScan(scanFilters(), scanSettings(), scanCallback)
-        advertiser?.startAdvertising(
-            advertiseSettings(),
-            advertiseData(currentDiscoveryPayload),
-            advertiseCallback,
-        )
+        refreshDiscoveryState()
+    }
+
+    override suspend fun setDiscoverySuspended(suspended: Boolean): Unit {
+        if (discoverySuspended == suspended) {
+            return
+        }
+        discoverySuspended = suspended
+        if (!started) {
+            return
+        }
+        log("discovery suspended=$suspended")
+        refreshDiscoveryState()
     }
 
     override suspend fun send(frame: OutboundFrame): TransportSendResult {
@@ -398,6 +399,20 @@ internal class AndroidBleTransport(
         return discoveredPeers.values.firstOrNull { discoveredPeer ->
             peerId.value.startsWith(discoveredPeer.hintPeerId.value)
         }
+    }
+
+    private fun refreshDiscoveryState(): Unit {
+        scanner?.stopScan(scanCallback)
+        advertiser?.stopAdvertising(advertiseCallback)
+        if (!started || discoverySuspended) {
+            return
+        }
+        scanner?.startScan(scanFilters(), scanSettings(), scanCallback)
+        advertiser?.startAdvertising(
+            advertiseSettings(),
+            advertiseData(currentDiscoveryPayload),
+            advertiseCallback,
+        )
     }
 
     private fun advertiseData(payload: BleDiscoveryPayload): AdvertiseData {

@@ -54,5 +54,7 @@ internal interface BleTransport {
 
     suspend fun updatePowerPolicy(policy: PowerPolicy): Unit = Unit
 
+    suspend fun setDiscoverySuspended(suspended: Boolean): Unit = Unit
+
     suspend fun send(frame: OutboundFrame): TransportSendResult
 }
