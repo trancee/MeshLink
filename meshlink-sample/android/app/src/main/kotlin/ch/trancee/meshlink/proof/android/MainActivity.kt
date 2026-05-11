@@ -50,7 +50,10 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
 
         setContentView(buildContentView())
-        MeshLinkProofRuntime.initialize(applicationContext)
+        MeshLinkProofRuntime.initialize(
+            context = applicationContext,
+            appId = intent?.getStringExtra(EXTRA_APP_ID) ?: DEFAULT_APP_ID,
+        )
         renderSnapshot()
 
         activityScope.launch {
@@ -169,6 +172,8 @@ class MainActivity : Activity() {
 
     private companion object {
         private const val REQUEST_PERMISSIONS_CODE: Int = 1001
+        private const val DEFAULT_APP_ID: String = "demo.meshlink"
+        private const val EXTRA_APP_ID: String = "meshlink.appId"
     }
 }
 
@@ -182,6 +187,7 @@ private object MeshLinkProofRuntime {
     private val logLines: ArrayDeque<String> = ArrayDeque()
 
     private var meshLink: MeshLinkApi? = null
+    private var currentAppId: String? = null
     private var localAdvertisementKeyHashHex: String? = null
     private var collectorsStarted: Boolean = false
     private var running: Boolean = false
@@ -204,24 +210,34 @@ private object MeshLinkProofRuntime {
             )
         }
 
-    fun initialize(context: Context): Unit {
+    fun initialize(context: Context, appId: String): Unit {
         synchronized(this) {
             if (appContext == null) {
                 appContext = context.applicationContext
             }
-            if (meshLink == null) {
+            val requestedAppId = appId.ifBlank { "demo.meshlink" }
+            if (meshLink == null || currentAppId != requestedAppId) {
                 meshLink = MeshLink.createAndroid(
                     context = appContext!!,
                     config = meshLinkConfig {
-                        appId = "demo.meshlink"
+                        this.appId = requestedAppId
                         regulatoryRegion = RegulatoryRegion.DEFAULT
                         powerMode = PowerMode.Automatic
                     },
                 )
-                localAdvertisementKeyHashHex = computeLocalAdvertisementKeyHashHex(appContext!!)
+                currentAppId = requestedAppId
+                collectorsStarted = false
+                synchronized(knownPeers) {
+                    knownPeers.clear()
+                }
+                synchronized(autoSendJobs) {
+                    autoSendJobs.values.forEach(Job::cancel)
+                    autoSendJobs.clear()
+                }
+                localAdvertisementKeyHashHex = computeLocalAdvertisementKeyHashHex(appContext!!, requestedAppId)
                 clearPersistedLogs()
                 appendLog(
-                    "MeshLink proof app ready on ${Build.MANUFACTURER} ${Build.MODEL} (SDK ${Build.VERSION.SDK_INT}) keyHash=${localAdvertisementKeyHashHex.orEmpty()}",
+                    "MeshLink proof app ready on ${Build.MANUFACTURER} ${Build.MODEL} (SDK ${Build.VERSION.SDK_INT}) appId=$requestedAppId keyHash=${localAdvertisementKeyHashHex.orEmpty()}",
                 )
             }
         }
@@ -405,12 +421,12 @@ private object MeshLinkProofRuntime {
         return localKeyHash < peerId.value
     }
 
-    private fun computeLocalAdvertisementKeyHashHex(context: Context): String {
-        val preferences = context.getSharedPreferences("meshlink-demo.meshlink", Context.MODE_PRIVATE)
-        val ed25519 = preferences.getString("identity:demo.meshlink:ed25519-public", null)
+    private fun computeLocalAdvertisementKeyHashHex(context: Context, appId: String): String {
+        val preferences = context.getSharedPreferences("meshlink-$appId", Context.MODE_PRIVATE)
+        val ed25519 = preferences.getString("identity:$appId:ed25519-public", null)
             ?.let { encoded -> Base64.decode(encoded, Base64.NO_WRAP) }
             ?: return ""
-        val x25519 = preferences.getString("identity:demo.meshlink:x25519-public", null)
+        val x25519 = preferences.getString("identity:$appId:x25519-public", null)
             ?.let { encoded -> Base64.decode(encoded, Base64.NO_WRAP) }
             ?: return ""
         val hash = MessageDigest.getInstance("SHA-256").digest(ed25519 + x25519)

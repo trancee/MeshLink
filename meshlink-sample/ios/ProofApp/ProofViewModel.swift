@@ -10,6 +10,7 @@ final class ProofViewModel: ObservableObject {
 
     private let api: MeshLinkApi
     private let logFileUrl: URL
+    private let appId: String
     private var autoSendPeers: Set<String> = []
     private lazy var stateCollector: FlowCollector = FlowCollector { [weak self] value in
         self?.stateText = String(describing: value ?? "Unknown")
@@ -25,19 +26,23 @@ final class ProofViewModel: ObservableObject {
     }
 
     init() {
+        appId = ProcessInfo.processInfo.environment["MESHLINK_APP_ID"]?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+            ? ProcessInfo.processInfo.environment["MESHLINK_APP_ID"]!
+            : "demo.meshlink"
         logFileUrl =
             FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
                 .appendingPathComponent("proof.log")
         try? FileManager.default.removeItem(at: logFileUrl)
+        let resolvedAppId = appId
         let config = MeshLinkConfigKt.meshLinkConfig { builder in
-            builder.appId = "demo.meshlink"
+            builder.appId = resolvedAppId
             builder.regulatoryRegion = RegulatoryRegion.default_
             builder.powerMode = PowerMode.Automatic.shared
         }
         api = MeshLink.shared.createIos(config: config)
 
         bindFlows()
-        appendLog("MeshLink proof app ready on iPhone")
+        appendLog("MeshLink proof app ready on iPhone appId=\(appId)")
         start()
     }
 
