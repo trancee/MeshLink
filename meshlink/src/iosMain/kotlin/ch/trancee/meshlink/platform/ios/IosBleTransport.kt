@@ -40,7 +40,6 @@ import platform.CoreBluetooth.CBPeripheralManager
 import platform.CoreBluetooth.CBPeripheralManagerDelegateProtocol
 import platform.CoreBluetooth.CBUUID
 import platform.Foundation.NSError
-import platform.Foundation.NSLog
 import platform.Foundation.NSNumber
 import platform.darwin.NSObject
 
