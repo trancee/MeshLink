@@ -84,6 +84,8 @@ class WireEnvelopeContractTest {
             WireFrame.TransferStart(
                 transferId = "transfer-001",
                 messageId = "message-001",
+                originPeerId = PeerId("origin-peer-001"),
+                destinationPeerId = PeerId("destination-peer-001"),
                 totalBytes = 65_520,
                 totalChunks = 64,
                 maxChunkPayloadBytes = 1_024,
@@ -215,6 +217,8 @@ class WireEnvelopeContractTest {
                 val decoded = actual as WireFrame.TransferStart
                 assertEquals(expected.transferId, decoded.transferId)
                 assertEquals(expected.messageId, decoded.messageId)
+                assertEquals(expected.originPeerId.value, decoded.originPeerId.value)
+                assertEquals(expected.destinationPeerId.value, decoded.destinationPeerId.value)
                 assertEquals(expected.totalBytes, decoded.totalBytes)
                 assertEquals(expected.totalChunks, decoded.totalChunks)
                 assertEquals(expected.maxChunkPayloadBytes, decoded.maxChunkPayloadBytes)

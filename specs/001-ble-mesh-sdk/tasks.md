@@ -98,7 +98,7 @@ retransmission semantics.
 - [X] T023 [P] [US2] Implement route tables, seqno freshness, feasibility checks, route digests, and differential updates in `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/routing/`
 - [X] T024 [P] [US2] Implement peer lifecycle coordination and route cleanup in `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/presence/` and `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/engine/`
 - [X] T025 [P] [US2] Implement FlatBuffers-compatible message, routing, and transfer codecs in `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/wire/`
-- [ ] T026 [P] [US2] Implement `TransferSession`, ACK scoreboard, configurable delivery-deadline plumbing, and pre-transfer size-limit rejection in `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/transfer/`
+- [X] T026 [P] [US2] Implement `TransferSession`, ACK scoreboard, configurable delivery-deadline plumbing, and pre-transfer size-limit rejection in `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/transfer/`
 - [ ] T027 [US2] Implement no-route retry scheduling with bounded, jittered exponential backoff and immediate retry on route availability in `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/engine/DeliveryRetryScheduler.kt`, integrate it through `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/engine/MeshEngine.kt`, `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/transport/`, and `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/diagnostics/`, then update `meshlink-sample/android/README.md` and `meshlink-sample/ios/README.md` for multi-hop evidence
 
 **Checkpoint**: User Story 2 should deliver proactive routing, explicit unreachable/expired outcomes, and bounded large-payload delivery across at least one relay hop.

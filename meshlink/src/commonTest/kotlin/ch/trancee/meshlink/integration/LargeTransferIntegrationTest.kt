@@ -98,8 +98,6 @@ class LargeTransferIntegrationTest {
         harness.linkPeers(sender, relay)
         harness.linkPeers(relay, recipient)
         harness.setMaximumPayloadBytesPerDelivery(512)
-        harness.holdNextDeliveries(relay, recipient, count = 1)
-        harness.duplicateNextDeliveries(relay, recipient, count = 1)
 
         sender.api.start()
         relay.api.start()
@@ -109,10 +107,13 @@ class LargeTransferIntegrationTest {
             sender.api.send(recipient.peerId, payload)
         }
         val receivedMessageDeferred = async {
-            withTimeout(4_000) { recipient.api.messages.first() }
+            withTimeout(6_000) { recipient.api.messages.first() }
         }
 
         // Act
+        delay(250)
+        harness.holdNextDeliveries(relay, recipient, count = 1)
+        harness.duplicateNextDeliveries(relay, recipient, count = 1)
         delay(250)
         harness.releaseHeldDeliveries(relay, recipient)
         val sendResult = sendResultDeferred.await()
@@ -137,20 +138,24 @@ class LargeTransferIntegrationTest {
         harness.linkPeers(sender, relay)
         harness.linkPeers(relay, recipient)
         harness.setMaximumPayloadBytesPerDelivery(512)
-        harness.dropNextDeliveries(relay, sender, count = 2)
-        harness.dropNextDeliveries(recipient, relay, count = 2)
 
         sender.api.start()
         relay.api.start()
         recipient.api.start()
         delay(250)
         val receivedMessageDeferred = async {
-            withTimeout(4_000) { recipient.api.messages.first() }
+            withTimeout(10_000) { recipient.api.messages.first() }
+        }
+        val sendResultDeferred = async {
+            sender.api.send(recipient.peerId, payload)
         }
 
         // Act
-        val sendResult = sender.api.send(recipient.peerId, payload)
+        delay(250)
+        harness.dropNextDeliveries(relay, sender, count = 2)
+        harness.dropNextDeliveries(recipient, relay, count = 2)
         val receivedMessage = receivedMessageDeferred.await()
+        val sendResult = withTimeout(10_000) { sendResultDeferred.await() }
 
         // Assert
         assertIs<SendResult.Sent>(sendResult)

@@ -58,6 +58,8 @@ internal sealed class WireFrame {
     internal class TransferStart internal constructor(
         public val transferId: String,
         public val messageId: String,
+        public val originPeerId: PeerId,
+        public val destinationPeerId: PeerId,
         public val totalBytes: Int,
         public val totalChunks: Int,
         public val maxChunkPayloadBytes: Int,
@@ -161,6 +163,8 @@ internal object WireCodec {
             WireEnvelopeType.TRANSFER_START -> WireFrame.TransferStart(
                 transferId = requireString(table, TRANSFER_START_ID_FIELD_INDEX, "TRANSFER_START.transferId"),
                 messageId = requireString(table, TRANSFER_START_MESSAGE_ID_FIELD_INDEX, "TRANSFER_START.messageId"),
+                originPeerId = PeerId(requireString(table, TRANSFER_START_ORIGIN_FIELD_INDEX, "TRANSFER_START.originPeerId")),
+                destinationPeerId = PeerId(requireString(table, TRANSFER_START_DESTINATION_FIELD_INDEX, "TRANSFER_START.destinationPeerId")),
                 totalBytes = table.readInt(TRANSFER_START_TOTAL_BYTES_FIELD_INDEX),
                 totalChunks = table.readInt(TRANSFER_START_TOTAL_CHUNKS_FIELD_INDEX),
                 maxChunkPayloadBytes = table.readInt(TRANSFER_START_CHUNK_BYTES_FIELD_INDEX),
@@ -238,6 +242,8 @@ internal object WireCodec {
             is WireFrame.TransferStart -> FlatBufferTableBuilder(fieldCount = TRANSFER_START_FIELD_COUNT)
                 .addString(TRANSFER_START_ID_FIELD_INDEX, frame.transferId)
                 .addString(TRANSFER_START_MESSAGE_ID_FIELD_INDEX, frame.messageId)
+                .addString(TRANSFER_START_ORIGIN_FIELD_INDEX, frame.originPeerId.value)
+                .addString(TRANSFER_START_DESTINATION_FIELD_INDEX, frame.destinationPeerId.value)
                 .addInt(TRANSFER_START_TOTAL_BYTES_FIELD_INDEX, frame.totalBytes)
                 .addInt(TRANSFER_START_TOTAL_CHUNKS_FIELD_INDEX, frame.totalChunks)
                 .addInt(TRANSFER_START_CHUNK_BYTES_FIELD_INDEX, frame.maxChunkPayloadBytes)
@@ -347,12 +353,14 @@ internal object WireCodec {
     private const val MESSAGE_TTL_FIELD_INDEX: Int = 4
     private const val MESSAGE_PAYLOAD_FIELD_INDEX: Int = 5
 
-    private const val TRANSFER_START_FIELD_COUNT: Int = 5
+    private const val TRANSFER_START_FIELD_COUNT: Int = 7
     private const val TRANSFER_START_ID_FIELD_INDEX: Int = 0
     private const val TRANSFER_START_MESSAGE_ID_FIELD_INDEX: Int = 1
-    private const val TRANSFER_START_TOTAL_BYTES_FIELD_INDEX: Int = 2
-    private const val TRANSFER_START_TOTAL_CHUNKS_FIELD_INDEX: Int = 3
-    private const val TRANSFER_START_CHUNK_BYTES_FIELD_INDEX: Int = 4
+    private const val TRANSFER_START_ORIGIN_FIELD_INDEX: Int = 2
+    private const val TRANSFER_START_DESTINATION_FIELD_INDEX: Int = 3
+    private const val TRANSFER_START_TOTAL_BYTES_FIELD_INDEX: Int = 4
+    private const val TRANSFER_START_TOTAL_CHUNKS_FIELD_INDEX: Int = 5
+    private const val TRANSFER_START_CHUNK_BYTES_FIELD_INDEX: Int = 6
 
     private const val TRANSFER_CHUNK_FIELD_COUNT: Int = 3
     private const val TRANSFER_CHUNK_ID_FIELD_INDEX: Int = 0
