@@ -10,11 +10,7 @@ plugins {
 }
 
 kotlin {
-    jvm {
-        compilerOptions {
-            jvmTarget.set(JvmTarget.JVM_17)
-        }
-    }
+    jvm { compilerOptions { jvmTarget.set(JvmTarget.JVM_17) } }
 
     sourceSets {
         jvmMain.dependencies {
@@ -24,13 +20,23 @@ kotlin {
     }
 }
 
-allOpen {
-    annotation("org.openjdk.jmh.annotations.State")
-}
+allOpen { annotation("org.openjdk.jmh.annotations.State") }
 
 benchmark {
-    targets {
-        register("jvm")
+    targets { register("jvm") }
+    configurations {
+        named("main") {
+            iterations = 5
+            iterationTime = 300
+            iterationTimeUnit = "ms"
+            warmups = 3
+        }
+        register("smoke") {
+            iterations = 2
+            iterationTime = 150
+            iterationTimeUnit = "ms"
+            warmups = 1
+        }
     }
 }
 
@@ -40,10 +46,6 @@ detekt {
     parallel = true
 }
 
-tasks.withType<Detekt>().configureEach {
-    jvmTarget = "17"
-}
+tasks.withType<Detekt>().configureEach { jvmTarget = "17" }
 
-ktfmt {
-    kotlinLangStyle()
-}
+ktfmt { kotlinLangStyle() }
