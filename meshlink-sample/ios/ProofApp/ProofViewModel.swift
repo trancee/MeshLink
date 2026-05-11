@@ -1,6 +1,6 @@
 import Foundation
-import SwiftUI
 import MeshLink
+import SwiftUI
 
 @MainActor
 final class ProofViewModel: ObservableObject {
@@ -9,6 +9,8 @@ final class ProofViewModel: ObservableObject {
     @Published private(set) var logs: [String] = []
 
     private let api: MeshLinkApi
+    private let logFileUrl: URL
+    private var autoSendPeers: Set<String> = []
     private lazy var stateCollector: FlowCollector = FlowCollector { [weak self] value in
         self?.stateText = String(describing: value ?? "Unknown")
     }
@@ -23,14 +25,20 @@ final class ProofViewModel: ObservableObject {
     }
 
     init() {
+        logFileUrl =
+            FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+                .appendingPathComponent("proof.log")
+        try? FileManager.default.removeItem(at: logFileUrl)
         let config = MeshLinkConfigKt.meshLinkConfig { builder in
             builder.appId = "demo.meshlink"
             builder.regulatoryRegion = RegulatoryRegion.default_
             builder.powerMode = PowerMode.Automatic.shared
         }
-        self.api = MeshLink.shared.createIos(config: config)
+        api = MeshLink.shared.createIos(config: config)
 
         bindFlows()
+        appendLog("MeshLink proof app ready on iPhone")
+        start()
     }
 
     func start() {
@@ -64,11 +72,15 @@ final class ProofViewModel: ObservableObject {
             appendLog("No discovered peer is available yet")
             return
         }
+        sendHello(to: peer)
+    }
+
+    private func sendHello(to peer: PeerId) {
         let payload = "hello mesh from iPhone".toKotlinByteArray()
         api.send(peerId: peer, payload: payload, priority: DeliveryPriority.normal) { [weak self] result, error in
             Task { @MainActor in
                 if let result {
-                    self?.appendLog("mesh.send() -> \(result)")
+                    self?.appendLog("mesh.send(\(peer.value.suffix(6))) -> \(result)")
                 }
                 if let error {
                     self?.appendLog("mesh.send() failed: \(error.localizedDescription)")
@@ -113,8 +125,10 @@ final class ProofViewModel: ObservableObject {
         if let found = value as? PeerEvent.Found {
             peers = insertOrReplace(found.peerId, into: peers)
             appendLog("Peer found: \(found.peerId.value)")
+            scheduleAutoHello(for: found.peerId)
         } else if let lost = value as? PeerEvent.Lost {
             peers.removeAll { peer in peer.value == lost.peerId.value }
+            autoSendPeers.remove(lost.peerId.value)
             appendLog("Peer lost: \(lost.peerId.value)")
         } else if let changed = value as? PeerEvent.StateChanged {
             appendLog("Peer state changed: \(changed.peerId.value) -> \(changed.state)")
@@ -132,16 +146,28 @@ final class ProofViewModel: ObservableObject {
         guard let message = value as? InboundMessage else {
             return
         }
-        appendLog(
-            "MSG from \(message.originPeerId.value) text=\(message.payload.toDataString())",
-        )
+        appendLog("MSG from \(message.originPeerId.value) text=\(message.payload.toDataString())")
+    }
+
+    private func scheduleAutoHello(for peerId: PeerId) {
+        guard autoSendPeers.insert(peerId.value).inserted else {
+            return
+        }
+        Task {
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            await MainActor.run {
+                sendHello(to: peerId)
+            }
+        }
     }
 
     private func appendLog(_ message: String) {
         logs.append(message)
-        if logs.count > 64 {
-            logs.removeFirst(logs.count - 64)
+        if logs.count > 128 {
+            logs.removeFirst(logs.count - 128)
         }
+        let persisted = logs.joined(separator: "\n") + "\n"
+        try? persisted.write(to: logFileUrl, atomically: true, encoding: .utf8)
     }
 
     private func insertOrReplace(_ peerId: PeerId, into existing: [PeerId]) -> [PeerId] {

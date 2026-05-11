@@ -173,6 +173,8 @@ class MainActivity : Activity() {
 }
 
 private object MeshLinkProofRuntime {
+    private const val PROOF_LOG_FILE_NAME: String = "proof.log"
+
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val updatesFlow = MutableSharedFlow<Unit>(extraBufferCapacity = 32)
     private val knownPeers: LinkedHashMap<String, PeerId> = linkedMapOf()
@@ -217,6 +219,7 @@ private object MeshLinkProofRuntime {
                     },
                 )
                 localAdvertisementKeyHashHex = computeLocalAdvertisementKeyHashHex(appContext!!)
+                clearPersistedLogs()
                 appendLog(
                     "MeshLink proof app ready on ${Build.MANUFACTURER} ${Build.MODEL} (SDK ${Build.VERSION.SDK_INT}) keyHash=${localAdvertisementKeyHashHex.orEmpty()}",
                 )
@@ -267,13 +270,32 @@ private object MeshLinkProofRuntime {
 
     fun appendLog(message: String): Unit {
         Log.i(TAG, message)
-        synchronized(logLines) {
+        val persistedLogs = synchronized(logLines) {
             logLines += message
             while (logLines.size > MAX_LOG_LINES) {
                 logLines.removeFirst()
             }
+            logLines.joinToString(separator = "\n") + "\n"
         }
+        persistLogs(persistedLogs)
         updatesFlow.tryEmit(Unit)
+    }
+
+    private fun clearPersistedLogs(): Unit {
+        val context = appContext ?: return
+        context.deleteFile(PROOF_LOG_FILE_NAME)
+    }
+
+    private fun persistLogs(contents: String): Unit {
+        val context = appContext ?: return
+        runCatching {
+            context
+                .openFileOutput(PROOF_LOG_FILE_NAME, Context.MODE_PRIVATE)
+                .bufferedWriter()
+                .use { writer ->
+                    writer.write(contents)
+                }
+        }
     }
 
     private fun ensureCollectors(): Unit {
