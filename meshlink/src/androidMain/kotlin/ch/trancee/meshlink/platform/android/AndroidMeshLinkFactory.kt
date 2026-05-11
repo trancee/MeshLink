@@ -29,7 +29,11 @@ internal actual fun createAndroidMeshLink(config: MeshLinkConfig, context: Any):
         platformContext = androidContext,
         localIdentity = localIdentity,
         secureStorage = secureStorage,
-        bleTransport = AndroidBleTransport(androidContext),
+        bleTransport = AndroidBleTransport(
+            context = androidContext,
+            appId = config.appId,
+            advertisementKeyHash = localIdentity.advertisementKeyHash,
+        ),
     )
 }
 
