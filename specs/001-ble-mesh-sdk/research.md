@@ -135,6 +135,13 @@ identities survive switching between the JCA-backed and software paths.
   This means `XDH` key generation must use `generateKeyPair()` directly instead
   of `NamedParameterSpec.X25519` initialization on Android. With that fix,
   `MeshLink.createAndroid()` also succeeds on-device.
+- Samsung `SM-G970U1` ↔ OPPO `CPH2689` real-device proof run: Android's new
+  direct BLE transport now establishes a real L2CAP channel using the
+  advertised PSM, completes the Noise XX hop handshake, pins trust, and
+  delivers a provider-backed encrypted direct message from OPPO to Samsung.
+  The responder side needed to tolerate accepted L2CAP sockets before scan
+  discovery caught up, so the transport now binds unknown inbound sockets to a
+  temporary address-based peer handle instead of discarding them immediately.
 
 **Alternatives considered:**
 - Assuming `X25519` / `Ed25519` JCA works on all Android 12+ devices — rejected
