@@ -495,6 +495,50 @@ private object MeshLinkProofRuntime {
         updatesFlow.tryEmit(Unit)
     }
 
+    private fun appendBenchmarkCorrelation(
+        role: String,
+        tokenHex: String,
+        peerIdValue: String,
+        outcome: String,
+    ): Unit {
+        val knownPeersSummary =
+            synchronized(knownPeers) {
+                knownPeers.keys.map { peer -> peer.takeLast(6) }.sorted().joinToString(
+                    prefix = "[",
+                    postfix = "]",
+                )
+            }
+        val recentPeerEvents = recentLogSummary(limit = CORRELATION_SUMMARY_LINES) { line ->
+            line.startsWith("Peer ")
+        }
+        val recentDiagnostics = recentLogSummary(limit = CORRELATION_SUMMARY_LINES) { line ->
+            line.startsWith("DIAG ")
+        }
+        val peerSuffix = peerIdValue.takeLast(6)
+        appendLog(
+            "BENCHMARK correlation role=$role token=$tokenHex peer=$peerSuffix outcome=$outcome state=$runtimeStateText knownPeers=$knownPeersSummary",
+        )
+        appendLog("BENCHMARK correlation token=$tokenHex recentPeers=$recentPeerEvents")
+        appendLog("BENCHMARK correlation token=$tokenHex recentDiags=$recentDiagnostics")
+    }
+
+    private fun recentLogSummary(limit: Int, predicate: (String) -> Boolean): String {
+        val selectedLines =
+            synchronized(logLines) {
+                logLines.filter(predicate).takeLast(limit).map(::summarizeLogLine)
+            }
+        return selectedLines.joinToString(prefix = "[", postfix = "]", separator = " | ")
+    }
+
+    private fun summarizeLogLine(line: String): String {
+        val singleLine = line.replace('\n', ' ').trim()
+        return if (singleLine.length > CORRELATION_SUMMARY_CHARS) {
+            singleLine.take(CORRELATION_SUMMARY_CHARS) + "…"
+        } else {
+            singleLine
+        }
+    }
+
     private fun clearPersistedLogs(): Unit {
         val context = appContext ?: return
         context.deleteFile(PROOF_LOG_FILE_NAME)
@@ -586,6 +630,12 @@ private object MeshLinkProofRuntime {
                 appendLog(
                     "BENCHMARK receipt from ${message.originPeerId.value} token=${receipt.tokenHex} bytes=${receipt.totalBytes}",
                 )
+                appendBenchmarkCorrelation(
+                    role = "sender.receipt.arrived",
+                    tokenHex = receipt.tokenHex,
+                    peerIdValue = message.originPeerId.value,
+                    outcome = "received",
+                )
                 receiptListener.complete(receipt)
                 return
             }
@@ -594,6 +644,12 @@ private object MeshLinkProofRuntime {
         BenchmarkPayloadEnvelope.decode(message.payload)?.let { benchmarkPayload ->
             appendLog(
                 "MSG from ${message.originPeerId.value} bytes=${message.payload.size} benchmarkToken=${benchmarkPayload.tokenHex}",
+            )
+            appendBenchmarkCorrelation(
+                role = "passive.receipt.start",
+                tokenHex = benchmarkPayload.tokenHex,
+                peerIdValue = message.originPeerId.value,
+                outcome = "receivedPayload",
             )
             val receiptPayload =
                 BenchmarkReceipt(
@@ -606,10 +662,22 @@ private object MeshLinkProofRuntime {
                     appendLog(
                         "BENCHMARK receipt send(${message.originPeerId.value.takeLast(6)}) -> $sendResult token=${benchmarkPayload.tokenHex}",
                     )
+                    appendBenchmarkCorrelation(
+                        role = "passive.receipt.result",
+                        tokenHex = benchmarkPayload.tokenHex,
+                        peerIdValue = message.originPeerId.value,
+                        outcome = sendResult.toString(),
+                    )
                 }
                 .onFailure { error ->
                     appendLog(
                         "BENCHMARK receipt failed for ${message.originPeerId.value.takeLast(6)}: ${error.javaClass.simpleName}: ${error.message.orEmpty()}",
+                    )
+                    appendBenchmarkCorrelation(
+                        role = "passive.receipt.error",
+                        tokenHex = benchmarkPayload.tokenHex,
+                        peerIdValue = message.originPeerId.value,
+                        outcome = "${error.javaClass.simpleName}:${error.message.orEmpty()}",
                     )
                 }
             return
@@ -666,6 +734,14 @@ private object MeshLinkProofRuntime {
                             return@launch
                         }
                         val benchmarkPayload = launchConfig.benchmarkPayloadBytes?.let(::buildBenchmarkPayload)
+                        benchmarkPayload?.let { envelope ->
+                            appendBenchmarkCorrelation(
+                                role = "sender.benchmark.send",
+                                tokenHex = envelope.tokenHex,
+                                peerIdValue = peerId.value,
+                                outcome = "attempt${attemptIndex + 1}",
+                            )
+                        }
                         val payload = benchmarkPayload?.bytes ?: buildHelloPayload()
                         val startedAtNanos = SystemClock.elapsedRealtimeNanos()
                         val receiptDeferred =
@@ -710,6 +786,12 @@ private object MeshLinkProofRuntime {
                                         }
                                     appendLog(
                                         "BENCHMARK transport bytes=${payload.size} elapsedMs=$elapsedMs throughputKBps=${formatThroughputKilobytesPerSecond(payload.size, elapsedMs)} result=$benchmarkResult"
+                                    )
+                                    appendBenchmarkCorrelation(
+                                        role = "sender.benchmark.result",
+                                        tokenHex = envelope.tokenHex,
+                                        peerIdValue = peerId.value,
+                                        outcome = benchmarkResult,
                                     )
                                 }
                                 if (sendResult is SendResult.Sent && receiptConfirmed) {
@@ -804,6 +886,8 @@ private object MeshLinkProofRuntime {
     private const val BENCHMARK_HEADER_BYTES: Int = 16
     private const val BENCHMARK_TOKEN_HEX_LENGTH: Int = 16
     private const val MAX_LOG_LINES: Int = 64
+    private const val CORRELATION_SUMMARY_LINES: Int = 4
+    private const val CORRELATION_SUMMARY_CHARS: Int = 96
     private const val TAG = "MeshLinkProof"
 }
 

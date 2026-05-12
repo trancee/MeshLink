@@ -226,6 +226,12 @@ final class ProofViewModel: ObservableObject {
                 appendLog(
                     "BENCHMARK receipt from \(message.originPeerId.value) token=\(receipt.tokenHex) bytes=\(receipt.totalBytes)"
                 )
+                appendBenchmarkCorrelation(
+                    role: "sender.receipt.arrived",
+                    tokenHex: receipt.tokenHex,
+                    peerValue: message.originPeerId.value,
+                    outcome: "received"
+                )
                 pendingReceipt.resolve(receipt)
                 return
             }
@@ -235,12 +241,24 @@ final class ProofViewModel: ObservableObject {
             appendLog(
                 "MSG from \(message.originPeerId.value) bytes=\(payloadData.count) benchmarkToken=\(benchmarkPayload.tokenHex)"
             )
-            Task {
+            appendBenchmarkCorrelation(
+                role: "passive.receipt.start",
+                tokenHex: benchmarkPayload.tokenHex,
+                peerValue: message.originPeerId.value,
+                outcome: "receivedPayload"
+            )
+            Task { @MainActor in
                 let receiptPayload = BenchmarkReceiptEnvelope(tokenHex: benchmarkPayload.tokenHex, totalBytes: payloadData.count)
-                _ = await sendPayload(
+                let result = await sendPayload(
                     to: message.originPeerId,
                     payload: receiptPayload.encode().toKotlinByteArray(),
                     priority: DeliveryPriority.normal
+                )
+                appendBenchmarkCorrelation(
+                    role: "passive.receipt.result",
+                    tokenHex: benchmarkPayload.tokenHex,
+                    peerValue: message.originPeerId.value,
+                    outcome: result.map { String(describing: $0) } ?? "nil"
                 )
             }
             return
@@ -277,6 +295,14 @@ final class ProofViewModel: ObservableObject {
                     return
                 }
                 let benchmarkPayload = launchConfig.benchmarkPayloadBytes.map(buildBenchmarkPayload)
+                if let benchmarkPayload {
+                    appendBenchmarkCorrelation(
+                        role: "sender.benchmark.send",
+                        tokenHex: benchmarkPayload.tokenHex,
+                        peerValue: peerId.value,
+                        outcome: "attempt\(attempt + 1)"
+                    )
+                }
                 let payload = benchmarkPayload?.encode().toKotlinByteArray() ?? buildHelloPayload()
                 let startedAtNanos = DispatchTime.now().uptimeNanoseconds
                 let receiptTask = benchmarkPayload.map { envelope in
@@ -306,6 +332,12 @@ final class ProofViewModel: ObservableObject {
                         let benchmarkResult = receiptConfirmed ? String(describing: result) : (String(describing: result) == "Sent" ? "ReceiptTimeout" : String(describing: result))
                         appendLog(
                             "BENCHMARK transport bytes=\(payload.size) elapsedMs=\(elapsedMs) throughputKBps=\(formatThroughputKilobytesPerSecond(bytes: Int(payload.size), elapsedMs: elapsedMs)) result=\(benchmarkResult)"
+                        )
+                        appendBenchmarkCorrelation(
+                            role: "sender.benchmark.result",
+                            tokenHex: benchmarkPayload.tokenHex,
+                            peerValue: peerId.value,
+                            outcome: benchmarkResult
                         )
                     }
                     if String(describing: result) == "Sent" && receiptConfirmed {
@@ -452,6 +484,39 @@ final class ProofViewModel: ObservableObject {
         }
         let persisted = logs.joined(separator: "\n") + "\n"
         try? persisted.write(to: logFileUrl, atomically: true, encoding: .utf8)
+    }
+
+    private func appendBenchmarkCorrelation(
+        role: String,
+        tokenHex: String,
+        peerValue: String,
+        outcome: String
+    ) {
+        let knownPeers = peers.map(\.value).map { String($0.suffix(6)) }.sorted().joined(separator: ",")
+        let recentPeers = recentLogSummary(limit: 4) { line in
+            line.hasPrefix("Peer ")
+        }
+        let recentDiagnostics = recentLogSummary(limit: 4) { line in
+            line.hasPrefix("DIAG ")
+        }
+        appendLog(
+            "BENCHMARK correlation role=\(role) token=\(tokenHex) peer=\(String(peerValue.suffix(6))) outcome=\(outcome) state=\(stateText) knownPeers=[\(knownPeers)]"
+        )
+        appendLog("BENCHMARK correlation token=\(tokenHex) recentPeers=\(recentPeers)")
+        appendLog("BENCHMARK correlation token=\(tokenHex) recentDiags=\(recentDiagnostics)")
+    }
+
+    private func recentLogSummary(limit: Int, predicate: (String) -> Bool) -> String {
+        let selected = logs.filter(predicate).suffix(limit).map(summarizeLogLine)
+        return "[\(selected.joined(separator: " | "))]"
+    }
+
+    private func summarizeLogLine(_ line: String) -> String {
+        let singleLine = line.replacingOccurrences(of: "\n", with: " ").trimmingCharacters(in: .whitespacesAndNewlines)
+        if singleLine.count > 96 {
+            return String(singleLine.prefix(96)) + "…"
+        }
+        return singleLine
     }
 
     private func insertOrReplace(_ peerId: PeerId, into existing: [PeerId]) -> [PeerId] {
