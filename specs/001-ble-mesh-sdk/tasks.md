@@ -212,7 +212,7 @@ retransmission semantics.
 - [X] T060 [P] Run a 10-run iPhone 15 -> Samsung physical soak for warmup-only, 16-byte, 256-byte, and 64 KiB payloads using isolated transient `appId` values and retain the success/failure matrix
 - [X] T061 [P] Update the Android and iOS proof apps so benchmark throughput logs are emitted only after recipient-confirmed proof receipts rather than sender-side completion timing
 - [ ] T062 Re-run the physical OPPO and Samsung benchmark matrix with the recipient-confirmed benchmark protocol and retain the resulting evidence in the durable docs
-- [ ] T063 Investigate and, if feasible, prototype an Android GATT server + iOS GATT client bulk fallback path for proof benchmarking when the L2CAP path remains capped around ~20 KB/s
+- [X] T063 Investigate and, if feasible, prototype an Android GATT server + iOS GATT client bulk fallback path for proof benchmarking when the L2CAP path remains capped around ~20 KB/s
 
 ---
 

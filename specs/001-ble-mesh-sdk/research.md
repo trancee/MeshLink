@@ -319,3 +319,40 @@ a separate Samsung rerun can fail before the bulk transfer phase begins. The rem
 bottleneck still appears to live in iOS / CoreBluetooth L2CAP large-transfer behavior
 or backpressure, not in pairing, route establishment, or the 392-byte chunk size
 itself.
+
+### Proof-only Android GATT server + iOS GATT client fallback prototype
+
+A proof-only native fallback prototype is now implemented in the sample apps for
+benchmark investigation only:
+
+- Android proof app: native `BluetoothGattServer` passive benchmark host
+- iOS proof app: native `CBCentralManager` / `CBPeripheral` benchmark client
+- proof-only direction: iPhone 15 -> Android bulk write plus Android receipt notification
+- proof-only activation: launch config `benchmarkTransport=gatt` / `MESHLINK_BENCHMARK_TRANSPORT=gatt`
+
+Fresh retained physical evidence on the reference devices:
+
+- iPhone 15 -> Samsung, 64 KiB: `BENCHMARK transport bytes=65536 elapsedMs=2676 throughputKBps=23.92 result=Sent mode=gattPrototype setupMs=1994`
+- iPhone 15 -> OPPO, 64 KiB: `BENCHMARK transport bytes=65536 elapsedMs=2915 throughputKBps=21.96 result=Sent mode=gattPrototype setupMs=1926`
+- iPhone reported `maxWriteWithoutResponse=512` on both runs
+- Android servers reported `mtu=517` on both runs
+- both Android proof apps emitted full 64 KiB receipt notifications
+
+Key findings:
+
+- The fallback path is technically feasible on the target hardware and avoids the
+  MeshLink handshake / route layer entirely for this benchmark slice.
+- Samsung improved modestly relative to the best retained clean iPhone 15 -> Samsung
+  L2CAP evidence (`23.92 KB/s` vs `19.94 KB/s`), but the gain is not large enough to
+  change the release posture.
+- OPPO remained in roughly the same throughput class as the current iOS L2CAP
+  evidence (`21.96 KB/s`).
+- The prototype still remains far below the normative iOS `>= 60 KB/s` target, so it
+  does not by itself justify pivoting the product claim from L2CAP-first to GATT.
+- The first discovery attempt encoded the proof-only app-id marker as GATT service
+  data and hit Android legacy advertising limits (`ADVERTISE_FAILED_DATA_TOO_LARGE`).
+  Moving that marker to manufacturer data fixed physical discovery on the next rerun.
+
+This prototype therefore narrows the decision space rather than resolving it: a
+proof-only GATT path is possible, but on the current hardware it does not provide
+an obvious throughput escape hatch for `SC-004`.

@@ -16,6 +16,15 @@ final class ProofViewModel: ObservableObject {
     private let api: MeshLinkApi
     private let logFileUrl: URL
     private let launchConfig: ProofLaunchConfig
+    private lazy var gattBenchmarkClient: ProofGattBenchmarkClient = ProofGattBenchmarkClient(
+        appId: launchConfig.appId,
+        logger: { [weak self] message in
+            self?.appendLog(message)
+        },
+        stateDidChange: { [weak self] state in
+            self?.stateText = state
+        }
+    )
     private var autoSendPeers: Set<String> = []
     private var pendingBenchmarkReceipts: [String: PendingBenchmarkReceipt] = [:]
     private var benchmarkTokenCounter: UInt64 = 0
@@ -48,16 +57,32 @@ final class ProofViewModel: ObservableObject {
             builder.powerMode = resolvedLaunchConfig.powerMode
         }
         api = MeshLink.shared.createIos(config: config)
-        startTransportLogCaptureIfNeeded()
-
-        bindFlows()
+        if resolvedLaunchConfig.benchmarkTransport == .meshLink {
+            startTransportLogCaptureIfNeeded()
+            bindFlows()
+        }
         appendLog(
-            "MeshLink proof app ready on iPhone appId=\(launchConfig.appId) powerMode=\(launchConfig.powerModeLabel)"
+            "MeshLink proof app ready on iPhone appId=\(launchConfig.appId) powerMode=\(launchConfig.powerModeLabel) transport=\(launchConfig.benchmarkTransport.logLabel)"
         )
         start()
     }
 
     func start() {
+        if launchConfig.benchmarkTransport == .gattPrototype {
+            guard let benchmarkPayloadBytes = launchConfig.benchmarkPayloadBytes else {
+                stateText = "Error(GATT benchmark)"
+                appendLog("gatt.benchmark.start() failed: MESHLINK_BENCHMARK_PAYLOAD_BYTES is required for GATT benchmark mode")
+                return
+            }
+            if launchConfig.disableAutoSend {
+                stateText = "Error(GATT benchmark)"
+                appendLog("gatt.benchmark.start() failed: passive iOS GATT benchmark mode is not implemented")
+                return
+            }
+            gattBenchmarkClient.start(payloadBytes: benchmarkPayloadBytes)
+            return
+        }
+
         let startedAtNanos = DispatchTime.now().uptimeNanoseconds
         api.start { [weak self] result, error in
             Task { @MainActor in
@@ -86,6 +111,11 @@ final class ProofViewModel: ObservableObject {
     }
 
     func stop() {
+        if launchConfig.benchmarkTransport == .gattPrototype {
+            gattBenchmarkClient.stop()
+            appendLog("gatt.benchmark.stop() -> Stopped")
+            return
+        }
         api.stop { [weak self] result, error in
             Task { @MainActor in
                 if let result {
@@ -99,6 +129,10 @@ final class ProofViewModel: ObservableObject {
     }
 
     func sendHello() {
+        if launchConfig.benchmarkTransport == .gattPrototype {
+            appendLog("Send Hello is unavailable in GATT benchmark mode")
+            return
+        }
         guard let peer = peers.first else {
             appendLog("No discovered peer is available yet")
             return
@@ -114,6 +148,9 @@ final class ProofViewModel: ObservableObject {
     }
 
     private func bindFlows() {
+        guard launchConfig.benchmarkTransport == .meshLink else {
+            return
+        }
         stateText = String(describing: api.state.value ?? "Unknown")
         api.state.collect(collector: stateCollector) { [weak self] error in
             Task { @MainActor in
@@ -280,6 +317,9 @@ final class ProofViewModel: ObservableObject {
     }
 
     private func applyBenchmarkPowerSnapshot() {
+        guard launchConfig.benchmarkTransport == .meshLink else {
+            return
+        }
         guard
             let batteryLevel = launchConfig.benchmarkBatteryLevel,
             let isCharging = launchConfig.benchmarkIsCharging
@@ -360,7 +400,9 @@ final class ProofViewModel: ObservableObject {
     }
 
     private func startTransportLogCaptureIfNeeded() {
-        guard launchConfig.transportTelemetryEnabled, stdoutOriginalDescriptor == -1 else {
+        guard launchConfig.benchmarkTransport == .meshLink,
+              launchConfig.transportTelemetryEnabled,
+              stdoutOriginalDescriptor == -1 else {
             return
         }
         let pipe = Pipe()
@@ -514,6 +556,7 @@ private struct ProofLaunchConfig {
     let benchmarkColdStart: Bool
     let disableAutoSend: Bool
     let transportTelemetryEnabled: Bool
+    let benchmarkTransport: ProofBenchmarkTransport
 
     static func fromEnvironment(_ environment: [String: String]) -> ProofLaunchConfig {
         ProofLaunchConfig(
@@ -525,7 +568,8 @@ private struct ProofLaunchConfig {
             benchmarkIsCharging: parseBoolean(environment["MESHLINK_BENCHMARK_IS_CHARGING"]),
             benchmarkColdStart: parseBoolean(environment["MESHLINK_BENCHMARK_COLD_START"]) ?? false,
             disableAutoSend: parseBoolean(environment["MESHLINK_DISABLE_AUTO_SEND"]) ?? false,
-            transportTelemetryEnabled: parseBoolean(environment["MESHLINK_TRANSPORT_TELEMETRY"]) ?? false
+            transportTelemetryEnabled: parseBoolean(environment["MESHLINK_TRANSPORT_TELEMETRY"]) ?? false,
+            benchmarkTransport: ProofBenchmarkTransport.parse(environment["MESHLINK_BENCHMARK_TRANSPORT"])
         )
     }
 

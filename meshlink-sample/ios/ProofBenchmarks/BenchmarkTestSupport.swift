@@ -9,7 +9,8 @@ enum BenchmarkTestSupport {
         benchmarkIsCharging: Bool? = nil,
         benchmarkColdStart: Bool = false,
         disableAutoSend: Bool = false,
-        transportTelemetry: Bool = false
+        transportTelemetry: Bool = false,
+        benchmarkTransport: String? = nil
     ) -> XCUIApplication {
         let application = XCUIApplication()
         var environment: [String: String] = [
@@ -35,6 +36,9 @@ enum BenchmarkTestSupport {
         }
         if transportTelemetry {
             environment["MESHLINK_TRANSPORT_TELEMETRY"] = "true"
+        }
+        if let benchmarkTransport {
+            environment["MESHLINK_BENCHMARK_TRANSPORT"] = benchmarkTransport
         }
         application.launchEnvironment = environment
         application.launch()

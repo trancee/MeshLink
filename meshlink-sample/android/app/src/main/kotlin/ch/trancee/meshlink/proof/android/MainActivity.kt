@@ -2,6 +2,7 @@ package ch.trancee.meshlink.proof.android
 
 import android.Manifest
 import android.app.Activity
+import android.bluetooth.BluetoothManager
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
@@ -143,7 +144,7 @@ class MainActivity : Activity() {
                         }
                         .trimEnd()
                 }
-            startStopButton.text = if (snapshot.running) "Stop MeshLink" else "Start MeshLink"
+            startStopButton.text = if (snapshot.running) "Stop Proof" else "Start Proof"
             sendHelloButton.isEnabled = snapshot.running && snapshot.peers.isNotEmpty()
             logLabel.text =
                 if (snapshot.logs.isEmpty()) {
@@ -198,6 +199,10 @@ class MainActivity : Activity() {
                 currentIntent?.getBooleanExtra(EXTRA_BENCHMARK_COLD_START, false) ?: false,
             disableAutoSend =
                 currentIntent?.getBooleanExtra(EXTRA_DISABLE_AUTO_SEND, false) ?: false,
+            benchmarkTransport =
+                parseProofBenchmarkTransport(
+                    currentIntent?.getStringExtra(EXTRA_BENCHMARK_TRANSPORT)
+                ),
         )
     }
 
@@ -220,6 +225,7 @@ class MainActivity : Activity() {
         private const val EXTRA_BENCHMARK_IS_CHARGING: String = "meshlink.benchmarkIsCharging"
         private const val EXTRA_BENCHMARK_COLD_START: String = "meshlink.benchmarkColdStart"
         private const val EXTRA_DISABLE_AUTO_SEND: String = "meshlink.disableAutoSend"
+        private const val EXTRA_BENCHMARK_TRANSPORT: String = "meshlink.benchmarkTransport"
     }
 }
 
@@ -231,6 +237,7 @@ private data class ProofLaunchConfig(
     val benchmarkIsCharging: Boolean? = null,
     val benchmarkColdStart: Boolean = false,
     val disableAutoSend: Boolean = false,
+    val benchmarkTransport: ProofBenchmarkTransport = ProofBenchmarkTransport.MeshLink,
 )
 
 private fun PowerMode.logLabel(): String {
@@ -261,6 +268,8 @@ private object MeshLinkProofRuntime {
     private var collectorsStarted: Boolean = false
     private var running: Boolean = false
     private var appContext: Context? = null
+    private var runtimeStateText: String = MeshLinkState.Uninitialized.toString()
+    private var gattBenchmarkServer: ProofGattBenchmarkServer? = null
     private var benchmarkTokenCounter: Long = 0L
 
     val updates: Flow<Unit> = updatesFlow.asSharedFlow()
@@ -273,7 +282,7 @@ private object MeshLinkProofRuntime {
             val peers = synchronized(knownPeers) { knownPeers.values.map { peerId -> peerId.value } }
             val logs = synchronized(logLines) { logLines.toList() }
             return ProofSnapshot(
-                state = meshLink?.state?.value?.toString() ?: MeshLinkState.Uninitialized.toString(),
+                state = runtimeStateText,
                 peers = peers,
                 logs = logs,
                 running = running,
@@ -285,41 +294,116 @@ private object MeshLinkProofRuntime {
             if (appContext == null) {
                 appContext = context.applicationContext
             }
-            val resolvedLaunchConfig = launchConfig.copy(appId = launchConfig.appId.ifBlank { "demo.meshlink" })
-            if (meshLink == null || currentLaunchConfig != resolvedLaunchConfig) {
+            val resolvedLaunchConfig =
+                launchConfig.copy(appId = launchConfig.appId.ifBlank { "demo.meshlink" })
+            if (
+                currentLaunchConfig != resolvedLaunchConfig ||
+                    (
+                        resolvedLaunchConfig.benchmarkTransport == ProofBenchmarkTransport.MeshLink &&
+                            meshLink == null
+                        )
+            ) {
                 this.launchConfig = resolvedLaunchConfig
+                gattBenchmarkServer?.stop()
                 meshLink =
-                    MeshLink.createAndroid(
-                        context = appContext!!,
-                        config = meshLinkConfig {
-                            appId = resolvedLaunchConfig.appId
-                            regulatoryRegion = RegulatoryRegion.DEFAULT
-                            powerMode = resolvedLaunchConfig.powerMode
-                        },
-                    )
+                    if (resolvedLaunchConfig.benchmarkTransport == ProofBenchmarkTransport.MeshLink) {
+                        MeshLink.createAndroid(
+                            context = appContext!!,
+                            config = meshLinkConfig {
+                                appId = resolvedLaunchConfig.appId
+                                regulatoryRegion = RegulatoryRegion.DEFAULT
+                                powerMode = resolvedLaunchConfig.powerMode
+                            },
+                        )
+                    } else {
+                        null
+                    }
+                gattBenchmarkServer = null
                 currentLaunchConfig = resolvedLaunchConfig
                 collectorsStarted = false
                 running = false
+                runtimeStateText = MeshLinkState.Uninitialized.toString()
                 synchronized(knownPeers) { knownPeers.clear() }
                 synchronized(autoSendJobs) {
                     autoSendJobs.values.forEach(Job::cancel)
                     autoSendJobs.clear()
                 }
+                synchronized(pendingBenchmarkReceipts) { pendingBenchmarkReceipts.clear() }
                 synchronized(logLines) { logLines.clear() }
                 localAdvertisementKeyHashHex =
-                    computeLocalAdvertisementKeyHashHex(
-                        context = appContext!!,
-                        appId = resolvedLaunchConfig.appId,
-                    )
+                    if (resolvedLaunchConfig.benchmarkTransport == ProofBenchmarkTransport.MeshLink) {
+                        computeLocalAdvertisementKeyHashHex(
+                            context = appContext!!,
+                            appId = resolvedLaunchConfig.appId,
+                        )
+                    } else {
+                        null
+                    }
                 clearPersistedLogs()
+                val transportLabel =
+                    when (resolvedLaunchConfig.benchmarkTransport) {
+                        ProofBenchmarkTransport.MeshLink -> "meshlink"
+                        ProofBenchmarkTransport.GattPrototype -> "gattPrototype"
+                    }
+                val keyHashSuffix =
+                    localAdvertisementKeyHashHex?.let { keyHash -> " keyHash=$keyHash" } ?: ""
                 appendLog(
-                    "MeshLink proof app ready on ${Build.MANUFACTURER} ${Build.MODEL} (SDK ${Build.VERSION.SDK_INT}) appId=${resolvedLaunchConfig.appId} powerMode=${resolvedLaunchConfig.powerMode.logLabel()} keyHash=${localAdvertisementKeyHashHex.orEmpty()}",
+                    "MeshLink proof app ready on ${Build.MANUFACTURER} ${Build.MODEL} (SDK ${Build.VERSION.SDK_INT}) appId=${resolvedLaunchConfig.appId} powerMode=${resolvedLaunchConfig.powerMode.logLabel()} transport=$transportLabel$keyHashSuffix",
                 )
             }
         }
     }
 
     fun start(): Job {
+        if (launchConfig.benchmarkTransport == ProofBenchmarkTransport.GattPrototype) {
+            return scope.launch {
+                val startedAtNanos = SystemClock.elapsedRealtimeNanos()
+                if (!launchConfig.disableAutoSend) {
+                    runtimeStateText = "Error(GATT benchmark)"
+                    appendLog(
+                        "gatt.benchmark.start() failed: Android GATT prototype currently supports passive server mode only; relaunch with meshlink.disableAutoSend=true"
+                    )
+                    updatesFlow.tryEmit(Unit)
+                    return@launch
+                }
+                val context = appContext ?: error("MeshLinkProofRuntime.initialize must be called first")
+                val bluetoothManager =
+                    context.getSystemService(BluetoothManager::class.java)
+                        ?: error("BluetoothManager is unavailable")
+                val advertiser = bluetoothManager.adapter?.bluetoothLeAdvertiser
+                val server =
+                    gattBenchmarkServer
+                        ?: ProofGattBenchmarkServer(
+                            context = context,
+                            bluetoothManager = bluetoothManager,
+                            advertiser = advertiser,
+                            logger = ::appendLog,
+                            appId = launchConfig.appId,
+                        )
+                            .also { createdServer ->
+                                gattBenchmarkServer = createdServer
+                            }
+                val result = runCatching { server.start() }
+                result.onSuccess {
+                    running = true
+                    runtimeStateText = "Running(GATT benchmark passive)"
+                    appendLog("gatt.benchmark.start() -> Started")
+                    if (launchConfig.benchmarkColdStart) {
+                        appendLog(
+                            "BENCHMARK coldStart elapsedMs=${elapsedMillisSince(startedAtNanos)} result=Started mode=gattPrototype"
+                        )
+                    }
+                }.onFailure { error ->
+                    running = false
+                    runtimeStateText = "Error(GATT benchmark)"
+                    appendLog(
+                        "gatt.benchmark.start() failed: ${error.javaClass.simpleName}: ${error.message.orEmpty()}"
+                    )
+                }
+                updatesFlow.tryEmit(Unit)
+            }
+        }
+
         ensureCollectors()
         return scope.launch {
             val startedAtNanos = SystemClock.elapsedRealtimeNanos()
@@ -346,6 +430,22 @@ private object MeshLinkProofRuntime {
     }
 
     fun stop(): Job {
+        if (launchConfig.benchmarkTransport == ProofBenchmarkTransport.GattPrototype) {
+            return scope.launch {
+                val result = runCatching { gattBenchmarkServer?.stop() ?: Unit }
+                result.onSuccess {
+                    running = false
+                    runtimeStateText = MeshLinkState.Stopped.toString()
+                    appendLog("gatt.benchmark.stop() -> Stopped")
+                }.onFailure { error ->
+                    appendLog(
+                        "gatt.benchmark.stop() failed: ${error.javaClass.simpleName}: ${error.message.orEmpty()}"
+                    )
+                }
+                updatesFlow.tryEmit(Unit)
+            }
+        }
+
         return scope.launch {
             val result = runCatching { requireMeshLink().stop() }
             result.onSuccess { stopResult ->
@@ -359,6 +459,10 @@ private object MeshLinkProofRuntime {
     }
 
     fun sendHelloToFirstPeer(): Job {
+        if (launchConfig.benchmarkTransport == ProofBenchmarkTransport.GattPrototype) {
+            appendLog("Send Hello is unavailable in GATT benchmark mode")
+            return Job()
+        }
         val peerId = synchronized(knownPeers) { knownPeers.values.firstOrNull() }
         if (peerId == null) {
             appendLog("No discovered peer is available yet")
@@ -409,6 +513,9 @@ private object MeshLinkProofRuntime {
     }
 
     private fun ensureCollectors(): Unit {
+        if (launchConfig.benchmarkTransport != ProofBenchmarkTransport.MeshLink) {
+            return
+        }
         synchronized(this) {
             if (collectorsStarted) {
                 return
@@ -419,6 +526,7 @@ private object MeshLinkProofRuntime {
 
         scope.launch {
             mesh.state.collectLatest { state ->
+                runtimeStateText = state.toString()
                 running = state == MeshLinkState.Running
                 updatesFlow.tryEmit(Unit)
             }
@@ -624,10 +732,13 @@ private object MeshLinkProofRuntime {
     }
 
     private fun requireMeshLink(): MeshLinkApi {
-        return meshLink ?: error("MeshLinkProofRuntime.initialize must be called first")
+        return meshLink ?: error("MeshLink transport is not active for the current proof launch config")
     }
 
     private fun applyBenchmarkPowerSnapshot(): Unit {
+        if (launchConfig.benchmarkTransport != ProofBenchmarkTransport.MeshLink) {
+            return
+        }
         val level = launchConfig.benchmarkBatteryLevel ?: return
         val isCharging = launchConfig.benchmarkIsCharging ?: return
         requireMeshLink().updateBattery(level = level, isCharging = isCharging)

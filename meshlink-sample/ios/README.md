@@ -9,6 +9,7 @@ This app is the iOS reference host for the MeshLink quickstart.
 - the Swift-installed `CryptoKit` bridge required by `IosCryptoProvider`
 - direct KMP framework integration through a pre-build Gradle script that runs `:meshlink:embedAndSignAppleFrameworkForXcode`
 - the default MeshLink `deliveryRetryDeadline` behavior; the proof app leaves the default 15-second deadline unchanged
+- a proof-only native GATT benchmark prototype activated with `MESHLINK_BENCHMARK_TRANSPORT=gatt` for iPhone -> Android fallback experiments
 - shared `POWER_MODE_CHANGED` diagnostics that expose `tier`, `advertisementIntervalMillis`, `scanDutyCyclePercent`, `maxConnections`, `chunkBudgetBytes`, and `region`
 
 ## Build and run
@@ -89,6 +90,10 @@ Physical proof findings on iPhone 15:
   `19.62 KB/s` with full `65536`-byte receipt, and a separate passive Samsung rerun
   failed `NotSent(reason=UNREACHABLE)` after repeated
   `transport.handshake.message1.send` failures
+- a proof-only native GATT benchmark prototype is feasible on the same iPhone 15:
+  Samsung reached `23.92 KB/s` with `setupMs=1994`, OPPO reached `21.96 KB/s`
+  with `setupMs=1926`, and both runs negotiated `maxWriteWithoutResponse=512` /
+  Android `mtu=517`; this is still well below the normative `>= 60 KB/s` target
 
 Shared harness evidence now also covers the common US2 runtime:
 
@@ -101,8 +106,9 @@ Shared harness evidence now also covers the common US2 runtime:
 Current blocker:
 
 - large-payload iPhone throughput remains below the `>= 60 KB/s` target even
-  though delivery, pairing-free interop, cold start, power, and latency now work,
-  and the Samsung reference path still shows variable stability across fresh reruns
+  though delivery, pairing-free interop, cold start, power, latency, and a proof-only
+  GATT fallback prototype now work, and the Samsung reference path still shows
+  variable stability across fresh reruns
 
 ## Current physical proof flow
 

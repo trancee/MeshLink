@@ -17,6 +17,7 @@ internal object BenchmarkTestSupport {
     private const val EXTRA_BENCHMARK_BATTERY_LEVEL: String = "meshlink.benchmarkBatteryLevel"
     private const val EXTRA_BENCHMARK_IS_CHARGING: String = "meshlink.benchmarkIsCharging"
     private const val EXTRA_BENCHMARK_COLD_START: String = "meshlink.benchmarkColdStart"
+    private const val EXTRA_BENCHMARK_TRANSPORT: String = "meshlink.benchmarkTransport"
 
     fun startProofApp(
         appId: String,
@@ -25,6 +26,7 @@ internal object BenchmarkTestSupport {
         benchmarkBatteryLevel: Float? = null,
         benchmarkIsCharging: Boolean? = null,
         benchmarkColdStart: Boolean = false,
+        benchmarkTransport: String? = null,
     ): ActivityScenario<MainActivity> {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val intent = Intent(context, MainActivity::class.java).apply {
@@ -37,6 +39,7 @@ internal object BenchmarkTestSupport {
             if (benchmarkColdStart) {
                 putExtra(EXTRA_BENCHMARK_COLD_START, true)
             }
+            benchmarkTransport?.let { value -> putExtra(EXTRA_BENCHMARK_TRANSPORT, value) }
         }
         return ActivityScenario.launch(intent)
     }
