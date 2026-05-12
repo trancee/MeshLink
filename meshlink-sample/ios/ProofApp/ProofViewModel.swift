@@ -17,6 +17,8 @@ final class ProofViewModel: ObservableObject {
     private let logFileUrl: URL
     private let launchConfig: ProofLaunchConfig
     private var autoSendPeers: Set<String> = []
+    private var pendingBenchmarkReceipts: [String: PendingBenchmarkReceipt] = [:]
+    private var benchmarkTokenCounter: UInt64 = 0
     private var capturedStdoutBuffer: String = ""
     private var stdoutPipe: Pipe?
     private var stdoutOriginalDescriptor: Int32 = -1
@@ -180,6 +182,33 @@ final class ProofViewModel: ObservableObject {
         guard let message = value as? InboundMessage else {
             return
         }
+        let payloadData = message.payload.toData()
+
+        if let receipt = BenchmarkReceiptEnvelope.decode(payloadData) {
+            if let pendingReceipt = pendingBenchmarkReceipts.removeValue(forKey: receipt.tokenHex) {
+                appendLog(
+                    "BENCHMARK receipt from \(message.originPeerId.value) token=\(receipt.tokenHex) bytes=\(receipt.totalBytes)"
+                )
+                pendingReceipt.resolve(receipt)
+                return
+            }
+        }
+
+        if let benchmarkPayload = BenchmarkPayloadEnvelope.decode(payloadData) {
+            appendLog(
+                "MSG from \(message.originPeerId.value) bytes=\(payloadData.count) benchmarkToken=\(benchmarkPayload.tokenHex)"
+            )
+            Task {
+                let receiptPayload = BenchmarkReceiptEnvelope(tokenHex: benchmarkPayload.tokenHex, totalBytes: payloadData.count)
+                _ = await sendPayload(
+                    to: message.originPeerId,
+                    payload: receiptPayload.encode().toKotlinByteArray(),
+                    priority: DeliveryPriority.normal
+                )
+            }
+            return
+        }
+
         appendLog(
             "MSG from \(message.originPeerId.value) bytes=\(message.payload.size) text=\(message.payload.toDataString())"
         )
@@ -210,20 +239,39 @@ final class ProofViewModel: ObservableObject {
                 guard peers.contains(where: { current in current.value == peerId.value }) else {
                     return
                 }
-                let payload = buildAutoSendPayload()
+                let benchmarkPayload = launchConfig.benchmarkPayloadBytes.map(buildBenchmarkPayload)
+                let payload = benchmarkPayload?.encode().toKotlinByteArray() ?? buildHelloPayload()
                 let startedAtNanos = DispatchTime.now().uptimeNanoseconds
+                let receiptTask = benchmarkPayload.map { envelope in
+                    Task { @MainActor in
+                        await awaitBenchmarkReceipt(tokenHex: envelope.tokenHex, timeoutNanos: benchmarkReceiptTimeoutNanos)
+                    }
+                }
                 let result = await sendPayload(to: peerId, payload: payload, priority: DeliveryPriority.normal)
                 if let result {
                     appendLog(
                         "auto-send attempt \(attempt + 1) -> \(result) for \(peerId.value.suffix(6))"
                     )
-                    if launchConfig.benchmarkPayloadBytes != nil {
+                    var receiptConfirmed = true
+                    if let benchmarkPayload {
+                        let receipt: BenchmarkReceiptEnvelope?
+                        if String(describing: result) == "Sent" {
+                            receipt = await receiptTask?.value
+                        } else {
+                            pendingBenchmarkReceipts.removeValue(forKey: benchmarkPayload.tokenHex)?.resolve(nil)
+                            receipt = nil
+                        }
+                        if receipt == nil {
+                            pendingBenchmarkReceipts.removeValue(forKey: benchmarkPayload.tokenHex)?.resolve(nil)
+                        }
+                        receiptConfirmed = receipt != nil
                         let elapsedMs = elapsedMilliseconds(since: startedAtNanos)
+                        let benchmarkResult = receiptConfirmed ? String(describing: result) : (String(describing: result) == "Sent" ? "ReceiptTimeout" : String(describing: result))
                         appendLog(
-                            "BENCHMARK transport bytes=\(payload.size) elapsedMs=\(elapsedMs) throughputKBps=\(formatThroughputKilobytesPerSecond(bytes: Int(payload.size), elapsedMs: elapsedMs)) result=\(result)"
+                            "BENCHMARK transport bytes=\(payload.size) elapsedMs=\(elapsedMs) throughputKBps=\(formatThroughputKilobytesPerSecond(bytes: Int(payload.size), elapsedMs: elapsedMs)) result=\(benchmarkResult)"
                         )
                     }
-                    if String(describing: result) == "Sent" {
+                    if String(describing: result) == "Sent" && receiptConfirmed {
                         return
                     }
                 }
@@ -244,17 +292,28 @@ final class ProofViewModel: ObservableObject {
         )
     }
 
-    private func buildAutoSendPayload() -> KotlinByteArray {
-        guard let benchmarkPayloadBytes = launchConfig.benchmarkPayloadBytes else {
-            return "hello mesh from iPhone".toKotlinByteArray()
-        }
-        let bytes = [UInt8](unsafeUninitializedCapacity: benchmarkPayloadBytes) { buffer, count in
-            for index in 0..<benchmarkPayloadBytes {
-                buffer[index] = UInt8((index * 31) & 0xFF)
+    private func buildBenchmarkPayload(totalBytes: Int) -> BenchmarkPayloadEnvelope {
+        benchmarkTokenCounter += 1
+        let tokenValue = DispatchTime.now().uptimeNanoseconds ^ benchmarkTokenCounter
+        let tokenHex = String(format: "%016llx", tokenValue)
+        return BenchmarkPayloadEnvelope(totalBytes: totalBytes, tokenHex: tokenHex)
+    }
+
+    private func buildHelloPayload() -> KotlinByteArray {
+        "hello mesh from iPhone".toKotlinByteArray()
+    }
+
+    private func awaitBenchmarkReceipt(tokenHex: String, timeoutNanos: UInt64) async -> BenchmarkReceiptEnvelope? {
+        await withCheckedContinuation { continuation in
+            let pendingReceipt = PendingBenchmarkReceipt(continuation: continuation)
+            pendingBenchmarkReceipts[tokenHex] = pendingReceipt
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: timeoutNanos)
+                if let unresolvedReceipt = pendingBenchmarkReceipts.removeValue(forKey: tokenHex) {
+                    unresolvedReceipt.resolve(nil)
+                }
             }
-            count = benchmarkPayloadBytes
         }
-        return Data(bytes).toKotlinByteArray()
     }
 
     private func sendPayload(
@@ -282,6 +341,10 @@ final class ProofViewModel: ObservableObject {
                 }
             }
         }
+    }
+
+    private var benchmarkReceiptTimeoutNanos: UInt64 {
+        20_000_000_000
     }
 
     private func elapsedMilliseconds(since startedAtNanos: UInt64) -> UInt64 {
@@ -353,6 +416,91 @@ final class ProofViewModel: ObservableObject {
         var copy = existing.filter { current in current.value != peerId.value }
         copy.append(peerId)
         return copy
+    }
+}
+
+private final class PendingBenchmarkReceipt {
+    private var continuation: CheckedContinuation<BenchmarkReceiptEnvelope?, Never>?
+    private var resolved = false
+
+    init(continuation: CheckedContinuation<BenchmarkReceiptEnvelope?, Never>) {
+        self.continuation = continuation
+    }
+
+    func resolve(_ receipt: BenchmarkReceiptEnvelope?) {
+        guard !resolved, let continuation else {
+            return
+        }
+        resolved = true
+        self.continuation = nil
+        continuation.resume(returning: receipt)
+    }
+}
+
+private struct BenchmarkPayloadEnvelope {
+    static let magic = Array("MLBM1000".utf8)
+    static let headerBytes = 16
+
+    let totalBytes: Int
+    let tokenHex: String
+
+    init(totalBytes: Int, tokenHex: String) {
+        precondition(totalBytes >= Self.headerBytes, "Benchmark payload must be at least \(Self.headerBytes) bytes")
+        precondition(tokenHex.count == 16, "Benchmark token must be 16 hex characters")
+        self.totalBytes = totalBytes
+        self.tokenHex = tokenHex
+    }
+
+    func encode() -> Data {
+        var bytes = [UInt8](unsafeUninitializedCapacity: totalBytes) { buffer, count in
+            for index in 0..<totalBytes {
+                buffer[index] = UInt8((index * 31) & 0xFF)
+            }
+            count = totalBytes
+        }
+        Self.magic.enumerated().forEach { index, byte in
+            bytes[index] = byte
+        }
+        tokenHex.hexDecodedBytes().enumerated().forEach { index, byte in
+            bytes[Self.magic.count + index] = byte
+        }
+        return Data(bytes)
+    }
+
+    static func decode(_ data: Data) -> BenchmarkPayloadEnvelope? {
+        guard data.count >= Self.headerBytes else {
+            return nil
+        }
+        let bytes = [UInt8](data)
+        guard Array(bytes.prefix(Self.magic.count)) == Self.magic else {
+            return nil
+        }
+        let tokenBytes = bytes[Self.magic.count..<Self.headerBytes]
+        let tokenHex = tokenBytes.map { String(format: "%02x", $0) }.joined()
+        return BenchmarkPayloadEnvelope(totalBytes: data.count, tokenHex: tokenHex)
+    }
+}
+
+private struct BenchmarkReceiptEnvelope {
+    static let prefix = "MLBM1_ACK:"
+
+    let tokenHex: String
+    let totalBytes: Int
+
+    func encode() -> Data {
+        Data("\(Self.prefix)\(tokenHex):\(totalBytes)".utf8)
+    }
+
+    static func decode(_ data: Data) -> BenchmarkReceiptEnvelope? {
+        guard let text = String(data: data, encoding: .utf8), text.hasPrefix(Self.prefix) else {
+            return nil
+        }
+        let payload = text.dropFirst(Self.prefix.count)
+        let parts = payload.split(separator: ":", maxSplits: 1).map(String.init)
+        guard parts.count == 2, let totalBytes = Int(parts[1]) else {
+            return nil
+        }
+        return BenchmarkReceiptEnvelope(tokenHex: parts[0], totalBytes: totalBytes)
     }
 }
 
@@ -455,11 +603,25 @@ private extension Data {
 }
 
 private extension KotlinByteArray {
-    func toDataString() -> String {
+    func toData() -> Data {
         var bytes = [UInt8](repeating: 0, count: Int(size))
         for index in 0..<Int(size) {
             bytes[index] = UInt8(bitPattern: get(index: Int32(index)))
         }
-        return String(decoding: bytes, as: UTF8.self)
+        return Data(bytes)
+    }
+
+    func toDataString() -> String {
+        String(decoding: toData(), as: UTF8.self)
+    }
+}
+
+private extension String {
+    func hexDecodedBytes() -> [UInt8] {
+        stride(from: 0, to: count, by: 2).compactMap { index in
+            let start = self.index(startIndex, offsetBy: index)
+            let end = self.index(start, offsetBy: 2)
+            return UInt8(self[start..<end], radix: 16)
+        }
     }
 }

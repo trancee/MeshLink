@@ -27,6 +27,7 @@ import ch.trancee.meshlink.config.meshLinkConfig
 import ch.trancee.meshlink.diagnostics.DiagnosticEvent
 import java.security.MessageDigest
 import java.util.Locale
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -38,6 +39,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 class MainActivity : Activity() {
     private val activityScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -248,6 +250,8 @@ private object MeshLinkProofRuntime {
     private val updatesFlow = MutableSharedFlow<Unit>(extraBufferCapacity = 32)
     private val knownPeers: LinkedHashMap<String, PeerId> = linkedMapOf()
     private val autoSendJobs: LinkedHashMap<String, Job> = linkedMapOf()
+    private val pendingBenchmarkReceipts: LinkedHashMap<String, CompletableDeferred<BenchmarkReceipt>> =
+        linkedMapOf()
     private val logLines: ArrayDeque<String> = ArrayDeque()
 
     private var launchConfig: ProofLaunchConfig = ProofLaunchConfig(appId = "demo.meshlink")
@@ -257,6 +261,7 @@ private object MeshLinkProofRuntime {
     private var collectorsStarted: Boolean = false
     private var running: Boolean = false
     private var appContext: Context? = null
+    private var benchmarkTokenCounter: Long = 0L
 
     val updates: Flow<Unit> = updatesFlow.asSharedFlow()
 
@@ -463,7 +468,45 @@ private object MeshLinkProofRuntime {
         appendLog("DIAG ${event.code} stage=${event.stage} reason=${event.reason}$metadataSuffix")
     }
 
-    private fun handleInboundMessage(message: InboundMessage): Unit {
+    private suspend fun handleInboundMessage(message: InboundMessage): Unit {
+        BenchmarkReceipt.decode(message.payload)?.let { receipt ->
+            val receiptListener =
+                synchronized(pendingBenchmarkReceipts) {
+                    pendingBenchmarkReceipts.remove(receipt.tokenHex)
+                }
+            if (receiptListener != null) {
+                appendLog(
+                    "BENCHMARK receipt from ${message.originPeerId.value} token=${receipt.tokenHex} bytes=${receipt.totalBytes}",
+                )
+                receiptListener.complete(receipt)
+                return
+            }
+        }
+
+        BenchmarkPayloadEnvelope.decode(message.payload)?.let { benchmarkPayload ->
+            appendLog(
+                "MSG from ${message.originPeerId.value} bytes=${message.payload.size} benchmarkToken=${benchmarkPayload.tokenHex}",
+            )
+            val receiptPayload =
+                BenchmarkReceipt(
+                        tokenHex = benchmarkPayload.tokenHex,
+                        totalBytes = benchmarkPayload.totalBytes,
+                    )
+                    .encode()
+            runCatching { requireMeshLink().send(message.originPeerId, receiptPayload) }
+                .onSuccess { sendResult ->
+                    appendLog(
+                        "BENCHMARK receipt send(${message.originPeerId.value.takeLast(6)}) -> $sendResult token=${benchmarkPayload.tokenHex}",
+                    )
+                }
+                .onFailure { error ->
+                    appendLog(
+                        "BENCHMARK receipt failed for ${message.originPeerId.value.takeLast(6)}: ${error.javaClass.simpleName}: ${error.message.orEmpty()}",
+                    )
+                }
+            return
+        }
+
         appendLog(
             "MSG from ${message.originPeerId.value} bytes=${message.payload.size} text=${message.payload.decodeToString()}",
         )
@@ -514,25 +557,63 @@ private object MeshLinkProofRuntime {
                         if (!peerStillKnown) {
                             return@launch
                         }
-                        val payload = buildAutoSendPayload()
+                        val benchmarkPayload = launchConfig.benchmarkPayloadBytes?.let(::buildBenchmarkPayload)
+                        val payload = benchmarkPayload?.bytes ?: buildHelloPayload()
                         val startedAtNanos = SystemClock.elapsedRealtimeNanos()
+                        val receiptDeferred =
+                            benchmarkPayload?.let { envelope ->
+                                CompletableDeferred<BenchmarkReceipt>().also { deferred ->
+                                    synchronized(pendingBenchmarkReceipts) {
+                                        pendingBenchmarkReceipts[envelope.tokenHex] = deferred
+                                    }
+                                }
+                            }
                         val result = runCatching { requireMeshLink().send(peerId, payload) }
                         result
                             .onSuccess { sendResult ->
                                 appendLog(
                                     "auto-send attempt ${attemptIndex + 1} -> $sendResult for ${peerId.value.takeLast(6)}"
                                 )
-                                if (launchConfig.benchmarkPayloadBytes != null) {
+                                var receiptConfirmed = true
+                                benchmarkPayload?.let { envelope ->
+                                    val receipt =
+                                        if (sendResult is SendResult.Sent) {
+                                            withTimeoutOrNull(BENCHMARK_RECEIPT_TIMEOUT_MS) {
+                                                receiptDeferred?.await()
+                                            }
+                                        } else {
+                                            synchronized(pendingBenchmarkReceipts) {
+                                                pendingBenchmarkReceipts.remove(envelope.tokenHex)
+                                            }
+                                            null
+                                        }
+                                    if (receipt == null) {
+                                        synchronized(pendingBenchmarkReceipts) {
+                                            pendingBenchmarkReceipts.remove(envelope.tokenHex)
+                                        }
+                                    }
+                                    receiptConfirmed = receipt != null
                                     val elapsedMs = elapsedMillisSince(startedAtNanos)
+                                    val benchmarkResult =
+                                        when {
+                                            sendResult !is SendResult.Sent -> sendResult.toString()
+                                            receipt != null -> sendResult.toString()
+                                            else -> "ReceiptTimeout"
+                                        }
                                     appendLog(
-                                        "BENCHMARK transport bytes=${payload.size} elapsedMs=$elapsedMs throughputKBps=${formatThroughputKilobytesPerSecond(payload.size, elapsedMs)} result=$sendResult"
+                                        "BENCHMARK transport bytes=${payload.size} elapsedMs=$elapsedMs throughputKBps=${formatThroughputKilobytesPerSecond(payload.size, elapsedMs)} result=$benchmarkResult"
                                     )
                                 }
-                                if (sendResult is SendResult.Sent) {
+                                if (sendResult is SendResult.Sent && receiptConfirmed) {
                                     return@launch
                                 }
                             }
                             .onFailure { error ->
+                                benchmarkPayload?.let { envelope ->
+                                    synchronized(pendingBenchmarkReceipts) {
+                                        pendingBenchmarkReceipts.remove(envelope.tokenHex)
+                                    }
+                                }
                                 appendLog(
                                     "auto-send attempt ${attemptIndex + 1} failed: ${error.javaClass.simpleName}: ${error.message.orEmpty()}"
                                 )
@@ -555,11 +636,12 @@ private object MeshLinkProofRuntime {
         )
     }
 
-    private fun buildAutoSendPayload(): ByteArray {
-        val benchmarkBytes = launchConfig.benchmarkPayloadBytes
-        if (benchmarkBytes != null) {
-            return ByteArray(benchmarkBytes) { index -> ((index * 31) and 0xFF).toByte() }
-        }
+    private fun buildBenchmarkPayload(totalBytes: Int): BenchmarkPayloadEnvelope {
+        val tokenHex = nextBenchmarkTokenHex()
+        return BenchmarkPayloadEnvelope.create(totalBytes = totalBytes, tokenHex = tokenHex)
+    }
+
+    private fun buildHelloPayload(): ByteArray {
         return "hello mesh from ${Build.MODEL}".encodeToByteArray()
     }
 
@@ -584,6 +666,12 @@ private object MeshLinkProofRuntime {
         }
     }
 
+    private fun nextBenchmarkTokenHex(): String {
+        benchmarkTokenCounter += 1L
+        val tokenValue = SystemClock.elapsedRealtimeNanos() xor benchmarkTokenCounter
+        return tokenValue.toULong().toString(radix = 16).padStart(BENCHMARK_TOKEN_HEX_LENGTH, '0')
+    }
+
     private fun elapsedMillisSince(startedAtNanos: Long): Long {
         return (SystemClock.elapsedRealtimeNanos() - startedAtNanos) / 1_000_000L
     }
@@ -599,8 +687,88 @@ private object MeshLinkProofRuntime {
     private const val AUTO_SEND_ATTEMPTS: Int = 6
     private const val AUTO_SEND_RETRY_DELAY_MS: Long = 2_000
     private const val BENCHMARK_WARMUP_DELAY_MS: Long = 500L
+    private const val BENCHMARK_RECEIPT_TIMEOUT_MS: Long = 20_000L
+    private const val BENCHMARK_MAGIC: String = "MLBM1000"
+    private const val BENCHMARK_RECEIPT_PREFIX: String = "MLBM1_ACK:"
+    private const val BENCHMARK_HEADER_BYTES: Int = 16
+    private const val BENCHMARK_TOKEN_HEX_LENGTH: Int = 16
     private const val MAX_LOG_LINES: Int = 64
     private const val TAG = "MeshLinkProof"
+}
+
+private const val PROOF_BENCHMARK_MAGIC: String = "MLBM1000"
+private const val PROOF_BENCHMARK_RECEIPT_PREFIX: String = "MLBM1_ACK:"
+private const val PROOF_BENCHMARK_HEADER_BYTES: Int = 16
+private const val PROOF_BENCHMARK_TOKEN_HEX_LENGTH: Int = 16
+
+private data class BenchmarkPayloadEnvelope(
+    val tokenHex: String,
+    val totalBytes: Int,
+    val bytes: ByteArray,
+) {
+    fun encode(): ByteArray {
+        return bytes.copyOf()
+    }
+
+    companion object {
+        fun create(totalBytes: Int, tokenHex: String): BenchmarkPayloadEnvelope {
+            require(totalBytes >= PROOF_BENCHMARK_HEADER_BYTES) {
+                "Benchmark payload must be at least $PROOF_BENCHMARK_HEADER_BYTES bytes"
+            }
+            require(tokenHex.length == PROOF_BENCHMARK_TOKEN_HEX_LENGTH) {
+                "Benchmark token must be $PROOF_BENCHMARK_TOKEN_HEX_LENGTH hex characters"
+            }
+            val payload = ByteArray(totalBytes) { index -> ((index * 31) and 0xFF).toByte() }
+            PROOF_BENCHMARK_MAGIC.encodeToByteArray().copyInto(payload, 0)
+            tokenHex.chunked(2).forEachIndexed { index, pair ->
+                payload[PROOF_BENCHMARK_MAGIC.length + index] = pair.toInt(16).toByte()
+            }
+            return BenchmarkPayloadEnvelope(tokenHex = tokenHex, totalBytes = totalBytes, bytes = payload)
+        }
+
+        fun decode(payload: ByteArray): BenchmarkPayloadEnvelope? {
+            if (payload.size < PROOF_BENCHMARK_HEADER_BYTES) {
+                return null
+            }
+            if (
+                !payload.copyOfRange(0, PROOF_BENCHMARK_MAGIC.length).contentEquals(
+                    PROOF_BENCHMARK_MAGIC.encodeToByteArray()
+                )
+            ) {
+                return null
+            }
+            val tokenBytes =
+                payload.copyOfRange(PROOF_BENCHMARK_MAGIC.length, PROOF_BENCHMARK_HEADER_BYTES)
+            val tokenHex = tokenBytes.joinToString(separator = "") { byte ->
+                (byte.toInt() and 0xFF).toString(16).padStart(2, '0')
+            }
+            return BenchmarkPayloadEnvelope(tokenHex = tokenHex, totalBytes = payload.size, bytes = payload.copyOf())
+        }
+    }
+}
+
+private data class BenchmarkReceipt(
+    val tokenHex: String,
+    val totalBytes: Int,
+) {
+    fun encode(): ByteArray {
+        return "$PROOF_BENCHMARK_RECEIPT_PREFIX$tokenHex:$totalBytes".encodeToByteArray()
+    }
+
+    companion object {
+        fun decode(payload: ByteArray): BenchmarkReceipt? {
+            val text = payload.decodeToString()
+            if (!text.startsWith(PROOF_BENCHMARK_RECEIPT_PREFIX)) {
+                return null
+            }
+            val parts = text.removePrefix(PROOF_BENCHMARK_RECEIPT_PREFIX).split(':', limit = 2)
+            if (parts.size != 2) {
+                return null
+            }
+            val totalBytes = parts[1].toIntOrNull() ?: return null
+            return BenchmarkReceipt(tokenHex = parts[0], totalBytes = totalBytes)
+        }
+    }
 }
 
 private class ProofSnapshot(
