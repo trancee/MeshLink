@@ -142,3 +142,49 @@ implementation correctness.
   iOS parity
 - Scope: `spec.md` + `plan.md` + `tasks.md`, with supporting references from
   `quickstart.md` and `contracts/`
+
+## Artifact Governance & Source-of-Truth Boundaries
+
+- [ ] CHK026 Is it explicit which artifact is normative when `spec.md`,
+  `plan.md`, and `tasks.md` differ on status, risk framing, or acceptance
+  wording? [Gap, Spec header, Plan §Constitution Check, Tasks §Notes]
+- [ ] CHK027 Are the roles of the three core artifacts clearly separated so a
+  reviewer can distinguish requirements, design constraints, and execution
+  history without cross-artifact ambiguity? [Clarity, Spec overall, Plan
+  overall, Tasks overall]
+- [ ] CHK028 Does the task ledger define append-only handling for newly
+  discovered follow-up work after tasks are marked complete, so reruns do not
+  implicitly erase accepted history or reopen completed obligations? [Gap,
+  Tasks §Phase 6, Tasks §Notes, Plan §Constitution Check]
+- [ ] CHK029 Are repeated `/plan`, `/tasks`, and `/implement` rerun
+  expectations documented clearly enough to preserve canonical artifacts while
+  still allowing new remediation work to be added? [Gap, Plan §Constitution
+  Check, Plan §Notes, Tasks §Dependencies & Execution Order]
+- [ ] CHK030 Are task-completion markers and phase summaries written clearly
+  enough that reviewers can tell whether a line is a normative requirement, a
+  historical ledger entry, or a retrospective evidence note? [Ambiguity, Tasks
+  §§Phase 3–6, Tasks §Notes]
+
+## Reviewer Decision Framing
+
+- [ ] CHK031 Are known risks, unmet success criteria, and accepted
+  documentation updates distinguished with unambiguous labels so reviewers can
+  tell what still blocks release? [Clarity, Spec §SC-001–SC-007, Plan
+  §Summary, Plan §Post-design re-evaluation, Tasks §Phase 6]
+- [ ] CHK032 Are benchmark baselines clearly separated from normative
+  acceptance thresholds, so observed measurements cannot be mistaken for
+  passing requirements? [Consistency, Spec §SC-002–SC-006, Plan §Performance
+  Goals, Tasks §T038–T042]
+- [ ] CHK033 Is the role of the proof integrations clear across the artifacts
+  as reference implementation, quickstart aid, benchmark harness, and
+  physical-validation vehicle without conflicting expectations? [Consistency,
+  Spec §FR-017, Spec §SC-001, Plan §Summary, Tasks §T013, Tasks §T039–T044]
+- [ ] CHK034 Are reviewer-facing exception paths defined for environmental
+  blockers such as signing, device availability, and nearby-mesh interference
+  so evidence gaps can be triaged without weakening product requirements?
+  [Coverage, Assumption, Spec §SC-001–SC-004, Spec §Assumptions, Plan
+  §Constraints, Tasks §T040, Tasks §T044]
+- [ ] CHK035 Are cross-artifact references stable enough that each open risk,
+  acceptance criterion, and follow-up obligation can be traced without relying
+  on commit history or reviewer memory? [Traceability, Spec §SC-001–SC-007,
+  Plan §Constitution Check, Tasks §Phase 6]
