@@ -24,6 +24,23 @@ description: "Task list for MeshLink Offline BLE Mesh SDK"
 - **Kotlin Multiplatform library**: `meshlink/src/commonMain/`, `meshlink/src/commonTest/`, `meshlink/src/androidMain/`, `meshlink/src/iosMain/`, `meshlink/build.gradle.kts`, `benchmarks/`
 - **Docs & contracts**: `specs/001-ble-mesh-sdk/`, `docs/explanation/`, `meshlink-sample/android/`, `meshlink-sample/ios/`
 
+## Artifact Roles & Ledger Semantics
+
+- `spec.md` is normative for product requirements, assumptions, success
+  criteria, release blocking conditions, and accepted exception wording.
+- `plan.md` is normative for implementation constraints, architecture,
+  artifact-governance rules, and review surfaces that interpret but do not
+  weaken `spec.md`.
+- `tasks.md` is the canonical execution plan plus append-only historical
+  ledger. It defines work sequencing, traceability, and completion state, but
+  task text does not override `spec.md` or `plan.md`.
+- Supporting artifacts such as `research.md`, `quickstart.md`, `contracts/`,
+  `benchmarks/README.md`, and generated checklists provide evidence or review
+  support and must align with the canonical trio above.
+- If new remediation work is discovered after a task is complete, append a new
+  task ID or follow-up phase rather than reopening or deleting the completed
+  line, except to fix obvious clerical mistakes.
+
 ## Phase 1: Setup (Shared Infrastructure)
 
 **Purpose**: Create the KMP project skeleton, module layout, and baseline build files.
@@ -161,7 +178,7 @@ retransmission semantics.
 
 **Purpose**: Close the broad cross-artifact requirement gaps captured in `specs/001-ble-mesh-sdk/checklists/artifacts.md` without reopening completed delivery history.
 
-- [ ] T050 [P] Clarify source-of-truth precedence, rerun preservation, and append-only task-ledger rules in `specs/001-ble-mesh-sdk/plan.md` and `specs/001-ble-mesh-sdk/tasks.md`
+- [X] T050 [P] Clarify source-of-truth precedence, rerun preservation, and append-only task-ledger rules in `specs/001-ble-mesh-sdk/plan.md` and `specs/001-ble-mesh-sdk/tasks.md`
 - [ ] T051 [P] Separate benchmark baselines from normative acceptance thresholds and align the iOS throughput risk wording in `specs/001-ble-mesh-sdk/spec.md`, `specs/001-ble-mesh-sdk/plan.md`, and `benchmarks/README.md`
 - [ ] T052 [P] Clarify proof-integration role, environmental blocker handling, and reviewer evidence expectations in `specs/001-ble-mesh-sdk/spec.md`, `specs/001-ble-mesh-sdk/quickstart.md`, and `specs/001-ble-mesh-sdk/research.md`
 - [ ] T053 Re-run and resolve the cross-artifact checklist against `specs/001-ble-mesh-sdk/spec.md`, `specs/001-ble-mesh-sdk/plan.md`, `specs/001-ble-mesh-sdk/tasks.md`, and `specs/001-ble-mesh-sdk/checklists/artifacts.md`
@@ -262,3 +279,12 @@ With multiple developers:
 - The task list assumes a KMP-first implementation with no extra third-party runtime dependencies beyond `kotlinx-coroutines-core`
 - Completion reports MUST include verification evidence and a `Skills Used` summary
 - Stop at each story checkpoint and validate independently before moving on
+- `[ ]` entries are remaining obligations; `[X]` entries are accepted historical
+  ledger markers and MUST NOT be silently reopened by reruns
+- Phase purposes, dependency notes, and parallel examples are planning aids for
+  reviewers and implementers; they are not themselves normative product
+  requirements
+- Repeated `/plan`, `/tasks`, and `/implement` reruns must preserve the current
+  canonical `plan.md` + `tasks.md` state, including completed markers,
+  follow-up phases, and release-risk framing, while allowing new work to be
+  appended explicitly

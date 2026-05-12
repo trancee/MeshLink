@@ -102,6 +102,31 @@ records stakeholder acceptance of the residual risk. That residual risk is two
 fold: materially slower 64 KiB single-hop transfers on iOS and unresolved
 mid-transfer disconnect behavior during physical telemetry runs.
 
+## Artifact Governance & Source-of-Truth Precedence
+
+- `spec.md` is normative for feature scope, acceptance wording, success
+  criteria, release criteria, and blocker state. If `spec.md`, `plan.md`, and
+  `tasks.md` differ on those points, `spec.md` wins unless it is explicitly
+  amended.
+- `plan.md` is normative for technical approach, engineering constraints,
+  review surfaces, and artifact-governance rules. It may interpret `spec.md`
+  for implementation, but it must not weaken or silently override `spec.md`.
+- `tasks.md` is the canonical execution plan and append-only historical ledger.
+  It records sequencing, traceability, and completion state, but task wording
+  does not by itself change `spec.md` requirements or `plan.md` constraints.
+- Supporting artifacts such as `research.md`, `quickstart.md`, `contracts/`,
+  `benchmarks/README.md`, and generated checklists provide evidence,
+  explanation, or review aids and must stay aligned with the canonical trio
+  above; they do not override them.
+- Repeated `/plan`, `/tasks`, and `/implement` reruns are preservation passes
+  against the current canonical artifacts. Reruns may clarify wording and
+  append new remediation work, but they must not regenerate from template in a
+  way that erases accepted release framing, completed task state, or prior
+  follow-up history.
+- When new work is discovered after an item is complete, append a new task or
+  follow-up phase instead of reopening, deleting, or silently repurposing the
+  completed ledger entry, except for obvious clerical corrections.
+
 ## Project Structure
 
 ### Documentation (this feature)
