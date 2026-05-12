@@ -32,21 +32,23 @@ dependencies” request, the runtime ships no additional third-party libraries
 beyond the constitutionally allowed `kotlinx-coroutines-core`; codec, routing,
 and crypto-provider logic remain in-repo. Repository baselines and physical
 proof findings are recorded in `benchmarks/README.md` and
-`specs/001-ble-mesh-sdk/research.md`; single-hop iOS 64 KiB throughput remains
-an explicit release-decision blocker unless a documented waiver narrows the
-public iOS large-transfer claim.
+`specs/001-ble-mesh-sdk/research.md`; single-hop iOS 64 KiB throughput and
+recipient-confirmed MeshLink proof completion on the current physical path
+remain explicit release-decision blockers unless a documented waiver narrows
+the public iOS large-transfer claim and acknowledges the retained proof-
+evidence gap.
 
 ## Technical Context
 
 **Language/Version**: Kotlin 2.3.10, Kotlin Multiplatform, JVM toolchain 17  
 **Primary Dependencies**: Runtime: Kotlin stdlib 2.3.10 + `kotlinx-coroutines-core` 1.10.2 only; Build/Test: exact pinned versions of `kotlin-test`, Binary Compatibility Validator, Kover, Power-assert, and kotlinx-benchmark declared in `gradle/libs.versions.toml`  
 **Storage**: Platform secure storage for the minimum pinned trust material and local identity required for TOFU verification, redacted developer-visible diagnostics, and in-memory route, transfer, retry, and presence state
-**Testing**: `kotlin-test` across targets, JVM/Android unit tests, iOS tests, canonical `MeshTestHarness` + `VirtualMeshTransport`, Wycheproof vectors, API checks, JVM benchmarks via kotlinx-benchmark, Android proof-app automated benchmarks for transport/low-power/cold-start targets, iOS proof-app automated benchmarks for transport/low-power/cold-start targets, an explicit `SC-004` protocol with one excluded warmup exchange plus retained raw evidence, and harness-driven memory/convergence measurements
+**Testing**: `kotlin-test` across targets, JVM/Android unit tests, iOS tests, canonical `MeshTestHarness` + `VirtualMeshTransport`, Wycheproof vectors, API checks, JVM benchmarks via kotlinx-benchmark, Android proof-app automated benchmarks for transport/low-power/cold-start targets, iOS proof-app automated benchmarks for transport/low-power/cold-start targets, an explicit `SC-004` protocol with one excluded warmup exchange, retained raw sender/recipient evidence, recipient-confirmed proof-benchmark semantics on physical proof reruns, and harness-driven memory/convergence measurements
 **Target Platform**: Android API 29+, iOS 15+, JVM benchmark/reference target  
 **Project Type**: Kotlin Multiplatform library SDK with benchmark module and runnable Android/iOS proof integrations  
 **Performance Goals**: ≥80 KB/s Android L2CAP, ≥60 KB/s iOS L2CAP, 50 ms p95 for 1-hop 256 B message, 8 MB steady-state heap at 8 peers, ≤5% scan duty in LOW mode, power-tier output that exposes advertisement interval / max-connections / chunk-budget behavior, <500 ms from `mesh.start()` to first advertisement, 3 s control-plane route convergence for 10-node topology, <1 µs JVM codec encode/decode
 **Benchmark Evidence Handling**: `benchmarks/README.md` retains observed benchmark and proof-app evidence for reviewer traceability. Those retained baselines do not lower or replace the normative success criteria in `spec.md` or the mirrored performance goals above.
-**Constraints**: Offline-only; no servers or accounts; TOFU trust pinning; 64 KiB release payload limit; configurable in-memory delivery retry deadline; no retry persistence across restart; bounded, jittered exponential backoff for no-route scheduling; immediate retry on route availability; L2CAP-first with GATT fallback; no additional third-party runtime dependencies; current physical validation still leaves the iOS ≥60 KB/s 64 KiB single-hop transfer target unmet on reference hardware, so any release before remediation requires an explicit waiver and documented limitation
+**Constraints**: Offline-only; no servers or accounts; TOFU trust pinning; 64 KiB release payload limit; configurable in-memory delivery retry deadline; no retry persistence across restart; bounded, jittered exponential backoff for no-route scheduling; immediate retry on route availability; L2CAP-first with GATT fallback; no additional third-party runtime dependencies; current physical validation still leaves the iOS ≥60 KB/s 64 KiB single-hop transfer target unmet on reference hardware, and the recipient-confirmed MeshLink proof matrix still times out on Samsung/OPPO for both 256-byte and 64 KiB payloads, so any release before remediation requires an explicit waiver and documented limitation
 **Constitutional Constraints**: `explicitApi()` required; Detekt + ktfmt gates; BCV-tracked public API; 100% line/branch coverage; Power-assert diagnostics; Wycheproof validation; canonical virtual harness for integration tests; Android/iOS parity for API, docs, state, diagnostics, the shared 26-code diagnostic catalog, and the sealed `MeshLinkException` hierarchy; benchmark evidence for crypto, routing lookup, wire codec, route convergence, transport throughput/latency, steady-state memory, LOW-power duty cycle, and cold-start paths; all shared logic in `commonMain`; no external crypto library; FlatBuffers wire compatibility; runtime dependency budget limited to `kotlinx-coroutines-core`; repository benchmark baselines must stay documented in `benchmarks/README.md` and `specs/001-ble-mesh-sdk/research.md`
 **Applicable Skills**: kotlin-multiplatform, kotlin-gradle-plugin, gradle-build-tool, kotlin-api-guidelines, android-ble, android-bluetooth-sockets, core-bluetooth, kmp-ios-integration, flatbuffers, babel-rfc8966, noise-protocol-framework, tcp-sack-rfc2018, optimize-ble-throughput
 **Scale/Scope**: One shared SDK module, two mobile targets, one public API surface, 8-peer steady-state mesh, 10-node convergence validation topology, 64 KiB maximum v1 payload
@@ -90,21 +92,46 @@ public iOS large-transfer claim.
 
 **Post-design re-evaluation (2026-05-12):** Existing `research.md`,
 `data-model.md`, `quickstart.md`, and `contracts/` remain aligned with the
-spec and both constitutions. No unresolved clarifications remain. The only
-open delivery risk is closing the still-unmet iOS single-hop 64 KiB
-throughput target on reference hardware.
+spec and both constitutions. No unresolved clarifications remain. The open
+delivery risks are now two coupled surfaces on reference hardware: closing the
+still-unmet iOS single-hop 64 KiB throughput target and restoring a clean
+recipient-confirmed MeshLink proof path.
 
 **Release-decision framing (2026-05-12):** `SC-004` remains partially unmet on
-iOS. Android meets its single-hop throughput target, but the best clean iPhone
-15 -> Samsung 64 KiB run retained in the repository reached only `19.94 KB/s`,
-below the required `>= 60 KB/s`, and telemetry-enabled reruns to both Samsung
-and OPPO disconnected before a terminal benchmark line was emitted. The
-release path is therefore binary: either keep release blocked until iOS
-satisfies `SC-004`, or ship only under an explicit waiver that narrows iOS
-large-transfer performance claims and records stakeholder acceptance of the
-residual risk. That residual risk is two fold: materially slower 64 KiB
-single-hop transfers on iOS and unresolved mid-transfer disconnect behavior
-during physical telemetry runs.
+iOS, and the stricter recipient-confirmed MeshLink proof matrix still fails on
+the current physical path. Android meets its single-hop throughput target, but
+the best clean iPhone 15 -> Samsung 64 KiB L2CAP run retained in the
+repository reached only `19.94 KB/s`, below the required `>= 60 KB/s`. A
+fresh recipient-confirmed MeshLink rerun on iPhone 15 -> Samsung/OPPO for
+both 256-byte and 64 KiB payloads then ended `ReceiptTimeout` in all four
+cells, while the passive Android peers retained matching `BENCHMARK receipt
+send(...) -> NotSent(reason=UNREACHABLE)` lines for the same tokens. A
+proof-only native GATT prototype is feasible (`23.92 KB/s` to Samsung,
+`21.96 KB/s` to OPPO), but it remains supporting evidence only and does not
+satisfy the normative iOS target.
+
+The release path is therefore binary: either keep release blocked until the
+MeshLink path satisfies `SC-004` and produces clean recipient-confirmed proof
+evidence, or ship only under an explicit waiver that narrows iOS large-
+transfer performance claims and acknowledges the current proof-completion
+instability. The residual risk is now three fold: materially slower 64 KiB
+single-hop transfers on iOS, inability to demonstrate clean recipient-
+confirmed MeshLink completion on current reference hardware even for 256-byte
+cases, and unresolved return-path session/route instability during passive-
+peer proof receipts.
+
+**Current blocker interpretation for remaining work (2026-05-12):**
+
+- Treat the iPhone release blocker as two coupled MeshLink surfaces, not one:
+  outbound single-hop throughput and return-path proof-completion stability.
+- Throughput-only improvements are insufficient if the recipient-confirmed
+  proof matrix still ends `ReceiptTimeout`.
+- Proof-only GATT numbers may guide investigation, but they are not an
+  acceptable blocker-closing workaround unless the specification itself is
+  amended.
+- Blocker-closing evidence must come from the MeshLink path on reference
+  hardware and include retained recipient-confirmed `Sent` runs, not just
+  sender-side completion or passive-peer partial logs.
 
 ## Artifact Governance & Source-of-Truth Precedence
 

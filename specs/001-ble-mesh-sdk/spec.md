@@ -327,35 +327,59 @@ error behavior.
 
 ### Release-decision framing for SC-004 (2026-05-12)
 
-Current validation evidence does not satisfy the iOS throughput portion of
-**SC-004**. The latest clean reference-hardware run on iPhone 15 -> Samsung
-measured `19.94 KB/s` for a 64 KB single-hop transfer, below the required
-`>= 60 KB/s`, and telemetry-enabled reruns to both Samsung and OPPO
-disconnected before the iPhone emitted a terminal benchmark line. The
-retained baselines in `benchmarks/README.md` are evidence only; they do not
-replace or relax the normative threshold in **SC-004**.
+Current validation evidence does not satisfy the iOS half of **SC-004** and
+also does not yet provide a clean recipient-confirmed physical proof story for
+the current MeshLink path. The latest clean reference-hardware L2CAP run on
+iPhone 15 -> Samsung still measured `19.94 KB/s` for a 64 KB single-hop
+transfer, below the required `>= 60 KB/s`. A fresh recipient-confirmed
+MeshLink matrix rerun on iPhone 15 -> Samsung/OPPO for both 256-byte and 64 KB
+payloads then ended `ReceiptTimeout` in all four cells, while the passive
+Android peers retained matching `BENCHMARK receipt send(...) ->
+NotSent(reason=UNREACHABLE)` lines for the same tokens. The retained baselines
+in `benchmarks/README.md` are evidence only; they do not replace or relax the
+normative threshold in **SC-004** or the reviewer-evidence expectations in
+this specification.
+
+Current blocker scope (2026-05-12):
+
+- **Normative SC-004 non-conformance:** iOS single-hop 64 KB throughput
+  remains far below target on current reference hardware.
+- **Recipient-confirmed proof-completion failure:** the current MeshLink
+  physical proof path cannot yet demonstrate stable round-trip completion even
+  for 256-byte cases under the stricter proof-receipt benchmark protocol.
+- **Proof-only fallback evidence is insufficient:** the native GATT prototype
+  is feasible, but it remains supporting evidence only and still stays well
+  below the normative iOS target; it does not close or relax the MeshLink
+  blocker.
 
 Until the iOS half of **SC-004** is met or this specification is explicitly
 amended, the feature remains non-conformant to **SC-004**. A release may
 therefore take only one of two explicit paths:
 
-1. **Block release on spec conformance** and keep the iOS throughput work open
-   until **SC-004** is met on reference hardware.
+1. **Block release on spec conformance** and keep the iOS throughput and
+   recipient-confirmed proof-completion work open until **SC-004** is met on
+   reference hardware with clean retained proof evidence.
 2. **Ship under an explicit waiver / known limitation** that narrows any
    public iOS large-transfer performance claim, links to the retained
    benchmark evidence, and records stakeholder acceptance of the residual
-   risk.
+   risk. If this path is chosen, the waiver MUST also acknowledge that the
+   recipient-confirmed MeshLink proof matrix is currently unstable and that the
+   proof-only GATT prototype is not product-conformance evidence.
 
 Residual risk if the waiver path is chosen:
 
 - iOS single-hop 64 KB transfers can complete at roughly one third of the
   target throughput on current reference hardware.
-- Telemetry-enabled physical reruns exposed mid-transfer peer loss before
-  benchmark completion, so the open risk is not only slower completion but
-  also unresolved large-transfer stability on iPhone-class hardware.
+- The current MeshLink proof path cannot yet reliably produce
+  recipient-confirmed completion on Samsung/OPPO even for 256-byte cases,
+  because passive-peer proof receipts can still expire `UNREACHABLE` on the
+  return path.
+- The proof-only GATT prototype can complete on the same hardware, but only at
+  roughly `21.96-23.92 KB/s` and outside product-conformance scope.
 - Cross-platform parity claims remain accurate for API surface, trust,
   discovery, routing behavior, and the measured 256-byte latency path, but not
-  for full conformance with the iOS throughput clause of **SC-004**.
+  for full conformance with the iOS throughput clause of **SC-004** or for a
+  clean recipient-confirmed physical proof story on the current MeshLink path.
 
 ### Proof-integration role, blocker handling, and reviewer evidence
 
@@ -382,7 +406,11 @@ unverified, and avoid weakening the underlying success criterion.
 Reviewer-facing completion claims for quickstart or benchmark validation MUST be
 backed by retained raw evidence from the proof integrations, such as sender
 `SendResult` lines, recipient `MSG ... bytes=` lines, benchmark `BENCHMARK ...`
-lines, or explicit blocker logs when the run could not complete.
+lines, or explicit blocker logs when the run could not complete. When the
+proof apps are configured to emit the scored terminal benchmark line only after
+a proof receipt returns from the passive peer, a sender-side `ReceiptTimeout`
+counts as a failed scored run even if the passive peer logged receipt of the
+benchmark payload.
 
 ## Assumptions
 

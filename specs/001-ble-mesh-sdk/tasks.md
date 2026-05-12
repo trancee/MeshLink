@@ -216,6 +216,14 @@ retransmission semantics.
 
 ---
 
+## Phase 12: Follow-up - Release Blocker Framing Tightening
+
+**Purpose**: Tighten the spec/plan release-blocker framing so reviewers and stakeholders distinguish normative iOS throughput non-conformance from the newer recipient-confirmed proof-completion failure and from proof-only fallback evidence.
+
+- [X] T064 Tighten the explicit blocker framing in `specs/001-ble-mesh-sdk/spec.md` and `specs/001-ble-mesh-sdk/plan.md` to separate `SC-004` throughput non-conformance, recipient-confirmed MeshLink proof-completion failure, and proof-only GATT fallback evidence
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies
