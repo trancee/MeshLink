@@ -134,8 +134,12 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
 
         val link = activeLinkFor(peer)
         if (link == null) {
-            connectIfNeeded(peer)
-            log("send(${frame.peerId.value.takeLast(6)}) no active link, triggering connect")
+            if (shouldInitiateL2cap(peer.keyHash)) {
+                connectIfNeeded(peer)
+                log("send(${frame.peerId.value.takeLast(6)}) no active link, triggering connect")
+            } else {
+                log("send(${frame.peerId.value.takeLast(6)}) waiting for inbound L2CAP link")
+            }
             return TransportSendResult.Dropped("iOS BLE L2CAP connection is not ready")
         }
 
@@ -379,7 +383,10 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
     }
 
     private fun shouldInitiateL2cap(remoteKeyHash: ByteArray): Boolean {
-        return compareUnsigned(localKeyHash, remoteKeyHash) < 0
+        return shouldInitiateL2capConnection(
+            localKeyHash = localKeyHash,
+            remoteKeyHash = remoteKeyHash,
+        )
     }
 
     private fun activeLinkFor(peer: DiscoveredPeer): IosL2capLink? {
@@ -458,18 +465,6 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
         return if (psm.toInt() in 128..255) psm.toUByte() else 0u
     }
 
-    private fun compareUnsigned(left: ByteArray, right: ByteArray): Int {
-        val length = minOf(left.size, right.size)
-        for (index in 0 until length) {
-            val leftByte = left[index].toInt() and 0xFF
-            val rightByte = right[index].toInt() and 0xFF
-            if (leftByte != rightByte) {
-                return leftByte.compareTo(rightByte)
-            }
-        }
-        return left.size.compareTo(right.size)
-    }
-
     private fun log(message: String): Unit {
         println("MeshLinkTransport $message")
     }
@@ -540,6 +535,21 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
         private const val STREAM_POLL_INTERVAL_MS: Long = 5
         private const val TEMPORARY_PEER_PREFIX: String = "cb-"
     }
+}
+
+internal fun shouldInitiateL2capConnection(
+    localKeyHash: ByteArray,
+    remoteKeyHash: ByteArray,
+): Boolean {
+    val length = minOf(localKeyHash.size, remoteKeyHash.size)
+    for (index in 0 until length) {
+        val localByte = localKeyHash[index].toInt() and 0xFF
+        val remoteByte = remoteKeyHash[index].toInt() and 0xFF
+        if (localByte != remoteByte) {
+            return localByte < remoteByte
+        }
+    }
+    return localKeyHash.size < remoteKeyHash.size
 }
 
 private class IosCentralDelegate(private val owner: IosBleTransport) :
