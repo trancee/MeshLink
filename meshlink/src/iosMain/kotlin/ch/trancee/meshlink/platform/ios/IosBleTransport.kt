@@ -10,6 +10,7 @@ import ch.trancee.meshlink.transport.BleDiscoveryContract
 import ch.trancee.meshlink.transport.BleDiscoveryPayload
 import ch.trancee.meshlink.transport.BleTransport
 import ch.trancee.meshlink.transport.OutboundFrame
+import ch.trancee.meshlink.transport.PendingFrameWindow
 import ch.trancee.meshlink.transport.TransportEvent
 import ch.trancee.meshlink.transport.TransportMode
 import ch.trancee.meshlink.transport.TransportSendResult
@@ -24,6 +25,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelChildren
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -51,10 +53,10 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
     BleTransport {
     private val mutableEvents = MutableSharedFlow<TransportEvent>(extraBufferCapacity = 32)
     private val coroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-    private val sendMutex = Mutex()
     private val localKeyHash: ByteArray = advertisementKeyHash.copyOf()
     private val localKeyHashHex: String = localKeyHash.toHexString()
     private val telemetryEnabled: Boolean = readEnvironmentFlag(TRANSPORT_TELEMETRY_ENV)
+    private val transportDebugLoggingEnabled: Boolean = readEnvironmentFlag(TRANSPORT_DEBUG_ENV)
     private val discoveredPeers: MutableMap<String, DiscoveredPeer> = linkedMapOf()
     private val peerHintByIdentifier: MutableMap<String, String> = linkedMapOf()
     private val activeLinksByHint: MutableMap<String, IosL2capLink> = linkedMapOf()
@@ -149,8 +151,12 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
         }
 
         return runCatching {
-                sendMutex.withLock { link.write(frame.payload) }
-                log("send(${frame.peerId.value.takeLast(6)}) delivered ${frame.payload.size} bytes")
+                if (!link.enqueue(frame.payload)) {
+                    closeLink(hintPeer = link.hintPeerId.value, reason = "send queue closed")
+                    return@runCatching TransportSendResult.Dropped(
+                        "iOS BLE send queue is not accepting frames"
+                    )
+                }
                 TransportSendResult.Delivered
             }
             .getOrElse { error ->
@@ -182,7 +188,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
 
     internal fun handlePublishedL2capChannel(psm: UShort, error: NSError?): Unit {
         if (error != null) {
-            log("publish L2CAP failed: ${error.localizedDescription}")
+            reportLog("publish L2CAP failed: ${error.localizedDescription}")
             currentDiscoveryPayload = discoveryPayload(l2capPsm = 0u)
         } else {
             currentDiscoveryPayload = discoveryPayload(l2capPsm = advertisedPsm(psm))
@@ -283,7 +289,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
         val identifier = peripheral.identifier.UUIDString.lowercase()
         val hint = peerHintByIdentifier[identifier] ?: return
         pendingConnectionsByHint.remove(hint)
-        log(
+        reportLog(
             "L2CAP connect failed for ${hint.takeLast(6)}: ${error?.localizedDescription.orEmpty()}"
         )
     }
@@ -305,7 +311,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
         val hint = peerHintByIdentifier[identifier] ?: return
         pendingConnectionsByHint.remove(hint)
         if (channel == null) {
-            log(
+            reportLog(
                 "didOpenL2CAPChannel failed for ${hint.takeLast(6)}: ${error?.localizedDescription.orEmpty()}"
             )
             return
@@ -316,7 +322,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
 
     internal fun handleOpenedIncomingChannel(channel: CBL2CAPChannel?, error: NSError?): Unit {
         if (channel == null) {
-            log("incoming L2CAP channel failed: ${error?.localizedDescription.orEmpty()}")
+            reportLog("incoming L2CAP channel failed: ${error?.localizedDescription.orEmpty()}")
             return
         }
         val identifier = channel.peer?.identifier?.UUIDString?.lowercase() ?: return
@@ -344,11 +350,18 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
                 channel = channel,
                 incomingFrames = IosL2capFrameBuffer(),
                 telemetryEnabled = telemetryEnabled,
-                telemetryLogger = ::log,
+                telemetryLogger = ::emitTransportLog,
             )
         activeLinksByHint[hintPeerId.value] = link
         temporaryHintByIdentifier[peripheralIdentifier] = hintPeerId.value
         log("registered L2CAP link for ${hintPeerId.value.takeLast(6)} id=$peripheralIdentifier")
+        link.writeLoopJob = coroutineScope.launch {
+            try {
+                link.runWriteLoop()
+            } finally {
+                closeLink(hintPeer = hintPeerId.value, reason = "write loop stopped")
+            }
+        }
         link.readLoopJob = coroutineScope.launch {
             try {
                 while (true) {
@@ -367,7 +380,6 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
                         continue
                     }
                     drainedFrames.frames.forEach { payload ->
-                        log("received ${payload.size} bytes from ${hintPeerId.value.takeLast(6)}")
                         mutableEvents.emit(
                             TransportEvent.FrameReceived(peerId = hintPeerId, payload = payload)
                         )
@@ -457,8 +469,9 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
 
     private fun closeLink(hintPeer: String, reason: String): Unit {
         val link = activeLinksByHint.remove(hintPeer) ?: return
-        log("closing L2CAP link ${hintPeer.takeLast(6)}: $reason")
+        reportLog("closing L2CAP link ${hintPeer.takeLast(6)}: $reason")
         link.readLoopJob?.cancel()
+        link.writeLoopJob?.cancel()
         link.close()
         mutableEvents.tryEmit(TransportEvent.PeerLost(PeerId(hintPeer)))
     }
@@ -485,6 +498,16 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
     }
 
     private fun log(message: String): Unit {
+        if (transportDebugLoggingEnabled) {
+            emitTransportLog(message)
+        }
+    }
+
+    private fun reportLog(message: String): Unit {
+        emitTransportLog(message)
+    }
+
+    private fun emitTransportLog(message: String): Unit {
         println("MeshLinkTransport $message")
     }
 
@@ -509,10 +532,18 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
         private val inputStream = checkNotNull(channel.inputStream).apply { open() }
         private val outputStream = checkNotNull(channel.outputStream).apply { open() }
         private val readBuffer = ByteArray(STREAM_BUFFER_BYTES)
+        private val enqueueMutex = Mutex()
+        private val pendingFrameWindow =
+            PendingFrameWindow(
+                maxPendingFrames = PENDING_FRAME_WINDOW_FRAMES,
+                maxPendingBytes = PENDING_FRAME_WINDOW_BYTES,
+            )
+        private val outboundFrames = Channel<QueuedFrame>(capacity = Channel.UNLIMITED)
         private var readSequence: Long = 0L
         private var writeSequence: Long = 0L
         private var lastReadFrameAtMs: Long? = null
         var readLoopJob: Job? = null
+        var writeLoopJob: Job? = null
 
         suspend fun drainReadableFrames(): ReadDrainResult {
             if (!inputStream.hasBytesAvailable()) {
@@ -576,11 +607,82 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
             )
         }
 
-        suspend fun write(payload: ByteArray): Unit {
+        suspend fun enqueue(payload: ByteArray): Boolean {
             val classification = classifyFrame(payload)
             val encoded = incomingFrames.encode(payload)
+            if (!pendingFrameWindow.acquire(encoded.size)) {
+                return false
+            }
+            val queuedFrame =
+                QueuedFrame(
+                    sequence = nextWriteSequence(),
+                    payloadSize = payload.size,
+                    encoded = encoded,
+                    classification = classification,
+                    enqueuedAtMs = monotonicNowMillis(),
+                )
+            val queued = outboundFrames.trySend(queuedFrame).isSuccess
+            if (!queued) {
+                pendingFrameWindow.release(encoded.size)
+            }
+            return queued
+        }
+
+        suspend fun runWriteLoop(): Unit {
+            try {
+                while (true) {
+                    val firstQueuedFrame = outboundFrames.receiveCatching().getOrNull() ?: break
+                    val queuedFrames = mutableListOf(firstQueuedFrame)
+                    var coalescedBytes = firstQueuedFrame.encoded.size
+                    while (queuedFrames.size < MAX_COALESCED_FRAMES) {
+                        val nextQueuedFrame = outboundFrames.tryReceive().getOrNull() ?: break
+                        queuedFrames += nextQueuedFrame
+                        coalescedBytes += nextQueuedFrame.encoded.size
+                        if (coalescedBytes >= MAX_COALESCED_BATCH_BYTES) {
+                            break
+                        }
+                    }
+                    try {
+                        val batchStats = writeCoalescedBatch(queuedFrames)
+                        if (telemetryEnabled) {
+                            emitQueuedFrameTelemetry(queuedFrames, batchStats)
+                        }
+                    } finally {
+                        queuedFrames.forEach { queuedFrame ->
+                            pendingFrameWindow.release(queuedFrame.encoded.size)
+                        }
+                    }
+                }
+            } finally {
+                pendingFrameWindow.close()
+                while (true) {
+                    val queuedFrame = outboundFrames.tryReceive().getOrNull() ?: break
+                    pendingFrameWindow.release(queuedFrame.encoded.size)
+                }
+            }
+        }
+
+        fun close(): Unit {
+            outboundFrames.close()
+            pendingFrameWindow.close()
+            inputStream.close()
+            outputStream.close()
+        }
+
+        private suspend fun nextWriteSequence(): Long {
+            return enqueueMutex.withLock { ++writeSequence }
+        }
+
+        private suspend fun writeCoalescedBatch(queuedFrames: List<QueuedFrame>): BatchWriteStats {
             val startedAtMs = monotonicNowMillis()
-            val sequence = ++writeSequence
+            val coalescedBuffer =
+                ByteArray(queuedFrames.sumOf { queuedFrame -> queuedFrame.encoded.size })
+            var copyOffset = 0
+            queuedFrames.forEach { queuedFrame ->
+                queuedFrame.encoded.copyInto(coalescedBuffer, destinationOffset = copyOffset)
+                copyOffset += queuedFrame.encoded.size
+            }
+
             var offset = 0
             var writeCalls = 0
             var writeBatches = 0
@@ -592,8 +694,8 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
             var minWriteBatchBytes = Int.MAX_VALUE
             var previousPositiveWriteAtMs: Long? = null
             var maxInterWriteGapMs = 0L
-            while (offset < encoded.size) {
-                val batchBytes = minOf(WRITE_BATCH_BYTES, encoded.size - offset)
+            while (offset < coalescedBuffer.size) {
+                val batchBytes = minOf(WRITE_BATCH_BYTES, coalescedBuffer.size - offset)
                 writeBatches += 1
                 maxWriteBatchBytes = maxOf(maxWriteBatchBytes, batchBytes)
                 minWriteBatchBytes = minOf(minWriteBatchBytes, batchBytes)
@@ -606,7 +708,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
                         continue
                     }
                     val attemptAtMs = monotonicNowMillis()
-                    val written = encoded.usePinned { pinned ->
+                    val written = coalescedBuffer.usePinned { pinned ->
                         outputStream.write(
                             pinned.addressOf(offset + batchOffset).reinterpret(),
                             (batchBytes - batchOffset).convert(),
@@ -632,40 +734,59 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
                 }
                 offset += batchBytes
             }
-            if (telemetryEnabled) {
+            return BatchWriteStats(
+                writeCalls = writeCalls,
+                writeBatches = writeBatches,
+                backpressureSpins = backpressureSpins,
+                readyFalseCount = readyFalseCount,
+                minWriteChunkBytes =
+                    if (minWriteChunkBytes == Int.MAX_VALUE) 0 else minWriteChunkBytes,
+                maxWriteChunkBytes = maxWriteChunkBytes,
+                minWriteBatchBytes =
+                    if (minWriteBatchBytes == Int.MAX_VALUE) 0 else minWriteBatchBytes,
+                maxWriteBatchBytes = maxWriteBatchBytes,
+                maxInterWriteGapMs = maxInterWriteGapMs,
+                totalElapsedMs = monotonicNowMillis() - startedAtMs,
+                coalescedFrames = queuedFrames.size,
+                coalescedBytes = coalescedBuffer.size,
+                batchStartedAtMs = startedAtMs,
+            )
+        }
+
+        private fun emitQueuedFrameTelemetry(
+            queuedFrames: List<QueuedFrame>,
+            batchStats: BatchWriteStats,
+        ): Unit {
+            queuedFrames.forEachIndexed { frameIndex, queuedFrame ->
                 emitTelemetry(
                     event = "write.frame",
                     fields =
                         mapOf(
-                            "seq" to sequence.toString(),
+                            "seq" to queuedFrame.sequence.toString(),
                             "peer" to hintPeerId.value.takeLast(6),
-                            "directType" to classification.directType,
-                            "dataClass" to classification.dataClass,
-                            "frameBytes" to payload.size.toString(),
-                            "innerBytes" to classification.innerBytes.toString(),
-                            "encodedBytes" to encoded.size.toString(),
-                            "writeCalls" to writeCalls.toString(),
-                            "writeBatches" to writeBatches.toString(),
-                            "backpressureSpins" to backpressureSpins.toString(),
-                            "readyFalseCount" to readyFalseCount.toString(),
-                            "minWriteChunkBytes" to
-                                (if (minWriteChunkBytes == Int.MAX_VALUE) 0 else minWriteChunkBytes)
-                                    .toString(),
-                            "maxWriteChunkBytes" to maxWriteChunkBytes.toString(),
-                            "minWriteBatchBytes" to
-                                (if (minWriteBatchBytes == Int.MAX_VALUE) 0 else minWriteBatchBytes)
-                                    .toString(),
-                            "maxWriteBatchBytes" to maxWriteBatchBytes.toString(),
-                            "maxInterWriteGapMs" to maxInterWriteGapMs.toString(),
-                            "totalElapsedMs" to (monotonicNowMillis() - startedAtMs).toString(),
+                            "directType" to queuedFrame.classification.directType,
+                            "dataClass" to queuedFrame.classification.dataClass,
+                            "frameBytes" to queuedFrame.payloadSize.toString(),
+                            "innerBytes" to queuedFrame.classification.innerBytes.toString(),
+                            "encodedBytes" to queuedFrame.encoded.size.toString(),
+                            "frameIndex" to (frameIndex + 1).toString(),
+                            "coalescedFrames" to batchStats.coalescedFrames.toString(),
+                            "coalescedBytes" to batchStats.coalescedBytes.toString(),
+                            "queueDelayMs" to
+                                (batchStats.batchStartedAtMs - queuedFrame.enqueuedAtMs).toString(),
+                            "writeCalls" to batchStats.writeCalls.toString(),
+                            "writeBatches" to batchStats.writeBatches.toString(),
+                            "backpressureSpins" to batchStats.backpressureSpins.toString(),
+                            "readyFalseCount" to batchStats.readyFalseCount.toString(),
+                            "minWriteChunkBytes" to batchStats.minWriteChunkBytes.toString(),
+                            "maxWriteChunkBytes" to batchStats.maxWriteChunkBytes.toString(),
+                            "minWriteBatchBytes" to batchStats.minWriteBatchBytes.toString(),
+                            "maxWriteBatchBytes" to batchStats.maxWriteBatchBytes.toString(),
+                            "maxInterWriteGapMs" to batchStats.maxInterWriteGapMs.toString(),
+                            "totalElapsedMs" to batchStats.totalElapsedMs.toString(),
                         ),
                 )
             }
-        }
-
-        fun close(): Unit {
-            inputStream.close()
-            outputStream.close()
         }
 
         private fun emitTelemetry(event: String, fields: Map<String, String>): Unit {
@@ -719,10 +840,34 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
                 )
         }
 
+        private data class QueuedFrame(
+            val sequence: Long,
+            val payloadSize: Int,
+            val encoded: ByteArray,
+            val classification: FrameTelemetry,
+            val enqueuedAtMs: Long,
+        )
+
         private data class FrameTelemetry(
             val directType: String,
             val dataClass: String,
             val innerBytes: Int,
+        )
+
+        private data class BatchWriteStats(
+            val writeCalls: Int,
+            val writeBatches: Int,
+            val backpressureSpins: Int,
+            val readyFalseCount: Int,
+            val minWriteChunkBytes: Int,
+            val maxWriteChunkBytes: Int,
+            val minWriteBatchBytes: Int,
+            val maxWriteBatchBytes: Int,
+            val maxInterWriteGapMs: Long,
+            val totalElapsedMs: Long,
+            val coalescedFrames: Int,
+            val coalescedBytes: Int,
+            val batchStartedAtMs: Long,
         )
 
         data class ReadDrainResult(
@@ -735,6 +880,10 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
         private companion object {
             private const val STREAM_BUFFER_BYTES: Int = 16 * 1024
             private const val WRITE_BATCH_BYTES: Int = 4 * 1024
+            private const val PENDING_FRAME_WINDOW_FRAMES: Int = 16
+            private const val PENDING_FRAME_WINDOW_BYTES: Int = 16 * 1024
+            private const val MAX_COALESCED_FRAMES: Int = 16
+            private const val MAX_COALESCED_BATCH_BYTES: Int = 16 * 1024
             private const val ACK_LIKELY_ENCRYPTED_BYTES: Int = 192
         }
     }
@@ -744,6 +893,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
         private const val ACTIVE_STREAM_POLL_INTERVAL_MS: Long = 1
         private const val TEMPORARY_PEER_PREFIX: String = "cb-"
         private const val TRANSPORT_TELEMETRY_ENV: String = "MESHLINK_TRANSPORT_TELEMETRY"
+        private const val TRANSPORT_DEBUG_ENV: String = "MESHLINK_TRANSPORT_DEBUG"
 
         private fun monotonicNowMillis(): Long {
             return (NSProcessInfo.processInfo.systemUptime * 1000.0).toLong()
