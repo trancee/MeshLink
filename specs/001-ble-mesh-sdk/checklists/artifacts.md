@@ -11,124 +11,126 @@ broad PR-review pass across the core requirement artifacts. It tests the
 quality of what is written in `spec.md`, `plan.md`, and `tasks.md` rather than
 implementation correctness.
 
+**Re-review update (2026-05-12):** After Phase 8 artifact remediation, this checklist was re-run against the current `spec.md`, `plan.md`, and `tasks.md`. All items below now pass.
+
 ## Requirement Completeness
 
-- [ ] CHK001 Are offline-operation requirements fully represented across the
+- [x] CHK001 Are offline-operation requirements fully represented across the
   spec, plan constraints, and quickstart assumptions, including required
   permission and supported-platform prerequisites? [Completeness, Spec
   §FR-001, Spec §FR-015, Spec §Assumptions, Plan §Constraints, Quickstart
   §Prerequisites]
-- [ ] CHK002 Are trust lifecycle requirements complete across initial TOFU
+- [x] CHK002 Are trust lifecycle requirements complete across initial TOFU
   acceptance, identity-change rejection, explicit revocation, and restart
   recovery? [Completeness, Spec §FR-002–FR-003a, Spec §Edge Cases, Plan
   §Summary, Tasks §Phase 3]
-- [ ] CHK003 Are large-transfer recovery requirements complete for chunking,
+- [x] CHK003 Are large-transfer recovery requirements complete for chunking,
   selective acknowledgements, route changes, expiry handling, and restart
   boundaries? [Completeness, Spec §FR-007–FR-010, Spec §Edge Cases, Plan
   §Summary, Tasks §Phase 4]
-- [ ] CHK004 Are low-power requirements complete enough to cover scan duty,
+- [x] CHK004 Are low-power requirements complete enough to cover scan duty,
   connection-interval expectations, connection limits, and chunk-budget
   behavior across the artifacts? [Gap, Spec §FR-013, Spec §SC-006, Plan
   §Performance Goals, Tasks §Phase 5]
 
 ## Requirement Clarity
 
-- [ ] CHK005 Is “best-effort message delivery” in low-power mode clarified with
+- [x] CHK005 Is “best-effort message delivery” in low-power mode clarified with
   explicit degradation, retention, and failure boundaries? [Clarity, Spec §User
   Story 3, Spec §Edge Cases, Spec §SC-006]
-- [ ] CHK006 Is the benchmark protocol for the throughput and latency criteria
+- [x] CHK006 Is the benchmark protocol for the throughput and latency criteria
   defined clearly enough to measure SC-004 consistently (sample size, warmup,
   p95 calculation, and start/end conditions)? [Measurability, Spec §SC-004,
   Plan §Performance Goals, Tasks §T039, Tasks §T040]
-- [ ] CHK007 Is the artifact lifecycle state clear and consistent, or does the
+- [x] CHK007 Is the artifact lifecycle state clear and consistent, or does the
   spec still use a status label that conflicts with the plan’s claim that it is
   approved and ready for governed execution? [Conflict, Spec header, Plan
   §Constitution Check]
-- [ ] CHK008 Is the remaining iOS throughput shortfall framed clearly enough to
+- [x] CHK008 Is the remaining iOS throughput shortfall framed clearly enough to
   tell reviewers whether it is an open risk, an unmet release criterion, or an
   accepted exception? [Clarity, Spec §SC-004, Plan §Post-design
   re-evaluation, Tasks §Phase 6]
 
 ## Requirement Consistency
 
-- [ ] CHK009 Are runtime dependency constraints consistent across the spec’s
+- [x] CHK009 Are runtime dependency constraints consistent across the spec’s
   Constitutional Alignment, the plan’s Technical Context, and the setup tasks?
   [Consistency, Spec §Constitutional Alignment, Plan §Primary Dependencies,
   Plan §Constitutional Constraints, Tasks §T001–T005]
-- [ ] CHK010 Are parity requirements consistent between the public SDK
+- [x] CHK010 Are parity requirements consistent between the public SDK
   contract, the spec’s Android/iOS parity language, and the tasks for
   diagnostics, exceptions, and documentation updates? [Consistency, Spec
   §FR-014, Spec §SC-007, Contract §Behavioral Guarantees, Tasks §T029–T034,
   Tasks §T043]
-- [ ] CHK011 Are discovery and transport requirements consistent between the
+- [x] CHK011 Are discovery and transport requirements consistent between the
   spec clarifications, the wire contract, the quickstart guidance, and the
   platform transport tasks? [Consistency, Spec §Clarifications, Contract
   §Discovery Contract, Quickstart §§3–6, Tasks §T016–T017, Tasks §T019,
   Tasks §T025]
-- [ ] CHK012 Is each success criterion traceably represented by at least one
+- [x] CHK012 Is each success criterion traceably represented by at least one
   explicit validation or benchmark task, without requiring reviewers to infer
   coverage indirectly? [Traceability, Spec §SC-001–SC-007, Tasks §§Phase 3–6]
 
 ## Acceptance Criteria Quality
 
-- [ ] CHK013 Can the quickstart success criterion be reviewed objectively, or
+- [x] CHK013 Can the quickstart success criterion be reviewed objectively, or
   do environmental assumptions (developer-team signing, trusted device profile,
   nearby hardware, app-id isolation) still need clearer requirement treatment?
   [Measurability, Spec §SC-001, Spec §Assumptions, Quickstart §§3–6, Tasks
   §T044]
-- [ ] CHK014 Are route-convergence requirements specific enough to distinguish
+- [x] CHK014 Are route-convergence requirements specific enough to distinguish
   control-plane convergence from end-to-end delivery recovery? [Clarity, Spec
   §SC-002, Plan §Performance Goals, Tasks §T020, Tasks §T038]
-- [ ] CHK015 Can “same meanings” and “equivalent workflows” in the parity
+- [x] CHK015 Can “same meanings” and “equivalent workflows” in the parity
   criteria be objectively evaluated from the written requirements alone?
   [Measurability, Spec §SC-007, Spec §FR-014, Contract §Behavioral Guarantees]
 
 ## Scenario & Edge Case Coverage
 
-- [ ] CHK016 Are requirements specified for mixed-platform mesh participation
+- [x] CHK016 Are requirements specified for mixed-platform mesh participation
   beyond lifecycle parity, including discovery behavior, transport fallback, and
   performance expectations? [Coverage, Spec §Edge Cases, Spec §FR-014, Spec
   §SC-004, Spec §SC-007, Plan §Target Platform]
-- [ ] CHK017 Are rollback or recovery expectations defined for partially
+- [x] CHK017 Are rollback or recovery expectations defined for partially
   successful quickstart or benchmark runs that surface environmental blockers
   instead of product defects? [Gap, Spec §SC-001–SC-004, Quickstart §§7–9,
   Tasks §T039–T044]
-- [ ] CHK018 Are restart-related requirements clear about what state must be
+- [x] CHK018 Are restart-related requirements clear about what state must be
   re-established, what delivery must be resubmitted, and what trust survives?
   [Clarity, Spec §Edge Cases, Spec §FR-008, Spec §Assumptions, Tasks §T012,
   Tasks §T021]
-- [ ] CHK019 Are exception-flow requirements defined for missing BLE
+- [x] CHK019 Are exception-flow requirements defined for missing BLE
   permissions, unsupported transport capabilities, and incompatible peer or
   protocol versions? [Gap, Spec §FR-015, Spec §FR-016, Spec §Assumptions,
   Contract §Discovery Contract, Quickstart §Prerequisites]
 
 ## Non-Functional & Security Coverage
 
-- [ ] CHK020 Are persisted-data minimization and diagnostic-redaction
+- [x] CHK020 Are persisted-data minimization and diagnostic-redaction
   requirements carried consistently from the spec into the plan constraints and
   validation expectations? [Consistency, Spec §FR-015a, Plan §Storage, Plan
   §Constitutional Constraints, Tasks §T007, Tasks §T014, Tasks §T034]
-- [ ] CHK021 Are cryptographic requirements specific enough about which
+- [x] CHK021 Are cryptographic requirements specific enough about which
   guarantees are normative (hop-to-hop, end-to-end, TOFU failure behavior) and
   where those guarantees are meant to be validated? [Clarity, Spec §FR-002–
   FR-005, Spec §FR-011, Plan §Summary, Tasks §T011–T015, Tasks §T037]
-- [ ] CHK022 Are performance requirements complete for all touched
+- [x] CHK022 Are performance requirements complete for all touched
   constitutional dimensions: throughput, latency, memory, power, cold start,
   convergence, and wire codec behavior? [Completeness, Spec §SC-002–SC-006,
   Plan §Performance Goals, Tasks §T038–T042]
 
 ## Dependencies, Assumptions & Ambiguities
 
-- [ ] CHK023 Are external dependency and hardware assumptions explicit enough
+- [x] CHK023 Are external dependency and hardware assumptions explicit enough
   for a reviewer to tell product gaps from environmental blockers? [Assumption,
   Spec §Assumptions, Plan §Constraints, Quickstart §Prerequisites, Tasks
   §T039–T044]
-- [ ] CHK024 Are host-application responsibilities clearly separated from SDK
+- [x] CHK024 Are host-application responsibilities clearly separated from SDK
   responsibilities for trust UX, recipient selection, and message resubmission
   after restart across the three core artifacts? [Consistency, Spec §FR-003a,
   Spec §FR-008, Spec §Assumptions, Plan §Summary, Tasks §T013, Tasks §T018,
   Tasks §T027]
-- [ ] CHK025 Does any artifact rely on vague review-language such as
+- [x] CHK025 Does any artifact rely on vague review-language such as
   “approved”, “complete”, or “recorded” without making the blocking acceptance
   condition explicit? [Ambiguity, Spec header, Plan §Constitution Check, Tasks
   §Phase 6]
@@ -145,46 +147,46 @@ implementation correctness.
 
 ## Artifact Governance & Source-of-Truth Boundaries
 
-- [ ] CHK026 Is it explicit which artifact is normative when `spec.md`,
+- [x] CHK026 Is it explicit which artifact is normative when `spec.md`,
   `plan.md`, and `tasks.md` differ on status, risk framing, or acceptance
   wording? [Gap, Spec header, Plan §Constitution Check, Tasks §Notes]
-- [ ] CHK027 Are the roles of the three core artifacts clearly separated so a
+- [x] CHK027 Are the roles of the three core artifacts clearly separated so a
   reviewer can distinguish requirements, design constraints, and execution
   history without cross-artifact ambiguity? [Clarity, Spec overall, Plan
   overall, Tasks overall]
-- [ ] CHK028 Does the task ledger define append-only handling for newly
+- [x] CHK028 Does the task ledger define append-only handling for newly
   discovered follow-up work after tasks are marked complete, so reruns do not
   implicitly erase accepted history or reopen completed obligations? [Gap,
   Tasks §Phase 6, Tasks §Notes, Plan §Constitution Check]
-- [ ] CHK029 Are repeated `/plan`, `/tasks`, and `/implement` rerun
+- [x] CHK029 Are repeated `/plan`, `/tasks`, and `/implement` rerun
   expectations documented clearly enough to preserve canonical artifacts while
   still allowing new remediation work to be added? [Gap, Plan §Constitution
   Check, Plan §Notes, Tasks §Dependencies & Execution Order]
-- [ ] CHK030 Are task-completion markers and phase summaries written clearly
+- [x] CHK030 Are task-completion markers and phase summaries written clearly
   enough that reviewers can tell whether a line is a normative requirement, a
   historical ledger entry, or a retrospective evidence note? [Ambiguity, Tasks
   §§Phase 3–6, Tasks §Notes]
 
 ## Reviewer Decision Framing
 
-- [ ] CHK031 Are known risks, unmet success criteria, and accepted
+- [x] CHK031 Are known risks, unmet success criteria, and accepted
   documentation updates distinguished with unambiguous labels so reviewers can
   tell what still blocks release? [Clarity, Spec §SC-001–SC-007, Plan
   §Summary, Plan §Post-design re-evaluation, Tasks §Phase 6]
-- [ ] CHK032 Are benchmark baselines clearly separated from normative
+- [x] CHK032 Are benchmark baselines clearly separated from normative
   acceptance thresholds, so observed measurements cannot be mistaken for
   passing requirements? [Consistency, Spec §SC-002–SC-006, Plan §Performance
   Goals, Tasks §T038–T042]
-- [ ] CHK033 Is the role of the proof integrations clear across the artifacts
+- [x] CHK033 Is the role of the proof integrations clear across the artifacts
   as reference implementation, quickstart aid, benchmark harness, and
   physical-validation vehicle without conflicting expectations? [Consistency,
   Spec §FR-017, Spec §SC-001, Plan §Summary, Tasks §T013, Tasks §T039–T044]
-- [ ] CHK034 Are reviewer-facing exception paths defined for environmental
+- [x] CHK034 Are reviewer-facing exception paths defined for environmental
   blockers such as signing, device availability, and nearby-mesh interference
   so evidence gaps can be triaged without weakening product requirements?
   [Coverage, Assumption, Spec §SC-001–SC-004, Spec §Assumptions, Plan
   §Constraints, Tasks §T040, Tasks §T044]
-- [ ] CHK035 Are cross-artifact references stable enough that each open risk,
+- [x] CHK035 Are cross-artifact references stable enough that each open risk,
   acceptance criterion, and follow-up obligation can be traced without relying
   on commit history or reviewer memory? [Traceability, Spec §SC-001–SC-007,
   Plan §Constitution Check, Tasks §Phase 6]

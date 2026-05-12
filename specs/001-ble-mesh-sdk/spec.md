@@ -2,7 +2,7 @@
 
 **Feature Branch**: `001-ble-mesh-sdk`  
 **Created**: 2026-05-10  
-**Status**: Draft  
+**Status**: Approved
 **Input**: User description: "MeshLink is a library-first SDK for encrypted, serverless, offline-capable messaging over Bluetooth Low Energy (BLE) mesh networks — no internet, no servers, no user accounts. Core capabilities: multi-hop mesh routing, two-layer encryption, large message transfer, power-aware operation, and cross-platform Android/iOS support."
 
 ## Clarifications
@@ -136,6 +136,14 @@ error behavior.
 - If the host application asks to send a payload larger than the supported
   transfer limit for the current release, the SDK rejects it before transfer
   begins and returns an explicit size-limit error.
+- If required BLE permissions are missing, revoked, or unavailable for the
+  current validation run, the SDK or proof validation flow treats that run as
+  blocked until permissions are restored and MUST surface the condition as an
+  explicit failure or blocked validation outcome rather than silent success.
+- If a peer lacks compatible transport capability or presents an unsupported or
+  incompatible protocol version, the SDK rejects participation from that peer
+  with an explicit compatibility / transport failure outcome rather than
+  silently downgrading into undefined behavior.
 - Android and iOS devices MUST interoperate in the same mesh topology using the
   same wire format, routing semantics, delivery outcomes, lifecycle meanings,
   error categories, and diagnostic semantics.
@@ -194,6 +202,10 @@ error behavior.
 - **FR-013**: The system MUST expose power-aware operating behavior that reduces
   radio activity when battery conditions worsen and MUST make the current power
   mode observable to the host application.
+- **FR-013a**: The observable power-policy output MUST define enough detail for
+  Android and iOS hosts to verify scan duty, advertisement interval, maximum
+  concurrent connection budget, and transfer chunk budget behavior for the
+  active power tier.
 - **FR-014**: The system MUST expose equivalent public capabilities,
   configuration concepts, lifecycle states, one shared 26-code diagnostic
   catalog with identical severity tiers and payload shapes, and one sealed
@@ -290,8 +302,8 @@ error behavior.
   between two devices in 30 minutes or less using the published quickstart.
 - **SC-002**: In a three-device topology with no internet and no direct path
   between sender and recipient, addressed messages are delivered through the
-  mesh without manual route selection, and route recovery after a topology
-  change completes within 3 seconds.
+  mesh without manual route selection, and control-plane route convergence
+  after a topology change completes within 3 seconds.
 - **SC-003**: A 64 KB payload can be delivered intact across the mesh despite
   partial chunk loss, without restarting the transfer from byte zero.
 - **SC-004**: On the project’s reference benchmark hardware—Android Pixel 6 or
@@ -300,6 +312,12 @@ error behavior.
   sustains at least 80 KB/s on Android and 60 KB/s on iOS.
 - **SC-005**: With up to 8 connected peers and an active routing table,
   steady-state heap allocation remains at or below 8 MB.
+- **SC-004a**: `SC-004` benchmark runs use the runnable proof integrations on a
+  single-hop topology after peer discovery and connection establishment,
+  discard one warmup exchange, retain raw sender and recipient evidence for the
+  scored run, collect at least 20 post-warmup samples for the 256-byte latency
+  path before computing p95, and measure 64 KB throughput from sender-side send
+  start until the terminal benchmark / send-result line for the scored run.
 - **SC-006**: In LOW power mode, scan duty cycle remains at or below 5% while
   basic message delivery remains functional within the documented reduced-power
   policy.
