@@ -352,16 +352,28 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
         link.readLoopJob = coroutineScope.launch {
             try {
                 while (true) {
-                    val decodedFrames = link.readFrames()
-                    if (decodedFrames.isEmpty()) {
-                        delay(STREAM_POLL_INTERVAL_MS)
+                    val drainedFrames = link.drainReadableFrames()
+                    if (drainedFrames.frames.isEmpty()) {
+                        if (drainedFrames.streamClosed) {
+                            break
+                        }
+                        delay(
+                            if (drainedFrames.readBytes > 0) {
+                                ACTIVE_STREAM_POLL_INTERVAL_MS
+                            } else {
+                                IDLE_STREAM_POLL_INTERVAL_MS
+                            }
+                        )
                         continue
                     }
-                    decodedFrames.forEach { payload ->
+                    drainedFrames.frames.forEach { payload ->
                         log("received ${payload.size} bytes from ${hintPeerId.value.takeLast(6)}")
                         mutableEvents.emit(
                             TransportEvent.FrameReceived(peerId = hintPeerId, payload = payload)
                         )
+                    }
+                    if (drainedFrames.streamClosed) {
+                        break
                     }
                 }
             } finally {
@@ -496,23 +508,39 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
     ) {
         private val inputStream = checkNotNull(channel.inputStream).apply { open() }
         private val outputStream = checkNotNull(channel.outputStream).apply { open() }
+        private val readBuffer = ByteArray(STREAM_BUFFER_BYTES)
         private var readSequence: Long = 0L
         private var writeSequence: Long = 0L
         private var lastReadFrameAtMs: Long? = null
         var readLoopJob: Job? = null
 
-        suspend fun readFrames(): List<ByteArray> {
+        suspend fun drainReadableFrames(): ReadDrainResult {
             if (!inputStream.hasBytesAvailable()) {
-                return emptyList()
+                return ReadDrainResult()
             }
-            val buffer = ByteArray(STREAM_BUFFER_BYTES)
-            val bytesRead = buffer.usePinned { pinned ->
-                inputStream.read(pinned.addressOf(0).reinterpret(), buffer.size.convert())
+            val decodedFrames = mutableListOf<ByteArray>()
+            var readBytes = 0
+            var readCalls = 0
+            var streamClosed = false
+            while (inputStream.hasBytesAvailable()) {
+                val bytesRead = readBuffer.usePinned { pinned ->
+                    inputStream.read(pinned.addressOf(0).reinterpret(), readBuffer.size.convert())
+                }
+                if (bytesRead < 0) {
+                    streamClosed = true
+                    break
+                }
+                if (bytesRead == 0L) {
+                    break
+                }
+                val readCount = bytesRead.toInt()
+                readBytes += readCount
+                readCalls += 1
+                decodedFrames += incomingFrames.append(readBuffer.copyOf(readCount))
+                if (readCount < readBuffer.size && !inputStream.hasBytesAvailable()) {
+                    break
+                }
             }
-            if (bytesRead <= 0) {
-                return emptyList()
-            }
-            val decodedFrames = incomingFrames.append(buffer.copyOf(bytesRead.toInt()))
             if (telemetryEnabled && decodedFrames.isNotEmpty()) {
                 decodedFrames.forEachIndexed { frameIndex, payload ->
                     val classification = classifyFrame(payload)
@@ -526,8 +554,9 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
                             mapOf(
                                 "seq" to (++readSequence).toString(),
                                 "peer" to hintPeerId.value.takeLast(6),
-                                "batchBytes" to bytesRead.toString(),
+                                "batchBytes" to readBytes.toString(),
                                 "batchFrames" to decodedFrames.size.toString(),
+                                "readCalls" to readCalls.toString(),
                                 "frameIndex" to (frameIndex + 1).toString(),
                                 "streamReady" to inputStream.hasBytesAvailable().toString(),
                                 "directType" to classification.directType,
@@ -539,7 +568,12 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
                     )
                 }
             }
-            return decodedFrames
+            return ReadDrainResult(
+                frames = decodedFrames,
+                readBytes = readBytes,
+                readCalls = readCalls,
+                streamClosed = streamClosed,
+            )
         }
 
         suspend fun write(payload: ByteArray): Unit {
@@ -549,38 +583,54 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
             val sequence = ++writeSequence
             var offset = 0
             var writeCalls = 0
+            var writeBatches = 0
             var backpressureSpins = 0
             var readyFalseCount = 0
             var maxWriteChunkBytes = 0
             var minWriteChunkBytes = Int.MAX_VALUE
+            var maxWriteBatchBytes = 0
+            var minWriteBatchBytes = Int.MAX_VALUE
             var previousPositiveWriteAtMs: Long? = null
             var maxInterWriteGapMs = 0L
             while (offset < encoded.size) {
-                val readyBeforeWrite = outputStream.hasSpaceAvailable()
-                if (!readyBeforeWrite) {
-                    readyFalseCount += 1
+                val batchBytes = minOf(WRITE_BATCH_BYTES, encoded.size - offset)
+                writeBatches += 1
+                maxWriteBatchBytes = maxOf(maxWriteBatchBytes, batchBytes)
+                minWriteBatchBytes = minOf(minWriteBatchBytes, batchBytes)
+                var batchOffset = 0
+                while (batchOffset < batchBytes) {
+                    if (!outputStream.hasSpaceAvailable()) {
+                        readyFalseCount += 1
+                        backpressureSpins += 1
+                        delay(ACTIVE_STREAM_POLL_INTERVAL_MS)
+                        continue
+                    }
+                    val attemptAtMs = monotonicNowMillis()
+                    val written = encoded.usePinned { pinned ->
+                        outputStream.write(
+                            pinned.addressOf(offset + batchOffset).reinterpret(),
+                            (batchBytes - batchOffset).convert(),
+                        )
+                    }
+                    writeCalls += 1
+                    if (written < 0) {
+                        throw IllegalStateException("iOS L2CAP output stream closed")
+                    }
+                    if (written == 0L) {
+                        backpressureSpins += 1
+                        delay(ACTIVE_STREAM_POLL_INTERVAL_MS)
+                        continue
+                    }
+                    val writtenBytes = written.toInt()
+                    maxWriteChunkBytes = maxOf(maxWriteChunkBytes, writtenBytes)
+                    minWriteChunkBytes = minOf(minWriteChunkBytes, writtenBytes)
+                    previousPositiveWriteAtMs?.let { previousAtMs ->
+                        maxInterWriteGapMs = maxOf(maxInterWriteGapMs, attemptAtMs - previousAtMs)
+                    }
+                    previousPositiveWriteAtMs = attemptAtMs
+                    batchOffset += writtenBytes
                 }
-                val attemptAtMs = monotonicNowMillis()
-                val written = encoded.usePinned { pinned ->
-                    outputStream.write(
-                        pinned.addressOf(offset).reinterpret(),
-                        (encoded.size - offset).convert(),
-                    )
-                }
-                writeCalls += 1
-                if (written <= 0) {
-                    backpressureSpins += 1
-                    delay(STREAM_POLL_INTERVAL_MS)
-                    continue
-                }
-                val writtenBytes = written.toInt()
-                maxWriteChunkBytes = maxOf(maxWriteChunkBytes, writtenBytes)
-                minWriteChunkBytes = minOf(minWriteChunkBytes, writtenBytes)
-                previousPositiveWriteAtMs?.let { previousAtMs ->
-                    maxInterWriteGapMs = maxOf(maxInterWriteGapMs, attemptAtMs - previousAtMs)
-                }
-                previousPositiveWriteAtMs = attemptAtMs
-                offset += writtenBytes
+                offset += batchBytes
             }
             if (telemetryEnabled) {
                 emitTelemetry(
@@ -595,12 +645,17 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
                             "innerBytes" to classification.innerBytes.toString(),
                             "encodedBytes" to encoded.size.toString(),
                             "writeCalls" to writeCalls.toString(),
+                            "writeBatches" to writeBatches.toString(),
                             "backpressureSpins" to backpressureSpins.toString(),
                             "readyFalseCount" to readyFalseCount.toString(),
                             "minWriteChunkBytes" to
                                 (if (minWriteChunkBytes == Int.MAX_VALUE) 0 else minWriteChunkBytes)
                                     .toString(),
                             "maxWriteChunkBytes" to maxWriteChunkBytes.toString(),
+                            "minWriteBatchBytes" to
+                                (if (minWriteBatchBytes == Int.MAX_VALUE) 0 else minWriteBatchBytes)
+                                    .toString(),
+                            "maxWriteBatchBytes" to maxWriteBatchBytes.toString(),
                             "maxInterWriteGapMs" to maxInterWriteGapMs.toString(),
                             "totalElapsedMs" to (monotonicNowMillis() - startedAtMs).toString(),
                         ),
@@ -656,7 +711,12 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
                                 innerBytes = frame.payload.size,
                             )
                     }
-                } ?: FrameTelemetry(directType = "UNKNOWN", dataClass = "unknown", innerBytes = payload.size)
+                }
+                ?: FrameTelemetry(
+                    directType = "UNKNOWN",
+                    dataClass = "unknown",
+                    innerBytes = payload.size,
+                )
         }
 
         private data class FrameTelemetry(
@@ -665,14 +725,23 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
             val innerBytes: Int,
         )
 
+        data class ReadDrainResult(
+            val frames: List<ByteArray> = emptyList(),
+            val readBytes: Int = 0,
+            val readCalls: Int = 0,
+            val streamClosed: Boolean = false,
+        )
+
         private companion object {
             private const val STREAM_BUFFER_BYTES: Int = 16 * 1024
+            private const val WRITE_BATCH_BYTES: Int = 4 * 1024
             private const val ACK_LIKELY_ENCRYPTED_BYTES: Int = 192
         }
     }
 
     private companion object {
-        private const val STREAM_POLL_INTERVAL_MS: Long = 5
+        private const val IDLE_STREAM_POLL_INTERVAL_MS: Long = 5
+        private const val ACTIVE_STREAM_POLL_INTERVAL_MS: Long = 1
         private const val TEMPORARY_PEER_PREFIX: String = "cb-"
         private const val TRANSPORT_TELEMETRY_ENV: String = "MESHLINK_TRANSPORT_TELEMETRY"
 
@@ -681,11 +750,9 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
         }
 
         private fun readEnvironmentFlag(name: String): Boolean {
-            return getenv(name)
-                ?.toKString()
-                ?.lowercase()
-                ?.let { value -> value == "1" || value == "true" || value == "yes" }
-                ?: false
+            return getenv(name)?.toKString()?.lowercase()?.let { value ->
+                value == "1" || value == "true" || value == "yes"
+            } ?: false
         }
     }
 }

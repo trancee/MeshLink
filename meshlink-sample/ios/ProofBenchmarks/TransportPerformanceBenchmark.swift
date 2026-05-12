@@ -38,7 +38,8 @@ final class TransportPerformanceBenchmark: XCTestCase {
         // Arrange
         let application = BenchmarkTestSupport.launchProofApp(
             appId: "demo.meshlink.benchmark.throughput",
-            benchmarkPayloadBytes: 64 * 1024
+            benchmarkPayloadBytes: 64 * 1024,
+            transportTelemetry: true
         )
 
         // Act
@@ -47,8 +48,25 @@ final class TransportPerformanceBenchmark: XCTestCase {
             containing: "BENCHMARK transport bytes=",
             timeout: 30
         )
+        let writeTelemetry = BenchmarkTestSupport.waitForTransportTelemetryLine(
+            in: application,
+            containing: "event=write.frame"
+                + " directType=DATA"
+                + " dataClass=bulkLikely",
+            timeout: 10
+        )
+        let readTelemetry = BenchmarkTestSupport.waitForTransportTelemetryLine(
+            in: application,
+            containing: "event=read.frame"
+                + " directType=DATA"
+                + " dataClass=ackLikely",
+            timeout: 10
+        )
         let throughputKilobytesPerSecond = BenchmarkTestSupport.extractThroughputKilobytesPerSecond(from: logLine)
         let result = BenchmarkTestSupport.extractResult(from: logLine)
+        let writeBatches = BenchmarkTestSupport.extractTelemetryInteger(from: writeTelemetry, key: "writeBatches")
+        let maxWriteBatchBytes = BenchmarkTestSupport.extractTelemetryInteger(from: writeTelemetry, key: "maxWriteBatchBytes")
+        let readCalls = BenchmarkTestSupport.extractTelemetryInteger(from: readTelemetry, key: "readCalls")
 
         // Assert
         XCTAssertEqual(
@@ -56,6 +74,9 @@ final class TransportPerformanceBenchmark: XCTestCase {
             "Sent",
             "Throughput benchmarks require a nearby proof peer running appId=demo.meshlink.benchmark.throughput"
         )
+        XCTAssertGreaterThanOrEqual(writeBatches, 1, "Expected at least one bounded write batch to be recorded")
+        XCTAssertGreaterThan(maxWriteBatchBytes, 0, "Expected write batch telemetry to report a positive batch size")
+        XCTAssertGreaterThanOrEqual(readCalls, 1, "Expected read-drain telemetry to report at least one stream read")
         XCTAssertGreaterThanOrEqual(
             throughputKilobytesPerSecond,
             60.0,

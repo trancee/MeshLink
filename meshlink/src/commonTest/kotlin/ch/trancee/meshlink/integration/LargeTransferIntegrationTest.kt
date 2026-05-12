@@ -264,7 +264,8 @@ class LargeTransferIntegrationTest {
             // Act
             val sendResult = sender.api.send(recipient.peerId, payload)
             val receivedMessage = receivedMessageDeferred.await()
-            val recipientFrameDelta = harness.sentFrames(recipient).size - recipientFrameCountBeforeSend
+            val recipientFrameDelta =
+                harness.sentFrames(recipient).size - recipientFrameCountBeforeSend
 
             // Assert
             assertIs<SendResult.Sent>(sendResult)
