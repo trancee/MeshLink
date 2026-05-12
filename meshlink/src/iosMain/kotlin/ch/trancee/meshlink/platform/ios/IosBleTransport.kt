@@ -173,7 +173,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
         if (!started || peripheral.state != CBManagerStatePoweredOn) {
             return
         }
-        peripheral.publishL2CAPChannelWithEncryption(encryptionRequired = true)
+        peripheral.publishL2CAPChannelWithEncryption(encryptionRequired = false)
     }
 
     internal fun handlePublishedL2capChannel(psm: UShort, error: NSError?): Unit {

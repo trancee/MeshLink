@@ -92,7 +92,7 @@ internal class AndroidBleTransport(
         scanner = adapter.bluetoothLeScanner
 
         val serverSocket =
-            runCatching { adapter.listenUsingL2capChannel() }
+            runCatching { adapter.listenUsingInsecureL2capChannel() }
                 .onFailure { error ->
                     log("L2CAP server socket unavailable: ${error.message.orEmpty()}")
                 }
@@ -285,7 +285,7 @@ internal class AndroidBleTransport(
                     log(
                         "connecting L2CAP to ${peer.hintPeerId.value.takeLast(6)} psm=${peer.l2capPsm} addr=${peer.device.address}"
                     )
-                    val socket = peer.device.createL2capChannel(peer.l2capPsm)
+                    val socket = peer.device.createInsecureL2capChannel(peer.l2capPsm)
                     socket.connect()
                     log("L2CAP connect succeeded for ${peer.hintPeerId.value.takeLast(6)}")
                     registerConnectedSocket(peer.hintPeerId, socket)
