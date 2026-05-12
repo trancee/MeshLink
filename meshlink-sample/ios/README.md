@@ -94,6 +94,11 @@ Physical proof findings on iPhone 15:
   Samsung reached `23.92 KB/s` with `setupMs=1994`, OPPO reached `21.96 KB/s`
   with `setupMs=1926`, and both runs negotiated `maxWriteWithoutResponse=512` /
   Android `mtu=517`; this is still well below the normative `>= 60 KB/s` target
+- the stricter recipient-confirmed MeshLink rerun currently fails in all four
+  fresh Samsung/OPPO × 256 B/64 KiB cells: each iPhone run ended
+  `ReceiptTimeout` after ~21.3-21.4 s, and each passive Android proof app
+  retained a matching `BENCHMARK receipt send(...) -> NotSent(reason=UNREACHABLE)`
+  line for the same token
 
 Shared harness evidence now also covers the common US2 runtime:
 
@@ -105,10 +110,11 @@ Shared harness evidence now also covers the common US2 runtime:
 
 Current blocker:
 
-- large-payload iPhone throughput remains below the `>= 60 KB/s` target even
-  though delivery, pairing-free interop, cold start, power, latency, and a proof-only
-  GATT fallback prototype now work, and the Samsung reference path still shows
-  variable stability across fresh reruns
+- large-payload iPhone throughput remains below the `>= 60 KB/s` target and the
+  stricter recipient-confirmed MeshLink benchmark still fails even at 256 B,
+  even though delivery, pairing-free interop, cold start, power, latency, and a
+  proof-only GATT fallback prototype now work; the Samsung reference path still
+  shows variable stability across fresh reruns
 
 ## Current physical proof flow
 

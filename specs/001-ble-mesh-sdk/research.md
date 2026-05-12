@@ -356,3 +356,43 @@ Key findings:
 This prototype therefore narrows the decision space rather than resolving it: a
 proof-only GATT path is possible, but on the current hardware it does not provide
 an obvious throughput escape hatch for `SC-004`.
+
+### Recipient-confirmed MeshLink matrix rerun
+
+The proof apps now emit benchmark lines only after a proof receipt comes back
+from the passive peer. With that stricter benchmark semantic in place, a fresh
+physical iPhone 15 MeshLink rerun across Samsung/OPPO and 256 B / 64 KiB now
+shows a cleaner failure shape than the earlier sender-side-only numbers.
+
+Fresh retained evidence:
+
+- iPhone 15 -> Samsung, 256 B:
+  `BENCHMARK transport bytes=256 elapsedMs=21296 throughputKBps=0.01 result=ReceiptTimeout`
+- iPhone 15 -> Samsung, 64 KiB:
+  `BENCHMARK transport bytes=65536 elapsedMs=21402 throughputKBps=2.99 result=ReceiptTimeout`
+- iPhone 15 -> OPPO, 256 B:
+  `BENCHMARK transport bytes=256 elapsedMs=21358 throughputKBps=0.01 result=ReceiptTimeout`
+- iPhone 15 -> OPPO, 64 KiB:
+  `BENCHMARK transport bytes=65536 elapsedMs=21428 throughputKBps=2.99 result=ReceiptTimeout`
+
+Passive Android proof logs for those same runs retained matching receipt-send
+attempts that failed on the return path:
+
+- Samsung 256 B: `BENCHMARK receipt send(b11305) -> NotSent(reason=UNREACHABLE) token=000065f04a5217b1`
+- Samsung 64 KiB: `BENCHMARK receipt send(fcbf19) -> NotSent(reason=UNREACHABLE) token=000065f7e1569e9e`
+- OPPO 256 B: `BENCHMARK receipt send(262742) -> NotSent(reason=UNREACHABLE) token=000065ff936e78d5`
+- OPPO 64 KiB: `BENCHMARK receipt send(a9ccef) -> NotSent(reason=UNREACHABLE) token=00006607417725e7`
+
+Key interpretation:
+
+- The current MeshLink iPhone path is not only missing the 64 KiB throughput
+  target; it is also failing the stricter recipient-confirmed proof completion
+  check across both peers and both payload sizes.
+- The passive Android receipt-send lines show that the benchmark payload reached
+  the passive peer often enough to trigger proof receipt logic, but the return
+  delivery path still expired `UNREACHABLE` before the sender saw completion.
+- Because even 256-byte cases fail under the recipient-confirmed protocol, the
+  open issue is broader than bulk L2CAP throughput alone. The remaining problem
+  space still includes return-path session/route stability.
+- The proof-only GATT fallback prototype remains useful as a comparison point,
+  but it does not resolve this stricter MeshLink-path failure shape.
