@@ -84,7 +84,7 @@ class BleDiscoveryContractTest {
     }
 
     @Test
-    fun `discovery UUID set includes fixed advertisement UUID first`() {
+    fun `discovery UUID set includes the 32-bit advertisement UUID first`() {
         // Arrange
         val payload =
             BleDiscoveryPayload(
@@ -101,6 +101,21 @@ class BleDiscoveryContractTest {
         // Assert
         assertEquals(BleDiscoveryContract.ADVERTISEMENT_SERVICE_UUID, uuids.first())
         assertEquals(2, uuids.size)
+    }
+
+    @Test
+    fun `expanded and 32-bit discovery UUID forms are both recognized`() {
+        // Arrange
+        val shortUuid = BleDiscoveryContract.ADVERTISEMENT_SERVICE_UUID
+        val expandedUuid = BleDiscoveryContract.ADVERTISEMENT_SERVICE_UUID_EXPANDED
+
+        // Act
+        val shortRecognized = BleDiscoveryContract.isAdvertisementServiceUuid(shortUuid)
+        val expandedRecognized = BleDiscoveryContract.isAdvertisementServiceUuid(expandedUuid)
+
+        // Assert
+        assertTrue(shortRecognized)
+        assertTrue(expandedRecognized)
     }
 
     @Test

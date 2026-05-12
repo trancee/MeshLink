@@ -197,7 +197,7 @@ internal class AndroidBleTransport(
                 ?: return
         val payloadUuid =
             serviceUuids.firstOrNull { uuid ->
-                uuid != BleDiscoveryContract.ADVERTISEMENT_SERVICE_UUID
+                !BleDiscoveryContract.isAdvertisementServiceUuid(uuid)
             } ?: return
         val payload =
             runCatching { BleDiscoveryPayload.fromUuidString(payloadUuid) }.getOrNull() ?: return
@@ -366,7 +366,10 @@ internal class AndroidBleTransport(
                 "registered L2CAP link for ${hintPeerId.value.takeLast(6)} addr=${socket.remoteDevice.address}"
             )
             link.readLoopJob = coroutineScope.launch {
-                val readBuffer = ByteArray(link.maxReceivePacketSize.coerceAtLeast(DEFAULT_SOCKET_READ_BUFFER_BYTES))
+                val readBuffer =
+                    ByteArray(
+                        link.maxReceivePacketSize.coerceAtLeast(DEFAULT_SOCKET_READ_BUFFER_BYTES)
+                    )
                 try {
                     while (true) {
                         val read = link.inputStream.read(readBuffer)
@@ -377,9 +380,7 @@ internal class AndroidBleTransport(
                         decodedFrames.forEach { payload ->
                             val currentPeerId = link.peerHintId
                             if (payload.isEmpty()) {
-                                log(
-                                    "ignoring empty frame from ${currentPeerId.value.takeLast(6)}"
-                                )
+                                log("ignoring empty frame from ${currentPeerId.value.takeLast(6)}")
                                 return@forEach
                             }
                             mutableEvents.emit(
@@ -423,7 +424,9 @@ internal class AndroidBleTransport(
     private fun advertiseData(payload: BleDiscoveryPayload): AdvertiseData {
         return AdvertiseData.Builder()
             .setIncludeDeviceName(false)
-            .addServiceUuid(ParcelUuid.fromString(BleDiscoveryContract.ADVERTISEMENT_SERVICE_UUID))
+            .addServiceUuid(
+                ParcelUuid.fromString(BleDiscoveryContract.ADVERTISEMENT_SERVICE_UUID_EXPANDED)
+            )
             .addServiceUuid(ParcelUuid.fromString(payload.payloadUuidString()))
             .build()
     }
@@ -440,7 +443,7 @@ internal class AndroidBleTransport(
         return listOf(
             ScanFilter.Builder()
                 .setServiceUuid(
-                    ParcelUuid.fromString(BleDiscoveryContract.ADVERTISEMENT_SERVICE_UUID)
+                    ParcelUuid.fromString(BleDiscoveryContract.ADVERTISEMENT_SERVICE_UUID_EXPANDED)
                 )
                 .build()
         )

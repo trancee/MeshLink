@@ -30,7 +30,8 @@ For a mesh networking library transferring 10KB+ payloads, GATT's overhead is un
 MeshLink advertises two service UUIDs in a single advertisement packet with no
 scan response:
 
-- fixed discovery UUID: `4d455348-0000-1000-8000-00805f9b34fb`
+- fixed 32-bit discovery UUID: `4d455348`
+  (Bluetooth-base expanded form `4d455348-0000-1000-8000-00805f9b34fb`)
 - second 128-bit service UUID carrying the raw 16-byte MeshLink discovery payload
 
 The second UUID encodes the payload bytes directly, and byte offset 3 carries the

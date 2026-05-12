@@ -74,7 +74,9 @@ internal constructor(
 
 internal object BleDiscoveryContract {
     private const val HEX_DIGITS = "0123456789abcdef"
-    internal const val ADVERTISEMENT_SERVICE_UUID: String = "4d455348-0000-1000-8000-00805f9b34fb"
+    internal const val ADVERTISEMENT_SERVICE_UUID: String = "4d455348"
+    internal const val ADVERTISEMENT_SERVICE_UUID_EXPANDED: String =
+        "4d455348-0000-1000-8000-00805f9b34fb"
     internal const val GATT_FALLBACK_SERVICE_UUID: String = "4d455348-0001-1000-8000-000000000000"
     internal val GATT_CHARACTERISTIC_UUIDS: List<String> =
         listOf(
@@ -87,6 +89,12 @@ internal object BleDiscoveryContract {
 
     internal fun advertisedServiceUuids(payload: BleDiscoveryPayload): List<String> {
         return listOf(ADVERTISEMENT_SERVICE_UUID, payload.payloadUuidString())
+    }
+
+    internal fun isAdvertisementServiceUuid(uuid: String): Boolean {
+        val normalized = uuid.lowercase()
+        return normalized == ADVERTISEMENT_SERVICE_UUID ||
+            normalized == ADVERTISEMENT_SERVICE_UUID_EXPANDED
     }
 
     internal fun computeMeshHash(appId: String): UShort {

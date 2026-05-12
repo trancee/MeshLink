@@ -212,7 +212,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
         val encodedUuids = serviceUuids.map { uuid -> uuid.UUIDString.lowercase() }
         val payloadUuid =
             encodedUuids.firstOrNull { uuid ->
-                uuid != BleDiscoveryContract.ADVERTISEMENT_SERVICE_UUID
+                !BleDiscoveryContract.isAdvertisementServiceUuid(uuid)
             } ?: return
         val payload =
             runCatching { BleDiscoveryPayload.fromUuidString(payloadUuid) }.getOrNull() ?: return

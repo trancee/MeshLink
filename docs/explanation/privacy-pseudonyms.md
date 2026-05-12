@@ -5,7 +5,8 @@
 MeshLink no longer uses rotating advertisement pseudonyms. Instead, discovery
 uses two advertised service UUIDs in a single packet:
 
-- a fixed discovery UUID: `4d455348-0000-1000-8000-00805f9b34fb`
+- a fixed 32-bit discovery UUID: `4d455348`
+  (Bluetooth-base expanded form `4d455348-0000-1000-8000-00805f9b34fb`)
 - a second 128-bit service UUID whose 16 raw bytes carry the MeshLink
   discovery payload
 

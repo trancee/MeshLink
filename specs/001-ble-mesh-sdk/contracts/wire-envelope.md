@@ -10,10 +10,11 @@ MeshLink runtimes, not the app-facing SDK API.
 
 ### Advertisement UUIDs
 
-MeshLink advertisements always expose two 128-bit service UUIDs in a single
+MeshLink advertisements always expose two service UUIDs in a single
 advertisement packet with no scan response:
 
-- Discovery service UUID: `4d455348-0000-1000-8000-00805f9b34fb`
+- Discovery service UUID: 32-bit `4d455348`
+  (Bluetooth-base expanded form `4d455348-0000-1000-8000-00805f9b34fb`)
 - Discovery payload UUID: 16 raw payload bytes encoded as a second 128-bit
   service UUID
 
