@@ -231,7 +231,7 @@ retransmission semantics.
 - [X] T065 Add token-correlated proof-receipt diagnostics in `meshlink-sample/android/app/src/main/kotlin/ch/trancee/meshlink/proof/android/MainActivity.kt` and `meshlink-sample/ios/ProofApp/ProofViewModel.swift` so sender/passive logs capture token, peer, current state, known peers, and recent peer/diagnostic context at receipt send / receipt timeout boundaries
 - [X] T066 Re-run one minimal recipient-confirmed physical repro (iPhone 15 -> Samsung, 256-byte MeshLink path) with the new token-correlated diagnostics and retain the resulting sender/passive evidence in `benchmarks/README.md` and `specs/001-ble-mesh-sdk/research.md`
 - [X] T067 Investigate and implement one bounded return-path stability remediation for passive-peer proof receipts on the MeshLink path
-- [ ] T068 Re-run the recipient-confirmed Samsung/OPPO matrix after the bounded remediation and retain the resulting evidence in the durable docs
+- [X] T068 Re-run the recipient-confirmed Samsung/OPPO matrix after the bounded remediation and retain the resulting evidence in the durable docs
 
 ---
 

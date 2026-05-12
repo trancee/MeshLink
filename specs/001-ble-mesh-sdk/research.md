@@ -427,3 +427,43 @@ Interpretation:
 - This narrows the next remediation target: the open issue is more consistent
   with reverse-direction session / route collapse after payload receipt than
   with benchmark-token parsing, receipt formatting, or sender-side timeout logic.
+
+### Bounded passive-receipt retry follow-up matrix
+
+A proof-app-only bounded remediation was then added on the passive Android path:
+
+- passive benchmark mode now uses a shorter `deliveryRetryDeadline`
+- proof receipts retry within an 18-second proof window instead of burning the
+  entire sender receipt window on one long `UNREACHABLE` attempt
+
+Fresh post-remediation matrix evidence:
+
+- iPhone 15 -> Samsung, 256 B:
+  `BENCHMARK transport bytes=256 elapsedMs=21350 throughputKBps=0.01 result=ReceiptTimeout`
+- iPhone 15 -> Samsung, 64 KiB:
+  `BENCHMARK transport bytes=65536 elapsedMs=15048 throughputKBps=4.25 result=NotSent(reason=UNREACHABLE)`
+- iPhone 15 -> OPPO, 256 B:
+  `BENCHMARK transport bytes=256 elapsedMs=15017 throughputKBps=0.02 result=NotSent(reason=UNREACHABLE)`
+- iPhone 15 -> OPPO, 64 KiB:
+  `BENCHMARK transport bytes=65536 elapsedMs=15016 throughputKBps=4.26 result=NotSent(reason=UNREACHABLE)`
+
+The most informative cell remained Samsung 256 B. Its passive Android proof log
+retained:
+
+- repeated `BENCHMARK correlation role=passive.receipt.wait token=000067ba0db1394c ... knownPeers=[]`
+- `BENCHMARK receipt abandoned token=000067ba0db1394c peer=e4383b deadlineMs=18000`
+- `BENCHMARK correlation role=passive.receipt.expired token=000067ba0db1394c ... knownPeers=[]`
+
+Interpretation:
+
+- The passive retry helper changed the failure mode from one long blocked send
+  attempt to an explicit `peerUnavailable` / `receipt abandoned` sequence.
+- That means the helper improved diagnosis, but it did not restore recipient-
+  confirmed completion.
+- The passive peer never re-established a known-peer view of the iPhone within
+  the proof retry window (`knownPeers=[]` throughout the wait sequence), which
+  makes the remaining problem look more like peer reappearance / reverse-path
+  availability than receipt formatting or single-attempt retry policy.
+- Three post-remediation matrix cells failed even earlier on the sender side as
+  `NotSent(reason=UNREACHABLE)`, so the overall blocker remains broader than
+  one passive receipt loop.
