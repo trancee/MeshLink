@@ -84,8 +84,11 @@ Physical proof findings on iPhone 15:
 - cold start reached `mesh.start()` in `18 ms`
 - LOW-power diagnostics reported `scanDutyCyclePercent=5`
 - the 256-byte latency benchmark completed in `28 ms`
-- 64 KiB delivery now succeeds end to end, but the latest final-state throughput
-  run is still only `16.79 KB/s` (best successful run so far: `18.80 KB/s`)
+- fresh queued-writer follow-ups still keep 64 KiB delivery in the ~20 KB/s class:
+  a clean OPPO rerun reached `20.05 KB/s`, a telemetry-enabled Samsung rerun reached
+  `19.62 KB/s` with full `65536`-byte receipt, and a separate passive Samsung rerun
+  failed `NotSent(reason=UNREACHABLE)` after repeated
+  `transport.handshake.message1.send` failures
 
 Shared harness evidence now also covers the common US2 runtime:
 
@@ -98,7 +101,8 @@ Shared harness evidence now also covers the common US2 runtime:
 Current blocker:
 
 - large-payload iPhone throughput remains below the `>= 60 KB/s` target even
-  though delivery, pairing-free interop, cold start, power, and latency now work
+  though delivery, pairing-free interop, cold start, power, and latency now work,
+  and the Samsung reference path still shows variable stability across fresh reruns
 
 ## Current physical proof flow
 

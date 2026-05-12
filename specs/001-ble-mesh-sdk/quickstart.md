@@ -101,11 +101,14 @@ Proof-app note:
   delivered the same payload again without re-enrollment.
 - Use isolated transient `appId` values for physical validation work whenever
   nearby devices might also be advertising on the default proof mesh.
-- The latest clean post-T047 iPhone 15 64 KiB rerun reached `19.94 KB/s` to the
-  Samsung reference peer, still well below the `>= 60 KB/s` release target.
-- Telemetry-enabled follow-up reruns to both Samsung and OPPO still disconnected
-  before the iPhone emitted a terminal benchmark line, so the remaining blocker
-  is 64 KiB iPhone throughput and transfer stability, not launch or pairing.
+- The latest clean queued-writer iPhone 15 64 KiB rerun reached `20.05 KB/s` to the
+  OPPO reference peer, still well below the `>= 60 KB/s` release target.
+- A fresh telemetry-enabled queued-writer rerun to the Samsung reference peer also
+  completed and delivered the full `65536`-byte payload, but only at `19.62 KB/s`.
+- A separate fresh passive Samsung rerun on the same build failed
+  `NotSent(reason=UNREACHABLE)` after repeated `transport.handshake.message1.send`
+  failures, so the remaining blocker is still 64 KiB iPhone throughput and Samsung-
+  path stability, not launch or pairing.
 
 ## 7. Validate restart and trust behavior
 

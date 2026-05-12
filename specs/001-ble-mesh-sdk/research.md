@@ -276,22 +276,21 @@ when iOS loses the tie-break restored reliable 64 KiB delivery.
 
 ### Current iPhone 15 benchmark finding
 
-The iPhone 15 can still start and, on the best clean rerun, finish a 64 KiB direct
-transfer, but it remains far below the release target:
+The iPhone 15 still completes direct 64 KiB transfers, but the queued-writer follow-up
+kept the link in roughly the same throughput class and did not remove the release
+blocker:
 
-- clean post-T047 Samsung rerun: `BENCHMARK transport bytes=65536 elapsedMs=3210 throughputKBps=19.94 result=Sent`
-- latest clean OPPO comparison baseline: `16.79 KB/s`
+- best retained clean Samsung run: `BENCHMARK transport bytes=65536 elapsedMs=3210 throughputKBps=19.94 result=Sent`
+- fresh clean OPPO rerun on the queued-writer build: `BENCHMARK transport bytes=65536 elapsedMs=3192 throughputKBps=20.05 result=Sent`
+- fresh telemetry-enabled Samsung rerun on the queued-writer build: `BENCHMARK transport bytes=65536 elapsedMs=3262 throughputKBps=19.62 result=Sent`
+- fresh passive Samsung rerun on the queued-writer build: `BENCHMARK transport bytes=65536 elapsedMs=15012 throughputKBps=4.26 result=NotSent(reason=UNREACHABLE)`
 - target: `>= 60 KB/s`
 
-Telemetry-enabled diagnostic reruns against both reference Android peers still exposed
-an unstable large-transfer path:
+The fresh queued-writer reruns therefore show two things at once:
 
-- OPPO telemetry rerun: no terminal `BENCHMARK transport` line; the last captured
-  iPhone telemetry reached `write.frame seq=185` and `read.frame seq=5` before
-  `Peer lost`
-- Samsung telemetry rerun: no terminal `BENCHMARK transport` line; the last captured
-  iPhone telemetry reached `write.frame seq=190` and `read.frame seq=5`, while the
-  Samsung proof app logged peer connect/disconnect with no `MSG ... bytes=65536`
+- throughput is still far below target even when the transfer completes cleanly
+- Samsung-path stability remains variable, because one fresh passive rerun still failed
+  after peer discovery with repeated `HOP_SESSION_FAILED stage=transport.handshake.message1.send`
 
 Cold start, LOW-power scan duty, and the 256-byte latency path all currently meet
 their targets on the iPhone 15. The only remaining physical benchmark blocker is
@@ -301,9 +300,22 @@ large-payload throughput and stability.
 
 A follow-up experiment increased the direct-transfer chunk budget on the iPhone path
 after the initiator fix. That made the latest OPPO run worse rather than better
-(`14.07 KB/s`) and was reverted. The later T047 stream-drain and write-batching
-remediation improved the best clean Samsung rerun only slightly and did not prevent
-telemetry-enabled reruns from stalling before a terminal benchmark line. The useful
-learning is still that the remaining bottleneck appears to live in iOS /
-CoreBluetooth L2CAP large-transfer behavior or backpressure, not in pairing, route
-establishment, or the 392-byte chunk size itself.
+(`14.07 KB/s`) and was reverted. The later queued-writer / hot-path-log remediation
+(`c45b7dc`) changed the shape of the transfer but not the throughput class: the clean
+OPPO rerun reached `20.05 KB/s` and the telemetry-enabled Samsung rerun reached only
+`19.62 KB/s`.
+
+The telemetry itself is still useful. On the fresh Samsung diagnostic rerun, the
+writer emitted coalesced batches up to `coalescedFrames=16` / `coalescedBytes=8144`,
+with `writeBatches=2`, `writeCalls=3..4`, `backpressureSpins=94..246`,
+`readyFalseCount=94..246`, and `maxInterWriteGapMs=61..146`, while ACK-side reads
+arrived in small `141..423` byte batches (`1..3` frames per read batch). That points
+more strongly to CoreBluetooth L2CAP stream availability / OS scheduling than to pure
+application queue starvation.
+
+The useful learning is therefore no longer just that iOS backpressure matters; it is
+that the app-side queue can stay fed and still land in the same ~20 KB/s class, while
+a separate Samsung rerun can fail before the bulk transfer phase begins. The remaining
+bottleneck still appears to live in iOS / CoreBluetooth L2CAP large-transfer behavior
+or backpressure, not in pairing, route establishment, or the 392-byte chunk size
+itself.

@@ -55,14 +55,15 @@ The steady-state memory test currently enforces the retained-heap budget but doe
 | iOS LOW-power scan duty, iPhone 15 | 5% | Meets the normative LOW-mode duty target | Physical diagnostic log. |
 | iOS 256 B latency, iPhone 15 -> Samsung | 28 ms | Meets the normative latency target | Physical proof log. |
 | iOS 64 KiB throughput, best clean run, iPhone 15 -> Samsung | 19.94 KB/s | `SC-004` remains partially unmet on iOS | Physical proof log: `BENCHMARK transport bytes=65536 elapsedMs=3210 throughputKBps=19.94 result=Sent`. |
-| iOS 64 KiB throughput, latest clean OPPO comparison baseline | 16.79 KB/s | `SC-004` remains partially unmet on iOS | Last clean OPPO comparison point before the T047 follow-up diagnostics. |
-| iOS 64 KiB telemetry diagnostic run, iPhone 15 -> OPPO | no terminal benchmark line | `SC-004` remains partially unmet on iOS; telemetry rerun disconnected before completion | Post-T047 telemetry-enabled run reached iPhone `write.frame seq=185` / `read.frame seq=5` before `Peer lost`. |
-| iOS 64 KiB telemetry diagnostic run, iPhone 15 -> Samsung | no terminal benchmark line | `SC-004` remains partially unmet on iOS; telemetry rerun disconnected before completion | Post-T047 telemetry-enabled run reached iPhone `write.frame seq=190` / `read.frame seq=5`; Samsung saw peer connect/disconnect but no `MSG ... bytes=65536`. |
+| iOS 64 KiB throughput, latest clean OPPO rerun on queued-writer build | 20.05 KB/s | `SC-004` remains partially unmet on iOS | Fresh physical proof log: `BENCHMARK transport bytes=65536 elapsedMs=3192 throughputKBps=20.05 result=Sent`; OPPO receiver logged `MSG from ... bytes=65536`. |
+| iOS 64 KiB passive Samsung rerun on queued-writer build | `NotSent(UNREACHABLE)` after 15012 ms | `SC-004` remains partially unmet on iOS; Samsung-path stability remains variable | Fresh physical proof log: `BENCHMARK transport bytes=65536 elapsedMs=15012 throughputKBps=4.26 result=NotSent(reason=UNREACHABLE)` after repeated `HOP_SESSION_FAILED stage=transport.handshake.message1.send`. |
+| iOS 64 KiB telemetry diagnostic run, iPhone 15 -> OPPO | no terminal benchmark line | Historical retained evidence only; pre-queued-writer telemetry rerun disconnected before completion | Post-T047 telemetry-enabled run reached iPhone `write.frame seq=185` / `read.frame seq=5` before `Peer lost`. |
+| iOS 64 KiB telemetry diagnostic run, iPhone 15 -> Samsung on queued-writer build | 19.62 KB/s | `SC-004` remains partially unmet on iOS | Fresh telemetry proof log: `BENCHMARK transport bytes=65536 elapsedMs=3262 throughputKBps=19.62 result=Sent`; Samsung receiver logged `MSG from ... bytes=65536`. Telemetry batches reached `coalescedFrames=16`, `coalescedBytes=8144`, `backpressureSpins=94..246`, `readyFalseCount=94..246`, and `maxInterWriteGapMs=61..146`. |
 | Direct-link pairing requirement, OPPO + iPhone final state | no pairing dialog observed | Supporting evidence only; not a standalone success criterion | Latest OPPO logcat did not show `PAIRING_REQUEST` or `BluetoothPairingDialog`. |
 
 ## Current release-decision posture
 
-`SC-004` remains partially unmet on iOS. The best clean retained reference-hardware run on iPhone 15 -> Samsung reached `19.94 KB/s`, below the required `>= 60 KB/s`, and telemetry-enabled reruns to both Samsung and OPPO disconnected before a terminal benchmark line was emitted. Unless an explicit waiver narrows the public iOS large-transfer claim, this keeps release blocked on the iOS throughput portion of `SC-004`.
+`SC-004` remains partially unmet on iOS. The best clean retained reference-hardware run on iPhone 15 -> Samsung is still only `19.94 KB/s`, the latest clean queued-writer OPPO rerun reached `20.05 KB/s`, and the latest telemetry-enabled Samsung rerun reached `19.62 KB/s`; all remain far below the required `>= 60 KB/s`. A separate fresh passive Samsung rerun on the same queued-writer build failed `NotSent(UNREACHABLE)` after repeated `transport.handshake.message1.send` failures, so the release blocker remains both iPhone large-transfer throughput and Samsung-path stability. Unless an explicit waiver narrows the public iOS large-transfer claim, this keeps release blocked on the iOS throughput portion of `SC-004`.
 
 ## Current learnings
 
@@ -70,8 +71,9 @@ The steady-state memory test currently enforces the retained-heap budget but doe
 - Android API 36 behaved best when explicit insecure LE socket settings were preferred first and legacy insecure LE CoC APIs were kept as fallback for older releases.
 - iOS must honor the deterministic initiator tie-break. When iOS loses the key-hash ordering decision, it should wait for the inbound L2CAP channel instead of forcing a competing outbound reconnect.
 - Disabling the iOS large-inline send path improved large-payload reliability, but it did not solve throughput.
-- The bounded T047 stream-drain and write-batching remediation improved the best clean Samsung rerun only slightly, to `19.94 KB/s`, which still misses the `>= 60 KB/s` target by roughly 3×.
-- Telemetry-enabled post-T047 reruns on both OPPO and Samsung still failed to emit a terminal benchmark line; both peers disconnected mid-transfer before the iPhone produced a final throughput result.
+- The queued-writer follow-up (`c45b7dc`) did not materially change the iPhone 15 throughput class: the latest clean OPPO rerun reached `20.05 KB/s` and the latest telemetry-enabled Samsung rerun reached `19.62 KB/s`, still roughly 3× below the `>= 60 KB/s` target.
+- The fresh telemetry-enabled Samsung rerun no longer stalls before a terminal benchmark line, which suggests the queued writer keeps the app-side pipeline fed. However, the recorded `coalescedFrames=16`, `coalescedBytes=8144`, `backpressureSpins=94..246`, `readyFalseCount=94..246`, and `maxInterWriteGapMs=61..146` still point to CoreBluetooth stream availability / OS scheduling as the dominant bottleneck.
+- A separate fresh passive Samsung rerun still failed `NotSent(UNREACHABLE)` after repeated `transport.handshake.message1.send` failures, so large-transfer stability remains variable on the Samsung reference path.
 - The remaining physical performance blocker is iPhone 15 large-transfer throughput and stability, not discovery, trust pinning, or pairing.
 
 ## Refresh commands

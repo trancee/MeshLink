@@ -195,6 +195,16 @@ retransmission semantics.
 
 ---
 
+## Phase 10: Follow-up - Queued-Writer Physical Evidence Refresh
+
+**Purpose**: Retain fresh post-queued-writer iPhone 15 physical evidence and telemetry findings without reopening the earlier throughput-remediation history.
+
+- [X] T057 [P] Run fresh isolated iPhone 15 64 KiB proof reruns against the Samsung and OPPO reference peers and capture the resulting success/failure evidence
+- [X] T058 [P] Run a telemetry-enabled iPhone 15 -> Samsung diagnostic rerun and retain queued-writer/backpressure observations from the proof log
+- [X] T059 Update `benchmarks/README.md`, `specs/001-ble-mesh-sdk/research.md`, `specs/001-ble-mesh-sdk/quickstart.md`, and `meshlink-sample/ios/README.md` with the fresh queued-writer physical evidence and current blocker framing
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies
