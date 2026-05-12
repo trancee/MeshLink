@@ -3,6 +3,7 @@ package ch.trancee.meshlink.api
 import ch.trancee.meshlink.config.meshLinkConfig
 import ch.trancee.meshlink.diagnostics.DiagnosticCode
 import ch.trancee.meshlink.engine.MeshEngine
+import ch.trancee.meshlink.platform.AndroidFactoryTestContext
 import ch.trancee.meshlink.test.MeshTestHarness
 import ch.trancee.meshlink.test.RecordingDiagnosticSink
 import ch.trancee.meshlink.transport.BleTransport
@@ -90,7 +91,8 @@ class MeshLinkApiContractTest {
         // Arrange
         installIosFactoryTestBridge()
         val config = meshLinkConfig { appId = "demo.meshlink.${kotlin.random.Random.nextInt()}" }
-        val androidApi = MeshLink.createAndroid(context = Any(), config = config)
+        val androidApi =
+            MeshLink.createAndroid(context = AndroidFactoryTestContext, config = config)
         val iosApi = MeshLink.createIos(config = config)
 
         // Act

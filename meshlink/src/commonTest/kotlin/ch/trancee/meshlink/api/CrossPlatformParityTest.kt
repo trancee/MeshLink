@@ -5,6 +5,7 @@ import ch.trancee.meshlink.config.meshLinkConfig
 import ch.trancee.meshlink.diagnostics.DiagnosticCatalog
 import ch.trancee.meshlink.diagnostics.DiagnosticCode
 import ch.trancee.meshlink.diagnostics.DiagnosticSeverity
+import ch.trancee.meshlink.platform.AndroidFactoryTestContext
 import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -24,7 +25,8 @@ class CrossPlatformParityTest {
                 appId = "parity.meshlink.${Random.nextInt()}"
                 powerMode = PowerMode.Automatic
             }
-            val androidApi = MeshLink.createAndroid(context = Any(), config = config)
+            val androidApi =
+                MeshLink.createAndroid(context = AndroidFactoryTestContext, config = config)
             val iosApi = MeshLink.createIos(config = config)
             val androidDiagnosticsDeferred =
                 async(start = CoroutineStart.UNDISPATCHED) {

@@ -12,6 +12,10 @@ import ch.trancee.meshlink.storage.InMemorySecureStorage
 import kotlinx.coroutines.runBlocking
 
 internal actual fun createAndroidMeshLink(config: MeshLinkConfig, context: Any): MeshLinkApi {
+    if (context === AndroidFactoryTestContext) {
+        return createAndroidMeshLinkForFactoryTests(config = config, context = context)
+    }
+
     val androidContext = context as? Context ?: error("Android context is required")
     val secureStorage = AndroidSecureStorage(androidContext, config.appId)
     val cryptoProvider = AndroidCryptoProviderFactory.create()
@@ -33,6 +37,27 @@ internal actual fun createAndroidMeshLink(config: MeshLinkConfig, context: Any):
                 appId = config.appId,
                 advertisementKeyHash = localIdentity.advertisementKeyHash,
             ),
+    )
+}
+
+private fun createAndroidMeshLinkForFactoryTests(
+    config: MeshLinkConfig,
+    context: Any,
+): MeshLinkApi {
+    val secureStorage = InMemorySecureStorage()
+    val cryptoProvider = AndroidCryptoProviderFactory.create()
+    val localIdentity = runBlocking {
+        LocalIdentityStore.loadOrCreate(
+            appId = config.appId,
+            secureStorage = secureStorage,
+            provider = cryptoProvider,
+        )
+    }
+    return MeshEngine.create(
+        config = config,
+        platformContext = context,
+        localIdentity = localIdentity,
+        secureStorage = secureStorage,
     )
 }
 
