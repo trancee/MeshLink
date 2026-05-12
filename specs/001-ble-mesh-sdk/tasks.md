@@ -180,7 +180,7 @@ retransmission semantics.
 
 - [X] T050 [P] Clarify source-of-truth precedence, rerun preservation, and append-only task-ledger rules in `specs/001-ble-mesh-sdk/plan.md` and `specs/001-ble-mesh-sdk/tasks.md`
 - [X] T051 [P] Separate benchmark baselines from normative acceptance thresholds and align the iOS throughput risk wording in `specs/001-ble-mesh-sdk/spec.md`, `specs/001-ble-mesh-sdk/plan.md`, and `benchmarks/README.md`
-- [ ] T052 [P] Clarify proof-integration role, environmental blocker handling, and reviewer evidence expectations in `specs/001-ble-mesh-sdk/spec.md`, `specs/001-ble-mesh-sdk/quickstart.md`, and `specs/001-ble-mesh-sdk/research.md`
+- [X] T052 [P] Clarify proof-integration role, environmental blocker handling, and reviewer evidence expectations in `specs/001-ble-mesh-sdk/spec.md`, `specs/001-ble-mesh-sdk/quickstart.md`, and `specs/001-ble-mesh-sdk/research.md`
 - [ ] T053 Re-run and resolve the cross-artifact checklist against `specs/001-ble-mesh-sdk/spec.md`, `specs/001-ble-mesh-sdk/plan.md`, `specs/001-ble-mesh-sdk/tasks.md`, and `specs/001-ble-mesh-sdk/checklists/artifacts.md`
 
 ---

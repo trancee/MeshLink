@@ -339,6 +339,33 @@ Residual risk if the waiver path is chosen:
   discovery, routing behavior, and the measured 256-byte latency path, but not
   for full conformance with the iOS throughput clause of **SC-004**.
 
+### Proof-integration role, blocker handling, and reviewer evidence
+
+The runnable proof integrations are required artifacts for four distinct jobs:
+
+1. **Reference implementation** for host-app teams wiring the SDK into Android
+   and iOS projects.
+2. **Quickstart aid** for `SC-001` first-message validation.
+3. **Benchmark harness** for latency, throughput, power, and cold-start checks.
+4. **Physical-validation vehicle** for retaining reference-hardware evidence in
+   the repository.
+
+They are not normative end-user product UI requirements. Product conformance is
+still defined by this specification, not by the exact proof-app presentation.
+
+Environmental blockers MUST be handled explicitly instead of being folded into a
+pass/fail claim for the product requirement. Examples include local development-
+team signing, trusted-device-profile setup, missing BLE permissions, reference-
+hardware unavailability, and nearby-device interference on shared proof `appId`
+values. When such a blocker prevents a clean run, reviewers and implementers
+MUST retain the attempted command/log evidence, label the run as blocked or
+unverified, and avoid weakening the underlying success criterion.
+
+Reviewer-facing completion claims for quickstart or benchmark validation MUST be
+backed by retained raw evidence from the proof integrations, such as sender
+`SendResult` lines, recipient `MSG ... bytes=` lines, benchmark `BENCHMARK ...`
+lines, or explicit blocker logs when the run could not complete.
+
 ## Assumptions
 
 - The host application owns user-facing identity presentation, trust reset or

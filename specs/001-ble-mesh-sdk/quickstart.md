@@ -48,6 +48,9 @@ val config = meshLinkConfig {
   spec. Local iPhone builds still require a development team selection in Xcode
   or a `DEVELOPMENT_TEAM=<your-team-id>` CLI override.
 - Both factories return the same `MeshLinkApi` surface.
+- If local signing, device trust, or reference-hardware availability blocks this
+  step, treat that as an environmental blocker for the validation run and record
+  the failed command plus device state instead of claiming quickstart success.
 
 ## 4. Start the SDK and observe peers and diagnostics
 
@@ -85,6 +88,8 @@ Expected outcome:
 - no backend or account interaction
 
 Proof-app note:
+- Treat the runnable proof integrations as reference implementations, quickstart
+  aids, benchmark harnesses, and physical-validation vehicles.
 - Android proof validation has already completed on attached hardware.
 - The iOS proof app now builds, installs, and launches on the attached iPhone 15
   when a local development team is supplied at build time.
@@ -94,6 +99,8 @@ Proof-app note:
   Android 16: peer discovery succeeded, the first `hello mesh from iPhone`
   payload reached Android, and restarting the iPhone app on the same `appId`
   delivered the same payload again without re-enrollment.
+- Use isolated transient `appId` values for physical validation work whenever
+  nearby devices might also be advertising on the default proof mesh.
 - The latest clean post-T047 iPhone 15 64 KiB rerun reached `19.94 KB/s` to the
   Samsung reference peer, still well below the `>= 60 KB/s` release target.
 - Telemetry-enabled follow-up reruns to both Samsung and OPPO still disconnected
@@ -128,6 +135,21 @@ Recommended local gates once the implementation exists:
 ./gradlew :meshlink:apiCheck
 ./gradlew :benchmarks:jvmBenchmark
 ```
+
+## Reviewer evidence expectations
+
+For a reviewer to claim this quickstart passed, retain evidence for the exact
+run that was performed:
+
+- device pair and proof `appId`
+- sender success evidence such as `SendResult.Sent` or proof-app `mesh.send(...)`
+  / `BENCHMARK ...` lines
+- recipient evidence such as `MSG from ... bytes=`
+- any blocker evidence if the run could not complete (for example signing,
+  permission, device-availability, or nearby-mesh interference logs)
+
+If a run is blocked by the environment, record that blocker explicitly and stop
+short of claiming `SC-001` or any related benchmark criterion passed.
 
 ## Expected first proof point
 

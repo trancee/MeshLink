@@ -225,6 +225,26 @@ The benchmark module README now carries the consolidated baseline table for JVM,
 Android, and iPhone proof measurements. This section captures the architectural
 learnings behind those numbers.
 
+### Proof-integration role and blocker handling
+
+The runnable proof apps now serve four project-local purposes at once:
+reference implementation, quickstart aid, benchmark harness, and physical-
+validation vehicle. That combination is useful, but it also means reviewers
+must distinguish product failures from environment failures when a run does not
+complete cleanly.
+
+The working rule for this repository is:
+
+- keep the product requirement unchanged
+- keep the raw run evidence
+- label the outcome as passed, failed, or blocked explicitly
+
+Examples of environmental blockers seen during this feature include local iOS
+signing/team setup, trusted-device-profile state, physical-device availability,
+and nearby-device interference when using the default proof `appId`. Those
+conditions should be recorded as blocker evidence, not smoothed into a passing
+claim and not treated as justification to weaken the underlying requirement.
+
 ### Pairing was not the throughput blocker
 
 The direct-link pairing prompt turned out to be a transport-configuration problem, not
