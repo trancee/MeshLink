@@ -3,6 +3,7 @@
 package ch.trancee.meshlink.platform.ios
 
 import ch.trancee.meshlink.api.PeerId
+import ch.trancee.meshlink.engine.DirectWireFrame
 import ch.trancee.meshlink.identity.toHexString
 import ch.trancee.meshlink.power.PowerPolicy
 import ch.trancee.meshlink.transport.BleDiscoveryContract
@@ -16,6 +17,7 @@ import kotlinx.cinterop.ObjCSignatureOverride
 import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.convert
 import kotlinx.cinterop.reinterpret
+import kotlinx.cinterop.toKString
 import kotlinx.cinterop.usePinned
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -41,7 +43,9 @@ import platform.CoreBluetooth.CBPeripheralManagerDelegateProtocol
 import platform.CoreBluetooth.CBUUID
 import platform.Foundation.NSError
 import platform.Foundation.NSNumber
+import platform.Foundation.NSProcessInfo
 import platform.darwin.NSObject
+import platform.posix.getenv
 
 internal class IosBleTransport(private val appId: String, advertisementKeyHash: ByteArray) :
     BleTransport {
@@ -50,6 +54,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
     private val sendMutex = Mutex()
     private val localKeyHash: ByteArray = advertisementKeyHash.copyOf()
     private val localKeyHashHex: String = localKeyHash.toHexString()
+    private val telemetryEnabled: Boolean = readEnvironmentFlag(TRANSPORT_TELEMETRY_ENV)
     private val discoveredPeers: MutableMap<String, DiscoveredPeer> = linkedMapOf()
     private val peerHintByIdentifier: MutableMap<String, String> = linkedMapOf()
     private val activeLinksByHint: MutableMap<String, IosL2capLink> = linkedMapOf()
@@ -338,6 +343,8 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
                 peripheralIdentifier = peripheralIdentifier,
                 channel = channel,
                 incomingFrames = IosL2capFrameBuffer(),
+                telemetryEnabled = telemetryEnabled,
+                telemetryLogger = ::log,
             )
         activeLinksByHint[hintPeerId.value] = link
         temporaryHintByIdentifier[peripheralIdentifier] = hintPeerId.value
@@ -484,9 +491,14 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
         val peripheralIdentifier: String,
         channel: CBL2CAPChannel,
         private val incomingFrames: IosL2capFrameBuffer,
+        private val telemetryEnabled: Boolean,
+        private val telemetryLogger: (String) -> Unit,
     ) {
         private val inputStream = checkNotNull(channel.inputStream).apply { open() }
         private val outputStream = checkNotNull(channel.outputStream).apply { open() }
+        private var readSequence: Long = 0L
+        private var writeSequence: Long = 0L
+        private var lastReadFrameAtMs: Long? = null
         var readLoopJob: Job? = null
 
         suspend fun readFrames(): List<ByteArray> {
@@ -500,24 +512,99 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
             if (bytesRead <= 0) {
                 return emptyList()
             }
-            return incomingFrames.append(buffer.copyOf(bytesRead.toInt()))
+            val decodedFrames = incomingFrames.append(buffer.copyOf(bytesRead.toInt()))
+            if (telemetryEnabled && decodedFrames.isNotEmpty()) {
+                decodedFrames.forEachIndexed { frameIndex, payload ->
+                    val classification = classifyFrame(payload)
+                    val nowMs = monotonicNowMillis()
+                    val interarrivalMs =
+                        lastReadFrameAtMs?.let { previousAtMs -> nowMs - previousAtMs } ?: -1L
+                    lastReadFrameAtMs = nowMs
+                    emitTelemetry(
+                        event = "read.frame",
+                        fields =
+                            mapOf(
+                                "seq" to (++readSequence).toString(),
+                                "peer" to hintPeerId.value.takeLast(6),
+                                "batchBytes" to bytesRead.toString(),
+                                "batchFrames" to decodedFrames.size.toString(),
+                                "frameIndex" to (frameIndex + 1).toString(),
+                                "streamReady" to inputStream.hasBytesAvailable().toString(),
+                                "directType" to classification.directType,
+                                "dataClass" to classification.dataClass,
+                                "frameBytes" to payload.size.toString(),
+                                "innerBytes" to classification.innerBytes.toString(),
+                                "interarrivalMs" to interarrivalMs.toString(),
+                            ),
+                    )
+                }
+            }
+            return decodedFrames
         }
 
         suspend fun write(payload: ByteArray): Unit {
+            val classification = classifyFrame(payload)
             val encoded = incomingFrames.encode(payload)
+            val startedAtMs = monotonicNowMillis()
+            val sequence = ++writeSequence
             var offset = 0
+            var writeCalls = 0
+            var backpressureSpins = 0
+            var readyFalseCount = 0
+            var maxWriteChunkBytes = 0
+            var minWriteChunkBytes = Int.MAX_VALUE
+            var previousPositiveWriteAtMs: Long? = null
+            var maxInterWriteGapMs = 0L
             while (offset < encoded.size) {
+                val readyBeforeWrite = outputStream.hasSpaceAvailable()
+                if (!readyBeforeWrite) {
+                    readyFalseCount += 1
+                }
+                val attemptAtMs = monotonicNowMillis()
                 val written = encoded.usePinned { pinned ->
                     outputStream.write(
                         pinned.addressOf(offset).reinterpret(),
                         (encoded.size - offset).convert(),
                     )
                 }
+                writeCalls += 1
                 if (written <= 0) {
+                    backpressureSpins += 1
                     delay(STREAM_POLL_INTERVAL_MS)
                     continue
                 }
-                offset += written.toInt()
+                val writtenBytes = written.toInt()
+                maxWriteChunkBytes = maxOf(maxWriteChunkBytes, writtenBytes)
+                minWriteChunkBytes = minOf(minWriteChunkBytes, writtenBytes)
+                previousPositiveWriteAtMs?.let { previousAtMs ->
+                    maxInterWriteGapMs = maxOf(maxInterWriteGapMs, attemptAtMs - previousAtMs)
+                }
+                previousPositiveWriteAtMs = attemptAtMs
+                offset += writtenBytes
+            }
+            if (telemetryEnabled) {
+                emitTelemetry(
+                    event = "write.frame",
+                    fields =
+                        mapOf(
+                            "seq" to sequence.toString(),
+                            "peer" to hintPeerId.value.takeLast(6),
+                            "directType" to classification.directType,
+                            "dataClass" to classification.dataClass,
+                            "frameBytes" to payload.size.toString(),
+                            "innerBytes" to classification.innerBytes.toString(),
+                            "encodedBytes" to encoded.size.toString(),
+                            "writeCalls" to writeCalls.toString(),
+                            "backpressureSpins" to backpressureSpins.toString(),
+                            "readyFalseCount" to readyFalseCount.toString(),
+                            "minWriteChunkBytes" to
+                                (if (minWriteChunkBytes == Int.MAX_VALUE) 0 else minWriteChunkBytes)
+                                    .toString(),
+                            "maxWriteChunkBytes" to maxWriteChunkBytes.toString(),
+                            "maxInterWriteGapMs" to maxInterWriteGapMs.toString(),
+                            "totalElapsedMs" to (monotonicNowMillis() - startedAtMs).toString(),
+                        ),
+                )
             }
         }
 
@@ -526,14 +613,80 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
             outputStream.close()
         }
 
+        private fun emitTelemetry(event: String, fields: Map<String, String>): Unit {
+            val body =
+                fields.entries.joinToString(separator = " ") { entry ->
+                    "${entry.key}=${entry.value}"
+                }
+            telemetryLogger("MeshLinkTransportTelemetry event=$event $body")
+        }
+
+        private fun classifyFrame(payload: ByteArray): FrameTelemetry {
+            return runCatching { DirectWireFrame.decode(payload) }
+                .getOrNull()
+                ?.let { frame ->
+                    when (frame) {
+                        is DirectWireFrame.HandshakeMessage1 ->
+                            FrameTelemetry(
+                                directType = "HANDSHAKE_MESSAGE_1",
+                                dataClass = "handshake",
+                                innerBytes = frame.payload.size,
+                            )
+                        is DirectWireFrame.HandshakeMessage2 ->
+                            FrameTelemetry(
+                                directType = "HANDSHAKE_MESSAGE_2",
+                                dataClass = "handshake",
+                                innerBytes = frame.payload.size,
+                            )
+                        is DirectWireFrame.HandshakeMessage3 ->
+                            FrameTelemetry(
+                                directType = "HANDSHAKE_MESSAGE_3",
+                                dataClass = "handshake",
+                                innerBytes = frame.payload.size,
+                            )
+                        is DirectWireFrame.Data ->
+                            FrameTelemetry(
+                                directType = "DATA",
+                                dataClass =
+                                    if (frame.payload.size <= ACK_LIKELY_ENCRYPTED_BYTES) {
+                                        "ackLikely"
+                                    } else {
+                                        "bulkLikely"
+                                    },
+                                innerBytes = frame.payload.size,
+                            )
+                    }
+                } ?: FrameTelemetry(directType = "UNKNOWN", dataClass = "unknown", innerBytes = payload.size)
+        }
+
+        private data class FrameTelemetry(
+            val directType: String,
+            val dataClass: String,
+            val innerBytes: Int,
+        )
+
         private companion object {
             private const val STREAM_BUFFER_BYTES: Int = 16 * 1024
+            private const val ACK_LIKELY_ENCRYPTED_BYTES: Int = 192
         }
     }
 
     private companion object {
         private const val STREAM_POLL_INTERVAL_MS: Long = 5
         private const val TEMPORARY_PEER_PREFIX: String = "cb-"
+        private const val TRANSPORT_TELEMETRY_ENV: String = "MESHLINK_TRANSPORT_TELEMETRY"
+
+        private fun monotonicNowMillis(): Long {
+            return (NSProcessInfo.processInfo.systemUptime * 1000.0).toLong()
+        }
+
+        private fun readEnvironmentFlag(name: String): Boolean {
+            return getenv(name)
+                ?.toKString()
+                ?.lowercase()
+                ?.let { value -> value == "1" || value == "true" || value == "yes" }
+                ?: false
+        }
     }
 }
 

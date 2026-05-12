@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 import MeshLink
 import SwiftUI
@@ -16,6 +17,9 @@ final class ProofViewModel: ObservableObject {
     private let logFileUrl: URL
     private let launchConfig: ProofLaunchConfig
     private var autoSendPeers: Set<String> = []
+    private var capturedStdoutBuffer: String = ""
+    private var stdoutPipe: Pipe?
+    private var stdoutOriginalDescriptor: Int32 = -1
     private lazy var stateCollector: FlowCollector = FlowCollector { [weak self] value in
         self?.stateText = String(describing: value ?? "Unknown")
     }
@@ -42,6 +46,7 @@ final class ProofViewModel: ObservableObject {
             builder.powerMode = resolvedLaunchConfig.powerMode
         }
         api = MeshLink.shared.createIos(config: config)
+        startTransportLogCaptureIfNeeded()
 
         bindFlows()
         appendLog(
@@ -289,6 +294,50 @@ final class ProofViewModel: ObservableObject {
         return String(format: "%.2f", locale: Locale(identifier: "en_US_POSIX"), kibPerSecond)
     }
 
+    private func startTransportLogCaptureIfNeeded() {
+        guard launchConfig.transportTelemetryEnabled, stdoutOriginalDescriptor == -1 else {
+            return
+        }
+        let pipe = Pipe()
+        fflush(stdout)
+        stdoutOriginalDescriptor = dup(STDOUT_FILENO)
+        dup2(pipe.fileHandleForWriting.fileDescriptor, STDOUT_FILENO)
+        stdoutPipe = pipe
+        pipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
+            let data = handle.availableData
+            guard !data.isEmpty else {
+                return
+            }
+            let output = String(decoding: data, as: UTF8.self)
+            Task { @MainActor in
+                self?.ingestTransportLogOutput(output)
+            }
+        }
+    }
+
+    private func stopTransportLogCapture() {
+        guard stdoutOriginalDescriptor != -1 else {
+            return
+        }
+        fflush(stdout)
+        dup2(stdoutOriginalDescriptor, STDOUT_FILENO)
+        close(stdoutOriginalDescriptor)
+        stdoutOriginalDescriptor = -1
+        stdoutPipe?.fileHandleForReading.readabilityHandler = nil
+        stdoutPipe = nil
+    }
+
+    private func ingestTransportLogOutput(_ output: String) {
+        capturedStdoutBuffer.append(output)
+        while let newlineRange = capturedStdoutBuffer.range(of: "\n") {
+            let line = String(capturedStdoutBuffer[..<newlineRange.lowerBound])
+            capturedStdoutBuffer.removeSubrange(capturedStdoutBuffer.startIndex...newlineRange.lowerBound)
+            if line.contains("MeshLinkTransport") {
+                appendLog(line)
+            }
+        }
+    }
+
     private func appendLog(_ message: String) {
         logs.append(message)
         if logs.count > 256 {
@@ -314,6 +363,7 @@ private struct ProofLaunchConfig {
     let benchmarkIsCharging: Bool?
     let benchmarkColdStart: Bool
     let disableAutoSend: Bool
+    let transportTelemetryEnabled: Bool
 
     static func fromEnvironment(_ environment: [String: String]) -> ProofLaunchConfig {
         ProofLaunchConfig(
@@ -324,7 +374,8 @@ private struct ProofLaunchConfig {
             benchmarkBatteryLevel: environment["MESHLINK_BENCHMARK_BATTERY_LEVEL"].flatMap(Float.init),
             benchmarkIsCharging: parseBoolean(environment["MESHLINK_BENCHMARK_IS_CHARGING"]),
             benchmarkColdStart: parseBoolean(environment["MESHLINK_BENCHMARK_COLD_START"]) ?? false,
-            disableAutoSend: parseBoolean(environment["MESHLINK_DISABLE_AUTO_SEND"]) ?? false
+            disableAutoSend: parseBoolean(environment["MESHLINK_DISABLE_AUTO_SEND"]) ?? false,
+            transportTelemetryEnabled: parseBoolean(environment["MESHLINK_TRANSPORT_TELEMETRY"]) ?? false
         )
     }
 

@@ -8,7 +8,8 @@ enum BenchmarkTestSupport {
         benchmarkBatteryLevel: Float? = nil,
         benchmarkIsCharging: Bool? = nil,
         benchmarkColdStart: Bool = false,
-        disableAutoSend: Bool = false
+        disableAutoSend: Bool = false,
+        transportTelemetry: Bool = false
     ) -> XCUIApplication {
         let application = XCUIApplication()
         var environment: [String: String] = [
@@ -31,6 +32,9 @@ enum BenchmarkTestSupport {
         }
         if disableAutoSend {
             environment["MESHLINK_DISABLE_AUTO_SEND"] = "true"
+        }
+        if transportTelemetry {
+            environment["MESHLINK_TRANSPORT_TELEMETRY"] = "true"
         }
         application.launchEnvironment = environment
         application.launch()
@@ -66,6 +70,22 @@ enum BenchmarkTestSupport {
 
     static func extractResult(from logLine: String) -> String {
         extractString(from: logLine, pattern: #"result=([^ ]+)"#)
+    }
+
+    static func waitForTransportTelemetryLine(
+        in application: XCUIApplication,
+        containing text: String,
+        timeout: TimeInterval
+    ) -> String {
+        waitForLogLine(in: application, containing: "MeshLinkTransportTelemetry \(text)", timeout: timeout)
+    }
+
+    static func extractTelemetryInteger(from logLine: String, key: String) -> Int {
+        extractInteger(from: logLine, pattern: #"\#(key)=(-?\d+)"#)
+    }
+
+    static func extractTelemetryString(from logLine: String, key: String) -> String {
+        extractString(from: logLine, pattern: #"\#(key)=([^ ]+)"#)
     }
 
     private static func extractInteger(from text: String, pattern: String) -> Int {
