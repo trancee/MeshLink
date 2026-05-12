@@ -22,9 +22,11 @@ The current proof app has been exercised on two attached Android phones:
 Observed physical proof point:
 
 - L2CAP advertisement PSM negotiation succeeds
+- direct proof runs on the current no-pairing build do not require an OS pairing dialog
 - Noise XX hop session establishment succeeds
 - provider-backed encrypted direct-message delivery succeeds from OPPO to Samsung
 - Samsung receives and logs the decrypted `hello mesh` payload
+- the 64 KiB Android throughput proof run reached `1306.12 KB/s` from OPPO to Samsung
 
 Shared harness evidence now also covers the common US2 runtime:
 

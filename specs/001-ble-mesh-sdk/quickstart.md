@@ -86,9 +86,12 @@ Expected outcome:
 
 Proof-app note:
 - Android proof validation has already completed on attached hardware.
-- The iOS proof app now builds for both simulator and physical iPhone, but the
-  first physical launch may still require trusting the developer profile on the
-  phone before the app can be opened.
+- The iOS proof app now builds, installs, and launches on the attached iPhone 15
+  when a local development team is supplied at build time.
+- Direct L2CAP proof runs should not require OS pairing on the current proof-app
+  builds.
+- The remaining physical blocker is 64 KiB iPhone throughput, not launch or
+  pairing.
 
 ## 7. Validate restart and trust behavior
 

@@ -64,8 +64,8 @@ xcrun devicectl device process launch \
   ch.trancee.meshlink.proof.ios
 ```
 
-On the first local device run, iOS may refuse to launch the app until the
-developer profile has been trusted on the phone.
+The physical launch path now works on the attached iPhone 15 once a local
+development team is supplied at build time.
 
 ## Current validation status
 
@@ -73,9 +73,19 @@ Verified in this repository state:
 
 - `./gradlew :meshlink:compileKotlinIosSimulatorArm64`
 - `./gradlew :meshlink:iosSimulatorArm64Test --tests '*IosL2capFrameBufferTest'`
-- `xcodebuild -project meshlink-sample/ios/ProofApp.xcodeproj -scheme ProofApp -destination 'id=6C7DD73A-EC9C-46F9-B0B9-DD136F748621' build`
-- `xcodebuild -project meshlink-sample/ios/ProofApp.xcodeproj -scheme ProofApp -destination 'id=00008120-00011DEE0105A01E' -allowProvisioningUpdates DEVELOPMENT_TEAM=<local-team-id> build`
-- `xcrun devicectl device install app --device 00008120-00011DEE0105A01E <built-app-path>`
+- `xcodebuild -project meshlink-sample/ios/ProofApp.xcodeproj -scheme ProofApp -destination 'id=6C7DD73A-EC9C-46F9-B0B9-DD136F748621' test`
+- `xcodebuild -project meshlink-sample/ios/ProofApp.xcodeproj -scheme ProofApp -destination 'id=00008120-00011DEE0105A01E' DEVELOPMENT_TEAM=<local-team-id> build`
+- `xcrun devicectl device install app --device <device-udid> <built-app-path>`
+- `xcrun devicectl device process launch --device <device-udid> ch.trancee.meshlink.proof.ios`
+
+Physical proof findings on iPhone 15:
+
+- direct L2CAP proof runs now work without requiring OS pairing
+- cold start reached `mesh.start()` in `18 ms`
+- LOW-power diagnostics reported `scanDutyCyclePercent=5`
+- the 256-byte latency benchmark completed in `28 ms`
+- 64 KiB delivery now succeeds end to end, but the latest final-state throughput
+  run is still only `16.79 KB/s` (best successful run so far: `18.80 KB/s`)
 
 Shared harness evidence now also covers the common US2 runtime:
 
@@ -85,15 +95,17 @@ Shared harness evidence now also covers the common US2 runtime:
 - bounded, jittered exponential-backoff no-route retry expiry with `UNREACHABLE`
 - immediate retry when a route appears before `deliveryRetryDeadline` expires
 
-Current manual blocker:
+Current blocker:
 
-- the installed app launch is still denied on the attached iPhone 15 until the
-  developer profile is explicitly trusted on the device
+- large-payload iPhone throughput remains below the `>= 60 KB/s` target even
+  though delivery, pairing-free interop, cold start, power, and latency now work
 
-## What to do once the phone trusts the build
+## Current physical proof flow
 
 1. Launch the app on the iPhone.
 2. Tap **Start MeshLink**.
 3. Wait for a nearby Android or iOS proof peer to appear.
 4. Tap **Send Hello**.
 5. Confirm the diagnostics and inbound-message log match the quickstart flow.
+6. For 64 KiB proof runs, treat throughput as the remaining open benchmark
+   blocker rather than a launch or pairing problem.

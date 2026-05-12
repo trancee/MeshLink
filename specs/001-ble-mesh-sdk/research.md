@@ -218,3 +218,59 @@ XCFramework export can be added without changing the core library shape.
 - CocoaPods integration — rejected because it introduces another external integration
   layer and is unnecessary for the current repo shape.
 - Immediate SwiftPM binary export — deferred until the core module exists and stabilizes.
+
+## Physical validation update (2026-05-12)
+
+The benchmark module README now carries the consolidated baseline table for JVM,
+Android, and iPhone proof measurements. This section captures the architectural
+learnings behind those numbers.
+
+### Pairing was not the throughput blocker
+
+The direct-link pairing prompt turned out to be a transport-configuration problem, not
+part of MeshLink's security model. After switching Android LE CoC sockets to the
+no-pairing path and publishing the iOS L2CAP channel without link-layer encryption,
+current OPPO ↔ iPhone proof runs no longer require an OS pairing dialog. That
+confirmed the intended architecture: direct links should rely on app-layer Noise and
+TOFU rather than platform pairing.
+
+Removing pairing did not fix the open 64 KiB iPhone throughput issue. It removed a
+UX blocker and allowed the proof apps to stay on the intended security model, but the
+remaining large-transfer bottleneck survived unchanged.
+
+### Android API 36 needed explicit insecure LE socket settings
+
+On OPPO Android 16 / API 36, preferring explicit insecure LE socket settings on the
+newer Bluetooth socket API produced more reliable no-pairing behavior than relying on
+legacy insecure LE CoC calls alone. The implementation now prefers the explicit API
+on API 36+ and falls back to the legacy insecure L2CAP APIs on older Android
+releases.
+
+### iOS must honor the deterministic initiator policy
+
+The iOS transport was still attempting an outbound L2CAP open whenever `send()` saw
+no active link. When iOS lost the key-hash tie-break and should have waited for the
+Android-initiated inbound channel, that extra outbound connect created duplicate-link
+or collision churn. Honoring the initiator policy by waiting for the inbound channel
+when iOS loses the tie-break restored reliable 64 KiB delivery.
+
+### Current iPhone 15 benchmark finding
+
+The iPhone 15 now reliably delivers 64 KiB payloads end to end, but still too slowly
+for the release target:
+
+- best successful 64 KiB run to Samsung: `18.80 KB/s`
+- latest final-state 64 KiB run to OPPO: `16.79 KB/s`
+- target: `>= 60 KB/s`
+
+Cold start, LOW-power scan duty, and the 256-byte latency path all currently meet
+their targets on the iPhone 15. The only remaining physical benchmark blocker is
+large-payload throughput.
+
+### Rejected follow-up experiment
+
+A follow-up experiment increased the direct-transfer chunk budget on the iPhone path
+after the initiator fix. That made the latest OPPO run worse rather than better
+(`14.07 KB/s`) and was reverted. The useful learning is that the remaining bottleneck
+appears to live in iOS / CoreBluetooth L2CAP stream behavior or backpressure, not in
+pairing, route establishment, or the 392-byte chunk size itself.
