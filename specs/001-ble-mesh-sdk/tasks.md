@@ -145,6 +145,29 @@ retransmission semantics.
 
 ---
 
+## Phase 7: Follow-up - iOS Throughput Blocker Remediation
+
+**Purpose**: Resolve the remaining iPhone 15 64 KiB single-hop throughput shortfall with instrumented experiments and fresh physical evidence.
+
+- [ ] T045 [P] Add iOS large-transfer telemetry for chunk pacing, stream readiness, ACK cadence, and backpressure in `meshlink/src/iosMain/kotlin/ch/trancee/meshlink/platform/ios/IosBleTransport.kt` and `meshlink-sample/ios/ProofBenchmarks/BenchmarkTestSupport.swift`
+- [ ] T046 [P] Add regression coverage for transfer pacing and settlement heuristics in `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/integration/LargeTransferIntegrationTest.kt` and `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/transfer/TransferSessionTest.kt`
+- [ ] T047 Implement one bounded iOS throughput remediation path for L2CAP stream draining and write batching in `meshlink/src/iosMain/kotlin/ch/trancee/meshlink/platform/ios/IosBleTransport.kt` and `meshlink-sample/ios/ProofBenchmarks/TransportPerformanceBenchmark.swift`
+- [ ] T048 Validate the iPhone 15 64 KiB proof benchmark on reference hardware and record pass/fail evidence in `benchmarks/README.md`, `specs/001-ble-mesh-sdk/research.md`, and `specs/001-ble-mesh-sdk/quickstart.md`
+- [ ] T049 If `specs/001-ble-mesh-sdk/spec.md` SC-004 remains unmet, record the explicit release-decision framing and residual risk in `specs/001-ble-mesh-sdk/spec.md` and `specs/001-ble-mesh-sdk/plan.md`
+
+---
+
+## Phase 8: Follow-up - Cross-Artifact Requirements Remediation
+
+**Purpose**: Close the broad cross-artifact requirement gaps captured in `specs/001-ble-mesh-sdk/checklists/artifacts.md` without reopening completed delivery history.
+
+- [ ] T050 [P] Clarify source-of-truth precedence, rerun preservation, and append-only task-ledger rules in `specs/001-ble-mesh-sdk/plan.md` and `specs/001-ble-mesh-sdk/tasks.md`
+- [ ] T051 [P] Separate benchmark baselines from normative acceptance thresholds and align the iOS throughput risk wording in `specs/001-ble-mesh-sdk/spec.md`, `specs/001-ble-mesh-sdk/plan.md`, and `benchmarks/README.md`
+- [ ] T052 [P] Clarify proof-integration role, environmental blocker handling, and reviewer evidence expectations in `specs/001-ble-mesh-sdk/spec.md`, `specs/001-ble-mesh-sdk/quickstart.md`, and `specs/001-ble-mesh-sdk/research.md`
+- [ ] T053 Re-run and resolve the cross-artifact checklist against `specs/001-ble-mesh-sdk/spec.md`, `specs/001-ble-mesh-sdk/plan.md`, `specs/001-ble-mesh-sdk/tasks.md`, and `specs/001-ble-mesh-sdk/checklists/artifacts.md`
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies
@@ -155,6 +178,8 @@ retransmission semantics.
 - **User Story 2 (Phase 4)**: Depends on User Story 1 runtime skeleton and adds routing/transfer.
 - **User Story 3 (Phase 5)**: Depends on the shared runtime from User Story 1 and may reuse routing/diagnostic work from User Story 2.
 - **Polish (Phase 6)**: Runs after the desired user stories are complete.
+- **Follow-up Throughput Remediation (Phase 7)**: Runs after Phase 6 when SC-004 still lacks passing iPhone-class evidence.
+- **Follow-up Artifact Remediation (Phase 8)**: Runs after Phase 6 and should consume the latest Phase 7 benchmark outcome when it updates release-risk wording.
 
 ### User Story Dependencies
 
@@ -178,6 +203,8 @@ retransmission semantics.
 - In US2, `T023`–`T026` can run in parallel because routing, presence, wire, and transfer live in separate packages.
 - In US3, `T031`–`T033` can run in parallel once parity tests are written.
 - In Polish, `T037`–`T043` can run in parallel before the final quickstart validation.
+- In Follow-up Phase 7, `T045` and `T046` can run in parallel before `T047` and `T048`.
+- In Follow-up Phase 8, `T050`–`T052` can run in parallel before `T053`.
 
 ---
 
@@ -212,6 +239,7 @@ Task: "Implement `TransferSession`, ACK scoreboard, configurable delivery-deadli
 3. Add User Story 2 → validate multi-hop and bounded large transfer
 4. Add User Story 3 → validate power behavior and cross-platform parity
 5. Finish with benchmark, BCV, docs, and quickstart gates
+6. If SC-004 still lacks passing iPhone-class evidence, execute Phase 7 and then Phase 8 before declaring release readiness
 
 ### Parallel Team Strategy
 
