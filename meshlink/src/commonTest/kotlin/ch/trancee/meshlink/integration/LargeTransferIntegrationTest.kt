@@ -239,6 +239,49 @@ class LargeTransferIntegrationTest {
     }
 
     @Test
+    fun `chunked transfers emit recipient acknowledgement bursts before completion`() =
+        runBlocking {
+            // Arrange
+            val harness = MeshTestHarness()
+            val sender = harness.createNode("peer-a")
+            val relay = harness.createNode("peer-b")
+            val recipient = harness.createNode("peer-c")
+            val payload = ByteArray(64 * 1024) { index -> ((index * 17) % 251).toByte() }
+
+            harness.linkPeers(sender, relay)
+            harness.linkPeers(relay, recipient)
+            harness.setMaximumPayloadBytesPerDelivery(512)
+
+            sender.api.start()
+            relay.api.start()
+            recipient.api.start()
+            delay(250)
+            val recipientFrameCountBeforeSend = harness.sentFrames(recipient).size
+            val receivedMessageDeferred = async {
+                withTimeout(10_000) { recipient.api.messages.first() }
+            }
+
+            // Act
+            val sendResult = sender.api.send(recipient.peerId, payload)
+            val receivedMessage = receivedMessageDeferred.await()
+            val recipientFrameDelta = harness.sentFrames(recipient).size - recipientFrameCountBeforeSend
+
+            // Assert
+            assertIs<SendResult.Sent>(sendResult)
+            assertContentEquals(payload, receivedMessage.payload)
+            assertTrue(
+                recipientFrameDelta >= 4,
+                "Expected the recipient to emit the start acknowledgement plus multiple chunk-settlement acknowledgements, but observed $recipientFrameDelta transfer frames",
+            )
+            assertTrue(
+                sender.diagnosticSink.events().any { event ->
+                    event.code == DiagnosticCode.TRANSFER_COMPLETED &&
+                        event.stage == "transfer.send.complete"
+                }
+            )
+        }
+
+    @Test
     fun `payloads larger than 64 KiB are rejected before any transfer starts`() = runBlocking {
         // Arrange
         val harness = MeshTestHarness()

@@ -101,6 +101,57 @@ class TransferSessionTest {
             assertTrue(session.isComplete())
         }
 
+    @Test
+    fun `awaitAcknowledgementSettlement stops at the idle window when the next acknowledgement arrives late`() =
+        runBlocking {
+            // Arrange
+            val session = newOutboundSession(chunkCount = 4)
+            val acknowledgementProducer = launch {
+                delay(40)
+                session.markAcknowledged(
+                    WireFrame.TransferAck(
+                        transferId = session.transferId,
+                        highestContiguousAck = 0,
+                        selectiveRanges = byteArrayOf(),
+                    )
+                )
+            }
+
+            // Act
+            val settledAcknowledgedChunkCount =
+                session.awaitAcknowledgementSettlement(
+                    maximumWait = 200.milliseconds,
+                    idleWindow = 20.milliseconds,
+                )
+            acknowledgementProducer.join()
+
+            // Assert
+            assertEquals(0, settledAcknowledgedChunkCount)
+            assertEquals(1, session.acknowledgedChunkCount())
+            assertFalse(session.isComplete())
+        }
+
+    @Test
+    fun `acceptChunk requests an acknowledgement immediately when a duplicate chunk arrives`() {
+        // Arrange
+        val session = newInboundSession(chunkCount = 4)
+        val firstChunk =
+            WireFrame.TransferChunk(
+                transferId = session.transferId,
+                chunkIndex = 0,
+                payload = byteArrayOf(0),
+            )
+
+        // Act
+        val firstDeliveryShouldAcknowledge = session.acceptChunk(firstChunk)
+        val duplicateDeliveryShouldAcknowledge = session.acceptChunk(firstChunk)
+
+        // Assert
+        assertFalse(firstDeliveryShouldAcknowledge)
+        assertTrue(duplicateDeliveryShouldAcknowledge)
+        assertEquals(0, session.highestContiguousAck())
+    }
+
     private fun newOutboundSession(chunkCount: Int): OutboundTransferSession {
         val chunks = List(chunkCount) { index -> byteArrayOf(index.toByte()) }
         return OutboundTransferSession(
