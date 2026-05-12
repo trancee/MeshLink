@@ -264,11 +264,13 @@ final class ProofViewModel: ObservableObject {
         logPrefix: String? = nil,
         benchmarkWarmup: Bool = false
     ) async -> SendResult? {
-        await withCheckedContinuation { continuation in
+        let peerSuffix = String(peerId.value.suffix(6))
+
+        return await withCheckedContinuation { continuation in
             api.send(peerId: peerId, payload: payload, priority: priority) { [weak self] result, error in
                 Task { @MainActor in
                     if let logPrefix, let result {
-                        self?.appendLog("\(logPrefix)(\(peerId.value.suffix(6))) -> \(result)")
+                        self?.appendLog("\(logPrefix)(\(peerSuffix)) -> \(result)")
                     }
                     if benchmarkWarmup, let result {
                         self?.appendLog("BENCHMARK transport warmup=\(result)")

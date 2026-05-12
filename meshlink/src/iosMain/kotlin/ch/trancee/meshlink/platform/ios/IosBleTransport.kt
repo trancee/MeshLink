@@ -784,8 +784,11 @@ private class IosCentralDelegate(private val owner: IosBleTransport) :
         advertisementData: Map<Any?, *>,
         RSSI: NSNumber,
     ) {
-        val serviceUuids =
-            advertisementData[CBAdvertisementDataServiceUUIDsKey] as? List<CBUUID> ?: return
+        val rawServiceUuids = advertisementData[CBAdvertisementDataServiceUUIDsKey] as? List<*>
+        val serviceUuids = rawServiceUuids?.filterIsInstance<CBUUID>() ?: return
+        if (serviceUuids.size != rawServiceUuids.size) {
+            return
+        }
         owner.handleDiscoveredPeripheral(didDiscoverPeripheral, serviceUuids)
     }
 
