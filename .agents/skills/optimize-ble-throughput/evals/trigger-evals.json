@@ -1,0 +1,26 @@
+[
+  {
+    "query": "I'm pushing a 1.2 MB firmware image from an Android tablet to an nRF52 peripheral and only getting about 42 kB/s. We negotiated MTU 247, 2M PHY, 15 ms connection interval, and write without response. Can you help me figure out what is most likely capping BLE throughput and what I should measure next?",
+    "should_trigger": true
+  },
+  {
+    "query": "I'm building a handheld service tool that pulls 400 KB logs from a custom sensor. The central and peripheral are both embedded boards. If we use 2M PHY, DLE, ATT MTU 498, a 15 ms connection interval, and the sniffer shows 6 LL data packets per event in the fast direction, what app-layer throughput should I expect and what assumptions could make the real number lower?",
+    "should_trigger": true
+  },
+  {
+    "query": "Our iOS app sends log files over BLE. On iPhone 15 we see about 182-byte writeWithoutResponse payloads and throughput gets much worse once the accessory starts ACKing every chunk. Recommend a better transfer design: chunk size, ACK strategy, whether to use notifications vs indications, and how to think about the half-duplex tradeoff.",
+    "should_trigger": true
+  },
+  {
+    "query": "My Android 14 app can scan and connect to the BLE peripheral but service discovery randomly fails after bonding. I need debugging help for permissions, bonding state, and weird GATT status codes.",
+    "should_trigger": false
+  },
+  {
+    "query": "Can you write Swift CoreBluetooth code to discover a characteristic and subscribe to notifications from a heart-rate sensor? I just need the code skeleton and delegate callbacks.",
+    "should_trigger": false
+  },
+  {
+    "query": "We need better BLE range in a warehouse with lots of metal racks. Should we switch to Coded PHY, increase TX power, or change advertising intervals? Throughput is less important than staying connected at the edge of coverage.",
+    "should_trigger": false
+  }
+]

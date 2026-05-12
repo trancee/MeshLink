@@ -1,0 +1,50 @@
+{
+  "skill_name": "optimize-ble-throughput",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I'm building a handheld service tool that pulls 400 KB logs from a custom sensor. The central and peripheral are both embedded boards. If we use 2M PHY, DLE, ATT MTU 498, a 15 ms connection interval, and the sniffer shows 6 LL data packets per event in the fast direction, what app-layer throughput should I expect and what assumptions could make the real number lower?",
+      "expected_output": "Calculates throughput with the correct ATT-vs-LL math, gives a realistic app-layer estimate, and names the assumptions that could reduce real throughput.",
+      "files": [],
+      "expectations": [
+        "The response explicitly distinguishes LL packets per event from ATT-message payload size instead of mixing the two units.",
+        "The response gives an estimate near 99 kB/s for the 495-byte, 6-LL-packet, 15 ms scenario or clearly explains equivalent math such as 3 x 495 bytes per 15 ms.",
+        "The response names at least two reasons real throughput could be lower, such as reverse-direction traffic, controller limits, queue starvation, retransmissions, or fragmentation behavior."
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "We're sending logs from an iPhone 15 Pro to a peripheral. The accessory vendor says DLE is enabled and MTU is 247, but CoreBluetooth's maximumWriteValueLength(for: .withoutResponse) is 182 and our throughput stalls around 38 kB/s. Can you diagnose the likeliest bottleneck and give me the next measurements to collect?",
+      "expected_output": "Explains that iOS runtime payload limits matter more than requested MTU, avoids assuming 244-byte writes, and asks for the key negotiated parameters before concluding.",
+      "files": [],
+      "expectations": [
+        "The response notes that iOS runtime payload limits, such as roughly 182-byte writeWithoutResponse values, should be trusted over requested MTU when sizing chunks.",
+        "The response suggests checking or confirming the actual transfer primitive, packets per event, queue starvation, or reverse-direction traffic.",
+        "The response asks for or uses negotiated parameters such as PHY, connection interval, and LL length update state before drawing a firm conclusion."
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Need a BLE OTA transport from Android to an nRF52 peripheral for 1.5 MB firmware images. We care about speed but also want resume after disconnect. Can you propose the transfer method, chunking, ACK strategy, and the validation matrix I'd use before shipping?",
+      "expected_output": "Recommends a throughput-friendly transport, negotiated chunk sizing, block-level reliability, and a practical validation plan.",
+      "files": [],
+      "expectations": [
+        "The response recommends write without response or notifications over write requests or indications for bulk transfer.",
+        "The response ties chunk size to negotiated runtime limits and mentions 244-byte and/or 495-byte sweet spots where appropriate.",
+        "The response recommends a sliding window, queued burst, or block/checkpoint acknowledgment strategy instead of per-chunk stop-and-wait.",
+        "The response includes a concrete validation matrix covering at least device diversity and RF conditions."
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "We maintain two BLE links and keep advertising enabled for reconnect while a peripheral uploads 800 KB logs. One-way throughput collapses compared with our single-link bench tests. Explain the likeliest cause and the single most useful experiment to run next.",
+      "expected_output": "Identifies airtime competition from multiple connections and advertising, then recommends isolating the transfer in a cleaner single-link test.",
+      "files": [],
+      "expectations": [
+        "The response identifies multiple simultaneous BLE connections and/or ongoing advertising as likely airtime thieves.",
+        "The response explains that one-way throughput drops because BLE airtime is being split rather than assuming MTU or PHY is automatically at fault.",
+        "The response proposes a narrow next experiment such as rerunning the transfer with one connection and advertising disabled under the same RF conditions."
+      ]
+    }
+  ]
+}
