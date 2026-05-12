@@ -90,6 +90,10 @@ Proof-app note:
   when a local development team is supplied at build time.
 - Direct L2CAP proof runs should not require OS pairing on the current proof-app
   builds.
+- A fresh two-device quickstart validation now exists for iPhone 15 + OPPO
+  Android 16: peer discovery succeeded, the first `hello mesh from iPhone`
+  payload reached Android, and restarting the iPhone app on the same `appId`
+  delivered the same payload again without re-enrollment.
 - The remaining physical blocker is 64 KiB iPhone throughput, not launch or
   pairing.
 
@@ -127,3 +131,8 @@ Recommended local gates once the implementation exists:
 A reviewer should be able to complete a first offline message exchange between
 both devices in 30 minutes or less using this flow and the runnable proof
 integrations in `meshlink-sample/android` and `meshlink-sample/ios`.
+
+Current physical evidence on attached hardware now shows that this direct
+quickstart flow works on iPhone 15 + OPPO Android 16, including a restart of the
+iPhone proof app followed by another successful direct `hello mesh from iPhone`
+delivery on the same `appId`.

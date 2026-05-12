@@ -141,7 +141,7 @@ retransmission semantics.
 - [X] T041 [P] Add 8-peer steady-state memory-budget validation and allocation measurement in `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/integration/MemoryBudgetIntegrationTest.kt` and `benchmarks/src/jvmMain/kotlin/ch/trancee/meshlink/benchmarks/MemoryBudgetBenchmark.kt`
 - [X] T042 [P] Record JVM, Android, iOS, convergence, cold-start, power, and memory baselines in `benchmarks/README.md` and `specs/001-ble-mesh-sdk/research.md`
 - [X] T043 [P] Update Android/iOS public API and workflow docs parity in `meshlink-sample/android/README.md`, `meshlink-sample/ios/README.md`, and `docs/explanation/trust-model.md`
-- [ ] T044 Run the full two-device quickstart validation using `specs/001-ble-mesh-sdk/quickstart.md`, `meshlink-sample/android/`, and `meshlink-sample/ios/`
+- [X] T044 Run the full two-device quickstart validation using `specs/001-ble-mesh-sdk/quickstart.md`, `meshlink-sample/android/`, and `meshlink-sample/ios/`
 
 ---
 
