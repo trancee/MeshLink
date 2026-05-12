@@ -256,21 +256,34 @@ when iOS loses the tie-break restored reliable 64 KiB delivery.
 
 ### Current iPhone 15 benchmark finding
 
-The iPhone 15 now reliably delivers 64 KiB payloads end to end, but still too slowly
-for the release target:
+The iPhone 15 can still start and, on the best clean rerun, finish a 64 KiB direct
+transfer, but it remains far below the release target:
 
-- best successful 64 KiB run to Samsung: `18.80 KB/s`
-- latest final-state 64 KiB run to OPPO: `16.79 KB/s`
+- clean post-T047 Samsung rerun: `BENCHMARK transport bytes=65536 elapsedMs=3210 throughputKBps=19.94 result=Sent`
+- latest clean OPPO comparison baseline: `16.79 KB/s`
 - target: `>= 60 KB/s`
+
+Telemetry-enabled diagnostic reruns against both reference Android peers still exposed
+an unstable large-transfer path:
+
+- OPPO telemetry rerun: no terminal `BENCHMARK transport` line; the last captured
+  iPhone telemetry reached `write.frame seq=185` and `read.frame seq=5` before
+  `Peer lost`
+- Samsung telemetry rerun: no terminal `BENCHMARK transport` line; the last captured
+  iPhone telemetry reached `write.frame seq=190` and `read.frame seq=5`, while the
+  Samsung proof app logged peer connect/disconnect with no `MSG ... bytes=65536`
 
 Cold start, LOW-power scan duty, and the 256-byte latency path all currently meet
 their targets on the iPhone 15. The only remaining physical benchmark blocker is
-large-payload throughput.
+large-payload throughput and stability.
 
 ### Rejected follow-up experiment
 
 A follow-up experiment increased the direct-transfer chunk budget on the iPhone path
 after the initiator fix. That made the latest OPPO run worse rather than better
-(`14.07 KB/s`) and was reverted. The useful learning is that the remaining bottleneck
-appears to live in iOS / CoreBluetooth L2CAP stream behavior or backpressure, not in
-pairing, route establishment, or the 392-byte chunk size itself.
+(`14.07 KB/s`) and was reverted. The later T047 stream-drain and write-batching
+remediation improved the best clean Samsung rerun only slightly and did not prevent
+telemetry-enabled reruns from stalling before a terminal benchmark line. The useful
+learning is still that the remaining bottleneck appears to live in iOS /
+CoreBluetooth L2CAP large-transfer behavior or backpressure, not in pairing, route
+establishment, or the 392-byte chunk size itself.

@@ -33,8 +33,10 @@ The steady-state memory test currently enforces the retained-heap budget but doe
 | iOS cold start, iPhone 15 | 18 ms | < 500 ms | ✓ met | Physical proof log. |
 | iOS LOW-power scan duty, iPhone 15 | 5% | <= 5% | ✓ met | Physical diagnostic log. |
 | iOS 256 B latency, iPhone 15 -> Samsung | 28 ms | <= 50 ms | ✓ met | Physical proof log. |
-| iOS 64 KiB throughput, best successful run, iPhone 15 -> Samsung | 18.80 KB/s | >= 60 KB/s | ✗ blocked | Delivery succeeded, but well below target. |
-| iOS 64 KiB throughput, latest final-state run, iPhone 15 -> OPPO | 16.79 KB/s | >= 60 KB/s | ✗ blocked | Latest no-pairing + initiator-policy state. |
+| iOS 64 KiB throughput, best successful run, iPhone 15 -> Samsung | 19.94 KB/s | >= 60 KB/s | ✗ blocked | Physical proof log: `BENCHMARK transport bytes=65536 elapsedMs=3210 throughputKBps=19.94 result=Sent`. |
+| iOS 64 KiB throughput, latest clean OPPO baseline, iPhone 15 -> OPPO | 16.79 KB/s | >= 60 KB/s | ✗ blocked | Last clean OPPO comparison point before the T047 follow-up diagnostics. |
+| iOS 64 KiB telemetry diagnostic run, iPhone 15 -> OPPO | no terminal benchmark line | >= 60 KB/s | ✗ blocked | Post-T047 telemetry-enabled run reached iPhone `write.frame seq=185` / `read.frame seq=5` before `Peer lost`. |
+| iOS 64 KiB telemetry diagnostic run, iPhone 15 -> Samsung | no terminal benchmark line | >= 60 KB/s | ✗ blocked | Post-T047 telemetry-enabled run reached iPhone `write.frame seq=190` / `read.frame seq=5`; Samsung saw peer connect/disconnect but no `MSG ... bytes=65536`. |
 | Direct-link pairing requirement, OPPO + iPhone final state | no pairing dialog observed | pairing not required | ✓ met | Latest OPPO logcat did not show `PAIRING_REQUEST` or `BluetoothPairingDialog`. |
 
 ## Current learnings
@@ -43,7 +45,9 @@ The steady-state memory test currently enforces the retained-heap budget but doe
 - Android API 36 behaved best when explicit insecure LE socket settings were preferred first and legacy insecure LE CoC APIs were kept as fallback for older releases.
 - iOS must honor the deterministic initiator tie-break. When iOS loses the key-hash ordering decision, it should wait for the inbound L2CAP channel instead of forcing a competing outbound reconnect.
 - Disabling the iOS large-inline send path improved large-payload reliability, but it did not solve throughput.
-- The remaining physical performance blocker is iPhone 15 large-transfer throughput, not discovery, trust pinning, or pairing.
+- The bounded T047 stream-drain and write-batching remediation improved the best clean Samsung rerun only slightly, to `19.94 KB/s`, which still misses the `>= 60 KB/s` target by roughly 3×.
+- Telemetry-enabled post-T047 reruns on both OPPO and Samsung still failed to emit a terminal benchmark line; both peers disconnected mid-transfer before the iPhone produced a final throughput result.
+- The remaining physical performance blocker is iPhone 15 large-transfer throughput and stability, not discovery, trust pinning, or pairing.
 
 ## Refresh commands
 

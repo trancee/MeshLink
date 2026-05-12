@@ -94,8 +94,11 @@ Proof-app note:
   Android 16: peer discovery succeeded, the first `hello mesh from iPhone`
   payload reached Android, and restarting the iPhone app on the same `appId`
   delivered the same payload again without re-enrollment.
-- The remaining physical blocker is 64 KiB iPhone throughput, not launch or
-  pairing.
+- The latest clean post-T047 iPhone 15 64 KiB rerun reached `19.94 KB/s` to the
+  Samsung reference peer, still well below the `>= 60 KB/s` release target.
+- Telemetry-enabled follow-up reruns to both Samsung and OPPO still disconnected
+  before the iPhone emitted a terminal benchmark line, so the remaining blocker
+  is 64 KiB iPhone throughput and transfer stability, not launch or pairing.
 
 ## 7. Validate restart and trust behavior
 
