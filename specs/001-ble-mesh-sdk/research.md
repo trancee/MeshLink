@@ -396,3 +396,34 @@ Key interpretation:
   space still includes return-path session/route stability.
 - The proof-only GATT fallback prototype remains useful as a comparison point,
   but it does not resolve this stricter MeshLink-path failure shape.
+
+### Token-correlated minimal return-path repro
+
+A follow-up minimal repro on the MeshLink path now adds token-correlated sender
+and passive-peer context to a single Samsung 256-byte case.
+
+Retained evidence:
+
+- sender proof log:
+  - `BENCHMARK correlation role=sender.benchmark.send token=000067243710210d ... state=Running knownPeers=[08676e]`
+  - `BENCHMARK transport bytes=256 elapsedMs=21347 throughputKBps=0.01 result=ReceiptTimeout`
+  - `BENCHMARK correlation role=sender.benchmark.result token=000067243710210d ... outcome=ReceiptTimeout`
+- sender correlation summaries still retained recent diagnostics including
+  `DELIVERY_SUCCEEDED` and `HOP_SESSION_ESTABLISHED`
+- passive Samsung proof log:
+  - `Peer lost: 327782fbdda5d37776143c2d`
+  - `BENCHMARK receipt send(fb41c7) -> NotSent(reason=UNREACHABLE) token=000067243710210d`
+  - `BENCHMARK correlation role=passive.receipt.result token=000067243710210d ... outcome=NotSent(reason=UNREACHABLE)`
+- passive correlation summaries retained recent diagnostics including
+  `HOP_SESSION_FAILED stage=transport.handshake.message1.send`
+
+Interpretation:
+
+- The forward sender-to-passive leg looked healthy enough to preserve recent
+  `DELIVERY_SUCCEEDED` / `HOP_SESSION_ESTABLISHED` context on the iPhone sender.
+- By the time the passive Samsung peer tried to send the proof receipt back,
+  that side had already observed `Peer lost` and fresh
+  `transport.handshake.message1.send` failures.
+- This narrows the next remediation target: the open issue is more consistent
+  with reverse-direction session / route collapse after payload receipt than
+  with benchmark-token parsing, receipt formatting, or sender-side timeout logic.
