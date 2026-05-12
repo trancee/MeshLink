@@ -28,6 +28,7 @@ import ch.trancee.meshlink.config.meshLinkConfig
 import ch.trancee.meshlink.diagnostics.DiagnosticEvent
 import java.security.MessageDigest
 import java.util.Locale
+import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -257,6 +258,7 @@ private object MeshLinkProofRuntime {
     private val updatesFlow = MutableSharedFlow<Unit>(extraBufferCapacity = 32)
     private val knownPeers: LinkedHashMap<String, PeerId> = linkedMapOf()
     private val autoSendJobs: LinkedHashMap<String, Job> = linkedMapOf()
+    private val passiveReceiptRetryJobs: LinkedHashMap<String, Job> = linkedMapOf()
     private val pendingBenchmarkReceipts: LinkedHashMap<String, CompletableDeferred<BenchmarkReceipt>> =
         linkedMapOf()
     private val logLines: ArrayDeque<String> = ArrayDeque()
@@ -313,6 +315,9 @@ private object MeshLinkProofRuntime {
                                 appId = resolvedLaunchConfig.appId
                                 regulatoryRegion = RegulatoryRegion.DEFAULT
                                 powerMode = resolvedLaunchConfig.powerMode
+                                if (resolvedLaunchConfig.disableAutoSend) {
+                                    deliveryRetryDeadline = PASSIVE_RECEIPT_SEND_DEADLINE
+                                }
                             },
                         )
                     } else {
@@ -327,6 +332,10 @@ private object MeshLinkProofRuntime {
                 synchronized(autoSendJobs) {
                     autoSendJobs.values.forEach(Job::cancel)
                     autoSendJobs.clear()
+                }
+                synchronized(passiveReceiptRetryJobs) {
+                    passiveReceiptRetryJobs.values.forEach(Job::cancel)
+                    passiveReceiptRetryJobs.clear()
                 }
                 synchronized(pendingBenchmarkReceipts) { pendingBenchmarkReceipts.clear() }
                 synchronized(logLines) { logLines.clear() }
@@ -447,6 +456,10 @@ private object MeshLinkProofRuntime {
         }
 
         return scope.launch {
+            synchronized(passiveReceiptRetryJobs) {
+                passiveReceiptRetryJobs.values.forEach(Job::cancel)
+                passiveReceiptRetryJobs.clear()
+            }
             val result = runCatching { requireMeshLink().stop() }
             result.onSuccess { stopResult ->
                 appendLog("mesh.stop() -> $stopResult")
@@ -493,6 +506,91 @@ private object MeshLinkProofRuntime {
         }
         persistLogs(persistedLogs)
         updatesFlow.tryEmit(Unit)
+    }
+
+    private fun schedulePassiveBenchmarkReceipt(
+        peerId: PeerId,
+        benchmarkPayload: BenchmarkPayloadEnvelope,
+    ): Unit {
+        val tokenHex = benchmarkPayload.tokenHex
+        val receiptPayload =
+            BenchmarkReceipt(
+                    tokenHex = benchmarkPayload.tokenHex,
+                    totalBytes = benchmarkPayload.totalBytes,
+                )
+                .encode()
+        appendBenchmarkCorrelation(
+            role = "passive.receipt.start",
+            tokenHex = tokenHex,
+            peerIdValue = peerId.value,
+            outcome = "receivedPayload",
+        )
+        synchronized(passiveReceiptRetryJobs) {
+            passiveReceiptRetryJobs.remove(tokenHex)?.cancel()
+            passiveReceiptRetryJobs[tokenHex] =
+                scope.launch {
+                    var attempt = 0
+                    val deadlineAtMs = SystemClock.elapsedRealtime() + PASSIVE_RECEIPT_WINDOW_MS
+                    try {
+                        while (SystemClock.elapsedRealtime() < deadlineAtMs) {
+                            val peerKnown =
+                                synchronized(knownPeers) { knownPeers.containsKey(peerId.value) }
+                            if (!peerKnown) {
+                                appendBenchmarkCorrelation(
+                                    role = "passive.receipt.wait",
+                                    tokenHex = tokenHex,
+                                    peerIdValue = peerId.value,
+                                    outcome = "peerUnavailable.attempt${attempt + 1}",
+                                )
+                                delay(PASSIVE_RECEIPT_RETRY_DELAY_MS)
+                                continue
+                            }
+                            attempt += 1
+                            val sendResult = runCatching { requireMeshLink().send(peerId, receiptPayload) }
+                            sendResult
+                                .onSuccess { result ->
+                                    appendLog(
+                                        "BENCHMARK receipt send(${peerId.value.takeLast(6)}) -> $result token=$tokenHex attempt=$attempt",
+                                    )
+                                    appendBenchmarkCorrelation(
+                                        role = "passive.receipt.result",
+                                        tokenHex = tokenHex,
+                                        peerIdValue = peerId.value,
+                                        outcome = "$result.attempt$attempt",
+                                    )
+                                    if (result is SendResult.Sent) {
+                                        return@launch
+                                    }
+                                }
+                                .onFailure { error ->
+                                    appendLog(
+                                        "BENCHMARK receipt failed for ${peerId.value.takeLast(6)}: ${error.javaClass.simpleName}: ${error.message.orEmpty()} token=$tokenHex attempt=$attempt",
+                                    )
+                                    appendBenchmarkCorrelation(
+                                        role = "passive.receipt.error",
+                                        tokenHex = tokenHex,
+                                        peerIdValue = peerId.value,
+                                        outcome = "${error.javaClass.simpleName}:${error.message.orEmpty()}.attempt$attempt",
+                                    )
+                                }
+                            delay(PASSIVE_RECEIPT_RETRY_DELAY_MS)
+                        }
+                        appendLog(
+                            "BENCHMARK receipt abandoned token=$tokenHex peer=${peerId.value.takeLast(6)} deadlineMs=$PASSIVE_RECEIPT_WINDOW_MS",
+                        )
+                        appendBenchmarkCorrelation(
+                            role = "passive.receipt.expired",
+                            tokenHex = tokenHex,
+                            peerIdValue = peerId.value,
+                            outcome = "deadlineExpired",
+                        )
+                    } finally {
+                        synchronized(passiveReceiptRetryJobs) {
+                            passiveReceiptRetryJobs.remove(tokenHex)
+                        }
+                    }
+                }
+        }
     }
 
     private fun appendBenchmarkCorrelation(
@@ -645,41 +743,10 @@ private object MeshLinkProofRuntime {
             appendLog(
                 "MSG from ${message.originPeerId.value} bytes=${message.payload.size} benchmarkToken=${benchmarkPayload.tokenHex}",
             )
-            appendBenchmarkCorrelation(
-                role = "passive.receipt.start",
-                tokenHex = benchmarkPayload.tokenHex,
-                peerIdValue = message.originPeerId.value,
-                outcome = "receivedPayload",
+            schedulePassiveBenchmarkReceipt(
+                peerId = message.originPeerId,
+                benchmarkPayload = benchmarkPayload,
             )
-            val receiptPayload =
-                BenchmarkReceipt(
-                        tokenHex = benchmarkPayload.tokenHex,
-                        totalBytes = benchmarkPayload.totalBytes,
-                    )
-                    .encode()
-            runCatching { requireMeshLink().send(message.originPeerId, receiptPayload) }
-                .onSuccess { sendResult ->
-                    appendLog(
-                        "BENCHMARK receipt send(${message.originPeerId.value.takeLast(6)}) -> $sendResult token=${benchmarkPayload.tokenHex}",
-                    )
-                    appendBenchmarkCorrelation(
-                        role = "passive.receipt.result",
-                        tokenHex = benchmarkPayload.tokenHex,
-                        peerIdValue = message.originPeerId.value,
-                        outcome = sendResult.toString(),
-                    )
-                }
-                .onFailure { error ->
-                    appendLog(
-                        "BENCHMARK receipt failed for ${message.originPeerId.value.takeLast(6)}: ${error.javaClass.simpleName}: ${error.message.orEmpty()}",
-                    )
-                    appendBenchmarkCorrelation(
-                        role = "passive.receipt.error",
-                        tokenHex = benchmarkPayload.tokenHex,
-                        peerIdValue = message.originPeerId.value,
-                        outcome = "${error.javaClass.simpleName}:${error.message.orEmpty()}",
-                    )
-                }
             return
         }
 
@@ -888,6 +955,9 @@ private object MeshLinkProofRuntime {
     private const val MAX_LOG_LINES: Int = 64
     private const val CORRELATION_SUMMARY_LINES: Int = 4
     private const val CORRELATION_SUMMARY_CHARS: Int = 96
+    private val PASSIVE_RECEIPT_SEND_DEADLINE = 3.seconds
+    private const val PASSIVE_RECEIPT_WINDOW_MS: Long = 18_000L
+    private const val PASSIVE_RECEIPT_RETRY_DELAY_MS: Long = 500L
     private const val TAG = "MeshLinkProof"
 }
 
