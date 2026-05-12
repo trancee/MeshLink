@@ -120,7 +120,8 @@ internal constructor(
             receivedChunks[frame.chunkIndex] = frame.payload.copyOf()
             newlyReceivedChunksSinceLastAck += 1
         }
-        return duplicateChunk || isComplete() ||
+        return duplicateChunk ||
+            isComplete() ||
             newlyReceivedChunksSinceLastAck >= ACK_BATCH_CHUNK_COUNT
     }
 

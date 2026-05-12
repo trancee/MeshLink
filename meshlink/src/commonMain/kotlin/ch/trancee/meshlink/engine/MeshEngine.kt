@@ -870,82 +870,32 @@ private constructor(
         runPlatformCall("transfer.discoverySuspend") { bleTransport?.setDiscoverySuspended(true) }
         try {
             while (startedAt.elapsedNow() < config.deliveryRetryDeadline) {
-            if (activeSession == null) {
-                when (
-                    val preparation =
-                        prepareOutboundTransferSession(peerId = peerId, payload = payload)
-                ) {
-                    OutboundTransferPreparation.PendingRoute -> {
-                        lastRouteAvailable = false
-                        scheduleRetryDiagnostic(peerId = peerId, priority = priority)
+                if (activeSession == null) {
+                    when (
+                        val preparation =
+                            prepareOutboundTransferSession(peerId = peerId, payload = payload)
+                    ) {
+                        OutboundTransferPreparation.PendingRoute -> {
+                            lastRouteAvailable = false
+                            scheduleRetryDiagnostic(peerId = peerId, priority = priority)
+                        }
+                        is OutboundTransferPreparation.Ready -> {
+                            activeSession = preparation.session
+                        }
+                        is OutboundTransferPreparation.Failed -> return preparation.result
                     }
-                    is OutboundTransferPreparation.Ready -> {
-                        activeSession = preparation.session
-                    }
-                    is OutboundTransferPreparation.Failed -> return preparation.result
                 }
-            }
 
-            var transferProgressObserved = false
-            activeSession?.let { session ->
-                var routeAvailable =
-                    sendTransferTowardsDestination(
-                        session.destinationPeerId,
-                        session.asStartFrame(),
-                        "transfer.start",
-                    )
-                val missingChunks = session.missingChunkIndices()
-                if (missingChunks.isEmpty()) {
-                    sendTransferTowardsDestination(
-                        session.destinationPeerId,
-                        WireFrame.TransferComplete(session.transferId),
-                        "transfer.complete",
-                    )
-                    outboundTransfers.remove(session.transferId)
-                    emitDiagnostic(
-                        code = DiagnosticCode.TRANSFER_COMPLETED,
-                        severity = DiagnosticSeverity.INFO,
-                        stage = "transfer.send.complete",
-                        peerSuffix = peerId.value.takeLast(6),
-                    )
-                    return SendResult.Sent
-                }
-                missingChunks.forEach { chunkIndex ->
-                    routeAvailable =
+                var transferProgressObserved = false
+                activeSession?.let { session ->
+                    var routeAvailable =
                         sendTransferTowardsDestination(
                             session.destinationPeerId,
-                            WireFrame.TransferChunk(
-                                transferId = session.transferId,
-                                chunkIndex = chunkIndex,
-                                payload = session.chunks[chunkIndex],
-                            ),
-                            "transfer.chunk",
-                        ) || routeAvailable
-                }
-                emitDiagnostic(
-                    code = DiagnosticCode.TRANSFER_PROGRESS,
-                    severity = DiagnosticSeverity.DEBUG,
-                    stage = "transfer.send.progress",
-                    peerSuffix = peerId.value.takeLast(6),
-                    metadata =
-                        mapOf(
-                            "ackedChunks" to session.acknowledgedChunkCount().toString(),
-                            "totalChunks" to session.totalChunks.toString(),
-                        ),
-                )
-                lastRouteAvailable = routeAvailable
-                if (!routeAvailable) {
-                    scheduleRetryDiagnostic(peerId = peerId, priority = priority)
-                } else {
-                    val acknowledgedChunkCountBeforeSettlement = session.acknowledgedChunkCount()
-                    val acknowledgedChunkCountAfterSettlement =
-                        session.awaitAcknowledgementSettlement(
-                            maximumWait =
-                                (config.deliveryRetryDeadline - startedAt.elapsedNow())
-                                    .coerceAtMost(TRANSFER_ACK_SETTLEMENT_TIMEOUT),
-                            idleWindow = TRANSFER_ACK_IDLE_WINDOW,
+                            session.asStartFrame(),
+                            "transfer.start",
                         )
-                    if (acknowledgedChunkCountAfterSettlement >= session.totalChunks) {
+                    val missingChunks = session.missingChunkIndices()
+                    if (missingChunks.isEmpty()) {
                         sendTransferTowardsDestination(
                             session.destinationPeerId,
                             WireFrame.TransferComplete(session.transferId),
@@ -960,57 +910,108 @@ private constructor(
                         )
                         return SendResult.Sent
                     }
-                    transferProgressObserved =
-                        acknowledgedChunkCountAfterSettlement >
-                            acknowledgedChunkCountBeforeSettlement
-                }
-            }
-
-            if (transferProgressObserved) {
-                attempt = 0
-                continue
-            }
-
-            val noRouteRetry = !lastRouteAvailable
-            if (noRouteRetry) {
-                emitDiagnostic(
-                    code = DiagnosticCode.DELIVERY_RETRY_SCHEDULED,
-                    severity = DiagnosticSeverity.WARN,
-                    stage = "transfer.retryScheduled",
-                    peerSuffix = peerId.value.takeLast(6),
-                    reason = DiagnosticReason.DELIVERY_RETRY,
-                    metadata = mapOf("attempt" to attempt.toString()),
-                )
-            }
-            when (
-                val wakeup =
-                    deliveryRetryScheduler.awaitRetry(
-                        attempt = attempt,
-                        remainingBudget = config.deliveryRetryDeadline - startedAt.elapsedNow(),
-                        lastObservedTopologyVersion = topologyVersion,
+                    missingChunks.forEach { chunkIndex ->
+                        routeAvailable =
+                            sendTransferTowardsDestination(
+                                session.destinationPeerId,
+                                WireFrame.TransferChunk(
+                                    transferId = session.transferId,
+                                    chunkIndex = chunkIndex,
+                                    payload = session.chunks[chunkIndex],
+                                ),
+                                "transfer.chunk",
+                            ) || routeAvailable
+                    }
+                    emitDiagnostic(
+                        code = DiagnosticCode.TRANSFER_PROGRESS,
+                        severity = DiagnosticSeverity.DEBUG,
+                        stage = "transfer.send.progress",
+                        peerSuffix = peerId.value.takeLast(6),
+                        metadata =
+                            mapOf(
+                                "ackedChunks" to session.acknowledgedChunkCount().toString(),
+                                "totalChunks" to session.totalChunks.toString(),
+                            ),
                     )
-            ) {
-                is RetryWakeup.DeadlineExpired -> break
-                is RetryWakeup.TimerElapsed -> {
-                    topologyVersion = wakeup.topologyVersion
-                    attempt += 1
+                    lastRouteAvailable = routeAvailable
+                    if (!routeAvailable) {
+                        scheduleRetryDiagnostic(peerId = peerId, priority = priority)
+                    } else {
+                        val acknowledgedChunkCountBeforeSettlement =
+                            session.acknowledgedChunkCount()
+                        val acknowledgedChunkCountAfterSettlement =
+                            session.awaitAcknowledgementSettlement(
+                                maximumWait =
+                                    (config.deliveryRetryDeadline - startedAt.elapsedNow())
+                                        .coerceAtMost(TRANSFER_ACK_SETTLEMENT_TIMEOUT),
+                                idleWindow = TRANSFER_ACK_IDLE_WINDOW,
+                            )
+                        if (acknowledgedChunkCountAfterSettlement >= session.totalChunks) {
+                            sendTransferTowardsDestination(
+                                session.destinationPeerId,
+                                WireFrame.TransferComplete(session.transferId),
+                                "transfer.complete",
+                            )
+                            outboundTransfers.remove(session.transferId)
+                            emitDiagnostic(
+                                code = DiagnosticCode.TRANSFER_COMPLETED,
+                                severity = DiagnosticSeverity.INFO,
+                                stage = "transfer.send.complete",
+                                peerSuffix = peerId.value.takeLast(6),
+                            )
+                            return SendResult.Sent
+                        }
+                        transferProgressObserved =
+                            acknowledgedChunkCountAfterSettlement >
+                                acknowledgedChunkCountBeforeSettlement
+                    }
                 }
-                is RetryWakeup.TopologyChanged -> {
-                    topologyVersion = wakeup.topologyVersion
+
+                if (transferProgressObserved) {
                     attempt = 0
+                    continue
+                }
+
+                val noRouteRetry = !lastRouteAvailable
+                if (noRouteRetry) {
+                    emitDiagnostic(
+                        code = DiagnosticCode.DELIVERY_RETRY_SCHEDULED,
+                        severity = DiagnosticSeverity.WARN,
+                        stage = "transfer.retryScheduled",
+                        peerSuffix = peerId.value.takeLast(6),
+                        reason = DiagnosticReason.DELIVERY_RETRY,
+                        metadata = mapOf("attempt" to attempt.toString()),
+                    )
+                }
+                when (
+                    val wakeup =
+                        deliveryRetryScheduler.awaitRetry(
+                            attempt = attempt,
+                            remainingBudget = config.deliveryRetryDeadline - startedAt.elapsedNow(),
+                            lastObservedTopologyVersion = topologyVersion,
+                        )
+                ) {
+                    is RetryWakeup.DeadlineExpired -> break
+                    is RetryWakeup.TimerElapsed -> {
+                        topologyVersion = wakeup.topologyVersion
+                        attempt += 1
+                    }
+                    is RetryWakeup.TopologyChanged -> {
+                        topologyVersion = wakeup.topologyVersion
+                        attempt = 0
+                    }
+                }
+                if (noRouteRetry) {
+                    emitDiagnostic(
+                        code = DiagnosticCode.DELIVERY_RETRYING,
+                        severity = DiagnosticSeverity.WARN,
+                        stage = "transfer.retrying",
+                        peerSuffix = peerId.value.takeLast(6),
+                        reason = DiagnosticReason.DELIVERY_RETRY,
+                        metadata = mapOf("attempt" to attempt.toString()),
+                    )
                 }
             }
-            if (noRouteRetry) {
-                emitDiagnostic(
-                    code = DiagnosticCode.DELIVERY_RETRYING,
-                    severity = DiagnosticSeverity.WARN,
-                    stage = "transfer.retrying",
-                    peerSuffix = peerId.value.takeLast(6),
-                    reason = DiagnosticReason.DELIVERY_RETRY,
-                    metadata = mapOf("attempt" to attempt.toString()),
-                )
-            }
-        }
 
             activeSession?.let { session -> outboundTransfers.remove(session.transferId) }
             return if (!lastRouteAvailable) {
@@ -1191,7 +1192,8 @@ private constructor(
         if (nextHopPeerId.value != peerId.value) {
             return false
         }
-        val transportBudget = bleTransport?.maximumPayloadBytesPerDelivery(nextHopPeerId) ?: return false
+        val transportBudget =
+            bleTransport?.maximumPayloadBytesPerDelivery(nextHopPeerId) ?: return false
         return transportBudget >= LARGE_INLINE_SEND_TRANSPORT_BUDGET_BYTES
     }
 

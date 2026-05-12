@@ -69,25 +69,24 @@ class TransferSessionTest {
         runBlocking {
             // Arrange
             val session = newOutboundSession(chunkCount = 4)
-            val acknowledgementProducer =
-                launch {
-                    delay(5)
-                    session.markAcknowledged(
-                        WireFrame.TransferAck(
-                            transferId = session.transferId,
-                            highestContiguousAck = 0,
-                            selectiveRanges = byteArrayOf(),
-                        )
+            val acknowledgementProducer = launch {
+                delay(5)
+                session.markAcknowledged(
+                    WireFrame.TransferAck(
+                        transferId = session.transferId,
+                        highestContiguousAck = 0,
+                        selectiveRanges = byteArrayOf(),
                     )
-                    delay(5)
-                    session.markAcknowledged(
-                        WireFrame.TransferAck(
-                            transferId = session.transferId,
-                            highestContiguousAck = 3,
-                            selectiveRanges = byteArrayOf(),
-                        )
+                )
+                delay(5)
+                session.markAcknowledged(
+                    WireFrame.TransferAck(
+                        transferId = session.transferId,
+                        highestContiguousAck = 3,
+                        selectiveRanges = byteArrayOf(),
                     )
-                }
+                )
+            }
 
             // Act
             val acknowledgedChunkCount =
