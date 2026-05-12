@@ -313,7 +313,9 @@ Current validation evidence does not satisfy the iOS throughput portion of
 **SC-004**. The latest clean reference-hardware run on iPhone 15 -> Samsung
 measured `19.94 KB/s` for a 64 KB single-hop transfer, below the required
 `>= 60 KB/s`, and telemetry-enabled reruns to both Samsung and OPPO
-terminated before the iPhone emitted a terminal benchmark line.
+disconnected before the iPhone emitted a terminal benchmark line. The
+retained baselines in `benchmarks/README.md` are evidence only; they do not
+replace or relax the normative threshold in **SC-004**.
 
 Until the iOS half of **SC-004** is met or this specification is explicitly
 amended, the feature remains non-conformant to **SC-004**. A release may
