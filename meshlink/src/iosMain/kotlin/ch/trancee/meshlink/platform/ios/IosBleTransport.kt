@@ -113,12 +113,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
     }
 
     override fun maximumPayloadBytesPerDelivery(peerId: PeerId): Int? {
-        val peer = resolvePeer(peerId) ?: return null
-        return if (activeLinkFor(peer) != null) {
-            LARGE_DELIVERY_PAYLOAD_BUDGET_BYTES
-        } else {
-            null
-        }
+        return null
     }
 
     override suspend fun send(frame: OutboundFrame): TransportSendResult {
@@ -542,7 +537,6 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
     }
 
     private companion object {
-        private const val LARGE_DELIVERY_PAYLOAD_BUDGET_BYTES: Int = 128 * 1024
         private const val STREAM_POLL_INTERVAL_MS: Long = 5
         private const val TEMPORARY_PEER_PREFIX: String = "cb-"
     }
