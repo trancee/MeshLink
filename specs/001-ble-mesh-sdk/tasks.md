@@ -153,7 +153,7 @@ retransmission semantics.
 - [X] T046 [P] Add regression coverage for transfer pacing and settlement heuristics in `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/integration/LargeTransferIntegrationTest.kt` and `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/transfer/TransferSessionTest.kt`
 - [X] T047 Implement one bounded iOS throughput remediation path for L2CAP stream draining and write batching in `meshlink/src/iosMain/kotlin/ch/trancee/meshlink/platform/ios/IosBleTransport.kt` and `meshlink-sample/ios/ProofBenchmarks/TransportPerformanceBenchmark.swift`
 - [X] T048 Validate the iPhone 15 64 KiB proof benchmark on reference hardware and record pass/fail evidence in `benchmarks/README.md`, `specs/001-ble-mesh-sdk/research.md`, and `specs/001-ble-mesh-sdk/quickstart.md`
-- [ ] T049 If `specs/001-ble-mesh-sdk/spec.md` SC-004 remains unmet, record the explicit release-decision framing and residual risk in `specs/001-ble-mesh-sdk/spec.md` and `specs/001-ble-mesh-sdk/plan.md`
+- [X] T049 If `specs/001-ble-mesh-sdk/spec.md` SC-004 remains unmet, record the explicit release-decision framing and residual risk in `specs/001-ble-mesh-sdk/spec.md` and `specs/001-ble-mesh-sdk/plan.md`
 
 ---
 

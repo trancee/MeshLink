@@ -307,6 +307,36 @@ error behavior.
   developer-visible lifecycle states, error categories, and diagnostic event
   meanings for equivalent workflows.
 
+### Release-decision framing for SC-004 (2026-05-12)
+
+Current validation evidence does not satisfy the iOS throughput portion of
+**SC-004**. The latest clean reference-hardware run on iPhone 15 -> Samsung
+measured `19.94 KB/s` for a 64 KB single-hop transfer, below the required
+`>= 60 KB/s`, and telemetry-enabled reruns to both Samsung and OPPO
+terminated before the iPhone emitted a terminal benchmark line.
+
+Until the iOS half of **SC-004** is met or this specification is explicitly
+amended, the feature remains non-conformant to **SC-004**. A release may
+therefore take only one of two explicit paths:
+
+1. **Block release on spec conformance** and keep the iOS throughput work open
+   until **SC-004** is met on reference hardware.
+2. **Ship under an explicit waiver / known limitation** that narrows any
+   public iOS large-transfer performance claim, links to the retained
+   benchmark evidence, and records stakeholder acceptance of the residual
+   risk.
+
+Residual risk if the waiver path is chosen:
+
+- iOS single-hop 64 KB transfers can complete at roughly one third of the
+  target throughput on current reference hardware.
+- Telemetry-enabled physical reruns exposed mid-transfer peer loss before
+  benchmark completion, so the open risk is not only slower completion but
+  also unresolved large-transfer stability on iPhone-class hardware.
+- Cross-platform parity claims remain accurate for API surface, trust,
+  discovery, routing behavior, and the measured 256-byte latency path, but not
+  for full conformance with the iOS throughput clause of **SC-004**.
+
 ## Assumptions
 
 - The host application owns user-facing identity presentation, trust reset or

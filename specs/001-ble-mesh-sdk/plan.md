@@ -31,7 +31,8 @@ beyond the constitutionally allowed `kotlinx-coroutines-core`; codec, routing,
 and crypto-provider logic remain in-repo. Repository baselines and physical
 proof findings are recorded in `benchmarks/README.md` and
 `specs/001-ble-mesh-sdk/research.md`; single-hop iOS 64 KiB throughput remains
-a tracked physical validation risk until it meets the release target.
+an explicit release-decision blocker unless a documented waiver narrows the
+public iOS large-transfer claim.
 
 ## Technical Context
 
@@ -42,7 +43,7 @@ a tracked physical validation risk until it meets the release target.
 **Target Platform**: Android API 29+, iOS 15+, JVM benchmark/reference target  
 **Project Type**: Kotlin Multiplatform library SDK with benchmark module and runnable Android/iOS proof integrations  
 **Performance Goals**: ≥80 KB/s Android L2CAP, ≥60 KB/s iOS L2CAP, 50 ms p95 for 1-hop 256 B message, 8 MB steady-state heap at 8 peers, ≤5% scan duty in LOW mode, <500 ms from `mesh.start()` to first advertisement, 3 s route convergence for 10-node topology, <1 µs JVM codec encode/decode  
-**Constraints**: Offline-only; no servers or accounts; TOFU trust pinning; 64 KiB release payload limit; configurable in-memory delivery retry deadline; no retry persistence across restart; bounded, jittered exponential backoff for no-route scheduling; immediate retry on route availability; L2CAP-first with GATT fallback; no additional third-party runtime dependencies; current physical validation still needs iPhone-class hardware to prove the ≥60 KB/s 64 KiB single-hop transfer target
+**Constraints**: Offline-only; no servers or accounts; TOFU trust pinning; 64 KiB release payload limit; configurable in-memory delivery retry deadline; no retry persistence across restart; bounded, jittered exponential backoff for no-route scheduling; immediate retry on route availability; L2CAP-first with GATT fallback; no additional third-party runtime dependencies; current physical validation still leaves the iOS ≥60 KB/s 64 KiB single-hop transfer target unmet on reference hardware, so any release before remediation requires an explicit waiver and documented limitation
 **Constitutional Constraints**: `explicitApi()` required; Detekt + ktfmt gates; BCV-tracked public API; 100% line/branch coverage; Power-assert diagnostics; Wycheproof validation; canonical virtual harness for integration tests; Android/iOS parity for API, docs, state, diagnostics, the shared 26-code diagnostic catalog, and the sealed `MeshLinkException` hierarchy; benchmark evidence for crypto, routing lookup, wire codec, route convergence, transport throughput/latency, steady-state memory, LOW-power duty cycle, and cold-start paths; all shared logic in `commonMain`; no external crypto library; FlatBuffers wire compatibility; runtime dependency budget limited to `kotlinx-coroutines-core`; repository benchmark baselines must stay documented in `benchmarks/README.md` and `specs/001-ble-mesh-sdk/research.md`
 **Applicable Skills**: kotlin-multiplatform, kotlin-gradle-plugin, gradle-build-tool, kotlin-api-guidelines, android-ble, android-bluetooth-sockets, core-bluetooth, kmp-ios-integration, flatbuffers, babel-rfc8966, noise-protocol-framework, tcp-sack-rfc2018, optimize-ble-throughput
 **Scale/Scope**: One shared SDK module, two mobile targets, one public API surface, 8-peer steady-state mesh, 10-node convergence validation topology, 64 KiB maximum v1 payload
@@ -87,8 +88,19 @@ a tracked physical validation risk until it meets the release target.
 **Post-design re-evaluation (2026-05-12):** Existing `research.md`,
 `data-model.md`, `quickstart.md`, and `contracts/` remain aligned with the
 spec and both constitutions. No unresolved clarifications remain. The only
-open delivery risk is proving the iOS single-hop 64 KiB throughput target on
-reference hardware.
+open delivery risk is closing the still-unmet iOS single-hop 64 KiB
+throughput target on reference hardware.
+
+**Release-decision framing (2026-05-12):** `SC-004` remains partially unmet.
+Android meets its single-hop throughput target, but the best clean iPhone 15
+-> Samsung 64 KiB run retained in the repository reached only `19.94 KB/s`,
+and telemetry-enabled reruns to both Samsung and OPPO disconnected before a
+terminal benchmark line was emitted. The release path is therefore binary:
+either keep release blocked until iOS satisfies `SC-004`, or ship only under
+an explicit waiver that narrows iOS large-transfer performance claims and
+records stakeholder acceptance of the residual risk. That residual risk is two
+fold: materially slower 64 KiB single-hop transfers on iOS and unresolved
+mid-transfer disconnect behavior during physical telemetry runs.
 
 ## Project Structure
 
