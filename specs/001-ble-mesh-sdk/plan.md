@@ -133,6 +133,22 @@ peer proof receipts.
   hardware and include retained recipient-confirmed `Sent` runs, not just
   sender-side completion or passive-peer partial logs.
 
+**Additional open normative evidence gaps (2026-05-13):**
+
+- `FR-016` still requires deployed-wire backward-compatibility fixture
+  validation (`T074`) before compatibility claims are complete.
+- `FR-015a` still requires automated validation that the SDK persists only the
+  allowed trust-record fields and does not persist disallowed diagnostic or
+  plaintext data (`T075`).
+- `SC-006` still requires explicit Android/iOS proof-benchmark coverage for the
+  1-hop, 256-byte LOW-power delivery target (`T076`).
+- `SC-001` still requires timed quickstart reader-test evidence with retained
+  start/end timestamps and observer note (`T077`).
+
+These gaps are distinct from the iOS `SC-004` throughput blocker. Any
+release-readiness or full-conformance claim MUST keep them open until the
+corresponding tasks are complete or the specification is explicitly amended.
+
 ## Artifact Governance & Source-of-Truth Precedence
 
 - `spec.md` is normative for feature scope, acceptance wording, success

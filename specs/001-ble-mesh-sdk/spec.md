@@ -10,7 +10,7 @@
 ### Session 2026-05-10
 
 - Q: What first-contact peer trust model should MeshLink use? → A: TOFU (trust on first use).
-- Q: What should happen when no valid route exists for a message? → A: Retry until the configured local delivery deadline expires. While no route is available, the SDK schedules retries with bounded, jittered exponential backoff and retries immediately when topology updates reveal a valid route.
+- Q: What should happen when no valid route exists for a message? → A: Apply the no-route retry behavior defined in `FR-007` and `FR-008`.
 - Q: What should happen when a payload exceeds the v1 transfer limit? → A: Reject the payload before transfer starts and return an explicit size-limit error.
 - Q: Should pending retries survive an app or SDK restart? → A: No; pending retries are in-memory only and do not survive restart.
 - Q: How should MeshLink handle an untrusted or identity-changed peer? → A: Reject the peer and emit an explicit trust-failure diagnostic.
@@ -105,11 +105,9 @@ error behavior.
 ### Edge Cases
 
 - If a destination peer is temporarily unreachable and no valid route exists,
-  the SDK keeps delivery state in memory until the configured local delivery
-  deadline expires, schedules attempts with bounded, jittered exponential
-  backoff while no route exists, retries immediately when topology updates
-  reveal a valid route, and returns an explicit unreachable outcome if no route
-  appears before expiry.
+  the SDK applies the no-route retry behavior defined in `FR-007` and `FR-008`
+  and returns an explicit unreachable outcome if the delivery deadline expires
+  before a valid route reappears.
 - If a route changes while a large transfer is already in progress, the sender
   keeps the active transfer session and missing-chunk scoreboard, rebinds the
   session to the best newly valid next hop, and resumes from the missing chunk
@@ -197,8 +195,8 @@ error behavior.
 - **FR-011**: The system MUST surface delivery outcomes and diagnostics for at
   least success, in-progress transfer, retrying, unreachable peer,
   trust failure, timeout, and unrecoverable transfer failure.
-- **FR-012**: Users MUST be able to start, pause, resume, and stop mesh
-  participation deterministically from the host application.
+- **FR-012**: The host application MUST be able to start, pause, resume, and
+  stop mesh participation deterministically.
 - **FR-013**: The system MUST expose power-aware operating behavior that reduces
   radio activity when battery conditions worsen and MUST make the current power
   mode observable to the host application.

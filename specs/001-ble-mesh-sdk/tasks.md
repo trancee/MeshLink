@@ -248,14 +248,74 @@ retransmission semantics.
 
 ## Phase 15: Follow-up - Compatibility and Acceptance-Criteria Clarification
 
-**Purpose**: Close the remaining implementation and evidence work from the analysis follow-up: deployed-wire compatibility validation, trust/redaction automated coverage, LOW-power proof-benchmark coverage, and retained quickstart timing evidence, without reopening completed delivery history.
+**Purpose**: Close the remaining normative implementation and evidence work from
+the analysis follow-up: deployed-wire compatibility validation, trust/redaction
+automated coverage, LOW-power proof-benchmark coverage, and retained quickstart
+timing evidence, without reopening completed delivery history.
+
+**Release-readiness note**: This phase is blocking for any full-conformance or
+release-readiness claim.
 
 - [X] T073 [P] Clarify the normative transport scope in `specs/001-ble-mesh-sdk/spec.md` and `specs/001-ble-mesh-sdk/plan.md` so the current release path remains MeshLink L2CAP-first and the retained GATT prototype is explicitly proof-only / non-conformance evidence unless a later spec amendment promotes it.
-- [ ] T074 Add explicit deployed-wire backward-compatibility validation for `FR-016` in `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/wire/WireEnvelopeContractTest.kt`, `specs/001-ble-mesh-sdk/contracts/wire-envelope.md`, and `specs/001-ble-mesh-sdk/research.md`, then retain the compatibility evidence.
-- [ ] T075 [P] Add automated coverage for trust-record timestamp fields and persisted-diagnostic redaction boundaries in `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/api/MeshLinkApiContractTest.kt`, `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/integration/DirectMessagingIntegrationTest.kt`, and the affected storage / trust code paths, using the tightened `FR-015a` requirements already recorded in `specs/001-ble-mesh-sdk/spec.md` and `specs/001-ble-mesh-sdk/plan.md`.
-- [ ] T076 [P] Add Android/iOS proof-benchmark coverage for the measurable LOW-power delivery target now defined in `specs/001-ble-mesh-sdk/spec.md` and `specs/001-ble-mesh-sdk/plan.md`, using `meshlink-sample/android/app/src/androidTest/kotlin/ch/trancee/meshlink/proof/android/PowerProfileBenchmark.kt` and `meshlink-sample/ios/ProofBenchmarks/PowerProfileBenchmark.swift`.
-- [ ] T077 Mirror the `SC-001` timed measurement method in `specs/001-ble-mesh-sdk/quickstart.md`, then run and retain a timed quickstart reader-test in `specs/001-ble-mesh-sdk/research.md`.
+- [ ] T074 Add explicit deployed-wire backward-compatibility validation for
+  `FR-016` by checking prior-version FlatBuffers-compatible fixtures into
+  `meshlink/src/commonTest/resources/wire-compat/`, running them from
+  `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/wire/WireEnvelopeContractTest.kt`,
+  updating the supported compatibility expectations in
+  `specs/001-ble-mesh-sdk/contracts/wire-envelope.md`, and retaining pass/fail
+  evidence in `specs/001-ble-mesh-sdk/research.md`.
+- [ ] T075 [P] Add automated coverage for `FR-015a` by asserting that the SDK
+  persists only the pinned TOFU identity material plus
+  `firstSeenAtEpochMillis` / `lastVerifiedAtEpochMillis`, and does not persist
+  developer-visible diagnostics, plaintext payloads, decrypted message content,
+  or other disallowed runtime data, using
+  `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/api/MeshLinkApiContractTest.kt`,
+  `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/integration/DirectMessagingIntegrationTest.kt`,
+  and the affected storage / trust code paths.
+- [ ] T076 [P] Add Android/iOS proof-benchmark coverage for `SC-006` by
+  measuring the 1-hop, 256-byte LOW-power delivery target after peer discovery
+  and connection establishment, retaining the scored runs from
+  `meshlink-sample/android/app/src/androidTest/kotlin/ch/trancee/meshlink/proof/android/PowerProfileBenchmark.kt`
+  and `meshlink-sample/ios/ProofBenchmarks/PowerProfileBenchmark.swift`, and
+  recording the resulting evidence in `specs/001-ble-mesh-sdk/research.md`.
+- [ ] T077 Mirror the `SC-001` timed measurement method in
+  `specs/001-ble-mesh-sdk/quickstart.md`, then run and retain a timed
+  quickstart reader-test in `specs/001-ble-mesh-sdk/research.md` with start
+  timestamp, end timestamp, elapsed duration, and observer note.
 - [X] T078 Refresh `specs/001-ble-mesh-sdk/tasks.md` dependency and incremental-delivery guidance so it reflects appended follow-up phases through Phase 15 while preserving the append-only ledger rules.
+
+---
+
+## Phase 16: Follow-up - Explicit Edge-Case and Trust-Reset Coverage Closure
+
+**Purpose**: Close the remaining requirement and edge-case coverage gaps that
+are currently only implicit in broader tasks, without rewriting completed
+delivery history.
+
+- [ ] T079 [P] Add explicit `FR-003a` reset/forget/revoke coverage by
+  exercising `forgetPeer` / trust-reset flows, then proving the same peer is
+  treated as a fresh TOFU candidate on recontact in
+  `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/api/MeshLinkApiContractTest.kt`,
+  `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/integration/DirectMessagingIntegrationTest.kt`,
+  and the affected trust-store code paths.
+- [ ] T080 [P] Add explicit missing/revoked BLE permission coverage for the
+  blocked-validation edge case by asserting
+  `MeshLinkException.PermissionDenied` behavior in
+  `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/api/MeshLinkApiContractTest.kt`,
+  adding Android/iOS platform-specific permission-denial tests in
+  `meshlink/src/androidUnitTest/kotlin/ch/trancee/meshlink/platform/android/AndroidPermissionContractTest.kt`
+  and
+  `meshlink/src/iosTest/kotlin/ch/trancee/meshlink/platform/ios/IosPermissionContractTest.kt`,
+  and documenting blocked-run evidence expectations in
+  `specs/001-ble-mesh-sdk/quickstart.md` and
+  `specs/001-ble-mesh-sdk/research.md`.
+- [ ] T081 [P] Add explicit incompatible transport / protocol-version rejection
+  coverage for the compatibility edge case in
+  `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/wire/WireEnvelopeContractTest.kt`,
+  `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/integration/MeshRoutingIntegrationTest.kt`,
+  and `specs/001-ble-mesh-sdk/contracts/wire-envelope.md`, retaining one
+  documented unsupported-version failure example in
+  `specs/001-ble-mesh-sdk/research.md`.
 
 ---
 
@@ -278,6 +338,7 @@ retransmission semantics.
 - **Follow-up Recipient-Confirmed Return-Path Stabilization (Phase 13)**: Runs after Phase 12 to diagnose and remediate passive-peer proof-receipt failures.
 - **Follow-up Reverse-Path Peer Reappearance Investigation (Phase 14)**: Runs after Phase 13 and consumes the passive-retry matrix evidence to distinguish missing peer rediscovery from reverse-path route / handshake non-reappearance.
 - **Follow-up Compatibility and Acceptance-Criteria Clarification (Phase 15)**: Runs after Phase 14, or in parallel with `T070`–`T072` where only artifact clarification / offline validation work is involved.
+- **Follow-up Explicit Edge-Case and Trust-Reset Coverage Closure (Phase 16)**: Runs after Phase 15 and blocks any full-conformance or release-readiness claim until `T074`–`T081` are complete.
 
 ### User Story Dependencies
 
@@ -337,7 +398,12 @@ Task: "Implement `TransferSession`, ACK scoreboard, configurable delivery-deadli
 3. Add User Story 2 → validate multi-hop and bounded large transfer
 4. Add User Story 3 → validate power behavior and cross-platform parity
 5. Finish with benchmark, BCV, docs, and quickstart gates
-6. If `SC-004`, recipient-confirmed proof completion, or remaining artifact / acceptance-criteria gaps stay open, execute the appended follow-up phases in ledger order (currently Phases 7–15) before declaring release readiness.
+6. If `SC-004`, recipient-confirmed proof completion, or remaining artifact /
+   acceptance-criteria gaps stay open, execute the appended follow-up phases in
+   ledger order (currently Phases 7–16) before declaring release readiness.
+7. Do not make a full-conformance claim for `FR-003a`, `FR-015a`, `FR-016`,
+   `SC-001`, or `SC-006` until `T074`–`T081` are complete and their evidence is
+   retained in the canonical docs.
 
 ### Parallel Team Strategy
 
@@ -369,3 +435,5 @@ With multiple developers:
   canonical `plan.md` + `tasks.md` state, including completed markers,
   follow-up phases, and release-risk framing, while allowing new work to be
   appended explicitly
+- Open follow-up tasks `T074`–`T081` are explicit blockers for full-conformance
+  / release-readiness claims even if an iOS `SC-004` waiver path is chosen.
