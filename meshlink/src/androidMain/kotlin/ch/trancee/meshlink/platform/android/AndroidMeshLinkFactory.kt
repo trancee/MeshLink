@@ -2,6 +2,7 @@ package ch.trancee.meshlink.platform
 
 import android.content.Context
 import ch.trancee.meshlink.api.MeshLinkApi
+import ch.trancee.meshlink.api.MeshLinkException
 import ch.trancee.meshlink.config.MeshLinkConfig
 import ch.trancee.meshlink.engine.MeshEngine
 import ch.trancee.meshlink.identity.LocalIdentityStore
@@ -11,12 +12,21 @@ import ch.trancee.meshlink.platform.android.AndroidSecureStorage
 import ch.trancee.meshlink.storage.InMemorySecureStorage
 import kotlinx.coroutines.runBlocking
 
+private const val ANDROID_CONTEXT_REQUIRED_MESSAGE =
+    "Android context is required. Call MeshLink.create(context = ..., config = ...)."
+
+internal actual fun createMeshLink(config: MeshLinkConfig): MeshLinkApi {
+    throw MeshLinkException.InvalidConfiguration(ANDROID_CONTEXT_REQUIRED_MESSAGE)
+}
+
 internal actual fun createAndroidMeshLink(config: MeshLinkConfig, context: Any): MeshLinkApi {
     if (context === AndroidFactoryTestContext) {
         return createAndroidMeshLinkForFactoryTests(config = config, context = context)
     }
 
-    val androidContext = context as? Context ?: error("Android context is required")
+    val androidContext =
+        context as? Context
+            ?: throw MeshLinkException.InvalidConfiguration(ANDROID_CONTEXT_REQUIRED_MESSAGE)
     val secureStorage = AndroidSecureStorage(androidContext, config.appId)
     val cryptoProvider = AndroidCryptoProviderFactory.create()
     val localIdentity = runBlocking {

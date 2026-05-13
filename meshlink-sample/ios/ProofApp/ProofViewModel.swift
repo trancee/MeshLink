@@ -56,7 +56,7 @@ final class ProofViewModel: ObservableObject {
             builder.regulatoryRegion = RegulatoryRegion.default_
             builder.powerMode = resolvedLaunchConfig.powerMode
         }
-        api = MeshLink.shared.createIos(config: config)
+        api = MeshLink.shared.create(config: config)
         if resolvedLaunchConfig.benchmarkTransport == .meshLink {
             startTransportLogCaptureIfNeeded()
             bindFlows()

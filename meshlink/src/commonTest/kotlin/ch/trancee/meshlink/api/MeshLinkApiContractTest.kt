@@ -21,6 +21,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 
+@Suppress("DEPRECATION")
 class MeshLinkApiContractTest {
     private fun installIosFactoryTestBridge(): Unit {
         var counter = 1
@@ -91,8 +92,7 @@ class MeshLinkApiContractTest {
         // Arrange
         installIosFactoryTestBridge()
         val config = meshLinkConfig { appId = "demo.meshlink.${kotlin.random.Random.nextInt()}" }
-        val androidApi =
-            MeshLink.createAndroid(context = AndroidFactoryTestContext, config = config)
+        val androidApi = MeshLink.create(context = AndroidFactoryTestContext, config = config)
         val iosApi = MeshLink.createIos(config = config)
 
         // Act

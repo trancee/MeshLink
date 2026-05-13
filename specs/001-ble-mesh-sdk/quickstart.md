@@ -42,8 +42,8 @@ val config = meshLinkConfig {
 
 ## 3. Construct the platform instance
 
-- Android host apps call the Android factory and pass the Android context.
-- iOS host apps construct the exported framework object through the iOS factory.
+- Android host apps call `MeshLink.create(context, config)` and pass the Android context.
+- iOS host apps call `MeshLink.create(config)`.
 - The committed iOS proof sample now includes an Xcode project plus an XcodeGen
   spec. Local iPhone builds still require a development team selection in Xcode
   or a `DEVELOPMENT_TEAM=<your-team-id>` CLI override.

@@ -8,6 +8,10 @@ import ch.trancee.meshlink.identity.LocalIdentityStore
 import ch.trancee.meshlink.storage.InMemorySecureStorage
 import kotlinx.coroutines.runBlocking
 
+internal actual fun createMeshLink(config: MeshLinkConfig): MeshLinkApi {
+    return createIosMeshLink(config = config)
+}
+
 internal actual fun createAndroidMeshLink(config: MeshLinkConfig, context: Any): MeshLinkApi {
     val secureStorage = InMemorySecureStorage()
     val localIdentity = runBlocking {

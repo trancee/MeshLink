@@ -309,7 +309,7 @@ private object MeshLinkProofRuntime {
                 gattBenchmarkServer?.stop()
                 meshLink =
                     if (resolvedLaunchConfig.benchmarkTransport == ProofBenchmarkTransport.MeshLink) {
-                        MeshLink.createAndroid(
+                        MeshLink.create(
                             context = appContext!!,
                             config = meshLinkConfig {
                                 appId = resolvedLaunchConfig.appId

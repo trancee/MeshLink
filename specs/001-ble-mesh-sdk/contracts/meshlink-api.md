@@ -11,14 +11,22 @@ shape must remain identical across platforms.
 
 ```kotlin
 object MeshLink {
+    fun create(config: MeshLinkConfig): MeshLinkApi
+    fun create(context: Any, config: MeshLinkConfig): MeshLinkApi
+
+    @Deprecated("Use create(context, config) instead")
     fun createAndroid(context: Any, config: MeshLinkConfig): MeshLinkApi
+
+    @Deprecated("Use create(config) instead")
     fun createIos(config: MeshLinkConfig): MeshLinkApi
 }
 ```
 
 **Contract notes**
-- Platform factories return the same `MeshLinkApi` contract.
-- Platform-specific parameters stay in factory methods, not in the shared DSL.
+- `create(config)` is the primary entry point for platforms that do not require extra bootstrap input.
+- `create(context, config)` is the Android bootstrap overload.
+- Deprecated aliases stay available for compatibility during the migration window.
+- Platform-specific parameters stay in factory overloads, not in the shared DSL.
 
 ### Configuration DSL
 
