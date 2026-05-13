@@ -791,6 +791,10 @@ private object MeshLinkProofRuntime {
                     "BENCHMARK receipt peer remapped origin=${message.originPeerId.value.takeLast(6)} direct=${receiptPeerId.value.takeLast(6)}",
                 )
             }
+            rememberKnownPeer(
+                peerId = receiptPeerId,
+                source = "benchmarkReceiptPayload",
+            )
             schedulePassiveBenchmarkReceipt(
                 peerId = receiptPeerId,
                 benchmarkPayload = benchmarkPayload,
@@ -813,6 +817,19 @@ private object MeshLinkProofRuntime {
                     ?: knownPeers.values.singleOrNull()
             }
         return knownPeer ?: originPeerId
+    }
+
+    private fun rememberKnownPeer(peerId: PeerId, source: String): Unit {
+        val inserted =
+            synchronized(knownPeers) {
+                knownPeers.putIfAbsent(peerId.value, peerId) == null
+            }
+        if (inserted) {
+            appendLog(
+                "BENCHMARK known peer restored ${peerId.value.takeLast(6)} source=$source",
+            )
+            updatesFlow.tryEmit(Unit)
+        }
     }
 
     private fun scheduleAutoHello(peerId: PeerId): Unit {
