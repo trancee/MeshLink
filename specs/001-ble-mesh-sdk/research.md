@@ -240,28 +240,60 @@ check on both platforms:
 - Android: `PowerProfileBenchmark.lowBatteryPowerSaverModeDelivers256ByteMessageWithinFiveSeconds()`
 - iOS: `PowerProfileBenchmark.testLowBatteryPowerSaverModeDelivers256ByteMessageWithinFiveSeconds()`
 
-Fresh local execution evidence from this repository state:
+Two proof-harness corrections were required before the runs produced durable,
+scored evidence instead of raw harness failures:
 
-- Android compile command: `./gradlew :meshlink-sample:android:meshlink-sample-android-app:compileDebugAndroidTestKotlin`
+- the benchmark wait windows had to be widened to 60 seconds because the proof
+  apps now emit the scored `BENCHMARK transport ... result=...` line only after
+  recipient-confirmed completion or receipt-timeout settlement, not immediately
+  after launch; shorter waits surfaced raw harness timeouts instead of scored
+  outcomes
+- the passive 1-hop proof receipt path now remaps a full `originPeerId` back to
+  the discovered direct peer handle when that handle is only the 12-byte
+  advertisement key-hash prefix of the origin identity; without that remap, the
+  passive proof peer could hold a usable direct route but still treat the
+  receipt target as unavailable
+
+Fresh retained evidence from this repository state:
+
+- Android install command: `./gradlew :meshlink-sample:android:meshlink-sample-android-app:installDebug --console=plain`
   - result: `BUILD SUCCESSFUL`
-- Android execution command: `./gradlew :meshlink-sample:android:meshlink-sample-android-app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=ch.trancee.meshlink.proof.android.PowerProfileBenchmark`
-  - attached devices seen by Gradle: `CPH2689 - 16`, `SM-G970U1 - 12`
-  - existing clamp benchmark result on both devices: `FAILED`
-  - failure detail: `Timed out waiting for proof log line containing 'DIAG POWER_MODE_CHANGED'`
-  - new LOW-power delivery benchmark result on both devices: `SKIPPED`
-  - skip reason: `Requires a nearby proof peer and -e meshlinkBenchmarkEnablePeerTests true`
-- iOS command: `xcodebuild -project meshlink-sample/ios/ProofApp.xcodeproj -scheme ProofApp -destination 'id=6C7DD73A-EC9C-46F9-B0B9-DD136F748621' -only-testing:ProofBenchmarks/PowerProfileBenchmark/testLowBatteryPowerSaverModeDelivers256ByteMessageWithinFiveSeconds test`
+- Android scored benchmark command:
+  `ANDROID_SERIAL=R38M10P930F ./gradlew :meshlink-sample:android:meshlink-sample-android-app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=ch.trancee.meshlink.proof.android.PowerProfileBenchmark#lowBatteryPowerSaverModeDelivers256ByteMessageWithinFiveSeconds -Pandroid.testInstrumentationRunnerArguments.meshlinkBenchmarkEnablePeerTests=true --console=plain`
+  - result: `BUILD SUCCESSFUL`
+  - sender Samsung line:
+    `BENCHMARK transport bytes=256 elapsedMs=411 throughputKBps=0.61 result=Sent`
+  - passive OPPO lines:
+    - `BENCHMARK receipt peer remapped origin=f48c9d direct=ea85e3`
+    - `BENCHMARK receipt send(ea85e3) -> Sent token=00015a7ea2cfe2e1 attempt=1`
+- iOS simulator compile gate:
+  `xcodebuild -project meshlink-sample/ios/ProofApp.xcodeproj -scheme ProofApp -destination 'id=6C7DD73A-EC9C-46F9-B0B9-DD136F748621' -only-testing:ProofBenchmarks/PowerProfileBenchmark/testLowBatteryPowerSaverModeDelivers256ByteMessageWithinFiveSeconds test`
   - result: `TEST SUCCEEDED`
   - benchmark case result: `Test skipped`
-  - blocker reason: `Requires a nearby proof peer and MESHLINK_BENCHMARK_ENABLE_PEER_TESTS=true`
+  - note: this remains a compile gate only because the simulator has no nearby BLE proof peer
+- iOS physical build/install/launch path using the paired iPhone 15 plus a
+  transient local development team from the already-signed local build artifact:
+  - device build: `xcodebuild -project meshlink-sample/ios/ProofApp.xcodeproj -scheme ProofApp -destination 'generic/platform=iOS' -allowProvisioningUpdates DEVELOPMENT_TEAM=<redacted> build`
+  - install: `xcrun devicectl device install app --device 7F5320D7-1D8E-56F5-9D6E-0A6967B25467 ~/Library/Developer/Xcode/DerivedData/ProofApp-bkjaxkflegnxwlflhhedzuolagbp/Build/Products/Debug-iphoneos/ProofApp.app`
+  - headless sender launch:
+    `xcrun devicectl device process launch --device 7F5320D7-1D8E-56F5-9D6E-0A6967B25467 --terminate-existing --console -e '{"MESHLINK_APP_ID":"demo.meshlink.benchmark.power.delivery","MESHLINK_POWER_MODE":"powersaver","MESHLINK_BENCHMARK_PAYLOAD_BYTES":"256","MESHLINK_BENCHMARK_BATTERY_LEVEL":"0.5","MESHLINK_BENCHMARK_IS_CHARGING":"false"}' ch.trancee.meshlink.proof.ios`
+  - sender iPhone 15 line:
+    `BENCHMARK transport bytes=256 elapsedMs=21331 throughputKBps=0.01 result=ReceiptTimeout`
+  - passive OPPO lines:
+    - `Peer lost: db2ccaf6228459d8aa9dc685`
+    - repeated `BENCHMARK correlation role=passive.receipt.wait ... knownPeers=[]`
+    - `BENCHMARK receipt abandoned token=00007689200a0c25 peer=7b76bb deadlineMs=18000`
 
-This means the coverage now exists in both proof-benchmark suites, but this
-session did not produce a scored retained `SC-006` run. The remaining local
-blockers are twofold: the new peer-delivery benchmark requires an explicitly
-enabled nearby proof peer, and the existing Android LOW-power clamp benchmark
-currently times out before the new scored path can even be trusted as a clean
-local gate. `SC-006` therefore remains open even though the benchmark hooks are
-now in place.
+Interpretation:
+
+- the `SC-006` coverage gap is now closed; both proof integrations have fresh,
+  retained scored LOW-power 256-byte evidence
+- Android currently satisfies the LOW-power 256-byte target on the proof path
+  (`411 ms <= 5000 ms`)
+- iOS currently does not satisfy the same clause on reference hardware: the
+  benchmark send itself reaches `Sent`, but the direct peer disappears before
+  the receipt can return, so the scored sender outcome remains
+  `ReceiptTimeout` at `21331 ms`
 
 ## Quickstart reader-test attempt (2026-05-13)
 

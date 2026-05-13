@@ -44,7 +44,7 @@ final class PowerProfileBenchmark: XCTestCase {
         let logLine = BenchmarkTestSupport.waitForLogLine(
             in: application,
             containing: "BENCHMARK transport bytes=",
-            timeout: 20
+            timeout: lowPowerDeliveryResultTimeoutSeconds
         )
         let elapsedMilliseconds = BenchmarkTestSupport.extractElapsedMilliseconds(from: logLine)
         let result = BenchmarkTestSupport.extractResult(from: logLine)
@@ -60,6 +60,10 @@ final class PowerProfileBenchmark: XCTestCase {
             5000,
             "Expected LOW-power 256-byte delivery <= 5000 ms, but observed \(elapsedMilliseconds) ms"
         )
+    }
+
+    private var lowPowerDeliveryResultTimeoutSeconds: TimeInterval {
+        60
     }
 
     private func requirePeerBenchmarksEnabled() throws {

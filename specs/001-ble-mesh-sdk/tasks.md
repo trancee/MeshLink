@@ -272,7 +272,7 @@ release-readiness claim.
   `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/api/MeshLinkApiContractTest.kt`,
   `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/integration/DirectMessagingIntegrationTest.kt`,
   and the affected storage / trust code paths.
-- [ ] T076 [P] Add Android/iOS proof-benchmark coverage for `SC-006` by
+- [X] T076 [P] Add Android/iOS proof-benchmark coverage for `SC-006` by
   measuring the 1-hop, 256-byte LOW-power delivery target after peer discovery
   and connection establishment, retaining the scored runs from
   `meshlink-sample/android/app/src/androidTest/kotlin/ch/trancee/meshlink/proof/android/PowerProfileBenchmark.kt`

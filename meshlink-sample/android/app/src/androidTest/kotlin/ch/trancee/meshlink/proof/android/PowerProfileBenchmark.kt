@@ -55,15 +55,19 @@ class PowerProfileBenchmark {
 
         try {
             // Act
-            val logLine = BenchmarkTestSupport.waitForLogLine("BENCHMARK transport bytes=", 20_000)
+            val logLine =
+                BenchmarkTestSupport.waitForLogLine(
+                    "BENCHMARK transport bytes=",
+                    LOW_POWER_DELIVERY_RESULT_TIMEOUT_MS,
+                )
             val elapsedMs = BenchmarkTestSupport.extractElapsedMs(logLine)
             val result = BenchmarkTestSupport.extractResult(logLine)
 
             // Assert
             assertEquals(
+                "LOW-power delivery benchmarks require a nearby proof peer running appId=$POWER_DELIVERY_APP_ID",
                 "Sent",
                 result,
-                "LOW-power delivery benchmarks require a nearby proof peer running appId=$POWER_DELIVERY_APP_ID",
             )
             assertTrue(
                 "Expected LOW-power 256-byte delivery <= 5000 ms, but observed $elapsedMs ms",
@@ -78,5 +82,6 @@ class PowerProfileBenchmark {
     private companion object {
         private const val POWER_APP_ID: String = "demo.meshlink.benchmark.power"
         private const val POWER_DELIVERY_APP_ID: String = "demo.meshlink.benchmark.power.delivery"
+        private const val LOW_POWER_DELIVERY_RESULT_TIMEOUT_MS: Long = 60_000L
     }
 }

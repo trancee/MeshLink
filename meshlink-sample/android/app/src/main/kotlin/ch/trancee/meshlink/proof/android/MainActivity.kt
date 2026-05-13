@@ -785,8 +785,14 @@ private object MeshLinkProofRuntime {
             appendLog(
                 "MSG from ${message.originPeerId.value} bytes=${message.payload.size} benchmarkToken=${benchmarkPayload.tokenHex}",
             )
+            val receiptPeerId = resolveBenchmarkReceiptPeerId(message.originPeerId)
+            if (receiptPeerId.value != message.originPeerId.value) {
+                appendLog(
+                    "BENCHMARK receipt peer remapped origin=${message.originPeerId.value.takeLast(6)} direct=${receiptPeerId.value.takeLast(6)}",
+                )
+            }
             schedulePassiveBenchmarkReceipt(
-                peerId = message.originPeerId,
+                peerId = receiptPeerId,
                 benchmarkPayload = benchmarkPayload,
             )
             return
@@ -795,6 +801,18 @@ private object MeshLinkProofRuntime {
         appendLog(
             "MSG from ${message.originPeerId.value} bytes=${message.payload.size} text=${message.payload.decodeToString()}",
         )
+    }
+
+    private fun resolveBenchmarkReceiptPeerId(originPeerId: PeerId): PeerId {
+        val knownPeer =
+            synchronized(knownPeers) {
+                knownPeers[originPeerId.value]
+                    ?: knownPeers.values.firstOrNull { knownPeer ->
+                        originPeerId.value.startsWith(knownPeer.value)
+                    }
+                    ?: knownPeers.values.singleOrNull()
+            }
+        return knownPeer ?: originPeerId
     }
 
     private fun scheduleAutoHello(peerId: PeerId): Unit {

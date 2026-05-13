@@ -241,23 +241,29 @@ final class ProofViewModel: ObservableObject {
             appendLog(
                 "MSG from \(message.originPeerId.value) bytes=\(payloadData.count) benchmarkToken=\(benchmarkPayload.tokenHex)"
             )
+            let receiptPeerId = resolveBenchmarkReceiptPeerId(for: message.originPeerId)
+            if receiptPeerId.value != message.originPeerId.value {
+                appendLog(
+                    "BENCHMARK receipt peer remapped origin=\(message.originPeerId.value.suffix(6)) direct=\(receiptPeerId.value.suffix(6))"
+                )
+            }
             appendBenchmarkCorrelation(
                 role: "passive.receipt.start",
                 tokenHex: benchmarkPayload.tokenHex,
-                peerValue: message.originPeerId.value,
+                peerValue: receiptPeerId.value,
                 outcome: "receivedPayload"
             )
             Task { @MainActor in
                 let receiptPayload = BenchmarkReceiptEnvelope(tokenHex: benchmarkPayload.tokenHex, totalBytes: payloadData.count)
                 let result = await sendPayload(
-                    to: message.originPeerId,
+                    to: receiptPeerId,
                     payload: receiptPayload.encode().toKotlinByteArray(),
                     priority: DeliveryPriority.normal
                 )
                 appendBenchmarkCorrelation(
                     role: "passive.receipt.result",
                     tokenHex: benchmarkPayload.tokenHex,
-                    peerValue: message.originPeerId.value,
+                    peerValue: receiptPeerId.value,
                     outcome: result.map { String(describing: $0) } ?? "nil"
                 )
             }
@@ -267,6 +273,19 @@ final class ProofViewModel: ObservableObject {
         appendLog(
             "MSG from \(message.originPeerId.value) bytes=\(message.payload.size) text=\(message.payload.toDataString())"
         )
+    }
+
+    private func resolveBenchmarkReceiptPeerId(for originPeerId: PeerId) -> PeerId {
+        if peers.contains(where: { $0.value == originPeerId.value }) {
+            return originPeerId
+        }
+        if let prefixMatch = peers.first(where: { originPeerId.value.hasPrefix($0.value) }) {
+            return prefixMatch
+        }
+        if peers.count == 1, let onlyPeer = peers.first {
+            return onlyPeer
+        }
+        return originPeerId
     }
 
     private func scheduleAutoSend(for peerId: PeerId) {
