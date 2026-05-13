@@ -141,6 +141,12 @@ Recommended local gates once the implementation exists:
 
 ## Reviewer evidence expectations
 
+For timed `SC-001` reader tests, measure the run from the moment a fresh reader
+begins from the documented quickstart prerequisites until sender and recipient
+proof logs retain the first successful encrypted-message evidence. Retain the
+start timestamp, end timestamp, elapsed duration, and a short observer note for
+that exact run.
+
 For a reviewer to claim this quickstart passed, retain evidence for the exact
 run that was performed:
 
@@ -150,6 +156,8 @@ run that was performed:
 - recipient evidence such as `MSG from ... bytes=`
 - any blocker evidence if the run could not complete (for example signing,
   permission, device-availability, or nearby-mesh interference logs)
+- for blocked runs caused by missing or revoked BLE permissions, the surfaced
+  blocked / permission-denied outcome plus the observed permission state
 
 If a run is blocked by the environment, record that blocker explicitly and stop
 short of claiming `SC-001` or any related benchmark criterion passed.

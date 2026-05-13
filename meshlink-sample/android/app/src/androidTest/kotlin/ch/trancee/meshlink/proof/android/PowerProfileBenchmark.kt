@@ -1,6 +1,7 @@
 package ch.trancee.meshlink.proof.android
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -38,7 +39,44 @@ class PowerProfileBenchmark {
         }
     }
 
+    @Test
+    fun lowBatteryPowerSaverModeDelivers256ByteMessageWithinFiveSeconds(): Unit {
+        // Arrange
+        BenchmarkTestSupport.requirePeerBenchmarksEnabled()
+        BenchmarkTestSupport.clearProofLog()
+        val scenario =
+            BenchmarkTestSupport.startProofApp(
+                appId = POWER_DELIVERY_APP_ID,
+                powerMode = "powersaver",
+                benchmarkPayloadBytes = 256,
+                benchmarkBatteryLevel = 0.50f,
+                benchmarkIsCharging = false,
+            )
+
+        try {
+            // Act
+            val logLine = BenchmarkTestSupport.waitForLogLine("BENCHMARK transport bytes=", 20_000)
+            val elapsedMs = BenchmarkTestSupport.extractElapsedMs(logLine)
+            val result = BenchmarkTestSupport.extractResult(logLine)
+
+            // Assert
+            assertEquals(
+                "Sent",
+                result,
+                "LOW-power delivery benchmarks require a nearby proof peer running appId=$POWER_DELIVERY_APP_ID",
+            )
+            assertTrue(
+                "Expected LOW-power 256-byte delivery <= 5000 ms, but observed $elapsedMs ms",
+                elapsedMs <= 5_000,
+            )
+        } finally {
+            scenario.close()
+            BenchmarkTestSupport.clearProofLog()
+        }
+    }
+
     private companion object {
         private const val POWER_APP_ID: String = "demo.meshlink.benchmark.power"
+        private const val POWER_DELIVERY_APP_ID: String = "demo.meshlink.benchmark.power.delivery"
     }
 }

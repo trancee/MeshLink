@@ -232,6 +232,49 @@ This establishes a durable compatibility baseline for future wire evolution:
 changes that accidentally alter the deployed v1 binary layout will now fail the
 contract test instead of being noticed only during physical validation.
 
+## LOW-power delivery benchmark coverage update (2026-05-13)
+
+The proof-benchmark suites now include an explicit LOW-power 256-byte delivery
+check on both platforms:
+
+- Android: `PowerProfileBenchmark.lowBatteryPowerSaverModeDelivers256ByteMessageWithinFiveSeconds()`
+- iOS: `PowerProfileBenchmark.testLowBatteryPowerSaverModeDelivers256ByteMessageWithinFiveSeconds()`
+
+Fresh local execution evidence from this repository state:
+
+- Android compile command: `./gradlew :meshlink-sample:android:meshlink-sample-android-app:compileDebugAndroidTestKotlin`
+  - result: `BUILD SUCCESSFUL`
+- Android execution command: `./gradlew :meshlink-sample:android:meshlink-sample-android-app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=ch.trancee.meshlink.proof.android.PowerProfileBenchmark`
+  - attached devices seen by Gradle: `CPH2689 - 16`, `SM-G970U1 - 12`
+  - existing clamp benchmark result on both devices: `FAILED`
+  - failure detail: `Timed out waiting for proof log line containing 'DIAG POWER_MODE_CHANGED'`
+  - new LOW-power delivery benchmark result on both devices: `SKIPPED`
+  - skip reason: `Requires a nearby proof peer and -e meshlinkBenchmarkEnablePeerTests true`
+- iOS command: `xcodebuild -project meshlink-sample/ios/ProofApp.xcodeproj -scheme ProofApp -destination 'id=6C7DD73A-EC9C-46F9-B0B9-DD136F748621' -only-testing:ProofBenchmarks/PowerProfileBenchmark/testLowBatteryPowerSaverModeDelivers256ByteMessageWithinFiveSeconds test`
+  - result: `TEST SUCCEEDED`
+  - benchmark case result: `Test skipped`
+  - blocker reason: `Requires a nearby proof peer and MESHLINK_BENCHMARK_ENABLE_PEER_TESTS=true`
+
+This means the coverage now exists in both proof-benchmark suites, but this
+session did not produce a scored retained `SC-006` run. The remaining local
+blockers are twofold: the new peer-delivery benchmark requires an explicitly
+enabled nearby proof peer, and the existing Android LOW-power clamp benchmark
+currently times out before the new scored path can even be trusted as a clean
+local gate. `SC-006` therefore remains open even though the benchmark hooks are
+now in place.
+
+## Quickstart reader-test attempt (2026-05-13)
+
+The `SC-001` timing method is now mirrored in `quickstart.md`. A fresh timed
+reader-test attempt in this implementation session recorded:
+
+- start: `2026-05-13T18:16:45Z`
+- end: `2026-05-13T18:16:46Z`
+- elapsed: `1s`
+- observer note: blocked immediately because this session did not have a fresh
+  reader / observer pair or a reserved two-device quickstart validation window,
+  so no `SC-001` pass claim is made from this attempt.
+
 ## Physical validation update (2026-05-12)
 
 The benchmark module README now carries the consolidated baseline table for JVM,

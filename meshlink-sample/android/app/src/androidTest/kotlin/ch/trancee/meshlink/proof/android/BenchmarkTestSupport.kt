@@ -7,6 +7,7 @@ import android.os.SystemClock
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.platform.app.InstrumentationRegistry
+import org.junit.Assume.assumeTrue
 
 internal object BenchmarkTestSupport {
     private const val PACKAGE_NAME: String = "ch.trancee.meshlink.proof.android"
@@ -51,6 +52,15 @@ internal object BenchmarkTestSupport {
 
     fun clearProofLog(): Unit {
         InstrumentationRegistry.getInstrumentation().targetContext.deleteFile(PROOF_LOG_FILE_NAME)
+    }
+
+    fun requirePeerBenchmarksEnabled(): Unit {
+        val enabled =
+            InstrumentationRegistry.getArguments().getString(PEER_BENCHMARKS_ARGUMENT) == "true"
+        assumeTrue(
+            "Requires a nearby proof peer and -e $PEER_BENCHMARKS_ARGUMENT true",
+            enabled,
+        )
     }
 
     fun waitForLogLine(text: String, timeoutMs: Long): String {
@@ -102,4 +112,5 @@ internal object BenchmarkTestSupport {
     private val ELAPSED_MS_REGEX = Regex("elapsedMs=(\\d+)")
     private val THROUGHPUT_REGEX = Regex("throughputKBps=([0-9]+(?:\\.[0-9]+)?)")
     private val RESULT_REGEX = Regex("result=([^ ]+)")
+    private const val PEER_BENCHMARKS_ARGUMENT: String = "meshlinkBenchmarkEnablePeerTests"
 }

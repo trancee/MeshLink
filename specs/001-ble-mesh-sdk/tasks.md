@@ -278,7 +278,7 @@ release-readiness claim.
   `meshlink-sample/android/app/src/androidTest/kotlin/ch/trancee/meshlink/proof/android/PowerProfileBenchmark.kt`
   and `meshlink-sample/ios/ProofBenchmarks/PowerProfileBenchmark.swift`, and
   recording the resulting evidence in `specs/001-ble-mesh-sdk/research.md`.
-- [ ] T077 Mirror the `SC-001` timed measurement method in
+- [X] T077 Mirror the `SC-001` timed measurement method in
   `specs/001-ble-mesh-sdk/quickstart.md`, then run and retain a timed
   quickstart reader-test in `specs/001-ble-mesh-sdk/research.md` with start
   timestamp, end timestamp, elapsed duration, and observer note.
