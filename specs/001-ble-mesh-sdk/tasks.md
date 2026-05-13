@@ -248,14 +248,14 @@ retransmission semantics.
 
 ## Phase 15: Follow-up - Compatibility and Acceptance-Criteria Clarification
 
-**Purpose**: Close the remaining analysis findings on transport-scope wording, deployed-wire compatibility validation, storage/redaction specificity, measurable LOW-power delivery, quickstart timing evidence, and stale sequencing guidance without reopening completed delivery history.
+**Purpose**: Close the remaining implementation and evidence work from the analysis follow-up: deployed-wire compatibility validation, trust/redaction automated coverage, LOW-power proof-benchmark coverage, and retained quickstart timing evidence, without reopening completed delivery history.
 
-- [ ] T073 [P] Clarify the normative transport scope in `specs/001-ble-mesh-sdk/spec.md` and `specs/001-ble-mesh-sdk/plan.md` so the current release path remains MeshLink L2CAP-first and the retained GATT prototype is explicitly proof-only / non-conformance evidence unless a later spec amendment promotes it.
+- [X] T073 [P] Clarify the normative transport scope in `specs/001-ble-mesh-sdk/spec.md` and `specs/001-ble-mesh-sdk/plan.md` so the current release path remains MeshLink L2CAP-first and the retained GATT prototype is explicitly proof-only / non-conformance evidence unless a later spec amendment promotes it.
 - [ ] T074 Add explicit deployed-wire backward-compatibility validation for `FR-016` in `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/wire/WireEnvelopeContractTest.kt`, `specs/001-ble-mesh-sdk/contracts/wire-envelope.md`, and `specs/001-ble-mesh-sdk/research.md`, then retain the compatibility evidence.
-- [ ] T075 [P] Tighten trust-record timestamp and persisted-diagnostic redaction requirements in `specs/001-ble-mesh-sdk/spec.md` and `specs/001-ble-mesh-sdk/plan.md`, then add automated coverage in `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/api/MeshLinkApiContractTest.kt`, `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/integration/DirectMessagingIntegrationTest.kt`, and the affected storage / trust code paths.
-- [ ] T076 [P] Replace the vague LOW-power delivery clause in `specs/001-ble-mesh-sdk/spec.md` with a measurable target, mirror it in `specs/001-ble-mesh-sdk/plan.md`, and add Android/iOS proof-benchmark coverage in `meshlink-sample/android/app/src/androidTest/kotlin/ch/trancee/meshlink/proof/android/PowerProfileBenchmark.kt` and `meshlink-sample/ios/ProofBenchmarks/PowerProfileBenchmark.swift`.
-- [ ] T077 Define the timed measurement method for `SC-001` in `specs/001-ble-mesh-sdk/spec.md` and `specs/001-ble-mesh-sdk/quickstart.md`, then run and retain a timed quickstart reader-test in `specs/001-ble-mesh-sdk/research.md`.
-- [ ] T078 Refresh `specs/001-ble-mesh-sdk/tasks.md` dependency and incremental-delivery guidance so it reflects appended follow-up phases through Phase 15 while preserving the append-only ledger rules.
+- [ ] T075 [P] Add automated coverage for trust-record timestamp fields and persisted-diagnostic redaction boundaries in `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/api/MeshLinkApiContractTest.kt`, `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/integration/DirectMessagingIntegrationTest.kt`, and the affected storage / trust code paths, using the tightened `FR-015a` requirements already recorded in `specs/001-ble-mesh-sdk/spec.md` and `specs/001-ble-mesh-sdk/plan.md`.
+- [ ] T076 [P] Add Android/iOS proof-benchmark coverage for the measurable LOW-power delivery target now defined in `specs/001-ble-mesh-sdk/spec.md` and `specs/001-ble-mesh-sdk/plan.md`, using `meshlink-sample/android/app/src/androidTest/kotlin/ch/trancee/meshlink/proof/android/PowerProfileBenchmark.kt` and `meshlink-sample/ios/ProofBenchmarks/PowerProfileBenchmark.swift`.
+- [ ] T077 Mirror the `SC-001` timed measurement method in `specs/001-ble-mesh-sdk/quickstart.md`, then run and retain a timed quickstart reader-test in `specs/001-ble-mesh-sdk/research.md`.
+- [X] T078 Refresh `specs/001-ble-mesh-sdk/tasks.md` dependency and incremental-delivery guidance so it reflects appended follow-up phases through Phase 15 while preserving the append-only ledger rules.
 
 ---
 
