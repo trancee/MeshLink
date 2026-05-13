@@ -20,6 +20,10 @@ internal class WriteBuffer {
         writeByte(((value shr 24) and 0xFF).toByte())
     }
 
+    internal fun writeLongLittleEndian(value: Long): Unit {
+        repeat(8) { index -> writeByte(((value shr (index * 8)) and 0xFF).toByte()) }
+    }
+
     internal fun writeBytes(value: ByteArray): Unit {
         value.forEach(::writeByte)
     }

@@ -10,6 +10,7 @@ import ch.trancee.meshlink.transport.BleTransport
 import ch.trancee.meshlink.transport.OutboundFrame
 import ch.trancee.meshlink.transport.TransportEvent
 import ch.trancee.meshlink.transport.TransportSendResult
+import ch.trancee.meshlink.trust.TofuTrustStore
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -136,6 +137,57 @@ class MeshLinkApiContractTest {
         // Act / Assert
         assertFailsWith<MeshLinkException.PlatformFailure> { runBlocking { api.start() } }
     }
+
+    @Test
+    fun `successful trust verification preserves first seen and refreshes last verified timestamp`() =
+        runBlocking {
+            // Arrange
+            val harness = MeshTestHarness()
+            val receiver = harness.createNode("peer-receiver")
+            val sender = harness.createNode("peer-sender")
+            val trustStore = TofuTrustStore(receiver.storage)
+
+            receiver.api.start()
+            sender.api.start()
+            sender.api.send(receiver.peerId, "hello".encodeToByteArray())
+            val initialRecord =
+                withTimeout(1_000) {
+                    while (trustStore.read(sender.peerId.value) == null) {
+                        kotlinx.coroutines.delay(10)
+                    }
+                    trustStore.read(sender.peerId.value)
+                        ?: error("Expected initial trust record to be persisted")
+                }
+            sender.api.stop()
+            kotlinx.coroutines.delay(10)
+            val restartedSender = harness.restartNode(sender)
+            restartedSender.api.start()
+
+            // Act
+            restartedSender.api.send(receiver.peerId, "hello-again".encodeToByteArray())
+            val refreshedRecord =
+                withTimeout(1_000) {
+                    var candidate = trustStore.read(sender.peerId.value)
+                    while (
+                        candidate == null ||
+                            candidate.lastVerifiedAtEpochMillis <
+                                initialRecord.lastVerifiedAtEpochMillis
+                    ) {
+                        kotlinx.coroutines.delay(10)
+                        candidate = trustStore.read(sender.peerId.value)
+                    }
+                    candidate
+                }
+
+            // Assert
+            assertEquals(
+                initialRecord.firstSeenAtEpochMillis,
+                refreshedRecord.firstSeenAtEpochMillis,
+            )
+            assertTrue(
+                refreshedRecord.lastVerifiedAtEpochMillis >= initialRecord.lastVerifiedAtEpochMillis
+            )
+        }
 
     @Test
     fun `identity change emits trust failure diagnostics`() = runBlocking {

@@ -264,7 +264,7 @@ release-readiness claim.
   updating the supported compatibility expectations in
   `specs/001-ble-mesh-sdk/contracts/wire-envelope.md`, and retaining pass/fail
   evidence in `specs/001-ble-mesh-sdk/research.md`.
-- [ ] T075 [P] Add automated coverage for `FR-015a` by asserting that the SDK
+- [X] T075 [P] Add automated coverage for `FR-015a` by asserting that the SDK
   persists only the pinned TOFU identity material plus
   `firstSeenAtEpochMillis` / `lastVerifiedAtEpochMillis`, and does not persist
   developer-visible diagnostics, plaintext payloads, decrypted message content,

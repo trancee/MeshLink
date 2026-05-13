@@ -25,6 +25,7 @@ import ch.trancee.meshlink.diagnostics.DiagnosticSeverity
 import ch.trancee.meshlink.diagnostics.DiagnosticSink
 import ch.trancee.meshlink.identity.LocalIdentity
 import ch.trancee.meshlink.identity.toHexString
+import ch.trancee.meshlink.platform.currentEpochMillis
 import ch.trancee.meshlink.power.PowerPolicy
 import ch.trancee.meshlink.power.PowerPolicyController
 import ch.trancee.meshlink.presence.PeerPresenceTracker
@@ -216,13 +217,27 @@ private constructor(
     }
 
     override suspend fun forgetPeer(peerId: PeerId): ForgetPeerResult {
-        emitDiagnostic(
-            code = DiagnosticCode.ROUTE_RETRACTED,
-            severity = DiagnosticSeverity.WARN,
+        val existingTrust = trustStore.read(peerId.value) ?: return ForgetPeerResult.NotFound
+        trustStore.delete(peerId.value)
+        hopSessions.remove(peerId.value)
+        pendingInitiatorHandshakes
+            .remove(peerId.value)
+            ?.sessionDeferred
+            ?.complete(SessionEstablishmentOutcome.Unreachable)
+        pendingResponderHandshakes.remove(peerId.value)
+        dispatchRoutingMutation(
+            mutation = routeCoordinator.onPeerDisconnected(peerId),
             stage = "trust.forgetPeer",
-            peerSuffix = peerId.value.takeLast(6),
-            reason = DiagnosticReason.ROUTE_CHANGE,
+            removalCode = DiagnosticCode.ROUTE_RETRACTED,
+            metadata =
+                mapOf(
+                    "forgottenPeerId" to peerId.value,
+                    "firstSeenAtEpochMillis" to existingTrust.firstSeenAtEpochMillis.toString(),
+                ),
         )
+        if (presenceTracker.onPeerDisconnected(peerId)) {
+            mutablePeerEvents.emit(PeerEvent.Lost(peerId))
+        }
         return ForgetPeerResult.Forgotten
     }
 
@@ -782,6 +797,7 @@ private constructor(
             return existingTrust
         }
         val route = routeCoordinator.routeFor(peerId) ?: return null
+        val learnedAtEpochMillis = currentEpochMillis()
         val learnedTrust =
             TrustRecord(
                 peerIdValue = route.destinationPeerId.value,
@@ -789,6 +805,8 @@ private constructor(
                     localIdentity.cryptoProvider
                         .sha256(route.ed25519PublicKey + route.x25519PublicKey)
                         .toHexString(),
+                firstSeenAtEpochMillis = learnedAtEpochMillis,
+                lastVerifiedAtEpochMillis = learnedAtEpochMillis,
                 ed25519PublicKey = route.ed25519PublicKey,
                 x25519PublicKey = route.x25519PublicKey,
             )
@@ -1476,10 +1494,13 @@ private constructor(
 
         val existingTrust = trustStore.read(peerId.value)
         if (existingTrust == null) {
+            val verifiedAtEpochMillis = currentEpochMillis()
             val trustRecord =
                 TrustRecord(
                     peerIdValue = peerId.value,
                     identityFingerprint = fingerprint,
+                    firstSeenAtEpochMillis = verifiedAtEpochMillis,
+                    lastVerifiedAtEpochMillis = verifiedAtEpochMillis,
                     ed25519PublicKey = remoteEd25519PublicKey,
                     x25519PublicKey = remoteX25519PublicKey,
                 )
@@ -1507,7 +1528,11 @@ private constructor(
             )
             return null
         }
-        return existingTrust
+        val refreshedTrust = existingTrust.withLastVerifiedAt(currentEpochMillis())
+        if (refreshedTrust.lastVerifiedAtEpochMillis != existingTrust.lastVerifiedAtEpochMillis) {
+            trustStore.write(refreshedTrust)
+        }
+        return refreshedTrust
     }
 
     private suspend fun sendDirectWireFrame(

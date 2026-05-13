@@ -16,4 +16,8 @@ internal class InMemorySecureStorage : SecureStorage {
     override suspend fun delete(key: String): Unit {
         values.remove(key)
     }
+
+    internal fun snapshot(): Map<String, ByteArray> {
+        return values.mapValues { (_, value) -> value.copyOf() }
+    }
 }

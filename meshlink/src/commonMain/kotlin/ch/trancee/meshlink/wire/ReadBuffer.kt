@@ -30,6 +30,16 @@ internal constructor(private val bytes: ByteArray, private var position: Int = 0
         return value
     }
 
+    internal fun readLongLittleEndian(): Long {
+        ensureAvailable(8)
+        var value = 0L
+        repeat(8) { index ->
+            value = value or ((bytes[position + index].toLong() and 0xFF) shl (index * 8))
+        }
+        position += 8
+        return value
+    }
+
     internal fun readBytes(count: Int): ByteArray {
         ensureAvailable(count)
         val slice = bytes.copyOfRange(position, position + count)

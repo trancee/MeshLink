@@ -77,6 +77,8 @@ class MessageSealerTest {
         return TrustRecord(
             peerIdValue = identity.peerId.value,
             identityFingerprint = identity.identityFingerprint,
+            firstSeenAtEpochMillis = 1_000L,
+            lastVerifiedAtEpochMillis = 2_000L,
             ed25519PublicKey = identity.ed25519PublicKey,
             x25519PublicKey = identity.x25519PublicKey,
         )
