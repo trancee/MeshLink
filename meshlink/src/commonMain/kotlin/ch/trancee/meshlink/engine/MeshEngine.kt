@@ -25,6 +25,7 @@ import ch.trancee.meshlink.diagnostics.DiagnosticSeverity
 import ch.trancee.meshlink.diagnostics.DiagnosticSink
 import ch.trancee.meshlink.identity.LocalIdentity
 import ch.trancee.meshlink.identity.toHexString
+import ch.trancee.meshlink.platform.PlatformPermissionDeniedException
 import ch.trancee.meshlink.platform.currentEpochMillis
 import ch.trancee.meshlink.power.PowerPolicy
 import ch.trancee.meshlink.power.PowerPolicyController
@@ -43,6 +44,7 @@ import ch.trancee.meshlink.transfer.RelayTransferSession
 import ch.trancee.meshlink.transport.BleTransport
 import ch.trancee.meshlink.transport.OutboundFrame
 import ch.trancee.meshlink.transport.TransportEvent
+import ch.trancee.meshlink.transport.TransportMode
 import ch.trancee.meshlink.transport.TransportSendResult
 import ch.trancee.meshlink.trust.TofuTrustStore
 import ch.trancee.meshlink.trust.TrustRecord
@@ -279,6 +281,22 @@ private constructor(
         when (event) {
             is TransportEvent.FrameReceived -> handleInboundFrame(event)
             is TransportEvent.PeerDiscovered -> {
+                if (event.transportMode != TransportMode.L2CAP) {
+                    emitDiagnostic(
+                        code = DiagnosticCode.TRANSPORT_MODE_CHANGED,
+                        severity = DiagnosticSeverity.INFO,
+                        stage = "transport.peerDiscovered.rejected",
+                        peerSuffix = event.peerId.value.takeLast(6),
+                        reason = DiagnosticReason.TRANSPORT_CHANGE,
+                        metadata =
+                            mapOf(
+                                "accepted" to "false",
+                                "supportedTransportMode" to TransportMode.L2CAP.name,
+                                "transportMode" to event.transportMode.name,
+                            ),
+                    )
+                    return
+                }
                 when (presenceTracker.onPeerConnected(event.peerId)) {
                     PresenceTransition.FOUND -> {
                         mutablePeerEvents.emit(
@@ -317,7 +335,34 @@ private constructor(
                     stage = "transport.modeChanged",
                     peerSuffix = event.peerId.value.takeLast(6),
                     reason = DiagnosticReason.TRANSPORT_CHANGE,
+                    metadata =
+                        mapOf(
+                            "accepted" to (event.transportMode == TransportMode.L2CAP).toString(),
+                            "supportedTransportMode" to TransportMode.L2CAP.name,
+                            "transportMode" to event.transportMode.name,
+                        ),
                 )
+                if (event.transportMode != TransportMode.L2CAP) {
+                    hopSessions.remove(event.peerId.value)
+                    pendingInitiatorHandshakes
+                        .remove(event.peerId.value)
+                        ?.sessionDeferred
+                        ?.complete(SessionEstablishmentOutcome.Unreachable)
+                    pendingResponderHandshakes.remove(event.peerId.value)
+                    dispatchRoutingMutation(
+                        mutation = routeCoordinator.onPeerDisconnected(event.peerId),
+                        stage = "transport.modeChanged.rejected",
+                        removalCode = DiagnosticCode.ROUTE_RETRACTED,
+                        metadata =
+                            mapOf(
+                                "removedByPeerId" to event.peerId.value,
+                                "transportMode" to event.transportMode.name,
+                            ),
+                    )
+                    if (presenceTracker.onPeerDisconnected(event.peerId)) {
+                        mutablePeerEvents.emit(PeerEvent.Lost(event.peerId))
+                    }
+                }
             }
         }
     }
@@ -1704,6 +1749,11 @@ private constructor(
     private suspend fun <T> runPlatformCall(action: String, block: suspend () -> T): T {
         return try {
             block()
+        } catch (exception: PlatformPermissionDeniedException) {
+            throw MeshLinkException.PermissionDenied(
+                message = "Platform transport denied permission during $action",
+                cause = exception,
+            )
         } catch (exception: Throwable) {
             throw MeshLinkException.PlatformFailure(
                 message = "Platform transport failed during $action",

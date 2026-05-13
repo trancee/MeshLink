@@ -51,8 +51,12 @@ internal constructor(
             val payload =
                 table.readByteVector(PAYLOAD_FIELD_INDEX)
                     ?: throw IllegalStateException("WireEnvelope payload is missing")
+            val version = table.readByte(VERSION_FIELD_INDEX).toUByte()
+            if (version != WireCodec.CURRENT_WIRE_VERSION) {
+                throw IllegalStateException("Unsupported WireEnvelope version ${version.toInt()}")
+            }
             return WireEnvelope(
-                version = table.readByte(VERSION_FIELD_INDEX).toUByte(),
+                version = version,
                 type = WireEnvelopeType.fromCode(table.readByte(TYPE_FIELD_INDEX)),
                 payload = payload,
             )

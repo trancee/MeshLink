@@ -7,6 +7,7 @@ import ch.trancee.meshlink.config.meshLinkConfig
 import ch.trancee.meshlink.diagnostics.DiagnosticCode
 import ch.trancee.meshlink.diagnostics.DiagnosticEvent
 import ch.trancee.meshlink.test.MeshTestHarness
+import ch.trancee.meshlink.transport.TransportMode
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
@@ -167,6 +168,45 @@ class MeshRoutingIntegrationTest {
             assertEquals(SendFailureReason.UNREACHABLE, notSent.reason)
             assertTrue(startedAt.elapsedNow() >= 500.milliseconds)
         }
+
+    @Test
+    fun `gatt-only peers are rejected and remain unreachable`() = runBlocking {
+        // Arrange
+        val harness = MeshTestHarness()
+        val sender =
+            harness.createNode(
+                peerIdValue = "peer-a",
+                configOverride =
+                    meshLinkConfig {
+                        appId = "peer-a-gatt-reject"
+                        deliveryRetryDeadline = 500.milliseconds
+                    },
+            )
+        val recipient = harness.createNode("peer-b")
+        val payload = "gatt-only".encodeToByteArray()
+
+        harness.linkPeers(sender, recipient, mode = TransportMode.GATT)
+
+        sender.api.start()
+        recipient.api.start()
+        delay(250)
+
+        // Act
+        val sendResult = sender.api.send(recipient.peerId, payload)
+        val receivedMessage = withTimeoutOrNull(250) { recipient.api.messages.first() }
+
+        // Assert
+        val notSent = assertIs<SendResult.NotSent>(sendResult)
+        assertEquals(SendFailureReason.UNREACHABLE, notSent.reason)
+        assertNull(receivedMessage)
+        assertTrue(
+            sender.diagnosticSink.events().any { diagnostic ->
+                diagnostic.code == DiagnosticCode.TRANSPORT_MODE_CHANGED &&
+                    diagnostic.stage == "transport.peerDiscovered.rejected"
+            },
+            "Expected GATT-only discovery to emit an explicit transport rejection diagnostic",
+        )
+    }
 
     @Test
     fun `direct route diagnostics record peer rediscovery before send succeeds`() = runBlocking {

@@ -73,6 +73,7 @@ internal constructor(
 }
 
 internal object BleDiscoveryContract {
+    internal const val CURRENT_PROTOCOL_VERSION: Int = 1
     private const val HEX_DIGITS = "0123456789abcdef"
     internal const val ADVERTISEMENT_SERVICE_UUID: String = "4d455348"
     internal const val ADVERTISEMENT_SERVICE_UUID_EXPANDED: String =
@@ -95,6 +96,10 @@ internal object BleDiscoveryContract {
         val normalized = uuid.lowercase()
         return normalized == ADVERTISEMENT_SERVICE_UUID ||
             normalized == ADVERTISEMENT_SERVICE_UUID_EXPANDED
+    }
+
+    internal fun isSupportedProtocolVersion(protocolVersion: Int): Boolean {
+        return protocolVersion == CURRENT_PROTOCOL_VERSION
     }
 
     internal fun computeMeshHash(appId: String): UShort {

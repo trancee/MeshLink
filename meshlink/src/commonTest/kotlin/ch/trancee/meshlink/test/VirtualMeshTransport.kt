@@ -16,6 +16,7 @@ internal class VirtualMeshTransport(
 ) : BleTransport {
     private var eventChannel: Channel<TransportEvent> = Channel(capacity = Channel.UNLIMITED)
     private val sentFrames: MutableList<ByteArray> = mutableListOf()
+    private val discoveredPeerModes: MutableMap<String, TransportMode> = linkedMapOf()
     private var started: Boolean = false
 
     override val events: Flow<TransportEvent>
@@ -38,6 +39,7 @@ internal class VirtualMeshTransport(
     override suspend fun stop(): Unit {
         started = false
         sentFrames.clear()
+        discoveredPeerModes.clear()
         network.unregister(localPeerId)
         eventChannel = Channel(capacity = Channel.UNLIMITED)
     }
@@ -49,6 +51,10 @@ internal class VirtualMeshTransport(
     override suspend fun send(frame: OutboundFrame): TransportSendResult {
         if (!started) {
             return TransportSendResult.Dropped("virtual transport is not started")
+        }
+        val mode = discoveredPeerModes[frame.peerId.value]
+        if (mode != TransportMode.L2CAP) {
+            return TransportSendResult.Dropped("recipient transport is unavailable")
         }
         sentFrames += frame.payload.copyOf()
         return when (
@@ -66,11 +72,13 @@ internal class VirtualMeshTransport(
         }
     }
 
-    internal fun connect(peerId: PeerId, mode: TransportMode = TransportMode.GATT): Unit {
+    internal fun connect(peerId: PeerId, mode: TransportMode = TransportMode.L2CAP): Unit {
+        discoveredPeerModes[peerId.value] = mode
         dispatchEvent(TransportEvent.PeerDiscovered(peerId = peerId, transportMode = mode))
     }
 
     internal fun disconnect(peerId: PeerId): Unit {
+        discoveredPeerModes.remove(peerId.value)
         dispatchEvent(TransportEvent.PeerLost(peerId = peerId))
     }
 

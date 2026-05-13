@@ -5,7 +5,7 @@ import ch.trancee.meshlink.transport.TransportMode
 
 internal class VirtualMeshNetwork {
     private val transports: MutableMap<String, VirtualMeshTransport> = linkedMapOf()
-    private val linkedPeers: MutableSet<LinkKey> = linkedSetOf()
+    private val linkedPeers: MutableMap<LinkKey, TransportMode> = linkedMapOf()
     private val heldDeliveries: MutableMap<DirectedLinkKey, MutableList<PendingDelivery>> =
         linkedMapOf()
     private val dropRules: MutableMap<DirectedLinkKey, Int> = linkedMapOf()
@@ -18,8 +18,9 @@ internal class VirtualMeshNetwork {
         transports[transport.localPeerId.value] = transport
         transports.values.forEach { other ->
             if (other !== transport && areLinked(transport.localPeerId, other.localPeerId)) {
-                other.connect(transport.localPeerId, TransportMode.GATT)
-                transport.connect(other.localPeerId, TransportMode.GATT)
+                val mode = linkMode(transport.localPeerId, other.localPeerId)
+                other.connect(transport.localPeerId, mode)
+                transport.connect(other.localPeerId, mode)
             }
         }
     }
@@ -29,24 +30,29 @@ internal class VirtualMeshNetwork {
         transports.values.forEach { other -> other.disconnect(peerId) }
     }
 
-    internal fun linkPeers(first: PeerId, second: PeerId): Unit {
+    internal fun linkPeers(
+        first: PeerId,
+        second: PeerId,
+        mode: TransportMode = TransportMode.L2CAP,
+    ): Unit {
         manualTopologyEnabled = true
         val linkKey = LinkKey.of(first, second)
-        if (!linkedPeers.add(linkKey)) {
+        if (linkedPeers.containsKey(linkKey)) {
             return
         }
+        linkedPeers[linkKey] = mode
         val firstTransport = transports[first.value]
         val secondTransport = transports[second.value]
         if (firstTransport != null && secondTransport != null) {
-            firstTransport.connect(second, TransportMode.GATT)
-            secondTransport.connect(first, TransportMode.GATT)
+            firstTransport.connect(second, mode)
+            secondTransport.connect(first, mode)
         }
     }
 
     internal fun unlinkPeers(first: PeerId, second: PeerId): Unit {
         manualTopologyEnabled = true
         val linkKey = LinkKey.of(first, second)
-        if (!linkedPeers.remove(linkKey)) {
+        if (linkedPeers.remove(linkKey) == null) {
             return
         }
         val firstTransport = transports[first.value]
@@ -139,7 +145,11 @@ internal class VirtualMeshNetwork {
         if (!manualTopologyEnabled) {
             return true
         }
-        return linkedPeers.contains(LinkKey.of(first, second))
+        return linkedPeers.containsKey(LinkKey.of(first, second))
+    }
+
+    private fun linkMode(first: PeerId, second: PeerId): TransportMode {
+        return linkedPeers[LinkKey.of(first, second)] ?: TransportMode.L2CAP
     }
 
     private fun MutableMap<DirectedLinkKey, Int>.consume(key: DirectedLinkKey): Boolean {

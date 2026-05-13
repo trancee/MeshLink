@@ -34,6 +34,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import platform.CoreBluetooth.CBAdvertisementDataServiceUUIDsKey
+import platform.CoreBluetooth.CBManager
 import platform.CoreBluetooth.CBCentralManager
 import platform.CoreBluetooth.CBCentralManagerDelegateProtocol
 import platform.CoreBluetooth.CBL2CAPChannel
@@ -77,6 +78,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
     override val events: Flow<TransportEvent> = mutableEvents.asSharedFlow()
 
     override suspend fun start(): Unit {
+        IosBlePermissionContract.ensureBluetoothAuthorized(CBManager.authorization)
         started = true
         centralManager = CBCentralManager(delegate = centralDelegate, queue = null)
         peripheralManager = CBPeripheralManager(delegate = peripheralManagerDelegate, queue = null)
@@ -230,6 +232,12 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
             return
         }
         if (payload.keyHash.contentEquals(localKeyHash)) {
+            return
+        }
+        if (!BleDiscoveryContract.isSupportedProtocolVersion(payload.protocolVersion)) {
+            log(
+                "ignoring discovery payload with unsupported protocolVersion=${payload.protocolVersion} id=${peripheral.identifier.UUIDString}"
+            )
             return
         }
 
@@ -522,7 +530,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
 
     private fun discoveryPayload(l2capPsm: UByte): BleDiscoveryPayload {
         return BleDiscoveryPayload(
-            protocolVersion = 1,
+            protocolVersion = BleDiscoveryContract.CURRENT_PROTOCOL_VERSION,
             powerMode = currentPowerProfile.discoveryPowerMode,
             meshHash = BleDiscoveryContract.computeMeshHash(appId),
             l2capPsm = l2capPsm,

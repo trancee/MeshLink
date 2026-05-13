@@ -4,6 +4,7 @@ import ch.trancee.meshlink.config.meshLinkConfig
 import ch.trancee.meshlink.diagnostics.DiagnosticCode
 import ch.trancee.meshlink.engine.MeshEngine
 import ch.trancee.meshlink.platform.AndroidFactoryTestContext
+import ch.trancee.meshlink.platform.PlatformPermissionDeniedException
 import ch.trancee.meshlink.test.MeshTestHarness
 import ch.trancee.meshlink.test.RecordingDiagnosticSink
 import ch.trancee.meshlink.transport.BleTransport
@@ -14,6 +15,7 @@ import ch.trancee.meshlink.trust.TofuTrustStore
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.Flow
@@ -111,6 +113,36 @@ class MeshLinkApiContractTest {
     }
 
     @Test
+    fun `start wraps permission exceptions as permission denied`() {
+        // Arrange
+        val api =
+            MeshEngine.create(
+                config = meshLinkConfig { appId = "permission.meshlink" },
+                bleTransport =
+                    object : BleTransport {
+                        override val events: Flow<TransportEvent> = emptyFlow()
+
+                        override suspend fun start(): Unit {
+                            throw PlatformPermissionDeniedException("permissions denied")
+                        }
+
+                        override suspend fun pause(): Unit = Unit
+
+                        override suspend fun resume(): Unit = Unit
+
+                        override suspend fun stop(): Unit = Unit
+
+                        override suspend fun send(frame: OutboundFrame): TransportSendResult =
+                            TransportSendResult.Delivered
+                    },
+                diagnosticSink = RecordingDiagnosticSink(),
+            )
+
+        // Act / Assert
+        assertFailsWith<MeshLinkException.PermissionDenied> { runBlocking { api.start() } }
+    }
+
+    @Test
     fun `start wraps transport exceptions as platform failures`() {
         // Arrange
         val api =
@@ -186,6 +218,64 @@ class MeshLinkApiContractTest {
             )
             assertTrue(
                 refreshedRecord.lastVerifiedAtEpochMillis >= initialRecord.lastVerifiedAtEpochMillis
+            )
+        }
+
+    @Test
+    fun `forgetPeer deletes trust and same identity is treated as fresh tofu on recontact`() =
+        runBlocking {
+            // Arrange
+            val harness = MeshTestHarness()
+            val receiver = harness.createNode("peer-receiver")
+            val sender = harness.createNode("peer-sender")
+            val trustStore = TofuTrustStore(receiver.storage)
+
+            receiver.api.start()
+            sender.api.start()
+            sender.api.send(receiver.peerId, "hello".encodeToByteArray())
+            val initialRecord =
+                withTimeout(1_000) {
+                    while (trustStore.read(sender.peerId.value) == null) {
+                        kotlinx.coroutines.delay(10)
+                    }
+                    trustStore.read(sender.peerId.value)
+                        ?: error("Expected initial trust record to be persisted")
+                }
+            val initialTrustEstablishedCount =
+                receiver.diagnosticSink.events().count { it.code == DiagnosticCode.TRUST_ESTABLISHED }
+            sender.api.stop()
+            kotlinx.coroutines.delay(50)
+
+            // Act
+            val forgetResult = receiver.api.forgetPeer(sender.peerId)
+            assertEquals(ForgetPeerResult.Forgotten, forgetResult)
+            assertNull(trustStore.read(sender.peerId.value))
+            val restartedSender = harness.restartNode(sender)
+            restartedSender.api.start()
+            restartedSender.api.send(receiver.peerId, "hello-again".encodeToByteArray())
+            val relearnedRecord =
+                withTimeout(1_000) {
+                    var candidate = trustStore.read(sender.peerId.value)
+                    while (
+                        candidate == null ||
+                            candidate.firstSeenAtEpochMillis <= initialRecord.firstSeenAtEpochMillis
+                    ) {
+                        kotlinx.coroutines.delay(10)
+                        candidate = trustStore.read(sender.peerId.value)
+                    }
+                    candidate
+                }
+
+            // Assert
+            assertTrue(
+                relearnedRecord.firstSeenAtEpochMillis > initialRecord.firstSeenAtEpochMillis,
+                "Expected a forgotten peer to be relearned as fresh TOFU state",
+            )
+            assertTrue(
+                receiver.diagnosticSink.events().count {
+                    it.code == DiagnosticCode.TRUST_ESTABLISHED
+                } > initialTrustEstablishedCount,
+                "Expected recontact after forgetPeer to emit a fresh TRUST_ESTABLISHED diagnostic",
             )
         }
 

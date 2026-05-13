@@ -15,6 +15,8 @@ import android.bluetooth.le.ScanFilter
 import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
 import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.ParcelUuid
 import android.util.Log
 import ch.trancee.meshlink.api.PeerId
@@ -83,13 +85,33 @@ internal class AndroidBleTransport(
         }
 
     override suspend fun start(): Unit {
+        ensurePermissionsGranted()
         val bluetoothManager =
-            context.getSystemService(BluetoothManager::class.java)
-                ?: error("BluetoothManager is unavailable")
-        val adapter = bluetoothManager.adapter ?: error("BluetoothAdapter is unavailable")
+            try {
+                context.getSystemService(BluetoothManager::class.java)
+                    ?: error("BluetoothManager is unavailable")
+            } catch (exception: SecurityException) {
+                throw androidPermissionDenied(exception)
+            }
+        val adapter =
+            try {
+                bluetoothManager.adapter ?: error("BluetoothAdapter is unavailable")
+            } catch (exception: SecurityException) {
+                throw androidPermissionDenied(exception)
+            }
         bluetoothAdapter = adapter
-        advertiser = adapter.bluetoothLeAdvertiser
-        scanner = adapter.bluetoothLeScanner
+        advertiser =
+            try {
+                adapter.bluetoothLeAdvertiser
+            } catch (exception: SecurityException) {
+                throw androidPermissionDenied(exception)
+            }
+        scanner =
+            try {
+                adapter.bluetoothLeScanner
+            } catch (exception: SecurityException) {
+                throw androidPermissionDenied(exception)
+            }
 
         val serverSocket =
             runCatching {
@@ -211,6 +233,12 @@ internal class AndroidBleTransport(
             return
         }
         if (payload.keyHash.contentEquals(localKeyHash)) {
+            return
+        }
+        if (!BleDiscoveryContract.isSupportedProtocolVersion(payload.protocolVersion)) {
+            log(
+                "ignoring discovery payload with unsupported protocolVersion=${payload.protocolVersion} addr=${result.device.address}"
+            )
             return
         }
 
@@ -459,17 +487,22 @@ internal class AndroidBleTransport(
     }
 
     private fun refreshDiscoveryState(): Unit {
-        scanner?.stopScan(scanCallback)
-        advertiser?.stopAdvertising(advertiseCallback)
-        if (!started || discoverySuspended) {
-            return
+        try {
+            scanner?.stopScan(scanCallback)
+            advertiser?.stopAdvertising(advertiseCallback)
+            if (!started || discoverySuspended) {
+                return
+            }
+            ensurePermissionsGranted()
+            scanner?.startScan(scanFilters(), scanSettings(), scanCallback)
+            advertiser?.startAdvertising(
+                advertiseSettings(),
+                advertiseData(currentDiscoveryPayload),
+                advertiseCallback,
+            )
+        } catch (exception: SecurityException) {
+            throw androidPermissionDenied(exception)
         }
-        scanner?.startScan(scanFilters(), scanSettings(), scanCallback)
-        advertiser?.startAdvertising(
-            advertiseSettings(),
-            advertiseData(currentDiscoveryPayload),
-            advertiseCallback,
-        )
     }
 
     private fun advertiseData(payload: BleDiscoveryPayload): AdvertiseData {
@@ -506,11 +539,27 @@ internal class AndroidBleTransport(
 
     private fun discoveryPayload(l2capPsm: UByte): BleDiscoveryPayload {
         return BleDiscoveryPayload(
-            protocolVersion = 1,
+            protocolVersion = BleDiscoveryContract.CURRENT_PROTOCOL_VERSION,
             powerMode = currentPowerProfile.discoveryPowerMode,
             meshHash = BleDiscoveryContract.computeMeshHash(appId),
             l2capPsm = l2capPsm,
             keyHash = localKeyHash,
+        )
+    }
+
+    private fun ensurePermissionsGranted(): Unit {
+        AndroidBlePermissionContract.ensureRequiredPermissionsGranted(
+            sdkInt = Build.VERSION.SDK_INT,
+            isGranted = { permission ->
+                context.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED
+            },
+        )
+    }
+
+    private fun androidPermissionDenied(cause: SecurityException): Throwable {
+        return ch.trancee.meshlink.platform.PlatformPermissionDeniedException(
+            message = "Android BLE permissions denied",
+            cause = cause,
         )
     }
 

@@ -32,9 +32,9 @@ The second 128-bit service UUID carries this 16-byte payload:
 | 4–15 | 12 bytes | `keyHash` | First 12 bytes of `SHA-256(Ed25519Pub || X25519Pub)` |
 
 **Rules**
-- `protocolVersion` gates backward-incompatible wire changes before any connection attempt.
+- `protocolVersion` gates backward-incompatible wire changes before any connection attempt; unsupported major versions are rejected before participation.
 - `meshHash` isolates applications into separate meshes before session establishment.
-- `l2capPsm = 0x00` means GATT fallback only.
+- `l2capPsm = 0x00` means GATT fallback only. In the current normative L2CAP-first MeshLink scope, such peers are treated as incompatible transport participants rather than silently accepted as reachable mesh peers.
 - `keyHash` is the advertised identity hint used for discovery and deterministic initiation decisions.
 - The advertisement MUST fit in a single 27-byte packet and MUST NOT rely on a scan response.
 
@@ -121,4 +121,5 @@ Fields or frame families:
   `meshlink/src/commonTest/resources/wire-compat/`, and
   `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/wire/WireEnvelopeContractTest.kt`
   replays them as byte-for-byte compatibility checks.
+- `WireEnvelope.decode` rejects unsupported future major versions before payload decode.
 - Wire-format breaks require a major version bump and migration period.

@@ -594,3 +594,33 @@ Next bounded remediation target:
   `routeState=available` after the passive side has already expired that peer.
   That is the smallest next target that explains both the symmetric OPPO case
   and the stale-state Samsung asymmetry.
+
+### Permission-denied blocked-validation expectation
+
+Automated contract coverage now asserts that blocked validation runs surface
+`MeshLinkException.PermissionDenied` rather than a generic platform failure when
+BLE access is denied:
+
+- Android missing or revoked runtime grants now fail the transport contract with
+  explicit missing-permission detail (`BLUETOOTH_SCAN` / `BLUETOOTH_CONNECT` /
+  `BLUETOOTH_ADVERTISE` on API 31+, `ACCESS_FINE_LOCATION` below API 31).
+- iOS denied or restricted CoreBluetooth authorization now maps to the same
+  `PermissionDenied` category, while `NotDetermined` remains promptable so the
+  platform may still ask the user for Bluetooth access on first run.
+- Reviewers should therefore retain both the blocked / permission-denied
+  outcome and the observed permission state when a quickstart or benchmark run
+  cannot proceed.
+
+### Explicit compatibility rejection coverage
+
+Automated compatibility coverage now also makes the rejected-participation paths
+explicit:
+
+- A future-version wire envelope now fails fast with
+  `Unsupported WireEnvelope version 2` in
+  `WireEnvelopeContractTest` instead of silently decoding a mismatched major
+  version.
+- A GATT-only discovered peer now emits
+  `TRANSPORT_MODE_CHANGED stage=transport.peerDiscovered.rejected` and remains
+  unreachable in `MeshRoutingIntegrationTest`; the current MeshLink release no
+  longer treats `l2capPsm=0x00` advertisements as acceptable mesh participants.

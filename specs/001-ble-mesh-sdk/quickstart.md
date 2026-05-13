@@ -157,7 +157,9 @@ run that was performed:
 - any blocker evidence if the run could not complete (for example signing,
   permission, device-availability, or nearby-mesh interference logs)
 - for blocked runs caused by missing or revoked BLE permissions, the surfaced
-  blocked / permission-denied outcome plus the observed permission state
+  blocked / `MeshLinkException.PermissionDenied` outcome plus the observed
+  permission state (for example missing Android nearby-device / location grants
+  or denied / restricted iOS CoreBluetooth authorization)
 
 If a run is blocked by the environment, record that blocker explicitly and stop
 short of claiming `SC-001` or any related benchmark criterion passed.

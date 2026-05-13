@@ -64,4 +64,45 @@ class TofuTrustStoreTest {
         assertNull(restored)
         assertTrue(storage.snapshot().isEmpty())
     }
+
+    @Test
+    fun `delete allows the same peer id to be persisted as fresh trust state`() = runBlocking {
+        // Arrange
+        val storage = InMemorySecureStorage()
+        val store = TofuTrustStore(storage)
+        val initialRecord =
+            TrustRecord(
+                peerIdValue = "peer-003",
+                identityFingerprint = "fingerprint-initial",
+                firstSeenAtEpochMillis = 100L,
+                lastVerifiedAtEpochMillis = 200L,
+                ed25519PublicKey = byteArrayOf(0x31, 0x32),
+                x25519PublicKey = byteArrayOf(0x41, 0x42),
+            )
+        val replacementRecord =
+            TrustRecord(
+                peerIdValue = "peer-003",
+                identityFingerprint = "fingerprint-relearned",
+                firstSeenAtEpochMillis = 300L,
+                lastVerifiedAtEpochMillis = 400L,
+                ed25519PublicKey = byteArrayOf(0x51, 0x52),
+                x25519PublicKey = byteArrayOf(0x61, 0x62),
+            )
+        store.write(initialRecord)
+        store.delete(initialRecord.peerIdValue)
+
+        // Act
+        store.write(replacementRecord)
+        val restored = store.read(replacementRecord.peerIdValue)
+
+        // Assert
+        assertNotNull(restored)
+        assertEquals(replacementRecord.identityFingerprint, restored.identityFingerprint)
+        assertEquals(replacementRecord.firstSeenAtEpochMillis, restored.firstSeenAtEpochMillis)
+        assertEquals(
+            replacementRecord.lastVerifiedAtEpochMillis,
+            restored.lastVerifiedAtEpochMillis,
+        )
+        assertEquals(1, storage.snapshot().size)
+    }
 }

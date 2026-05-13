@@ -292,13 +292,13 @@ release-readiness claim.
 are currently only implicit in broader tasks, without rewriting completed
 delivery history.
 
-- [ ] T079 [P] Add explicit `FR-003a` reset/forget/revoke coverage by
+- [X] T079 [P] Add explicit `FR-003a` reset/forget/revoke coverage by
   exercising `forgetPeer` / trust-reset flows, then proving the same peer is
   treated as a fresh TOFU candidate on recontact in
   `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/api/MeshLinkApiContractTest.kt`,
   `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/integration/DirectMessagingIntegrationTest.kt`,
   and the affected trust-store code paths.
-- [ ] T080 [P] Add explicit missing/revoked BLE permission coverage for the
+- [X] T080 [P] Add explicit missing/revoked BLE permission coverage for the
   blocked-validation edge case by asserting
   `MeshLinkException.PermissionDenied` behavior in
   `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/api/MeshLinkApiContractTest.kt`,
@@ -309,7 +309,7 @@ delivery history.
   and documenting blocked-run evidence expectations in
   `specs/001-ble-mesh-sdk/quickstart.md` and
   `specs/001-ble-mesh-sdk/research.md`.
-- [ ] T081 [P] Add explicit incompatible transport / protocol-version rejection
+- [X] T081 [P] Add explicit incompatible transport / protocol-version rejection
   coverage for the compatibility edge case in
   `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/wire/WireEnvelopeContractTest.kt`,
   `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/integration/MeshRoutingIntegrationTest.kt`,

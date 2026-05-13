@@ -1,8 +1,10 @@
 package ch.trancee.meshlink.integration
 
+import ch.trancee.meshlink.api.ForgetPeerResult
 import ch.trancee.meshlink.api.InboundMessage
 import ch.trancee.meshlink.api.MeshLinkState
 import ch.trancee.meshlink.api.SendResult
+import ch.trancee.meshlink.diagnostics.DiagnosticCode
 import ch.trancee.meshlink.test.MeshTestHarness
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -76,6 +78,51 @@ class DirectMessagingIntegrationTest {
         assertIs<SendResult.Sent>(sendResult)
         assertEquals("second", receivedMessage.payload.decodeToString())
     }
+
+    @Test
+    fun `forgetPeer forces fresh trust establishment before the same identity can deliver again`() =
+        runBlocking {
+            // Arrange
+            val harness = MeshTestHarness()
+            val sender = harness.createNode("peer-a")
+            val receiver = harness.createNode("peer-b")
+
+            sender.api.start()
+            receiver.api.start()
+            delay(250)
+            val firstMessageDeferred =
+                async(start = CoroutineStart.UNDISPATCHED) {
+                    withTimeout(1_000) { receiver.api.messages.first() }
+                }
+            sender.api.send(receiver.peerId, "first".encodeToByteArray())
+            firstMessageDeferred.await()
+            val initialTrustEstablishedCount =
+                receiver.diagnosticSink.events().count { it.code == DiagnosticCode.TRUST_ESTABLISHED }
+            sender.api.stop()
+            delay(50)
+            val forgetResult = receiver.api.forgetPeer(sender.peerId)
+            val restartedSender = harness.restartNode(sender)
+            restartedSender.api.start()
+            val secondMessageDeferred =
+                async(start = CoroutineStart.UNDISPATCHED) {
+                    withTimeout(1_000) { receiver.api.messages.first() }
+                }
+
+            // Act
+            val sendResult = restartedSender.api.send(receiver.peerId, "second".encodeToByteArray())
+            val secondMessage = secondMessageDeferred.await()
+
+            // Assert
+            assertEquals(ForgetPeerResult.Forgotten, forgetResult)
+            assertIs<SendResult.Sent>(sendResult)
+            assertEquals("second", secondMessage.payload.decodeToString())
+            assertTrue(
+                receiver.diagnosticSink.events().count {
+                    it.code == DiagnosticCode.TRUST_ESTABLISHED
+                } > initialTrustEstablishedCount,
+                "Expected the forgotten peer to establish trust again before delivery resumes",
+            )
+        }
 
     @Test
     fun `runtime secure storage keeps trust metadata without persisting plaintext or peer ids`() =

@@ -6,13 +6,18 @@ import ch.trancee.meshlink.config.MeshLinkConfig
 import ch.trancee.meshlink.config.meshLinkConfig
 import ch.trancee.meshlink.engine.MeshEngine
 import ch.trancee.meshlink.identity.LocalIdentity
+import ch.trancee.meshlink.transport.TransportMode
 
 internal class MeshTestHarness {
     private val network = VirtualMeshNetwork()
     private val handles: MutableList<NodeHandle> = mutableListOf()
 
-    internal fun linkPeers(first: NodeHandle, second: NodeHandle): Unit {
-        network.linkPeers(first.peerId, second.peerId)
+    internal fun linkPeers(
+        first: NodeHandle,
+        second: NodeHandle,
+        mode: TransportMode = TransportMode.L2CAP,
+    ): Unit {
+        network.linkPeers(first.peerId, second.peerId, mode)
     }
 
     internal fun unlinkPeers(first: NodeHandle, second: NodeHandle): Unit {

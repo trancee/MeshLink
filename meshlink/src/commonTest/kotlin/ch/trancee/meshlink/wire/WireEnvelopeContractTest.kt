@@ -165,6 +165,29 @@ class WireEnvelopeContractTest {
     }
 
     @Test
+    fun `decoder rejects unsupported future wire versions`() {
+        // Arrange
+        val encoded =
+            FlatBufferTableBuilder(fieldCount = 3)
+                .addByte(
+                    fieldIndex = 0,
+                    value = (WireCodec.CURRENT_WIRE_VERSION.toInt() + 1).toByte(),
+                )
+                .addByte(fieldIndex = 1, value = WireEnvelopeType.MESSAGE.code)
+                .addByteVector(fieldIndex = 2, value = byteArrayOf(0x01, 0x02, 0x03))
+                .finish()
+
+        // Act
+        val failure = assertFailsWith<IllegalStateException> { WireEnvelope.decode(encoded) }
+
+        // Assert
+        assertTrue(
+            failure.message?.contains("Unsupported WireEnvelope version 2") == true,
+            "Future wire generations must fail with an explicit unsupported-version error",
+        )
+    }
+
+    @Test
     fun `decoder rejects truncated wire envelopes`() {
         // Arrange
         val encoded = WireCodec.encode(WireFrame.TransferComplete(transferId = "transfer-003"))
