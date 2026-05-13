@@ -190,3 +190,109 @@ implementation correctness.
   acceptance criterion, and follow-up obligation can be traced without relying
   on commit history or reviewer memory? [Traceability, Spec §SC-001–SC-007,
   Plan §Constitution Check, Tasks §Phase 6]
+
+**Reviewer expansion (2026-05-13):** This appended pass keeps the same PR-
+review audience and standard depth, but focuses specifically on full-feature
+requirements quality for the newly explicit release-readiness blockers,
+recovery flows, and exception paths recorded across `spec.md`, `plan.md`, and
+`tasks.md`.
+
+## Requirement Completeness
+
+- [ ] CHK036 Are revoked-trust recovery requirements complete across the
+  artifacts, including the reset trigger, the re-TOFU boundary, and the
+  reviewer evidence expected for recontact? [Completeness, Spec §Edge Cases,
+  Spec §FR-003a, Plan §Additional open normative evidence gaps, Tasks §T079]
+- [ ] CHK037 Are permission-denied requirements complete across SDK behavior,
+  proof-validation blocked outcomes, and platform-specific review
+  expectations? [Completeness, Spec §Edge Cases, Spec §FR-015, Spec
+  §Assumptions, Tasks §T080]
+- [ ] CHK038 Are incompatible transport / protocol-version rejection
+  requirements complete across peer participation rules, compatibility
+  expectations, and reviewer evidence retention? [Completeness, Spec §Edge
+  Cases, Spec §FR-016, Plan §Testing, Tasks §T074, Tasks §T081]
+- [ ] CHK039 Are persisted-data minimization requirements complete for both the
+  allowed trust-record fields and the explicitly disallowed stored data
+  classes? [Completeness, Spec §FR-015a, Plan §Storage, Tasks §T075]
+
+## Requirement Clarity
+
+- [ ] CHK040 Is "fresh TOFU candidate" clear enough to distinguish it from
+  silent trust restoration and identity-changed handling? [Clarity, Spec
+  §Edge Cases, Spec §FR-003a]
+- [ ] CHK041 Is "blocked validation outcome" for missing permissions defined
+  clearly enough that reviewers can separate environmental blockers from
+  product failures? [Clarity, Spec §Edge Cases, Spec §Proof-integration role,
+  Tasks §T080]
+- [ ] CHK042 Are "prior-version fixtures" and "deployed wire" defined clearly
+  enough for reviewers to know what compatibility baseline must be preserved?
+  [Clarity, Spec §FR-016, Plan §Testing, Tasks §T074]
+- [ ] CHK043 Is the `SC-001` timing method specific enough about start/end
+  timestamps, observer note, and the boundary for first successful evidence?
+  [Clarity, Spec §SC-001, Tasks §T077]
+
+## Requirement Consistency
+
+- [ ] CHK044 Do release-readiness blocker statements align between the plan's
+  open normative evidence gaps and the task ledger's explicit `T074`–`T081`
+  blockers? [Consistency, Plan §Additional open normative evidence gaps, Tasks
+  §Phase 15, Tasks §Phase 16, Tasks §Notes]
+- [ ] CHK045 Are permission-related requirements consistent between the edge-
+  case language, assumptions, and reviewer blocker framing? [Consistency, Spec
+  §Edge Cases, Spec §Assumptions, Spec §Proof-integration role, Tasks §T080]
+- [ ] CHK046 Are compatibility requirements consistent between unsupported
+  transport / protocol rejection and backward-compatible wire-format
+  obligations, without conflating them? [Consistency, Spec §Edge Cases, Spec
+  §FR-016, Plan §Constitutional Constraints, Tasks §T074, Tasks §T081]
+
+## Acceptance Criteria Quality
+
+- [ ] CHK047 Can `SC-006` be objectively reviewed from the written
+  requirements alone, including peer-discovery / connection-establishment
+  preconditions and scored-run evidence expectations? [Measurability, Spec
+  §SC-006, Plan §Performance Goals, Tasks §T076]
+- [ ] CHK048 Are the remaining full-conformance blockers defined as measurable
+  gates rather than broad "open gaps" language? [Acceptance Criteria, Plan
+  §Additional open normative evidence gaps, Tasks §Implementation Strategy,
+  Tasks §Notes]
+- [ ] CHK049 Is the distinction between full conformance and an iOS `SC-004`
+  waiver path explicit enough that reviewers know which evidence remains
+  mandatory even under waiver? [Clarity, Spec §Release-decision framing for
+  SC-004, Plan §Additional open normative evidence gaps, Tasks §Notes]
+
+## Scenario & Edge Case Coverage
+
+- [ ] CHK050 Are recovery-flow requirements complete for "trust revoked then
+  peer reappears", "permissions restored after blocked run", and
+  "unsupported peer rejected then compatibility clarified"? [Coverage, Spec
+  §Edge Cases, Tasks §T079–T081]
+- [ ] CHK051 Are exception-flow requirements defined for both SDK runtime
+  behavior and reviewer evidence handling, rather than only one of those
+  levels? [Coverage, Spec §Edge Cases, Spec §Proof-integration role, Tasks
+  §T080, Tasks §T081]
+- [ ] CHK052 Are partial-failure scenarios covered where benchmark or
+  quickstart work succeeds functionally but remains non-conformant because the
+  required evidence is missing? [Coverage, Spec §SC-001, Spec §SC-006, Plan
+  §Additional open normative evidence gaps, Tasks §T076, Tasks §T077]
+
+## Dependencies & Assumptions
+
+- [ ] CHK053 Are platform-specific assumption boundaries explicit enough for
+  the new permission-denial checks, so reviewers know which OS/runtime
+  conditions are in scope versus merely assumed? [Assumption, Spec
+  §Assumptions, Plan §Target Platform, Tasks §T080]
+- [ ] CHK054 Are dependency boundaries clear between prior-version wire
+  fixtures, proof-benchmark evidence, and supporting docs so reviewers can tell
+  which artifact owns each requirement? [Dependency, Spec §FR-016, Plan
+  §Artifact Governance & Source-of-Truth Precedence, Tasks §T074–T077]
+
+## Ambiguities & Conflicts
+
+- [ ] CHK055 Do the artifacts avoid ambiguity between "compatibility failure",
+  "transport failure", and "permission denied" as separate requirement
+  classes? [Ambiguity, Spec §Edge Cases, Spec §FR-011, Tasks §T080, Tasks
+  §T081]
+- [ ] CHK056 Is there any conflict between the append-only ledger rule and the
+  statement that `T074`–`T081` block release, or is that relationship written
+  clearly enough for reviewers? [Conflict, Plan §Artifact Governance & Source-
+  of-Truth Precedence, Tasks §Artifact Roles & Ledger Semantics, Tasks §Notes]
