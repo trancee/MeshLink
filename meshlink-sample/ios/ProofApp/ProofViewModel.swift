@@ -482,6 +482,9 @@ final class ProofViewModel: ObservableObject {
         if logs.count > 256 {
             logs.removeFirst(logs.count - 256)
         }
+        if let lineData = (message + "\n").data(using: .utf8) {
+            FileHandle.standardError.write(lineData)
+        }
         let persisted = logs.joined(separator: "\n") + "\n"
         try? persisted.write(to: logFileUrl, atomically: true, encoding: .utf8)
     }

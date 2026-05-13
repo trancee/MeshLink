@@ -523,3 +523,74 @@ Interpretation:
 - Three post-remediation matrix cells failed even earlier on the sender side as
   `NotSent(reason=UNREACHABLE)`, so the overall blocker remains broader than
   one passive receipt loop.
+
+### Fresh headless 256-byte Samsung vs OPPO reverse-path reruns
+
+A fresh pair of 256-byte recipient-confirmed reruns was then captured on the
+physical iPhone 15 using a headless proof-app launch path instead of XCTest UI
+automation. XCTest UI automation on the device now fails with `Timed out while
+enabling automation mode`, so the proof app was updated to mirror its proof log
+stream to stderr and was launched with `xcrun devicectl device process launch
+--console` plus benchmark environment variables. The passive Android proof apps
+ran with matching per-peer app IDs and `meshlink.disableAutoSend=true` so the
+return path stayed isolated to one Android peer at a time.
+
+Fresh retained evidence:
+
+- iPhone 15 -> Samsung, 256 B sender log:
+  - `BENCHMARK correlation role=sender.benchmark.send token=000074048e0c137a ... state=Running knownPeers=[a5495f]`
+  - `BENCHMARK transport bytes=256 elapsedMs=21363 throughputKBps=0.01 result=ReceiptTimeout`
+  - `BENCHMARK correlation role=sender.benchmark.result token=000074048e0c137a ... outcome=ReceiptTimeout state=Running knownPeers=[a5495f]`
+  - sender `recentDiags` / `routeTimeline` still retained `DELIVERY_SUCCEEDED`,
+    `HOP_SESSION_ESTABLISHED`, and `ROUTE_DISCOVERED`, and the sender retained
+    `routeState=available` at timeout
+- Samsung passive Android log for token `000074048e0c137a`:
+  - `Peer found: b7b286a92d32d218758b6e34 (CONNECTED)`
+  - `Peer lost: b7b286a92d32d218758b6e34`
+  - `DIAG ROUTE_EXPIRED stage=transport.peerLost.routeExpired ...`
+  - repeated `BENCHMARK correlation role=passive.receipt.wait ... knownPeers=[]`
+  - `BENCHMARK receipt abandoned token=000074048e0c137a ... deadlineMs=18000`
+  - `BENCHMARK correlation role=passive.receipt.expired token=000074048e0c137a ... outcome=deadlineExpired`
+- iPhone 15 -> OPPO, 256 B sender log:
+  - `BENCHMARK correlation role=sender.benchmark.send token=0000741524b4f6cb ... state=Running knownPeers=[add166]`
+  - `BENCHMARK transport bytes=256 elapsedMs=21356 throughputKBps=0.01 result=ReceiptTimeout`
+  - `DIAG ROUTE_EXPIRED stage=transport.peerLost.routeExpired ...`
+  - `Peer lost: 2dfbea3408c4c93e47add166`
+  - `BENCHMARK correlation role=sender.benchmark.result token=0000741524b4f6cb ... outcome=ReceiptTimeout state=Running knownPeers=[]`
+  - sender `routeTimeline` retained `ROUTE_DISCOVERED`,
+    sender-side `DELIVERY_SUCCEEDED`, `ROUTE_EXPIRED`, and `Peer lost`
+- OPPO passive Android log for token `0000741524b4f6cb`:
+  - `Peer found: 04b8e07748cdec6b33459367 (CONNECTED)`
+  - `Peer lost: 04b8e07748cdec6b33459367`
+  - `DIAG ROUTE_EXPIRED stage=transport.peerLost.routeExpired ...`
+  - repeated `BENCHMARK correlation role=passive.receipt.wait ... knownPeers=[]`
+  - `BENCHMARK receipt abandoned token=0000741524b4f6cb ... deadlineMs=18000`
+  - `BENCHMARK correlation role=passive.receipt.expired token=0000741524b4f6cb ... outcome=deadlineExpired`
+
+Comparison and narrowed hypothesis:
+
+- The two passive Android peers now agree on the central failure shape: the
+  forward payload is received, but within the bounded receipt window the passive
+  proof app loses the iPhone as a known peer, never rediscovers it, and expires
+  the proof receipt as `deadlineExpired`.
+- The Samsung path still shows an asymmetry that the OPPO path does not: the
+  sender-side iPhone retained `knownPeers=[a5495f]` and `routeState=available`
+  at timeout, even though the passive Samsung side had already logged `Peer
+  lost`, `ROUTE_EXPIRED`, and `knownPeers=[]` for the same token.
+- The OPPO path is more symmetric: both sender and passive logs retained
+  `ROUTE_EXPIRED` / `Peer lost` before the receipt window elapsed.
+- This narrows the blocker further. The remaining issue is no longer well
+  described as receipt formatting, token parsing, or a single passive retry
+  policy problem. The concrete failure mode is post-payload peer disappearance /
+  reverse-path non-reappearance during the receipt window, with a likely stale-
+  route or stale-presence view lingering on the Samsung sender path.
+
+Next bounded remediation target:
+
+- Focus the next bounded remediation on post-payload peer-lost / route-reentry
+  reconciliation for the direct peer during the receipt window. Specifically:
+  verify why the passive peer drops to `knownPeers=[]` immediately after payload
+  receipt on both Samsung and OPPO, and why the Samsung sender can still retain
+  `routeState=available` after the passive side has already expired that peer.
+  That is the smallest next target that explains both the symmetric OPPO case
+  and the stale-state Samsung asymmetry.

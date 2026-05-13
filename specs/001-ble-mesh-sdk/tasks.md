@@ -240,9 +240,9 @@ retransmission semantics.
 **Purpose**: Determine whether the remaining recipient-confirmed failures are primarily caused by missing passive-peer rediscovery, route non-reappearance, or reverse-direction handshake collapse after the forward payload leg completes.
 
 - [X] T069 Add reverse-path peer reappearance / route-availability timeline diagnostics in the shared runtime, relevant Android/iOS transport files, and both proof apps so receipt-window logs show when the passive peer rediscovers the sender, when a usable route for that peer reappears or expires, and which state transition immediately precedes `ReceiptTimeout` / `UNREACHABLE`
-- [ ] T070 [P] Re-run a minimal iPhone 15 -> Samsung 256-byte recipient-confirmed repro with the new reverse-path diagnostics and retain the paired sender/passive evidence in `benchmarks/README.md` and `specs/001-ble-mesh-sdk/research.md`
-- [ ] T071 [P] Re-run a minimal iPhone 15 -> OPPO 256-byte recipient-confirmed repro with the same diagnostics and retain the paired sender/passive evidence in `benchmarks/README.md` and `specs/001-ble-mesh-sdk/research.md`
-- [ ] T072 Compare the Samsung and OPPO reverse-path timelines, document the narrowed blocker hypothesis in `specs/001-ble-mesh-sdk/research.md`, and identify the next bounded remediation target if the evidence isolates a concrete peer-reappearance or route-availability failure mode
+- [X] T070 [P] Re-run a minimal iPhone 15 -> Samsung 256-byte recipient-confirmed repro with the new reverse-path diagnostics and retain the paired sender/passive evidence in `benchmarks/README.md` and `specs/001-ble-mesh-sdk/research.md`
+- [X] T071 [P] Re-run a minimal iPhone 15 -> OPPO 256-byte recipient-confirmed repro with the same diagnostics and retain the paired sender/passive evidence in `benchmarks/README.md` and `specs/001-ble-mesh-sdk/research.md`
+- [X] T072 Compare the Samsung and OPPO reverse-path timelines, document the narrowed blocker hypothesis in `specs/001-ble-mesh-sdk/research.md`, and identify the next bounded remediation target if the evidence isolates a concrete peer-reappearance or route-availability failure mode
 
 ---
 

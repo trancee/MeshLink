@@ -11,6 +11,7 @@
 		23F2C7D99A97B029F1FA632E /* ProofViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 449C6808F0174CE46FCA8BC6 /* ProofViewModel.swift */; };
 		395F70816C081CC331C99357 /* ProofApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B450AC2ED51A141367368720 /* ProofApp.swift */; };
 		42630CF73715BDDA8DC5E72E /* ProofGattBenchmarkClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 838B0CE5BBB49A2F8A7254E2 /* ProofGattBenchmarkClient.swift */; };
+		486E383EE20727A7748D21FF /* RecipientConfirmedBenchmarkDiagnostic.swift in Sources */ = {isa = PBXBuildFile; fileRef = 198714BAC74453D5299F3D2C /* RecipientConfirmedBenchmarkDiagnostic.swift */; };
 		4CA77348EDB28F13CDC12398 /* PowerProfileBenchmark.swift in Sources */ = {isa = PBXBuildFile; fileRef = 033612DB1CD3421011142A10 /* PowerProfileBenchmark.swift */; };
 		72FF2746CA1351980C970D33 /* BenchmarkTestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8425B56578082E0CBC21735 /* BenchmarkTestSupport.swift */; };
 		73745979D47B3AAA29F4E34F /* MeshLinkCryptoBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3E69802EF0E01D926EA6A44 /* MeshLinkCryptoBridge.swift */; };
@@ -32,6 +33,7 @@
 
 /* Begin PBXFileReference section */
 		033612DB1CD3421011142A10 /* PowerProfileBenchmark.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PowerProfileBenchmark.swift; sourceTree = "<group>"; };
+		198714BAC74453D5299F3D2C /* RecipientConfirmedBenchmarkDiagnostic.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecipientConfirmedBenchmarkDiagnostic.swift; sourceTree = "<group>"; };
 		38B26770518856564F031445 /* TransportPerformanceBenchmark.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransportPerformanceBenchmark.swift; sourceTree = "<group>"; };
 		41FA7EB63D3FCC9D89A53CC6 /* ProofBenchmarks.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = ProofBenchmarks.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		42AE38A6A4182F543FAA1B57 /* ProofApp.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = ProofApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -87,6 +89,7 @@
 				D8425B56578082E0CBC21735 /* BenchmarkTestSupport.swift */,
 				6469225EB29E7FF131D51123 /* ColdStartBenchmark.swift */,
 				033612DB1CD3421011142A10 /* PowerProfileBenchmark.swift */,
+				198714BAC74453D5299F3D2C /* RecipientConfirmedBenchmarkDiagnostic.swift */,
 				38B26770518856564F031445 /* TransportPerformanceBenchmark.swift */,
 			);
 			path = ProofBenchmarks;
@@ -141,6 +144,7 @@
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
 					9CA1C241FDE55639E674CC1B = {
+						ProvisioningStyle = Automatic;
 						TestTargetID = DB0146505CF03793A890B674;
 					};
 					DB0146505CF03793A890B674 = {
@@ -198,6 +202,7 @@
 				72FF2746CA1351980C970D33 /* BenchmarkTestSupport.swift in Sources */,
 				A27123E5BC9F56E96A7FE533 /* ColdStartBenchmark.swift in Sources */,
 				4CA77348EDB28F13CDC12398 /* PowerProfileBenchmark.swift in Sources */,
+				486E383EE20727A7748D21FF /* RecipientConfirmedBenchmarkDiagnostic.swift in Sources */,
 				B0D984C35FA81B7616E60ABF /* TransportPerformanceBenchmark.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -332,12 +337,14 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 					"@loader_path/Frameworks",
 				);
+				PRODUCT_BUNDLE_IDENTIFIER = ch.trancee.meshlink.proof.ios.benchmarks;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_TARGET_NAME = ProofApp;
@@ -348,12 +355,14 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 					"@loader_path/Frameworks",
 				);
+				PRODUCT_BUNDLE_IDENTIFIER = ch.trancee.meshlink.proof.ios.benchmarks;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_TARGET_NAME = ProofApp;

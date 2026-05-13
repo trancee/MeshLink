@@ -84,6 +84,22 @@ enum BenchmarkTestSupport {
         waitForLogLine(in: application, containing: "MeshLinkTransportTelemetry \(text)", timeout: timeout)
     }
 
+    static func latestLogLine(
+        in application: XCUIApplication,
+        containing text: String
+    ) -> String {
+        let logs = application.staticTexts["proof.logsAggregate"]
+        XCTAssertTrue(logs.waitForExistence(timeout: 5), "Expected proof.logsAggregate to exist")
+        return logs.label
+            .split(separator: "\n")
+            .map(String.init)
+            .last(where: { $0.contains(text) }) ?? ""
+    }
+
+    static func extractTokenHex(from logLine: String) -> String {
+        extractString(from: logLine, pattern: #"token=([0-9a-f]+)"#)
+    }
+
     static func extractTelemetryInteger(from logLine: String, key: String) -> Int {
         extractInteger(from: logLine, pattern: #"\#(key)=(-?\d+)"#)
     }
