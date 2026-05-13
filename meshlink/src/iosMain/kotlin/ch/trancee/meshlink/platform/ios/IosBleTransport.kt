@@ -25,6 +25,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelChildren
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -47,6 +48,9 @@ import platform.CoreBluetooth.CBUUID
 import platform.Foundation.NSError
 import platform.Foundation.NSNumber
 import platform.Foundation.NSProcessInfo
+import platform.Foundation.NSStreamStatusAtEnd
+import platform.Foundation.NSStreamStatusClosed
+import platform.Foundation.NSStreamStatusError
 import platform.darwin.NSObject
 import platform.posix.getenv
 
@@ -342,9 +346,29 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
             return
         }
         val identifier = channel.peer?.identifier?.UUIDString?.lowercase() ?: return
-        val hintPeerId =
-            peerHintByIdentifier[identifier]?.let(::PeerId) ?: temporaryPeerId(identifier)
-        if (hintPeerId.value.startsWith(TEMPORARY_PEER_PREFIX)) {
+        val selectedHintPeerIdValue =
+            selectIncomingL2capHintPeerId(
+                peripheralIdentifier = identifier,
+                peerHintByIdentifier = peerHintByIdentifier,
+                discoveredPeers =
+                    discoveredPeers.values.map { peer ->
+                        IncomingL2capHintCandidate(
+                            hintPeerIdValue = peer.hintPeerId.value,
+                            keyHash = peer.keyHash,
+                            transportMode = peer.transportMode,
+                        )
+                    },
+                activeHintIds = activeLinksByHint.keys,
+                pendingHintIds = pendingConnectionsByHint.keys,
+                localKeyHash = localKeyHash,
+            )
+        val hintPeerId = selectedHintPeerIdValue?.let(::PeerId) ?: temporaryPeerId(identifier)
+        if (selectedHintPeerIdValue != null) {
+            peerHintByIdentifier[identifier] = selectedHintPeerIdValue
+            log(
+                "binding incoming L2CAP channel to discovered peer ${hintPeerId.value.takeLast(6)} id=$identifier"
+            )
+        } else if (hintPeerId.value.startsWith(TEMPORARY_PEER_PREFIX)) {
             log("binding incoming L2CAP channel to temporary peer ${hintPeerId.value}")
         }
         registerConnectedChannel(hintPeerId, identifier, channel)
@@ -375,6 +399,13 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
         link.writeLoopJob = coroutineScope.launch {
             try {
                 link.runWriteLoop()
+            } catch (error: Throwable) {
+                if (error is CancellationException) {
+                    throw error
+                }
+                reportLog(
+                    "L2CAP write loop failed for ${hintPeerId.value.takeLast(6)}: ${error.message.orEmpty()}"
+                )
             } finally {
                 closeLink(hintPeer = hintPeerId.value, reason = "write loop stopped")
             }
@@ -405,6 +436,13 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
                         break
                     }
                 }
+            } catch (error: Throwable) {
+                if (error is CancellationException) {
+                    throw error
+                }
+                reportLog(
+                    "L2CAP read loop failed for ${hintPeerId.value.takeLast(6)}: ${error.message.orEmpty()}"
+                )
             } finally {
                 closeLink(hintPeer = hintPeerId.value, reason = "channel closed")
             }
@@ -593,7 +631,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
 
         suspend fun drainReadableFrames(): ReadDrainResult {
             if (!inputStream.hasBytesAvailable()) {
-                return ReadDrainResult()
+                return ReadDrainResult(streamClosed = isStreamClosed(inputStream))
             }
             val decodedFrames = mutableListOf<ByteArray>()
             var readBytes = 0
@@ -721,6 +759,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
 
         private suspend fun writeCoalescedBatch(queuedFrames: List<QueuedFrame>): BatchWriteStats {
             val startedAtMs = monotonicNowMillis()
+            var lastWriteProgressAtMs = startedAtMs
             val coalescedBuffer =
                 ByteArray(queuedFrames.sumOf { queuedFrame -> queuedFrame.encoded.size })
             var copyOffset = 0
@@ -747,9 +786,26 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
                 minWriteBatchBytes = minOf(minWriteBatchBytes, batchBytes)
                 var batchOffset = 0
                 while (batchOffset < batchBytes) {
+                    if (
+                        isStreamClosed(
+                            streamStatus = outputStream.streamStatus,
+                            hasError = outputStream.streamError != null,
+                        )
+                    ) {
+                        throw IllegalStateException("iOS L2CAP output stream closed")
+                    }
                     if (!outputStream.hasSpaceAvailable()) {
                         readyFalseCount += 1
                         backpressureSpins += 1
+                        if (
+                            isWriteStalled(
+                                lastProgressAtMs = lastWriteProgressAtMs,
+                                nowMs = monotonicNowMillis(),
+                                stallTimeoutMs = WRITE_STALL_TIMEOUT_MS,
+                            )
+                        ) {
+                            throw IllegalStateException("iOS L2CAP output stream stalled")
+                        }
                         delay(ACTIVE_STREAM_POLL_INTERVAL_MS)
                         continue
                     }
@@ -766,6 +822,15 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
                     }
                     if (written == 0L) {
                         backpressureSpins += 1
+                        if (
+                            isWriteStalled(
+                                lastProgressAtMs = lastWriteProgressAtMs,
+                                nowMs = monotonicNowMillis(),
+                                stallTimeoutMs = WRITE_STALL_TIMEOUT_MS,
+                            )
+                        ) {
+                            throw IllegalStateException("iOS L2CAP output stream stalled")
+                        }
                         delay(ACTIVE_STREAM_POLL_INTERVAL_MS)
                         continue
                     }
@@ -776,6 +841,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
                         maxInterWriteGapMs = maxOf(maxInterWriteGapMs, attemptAtMs - previousAtMs)
                     }
                     previousPositiveWriteAtMs = attemptAtMs
+                    lastWriteProgressAtMs = attemptAtMs
                     batchOffset += writtenBytes
                 }
                 offset += batchBytes
@@ -931,6 +997,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
             private const val MAX_COALESCED_FRAMES: Int = 16
             private const val MAX_COALESCED_BATCH_BYTES: Int = 16 * 1024
             private const val ACK_LIKELY_ENCRYPTED_BYTES: Int = 192
+            private const val WRITE_STALL_TIMEOUT_MS: Long = 5_000L
         }
     }
 
@@ -951,6 +1018,50 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
             } ?: false
         }
     }
+}
+
+internal data class IncomingL2capHintCandidate(
+    internal val hintPeerIdValue: String,
+    internal val keyHash: ByteArray,
+    internal val transportMode: TransportMode,
+)
+
+internal fun isStreamClosed(streamStatus: ULong, hasError: Boolean): Boolean {
+    return hasError || streamStatus == NSStreamStatusAtEnd ||
+        streamStatus == NSStreamStatusClosed ||
+        streamStatus == NSStreamStatusError
+}
+
+internal fun isWriteStalled(lastProgressAtMs: Long, nowMs: Long, stallTimeoutMs: Long): Boolean {
+    return nowMs - lastProgressAtMs >= stallTimeoutMs
+}
+
+internal fun isStreamClosed(inputStream: platform.Foundation.NSInputStream): Boolean {
+    return isStreamClosed(
+        streamStatus = inputStream.streamStatus,
+        hasError = inputStream.streamError != null,
+    )
+}
+
+internal fun selectIncomingL2capHintPeerId(
+    peripheralIdentifier: String,
+    peerHintByIdentifier: Map<String, String>,
+    discoveredPeers: List<IncomingL2capHintCandidate>,
+    activeHintIds: Collection<String>,
+    pendingHintIds: Collection<String>,
+    localKeyHash: ByteArray,
+): String? {
+    peerHintByIdentifier[peripheralIdentifier]?.let { mappedHint ->
+        return mappedHint
+    }
+    val waitingCandidates =
+        discoveredPeers.filter { candidate ->
+            candidate.transportMode == TransportMode.L2CAP &&
+                candidate.hintPeerIdValue !in activeHintIds &&
+                candidate.hintPeerIdValue !in pendingHintIds &&
+                !shouldInitiateL2capConnection(localKeyHash, candidate.keyHash)
+        }
+    return waitingCandidates.singleOrNull()?.hintPeerIdValue
 }
 
 internal fun shouldInitiateL2capConnection(
