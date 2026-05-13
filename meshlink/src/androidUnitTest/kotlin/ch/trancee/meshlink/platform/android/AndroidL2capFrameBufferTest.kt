@@ -74,4 +74,37 @@ class AndroidL2capFrameBufferTest {
         // Assert
         assertEquals("L2CAP frame exceeds max size 8 bytes", error.message)
     }
+
+    @Test
+    fun `appendDetailed captures zero length frame context`() {
+        // Arrange
+        val buffer = AndroidL2capFrameBuffer()
+        val zeroLengthHeader = byteArrayOf(0, 0, 0, 0)
+
+        // Act
+        val result = buffer.appendDetailed(zeroLengthHeader)
+
+        // Assert
+        assertEquals(1, result.frames.size)
+        assertContentEquals(byteArrayOf(), result.frames.single())
+        assertEquals(1, result.observations.size)
+        assertEquals(0, result.bufferedBytesBeforeAppend)
+        assertEquals(4, result.appendedChunkBytes)
+        assertEquals("00000000", result.appendedChunkPrefixHex)
+        assertEquals("00000000", result.appendedChunkSuffixHex)
+        assertEquals(0, result.pendingBytesAfterAppend)
+
+        val observation = result.observations.single()
+        assertEquals(1, observation.frameIndexInAppend)
+        assertEquals(0, observation.frameSizeBytes)
+        assertEquals("00000000", observation.headerHex)
+        assertEquals(0, observation.readOffsetBeforeFrame)
+        assertEquals(4, observation.frameStartOffset)
+        assertEquals(4, observation.frameEndOffset)
+        assertEquals(0, observation.bufferedBytesBeforeAppend)
+        assertEquals(4, observation.totalBufferedBytesAfterAppend)
+        assertEquals(0, observation.remainingBufferedBytesAfterFrame)
+        assertEquals(false, observation.headerStartsInPreviouslyBufferedBytes)
+        assertEquals(true, observation.frameEndsBeyondPreviouslyBufferedBytes)
+    }
 }

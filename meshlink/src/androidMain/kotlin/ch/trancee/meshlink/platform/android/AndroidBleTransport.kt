@@ -429,14 +429,28 @@ internal class AndroidBleTransport(
                     while (true) {
                         val read = link.inputStream.read(readBuffer)
                         if (read < 0) {
+                            log(
+                                "L2CAP EOF from ${link.peerHintId.value.takeLast(6)} pendingFrameBytes=${link.incomingFrames.pendingBytes()} maxReceivePacketSize=${link.maxReceivePacketSize}"
+                            )
                             break
                         }
-                        val decodedFrames = link.incomingFrames.append(readBuffer.copyOf(read))
-                        decodedFrames.forEach { payload ->
+                        if (read == 0) {
+                            log(
+                                "L2CAP zero-byte read from ${link.peerHintId.value.takeLast(6)} pendingFrameBytes=${link.incomingFrames.pendingBytes()} maxReceivePacketSize=${link.maxReceivePacketSize}"
+                            )
+                            continue
+                        }
+                        val appendResult = link.incomingFrames.appendDetailed(readBuffer.copyOf(read))
+                        appendResult.frames.forEachIndexed { frameIndex, payload ->
                             val currentPeerId = link.peerHintId
                             if (payload.isEmpty()) {
-                                log("ignoring empty frame from ${currentPeerId.value.takeLast(6)}")
-                                return@forEach
+                                logEmptyFrameObservation(
+                                    peerId = currentPeerId,
+                                    readBytes = read,
+                                    appendResult = appendResult,
+                                    observation = appendResult.observations.getOrNull(frameIndex),
+                                )
+                                return@forEachIndexed
                             }
                             mutableEvents.emit(
                                 TransportEvent.FrameReceived(
@@ -631,6 +645,28 @@ internal class AndroidBleTransport(
         var rediscoveryLoggedWithoutLink: Boolean = false,
     ) {
         val keyHash: ByteArray = keyHash.copyOf()
+    }
+
+    private fun logEmptyFrameObservation(
+        peerId: PeerId,
+        readBytes: Int,
+        appendResult: AndroidL2capFrameBuffer.AppendResult,
+        observation: AndroidL2capFrameBuffer.DecodedFrameObservation?,
+    ): Unit {
+        val peerSuffix = peerId.value.takeLast(6)
+        val headerHex = observation?.headerHex ?: "unknown"
+        val frameIndex = observation?.frameIndexInAppend ?: -1
+        val readOffset = observation?.readOffsetBeforeFrame ?: -1
+        val frameEndOffset = observation?.frameEndOffset ?: -1
+        val totalBuffered = observation?.totalBufferedBytesAfterAppend ?: -1
+        val remainingBuffered = observation?.remainingBufferedBytesAfterFrame ?: -1
+        val headerFromPriorBuffer =
+            observation?.headerStartsInPreviouslyBufferedBytes ?: false
+        val frameReachedCurrentChunk =
+            observation?.frameEndsBeyondPreviouslyBufferedBytes ?: false
+        log(
+            "ignoring empty frame from $peerSuffix readBytes=$readBytes frameIndex=$frameIndex decodedFrames=${appendResult.frames.size} headerHex=$headerHex readOffset=$readOffset frameEndOffset=$frameEndOffset bufferedBeforeAppend=${appendResult.bufferedBytesBeforeAppend} totalBufferedAfterAppend=$totalBuffered pendingAfterAppend=${appendResult.pendingBytesAfterAppend} remainingBufferedAfterFrame=$remainingBuffered headerFromPriorBuffer=$headerFromPriorBuffer frameReachedCurrentChunk=$frameReachedCurrentChunk chunkPrefixHex=${appendResult.appendedChunkPrefixHex} chunkSuffixHex=${appendResult.appendedChunkSuffixHex}"
+        )
     }
 
     private fun log(message: String): Unit {

@@ -1,6 +1,7 @@
 package ch.trancee.meshlink.platform.android
 
 import ch.trancee.meshlink.api.MeshLinkException
+import ch.trancee.meshlink.identity.toHexString
 
 internal class AndroidL2capFrameBuffer(
     private val maxFrameSizeBytes: Int = DEFAULT_MAX_FRAME_SIZE_BYTES
@@ -22,12 +23,24 @@ internal class AndroidL2capFrameBuffer(
     }
 
     internal fun append(chunk: ByteArray): List<ByteArray> {
+        return appendDetailed(chunk).frames
+    }
+
+    internal fun appendDetailed(chunk: ByteArray): AppendResult {
+        val bufferedBytesBeforeAppend = pendingBytes()
+        val appendedChunkPrefixHex = chunk.hexSnippetFromStart()
+        val appendedChunkSuffixHex = chunk.hexSnippetFromEnd()
         ensureCapacity(size + chunk.size)
         chunk.copyInto(buffer, destinationOffset = size)
         size += chunk.size
 
         val frames = mutableListOf<ByteArray>()
+        val observations = mutableListOf<DecodedFrameObservation>()
         while (size - readOffset >= LENGTH_PREFIX_SIZE_BYTES) {
+            val headerHex =
+                buffer
+                    .copyOfRange(readOffset, readOffset + LENGTH_PREFIX_SIZE_BYTES)
+                    .toHexString()
             val frameSize = readIntLittleEndian(buffer, readOffset)
             if (frameSize < 0 || frameSize > maxFrameSizeBytes) {
                 clear()
@@ -39,11 +52,43 @@ internal class AndroidL2capFrameBuffer(
             if (size - frameStart < frameSize) {
                 break
             }
-            frames += buffer.copyOfRange(frameStart, frameStart + frameSize)
-            readOffset = frameStart + frameSize
+            val frameEnd = frameStart + frameSize
+            observations +=
+                DecodedFrameObservation(
+                    frameIndexInAppend = observations.size + 1,
+                    frameSizeBytes = frameSize,
+                    headerHex = headerHex,
+                    readOffsetBeforeFrame = readOffset,
+                    frameStartOffset = frameStart,
+                    frameEndOffset = frameEnd,
+                    bufferedBytesBeforeAppend = bufferedBytesBeforeAppend,
+                    totalBufferedBytesAfterAppend = size,
+                    remainingBufferedBytesAfterFrame = size - frameEnd,
+                    headerStartsInPreviouslyBufferedBytes =
+                        readOffset < bufferedBytesBeforeAppend,
+                    frameEndsBeyondPreviouslyBufferedBytes =
+                        frameEnd > bufferedBytesBeforeAppend,
+                    appendedChunkBytes = chunk.size,
+                    appendedChunkPrefixHex = appendedChunkPrefixHex,
+                    appendedChunkSuffixHex = appendedChunkSuffixHex,
+                )
+            frames += buffer.copyOfRange(frameStart, frameEnd)
+            readOffset = frameEnd
         }
         compactIfNeeded()
-        return frames
+        return AppendResult(
+            frames = frames,
+            observations = observations,
+            bufferedBytesBeforeAppend = bufferedBytesBeforeAppend,
+            appendedChunkBytes = chunk.size,
+            appendedChunkPrefixHex = appendedChunkPrefixHex,
+            appendedChunkSuffixHex = appendedChunkSuffixHex,
+            pendingBytesAfterAppend = pendingBytes(),
+        )
+    }
+
+    internal fun pendingBytes(): Int {
+        return size - readOffset
     }
 
     private fun clear(): Unit {
@@ -94,9 +139,46 @@ internal class AndroidL2capFrameBuffer(
             ((source[offset + 3].toInt() and 0xFF) shl 24)
     }
 
+    private fun ByteArray.hexSnippetFromStart(): String {
+        return copyOf(minOf(size, HEX_SNIPPET_BYTES)).toHexString()
+    }
+
+    private fun ByteArray.hexSnippetFromEnd(): String {
+        val startIndex = maxOf(0, size - HEX_SNIPPET_BYTES)
+        return copyOfRange(startIndex, size).toHexString()
+    }
+
+    internal data class AppendResult(
+        val frames: List<ByteArray>,
+        val observations: List<DecodedFrameObservation>,
+        val bufferedBytesBeforeAppend: Int,
+        val appendedChunkBytes: Int,
+        val appendedChunkPrefixHex: String,
+        val appendedChunkSuffixHex: String,
+        val pendingBytesAfterAppend: Int,
+    )
+
+    internal data class DecodedFrameObservation(
+        val frameIndexInAppend: Int,
+        val frameSizeBytes: Int,
+        val headerHex: String,
+        val readOffsetBeforeFrame: Int,
+        val frameStartOffset: Int,
+        val frameEndOffset: Int,
+        val bufferedBytesBeforeAppend: Int,
+        val totalBufferedBytesAfterAppend: Int,
+        val remainingBufferedBytesAfterFrame: Int,
+        val headerStartsInPreviouslyBufferedBytes: Boolean,
+        val frameEndsBeyondPreviouslyBufferedBytes: Boolean,
+        val appendedChunkBytes: Int,
+        val appendedChunkPrefixHex: String,
+        val appendedChunkSuffixHex: String,
+    )
+
     private companion object {
         private const val DEFAULT_MAX_FRAME_SIZE_BYTES: Int = 128 * 1024
         private const val INITIAL_CAPACITY_BYTES: Int = 1024
         private const val LENGTH_PREFIX_SIZE_BYTES: Int = 4
+        private const val HEX_SNIPPET_BYTES: Int = 16
     }
 }

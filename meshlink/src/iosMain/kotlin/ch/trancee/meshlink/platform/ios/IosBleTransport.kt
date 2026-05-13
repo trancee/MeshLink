@@ -626,6 +626,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
         private var readSequence: Long = 0L
         private var writeSequence: Long = 0L
         private var lastReadFrameAtMs: Long? = null
+        private var cumulativeEncodedBytesWritten: Long = 0L
         var readLoopJob: Job? = null
         var writeLoopJob: Job? = null
 
@@ -729,6 +730,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
                     try {
                         val batchStats = writeCoalescedBatch(queuedFrames)
                         if (telemetryEnabled) {
+                            emitBatchTelemetry(queuedFrames, batchStats)
                             emitQueuedFrameTelemetry(queuedFrames, batchStats)
                         }
                     } finally {
@@ -767,6 +769,15 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
                 queuedFrame.encoded.copyInto(coalescedBuffer, destinationOffset = copyOffset)
                 copyOffset += queuedFrame.encoded.size
             }
+            val batchHeadHex =
+                coalescedBuffer.copyOf(minOf(coalescedBuffer.size, TELEMETRY_HEX_SNIPPET_BYTES))
+                    .toHexString()
+            val batchTailHex =
+                coalescedBuffer
+                    .copyOfRange(
+                        maxOf(0, coalescedBuffer.size - TELEMETRY_HEX_SNIPPET_BYTES),
+                        coalescedBuffer.size,
+                    ).toHexString()
 
             var offset = 0
             var writeCalls = 0
@@ -846,6 +857,8 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
                 }
                 offset += batchBytes
             }
+            val streamByteStart = cumulativeEncodedBytesWritten
+            cumulativeEncodedBytesWritten += coalescedBuffer.size.toLong()
             return BatchWriteStats(
                 writeCalls = writeCalls,
                 writeBatches = writeBatches,
@@ -862,6 +875,43 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
                 coalescedFrames = queuedFrames.size,
                 coalescedBytes = coalescedBuffer.size,
                 batchStartedAtMs = startedAtMs,
+                streamByteStart = streamByteStart,
+                streamByteEndExclusive = cumulativeEncodedBytesWritten,
+                batchHeadHex = batchHeadHex,
+                batchTailHex = batchTailHex,
+            )
+        }
+
+        private fun emitBatchTelemetry(
+            queuedFrames: List<QueuedFrame>,
+            batchStats: BatchWriteStats,
+        ): Unit {
+            emitTelemetry(
+                event = "write.batch",
+                fields =
+                    mapOf(
+                        "peer" to hintPeerId.value.takeLast(6),
+                        "seqStart" to queuedFrames.first().sequence.toString(),
+                        "seqEnd" to queuedFrames.last().sequence.toString(),
+                        "coalescedFrames" to batchStats.coalescedFrames.toString(),
+                        "coalescedBytes" to batchStats.coalescedBytes.toString(),
+                        "streamByteStart" to batchStats.streamByteStart.toString(),
+                        "streamByteEndExclusive" to batchStats.streamByteEndExclusive.toString(),
+                        "frameHeaders" to
+                            queuedFrames.joinToString(separator = ",") { queuedFrame ->
+                                queuedFrame
+                                    .encoded
+                                    .copyOf(
+                                        minOf(queuedFrame.encoded.size, FRAME_PREFIX_BYTES)
+                                    ).toHexString()
+                            },
+                        "batchHeadHex" to batchStats.batchHeadHex,
+                        "batchTailHex" to batchStats.batchTailHex,
+                        "writeCalls" to batchStats.writeCalls.toString(),
+                        "writeBatches" to batchStats.writeBatches.toString(),
+                        "backpressureSpins" to batchStats.backpressureSpins.toString(),
+                        "readyFalseCount" to batchStats.readyFalseCount.toString(),
+                    ),
             )
         }
 
@@ -980,6 +1030,10 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
             val coalescedFrames: Int,
             val coalescedBytes: Int,
             val batchStartedAtMs: Long,
+            val streamByteStart: Long,
+            val streamByteEndExclusive: Long,
+            val batchHeadHex: String,
+            val batchTailHex: String,
         )
 
         data class ReadDrainResult(
@@ -998,6 +1052,8 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
             private const val MAX_COALESCED_BATCH_BYTES: Int = 16 * 1024
             private const val ACK_LIKELY_ENCRYPTED_BYTES: Int = 192
             private const val WRITE_STALL_TIMEOUT_MS: Long = 5_000L
+            private const val FRAME_PREFIX_BYTES: Int = 4
+            private const val TELEMETRY_HEX_SNIPPET_BYTES: Int = 16
         }
     }
 
