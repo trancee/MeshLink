@@ -235,6 +235,17 @@ retransmission semantics.
 
 ---
 
+## Phase 14: Follow-up - Reverse-Path Peer Reappearance Investigation
+
+**Purpose**: Determine whether the remaining recipient-confirmed failures are primarily caused by missing passive-peer rediscovery, route non-reappearance, or reverse-direction handshake collapse after the forward payload leg completes.
+
+- [ ] T069 Add reverse-path peer reappearance / route-availability timeline diagnostics in the shared runtime, relevant Android/iOS transport files, and both proof apps so receipt-window logs show when the passive peer rediscovers the sender, when a usable route for that peer reappears or expires, and which state transition immediately precedes `ReceiptTimeout` / `UNREACHABLE`
+- [ ] T070 [P] Re-run a minimal iPhone 15 -> Samsung 256-byte recipient-confirmed repro with the new reverse-path diagnostics and retain the paired sender/passive evidence in `benchmarks/README.md` and `specs/001-ble-mesh-sdk/research.md`
+- [ ] T071 [P] Re-run a minimal iPhone 15 -> OPPO 256-byte recipient-confirmed repro with the same diagnostics and retain the paired sender/passive evidence in `benchmarks/README.md` and `specs/001-ble-mesh-sdk/research.md`
+- [ ] T072 Compare the Samsung and OPPO reverse-path timelines, document the narrowed blocker hypothesis in `specs/001-ble-mesh-sdk/research.md`, and identify the next bounded remediation target if the evidence isolates a concrete peer-reappearance or route-availability failure mode
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies
@@ -247,6 +258,7 @@ retransmission semantics.
 - **Polish (Phase 6)**: Runs after the desired user stories are complete.
 - **Follow-up Throughput Remediation (Phase 7)**: Runs after Phase 6 when SC-004 still lacks passing iPhone-class evidence.
 - **Follow-up Artifact Remediation (Phase 8)**: Runs after Phase 6 and should consume the latest Phase 7 benchmark outcome when it updates release-risk wording.
+- **Follow-up Reverse-Path Peer Reappearance Investigation (Phase 14)**: Runs after Phase 13 and consumes the passive-retry matrix evidence to distinguish missing peer rediscovery from reverse-path route / handshake non-reappearance.
 
 ### User Story Dependencies
 
