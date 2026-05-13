@@ -290,10 +290,59 @@ Interpretation:
   retained scored LOW-power 256-byte evidence
 - Android currently satisfies the LOW-power 256-byte target on the proof path
   (`411 ms <= 5000 ms`)
-- iOS currently does not satisfy the same clause on reference hardware: the
-  benchmark send itself reaches `Sent`, but the direct peer disappears before
-  the receipt can return, so the scored sender outcome remains
-  `ReceiptTimeout` at `21331 ms`
+- the first iPhone 15 -> OPPO scored LOW-power rerun still ended
+  `ReceiptTimeout` at `21331 ms`, but that failure shape was then traced to the
+  passive Android proof app clearing `knownPeers` before the receipt path ran,
+  even though the same peer was still reachable over the active inbound L2CAP
+  path that had just delivered the benchmark payload
+
+### LOW-power follow-up: passive proof-peer bookkeeping (2026-05-13)
+
+The next bounded investigation step was to determine whether the iPhone
+LOW-power sender was genuinely failing transport-wise or whether the passive
+Android proof app was suppressing the return receipt too early.
+
+Root-cause evidence from the failing iPhone 15 -> OPPO rerun:
+
+- passive OPPO log retained `Peer found: db2ccaf6228459d8aa9dc685 (CONNECTED)`
+  followed by `Peer lost: db2ccaf6228459d8aa9dc685`
+- the same passive OPPO proof app later retained
+  `DIAG HOP_SESSION_ESTABLISHED ... peerId=db2ccaf6228459d8aa9dc685`,
+  `DIAG ROUTE_DISCOVERED ... peerId=db2ccaf6228459d8aa9dc685`, and
+  `MSG from db2ccaf6228459d8aa9dc6859a1fd004ca7b76bb bytes=256 benchmarkToken=...`
+- despite having just received the benchmark payload over that path, the proof
+  app still logged repeated `passive.receipt.wait ... knownPeers=[]` lines and
+  never attempted the receipt send before `BENCHMARK receipt abandoned ...`
+
+That showed the immediate benchmark blocker was proof-app bookkeeping, not the
+sender's ability to deliver the 256-byte LOW-power payload. The passive proof
+app was keying receipt retries off `knownPeers`, but `knownPeers` had already
+been cleared by scan/presence churn and was not restored when the inbound
+benchmark payload proved that a usable direct peer handle still existed.
+
+A bounded proof-harness fix then restored the resolved direct peer handle to the
+passive Android proof app's `knownPeers` map when an inbound benchmark payload
+arrived.
+
+Fresh rerun after that change, using the same iPhone 15 LOW-power sender path:
+
+- passive OPPO proof app:
+  - `BENCHMARK receipt peer remapped origin=7b76bb direct=9dc685`
+  - `BENCHMARK receipt send(9dc685) -> Sent token=0000770594a52dcf attempt=1`
+- headless iPhone 15 sender log:
+  - `BENCHMARK receipt from f2cf6b88d1d61034b4b20fca314eb5dca9a4d9c3 token=0000770594a52dcf bytes=256`
+  - `BENCHMARK transport bytes=256 elapsedMs=239 throughputKBps=1.05 result=Sent`
+  - the later `MeshLinkTransport closing L2CAP link b20fca: peripheral disconnected ...`
+    line still occurred, but only after the receipt had already arrived and the
+    scored sender result was `Sent`
+
+Updated interpretation:
+
+- the iPhone LOW-power 256-byte sender path is no longer the active `SC-006`
+  blocker on reference hardware; with corrected passive proof-peer bookkeeping,
+  the latest retained rerun passed in `239 ms`
+- the remaining iPhone blocker continues to be large-transfer throughput plus
+  broader recipient-confirmed proof stability, not the LOW-power sender slice
 
 ## Quickstart reader-test attempt (2026-05-13)
 

@@ -140,16 +140,17 @@ peer proof receipts.
 - `FR-015a` still requires automated validation that the SDK persists only the
   allowed trust-record fields and does not persist disallowed diagnostic or
   plaintext data (`T075`).
-- `SC-006` now has explicit Android/iOS proof-benchmark coverage (`T076`), but
-  the latest retained iPhone 15 -> OPPO LOW-power 256-byte sender run still
-  ended `ReceiptTimeout` after `21331 ms`, so the iOS proof integration does
-  not currently satisfy the <=5 s completion clause on reference hardware.
 - `SC-001` still requires timed quickstart reader-test evidence with retained
   start/end timestamps and observer note (`T077`).
 
 These gaps are distinct from the iOS `SC-004` throughput blocker. Any
 release-readiness or full-conformance claim MUST keep them open until the
 corresponding tasks are complete or the specification is explicitly amended.
+
+`SC-006` is no longer an open evidence gap: after the passive Android proof app
+restored the resolved direct peer handle from the inbound benchmark payload, the
+latest retained iPhone 15 -> OPPO LOW-power 256-byte rerun completed `Sent` in
+`239 ms`.
 
 ## Artifact Governance & Source-of-Truth Precedence
 
