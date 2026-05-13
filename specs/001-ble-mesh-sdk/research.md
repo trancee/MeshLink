@@ -219,6 +219,19 @@ XCFramework export can be added without changing the core library shape.
   layer and is unnecessary for the current repo shape.
 - Immediate SwiftPM binary export — deferred until the core module exists and stabilizes.
 
+## Deployed-wire compatibility baseline (2026-05-13)
+
+The repository now retains explicit v1 deployed-wire baseline fixtures under
+`meshlink/src/commonTest/resources/wire-compat/` for representative message,
+route-update, and transfer-ack envelopes. The shared
+`WireEnvelopeContractTest` replays those fixtures by decoding them with the
+current codec, asserting the expected envelope family and representative field
+values, and then re-encoding the decoded frame byte-for-byte.
+
+This establishes a durable compatibility baseline for future wire evolution:
+changes that accidentally alter the deployed v1 binary layout will now fail the
+contract test instead of being noticed only during physical validation.
+
 ## Physical validation update (2026-05-12)
 
 The benchmark module README now carries the consolidated baseline table for JVM,

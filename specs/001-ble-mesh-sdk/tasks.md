@@ -257,7 +257,7 @@ timing evidence, without reopening completed delivery history.
 release-readiness claim.
 
 - [X] T073 [P] Clarify the normative transport scope in `specs/001-ble-mesh-sdk/spec.md` and `specs/001-ble-mesh-sdk/plan.md` so the current release path remains MeshLink L2CAP-first and the retained GATT prototype is explicitly proof-only / non-conformance evidence unless a later spec amendment promotes it.
-- [ ] T074 Add explicit deployed-wire backward-compatibility validation for
+- [X] T074 Add explicit deployed-wire backward-compatibility validation for
   `FR-016` by checking prior-version FlatBuffers-compatible fixtures into
   `meshlink/src/commonTest/resources/wire-compat/`, running them from
   `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/wire/WireEnvelopeContractTest.kt`,

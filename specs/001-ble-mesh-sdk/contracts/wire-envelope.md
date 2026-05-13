@@ -117,4 +117,8 @@ Fields or frame families:
 - New fields are append-only.
 - Removed fields are deprecated in schema terms, not deleted from deployed wire versions.
 - Unknown fields must be ignored safely by older decoders.
+- The repository retains deployed-wire baseline fixtures under
+  `meshlink/src/commonTest/resources/wire-compat/`, and
+  `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/wire/WireEnvelopeContractTest.kt`
+  replays them as byte-for-byte compatibility checks.
 - Wire-format breaks require a major version bump and migration period.

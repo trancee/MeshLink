@@ -135,6 +135,36 @@ class WireEnvelopeContractTest {
     }
 
     @Test
+    fun `deployed wire compatibility fixtures still decode and re-encode unchanged`() {
+        // Arrange
+        val fixtures = loadWireCompatibilityFixtures() ?: return
+
+        // Act / Assert
+        fixtures.forEach { fixture ->
+            val envelope = WireEnvelope.decode(fixture.encodedBytes)
+            val decoded = WireCodec.decode(fixture.encodedBytes)
+            val reencoded = WireCodec.encode(decoded)
+
+            assertEquals(
+                expected = WireCodec.CURRENT_WIRE_VERSION,
+                actual = envelope.version,
+                message = "Expected ${fixture.fileName} to remain on the current wire version",
+            )
+            assertEquals(
+                expected = fixture.expectedType,
+                actual = envelope.type,
+                message = "Expected ${fixture.fileName} to decode as ${fixture.expectedType}",
+            )
+            assertFrameEquals(expected = fixture.expectedFrame, actual = decoded)
+            assertContentEquals(
+                expected = fixture.encodedBytes,
+                actual = reencoded,
+                message = "Expected ${fixture.fileName} to remain byte-for-byte stable",
+            )
+        }
+    }
+
+    @Test
     fun `decoder rejects truncated wire envelopes`() {
         // Arrange
         val encoded = WireCodec.encode(WireFrame.TransferComplete(transferId = "transfer-003"))
@@ -148,6 +178,93 @@ class WireEnvelopeContractTest {
             failure.message?.contains("FlatBuffer", ignoreCase = true) == true,
             "Malformed envelopes should fail with a FlatBuffer-related error",
         )
+    }
+
+    private fun loadWireCompatibilityFixtures(): List<WireCompatibilityFixture>? {
+        val indexText =
+            WireCompatibilitySupport.resourceTextOrNull(WIRE_COMPAT_INDEX_RESOURCE) ?: return null
+        val fileNames =
+            indexText.lineSequence().map(String::trim).filter(String::isNotEmpty).toList()
+        return fileNames.map { fileName ->
+            val hex =
+                WireCompatibilitySupport.resourceTextOrNull(
+                        "$WIRE_COMPAT_RESOURCE_PREFIX/$fileName"
+                    )
+                    ?.trim() ?: error("Missing wire compatibility fixture $fileName")
+            wireCompatibilityFixture(fileName = fileName, encodedBytes = hex.hexToByteArray())
+        }
+    }
+
+    private fun wireCompatibilityFixture(
+        fileName: String,
+        encodedBytes: ByteArray,
+    ): WireCompatibilityFixture {
+        return when (fileName) {
+            "v1_message.hex" ->
+                WireCompatibilityFixture(
+                    fileName = fileName,
+                    expectedType = WireEnvelopeType.MESSAGE,
+                    expectedFrame =
+                        WireFrame.Message(
+                            messageId = "fixture-message-001",
+                            originPeerId = PeerId("fixture-origin-001"),
+                            destinationPeerId = PeerId("fixture-destination-001"),
+                            priority = DeliveryPriority.NORMAL,
+                            ttlMillis = 45_000,
+                            encryptedPayload = byteArrayOf(0x01, 0x02, 0x03, 0x04),
+                        ),
+                    encodedBytes = encodedBytes,
+                )
+            "v1_route_update.hex" ->
+                WireCompatibilityFixture(
+                    fileName = fileName,
+                    expectedType = WireEnvelopeType.ROUTE_UPDATE,
+                    expectedFrame =
+                        WireFrame.RouteUpdate(
+                            destinationPeerId = PeerId("fixture-destination-002"),
+                            nextHopPeerId = PeerId("fixture-next-hop-002"),
+                            metric = 2,
+                            seqNo = 4_294_967_300L,
+                            feasibilityMetric = 1,
+                            destinationEd25519PublicKey = byteArrayOf(0x11, 0x12, 0x13, 0x14),
+                            destinationX25519PublicKey = byteArrayOf(0x21, 0x22, 0x23, 0x24),
+                        ),
+                    encodedBytes = encodedBytes,
+                )
+            "v1_transfer_ack.hex" ->
+                WireCompatibilityFixture(
+                    fileName = fileName,
+                    expectedType = WireEnvelopeType.TRANSFER_ACK,
+                    expectedFrame =
+                        WireFrame.TransferAck(
+                            transferId = "fixture-transfer-003",
+                            highestContiguousAck = 7,
+                            selectiveRanges = byteArrayOf(0x00, 0x03, 0x05, 0x07),
+                        ),
+                    encodedBytes = encodedBytes,
+                )
+            else -> error("Unsupported wire compatibility fixture $fileName")
+        }
+    }
+
+    private fun String.hexToByteArray(): ByteArray {
+        if (length % 2 != 0) {
+            error("Hex fixture content must contain an even number of characters")
+        }
+        return ByteArray(length / 2) { index ->
+            val high = hexDigitValue(this[index * 2])
+            val low = hexDigitValue(this[index * 2 + 1])
+            ((high shl 4) or low).toByte()
+        }
+    }
+
+    private fun hexDigitValue(char: Char): Int {
+        return when (char) {
+            in '0'..'9' -> char.code - '0'.code
+            in 'a'..'f' -> char.code - 'a'.code + 10
+            in 'A'..'F' -> char.code - 'A'.code + 10
+            else -> error("Invalid hex digit '$char' in wire compatibility fixture")
+        }
     }
 
     private fun assertFrameEquals(expected: WireFrame, actual: WireFrame): Unit {
@@ -246,4 +363,19 @@ class WireEnvelopeContractTest {
             }
         }
     }
+
+    private companion object {
+        private const val WIRE_COMPAT_RESOURCE_PREFIX = "wire-compat"
+        private const val WIRE_COMPAT_INDEX_RESOURCE = "$WIRE_COMPAT_RESOURCE_PREFIX/index.txt"
+    }
+}
+
+private class WireCompatibilityFixture
+internal constructor(
+    internal val fileName: String,
+    internal val expectedType: WireEnvelopeType,
+    internal val expectedFrame: WireFrame,
+    encodedBytes: ByteArray,
+) {
+    internal val encodedBytes: ByteArray = encodedBytes.copyOf()
 }
