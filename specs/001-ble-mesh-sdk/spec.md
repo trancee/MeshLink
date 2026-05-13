@@ -14,7 +14,7 @@
 - Q: What should happen when a payload exceeds the v1 transfer limit? → A: Reject the payload before transfer starts and return an explicit size-limit error.
 - Q: Should pending retries survive an app or SDK restart? → A: No; pending retries are in-memory only and do not survive restart.
 - Q: How should MeshLink handle an untrusted or identity-changed peer? → A: Reject the peer and emit an explicit trust-failure diagnostic.
-- Q: What BLE discovery UUIDs and advertisement payload should MeshLink use? → A: Advertise the fixed discovery service UUID as the 32-bit UUID `4d455348` (Bluetooth-base expanded form `4d455348-0000-1000-8000-00805f9b34fb`) plus a second 128-bit service UUID that carries the 16-byte MeshLink discovery payload, use GATT fallback service UUID `4d455348-0001-1000-8000-000000000000`, count fallback characteristic UUIDs upward from `4d455348-0002-1000-8000-000000000000`, and fit everything in a single advertisement with no scan response.
+- Q: What BLE discovery UUIDs and advertisement payload should MeshLink use? → A: Advertise the fixed discovery service UUID as the 32-bit UUID `4d455348` (Bluetooth-base expanded form `4d455348-0000-1000-8000-00805f9b34fb`) plus a second 128-bit service UUID that carries the 16-byte MeshLink discovery payload, fit everything in a single advertisement with no scan response, and reserve the UUID block beginning at `4d455348-0001-1000-8000-000000000000` for proof-only / future GATT fallback experiments. The current normative MeshLink feature scope remains L2CAP-first; the retained proof-only GATT prototype is investigative evidence and MUST NOT be treated as product-conformance fallback unless this specification is explicitly amended.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -152,9 +152,9 @@ error behavior.
 
 ### Functional Requirements
 
-- **FR-001**: The system MUST initialize and run entirely on supported mobile
-  devices without requiring internet connectivity, backend services, or user
-  account creation.
+- **FR-001**: The system MUST initialize and run on supported mobile devices
+  without requiring internet connectivity, backend services, or user account
+  creation for any core SDK behavior.
 - **FR-002**: The system MUST establish peer trust using trust on first use
   (TOFU) by accepting a previously unseen peer identity only after the first
   hop-to-hop authenticated handshake completes successfully and the peer’s
@@ -210,16 +210,21 @@ error behavior.
   configuration concepts, lifecycle states, one shared 26-code diagnostic
   catalog with identical severity tiers and payload shapes, and one sealed
   commonMain exception hierarchy with matching categories on Android and iOS.
-- **FR-015**: The system MUST function entirely offline after installation and
-  required operating-system permissions are granted.
+- **FR-015**: After installation and grant of required operating-system
+  permissions, the system MUST perform discovery, trust establishment, routing,
+  transfer, and lifecycle operations entirely offline.
 - **FR-015a**: The system MUST minimize persisted local trust and diagnostic
-  data. Persisted trust records MUST contain only the peer identity material
-  required for TOFU verification and timestamps needed for auditability.
-  Developer-visible diagnostics MUST remain redacted and MUST NOT persist full
-  peer identifiers, plaintext payloads, or decrypted message content unless the
-  host application explicitly stores such data outside the SDK.
+  data. Persisted trust records MUST contain only the pinned peer identity
+  material required for TOFU verification plus `firstSeenAtEpochMillis` and
+  `lastVerifiedAtEpochMillis` audit fields. The SDK runtime MUST NOT persist
+  developer-visible diagnostics, full peer identifiers, plaintext payloads, or
+  decrypted message content; any such storage MAY occur only if the host
+  application explicitly writes it outside the SDK.
 - **FR-016**: The system MUST preserve backward compatibility for deployed wire
-  formats, or explicitly version and document incompatible changes.
+  formats. When a deployed wire shape changes, the repository MUST retain and
+  run explicit backward-compatibility validation against prior-version
+  fixtures; if compatibility cannot be preserved, the change MUST be explicitly
+  versioned and documented as incompatible.
 - **FR-017**: The system MUST provide integration documentation and quickstart
   guidance sufficient for a mobile app team to complete first-message
   verification.
@@ -300,6 +305,11 @@ error behavior.
   `meshlink-sample/android` and `meshlink-sample/ios` as reference
   implementations and complete a first encrypted offline message exchange
   between two devices in 30 minutes or less using the published quickstart.
+  The measured window starts when a fresh reader begins from the documented
+  quickstart prerequisites and ends when sender and recipient proof logs retain
+  the first successful encrypted-message evidence. Reviewer evidence MUST
+  include start/end timestamps and a short observer note retained in the
+  repository docs.
 - **SC-002**: In a three-device topology with no internet and no direct path
   between sender and recipient, addressed messages are delivered through the
   mesh without manual route selection, and control-plane route convergence
@@ -318,9 +328,10 @@ error behavior.
   scored run, collect at least 20 post-warmup samples for the 256-byte latency
   path before computing p95, and measure 64 KB throughput from sender-side send
   start until the terminal benchmark / send-result line for the scored run.
-- **SC-006**: In LOW power mode, scan duty cycle remains at or below 5% while
-  basic message delivery remains functional within the documented reduced-power
-  policy.
+- **SC-006**: In LOW power mode, scan duty cycle remains at or below 5%, and
+  after peer discovery and connection establishment a 1-hop, 256-byte message
+  completes within 5 seconds on both proof integrations under the documented
+  reduced-power policy.
 - **SC-007**: Android and iOS reference integrations expose the same
   developer-visible lifecycle states, error categories, and diagnostic event
   meanings for equivalent workflows.
@@ -394,6 +405,9 @@ The runnable proof integrations are required artifacts for four distinct jobs:
 
 They are not normative end-user product UI requirements. Product conformance is
 still defined by this specification, not by the exact proof-app presentation.
+Any proof-only GATT prototype evidence remains non-normative and MUST NOT be
+cited as satisfying product transport requirements unless this specification is
+explicitly amended.
 
 Environmental blockers MUST be handled explicitly instead of being folded into a
 pass/fail claim for the product requirement. Examples include local development-

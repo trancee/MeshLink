@@ -246,6 +246,19 @@ retransmission semantics.
 
 ---
 
+## Phase 15: Follow-up - Compatibility and Acceptance-Criteria Clarification
+
+**Purpose**: Close the remaining analysis findings on transport-scope wording, deployed-wire compatibility validation, storage/redaction specificity, measurable LOW-power delivery, quickstart timing evidence, and stale sequencing guidance without reopening completed delivery history.
+
+- [ ] T073 [P] Clarify the normative transport scope in `specs/001-ble-mesh-sdk/spec.md` and `specs/001-ble-mesh-sdk/plan.md` so the current release path remains MeshLink L2CAP-first and the retained GATT prototype is explicitly proof-only / non-conformance evidence unless a later spec amendment promotes it.
+- [ ] T074 Add explicit deployed-wire backward-compatibility validation for `FR-016` in `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/wire/WireEnvelopeContractTest.kt`, `specs/001-ble-mesh-sdk/contracts/wire-envelope.md`, and `specs/001-ble-mesh-sdk/research.md`, then retain the compatibility evidence.
+- [ ] T075 [P] Tighten trust-record timestamp and persisted-diagnostic redaction requirements in `specs/001-ble-mesh-sdk/spec.md` and `specs/001-ble-mesh-sdk/plan.md`, then add automated coverage in `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/api/MeshLinkApiContractTest.kt`, `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/integration/DirectMessagingIntegrationTest.kt`, and the affected storage / trust code paths.
+- [ ] T076 [P] Replace the vague LOW-power delivery clause in `specs/001-ble-mesh-sdk/spec.md` with a measurable target, mirror it in `specs/001-ble-mesh-sdk/plan.md`, and add Android/iOS proof-benchmark coverage in `meshlink-sample/android/app/src/androidTest/kotlin/ch/trancee/meshlink/proof/android/PowerProfileBenchmark.kt` and `meshlink-sample/ios/ProofBenchmarks/PowerProfileBenchmark.swift`.
+- [ ] T077 Define the timed measurement method for `SC-001` in `specs/001-ble-mesh-sdk/spec.md` and `specs/001-ble-mesh-sdk/quickstart.md`, then run and retain a timed quickstart reader-test in `specs/001-ble-mesh-sdk/research.md`.
+- [ ] T078 Refresh `specs/001-ble-mesh-sdk/tasks.md` dependency and incremental-delivery guidance so it reflects appended follow-up phases through Phase 15 while preserving the append-only ledger rules.
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies
@@ -256,9 +269,15 @@ retransmission semantics.
 - **User Story 2 (Phase 4)**: Depends on User Story 1 runtime skeleton and adds routing/transfer.
 - **User Story 3 (Phase 5)**: Depends on the shared runtime from User Story 1 and may reuse routing/diagnostic work from User Story 2.
 - **Polish (Phase 6)**: Runs after the desired user stories are complete.
-- **Follow-up Throughput Remediation (Phase 7)**: Runs after Phase 6 when SC-004 still lacks passing iPhone-class evidence.
-- **Follow-up Artifact Remediation (Phase 8)**: Runs after Phase 6 and should consume the latest Phase 7 benchmark outcome when it updates release-risk wording.
+- **Follow-up Throughput Remediation (Phase 7)**: Runs after Phase 6 when `SC-004` still lacks passing iPhone-class evidence.
+- **Follow-up Artifact Remediation (Phase 8)**: Runs after Phase 7 to keep the canonical artifacts aligned with the latest benchmark outcome and blocker framing.
+- **Follow-up iOS CoC Pipeline Remediation (Phase 9)**: Runs after Phase 8 when the iOS L2CAP path still needs bounded hot-path remediation.
+- **Follow-up Queued-Writer Physical Evidence Refresh (Phase 10)**: Runs after Phase 9 to retain fresh physical evidence and telemetry for the queued-writer path.
+- **Follow-up Samsung Soak and Benchmark Semantics (Phase 11)**: Runs after Phase 10 to separate handshake instability from bulk throughput and enforce recipient-confirmed proof semantics.
+- **Follow-up Release Blocker Framing Tightening (Phase 12)**: Runs after Phase 11 when the spec/plan blocker language must distinguish throughput non-conformance, proof-completion failure, and proof-only fallback evidence.
+- **Follow-up Recipient-Confirmed Return-Path Stabilization (Phase 13)**: Runs after Phase 12 to diagnose and remediate passive-peer proof-receipt failures.
 - **Follow-up Reverse-Path Peer Reappearance Investigation (Phase 14)**: Runs after Phase 13 and consumes the passive-retry matrix evidence to distinguish missing peer rediscovery from reverse-path route / handshake non-reappearance.
+- **Follow-up Compatibility and Acceptance-Criteria Clarification (Phase 15)**: Runs after Phase 14, or in parallel with `T070`–`T072` where only artifact clarification / offline validation work is involved.
 
 ### User Story Dependencies
 
@@ -318,7 +337,7 @@ Task: "Implement `TransferSession`, ACK scoreboard, configurable delivery-deadli
 3. Add User Story 2 → validate multi-hop and bounded large transfer
 4. Add User Story 3 → validate power behavior and cross-platform parity
 5. Finish with benchmark, BCV, docs, and quickstart gates
-6. If SC-004 still lacks passing iPhone-class evidence, execute Phase 7 and then Phase 8 before declaring release readiness
+6. If `SC-004`, recipient-confirmed proof completion, or remaining artifact / acceptance-criteria gaps stay open, execute the appended follow-up phases in ledger order (currently Phases 7–15) before declaring release readiness.
 
 ### Parallel Team Strategy
 
