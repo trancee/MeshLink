@@ -26,7 +26,7 @@ class CrossPlatformParityTest {
                 appId = "parity.meshlink.${Random.nextInt()}"
                 powerMode = PowerMode.Automatic
             }
-            val androidApi = MeshLink.create(context = AndroidFactoryTestContext, config = config)
+            val androidApi = MeshLink.create(config = config, context = AndroidFactoryTestContext)
             val iosApi = MeshLink.createIos(config = config)
             val androidDiagnosticsDeferred =
                 async(start = CoroutineStart.UNDISPATCHED) {

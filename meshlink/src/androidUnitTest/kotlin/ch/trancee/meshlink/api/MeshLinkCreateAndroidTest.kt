@@ -11,7 +11,7 @@ class MeshLinkCreateAndroidTest {
         // Arrange
         val config = meshLinkConfig { appId = "demo.meshlink.android" }
         val expectedMessage =
-            "Android context is required. Call MeshLink.create(context = ..., config = ...)."
+            "Android context is required. Call MeshLink.create(config = ..., context = ...)."
 
         // Act
         val error =
@@ -29,12 +29,12 @@ class MeshLinkCreateAndroidTest {
         val config = meshLinkConfig { appId = "demo.meshlink.android" }
         val invalidContext = Any()
         val expectedMessage =
-            "Android context is required. Call MeshLink.create(context = ..., config = ...)."
+            "Android context is required. Call MeshLink.create(config = ..., context = ...)."
 
         // Act
         val error =
             assertFailsWith<MeshLinkException.InvalidConfiguration> {
-                MeshLink.create(context = invalidContext, config = config)
+                MeshLink.create(config = config, context = invalidContext)
             }
 
         // Assert

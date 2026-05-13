@@ -13,7 +13,7 @@ import ch.trancee.meshlink.storage.InMemorySecureStorage
 import kotlinx.coroutines.runBlocking
 
 private const val ANDROID_CONTEXT_REQUIRED_MESSAGE =
-    "Android context is required. Call MeshLink.create(context = ..., config = ...)."
+    "Android context is required. Call MeshLink.create(config = ..., context = ...)."
 
 internal actual fun createMeshLink(config: MeshLinkConfig): MeshLinkApi {
     throw MeshLinkException.InvalidConfiguration(ANDROID_CONTEXT_REQUIRED_MESSAGE)

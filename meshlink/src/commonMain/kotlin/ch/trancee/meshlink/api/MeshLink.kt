@@ -26,20 +26,20 @@ public object MeshLink {
      *
      * @throws MeshLinkException.InvalidConfiguration when [context] is missing or invalid.
      */
-    public fun create(context: Any, config: MeshLinkConfig): MeshLinkApi {
+    public fun create(config: MeshLinkConfig, context: Any): MeshLinkApi {
         return createAndroidMeshLink(config = config, context = context)
     }
 
     @Deprecated(
-        message = "Use create(context, config) instead.",
+        message = "Use create(config, context) instead.",
         replaceWith =
             ReplaceWith(
-                expression = "MeshLink.create(context, config)",
+                expression = "MeshLink.create(config = config, context = context)",
                 imports = ["ch.trancee.meshlink.api.MeshLink"],
             ),
     )
     public fun createAndroid(context: Any, config: MeshLinkConfig): MeshLinkApi {
-        return createAndroidMeshLink(config = config, context = context)
+        return create(config = config, context = context)
     }
 
     @Deprecated(

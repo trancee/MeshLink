@@ -92,7 +92,7 @@ class MeshLinkApiContractTest {
         // Arrange
         installIosFactoryTestBridge()
         val config = meshLinkConfig { appId = "demo.meshlink.${kotlin.random.Random.nextInt()}" }
-        val androidApi = MeshLink.create(context = AndroidFactoryTestContext, config = config)
+        val androidApi = MeshLink.create(config = config, context = AndroidFactoryTestContext)
         val iosApi = MeshLink.createIos(config = config)
 
         // Act

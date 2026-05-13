@@ -310,7 +310,6 @@ private object MeshLinkProofRuntime {
                 meshLink =
                     if (resolvedLaunchConfig.benchmarkTransport == ProofBenchmarkTransport.MeshLink) {
                         MeshLink.create(
-                            context = appContext!!,
                             config = meshLinkConfig {
                                 appId = resolvedLaunchConfig.appId
                                 regulatoryRegion = RegulatoryRegion.DEFAULT
@@ -319,6 +318,7 @@ private object MeshLinkProofRuntime {
                                     deliveryRetryDeadline = PASSIVE_RECEIPT_SEND_DEADLINE
                                 }
                             },
+                            context = appContext!!,
                         )
                     } else {
                         null

@@ -42,7 +42,7 @@ val config = meshLinkConfig {
 
 ## 3. Construct the platform instance
 
-- Android host apps call `MeshLink.create(context, config)` and pass the Android context.
+- Android host apps call `MeshLink.create(config, context)` and pass the Android context.
 - iOS host apps call `MeshLink.create(config)`.
 - The committed iOS proof sample now includes an Xcode project plus an XcodeGen
   spec. Local iPhone builds still require a development team selection in Xcode
