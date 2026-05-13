@@ -2,6 +2,8 @@ package ch.trancee.meshlink.proof.android
 
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.ParcelFileDescriptor
 import android.os.SystemClock
 import androidx.test.core.app.ActivityScenario
@@ -29,6 +31,7 @@ internal object BenchmarkTestSupport {
         benchmarkColdStart: Boolean = false,
         benchmarkTransport: String? = null,
     ): ActivityScenario<MainActivity> {
+        ensureTargetRuntimePermissionsGranted()
         val context = ApplicationProvider.getApplicationContext<Context>()
         val intent = Intent(context, MainActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -61,6 +64,60 @@ internal object BenchmarkTestSupport {
             "Requires a nearby proof peer and -e $PEER_BENCHMARKS_ARGUMENT true",
             enabled,
         )
+    }
+
+    private fun ensureTargetRuntimePermissionsGranted(): Unit {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val targetContext = instrumentation.targetContext
+        val uiAutomation = instrumentation.uiAutomation
+        uiAutomation.adoptShellPermissionIdentity(GRANT_RUNTIME_PERMISSIONS_PERMISSION)
+        try {
+            requiredTargetRuntimePermissions().forEach { permission ->
+                if (targetContext.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED) {
+                    return@forEach
+                }
+                val grantFailure =
+                    runCatching { uiAutomation.grantRuntimePermission(PACKAGE_NAME, permission) }
+                        .exceptionOrNull()
+                check(waitForTargetPermissionGrant(targetContext, permission)) {
+                    val failureSuffix =
+                        grantFailure?.let { error ->
+                            val message = error.message?.takeIf(String::isNotBlank)
+                            if (message == null) {
+                                "${error::class.simpleName}"
+                            } else {
+                                "${error::class.simpleName}: $message"
+                            }
+                        } ?: "permission remained denied"
+                    "Failed to grant $permission to $PACKAGE_NAME: $failureSuffix"
+                }
+            }
+        } finally {
+            uiAutomation.dropShellPermissionIdentity()
+        }
+    }
+
+    private fun waitForTargetPermissionGrant(context: Context, permission: String): Boolean {
+        val deadline = SystemClock.elapsedRealtime() + PERMISSION_SETTLE_TIMEOUT_MS
+        while (SystemClock.elapsedRealtime() < deadline) {
+            if (context.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED) {
+                return true
+            }
+            SystemClock.sleep(PERMISSION_SETTLE_POLL_MS)
+        }
+        return context.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED
+    }
+
+    private fun requiredTargetRuntimePermissions(): List<String> {
+        return if (Build.VERSION.SDK_INT >= 31) {
+            listOf(
+                "android.permission.BLUETOOTH_SCAN",
+                "android.permission.BLUETOOTH_CONNECT",
+                "android.permission.BLUETOOTH_ADVERTISE",
+            )
+        } else {
+            listOf("android.permission.ACCESS_FINE_LOCATION")
+        }
     }
 
     fun waitForLogLine(text: String, timeoutMs: Long): String {
@@ -113,4 +170,8 @@ internal object BenchmarkTestSupport {
     private val THROUGHPUT_REGEX = Regex("throughputKBps=([0-9]+(?:\\.[0-9]+)?)")
     private val RESULT_REGEX = Regex("result=([^ ]+)")
     private const val PEER_BENCHMARKS_ARGUMENT: String = "meshlinkBenchmarkEnablePeerTests"
+    private const val GRANT_RUNTIME_PERMISSIONS_PERMISSION: String =
+        "android.permission.GRANT_RUNTIME_PERMISSIONS"
+    private const val PERMISSION_SETTLE_TIMEOUT_MS: Long = 2_000L
+    private const val PERMISSION_SETTLE_POLL_MS: Long = 100L
 }
