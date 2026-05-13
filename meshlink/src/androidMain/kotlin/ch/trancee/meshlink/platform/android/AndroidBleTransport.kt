@@ -228,6 +228,11 @@ internal class AndroidBleTransport(
                 discoveredPeer.transportMode == transportMode
         ) {
             peerHintByAddress[result.device.address] = hintPeerId.value
+            maybeLogRediscoveryWithoutLink(
+                peer = discoveredPeer,
+                transportMode = transportMode,
+                address = result.device.address,
+            )
             return
         }
         log(
@@ -261,6 +266,11 @@ internal class AndroidBleTransport(
             }
         }
 
+        maybeLogRediscoveryWithoutLink(
+            peer = discoveredPeers.getValue(hintPeerId.value),
+            transportMode = transportMode,
+            address = result.device.address,
+        )
         if (transportMode == TransportMode.L2CAP && shouldInitiateL2cap(payload.keyHash)) {
             log("initiating L2CAP connect to ${hintPeerId.value.takeLast(6)}")
             connectIfNeeded(discoveredPeers.getValue(hintPeerId.value))
@@ -302,12 +312,14 @@ internal class AndroidBleTransport(
                         }
                     socket.connect()
                     log("L2CAP connect succeeded for ${peer.hintPeerId.value.takeLast(6)}")
+                    discoveredPeers[peer.hintPeerId.value]?.rediscoveryLoggedWithoutLink = false
                     registerConnectedSocket(peer.hintPeerId, socket)
                 }
                 .onFailure { error ->
                     log(
                         "L2CAP connect failed for ${peer.hintPeerId.value.takeLast(6)}: ${error.message.orEmpty()}"
                     )
+                    discoveredPeers[peer.hintPeerId.value]?.rediscoveryLoggedWithoutLink = false
                     closeQuietly(activeLinksByHint.remove(peer.hintPeerId.value))
                 }
             pendingConnectJobsByHint.remove(peer.hintPeerId.value)
@@ -376,6 +388,7 @@ internal class AndroidBleTransport(
                 )
             activeLinksByHint[hintPeerId.value] = link
             peerHintByAddress[socket.remoteDevice.address] = hintPeerId.value
+            discoveredPeers[hintPeerId.value]?.rediscoveryLoggedWithoutLink = false
             log(
                 "registered L2CAP link for ${hintPeerId.value.takeLast(6)} addr=${socket.remoteDevice.address}"
             )
@@ -409,6 +422,30 @@ internal class AndroidBleTransport(
                     closeLink(hintPeer = link.peerHintId.value, reason = "socket closed")
                 }
             }
+        }
+    }
+
+    private fun maybeLogRediscoveryWithoutLink(
+        peer: DiscoveredPeer,
+        transportMode: TransportMode,
+        address: String,
+    ): Unit {
+        if (transportMode != TransportMode.L2CAP) {
+            peer.rediscoveryLoggedWithoutLink = false
+            return
+        }
+        val hasActiveLink =
+            synchronized(activeLinksByHint) { activeLinksByHint.containsKey(peer.hintPeerId.value) }
+        val hasPendingConnect = pendingConnectJobsByHint.containsKey(peer.hintPeerId.value)
+        if (hasActiveLink || hasPendingConnect) {
+            peer.rediscoveryLoggedWithoutLink = false
+            return
+        }
+        if (!peer.rediscoveryLoggedWithoutLink) {
+            log(
+                "scan rediscovered ${peer.hintPeerId.value.takeLast(6)} with no active link pendingConnect=$hasPendingConnect addr=$address"
+            )
+            peer.rediscoveryLoggedWithoutLink = true
         }
     }
 
@@ -498,7 +535,10 @@ internal class AndroidBleTransport(
 
     private fun closeLink(hintPeer: String, reason: String): Unit {
         val link = synchronized(activeLinksByHint) { activeLinksByHint.remove(hintPeer) } ?: return
-        log("closing L2CAP link ${hintPeer.takeLast(6)}: $reason")
+        discoveredPeers[hintPeer]?.rediscoveryLoggedWithoutLink = false
+        log(
+            "closing L2CAP link ${hintPeer.takeLast(6)}: $reason discoveredPeerRetained=${discoveredPeers.containsKey(hintPeer)} pendingConnect=${pendingConnectJobsByHint.containsKey(hintPeer)}"
+        )
         link.readLoopJob?.cancel()
         closeQuietly(link)
         val peerId = PeerId(hintPeer)
@@ -539,6 +579,7 @@ internal class AndroidBleTransport(
         var device: BluetoothDevice,
         var l2capPsm: Int,
         var transportMode: TransportMode,
+        var rediscoveryLoggedWithoutLink: Boolean = false,
     ) {
         val keyHash: ByteArray = keyHash.copyOf()
     }

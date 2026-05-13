@@ -499,11 +499,49 @@ final class ProofViewModel: ObservableObject {
         let recentDiagnostics = recentLogSummary(limit: 4) { line in
             line.hasPrefix("DIAG ")
         }
+        let recentRouteTimeline = peerTimelineLogSummary(peerValue: peerValue, limit: 4)
+        let lastTransition = peerTimelineEntries(peerValue: peerValue, limit: 1).last ?? "none"
+        let routeState = peerRouteState(peerValue: peerValue)
         appendLog(
             "BENCHMARK correlation role=\(role) token=\(tokenHex) peer=\(String(peerValue.suffix(6))) outcome=\(outcome) state=\(stateText) knownPeers=[\(knownPeers)]"
         )
         appendLog("BENCHMARK correlation token=\(tokenHex) recentPeers=\(recentPeers)")
         appendLog("BENCHMARK correlation token=\(tokenHex) recentDiags=\(recentDiagnostics)")
+        appendLog("BENCHMARK correlation token=\(tokenHex) routeState=\(routeState) lastTransition=\(lastTransition)")
+        appendLog("BENCHMARK correlation token=\(tokenHex) routeTimeline=\(recentRouteTimeline)")
+    }
+
+    private func peerTimelineLogSummary(peerValue: String, limit: Int) -> String {
+        let selected = peerTimelineEntries(peerValue: peerValue, limit: limit)
+        return "[\(selected.joined(separator: " | "))]"
+    }
+
+    private func peerTimelineEntries(peerValue: String, limit: Int) -> [String] {
+        logs.filter { line in
+            isPeerTimelineLine(line, peerValue: peerValue)
+        }.suffix(limit).map(summarizeLogLine)
+    }
+
+    private func isPeerTimelineLine(_ line: String, peerValue: String) -> Bool {
+        (line.hasPrefix("Peer ") && line.contains(peerValue)) ||
+            (line.hasPrefix("DIAG ") && line.contains("peerId=\(peerValue)"))
+    }
+
+    private func peerRouteState(peerValue: String) -> String {
+        guard let lastRouteDiagnostic = logs.last(where: { line in
+            line.hasPrefix("DIAG ") &&
+                line.contains("peerId=\(peerValue)") &&
+                line.contains("routeAvailable=")
+        }) else {
+            return "unknown"
+        }
+        if lastRouteDiagnostic.contains("routeAvailable=true") {
+            return "available"
+        }
+        if lastRouteDiagnostic.contains("routeAvailable=false") {
+            return "unavailable"
+        }
+        return "unknown"
     }
 
     private func recentLogSummary(limit: Int, predicate: (String) -> Bool) -> String {

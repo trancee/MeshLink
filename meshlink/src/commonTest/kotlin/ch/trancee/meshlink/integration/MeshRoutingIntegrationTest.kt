@@ -4,6 +4,8 @@ import ch.trancee.meshlink.api.InboundMessage
 import ch.trancee.meshlink.api.SendFailureReason
 import ch.trancee.meshlink.api.SendResult
 import ch.trancee.meshlink.config.meshLinkConfig
+import ch.trancee.meshlink.diagnostics.DiagnosticCode
+import ch.trancee.meshlink.diagnostics.DiagnosticEvent
 import ch.trancee.meshlink.test.MeshTestHarness
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -13,6 +15,7 @@ import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TimeSource
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.async
@@ -166,6 +169,138 @@ class MeshRoutingIntegrationTest {
         }
 
     @Test
+    fun `direct route diagnostics record peer rediscovery before send succeeds`() = runBlocking {
+        // Arrange
+        val harness = MeshTestHarness()
+        val sender =
+            harness.createNode(
+                peerIdValue = "peer-a",
+                configOverride =
+                    meshLinkConfig {
+                        appId = "peer-a-reconnect"
+                        deliveryRetryDeadline = 1.seconds
+                    },
+            )
+        val recipient = harness.createNode("peer-b")
+        val payload = "peer rediscovery".encodeToByteArray()
+
+        harness.linkPeers(sender, recipient)
+
+        sender.api.start()
+        recipient.api.start()
+        awaitDiagnosticForPeer(
+            diagnostics = sender.diagnosticSink::events,
+            code = DiagnosticCode.ROUTE_DISCOVERED,
+            peerIdValue = recipient.peerId.value,
+            routeAvailable = true,
+        )
+        harness.unlinkPeers(sender, recipient)
+        delay(100)
+        val sendResultDeferred = async { sender.api.send(recipient.peerId, payload) }
+        val receivedMessageDeferred =
+            async(start = CoroutineStart.UNDISPATCHED) {
+                withTimeout(2_000) { recipient.api.messages.first() }
+            }
+
+        // Act
+        delay(250)
+        harness.linkPeers(sender, recipient)
+        val sendResult = sendResultDeferred.await()
+        val receivedMessage = receivedMessageDeferred.await()
+
+        // Assert
+        assertIs<SendResult.Sent>(sendResult)
+        assertContentEquals(payload, receivedMessage.payload)
+        val diagnostics = sender.diagnosticSink.events()
+        val routeExpiredIndex =
+            diagnostics.indexOfFirstForPeer(
+                code = DiagnosticCode.ROUTE_EXPIRED,
+                peerIdValue = recipient.peerId.value,
+            )
+        val routeRediscoveredIndex =
+            diagnostics.lastIndexOfForPeer(
+                code = DiagnosticCode.ROUTE_DISCOVERED,
+                peerIdValue = recipient.peerId.value,
+                routeAvailable = true,
+            )
+        val deliverySucceededIndex =
+            diagnostics.indexOfFirstForPeer(
+                code = DiagnosticCode.DELIVERY_SUCCEEDED,
+                peerIdValue = recipient.peerId.value,
+                routeAvailable = true,
+            )
+        assertTrue(
+            routeExpiredIndex >= 0,
+            "Expected a ROUTE_EXPIRED diagnostic for the rediscovered peer",
+        )
+        assertTrue(
+            routeRediscoveredIndex > routeExpiredIndex,
+            "Expected ROUTE_DISCOVERED after ROUTE_EXPIRED when the peer reappears",
+        )
+        assertTrue(
+            deliverySucceededIndex > routeRediscoveredIndex,
+            "Expected DELIVERY_SUCCEEDED after the route reappears",
+        )
+    }
+
+    @Test
+    fun `direct route diagnostics record expiry before send becomes unreachable`() = runBlocking {
+        // Arrange
+        val harness = MeshTestHarness()
+        val sender =
+            harness.createNode(
+                peerIdValue = "peer-a",
+                configOverride =
+                    meshLinkConfig {
+                        appId = "peer-a-expiry"
+                        deliveryRetryDeadline = 500.milliseconds
+                    },
+            )
+        val recipient = harness.createNode("peer-b")
+        val payload = "route expired".encodeToByteArray()
+
+        harness.linkPeers(sender, recipient)
+
+        sender.api.start()
+        recipient.api.start()
+        awaitDiagnosticForPeer(
+            diagnostics = sender.diagnosticSink::events,
+            code = DiagnosticCode.ROUTE_DISCOVERED,
+            peerIdValue = recipient.peerId.value,
+            routeAvailable = true,
+        )
+        harness.unlinkPeers(sender, recipient)
+        delay(100)
+
+        // Act
+        val sendResult = sender.api.send(recipient.peerId, payload)
+
+        // Assert
+        val notSent = assertIs<SendResult.NotSent>(sendResult)
+        assertEquals(SendFailureReason.UNREACHABLE, notSent.reason)
+        val diagnostics = sender.diagnosticSink.events()
+        val routeExpiredIndex =
+            diagnostics.indexOfFirstForPeer(
+                code = DiagnosticCode.ROUTE_EXPIRED,
+                peerIdValue = recipient.peerId.value,
+            )
+        val deliveryUnreachableIndex =
+            diagnostics.indexOfFirstForPeer(
+                code = DiagnosticCode.DELIVERY_UNREACHABLE,
+                peerIdValue = recipient.peerId.value,
+                routeAvailable = false,
+            )
+        assertTrue(
+            routeExpiredIndex >= 0,
+            "Expected a ROUTE_EXPIRED diagnostic after unlinking the peer",
+        )
+        assertTrue(
+            deliveryUnreachableIndex > routeExpiredIndex,
+            "Expected DELIVERY_UNREACHABLE with routeAvailable=false after the route expires",
+        )
+    }
+
+    @Test
     fun `relay nodes do not surface end-to-end plaintext for forwarded traffic`() = runBlocking {
         // Arrange
         val harness = MeshTestHarness()
@@ -202,5 +337,52 @@ class MeshRoutingIntegrationTest {
         assertNull(relayMessage)
         assertFalse(relayFramesContainPlaintext)
         assertContentEquals(plaintext.encodeToByteArray(), recipientMessage.payload)
+    }
+
+    private suspend fun awaitDiagnosticForPeer(
+        diagnostics: () -> List<DiagnosticEvent>,
+        code: DiagnosticCode,
+        peerIdValue: String,
+        routeAvailable: Boolean? = null,
+        timeoutMillis: Long = 2_000,
+    ): Unit {
+        withTimeout(timeoutMillis) {
+            while (
+                diagnostics()
+                    .indexOfFirstForPeer(
+                        code = code,
+                        peerIdValue = peerIdValue,
+                        routeAvailable = routeAvailable,
+                    ) < 0
+            ) {
+                delay(10)
+            }
+        }
+    }
+
+    private fun List<DiagnosticEvent>.indexOfFirstForPeer(
+        code: DiagnosticCode,
+        peerIdValue: String,
+        routeAvailable: Boolean? = null,
+    ): Int {
+        return indexOfFirst { event ->
+            event.code == code &&
+                event.metadata["peerId"] == peerIdValue &&
+                (routeAvailable == null ||
+                    event.metadata["routeAvailable"] == routeAvailable.toString())
+        }
+    }
+
+    private fun List<DiagnosticEvent>.lastIndexOfForPeer(
+        code: DiagnosticCode,
+        peerIdValue: String,
+        routeAvailable: Boolean? = null,
+    ): Int {
+        return indexOfLast { event ->
+            event.code == code &&
+                event.metadata["peerId"] == peerIdValue &&
+                (routeAvailable == null ||
+                    event.metadata["routeAvailable"] == routeAvailable.toString())
+        }
     }
 }

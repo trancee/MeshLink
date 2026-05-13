@@ -18,10 +18,7 @@ internal class RouteCoordinator internal constructor(private val localPeerId: Pe
 
     internal val topologyVersion: StateFlow<Long> = mutableTopologyVersion.asStateFlow()
 
-    internal fun onPeerConnected(
-        peerId: PeerId,
-        trustRecord: TrustRecord,
-    ): List<RoutingAdvertisement> {
+    internal fun onPeerConnected(peerId: PeerId, trustRecord: TrustRecord): RoutingMutation {
         connectedPeers += peerId.value
 
         val seqNo = (directRouteSeqNos[peerId.value] ?: 0L) + 1L
@@ -37,6 +34,7 @@ internal class RouteCoordinator internal constructor(private val localPeerId: Pe
                 ed25519PublicKey = trustRecord.ed25519PublicKey,
                 x25519PublicKey = trustRecord.x25519PublicKey,
             )
+        val previousRoute = selectedRoutes[peerId.value]
         selectedRoutes[peerId.value] = directRoute
         updateFeasibilityDistance(directRoute)
 
@@ -68,10 +66,19 @@ internal class RouteCoordinator internal constructor(private val localPeerId: Pe
         advertisements += RoutingAdvertisement(targetPeerId = peerId, frame = routeDigestFrame())
 
         advanceTopologyVersion()
-        return advertisements.deduplicated()
+        val routeChange =
+            if (previousRoute == null) {
+                RouteSelectionChange.Available(directRoute)
+            } else {
+                RouteSelectionChange.Updated(route = directRoute, previousRoute = previousRoute)
+            }
+        return RoutingMutation(
+            advertisements = advertisements.deduplicated(),
+            routeChanges = listOf(routeChange),
+        )
     }
 
-    internal fun onPeerDisconnected(peerId: PeerId): List<RoutingAdvertisement> {
+    internal fun onPeerDisconnected(peerId: PeerId): RoutingMutation {
         connectedPeers -= peerId.value
         peerDigests.remove(peerId.value)
 
@@ -105,15 +112,15 @@ internal class RouteCoordinator internal constructor(private val localPeerId: Pe
         if (removedRoutes.isNotEmpty()) {
             advanceTopologyVersion()
         }
-        return advertisements.deduplicated()
+        return RoutingMutation(
+            advertisements = advertisements.deduplicated(),
+            routeChanges = removedRoutes.map(RouteSelectionChange::Removed),
+        )
     }
 
-    internal fun onRouteUpdate(
-        fromPeerId: PeerId,
-        update: WireFrame.RouteUpdate,
-    ): List<RoutingAdvertisement> {
+    internal fun onRouteUpdate(fromPeerId: PeerId, update: WireFrame.RouteUpdate): RoutingMutation {
         if (update.destinationPeerId.value == localPeerId.value) {
-            return emptyList()
+            return RoutingMutation.EMPTY
         }
 
         val candidate =
@@ -129,62 +136,77 @@ internal class RouteCoordinator internal constructor(private val localPeerId: Pe
             )
         val current = selectedRoutes[update.destinationPeerId.value]
         if (!isFeasible(candidate) && current?.nextHopPeerId?.value != fromPeerId.value) {
-            return emptyList()
+            return RoutingMutation.EMPTY
         }
         if (!shouldSelect(candidate, current)) {
-            return emptyList()
+            return RoutingMutation.EMPTY
         }
 
         selectedRoutes[update.destinationPeerId.value] = candidate
         updateFeasibilityDistance(candidate)
         advanceTopologyVersion()
-        return connectedPeers
-            .filterNot { connectedPeerId ->
-                connectedPeerId == fromPeerId.value ||
-                    connectedPeerId == candidate.nextHopPeerId.value
+        val routeChange =
+            if (current == null) {
+                RouteSelectionChange.Available(candidate)
+            } else {
+                RouteSelectionChange.Updated(route = candidate, previousRoute = current)
             }
-            .flatMap { connectedPeerId ->
-                listOf(
-                    RoutingAdvertisement(
-                        targetPeerId = PeerId(connectedPeerId),
-                        frame = candidate.asRouteUpdateFrame(),
-                    ),
-                    RoutingAdvertisement(
-                        targetPeerId = PeerId(connectedPeerId),
-                        frame = routeDigestFrame(),
-                    ),
-                )
-            }
-            .deduplicated()
+        return RoutingMutation(
+            advertisements =
+                connectedPeers
+                    .filterNot { connectedPeerId ->
+                        connectedPeerId == fromPeerId.value ||
+                            connectedPeerId == candidate.nextHopPeerId.value
+                    }
+                    .flatMap { connectedPeerId ->
+                        listOf(
+                            RoutingAdvertisement(
+                                targetPeerId = PeerId(connectedPeerId),
+                                frame = candidate.asRouteUpdateFrame(),
+                            ),
+                            RoutingAdvertisement(
+                                targetPeerId = PeerId(connectedPeerId),
+                                frame = routeDigestFrame(),
+                            ),
+                        )
+                    }
+                    .deduplicated(),
+            routeChanges = listOf(routeChange),
+        )
     }
 
     internal fun onRouteRetraction(
         fromPeerId: PeerId,
         retraction: WireFrame.RouteRetraction,
-    ): List<RoutingAdvertisement> {
-        val current = selectedRoutes[retraction.destinationPeerId.value] ?: return emptyList()
+    ): RoutingMutation {
+        val current =
+            selectedRoutes[retraction.destinationPeerId.value] ?: return RoutingMutation.EMPTY
         if (current.nextHopPeerId.value != fromPeerId.value) {
-            return emptyList()
+            return RoutingMutation.EMPTY
         }
 
         selectedRoutes.remove(retraction.destinationPeerId.value)
         feasibilityDistances.remove(retraction.destinationPeerId.value)
         advanceTopologyVersion()
-        return connectedPeers
-            .filterNot { connectedPeerId -> connectedPeerId == fromPeerId.value }
-            .flatMap { connectedPeerId ->
-                listOf(
-                    RoutingAdvertisement(
-                        targetPeerId = PeerId(connectedPeerId),
-                        frame = current.asRouteRetractionFrame(),
-                    ),
-                    RoutingAdvertisement(
-                        targetPeerId = PeerId(connectedPeerId),
-                        frame = routeDigestFrame(),
-                    ),
-                )
-            }
-            .deduplicated()
+        return RoutingMutation(
+            advertisements =
+                connectedPeers
+                    .filterNot { connectedPeerId -> connectedPeerId == fromPeerId.value }
+                    .flatMap { connectedPeerId ->
+                        listOf(
+                            RoutingAdvertisement(
+                                targetPeerId = PeerId(connectedPeerId),
+                                frame = current.asRouteRetractionFrame(),
+                            ),
+                            RoutingAdvertisement(
+                                targetPeerId = PeerId(connectedPeerId),
+                                frame = routeDigestFrame(),
+                            ),
+                        )
+                    }
+                    .deduplicated(),
+            routeChanges = listOf(RouteSelectionChange.Removed(current)),
+        )
     }
 
     internal fun onRouteDigest(fromPeerId: PeerId, frame: WireFrame.RouteDigest): Unit {
@@ -303,6 +325,27 @@ internal class RouteCoordinator internal constructor(private val localPeerId: Pe
     internal companion object {
         private const val DIRECT_ROUTE_METRIC: Int = 1
     }
+}
+
+internal class RoutingMutation
+internal constructor(
+    internal val advertisements: List<RoutingAdvertisement>,
+    internal val routeChanges: List<RouteSelectionChange>,
+) {
+    internal companion object {
+        internal val EMPTY: RoutingMutation = RoutingMutation(emptyList(), emptyList())
+    }
+}
+
+internal sealed class RouteSelectionChange {
+    internal data class Available(internal val route: RouteEntry) : RouteSelectionChange()
+
+    internal data class Updated(
+        internal val route: RouteEntry,
+        internal val previousRoute: RouteEntry,
+    ) : RouteSelectionChange()
+
+    internal data class Removed(internal val previousRoute: RouteEntry) : RouteSelectionChange()
 }
 
 internal class RouteEntry

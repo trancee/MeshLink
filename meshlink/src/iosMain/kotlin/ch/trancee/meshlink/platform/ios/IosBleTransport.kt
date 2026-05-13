@@ -270,6 +270,12 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
             }
         }
 
+        maybeLogRediscoveryWithoutLink(
+            peer = discoveredPeers.getValue(hintPeerId.value),
+            transportMode = transportMode,
+            identifier = identifier,
+        )
+
         if (transportMode == TransportMode.L2CAP && shouldInitiateL2cap(payload.keyHash)) {
             log("initiating L2CAP connect to ${hintPeerId.value.takeLast(6)}")
             connectIfNeeded(discoveredPeers.getValue(hintPeerId.value))
@@ -289,6 +295,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
         val identifier = peripheral.identifier.UUIDString.lowercase()
         val hint = peerHintByIdentifier[identifier] ?: return
         pendingConnectionsByHint.remove(hint)
+        discoveredPeers[hint]?.rediscoveryLoggedWithoutLink = false
         reportLog(
             "L2CAP connect failed for ${hint.takeLast(6)}: ${error?.localizedDescription.orEmpty()}"
         )
@@ -317,6 +324,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
             return
         }
         log("didOpenL2CAPChannel succeeded for ${hint.takeLast(6)}")
+        discoveredPeers[hint]?.rediscoveryLoggedWithoutLink = false
         registerConnectedChannel(PeerId(hint), identifier, channel)
     }
 
@@ -354,6 +362,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
             )
         activeLinksByHint[hintPeerId.value] = link
         temporaryHintByIdentifier[peripheralIdentifier] = hintPeerId.value
+        discoveredPeers[hintPeerId.value]?.rediscoveryLoggedWithoutLink = false
         log("registered L2CAP link for ${hintPeerId.value.takeLast(6)} id=$peripheralIdentifier")
         link.writeLoopJob = coroutineScope.launch {
             try {
@@ -420,6 +429,31 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
         )
     }
 
+    private fun maybeLogRediscoveryWithoutLink(
+        peer: DiscoveredPeer,
+        transportMode: TransportMode,
+        identifier: String,
+    ): Unit {
+        if (transportMode != TransportMode.L2CAP) {
+            peer.rediscoveryLoggedWithoutLink = false
+            return
+        }
+        val hasActiveLink =
+            activeLinksByHint.containsKey(peer.hintPeerId.value) ||
+                (temporaryHintByIdentifier[identifier]?.let(activeLinksByHint::containsKey) == true)
+        val hasPendingConnect = pendingConnectionsByHint.containsKey(peer.hintPeerId.value)
+        if (hasActiveLink || hasPendingConnect) {
+            peer.rediscoveryLoggedWithoutLink = false
+            return
+        }
+        if (!peer.rediscoveryLoggedWithoutLink) {
+            log(
+                "scan rediscovered ${peer.hintPeerId.value.takeLast(6)} with no active link pendingConnect=$hasPendingConnect id=$identifier"
+            )
+            peer.rediscoveryLoggedWithoutLink = true
+        }
+    }
+
     private fun activeLinkFor(peer: DiscoveredPeer): IosL2capLink? {
         activeLinksByHint[peer.hintPeerId.value]?.let { activeLink ->
             return activeLink
@@ -469,7 +503,10 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
 
     private fun closeLink(hintPeer: String, reason: String): Unit {
         val link = activeLinksByHint.remove(hintPeer) ?: return
-        reportLog("closing L2CAP link ${hintPeer.takeLast(6)}: $reason")
+        discoveredPeers[hintPeer]?.rediscoveryLoggedWithoutLink = false
+        reportLog(
+            "closing L2CAP link ${hintPeer.takeLast(6)}: $reason discoveredPeerRetained=${discoveredPeers.containsKey(hintPeer)} pendingConnect=${pendingConnectionsByHint.containsKey(hintPeer)}"
+        )
         link.readLoopJob?.cancel()
         link.writeLoopJob?.cancel()
         link.close()
@@ -517,6 +554,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
         var peripheral: CBPeripheral,
         var l2capPsm: Int,
         var transportMode: TransportMode,
+        var rediscoveryLoggedWithoutLink: Boolean = false,
     ) {
         val keyHash: ByteArray = keyHash.copyOf()
     }

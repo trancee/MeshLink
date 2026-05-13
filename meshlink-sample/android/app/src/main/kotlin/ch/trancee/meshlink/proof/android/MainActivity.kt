@@ -612,12 +612,54 @@ private object MeshLinkProofRuntime {
         val recentDiagnostics = recentLogSummary(limit = CORRELATION_SUMMARY_LINES) { line ->
             line.startsWith("DIAG ")
         }
+        val recentRouteTimeline = peerTimelineLogSummary(peerIdValue, CORRELATION_SUMMARY_LINES)
+        val lastTransition = peerTimelineEntries(peerIdValue, limit = 1).lastOrNull() ?: "none"
+        val routeState = peerRouteState(peerIdValue)
         val peerSuffix = peerIdValue.takeLast(6)
         appendLog(
             "BENCHMARK correlation role=$role token=$tokenHex peer=$peerSuffix outcome=$outcome state=$runtimeStateText knownPeers=$knownPeersSummary",
         )
         appendLog("BENCHMARK correlation token=$tokenHex recentPeers=$recentPeerEvents")
         appendLog("BENCHMARK correlation token=$tokenHex recentDiags=$recentDiagnostics")
+        appendLog(
+            "BENCHMARK correlation token=$tokenHex routeState=$routeState lastTransition=$lastTransition",
+        )
+        appendLog("BENCHMARK correlation token=$tokenHex routeTimeline=$recentRouteTimeline")
+    }
+
+    private fun peerTimelineLogSummary(peerIdValue: String, limit: Int): String {
+        val entries = peerTimelineEntries(peerIdValue = peerIdValue, limit = limit)
+        return entries.joinToString(prefix = "[", postfix = "]", separator = " | ")
+    }
+
+    private fun peerTimelineEntries(peerIdValue: String, limit: Int): List<String> {
+        return synchronized(logLines) {
+            logLines
+                .filter { line -> isPeerTimelineLine(line, peerIdValue) }
+                .takeLast(limit)
+                .map(::summarizeLogLine)
+        }
+    }
+
+    private fun isPeerTimelineLine(line: String, peerIdValue: String): Boolean {
+        return (line.startsWith("Peer ") && line.contains(peerIdValue)) ||
+            (line.startsWith("DIAG ") && line.contains("peerId=$peerIdValue"))
+    }
+
+    private fun peerRouteState(peerIdValue: String): String {
+        val lastRouteDiagnostic =
+            synchronized(logLines) {
+                logLines.lastOrNull { line ->
+                    line.startsWith("DIAG ") &&
+                        line.contains("peerId=$peerIdValue") &&
+                        line.contains("routeAvailable=")
+                }
+            } ?: return "unknown"
+        return when {
+            lastRouteDiagnostic.contains("routeAvailable=true") -> "available"
+            lastRouteDiagnostic.contains("routeAvailable=false") -> "unavailable"
+            else -> "unknown"
+        }
     }
 
     private fun recentLogSummary(limit: Int, predicate: (String) -> Boolean): String {
