@@ -418,6 +418,13 @@ conformance path or the waiver path is explicitly completed.
   `specs/001-ble-mesh-sdk/quickstart.md`,
   `meshlink-sample/ios/README.md`, and
   `specs/001-ble-mesh-sdk/release-decision.md`.
+- [X] T094 Retain the additional rejected iOS Samsung follow-up matrix
+  (run-loop scheduling, shorter sender ACK settlement, wider transport
+  coalescing, re-enabled 64 KiB inline path, and inline path + 16 KiB inner
+  batch) in `benchmarks/README.md`,
+  `specs/001-ble-mesh-sdk/research.md`, and
+  `specs/001-ble-mesh-sdk/release-decision.md`, recording that none exceeded
+  the current `33.56 KB/s` Samsung best case or closed `SC-004`.
 
 ---
 

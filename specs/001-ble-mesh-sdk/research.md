@@ -538,6 +538,65 @@ Outcome:
 - the conformance path stays open, but the next remediation should target a different
   suspected bottleneck than the removed 4 KiB write-batch boundary
 
+### Additional rejected Samsung follow-up matrix after `T092` (2026-05-14)
+
+After the widened-inner-batch experiment was rejected, several more bounded
+follow-ups were run against the faster Samsung passive-peer fixture to check
+whether any remaining local iOS transport or sender-settlement knob could move
+`SC-004` materially closer to the `>= 60 KB/s` target.
+
+Fresh recipient-confirmed Samsung reruns:
+
+- run-loop scheduling for the iOS L2CAP streams: `27.33 KB/s`
+- shorter sender ACK-settlement timers (`500 ms` max / `25 ms` idle):
+  `24.90 KB/s`
+- wider transport coalescing window (`32` pending/coalesced frames):
+  `28.33 KB/s`
+- re-enabled 64 KiB large-inline MeshLink path: `31.84 KB/s`
+- re-enabled 64 KiB large-inline path plus `16 KiB` inner write batches:
+  `23.05 KB/s`
+
+Retained run directories:
+
+- `/tmp/ios_stream_runloop_samsung_console2_20260514T140308`
+- `/tmp/ios_acktune_samsung_console_20260514T140521`
+- `/tmp/ios_coalesce32_samsung_console_20260514T140830`
+- `/tmp/ios_inline64_samsung_console_20260514T141109`
+- `/tmp/ios_inline64_batch16_samsung_console_20260514T141300`
+
+Most informative result:
+
+- the re-enabled inline path did switch the benchmark onto one large MeshLink
+  `WireFrame.Message` instead of the chunked-transfer protocol (`transfer`
+  diagnostics disappeared), but it still emitted a single `66037`-byte
+  coalesced write with:
+  - `writeCalls=28`
+  - `writeBatches=17`
+  - `readyFalseCount=1100`
+  - `maxInterWriteGapMs=190`
+  - `totalElapsedMs=1471`
+- that run still finished at only `31.84 KB/s`, and widening the inner write
+  batch to `16 KiB` made it worse (`23.05 KB/s`)
+
+Interpretation:
+
+- none of the additional bounded follow-ups beat the already retained Samsung
+  best case (`33.56 KB/s`)
+- the failure of the inline path is especially important because it removes the
+  transfer-chunk ACK machinery from the large-payload path while still landing
+  far below target
+- this sharply strengthens the conclusion that the remaining blocker is rooted
+  in CoreBluetooth / iOS large-write backpressure and scheduling behavior, not
+  just in MeshLink chunk-windowing or ACK cadence
+
+Escalation state:
+
+- no additional bounded local iOS transport tweak from this matrix produced a
+  materially better result than the already retained baseline
+- continuing on the conformance path now likely requires a more invasive iOS
+  large-payload design change (or a specification decision), not another small
+  constant-only follow-up
+
 ### Proof-only Android GATT server + iOS GATT client fallback prototype
 
 A proof-only native fallback prototype is now implemented in the sample apps for

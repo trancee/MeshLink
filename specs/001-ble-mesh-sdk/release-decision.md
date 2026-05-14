@@ -18,6 +18,17 @@ explicit waiver / known limitation.
 - **Latest bounded conformance attempt**: a fresh iPhone 15 -> OPPO transient-
   appId rerun with a widened 16 KiB inner iOS write batch still completed at
   only `18.37 KB/s`, so the change was reverted and the blocker remains open.
+- **Additional follow-up matrix after `T092`**: fresh Samsung reruns for
+  run-loop scheduling (`27.33 KB/s`), shorter sender ACK settlement
+  (`24.90 KB/s`), a 32-frame transport coalescing window (`28.33 KB/s`), a
+  re-enabled 64 KiB inline path (`31.84 KB/s`), and that inline path plus a
+  16 KiB inner batch (`23.05 KB/s`) all remained below the current retained
+  Samsung best case (`33.56 KB/s`).
+- **Escalated interpretation**: even the inline-path rerun stayed
+  backpressure-limited (`coalescedBytes=66037`, `writeCalls=28`,
+  `readyFalseCount=1100`, `totalElapsedMs=1471`), so the remaining blocker now
+  appears to require a more invasive iOS large-payload design change or an
+  explicit waiver rather than another small bounded constant tweak.
 - **Non-blocker evidence already restored**: recipient-confirmed 64 KiB proof
   completion on the Samsung / OPPO physical path.
 
