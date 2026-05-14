@@ -15,7 +15,7 @@ description: "Task list for MeshLink Offline BLE Mesh SDK"
 
 ## Format: `[ID] [P?] [Story] Description`
 
-- **[P]**: Can run in parallel (different files, no dependencies)
+- **[P]**: Can usually run in parallel when the primary implementation or evidence work is independent; any eventual shared-doc sync still needs serialized edits or a later sync task
 - **[Story]**: Which user story this task belongs to (e.g., US1, US2, US3)
 - Include exact file paths in descriptions
 
@@ -34,9 +34,10 @@ description: "Task list for MeshLink Offline BLE Mesh SDK"
 - `tasks.md` is the canonical execution plan plus append-only historical
   ledger. It defines work sequencing, traceability, and completion state, but
   task text does not override `spec.md` or `plan.md`.
-- Supporting artifacts such as `research.md`, `quickstart.md`, `contracts/`,
-  `benchmarks/README.md`, and generated checklists provide evidence or review
-  support and must align with the canonical trio above.
+- Supporting artifacts such as `research.md`, `quickstart.md`,
+  `release-decision.md`, `contracts/`, `benchmarks/README.md`, and generated
+  checklists provide evidence or review support and must align with the
+  canonical trio above.
 - If new remediation work is discovered after a task is complete, append a new
   task ID or follow-up phase rather than reopening or deleting the completed
   line, except to fix obvious clerical mistakes.
@@ -354,6 +355,69 @@ stability evidence without weakening the separate iOS throughput blocker.
 
 ---
 
+## Phase 18: Follow-up - Configuration, Discovery, and LOW-Power Contract Closure
+
+**Purpose**: Close the remaining constitution-traceability gaps for the shared
+configuration builder, discovery advertisement contract, and LOW-tier
+connection-interval floor without rewriting completed delivery history.
+
+- [ ] T087 [P] Add API contract coverage for the shared `meshLinkConfig`
+  builder, platform-factory injection boundaries, and Android/iOS
+  configuration parity in
+  `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/api/MeshLinkApiContractTest.kt`
+  and `specs/001-ble-mesh-sdk/contracts/meshlink-api.md`.
+- [ ] T088 [P] Add discovery-advertisement contract coverage for the fixed
+  `4d455348` discovery UUID, 16-byte payload UUID, single-advertisement /
+  no-scan-response rule, and reserved proof-only UUID block in
+  `specs/001-ble-mesh-sdk/contracts/discovery-advertisement.md`,
+  `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/transport/DiscoveryAdvertisementContractTest.kt`,
+  `meshlink-sample/android/`, and `meshlink-sample/ios/`.
+- [ ] T089 [P] Extend shared power-policy tests and Android/iOS proof
+  benchmarks to assert LOW-tier maintained connection intervals of `>= 500 ms`,
+  alongside the existing scan-duty and 256-byte latency checks, in
+  `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/power/PowerPolicyTest.kt`,
+  `meshlink-sample/android/app/src/androidTest/kotlin/ch/trancee/meshlink/proof/android/PowerProfileBenchmark.kt`,
+  `meshlink-sample/ios/ProofBenchmarks/PowerProfileBenchmark.swift`, and
+  `specs/001-ble-mesh-sdk/research.md`.
+- [ ] T090 Sync `specs/001-ble-mesh-sdk/spec.md`,
+  `specs/001-ble-mesh-sdk/plan.md`,
+  `specs/001-ble-mesh-sdk/tasks.md`,
+  `specs/001-ble-mesh-sdk/contracts/meshlink-api.md`,
+  `specs/001-ble-mesh-sdk/contracts/discovery-advertisement.md`, and
+  `specs/001-ble-mesh-sdk/quickstart.md` with the shared builder,
+  discovery-advertisement, and LOW-tier connection-interval contract.
+
+---
+
+## Phase 19: Follow-up - SC-004 Release Closure
+
+**Purpose**: Close the remaining iOS `SC-004` release blocker by either meeting
+the normative throughput target or recording the explicit waiver /
+known-limitation path already allowed by `spec.md`.
+
+**Release-readiness note**: This phase remains blocking until either the
+conformance path or the waiver path is explicitly completed.
+
+- [ ] T091 Record the chosen `SC-004` closure path in
+  `specs/001-ble-mesh-sdk/spec.md`,
+  `specs/001-ble-mesh-sdk/plan.md`, and
+  `specs/001-ble-mesh-sdk/release-decision.md`, linking either continued
+  conformance work or the explicit waiver / known-limitation decision.
+- [ ] T092 If the release remains blocked on conformance, execute one bounded
+  iOS MeshLink-path throughput remediation experiment and rerun the
+  recipient-confirmed reference-hardware benchmark, retaining raw
+  sender/recipient evidence in `benchmarks/README.md` and
+  `specs/001-ble-mesh-sdk/research.md`.
+- [ ] T093 If the waiver path is chosen, record the accepted iOS
+  large-transfer limitation, stakeholder approval, and public-claim guardrails
+  in `specs/001-ble-mesh-sdk/spec.md`,
+  `specs/001-ble-mesh-sdk/plan.md`,
+  `specs/001-ble-mesh-sdk/quickstart.md`,
+  `meshlink-sample/ios/README.md`, and
+  `specs/001-ble-mesh-sdk/release-decision.md`.
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies
@@ -373,8 +437,10 @@ stability evidence without weakening the separate iOS throughput blocker.
 - **Follow-up Recipient-Confirmed Return-Path Stabilization (Phase 13)**: Runs after Phase 12 to diagnose and remediate passive-peer proof-receipt failures.
 - **Follow-up Reverse-Path Peer Reappearance Investigation (Phase 14)**: Runs after Phase 13 and consumes the passive-retry matrix evidence to distinguish missing peer rediscovery from reverse-path route / handshake non-reappearance.
 - **Follow-up Compatibility and Acceptance-Criteria Clarification (Phase 15)**: Runs after Phase 14, or in parallel with `T070`–`T072` where only artifact clarification / offline validation work is involved.
-- **Follow-up Explicit Edge-Case and Trust-Reset Coverage Closure (Phase 16)**: Runs after Phase 15 and blocks any full-conformance or release-readiness claim until `T074`–`T081` are complete.
-- **Follow-up Recipient-Confirmed 64 KiB Large-Transfer Stabilization (Phase 17)**: Runs after Phase 16 when the remaining active physical blocker is recipient-confirmed large-transfer stability, and feeds the final throughput-only blocker framing once Samsung/OPPO proof completion is restored.
+- **Follow-up Explicit Edge-Case and Trust-Reset Coverage Closure (Phase 16)**: Runs after Phase 15 and historically blocked full-conformance / release-readiness claims until completed `T074`–`T081` closed those gaps.
+- **Follow-up Recipient-Confirmed 64 KiB Large-Transfer Stabilization (Phase 17)**: Runs after Phase 16 to restore recipient-confirmed large-transfer stability and feed the current throughput-only blocker framing once Samsung/OPPO proof completion is restored.
+- **Follow-up Configuration, Discovery, and LOW-Power Contract Closure (Phase 18)**: Runs after Phase 17 to close remaining constitution-traceability gaps before any fresh release-readiness claim.
+- **Follow-up SC-004 Release Closure (Phase 19)**: Runs after Phase 18 and remains blocking until either the normative conformance path or the explicit waiver path is explicitly completed.
 
 ### User Story Dependencies
 
@@ -434,12 +500,13 @@ Task: "Implement `TransferSession`, ACK scoreboard, configurable delivery-deadli
 3. Add User Story 2 → validate multi-hop and bounded large transfer
 4. Add User Story 3 → validate power behavior and cross-platform parity
 5. Finish with benchmark, BCV, docs, and quickstart gates
-6. If `SC-004`, recipient-confirmed proof completion, or remaining artifact /
-   acceptance-criteria gaps stay open, execute the appended follow-up phases in
-   ledger order (currently Phases 7–17) before declaring release readiness.
-7. Do not make a full-conformance claim for `FR-003a`, `FR-015a`, `FR-016`,
-   `SC-001`, or `SC-006` until `T074`–`T081` are complete and their evidence is
-   retained in the canonical docs.
+6. If `SC-004` or constitution-traceability gaps remain open, execute the
+   appended follow-up phases in ledger order (currently Phases 7–19) before
+   declaring release readiness.
+7. Do not make a release-readiness or full-conformance claim while Phase 19
+   remains open; `SC-004` requires either retained passing evidence on
+   reference hardware or the explicit waiver / known-limitation path recorded
+   in the canonical docs.
 
 ### Parallel Team Strategy
 
@@ -456,7 +523,9 @@ With multiple developers:
 
 ## Notes
 
-- [P] tasks = different files, no dependencies
+- [P] tasks = primary implementation or evidence work is intended to proceed in
+  parallel, even when a later serialized sync task is still required for shared
+  docs or ledgers
 - [US1]/[US2]/[US3] labels map each task to a specific user story
 - Every user story includes automated validation plus a manual/quickstart check
 - The task list assumes a KMP-first implementation with no extra third-party runtime dependencies beyond `kotlinx-coroutines-core`
@@ -471,5 +540,7 @@ With multiple developers:
   canonical `plan.md` + `tasks.md` state, including completed markers,
   follow-up phases, and release-risk framing, while allowing new work to be
   appended explicitly
-- Open follow-up tasks `T074`–`T081` are explicit blockers for full-conformance
-  / release-readiness claims even if an iOS `SC-004` waiver path is chosen.
+- The current remaining release-readiness blocker is the explicit `SC-004`
+  closure path captured in Phase 19; historical blockers `T074`–`T081` are
+  completed ledger entries and MUST NOT be described as open unless new
+  follow-up work is appended.

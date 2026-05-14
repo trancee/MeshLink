@@ -14,7 +14,7 @@
 - Q: What should happen when a payload exceeds the v1 transfer limit? → A: Reject the payload before transfer starts and return an explicit size-limit error.
 - Q: Should pending retries survive an app or SDK restart? → A: No; pending retries are in-memory only and do not survive restart.
 - Q: How should MeshLink handle an untrusted or identity-changed peer? → A: Reject the peer and emit an explicit trust-failure diagnostic.
-- Q: What BLE discovery UUIDs and advertisement payload should MeshLink use? → A: Advertise the fixed discovery service UUID as the 32-bit UUID `4d455348` (Bluetooth-base expanded form `4d455348-0000-1000-8000-00805f9b34fb`) plus a second 128-bit service UUID that carries the 16-byte MeshLink discovery payload, fit everything in a single advertisement with no scan response, and reserve the UUID block beginning at `4d455348-0001-1000-8000-000000000000` for proof-only / future GATT fallback experiments. The current normative MeshLink feature scope remains L2CAP-first; the retained proof-only GATT prototype is investigative evidence and MUST NOT be treated as product-conformance fallback unless this specification is explicitly amended.
+- Q: What BLE discovery UUIDs and advertisement payload should MeshLink use? → A: Use the discovery advertisement contract defined in `FR-015b`.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -204,10 +204,18 @@ error behavior.
   Android and iOS hosts to verify scan duty, advertisement interval, maximum
   concurrent connection budget, and transfer chunk budget behavior for the
   active power tier.
+- **FR-013b**: In LOW power mode, any maintained BLE connection MUST use a
+  connection interval of `>= 500 ms` after the reduced-power policy is
+  applied.
 - **FR-014**: The system MUST expose equivalent public capabilities,
   configuration concepts, lifecycle states, one shared 26-code diagnostic
   catalog with identical severity tiers and payload shapes, and one sealed
   commonMain exception hierarchy with matching categories on Android and iOS.
+- **FR-014a**: The public configuration surface MUST expose one shared
+  cross-platform DSL builder, `meshLinkConfig`, that produces
+  `MeshLinkConfig` values with the same fields and defaults on Android and
+  iOS. Platform-specific inputs MUST be supplied through platform factory
+  functions rather than platform-divergent DSL branches.
 - **FR-015**: After installation and grant of required operating-system
   permissions, the system MUST perform discovery, trust establishment, routing,
   transfer, and lifecycle operations entirely offline.
@@ -218,6 +226,14 @@ error behavior.
   developer-visible diagnostics, full peer identifiers, plaintext payloads, or
   decrypted message content; any such storage MAY occur only if the host
   application explicitly writes it outside the SDK.
+- **FR-015b**: Discovery advertisements MUST use the fixed 32-bit discovery
+  service UUID `4d455348` (Bluetooth-base expanded form
+  `4d455348-0000-1000-8000-00805f9b34fb`) plus one second 128-bit service UUID
+  carrying the 16-byte MeshLink discovery payload, MUST fit in a single
+  advertisement with no scan response, and MUST reserve the UUID block
+  beginning at `4d455348-0001-1000-8000-000000000000` for proof-only / future
+  experiments. Any use of that reserved block remains non-conformance evidence
+  unless this specification is explicitly amended.
 - **FR-016**: The system MUST preserve backward compatibility for deployed wire
   formats. When a deployed wire shape changes, the repository MUST retain and
   run explicit backward-compatibility validation against prior-version
@@ -325,11 +341,18 @@ error behavior.
   discard one warmup exchange, retain raw sender and recipient evidence for the
   scored run, collect at least 20 post-warmup samples for the 256-byte latency
   path before computing p95, and measure 64 KB throughput from sender-side send
-  start until the terminal benchmark / send-result line for the scored run.
-- **SC-006**: In LOW power mode, scan duty cycle remains at or below 5%, and
-  after peer discovery and connection establishment a 1-hop, 256-byte message
-  completes within 5 seconds on both proof integrations under the documented
-  reduced-power policy.
+  start until the terminal benchmark / send-result line for the scored run. For
+  a scored run, the actively benchmarked device MUST be reference benchmark
+  hardware for its platform class (Pixel 6+ for Android scoring, iPhone 12+
+  for iOS scoring). Passive peers MAY be any supported devices acting only as
+  receiving endpoints, but their model, OS version, proof-app version, and
+  transport role MUST be recorded and kept constant within a comparison series.
+  Changing the passive-peer model starts a new benchmark series.
+- **SC-006**: In LOW power mode, scan duty cycle remains at or below 5%,
+  maintained connection intervals remain at or above `500 ms` after the
+  reduced-power policy is applied, and after peer discovery and connection
+  establishment a 1-hop, 256-byte message completes within 5 seconds on both
+  proof integrations under the documented reduced-power policy.
 - **SC-007**: Android and iOS reference integrations expose the same
   developer-visible lifecycle states, error categories, and diagnostic event
   meanings for equivalent workflows.

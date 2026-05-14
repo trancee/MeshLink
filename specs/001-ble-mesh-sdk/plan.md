@@ -18,14 +18,18 @@ hierarchy in `commonMain`; platform exceptions are wrapped before crossing the
 public API surface. Host applications retain responsibility for user-facing
 trust-reset UX, recipient selection, and any persistence of decrypted message
 content outside the SDK. `MeshLinkConfig` exposes a configurable
-`deliveryRetryDeadline` in `kotlin.time.Duration` for the no-route case. While
-a delivery has no valid route, shared runtime code schedules attempts with
-bounded, jittered exponential backoff and retries immediately when topology
-updates reveal a valid path. Retry scheduler state remains in memory only and
-is discarded on app or SDK restart. Routing, transfer, trust, diagnostics,
-power policy, and the wire codec live in `commonMain`. Android and iOS source
-sets provide BLE transport and secure-storage glue only. The repository also
-ships runnable proof integrations in `meshlink-sample/android` and
+`deliveryRetryDeadline` in `kotlin.time.Duration` for the no-route case, and
+`meshLinkConfig` is the single shared cross-platform DSL builder for producing
+`MeshLinkConfig` values. While a delivery has no valid route, shared runtime
+code schedules attempts with bounded, jittered exponential backoff and retries
+immediately when topology updates reveal a valid path. Retry scheduler state
+remains in memory only and is discarded on app or SDK restart. Routing,
+transfer, trust, diagnostics, power policy, and the wire codec live in
+`commonMain`. Discovery uses one fixed advertisement contract: the 32-bit
+service UUID `4d455348` plus one second 128-bit UUID carrying the 16-byte
+MeshLink discovery payload in a single advertisement with no scan response.
+Android and iOS source sets provide BLE transport and secure-storage glue only.
+The repository also ships runnable proof integrations in `meshlink-sample/android` and
 `meshlink-sample/ios` for quickstart validation and automated
 reference-hardware benchmarks. To satisfy the user's “no external
 dependencies” request, the runtime ships no additional third-party libraries
@@ -45,13 +49,13 @@ active blocker state.
 **Language/Version**: Kotlin 2.3.10, Kotlin Multiplatform, JVM toolchain 17  
 **Primary Dependencies**: Runtime: Kotlin stdlib 2.3.10 + `kotlinx-coroutines-core` 1.10.2 only; Build/Test: exact pinned versions of `kotlin-test`, Binary Compatibility Validator, Kover, Power-assert, and kotlinx-benchmark declared in `gradle/libs.versions.toml`  
 **Storage**: Platform secure storage for the minimum pinned trust material required for TOFU verification, plus `firstSeenAtEpochMillis` / `lastVerifiedAtEpochMillis` audit fields and the local identity. Route, transfer, retry, and presence state remain in memory, and the SDK runtime MUST NOT persist full peer identifiers, plaintext payloads, decrypted message content, or developer-visible diagnostics.
-**Testing**: `kotlin-test` across targets, JVM/Android unit tests, iOS tests, canonical `MeshTestHarness` + `VirtualMeshTransport`, deployed-wire backward-compatibility fixtures for FlatBuffers-compatible envelopes, Wycheproof vectors, API checks, JVM benchmarks via kotlinx-benchmark, Android proof-app automated benchmarks for transport/low-power/cold-start targets, iOS proof-app automated benchmarks for transport/low-power/cold-start targets, an explicit `SC-004` protocol with one excluded warmup exchange, timed quickstart reader-test evidence for `SC-001`, retained raw sender/recipient evidence, recipient-confirmed proof-benchmark semantics on physical proof reruns, and harness-driven memory/convergence measurements
+**Testing**: `kotlin-test` across targets, JVM/Android unit tests, iOS tests, canonical `MeshTestHarness` + `VirtualMeshTransport`, deployed-wire backward-compatibility fixtures for FlatBuffers-compatible envelopes, Wycheproof vectors, API checks, JVM benchmarks via kotlinx-benchmark, Android proof-app automated benchmarks for transport/low-power/cold-start targets, iOS proof-app automated benchmarks for transport/low-power/cold-start targets, an explicit `SC-004` protocol with one excluded warmup exchange, timed quickstart reader-test evidence for `SC-001`, retained raw sender/recipient evidence, recipient-confirmed proof-benchmark semantics on physical proof reruns, and harness-driven memory/convergence measurements. For `SC-004` scoring, the active benchmark device MUST be reference benchmark hardware for its platform class; passive peers act as controlled fixtures whose model, OS version, proof-app version, and transport role are retained with the evidence and held constant within a series.
 **Target Platform**: Android API 29+, iOS 15+, JVM benchmark/reference target  
 **Project Type**: Kotlin Multiplatform library SDK with benchmark module and runnable Android/iOS proof integrations  
-**Performance Goals**: ≥80 KB/s Android L2CAP, ≥60 KB/s iOS L2CAP, 50 ms p95 for 1-hop 256 B message, 8 MB steady-state heap at 8 peers, ≤5% scan duty in LOW mode, ≤5 s for a 1-hop 256 B message in LOW mode after peer discovery and connection establishment, power-tier output that exposes advertisement interval / max-connections / chunk-budget behavior, <500 ms from `mesh.start()` to first advertisement, 3 s control-plane route convergence for 10-node topology, <1 µs JVM codec encode/decode
+**Performance Goals**: ≥80 KB/s Android L2CAP, ≥60 KB/s iOS L2CAP, 50 ms p95 for a 1-hop 256 B message, 8 MB steady-state heap at 8 peers, ≤5% scan duty and maintained connection intervals of `>= 500 ms` in LOW mode, ≤5 s for a 1-hop 256 B message in LOW mode after peer discovery and connection establishment, power-tier output that exposes advertisement interval / maintained-connection interval / max-connections / chunk-budget behavior, <500 ms from `mesh.start()` to first advertisement, 3 s control-plane route convergence for a 10-node topology, <1 µs JVM codec encode/decode
 **Benchmark Evidence Handling**: `benchmarks/README.md` retains observed benchmark and proof-app evidence for reviewer traceability. Those retained baselines do not lower or replace the normative success criteria in `spec.md` or the mirrored performance goals above.
-**Constraints**: Offline-only; no servers or accounts; TOFU trust pinning; 64 KiB release payload limit; configurable in-memory delivery retry deadline; no retry persistence across restart; bounded, jittered exponential backoff for no-route scheduling; immediate retry on route availability; L2CAP-first on the normative product path; the retained GATT prototype is proof-only investigative evidence and does not constitute product-conformance fallback unless the specification is explicitly amended; no additional third-party runtime dependencies; current physical validation still leaves the iOS ≥60 KB/s 64 KiB single-hop transfer target unmet on reference hardware even though recipient-confirmed 64 KiB MeshLink proof completion is now restored on both Samsung and OPPO, so any release before remediation still requires an explicit waiver and documented limitation
-**Constitutional Constraints**: `explicitApi()` required; Detekt + ktfmt gates; BCV-tracked public API; 100% line/branch coverage; Power-assert diagnostics; Wycheproof validation; canonical virtual harness for integration tests; Android/iOS parity for API, docs, state, diagnostics, the shared 26-code diagnostic catalog, and the sealed `MeshLinkException` hierarchy; benchmark evidence for crypto, routing lookup, wire codec, route convergence, transport throughput/latency, steady-state memory, LOW-power duty cycle, and cold-start paths; all shared logic in `commonMain`; no external crypto library; FlatBuffers wire compatibility plus explicit backward-compatibility validation evidence; runtime dependency budget limited to `kotlinx-coroutines-core`; repository benchmark baselines must stay documented in `benchmarks/README.md` and `specs/001-ble-mesh-sdk/research.md`
+**Constraints**: Offline-only; no servers or accounts; TOFU trust pinning; 64 KiB release payload limit; configurable in-memory delivery retry deadline; no retry persistence across restart; bounded, jittered exponential backoff for no-route scheduling; immediate retry on route availability; L2CAP-first on the normative product path; discovery uses the fixed `4d455348` + 16-byte payload single-advertisement / no-scan-response contract; the retained GATT prototype is proof-only investigative evidence and does not constitute product-conformance fallback unless the specification is explicitly amended; no additional third-party runtime dependencies; current physical validation still leaves the iOS ≥60 KB/s 64 KiB single-hop transfer target unmet on reference hardware even though recipient-confirmed 64 KiB MeshLink proof completion is now restored on both Samsung and OPPO, so any release before remediation still requires an explicit waiver and documented limitation
+**Constitutional Constraints**: `explicitApi()` required; Detekt + ktfmt gates; BCV-tracked public API; 100% line/branch coverage; Power-assert diagnostics; Wycheproof validation; canonical virtual harness for integration tests; Android/iOS parity for API, docs, state, diagnostics, the shared 26-code diagnostic catalog, the sealed `MeshLinkException` hierarchy, and the shared `meshLinkConfig` DSL builder; benchmark evidence for crypto, routing lookup, wire codec, route convergence, transport throughput/latency, steady-state memory, LOW-power duty cycle, LOW-tier maintained connection intervals, and cold-start paths; discovery-advertisement contract validation; all shared logic in `commonMain`; no external crypto library; FlatBuffers wire compatibility plus explicit backward-compatibility validation evidence; runtime dependency budget limited to `kotlinx-coroutines-core`; repository benchmark baselines must stay documented in `benchmarks/README.md` and `specs/001-ble-mesh-sdk/research.md`
 **Applicable Skills**: kotlin-multiplatform, kotlin-gradle-plugin, gradle-build-tool, kotlin-api-guidelines, android-ble, android-bluetooth-sockets, core-bluetooth, kmp-ios-integration, flatbuffers, babel-rfc8966, noise-protocol-framework, tcp-sack-rfc2018, optimize-ble-throughput
 **Scale/Scope**: One shared SDK module, two mobile targets, one public API surface, 8-peer steady-state mesh, 10-node convergence validation topology, 64 KiB maximum v1 payload
 
@@ -88,13 +92,14 @@ active blocker state.
       event/error/state changes are treated as explicit review surfaces whenever
       they are touched.
 - [x] Artifact sync is planned: `research.md`, `data-model.md`, `quickstart.md`,
-      `contracts/`, `tasks.md`, proof-sample READMEs, supporting docs under
-      `docs/explanation/`, and `AGENTS.md` stay synchronized when feature or
-      governance behavior changes.
+      `release-decision.md`, `contracts/`, `tasks.md`, proof-sample READMEs,
+      supporting docs under `docs/explanation/`, and `AGENTS.md` stay
+      synchronized when feature or governance behavior changes.
 
 **Post-design re-evaluation (2026-05-14):** Existing `research.md`,
-`data-model.md`, `quickstart.md`, and `contracts/` remain aligned with the
-spec and both constitutions. No unresolved clarifications remain. The open
+`data-model.md`, `quickstart.md`, `release-decision.md`, and `contracts/`
+remain aligned with the spec and both constitutions. No unresolved
+clarifications remain. The open
 delivery risk is now narrower on reference hardware: closing the still-unmet
 iOS single-hop 64 KiB throughput target while preserving the newly restored
 recipient-confirmed MeshLink proof path on Samsung and OPPO.
@@ -134,24 +139,23 @@ historical diagnostic evidence rather than the current blocker state.
   reference hardware and include retained recipient-confirmed `Sent` runs, not
   just sender-side completion or passive-peer partial logs.
 
-**Additional open normative evidence gaps (2026-05-13):**
+**Normative evidence-gap status after follow-up coverage closure (2026-05-14):**
 
-- `FR-016` still requires deployed-wire backward-compatibility fixture
-  validation (`T074`) before compatibility claims are complete.
-- `FR-015a` still requires automated validation that the SDK persists only the
-  allowed trust-record fields and does not persist disallowed diagnostic or
-  plaintext data (`T075`).
-- `SC-001` still requires timed quickstart reader-test evidence with retained
-  start/end timestamps and observer note (`T077`).
+- `FR-016` deployed-wire backward-compatibility fixture validation is now
+  covered by completed `T074`.
+- `FR-015a` persistence-minimization validation is now covered by completed
+  `T075`.
+- `SC-001` timed quickstart reader-test evidence is now covered by completed
+  `T077`.
+- `SC-006` remains closed as an evidence gap: after the passive Android proof
+  app restored the resolved direct peer handle from the inbound benchmark
+  payload, the latest retained iPhone 15 -> OPPO LOW-power 256-byte rerun
+  completed `Sent` in `239 ms`.
 
-These gaps are distinct from the iOS `SC-004` throughput blocker. Any
-release-readiness or full-conformance claim MUST keep them open until the
-corresponding tasks are complete or the specification is explicitly amended.
-
-`SC-006` is no longer an open evidence gap: after the passive Android proof app
-restored the resolved direct peer handle from the inbound benchmark payload, the
-latest retained iPhone 15 -> OPPO LOW-power 256-byte rerun completed `Sent` in
-`239 ms`.
+These follow-up closures do not change the remaining iOS `SC-004` throughput
+blocker. Any release-readiness or full-conformance claim MUST still resolve
+that blocker through either retained passing evidence on reference hardware or
+an explicit waiver / known-limitation path recorded in the canonical docs.
 
 ## Artifact Governance & Source-of-Truth Precedence
 
@@ -165,10 +169,10 @@ latest retained iPhone 15 -> OPPO LOW-power 256-byte rerun completed `Sent` in
 - `tasks.md` is the canonical execution plan and append-only historical ledger.
   It records sequencing, traceability, and completion state, but task wording
   does not by itself change `spec.md` requirements or `plan.md` constraints.
-- Supporting artifacts such as `research.md`, `quickstart.md`, `contracts/`,
-  `benchmarks/README.md`, and generated checklists provide evidence,
-  explanation, or review aids and must stay aligned with the canonical trio
-  above; they do not override them.
+- Supporting artifacts such as `research.md`, `quickstart.md`,
+  `release-decision.md`, `contracts/`, `benchmarks/README.md`, and generated
+  checklists provide evidence, explanation, or review aids and must stay
+  aligned with the canonical trio above; they do not override them.
 - Repeated `/plan`, `/tasks`, and `/implement` reruns are preservation passes
   against the current canonical artifacts. Reruns may clarify wording and
   append new remediation work, but they must not regenerate from template in a
@@ -188,7 +192,9 @@ specs/001-ble-mesh-sdk/
 ├── research.md
 ├── data-model.md
 ├── quickstart.md
+├── release-decision.md
 ├── contracts/
+│   ├── discovery-advertisement.md
 │   ├── meshlink-api.md
 │   └── wire-envelope.md
 └── tasks.md
