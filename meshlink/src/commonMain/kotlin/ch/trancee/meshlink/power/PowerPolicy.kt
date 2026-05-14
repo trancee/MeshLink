@@ -13,6 +13,7 @@ internal class PowerPolicy
 internal constructor(
     internal val tier: PowerTier,
     internal val advertisementIntervalMillis: Long,
+    internal val connectionIntervalMillis: Long,
     internal val scanDutyCyclePercent: Int,
     internal val maxConnections: Int,
     internal val chunkBudgetBytes: Int,
@@ -130,6 +131,7 @@ internal constructor(
                 PowerPolicy(
                     tier = tier,
                     advertisementIntervalMillis = 250L,
+                    connectionIntervalMillis = 100L,
                     scanDutyCyclePercent = 100,
                     maxConnections = 7,
                     chunkBudgetBytes = 4 * 1024,
@@ -140,6 +142,7 @@ internal constructor(
                 PowerPolicy(
                     tier = tier,
                     advertisementIntervalMillis = 500L,
+                    connectionIntervalMillis = 250L,
                     scanDutyCyclePercent = 50,
                     maxConnections = 5,
                     chunkBudgetBytes = 2 * 1024,
@@ -150,6 +153,7 @@ internal constructor(
                 PowerPolicy(
                     tier = tier,
                     advertisementIntervalMillis = 1_000L,
+                    connectionIntervalMillis = 500L,
                     scanDutyCyclePercent = 5,
                     maxConnections = 3,
                     chunkBudgetBytes = 512,
@@ -178,6 +182,7 @@ internal constructor(
         return PowerPolicy(
             tier = policy.tier,
             advertisementIntervalMillis = advertisementIntervalMillis,
+            connectionIntervalMillis = policy.connectionIntervalMillis,
             scanDutyCyclePercent = scanDutyCyclePercent,
             maxConnections = policy.maxConnections,
             chunkBudgetBytes = policy.chunkBudgetBytes,

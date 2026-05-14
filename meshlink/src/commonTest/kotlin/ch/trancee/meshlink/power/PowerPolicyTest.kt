@@ -25,11 +25,12 @@ class PowerPolicyTest {
         // Assert
         assertEquals(PowerTier.PERFORMANCE, policy.tier)
         assertEquals(250L, policy.advertisementIntervalMillis)
+        assertEquals(100L, policy.connectionIntervalMillis)
         assertEquals(100, policy.scanDutyCyclePercent)
     }
 
     @Test
-    fun `automatic mode drops to power saver after bootstrap expires`() {
+    fun `automatic mode drops to power saver after bootstrap expires and keeps connection interval at or above 500 ms`() {
         // Arrange
         val controller =
             PowerPolicyController(
@@ -46,7 +47,34 @@ class PowerPolicyTest {
         // Assert
         assertEquals(PowerTier.POWER_SAVER, policy.tier)
         assertEquals(1_000L, policy.advertisementIntervalMillis)
+        assertEquals(500L, policy.connectionIntervalMillis)
+        assertTrue(
+            policy.connectionIntervalMillis >= 500L,
+            "Expected LOW-tier connection interval to stay at or above 500 ms",
+        )
         assertEquals(5, policy.scanDutyCyclePercent)
+    }
+
+    @Test
+    fun `fixed power saver mode keeps maintained connection interval at or above 500 ms`() {
+        // Arrange
+        val controller =
+            PowerPolicyController(
+                configuredMode = PowerMode.PowerSaver,
+                region = RegulatoryRegion.DEFAULT,
+                bootstrapDurationMillis = 0L,
+            )
+
+        // Act
+        val policy = controller.currentPolicy(nowMillis = 0L)
+
+        // Assert
+        assertEquals(PowerTier.POWER_SAVER, policy.tier)
+        assertEquals(500L, policy.connectionIntervalMillis)
+        assertTrue(
+            policy.connectionIntervalMillis >= 500L,
+            "Expected fixed LOW-tier connection interval to stay at or above 500 ms",
+        )
     }
 
     @Test
@@ -89,6 +117,7 @@ class PowerPolicyTest {
         // Assert
         assertEquals(PowerTier.PERFORMANCE, policy.tier)
         assertEquals(300L, policy.advertisementIntervalMillis)
+        assertEquals(100L, policy.connectionIntervalMillis)
         assertEquals(70, policy.scanDutyCyclePercent)
         assertTrue(
             policy.clampWarnings.any { warning -> warning.contains("advertisementIntervalMillis") }

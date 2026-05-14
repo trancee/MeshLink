@@ -26,6 +26,10 @@ final class PowerProfileBenchmark: XCTestCase {
             logLine.contains("scanDutyCyclePercent=5"),
             "Expected LOW-power scan duty cycle to stay at or below 5 percent"
         )
+        XCTAssertTrue(
+            logLine.contains("connectionIntervalMillis=500"),
+            "Expected LOW-power maintained connection interval to stay at or above 500 ms"
+        )
     }
 
     func testLowBatteryPowerSaverModeDelivers256ByteMessageWithinFiveSeconds() throws {

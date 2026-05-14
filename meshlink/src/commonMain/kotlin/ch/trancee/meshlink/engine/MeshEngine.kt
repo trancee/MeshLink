@@ -1817,6 +1817,7 @@ private constructor(
             put("isCharging", isCharging.toString())
             put("tier", policy.tier.name)
             put("advertisementIntervalMillis", policy.advertisementIntervalMillis.toString())
+            put("connectionIntervalMillis", policy.connectionIntervalMillis.toString())
             put("scanDutyCyclePercent", policy.scanDutyCyclePercent.toString())
             put("maxConnections", policy.maxConnections.toString())
             put("chunkBudgetBytes", policy.chunkBudgetBytes.toString())

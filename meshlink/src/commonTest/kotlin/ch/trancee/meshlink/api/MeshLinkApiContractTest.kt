@@ -220,6 +220,7 @@ class MeshLinkApiContractTest {
                 assertEquals("EU", androidDiagnostic.metadata["region"])
                 assertEquals("PERFORMANCE", androidDiagnostic.metadata["tier"])
                 assertEquals("300", androidDiagnostic.metadata["advertisementIntervalMillis"])
+                assertEquals("100", androidDiagnostic.metadata["connectionIntervalMillis"])
                 assertEquals("70", androidDiagnostic.metadata["scanDutyCyclePercent"])
                 assertEquals("7", androidDiagnostic.metadata["maxConnections"])
                 assertEquals("4096", androidDiagnostic.metadata["chunkBudgetBytes"])

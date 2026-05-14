@@ -33,6 +33,10 @@ class PowerProfileBenchmark {
                 "Expected LOW-power scan duty cycle to stay at or below 5 percent",
                 logLine.contains("scanDutyCyclePercent=5"),
             )
+            assertTrue(
+                "Expected LOW-power maintained connection interval to stay at or above 500 ms",
+                logLine.contains("connectionIntervalMillis=500"),
+            )
         } finally {
             scenario.close()
             BenchmarkTestSupport.clearProofLog()
