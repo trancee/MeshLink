@@ -946,11 +946,28 @@ private constructor(
         var topologyVersion = routeCoordinator.topologyVersion.value
         var activeSession: OutboundTransferSession? = null
         var lastRouteAvailable = false
+        var discoverySuspendedForTransfer = false
 
-        runPlatformCall("transfer.discoverySuspend") { bleTransport?.setDiscoverySuspended(true) }
+        suspend fun updateTransferDiscoverySuspended(suspended: Boolean): Unit {
+            if (discoverySuspendedForTransfer == suspended) {
+                return
+            }
+            runPlatformCall(
+                if (suspended) {
+                    "transfer.discoverySuspend"
+                } else {
+                    "transfer.discoveryResume"
+                }
+            ) {
+                bleTransport?.setDiscoverySuspended(suspended)
+            }
+            discoverySuspendedForTransfer = suspended
+        }
+
         try {
             while (startedAt.elapsedNow() < config.deliveryRetryDeadline) {
                 if (activeSession == null) {
+                    updateTransferDiscoverySuspended(false)
                     when (
                         val preparation =
                             prepareOutboundTransferSession(peerId = peerId, payload = payload)
@@ -968,6 +985,7 @@ private constructor(
 
                 var transferProgressObserved = false
                 activeSession?.let { session ->
+                    updateTransferDiscoverySuspended(true)
                     var routeAvailable =
                         sendTransferTowardsDestination(
                             session.destinationPeerId,
@@ -1021,6 +1039,7 @@ private constructor(
                     )
                     lastRouteAvailable = routeAvailable
                     if (!routeAvailable) {
+                        updateTransferDiscoverySuspended(false)
                         scheduleRetryDiagnostic(peerId = peerId, priority = priority)
                     } else {
                         val acknowledgedChunkCountBeforeSettlement =
@@ -1051,6 +1070,9 @@ private constructor(
                         transferProgressObserved =
                             acknowledgedChunkCountAfterSettlement >
                                 acknowledgedChunkCountBeforeSettlement
+                        if (!transferProgressObserved) {
+                            updateTransferDiscoverySuspended(false)
+                        }
                     }
                 }
 
@@ -1059,6 +1081,7 @@ private constructor(
                     continue
                 }
 
+                updateTransferDiscoverySuspended(false)
                 val noRouteRetry = !lastRouteAvailable
                 if (noRouteRetry) {
                     emitDiagnostic(
@@ -1131,9 +1154,7 @@ private constructor(
                 SendResult.NotSent(SendFailureReason.TRANSFER_TIMED_OUT)
             }
         } finally {
-            runPlatformCall("transfer.discoveryResume") {
-                bleTransport?.setDiscoverySuspended(false)
-            }
+            updateTransferDiscoverySuspended(false)
         }
     }
 
