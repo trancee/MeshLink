@@ -1,8 +1,15 @@
 # Why L2CAP-First
 
+> **Current-status note (2026-05-14):** This document describes the current
+> normative product path for the waived release. A later post-waiver future
+> branch is now evaluating an iPhone-hosted GATT-notify bearer for mixed
+> Android/iOS peers because proof-only evidence finally exceeded the iOS
+> `SC-004` target. Until the canonical spec/release docs are amended again with
+> fresh product-path evidence, L2CAP-first remains the normative posture.
+
 ## The decision
 
-When MeshLink discovers a peer, it connects via L2CAP directly if the peer's advertisement contains a non-zero PSM (Protocol/Service Multiplexer). GATT is only used as a fallback.
+When MeshLink discovers a peer, it connects via L2CAP directly if the peer's advertisement contains a non-zero PSM. GATT is only used as a fallback on the current normative product path.
 
 ## What L2CAP gives us
 

@@ -498,7 +498,7 @@ shows that a new branch can plausibly close iOS `SC-004`.
 **Purpose**: Promote the promising proof-only reverse GATT-notify branch into a
 real MeshLink transport candidate for a future non-waived release.
 
-- [ ] T101 Amend the canonical product-path framing in
+- [X] T101 Amend the canonical product-path framing in
   `specs/001-ble-mesh-sdk/spec.md`,
   `specs/001-ble-mesh-sdk/plan.md`,
   `specs/001-ble-mesh-sdk/contracts/meshlink-api.md`, and

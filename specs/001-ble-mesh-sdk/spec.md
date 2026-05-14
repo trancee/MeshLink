@@ -445,8 +445,16 @@ Public-claim guardrails under the selected waiver path:
 - Public materials MUST state that recipient-confirmed 64 KB proof completion
   is restored on the current MeshLink path, but throughput remains below the
   normative iOS target.
-- The proof-only GATT prototype MUST NOT be presented as product-conformance
+- The proof-only GATT prototypes MUST NOT be presented as product-conformance
   fallback evidence.
+
+Future non-waived conformance branch note:
+
+- The current waived release framing does not forbid future transport redesign
+  work. A later non-waived release MAY evaluate a mixed Android/iOS
+  iPhone-hosted GATT-notify bearer if the public API semantics stay unchanged,
+  the canonical docs are amended in the same change set, and fresh retained
+  product-path evidence shows that the new bearer closes iOS `SC-004`.
 
 ### Proof-integration role, blocker handling, and reviewer evidence
 

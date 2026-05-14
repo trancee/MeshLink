@@ -247,6 +247,11 @@ All thrown public exceptions derive from one sealed hierarchy defined in
 - Pending retries do not survive restart; callers must resubmit after restart
   even if the prior `deliveryRetryDeadline` had not yet expired.
 - Public API does not expose platform BLE classes directly.
+- The selected underlying BLE bearer remains an internal transport decision.
+  Future releases may choose different internal bearers for different platform
+  pairs or payload classes, but that MUST NOT change the public API shape,
+  result semantics, or diagnostic contract without an explicit canonical-doc
+  amendment.
 
 ## Compatibility Rules
 
