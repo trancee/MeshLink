@@ -36,10 +36,12 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import platform.CoreBluetooth.CBAdvertisementDataServiceUUIDsKey
 import platform.CoreBluetooth.CBManager
+import platform.CoreBluetooth.CBCentral
 import platform.CoreBluetooth.CBCentralManager
 import platform.CoreBluetooth.CBCentralManagerDelegateProtocol
 import platform.CoreBluetooth.CBL2CAPChannel
 import platform.CoreBluetooth.CBManagerStatePoweredOn
+import platform.CoreBluetooth.CBPeripheralManagerConnectionLatencyLow
 import platform.CoreBluetooth.CBPeripheral
 import platform.CoreBluetooth.CBPeripheralDelegateProtocol
 import platform.CoreBluetooth.CBPeripheralManager
@@ -357,6 +359,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
             return
         }
         val identifier = channel.peer?.identifier?.UUIDString?.lowercase() ?: return
+        val connectedCentral = channel.peer as? CBCentral
         val selectedHintPeerIdValue =
             selectIncomingL2capHintPeerId(
                 peripheralIdentifier = identifier,
@@ -382,13 +385,19 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
         } else if (hintPeerId.value.startsWith(TEMPORARY_PEER_PREFIX)) {
             log("binding incoming L2CAP channel to temporary peer ${hintPeerId.value}")
         }
-        registerConnectedChannel(hintPeerId, identifier, channel)
+        registerConnectedChannel(
+            hintPeerId = hintPeerId,
+            peripheralIdentifier = identifier,
+            channel = channel,
+            connectedCentral = connectedCentral,
+        )
     }
 
     private fun registerConnectedChannel(
         hintPeerId: PeerId,
         peripheralIdentifier: String,
         channel: CBL2CAPChannel,
+        connectedCentral: CBCentral? = null,
     ): Unit {
         if (activeLinksByHint.containsKey(hintPeerId.value)) {
             log("ignoring duplicate L2CAP channel for ${hintPeerId.value.takeLast(6)}")
@@ -402,6 +411,11 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
                 incomingFrames = IosL2capFrameBuffer(),
                 telemetryEnabled = telemetryEnabled,
                 telemetryLogger = ::emitTransportLog,
+                promoteActiveWriteLatency = {
+                    connectedCentral?.let { central ->
+                        requestLowConnectionLatency(hintPeerId = hintPeerId, central = central)
+                    }
+                },
             )
         activeLinksByHint[hintPeerId.value] = link
         temporaryHintByIdentifier[peripheralIdentifier] = hintPeerId.value
@@ -577,6 +591,16 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
         startAdvertisingIfReady()
     }
 
+    private fun requestLowConnectionLatency(hintPeerId: PeerId, central: CBCentral): Unit {
+        peripheralManager?.setDesiredConnectionLatency(
+            CBPeripheralManagerConnectionLatencyLow,
+            forCentral = central,
+        )
+        reportLog(
+            "requested low connection latency for ${hintPeerId.value.takeLast(6)} central=${central.identifier.UUIDString.lowercase()}"
+        )
+    }
+
     private fun discoveryPayload(l2capPsm: UByte): BleDiscoveryPayload {
         return BleDiscoveryPayload(
             protocolVersion = BleDiscoveryContract.CURRENT_PROTOCOL_VERSION,
@@ -623,6 +647,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
         private val incomingFrames: IosL2capFrameBuffer,
         private val telemetryEnabled: Boolean,
         private val telemetryLogger: (String) -> Unit,
+        private val promoteActiveWriteLatency: () -> Unit,
     ) {
         private val inputStream = checkNotNull(channel.inputStream).apply { open() }
         private val outputStream = checkNotNull(channel.outputStream).apply { open() }
@@ -638,6 +663,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
         private var writeSequence: Long = 0L
         private var lastReadFrameAtMs: Long? = null
         private var cumulativeEncodedBytesWritten: Long = 0L
+        private var activeWriteLatencyPromoted: Boolean = false
         var readLoopJob: Job? = null
         var writeLoopJob: Job? = null
 
@@ -781,6 +807,10 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
         }
 
         private suspend fun writeCoalescedBatch(queuedFrames: List<QueuedFrame>): BatchWriteStats {
+            if (!activeWriteLatencyPromoted) {
+                promoteActiveWriteLatency()
+                activeWriteLatencyPromoted = true
+            }
             val startedAtMs = monotonicNowMillis()
             var lastWriteProgressAtMs = startedAtMs
             val coalescedBuffer =

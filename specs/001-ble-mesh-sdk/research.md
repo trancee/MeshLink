@@ -597,6 +597,86 @@ Escalation state:
   large-payload design change (or a specification decision), not another small
   constant-only follow-up
 
+### More invasive iOS-only design change: request low connection latency on inbound L2CAP channels (2026-05-14)
+
+The next follow-up targeted a lower-level iOS/CoreBluetooth lever instead of
+another batching constant. When the iPhone hosts an inbound L2CAP channel, the
+remote Android peer is the BLE central and iOS is the peripheral. Core
+Bluetooth exposes one peripheral-side connection-parameter hint for that case:
+`setDesiredConnectionLatency(.low, for: central)`.
+
+Implementation change:
+
+- keep the queued-writer / chunked-transfer path intact
+- detect incoming L2CAP channels whose `channel.peer` can be treated as a
+  `CBCentral`
+- on the first outbound write for that link, request
+  `CBPeripheralManagerConnectionLatencyLow`
+- retain an explicit transport log line so the physical evidence can separate
+  runs that actually exercised the new path from runs where the iPhone ended up
+  as the initiating/central side and therefore could not issue the request
+
+Retained evidence:
+
+- initial Samsung series: `/tmp/ios_latencyhint_samsung_series_20260514T170604`
+  - run 1: `38.28 KB/s` with
+    `requested low connection latency for 766b71 central=3e5f1dba-ddc8-4f19-9dc6-caf49311dce0`
+  - run 2: `18.16 KB/s` with no low-latency request log
+  - run 3: `36.14 KB/s` with
+    `requested low connection latency for 505c9b central=3e5f1dba-ddc8-4f19-9dc6-caf49311dce0`
+- fresh final-code refresh: `/tmp/ios_final_latencyhint_refresh_20260514T171050`
+  - run 1: `34.33 KB/s` with
+    `requested low connection latency for 58e934 central=3e5f1dba-ddc8-4f19-9dc6-caf49311dce0`
+  - run 2: `19.85 KB/s` with no low-latency request log
+- single-run confirmation before the final refresh:
+  `/tmp/ios_latencyhint_samsung_retry_20260514T170528`
+  - `29.09 KB/s` with
+    `requested low connection latency for 593bc7 central=3e5f1dba-ddc8-4f19-9dc6-caf49311dce0`
+
+Interpretation:
+
+- the new iOS-only design change **did** improve the retained Samsung best case:
+  `38.28 KB/s` now exceeds the earlier `33.56 KB/s` best result from the queue-
+  flush stabilization series
+- the improvement is not uniform because it only applies on runs where the
+  iPhone hosts the inbound L2CAP channel and can legally issue the peripheral-
+  side low-latency request
+- same-design runs where the iPhone took the initiating/central role never
+  emitted the request and fell back to the prior lower throughput class
+  (`18.16-19.85 KB/s` in the retained evidence)
+
+This changes the blocker diagnosis again:
+
+- the issue is no longer just "iOS large writes are slow"
+- role-dependent connection-parameter control now matters materially on the
+  Samsung path
+- however, even the improved low-latency incoming-channel runs remain well
+  below the normative `>= 60 KB/s` target, so the design change improves the
+  best case without closing `SC-004`
+
+### Rejected combination: low-latency incoming channel + re-enabled 64 KiB inline path (2026-05-14)
+
+Because the incoming-channel low-latency request improved the chunked MeshLink
+path, the next check was whether that same connection-parameter hint could make
+an already re-enabled 64 KiB inline MeshLink path viable.
+
+Retained evidence:
+
+- series directory: `/tmp/ios_latencyhint_inline_samsung_series_20260514T170804`
+- run 1: `23.78 KB/s` with no low-latency request log
+- run 2: `33.97 KB/s` with
+  `requested low connection latency for 951f4c central=3e5f1dba-ddc8-4f19-9dc6-caf49311dce0`
+- run 3: `20.68 KB/s` with no low-latency request log
+
+Interpretation:
+
+- even with the low-latency request active, the inline path still did not beat
+  the chunked + low-latency best case (`33.97 KB/s` vs `38.28 KB/s`)
+- the inline path therefore remains rejected
+- the retained evidence still points back to the chunked MeshLink path plus
+  connection-latency control as the stronger of the tested iOS-only options,
+  but still insufficient for `SC-004`
+
 ### Proof-only Android GATT server + iOS GATT client fallback prototype
 
 A proof-only native fallback prototype is now implemented in the sample apps for

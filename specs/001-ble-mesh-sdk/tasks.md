@@ -425,6 +425,16 @@ conformance path or the waiver path is explicitly completed.
   `specs/001-ble-mesh-sdk/research.md`, and
   `specs/001-ble-mesh-sdk/release-decision.md`, recording that none exceeded
   the current `33.56 KB/s` Samsung best case or closed `SC-004`.
+- [X] T095 Implement the more invasive iOS-only inbound-L2CAP connection-
+  latency design change, verify it on fresh Samsung reference-peer reruns, and
+  retain both the improved best-case evidence (`38.28 KB/s`, refreshed at
+  `34.33 KB/s`) and the rejected low-latency + inline combination in
+  `meshlink/src/iosMain/kotlin/ch/trancee/meshlink/platform/ios/IosBleTransport.kt`,
+  `benchmarks/README.md`,
+  `specs/001-ble-mesh-sdk/research.md`,
+  `specs/001-ble-mesh-sdk/release-decision.md`,
+  `specs/001-ble-mesh-sdk/spec.md`, and
+  `specs/001-ble-mesh-sdk/plan.md`.
 
 ---
 

@@ -22,13 +22,24 @@ explicit waiver / known limitation.
   run-loop scheduling (`27.33 KB/s`), shorter sender ACK settlement
   (`24.90 KB/s`), a 32-frame transport coalescing window (`28.33 KB/s`), a
   re-enabled 64 KiB inline path (`31.84 KB/s`), and that inline path plus a
-  16 KiB inner batch (`23.05 KB/s`) all remained below the current retained
+  16 KiB inner batch (`23.05 KB/s`) all remained below the then-current
   Samsung best case (`33.56 KB/s`).
-- **Escalated interpretation**: even the inline-path rerun stayed
-  backpressure-limited (`coalescedBytes=66037`, `writeCalls=28`,
-  `readyFalseCount=1100`, `totalElapsedMs=1471`), so the remaining blocker now
-  appears to require a more invasive iOS large-payload design change or an
-  explicit waiver rather than another small bounded constant tweak.
+- **More invasive iOS-only design change**: requesting
+  `CBPeripheralManagerConnectionLatencyLow` on inbound L2CAP channels lifted
+  the retained Samsung best case to `38.28 KB/s`, with a fresh final-code
+  refresh still reaching `34.33 KB/s` on a run that emitted the same request.
+- **Residual blocker after that design change**: same-design runs where the
+  iPhone took the initiating/central role never emitted the low-latency
+  request and fell back to `18.16-19.85 KB/s`; even the improved incoming-
+  channel runs remain far below the normative `>= 60 KB/s` target.
+- **Rejected combination**: re-enabling the 64 KiB inline MeshLink path on top
+  of the incoming-channel low-latency request still reached only `33.97 KB/s`,
+  so the inline path remains rejected.
+- **Escalated interpretation**: the blocker has now narrowed to a more
+  invasive, likely cross-platform role/connection-parameter problem plus the
+  remaining CoreBluetooth large-write limit. Another small iOS-only constant
+  tweak is unlikely to close `SC-004`; the next branch is either a deeper
+  role-policy redesign or the explicit waiver path.
 - **Non-blocker evidence already restored**: recipient-confirmed 64 KiB proof
   completion on the Samsung / OPPO physical path.
 
@@ -39,9 +50,12 @@ explicit waiver / known limitation.
 - Retain passing iOS `SC-004` evidence on reference benchmark hardware.
 - Keep recipient-confirmed proof evidence aligned with the scored run.
 - Update `spec.md`, `plan.md`, `benchmarks/README.md`, and `research.md`.
-- **Current execution status (2026-05-14):** Selected. The next required step
-  is one bounded iOS MeshLink-path remediation experiment followed by a fresh
-  recipient-confirmed reference-hardware rerun.
+- **Current execution status (2026-05-14):** Selected. One bounded iOS
+  MeshLink-path remediation experiment has been completed, additional bounded
+  iOS-only follow-ups have been retained, and the latest more invasive iOS-only
+  connection-latency design change still leaves `SC-004` open. The next
+  conformance step is no longer another small constant tweak; it is either a
+  deeper role-policy redesign or a decision to switch to the waiver path.
 
 ### 2. Explicit waiver / known-limitation path
 

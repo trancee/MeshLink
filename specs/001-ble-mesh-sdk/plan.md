@@ -110,25 +110,29 @@ restored on the current reference hardware. Android still meets its single-hop
 throughput target, while the post-remediation iPhone 15 recipient-confirmed
 series now finishes 5/5 on both passive peers: OPPO completed at
 `14.50-17.09 KB/s` (average `15.57 KB/s`) and Samsung completed at
-`27.85-33.56 KB/s` (average `30.64 KB/s`). Those restored recipient-confirmed
-runs remain well below the required `>= 60 KB/s` iOS target. A proof-only
-native GATT prototype remains feasible (`23.92 KB/s` to Samsung,
-`21.96 KB/s` to OPPO), but it is still supporting evidence only and does not
-satisfy the normative iOS target.
+`27.85-33.56 KB/s` (average `30.64 KB/s`). A later more invasive iOS-only
+inbound-L2CAP low-connection-latency design change improved the retained
+Samsung best case to `38.28 KB/s`, with a fresh final-code refresh at
+`34.33 KB/s`. Even those improved runs remain well below the required
+`>= 60 KB/s` iOS target. A proof-only native GATT prototype remains feasible
+(`23.92 KB/s` to Samsung, `21.96 KB/s` to OPPO), but it is still supporting
+ evidence only and does not satisfy the normative iOS target.
 
 The release path therefore remains binary, but the blocker has narrowed:
 either keep release blocked until the MeshLink path satisfies the iOS half of
 `SC-004`, or ship only under an explicit waiver that narrows iOS large-
 transfer performance claims and acknowledges the retained throughput evidence.
-The residual risk is now materially slower 64 KiB single-hop transfers on iOS;
-the earlier recipient-confirmed proof-completion instability is retained as
-historical diagnostic evidence rather than the current blocker state.
+The residual risk is now materially slower 64 KiB single-hop transfers on iOS,
+plus role-dependent connection-parameter control on runs where the iPhone does
+not host the inbound L2CAP channel. The earlier recipient-confirmed proof-
+completion instability is retained as historical diagnostic evidence rather
+than the current blocker state.
 
 **Current closure-path selection (2026-05-14):** Continue on the explicit
 spec-conformance path. The waiver / known-limitation branch is not currently
-selected; the next required step is one bounded iOS MeshLink-path throughput
-remediation experiment plus a fresh recipient-confirmed reference-hardware
-rerun.
+selected; the next required step is no longer another small iOS-only constant
+change, but either a deeper role-policy / connection-parameter redesign or a
+switch to the explicit waiver path.
 
 **Current blocker interpretation for remaining work (2026-05-14):**
 

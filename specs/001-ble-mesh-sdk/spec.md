@@ -364,19 +364,23 @@ but the stricter recipient-confirmed 64 KB physical proof story is now
 restored on the current MeshLink path. The post-remediation recipient-confirmed
 series on reference hardware completed 5/5 on both passive peers: iPhone 15 ->
 OPPO finished at `14.50-17.09 KB/s` (average `15.57 KB/s`), and iPhone 15 ->
-Samsung finished at `27.85-33.56 KB/s` (average `30.64 KB/s`). Those retained
-runs remain well below the required `>= 60 KB/s` iOS target. The older
-recipient-confirmed `ReceiptTimeout` / `UNREACHABLE` matrices are retained in
-`benchmarks/README.md` and `research.md` as superseded diagnostic evidence;
-they no longer describe the current physical path. The retained baselines are
-evidence only; they do not replace or relax the normative threshold in
-**SC-004** or the reviewer-evidence expectations in this specification.
+Samsung finished at `27.85-33.56 KB/s` (average `30.64 KB/s`). A later more
+invasive iOS-only inbound-L2CAP connection-latency design change improved the
+retained Samsung best case to `38.28 KB/s`, with a fresh final-code refresh at
+`34.33 KB/s`. Even those improved runs remain well below the required
+`>= 60 KB/s` iOS target. The older recipient-confirmed `ReceiptTimeout` /
+`UNREACHABLE` matrices are retained in `benchmarks/README.md` and `research.md`
+as superseded diagnostic evidence; they no longer describe the current physical
+path. The retained baselines are evidence only; they do not replace or relax
+the normative threshold in **SC-004** or the reviewer-evidence expectations in
+this specification.
 
 Current blocker scope (2026-05-14):
 
 - **Normative SC-004 non-conformance:** iOS single-hop 64 KB throughput still
   remains far below target on current reference hardware, even after the proof
-  path was stabilized.
+  path was stabilized and the later inbound-L2CAP low-connection-latency
+  design change improved the Samsung best case.
 - **Recipient-confirmed proof completion restored:** the current MeshLink
   physical proof path now demonstrates stable round-trip completion on Samsung
   and OPPO for the recipient-confirmed 64 KB benchmark protocol, so this is no
@@ -385,6 +389,11 @@ Current blocker scope (2026-05-14):
   is feasible, but it remains supporting evidence only and still stays well
   below the normative iOS target; it does not close or relax the MeshLink
   blocker.
+- **Role-dependent connection-parameter control now matters:** the retained
+  iOS-only low-connection-latency runs improve only when the iPhone hosts the
+  inbound L2CAP channel and can issue the peripheral-side Core Bluetooth
+  request. Same-design runs where iPhone remains the initiating/central side
+  still fall back to a much slower throughput class.
 
 Until the iOS half of **SC-004** is met or this specification is explicitly
 amended, the feature remains non-conformant to **SC-004**. A release may
@@ -404,12 +413,17 @@ therefore take only one of two explicit paths:
 **Current closure-path selection (2026-05-14):** The feature remains on the
 explicit conformance path. Release stays blocked until the MeshLink iOS path
 meets `SC-004` on reference hardware with fresh retained proof evidence; the
-waiver / known-limitation path has not been selected.
+waiver / known-limitation path has not been selected. The next conformance
+branch is no longer another small iOS-only constant tweak; it is either a
+more invasive role-policy / connection-parameter redesign or the explicit
+waiver path.
 
 Residual risk if the waiver path is chosen:
 
 - iOS single-hop 64 KB transfers still complete far below the normative
-  throughput target on current reference hardware.
+  throughput target on current reference hardware, even after the inbound-
+  L2CAP low-connection-latency design change improved the Samsung best case to
+  `38.28 KB/s`.
 - The proof-only GATT prototype can complete on the same hardware, but only at
   roughly `21.96-23.92 KB/s` and outside product-conformance scope.
 - Cross-platform parity claims remain accurate for API surface, trust,
