@@ -1066,7 +1066,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
 
         private companion object {
             private const val STREAM_BUFFER_BYTES: Int = 16 * 1024
-            private const val WRITE_BATCH_BYTES: Int = 4 * 1024
+            private const val WRITE_BATCH_BYTES: Int = 16 * 1024
             private const val PENDING_FRAME_WINDOW_FRAMES: Int = 16
             private const val PENDING_FRAME_WINDOW_BYTES: Int = 16 * 1024
             private const val MAX_COALESCED_FRAMES: Int = 16
