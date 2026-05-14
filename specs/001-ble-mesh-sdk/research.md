@@ -802,6 +802,11 @@ follow-up inside the current public product path. It is either:
    implications, or
 2. the explicit waiver path
 
+For the current release, option 2 was subsequently selected in the canonical
+release-decision docs. The measurements in this section are therefore the
+supporting evidence for that waiver, not an open-ended request for one more
+small tuning pass.
+
 ### Proof-only Android GATT server + iOS GATT client fallback prototype
 
 A proof-only native fallback prototype is now implemented in the sample apps for
@@ -1067,6 +1072,10 @@ The remaining blocker is now narrower and purely normative:
   `>= 60 KB/s` target even on the restored-stability path
 - therefore the remaining open issue is iOS `SC-004` throughput
   non-conformance, not proof-completion instability itself
+
+For the current release, that non-conformance is now recorded as an accepted
+known limitation under the explicit waiver path in the canonical release
+artifacts.
 
 ### Permission-denied blocked-validation expectation
 

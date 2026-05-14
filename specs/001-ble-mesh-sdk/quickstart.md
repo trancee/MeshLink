@@ -111,12 +111,18 @@ Proof-app note:
   deterministic L2CAP initiator for mixed-platform peers, so the iPhone can host
   the inbound channel and request low connection latency on every final retained
   proof rerun.
-- On that deterministic path, fresh retained final-matrix evidence reached
+- Under the explicitly selected waiver / known-limitation path for the current
+  release (approved by the active project stakeholder on `2026-05-14`), iOS
+  64 KiB single-hop throughput is treated as an accepted limitation rather than
+  an open launch blocker.
+- On that deterministic path, retained final-matrix evidence reached
   `52.03 KB/s` to the OPPO reference peer and `39.48 KB/s` to the Samsung
-  reference peer, both still below the `>= 60 KB/s` release target.
-- The remaining blocker is therefore 64 KiB iPhone throughput on the optimized
-  deterministic path, not launch, pairing, recipient-confirmed proof completion,
-  or mixed-platform role randomness.
+  reference peer. Those runs restored recipient-confirmed proof completion, but
+  they do not satisfy the normative `>= 60 KB/s` iOS target.
+- Do not use quickstart success to claim that iOS satisfies `SC-004` or that
+  Android and iOS have parity for 64 KiB throughput. If current iOS large-
+  transfer behavior is described, cite the retained `39.48-52.03 KB/s`
+  deterministic-path evidence and note the accepted known limitation.
 
 ## 7. Validate restart and trust behavior
 

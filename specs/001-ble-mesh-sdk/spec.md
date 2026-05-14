@@ -378,7 +378,7 @@ path. The retained baselines are evidence only; they do not replace or relax
 the normative threshold in **SC-004** or the reviewer-evidence expectations in
 this specification.
 
-Current blocker scope (2026-05-14):
+Current non-conformance scope (2026-05-14):
 
 - **Normative SC-004 non-conformance:** iOS single-hop 64 KB throughput still
   remains below target on current reference hardware, even after the proof path
@@ -414,17 +414,14 @@ therefore take only one of two explicit paths:
    measured throughput still remains below the normative target and that the
    proof-only GATT prototype is not product-conformance evidence.
 
-**Current closure-path selection (2026-05-14):** The feature remains on the
-explicit conformance path. Release stays blocked until the MeshLink iOS path
-meets `SC-004` on reference hardware with fresh retained proof evidence; the
-waiver / known-limitation path has not been selected. The mixed-platform
-role-policy / connection-parameter redesign has now been implemented and
-retained, and additional post-redesign app-layer follow-ups have also been
-rejected, so the next conformance branch is no longer another small tuning
-change. It is either a materially different transport/platform strategy or the
-explicit waiver path.
+**Current closure-path selection (2026-05-14):** The explicit waiver /
+known-limitation path is selected for the current release. The active project
+stakeholder approved that waiver in this session on `2026-05-14`. The feature
+therefore remains non-conformant to the iOS throughput clause of `SC-004`, but
+release may proceed only under the public-claim guardrails below instead of
+remaining blocked on another small app-layer tuning attempt.
 
-Residual risk if the waiver path is chosen:
+Accepted residual risk under the selected waiver path:
 
 - iOS single-hop 64 KB transfers still complete below the normative throughput
   target on current reference hardware, even after the deterministic mixed-
@@ -433,8 +430,23 @@ Residual risk if the waiver path is chosen:
 - The proof-only GATT prototype can complete on the same hardware, but only at
   roughly `21.96-23.92 KB/s` and outside product-conformance scope.
 - Cross-platform parity claims remain accurate for API surface, trust,
-  discovery, routing behavior, and the measured 256-byte latency path, but not
-  for full conformance with the iOS throughput clause of **SC-004**.
+  discovery, routing behavior, power diagnostics, and the measured 256-byte
+  latency path, but not for full conformance with the iOS throughput clause of
+  **SC-004**.
+
+Public-claim guardrails under the selected waiver path:
+
+- Public materials MUST NOT claim that iOS satisfies `SC-004` or achieves
+  `>= 60 KB/s` single-hop 64 KB throughput on the MeshLink path.
+- Public materials MUST NOT claim Android/iOS parity for 64 KB throughput.
+- If public materials describe current iOS large-transfer behavior, they MUST
+  cite the retained deterministic-path evidence: recipient-confirmed 64 KB runs
+  completed at `39.48-52.03 KB/s` depending on the passive reference peer.
+- Public materials MUST state that recipient-confirmed 64 KB proof completion
+  is restored on the current MeshLink path, but throughput remains below the
+  normative iOS target.
+- The proof-only GATT prototype MUST NOT be presented as product-conformance
+  fallback evidence.
 
 ### Proof-integration role, blocker handling, and reviewer evidence
 

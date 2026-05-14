@@ -8,16 +8,19 @@ explicit waiver / known limitation.
 
 ## Current Status
 
-- **Status**: Open — conformance path selected
-- **Blocking requirement**: `SC-004`
-- **Chosen closure path**: Continue on the explicit spec-conformance path; the
-  waiver / known-limitation path is not currently selected.
-- **Current blocker**: iOS single-hop 64 KiB throughput on the MeshLink path
-  remains below the normative `>= 60 KB/s` target on reference benchmark
-  hardware.
+- **Status**: Closed via explicit waiver / known limitation
+- **Blocking requirement**: `SC-004` remains unmet on iOS; the current release
+  may proceed only under the waiver guardrails recorded below.
+- **Chosen closure path**: Ship under the explicit waiver / known-limitation
+  path for the current release.
+- **Stakeholder approval**: Approved by the active project stakeholder via
+  explicit waiver-path selection in this session on `2026-05-14`.
+- **Accepted iOS large-transfer limitation**: iOS single-hop 64 KiB throughput
+  on the MeshLink path remains below the normative `>= 60 KB/s` target on
+  reference benchmark hardware.
 - **Latest bounded conformance attempt**: a fresh iPhone 15 -> OPPO transient-
   appId rerun with a widened 16 KiB inner iOS write batch still completed at
-  only `18.37 KB/s`, so the change was reverted and the blocker remains open.
+  only `18.37 KB/s`, so the change was reverted.
 - **Additional follow-up matrix after `T092`**: fresh Samsung reruns for
   run-loop scheduling (`27.33 KB/s`), shorter sender ACK settlement
   (`24.90 KB/s`), a 32-frame transport coalescing window (`28.33 KB/s`), a
@@ -29,28 +32,26 @@ explicit waiver / known limitation.
   peers deterministically prefer Android-initiated L2CAP links into the
   iPhone-hosted inbound channel, where iOS can request
   `CBPeripheralManagerConnectionLatencyLow`.
-- **Fresh retained best-case evidence on that deterministic path**: Samsung now
-  reached `39.48 KB/s` (3-run final matrix `24.37-39.48 KB/s`, all with the
+- **Accepted retained evidence for public reference**: Samsung reached
+  `39.48 KB/s` (3-run final matrix `24.37-39.48 KB/s`, all with the
   low-latency request present) and OPPO reached `52.03 KB/s` (2-run final
   matrix `45.33-52.03 KB/s`, both with the low-latency request present).
-- **Residual blocker after the redesign**: the role-dependent randomness on the
-  mixed Android/iOS path is now resolved, but even the improved deterministic
-  path still remains below the normative `>= 60 KB/s` target.
 - **Rejected combination**: re-enabling the 64 KiB inline MeshLink path on top
   of the incoming-channel low-latency request still reached only `33.97 KB/s`,
   so the inline path remains rejected.
-- **Escalated interpretation**: the blocker has narrowed again. It is no
-  longer the mixed-platform initiator policy; it is the remaining throughput
-  shortfall on the now-deterministic optimized path.
 - **Additional rejected post-redesign follow-ups**: 8-frame iOS coalescing,
   a deterministic-path inline rerun, and ACK-batch=`32` reruns all stayed in
   the `30.70-37.08 KB/s` range and failed to beat the retained deterministic
   baseline (`52.03 KB/s` OPPO, `39.48 KB/s` Samsung).
-- **Current blocker interpretation**: the obvious remaining app-layer levers
-  inside the current public MeshLink L2CAP product path have now been
+- **Reason the waiver was selected**: the role-dependent randomness on the
+  mixed Android/iOS path is resolved, but the obvious remaining app-layer
+  levers inside the current public MeshLink L2CAP product path have now been
   exercised. On the public Android `BluetoothSocket` / LE L2CAP APIs and iOS
   Core Bluetooth L2CAP APIs available here, the next conformance branch looks
   more like a transport-scope decision than another small implementation tweak.
+- **Explicit non-conformance that remains**: the waiver narrows release claims,
+  but it does not amend `SC-004`; iOS large-transfer throughput is still below
+  the normative target.
 - **Non-blocker evidence already restored**: recipient-confirmed 64 KiB proof
   completion on the Samsung / OPPO physical path.
 
@@ -61,13 +62,11 @@ explicit waiver / known limitation.
 - Retain passing iOS `SC-004` evidence on reference benchmark hardware.
 - Keep recipient-confirmed proof evidence aligned with the scored run.
 - Update `spec.md`, `plan.md`, `benchmarks/README.md`, and `research.md`.
-- **Current execution status (2026-05-14):** Selected. One bounded iOS
-  MeshLink-path remediation experiment has been completed, additional bounded
-  iOS-only follow-ups have been retained, and the deeper cross-platform
-  role-policy redesign has now also been implemented and physically rerun.
-  `SC-004` remains open, but the next conformance step is no longer another
-  initiator-policy or small app-layer tuning change. It is either a materially
-  different transport/platform strategy or the explicit waiver path.
+- **Current execution status (2026-05-14):** Not selected for the current
+  release. The bounded iOS MeshLink-path remediation experiments, the deeper
+  mixed-platform role-policy redesign, and the later post-redesign follow-ups
+  were all retained as evidence, but none closed the remaining iOS throughput
+  gap.
 
 ### 2. Explicit waiver / known-limitation path
 
@@ -76,6 +75,18 @@ explicit waiver / known limitation.
   evidence.
 - Link the accepted residual risk and supporting evidence in the canonical
   docs.
+- **Selected execution status (2026-05-14):** Completed for the current
+  release. Public claims are now constrained as follows:
+  - do not claim iOS satisfies `SC-004` or `>= 60 KB/s` single-hop 64 KiB
+    throughput
+  - do not claim Android/iOS parity for 64 KiB throughput; parity claims remain
+    limited to API surface, trust, discovery, routing behavior, power
+    diagnostics, and the measured 256-byte latency path
+  - if public iOS large-transfer behavior is described, cite the retained
+    deterministic-path evidence: recipient-confirmed 64 KiB runs completed at
+    `39.48-52.03 KB/s` depending on the passive reference peer
+  - the proof-only GATT prototype remains non-normative and MUST NOT be cited
+    as product-conformance fallback evidence
 
 ## Evidence Sources
 

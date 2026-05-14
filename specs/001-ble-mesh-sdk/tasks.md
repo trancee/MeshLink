@@ -397,8 +397,9 @@ connection-interval floor without rewriting completed delivery history.
 the normative throughput target or recording the explicit waiver /
 known-limitation path already allowed by `spec.md`.
 
-**Release-readiness note**: This phase remains blocking until either the
-conformance path or the waiver path is explicitly completed.
+**Release-readiness note**: This phase was blocking until either the
+conformance path or the waiver path was explicitly completed. It is now closed
+via the explicit waiver / known-limitation path recorded in the canonical docs.
 
 - [X] T091 Record the chosen `SC-004` closure path in
   `specs/001-ble-mesh-sdk/spec.md`,
@@ -411,7 +412,7 @@ conformance path or the waiver path is explicitly completed.
   recipient-confirmed reference-hardware benchmark, retaining raw
   sender/recipient evidence in `benchmarks/README.md` and
   `specs/001-ble-mesh-sdk/research.md`.
-- [ ] T093 If the waiver path is chosen, record the accepted iOS
+- [X] T093 If the waiver path is chosen, record the accepted iOS
   large-transfer limitation, stakeholder approval, and public-claim guardrails
   in `specs/001-ble-mesh-sdk/spec.md`,
   `specs/001-ble-mesh-sdk/plan.md`,
@@ -486,7 +487,7 @@ conformance path or the waiver path is explicitly completed.
 - **Follow-up Explicit Edge-Case and Trust-Reset Coverage Closure (Phase 16)**: Runs after Phase 15 and historically blocked full-conformance / release-readiness claims until completed `T074`–`T081` closed those gaps.
 - **Follow-up Recipient-Confirmed 64 KiB Large-Transfer Stabilization (Phase 17)**: Runs after Phase 16 to restore recipient-confirmed large-transfer stability and feed the current throughput-only blocker framing once Samsung/OPPO proof completion is restored.
 - **Follow-up Configuration, Discovery, and LOW-Power Contract Closure (Phase 18)**: Runs after Phase 17 to close remaining constitution-traceability gaps before any fresh release-readiness claim.
-- **Follow-up SC-004 Release Closure (Phase 19)**: Runs after Phase 18 and remains blocking until either the normative conformance path or the explicit waiver path is explicitly completed.
+- **Follow-up SC-004 Release Closure (Phase 19)**: Runs after Phase 18 and was blocking until either the normative conformance path or the explicit waiver path was explicitly completed; it is now closed via the explicit waiver / known-limitation path.
 
 ### User Story Dependencies
 

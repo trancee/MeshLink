@@ -110,13 +110,22 @@ Shared harness evidence now also covers the common US2 runtime:
 - bounded, jittered exponential-backoff no-route retry expiry with `UNREACHABLE`
 - immediate retry when a route appears before `deliveryRetryDeadline` expires
 
-Current blocker:
+Current accepted known limitation under the selected waiver path:
 
-- large-payload iPhone throughput remains below the `>= 60 KB/s` target even on
-  the optimized deterministic mixed-platform path, though delivery,
-  recipient-confirmed proof completion, pairing-free interop, cold start,
-  power, latency, and a proof-only GATT fallback prototype now all work on the
-  current reference setup
+- the active project stakeholder selected the explicit waiver /
+  known-limitation path for the current release on `2026-05-14`
+- large-payload iPhone throughput remains below the normative `>= 60 KB/s`
+  target even on the optimized deterministic mixed-platform path, though
+  delivery, recipient-confirmed proof completion, pairing-free interop, cold
+  start, power, latency, and a proof-only GATT fallback prototype now all work
+  on the current reference setup
+- do not claim that iOS satisfies `SC-004` or that Android and iOS have parity
+  for 64 KiB throughput
+- if current iOS large-transfer behavior is described, cite the retained
+  deterministic-path evidence: recipient-confirmed 64 KiB runs completed at
+  `39.48-52.03 KB/s` depending on the passive reference peer
+- the proof-only GATT prototype remains non-normative and must not be cited as
+  product-conformance fallback evidence
 
 ## Current physical proof flow
 
@@ -125,5 +134,6 @@ Current blocker:
 3. Wait for a nearby Android or iOS proof peer to appear.
 4. Tap **Send Hello**.
 5. Confirm the diagnostics and inbound-message log match the quickstart flow.
-6. For 64 KiB proof runs, treat throughput as the remaining open benchmark
-   blocker rather than a launch or pairing problem.
+6. For 64 KiB proof runs, treat throughput as an accepted known limitation for
+   the current waived release rather than a launch or pairing problem, and do
+   not use this flow to claim iOS `SC-004` conformance.

@@ -132,27 +132,27 @@ now-deterministic mixed-platform path. The earlier recipient-confirmed proof-
 completion instability is retained as historical diagnostic evidence rather
 than the current blocker state.
 
-**Current closure-path selection (2026-05-14):** Continue on the explicit
-spec-conformance path. The waiver / known-limitation branch is not currently
-selected; the next required step is no longer another initiator-policy change
-or another small app-layer tuning change. The remaining branch is either a
-materially different transport/platform strategy or a switch to the explicit
-waiver path.
+**Current closure-path selection (2026-05-14):** The active project
+stakeholder selected the explicit waiver / known-limitation path for the
+current release in this session on `2026-05-14`. The MeshLink iOS path remains
+non-conformant to the throughput clause of `SC-004`, but release planning is
+now closed under the documented waiver guardrails instead of remaining blocked
+on another small app-layer tuning attempt.
 
-**Current blocker interpretation for remaining work (2026-05-14):**
+**Selected-waiver guardrails for release work (2026-05-14):**
 
-- Treat the remaining iPhone release blocker as the normative throughput gap on
-  the MeshLink path, not as an active recipient-confirmed proof-completion
-  failure on the current Samsung/OPPO reference path.
-- Recipient-confirmed proof completion must remain covered by retained physical
-  evidence during any further throughput tuning, because the restored 5/5 series
-  is now part of the blocker-closing story.
-- Proof-only GATT numbers may guide investigation, but they are not an
-  acceptable blocker-closing workaround unless the specification itself is
-  amended.
-- Blocker-closing evidence must continue to come from the MeshLink path on
-  reference hardware and include retained recipient-confirmed `Sent` runs, not
-  just sender-side completion or passive-peer partial logs.
+- Do not claim that iOS meets `SC-004` or achieves `>= 60 KB/s` single-hop
+  64 KiB throughput on the MeshLink path.
+- Do not claim Android/iOS parity for 64 KiB throughput; parity claims remain
+  limited to API surface, trust, discovery, routing behavior, power
+  diagnostics, and the measured 256-byte latency path.
+- If release notes or public docs mention current iOS large-transfer behavior,
+  cite the retained deterministic-path evidence: recipient-confirmed 64 KiB
+  runs completed at `39.48-52.03 KB/s` depending on the passive reference peer.
+- Continue to state that recipient-confirmed 64 KiB proof completion is
+  restored on the current MeshLink path.
+- Treat the proof-only GATT prototype as investigative evidence only; it is not
+  a product-conformance fallback.
 
 **Normative evidence-gap status after follow-up coverage closure (2026-05-14):**
 
@@ -167,10 +167,11 @@ waiver path.
   payload, the latest retained iPhone 15 -> OPPO LOW-power 256-byte rerun
   completed `Sent` in `239 ms`.
 
-These follow-up closures do not change the remaining iOS `SC-004` throughput
-blocker. Any release-readiness or full-conformance claim MUST still resolve
-that blocker through either retained passing evidence on reference hardware or
-an explicit waiver / known-limitation path recorded in the canonical docs.
+These follow-up closures do not change the underlying iOS `SC-004` throughput
+non-conformance. The current release path now depends on the explicit waiver /
+known-limitation record in the canonical docs; any future release-readiness or
+full-conformance claim without that waiver MUST instead retain passing evidence
+on reference hardware.
 
 ## Artifact Governance & Source-of-Truth Precedence
 
