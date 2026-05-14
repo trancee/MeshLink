@@ -334,28 +334,30 @@ error behavior.
   developer-visible lifecycle states, error categories, and diagnostic event
   meanings for equivalent workflows.
 
-### Release-decision framing for SC-004 (2026-05-12)
+### Release-decision framing for SC-004 (2026-05-14)
 
-Current validation evidence does not satisfy the iOS half of **SC-004** and
-also does not yet provide a clean recipient-confirmed physical proof story for
-the current MeshLink path. The latest clean reference-hardware L2CAP run on
-iPhone 15 -> Samsung still measured `19.94 KB/s` for a 64 KB single-hop
-transfer, below the required `>= 60 KB/s`. A fresh recipient-confirmed
-MeshLink matrix rerun on iPhone 15 -> Samsung/OPPO for both 256-byte and 64 KB
-payloads then ended `ReceiptTimeout` in all four cells, while the passive
-Android peers retained matching `BENCHMARK receipt send(...) ->
-NotSent(reason=UNREACHABLE)` lines for the same tokens. The retained baselines
-in `benchmarks/README.md` are evidence only; they do not replace or relax the
-normative threshold in **SC-004** or the reviewer-evidence expectations in
-this specification.
+Current validation evidence still does not satisfy the iOS half of **SC-004**,
+but the stricter recipient-confirmed 64 KB physical proof story is now
+restored on the current MeshLink path. The post-remediation recipient-confirmed
+series on reference hardware completed 5/5 on both passive peers: iPhone 15 ->
+OPPO finished at `14.50-17.09 KB/s` (average `15.57 KB/s`), and iPhone 15 ->
+Samsung finished at `27.85-33.56 KB/s` (average `30.64 KB/s`). Those retained
+runs remain well below the required `>= 60 KB/s` iOS target. The older
+recipient-confirmed `ReceiptTimeout` / `UNREACHABLE` matrices are retained in
+`benchmarks/README.md` and `research.md` as superseded diagnostic evidence;
+they no longer describe the current physical path. The retained baselines are
+evidence only; they do not replace or relax the normative threshold in
+**SC-004** or the reviewer-evidence expectations in this specification.
 
-Current blocker scope (2026-05-12):
+Current blocker scope (2026-05-14):
 
-- **Normative SC-004 non-conformance:** iOS single-hop 64 KB throughput
-  remains far below target on current reference hardware.
-- **Recipient-confirmed proof-completion failure:** the current MeshLink
-  physical proof path cannot yet demonstrate stable round-trip completion even
-  for 256-byte cases under the stricter proof-receipt benchmark protocol.
+- **Normative SC-004 non-conformance:** iOS single-hop 64 KB throughput still
+  remains far below target on current reference hardware, even after the proof
+  path was stabilized.
+- **Recipient-confirmed proof completion restored:** the current MeshLink
+  physical proof path now demonstrates stable round-trip completion on Samsung
+  and OPPO for the recipient-confirmed 64 KB benchmark protocol, so this is no
+  longer the active blocker state.
 - **Proof-only fallback evidence is insufficient:** the native GATT prototype
   is feasible, but it remains supporting evidence only and still stays well
   below the normative iOS target; it does not close or relax the MeshLink
@@ -365,30 +367,26 @@ Until the iOS half of **SC-004** is met or this specification is explicitly
 amended, the feature remains non-conformant to **SC-004**. A release may
 therefore take only one of two explicit paths:
 
-1. **Block release on spec conformance** and keep the iOS throughput and
-   recipient-confirmed proof-completion work open until **SC-004** is met on
-   reference hardware with clean retained proof evidence.
+1. **Block release on spec conformance** and keep the iOS throughput work open
+   until **SC-004** is met on reference hardware with clean retained proof
+   evidence.
 2. **Ship under an explicit waiver / known limitation** that narrows any
    public iOS large-transfer performance claim, links to the retained
-   benchmark evidence, and records stakeholder acceptance of the residual
-   risk. If this path is chosen, the waiver MUST also acknowledge that the
-   recipient-confirmed MeshLink proof matrix is currently unstable and that the
+   benchmark evidence, and records stakeholder acceptance of the residual risk.
+   If this path is chosen, the waiver MUST acknowledge that recipient-
+   confirmed proof completion is restored on the current path but that the
+   measured throughput still remains below the normative target and that the
    proof-only GATT prototype is not product-conformance evidence.
 
 Residual risk if the waiver path is chosen:
 
-- iOS single-hop 64 KB transfers can complete at roughly one third of the
-  target throughput on current reference hardware.
-- The current MeshLink proof path cannot yet reliably produce
-  recipient-confirmed completion on Samsung/OPPO even for 256-byte cases,
-  because passive-peer proof receipts can still expire `UNREACHABLE` on the
-  return path.
+- iOS single-hop 64 KB transfers still complete far below the normative
+  throughput target on current reference hardware.
 - The proof-only GATT prototype can complete on the same hardware, but only at
   roughly `21.96-23.92 KB/s` and outside product-conformance scope.
 - Cross-platform parity claims remain accurate for API surface, trust,
   discovery, routing behavior, and the measured 256-byte latency path, but not
-  for full conformance with the iOS throughput clause of **SC-004** or for a
-  clean recipient-confirmed physical proof story on the current MeshLink path.
+  for full conformance with the iOS throughput clause of **SC-004**.
 
 ### Proof-integration role, blocker handling, and reviewer evidence
 

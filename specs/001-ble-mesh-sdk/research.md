@@ -676,6 +676,53 @@ Next bounded remediation target:
   That is the smallest next target that explains both the symmetric OPPO case
   and the stale-state Samsung asymmetry.
 
+### Recipient-confirmed 64 KiB proof completion restored on the MeshLink path (2026-05-14)
+
+A later bounded remediation sequence restored recipient-confirmed 64 KiB
+physical proof completion on both reference Android peers without changing the
+normative throughput posture.
+
+Bounded changes that materially altered the failure shape:
+
+- reduced the inbound transfer ACK batch threshold from 64 to 16 chunks so the
+  passive Android peers can acknowledge progress before the direct link dies
+  around the earlier 25–60 chunk window
+- increased the iOS L2CAP write-stall timeout from 5 s to 10 s so the sender
+  does not self-close while the Android peer is still draining and
+  acknowledging late-transfer chunks
+- delivered completed inbound transfers immediately on full chunk receipt
+  instead of waiting for a later `TransferComplete` control frame
+- flushed queued stale iOS chunk frames before enqueuing `TransferComplete`, so
+  the completion signal and immediate proof-receipt traffic are no longer stuck
+  behind obsolete duplicate chunk frames in the sender queue
+
+The most important new physical evidence is the post-queue-flush stable series:
+
+- iPhone 15 -> OPPO, 64 KiB recipient-confirmed MeshLink series (5 runs):
+  - retained run directory: `/tmp/oppo_flush_queue_series_20260514T112028`
+  - sender results: 5/5 `Sent`
+  - passive OPPO results: 5/5 `BENCHMARK receipt send(...) -> Sent`
+  - sender throughput range: `14.50-17.09 KB/s` (average `15.57 KB/s`)
+- iPhone 15 -> Samsung, 64 KiB recipient-confirmed MeshLink series (5 runs):
+  - retained run directory: `/tmp/samsung_flush_queue_series_20260514T112327`
+  - sender results: 5/5 `Sent`
+  - passive Samsung results: 5/5 `BENCHMARK receipt send(...) -> Sent`
+  - sender throughput range: `27.85-33.56 KB/s` (average `30.64 KB/s`)
+
+This closes the earlier proof-completion blocker hypothesis from the retained
+2026-05-12 / 2026-05-13 recipient-confirmed failures. Those older
+`ReceiptTimeout` / `UNREACHABLE` runs remain useful diagnostic history, but they
+no longer describe the current MeshLink physical path.
+
+The remaining blocker is now narrower and purely normative:
+
+- recipient-confirmed 64 KiB round-trip proof completion is restored on the
+  current reference path for both OPPO and Samsung
+- iOS single-hop 64 KiB throughput still remains well below the required
+  `>= 60 KB/s` target even on the restored-stability path
+- therefore the remaining open issue is iOS `SC-004` throughput
+  non-conformance, not proof-completion instability itself
+
 ### Permission-denied blocked-validation expectation
 
 Automated contract coverage now asserts that blocked validation runs surface

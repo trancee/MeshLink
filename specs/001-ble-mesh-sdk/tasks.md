@@ -319,6 +319,41 @@ delivery history.
 
 ---
 
+## Phase 17: Follow-up - Recipient-Confirmed 64 KiB Large-Transfer Stabilization
+
+**Purpose**: Restore clean recipient-confirmed 64 KiB physical proof completion
+on the iPhone 15 MeshLink path, then retain the resulting Samsung / OPPO
+stability evidence without weakening the separate iOS throughput blocker.
+
+- [X] T082 [P] Add bounded large-transfer stabilization diagnostics and
+  receiver-side ACK/progress evidence for the failing iPhone 15 64 KiB proof
+  path in `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/engine/MeshEngine.kt`,
+  `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/transfer/TransferSession.kt`,
+  `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/transport/BleTransport.kt`,
+  `meshlink/src/androidMain/kotlin/ch/trancee/meshlink/platform/android/AndroidBleTransport.kt`,
+  and `meshlink/src/iosMain/kotlin/ch/trancee/meshlink/platform/ios/IosBleTransport.kt`.
+- [X] T083 Implement one bounded remediation path for recipient-confirmed 64 KiB
+  proof completion on the MeshLink path in
+  `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/engine/MeshEngine.kt`,
+  `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/transfer/TransferSession.kt`,
+  `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/transport/BleTransport.kt`,
+  and `meshlink/src/iosMain/kotlin/ch/trancee/meshlink/platform/ios/IosBleTransport.kt`,
+  including full-chunk completion delivery and queued-frame flush handling on
+  the iOS sender path.
+- [X] T084 [P] Re-run a 5-run iPhone 15 -> OPPO 64 KiB recipient-confirmed
+  MeshLink series on the stabilized path and retain the resulting evidence in
+  `benchmarks/README.md` and `specs/001-ble-mesh-sdk/research.md`.
+- [X] T085 [P] Re-run a 5-run iPhone 15 -> Samsung 64 KiB recipient-confirmed
+  MeshLink series on the same stabilized path and retain the resulting evidence
+  in `benchmarks/README.md` and `specs/001-ble-mesh-sdk/research.md`.
+- [X] T086 Sync `benchmarks/README.md`, `specs/001-ble-mesh-sdk/research.md`,
+  `specs/001-ble-mesh-sdk/plan.md`, `specs/001-ble-mesh-sdk/spec.md`, and
+  `specs/001-ble-mesh-sdk/tasks.md` so they reflect that recipient-confirmed
+  64 KiB proof completion is restored on Samsung/OPPO while iOS `SC-004`
+  throughput remains the active blocker.
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies
@@ -339,6 +374,7 @@ delivery history.
 - **Follow-up Reverse-Path Peer Reappearance Investigation (Phase 14)**: Runs after Phase 13 and consumes the passive-retry matrix evidence to distinguish missing peer rediscovery from reverse-path route / handshake non-reappearance.
 - **Follow-up Compatibility and Acceptance-Criteria Clarification (Phase 15)**: Runs after Phase 14, or in parallel with `T070`–`T072` where only artifact clarification / offline validation work is involved.
 - **Follow-up Explicit Edge-Case and Trust-Reset Coverage Closure (Phase 16)**: Runs after Phase 15 and blocks any full-conformance or release-readiness claim until `T074`–`T081` are complete.
+- **Follow-up Recipient-Confirmed 64 KiB Large-Transfer Stabilization (Phase 17)**: Runs after Phase 16 when the remaining active physical blocker is recipient-confirmed large-transfer stability, and feeds the final throughput-only blocker framing once Samsung/OPPO proof completion is restored.
 
 ### User Story Dependencies
 
@@ -400,7 +436,7 @@ Task: "Implement `TransferSession`, ACK scoreboard, configurable delivery-deadli
 5. Finish with benchmark, BCV, docs, and quickstart gates
 6. If `SC-004`, recipient-confirmed proof completion, or remaining artifact /
    acceptance-criteria gaps stay open, execute the appended follow-up phases in
-   ledger order (currently Phases 7–16) before declaring release readiness.
+   ledger order (currently Phases 7–17) before declaring release readiness.
 7. Do not make a full-conformance claim for `FR-003a`, `FR-015a`, `FR-016`,
    `SC-001`, or `SC-006` until `T074`–`T081` are complete and their evidence is
    retained in the canonical docs.

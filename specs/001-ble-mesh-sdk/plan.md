@@ -32,11 +32,13 @@ dependencies” request, the runtime ships no additional third-party libraries
 beyond the constitutionally allowed `kotlinx-coroutines-core`; codec, routing,
 and crypto-provider logic remain in-repo. Repository baselines and physical
 proof findings are recorded in `benchmarks/README.md` and
-`specs/001-ble-mesh-sdk/research.md`; single-hop iOS 64 KiB throughput and
-recipient-confirmed MeshLink proof completion on the current physical path
-remain explicit release-decision blockers unless a documented waiver narrows
-the public iOS large-transfer claim and acknowledges the retained proof-
-evidence gap.
+`specs/001-ble-mesh-sdk/research.md`; single-hop iOS 64 KiB throughput on the
+current physical MeshLink path remains the explicit release-decision blocker
+unless a documented waiver narrows the public iOS large-transfer claim and
+acknowledges the retained throughput evidence gap. Recipient-confirmed MeshLink
+proof completion on the current Samsung/OPPO physical path has been restored and
+must stay covered by the retained benchmark evidence, but it is no longer the
+active blocker state.
 
 ## Technical Context
 
@@ -48,7 +50,7 @@ evidence gap.
 **Project Type**: Kotlin Multiplatform library SDK with benchmark module and runnable Android/iOS proof integrations  
 **Performance Goals**: ≥80 KB/s Android L2CAP, ≥60 KB/s iOS L2CAP, 50 ms p95 for 1-hop 256 B message, 8 MB steady-state heap at 8 peers, ≤5% scan duty in LOW mode, ≤5 s for a 1-hop 256 B message in LOW mode after peer discovery and connection establishment, power-tier output that exposes advertisement interval / max-connections / chunk-budget behavior, <500 ms from `mesh.start()` to first advertisement, 3 s control-plane route convergence for 10-node topology, <1 µs JVM codec encode/decode
 **Benchmark Evidence Handling**: `benchmarks/README.md` retains observed benchmark and proof-app evidence for reviewer traceability. Those retained baselines do not lower or replace the normative success criteria in `spec.md` or the mirrored performance goals above.
-**Constraints**: Offline-only; no servers or accounts; TOFU trust pinning; 64 KiB release payload limit; configurable in-memory delivery retry deadline; no retry persistence across restart; bounded, jittered exponential backoff for no-route scheduling; immediate retry on route availability; L2CAP-first on the normative product path; the retained GATT prototype is proof-only investigative evidence and does not constitute product-conformance fallback unless the specification is explicitly amended; no additional third-party runtime dependencies; current physical validation still leaves the iOS ≥60 KB/s 64 KiB single-hop transfer target unmet on reference hardware, and the recipient-confirmed MeshLink proof matrix still times out on Samsung/OPPO for both 256-byte and 64 KiB payloads, so any release before remediation requires an explicit waiver and documented limitation
+**Constraints**: Offline-only; no servers or accounts; TOFU trust pinning; 64 KiB release payload limit; configurable in-memory delivery retry deadline; no retry persistence across restart; bounded, jittered exponential backoff for no-route scheduling; immediate retry on route availability; L2CAP-first on the normative product path; the retained GATT prototype is proof-only investigative evidence and does not constitute product-conformance fallback unless the specification is explicitly amended; no additional third-party runtime dependencies; current physical validation still leaves the iOS ≥60 KB/s 64 KiB single-hop transfer target unmet on reference hardware even though recipient-confirmed 64 KiB MeshLink proof completion is now restored on both Samsung and OPPO, so any release before remediation still requires an explicit waiver and documented limitation
 **Constitutional Constraints**: `explicitApi()` required; Detekt + ktfmt gates; BCV-tracked public API; 100% line/branch coverage; Power-assert diagnostics; Wycheproof validation; canonical virtual harness for integration tests; Android/iOS parity for API, docs, state, diagnostics, the shared 26-code diagnostic catalog, and the sealed `MeshLinkException` hierarchy; benchmark evidence for crypto, routing lookup, wire codec, route convergence, transport throughput/latency, steady-state memory, LOW-power duty cycle, and cold-start paths; all shared logic in `commonMain`; no external crypto library; FlatBuffers wire compatibility plus explicit backward-compatibility validation evidence; runtime dependency budget limited to `kotlinx-coroutines-core`; repository benchmark baselines must stay documented in `benchmarks/README.md` and `specs/001-ble-mesh-sdk/research.md`
 **Applicable Skills**: kotlin-multiplatform, kotlin-gradle-plugin, gradle-build-tool, kotlin-api-guidelines, android-ble, android-bluetooth-sockets, core-bluetooth, kmp-ios-integration, flatbuffers, babel-rfc8966, noise-protocol-framework, tcp-sack-rfc2018, optimize-ble-throughput
 **Scale/Scope**: One shared SDK module, two mobile targets, one public API surface, 8-peer steady-state mesh, 10-node convergence validation topology, 64 KiB maximum v1 payload
@@ -90,48 +92,47 @@ evidence gap.
       `docs/explanation/`, and `AGENTS.md` stay synchronized when feature or
       governance behavior changes.
 
-**Post-design re-evaluation (2026-05-12):** Existing `research.md`,
+**Post-design re-evaluation (2026-05-14):** Existing `research.md`,
 `data-model.md`, `quickstart.md`, and `contracts/` remain aligned with the
 spec and both constitutions. No unresolved clarifications remain. The open
-delivery risks are now two coupled surfaces on reference hardware: closing the
-still-unmet iOS single-hop 64 KiB throughput target and restoring a clean
-recipient-confirmed MeshLink proof path.
+delivery risk is now narrower on reference hardware: closing the still-unmet
+iOS single-hop 64 KiB throughput target while preserving the newly restored
+recipient-confirmed MeshLink proof path on Samsung and OPPO.
 
-**Release-decision framing (2026-05-12):** `SC-004` remains partially unmet on
-iOS, and the stricter recipient-confirmed MeshLink proof matrix still fails on
-the current physical path. Android meets its single-hop throughput target, but
-the best clean iPhone 15 -> Samsung 64 KiB L2CAP run retained in the
-repository reached only `19.94 KB/s`, below the required `>= 60 KB/s`. A
-fresh recipient-confirmed MeshLink rerun on iPhone 15 -> Samsung/OPPO for
-both 256-byte and 64 KiB payloads then ended `ReceiptTimeout` in all four
-cells, while the passive Android peers retained matching `BENCHMARK receipt
-send(...) -> NotSent(reason=UNREACHABLE)` lines for the same tokens. A
-proof-only native GATT prototype is feasible (`23.92 KB/s` to Samsung,
-`21.96 KB/s` to OPPO), but it remains supporting evidence only and does not
+**Release-decision framing (2026-05-14):** `SC-004` remains partially unmet on
+iOS, but the stricter recipient-confirmed 64 KiB MeshLink proof path is now
+restored on the current reference hardware. Android still meets its single-hop
+throughput target, while the post-remediation iPhone 15 recipient-confirmed
+series now finishes 5/5 on both passive peers: OPPO completed at
+`14.50-17.09 KB/s` (average `15.57 KB/s`) and Samsung completed at
+`27.85-33.56 KB/s` (average `30.64 KB/s`). Those restored recipient-confirmed
+runs remain well below the required `>= 60 KB/s` iOS target. A proof-only
+native GATT prototype remains feasible (`23.92 KB/s` to Samsung,
+`21.96 KB/s` to OPPO), but it is still supporting evidence only and does not
 satisfy the normative iOS target.
 
-The release path is therefore binary: either keep release blocked until the
-MeshLink path satisfies `SC-004` and produces clean recipient-confirmed proof
-evidence, or ship only under an explicit waiver that narrows iOS large-
-transfer performance claims and acknowledges the current proof-completion
-instability. The residual risk is now three fold: materially slower 64 KiB
-single-hop transfers on iOS, inability to demonstrate clean recipient-
-confirmed MeshLink completion on current reference hardware even for 256-byte
-cases, and unresolved return-path session/route instability during passive-
-peer proof receipts.
+The release path therefore remains binary, but the blocker has narrowed:
+either keep release blocked until the MeshLink path satisfies the iOS half of
+`SC-004`, or ship only under an explicit waiver that narrows iOS large-
+transfer performance claims and acknowledges the retained throughput evidence.
+The residual risk is now materially slower 64 KiB single-hop transfers on iOS;
+the earlier recipient-confirmed proof-completion instability is retained as
+historical diagnostic evidence rather than the current blocker state.
 
-**Current blocker interpretation for remaining work (2026-05-12):**
+**Current blocker interpretation for remaining work (2026-05-14):**
 
-- Treat the iPhone release blocker as two coupled MeshLink surfaces, not one:
-  outbound single-hop throughput and return-path proof-completion stability.
-- Throughput-only improvements are insufficient if the recipient-confirmed
-  proof matrix still ends `ReceiptTimeout`.
+- Treat the remaining iPhone release blocker as the normative throughput gap on
+  the MeshLink path, not as an active recipient-confirmed proof-completion
+  failure on the current Samsung/OPPO reference path.
+- Recipient-confirmed proof completion must remain covered by retained physical
+  evidence during any further throughput tuning, because the restored 5/5 series
+  is now part of the blocker-closing story.
 - Proof-only GATT numbers may guide investigation, but they are not an
   acceptable blocker-closing workaround unless the specification itself is
   amended.
-- Blocker-closing evidence must come from the MeshLink path on reference
-  hardware and include retained recipient-confirmed `Sent` runs, not just
-  sender-side completion or passive-peer partial logs.
+- Blocker-closing evidence must continue to come from the MeshLink path on
+  reference hardware and include retained recipient-confirmed `Sent` runs, not
+  just sender-side completion or passive-peer partial logs.
 
 **Additional open normative evidence gaps (2026-05-13):**
 
