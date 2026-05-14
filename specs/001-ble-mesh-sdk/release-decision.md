@@ -119,6 +119,16 @@ product-path integration candidate for a future non-waived release, while
 keeping the current release on the explicit waiver path until product-path
 integration and fresh retained non-proof evidence succeed.
 
+**Current Phase-21 blocker:** the first shared-Kotlin product-path integration
+attempt is blocked on the iOS bridge seam, not on the proof bearer itself. The
+retained Samsung product-path attempt
+(`/tmp/ios_meshlink_gattside_samsung_bridge_20260514T191931`) showed the side
+link connecting and becoming ready, then failed inside the iOS shared-Kotlin
+transport with `kotlin.TypeCastException: class kotlinx.cinterop.CPointer
+cannot be cast to class platform.Foundation.NSData` while trying to feed GATT
+notify chunks into `CBPeripheralManager.updateValue`. Until that bridge is
+resolved, Phase 21 cannot truthfully claim a working product-path bearer.
+
 This future branch does not change the current release claims or waiver
 guardrails.
 

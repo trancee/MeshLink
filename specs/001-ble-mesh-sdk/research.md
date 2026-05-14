@@ -1217,3 +1217,47 @@ Interpretation:
   can cross `>= 60 KB/s`; it clearly can. The next question is whether MeshLink
   can integrate that bearer into the product path with enough stability to
   replace the current waived posture
+
+### First shared-Kotlin product-path integration attempt blocker (2026-05-14)
+
+A first product-path integration attempt then tried to keep the current L2CAP
+path for discovery / handshake / reverse-direction control while adding a
+mixed-platform iPhone->Android GATT-notify side channel for outbound
+`DirectWireFrame.Data` traffic.
+
+Retained blocker evidence:
+
+- Samsung product-path attempt with side-link connect success:
+  `/tmp/ios_meshlink_gattside_samsung_bridge_20260514T191931`
+  - Android logcat retained:
+    - `initiating GATT notify side link ...`
+    - `GATT notify side link ... status=0 state=CONNECTED`
+    - `GATT notify side link ... mtu=517 status=0`
+    - `GATT notify side link ready ...`
+  - iPhone console retained repeated
+    `sending 505 bytes via GATT notify side link ...`
+  - the same iPhone console then retained the concrete blocker:
+    `kotlin.TypeCastException: class kotlinx.cinterop.CPointer cannot be cast to class platform.Foundation.NSData`
+  - scored result remained
+    `BENCHMARK transport bytes=65536 elapsedMs=15050 throughputKBps=4.25 result=NotSent(reason=UNREACHABLE)`
+- Samsung product-path attempt with side-link instability:
+  `/tmp/ios_meshlink_gattside_samsung_pump_20260514T191127`
+  - Android logcat retained `status=133 state=DISCONNECTED` on the GATT side
+    link before it became usable
+- OPPO and Samsung earlier product-path attempts likewise remained
+  non-conformant and did not produce retained successful product-path sender
+  evidence.
+
+Interpretation:
+
+- the future branch is still promising at the proof-app level
+- but the first real MeshLink transport integration is now blocked one layer
+  lower than transport policy: getting a supported `ByteArray -> NSData`
+  bridge into `CBPeripheralManager.updateValue` from shared Kotlin/Native code
+- the proof-only Swift host already proves that the iOS API path itself is
+  viable; the blocker is specifically the shared-Kotlin integration seam, not
+  the BLE bearer concept
+- the next unblocker is therefore not another benchmark rerun. It is either:
+  1. a verified Kotlin/Native Foundation bridge for `NSData`, or
+  2. a minimal Swift/ObjC helper that exposes `updateValue` safely to the KMP
+     transport layer

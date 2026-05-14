@@ -516,6 +516,13 @@ real MeshLink transport candidate for a future non-waived release.
   `specs/001-ble-mesh-sdk/research.md`, and
   `specs/001-ble-mesh-sdk/release-decision.md`, and decide whether the new
   bearer actually closes iOS `SC-004` without the release waiver.
+- [ ] T104 Resolve the iOS product-path `CBPeripheralManager.updateValue`
+  bridging blocker uncovered during the first shared-Kotlin integration attempt:
+  the proof-only Swift host works, but the shared Kotlin/Native transport path
+  currently lacks a verified `ByteArray -> NSData` bridge for GATT-notify frame
+  sends. Record the chosen fix (supported Kotlin/Native bridge or minimal
+  Swift/ObjC helper reachable from KMP) before reopening `T102`/`T103`
+  physical reruns.
 
 ---
 
