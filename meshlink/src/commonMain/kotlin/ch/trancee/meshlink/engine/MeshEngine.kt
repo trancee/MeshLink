@@ -1254,6 +1254,26 @@ private constructor(
                             ),
                 )
             }
+            if (acceptance.complete) {
+                inboundTransfers.remove(frame.transferId)
+                emitInboundTransferProgress(
+                    stage = "transfer.receive.complete",
+                    peerId = peerId,
+                    session = inboundSession,
+                    metadata =
+                        mapOf(
+                            "complete" to "true",
+                            "receivedChunks" to inboundSession.receivedChunkCount().toString(),
+                            "triggerChunkIndex" to frame.chunkIndex.toString(),
+                        ),
+                )
+                deliverInnerEnvelope(
+                    immediatePeerId = peerId,
+                    originPeerId = inboundSession.originPeerId,
+                    encryptedPayload = inboundSession.assembledPayload(),
+                    priority = DeliveryPriority.NORMAL,
+                )
+            }
             return
         }
         val relaySession = relayTransfers[frame.transferId] ?: return
@@ -1884,8 +1904,8 @@ private constructor(
         private const val INLINE_MESSAGE_PAYLOAD_BYTES: Int = 1_024
         private const val LARGE_INLINE_SEND_TRANSPORT_BUDGET_BYTES: Int = 16 * 1024
         private const val TRANSFER_CHUNK_PAYLOAD_BYTES: Int = 392
-        private val TRANSFER_ACK_SETTLEMENT_TIMEOUT = 500.milliseconds
-        private val TRANSFER_ACK_IDLE_WINDOW = 25.milliseconds
+        private val TRANSFER_ACK_SETTLEMENT_TIMEOUT = 1_500.milliseconds
+        private val TRANSFER_ACK_IDLE_WINDOW = 100.milliseconds
         private val HANDSHAKE_TIMEOUT = 1.seconds
         private val INITIAL_BACKOFF = 250.milliseconds
 
