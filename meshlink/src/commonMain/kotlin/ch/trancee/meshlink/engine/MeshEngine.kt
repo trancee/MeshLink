@@ -991,8 +991,7 @@ private constructor(
                         )
                         return SendResult.Sent
                     }
-                    val chunkSendWindow = missingChunks.take(TRANSFER_CHUNK_SEND_WINDOW)
-                    chunkSendWindow.forEach { chunkIndex ->
+                    missingChunks.forEach { chunkIndex ->
                         routeAvailable =
                             sendTransferTowardsDestination(
                                 session.destinationPeerId,
@@ -1016,9 +1015,7 @@ private constructor(
                                     mapOf(
                                         "ackedChunks" to
                                             session.acknowledgedChunkCount().toString(),
-                                        "sendWindowChunks" to chunkSendWindow.size.toString(),
                                         "totalChunks" to session.totalChunks.toString(),
-                                        "remainingChunks" to missingChunks.size.toString(),
                                     ),
                             ),
                     )
@@ -1889,7 +1886,6 @@ private constructor(
         private const val TRANSFER_CHUNK_PAYLOAD_BYTES: Int = 392
         private val TRANSFER_ACK_SETTLEMENT_TIMEOUT = 500.milliseconds
         private val TRANSFER_ACK_IDLE_WINDOW = 25.milliseconds
-        private const val TRANSFER_CHUNK_SEND_WINDOW: Int = 16
         private val HANDSHAKE_TIMEOUT = 1.seconds
         private val INITIAL_BACKOFF = 250.milliseconds
 
