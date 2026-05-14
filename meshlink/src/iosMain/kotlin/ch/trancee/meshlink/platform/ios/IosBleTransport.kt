@@ -1051,7 +1051,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
             private const val MAX_COALESCED_FRAMES: Int = 16
             private const val MAX_COALESCED_BATCH_BYTES: Int = 16 * 1024
             private const val ACK_LIKELY_ENCRYPTED_BYTES: Int = 192
-            private const val WRITE_STALL_TIMEOUT_MS: Long = 5_000L
+            private const val WRITE_STALL_TIMEOUT_MS: Long = 10_000L
             private const val FRAME_PREFIX_BYTES: Int = 4
             private const val TELEMETRY_HEX_SNIPPET_BYTES: Int = 16
         }
