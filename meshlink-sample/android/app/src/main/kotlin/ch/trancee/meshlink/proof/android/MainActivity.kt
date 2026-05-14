@@ -272,6 +272,7 @@ private object MeshLinkProofRuntime {
     private var appContext: Context? = null
     private var runtimeStateText: String = MeshLinkState.Uninitialized.toString()
     private var gattBenchmarkServer: ProofGattBenchmarkServer? = null
+    private var gattNotifyBenchmarkClient: ProofGattNotifyBenchmarkClient? = null
     private var benchmarkTokenCounter: Long = 0L
 
     val updates: Flow<Unit> = updatesFlow.asSharedFlow()
@@ -307,6 +308,7 @@ private object MeshLinkProofRuntime {
             ) {
                 this.launchConfig = resolvedLaunchConfig
                 gattBenchmarkServer?.stop()
+                gattNotifyBenchmarkClient?.stop()
                 meshLink =
                     if (resolvedLaunchConfig.benchmarkTransport == ProofBenchmarkTransport.MeshLink) {
                         MeshLink.create(
@@ -324,6 +326,7 @@ private object MeshLinkProofRuntime {
                         null
                     }
                 gattBenchmarkServer = null
+                gattNotifyBenchmarkClient = null
                 currentLaunchConfig = resolvedLaunchConfig
                 collectorsStarted = false
                 running = false
@@ -353,6 +356,7 @@ private object MeshLinkProofRuntime {
                     when (resolvedLaunchConfig.benchmarkTransport) {
                         ProofBenchmarkTransport.MeshLink -> "meshlink"
                         ProofBenchmarkTransport.GattPrototype -> "gattPrototype"
+                        ProofBenchmarkTransport.GattNotifyPrototype -> "gattNotifyPrototype"
                     }
                 val keyHashSuffix =
                     localAdvertisementKeyHashHex?.let { keyHash -> " keyHash=$keyHash" } ?: ""
@@ -364,116 +368,180 @@ private object MeshLinkProofRuntime {
     }
 
     fun start(): Job {
-        if (launchConfig.benchmarkTransport == ProofBenchmarkTransport.GattPrototype) {
-            return scope.launch {
-                val startedAtNanos = SystemClock.elapsedRealtimeNanos()
-                if (!launchConfig.disableAutoSend) {
-                    runtimeStateText = "Error(GATT benchmark)"
-                    appendLog(
-                        "gatt.benchmark.start() failed: Android GATT prototype currently supports passive server mode only; relaunch with meshlink.disableAutoSend=true"
-                    )
-                    updatesFlow.tryEmit(Unit)
-                    return@launch
-                }
-                val context = appContext ?: error("MeshLinkProofRuntime.initialize must be called first")
-                val bluetoothManager =
-                    context.getSystemService(BluetoothManager::class.java)
-                        ?: error("BluetoothManager is unavailable")
-                val advertiser = bluetoothManager.adapter?.bluetoothLeAdvertiser
-                val server =
-                    gattBenchmarkServer
-                        ?: ProofGattBenchmarkServer(
-                            context = context,
-                            bluetoothManager = bluetoothManager,
-                            advertiser = advertiser,
-                            logger = ::appendLog,
-                            appId = launchConfig.appId,
-                        )
-                            .also { createdServer ->
-                                gattBenchmarkServer = createdServer
-                            }
-                val result = runCatching { server.start() }
-                result.onSuccess {
-                    running = true
-                    runtimeStateText = "Running(GATT benchmark passive)"
-                    appendLog("gatt.benchmark.start() -> Started")
-                    if (launchConfig.benchmarkColdStart) {
+        when (launchConfig.benchmarkTransport) {
+            ProofBenchmarkTransport.GattPrototype -> {
+                return scope.launch {
+                    val startedAtNanos = SystemClock.elapsedRealtimeNanos()
+                    if (!launchConfig.disableAutoSend) {
+                        runtimeStateText = "Error(GATT benchmark)"
                         appendLog(
-                            "BENCHMARK coldStart elapsedMs=${elapsedMillisSince(startedAtNanos)} result=Started mode=gattPrototype"
+                            "gatt.benchmark.start() failed: Android GATT prototype currently supports passive server mode only; relaunch with meshlink.disableAutoSend=true"
+                        )
+                        updatesFlow.tryEmit(Unit)
+                        return@launch
+                    }
+                    val context =
+                        appContext ?: error("MeshLinkProofRuntime.initialize must be called first")
+                    val bluetoothManager =
+                        context.getSystemService(BluetoothManager::class.java)
+                            ?: error("BluetoothManager is unavailable")
+                    val advertiser = bluetoothManager.adapter?.bluetoothLeAdvertiser
+                    val server =
+                        gattBenchmarkServer
+                            ?: ProofGattBenchmarkServer(
+                                context = context,
+                                bluetoothManager = bluetoothManager,
+                                advertiser = advertiser,
+                                logger = ::appendLog,
+                                appId = launchConfig.appId,
+                            )
+                                .also { createdServer ->
+                                    gattBenchmarkServer = createdServer
+                                }
+                    val result = runCatching { server.start() }
+                    result.onSuccess {
+                        running = true
+                        runtimeStateText = "Running(GATT benchmark passive)"
+                        appendLog("gatt.benchmark.start() -> Started")
+                        if (launchConfig.benchmarkColdStart) {
+                            appendLog(
+                                "BENCHMARK coldStart elapsedMs=${elapsedMillisSince(startedAtNanos)} result=Started mode=gattPrototype"
+                            )
+                        }
+                    }.onFailure { error ->
+                        running = false
+                        runtimeStateText = "Error(GATT benchmark)"
+                        appendLog(
+                            "gatt.benchmark.start() failed: ${error.javaClass.simpleName}: ${error.message.orEmpty()}"
                         )
                     }
-                }.onFailure { error ->
-                    running = false
-                    runtimeStateText = "Error(GATT benchmark)"
-                    appendLog(
-                        "gatt.benchmark.start() failed: ${error.javaClass.simpleName}: ${error.message.orEmpty()}"
-                    )
+                    updatesFlow.tryEmit(Unit)
                 }
-                updatesFlow.tryEmit(Unit)
             }
-        }
-
-        ensureCollectors()
-        return scope.launch {
-            val startedAtNanos = SystemClock.elapsedRealtimeNanos()
-            val result = runCatching { requireMeshLink().start() }
-            result.onSuccess { startResult ->
-                appendLog("mesh.start() -> $startResult")
-                if (launchConfig.benchmarkColdStart) {
-                    appendLog(
-                        "BENCHMARK coldStart elapsedMs=${elapsedMillisSince(startedAtNanos)} result=$startResult",
-                    )
+            ProofBenchmarkTransport.GattNotifyPrototype -> {
+                return scope.launch {
+                    val startedAtNanos = SystemClock.elapsedRealtimeNanos()
+                    val context =
+                        appContext ?: error("MeshLinkProofRuntime.initialize must be called first")
+                    val bluetoothManager =
+                        context.getSystemService(BluetoothManager::class.java)
+                            ?: error("BluetoothManager is unavailable")
+                    val client =
+                        gattNotifyBenchmarkClient
+                            ?: ProofGattNotifyBenchmarkClient(
+                                context = context,
+                                bluetoothManager = bluetoothManager,
+                                logger = ::appendLog,
+                                stateDidChange = { state ->
+                                    runtimeStateText = state
+                                    updatesFlow.tryEmit(Unit)
+                                },
+                                appId = launchConfig.appId,
+                            )
+                                .also { createdClient ->
+                                    gattNotifyBenchmarkClient = createdClient
+                                }
+                    val result = runCatching { client.start() }
+                    result.onSuccess {
+                        running = true
+                        appendLog("gatt.notify.start() -> Started")
+                        if (launchConfig.benchmarkColdStart) {
+                            appendLog(
+                                "BENCHMARK coldStart elapsedMs=${elapsedMillisSince(startedAtNanos)} result=Started mode=gattNotifyPrototype"
+                            )
+                        }
+                    }.onFailure { error ->
+                        running = false
+                        runtimeStateText = "Error(GATT notify benchmark)"
+                        appendLog(
+                            "gatt.notify.start() failed: ${error.javaClass.simpleName}: ${error.message.orEmpty()}"
+                        )
+                    }
+                    updatesFlow.tryEmit(Unit)
                 }
-                applyBenchmarkPowerSnapshot()
-            }.onFailure { error ->
-                appendLog(
-                    "mesh.start() failed: ${error.javaClass.simpleName}: ${error.message.orEmpty()}"
-                )
-                if (launchConfig.benchmarkColdStart) {
-                    appendLog(
-                        "BENCHMARK coldStart failed=${error.javaClass.simpleName}: ${error.message.orEmpty()}"
-                    )
+            }
+            ProofBenchmarkTransport.MeshLink -> {
+                ensureCollectors()
+                return scope.launch {
+                    val startedAtNanos = SystemClock.elapsedRealtimeNanos()
+                    val result = runCatching { requireMeshLink().start() }
+                    result.onSuccess { startResult ->
+                        appendLog("mesh.start() -> $startResult")
+                        if (launchConfig.benchmarkColdStart) {
+                            appendLog(
+                                "BENCHMARK coldStart elapsedMs=${elapsedMillisSince(startedAtNanos)} result=$startResult",
+                            )
+                        }
+                        applyBenchmarkPowerSnapshot()
+                    }.onFailure { error ->
+                        appendLog(
+                            "mesh.start() failed: ${error.javaClass.simpleName}: ${error.message.orEmpty()}"
+                        )
+                        if (launchConfig.benchmarkColdStart) {
+                            appendLog(
+                                "BENCHMARK coldStart failed=${error.javaClass.simpleName}: ${error.message.orEmpty()}"
+                            )
+                        }
+                    }
                 }
             }
         }
     }
 
     fun stop(): Job {
-        if (launchConfig.benchmarkTransport == ProofBenchmarkTransport.GattPrototype) {
-            return scope.launch {
-                val result = runCatching { gattBenchmarkServer?.stop() ?: Unit }
-                result.onSuccess {
-                    running = false
-                    runtimeStateText = MeshLinkState.Stopped.toString()
-                    appendLog("gatt.benchmark.stop() -> Stopped")
-                }.onFailure { error ->
-                    appendLog(
-                        "gatt.benchmark.stop() failed: ${error.javaClass.simpleName}: ${error.message.orEmpty()}"
-                    )
+        return when (launchConfig.benchmarkTransport) {
+            ProofBenchmarkTransport.GattPrototype -> {
+                scope.launch {
+                    val result = runCatching { gattBenchmarkServer?.stop() ?: Unit }
+                    result.onSuccess {
+                        running = false
+                        runtimeStateText = MeshLinkState.Stopped.toString()
+                        appendLog("gatt.benchmark.stop() -> Stopped")
+                    }.onFailure { error ->
+                        appendLog(
+                            "gatt.benchmark.stop() failed: ${error.javaClass.simpleName}: ${error.message.orEmpty()}"
+                        )
+                    }
+                    updatesFlow.tryEmit(Unit)
                 }
-                updatesFlow.tryEmit(Unit)
             }
-        }
-
-        return scope.launch {
-            synchronized(passiveReceiptRetryJobs) {
-                passiveReceiptRetryJobs.values.forEach(Job::cancel)
-                passiveReceiptRetryJobs.clear()
+            ProofBenchmarkTransport.GattNotifyPrototype -> {
+                scope.launch {
+                    val result = runCatching { gattNotifyBenchmarkClient?.stop() ?: Unit }
+                    result.onSuccess {
+                        running = false
+                        runtimeStateText = MeshLinkState.Stopped.toString()
+                        appendLog("gatt.notify.stop() -> Stopped")
+                    }.onFailure { error ->
+                        appendLog(
+                            "gatt.notify.stop() failed: ${error.javaClass.simpleName}: ${error.message.orEmpty()}"
+                        )
+                    }
+                    updatesFlow.tryEmit(Unit)
+                }
             }
-            val result = runCatching { requireMeshLink().stop() }
-            result.onSuccess { stopResult ->
-                appendLog("mesh.stop() -> $stopResult")
-            }.onFailure { error ->
-                appendLog(
-                    "mesh.stop() failed: ${error.javaClass.simpleName}: ${error.message.orEmpty()}"
-                )
+            ProofBenchmarkTransport.MeshLink -> {
+                scope.launch {
+                    synchronized(passiveReceiptRetryJobs) {
+                        passiveReceiptRetryJobs.values.forEach(Job::cancel)
+                        passiveReceiptRetryJobs.clear()
+                    }
+                    val result = runCatching { requireMeshLink().stop() }
+                    result.onSuccess { stopResult ->
+                        appendLog("mesh.stop() -> $stopResult")
+                    }.onFailure { error ->
+                        appendLog(
+                            "mesh.stop() failed: ${error.javaClass.simpleName}: ${error.message.orEmpty()}"
+                        )
+                    }
+                }
             }
         }
     }
 
     fun sendHelloToFirstPeer(): Job {
-        if (launchConfig.benchmarkTransport == ProofBenchmarkTransport.GattPrototype) {
-            appendLog("Send Hello is unavailable in GATT benchmark mode")
+        if (launchConfig.benchmarkTransport != ProofBenchmarkTransport.MeshLink) {
+            appendLog("Send Hello is unavailable in benchmark-only transport mode")
             return Job()
         }
         val peerId = synchronized(knownPeers) { knownPeers.values.firstOrNull() }

@@ -1168,3 +1168,52 @@ branch cannot materially outperform the retained deterministic L2CAP baseline,
 then the repository should treat that as strong evidence that closing iOS
 `SC-004` will require a larger product-scope change than another BLE-bearer
 swap.
+
+### Reverse-direction proof-only GATT-notify prototype results (2026-05-14)
+
+The selected proof branch was then implemented in the runnable proof apps as:
+
+- iPhone 15 sender: `CBPeripheralManager` service host that streams benchmark
+  frames via `updateValue(..., .notify, ...)`, requests `.low` connection
+  latency for the subscribed Android central, and waits for a GATT write ACK
+- Android passive peer: `BluetoothGatt` client that scans, connects, requests
+  `CONNECTION_PRIORITY_HIGH`, requests `MTU=517`, reads an app-hash
+  characteristic, subscribes to the notify characteristic, reassembles the
+  payload, and writes back a receipt ACK
+
+Retained physical evidence:
+
+- OPPO initial run: `/tmp/ios_gatt_notify_oppo_20260514T182709`
+  - sender: `73.65 KB/s`
+  - passive OPPO: `MSG from gattNotify bytes=65536 benchmarkToken=...`
+  - passive OPPO: `BENCHMARK receipt send(a377e7) -> Sent ... attempt=1`
+- Samsung initial run: `/tmp/ios_gatt_notify_samsung_20260514T182741`
+  - sender: `65.98 KB/s`
+  - passive Samsung: `MSG from gattNotify bytes=65536 benchmarkToken=...`
+  - passive Samsung: `BENCHMARK receipt send(cac80f) -> Sent ... attempt=1`
+- OPPO rerun: `/tmp/ios_gatt_notify_oppo_rerun_20260514T182809`
+  - sender: `43.13 KB/s`
+- Samsung rerun: `/tmp/ios_gatt_notify_samsung_rerun_20260514T182820`
+  - sender: `53.87 KB/s`
+- 300 ms delayed-start OPPO rerun:
+  `/tmp/ios_gatt_notify_delay_oppo_20260514T183029`
+  - sender: `NotSent(reason=CENTRAL_UNSUBSCRIBED)`
+  - passive OPPO: retained `GATT notify benchmark connection status=8 state=DISCONNECTED`
+- 300 ms delayed-start Samsung rerun:
+  `/tmp/ios_gatt_notify_delay_samsung_20260514T183047`
+  - sender: `68.52 KB/s`
+  - passive Samsung: retained recipient-confirmed completion
+
+Interpretation:
+
+- this is the first post-waiver future branch to exceed the normative iOS
+  target on retained physical evidence
+- the branch is promising enough to justify product-path integration work and a
+  future spec amendment discussion
+- the branch is not yet deterministic: follow-up reruns fell back into the
+  `43-54 KB/s` range on both peers, and one OPPO delayed-start rerun dropped
+  the connection before completion
+- the new dominant question is no longer whether a different iOS API surface
+  can cross `>= 60 KB/s`; it clearly can. The next question is whether MeshLink
+  can integrate that bearer into the product path with enough stability to
+  replace the current waived posture

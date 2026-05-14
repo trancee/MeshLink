@@ -25,6 +25,15 @@ final class ProofViewModel: ObservableObject {
             self?.stateText = state
         }
     )
+    private lazy var gattNotifyBenchmarkServer: ProofGattNotifyBenchmarkServer = ProofGattNotifyBenchmarkServer(
+        appId: launchConfig.appId,
+        logger: { [weak self] message in
+            self?.appendLog(message)
+        },
+        stateDidChange: { [weak self] state in
+            self?.stateText = state
+        }
+    )
     private var autoSendPeers: Set<String> = []
     private var pendingBenchmarkReceipts: [String: PendingBenchmarkReceipt] = [:]
     private var benchmarkTokenCounter: UInt64 = 0
@@ -82,6 +91,20 @@ final class ProofViewModel: ObservableObject {
             gattBenchmarkClient.start(payloadBytes: benchmarkPayloadBytes)
             return
         }
+        if launchConfig.benchmarkTransport == .gattNotifyPrototype {
+            guard let benchmarkPayloadBytes = launchConfig.benchmarkPayloadBytes else {
+                stateText = "Error(GATT notify benchmark)"
+                appendLog("gatt.notify.start() failed: MESHLINK_BENCHMARK_PAYLOAD_BYTES is required for GATT notify benchmark mode")
+                return
+            }
+            if launchConfig.disableAutoSend {
+                stateText = "Error(GATT notify benchmark)"
+                appendLog("gatt.notify.start() failed: passive iOS GATT notify benchmark mode is not implemented")
+                return
+            }
+            gattNotifyBenchmarkServer.start(payloadBytes: benchmarkPayloadBytes)
+            return
+        }
 
         let startedAtNanos = DispatchTime.now().uptimeNanoseconds
         api.start { [weak self] result, error in
@@ -116,6 +139,11 @@ final class ProofViewModel: ObservableObject {
             appendLog("gatt.benchmark.stop() -> Stopped")
             return
         }
+        if launchConfig.benchmarkTransport == .gattNotifyPrototype {
+            gattNotifyBenchmarkServer.stop()
+            appendLog("gatt.notify.stop() -> Stopped")
+            return
+        }
         api.stop { [weak self] result, error in
             Task { @MainActor in
                 if let result {
@@ -129,8 +157,8 @@ final class ProofViewModel: ObservableObject {
     }
 
     func sendHello() {
-        if launchConfig.benchmarkTransport == .gattPrototype {
-            appendLog("Send Hello is unavailable in GATT benchmark mode")
+        if launchConfig.benchmarkTransport != .meshLink {
+            appendLog("Send Hello is unavailable in benchmark-only transport mode")
             return
         }
         guard let peer = peers.first else {

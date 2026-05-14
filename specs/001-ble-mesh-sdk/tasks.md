@@ -472,24 +472,50 @@ future non-waived release while preserving the current waived release framing.
 The current release guardrails stay unchanged until fresh retained evidence
 shows that a new branch can plausibly close iOS `SC-004`.
 
-- [ ] T098 Compare at least three materially different future iOS `SC-004`
+- [X] T098 Compare at least three materially different future iOS `SC-004`
   closure designs in `specs/001-ble-mesh-sdk/research.md` and
   `specs/001-ble-mesh-sdk/release-decision.md`, then record the chosen next
   proof branch in this task ledger without changing the current waived release
   posture.
-- [ ] T099 Implement the selected proof-only reverse-direction redesign in the
+- [X] T099 Implement the selected proof-only reverse-direction redesign in the
   runnable proof integrations so iPhone can benchmark a materially different
   platform API path while still retaining recipient-confirmed semantics. The
   first chosen branch is an iOS peripheral GATT notification host plus Android
   central GATT benchmark client in `meshlink-sample/ios/ProofApp` and
   `meshlink-sample/android/app/src/main/kotlin/ch/trancee/meshlink/proof/android`.
-- [ ] T100 Run fresh physical Samsung and OPPO reference-peer reruns for that
+- [X] T100 Run fresh physical Samsung and OPPO reference-peer reruns for that
   new proof branch, retain raw sender / recipient evidence in
   `benchmarks/README.md`,
   `specs/001-ble-mesh-sdk/research.md`, and
   `specs/001-ble-mesh-sdk/release-decision.md`, and explicitly decide whether
   the branch is promising enough to justify product-path integration and a
   future spec amendment.
+
+---
+
+## Phase 21: Follow-up - Reverse GATT-notify product-path integration
+
+**Purpose**: Promote the promising proof-only reverse GATT-notify branch into a
+real MeshLink transport candidate for a future non-waived release.
+
+- [ ] T101 Amend the canonical product-path framing in
+  `specs/001-ble-mesh-sdk/spec.md`,
+  `specs/001-ble-mesh-sdk/plan.md`,
+  `specs/001-ble-mesh-sdk/contracts/meshlink-api.md`, and
+  `docs/explanation/why-l2cap-first.md` so the future conformance branch may
+  evaluate an iOS-hosted GATT-notify bearer for large transfers without
+  weakening the current waived release guardrails.
+- [ ] T102 Implement the product-path GATT-notify bearer candidate in
+  `meshlink/src/iosMain/kotlin/ch/trancee/meshlink/platform/ios/IosBleTransport.kt`,
+  `meshlink/src/androidMain/kotlin/ch/trancee/meshlink/platform/android/AndroidBleTransport.kt`,
+  `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/engine/MeshEngine.kt`,
+  and the relevant transport tests so mixed Android/iOS peers can negotiate and
+  use the new bearer while preserving the existing L2CAP path.
+- [ ] T103 Run fresh product-path physical Samsung and OPPO reruns, retain the
+  evidence in `benchmarks/README.md`,
+  `specs/001-ble-mesh-sdk/research.md`, and
+  `specs/001-ble-mesh-sdk/release-decision.md`, and decide whether the new
+  bearer actually closes iOS `SC-004` without the release waiver.
 
 ---
 
@@ -517,6 +543,7 @@ shows that a new branch can plausibly close iOS `SC-004`.
 - **Follow-up Configuration, Discovery, and LOW-Power Contract Closure (Phase 18)**: Runs after Phase 17 to close remaining constitution-traceability gaps before any fresh release-readiness claim.
 - **Follow-up SC-004 Release Closure (Phase 19)**: Runs after Phase 18 and was blocking until either the normative conformance path or the explicit waiver path was explicitly completed; it is now closed via the explicit waiver / known-limitation path.
 - **Follow-up Post-waiver Future SC-004 Redesign (Phase 20)**: Runs after Phase 19 when a future non-waived release needs a materially different transport / platform branch instead of another small app-layer tuning pass.
+- **Follow-up Reverse GATT-notify Product-path Integration (Phase 21)**: Runs after Phase 20 once the proof-only reverse GATT-notify branch is promising enough to justify product-path integration work.
 
 ### User Story Dependencies
 
@@ -577,12 +604,15 @@ Task: "Implement `TransferSession`, ACK scoreboard, configurable delivery-deadli
 4. Add User Story 3 → validate power behavior and cross-platform parity
 5. Finish with benchmark, BCV, docs, and quickstart gates
 6. If `SC-004` or constitution-traceability gaps remain open, execute the
-   appended follow-up phases in ledger order (currently Phases 7–19) before
+   appended follow-up phases in ledger order (currently Phases 7–21) before
    declaring release readiness.
 7. Do not make a release-readiness or full-conformance claim while Phase 19
    remains open; `SC-004` requires either retained passing evidence on
    reference hardware or the explicit waiver / known-limitation path recorded
    in the canonical docs.
+8. After a waived release has been recorded, future non-waived closure work
+   proceeds through Phases 20–21 rather than silently reopening the waived
+   release framing.
 
 ### Parallel Team Strategy
 

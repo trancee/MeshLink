@@ -105,8 +105,22 @@ The first post-waiver future-closure branch is now:
   materially outperforms the retained deterministic L2CAP baseline and gives a
   credible path to `>= 60 KB/s`
 
+Fresh proof-only reverse-direction evidence now makes that branch promising
+rather than hypothetical:
+
+- OPPO retained runs: `73.65 KB/s`, `43.13 KB/s`, plus one
+  `NotSent(reason=CENTRAL_UNSUBSCRIBED)` failure
+- Samsung retained runs: `65.98 KB/s`, `53.87 KB/s`, and `68.52 KB/s`
+- the branch therefore exceeded the normative iOS target on three retained
+  physical runs and preserved recipient-confirmed completion on those successes
+
+**Decision:** promote the reverse-direction GATT-notify branch to the next
+product-path integration candidate for a future non-waived release, while
+keeping the current release on the explicit waiver path until product-path
+integration and fresh retained non-proof evidence succeed.
+
 This future branch does not change the current release claims or waiver
- guardrails.
+guardrails.
 
 ## Evidence Sources
 

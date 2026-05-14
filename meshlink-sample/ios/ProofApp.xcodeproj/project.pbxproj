@@ -7,12 +7,14 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		1729F30208615F3C1D06D855 /* ProofGattNotifyBenchmarkProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1024F8CF1B459406DA87C513 /* ProofGattNotifyBenchmarkProtocol.swift */; };
 		1A034B04B101B24A8FF9E89B /* ProofGattBenchmarkProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = E83D24A11C1D13B53B355B15 /* ProofGattBenchmarkProtocol.swift */; };
 		23F2C7D99A97B029F1FA632E /* ProofViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 449C6808F0174CE46FCA8BC6 /* ProofViewModel.swift */; };
 		395F70816C081CC331C99357 /* ProofApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B450AC2ED51A141367368720 /* ProofApp.swift */; };
 		42630CF73715BDDA8DC5E72E /* ProofGattBenchmarkClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 838B0CE5BBB49A2F8A7254E2 /* ProofGattBenchmarkClient.swift */; };
 		486E383EE20727A7748D21FF /* RecipientConfirmedBenchmarkDiagnostic.swift in Sources */ = {isa = PBXBuildFile; fileRef = 198714BAC74453D5299F3D2C /* RecipientConfirmedBenchmarkDiagnostic.swift */; };
 		4CA77348EDB28F13CDC12398 /* PowerProfileBenchmark.swift in Sources */ = {isa = PBXBuildFile; fileRef = 033612DB1CD3421011142A10 /* PowerProfileBenchmark.swift */; };
+		4E9C31D59C4BE0FA15D42694 /* ProofGattNotifyBenchmarkServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3456A572AE79E7AF8E4E4F40 /* ProofGattNotifyBenchmarkServer.swift */; };
 		72FF2746CA1351980C970D33 /* BenchmarkTestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8425B56578082E0CBC21735 /* BenchmarkTestSupport.swift */; };
 		73745979D47B3AAA29F4E34F /* MeshLinkCryptoBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3E69802EF0E01D926EA6A44 /* MeshLinkCryptoBridge.swift */; };
 		A27123E5BC9F56E96A7FE533 /* ColdStartBenchmark.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6469225EB29E7FF131D51123 /* ColdStartBenchmark.swift */; };
@@ -33,7 +35,9 @@
 
 /* Begin PBXFileReference section */
 		033612DB1CD3421011142A10 /* PowerProfileBenchmark.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PowerProfileBenchmark.swift; sourceTree = "<group>"; };
+		1024F8CF1B459406DA87C513 /* ProofGattNotifyBenchmarkProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProofGattNotifyBenchmarkProtocol.swift; sourceTree = "<group>"; };
 		198714BAC74453D5299F3D2C /* RecipientConfirmedBenchmarkDiagnostic.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecipientConfirmedBenchmarkDiagnostic.swift; sourceTree = "<group>"; };
+		3456A572AE79E7AF8E4E4F40 /* ProofGattNotifyBenchmarkServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProofGattNotifyBenchmarkServer.swift; sourceTree = "<group>"; };
 		38B26770518856564F031445 /* TransportPerformanceBenchmark.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransportPerformanceBenchmark.swift; sourceTree = "<group>"; };
 		41FA7EB63D3FCC9D89A53CC6 /* ProofBenchmarks.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = ProofBenchmarks.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		42AE38A6A4182F543FAA1B57 /* ProofApp.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = ProofApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -59,6 +63,8 @@
 				4760E0CB0EEA45F245AA20F3 /* ProofBenchmarkTransport.swift */,
 				838B0CE5BBB49A2F8A7254E2 /* ProofGattBenchmarkClient.swift */,
 				E83D24A11C1D13B53B355B15 /* ProofGattBenchmarkProtocol.swift */,
+				1024F8CF1B459406DA87C513 /* ProofGattNotifyBenchmarkProtocol.swift */,
+				3456A572AE79E7AF8E4E4F40 /* ProofGattNotifyBenchmarkServer.swift */,
 				449C6808F0174CE46FCA8BC6 /* ProofViewModel.swift */,
 			);
 			path = ProofApp;
@@ -217,6 +223,8 @@
 				AF4827988ED61DB8962902A0 /* ProofBenchmarkTransport.swift in Sources */,
 				42630CF73715BDDA8DC5E72E /* ProofGattBenchmarkClient.swift in Sources */,
 				1A034B04B101B24A8FF9E89B /* ProofGattBenchmarkProtocol.swift in Sources */,
+				1729F30208615F3C1D06D855 /* ProofGattNotifyBenchmarkProtocol.swift in Sources */,
+				4E9C31D59C4BE0FA15D42694 /* ProofGattNotifyBenchmarkServer.swift in Sources */,
 				23F2C7D99A97B029F1FA632E /* ProofViewModel.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

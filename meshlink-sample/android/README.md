@@ -12,6 +12,7 @@ later physical-device validation tasks.
 - deterministic initiator-side auto-send retries for two-device first-message validation
 - shared `POWER_MODE_CHANGED` diagnostics that expose `tier`, `advertisementIntervalMillis`, `connectionIntervalMillis`, `scanDutyCyclePercent`, `maxConnections`, `chunkBudgetBytes`, and `region`
 - proof discovery now follows the shared MeshLink contract: fixed `4d455348` discovery UUID + one 128-bit payload UUID in a single advertisement with no scan response dependency
+- two proof-only native GATT benchmark modes outside the MeshLink product path: the older passive Android GATT server mode for `MESHLINK_BENCHMARK_TRANSPORT=gatt`, and the newer passive Android GATT client mode for `gatt-notify`
 
 ## Current Validation
 
@@ -38,8 +39,24 @@ Shared harness evidence now also covers the common US2 runtime:
 - no-route retry uses bounded, jittered exponential backoff until `deliveryRetryDeadline` expires and then returns `UNREACHABLE`
 - sends retry early when topology updates reveal a route before the deadline expires
 
+## Additional proof-only GATT evidence
+
+The newer passive Android GATT client mode (`gatt-notify`) now supports a
+reverse-direction future-branch benchmark where iPhone hosts a peripheral GATT
+service and streams the 64 KiB payload via notifications into Android.
+Retained physical evidence on the attached Android peers shows that this branch
+is promising but variable:
+
+- OPPO retained runs: `73.65 KB/s`, `43.13 KB/s`, plus one unsubscribe /
+  disconnect failure
+- Samsung retained runs: `65.98 KB/s`, `53.87 KB/s`, and `68.52 KB/s`
+
+These runs are proof-only investigative evidence for a future SC-004 closure
+branch. They are not yet the normative MeshLink product path.
+
 ## Next Steps
 
 Later implementation tasks should extend this harness-verified US2 behavior to
-physical-device proof evidence, refine GATT fallback coverage, and add automated
-benchmark instrumentation.
+physical-device proof evidence, refine GATT fallback coverage, promote the
+promising reverse GATT-notify branch into a real MeshLink transport candidate,
+and add automated benchmark instrumentation.

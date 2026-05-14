@@ -160,9 +160,13 @@ not another small L2CAP tuning pass. The first chosen future branch is a
 proof-only reverse-direction benchmark path that exercises a different iOS API
 surface: iPhone-hosted GATT notifications from an iOS peripheral manager into
 an Android central client while keeping recipient-confirmed completion
-semantics. This branch remains investigative until fresh retained evidence shows
-that it materially outperforms the retained deterministic L2CAP baseline and
-has a credible path to `>= 60 KB/s`.
+semantics. Fresh retained physical proof now shows that this branch is
+promising enough to justify product-path integration work: OPPO reached
+`73.65 KB/s` on the first retained run (with one lower `43.13 KB/s` rerun and
+one unsubscribe failure), while Samsung reached `65.98 KB/s` and `68.52 KB/s`
+on two retained runs (with one lower `53.87 KB/s` rerun). The branch therefore
+has a credible path to `>= 60 KB/s`, but it remains non-normative until the
+product path itself is updated and rerun with fresh retained evidence.
 
 **Normative evidence-gap status after follow-up coverage closure (2026-05-14):**
 
