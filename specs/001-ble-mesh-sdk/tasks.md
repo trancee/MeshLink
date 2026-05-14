@@ -516,13 +516,20 @@ real MeshLink transport candidate for a future non-waived release.
   `specs/001-ble-mesh-sdk/research.md`, and
   `specs/001-ble-mesh-sdk/release-decision.md`, and decide whether the new
   bearer actually closes iOS `SC-004` without the release waiver.
-- [ ] T104 Resolve the iOS product-path `CBPeripheralManager.updateValue`
+- [X] T104 Resolve the iOS product-path `CBPeripheralManager.updateValue`
   bridging blocker uncovered during the first shared-Kotlin integration attempt:
   the proof-only Swift host works, but the shared Kotlin/Native transport path
   currently lacks a verified `ByteArray -> NSData` bridge for GATT-notify frame
   sends. Record the chosen fix (supported Kotlin/Native bridge or minimal
   Swift/ObjC helper reachable from KMP) before reopening `T102`/`T103`
   physical reruns.
+- [ ] T105 Diagnose and resolve the next product-path blocker revealed by the
+  reopened physical reruns: the optional mixed-platform GATT-notify side bearer
+  now delivers real MeshLink frames on Android, but the direct route still
+  expires before the 64 KiB transfer completes because reverse transfer /
+  receipt traffic remains tied to the L2CAP path. Decide whether to move the
+  reverse control plane onto GATT as well, keep L2CAP alive explicitly, or
+  redesign route-presence semantics for the mixed bearer.
 
 ---
 
@@ -551,6 +558,7 @@ real MeshLink transport candidate for a future non-waived release.
 - **Follow-up SC-004 Release Closure (Phase 19)**: Runs after Phase 18 and was blocking until either the normative conformance path or the explicit waiver path was explicitly completed; it is now closed via the explicit waiver / known-limitation path.
 - **Follow-up Post-waiver Future SC-004 Redesign (Phase 20)**: Runs after Phase 19 when a future non-waived release needs a materially different transport / platform branch instead of another small app-layer tuning pass.
 - **Follow-up Reverse GATT-notify Product-path Integration (Phase 21)**: Runs after Phase 20 once the proof-only reverse GATT-notify branch is promising enough to justify product-path integration work.
+- **Follow-up Mixed-bearer Control-plane Redesign (Phase 22)**: Runs after Phase 21 if the optional product-path GATT-notify bearer can move forward data but still cannot close the full transfer before the L2CAP-bound control plane expires.
 
 ### User Story Dependencies
 
@@ -611,7 +619,7 @@ Task: "Implement `TransferSession`, ACK scoreboard, configurable delivery-deadli
 4. Add User Story 3 → validate power behavior and cross-platform parity
 5. Finish with benchmark, BCV, docs, and quickstart gates
 6. If `SC-004` or constitution-traceability gaps remain open, execute the
-   appended follow-up phases in ledger order (currently Phases 7–21) before
+   appended follow-up phases in ledger order (currently Phases 7–22) before
    declaring release readiness.
 7. Do not make a release-readiness or full-conformance claim while Phase 19
    remains open; `SC-004` requires either retained passing evidence on

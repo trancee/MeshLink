@@ -170,9 +170,12 @@ one unsubscribe failure), while Samsung reached `65.98 KB/s` and `68.52 KB/s`
 on two retained runs (with one lower `53.87 KB/s` rerun). The branch therefore
 has a credible path to `>= 60 KB/s`, but it remains non-normative until the
 product path itself is updated and rerun with fresh retained evidence. The
-first shared-Kotlin product-path attempt is now concretely blocked on an iOS
-bridge issue: safely converting shared Kotlin `ByteArray` chunks into `NSData`
-for `CBPeripheralManager.updateValue` inside the MeshLink runtime.
+original iOS bridge seam is now resolved by an optional Swift-installed
+transport bridge for `CBPeripheralManager.updateValue`, but the reopened
+product-path reruns exposed the next blocker immediately: the mixed-platform
+GATT-notify bearer can move forward MeshLink data frames, yet the reverse
+transfer / receipt control plane still depends on L2CAP and the direct route
+expires before the 64 KiB transfer completes.
 
 **Normative evidence-gap status after follow-up coverage closure (2026-05-14):**
 

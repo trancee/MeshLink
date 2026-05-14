@@ -119,15 +119,21 @@ product-path integration candidate for a future non-waived release, while
 keeping the current release on the explicit waiver path until product-path
 integration and fresh retained non-proof evidence succeed.
 
-**Current Phase-21 blocker:** the first shared-Kotlin product-path integration
-attempt is blocked on the iOS bridge seam, not on the proof bearer itself. The
-retained Samsung product-path attempt
-(`/tmp/ios_meshlink_gattside_samsung_bridge_20260514T191931`) showed the side
-link connecting and becoming ready, then failed inside the iOS shared-Kotlin
-transport with `kotlin.TypeCastException: class kotlinx.cinterop.CPointer
-cannot be cast to class platform.Foundation.NSData` while trying to feed GATT
-notify chunks into `CBPeripheralManager.updateValue`. Until that bridge is
-resolved, Phase 21 cannot truthfully claim a working product-path bearer.
+**Phase-21 update after reopening product-path work:** the original iOS bridge
+seam is now resolved by an optional Swift-installed transport bridge that calls
+`CBPeripheralManager.updateValue` from native code, so the product-path bearer
+can progress past the earlier `NSData` cast failure.
+
+**Current Phase-21 blocker:** once the bridge seam was removed, the next
+product-path blocker surfaced immediately: the optional mixed-platform
+GATT-notify side bearer now carries genuine MeshLink encrypted data frames, but
+reverse transfer ACKs and the final proof receipt still remain tied to the
+L2CAP path. Retained Samsung and OPPO product-path reruns
+(`/tmp/ios_meshlink_gattside_samsung_bridge2_20260514T194413` and
+`/tmp/ios_meshlink_gattside_oppo_bridge2_20260514T194439`) both ended
+`NotSent(reason=UNREACHABLE)` after only partial side-bearer progress, because
+the direct route expired before the 64 KiB transfer completed. Phase 21 is now
+blocked on a mixed-bearer control-plane redesign, not on `NSData` bridging.
 
 This future branch does not change the current release claims or waiver
 guardrails.

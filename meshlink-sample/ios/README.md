@@ -7,6 +7,7 @@ This app is the iOS reference host for the MeshLink quickstart.
 - a committed `ProofApp.xcodeproj` plus a matching `project.yml` XcodeGen spec
 - a SwiftUI proof UI with Start / Stop / Send Hello controls, peer visibility, diagnostics, and inbound-message logging
 - the Swift-installed `CryptoKit` bridge required by `IosCryptoProvider`
+- a Swift-installed optional iOS BLE transport bridge used for future mixed Android/iOS GATT-notify bearer experiments from shared Kotlin code
 - direct KMP framework integration through a pre-build Gradle script that runs `:meshlink:embedAndSignAppleFrameworkForXcode`
 - the default MeshLink `deliveryRetryDeadline` behavior; the proof app leaves the default 15-second deadline unchanged
 - a proof-only native GATT benchmark prototype activated with `MESHLINK_BENCHMARK_TRANSPORT=gatt` for iPhone -> Android fallback experiments
@@ -103,6 +104,10 @@ Physical proof findings on iPhone 15:
   `73.65 KB/s` on the initial retained run (with one lower `43.13 KB/s` rerun
   and one unsubscribe failure), while Samsung reached `65.98 KB/s` and
   `68.52 KB/s` on two retained runs (with one lower `53.87 KB/s` rerun)
+- the optional Swift-installed iOS transport bridge now unblocks the shared KMP
+  runtime from calling `CBPeripheralManager.updateValue` for future bearer
+  experiments, but the first real MeshLink product-path mixed-bearer reruns are
+  still blocked by route expiry before the transfer finishes
 - the earlier stricter recipient-confirmed `ReceiptTimeout` matrix is now
   historical diagnostic evidence only; the current deterministic mixed-platform
   path completes recipient-confirmed Samsung and OPPO 64 KiB proof runs cleanly,

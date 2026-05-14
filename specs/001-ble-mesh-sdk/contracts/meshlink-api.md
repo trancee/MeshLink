@@ -43,6 +43,30 @@ object MeshLink {
   matching `MeshLinkException` subtype rather than leaking a platform-native
   exception.
 
+### iOS native bridge entry points
+
+```kotlin
+object IosCryptoBridge {
+    fun install(...)
+}
+
+object IosBleTransportBridge {
+    fun install(
+        gattNotifySend: (peripheralManager: Any, notifyCharacteristic: Any, central: Any, payload: ByteArray) -> Boolean,
+    )
+}
+```
+
+**Contract notes**
+- `IosCryptoBridge` remains the required iOS-native cryptography install point.
+- `IosBleTransportBridge` is currently optional and exists to support future
+  iPhone-hosted bearer experiments without exposing Core Bluetooth classes
+  directly through the public Kotlin API surface.
+- The transport bridge callback receives opaque iOS-native handles. Callers
+  must cast them only on iOS, inside app-owned native code.
+- If the transport bridge is not installed, MeshLink continues on the existing
+  transport path.
+
 ### Configuration DSL
 
 ```kotlin

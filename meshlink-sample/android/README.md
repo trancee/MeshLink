@@ -54,6 +54,13 @@ is promising but variable:
 These runs are proof-only investigative evidence for a future SC-004 closure
 branch. They are not yet the normative MeshLink product path.
 
+A first real MeshLink product-path mixed-bearer candidate now also proves that
+Android can decode genuine encrypted MeshLink frames on the GATT-notify side
+link. However, the retained Samsung and OPPO product-path reruns still ended
+`NotSent(reason=UNREACHABLE)` before `MSG from ... bytes=65536` was reached,
+which means the next blocker is the L2CAP-bound reverse control plane rather
+than GATT notification receive support itself.
+
 ## Next Steps
 
 Later implementation tasks should extend this harness-verified US2 behavior to

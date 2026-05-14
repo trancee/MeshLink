@@ -1218,7 +1218,7 @@ Interpretation:
   can integrate that bearer into the product path with enough stability to
   replace the current waived posture
 
-### First shared-Kotlin product-path integration attempt blocker (2026-05-14)
+### First shared-Kotlin product-path integration attempt bridge blocker (2026-05-14)
 
 A first product-path integration attempt then tried to keep the current L2CAP
 path for discovery / handshake / reverse-direction control while adding a
@@ -1244,20 +1244,82 @@ Retained blocker evidence:
   `/tmp/ios_meshlink_gattside_samsung_pump_20260514T191127`
   - Android logcat retained `status=133 state=DISCONNECTED` on the GATT side
     link before it became usable
-- OPPO and Samsung earlier product-path attempts likewise remained
-  non-conformant and did not produce retained successful product-path sender
-  evidence.
+
+Interpretation at that point:
+
+- the future branch was still promising at the proof-app level
+- but the first real MeshLink transport integration was blocked one layer
+  lower than transport policy: getting a supported `ByteArray -> NSData`
+  bridge into `CBPeripheralManager.updateValue` from shared Kotlin/Native code
+- the proof-only Swift host already proved that the iOS API path itself was
+  viable; the blocker was specifically the shared-Kotlin integration seam, not
+  the BLE bearer concept
+
+### Optional Swift transport bridge resolved the KMP `NSData` seam (2026-05-14)
+
+That specific bridge blocker was then resolved by adding a small optional
+public iOS-native transport bridge, analogous to the existing crypto bridge:
+
+- Swift installs `IosBleTransportBridge.install(...)` during iOS app startup
+- the callback receives opaque iOS-native handles for the active
+  `CBPeripheralManager`, notify characteristic, subscribed `CBCentral`, and the
+  raw payload bytes
+- Swift converts the Kotlin byte array to `Data` and calls
+  `CBPeripheralManager.updateValue(...)` on the main queue
+- if the bridge is not installed, MeshLink falls back to the current transport
+  path and does not require the future bearer
+
+Fresh verification after the bridge landed:
+
+- `./gradlew :meshlink:compileKotlinIosSimulatorArm64 :meshlink:compileKotlinIosArm64`
+  passed
+- `xcodebuild -project meshlink-sample/ios/ProofApp.xcodeproj -scheme ProofApp -destination 'generic/platform=iOS Simulator' build`
+  passed
+- `xcodebuild ... -destination 'id=00008120-00011DEE0105A01E' ... build`
+  passed
+- the follow-up product-path reruns no longer retained the earlier
+  `TypeCastException`
+
+### Reopened product-path reruns revealed the next blocker (2026-05-14)
+
+Once the bridge seam was removed, fresh product-path reruns finally proved that
+real MeshLink frames were flowing over the new GATT-notify side bearer — but
+that was not enough to close the full transfer.
+
+Retained evidence:
+
+- Samsung product-path rerun:
+  `/tmp/ios_meshlink_gattside_samsung_bridge2_20260514T194413`
+  - sender result still ended
+    `BENCHMARK transport bytes=65536 elapsedMs=15069 throughputKBps=4.25 result=NotSent(reason=UNREACHABLE)`
+  - iPhone console retained repeated `GATT notify pump ... didSend=true/false`
+    lines and continued `sending 505 bytes via GATT notify side link ...`
+  - Android logcat retained real side-bearer delivery:
+    - `received notification bytes=...`
+    - `decoded frame bytes=505`
+  - retained decoded-frame count for the run: `35`
+  - passive Samsung never reached `MSG from ... bytes=65536`
+- OPPO product-path rerun:
+  `/tmp/ios_meshlink_gattside_oppo_bridge2_20260514T194439`
+  - sender result still ended
+    `BENCHMARK transport bytes=65536 elapsedMs=15063 throughputKBps=4.25 result=NotSent(reason=UNREACHABLE)`
+  - Android logcat retained real side-bearer delivery with decoded frames
+  - retained decoded-frame count for the run: `47`
+  - passive OPPO never reached `MSG from ... bytes=65536`
 
 Interpretation:
 
-- the future branch is still promising at the proof-app level
-- but the first real MeshLink transport integration is now blocked one layer
-  lower than transport policy: getting a supported `ByteArray -> NSData`
-  bridge into `CBPeripheralManager.updateValue` from shared Kotlin/Native code
-- the proof-only Swift host already proves that the iOS API path itself is
-  viable; the blocker is specifically the shared-Kotlin integration seam, not
-  the BLE bearer concept
-- the next unblocker is therefore not another benchmark rerun. It is either:
-  1. a verified Kotlin/Native Foundation bridge for `NSData`, or
-  2. a minimal Swift/ObjC helper that exposes `updateValue` safely to the KMP
-     transport layer
+- the product-path candidate now has proof that the optional GATT-notify side
+  bearer can carry genuine MeshLink encrypted data frames on Android/iOS peers
+- however, the one-way side bearer is still not enough to close the transfer,
+  because reverse transfer ACKs and the final proof receipt remain tied to the
+  L2CAP path
+- in both retained product-path reruns, the direct peer route expired before
+  the 64 KiB transfer completed, so sender-side completion still degraded to
+  `NotSent(reason=UNREACHABLE)` even though Android had already decoded some
+  side-bearer frames
+- the next blocker is therefore no longer `NSData` bridging. It is the mixed-
+  bearer control plane itself: either reverse transfer / receipt traffic must
+  move onto GATT as well, L2CAP must be kept alive explicitly for the whole
+  transfer, or route-presence semantics must be redesigned so the mixed bearer
+  is treated as a durable direct path instead of a transient side channel
