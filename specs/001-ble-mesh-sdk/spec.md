@@ -201,9 +201,9 @@ error behavior.
   radio activity when battery conditions worsen and MUST make the current power
   mode observable to the host application.
 - **FR-013a**: The observable power-policy output MUST define enough detail for
-  Android and iOS hosts to verify scan duty, advertisement interval, maximum
-  concurrent connection budget, and transfer chunk budget behavior for the
-  active power tier.
+  Android and iOS hosts to verify scan duty, advertisement interval,
+  maintained connection interval, maximum concurrent connection budget, and
+  transfer chunk budget behavior for the active power tier.
 - **FR-013b**: In LOW power mode, any maintained BLE connection MUST use a
   connection interval of `>= 500 ms` after the reduced-power policy is
   applied.

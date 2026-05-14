@@ -11,7 +11,11 @@ broad PR-review pass across the core requirement artifacts. It tests the
 quality of what is written in `spec.md`, `plan.md`, and `tasks.md` rather than
 implementation correctness.
 
-**Re-review update (2026-05-12):** After Phase 8 artifact remediation, this checklist was re-run against the current `spec.md`, `plan.md`, and `tasks.md`. All items below now pass.
+**Re-review update (2026-05-14):** After the follow-up artifact tightening,
+Phase 18 / Phase 19 planning, the dedicated discovery contract, and the
+release-decision record were added, this checklist was re-run against the
+current `spec.md`, `plan.md`, and `tasks.md` plus their linked supporting
+artifacts. All items below now pass.
 
 ## Requirement Completeness
 
@@ -63,9 +67,10 @@ implementation correctness.
   §FR-014, Spec §SC-007, Contract §Behavioral Guarantees, Tasks §T029–T034,
   Tasks §T043]
 - [x] CHK011 Are discovery and transport requirements consistent between the
-  spec clarifications, the wire contract, the quickstart guidance, and the
-  platform transport tasks? [Consistency, Spec §Clarifications, Contract
-  §Discovery Contract, Quickstart §§3–6, Tasks §T016–T017, Tasks §T019,
+  spec clarifications, the dedicated discovery contract, the quickstart
+  guidance, and the platform transport tasks? [Consistency, Spec
+  §Clarifications, Contract `discovery-advertisement.md` §Canonical
+  Advertisement Shape, Quickstart §§3–6, Tasks §T016–T017, Tasks §T019,
   Tasks §T025]
 - [x] CHK012 Is each success criterion traceably represented by at least one
   explicit validation or benchmark task, without requiring reviewers to infer
@@ -102,7 +107,8 @@ implementation correctness.
 - [x] CHK019 Are exception-flow requirements defined for missing BLE
   permissions, unsupported transport capabilities, and incompatible peer or
   protocol versions? [Gap, Spec §FR-015, Spec §FR-016, Spec §Assumptions,
-  Contract §Discovery Contract, Quickstart §Prerequisites]
+  Contract `discovery-advertisement.md` §§Reserved and Prohibited Shapes,
+  Reviewer Evidence Expectations, Quickstart §Prerequisites]
 
 ## Non-Functional & Security Coverage
 
@@ -191,108 +197,133 @@ implementation correctness.
   on commit history or reviewer memory? [Traceability, Spec §SC-001–SC-007,
   Plan §Constitution Check, Tasks §Phase 6]
 
-**Reviewer expansion (2026-05-13):** This appended pass keeps the same PR-
-review audience and standard depth, but focuses specifically on full-feature
-requirements quality for the newly explicit release-readiness blockers,
-recovery flows, and exception paths recorded across `spec.md`, `plan.md`, and
-`tasks.md`.
+**Reviewer expansion (2026-05-14):** This appended pass keeps the same PR-
+review audience and standard depth, but focuses specifically on the current
+release blocker, recovery flows, exception paths, and the new Phase 18 /
+Phase 19 planning recorded across `spec.md`, `plan.md`, `tasks.md`, and the
+linked supporting artifacts.
 
 ## Requirement Completeness
 
-- [ ] CHK036 Are revoked-trust recovery requirements complete across the
+- [x] CHK036 Are revoked-trust recovery requirements complete across the
   artifacts, including the reset trigger, the re-TOFU boundary, and the
   reviewer evidence expected for recontact? [Completeness, Spec §Edge Cases,
-  Spec §FR-003a, Plan §Additional open normative evidence gaps, Tasks §T079]
-- [ ] CHK037 Are permission-denied requirements complete across SDK behavior,
+  Spec §FR-003a, Plan §Normative evidence-gap status after follow-up coverage
+  closure, Tasks §T079]
+- [x] CHK037 Are permission-denied requirements complete across SDK behavior,
   proof-validation blocked outcomes, and platform-specific review
   expectations? [Completeness, Spec §Edge Cases, Spec §FR-015, Spec
   §Assumptions, Tasks §T080]
-- [ ] CHK038 Are incompatible transport / protocol-version rejection
+- [x] CHK038 Are incompatible transport / protocol-version rejection
   requirements complete across peer participation rules, compatibility
   expectations, and reviewer evidence retention? [Completeness, Spec §Edge
   Cases, Spec §FR-016, Plan §Testing, Tasks §T074, Tasks §T081]
-- [ ] CHK039 Are persisted-data minimization requirements complete for both the
+- [x] CHK039 Are persisted-data minimization requirements complete for both the
   allowed trust-record fields and the explicitly disallowed stored data
   classes? [Completeness, Spec §FR-015a, Plan §Storage, Tasks §T075]
 
 ## Requirement Clarity
 
-- [ ] CHK040 Is "fresh TOFU candidate" clear enough to distinguish it from
+- [x] CHK040 Is "fresh TOFU candidate" clear enough to distinguish it from
   silent trust restoration and identity-changed handling? [Clarity, Spec
   §Edge Cases, Spec §FR-003a]
-- [ ] CHK041 Is "blocked validation outcome" for missing permissions defined
+- [x] CHK041 Is "blocked validation outcome" for missing permissions defined
   clearly enough that reviewers can separate environmental blockers from
   product failures? [Clarity, Spec §Edge Cases, Spec §Proof-integration role,
   Tasks §T080]
-- [ ] CHK042 Are "prior-version fixtures" and "deployed wire" defined clearly
+- [x] CHK042 Are "prior-version fixtures" and "deployed wire" defined clearly
   enough for reviewers to know what compatibility baseline must be preserved?
   [Clarity, Spec §FR-016, Plan §Testing, Tasks §T074]
-- [ ] CHK043 Is the `SC-001` timing method specific enough about start/end
+- [x] CHK043 Is the `SC-001` timing method specific enough about start/end
   timestamps, observer note, and the boundary for first successful evidence?
   [Clarity, Spec §SC-001, Tasks §T077]
 
 ## Requirement Consistency
 
-- [ ] CHK044 Do release-readiness blocker statements align between the plan's
-  open normative evidence gaps and the task ledger's explicit `T074`–`T081`
-  blockers? [Consistency, Plan §Additional open normative evidence gaps, Tasks
-  §Phase 15, Tasks §Phase 16, Tasks §Notes]
-- [ ] CHK045 Are permission-related requirements consistent between the edge-
+- [x] CHK044 Do release-readiness blocker statements align between the plan's
+  current throughput-only blocker framing, the release-decision record, and
+  the Phase 19 task ledger? [Consistency, Plan §Normative evidence-gap status
+  after follow-up coverage closure, Release Decision §§Current Status,
+  Allowed Closure Paths, Tasks §Phase 19, Tasks §Notes]
+- [x] CHK045 Are permission-related requirements consistent between the edge-
   case language, assumptions, and reviewer blocker framing? [Consistency, Spec
   §Edge Cases, Spec §Assumptions, Spec §Proof-integration role, Tasks §T080]
-- [ ] CHK046 Are compatibility requirements consistent between unsupported
+- [x] CHK046 Are compatibility requirements consistent between unsupported
   transport / protocol rejection and backward-compatible wire-format
   obligations, without conflating them? [Consistency, Spec §Edge Cases, Spec
   §FR-016, Plan §Constitutional Constraints, Tasks §T074, Tasks §T081]
 
 ## Acceptance Criteria Quality
 
-- [ ] CHK047 Can `SC-006` be objectively reviewed from the written
+- [x] CHK047 Can `SC-006` be objectively reviewed from the written
   requirements alone, including peer-discovery / connection-establishment
-  preconditions and scored-run evidence expectations? [Measurability, Spec
-  §SC-006, Plan §Performance Goals, Tasks §T076]
-- [ ] CHK048 Are the remaining full-conformance blockers defined as measurable
+  preconditions, LOW-tier `>= 500 ms` connection-interval expectations, and
+  scored-run evidence expectations? [Measurability, Spec §SC-006, Plan
+  §Performance Goals, Tasks §T076, Tasks §T089]
+- [x] CHK048 Are the remaining full-conformance blockers defined as measurable
   gates rather than broad "open gaps" language? [Acceptance Criteria, Plan
-  §Additional open normative evidence gaps, Tasks §Implementation Strategy,
-  Tasks §Notes]
-- [ ] CHK049 Is the distinction between full conformance and an iOS `SC-004`
+  §Normative evidence-gap status after follow-up coverage closure, Tasks
+  §Implementation Strategy, Tasks §Phase 19, Tasks §Notes]
+- [x] CHK049 Is the distinction between full conformance and an iOS `SC-004`
   waiver path explicit enough that reviewers know which evidence remains
   mandatory even under waiver? [Clarity, Spec §Release-decision framing for
-  SC-004, Plan §Additional open normative evidence gaps, Tasks §Notes]
+  SC-004, Plan §Normative evidence-gap status after follow-up coverage
+  closure, Release Decision §§Allowed Closure Paths, Current Status, Tasks
+  §Phase 19]
 
 ## Scenario & Edge Case Coverage
 
-- [ ] CHK050 Are recovery-flow requirements complete for "trust revoked then
+- [x] CHK050 Are recovery-flow requirements complete for "trust revoked then
   peer reappears", "permissions restored after blocked run", and
   "unsupported peer rejected then compatibility clarified"? [Coverage, Spec
   §Edge Cases, Tasks §T079–T081]
-- [ ] CHK051 Are exception-flow requirements defined for both SDK runtime
+- [x] CHK051 Are exception-flow requirements defined for both SDK runtime
   behavior and reviewer evidence handling, rather than only one of those
   levels? [Coverage, Spec §Edge Cases, Spec §Proof-integration role, Tasks
   §T080, Tasks §T081]
-- [ ] CHK052 Are partial-failure scenarios covered where benchmark or
+- [x] CHK052 Are partial-failure scenarios covered where benchmark or
   quickstart work succeeds functionally but remains non-conformant because the
   required evidence is missing? [Coverage, Spec §SC-001, Spec §SC-006, Plan
-  §Additional open normative evidence gaps, Tasks §T076, Tasks §T077]
+  §Normative evidence-gap status after follow-up coverage closure, Tasks
+  §T076, Tasks §T077]
 
 ## Dependencies & Assumptions
 
-- [ ] CHK053 Are platform-specific assumption boundaries explicit enough for
+- [x] CHK053 Are platform-specific assumption boundaries explicit enough for
   the new permission-denial checks, so reviewers know which OS/runtime
   conditions are in scope versus merely assumed? [Assumption, Spec
   §Assumptions, Plan §Target Platform, Tasks §T080]
-- [ ] CHK054 Are dependency boundaries clear between prior-version wire
-  fixtures, proof-benchmark evidence, and supporting docs so reviewers can tell
-  which artifact owns each requirement? [Dependency, Spec §FR-016, Plan
-  §Artifact Governance & Source-of-Truth Precedence, Tasks §T074–T077]
+- [x] CHK054 Are dependency boundaries clear between prior-version wire
+  fixtures, proof-benchmark evidence, supporting docs, and the explicit
+  release-decision record so reviewers can tell which artifact owns each
+  requirement? [Dependency, Spec §FR-016, Plan §Artifact Governance &
+  Source-of-Truth Precedence, Release Decision §Evidence Sources, Tasks
+  §T074–T077, Tasks §Phase 19]
 
 ## Ambiguities & Conflicts
 
-- [ ] CHK055 Do the artifacts avoid ambiguity between "compatibility failure",
-  "transport failure", and "permission denied" as separate requirement
-  classes? [Ambiguity, Spec §Edge Cases, Spec §FR-011, Tasks §T080, Tasks
-  §T081]
-- [ ] CHK056 Is there any conflict between the append-only ledger rule and the
-  statement that `T074`–`T081` block release, or is that relationship written
-  clearly enough for reviewers? [Conflict, Plan §Artifact Governance & Source-
-  of-Truth Precedence, Tasks §Artifact Roles & Ledger Semantics, Tasks §Notes]
+- [x] CHK055 Do the artifacts avoid ambiguity between "compatibility
+  failure", "transport failure", and "permission denied" as separate
+  requirement classes? [Ambiguity, Spec §Edge Cases, Spec §FR-011, Tasks
+  §T080, Tasks §T081]
+- [x] CHK056 Is there any conflict between the append-only ledger rule and the
+  current release blocker, or is that relationship written clearly enough for
+  reviewers? [Conflict, Plan §Artifact Governance & Source-of-Truth
+  Precedence, Tasks §Artifact Roles & Ledger Semantics, Tasks §Phase 19,
+  Tasks §Notes]
+
+## Phase 18 / Phase 19 Closure Planning
+
+- [x] CHK057 Is the shared `meshLinkConfig` builder now traceable across the
+  spec, plan, API contract, and the new Phase 18 closure work? [Traceability,
+  Spec §FR-014a, Plan §Summary, Contract `meshlink-api.md` §§Configuration
+  DSL, Builder invariants, Tasks §T087]
+- [x] CHK058 Is the discovery advertisement contract now traceable across the
+  spec, plan constraints, dedicated contract, and the new Phase 18 closure
+  work? [Traceability, Spec §FR-015b, Plan §Constraints, Contract
+  `discovery-advertisement.md` §§Canonical Advertisement Shape, Encoding
+  Rules, Tasks §T088]
+- [x] CHK059 Is the explicit `SC-004` release-decision path traceable across
+  the spec, plan, release-decision record, and the new Phase 19 closure work?
+  [Traceability, Spec §Release-decision framing for SC-004, Plan §Summary,
+  Release Decision §§Current Status, Allowed Closure Paths, Tasks §T091–T093]

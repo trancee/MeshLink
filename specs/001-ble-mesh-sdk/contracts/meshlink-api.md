@@ -23,10 +23,25 @@ object MeshLink {
 ```
 
 **Contract notes**
-- `create(config)` is the primary entry point for platforms that do not require extra bootstrap input.
+- `create(config)` is the primary entry point for platforms that do not
+  require extra bootstrap input.
 - `create(config, context)` is the Android bootstrap overload.
-- Deprecated aliases stay available for compatibility during the migration window.
-- Platform-specific parameters stay in factory overloads, not in the shared DSL.
+- Deprecated aliases stay available for compatibility during the migration
+  window.
+- Platform-specific parameters stay in factory overloads, not in the shared
+  DSL.
+- Android-specific bootstrap handles, iOS/CoreBluetooth handles, and other
+  platform objects MUST NOT become builder fields on `MeshLinkConfigBuilder`.
+
+**Factory-boundary guarantees**
+- The same `MeshLinkConfig` value MUST have the same semantic meaning on
+  Android and iOS.
+- Factory overloads are the only public place where platform bootstrap inputs
+  may differ by target.
+- Calling a factory overload with an invalid or incomplete platform bootstrap
+  input MUST fail as `MeshLinkException.InvalidConfiguration` or the closest
+  matching `MeshLinkException` subtype rather than leaking a platform-native
+  exception.
 
 ### Configuration DSL
 
@@ -51,6 +66,25 @@ class MeshLinkConfigBuilder {
 - Backoff coefficients remain internal in v1; only the deadline is public
   configuration.
 - `deliveryRetryDeadline` MUST be greater than `Duration.ZERO`.
+
+**Field semantics**
+
+| Field | Required | Default | Contract |
+|-------|----------|---------|----------|
+| `appId` | Yes | None | Non-blank logical mesh/application identifier used to isolate proof and host-app discovery domains. Peers intended to interoperate in the same run use the same value. |
+| `regulatoryRegion` | No | `RegulatoryRegion.DEFAULT` | Selects shared policy clamps and region-specific radio limits without changing the public API shape by platform. |
+| `powerMode` | No | `PowerMode.Automatic` | Uses shared commonMain power-policy logic unless the host explicitly pins a fixed tier. |
+| `deliveryRetryDeadline` | No | `15.seconds` | Bounds only the in-memory no-route retry window; retries do not survive restart. |
+
+**Builder invariants**
+- Android and iOS expose the same builder fields, defaults, validation rules,
+  and resulting `MeshLinkConfig` semantics.
+- Builder field order MUST NOT affect the resulting configuration.
+- The builder MUST remain free of platform-branching options such as
+  Android-only or iOS-only DSL fields.
+- Validation failures in `meshLinkConfig { ... }` MUST fail as
+  `MeshLinkException.InvalidConfiguration` or the closest matching public
+  configuration error rather than a platform-native exception.
 
 ### Main interface
 
@@ -86,8 +120,9 @@ interface MeshLinkApi {
   while still exposing the current effective policy snapshot through diagnostics.
 - Each call emits a `POWER_MODE_CHANGED` diagnostic whose metadata keys are:
   `level`, `isCharging`, `tier`, `advertisementIntervalMillis`,
-  `scanDutyCyclePercent`, `maxConnections`, `chunkBudgetBytes`, and `region`.
-  `clampWarnings` appears only when a regional clamp was applied.
+  `connectionIntervalMillis`, `scanDutyCyclePercent`, `maxConnections`,
+  `chunkBudgetBytes`, and `region`. `clampWarnings` appears only when a
+  regional clamp was applied.
 
 ## Public Types
 
@@ -197,7 +232,8 @@ All thrown public exceptions derive from one sealed hierarchy defined in
 - `diagnosticEvents` use the full shared 26-code `DiagnosticCode` catalog with
   identical severities and payload shapes across Android and iOS.
 - `POWER_MODE_CHANGED` carries the same metadata keys and tier names on Android
-  and iOS for identical power-policy inputs.
+  and iOS for identical power-policy inputs, including
+  `connectionIntervalMillis` for LOW-tier verification.
 - All thrown public exceptions derive from `MeshLinkException`; platform
   exceptions are wrapped and MUST NOT leak directly to consumers.
 - `send()` never silently downgrades trust, routing, or payload-size behavior.
@@ -215,6 +251,9 @@ All thrown public exceptions derive from one sealed hierarchy defined in
 ## Compatibility Rules
 
 - New public API additions must preserve BCV compatibility.
-- Public configuration uses a DSL builder, not boolean-heavy function overloads.
+- Public configuration uses one shared `meshLinkConfig` DSL builder, not
+  boolean-heavy function overloads.
+- Platform bootstrap differences stay in factory overloads and MUST NOT leak
+  into the shared builder surface.
 - Public exceptions and result types must stay consistent across targets.
 - Public docs and examples must be updated for Android and iOS in the same change.
