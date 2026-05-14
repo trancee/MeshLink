@@ -435,6 +435,24 @@ conformance path or the waiver path is explicitly completed.
   `specs/001-ble-mesh-sdk/release-decision.md`,
   `specs/001-ble-mesh-sdk/spec.md`, and
   `specs/001-ble-mesh-sdk/plan.md`.
+- [X] T096 Implement the deeper cross-platform mixed Android/iOS initiator-
+  policy redesign by encoding platform-family hints in the shared discovery
+  payload, make Android the deterministic L2CAP initiator for mixed-platform
+  peers while keeping same-platform / legacy peers on key-hash ordering,
+  verify the final clean-build recipient-confirmed Samsung and OPPO reruns, and
+  retain the resulting `39.48 KB/s` Samsung and `52.03 KB/s` OPPO evidence in
+  `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/transport/BleDiscoveryContract.kt`,
+  `meshlink/src/androidMain/kotlin/ch/trancee/meshlink/platform/android/AndroidBleTransport.kt`,
+  `meshlink/src/iosMain/kotlin/ch/trancee/meshlink/platform/ios/IosBleTransport.kt`,
+  `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/transport/BleDiscoveryContractTest.kt`,
+  `specs/001-ble-mesh-sdk/contracts/discovery-advertisement.md`,
+  `benchmarks/README.md`,
+  `specs/001-ble-mesh-sdk/research.md`,
+  `specs/001-ble-mesh-sdk/release-decision.md`,
+  `specs/001-ble-mesh-sdk/spec.md`,
+  `specs/001-ble-mesh-sdk/plan.md`,
+  `specs/001-ble-mesh-sdk/quickstart.md`, and
+  `meshlink-sample/ios/README.md`.
 
 ---
 

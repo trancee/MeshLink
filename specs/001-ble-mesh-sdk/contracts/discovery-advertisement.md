@@ -23,6 +23,20 @@ still the same logical fixed discovery UUID for contract and reviewer purposes.
 
 - The discovery payload UUID is exactly 16 bytes and is encoded entirely inside
   the second advertised UUID value.
+- Byte 0 of the 16-byte discovery payload is a shared header:
+  - bits 7..5 = protocol version
+  - bits 4..3 = power mode
+  - bits 2..0 = platform family / initiator-policy hint
+- Current platform-family values are:
+  - `0` = unknown / legacy
+  - `1` = Android
+  - `2` = iOS
+- For mixed Android/iOS peers that both advertise the current hint, Android is
+  the deterministic L2CAP initiator so iPhone can host the inbound channel and
+  request the faster peripheral-side low-latency connection profile.
+- Same-platform peers, or any peer that still advertises the unknown / legacy
+  hint, MUST fall back to the existing key-hash ordering policy rather than
+  deadlocking or depending on platform-private heuristics.
 - The entire normative discovery contract MUST fit in a single advertisement.
 - Discovery advertisements MUST NOT rely on a scan response.
 - Conformant receivers MUST be able to discover a peer from the single
@@ -37,6 +51,8 @@ still the same logical fixed discovery UUID for contract and reviewer purposes.
 - Android and iOS advertise the same fixed discovery UUID value.
 - Android and iOS encode the same 16-byte discovery payload semantics in the
   second UUID slot.
+- Android and iOS interpret the shared platform-family hint identically when
+  choosing the deterministic L2CAP initiator for mixed-platform peers.
 - Discovery parsing MUST treat the two UUID entries as one contract: fixed
   discovery marker + payload carrier.
 - The normative product path remains MeshLink L2CAP-first. Discovery
@@ -61,8 +77,9 @@ still the same logical fixed discovery UUID for contract and reviewer purposes.
 ## Reviewer Evidence Expectations
 
 - Contract tests cover the fixed `4d455348` UUID, the second 128-bit payload
-  UUID, the 16-byte payload length, the single-advertisement constraint, and the
-  no-scan-response rule.
+  UUID, the 16-byte payload length, the shared header-bit semantics (including
+  the platform-family / initiator-policy hint), the single-advertisement
+  constraint, and the no-scan-response rule.
 - Android and iOS proof integrations retain logs or snapshots that show both
   advertised UUID values and confirm the same payload semantics.
 - Negative contract coverage demonstrates rejection of unsupported shapes such

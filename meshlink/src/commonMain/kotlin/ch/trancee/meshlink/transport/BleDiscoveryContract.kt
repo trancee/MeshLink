@@ -7,6 +7,19 @@ internal enum class BlePowerMode {
     RESERVED,
 }
 
+internal enum class BleDiscoveryPlatformFamily(internal val encodedBits: Int) {
+    UNKNOWN(0),
+    ANDROID(1),
+    IOS(2),
+    ;
+
+    internal companion object {
+        internal fun fromEncodedBits(bits: Int): BleDiscoveryPlatformFamily {
+            return entries.firstOrNull { family -> family.encodedBits == bits } ?: UNKNOWN
+        }
+    }
+}
+
 internal class BleDiscoveryPayload
 internal constructor(
     internal val protocolVersion: Int,
@@ -14,6 +27,7 @@ internal constructor(
     internal val meshHash: UShort,
     internal val l2capPsm: UByte,
     keyHash: ByteArray,
+    internal val platformFamily: BleDiscoveryPlatformFamily = BleDiscoveryPlatformFamily.UNKNOWN,
 ) {
     internal val keyHash: ByteArray = keyHash.copyOf()
 
@@ -30,7 +44,10 @@ internal constructor(
     internal fun encode(): ByteArray {
         val bytes = ByteArray(PAYLOAD_SIZE_BYTES)
         bytes[0] =
-            (((protocolVersion and 0x07) shl 5) or ((powerMode.ordinal and 0x03) shl 3)).toByte()
+            (((protocolVersion and 0x07) shl 5) or
+                    ((powerMode.ordinal and 0x03) shl 3) or
+                    (platformFamily.encodedBits and 0x07))
+                .toByte()
         bytes[1] = (meshHash.toInt() and 0xFF).toByte()
         bytes[2] = ((meshHash.toInt() shr 8) and 0xFF).toByte()
         bytes[3] = l2capPsm.toByte()
@@ -53,6 +70,7 @@ internal constructor(
             val header = bytes[0].toInt() and 0xFF
             val protocolVersion = (header shr 5) and 0x07
             val powerModeOrdinal = (header shr 3) and 0x03
+            val platformFamilyBits = header and 0x07
             val meshHash =
                 (((bytes[2].toInt() and 0xFF) shl 8) or (bytes[1].toInt() and 0xFF)).toUShort()
             val l2capPsm = bytes[3].toUByte()
@@ -63,6 +81,7 @@ internal constructor(
                 meshHash = meshHash,
                 l2capPsm = l2capPsm,
                 keyHash = keyHash,
+                platformFamily = BleDiscoveryPlatformFamily.fromEncodedBits(platformFamilyBits),
             )
         }
 
@@ -147,4 +166,37 @@ internal object BleDiscoveryContract {
         }
         return hash
     }
+}
+
+internal fun shouldLocalPeerInitiateL2capConnection(
+    localKeyHash: ByteArray,
+    localPlatformFamily: BleDiscoveryPlatformFamily,
+    remoteKeyHash: ByteArray,
+    remotePlatformFamily: BleDiscoveryPlatformFamily,
+): Boolean {
+    if (
+        localPlatformFamily == BleDiscoveryPlatformFamily.ANDROID &&
+            remotePlatformFamily == BleDiscoveryPlatformFamily.IOS
+    ) {
+        return true
+    }
+    if (
+        localPlatformFamily == BleDiscoveryPlatformFamily.IOS &&
+            remotePlatformFamily == BleDiscoveryPlatformFamily.ANDROID
+    ) {
+        return false
+    }
+    return compareUnsignedKeyHashes(localKeyHash, remoteKeyHash) < 0
+}
+
+private fun compareUnsignedKeyHashes(left: ByteArray, right: ByteArray): Int {
+    val length = minOf(left.size, right.size)
+    for (index in 0 until length) {
+        val leftByte = left[index].toInt() and 0xFF
+        val rightByte = right[index].toInt() and 0xFF
+        if (leftByte != rightByte) {
+            return leftByte.compareTo(rightByte)
+        }
+    }
+    return left.size.compareTo(right.size)
 }

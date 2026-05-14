@@ -68,6 +68,7 @@ class BleDiscoveryContractTest {
         assertEquals(payload.powerMode, decoded.powerMode)
         assertEquals(payload.meshHash, decoded.meshHash)
         assertEquals(payload.l2capPsm, decoded.l2capPsm)
+        assertEquals(payload.platformFamily, decoded.platformFamily)
         assertContentEquals(payload.keyHash, decoded.keyHash)
     }
 
@@ -208,6 +209,107 @@ class BleDiscoveryContractTest {
 
         // Assert
         assertEquals("UUID string must encode exactly 16 bytes", error.message)
+    }
+
+    @Test
+    fun `platform family bits round trip through encoding`() {
+        // Arrange
+        val payload =
+            BleDiscoveryPayload(
+                protocolVersion = 1,
+                powerMode = BlePowerMode.BALANCED,
+                meshHash = 0x1BE1.toUShort(),
+                l2capPsm = 0x80.toUByte(),
+                keyHash = ByteArray(12) { index -> index.toByte() },
+                platformFamily = BleDiscoveryPlatformFamily.IOS,
+            )
+
+        // Act
+        val decoded = BleDiscoveryPayload.decode(payload.encode())
+
+        // Assert
+        assertEquals(BleDiscoveryPlatformFamily.IOS, decoded.platformFamily)
+    }
+
+    @Test
+    fun `android deterministically initiates mixed android ios links`() {
+        // Arrange
+        val localKeyHash = byteArrayOf(0x20, 0x00)
+        val remoteKeyHash = byteArrayOf(0x10, 0x00)
+
+        // Act
+        val androidInitiates =
+            shouldLocalPeerInitiateL2capConnection(
+                localKeyHash = localKeyHash,
+                localPlatformFamily = BleDiscoveryPlatformFamily.ANDROID,
+                remoteKeyHash = remoteKeyHash,
+                remotePlatformFamily = BleDiscoveryPlatformFamily.IOS,
+            )
+        val iosInitiates =
+            shouldLocalPeerInitiateL2capConnection(
+                localKeyHash = remoteKeyHash,
+                localPlatformFamily = BleDiscoveryPlatformFamily.IOS,
+                remoteKeyHash = localKeyHash,
+                remotePlatformFamily = BleDiscoveryPlatformFamily.ANDROID,
+            )
+
+        // Assert
+        assertTrue(androidInitiates)
+        assertTrue(!iosInitiates)
+    }
+
+    @Test
+    fun `same platform peers fall back to legacy key hash ordering`() {
+        // Arrange
+        val lowerKeyHash = byteArrayOf(0x01, 0x00)
+        val higherKeyHash = byteArrayOf(0x02, 0x00)
+
+        // Act
+        val lowerInitiates =
+            shouldLocalPeerInitiateL2capConnection(
+                localKeyHash = lowerKeyHash,
+                localPlatformFamily = BleDiscoveryPlatformFamily.ANDROID,
+                remoteKeyHash = higherKeyHash,
+                remotePlatformFamily = BleDiscoveryPlatformFamily.ANDROID,
+            )
+        val higherInitiates =
+            shouldLocalPeerInitiateL2capConnection(
+                localKeyHash = higherKeyHash,
+                localPlatformFamily = BleDiscoveryPlatformFamily.IOS,
+                remoteKeyHash = lowerKeyHash,
+                remotePlatformFamily = BleDiscoveryPlatformFamily.IOS,
+            )
+
+        // Assert
+        assertTrue(lowerInitiates)
+        assertTrue(!higherInitiates)
+    }
+
+    @Test
+    fun `unknown platform families remain backward compatible with legacy ordering`() {
+        // Arrange
+        val lowerKeyHash = byteArrayOf(0x00, 0x10)
+        val higherKeyHash = byteArrayOf(0x00, 0x20)
+
+        // Act
+        val lowerInitiates =
+            shouldLocalPeerInitiateL2capConnection(
+                localKeyHash = lowerKeyHash,
+                localPlatformFamily = BleDiscoveryPlatformFamily.UNKNOWN,
+                remoteKeyHash = higherKeyHash,
+                remotePlatformFamily = BleDiscoveryPlatformFamily.IOS,
+            )
+        val higherInitiates =
+            shouldLocalPeerInitiateL2capConnection(
+                localKeyHash = higherKeyHash,
+                localPlatformFamily = BleDiscoveryPlatformFamily.ANDROID,
+                remoteKeyHash = lowerKeyHash,
+                remotePlatformFamily = BleDiscoveryPlatformFamily.UNKNOWN,
+            )
+
+        // Assert
+        assertTrue(lowerInitiates)
+        assertTrue(!higherInitiates)
     }
 
     @Test

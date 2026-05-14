@@ -107,14 +107,16 @@ Proof-app note:
   delivered the same payload again without re-enrollment.
 - Use isolated transient `appId` values for physical validation work whenever
   nearby devices might also be advertising on the default proof mesh.
-- The latest clean queued-writer iPhone 15 64 KiB rerun reached `20.05 KB/s` to the
-  OPPO reference peer, still well below the `>= 60 KB/s` release target.
-- A fresh telemetry-enabled queued-writer rerun to the Samsung reference peer also
-  completed and delivered the full `65536`-byte payload, but only at `19.62 KB/s`.
-- A separate fresh passive Samsung rerun on the same build failed
-  `NotSent(reason=UNREACHABLE)` after repeated `transport.handshake.message1.send`
-  failures, so the remaining blocker is still 64 KiB iPhone throughput and Samsung-
-  path stability, not launch or pairing.
+- A deeper mixed Android/iOS initiator-policy redesign now makes Android the
+  deterministic L2CAP initiator for mixed-platform peers, so the iPhone can host
+  the inbound channel and request low connection latency on every final retained
+  proof rerun.
+- On that deterministic path, fresh retained final-matrix evidence reached
+  `52.03 KB/s` to the OPPO reference peer and `39.48 KB/s` to the Samsung
+  reference peer, both still below the `>= 60 KB/s` release target.
+- The remaining blocker is therefore 64 KiB iPhone throughput on the optimized
+  deterministic path, not launch, pairing, recipient-confirmed proof completion,
+  or mixed-platform role randomness.
 
 ## 7. Validate restart and trust behavior
 

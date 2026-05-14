@@ -8,7 +8,9 @@ import ch.trancee.meshlink.identity.toHexString
 import ch.trancee.meshlink.power.PowerPolicy
 import ch.trancee.meshlink.transport.BleDiscoveryContract
 import ch.trancee.meshlink.transport.BleDiscoveryPayload
+import ch.trancee.meshlink.transport.BleDiscoveryPlatformFamily
 import ch.trancee.meshlink.transport.BleTransport
+import ch.trancee.meshlink.transport.shouldLocalPeerInitiateL2capConnection
 import ch.trancee.meshlink.transport.OutboundFrame
 import ch.trancee.meshlink.transport.PendingFrameWindow
 import ch.trancee.meshlink.transport.TransportEvent
@@ -160,7 +162,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
 
         val link = activeLinkFor(peer)
         if (link == null) {
-            if (shouldInitiateL2cap(peer.keyHash)) {
+            if (shouldInitiateL2cap(peer.keyHash, peer.platformFamily)) {
                 connectIfNeeded(peer)
                 log("send(${frame.peerId.value.takeLast(6)}) no active link, triggering connect")
             } else {
@@ -262,7 +264,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
         val transportMode =
             if (payload.l2capPsm.toInt() == 0) TransportMode.GATT else TransportMode.L2CAP
         log(
-            "scan found ${hintPeerId.value.takeLast(6)} mode=$transportMode psm=${payload.l2capPsm} id=${peripheral.identifier.UUIDString}"
+            "scan found ${hintPeerId.value.takeLast(6)} mode=$transportMode psm=${payload.l2capPsm} platform=${payload.platformFamily} id=${peripheral.identifier.UUIDString}"
         )
 
         val identifier = peripheral.identifier.UUIDString.lowercase()
@@ -275,6 +277,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
                     peripheral = peripheral,
                     l2capPsm = payload.l2capPsm.toInt(),
                     transportMode = transportMode,
+                    platformFamily = payload.platformFamily,
                 )
             peerHintByIdentifier[identifier] = hintPeerId.value
             mutableEvents.tryEmit(
@@ -283,6 +286,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
         } else {
             discoveredPeer.peripheral = peripheral
             discoveredPeer.l2capPsm = payload.l2capPsm.toInt()
+            discoveredPeer.platformFamily = payload.platformFamily
             peerHintByIdentifier[identifier] = hintPeerId.value
             if (discoveredPeer.transportMode != transportMode) {
                 discoveredPeer.transportMode = transportMode
@@ -301,7 +305,10 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
             identifier = identifier,
         )
 
-        if (transportMode == TransportMode.L2CAP && shouldInitiateL2cap(payload.keyHash)) {
+        if (
+            transportMode == TransportMode.L2CAP &&
+                shouldInitiateL2cap(payload.keyHash, payload.platformFamily)
+        ) {
             log("initiating L2CAP connect to ${hintPeerId.value.takeLast(6)}")
             connectIfNeeded(discoveredPeers.getValue(hintPeerId.value))
         }
@@ -369,12 +376,14 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
                         IncomingL2capHintCandidate(
                             hintPeerIdValue = peer.hintPeerId.value,
                             keyHash = peer.keyHash,
+                            platformFamily = peer.platformFamily,
                             transportMode = peer.transportMode,
                         )
                     },
                 activeHintIds = activeLinksByHint.keys,
                 pendingHintIds = pendingConnectionsByHint.keys,
                 localKeyHash = localKeyHash,
+                localPlatformFamily = currentDiscoveryPayload.platformFamily,
             )
         val hintPeerId = selectedHintPeerIdValue?.let(::PeerId) ?: temporaryPeerId(identifier)
         if (selectedHintPeerIdValue != null) {
@@ -493,10 +502,15 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
         centralManager?.connectPeripheral(peer.peripheral, options = null)
     }
 
-    private fun shouldInitiateL2cap(remoteKeyHash: ByteArray): Boolean {
-        return shouldInitiateL2capConnection(
+    private fun shouldInitiateL2cap(
+        remoteKeyHash: ByteArray,
+        remotePlatformFamily: BleDiscoveryPlatformFamily,
+    ): Boolean {
+        return shouldLocalPeerInitiateL2capConnection(
             localKeyHash = localKeyHash,
+            localPlatformFamily = currentDiscoveryPayload.platformFamily,
             remoteKeyHash = remoteKeyHash,
+            remotePlatformFamily = remotePlatformFamily,
         )
     }
 
@@ -608,6 +622,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
             meshHash = BleDiscoveryContract.computeMeshHash(appId),
             l2capPsm = l2capPsm,
             keyHash = localKeyHash,
+            platformFamily = BleDiscoveryPlatformFamily.IOS,
         )
     }
 
@@ -635,6 +650,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
         var peripheral: CBPeripheral,
         var l2capPsm: Int,
         var transportMode: TransportMode,
+        var platformFamily: BleDiscoveryPlatformFamily,
         var rediscoveryLoggedWithoutLink: Boolean = false,
     ) {
         val keyHash: ByteArray = keyHash.copyOf()
@@ -1130,6 +1146,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
 internal data class IncomingL2capHintCandidate(
     internal val hintPeerIdValue: String,
     internal val keyHash: ByteArray,
+    internal val platformFamily: BleDiscoveryPlatformFamily,
     internal val transportMode: TransportMode,
 )
 
@@ -1157,6 +1174,7 @@ internal fun selectIncomingL2capHintPeerId(
     activeHintIds: Collection<String>,
     pendingHintIds: Collection<String>,
     localKeyHash: ByteArray,
+    localPlatformFamily: BleDiscoveryPlatformFamily,
 ): String? {
     peerHintByIdentifier[peripheralIdentifier]?.let { mappedHint ->
         return mappedHint
@@ -1166,24 +1184,14 @@ internal fun selectIncomingL2capHintPeerId(
             candidate.transportMode == TransportMode.L2CAP &&
                 candidate.hintPeerIdValue !in activeHintIds &&
                 candidate.hintPeerIdValue !in pendingHintIds &&
-                !shouldInitiateL2capConnection(localKeyHash, candidate.keyHash)
+                !shouldLocalPeerInitiateL2capConnection(
+                    localKeyHash = localKeyHash,
+                    localPlatformFamily = localPlatformFamily,
+                    remoteKeyHash = candidate.keyHash,
+                    remotePlatformFamily = candidate.platformFamily,
+                )
         }
     return waitingCandidates.singleOrNull()?.hintPeerIdValue
-}
-
-internal fun shouldInitiateL2capConnection(
-    localKeyHash: ByteArray,
-    remoteKeyHash: ByteArray,
-): Boolean {
-    val length = minOf(localKeyHash.size, remoteKeyHash.size)
-    for (index in 0 until length) {
-        val localByte = localKeyHash[index].toInt() and 0xFF
-        val remoteByte = remoteKeyHash[index].toInt() and 0xFF
-        if (localByte != remoteByte) {
-            return localByte < remoteByte
-        }
-    }
-    return localKeyHash.size < remoteKeyHash.size
 }
 
 private class IosCentralDelegate(private val owner: IosBleTransport) :

@@ -24,7 +24,9 @@ import ch.trancee.meshlink.identity.toHexString
 import ch.trancee.meshlink.power.PowerPolicy
 import ch.trancee.meshlink.transport.BleDiscoveryContract
 import ch.trancee.meshlink.transport.BleDiscoveryPayload
+import ch.trancee.meshlink.transport.BleDiscoveryPlatformFamily
 import ch.trancee.meshlink.transport.BleTransport
+import ch.trancee.meshlink.transport.shouldLocalPeerInitiateL2capConnection
 import ch.trancee.meshlink.transport.OutboundFrame
 import ch.trancee.meshlink.transport.TransportEvent
 import ch.trancee.meshlink.transport.TransportMode
@@ -197,7 +199,7 @@ internal class AndroidBleTransport(
 
         val link = activeLinksByHint[peer.hintPeerId.value]
         if (link == null) {
-            if (shouldInitiateL2cap(peer.keyHash)) {
+            if (shouldInitiateL2cap(peer.keyHash, peer.platformFamily)) {
                 log("send(${frame.peerId.value.takeLast(6)}) no active link, triggering connect")
                 connectIfNeeded(peer)
             } else {
@@ -264,7 +266,7 @@ internal class AndroidBleTransport(
             return
         }
         log(
-            "scan found ${hintPeerId.value.takeLast(6)} mode=$transportMode psm=${payload.l2capPsm} addr=${result.device.address}"
+            "scan found ${hintPeerId.value.takeLast(6)} mode=$transportMode psm=${payload.l2capPsm} platform=${payload.platformFamily} addr=${result.device.address}"
         )
         if (discoveredPeer == null) {
             discoveredPeers[hintPeerId.value] =
@@ -274,6 +276,7 @@ internal class AndroidBleTransport(
                     device = result.device,
                     l2capPsm = payload.l2capPsm.toInt(),
                     transportMode = transportMode,
+                    platformFamily = payload.platformFamily,
                 )
             peerHintByAddress[result.device.address] = hintPeerId.value
             mutableEvents.tryEmit(
@@ -282,6 +285,7 @@ internal class AndroidBleTransport(
         } else {
             discoveredPeer.device = result.device
             discoveredPeer.l2capPsm = payload.l2capPsm.toInt()
+            discoveredPeer.platformFamily = payload.platformFamily
             peerHintByAddress[result.device.address] = hintPeerId.value
             if (discoveredPeer.transportMode != transportMode) {
                 discoveredPeer.transportMode = transportMode
@@ -299,14 +303,25 @@ internal class AndroidBleTransport(
             transportMode = transportMode,
             address = result.device.address,
         )
-        if (transportMode == TransportMode.L2CAP && shouldInitiateL2cap(payload.keyHash)) {
+        if (
+            transportMode == TransportMode.L2CAP &&
+                shouldInitiateL2cap(payload.keyHash, payload.platformFamily)
+        ) {
             log("initiating L2CAP connect to ${hintPeerId.value.takeLast(6)}")
             connectIfNeeded(discoveredPeers.getValue(hintPeerId.value))
         }
     }
 
-    private fun shouldInitiateL2cap(remoteKeyHash: ByteArray): Boolean {
-        return compareUnsigned(localKeyHash, remoteKeyHash) < 0
+    private fun shouldInitiateL2cap(
+        remoteKeyHash: ByteArray,
+        remotePlatformFamily: BleDiscoveryPlatformFamily,
+    ): Boolean {
+        return shouldLocalPeerInitiateL2capConnection(
+            localKeyHash = localKeyHash,
+            localPlatformFamily = currentDiscoveryPayload.platformFamily,
+            remoteKeyHash = remoteKeyHash,
+            remotePlatformFamily = remotePlatformFamily,
+        )
     }
 
     private fun connectIfNeeded(peer: DiscoveredPeer): Unit {
@@ -558,6 +573,7 @@ internal class AndroidBleTransport(
             meshHash = BleDiscoveryContract.computeMeshHash(appId),
             l2capPsm = l2capPsm,
             keyHash = localKeyHash,
+            platformFamily = BleDiscoveryPlatformFamily.ANDROID,
         )
     }
 
@@ -624,24 +640,13 @@ internal class AndroidBleTransport(
         return PeerId(temporaryHint)
     }
 
-    private fun compareUnsigned(left: ByteArray, right: ByteArray): Int {
-        val length = minOf(left.size, right.size)
-        for (index in 0 until length) {
-            val leftByte = left[index].toInt() and 0xFF
-            val rightByte = right[index].toInt() and 0xFF
-            if (leftByte != rightByte) {
-                return leftByte.compareTo(rightByte)
-            }
-        }
-        return left.size.compareTo(right.size)
-    }
-
     private class DiscoveredPeer(
         val hintPeerId: PeerId,
         keyHash: ByteArray,
         var device: BluetoothDevice,
         var l2capPsm: Int,
         var transportMode: TransportMode,
+        var platformFamily: BleDiscoveryPlatformFamily,
         var rediscoveryLoggedWithoutLink: Boolean = false,
     ) {
         val keyHash: ByteArray = keyHash.copyOf()

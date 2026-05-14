@@ -677,6 +677,76 @@ Interpretation:
   connection-latency control as the stronger of the tested iOS-only options,
   but still insufficient for `SC-004`
 
+### Deeper cross-platform role-policy redesign: deterministic Android-initiated mixed-platform L2CAP (2026-05-14)
+
+The remaining problem after the inbound low-latency change was that it still
+only helped when the iPhone happened to host the inbound L2CAP channel. That
+made the faster path role-dependent and non-deterministic across reruns.
+
+To remove that randomness, the discovery payload now uses the previously
+reserved low 3 header bits as a shared platform-family hint:
+
+- `0` = unknown / legacy
+- `1` = Android
+- `2` = iOS
+
+New mixed-platform initiator policy:
+
+- Android -> iOS pair: Android deterministically initiates the L2CAP channel
+- iOS -> Android pair: iOS waits for the inbound channel instead of attempting
+  its own competing outbound open
+- same-platform peers and unknown / legacy peers keep the old key-hash tie-break
+  ordering for backward compatibility
+
+This keeps the same 16-byte discovery payload shape and the same single-
+advertisement contract; only the meaning of the previously-unused low header
+bits changes.
+
+Fresh retained debug proof of the final mixed-platform policy:
+
+- directory: `/tmp/ios_rolepolicy_samsung_debug_clean_20260514T173346`
+- key sender-side iPhone lines:
+  - `scan found aa07ed mode=L2CAP psm=234 platform=ANDROID ...`
+  - `send(aa07ed) waiting for inbound L2CAP link`
+  - `binding incoming L2CAP channel to discovered peer aa07ed ...`
+  - `requested low connection latency for aa07ed central=...`
+  - `BENCHMARK transport bytes=65536 elapsedMs=1750 throughputKBps=36.57 result=Sent`
+
+Fresh retained final matrix on the clean-built deterministic path:
+
+- directory: `/tmp/ios_rolepolicy_final_matrix_20260514T173422`
+- Samsung runs:
+  - `34.92 KB/s` (`latency_requested=yes`)
+  - `24.37 KB/s` (`latency_requested=yes`)
+  - `39.48 KB/s` (`latency_requested=yes`)
+- OPPO runs:
+  - `52.03 KB/s` (`latency_requested=yes`)
+  - `45.33 KB/s` (`latency_requested=yes`)
+- every retained run ended with a matching passive-peer receipt send line
+
+Interpretation:
+
+- the redesign achieved its immediate goal: the faster inbound / iPhone-
+  peripheral-hosted path is now deterministic on the mixed Android/iOS proof
+  path, and the low-latency request is present on every retained final-matrix
+  run
+- this resolves the earlier role-dependent randomness seen after the first
+  low-latency-only design change
+- the resulting throughput class is materially better than the pre-redesign
+  baseline:
+  - Samsung best case improved from `33.56 KB/s` to `39.48 KB/s`
+  - OPPO best case improved from `20.05 KB/s` to `52.03 KB/s`
+- despite that improvement, `SC-004` still remains unmet because the retained
+  best case is still below `>= 60 KB/s`
+
+Updated blocker state after the redesign:
+
+- the active blocker is no longer mixed-platform initiator randomness
+- the active blocker is the remaining throughput shortfall on the now-
+  deterministic optimized path
+- the next conformance step is therefore a further throughput optimization on
+  this path, not another initiator-policy change
+
 ### Proof-only Android GATT server + iOS GATT client fallback prototype
 
 A proof-only native fallback prototype is now implemented in the sample apps for

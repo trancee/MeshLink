@@ -86,20 +86,21 @@ Physical proof findings on iPhone 15:
 - cold start reached `mesh.start()` in `18 ms`
 - LOW-power diagnostics reported `scanDutyCyclePercent=5` and now require `connectionIntervalMillis=500`
 - the 256-byte latency benchmark completed in `28 ms`
-- fresh queued-writer follow-ups still keep 64 KiB delivery in the ~20 KB/s class:
-  a clean OPPO rerun reached `20.05 KB/s`, a telemetry-enabled Samsung rerun reached
-  `19.62 KB/s` with full `65536`-byte receipt, and a separate passive Samsung rerun
-  failed `NotSent(reason=UNREACHABLE)` after repeated
-  `transport.handshake.message1.send` failures
+- a deeper mixed Android/iOS initiator-policy redesign now makes Android the
+  deterministic L2CAP initiator for mixed-platform peers, so iPhone can host the
+  inbound channel and request low connection latency on the current proof path
+- fresh retained final-matrix evidence on that deterministic path reached
+  `52.03 KB/s` to OPPO and `39.48 KB/s` to Samsung, with recipient-confirmed
+  proof receipts on every retained run; this is still below the normative
+  `>= 60 KB/s` target
 - a proof-only native GATT benchmark prototype is feasible on the same iPhone 15:
   Samsung reached `23.92 KB/s` with `setupMs=1994`, OPPO reached `21.96 KB/s`
   with `setupMs=1926`, and both runs negotiated `maxWriteWithoutResponse=512` /
   Android `mtu=517`; this is still well below the normative `>= 60 KB/s` target
-- the stricter recipient-confirmed MeshLink rerun currently fails in all four
-  fresh Samsung/OPPO × 256 B/64 KiB cells: each iPhone run ended
-  `ReceiptTimeout` after ~21.3-21.4 s, and each passive Android proof app
-  retained a matching `BENCHMARK receipt send(...) -> NotSent(reason=UNREACHABLE)`
-  line for the same token
+- the earlier stricter recipient-confirmed `ReceiptTimeout` matrix is now
+  historical diagnostic evidence only; the current deterministic mixed-platform
+  path completes recipient-confirmed Samsung and OPPO 64 KiB proof runs cleanly,
+  but still below the normative throughput target
 
 Shared harness evidence now also covers the common US2 runtime:
 
@@ -111,11 +112,11 @@ Shared harness evidence now also covers the common US2 runtime:
 
 Current blocker:
 
-- large-payload iPhone throughput remains below the `>= 60 KB/s` target and the
-  stricter recipient-confirmed MeshLink benchmark still fails even at 256 B,
-  even though delivery, pairing-free interop, cold start, power, latency, and a
-  proof-only GATT fallback prototype now work; the Samsung reference path still
-  shows variable stability across fresh reruns
+- large-payload iPhone throughput remains below the `>= 60 KB/s` target even on
+  the optimized deterministic mixed-platform path, though delivery,
+  recipient-confirmed proof completion, pairing-free interop, cold start,
+  power, latency, and a proof-only GATT fallback prototype now all work on the
+  current reference setup
 
 ## Current physical proof flow
 
