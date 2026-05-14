@@ -406,7 +406,7 @@ conformance path or the waiver path is explicitly completed.
   `specs/001-ble-mesh-sdk/release-decision.md`, linking the currently selected
   conformance path and leaving the waiver / known-limitation branch
   unselected.
-- [ ] T092 If the release remains blocked on conformance, execute one bounded
+- [X] T092 If the release remains blocked on conformance, execute one bounded
   iOS MeshLink-path throughput remediation experiment and rerun the
   recipient-confirmed reference-hardware benchmark, retaining raw
   sender/recipient evidence in `benchmarks/README.md` and

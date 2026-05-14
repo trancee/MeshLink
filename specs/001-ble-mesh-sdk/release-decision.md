@@ -15,6 +15,9 @@ explicit waiver / known limitation.
 - **Current blocker**: iOS single-hop 64 KiB throughput on the MeshLink path
   remains below the normative `>= 60 KB/s` target on reference benchmark
   hardware.
+- **Latest bounded conformance attempt**: a fresh iPhone 15 -> OPPO transient-
+  appId rerun with a widened 16 KiB inner iOS write batch still completed at
+  only `18.37 KB/s`, so the change was reverted and the blocker remains open.
 - **Non-blocker evidence already restored**: recipient-confirmed 64 KiB proof
   completion on the Samsung / OPPO physical path.
 

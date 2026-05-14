@@ -488,6 +488,56 @@ bottleneck still appears to live in iOS / CoreBluetooth L2CAP large-transfer beh
 or backpressure, not in pairing, route establishment, or the 392-byte chunk size
 itself.
 
+### Additional bounded conformance-path experiment: widen the inner iOS write batch (2026-05-14)
+
+A later bounded experiment tested whether the iOS sender was still paying avoidable
+app-side overhead from the inner `WRITE_BATCH_BYTES` split at `4 KiB`, even after the
+queued-writer path had already started coalescing up to `8144` bytes (`16` encoded
+frames) per batch.
+
+Experiment change:
+
+- temporarily widen `WRITE_BATCH_BYTES` from `4 * 1024` to `16 * 1024`
+- keep the rest of the queued-writer pipeline unchanged
+- rerun a fresh physical iPhone 15 -> OPPO 64 KiB MeshLink benchmark on a transient
+  isolated `appId`
+
+Fresh retained evidence:
+
+- passive OPPO launch used transient appId `demo.meshlink.benchmark.throughput.1778758876`
+  with passive benchmark mode enabled
+- sender iPhone 15 proof log:
+  - `BENCHMARK transport bytes=65536 elapsedMs=3484 throughputKBps=18.37 result=Sent`
+  - `BENCHMARK receipt from ... token=000087152badcdc3 bytes=65536`
+- passive OPPO proof log:
+  - `MSG from ... bytes=65536 benchmarkToken=000087152badcdc3`
+  - `BENCHMARK receipt send(2e0aa2) -> Sent token=000087152badcdc3 attempt=1`
+- sender telemetry on the widened-batch run:
+  - `coalescedFrames=16`
+  - `coalescedBytes=8144`
+  - `writeBatches=1`
+  - `writeCalls=3..4`
+  - `backpressureSpins=183..312`
+  - `readyFalseCount=183..312`
+  - `maxInterWriteGapMs=64..148`
+
+Interpretation:
+
+- the larger inner batch did remove the extra inner write-batch boundary for the
+  existing `8144`-byte coalesced writes (`writeBatches=1` instead of `2`)
+- despite that, the measured throughput got worse than the earlier clean OPPO rerun
+  (`18.37 KB/s` vs `20.05 KB/s`)
+- this strengthens the earlier hypothesis that the dominant bottleneck is still
+  CoreBluetooth stream availability / OS scheduling under L2CAP large-transfer load,
+  not the prior `4 KiB` inner batch split itself
+
+Outcome:
+
+- the 16 KiB inner-batch experiment was rejected and reverted
+- `SC-004` remains unmet on iOS
+- the conformance path stays open, but the next remediation should target a different
+  suspected bottleneck than the removed 4 KiB write-batch boundary
+
 ### Proof-only Android GATT server + iOS GATT client fallback prototype
 
 A proof-only native fallback prototype is now implemented in the sample apps for
