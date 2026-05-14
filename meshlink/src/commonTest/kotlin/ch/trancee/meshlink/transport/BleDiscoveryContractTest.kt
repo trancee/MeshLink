@@ -360,4 +360,39 @@ class BleDiscoveryContractTest {
         // Assert
         assertEquals(expected, actual)
     }
+
+    @Test
+    fun `named gatt fallback characteristic roles stay aligned with the fixed uuid set`() {
+        // Arrange / Act / Assert
+        assertEquals(BleDiscoveryContract.GATT_CHARACTERISTIC_UUIDS[0], BleDiscoveryContract.GATT_WRITE_CHARACTERISTIC_UUID)
+        assertEquals(BleDiscoveryContract.GATT_CHARACTERISTIC_UUIDS[1], BleDiscoveryContract.GATT_NOTIFY_CHARACTERISTIC_UUID)
+        assertEquals(BleDiscoveryContract.GATT_CHARACTERISTIC_UUIDS[2], BleDiscoveryContract.GATT_CONTROL_CHARACTERISTIC_UUID)
+        assertEquals(BleDiscoveryContract.GATT_CHARACTERISTIC_UUIDS[3], BleDiscoveryContract.GATT_MTU_CHARACTERISTIC_UUID)
+        assertEquals(BleDiscoveryContract.GATT_CHARACTERISTIC_UUIDS[4], BleDiscoveryContract.GATT_SERVICE_ID_CHARACTERISTIC_UUID)
+    }
+
+    @Test
+    fun `mixed android ios pairs are eligible for the gatt notify side bearer`() {
+        // Arrange / Act
+        val androidToIos =
+            shouldUseMixedPlatformGattNotifyBearer(
+                localPlatformFamily = BleDiscoveryPlatformFamily.ANDROID,
+                remotePlatformFamily = BleDiscoveryPlatformFamily.IOS,
+            )
+        val iosToAndroid =
+            shouldUseMixedPlatformGattNotifyBearer(
+                localPlatformFamily = BleDiscoveryPlatformFamily.IOS,
+                remotePlatformFamily = BleDiscoveryPlatformFamily.ANDROID,
+            )
+        val samePlatform =
+            shouldUseMixedPlatformGattNotifyBearer(
+                localPlatformFamily = BleDiscoveryPlatformFamily.IOS,
+                remotePlatformFamily = BleDiscoveryPlatformFamily.IOS,
+            )
+
+        // Assert
+        assertTrue(androidToIos)
+        assertTrue(iosToAndroid)
+        assertTrue(!samePlatform)
+    }
 }

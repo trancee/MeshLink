@@ -27,6 +27,7 @@ import ch.trancee.meshlink.transport.BleDiscoveryPayload
 import ch.trancee.meshlink.transport.BleDiscoveryPlatformFamily
 import ch.trancee.meshlink.transport.BleTransport
 import ch.trancee.meshlink.transport.shouldLocalPeerInitiateL2capConnection
+import ch.trancee.meshlink.transport.shouldUseMixedPlatformGattNotifyBearer
 import ch.trancee.meshlink.transport.OutboundFrame
 import ch.trancee.meshlink.transport.TransportEvent
 import ch.trancee.meshlink.transport.TransportMode
@@ -57,6 +58,7 @@ internal class AndroidBleTransport(
     private val discoveredPeers: MutableMap<String, DiscoveredPeer> = linkedMapOf()
     private val peerHintByAddress: MutableMap<String, String> = linkedMapOf()
     private val activeLinksByHint: MutableMap<String, L2capLink> = linkedMapOf()
+    private val gattNotifyClientsByHint: MutableMap<String, AndroidGattNotifyClient> = linkedMapOf()
     private val temporaryHintByAddress: MutableMap<String, String> = linkedMapOf()
     private val pendingConnectJobsByHint: MutableMap<String, Job> = linkedMapOf()
     private val transportMutex = Mutex()
@@ -298,17 +300,19 @@ internal class AndroidBleTransport(
             }
         }
 
+        val resolvedPeer = discoveredPeers.getValue(hintPeerId.value)
         maybeLogRediscoveryWithoutLink(
-            peer = discoveredPeers.getValue(hintPeerId.value),
+            peer = resolvedPeer,
             transportMode = transportMode,
             address = result.device.address,
         )
+        maybeStartGattNotifySideLink(resolvedPeer)
         if (
             transportMode == TransportMode.L2CAP &&
                 shouldInitiateL2cap(payload.keyHash, payload.platformFamily)
         ) {
             log("initiating L2CAP connect to ${hintPeerId.value.takeLast(6)}")
-            connectIfNeeded(discoveredPeers.getValue(hintPeerId.value))
+            connectIfNeeded(resolvedPeer)
         }
     }
 
@@ -322,6 +326,45 @@ internal class AndroidBleTransport(
             remoteKeyHash = remoteKeyHash,
             remotePlatformFamily = remotePlatformFamily,
         )
+    }
+
+    private fun maybeStartGattNotifySideLink(peer: DiscoveredPeer): Unit {
+        if (
+            !shouldUseMixedPlatformGattNotifyBearer(
+                localPlatformFamily = currentDiscoveryPayload.platformFamily,
+                remotePlatformFamily = peer.platformFamily,
+            )
+        ) {
+            return
+        }
+        val existingClient = gattNotifyClientsByHint[peer.hintPeerId.value]
+        if (existingClient != null) {
+            if (!existingClient.isReady()) {
+                existingClient.start()
+            }
+            return
+        }
+        val client =
+            AndroidGattNotifyClient(
+                context = context,
+                appId = appId,
+                peerHintId = peer.hintPeerId,
+                device = peer.device,
+                log = ::log,
+                onFrameReceived = { incomingPeerId, payload ->
+                    coroutineScope.launch {
+                        mutableEvents.emit(
+                            TransportEvent.FrameReceived(
+                                peerId = incomingPeerId,
+                                payload = payload,
+                            )
+                        )
+                    }
+                },
+            )
+        gattNotifyClientsByHint[peer.hintPeerId.value] = client
+        log("initiating GATT notify side link to ${peer.hintPeerId.value.takeLast(6)}")
+        client.start()
     }
 
     private fun connectIfNeeded(peer: DiscoveredPeer): Unit {
@@ -604,6 +647,8 @@ internal class AndroidBleTransport(
         l2capServerSocket = null
         val hintIds = activeLinksByHint.keys.toList()
         hintIds.forEach { hintPeer -> closeLink(hintPeer = hintPeer, reason = "transport stopped") }
+        gattNotifyClientsByHint.values.forEach { client -> client.close() }
+        gattNotifyClientsByHint.clear()
         coroutineScope.coroutineContext.cancelChildren()
         if (clearPeers) {
             discoveredPeers.clear()
@@ -614,6 +659,7 @@ internal class AndroidBleTransport(
 
     private fun closeLink(hintPeer: String, reason: String): Unit {
         val link = synchronized(activeLinksByHint) { activeLinksByHint.remove(hintPeer) } ?: return
+        gattNotifyClientsByHint.remove(hintPeer)?.close()
         discoveredPeers[hintPeer]?.rediscoveryLoggedWithoutLink = false
         log(
             "closing L2CAP link ${hintPeer.takeLast(6)}: $reason discoveredPeerRetained=${discoveredPeers.containsKey(hintPeer)} pendingConnect=${pendingConnectJobsByHint.containsKey(hintPeer)}"

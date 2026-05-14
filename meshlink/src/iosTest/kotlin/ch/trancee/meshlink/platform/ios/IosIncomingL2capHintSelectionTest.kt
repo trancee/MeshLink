@@ -1,5 +1,6 @@
 package ch.trancee.meshlink.platform.ios
 
+import ch.trancee.meshlink.transport.BleDiscoveryPlatformFamily
 import ch.trancee.meshlink.transport.TransportMode
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -20,6 +21,7 @@ class IosIncomingL2capHintSelectionTest {
                 activeHintIds = emptySet(),
                 pendingHintIds = emptySet(),
                 localKeyHash = byteArrayOf(0x7F, 0x10),
+                localPlatformFamily = BleDiscoveryPlatformFamily.UNKNOWN,
             )
 
         // Assert
@@ -33,6 +35,7 @@ class IosIncomingL2capHintSelectionTest {
             IncomingL2capHintCandidate(
                 hintPeerIdValue = "waiting123456",
                 keyHash = byteArrayOf(0x6A, 0x20),
+                platformFamily = BleDiscoveryPlatformFamily.UNKNOWN,
                 transportMode = TransportMode.L2CAP,
             )
 
@@ -45,6 +48,7 @@ class IosIncomingL2capHintSelectionTest {
                 activeHintIds = emptySet(),
                 pendingHintIds = emptySet(),
                 localKeyHash = byteArrayOf(0x7F, 0x10),
+                localPlatformFamily = BleDiscoveryPlatformFamily.UNKNOWN,
             )
 
         // Assert
@@ -58,12 +62,14 @@ class IosIncomingL2capHintSelectionTest {
             IncomingL2capHintCandidate(
                 hintPeerIdValue = "waiting123456",
                 keyHash = byteArrayOf(0x6A, 0x20),
+                platformFamily = BleDiscoveryPlatformFamily.UNKNOWN,
                 transportMode = TransportMode.L2CAP,
             )
         val secondWaitingCandidate =
             IncomingL2capHintCandidate(
                 hintPeerIdValue = "waitingabcdef",
                 keyHash = byteArrayOf(0x6B, 0x20),
+                platformFamily = BleDiscoveryPlatformFamily.UNKNOWN,
                 transportMode = TransportMode.L2CAP,
             )
 
@@ -76,6 +82,7 @@ class IosIncomingL2capHintSelectionTest {
                 activeHintIds = emptySet(),
                 pendingHintIds = emptySet(),
                 localKeyHash = byteArrayOf(0x7F, 0x10),
+                localPlatformFamily = BleDiscoveryPlatformFamily.UNKNOWN,
             )
 
         // Assert
@@ -89,6 +96,7 @@ class IosIncomingL2capHintSelectionTest {
             IncomingL2capHintCandidate(
                 hintPeerIdValue = "initiator1234",
                 keyHash = byteArrayOf(0x80.toByte(), 0x10),
+                platformFamily = BleDiscoveryPlatformFamily.UNKNOWN,
                 transportMode = TransportMode.L2CAP,
             )
 
@@ -101,6 +109,7 @@ class IosIncomingL2capHintSelectionTest {
                 activeHintIds = emptySet(),
                 pendingHintIds = emptySet(),
                 localKeyHash = byteArrayOf(0x7F, 0x10),
+                localPlatformFamily = BleDiscoveryPlatformFamily.UNKNOWN,
             )
 
         // Assert

@@ -33,6 +33,11 @@ public final class ch/trancee/meshlink/api/InboundMessage {
 	public fun toString ()Ljava/lang/String;
 }
 
+public final class ch/trancee/meshlink/api/IosBleTransportBridge {
+	public static final field INSTANCE Lch/trancee/meshlink/api/IosBleTransportBridge;
+	public final fun install (Lkotlin/jvm/functions/Function4;)V
+}
+
 public final class ch/trancee/meshlink/api/IosCryptoBridge {
 	public static final field INSTANCE Lch/trancee/meshlink/api/IosCryptoBridge;
 	public final fun install (Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function4;Lkotlin/jvm/functions/Function4;)V

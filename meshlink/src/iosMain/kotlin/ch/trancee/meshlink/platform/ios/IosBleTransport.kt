@@ -2,6 +2,7 @@
 
 package ch.trancee.meshlink.platform.ios
 
+import ch.trancee.meshlink.api.IosBleTransportBridgeRegistry
 import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.engine.DirectWireFrame
 import ch.trancee.meshlink.identity.toHexString
@@ -11,6 +12,7 @@ import ch.trancee.meshlink.transport.BleDiscoveryPayload
 import ch.trancee.meshlink.transport.BleDiscoveryPlatformFamily
 import ch.trancee.meshlink.transport.BleTransport
 import ch.trancee.meshlink.transport.shouldLocalPeerInitiateL2capConnection
+import ch.trancee.meshlink.transport.shouldUseMixedPlatformGattNotifyBearer
 import ch.trancee.meshlink.transport.OutboundFrame
 import ch.trancee.meshlink.transport.PendingFrameWindow
 import ch.trancee.meshlink.transport.TransportEvent
@@ -37,16 +39,21 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import platform.CoreBluetooth.CBAdvertisementDataServiceUUIDsKey
-import platform.CoreBluetooth.CBManager
+import platform.CoreBluetooth.CBCharacteristic
+import platform.CoreBluetooth.CBCharacteristicPropertyNotify
+import platform.CoreBluetooth.CBCharacteristicPropertyRead
 import platform.CoreBluetooth.CBCentral
 import platform.CoreBluetooth.CBCentralManager
 import platform.CoreBluetooth.CBCentralManagerDelegateProtocol
 import platform.CoreBluetooth.CBL2CAPChannel
+import platform.CoreBluetooth.CBManager
 import platform.CoreBluetooth.CBManagerStatePoweredOn
-import platform.CoreBluetooth.CBPeripheralManagerConnectionLatencyLow
+import platform.CoreBluetooth.CBMutableCharacteristic
+import platform.CoreBluetooth.CBMutableService
 import platform.CoreBluetooth.CBPeripheral
 import platform.CoreBluetooth.CBPeripheralDelegateProtocol
 import platform.CoreBluetooth.CBPeripheralManager
+import platform.CoreBluetooth.CBPeripheralManagerConnectionLatencyLow
 import platform.CoreBluetooth.CBPeripheralManagerDelegateProtocol
 import platform.CoreBluetooth.CBUUID
 import platform.Foundation.NSError
@@ -69,6 +76,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
     private val discoveredPeers: MutableMap<String, DiscoveredPeer> = linkedMapOf()
     private val peerHintByIdentifier: MutableMap<String, String> = linkedMapOf()
     private val activeLinksByHint: MutableMap<String, IosL2capLink> = linkedMapOf()
+    private val activeGattNotifyLinksByHint: MutableMap<String, IosGattNotifyLink> = linkedMapOf()
     private val pendingConnectionsByHint: MutableMap<String, String> = linkedMapOf()
     private val temporaryHintByIdentifier: MutableMap<String, String> = linkedMapOf()
 
@@ -76,6 +84,8 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
     private var currentDiscoveryPayload: BleDiscoveryPayload = discoveryPayload(l2capPsm = 0u)
     private var centralManager: CBCentralManager? = null
     private var peripheralManager: CBPeripheralManager? = null
+    private var gattNotifyServiceInstalled: Boolean = false
+    private var gattNotifyServiceCharacteristic: CBMutableCharacteristic? = null
     private var started: Boolean = false
     private var discoverySuspended: Boolean = false
 
@@ -160,6 +170,28 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
             return TransportSendResult.Dropped("iOS BLE GATT fallback transport is not implemented")
         }
 
+        val directFrame = runCatching { DirectWireFrame.decode(frame.payload) }.getOrNull()
+        activeGattNotifyLinkFor(peer)
+            ?.takeIf { directFrame is DirectWireFrame.Data }
+            ?.let { gattNotifyLink ->
+                return runCatching {
+                        log(
+                            "sending ${frame.payload.size} bytes via GATT notify side link for ${frame.peerId.value.takeLast(6)}"
+                        )
+                        if (!gattNotifyLink.enqueue(frame.payload)) {
+                            return@runCatching TransportSendResult.Dropped(
+                                "iOS BLE GATT notify side link is not accepting frames"
+                            )
+                        }
+                        TransportSendResult.Delivered
+                    }
+                    .getOrElse { error ->
+                        TransportSendResult.Dropped(
+                            "iOS BLE GATT notify send failed: ${error.message.orEmpty()}"
+                        )
+                    }
+            }
+
         val link = activeLinkFor(peer)
         if (link == null) {
             if (shouldInitiateL2cap(peer.keyHash, peer.platformFamily)) {
@@ -205,6 +237,34 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
             return
         }
         peripheral.publishL2CAPChannelWithEncryption(encryptionRequired = false)
+    }
+
+    internal fun installGattNotifyServiceIfReady(peripheral: CBPeripheralManager): Unit {
+        if (
+            !started ||
+                peripheral.state != CBManagerStatePoweredOn ||
+                gattNotifyServiceInstalled ||
+                IosBleTransportBridgeRegistry.currentCallbacksOrNull() == null
+        ) {
+            return
+        }
+        val notifyCharacteristic =
+            CBMutableCharacteristic(
+                type = CBUUID.UUIDWithString(BleDiscoveryContract.GATT_NOTIFY_CHARACTERISTIC_UUID),
+                properties = CBCharacteristicPropertyNotify,
+                value = null,
+                permissions = 0u,
+            )
+        val service =
+            CBMutableService(
+                type = CBUUID.UUIDWithString(BleDiscoveryContract.GATT_FALLBACK_SERVICE_UUID),
+                primary = true,
+            )
+        service.setCharacteristics(listOf(notifyCharacteristic))
+        gattNotifyServiceCharacteristic = notifyCharacteristic
+        gattNotifyServiceInstalled = true
+        peripheral.addService(service)
+        log("installed GATT notify side-channel service")
     }
 
     internal fun handlePublishedL2capChannel(psm: UShort, error: NSError?): Unit {
@@ -402,6 +462,68 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
         )
     }
 
+    internal fun handleGattNotifySubscribed(
+        central: CBCentral,
+        characteristic: CBCharacteristic,
+    ): Unit {
+        if (
+            characteristic.UUID.UUIDString.lowercase() !=
+                BleDiscoveryContract.GATT_NOTIFY_CHARACTERISTIC_UUID
+        ) {
+            return
+        }
+        if (IosBleTransportBridgeRegistry.currentCallbacksOrNull() == null) {
+            return
+        }
+        val identifier = central.identifier.UUIDString.lowercase()
+        val hintPeerIdValue =
+            peerHintByIdentifier[identifier]
+                ?: discoveredPeers.values.firstOrNull { peer ->
+                    shouldUseMixedPlatformGattNotifyBearer(
+                        localPlatformFamily = currentDiscoveryPayload.platformFamily,
+                        remotePlatformFamily = peer.platformFamily,
+                    )
+                }?.hintPeerId?.value
+                ?: return
+        peerHintByIdentifier[identifier] = hintPeerIdValue
+        val hintPeerId = PeerId(hintPeerIdValue)
+        activeGattNotifyLinksByHint.remove(hintPeerId.value)?.close()
+        activeGattNotifyLinksByHint[hintPeerId.value] =
+            IosGattNotifyLink(
+                hintPeerId = hintPeerId,
+                centralIdentifier = identifier,
+                central = central,
+                peripheralManagerProvider = { peripheralManager },
+                notifyCharacteristicProvider = { gattNotifyServiceCharacteristic },
+                logger = ::reportLog,
+            )
+        reportLog(
+            "registered GATT notify side link for ${hintPeerId.value.takeLast(6)} id=$identifier maxUpdateValueLength=${central.maximumUpdateValueLength}"
+        )
+    }
+
+    internal fun handleGattNotifyUnsubscribed(
+        central: CBCentral,
+        characteristic: CBCharacteristic,
+    ): Unit {
+        if (
+            characteristic.UUID.UUIDString.lowercase() !=
+                BleDiscoveryContract.GATT_NOTIFY_CHARACTERISTIC_UUID
+        ) {
+            return
+        }
+        val identifier = central.identifier.UUIDString.lowercase()
+        val hintPeerIdValue = peerHintByIdentifier[identifier] ?: return
+        activeGattNotifyLinksByHint.remove(hintPeerIdValue)?.close()
+        reportLog(
+            "removed GATT notify side link for ${hintPeerIdValue.takeLast(6)} id=$identifier"
+        )
+    }
+
+    internal fun pumpGattNotifyLinks(): Unit {
+        activeGattNotifyLinksByHint.values.forEach { link -> link.pump() }
+    }
+
     private fun registerConnectedChannel(
         hintPeerId: PeerId,
         peripheralIdentifier: String,
@@ -549,6 +671,24 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
         return activeLinksByHint[temporaryHint]
     }
 
+    private fun activeGattNotifyLinkFor(peer: DiscoveredPeer): IosGattNotifyLink? {
+        if (
+            !shouldUseMixedPlatformGattNotifyBearer(
+                localPlatformFamily = currentDiscoveryPayload.platformFamily,
+                remotePlatformFamily = peer.platformFamily,
+            ) || IosBleTransportBridgeRegistry.currentCallbacksOrNull() == null
+        ) {
+            return null
+        }
+        activeGattNotifyLinksByHint[peer.hintPeerId.value]?.let { activeLink ->
+            return activeLink
+        }
+        val temporaryHint =
+            temporaryHintByIdentifier[peer.peripheral.identifier.UUIDString.lowercase()]
+                ?: return null
+        return activeGattNotifyLinksByHint[temporaryHint]
+    }
+
     private fun resolvePeer(peerId: PeerId): DiscoveredPeer? {
         discoveredPeers[peerId.value]?.let {
             return it
@@ -574,7 +714,12 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
         if (psm in 128..255) {
             peripheralManager?.unpublishL2CAPChannel(psm.convert())
         }
+        peripheralManager?.removeAllServices()
+        gattNotifyServiceInstalled = false
+        gattNotifyServiceCharacteristic = null
         pendingConnectionsByHint.clear()
+        activeGattNotifyLinksByHint.values.forEach { link -> link.close() }
+        activeGattNotifyLinksByHint.clear()
         activeLinksByHint.keys.toList().forEach { hint ->
             closeLink(hintPeer = hint, reason = "transport stopped")
         }
@@ -588,6 +733,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
 
     private fun closeLink(hintPeer: String, reason: String): Unit {
         val link = activeLinksByHint.remove(hintPeer) ?: return
+        activeGattNotifyLinksByHint.remove(hintPeer)?.close()
         discoveredPeers[hintPeer]?.rediscoveryLoggedWithoutLink = false
         reportLog(
             "closing L2CAP link ${hintPeer.takeLast(6)}: $reason discoveredPeerRetained=${discoveredPeers.containsKey(hintPeer)} pendingConnect=${pendingConnectionsByHint.containsKey(hintPeer)}"
@@ -1251,7 +1397,30 @@ private class IosPeripheralClientDelegate(private val owner: IosBleTransport) :
 private class IosPeripheralManagerDelegate(private val owner: IosBleTransport) :
     NSObject(), CBPeripheralManagerDelegateProtocol {
     override fun peripheralManagerDidUpdateState(peripheral: CBPeripheralManager) {
+        owner.installGattNotifyServiceIfReady(peripheral)
         owner.publishL2capChannelIfReady(peripheral)
+    }
+
+    @ObjCSignatureOverride
+    override fun peripheralManager(
+        peripheral: CBPeripheralManager,
+        central: CBCentral,
+        didSubscribeToCharacteristic: CBCharacteristic,
+    ) {
+        owner.handleGattNotifySubscribed(central, didSubscribeToCharacteristic)
+    }
+
+    @ObjCSignatureOverride
+    override fun peripheralManager(
+        peripheral: CBPeripheralManager,
+        central: CBCentral,
+        didUnsubscribeFromCharacteristic: CBCharacteristic,
+    ) {
+        owner.handleGattNotifyUnsubscribed(central, didUnsubscribeFromCharacteristic)
+    }
+
+    override fun peripheralManagerIsReadyToUpdateSubscribers(peripheral: CBPeripheralManager) {
+        owner.pumpGattNotifyLinks()
     }
 
     override fun peripheralManager(

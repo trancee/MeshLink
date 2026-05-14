@@ -1,5 +1,7 @@
 package ch.trancee.meshlink.platform.ios
 
+import ch.trancee.meshlink.transport.BleDiscoveryPlatformFamily
+import ch.trancee.meshlink.transport.shouldLocalPeerInitiateL2capConnection
 import kotlin.test.Test
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
@@ -13,9 +15,11 @@ class IosBleTransportInitiationPolicyTest {
 
         // Act
         val shouldInitiate =
-            shouldInitiateL2capConnection(
+            shouldLocalPeerInitiateL2capConnection(
                 localKeyHash = localKeyHash,
+                localPlatformFamily = BleDiscoveryPlatformFamily.UNKNOWN,
                 remoteKeyHash = remoteKeyHash,
+                remotePlatformFamily = BleDiscoveryPlatformFamily.UNKNOWN,
             )
 
         // Assert
@@ -30,9 +34,11 @@ class IosBleTransportInitiationPolicyTest {
 
         // Act
         val shouldInitiate =
-            shouldInitiateL2capConnection(
+            shouldLocalPeerInitiateL2capConnection(
                 localKeyHash = localKeyHash,
+                localPlatformFamily = BleDiscoveryPlatformFamily.UNKNOWN,
                 remoteKeyHash = remoteKeyHash,
+                remotePlatformFamily = BleDiscoveryPlatformFamily.UNKNOWN,
             )
 
         // Assert

@@ -106,6 +106,16 @@ internal object BleDiscoveryContract {
             "4d455348-0005-1000-8000-000000000000",
             "4d455348-0006-1000-8000-000000000000",
         )
+    internal const val GATT_WRITE_CHARACTERISTIC_UUID: String =
+        "4d455348-0002-1000-8000-000000000000"
+    internal const val GATT_NOTIFY_CHARACTERISTIC_UUID: String =
+        "4d455348-0003-1000-8000-000000000000"
+    internal const val GATT_CONTROL_CHARACTERISTIC_UUID: String =
+        "4d455348-0004-1000-8000-000000000000"
+    internal const val GATT_MTU_CHARACTERISTIC_UUID: String =
+        "4d455348-0005-1000-8000-000000000000"
+    internal const val GATT_SERVICE_ID_CHARACTERISTIC_UUID: String =
+        "4d455348-0006-1000-8000-000000000000"
 
     internal fun advertisedServiceUuids(payload: BleDiscoveryPayload): List<String> {
         return listOf(ADVERTISEMENT_SERVICE_UUID, payload.payloadUuidString())
@@ -187,6 +197,16 @@ internal fun shouldLocalPeerInitiateL2capConnection(
         return false
     }
     return compareUnsignedKeyHashes(localKeyHash, remoteKeyHash) < 0
+}
+
+internal fun shouldUseMixedPlatformGattNotifyBearer(
+    localPlatformFamily: BleDiscoveryPlatformFamily,
+    remotePlatformFamily: BleDiscoveryPlatformFamily,
+): Boolean {
+    return (localPlatformFamily == BleDiscoveryPlatformFamily.IOS &&
+        remotePlatformFamily == BleDiscoveryPlatformFamily.ANDROID) ||
+        (localPlatformFamily == BleDiscoveryPlatformFamily.ANDROID &&
+            remotePlatformFamily == BleDiscoveryPlatformFamily.IOS)
 }
 
 private fun compareUnsignedKeyHashes(left: ByteArray, right: ByteArray): Int {

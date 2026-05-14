@@ -18,6 +18,7 @@
 		72FF2746CA1351980C970D33 /* BenchmarkTestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8425B56578082E0CBC21735 /* BenchmarkTestSupport.swift */; };
 		73745979D47B3AAA29F4E34F /* MeshLinkCryptoBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3E69802EF0E01D926EA6A44 /* MeshLinkCryptoBridge.swift */; };
 		A27123E5BC9F56E96A7FE533 /* ColdStartBenchmark.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6469225EB29E7FF131D51123 /* ColdStartBenchmark.swift */; };
+		AA6B55057745166A794D74B4 /* MeshLinkTransportBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 512365B1B6AB58412EFF7D72 /* MeshLinkTransportBridge.swift */; };
 		AF4827988ED61DB8962902A0 /* ProofBenchmarkTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4760E0CB0EEA45F245AA20F3 /* ProofBenchmarkTransport.swift */; };
 		B0D984C35FA81B7616E60ABF /* TransportPerformanceBenchmark.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38B26770518856564F031445 /* TransportPerformanceBenchmark.swift */; };
 		BE842C02B2F375FC0A1E79C7 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBAAE7CF0C372ED368DA9E48 /* ContentView.swift */; };
@@ -43,6 +44,7 @@
 		42AE38A6A4182F543FAA1B57 /* ProofApp.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = ProofApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		449C6808F0174CE46FCA8BC6 /* ProofViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProofViewModel.swift; sourceTree = "<group>"; };
 		4760E0CB0EEA45F245AA20F3 /* ProofBenchmarkTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProofBenchmarkTransport.swift; sourceTree = "<group>"; };
+		512365B1B6AB58412EFF7D72 /* MeshLinkTransportBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeshLinkTransportBridge.swift; sourceTree = "<group>"; };
 		6469225EB29E7FF131D51123 /* ColdStartBenchmark.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColdStartBenchmark.swift; sourceTree = "<group>"; };
 		81F2E52ACDF038035D9F5DFC /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		838B0CE5BBB49A2F8A7254E2 /* ProofGattBenchmarkClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProofGattBenchmarkClient.swift; sourceTree = "<group>"; };
@@ -59,6 +61,7 @@
 			children = (
 				DBAAE7CF0C372ED368DA9E48 /* ContentView.swift */,
 				F3E69802EF0E01D926EA6A44 /* MeshLinkCryptoBridge.swift */,
+				512365B1B6AB58412EFF7D72 /* MeshLinkTransportBridge.swift */,
 				B450AC2ED51A141367368720 /* ProofApp.swift */,
 				4760E0CB0EEA45F245AA20F3 /* ProofBenchmarkTransport.swift */,
 				838B0CE5BBB49A2F8A7254E2 /* ProofGattBenchmarkClient.swift */,
@@ -219,6 +222,7 @@
 			files = (
 				BE842C02B2F375FC0A1E79C7 /* ContentView.swift in Sources */,
 				73745979D47B3AAA29F4E34F /* MeshLinkCryptoBridge.swift in Sources */,
+				AA6B55057745166A794D74B4 /* MeshLinkTransportBridge.swift in Sources */,
 				395F70816C081CC331C99357 /* ProofApp.swift in Sources */,
 				AF4827988ED61DB8962902A0 /* ProofBenchmarkTransport.swift in Sources */,
 				42630CF73715BDDA8DC5E72E /* ProofGattBenchmarkClient.swift in Sources */,
