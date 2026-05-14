@@ -1106,3 +1106,65 @@ explicit:
   `TRANSPORT_MODE_CHANGED stage=transport.peerDiscovered.rejected` and remains
   unreachable in `MeshRoutingIntegrationTest`; the current MeshLink release no
   longer treats `l2capPsm=0x00` advertisements as acceptable mesh participants.
+
+### Post-waiver future SC-004 redesign comparison (2026-05-14)
+
+Once the current release moved onto the explicit waiver path, the next future
+closure branch could no longer be "one more" L2CAP batching experiment. Three
+materially different redesign shapes were considered:
+
+1. **Multi-channel L2CAP striping on the existing mixed-platform path**
+   - shape: keep the current iPhone-peripheral-hosted deterministic L2CAP path,
+     but open multiple LE CoC channels and stripe large-transfer frames across
+     them
+   - what it hides: channel fan-out, striping, resequencing, and per-channel
+     backpressure inside the transport layer
+   - why it is unattractive: all channels still share the same BLE connection,
+     the current bottleneck already looks dominated by CoreBluetooth stream
+     scheduling, and this path doubles implementation complexity before any
+     evidence suggests aggregate throughput would rise materially
+
+2. **Reverse-direction proof branch: iPhone peripheral GATT notifications into
+   Android central GATT client**
+   - shape: for proof benchmarking only, move the iPhone sender off the current
+     `NSStream`-backed L2CAP API path and onto `CBPeripheralManager.updateValue`
+     notifications, while Android acts as a GATT client that subscribes,
+     reassembles the payload, and writes back a receipt ACK
+   - what it hides: GATT service layout, notification flow control,
+     subscription gating, and receipt-ack framing inside a dedicated proof
+     transport
+   - why it is attractive: it exercises a genuinely different iOS API surface,
+     preserves the iPhone-peripheral-hosted / low-latency shape that already
+     helped the current L2CAP branch, and can be evaluated without changing the
+     product-path spec or weakening the current waiver guardrails
+
+3. **Dual-bearer hybrid striping across L2CAP plus GATT**
+   - shape: keep the current deterministic L2CAP branch but add a second GATT
+     bearer and stripe large-transfer data over both bearers simultaneously
+   - what it hides: bearer scheduling, link health scoring, resequencing,
+     duplicate suppression, and fallback logic inside a new transfer planner
+   - why it is unattractive: it is the most complex design, still shares the
+     same half-duplex BLE airtime, and should not be attempted before a single
+     alternative bearer proves that it can outperform the retained L2CAP
+     baseline on its own
+
+Comparison and recommendation:
+
+- The multi-channel L2CAP option keeps the smallest conceptual delta from the
+  current product path, but it is shallow in the worst way: it exposes a great
+  deal of new complexity while betting against the same iOS stream-scheduling
+  surface that already failed to hit target.
+- The dual-bearer hybrid is even riskier. It broadens the misuse surface and
+  multiplies state-space before the repository has any evidence that the second
+  bearer is itself worth promoting.
+- The reverse-direction GATT notification branch is the deepest next module
+  boundary. It keeps the current product path untouched, but cleanly isolates a
+  different iOS platform API (`CBPeripheralManager.updateValue`) plus a
+  different Android API (`BluetoothGatt` client) behind proof-only benchmark
+  hosts.
+
+**Recommendation:** pursue option 2 first. If the reverse-direction GATT proof
+branch cannot materially outperform the retained deterministic L2CAP baseline,
+then the repository should treat that as strong evidence that closing iOS
+`SC-004` will require a larger product-scope change than another BLE-bearer
+swap.

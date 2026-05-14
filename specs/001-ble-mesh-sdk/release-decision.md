@@ -88,6 +88,26 @@ explicit waiver / known limitation.
   - the proof-only GATT prototype remains non-normative and MUST NOT be cited
     as product-conformance fallback evidence
 
+## Future Conformance Branch After the Waived Release
+
+The current release stays on the explicit waiver path above. That does **not**
+authorize silent return to small L2CAP tuning work as the next future
+conformance branch.
+
+The first post-waiver future-closure branch is now:
+
+- compare materially different transport / platform redesigns instead of more
+  L2CAP batching or ACK-cadence variants
+- start with a proof-only reverse-direction branch that exercises a different
+  iOS API path: iPhone-hosted GATT notifications from an iOS peripheral manager
+  into an Android central client, with recipient-confirmed completion retained
+- only consider product-path integration or spec amendment if that proof branch
+  materially outperforms the retained deterministic L2CAP baseline and gives a
+  credible path to `>= 60 KB/s`
+
+This future branch does not change the current release claims or waiver
+ guardrails.
+
 ## Evidence Sources
 
 - `specs/001-ble-mesh-sdk/spec.md`
@@ -99,3 +119,5 @@ explicit waiver / known limitation.
 
 Whenever the chosen closure path changes, this file MUST be updated in the same
 change set as the corresponding `spec.md`, `plan.md`, and `tasks.md` updates.
+Future conformance-branch changes after a waived release MUST also update the
+matching `research.md` and task-ledger entries in the same change set.

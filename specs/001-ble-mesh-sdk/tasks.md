@@ -465,6 +465,34 @@ via the explicit waiver / known-limitation path recorded in the canonical docs.
 
 ---
 
+## Phase 20: Follow-up - Post-waiver future SC-004 redesign
+
+**Purpose**: Explore a materially different transport / platform branch for a
+future non-waived release while preserving the current waived release framing.
+The current release guardrails stay unchanged until fresh retained evidence
+shows that a new branch can plausibly close iOS `SC-004`.
+
+- [ ] T098 Compare at least three materially different future iOS `SC-004`
+  closure designs in `specs/001-ble-mesh-sdk/research.md` and
+  `specs/001-ble-mesh-sdk/release-decision.md`, then record the chosen next
+  proof branch in this task ledger without changing the current waived release
+  posture.
+- [ ] T099 Implement the selected proof-only reverse-direction redesign in the
+  runnable proof integrations so iPhone can benchmark a materially different
+  platform API path while still retaining recipient-confirmed semantics. The
+  first chosen branch is an iOS peripheral GATT notification host plus Android
+  central GATT benchmark client in `meshlink-sample/ios/ProofApp` and
+  `meshlink-sample/android/app/src/main/kotlin/ch/trancee/meshlink/proof/android`.
+- [ ] T100 Run fresh physical Samsung and OPPO reference-peer reruns for that
+  new proof branch, retain raw sender / recipient evidence in
+  `benchmarks/README.md`,
+  `specs/001-ble-mesh-sdk/research.md`, and
+  `specs/001-ble-mesh-sdk/release-decision.md`, and explicitly decide whether
+  the branch is promising enough to justify product-path integration and a
+  future spec amendment.
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies
@@ -488,6 +516,7 @@ via the explicit waiver / known-limitation path recorded in the canonical docs.
 - **Follow-up Recipient-Confirmed 64 KiB Large-Transfer Stabilization (Phase 17)**: Runs after Phase 16 to restore recipient-confirmed large-transfer stability and feed the current throughput-only blocker framing once Samsung/OPPO proof completion is restored.
 - **Follow-up Configuration, Discovery, and LOW-Power Contract Closure (Phase 18)**: Runs after Phase 17 to close remaining constitution-traceability gaps before any fresh release-readiness claim.
 - **Follow-up SC-004 Release Closure (Phase 19)**: Runs after Phase 18 and was blocking until either the normative conformance path or the explicit waiver path was explicitly completed; it is now closed via the explicit waiver / known-limitation path.
+- **Follow-up Post-waiver Future SC-004 Redesign (Phase 20)**: Runs after Phase 19 when a future non-waived release needs a materially different transport / platform branch instead of another small app-layer tuning pass.
 
 ### User Story Dependencies
 

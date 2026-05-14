@@ -154,6 +154,16 @@ on another small app-layer tuning attempt.
 - Treat the proof-only GATT prototype as investigative evidence only; it is not
   a product-conformance fallback.
 
+**Post-waiver future conformance branch (2026-05-14):** A future non-waived
+release must now come from a materially different transport / platform branch,
+not another small L2CAP tuning pass. The first chosen future branch is a
+proof-only reverse-direction benchmark path that exercises a different iOS API
+surface: iPhone-hosted GATT notifications from an iOS peripheral manager into
+an Android central client while keeping recipient-confirmed completion
+semantics. This branch remains investigative until fresh retained evidence shows
+that it materially outperforms the retained deterministic L2CAP baseline and
+has a credible path to `>= 60 KB/s`.
+
 **Normative evidence-gap status after follow-up coverage closure (2026-05-14):**
 
 - `FR-016` deployed-wire backward-compatibility fixture validation is now
