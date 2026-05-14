@@ -1883,7 +1883,7 @@ private constructor(
         private const val MAX_SUPPORTED_PAYLOAD_BYTES: Int = 64 * 1024
         private const val INLINE_MESSAGE_PAYLOAD_BYTES: Int = 1_024
         private const val LARGE_INLINE_SEND_TRANSPORT_BUDGET_BYTES: Int = 16 * 1024
-        private const val TRANSFER_CHUNK_PAYLOAD_BYTES: Int = 378
+        private const val TRANSFER_CHUNK_PAYLOAD_BYTES: Int = 392
         private val TRANSFER_ACK_SETTLEMENT_TIMEOUT = 500.milliseconds
         private val TRANSFER_ACK_IDLE_WINDOW = 25.milliseconds
         private val HANDSHAKE_TIMEOUT = 1.seconds
