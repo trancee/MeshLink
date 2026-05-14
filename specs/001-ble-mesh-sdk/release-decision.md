@@ -41,9 +41,16 @@ explicit waiver / known limitation.
   so the inline path remains rejected.
 - **Escalated interpretation**: the blocker has narrowed again. It is no
   longer the mixed-platform initiator policy; it is the remaining throughput
-  shortfall on the now-deterministic optimized path. Another role-policy tweak
-  is unlikely to close `SC-004`; the next branch is a further throughput
-  optimization on this path or the explicit waiver path.
+  shortfall on the now-deterministic optimized path.
+- **Additional rejected post-redesign follow-ups**: 8-frame iOS coalescing,
+  a deterministic-path inline rerun, and ACK-batch=`32` reruns all stayed in
+  the `30.70-37.08 KB/s` range and failed to beat the retained deterministic
+  baseline (`52.03 KB/s` OPPO, `39.48 KB/s` Samsung).
+- **Current blocker interpretation**: the obvious remaining app-layer levers
+  inside the current public MeshLink L2CAP product path have now been
+  exercised. On the public Android `BluetoothSocket` / LE L2CAP APIs and iOS
+  Core Bluetooth L2CAP APIs available here, the next conformance branch looks
+  more like a transport-scope decision than another small implementation tweak.
 - **Non-blocker evidence already restored**: recipient-confirmed 64 KiB proof
   completion on the Samsung / OPPO physical path.
 
@@ -58,9 +65,9 @@ explicit waiver / known limitation.
   MeshLink-path remediation experiment has been completed, additional bounded
   iOS-only follow-ups have been retained, and the deeper cross-platform
   role-policy redesign has now also been implemented and physically rerun.
-  `SC-004` remains open, but the next conformance step is now a further
-  throughput optimization on the deterministic mixed-platform path rather than
-  another initiator-policy change.
+  `SC-004` remains open, but the next conformance step is no longer another
+  initiator-policy or small app-layer tuning change. It is either a materially
+  different transport/platform strategy or the explicit waiver path.
 
 ### 2. Explicit waiver / known-limitation path
 

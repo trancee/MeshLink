@@ -134,9 +134,10 @@ than the current blocker state.
 
 **Current closure-path selection (2026-05-14):** Continue on the explicit
 spec-conformance path. The waiver / known-limitation branch is not currently
-selected; the next required step is no longer another initiator-policy change,
-but a further throughput optimization on the deterministic mixed-platform path
-or a switch to the explicit waiver path.
+selected; the next required step is no longer another initiator-policy change
+or another small app-layer tuning change. The remaining branch is either a
+materially different transport/platform strategy or a switch to the explicit
+waiver path.
 
 **Current blocker interpretation for remaining work (2026-05-14):**
 

@@ -747,6 +747,61 @@ Updated blocker state after the redesign:
 - the next conformance step is therefore a further throughput optimization on
   this path, not another initiator-policy change
 
+### Additional rejected follow-ups on the deterministic path (2026-05-14)
+
+After the mixed-platform initiator policy was fixed, several more bounded
+follow-ups were run to test whether any remaining app-layer transport lever
+could push the deterministic path over the final gap to `>= 60 KB/s`.
+
+Retained evidence:
+
+- 8-frame iOS coalescing window:
+  - `/tmp/ios_coalesce8_oppo_20260514T174718` -> `35.77 KB/s`
+  - `/tmp/ios_coalesce8_samsung_20260514T174731` -> `37.08 KB/s`
+- deterministic-path inline MeshLink rerun:
+  - `/tmp/ios_rolepolicy_inline_oppo_20260514T174934` -> `36.99 KB/s`
+  - `/tmp/ios_rolepolicy_inline_samsung_20260514T174945` -> `35.50 KB/s`
+- inbound ACK batch threshold raised from `16` to `32`:
+  - `/tmp/ios_ack32_oppo_20260514T175147` -> `37.08 KB/s`
+  - `/tmp/ios_ack32_samsung_20260514T175200` -> `30.70 KB/s`
+
+Interpretation:
+
+- none of these post-redesign follow-ups beat the retained deterministic-path
+  baseline (`52.03 KB/s` on OPPO, `39.48 KB/s` on Samsung)
+- shrinking the iOS coalescing window moved the path back toward the slower
+  mid-30 KB/s class
+- re-enabling the inline MeshLink path remained worse than the chunked
+  deterministic path even after the role-policy redesign
+- reducing reverse-direction ACK traffic by acknowledging every 32 chunks did
+  not help and in practice regressed both peers relative to the best retained
+  deterministic-path evidence
+
+This is important because it narrows the blocker again: the obvious app-layer
+levers that remained after the role-policy redesign have now been exercised and
+rejected.
+
+### Blocker interpretation after exhausting the obvious app-layer levers
+
+At this point the remaining gap looks increasingly platform-limited:
+
+- the current public Android `BluetoothSocket` / LE L2CAP APIs used by the
+  MeshLink product path expose listen/connect/stream operations and packet-size
+  introspection, but not an additional deterministic connection-priority, PHY,
+  or controller scheduling control comparable to what a GATT client can request
+- iOS Core Bluetooth does allow a peripheral-side low-connection-latency hint,
+  and MeshLink now exercises that deterministically on mixed Android/iOS runs
+- after that, plus the earlier batching, queueing, inline-path, and ACK-cadence
+  experiments, the repository has no remaining small public-API lever that has
+  a strong evidence-based case for closing the gap to `>= 60 KB/s`
+
+That means the next conformance branch is no longer a straightforward coding
+follow-up inside the current public product path. It is either:
+
+1. a materially different transport / platform strategy with new product-scope
+   implications, or
+2. the explicit waiver path
+
 ### Proof-only Android GATT server + iOS GATT client fallback prototype
 
 A proof-only native fallback prototype is now implemented in the sample apps for

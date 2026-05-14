@@ -419,8 +419,10 @@ explicit conformance path. Release stays blocked until the MeshLink iOS path
 meets `SC-004` on reference hardware with fresh retained proof evidence; the
 waiver / known-limitation path has not been selected. The mixed-platform
 role-policy / connection-parameter redesign has now been implemented and
-retained, so the next conformance branch is either a further throughput
-optimization on that deterministic path or the explicit waiver path.
+retained, and additional post-redesign app-layer follow-ups have also been
+rejected, so the next conformance branch is no longer another small tuning
+change. It is either a materially different transport/platform strategy or the
+explicit waiver path.
 
 Residual risk if the waiver path is chosen:
 

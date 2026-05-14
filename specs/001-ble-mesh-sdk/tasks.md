@@ -453,6 +453,14 @@ conformance path or the waiver path is explicitly completed.
   `specs/001-ble-mesh-sdk/plan.md`,
   `specs/001-ble-mesh-sdk/quickstart.md`, and
   `meshlink-sample/ios/README.md`.
+- [X] T097 Retain the rejected post-role-policy follow-up matrix (8-frame iOS
+  coalescing, deterministic-path inline rerun, and ACK-batch=`32` rerun) in
+  `benchmarks/README.md`,
+  `specs/001-ble-mesh-sdk/research.md`,
+  `specs/001-ble-mesh-sdk/release-decision.md`,
+  `specs/001-ble-mesh-sdk/spec.md`, and
+  `specs/001-ble-mesh-sdk/plan.md`, recording that the remaining blocker now
+  looks platform-limited inside the current public MeshLink L2CAP product path.
 
 ---
 
