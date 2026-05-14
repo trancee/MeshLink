@@ -10,7 +10,8 @@ later physical-device validation tasks.
 - process-scoped MeshLink proof runtime so OEM pairing flows do not tear down the test session
 - start/stop controls, peer/discovery visibility, diagnostic log display, and a send-hello action in `MainActivity`
 - deterministic initiator-side auto-send retries for two-device first-message validation
-- shared `POWER_MODE_CHANGED` diagnostics that expose `tier`, `advertisementIntervalMillis`, `scanDutyCyclePercent`, `maxConnections`, `chunkBudgetBytes`, and `region`
+- shared `POWER_MODE_CHANGED` diagnostics that expose `tier`, `advertisementIntervalMillis`, `connectionIntervalMillis`, `scanDutyCyclePercent`, `maxConnections`, `chunkBudgetBytes`, and `region`
+- proof discovery now follows the shared MeshLink contract: fixed `4d455348` discovery UUID + one 128-bit payload UUID in a single advertisement with no scan response dependency
 
 ## Current Validation
 

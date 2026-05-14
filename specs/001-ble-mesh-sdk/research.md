@@ -344,6 +344,37 @@ Updated interpretation:
 - the remaining iPhone blocker continues to be large-transfer throughput plus
   broader recipient-confirmed proof stability, not the LOW-power sender slice
 
+### LOW-power connection-interval contract closure (2026-05-14)
+
+The shared power-policy contract now exposes an explicit
+`connectionIntervalMillis` field and uses a LOW-tier maintained connection
+interval of `500 ms`.
+
+Fresh retained verification from this repository state:
+
+- shared JVM contract tests:
+  `./gradlew :meshlink:jvmTest --tests 'ch.trancee.meshlink.power.PowerPolicyTest' --tests 'ch.trancee.meshlink.api.MeshLinkApiContractTest' --tests 'ch.trancee.meshlink.api.CrossPlatformParityTest' --console=plain`
+  - result: `BUILD SUCCESSFUL`
+  - shared policy assertions now verify:
+    - automatic LOW-tier policy resolves `connectionIntervalMillis=500`
+    - fixed `PowerMode.PowerSaver` also resolves `connectionIntervalMillis=500`
+    - API diagnostics expose `connectionIntervalMillis` in `POWER_MODE_CHANGED`
+- Android proof benchmark compile gate:
+  `./gradlew :meshlink-sample:android:meshlink-sample-android-app:compileDebugAndroidTestKotlin --console=plain`
+  - result: `BUILD SUCCESSFUL`
+  - benchmark assertion now requires `connectionIntervalMillis=500` on the
+    LOW-power diagnostic line
+- iOS proof benchmark build-for-testing gate:
+  `xcodebuild -project meshlink-sample/ios/ProofApp.xcodeproj -scheme ProofApp -destination 'generic/platform=iOS Simulator' build-for-testing`
+  - result: `TEST BUILD SUCCEEDED`
+  - iOS proof benchmark assertion now requires `connectionIntervalMillis=500`
+    on the LOW-power diagnostic line
+
+This closes the remaining written-contract gap between the constitutions, the
+shared power policy, and the proof-benchmark assertions: LOW mode is now
+reviewable as one combined requirement covering scan duty, maintained
+connection interval, and the 256-byte latency path.
+
 ## Quickstart reader-test attempt (2026-05-13)
 
 The `SC-001` timing method is now mirrored in `quickstart.md`. A fresh timed

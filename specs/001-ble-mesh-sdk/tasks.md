@@ -361,31 +361,33 @@ stability evidence without weakening the separate iOS throughput blocker.
 configuration builder, discovery advertisement contract, and LOW-tier
 connection-interval floor without rewriting completed delivery history.
 
-- [ ] T087 [P] Add API contract coverage for the shared `meshLinkConfig`
+- [X] T087 [P] Add API contract coverage for the shared `meshLinkConfig`
   builder, platform-factory injection boundaries, and Android/iOS
   configuration parity in
   `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/api/MeshLinkApiContractTest.kt`
   and `specs/001-ble-mesh-sdk/contracts/meshlink-api.md`.
-- [ ] T088 [P] Add discovery-advertisement contract coverage for the fixed
+- [X] T088 [P] Add discovery-advertisement contract coverage for the fixed
   `4d455348` discovery UUID, 16-byte payload UUID, single-advertisement /
   no-scan-response rule, and reserved proof-only UUID block in
   `specs/001-ble-mesh-sdk/contracts/discovery-advertisement.md`,
-  `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/transport/DiscoveryAdvertisementContractTest.kt`,
-  `meshlink-sample/android/`, and `meshlink-sample/ios/`.
-- [ ] T089 [P] Extend shared power-policy tests and Android/iOS proof
+  `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/transport/BleDiscoveryContractTest.kt`,
+  `meshlink-sample/android/README.md`, and `meshlink-sample/ios/README.md`.
+- [X] T089 [P] Extend shared power-policy tests and Android/iOS proof
   benchmarks to assert LOW-tier maintained connection intervals of `>= 500 ms`,
   alongside the existing scan-duty and 256-byte latency checks, in
   `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/power/PowerPolicyTest.kt`,
   `meshlink-sample/android/app/src/androidTest/kotlin/ch/trancee/meshlink/proof/android/PowerProfileBenchmark.kt`,
   `meshlink-sample/ios/ProofBenchmarks/PowerProfileBenchmark.swift`, and
   `specs/001-ble-mesh-sdk/research.md`.
-- [ ] T090 Sync `specs/001-ble-mesh-sdk/spec.md`,
+- [X] T090 Sync `specs/001-ble-mesh-sdk/spec.md`,
   `specs/001-ble-mesh-sdk/plan.md`,
   `specs/001-ble-mesh-sdk/tasks.md`,
   `specs/001-ble-mesh-sdk/contracts/meshlink-api.md`,
-  `specs/001-ble-mesh-sdk/contracts/discovery-advertisement.md`, and
-  `specs/001-ble-mesh-sdk/quickstart.md` with the shared builder,
-  discovery-advertisement, and LOW-tier connection-interval contract.
+  `specs/001-ble-mesh-sdk/contracts/discovery-advertisement.md`,
+  `specs/001-ble-mesh-sdk/quickstart.md`,
+  `meshlink-sample/android/README.md`, and `meshlink-sample/ios/README.md`
+  with the shared builder, discovery-advertisement, and LOW-tier
+  connection-interval contract.
 
 ---
 

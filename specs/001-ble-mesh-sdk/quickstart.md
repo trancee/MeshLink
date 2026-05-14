@@ -64,7 +64,13 @@ Verify that both devices reach `Running` and begin peer discovery.
 If the host app forwards battery state with `updateBattery(level, isCharging)`,
 confirm that `diagnosticEvents` emits `POWER_MODE_CHANGED` entries whose
 metadata includes `tier`, `advertisementIntervalMillis`,
-`scanDutyCyclePercent`, `maxConnections`, `chunkBudgetBytes`, and `region`.
+`connectionIntervalMillis`, `scanDutyCyclePercent`, `maxConnections`,
+`chunkBudgetBytes`, and `region`.
+
+For BLE discovery validation, confirm that each proof peer advertises the fixed
+MeshLink discovery UUID `4d455348` plus one second 128-bit UUID carrying the
+16-byte MeshLink discovery payload in a single advertisement with no scan
+response dependency.
 
 ## 5. Keep both devices offline and within BLE range
 

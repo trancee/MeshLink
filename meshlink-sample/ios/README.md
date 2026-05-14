@@ -10,7 +10,8 @@ This app is the iOS reference host for the MeshLink quickstart.
 - direct KMP framework integration through a pre-build Gradle script that runs `:meshlink:embedAndSignAppleFrameworkForXcode`
 - the default MeshLink `deliveryRetryDeadline` behavior; the proof app leaves the default 15-second deadline unchanged
 - a proof-only native GATT benchmark prototype activated with `MESHLINK_BENCHMARK_TRANSPORT=gatt` for iPhone -> Android fallback experiments
-- shared `POWER_MODE_CHANGED` diagnostics that expose `tier`, `advertisementIntervalMillis`, `scanDutyCyclePercent`, `maxConnections`, `chunkBudgetBytes`, and `region`
+- shared `POWER_MODE_CHANGED` diagnostics that expose `tier`, `advertisementIntervalMillis`, `connectionIntervalMillis`, `scanDutyCyclePercent`, `maxConnections`, `chunkBudgetBytes`, and `region`
+- proof discovery now follows the shared MeshLink contract: fixed `4d455348` discovery UUID + one 128-bit payload UUID in a single advertisement with no scan response dependency
 
 ## Build and run
 
@@ -83,7 +84,7 @@ Physical proof findings on iPhone 15:
 
 - direct L2CAP proof runs now work without requiring OS pairing
 - cold start reached `mesh.start()` in `18 ms`
-- LOW-power diagnostics reported `scanDutyCyclePercent=5`
+- LOW-power diagnostics reported `scanDutyCyclePercent=5` and now require `connectionIntervalMillis=500`
 - the 256-byte latency benchmark completed in `28 ms`
 - fresh queued-writer follow-ups still keep 64 KiB delivery in the ~20 KB/s class:
   a clean OPPO rerun reached `20.05 KB/s`, a telemetry-enabled Samsung rerun reached
