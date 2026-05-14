@@ -20,6 +20,7 @@ import android.os.Build
 import android.os.ParcelUuid
 import android.util.Log
 import ch.trancee.meshlink.api.PeerId
+import ch.trancee.meshlink.engine.DirectWireFrame
 import ch.trancee.meshlink.identity.toHexString
 import ch.trancee.meshlink.power.PowerPolicy
 import ch.trancee.meshlink.transport.BleDiscoveryContract
@@ -199,6 +200,10 @@ internal class AndroidBleTransport(
             )
         }
 
+        tryPreferredGattSend(peer, frame)?.let { result ->
+            return result
+        }
+
         val link = activeLinksByHint[peer.hintPeerId.value]
         if (link == null) {
             if (shouldInitiateL2cap(peer.keyHash, peer.platformFamily)) {
@@ -361,10 +366,42 @@ internal class AndroidBleTransport(
                         )
                     }
                 },
+                onDisconnected = ::handleGattNotifySideLinkDisconnected,
             )
         gattNotifyClientsByHint[peer.hintPeerId.value] = client
         log("initiating GATT notify side link to ${peer.hintPeerId.value.takeLast(6)}")
         client.start()
+    }
+
+    private suspend fun tryPreferredGattSend(
+        peer: DiscoveredPeer,
+        frame: OutboundFrame,
+    ): TransportSendResult? {
+        if (frame.preferredMode != TransportMode.GATT) {
+            return null
+        }
+        val directFrame = runCatching { DirectWireFrame.decode(frame.payload) }.getOrNull()
+        if (directFrame !is DirectWireFrame.Data) {
+            return null
+        }
+        maybeStartGattNotifySideLink(peer)
+        val client = gattNotifyClientsByHint[peer.hintPeerId.value] ?: return null
+        if (!client.isReady()) {
+            return null
+        }
+        val delivered =
+            runCatching { client.write(frame.payload) }
+                .onFailure { error ->
+                    log(
+                        "preferred GATT side-link send failed for ${peer.hintPeerId.value.takeLast(6)}: ${error.message.orEmpty()}"
+                    )
+                }.getOrDefault(false)
+        return if (delivered) {
+            log("sent ${frame.payload.size} bytes via GATT write side link for ${peer.hintPeerId.value.takeLast(6)}")
+            TransportSendResult.Delivered
+        } else {
+            null
+        }
     }
 
     private fun connectIfNeeded(peer: DiscoveredPeer): Unit {
@@ -535,7 +572,8 @@ internal class AndroidBleTransport(
             return
         }
         val hasActiveLink =
-            synchronized(activeLinksByHint) { activeLinksByHint.containsKey(peer.hintPeerId.value) }
+            synchronized(activeLinksByHint) { activeLinksByHint.containsKey(peer.hintPeerId.value) } ||
+                hasActiveGattNotifyLink(peer.hintPeerId.value)
         val hasPendingConnect = pendingConnectJobsByHint.containsKey(peer.hintPeerId.value)
         if (hasActiveLink || hasPendingConnect) {
             peer.rediscoveryLoggedWithoutLink = false
@@ -659,15 +697,34 @@ internal class AndroidBleTransport(
 
     private fun closeLink(hintPeer: String, reason: String): Unit {
         val link = synchronized(activeLinksByHint) { activeLinksByHint.remove(hintPeer) } ?: return
-        gattNotifyClientsByHint.remove(hintPeer)?.close()
         discoveredPeers[hintPeer]?.rediscoveryLoggedWithoutLink = false
         log(
             "closing L2CAP link ${hintPeer.takeLast(6)}: $reason discoveredPeerRetained=${discoveredPeers.containsKey(hintPeer)} pendingConnect=${pendingConnectJobsByHint.containsKey(hintPeer)}"
         )
         link.readLoopJob?.cancel()
         closeQuietly(link)
+        if (hasActiveGattNotifyLink(hintPeer)) {
+            log(
+                "retaining peer ${hintPeer.takeLast(6)} after L2CAP close because the GATT side link is still active"
+            )
+            return
+        }
         val peerId = PeerId(hintPeer)
         mutableEvents.tryEmit(TransportEvent.PeerLost(peerId))
+    }
+
+    private fun handleGattNotifySideLinkDisconnected(peerHintId: PeerId): Unit {
+        val removedClient = gattNotifyClientsByHint.remove(peerHintId.value) ?: return
+        log("removed GATT notify side link for ${peerHintId.value.takeLast(6)}")
+        if (synchronized(activeLinksByHint) { activeLinksByHint.containsKey(peerHintId.value) }) {
+            return
+        }
+        removedClient.close()
+        mutableEvents.tryEmit(TransportEvent.PeerLost(peerHintId))
+    }
+
+    private fun hasActiveGattNotifyLink(hintPeer: String): Boolean {
+        return gattNotifyClientsByHint[hintPeer]?.isReady() == true
     }
 
     private fun closeQuietly(closeable: Closeable?): Unit {

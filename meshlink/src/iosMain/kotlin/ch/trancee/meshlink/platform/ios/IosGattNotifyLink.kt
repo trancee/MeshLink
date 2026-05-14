@@ -13,7 +13,8 @@ internal class IosGattNotifyLink(
     private val notifyCharacteristicProvider: () -> Any?,
     private val logger: (String) -> Unit,
 ) {
-    private val frameBuffer = IosL2capFrameBuffer()
+    private val outgoingFrames = IosL2capFrameBuffer()
+    private val incomingFrames = IosL2capFrameBuffer()
     private val pendingChunks: ArrayDeque<ByteArray> = ArrayDeque()
     private var lowLatencyRequested: Boolean = false
     private var closed: Boolean = false
@@ -22,7 +23,7 @@ internal class IosGattNotifyLink(
         if (closed) {
             return false
         }
-        val encoded = frameBuffer.encode(payload)
+        val encoded = outgoingFrames.encode(payload)
         val chunkBytes = maxNotificationChunkBytes()
         encoded.asList().chunked(chunkBytes).forEach { chunk ->
             pendingChunks.addLast(chunk.toByteArray())
@@ -30,6 +31,13 @@ internal class IosGattNotifyLink(
         requestLowLatencyIfNeeded()
         pump()
         return true
+    }
+
+    internal fun appendIncomingWrite(chunk: ByteArray): List<ByteArray> {
+        if (closed) {
+            return emptyList()
+        }
+        return incomingFrames.append(chunk)
     }
 
     internal fun pump(): Unit {

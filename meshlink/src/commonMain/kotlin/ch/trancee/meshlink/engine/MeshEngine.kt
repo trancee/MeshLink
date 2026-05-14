@@ -1727,11 +1727,18 @@ private constructor(
         peerId: PeerId,
         frame: DirectWireFrame,
         action: String,
+        preferredMode: TransportMode? = null,
     ): TransportSendResult {
         val transport =
             bleTransport ?: return TransportSendResult.Dropped("BLE transport is unavailable")
         return runPlatformCall(action) {
-            transport.send(OutboundFrame(peerId = peerId, payload = frame.encode()))
+            transport.send(
+                OutboundFrame(
+                    peerId = peerId,
+                    payload = frame.encode(),
+                    preferredMode = preferredMode,
+                )
+            )
         }
     }
 
@@ -1748,8 +1755,13 @@ private constructor(
                 peerId = peerId,
                 frame = DirectWireFrame.Data(encryptedFrame),
                 action = action,
+                preferredMode = preferredTransportModeForEncryptedFrame(frame),
             )
         }
+    }
+
+    private fun preferredTransportModeForEncryptedFrame(frame: WireFrame): TransportMode? {
+        return if (frame is WireFrame.TransferAck) TransportMode.GATT else null
     }
 
     private fun encryptHopPayload(session: HopSession, plaintext: ByteArray): ByteArray {

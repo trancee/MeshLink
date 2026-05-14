@@ -10,20 +10,30 @@ import android.content.Context
 import android.os.Build
 import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.transport.BleDiscoveryContract
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withTimeoutOrNull
 
 internal class AndroidGattNotifyClient(
     private val context: Context,
-    private val appId: String,
+    @Suppress("UNUSED_PARAMETER") private val appId: String,
     private val peerHintId: PeerId,
     private val device: BluetoothDevice,
     private val log: (String) -> Unit,
     private val onFrameReceived: (PeerId, ByteArray) -> Unit,
+    private val onDisconnected: (PeerId) -> Unit,
 ) {
     @Volatile private var gatt: BluetoothGatt? = null
     @Volatile private var ready: Boolean = false
     @Volatile private var servicesDiscoveryStarted: Boolean = false
+    @Volatile private var notifyCharacteristic: BluetoothGattCharacteristic? = null
+    @Volatile private var writeCharacteristic: BluetoothGattCharacteristic? = null
+    @Volatile private var closedByOwner: Boolean = false
 
     private val frameBuffer = AndroidL2capFrameBuffer()
+    private val writeMutex = Mutex()
+    private var pendingWrite: CompletableDeferred<Boolean>? = null
 
     private val callback =
         object : BluetoothGattCallback() {
@@ -46,8 +56,13 @@ internal class AndroidGattNotifyClient(
                         gatt.discoverServices()
                     }
                 } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
+                    val shouldNotifyDisconnect = !closedByOwner
                     ready = false
-                    close()
+                    completePendingWrite(success = false)
+                    closeInternal(markClosedByOwner = true)
+                    if (shouldNotifyDisconnect) {
+                        onDisconnected(peerHintId)
+                    }
                 }
             }
 
@@ -67,7 +82,7 @@ internal class AndroidGattNotifyClient(
                     log(
                         "GATT notify side link ${peerHintId.value.takeLast(6)} service discovery failed status=$status"
                     )
-                    close()
+                    closeInternal(markClosedByOwner = false)
                     return
                 }
                 val service =
@@ -76,20 +91,26 @@ internal class AndroidGattNotifyClient(
                     log(
                         "GATT notify side link ${peerHintId.value.takeLast(6)} missing service ${BleDiscoveryContract.GATT_FALLBACK_SERVICE_UUID}"
                     )
-                    close()
+                    closeInternal(markClosedByOwner = false)
                     return
                 }
                 val notifyCharacteristic =
                     service.getCharacteristic(
                         java.util.UUID.fromString(BleDiscoveryContract.GATT_NOTIFY_CHARACTERISTIC_UUID)
                     )
-                if (notifyCharacteristic == null) {
-                    log(
-                        "GATT notify side link ${peerHintId.value.takeLast(6)} missing notify characteristic"
+                val writeCharacteristic =
+                    service.getCharacteristic(
+                        java.util.UUID.fromString(BleDiscoveryContract.GATT_WRITE_CHARACTERISTIC_UUID)
                     )
-                    close()
+                if (notifyCharacteristic == null || writeCharacteristic == null) {
+                    log(
+                        "GATT notify side link ${peerHintId.value.takeLast(6)} missing notify/write characteristic"
+                    )
+                    closeInternal(markClosedByOwner = false)
                     return
                 }
+                this@AndroidGattNotifyClient.notifyCharacteristic = notifyCharacteristic
+                this@AndroidGattNotifyClient.writeCharacteristic = writeCharacteristic
                 enableNotifications(gatt, notifyCharacteristic)
             }
 
@@ -109,7 +130,7 @@ internal class AndroidGattNotifyClient(
                     log(
                         "GATT notify side link ${peerHintId.value.takeLast(6)} notify enable failed status=$status"
                     )
-                    close()
+                    closeInternal(markClosedByOwner = false)
                     return
                 }
                 ready = true
@@ -141,6 +162,26 @@ internal class AndroidGattNotifyClient(
                     onFrameReceived(peerHintId, payload)
                 }
             }
+
+            @Suppress("OVERRIDE_DEPRECATION", "DEPRECATION")
+            override fun onCharacteristicWrite(
+                gatt: BluetoothGatt,
+                characteristic: BluetoothGattCharacteristic,
+                status: Int,
+            ) {
+                if (
+                    characteristic.uuid !=
+                        java.util.UUID.fromString(BleDiscoveryContract.GATT_WRITE_CHARACTERISTIC_UUID)
+                ) {
+                    return
+                }
+                if (status != BluetoothGatt.GATT_SUCCESS) {
+                    log(
+                        "GATT notify side link ${peerHintId.value.takeLast(6)} write failed status=$status"
+                    )
+                }
+                completePendingWrite(success = status == BluetoothGatt.GATT_SUCCESS)
+            }
         }
 
     fun start(): Unit {
@@ -149,6 +190,9 @@ internal class AndroidGattNotifyClient(
         }
         ready = false
         servicesDiscoveryStarted = false
+        notifyCharacteristic = null
+        writeCharacteristic = null
+        closedByOwner = false
         gatt = connectGatt(device)
     }
 
@@ -156,10 +200,39 @@ internal class AndroidGattNotifyClient(
         return ready
     }
 
+    suspend fun write(payload: ByteArray): Boolean {
+        return writeMutex.withLock {
+            if (!ready) {
+                false
+            } else {
+                val gatt = gatt
+                val writeCharacteristic = writeCharacteristic
+                if (gatt == null || writeCharacteristic == null) {
+                    false
+                } else {
+                    val encoded = frameBuffer.encode(payload)
+                    val deferred = CompletableDeferred<Boolean>()
+                    pendingWrite = deferred
+                    @Suppress("DEPRECATION")
+                    writeCharacteristic.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+                    @Suppress("DEPRECATION")
+                    writeCharacteristic.value = encoded
+                    @Suppress("DEPRECATION")
+                    val enqueued = gatt.writeCharacteristic(writeCharacteristic)
+                    if (!enqueued) {
+                        completePendingWrite(success = false)
+                        false
+                    } else {
+                        withTimeoutOrNull(WRITE_TIMEOUT_MILLIS) { deferred.await() }
+                            ?: false.also { completePendingWrite(success = false) }
+                    }
+                }
+            }
+        }
+    }
+
     fun close(): Unit {
-        ready = false
-        runCatching { gatt?.close() }
-        gatt = null
+        closeInternal(markClosedByOwner = true)
     }
 
     @Suppress("DEPRECATION")
@@ -176,12 +249,27 @@ internal class AndroidGattNotifyClient(
             log(
                 "GATT notify side link ${peerHintId.value.takeLast(6)} missing CCCD for notify characteristic"
             )
-            close()
+            closeInternal(markClosedByOwner = false)
             return
         }
         cccd.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
         @Suppress("DEPRECATION")
         gatt.writeDescriptor(cccd)
+    }
+
+    private fun completePendingWrite(success: Boolean): Unit {
+        pendingWrite?.complete(success)
+        pendingWrite = null
+    }
+
+    private fun closeInternal(markClosedByOwner: Boolean): Unit {
+        closedByOwner = markClosedByOwner
+        ready = false
+        notifyCharacteristic = null
+        writeCharacteristic = null
+        completePendingWrite(success = false)
+        runCatching { gatt?.close() }
+        gatt = null
     }
 
     private fun connectGatt(device: BluetoothDevice): BluetoothGatt {
@@ -192,16 +280,9 @@ internal class AndroidGattNotifyClient(
         }
     }
 
-    private fun serviceIdBytes(): ByteArray {
-        val meshHash = BleDiscoveryContract.computeMeshHash(appId)
-        return byteArrayOf(
-            (meshHash.toInt() and 0xFF).toByte(),
-            ((meshHash.toInt() shr 8) and 0xFF).toByte(),
-        )
-    }
-
     private companion object {
         private const val CLIENT_CHARACTERISTIC_CONFIGURATION_UUID: String =
             "00002902-0000-1000-8000-00805f9b34fb"
+        private const val WRITE_TIMEOUT_MILLIS: Long = 5_000L
     }
 }
