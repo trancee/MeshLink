@@ -400,11 +400,12 @@ known-limitation path already allowed by `spec.md`.
 **Release-readiness note**: This phase remains blocking until either the
 conformance path or the waiver path is explicitly completed.
 
-- [ ] T091 Record the chosen `SC-004` closure path in
+- [X] T091 Record the chosen `SC-004` closure path in
   `specs/001-ble-mesh-sdk/spec.md`,
   `specs/001-ble-mesh-sdk/plan.md`, and
-  `specs/001-ble-mesh-sdk/release-decision.md`, linking either continued
-  conformance work or the explicit waiver / known-limitation decision.
+  `specs/001-ble-mesh-sdk/release-decision.md`, linking the currently selected
+  conformance path and leaving the waiver / known-limitation branch
+  unselected.
 - [ ] T092 If the release remains blocked on conformance, execute one bounded
   iOS MeshLink-path throughput remediation experiment and rerun the
   recipient-confirmed reference-hardware benchmark, retaining raw

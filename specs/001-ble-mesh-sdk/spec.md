@@ -401,6 +401,11 @@ therefore take only one of two explicit paths:
    measured throughput still remains below the normative target and that the
    proof-only GATT prototype is not product-conformance evidence.
 
+**Current closure-path selection (2026-05-14):** The feature remains on the
+explicit conformance path. Release stays blocked until the MeshLink iOS path
+meets `SC-004` on reference hardware with fresh retained proof evidence; the
+waiver / known-limitation path has not been selected.
+
 Residual risk if the waiver path is chosen:
 
 - iOS single-hop 64 KB transfers still complete far below the normative

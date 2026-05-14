@@ -8,8 +8,10 @@ explicit waiver / known limitation.
 
 ## Current Status
 
-- **Status**: Open
+- **Status**: Open — conformance path selected
 - **Blocking requirement**: `SC-004`
+- **Chosen closure path**: Continue on the explicit spec-conformance path; the
+  waiver / known-limitation path is not currently selected.
 - **Current blocker**: iOS single-hop 64 KiB throughput on the MeshLink path
   remains below the normative `>= 60 KB/s` target on reference benchmark
   hardware.
@@ -23,6 +25,9 @@ explicit waiver / known limitation.
 - Retain passing iOS `SC-004` evidence on reference benchmark hardware.
 - Keep recipient-confirmed proof evidence aligned with the scored run.
 - Update `spec.md`, `plan.md`, `benchmarks/README.md`, and `research.md`.
+- **Current execution status (2026-05-14):** Selected. The next required step
+  is one bounded iOS MeshLink-path remediation experiment followed by a fresh
+  recipient-confirmed reference-hardware rerun.
 
 ### 2. Explicit waiver / known-limitation path
 

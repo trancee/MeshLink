@@ -124,6 +124,12 @@ The residual risk is now materially slower 64 KiB single-hop transfers on iOS;
 the earlier recipient-confirmed proof-completion instability is retained as
 historical diagnostic evidence rather than the current blocker state.
 
+**Current closure-path selection (2026-05-14):** Continue on the explicit
+spec-conformance path. The waiver / known-limitation branch is not currently
+selected; the next required step is one bounded iOS MeshLink-path throughput
+remediation experiment plus a fresh recipient-confirmed reference-hardware
+rerun.
+
 **Current blocker interpretation for remaining work (2026-05-14):**
 
 - Treat the remaining iPhone release blocker as the normative throughput gap on
