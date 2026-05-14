@@ -40,6 +40,7 @@ import ch.trancee.meshlink.storage.InMemorySecureStorage
 import ch.trancee.meshlink.storage.SecureStorage
 import ch.trancee.meshlink.transfer.InboundTransferSession
 import ch.trancee.meshlink.transfer.OutboundTransferSession
+import ch.trancee.meshlink.transfer.PreparedInboundTransferAck
 import ch.trancee.meshlink.transfer.RelayTransferSession
 import ch.trancee.meshlink.transport.BleTransport
 import ch.trancee.meshlink.transport.OutboundFrame
@@ -1148,10 +1149,11 @@ private constructor(
     private suspend fun handleTransferStart(peerId: PeerId, frame: WireFrame.TransferStart): Unit {
         if (isLocalPeerId(frame.destinationPeerId)) {
             val existingSession = inboundTransfers[frame.transferId]
-            if (existingSession != null) {
-                existingSession.upstreamPeerId = peerId
-            } else {
-                inboundTransfers[frame.transferId] =
+            val inboundSession =
+                if (existingSession != null) {
+                    existingSession.upstreamPeerId = peerId
+                    existingSession
+                } else {
                     InboundTransferSession(
                         transferId = frame.transferId,
                         messageId = frame.messageId,
@@ -1161,10 +1163,31 @@ private constructor(
                         totalBytes = frame.totalBytes,
                         totalChunks = frame.totalChunks,
                         maxChunkPayloadBytes = frame.maxChunkPayloadBytes,
-                    )
-            }
-            val ackFrame = inboundTransfers[frame.transferId]?.asAckFrame() ?: return
-            sendEncryptedWireFrame(peerId, ackFrame, "transfer.ack.start")
+                    ).also { session ->
+                        inboundTransfers[frame.transferId] = session
+                    }
+                }
+            val preparedAck = inboundSession.prepareAck()
+            emitInboundTransferProgress(
+                stage = "transfer.receive.start",
+                peerId = peerId,
+                session = inboundSession,
+                metadata =
+                    mapOf(
+                        "existingSession" to (existingSession != null).toString(),
+                        "receivedChunks" to preparedAck.receivedChunkCount.toString(),
+                        "ackHighestContiguous" to preparedAck.highestContiguousAck.toString(),
+                    ),
+            )
+            val ackSent = sendEncryptedWireFrame(peerId, preparedAck.frame, "transfer.ack.start")
+            emitInboundTransferProgress(
+                stage = "transfer.ack.start",
+                peerId = peerId,
+                session = inboundSession,
+                metadata =
+                    inboundAckMetadata(preparedAck, ackSent) +
+                        mapOf("existingSession" to (existingSession != null).toString()),
+            )
             return
         }
 
@@ -1187,12 +1210,48 @@ private constructor(
     private suspend fun handleTransferChunk(peerId: PeerId, frame: WireFrame.TransferChunk): Unit {
         val inboundSession = inboundTransfers[frame.transferId]
         if (inboundSession != null) {
-            val shouldAcknowledge = inboundSession.acceptChunk(frame)
-            if (shouldAcknowledge) {
-                sendEncryptedWireFrame(
-                    inboundSession.upstreamPeerId,
-                    inboundSession.asAckFrame(),
-                    "transfer.ack.chunk",
+            val acceptance = inboundSession.acceptChunk(frame)
+            emitInboundTransferProgress(
+                stage =
+                    if (acceptance.accepted) {
+                        "transfer.receive.chunk"
+                    } else {
+                        "transfer.receive.invalidChunk"
+                    },
+                peerId = peerId,
+                session = inboundSession,
+                metadata =
+                    mapOf(
+                        "accepted" to acceptance.accepted.toString(),
+                        "chunkBytes" to acceptance.payloadBytes.toString(),
+                        "chunkIndex" to acceptance.chunkIndex.toString(),
+                        "complete" to acceptance.complete.toString(),
+                        "duplicateChunk" to acceptance.duplicateChunk.toString(),
+                        "highestContiguousAck" to acceptance.highestContiguousAck.toString(),
+                        "newlyReceivedChunksSinceLastAck" to
+                            acceptance.newlyReceivedChunksSinceLastAck.toString(),
+                        "receivedChunks" to acceptance.receivedChunkCount.toString(),
+                        "shouldAcknowledge" to acceptance.shouldAcknowledge.toString(),
+                    ),
+            )
+            if (acceptance.shouldAcknowledge) {
+                val preparedAck = inboundSession.prepareAck()
+                val ackSent =
+                    sendEncryptedWireFrame(
+                        inboundSession.upstreamPeerId,
+                        preparedAck.frame,
+                        "transfer.ack.chunk",
+                    )
+                emitInboundTransferProgress(
+                    stage = "transfer.ack.chunk",
+                    peerId = peerId,
+                    session = inboundSession,
+                    metadata =
+                        inboundAckMetadata(preparedAck, ackSent) +
+                            mapOf(
+                                "triggerChunkIndex" to frame.chunkIndex.toString(),
+                                "triggerDuplicateChunk" to acceptance.duplicateChunk.toString(),
+                            ),
                 )
             }
             return
@@ -1223,6 +1282,16 @@ private constructor(
     ): Unit {
         val inboundSession = inboundTransfers.remove(frame.transferId)
         if (inboundSession != null) {
+            emitInboundTransferProgress(
+                stage = "transfer.receive.complete",
+                peerId = peerId,
+                session = inboundSession,
+                metadata =
+                    mapOf(
+                        "complete" to inboundSession.isComplete().toString(),
+                        "receivedChunks" to inboundSession.receivedChunkCount().toString(),
+                    ),
+            )
             if (inboundSession.isComplete()) {
                 deliverInnerEnvelope(
                     immediatePeerId = peerId,
@@ -1263,6 +1332,54 @@ private constructor(
                 metadata = mapOf("reasonCode" to frame.reasonCode.toString()),
             )
         }
+    }
+
+    private fun emitInboundTransferProgress(
+        stage: String,
+        peerId: PeerId,
+        session: InboundTransferSession,
+        metadata: Map<String, String> = emptyMap(),
+    ): Unit {
+        emitDiagnostic(
+            code = DiagnosticCode.TRANSFER_PROGRESS,
+            severity = DiagnosticSeverity.DEBUG,
+            stage = stage,
+            peerSuffix = peerId.value.takeLast(6),
+            metadata =
+                peerRouteMetadata(
+                    peerId = peerId,
+                    metadata = inboundTransferMetadata(session) + metadata,
+                ),
+        )
+    }
+
+    private fun inboundTransferMetadata(session: InboundTransferSession): Map<String, String> {
+        return mapOf(
+            "destinationPeerId" to session.destinationPeerId.value,
+            "maxChunkPayloadBytes" to session.maxChunkPayloadBytes.toString(),
+            "messageId" to session.messageId,
+            "originPeerId" to session.originPeerId.value,
+            "totalBytes" to session.totalBytes.toString(),
+            "totalChunks" to session.totalChunks.toString(),
+            "transferId" to session.transferId,
+            "upstreamPeerId" to session.upstreamPeerId.value,
+        )
+    }
+
+    private fun inboundAckMetadata(
+        preparedAck: PreparedInboundTransferAck,
+        ackSent: Boolean,
+    ): Map<String, String> {
+        return mapOf(
+            "ackContiguousChunks" to (preparedAck.highestContiguousAck + 1).coerceAtLeast(0).toString(),
+            "ackHighestContiguous" to preparedAck.highestContiguousAck.toString(),
+            "ackSent" to ackSent.toString(),
+            "complete" to preparedAck.complete.toString(),
+            "newlyReceivedChunksSinceLastAck" to
+                preparedAck.newlyReceivedChunksSinceLastAck.toString(),
+            "receivedChunks" to preparedAck.receivedChunkCount.toString(),
+            "selectiveRangesBytes" to preparedAck.frame.selectiveRanges.size.toString(),
+        )
     }
 
     private fun prewarmHopSession(peerId: PeerId): Unit {

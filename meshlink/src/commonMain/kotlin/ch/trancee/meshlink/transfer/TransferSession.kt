@@ -97,6 +97,26 @@ internal constructor(
     }
 }
 
+internal data class InboundChunkAcceptance(
+    val accepted: Boolean,
+    val chunkIndex: Int,
+    val payloadBytes: Int,
+    val duplicateChunk: Boolean,
+    val receivedChunkCount: Int,
+    val newlyReceivedChunksSinceLastAck: Int,
+    val highestContiguousAck: Int,
+    val complete: Boolean,
+    val shouldAcknowledge: Boolean,
+)
+
+internal data class PreparedInboundTransferAck(
+    val frame: WireFrame.TransferAck,
+    val receivedChunkCount: Int,
+    val newlyReceivedChunksSinceLastAck: Int,
+    val highestContiguousAck: Int,
+    val complete: Boolean,
+)
+
 internal class InboundTransferSession
 internal constructor(
     internal val transferId: String,
@@ -109,20 +129,45 @@ internal constructor(
     internal val maxChunkPayloadBytes: Int,
 ) {
     private val receivedChunks: Array<ByteArray?> = arrayOfNulls(totalChunks)
+    private var receivedChunkCount: Int = 0
     private var newlyReceivedChunksSinceLastAck: Int = 0
 
-    internal fun acceptChunk(frame: WireFrame.TransferChunk): Boolean {
+    internal fun acceptChunk(frame: WireFrame.TransferChunk): InboundChunkAcceptance {
         if (frame.chunkIndex !in 0 until totalChunks) {
-            return false
+            return InboundChunkAcceptance(
+                accepted = false,
+                chunkIndex = frame.chunkIndex,
+                payloadBytes = frame.payload.size,
+                duplicateChunk = false,
+                receivedChunkCount = receivedChunkCount,
+                newlyReceivedChunksSinceLastAck = newlyReceivedChunksSinceLastAck,
+                highestContiguousAck = highestContiguousAck(),
+                complete = isComplete(),
+                shouldAcknowledge = false,
+            )
         }
+
         val duplicateChunk = receivedChunks[frame.chunkIndex] != null
         if (!duplicateChunk) {
             receivedChunks[frame.chunkIndex] = frame.payload.copyOf()
+            receivedChunkCount += 1
             newlyReceivedChunksSinceLastAck += 1
         }
-        return duplicateChunk ||
-            isComplete() ||
-            newlyReceivedChunksSinceLastAck >= ACK_BATCH_CHUNK_COUNT
+        val highestContiguousAck = highestContiguousAck()
+        val complete = isComplete()
+        val shouldAcknowledge =
+            duplicateChunk || complete || newlyReceivedChunksSinceLastAck >= ACK_BATCH_CHUNK_COUNT
+        return InboundChunkAcceptance(
+            accepted = true,
+            chunkIndex = frame.chunkIndex,
+            payloadBytes = frame.payload.size,
+            duplicateChunk = duplicateChunk,
+            receivedChunkCount = receivedChunkCount,
+            newlyReceivedChunksSinceLastAck = newlyReceivedChunksSinceLastAck,
+            highestContiguousAck = highestContiguousAck,
+            complete = complete,
+            shouldAcknowledge = shouldAcknowledge,
+        )
     }
 
     internal fun highestContiguousAck(): Int {
@@ -143,8 +188,12 @@ internal constructor(
         return bitSet
     }
 
+    internal fun receivedChunkCount(): Int {
+        return receivedChunkCount
+    }
+
     internal fun isComplete(): Boolean {
-        return receivedChunks.all { chunk -> chunk != null }
+        return receivedChunkCount >= totalChunks
     }
 
     internal fun assembledPayload(): ByteArray {
@@ -158,13 +207,27 @@ internal constructor(
         return output
     }
 
-    internal fun asAckFrame(): WireFrame.TransferAck {
+    internal fun prepareAck(): PreparedInboundTransferAck {
+        val highestContiguousAck = highestContiguousAck()
+        val preparedAck =
+            PreparedInboundTransferAck(
+                frame =
+                    WireFrame.TransferAck(
+                        transferId = transferId,
+                        highestContiguousAck = highestContiguousAck,
+                        selectiveRanges = selectiveRangesBitSet(),
+                    ),
+                receivedChunkCount = receivedChunkCount,
+                newlyReceivedChunksSinceLastAck = newlyReceivedChunksSinceLastAck,
+                highestContiguousAck = highestContiguousAck,
+                complete = isComplete(),
+            )
         newlyReceivedChunksSinceLastAck = 0
-        return WireFrame.TransferAck(
-            transferId = transferId,
-            highestContiguousAck = highestContiguousAck(),
-            selectiveRanges = selectiveRangesBitSet(),
-        )
+        return preparedAck
+    }
+
+    internal fun asAckFrame(): WireFrame.TransferAck {
+        return prepareAck().frame
     }
 
     private companion object {
