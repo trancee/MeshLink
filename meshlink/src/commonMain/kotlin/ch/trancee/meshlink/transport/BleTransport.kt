@@ -56,6 +56,8 @@ internal interface BleTransport {
 
     suspend fun setDiscoverySuspended(suspended: Boolean): Unit = Unit
 
+    suspend fun clearQueuedOutboundFrames(peerId: PeerId): Unit = Unit
+
     fun maximumPayloadBytesPerDelivery(peerId: PeerId): Int? = null
 
     suspend fun send(frame: OutboundFrame): TransportSendResult

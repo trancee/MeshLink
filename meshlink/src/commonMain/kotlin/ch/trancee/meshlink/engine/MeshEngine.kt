@@ -976,6 +976,9 @@ private constructor(
                         )
                     val missingChunks = session.missingChunkIndices()
                     if (missingChunks.isEmpty()) {
+                        runPlatformCall("transfer.clearQueuedFrames") {
+                            bleTransport?.clearQueuedOutboundFrames(session.destinationPeerId)
+                        }
                         sendTransferTowardsDestination(
                             session.destinationPeerId,
                             WireFrame.TransferComplete(session.transferId),
@@ -1033,6 +1036,9 @@ private constructor(
                                 idleWindow = TRANSFER_ACK_IDLE_WINDOW,
                             )
                         if (acknowledgedChunkCountAfterSettlement >= session.totalChunks) {
+                            runPlatformCall("transfer.clearQueuedFrames") {
+                                bleTransport?.clearQueuedOutboundFrames(session.destinationPeerId)
+                            }
                             sendTransferTowardsDestination(
                                 session.destinationPeerId,
                                 WireFrame.TransferComplete(session.transferId),

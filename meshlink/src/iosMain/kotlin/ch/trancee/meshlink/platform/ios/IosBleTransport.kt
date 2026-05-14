@@ -129,6 +129,17 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
         return null
     }
 
+    override suspend fun clearQueuedOutboundFrames(peerId: PeerId): Unit {
+        val peer = resolvePeer(peerId) ?: return
+        val link = activeLinkFor(peer) ?: return
+        val discardedFrames = link.discardQueuedFrames()
+        if (discardedFrames > 0) {
+            log(
+                "discarded $discardedFrames queued L2CAP frames for ${peer.hintPeerId.value.takeLast(6)}"
+            )
+        }
+    }
+
     override suspend fun send(frame: OutboundFrame): TransportSendResult {
         if (!started) {
             log("send(${frame.peerId.value.takeLast(6)}) dropped: transport not started")
@@ -753,6 +764,16 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
             pendingFrameWindow.close()
             inputStream.close()
             outputStream.close()
+        }
+
+        suspend fun discardQueuedFrames(): Int {
+            var discardedFrames = 0
+            while (true) {
+                val queuedFrame = outboundFrames.tryReceive().getOrNull() ?: break
+                pendingFrameWindow.release(queuedFrame.encoded.size)
+                discardedFrames += 1
+            }
+            return discardedFrames
         }
 
         private suspend fun nextWriteSequence(): Long {
