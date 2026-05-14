@@ -40,12 +40,12 @@ beyond the constitutionally allowed `kotlinx-coroutines-core`; codec, routing,
 and crypto-provider logic remain in-repo. Repository baselines and physical
 proof findings are recorded in `benchmarks/README.md` and
 `specs/001-ble-mesh-sdk/research.md`; single-hop iOS 64 KiB throughput on the
-current physical MeshLink path remains the explicit release-decision blocker
-unless a documented waiver narrows the public iOS large-transfer claim and
-acknowledges the retained throughput evidence gap. Recipient-confirmed MeshLink
-proof completion on the current Samsung/OPPO physical path has been restored and
-must stay covered by the retained benchmark evidence, but it is no longer the
-active blocker state.
+current physical MeshLink path remains the underlying release-decision
+non-conformance, and the current release relies on the documented waiver that
+narrows the public iOS large-transfer claim and acknowledges the retained
+throughput evidence gap. Recipient-confirmed MeshLink proof completion on the
+current Samsung/OPPO physical path has been restored and must stay covered by
+the retained benchmark evidence, but it is no longer the active blocker state.
 
 ## Technical Context
 

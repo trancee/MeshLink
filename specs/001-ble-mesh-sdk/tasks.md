@@ -587,7 +587,7 @@ With multiple developers:
   canonical `plan.md` + `tasks.md` state, including completed markers,
   follow-up phases, and release-risk framing, while allowing new work to be
   appended explicitly
-- The current remaining release-readiness blocker is the explicit `SC-004`
-  closure path captured in Phase 19; historical blockers `T074`–`T081` are
-  completed ledger entries and MUST NOT be described as open unless new
-  follow-up work is appended.
+- The Phase 19 `SC-004` closure path is now complete via the explicit waiver /
+  known-limitation record in the canonical docs; historical blockers
+  `T074`–`T081` are completed ledger entries and MUST NOT be described as open
+  unless new follow-up work is appended.

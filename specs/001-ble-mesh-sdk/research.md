@@ -1064,14 +1064,14 @@ This closes the earlier proof-completion blocker hypothesis from the retained
 `ReceiptTimeout` / `UNREACHABLE` runs remain useful diagnostic history, but they
 no longer describe the current MeshLink physical path.
 
-The remaining blocker is now narrower and purely normative:
+The remaining non-conformance is now narrower and purely normative:
 
 - recipient-confirmed 64 KiB round-trip proof completion is restored on the
   current reference path for both OPPO and Samsung
 - iOS single-hop 64 KiB throughput still remains well below the required
   `>= 60 KB/s` target even on the restored-stability path
-- therefore the remaining open issue is iOS `SC-004` throughput
-  non-conformance, not proof-completion instability itself
+- therefore the remaining open issue at that point was iOS `SC-004`
+  throughput non-conformance, not proof-completion instability itself
 
 For the current release, that non-conformance is now recorded as an accepted
 known limitation under the explicit waiver path in the canonical release
