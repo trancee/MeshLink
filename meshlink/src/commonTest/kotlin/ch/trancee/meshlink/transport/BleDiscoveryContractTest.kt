@@ -3,6 +3,7 @@ package ch.trancee.meshlink.transport
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 class BleDiscoveryContractTest {
@@ -101,6 +102,127 @@ class BleDiscoveryContractTest {
         // Assert
         assertEquals(BleDiscoveryContract.ADVERTISEMENT_SERVICE_UUID, uuids.first())
         assertEquals(2, uuids.size)
+    }
+
+    @Test
+    fun `advertised service uuids contain only the fixed discovery uuid and payload uuid`() {
+        // Arrange
+        val payload =
+            BleDiscoveryPayload(
+                protocolVersion = 1,
+                powerMode = BlePowerMode.BALANCED,
+                meshHash = 0x1BE1.toUShort(),
+                l2capPsm = 0x80.toUByte(),
+                keyHash = byteArrayOf(11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0),
+            )
+        val expected =
+            listOf(
+                BleDiscoveryContract.ADVERTISEMENT_SERVICE_UUID,
+                payload.payloadUuidString(),
+            )
+
+        // Act
+        val actual = BleDiscoveryContract.advertisedServiceUuids(payload)
+
+        // Assert
+        assertEquals(expected, actual)
+    }
+
+    @Test
+    fun `reserved proof only uuids are not recognized as normative advertisement uuids`() {
+        // Arrange
+        val reservedServiceUuid = BleDiscoveryContract.GATT_FALLBACK_SERVICE_UUID
+        val reservedCharacteristicUuid = BleDiscoveryContract.GATT_CHARACTERISTIC_UUIDS.first()
+
+        // Act
+        val serviceRecognized = BleDiscoveryContract.isAdvertisementServiceUuid(reservedServiceUuid)
+        val characteristicRecognized =
+            BleDiscoveryContract.isAdvertisementServiceUuid(reservedCharacteristicUuid)
+
+        // Assert
+        assertTrue(!serviceRecognized)
+        assertTrue(!characteristicRecognized)
+    }
+
+    @Test
+    fun `payload rejects key hashes that are not exactly 12 bytes`() {
+        // Arrange / Act
+        val error =
+            assertFailsWith<IllegalArgumentException> {
+                BleDiscoveryPayload(
+                    protocolVersion = 1,
+                    powerMode = BlePowerMode.BALANCED,
+                    meshHash = 0x1234.toUShort(),
+                    l2capPsm = 0x80.toUByte(),
+                    keyHash = ByteArray(11),
+                )
+            }
+
+        // Assert
+        assertEquals("keyHash must be exactly 12 bytes", error.message)
+    }
+
+    @Test
+    fun `payload rejects protocol versions outside the 3 bit header range`() {
+        // Arrange / Act
+        val error =
+            assertFailsWith<IllegalArgumentException> {
+                BleDiscoveryPayload(
+                    protocolVersion = 8,
+                    powerMode = BlePowerMode.BALANCED,
+                    meshHash = 0x1234.toUShort(),
+                    l2capPsm = 0x80.toUByte(),
+                    keyHash = ByteArray(12),
+                )
+            }
+
+        // Assert
+        assertEquals("protocolVersion must be in 0..7", error.message)
+    }
+
+    @Test
+    fun `payload rejects nonzero l2cap psm values below the dynamic ble range`() {
+        // Arrange / Act
+        val error =
+            assertFailsWith<IllegalArgumentException> {
+                BleDiscoveryPayload(
+                    protocolVersion = 1,
+                    powerMode = BlePowerMode.BALANCED,
+                    meshHash = 0x1234.toUShort(),
+                    l2capPsm = 0x7F.toUByte(),
+                    keyHash = ByteArray(12),
+                )
+            }
+
+        // Assert
+        assertEquals("l2capPsm must be 0 or in 128..255", error.message)
+    }
+
+    @Test
+    fun `uuid decoder rejects malformed UUID strings`() {
+        // Arrange / Act
+        val error =
+            assertFailsWith<IllegalArgumentException> {
+                BleDiscoveryContract.bytesFromUuidString("4d455348")
+            }
+
+        // Assert
+        assertEquals("UUID string must encode exactly 16 bytes", error.message)
+    }
+
+    @Test
+    fun `only the current protocol version is considered supported`() {
+        // Arrange
+        val currentVersion = BleDiscoveryContract.CURRENT_PROTOCOL_VERSION
+        val futureVersion = currentVersion + 1
+
+        // Act
+        val currentSupported = BleDiscoveryContract.isSupportedProtocolVersion(currentVersion)
+        val futureSupported = BleDiscoveryContract.isSupportedProtocolVersion(futureVersion)
+
+        // Assert
+        assertTrue(currentSupported)
+        assertTrue(!futureSupported)
     }
 
     @Test

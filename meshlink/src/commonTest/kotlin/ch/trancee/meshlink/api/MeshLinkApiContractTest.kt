@@ -1,5 +1,7 @@
 package ch.trancee.meshlink.api
 
+import ch.trancee.meshlink.config.PowerMode
+import ch.trancee.meshlink.config.RegulatoryRegion
 import ch.trancee.meshlink.config.meshLinkConfig
 import ch.trancee.meshlink.diagnostics.DiagnosticCode
 import ch.trancee.meshlink.engine.MeshEngine
@@ -17,12 +19,14 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import kotlin.time.Duration.Companion.seconds
 
 @Suppress("DEPRECATION")
 class MeshLinkApiContractTest {
@@ -91,6 +95,68 @@ class MeshLinkApiContractTest {
     }
 
     @Test
+    fun `meshLinkConfig applies documented defaults when optional fields are omitted`() {
+        // Arrange
+        val expectedRegion = RegulatoryRegion.DEFAULT
+        val expectedPowerMode = PowerMode.Automatic
+        val expectedRetryDeadline = 15.seconds
+
+        // Act
+        val config =
+            meshLinkConfig {
+                appId = "defaults.meshlink"
+            }
+
+        // Assert
+        assertEquals("defaults.meshlink", config.appId)
+        assertEquals(expectedRegion, config.regulatoryRegion)
+        assertEquals(expectedPowerMode, config.powerMode)
+        assertEquals(expectedRetryDeadline, config.deliveryRetryDeadline)
+    }
+
+    @Test
+    fun `meshLinkConfig rejects blank appId`() {
+        // Arrange / Act
+        val error =
+            assertFailsWith<MeshLinkException.InvalidConfiguration> {
+                meshLinkConfig {
+                    appId = "   "
+                }
+            }
+
+        // Assert
+        assertEquals("appId must not be blank", error.message)
+    }
+
+    @Test
+    fun `meshLinkConfig preserves the same values regardless of builder assignment order`() {
+        // Arrange
+        val expectedDeadline = 9.seconds
+
+        // Act
+        val first =
+            meshLinkConfig {
+                appId = "ordered.meshlink"
+                regulatoryRegion = RegulatoryRegion.EU
+                powerMode = PowerMode.Balanced
+                deliveryRetryDeadline = expectedDeadline
+            }
+        val second =
+            meshLinkConfig {
+                deliveryRetryDeadline = expectedDeadline
+                powerMode = PowerMode.Balanced
+                appId = "ordered.meshlink"
+                regulatoryRegion = RegulatoryRegion.EU
+            }
+
+        // Assert
+        assertEquals(first.appId, second.appId)
+        assertEquals(first.regulatoryRegion, second.regulatoryRegion)
+        assertEquals(first.powerMode, second.powerMode)
+        assertEquals(first.deliveryRetryDeadline, second.deliveryRetryDeadline)
+    }
+
+    @Test
     fun `android and ios factories expose matching lifecycle results`() = runBlocking {
         // Arrange
         installIosFactoryTestBridge()
@@ -111,6 +177,58 @@ class MeshLinkApiContractTest {
         assertEquals(MeshLinkState.Stopped, androidApi.state.value)
         assertEquals(MeshLinkState.Stopped, iosApi.state.value)
     }
+
+    @Test
+    fun `android and ios factories honor the same non default shared configuration`() =
+        runBlocking {
+            // Arrange
+            installIosFactoryTestBridge()
+            val config =
+                meshLinkConfig {
+                    appId = "config.meshlink.${kotlin.random.Random.nextInt()}"
+                    regulatoryRegion = RegulatoryRegion.EU
+                    powerMode = PowerMode.Performance
+                    deliveryRetryDeadline = 9.seconds
+                }
+            val androidApi = MeshLink.create(config = config, context = AndroidFactoryTestContext)
+            val iosApi = MeshLink.createIos(config = config)
+            val androidPowerChanged =
+                async(start = CoroutineStart.UNDISPATCHED) {
+                    withTimeout(1_000) {
+                        androidApi.diagnosticEvents.first {
+                            it.code == DiagnosticCode.POWER_MODE_CHANGED
+                        }
+                    }
+                }
+            val iosPowerChanged =
+                async(start = CoroutineStart.UNDISPATCHED) {
+                    withTimeout(1_000) {
+                        iosApi.diagnosticEvents.first { it.code == DiagnosticCode.POWER_MODE_CHANGED }
+                    }
+                }
+
+            try {
+                // Act
+                androidApi.start()
+                iosApi.start()
+                androidApi.updateBattery(level = 0.42f, isCharging = false)
+                iosApi.updateBattery(level = 0.42f, isCharging = false)
+                val androidDiagnostic = androidPowerChanged.await()
+                val iosDiagnostic = iosPowerChanged.await()
+
+                // Assert
+                assertEquals("EU", androidDiagnostic.metadata["region"])
+                assertEquals("PERFORMANCE", androidDiagnostic.metadata["tier"])
+                assertEquals("300", androidDiagnostic.metadata["advertisementIntervalMillis"])
+                assertEquals("70", androidDiagnostic.metadata["scanDutyCyclePercent"])
+                assertEquals("7", androidDiagnostic.metadata["maxConnections"])
+                assertEquals("4096", androidDiagnostic.metadata["chunkBudgetBytes"])
+                assertEquals(androidDiagnostic.metadata, iosDiagnostic.metadata)
+            } finally {
+                runCatching { androidApi.stop() }
+                runCatching { iosApi.stop() }
+            }
+        }
 
     @Test
     fun `start wraps permission exceptions as permission denied`() {
