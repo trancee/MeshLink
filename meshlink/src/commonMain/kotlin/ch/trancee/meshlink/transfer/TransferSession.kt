@@ -231,7 +231,7 @@ internal constructor(
     }
 
     private companion object {
-        private const val ACK_BATCH_CHUNK_COUNT: Int = 16
+        private const val ACK_BATCH_CHUNK_COUNT: Int = 32
     }
 }
 

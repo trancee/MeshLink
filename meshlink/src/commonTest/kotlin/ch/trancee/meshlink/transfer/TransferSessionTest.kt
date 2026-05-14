@@ -138,12 +138,12 @@ class TransferSessionTest {
         }
 
     @Test
-    fun `acceptChunk requests an acknowledgement after sixteen new chunks`() {
+    fun `acceptChunk requests an acknowledgement after thirty two new chunks`() {
         // Arrange
         val session = newInboundSession(chunkCount = 128)
 
         // Act
-        repeat(15) { chunkIndex ->
+        repeat(31) { chunkIndex ->
             val acceptance =
                 session.acceptChunk(
                     WireFrame.TransferChunk(
@@ -157,23 +157,23 @@ class TransferSessionTest {
             assertTrue(acceptance.accepted)
             assertFalse(
                 acceptance.shouldAcknowledge,
-                "Chunk ${chunkIndex + 1} should stay batched before the 16-chunk threshold",
+                "Chunk ${chunkIndex + 1} should stay batched before the 32-chunk threshold",
             )
         }
         val thresholdAcceptance =
             session.acceptChunk(
                 WireFrame.TransferChunk(
                     transferId = session.transferId,
-                    chunkIndex = 15,
-                    payload = byteArrayOf(15),
+                    chunkIndex = 31,
+                    payload = byteArrayOf(31),
                 )
             )
 
         // Assert
         assertTrue(thresholdAcceptance.accepted)
-        assertEquals(16, thresholdAcceptance.receivedChunkCount)
-        assertEquals(16, thresholdAcceptance.newlyReceivedChunksSinceLastAck)
-        assertEquals(15, thresholdAcceptance.highestContiguousAck)
+        assertEquals(32, thresholdAcceptance.receivedChunkCount)
+        assertEquals(32, thresholdAcceptance.newlyReceivedChunksSinceLastAck)
+        assertEquals(31, thresholdAcceptance.highestContiguousAck)
         assertTrue(thresholdAcceptance.shouldAcknowledge)
     }
 
