@@ -377,11 +377,17 @@ internal class AndroidBleTransport(
         peer: DiscoveredPeer,
         frame: OutboundFrame,
     ): TransportSendResult? {
-        if (frame.preferredMode != TransportMode.GATT) {
-            return null
-        }
         val directFrame = runCatching { DirectWireFrame.decode(frame.payload) }.getOrNull()
         if (directFrame !is DirectWireFrame.Data) {
+            return null
+        }
+        val shouldUseGattBearer =
+            frame.preferredMode == TransportMode.GATT ||
+                shouldUseMixedPlatformGattNotifyBearer(
+                    localPlatformFamily = currentDiscoveryPayload.platformFamily,
+                    remotePlatformFamily = peer.platformFamily,
+                )
+        if (!shouldUseGattBearer) {
             return null
         }
         maybeStartGattNotifySideLink(peer)
