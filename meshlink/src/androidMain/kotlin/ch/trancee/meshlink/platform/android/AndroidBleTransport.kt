@@ -42,6 +42,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelChildren
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -65,6 +66,9 @@ internal class AndroidBleTransport(
     private val temporaryHintByAddress: MutableMap<String, String> = linkedMapOf()
     private val pendingConnectJobsByHint: MutableMap<String, Job> = linkedMapOf()
     private val transportMutex = Mutex()
+    private var inboundFrameEvents: Channel<TransportEvent.FrameReceived> =
+        Channel(capacity = Channel.UNLIMITED)
+    private var inboundFrameDispatchJob: Job? = null
 
     private var bluetoothAdapter: BluetoothAdapter? = null
     private var advertiser: BluetoothLeAdvertiser? = null
@@ -136,6 +140,14 @@ internal class AndroidBleTransport(
         currentDiscoveryPayload = discoveryPayload(l2capPsm = (serverSocket?.psm ?: 0).toUByte())
         log("start() with l2capPsm=${currentDiscoveryPayload.l2capPsm}")
         serverSocket?.let(::launchAcceptLoop)
+
+        inboundFrameEvents = Channel(capacity = Channel.UNLIMITED)
+        inboundFrameDispatchJob =
+            coroutineScope.launch {
+                for (event in inboundFrameEvents) {
+                    mutableEvents.emit(event)
+                }
+            }
 
         started = true
         refreshDiscoveryState()
@@ -362,10 +374,16 @@ internal class AndroidBleTransport(
                 device = peer.device,
                 log = ::log,
                 onFrameReceived = { incomingPeerId, payload ->
-                    coroutineScope.launch {
-                        mutableEvents.emit(
-                            TransportEvent.FrameReceived(peerId = incomingPeerId, payload = payload)
-                        )
+                    check(
+                        inboundFrameEvents
+                            .trySend(
+                                TransportEvent.FrameReceived(
+                                    peerId = incomingPeerId,
+                                    payload = payload,
+                                )
+                            ).isSuccess
+                    ) {
+                        "Android inbound frame queue overflowed for ${incomingPeerId.value}"
                     }
                 },
                 onDisconnected = ::handleGattNotifySideLinkDisconnected,
@@ -735,6 +753,9 @@ internal class AndroidBleTransport(
         hintIds.forEach { hintPeer -> closeLink(hintPeer = hintPeer, reason = "transport stopped") }
         gattNotifyClientsByHint.values.forEach { client -> client.close() }
         gattNotifyClientsByHint.clear()
+        inboundFrameDispatchJob?.cancel()
+        inboundFrameDispatchJob = null
+        inboundFrameEvents.close()
         coroutineScope.coroutineContext.cancelChildren()
         if (clearPeers) {
             discoveredPeers.clear()

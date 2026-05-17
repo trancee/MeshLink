@@ -11,6 +11,11 @@ import android.os.Build
 import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.transport.BleDiscoveryContract
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
@@ -30,10 +35,20 @@ internal class AndroidGattNotifyClient(
     @Volatile private var notifyCharacteristic: BluetoothGattCharacteristic? = null
     @Volatile private var writeCharacteristic: BluetoothGattCharacteristic? = null
     @Volatile private var closedByOwner: Boolean = false
+    @Volatile private var currentMtu: Int = DEFAULT_ATT_MTU_BYTES
 
     private val frameBuffer = AndroidL2capFrameBuffer()
     private val writeMutex = Mutex()
+    private val notificationLock = Any()
+    private val inboundFrameScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val inboundFrames = Channel<ByteArray>(capacity = Channel.UNLIMITED)
     private var pendingWrite: CompletableDeferred<Boolean>? = null
+    private val inboundFrameDispatchJob =
+        inboundFrameScope.launch {
+            for (payload in inboundFrames) {
+                onFrameReceived(peerHintId, payload)
+            }
+        }
 
     private val callback =
         object : BluetoothGattCallback() {
@@ -70,6 +85,9 @@ internal class AndroidGattNotifyClient(
                 log(
                     "GATT notify side link ${peerHintId.value.takeLast(6)} mtu=$mtu status=$status"
                 )
+                if (status == BluetoothGatt.GATT_SUCCESS) {
+                    currentMtu = mtu
+                }
                 if (!servicesDiscoveryStarted) {
                     servicesDiscoveryStarted = true
                     gatt.discoverServices()
@@ -190,15 +208,19 @@ internal class AndroidGattNotifyClient(
         }
 
     private fun handleNotificationValue(value: ByteArray): Unit {
-        log(
-            "GATT notify side link ${peerHintId.value.takeLast(6)} received notification bytes=${value.size}"
-        )
-        val frames = frameBuffer.append(value)
-        frames.forEach { payload ->
+        synchronized(notificationLock) {
             log(
-                "GATT notify side link ${peerHintId.value.takeLast(6)} decoded frame bytes=${payload.size}"
+                "GATT notify side link ${peerHintId.value.takeLast(6)} received notification bytes=${value.size}"
             )
-            onFrameReceived(peerHintId, payload)
+            val frames = frameBuffer.append(value)
+            frames.forEach { payload ->
+                log(
+                    "GATT notify side link ${peerHintId.value.takeLast(6)} decoded frame bytes=${payload.size}"
+                )
+                check(inboundFrames.trySend(payload.copyOf()).isSuccess) {
+                    "GATT inbound frame queue overflowed for ${peerHintId.value}"
+                }
+            }
         }
     }
 
@@ -211,6 +233,7 @@ internal class AndroidGattNotifyClient(
         notifyCharacteristic = null
         writeCharacteristic = null
         closedByOwner = false
+        currentMtu = DEFAULT_ATT_MTU_BYTES
         gatt = connectGatt(device)
     }
 
@@ -235,35 +258,15 @@ internal class AndroidGattNotifyClient(
                     false
                 } else {
                     val encoded = frameBuffer.encode(payload)
-                    val deferred = CompletableDeferred<Boolean>()
-                    pendingWrite = deferred
-                    @Suppress("DEPRECATION")
-                    writeCharacteristic.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
-                    @Suppress("DEPRECATION")
-                    writeCharacteristic.value = encoded
-                    @Suppress("DEPRECATION")
-                    val enqueued = gatt.writeCharacteristic(writeCharacteristic)
-                    if (!enqueued) {
-                        log(
-                            "GATT notify side link ${peerHintId.value.takeLast(6)} write enqueue failed bytes=${payload.size} encodedBytes=${encoded.size}"
+                    val maxChunkBytes = maximumWriteChunkBytes()
+                    encoded.asList().chunked(maxChunkBytes).all { chunk ->
+                        writeEncodedChunk(
+                            gatt = gatt,
+                            writeCharacteristic = writeCharacteristic,
+                            payloadBytes = payload.size,
+                            encodedBytes = encoded.size,
+                            chunk = chunk.toByteArray(),
                         )
-                        completePendingWrite(success = false)
-                        false
-                    } else {
-                        withTimeoutOrNull(WRITE_TIMEOUT_MILLIS) { deferred.await() }
-                            ?.also { success ->
-                                if (!success) {
-                                    log(
-                                        "GATT notify side link ${peerHintId.value.takeLast(6)} write callback reported failure bytes=${payload.size} encodedBytes=${encoded.size}"
-                                    )
-                                }
-                            }
-                            ?: false.also {
-                                log(
-                                    "GATT notify side link ${peerHintId.value.takeLast(6)} write timed out bytes=${payload.size} encodedBytes=${encoded.size}"
-                                )
-                                completePendingWrite(success = false)
-                            }
                     }
                 }
             }
@@ -306,9 +309,52 @@ internal class AndroidGattNotifyClient(
         ready = false
         notifyCharacteristic = null
         writeCharacteristic = null
+        currentMtu = DEFAULT_ATT_MTU_BYTES
         completePendingWrite(success = false)
         runCatching { gatt?.close() }
         gatt = null
+    }
+
+    private suspend fun writeEncodedChunk(
+        gatt: BluetoothGatt,
+        writeCharacteristic: BluetoothGattCharacteristic,
+        payloadBytes: Int,
+        encodedBytes: Int,
+        chunk: ByteArray,
+    ): Boolean {
+        val deferred = CompletableDeferred<Boolean>()
+        pendingWrite = deferred
+        @Suppress("DEPRECATION")
+        writeCharacteristic.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+        @Suppress("DEPRECATION")
+        writeCharacteristic.value = chunk
+        @Suppress("DEPRECATION")
+        val enqueued = gatt.writeCharacteristic(writeCharacteristic)
+        if (!enqueued) {
+            log(
+                "GATT notify side link ${peerHintId.value.takeLast(6)} write enqueue failed bytes=${payloadBytes} encodedBytes=${encodedBytes} chunkBytes=${chunk.size}"
+            )
+            completePendingWrite(success = false)
+            return false
+        }
+        return withTimeoutOrNull(WRITE_TIMEOUT_MILLIS) { deferred.await() }
+            ?.also { success ->
+                if (!success) {
+                    log(
+                        "GATT notify side link ${peerHintId.value.takeLast(6)} write callback reported failure bytes=${payloadBytes} encodedBytes=${encodedBytes} chunkBytes=${chunk.size}"
+                    )
+                }
+            }
+            ?: false.also {
+                log(
+                    "GATT notify side link ${peerHintId.value.takeLast(6)} write timed out bytes=${payloadBytes} encodedBytes=${encodedBytes} chunkBytes=${chunk.size}"
+                )
+                completePendingWrite(success = false)
+            }
+    }
+
+    private fun maximumWriteChunkBytes(): Int {
+        return (currentMtu - ATT_WRITE_REQUEST_OVERHEAD_BYTES).coerceAtLeast(1)
     }
 
     private fun connectGatt(device: BluetoothDevice): BluetoothGatt {
@@ -323,5 +369,7 @@ internal class AndroidGattNotifyClient(
         private const val CLIENT_CHARACTERISTIC_CONFIGURATION_UUID: String =
             "00002902-0000-1000-8000-00805f9b34fb"
         private const val WRITE_TIMEOUT_MILLIS: Long = 5_000L
+        private const val DEFAULT_ATT_MTU_BYTES: Int = 23
+        private const val ATT_WRITE_REQUEST_OVERHEAD_BYTES: Int = 3
     }
 }
