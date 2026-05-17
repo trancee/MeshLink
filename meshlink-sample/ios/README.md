@@ -82,7 +82,9 @@ DEVELOPMENT_TEAM=<your-team-id> \
 ```
 
 For retained series runs, the runner now also supports sequential repetition
-with numbered run directories and a min/avg/max summary:
+with numbered run directories and a min/avg/max summary. By default, one
+retained series now keeps the same app ID across all repeated runs so peer
+identity, trust, and route state stay comparable within the series:
 
 ```bash
 benchmarks/scripts/run_headless_meshlink_benchmark.py \
@@ -110,6 +112,9 @@ benchmarks/scripts/run_headless_meshlink_benchmark.py \
   --require-average-kbps 60 \
   --run-dir /tmp/ios_meshlink_headless_conformance
 ```
+
+If you explicitly want fresh per-run mesh identity churn for diagnostics,
+add `--vary-app-id-per-run`.
 
 The runner exists because a naive `devicectl --console` wrapper can appear to
 hang after the scored benchmark line if the proof app stays alive but quiet.

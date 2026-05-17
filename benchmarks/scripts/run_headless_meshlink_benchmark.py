@@ -94,6 +94,14 @@ def parse_args() -> argparse.Namespace:
         help="How many retained benchmark runs to execute in sequence. Uses numbered run directories when > 1.",
     )
     parser.add_argument(
+        "--vary-app-id-per-run",
+        action="store_true",
+        help=(
+            "Append the run index to the app ID during --repeat. "
+            "By default repeat series now keep one stable app ID across the whole series."
+        ),
+    )
+    parser.add_argument(
         "--require-run-min-kbps",
         type=float,
         help="Fail if any scored run in the series is below this throughput threshold.",
@@ -416,14 +424,16 @@ def prepare_run_dir(base_run_dir: Path, run_index: int, repeat: int) -> Path:
     return Path(f"{base_run_dir}_{run_index}")
 
 
-def build_app_id(base_app_id: str | None, run_index: int, repeat: int) -> str:
-    if base_app_id is None:
-        stem = f"demo.meshlink.benchmark.headless.{timestamp()}"
-    else:
-        stem = base_app_id
-    if repeat == 1:
-        return stem
-    return f"{stem}.{run_index}"
+def build_app_id(
+    base_app_id: str,
+    run_index: int,
+    repeat: int,
+    *,
+    vary_per_run: bool,
+) -> str:
+    if repeat == 1 or not vary_per_run:
+        return base_app_id
+    return f"{base_app_id}.{run_index}"
 
 
 def run_once(args: argparse.Namespace, *, run_dir: Path, app_id: str) -> RunOutcome:
@@ -511,9 +521,15 @@ def main() -> int:
         install_ios_app(args.ios_device, app_path)
 
     outcomes: list[RunOutcome] = []
+    series_app_id = args.app_id or f"demo.meshlink.benchmark.headless.{timestamp()}"
     for run_index in range(1, args.repeat + 1):
         run_dir = prepare_run_dir(base_run_dir, run_index, args.repeat)
-        app_id = build_app_id(args.app_id, run_index, args.repeat)
+        app_id = build_app_id(
+            series_app_id,
+            run_index,
+            args.repeat,
+            vary_per_run=args.vary_app_id_per_run,
+        )
         outcome = run_once(
             args,
             run_dir=run_dir,
