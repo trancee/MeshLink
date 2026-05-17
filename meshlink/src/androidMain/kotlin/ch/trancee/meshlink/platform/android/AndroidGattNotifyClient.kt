@@ -354,7 +354,8 @@ internal class AndroidGattNotifyClient(
     }
 
     private fun maximumWriteChunkBytes(): Int {
-        return (currentMtu - ATT_WRITE_REQUEST_OVERHEAD_BYTES).coerceAtLeast(1)
+        return minOf(currentMtu - ATT_WRITE_REQUEST_OVERHEAD_BYTES, MAX_SAFE_WRITE_CHUNK_BYTES)
+            .coerceAtLeast(1)
     }
 
     private fun connectGatt(device: BluetoothDevice): BluetoothGatt {
@@ -371,5 +372,6 @@ internal class AndroidGattNotifyClient(
         private const val WRITE_TIMEOUT_MILLIS: Long = 5_000L
         private const val DEFAULT_ATT_MTU_BYTES: Int = 23
         private const val ATT_WRITE_REQUEST_OVERHEAD_BYTES: Int = 3
+        private const val MAX_SAFE_WRITE_CHUNK_BYTES: Int = 512
     }
 }
