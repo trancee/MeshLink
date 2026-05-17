@@ -587,12 +587,6 @@ private object MeshLinkProofRuntime {
                     totalBytes = benchmarkPayload.totalBytes,
                 )
                 .encode()
-        appendBenchmarkCorrelation(
-            role = "passive.receipt.start",
-            tokenHex = tokenHex,
-            peerIdValue = peerId.value,
-            outcome = "receivedPayload",
-        )
         synchronized(passiveReceiptRetryJobs) {
             passiveReceiptRetryJobs.remove(tokenHex)?.cancel()
             passiveReceiptRetryJobs[tokenHex] =
