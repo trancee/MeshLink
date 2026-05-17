@@ -1763,3 +1763,58 @@ Updated interpretation after the runner correction:
 - under the corrected retained-series semantics, the future branch now keeps the
   Samsung reference peer above the hard per-run `>= 60 KB/s` floor across two
   fresh 5-run series while OPPO remains comfortably above target
+
+### Runner serial preflight and iOS inbound-link remap follow-up (2026-05-17)
+
+A later follow-up combined one proof-runner robustness fix with one small but
+real transport-path correction.
+
+Triggering observations:
+
+- one Samsung rerun appeared to "hang" again after the latest headless-runner
+  improvements, but the retained shell output showed a different failure mode:
+  the run was launched with stale Android serial `RF8N604ZM0N`
+- `adb -s RF8N604ZM0N shell ...` failed quickly with `device not found`, but
+  `adb -s RF8N604ZM0N logcat -c` instead blocked on `- waiting for device -`
+- a separate OPPO cold-series outlier also pointed to an iOS-side mapping gap:
+  on mixed Android/iOS paths, the iOS scan-side `CBPeripheral.identifier` and
+  the inbound/GATT-side `CBCentral.identifier` did not always match, so an
+  accepted inbound L2CAP channel could stay parked under a temporary peer hint
+  even after discovery had already resolved the real peer ID
+
+Implemented remediations:
+
+- the headless runner now validates the requested Android serial before any
+  blocking `adb logcat` step and fails fast with the currently attached serials
+  if the requested one is missing or not in `device` state
+- the same runner now also prefers local cached iOS signing assets and can infer
+  `DEVELOPMENT_TEAM` from a matching cached provisioning profile before falling
+  back to `xcodebuild -allowProvisioningUpdates`
+- `IosBleTransport` now promotes temporary inbound L2CAP links once later
+  discovery or GATT-side resolution maps the live connection back onto the real
+  discovered peer ID
+
+Fresh retained evidence after those follow-ups:
+
+- Samsung retained current-head 5-run series with the corrected Samsung serial
+  and fresh rebuilt iPhone app:
+  - `/tmp/ios_meshlink_headless_samsung_promotefix_1` through `_5`
+  - sender retained `63.49`, `63.75`, `61.96`, `70.64`, and `62.38 KB/s`
+  - series summary: `min=61.96 KB/s avg=64.44 KB/s max=70.64 KB/s`
+  - passive Samsung proof logs retained matching `BENCHMARK receipt send(...) -> Sent ... attempt=1` lines on all five runs
+- OPPO retained current-head 3-run series on the same runner/build path:
+  - `/tmp/ios_meshlink_headless_oppo_serialfix_1` through `_3`
+  - sender retained `80.10`, `77.48`, and `79.31 KB/s`
+  - series summary: `min=77.48 KB/s avg=78.96 KB/s max=80.10 KB/s`
+  - passive OPPO proof logs retained matching `BENCHMARK receipt send(...) -> Sent ... attempt=1` lines on all three runs
+
+Updated interpretation after the follow-up:
+
+- the later Samsung "hang" was a runner preflight bug, not another transport
+  stall; once the stale Android serial was rejected early, the headless reruns
+  behaved normally again
+- the iOS temporary-link promotion gap was real, but small and well bounded:
+  it affected peer-ID bookkeeping for accepted inbound mixed-bearer L2CAP links,
+  not the shared MeshLink session or framing model itself
+- with both follow-ups applied, fresh current-head retained series still clear
+  the normative iOS target on both reference peers
