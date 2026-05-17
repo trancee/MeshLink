@@ -1634,3 +1634,71 @@ Final interpretation on current HEAD:
 - the later proof-app route-recovery fix removed a false-negative benchmark
   timeout so the retained headless evidence once again reflects the transport
   branch rather than the proof harness
+
+### Proof auto-send task de-duplication and repeat-series evidence (2026-05-17)
+
+A final proof-harness follow-up then exposed one more source of false evidence
+rather than a new transport regression.
+
+Triggering observation:
+
+- after adding repeat-series support to the headless runner,
+  `/tmp/ios_meshlink_headless_samsung_firstattemptdemo_2` retained an odd
+  pattern: two warmup sends, two benchmark tokens, and two scored benchmark
+  lines inside what should have been one physical run
+- the first retained benchmark line in that run landed at `55.60 KB/s`, which
+  looked like a throughput regression until the sender and passive logs were
+  read together
+
+Root cause:
+
+- `ProofViewModel` keyed auto-send scheduling from peer events and later direct
+  route-recovery diagnostics, but it did not track the actual running auto-send
+  task object
+- after a transient `Peer lost`, the proof app removed the peer from its guard
+  set but did **not** cancel the already-running auto-send task
+- if a later direct route recovery scheduled a new task before the stale one
+  exited, both tasks could run: two warmups, two scored payloads, two proof
+  receipts, and two benchmark lines for one retained run
+
+Implemented remediation:
+
+- `ProofViewModel` now tracks per-peer auto-send tasks directly
+- `Peer lost` cancels and removes the stale task
+- `scheduleAutoSend(...)` now refuses to start a second task while one is still
+  active for the same peer
+
+Fresh retained evidence after the de-duplication fix:
+
+- Samsung immediate 3-run repeat series:
+  - `/tmp/ios_meshlink_headless_samsung_autosendfixdemo_1`
+    - sender: `BENCHMARK transport bytes=65536 elapsedMs=1041 throughputKBps=61.48 result=Sent`
+    - passive Samsung: `BENCHMARK receipt send(f771ad) -> Sent ... attempt=1`
+  - `/tmp/ios_meshlink_headless_samsung_autosendfixdemo_2`
+    - sender: `BENCHMARK transport bytes=65536 elapsedMs=1009 throughputKBps=63.43 result=Sent`
+    - passive Samsung: `BENCHMARK receipt send(b6f8ea) -> Sent ... attempt=1`
+  - `/tmp/ios_meshlink_headless_samsung_autosendfixdemo_3`
+    - sender: `BENCHMARK transport bytes=65536 elapsedMs=1004 throughputKBps=63.75 result=Sent`
+    - passive Samsung: `BENCHMARK receipt send(987fec) -> Sent ... attempt=1`
+  - series summary from the runner: `min=61.48 KB/s avg=62.89 KB/s max=63.75 KB/s`
+- OPPO immediate 3-run repeat series:
+  - `/tmp/ios_meshlink_headless_oppo_autosendfixdemo_1`
+    - sender: `BENCHMARK transport bytes=65536 elapsedMs=825 throughputKBps=77.58 result=Sent`
+    - passive OPPO: `BENCHMARK receipt send(a830d4) -> Sent ... attempt=1`
+  - `/tmp/ios_meshlink_headless_oppo_autosendfixdemo_2`
+    - sender: `BENCHMARK transport bytes=65536 elapsedMs=805 throughputKBps=79.50 result=Sent`
+    - passive OPPO: `BENCHMARK receipt send(e60111) -> Sent ... attempt=1`
+  - `/tmp/ios_meshlink_headless_oppo_autosendfixdemo_3`
+    - sender: `BENCHMARK transport bytes=65536 elapsedMs=859 throughputKBps=74.51 result=Sent`
+    - passive OPPO: `BENCHMARK receipt send(32cd64) -> Sent ... attempt=1`
+  - series summary from the runner: `min=74.51 KB/s avg=77.20 KB/s max=79.50 KB/s`
+
+Updated interpretation after the repeat series:
+
+- the latest current-head product path is now above the normative iOS target on
+  both reference peers not just on isolated reruns, but also on an immediate
+  retained 3-run series after the proof auto-send de-duplication fix
+- the remaining risk here is no longer a transport-side throughput blocker but
+  ordinary physical-link variance and environmental noise, which is now visible
+  through the repeat-series summaries instead of being conflated with a proof-
+  harness duplication bug

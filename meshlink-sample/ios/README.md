@@ -149,12 +149,17 @@ Physical proof findings on iPhone 15:
   normative target on both reference peers: Samsung headless reruns reached
   `61.13-68.67 KB/s` and OPPO headless reruns reached `77.02-78.24 KB/s`, all
   with passive proof receipts retained on attempt 1
+- fresh immediate retained 3-run series now also stay above target on both
+  reference peers after proof auto-send task de-duplication: Samsung
+  `61.48-63.75 KB/s` (avg `62.89 KB/s`) and OPPO `74.51-79.50 KB/s`
+  (avg `77.20 KB/s`)
 - the decisive transport-side win was suspending discovery during large inline
   sends so the product path no longer paid concurrent scan / advertise churn
   while draining the GATT side bearer
-- a later proof-app route-recovery fix removed a false-negative warmup-only
-  rerun by rescheduling auto-send when a direct `ROUTE_DISCOVERED` arrives
-  after a transient `Peer lost`
+- later proof-app fixes removed two benchmark-harness false negatives:
+  rescheduling auto-send when a direct `ROUTE_DISCOVERED` arrives after a
+  transient `Peer lost`, and cancelling stale per-peer auto-send tasks so one
+  physical run cannot emit duplicate scored benchmark sends
 
 Shared harness evidence now also covers the common US2 runtime:
 
