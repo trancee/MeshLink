@@ -76,6 +76,34 @@ class AndroidL2capFrameBufferTest {
     }
 
     @Test
+    fun `append fast path matches appendDetailed for split multi-frame input`() {
+        // Arrange
+        val fastBuffer = AndroidL2capFrameBuffer()
+        val detailedBuffer = AndroidL2capFrameBuffer()
+        val firstFrame = "first".encodeToByteArray()
+        val secondFrame = "second".encodeToByteArray()
+        val encoded = fastBuffer.encode(firstFrame) + fastBuffer.encode(secondFrame)
+        val chunks =
+            listOf(
+                encoded.copyOfRange(0, 4),
+                encoded.copyOfRange(4, 9),
+                encoded.copyOfRange(9, encoded.size),
+            )
+
+        // Act
+        val fastDecoded = chunks.flatMap(fastBuffer::append)
+        val detailedDecoded = chunks.flatMap { chunk -> detailedBuffer.appendDetailed(chunk).frames }
+
+        // Assert
+        assertEquals(2, fastDecoded.size)
+        assertEquals(2, detailedDecoded.size)
+        assertContentEquals(firstFrame, fastDecoded[0])
+        assertContentEquals(secondFrame, fastDecoded[1])
+        assertContentEquals(firstFrame, detailedDecoded[0])
+        assertContentEquals(secondFrame, detailedDecoded[1])
+    }
+
+    @Test
     fun `appendDetailed captures zero length frame context`() {
         // Arrange
         val buffer = AndroidL2capFrameBuffer()

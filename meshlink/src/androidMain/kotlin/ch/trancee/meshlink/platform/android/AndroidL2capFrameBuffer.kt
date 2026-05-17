@@ -23,7 +23,29 @@ internal class AndroidL2capFrameBuffer(
     }
 
     internal fun append(chunk: ByteArray): List<ByteArray> {
-        return appendDetailed(chunk).frames
+        ensureCapacity(size + chunk.size)
+        chunk.copyInto(buffer, destinationOffset = size)
+        size += chunk.size
+
+        val frames = mutableListOf<ByteArray>()
+        while (size - readOffset >= LENGTH_PREFIX_SIZE_BYTES) {
+            val frameSize = readIntLittleEndian(buffer, readOffset)
+            if (frameSize < 0 || frameSize > maxFrameSizeBytes) {
+                clear()
+                throw MeshLinkException.TransportFailure(
+                    "L2CAP frame exceeds max size $maxFrameSizeBytes bytes"
+                )
+            }
+            val frameStart = readOffset + LENGTH_PREFIX_SIZE_BYTES
+            if (size - frameStart < frameSize) {
+                break
+            }
+            val frameEnd = frameStart + frameSize
+            frames += buffer.copyOfRange(frameStart, frameEnd)
+            readOffset = frameEnd
+        }
+        compactIfNeeded()
+        return frames
     }
 
     internal fun appendDetailed(chunk: ByteArray): AppendResult {
