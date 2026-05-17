@@ -274,16 +274,18 @@ final class ProofViewModel: ObservableObject {
 
         if let receipt = BenchmarkReceiptEnvelope.decode(payloadData) {
             if let pendingReceipt = pendingBenchmarkReceipts.removeValue(forKey: receipt.tokenHex) {
-                appendLog(
-                    "BENCHMARK receipt from \(message.originPeerId.value) token=\(receipt.tokenHex) bytes=\(receipt.totalBytes)"
-                )
-                appendBenchmarkCorrelation(
-                    role: "sender.receipt.arrived",
-                    tokenHex: receipt.tokenHex,
-                    peerValue: message.originPeerId.value,
-                    outcome: "received"
-                )
                 pendingReceipt.resolve(receipt)
+                Task { @MainActor [weak self] in
+                    self?.appendLog(
+                        "BENCHMARK receipt from \(message.originPeerId.value) token=\(receipt.tokenHex) bytes=\(receipt.totalBytes)"
+                    )
+                    self?.appendBenchmarkCorrelation(
+                        role: "sender.receipt.arrived",
+                        tokenHex: receipt.tokenHex,
+                        peerValue: message.originPeerId.value,
+                        outcome: "received"
+                    )
+                }
                 return
             }
         }
@@ -298,12 +300,6 @@ final class ProofViewModel: ObservableObject {
                     "BENCHMARK receipt peer remapped origin=\(message.originPeerId.value.suffix(6)) direct=\(receiptPeerId.value.suffix(6))"
                 )
             }
-            appendBenchmarkCorrelation(
-                role: "passive.receipt.start",
-                tokenHex: benchmarkPayload.tokenHex,
-                peerValue: receiptPeerId.value,
-                outcome: "receivedPayload"
-            )
             Task { @MainActor in
                 let receiptPayload = BenchmarkReceiptEnvelope(tokenHex: benchmarkPayload.tokenHex, totalBytes: payloadData.count)
                 let result = await sendPayload(
