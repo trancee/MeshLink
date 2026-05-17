@@ -14,6 +14,7 @@ internal class IosGattNotifyLink(
     private val peripheralManagerProvider: () -> CBPeripheralManager?,
     private val notifyCharacteristicProvider: () -> Any?,
     private val logger: (String) -> Unit,
+    private val schedulePumpRetry: () -> Unit,
 ) {
     private val outgoingFrames = IosL2capFrameBuffer()
     private val incomingFrames = IosL2capFrameBuffer()
@@ -22,6 +23,7 @@ internal class IosGattNotifyLink(
     private var lowLatencyRequested: Boolean = false
     private var closed: Boolean = false
     private var pumpInProgress: Boolean = false
+    private var retryPumpScheduled: Boolean = false
 
     internal suspend fun enqueue(payload: ByteArray): Boolean {
         val chunkBytes = maxNotificationChunkBytes()
@@ -77,6 +79,7 @@ internal class IosGattNotifyLink(
                     false
                 } else {
                     pumpInProgress = true
+                    retryPumpScheduled = false
                     true
                 }
             }
@@ -101,6 +104,7 @@ internal class IosGattNotifyLink(
                     )
                 var completedFrame: PendingFrame? = null
                 var pendingChunkCount: Int = 0
+                var shouldScheduleRetryPump: Boolean = false
                 stateLock.withLock {
                     if (closed) {
                         completedFrame = null
@@ -120,12 +124,22 @@ internal class IosGattNotifyLink(
                                 null
                             }
                         pendingChunkCount = pendingChunkCountLocked()
+                        if (!didSend && pendingChunkCount > 0 && !retryPumpScheduled) {
+                            retryPumpScheduled = true
+                            shouldScheduleRetryPump = true
+                        }
                     }
                 }
                 logger(
                     "GATT notify pump ${hintPeerId.value.takeLast(6)} chunkBytes=${nextChunk.size} didSend=$didSend pending=$pendingChunkCount"
                 )
                 completedFrame?.completeIfPending(true)
+                if (shouldScheduleRetryPump) {
+                    logger(
+                        "GATT notify pump ${hintPeerId.value.takeLast(6)} scheduling retry pending=$pendingChunkCount"
+                    )
+                    schedulePumpRetry()
+                }
                 if (!didSend) {
                     return true
                 }
@@ -217,8 +231,13 @@ internal class IosGattNotifyLink(
         }
     }
 
-    private companion object {
+    internal companion object {
+        internal fun maximumPayloadBytesPerDelivery(): Int {
+            return MAX_FRAME_PAYLOAD_BYTES
+        }
+
         private const val PREFERRED_NOTIFICATION_FRAME_BYTES: Int = 495
+        private const val MAX_FRAME_PAYLOAD_BYTES: Int = 128 * 1024
     }
 }
 

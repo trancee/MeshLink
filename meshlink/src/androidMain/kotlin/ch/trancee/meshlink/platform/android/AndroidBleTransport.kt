@@ -192,6 +192,14 @@ internal class AndroidBleTransport(
 
     override fun maximumPayloadBytesPerDelivery(peerId: PeerId): Int? {
         val peer = resolvePeer(peerId) ?: return null
+        if (
+            shouldUseMixedPlatformGattNotifyBearer(
+                localPlatformFamily = currentDiscoveryPayload.platformFamily,
+                remotePlatformFamily = peer.platformFamily,
+            )
+        ) {
+            return AndroidGattNotifyClient.maximumPayloadBytesPerDelivery()
+        }
         return activeLinksByHint[peer.hintPeerId.value]?.maxTransmitPacketSize
     }
 

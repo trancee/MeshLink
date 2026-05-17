@@ -11,8 +11,10 @@ import ch.trancee.meshlink.transport.BleDiscoveryContract
 import ch.trancee.meshlink.transport.BleDiscoveryPayload
 import ch.trancee.meshlink.transport.BleDiscoveryPlatformFamily
 import ch.trancee.meshlink.transport.BleTransport
+import ch.trancee.meshlink.transport.GattDataBearerMode
 import ch.trancee.meshlink.transport.shouldLocalPeerInitiateL2capConnection
 import ch.trancee.meshlink.transport.shouldUseMixedPlatformGattNotifyBearer
+import ch.trancee.meshlink.transport.resolveGattDataBearerMode
 import ch.trancee.meshlink.transport.OutboundFrame
 import ch.trancee.meshlink.transport.PendingFrameWindow
 import ch.trancee.meshlink.transport.TransportEvent
@@ -147,7 +149,19 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
     }
 
     override fun maximumPayloadBytesPerDelivery(peerId: PeerId): Int? {
-        return null
+        if (IosBleTransportBridgeRegistry.currentCallbacksOrNull() == null) {
+            return null
+        }
+        val peer = resolvePeer(peerId) ?: return null
+        if (
+            !shouldUseMixedPlatformGattNotifyBearer(
+                localPlatformFamily = currentDiscoveryPayload.platformFamily,
+                remotePlatformFamily = peer.platformFamily,
+            )
+        ) {
+            return null
+        }
+        return IosGattNotifyLink.maximumPayloadBytesPerDelivery()
     }
 
     override suspend fun clearQueuedOutboundFrames(peerId: PeerId): Unit {
@@ -183,6 +197,16 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
         }
 
         val directFrame = runCatching { DirectWireFrame.decode(frame.payload) }.getOrNull()
+        val dataBearerMode =
+            if (directFrame is DirectWireFrame.Data) {
+                resolveGattDataBearerMode(
+                    localPlatformFamily = currentDiscoveryPayload.platformFamily,
+                    remotePlatformFamily = peer.platformFamily,
+                    preferredMode = frame.preferredMode,
+                )
+            } else {
+                GattDataBearerMode.L2CAP_ONLY
+            }
         activeGattNotifyLinkFor(peer)
             ?.takeIf { directFrame is DirectWireFrame.Data }
             ?.let { gattNotifyLink ->
@@ -203,6 +227,12 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
                         )
                     }
             }
+        if (directFrame is DirectWireFrame.Data && dataBearerMode == GattDataBearerMode.GATT_REQUIRED) {
+            log(
+                "send(${frame.peerId.value.takeLast(6)}) dropped: required GATT notify side link not ready"
+            )
+            return TransportSendResult.Dropped("iOS BLE GATT notify side link is not ready")
+        }
 
         val link = activeLinkFor(peer)
         if (link == null) {
@@ -587,6 +617,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
         }
         val hintPeerId = PeerId(hintPeerIdValue)
         activeGattNotifyLinksByHint.remove(hintPeerId.value)?.close()
+        var createdLink: IosGattNotifyLink? = null
         return IosGattNotifyLink(
                 hintPeerId = hintPeerId,
                 centralIdentifier = identifier,
@@ -594,8 +625,17 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
                 peripheralManagerProvider = { peripheralManager },
                 notifyCharacteristicProvider = { gattNotifyServiceCharacteristic },
                 logger = ::reportLog,
+                schedulePumpRetry = {
+                    coroutineScope.launch {
+                        delay(GATT_NOTIFY_PUMP_RETRY_POLL_INTERVAL_MS)
+                        createdLink
+                            ?.takeIf { activeGattNotifyLinksByHint[hintPeerId.value] === it }
+                            ?.pump()
+                    }
+                },
             )
             .also { link ->
+                createdLink = link
                 activeGattNotifyLinksByHint[hintPeerId.value] = link
                 reportLog(
                     "registered GATT notify side link for ${hintPeerId.value.takeLast(6)} id=$identifier maxUpdateValueLength=${central.maximumUpdateValueLength}"
@@ -1374,6 +1414,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
     private companion object {
         private const val IDLE_STREAM_POLL_INTERVAL_MS: Long = 5
         private const val ACTIVE_STREAM_POLL_INTERVAL_MS: Long = 1
+        private const val GATT_NOTIFY_PUMP_RETRY_POLL_INTERVAL_MS: Long = 1
         private const val TEMPORARY_PEER_PREFIX: String = "cb-"
         private const val TRANSPORT_TELEMETRY_ENV: String = "MESHLINK_TRANSPORT_TELEMETRY"
         private const val TRANSPORT_DEBUG_ENV: String = "MESHLINK_TRANSPORT_DEBUG"
