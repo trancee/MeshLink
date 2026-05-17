@@ -341,7 +341,6 @@ internal class AndroidBleTransport(
             transportMode == TransportMode.L2CAP &&
                 shouldInitiateL2cap(payload.keyHash, payload.platformFamily)
         ) {
-            log("initiating L2CAP connect to ${hintPeerId.value.takeLast(6)}")
             connectIfNeeded(resolvedPeer)
         }
     }
@@ -485,9 +484,6 @@ internal class AndroidBleTransport(
             activeLinksByHint.containsKey(peer.hintPeerId.value) ||
                 pendingConnectJobsByHint.containsKey(peer.hintPeerId.value)
         ) {
-            log(
-                "connectIfNeeded(${peer.hintPeerId.value.takeLast(6)}) skipped: already active or pending"
-            )
             return
         }
         val adapter = bluetoothAdapter ?: return

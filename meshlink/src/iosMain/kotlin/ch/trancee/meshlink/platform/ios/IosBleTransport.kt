@@ -624,7 +624,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
                 central = central,
                 peripheralManagerProvider = { peripheralManager },
                 notifyCharacteristicProvider = { gattNotifyServiceCharacteristic },
-                logger = ::reportLog,
+                logger = ::log,
                 schedulePumpRetry = {
                     coroutineScope.launch {
                         delay(GATT_NOTIFY_PUMP_RETRY_POLL_INTERVAL_MS)

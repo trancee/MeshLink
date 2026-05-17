@@ -217,9 +217,6 @@ internal class AndroidGattNotifyClient(
 
     private fun handleNotificationValue(value: ByteArray): Unit {
         synchronized(notificationLock) {
-            log(
-                "GATT notify side link ${peerHintId.value.takeLast(6)} received notification bytes=${value.size}"
-            )
             val frames = frameBuffer.append(value)
             frames.forEach { payload ->
                 log(
