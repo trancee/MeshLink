@@ -1414,7 +1414,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
     private companion object {
         private const val IDLE_STREAM_POLL_INTERVAL_MS: Long = 5
         private const val ACTIVE_STREAM_POLL_INTERVAL_MS: Long = 1
-        private const val GATT_NOTIFY_PUMP_RETRY_POLL_INTERVAL_MS: Long = 1
+        private const val GATT_NOTIFY_PUMP_RETRY_POLL_INTERVAL_MS: Long = 2
         private const val TEMPORARY_PEER_PREFIX: String = "cb-"
         private const val TRANSPORT_TELEMETRY_ENV: String = "MESHLINK_TRANSPORT_TELEMETRY"
         private const val TRANSPORT_DEBUG_ENV: String = "MESHLINK_TRANSPORT_DEBUG"
