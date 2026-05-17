@@ -1708,3 +1708,58 @@ Updated interpretation after the repeat series:
   ordinary physical-link variance and environmental noise, which is now visible
   through the repeat-series summaries instead of being conflated with a proof-
   harness duplication bug
+
+### Repeat-run app-id stability correction (2026-05-17)
+
+A later follow-up exposed one more benchmark-runner artifact rather than a new
+transport regression.
+
+Triggering observation:
+
+- the headless runner's `--repeat` mode originally appended the run index to the
+  app ID for every repeated run
+- that meant one retained "series" actually churned the mesh identity, trust
+  pins, peer IDs, and discovery mesh hash on every run instead of keeping one
+  stable comparison context through the series
+- Samsung could still pass many of those varied-app-id series, but they also
+  produced occasional low outliers that were not clearly attributable to the
+  forward data path itself
+
+Correction:
+
+- the headless runner now keeps one stable app ID across an entire repeat
+  series by default
+- a new `--vary-app-id-per-run` switch preserves the old behavior for explicit
+  cold-identity / fresh-mesh diagnostics only
+- retained run directories still remain numbered, but the repeated runs now
+  exercise the same mesh identity and trust context unless the diagnostic flag
+  is requested
+
+Fresh retained evidence under the corrected same-app-id repeat posture:
+
+- Samsung 5-run conformance series A:
+  - `/tmp/ios_meshlink_headless_samsung_runnerstable_gate_1` through `_5`
+  - sender retained `65.37`, `60.09`, `64.26`, `64.19`, and `60.26 KB/s`
+  - series summary: `min=60.09 KB/s avg=62.83 KB/s max=65.37 KB/s`
+- Samsung 5-run conformance series B:
+  - `/tmp/ios_meshlink_headless_samsung_runnerstable_gate_b_1` through `_5`
+  - sender retained `65.37`, `62.44`, `62.75`, `63.49`, and `66.81 KB/s`
+  - series summary: `min=62.44 KB/s avg=64.17 KB/s max=66.81 KB/s`
+- OPPO 3-run conformance series:
+  - `/tmp/ios_meshlink_headless_oppo_sameappid_1` through `_3`
+  - sender retained `82.05`, `84.66`, and `85.11 KB/s`
+  - series summary: `min=82.05 KB/s avg=83.94 KB/s max=85.11 KB/s`
+- all retained passive proof logs in those corrected series kept matching
+  `BENCHMARK receipt send(...) -> Sent ... attempt=1` lines
+
+Updated interpretation after the runner correction:
+
+- the same-app-id repeat posture better matches `SC-004a`'s requirement to hold
+  the comparison series constant once the scored topology is established
+- per-run app-id churn is still useful for diagnosis, but it is not the best
+  canonical conformance series because it injects fresh identity/trust and mesh-
+  hash churn that the success criterion does not require between repeated scored
+  runs
+- under the corrected retained-series semantics, the future branch now keeps the
+  Samsung reference peer above the hard per-run `>= 60 KB/s` floor across two
+  fresh 5-run series while OPPO remains comfortably above target

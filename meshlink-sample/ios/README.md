@@ -174,6 +174,11 @@ Physical proof findings on iPhone 15:
   reference peers after proof auto-send task de-duplication: Samsung now has a
   5-run retained series at `60.38-63.81 KB/s` (avg `62.41 KB/s`) and OPPO has a
   3-run retained series at `74.51-79.50 KB/s` (avg `77.20 KB/s`)
+- the headless runner now keeps one stable app ID across a retained repeat
+  series by default so peer identity and trust remain constant through the
+  comparison set; under that corrected conformance posture Samsung retained two
+  fresh 5-run series at `60.09-65.37 KB/s` and `62.44-66.81 KB/s`, while OPPO
+  retained a fresh 3-run series at `82.05-85.11 KB/s`
 - the decisive transport-side win was suspending discovery during large inline
   sends so the product path no longer paid concurrent scan / advertise churn
   while draining the GATT side bearer

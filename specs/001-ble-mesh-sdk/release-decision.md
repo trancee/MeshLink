@@ -32,9 +32,17 @@ explicit waiver / known limitation.
   `77.02-78.24 KB/s` across `/tmp/ios_meshlink_headless_oppo_inlinesuspend_1`
   and `/tmp/ios_meshlink_headless_oppo_routeguard_1`.
 - **Current-head repeat-series evidence**: after proof auto-send task
-  de-duplication, fresh immediate retained series now stay above target on both
-  reference peers: Samsung `60.38-63.81 KB/s` across 5 runs (avg `62.41 KB/s`)
-  and OPPO `74.51-79.50 KB/s` across 3 runs (avg `77.20 KB/s`).
+  de-duplication, fresh immediate retained series already stayed above target
+  on both reference peers: Samsung `60.38-63.81 KB/s` across 5 runs (avg
+  `62.41 KB/s`) and OPPO `74.51-79.50 KB/s` across 3 runs (avg `77.20 KB/s`).
+  A later runner correction then fixed another benchmarking artifact by keeping
+  one stable app ID across a retained repeat series by default. Under that
+  corrected comparison-series posture, Samsung now retains two fresh 5-run
+  series at `60.09-65.37 KB/s` (avg `62.83 KB/s`) and `62.44-66.81 KB/s`
+  (avg `64.17 KB/s`), and OPPO retains a fresh 3-run series at
+  `82.05-85.11 KB/s` (avg `83.94 KB/s`). Per-run varied-app-id repeat output is
+  now treated as diagnostic cold-identity churn evidence rather than as the
+  canonical conformance series.
 - **Winning current-head remediations**: large inline sends now suspend
   discovery for the scored send window, and the iPhone proof app both
   reschedules auto-send when a direct route recovers after a transient
