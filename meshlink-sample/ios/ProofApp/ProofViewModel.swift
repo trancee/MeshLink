@@ -34,7 +34,7 @@ final class ProofViewModel: ObservableObject {
             self?.stateText = state
         }
     )
-    private var autoSendPeers: Set<String> = []
+    private var autoSendTasks: [String: Task<Void, Never>] = [:]
     private var pendingBenchmarkReceipts: [String: PendingBenchmarkReceipt] = [:]
     private var benchmarkTokenCounter: UInt64 = 0
     private var capturedStdoutBuffer: String = ""
@@ -217,7 +217,7 @@ final class ProofViewModel: ObservableObject {
             scheduleAutoSend(for: found.peerId)
         } else if let lost = value as? PeerEvent.Lost {
             peers.removeAll { peer in peer.value == lost.peerId.value }
-            autoSendPeers.remove(lost.peerId.value)
+            autoSendTasks.removeValue(forKey: lost.peerId.value)?.cancel()
             appendLog("Peer lost: \(lost.peerId.value)")
         } else if let changed = value as? PeerEvent.StateChanged {
             appendLog("Peer state changed: \(changed.peerId.value) -> \(changed.state)")
@@ -340,7 +340,7 @@ final class ProofViewModel: ObservableObject {
     }
 
     private func scheduleAutoSend(for peerId: PeerId) {
-        guard autoSendPeers.insert(peerId.value).inserted else {
+        guard autoSendTasks[peerId.value] == nil else {
             return
         }
         if launchConfig.disableAutoSend {
@@ -349,7 +349,15 @@ final class ProofViewModel: ObservableObject {
             )
             return
         }
-        Task {
+        let task = Task { [weak self] in
+            defer {
+                Task { @MainActor [weak self] in
+                    self?.autoSendTasks.removeValue(forKey: peerId.value)
+                }
+            }
+            guard let self else {
+                return
+            }
             if launchConfig.benchmarkPayloadBytes != nil {
                 _ = await sendPayload(
                     to: peerId,
@@ -357,10 +365,13 @@ final class ProofViewModel: ObservableObject {
                     priority: DeliveryPriority.normal,
                     benchmarkWarmup: true
                 )
-                try? await Task.sleep(nanoseconds: 500_000_000)
+                try? await Task.sleep(nanoseconds: benchmarkWarmupSettlementDelayNanos)
             }
             for attempt in 0..<6 {
-                try? await Task.sleep(nanoseconds: 2_000_000_000)
+                try? await Task.sleep(nanoseconds: benchmarkAttemptDelayNanos)
+                guard !Task.isCancelled else {
+                    return
+                }
                 guard peers.contains(where: { current in current.value == peerId.value }) else {
                     return
                 }
@@ -416,6 +427,7 @@ final class ProofViewModel: ObservableObject {
                 }
             }
         }
+        autoSendTasks[peerId.value] = task
     }
 
     private func applyBenchmarkPowerSnapshot() {
@@ -487,6 +499,14 @@ final class ProofViewModel: ObservableObject {
 
     private var benchmarkReceiptTimeoutNanos: UInt64 {
         20_000_000_000
+    }
+
+    private var benchmarkWarmupSettlementDelayNanos: UInt64 {
+        500_000_000
+    }
+
+    private var benchmarkAttemptDelayNanos: UInt64 {
+        2_000_000_000
     }
 
     private func elapsedMilliseconds(since startedAtNanos: UInt64) -> UInt64 {
