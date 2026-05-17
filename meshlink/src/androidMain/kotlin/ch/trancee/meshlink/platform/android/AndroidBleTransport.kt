@@ -33,6 +33,7 @@ import ch.trancee.meshlink.transport.TransportEvent
 import ch.trancee.meshlink.transport.TransportMode
 import ch.trancee.meshlink.transport.TransportSendResult
 import ch.trancee.meshlink.transport.resolveGattDataBearerMode
+import ch.trancee.meshlink.transport.shouldInitiateDiscoveryDrivenL2capConnection
 import ch.trancee.meshlink.transport.shouldLocalPeerInitiateL2capConnection
 import ch.trancee.meshlink.transport.shouldUseMixedPlatformGattNotifyBearer
 import java.io.Closeable
@@ -339,7 +340,12 @@ internal class AndroidBleTransport(
         maybeStartGattNotifySideLink(resolvedPeer)
         if (
             transportMode == TransportMode.L2CAP &&
-                shouldInitiateL2cap(payload.keyHash, payload.platformFamily)
+                shouldInitiateL2cap(payload.keyHash, payload.platformFamily) &&
+                shouldInitiateDiscoveryDrivenL2capConnection(
+                    localPlatformFamily = currentDiscoveryPayload.platformFamily,
+                    remotePlatformFamily = resolvedPeer.platformFamily,
+                    gattSideLinkReady = hasActiveGattNotifyLink(resolvedPeer.hintPeerId.value),
+                )
         ) {
             connectIfNeeded(resolvedPeer)
         }

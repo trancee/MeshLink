@@ -207,6 +207,20 @@ internal fun shouldUseMixedPlatformGattNotifyBearer(
             remotePlatformFamily == BleDiscoveryPlatformFamily.IOS)
 }
 
+internal fun shouldInitiateDiscoveryDrivenL2capConnection(
+    localPlatformFamily: BleDiscoveryPlatformFamily,
+    remotePlatformFamily: BleDiscoveryPlatformFamily,
+    gattSideLinkReady: Boolean,
+): Boolean {
+    return !(
+        gattSideLinkReady &&
+            shouldUseMixedPlatformGattNotifyBearer(
+                localPlatformFamily = localPlatformFamily,
+                remotePlatformFamily = remotePlatformFamily,
+            )
+    )
+}
+
 internal enum class GattDataBearerMode {
     L2CAP_ONLY,
     GATT_OPTIONAL_WITH_L2CAP_FALLBACK,

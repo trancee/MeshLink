@@ -426,6 +426,57 @@ class BleDiscoveryContractTest {
     }
 
     @Test
+    fun `mixed platform peers skip discovery driven l2cap reconnects while gatt is ready`() {
+        // Arrange
+        val expected = false
+
+        // Act
+        val actual =
+            shouldInitiateDiscoveryDrivenL2capConnection(
+                localPlatformFamily = BleDiscoveryPlatformFamily.ANDROID,
+                remotePlatformFamily = BleDiscoveryPlatformFamily.IOS,
+                gattSideLinkReady = true,
+            )
+
+        // Assert
+        assertEquals(expected, actual)
+    }
+
+    @Test
+    fun `mixed platform peers still allow discovery driven l2cap connects before gatt is ready`() {
+        // Arrange
+        val expected = true
+
+        // Act
+        val actual =
+            shouldInitiateDiscoveryDrivenL2capConnection(
+                localPlatformFamily = BleDiscoveryPlatformFamily.ANDROID,
+                remotePlatformFamily = BleDiscoveryPlatformFamily.IOS,
+                gattSideLinkReady = false,
+            )
+
+        // Assert
+        assertEquals(expected, actual)
+    }
+
+    @Test
+    fun `same platform peers keep discovery driven l2cap reconnects even with gatt preference`() {
+        // Arrange
+        val expected = true
+
+        // Act
+        val actual =
+            shouldInitiateDiscoveryDrivenL2capConnection(
+                localPlatformFamily = BleDiscoveryPlatformFamily.ANDROID,
+                remotePlatformFamily = BleDiscoveryPlatformFamily.ANDROID,
+                gattSideLinkReady = true,
+            )
+
+        // Assert
+        assertEquals(expected, actual)
+    }
+
+    @Test
     fun `same platform transfer ack preference still falls back to l2cap`() {
         // Arrange
         val expected = GattDataBearerMode.GATT_OPTIONAL_WITH_L2CAP_FALLBACK
