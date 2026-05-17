@@ -10,8 +10,7 @@ internal enum class BlePowerMode {
 internal enum class BleDiscoveryPlatformFamily(internal val encodedBits: Int) {
     UNKNOWN(0),
     ANDROID(1),
-    IOS(2),
-    ;
+    IOS(2);
 
     internal companion object {
         internal fun fromEncodedBits(bits: Int): BleDiscoveryPlatformFamily {
@@ -112,8 +111,7 @@ internal object BleDiscoveryContract {
         "4d455348-0003-1000-8000-000000000000"
     internal const val GATT_CONTROL_CHARACTERISTIC_UUID: String =
         "4d455348-0004-1000-8000-000000000000"
-    internal const val GATT_MTU_CHARACTERISTIC_UUID: String =
-        "4d455348-0005-1000-8000-000000000000"
+    internal const val GATT_MTU_CHARACTERISTIC_UUID: String = "4d455348-0005-1000-8000-000000000000"
     internal const val GATT_SERVICE_ID_CHARACTERISTIC_UUID: String =
         "4d455348-0006-1000-8000-000000000000"
 
@@ -207,6 +205,27 @@ internal fun shouldUseMixedPlatformGattNotifyBearer(
         remotePlatformFamily == BleDiscoveryPlatformFamily.ANDROID) ||
         (localPlatformFamily == BleDiscoveryPlatformFamily.ANDROID &&
             remotePlatformFamily == BleDiscoveryPlatformFamily.IOS)
+}
+
+internal enum class GattDataBearerMode {
+    L2CAP_ONLY,
+    GATT_OPTIONAL_WITH_L2CAP_FALLBACK,
+    GATT_REQUIRED,
+}
+
+internal fun resolveGattDataBearerMode(
+    localPlatformFamily: BleDiscoveryPlatformFamily,
+    remotePlatformFamily: BleDiscoveryPlatformFamily,
+    preferredMode: TransportMode?,
+): GattDataBearerMode {
+    return when {
+        shouldUseMixedPlatformGattNotifyBearer(
+            localPlatformFamily = localPlatformFamily,
+            remotePlatformFamily = remotePlatformFamily,
+        ) -> GattDataBearerMode.GATT_REQUIRED
+        preferredMode == TransportMode.GATT -> GattDataBearerMode.GATT_OPTIONAL_WITH_L2CAP_FALLBACK
+        else -> GattDataBearerMode.L2CAP_ONLY
+    }
 }
 
 private fun compareUnsignedKeyHashes(left: ByteArray, right: ByteArray): Int {

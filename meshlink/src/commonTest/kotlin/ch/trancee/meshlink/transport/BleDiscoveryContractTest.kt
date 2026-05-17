@@ -117,10 +117,7 @@ class BleDiscoveryContractTest {
                 keyHash = byteArrayOf(11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0),
             )
         val expected =
-            listOf(
-                BleDiscoveryContract.ADVERTISEMENT_SERVICE_UUID,
-                payload.payloadUuidString(),
-            )
+            listOf(BleDiscoveryContract.ADVERTISEMENT_SERVICE_UUID, payload.payloadUuidString())
 
         // Act
         val actual = BleDiscoveryContract.advertisedServiceUuids(payload)
@@ -364,11 +361,26 @@ class BleDiscoveryContractTest {
     @Test
     fun `named gatt fallback characteristic roles stay aligned with the fixed uuid set`() {
         // Arrange / Act / Assert
-        assertEquals(BleDiscoveryContract.GATT_CHARACTERISTIC_UUIDS[0], BleDiscoveryContract.GATT_WRITE_CHARACTERISTIC_UUID)
-        assertEquals(BleDiscoveryContract.GATT_CHARACTERISTIC_UUIDS[1], BleDiscoveryContract.GATT_NOTIFY_CHARACTERISTIC_UUID)
-        assertEquals(BleDiscoveryContract.GATT_CHARACTERISTIC_UUIDS[2], BleDiscoveryContract.GATT_CONTROL_CHARACTERISTIC_UUID)
-        assertEquals(BleDiscoveryContract.GATT_CHARACTERISTIC_UUIDS[3], BleDiscoveryContract.GATT_MTU_CHARACTERISTIC_UUID)
-        assertEquals(BleDiscoveryContract.GATT_CHARACTERISTIC_UUIDS[4], BleDiscoveryContract.GATT_SERVICE_ID_CHARACTERISTIC_UUID)
+        assertEquals(
+            BleDiscoveryContract.GATT_CHARACTERISTIC_UUIDS[0],
+            BleDiscoveryContract.GATT_WRITE_CHARACTERISTIC_UUID,
+        )
+        assertEquals(
+            BleDiscoveryContract.GATT_CHARACTERISTIC_UUIDS[1],
+            BleDiscoveryContract.GATT_NOTIFY_CHARACTERISTIC_UUID,
+        )
+        assertEquals(
+            BleDiscoveryContract.GATT_CHARACTERISTIC_UUIDS[2],
+            BleDiscoveryContract.GATT_CONTROL_CHARACTERISTIC_UUID,
+        )
+        assertEquals(
+            BleDiscoveryContract.GATT_CHARACTERISTIC_UUIDS[3],
+            BleDiscoveryContract.GATT_MTU_CHARACTERISTIC_UUID,
+        )
+        assertEquals(
+            BleDiscoveryContract.GATT_CHARACTERISTIC_UUIDS[4],
+            BleDiscoveryContract.GATT_SERVICE_ID_CHARACTERISTIC_UUID,
+        )
     }
 
     @Test
@@ -394,5 +406,39 @@ class BleDiscoveryContractTest {
         assertTrue(androidToIos)
         assertTrue(iosToAndroid)
         assertTrue(!samePlatform)
+    }
+
+    @Test
+    fun `mixed platform data bearer mode requires gatt without l2cap fallback`() {
+        // Arrange
+        val expected = GattDataBearerMode.GATT_REQUIRED
+
+        // Act
+        val actual =
+            resolveGattDataBearerMode(
+                localPlatformFamily = BleDiscoveryPlatformFamily.ANDROID,
+                remotePlatformFamily = BleDiscoveryPlatformFamily.IOS,
+                preferredMode = null,
+            )
+
+        // Assert
+        assertEquals(expected, actual)
+    }
+
+    @Test
+    fun `same platform transfer ack preference still falls back to l2cap`() {
+        // Arrange
+        val expected = GattDataBearerMode.GATT_OPTIONAL_WITH_L2CAP_FALLBACK
+
+        // Act
+        val actual =
+            resolveGattDataBearerMode(
+                localPlatformFamily = BleDiscoveryPlatformFamily.ANDROID,
+                remotePlatformFamily = BleDiscoveryPlatformFamily.ANDROID,
+                preferredMode = TransportMode.GATT,
+            )
+
+        // Assert
+        assertEquals(expected, actual)
     }
 }

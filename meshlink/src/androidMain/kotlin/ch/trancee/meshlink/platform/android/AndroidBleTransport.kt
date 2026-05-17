@@ -27,12 +27,14 @@ import ch.trancee.meshlink.transport.BleDiscoveryContract
 import ch.trancee.meshlink.transport.BleDiscoveryPayload
 import ch.trancee.meshlink.transport.BleDiscoveryPlatformFamily
 import ch.trancee.meshlink.transport.BleTransport
-import ch.trancee.meshlink.transport.shouldLocalPeerInitiateL2capConnection
-import ch.trancee.meshlink.transport.shouldUseMixedPlatformGattNotifyBearer
+import ch.trancee.meshlink.transport.GattDataBearerMode
 import ch.trancee.meshlink.transport.OutboundFrame
 import ch.trancee.meshlink.transport.TransportEvent
 import ch.trancee.meshlink.transport.TransportMode
 import ch.trancee.meshlink.transport.TransportSendResult
+import ch.trancee.meshlink.transport.resolveGattDataBearerMode
+import ch.trancee.meshlink.transport.shouldLocalPeerInitiateL2capConnection
+import ch.trancee.meshlink.transport.shouldUseMixedPlatformGattNotifyBearer
 import java.io.Closeable
 import java.io.InputStream
 import kotlinx.coroutines.CoroutineScope
@@ -300,7 +302,10 @@ internal class AndroidBleTransport(
             if (!discoveredPeer.presenceAnnounced) {
                 discoveredPeer.presenceAnnounced = true
                 mutableEvents.tryEmit(
-                    TransportEvent.PeerDiscovered(peerId = hintPeerId, transportMode = transportMode)
+                    TransportEvent.PeerDiscovered(
+                        peerId = hintPeerId,
+                        transportMode = transportMode,
+                    )
                 )
             }
         }
@@ -359,10 +364,7 @@ internal class AndroidBleTransport(
                 onFrameReceived = { incomingPeerId, payload ->
                     coroutineScope.launch {
                         mutableEvents.emit(
-                            TransportEvent.FrameReceived(
-                                peerId = incomingPeerId,
-                                payload = payload,
-                            )
+                            TransportEvent.FrameReceived(peerId = incomingPeerId, payload = payload)
                         )
                     }
                 },
@@ -381,22 +383,32 @@ internal class AndroidBleTransport(
         if (directFrame !is DirectWireFrame.Data) {
             return null
         }
-        val shouldUseGattBearer =
-            frame.preferredMode == TransportMode.GATT ||
-                shouldUseMixedPlatformGattNotifyBearer(
-                    localPlatformFamily = currentDiscoveryPayload.platformFamily,
-                    remotePlatformFamily = peer.platformFamily,
-                )
-        if (!shouldUseGattBearer) {
+        val dataBearerMode =
+            resolveGattDataBearerMode(
+                localPlatformFamily = currentDiscoveryPayload.platformFamily,
+                remotePlatformFamily = peer.platformFamily,
+                preferredMode = frame.preferredMode,
+            )
+        if (dataBearerMode == GattDataBearerMode.L2CAP_ONLY) {
             return null
         }
         maybeStartGattNotifySideLink(peer)
-        val client = gattNotifyClientsByHint[peer.hintPeerId.value] ?: return null
+        val client =
+            gattNotifyClientsByHint[peer.hintPeerId.value]
+                ?: return when (dataBearerMode) {
+                    GattDataBearerMode.GATT_REQUIRED ->
+                        TransportSendResult.Dropped("Android BLE GATT side link is unavailable")
+                    else -> null
+                }
         if (!client.isReady()) {
             log(
                 "preferred GATT side-link send skipped for ${peer.hintPeerId.value.takeLast(6)}: client not ready"
             )
-            return null
+            return when (dataBearerMode) {
+                GattDataBearerMode.GATT_REQUIRED ->
+                    TransportSendResult.Dropped("Android BLE GATT side link is not ready")
+                else -> null
+            }
         }
         val delivered =
             runCatching { client.write(frame.payload) }
@@ -404,16 +416,38 @@ internal class AndroidBleTransport(
                     log(
                         "preferred GATT side-link send failed for ${peer.hintPeerId.value.takeLast(6)}: ${error.message.orEmpty()}"
                     )
-                }.getOrDefault(false)
+                }
+                .getOrDefault(false)
         return if (delivered) {
-            log("sent ${frame.payload.size} bytes via GATT write side link for ${peer.hintPeerId.value.takeLast(6)}")
+            log(
+                "sent ${frame.payload.size} bytes via GATT write side link for ${peer.hintPeerId.value.takeLast(6)}"
+            )
             TransportSendResult.Delivered
         } else {
             log(
                 "preferred GATT side-link send returned false for ${peer.hintPeerId.value.takeLast(6)} bytes=${frame.payload.size}"
             )
-            null
+            when (dataBearerMode) {
+                GattDataBearerMode.GATT_REQUIRED -> {
+                    restartGattNotifySideLink(
+                        peer = peer,
+                        reason = "write failed for ${frame.payload.size} bytes",
+                    )
+                    TransportSendResult.Dropped("Android BLE GATT side link write failed")
+                }
+                else -> null
+            }
         }
+    }
+
+    private fun restartGattNotifySideLink(peer: DiscoveredPeer, reason: String): Unit {
+        gattNotifyClientsByHint.remove(peer.hintPeerId.value)?.let { existingClient ->
+            log(
+                "restarting GATT notify side link for ${peer.hintPeerId.value.takeLast(6)}: $reason"
+            )
+            existingClient.close()
+        }
+        maybeStartGattNotifySideLink(peer)
     }
 
     private fun connectIfNeeded(peer: DiscoveredPeer): Unit {
@@ -547,7 +581,8 @@ internal class AndroidBleTransport(
                             )
                             continue
                         }
-                        val appendResult = link.incomingFrames.appendDetailed(readBuffer.copyOf(read))
+                        val appendResult =
+                            link.incomingFrames.appendDetailed(readBuffer.copyOf(read))
                         appendResult.frames.forEachIndexed { frameIndex, payload ->
                             val currentPeerId = link.peerHintId
                             if (payload.isEmpty()) {
@@ -584,8 +619,9 @@ internal class AndroidBleTransport(
             return
         }
         val hasActiveLink =
-            synchronized(activeLinksByHint) { activeLinksByHint.containsKey(peer.hintPeerId.value) } ||
-                hasActiveGattNotifyLink(peer.hintPeerId.value)
+            synchronized(activeLinksByHint) {
+                activeLinksByHint.containsKey(peer.hintPeerId.value)
+            } || hasActiveGattNotifyLink(peer.hintPeerId.value)
         val hasPendingConnect = pendingConnectJobsByHint.containsKey(peer.hintPeerId.value)
         if (hasActiveLink || hasPendingConnect) {
             peer.rediscoveryLoggedWithoutLink = false
@@ -783,10 +819,8 @@ internal class AndroidBleTransport(
         val frameEndOffset = observation?.frameEndOffset ?: -1
         val totalBuffered = observation?.totalBufferedBytesAfterAppend ?: -1
         val remainingBuffered = observation?.remainingBufferedBytesAfterFrame ?: -1
-        val headerFromPriorBuffer =
-            observation?.headerStartsInPreviouslyBufferedBytes ?: false
-        val frameReachedCurrentChunk =
-            observation?.frameEndsBeyondPreviouslyBufferedBytes ?: false
+        val headerFromPriorBuffer = observation?.headerStartsInPreviouslyBufferedBytes ?: false
+        val frameReachedCurrentChunk = observation?.frameEndsBeyondPreviouslyBufferedBytes ?: false
         log(
             "ignoring empty frame from $peerSuffix readBytes=$readBytes frameIndex=$frameIndex decodedFrames=${appendResult.frames.size} headerHex=$headerHex readOffset=$readOffset frameEndOffset=$frameEndOffset bufferedBeforeAppend=${appendResult.bufferedBytesBeforeAppend} totalBufferedAfterAppend=$totalBuffered pendingAfterAppend=${appendResult.pendingBytesAfterAppend} remainingBufferedAfterFrame=$remainingBuffered headerFromPriorBuffer=$headerFromPriorBuffer frameReachedCurrentChunk=$frameReachedCurrentChunk chunkPrefixHex=${appendResult.appendedChunkPrefixHex} chunkSuffixHex=${appendResult.appendedChunkSuffixHex}"
         )
