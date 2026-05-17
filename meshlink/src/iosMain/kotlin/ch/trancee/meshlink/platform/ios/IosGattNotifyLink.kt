@@ -2,6 +2,7 @@ package ch.trancee.meshlink.platform.ios
 
 import ch.trancee.meshlink.api.IosBleTransportBridgeRegistry
 import ch.trancee.meshlink.api.PeerId
+import kotlinx.coroutines.CompletableDeferred
 import platform.CoreBluetooth.CBCentral
 import platform.CoreBluetooth.CBPeripheralManager
 import platform.Foundation.NSLock
@@ -16,23 +17,29 @@ internal class IosGattNotifyLink(
 ) {
     private val outgoingFrames = IosL2capFrameBuffer()
     private val incomingFrames = IosL2capFrameBuffer()
-    private val pendingChunks: ArrayDeque<ByteArray> = ArrayDeque()
+    private val pendingFrames: ArrayDeque<PendingFrame> = ArrayDeque()
     private val stateLock = NSLock()
     private var lowLatencyRequested: Boolean = false
     private var closed: Boolean = false
     private var pumpInProgress: Boolean = false
 
-    internal fun enqueue(payload: ByteArray): Boolean {
-        val encoded = outgoingFrames.encode(payload)
+    internal suspend fun enqueue(payload: ByteArray): Boolean {
         val chunkBytes = maxNotificationChunkBytes()
+        val pendingFrame =
+            PendingFrame(
+                chunks =
+                    outgoingFrames
+                        .encode(payload)
+                        .asList()
+                        .chunked(chunkBytes)
+                        .map { chunk -> chunk.toByteArray() },
+            )
         val accepted =
             stateLock.withLock {
                 if (closed) {
                     false
                 } else {
-                    encoded.asList().chunked(chunkBytes).forEach { chunk ->
-                        pendingChunks.addLast(chunk.toByteArray())
-                    }
+                    pendingFrames.addLast(pendingFrame)
                     true
                 }
             }
@@ -40,8 +47,14 @@ internal class IosGattNotifyLink(
             return false
         }
         requestLowLatencyIfNeeded()
-        pump()
-        return true
+        if (!pump()) {
+            stateLock.withLock {
+                pendingFrames.remove(pendingFrame)
+            }
+            pendingFrame.completeIfPending(false)
+            return false
+        }
+        return pendingFrame.awaitCompletion()
     }
 
     internal fun appendIncomingWrite(chunk: ByteArray): List<ByteArray> {
@@ -54,10 +67,10 @@ internal class IosGattNotifyLink(
         }
     }
 
-    internal fun pump(): Unit {
-        val callbacks = IosBleTransportBridgeRegistry.currentCallbacksOrNull() ?: return
-        val peripheralManager = peripheralManagerProvider() ?: return
-        val notifyCharacteristic = notifyCharacteristicProvider() ?: return
+    internal fun pump(): Boolean {
+        val callbacks = IosBleTransportBridgeRegistry.currentCallbacksOrNull() ?: return false
+        val peripheralManager = peripheralManagerProvider() ?: return false
+        val notifyCharacteristic = notifyCharacteristicProvider() ?: return false
         val shouldStartPump =
             stateLock.withLock {
                 if (closed || pumpInProgress) {
@@ -68,17 +81,17 @@ internal class IosGattNotifyLink(
                 }
             }
         if (!shouldStartPump) {
-            return
+            return true
         }
         try {
             while (true) {
                 val nextChunk =
                     stateLock.withLock {
                         when {
-                            closed || pendingChunks.isEmpty() -> null
-                            else -> pendingChunks.first()
+                            closed -> null
+                            else -> pendingFrames.firstOrNull()?.nextChunkOrNull()
                         }
-                    } ?: return
+                    } ?: return true
                 val didSend =
                     callbacks.gattNotifySend(
                         peripheralManager,
@@ -86,22 +99,35 @@ internal class IosGattNotifyLink(
                         central,
                         nextChunk,
                     )
-                val pendingCount =
-                    stateLock.withLock {
-                        if (closed) {
-                            0
-                        } else {
-                            if (didSend && pendingChunks.isNotEmpty() && pendingChunks.first() === nextChunk) {
-                                pendingChunks.removeFirst()
+                var completedFrame: PendingFrame? = null
+                var pendingChunkCount: Int = 0
+                stateLock.withLock {
+                    if (closed) {
+                        completedFrame = null
+                        pendingChunkCount = 0
+                    } else {
+                        val headFrame = pendingFrames.firstOrNull()
+                        completedFrame =
+                            if (didSend && headFrame != null) {
+                                val finished = headFrame.markCurrentChunkSent()
+                                if (finished) {
+                                    pendingFrames.removeFirst()
+                                    headFrame
+                                } else {
+                                    null
+                                }
+                            } else {
+                                null
                             }
-                            pendingChunks.size
-                        }
+                        pendingChunkCount = pendingChunkCountLocked()
                     }
+                }
                 logger(
-                    "GATT notify pump ${hintPeerId.value.takeLast(6)} chunkBytes=${nextChunk.size} didSend=$didSend pending=$pendingCount"
+                    "GATT notify pump ${hintPeerId.value.takeLast(6)} chunkBytes=${nextChunk.size} didSend=$didSend pending=$pendingChunkCount"
                 )
+                completedFrame?.completeIfPending(true)
                 if (!didSend) {
-                    return
+                    return true
                 }
             }
         } finally {
@@ -112,18 +138,29 @@ internal class IosGattNotifyLink(
     }
 
     internal fun discardQueuedFrames(): Int {
-        return stateLock.withLock {
-            val discardedChunks = pendingChunks.size
-            pendingChunks.clear()
-            discardedChunks
+        val discardedFrames = mutableListOf<PendingFrame>()
+        stateLock.withLock {
+            if (pendingFrames.isEmpty()) {
+                return@withLock
+            }
+            val preserveHead = pumpInProgress
+            while (pendingFrames.size > if (preserveHead) 1 else 0) {
+                discardedFrames += pendingFrames.removeLast()
+            }
         }
+        discardedFrames.forEach { frame -> frame.completeIfPending(false) }
+        return discardedFrames.size
     }
 
     internal fun close(): Unit {
+        val discardedFrames = mutableListOf<PendingFrame>()
         stateLock.withLock {
             closed = true
-            pendingChunks.clear()
+            while (pendingFrames.isNotEmpty()) {
+                discardedFrames += pendingFrames.removeFirst()
+            }
         }
+        discardedFrames.forEach { frame -> frame.completeIfPending(false) }
     }
 
     private fun requestLowLatencyIfNeeded(): Unit {
@@ -143,6 +180,41 @@ internal class IosGattNotifyLink(
     private fun maxNotificationChunkBytes(): Int {
         val rawLength = central.maximumUpdateValueLength.toInt()
         return minOf(rawLength, PREFERRED_NOTIFICATION_FRAME_BYTES).coerceAtLeast(1)
+    }
+
+    private fun pendingChunkCountLocked(): Int {
+        return pendingFrames.sumOf { frame -> frame.remainingChunkCount() }
+    }
+
+    private class PendingFrame internal constructor(chunks: List<ByteArray>) {
+        private val completion: CompletableDeferred<Boolean> = CompletableDeferred()
+        private val chunks: List<ByteArray> = chunks.map { chunk -> chunk.copyOf() }
+        private var nextChunkIndex: Int = 0
+
+        internal fun nextChunkOrNull(): ByteArray? {
+            return chunks.getOrNull(nextChunkIndex)
+        }
+
+        internal fun markCurrentChunkSent(): Boolean {
+            if (nextChunkIndex < chunks.size) {
+                nextChunkIndex += 1
+            }
+            return nextChunkIndex >= chunks.size
+        }
+
+        internal fun remainingChunkCount(): Int {
+            return (chunks.size - nextChunkIndex).coerceAtLeast(0)
+        }
+
+        internal suspend fun awaitCompletion(): Boolean {
+            return completion.await()
+        }
+
+        internal fun completeIfPending(result: Boolean): Unit {
+            if (!completion.isCompleted) {
+                completion.complete(result)
+            }
+        }
     }
 
     private companion object {
