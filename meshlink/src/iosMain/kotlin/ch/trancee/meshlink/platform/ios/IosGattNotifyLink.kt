@@ -1,18 +1,28 @@
 package ch.trancee.meshlink.platform.ios
 
-import ch.trancee.meshlink.api.IosBleTransportBridgeRegistry
 import ch.trancee.meshlink.api.PeerId
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.cinterop.BetaInteropApi
+import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.cinterop.addressOf
+import kotlinx.cinterop.usePinned
 import platform.CoreBluetooth.CBCentral
+import platform.CoreBluetooth.CBMutableCharacteristic
 import platform.CoreBluetooth.CBPeripheralManager
+import platform.Foundation.NSData
 import platform.Foundation.NSLock
+import platform.Foundation.NSMutableData
+import platform.Foundation.create
+import platform.posix.memcpy
 
 internal class IosGattNotifyLink(
     internal val hintPeerId: PeerId,
     internal val centralIdentifier: String,
     private val central: CBCentral,
     private val peripheralManagerProvider: () -> CBPeripheralManager?,
-    private val notifyCharacteristicProvider: () -> Any?,
+    private val notifyCharacteristicProvider: () -> CBMutableCharacteristic?,
     private val logger: (String) -> Unit,
     private val schedulePumpRetry: () -> Unit,
 ) {
@@ -49,7 +59,7 @@ internal class IosGattNotifyLink(
             return false
         }
         requestLowLatencyIfNeeded()
-        if (!pump()) {
+        if (!pumpOnMain()) {
             stateLock.withLock {
                 pendingFrames.remove(pendingFrame)
             }
@@ -69,8 +79,11 @@ internal class IosGattNotifyLink(
         }
     }
 
+    internal suspend fun pumpOnMain(): Boolean {
+        return withContext(Dispatchers.Main) { pump() }
+    }
+
     internal fun pump(): Boolean {
-        val callbacks = IosBleTransportBridgeRegistry.currentCallbacksOrNull() ?: return false
         val peripheralManager = peripheralManagerProvider() ?: return false
         val notifyCharacteristic = notifyCharacteristicProvider() ?: return false
         val shouldStartPump =
@@ -96,11 +109,10 @@ internal class IosGattNotifyLink(
                         }
                     } ?: return true
                 val didSend =
-                    callbacks.gattNotifySend(
-                        peripheralManager,
-                        notifyCharacteristic,
-                        central,
-                        nextChunk,
+                    peripheralManager.updateValue(
+                        nextChunk.toNSData(),
+                        forCharacteristic = notifyCharacteristic,
+                        onSubscribedCentrals = listOf(central),
                     )
                 var completedFrame: PendingFrame? = null
                 var pendingChunkCount: Int = 0
@@ -248,4 +260,16 @@ private inline fun <T> NSLock.withLock(block: () -> T): T {
     } finally {
         unlock()
     }
+}
+
+@OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
+private fun ByteArray.toNSData(): NSData {
+    if (isEmpty()) {
+        return NSData()
+    }
+    val data = NSMutableData.create(length = size.toULong()) ?: return NSData()
+    usePinned { pinned ->
+        memcpy(data.mutableBytes, pinned.addressOf(0), size.toULong())
+    }
+    return data
 }

@@ -4,18 +4,19 @@ import MeshLink
 
 enum MeshLinkProofTransportBridge {
     static func install() {
-        IosBleTransportBridge.shared.install(
-            gattNotifySend: { peripheralManagerHandle, notifyCharacteristicHandle, centralHandle, payload in
+        IosBleTransportBridge.shared.installData(
+            gattNotifySendData: { peripheralManagerHandle, notifyCharacteristicHandle, centralHandle, payloadDataHandle in
                 guard
                     let peripheralManager = peripheralManagerHandle as? CBPeripheralManager,
                     let notifyCharacteristic = notifyCharacteristicHandle as? CBMutableCharacteristic,
-                    let central = centralHandle as? CBCentral
+                    let central = centralHandle as? CBCentral,
+                    let payload = Self.resolvePayloadData(payloadDataHandle)
                 else {
                     return KotlinBoolean(bool: false)
                 }
                 let send = {
                     peripheralManager.updateValue(
-                        payload.toData(),
+                        payload,
                         for: notifyCharacteristic,
                         onSubscribedCentrals: [central]
                     )
@@ -30,14 +31,14 @@ enum MeshLinkProofTransportBridge {
             }
         )
     }
-}
 
-private extension KotlinByteArray {
-    func toData() -> Data {
-        var bytes = [UInt8](repeating: 0, count: Int(size))
-        for index in 0..<Int(size) {
-            bytes[index] = UInt8(bitPattern: get(index: Int32(index)))
+    private static func resolvePayloadData(_ payloadDataHandle: Any) -> Data? {
+        if let data = payloadDataHandle as? Data {
+            return data
         }
-        return Data(bytes)
+        if let nsData = payloadDataHandle as? NSData {
+            return nsData as Data
+        }
+        return nil
     }
 }

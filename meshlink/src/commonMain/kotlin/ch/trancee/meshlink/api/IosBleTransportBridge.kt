@@ -20,11 +20,28 @@ public object IosBleTransportBridge {
             )
         )
     }
+
+    /**
+     * Installs a more efficient iOS-native bridge variant that receives the GATT notification
+     * payload as a platform data object instead of a Kotlin [ByteArray].
+     *
+     * Host apps may cast `payloadData` to `platform.Foundation.NSData` / Swift `Data` and hand it
+     * directly to `CBPeripheralManager.updateValue(...)` to avoid per-byte bridge iteration.
+     */
+    public fun installData(gattNotifySendData: (Any, Any, Any, Any) -> Boolean): Unit {
+        IosBleTransportBridgeRegistry.install(
+            IosBleTransportCallbacks(
+                gattNotifySend = { _, _, _, _ -> false },
+                gattNotifySendData = gattNotifySendData,
+            )
+        )
+    }
 }
 
 internal class IosBleTransportCallbacks
 internal constructor(
     internal val gattNotifySend: (Any, Any, Any, ByteArray) -> Boolean,
+    internal val gattNotifySendData: ((Any, Any, Any, Any) -> Boolean)? = null,
 )
 
 internal object IosBleTransportBridgeRegistry {
