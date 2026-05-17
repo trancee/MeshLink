@@ -415,6 +415,16 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
             }
         }
 
+        if (
+            transportMode == TransportMode.L2CAP &&
+                !shouldInitiateL2cap(payload.keyHash, payload.platformFamily)
+        ) {
+            promoteTemporaryL2capLinkIfPossible(
+                identifier = identifier,
+                resolvedHintPeerIdValue = hintPeerId.value,
+            )
+        }
+
         maybeLogRediscoveryWithoutLink(
             peer = discoveredPeers.getValue(hintPeerId.value),
             transportMode = transportMode,
@@ -610,6 +620,10 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
         val identifier = central.identifier.UUIDString.lowercase()
         val hintPeerIdValue = resolveGattNotifyHintPeerIdValue(identifier) ?: return null
         peerHintByIdentifier[identifier] = hintPeerIdValue
+        promoteTemporaryL2capLinkIfPossible(
+            identifier = identifier,
+            resolvedHintPeerIdValue = hintPeerIdValue,
+        )
         if (!replaceExisting) {
             activeGattNotifyLinksByHint[hintPeerIdValue]?.let { existingLink ->
                 return existingLink
@@ -657,6 +671,29 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
         return activeGattNotifyLinksByHint.containsKey(hintPeer)
     }
 
+    private fun promoteTemporaryL2capLinkIfPossible(
+        identifier: String,
+        resolvedHintPeerIdValue: String,
+    ): Unit {
+        val temporaryHintPeerIdValue =
+            selectTemporaryL2capHintPromotion(
+                identifier = identifier,
+                resolvedHintPeerIdValue = resolvedHintPeerIdValue,
+                temporaryHintByIdentifier = temporaryHintByIdentifier,
+                activeHintIds = activeLinksByHint.keys,
+                temporaryPeerPrefix = TEMPORARY_PEER_PREFIX,
+            ) ?: return
+        val link = activeLinksByHint.remove(temporaryHintPeerIdValue) ?: return
+        val resolvedHintPeerId = PeerId(resolvedHintPeerIdValue)
+        link.hintPeerId = resolvedHintPeerId
+        activeLinksByHint[resolvedHintPeerIdValue] = link
+        temporaryHintByIdentifier[identifier] = resolvedHintPeerIdValue
+        discoveredPeers[resolvedHintPeerIdValue]?.rediscoveryLoggedWithoutLink = false
+        reportLog(
+            "promoted temporary L2CAP link ${temporaryHintPeerIdValue.takeLast(6)} -> ${resolvedHintPeerIdValue.takeLast(6)} id=$identifier"
+        )
+    }
+
     private fun registerConnectedChannel(
         hintPeerId: PeerId,
         peripheralIdentifier: String,
@@ -667,6 +704,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
             log("ignoring duplicate L2CAP channel for ${hintPeerId.value.takeLast(6)}")
             return
         }
+        var createdLink: IosL2capLink? = null
         val link =
             IosL2capLink(
                 hintPeerId = hintPeerId,
@@ -677,10 +715,14 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
                 telemetryLogger = ::emitTransportLog,
                 promoteActiveWriteLatency = {
                     connectedCentral?.let { central ->
-                        requestLowConnectionLatency(hintPeerId = hintPeerId, central = central)
+                        requestLowConnectionLatency(
+                            hintPeerId = createdLink?.hintPeerId ?: hintPeerId,
+                            central = central,
+                        )
                     }
                 },
             )
+        createdLink = link
         activeLinksByHint[hintPeerId.value] = link
         temporaryHintByIdentifier[peripheralIdentifier] = hintPeerId.value
         discoveredPeers[hintPeerId.value]?.rediscoveryLoggedWithoutLink = false
@@ -693,10 +735,10 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
                     throw error
                 }
                 reportLog(
-                    "L2CAP write loop failed for ${hintPeerId.value.takeLast(6)}: ${error.message.orEmpty()}"
+                    "L2CAP write loop failed for ${link.hintPeerId.value.takeLast(6)}: ${error.message.orEmpty()}"
                 )
             } finally {
-                closeLink(hintPeer = hintPeerId.value, reason = "write loop stopped")
+                closeLink(hintPeer = link.hintPeerId.value, reason = "write loop stopped")
             }
         }
         link.readLoopJob = coroutineScope.launch {
@@ -718,7 +760,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
                     }
                     drainedFrames.frames.forEach { payload ->
                         mutableEvents.emit(
-                            TransportEvent.FrameReceived(peerId = hintPeerId, payload = payload)
+                            TransportEvent.FrameReceived(peerId = link.hintPeerId, payload = payload)
                         )
                     }
                     if (drainedFrames.streamClosed) {
@@ -730,10 +772,10 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
                     throw error
                 }
                 reportLog(
-                    "L2CAP read loop failed for ${hintPeerId.value.takeLast(6)}: ${error.message.orEmpty()}"
+                    "L2CAP read loop failed for ${link.hintPeerId.value.takeLast(6)}: ${error.message.orEmpty()}"
                 )
             } finally {
-                closeLink(hintPeer = hintPeerId.value, reason = "channel closed")
+                closeLink(hintPeer = link.hintPeerId.value, reason = "channel closed")
             }
         }
     }
@@ -944,7 +986,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
     }
 
     private class IosL2capLink(
-        val hintPeerId: PeerId,
+        var hintPeerId: PeerId,
         val peripheralIdentifier: String,
         channel: CBL2CAPChannel,
         private val incomingFrames: IosL2capFrameBuffer,
@@ -1492,6 +1534,29 @@ internal fun selectIncomingL2capHintPeerId(
                 )
         }
     return waitingCandidates.singleOrNull()?.hintPeerIdValue
+}
+
+internal fun selectTemporaryL2capHintPromotion(
+    identifier: String,
+    resolvedHintPeerIdValue: String,
+    temporaryHintByIdentifier: Map<String, String>,
+    activeHintIds: Collection<String>,
+    temporaryPeerPrefix: String = "cb-",
+): String? {
+    val temporaryHintPeerIdValue = temporaryHintByIdentifier[identifier] ?: return null
+    if (temporaryHintPeerIdValue == resolvedHintPeerIdValue) {
+        return null
+    }
+    if (!temporaryHintPeerIdValue.startsWith(temporaryPeerPrefix)) {
+        return null
+    }
+    if (temporaryHintPeerIdValue !in activeHintIds) {
+        return null
+    }
+    if (resolvedHintPeerIdValue in activeHintIds) {
+        return null
+    }
+    return temporaryHintPeerIdValue
 }
 
 private class IosCentralDelegate(private val owner: IosBleTransport) :
