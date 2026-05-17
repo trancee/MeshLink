@@ -15,6 +15,7 @@ import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import ch.trancee.meshlink.api.DeliveryPriority
 import ch.trancee.meshlink.api.InboundMessage
 import ch.trancee.meshlink.api.MeshLink
 import ch.trancee.meshlink.api.MeshLinkApi
@@ -608,7 +609,14 @@ private object MeshLinkProofRuntime {
                                 continue
                             }
                             attempt += 1
-                            val sendResult = runCatching { requireMeshLink().send(peerId, receiptPayload) }
+                            val sendResult =
+                                runCatching {
+                                    requireMeshLink().send(
+                                        peerId = peerId,
+                                        payload = receiptPayload,
+                                        priority = DeliveryPriority.HIGH,
+                                    )
+                                }
                             sendResult
                                 .onSuccess { result ->
                                     appendLog(

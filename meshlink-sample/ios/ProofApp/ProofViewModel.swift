@@ -305,7 +305,7 @@ final class ProofViewModel: ObservableObject {
                 let result = await sendPayload(
                     to: receiptPeerId,
                     payload: receiptPayload.encode().toKotlinByteArray(),
-                    priority: DeliveryPriority.normal
+                    priority: DeliveryPriority.high
                 )
                 appendBenchmarkCorrelation(
                     role: "passive.receipt.result",
