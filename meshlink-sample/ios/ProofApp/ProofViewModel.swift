@@ -502,7 +502,7 @@ final class ProofViewModel: ObservableObject {
     }
 
     private var benchmarkAttemptDelayNanos: UInt64 {
-        3_000_000_000
+        2_000_000_000
     }
 
     private func elapsedMilliseconds(since startedAtNanos: UInt64) -> UInt64 {
