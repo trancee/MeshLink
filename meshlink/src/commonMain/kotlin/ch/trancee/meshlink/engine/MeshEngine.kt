@@ -1755,13 +1755,23 @@ private constructor(
     ): TransportSendResult {
         val encodedFrame = WireCodec.encode(frame)
         return session.outboundMutex.withLock {
-            val encryptedFrame = encryptHopPayload(session, encodedFrame)
-            sendDirectWireFrame(
-                peerId = peerId,
-                frame = DirectWireFrame.Data(encryptedFrame),
-                action = action,
-                preferredMode = preferredTransportModeForEncryptedFrame(frame),
-            )
+            val encryptedFrame =
+                encryptHopPayload(
+                    sendKey = session.sendKey,
+                    sendNonce = session.sendNonce,
+                    plaintext = encodedFrame,
+                )
+            val sendResult =
+                sendDirectWireFrame(
+                    peerId = peerId,
+                    frame = DirectWireFrame.Data(encryptedFrame),
+                    action = action,
+                    preferredMode = preferredTransportModeForEncryptedFrame(frame),
+                )
+            if (sendResult is TransportSendResult.Delivered) {
+                session.sendNonce += 1uL
+            }
+            sendResult
         }
     }
 
@@ -1769,16 +1779,17 @@ private constructor(
         return if (frame is WireFrame.TransferAck) TransportMode.GATT else null
     }
 
-    private fun encryptHopPayload(session: HopSession, plaintext: ByteArray): ByteArray {
-        val ciphertext =
-            localIdentity.cryptoProvider.chacha20Poly1305Seal(
-                key = session.sendKey,
-                nonce = noiseNonce(session.sendNonce),
-                aad = byteArrayOf(),
-                plaintext = plaintext,
-            )
-        session.sendNonce += 1u
-        return ciphertext
+    private fun encryptHopPayload(
+        sendKey: ByteArray,
+        sendNonce: ULong,
+        plaintext: ByteArray,
+    ): ByteArray {
+        return localIdentity.cryptoProvider.chacha20Poly1305Seal(
+            key = sendKey,
+            nonce = noiseNonce(sendNonce),
+            aad = byteArrayOf(),
+            plaintext = plaintext,
+        )
     }
 
     private fun decryptHopPayload(session: HopSession, ciphertext: ByteArray): ByteArray {
