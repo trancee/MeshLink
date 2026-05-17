@@ -1,5 +1,6 @@
 package ch.trancee.meshlink.integration
 
+import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.api.SendFailureReason
 import ch.trancee.meshlink.api.SendResult
 import ch.trancee.meshlink.config.meshLinkConfig
@@ -236,6 +237,40 @@ class LargeTransferIntegrationTest {
         // Assert
         assertIs<SendResult.Sent>(sendResult)
         assertContentEquals(payload, receivedMessage.payload)
+    }
+
+    @Test
+    fun `timed out large transfers clear queued outbound frames before returning`() = runBlocking {
+        // Arrange
+        val harness = MeshTestHarness()
+        val sender =
+            harness.createNode(
+                peerIdValue = "peer-a",
+                configOverride =
+                    meshLinkConfig {
+                        appId = "peer-a-transfer-timeout"
+                        deliveryRetryDeadline = 750.milliseconds
+                    },
+            )
+        val recipient = harness.createNode("peer-b")
+        val payload = ByteArray(64 * 1024) { index -> ((index * 19) % 251).toByte() }
+
+        harness.linkPeers(sender, recipient)
+        harness.setMaximumPayloadBytesPerDelivery(512)
+
+        sender.api.start()
+        recipient.api.start()
+        delay(250)
+        harness.dropNextDeliveries(recipient, sender, count = 256)
+
+        // Act
+        val sendResult = withTimeout(10_000) { sender.api.send(recipient.peerId, payload) }
+        val clearedPeers = harness.clearedQueuedOutboundPeers(sender)
+
+        // Assert
+        val notSent = assertIs<SendResult.NotSent>(sendResult)
+        assertEquals(SendFailureReason.TRANSFER_TIMED_OUT, notSent.reason)
+        assertEquals(listOf(recipient.peerId.value), clearedPeers.map(PeerId::value))
     }
 
     @Test

@@ -70,6 +70,10 @@ internal class MeshTestHarness {
         return handle.transport.sentFrames()
     }
 
+    internal fun clearedQueuedOutboundPeers(handle: NodeHandle): List<PeerId> {
+        return handle.transport.clearedQueuedOutboundPeers()
+    }
+
     internal fun setMaximumPayloadBytesPerDelivery(limit: Int?): Unit {
         network.setMaximumPayloadBytesPerDelivery(limit)
     }

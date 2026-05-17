@@ -16,6 +16,7 @@ internal class VirtualMeshTransport(
 ) : BleTransport {
     private var eventChannel: Channel<TransportEvent> = Channel(capacity = Channel.UNLIMITED)
     private val sentFrames: MutableList<ByteArray> = mutableListOf()
+    private val clearedQueuedOutboundPeers: MutableList<String> = mutableListOf()
     private val discoveredPeerModes: MutableMap<String, TransportMode> = linkedMapOf()
     private var started: Boolean = false
 
@@ -39,6 +40,7 @@ internal class VirtualMeshTransport(
     override suspend fun stop(): Unit {
         started = false
         sentFrames.clear()
+        clearedQueuedOutboundPeers.clear()
         discoveredPeerModes.clear()
         network.unregister(localPeerId)
         eventChannel = Channel(capacity = Channel.UNLIMITED)
@@ -46,6 +48,10 @@ internal class VirtualMeshTransport(
 
     override fun maximumPayloadBytesPerDelivery(peerId: PeerId): Int? {
         return network.maximumPayloadBytesPerDelivery()
+    }
+
+    override suspend fun clearQueuedOutboundFrames(peerId: PeerId): Unit {
+        clearedQueuedOutboundPeers += peerId.value
     }
 
     override suspend fun send(frame: OutboundFrame): TransportSendResult {
@@ -98,5 +104,9 @@ internal class VirtualMeshTransport(
 
     internal fun sentFrames(): List<ByteArray> {
         return sentFrames.map { frame -> frame.copyOf() }
+    }
+
+    internal fun clearedQueuedOutboundPeers(): List<PeerId> {
+        return clearedQueuedOutboundPeers.map(::PeerId)
     }
 }

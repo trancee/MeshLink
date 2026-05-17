@@ -1114,7 +1114,12 @@ private constructor(
                 }
             }
 
-            activeSession?.let { session -> outboundTransfers.remove(session.transferId) }
+            activeSession?.let { session ->
+                outboundTransfers.remove(session.transferId)
+                runPlatformCall("transfer.clearQueuedFramesOnFailure") {
+                    bleTransport?.clearQueuedOutboundFrames(session.destinationPeerId)
+                }
+            }
             return if (!lastRouteAvailable) {
                 emitDiagnostic(
                     code = DiagnosticCode.DELIVERY_UNREACHABLE,
