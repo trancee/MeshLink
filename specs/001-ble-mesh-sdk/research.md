@@ -1670,17 +1670,23 @@ Implemented remediation:
 
 Fresh retained evidence after the de-duplication fix:
 
-- Samsung immediate 3-run repeat series:
-  - `/tmp/ios_meshlink_headless_samsung_autosendfixdemo_1`
-    - sender: `BENCHMARK transport bytes=65536 elapsedMs=1041 throughputKBps=61.48 result=Sent`
-    - passive Samsung: `BENCHMARK receipt send(f771ad) -> Sent ... attempt=1`
-  - `/tmp/ios_meshlink_headless_samsung_autosendfixdemo_2`
-    - sender: `BENCHMARK transport bytes=65536 elapsedMs=1009 throughputKBps=63.43 result=Sent`
-    - passive Samsung: `BENCHMARK receipt send(b6f8ea) -> Sent ... attempt=1`
-  - `/tmp/ios_meshlink_headless_samsung_autosendfixdemo_3`
-    - sender: `BENCHMARK transport bytes=65536 elapsedMs=1004 throughputKBps=63.75 result=Sent`
-    - passive Samsung: `BENCHMARK receipt send(987fec) -> Sent ... attempt=1`
-  - series summary from the runner: `min=61.48 KB/s avg=62.89 KB/s max=63.75 KB/s`
+- Samsung retained repeat-series evidence then grew stronger again:
+  - immediate 3-run repeat series:
+    - `/tmp/ios_meshlink_headless_samsung_autosendfixdemo_1`
+      - sender: `BENCHMARK transport bytes=65536 elapsedMs=1041 throughputKBps=61.48 result=Sent`
+      - passive Samsung: `BENCHMARK receipt send(f771ad) -> Sent ... attempt=1`
+    - `/tmp/ios_meshlink_headless_samsung_autosendfixdemo_2`
+      - sender: `BENCHMARK transport bytes=65536 elapsedMs=1009 throughputKBps=63.43 result=Sent`
+      - passive Samsung: `BENCHMARK receipt send(b6f8ea) -> Sent ... attempt=1`
+    - `/tmp/ios_meshlink_headless_samsung_autosendfixdemo_3`
+      - sender: `BENCHMARK transport bytes=65536 elapsedMs=1004 throughputKBps=63.75 result=Sent`
+      - passive Samsung: `BENCHMARK receipt send(987fec) -> Sent ... attempt=1`
+    - series summary from the runner: `min=61.48 KB/s avg=62.89 KB/s max=63.75 KB/s`
+  - later immediate 5-run repeat series:
+    - `/tmp/ios_meshlink_headless_samsung_autosendfixdemo5_1` through `_5`
+      - sender runs retained `62.99`, `60.38`, `62.26`, `62.62`, and `63.81 KB/s`
+      - passive Samsung proof logs retained matching `BENCHMARK receipt send(...) -> Sent ... attempt=1` lines for all five runs
+    - series summary from the runner: `min=60.38 KB/s avg=62.41 KB/s max=63.81 KB/s`
 - OPPO immediate 3-run repeat series:
   - `/tmp/ios_meshlink_headless_oppo_autosendfixdemo_1`
     - sender: `BENCHMARK transport bytes=65536 elapsedMs=825 throughputKBps=77.58 result=Sent`
@@ -1696,8 +1702,8 @@ Fresh retained evidence after the de-duplication fix:
 Updated interpretation after the repeat series:
 
 - the latest current-head product path is now above the normative iOS target on
-  both reference peers not just on isolated reruns, but also on an immediate
-  retained 3-run series after the proof auto-send de-duplication fix
+  both reference peers not just on isolated reruns, but also on immediate
+  retained repeat series after the proof auto-send de-duplication fix
 - the remaining risk here is no longer a transport-side throughput blocker but
   ordinary physical-link variance and environmental noise, which is now visible
   through the repeat-series summaries instead of being conflated with a proof-

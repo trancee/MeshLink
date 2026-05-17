@@ -32,9 +32,9 @@ explicit waiver / known limitation.
   `77.02-78.24 KB/s` across `/tmp/ios_meshlink_headless_oppo_inlinesuspend_1`
   and `/tmp/ios_meshlink_headless_oppo_routeguard_1`.
 - **Current-head repeat-series evidence**: after proof auto-send task
-  de-duplication, fresh immediate 3-run retained series now stay above target
-  on both reference peers: Samsung `61.48-63.75 KB/s` (avg `62.89 KB/s`) and
-  OPPO `74.51-79.50 KB/s` (avg `77.20 KB/s`).
+  de-duplication, fresh immediate retained series now stay above target on both
+  reference peers: Samsung `60.38-63.81 KB/s` across 5 runs (avg `62.41 KB/s`)
+  and OPPO `74.51-79.50 KB/s` across 3 runs (avg `77.20 KB/s`).
 - **Winning current-head remediations**: large inline sends now suspend
   discovery for the scored send window, and the iPhone proof app both
   reschedules auto-send when a direct route recovers after a transient
