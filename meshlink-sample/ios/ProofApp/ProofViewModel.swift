@@ -241,6 +241,29 @@ final class ProofViewModel: ObservableObject {
         appendLog(
             "DIAG \(diagnostic.code) stage=\(diagnostic.stage) reason=\(reasonText)\(metadataSuffix)"
         )
+        recoverPeerFromRouteDiagnosticIfNeeded(diagnostic)
+    }
+
+    private func recoverPeerFromRouteDiagnosticIfNeeded(_ diagnostic: DiagnosticEvent) {
+        guard launchConfig.benchmarkTransport == .meshLink else {
+            return
+        }
+        guard diagnostic.code == .routeDiscovered else {
+            return
+        }
+        guard diagnostic.metadata["routeIsDirect"] == "true" else {
+            return
+        }
+        let recoveredPeerValue =
+            diagnostic.metadata["peerId"] ??
+            diagnostic.metadata["destinationPeerId"] ??
+            diagnostic.metadata["connectedPeerId"]
+        guard let recoveredPeerValue else {
+            return
+        }
+        let recoveredPeer = PeerId(value: recoveredPeerValue)
+        peers = insertOrReplace(recoveredPeer, into: peers)
+        scheduleAutoSend(for: recoveredPeer)
     }
 
     private func handleInboundMessage(_ value: Any?) {
