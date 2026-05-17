@@ -64,6 +64,7 @@ internal class AndroidGattNotifyClient(
                 )
                 if (newState == BluetoothProfile.STATE_CONNECTED) {
                     gatt.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_HIGH)
+                    requestFastPhyIfSupported(gatt)
                     servicesDiscoveryStarted = false
                     val requestedMtu = gatt.requestMtu(517)
                     if (!requestedMtu) {
@@ -85,6 +86,7 @@ internal class AndroidGattNotifyClient(
                 log(
                     "GATT notify side link ${peerHintId.value.takeLast(6)} mtu=$mtu status=$status"
                 )
+                requestFastPhyIfSupported(gatt)
                 if (status == BluetoothGatt.GATT_SUCCESS) {
                     currentMtu = mtu
                 }
@@ -92,6 +94,12 @@ internal class AndroidGattNotifyClient(
                     servicesDiscoveryStarted = true
                     gatt.discoverServices()
                 }
+            }
+
+            override fun onPhyUpdate(gatt: BluetoothGatt, txPhy: Int, rxPhy: Int, status: Int) {
+                log(
+                    "GATT notify side link ${peerHintId.value.takeLast(6)} phy tx=$txPhy rx=$rxPhy status=$status"
+                )
             }
 
             @Suppress("OVERRIDE_DEPRECATION", "DEPRECATION")
@@ -363,6 +371,23 @@ internal class AndroidGattNotifyClient(
             device.connectGatt(context, false, callback, BluetoothDevice.TRANSPORT_LE)
         } else {
             device.connectGatt(context, false, callback)
+        }
+    }
+
+    private fun requestFastPhyIfSupported(gatt: BluetoothGatt): Unit {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            return
+        }
+        runCatching {
+            gatt.setPreferredPhy(
+                BluetoothDevice.PHY_LE_2M_MASK,
+                BluetoothDevice.PHY_LE_2M_MASK,
+                BluetoothDevice.PHY_OPTION_NO_PREFERRED,
+            )
+        }.onFailure { error ->
+            log(
+                "GATT notify side link ${peerHintId.value.takeLast(6)} preferred PHY request failed: ${error.message.orEmpty()}"
+            )
         }
     }
 
