@@ -1453,3 +1453,81 @@ Engineering learnings worth retaining:
   callback-ordering bugs, not new evidence that the encrypted MeshLink frame
   format or nonce model is fundamentally incompatible with the GATT-notify side
   bearer
+
+### Headless current-HEAD inline mixed-bearer reruns (2026-05-17)
+
+A final 2026-05-17 follow-up then moved the current branch off the earlier
+chunked mixed-bearer path and back onto the large inline direct path for mixed
+Android/iOS peers, while also fixing the ad-hoc physical-run harness that had
+started to look hung even after the benchmark itself had already finished.
+
+Runner / harness finding:
+
+- the previous one-off `devicectl` capture wrapper was not hanging in MeshLink;
+  it was hanging in the host-side harness because it blocked forever on a quiet
+  stdout stream after the benchmark result line while the proof app stayed
+  alive
+- the retained fix is now the repository-local headless runner
+  `benchmarks/scripts/run_headless_meshlink_benchmark.py`, which uses a hard
+  capture timeout plus idle-aware, non-blocking console reads so a finished run
+  can be retained deterministically
+
+Product-path change under test:
+
+- mixed Android/iOS peers now expose a large logical
+  `maximumPayloadBytesPerDelivery` for the GATT side bearer, which keeps 64 KiB
+  sends on the large inline direct path instead of forcing the slower
+  `TransferChunk` product path on every mixed-bearer run
+- iOS mixed-bearer direct data also now treats the GATT side link as required
+  once that bearer is selected, instead of silently falling back while the side
+  link is still unavailable
+- the iOS GATT-notify pump now schedules explicit retry polls when
+  `CBPeripheralManager.updateValue` returns `false`, so a single pending inline
+  frame cannot stall forever waiting for another callback or another enqueue to
+  restart the pump
+
+Fresh retained evidence on current HEAD:
+
+- OPPO current-head headless reruns:
+  - `/tmp/ios_meshlink_headless_oppo_inlineprobe4`
+    - sender: `BENCHMARK transport bytes=65536 elapsedMs=968 throughputKBps=66.12 result=Sent`
+    - passive OPPO: `BENCHMARK receipt send(ab4526) -> Sent ... attempt=1`
+  - `/tmp/ios_meshlink_headless_oppo_series_20260517T183530_1`
+    - sender: `BENCHMARK transport bytes=65536 elapsedMs=905 throughputKBps=70.72 result=Sent`
+    - passive OPPO: `BENCHMARK receipt send(78bf24) -> Sent ... attempt=1`
+  - `/tmp/ios_meshlink_headless_oppo_inlineprobe5`
+    - sender: `BENCHMARK transport bytes=65536 elapsedMs=893 throughputKBps=71.67 result=Sent`
+    - passive OPPO: `BENCHMARK receipt send(c1117d) -> Sent ... attempt=1`
+- Samsung current-head headless reruns:
+  - `/tmp/ios_meshlink_headless_samsung_inlineprobe4`
+    - sender: `BENCHMARK transport bytes=65536 elapsedMs=1141 throughputKBps=56.09 result=Sent`
+    - passive Samsung: `BENCHMARK receipt send(17342a) -> Sent ... attempt=1`
+  - `/tmp/ios_meshlink_headless_samsung_series_20260517T183430_2`
+    - sender: `BENCHMARK transport bytes=65536 elapsedMs=1085 throughputKBps=58.99 result=Sent`
+    - passive Samsung: `BENCHMARK receipt send(c2df0c) -> Sent ... attempt=1`
+  - `/tmp/ios_meshlink_headless_samsung_inlineprobe6`
+    - sender: `BENCHMARK transport bytes=65536 elapsedMs=1214 throughputKBps=52.72 result=Sent`
+    - passive Samsung: `BENCHMARK receipt send(f87f09) -> Sent ... attempt=1`
+
+Additional narrowing evidence:
+
+- Samsung now retains explicit `phy tx=2 rx=2 status=0` lines after the Android
+  GATT client requests LE 2M PHY, so the remaining Samsung gap is not explained
+  by a missing explicit 2M request alone
+- OPPO and Samsung both retain recipient-confirmed proof closure on current
+  HEAD; the remaining difference is therefore throughput class, not correctness
+  or receipt-path stability
+- Samsung still retains materially more `updateValue(false)` / retry cycles than
+  OPPO on the same current branch, which keeps the likely bottleneck in the
+  central/peripheral controller scheduling and connection-event behavior rather
+  than in MeshLink framing correctness
+
+Updated interpretation:
+
+- the current future branch now clears the normative iOS target on the OPPO
+  reference peer with retained product-path evidence
+- Samsung still does not clear the same target on current HEAD; the retained
+  Samsung series currently lands in the `52.72-58.99 KB/s` class
+- the remaining blocker is therefore narrower again: not mixed-bearer
+  correctness, not headless-runner stability, and not OPPO, but Samsung-side
+  large-transfer throughput against the `>= 60 KB/s` iOS requirement

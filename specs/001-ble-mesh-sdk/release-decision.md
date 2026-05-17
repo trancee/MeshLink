@@ -143,9 +143,18 @@ completed recipient-confirmed 64 KiB delivery on both reference peers:
 
 Phase 21/22 is therefore no longer blocked on the original `NSData` seam,
 forward transfer completion, or recipient-confirmed mixed-bearer proof
-closure. This future branch still does **not** close iOS `SC-004` without the
-release waiver because both retained product-path runs remain below the
-normative iOS target of `>= 60 KB/s`.
+closure.
+
+**Latest current-HEAD throughput update (2026-05-17):** a later inline
+mixed-bearer follow-up plus a new headless physical runner pushed the OPPO
+reference peer over the normative iOS target, but not Samsung. Fresh retained
+OPPO headless reruns now retain `66.12-71.67 KB/s` with recipient-confirmed
+closure, while fresh retained Samsung headless reruns retain only
+`52.72-58.99 KB/s` on the same branch. The Android GATT client now explicitly
+requests LE 2M PHY and Samsung retains `phy tx=2 rx=2`, so the remaining gap no
+longer looks like a missing PHY negotiation request. This future branch still
+does **not** close iOS `SC-004` without the release waiver because Samsung
+remains below the normative `>= 60 KB/s` target.
 
 This future branch does not change the current release claims or waiver
 guardrails.

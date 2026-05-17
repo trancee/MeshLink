@@ -71,6 +71,21 @@ xcrun devicectl device process launch \
 The physical launch path now works on the attached iPhone 15 once a local
 development team is supplied at build time.
 
+For retained headless physical benchmarks, prefer the repository runner:
+
+```bash
+DEVELOPMENT_TEAM=<your-team-id> \
+  benchmarks/scripts/run_headless_meshlink_benchmark.py \
+  --android-serial <android-serial> \
+  --ios-device <your-device-udid> \
+  --payload-bytes 65536
+```
+
+The runner exists because a naive `devicectl --console` wrapper can appear to
+hang after the scored benchmark line if the proof app stays alive but quiet.
+The retained runner uses a hard timeout plus idle-aware console capture so the
+logs always close cleanly.
+
 ## Current validation status
 
 Verified in this repository state:
@@ -114,9 +129,14 @@ Physical proof findings on iPhone 15:
   UNREACHABLE)`, and OPPO still has a sender-side `TRANSFER_TIMED_OUT` rerun on
   the same branch
 - the earlier stricter recipient-confirmed `ReceiptTimeout` matrix is now
-  historical diagnostic evidence only; the current deterministic mixed-platform
-  path completes recipient-confirmed Samsung and OPPO 64 KiB proof runs cleanly,
-  but still below the normative throughput target
+  historical diagnostic evidence only
+- the latest current-head inline mixed-bearer physical reruns now split by
+  reference peer: OPPO headless reruns reached `66.12-71.67 KB/s` with passive
+  proof receipts retained on attempt 1, while Samsung headless reruns reached
+  `52.72-58.99 KB/s` with the same recipient-confirmed closure
+- current iOS `SC-004` therefore remains blocked only by Samsung-path
+  throughput, not by mixed-bearer correctness, headless harness stability, or
+  OPPO performance
 
 Shared harness evidence now also covers the common US2 runtime:
 

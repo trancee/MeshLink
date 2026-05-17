@@ -180,10 +180,13 @@ with a matching passive `BENCHMARK receipt send(651947) -> Sent ... attempt=1`,
 and OPPO (`/tmp/ios_meshlink_gattside_oppo_writecap_20260517T155015`) retained
 `BENCHMARK transport bytes=65536 elapsedMs=1218 throughputKBps=52.55 result=Sent`
 with a matching passive `BENCHMARK receipt send(320fdf) -> Sent ... attempt=1`.
-The product-path mixed-bearer branch is therefore no longer blocked on reverse
-receipt closure or cross-peer stability on the reference peers, but it still
-does not satisfy iOS `SC-004` because both retained runs remain below the
-normative `>= 60 KB/s` throughput target.
+A later current-HEAD inline mixed-bearer follow-up narrowed the throughput gap
+again: fresh headless OPPO reruns now retain `66.12-71.67 KB/s` with
+recipient-confirmed closure, while fresh headless Samsung reruns retain only
+`52.72-58.99 KB/s` on the same branch. The product-path mixed-bearer branch is
+therefore no longer blocked on reverse receipt closure or cross-peer stability,
+but it still does not satisfy iOS `SC-004` across the reference matrix because
+Samsung remains below the normative `>= 60 KB/s` throughput target.
 
 **Normative evidence-gap status after follow-up coverage closure (2026-05-14):**
 
