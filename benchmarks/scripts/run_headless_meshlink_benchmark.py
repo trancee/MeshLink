@@ -1,0 +1,415 @@
+#!/usr/bin/env python3
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import selectors
+import shlex
+import signal
+import subprocess
+import sys
+import tempfile
+import time
+from pathlib import Path
+from typing import Iterable
+
+
+IOS_BUNDLE_ID = "ch.trancee.meshlink.proof.ios"
+ANDROID_PACKAGE = "ch.trancee.meshlink.proof.android"
+ANDROID_ACTIVITY = f"{ANDROID_PACKAGE}/.MainActivity"
+DEFAULT_CAPTURE_TIMEOUT_SECONDS = 120
+DEFAULT_POST_RESULT_IDLE_SECONDS = 5
+DEFAULT_ANDROID_READY_SECONDS = 8
+DEFAULT_LOGCAT_TAGS = ["MeshLinkTransport:D", "MeshLinkProof:I", "*:S"]
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description=(
+            "Run a headless physical MeshLink benchmark with an Android passive proof app "
+            "and an iPhone sender without hanging on quiet devicectl console streams."
+        )
+    )
+    parser.add_argument("--android-serial", required=True, help="ADB serial of the passive Android peer")
+    parser.add_argument("--ios-device", required=True, help="CoreDevice identifier of the iPhone sender")
+    parser.add_argument("--payload-bytes", type=int, required=True, help="Benchmark payload size in bytes")
+    parser.add_argument(
+        "--app-id",
+        help=(
+            "Explicit app ID shared by both proof apps. "
+            "Defaults to demo.meshlink.benchmark.headless.<timestamp>."
+        ),
+    )
+    parser.add_argument(
+        "--benchmark-transport",
+        default="meshlink",
+        choices=["meshlink", "gatt", "gatt-notify"],
+        help="Benchmark transport selector passed to the proof apps",
+    )
+    parser.add_argument(
+        "--run-dir",
+        help="Directory for retained logs and metadata. Defaults to /tmp/ios_meshlink_headless_<timestamp>",
+    )
+    parser.add_argument(
+        "--android-ready-seconds",
+        type=float,
+        default=DEFAULT_ANDROID_READY_SECONDS,
+        help="Sleep after launching the Android proof app before starting the iPhone sender",
+    )
+    parser.add_argument(
+        "--capture-timeout-seconds",
+        type=float,
+        default=DEFAULT_CAPTURE_TIMEOUT_SECONDS,
+        help="Hard timeout for the iPhone console capture loop",
+    )
+    parser.add_argument(
+        "--post-result-idle-seconds",
+        type=float,
+        default=DEFAULT_POST_RESULT_IDLE_SECONDS,
+        help="How long to wait after the benchmark result line before stopping console capture",
+    )
+    parser.add_argument(
+        "--skip-ios-build",
+        action="store_true",
+        help="Skip xcodebuild and reuse the latest built ProofApp.app",
+    )
+    parser.add_argument(
+        "--skip-ios-install",
+        action="store_true",
+        help="Skip devicectl install and reuse the currently installed iPhone app",
+    )
+    parser.add_argument(
+        "--disable-auto-send",
+        action="store_true",
+        default=True,
+        help="Launch the Android proof app in passive mode without its own sender auto-send",
+    )
+    parser.add_argument(
+        "--no-disable-auto-send",
+        dest="disable_auto_send",
+        action="store_false",
+        help="Allow Android proof auto-send instead of launching passively",
+    )
+    return parser.parse_args()
+
+
+def timestamp() -> str:
+    return time.strftime("%Y%m%dT%H%M%S")
+
+
+def shell_join(command: Iterable[str]) -> str:
+    return " ".join(shlex.quote(part) for part in command)
+
+
+def run(command: list[str], *, check: bool = True, capture_output: bool = False, text: bool = True) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(command, check=check, capture_output=capture_output, text=text)
+
+
+class BackgroundProcess:
+    def __init__(self, process: subprocess.Popen[str]) -> None:
+        self.process = process
+
+    def stop(self) -> None:
+        if self.process.poll() is not None:
+            return
+        self.process.terminate()
+        try:
+            self.process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            self.process.kill()
+            self.process.wait(timeout=5)
+
+
+class IOSConsoleCapture:
+    def __init__(
+        self,
+        *,
+        device: str,
+        bundle_id: str,
+        env: dict[str, str],
+        log_path: Path,
+        result_marker: str,
+        timeout_seconds: float,
+        post_result_idle_seconds: float,
+    ) -> None:
+        self.device = device
+        self.bundle_id = bundle_id
+        self.env = env
+        self.log_path = log_path
+        self.result_marker = result_marker
+        self.timeout_seconds = timeout_seconds
+        self.post_result_idle_seconds = post_result_idle_seconds
+        self.result_line: str | None = None
+        self.process: subprocess.Popen[str] | None = None
+
+    def launch(self) -> bool:
+        command = [
+            "xcrun",
+            "devicectl",
+            "device",
+            "process",
+            "launch",
+            "--device",
+            self.device,
+            "--terminate-existing",
+            "--console",
+            "-e",
+            json.dumps(self.env),
+            self.bundle_id,
+        ]
+        self.process = subprocess.Popen(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+        )
+        assert self.process.stdout is not None
+
+        selector = selectors.DefaultSelector()
+        selector.register(self.process.stdout, selectors.EVENT_READ)
+        started_at = time.monotonic()
+        result_seen_at: float | None = None
+
+        with self.log_path.open("w", encoding="utf-8") as log_file:
+            while True:
+                now = time.monotonic()
+                if result_seen_at is not None and now - result_seen_at >= self.post_result_idle_seconds:
+                    return True
+                if now - started_at >= self.timeout_seconds:
+                    return False
+
+                events = selector.select(timeout=0.5)
+                if not events:
+                    if self.process.poll() is not None:
+                        return result_seen_at is not None
+                    continue
+
+                for key, _ in events:
+                    line = key.fileobj.readline()
+                    if line == "":
+                        if self.process.poll() is not None:
+                            return result_seen_at is not None
+                        continue
+                    log_file.write(line)
+                    log_file.flush()
+                    if self.result_marker in line:
+                        self.result_line = line.strip()
+                        result_seen_at = time.monotonic()
+        
+    def stop(self) -> None:
+        if self.process is None or self.process.poll() is not None:
+            return
+        self.process.terminate()
+        try:
+            self.process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            self.process.kill()
+            self.process.wait(timeout=5)
+
+
+def require_development_team() -> str:
+    team = os.environ.get("DEVELOPMENT_TEAM", "").strip()
+    if not team:
+        raise SystemExit(
+            "DEVELOPMENT_TEAM is required unless --skip-ios-build is used. "
+            "Export it in your shell instead of hardcoding it in the repo."
+        )
+    return team
+
+
+def latest_built_app() -> Path:
+    derived_data = Path.home() / "Library/Developer/Xcode/DerivedData"
+    candidates = sorted(
+        derived_data.glob("ProofApp-*/Build/Products/Debug-iphoneos/ProofApp.app"),
+        key=lambda path: path.stat().st_mtime,
+        reverse=True,
+    )
+    if not candidates:
+        raise SystemExit("Could not find a built ProofApp.app in Xcode DerivedData")
+    return candidates[0]
+
+
+def build_ios_app(ios_device: str) -> Path:
+    development_team = require_development_team()
+    command = [
+        "xcodebuild",
+        "-project",
+        "meshlink-sample/ios/ProofApp.xcodeproj",
+        "-scheme",
+        "ProofApp",
+        "-destination",
+        f"id={ios_device}",
+        "-allowProvisioningUpdates",
+        f"DEVELOPMENT_TEAM={development_team}",
+        "build",
+    ]
+    print(f"==> Building iPhone app: {shell_join(command[:-2] + ['DEVELOPMENT_TEAM=<redacted>', 'build'])}")
+    with tempfile.NamedTemporaryFile(prefix="proofapp-build.", delete=False) as raw_log:
+        log_path = Path(raw_log.name)
+    with log_path.open("w", encoding="utf-8") as log_file:
+        result = subprocess.run(command, stdout=log_file, stderr=subprocess.STDOUT, text=True)
+    log_text = log_path.read_text(encoding="utf-8", errors="replace").replace(development_team, "<redacted>")
+    if result.returncode != 0:
+        print("==> iPhone build failed; tail follows:", file=sys.stderr)
+        print("\n".join(log_text.splitlines()[-40:]), file=sys.stderr)
+        raise SystemExit(result.returncode)
+    print("==> iPhone build succeeded")
+    return latest_built_app()
+
+
+def install_ios_app(ios_device: str, app_path: Path) -> None:
+    command = [
+        "xcrun",
+        "devicectl",
+        "device",
+        "install",
+        "app",
+        "--device",
+        ios_device,
+        str(app_path),
+    ]
+    print(f"==> Installing iPhone app: {shell_join(command)}")
+    run(command)
+
+
+def start_android_app(run_dir: Path, android_serial: str, app_id: str, benchmark_transport: str, disable_auto_send: bool) -> BackgroundProcess:
+    logcat_path = run_dir / "android_logcat.log"
+    subprocess.run(["adb", "-s", android_serial, "shell", "am", "force-stop", ANDROID_PACKAGE], check=False)
+    run(["adb", "-s", android_serial, "logcat", "-c"])
+    logcat = subprocess.Popen(
+        ["adb", "-s", android_serial, "logcat", *DEFAULT_LOGCAT_TAGS],
+        stdout=logcat_path.open("w", encoding="utf-8"),
+        stderr=subprocess.STDOUT,
+        text=True,
+    )
+
+    command = [
+        "adb",
+        "-s",
+        android_serial,
+        "shell",
+        "am",
+        "start",
+        "-n",
+        ANDROID_ACTIVITY,
+        "--es",
+        "meshlink.appId",
+        app_id,
+    ]
+    if disable_auto_send:
+        command += ["--ez", "meshlink.disableAutoSend", "true"]
+    if benchmark_transport != "meshlink":
+        command += ["--es", "meshlink.benchmarkTransport", benchmark_transport]
+
+    start_output = run(command, capture_output=True)
+    (run_dir / "start.txt").write_text(start_output.stdout + start_output.stderr, encoding="utf-8")
+    return BackgroundProcess(logcat)
+
+
+def capture_android_proof_log(run_dir: Path, android_serial: str) -> None:
+    command = [
+        "adb",
+        "-s",
+        android_serial,
+        "exec-out",
+        "run-as",
+        ANDROID_PACKAGE,
+        "cat",
+        "files/proof.log",
+    ]
+    result = subprocess.run(command, check=False, capture_output=True, text=True)
+    (run_dir / "android_proof.log").write_text(result.stdout, encoding="utf-8")
+
+
+def summarize(run_dir: Path, payload_bytes: int) -> None:
+    iphone_lines = (run_dir / "iphone_console.log").read_text(encoding="utf-8", errors="replace").splitlines()
+    android_logcat = (run_dir / "android_logcat.log").read_text(encoding="utf-8", errors="replace").splitlines()
+    android_proof_path = run_dir / "android_proof.log"
+    android_proof_lines = android_proof_path.read_text(encoding="utf-8", errors="replace").splitlines() if android_proof_path.exists() else []
+
+    def first_match(lines: list[str], needle: str) -> str | None:
+        for line in lines:
+            if needle in line:
+                return line
+        return None
+
+    print("==> Retained run directory:", run_dir)
+    print("==> iPhone benchmark result:", first_match(iphone_lines, f"BENCHMARK transport bytes={payload_bytes}") or "missing")
+    print("==> iPhone receipt line:", first_match(iphone_lines, "BENCHMARK receipt from") or "missing")
+    print("==> Android proof receipt send:", first_match(android_logcat, "BENCHMARK receipt send") or first_match(android_proof_lines, "BENCHMARK receipt send") or "missing")
+    print("==> Android proof message:", first_match(android_logcat, "MSG from") or first_match(android_proof_lines, "MSG from") or "missing")
+
+
+def main() -> int:
+    args = parse_args()
+    run_dir = Path(args.run_dir or f"/tmp/ios_meshlink_headless_{timestamp()}")
+    run_dir.mkdir(parents=True, exist_ok=True)
+
+    app_id = args.app_id or f"demo.meshlink.benchmark.headless.{timestamp()}"
+    meta = {
+        "app_id": app_id,
+        "android_serial": args.android_serial,
+        "ios_device": args.ios_device,
+        "payload_bytes": str(args.payload_bytes),
+        "benchmark_transport": args.benchmark_transport,
+    }
+    (run_dir / "meta.txt").write_text(
+        "".join(f"{key}={value}\n" for key, value in meta.items()),
+        encoding="utf-8",
+    )
+
+    app_path = latest_built_app() if args.skip_ios_build else build_ios_app(args.ios_device)
+    if not args.skip_ios_install:
+        install_ios_app(args.ios_device, app_path)
+
+    logcat_process = start_android_app(
+        run_dir=run_dir,
+        android_serial=args.android_serial,
+        app_id=app_id,
+        benchmark_transport=args.benchmark_transport,
+        disable_auto_send=args.disable_auto_send,
+    )
+
+    capture = IOSConsoleCapture(
+        device=args.ios_device,
+        bundle_id=IOS_BUNDLE_ID,
+        env={
+            "MESHLINK_APP_ID": app_id,
+            "MESHLINK_BENCHMARK_PAYLOAD_BYTES": str(args.payload_bytes),
+            **(
+                {"MESHLINK_BENCHMARK_TRANSPORT": args.benchmark_transport}
+                if args.benchmark_transport != "meshlink"
+                else {}
+            ),
+        },
+        log_path=run_dir / "iphone_console.log",
+        result_marker=f"BENCHMARK transport bytes={args.payload_bytes}",
+        timeout_seconds=args.capture_timeout_seconds,
+        post_result_idle_seconds=args.post_result_idle_seconds,
+    )
+
+    try:
+        print(f"==> Waiting {args.android_ready_seconds} seconds for the Android proof app to initialize")
+        time.sleep(args.android_ready_seconds)
+        print("==> Launching headless iPhone sender via devicectl")
+        benchmark_line_seen = capture.launch()
+    finally:
+        capture.stop()
+        logcat_process.stop()
+        capture_android_proof_log(run_dir, args.android_serial)
+
+    summarize(run_dir, args.payload_bytes)
+    if not benchmark_line_seen:
+        print(
+            f"ERROR: did not observe BENCHMARK transport bytes={args.payload_bytes} within {args.capture_timeout_seconds} seconds",
+            file=sys.stderr,
+        )
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
