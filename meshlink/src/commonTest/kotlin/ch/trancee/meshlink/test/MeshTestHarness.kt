@@ -74,6 +74,10 @@ internal class MeshTestHarness {
         return handle.transport.clearedQueuedOutboundPeers()
     }
 
+    internal fun discoverySuspendedTransitions(handle: NodeHandle): List<Boolean> {
+        return handle.transport.discoverySuspendedTransitions()
+    }
+
     internal fun setMaximumPayloadBytesPerDelivery(limit: Int?): Unit {
         network.setMaximumPayloadBytesPerDelivery(limit)
     }

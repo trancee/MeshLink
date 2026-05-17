@@ -675,64 +675,80 @@ private constructor(
         val startedAt = TimeSource.Monotonic.markNow()
         var attempt = 0
         var topologyVersion = routeCoordinator.topologyVersion.value
-        while (startedAt.elapsedNow() < config.deliveryRetryDeadline) {
-            when (
-                val sendResult =
-                    attemptInlineSend(peerId = peerId, payload = payload, priority = priority)
-            ) {
-                is SendResult.Sent -> return sendResult
-                is SendResult.NotSent -> {
-                    if (sendResult.reason != SendFailureReason.UNREACHABLE) {
-                        return sendResult
+        val suspendDiscoveryDuringSend = payload.size > INLINE_MESSAGE_PAYLOAD_BYTES
+
+        if (suspendDiscoveryDuringSend) {
+            runPlatformCall("inline.discoverySuspend") {
+                bleTransport?.setDiscoverySuspended(true)
+            }
+        }
+
+        try {
+            while (startedAt.elapsedNow() < config.deliveryRetryDeadline) {
+                when (
+                    val sendResult =
+                        attemptInlineSend(peerId = peerId, payload = payload, priority = priority)
+                ) {
+                    is SendResult.Sent -> return sendResult
+                    is SendResult.NotSent -> {
+                        if (sendResult.reason != SendFailureReason.UNREACHABLE) {
+                            return sendResult
+                        }
                     }
                 }
+                emitDiagnostic(
+                    code = DiagnosticCode.DELIVERY_RETRY_SCHEDULED,
+                    severity = DiagnosticSeverity.WARN,
+                    stage = "delivery.retryScheduled",
+                    peerSuffix = peerId.value.takeLast(6),
+                    reason = DiagnosticReason.DELIVERY_RETRY,
+                    metadata =
+                        peerRouteMetadata(peerId, metadata = mapOf("attempt" to attempt.toString())),
+                )
+                when (
+                    val wakeup =
+                        deliveryRetryScheduler.awaitRetry(
+                            attempt = attempt,
+                            remainingBudget = config.deliveryRetryDeadline - startedAt.elapsedNow(),
+                            lastObservedTopologyVersion = topologyVersion,
+                        )
+                ) {
+                    is RetryWakeup.DeadlineExpired -> break
+                    is RetryWakeup.TimerElapsed -> {
+                        topologyVersion = wakeup.topologyVersion
+                        attempt += 1
+                    }
+                    is RetryWakeup.TopologyChanged -> {
+                        topologyVersion = wakeup.topologyVersion
+                        attempt = 0
+                    }
+                }
+                emitDiagnostic(
+                    code = DiagnosticCode.DELIVERY_RETRYING,
+                    severity = DiagnosticSeverity.WARN,
+                    stage = "delivery.retrying",
+                    peerSuffix = peerId.value.takeLast(6),
+                    reason = DiagnosticReason.DELIVERY_RETRY,
+                    metadata =
+                        peerRouteMetadata(peerId, metadata = mapOf("attempt" to attempt.toString())),
+                )
             }
             emitDiagnostic(
-                code = DiagnosticCode.DELIVERY_RETRY_SCHEDULED,
-                severity = DiagnosticSeverity.WARN,
-                stage = "delivery.retryScheduled",
+                code = DiagnosticCode.DELIVERY_UNREACHABLE,
+                severity = DiagnosticSeverity.ERROR,
+                stage = "delivery.retryExpired",
                 peerSuffix = peerId.value.takeLast(6),
-                reason = DiagnosticReason.DELIVERY_RETRY,
-                metadata =
-                    peerRouteMetadata(peerId, metadata = mapOf("attempt" to attempt.toString())),
+                reason = DiagnosticReason.DELIVERY_FAILURE,
+                metadata = peerRouteMetadata(peerId),
             )
-            when (
-                val wakeup =
-                    deliveryRetryScheduler.awaitRetry(
-                        attempt = attempt,
-                        remainingBudget = config.deliveryRetryDeadline - startedAt.elapsedNow(),
-                        lastObservedTopologyVersion = topologyVersion,
-                    )
-            ) {
-                is RetryWakeup.DeadlineExpired -> break
-                is RetryWakeup.TimerElapsed -> {
-                    topologyVersion = wakeup.topologyVersion
-                    attempt += 1
-                }
-                is RetryWakeup.TopologyChanged -> {
-                    topologyVersion = wakeup.topologyVersion
-                    attempt = 0
+            return SendResult.NotSent(SendFailureReason.UNREACHABLE)
+        } finally {
+            if (suspendDiscoveryDuringSend) {
+                runPlatformCall("inline.discoveryResume") {
+                    bleTransport?.setDiscoverySuspended(false)
                 }
             }
-            emitDiagnostic(
-                code = DiagnosticCode.DELIVERY_RETRYING,
-                severity = DiagnosticSeverity.WARN,
-                stage = "delivery.retrying",
-                peerSuffix = peerId.value.takeLast(6),
-                reason = DiagnosticReason.DELIVERY_RETRY,
-                metadata =
-                    peerRouteMetadata(peerId, metadata = mapOf("attempt" to attempt.toString())),
-            )
         }
-        emitDiagnostic(
-            code = DiagnosticCode.DELIVERY_UNREACHABLE,
-            severity = DiagnosticSeverity.ERROR,
-            stage = "delivery.retryExpired",
-            peerSuffix = peerId.value.takeLast(6),
-            reason = DiagnosticReason.DELIVERY_FAILURE,
-            metadata = peerRouteMetadata(peerId),
-        )
-        return SendResult.NotSent(SendFailureReason.UNREACHABLE)
     }
 
     private suspend fun attemptInlineSend(

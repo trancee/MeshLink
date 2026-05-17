@@ -17,6 +17,7 @@ internal class VirtualMeshTransport(
     private var eventChannel: Channel<TransportEvent> = Channel(capacity = Channel.UNLIMITED)
     private val sentFrames: MutableList<ByteArray> = mutableListOf()
     private val clearedQueuedOutboundPeers: MutableList<String> = mutableListOf()
+    private val discoverySuspendedTransitions: MutableList<Boolean> = mutableListOf()
     private val discoveredPeerModes: MutableMap<String, TransportMode> = linkedMapOf()
     private var started: Boolean = false
 
@@ -48,6 +49,10 @@ internal class VirtualMeshTransport(
 
     override fun maximumPayloadBytesPerDelivery(peerId: PeerId): Int? {
         return network.maximumPayloadBytesPerDelivery()
+    }
+
+    override suspend fun setDiscoverySuspended(suspended: Boolean): Unit {
+        discoverySuspendedTransitions += suspended
     }
 
     override suspend fun clearQueuedOutboundFrames(peerId: PeerId): Unit {
@@ -108,5 +113,9 @@ internal class VirtualMeshTransport(
 
     internal fun clearedQueuedOutboundPeers(): List<PeerId> {
         return clearedQueuedOutboundPeers.map(::PeerId)
+    }
+
+    internal fun discoverySuspendedTransitions(): List<Boolean> {
+        return discoverySuspendedTransitions.toList()
     }
 }

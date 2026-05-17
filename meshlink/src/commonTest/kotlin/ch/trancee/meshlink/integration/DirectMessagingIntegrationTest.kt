@@ -183,6 +183,33 @@ class DirectMessagingIntegrationTest {
         assertEquals(plaintext, receivedMessage.payload.decodeToString())
     }
 
+    @Test
+    fun `large inline sends suspend discovery until delivery finishes`() = runBlocking {
+        // Arrange
+        val harness = MeshTestHarness()
+        val sender = harness.createNode("peer-a")
+        val receiver = harness.createNode("peer-b")
+        val payload = ByteArray(65_536) { index -> (index % 251).toByte() }
+        harness.setMaximumPayloadBytesPerDelivery(128 * 1024)
+
+        sender.api.start()
+        receiver.api.start()
+        delay(250)
+        val receivedMessageDeferred =
+            async(start = CoroutineStart.UNDISPATCHED) {
+                withTimeout(1_000) { receiver.api.messages.first() }
+            }
+
+        // Act
+        val sendResult = sender.api.send(receiver.peerId, payload)
+        val receivedMessage = receivedMessageDeferred.await()
+
+        // Assert
+        assertIs<SendResult.Sent>(sendResult)
+        assertContentEquals(payload, receivedMessage.payload)
+        assertEquals(listOf(true, false), harness.discoverySuspendedTransitions(sender))
+    }
+
     private fun ByteArray.containsSubsequence(expected: ByteArray): Boolean {
         if (expected.isEmpty() || expected.size > size) {
             return false
