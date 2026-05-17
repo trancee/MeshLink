@@ -151,16 +151,21 @@ internal class AndroidGattNotifyClient(
                     return
                 }
                 val value = characteristic.value ?: return
-                log(
-                    "GATT notify side link ${peerHintId.value.takeLast(6)} received notification bytes=${value.size}"
-                )
-                val frames = frameBuffer.append(value)
-                frames.forEach { payload ->
-                    log(
-                        "GATT notify side link ${peerHintId.value.takeLast(6)} decoded frame bytes=${payload.size}"
-                    )
-                    onFrameReceived(peerHintId, payload)
+                handleNotificationValue(value.copyOf())
+            }
+
+            override fun onCharacteristicChanged(
+                gatt: BluetoothGatt,
+                characteristic: BluetoothGattCharacteristic,
+                value: ByteArray,
+            ) {
+                if (
+                    characteristic.uuid !=
+                        java.util.UUID.fromString(BleDiscoveryContract.GATT_NOTIFY_CHARACTERISTIC_UUID)
+                ) {
+                    return
                 }
+                handleNotificationValue(value.copyOf())
             }
 
             @Suppress("OVERRIDE_DEPRECATION", "DEPRECATION")
@@ -183,6 +188,19 @@ internal class AndroidGattNotifyClient(
                 completePendingWrite(success = status == BluetoothGatt.GATT_SUCCESS)
             }
         }
+
+    private fun handleNotificationValue(value: ByteArray): Unit {
+        log(
+            "GATT notify side link ${peerHintId.value.takeLast(6)} received notification bytes=${value.size}"
+        )
+        val frames = frameBuffer.append(value)
+        frames.forEach { payload ->
+            log(
+                "GATT notify side link ${peerHintId.value.takeLast(6)} decoded frame bytes=${payload.size}"
+            )
+            onFrameReceived(peerHintId, payload)
+        }
+    }
 
     fun start(): Unit {
         if (gatt != null) {
