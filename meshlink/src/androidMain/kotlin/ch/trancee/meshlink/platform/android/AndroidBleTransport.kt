@@ -43,6 +43,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelChildren
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -66,6 +67,7 @@ internal class AndroidBleTransport(
     private val gattNotifyClientsByHint: MutableMap<String, AndroidGattNotifyClient> = linkedMapOf()
     private val temporaryHintByAddress: MutableMap<String, String> = linkedMapOf()
     private val pendingConnectJobsByHint: MutableMap<String, Job> = linkedMapOf()
+    private val pendingConnectLock = Any()
     private val transportMutex = Mutex()
     private var inboundFrameEvents: Channel<TransportEvent.FrameReceived> =
         Channel(capacity = Channel.UNLIMITED)
@@ -486,42 +488,57 @@ internal class AndroidBleTransport(
             log("connectIfNeeded(${peer.hintPeerId.value.takeLast(6)}) skipped: no PSM")
             return
         }
-        if (
-            activeLinksByHint.containsKey(peer.hintPeerId.value) ||
-                pendingConnectJobsByHint.containsKey(peer.hintPeerId.value)
-        ) {
+        val adapter = bluetoothAdapter ?: return
+        val connectJob =
+            coroutineScope.launch(start = CoroutineStart.LAZY) {
+                runCatching {
+                        log(
+                            "connecting L2CAP to ${peer.hintPeerId.value.takeLast(6)} psm=${peer.l2capPsm} addr=${peer.device.address}"
+                        )
+                        val socket =
+                            AndroidL2capSocketFactory.createInsecure(
+                                device = peer.device,
+                                psm = peer.l2capPsm,
+                            ) { error ->
+                                log(
+                                    "explicit insecure L2CAP client socket fallback for ${peer.hintPeerId.value.takeLast(6)}: ${error.message.orEmpty()}"
+                                )
+                            }
+                        socket.connect()
+                        log("L2CAP connect succeeded for ${peer.hintPeerId.value.takeLast(6)}")
+                        discoveredPeers[peer.hintPeerId.value]?.rediscoveryLoggedWithoutLink = false
+                        registerConnectedSocket(peer.hintPeerId, socket)
+                    }
+                    .onFailure { error ->
+                        log(
+                            "L2CAP connect failed for ${peer.hintPeerId.value.takeLast(6)}: ${error.message.orEmpty()}"
+                        )
+                        discoveredPeers[peer.hintPeerId.value]?.rediscoveryLoggedWithoutLink = false
+                        closeQuietly(activeLinksByHint.remove(peer.hintPeerId.value))
+                    }
+                clearPendingConnect(peer.hintPeerId.value)
+            }
+        val reserved =
+            synchronized(pendingConnectLock) {
+                if (
+                    activeLinksByHint.containsKey(peer.hintPeerId.value) ||
+                        pendingConnectJobsByHint.containsKey(peer.hintPeerId.value)
+                ) {
+                    false
+                } else {
+                    pendingConnectJobsByHint[peer.hintPeerId.value] = connectJob
+                    true
+                }
+            }
+        if (!reserved) {
+            connectJob.cancel()
+            log(
+                "connectIfNeeded(${peer.hintPeerId.value.takeLast(6)}) skipped: already active or pending"
+            )
             return
         }
-        val adapter = bluetoothAdapter ?: return
-        pendingConnectJobsByHint[peer.hintPeerId.value] = coroutineScope.launch {
-            runCatching {
-                    log(
-                        "connecting L2CAP to ${peer.hintPeerId.value.takeLast(6)} psm=${peer.l2capPsm} addr=${peer.device.address}"
-                    )
-                    val socket =
-                        AndroidL2capSocketFactory.createInsecure(
-                            device = peer.device,
-                            psm = peer.l2capPsm,
-                        ) { error ->
-                            log(
-                                "explicit insecure L2CAP client socket fallback for ${peer.hintPeerId.value.takeLast(6)}: ${error.message.orEmpty()}"
-                            )
-                        }
-                    socket.connect()
-                    log("L2CAP connect succeeded for ${peer.hintPeerId.value.takeLast(6)}")
-                    discoveredPeers[peer.hintPeerId.value]?.rediscoveryLoggedWithoutLink = false
-                    registerConnectedSocket(peer.hintPeerId, socket)
-                }
-                .onFailure { error ->
-                    log(
-                        "L2CAP connect failed for ${peer.hintPeerId.value.takeLast(6)}: ${error.message.orEmpty()}"
-                    )
-                    discoveredPeers[peer.hintPeerId.value]?.rediscoveryLoggedWithoutLink = false
-                    closeQuietly(activeLinksByHint.remove(peer.hintPeerId.value))
-                }
-            pendingConnectJobsByHint.remove(peer.hintPeerId.value)
-        }
         adapter.cancelDiscovery()
+        connectJob.start()
     }
 
     private fun promoteTemporaryLink(address: String, hintPeerId: PeerId): Unit {
@@ -650,7 +667,7 @@ internal class AndroidBleTransport(
             synchronized(activeLinksByHint) {
                 activeLinksByHint.containsKey(peer.hintPeerId.value)
             } || hasActiveGattNotifyLink(peer.hintPeerId.value)
-        val hasPendingConnect = pendingConnectJobsByHint.containsKey(peer.hintPeerId.value)
+        val hasPendingConnect = hasPendingConnect(peer.hintPeerId.value)
         if (hasActiveLink || hasPendingConnect) {
             peer.rediscoveryLoggedWithoutLink = false
             return
@@ -755,8 +772,10 @@ internal class AndroidBleTransport(
         advertiser?.stopAdvertising(advertiseCallback)
         acceptLoopJob?.cancel()
         acceptLoopJob = null
-        pendingConnectJobsByHint.values.forEach(Job::cancel)
-        pendingConnectJobsByHint.clear()
+        synchronized(pendingConnectLock) {
+            pendingConnectJobsByHint.values.forEach(Job::cancel)
+            pendingConnectJobsByHint.clear()
+        }
         closeQuietly(l2capServerSocket)
         l2capServerSocket = null
         val hintIds = activeLinksByHint.keys.toList()
@@ -778,7 +797,7 @@ internal class AndroidBleTransport(
         val link = synchronized(activeLinksByHint) { activeLinksByHint.remove(hintPeer) } ?: return
         discoveredPeers[hintPeer]?.rediscoveryLoggedWithoutLink = false
         log(
-            "closing L2CAP link ${hintPeer.takeLast(6)}: $reason discoveredPeerRetained=${discoveredPeers.containsKey(hintPeer)} pendingConnect=${pendingConnectJobsByHint.containsKey(hintPeer)}"
+            "closing L2CAP link ${hintPeer.takeLast(6)}: $reason discoveredPeerRetained=${discoveredPeers.containsKey(hintPeer)} pendingConnect=${hasPendingConnect(hintPeer)}"
         )
         link.readLoopJob?.cancel()
         closeQuietly(link)
@@ -806,6 +825,16 @@ internal class AndroidBleTransport(
 
     private fun hasActiveGattNotifyLink(hintPeer: String): Boolean {
         return gattNotifyClientsByHint[hintPeer]?.isReady() == true
+    }
+
+    private fun hasPendingConnect(hintPeer: String): Boolean {
+        return synchronized(pendingConnectLock) { pendingConnectJobsByHint.containsKey(hintPeer) }
+    }
+
+    private fun clearPendingConnect(hintPeer: String): Unit {
+        synchronized(pendingConnectLock) {
+            pendingConnectJobsByHint.remove(hintPeer)
+        }
     }
 
     private fun closeQuietly(closeable: Closeable?): Unit {
