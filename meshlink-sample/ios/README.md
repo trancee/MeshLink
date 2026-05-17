@@ -130,13 +130,16 @@ Physical proof findings on iPhone 15:
   the same branch
 - the earlier stricter recipient-confirmed `ReceiptTimeout` matrix is now
   historical diagnostic evidence only
-- the latest current-head inline mixed-bearer physical reruns now split by
-  reference peer: OPPO headless reruns reached `66.12-71.67 KB/s` with passive
-  proof receipts retained on attempt 1, while Samsung headless reruns reached
-  `52.72-58.99 KB/s` with the same recipient-confirmed closure
-- current iOS `SC-004` therefore remains blocked only by Samsung-path
-  throughput, not by mixed-bearer correctness, headless harness stability, or
-  OPPO performance
+- the latest current-head inline mixed-bearer physical reruns now clear the
+  normative target on both reference peers: Samsung headless reruns reached
+  `61.13-68.67 KB/s` and OPPO headless reruns reached `77.02-78.24 KB/s`, all
+  with passive proof receipts retained on attempt 1
+- the decisive transport-side win was suspending discovery during large inline
+  sends so the product path no longer paid concurrent scan / advertise churn
+  while draining the GATT side bearer
+- a later proof-app route-recovery fix removed a false-negative warmup-only
+  rerun by rescheduling auto-send when a direct `ROUTE_DISCOVERED` arrives
+  after a transient `Peer lost`
 
 Shared harness evidence now also covers the common US2 runtime:
 
@@ -146,20 +149,19 @@ Shared harness evidence now also covers the common US2 runtime:
 - bounded, jittered exponential-backoff no-route retry expiry with `UNREACHABLE`
 - immediate retry when a route appears before `deliveryRetryDeadline` expires
 
-Current accepted known limitation under the selected waiver path:
+Current release / future-branch framing:
 
 - the active project stakeholder selected the explicit waiver /
-  known-limitation path for the current release on `2026-05-14`
-- large-payload iPhone throughput remains below the normative `>= 60 KB/s`
-  target even on the optimized deterministic mixed-platform path, though
-  delivery, recipient-confirmed proof completion, pairing-free interop, cold
-  start, power, latency, and a proof-only GATT fallback prototype now all work
-  on the current reference setup
-- do not claim that iOS satisfies `SC-004` or that Android and iOS have parity
-  for 64 KiB throughput
-- if current iOS large-transfer behavior is described, cite the retained
-  deterministic-path evidence: recipient-confirmed 64 KiB runs completed at
-  `39.48-52.03 KB/s` depending on the passive reference peer
+  known-limitation path for the released baseline on `2026-05-14`
+- that historical waiver still applies to the already-released baseline and its
+  earlier retained evidence (`39.48-52.03 KB/s` on the deterministic
+  mixed-platform path)
+- the latest current-head future branch now has retained recipient-confirmed
+  64 KiB evidence above the normative `>= 60 KB/s` target on both reference
+  peers (`61.13-68.67 KB/s` Samsung, `77.02-78.24 KB/s` OPPO)
+- when describing current iOS large-transfer behavior, distinguish the waived
+  released baseline from the newer future branch that now clears `SC-004` on
+  reference hardware
 - the proof-only GATT prototypes remain non-normative and must not be cited as
   product-conformance fallback evidence
 
@@ -170,9 +172,9 @@ Current accepted known limitation under the selected waiver path:
 3. Wait for a nearby Android or iOS proof peer to appear.
 4. Tap **Send Hello**.
 5. Confirm the diagnostics and inbound-message log match the quickstart flow.
-6. For current MeshLink 64 KiB proof runs, treat throughput as an accepted
-   known limitation for the current waived release rather than a launch or
-   pairing problem, and do not use that MeshLink flow to claim iOS `SC-004`
+6. For historical released-baseline MeshLink 64 KiB proof runs, keep the
+   explicit waiver framing. For the latest current-head future branch, use the
+   retained Samsung / OPPO headless evidence when discussing `SC-004`
    conformance.
 7. If you explicitly launch `MESHLINK_BENCHMARK_TRANSPORT=gatt-notify`, treat
    the result as a future-branch proof experiment only. It is promising, but it

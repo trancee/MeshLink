@@ -145,16 +145,18 @@ Phase 21/22 is therefore no longer blocked on the original `NSData` seam,
 forward transfer completion, or recipient-confirmed mixed-bearer proof
 closure.
 
-**Latest current-HEAD throughput update (2026-05-17):** a later inline
-mixed-bearer follow-up plus a new headless physical runner pushed the OPPO
-reference peer over the normative iOS target, but not Samsung. Fresh retained
-OPPO headless reruns now retain `66.12-71.67 KB/s` with recipient-confirmed
-closure, while fresh retained Samsung headless reruns retain only
-`52.72-58.99 KB/s` on the same branch. The Android GATT client now explicitly
-requests LE 2M PHY and Samsung retains `phy tx=2 rx=2`, so the remaining gap no
-longer looks like a missing PHY negotiation request. This future branch still
-does **not** close iOS `SC-004` without the release waiver because Samsung
-remains below the normative `>= 60 KB/s` target.
+**Latest current-HEAD throughput update (2026-05-17):** the future branch no
+longer depends on another BLE PHY tweak alone. Fresh retained headless reruns
+first pushed OPPO over the normative iOS target while leaving Samsung at only
+`52.72-58.99 KB/s` despite explicit LE 2M PHY (`phy tx=2 rx=2`). The later
+winning remediation instead came from the shared engine and proof harness:
+large inline sends now suspend concurrent discovery, and the iPhone proof app
+restarts benchmark auto-send when a direct route recovers after a transient
+peer-loss event. Fresh retained current-head reruns now retain `61.13-68.67
+KB/s` on Samsung and `77.02-78.24 KB/s` on OPPO with recipient-confirmed proof
+closure. This future branch therefore now has retained evidence capable of
+closing iOS `SC-004` on the reference matrix, even though the already-released
+baseline still keeps its explicit waiver / known-limitation history.
 
 This future branch does not change the current release claims or waiver
 guardrails.

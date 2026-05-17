@@ -1531,3 +1531,106 @@ Updated interpretation:
 - the remaining blocker is therefore narrower again: not mixed-bearer
   correctness, not headless-runner stability, and not OPPO, but Samsung-side
   large-transfer throughput against the `>= 60 KB/s` iOS requirement
+
+### Discovery suspension for large inline sends (2026-05-17)
+
+The next successful remediation came from stepping back up one layer and
+comparing the MeshLink product path against the earlier proof-only GATT-notify
+prototype.
+
+Key observation:
+
+- the proof-only benchmark did not keep the full MeshLink discovery / presence
+  machinery active while blasting the 64 KiB payload
+- the shared MeshLink transfer path already suspended discovery for chunked
+  large transfers, but the newer large-inline direct-send path did **not**
+- that meant the current inline mixed-bearer branch still paid concurrent scan
+  / advertise churn during the very transfer path we were trying to optimize
+
+Implemented remediation:
+
+- `MeshEngine.sendInlinePayload(...)` now suspends discovery for large inline
+  sends (payloads larger than `INLINE_MESSAGE_PAYLOAD_BYTES`) and resumes it in
+  a `finally` block when the send finishes
+- the common test harness now records `setDiscoverySuspended(...)` transitions,
+  and `DirectMessagingIntegrationTest` retains coverage that large inline sends
+  flip discovery to `true` and then back to `false`
+
+Fresh retained evidence after the change:
+
+- Samsung:
+  - `/tmp/ios_meshlink_headless_samsung_inlinesuspend_1`
+    - sender: `BENCHMARK transport bytes=65536 elapsedMs=966 throughputKBps=66.25 result=Sent`
+    - passive Samsung: `BENCHMARK receipt send(5cb50d) -> Sent ... attempt=1`
+  - `/tmp/ios_meshlink_headless_samsung_inlinesuspend_2`
+    - sender: `BENCHMARK transport bytes=65536 elapsedMs=1041 throughputKBps=61.48 result=Sent`
+    - passive Samsung: `BENCHMARK receipt send(a63558) -> Sent ... attempt=1`
+  - `/tmp/ios_meshlink_headless_samsung_inlinesuspend_4`
+    - sender: `BENCHMARK transport bytes=65536 elapsedMs=1047 throughputKBps=61.13 result=Sent`
+    - passive Samsung: `BENCHMARK receipt send(dc9ebc) -> Sent ... attempt=1`
+  - `/tmp/ios_meshlink_headless_samsung_inlinesuspend_5`
+    - sender: `BENCHMARK transport bytes=65536 elapsedMs=932 throughputKBps=68.67 result=Sent`
+    - passive Samsung: `BENCHMARK receipt send(aba0b2) -> Sent ... attempt=1`
+- OPPO:
+  - `/tmp/ios_meshlink_headless_oppo_inlinesuspend_1`
+    - sender: `BENCHMARK transport bytes=65536 elapsedMs=831 throughputKBps=77.02 result=Sent`
+    - passive OPPO: `BENCHMARK receipt send(76614a) -> Sent ... attempt=1`
+
+Interpretation after the change:
+
+- the throughput limiter was no longer best explained by missing 2M PHY alone
+  or by Kotlin/Swift bridge conversion overhead
+- shared discovery / presence work was still stealing enough airtime from the
+  inline product path to matter materially on the reference phones
+- once that churn was removed during the large inline send, Samsung crossed the
+  normative iOS target and OPPO moved even farther above it
+
+### Proof-app route-recovery auto-send false negative (2026-05-17)
+
+One retained Samsung rerun after the discovery-suspension remediation still
+looked like a regression at first glance:
+
+- `/tmp/ios_meshlink_headless_samsung_inlinesuspend_3` delivered the warmup but
+  never emitted the scored 64 KiB benchmark line before the headless runner hit
+  its timeout
+
+The retained logs showed this was a proof-harness issue rather than a new
+transport regression:
+
+- the iPhone proof app saw a transient `Peer lost` before a later direct
+  `ROUTE_DISCOVERED`
+- the proof UI keyed benchmark auto-send only from `PeerEvent.Found`
+- after the `Peer lost`, the peer was removed from the proof app's `peers`
+  collection and `autoSendPeers` guard set, so the scheduled benchmark task
+  exited even though the direct route had already recovered and warmup traffic
+  still worked
+
+Implemented harness fix:
+
+- `ProofViewModel` now treats a direct `ROUTE_DISCOVERED` diagnostic as
+  sufficient to recover the peer in the proof app UI state and re-run
+  `scheduleAutoSend(...)`
+
+Fresh retained post-fix evidence:
+
+- Samsung:
+  - `/tmp/ios_meshlink_headless_samsung_routeguard_1`
+    - sender: `BENCHMARK transport bytes=65536 elapsedMs=1008 throughputKBps=63.49 result=Sent`
+    - passive Samsung: `BENCHMARK receipt send(c6a343) -> Sent ... attempt=1`
+  - `/tmp/ios_meshlink_headless_samsung_routeguard_2`
+    - sender: `BENCHMARK transport bytes=65536 elapsedMs=992 throughputKBps=64.52 result=Sent`
+    - passive Samsung: `BENCHMARK receipt send(eafa24) -> Sent ... attempt=1`
+- OPPO:
+  - `/tmp/ios_meshlink_headless_oppo_routeguard_1`
+    - sender: `BENCHMARK transport bytes=65536 elapsedMs=818 throughputKBps=78.24 result=Sent`
+    - passive OPPO: `BENCHMARK receipt send(839b19) -> Sent ... attempt=1`
+
+Final interpretation on current HEAD:
+
+- the product-path mixed-bearer branch now retains recipient-confirmed evidence
+  above `>= 60 KB/s` on both reference peers
+- the decisive transport-side fix was suspending discovery during large inline
+  sends, not another small PHY or chunk-size tweak
+- the later proof-app route-recovery fix removed a false-negative benchmark
+  timeout so the retained headless evidence once again reflects the transport
+  branch rather than the proof harness
