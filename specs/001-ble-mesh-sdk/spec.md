@@ -357,104 +357,85 @@ error behavior.
   developer-visible lifecycle states, error categories, and diagnostic event
   meanings for equivalent workflows.
 
-### Release-decision framing for SC-004 (2026-05-14)
+### Release-decision framing for SC-004 (2026-05-17)
 
-Current validation evidence still does not satisfy the iOS half of **SC-004**,
-but the stricter recipient-confirmed 64 KB physical proof story is now
-restored on the current MeshLink path. The post-remediation recipient-confirmed
-series on reference hardware completed 5/5 on both passive peers: iPhone 15 ->
-OPPO finished at `14.50-17.09 KB/s` (average `15.57 KB/s`), and iPhone 15 ->
-Samsung finished at `27.85-33.56 KB/s` (average `30.64 KB/s`). A later more
-invasive cross-platform role-policy redesign now uses the shared discovery
-header to prefer Android-initiated L2CAP links on mixed Android/iOS peers,
-allowing the iPhone to host the inbound channel and request low connection
-latency deterministically. Fresh final retained evidence on that path reached
-`39.48 KB/s` on Samsung and `52.03 KB/s` on OPPO, but even those improved runs
-remain below the required `>= 60 KB/s` iOS target. The older recipient-
-confirmed `ReceiptTimeout` /
-`UNREACHABLE` matrices are retained in `benchmarks/README.md` and `research.md`
-as superseded diagnostic evidence; they no longer describe the current physical
-path. The retained baselines are evidence only; they do not replace or relax
-the normative threshold in **SC-004** or the reviewer-evidence expectations in
-this specification.
+The released baseline and the latest current-head future branch now need to be
+described separately.
 
-Current non-conformance scope (2026-05-14):
+Historical released-baseline posture:
 
-- **Normative SC-004 non-conformance:** iOS single-hop 64 KB throughput still
-  remains below target on current reference hardware, even after the proof path
-  was stabilized and the later mixed-platform role-policy redesign improved the
-  retained best case to `52.03 KB/s` on OPPO and `39.48 KB/s` on Samsung.
-- **Recipient-confirmed proof completion restored:** the current MeshLink
-  physical proof path now demonstrates stable round-trip completion on Samsung
-  and OPPO for the recipient-confirmed 64 KB benchmark protocol, so this is no
-  longer the active blocker state.
-- **Proof-only fallback evidence is insufficient:** the native GATT prototype
-  is feasible, but it remains supporting evidence only and still stays well
-  below the normative iOS target; it does not close or relax the MeshLink
-  blocker.
-- **Deterministic mixed-platform inbound path is now enforced:** Android/iOS
-  peers now advertise a shared platform-family hint in the discovery payload so
-  the mixed-platform initiator policy can consistently route large transfers
-  through Android-initiated L2CAP links into the iPhone-hosted inbound channel.
-  That resolves the earlier role-dependent randomness on the current physical
-  Android/iOS path, but it still does not close `SC-004`.
+- The active project stakeholder selected the explicit waiver /
+  known-limitation path for the released baseline on `2026-05-14`.
+- That released baseline remained non-conformant to the iOS throughput clause
+  of **SC-004** even after recipient-confirmed proof completion was restored.
+- Its retained best deterministic-path evidence reached `39.48 KB/s` on Samsung
+  and `52.03 KB/s` on OPPO, still below the required `>= 60 KB/s` iOS target.
 
-Until the iOS half of **SC-004** is met or this specification is explicitly
-amended, the feature remains non-conformant to **SC-004**. A release may
-therefore take only one of two explicit paths:
+Latest current-head future-branch posture:
 
-1. **Block release on spec conformance** and keep the iOS throughput work open
-   until **SC-004** is met on reference hardware with clean retained proof
-   evidence.
-2. **Ship under an explicit waiver / known limitation** that narrows any
-   public iOS large-transfer performance claim, links to the retained
-   benchmark evidence, and records stakeholder acceptance of the residual risk.
-   If this path is chosen, the waiver MUST acknowledge that recipient-
-   confirmed proof completion is restored on the current path but that the
-   measured throughput still remains below the normative target and that the
-   proof-only GATT prototype is not product-conformance evidence.
+- Recipient-confirmed 64 KB proof completion remains restored on the MeshLink
+  product path.
+- The mixed-platform role-policy redesign keeps Android/iOS peers on the faster
+  iPhone-hosted inbound/GATT-side path deterministically.
+- A later large-inline product-path remediation suspends discovery while a
+  large inline send is in flight, removing concurrent scan / advertise churn
+  from the scored path.
+- A later proof-app harness fix reschedules benchmark auto-send when a direct
+  `ROUTE_DISCOVERED` arrives after a transient `Peer lost`, so retained
+  headless evidence once again reflects the transport branch rather than a
+  proof-harness false negative.
+- Fresh retained current-head product-path evidence now reaches `61.13-68.67
+  KB/s` on Samsung and `77.02-78.24 KB/s` on OPPO with recipient-confirmed
+  proof receipts on attempt 1.
 
-**Current closure-path selection (2026-05-14):** The explicit waiver /
-known-limitation path is selected for the current release. The active project
-stakeholder approved that waiver in this session on `2026-05-14`. The feature
-therefore remains non-conformant to the iOS throughput clause of `SC-004`, but
-release may proceed only under the public-claim guardrails below instead of
-remaining blocked on another small app-layer tuning attempt.
+Current interpretation:
 
-Accepted residual risk under the selected waiver path:
+- **Released baseline still waived:** the historical waiver / known-limitation
+  framing remains the correct description for the already-released baseline.
+- **Current-head future branch now meets `SC-004`:** the latest retained
+  reference-hardware evidence satisfies the iOS throughput clause on the
+  mixed-bearer product path without relying on proof-only fallback evidence.
+- **Proof-only fallback evidence remains non-normative:** the native GATT
+  prototypes remain supporting evidence only and MUST NOT be presented as
+  product-conformance fallback evidence.
 
-- iOS single-hop 64 KB transfers still complete below the normative throughput
-  target on current reference hardware, even after the deterministic mixed-
-  platform inbound-path redesign improved the retained best case to
-  `52.03 KB/s` on OPPO and `39.48 KB/s` on Samsung.
-- The proof-only GATT prototype can complete on the same hardware, but only at
-  roughly `21.96-23.92 KB/s` and outside product-conformance scope.
-- Cross-platform parity claims remain accurate for API surface, trust,
-  discovery, routing behavior, power diagnostics, and the measured 256-byte
-  latency path, but not for full conformance with the iOS throughput clause of
-  **SC-004**.
+Release-path rule:
+
+1. **Released baseline:** MAY continue to rely on the explicit waiver /
+   known-limitation path chosen on `2026-05-14`, subject to the public-claim
+   guardrails below.
+2. **Future non-waived branch:** MAY claim iOS `SC-004` conformance only when
+   the retained current-head reference-hardware evidence for the promoted branch
+   matches or exceeds the normative threshold and the canonical artifacts are
+   updated in the same change set.
+
+Accepted residual risk under the selected waiver path for the released baseline:
+
+- released-baseline iOS single-hop 64 KB transfers still completed below the
+  normative throughput target on current reference hardware
+- the proof-only GATT prototype could complete on the same hardware, but only
+  at roughly `21.96-23.92 KB/s` and outside product-conformance scope
+- cross-platform parity claims for the released baseline remained accurate for
+  API surface, trust, discovery, routing behavior, power diagnostics, and the
+  measured 256-byte latency path, but not for full conformance with the iOS
+  throughput clause of **SC-004**
 
 Public-claim guardrails under the selected waiver path:
 
-- Public materials MUST NOT claim that iOS satisfies `SC-004` or achieves
-  `>= 60 KB/s` single-hop 64 KB throughput on the MeshLink path.
-- Public materials MUST NOT claim Android/iOS parity for 64 KB throughput.
-- If public materials describe current iOS large-transfer behavior, they MUST
-  cite the retained deterministic-path evidence: recipient-confirmed 64 KB runs
-  completed at `39.48-52.03 KB/s` depending on the passive reference peer.
-- Public materials MUST state that recipient-confirmed 64 KB proof completion
-  is restored on the current MeshLink path, but throughput remains below the
-  normative iOS target.
+- Public materials about the released baseline MUST NOT claim that iOS
+  satisfies `SC-004` or achieves `>= 60 KB/s` single-hop 64 KB throughput on
+  the MeshLink path.
+- Public materials about the released baseline MUST NOT claim Android/iOS
+  parity for 64 KB throughput.
+- If public materials describe released-baseline iOS large-transfer behavior,
+  they MUST cite the retained deterministic-path evidence: recipient-confirmed
+  64 KB runs completed at `39.48-52.03 KB/s` depending on the passive
+  reference peer.
+- Public materials describing the newer future branch MUST distinguish it from
+  the released baseline and cite the retained current-head product-path
+  evidence when making any `SC-004` conformance claim.
 - The proof-only GATT prototypes MUST NOT be presented as product-conformance
   fallback evidence.
-
-Future non-waived conformance branch note:
-
-- The current waived release framing does not forbid future transport redesign
-  work. A later non-waived release MAY evaluate a mixed Android/iOS
-  iPhone-hosted GATT-notify bearer if the public API semantics stay unchanged,
-  the canonical docs are amended in the same change set, and fresh retained
-  product-path evidence shows that the new bearer closes iOS `SC-004`.
 
 ### Proof-integration role, blocker handling, and reviewer evidence
 

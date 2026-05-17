@@ -541,6 +541,32 @@ real MeshLink transport candidate for a future non-waived release.
 
 ---
 
+## Phase 21: Follow-up - Product-path SC-004 Closure
+
+**Purpose**: Close the future-branch iOS `SC-004` gap on the mixed-bearer
+product path and retain canonical evidence once the remaining Samsung variance
+and headless proof false negatives are resolved.
+
+- [X] T107 Implement the final product-path throughput remediations in
+  `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/engine/MeshEngine.kt`,
+  `meshlink/src/iosMain/kotlin/ch/trancee/meshlink/platform/ios/IosGattNotifyLink.kt`,
+  `meshlink/src/iosMain/kotlin/ch/trancee/meshlink/platform/ios/IosBleTransport.kt`,
+  `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/api/IosBleTransportBridge.kt`,
+  `meshlink-sample/ios/ProofApp/MeshLinkTransportBridge.swift`, and the
+  relevant test files so large inline mixed-bearer sends suspend discovery,
+  the iOS GATT-notify path minimizes bridge overhead, and the headless proof
+  app reschedules benchmark auto-send when a direct route recovers after a
+  transient peer-loss event.
+- [X] T108 Re-run fresh headless Samsung and OPPO current-HEAD product-path
+  benchmarks, retain the resulting evidence in `benchmarks/README.md`,
+  `specs/001-ble-mesh-sdk/research.md`, `specs/001-ble-mesh-sdk/plan.md`,
+  `specs/001-ble-mesh-sdk/spec.md`, `specs/001-ble-mesh-sdk/release-decision.md`,
+  and `meshlink-sample/ios/README.md`, and record whether the future branch now
+  closes `SC-004` on the reference matrix without relying on the historical
+  release waiver.
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies
