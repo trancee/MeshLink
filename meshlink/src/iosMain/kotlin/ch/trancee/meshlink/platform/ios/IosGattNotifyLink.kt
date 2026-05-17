@@ -4,6 +4,7 @@ import ch.trancee.meshlink.api.IosBleTransportBridgeRegistry
 import ch.trancee.meshlink.api.PeerId
 import platform.CoreBluetooth.CBCentral
 import platform.CoreBluetooth.CBPeripheralManager
+import platform.Foundation.NSLock
 
 internal class IosGattNotifyLink(
     internal val hintPeerId: PeerId,
@@ -16,17 +17,27 @@ internal class IosGattNotifyLink(
     private val outgoingFrames = IosL2capFrameBuffer()
     private val incomingFrames = IosL2capFrameBuffer()
     private val pendingChunks: ArrayDeque<ByteArray> = ArrayDeque()
+    private val stateLock = NSLock()
     private var lowLatencyRequested: Boolean = false
     private var closed: Boolean = false
+    private var pumpInProgress: Boolean = false
 
     internal fun enqueue(payload: ByteArray): Boolean {
-        if (closed) {
-            return false
-        }
         val encoded = outgoingFrames.encode(payload)
         val chunkBytes = maxNotificationChunkBytes()
-        encoded.asList().chunked(chunkBytes).forEach { chunk ->
-            pendingChunks.addLast(chunk.toByteArray())
+        val accepted =
+            stateLock.withLock {
+                if (closed) {
+                    false
+                } else {
+                    encoded.asList().chunked(chunkBytes).forEach { chunk ->
+                        pendingChunks.addLast(chunk.toByteArray())
+                    }
+                    true
+                }
+            }
+        if (!accepted) {
+            return false
         }
         requestLowLatencyIfNeeded()
         pump()
@@ -34,38 +45,77 @@ internal class IosGattNotifyLink(
     }
 
     internal fun appendIncomingWrite(chunk: ByteArray): List<ByteArray> {
-        if (closed) {
-            return emptyList()
+        return stateLock.withLock {
+            if (closed) {
+                emptyList()
+            } else {
+                incomingFrames.append(chunk)
+            }
         }
-        return incomingFrames.append(chunk)
     }
 
     internal fun pump(): Unit {
         val callbacks = IosBleTransportBridgeRegistry.currentCallbacksOrNull() ?: return
         val peripheralManager = peripheralManagerProvider() ?: return
         val notifyCharacteristic = notifyCharacteristicProvider() ?: return
-        while (!closed && pendingChunks.isNotEmpty()) {
-            val nextChunk = pendingChunks.first()
-            val didSend =
-                callbacks.gattNotifySend(
-                    peripheralManager,
-                    notifyCharacteristic,
-                    central,
-                    nextChunk,
-                )
-            logger(
-                "GATT notify pump ${hintPeerId.value.takeLast(6)} chunkBytes=${nextChunk.size} didSend=$didSend pending=${pendingChunks.size}"
-            )
-            if (!didSend) {
-                return
+        val shouldStartPump =
+            stateLock.withLock {
+                if (closed || pumpInProgress) {
+                    false
+                } else {
+                    pumpInProgress = true
+                    true
+                }
             }
-            pendingChunks.removeFirst()
+        if (!shouldStartPump) {
+            return
+        }
+        try {
+            while (true) {
+                val nextChunk =
+                    stateLock.withLock {
+                        when {
+                            closed || pendingChunks.isEmpty() -> null
+                            else -> pendingChunks.first()
+                        }
+                    } ?: return
+                val didSend =
+                    callbacks.gattNotifySend(
+                        peripheralManager,
+                        notifyCharacteristic,
+                        central,
+                        nextChunk,
+                    )
+                val pendingCount =
+                    stateLock.withLock {
+                        if (closed) {
+                            0
+                        } else {
+                            if (didSend && pendingChunks.isNotEmpty() && pendingChunks.first() === nextChunk) {
+                                pendingChunks.removeFirst()
+                            }
+                            pendingChunks.size
+                        }
+                    }
+                logger(
+                    "GATT notify pump ${hintPeerId.value.takeLast(6)} chunkBytes=${nextChunk.size} didSend=$didSend pending=$pendingCount"
+                )
+                if (!didSend) {
+                    return
+                }
+            }
+        } finally {
+            stateLock.withLock {
+                pumpInProgress = false
+            }
         }
     }
 
     internal fun close(): Unit {
-        closed = true
-        pendingChunks.clear()
+        stateLock.withLock {
+            closed = true
+            pendingChunks.clear()
+        }
     }
 
     private fun requestLowLatencyIfNeeded(): Unit {
@@ -89,5 +139,14 @@ internal class IosGattNotifyLink(
 
     private companion object {
         private const val PREFERRED_NOTIFICATION_FRAME_BYTES: Int = 495
+    }
+}
+
+private inline fun <T> NSLock.withLock(block: () -> T): T {
+    lock()
+    return try {
+        block()
+    } finally {
+        unlock()
     }
 }
