@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import plistlib
 import re
 import selectors
 import shlex
@@ -14,8 +15,9 @@ import sys
 import tempfile
 import time
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Iterable
+from typing import Any, Iterable
 
 
 IOS_BUNDLE_ID = "ch.trancee.meshlink.proof.ios"
@@ -25,6 +27,11 @@ DEFAULT_CAPTURE_TIMEOUT_SECONDS = 120
 DEFAULT_POST_RESULT_IDLE_SECONDS = 5
 DEFAULT_ANDROID_READY_SECONDS = 8
 DEFAULT_LOGCAT_TAGS = ["MeshLinkTransport:D", "MeshLinkProof:I", "*:S"]
+ADB_DEVICE_PATTERN = re.compile(r"^(?P<serial>\S+)\s+(?P<state>device|offline|unauthorized)\b")
+PROVISIONING_PROFILE_DIRS = [
+    Path.home() / "Library/Developer/Xcode/UserData/Provisioning Profiles",
+    Path.home() / "Library/MobileDevice/Provisioning Profiles",
+]
 BENCHMARK_RESULT_PATTERN = re.compile(
     r"BENCHMARK transport bytes=(?P<bytes>\d+) elapsedMs=(?P<elapsed_ms>\d+) "
     r"throughputKBps=(?P<throughput>[0-9]+(?:\.[0-9]+)?) result=(?P<result>\S+)"
@@ -166,6 +173,36 @@ def run(command: list[str], *, check: bool = True, capture_output: bool = False,
     return subprocess.run(command, check=check, capture_output=capture_output, text=text)
 
 
+def adb_devices() -> dict[str, str]:
+    result = run(["adb", "devices"], capture_output=True)
+    devices: dict[str, str] = {}
+    for line in result.stdout.splitlines():
+        match = ADB_DEVICE_PATTERN.match(line.strip())
+        if match is None:
+            continue
+        devices[match.group("serial")] = match.group("state")
+    return devices
+
+
+def ensure_android_device_ready(android_serial: str) -> None:
+    devices = adb_devices()
+    state = devices.get(android_serial)
+    if state == "device":
+        return
+    if not devices:
+        raise SystemExit(
+            "No Android devices are connected via ADB. Connect the passive Android proof peer before running the benchmark."
+        )
+    available = ", ".join(f"{serial}({state})" for serial, state in sorted(devices.items()))
+    if state is None:
+        raise SystemExit(
+            f"Android serial '{android_serial}' is not connected via ADB. Available devices: {available}"
+        )
+    raise SystemExit(
+        f"Android serial '{android_serial}' is connected but not ready (state={state}). Available devices: {available}"
+    )
+
+
 class BackgroundProcess:
     def __init__(self, process: subprocess.Popen[str]) -> None:
         self.process = process
@@ -269,14 +306,74 @@ class IOSConsoleCapture:
             self.process.wait(timeout=5)
 
 
-def require_development_team() -> str:
+def decode_provisioning_profile(path: Path) -> dict[str, Any] | None:
+    result = subprocess.run(
+        ["security", "cms", "-D", "-i", str(path)],
+        check=False,
+        capture_output=True,
+    )
+    if result.returncode != 0:
+        return None
+    try:
+        return plistlib.loads(result.stdout)
+    except Exception:
+        return None
+
+
+def candidate_provisioning_profiles() -> list[Path]:
+    candidates: list[Path] = []
+    for directory in PROVISIONING_PROFILE_DIRS:
+        if not directory.exists():
+            continue
+        candidates.extend(sorted(directory.glob("*.mobileprovision")))
+        candidates.extend(sorted(directory.glob("*.provisionprofile")))
+    return candidates
+
+
+def local_development_team_for_bundle_id(bundle_id: str) -> str | None:
+    now = datetime.now(timezone.utc)
+    matches: list[tuple[datetime, Path, str]] = []
+    for path in candidate_provisioning_profiles():
+        profile = decode_provisioning_profile(path)
+        if profile is None:
+            continue
+        entitlements = profile.get("Entitlements")
+        team_identifiers = profile.get("TeamIdentifier")
+        if not isinstance(entitlements, dict) or not isinstance(team_identifiers, list) or not team_identifiers:
+            continue
+        app_identifier = entitlements.get("application-identifier")
+        if not isinstance(app_identifier, str) or not app_identifier.endswith(f".{bundle_id}"):
+            continue
+        expiration = profile.get("ExpirationDate")
+        if isinstance(expiration, datetime):
+            if expiration.tzinfo is None:
+                expiration = expiration.replace(tzinfo=timezone.utc)
+            if expiration < now:
+                continue
+        else:
+            expiration = datetime.max.replace(tzinfo=timezone.utc)
+        team = team_identifiers[0]
+        if not isinstance(team, str) or not team:
+            continue
+        matches.append((expiration, path, team))
+    if not matches:
+        return None
+    matches.sort(reverse=True)
+    return matches[0][2]
+
+
+def resolve_development_team() -> str:
     team = os.environ.get("DEVELOPMENT_TEAM", "").strip()
-    if not team:
-        raise SystemExit(
-            "DEVELOPMENT_TEAM is required unless --skip-ios-build is used. "
-            "Export it in your shell instead of hardcoding it in the repo."
-        )
-    return team
+    if team:
+        return team
+    team = local_development_team_for_bundle_id(IOS_BUNDLE_ID)
+    if team:
+        print("==> Using DEVELOPMENT_TEAM from local cached provisioning assets")
+        return team
+    raise SystemExit(
+        "DEVELOPMENT_TEAM is required unless --skip-ios-build is used, unless a local cached provisioning profile already matches "
+        f"{IOS_BUNDLE_ID}. Export it in your shell instead of hardcoding it in the repo."
+    )
 
 
 def latest_built_app() -> Path:
@@ -292,31 +389,59 @@ def latest_built_app() -> Path:
 
 
 def build_ios_app(ios_device: str) -> Path:
-    development_team = require_development_team()
-    command = [
-        "xcodebuild",
-        "-project",
-        "meshlink-sample/ios/ProofApp.xcodeproj",
-        "-scheme",
-        "ProofApp",
-        "-destination",
-        f"id={ios_device}",
-        "-allowProvisioningUpdates",
-        f"DEVELOPMENT_TEAM={development_team}",
-        "build",
+    development_team = resolve_development_team()
+    build_attempts = [
+        (
+            "local cached signing assets",
+            [
+                "xcodebuild",
+                "-project",
+                "meshlink-sample/ios/ProofApp.xcodeproj",
+                "-scheme",
+                "ProofApp",
+                "-destination",
+                f"id={ios_device}",
+                f"DEVELOPMENT_TEAM={development_team}",
+                "build",
+            ],
+        ),
+        (
+            "Xcode automatic provisioning fallback",
+            [
+                "xcodebuild",
+                "-project",
+                "meshlink-sample/ios/ProofApp.xcodeproj",
+                "-scheme",
+                "ProofApp",
+                "-destination",
+                f"id={ios_device}",
+                "-allowProvisioningUpdates",
+                f"DEVELOPMENT_TEAM={development_team}",
+                "build",
+            ],
+        ),
     ]
-    print(f"==> Building iPhone app: {shell_join(command[:-2] + ['DEVELOPMENT_TEAM=<redacted>', 'build'])}")
-    with tempfile.NamedTemporaryFile(prefix="proofapp-build.", delete=False) as raw_log:
-        log_path = Path(raw_log.name)
-    with log_path.open("w", encoding="utf-8") as log_file:
-        result = subprocess.run(command, stdout=log_file, stderr=subprocess.STDOUT, text=True)
-    log_text = log_path.read_text(encoding="utf-8", errors="replace").replace(development_team, "<redacted>")
-    if result.returncode != 0:
+    for attempt_index, (label, command) in enumerate(build_attempts, start=1):
+        redacted_command = [
+            "DEVELOPMENT_TEAM=<redacted>" if part == f"DEVELOPMENT_TEAM={development_team}" else part
+            for part in command
+        ]
+        print(f"==> Building iPhone app via {label}: {shell_join(redacted_command)}")
+        with tempfile.NamedTemporaryFile(prefix="proofapp-build.", delete=False) as raw_log:
+            log_path = Path(raw_log.name)
+        with log_path.open("w", encoding="utf-8") as log_file:
+            result = subprocess.run(command, stdout=log_file, stderr=subprocess.STDOUT, text=True)
+        log_text = log_path.read_text(encoding="utf-8", errors="replace").replace(development_team, "<redacted>")
+        if result.returncode == 0:
+            print(f"==> iPhone build succeeded via {label}")
+            return latest_built_app()
+        if attempt_index < len(build_attempts):
+            print(f"==> iPhone build via {label} failed; trying the next signing strategy")
+            continue
         print("==> iPhone build failed; tail follows:", file=sys.stderr)
         print("\n".join(log_text.splitlines()[-40:]), file=sys.stderr)
         raise SystemExit(result.returncode)
-    print("==> iPhone build succeeded")
-    return latest_built_app()
+    raise AssertionError("unreachable")
 
 
 def install_ios_app(ios_device: str, app_path: Path) -> None:
@@ -335,6 +460,7 @@ def install_ios_app(ios_device: str, app_path: Path) -> None:
 
 
 def start_android_app(run_dir: Path, android_serial: str, app_id: str, benchmark_transport: str, disable_auto_send: bool) -> BackgroundProcess:
+    ensure_android_device_ready(android_serial)
     logcat_path = run_dir / "android_logcat.log"
     subprocess.run(["adb", "-s", android_serial, "shell", "am", "force-stop", ANDROID_PACKAGE], check=False)
     run(["adb", "-s", android_serial, "logcat", "-c"])
@@ -514,6 +640,8 @@ def main() -> int:
     args = parse_args()
     if args.repeat < 1:
         raise SystemExit("--repeat must be >= 1")
+
+    ensure_android_device_ready(args.android_serial)
 
     base_run_dir = Path(args.run_dir or f"/tmp/ios_meshlink_headless_{timestamp()}")
     app_path = latest_built_app() if args.skip_ios_build else build_ios_app(args.ios_device)

@@ -44,6 +44,11 @@ You need a local Apple development team for device signing. Either:
 - open `ProofApp.xcodeproj` in Xcode and select a team under Signing & Capabilities, or
 - pass `DEVELOPMENT_TEAM=<your-team-id>` to `xcodebuild`
 
+If Xcode has already cached a matching provisioning profile locally, the CLI
+build can usually reuse that local signing state directly with just
+`DEVELOPMENT_TEAM`; it does not necessarily need to talk to the developer-account
+provisioning service on every run.
+
 Example CLI build:
 
 ```bash
@@ -76,6 +81,18 @@ For retained headless physical benchmarks, prefer the repository runner:
 ```bash
 DEVELOPMENT_TEAM=<your-team-id> \
   benchmarks/scripts/run_headless_meshlink_benchmark.py \
+  --android-serial <android-serial> \
+  --ios-device <your-device-udid> \
+  --payload-bytes 65536
+```
+
+The runner now tries local cached signing assets first and only falls back to
+`xcodebuild -allowProvisioningUpdates` if that local-signing path fails. If a
+matching cached provisioning profile already exists, the runner can also infer
+`DEVELOPMENT_TEAM` automatically and you may omit it from the command.
+
+```bash
+benchmarks/scripts/run_headless_meshlink_benchmark.py \
   --android-serial <android-serial> \
   --ios-device <your-device-udid> \
   --payload-bytes 65536
@@ -121,6 +138,10 @@ hang after the scored benchmark line if the proof app stays alive but quiet.
 The retained runner uses a hard timeout plus idle-aware console capture so the
 logs always close cleanly, and the repeat mode reduces the amount of ad-hoc
 shell scripting needed for retained Samsung / OPPO rerun series.
+
+The runner now also validates the requested Android serial before any blocking
+`adb logcat` step, so a stale / unplugged device ID fails fast with a clear
+error instead of waiting forever on `- waiting for device -`.
 
 ## Current validation status
 
