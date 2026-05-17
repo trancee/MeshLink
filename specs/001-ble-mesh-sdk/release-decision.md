@@ -8,50 +8,32 @@ explicit waiver / known limitation.
 
 ## Current Status
 
-- **Status**: Closed via explicit waiver / known limitation
-- **Blocking requirement**: `SC-004` remains unmet on iOS; the current release
-  may proceed only under the waiver guardrails recorded below.
-- **Chosen closure path**: Ship under the explicit waiver / known-limitation
-  path for the current release.
+- **Released baseline status**: Closed via explicit waiver / known limitation.
+- **Released-baseline blocking requirement**: `SC-004` remained unmet on iOS,
+  so that release may proceed only under the waiver guardrails recorded below.
+- **Released-baseline chosen closure path**: Ship under the explicit waiver /
+  known-limitation path for the current release.
 - **Stakeholder approval**: Approved by the active project stakeholder via
   explicit waiver-path selection in this session on `2026-05-14`.
-- **Accepted iOS large-transfer limitation**: iOS single-hop 64 KiB throughput
-  on the MeshLink path remains below the normative `>= 60 KB/s` target on
-  reference benchmark hardware.
-- **Latest bounded conformance attempt**: a fresh iPhone 15 -> OPPO transient-
-  appId rerun with a widened 16 KiB inner iOS write batch still completed at
-  only `18.37 KB/s`, so the change was reverted.
-- **Additional follow-up matrix after `T092`**: fresh Samsung reruns for
-  run-loop scheduling (`27.33 KB/s`), shorter sender ACK settlement
-  (`24.90 KB/s`), a 32-frame transport coalescing window (`28.33 KB/s`), a
-  re-enabled 64 KiB inline path (`31.84 KB/s`), and that inline path plus a
-  16 KiB inner batch (`23.05 KB/s`) all remained below the then-current
-  Samsung best case (`33.56 KB/s`).
-- **More invasive cross-platform role-policy redesign**: the shared discovery
-  payload now carries an Android/iOS platform-family hint so mixed-platform
-  peers deterministically prefer Android-initiated L2CAP links into the
-  iPhone-hosted inbound channel, where iOS can request
-  `CBPeripheralManagerConnectionLatencyLow`.
-- **Accepted retained evidence for public reference**: Samsung reached
+- **Released-baseline accepted iOS large-transfer limitation**: iOS single-hop
+  64 KiB throughput on the MeshLink path remained below the normative
+  `>= 60 KB/s` target on reference benchmark hardware.
+- **Released-baseline public-reference evidence**: Samsung reached
   `39.48 KB/s` (3-run final matrix `24.37-39.48 KB/s`, all with the
   low-latency request present) and OPPO reached `52.03 KB/s` (2-run final
   matrix `45.33-52.03 KB/s`, both with the low-latency request present).
-- **Rejected combination**: re-enabling the 64 KiB inline MeshLink path on top
-  of the incoming-channel low-latency request still reached only `33.97 KB/s`,
-  so the inline path remains rejected.
-- **Additional rejected post-redesign follow-ups**: 8-frame iOS coalescing,
-  a deterministic-path inline rerun, and ACK-batch=`32` reruns all stayed in
-  the `30.70-37.08 KB/s` range and failed to beat the retained deterministic
-  baseline (`52.03 KB/s` OPPO, `39.48 KB/s` Samsung).
-- **Reason the waiver was selected**: the role-dependent randomness on the
-  mixed Android/iOS path is resolved, but the obvious remaining app-layer
-  levers inside the current public MeshLink L2CAP product path have now been
-  exercised. On the public Android `BluetoothSocket` / LE L2CAP APIs and iOS
-  Core Bluetooth L2CAP APIs available here, the next conformance branch looks
-  more like a transport-scope decision than another small implementation tweak.
-- **Explicit non-conformance that remains**: the waiver narrows release claims,
-  but it does not amend `SC-004`; iOS large-transfer throughput is still below
-  the normative target.
+- **Current-head future-branch status**: recipient-confirmed product-path
+  evidence now closes `SC-004` on the reference matrix.
+- **Current-head retained evidence**: Samsung now retains `61.13-68.67 KB/s`
+  across `/tmp/ios_meshlink_headless_samsung_inlinesuspend_1`,
+  `/tmp/ios_meshlink_headless_samsung_routeguard_1`,
+  `/tmp/ios_meshlink_headless_samsung_routeguard_2`, and
+  `/tmp/ios_meshlink_headless_samsung_inlinesuspend_5`; OPPO now retains
+  `77.02-78.24 KB/s` across `/tmp/ios_meshlink_headless_oppo_inlinesuspend_1`
+  and `/tmp/ios_meshlink_headless_oppo_routeguard_1`.
+- **Winning current-head remediations**: large inline sends now suspend
+  discovery for the scored send window, and the iPhone proof app reschedules
+  auto-send when a direct route recovers after a transient `Peer lost` event.
 - **Non-blocker evidence already restored**: recipient-confirmed 64 KiB proof
   completion on the Samsung / OPPO physical path.
 
@@ -62,11 +44,10 @@ explicit waiver / known limitation.
 - Retain passing iOS `SC-004` evidence on reference benchmark hardware.
 - Keep recipient-confirmed proof evidence aligned with the scored run.
 - Update `spec.md`, `plan.md`, `benchmarks/README.md`, and `research.md`.
-- **Current execution status (2026-05-14):** Not selected for the current
-  release. The bounded iOS MeshLink-path remediation experiments, the deeper
-  mixed-platform role-policy redesign, and the later post-redesign follow-ups
-  were all retained as evidence, but none closed the remaining iOS throughput
-  gap.
+- **Current execution status (2026-05-17):** Achieved on the latest future
+  branch. The released baseline still uses the explicit waiver path, but the
+  newer current-head mixed-bearer product path now has retained reference-
+  hardware evidence above the normative iOS threshold.
 
 ### 2. Explicit waiver / known-limitation path
 
@@ -75,8 +56,9 @@ explicit waiver / known limitation.
   evidence.
 - Link the accepted residual risk and supporting evidence in the canonical
   docs.
-- **Selected execution status (2026-05-14):** Completed for the current
-  release. Public claims are now constrained as follows:
+- **Selected execution status (2026-05-14):** Completed for the released
+  baseline. Public claims for that released baseline remain constrained as
+  follows:
   - do not claim iOS satisfies `SC-004` or `>= 60 KB/s` single-hop 64 KiB
     throughput
   - do not claim Android/iOS parity for 64 KiB throughput; parity claims remain
@@ -90,7 +72,7 @@ explicit waiver / known limitation.
 
 ## Future Conformance Branch After the Waived Release
 
-The current release stays on the explicit waiver path above. That does **not**
+The released baseline stays on the explicit waiver path above. That did **not**
 authorize silent return to small L2CAP tuning work as the next future
 conformance branch.
 
@@ -114,10 +96,10 @@ rather than hypothetical:
 - the branch therefore exceeded the normative iOS target on three retained
   physical runs and preserved recipient-confirmed completion on those successes
 
-**Decision:** promote the reverse-direction GATT-notify branch to the next
-product-path integration candidate for a future non-waived release, while
-keeping the current release on the explicit waiver path until product-path
-integration and fresh retained non-proof evidence succeed.
+**Decision (historical):** promote the reverse-direction GATT-notify branch to
+the next product-path integration candidate for a future non-waived release,
+while keeping the released baseline on the explicit waiver path until product-
+path integration and fresh retained non-proof evidence succeed.
 
 **Phase-21 update after reopening product-path work:** the original iOS bridge
 seam is now resolved by an optional Swift-installed transport bridge that calls

@@ -1,11 +1,13 @@
 # Why L2CAP-First
 
-> **Current-status note (2026-05-14):** This document describes the current
-> normative product path for the waived release. A later post-waiver future
-> branch is now evaluating an iPhone-hosted GATT-notify bearer for mixed
-> Android/iOS peers because proof-only evidence finally exceeded the iOS
-> `SC-004` target. Until the canonical spec/release docs are amended again with
-> fresh product-path evidence, L2CAP-first remains the normative posture.
+> **Current-status note (2026-05-17):** This document describes the released
+> baseline's normative posture. That released baseline remains L2CAP-first and
+> carries the explicit iOS waiver / known-limitation framing. A later future
+> branch now has fresh retained product-path evidence that closes `SC-004` on
+> mixed Android/iOS peers using the iPhone-hosted GATT-notify side bearer for
+> the large-transfer path. Keep the distinction explicit: this document is about
+> why the released baseline was L2CAP-first, not a claim that the future branch
+> failed or that the mixed-bearer product path remains blocked.
 
 ## The decision
 

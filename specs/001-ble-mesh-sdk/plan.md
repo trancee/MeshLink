@@ -39,13 +39,12 @@ dependencies” request, the runtime ships no additional third-party libraries
 beyond the constitutionally allowed `kotlinx-coroutines-core`; codec, routing,
 and crypto-provider logic remain in-repo. Repository baselines and physical
 proof findings are recorded in `benchmarks/README.md` and
-`specs/001-ble-mesh-sdk/research.md`; single-hop iOS 64 KiB throughput on the
-current physical MeshLink path remains the underlying release-decision
-non-conformance, and the current release relies on the documented waiver that
-narrows the public iOS large-transfer claim and acknowledges the retained
-throughput evidence gap. Recipient-confirmed MeshLink proof completion on the
-current Samsung/OPPO physical path has been restored and must stay covered by
-the retained benchmark evidence, but it is no longer the active blocker state.
+`specs/001-ble-mesh-sdk/research.md`; the released baseline still carries the
+historical iOS 64 KiB throughput non-conformance and its documented waiver,
+while the latest future branch now has retained product-path evidence above the
+normative iOS target on both reference peers. Recipient-confirmed MeshLink
+proof completion on the current Samsung/OPPO physical path has been restored
+and must stay covered by the retained benchmark evidence.
 
 ## Technical Context
 
@@ -107,39 +106,35 @@ delivery risk is now narrower on reference hardware: closing the still-unmet
 iOS single-hop 64 KiB throughput target while preserving the newly restored
 recipient-confirmed MeshLink proof path on Samsung and OPPO.
 
-**Release-decision framing (2026-05-14):** `SC-004` remains partially unmet on
-iOS, but the stricter recipient-confirmed 64 KiB MeshLink proof path is now
-restored on the current reference hardware. Android still meets its single-hop
-throughput target, while the post-remediation iPhone 15 recipient-confirmed
-series now finishes 5/5 on both passive peers: OPPO completed at
-`14.50-17.09 KB/s` (average `15.57 KB/s`) and Samsung completed at
-`27.85-33.56 KB/s` (average `30.64 KB/s`). A later deeper cross-platform
-role-policy redesign now uses the shared discovery header to deterministically
-prefer Android-initiated L2CAP links on mixed Android/iOS peers, allowing the
-iPhone to host the inbound channel and request low connection latency. Fresh
-final retained evidence on that deterministic path reached `52.03 KB/s` on
-OPPO and `39.48 KB/s` on Samsung. Even those improved runs remain below the
-required `>= 60 KB/s` iOS target. A proof-only native GATT prototype remains
-feasible (`23.92 KB/s` to Samsung, `21.96 KB/s` to OPPO), but it is still
-supporting evidence only and does not satisfy the normative iOS target.
+**Release-decision framing (2026-05-17):** the released baseline and the latest
+current-head future branch must now be described separately. The released
+baseline remains the same waived release path chosen on `2026-05-14`: its best
+retained deterministic-path evidence reached `52.03 KB/s` on OPPO and
+`39.48 KB/s` on Samsung, so it remained non-conformant to the iOS half of
+`SC-004`. The later future branch, however, no longer shares that blocker
+state. After the mixed-platform role-policy redesign, the later discovery-
+suspension remediation for large inline sends, and the proof-app route-
+recovery fix, fresh retained product-path evidence now reaches
+`61.13-68.67 KB/s` on Samsung and `77.02-78.24 KB/s` on OPPO with
+recipient-confirmed proof receipts on attempt 1.
 
-The release path therefore remains binary, but the blocker has narrowed:
-either keep release blocked until the MeshLink path satisfies the iOS half of
-`SC-004`, or ship only under an explicit waiver that narrows iOS large-
-transfer performance claims and acknowledges the retained throughput evidence.
-The residual risk is now materially slower 64 KiB single-hop transfers on the
-now-deterministic mixed-platform path. The earlier recipient-confirmed proof-
-completion instability is retained as historical diagnostic evidence rather
-than the current blocker state.
+The release-path distinction is therefore explicit:
 
-**Current closure-path selection (2026-05-14):** The active project
-stakeholder selected the explicit waiver / known-limitation path for the
-current release in this session on `2026-05-14`. The MeshLink iOS path remains
-non-conformant to the throughput clause of `SC-004`, but release planning is
-now closed under the documented waiver guardrails instead of remaining blocked
-on another small app-layer tuning attempt.
+- the **released baseline** still uses the historical waiver /
+  known-limitation framing recorded below
+- the **latest future branch** now has retained evidence capable of closing the
+  iOS half of `SC-004` on the reference matrix without relying on proof-only
+  fallback evidence
 
-**Selected-waiver guardrails for release work (2026-05-14):**
+**Current closure-path selection for the released baseline (2026-05-14):** The
+active project stakeholder selected the explicit waiver / known-limitation path
+for the release in this session on `2026-05-14`. The MeshLink iOS path of that
+released baseline remained non-conformant to the throughput clause of
+`SC-004`, but release planning was closed under the documented waiver
+guardrails instead of remaining blocked on another small app-layer tuning
+attempt.
+
+**Selected-waiver guardrails for released-baseline work (2026-05-14):**
 
 - Do not claim that iOS meets `SC-004` or achieves `>= 60 KB/s` single-hop
   64 KiB throughput on the MeshLink path.
@@ -205,11 +200,11 @@ reference matrix.
   payload, the latest retained iPhone 15 -> OPPO LOW-power 256-byte rerun
   completed `Sent` in `239 ms`.
 
-These follow-up closures do not change the underlying iOS `SC-004` throughput
-non-conformance. The current release path now depends on the explicit waiver /
-known-limitation record in the canonical docs; any future release-readiness or
-full-conformance claim without that waiver MUST instead retain passing evidence
-on reference hardware.
+These follow-up closures do not change the released-baseline iOS `SC-004`
+throughput non-conformance. The released baseline still depends on the explicit
+waiver / known-limitation record in the canonical docs; any future release-
+readiness or full-conformance claim without that waiver MUST instead retain
+passing evidence on reference hardware.
 
 ## Artifact Governance & Source-of-Truth Precedence
 

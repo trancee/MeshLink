@@ -54,22 +54,28 @@ is promising but variable:
 These runs are proof-only investigative evidence for a future SC-004 closure
 branch. They are not yet the normative MeshLink product path.
 
-A first real MeshLink product-path mixed-bearer candidate now also proves that
-Android can decode genuine encrypted MeshLink frames on the GATT-notify side
-link. However, the retained Samsung and OPPO product-path reruns still ended
-`NotSent(reason=UNREACHABLE)` before `MSG from ... bytes=65536` was reached,
-which means the next blocker is the L2CAP-bound reverse control plane rather
-than GATT notification receive support itself.
+A first real MeshLink product-path mixed-bearer candidate then proved that
+Android could decode genuine encrypted MeshLink frames on the GATT-notify side
+link, and later Phase-22 remediations restored recipient-confirmed product-path
+closure on both reference peers.
 
-Later Phase-22 remediations narrowed that again: Samsung now has retained
-product-path evidence that reaches `MSG from ... bytes=65536`, but the passive
-proof receipt still degrades to `NotSent(reason=UNREACHABLE)`, while OPPO still
-has a sender-side `TRANSFER_TIMED_OUT` run on the same branch. The remaining
-blocker is recipient-confirmed mixed-bearer closure and cross-peer stability.
+The latest current-head follow-up now closes the throughput side as well:
+
+- Samsung retained headless current-head product-path reruns now reach
+  `61.13-68.67 KB/s` with passive proof receipts retained on attempt 1
+- OPPO retained headless current-head product-path reruns now reach
+  `77.02-78.24 KB/s` with passive proof receipts retained on attempt 1
+
+The decisive transport-side win came from suspending discovery during large
+inline sends so the scored product path no longer pays concurrent scan /
+advertise churn while draining the GATT side bearer. A later iPhone proof-app
+route-recovery fix also removed a false-negative warmup-only rerun by
+rescheduling benchmark auto-send after a direct `ROUTE_DISCOVERED` that follows
+a transient `Peer lost`.
 
 ## Next Steps
 
 Later implementation tasks should extend this harness-verified US2 behavior to
-physical-device proof evidence, refine GATT fallback coverage, promote the
-promising reverse GATT-notify branch into a real MeshLink transport candidate,
-and add automated benchmark instrumentation.
+broader physical-device proof evidence, keep benchmark automation durable, and
+preserve the new mixed-bearer product-path throughput closure as the branch
+continues toward any future release promotion decisions.
