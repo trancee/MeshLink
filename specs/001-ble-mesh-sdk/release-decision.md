@@ -124,31 +124,28 @@ seam is now resolved by an optional Swift-installed transport bridge that calls
 `CBPeripheralManager.updateValue` from native code, so the product-path bearer
 can progress past the earlier `NSData` cast failure.
 
-**Current Phase-21 blocker:** once the bridge seam was removed, the next
-product-path blocker surfaced immediately: the optional mixed-platform
-GATT-notify side bearer now carries genuine MeshLink encrypted data frames, but
-reverse transfer ACKs and the final proof receipt still remain tied to the
-L2CAP path. The original retained Samsung and OPPO product-path reruns
-(`/tmp/ios_meshlink_gattside_samsung_bridge2_20260514T194413` and
-`/tmp/ios_meshlink_gattside_oppo_bridge2_20260514T194439`) both ended
-`NotSent(reason=UNREACHABLE)` after only partial side-bearer progress, because
-the direct route expired before the 64 KiB transfer completed.
+**Phase-21/22 resolution update (2026-05-17):** the later mixed-bearer
+control-plane blocker is now resolved on current HEAD. After stabilizing iOS
+notify-frame drain completion plus Android GATT-notify frame ordering and
+Android->iOS GATT-write chunk sizing, fresh retained product-path reruns
+completed recipient-confirmed 64 KiB delivery on both reference peers:
 
-**Current Phase-22 blocker:** later control-plane remediations narrowed that
-failure but still did not close recipient-confirmed product-path proof
-semantics. Retained Samsung evidence
-(`/tmp/ios_meshlink_gattside_samsung_controlplane8_20260517T133555`) now shows
-full product-path 64 KiB forward completion plus passive-recipient delivery
-(`MSG from ... bytes=65536 benchmarkToken=0000a1e8fe2e29d0`), but the passive
-Android proof receipt still degraded to repeated
-`BENCHMARK receipt send(49e7a6) -> NotSent(reason=UNREACHABLE)` even while the
-route metadata stayed direct and available. A fresh OPPO rerun on the same
-branch (`/tmp/ios_meshlink_gattside_oppo_controlplane10_20260517T134622`) is
-still worse: sender-side transfer completion remains unstable and timed out
-after the sender plateaued at `ackedChunks=96`. Phase 21/22 is therefore no
-longer blocked on the original `NSData` seam, and not purely on forward data
-movement either; it is now blocked on recipient-confirmed mixed-bearer closure
-and branch stability across both reference peers.
+- Samsung rerun `/tmp/ios_meshlink_gattside_samsung_framingfix_20260517T154549`
+  retained `BENCHMARK transport bytes=65536 elapsedMs=1406 throughputKBps=45.52
+  result=Sent`, `BENCHMARK receipt from ... token=0000a8ff28258725 bytes=65536`,
+  and passive Samsung retained `BENCHMARK receipt send(651947) -> Sent ...
+  attempt=1`
+- OPPO rerun `/tmp/ios_meshlink_gattside_oppo_writecap_20260517T155015`
+  retained `BENCHMARK transport bytes=65536 elapsedMs=1218 throughputKBps=52.55
+  result=Sent`, `BENCHMARK receipt from ... token=0000a93d37a4d03a bytes=65536`,
+  and passive OPPO retained `BENCHMARK receipt send(320fdf) -> Sent ...
+  attempt=1`
+
+Phase 21/22 is therefore no longer blocked on the original `NSData` seam,
+forward transfer completion, or recipient-confirmed mixed-bearer proof
+closure. This future branch still does **not** close iOS `SC-004` without the
+release waiver because both retained product-path runs remain below the
+normative iOS target of `>= 60 KB/s`.
 
 This future branch does not change the current release claims or waiver
 guardrails.

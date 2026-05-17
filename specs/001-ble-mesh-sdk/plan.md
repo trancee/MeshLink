@@ -171,17 +171,19 @@ on two retained runs (with one lower `53.87 KB/s` rerun). The branch therefore
 has a credible path to `>= 60 KB/s`, but it remains non-normative until the
 product path itself is updated and rerun with fresh retained evidence. The
 original iOS bridge seam is now resolved by an optional Swift-installed
-transport bridge for `CBPeripheralManager.updateValue`, but the reopened
-product-path reruns exposed the next blocker immediately: the mixed-platform
-GATT-notify bearer can move forward MeshLink data frames, yet the reverse
-transfer / receipt control plane still depends on L2CAP and the direct route
-expires before the 64 KiB transfer completes. Subsequent Phase-22 iterations
-partially narrowed that blocker further: retained Samsung evidence now shows
-that the product-path branch can restore full 64 KiB forward transfer
-completion over the mixed bearer, but recipient-confirmed proof closure still
-fails because the passive Android receipt path degrades to
-`NotSent(reason=UNREACHABLE)` after delivery, and a fresh OPPO rerun on the
-same branch still times out before sender-side transfer completion.
+transport bridge for `CBPeripheralManager.updateValue`. Fresh 2026-05-17
+current-HEAD product-path reruns then resolved the later mixed-bearer
+control-plane blocker as well: Samsung
+(`/tmp/ios_meshlink_gattside_samsung_framingfix_20260517T154549`) retained
+`BENCHMARK transport bytes=65536 elapsedMs=1406 throughputKBps=45.52 result=Sent`
+with a matching passive `BENCHMARK receipt send(651947) -> Sent ... attempt=1`,
+and OPPO (`/tmp/ios_meshlink_gattside_oppo_writecap_20260517T155015`) retained
+`BENCHMARK transport bytes=65536 elapsedMs=1218 throughputKBps=52.55 result=Sent`
+with a matching passive `BENCHMARK receipt send(320fdf) -> Sent ... attempt=1`.
+The product-path mixed-bearer branch is therefore no longer blocked on reverse
+receipt closure or cross-peer stability on the reference peers, but it still
+does not satisfy iOS `SC-004` because both retained runs remain below the
+normative `>= 60 KB/s` throughput target.
 
 **Normative evidence-gap status after follow-up coverage closure (2026-05-14):**
 

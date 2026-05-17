@@ -505,13 +505,13 @@ real MeshLink transport candidate for a future non-waived release.
   `docs/explanation/why-l2cap-first.md` so the future conformance branch may
   evaluate an iOS-hosted GATT-notify bearer for large transfers without
   weakening the current waived release guardrails.
-- [ ] T102 Implement the product-path GATT-notify bearer candidate in
+- [X] T102 Implement the product-path GATT-notify bearer candidate in
   `meshlink/src/iosMain/kotlin/ch/trancee/meshlink/platform/ios/IosBleTransport.kt`,
   `meshlink/src/androidMain/kotlin/ch/trancee/meshlink/platform/android/AndroidBleTransport.kt`,
   `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/engine/MeshEngine.kt`,
   and the relevant transport tests so mixed Android/iOS peers can negotiate and
   use the new bearer while preserving the existing L2CAP path.
-- [ ] T103 Run fresh product-path physical Samsung and OPPO reruns, retain the
+- [X] T103 Run fresh product-path physical Samsung and OPPO reruns, retain the
   evidence in `benchmarks/README.md`,
   `specs/001-ble-mesh-sdk/research.md`, and
   `specs/001-ble-mesh-sdk/release-decision.md`, and decide whether the new
@@ -523,14 +523,14 @@ real MeshLink transport candidate for a future non-waived release.
   sends. Record the chosen fix (supported Kotlin/Native bridge or minimal
   Swift/ObjC helper reachable from KMP) before reopening `T102`/`T103`
   physical reruns.
-- [ ] T105 Diagnose and resolve the next product-path blocker revealed by the
+- [X] T105 Diagnose and resolve the next product-path blocker revealed by the
   reopened physical reruns: the optional mixed-platform GATT-notify side bearer
   now delivers real MeshLink frames on Android, but the direct route still
   expires before the 64 KiB transfer completes because reverse transfer /
   receipt traffic remains tied to the L2CAP path. Decide whether to move the
   reverse control plane onto GATT as well, keep L2CAP alive explicitly, or
   redesign route-presence semantics for the mixed bearer.
-- [ ] T106 Stabilize recipient-confirmed mixed-bearer proof closure after the
+- [X] T106 Stabilize recipient-confirmed mixed-bearer proof closure after the
   first T105 remediations: retained Samsung evidence now reaches product-path
   64 KiB forward completion, but the passive Android proof receipt still
   degrades to `NotSent(reason=UNREACHABLE)`, while a fresh OPPO rerun on the

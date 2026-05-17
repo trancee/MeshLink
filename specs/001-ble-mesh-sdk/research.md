@@ -1369,3 +1369,67 @@ Interpretation:
   incomplete Android->iOS direct-receipt reuse of the GATT side bearer, or an
   OPPO-specific queue / sender-stability issue that still leaves the sender at
   `ackedChunks=96`
+
+### Mixed-bearer product-path closure restored on current HEAD (2026-05-17)
+
+A final 2026-05-17 remediation sequence then cleared the remaining Phase-21/22
+mixed-bearer blocker on the current branch.
+
+Bounded fixes that materially changed the failure shape:
+
+- iOS GATT-notify sends now wait for a full framed payload to drain before the
+  shared runtime reports `Delivered`, instead of treating local queueing as
+  transport success
+- Android GATT-notify receive handling now snapshots callback values, serializes
+  notification decoding, and dispatches decoded frames through an ordered queue
+  so OEM stacks that invoke notification callbacks concurrently cannot corrupt
+  or reorder the direct encrypted frame stream
+- Android->iOS GATT side-link writes now chunk large framed payloads and cap
+  the per-write chunk size to a safer `512` bytes, which avoids the
+  `status=9` / `write enqueue failed` receipt-path failures that still appeared
+  after the earlier reverse-control remediations
+
+Fresh retained evidence:
+
+- Samsung rerun:
+  `/tmp/ios_meshlink_gattside_samsung_framingfix_20260517T154549`
+  - iPhone sender retained:
+    - `DIAG TRANSFER_COMPLETED stage=transfer.send.complete`
+    - `BENCHMARK receipt from ... token=0000a8ff28258725 bytes=65536`
+    - `BENCHMARK transport bytes=65536 elapsedMs=1406 throughputKBps=45.52 result=Sent`
+  - passive Samsung retained:
+    - `MSG from ... bytes=65536 benchmarkToken=0000a8ff28258725`
+    - `BENCHMARK receipt send(651947) -> Sent token=0000a8ff28258725 attempt=1`
+- OPPO rerun:
+  `/tmp/ios_meshlink_gattside_oppo_writecap_20260517T155015`
+  - iPhone sender retained:
+    - `DIAG TRANSFER_COMPLETED stage=transfer.send.complete`
+    - `BENCHMARK receipt from ... token=0000a93d37a4d03a bytes=65536`
+    - `BENCHMARK transport bytes=65536 elapsedMs=1218 throughputKBps=52.55 result=Sent`
+  - passive OPPO retained:
+    - `MSG from ... bytes=65536 benchmarkToken=0000a93d37a4d03a`
+    - `BENCHMARK receipt send(320fdf) -> Sent token=0000a93d37a4d03a attempt=1`
+
+Root-cause notes supported by the retained intermediate reruns:
+
+- Samsung’s remaining receipt-path failure was no longer a generic
+  `UNREACHABLE` mystery. The passive Android log retained repeated
+  `GATT notify side link ... write failed status=9` for the 533-byte framed
+  proof receipt, which narrowed the issue to Android->iOS GATT write sizing.
+- OPPO’s remaining forward-path corruption was no longer explained by the
+  earlier nonce hypothesis. The passive Android log showed notification
+  callbacks landing on multiple different threads while the shared frame buffer
+  was still mutable and unsynchronized, which fits the repeated
+  `AEADBadTagException` failures observed before the ordered decode fix.
+
+Updated interpretation:
+
+- the mixed-bearer product path is no longer blocked on the original iOS
+  `NSData` bridge seam
+- it is no longer blocked on forward-only delivery or on recipient-confirmed
+  proof closure either; both Samsung and OPPO now complete the 64 KiB
+  recipient-confirmed product-path benchmark on current HEAD
+- the remaining blocker therefore collapses back to the long-standing iOS
+  throughput gap against `SC-004`: the best fresh product-path reruns now land
+  at `45.52 KB/s` on Samsung and `52.55 KB/s` on OPPO, which still remains
+  below the normative iOS target of `>= 60 KB/s`
