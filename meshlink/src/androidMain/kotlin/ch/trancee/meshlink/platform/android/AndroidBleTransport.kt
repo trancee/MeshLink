@@ -65,7 +65,6 @@ internal class AndroidBleTransport(
     private val gattNotifyClientsByHint: MutableMap<String, AndroidGattNotifyClient> = linkedMapOf()
     private val temporaryHintByAddress: MutableMap<String, String> = linkedMapOf()
     private val pendingConnectJobsByHint: MutableMap<String, Job> = linkedMapOf()
-    private val pendingPresenceLossJobsByHint: MutableMap<String, Job> = linkedMapOf()
     private val transportMutex = Mutex()
     private var inboundFrameEvents: Channel<TransportEvent.FrameReceived> =
         Channel(capacity = Channel.UNLIMITED)
@@ -332,7 +331,6 @@ internal class AndroidBleTransport(
         }
 
         val resolvedPeer = discoveredPeers.getValue(hintPeerId.value)
-        cancelPendingPresenceLoss(hintPeerId.value)
         maybeLogRediscoveryWithoutLink(
             peer = resolvedPeer,
             transportMode = transportMode,
@@ -582,7 +580,6 @@ internal class AndroidBleTransport(
             activeLinksByHint[hintPeerId.value] = link
             peerHintByAddress[socket.remoteDevice.address] = hintPeerId.value
             discoveredPeers[hintPeerId.value]?.rediscoveryLoggedWithoutLink = false
-            cancelPendingPresenceLoss(hintPeerId.value)
             log(
                 "registered L2CAP link for ${hintPeerId.value.takeLast(6)} addr=${socket.remoteDevice.address}"
             )
@@ -754,8 +751,6 @@ internal class AndroidBleTransport(
         acceptLoopJob = null
         pendingConnectJobsByHint.values.forEach(Job::cancel)
         pendingConnectJobsByHint.clear()
-        pendingPresenceLossJobsByHint.values.forEach(Job::cancel)
-        pendingPresenceLossJobsByHint.clear()
         closeQuietly(l2capServerSocket)
         l2capServerSocket = null
         val hintIds = activeLinksByHint.keys.toList()
@@ -795,44 +790,12 @@ internal class AndroidBleTransport(
     private fun handleGattNotifySideLinkDisconnected(peerHintId: PeerId): Unit {
         val removedClient = gattNotifyClientsByHint.remove(peerHintId.value) ?: return
         log("removed GATT notify side link for ${peerHintId.value.takeLast(6)}")
-        removedClient.close()
         if (synchronized(activeLinksByHint) { activeLinksByHint.containsKey(peerHintId.value) }) {
-            cancelPendingPresenceLoss(peerHintId.value)
             return
         }
-        val discoveredPeer = discoveredPeers[peerHintId.value]
-        if (
-            discoveredPeer != null &&
-                discoveredPeer.transportMode == TransportMode.L2CAP &&
-                discoveredPeer.l2capPsm != 0
-        ) {
-            scheduleDeferredPresenceLoss(peerHintId)
-            return
-        }
+        removedClient.close()
         discoveredPeers[peerHintId.value]?.presenceAnnounced = false
         mutableEvents.tryEmit(TransportEvent.PeerLost(peerHintId))
-    }
-
-    private fun scheduleDeferredPresenceLoss(peerHintId: PeerId): Unit {
-        if (pendingPresenceLossJobsByHint.containsKey(peerHintId.value)) {
-            return
-        }
-        pendingPresenceLossJobsByHint[peerHintId.value] = coroutineScope.launch {
-            kotlinx.coroutines.delay(GATT_SIDE_LINK_PRESENCE_LOSS_GRACE_PERIOD_MS)
-            pendingPresenceLossJobsByHint.remove(peerHintId.value)
-            if (synchronized(activeLinksByHint) { activeLinksByHint.containsKey(peerHintId.value) }) {
-                return@launch
-            }
-            if (gattNotifyClientsByHint[peerHintId.value]?.isReady() == true) {
-                return@launch
-            }
-            discoveredPeers[peerHintId.value]?.presenceAnnounced = false
-            mutableEvents.tryEmit(TransportEvent.PeerLost(peerHintId))
-        }
-    }
-
-    private fun cancelPendingPresenceLoss(hintPeerId: String): Unit {
-        pendingPresenceLossJobsByHint.remove(hintPeerId)?.cancel()
     }
 
     private fun hasActiveGattNotifyLink(hintPeer: String): Boolean {
@@ -916,6 +879,5 @@ internal class AndroidBleTransport(
         private const val DEFAULT_SOCKET_READ_BUFFER_BYTES: Int = 1024
         private const val LOG_TAG: String = "MeshLinkTransport"
         private const val TEMPORARY_PEER_PREFIX: String = "bt-"
-        private const val GATT_SIDE_LINK_PRESENCE_LOSS_GRACE_PERIOD_MS: Long = 1_500L
     }
 }
