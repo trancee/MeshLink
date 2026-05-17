@@ -203,11 +203,17 @@ internal class AndroidGattNotifyClient(
     suspend fun write(payload: ByteArray): Boolean {
         return writeMutex.withLock {
             if (!ready) {
+                log(
+                    "GATT notify side link ${peerHintId.value.takeLast(6)} write skipped: client not ready"
+                )
                 false
             } else {
                 val gatt = gatt
                 val writeCharacteristic = writeCharacteristic
                 if (gatt == null || writeCharacteristic == null) {
+                    log(
+                        "GATT notify side link ${peerHintId.value.takeLast(6)} write skipped: missing GATT state gatt=${gatt != null} characteristic=${writeCharacteristic != null}"
+                    )
                     false
                 } else {
                     val encoded = frameBuffer.encode(payload)
@@ -220,11 +226,26 @@ internal class AndroidGattNotifyClient(
                     @Suppress("DEPRECATION")
                     val enqueued = gatt.writeCharacteristic(writeCharacteristic)
                     if (!enqueued) {
+                        log(
+                            "GATT notify side link ${peerHintId.value.takeLast(6)} write enqueue failed bytes=${payload.size} encodedBytes=${encoded.size}"
+                        )
                         completePendingWrite(success = false)
                         false
                     } else {
                         withTimeoutOrNull(WRITE_TIMEOUT_MILLIS) { deferred.await() }
-                            ?: false.also { completePendingWrite(success = false) }
+                            ?.also { success ->
+                                if (!success) {
+                                    log(
+                                        "GATT notify side link ${peerHintId.value.takeLast(6)} write callback reported failure bytes=${payload.size} encodedBytes=${encoded.size}"
+                                    )
+                                }
+                            }
+                            ?: false.also {
+                                log(
+                                    "GATT notify side link ${peerHintId.value.takeLast(6)} write timed out bytes=${payload.size} encodedBytes=${encoded.size}"
+                                )
+                                completePendingWrite(success = false)
+                            }
                     }
                 }
             }

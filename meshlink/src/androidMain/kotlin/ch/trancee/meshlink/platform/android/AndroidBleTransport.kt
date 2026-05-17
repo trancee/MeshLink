@@ -393,6 +393,9 @@ internal class AndroidBleTransport(
         maybeStartGattNotifySideLink(peer)
         val client = gattNotifyClientsByHint[peer.hintPeerId.value] ?: return null
         if (!client.isReady()) {
+            log(
+                "preferred GATT side-link send skipped for ${peer.hintPeerId.value.takeLast(6)}: client not ready"
+            )
             return null
         }
         val delivered =
@@ -406,6 +409,9 @@ internal class AndroidBleTransport(
             log("sent ${frame.payload.size} bytes via GATT write side link for ${peer.hintPeerId.value.takeLast(6)}")
             TransportSendResult.Delivered
         } else {
+            log(
+                "preferred GATT side-link send returned false for ${peer.hintPeerId.value.takeLast(6)} bytes=${frame.payload.size}"
+            )
             null
         }
     }

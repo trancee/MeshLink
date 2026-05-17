@@ -530,6 +530,9 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
         val central = firstRequest.central
         val link = ensureGattNotifyLink(central = central, replaceExisting = false)
         if (link == null) {
+            reportLog(
+                "GATT write request rejected: no active side link for central=${central.identifier.UUIDString.lowercase()} requests=${typedRequests.size}"
+            )
             peripheralManager?.respondToRequest(firstRequest, withResult = CBATTErrorUnlikelyError)
             return
         }
@@ -544,6 +547,9 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
                         true
                     } == true
             }
+        reportLog(
+            "GATT write request for ${link.hintPeerId.value.takeLast(6)} requests=${typedRequests.size} decodedFrames=${decodedFrames.size} accepted=$allRequestsAccepted"
+        )
         peripheralManager?.respondToRequest(
             firstRequest,
             withResult = if (allRequestsAccepted) CBATTErrorSuccess else CBATTErrorUnlikelyError,
