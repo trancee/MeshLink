@@ -532,9 +532,6 @@ internal class AndroidBleTransport(
             }
         if (!reserved) {
             connectJob.cancel()
-            log(
-                "connectIfNeeded(${peer.hintPeerId.value.takeLast(6)}) skipped: already active or pending"
-            )
             return
         }
         adapter.cancelDiscovery()
