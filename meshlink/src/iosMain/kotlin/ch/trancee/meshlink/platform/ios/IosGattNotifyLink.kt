@@ -24,7 +24,7 @@ internal class IosGattNotifyLink(
     private val peripheralManagerProvider: () -> CBPeripheralManager?,
     private val notifyCharacteristicProvider: () -> CBMutableCharacteristic?,
     private val logger: (String) -> Unit,
-    private val schedulePumpRetry: (Long) -> Unit,
+    private val schedulePumpRetry: () -> Unit,
 ) {
     private val outgoingFrames = IosL2capFrameBuffer()
     private val incomingFrames = IosL2capFrameBuffer()
@@ -34,7 +34,6 @@ internal class IosGattNotifyLink(
     private var closed: Boolean = false
     private var pumpInProgress: Boolean = false
     private var retryPumpScheduled: Boolean = false
-    private var consecutiveBackpressureCount: Int = 0
 
     internal suspend fun enqueue(payload: ByteArray): Boolean {
         val chunkBytes = maxNotificationChunkBytes()
@@ -118,17 +117,14 @@ internal class IosGattNotifyLink(
                 var completedFrame: PendingFrame? = null
                 var pendingChunkCount: Int = 0
                 var shouldScheduleRetryPump: Boolean = false
-                var retryDelayMillis: Long = MIN_GATT_NOTIFY_PUMP_RETRY_DELAY_MS
                 stateLock.withLock {
                     if (closed) {
                         completedFrame = null
                         pendingChunkCount = 0
-                        consecutiveBackpressureCount = 0
                     } else {
                         val headFrame = pendingFrames.firstOrNull()
                         completedFrame =
                             if (didSend && headFrame != null) {
-                                consecutiveBackpressureCount = 0
                                 val finished = headFrame.markCurrentChunkSent()
                                 if (finished) {
                                     pendingFrames.removeFirst()
@@ -137,11 +133,9 @@ internal class IosGattNotifyLink(
                                     null
                                 }
                             } else {
-                                consecutiveBackpressureCount += 1
                                 null
                             }
                         pendingChunkCount = pendingChunkCountLocked()
-                        retryDelayMillis = adaptiveRetryDelayMillis(consecutiveBackpressureCount)
                         if (!didSend && pendingChunkCount > 0 && !retryPumpScheduled) {
                             retryPumpScheduled = true
                             shouldScheduleRetryPump = true
@@ -154,9 +148,9 @@ internal class IosGattNotifyLink(
                 completedFrame?.completeIfPending(true)
                 if (shouldScheduleRetryPump) {
                     logger(
-                        "GATT notify pump ${hintPeerId.value.takeLast(6)} scheduling retry pending=$pendingChunkCount delayMs=$retryDelayMillis backpressureCount=$consecutiveBackpressureCount"
+                        "GATT notify pump ${hintPeerId.value.takeLast(6)} scheduling retry pending=$pendingChunkCount"
                     )
-                    schedulePumpRetry(retryDelayMillis)
+                    schedulePumpRetry()
                 }
                 if (!didSend) {
                     return true
@@ -218,14 +212,6 @@ internal class IosGattNotifyLink(
         return pendingFrames.sumOf { frame -> frame.remainingChunkCount() }
     }
 
-    private fun adaptiveRetryDelayMillis(backpressureCount: Int): Long {
-        return when {
-            backpressureCount >= 24 -> MAX_GATT_NOTIFY_PUMP_RETRY_DELAY_MS
-            backpressureCount >= 8 -> 4L
-            else -> MIN_GATT_NOTIFY_PUMP_RETRY_DELAY_MS
-        }
-    }
-
     private class PendingFrame internal constructor(chunks: List<ByteArray>) {
         private val completion: CompletableDeferred<Boolean> = CompletableDeferred()
         private val chunks: List<ByteArray> = chunks.map { chunk -> chunk.copyOf() }
@@ -264,8 +250,6 @@ internal class IosGattNotifyLink(
 
         private const val PREFERRED_NOTIFICATION_FRAME_BYTES: Int = 495
         private const val MAX_FRAME_PAYLOAD_BYTES: Int = 128 * 1024
-        private const val MIN_GATT_NOTIFY_PUMP_RETRY_DELAY_MS: Long = 2L
-        private const val MAX_GATT_NOTIFY_PUMP_RETRY_DELAY_MS: Long = 8L
     }
 }
 
