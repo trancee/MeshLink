@@ -258,23 +258,16 @@ internal class AndroidBleTransport(
             promoteTemporaryLink(address = result.device.address, hintPeerId = hintPeerId)
         }
         val discoveredPeer = discoveredPeers[hintPeerId.value]
-        if (
+        val sameTransportAdvertisement =
             discoveredPeer != null &&
                 discoveredPeer.device.address == result.device.address &&
                 discoveredPeer.l2capPsm == payload.l2capPsm.toInt() &&
                 discoveredPeer.transportMode == transportMode
-        ) {
-            peerHintByAddress[result.device.address] = hintPeerId.value
-            maybeLogRediscoveryWithoutLink(
-                peer = discoveredPeer,
-                transportMode = transportMode,
-                address = result.device.address,
+        if (!sameTransportAdvertisement) {
+            log(
+                "scan found ${hintPeerId.value.takeLast(6)} mode=$transportMode psm=${payload.l2capPsm} platform=${payload.platformFamily} addr=${result.device.address}"
             )
-            return
         }
-        log(
-            "scan found ${hintPeerId.value.takeLast(6)} mode=$transportMode psm=${payload.l2capPsm} platform=${payload.platformFamily} addr=${result.device.address}"
-        )
         if (discoveredPeer == null) {
             discoveredPeers[hintPeerId.value] =
                 DiscoveredPeer(
@@ -284,6 +277,7 @@ internal class AndroidBleTransport(
                     l2capPsm = payload.l2capPsm.toInt(),
                     transportMode = transportMode,
                     platformFamily = payload.platformFamily,
+                    presenceAnnounced = true,
                 )
             peerHintByAddress[result.device.address] = hintPeerId.value
             mutableEvents.tryEmit(
@@ -301,6 +295,12 @@ internal class AndroidBleTransport(
                         peerId = hintPeerId,
                         transportMode = transportMode,
                     )
+                )
+            }
+            if (!discoveredPeer.presenceAnnounced) {
+                discoveredPeer.presenceAnnounced = true
+                mutableEvents.tryEmit(
+                    TransportEvent.PeerDiscovered(peerId = hintPeerId, transportMode = transportMode)
                 )
             }
         }
@@ -709,6 +709,7 @@ internal class AndroidBleTransport(
             )
             return
         }
+        discoveredPeers[hintPeer]?.presenceAnnounced = false
         val peerId = PeerId(hintPeer)
         mutableEvents.tryEmit(TransportEvent.PeerLost(peerId))
     }
@@ -720,6 +721,7 @@ internal class AndroidBleTransport(
             return
         }
         removedClient.close()
+        discoveredPeers[peerHintId.value]?.presenceAnnounced = false
         mutableEvents.tryEmit(TransportEvent.PeerLost(peerHintId))
     }
 
@@ -751,6 +753,7 @@ internal class AndroidBleTransport(
         var transportMode: TransportMode,
         var platformFamily: BleDiscoveryPlatformFamily,
         var rediscoveryLoggedWithoutLink: Boolean = false,
+        var presenceAnnounced: Boolean = false,
     ) {
         val keyHash: ByteArray = keyHash.copyOf()
     }

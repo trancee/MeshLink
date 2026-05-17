@@ -352,6 +352,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
                     l2capPsm = payload.l2capPsm.toInt(),
                     transportMode = transportMode,
                     platformFamily = payload.platformFamily,
+                    presenceAnnounced = true,
                 )
             peerHintByIdentifier[identifier] = hintPeerId.value
             mutableEvents.tryEmit(
@@ -369,6 +370,12 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
                         peerId = hintPeerId,
                         transportMode = transportMode,
                     )
+                )
+            }
+            if (!discoveredPeer.presenceAnnounced) {
+                discoveredPeer.presenceAnnounced = true
+                mutableEvents.tryEmit(
+                    TransportEvent.PeerDiscovered(peerId = hintPeerId, transportMode = transportMode)
                 )
             }
         }
@@ -508,6 +515,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
         if (activeLinksByHint.containsKey(hintPeerIdValue)) {
             return
         }
+        discoveredPeers[hintPeerIdValue]?.presenceAnnounced = false
         mutableEvents.tryEmit(TransportEvent.PeerLost(PeerId(hintPeerIdValue)))
     }
 
@@ -821,6 +829,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
             )
             return
         }
+        discoveredPeers[hintPeer]?.presenceAnnounced = false
         mutableEvents.tryEmit(TransportEvent.PeerLost(PeerId(hintPeer)))
     }
 
@@ -878,6 +887,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
         var transportMode: TransportMode,
         var platformFamily: BleDiscoveryPlatformFamily,
         var rediscoveryLoggedWithoutLink: Boolean = false,
+        var presenceAnnounced: Boolean = false,
     ) {
         val keyHash: ByteArray = keyHash.copyOf()
     }
