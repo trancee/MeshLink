@@ -111,6 +111,14 @@ internal class IosGattNotifyLink(
         }
     }
 
+    internal fun discardQueuedFrames(): Int {
+        return stateLock.withLock {
+            val discardedChunks = pendingChunks.size
+            pendingChunks.clear()
+            discardedChunks
+        }
+    }
+
     internal fun close(): Unit {
         stateLock.withLock {
             closed = true

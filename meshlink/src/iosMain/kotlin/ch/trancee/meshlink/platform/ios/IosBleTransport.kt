@@ -152,11 +152,16 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
 
     override suspend fun clearQueuedOutboundFrames(peerId: PeerId): Unit {
         val peer = resolvePeer(peerId) ?: return
-        val link = activeLinkFor(peer) ?: return
-        val discardedFrames = link.discardQueuedFrames()
-        if (discardedFrames > 0) {
+        val discardedL2capFrames = activeLinkFor(peer)?.discardQueuedFrames() ?: 0
+        if (discardedL2capFrames > 0) {
             log(
-                "discarded $discardedFrames queued L2CAP frames for ${peer.hintPeerId.value.takeLast(6)}"
+                "discarded $discardedL2capFrames queued L2CAP frames for ${peer.hintPeerId.value.takeLast(6)}"
+            )
+        }
+        val discardedGattFrames = activeGattNotifyLinkFor(peer)?.discardQueuedFrames() ?: 0
+        if (discardedGattFrames > 0) {
+            log(
+                "discarded $discardedGattFrames queued GATT notify frames for ${peer.hintPeerId.value.takeLast(6)}"
             )
         }
     }
