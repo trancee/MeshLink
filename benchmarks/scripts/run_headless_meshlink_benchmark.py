@@ -94,6 +94,16 @@ def parse_args() -> argparse.Namespace:
         help="How many retained benchmark runs to execute in sequence. Uses numbered run directories when > 1.",
     )
     parser.add_argument(
+        "--require-run-min-kbps",
+        type=float,
+        help="Fail if any scored run in the series is below this throughput threshold.",
+    )
+    parser.add_argument(
+        "--require-average-kbps",
+        type=float,
+        help="Fail if the scored series average is below this throughput threshold.",
+    )
+    parser.add_argument(
         "--android-ready-seconds",
         type=float,
         default=DEFAULT_ANDROID_READY_SECONDS,
@@ -471,23 +481,23 @@ def run_once(args: argparse.Namespace, *, run_dir: Path, app_id: str) -> RunOutc
     return outcome
 
 
-def summarize_series(outcomes: list[RunOutcome]) -> None:
-    if len(outcomes) <= 1:
-        return
+def summarize_series(outcomes: list[RunOutcome]) -> list[float]:
     throughputs = [outcome.throughput_kbps for outcome in outcomes if outcome.throughput_kbps is not None]
     successful = [outcome for outcome in outcomes if outcome.benchmark_line_seen]
-    print(f"==> Series summary: {len(successful)}/{len(outcomes)} runs observed a scored benchmark line")
-    if throughputs:
-        average = sum(throughputs) / len(throughputs)
-        print(
-            "==> Throughput summary: "
-            f"min={min(throughputs):.2f} KB/s avg={average:.2f} KB/s max={max(throughputs):.2f} KB/s"
-        )
-    for index, outcome in enumerate(outcomes, start=1):
-        print(
-            f"==> Run {index}: dir={outcome.run_dir} result={outcome.result_label or 'missing'} "
-            f"throughputKBps={outcome.throughput_kbps if outcome.throughput_kbps is not None else 'missing'}"
-        )
+    if len(outcomes) > 1:
+        print(f"==> Series summary: {len(successful)}/{len(outcomes)} runs observed a scored benchmark line")
+        if throughputs:
+            average = sum(throughputs) / len(throughputs)
+            print(
+                "==> Throughput summary: "
+                f"min={min(throughputs):.2f} KB/s avg={average:.2f} KB/s max={max(throughputs):.2f} KB/s"
+            )
+        for index, outcome in enumerate(outcomes, start=1):
+            print(
+                f"==> Run {index}: dir={outcome.run_dir} result={outcome.result_label or 'missing'} "
+                f"throughputKBps={outcome.throughput_kbps if outcome.throughput_kbps is not None else 'missing'}"
+            )
+    return [value for value in throughputs if value is not None]
 
 
 def main() -> int:
@@ -511,15 +521,48 @@ def main() -> int:
         )
         outcomes.append(outcome)
 
-    summarize_series(outcomes)
-    if all(outcome.benchmark_line_seen for outcome in outcomes):
-        return 0
+    throughputs = summarize_series(outcomes)
 
-    print(
-        f"ERROR: at least one run did not observe BENCHMARK transport bytes={args.payload_bytes} within {args.capture_timeout_seconds} seconds",
-        file=sys.stderr,
-    )
-    return 1
+    if not all(outcome.benchmark_line_seen for outcome in outcomes):
+        print(
+            f"ERROR: at least one run did not observe BENCHMARK transport bytes={args.payload_bytes} within {args.capture_timeout_seconds} seconds",
+            file=sys.stderr,
+        )
+        return 1
+
+    if args.require_run_min_kbps is not None:
+        below_threshold = [
+            outcome for outcome in outcomes
+            if outcome.throughput_kbps is None or outcome.throughput_kbps < args.require_run_min_kbps
+        ]
+        if below_threshold:
+            print(
+                f"ERROR: {len(below_threshold)} run(s) fell below require-run-min-kbps={args.require_run_min_kbps:.2f}",
+                file=sys.stderr,
+            )
+            for outcome in below_threshold:
+                print(
+                    f"  - {outcome.run_dir}: throughputKBps={outcome.throughput_kbps if outcome.throughput_kbps is not None else 'missing'}",
+                    file=sys.stderr,
+                )
+            return 1
+
+    if args.require_average_kbps is not None:
+        if not throughputs:
+            print(
+                "ERROR: require-average-kbps was set but no scored throughput values were captured",
+                file=sys.stderr,
+            )
+            return 1
+        average = sum(throughputs) / len(throughputs)
+        if average < args.require_average_kbps:
+            print(
+                f"ERROR: series average {average:.2f} KB/s is below require-average-kbps={args.require_average_kbps:.2f}",
+                file=sys.stderr,
+            )
+            return 1
+
+    return 0
 
 
 if __name__ == "__main__":

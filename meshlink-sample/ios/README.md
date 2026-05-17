@@ -95,6 +95,22 @@ benchmarks/scripts/run_headless_meshlink_benchmark.py \
   --run-dir /tmp/ios_meshlink_headless_series
 ```
 
+For conformance-oriented retained series, the runner can also fail on per-run
+or average throughput thresholds:
+
+```bash
+benchmarks/scripts/run_headless_meshlink_benchmark.py \
+  --android-serial <android-serial> \
+  --ios-device <your-device-udid> \
+  --payload-bytes 65536 \
+  --skip-ios-build \
+  --skip-ios-install \
+  --repeat 5 \
+  --require-run-min-kbps 60 \
+  --require-average-kbps 60 \
+  --run-dir /tmp/ios_meshlink_headless_conformance
+```
+
 The runner exists because a naive `devicectl --console` wrapper can appear to
 hang after the scored benchmark line if the proof app stays alive but quiet.
 The retained runner uses a hard timeout plus idle-aware console capture so the
