@@ -61,6 +61,12 @@ link. However, the retained Samsung and OPPO product-path reruns still ended
 which means the next blocker is the L2CAP-bound reverse control plane rather
 than GATT notification receive support itself.
 
+Later Phase-22 remediations narrowed that again: Samsung now has retained
+product-path evidence that reaches `MSG from ... bytes=65536`, but the passive
+proof receipt still degrades to `NotSent(reason=UNREACHABLE)`, while OPPO still
+has a sender-side `TRANSFER_TIMED_OUT` run on the same branch. The remaining
+blocker is recipient-confirmed mixed-bearer closure and cross-peer stability.
+
 ## Next Steps
 
 Later implementation tasks should extend this harness-verified US2 behavior to

@@ -530,6 +530,14 @@ real MeshLink transport candidate for a future non-waived release.
   receipt traffic remains tied to the L2CAP path. Decide whether to move the
   reverse control plane onto GATT as well, keep L2CAP alive explicitly, or
   redesign route-presence semantics for the mixed bearer.
+- [ ] T106 Stabilize recipient-confirmed mixed-bearer proof closure after the
+  first T105 remediations: retained Samsung evidence now reaches product-path
+  64 KiB forward completion, but the passive Android proof receipt still
+  degrades to `NotSent(reason=UNREACHABLE)`, while a fresh OPPO rerun on the
+  same branch still times out before sender-side transfer completion. Capture
+  whether the remaining problem is (a) stale duplicate post-completion traffic,
+  (b) Android->iOS GATT-write reuse for direct receipts, or (c) OPPO-specific
+  sender/queue stability before reopening any release-readiness claim.
 
 ---
 

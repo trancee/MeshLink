@@ -1323,3 +1323,49 @@ Interpretation:
   move onto GATT as well, L2CAP must be kept alive explicitly for the whole
   transfer, or route-presence semantics must be redesigned so the mixed bearer
   is treated as a durable direct path instead of a transient side channel
+
+### Phase-22 follow-up after reverse-control remediations (2026-05-17)
+
+Fresh product-path reruns after the first reverse-control remediations narrowed
+that blocker again, but did not close it.
+
+Retained Samsung evidence:
+
+- product-path rerun:
+  `/tmp/ios_meshlink_gattside_samsung_controlplane8_20260517T133555`
+  - sender retained `DIAG TRANSFER_COMPLETED stage=transfer.send.complete`
+  - passive Samsung retained full delivery:
+    `MSG from 2f219ad6dbb23f8c9249e7a6dc62f6ec9cd24c3f bytes=65536 benchmarkToken=0000a1e8fe2e29d0`
+  - passive Samsung still failed the proof receipt path repeatedly:
+    `BENCHMARK receipt send(49e7a6) -> NotSent(reason=UNREACHABLE)`
+    while the passive-side diagnostics still retained
+    `routeAvailable=true, routeIsDirect=true`
+- diagnostic rerun on the same branch:
+  `/tmp/ios_meshlink_gattside_samsung_controlplane9_20260517T134214`
+  - iPhone retained `GATT write request for 96ee2f requests=1 decodedFrames=1 accepted=true`
+    lines, which proves Android->iOS GATT writes can reach the iOS runtime
+  - even so, sender-side product-path closure still remained unstable and the
+    same branch later retained repeated `TRANSFER_TIMED_OUT` outcomes
+
+Retained OPPO evidence:
+
+- product-path rerun:
+  `/tmp/ios_meshlink_gattside_oppo_controlplane10_20260517T134622`
+  - sender retained `BENCHMARK transport bytes=65536 elapsedMs=15034 throughputKBps=4.26 result=NotSent(reason=TRANSFER_TIMED_OUT)`
+  - sender-side progress plateaued at `ackedChunks=96`
+  - this branch therefore still lacks even forward sender-side completion on
+    the OPPO reference peer
+
+Interpretation:
+
+- the branch is no longer blocked on the original `NSData` bridge seam
+- it is also no longer blocked solely on forward-data movement: Samsung now
+  proves that product-path forward transfer completion can be restored through
+  the mixed bearer
+- the remaining blocker is narrower and more product-specific:
+  recipient-confirmed proof closure after delivery still fails, and the branch
+  is not yet stable across both reference peers
+- the most likely remaining causes are stale duplicate post-completion traffic,
+  incomplete Android->iOS direct-receipt reuse of the GATT side bearer, or an
+  OPPO-specific queue / sender-stability issue that still leaves the sender at
+  `ackedChunks=96`

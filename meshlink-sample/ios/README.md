@@ -108,6 +108,11 @@ Physical proof findings on iPhone 15:
   runtime from calling `CBPeripheralManager.updateValue` for future bearer
   experiments, but the first real MeshLink product-path mixed-bearer reruns are
   still blocked by route expiry before the transfer finishes
+- later Phase-22 remediations restored forward 64 KiB product-path completion
+  on the Samsung reference peer, but recipient-confirmed proof closure still
+  fails because the passive Android receipt path remains `NotSent(reason=
+  UNREACHABLE)`, and OPPO still has a sender-side `TRANSFER_TIMED_OUT` rerun on
+  the same branch
 - the earlier stricter recipient-confirmed `ReceiptTimeout` matrix is now
   historical diagnostic evidence only; the current deterministic mixed-platform
   path completes recipient-confirmed Samsung and OPPO 64 KiB proof runs cleanly,

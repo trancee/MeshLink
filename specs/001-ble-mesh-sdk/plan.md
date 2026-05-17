@@ -175,7 +175,13 @@ transport bridge for `CBPeripheralManager.updateValue`, but the reopened
 product-path reruns exposed the next blocker immediately: the mixed-platform
 GATT-notify bearer can move forward MeshLink data frames, yet the reverse
 transfer / receipt control plane still depends on L2CAP and the direct route
-expires before the 64 KiB transfer completes.
+expires before the 64 KiB transfer completes. Subsequent Phase-22 iterations
+partially narrowed that blocker further: retained Samsung evidence now shows
+that the product-path branch can restore full 64 KiB forward transfer
+completion over the mixed bearer, but recipient-confirmed proof closure still
+fails because the passive Android receipt path degrades to
+`NotSent(reason=UNREACHABLE)` after delivery, and a fresh OPPO rerun on the
+same branch still times out before sender-side transfer completion.
 
 **Normative evidence-gap status after follow-up coverage closure (2026-05-14):**
 
