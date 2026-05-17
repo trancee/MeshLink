@@ -1433,3 +1433,23 @@ Updated interpretation:
   throughput gap against `SC-004`: the best fresh product-path reruns now land
   at `45.52 KB/s` on Samsung and `52.55 KB/s` on OPPO, which still remains
   below the normative iOS target of `>= 60 KB/s`
+
+Engineering learnings worth retaining:
+
+- for the iOS peripheral-hosted GATT-notify bearer, transport success cannot
+  mean local queue acceptance; it must mean the full framed payload drained far
+  enough through Core Bluetooth that sender/session state will not outrun the
+  real encrypted wire stream
+- for Android GATT clients, notification handling must treat callback ordering
+  as hostile: snapshot the byte value immediately and run frame-buffer decode /
+  downstream delivery through one ordered pipeline, because at least one OEM
+  stack delivered notification callbacks concurrently on different threads
+- for Android->iOS GATT side-link writes, negotiated MTU headroom was not a
+  sufficient safety signal by itself; the retained Samsung receipt failure shows
+  that conservative chunking (`<= 512` bytes here) is still required for stable
+  cross-vendor closure even when larger framed payloads appear theoretically
+  admissible
+- the last mixed-bearer failures were therefore transport bookkeeping and
+  callback-ordering bugs, not new evidence that the encrypted MeshLink frame
+  format or nonce model is fundamentally incompatible with the GATT-notify side
+  bearer
