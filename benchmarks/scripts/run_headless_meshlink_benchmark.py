@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import selectors
 import shlex
 import signal
@@ -12,6 +13,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
 
@@ -23,6 +25,39 @@ DEFAULT_CAPTURE_TIMEOUT_SECONDS = 120
 DEFAULT_POST_RESULT_IDLE_SECONDS = 5
 DEFAULT_ANDROID_READY_SECONDS = 8
 DEFAULT_LOGCAT_TAGS = ["MeshLinkTransport:D", "MeshLinkProof:I", "*:S"]
+BENCHMARK_RESULT_PATTERN = re.compile(
+    r"BENCHMARK transport bytes=(?P<bytes>\d+) elapsedMs=(?P<elapsed_ms>\d+) "
+    r"throughputKBps=(?P<throughput>[0-9]+(?:\.[0-9]+)?) result=(?P<result>\S+)"
+)
+
+
+@dataclass
+class RunOutcome:
+    run_dir: Path
+    app_id: str
+    benchmark_line_seen: bool
+    iphone_benchmark_result: str | None
+    iphone_receipt_line: str | None
+    android_receipt_send: str | None
+    android_message_line: str | None
+
+    @property
+    def throughput_kbps(self) -> float | None:
+        if self.iphone_benchmark_result is None:
+            return None
+        match = BENCHMARK_RESULT_PATTERN.search(self.iphone_benchmark_result)
+        if match is None:
+            return None
+        return float(match.group("throughput"))
+
+    @property
+    def result_label(self) -> str | None:
+        if self.iphone_benchmark_result is None:
+            return None
+        match = BENCHMARK_RESULT_PATTERN.search(self.iphone_benchmark_result)
+        if match is None:
+            return None
+        return match.group("result")
 
 
 def parse_args() -> argparse.Namespace:
@@ -51,6 +86,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--run-dir",
         help="Directory for retained logs and metadata. Defaults to /tmp/ios_meshlink_headless_<timestamp>",
+    )
+    parser.add_argument(
+        "--repeat",
+        type=int,
+        default=1,
+        help="How many retained benchmark runs to execute in sequence. Uses numbered run directories when > 1.",
     )
     parser.add_argument(
         "--android-ready-seconds",
@@ -324,31 +365,59 @@ def capture_android_proof_log(run_dir: Path, android_serial: str) -> None:
     (run_dir / "android_proof.log").write_text(result.stdout, encoding="utf-8")
 
 
-def summarize(run_dir: Path, payload_bytes: int) -> None:
+def first_match(lines: list[str], needle: str) -> str | None:
+    for line in lines:
+        if needle in line:
+            return line
+    return None
+
+
+def summarize(run_dir: Path, payload_bytes: int) -> RunOutcome:
     iphone_lines = (run_dir / "iphone_console.log").read_text(encoding="utf-8", errors="replace").splitlines()
     android_logcat = (run_dir / "android_logcat.log").read_text(encoding="utf-8", errors="replace").splitlines()
     android_proof_path = run_dir / "android_proof.log"
     android_proof_lines = android_proof_path.read_text(encoding="utf-8", errors="replace").splitlines() if android_proof_path.exists() else []
 
-    def first_match(lines: list[str], needle: str) -> str | None:
-        for line in lines:
-            if needle in line:
-                return line
-        return None
+    benchmark_result = first_match(iphone_lines, f"BENCHMARK transport bytes={payload_bytes}")
+    receipt_line = first_match(iphone_lines, "BENCHMARK receipt from")
+    android_receipt_send = first_match(android_logcat, "BENCHMARK receipt send") or first_match(android_proof_lines, "BENCHMARK receipt send")
+    android_message = first_match(android_logcat, "MSG from") or first_match(android_proof_lines, "MSG from")
 
     print("==> Retained run directory:", run_dir)
-    print("==> iPhone benchmark result:", first_match(iphone_lines, f"BENCHMARK transport bytes={payload_bytes}") or "missing")
-    print("==> iPhone receipt line:", first_match(iphone_lines, "BENCHMARK receipt from") or "missing")
-    print("==> Android proof receipt send:", first_match(android_logcat, "BENCHMARK receipt send") or first_match(android_proof_lines, "BENCHMARK receipt send") or "missing")
-    print("==> Android proof message:", first_match(android_logcat, "MSG from") or first_match(android_proof_lines, "MSG from") or "missing")
+    print("==> iPhone benchmark result:", benchmark_result or "missing")
+    print("==> iPhone receipt line:", receipt_line or "missing")
+    print("==> Android proof receipt send:", android_receipt_send or "missing")
+    print("==> Android proof message:", android_message or "missing")
+
+    return RunOutcome(
+        run_dir=run_dir,
+        app_id=(run_dir / "meta.txt").read_text(encoding="utf-8", errors="replace").splitlines()[0].split("=", 1)[1],
+        benchmark_line_seen=benchmark_result is not None,
+        iphone_benchmark_result=benchmark_result,
+        iphone_receipt_line=receipt_line,
+        android_receipt_send=android_receipt_send,
+        android_message_line=android_message,
+    )
 
 
-def main() -> int:
-    args = parse_args()
-    run_dir = Path(args.run_dir or f"/tmp/ios_meshlink_headless_{timestamp()}")
+def prepare_run_dir(base_run_dir: Path, run_index: int, repeat: int) -> Path:
+    if repeat == 1:
+        return base_run_dir
+    return Path(f"{base_run_dir}_{run_index}")
+
+
+def build_app_id(base_app_id: str | None, run_index: int, repeat: int) -> str:
+    if base_app_id is None:
+        stem = f"demo.meshlink.benchmark.headless.{timestamp()}"
+    else:
+        stem = base_app_id
+    if repeat == 1:
+        return stem
+    return f"{stem}.{run_index}"
+
+
+def run_once(args: argparse.Namespace, *, run_dir: Path, app_id: str) -> RunOutcome:
     run_dir.mkdir(parents=True, exist_ok=True)
-
-    app_id = args.app_id or f"demo.meshlink.benchmark.headless.{timestamp()}"
     meta = {
         "app_id": app_id,
         "android_serial": args.android_serial,
@@ -360,10 +429,6 @@ def main() -> int:
         "".join(f"{key}={value}\n" for key, value in meta.items()),
         encoding="utf-8",
     )
-
-    app_path = latest_built_app() if args.skip_ios_build else build_ios_app(args.ios_device)
-    if not args.skip_ios_install:
-        install_ios_app(args.ios_device, app_path)
 
     logcat_process = start_android_app(
         run_dir=run_dir,
@@ -401,14 +466,60 @@ def main() -> int:
         logcat_process.stop()
         capture_android_proof_log(run_dir, args.android_serial)
 
-    summarize(run_dir, args.payload_bytes)
-    if not benchmark_line_seen:
+    outcome = summarize(run_dir, args.payload_bytes)
+    outcome.benchmark_line_seen = benchmark_line_seen
+    return outcome
+
+
+def summarize_series(outcomes: list[RunOutcome]) -> None:
+    if len(outcomes) <= 1:
+        return
+    throughputs = [outcome.throughput_kbps for outcome in outcomes if outcome.throughput_kbps is not None]
+    successful = [outcome for outcome in outcomes if outcome.benchmark_line_seen]
+    print(f"==> Series summary: {len(successful)}/{len(outcomes)} runs observed a scored benchmark line")
+    if throughputs:
+        average = sum(throughputs) / len(throughputs)
         print(
-            f"ERROR: did not observe BENCHMARK transport bytes={args.payload_bytes} within {args.capture_timeout_seconds} seconds",
-            file=sys.stderr,
+            "==> Throughput summary: "
+            f"min={min(throughputs):.2f} KB/s avg={average:.2f} KB/s max={max(throughputs):.2f} KB/s"
         )
-        return 1
-    return 0
+    for index, outcome in enumerate(outcomes, start=1):
+        print(
+            f"==> Run {index}: dir={outcome.run_dir} result={outcome.result_label or 'missing'} "
+            f"throughputKBps={outcome.throughput_kbps if outcome.throughput_kbps is not None else 'missing'}"
+        )
+
+
+def main() -> int:
+    args = parse_args()
+    if args.repeat < 1:
+        raise SystemExit("--repeat must be >= 1")
+
+    base_run_dir = Path(args.run_dir or f"/tmp/ios_meshlink_headless_{timestamp()}")
+    app_path = latest_built_app() if args.skip_ios_build else build_ios_app(args.ios_device)
+    if not args.skip_ios_install:
+        install_ios_app(args.ios_device, app_path)
+
+    outcomes: list[RunOutcome] = []
+    for run_index in range(1, args.repeat + 1):
+        run_dir = prepare_run_dir(base_run_dir, run_index, args.repeat)
+        app_id = build_app_id(args.app_id, run_index, args.repeat)
+        outcome = run_once(
+            args,
+            run_dir=run_dir,
+            app_id=app_id,
+        )
+        outcomes.append(outcome)
+
+    summarize_series(outcomes)
+    if all(outcome.benchmark_line_seen for outcome in outcomes):
+        return 0
+
+    print(
+        f"ERROR: at least one run did not observe BENCHMARK transport bytes={args.payload_bytes} within {args.capture_timeout_seconds} seconds",
+        file=sys.stderr,
+    )
+    return 1
 
 
 if __name__ == "__main__":

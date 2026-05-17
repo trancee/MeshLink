@@ -81,10 +81,25 @@ DEVELOPMENT_TEAM=<your-team-id> \
   --payload-bytes 65536
 ```
 
+For retained series runs, the runner now also supports sequential repetition
+with numbered run directories and a min/avg/max summary:
+
+```bash
+benchmarks/scripts/run_headless_meshlink_benchmark.py \
+  --android-serial <android-serial> \
+  --ios-device <your-device-udid> \
+  --payload-bytes 65536 \
+  --skip-ios-build \
+  --skip-ios-install \
+  --repeat 3 \
+  --run-dir /tmp/ios_meshlink_headless_series
+```
+
 The runner exists because a naive `devicectl --console` wrapper can appear to
 hang after the scored benchmark line if the proof app stays alive but quiet.
 The retained runner uses a hard timeout plus idle-aware console capture so the
-logs always close cleanly.
+logs always close cleanly, and the repeat mode reduces the amount of ad-hoc
+shell scripting needed for retained Samsung / OPPO rerun series.
 
 ## Current validation status
 
