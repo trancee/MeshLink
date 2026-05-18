@@ -1,5 +1,5 @@
 <!-- SPECKIT START -->
-Current implementation plan: `specs/001-ble-mesh-sdk/plan.md`
+Current implementation plan: `specs/002-meshlink-reference-app/plan.md`
 Read this plan for the active feature's technologies, project structure,
 shell commands, and task-specific guidance.
 <!-- SPECKIT END -->
