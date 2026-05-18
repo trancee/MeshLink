@@ -5,6 +5,16 @@
 **Status**: Draft  
 **Input**: User description: "Create a modern, user-friendly MeshLink reference app that showcases the full library, explains what is happening, exposes logs and diagnostics, and offers the same experience on Android and iOS."
 
+## Clarifications
+
+### Session 2026-05-18
+
+- Q: How should proof-only and benchmark-only features appear in the reference app? → A: Supported product capabilities stay in the main reference experience; proof-only and benchmark-only behaviors appear only in a clearly labeled separate lab section.
+- Q: How much control surface should the reference app expose? → A: Use a guided default experience plus a clearly separated advanced area exposing the full public SDK configuration and runtime controls.
+- Q: Should the reference app include a no-peer exploration mode? → A: Include a clearly labeled solo exploration mode for non-authoritative walkthroughs and UI inspection, while reserving authoritative delivery and diagnostics proof for live device-to-device sessions.
+- Q: How should the app retain technical session history locally? → A: Automatically retain a clearly separated recent local session history, with explicit clear and delete controls.
+- Q: What payload detail should exported session artifacts include? → A: Export metadata and redacted previews by default, with an explicit operator opt-in to include full payload content.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Complete a guided first exchange (Priority: P1)
@@ -33,6 +43,10 @@ shows matching delivery evidence on both sides.
    operator attempts to start the first exchange flow, **Then** the app blocks
    the flow with explicit recovery guidance and does not imply that the mesh is
    already running correctly.
+3. **Given** the operator has only one prepared device, **When** they enter the
+   solo exploration mode, **Then** the app allows them to explore workflows,
+   screens, and explanatory content without presenting simulated results as
+   authoritative proof of live MeshLink delivery or diagnostics behavior.
 
 ---
 
@@ -64,6 +78,11 @@ resulting state changes.
    **Then** the app surfaces progress, completion or failure outcomes, and the
    trust state transition in a way that is understandable to both newcomers and
    technical reviewers.
+3. **Given** a first-time evaluator is using the app, **When** they stay in the
+   default reference flow, **Then** they see only the guided controls needed
+   for the current scenario, and **When** they choose the advanced area,
+   **Then** the full public SDK configuration and runtime controls become
+   available without replacing the guided experience.
 
 ---
 
@@ -90,8 +109,13 @@ the timeline and exporting a redacted session summary.
    visible timeline without hiding that additional session data still exists.
 3. **Given** the operator wants to share evidence from the session,
    **When** they export a session artifact, **Then** the artifact includes the
-   relevant configuration and timeline context with sensitive data redacted by
-   default.
+   relevant configuration and timeline context plus metadata and redacted
+   payload previews by default, and only includes full payload content after an
+   explicit operator opt-in.
+4. **Given** a session has already ended, **When** the operator opens recent
+   local history, **Then** the app shows retained recent sessions separately
+   from the live session and provides explicit controls to clear or delete that
+   retained history.
 
 ---
 
@@ -125,7 +149,8 @@ operating-system rules force a clearly explained difference.
 - The app must explain blocked startup clearly when Bluetooth is off, required
   permissions are denied, or the device is otherwise not ready to participate.
 - The app must keep the first-run flow useful when no peer is discovered within
-  the expected range or time window.
+  the expected range or time window, including directing the operator into the
+  clearly labeled solo exploration mode when a second device is unavailable.
 - The app must show what changed when a selected peer disappears or becomes
   unreachable during a send or large transfer.
 - The app must explain identity-change and trust-reset outcomes clearly for a
@@ -138,6 +163,11 @@ operating-system rules force a clearly explained difference.
   Android and iOS experiences appear inconsistent or incomplete.
 - The export flow must prevent accidental oversharing by redacting sensitive
   details unless the operator explicitly opts into including them.
+- Exported session artifacts must include payload metadata and redacted
+  previews by default and require an explicit opt-in before including full
+  payload content.
+- Recent local session history must stay clearly separated from the live
+  session and be removable through explicit clear or delete controls.
 
 ## Requirements *(mandatory)*
 
@@ -149,6 +179,11 @@ operating-system rules force a clearly explained difference.
 - **FR-002**: The system MUST guide the operator through first-run readiness,
   including device prerequisites, offline expectations, and the steps required
   to complete a first successful message exchange.
+- **FR-002a**: The system MUST provide a clearly labeled solo exploration mode
+  for operators with only one prepared device. That mode MAY support guided
+  walkthroughs, navigation, and static inspection, but it MUST NOT present
+  simulated or placeholder behavior as authoritative proof of live peer
+  discovery, delivery, or diagnostics outcomes.
 - **FR-003**: The system MUST surface the current mesh runtime state, peer
   availability, peer selection, last message outcomes, and the operator's next
   recommended action from the main reference flow.
@@ -170,12 +205,19 @@ operating-system rules force a clearly explained difference.
   visible technical timeline by peer, severity, event family, time range, and
   searchable event text.
 - **FR-010**: The system MUST use progressive disclosure so the default view is
-  approachable for first-time evaluators while expandable technical detail is
-  available for advanced users who want deeper context.
+  approachable for first-time evaluators while a clearly separated advanced
+  area exposes the full public SDK configuration, runtime controls, and deeper
+  technical detail for users who want it.
 - **FR-011**: The system MUST let the operator capture and export a session
   artifact containing the active scenario, current configuration, peer summary,
-  technical timeline, and delivery outcomes, with sensitive details redacted by
-  default.
+  technical timeline, delivery outcomes, and payload metadata, with sensitive
+  details and payload content redacted by default.
+- **FR-011b**: Exported session artifacts MUST include redacted payload
+  previews by default and MUST require an explicit operator opt-in before full
+  payload content is included.
+- **FR-011a**: The system MUST automatically retain a recent local session
+  history that is clearly separated from the live session view and provides
+  explicit clear and delete controls for the operator.
 - **FR-012**: The system MUST provide actionable recovery guidance for blocked
   or failed states, including no peer available, unreachable route, trust
   failure, oversized payload, paused runtime, and missing prerequisites.
@@ -183,17 +225,18 @@ operating-system rules force a clearly explained difference.
   workflow names, capability coverage, and diagnostic terminology on Android
   and iOS, except where operating-system rules require a clearly explained
   difference.
-- **FR-014**: The system MUST distinguish currently supported MeshLink SDK
-  capabilities from proof-only, benchmark-only, or otherwise non-normative
-  behaviors so adopters are not misled about the product surface.
+- **FR-014**: The system MUST keep the main reference experience focused on
+  currently supported MeshLink SDK capabilities. Proof-only, benchmark-only, or
+  otherwise non-normative behaviors MAY be shown only in a clearly labeled
+  separate lab section so adopters are not misled about the product surface.
 - **FR-015**: The system MUST support named reference scenarios that make it
   easy to demonstrate first exchange, lifecycle control, trust reset, power
   behavior, successful delivery, and bounded failure behavior without relying
   on hidden operator knowledge.
 - **FR-016**: The system MUST remain useful offline after installation and MUST
-  keep session history or exported evidence separate from live runtime state so
-  operators can tell whether they are viewing current behavior or retained
-  artifacts.
+  keep retained session history and exported evidence separate from live
+  runtime state so operators can tell whether they are viewing current
+  behavior or retained artifacts.
 
 ### Key Entities *(include if feature involves data)*
 
@@ -208,7 +251,11 @@ operating-system rules force a clearly explained difference.
   peer context, and explanatory detail.
 - **Session Artifact**: A retained summary of one reference-app session,
   including scenario context, configuration snapshot, peer summary, timeline,
-  and selected evidence intended for debugging, review, or sharing.
+  payload metadata, and selected evidence intended for debugging, review, or
+  sharing.
+- **Recent Session History**: A clearly separated local record of recent
+  sessions that can be reopened for review and removed through explicit clear
+  or delete controls.
 
 ## Constitutional Alignment *(mandatory)*
 
@@ -243,7 +290,8 @@ operating-system rules force a clearly explained difference.
   as the repository's source of normative performance evidence.
 - Desktop, web, or non-mobile reference clients in this feature.
 - Exposing experimental or proof-only transport behaviors as if they were
-  supported product features.
+  supported product features, including mixing them into the main guided
+  experience.
 - Adding a backend service, relay server, or any requirement for internet
   access.
 
@@ -263,8 +311,8 @@ operating-system rules force a clearly explained difference.
   workflows, terminology, and diagnostic categories, excluding only
   operating-system setup differences that are explicitly explained in the app.
 - **SC-004**: A QA or support operator can filter the current session to a
-  specific peer or failure class and export a redacted session artifact in
-  under 60 seconds.
+  specific peer or failure class and export a redacted session artifact with
+  payload metadata and redacted previews in under 60 seconds.
 - **SC-005**: After a 10-minute guided exploration, at least 80% of reviewers
   can correctly answer the current mesh state, whether the selected peer is
   trusted, and why the last send succeeded or failed.
@@ -278,8 +326,8 @@ operating-system rules force a clearly explained difference.
   benchmark-only behaviors remain secondary context, not primary workflows.
 - The reference app ships as a dedicated repository artifact separate from the
   proof-only validation apps and benchmark harnesses.
-- Session artifacts are stored or shared only when the operator explicitly
-  saves or exports them.
+- The app automatically retains a bounded recent local session history for
+  review, while explicit export remains a separate operator action.
 - Existing MeshLink documentation, diagnostics, and public behavior remain the
   source of truth for capability definitions; any gaps discovered while shaping
   the reference experience will be resolved during planning rather than assumed
