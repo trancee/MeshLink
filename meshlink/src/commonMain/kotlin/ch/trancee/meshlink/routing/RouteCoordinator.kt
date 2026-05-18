@@ -270,12 +270,10 @@ internal class RouteCoordinator internal constructor(private val localPeerId: Pe
                     .thenBy { route -> route.nextHopPeerId.value }
             )
             .forEach { route ->
-                val destinationBytes = route.destinationPeerId.value.encodeToByteArray()
-                val nextHopBytes = route.nextHopPeerId.value.encodeToByteArray()
-                buffer.writeIntLittleEndian(destinationBytes.size)
-                buffer.writeBytes(destinationBytes)
-                buffer.writeIntLittleEndian(nextHopBytes.size)
-                buffer.writeBytes(nextHopBytes)
+                buffer.writeIntLittleEndian(route.destinationPeerIdBytes.size)
+                buffer.writeBytes(route.destinationPeerIdBytes)
+                buffer.writeIntLittleEndian(route.nextHopPeerIdBytes.size)
+                buffer.writeBytes(route.nextHopPeerIdBytes)
                 buffer.writeIntLittleEndian(route.metric)
                 buffer.writeIntLittleEndian(route.seqNo.toInt())
                 buffer.writeIntLittleEndian(route.ed25519PublicKey.size)
@@ -359,6 +357,8 @@ internal constructor(
     ed25519PublicKey: ByteArray,
     x25519PublicKey: ByteArray,
 ) {
+    internal val destinationPeerIdBytes: ByteArray = destinationPeerId.value.encodeToByteArray()
+    internal val nextHopPeerIdBytes: ByteArray = nextHopPeerId.value.encodeToByteArray()
     internal val ed25519PublicKey: ByteArray = ed25519PublicKey.copyOf()
     internal val x25519PublicKey: ByteArray = x25519PublicKey.copyOf()
 

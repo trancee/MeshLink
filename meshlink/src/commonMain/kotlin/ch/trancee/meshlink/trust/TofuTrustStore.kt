@@ -9,7 +9,7 @@ internal class TofuTrustStore internal constructor(private val secureStorage: Se
         val encoded = secureStorage.read(key(peerIdValue)) ?: return null
         return runCatching {
                 val buffer = ReadBuffer(encoded)
-                val fingerprint = buffer.readBytes(buffer.readIntLittleEndian()).decodeToString()
+                val fingerprintBytes = buffer.readBytes(buffer.readIntLittleEndian())
                 val ed25519PublicKey = buffer.readBytes(buffer.readIntLittleEndian())
                 val x25519PublicKey = buffer.readBytes(buffer.readIntLittleEndian())
                 val firstSeenAtEpochMillis =
@@ -26,7 +26,7 @@ internal class TofuTrustStore internal constructor(private val secureStorage: Se
                     }
                 TrustRecord(
                     peerIdValue = peerIdValue,
-                    identityFingerprint = fingerprint,
+                    identityFingerprintHexBytes = fingerprintBytes,
                     firstSeenAtEpochMillis = firstSeenAtEpochMillis,
                     lastVerifiedAtEpochMillis = lastVerifiedAtEpochMillis,
                     ed25519PublicKey = ed25519PublicKey,
@@ -37,7 +37,7 @@ internal class TofuTrustStore internal constructor(private val secureStorage: Se
     }
 
     internal suspend fun write(record: TrustRecord): Unit {
-        val fingerprintBytes = record.identityFingerprint.encodeToByteArray()
+        val fingerprintBytes = record.identityFingerprintHexBytes
         val buffer = WriteBuffer()
         buffer.writeIntLittleEndian(fingerprintBytes.size)
         buffer.writeBytes(fingerprintBytes)

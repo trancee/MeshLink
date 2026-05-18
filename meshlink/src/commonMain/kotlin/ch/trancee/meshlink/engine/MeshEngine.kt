@@ -25,6 +25,7 @@ import ch.trancee.meshlink.diagnostics.DiagnosticSeverity
 import ch.trancee.meshlink.diagnostics.DiagnosticSink
 import ch.trancee.meshlink.identity.LocalIdentity
 import ch.trancee.meshlink.identity.hexContentEquals
+import ch.trancee.meshlink.identity.toHexByteArray
 import ch.trancee.meshlink.identity.toHexString
 import ch.trancee.meshlink.platform.PlatformPermissionDeniedException
 import ch.trancee.meshlink.platform.currentEpochMillis
@@ -637,7 +638,7 @@ private constructor(
                 peerId = envelope.senderPeerId,
                 remoteEd25519PublicKey = envelope.senderEd25519PublicKey,
                 remoteX25519PublicKey = envelope.senderX25519PublicKey,
-                expectedFingerprint = envelope.senderFingerprint,
+                expectedFingerprintHexBytes = envelope.senderFingerprintHexBytes,
             ) ?: return
         val plaintext =
             runCatching {
@@ -793,7 +794,7 @@ private constructor(
                 val innerEnvelope =
                     DirectMessageEnvelope(
                             senderPeerId = localIdentity.peerId,
-                            senderFingerprint = localIdentity.identityFingerprint,
+                            senderFingerprintHexBytes = localIdentity.identityFingerprintHexBytes,
                             senderEd25519PublicKey = localIdentity.ed25519PublicKey,
                             senderX25519PublicKey = localIdentity.x25519PublicKey,
                             ciphertext = sealedPayload,
@@ -922,7 +923,7 @@ private constructor(
         val innerEnvelope =
             DirectMessageEnvelope(
                     senderPeerId = localIdentity.peerId,
-                    senderFingerprint = localIdentity.identityFingerprint,
+                    senderFingerprintHexBytes = localIdentity.identityFingerprintHexBytes,
                     senderEd25519PublicKey = localIdentity.ed25519PublicKey,
                     senderX25519PublicKey = localIdentity.x25519PublicKey,
                     ciphertext = sealedPayload,
@@ -1685,13 +1686,13 @@ private constructor(
         peerId: PeerId,
         remoteEd25519PublicKey: ByteArray,
         remoteX25519PublicKey: ByteArray,
-        expectedFingerprint: String? = null,
+        expectedFingerprintHexBytes: ByteArray? = null,
     ): TrustRecord? {
         val remoteIdentityHash =
             localIdentity.cryptoProvider.sha256(remoteEd25519PublicKey + remoteX25519PublicKey)
         if (
-            expectedFingerprint != null &&
-                !expectedFingerprint.hexContentEquals(remoteIdentityHash)
+            expectedFingerprintHexBytes != null &&
+                !expectedFingerprintHexBytes.hexContentEquals(remoteIdentityHash)
         ) {
             emitDiagnostic(
                 code = DiagnosticCode.TRUST_FAILURE,
@@ -1709,7 +1710,7 @@ private constructor(
             val trustRecord =
                 TrustRecord(
                     peerIdValue = peerId.value,
-                    identityFingerprint = remoteIdentityHash.toHexString(),
+                    identityFingerprintHexBytes = remoteIdentityHash.toHexByteArray(),
                     firstSeenAtEpochMillis = verifiedAtEpochMillis,
                     lastVerifiedAtEpochMillis = verifiedAtEpochMillis,
                     ed25519PublicKey = remoteEd25519PublicKey,
@@ -1726,7 +1727,7 @@ private constructor(
             return trustRecord
         }
         if (
-            !existingTrust.identityFingerprint.hexContentEquals(remoteIdentityHash) ||
+            !existingTrust.identityFingerprintHexBytes.hexContentEquals(remoteIdentityHash) ||
                 !existingTrust.ed25519PublicKey.contentEquals(remoteEd25519PublicKey) ||
                 !existingTrust.x25519PublicKey.contentEquals(remoteX25519PublicKey)
         ) {
