@@ -754,7 +754,7 @@ artifacts whenever the required two-device validation cannot start cleanly.
   attached hardware, retain start/end timestamps plus blocker evidence in
   `specs/001-ble-mesh-sdk/research.md` when the run cannot start cleanly, and
   sync the current blocker state into `specs/001-ble-mesh-sdk/alignment-audit.md`.
-- [ ] T112 [P] Retain one passing timed fresh-reader `SC-001` quickstart run
+- [X] T112 [P] Retain one passing timed fresh-reader `SC-001` quickstart run
   with start timestamp, end timestamp, elapsed duration, observer note, sender
   success evidence, and recipient proof evidence in
   `specs/001-ble-mesh-sdk/research.md` once a supported two-device setup is

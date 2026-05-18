@@ -190,3 +190,9 @@ Current physical evidence on attached hardware now shows that this direct
 quickstart flow works on iPhone 15 + OPPO Android 16, including a restart of the
 iPhone proof app followed by another successful direct `hello mesh from iPhone`
 delivery on the same `appId`.
+
+A retained timed quickstart run on `2026-05-18` then reached the first sender /
+recipient encrypted-message proof lines in `8s` on the same hardware class,
+with sender evidence retained as `auto-send attempt 1 -> Sent ...` on the
+current iPhone proof app and recipient evidence retained as `MSG from ...
+text=hello mesh from iPhone` on the Android proof app.

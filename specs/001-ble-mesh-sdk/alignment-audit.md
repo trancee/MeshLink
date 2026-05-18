@@ -3,7 +3,7 @@
 **Date:** 2026-05-18  
 **Branch audited:** `001-ble-mesh-sdk-spec-alignment-audit` (based on `main` at `1275e63`)  
 **Audience:** maintainers and reviewers validating whether the current MeshLink codebase still matches the approved `001-ble-mesh-sdk` specification.  
-**After reading:** you should know which parts of the implementation are aligned, which gaps are still open, and which items are missing as implementation, coverage, or retained evidence.
+**After reading:** you should know which parts of the implementation are aligned and whether any known implementation, coverage, or retained-evidence gaps still remain.
 
 ## Scope and method
 
@@ -39,9 +39,7 @@ The current MeshLink runtime is **mostly aligned** with the approved `001-ble-me
 
 The public API, TOFU trust model, routing, selective-ACK large transfer path, discovery advertisement contract, Android/iOS parity model, and retained `SC-004` future-branch evidence are all present and supported by current code and tests.
 
-However, this audit still finds **one remaining evidence gap**:
-
-1. **Success-criteria evidence gap:** `SC-001` still lacks a retained passing timed reader-test; the retained attempts are explicitly blocked and do not claim success. This gap is now tracked in `tasks.md` as open `T112`.
+At the time of this update, the current codebase and retained project artifacts are aligned with the approved `001-ble-mesh-sdk` specification. The earlier `FR-008`, benchmark-build, `SC-005`, and `SC-001` follow-up gaps have all been closed or reduced to retained historical context.
 
 ## Areas verified as aligned
 
@@ -202,21 +200,26 @@ Evidence is synchronized across:
 
 This audit did not rerun physical benchmarks, but the retained evidence and wording are internally consistent.
 
-## Confirmed gaps and differences
+## Closed gaps and current notes
 
-### Gap 1 — `SC-001` still lacks a retained passing timed reader-test
+### Closed gap — `SC-001` now retains a passing timed quickstart run
 
 **Spec references:** `SC-001`  
-**Status:** Evidence gap  
-**Severity:** Medium
+**Status:** Closed during the follow-up on this branch
 
-The quickstart docs now explain how to measure a timed reader-test, but the retained evidence still stops short of a pass:
+`specs/001-ble-mesh-sdk/research.md` now retains a successful timed quickstart
+run from `2026-05-18` with:
 
-- `specs/001-ble-mesh-sdk/research.md` contains blocked reader-test attempts from `2026-05-13` and `2026-05-18`
-- those retained entries explicitly stop short of any `SC-001` pass claim
-- `specs/001-ble-mesh-sdk/quickstart.md` says the direct flow works on attached hardware, but that is not the same as the required timed fresh-reader proof
+- start timestamp
+- end timestamp
+- elapsed duration
+- observer note
+- sender proof-log evidence
+- recipient proof-log evidence
+- the isolated proof `appId` and device pair used for the run
 
-So the implementation and quickstart may be usable, but the spec's success-criterion evidence is still incomplete.
+That closes the earlier success-criteria gap where only blocked attempts were
+retained.
 
 ### Closed gap — `SC-005` now retains an explicit measured heap byte count
 
@@ -244,7 +247,7 @@ This audit did **not** find evidence that the following areas are currently out 
 
 ## Recommended next actions
 
-1. **Retain a real `SC-001` pass run.** Run and document a timed fresh-reader quickstart validation instead of only a blocked attempt.
+No further spec-alignment remediation work is currently required from this audit.
 
 ## Fresh audit verification
 
@@ -291,6 +294,6 @@ rg -n 'MEMORY_BUDGET baselineBytes=7437064 usedBytes=11430280 steadyStateBytes=3
 
 Result:
 
-- `tasks.md` now leaves only the explicit `SC-001` closure task (`T112`) open
-- `SC-001` still has only blocked reader-test attempts, not a retained pass
+- `tasks.md` has no open task entries after the follow-up closures on this branch
+- `SC-001` now has a retained passing timed quickstart run in `research.md`
 - `SC-005` now retains an explicit raw heap-byte artifact in `benchmarks/README.md`

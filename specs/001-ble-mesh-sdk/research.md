@@ -407,6 +407,30 @@ This retains the current blocker evidence for `SC-001`, but it is still not a
 passing timed fresh-reader run and must not be cited as success-criterion
 closure.
 
+## Quickstart reader-test pass (2026-05-18)
+
+A later same-day rerun on the attached current-head proof integrations completed
+successfully once the Android devices were attached and the iPhone 15 device
+could be built/installed again.
+
+- start: `2026-05-18T17:23:05Z`
+- end: `2026-05-18T17:23:14Z`
+- elapsed: `8s`
+- device pair: `iPhone 15` + `OPPO Android 16 (CPH2689)`
+- proof `appId`: `sc001.meshlink.20260518T172305Z`
+- observer note: operator followed the published quickstart on the attached
+  proof devices using the current rebuilt / reinstalled iPhone proof app and
+  current Android debug proof app; the first successful encrypted-message
+  evidence appeared on both sender and recipient logs without any backend or
+  account step.
+- sender evidence (iPhone proof log): `auto-send attempt 1 -> Sent for fc21c9`
+- recipient evidence (Android proof log): `MSG from
+  edbdaf81863e07a541574b0317a4e3d4fddbfd0f bytes=22 text=hello mesh from
+  iPhone`
+
+This run satisfies the retained timed evidence requirement for `SC-001` in the
+current repository state.
+
 ## Physical validation update (2026-05-12)
 
 The benchmark module README now carries the consolidated baseline table for JVM,
