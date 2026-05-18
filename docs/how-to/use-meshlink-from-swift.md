@@ -123,46 +123,58 @@ final class FlowCollector: NSObject, Kotlinx_coroutines_coreFlowCollector {
 }
 ```
 
-Now bind the public streams:
+Retain the collector objects for as long as the flows should stay active.
+A practical pattern is to keep them on the same service object that owns your
+`MeshLinkApi`.
 
 ```swift
-let stateCollector = FlowCollector { value in
-    print("state = \(String(describing: value))")
-}
+final class MeshLinkService {
+    let api: MeshLinkApi
 
-let peerCollector = FlowCollector { value in
-    print("peer event = \(String(describing: value))")
-}
-
-let diagnosticCollector = FlowCollector { value in
-    print("diagnostic = \(String(describing: value))")
-}
-
-let messageCollector = FlowCollector { value in
-    print("message = \(String(describing: value))")
-}
-
-api.state.collect(collector: stateCollector) { error in
-    if let error {
-        print("state flow ended: \(error.localizedDescription)")
+    private lazy var stateCollector = FlowCollector { value in
+        print("state = \(String(describing: value))")
     }
-}
 
-api.peerEvents.collect(collector: peerCollector) { error in
-    if let error {
-        print("peer flow ended: \(error.localizedDescription)")
+    private lazy var peerCollector = FlowCollector { value in
+        print("peer event = \(String(describing: value))")
     }
-}
 
-api.diagnosticEvents.collect(collector: diagnosticCollector) { error in
-    if let error {
-        print("diagnostic flow ended: \(error.localizedDescription)")
+    private lazy var diagnosticCollector = FlowCollector { value in
+        print("diagnostic = \(String(describing: value))")
     }
-}
 
-api.messages.collect(collector: messageCollector) { error in
-    if let error {
-        print("message flow ended: \(error.localizedDescription)")
+    private lazy var messageCollector = FlowCollector { value in
+        print("message = \(String(describing: value))")
+    }
+
+    init() {
+        api = MeshLink.shared.create(config: makeMeshLinkConfig())
+    }
+
+    func bindFlows() {
+        api.state.collect(collector: stateCollector) { error in
+            if let error {
+                print("state flow ended: \(error.localizedDescription)")
+            }
+        }
+
+        api.peerEvents.collect(collector: peerCollector) { error in
+            if let error {
+                print("peer flow ended: \(error.localizedDescription)")
+            }
+        }
+
+        api.diagnosticEvents.collect(collector: diagnosticCollector) { error in
+            if let error {
+                print("diagnostic flow ended: \(error.localizedDescription)")
+            }
+        }
+
+        api.messages.collect(collector: messageCollector) { error in
+            if let error {
+                print("message flow ended: \(error.localizedDescription)")
+            }
+        }
     }
 }
 ```
@@ -192,7 +204,8 @@ extension String {
 }
 ```
 
-Send with the generated completion-handler API:
+Send with the generated completion-handler API and match on the concrete
+`SendResult` variants instead of stringifying the result:
 
 ```swift
 func sendHello(to peerId: PeerId) {
@@ -201,11 +214,15 @@ func sendHello(to peerId: PeerId) {
         payload: "hello mesh from Swift".toKotlinByteArray(),
         priority: DeliveryPriority.normal
     ) { result, error in
-        if let result {
-            print("mesh.send() -> \(result)")
-        }
         if let error {
             print("mesh.send() failed: \(error.localizedDescription)")
+            return
+        }
+
+        if result is SendResult.Sent {
+            print("mesh.send() -> Sent")
+        } else if let notSent = result as? SendResult.NotSent {
+            print("mesh.send() -> NotSent(\(notSent.reason))")
         }
     }
 }

@@ -1,92 +1,123 @@
-# Why L2CAP-First
+# About the L2CAP-first transport posture
 
-> **Current-status note (2026-05-17):** This document describes the released
-> baseline's normative posture. That released baseline remains L2CAP-first and
-> carries the explicit iOS waiver / known-limitation framing. A later future
-> branch now has fresh retained product-path evidence that closes `SC-004` on
-> mixed Android/iOS peers using the iPhone-hosted GATT-notify side bearer for
-> the large-transfer path. Keep the distinction explicit: this document is about
-> why the released baseline was L2CAP-first, not a claim that the future branch
-> failed or that the mixed-bearer product path remains blocked.
+MeshLink still thinks in L2CAP-first terms, even though the current mixed
+Android/iOS product path can use an iPhone-hosted GATT-notify side bearer for
+part of the large-transfer path.
 
-## The decision
+That distinction matters. The newer mixed-bearer path did not replace the
+original transport idea with a GATT-first design. It refined the edges of that
+idea after physical evidence showed where the platform boundary was actually
+costly.
 
-When MeshLink discovers a peer, it connects via L2CAP directly if the peer's advertisement contains a non-zero PSM. GATT is only used as a fallback on the current normative product path.
+## The stable idea
 
-## What L2CAP gives us
+L2CAP remains the preferred direct bearer because it matches the kind of work
+MeshLink is doing:
 
-L2CAP (Logical Link Control and Adaptation Protocol) provides a raw byte-stream channel between two BLE devices:
+- it gives the runtime a stream-shaped channel instead of attribute traffic
+- it avoids the service-discovery round trip before useful data can flow
+- it reduces protocol overhead for large payloads
+- it gives both peers a more symmetric transport model
 
-- **3–10× throughput** over GATT (no 20-byte ATT_MTU fragmentation, no attribute read/write overhead)
-- **No service discovery** — connect directly to the PSM, skip the 200–500ms GATT service enumeration
-- **No MTU negotiation** — L2CAP credit-based flow control handles buffer management
-- **Bidirectional streaming** — both sides can send simultaneously without request/response coupling
+For a mesh SDK, those properties are not small optimizations. They shape how the
+runtime schedules delivery, retries, framing, and session establishment.
 
-## Why not GATT-only?
+## Why the current product path is not GATT-first
 
-GATT was designed for reading sensor characteristics (heart rate, temperature). Using it for bidirectional streaming requires awkward workarounds:
+The mixed-bearer follow-up was driven by physical Android/iOS behavior, not by a
+change in the product's mental model.
 
-1. Write to a characteristic (max ~512 bytes per write on BLE 5.x)
-2. Subscribe to notifications from another characteristic
-3. Negotiate MTU explicitly
-4. Handle write-without-response flow control manually
-5. Service discovery on every connection (~200–500ms)
+The runtime still prefers to discover, identify, and connect peers in an
+L2CAP-first way. What changed is that some mixed-platform links proved more
+stable and faster when the iPhone stayed in the peripheral-hosted role for the
+large-transfer drain path.
 
-For a mesh networking library transferring 10KB+ payloads, GATT's overhead is unacceptable.
+So the current posture is:
 
-## How the PSM is discovered
+- same-platform peers should still look like direct L2CAP peers
+- mixed Android/iOS peers still begin from the L2CAP-first transport policy
+- the runtime may then select the iPhone-hosted GATT-notify side bearer where
+  that path is measurably better for the data plane
 
-MeshLink advertises two service UUIDs in a single advertisement packet with no
-scan response:
+That is a refinement of an L2CAP-first design, not a retreat from it.
 
-- fixed 32-bit discovery UUID: `4d455348`
-  (Bluetooth-base expanded form `4d455348-0000-1000-8000-00805f9b34fb`)
-- second 128-bit service UUID carrying the raw 16-byte MeshLink discovery payload
+## Why MeshLink never wanted to be GATT-only
 
-The second UUID encodes the payload bytes directly, and byte offset 3 carries the
-L2CAP PSM hint:
+GATT is excellent when the problem is attribute access: read a value, write a
+value, subscribe to a characteristic.
 
-```
-[Version+Power bits: 1B] [Mesh hash: 2B] [PSM: 1B] [Key hash: 12B]
-```
+MeshLink is solving a different problem. It needs to move framed encrypted mesh
+traffic, sometimes in large bursts, while keeping the application model stable.
 
-- PSM = 0x00: This peer is GATT-only (old device, OEM limitation)
-- PSM = 128–255: Valid L2CAP dynamic PSM — connect directly
+A pure GATT design would push too much transport bookkeeping into the slowest
+and least symmetric part of the system:
 
-This avoids the "chicken-and-egg" problem: you don't need to connect via GATT to learn the PSM. It's in the advertisement payload UUID.
+- service discovery before useful work
+- explicit notification plumbing
+- more flow-control edge cases
+- more fragmentation pressure on large transfers
+- more platform-specific handling in places that should stay shared
 
-## When GATT fallback activates
+That is why L2CAP stayed the architectural default even when later proof work
+showed that a GATT side bearer could help on one mixed-platform edge.
 
-1. **PSM = 0x00** in the advertisement — peer doesn't support L2CAP
-2. **L2CAP connection fails** — OEM chipset bug, iOS limitation, radio contention
-3. **OemL2capProbeCache returns false** — we've learned this device model doesn't support L2CAP reliably
+## Why discovery still carries L2CAP intent
 
-The GATT fallback uses a fixed MeshLink service UUID and five counting characteristic UUIDs:
+MeshLink wants peers to know enough about each other before they commit to a
+connection attempt.
 
-- Service: `4d455348-0001-1000-8000-000000000000`
-- Characteristics: `4d455348-0002-1000-8000-000000000000` through `4d455348-0006-1000-8000-000000000000`
+That is why discovery still advertises whether an L2CAP path is available and
+still feeds the deterministic initiator policy. The runtime should be able to
+prefer the better direct bearer without first paying for a provisional GATT
+session just to learn what kind of peer it found.
 
-The logical layout remains one characteristic for data TX, one for data RX
-(notifications), one for control, one for MTU exchange, and one for service
-identification.
+This is one of the reasons the mixed-bearer path can coexist with an L2CAP-first
+posture: discovery, peer matching, and connection-initiation policy still begin
+from the same direct-link model.
 
-## OEM reality
+## Where the mixed-bearer side path fits
 
-Not all BLE chipsets support L2CAP CoC (Connection-oriented Channels) reliably:
+The mixed-bearer path exists because the platform boundary is asymmetrical.
 
-- Some Samsung devices (Exynos BLE) drop L2CAP connections under load
-- Some iOS versions have L2CAP reconnection bugs
-- Some Android 10 devices don't advertise PSM correctly
+On the current reference matrix, the decisive large-transfer improvement came
+from keeping the iPhone in the role it handled best while letting Android own
+connection initiation and the rest of the mixed-platform coordination.
 
-`OemSlotTracker` learns from failures: if a `manufacturer|model|SDK_INT` combination fails L2CAP repeatedly, future connections to that device class fall back to GATT immediately.
+That means the side bearer is best understood as a targeted transport adaptation:
 
-## Connection initiation
+- it preserves the shared peer, trust, and routing model
+- it does not ask host apps to pick a bearer per message
+- it lets the runtime hide a platform-specific transport compromise behind one
+  application-facing `send()` contract
 
-When two MeshLink devices discover each other simultaneously (both scanning, both advertising), who initiates the connection?
+This is why integrators should think in terms of "MeshLink chooses the best link
+shape for this peer pair" rather than "my app is using GATT mode now".
 
-`ConnectionInitiationPolicy` resolves this deterministically:
-1. Both devices compute FNV-1a hash of their advertisement payloads
-2. Higher hash initiates
-3. Tie-break: compare raw key hashes lexicographically
+## OEM and platform reality still matter
 
-No coordination message is needed — both sides independently arrive at the same answer.
+The transport posture is shaped not only by theory but by the BLE stacks that
+actually ship:
+
+- some device classes handle L2CAP more reliably than others
+- some mixed-platform combinations prefer one initiator/peripheral split over
+  another
+- some large-transfer paths look fine in protocol design and still lose in
+  physical throughput or stability
+
+The later mixed-bearer work is a reminder that transport design is not only
+about protocol elegance. It is also about finding the cleanest architecture that
+still respects what the radios and operating systems really do.
+
+## What this means for integrators
+
+Host applications should still treat MeshLink as a runtime that owns transport
+selection.
+
+The application contract does not change because the runtime chooses a different
+bearer for a given peer pair. You still create one runtime, observe the public
+streams, and send payloads through the same API.
+
+If you need the practical setup steps, use [How to integrate MeshLink into a
+host app](../how-to/integrate-meshlink-into-a-host-app.md). If you need the
+measured physical status, use the retained [benchmark and validation
+baselines](../../benchmarks/README.md).
