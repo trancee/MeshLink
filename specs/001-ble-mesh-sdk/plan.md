@@ -32,8 +32,8 @@ The payload's shared header now also uses the previously reserved low 3 bits as
 an Android/iOS platform-family hint so mixed-platform peers can deterministically
 prefer Android-initiated L2CAP links into iPhone-hosted inbound channels.
 Android and iOS source sets provide BLE transport and secure-storage glue only.
-The repository also ships runnable proof integrations in `meshlink-sample/android` and
-`meshlink-sample/ios` for quickstart validation and automated
+The repository also ships runnable proof integrations in `meshlink-proof/android` and
+`meshlink-proof/ios` for quickstart validation and automated
 reference-hardware benchmarks. To satisfy the user's “no external
 dependencies” request, the runtime ships no additional third-party libraries
 beyond the constitutionally allowed `kotlinx-coroutines-core`; codec, routing,
@@ -100,7 +100,7 @@ and must stay covered by the retained benchmark evidence.
       event/error/state changes are treated as explicit review surfaces whenever
       they are touched.
 - [x] Artifact sync is planned: `research.md`, `data-model.md`, `quickstart.md`,
-      `release-decision.md`, `contracts/`, `tasks.md`, proof-sample READMEs,
+      `release-decision.md`, `contracts/`, `tasks.md`, proof-app READMEs,
       supporting docs under `docs/explanation/`, and `AGENTS.md` stay
       synchronized when feature or governance behavior changes.
 
@@ -300,13 +300,13 @@ benchmarks/
 ├── build.gradle.kts
 └── src/jvmMain/kotlin/ch/trancee/meshlink/benchmarks/
 
-meshlink-sample/
+meshlink-proof/
 ├── android/
 └── ios/
 ```
 
 **Structure Decision**: Use one KMP runtime module (`meshlink`) plus one JVM-only
-benchmark module and two proof/sample integrations. Keep all protocol, routing,
+benchmark module and two proof integrations. Keep all protocol, routing,
 transfer, trust, diagnostics, and configuration logic in `commonMain`. Restrict
 `androidMain` and `iosMain` to BLE transport, secure storage, and other
 platform APIs. Keep runtime dependencies to the constitutional minimum and

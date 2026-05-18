@@ -22,7 +22,7 @@ description: "Task list for MeshLink Offline BLE Mesh SDK"
 ## Path Conventions
 
 - **Kotlin Multiplatform library**: `meshlink/src/commonMain/`, `meshlink/src/commonTest/`, `meshlink/src/androidMain/`, `meshlink/src/iosMain/`, `meshlink/build.gradle.kts`, `benchmarks/`
-- **Docs & contracts**: `specs/001-ble-mesh-sdk/`, `docs/explanation/`, `meshlink-sample/android/`, `meshlink-sample/ios/`
+- **Docs & contracts**: `specs/001-ble-mesh-sdk/`, `docs/explanation/`, `meshlink-proof/android/`, `meshlink-proof/ios/`
 
 ## Artifact Roles & Ledger Semantics
 
@@ -49,7 +49,7 @@ description: "Task list for MeshLink Offline BLE Mesh SDK"
 - [X] T001 Create the multi-module Gradle skeleton in `settings.gradle.kts`, `gradle/libs.versions.toml`, and `gradle.properties`
 - [X] T002 Create the KMP runtime and benchmark module build files in `meshlink/build.gradle.kts` and `benchmarks/build.gradle.kts`
 - [X] T003 [P] Scaffold source-set directories under `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/`, `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/`, `meshlink/src/androidMain/kotlin/ch/trancee/meshlink/platform/android/`, `meshlink/src/androidUnitTest/kotlin/ch/trancee/meshlink/platform/android/`, `meshlink/src/iosMain/kotlin/ch/trancee/meshlink/platform/ios/`, and `meshlink/src/iosTest/kotlin/ch/trancee/meshlink/platform/ios/`
-- [X] T004 [P] Scaffold runnable proof integration projects in `meshlink-sample/android/` and `meshlink-sample/ios/`, including README placeholders, minimal build wiring, and first-message quickstart entry points
+- [X] T004 [P] Scaffold runnable proof integration projects in `meshlink-proof/android/` and `meshlink-proof/ios/`, including README placeholders, minimal build wiring, and first-message quickstart entry points
 
 ---
 
@@ -80,7 +80,7 @@ description: "Task list for MeshLink Offline BLE Mesh SDK"
 
 - [X] T011 [P] [US1] Add API contract tests for lifecycle, TOFU pinning, `deliveryRetryDeadline` validation, `MeshLinkException` wrapping, shared `DiagnosticCode` contract stability, trust-failure outcomes, and direct-message Android/iOS parity expectations in `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/api/MeshLinkApiContractTest.kt`
 - [X] T012 [P] [US1] Add two-peer offline direct messaging integration tests for direct send/receive, restart recovery, and end-to-end payload confidentiality in `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/integration/DirectMessagingIntegrationTest.kt`
-- [X] T013 [US1] Validate the first-message flow, including default `deliveryRetryDeadline` guidance and proof-integration behavior, against `specs/001-ble-mesh-sdk/quickstart.md`, `meshlink-sample/android/`, and `meshlink-sample/ios/`, then record any corrections directly in the affected docs
+- [X] T013 [US1] Validate the first-message flow, including default `deliveryRetryDeadline` guidance and proof-integration behavior, against `specs/001-ble-mesh-sdk/quickstart.md`, `meshlink-proof/android/`, and `meshlink-proof/ios/`, then record any corrections directly in the affected docs
 
 ### Implementation for User Story 1
 
@@ -88,7 +88,7 @@ description: "Task list for MeshLink Offline BLE Mesh SDK"
 - [X] T015 [P] [US1] Implement the Noise XX hop-handshake manager, Noise K end-to-end payload sealing/opening, and trust-failure diagnostic emission in `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/crypto/` and `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/diagnostics/`
 - [X] T016 [P] [US1] Implement Android direct BLE transport, secure storage, and the Android factory in `meshlink/src/androidMain/kotlin/ch/trancee/meshlink/platform/android/AndroidBleTransport.kt`, `meshlink/src/androidMain/kotlin/ch/trancee/meshlink/platform/android/AndroidSecureStorage.kt`, and `meshlink/src/androidMain/kotlin/ch/trancee/meshlink/platform/android/AndroidMeshLinkFactory.kt`
 - [X] T017 [P] [US1] Implement iOS direct BLE transport, secure storage, and the iOS factory in `meshlink/src/iosMain/kotlin/ch/trancee/meshlink/platform/ios/IosBleTransport.kt`, `meshlink/src/iosMain/kotlin/ch/trancee/meshlink/platform/ios/IosSecureStorage.kt`, and `meshlink/src/iosMain/kotlin/ch/trancee/meshlink/platform/ios/IosMeshLinkFactory.kt`
-- [X] T018 [US1] Integrate direct send/receive lifecycle flows with hop-to-hop and end-to-end security layering in `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/engine/MeshEngine.kt`, `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/api/MeshLink.kt`, and `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/transport/`, then implement and document the proof flow in `meshlink-sample/android/` and `meshlink-sample/ios/`
+- [X] T018 [US1] Integrate direct send/receive lifecycle flows with hop-to-hop and end-to-end security layering in `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/engine/MeshEngine.kt`, `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/api/MeshLink.kt`, and `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/transport/`, then implement and document the proof flow in `meshlink-proof/android/` and `meshlink-proof/ios/`
 
 **Checkpoint**: User Story 1 should deliver first-contact trust, direct offline messaging, restart recovery, trust-failure visibility, two-layer security, and direct-message parity evidence without servers or accounts.
 
@@ -118,7 +118,7 @@ semantics.
 - [X] T024 [P] [US2] Implement peer lifecycle coordination and route cleanup in `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/presence/` and `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/engine/`
 - [X] T025 [P] [US2] Implement FlatBuffers-compatible message, routing, and transfer codecs in `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/wire/`
 - [X] T026 [P] [US2] Implement `TransferSession`, ACK scoreboard, configurable delivery-deadline plumbing, and pre-transfer size-limit rejection in `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/transfer/`
-- [X] T027 [US2] Implement no-route retry scheduling with bounded, jittered exponential backoff and immediate retry on route availability in `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/engine/DeliveryRetryScheduler.kt`, integrate it through `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/engine/MeshEngine.kt`, `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/transport/`, and `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/diagnostics/`, then update `meshlink-sample/android/README.md` and `meshlink-sample/ios/README.md` for multi-hop evidence
+- [X] T027 [US2] Implement no-route retry scheduling with bounded, jittered exponential backoff and immediate retry on route availability in `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/engine/DeliveryRetryScheduler.kt`, integrate it through `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/engine/MeshEngine.kt`, `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/transport/`, and `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/diagnostics/`, then update `meshlink-proof/android/README.md` and `meshlink-proof/ios/README.md` for multi-hop evidence
 
 **Checkpoint**: User Story 2 should deliver proactive routing, explicit unreachable/expired outcomes, and bounded large-payload delivery across at least one relay hop.
 
@@ -141,7 +141,7 @@ semantics.
 - [X] T031 [P] [US3] Implement shared `PowerPolicy`, hysteresis, bootstrap, and regulatory clamp logic in `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/power/`
 - [X] T032 [P] [US3] Implement Android battery and transport tuning hooks in `meshlink/src/androidMain/kotlin/ch/trancee/meshlink/platform/android/AndroidPowerMonitor.kt` and `meshlink/src/androidMain/kotlin/ch/trancee/meshlink/platform/android/AndroidBleTransport.kt`
 - [X] T033 [P] [US3] Implement iOS battery and transport tuning hooks in `meshlink/src/iosMain/kotlin/ch/trancee/meshlink/platform/ios/IosPowerMonitor.kt` and `meshlink/src/iosMain/kotlin/ch/trancee/meshlink/platform/ios/IosBleTransport.kt`
-- [X] T034 [US3] Normalize diagnostics, the 26-code diagnostic catalog, `MeshLinkException` KDoc, `specs/001-ble-mesh-sdk/contracts/meshlink-api.md`, and parity docs in `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/api/`, `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/diagnostics/`, `meshlink-sample/android/README.md`, `meshlink-sample/ios/README.md`, and `specs/001-ble-mesh-sdk/quickstart.md`
+- [X] T034 [US3] Normalize diagnostics, the 26-code diagnostic catalog, `MeshLinkException` KDoc, `specs/001-ble-mesh-sdk/contracts/meshlink-api.md`, and parity docs in `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/api/`, `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/diagnostics/`, `meshlink-proof/android/README.md`, `meshlink-proof/ios/README.md`, and `specs/001-ble-mesh-sdk/quickstart.md`
 
 **Checkpoint**: User Story 3 should deliver shared power behavior and the same developer-visible lifecycle and diagnostic semantics on Android and iOS.
 
@@ -155,12 +155,12 @@ semantics.
 - [X] T036 Run format, static analysis, coverage, and API compatibility gates against `settings.gradle.kts`, `meshlink/build.gradle.kts`, and `benchmarks/build.gradle.kts`, and update the BCV API dump files under `meshlink/api/android/` and `meshlink/api/jvm/` as needed
 - [X] T037 [P] Add remaining Wycheproof vectors and regression coverage in `meshlink/src/commonTest/resources/wycheproof/` and `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/crypto/WycheproofRegressionTest.kt`
 - [X] T038 [P] Implement JVM benchmark suites in `benchmarks/src/jvmMain/kotlin/ch/trancee/meshlink/benchmarks/CryptoBenchmark.kt`, `benchmarks/src/jvmMain/kotlin/ch/trancee/meshlink/benchmarks/RoutingBenchmark.kt`, `benchmarks/src/jvmMain/kotlin/ch/trancee/meshlink/benchmarks/WireCodecBenchmark.kt`, and `benchmarks/src/jvmMain/kotlin/ch/trancee/meshlink/benchmarks/ConvergenceBenchmark.kt`
-- [X] T039 [P] Add Android automated proof-app benchmarks for throughput, latency, LOW-power scan duty, and cold start in `meshlink-sample/android/app/src/androidTest/kotlin/ch/trancee/meshlink/proof/android/TransportPerformanceBenchmark.kt`, `meshlink-sample/android/app/src/androidTest/kotlin/ch/trancee/meshlink/proof/android/PowerProfileBenchmark.kt`, and `meshlink-sample/android/app/src/androidTest/kotlin/ch/trancee/meshlink/proof/android/ColdStartBenchmark.kt`
-- [X] T040 [P] Add iOS automated proof-app benchmarks for throughput, latency, LOW-power scan duty, and cold start in `meshlink-sample/ios/ProofBenchmarks/TransportPerformanceBenchmark.swift`, `meshlink-sample/ios/ProofBenchmarks/PowerProfileBenchmark.swift`, and `meshlink-sample/ios/ProofBenchmarks/ColdStartBenchmark.swift`
+- [X] T039 [P] Add Android automated proof-app benchmarks for throughput, latency, LOW-power scan duty, and cold start in `meshlink-proof/android/app/src/androidTest/kotlin/ch/trancee/meshlink/proof/android/TransportPerformanceBenchmark.kt`, `meshlink-proof/android/app/src/androidTest/kotlin/ch/trancee/meshlink/proof/android/PowerProfileBenchmark.kt`, and `meshlink-proof/android/app/src/androidTest/kotlin/ch/trancee/meshlink/proof/android/ColdStartBenchmark.kt`
+- [X] T040 [P] Add iOS automated proof-app benchmarks for throughput, latency, LOW-power scan duty, and cold start in `meshlink-proof/ios/ProofBenchmarks/TransportPerformanceBenchmark.swift`, `meshlink-proof/ios/ProofBenchmarks/PowerProfileBenchmark.swift`, and `meshlink-proof/ios/ProofBenchmarks/ColdStartBenchmark.swift`
 - [X] T041 [P] Add 8-peer steady-state memory-budget validation and allocation measurement in `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/integration/MemoryBudgetIntegrationTest.kt` and `benchmarks/src/jvmMain/kotlin/ch/trancee/meshlink/benchmarks/MemoryBudgetBenchmark.kt`
 - [X] T042 [P] Record JVM, Android, iOS, convergence, cold-start, power, and memory baselines in `benchmarks/README.md` and `specs/001-ble-mesh-sdk/research.md`
-- [X] T043 [P] Update Android/iOS public API and workflow docs parity in `meshlink-sample/android/README.md`, `meshlink-sample/ios/README.md`, and `docs/explanation/trust-model.md`
-- [X] T044 Run the full two-device quickstart validation using `specs/001-ble-mesh-sdk/quickstart.md`, `meshlink-sample/android/`, and `meshlink-sample/ios/`
+- [X] T043 [P] Update Android/iOS public API and workflow docs parity in `meshlink-proof/android/README.md`, `meshlink-proof/ios/README.md`, and `docs/explanation/trust-model.md`
+- [X] T044 Run the full two-device quickstart validation using `specs/001-ble-mesh-sdk/quickstart.md`, `meshlink-proof/android/`, and `meshlink-proof/ios/`
 
 ---
 
@@ -168,9 +168,9 @@ semantics.
 
 **Purpose**: Resolve the remaining iPhone 15 64 KiB single-hop throughput shortfall with instrumented experiments and fresh physical evidence.
 
-- [X] T045 [P] Add iOS large-transfer telemetry for chunk pacing, stream readiness, ACK cadence, and backpressure in `meshlink/src/iosMain/kotlin/ch/trancee/meshlink/platform/ios/IosBleTransport.kt` and `meshlink-sample/ios/ProofBenchmarks/BenchmarkTestSupport.swift`
+- [X] T045 [P] Add iOS large-transfer telemetry for chunk pacing, stream readiness, ACK cadence, and backpressure in `meshlink/src/iosMain/kotlin/ch/trancee/meshlink/platform/ios/IosBleTransport.kt` and `meshlink-proof/ios/ProofBenchmarks/BenchmarkTestSupport.swift`
 - [X] T046 [P] Add regression coverage for transfer pacing and settlement heuristics in `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/integration/LargeTransferIntegrationTest.kt` and `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/transfer/TransferSessionTest.kt`
-- [X] T047 Implement one bounded iOS throughput remediation path for L2CAP stream draining and write batching in `meshlink/src/iosMain/kotlin/ch/trancee/meshlink/platform/ios/IosBleTransport.kt` and `meshlink-sample/ios/ProofBenchmarks/TransportPerformanceBenchmark.swift`
+- [X] T047 Implement one bounded iOS throughput remediation path for L2CAP stream draining and write batching in `meshlink/src/iosMain/kotlin/ch/trancee/meshlink/platform/ios/IosBleTransport.kt` and `meshlink-proof/ios/ProofBenchmarks/TransportPerformanceBenchmark.swift`
 - [X] T048 Validate the iPhone 15 64 KiB proof benchmark on reference hardware and record pass/fail evidence in `benchmarks/README.md`, `specs/001-ble-mesh-sdk/research.md`, and `specs/001-ble-mesh-sdk/quickstart.md`
 - [X] T049 If `specs/001-ble-mesh-sdk/spec.md` SC-004 remains unmet, record the explicit release-decision framing and residual risk in `specs/001-ble-mesh-sdk/spec.md` and `specs/001-ble-mesh-sdk/plan.md`
 
@@ -193,7 +193,7 @@ semantics.
 
 - [X] T054 [P] Add a bounded pending-frame window helper and automated coverage in `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/transport/PendingFrameWindow.kt` and `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/transport/PendingFrameWindowTest.kt`
 - [X] T055 Implement iOS transport log-throttling plus a queued CoC writer with bounded frame/byte backpressure in `meshlink/src/iosMain/kotlin/ch/trancee/meshlink/platform/ios/IosBleTransport.kt`
-- [X] T056 Validate the iOS CoC remediation with fresh Kotlin/Xcode verification output using `./gradlew :meshlink:jvmTest --tests 'ch.trancee.meshlink.transport.PendingFrameWindowTest' :meshlink:compileKotlinIosSimulatorArm64 :meshlink:compileKotlinIosArm64 :meshlink:ktfmtCheck --console=plain` and `xcodebuild -project meshlink-sample/ios/ProofApp.xcodeproj -scheme ProofApp -destination 'id=6C7DD73A-EC9C-46F9-B0B9-DD136F748621' test`
+- [X] T056 Validate the iOS CoC remediation with fresh Kotlin/Xcode verification output using `./gradlew :meshlink:jvmTest --tests 'ch.trancee.meshlink.transport.PendingFrameWindowTest' :meshlink:compileKotlinIosSimulatorArm64 :meshlink:compileKotlinIosArm64 :meshlink:ktfmtCheck --console=plain` and `xcodebuild -project meshlink-proof/ios/ProofApp.xcodeproj -scheme ProofApp -destination 'id=6C7DD73A-EC9C-46F9-B0B9-DD136F748621' test`
 
 ---
 
@@ -203,7 +203,7 @@ semantics.
 
 - [X] T057 [P] Run fresh isolated iPhone 15 64 KiB proof reruns against the Samsung and OPPO reference peers and capture the resulting success/failure evidence
 - [X] T058 [P] Run a telemetry-enabled iPhone 15 -> Samsung diagnostic rerun and retain queued-writer/backpressure observations from the proof log
-- [X] T059 Update `benchmarks/README.md`, `specs/001-ble-mesh-sdk/research.md`, `specs/001-ble-mesh-sdk/quickstart.md`, and `meshlink-sample/ios/README.md` with the fresh queued-writer physical evidence and current blocker framing
+- [X] T059 Update `benchmarks/README.md`, `specs/001-ble-mesh-sdk/research.md`, `specs/001-ble-mesh-sdk/quickstart.md`, and `meshlink-proof/ios/README.md` with the fresh queued-writer physical evidence and current blocker framing
 
 ---
 
@@ -230,7 +230,7 @@ semantics.
 
 **Purpose**: Isolate why passive-peer proof receipts still expire `UNREACHABLE` on the return path even when the sender-to-passive leg appears healthy enough to trigger receipt logic.
 
-- [X] T065 Add token-correlated proof-receipt diagnostics in `meshlink-sample/android/app/src/main/kotlin/ch/trancee/meshlink/proof/android/MainActivity.kt` and `meshlink-sample/ios/ProofApp/ProofViewModel.swift` so sender/passive logs capture token, peer, current state, known peers, and recent peer/diagnostic context at receipt send / receipt timeout boundaries
+- [X] T065 Add token-correlated proof-receipt diagnostics in `meshlink-proof/android/app/src/main/kotlin/ch/trancee/meshlink/proof/android/MainActivity.kt` and `meshlink-proof/ios/ProofApp/ProofViewModel.swift` so sender/passive logs capture token, peer, current state, known peers, and recent peer/diagnostic context at receipt send / receipt timeout boundaries
 - [X] T066 Re-run one minimal recipient-confirmed physical repro (iPhone 15 -> Samsung, 256-byte MeshLink path) with the new token-correlated diagnostics and retain the resulting sender/passive evidence in `benchmarks/README.md` and `specs/001-ble-mesh-sdk/research.md`
 - [X] T067 Investigate and implement one bounded return-path stability remediation for passive-peer proof receipts on the MeshLink path
 - [X] T068 Re-run the recipient-confirmed Samsung/OPPO matrix after the bounded remediation and retain the resulting evidence in the durable docs
@@ -277,8 +277,8 @@ release-readiness claim.
 - [X] T076 [P] Add Android/iOS proof-benchmark coverage for `SC-006` by
   measuring the 1-hop, 256-byte LOW-power delivery target after peer discovery
   and connection establishment, retaining the scored runs from
-  `meshlink-sample/android/app/src/androidTest/kotlin/ch/trancee/meshlink/proof/android/PowerProfileBenchmark.kt`
-  and `meshlink-sample/ios/ProofBenchmarks/PowerProfileBenchmark.swift`, and
+  `meshlink-proof/android/app/src/androidTest/kotlin/ch/trancee/meshlink/proof/android/PowerProfileBenchmark.kt`
+  and `meshlink-proof/ios/ProofBenchmarks/PowerProfileBenchmark.swift`, and
   recording the resulting evidence in `specs/001-ble-mesh-sdk/research.md`.
 - [X] T077 Mirror the `SC-001` timed measurement method in
   `specs/001-ble-mesh-sdk/quickstart.md`, then run and retain a timed
@@ -372,13 +372,13 @@ connection-interval floor without rewriting completed delivery history.
   no-scan-response rule, and reserved proof-only UUID block in
   `specs/001-ble-mesh-sdk/contracts/discovery-advertisement.md`,
   `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/transport/BleDiscoveryContractTest.kt`,
-  `meshlink-sample/android/README.md`, and `meshlink-sample/ios/README.md`.
+  `meshlink-proof/android/README.md`, and `meshlink-proof/ios/README.md`.
 - [X] T089 [P] Extend shared power-policy tests and Android/iOS proof
   benchmarks to assert LOW-tier maintained connection intervals of `>= 500 ms`,
   alongside the existing scan-duty and 256-byte latency checks, in
   `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/power/PowerPolicyTest.kt`,
-  `meshlink-sample/android/app/src/androidTest/kotlin/ch/trancee/meshlink/proof/android/PowerProfileBenchmark.kt`,
-  `meshlink-sample/ios/ProofBenchmarks/PowerProfileBenchmark.swift`, and
+  `meshlink-proof/android/app/src/androidTest/kotlin/ch/trancee/meshlink/proof/android/PowerProfileBenchmark.kt`,
+  `meshlink-proof/ios/ProofBenchmarks/PowerProfileBenchmark.swift`, and
   `specs/001-ble-mesh-sdk/research.md`.
 - [X] T090 Sync `specs/001-ble-mesh-sdk/spec.md`,
   `specs/001-ble-mesh-sdk/plan.md`,
@@ -386,7 +386,7 @@ connection-interval floor without rewriting completed delivery history.
   `specs/001-ble-mesh-sdk/contracts/meshlink-api.md`,
   `specs/001-ble-mesh-sdk/contracts/discovery-advertisement.md`,
   `specs/001-ble-mesh-sdk/quickstart.md`,
-  `meshlink-sample/android/README.md`, and `meshlink-sample/ios/README.md`
+  `meshlink-proof/android/README.md`, and `meshlink-proof/ios/README.md`
   with the shared builder, discovery-advertisement, and LOW-tier
   connection-interval contract.
 
@@ -420,7 +420,7 @@ via the explicit waiver / known-limitation path recorded in the canonical docs.
   in `specs/001-ble-mesh-sdk/spec.md`,
   `specs/001-ble-mesh-sdk/plan.md`,
   `specs/001-ble-mesh-sdk/quickstart.md`,
-  `meshlink-sample/ios/README.md`, and
+  `meshlink-proof/ios/README.md`, and
   `specs/001-ble-mesh-sdk/release-decision.md`.
 - [X] T094 Retain the additional rejected iOS Samsung follow-up matrix
   (run-loop scheduling, shorter sender ACK settlement, wider transport
@@ -456,7 +456,7 @@ via the explicit waiver / known-limitation path recorded in the canonical docs.
   `specs/001-ble-mesh-sdk/spec.md`,
   `specs/001-ble-mesh-sdk/plan.md`,
   `specs/001-ble-mesh-sdk/quickstart.md`, and
-  `meshlink-sample/ios/README.md`.
+  `meshlink-proof/ios/README.md`.
 - [X] T097 Retain the rejected post-role-policy follow-up matrix (8-frame iOS
   coalescing, deterministic-path inline rerun, and ACK-batch=`32` rerun) in
   `benchmarks/README.md`,
@@ -484,8 +484,8 @@ shows that a new branch can plausibly close iOS `SC-004`.
   runnable proof integrations so iPhone can benchmark a materially different
   platform API path while still retaining recipient-confirmed semantics. The
   first chosen branch is an iOS peripheral GATT notification host plus Android
-  central GATT benchmark client in `meshlink-sample/ios/ProofApp` and
-  `meshlink-sample/android/app/src/main/kotlin/ch/trancee/meshlink/proof/android`.
+  central GATT benchmark client in `meshlink-proof/ios/ProofApp` and
+  `meshlink-proof/android/app/src/main/kotlin/ch/trancee/meshlink/proof/android`.
 - [X] T100 Run fresh physical Samsung and OPPO reference-peer reruns for that
   new proof branch, retain raw sender / recipient evidence in
   `benchmarks/README.md`,
@@ -555,7 +555,7 @@ and headless proof false negatives are resolved.
   `meshlink/src/iosMain/kotlin/ch/trancee/meshlink/platform/ios/IosGattNotifyLink.kt`,
   `meshlink/src/iosMain/kotlin/ch/trancee/meshlink/platform/ios/IosBleTransport.kt`,
   `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/api/IosBleTransportBridge.kt`,
-  `meshlink-sample/ios/ProofApp/MeshLinkTransportBridge.swift`, and the
+  `meshlink-proof/ios/ProofApp/MeshLinkTransportBridge.swift`, and the
   relevant test files so large inline mixed-bearer sends suspend discovery,
   the iOS GATT-notify path minimizes bridge overhead, and the headless proof
   app reschedules benchmark auto-send when a direct route recovers after a
@@ -564,7 +564,7 @@ and headless proof false negatives are resolved.
   benchmarks, retain the resulting evidence in `benchmarks/README.md`,
   `specs/001-ble-mesh-sdk/research.md`, `specs/001-ble-mesh-sdk/plan.md`,
   `specs/001-ble-mesh-sdk/spec.md`, `specs/001-ble-mesh-sdk/release-decision.md`,
-  and `meshlink-sample/ios/README.md`, and record whether the future branch now
+  and `meshlink-proof/ios/README.md`, and record whether the future branch now
   closes `SC-004` on the reference matrix without relying on the historical
   release waiver.
 

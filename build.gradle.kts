@@ -22,7 +22,7 @@ allprojects {
 }
 
 apiValidation {
-    ignoredProjects.addAll(listOf("benchmarks", "meshlink-sample-android-app"))
+    ignoredProjects.addAll(listOf("benchmarks", "meshlink-proof-android-app"))
     apiDumpDirectory = "api"
 }
 

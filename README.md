@@ -39,10 +39,10 @@ The documentation follows the Diátaxis model.
 - [Power management](docs/explanation/power-management.md)
 - [Why L2CAP-first](docs/explanation/why-l2cap-first.md)
 
-## Samples and validation
+## Proof apps and validation
 
-- [Android proof app guide](meshlink-sample/android/README.md)
-- [iOS proof app guide](meshlink-sample/ios/README.md)
+- [Android proof app guide](meshlink-proof/android/README.md)
+- [iOS proof app guide](meshlink-proof/ios/README.md)
 - [Benchmarks and retained evidence](benchmarks/README.md)
 - [Feature specification and release decision](specs/001-ble-mesh-sdk/spec.md)
 

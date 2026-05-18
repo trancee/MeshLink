@@ -23,7 +23,7 @@ The committed Xcode project is ready to open directly. If the project spec chang
 regenerate it with:
 
 ```bash
-cd meshlink-sample/ios
+cd meshlink-proof/ios
 xcodegen --spec project.yml
 ```
 
@@ -31,7 +31,7 @@ xcodegen --spec project.yml
 
 ```bash
 xcodebuild \
-  -project meshlink-sample/ios/ProofApp.xcodeproj \
+  -project meshlink-proof/ios/ProofApp.xcodeproj \
   -scheme ProofApp \
   -destination 'id=6C7DD73A-EC9C-46F9-B0B9-DD136F748621' \
   build
@@ -53,7 +53,7 @@ Example CLI build:
 
 ```bash
 xcodebuild \
-  -project meshlink-sample/ios/ProofApp.xcodeproj \
+  -project meshlink-proof/ios/ProofApp.xcodeproj \
   -scheme ProofApp \
   -destination 'id=<your-device-udid>' \
   -allowProvisioningUpdates \
@@ -149,8 +149,8 @@ Verified in this repository state:
 
 - `./gradlew :meshlink:compileKotlinIosSimulatorArm64`
 - `./gradlew :meshlink:iosSimulatorArm64Test --tests '*IosL2capFrameBufferTest'`
-- `xcodebuild -project meshlink-sample/ios/ProofApp.xcodeproj -scheme ProofApp -destination 'id=6C7DD73A-EC9C-46F9-B0B9-DD136F748621' test`
-- `xcodebuild -project meshlink-sample/ios/ProofApp.xcodeproj -scheme ProofApp -destination 'id=00008120-00011DEE0105A01E' DEVELOPMENT_TEAM=<local-team-id> build`
+- `xcodebuild -project meshlink-proof/ios/ProofApp.xcodeproj -scheme ProofApp -destination 'id=6C7DD73A-EC9C-46F9-B0B9-DD136F748621' test`
+- `xcodebuild -project meshlink-proof/ios/ProofApp.xcodeproj -scheme ProofApp -destination 'id=00008120-00011DEE0105A01E' DEVELOPMENT_TEAM=<local-team-id> build`
 - `xcrun devicectl device install app --device <device-udid> <built-app-path>`
 - `xcrun devicectl device process launch --device <device-udid> ch.trancee.meshlink.proof.ios`
 

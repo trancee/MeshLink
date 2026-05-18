@@ -396,7 +396,7 @@ def build_ios_app(ios_device: str) -> Path:
             [
                 "xcodebuild",
                 "-project",
-                "meshlink-sample/ios/ProofApp.xcodeproj",
+                "meshlink-proof/ios/ProofApp.xcodeproj",
                 "-scheme",
                 "ProofApp",
                 "-destination",
@@ -410,7 +410,7 @@ def build_ios_app(ios_device: str) -> Path:
             [
                 "xcodebuild",
                 "-project",
-                "meshlink-sample/ios/ProofApp.xcodeproj",
+                "meshlink-proof/ios/ProofApp.xcodeproj",
                 "-scheme",
                 "ProofApp",
                 "-destination",

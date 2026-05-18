@@ -44,7 +44,7 @@ val config = meshLinkConfig {
 
 - Android host apps call `MeshLink.create(config, context)` and pass the Android context.
 - iOS host apps call `MeshLink.create(config)`.
-- The committed iOS proof sample now includes an Xcode project plus an XcodeGen
+- The committed iOS proof app now includes an Xcode project plus an XcodeGen
   spec. Local iPhone builds still require a development team selection in Xcode
   or a `DEVELOPMENT_TEAM=<your-team-id>` CLI override.
 - Both factories return the same `MeshLinkApi` surface.
@@ -184,7 +184,7 @@ short of claiming `SC-001` or any related benchmark criterion passed.
 
 A reviewer should be able to complete a first offline message exchange between
 both devices in 30 minutes or less using this flow and the runnable proof
-integrations in `meshlink-sample/android` and `meshlink-sample/ios`.
+integrations in `meshlink-proof/android` and `meshlink-proof/ios`.
 
 Current physical evidence on attached hardware now shows that this direct
 quickstart flow works on iPhone 15 + OPPO Android 16, including a restart of the

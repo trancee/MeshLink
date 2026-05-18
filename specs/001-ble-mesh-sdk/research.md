@@ -145,7 +145,7 @@ identities survive switching between the JCA-backed and software paths.
 - iOS direct transport now has a compile-verified CoreBluetooth L2CAP path in
   `IosBleTransport.kt`, including PSM publication, advertisement, central
   connection/open-channel flow, incoming/outgoing channel registration, and
-  framed stream IO. The repo now also contains a committed `meshlink-sample/ios`
+  framed stream IO. The repo now also contains a committed `meshlink-proof/ios`
   Xcode project generated from `project.yml`; simulator build succeeds, physical
   iPhone 15 build succeeds when a local development team is supplied, and app
   installation via `devicectl` succeeds. The remaining real-device blocker is
@@ -256,10 +256,10 @@ scored evidence instead of raw harness failures:
 
 Fresh retained evidence from this repository state:
 
-- Android install command: `./gradlew :meshlink-sample:android:meshlink-sample-android-app:installDebug --console=plain`
+- Android install command: `./gradlew :meshlink-proof:android:meshlink-proof-android-app:installDebug --console=plain`
   - result: `BUILD SUCCESSFUL`
 - Android scored benchmark command:
-  `ANDROID_SERIAL=R38M10P930F ./gradlew :meshlink-sample:android:meshlink-sample-android-app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=ch.trancee.meshlink.proof.android.PowerProfileBenchmark#lowBatteryPowerSaverModeDelivers256ByteMessageWithinFiveSeconds -Pandroid.testInstrumentationRunnerArguments.meshlinkBenchmarkEnablePeerTests=true --console=plain`
+  `ANDROID_SERIAL=R38M10P930F ./gradlew :meshlink-proof:android:meshlink-proof-android-app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=ch.trancee.meshlink.proof.android.PowerProfileBenchmark#lowBatteryPowerSaverModeDelivers256ByteMessageWithinFiveSeconds -Pandroid.testInstrumentationRunnerArguments.meshlinkBenchmarkEnablePeerTests=true --console=plain`
   - result: `BUILD SUCCESSFUL`
   - sender Samsung line:
     `BENCHMARK transport bytes=256 elapsedMs=411 throughputKBps=0.61 result=Sent`
@@ -267,13 +267,13 @@ Fresh retained evidence from this repository state:
     - `BENCHMARK receipt peer remapped origin=f48c9d direct=ea85e3`
     - `BENCHMARK receipt send(ea85e3) -> Sent token=00015a7ea2cfe2e1 attempt=1`
 - iOS simulator compile gate:
-  `xcodebuild -project meshlink-sample/ios/ProofApp.xcodeproj -scheme ProofApp -destination 'id=6C7DD73A-EC9C-46F9-B0B9-DD136F748621' -only-testing:ProofBenchmarks/PowerProfileBenchmark/testLowBatteryPowerSaverModeDelivers256ByteMessageWithinFiveSeconds test`
+  `xcodebuild -project meshlink-proof/ios/ProofApp.xcodeproj -scheme ProofApp -destination 'id=6C7DD73A-EC9C-46F9-B0B9-DD136F748621' -only-testing:ProofBenchmarks/PowerProfileBenchmark/testLowBatteryPowerSaverModeDelivers256ByteMessageWithinFiveSeconds test`
   - result: `TEST SUCCEEDED`
   - benchmark case result: `Test skipped`
   - note: this remains a compile gate only because the simulator has no nearby BLE proof peer
 - iOS physical build/install/launch path using the paired iPhone 15 plus a
   transient local development team from the already-signed local build artifact:
-  - device build: `xcodebuild -project meshlink-sample/ios/ProofApp.xcodeproj -scheme ProofApp -destination 'generic/platform=iOS' -allowProvisioningUpdates DEVELOPMENT_TEAM=<redacted> build`
+  - device build: `xcodebuild -project meshlink-proof/ios/ProofApp.xcodeproj -scheme ProofApp -destination 'generic/platform=iOS' -allowProvisioningUpdates DEVELOPMENT_TEAM=<redacted> build`
   - install: `xcrun devicectl device install app --device 7F5320D7-1D8E-56F5-9D6E-0A6967B25467 ~/Library/Developer/Xcode/DerivedData/ProofApp-bkjaxkflegnxwlflhhedzuolagbp/Build/Products/Debug-iphoneos/ProofApp.app`
   - headless sender launch:
     `xcrun devicectl device process launch --device 7F5320D7-1D8E-56F5-9D6E-0A6967B25467 --terminate-existing --console -e '{"MESHLINK_APP_ID":"demo.meshlink.benchmark.power.delivery","MESHLINK_POWER_MODE":"powersaver","MESHLINK_BENCHMARK_PAYLOAD_BYTES":"256","MESHLINK_BENCHMARK_BATTERY_LEVEL":"0.5","MESHLINK_BENCHMARK_IS_CHARGING":"false"}' ch.trancee.meshlink.proof.ios`
@@ -360,12 +360,12 @@ Fresh retained verification from this repository state:
     - fixed `PowerMode.PowerSaver` also resolves `connectionIntervalMillis=500`
     - API diagnostics expose `connectionIntervalMillis` in `POWER_MODE_CHANGED`
 - Android proof benchmark compile gate:
-  `./gradlew :meshlink-sample:android:meshlink-sample-android-app:compileDebugAndroidTestKotlin --console=plain`
+  `./gradlew :meshlink-proof:android:meshlink-proof-android-app:compileDebugAndroidTestKotlin --console=plain`
   - result: `BUILD SUCCESSFUL`
   - benchmark assertion now requires `connectionIntervalMillis=500` on the
     LOW-power diagnostic line
 - iOS proof benchmark build-for-testing gate:
-  `xcodebuild -project meshlink-sample/ios/ProofApp.xcodeproj -scheme ProofApp -destination 'generic/platform=iOS Simulator' build-for-testing`
+  `xcodebuild -project meshlink-proof/ios/ProofApp.xcodeproj -scheme ProofApp -destination 'generic/platform=iOS Simulator' build-for-testing`
   - result: `TEST BUILD SUCCEEDED`
   - iOS proof benchmark assertion now requires `connectionIntervalMillis=500`
     on the LOW-power diagnostic line
@@ -809,7 +809,7 @@ small tuning pass.
 
 ### Proof-only Android GATT server + iOS GATT client fallback prototype
 
-A proof-only native fallback prototype is now implemented in the sample apps for
+A proof-only native fallback prototype is now implemented in the proof apps for
 benchmark investigation only:
 
 - Android proof app: native `BluetoothGattServer` passive benchmark host
@@ -1273,7 +1273,7 @@ Fresh verification after the bridge landed:
 
 - `./gradlew :meshlink:compileKotlinIosSimulatorArm64 :meshlink:compileKotlinIosArm64`
   passed
-- `xcodebuild -project meshlink-sample/ios/ProofApp.xcodeproj -scheme ProofApp -destination 'generic/platform=iOS Simulator' build`
+- `xcodebuild -project meshlink-proof/ios/ProofApp.xcodeproj -scheme ProofApp -destination 'generic/platform=iOS Simulator' build`
   passed
 - `xcodebuild ... -destination 'id=00008120-00011DEE0105A01E' ... build`
   passed

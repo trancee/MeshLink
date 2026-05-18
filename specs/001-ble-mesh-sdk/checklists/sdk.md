@@ -98,7 +98,7 @@ this checklist intentionally tests spec quality rather than planning quality.
 - [X] CHK023 Does the spec validate the assumption that required BLE and
   background permissions are available when evaluating offline-only success
   criteria? [Assumption, Spec §Assumptions, Spec §SC-001–SC-007]
-- [X] CHK024 Are sample-app and supported-device assumptions explicit enough for
+- [X] CHK024 Are proof-app and supported-device assumptions explicit enough for
   a reviewer to judge whether SC-001 and SC-004 are fairly testable?
   [Assumption, Spec §SC-001, Spec §SC-004, Spec §Assumptions]
 
