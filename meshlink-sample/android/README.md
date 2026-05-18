@@ -62,16 +62,21 @@ closure on both reference peers.
 The latest current-head follow-up now closes the throughput side as well:
 
 - Samsung retained headless current-head product-path reruns now reach
-  `61.13-68.67 KB/s` with passive proof receipts retained on attempt 1
+  `61.96-70.64 KB/s` with passive proof receipts retained on attempt 1 on the
+  latest rebuilt/install headless path
 - OPPO retained headless current-head product-path reruns now reach
-  `77.02-78.24 KB/s` with passive proof receipts retained on attempt 1
+  `77.48-80.10 KB/s` with passive proof receipts retained on attempt 1 on the
+  latest rebuilt/install headless path
 
 The decisive transport-side win came from suspending discovery during large
 inline sends so the scored product path no longer pays concurrent scan /
 advertise churn while draining the GATT side bearer. A later iPhone proof-app
 route-recovery fix also removed a false-negative warmup-only rerun by
 rescheduling benchmark auto-send after a direct `ROUTE_DISCOVERED` that follows
-a transient `Peer lost`.
+a transient `Peer lost`. A later runner / iOS inbound-link follow-up then
+removed a stale-serial headless false hang and kept accepted inbound mixed-
+bearer iOS L2CAP links bound to the resolved peer ID once discovery/GATT-side
+identifiers converged.
 
 ## Next Steps
 

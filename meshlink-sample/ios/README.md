@@ -189,8 +189,9 @@ Physical proof findings on iPhone 15:
   historical diagnostic evidence only
 - the latest current-head inline mixed-bearer physical reruns now clear the
   normative target on both reference peers: Samsung headless reruns reached
-  `61.13-68.67 KB/s` and OPPO headless reruns reached `77.02-78.24 KB/s`, all
-  with passive proof receipts retained on attempt 1
+  `61.96-70.64 KB/s` and OPPO headless reruns reached `77.48-80.10 KB/s`, all
+  with passive proof receipts retained on attempt 1 on the latest rebuilt /
+  install headless path
 - fresh immediate retained repeat series now also stay above target on both
   reference peers after proof auto-send task de-duplication: Samsung now has a
   5-run retained series at `60.38-63.81 KB/s` (avg `62.41 KB/s`) and OPPO has a
@@ -225,7 +226,7 @@ Current release / future-branch framing:
   mixed-platform path)
 - the latest current-head future branch now has retained recipient-confirmed
   64 KiB evidence above the normative `>= 60 KB/s` target on both reference
-  peers (`61.13-68.67 KB/s` Samsung, `77.02-78.24 KB/s` OPPO)
+  peers (`61.96-70.64 KB/s` Samsung, `77.48-80.10 KB/s` OPPO)
 - when describing current iOS large-transfer behavior, distinguish the waived
   released baseline from the newer future branch that now clears `SC-004` on
   reference hardware

@@ -118,8 +118,9 @@ Proof-app note:
   `39.48 KB/s` to the Samsung reference peer.
 - The latest current-head future branch now has retained product-path evidence
   above the normative iOS target on both reference peers: Samsung reached
-  `61.13-68.67 KB/s` and OPPO reached `77.02-78.24 KB/s`, both with
-  recipient-confirmed proof receipts retained on attempt 1.
+  `61.96-70.64 KB/s` and OPPO reached `77.48-80.10 KB/s`, both with
+  recipient-confirmed proof receipts retained on attempt 1 on the latest
+  rebuilt/install headless path.
 - Do not use quickstart success from the released baseline to claim that iOS
   satisfies `SC-004`. If current iOS large-transfer behavior is described,
   distinguish the waived released baseline from the newer future branch and
