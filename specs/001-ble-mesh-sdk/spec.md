@@ -384,9 +384,9 @@ Latest current-head future-branch posture:
   `ROUTE_DISCOVERED` arrives after a transient `Peer lost`, so retained
   headless evidence once again reflects the transport branch rather than a
   proof-harness false negative.
-- Fresh retained current-head product-path evidence now reaches `61.13-68.67
-  KB/s` on Samsung and `77.02-78.24 KB/s` on OPPO with recipient-confirmed
-  proof receipts on attempt 1.
+- Fresh retained current-head product-path evidence now reaches `61.96-70.64
+  KB/s` on Samsung and `77.48-80.10 KB/s` on OPPO with recipient-confirmed
+  proof receipts on attempt 1 on the latest rebuilt/install headless path.
 
 Current interpretation:
 

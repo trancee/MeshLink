@@ -24,13 +24,12 @@ explicit waiver / known limitation.
   matrix `45.33-52.03 KB/s`, both with the low-latency request present).
 - **Current-head future-branch status**: recipient-confirmed product-path
   evidence now closes `SC-004` on the reference matrix.
-- **Current-head retained evidence**: Samsung now retains `61.13-68.67 KB/s`
-  across `/tmp/ios_meshlink_headless_samsung_inlinesuspend_1`,
-  `/tmp/ios_meshlink_headless_samsung_routeguard_1`,
-  `/tmp/ios_meshlink_headless_samsung_routeguard_2`, and
-  `/tmp/ios_meshlink_headless_samsung_inlinesuspend_5`; OPPO now retains
-  `77.02-78.24 KB/s` across `/tmp/ios_meshlink_headless_oppo_inlinesuspend_1`
-  and `/tmp/ios_meshlink_headless_oppo_routeguard_1`.
+- **Current-head retained evidence**: Samsung now retains `61.96-70.64 KB/s`
+  across `/tmp/ios_meshlink_headless_samsung_promotefix_1` through `_5`, and
+  OPPO now retains `77.48-80.10 KB/s` across
+  `/tmp/ios_meshlink_headless_oppo_serialfix_1` through `_3`, all with
+  recipient-confirmed proof receipts on attempt 1 on the latest rebuilt/
+  install headless path.
 - **Current-head repeat-series evidence**: after proof auto-send task
   de-duplication, fresh immediate retained series already stayed above target
   on both reference peers: Samsung `60.38-63.81 KB/s` across 5 runs (avg
@@ -44,10 +43,12 @@ explicit waiver / known limitation.
   now treated as diagnostic cold-identity churn evidence rather than as the
   canonical conformance series.
 - **Winning current-head remediations**: large inline sends now suspend
-  discovery for the scored send window, and the iPhone proof app both
-  reschedules auto-send when a direct route recovers after a transient
-  `Peer lost` event and cancels stale per-peer auto-send tasks so one physical
-  run cannot emit duplicate scored benchmark sends.
+  discovery for the scored send window, the iPhone proof app both reschedules
+  auto-send when a direct route recovers after a transient `Peer lost` event
+  and cancels stale per-peer auto-send tasks so one physical run cannot emit
+  duplicate scored benchmark sends, iOS now promotes remapped temporary inbound
+  L2CAP links onto the resolved peer ID, and the headless runner fails fast on
+  stale Android serials while preferring local cached iOS signing assets.
 - **Non-blocker evidence already restored**: recipient-confirmed 64 KiB proof
   completion on the Samsung / OPPO physical path.
 
@@ -148,11 +149,14 @@ first pushed OPPO over the normative iOS target while leaving Samsung at only
 winning remediation instead came from the shared engine and proof harness:
 large inline sends now suspend concurrent discovery, and the iPhone proof app
 restarts benchmark auto-send when a direct route recovers after a transient
-peer-loss event. Fresh retained current-head reruns now retain `61.13-68.67
-KB/s` on Samsung and `77.02-78.24 KB/s` on OPPO with recipient-confirmed proof
-closure. This future branch therefore now has retained evidence capable of
-closing iOS `SC-004` on the reference matrix, even though the already-released
-baseline still keeps its explicit waiver / known-limitation history.
+peer-loss event. A later runner / iOS inbound-link follow-up then removed a
+stale-serial headless false hang and kept accepted inbound iOS L2CAP links
+bound to the resolved peer ID once discovery/GATT-side identifiers converged.
+Fresh retained current-head reruns now retain `61.96-70.64 KB/s` on Samsung
+and `77.48-80.10 KB/s` on OPPO with recipient-confirmed proof closure. This
+future branch therefore now has retained evidence capable of closing iOS
+`SC-004` on the reference matrix, even though the already-released baseline
+still keeps its explicit waiver / known-limitation history.
 
 This future branch does not change the current release claims or waiver
 guardrails.

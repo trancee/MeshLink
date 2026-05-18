@@ -56,7 +56,7 @@ and must stay covered by the retained benchmark evidence.
 **Project Type**: Kotlin Multiplatform library SDK with benchmark module and runnable Android/iOS proof integrations  
 **Performance Goals**: ≥80 KB/s Android L2CAP, ≥60 KB/s iOS L2CAP, 50 ms p95 for a 1-hop 256 B message, 8 MB steady-state heap at 8 peers, ≤5% scan duty and maintained connection intervals of `>= 500 ms` in LOW mode, ≤5 s for a 1-hop 256 B message in LOW mode after peer discovery and connection establishment, power-tier output that exposes advertisement interval / maintained-connection interval / max-connections / chunk-budget behavior, <500 ms from `mesh.start()` to first advertisement, 3 s control-plane route convergence for a 10-node topology, <1 µs JVM codec encode/decode
 **Benchmark Evidence Handling**: `benchmarks/README.md` retains observed benchmark and proof-app evidence for reviewer traceability. Those retained baselines do not lower or replace the normative success criteria in `spec.md` or the mirrored performance goals above.
-**Constraints**: Offline-only; no servers or accounts; TOFU trust pinning; 64 KiB release payload limit; configurable in-memory delivery retry deadline; no retry persistence across restart; bounded, jittered exponential backoff for no-route scheduling; immediate retry on route availability; L2CAP-first on the normative product path; discovery uses the fixed `4d455348` + 16-byte payload single-advertisement / no-scan-response contract; the retained GATT prototype is proof-only investigative evidence and does not constitute product-conformance fallback unless the specification is explicitly amended; no additional third-party runtime dependencies; current physical validation still leaves the iOS ≥60 KB/s 64 KiB single-hop transfer target unmet on reference hardware even though recipient-confirmed 64 KiB MeshLink proof completion is now restored on both Samsung and OPPO, so any release before remediation still requires an explicit waiver and documented limitation
+**Constraints**: Offline-only; no servers or accounts; TOFU trust pinning; 64 KiB release payload limit; configurable in-memory delivery retry deadline; no retry persistence across restart; bounded, jittered exponential backoff for no-route scheduling; immediate retry on route availability; L2CAP-first on the normative product path; discovery uses the fixed `4d455348` + 16-byte payload single-advertisement / no-scan-response contract; the retained GATT prototype is proof-only investigative evidence and does not constitute product-conformance fallback unless the specification is explicitly amended; no additional third-party runtime dependencies; the released baseline still carries the historical iOS ≥60 KB/s non-conformance that required an explicit waiver, while the latest future branch now has retained reference-hardware evidence above the normative threshold on both Samsung and OPPO
 **Constitutional Constraints**: `explicitApi()` required; Detekt + ktfmt gates; BCV-tracked public API; 100% line/branch coverage; Power-assert diagnostics; Wycheproof validation; canonical virtual harness for integration tests; Android/iOS parity for API, docs, state, diagnostics, the shared 26-code diagnostic catalog, the sealed `MeshLinkException` hierarchy, and the shared `meshLinkConfig` DSL builder; benchmark evidence for crypto, routing lookup, wire codec, route convergence, transport throughput/latency, steady-state memory, LOW-power duty cycle, LOW-tier maintained connection intervals, and cold-start paths; discovery-advertisement contract validation; all shared logic in `commonMain`; no external crypto library; FlatBuffers wire compatibility plus explicit backward-compatibility validation evidence; runtime dependency budget limited to `kotlinx-coroutines-core`; repository benchmark baselines must stay documented in `benchmarks/README.md` and `specs/001-ble-mesh-sdk/research.md`
 **Applicable Skills**: kotlin-multiplatform, kotlin-gradle-plugin, gradle-build-tool, kotlin-api-guidelines, android-ble, android-bluetooth-sockets, core-bluetooth, kmp-ios-integration, flatbuffers, babel-rfc8966, noise-protocol-framework, tcp-sack-rfc2018, optimize-ble-throughput
 **Scale/Scope**: One shared SDK module, two mobile targets, one public API surface, 8-peer steady-state mesh, 10-node convergence validation topology, 64 KiB maximum v1 payload
@@ -115,8 +115,9 @@ retained deterministic-path evidence reached `52.03 KB/s` on OPPO and
 state. After the mixed-platform role-policy redesign, the later discovery-
 suspension remediation for large inline sends, and the proof-app route-
 recovery fix, fresh retained product-path evidence now reaches
-`61.13-68.67 KB/s` on Samsung and `77.02-78.24 KB/s` on OPPO with
-recipient-confirmed proof receipts on attempt 1.
+`61.96-70.64 KB/s` on Samsung and `77.48-80.10 KB/s` on OPPO with
+recipient-confirmed proof receipts on attempt 1 on the latest rebuilt/install
+headless path.
 
 The release-path distinction is therefore explicit:
 
@@ -180,8 +181,10 @@ again: fresh headless OPPO reruns first retained `66.12-71.67 KB/s` with
 recipient-confirmed closure, while fresh headless Samsung reruns retained only
 `52.72-58.99 KB/s` on the same branch. A final follow-up then suspended
 concurrent discovery during large inline sends and fixed a proof-app route
-recovery auto-send false negative. Fresh retained headless reruns now reach
-`61.13-68.67 KB/s` on Samsung and `77.02-78.24 KB/s` on OPPO with
+recovery auto-send false negative. A later runner / iOS inbound-link follow-up
+then removed a stale-serial headless false hang and promoted remapped temporary
+inbound L2CAP links on iOS. Fresh retained headless reruns now reach
+`61.96-70.64 KB/s` on Samsung and `77.48-80.10 KB/s` on OPPO with
 recipient-confirmed closure on the product path. The product-path mixed-bearer
 branch is therefore no longer blocked on reverse receipt closure,
 cross-peer stability, or the normative iOS `SC-004` throughput target on the
