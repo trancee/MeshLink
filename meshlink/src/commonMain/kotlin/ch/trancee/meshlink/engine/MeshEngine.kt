@@ -865,10 +865,10 @@ private constructor(
         val learnedTrust =
             TrustRecord(
                 peerIdValue = route.destinationPeerId.value,
-                identityFingerprint =
+                identityFingerprintHexBytes =
                     localIdentity.cryptoProvider
                         .sha256(route.ed25519PublicKey + route.x25519PublicKey)
-                        .toHexString(),
+                        .toHexByteArray(),
                 firstSeenAtEpochMillis = learnedAtEpochMillis,
                 lastVerifiedAtEpochMillis = learnedAtEpochMillis,
                 ed25519PublicKey = route.ed25519PublicKey,

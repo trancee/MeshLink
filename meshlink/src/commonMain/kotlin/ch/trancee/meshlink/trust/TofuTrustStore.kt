@@ -1,5 +1,6 @@
 package ch.trancee.meshlink.trust
 
+import ch.trancee.meshlink.identity.hexToByteArrayOrNull
 import ch.trancee.meshlink.storage.SecureStorage
 import ch.trancee.meshlink.wire.ReadBuffer
 import ch.trancee.meshlink.wire.WriteBuffer
@@ -60,7 +61,8 @@ internal class TofuTrustStore internal constructor(private val secureStorage: Se
 
     private fun opaquePeerKey(peerIdValue: String): String {
         var hash = FNV64_OFFSET_BASIS
-        peerIdValue.encodeToByteArray().forEach { byte ->
+        val sourceBytes = peerIdValue.hexToByteArrayOrNull() ?: peerIdValue.encodeToByteArray()
+        sourceBytes.forEach { byte ->
             hash = (hash xor (byte.toLong() and 0xFF)) * FNV64_PRIME
         }
         return hash.toULong().toString(radix = 16).padStart(16, '0')

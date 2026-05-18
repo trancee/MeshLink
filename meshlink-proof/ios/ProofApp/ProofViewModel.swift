@@ -35,6 +35,7 @@ final class ProofViewModel: ObservableObject {
         }
     )
     private var autoSendTasks: [String: Task<Void, Never>] = [:]
+    private var peerHexBytesByValue: [String: [UInt8]] = [:]
     private var pendingBenchmarkReceipts: [String: PendingBenchmarkReceipt] = [:]
     private var benchmarkTokenCounter: UInt64 = 0
     private var capturedStdoutBuffer: String = ""
@@ -213,10 +214,12 @@ final class ProofViewModel: ObservableObject {
     private func handlePeerEvent(_ value: Any?) {
         if let found = value as? PeerEvent.Found {
             peers = insertOrReplace(found.peerId, into: peers)
+            cachePeerHexBytes(found.peerId)
             appendLog("Peer found: \(found.peerId.value)")
             scheduleAutoSend(for: found.peerId)
         } else if let lost = value as? PeerEvent.Lost {
             peers.removeAll { peer in peer.value == lost.peerId.value }
+            peerHexBytesByValue.removeValue(forKey: lost.peerId.value)
             autoSendTasks.removeValue(forKey: lost.peerId.value)?.cancel()
             appendLog("Peer lost: \(lost.peerId.value)")
         } else if let changed = value as? PeerEvent.StateChanged {
@@ -263,6 +266,7 @@ final class ProofViewModel: ObservableObject {
         }
         let recoveredPeer = PeerId(value: recoveredPeerValue)
         peers = insertOrReplace(recoveredPeer, into: peers)
+        cachePeerHexBytes(recoveredPeer)
         scheduleAutoSend(for: recoveredPeer)
     }
 
@@ -326,8 +330,15 @@ final class ProofViewModel: ObservableObject {
         if peers.contains(where: { $0.value == originPeerId.value }) {
             return originPeerId
         }
-        let originPeerBytes = originPeerId.value.hexDecodedBytes()
-        if let prefixMatch = peers.first(where: { originPeerBytes.starts(with: $0.value.hexDecodedBytes()) }) {
+        guard let originPeerBytes = originPeerId.value.hexDecodedBytesOrNil() else {
+            return peers.count == 1 ? peers.first ?? originPeerId : originPeerId
+        }
+        if let prefixMatch = peers.first(where: { peer in
+            guard let peerBytes = peerHexBytesByValue[peer.value] else {
+                return false
+            }
+            return originPeerBytes.starts(with: peerBytes)
+        }) {
             return prefixMatch
         }
         if peers.count == 1, let onlyPeer = peers.first {
@@ -394,7 +405,7 @@ final class ProofViewModel: ObservableObject {
                         "auto-send attempt \(attempt + 1) -> \(result) for \(peerId.value.suffix(6))"
                     )
                     let resultDescription = String(describing: result)
-                    let wasSent = resultDescription == "Sent"
+                    let wasSent = result is SendResult.Sent
                     var receiptConfirmed = true
                     if let benchmarkPayload {
                         let receipt: BenchmarkReceiptEnvelope?
@@ -654,6 +665,10 @@ final class ProofViewModel: ObservableObject {
         copy.append(peerId)
         return copy
     }
+
+    private func cachePeerHexBytes(_ peerId: PeerId) {
+        peerHexBytesByValue[peerId.value] = peerId.value.hexDecodedBytesOrNil()
+    }
 }
 
 private final class PendingBenchmarkReceipt {
@@ -857,10 +872,24 @@ private extension KotlinByteArray {
 
 private extension String {
     func hexDecodedBytes() -> [UInt8] {
-        stride(from: 0, to: count, by: 2).compactMap { index in
-            let start = self.index(startIndex, offsetBy: index)
-            let end = self.index(start, offsetBy: 2)
-            return UInt8(self[start..<end], radix: 16)
+        hexDecodedBytesOrNil() ?? []
+    }
+
+    func hexDecodedBytesOrNil() -> [UInt8]? {
+        guard count.isMultiple(of: 2) else {
+            return nil
         }
+        var output: [UInt8] = []
+        output.reserveCapacity(count / 2)
+        var index = startIndex
+        while index < endIndex {
+            let next = self.index(index, offsetBy: 2)
+            guard let value = UInt8(self[index..<next], radix: 16) else {
+                return nil
+            }
+            output.append(value)
+            index = next
+        }
+        return output
     }
 }

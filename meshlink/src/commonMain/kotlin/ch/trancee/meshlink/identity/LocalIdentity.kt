@@ -10,13 +10,19 @@ import ch.trancee.meshlink.crypto.X25519KeyPair
 internal class LocalIdentity
 internal constructor(
     internal val peerId: PeerId,
-    internal val identityFingerprint: String,
+    identityFingerprint: String? = null,
     identityFingerprintHexBytes: ByteArray,
     internal val noiseIdentity: NoiseIdentity,
     internal val cryptoProvider: CryptoProvider,
     advertisementKeyHash: ByteArray,
 ) {
+    private var identityFingerprintText: String? = identityFingerprint
     internal val identityFingerprintHexBytes: ByteArray = identityFingerprintHexBytes.copyOf()
+    internal val identityFingerprint: String
+        get() =
+            identityFingerprintText ?: identityFingerprintHexBytes.decodeToString().also {
+                identityFingerprintText = it
+            }
     internal val advertisementKeyHash: ByteArray = advertisementKeyHash.copyOf()
     internal val ed25519PublicKey: ByteArray = noiseIdentity.ed25519KeyPair.publicKey.copyOf()
     internal val x25519PublicKey: ByteArray = noiseIdentity.x25519KeyPair.publicKey.copyOf()
@@ -51,7 +57,6 @@ internal constructor(
             val identityFingerprintHexBytes = publicKeyHash.toHexByteArray()
             return LocalIdentity(
                 peerId = peerId,
-                identityFingerprint = identityFingerprintHexBytes.decodeToString(),
                 identityFingerprintHexBytes = identityFingerprintHexBytes,
                 noiseIdentity = noiseIdentity,
                 cryptoProvider = PlaceholderCryptoProvider,
@@ -74,7 +79,6 @@ internal constructor(
             val identityFingerprintHexBytes = publicKeyHash.toHexByteArray()
             return LocalIdentity(
                 peerId = derivedPeerId,
-                identityFingerprint = identityFingerprintHexBytes.decodeToString(),
                 identityFingerprintHexBytes = identityFingerprintHexBytes,
                 noiseIdentity = noiseIdentity,
                 cryptoProvider = provider,
@@ -121,6 +125,15 @@ internal fun ByteArray.toHexByteArray(): ByteArray {
         output[(index * 2) + 1] = HEX_DIGITS[value and 0x0F]
     }
     return output
+}
+
+internal fun String.hexToByteArrayOrNull(): ByteArray? {
+    if ((length and 1) != 0) {
+        return null
+    }
+    return ByteArray(length / 2) { index ->
+        (decodeHexByte(charIndex = index * 2) ?: return null).toByte()
+    }
 }
 
 internal fun String.hexContentEquals(bytes: ByteArray): Boolean {

@@ -257,7 +257,7 @@ private object MeshLinkProofRuntime {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val updatesFlow = MutableSharedFlow<Unit>(extraBufferCapacity = 32)
-    private val knownPeers: LinkedHashMap<String, PeerId> = linkedMapOf()
+    private val knownPeers: LinkedHashMap<String, KnownPeer> = linkedMapOf()
     private val autoSendJobs: LinkedHashMap<String, Job> = linkedMapOf()
     private val passiveReceiptRetryJobs: LinkedHashMap<String, Job> = linkedMapOf()
     private val pendingBenchmarkReceipts: LinkedHashMap<String, CompletableDeferred<BenchmarkReceipt>> =
@@ -284,7 +284,7 @@ private object MeshLinkProofRuntime {
 
     val snapshot: ProofSnapshot
         get() {
-            val peers = synchronized(knownPeers) { knownPeers.values.map { peerId -> peerId.value } }
+            val peers = synchronized(knownPeers) { knownPeers.values.map { knownPeer -> knownPeer.peerId.value } }
             val logs = synchronized(logLines) { logLines.toList() }
             return ProofSnapshot(
                 state = runtimeStateText,
@@ -547,7 +547,7 @@ private object MeshLinkProofRuntime {
             appendLog("Send Hello is unavailable in benchmark-only transport mode")
             return Job()
         }
-        val peerId = synchronized(knownPeers) { knownPeers.values.firstOrNull() }
+        val peerId = synchronized(knownPeers) { knownPeers.values.firstOrNull()?.peerId }
         if (peerId == null) {
             appendLog("No discovered peer is available yet")
             return Job()
@@ -797,7 +797,7 @@ private object MeshLinkProofRuntime {
         when (event) {
             is PeerEvent.Found -> {
                 synchronized(knownPeers) {
-                    knownPeers[event.peerId.value] = event.peerId
+                    knownPeers[event.peerId.value] = KnownPeer.from(event.peerId)
                 }
                 appendLog("Peer found: ${event.peerId.value} (${event.state})")
                 scheduleAutoHello(event.peerId)
@@ -882,11 +882,14 @@ private object MeshLinkProofRuntime {
     private fun resolveBenchmarkReceiptPeerId(originPeerId: PeerId): PeerId {
         val knownPeer =
             synchronized(knownPeers) {
-                knownPeers[originPeerId.value]
-                    ?: knownPeers.values.firstOrNull { knownPeer ->
-                        originPeerId.value.hexStartsWithHexPrefix(knownPeer.value)
+                val originPeerBytes = originPeerId.value.hexToByteArrayOrNull()
+                knownPeers[originPeerId.value]?.peerId
+                    ?: originPeerBytes?.let { originBytes ->
+                        knownPeers.values.firstOrNull { knownPeer ->
+                            knownPeer.hexBytes?.let(originBytes::startsWith) == true
+                        }?.peerId
                     }
-                    ?: knownPeers.values.singleOrNull()
+                    ?: knownPeers.values.singleOrNull()?.peerId
             }
         return knownPeer ?: originPeerId
     }
@@ -894,7 +897,7 @@ private object MeshLinkProofRuntime {
     private fun rememberKnownPeer(peerId: PeerId, source: String): Unit {
         val inserted =
             synchronized(knownPeers) {
-                knownPeers.putIfAbsent(peerId.value, peerId) == null
+                knownPeers.putIfAbsent(peerId.value, KnownPeer.from(peerId)) == null
             }
         if (inserted) {
             appendLog(
@@ -1190,20 +1193,31 @@ private class ProofSnapshot(
     val running: Boolean,
 )
 
-private fun String.hexStartsWithHexPrefix(prefix: String): Boolean {
-    if (length < prefix.length || (prefix.length and 1) != 0) {
+private class KnownPeer private constructor(
+    val peerId: PeerId,
+    val hexBytes: ByteArray?,
+) {
+    companion object {
+        fun from(peerId: PeerId): KnownPeer {
+            return KnownPeer(peerId = peerId, hexBytes = peerId.value.hexToByteArrayOrNull())
+        }
+    }
+}
+
+private fun ByteArray.startsWith(prefix: ByteArray): Boolean {
+    if (size < prefix.size) {
         return false
     }
-    var index = 0
-    while (index < prefix.length) {
-        val expected = prefix.decodeHexByte(charIndex = index) ?: return false
-        val actual = decodeHexByte(charIndex = index) ?: return false
-        if (actual != expected) {
-            return false
-        }
-        index += 2
+    return prefix.indices.all { index -> this[index] == prefix[index] }
+}
+
+private fun String.hexToByteArrayOrNull(): ByteArray? {
+    if ((length and 1) != 0) {
+        return null
     }
-    return true
+    return ByteArray(length / 2) { index ->
+        (decodeHexByte(charIndex = index * 2) ?: return null).toByte()
+    }
 }
 
 private fun ByteArray.lexicographicallyPrecedesHexString(hex: String): Boolean {

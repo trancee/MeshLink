@@ -8,18 +8,13 @@ import ch.trancee.meshlink.wire.WriteBuffer
 internal class DirectMessageEnvelope
 internal constructor(
     internal val senderPeerId: PeerId,
-    senderFingerprint: String? = null,
-    senderFingerprintHexBytes: ByteArray? = null,
+    senderFingerprintHexBytes: ByteArray,
     senderEd25519PublicKey: ByteArray,
     senderX25519PublicKey: ByteArray,
     ciphertext: ByteArray,
 ) {
     private val senderPeerIdBytes: ByteArray = senderPeerId.value.encodeToByteArray()
-    internal val senderFingerprintHexBytes: ByteArray =
-        senderFingerprintHexBytes?.copyOf() ?: senderFingerprint?.encodeToByteArray()
-        ?: error("sender fingerprint is required")
-    internal val senderFingerprint: String =
-        senderFingerprint ?: this.senderFingerprintHexBytes.decodeToString()
+    internal val senderFingerprintHexBytes: ByteArray = senderFingerprintHexBytes.copyOf()
     internal val senderEd25519PublicKey: ByteArray = senderEd25519PublicKey.copyOf()
     internal val senderX25519PublicKey: ByteArray = senderX25519PublicKey.copyOf()
     internal val ciphertext: ByteArray = ciphertext.copyOf()
