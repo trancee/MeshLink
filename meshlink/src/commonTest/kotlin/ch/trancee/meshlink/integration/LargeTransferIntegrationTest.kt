@@ -43,9 +43,10 @@ class LargeTransferIntegrationTest {
             relay.api.start()
             recipient.api.start()
             delay(250)
-            val receivedMessageDeferred = async {
-                withTimeout(6_000) { recipient.api.messages.first() }
-            }
+            val receivedMessageDeferred =
+                async(start = CoroutineStart.UNDISPATCHED) {
+                    withTimeout(6_000) { recipient.api.messages.first() }
+                }
 
             // Act
             val sendResult = sender.api.send(recipient.peerId, payload)
@@ -72,9 +73,10 @@ class LargeTransferIntegrationTest {
             recipient.api.start()
             delay(500)
             val frameCountBeforeSend = harness.sentFrames(sender).size
-            val receivedMessageDeferred = async {
-                withTimeout(6_000) { recipient.api.messages.first() }
-            }
+            val receivedMessageDeferred =
+                async(start = CoroutineStart.UNDISPATCHED) {
+                    withTimeout(6_000) { recipient.api.messages.first() }
+                }
 
             // Act
             val sendResult = sender.api.send(recipient.peerId, payload)
@@ -116,9 +118,10 @@ class LargeTransferIntegrationTest {
             alternateRelay.api.start()
             delay(250)
             val sendResultDeferred = async { sender.api.send(recipient.peerId, payload) }
-            val receivedMessageDeferred = async {
-                withTimeout(4_000) { recipient.api.messages.first() }
-            }
+            val receivedMessageDeferred =
+                async(start = CoroutineStart.UNDISPATCHED) {
+                    withTimeout(4_000) { recipient.api.messages.first() }
+                }
 
             // Act
             delay(250)
@@ -282,9 +285,10 @@ class LargeTransferIntegrationTest {
         relay.api.start()
         recipient.api.start()
         delay(250)
-        val receivedMessageDeferred = async {
-            withTimeout(10_000) { recipient.api.messages.first() }
-        }
+        val receivedMessageDeferred =
+            async(start = CoroutineStart.UNDISPATCHED) {
+                withTimeout(10_000) { recipient.api.messages.first() }
+            }
         val sendResultDeferred = async { sender.api.send(recipient.peerId, payload) }
 
         // Act
@@ -352,9 +356,10 @@ class LargeTransferIntegrationTest {
             recipient.api.start()
             delay(250)
             val recipientFrameCountBeforeSend = harness.sentFrames(recipient).size
-            val receivedMessageDeferred = async {
-                withTimeout(10_000) { recipient.api.messages.first() }
-            }
+            val receivedMessageDeferred =
+                async(start = CoroutineStart.UNDISPATCHED) {
+                    withTimeout(10_000) { recipient.api.messages.first() }
+                }
 
             // Act
             val sendResult = sender.api.send(recipient.peerId, payload)
