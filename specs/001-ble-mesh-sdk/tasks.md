@@ -576,7 +576,7 @@ and headless proof false negatives are resolved.
 pending no-route retries are in-memory only and are lost across app or SDK
 restart.
 
-- [ ] T109 [P] Add explicit `FR-008` restart-loss integration coverage by
+- [X] T109 [P] Add explicit `FR-008` restart-loss integration coverage by
   creating a pending no-route delivery, restarting the runtime in the canonical
   harness, and asserting that retry/session state is gone until the host
   resubmits the message in

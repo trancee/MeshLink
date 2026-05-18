@@ -170,6 +170,64 @@ class MeshRoutingIntegrationTest {
         }
 
     @Test
+    fun `pending no route retries do not survive runtime restart until the host resubmits`() =
+        runBlocking {
+            // Arrange
+            val harness = MeshTestHarness()
+            val senderConfig =
+                meshLinkConfig {
+                    appId = "peer-a-restart-loss"
+                    deliveryRetryDeadline = 1.seconds
+                }
+            val sender =
+                harness.createNode(
+                    peerIdValue = "peer-a",
+                    configOverride = senderConfig,
+                )
+            val relay = harness.createNode("peer-b")
+            val recipient = harness.createNode("peer-c")
+            val payload = "resubmit after restart".encodeToByteArray()
+
+            harness.linkPeers(sender, relay)
+
+            sender.api.start()
+            relay.api.start()
+            recipient.api.start()
+            val originalSendDeferred = async { sender.api.send(recipient.peerId, payload) }
+            awaitDiagnosticForPeer(
+                diagnostics = sender.diagnosticSink::events,
+                code = DiagnosticCode.DELIVERY_RETRY_SCHEDULED,
+                peerIdValue = recipient.peerId.value,
+            )
+            sender.api.stop()
+            val restartedSender =
+                harness.createNode(
+                    peerIdValue = sender.peerId.value,
+                    storage = sender.storage,
+                    configOverride = senderConfig,
+                )
+            restartedSender.api.start()
+            harness.linkPeers(relay, recipient)
+
+            // Act
+            val unexpectedMessage = withTimeoutOrNull(500) { recipient.api.messages.first() }
+            val resubmittedMessageDeferred =
+                async(start = CoroutineStart.UNDISPATCHED) {
+                    withTimeout(2_000) { recipient.api.messages.first() }
+                }
+            val resubmittedSendResult = restartedSender.api.send(recipient.peerId, payload)
+            val resubmittedMessage = resubmittedMessageDeferred.await()
+            val originalSendResult = originalSendDeferred.await()
+
+            // Assert
+            val originalNotSent = assertIs<SendResult.NotSent>(originalSendResult)
+            assertEquals(SendFailureReason.UNREACHABLE, originalNotSent.reason)
+            assertNull(unexpectedMessage)
+            assertIs<SendResult.Sent>(resubmittedSendResult)
+            assertContentEquals(payload, resubmittedMessage.payload)
+        }
+
+    @Test
     fun `gatt-only peers are rejected and remain unreachable`() = runBlocking {
         // Arrange
         val harness = MeshTestHarness()

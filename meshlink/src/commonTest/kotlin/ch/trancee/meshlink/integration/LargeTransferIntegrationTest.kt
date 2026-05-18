@@ -14,6 +14,7 @@ import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TimeSource
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
@@ -164,6 +165,64 @@ class LargeTransferIntegrationTest {
             assertEquals(SendFailureReason.UNREACHABLE, notSent.reason)
             assertTrue(startedAt.elapsedNow() >= 500.milliseconds)
             assertNull(withTimeoutOrNull(500) { recipient.api.messages.first() })
+        }
+
+    @Test
+    fun `pending large-transfer retries do not survive runtime restart until the host resubmits`() =
+        runBlocking {
+            // Arrange
+            val harness = MeshTestHarness()
+            val senderConfig =
+                meshLinkConfig {
+                    appId = "peer-a-large-restart-loss"
+                    deliveryRetryDeadline = 1.seconds
+                }
+            val sender =
+                harness.createNode(
+                    peerIdValue = "peer-a",
+                    configOverride = senderConfig,
+                )
+            val relay = harness.createNode("peer-b")
+            val recipient = harness.createNode("peer-c")
+            val payload = ByteArray(64 * 1024) { index -> ((index * 23) % 251).toByte() }
+
+            harness.linkPeers(sender, relay)
+            harness.setMaximumPayloadBytesPerDelivery(512)
+
+            sender.api.start()
+            relay.api.start()
+            recipient.api.start()
+            val originalSendDeferred = async { sender.api.send(recipient.peerId, payload) }
+            awaitDiagnostic(
+                diagnostics = sender.diagnosticSink::events,
+                code = DiagnosticCode.DELIVERY_RETRY_SCHEDULED,
+            )
+            sender.api.stop()
+            val restartedSender =
+                harness.createNode(
+                    peerIdValue = sender.peerId.value,
+                    storage = sender.storage,
+                    configOverride = senderConfig,
+                )
+            restartedSender.api.start()
+            harness.linkPeers(relay, recipient)
+
+            // Act
+            val unexpectedMessage = withTimeoutOrNull(500) { recipient.api.messages.first() }
+            val resubmittedMessageDeferred =
+                async(start = CoroutineStart.UNDISPATCHED) {
+                    withTimeout(10_000) { recipient.api.messages.first() }
+                }
+            val resubmittedSendResult = restartedSender.api.send(recipient.peerId, payload)
+            val resubmittedMessage = resubmittedMessageDeferred.await()
+            val originalSendResult = originalSendDeferred.await()
+
+            // Assert
+            val originalNotSent = assertIs<SendResult.NotSent>(originalSendResult)
+            assertEquals(SendFailureReason.UNREACHABLE, originalNotSent.reason)
+            assertNull(unexpectedMessage)
+            assertIs<SendResult.Sent>(resubmittedSendResult)
+            assertContentEquals(payload, resubmittedMessage.payload)
         }
 
     @Test
@@ -344,5 +403,17 @@ class LargeTransferIntegrationTest {
         assertEquals(SendFailureReason.PAYLOAD_TOO_LARGE, notSent.reason)
         assertFalse(harness.sentFrames(sender).size > frameCountBeforeSend)
         assertNull(withTimeoutOrNull(500) { recipient.api.messages.first() })
+    }
+
+    private suspend fun awaitDiagnostic(
+        diagnostics: () -> List<ch.trancee.meshlink.diagnostics.DiagnosticEvent>,
+        code: DiagnosticCode,
+        timeoutMillis: Long = 2_000,
+    ): Unit {
+        withTimeout(timeoutMillis) {
+            while (diagnostics().none { event -> event.code == code }) {
+                delay(10)
+            }
+        }
     }
 }

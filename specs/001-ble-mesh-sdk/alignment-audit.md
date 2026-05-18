@@ -1,7 +1,7 @@
 # MeshLink spec-to-code alignment audit
 
 **Date:** 2026-05-18  
-**Branch audited:** `main` at `1275e63`  
+**Branch audited:** `001-ble-mesh-sdk-spec-alignment-audit` (based on `main` at `1275e63`)  
 **Audience:** maintainers and reviewers validating whether the current MeshLink codebase still matches the approved `001-ble-mesh-sdk` specification.  
 **After reading:** you should know which parts of the implementation are aligned, which gaps are still open, and which items are missing as implementation, coverage, or retained evidence.
 
@@ -39,12 +39,10 @@ The current MeshLink runtime is **mostly aligned** with the approved `001-ble-me
 
 The public API, TOFU trust model, routing, selective-ACK large transfer path, discovery advertisement contract, Android/iOS parity model, and retained `SC-004` future-branch evidence are all present and supported by current code and tests.
 
-However, this audit found **one implementation regression** and **three remaining verification/evidence gaps**:
+However, this audit still finds **two remaining evidence gaps**:
 
-1. **Benchmark module regression:** `:benchmarks:jvmBenchmark` currently fails to compile on `main`.
-2. **Open spec-validation gap:** `FR-008` still lacks the explicit restart-loss integration coverage tracked by `T109`.
-3. **Success-criteria evidence gap:** `SC-001` still lacks a retained passing timed reader-test; the retained attempt is explicitly blocked and does not claim success.
-4. **Evidence-quality gap:** `SC-005` enforces the 8 MiB budget in tests, but the retained docs still note that the measured byte count is not persisted as a durable artifact.
+1. **Success-criteria evidence gap:** `SC-001` still lacks a retained passing timed reader-test; the retained attempt is explicitly blocked and does not claim success.
+2. **Evidence-quality gap:** `SC-005` enforces the 8 MiB budget in tests, but the retained docs still note that the measured byte count is not persisted as a durable artifact.
 
 ## Areas verified as aligned
 
@@ -118,6 +116,7 @@ Supporting verification:
 - `routing reconverges onto an alternate relay...` in `MeshRoutingIntegrationTest`
 - `send retries immediately when a route appears...` in `MeshRoutingIntegrationTest`
 - `send returns unreachable when no route appears...` in `MeshRoutingIntegrationTest`
+- `pending no route retries do not survive runtime restart until the host resubmits` in `MeshRoutingIntegrationTest`
 - retained convergence evidence in `benchmarks/README.md`
 
 ### 5. Large transfer chunking, selective acknowledgement, and resume semantics
@@ -134,6 +133,7 @@ The current implementation still uses chunked transfer state with selective ackn
 Supporting verification:
 
 - `a large transfer resumes after the active route changes...` in `LargeTransferIntegrationTest`
+- `pending large-transfer retries do not survive runtime restart until the host resubmits` in `LargeTransferIntegrationTest`
 - `duplicate and out-of-order chunk delivery does not corrupt...` in `LargeTransferIntegrationTest`
 - `partial acknowledgements still allow the sender to complete the transfer` in `LargeTransferIntegrationTest`
 - deployed wire compatibility fixtures in `WireEnvelopeContractTest`
@@ -205,51 +205,7 @@ This audit did not rerun physical benchmarks, but the retained evidence and word
 
 ## Confirmed gaps and differences
 
-### Gap 1 — `FR-008` restart-loss behavior is not explicitly covered by an integration test
-
-**Spec references:** `FR-008`  
-**Status:** Verification gap  
-**Severity:** Medium
-
-The implementation strongly suggests the correct behavior is present:
-
-- retry state lives in `DeliveryRetryScheduler`
-- scheduler state is held in `MeshEngine`
-- no retry queue is persisted in `TofuTrustStore` or other storage code
-
-But the repository still explicitly tracks the missing proof:
-
-- `specs/001-ble-mesh-sdk/tasks.md` still has open task `T109`
-
-So this is not a likely design mismatch; it is an unclosed validation gap. Until `T109` is implemented, the codebase lacks the direct restart-loss regression coverage the spec now calls for.
-
-### Gap 2 — the JVM benchmark suite is currently broken on `main`
-
-**Spec references:** Constitution Principle IV, `plan.md` Performance Goals, `SC-002`, `SC-004`, `SC-005` evidence path  
-**Status:** Implementation regression  
-**Severity:** High
-
-Fresh audit result:
-
-- `./gradlew :benchmarks:jvmBenchmark --console=plain`
-- result: **BUILD FAILED**
-
-Current failure:
-
-- `benchmarks/src/jvmMain/kotlin/ch/trancee/meshlink/benchmarks/ConvergenceBenchmark.kt`
-- `benchmarks/src/jvmMain/kotlin/ch/trancee/meshlink/benchmarks/RoutingBenchmark.kt`
-
-Both files still construct `TrustRecord(...)` using the old parameter shape and now fail with:
-
-- `No value passed for parameter 'firstSeenAtEpochMillis'`
-- `No value passed for parameter 'lastVerifiedAtEpochMillis'`
-
-Impact:
-
-- the retained benchmark code path required by the plan and constitution cannot currently be re-run from `main`
-- this is not only an evidence gap; it is a broken verification surface
-
-### Gap 3 — `SC-001` still lacks a retained passing timed reader-test
+### Gap 1 — `SC-001` still lacks a retained passing timed reader-test
 
 **Spec references:** `SC-001`  
 **Status:** Evidence gap  
@@ -263,7 +219,7 @@ The quickstart docs now explain how to measure a timed reader-test, but the reta
 
 So the implementation and quickstart may be usable, but the spec's success-criterion evidence is still incomplete.
 
-### Gap 4 — `SC-005` still lacks a durable retained byte-count artifact
+### Gap 2 — `SC-005` still lacks a durable retained byte-count artifact
 
 **Spec references:** `SC-005`  
 **Status:** Evidence-quality gap  
@@ -290,10 +246,8 @@ This audit did **not** find evidence that the following areas are currently out 
 
 ## Recommended next actions
 
-1. **Fix the benchmark regression first.** Restore `:benchmarks:jvmBenchmark` so the benchmark gate can run again from `main`.
-2. **Close `T109`.** Add the explicit `FR-008` restart-loss integration test the task ledger still requires.
-3. **Retain a real `SC-001` pass run.** Run and document a timed fresh-reader quickstart validation instead of only a blocked attempt.
-4. **Improve `SC-005` retained evidence.** Persist the measured steady-state heap byte count, not only the pass/fail budget check.
+1. **Retain a real `SC-001` pass run.** Run and document a timed fresh-reader quickstart validation instead of only a blocked attempt.
+2. **Improve `SC-005` retained evidence.** Persist the measured steady-state heap byte count, not only the pass/fail budget check.
 
 ## Fresh audit verification
 
@@ -326,8 +280,7 @@ Result:
 
 Result:
 
-- `BUILD FAILED`
-- compile errors in `ConvergenceBenchmark.kt` and `RoutingBenchmark.kt` due to outdated `TrustRecord(...)` construction
+- `BUILD SUCCESSFUL`
 
 ### Command 3 — spec/task/evidence scan
 
@@ -341,6 +294,6 @@ rg -n 'steady-state memory test currently enforces.*does not yet persist the mea
 
 Result:
 
-- one open governed task remains: `T109`
+- no open governed tasks remain in `tasks.md`
 - `SC-001` still has only a blocked reader-test attempt, not a retained pass
 - `SC-005` still notes missing durable raw byte-count retention
