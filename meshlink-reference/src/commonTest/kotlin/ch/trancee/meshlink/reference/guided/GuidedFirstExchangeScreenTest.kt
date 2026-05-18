@@ -7,6 +7,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.runComposeUiTest
 import ch.trancee.meshlink.api.DeliveryPriority
 import ch.trancee.meshlink.api.MeshLinkState
+import ch.trancee.meshlink.reference.automation.ReferenceAutomationConfig
 import ch.trancee.meshlink.reference.meshlink.ReferenceControllerSnapshot
 import ch.trancee.meshlink.reference.meshlink.ReferenceMeshLinkController
 import ch.trancee.meshlink.reference.model.ReferenceAuthorityMode
@@ -73,6 +74,7 @@ private fun screenTestPlatformServices(
         override val readinessGuidance: List<String> =
             listOf("Keep two devices nearby", "Stay offline")
         override val readinessBlockers: List<String> = startupBlockers
+        override val automationConfig: ReferenceAutomationConfig? = null
         override val documentStore: ReferenceDocumentStore = InMemoryReferenceDocumentStore()
         override val meshLinkController: ReferenceMeshLinkController =
             object : ReferenceMeshLinkController {
@@ -125,5 +127,7 @@ private fun screenTestPlatformServices(
             }
 
         override fun currentTimeMillis(): Long = 1_000L
+
+        override fun emitAutomationLog(message: String): Unit = Unit
     }
 }

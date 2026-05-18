@@ -27,6 +27,8 @@
     </dict>
     <key>CADisableMinimumFrameDurationOnPhone</key>
     <true/>
+    <key>NSBluetoothAlwaysUsageDescription</key>
+    <string>MeshLink uses Bluetooth to discover and exchange messages with nearby devices.</string>
     <key>UILaunchScreen</key>
     <dict/>
     <key>UIRequiredDeviceCapabilities</key>

@@ -30,6 +30,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import ch.trancee.meshlink.reference.advanced.AdvancedControlsScreen
 import ch.trancee.meshlink.reference.advanced.AdvancedControlsViewModel
+import ch.trancee.meshlink.reference.automation.ReferenceLiveProofAutomation
 import ch.trancee.meshlink.reference.guided.GuidedFirstExchangeScreen
 import ch.trancee.meshlink.reference.guided.GuidedFirstExchangeViewModel
 import ch.trancee.meshlink.reference.history.RecentSessionHistoryScreen
@@ -71,6 +72,13 @@ public fun ReferenceNavHost(platformServices: PlatformServices) {
         ReferenceWorkflowCatalog.descriptors().map { descriptor ->
             descriptor.surfaceId to descriptor.title
         }
+
+    ReferenceLiveProofAutomation(
+        platformServices = platformServices,
+        guidedViewModel = guidedViewModel,
+        timelineStore = timelineStore,
+        snapshot = snapshot,
+    )
 
     Scaffold(
         topBar = {

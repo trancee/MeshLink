@@ -1,5 +1,8 @@
 package ch.trancee.meshlink.reference.platform
 
+import ch.trancee.meshlink.reference.automation.ReferenceAutomationConfig
+import ch.trancee.meshlink.reference.automation.ReferenceAutomationMode
+import ch.trancee.meshlink.reference.automation.ReferenceAutomationRole
 import ch.trancee.meshlink.reference.meshlink.ScriptedReferenceMeshLinkController
 import ch.trancee.meshlink.reference.model.ReferenceAuthorityMode
 import ch.trancee.meshlink.reference.session.OkioReferenceDocumentStore
@@ -43,12 +46,51 @@ internal fun createIosAutomationPlatformServices(
             },
         nowProvider = nowProvider,
         documentStore = OkioReferenceDocumentStore(baseDirectory),
+        automationConfig =
+            ReferenceAutomationConfig(
+                mode = ReferenceAutomationMode.SCRIPTED_UI,
+                role = ReferenceAutomationRole.PASSIVE,
+                appId = "demo.meshlink.reference.automation",
+                storageSubdirectory = storageSubdirectory,
+            ),
+        automationLogger = ::println,
         meshLinkControllerOverride =
             ScriptedReferenceMeshLinkController(
                 platformName = "iOS",
                 authorityMode = ReferenceAuthorityMode.LIVE,
                 nowProvider = nowProvider,
             ),
+    )
+}
+
+@OptIn(ExperimentalForeignApi::class)
+internal fun createIosLiveAutomationPlatformServices(
+    storageSubdirectory: String,
+    appId: String,
+    role: ReferenceAutomationRole,
+): DefaultPlatformServices {
+    val baseDirectory = buildString {
+        append(resolveIosDocumentsDirectory())
+        append("/live-automation")
+        append('/')
+        append(storageSubdirectory)
+    }
+    val nowProvider = { time(null) * 1000L }
+    return DefaultPlatformServices(
+        platformName = "iOS",
+        defaultAuthorityMode = ReferenceAuthorityMode.LIVE,
+        readinessGuidance = iosReadinessGuidance(),
+        nowProvider = nowProvider,
+        appId = appId,
+        documentStore = OkioReferenceDocumentStore(baseDirectory),
+        automationConfig =
+            ReferenceAutomationConfig(
+                mode = ReferenceAutomationMode.LIVE_PROOF,
+                role = role,
+                appId = appId,
+                storageSubdirectory = storageSubdirectory,
+            ),
+        automationLogger = ::println,
     )
 }
 

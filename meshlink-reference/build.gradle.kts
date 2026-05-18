@@ -23,6 +23,7 @@ kotlin {
             baseName = "ReferenceAppShared"
             isStatic = true
             binaryOption("bundleId", "ch.trancee.meshlink.reference")
+            export(project(":meshlink"))
         }
     }
 
@@ -32,7 +33,7 @@ kotlin {
 
     sourceSets {
         commonMain.dependencies {
-            implementation(project(":meshlink"))
+            api(project(":meshlink"))
             implementation(libs.kotlinx.coroutines.core)
             implementation(libs.kotlinx.serialization.json)
             implementation(libs.okio)

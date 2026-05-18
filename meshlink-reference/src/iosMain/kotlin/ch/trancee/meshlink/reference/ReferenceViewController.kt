@@ -2,7 +2,9 @@ package ch.trancee.meshlink.reference
 
 import androidx.compose.ui.window.ComposeUIViewController
 import ch.trancee.meshlink.reference.app.ReferenceApp
+import ch.trancee.meshlink.reference.automation.ReferenceAutomationRole
 import ch.trancee.meshlink.reference.platform.createIosAutomationPlatformServices
+import ch.trancee.meshlink.reference.platform.createIosLiveAutomationPlatformServices
 import ch.trancee.meshlink.reference.platform.createIosPlatformServices
 import kotlinx.cinterop.ExperimentalForeignApi
 import platform.UIKit.UIViewController
@@ -26,4 +28,28 @@ public fun createReferenceAutomationRootViewController(
             blocked = blocked,
         )
     return ComposeUIViewController { ReferenceApp(platformServices = platformServices) }
+}
+
+/** iOS live-proof automation entry point using the real MeshLink controller. */
+@OptIn(ExperimentalForeignApi::class)
+public fun createReferenceLiveAutomationRootViewController(
+    storageSubdirectory: String,
+    appId: String,
+    role: String,
+): UIViewController {
+    val platformServices =
+        createIosLiveAutomationPlatformServices(
+            storageSubdirectory = storageSubdirectory,
+            appId = appId,
+            role = role.toReferenceAutomationRole(),
+        )
+    return ComposeUIViewController { ReferenceApp(platformServices = platformServices) }
+}
+
+private fun String.toReferenceAutomationRole(): ReferenceAutomationRole {
+    return if (equals("sender", ignoreCase = true)) {
+        ReferenceAutomationRole.SENDER
+    } else {
+        ReferenceAutomationRole.PASSIVE
+    }
 }

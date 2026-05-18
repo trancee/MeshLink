@@ -9,9 +9,12 @@
 /* Begin PBXBuildFile section */
 		07F0C1C846E1ED9B0E0089C5 /* ReferenceAppUITestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE6E0F604BFBD20FA1913C97 /* ReferenceAppUITestSupport.swift */; };
 		1FFFD5668B725A2E7037BC2B /* ReferenceAppWorkflowUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8B113A88D2D4E595D50E85C /* ReferenceAppWorkflowUITests.swift */; };
+		2436ACB20A2DA189EA490A84 /* ReferenceAppPhysicalLiveProofUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0584BADD09581A84C1CF94E4 /* ReferenceAppPhysicalLiveProofUITests.swift */; };
+		49DC6384CCD821DCC83B2909 /* MeshLinkCryptoBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 661D9F7A3D82FECDC57B518A /* MeshLinkCryptoBridge.swift */; };
 		61FC124E4895A92657A086DA /* ReferenceAppPlaceholderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 324A79A3CC4BF8DE1CFD05FC /* ReferenceAppPlaceholderTests.swift */; };
 		6478A3D2E4830DE1E0E9CDC0 /* ReferenceApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01935F212101BD3BFFDBA6E0 /* ReferenceApp.swift */; };
 		73582F9968058BF15787538F /* ReferenceAppParityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFA1C012385F455D6804BA63 /* ReferenceAppParityTests.swift */; };
+		9210583AE894E50B571DFEC3 /* MeshLinkTransportBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0099B4E6BF51E2B4E4555F /* MeshLinkTransportBridge.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -33,9 +36,12 @@
 
 /* Begin PBXFileReference section */
 		01935F212101BD3BFFDBA6E0 /* ReferenceApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReferenceApp.swift; sourceTree = "<group>"; };
+		0584BADD09581A84C1CF94E4 /* ReferenceAppPhysicalLiveProofUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReferenceAppPhysicalLiveProofUITests.swift; sourceTree = "<group>"; };
 		0DF1C49DBE2F0982D313B71E /* ReferenceAppUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = ReferenceAppUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		1F0099B4E6BF51E2B4E4555F /* MeshLinkTransportBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeshLinkTransportBridge.swift; sourceTree = "<group>"; };
 		324A79A3CC4BF8DE1CFD05FC /* ReferenceAppPlaceholderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReferenceAppPlaceholderTests.swift; sourceTree = "<group>"; };
 		520EFE099DDF72C6E68E9D18 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		661D9F7A3D82FECDC57B518A /* MeshLinkCryptoBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeshLinkCryptoBridge.swift; sourceTree = "<group>"; };
 		79FC582F78CA92B1DE49D235 /* ReferenceAppTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = ReferenceAppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		AFA1C012385F455D6804BA63 /* ReferenceAppParityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReferenceAppParityTests.swift; sourceTree = "<group>"; };
 		B8B113A88D2D4E595D50E85C /* ReferenceAppWorkflowUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReferenceAppWorkflowUITests.swift; sourceTree = "<group>"; };
@@ -76,6 +82,7 @@
 		66CE1827996081EF56D80CD9 /* ReferenceAppUITests */ = {
 			isa = PBXGroup;
 			children = (
+				0584BADD09581A84C1CF94E4 /* ReferenceAppPhysicalLiveProofUITests.swift */,
 				DE6E0F604BFBD20FA1913C97 /* ReferenceAppUITestSupport.swift */,
 				B8B113A88D2D4E595D50E85C /* ReferenceAppWorkflowUITests.swift */,
 			);
@@ -93,6 +100,8 @@
 		D69BBE6F67464877B0A8AC5C /* ReferenceApp */ = {
 			isa = PBXGroup;
 			children = (
+				661D9F7A3D82FECDC57B518A /* MeshLinkCryptoBridge.swift */,
+				1F0099B4E6BF51E2B4E4555F /* MeshLinkTransportBridge.swift */,
 				01935F212101BD3BFFDBA6E0 /* ReferenceApp.swift */,
 				C6099E42EF3EA11B97F5D483 /* Support */,
 			);
@@ -225,6 +234,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				49DC6384CCD821DCC83B2909 /* MeshLinkCryptoBridge.swift in Sources */,
+				9210583AE894E50B571DFEC3 /* MeshLinkTransportBridge.swift in Sources */,
 				6478A3D2E4830DE1E0E9CDC0 /* ReferenceApp.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -242,6 +253,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				2436ACB20A2DA189EA490A84 /* ReferenceAppPhysicalLiveProofUITests.swift in Sources */,
 				07F0C1C846E1ED9B0E0089C5 /* ReferenceAppUITestSupport.swift in Sources */,
 				1FFFD5668B725A2E7037BC2B /* ReferenceAppWorkflowUITests.swift in Sources */,
 			);

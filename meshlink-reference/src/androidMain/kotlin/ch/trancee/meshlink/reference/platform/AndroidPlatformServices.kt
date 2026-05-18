@@ -1,6 +1,10 @@
 package ch.trancee.meshlink.reference.platform
 
 import android.content.Context
+import android.util.Log
+import ch.trancee.meshlink.reference.automation.ReferenceAutomationConfig
+import ch.trancee.meshlink.reference.automation.ReferenceAutomationMode
+import ch.trancee.meshlink.reference.automation.ReferenceAutomationRole
 import ch.trancee.meshlink.reference.meshlink.ScriptedReferenceMeshLinkController
 import ch.trancee.meshlink.reference.model.ReferenceAuthorityMode
 import ch.trancee.meshlink.reference.session.OkioReferenceDocumentStore
@@ -10,6 +14,7 @@ internal fun createAndroidPlatformServices(context: Context): DefaultPlatformSer
         platformName = "Android",
         defaultAuthorityMode = ReferenceAuthorityMode.LIVE,
         readinessGuidance = androidReadinessGuidance(),
+        readinessBlockers = androidReadinessBlockers(context),
         nowProvider = { System.currentTimeMillis() },
         platformContext = context,
         documentStore = OkioReferenceDocumentStore(context.filesDir.absolutePath),
@@ -38,6 +43,14 @@ internal fun createAndroidAutomationPlatformServices(
             },
         nowProvider = nowProvider,
         documentStore = OkioReferenceDocumentStore(automationDirectory),
+        automationConfig =
+            ReferenceAutomationConfig(
+                mode = ReferenceAutomationMode.SCRIPTED_UI,
+                role = ReferenceAutomationRole.PASSIVE,
+                appId = "demo.meshlink.reference.automation",
+                storageSubdirectory = storageSubdirectory,
+            ),
+        automationLogger = { message -> Log.i(AUTOMATION_LOG_TAG, message) },
         meshLinkControllerOverride =
             ScriptedReferenceMeshLinkController(
                 platformName = "Android",
@@ -46,3 +59,34 @@ internal fun createAndroidAutomationPlatformServices(
             ),
     )
 }
+
+internal fun createAndroidLiveAutomationPlatformServices(
+    context: Context,
+    storageSubdirectory: String,
+    appId: String,
+    role: ReferenceAutomationRole,
+): DefaultPlatformServices {
+    val nowProvider = { System.currentTimeMillis() }
+    val automationDirectory =
+        "${context.filesDir.absolutePath}/live-automation/$storageSubdirectory"
+    return DefaultPlatformServices(
+        platformName = "Android",
+        defaultAuthorityMode = ReferenceAuthorityMode.LIVE,
+        readinessGuidance = androidReadinessGuidance(),
+        readinessBlockers = androidReadinessBlockers(context),
+        nowProvider = nowProvider,
+        appId = appId,
+        platformContext = context,
+        documentStore = OkioReferenceDocumentStore(automationDirectory),
+        automationConfig =
+            ReferenceAutomationConfig(
+                mode = ReferenceAutomationMode.LIVE_PROOF,
+                role = role,
+                appId = appId,
+                storageSubdirectory = storageSubdirectory,
+            ),
+        automationLogger = { message -> Log.i(AUTOMATION_LOG_TAG, message) },
+    )
+}
+
+private const val AUTOMATION_LOG_TAG: String = "MeshLinkReferenceAutomation"

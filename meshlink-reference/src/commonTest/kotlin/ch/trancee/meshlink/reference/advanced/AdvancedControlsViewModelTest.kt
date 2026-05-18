@@ -2,6 +2,7 @@ package ch.trancee.meshlink.reference.advanced
 
 import ch.trancee.meshlink.api.DeliveryPriority
 import ch.trancee.meshlink.api.MeshLinkState
+import ch.trancee.meshlink.reference.automation.ReferenceAutomationConfig
 import ch.trancee.meshlink.reference.meshlink.ReferenceControllerSnapshot
 import ch.trancee.meshlink.reference.meshlink.ReferenceMeshLinkController
 import ch.trancee.meshlink.reference.model.PeerConnectionSnapshotState
@@ -51,6 +52,7 @@ internal fun advancedPlatformServices(): PlatformServices {
         override val defaultAuthorityMode: ReferenceAuthorityMode = ReferenceAuthorityMode.LIVE
         override val readinessGuidance: List<String> = listOf("Step 1")
         override val readinessBlockers: List<String> = emptyList()
+        override val automationConfig: ReferenceAutomationConfig? = null
         override val documentStore: ReferenceDocumentStore = InMemoryReferenceDocumentStore()
         override val meshLinkController: ReferenceMeshLinkController =
             object : ReferenceMeshLinkController {
@@ -119,5 +121,7 @@ internal fun advancedPlatformServices(): PlatformServices {
             }
 
         override fun currentTimeMillis(): Long = 1_000L
+
+        override fun emitAutomationLog(message: String): Unit = Unit
     }
 }

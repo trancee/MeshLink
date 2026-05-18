@@ -162,7 +162,7 @@
 - [X] T052 [P] Regenerate the committed iOS host project from `meshlink-reference/ios/project.yml` and verify `meshlink-reference/ios/ReferenceApp.xcodeproj/project.pbxproj`
 - [X] T053 [P] If implementation touched `:meshlink`, run `apiCheck`, `:meshlink:jvmTest`, `:meshlink:iosSimulatorArm64Test`, and `:benchmarks:jvmBenchmark`, then update `benchmarks/README.md` only if new benchmark evidence is required
 - [X] T054 [P] Update Android/iOS workflow guidance in `docs/README.md` and `meshlink-reference/README.md` to preserve documentation parity
-- [ ] T055 Run the full two-device guided quickstart and redacted-export validation in `specs/002-meshlink-reference-app/quickstart.md`
+- [x] T055 Run the full two-device guided quickstart and redacted-export validation in `specs/002-meshlink-reference-app/quickstart.md`
 
 ---
 
