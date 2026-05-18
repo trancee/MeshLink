@@ -25,6 +25,7 @@ public class GuidedFirstExchangeViewModel(
                     readinessChecker.evaluate(
                         platformName = platformServices.platformName,
                         guidance = platformServices.readinessGuidance,
+                        blockers = platformServices.readinessBlockers,
                     ),
                 snapshot = platformServices.meshLinkController.snapshot.value,
             )
@@ -41,6 +42,7 @@ public class GuidedFirstExchangeViewModel(
                             readinessChecker.evaluate(
                                 platformName = platformServices.platformName,
                                 guidance = platformServices.readinessGuidance,
+                                blockers = platformServices.readinessBlockers,
                             ),
                         snapshot = snapshot,
                     )
@@ -71,6 +73,7 @@ public data class GuidedFirstExchangeUiState(
     public val nextActionLabel: String
         get() {
             return when {
+                readiness.isBlocked -> "Resolve startup blockers"
                 snapshot.session.meshStateLabel.contains("Uninitialized") -> "Start MeshLink"
                 snapshot.peers.isEmpty() -> "Wait for a peer or open solo exploration"
                 else -> "Send the first guided message"
@@ -81,5 +84,5 @@ public data class GuidedFirstExchangeUiState(
         get() = snapshot.peers.firstOrNull()?.peerSuffix
 
     public val canSendHello: Boolean
-        get() = snapshot.peers.isNotEmpty()
+        get() = snapshot.peers.isNotEmpty() && !readiness.isBlocked
 }

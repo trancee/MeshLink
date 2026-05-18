@@ -12,6 +12,7 @@ public interface PlatformServices {
     public val platformName: String
     public val defaultAuthorityMode: ReferenceAuthorityMode
     public val readinessGuidance: List<String>
+    public val readinessBlockers: List<String>
     public val documentStore: ReferenceDocumentStore
     public val meshLinkController: ReferenceMeshLinkController
 
@@ -27,23 +28,26 @@ public class DefaultPlatformServices(
     private val appId: String = "demo.meshlink.reference",
     private val platformContext: Any? = null,
     override val documentStore: ReferenceDocumentStore = InMemoryReferenceDocumentStore(),
+    override val readinessBlockers: List<String> = emptyList(),
+    private val meshLinkControllerOverride: ReferenceMeshLinkController? = null,
 ) : PlatformServices {
     override val meshLinkController: ReferenceMeshLinkController by lazy {
-        runCatching {
-                LiveReferenceMeshLinkController(
-                    platformName = platformName,
-                    authorityMode = defaultAuthorityMode,
-                    appId = appId,
-                    nowProvider = nowProvider,
-                    platformContext = platformContext,
-                )
-            }
-            .getOrElse {
-                PreviewReferenceMeshLinkController(
-                    platformName = platformName,
-                    nowEpochMillis = nowProvider(),
-                )
-            }
+        meshLinkControllerOverride
+            ?: runCatching {
+                    LiveReferenceMeshLinkController(
+                        platformName = platformName,
+                        authorityMode = defaultAuthorityMode,
+                        appId = appId,
+                        nowProvider = nowProvider,
+                        platformContext = platformContext,
+                    )
+                }
+                .getOrElse {
+                    PreviewReferenceMeshLinkController(
+                        platformName = platformName,
+                        nowEpochMillis = nowProvider(),
+                    )
+                }
     }
 
     override fun currentTimeMillis(): Long {

@@ -2,7 +2,8 @@ package ch.trancee.meshlink.reference.history
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -20,6 +21,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import ch.trancee.meshlink.reference.timeline.TechnicalTimelineStore
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 public fun RecentSessionHistoryScreen(
     store: TechnicalTimelineStore,
@@ -32,8 +34,9 @@ public fun RecentSessionHistoryScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         item {
-            Row(
+            FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Text(text = "Recent history", style = MaterialTheme.typography.headlineSmall)
@@ -58,7 +61,10 @@ public fun RecentSessionHistoryScreen(
                         text = "Outcome: ${session.lastOutcomeSummary ?: "none"}",
                         style = MaterialTheme.typography.bodyMedium,
                     )
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
                         Button(onClick = { store.openRetainedSession(session.sessionId) }) {
                             Text("Open")
                         }

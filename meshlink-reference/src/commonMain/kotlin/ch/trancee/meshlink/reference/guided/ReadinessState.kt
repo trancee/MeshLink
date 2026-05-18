@@ -6,8 +6,12 @@ public data class ReadinessItem(public val title: String, public val detail: Str
 public data class ReadinessEvaluation(
     public val platformName: String,
     public val items: List<ReadinessItem>,
+    public val blockers: List<ReadinessItem> = emptyList(),
     public val summary: String,
 ) {
+    public val isBlocked: Boolean
+        get() = blockers.isNotEmpty()
+
     public val isReadyToGuide: Boolean
-        get() = items.isNotEmpty()
+        get() = items.isNotEmpty() && !isBlocked
 }

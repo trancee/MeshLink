@@ -54,3 +54,17 @@ targets:
         CODE_SIGN_STYLE: Automatic
         GENERATE_INFOPLIST_FILE: YES
         PRODUCT_BUNDLE_IDENTIFIER: ch.trancee.meshlink.reference.ios.tests
+
+  ReferenceAppUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: ReferenceAppUITests
+    dependencies:
+      - target: ReferenceApp
+    settings:
+      base:
+        CODE_SIGN_STYLE: Automatic
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: ch.trancee.meshlink.reference.ios.uitests

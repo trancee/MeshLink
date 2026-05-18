@@ -2,7 +2,8 @@ package ch.trancee.meshlink.reference.timeline
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -21,6 +22,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import ch.trancee.meshlink.reference.session.ExportPayloadPolicy
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 public fun TechnicalTimelineScreen(store: TechnicalTimelineStore, modifier: Modifier = Modifier) {
     val uiState by store.uiState.collectAsState()
@@ -39,7 +41,10 @@ public fun TechnicalTimelineScreen(store: TechnicalTimelineStore, modifier: Modi
             )
         }
         item {
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
                 Button(onClick = store::retainCurrentSession) { Text("Retain session") }
                 Button(
                     onClick = { store.exportCurrentSession(ExportPayloadPolicy.REDACTED_PREVIEW) }

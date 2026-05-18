@@ -2,7 +2,8 @@ package ch.trancee.meshlink.reference.advanced
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AssistChip
@@ -15,6 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import ch.trancee.meshlink.api.DeliveryPriority
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 public fun SendComposer(
     state: AdvancedControlsUiState,
@@ -35,7 +37,10 @@ public fun SendComposer(
             modifier = Modifier.fillMaxWidth(),
             label = { Text("Payload text") },
         )
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
             DeliveryPriority.entries.forEach { priority ->
                 AssistChip(
                     onClick = { onPriorityChanged(priority) },
@@ -44,7 +49,10 @@ public fun SendComposer(
                 )
             }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
             Button(onClick = onSend, enabled = state.canSend) { Text("Send message") }
             Button(onClick = onSendLargeTransfer, enabled = state.canSend) {
                 Text("Send large transfer")

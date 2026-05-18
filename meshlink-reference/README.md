@@ -52,6 +52,23 @@ For surrounding context, use:
 - [iOS proof app guide](../meshlink-proof/ios/README.md)
 - [Benchmarks and retained evidence](../benchmarks/README.md)
 
+## iOS UI automation
+
+The iOS host project now includes a simulator-driven UI automation path for the
+reference workflows. Run it with:
+
+```bash
+xcodebuild \
+  -project meshlink-reference/ios/ReferenceApp.xcodeproj \
+  -scheme ReferenceApp \
+  -destination 'platform=iOS Simulator,name=iPhone 16' \
+  test
+```
+
+The UI test target launches the app in a deterministic automation mode so it
+can validate guided, advanced, timeline/history/export, lab, and blocked-start
+surfaces without requiring a physical BLE peer.
+
 ## Expected outcome
 
 After using the reference app, a reviewer should be able to:

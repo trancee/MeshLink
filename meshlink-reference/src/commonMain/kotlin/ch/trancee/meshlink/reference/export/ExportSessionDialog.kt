@@ -2,7 +2,8 @@ package ch.trancee.meshlink.reference.export
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
@@ -14,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import ch.trancee.meshlink.reference.session.ExportPayloadPolicy
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 public fun ExportSessionDialog(
     onExport: (ExportPayloadPolicy) -> Unit,
@@ -30,7 +32,10 @@ public fun ExportSessionDialog(
                     "Redacted previews are the default. Full payloads require explicit operator opt-in.",
                 style = MaterialTheme.typography.bodyMedium,
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
                 Button(onClick = { onExport(ExportPayloadPolicy.REDACTED_PREVIEW) }) {
                     Text("Redacted")
                 }

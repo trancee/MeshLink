@@ -43,14 +43,36 @@ class GuidedFirstExchangeScreenTest {
 
         assertTrue(soloOpened)
     }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun guidedScreenShowsStartupBlockerState() = runComposeUiTest {
+        setContent {
+            GuidedFirstExchangeScreen(
+                viewModel =
+                    GuidedFirstExchangeViewModel(
+                        platformServices =
+                            screenTestPlatformServices(startupBlockers = listOf("Enable Bluetooth"))
+                    ),
+                onOpenSolo = {},
+            )
+        }
+
+        onNodeWithTag("guided-next-action")
+            .assertTextEquals("Next action: Resolve startup blockers")
+        onNodeWithTag("guided-blocker-card")
+    }
 }
 
-private fun screenTestPlatformServices(): PlatformServices {
+private fun screenTestPlatformServices(
+    startupBlockers: List<String> = emptyList()
+): PlatformServices {
     return object : PlatformServices {
         override val platformName: String = "Test"
         override val defaultAuthorityMode: ReferenceAuthorityMode = ReferenceAuthorityMode.LIVE
         override val readinessGuidance: List<String> =
             listOf("Keep two devices nearby", "Stay offline")
+        override val readinessBlockers: List<String> = startupBlockers
         override val documentStore: ReferenceDocumentStore = InMemoryReferenceDocumentStore()
         override val meshLinkController: ReferenceMeshLinkController =
             object : ReferenceMeshLinkController {

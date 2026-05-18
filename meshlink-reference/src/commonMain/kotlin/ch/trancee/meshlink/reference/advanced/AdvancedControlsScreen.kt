@@ -2,6 +2,8 @@ package ch.trancee.meshlink.reference.advanced
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -20,6 +22,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 public fun AdvancedControlsScreen(
     viewModel: AdvancedControlsViewModel,
@@ -60,8 +63,9 @@ public fun AdvancedControlsScreen(
         item {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(text = "Lifecycle", style = MaterialTheme.typography.titleLarge)
-                androidx.compose.foundation.layout.Row(
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     Button(
                         onClick = viewModel::startMesh,

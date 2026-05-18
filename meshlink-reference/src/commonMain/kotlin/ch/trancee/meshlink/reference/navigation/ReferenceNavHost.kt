@@ -2,7 +2,8 @@ package ch.trancee.meshlink.reference.navigation
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -47,7 +48,7 @@ import ch.trancee.meshlink.reference.timeline.TechnicalTimelineStore
 import org.jetbrains.compose.resources.stringResource
 
 /** Shared navigation shell for the reference app surfaces. */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
 public fun ReferenceNavHost(platformServices: PlatformServices) {
     var activeRoute: ReferenceSurfaceId by remember {
@@ -87,8 +88,9 @@ public fun ReferenceNavHost(platformServices: PlatformServices) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Spacer(modifier = Modifier.height(12.dp))
-                Row(
+                FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     routes.forEach { (route, title) ->

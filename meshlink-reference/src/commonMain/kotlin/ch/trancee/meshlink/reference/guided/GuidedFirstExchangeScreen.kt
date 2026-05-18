@@ -2,7 +2,8 @@ package ch.trancee.meshlink.reference.guided
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -23,6 +24,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
 /** Shared guided first-exchange surface. */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 public fun GuidedFirstExchangeScreen(
     viewModel: GuidedFirstExchangeViewModel,
@@ -71,12 +73,14 @@ public fun GuidedFirstExchangeScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Spacer(modifier = Modifier.height(4.dp))
-                    Row(
+                    FlowRow(
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         Button(
                             onClick = viewModel::startMesh,
+                            enabled = !uiState.readiness.isBlocked,
                             modifier = Modifier.testTag("guided-start"),
                         ) {
                             Text("Start MeshLink")
@@ -104,6 +108,35 @@ public fun GuidedFirstExchangeScreen(
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.SemiBold,
             )
+        }
+        if (uiState.readiness.isBlocked) {
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth().testTag("guided-blocker-card"),
+                    colors =
+                        CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.errorContainer
+                        ),
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text(
+                            text = "Startup blocked",
+                            style = MaterialTheme.typography.titleLarge,
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                        )
+                        uiState.readiness.blockers.forEach { blocker ->
+                            Text(
+                                text = "${blocker.title}: ${blocker.detail}",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                            )
+                        }
+                    }
+                }
+            }
         }
         items(uiState.readiness.items) { item ->
             Card(modifier = Modifier.fillMaxWidth()) {

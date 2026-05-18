@@ -50,6 +50,7 @@ internal fun advancedPlatformServices(): PlatformServices {
         override val platformName: String = "Test"
         override val defaultAuthorityMode: ReferenceAuthorityMode = ReferenceAuthorityMode.LIVE
         override val readinessGuidance: List<String> = listOf("Step 1")
+        override val readinessBlockers: List<String> = emptyList()
         override val documentStore: ReferenceDocumentStore = InMemoryReferenceDocumentStore()
         override val meshLinkController: ReferenceMeshLinkController =
             object : ReferenceMeshLinkController {

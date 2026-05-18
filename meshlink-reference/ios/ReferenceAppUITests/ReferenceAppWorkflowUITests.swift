@@ -1,0 +1,103 @@
+import XCTest
+
+final class ReferenceAppWorkflowUITests: XCTestCase {
+    override func setUpWithError() throws {
+        continueAfterFailure = false
+    }
+
+    func testGuidedWorkflowShowsLiveProofAndSoloFallback() {
+        // Arrange
+        let launched = ReferenceAppUITestSupport.launchReferenceApp()
+        let app = launched.application
+        ReferenceAppUITestSupport.waitForStaticText(in: app, labeled: "Guided first exchange")
+        let sendHelloButton = app.buttons["Send Hello"]
+
+        // Act
+        ReferenceAppUITestSupport.tapButton(in: app, labeled: "Start MeshLink")
+        ReferenceAppUITestSupport.waitForEnabled(
+            sendHelloButton,
+            timeout: 10,
+            message: "Expected Send Hello to become enabled after the scripted peer appears"
+        )
+        ReferenceAppUITestSupport.waitForStaticTextContaining(in: app, text: "Selected peer: 654321")
+        ReferenceAppUITestSupport.tapButton(in: app, labeled: "Send Hello")
+        ReferenceAppUITestSupport.tapButton(in: app, labeled: "Solo mode")
+
+        // Assert
+        ReferenceAppUITestSupport.waitForStaticText(in: app, labeled: "Solo exploration")
+        ReferenceAppUITestSupport.waitForStaticText(in: app, labeled: "Non-authoritative")
+    }
+
+    func testAdvancedLifecycleTrustResetAndLabFlows() {
+        // Arrange
+        let launched = ReferenceAppUITestSupport.launchReferenceApp()
+        let app = launched.application
+        ReferenceAppUITestSupport.tapButton(in: app, labeled: "Start MeshLink")
+        ReferenceAppUITestSupport.tapButton(in: app, labeled: "Advanced controls")
+        ReferenceAppUITestSupport.waitForStaticText(in: app, labeled: "Advanced controls")
+
+        // Act
+        ReferenceAppUITestSupport.tapButton(in: app, labeled: "Pause")
+        ReferenceAppUITestSupport.waitForStaticTextContaining(in: app, text: "Mesh state: Paused")
+        ReferenceAppUITestSupport.tapButton(in: app, labeled: "Resume")
+        ReferenceAppUITestSupport.waitForStaticTextContaining(in: app, text: "Mesh state: Running")
+        ReferenceAppUITestSupport.tapButton(in: app, labeled: "Send large transfer")
+        ReferenceAppUITestSupport.tapButton(in: app, labeled: "Forget selected peer")
+        ReferenceAppUITestSupport.waitForStaticTextContaining(in: app, text: "Trust: FORGOTTEN")
+        app.swipeDown()
+        app.swipeDown()
+        ReferenceAppUITestSupport.tapButton(in: app, labeled: "Lab")
+
+        // Assert
+        ReferenceAppUITestSupport.waitForStaticText(in: app, labeled: "Lab")
+        ReferenceAppUITestSupport.waitForStaticText(in: app, labeled: "Non-normative")
+    }
+
+    func testTimelineHistoryAndRedactedExport() {
+        // Arrange
+        let launched = ReferenceAppUITestSupport.launchReferenceApp()
+        let app = launched.application
+        ReferenceAppUITestSupport.tapButton(in: app, labeled: "Start MeshLink")
+        let sendHelloButton = app.buttons["Send Hello"]
+        ReferenceAppUITestSupport.waitForEnabled(
+            sendHelloButton,
+            timeout: 10,
+            message: "Expected Send Hello to become enabled before export validation"
+        )
+        ReferenceAppUITestSupport.tapButton(in: app, labeled: "Send Hello")
+        ReferenceAppUITestSupport.tapButton(in: app, labeled: "Technical timeline")
+        ReferenceAppUITestSupport.waitForStaticText(in: app, labeled: "Technical timeline")
+
+        // Act
+        ReferenceAppUITestSupport.tapButton(in: app, labeled: "Retain session")
+        ReferenceAppUITestSupport.tapButton(in: app, labeled: "Export redacted")
+        let relativeExportPath = ReferenceAppUITestSupport.lastExportRelativePath(in: app)
+        ReferenceAppUITestSupport.tapButton(in: app, labeled: "Recent history")
+        ReferenceAppUITestSupport.waitForStaticText(in: app, labeled: "Recent history")
+        ReferenceAppUITestSupport.tapButton(in: app, labeled: "Open")
+        ReferenceAppUITestSupport.waitForStaticText(in: app, labeled: "Return to live")
+
+        // Assert
+        XCTAssertTrue(relativeExportPath.hasPrefix("reference/exports/"))
+        XCTAssertTrue(relativeExportPath.hasSuffix(".json"))
+        ReferenceAppUITestSupport.waitForStaticTextContaining(in: app, text: "Outcome:")
+    }
+
+    func testBlockedStartupShowsRecoveryGuidance() {
+        // Arrange
+        let launched = ReferenceAppUITestSupport.launchReferenceApp(blocked: true)
+        let app = launched.application
+        ReferenceAppUITestSupport.waitForStaticText(in: app, labeled: "Guided first exchange")
+        let startButton = app.buttons["Start MeshLink"]
+
+        // Act
+        XCTAssertTrue(startButton.waitForExistence(timeout: 10), "Expected Start MeshLink to exist")
+
+        // Assert
+        XCTAssertFalse(startButton.isEnabled)
+        ReferenceAppUITestSupport.waitForStaticText(in: app, labeled: "Startup blocked")
+        ReferenceAppUITestSupport.waitForStaticTextContaining(in: app, text: "Resolve startup blockers")
+        ReferenceAppUITestSupport.waitForStaticTextContaining(in: app, text: "Enable Bluetooth")
+        ReferenceAppUITestSupport.waitForStaticTextContaining(in: app, text: "Grant the required local Bluetooth permissions")
+    }
+}

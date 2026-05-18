@@ -63,17 +63,33 @@ class GuidedFirstExchangeViewModelTest {
         assertEquals("123456", viewModel.uiState.value.selectedPeerSuffix)
         assertEquals("Send the first guided message", viewModel.uiState.value.nextActionLabel)
     }
+
+    @Test
+    fun nextActionShowsRecoveryWhenStartupIsBlocked() {
+        val viewModel =
+            GuidedFirstExchangeViewModel(
+                platformServices =
+                    fakePlatformServices(
+                        startupBlockers = listOf("Enable Bluetooth before starting MeshLink")
+                    )
+            )
+
+        assertEquals("Resolve startup blockers", viewModel.uiState.value.nextActionLabel)
+        assertTrue(viewModel.uiState.value.readiness.isBlocked)
+    }
 }
 
 private fun fakePlatformServices(
     controller: ReferenceMeshLinkController =
-        FakeReferenceMeshLinkController(snapshot = baseSnapshot())
+        FakeReferenceMeshLinkController(snapshot = baseSnapshot()),
+    startupBlockers: List<String> = emptyList(),
 ): PlatformServices {
     return object : PlatformServices {
         override val platformName: String = "Test"
         override val defaultAuthorityMode: ReferenceAuthorityMode = ReferenceAuthorityMode.LIVE
         override val readinessGuidance: List<String> =
             listOf("Keep two devices nearby", "Stay offline")
+        override val readinessBlockers: List<String> = startupBlockers
         override val documentStore: ReferenceDocumentStore = InMemoryReferenceDocumentStore()
         override val meshLinkController: ReferenceMeshLinkController = controller
 
