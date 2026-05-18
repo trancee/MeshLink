@@ -26,12 +26,12 @@
 
 **Purpose**: Create the new root app module, register its dependencies, and establish Android/iOS host scaffolding.
 
-- [ ] T001 Add Compose Multiplatform, Compose resources, navigation, lifecycle, and serialization versions to `gradle/libs.versions.toml`
-- [ ] T002 Register the `:meshlink-reference` module and its project directory in `settings.gradle.kts`
-- [ ] T003 Add root plugin and Kover aggregation wiring for `:meshlink-reference` in `build.gradle.kts`
-- [ ] T004 Create the Kotlin Multiplatform app build script in `meshlink-reference/build.gradle.kts`
-- [ ] T005 [P] Create Android app scaffold files in `meshlink-reference/src/androidMain/AndroidManifest.xml` and `meshlink-reference/src/androidMain/res/values/strings.xml`
-- [ ] T006 [P] Create the iOS host project spec and support files in `meshlink-reference/ios/project.yml` and `meshlink-reference/ios/ReferenceApp/Support/Info.plist`
+- [X] T001 Add Compose Multiplatform, Compose resources, navigation, lifecycle, and serialization versions to `gradle/libs.versions.toml`
+- [X] T002 Register the `:meshlink-reference` module and its project directory in `settings.gradle.kts`
+- [X] T003 Add root plugin and Kover aggregation wiring for `:meshlink-reference` in `build.gradle.kts`
+- [X] T004 Create the Kotlin Multiplatform app build script in `meshlink-reference/build.gradle.kts`
+- [X] T005 [P] Create Android app scaffold files in `meshlink-reference/src/androidMain/AndroidManifest.xml` and `meshlink-reference/src/androidMain/res/values/strings.xml`
+- [X] T006 [P] Create the iOS host project spec and support files in `meshlink-reference/ios/project.yml` and `meshlink-reference/ios/ReferenceApp/Support/Info.plist`
 
 ---
 

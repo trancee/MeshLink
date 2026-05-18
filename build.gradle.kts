@@ -7,8 +7,11 @@ plugins {
     alias(libs.plugins.kotlin.android) apply false
     alias(libs.plugins.kotlin.allopen) apply false
     alias(libs.plugins.kotlin.power.assert) apply false
+    alias(libs.plugins.kotlin.serialization) apply false
+    alias(libs.plugins.kotlin.compose) apply false
     alias(libs.plugins.android.library) apply false
     alias(libs.plugins.android.application) apply false
+    alias(libs.plugins.compose.multiplatform) apply false
     alias(libs.plugins.detekt) apply false
     alias(libs.plugins.ktfmt) apply false
     alias(libs.plugins.benchmark) apply false
@@ -22,12 +25,13 @@ allprojects {
 }
 
 apiValidation {
-    ignoredProjects.addAll(listOf("benchmarks", "meshlink-proof-android-app"))
+    ignoredProjects.addAll(listOf("benchmarks", "meshlink-reference", "meshlink-proof-android-app"))
     apiDumpDirectory = "api"
 }
 
 dependencies {
     kover(project(":meshlink"))
+    kover(project(":meshlink-reference"))
 }
 
 kover {
