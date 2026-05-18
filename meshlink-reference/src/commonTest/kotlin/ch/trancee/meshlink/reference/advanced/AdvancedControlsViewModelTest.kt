@@ -14,6 +14,8 @@ import ch.trancee.meshlink.reference.model.TimelineEntry
 import ch.trancee.meshlink.reference.model.TimelineFamily
 import ch.trancee.meshlink.reference.model.TimelineSeverity
 import ch.trancee.meshlink.reference.platform.PlatformServices
+import ch.trancee.meshlink.reference.session.InMemoryReferenceDocumentStore
+import ch.trancee.meshlink.reference.session.ReferenceDocumentStore
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -48,6 +50,7 @@ internal fun advancedPlatformServices(): PlatformServices {
         override val platformName: String = "Test"
         override val defaultAuthorityMode: ReferenceAuthorityMode = ReferenceAuthorityMode.LIVE
         override val readinessGuidance: List<String> = listOf("Step 1")
+        override val documentStore: ReferenceDocumentStore = InMemoryReferenceDocumentStore()
         override val meshLinkController: ReferenceMeshLinkController =
             object : ReferenceMeshLinkController {
                 private val flow =
@@ -98,10 +101,19 @@ internal fun advancedPlatformServices(): PlatformServices {
                 override val snapshot: StateFlow<ReferenceControllerSnapshot> = flow.asStateFlow()
 
                 override suspend fun start() = Unit
+
                 override suspend fun pause() = Unit
+
                 override suspend fun resume() = Unit
+
                 override suspend fun stop() = Unit
-                override suspend fun sendSamplePayload(peerId: String, payloadText: String, priority: DeliveryPriority) = Unit
+
+                override suspend fun sendSamplePayload(
+                    peerId: String,
+                    payloadText: String,
+                    priority: DeliveryPriority,
+                ) = Unit
+
                 override suspend fun forgetPeer(peerId: String) = Unit
             }
 

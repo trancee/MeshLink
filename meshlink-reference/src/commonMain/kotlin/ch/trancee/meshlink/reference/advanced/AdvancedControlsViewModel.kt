@@ -11,9 +11,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
-/**
- * Shared state holder for the advanced controls surface.
- */
+/** Shared state holder for the advanced controls surface. */
 public class AdvancedControlsViewModel(
     private val platformServices: PlatformServices,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
@@ -46,7 +44,8 @@ public class AdvancedControlsViewModel(
                         composerText = current.composerText,
                         selectedPriority = current.selectedPriority,
                     )
-                lifecycleStateFlow.value = LifecycleActionState.from(snapshot.session.meshStateLabel)
+                lifecycleStateFlow.value =
+                    LifecycleActionState.from(snapshot.session.meshStateLabel)
             }
         }
     }
@@ -109,9 +108,7 @@ public class AdvancedControlsViewModel(
         val state = uiStateFlow.value
         val peerId = state.selectedPeerId ?: return
         val largePayload = buildString {
-            repeat(256) {
-                append("MeshLink reference large transfer preview · ")
-            }
+            repeat(256) { append("MeshLink reference large transfer preview · ") }
         }
         scope.launch {
             platformServices.meshLinkController.sendSamplePayload(
@@ -124,9 +121,7 @@ public class AdvancedControlsViewModel(
 
     public fun forgetSelectedPeer(): Unit {
         val peerId = uiStateFlow.value.selectedPeerId ?: return
-        scope.launch {
-            platformServices.meshLinkController.forgetPeer(peerId)
-        }
+        scope.launch { platformServices.meshLinkController.forgetPeer(peerId) }
     }
 
     private fun buildUiState(
@@ -161,7 +156,8 @@ public class AdvancedControlsViewModel(
                         lastDeliveryOutcome = peer.lastDeliveryOutcome,
                     )
                 },
-            timelineHighlights = snapshot.timeline.takeLast(3).map { entry -> "${entry.title}: ${entry.detail}" },
+            timelineHighlights =
+                snapshot.timeline.takeLast(3).map { entry -> "${entry.title}: ${entry.detail}" },
             lastOutcomeSummary = snapshot.session.lastOutcomeSummary,
         )
     }

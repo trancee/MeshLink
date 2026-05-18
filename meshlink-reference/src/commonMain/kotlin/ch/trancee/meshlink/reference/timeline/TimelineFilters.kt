@@ -13,8 +13,7 @@ public data class TimelineFilters(
     public fun apply(entries: List<TimelineEntry>): List<TimelineEntry> {
         return entries.filter { entry ->
             val matchesSearch =
-                searchText.isBlank() ||
-                    entry.searchText.contains(searchText, ignoreCase = true)
+                searchText.isBlank() || entry.searchText.contains(searchText, ignoreCase = true)
             val matchesPeer = peerSuffix == null || entry.peerSuffix == peerSuffix
             val matchesFamily = family == null || entry.family == family
             val matchesSeverity = severity == null || entry.severity == severity

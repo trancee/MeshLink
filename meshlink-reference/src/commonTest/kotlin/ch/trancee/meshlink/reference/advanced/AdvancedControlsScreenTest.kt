@@ -12,7 +12,9 @@ class AdvancedControlsScreenTest {
     @Test
     fun advancedScreenShowsMeshState() = runComposeUiTest {
         setContent {
-            AdvancedControlsScreen(viewModel = AdvancedControlsViewModel(platformServices = advancedPlatformServices()))
+            AdvancedControlsScreen(
+                viewModel = AdvancedControlsViewModel(platformServices = advancedPlatformServices())
+            )
         }
 
         onNodeWithTag("advanced-mesh-state").assertTextEquals("Mesh state: Running")
@@ -21,9 +23,7 @@ class AdvancedControlsScreenTest {
     @OptIn(ExperimentalTestApi::class)
     @Test
     fun labScreenShowsNonNormativeLabel() = runComposeUiTest {
-        setContent {
-            LabScreen()
-        }
+        setContent { LabScreen() }
 
         onNodeWithTag("lab-screen")
     }

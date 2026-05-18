@@ -13,29 +13,29 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
-/**
- * Clearly labeled non-authoritative exploration path for one-device review.
- */
+/** Clearly labeled non-authoritative exploration path for one-device review. */
 @Composable
 public fun SoloExplorationScreen(modifier: Modifier = Modifier) {
     Column(modifier = modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Text(
-            text = "Solo exploration",
-            style = MaterialTheme.typography.headlineSmall,
-        )
+        Text(text = "Solo exploration", style = MaterialTheme.typography.headlineSmall)
         Card(modifier = Modifier.fillMaxWidth().testTag("solo-screen")) {
-            Column(modifier = Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
                 Text(
                     text = "Non-authoritative",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.SemiBold,
                 )
                 Text(
-                    text = "Use this surface to inspect workflows, wording, and controls when a second device is unavailable.",
+                    text =
+                        "Use this surface to inspect workflows, wording, and controls when a second device is unavailable.",
                     style = MaterialTheme.typography.bodyLarge,
                 )
                 Text(
-                    text = "It must never be treated as proof of live peer discovery, live delivery, or authoritative diagnostics behavior.",
+                    text =
+                        "It must never be treated as proof of live peer discovery, live delivery, or authoritative diagnostics behavior.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

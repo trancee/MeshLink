@@ -1,8 +1,6 @@
 package ch.trancee.meshlink.reference.advanced
 
-/**
- * Action availability for lifecycle controls on the advanced surface.
- */
+/** Action availability for lifecycle controls on the advanced surface. */
 public data class LifecycleActionState(
     public val startEnabled: Boolean,
     public val pauseEnabled: Boolean,

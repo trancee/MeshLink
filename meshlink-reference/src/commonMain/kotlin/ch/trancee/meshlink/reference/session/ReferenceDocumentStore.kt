@@ -1,8 +1,6 @@
 package ch.trancee.meshlink.reference.session
 
-/**
- * Minimal document store abstraction used for retained history and exports.
- */
+/** Minimal document store abstraction used for retained history and exports. */
 public interface ReferenceDocumentStore {
     public suspend fun readText(path: String): String?
 

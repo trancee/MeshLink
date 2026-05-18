@@ -3,9 +3,7 @@ package ch.trancee.meshlink.reference.model
 import ch.trancee.meshlink.api.MeshLinkState
 import kotlinx.serialization.Serializable
 
-/**
- * Captures the visible runtime state of one reference-app session.
- */
+/** Captures the visible runtime state of one reference-app session. */
 @Serializable
 public data class ReferenceSession(
     public val sessionId: String,

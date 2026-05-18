@@ -14,6 +14,8 @@ import ch.trancee.meshlink.reference.model.TimelineEntry
 import ch.trancee.meshlink.reference.model.TimelineFamily
 import ch.trancee.meshlink.reference.model.TimelineSeverity
 import ch.trancee.meshlink.reference.platform.PlatformServices
+import ch.trancee.meshlink.reference.session.InMemoryReferenceDocumentStore
+import ch.trancee.meshlink.reference.session.ReferenceDocumentStore
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -32,22 +34,30 @@ class GuidedFirstExchangeViewModelTest {
 
     @Test
     fun sendBecomesAvailableWhenPeerExists() {
-        val controller = FakeReferenceMeshLinkController(
-            snapshot =
-                baseSnapshot().copy(
-                    session = baseSnapshot().session.copy(meshStateLabel = MeshLinkState.Running.toString()),
-                    peers =
-                        listOf(
-                            PeerSnapshot(
-                                peerId = "peer-123456",
-                                peerSuffix = "123456",
-                                trustState = PeerTrustState.TRUSTED,
-                                connectionState = PeerConnectionSnapshotState.CONNECTED,
-                            )
-                        ),
-                )
-        )
-        val viewModel = GuidedFirstExchangeViewModel(platformServices = fakePlatformServices(controller = controller))
+        val controller =
+            FakeReferenceMeshLinkController(
+                snapshot =
+                    baseSnapshot()
+                        .copy(
+                            session =
+                                baseSnapshot()
+                                    .session
+                                    .copy(meshStateLabel = MeshLinkState.Running.toString()),
+                            peers =
+                                listOf(
+                                    PeerSnapshot(
+                                        peerId = "peer-123456",
+                                        peerSuffix = "123456",
+                                        trustState = PeerTrustState.TRUSTED,
+                                        connectionState = PeerConnectionSnapshotState.CONNECTED,
+                                    )
+                                ),
+                        )
+            )
+        val viewModel =
+            GuidedFirstExchangeViewModel(
+                platformServices = fakePlatformServices(controller = controller)
+            )
 
         assertTrue(viewModel.uiState.value.canSendHello)
         assertEquals("123456", viewModel.uiState.value.selectedPeerSuffix)
@@ -56,12 +66,15 @@ class GuidedFirstExchangeViewModelTest {
 }
 
 private fun fakePlatformServices(
-    controller: ReferenceMeshLinkController = FakeReferenceMeshLinkController(snapshot = baseSnapshot()),
+    controller: ReferenceMeshLinkController =
+        FakeReferenceMeshLinkController(snapshot = baseSnapshot())
 ): PlatformServices {
     return object : PlatformServices {
         override val platformName: String = "Test"
         override val defaultAuthorityMode: ReferenceAuthorityMode = ReferenceAuthorityMode.LIVE
-        override val readinessGuidance: List<String> = listOf("Keep two devices nearby", "Stay offline")
+        override val readinessGuidance: List<String> =
+            listOf("Keep two devices nearby", "Stay offline")
+        override val documentStore: ReferenceDocumentStore = InMemoryReferenceDocumentStore()
         override val meshLinkController: ReferenceMeshLinkController = controller
 
         override fun currentTimeMillis(): Long = 1_000L
@@ -96,9 +109,8 @@ private fun baseSnapshot(): ReferenceControllerSnapshot {
     )
 }
 
-private class FakeReferenceMeshLinkController(
-    snapshot: ReferenceControllerSnapshot,
-) : ReferenceMeshLinkController {
+private class FakeReferenceMeshLinkController(snapshot: ReferenceControllerSnapshot) :
+    ReferenceMeshLinkController {
     private val flow: MutableStateFlow<ReferenceControllerSnapshot> = MutableStateFlow(snapshot)
 
     override val snapshot: StateFlow<ReferenceControllerSnapshot> = flow.asStateFlow()

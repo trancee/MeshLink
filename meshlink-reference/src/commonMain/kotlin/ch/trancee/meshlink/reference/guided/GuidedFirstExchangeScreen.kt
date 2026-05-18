@@ -22,9 +22,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
-/**
- * Shared guided first-exchange surface.
- */
+/** Shared guided first-exchange surface. */
 @Composable
 public fun GuidedFirstExchangeScreen(
     viewModel: GuidedFirstExchangeViewModel,
@@ -38,17 +36,20 @@ public fun GuidedFirstExchangeScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         item {
-            Text(
-                text = "Guided first exchange",
-                style = MaterialTheme.typography.headlineSmall,
-            )
+            Text(text = "Guided first exchange", style = MaterialTheme.typography.headlineSmall)
         }
         item {
             Card(
                 modifier = Modifier.fillMaxWidth().testTag("guided-state-card"),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                colors =
+                    CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                    ),
             ) {
-                Column(modifier = Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
                     Text(
                         text = uiState.readiness.summary,
                         style = MaterialTheme.typography.bodyLarge,
@@ -70,8 +71,14 @@ public fun GuidedFirstExchangeScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Spacer(modifier = Modifier.height(4.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-                        Button(onClick = viewModel::startMesh, modifier = Modifier.testTag("guided-start")) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Button(
+                            onClick = viewModel::startMesh,
+                            modifier = Modifier.testTag("guided-start"),
+                        ) {
                             Text("Start MeshLink")
                         }
                         Button(
@@ -81,7 +88,10 @@ public fun GuidedFirstExchangeScreen(
                         ) {
                             Text("Send Hello")
                         }
-                        Button(onClick = onOpenSolo, modifier = Modifier.testTag("guided-open-solo")) {
+                        Button(
+                            onClick = onOpenSolo,
+                            modifier = Modifier.testTag("guided-open-solo"),
+                        ) {
                             Text("Solo mode")
                         }
                     }
@@ -97,7 +107,10 @@ public fun GuidedFirstExchangeScreen(
         }
         items(uiState.readiness.items) { item ->
             Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
                     Text(text = item.title, style = MaterialTheme.typography.labelLarge)
                     Text(text = item.detail, style = MaterialTheme.typography.bodyMedium)
                 }
@@ -112,7 +125,10 @@ public fun GuidedFirstExchangeScreen(
         }
         items(uiState.snapshot.timeline.takeLast(5)) { entry ->
             Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
                     Text(text = entry.title, style = MaterialTheme.typography.bodyLarge)
                     Text(text = entry.detail, style = MaterialTheme.typography.bodyMedium)
                 }

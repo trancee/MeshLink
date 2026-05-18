@@ -2,6 +2,7 @@ package ch.trancee.meshlink.reference.platform
 
 import android.content.Context
 import ch.trancee.meshlink.reference.model.ReferenceAuthorityMode
+import ch.trancee.meshlink.reference.session.OkioReferenceDocumentStore
 
 internal fun createAndroidPlatformServices(context: Context): DefaultPlatformServices {
     return DefaultPlatformServices(
@@ -10,6 +11,6 @@ internal fun createAndroidPlatformServices(context: Context): DefaultPlatformSer
         readinessGuidance = androidReadinessGuidance(),
         nowProvider = { System.currentTimeMillis() },
         platformContext = context,
-        documentStore = AndroidReferenceDocumentStore(),
+        documentStore = OkioReferenceDocumentStore(context.filesDir.absolutePath),
     )
 }

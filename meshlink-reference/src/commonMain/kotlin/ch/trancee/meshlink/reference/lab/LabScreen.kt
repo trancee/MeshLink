@@ -25,19 +25,21 @@ public fun LabScreen(
         modifier = modifier.fillMaxSize().padding(20.dp).testTag("lab-screen"),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        item {
-            Text(text = "Lab", style = MaterialTheme.typography.headlineSmall)
-        }
+        item { Text(text = "Lab", style = MaterialTheme.typography.headlineSmall) }
         item {
             Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
                     Text(
                         text = "Non-normative",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.SemiBold,
                     )
                     Text(
-                        text = "Everything here is explicitly separated from the supported guided and advanced product-reference path.",
+                        text =
+                            "Everything here is explicitly separated from the supported guided and advanced product-reference path.",
                         style = MaterialTheme.typography.bodyLarge,
                     )
                 }
@@ -45,7 +47,10 @@ public fun LabScreen(
         }
         items(scenarios) { scenario ->
             Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
                     Text(text = scenario.title, style = MaterialTheme.typography.titleLarge)
                     Text(text = scenario.summary, style = MaterialTheme.typography.bodyMedium)
                 }

@@ -2,9 +2,7 @@ package ch.trancee.meshlink.reference.model
 
 import kotlinx.serialization.Serializable
 
-/**
- * Redacted view of one peer for app surfaces and retained artifacts.
- */
+/** Redacted view of one peer for app surfaces and retained artifacts. */
 @Serializable
 public data class PeerSnapshot(
     public val peerId: String,

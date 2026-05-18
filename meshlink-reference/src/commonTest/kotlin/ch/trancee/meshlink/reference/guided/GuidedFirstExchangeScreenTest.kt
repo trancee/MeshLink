@@ -16,6 +16,8 @@ import ch.trancee.meshlink.reference.model.TimelineEntry
 import ch.trancee.meshlink.reference.model.TimelineFamily
 import ch.trancee.meshlink.reference.model.TimelineSeverity
 import ch.trancee.meshlink.reference.platform.PlatformServices
+import ch.trancee.meshlink.reference.session.InMemoryReferenceDocumentStore
+import ch.trancee.meshlink.reference.session.ReferenceDocumentStore
 import kotlin.test.Test
 import kotlin.test.assertTrue
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -29,7 +31,8 @@ class GuidedFirstExchangeScreenTest {
         var soloOpened = false
         setContent {
             GuidedFirstExchangeScreen(
-                viewModel = GuidedFirstExchangeViewModel(platformServices = screenTestPlatformServices()),
+                viewModel =
+                    GuidedFirstExchangeViewModel(platformServices = screenTestPlatformServices()),
                 onOpenSolo = { soloOpened = true },
             )
         }
@@ -46,7 +49,9 @@ private fun screenTestPlatformServices(): PlatformServices {
     return object : PlatformServices {
         override val platformName: String = "Test"
         override val defaultAuthorityMode: ReferenceAuthorityMode = ReferenceAuthorityMode.LIVE
-        override val readinessGuidance: List<String> = listOf("Keep two devices nearby", "Stay offline")
+        override val readinessGuidance: List<String> =
+            listOf("Keep two devices nearby", "Stay offline")
+        override val documentStore: ReferenceDocumentStore = InMemoryReferenceDocumentStore()
         override val meshLinkController: ReferenceMeshLinkController =
             object : ReferenceMeshLinkController {
                 private val flow =

@@ -29,17 +29,15 @@ import ch.trancee.meshlink.reference.model.TimelineEntry
 import ch.trancee.meshlink.reference.model.TimelineFamily
 import ch.trancee.meshlink.reference.model.TimelineSeverity
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.serialization.Serializable
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.serialization.Serializable
 
-/**
- * Shared controller abstraction for the reference app.
- */
+/** Shared controller abstraction for the reference app. */
 public interface ReferenceMeshLinkController {
     public val snapshot: StateFlow<ReferenceControllerSnapshot>
 
@@ -68,9 +66,7 @@ public data class ReferenceControllerSnapshot(
     public val activePowerModeLabel: String,
 )
 
-/**
- * Live shared controller that wraps the existing MeshLink SDK and emits app-facing state.
- */
+/** Live shared controller that wraps the existing MeshLink SDK and emits app-facing state. */
 public class LiveReferenceMeshLinkController(
     private val platformName: String,
     private val authorityMode: ReferenceAuthorityMode,
@@ -110,19 +106,19 @@ public class LiveReferenceMeshLinkController(
                             family = TimelineFamily.USER,
                             severity = TimelineSeverity.INFO,
                             title = "Reference session created",
-                            detail = "The guided first-exchange controller is ready on $platformName.",
+                            detail =
+                                "The guided first-exchange controller is ready on $platformName.",
                         )
                     ),
                 activePowerModeLabel = "Automatic",
             )
         )
     private val meshLinkApi: MeshLinkApi by lazy {
-        val config =
-            meshLinkConfig {
-                appId = this@LiveReferenceMeshLinkController.appId
-                regulatoryRegion = RegulatoryRegion.DEFAULT
-                powerMode = PowerMode.Automatic
-            }
+        val config = meshLinkConfig {
+            appId = this@LiveReferenceMeshLinkController.appId
+            regulatoryRegion = RegulatoryRegion.DEFAULT
+            powerMode = PowerMode.Automatic
+        }
         if (platformContext != null) {
             MeshLink.create(config = config, context = platformContext)
         } else {
@@ -179,88 +175,96 @@ public class LiveReferenceMeshLinkController(
         payloadText: String,
         priority: DeliveryPriority,
     ): Unit {
-        val outcome =
-            runCatching {
-                meshLinkApi.send(
-                    peerId = PeerId(peerId),
-                    payload = payloadText.encodeToByteArray(),
-                    priority = priority,
-                )
-            }
-        outcome.onSuccess { result ->
-            when (result) {
-                SendResult.Sent -> {
-                    appendEvent(
-                        family = TimelineFamily.MESSAGE,
-                        severity = TimelineSeverity.SUCCESS,
-                        title = "Guided message sent",
-                        detail = "First guided payload reached ${redactedSuffix(peerId)} with $priority priority.",
-                        peerSuffix = redactedSuffix(peerId),
-                        payloadPreview = payloadText,
-                    )
-                    updateSession(lastOutcomeSummary = "SendResult.Sent", selectedPeerId = peerId)
-                }
-                is SendResult.NotSent -> {
-                    appendEvent(
-                        family = TimelineFamily.MESSAGE,
-                        severity = TimelineSeverity.ERROR,
-                        title = "Guided message not sent",
-                        detail = "First guided payload failed for ${redactedSuffix(peerId)} with ${result.reason}.",
-                        peerSuffix = redactedSuffix(peerId),
-                        payloadPreview = payloadText,
-                    )
-                    updateSession(
-                        lastOutcomeSummary = "SendResult.NotSent(${result.reason})",
-                        selectedPeerId = peerId,
-                    )
-                }
-            }
-        }.onFailure { error ->
-            appendEvent(
-                family = TimelineFamily.MESSAGE,
-                severity = TimelineSeverity.ERROR,
-                title = "Guided message failed",
-                detail = error.message ?: error.toString(),
-                peerSuffix = redactedSuffix(peerId),
-                payloadPreview = payloadText,
+        val outcome = runCatching {
+            meshLinkApi.send(
+                peerId = PeerId(peerId),
+                payload = payloadText.encodeToByteArray(),
+                priority = priority,
             )
         }
+        outcome
+            .onSuccess { result ->
+                when (result) {
+                    SendResult.Sent -> {
+                        appendEvent(
+                            family = TimelineFamily.MESSAGE,
+                            severity = TimelineSeverity.SUCCESS,
+                            title = "Guided message sent",
+                            detail =
+                                "First guided payload reached ${redactedSuffix(peerId)} with $priority priority.",
+                            peerSuffix = redactedSuffix(peerId),
+                            payloadPreview = payloadText,
+                        )
+                        updateSession(
+                            lastOutcomeSummary = "SendResult.Sent",
+                            selectedPeerId = peerId,
+                        )
+                    }
+                    is SendResult.NotSent -> {
+                        appendEvent(
+                            family = TimelineFamily.MESSAGE,
+                            severity = TimelineSeverity.ERROR,
+                            title = "Guided message not sent",
+                            detail =
+                                "First guided payload failed for ${redactedSuffix(peerId)} with ${result.reason}.",
+                            peerSuffix = redactedSuffix(peerId),
+                            payloadPreview = payloadText,
+                        )
+                        updateSession(
+                            lastOutcomeSummary = "SendResult.NotSent(${result.reason})",
+                            selectedPeerId = peerId,
+                        )
+                    }
+                }
+            }
+            .onFailure { error ->
+                appendEvent(
+                    family = TimelineFamily.MESSAGE,
+                    severity = TimelineSeverity.ERROR,
+                    title = "Guided message failed",
+                    detail = error.message ?: error.toString(),
+                    peerSuffix = redactedSuffix(peerId),
+                    payloadPreview = payloadText,
+                )
+            }
     }
 
     override suspend fun forgetPeer(peerId: String): Unit {
         val outcome = runCatching { meshLinkApi.forgetPeer(PeerId(peerId)) }
-        outcome.onSuccess { result ->
-            val trustState =
-                if (result == ForgetPeerResult.Forgotten) {
-                    PeerTrustState.FORGOTTEN
-                } else {
-                    PeerTrustState.UNKNOWN
-                }
-            updatePeers { peers ->
-                peers.map { peer ->
-                    if (peer.peerId == peerId) {
-                        peer.copy(trustState = trustState)
+        outcome
+            .onSuccess { result ->
+                val trustState =
+                    if (result == ForgetPeerResult.Forgotten) {
+                        PeerTrustState.FORGOTTEN
                     } else {
-                        peer
+                        PeerTrustState.UNKNOWN
+                    }
+                updatePeers { peers ->
+                    peers.map { peer ->
+                        if (peer.peerId == peerId) {
+                            peer.copy(trustState = trustState)
+                        } else {
+                            peer
+                        }
                     }
                 }
+                appendEvent(
+                    family = TimelineFamily.PEER,
+                    severity = TimelineSeverity.INFO,
+                    title = "Peer trust reset",
+                    detail = "forgetPeer(${redactedSuffix(peerId)}) -> $result",
+                    peerSuffix = redactedSuffix(peerId),
+                )
             }
-            appendEvent(
-                family = TimelineFamily.PEER,
-                severity = TimelineSeverity.INFO,
-                title = "Peer trust reset",
-                detail = "forgetPeer(${redactedSuffix(peerId)}) -> $result",
-                peerSuffix = redactedSuffix(peerId),
-            )
-        }.onFailure { error ->
-            appendEvent(
-                family = TimelineFamily.PEER,
-                severity = TimelineSeverity.ERROR,
-                title = "Peer trust reset failed",
-                detail = error.message ?: error.toString(),
-                peerSuffix = redactedSuffix(peerId),
-            )
-        }
+            .onFailure { error ->
+                appendEvent(
+                    family = TimelineFamily.PEER,
+                    severity = TimelineSeverity.ERROR,
+                    title = "Peer trust reset failed",
+                    detail = error.message ?: error.toString(),
+                    peerSuffix = redactedSuffix(peerId),
+                )
+            }
     }
 
     private fun ensureBindings(): Unit {
@@ -273,21 +277,11 @@ public class LiveReferenceMeshLinkController(
                 updateSession(meshStateLabel = meshState.toString())
             }
         }
+        scope.launch { meshLinkApi.peerEvents.collect { event -> handlePeerEvent(event) } }
         scope.launch {
-            meshLinkApi.peerEvents.collect { event ->
-                handlePeerEvent(event)
-            }
+            meshLinkApi.diagnosticEvents.collect { event -> handleDiagnosticEvent(event) }
         }
-        scope.launch {
-            meshLinkApi.diagnosticEvents.collect { event ->
-                handleDiagnosticEvent(event)
-            }
-        }
-        scope.launch {
-            meshLinkApi.messages.collect { message ->
-                handleInboundMessage(message)
-            }
-        }
+        scope.launch { meshLinkApi.messages.collect { message -> handleInboundMessage(message) } }
     }
 
     private fun handleMeshCall(
@@ -296,25 +290,32 @@ public class LiveReferenceMeshLinkController(
         successDetail: (Any) -> String,
         errorTitle: String,
     ): Unit {
-        result.onSuccess { value ->
-            appendEvent(
-                family = TimelineFamily.LIFECYCLE,
-                severity = TimelineSeverity.SUCCESS,
-                title = successTitle,
-                detail = successDetail(value),
-            )
-            if (value is StartResult || value is ResumeResult || value is PauseResult || value is StopResult) {
-                updateSession(lastOutcomeSummary = value.toString())
+        result
+            .onSuccess { value ->
+                appendEvent(
+                    family = TimelineFamily.LIFECYCLE,
+                    severity = TimelineSeverity.SUCCESS,
+                    title = successTitle,
+                    detail = successDetail(value),
+                )
+                if (
+                    value is StartResult ||
+                        value is ResumeResult ||
+                        value is PauseResult ||
+                        value is StopResult
+                ) {
+                    updateSession(lastOutcomeSummary = value.toString())
+                }
             }
-        }.onFailure { error ->
-            appendEvent(
-                family = TimelineFamily.LIFECYCLE,
-                severity = TimelineSeverity.ERROR,
-                title = errorTitle,
-                detail = error.message ?: error.toString(),
-            )
-            updateSession(lastOutcomeSummary = errorTitle)
-        }
+            .onFailure { error ->
+                appendEvent(
+                    family = TimelineFamily.LIFECYCLE,
+                    severity = TimelineSeverity.ERROR,
+                    title = errorTitle,
+                    detail = error.message ?: error.toString(),
+                )
+                updateSession(lastOutcomeSummary = errorTitle)
+            }
     }
 
     private fun handlePeerEvent(event: PeerEvent): Unit {
@@ -330,10 +331,14 @@ public class LiveReferenceMeshLinkController(
                         capabilityNotes = listOf("Discovered by live MeshLink flow"),
                     )
                 updatePeers { peers ->
-                    (peers.filterNot { existing -> existing.peerId == peerSnapshot.peerId } + peerSnapshot)
+                    (peers.filterNot { existing -> existing.peerId == peerSnapshot.peerId } +
+                            peerSnapshot)
                         .sortedBy { peer -> peer.peerSuffix }
                 }
-                updateSession(selectedPeerId = event.peerId.value, lastOutcomeSummary = "Peer found")
+                updateSession(
+                    selectedPeerId = event.peerId.value,
+                    lastOutcomeSummary = "Peer found",
+                )
                 appendEvent(
                     family = TimelineFamily.PEER,
                     severity = TimelineSeverity.SUCCESS,
@@ -388,16 +393,20 @@ public class LiveReferenceMeshLinkController(
     }
 
     private fun handleDiagnosticEvent(event: DiagnosticEvent): Unit {
-        val detail =
-            buildString {
-                append(event.code)
-                append(" @ ")
-                append(event.stage)
-                if (!event.metadata.isEmpty()) {
-                    append(" ")
-                    append(event.metadata.entries.joinToString(prefix = "{", postfix = "}") { (key, value) -> "$key=$value" })
-                }
+        val detail = buildString {
+            append(event.code)
+            append(" @ ")
+            append(event.stage)
+            if (!event.metadata.isEmpty()) {
+                append(" ")
+                append(
+                    event.metadata.entries.joinToString(prefix = "{", postfix = "}") { (key, value)
+                        ->
+                        "$key=$value"
+                    }
+                )
             }
+        }
         appendEvent(
             family = TimelineFamily.DIAGNOSTIC,
             severity = event.severity.toTimelineSeverity(),
@@ -406,10 +415,16 @@ public class LiveReferenceMeshLinkController(
             peerSuffix = event.peerSuffix,
         )
         when (event.code) {
-            DiagnosticCode.TRUST_ESTABLISHED -> updatePeerTrust(event.peerSuffix, PeerTrustState.TRUSTED)
-            DiagnosticCode.TRUST_FAILURE -> updatePeerTrust(event.peerSuffix, PeerTrustState.CHANGED)
+            DiagnosticCode.TRUST_ESTABLISHED ->
+                updatePeerTrust(event.peerSuffix, PeerTrustState.TRUSTED)
+            DiagnosticCode.TRUST_FAILURE ->
+                updatePeerTrust(event.peerSuffix, PeerTrustState.CHANGED)
             DiagnosticCode.POWER_MODE_CHANGED -> {
-                stateFlow.value = stateFlow.value.copy(activePowerModeLabel = event.metadata["tier"] ?: stateFlow.value.activePowerModeLabel)
+                stateFlow.value =
+                    stateFlow.value.copy(
+                        activePowerModeLabel =
+                            event.metadata["tier"] ?: stateFlow.value.activePowerModeLabel
+                    )
             }
             else -> Unit
         }
@@ -421,7 +436,8 @@ public class LiveReferenceMeshLinkController(
             family = TimelineFamily.MESSAGE,
             severity = TimelineSeverity.SUCCESS,
             title = "Inbound message",
-            detail = "Received ${message.payload.size} bytes from ${redactedSuffix(message.originPeerId.value)}.",
+            detail =
+                "Received ${message.payload.size} bytes from ${redactedSuffix(message.originPeerId.value)}.",
             peerSuffix = redactedSuffix(message.originPeerId.value),
             payloadPreview = preview,
         )
@@ -525,9 +541,7 @@ public class LiveReferenceMeshLinkController(
     }
 }
 
-/**
- * Preview fallback used when the live controller cannot be created.
- */
+/** Preview fallback used when the live controller cannot be created. */
 public class PreviewReferenceMeshLinkController(
     private val platformName: String,
     nowEpochMillis: Long,
@@ -602,7 +616,8 @@ private fun PeerConnectionState.toSnapshotState(): PeerConnectionSnapshotState {
     }
 }
 
-private fun ch.trancee.meshlink.diagnostics.DiagnosticSeverity.toTimelineSeverity(): TimelineSeverity {
+private fun ch.trancee.meshlink.diagnostics.DiagnosticSeverity.toTimelineSeverity():
+    TimelineSeverity {
     return when (this) {
         ch.trancee.meshlink.diagnostics.DiagnosticSeverity.DEBUG -> TimelineSeverity.DEBUG
         ch.trancee.meshlink.diagnostics.DiagnosticSeverity.INFO -> TimelineSeverity.INFO

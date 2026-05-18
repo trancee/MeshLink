@@ -35,7 +35,8 @@ class TimelineFilterTest {
                 ),
             )
 
-        val filtered = TimelineFilters(searchText = "Delivered", peerSuffix = "abc123").apply(entries)
+        val filtered =
+            TimelineFilters(searchText = "Delivered", peerSuffix = "abc123").apply(entries)
 
         assertEquals(listOf("1"), filtered.map { it.entryId })
     }

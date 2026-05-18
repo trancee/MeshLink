@@ -24,7 +24,10 @@ public fun SendComposer(
     onSendLargeTransfer: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(modifier = modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(
+        modifier = modifier.fillMaxWidth().padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
         Text(text = "Send composer", style = MaterialTheme.typography.titleLarge)
         OutlinedTextField(
             value = state.composerText,
@@ -42,9 +45,7 @@ public fun SendComposer(
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Button(onClick = onSend, enabled = state.canSend) {
-                Text("Send message")
-            }
+            Button(onClick = onSend, enabled = state.canSend) { Text("Send message") }
             Button(onClick = onSendLargeTransfer, enabled = state.canSend) {
                 Text("Send large transfer")
             }

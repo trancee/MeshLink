@@ -11,9 +11,7 @@ class ReferenceAppAndroidSmokeTest {
     @Test
     fun launchesMainActivity() {
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
-            scenario.onActivity { activity ->
-                assertNotNull(activity)
-            }
+            scenario.onActivity { activity -> assertNotNull(activity) }
         }
     }
 }

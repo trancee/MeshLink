@@ -2,9 +2,7 @@ package ch.trancee.meshlink.reference.model
 
 import kotlinx.serialization.Serializable
 
-/**
- * One chronological record in the technical timeline.
- */
+/** One chronological record in the technical timeline. */
 @Serializable
 public data class TimelineEntry(
     public val entryId: String,

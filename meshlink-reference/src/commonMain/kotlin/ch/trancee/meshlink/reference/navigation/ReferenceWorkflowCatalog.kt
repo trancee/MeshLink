@@ -23,7 +23,10 @@ public object ReferenceWorkflowCatalog {
             ReferenceWorkflowDescriptor(ReferenceSurfaceId.MAIN_GUIDED, "Guided first exchange"),
             ReferenceWorkflowDescriptor(ReferenceSurfaceId.SOLO_EXPLORATION, "Solo exploration"),
             ReferenceWorkflowDescriptor(ReferenceSurfaceId.ADVANCED_CONTROLS, "Advanced controls"),
-            ReferenceWorkflowDescriptor(ReferenceSurfaceId.TECHNICAL_TIMELINE, "Technical timeline"),
+            ReferenceWorkflowDescriptor(
+                ReferenceSurfaceId.TECHNICAL_TIMELINE,
+                "Technical timeline",
+            ),
             ReferenceWorkflowDescriptor(ReferenceSurfaceId.LAB, "Lab"),
             ReferenceWorkflowDescriptor(ReferenceSurfaceId.RECENT_HISTORY, "Recent history"),
         )

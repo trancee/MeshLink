@@ -20,10 +20,14 @@ public fun ExportSessionDialog(
     modifier: Modifier = Modifier,
 ) {
     Card(modifier = modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
             Text(text = "Export session", style = MaterialTheme.typography.titleLarge)
             Text(
-                text = "Redacted previews are the default. Full payloads require explicit operator opt-in.",
+                text =
+                    "Redacted previews are the default. Full payloads require explicit operator opt-in.",
                 style = MaterialTheme.typography.bodyMedium,
             )
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {

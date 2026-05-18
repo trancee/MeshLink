@@ -16,11 +16,7 @@ plugins {
 }
 
 kotlin {
-    androidTarget {
-        compilerOptions {
-            jvmTarget.set(JvmTarget.JVM_17)
-        }
-    }
+    androidTarget { compilerOptions { jvmTarget.set(JvmTarget.JVM_17) } }
 
     listOf(iosX64(), iosArm64(), iosSimulatorArm64()).forEach { iosTarget ->
         iosTarget.binaries.framework {
@@ -32,15 +28,14 @@ kotlin {
 
     applyDefaultHierarchyTemplate()
 
-    compilerOptions {
-        progressiveMode.set(true)
-    }
+    compilerOptions { progressiveMode.set(true) }
 
     sourceSets {
         commonMain.dependencies {
             implementation(project(":meshlink"))
             implementation(libs.kotlinx.coroutines.core)
             implementation(libs.kotlinx.serialization.json)
+            implementation(libs.okio)
             implementation(libs.compose.runtime)
             implementation(libs.compose.foundation)
             implementation(libs.compose.material3)
@@ -51,12 +46,9 @@ kotlin {
         commonTest.dependencies {
             implementation(libs.kotlin.test)
             implementation(libs.kotlinx.coroutines.test)
-            @OptIn(ExperimentalComposeLibrary::class)
-            implementation(compose.uiTest)
+            @OptIn(ExperimentalComposeLibrary::class) implementation(compose.uiTest)
         }
-        androidMain.dependencies {
-            implementation(libs.androidx.activity.compose)
-        }
+        androidMain.dependencies { implementation(libs.androidx.activity.compose) }
         androidInstrumentedTest.dependencies {
             implementation("androidx.test:core:1.6.1")
             implementation("androidx.test.ext:junit:1.2.1")
@@ -86,18 +78,14 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
-    buildFeatures {
-        compose = true
-    }
+    buildFeatures { compose = true }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    installation {
-        installOptions += "-g"
-    }
+    installation { installOptions += "-g" }
 }
 
 detekt {
@@ -106,13 +94,9 @@ detekt {
     parallel = true
 }
 
-tasks.withType<Detekt>().configureEach {
-    jvmTarget = "17"
-}
+tasks.withType<Detekt>().configureEach { jvmTarget = "17" }
 
-ktfmt {
-    kotlinLangStyle()
-}
+ktfmt { kotlinLangStyle() }
 
 compose.resources {
     publicResClass = true

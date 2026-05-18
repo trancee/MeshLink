@@ -5,6 +5,7 @@ MeshLink is an offline-first BLE mesh SDK for Android and iOS.
 This repository contains:
 
 - the shared `meshlink` Kotlin Multiplatform SDK
+- a shared Android/iOS `meshlink-reference` app for guided evaluation, logs, diagnostics, retained session history, and exports
 - runnable Android and iOS proof apps for physical validation
 - retained benchmark and release-decision evidence
 - explanation docs for the security, routing, transport, and power model
@@ -26,8 +27,9 @@ Quick entry points:
 - [MeshLink SDK API reference](docs/reference/meshlink-sdk-api.md)
 - [About integrating MeshLink well](docs/explanation/about-integrating-meshlink.md)
 
-## Proof apps and validation
+## Reference app, proof apps, and validation
 
+- [How to use the MeshLink reference app](meshlink-reference/README.md)
 - [How to run the Android proof app](meshlink-proof/android/README.md)
 - [How to build and run the iOS proof app](meshlink-proof/ios/README.md)
 - [Benchmarks and retained evidence](benchmarks/README.md)

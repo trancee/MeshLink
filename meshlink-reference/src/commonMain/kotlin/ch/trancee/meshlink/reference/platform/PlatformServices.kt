@@ -7,9 +7,7 @@ import ch.trancee.meshlink.reference.model.ReferenceAuthorityMode
 import ch.trancee.meshlink.reference.session.InMemoryReferenceDocumentStore
 import ch.trancee.meshlink.reference.session.ReferenceDocumentStore
 
-/**
- * Shared platform bridge consumed by the app shell.
- */
+/** Shared platform bridge consumed by the app shell. */
 public interface PlatformServices {
     public val platformName: String
     public val defaultAuthorityMode: ReferenceAuthorityMode
@@ -20,9 +18,7 @@ public interface PlatformServices {
     public fun currentTimeMillis(): Long
 }
 
-/**
- * Lightweight default implementation used by the reference app entry points.
- */
+/** Lightweight default implementation used by the reference app entry points. */
 public class DefaultPlatformServices(
     override val platformName: String,
     override val defaultAuthorityMode: ReferenceAuthorityMode,
@@ -34,19 +30,20 @@ public class DefaultPlatformServices(
 ) : PlatformServices {
     override val meshLinkController: ReferenceMeshLinkController by lazy {
         runCatching {
-            LiveReferenceMeshLinkController(
-                platformName = platformName,
-                authorityMode = defaultAuthorityMode,
-                appId = appId,
-                nowProvider = nowProvider,
-                platformContext = platformContext,
-            )
-        }.getOrElse {
-            PreviewReferenceMeshLinkController(
-                platformName = platformName,
-                nowEpochMillis = nowProvider(),
-            )
-        }
+                LiveReferenceMeshLinkController(
+                    platformName = platformName,
+                    authorityMode = defaultAuthorityMode,
+                    appId = appId,
+                    nowProvider = nowProvider,
+                    platformContext = platformContext,
+                )
+            }
+            .getOrElse {
+                PreviewReferenceMeshLinkController(
+                    platformName = platformName,
+                    nowEpochMillis = nowProvider(),
+                )
+            }
     }
 
     override fun currentTimeMillis(): Long {

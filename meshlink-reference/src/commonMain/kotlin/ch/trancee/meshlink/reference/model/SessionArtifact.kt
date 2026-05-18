@@ -2,9 +2,7 @@ package ch.trancee.meshlink.reference.model
 
 import kotlinx.serialization.Serializable
 
-/**
- * Structured session export or retained artifact metadata.
- */
+/** Structured session export or retained artifact metadata. */
 @Serializable
 public data class SessionArtifact(
     public val artifactId: String,

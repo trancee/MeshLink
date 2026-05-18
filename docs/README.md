@@ -56,6 +56,7 @@ start with your need:
 
 ## Proof and validation guides
 
+- [How to use the MeshLink reference app](../meshlink-reference/README.md)
 - [How to run the Android proof app](../meshlink-proof/android/README.md)
 - [How to build and run the iOS proof app](../meshlink-proof/ios/README.md)
 - [Benchmark and validation baselines](../benchmarks/README.md)

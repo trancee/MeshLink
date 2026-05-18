@@ -11,7 +11,8 @@ import kotlinx.coroutines.test.runTest
 class JsonSessionHistoryRepositoryTest {
     @Test
     fun retainsOnlyMostRecentTwentySessions() = runTest {
-        val repository = JsonSessionHistoryRepository(documentStore = InMemoryReferenceDocumentStore())
+        val repository =
+            JsonSessionHistoryRepository(documentStore = InMemoryReferenceDocumentStore())
 
         repeat(21) { index ->
             repository.retainSnapshot(

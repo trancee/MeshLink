@@ -2,9 +2,7 @@ package ch.trancee.meshlink.reference.advanced
 
 import ch.trancee.meshlink.api.DeliveryPriority
 
-/**
- * Operator-visible configuration summary for the advanced controls surface.
- */
+/** Operator-visible configuration summary for the advanced controls surface. */
 public data class AdvancedConfigState(
     public val appId: String,
     public val regulatoryRegion: String,

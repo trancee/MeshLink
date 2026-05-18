@@ -2,9 +2,9 @@ package ch.trancee.meshlink.reference.design
 
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
-import androidx.compose.material3.Typography
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
@@ -86,9 +86,7 @@ private val ReferenceTypography =
             ),
     )
 
-/**
- * Editorial-technical Material 3 wrapper for the reference app.
- */
+/** Editorial-technical Material 3 wrapper for the reference app. */
 @Composable
 public fun ReferenceTheme(
     useDarkTheme: Boolean = isSystemInDarkTheme(),

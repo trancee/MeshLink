@@ -27,7 +27,7 @@ public class TechnicalTimelineStore(
     private val stateFlow: MutableStateFlow<TechnicalTimelineUiState> =
         MutableStateFlow(
             TechnicalTimelineUiState(
-                liveSnapshot = platformServices.meshLinkController.snapshot.value,
+                liveSnapshot = platformServices.meshLinkController.snapshot.value
             )
         )
 
@@ -62,7 +62,9 @@ public class TechnicalTimelineStore(
         updateFilters(stateFlow.value.filters.copy(family = family))
     }
 
-    public fun updateSeverity(severity: ch.trancee.meshlink.reference.model.TimelineSeverity?): Unit {
+    public fun updateSeverity(
+        severity: ch.trancee.meshlink.reference.model.TimelineSeverity?
+    ): Unit {
         updateFilters(stateFlow.value.filters.copy(severity = severity))
     }
 
@@ -75,13 +77,15 @@ public class TechnicalTimelineStore(
             val snapshot = stateFlow.value.currentSnapshot
             historyRepository.retainSnapshot(
                 snapshot.copy(
-                    session = snapshot.session.copy(
-                        endedAtEpochMillis = platformServices.currentTimeMillis(),
-                        historyStatus = ReferenceHistoryStatus.RETAINED,
-                    )
+                    session =
+                        snapshot.session.copy(
+                            endedAtEpochMillis = platformServices.currentTimeMillis(),
+                            historyStatus = ReferenceHistoryStatus.RETAINED,
+                        )
                 )
             )
-            stateFlow.value = stateFlow.value.copy(retainedSessions = historyRepository.loadRetainedSessions())
+            stateFlow.value =
+                stateFlow.value.copy(retainedSessions = historyRepository.loadRetainedSessions())
         }
     }
 
@@ -100,7 +104,8 @@ public class TechnicalTimelineStore(
         stateFlow.value =
             stateFlow.value.copy(
                 retainedSnapshot = null,
-                visibleEntries = stateFlow.value.filters.apply(stateFlow.value.liveSnapshot.timeline),
+                visibleEntries =
+                    stateFlow.value.filters.apply(stateFlow.value.liveSnapshot.timeline),
             )
     }
 
@@ -112,8 +117,11 @@ public class TechnicalTimelineStore(
                 stateFlow.value.copy(
                     retainedSessions = retainedSessions,
                     retainedSnapshot =
-                        stateFlow.value.retainedSnapshot?.takeUnless { snapshot -> snapshot.session.sessionId == sessionId },
-                    visibleEntries = stateFlow.value.filters.apply(stateFlow.value.currentSnapshot.timeline),
+                        stateFlow.value.retainedSnapshot?.takeUnless { snapshot ->
+                            snapshot.session.sessionId == sessionId
+                        },
+                    visibleEntries =
+                        stateFlow.value.filters.apply(stateFlow.value.currentSnapshot.timeline),
                 )
         }
     }
@@ -125,7 +133,8 @@ public class TechnicalTimelineStore(
                 stateFlow.value.copy(
                     retainedSessions = emptyList(),
                     retainedSnapshot = null,
-                    visibleEntries = stateFlow.value.filters.apply(stateFlow.value.liveSnapshot.timeline),
+                    visibleEntries =
+                        stateFlow.value.filters.apply(stateFlow.value.liveSnapshot.timeline),
                 )
         }
     }
@@ -135,9 +144,17 @@ public class TechnicalTimelineStore(
             val snapshot = stateFlow.value.currentSnapshot
             val serialized =
                 if (policy == ExportPayloadPolicy.FULL_PAYLOAD_OPT_IN) {
-                    artifactSerializer.serializeWithFullPayload(snapshot.session, snapshot.peers, snapshot.timeline)
+                    artifactSerializer.serializeWithFullPayload(
+                        snapshot.session,
+                        snapshot.peers,
+                        snapshot.timeline,
+                    )
                 } else {
-                    artifactSerializer.serializeRedacted(snapshot.session, snapshot.peers, snapshot.timeline)
+                    artifactSerializer.serializeRedacted(
+                        snapshot.session,
+                        snapshot.peers,
+                        snapshot.timeline,
+                    )
                 }
             val artifact =
                 SessionArtifact(
@@ -148,7 +165,8 @@ public class TechnicalTimelineStore(
                         if (policy == ExportPayloadPolicy.FULL_PAYLOAD_OPT_IN) {
                             ch.trancee.meshlink.reference.model.ArtifactPayloadPolicy.FULL_OPT_IN
                         } else {
-                            ch.trancee.meshlink.reference.model.ArtifactPayloadPolicy.REDACTED_PREVIEW
+                            ch.trancee.meshlink.reference.model.ArtifactPayloadPolicy
+                                .REDACTED_PREVIEW
                         },
                     includesFullPayload = policy == ExportPayloadPolicy.FULL_PAYLOAD_OPT_IN,
                     scenarioSummary = snapshot.session.configurationSnapshot,

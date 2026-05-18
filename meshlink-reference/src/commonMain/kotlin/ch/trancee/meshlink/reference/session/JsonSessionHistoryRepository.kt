@@ -6,9 +6,7 @@ import ch.trancee.meshlink.reference.model.ReferenceHistoryStatus
 import ch.trancee.meshlink.reference.model.ReferenceSession
 import kotlinx.serialization.Serializable
 
-/**
- * JSON-backed retained-session repository using a single bounded history document.
- */
+/** JSON-backed retained-session repository using a single bounded history document. */
 public class JsonSessionHistoryRepository(
     private val documentStore: ReferenceDocumentStore,
     private val historyPath: String = DEFAULT_HISTORY_PATH,
@@ -23,14 +21,18 @@ public class JsonSessionHistoryRepository(
         val retainedSession = session.copy(historyStatus = ReferenceHistoryStatus.RETAINED)
         val updatedHistory = current.history.withSession(retainedSession.sessionId, now)
         val updatedSessions =
-            listOf(retainedSession) + current.sessions.filterNot { existing -> existing.sessionId == retainedSession.sessionId }
+            listOf(retainedSession) +
+                current.sessions.filterNot { existing ->
+                    existing.sessionId == retainedSession.sessionId
+                }
         saveDocument(
             StoredHistoryDocument(
                 history = updatedHistory,
                 sessions = updatedSessions.take(updatedHistory.maxSessions),
-                snapshots = current.snapshots.filter { snapshot ->
-                    updatedHistory.sessionIds.contains(snapshot.session.sessionId)
-                },
+                snapshots =
+                    current.snapshots.filter { snapshot ->
+                        updatedHistory.sessionIds.contains(snapshot.session.sessionId)
+                    },
             )
         )
         return updatedHistory
@@ -42,8 +44,12 @@ public class JsonSessionHistoryRepository(
         saveDocument(
             current.copy(
                 history = updatedHistory,
-                sessions = current.sessions.filterNot { existing -> existing.sessionId == sessionId },
-                snapshots = current.snapshots.filterNot { existing -> existing.session.sessionId == sessionId },
+                sessions =
+                    current.sessions.filterNot { existing -> existing.sessionId == sessionId },
+                snapshots =
+                    current.snapshots.filterNot { existing ->
+                        existing.session.sessionId == sessionId
+                    },
             )
         )
         return updatedHistory
@@ -60,17 +66,26 @@ public class JsonSessionHistoryRepository(
     }
 
     override suspend fun loadRetainedSnapshot(sessionId: String): ReferenceControllerSnapshot? {
-        return loadDocument().snapshots.firstOrNull { snapshot -> snapshot.session.sessionId == sessionId }
+        return loadDocument().snapshots.firstOrNull { snapshot ->
+            snapshot.session.sessionId == sessionId
+        }
     }
 
     public suspend fun retainSnapshot(snapshot: ReferenceControllerSnapshot): RecentSessionHistory {
         val current = loadDocument()
         val retainedSession = snapshot.session.copy(historyStatus = ReferenceHistoryStatus.RETAINED)
-        val updatedHistory = current.history.withSession(retainedSession.sessionId, retainedSession.startedAtEpochMillis)
+        val updatedHistory =
+            current.history.withSession(
+                retainedSession.sessionId,
+                retainedSession.startedAtEpochMillis,
+            )
         val updatedSnapshots =
             listOf(snapshot.copy(session = retainedSession)) +
-                current.snapshots.filterNot { existing -> existing.session.sessionId == retainedSession.sessionId }
-        val updatedSessions = updatedSnapshots.map { retained -> retained.session }.take(updatedHistory.maxSessions)
+                current.snapshots.filterNot { existing ->
+                    existing.session.sessionId == retainedSession.sessionId
+                }
+        val updatedSessions =
+            updatedSnapshots.map { retained -> retained.session }.take(updatedHistory.maxSessions)
         saveDocument(
             StoredHistoryDocument(
                 history = updatedHistory,
@@ -87,7 +102,8 @@ public class JsonSessionHistoryRepository(
     }
 
     private suspend fun saveDocument(document: StoredHistoryDocument): Unit {
-        val serialized = ReferenceJson.codec.encodeToString(StoredHistoryDocument.serializer(), document)
+        val serialized =
+            ReferenceJson.codec.encodeToString(StoredHistoryDocument.serializer(), document)
         documentStore.writeText(historyPath, serialized)
     }
 

@@ -21,13 +21,22 @@ public fun PeerDetailCard(
     modifier: Modifier = Modifier,
 ) {
     Card(modifier = modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(text = peer.peerSuffix, style = MaterialTheme.typography.titleLarge)
-                AssistChip(onClick = onSelect, label = { Text(if (selected) "Selected" else "Select") })
+                AssistChip(
+                    onClick = onSelect,
+                    label = { Text(if (selected) "Selected" else "Select") },
+                )
             }
             Text(text = "Trust: ${peer.trustLabel}", style = MaterialTheme.typography.bodyMedium)
-            Text(text = "Connection: ${peer.connectionLabel}", style = MaterialTheme.typography.bodyMedium)
+            Text(
+                text = "Connection: ${peer.connectionLabel}",
+                style = MaterialTheme.typography.bodyMedium,
+            )
             Text(
                 text = "Last outcome: ${peer.lastDeliveryOutcome ?: "none yet"}",
                 style = MaterialTheme.typography.bodyMedium,

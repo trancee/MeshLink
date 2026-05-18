@@ -2,9 +2,7 @@ package ch.trancee.meshlink.reference.model
 
 import kotlinx.serialization.Serializable
 
-/**
- * Bounded retained-session index shown separately from the live session.
- */
+/** Bounded retained-session index shown separately from the live session. */
 @Serializable
 public data class RecentSessionHistory(
     public val maxSessions: Int = DEFAULT_MAX_SESSIONS,
@@ -13,7 +11,10 @@ public data class RecentSessionHistory(
 ) {
     public fun withSession(sessionId: String, nowEpochMillis: Long): RecentSessionHistory {
         val updated = listOf(sessionId) + sessionIds.filterNot { existing -> existing == sessionId }
-        return copy(sessionIds = updated.take(maxSessions), lastPrunedAtEpochMillis = nowEpochMillis)
+        return copy(
+            sessionIds = updated.take(maxSessions),
+            lastPrunedAtEpochMillis = nowEpochMillis,
+        )
     }
 
     public fun withoutSession(sessionId: String, nowEpochMillis: Long): RecentSessionHistory {

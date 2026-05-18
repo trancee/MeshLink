@@ -1,18 +1,14 @@
 package ch.trancee.meshlink.reference.session
 
-import ch.trancee.meshlink.reference.model.ArtifactPayloadPolicy
 import ch.trancee.meshlink.reference.model.PeerSnapshot
 import ch.trancee.meshlink.reference.model.ReferenceSession
 import ch.trancee.meshlink.reference.model.SessionArtifact
 import ch.trancee.meshlink.reference.model.TimelineEntry
 import kotlinx.serialization.Serializable
 
-/**
- * JSON serializer for redacted and explicit full-payload session exports.
- */
-public class JsonSessionArtifactSerializer(
-    private val documentStore: ReferenceDocumentStore,
-) : SessionArtifactSerializer {
+/** JSON serializer for redacted and explicit full-payload session exports. */
+public class JsonSessionArtifactSerializer(private val documentStore: ReferenceDocumentStore) :
+    SessionArtifactSerializer {
     override suspend fun serializeRedacted(
         session: ReferenceSession,
         peers: List<PeerSnapshot>,
@@ -45,10 +41,7 @@ public class JsonSessionArtifactSerializer(
         )
     }
 
-    override suspend fun writeArtifact(
-        artifact: SessionArtifact,
-        serialized: String,
-    ): String {
+    override suspend fun writeArtifact(artifact: SessionArtifact, serialized: String): String {
         documentStore.writeText(artifact.storagePath, serialized)
         return artifact.storagePath
     }
@@ -94,7 +87,10 @@ public class JsonSessionArtifactSerializer(
                         title = entry.title,
                         detail = entry.detail,
                         peerSuffix = entry.peerSuffix,
-                        payloadMetadata = mapOf("previewLength" to (entry.payloadPreview?.length?.toString() ?: "0")),
+                        payloadMetadata =
+                            mapOf(
+                                "previewLength" to (entry.payloadPreview?.length?.toString() ?: "0")
+                            ),
                         payloadPreview = entry.payloadPreview,
                         fullPayload = if (includeFullPayload) entry.payloadPreview else null,
                     )

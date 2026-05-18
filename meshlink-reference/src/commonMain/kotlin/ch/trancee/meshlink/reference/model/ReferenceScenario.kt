@@ -2,9 +2,7 @@ package ch.trancee.meshlink.reference.model
 
 import kotlinx.serialization.Serializable
 
-/**
- * Operator-facing workflow metadata used to build the reference app navigation surfaces.
- */
+/** Operator-facing workflow metadata used to build the reference app navigation surfaces. */
 @Serializable
 public data class ReferenceScenario(
     public val scenarioId: String,

@@ -17,7 +17,8 @@ import kotlinx.coroutines.test.runTest
 class SessionArtifactContractTest {
     @Test
     fun redactedExportOmitsFullPayload() = runTest {
-        val serializer = JsonSessionArtifactSerializer(documentStore = InMemoryReferenceDocumentStore())
+        val serializer =
+            JsonSessionArtifactSerializer(documentStore = InMemoryReferenceDocumentStore())
         val session =
             ReferenceSession(
                 sessionId = "session-1",

@@ -35,38 +35,29 @@ import ch.trancee.meshlink.reference.history.RecentSessionHistoryScreen
 import ch.trancee.meshlink.reference.lab.LabScreen
 import ch.trancee.meshlink.reference.meshlink.ReferenceControllerSnapshot
 import ch.trancee.meshlink.reference.platform.PlatformServices
-import ch.trancee.meshlink.reference.session.JsonSessionArtifactSerializer
-import ch.trancee.meshlink.reference.session.JsonSessionHistoryRepository
-import ch.trancee.meshlink.reference.timeline.TechnicalTimelineScreen
-import ch.trancee.meshlink.reference.timeline.TechnicalTimelineStore
 import ch.trancee.meshlink.reference.resources.Res
-import ch.trancee.meshlink.reference.resources.advanced_summary
-import ch.trancee.meshlink.reference.resources.advanced_title
 import ch.trancee.meshlink.reference.resources.app_title
-import ch.trancee.meshlink.reference.resources.guided_title
-import ch.trancee.meshlink.reference.resources.history_summary
-import ch.trancee.meshlink.reference.resources.history_title
-import ch.trancee.meshlink.reference.resources.lab_summary
-import ch.trancee.meshlink.reference.resources.lab_title
 import ch.trancee.meshlink.reference.resources.mode_label
 import ch.trancee.meshlink.reference.resources.platform_label
-import ch.trancee.meshlink.reference.resources.solo_summary
-import ch.trancee.meshlink.reference.resources.solo_title
-import ch.trancee.meshlink.reference.resources.timeline_summary
-import ch.trancee.meshlink.reference.resources.timeline_title
+import ch.trancee.meshlink.reference.session.JsonSessionArtifactSerializer
+import ch.trancee.meshlink.reference.session.JsonSessionHistoryRepository
 import ch.trancee.meshlink.reference.solo.SoloExplorationScreen
+import ch.trancee.meshlink.reference.timeline.TechnicalTimelineScreen
+import ch.trancee.meshlink.reference.timeline.TechnicalTimelineStore
 import org.jetbrains.compose.resources.stringResource
 
-/**
- * Shared navigation shell for the reference app surfaces.
- */
+/** Shared navigation shell for the reference app surfaces. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 public fun ReferenceNavHost(platformServices: PlatformServices) {
-    var activeRoute: ReferenceSurfaceId by remember { mutableStateOf(ReferenceSurfaceId.MAIN_GUIDED) }
-    val guidedViewModel = remember(platformServices.platformName) { GuidedFirstExchangeViewModel(platformServices) }
+    var activeRoute: ReferenceSurfaceId by remember {
+        mutableStateOf(ReferenceSurfaceId.MAIN_GUIDED)
+    }
+    val guidedViewModel =
+        remember(platformServices.platformName) { GuidedFirstExchangeViewModel(platformServices) }
     val snapshot by platformServices.meshLinkController.snapshot.collectAsState()
-    val advancedViewModel = remember(platformServices.platformName) { AdvancedControlsViewModel(platformServices) }
+    val advancedViewModel =
+        remember(platformServices.platformName) { AdvancedControlsViewModel(platformServices) }
     val timelineStore =
         remember(platformServices.platformName) {
             TechnicalTimelineStore(
@@ -75,22 +66,31 @@ public fun ReferenceNavHost(platformServices: PlatformServices) {
                 artifactSerializer = JsonSessionArtifactSerializer(platformServices.documentStore),
             )
         }
-    val routes = ReferenceWorkflowCatalog.descriptors().map { descriptor -> descriptor.surfaceId to descriptor.title }
+    val routes =
+        ReferenceWorkflowCatalog.descriptors().map { descriptor ->
+            descriptor.surfaceId to descriptor.title
+        }
 
     Scaffold(
         topBar = {
-            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp)) {
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp)
+            ) {
                 Text(
                     text = stringResource(Res.string.app_title),
                     style = MaterialTheme.typography.displaySmall,
                 )
                 Text(
-                    text = "${stringResource(Res.string.platform_label)}: ${platformServices.platformName} · ${stringResource(Res.string.mode_label)}: ${snapshot.session.authorityMode}",
+                    text =
+                        "${stringResource(Res.string.platform_label)}: ${platformServices.platformName} · ${stringResource(Res.string.mode_label)}: ${snapshot.session.authorityMode}",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Spacer(modifier = Modifier.height(12.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
                     routes.forEach { (route, title) ->
                         AssistChip(
                             onClick = { activeRoute = route },
@@ -100,7 +100,7 @@ public fun ReferenceNavHost(platformServices: PlatformServices) {
                     }
                 }
             }
-        },
+        }
     ) { innerPadding ->
         when (activeRoute) {
             ReferenceSurfaceId.MAIN_GUIDED ->
@@ -147,10 +147,14 @@ private fun PlaceholderSurface(
         Text(text = summary, style = MaterialTheme.typography.bodyLarge)
 
         Card(
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+            colors =
+                CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Column(modifier = Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
                 Text(
                     text = "Foundational app shell",
                     style = MaterialTheme.typography.titleLarge,
