@@ -60,18 +60,18 @@
 
 ### Validation for User Story 1 (REQUIRED) ⚠️
 
-- [ ] T013 [P] [US1] Add guided first-exchange state tests in `meshlink-reference/src/commonTest/kotlin/ch/trancee/meshlink/reference/guided/GuidedFirstExchangeViewModelTest.kt`
-- [ ] T014 [P] [US1] Add reference-ui contract and Compose UI tests for guided and solo surfaces in `meshlink-reference/src/commonTest/kotlin/ch/trancee/meshlink/reference/guided/GuidedFirstExchangeScreenTest.kt`
+- [X] T013 [P] [US1] Add guided first-exchange state tests in `meshlink-reference/src/commonTest/kotlin/ch/trancee/meshlink/reference/guided/GuidedFirstExchangeViewModelTest.kt`
+- [X] T014 [P] [US1] Add reference-ui contract and Compose UI tests for guided and solo surfaces in `meshlink-reference/src/commonTest/kotlin/ch/trancee/meshlink/reference/guided/GuidedFirstExchangeScreenTest.kt`
 - [ ] T015 [US1] Validate the guided first exchange and solo fallback against `specs/002-meshlink-reference-app/quickstart.md` and `specs/002-meshlink-reference-app/contracts/reference-ui.md`
 
 ### Implementation for User Story 1
 
-- [ ] T016 [P] [US1] Implement readiness and blocker state models in `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/guided/ReadinessState.kt` and `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/guided/ReadinessChecker.kt`
-- [ ] T017 [P] [US1] Implement guided first-exchange orchestration in `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/guided/GuidedFirstExchangeViewModel.kt`
-- [ ] T018 [P] [US1] Implement guided and solo surface composables in `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/guided/GuidedFirstExchangeScreen.kt` and `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/solo/SoloExplorationScreen.kt`
-- [ ] T019 [P] [US1] Implement platform-specific readiness explainers in `meshlink-reference/src/androidMain/kotlin/ch/trancee/meshlink/reference/platform/AndroidReadinessExplainer.kt` and `meshlink-reference/src/iosMain/kotlin/ch/trancee/meshlink/reference/platform/IosReadinessExplainer.kt`
-- [ ] T020 [US1] Connect live peer discovery, default send, and timeline proof capture in `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/guided/GuidedFirstExchangeViewModel.kt` and `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/meshlink/ReferenceMeshLinkController.kt`
-- [ ] T021 [US1] Wire the `main-guided` and `solo-exploration` surfaces into `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/navigation/ReferenceNavHost.kt` and `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/app/ReferenceApp.kt`
+- [X] T016 [P] [US1] Implement readiness and blocker state models in `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/guided/ReadinessState.kt` and `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/guided/ReadinessChecker.kt`
+- [X] T017 [P] [US1] Implement guided first-exchange orchestration in `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/guided/GuidedFirstExchangeViewModel.kt`
+- [X] T018 [P] [US1] Implement guided and solo surface composables in `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/guided/GuidedFirstExchangeScreen.kt` and `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/solo/SoloExplorationScreen.kt`
+- [X] T019 [P] [US1] Implement platform-specific readiness explainers in `meshlink-reference/src/androidMain/kotlin/ch/trancee/meshlink/reference/platform/AndroidReadinessExplainer.kt` and `meshlink-reference/src/iosMain/kotlin/ch/trancee/meshlink/reference/platform/IosReadinessExplainer.kt`
+- [X] T020 [US1] Connect live peer discovery, default send, and timeline proof capture in `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/guided/GuidedFirstExchangeViewModel.kt` and `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/meshlink/ReferenceMeshLinkController.kt`
+- [X] T021 [US1] Wire the `main-guided` and `solo-exploration` surfaces into `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/navigation/ReferenceNavHost.kt` and `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/app/ReferenceApp.kt`
 
 **Checkpoint**: User Story 1 is complete when a first-time evaluator can reach live first-exchange proof or the clearly labeled solo exploration fallback without hidden setup.
 

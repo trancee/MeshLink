@@ -3,6 +3,8 @@
     <string name="app_title">MeshLink Reference</string>
     <string name="guided_title">Guided first exchange</string>
     <string name="guided_summary">Start offline, discover a peer, and capture the first proof line.</string>
+    <string name="solo_title">Solo exploration</string>
+    <string name="solo_summary">Inspect workflows and wording without presenting simulated proof as live MeshLink behavior.</string>
     <string name="advanced_title">Advanced controls</string>
     <string name="advanced_summary">Inspect the full public SDK surface without losing the guided path.</string>
     <string name="timeline_title">Technical timeline</string>

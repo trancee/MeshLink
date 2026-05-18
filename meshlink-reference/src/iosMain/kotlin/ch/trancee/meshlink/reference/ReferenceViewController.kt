@@ -4,6 +4,7 @@ import androidx.compose.ui.window.ComposeUIViewController
 import ch.trancee.meshlink.reference.app.ReferenceApp
 import ch.trancee.meshlink.reference.model.ReferenceAuthorityMode
 import ch.trancee.meshlink.reference.platform.DefaultPlatformServices
+import ch.trancee.meshlink.reference.platform.iosReadinessGuidance
 import kotlinx.cinterop.ExperimentalForeignApi
 import platform.UIKit.UIViewController
 import platform.posix.time
@@ -17,6 +18,7 @@ public fun createReferenceRootViewController(): UIViewController {
         DefaultPlatformServices(
             platformName = "iOS",
             defaultAuthorityMode = ReferenceAuthorityMode.LIVE,
+            readinessGuidance = iosReadinessGuidance(),
             nowProvider = { time(null) * 1000L },
         )
     return ComposeUIViewController {

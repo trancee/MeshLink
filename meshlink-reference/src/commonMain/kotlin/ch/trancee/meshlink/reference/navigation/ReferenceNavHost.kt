@@ -27,13 +27,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import ch.trancee.meshlink.reference.guided.GuidedFirstExchangeScreen
+import ch.trancee.meshlink.reference.guided.GuidedFirstExchangeViewModel
 import ch.trancee.meshlink.reference.meshlink.ReferenceControllerSnapshot
 import ch.trancee.meshlink.reference.platform.PlatformServices
 import ch.trancee.meshlink.reference.resources.Res
 import ch.trancee.meshlink.reference.resources.advanced_summary
 import ch.trancee.meshlink.reference.resources.advanced_title
 import ch.trancee.meshlink.reference.resources.app_title
-import ch.trancee.meshlink.reference.resources.guided_summary
 import ch.trancee.meshlink.reference.resources.guided_title
 import ch.trancee.meshlink.reference.resources.history_summary
 import ch.trancee.meshlink.reference.resources.history_title
@@ -41,21 +42,26 @@ import ch.trancee.meshlink.reference.resources.lab_summary
 import ch.trancee.meshlink.reference.resources.lab_title
 import ch.trancee.meshlink.reference.resources.mode_label
 import ch.trancee.meshlink.reference.resources.platform_label
+import ch.trancee.meshlink.reference.resources.solo_summary
+import ch.trancee.meshlink.reference.resources.solo_title
 import ch.trancee.meshlink.reference.resources.timeline_summary
 import ch.trancee.meshlink.reference.resources.timeline_title
+import ch.trancee.meshlink.reference.solo.SoloExplorationScreen
 import org.jetbrains.compose.resources.stringResource
 
 /**
- * Shared foundational navigation shell using manual route state until story-specific screens land.
+ * Shared navigation shell for the reference app surfaces.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 public fun ReferenceNavHost(platformServices: PlatformServices) {
     var activeRoute: ReferenceSurfaceRoute by remember { mutableStateOf(ReferenceSurfaceRoute.GUIDED) }
+    val guidedViewModel = remember(platformServices.platformName) { GuidedFirstExchangeViewModel(platformServices) }
     val snapshot by platformServices.meshLinkController.snapshot.collectAsState()
     val routes =
         listOf(
             ReferenceSurfaceRoute.GUIDED to stringResource(Res.string.guided_title),
+            ReferenceSurfaceRoute.SOLO to stringResource(Res.string.solo_title),
             ReferenceSurfaceRoute.ADVANCED to stringResource(Res.string.advanced_title),
             ReferenceSurfaceRoute.TIMELINE to stringResource(Res.string.timeline_title),
             ReferenceSurfaceRoute.LAB to stringResource(Res.string.lab_title),
@@ -87,31 +93,50 @@ public fun ReferenceNavHost(platformServices: PlatformServices) {
             }
         },
     ) { innerPadding ->
-        PlaceholderSurface(
-            title =
-                when (activeRoute) {
-                    ReferenceSurfaceRoute.GUIDED -> stringResource(Res.string.guided_title)
-                    ReferenceSurfaceRoute.ADVANCED -> stringResource(Res.string.advanced_title)
-                    ReferenceSurfaceRoute.TIMELINE -> stringResource(Res.string.timeline_title)
-                    ReferenceSurfaceRoute.LAB -> stringResource(Res.string.lab_title)
-                    ReferenceSurfaceRoute.HISTORY -> stringResource(Res.string.history_title)
-                },
-            summary =
-                when (activeRoute) {
-                    ReferenceSurfaceRoute.GUIDED -> stringResource(Res.string.guided_summary)
-                    ReferenceSurfaceRoute.ADVANCED -> stringResource(Res.string.advanced_summary)
-                    ReferenceSurfaceRoute.TIMELINE -> stringResource(Res.string.timeline_summary)
-                    ReferenceSurfaceRoute.LAB -> stringResource(Res.string.lab_summary)
-                    ReferenceSurfaceRoute.HISTORY -> stringResource(Res.string.history_summary)
-                },
-            snapshot = snapshot,
-            modifier = Modifier.fillMaxSize().padding(innerPadding),
-        )
+        when (activeRoute) {
+            ReferenceSurfaceRoute.GUIDED ->
+                GuidedFirstExchangeScreen(
+                    viewModel = guidedViewModel,
+                    onOpenSolo = { activeRoute = ReferenceSurfaceRoute.SOLO },
+                    modifier = Modifier.fillMaxSize().padding(innerPadding),
+                )
+            ReferenceSurfaceRoute.SOLO ->
+                SoloExplorationScreen(modifier = Modifier.fillMaxSize().padding(innerPadding))
+            ReferenceSurfaceRoute.ADVANCED ->
+                PlaceholderSurface(
+                    title = stringResource(Res.string.advanced_title),
+                    summary = stringResource(Res.string.advanced_summary),
+                    snapshot = snapshot,
+                    modifier = Modifier.fillMaxSize().padding(innerPadding),
+                )
+            ReferenceSurfaceRoute.TIMELINE ->
+                PlaceholderSurface(
+                    title = stringResource(Res.string.timeline_title),
+                    summary = stringResource(Res.string.timeline_summary),
+                    snapshot = snapshot,
+                    modifier = Modifier.fillMaxSize().padding(innerPadding),
+                )
+            ReferenceSurfaceRoute.LAB ->
+                PlaceholderSurface(
+                    title = stringResource(Res.string.lab_title),
+                    summary = stringResource(Res.string.lab_summary),
+                    snapshot = snapshot,
+                    modifier = Modifier.fillMaxSize().padding(innerPadding),
+                )
+            ReferenceSurfaceRoute.HISTORY ->
+                PlaceholderSurface(
+                    title = stringResource(Res.string.history_title),
+                    summary = stringResource(Res.string.history_summary),
+                    snapshot = snapshot,
+                    modifier = Modifier.fillMaxSize().padding(innerPadding),
+                )
+        }
     }
 }
 
 private enum class ReferenceSurfaceRoute {
     GUIDED,
+    SOLO,
     ADVANCED,
     TIMELINE,
     LAB,
