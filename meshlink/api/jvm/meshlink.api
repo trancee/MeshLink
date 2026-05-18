@@ -54,8 +54,6 @@ public final class ch/trancee/meshlink/api/MeshLink {
 	public static final field INSTANCE Lch/trancee/meshlink/api/MeshLink;
 	public final fun create (Lch/trancee/meshlink/config/MeshLinkConfig;)Lch/trancee/meshlink/api/MeshLinkApi;
 	public final fun create (Lch/trancee/meshlink/config/MeshLinkConfig;Ljava/lang/Object;)Lch/trancee/meshlink/api/MeshLinkApi;
-	public final fun createAndroid (Ljava/lang/Object;Lch/trancee/meshlink/config/MeshLinkConfig;)Lch/trancee/meshlink/api/MeshLinkApi;
-	public final fun createIos (Lch/trancee/meshlink/config/MeshLinkConfig;)Lch/trancee/meshlink/api/MeshLinkApi;
 }
 
 public abstract interface class ch/trancee/meshlink/api/MeshLinkApi {

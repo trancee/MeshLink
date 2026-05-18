@@ -27,9 +27,6 @@ These names matter when you consume the generated Apple framework from Swift.
 object MeshLink {
     fun create(config: MeshLinkConfig): MeshLinkApi
     fun create(config: MeshLinkConfig, context: Any): MeshLinkApi
-
-    @Deprecated fun createAndroid(context: Any, config: MeshLinkConfig): MeshLinkApi
-    @Deprecated fun createIos(config: MeshLinkConfig): MeshLinkApi
 }
 ```
 
@@ -37,8 +34,6 @@ object MeshLink {
 |---|---|---|
 | `create(config)` | iOS and platforms that do not need extra bootstrap input | Fails if platform prerequisites are missing. |
 | `create(config, context)` | Android | `context` must be an Android `Context`. Use the application context. |
-| `createAndroid(...)` | Compatibility only | Deprecated alias for `create(config, context)`. |
-| `createIos(...)` | Compatibility only | Deprecated alias for `create(config)`. |
 
 ### Example
 

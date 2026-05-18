@@ -17,7 +17,7 @@ For behavior and usage, prefer the human-written [MeshLink SDK API reference](me
 | `ch.trancee.meshlink.api.IosBleTransportBridge` | object | `install()`, `installData()` |
 | `ch.trancee.meshlink.api.IosCryptoBridge` | object | `install()` |
 | `ch.trancee.meshlink.api.IosCryptoRawKeyPair` | class | `privateKey`, `publicKey` |
-| `ch.trancee.meshlink.api.MeshLink` | object | `create()`, `createAndroid()`, `createIos()` |
+| `ch.trancee.meshlink.api.MeshLink` | object | `create()` |
 | `ch.trancee.meshlink.api.MeshLinkApi` | interface | `forgetPeer()`, `diagnosticEvents`, `messages`, `peerEvents`, `state`, `pause()`, `resume()`, `send()`, `start()`, `stop()`, `updateBattery()` |
 | `ch.trancee.meshlink.api.MeshLinkException` | abstract class | `init` |
 | `ch.trancee.meshlink.api.MeshLinkException.CryptoFailure` | nested type | `init` |

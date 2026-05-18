@@ -13,12 +13,6 @@ shape must remain identical across platforms.
 object MeshLink {
     fun create(config: MeshLinkConfig): MeshLinkApi
     fun create(config: MeshLinkConfig, context: Any): MeshLinkApi
-
-    @Deprecated("Use create(config, context) instead")
-    fun createAndroid(context: Any, config: MeshLinkConfig): MeshLinkApi
-
-    @Deprecated("Use create(config) instead")
-    fun createIos(config: MeshLinkConfig): MeshLinkApi
 }
 ```
 
@@ -26,8 +20,6 @@ object MeshLink {
 - `create(config)` is the primary entry point for platforms that do not
   require extra bootstrap input.
 - `create(config, context)` is the Android bootstrap overload.
-- Deprecated aliases stay available for compatibility during the migration
-  window.
 - Platform-specific parameters stay in factory overloads, not in the shared
   DSL.
 - Android-specific bootstrap handles, iOS/CoreBluetooth handles, and other

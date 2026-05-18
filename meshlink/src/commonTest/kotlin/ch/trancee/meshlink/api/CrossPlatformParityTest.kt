@@ -16,7 +16,6 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 
-@Suppress("DEPRECATION")
 class CrossPlatformParityTest {
     @Test
     fun `android and ios expose matching lifecycle transitions and power diagnostic payloads`() =
@@ -27,7 +26,7 @@ class CrossPlatformParityTest {
                 powerMode = PowerMode.Automatic
             }
             val androidApi = MeshLink.create(config = config, context = AndroidFactoryTestContext)
-            val iosApi = MeshLink.createIos(config = config)
+            val iosApi = MeshLink.create(config = config)
             val androidDiagnosticsDeferred =
                 async(start = CoroutineStart.UNDISPATCHED) {
                     withTimeout(1_000) { androidApi.diagnosticEvents.take(5).toList() }

@@ -28,7 +28,6 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import kotlin.time.Duration.Companion.seconds
 
-@Suppress("DEPRECATION")
 class MeshLinkApiContractTest {
     private fun installIosFactoryTestBridge(): Unit {
         var counter = 1
@@ -162,7 +161,7 @@ class MeshLinkApiContractTest {
         installIosFactoryTestBridge()
         val config = meshLinkConfig { appId = "demo.meshlink.${kotlin.random.Random.nextInt()}" }
         val androidApi = MeshLink.create(config = config, context = AndroidFactoryTestContext)
-        val iosApi = MeshLink.createIos(config = config)
+        val iosApi = MeshLink.create(config = config)
 
         // Act
         val androidResults =
@@ -191,7 +190,7 @@ class MeshLinkApiContractTest {
                     deliveryRetryDeadline = 9.seconds
                 }
             val androidApi = MeshLink.create(config = config, context = AndroidFactoryTestContext)
-            val iosApi = MeshLink.createIos(config = config)
+            val iosApi = MeshLink.create(config = config)
             val androidPowerChanged =
                 async(start = CoroutineStart.UNDISPATCHED) {
                     withTimeout(1_000) {

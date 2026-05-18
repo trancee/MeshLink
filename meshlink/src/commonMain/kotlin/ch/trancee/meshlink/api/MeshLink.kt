@@ -2,7 +2,6 @@ package ch.trancee.meshlink.api
 
 import ch.trancee.meshlink.config.MeshLinkConfig
 import ch.trancee.meshlink.platform.createAndroidMeshLink
-import ch.trancee.meshlink.platform.createIosMeshLink
 import ch.trancee.meshlink.platform.createMeshLink
 
 public object MeshLink {
@@ -30,27 +29,4 @@ public object MeshLink {
         return createAndroidMeshLink(config = config, context = context)
     }
 
-    @Deprecated(
-        message = "Use create(config, context) instead.",
-        replaceWith =
-            ReplaceWith(
-                expression = "MeshLink.create(config = config, context = context)",
-                imports = ["ch.trancee.meshlink.api.MeshLink"],
-            ),
-    )
-    public fun createAndroid(context: Any, config: MeshLinkConfig): MeshLinkApi {
-        return create(config = config, context = context)
-    }
-
-    @Deprecated(
-        message = "Use create(config) instead.",
-        replaceWith =
-            ReplaceWith(
-                expression = "MeshLink.create(config)",
-                imports = ["ch.trancee.meshlink.api.MeshLink"],
-            ),
-    )
-    public fun createIos(config: MeshLinkConfig): MeshLinkApi {
-        return createIosMeshLink(config = config)
-    }
 }
