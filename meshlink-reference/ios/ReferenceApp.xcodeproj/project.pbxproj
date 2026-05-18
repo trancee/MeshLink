@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		61FC124E4895A92657A086DA /* ReferenceAppPlaceholderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 324A79A3CC4BF8DE1CFD05FC /* ReferenceAppPlaceholderTests.swift */; };
 		6478A3D2E4830DE1E0E9CDC0 /* ReferenceApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01935F212101BD3BFFDBA6E0 /* ReferenceApp.swift */; };
+		73582F9968058BF15787538F /* ReferenceAppParityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFA1C012385F455D6804BA63 /* ReferenceAppParityTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -26,6 +27,7 @@
 		324A79A3CC4BF8DE1CFD05FC /* ReferenceAppPlaceholderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReferenceAppPlaceholderTests.swift; sourceTree = "<group>"; };
 		520EFE099DDF72C6E68E9D18 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		79FC582F78CA92B1DE49D235 /* ReferenceAppTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = ReferenceAppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		AFA1C012385F455D6804BA63 /* ReferenceAppParityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReferenceAppParityTests.swift; sourceTree = "<group>"; };
 		CEC69B8D061F68EC23F54E8F /* ReferenceApp.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = ReferenceApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -33,6 +35,7 @@
 		2EC15BC146E57F70417BBB50 /* ReferenceAppTests */ = {
 			isa = PBXGroup;
 			children = (
+				AFA1C012385F455D6804BA63 /* ReferenceAppParityTests.swift */,
 				324A79A3CC4BF8DE1CFD05FC /* ReferenceAppPlaceholderTests.swift */,
 			);
 			path = ReferenceAppTests;
@@ -184,6 +187,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				73582F9968058BF15787538F /* ReferenceAppParityTests.swift in Sources */,
 				61FC124E4895A92657A086DA /* ReferenceAppPlaceholderTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -204,6 +208,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -331,6 +336,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

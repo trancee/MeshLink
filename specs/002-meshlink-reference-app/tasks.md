@@ -136,17 +136,17 @@
 
 ### Validation for User Story 4 (REQUIRED) ⚠️
 
-- [ ] T041 [P] [US4] Add shared workflow catalog parity tests in `meshlink-reference/src/commonTest/kotlin/ch/trancee/meshlink/reference/parity/WorkflowCatalogParityTest.kt`
-- [ ] T042 [P] [US4] Add Android and iOS parity smoke tests in `meshlink-reference/src/androidInstrumentedTest/kotlin/ch/trancee/meshlink/reference/ReferenceAppAndroidSmokeTest.kt` and `meshlink-reference/src/iosTest/kotlin/ch/trancee/meshlink/reference/ReferenceAppIosSmokeTest.kt`
+- [X] T041 [P] [US4] Add shared workflow catalog parity tests in `meshlink-reference/src/commonTest/kotlin/ch/trancee/meshlink/reference/parity/WorkflowCatalogParityTest.kt`
+- [X] T042 [P] [US4] Add Android and iOS parity smoke tests in `meshlink-reference/src/androidInstrumentedTest/kotlin/ch/trancee/meshlink/reference/ReferenceAppAndroidSmokeTest.kt` and `meshlink-reference/src/iosTest/kotlin/ch/trancee/meshlink/reference/ReferenceAppIosSmokeTest.kt`
 - [ ] T043 [US4] Validate named workflow, label, and blocker parity against `specs/002-meshlink-reference-app/quickstart.md` and `specs/002-meshlink-reference-app/contracts/reference-ui.md`
 
 ### Implementation for User Story 4
 
-- [ ] T044 [P] [US4] Normalize shared workflow labels and operator copy in `meshlink-reference/src/commonMain/composeResources/values/strings.xml`
-- [ ] T045 [P] [US4] Commit the iOS host project and host-side tests in `meshlink-reference/ios/ReferenceApp.xcodeproj/project.pbxproj` and `meshlink-reference/ios/ReferenceAppTests/ReferenceAppParityTests.swift`
-- [ ] T046 [P] [US4] Align Android platform services and blocker messaging in `meshlink-reference/src/androidMain/kotlin/ch/trancee/meshlink/reference/platform/AndroidPlatformServices.kt`
-- [ ] T047 [P] [US4] Align iOS platform services and blocker messaging in `meshlink-reference/src/iosMain/kotlin/ch/trancee/meshlink/reference/platform/IosPlatformServices.kt`
-- [ ] T048 [US4] Wire identical surface IDs and entry routes across `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/navigation/ReferenceNavHost.kt`, `meshlink-reference/src/androidMain/kotlin/ch/trancee/meshlink/reference/MainActivity.kt`, and `meshlink-reference/src/iosMain/kotlin/ch/trancee/meshlink/reference/ReferenceViewController.kt`
+- [X] T044 [P] [US4] Normalize shared workflow labels and operator copy in `meshlink-reference/src/commonMain/composeResources/values/strings.xml`
+- [X] T045 [P] [US4] Commit the iOS host project and host-side tests in `meshlink-reference/ios/ReferenceApp.xcodeproj/project.pbxproj` and `meshlink-reference/ios/ReferenceAppTests/ReferenceAppParityTests.swift`
+- [X] T046 [P] [US4] Align Android platform services and blocker messaging in `meshlink-reference/src/androidMain/kotlin/ch/trancee/meshlink/reference/platform/AndroidPlatformServices.kt`
+- [X] T047 [P] [US4] Align iOS platform services and blocker messaging in `meshlink-reference/src/iosMain/kotlin/ch/trancee/meshlink/reference/platform/IosPlatformServices.kt`
+- [X] T048 [US4] Wire identical surface IDs and entry routes across `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/navigation/ReferenceNavHost.kt`, `meshlink-reference/src/androidMain/kotlin/ch/trancee/meshlink/reference/MainActivity.kt`, and `meshlink-reference/src/iosMain/kotlin/ch/trancee/meshlink/reference/ReferenceViewController.kt`
 
 **Checkpoint**: User Story 4 is complete when Android and iOS present the same named reference experience, with platform differences limited to clearly explained setup constraints.
 

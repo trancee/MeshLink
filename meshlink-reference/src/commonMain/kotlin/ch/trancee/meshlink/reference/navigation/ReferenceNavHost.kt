@@ -63,7 +63,7 @@ import org.jetbrains.compose.resources.stringResource
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 public fun ReferenceNavHost(platformServices: PlatformServices) {
-    var activeRoute: ReferenceSurfaceRoute by remember { mutableStateOf(ReferenceSurfaceRoute.GUIDED) }
+    var activeRoute: ReferenceSurfaceId by remember { mutableStateOf(ReferenceSurfaceId.MAIN_GUIDED) }
     val guidedViewModel = remember(platformServices.platformName) { GuidedFirstExchangeViewModel(platformServices) }
     val snapshot by platformServices.meshLinkController.snapshot.collectAsState()
     val advancedViewModel = remember(platformServices.platformName) { AdvancedControlsViewModel(platformServices) }
@@ -75,15 +75,7 @@ public fun ReferenceNavHost(platformServices: PlatformServices) {
                 artifactSerializer = JsonSessionArtifactSerializer(platformServices.documentStore),
             )
         }
-    val routes =
-        listOf(
-            ReferenceSurfaceRoute.GUIDED to stringResource(Res.string.guided_title),
-            ReferenceSurfaceRoute.SOLO to stringResource(Res.string.solo_title),
-            ReferenceSurfaceRoute.ADVANCED to stringResource(Res.string.advanced_title),
-            ReferenceSurfaceRoute.TIMELINE to stringResource(Res.string.timeline_title),
-            ReferenceSurfaceRoute.LAB to stringResource(Res.string.lab_title),
-            ReferenceSurfaceRoute.HISTORY to stringResource(Res.string.history_title),
-        )
+    val routes = ReferenceWorkflowCatalog.descriptors().map { descriptor -> descriptor.surfaceId to descriptor.title }
 
     Scaffold(
         topBar = {
@@ -111,42 +103,33 @@ public fun ReferenceNavHost(platformServices: PlatformServices) {
         },
     ) { innerPadding ->
         when (activeRoute) {
-            ReferenceSurfaceRoute.GUIDED ->
+            ReferenceSurfaceId.MAIN_GUIDED ->
                 GuidedFirstExchangeScreen(
                     viewModel = guidedViewModel,
-                    onOpenSolo = { activeRoute = ReferenceSurfaceRoute.SOLO },
+                    onOpenSolo = { activeRoute = ReferenceSurfaceId.SOLO_EXPLORATION },
                     modifier = Modifier.fillMaxSize().padding(innerPadding),
                 )
-            ReferenceSurfaceRoute.SOLO ->
+            ReferenceSurfaceId.SOLO_EXPLORATION ->
                 SoloExplorationScreen(modifier = Modifier.fillMaxSize().padding(innerPadding))
-            ReferenceSurfaceRoute.ADVANCED ->
+            ReferenceSurfaceId.ADVANCED_CONTROLS ->
                 AdvancedControlsScreen(
                     viewModel = advancedViewModel,
                     modifier = Modifier.fillMaxSize().padding(innerPadding),
                 )
-            ReferenceSurfaceRoute.TIMELINE ->
+            ReferenceSurfaceId.TECHNICAL_TIMELINE ->
                 TechnicalTimelineScreen(
                     store = timelineStore,
                     modifier = Modifier.fillMaxSize().padding(innerPadding),
                 )
-            ReferenceSurfaceRoute.LAB ->
+            ReferenceSurfaceId.LAB ->
                 LabScreen(modifier = Modifier.fillMaxSize().padding(innerPadding))
-            ReferenceSurfaceRoute.HISTORY ->
+            ReferenceSurfaceId.RECENT_HISTORY ->
                 RecentSessionHistoryScreen(
                     store = timelineStore,
                     modifier = Modifier.fillMaxSize().padding(innerPadding),
                 )
         }
     }
-}
-
-private enum class ReferenceSurfaceRoute {
-    GUIDED,
-    SOLO,
-    ADVANCED,
-    TIMELINE,
-    LAB,
-    HISTORY,
 }
 
 @Composable
