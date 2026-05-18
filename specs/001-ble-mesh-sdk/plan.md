@@ -268,7 +268,10 @@ gradle/
 meshlink/
 ├── build.gradle.kts
 ├── api/
-│   └── meshlink.api
+│   ├── android/
+│   │   └── meshlink.api
+│   └── jvm/
+│       └── meshlink.api
 └── src/
     ├── commonMain/kotlin/ch/trancee/meshlink/
     │   ├── api/
