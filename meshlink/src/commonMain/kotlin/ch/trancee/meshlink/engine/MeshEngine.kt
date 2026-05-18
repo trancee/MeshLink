@@ -24,6 +24,7 @@ import ch.trancee.meshlink.diagnostics.DiagnosticReason
 import ch.trancee.meshlink.diagnostics.DiagnosticSeverity
 import ch.trancee.meshlink.diagnostics.DiagnosticSink
 import ch.trancee.meshlink.identity.LocalIdentity
+import ch.trancee.meshlink.identity.hexContentEquals
 import ch.trancee.meshlink.identity.toHexString
 import ch.trancee.meshlink.platform.PlatformPermissionDeniedException
 import ch.trancee.meshlink.platform.currentEpochMillis
@@ -1459,7 +1460,7 @@ private constructor(
 
     private fun isLocalPeerId(peerId: PeerId): Boolean {
         return peerId.value == localIdentity.peerId.value ||
-            peerId.value == localIdentity.advertisementKeyHash.toHexString()
+            peerId.value.hexContentEquals(localIdentity.advertisementKeyHash)
     }
 
     private fun dispatchRoutingMutation(
@@ -1686,11 +1687,12 @@ private constructor(
         remoteX25519PublicKey: ByteArray,
         expectedFingerprint: String? = null,
     ): TrustRecord? {
-        val fingerprint =
-            localIdentity.cryptoProvider
-                .sha256(remoteEd25519PublicKey + remoteX25519PublicKey)
-                .toHexString()
-        if (expectedFingerprint != null && expectedFingerprint != fingerprint) {
+        val remoteIdentityHash =
+            localIdentity.cryptoProvider.sha256(remoteEd25519PublicKey + remoteX25519PublicKey)
+        if (
+            expectedFingerprint != null &&
+                !expectedFingerprint.hexContentEquals(remoteIdentityHash)
+        ) {
             emitDiagnostic(
                 code = DiagnosticCode.TRUST_FAILURE,
                 severity = DiagnosticSeverity.ERROR,
@@ -1707,7 +1709,7 @@ private constructor(
             val trustRecord =
                 TrustRecord(
                     peerIdValue = peerId.value,
-                    identityFingerprint = fingerprint,
+                    identityFingerprint = remoteIdentityHash.toHexString(),
                     firstSeenAtEpochMillis = verifiedAtEpochMillis,
                     lastVerifiedAtEpochMillis = verifiedAtEpochMillis,
                     ed25519PublicKey = remoteEd25519PublicKey,
@@ -1724,7 +1726,7 @@ private constructor(
             return trustRecord
         }
         if (
-            existingTrust.identityFingerprint != fingerprint ||
+            !existingTrust.identityFingerprint.hexContentEquals(remoteIdentityHash) ||
                 !existingTrust.ed25519PublicKey.contentEquals(remoteEd25519PublicKey) ||
                 !existingTrust.x25519PublicKey.contentEquals(remoteX25519PublicKey)
         ) {

@@ -267,6 +267,7 @@ private object MeshLinkProofRuntime {
     private var launchConfig: ProofLaunchConfig = ProofLaunchConfig(appId = "demo.meshlink")
     private var meshLink: MeshLinkApi? = null
     private var currentLaunchConfig: ProofLaunchConfig? = null
+    private var localAdvertisementKeyHash: ByteArray? = null
     private var localAdvertisementKeyHashHex: String? = null
     private var collectorsStarted: Boolean = false
     private var running: Boolean = false
@@ -343,15 +344,16 @@ private object MeshLinkProofRuntime {
                 }
                 synchronized(pendingBenchmarkReceipts) { pendingBenchmarkReceipts.clear() }
                 synchronized(logLines) { logLines.clear() }
-                localAdvertisementKeyHashHex =
+                localAdvertisementKeyHash =
                     if (resolvedLaunchConfig.benchmarkTransport == ProofBenchmarkTransport.MeshLink) {
-                        computeLocalAdvertisementKeyHashHex(
+                        computeLocalAdvertisementKeyHash(
                             context = appContext!!,
                             appId = resolvedLaunchConfig.appId,
                         )
                     } else {
                         null
                     }
+                localAdvertisementKeyHashHex = localAdvertisementKeyHash?.toLowerHexString()
                 clearPersistedLogs()
                 val transportLabel =
                     when (resolvedLaunchConfig.benchmarkTransport) {
@@ -882,7 +884,7 @@ private object MeshLinkProofRuntime {
             synchronized(knownPeers) {
                 knownPeers[originPeerId.value]
                     ?: knownPeers.values.firstOrNull { knownPeer ->
-                        originPeerId.value.startsWith(knownPeer.value)
+                        originPeerId.value.hexStartsWithHexPrefix(knownPeer.value)
                     }
                     ?: knownPeers.values.singleOrNull()
             }
@@ -1053,24 +1055,22 @@ private object MeshLinkProofRuntime {
     }
 
     private fun shouldInitiateHello(peerId: PeerId): Boolean {
-        val localKeyHash = localAdvertisementKeyHashHex ?: return false
-        return localKeyHash < peerId.value
+        val localKeyHash = localAdvertisementKeyHash ?: return false
+        return localKeyHash.lexicographicallyPrecedesHexString(peerId.value)
     }
 
-    private fun computeLocalAdvertisementKeyHashHex(context: Context, appId: String): String {
+    private fun computeLocalAdvertisementKeyHash(context: Context, appId: String): ByteArray? {
         val preferences = context.getSharedPreferences("meshlink-$appId", Context.MODE_PRIVATE)
         val ed25519 =
             preferences
                 .getString("identity:$appId:ed25519-public", null)
-                ?.let { encoded -> Base64.decode(encoded, Base64.NO_WRAP) } ?: return ""
+                ?.let { encoded -> Base64.decode(encoded, Base64.NO_WRAP) } ?: return null
         val x25519 =
             preferences
                 .getString("identity:$appId:x25519-public", null)
-                ?.let { encoded -> Base64.decode(encoded, Base64.NO_WRAP) } ?: return ""
+                ?.let { encoded -> Base64.decode(encoded, Base64.NO_WRAP) } ?: return null
         val hash = MessageDigest.getInstance("SHA-256").digest(ed25519 + x25519)
-        return hash.copyOfRange(0, 12).joinToString(separator = "") { byte ->
-            (byte.toInt() and 0xFF).toString(16).padStart(2, '0')
-        }
+        return hash.copyOfRange(0, 12)
     }
 
     private fun nextBenchmarkTokenHex(): String {
@@ -1189,3 +1189,57 @@ private class ProofSnapshot(
     val logs: List<String>,
     val running: Boolean,
 )
+
+private fun String.hexStartsWithHexPrefix(prefix: String): Boolean {
+    if (length < prefix.length || (prefix.length and 1) != 0) {
+        return false
+    }
+    var index = 0
+    while (index < prefix.length) {
+        val expected = prefix.decodeHexByte(charIndex = index) ?: return false
+        val actual = decodeHexByte(charIndex = index) ?: return false
+        if (actual != expected) {
+            return false
+        }
+        index += 2
+    }
+    return true
+}
+
+private fun ByteArray.lexicographicallyPrecedesHexString(hex: String): Boolean {
+    if (hex.length < size * 2) {
+        return false
+    }
+    for (index in indices) {
+        val current = this[index].toInt() and 0xFF
+        val other = hex.decodeHexByte(charIndex = index * 2) ?: return false
+        if (current != other) {
+            return current < other
+        }
+    }
+    return hex.length > size * 2
+}
+
+private fun ByteArray.toLowerHexString(): String {
+    return joinToString(separator = "") { byte ->
+        (byte.toInt() and 0xFF).toString(16).padStart(2, '0')
+    }
+}
+
+private fun String.decodeHexByte(charIndex: Int): Int? {
+    if (charIndex + 1 >= length) {
+        return null
+    }
+    val high = decodeHexNibble(this[charIndex]) ?: return null
+    val low = decodeHexNibble(this[charIndex + 1]) ?: return null
+    return (high shl 4) or low
+}
+
+private fun decodeHexNibble(value: Char): Int? {
+    return when (value) {
+        in '0'..'9' -> value.code - '0'.code
+        in 'a'..'f' -> value.code - 'a'.code + 10
+        in 'A'..'F' -> value.code - 'A'.code + 10
+        else -> null
+    }
+}

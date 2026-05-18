@@ -106,3 +106,47 @@ internal fun ByteArray.toHexString(): String {
         value.toString(radix = 16).padStart(length = 2, padChar = '0')
     }
 }
+
+internal fun String.hexContentEquals(bytes: ByteArray): Boolean {
+    if (length != bytes.size * 2) {
+        return false
+    }
+    for (index in bytes.indices) {
+        val decoded = decodeHexByte(charIndex = index * 2) ?: return false
+        if (decoded != (bytes[index].toInt() and 0xFF)) {
+            return false
+        }
+    }
+    return true
+}
+
+internal fun String.hexStartsWith(bytes: ByteArray): Boolean {
+    if (length < bytes.size * 2) {
+        return false
+    }
+    for (index in bytes.indices) {
+        val decoded = decodeHexByte(charIndex = index * 2) ?: return false
+        if (decoded != (bytes[index].toInt() and 0xFF)) {
+            return false
+        }
+    }
+    return true
+}
+
+private fun String.decodeHexByte(charIndex: Int): Int? {
+    if (charIndex + 1 >= length) {
+        return null
+    }
+    val high = decodeHexNibble(this[charIndex]) ?: return null
+    val low = decodeHexNibble(this[charIndex + 1]) ?: return null
+    return (high shl 4) or low
+}
+
+private fun decodeHexNibble(value: Char): Int? {
+    return when (value) {
+        in '0'..'9' -> value.code - '0'.code
+        in 'a'..'f' -> value.code - 'a'.code + 10
+        in 'A'..'F' -> value.code - 'A'.code + 10
+        else -> null
+    }
+}

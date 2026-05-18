@@ -326,7 +326,8 @@ final class ProofViewModel: ObservableObject {
         if peers.contains(where: { $0.value == originPeerId.value }) {
             return originPeerId
         }
-        if let prefixMatch = peers.first(where: { originPeerId.value.hasPrefix($0.value) }) {
+        let originPeerBytes = originPeerId.value.hexDecodedBytes()
+        if let prefixMatch = peers.first(where: { originPeerBytes.starts(with: $0.value.hexDecodedBytes()) }) {
             return prefixMatch
         }
         if peers.count == 1, let onlyPeer = peers.first {
@@ -392,10 +393,12 @@ final class ProofViewModel: ObservableObject {
                     appendLog(
                         "auto-send attempt \(attempt + 1) -> \(result) for \(peerId.value.suffix(6))"
                     )
+                    let resultDescription = String(describing: result)
+                    let wasSent = resultDescription == "Sent"
                     var receiptConfirmed = true
                     if let benchmarkPayload {
                         let receipt: BenchmarkReceiptEnvelope?
-                        if String(describing: result) == "Sent" {
+                        if wasSent {
                             receipt = await receiptTask?.value
                         } else {
                             pendingBenchmarkReceipts.removeValue(forKey: benchmarkPayload.tokenHex)?.resolve(nil)
@@ -406,7 +409,7 @@ final class ProofViewModel: ObservableObject {
                         }
                         receiptConfirmed = receipt != nil
                         let elapsedMs = elapsedMilliseconds(since: startedAtNanos)
-                        let benchmarkResult = receiptConfirmed ? String(describing: result) : (String(describing: result) == "Sent" ? "ReceiptTimeout" : String(describing: result))
+                        let benchmarkResult = receiptConfirmed ? resultDescription : (wasSent ? "ReceiptTimeout" : resultDescription)
                         appendLog(
                             "BENCHMARK transport bytes=\(payload.size) elapsedMs=\(elapsedMs) throughputKBps=\(formatThroughputKilobytesPerSecond(bytes: Int(payload.size), elapsedMs: elapsedMs)) result=\(benchmarkResult)"
                         )
@@ -417,7 +420,7 @@ final class ProofViewModel: ObservableObject {
                             outcome: benchmarkResult
                         )
                     }
-                    if String(describing: result) == "Sent" && receiptConfirmed {
+                    if wasSent && receiptConfirmed {
                         return
                     }
                 }

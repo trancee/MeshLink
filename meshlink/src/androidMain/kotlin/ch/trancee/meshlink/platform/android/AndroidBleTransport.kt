@@ -21,6 +21,7 @@ import android.os.ParcelUuid
 import android.util.Log
 import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.engine.DirectWireFrame
+import ch.trancee.meshlink.identity.hexStartsWith
 import ch.trancee.meshlink.identity.toHexString
 import ch.trancee.meshlink.power.PowerPolicy
 import ch.trancee.meshlink.transport.BleDiscoveryContract
@@ -60,7 +61,6 @@ internal class AndroidBleTransport(
     private val mutableEvents = MutableSharedFlow<TransportEvent>(extraBufferCapacity = 32)
     private val coroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val localKeyHash: ByteArray = advertisementKeyHash.copyOf()
-    private val localKeyHashHex: String = localKeyHash.toHexString()
     private val discoveredPeers: MutableMap<String, DiscoveredPeer> = linkedMapOf()
     private val peerHintByAddress: MutableMap<String, String> = linkedMapOf()
     private val activeLinksByHint: MutableMap<String, L2capLink> = linkedMapOf()
@@ -682,7 +682,7 @@ internal class AndroidBleTransport(
             return it
         }
         return discoveredPeers.values.firstOrNull { discoveredPeer ->
-            peerId.value.startsWith(discoveredPeer.hintPeerId.value)
+            peerId.value.hexStartsWith(discoveredPeer.keyHash)
         }
     }
 

@@ -5,6 +5,7 @@ package ch.trancee.meshlink.platform.ios
 import ch.trancee.meshlink.api.IosBleTransportBridgeRegistry
 import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.engine.DirectWireFrame
+import ch.trancee.meshlink.identity.hexStartsWith
 import ch.trancee.meshlink.identity.toHexString
 import ch.trancee.meshlink.power.PowerPolicy
 import ch.trancee.meshlink.transport.BleDiscoveryContract
@@ -79,7 +80,6 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
     private val mutableEvents = MutableSharedFlow<TransportEvent>(extraBufferCapacity = 32)
     private val coroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val localKeyHash: ByteArray = advertisementKeyHash.copyOf()
-    private val localKeyHashHex: String = localKeyHash.toHexString()
     private val telemetryEnabled: Boolean = readEnvironmentFlag(TRANSPORT_TELEMETRY_ENV)
     private val transportDebugLoggingEnabled: Boolean = readEnvironmentFlag(TRANSPORT_DEBUG_ENV)
     private val discoveredPeers: MutableMap<String, DiscoveredPeer> = linkedMapOf()
@@ -870,7 +870,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
             return it
         }
         return discoveredPeers.values.firstOrNull { discoveredPeer ->
-            peerId.value.startsWith(discoveredPeer.hintPeerId.value)
+            peerId.value.hexStartsWith(discoveredPeer.keyHash)
         }
     }
 
