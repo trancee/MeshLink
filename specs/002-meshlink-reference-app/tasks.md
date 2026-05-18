@@ -62,7 +62,7 @@
 
 - [X] T013 [P] [US1] Add guided first-exchange state tests in `meshlink-reference/src/commonTest/kotlin/ch/trancee/meshlink/reference/guided/GuidedFirstExchangeViewModelTest.kt`
 - [X] T014 [P] [US1] Add reference-ui contract and Compose UI tests for guided and solo surfaces in `meshlink-reference/src/commonTest/kotlin/ch/trancee/meshlink/reference/guided/GuidedFirstExchangeScreenTest.kt`
-- [ ] T015 [US1] Validate the guided first exchange and solo fallback against `specs/002-meshlink-reference-app/quickstart.md` and `specs/002-meshlink-reference-app/contracts/reference-ui.md`
+- [X] T015 [US1] Validate the guided first exchange and solo fallback against `specs/002-meshlink-reference-app/quickstart.md` and `specs/002-meshlink-reference-app/contracts/reference-ui.md`
 
 ### Implementation for User Story 1
 
@@ -87,7 +87,7 @@
 
 - [X] T022 [P] [US2] Add advanced control state tests in `meshlink-reference/src/commonTest/kotlin/ch/trancee/meshlink/reference/advanced/AdvancedControlsViewModelTest.kt`
 - [X] T023 [P] [US2] Add reference-ui contract and Compose UI tests for advanced and lab surfaces in `meshlink-reference/src/commonTest/kotlin/ch/trancee/meshlink/reference/advanced/AdvancedControlsScreenTest.kt`
-- [ ] T024 [US2] Validate lifecycle, power, trust-reset, transfer, and lab flows against `specs/002-meshlink-reference-app/quickstart.md` and `specs/002-meshlink-reference-app/contracts/reference-ui.md`
+- [X] T024 [US2] Validate lifecycle, power, trust-reset, transfer, and lab flows against `specs/002-meshlink-reference-app/quickstart.md` and `specs/002-meshlink-reference-app/contracts/reference-ui.md`
 
 ### Implementation for User Story 2
 
@@ -114,7 +114,7 @@
 - [X] T032 [P] [US3] Add timeline filter and search tests in `meshlink-reference/src/commonTest/kotlin/ch/trancee/meshlink/reference/timeline/TimelineFilterTest.kt`
 - [X] T033 [P] [US3] Add retained-history pruning tests in `meshlink-reference/src/commonTest/kotlin/ch/trancee/meshlink/reference/session/JsonSessionHistoryRepositoryTest.kt`
 - [X] T034 [P] [US3] Add session-artifact contract serialization tests in `meshlink-reference/src/commonTest/kotlin/ch/trancee/meshlink/reference/session/SessionArtifactContractTest.kt`
-- [ ] T035 [US3] Validate recent history and redacted export behavior against `specs/002-meshlink-reference-app/quickstart.md` and `specs/002-meshlink-reference-app/contracts/session-artifact.md`
+- [X] T035 [US3] Validate recent history and redacted export behavior against `specs/002-meshlink-reference-app/quickstart.md` and `specs/002-meshlink-reference-app/contracts/session-artifact.md`
 
 ### Implementation for User Story 3
 
@@ -138,7 +138,7 @@
 
 - [X] T041 [P] [US4] Add shared workflow catalog parity tests in `meshlink-reference/src/commonTest/kotlin/ch/trancee/meshlink/reference/parity/WorkflowCatalogParityTest.kt`
 - [X] T042 [P] [US4] Add Android and iOS parity smoke tests in `meshlink-reference/src/androidInstrumentedTest/kotlin/ch/trancee/meshlink/reference/ReferenceAppAndroidSmokeTest.kt` and `meshlink-reference/src/iosTest/kotlin/ch/trancee/meshlink/reference/ReferenceAppIosSmokeTest.kt`
-- [ ] T043 [US4] Validate named workflow, label, and blocker parity against `specs/002-meshlink-reference-app/quickstart.md` and `specs/002-meshlink-reference-app/contracts/reference-ui.md`
+- [X] T043 [US4] Validate named workflow, label, and blocker parity against `specs/002-meshlink-reference-app/quickstart.md` and `specs/002-meshlink-reference-app/contracts/reference-ui.md`
 
 ### Implementation for User Story 4
 

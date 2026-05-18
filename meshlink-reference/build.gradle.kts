@@ -53,6 +53,7 @@ kotlin {
             implementation("androidx.test:core:1.6.1")
             implementation("androidx.test.ext:junit:1.2.1")
             implementation("androidx.test:runner:1.6.2")
+            implementation("androidx.test.uiautomator:uiautomator:2.3.0")
         }
         androidUnitTest.dependencies {
             implementation(libs.kotlin.test)

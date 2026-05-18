@@ -52,10 +52,22 @@ For surrounding context, use:
 - [iOS proof app guide](../meshlink-proof/ios/README.md)
 - [Benchmarks and retained evidence](../benchmarks/README.md)
 
-## iOS UI automation
+## UI automation
 
-The iOS host project now includes a simulator-driven UI automation path for the
-reference workflows. Run it with:
+The reference app now includes deterministic Android and iOS workflow
+automation so the operator surfaces can be validated without requiring a live
+BLE peer.
+
+Android:
+
+```bash
+ANDROID_SERIAL=<your-android-device-serial> \
+./gradlew :meshlink-reference:connectedDebugAndroidTest \
+  -Pandroid.testInstrumentationRunnerArguments.class=ch.trancee.meshlink.reference.ReferenceAppAndroidWorkflowTest \
+  -Pandroid.testInstrumentationRunnerArguments.meshlink.reference.workflow=true
+```
+
+iOS:
 
 ```bash
 xcodebuild \
@@ -65,9 +77,9 @@ xcodebuild \
   test
 ```
 
-The UI test target launches the app in a deterministic automation mode so it
+The automation targets launch the app in a deterministic scripted mode so they
 can validate guided, advanced, timeline/history/export, lab, and blocked-start
-surfaces without requiring a physical BLE peer.
+surfaces while keeping the full two-device proof run separate.
 
 ## Expected outcome
 
