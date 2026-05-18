@@ -39,12 +39,10 @@ start with your need:
 - [The peer lifecycle model](explanation/peer-lifecycle.md)
 - [Power management](explanation/power-management.md)
 
-### Routing, transport, and delivery
+### Routing and transport
 
 - [About the L2CAP-first transport posture](explanation/why-l2cap-first.md)
-- [Broadcast delivery](explanation/broadcast-delivery.md)
 - [Cut-through relay](explanation/cut-through-relay.md)
-- [Transfer reliability](explanation/transfer-reliability.md)
 - [Understanding Babel routing](explanation/understanding-babel-routing.md)
 - [The MeshEngine pattern](explanation/meshengine-pattern.md)
 

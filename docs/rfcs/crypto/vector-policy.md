@@ -5,11 +5,10 @@ This document is for maintainers extending MeshLink's local crypto corpus or the
 ## Canonical evidence for S01
 
 - The machine-readable corpus policy lives in [`wycheproof/policy.json`](wycheproof/policy.json).
-- The authoritative automated gate is [`scripts/verify-m002-automated.sh`](../../../scripts/verify-m002-automated.sh).
-- The iOS bridge boundary and install contract stay documented in [iOS Crypto Bridge](../../ios-crypto-bridge.md).
+- The authoritative automated evidence now comes from the repository's current Gradle/CI crypto verification bundle rather than the older slice-specific shell wrappers.
+- The iOS bridge boundary and install contract stay documented in the [MeshLink SDK API reference](../../reference/meshlink-sdk-api.md#ios-bridge-entry-points) and [How to use MeshLink from Swift](../../how-to/use-meshlink-from-swift.md).
 - The higher-level peer-trust behavior stays documented in [The Trust Model](../../explanation/trust-model.md).
-- The bilateral Android ↔ iOS proof contract stays documented in [M002/S03 Android ↔ iOS Direct-Interop Runbook](../../runbooks/m002-s03-android-ios-direct-interop.md); the M002 gate inventories that contract but does not automate the live radio exchange.
-- [`scripts/verify-s08-automated.sh`](../../../scripts/verify-s08-automated.sh) remains the BLE/reference-app gate and is intentionally separate. Later M002 slices should extend `scripts/verify-m002-automated.sh` instead of stretching the S08 workflow further.
+- Physical Android ↔ iOS proof evidence now lives with the [benchmark and validation baselines](../../../benchmarks/README.md) and the proof-app guides rather than the older M002 runbook set.
 
 ## Policy verdicts
 
@@ -31,7 +30,7 @@ The tracked manifest currently covers Ed25519 verification and X25519 shared-sec
 | x25519 | 6 | 0 | 18 | 24 |
 | total | 9 | 7 | 18 | 34 |
 
-If `wycheproof/policy.json` changes, update this table in the same change. `scripts/verify-m002-automated.sh` treats stale counts as documentation drift.
+If `wycheproof/policy.json` changes, update this table in the same change. The current automated verification bundle should treat stale counts as documentation drift.
 
 ## Provider coverage matrix
 
@@ -41,7 +40,7 @@ If `wycheproof/policy.json` changes, update this table in the same change. `scri
 | JVM provider conformance | The JVM test provider matches the RFC vectors and the explicit Wycheproof policy buckets. | `JvmCryptoPolicyConformanceTest` |
 | Android provider conformance | `AndroidCryptoProvider` honors the same RFC vectors and explicit policy buckets on host execution. | `AndroidCryptoPolicyConformanceTest` |
 | Runtime fail-closed behavior | `MeshLink.create(transport, cryptoProvider, diagnostics)` rejects malformed crypto before HKDF/session transport use. | `CryptoProviderRuntimeContractTest` and `MeshRuntimeAndroidCryptoTest` |
-| iOS bridge boundary | The iOS bridge contract remains compile + link only for `iosArm64`; this slice does not claim simulator or on-device runtime execution. | `:meshlink:compileTestKotlinIosArm64` and `:meshlink:linkDebugTestIosArm64` via [`scripts/verify-m002-automated.sh`](../../../scripts/verify-m002-automated.sh) |
+| iOS bridge boundary | The iOS bridge contract remains compile + link only for `iosArm64`; this slice does not claim simulator or on-device runtime execution. | Targeted `iosArm64` compile/link coverage in the current Gradle/CI verification bundle |
 
 ## Fail-closed runtime expectations
 
@@ -66,5 +65,5 @@ Redacted output is part of the contract:
 1. Update the tracked local RFC or Wycheproof corpus.
 2. Classify every new tcId in [`wycheproof/policy.json`](wycheproof/policy.json); uncategorized or stale tcIds are gate failures.
 3. Update this document so the coverage table and prose still match the manifest and current proof boundary.
-4. Run `bash scripts/verify-m002-automated.sh`.
-5. If later M002 slices add live radio or broader platform proof, extend `scripts/verify-m002-automated.sh`; do not replace it and do not widen `scripts/verify-s08-automated.sh` to absorb this policy gate.
+4. Run the current Gradle/CI verification bundle for the crypto/runtime contract.
+5. If later work broadens live-radio or cross-platform proof, extend that current verification bundle rather than reintroducing slice-specific shell gates.
