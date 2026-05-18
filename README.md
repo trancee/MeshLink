@@ -24,10 +24,12 @@ The documentation follows the Diátaxis model.
 ### How-to guides
 
 - [How to integrate MeshLink into a host app](docs/how-to/integrate-meshlink-into-a-host-app.md) — bootstrap the SDK on Android and iOS, collect events, send messages, and handle trust resets.
+- [How to use MeshLink from Swift](docs/how-to/use-meshlink-from-swift.md) — the Swift-facing names, calling conventions, and collection patterns exposed by the generated Apple framework.
 
 ### Reference
 
-- [MeshLink SDK API reference](docs/reference/meshlink-sdk-api.md) — the public API, result types, diagnostics, limits, and iOS bridge entry points.
+- [MeshLink SDK API reference](docs/reference/meshlink-sdk-api.md) — the public API, result types, diagnostics, limits, iOS bridge entry points, and Swift naming notes.
+- [Generated public API symbol tables](docs/reference/generated-public-api.md) — the checked-in public API surface rendered directly from the compatibility-tracked API dump.
 
 ### Explanation
 

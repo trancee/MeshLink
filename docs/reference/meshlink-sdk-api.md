@@ -4,7 +4,20 @@ This page describes the public MeshLink SDK API.
 
 The Kotlin signatures on this page are the source of truth. Swift and Objective-C consumers use the same public model through the Kotlin Multiplatform-generated bridge.
 
-For integration steps, use [How to integrate MeshLink into a host app](../how-to/integrate-meshlink-into-a-host-app.md). For rationale and best practices, use [About integrating MeshLink well](../explanation/about-integrating-meshlink.md).
+For integration steps, use [How to integrate MeshLink into a host app](../how-to/integrate-meshlink-into-a-host-app.md). For Swift examples, use [How to use MeshLink from Swift](../how-to/use-meshlink-from-swift.md). For rationale and best practices, use [About integrating MeshLink well](../explanation/about-integrating-meshlink.md). For a completeness appendix rendered from the public API dump, use [Generated public API symbol tables](generated-public-api.md).
+
+## Swift naming notes
+
+These names matter when you consume the generated Apple framework from Swift.
+
+| Kotlin surface | Swift-facing name |
+|---|---|
+| `MeshLink.create(...)` | `MeshLink.shared.create(...)` |
+| `meshLinkConfig { ... }` | `MeshLinkConfigKt.meshLinkConfig { ... }` |
+| `PowerMode.Automatic` | `PowerMode.Automatic.shared` |
+| `RegulatoryRegion.DEFAULT` | `RegulatoryRegion.default_` |
+| suspend functions like `start()` | completion-handler methods such as `api.start { result, error in ... }` |
+| `Flow.collect(...)` | `collect(collector:completionHandler:)` with a collector object conforming to `Kotlinx_coroutines_coreFlowCollector` |
 
 ## Factory entry points
 
