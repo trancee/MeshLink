@@ -618,6 +618,9 @@ restart.
 - **Follow-up SC-005 Durable Memory Artifact Retention (Phase 24)**: Runs after
   Phase 23, or earlier if the implementation already enforces the cap and only
   retained-evidence work remains.
+- **Follow-up SC-001 Fresh-Reader Validation Closure (Phase 25)**: Runs after
+  Phase 24, or earlier if only the retained physical quickstart evidence gap
+  remains.
 
 ### User Story Dependencies
 
@@ -678,7 +681,7 @@ Task: "Implement `TransferSession`, ACK scoreboard, configurable delivery-deadli
 4. Add User Story 3 → validate power behavior and cross-platform parity
 5. Finish with benchmark, BCV, docs, and quickstart gates
 6. If `SC-004` or constitution-traceability gaps remain open, execute the
-   appended follow-up phases in ledger order (currently Phases 7–24) before
+   appended follow-up phases in ledger order (currently Phases 7–25) before
    declaring release readiness.
 7. Do not make a release-readiness or full-conformance claim while Phase 19
    remains open; `SC-004` requires either retained passing evidence on
@@ -738,3 +741,22 @@ artifacts instead of only a pass/fail budget statement.
   `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/integration/MemoryBudgetIntegrationTest.kt`,
   rerunning the JVM memory-budget validation, and syncing the retained value into
   `benchmarks/README.md` and `specs/001-ble-mesh-sdk/alignment-audit.md`.
+
+---
+
+## Phase 25: Follow-up - SC-001 Fresh-Reader Validation Closure
+
+**Purpose**: Close the remaining `SC-001` success-criteria gap by retaining a
+passing timed fresh-reader quickstart run, while preserving explicit blocker
+artifacts whenever the required two-device validation cannot start cleanly.
+
+- [X] T111 [P] Attempt a fresh `SC-001` quickstart validation on the current
+  attached hardware, retain start/end timestamps plus blocker evidence in
+  `specs/001-ble-mesh-sdk/research.md` when the run cannot start cleanly, and
+  sync the current blocker state into `specs/001-ble-mesh-sdk/alignment-audit.md`.
+- [ ] T112 [P] Retain one passing timed fresh-reader `SC-001` quickstart run
+  with start timestamp, end timestamp, elapsed duration, observer note, sender
+  success evidence, and recipient proof evidence in
+  `specs/001-ble-mesh-sdk/research.md` once a supported two-device setup is
+  available and the iPhone proof app can be built/launched on the target device
+  without preparation blockers.

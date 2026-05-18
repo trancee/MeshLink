@@ -387,6 +387,26 @@ reader-test attempt in this implementation session recorded:
   reader / observer pair or a reserved two-device quickstart validation window,
   so no `SC-001` pass claim is made from this attempt.
 
+## Quickstart reader-test attempt (2026-05-18)
+
+A later fresh `SC-001` closure attempt on the currently attached hardware
+recorded:
+
+- start: `2026-05-18T17:09:54Z`
+- end: `2026-05-18T17:10:55Z`
+- elapsed: `61s`
+- observer note: blocked before any two-device quickstart exchange could start.
+  `adb devices -l` returned no attached Android device, `xcrun devicectl list
+  devices` reported only one available paired iPhone (`iPhone 15`) plus one
+  unavailable `iPhone 12 mini`, and a direct physical-device build for the
+  available iPhone timed out with `xcodebuild: error: Timed out waiting for all
+  destinations ...` plus `iPhone 15 may need to be unlocked to recover from
+  previously reported preparation errors`.
+
+This retains the current blocker evidence for `SC-001`, but it is still not a
+passing timed fresh-reader run and must not be cited as success-criterion
+closure.
+
 ## Physical validation update (2026-05-12)
 
 The benchmark module README now carries the consolidated baseline table for JVM,

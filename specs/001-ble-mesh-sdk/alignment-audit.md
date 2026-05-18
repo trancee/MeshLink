@@ -41,7 +41,7 @@ The public API, TOFU trust model, routing, selective-ACK large transfer path, di
 
 However, this audit still finds **one remaining evidence gap**:
 
-1. **Success-criteria evidence gap:** `SC-001` still lacks a retained passing timed reader-test; the retained attempt is explicitly blocked and does not claim success.
+1. **Success-criteria evidence gap:** `SC-001` still lacks a retained passing timed reader-test; the retained attempts are explicitly blocked and do not claim success. This gap is now tracked in `tasks.md` as open `T112`.
 
 ## Areas verified as aligned
 
@@ -212,8 +212,8 @@ This audit did not rerun physical benchmarks, but the retained evidence and word
 
 The quickstart docs now explain how to measure a timed reader-test, but the retained evidence still stops short of a pass:
 
-- `specs/001-ble-mesh-sdk/research.md` contains `Quickstart reader-test attempt (2026-05-13)`
-- that retained entry explicitly says **no `SC-001` pass claim is made**
+- `specs/001-ble-mesh-sdk/research.md` contains blocked reader-test attempts from `2026-05-13` and `2026-05-18`
+- those retained entries explicitly stop short of any `SC-001` pass claim
 - `specs/001-ble-mesh-sdk/quickstart.md` says the direct flow works on attached hardware, but that is not the same as the required timed fresh-reader proof
 
 So the implementation and quickstart may be usable, but the spec's success-criterion evidence is still incomplete.
@@ -291,6 +291,6 @@ rg -n 'MEMORY_BUDGET baselineBytes=7437064 usedBytes=11430280 steadyStateBytes=3
 
 Result:
 
-- no open governed tasks remain in `tasks.md`
-- `SC-001` still has only a blocked reader-test attempt, not a retained pass
+- `tasks.md` now leaves only the explicit `SC-001` closure task (`T112`) open
+- `SC-001` still has only blocked reader-test attempts, not a retained pass
 - `SC-005` now retains an explicit raw heap-byte artifact in `benchmarks/README.md`
