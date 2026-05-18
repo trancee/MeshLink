@@ -7,7 +7,7 @@ description: "Task list for MeshLink Offline BLE Mesh SDK"
 **Input**: Design documents from `/specs/001-ble-mesh-sdk/`
 **Prerequisites**: plan.md (required), spec.md (required for user stories), research.md, data-model.md, contracts/, quickstart.md
 
-**Validation**: Every user story MUST include validation tasks. When work changes code, contracts, or data models, include automated tests or contract/integration checks. For documentation-only work, include manual verification or reader-test tasks. When applicable, add explicit work for the root `constitution.md` obligations: formatting, static analysis, API compatibility, cross-platform parity, Wycheproof or harness coverage, benchmarks, and compatibility validation.
+**Validation**: Every user story MUST include validation tasks. When work changes code, contracts, or data models, include automated tests or contract/integration checks. For documentation-only work, include manual verification or reader-test tasks. When applicable, add explicit work for the root `constitution.md` obligations: formatting, static analysis, coverage, API compatibility, required Android/iOS platform tests, cross-platform parity, Wycheproof or harness coverage, benchmarks, public-API KDoc, documentation parity, and compatibility validation. When YAML or workflow files change, add `yamllint` validation as well.
 
 **Skill Use**: Before starting implementation or best-practice-heavy work, read the relevant skills listed in `specs/001-ble-mesh-sdk/plan.md` or otherwise applicable to the task. Completion summaries MUST include a `Skills Used` section or explicitly state `None`.
 
@@ -101,8 +101,9 @@ description: "Task list for MeshLink Offline BLE Mesh SDK"
 **Independent Validation**: Run a three-node harness that proves route
 propagation, reconvergence, configurable no-route retry deadline behavior,
 bounded, jittered exponential backoff while no route exists, immediate retry on
-route availability, and successful 64 KiB transfer with selective
-retransmission semantics.
+route availability, explicit loss of pending retry state across app or SDK
+restart, and successful 64 KiB transfer with selective retransmission
+semantics.
 
 ### Validation for User Story 2 (REQUIRED) ⚠️
 
@@ -407,6 +408,11 @@ via the explicit waiver / known-limitation path recorded in the canonical docs.
   `specs/001-ble-mesh-sdk/release-decision.md`, linking the currently selected
   conformance path and leaving the waiver / known-limitation branch
   unselected.
+  Historical note: this task captured the provisional pre-waiver
+  conformance-track framing. The released-baseline closure path later changed
+  to the explicit waiver / known-limitation route recorded by `T093`, while
+  future-branch non-waived conformance evidence was only retained later by
+  `T108`.
 - [X] T092 If the release remains blocked on conformance, execute one bounded
   iOS MeshLink-path throughput remediation experiment and rerun the
   recipient-confirmed reference-hardware benchmark, retaining raw
@@ -541,7 +547,7 @@ real MeshLink transport candidate for a future non-waived release.
 
 ---
 
-## Phase 21: Follow-up - Product-path SC-004 Closure
+## Phase 22: Follow-up - Product-path SC-004 Closure
 
 **Purpose**: Close the future-branch iOS `SC-004` gap on the mixed-bearer
 product path and retain canonical evidence once the remaining Samsung variance
@@ -564,6 +570,22 @@ and headless proof false negatives are resolved.
   and `meshlink-sample/ios/README.md`, and record whether the future branch now
   closes `SC-004` on the reference matrix without relying on the historical
   release waiver.
+
+---
+
+## Phase 23: Follow-up - FR-008 Restart-Loss Validation Closure
+
+**Purpose**: Close the remaining explicit `FR-008` coverage gap by proving that
+pending no-route retries are in-memory only and are lost across app or SDK
+restart.
+
+- [ ] T109 [P] Add explicit `FR-008` restart-loss integration coverage by
+  creating a pending no-route delivery, restarting the runtime/harness, and
+  asserting that retry/session state is gone until the host resubmits the
+  message in
+  `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/integration/MeshRoutingIntegrationTest.kt`,
+  `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/integration/LargeTransferIntegrationTest.kt`,
+  and any affected harness helpers.
 
 ---
 
@@ -592,7 +614,10 @@ and headless proof false negatives are resolved.
 - **Follow-up SC-004 Release Closure (Phase 19)**: Runs after Phase 18 and was blocking until either the normative conformance path or the explicit waiver path was explicitly completed; it is now closed via the explicit waiver / known-limitation path.
 - **Follow-up Post-waiver Future SC-004 Redesign (Phase 20)**: Runs after Phase 19 when a future non-waived release needs a materially different transport / platform branch instead of another small app-layer tuning pass.
 - **Follow-up Reverse GATT-notify Product-path Integration (Phase 21)**: Runs after Phase 20 once the proof-only reverse GATT-notify branch is promising enough to justify product-path integration work.
-- **Follow-up Mixed-bearer Control-plane Redesign (Phase 22)**: Runs after Phase 21 if the optional product-path GATT-notify bearer can move forward data but still cannot close the full transfer before the L2CAP-bound control plane expires.
+- **Follow-up Product-path SC-004 Closure (Phase 22)**: Runs after Phase 21 once the mixed-bearer product path is stable enough for fresh headless closure evidence on the reference matrix.
+- **Follow-up FR-008 Restart-Loss Validation Closure (Phase 23)**: Runs after
+  Phase 22, or earlier if the runtime already behaves correctly and only
+  test/evidence work remains.
 
 ### User Story Dependencies
 
@@ -653,14 +678,14 @@ Task: "Implement `TransferSession`, ACK scoreboard, configurable delivery-deadli
 4. Add User Story 3 → validate power behavior and cross-platform parity
 5. Finish with benchmark, BCV, docs, and quickstart gates
 6. If `SC-004` or constitution-traceability gaps remain open, execute the
-   appended follow-up phases in ledger order (currently Phases 7–22) before
+   appended follow-up phases in ledger order (currently Phases 7–23) before
    declaring release readiness.
 7. Do not make a release-readiness or full-conformance claim while Phase 19
    remains open; `SC-004` requires either retained passing evidence on
    reference hardware or the explicit waiver / known-limitation path recorded
    in the canonical docs.
 8. After a waived release has been recorded, future non-waived closure work
-   proceeds through Phases 20–21 rather than silently reopening the waived
+   proceeds through Phases 20–22 rather than silently reopening the waived
    release framing.
 
 ### Parallel Team Strategy

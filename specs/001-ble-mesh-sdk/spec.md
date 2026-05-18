@@ -292,6 +292,13 @@ error behavior.
   developer-visible SDK surface, configuration concepts, lifecycle states,
   diagnostic meanings, error categories, and documentation coverage for the same
   workflows.
+- **Quality Gates**: Applies. Changes for this feature must satisfy the
+  repository’s release-blocking quality gates when applicable, including
+  formatting, static analysis, coverage, API compatibility, required platform
+  tests, documentation parity, and benchmark evidence. Public API changes MUST
+  ship with the required KDoc and any associated API-diff rationale in the same
+  change set. If YAML or workflow files are touched, they MUST also pass the
+  repository’s YAML validation gate.
 - **Performance & Technical Constraints**: Applies. The SDK must remain
   offline-only, honor the project's minimum mobile platform support, keep shared
   behavior in common cross-platform logic, use the project's approved crypto
@@ -326,8 +333,9 @@ error behavior.
   repository docs.
 - **SC-002**: In a three-device topology with no internet and no direct path
   between sender and recipient, addressed messages are delivered through the
-  mesh without manual route selection, and control-plane route convergence
-  after a topology change completes within 3 seconds.
+  mesh without manual route selection. In a 10-node topology exercised through
+  the canonical virtual transport, control-plane route convergence after a
+  topology change completes within 3 seconds.
 - **SC-003**: A 64 KB payload can be delivered intact across the mesh despite
   partial chunk loss, without restarting the transfer from byte zero.
 - **SC-004**: On the project’s reference benchmark hardware—Android Pixel 6 or
