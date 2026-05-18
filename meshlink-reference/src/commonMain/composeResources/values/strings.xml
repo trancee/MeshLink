@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_title">MeshLink Reference</string>
+    <string name="guided_title">Guided first exchange</string>
+    <string name="guided_summary">Start offline, discover a peer, and capture the first proof line.</string>
+    <string name="advanced_title">Advanced controls</string>
+    <string name="advanced_summary">Inspect the full public SDK surface without losing the guided path.</string>
+    <string name="timeline_title">Technical timeline</string>
+    <string name="timeline_summary">See diagnostic, lifecycle, peer, and delivery events in one place.</string>
+    <string name="lab_title">Lab</string>
+    <string name="lab_summary">Proof-only and benchmark-only behaviors stay isolated from the supported path.</string>
+    <string name="history_title">Recent history</string>
+    <string name="history_summary">Retained sessions stay clearly separate from the live run.</string>
+    <string name="surface_label">Surface</string>
+    <string name="platform_label">Platform</string>
+    <string name="mode_label">Mode</string>
+</resources>
