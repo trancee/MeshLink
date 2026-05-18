@@ -32,6 +32,7 @@ Quick entry points:
 - [How to build and run the iOS proof app](meshlink-proof/ios/README.md)
 - [Benchmarks and retained evidence](benchmarks/README.md)
 - [Feature specification and release decision](specs/001-ble-mesh-sdk/spec.md)
+- [Spec alignment audit](specs/001-ble-mesh-sdk/alignment-audit.md)
 
 ## Source of truth
 
