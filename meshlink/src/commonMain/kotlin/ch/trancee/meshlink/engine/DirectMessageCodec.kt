@@ -8,13 +8,13 @@ import ch.trancee.meshlink.wire.WriteBuffer
 internal class DirectMessageEnvelope
 internal constructor(
     internal val senderPeerId: PeerId,
-    senderFingerprintHexBytes: ByteArray,
+    senderFingerprintBytes: ByteArray,
     senderEd25519PublicKey: ByteArray,
     senderX25519PublicKey: ByteArray,
     ciphertext: ByteArray,
 ) {
     private val senderPeerIdBytes: ByteArray = senderPeerId.value.encodeToByteArray()
-    internal val senderFingerprintHexBytes: ByteArray = senderFingerprintHexBytes.copyOf()
+    internal val senderFingerprintBytes: ByteArray = senderFingerprintBytes.copyOf()
     internal val senderEd25519PublicKey: ByteArray = senderEd25519PublicKey.copyOf()
     internal val senderX25519PublicKey: ByteArray = senderX25519PublicKey.copyOf()
     internal val ciphertext: ByteArray = ciphertext.copyOf()
@@ -23,8 +23,8 @@ internal constructor(
         val buffer = WriteBuffer()
         buffer.writeIntLittleEndian(senderPeerIdBytes.size)
         buffer.writeBytes(senderPeerIdBytes)
-        buffer.writeIntLittleEndian(senderFingerprintHexBytes.size)
-        buffer.writeBytes(senderFingerprintHexBytes)
+        buffer.writeIntLittleEndian(senderFingerprintBytes.size)
+        buffer.writeBytes(senderFingerprintBytes)
         buffer.writeIntLittleEndian(senderEd25519PublicKey.size)
         buffer.writeBytes(senderEd25519PublicKey)
         buffer.writeIntLittleEndian(senderX25519PublicKey.size)
@@ -44,7 +44,7 @@ internal constructor(
             val ciphertext = buffer.readBytes(buffer.readIntLittleEndian())
             return DirectMessageEnvelope(
                 senderPeerId = PeerId(senderBytes.decodeToString()),
-                senderFingerprintHexBytes = fingerprintBytes,
+                senderFingerprintBytes = fingerprintBytes,
                 senderEd25519PublicKey = senderEd25519PublicKey,
                 senderX25519PublicKey = senderX25519PublicKey,
                 ciphertext = ciphertext,

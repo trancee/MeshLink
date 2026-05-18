@@ -35,7 +35,7 @@ final class ProofViewModel: ObservableObject {
         }
     )
     private var autoSendTasks: [String: Task<Void, Never>] = [:]
-    private var peerHexBytesByValue: [String: [UInt8]] = [:]
+    private var peerBytesByValue: [String: [UInt8]] = [:]
     private var pendingBenchmarkReceipts: [String: PendingBenchmarkReceipt] = [:]
     private var benchmarkTokenCounter: UInt64 = 0
     private var capturedStdoutBuffer: String = ""
@@ -214,12 +214,12 @@ final class ProofViewModel: ObservableObject {
     private func handlePeerEvent(_ value: Any?) {
         if let found = value as? PeerEvent.Found {
             peers = insertOrReplace(found.peerId, into: peers)
-            cachePeerHexBytes(found.peerId)
+            cachePeerBytes(found.peerId)
             appendLog("Peer found: \(found.peerId.value)")
             scheduleAutoSend(for: found.peerId)
         } else if let lost = value as? PeerEvent.Lost {
             peers.removeAll { peer in peer.value == lost.peerId.value }
-            peerHexBytesByValue.removeValue(forKey: lost.peerId.value)
+            peerBytesByValue.removeValue(forKey: lost.peerId.value)
             autoSendTasks.removeValue(forKey: lost.peerId.value)?.cancel()
             appendLog("Peer lost: \(lost.peerId.value)")
         } else if let changed = value as? PeerEvent.StateChanged {
@@ -266,7 +266,7 @@ final class ProofViewModel: ObservableObject {
         }
         let recoveredPeer = PeerId(value: recoveredPeerValue)
         peers = insertOrReplace(recoveredPeer, into: peers)
-        cachePeerHexBytes(recoveredPeer)
+        cachePeerBytes(recoveredPeer)
         scheduleAutoSend(for: recoveredPeer)
     }
 
@@ -330,11 +330,11 @@ final class ProofViewModel: ObservableObject {
         if peers.contains(where: { $0.value == originPeerId.value }) {
             return originPeerId
         }
-        guard let originPeerBytes = originPeerId.value.hexDecodedBytesOrNil() else {
+        guard let originPeerBytes = originPeerId.value.toBytesOrNil() else {
             return peers.count == 1 ? peers.first ?? originPeerId : originPeerId
         }
         if let prefixMatch = peers.first(where: { peer in
-            guard let peerBytes = peerHexBytesByValue[peer.value] else {
+            guard let peerBytes = peerBytesByValue[peer.value] else {
                 return false
             }
             return originPeerBytes.starts(with: peerBytes)
@@ -666,8 +666,8 @@ final class ProofViewModel: ObservableObject {
         return copy
     }
 
-    private func cachePeerHexBytes(_ peerId: PeerId) {
-        peerHexBytesByValue[peerId.value] = peerId.value.hexDecodedBytesOrNil()
+    private func cachePeerBytes(_ peerId: PeerId) {
+        peerBytesByValue[peerId.value] = peerId.value.toBytesOrNil()
     }
 }
 
@@ -713,7 +713,7 @@ private struct BenchmarkPayloadEnvelope {
         Self.magic.enumerated().forEach { index, byte in
             bytes[index] = byte
         }
-        tokenHex.hexDecodedBytes().enumerated().forEach { index, byte in
+        tokenHex.toBytes().enumerated().forEach { index, byte in
             bytes[Self.magic.count + index] = byte
         }
         return Data(bytes)
@@ -871,11 +871,11 @@ private extension KotlinByteArray {
 }
 
 private extension String {
-    func hexDecodedBytes() -> [UInt8] {
-        hexDecodedBytesOrNil() ?? []
+    func toBytes() -> [UInt8] {
+        toBytesOrNil() ?? []
     }
 
-    func hexDecodedBytesOrNil() -> [UInt8]? {
+    func toBytesOrNil() -> [UInt8]? {
         guard count.isMultiple(of: 2) else {
             return nil
         }

@@ -11,16 +11,16 @@ internal class LocalIdentity
 internal constructor(
     internal val peerId: PeerId,
     identityFingerprint: String? = null,
-    identityFingerprintHexBytes: ByteArray,
+    identityFingerprintBytes: ByteArray,
     internal val noiseIdentity: NoiseIdentity,
     internal val cryptoProvider: CryptoProvider,
     advertisementKeyHash: ByteArray,
 ) {
     private var identityFingerprintText: String? = identityFingerprint
-    internal val identityFingerprintHexBytes: ByteArray = identityFingerprintHexBytes.copyOf()
+    internal val identityFingerprintBytes: ByteArray = identityFingerprintBytes.copyOf()
     internal val identityFingerprint: String
         get() =
-            identityFingerprintText ?: identityFingerprintHexBytes.decodeToString().also {
+            identityFingerprintText ?: identityFingerprintBytes.toHexString().also {
                 identityFingerprintText = it
             }
     internal val advertisementKeyHash: ByteArray = advertisementKeyHash.copyOf()
@@ -54,10 +54,9 @@ internal constructor(
                 PlaceholderCryptoProvider.sha256(
                     noiseIdentity.ed25519KeyPair.publicKey + noiseIdentity.x25519KeyPair.publicKey
                 )
-            val identityFingerprintHexBytes = publicKeyHash.toHexByteArray()
             return LocalIdentity(
                 peerId = peerId,
-                identityFingerprintHexBytes = identityFingerprintHexBytes,
+                identityFingerprintBytes = publicKeyHash,
                 noiseIdentity = noiseIdentity,
                 cryptoProvider = PlaceholderCryptoProvider,
                 advertisementKeyHash =
@@ -76,10 +75,9 @@ internal constructor(
                 )
             val derivedPeerId =
                 peerId ?: PeerId(publicKeyHash.copyOfRange(0, PEER_ID_SIZE_BYTES).toHexString())
-            val identityFingerprintHexBytes = publicKeyHash.toHexByteArray()
             return LocalIdentity(
                 peerId = derivedPeerId,
-                identityFingerprintHexBytes = identityFingerprintHexBytes,
+                identityFingerprintBytes = publicKeyHash,
                 noiseIdentity = noiseIdentity,
                 cryptoProvider = provider,
                 advertisementKeyHash =
@@ -88,7 +86,6 @@ internal constructor(
         }
 
         private const val ADVERTISEMENT_KEY_HASH_SIZE_BYTES: Int = 12
-        private const val HASH_SIZE_BYTES: Int = 32
         private const val KEY_SIZE_BYTES: Int = 32
         private const val PEER_ID_SIZE_BYTES: Int = 20
     }
@@ -117,17 +114,7 @@ internal fun ByteArray.toHexString(): String {
     }
 }
 
-internal fun ByteArray.toHexByteArray(): ByteArray {
-    val output = ByteArray(size * 2)
-    for (index in indices) {
-        val value = this[index].toInt() and 0xFF
-        output[index * 2] = HEX_DIGITS[value ushr 4]
-        output[(index * 2) + 1] = HEX_DIGITS[value and 0x0F]
-    }
-    return output
-}
-
-internal fun String.hexToByteArrayOrNull(): ByteArray? {
+internal fun String.toBytes(): ByteArray? {
     if ((length and 1) != 0) {
         return null
     }
@@ -162,34 +149,12 @@ internal fun String.hexStartsWith(bytes: ByteArray): Boolean {
     return true
 }
 
-internal fun ByteArray.hexContentEquals(bytes: ByteArray): Boolean {
-    if (size != bytes.size * 2) {
-        return false
-    }
-    for (index in bytes.indices) {
-        val decoded = decodeHexByte(byteIndex = index * 2) ?: return false
-        if (decoded != (bytes[index].toInt() and 0xFF)) {
-            return false
-        }
-    }
-    return true
-}
-
 private fun String.decodeHexByte(charIndex: Int): Int? {
     if (charIndex + 1 >= length) {
         return null
     }
     val high = decodeHexNibble(this[charIndex]) ?: return null
     val low = decodeHexNibble(this[charIndex + 1]) ?: return null
-    return (high shl 4) or low
-}
-
-private fun ByteArray.decodeHexByte(byteIndex: Int): Int? {
-    if (byteIndex + 1 >= size) {
-        return null
-    }
-    val high = decodeHexNibble(this[byteIndex].toInt() and 0xFF) ?: return null
-    val low = decodeHexNibble(this[byteIndex + 1].toInt() and 0xFF) ?: return null
     return (high shl 4) or low
 }
 
@@ -210,5 +175,3 @@ private fun decodeHexNibble(value: Int): Int? {
         else -> null
     }
 }
-
-private val HEX_DIGITS: ByteArray = "0123456789abcdef".encodeToByteArray()

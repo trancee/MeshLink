@@ -109,14 +109,6 @@ internal object MessageSealer {
         )
     }
 
-    internal fun seal(plaintext: ByteArray, identityFingerprint: String): ByteArray {
-        return xor(plaintext, identityFingerprint.encodeToByteArray())
-    }
-
-    internal fun open(ciphertext: ByteArray, identityFingerprint: String): ByteArray {
-        return xor(ciphertext, identityFingerprint.encodeToByteArray())
-    }
-
     private fun deriveEncryptionKey(
         provider: CryptoProvider,
         sharedSecret: ByteArray,
@@ -153,16 +145,6 @@ internal object MessageSealer {
     private fun requireContributorySharedSecret(sharedSecret: ByteArray): Unit {
         if (sharedSecret.isEmpty() || sharedSecret.all { byte -> byte == 0.toByte() }) {
             throw MeshLinkException.CryptoFailure("Derived X25519 shared secret is invalid")
-        }
-    }
-
-    private fun xor(input: ByteArray, key: ByteArray): ByteArray {
-        if (key.isEmpty()) {
-            return input.copyOf()
-        }
-        return ByteArray(input.size) { index ->
-            val value = input[index].toInt() xor key[index % key.size].toInt()
-            value.toByte()
         }
     }
 

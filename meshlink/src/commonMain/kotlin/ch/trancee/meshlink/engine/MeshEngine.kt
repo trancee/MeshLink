@@ -25,8 +25,6 @@ import ch.trancee.meshlink.diagnostics.DiagnosticSeverity
 import ch.trancee.meshlink.diagnostics.DiagnosticSink
 import ch.trancee.meshlink.identity.LocalIdentity
 import ch.trancee.meshlink.identity.hexContentEquals
-import ch.trancee.meshlink.identity.toHexByteArray
-import ch.trancee.meshlink.identity.toHexString
 import ch.trancee.meshlink.platform.PlatformPermissionDeniedException
 import ch.trancee.meshlink.platform.currentEpochMillis
 import ch.trancee.meshlink.power.PowerPolicy
@@ -638,7 +636,7 @@ private constructor(
                 peerId = envelope.senderPeerId,
                 remoteEd25519PublicKey = envelope.senderEd25519PublicKey,
                 remoteX25519PublicKey = envelope.senderX25519PublicKey,
-                expectedFingerprintHexBytes = envelope.senderFingerprintHexBytes,
+                expectedFingerprintBytes = envelope.senderFingerprintBytes,
             ) ?: return
         val plaintext =
             runCatching {
@@ -794,7 +792,7 @@ private constructor(
                 val innerEnvelope =
                     DirectMessageEnvelope(
                             senderPeerId = localIdentity.peerId,
-                            senderFingerprintHexBytes = localIdentity.identityFingerprintHexBytes,
+                            senderFingerprintBytes = localIdentity.identityFingerprintBytes,
                             senderEd25519PublicKey = localIdentity.ed25519PublicKey,
                             senderX25519PublicKey = localIdentity.x25519PublicKey,
                             ciphertext = sealedPayload,
@@ -865,10 +863,10 @@ private constructor(
         val learnedTrust =
             TrustRecord(
                 peerIdValue = route.destinationPeerId.value,
-                identityFingerprintHexBytes =
-                    localIdentity.cryptoProvider
-                        .sha256(route.ed25519PublicKey + route.x25519PublicKey)
-                        .toHexByteArray(),
+                identityFingerprintBytes =
+                    localIdentity.cryptoProvider.sha256(
+                        route.ed25519PublicKey + route.x25519PublicKey
+                    ),
                 firstSeenAtEpochMillis = learnedAtEpochMillis,
                 lastVerifiedAtEpochMillis = learnedAtEpochMillis,
                 ed25519PublicKey = route.ed25519PublicKey,
@@ -923,7 +921,7 @@ private constructor(
         val innerEnvelope =
             DirectMessageEnvelope(
                     senderPeerId = localIdentity.peerId,
-                    senderFingerprintHexBytes = localIdentity.identityFingerprintHexBytes,
+                    senderFingerprintBytes = localIdentity.identityFingerprintBytes,
                     senderEd25519PublicKey = localIdentity.ed25519PublicKey,
                     senderX25519PublicKey = localIdentity.x25519PublicKey,
                     ciphertext = sealedPayload,
@@ -1686,13 +1684,13 @@ private constructor(
         peerId: PeerId,
         remoteEd25519PublicKey: ByteArray,
         remoteX25519PublicKey: ByteArray,
-        expectedFingerprintHexBytes: ByteArray? = null,
+        expectedFingerprintBytes: ByteArray? = null,
     ): TrustRecord? {
         val remoteIdentityHash =
             localIdentity.cryptoProvider.sha256(remoteEd25519PublicKey + remoteX25519PublicKey)
         if (
-            expectedFingerprintHexBytes != null &&
-                !expectedFingerprintHexBytes.hexContentEquals(remoteIdentityHash)
+            expectedFingerprintBytes != null &&
+                !expectedFingerprintBytes.contentEquals(remoteIdentityHash)
         ) {
             emitDiagnostic(
                 code = DiagnosticCode.TRUST_FAILURE,
@@ -1710,7 +1708,7 @@ private constructor(
             val trustRecord =
                 TrustRecord(
                     peerIdValue = peerId.value,
-                    identityFingerprintHexBytes = remoteIdentityHash.toHexByteArray(),
+                    identityFingerprintBytes = remoteIdentityHash,
                     firstSeenAtEpochMillis = verifiedAtEpochMillis,
                     lastVerifiedAtEpochMillis = verifiedAtEpochMillis,
                     ed25519PublicKey = remoteEd25519PublicKey,
@@ -1727,7 +1725,7 @@ private constructor(
             return trustRecord
         }
         if (
-            !existingTrust.identityFingerprintHexBytes.hexContentEquals(remoteIdentityHash) ||
+            !existingTrust.identityFingerprintBytes.contentEquals(remoteIdentityHash) ||
                 !existingTrust.ed25519PublicKey.contentEquals(remoteEd25519PublicKey) ||
                 !existingTrust.x25519PublicKey.contentEquals(remoteX25519PublicKey)
         ) {

@@ -3,6 +3,7 @@ package ch.trancee.meshlink.identity
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class HexEncodingTest {
@@ -29,12 +30,12 @@ class HexEncodingTest {
     }
 
     @Test
-    fun toHexByteArray_and_hexContentEquals_compareWithoutStringRoundTrip() {
+    fun toBytes_decodesHexIntoRawBytes() {
         val raw = byteArrayOf(0xCA.toByte(), 0xFE.toByte(), 0x10, 0x00)
-        val hexBytes = raw.toHexByteArray()
 
-        assertContentEquals("cafe1000".encodeToByteArray(), hexBytes)
-        assertTrue(hexBytes.hexContentEquals(raw))
-        assertFalse(hexBytes.hexContentEquals(byteArrayOf(0xCA.toByte(), 0xFE.toByte(), 0x10, 0x01)))
+        assertContentEquals(raw, "cafe1000".toBytes())
+        assertContentEquals(raw, "CAFE1000".toBytes())
+        assertNull("cafe100".toBytes())
+        assertNull("cafe100z".toBytes())
     }
 }

@@ -882,11 +882,11 @@ private object MeshLinkProofRuntime {
     private fun resolveBenchmarkReceiptPeerId(originPeerId: PeerId): PeerId {
         val knownPeer =
             synchronized(knownPeers) {
-                val originPeerBytes = originPeerId.value.hexToByteArrayOrNull()
+                val originPeerBytes = originPeerId.value.toBytes()
                 knownPeers[originPeerId.value]?.peerId
                     ?: originPeerBytes?.let { originBytes ->
                         knownPeers.values.firstOrNull { knownPeer ->
-                            knownPeer.hexBytes?.let(originBytes::startsWith) == true
+                            knownPeer.peerBytes?.let(originBytes::startsWith) == true
                         }?.peerId
                     }
                     ?: knownPeers.values.singleOrNull()?.peerId
@@ -1195,11 +1195,11 @@ private class ProofSnapshot(
 
 private class KnownPeer private constructor(
     val peerId: PeerId,
-    val hexBytes: ByteArray?,
+    val peerBytes: ByteArray?,
 ) {
     companion object {
         fun from(peerId: PeerId): KnownPeer {
-            return KnownPeer(peerId = peerId, hexBytes = peerId.value.hexToByteArrayOrNull())
+            return KnownPeer(peerId = peerId, peerBytes = peerId.value.toBytes())
         }
     }
 }
@@ -1211,7 +1211,7 @@ private fun ByteArray.startsWith(prefix: ByteArray): Boolean {
     return prefix.indices.all { index -> this[index] == prefix[index] }
 }
 
-private fun String.hexToByteArrayOrNull(): ByteArray? {
+private fun String.toBytes(): ByteArray? {
     if ((length and 1) != 0) {
         return null
     }

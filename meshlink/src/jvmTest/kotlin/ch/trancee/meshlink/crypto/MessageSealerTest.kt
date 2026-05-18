@@ -76,7 +76,7 @@ class MessageSealerTest {
     private fun trustRecordFor(identity: LocalIdentity): TrustRecord {
         return TrustRecord(
             peerIdValue = identity.peerId.value,
-            identityFingerprint = identity.identityFingerprint,
+            identityFingerprintBytes = identity.identityFingerprintBytes,
             firstSeenAtEpochMillis = 1_000L,
             lastVerifiedAtEpochMillis = 2_000L,
             ed25519PublicKey = identity.ed25519PublicKey,

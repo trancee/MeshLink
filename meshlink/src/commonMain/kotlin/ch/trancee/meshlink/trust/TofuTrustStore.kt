@@ -1,6 +1,6 @@
 package ch.trancee.meshlink.trust
 
-import ch.trancee.meshlink.identity.hexToByteArrayOrNull
+import ch.trancee.meshlink.identity.toBytes
 import ch.trancee.meshlink.storage.SecureStorage
 import ch.trancee.meshlink.wire.ReadBuffer
 import ch.trancee.meshlink.wire.WriteBuffer
@@ -27,7 +27,7 @@ internal class TofuTrustStore internal constructor(private val secureStorage: Se
                     }
                 TrustRecord(
                     peerIdValue = peerIdValue,
-                    identityFingerprintHexBytes = fingerprintBytes,
+                    identityFingerprintBytes = fingerprintBytes,
                     firstSeenAtEpochMillis = firstSeenAtEpochMillis,
                     lastVerifiedAtEpochMillis = lastVerifiedAtEpochMillis,
                     ed25519PublicKey = ed25519PublicKey,
@@ -38,7 +38,7 @@ internal class TofuTrustStore internal constructor(private val secureStorage: Se
     }
 
     internal suspend fun write(record: TrustRecord): Unit {
-        val fingerprintBytes = record.identityFingerprintHexBytes
+        val fingerprintBytes = record.identityFingerprintBytes
         val buffer = WriteBuffer()
         buffer.writeIntLittleEndian(fingerprintBytes.size)
         buffer.writeBytes(fingerprintBytes)
@@ -61,7 +61,7 @@ internal class TofuTrustStore internal constructor(private val secureStorage: Se
 
     private fun opaquePeerKey(peerIdValue: String): String {
         var hash = FNV64_OFFSET_BASIS
-        val sourceBytes = peerIdValue.hexToByteArrayOrNull() ?: peerIdValue.encodeToByteArray()
+        val sourceBytes = peerIdValue.toBytes() ?: peerIdValue.encodeToByteArray()
         sourceBytes.forEach { byte ->
             hash = (hash xor (byte.toLong() and 0xFF)) * FNV64_PRIME
         }
