@@ -29,6 +29,7 @@ import ch.trancee.meshlink.reference.model.TimelineEntry
 import ch.trancee.meshlink.reference.model.TimelineFamily
 import ch.trancee.meshlink.reference.model.TimelineSeverity
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.serialization.Serializable
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -59,6 +60,7 @@ public interface ReferenceMeshLinkController {
     public suspend fun forgetPeer(peerId: String): Unit
 }
 
+@Serializable
 public data class ReferenceControllerSnapshot(
     public val session: ReferenceSession,
     public val peers: List<PeerSnapshot>,

@@ -31,9 +31,14 @@ import ch.trancee.meshlink.reference.advanced.AdvancedControlsScreen
 import ch.trancee.meshlink.reference.advanced.AdvancedControlsViewModel
 import ch.trancee.meshlink.reference.guided.GuidedFirstExchangeScreen
 import ch.trancee.meshlink.reference.guided.GuidedFirstExchangeViewModel
+import ch.trancee.meshlink.reference.history.RecentSessionHistoryScreen
 import ch.trancee.meshlink.reference.lab.LabScreen
 import ch.trancee.meshlink.reference.meshlink.ReferenceControllerSnapshot
 import ch.trancee.meshlink.reference.platform.PlatformServices
+import ch.trancee.meshlink.reference.session.JsonSessionArtifactSerializer
+import ch.trancee.meshlink.reference.session.JsonSessionHistoryRepository
+import ch.trancee.meshlink.reference.timeline.TechnicalTimelineScreen
+import ch.trancee.meshlink.reference.timeline.TechnicalTimelineStore
 import ch.trancee.meshlink.reference.resources.Res
 import ch.trancee.meshlink.reference.resources.advanced_summary
 import ch.trancee.meshlink.reference.resources.advanced_title
@@ -62,6 +67,14 @@ public fun ReferenceNavHost(platformServices: PlatformServices) {
     val guidedViewModel = remember(platformServices.platformName) { GuidedFirstExchangeViewModel(platformServices) }
     val snapshot by platformServices.meshLinkController.snapshot.collectAsState()
     val advancedViewModel = remember(platformServices.platformName) { AdvancedControlsViewModel(platformServices) }
+    val timelineStore =
+        remember(platformServices.platformName) {
+            TechnicalTimelineStore(
+                platformServices = platformServices,
+                historyRepository = JsonSessionHistoryRepository(platformServices.documentStore),
+                artifactSerializer = JsonSessionArtifactSerializer(platformServices.documentStore),
+            )
+        }
     val routes =
         listOf(
             ReferenceSurfaceRoute.GUIDED to stringResource(Res.string.guided_title),
@@ -112,19 +125,15 @@ public fun ReferenceNavHost(platformServices: PlatformServices) {
                     modifier = Modifier.fillMaxSize().padding(innerPadding),
                 )
             ReferenceSurfaceRoute.TIMELINE ->
-                PlaceholderSurface(
-                    title = stringResource(Res.string.timeline_title),
-                    summary = stringResource(Res.string.timeline_summary),
-                    snapshot = snapshot,
+                TechnicalTimelineScreen(
+                    store = timelineStore,
                     modifier = Modifier.fillMaxSize().padding(innerPadding),
                 )
             ReferenceSurfaceRoute.LAB ->
                 LabScreen(modifier = Modifier.fillMaxSize().padding(innerPadding))
             ReferenceSurfaceRoute.HISTORY ->
-                PlaceholderSurface(
-                    title = stringResource(Res.string.history_title),
-                    summary = stringResource(Res.string.history_summary),
-                    snapshot = snapshot,
+                RecentSessionHistoryScreen(
+                    store = timelineStore,
                     modifier = Modifier.fillMaxSize().padding(innerPadding),
                 )
         }

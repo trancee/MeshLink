@@ -5,6 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import ch.trancee.meshlink.reference.app.ReferenceApp
 import ch.trancee.meshlink.reference.model.ReferenceAuthorityMode
+import ch.trancee.meshlink.reference.platform.AndroidReferenceDocumentStore
 import ch.trancee.meshlink.reference.platform.DefaultPlatformServices
 import ch.trancee.meshlink.reference.platform.androidReadinessGuidance
 
@@ -21,6 +22,7 @@ public class MainActivity : ComponentActivity() {
                 readinessGuidance = androidReadinessGuidance(),
                 nowProvider = { System.currentTimeMillis() },
                 platformContext = applicationContext,
+                documentStore = AndroidReferenceDocumentStore(),
             )
         setContent {
             ReferenceApp(platformServices = platformServices)

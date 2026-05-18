@@ -1,5 +1,6 @@
 package ch.trancee.meshlink.reference.session
 
+import ch.trancee.meshlink.reference.meshlink.ReferenceControllerSnapshot
 import ch.trancee.meshlink.reference.model.RecentSessionHistory
 import ch.trancee.meshlink.reference.model.ReferenceSession
 
@@ -14,4 +15,8 @@ public interface SessionHistoryRepository {
     public suspend fun deleteSession(sessionId: String): RecentSessionHistory
 
     public suspend fun clearAll(): RecentSessionHistory
+
+    public suspend fun loadRetainedSessions(): List<ReferenceSession>
+
+    public suspend fun loadRetainedSnapshot(sessionId: String): ReferenceControllerSnapshot?
 }

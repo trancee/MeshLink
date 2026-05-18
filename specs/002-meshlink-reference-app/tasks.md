@@ -111,18 +111,18 @@
 
 ### Validation for User Story 3 (REQUIRED) ⚠️
 
-- [ ] T032 [P] [US3] Add timeline filter and search tests in `meshlink-reference/src/commonTest/kotlin/ch/trancee/meshlink/reference/timeline/TimelineFilterTest.kt`
-- [ ] T033 [P] [US3] Add retained-history pruning tests in `meshlink-reference/src/commonTest/kotlin/ch/trancee/meshlink/reference/session/JsonSessionHistoryRepositoryTest.kt`
-- [ ] T034 [P] [US3] Add session-artifact contract serialization tests in `meshlink-reference/src/commonTest/kotlin/ch/trancee/meshlink/reference/session/SessionArtifactContractTest.kt`
+- [X] T032 [P] [US3] Add timeline filter and search tests in `meshlink-reference/src/commonTest/kotlin/ch/trancee/meshlink/reference/timeline/TimelineFilterTest.kt`
+- [X] T033 [P] [US3] Add retained-history pruning tests in `meshlink-reference/src/commonTest/kotlin/ch/trancee/meshlink/reference/session/JsonSessionHistoryRepositoryTest.kt`
+- [X] T034 [P] [US3] Add session-artifact contract serialization tests in `meshlink-reference/src/commonTest/kotlin/ch/trancee/meshlink/reference/session/SessionArtifactContractTest.kt`
 - [ ] T035 [US3] Validate recent history and redacted export behavior against `specs/002-meshlink-reference-app/quickstart.md` and `specs/002-meshlink-reference-app/contracts/session-artifact.md`
 
 ### Implementation for User Story 3
 
-- [ ] T036 [P] [US3] Implement the technical timeline store and filter state in `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/timeline/TechnicalTimelineStore.kt` and `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/timeline/TimelineFilters.kt`
-- [ ] T037 [P] [US3] Implement JSON-backed recent-session retention in `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/session/JsonSessionHistoryRepository.kt`
-- [ ] T038 [P] [US3] Implement redacted export and full-payload opt-in serialization in `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/session/JsonSessionArtifactSerializer.kt` and `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/session/ExportPayloadPolicy.kt`
-- [ ] T039 [P] [US3] Implement timeline, recent-history, and export UI surfaces in `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/timeline/TechnicalTimelineScreen.kt`, `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/history/RecentSessionHistoryScreen.kt`, and `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/export/ExportSessionDialog.kt`
-- [ ] T040 [US3] Connect live session capture, retained-session reopen, and delete actions in `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/timeline/TechnicalTimelineStore.kt`, `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/history/RecentSessionHistoryScreen.kt`, and `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/navigation/ReferenceNavHost.kt`
+- [X] T036 [P] [US3] Implement the technical timeline store and filter state in `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/timeline/TechnicalTimelineStore.kt` and `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/timeline/TimelineFilters.kt`
+- [X] T037 [P] [US3] Implement JSON-backed recent-session retention in `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/session/JsonSessionHistoryRepository.kt`
+- [X] T038 [P] [US3] Implement redacted export and full-payload opt-in serialization in `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/session/JsonSessionArtifactSerializer.kt` and `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/session/ExportPayloadPolicy.kt`
+- [X] T039 [P] [US3] Implement timeline, recent-history, and export UI surfaces in `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/timeline/TechnicalTimelineScreen.kt`, `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/history/RecentSessionHistoryScreen.kt`, and `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/export/ExportSessionDialog.kt`
+- [X] T040 [US3] Connect live session capture, retained-session reopen, and delete actions in `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/timeline/TechnicalTimelineStore.kt`, `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/history/RecentSessionHistoryScreen.kt`, and `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/navigation/ReferenceNavHost.kt`
 
 **Checkpoint**: User Story 3 is complete when QA/support users can inspect live and retained sessions, then export a contract-compliant redacted artifact without exposing full payloads by default.
 
