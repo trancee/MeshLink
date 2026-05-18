@@ -19,9 +19,9 @@ internal actual fun createMeshLink(config: MeshLinkConfig): MeshLinkApi {
     throw MeshLinkException.InvalidConfiguration(ANDROID_CONTEXT_REQUIRED_MESSAGE)
 }
 
-internal actual fun createAndroidMeshLink(config: MeshLinkConfig, context: Any): MeshLinkApi {
+internal actual fun createMeshLink(config: MeshLinkConfig, context: Any): MeshLinkApi {
     if (context === AndroidFactoryTestContext) {
-        return createAndroidMeshLinkForFactoryTests(config = config, context = context)
+        return createFactoryTestMeshLink(config = config, context = context)
     }
 
     val androidContext =
@@ -50,7 +50,7 @@ internal actual fun createAndroidMeshLink(config: MeshLinkConfig, context: Any):
     )
 }
 
-private fun createAndroidMeshLinkForFactoryTests(
+private fun createFactoryTestMeshLink(
     config: MeshLinkConfig,
     context: Any,
 ): MeshLinkApi {
@@ -66,23 +66,6 @@ private fun createAndroidMeshLinkForFactoryTests(
     return MeshEngine.create(
         config = config,
         platformContext = context,
-        localIdentity = localIdentity,
-        secureStorage = secureStorage,
-    )
-}
-
-internal actual fun createIosMeshLink(config: MeshLinkConfig): MeshLinkApi {
-    val secureStorage = InMemorySecureStorage()
-    val cryptoProvider = AndroidCryptoProviderFactory.create()
-    val localIdentity = runBlocking {
-        LocalIdentityStore.loadOrCreate(
-            appId = config.appId,
-            secureStorage = secureStorage,
-            provider = cryptoProvider,
-        )
-    }
-    return MeshEngine.create(
-        config = config,
         localIdentity = localIdentity,
         secureStorage = secureStorage,
     )

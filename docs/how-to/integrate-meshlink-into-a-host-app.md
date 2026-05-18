@@ -38,7 +38,7 @@ import android.content.Context
 import ch.trancee.meshlink.api.MeshLink
 import ch.trancee.meshlink.api.MeshLinkApi
 
-fun createAndroidMeshLink(context: Context): MeshLinkApi {
+fun createAndroidRuntime(context: Context): MeshLinkApi {
     return MeshLink.create(
         config = meshLinkConfiguration(),
         context = context.applicationContext,

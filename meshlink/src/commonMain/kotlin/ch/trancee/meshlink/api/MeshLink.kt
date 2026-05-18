@@ -1,7 +1,6 @@
 package ch.trancee.meshlink.api
 
 import ch.trancee.meshlink.config.MeshLinkConfig
-import ch.trancee.meshlink.platform.createAndroidMeshLink
 import ch.trancee.meshlink.platform.createMeshLink
 
 public object MeshLink {
@@ -26,7 +25,7 @@ public object MeshLink {
      * @throws MeshLinkException.InvalidConfiguration when [context] is missing or invalid.
      */
     public fun create(config: MeshLinkConfig, context: Any): MeshLinkApi {
-        return createAndroidMeshLink(config = config, context = context)
+        return createMeshLink(config = config, context = context)
     }
 
 }

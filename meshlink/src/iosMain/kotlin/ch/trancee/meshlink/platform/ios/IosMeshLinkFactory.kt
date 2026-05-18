@@ -11,28 +11,6 @@ import ch.trancee.meshlink.storage.InMemorySecureStorage
 import kotlinx.coroutines.runBlocking
 
 internal actual fun createMeshLink(config: MeshLinkConfig): MeshLinkApi {
-    return createIosMeshLink(config = config)
-}
-
-internal actual fun createAndroidMeshLink(config: MeshLinkConfig, context: Any): MeshLinkApi {
-    val secureStorage = InMemorySecureStorage()
-    val cryptoProvider = IosCryptoProvider()
-    val localIdentity = runBlocking {
-        LocalIdentityStore.loadOrCreate(
-            appId = config.appId,
-            secureStorage = secureStorage,
-            provider = cryptoProvider,
-        )
-    }
-    return MeshEngine.create(
-        config = config,
-        platformContext = context,
-        localIdentity = localIdentity,
-        secureStorage = secureStorage,
-    )
-}
-
-internal actual fun createIosMeshLink(config: MeshLinkConfig): MeshLinkApi {
     val secureStorage = IosSecureStorage(config.appId)
     val cryptoProvider = IosCryptoProvider()
     val localIdentity = runBlocking {
@@ -51,5 +29,23 @@ internal actual fun createIosMeshLink(config: MeshLinkConfig): MeshLinkApi {
                 appId = config.appId,
                 advertisementKeyHash = localIdentity.advertisementKeyHash,
             ),
+    )
+}
+
+internal actual fun createMeshLink(config: MeshLinkConfig, context: Any): MeshLinkApi {
+    val secureStorage = InMemorySecureStorage()
+    val cryptoProvider = IosCryptoProvider()
+    val localIdentity = runBlocking {
+        LocalIdentityStore.loadOrCreate(
+            appId = config.appId,
+            secureStorage = secureStorage,
+            provider = cryptoProvider,
+        )
+    }
+    return MeshEngine.create(
+        config = config,
+        platformContext = context,
+        localIdentity = localIdentity,
+        secureStorage = secureStorage,
     )
 }
