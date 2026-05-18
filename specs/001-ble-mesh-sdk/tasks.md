@@ -615,6 +615,9 @@ restart.
 - **Follow-up FR-008 Restart-Loss Validation Closure (Phase 23)**: Runs after
   Phase 22, or earlier if the runtime already behaves correctly and only
   test/evidence work remains.
+- **Follow-up SC-005 Durable Memory Artifact Retention (Phase 24)**: Runs after
+  Phase 23, or earlier if the implementation already enforces the cap and only
+  retained-evidence work remains.
 
 ### User Story Dependencies
 
@@ -675,7 +678,7 @@ Task: "Implement `TransferSession`, ACK scoreboard, configurable delivery-deadli
 4. Add User Story 3 → validate power behavior and cross-platform parity
 5. Finish with benchmark, BCV, docs, and quickstart gates
 6. If `SC-004` or constitution-traceability gaps remain open, execute the
-   appended follow-up phases in ledger order (currently Phases 7–23) before
+   appended follow-up phases in ledger order (currently Phases 7–24) before
    declaring release readiness.
 7. Do not make a release-readiness or full-conformance claim while Phase 19
    remains open; `SC-004` requires either retained passing evidence on
@@ -721,3 +724,17 @@ With multiple developers:
   known-limitation record in the canonical docs; historical blockers
   `T074`–`T081` are completed ledger entries and MUST NOT be described as open
   unless new follow-up work is appended.
+
+---
+
+## Phase 24: Follow-up - SC-005 Durable Memory Artifact Retention
+
+**Purpose**: Close the remaining `SC-005` evidence-quality gap by retaining an
+explicit measured 8-peer steady-state heap byte count in the canonical benchmark
+artifacts instead of only a pass/fail budget statement.
+
+- [X] T110 [P] Emit and retain a durable measured 8-peer steady-state heap byte
+  count by updating
+  `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/integration/MemoryBudgetIntegrationTest.kt`,
+  rerunning the JVM memory-budget validation, and syncing the retained value into
+  `benchmarks/README.md` and `specs/001-ble-mesh-sdk/alignment-audit.md`.

@@ -39,10 +39,9 @@ The current MeshLink runtime is **mostly aligned** with the approved `001-ble-me
 
 The public API, TOFU trust model, routing, selective-ACK large transfer path, discovery advertisement contract, Android/iOS parity model, and retained `SC-004` future-branch evidence are all present and supported by current code and tests.
 
-However, this audit still finds **two remaining evidence gaps**:
+However, this audit still finds **one remaining evidence gap**:
 
 1. **Success-criteria evidence gap:** `SC-001` still lacks a retained passing timed reader-test; the retained attempt is explicitly blocked and does not claim success.
-2. **Evidence-quality gap:** `SC-005` enforces the 8 MiB budget in tests, but the retained docs still note that the measured byte count is not persisted as a durable artifact.
 
 ## Areas verified as aligned
 
@@ -219,17 +218,16 @@ The quickstart docs now explain how to measure a timed reader-test, but the reta
 
 So the implementation and quickstart may be usable, but the spec's success-criterion evidence is still incomplete.
 
-### Gap 2 — `SC-005` still lacks a durable retained byte-count artifact
+### Closed gap — `SC-005` now retains an explicit measured heap byte count
 
 **Spec references:** `SC-005`  
-**Status:** Evidence-quality gap  
-**Severity:** Low to Medium
+**Status:** Closed during the follow-up on this branch
 
-The memory budget test exists and enforces the cap, but the retained benchmark docs still note the limitation:
+The memory budget test still enforces the <= 8 MiB cap, and the retained benchmark docs now also include the measured byte-count artifact from a fresh JVM run:
 
-- `benchmarks/README.md` says the steady-state memory test enforces the retained-heap budget **but does not yet persist the measured byte count as a durable artifact**
+- `MEMORY_BUDGET baselineBytes=7437064 usedBytes=11430280 steadyStateBytes=3993216`
 
-That means the current state is better than “no memory coverage,” but weaker than a fully retained quantitative evidence trail.
+That closes the earlier evidence-quality gap where only a pass/fail budget statement was retained.
 
 ## What was not found as a current mismatch
 
@@ -247,7 +245,6 @@ This audit did **not** find evidence that the following areas are currently out 
 ## Recommended next actions
 
 1. **Retain a real `SC-001` pass run.** Run and document a timed fresh-reader quickstart validation instead of only a blocked attempt.
-2. **Improve `SC-005` retained evidence.** Persist the measured steady-state heap byte count, not only the pass/fail budget check.
 
 ## Fresh audit verification
 
@@ -288,7 +285,7 @@ Result:
 rg -n "^- \[ \]" specs/001-ble-mesh-sdk/tasks.md
 rg -n 'Quickstart reader-test attempt|no `SC-001` pass claim|Current physical evidence on attached hardware now shows' \
   specs/001-ble-mesh-sdk/research.md specs/001-ble-mesh-sdk/quickstart.md -S
-rg -n 'steady-state memory test currently enforces.*does not yet persist the measured byte count' \
+rg -n 'MEMORY_BUDGET baselineBytes=7437064 usedBytes=11430280 steadyStateBytes=3993216' \
   benchmarks/README.md -S
 ```
 
@@ -296,4 +293,4 @@ Result:
 
 - no open governed tasks remain in `tasks.md`
 - `SC-001` still has only a blocked reader-test attempt, not a retained pass
-- `SC-005` still notes missing durable raw byte-count retention
+- `SC-005` now retains an explicit raw heap-byte artifact in `benchmarks/README.md`

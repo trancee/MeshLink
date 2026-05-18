@@ -47,7 +47,11 @@ class MemoryBudgetIntegrationTest {
             requestHeapStabilization()
             val steadyStateBytes = baselineBytes?.let { baseline ->
                 val usedBytes = usedHeapBytesOrNull() ?: return@let null
-                (usedBytes - baseline).coerceAtLeast(0L)
+                val retainedBytes = (usedBytes - baseline).coerceAtLeast(0L)
+                println(
+                    "MEMORY_BUDGET baselineBytes=$baseline usedBytes=$usedBytes steadyStateBytes=$retainedBytes"
+                )
+                retainedBytes
             }
 
             // Assert

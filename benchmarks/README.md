@@ -40,9 +40,11 @@ Rows not listed above are retained as regression-tracked evidence only.
 | Wire encode transfer chunk | 0.210 us/op | Meets the normative < 1 us/op codec target |
 | Wire decode transfer chunk | 0.083 us/op | Meets the normative < 1 us/op codec target |
 | 8-peer establish benchmark smoke | 262.995 ms/op | Regression-tracked evidence only |
-| 8-peer steady-state memory budget | under 8 MiB cap | Meets the normative <= 8 MiB memory target |
+| 8-peer steady-state memory budget | 3,993,216 retained bytes | Meets the normative <= 8 MiB memory target |
 
-The steady-state memory test currently enforces the retained-heap budget but does not yet persist the measured byte count as a durable artifact.
+Fresh JVM integration evidence from `MemoryBudgetIntegrationTest` retained:
+
+- `MEMORY_BUDGET baselineBytes=7437064 usedBytes=11430280 steadyStateBytes=3993216`
 
 ### Physical mobile evidence
 
