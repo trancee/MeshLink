@@ -85,19 +85,19 @@
 
 ### Validation for User Story 2 (REQUIRED) ⚠️
 
-- [ ] T022 [P] [US2] Add advanced control state tests in `meshlink-reference/src/commonTest/kotlin/ch/trancee/meshlink/reference/advanced/AdvancedControlsViewModelTest.kt`
-- [ ] T023 [P] [US2] Add reference-ui contract and Compose UI tests for advanced and lab surfaces in `meshlink-reference/src/commonTest/kotlin/ch/trancee/meshlink/reference/advanced/AdvancedControlsScreenTest.kt`
+- [X] T022 [P] [US2] Add advanced control state tests in `meshlink-reference/src/commonTest/kotlin/ch/trancee/meshlink/reference/advanced/AdvancedControlsViewModelTest.kt`
+- [X] T023 [P] [US2] Add reference-ui contract and Compose UI tests for advanced and lab surfaces in `meshlink-reference/src/commonTest/kotlin/ch/trancee/meshlink/reference/advanced/AdvancedControlsScreenTest.kt`
 - [ ] T024 [US2] Validate lifecycle, power, trust-reset, transfer, and lab flows against `specs/002-meshlink-reference-app/quickstart.md` and `specs/002-meshlink-reference-app/contracts/reference-ui.md`
 
 ### Implementation for User Story 2
 
-- [ ] T025 [P] [US2] Implement advanced configuration and action models in `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/advanced/AdvancedConfigState.kt` and `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/advanced/LifecycleActionState.kt`
-- [ ] T026 [P] [US2] Implement advanced controls orchestration in `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/advanced/AdvancedControlsViewModel.kt`
-- [ ] T027 [P] [US2] Implement the advanced controls screen in `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/advanced/AdvancedControlsScreen.kt`
-- [ ] T028 [P] [US2] Implement peer detail and send composer components in `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/advanced/PeerDetailCard.kt` and `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/advanced/SendComposer.kt`
-- [ ] T029 [P] [US2] Implement the lab scenario catalog and lab screen shell in `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/lab/LabScenarioCatalog.kt` and `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/lab/LabScreen.kt`
-- [ ] T030 [US2] Route lifecycle, power, send, large-transfer, and trust-reset actions through `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/meshlink/ReferenceMeshLinkController.kt`
-- [ ] T031 [US2] Wire the `advanced-controls` and `lab` surfaces into `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/navigation/ReferenceNavHost.kt` and `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/app/ReferenceApp.kt`
+- [X] T025 [P] [US2] Implement advanced configuration and action models in `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/advanced/AdvancedConfigState.kt` and `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/advanced/LifecycleActionState.kt`
+- [X] T026 [P] [US2] Implement advanced controls orchestration in `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/advanced/AdvancedControlsViewModel.kt`
+- [X] T027 [P] [US2] Implement the advanced controls screen in `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/advanced/AdvancedControlsScreen.kt`
+- [X] T028 [P] [US2] Implement peer detail and send composer components in `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/advanced/PeerDetailCard.kt` and `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/advanced/SendComposer.kt`
+- [X] T029 [P] [US2] Implement the lab scenario catalog and lab screen shell in `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/lab/LabScenarioCatalog.kt` and `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/lab/LabScreen.kt`
+- [X] T030 [US2] Route lifecycle, power, send, large-transfer, and trust-reset actions through `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/meshlink/ReferenceMeshLinkController.kt`
+- [X] T031 [US2] Wire the `advanced-controls` and `lab` surfaces into `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/navigation/ReferenceNavHost.kt` and `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/app/ReferenceApp.kt`
 
 **Checkpoint**: User Story 2 is complete when integrators can exercise the supported SDK control surface and intentionally enter a separately labeled lab without confusing the product path.
 

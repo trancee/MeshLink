@@ -27,8 +27,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import ch.trancee.meshlink.reference.advanced.AdvancedControlsScreen
+import ch.trancee.meshlink.reference.advanced.AdvancedControlsViewModel
 import ch.trancee.meshlink.reference.guided.GuidedFirstExchangeScreen
 import ch.trancee.meshlink.reference.guided.GuidedFirstExchangeViewModel
+import ch.trancee.meshlink.reference.lab.LabScreen
 import ch.trancee.meshlink.reference.meshlink.ReferenceControllerSnapshot
 import ch.trancee.meshlink.reference.platform.PlatformServices
 import ch.trancee.meshlink.reference.resources.Res
@@ -58,6 +61,7 @@ public fun ReferenceNavHost(platformServices: PlatformServices) {
     var activeRoute: ReferenceSurfaceRoute by remember { mutableStateOf(ReferenceSurfaceRoute.GUIDED) }
     val guidedViewModel = remember(platformServices.platformName) { GuidedFirstExchangeViewModel(platformServices) }
     val snapshot by platformServices.meshLinkController.snapshot.collectAsState()
+    val advancedViewModel = remember(platformServices.platformName) { AdvancedControlsViewModel(platformServices) }
     val routes =
         listOf(
             ReferenceSurfaceRoute.GUIDED to stringResource(Res.string.guided_title),
@@ -103,10 +107,8 @@ public fun ReferenceNavHost(platformServices: PlatformServices) {
             ReferenceSurfaceRoute.SOLO ->
                 SoloExplorationScreen(modifier = Modifier.fillMaxSize().padding(innerPadding))
             ReferenceSurfaceRoute.ADVANCED ->
-                PlaceholderSurface(
-                    title = stringResource(Res.string.advanced_title),
-                    summary = stringResource(Res.string.advanced_summary),
-                    snapshot = snapshot,
+                AdvancedControlsScreen(
+                    viewModel = advancedViewModel,
                     modifier = Modifier.fillMaxSize().padding(innerPadding),
                 )
             ReferenceSurfaceRoute.TIMELINE ->
@@ -117,12 +119,7 @@ public fun ReferenceNavHost(platformServices: PlatformServices) {
                     modifier = Modifier.fillMaxSize().padding(innerPadding),
                 )
             ReferenceSurfaceRoute.LAB ->
-                PlaceholderSurface(
-                    title = stringResource(Res.string.lab_title),
-                    summary = stringResource(Res.string.lab_summary),
-                    snapshot = snapshot,
-                    modifier = Modifier.fillMaxSize().padding(innerPadding),
-                )
+                LabScreen(modifier = Modifier.fillMaxSize().padding(innerPadding))
             ReferenceSurfaceRoute.HISTORY ->
                 PlaceholderSurface(
                     title = stringResource(Res.string.history_title),
