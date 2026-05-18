@@ -317,5 +317,4 @@ isolate all build/test tooling outside the shipped runtime artifact.
 No constitutional violations currently require justification. The user request
 for “no external dependencies” is implemented as “no additional third-party
 runtime dependencies beyond the constitutionally allowed
-`kotlinx-coroutines-core`.
-”
+`kotlinx-coroutines-core`."

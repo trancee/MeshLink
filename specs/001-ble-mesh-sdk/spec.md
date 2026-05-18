@@ -55,12 +55,13 @@ without my app managing routes or retries manually.
 **Why this priority**: Multi-hop relay and reliable large-message transfer are
 what turn a direct BLE link into a practical mesh messaging SDK.
 
-**Independent Test**: Can be tested in two parts: (1) a three-device topology
-where sender and recipient are not direct neighbors, sending both short and
-large payloads while introducing packet loss to confirm relay, retry, and
-reassembly; and (2) a 10-node topology exercised through the canonical virtual
-transport to confirm control-plane route convergence completes within the
-required 3-second budget after a topology change.
+**Independent Test**: Can be tested in two parts:
+1. A three-device topology where sender and recipient are not direct
+   neighbors, sending both short and large payloads while introducing packet
+   loss to confirm relay, retry, and reassembly.
+2. A 10-node topology exercised through the canonical virtual transport to
+   confirm control-plane route convergence completes within the required
+   3-second budget after a topology change.
 
 **Acceptance Scenarios**:
 

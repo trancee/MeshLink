@@ -152,7 +152,7 @@ semantics.
 **Purpose**: Close the constitutions’ quality gates, benchmark obligations, and documentation sync work.
 
 - [X] T035 [P] Sync `specs/001-ble-mesh-sdk/spec.md`, `specs/001-ble-mesh-sdk/plan.md`, `specs/001-ble-mesh-sdk/tasks.md`, and `specs/001-ble-mesh-sdk/quickstart.md` with the implemented behavior
-- [X] T036 Run format, static analysis, coverage, and API compatibility gates against `settings.gradle.kts`, `meshlink/build.gradle.kts`, `benchmarks/build.gradle.kts`, and update `meshlink/api/android/meshlink.api` and `meshlink/api/jvm/meshlink.api` as needed
+- [X] T036 Run format, static analysis, coverage, and API compatibility gates against `settings.gradle.kts`, `meshlink/build.gradle.kts`, and `benchmarks/build.gradle.kts`, and update the BCV API dump files under `meshlink/api/android/` and `meshlink/api/jvm/` as needed
 - [X] T037 [P] Add remaining Wycheproof vectors and regression coverage in `meshlink/src/commonTest/resources/wycheproof/` and `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/crypto/WycheproofRegressionTest.kt`
 - [X] T038 [P] Implement JVM benchmark suites in `benchmarks/src/jvmMain/kotlin/ch/trancee/meshlink/benchmarks/CryptoBenchmark.kt`, `benchmarks/src/jvmMain/kotlin/ch/trancee/meshlink/benchmarks/RoutingBenchmark.kt`, `benchmarks/src/jvmMain/kotlin/ch/trancee/meshlink/benchmarks/WireCodecBenchmark.kt`, and `benchmarks/src/jvmMain/kotlin/ch/trancee/meshlink/benchmarks/ConvergenceBenchmark.kt`
 - [X] T039 [P] Add Android automated proof-app benchmarks for throughput, latency, LOW-power scan duty, and cold start in `meshlink-sample/android/app/src/androidTest/kotlin/ch/trancee/meshlink/proof/android/TransportPerformanceBenchmark.kt`, `meshlink-sample/android/app/src/androidTest/kotlin/ch/trancee/meshlink/proof/android/PowerProfileBenchmark.kt`, and `meshlink-sample/android/app/src/androidTest/kotlin/ch/trancee/meshlink/proof/android/ColdStartBenchmark.kt`
@@ -577,9 +577,9 @@ pending no-route retries are in-memory only and are lost across app or SDK
 restart.
 
 - [ ] T109 [P] Add explicit `FR-008` restart-loss integration coverage by
-  creating a pending no-route delivery, restarting the runtime/harness, and
-  asserting that retry/session state is gone until the host resubmits the
-  message in
+  creating a pending no-route delivery, restarting the runtime in the canonical
+  harness, and asserting that retry/session state is gone until the host
+  resubmits the message in
   `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/integration/MeshRoutingIntegrationTest.kt`,
   `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/integration/LargeTransferIntegrationTest.kt`,
   and any affected harness helpers.
