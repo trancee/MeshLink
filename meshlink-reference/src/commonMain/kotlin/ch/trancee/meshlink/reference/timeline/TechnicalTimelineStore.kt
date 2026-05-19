@@ -36,7 +36,14 @@ public class TechnicalTimelineStore(
     init {
         scope.launch {
             historyRepository.loadRetainedSessions().let { retainedSessions ->
-                stateFlow.value = stateFlow.value.copy(retainedSessions = retainedSessions)
+                stateFlow.value =
+                    stateFlow.value.copy(
+                        retainedSessions =
+                            mergeRetainedSessions(
+                                current = stateFlow.value.retainedSessions,
+                                loaded = retainedSessions,
+                            )
+                    )
             }
         }
         scope.launch {
@@ -75,7 +82,7 @@ public class TechnicalTimelineStore(
     public fun retainCurrentSession(): Unit {
         scope.launch {
             val snapshot = stateFlow.value.currentSnapshot
-            historyRepository.retainSnapshot(
+            val retainedSnapshot =
                 snapshot.copy(
                     session =
                         snapshot.session.copy(
@@ -83,9 +90,23 @@ public class TechnicalTimelineStore(
                             historyStatus = ReferenceHistoryStatus.RETAINED,
                         )
                 )
-            )
             stateFlow.value =
-                stateFlow.value.copy(retainedSessions = historyRepository.loadRetainedSessions())
+                stateFlow.value.copy(
+                    retainedSessions =
+                        upsertRetainedSession(
+                            existing = stateFlow.value.retainedSessions,
+                            session = retainedSnapshot.session,
+                        )
+                )
+            historyRepository.retainSnapshot(retainedSnapshot)
+            stateFlow.value =
+                stateFlow.value.copy(
+                    retainedSessions =
+                        mergeRetainedSessions(
+                            current = stateFlow.value.retainedSessions,
+                            loaded = historyRepository.loadRetainedSessions(),
+                        )
+                )
         }
     }
 
@@ -192,6 +213,25 @@ public class TechnicalTimelineStore(
                 filters = filters,
                 visibleEntries = filters.apply(currentSnapshot.timeline),
             )
+    }
+
+    private fun upsertRetainedSession(
+        existing: List<ReferenceSession>,
+        session: ReferenceSession,
+    ): List<ReferenceSession> {
+        return listOf(session) + existing.filterNot { item -> item.sessionId == session.sessionId }
+    }
+
+    private fun mergeRetainedSessions(
+        current: List<ReferenceSession>,
+        loaded: List<ReferenceSession>,
+    ): List<ReferenceSession> {
+        return current +
+            loaded.filterNot { loadedSession ->
+                current.any { currentSession ->
+                    currentSession.sessionId == loadedSession.sessionId
+                }
+            }
     }
 }
 

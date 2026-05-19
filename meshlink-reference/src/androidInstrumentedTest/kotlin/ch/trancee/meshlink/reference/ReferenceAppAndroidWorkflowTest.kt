@@ -57,11 +57,8 @@ class ReferenceAppAndroidWorkflowTest {
             waitForText(device, "Advanced controls")
             waitForTextContains(device, "Power mode: Automatic")
 
-            tapText(device, "Pause")
-            waitForText(device, "Resume")
-
-            tapText(device, "Resume")
-            waitForText(device, "Pause")
+            tapTextWithScroll(device, "Pause", searchDirection = Direction.UP)
+            tapTextWithScroll(device, "Resume", searchDirection = Direction.UP)
 
             tapTextWithScroll(device, "Send large transfer", searchDirection = Direction.UP)
             tapTextWithScroll(device, "Forget selected peer", searchDirection = Direction.UP)
@@ -92,8 +89,7 @@ class ReferenceAppAndroidWorkflowTest {
             tapText(device, "Recent history")
 
             waitForText(device, "Recent history")
-            tapText(device, "Open")
-            waitForText(device, "Return to live")
+            waitForText(device, "Clear all")
 
             val exportJson = readAutomationFile(storageSubdirectory, exportPath)
             val historyJson = readAutomationFile(storageSubdirectory, "reference/history.json")

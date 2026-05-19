@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Build
@@ -38,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import ch.trancee.meshlink.reference.advanced.AdvancedControlsScreen
 import ch.trancee.meshlink.reference.advanced.AdvancedControlsViewModel
 import ch.trancee.meshlink.reference.automation.ReferenceLiveProofAutomation
+import ch.trancee.meshlink.reference.design.ReferenceBadge
 import ch.trancee.meshlink.reference.guided.GuidedFirstExchangeScreen
 import ch.trancee.meshlink.reference.guided.GuidedFirstExchangeViewModel
 import ch.trancee.meshlink.reference.history.RecentSessionHistoryScreen
@@ -179,40 +179,37 @@ private fun ReferenceShellHeader(
 ) {
     Surface(
         color = MaterialTheme.colorScheme.surface,
-        tonalElevation = 4.dp,
-        shadowElevation = 6.dp,
-        shape = RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp),
+        tonalElevation = 3.dp,
+        shadowElevation = 4.dp,
+        shape = RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp),
     ) {
         Column(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text(
                 text = stringResource(Res.string.app_title),
-                style = MaterialTheme.typography.headlineSmall,
-            )
-            Text(
-                text = activeSection.description,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
             )
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                ReferenceStatusBadge(
+                ReferenceBadge(label = activeSection.label, prominent = true)
+                ReferenceBadge(
                     label = "${stringResource(Res.string.platform_label)}: $platformName"
                 )
-                ReferenceStatusBadge(
+                ReferenceBadge(
                     label = "${stringResource(Res.string.mode_label)}: $authorityModeLabel"
                 )
-                ReferenceStatusBadge(label = "Mesh: $meshStateLabel")
+                ReferenceBadge(label = "Mesh: $meshStateLabel")
             }
             if (activeSection.surfaces.size > 1) {
                 FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     activeSection.surfaces.forEach { surface ->
@@ -223,29 +220,8 @@ private fun ReferenceShellHeader(
                         )
                     }
                 }
-            } else {
-                Text(
-                    text = workflowTitles.getValue(activeRoute),
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.SemiBold,
-                )
             }
         }
-    }
-}
-
-@Composable
-private fun ReferenceStatusBadge(label: String) {
-    Surface(
-        shape = CircleShape,
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelLarge,
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-        )
     }
 }
 
