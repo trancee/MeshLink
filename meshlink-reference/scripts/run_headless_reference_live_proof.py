@@ -7,14 +7,13 @@ import json
 import os
 import plistlib
 import re
-import selectors
 import shlex
 import subprocess
 import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Callable, Iterable
 
 IOS_BUNDLE_ID = "ch.trancee.meshlink.reference.ios"
 ANDROID_PACKAGE = "ch.trancee.meshlink.reference"
@@ -41,106 +40,26 @@ IOS_SENDER_MARKER = "REFERENCE_AUTOMATION proof.complete role=sender"
 
 
 class BackgroundProcess:
-    def __init__(self, process: subprocess.Popen[str]) -> None:
-        self.process = process
-
-    def stop(self) -> None:
-        if self.process.poll() is not None:
-            return
-        self.process.terminate()
-        try:
-            self.process.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            self.process.kill()
-            self.process.wait(timeout=5)
-
-
-class IOSConsoleCapture:
     def __init__(
         self,
-        *,
-        device: str,
-        bundle_id: str,
-        env: dict[str, str],
-        log_path: Path,
-        result_marker: str,
-        timeout_seconds: float,
-        post_result_idle_seconds: float,
+        process: subprocess.Popen[str],
+        cleanup_actions: Iterable[Callable[[], None]] = (),
     ) -> None:
-        self.device = device
-        self.bundle_id = bundle_id
-        self.env = env
-        self.log_path = log_path
-        self.result_marker = result_marker
-        self.timeout_seconds = timeout_seconds
-        self.post_result_idle_seconds = post_result_idle_seconds
-        self.result_line: str | None = None
-        self.process: subprocess.Popen[str] | None = None
-
-    def launch(self) -> bool:
-        command = [
-            "xcrun",
-            "devicectl",
-            "device",
-            "process",
-            "launch",
-            "--device",
-            self.device,
-            "--terminate-existing",
-            "--console",
-            "-e",
-            json.dumps(self.env),
-            self.bundle_id,
-        ]
-        self.process = subprocess.Popen(
-            command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            bufsize=1,
-        )
-        assert self.process.stdout is not None
-
-        selector = selectors.DefaultSelector()
-        selector.register(self.process.stdout, selectors.EVENT_READ)
-        started_at = time.monotonic()
-        result_seen_at: float | None = None
-
-        with self.log_path.open("w", encoding="utf-8") as log_file:
-            while True:
-                now = time.monotonic()
-                if result_seen_at is not None and now - result_seen_at >= self.post_result_idle_seconds:
-                    return True
-                if now - started_at >= self.timeout_seconds:
-                    return False
-
-                events = selector.select(timeout=0.5)
-                if not events:
-                    if self.process.poll() is not None:
-                        return result_seen_at is not None
-                    continue
-
-                for key, _ in events:
-                    line = key.fileobj.readline()
-                    if line == "":
-                        if self.process.poll() is not None:
-                            return result_seen_at is not None
-                        continue
-                    log_file.write(line)
-                    log_file.flush()
-                    if self.result_marker in line:
-                        self.result_line = line.strip()
-                        result_seen_at = time.monotonic()
+        self.process = process
+        self.cleanup_actions = list(cleanup_actions)
 
     def stop(self) -> None:
-        if self.process is None or self.process.poll() is not None:
-            return
-        self.process.terminate()
         try:
-            self.process.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            self.process.kill()
-            self.process.wait(timeout=5)
+            if self.process.poll() is None:
+                self.process.terminate()
+                try:
+                    self.process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    self.process.kill()
+                    self.process.wait(timeout=5)
+        finally:
+            for cleanup in self.cleanup_actions:
+                cleanup()
 
 
 def parse_args() -> argparse.Namespace:
@@ -472,7 +391,7 @@ def start_ios_app_via_devicectl(
         stderr=subprocess.STDOUT,
         text=True,
     )
-    return BackgroundProcess(process)
+    return BackgroundProcess(process, cleanup_actions=[log_file.close])
 
 
 def verify_ios_sender_log(log_path: Path) -> str:
@@ -496,9 +415,10 @@ def start_android_app(run_dir: Path, android_serial: str, app_id: str, storage_s
     run(["adb", "-s", android_serial, "shell", "am", "force-stop", ANDROID_PACKAGE], check=False)
     run(["adb", "-s", android_serial, "logcat", "-c"])
     logcat_path = run_dir / "android_logcat.log"
+    logcat_file = logcat_path.open("w", encoding="utf-8")
     logcat = subprocess.Popen(
         ["adb", "-s", android_serial, "logcat", *ANDROID_AUTOMATION_LOG_TAGS],
-        stdout=logcat_path.open("w", encoding="utf-8"),
+        stdout=logcat_file,
         stderr=subprocess.STDOUT,
         text=True,
     )
@@ -531,7 +451,7 @@ def start_android_app(run_dir: Path, android_serial: str, app_id: str, storage_s
     print(f"==> Launching Android passive reference app: {shell_join(command)}")
     start_output = run(command, capture_output=True)
     (run_dir / "android_start.txt").write_text(start_output.stdout + start_output.stderr, encoding="utf-8")
-    return BackgroundProcess(logcat)
+    return BackgroundProcess(logcat, cleanup_actions=[logcat_file.close])
 
 
 def wait_for_android_completion(run_dir: Path, timeout_seconds: float) -> tuple[str, str]:
