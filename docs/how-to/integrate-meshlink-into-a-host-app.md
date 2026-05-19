@@ -118,6 +118,11 @@ class MeshLinkController(
 
 Do not create a fresh runtime for every send.
 
+Before you call `start()`, make sure the platform permission work is already
+finished. On Android, request the runtime Bluetooth permissions first. On iOS,
+ship the Bluetooth usage description and handle the first-run prompt. If startup
+or discovery stalls, follow [How to unblock MeshLink permissions on Android and iOS](unblock-meshlink-permissions.md).
+
 ## 5. Collect state, peer, diagnostic, and message streams
 
 Collect the four public streams and fan their data into your UI, logs, or app state.
@@ -223,6 +228,7 @@ If you need application-level delivery confirmation, implement your own applicat
 
 ## Related docs
 
+- [How to unblock MeshLink permissions on Android and iOS](unblock-meshlink-permissions.md)
 - [MeshLink SDK API reference](../reference/meshlink-sdk-api.md)
 - [About integrating MeshLink well](../explanation/about-integrating-meshlink.md)
 - [The trust model](../explanation/trust-model.md)

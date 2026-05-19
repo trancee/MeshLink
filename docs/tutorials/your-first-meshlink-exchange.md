@@ -16,7 +16,7 @@ You need:
 
 - an Android app that can depend on MeshLink
 - a second device running one of the MeshLink proof apps
-- Bluetooth permissions granted on the Android host app
+- the Android host app already has the permissions described in [How to unblock MeshLink permissions on Android and iOS](../how-to/unblock-meshlink-permissions.md)
 
 We will create one controller class and log what happens.
 
@@ -149,7 +149,8 @@ You should soon see a line like:
 Peer found: <peer-id>
 ```
 
-If you do not, stop here and fix discovery before moving on.
+If you do not, stop here and fix discovery before moving on. If the missing
+piece is still platform permission setup, use [How to unblock MeshLink permissions on Android and iOS](../how-to/unblock-meshlink-permissions.md).
 
 ## 5. Send the first message
 

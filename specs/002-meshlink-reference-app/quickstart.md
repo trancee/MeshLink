@@ -21,10 +21,8 @@ You need:
 If you only have one prepared device, you can still use the app's clearly
 labeled solo exploration mode for non-authoritative walkthroughs.
 
-On some Android OEM builds, BLE scan results remain empty until Location
-permission is granted even on Android 12+ devices. If peer discovery stalls
-after both sides start MeshLink, verify that both Nearby devices and Location
-permissions are granted on Android.
+If peer discovery stalls because one platform is still blocked on local
+permissions or prompts, follow [How to unblock MeshLink permissions on Android and iOS](../../docs/how-to/unblock-meshlink-permissions.md) before continuing.
 
 ## 1. Build and install the Android app
 
@@ -60,7 +58,7 @@ After the build succeeds, launch the `ReferenceApp` scheme from Xcode on the
 chosen simulator or physical iPhone.
 
 On the first physical iPhone launch, allow Bluetooth access for the reference
-app if iOS prompts for it.
+app if iOS prompts for it. If you need a recovery checklist, use [How to unblock MeshLink permissions on Android and iOS](../../docs/how-to/unblock-meshlink-permissions.md).
 
 ## 3. Open the guided first-exchange scenario on both devices
 
@@ -139,7 +137,8 @@ Expected retained outputs:
   `"fullPayloadIncluded": false` and no `fullPayload`
 
 If the first physical iPhone launch still needs permission handling, allow the
-Bluetooth prompt once and rerun the command.
+Bluetooth prompt once and rerun the command. If Android or iPhone permissions
+are still the blocker, use [How to unblock MeshLink permissions on Android and iOS](../../docs/how-to/unblock-meshlink-permissions.md).
 
 ## Expected first proof point
 

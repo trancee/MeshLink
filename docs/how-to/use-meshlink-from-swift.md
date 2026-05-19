@@ -36,6 +36,10 @@ Your `installMeshLinkCrypto()` wrapper should call `IosCryptoBridge.shared.insta
 
 If you need the iPhone-hosted GATT-notify bearer, install `IosBleTransportBridge.shared.install(...)` or `installData(...)` during the same startup path.
 
+Make sure the app has a Bluetooth usage description and that the first-run
+Bluetooth prompt is handled before you debug discovery or delivery. If you need
+that checklist, use [How to unblock MeshLink permissions on Android and iOS](unblock-meshlink-permissions.md).
+
 ## 2. Build config values with the Swift-visible names
 
 The Kotlin DSL appears in Swift through the generated `MeshLinkConfigKt` entry point.
@@ -269,6 +273,7 @@ That keeps the generated Swift names from leaking through your entire app.
 
 ## Related docs
 
+- [How to unblock MeshLink permissions on Android and iOS](unblock-meshlink-permissions.md)
 - [MeshLink SDK API reference](../reference/meshlink-sdk-api.md)
 - [Generated public API symbol tables](../reference/generated-public-api.md)
 - [How to integrate MeshLink into a host app](integrate-meshlink-into-a-host-app.md)

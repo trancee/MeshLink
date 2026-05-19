@@ -20,6 +20,7 @@ start with your need:
 ## How-to guides
 
 - [How to integrate MeshLink into a host app](how-to/integrate-meshlink-into-a-host-app.md) — bootstrap the SDK on Android and iOS, manage lifecycle, collect streams, send payloads, and handle trust resets.
+- [How to unblock MeshLink permissions on Android and iOS](how-to/unblock-meshlink-permissions.md) — clear Android Nearby devices / Location blockers and the first-run iPhone Bluetooth prompt before you debug discovery.
 - [How to use MeshLink from Swift](how-to/use-meshlink-from-swift.md) — call the generated Apple framework safely from Swift, retain collectors correctly, and interpret Swift-facing result types.
 
 ## Reference

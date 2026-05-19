@@ -48,6 +48,7 @@ For a fresh-reader walkthrough, start with the feature quickstart:
 For surrounding context, use:
 
 - [MeshLink documentation map](../docs/README.md)
+- [How to unblock MeshLink permissions on Android and iOS](../docs/how-to/unblock-meshlink-permissions.md)
 - [Android proof app guide](../meshlink-proof/android/README.md)
 - [iOS proof app guide](../meshlink-proof/ios/README.md)
 - [Benchmarks and retained evidence](../benchmarks/README.md)
@@ -111,11 +112,8 @@ Expected retained outputs:
 
 ## Platform caveats
 
-- Some Android OEM builds still require Location permission before BLE scan
-  results become visible, even on Android 12+ devices. If discovery stalls,
-  verify both Nearby devices and Location permissions on Android.
-- The first physical iPhone launch may show the Bluetooth permission prompt.
-  Allow it once, then rerun the live-proof harness.
+- If discovery stalls on Android or the first physical iPhone launch stops at a
+  Bluetooth prompt, use [How to unblock MeshLink permissions on Android and iOS](../docs/how-to/unblock-meshlink-permissions.md) before debugging anything deeper.
 - The default physical-launch path uses `devicectl`. The optional
   `--ios-launch-mode xcuitest` fallback exists for first-run permission
   handling. On free Apple development profiles, use
