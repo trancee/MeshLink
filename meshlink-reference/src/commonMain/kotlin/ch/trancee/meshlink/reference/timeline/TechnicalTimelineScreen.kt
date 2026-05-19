@@ -32,24 +32,12 @@ public fun TechnicalTimelineScreen(store: TechnicalTimelineStore, modifier: Modi
         uiState.currentSnapshot.timeline.map { entry -> entry.family }.distinct()
 
     LazyColumn(
-        modifier = modifier.fillMaxSize().padding(20.dp).testTag("timeline-screen"),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+        modifier = modifier.fillMaxSize().padding(16.dp).testTag("timeline-screen"),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item { Text(text = "Technical timeline", style = MaterialTheme.typography.headlineSmall) }
         item {
-            Text(
-                text =
-                    "Read the live diagnostics as operator evidence, then retain or export the current session when the run is complete.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        item {
-            ReferenceSectionCard(
-                title = "Retain or export",
-                subtitle =
-                    "Keep the most common evidence actions at the top of the page so they stay available during a live operator run.",
-            ) {
+            ReferenceSectionCard(title = "Retain or export") {
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),

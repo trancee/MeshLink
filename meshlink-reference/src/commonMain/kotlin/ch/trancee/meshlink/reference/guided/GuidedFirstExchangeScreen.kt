@@ -34,8 +34,8 @@ public fun GuidedFirstExchangeScreen(
     val uiState by viewModel.uiState.collectAsState()
 
     LazyColumn(
-        modifier = modifier.padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+        modifier = modifier.padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -43,7 +43,7 @@ public fun GuidedFirstExchangeScreen(
                 Text(
                     text =
                         "Use the fastest product-like path to start MeshLink, discover one peer, and prove the first message flow.",
-                    style = MaterialTheme.typography.bodyLarge,
+                    style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
@@ -51,7 +51,6 @@ public fun GuidedFirstExchangeScreen(
         item {
             ReferenceSectionCard(
                 title = "Live first-message flow",
-                subtitle = uiState.readiness.summary,
                 modifier = Modifier.testTag("guided-state-card"),
             ) {
                 FlowRow(
@@ -67,22 +66,6 @@ public fun GuidedFirstExchangeScreen(
                     )
                     ReferenceBadge(label = "Peer: ${uiState.selectedPeerSuffix ?: "none"}")
                 }
-                Text(
-                    text = "Mesh state: ${uiState.snapshot.session.meshStateLabel}",
-                    modifier = Modifier.testTag("guided-state"),
-                    style = MaterialTheme.typography.bodyLarge,
-                )
-                Text(
-                    text = "Next action: ${uiState.nextActionLabel}",
-                    modifier = Modifier.testTag("guided-next-action"),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Text(
-                    text = "Selected peer: ${uiState.selectedPeerSuffix ?: "none"}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -106,6 +89,17 @@ public fun GuidedFirstExchangeScreen(
                         Text("Solo mode")
                     }
                 }
+                Text(
+                    text = "Mesh state: ${uiState.snapshot.session.meshStateLabel}",
+                    modifier = Modifier.testTag("guided-state"),
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+                Text(
+                    text = "Next action: ${uiState.nextActionLabel}",
+                    modifier = Modifier.testTag("guided-next-action"),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
         if (uiState.readiness.isBlocked) {

@@ -13,7 +13,6 @@ import androidx.test.uiautomator.Until
 import java.io.File
 import java.util.UUID
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.Before
@@ -34,11 +33,11 @@ class ReferenceAppAndroidWorkflowTest {
         withLaunchedAutomationApp(storageSubdirectory = storageSubdirectory) { device ->
             waitForText(device, "Guided first exchange")
 
-            tapText(device, "Start MeshLink")
-            waitForTextContains(device, "Selected peer: 654321")
+            tapTextWithScroll(device, "Start MeshLink", searchDirection = Direction.UP)
+            waitForTextContains(device, "Peer: 654321")
 
-            tapText(device, "Send Hello")
-            tapText(device, "Solo mode")
+            tapTextWithScroll(device, "Send Hello", searchDirection = Direction.UP)
+            tapTextWithScroll(device, "Solo mode", searchDirection = Direction.UP)
 
             waitForText(device, "Solo exploration")
             waitForText(device, "Non-authoritative")
@@ -51,18 +50,23 @@ class ReferenceAppAndroidWorkflowTest {
 
         withLaunchedAutomationApp(storageSubdirectory = storageSubdirectory) { device ->
             waitForText(device, "Guided first exchange")
-            tapText(device, "Start MeshLink")
+            tapTextWithScroll(device, "Start MeshLink", searchDirection = Direction.UP)
             tapText(device, "Controls")
 
             waitForText(device, "Advanced controls")
             waitForTextContains(device, "Power mode: Automatic")
+            waitForTextContains(device, "Mesh state: Running")
 
             tapTextWithScroll(device, "Pause", searchDirection = Direction.UP)
             tapTextWithScroll(device, "Resume", searchDirection = Direction.UP)
 
             tapTextWithScroll(device, "Send large transfer", searchDirection = Direction.UP)
             tapTextWithScroll(device, "Forget selected peer", searchDirection = Direction.UP)
-            waitForTextContains(device, "Peer trust reset")
+            waitForTextContainsWithScroll(
+                device,
+                "Peer trust reset",
+                searchDirection = Direction.UP,
+            )
 
             tapText(device, "Lab")
             waitForText(device, "Lab")
@@ -76,16 +80,17 @@ class ReferenceAppAndroidWorkflowTest {
 
         withLaunchedAutomationApp(storageSubdirectory = storageSubdirectory) { device ->
             waitForText(device, "Guided first exchange")
-            tapText(device, "Start MeshLink")
-            waitForTextContains(device, "Selected peer: 654321")
-            tapText(device, "Send Hello")
+            tapTextWithScroll(device, "Start MeshLink", searchDirection = Direction.UP)
+            waitForTextContains(device, "Peer: 654321")
+            tapTextWithScroll(device, "Send Hello", searchDirection = Direction.UP)
             tapText(device, "Evidence")
 
             waitForText(device, "Technical timeline")
-            tapText(device, "Retain session")
-            tapText(device, "Export redacted")
+            tapTextWithScroll(device, "Retain session", searchDirection = Direction.UP)
+            swipe(device, Direction.UP)
+            tapTextWithScroll(device, "Export redacted", searchDirection = Direction.UP)
 
-            val exportPath = waitForLastExportPath(device)
+            val exportPath = waitForLatestAutomationExportPath(storageSubdirectory)
             tapText(device, "Recent history")
 
             waitForText(device, "Recent history")
@@ -111,9 +116,8 @@ class ReferenceAppAndroidWorkflowTest {
         withLaunchedAutomationApp(storageSubdirectory = storageSubdirectory, blocked = true) {
             device ->
             waitForText(device, "Guided first exchange")
-            waitForTextContains(device, "Resolve startup blockers")
-
-            assertNotNull(waitForObject(device, By.text("Start MeshLink"), 10_000L))
+            waitForText(device, "Startup blocked")
+            waitForText(device, "Start MeshLink")
         }
     }
 
@@ -141,7 +145,7 @@ private inline fun withLaunchedAutomationApp(
                 append(context.packageName)
                 append('/')
                 append(MainActivity::class.java.name)
-                append(" --ez ")
+                append(" -f 0x10008000 --ez ")
                 append(MainActivity.EXTRA_UI_AUTOMATION)
                 append(" true --es ")
                 append(MainActivity.EXTRA_UI_AUTOMATION_STORAGE_SUBDIRECTORY)
@@ -203,16 +207,49 @@ private fun tapTextWithScroll(
             device.waitForIdle()
             return
         }
+        if (tapVisibleTextFromHierarchyDump(device, text)) {
+            device.waitForIdle()
+            return
+        }
         swipe(device, searchDirection)
     }
     error("Expected text '$text' to appear after scrolling")
 }
 
-private fun waitForLastExportPath(device: UiDevice, timeoutMillis: Long = 15_000L): String {
-    val exportLabel =
-        waitForObject(device, By.textStartsWith("Last export: "), timeoutMillis)
-            ?: error("Expected last export path to appear")
-    return exportLabel.text.removePrefix("Last export: ")
+private fun waitForTextContainsWithScroll(
+    device: UiDevice,
+    text: String,
+    searchDirection: Direction,
+    timeoutMillis: Long = 15_000L,
+): UiObject2 {
+    return waitForObjectWithScroll(
+        device,
+        By.textContains(text),
+        searchDirection = searchDirection,
+        timeoutMillis = timeoutMillis,
+    ) ?: error("Expected text containing '$text' to appear after scrolling")
+}
+
+private fun waitForLatestAutomationExportPath(
+    storageSubdirectory: String,
+    timeoutMillis: Long = 15_000L,
+): String {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val exportDirectory =
+        File(context.filesDir, "ui-automation/$storageSubdirectory/reference/exports")
+    val deadline = System.currentTimeMillis() + timeoutMillis
+    while (System.currentTimeMillis() < deadline) {
+        val latestExport =
+            exportDirectory
+                .listFiles()
+                ?.filter { candidate -> candidate.isFile && candidate.extension == "json" }
+                ?.maxByOrNull { candidate -> candidate.lastModified() }
+        if (latestExport != null) {
+            return "reference/exports/${latestExport.name}"
+        }
+        Thread.sleep(250)
+    }
+    error("Expected an exported session artifact to be written")
 }
 
 private fun executeShellCommand(command: String): String {
@@ -241,10 +278,40 @@ private fun waitForObject(
     return device.wait(Until.findObject(selector), timeoutMillis)
 }
 
+private fun tapVisibleTextFromHierarchyDump(device: UiDevice, text: String): Boolean {
+    val hierarchyDump = executeShellCommand("uiautomator dump /dev/tty")
+    val boundsMatch =
+        Regex(
+                "text=\\\"${Regex.escape(text)}\\\".*?bounds=\\\"\\[(\\d+),(\\d+)]\\[(\\d+),(\\d+)]\\\""
+            )
+            .find(hierarchyDump) ?: return false
+    val (left, top, right, bottom) = boundsMatch.destructured
+    val centerX = (left.toInt() + right.toInt()) / 2
+    val centerY = (top.toInt() + bottom.toInt()) / 2
+    return device.click(centerX, centerY)
+}
+
+private fun waitForObjectWithScroll(
+    device: UiDevice,
+    selector: androidx.test.uiautomator.BySelector,
+    searchDirection: Direction,
+    timeoutMillis: Long,
+): UiObject2? {
+    val deadline = System.currentTimeMillis() + timeoutMillis
+    while (System.currentTimeMillis() < deadline) {
+        val found = waitForObject(device, selector, 1_000L)
+        if (found != null) {
+            return found
+        }
+        swipe(device, searchDirection)
+    }
+    return null
+}
+
 private fun swipe(device: UiDevice, direction: Direction): Unit {
     val startX = device.displayWidth / 2
-    val upperY = (device.displayHeight * 0.25f).toInt()
-    val lowerY = (device.displayHeight * 0.75f).toInt()
+    val upperY = (device.displayHeight * 0.50f).toInt()
+    val lowerY = (device.displayHeight * 0.77f).toInt()
     when (direction) {
         Direction.DOWN -> device.swipe(startX, upperY, startX, lowerY, 24)
         Direction.UP -> device.swipe(startX, lowerY, startX, upperY, 24)
