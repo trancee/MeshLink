@@ -36,6 +36,7 @@ final class ReferenceAppWorkflowUITests: XCTestCase {
         ReferenceAppUITestSupport.tapButton(in: app, labeled: "Controls")
         ReferenceAppUITestSupport.waitForStaticText(in: app, labeled: "Advanced controls")
         ReferenceAppUITestSupport.waitForStaticTextContaining(in: app, text: "Power mode: Automatic")
+        ReferenceAppUITestSupport.waitForStaticTextContaining(in: app, text: "Mesh state: Running")
 
         // Act
         ReferenceAppUITestSupport.tapButton(in: app, labeled: "Pause")
