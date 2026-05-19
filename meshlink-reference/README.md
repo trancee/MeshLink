@@ -54,9 +54,8 @@ For surrounding context, use:
 
 ## UI automation
 
-The reference app now includes deterministic Android and iOS workflow
-automation so the operator surfaces can be validated without requiring a live
-BLE peer.
+The reference app includes deterministic Android and iOS workflow automation so
+the operator surfaces can be validated without requiring a live BLE peer.
 
 Android:
 
@@ -80,6 +79,47 @@ xcodebuild \
 The automation targets launch the app in a deterministic scripted mode so they
 can validate guided, advanced, timeline/history/export, lab, and blocked-start
 surfaces while keeping the full two-device proof run separate.
+
+## Physical live proof
+
+Use the live-proof harness when you need retained evidence from a real Android ↔
+physical iPhone guided exchange instead of scripted UI validation.
+
+```bash
+python3 meshlink-reference/scripts/run_headless_reference_live_proof.py \
+  --android-serial <your-android-serial> \
+  --ios-device <your-iphone-udid> \
+  --run-dir /tmp/reference_live_proof_attempt
+```
+
+The harness:
+
+- installs the Android debug build
+- builds and reinstalls the physical iPhone app
+- launches Android in passive live-proof mode
+- launches the iPhone as the live sender
+- waits for the guided exchange, retained history, and redacted export to finish
+- writes retained evidence into the chosen run directory
+
+Expected retained outputs:
+
+- `summary.json` — Android passive proof completion, iPhone sender completion,
+  and the retained export path
+- `android_history.json` — retained session history evidence
+- `android_export.json` — redacted export evidence
+- `android_logcat.log` and `iphone_console.log` — raw device logs for the run
+
+## Platform caveats
+
+- Some Android OEM builds still require Location permission before BLE scan
+  results become visible, even on Android 12+ devices. If discovery stalls,
+  verify both Nearby devices and Location permissions on Android.
+- The first physical iPhone launch may show the Bluetooth permission prompt.
+  Allow it once, then rerun the live-proof harness.
+- The default physical-launch path uses `devicectl`. The optional
+  `--ios-launch-mode xcuitest` fallback exists for first-run permission
+  handling, but it may require freeing old developer-signed apps from the
+  device when you use a free Apple development profile.
 
 ## Expected outcome
 

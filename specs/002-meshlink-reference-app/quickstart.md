@@ -21,6 +21,11 @@ You need:
 If you only have one prepared device, you can still use the app's clearly
 labeled solo exploration mode for non-authoritative walkthroughs.
 
+On some Android OEM builds, BLE scan results remain empty until Location
+permission is granted even on Android 12+ devices. If peer discovery stalls
+after both sides start MeshLink, verify that both Nearby devices and Location
+permissions are granted on Android.
+
 ## 1. Build and install the Android app
 
 ```bash
@@ -50,6 +55,12 @@ xcodebuild \
   DEVELOPMENT_TEAM=<your-team-id> \
   build
 ```
+
+After the build succeeds, launch the `ReferenceApp` scheme from Xcode on the
+chosen simulator or physical iPhone.
+
+On the first physical iPhone launch, allow Bluetooth access for the reference
+app if iOS prompts for it.
 
 ## 3. Open the guided first-exchange scenario on both devices
 
@@ -97,6 +108,38 @@ After ending the session:
 The lab section may expose proof-only or benchmark-only behavior, but it must
 stay clearly separated from the main guided and advanced product-reference
 surfaces.
+
+## 8. Optional: retain a headless two-device proof run
+
+Once the manual flow is working, you can retain one repeatable physical proof
+run with the live-proof harness:
+
+```bash
+python3 meshlink-reference/scripts/run_headless_reference_live_proof.py \
+  --android-serial <your-android-serial> \
+  --ios-device <your-iphone-udid> \
+  --run-dir /tmp/reference_live_proof_attempt
+```
+
+The runner:
+
+- installs the Android debug app
+- builds and reinstalls the physical iPhone app
+- launches Android as the passive peer and the iPhone as the sender
+- waits for the live guided exchange to complete
+- retains proof artifacts in the chosen run directory
+
+Expected retained outputs:
+
+- `summary.json` with Android passive proof completion and iPhone sender
+  completion
+- `android_history.json` showing the retained session with
+  `"historyStatus": "RETAINED"`
+- `android_export.json` showing a redacted export with
+  `"fullPayloadIncluded": false` and no `fullPayload`
+
+If the first physical iPhone launch still needs permission handling, allow the
+Bluetooth prompt once and rerun the command.
 
 ## Expected first proof point
 
