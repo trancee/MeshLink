@@ -118,8 +118,9 @@ Expected retained outputs:
   Allow it once, then rerun the live-proof harness.
 - The default physical-launch path uses `devicectl`. The optional
   `--ios-launch-mode xcuitest` fallback exists for first-run permission
-  handling, but it may require freeing old developer-signed apps from the
-  device when you use a free Apple development profile.
+  handling. On free Apple development profiles, use
+  `--cleanup-ios-dev-app-slots` if you need the runner to free old MeshLink
+  dev apps before starting that fallback path.
 
 ## Expected outcome
 

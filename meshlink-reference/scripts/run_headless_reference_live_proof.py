@@ -16,6 +16,10 @@ from pathlib import Path
 from typing import Any, Callable, Iterable
 
 IOS_BUNDLE_ID = "ch.trancee.meshlink.reference.ios"
+IOS_KNOWN_DEV_APPS_FOR_CLEANUP = (
+    "ch.trancee.meshlink.proof.ios",
+    "ch.trancee.meshlink.proof.ios.benchmarks.xctrunner",
+)
 ANDROID_PACKAGE = "ch.trancee.meshlink.reference"
 ANDROID_ACTIVITY = f"{ANDROID_PACKAGE}/.MainActivity"
 ANDROID_AUTOMATION_LOG_TAGS = ["MeshLinkReferenceAutomation:I", "*:S"]
@@ -106,6 +110,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--skip-android-install", action="store_true")
     parser.add_argument("--skip-ios-build", action="store_true")
     parser.add_argument("--skip-ios-install", action="store_true")
+    parser.add_argument(
+        "--cleanup-ios-dev-app-slots",
+        action="store_true",
+        help="Before the xcuitest launch path, uninstall known MeshLink dev apps to free free-profile app slots",
+    )
     return parser.parse_args()
 
 
@@ -263,6 +272,43 @@ def install_ios_app(ios_device: str, app_path: Path) -> None:
     run(command)
 
 
+def list_ios_installed_meshlink_apps(ios_device: str) -> set[str]:
+    command = [
+        "xcrun",
+        "devicectl",
+        "device",
+        "info",
+        "apps",
+        "--device",
+        ios_device,
+        "--filter",
+        'bundleIdentifier CONTAINS "ch.trancee.meshlink"',
+    ]
+    result = run(command, capture_output=True)
+    return set(re.findall(r"ch\\.trancee\\.meshlink(?:\\.[A-Za-z0-9_-]+)+", result.stdout))
+
+
+def cleanup_ios_dev_app_slots(ios_device: str) -> None:
+    installed_apps = list_ios_installed_meshlink_apps(ios_device)
+    removable_apps = [app for app in IOS_KNOWN_DEV_APPS_FOR_CLEANUP if app in installed_apps]
+    if not removable_apps:
+        print("==> No known extra MeshLink iPhone dev apps needed cleanup")
+        return
+    for bundle_id in removable_apps:
+        command = [
+            "xcrun",
+            "devicectl",
+            "device",
+            "uninstall",
+            "app",
+            "--device",
+            ios_device,
+            bundle_id,
+        ]
+        print(f"==> Removing iPhone dev app to free a signing slot: {bundle_id}")
+        run(command)
+
+
 def run_ios_live_proof_test(
     *,
     ios_device: str,
@@ -304,6 +350,11 @@ def run_ios_live_proof_test(
     if result.returncode != 0:
         print("==> Physical iPhone sender UI test failed; tail follows:", file=sys.stderr)
         print("\n".join(log_text.splitlines()[-60:]), file=sys.stderr)
+        if "maximum number of installed apps using a free developer profile" in log_text:
+            raise SystemExit(
+                "Physical iPhone sender UI test failed because the device is out of free developer-profile app slots. "
+                "Re-run with --cleanup-ios-dev-app-slots or manually uninstall older MeshLink dev apps."
+            )
         raise SystemExit(result.returncode)
 
 
@@ -550,6 +601,8 @@ def main() -> int:
         print(f"==> Waiting {args.android_ready_seconds} seconds for Android passive initialization")
         time.sleep(args.android_ready_seconds)
         if args.ios_launch_mode == "xcuitest":
+            if args.cleanup_ios_dev_app_slots:
+                cleanup_ios_dev_app_slots(args.ios_device)
             run_ios_live_proof_test(
                 ios_device=args.ios_device,
                 app_id=app_id,
