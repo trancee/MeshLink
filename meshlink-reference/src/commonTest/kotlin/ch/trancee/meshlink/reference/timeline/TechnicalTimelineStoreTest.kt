@@ -2,6 +2,8 @@ package ch.trancee.meshlink.reference.timeline
 
 import ch.trancee.meshlink.api.DeliveryPriority
 import ch.trancee.meshlink.reference.automation.ReferenceAutomationConfig
+import ch.trancee.meshlink.reference.automation.ReferenceAutomationMode
+import ch.trancee.meshlink.reference.automation.ReferenceAutomationRole
 import ch.trancee.meshlink.reference.meshlink.ReferenceControllerSnapshot
 import ch.trancee.meshlink.reference.meshlink.ReferenceMeshLinkController
 import ch.trancee.meshlink.reference.model.ReferenceAuthorityMode
@@ -49,15 +51,56 @@ class TechnicalTimelineStoreTest {
         )
         coroutineContext.cancelChildren()
     }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun retainCurrentSessionAutoExportsRedactedArtifactInScriptedAutomation() = runTest {
+        // Arrange
+        val documentStore = InMemoryReferenceDocumentStore()
+        val store =
+            TechnicalTimelineStore(
+                platformServices =
+                    timelinePlatformServices(
+                        automationConfig =
+                            ReferenceAutomationConfig(
+                                mode = ReferenceAutomationMode.SCRIPTED_UI,
+                                role = ReferenceAutomationRole.PASSIVE,
+                                appId = "demo.meshlink.reference.automation",
+                                storageSubdirectory = "timeline-test",
+                            )
+                    ),
+                historyRepository = JsonSessionHistoryRepository(documentStore = documentStore),
+                artifactSerializer = JsonSessionArtifactSerializer(documentStore = documentStore),
+                scope = this,
+            )
+        val expectedExportPath = "reference/exports/timeline-session.json"
+        advanceUntilIdle()
+
+        // Act
+        store.retainCurrentSession()
+        advanceUntilIdle()
+
+        // Assert
+        assertEquals(expectedExportPath, store.uiState.value.lastExportPath)
+        assertEquals(
+            true,
+            documentStore
+                .readText(expectedExportPath)
+                ?.contains("\"defaultMode\": \"redacted-preview\""),
+        )
+        coroutineContext.cancelChildren()
+    }
 }
 
-private fun timelinePlatformServices(): PlatformServices {
+private fun timelinePlatformServices(
+    automationConfig: ReferenceAutomationConfig? = null
+): PlatformServices {
     return object : PlatformServices {
         override val platformName: String = "Test"
         override val defaultAuthorityMode: ReferenceAuthorityMode = ReferenceAuthorityMode.LIVE
         override val readinessGuidance: List<String> = emptyList()
         override val readinessBlockers: List<String> = emptyList()
-        override val automationConfig: ReferenceAutomationConfig? = null
+        override val automationConfig: ReferenceAutomationConfig? = automationConfig
         override val documentStore: ReferenceDocumentStore = InMemoryReferenceDocumentStore()
         override val meshLinkController: ReferenceMeshLinkController =
             object : ReferenceMeshLinkController {

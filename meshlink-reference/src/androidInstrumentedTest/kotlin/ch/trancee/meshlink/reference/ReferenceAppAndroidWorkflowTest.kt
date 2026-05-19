@@ -64,8 +64,8 @@ class ReferenceAppAndroidWorkflowTest {
             tapTextWithScroll(device, "Forget selected peer", searchDirection = Direction.UP)
             waitForTextContainsWithScroll(
                 device,
-                "Peer trust reset",
-                searchDirection = Direction.UP,
+                "Trust: FORGOTTEN",
+                searchDirection = Direction.DOWN,
             )
 
             tapText(device, "Lab")
@@ -87,8 +87,7 @@ class ReferenceAppAndroidWorkflowTest {
 
             waitForText(device, "Technical timeline")
             tapTextWithScroll(device, "Retain session", searchDirection = Direction.UP)
-            swipe(device, Direction.UP)
-            tapTextWithScroll(device, "Export redacted", searchDirection = Direction.UP)
+            waitForTextContains(device, "Retained 1")
 
             val exportPath = waitForLatestAutomationExportPath(storageSubdirectory)
             tapText(device, "Recent history")
@@ -279,10 +278,13 @@ private fun waitForObject(
 }
 
 private fun tapVisibleTextFromHierarchyDump(device: UiDevice, text: String): Boolean {
-    val hierarchyDump = executeShellCommand("uiautomator dump /dev/tty")
+    val hierarchyDump =
+        executeShellCommand(
+            "uiautomator dump /sdcard/meshlink-reference-ui.xml >/dev/null && cat /sdcard/meshlink-reference-ui.xml"
+        )
     val boundsMatch =
         Regex(
-                "text=\\\"${Regex.escape(text)}\\\".*?bounds=\\\"\\[(\\d+),(\\d+)]\\[(\\d+),(\\d+)]\\\""
+                "text=\\\"${Regex.escape(text)}\\\"[^>]*bounds=\\\"\\[(\\d+),(\\d+)]\\[(\\d+),(\\d+)]\\\""
             )
             .find(hierarchyDump) ?: return false
     val (left, top, right, bottom) = boundsMatch.destructured

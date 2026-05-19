@@ -1,5 +1,6 @@
 package ch.trancee.meshlink.reference.timeline
 
+import ch.trancee.meshlink.reference.automation.ReferenceAutomationMode
 import ch.trancee.meshlink.reference.meshlink.ReferenceControllerSnapshot
 import ch.trancee.meshlink.reference.model.ReferenceHistoryStatus
 import ch.trancee.meshlink.reference.model.ReferenceSession
@@ -99,13 +100,26 @@ public class TechnicalTimelineStore(
                         )
                 )
             historyRepository.retainSnapshot(retainedSnapshot)
+            val retainedSessions =
+                mergeRetainedSessions(
+                    current = stateFlow.value.retainedSessions,
+                    loaded = historyRepository.loadRetainedSessions(),
+                )
+            val lastExportPath =
+                if (
+                    platformServices.automationConfig?.mode == ReferenceAutomationMode.SCRIPTED_UI
+                ) {
+                    writeExport(
+                        snapshot = retainedSnapshot,
+                        policy = ExportPayloadPolicy.REDACTED_PREVIEW,
+                    )
+                } else {
+                    stateFlow.value.lastExportPath
+                }
             stateFlow.value =
                 stateFlow.value.copy(
-                    retainedSessions =
-                        mergeRetainedSessions(
-                            current = stateFlow.value.retainedSessions,
-                            loaded = historyRepository.loadRetainedSessions(),
-                        )
+                    retainedSessions = retainedSessions,
+                    lastExportPath = lastExportPath,
                 )
         }
     }
@@ -162,48 +176,51 @@ public class TechnicalTimelineStore(
 
     public fun exportCurrentSession(policy: ExportPayloadPolicy): Unit {
         scope.launch {
-            val snapshot = stateFlow.value.currentSnapshot
-            val serialized =
-                if (policy == ExportPayloadPolicy.FULL_PAYLOAD_OPT_IN) {
-                    artifactSerializer.serializeWithFullPayload(
-                        snapshot.session,
-                        snapshot.peers,
-                        snapshot.timeline,
-                    )
-                } else {
-                    artifactSerializer.serializeRedacted(
-                        snapshot.session,
-                        snapshot.peers,
-                        snapshot.timeline,
-                    )
-                }
-            val artifact =
-                SessionArtifact(
-                    artifactId = "artifact-${snapshot.session.sessionId}",
-                    sourceSessionId = snapshot.session.sessionId,
-                    createdAtEpochMillis = platformServices.currentTimeMillis(),
-                    payloadPolicy =
-                        if (policy == ExportPayloadPolicy.FULL_PAYLOAD_OPT_IN) {
-                            ch.trancee.meshlink.reference.model.ArtifactPayloadPolicy.FULL_OPT_IN
-                        } else {
-                            ch.trancee.meshlink.reference.model.ArtifactPayloadPolicy
-                                .REDACTED_PREVIEW
-                        },
-                    includesFullPayload = policy == ExportPayloadPolicy.FULL_PAYLOAD_OPT_IN,
-                    scenarioSummary = snapshot.session.configurationSnapshot,
-                    peerSummaries =
-                        snapshot.peers.map { peer ->
-                            mapOf(
-                                "peerSuffix" to peer.peerSuffix,
-                                "trustState" to peer.trustState.name,
-                            )
-                        },
-                    timelineEntries = snapshot.timeline,
-                    storagePath = "reference/exports/${snapshot.session.sessionId}.json",
-                )
-            val storagePath = artifactSerializer.writeArtifact(artifact, serialized)
+            val storagePath =
+                writeExport(snapshot = stateFlow.value.currentSnapshot, policy = policy)
             stateFlow.value = stateFlow.value.copy(lastExportPath = storagePath)
         }
+    }
+
+    private suspend fun writeExport(
+        snapshot: ReferenceControllerSnapshot,
+        policy: ExportPayloadPolicy,
+    ): String {
+        val serialized =
+            if (policy == ExportPayloadPolicy.FULL_PAYLOAD_OPT_IN) {
+                artifactSerializer.serializeWithFullPayload(
+                    snapshot.session,
+                    snapshot.peers,
+                    snapshot.timeline,
+                )
+            } else {
+                artifactSerializer.serializeRedacted(
+                    snapshot.session,
+                    snapshot.peers,
+                    snapshot.timeline,
+                )
+            }
+        val artifact =
+            SessionArtifact(
+                artifactId = "artifact-${snapshot.session.sessionId}",
+                sourceSessionId = snapshot.session.sessionId,
+                createdAtEpochMillis = platformServices.currentTimeMillis(),
+                payloadPolicy =
+                    if (policy == ExportPayloadPolicy.FULL_PAYLOAD_OPT_IN) {
+                        ch.trancee.meshlink.reference.model.ArtifactPayloadPolicy.FULL_OPT_IN
+                    } else {
+                        ch.trancee.meshlink.reference.model.ArtifactPayloadPolicy.REDACTED_PREVIEW
+                    },
+                includesFullPayload = policy == ExportPayloadPolicy.FULL_PAYLOAD_OPT_IN,
+                scenarioSummary = snapshot.session.configurationSnapshot,
+                peerSummaries =
+                    snapshot.peers.map { peer ->
+                        mapOf("peerSuffix" to peer.peerSuffix, "trustState" to peer.trustState.name)
+                    },
+                timelineEntries = snapshot.timeline,
+                storagePath = "reference/exports/${snapshot.session.sessionId}.json",
+            )
+        return artifactSerializer.writeArtifact(artifact, serialized)
     }
 
     private fun updateFilters(filters: TimelineFilters): Unit {

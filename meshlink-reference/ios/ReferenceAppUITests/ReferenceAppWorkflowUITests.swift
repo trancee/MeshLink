@@ -19,7 +19,7 @@ final class ReferenceAppWorkflowUITests: XCTestCase {
             timeout: 10,
             message: "Expected Send Hello to become enabled after the scripted peer appears"
         )
-        ReferenceAppUITestSupport.waitForStaticTextContaining(in: app, text: "Selected peer: 654321")
+        ReferenceAppUITestSupport.waitForStaticTextContaining(in: app, text: "Peer: 654321")
         ReferenceAppUITestSupport.tapButton(in: app, labeled: "Send Hello")
         ReferenceAppUITestSupport.tapButton(in: app, labeled: "Solo mode")
 
