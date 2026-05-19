@@ -33,7 +33,7 @@ final class ReferenceAppWorkflowUITests: XCTestCase {
         let launched = ReferenceAppUITestSupport.launchReferenceApp()
         let app = launched.application
         ReferenceAppUITestSupport.tapButton(in: app, labeled: "Start MeshLink")
-        ReferenceAppUITestSupport.tapButton(in: app, labeled: "Advanced controls")
+        ReferenceAppUITestSupport.tapButton(in: app, labeled: "Controls")
         ReferenceAppUITestSupport.waitForStaticText(in: app, labeled: "Advanced controls")
         ReferenceAppUITestSupport.waitForStaticTextContaining(in: app, text: "Power mode: Automatic")
 
@@ -66,7 +66,7 @@ final class ReferenceAppWorkflowUITests: XCTestCase {
             message: "Expected Send Hello to become enabled before export validation"
         )
         ReferenceAppUITestSupport.tapButton(in: app, labeled: "Send Hello")
-        ReferenceAppUITestSupport.tapButton(in: app, labeled: "Technical timeline")
+        ReferenceAppUITestSupport.tapButton(in: app, labeled: "Evidence")
         ReferenceAppUITestSupport.waitForStaticText(in: app, labeled: "Technical timeline")
 
         // Act

@@ -52,7 +52,7 @@ class ReferenceAppAndroidWorkflowTest {
         withLaunchedAutomationApp(storageSubdirectory = storageSubdirectory) { device ->
             waitForText(device, "Guided first exchange")
             tapText(device, "Start MeshLink")
-            tapText(device, "Advanced controls")
+            tapText(device, "Controls")
 
             waitForText(device, "Advanced controls")
             waitForTextContains(device, "Power mode: Automatic")
@@ -67,7 +67,7 @@ class ReferenceAppAndroidWorkflowTest {
             tapTextWithScroll(device, "Forget selected peer", searchDirection = Direction.UP)
             waitForTextContains(device, "Peer trust reset")
 
-            tapTextWithScroll(device, "Lab", searchDirection = Direction.DOWN)
+            tapText(device, "Lab")
             waitForText(device, "Lab")
             waitForText(device, "Non-normative")
         }
@@ -82,7 +82,7 @@ class ReferenceAppAndroidWorkflowTest {
             tapText(device, "Start MeshLink")
             waitForTextContains(device, "Selected peer: 654321")
             tapText(device, "Send Hello")
-            tapText(device, "Technical timeline")
+            tapText(device, "Evidence")
 
             waitForText(device, "Technical timeline")
             tapText(device, "Retain session")

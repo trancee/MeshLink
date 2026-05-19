@@ -1,31 +1,38 @@
 package ch.trancee.meshlink.reference.navigation
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import ch.trancee.meshlink.reference.advanced.AdvancedControlsScreen
@@ -35,7 +42,6 @@ import ch.trancee.meshlink.reference.guided.GuidedFirstExchangeScreen
 import ch.trancee.meshlink.reference.guided.GuidedFirstExchangeViewModel
 import ch.trancee.meshlink.reference.history.RecentSessionHistoryScreen
 import ch.trancee.meshlink.reference.lab.LabScreen
-import ch.trancee.meshlink.reference.meshlink.ReferenceControllerSnapshot
 import ch.trancee.meshlink.reference.platform.PlatformServices
 import ch.trancee.meshlink.reference.resources.Res
 import ch.trancee.meshlink.reference.resources.app_title
@@ -68,10 +74,25 @@ public fun ReferenceNavHost(platformServices: PlatformServices) {
                 artifactSerializer = JsonSessionArtifactSerializer(platformServices.documentStore),
             )
         }
-    val routes =
-        ReferenceWorkflowCatalog.descriptors().map { descriptor ->
+    val workflowTitles = remember {
+        ReferenceWorkflowCatalog.descriptors().associate { descriptor ->
             descriptor.surfaceId to descriptor.title
         }
+    }
+    val lastRouteBySection = remember {
+        mutableStateMapOf<ReferencePrimarySection, ReferenceSurfaceId>().apply {
+            ReferencePrimarySection.entries.forEach { section ->
+                put(section, section.defaultSurface)
+            }
+        }
+    }
+
+    fun selectSurface(surface: ReferenceSurfaceId) {
+        activeRoute = surface
+        lastRouteBySection[primarySectionFor(surface)] = surface
+    }
+
+    val activeSection = primarySectionFor(activeRoute)
 
     ReferenceLiveProofAutomation(
         platformServices = platformServices,
@@ -82,112 +103,190 @@ public fun ReferenceNavHost(platformServices: PlatformServices) {
 
     Scaffold(
         topBar = {
-            Column(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp)
+            ReferenceShellHeader(
+                activeSection = activeSection,
+                activeRoute = activeRoute,
+                workflowTitles = workflowTitles,
+                platformName = platformServices.platformName,
+                authorityModeLabel = snapshot.session.authorityMode.toString(),
+                meshStateLabel = snapshot.session.meshStateLabel,
+                onSelectSurface = ::selectSurface,
+            )
+        },
+        bottomBar = {
+            NavigationBar {
+                ReferencePrimarySection.entries.forEach { section ->
+                    NavigationBarItem(
+                        selected = section == activeSection,
+                        onClick = {
+                            selectSurface(lastRouteBySection[section] ?: section.defaultSurface)
+                        },
+                        icon = {
+                            Icon(imageVector = section.icon, contentDescription = section.label)
+                        },
+                        label = { Text(section.label) },
+                    )
+                }
+            }
+        },
+    ) { innerPadding ->
+        Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
+            when (activeRoute) {
+                ReferenceSurfaceId.MAIN_GUIDED ->
+                    GuidedFirstExchangeScreen(
+                        viewModel = guidedViewModel,
+                        onOpenSolo = { selectSurface(ReferenceSurfaceId.SOLO_EXPLORATION) },
+                        modifier = Modifier.fillMaxSize(),
+                    )
+
+                ReferenceSurfaceId.SOLO_EXPLORATION ->
+                    SoloExplorationScreen(modifier = Modifier.fillMaxSize())
+
+                ReferenceSurfaceId.ADVANCED_CONTROLS ->
+                    AdvancedControlsScreen(
+                        viewModel = advancedViewModel,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+
+                ReferenceSurfaceId.TECHNICAL_TIMELINE ->
+                    TechnicalTimelineScreen(
+                        store = timelineStore,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+
+                ReferenceSurfaceId.LAB -> LabScreen(modifier = Modifier.fillMaxSize())
+
+                ReferenceSurfaceId.RECENT_HISTORY ->
+                    RecentSessionHistoryScreen(
+                        store = timelineStore,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ReferenceShellHeader(
+    activeSection: ReferencePrimarySection,
+    activeRoute: ReferenceSurfaceId,
+    workflowTitles: Map<ReferenceSurfaceId, String>,
+    platformName: String,
+    authorityModeLabel: String,
+    meshStateLabel: String,
+    onSelectSurface: (ReferenceSurfaceId) -> Unit,
+) {
+    Surface(
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 4.dp,
+        shadowElevation = 6.dp,
+        shape = RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp),
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(
+                text = stringResource(Res.string.app_title),
+                style = MaterialTheme.typography.headlineSmall,
+            )
+            Text(
+                text = activeSection.description,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth(),
             ) {
-                Text(
-                    text = stringResource(Res.string.app_title),
-                    style = MaterialTheme.typography.displaySmall,
+                ReferenceStatusBadge(
+                    label = "${stringResource(Res.string.platform_label)}: $platformName"
                 )
-                Text(
-                    text =
-                        "${stringResource(Res.string.platform_label)}: ${platformServices.platformName} · ${stringResource(Res.string.mode_label)}: ${snapshot.session.authorityMode}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                ReferenceStatusBadge(
+                    label = "${stringResource(Res.string.mode_label)}: $authorityModeLabel"
                 )
-                Spacer(modifier = Modifier.height(12.dp))
+                ReferenceStatusBadge(label = "Mesh: $meshStateLabel")
+            }
+            if (activeSection.surfaces.size > 1) {
                 FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    routes.forEach { (route, title) ->
-                        AssistChip(
-                            onClick = { activeRoute = route },
-                            label = { Text(text = title) },
-                            enabled = route != activeRoute,
+                    activeSection.surfaces.forEach { surface ->
+                        FilterChip(
+                            selected = surface == activeRoute,
+                            onClick = { onSelectSurface(surface) },
+                            label = { Text(workflowTitles.getValue(surface)) },
                         )
                     }
                 }
+            } else {
+                Text(
+                    text = workflowTitles.getValue(activeRoute),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.SemiBold,
+                )
             }
-        }
-    ) { innerPadding ->
-        when (activeRoute) {
-            ReferenceSurfaceId.MAIN_GUIDED ->
-                GuidedFirstExchangeScreen(
-                    viewModel = guidedViewModel,
-                    onOpenSolo = { activeRoute = ReferenceSurfaceId.SOLO_EXPLORATION },
-                    modifier = Modifier.fillMaxSize().padding(innerPadding),
-                )
-            ReferenceSurfaceId.SOLO_EXPLORATION ->
-                SoloExplorationScreen(modifier = Modifier.fillMaxSize().padding(innerPadding))
-            ReferenceSurfaceId.ADVANCED_CONTROLS ->
-                AdvancedControlsScreen(
-                    viewModel = advancedViewModel,
-                    modifier = Modifier.fillMaxSize().padding(innerPadding),
-                )
-            ReferenceSurfaceId.TECHNICAL_TIMELINE ->
-                TechnicalTimelineScreen(
-                    store = timelineStore,
-                    modifier = Modifier.fillMaxSize().padding(innerPadding),
-                )
-            ReferenceSurfaceId.LAB ->
-                LabScreen(modifier = Modifier.fillMaxSize().padding(innerPadding))
-            ReferenceSurfaceId.RECENT_HISTORY ->
-                RecentSessionHistoryScreen(
-                    store = timelineStore,
-                    modifier = Modifier.fillMaxSize().padding(innerPadding),
-                )
         }
     }
 }
 
 @Composable
-private fun PlaceholderSurface(
-    title: String,
-    summary: String,
-    snapshot: ReferenceControllerSnapshot,
-    modifier: Modifier = Modifier,
-) {
-    Column(
-        modifier = modifier.verticalScroll(rememberScrollState()).padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+private fun ReferenceStatusBadge(label: String) {
+    Surface(
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
     ) {
-        Text(text = title, style = MaterialTheme.typography.headlineSmall)
-        Text(text = summary, style = MaterialTheme.typography.bodyLarge)
-
-        Card(
-            colors =
-                CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Column(
-                modifier = Modifier.fillMaxWidth().padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Text(
-                    text = "Foundational app shell",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Text(
-                    text = "Mesh state: ${snapshot.session.meshStateLabel}",
-                    style = MaterialTheme.typography.bodyLarge,
-                )
-                Text(
-                    text = "Last outcome: ${snapshot.session.lastOutcomeSummary ?: "none yet"}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Text(
-                    text = "Timeline entries: ${snapshot.timeline.size}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                TextButton(onClick = {}) {
-                    Text("Story-specific controls plug into this route next")
-                }
-            }
-        }
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelLarge,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+        )
     }
+}
+
+private enum class ReferencePrimarySection(
+    val label: String,
+    val description: String,
+    val icon: ImageVector,
+    val surfaces: List<ReferenceSurfaceId>,
+) {
+    EXCHANGE(
+        label = "Exchange",
+        description =
+            "Start with the live guided flow, then switch to solo review when a second device is unavailable.",
+        icon = Icons.Filled.Home,
+        surfaces = listOf(ReferenceSurfaceId.MAIN_GUIDED, ReferenceSurfaceId.SOLO_EXPLORATION),
+    ),
+    CONTROLS(
+        label = "Controls",
+        description =
+            "Inspect runtime configuration, peer details, lifecycle actions, and operator-focused send controls.",
+        icon = Icons.Filled.Settings,
+        surfaces = listOf(ReferenceSurfaceId.ADVANCED_CONTROLS),
+    ),
+    EVIDENCE(
+        label = "Evidence",
+        description =
+            "Review live diagnostics, retain completed sessions, and export redacted evidence artifacts.",
+        icon = Icons.Filled.Info,
+        surfaces = listOf(ReferenceSurfaceId.TECHNICAL_TIMELINE, ReferenceSurfaceId.RECENT_HISTORY),
+    ),
+    LAB(
+        label = "Lab",
+        description =
+            "Keep non-normative proof and benchmark experiments separate from the supported reference workflow.",
+        icon = Icons.Filled.Build,
+        surfaces = listOf(ReferenceSurfaceId.LAB),
+    );
+
+    val defaultSurface: ReferenceSurfaceId = surfaces.first()
+}
+
+private fun primarySectionFor(surface: ReferenceSurfaceId): ReferencePrimarySection {
+    return ReferencePrimarySection.entries.first { section -> surface in section.surfaces }
 }
