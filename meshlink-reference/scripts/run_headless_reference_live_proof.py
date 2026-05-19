@@ -104,6 +104,8 @@ def parse_args() -> argparse.Namespace:
         help="How long to keep the iPhone console open after the sender completion marker when using devicectl",
     )
     parser.add_argument("--skip-android-install", action="store_true")
+    parser.add_argument("--skip-ios-build", action="store_true")
+    parser.add_argument("--skip-ios-install", action="store_true")
     return parser.parse_args()
 
 
@@ -537,8 +539,9 @@ def main() -> int:
 
     ios_app_path = None
     if args.ios_launch_mode == "devicectl":
-        ios_app_path = build_ios_app(args.ios_device, run_dir)
-        install_ios_app(args.ios_device, ios_app_path)
+        ios_app_path = latest_built_app() if args.skip_ios_build else build_ios_app(args.ios_device, run_dir)
+        if not args.skip_ios_install:
+            install_ios_app(args.ios_device, ios_app_path)
 
     android_logcat = start_android_app(run_dir, args.android_serial, app_id, storage_subdirectory)
     ios_console_process: BackgroundProcess | None = None
