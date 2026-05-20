@@ -43,7 +43,6 @@ import ch.trancee.meshlink.storage.SecureStorage
 import ch.trancee.meshlink.transfer.InboundChunkAcceptance
 import ch.trancee.meshlink.transfer.InboundTransferSession
 import ch.trancee.meshlink.transfer.OutboundTransferSession
-import ch.trancee.meshlink.transfer.PreparedInboundTransferAck
 import ch.trancee.meshlink.transfer.RelayTransferSession
 import ch.trancee.meshlink.transport.BleTransport
 import ch.trancee.meshlink.transport.OutboundFrame
@@ -883,8 +882,6 @@ private constructor(
         )
     }
 
-    private data class InlineRetryWakeupState(val attempt: Int, val topologyVersion: Long)
-
     private data class InlineSessionResolution(
         val nextHopPeerId: PeerId,
         val session: HopSession?,
@@ -1153,10 +1150,6 @@ private constructor(
         }
     }
 
-    private fun SendResult.isRetryableInlineFailure(): Boolean {
-        return this is SendResult.NotSent && reason == SendFailureReason.UNREACHABLE
-    }
-
     private fun unreachableInlineSendResult(peerId: PeerId): SendResult {
         emitDiagnostic(
             code = DiagnosticCode.DELIVERY_UNREACHABLE,
@@ -1206,16 +1199,6 @@ private constructor(
             reason = DiagnosticReason.STATE_CHANGE,
         )
         return learnedTrust
-    }
-
-    private sealed class OutboundTransferPreparation {
-        data object PendingRoute : OutboundTransferPreparation()
-
-        class Ready internal constructor(internal val session: OutboundTransferSession) :
-            OutboundTransferPreparation()
-
-        class Failed internal constructor(internal val result: SendResult) :
-            OutboundTransferPreparation()
     }
 
     private suspend fun prepareOutboundTransferSession(
@@ -1307,37 +1290,6 @@ private constructor(
             metadata = peerRouteMetadata(peerId),
         )
     }
-
-    private fun chunkTransferPayload(payload: ByteArray, chunkSize: Int): List<ByteArray> {
-        check(chunkSize > 0) { "chunkSize must be positive" }
-        val chunkCount = (payload.size + chunkSize - 1) / chunkSize
-        return List(chunkCount) { chunkIndex ->
-            val chunkStart = chunkIndex * chunkSize
-            val chunkEnd = minOf(chunkStart + chunkSize, payload.size)
-            payload.copyOfRange(chunkStart, chunkEnd)
-        }
-    }
-
-    private data class LargeTransferSessionResolution(
-        val session: OutboundTransferSession?,
-        val lastRouteAvailable: Boolean,
-        val result: SendResult? = null,
-    )
-
-    private data class LargeTransferIterationResult(
-        val lastRouteAvailable: Boolean,
-        val transferProgressObserved: Boolean,
-        val result: SendResult? = null,
-    )
-
-    private data class LargeTransferLoopResult(
-        val session: OutboundTransferSession?,
-        val lastRouteAvailable: Boolean,
-        val transferProgressObserved: Boolean = false,
-        val result: SendResult? = null,
-    )
-
-    private data class LargeTransferRetryWakeupState(val attempt: Int, val topologyVersion: Long)
 
     private suspend fun sendLargePayload(
         peerId: PeerId,
@@ -1778,31 +1730,6 @@ private constructor(
         )
     }
 
-    private fun inboundTransferChunkStage(acceptance: InboundChunkAcceptance): String {
-        return if (acceptance.accepted) {
-            "transfer.receive.chunk"
-        } else {
-            "transfer.receive.invalidChunk"
-        }
-    }
-
-    private fun inboundTransferChunkMetadata(
-        acceptance: InboundChunkAcceptance
-    ): Map<String, String> {
-        return mapOf(
-            "accepted" to acceptance.accepted.toString(),
-            "chunkBytes" to acceptance.payloadBytes.toString(),
-            "chunkIndex" to acceptance.chunkIndex.toString(),
-            "complete" to acceptance.complete.toString(),
-            "duplicateChunk" to acceptance.duplicateChunk.toString(),
-            "highestContiguousAck" to acceptance.highestContiguousAck.toString(),
-            "newlyReceivedChunksSinceLastAck" to
-                acceptance.newlyReceivedChunksSinceLastAck.toString(),
-            "receivedChunks" to acceptance.receivedChunkCount.toString(),
-            "shouldAcknowledge" to acceptance.shouldAcknowledge.toString(),
-        )
-    }
-
     private suspend fun acknowledgeInboundTransferChunkIfNeeded(
         peerId: PeerId,
         frame: WireFrame.TransferChunk,
@@ -1943,36 +1870,6 @@ private constructor(
                     peerId = peerId,
                     metadata = inboundTransferMetadata(session) + metadata,
                 ),
-        )
-    }
-
-    private fun inboundTransferMetadata(session: InboundTransferSession): Map<String, String> {
-        return mapOf(
-            "destinationPeerId" to session.destinationPeerId.value,
-            "maxChunkPayloadBytes" to session.maxChunkPayloadBytes.toString(),
-            "messageId" to session.messageId,
-            "originPeerId" to session.originPeerId.value,
-            "totalBytes" to session.totalBytes.toString(),
-            "totalChunks" to session.totalChunks.toString(),
-            "transferId" to session.transferId,
-            "upstreamPeerId" to session.upstreamPeerId.value,
-        )
-    }
-
-    private fun inboundAckMetadata(
-        preparedAck: PreparedInboundTransferAck,
-        ackSent: Boolean,
-    ): Map<String, String> {
-        return mapOf(
-            "ackContiguousChunks" to
-                (preparedAck.highestContiguousAck + 1).coerceAtLeast(0).toString(),
-            "ackHighestContiguous" to preparedAck.highestContiguousAck.toString(),
-            "ackSent" to ackSent.toString(),
-            "complete" to preparedAck.complete.toString(),
-            "newlyReceivedChunksSinceLastAck" to
-                preparedAck.newlyReceivedChunksSinceLastAck.toString(),
-            "receivedChunks" to preparedAck.receivedChunkCount.toString(),
-            "selectiveRangesBytes" to preparedAck.frame.selectiveRanges.size.toString(),
         )
     }
 
@@ -2120,22 +2017,6 @@ private constructor(
                     metadata = metadata + ("routeChange" to routeRemovalLabel(removalCode)),
                 ),
         )
-    }
-
-    private fun routeRemovalStage(stage: String, removalCode: DiagnosticCode): String {
-        return if (removalCode == DiagnosticCode.ROUTE_EXPIRED) {
-            "$stage.routeExpired"
-        } else {
-            "$stage.routeRetracted"
-        }
-    }
-
-    private fun routeRemovalLabel(removalCode: DiagnosticCode): String {
-        return if (removalCode == DiagnosticCode.ROUTE_EXPIRED) {
-            "expired"
-        } else {
-            "retracted"
-        }
     }
 
     private fun peerRouteMetadata(
@@ -2453,10 +2334,6 @@ private constructor(
         }
     }
 
-    private fun preferredTransportModeForEncryptedFrame(frame: WireFrame): TransportMode? {
-        return if (frame is WireFrame.TransferAck) TransportMode.GATT else null
-    }
-
     private fun encryptHopPayload(
         sendKey: ByteArray,
         sendNonce: ULong,
@@ -2511,27 +2388,6 @@ private constructor(
 
     private fun powerPolicyNowMillis(): Long {
         return engineClock.elapsedNow().inWholeMilliseconds
-    }
-
-    private fun powerPolicyMetadata(
-        policy: PowerPolicy,
-        level: Float,
-        isCharging: Boolean,
-    ): Map<String, String> {
-        return buildMap {
-            put("level", level.toString())
-            put("isCharging", isCharging.toString())
-            put("tier", policy.tier.name)
-            put("advertisementIntervalMillis", policy.advertisementIntervalMillis.toString())
-            put("connectionIntervalMillis", policy.connectionIntervalMillis.toString())
-            put("scanDutyCyclePercent", policy.scanDutyCyclePercent.toString())
-            put("maxConnections", policy.maxConnections.toString())
-            put("chunkBudgetBytes", policy.chunkBudgetBytes.toString())
-            put("region", policy.region.name)
-            if (policy.clampWarnings.isNotEmpty()) {
-                put("clampWarnings", policy.clampWarnings.joinToString(separator = " | "))
-            }
-        }
     }
 
     private fun emitDiagnostic(
