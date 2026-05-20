@@ -2194,30 +2194,33 @@ private constructor(
     }
 
     private suspend fun ensureHopSession(peerId: PeerId): SessionEstablishmentOutcome {
-        hopSessions[peerId.value]?.let { session ->
-            return SessionEstablishmentOutcome.Established(session)
-        }
-        pendingInitiatorHandshakes[peerId.value]?.let { pending ->
-            return awaitSessionEstablishment(peerId, pending.sessionDeferred)
-        }
-        if (bleTransport == null) {
-            return SessionEstablishmentOutcome.Unreachable
-        }
+        val existingSession = hopSessions[peerId.value]
+        val pendingHandshake = pendingInitiatorHandshakes[peerId.value]
 
+        return when {
+            existingSession != null -> SessionEstablishmentOutcome.Established(existingSession)
+            pendingHandshake != null ->
+                awaitSessionEstablishment(peerId, pendingHandshake.sessionDeferred)
+            bleTransport == null -> SessionEstablishmentOutcome.Unreachable
+            else -> initiateHopSession(peerId)
+        }
+    }
+
+    private suspend fun initiateHopSession(peerId: PeerId): SessionEstablishmentOutcome {
         val manager = NoiseXXHandshakeManager(localIdentity.cryptoProvider)
         val message1 = manager.createMessage1(localIdentity.noiseIdentity)
         val sessionDeferred = CompletableDeferred<SessionEstablishmentOutcome>()
         pendingInitiatorHandshakes[peerId.value] =
             PendingInitiatorHandshake(manager, sessionDeferred)
-        when (
+
+        return when (
             sendDirectWireFrame(
                 peerId = peerId,
                 frame = DirectWireFrame.HandshakeMessage1(message1),
                 action = "handshake.message1",
             )
         ) {
-            TransportSendResult.Delivered ->
-                return awaitSessionEstablishment(peerId, sessionDeferred)
+            TransportSendResult.Delivered -> awaitSessionEstablishment(peerId, sessionDeferred)
             is TransportSendResult.Dropped -> {
                 pendingInitiatorHandshakes.remove(peerId.value)
                 emitHopSessionFailed(
@@ -2225,7 +2228,7 @@ private constructor(
                     stage = "transport.handshake.message1.send",
                     reason = DiagnosticReason.DELIVERY_FAILURE,
                 )
-                return SessionEstablishmentOutcome.Unreachable
+                SessionEstablishmentOutcome.Unreachable
             }
         }
     }
