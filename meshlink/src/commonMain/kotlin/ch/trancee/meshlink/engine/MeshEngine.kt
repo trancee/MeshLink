@@ -668,14 +668,25 @@ private constructor(
         )
     }
 
+    private data class InlineRetryWakeupState(val attempt: Int, val topologyVersion: Long)
+
+    private data class InlineSessionResolution(
+        val nextHopPeerId: PeerId,
+        val session: HopSession?,
+        val result: SendResult? = null,
+    )
+
     private suspend fun sendInlinePayload(
         peerId: PeerId,
         payload: ByteArray,
         priority: DeliveryPriority,
     ): SendResult {
         val startedAt = TimeSource.Monotonic.markNow()
-        var attempt = 0
-        var topologyVersion = routeCoordinator.topologyVersion.value
+        var retryState =
+            InlineRetryWakeupState(
+                attempt = 0,
+                topologyVersion = routeCoordinator.topologyVersion.value,
+            )
         val suspendDiscoveryDuringSend = payload.size > INLINE_MESSAGE_PAYLOAD_BYTES
 
         if (suspendDiscoveryDuringSend) {
@@ -684,63 +695,20 @@ private constructor(
 
         try {
             while (startedAt.elapsedNow() < config.deliveryRetryDeadline) {
-                when (
-                    val sendResult =
-                        attemptInlineSend(peerId = peerId, payload = payload, priority = priority)
-                ) {
-                    is SendResult.Sent -> return sendResult
-                    is SendResult.NotSent -> {
-                        if (sendResult.reason != SendFailureReason.UNREACHABLE) {
-                            return sendResult
-                        }
-                    }
+                val sendResult =
+                    attemptInlineSend(peerId = peerId, payload = payload, priority = priority)
+                if (!sendResult.isRetryableInlineFailure()) {
+                    return sendResult
                 }
-                emitDiagnostic(
-                    code = DiagnosticCode.DELIVERY_RETRY_SCHEDULED,
-                    severity = DiagnosticSeverity.WARN,
-                    stage = "delivery.retryScheduled",
-                    peerSuffix = peerId.value.takeLast(6),
-                    reason = DiagnosticReason.DELIVERY_RETRY,
-                    metadata =
-                        peerRouteMetadata(peerId, metadata = mapOf("attempt" to attempt.toString())),
-                )
-                when (
-                    val wakeup =
-                        deliveryRetryScheduler.awaitRetry(
-                            attempt = attempt,
-                            remainingBudget = config.deliveryRetryDeadline - startedAt.elapsedNow(),
-                            lastObservedTopologyVersion = topologyVersion,
-                        )
-                ) {
-                    is RetryWakeup.DeadlineExpired -> break
-                    is RetryWakeup.TimerElapsed -> {
-                        topologyVersion = wakeup.topologyVersion
-                        attempt += 1
-                    }
-                    is RetryWakeup.TopologyChanged -> {
-                        topologyVersion = wakeup.topologyVersion
-                        attempt = 0
-                    }
-                }
-                emitDiagnostic(
-                    code = DiagnosticCode.DELIVERY_RETRYING,
-                    severity = DiagnosticSeverity.WARN,
-                    stage = "delivery.retrying",
-                    peerSuffix = peerId.value.takeLast(6),
-                    reason = DiagnosticReason.DELIVERY_RETRY,
-                    metadata =
-                        peerRouteMetadata(peerId, metadata = mapOf("attempt" to attempt.toString())),
-                )
+                val nextRetryState =
+                    awaitInlineRetryWakeup(
+                        peerId = peerId,
+                        retryState = retryState,
+                        startedAt = startedAt,
+                    ) ?: break
+                retryState = nextRetryState
             }
-            emitDiagnostic(
-                code = DiagnosticCode.DELIVERY_UNREACHABLE,
-                severity = DiagnosticSeverity.ERROR,
-                stage = "delivery.retryExpired",
-                peerSuffix = peerId.value.takeLast(6),
-                reason = DiagnosticReason.DELIVERY_FAILURE,
-                metadata = peerRouteMetadata(peerId),
-            )
-            return SendResult.NotSent(SendFailureReason.UNREACHABLE)
+            return unreachableInlineSendResult(peerId)
         } finally {
             if (suspendDiscoveryDuringSend) {
                 runPlatformCall("inline.discoveryResume") {
@@ -755,101 +723,235 @@ private constructor(
         payload: ByteArray,
         priority: DeliveryPriority,
     ): SendResult {
-        val nextHopPeerId = routeCoordinator.nextHopFor(peerId) ?: peerId
-        return when (val sessionOutcome = ensureHopSession(nextHopPeerId)) {
-            is SessionEstablishmentOutcome.Established -> {
-                val recipientTrust = resolveRecipientTrust(peerId)
-                if (recipientTrust == null) {
-                    emitDiagnostic(
-                        code = DiagnosticCode.TRUST_FAILURE,
-                        severity = DiagnosticSeverity.ERROR,
-                        stage = "delivery.send.noTrust",
-                        peerSuffix = peerId.value.takeLast(6),
-                        reason = DiagnosticReason.TRUST_FAILURE,
-                    )
-                    return SendResult.NotSent(SendFailureReason.TRUST_FAILURE)
-                }
+        val sessionResolution = resolveInlineSession(peerId = peerId, priority = priority)
+        val resolvedResult = sessionResolution.result
+        val session = sessionResolution.session
 
-                val sealedPayload =
-                    runCatching {
-                            MessageSealer.seal(
-                                plaintext = payload,
-                                senderIdentity = localIdentity,
-                                recipientTrust = recipientTrust,
-                            )
-                        }
-                        .getOrElse { exception ->
-                            emitHopSessionFailed(
-                                peerId = peerId,
-                                stage = "delivery.send.encrypt",
-                                reason = DiagnosticReason.TRUST_FAILURE,
-                                metadata = mapOf("cause" to exception::class.simpleName.orEmpty()),
-                            )
-                            return SendResult.NotSent(SendFailureReason.TRUST_FAILURE)
-                        }
-
-                val innerEnvelope =
-                    DirectMessageEnvelope(
-                            senderPeerId = localIdentity.peerId,
-                            senderFingerprintBytes = localIdentity.identityFingerprintBytes,
-                            senderEd25519PublicKey = localIdentity.ed25519PublicKey,
-                            senderX25519PublicKey = localIdentity.x25519PublicKey,
-                            ciphertext = sealedPayload,
-                        )
-                        .encode()
+        return if (resolvedResult != null) {
+            resolvedResult
+        } else {
+            val establishedSession = session ?: error("inline session resolution is required")
+            val recipientTrust = resolveInlineRecipientTrust(peerId)
+            if (recipientTrust == null) {
+                SendResult.NotSent(SendFailureReason.TRUST_FAILURE)
+            } else {
                 val routedMessage =
-                    WireFrame.Message(
-                        messageId = createMessageId(),
-                        originPeerId = localIdentity.peerId,
-                        destinationPeerId = peerId,
+                    buildInlineRoutedMessage(
+                        peerId = peerId,
+                        payload = payload,
                         priority = priority,
-                        ttlMillis = ttlMillisFor(priority),
-                        encryptedPayload = innerEnvelope,
+                        recipientTrust = recipientTrust,
                     )
-                when (
-                    runCatching {
-                            sendEncryptedDirectWireFrame(
-                                peerId = nextHopPeerId,
-                                session = sessionOutcome.session,
-                                frame = routedMessage,
-                                action = "send.data",
-                            )
-                        }
-                        .getOrElse { exception ->
-                            emitHopSessionFailed(
-                                peerId = nextHopPeerId,
-                                stage = "delivery.send.transportEncrypt",
-                                reason = DiagnosticReason.DELIVERY_FAILURE,
-                                metadata = mapOf("cause" to exception::class.simpleName.orEmpty()),
-                            )
-                            return SendResult.NotSent(SendFailureReason.UNREACHABLE)
-                        }
-                ) {
-                    TransportSendResult.Delivered -> {
-                        emitDiagnostic(
-                            code = DiagnosticCode.DELIVERY_SUCCEEDED,
-                            severity = DiagnosticSeverity.INFO,
-                            stage = "delivery.send",
-                            peerSuffix = peerId.value.takeLast(6),
-                            metadata = peerRouteMetadata(peerId),
-                        )
-                        SendResult.Sent
-                    }
-
-                    is TransportSendResult.Dropped -> {
-                        scheduleRetryDiagnostic(peerId = peerId, priority = priority)
-                        SendResult.NotSent(SendFailureReason.UNREACHABLE)
-                    }
+                if (routedMessage == null) {
+                    SendResult.NotSent(SendFailureReason.TRUST_FAILURE)
+                } else {
+                    dispatchInlineMessage(
+                        peerId = peerId,
+                        nextHopPeerId = sessionResolution.nextHopPeerId,
+                        session = establishedSession,
+                        routedMessage = routedMessage,
+                        priority = priority,
+                    )
                 }
             }
+        }
+    }
 
+    private suspend fun awaitInlineRetryWakeup(
+        peerId: PeerId,
+        retryState: InlineRetryWakeupState,
+        startedAt: TimeMark,
+    ): InlineRetryWakeupState? {
+        emitDiagnostic(
+            code = DiagnosticCode.DELIVERY_RETRY_SCHEDULED,
+            severity = DiagnosticSeverity.WARN,
+            stage = "delivery.retryScheduled",
+            peerSuffix = peerId.value.takeLast(6),
+            reason = DiagnosticReason.DELIVERY_RETRY,
+            metadata =
+                peerRouteMetadata(
+                    peerId,
+                    metadata = mapOf("attempt" to retryState.attempt.toString()),
+                ),
+        )
+
+        val wakeupState =
+            when (
+                val wakeup =
+                    deliveryRetryScheduler.awaitRetry(
+                        attempt = retryState.attempt,
+                        remainingBudget = config.deliveryRetryDeadline - startedAt.elapsedNow(),
+                        lastObservedTopologyVersion = retryState.topologyVersion,
+                    )
+            ) {
+                is RetryWakeup.DeadlineExpired -> null
+                is RetryWakeup.TimerElapsed ->
+                    InlineRetryWakeupState(
+                        attempt = retryState.attempt + 1,
+                        topologyVersion = wakeup.topologyVersion,
+                    )
+                is RetryWakeup.TopologyChanged ->
+                    InlineRetryWakeupState(attempt = 0, topologyVersion = wakeup.topologyVersion)
+            }
+        if (wakeupState != null) {
+            emitDiagnostic(
+                code = DiagnosticCode.DELIVERY_RETRYING,
+                severity = DiagnosticSeverity.WARN,
+                stage = "delivery.retrying",
+                peerSuffix = peerId.value.takeLast(6),
+                reason = DiagnosticReason.DELIVERY_RETRY,
+                metadata =
+                    peerRouteMetadata(
+                        peerId,
+                        metadata = mapOf("attempt" to wakeupState.attempt.toString()),
+                    ),
+            )
+        }
+        return wakeupState
+    }
+
+    private suspend fun resolveInlineSession(
+        peerId: PeerId,
+        priority: DeliveryPriority,
+    ): InlineSessionResolution {
+        val nextHopPeerId = routeCoordinator.nextHopFor(peerId) ?: peerId
+        return when (val sessionOutcome = ensureHopSession(nextHopPeerId)) {
+            is SessionEstablishmentOutcome.Established ->
+                InlineSessionResolution(
+                    nextHopPeerId = nextHopPeerId,
+                    session = sessionOutcome.session,
+                )
             SessionEstablishmentOutcome.TrustFailure ->
-                SendResult.NotSent(SendFailureReason.TRUST_FAILURE)
+                InlineSessionResolution(
+                    nextHopPeerId = nextHopPeerId,
+                    session = null,
+                    result = SendResult.NotSent(SendFailureReason.TRUST_FAILURE),
+                )
             SessionEstablishmentOutcome.Unreachable -> {
+                scheduleRetryDiagnostic(peerId = peerId, priority = priority)
+                InlineSessionResolution(
+                    nextHopPeerId = nextHopPeerId,
+                    session = null,
+                    result = SendResult.NotSent(SendFailureReason.UNREACHABLE),
+                )
+            }
+        }
+    }
+
+    private suspend fun resolveInlineRecipientTrust(peerId: PeerId): TrustRecord? {
+        val recipientTrust = resolveRecipientTrust(peerId)
+        if (recipientTrust == null) {
+            emitDiagnostic(
+                code = DiagnosticCode.TRUST_FAILURE,
+                severity = DiagnosticSeverity.ERROR,
+                stage = "delivery.send.noTrust",
+                peerSuffix = peerId.value.takeLast(6),
+                reason = DiagnosticReason.TRUST_FAILURE,
+            )
+        }
+        return recipientTrust
+    }
+
+    private fun buildInlineRoutedMessage(
+        peerId: PeerId,
+        payload: ByteArray,
+        priority: DeliveryPriority,
+        recipientTrust: TrustRecord,
+    ): WireFrame.Message? {
+        val sealedPayload =
+            runCatching {
+                    MessageSealer.seal(
+                        plaintext = payload,
+                        senderIdentity = localIdentity,
+                        recipientTrust = recipientTrust,
+                    )
+                }
+                .getOrElse { exception ->
+                    emitHopSessionFailed(
+                        peerId = peerId,
+                        stage = "delivery.send.encrypt",
+                        reason = DiagnosticReason.TRUST_FAILURE,
+                        metadata = mapOf("cause" to exception::class.simpleName.orEmpty()),
+                    )
+                    return null
+                }
+
+        val innerEnvelope =
+            DirectMessageEnvelope(
+                    senderPeerId = localIdentity.peerId,
+                    senderFingerprintBytes = localIdentity.identityFingerprintBytes,
+                    senderEd25519PublicKey = localIdentity.ed25519PublicKey,
+                    senderX25519PublicKey = localIdentity.x25519PublicKey,
+                    ciphertext = sealedPayload,
+                )
+                .encode()
+        return WireFrame.Message(
+            messageId = createMessageId(),
+            originPeerId = localIdentity.peerId,
+            destinationPeerId = peerId,
+            priority = priority,
+            ttlMillis = ttlMillisFor(priority),
+            encryptedPayload = innerEnvelope,
+        )
+    }
+
+    private suspend fun dispatchInlineMessage(
+        peerId: PeerId,
+        nextHopPeerId: PeerId,
+        session: HopSession,
+        routedMessage: WireFrame.Message,
+        priority: DeliveryPriority,
+    ): SendResult {
+        return when (
+            runCatching {
+                    sendEncryptedDirectWireFrame(
+                        peerId = nextHopPeerId,
+                        session = session,
+                        frame = routedMessage,
+                        action = "send.data",
+                    )
+                }
+                .getOrElse { exception ->
+                    emitHopSessionFailed(
+                        peerId = nextHopPeerId,
+                        stage = "delivery.send.transportEncrypt",
+                        reason = DiagnosticReason.DELIVERY_FAILURE,
+                        metadata = mapOf("cause" to exception::class.simpleName.orEmpty()),
+                    )
+                    return SendResult.NotSent(SendFailureReason.UNREACHABLE)
+                }
+        ) {
+            TransportSendResult.Delivered -> {
+                emitDiagnostic(
+                    code = DiagnosticCode.DELIVERY_SUCCEEDED,
+                    severity = DiagnosticSeverity.INFO,
+                    stage = "delivery.send",
+                    peerSuffix = peerId.value.takeLast(6),
+                    metadata = peerRouteMetadata(peerId),
+                )
+                SendResult.Sent
+            }
+            is TransportSendResult.Dropped -> {
                 scheduleRetryDiagnostic(peerId = peerId, priority = priority)
                 SendResult.NotSent(SendFailureReason.UNREACHABLE)
             }
         }
+    }
+
+    private fun SendResult.isRetryableInlineFailure(): Boolean {
+        return this is SendResult.NotSent && reason == SendFailureReason.UNREACHABLE
+    }
+
+    private fun unreachableInlineSendResult(peerId: PeerId): SendResult {
+        emitDiagnostic(
+            code = DiagnosticCode.DELIVERY_UNREACHABLE,
+            severity = DiagnosticSeverity.ERROR,
+            stage = "delivery.retryExpired",
+            peerSuffix = peerId.value.takeLast(6),
+            reason = DiagnosticReason.DELIVERY_FAILURE,
+            metadata = peerRouteMetadata(peerId),
+        )
+        return SendResult.NotSent(SendFailureReason.UNREACHABLE)
     }
 
     private suspend fun resolveRecipientTrust(peerId: PeerId): TrustRecord? {
