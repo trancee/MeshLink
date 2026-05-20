@@ -797,47 +797,82 @@ private constructor(
         encryptedPayload: ByteArray,
         priority: DeliveryPriority,
     ): Unit {
-        val envelope =
-            runCatching { DirectMessageEnvelope.decode(encryptedPayload) }
-                .getOrElse { exception ->
-                    emitHopSessionFailed(
-                        peerId = immediatePeerId,
-                        stage = "transport.data.messageEnvelope",
-                        reason = DiagnosticReason.DELIVERY_FAILURE,
-                        metadata = mapOf("cause" to exception::class.simpleName.orEmpty()),
-                    )
-                    return
-                }
-        val senderTrust =
-            verifyAndPersistTrust(
-                peerId = envelope.senderPeerId,
-                remoteEd25519PublicKey = envelope.senderEd25519PublicKey,
-                remoteX25519PublicKey = envelope.senderX25519PublicKey,
-                expectedFingerprintBytes = envelope.senderFingerprintBytes,
-            ) ?: return
-        val plaintext =
-            runCatching {
-                    MessageSealer.open(
-                        sealedPayload = envelope.ciphertext,
-                        recipientIdentity = localIdentity,
-                        senderTrust = senderTrust,
+        val envelope = decodeInnerEnvelope(immediatePeerId, encryptedPayload)
+        if (envelope != null) {
+            val senderTrust = verifyInnerEnvelopeSenderTrust(envelope)
+            if (senderTrust != null) {
+                val plaintext = openInnerEnvelope(envelope, senderTrust)
+                if (plaintext != null) {
+                    emitInboundMessage(
+                        originPeerId = originPeerId,
+                        payload = plaintext,
+                        priority = priority,
                     )
                 }
-                .getOrElse { exception ->
-                    emitDiagnostic(
-                        code = DiagnosticCode.TRUST_FAILURE,
-                        severity = DiagnosticSeverity.ERROR,
-                        stage = "transport.data.open",
-                        peerSuffix = envelope.senderPeerId.value.takeLast(6),
-                        reason = DiagnosticReason.TRUST_FAILURE,
-                        metadata = mapOf("cause" to exception::class.simpleName.orEmpty()),
-                    )
-                    return
-                }
+            }
+        }
+    }
+
+    private fun decodeInnerEnvelope(
+        immediatePeerId: PeerId,
+        encryptedPayload: ByteArray,
+    ): DirectMessageEnvelope? {
+        return runCatching { DirectMessageEnvelope.decode(encryptedPayload) }
+            .getOrElse { exception ->
+                emitHopSessionFailed(
+                    peerId = immediatePeerId,
+                    stage = "transport.data.messageEnvelope",
+                    reason = DiagnosticReason.DELIVERY_FAILURE,
+                    metadata = mapOf("cause" to exception::class.simpleName.orEmpty()),
+                )
+                null
+            }
+    }
+
+    private suspend fun verifyInnerEnvelopeSenderTrust(
+        envelope: DirectMessageEnvelope
+    ): TrustRecord? {
+        return verifyAndPersistTrust(
+            peerId = envelope.senderPeerId,
+            remoteEd25519PublicKey = envelope.senderEd25519PublicKey,
+            remoteX25519PublicKey = envelope.senderX25519PublicKey,
+            expectedFingerprintBytes = envelope.senderFingerprintBytes,
+        )
+    }
+
+    private fun openInnerEnvelope(
+        envelope: DirectMessageEnvelope,
+        senderTrust: TrustRecord,
+    ): ByteArray? {
+        return runCatching {
+                MessageSealer.open(
+                    sealedPayload = envelope.ciphertext,
+                    recipientIdentity = localIdentity,
+                    senderTrust = senderTrust,
+                )
+            }
+            .getOrElse { exception ->
+                emitDiagnostic(
+                    code = DiagnosticCode.TRUST_FAILURE,
+                    severity = DiagnosticSeverity.ERROR,
+                    stage = "transport.data.open",
+                    peerSuffix = envelope.senderPeerId.value.takeLast(6),
+                    reason = DiagnosticReason.TRUST_FAILURE,
+                    metadata = mapOf("cause" to exception::class.simpleName.orEmpty()),
+                )
+                null
+            }
+    }
+
+    private suspend fun emitInboundMessage(
+        originPeerId: PeerId,
+        payload: ByteArray,
+        priority: DeliveryPriority,
+    ): Unit {
         mutableMessages.emit(
             InboundMessage(
                 originPeerId = originPeerId,
-                payload = plaintext,
+                payload = payload,
                 receivedAtEpochMillis = currentEpochMillis(),
                 priority = priority,
             )
