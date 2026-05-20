@@ -2137,28 +2137,20 @@ private constructor(
         frame: WireFrame,
         action: String,
     ): Boolean {
-        val sessionOutcome = ensureHopSession(peerId)
-        val session =
-            (sessionOutcome as? SessionEstablishmentOutcome.Established)?.session ?: return false
-        return when (
-            runCatching {
-                    sendEncryptedDirectWireFrame(
-                        peerId = peerId,
-                        session = session,
-                        frame = frame,
-                        action = action,
-                    )
-                }
-                .getOrElse { exception ->
-                    emitHopSessionFailed(
-                        peerId = peerId,
-                        stage = "$action.encrypt",
-                        reason = DiagnosticReason.DELIVERY_FAILURE,
-                        metadata = mapOf("cause" to exception::class.simpleName.orEmpty()),
-                    )
-                    return false
-                }
-        ) {
+        val session = establishedHopSession(peerId)
+        val transportResult =
+            if (session != null) {
+                sendEncryptedWireFrameWithSession(
+                    peerId = peerId,
+                    session = session,
+                    frame = frame,
+                    action = action,
+                )
+            } else {
+                null
+            }
+
+        return when (transportResult) {
             TransportSendResult.Delivered -> true
             is TransportSendResult.Dropped -> {
                 emitHopSessionFailed(
@@ -2168,7 +2160,37 @@ private constructor(
                 )
                 false
             }
+            null -> false
         }
+    }
+
+    private suspend fun establishedHopSession(peerId: PeerId): HopSession? {
+        return (ensureHopSession(peerId) as? SessionEstablishmentOutcome.Established)?.session
+    }
+
+    private suspend fun sendEncryptedWireFrameWithSession(
+        peerId: PeerId,
+        session: HopSession,
+        frame: WireFrame,
+        action: String,
+    ): TransportSendResult? {
+        return runCatching {
+                sendEncryptedDirectWireFrame(
+                    peerId = peerId,
+                    session = session,
+                    frame = frame,
+                    action = action,
+                )
+            }
+            .getOrElse { exception ->
+                emitHopSessionFailed(
+                    peerId = peerId,
+                    stage = "$action.encrypt",
+                    reason = DiagnosticReason.DELIVERY_FAILURE,
+                    metadata = mapOf("cause" to exception::class.simpleName.orEmpty()),
+                )
+                null
+            }
     }
 
     private suspend fun ensureHopSession(peerId: PeerId): SessionEstablishmentOutcome {
