@@ -2258,10 +2258,51 @@ private constructor(
     ): TrustRecord? {
         val remoteIdentityHash =
             localIdentity.cryptoProvider.sha256(remoteEd25519PublicKey + remoteX25519PublicKey)
-        if (
-            expectedFingerprintBytes != null &&
-                !expectedFingerprintBytes.contentEquals(remoteIdentityHash)
-        ) {
+        val fingerprintMatches =
+            fingerprintMatchesExpected(
+                peerId = peerId,
+                expectedFingerprintBytes = expectedFingerprintBytes,
+                remoteIdentityHash = remoteIdentityHash,
+            )
+        val existingTrust = if (fingerprintMatches) trustStore.read(peerId.value) else null
+
+        return when {
+            !fingerprintMatches -> null
+            existingTrust == null ->
+                pinVerifiedTrust(
+                    peerId = peerId,
+                    remoteIdentityHash = remoteIdentityHash,
+                    remoteEd25519PublicKey = remoteEd25519PublicKey,
+                    remoteX25519PublicKey = remoteX25519PublicKey,
+                )
+            !trustMatchesRemoteIdentity(
+                existingTrust = existingTrust,
+                remoteIdentityHash = remoteIdentityHash,
+                remoteEd25519PublicKey = remoteEd25519PublicKey,
+                remoteX25519PublicKey = remoteX25519PublicKey,
+            ) -> {
+                emitDiagnostic(
+                    code = DiagnosticCode.TRUST_FAILURE,
+                    severity = DiagnosticSeverity.ERROR,
+                    stage = "trust.verify",
+                    peerSuffix = peerId.value.takeLast(6),
+                    reason = DiagnosticReason.TRUST_FAILURE,
+                )
+                null
+            }
+            else -> refreshVerifiedTrust(existingTrust)
+        }
+    }
+
+    private fun fingerprintMatchesExpected(
+        peerId: PeerId,
+        expectedFingerprintBytes: ByteArray?,
+        remoteIdentityHash: ByteArray,
+    ): Boolean {
+        val fingerprintMatches =
+            expectedFingerprintBytes == null ||
+                expectedFingerprintBytes.contentEquals(remoteIdentityHash)
+        if (!fingerprintMatches) {
             emitDiagnostic(
                 code = DiagnosticCode.TRUST_FAILURE,
                 severity = DiagnosticSeverity.ERROR,
@@ -2269,45 +2310,49 @@ private constructor(
                 peerSuffix = peerId.value.takeLast(6),
                 reason = DiagnosticReason.TRUST_FAILURE,
             )
-            return null
         }
+        return fingerprintMatches
+    }
 
-        val existingTrust = trustStore.read(peerId.value)
-        if (existingTrust == null) {
-            val verifiedAtEpochMillis = currentEpochMillis()
-            val trustRecord =
-                TrustRecord(
-                    peerIdValue = peerId.value,
-                    identityFingerprintBytes = remoteIdentityHash,
-                    firstSeenAtEpochMillis = verifiedAtEpochMillis,
-                    lastVerifiedAtEpochMillis = verifiedAtEpochMillis,
-                    ed25519PublicKey = remoteEd25519PublicKey,
-                    x25519PublicKey = remoteX25519PublicKey,
-                )
-            trustStore.write(trustRecord)
-            emitDiagnostic(
-                code = DiagnosticCode.TRUST_ESTABLISHED,
-                severity = DiagnosticSeverity.INFO,
-                stage = "trust.pin",
-                peerSuffix = peerId.value.takeLast(6),
-                reason = DiagnosticReason.STATE_CHANGE,
+    private suspend fun pinVerifiedTrust(
+        peerId: PeerId,
+        remoteIdentityHash: ByteArray,
+        remoteEd25519PublicKey: ByteArray,
+        remoteX25519PublicKey: ByteArray,
+    ): TrustRecord {
+        val verifiedAtEpochMillis = currentEpochMillis()
+        val trustRecord =
+            TrustRecord(
+                peerIdValue = peerId.value,
+                identityFingerprintBytes = remoteIdentityHash,
+                firstSeenAtEpochMillis = verifiedAtEpochMillis,
+                lastVerifiedAtEpochMillis = verifiedAtEpochMillis,
+                ed25519PublicKey = remoteEd25519PublicKey,
+                x25519PublicKey = remoteX25519PublicKey,
             )
-            return trustRecord
-        }
-        if (
-            !existingTrust.identityFingerprintBytes.contentEquals(remoteIdentityHash) ||
-                !existingTrust.ed25519PublicKey.contentEquals(remoteEd25519PublicKey) ||
-                !existingTrust.x25519PublicKey.contentEquals(remoteX25519PublicKey)
-        ) {
-            emitDiagnostic(
-                code = DiagnosticCode.TRUST_FAILURE,
-                severity = DiagnosticSeverity.ERROR,
-                stage = "trust.verify",
-                peerSuffix = peerId.value.takeLast(6),
-                reason = DiagnosticReason.TRUST_FAILURE,
-            )
-            return null
-        }
+        trustStore.write(trustRecord)
+        emitDiagnostic(
+            code = DiagnosticCode.TRUST_ESTABLISHED,
+            severity = DiagnosticSeverity.INFO,
+            stage = "trust.pin",
+            peerSuffix = peerId.value.takeLast(6),
+            reason = DiagnosticReason.STATE_CHANGE,
+        )
+        return trustRecord
+    }
+
+    private fun trustMatchesRemoteIdentity(
+        existingTrust: TrustRecord,
+        remoteIdentityHash: ByteArray,
+        remoteEd25519PublicKey: ByteArray,
+        remoteX25519PublicKey: ByteArray,
+    ): Boolean {
+        return existingTrust.identityFingerprintBytes.contentEquals(remoteIdentityHash) &&
+            existingTrust.ed25519PublicKey.contentEquals(remoteEd25519PublicKey) &&
+            existingTrust.x25519PublicKey.contentEquals(remoteX25519PublicKey)
+    }
+
+    private suspend fun refreshVerifiedTrust(existingTrust: TrustRecord): TrustRecord {
         val refreshedTrust = existingTrust.withLastVerifiedAt(currentEpochMillis())
         if (refreshedTrust.lastVerifiedAtEpochMillis != existingTrust.lastVerifiedAtEpochMillis) {
             trustStore.write(refreshedTrust)
