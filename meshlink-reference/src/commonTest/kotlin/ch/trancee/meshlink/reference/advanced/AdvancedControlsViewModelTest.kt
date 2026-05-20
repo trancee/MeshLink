@@ -20,33 +20,76 @@ import ch.trancee.meshlink.reference.session.ReferenceDocumentStore
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runTest
 
 class AdvancedControlsViewModelTest {
     @Test
     fun exposesConfigAndFirstPeerSelection() {
+        // Arrange
         val viewModel = AdvancedControlsViewModel(platformServices = advancedPlatformServices())
 
-        assertEquals("demo.meshlink.reference", viewModel.uiState.value.config.appId)
-        assertEquals("abc123", viewModel.uiState.value.peerRows.first().peerSuffix)
-        assertEquals("peer-abc123", viewModel.uiState.value.selectedPeerId)
+        // Act
+        val uiState = viewModel.uiState.value
+
+        // Assert
+        assertEquals("demo.meshlink.reference", uiState.config.appId)
+        assertEquals("abc123", uiState.peerRows.first().peerSuffix)
+        assertEquals("peer-abc123", uiState.selectedPeerId)
     }
 
     @Test
     fun priorityChangeUpdatesComposerState() {
+        // Arrange
         val viewModel = AdvancedControlsViewModel(platformServices = advancedPlatformServices())
 
+        // Act
         viewModel.updatePriority(DeliveryPriority.HIGH)
         viewModel.updateComposerText("payload")
 
+        // Assert
         assertEquals(DeliveryPriority.HIGH, viewModel.uiState.value.selectedPriority)
         assertTrue(viewModel.uiState.value.canSend)
     }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun lifecycleActionsTrackSnapshotState() = runTest {
+        // Arrange
+        val controller = TestReferenceMeshLinkController()
+        val scope = CoroutineScope(SupervisorJob() + UnconfinedTestDispatcher(testScheduler))
+        val viewModel =
+            AdvancedControlsViewModel(
+                platformServices = advancedPlatformServices(controller = controller),
+                scope = scope,
+            )
+        val expected = LifecycleActionState.from(MeshLinkState.Paused.toString())
+        advanceUntilIdle()
+
+        try {
+            // Act
+            controller.updateMeshState(MeshLinkState.Paused.toString())
+            advanceUntilIdle()
+
+            // Assert
+            assertEquals(expected, viewModel.lifecycleActions.value)
+        } finally {
+            scope.cancel()
+        }
+    }
 }
 
-internal fun advancedPlatformServices(): PlatformServices {
+internal fun advancedPlatformServices(
+    controller: ReferenceMeshLinkController = TestReferenceMeshLinkController()
+): PlatformServices {
     return object : PlatformServices {
         override val platformName: String = "Test"
         override val defaultAuthorityMode: ReferenceAuthorityMode = ReferenceAuthorityMode.LIVE
@@ -54,74 +97,84 @@ internal fun advancedPlatformServices(): PlatformServices {
         override val readinessBlockers: List<String> = emptyList()
         override val automationConfig: ReferenceAutomationConfig? = null
         override val documentStore: ReferenceDocumentStore = InMemoryReferenceDocumentStore()
-        override val meshLinkController: ReferenceMeshLinkController =
-            object : ReferenceMeshLinkController {
-                private val flow =
-                    MutableStateFlow(
-                        ReferenceControllerSnapshot(
-                            session =
-                                ReferenceSession(
-                                    sessionId = "advanced-session",
-                                    scenarioId = "advanced-controls",
-                                    authorityMode = ReferenceAuthorityMode.LIVE,
-                                    startedAtEpochMillis = 1_000L,
-                                    meshStateLabel = MeshLinkState.Running.toString(),
-                                    configurationSnapshot =
-                                        mapOf(
-                                            "appId" to "demo.meshlink.reference",
-                                            "regulatoryRegion" to "DEFAULT",
-                                            "powerMode" to "Automatic",
-                                            "deliveryRetryDeadline" to "15s",
-                                        ),
-                                    historyStatus = ReferenceHistoryStatus.LIVE,
-                                ),
-                            peers =
-                                listOf(
-                                    PeerSnapshot(
-                                        peerId = "peer-abc123",
-                                        peerSuffix = "abc123",
-                                        trustState = PeerTrustState.TRUSTED,
-                                        connectionState = PeerConnectionSnapshotState.CONNECTED,
-                                        lastDeliveryOutcome = "Sent",
-                                    )
-                                ),
-                            timeline =
-                                listOf(
-                                    TimelineEntry(
-                                        entryId = "advanced-session-1",
-                                        sessionId = "advanced-session",
-                                        occurredAtEpochMillis = 1_000L,
-                                        family = TimelineFamily.DIAGNOSTIC,
-                                        severity = TimelineSeverity.INFO,
-                                        title = "Mesh started",
-                                        detail = "mesh.start() -> Started",
-                                    )
-                                ),
-                            activePowerModeLabel = "Automatic",
-                        )
-                    )
-
-                override val snapshot: StateFlow<ReferenceControllerSnapshot> = flow.asStateFlow()
-
-                override suspend fun start() = Unit
-
-                override suspend fun pause() = Unit
-
-                override suspend fun resume() = Unit
-
-                override suspend fun stop() = Unit
-
-                override suspend fun sendSamplePayload(
-                    peerId: String,
-                    payloadText: String,
-                    priority: DeliveryPriority,
-                ) = Unit
-
-                override suspend fun forgetPeer(peerId: String) = Unit
-            }
+        override val meshLinkController: ReferenceMeshLinkController = controller
 
         override fun currentTimeMillis(): Long = 1_000L
 
         override fun emitAutomationLog(message: String): Unit = Unit
     }
+}
+
+private class TestReferenceMeshLinkController(
+    initialSnapshot: ReferenceControllerSnapshot = advancedSnapshot()
+) : ReferenceMeshLinkController {
+    private val flow: MutableStateFlow<ReferenceControllerSnapshot> =
+        MutableStateFlow(initialSnapshot)
+
+    override val snapshot: StateFlow<ReferenceControllerSnapshot> = flow.asStateFlow()
+
+    override suspend fun start(): Unit = Unit
+
+    override suspend fun pause(): Unit = Unit
+
+    override suspend fun resume(): Unit = Unit
+
+    override suspend fun stop(): Unit = Unit
+
+    override suspend fun sendSamplePayload(
+        peerId: String,
+        payloadText: String,
+        priority: DeliveryPriority,
+    ): Unit = Unit
+
+    override suspend fun forgetPeer(peerId: String): Unit = Unit
+
+    fun updateMeshState(meshStateLabel: String): Unit {
+        flow.value =
+            flow.value.copy(session = flow.value.session.copy(meshStateLabel = meshStateLabel))
+    }
+}
+
+private fun advancedSnapshot(): ReferenceControllerSnapshot {
+    return ReferenceControllerSnapshot(
+        session =
+            ReferenceSession(
+                sessionId = "advanced-session",
+                scenarioId = "advanced-controls",
+                authorityMode = ReferenceAuthorityMode.LIVE,
+                startedAtEpochMillis = 1_000L,
+                meshStateLabel = MeshLinkState.Running.toString(),
+                configurationSnapshot =
+                    mapOf(
+                        "appId" to "demo.meshlink.reference",
+                        "regulatoryRegion" to "DEFAULT",
+                        "powerMode" to "Automatic",
+                        "deliveryRetryDeadline" to "15s",
+                    ),
+                historyStatus = ReferenceHistoryStatus.LIVE,
+            ),
+        peers =
+            listOf(
+                PeerSnapshot(
+                    peerId = "peer-abc123",
+                    peerSuffix = "abc123",
+                    trustState = PeerTrustState.TRUSTED,
+                    connectionState = PeerConnectionSnapshotState.CONNECTED,
+                    lastDeliveryOutcome = "Sent",
+                )
+            ),
+        timeline =
+            listOf(
+                TimelineEntry(
+                    entryId = "advanced-session-1",
+                    sessionId = "advanced-session",
+                    occurredAtEpochMillis = 1_000L,
+                    family = TimelineFamily.DIAGNOSTIC,
+                    severity = TimelineSeverity.INFO,
+                    title = "Mesh started",
+                    detail = "mesh.start() -> Started",
+                )
+            ),
+        activePowerModeLabel = "Automatic",
+    )
 }

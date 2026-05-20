@@ -20,18 +20,15 @@ public class AdvancedControlsViewModel(
         MutableStateFlow(
             buildUiState(
                 selectedPeerId = null,
-                composerText = defaultMessage(),
+                composerText = "hello mesh from ${platformServices.platformName} advanced",
                 selectedPriority = DeliveryPriority.NORMAL,
             )
         )
-
-    public val uiState: StateFlow<AdvancedControlsUiState> = uiStateFlow.asStateFlow()
-
-    public val lifecycleActions: StateFlow<LifecycleActionState> =
-        MutableStateFlow(LifecycleActionState.from(uiStateFlow.value.meshStateLabel)).asStateFlow()
-
     private val lifecycleStateFlow: MutableStateFlow<LifecycleActionState> =
         MutableStateFlow(LifecycleActionState.from(uiStateFlow.value.meshStateLabel))
+
+    public val uiState: StateFlow<AdvancedControlsUiState> = uiStateFlow.asStateFlow()
+    public val lifecycleActions: StateFlow<LifecycleActionState> = lifecycleStateFlow.asStateFlow()
 
     init {
         scope.launch {
@@ -48,10 +45,6 @@ public class AdvancedControlsViewModel(
                     LifecycleActionState.from(snapshot.session.meshStateLabel)
             }
         }
-    }
-
-    public fun lifecycleActions(): StateFlow<LifecycleActionState> {
-        return lifecycleStateFlow.asStateFlow()
     }
 
     public fun selectPeer(peerId: String): Unit {
@@ -160,9 +153,5 @@ public class AdvancedControlsViewModel(
                 snapshot.timeline.takeLast(3).map { entry -> "${entry.title}: ${entry.detail}" },
             lastOutcomeSummary = snapshot.session.lastOutcomeSummary,
         )
-    }
-
-    private fun defaultMessage(): String {
-        return "hello mesh from ${platformServices.platformName} advanced"
     }
 }

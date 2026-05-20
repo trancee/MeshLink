@@ -77,41 +77,48 @@ public class LiveReferenceMeshLinkController(
 ) : ReferenceMeshLinkController {
     private val startedAtEpochMillis: Long = nowProvider()
     private val sessionId: String = "${platformName.lowercase()}-$startedAtEpochMillis"
-    private val stateFlow: MutableStateFlow<ReferenceControllerSnapshot> =
-        MutableStateFlow(
-            ReferenceControllerSnapshot(
-                session =
-                    ReferenceSession(
-                        sessionId = sessionId,
-                        scenarioId = "guided-first-exchange",
-                        authorityMode = authorityMode,
-                        startedAtEpochMillis = startedAtEpochMillis,
-                        meshStateLabel = MeshLinkState.Uninitialized.toString(),
-                        configurationSnapshot =
-                            mapOf(
-                                "platform" to platformName,
-                                "surface" to "main-guided",
-                                "appId" to appId,
-                                "regulatoryRegion" to RegulatoryRegion.DEFAULT.name,
-                                "powerMode" to PowerMode.Automatic.toString(),
-                                "deliveryRetryDeadline" to "15s",
-                            ),
-                        historyStatus = ReferenceHistoryStatus.LIVE,
-                    ),
-                peers = emptyList(),
-                timeline =
-                    listOf(
-                        timelineEntry(
-                            index = 1,
-                            family = TimelineFamily.USER,
-                            severity = TimelineSeverity.INFO,
-                            title = "Reference session created",
-                            detail =
-                                "The guided first-exchange controller is ready on $platformName.",
-                        )
-                    ),
-                activePowerModeLabel = "Automatic",
-            )
+    private val stateStore: ReferenceControllerStateStore =
+        ReferenceControllerStateStore(
+            initialSnapshot =
+                ReferenceControllerSnapshot(
+                    session =
+                        ReferenceSession(
+                            sessionId = sessionId,
+                            scenarioId = "guided-first-exchange",
+                            authorityMode = authorityMode,
+                            startedAtEpochMillis = startedAtEpochMillis,
+                            meshStateLabel = MeshLinkState.Uninitialized.toString(),
+                            configurationSnapshot =
+                                mapOf(
+                                    "platform" to platformName,
+                                    "surface" to "main-guided",
+                                    "appId" to appId,
+                                    "regulatoryRegion" to RegulatoryRegion.DEFAULT.name,
+                                    "powerMode" to PowerMode.Automatic.toString(),
+                                    "deliveryRetryDeadline" to "15s",
+                                ),
+                            historyStatus = ReferenceHistoryStatus.LIVE,
+                        ),
+                    peers = emptyList(),
+                    timeline =
+                        listOf(
+                            ReferenceTimelineEvent(
+                                    family = TimelineFamily.USER,
+                                    severity = TimelineSeverity.INFO,
+                                    title = "Reference session created",
+                                    detail =
+                                        "The guided first-exchange controller is ready on $platformName.",
+                                )
+                                .toTimelineEntry(
+                                    sessionId = sessionId,
+                                    entryIndex = 1,
+                                    occurredAtEpochMillis = nowProvider(),
+                                )
+                        ),
+                    activePowerModeLabel = "Automatic",
+                ),
+            sessionId = sessionId,
+            nowProvider = nowProvider,
         )
     private val meshLinkApi: MeshLinkApi by lazy {
         val config = meshLinkConfig {
@@ -127,7 +134,7 @@ public class LiveReferenceMeshLinkController(
     }
     private var flowsBound: Boolean = false
 
-    override val snapshot: StateFlow<ReferenceControllerSnapshot> = stateFlow.asStateFlow()
+    override val snapshot: StateFlow<ReferenceControllerSnapshot> = stateStore.snapshot
 
     override suspend fun start(): Unit {
         ensureBindings()
@@ -186,31 +193,36 @@ public class LiveReferenceMeshLinkController(
             .onSuccess { result ->
                 when (result) {
                     SendResult.Sent -> {
-                        appendEvent(
-                            family = TimelineFamily.MESSAGE,
-                            severity = TimelineSeverity.SUCCESS,
-                            title = "Guided message sent",
-                            detail =
-                                "First guided payload reached ${redactedSuffix(peerId)} with $priority priority.",
-                            peerSuffix = redactedSuffix(peerId),
-                            payloadPreview = payloadText,
+                        stateStore.appendEvent(
+                            ReferenceTimelineEvent(
+                                family = TimelineFamily.MESSAGE,
+                                severity = TimelineSeverity.SUCCESS,
+                                title = "Guided message sent",
+                                detail =
+                                    "First guided payload reached ${redactedSuffix(peerId)} with $priority priority.",
+                                peerSuffix = redactedSuffix(peerId),
+                                payloadPreview = payloadText,
+                            )
                         )
-                        updateSession(
+                        stateStore.updateSession(
                             lastOutcomeSummary = "SendResult.Sent",
                             selectedPeerId = peerId,
                         )
                     }
+
                     is SendResult.NotSent -> {
-                        appendEvent(
-                            family = TimelineFamily.MESSAGE,
-                            severity = TimelineSeverity.ERROR,
-                            title = "Guided message not sent",
-                            detail =
-                                "First guided payload failed for ${redactedSuffix(peerId)} with ${result.reason}.",
-                            peerSuffix = redactedSuffix(peerId),
-                            payloadPreview = payloadText,
+                        stateStore.appendEvent(
+                            ReferenceTimelineEvent(
+                                family = TimelineFamily.MESSAGE,
+                                severity = TimelineSeverity.ERROR,
+                                title = "Guided message not sent",
+                                detail =
+                                    "First guided payload failed for ${redactedSuffix(peerId)} with ${result.reason}.",
+                                peerSuffix = redactedSuffix(peerId),
+                                payloadPreview = payloadText,
+                            )
                         )
-                        updateSession(
+                        stateStore.updateSession(
                             lastOutcomeSummary = "SendResult.NotSent(${result.reason})",
                             selectedPeerId = peerId,
                         )
@@ -218,13 +230,15 @@ public class LiveReferenceMeshLinkController(
                 }
             }
             .onFailure { error ->
-                appendEvent(
-                    family = TimelineFamily.MESSAGE,
-                    severity = TimelineSeverity.ERROR,
-                    title = "Guided message failed",
-                    detail = error.message ?: error.toString(),
-                    peerSuffix = redactedSuffix(peerId),
-                    payloadPreview = payloadText,
+                stateStore.appendEvent(
+                    ReferenceTimelineEvent(
+                        family = TimelineFamily.MESSAGE,
+                        severity = TimelineSeverity.ERROR,
+                        title = "Guided message failed",
+                        detail = error.message ?: error.toString(),
+                        peerSuffix = redactedSuffix(peerId),
+                        payloadPreview = payloadText,
+                    )
                 )
             }
     }
@@ -239,7 +253,7 @@ public class LiveReferenceMeshLinkController(
                     } else {
                         PeerTrustState.UNKNOWN
                     }
-                updatePeers { peers ->
+                stateStore.updatePeers { peers ->
                     peers.map { peer ->
                         if (peer.peerId == peerId) {
                             peer.copy(trustState = trustState)
@@ -248,21 +262,25 @@ public class LiveReferenceMeshLinkController(
                         }
                     }
                 }
-                appendEvent(
-                    family = TimelineFamily.PEER,
-                    severity = TimelineSeverity.INFO,
-                    title = "Peer trust reset",
-                    detail = "forgetPeer(${redactedSuffix(peerId)}) -> $result",
-                    peerSuffix = redactedSuffix(peerId),
+                stateStore.appendEvent(
+                    ReferenceTimelineEvent(
+                        family = TimelineFamily.PEER,
+                        severity = TimelineSeverity.INFO,
+                        title = "Peer trust reset",
+                        detail = "forgetPeer(${redactedSuffix(peerId)}) -> $result",
+                        peerSuffix = redactedSuffix(peerId),
+                    )
                 )
             }
             .onFailure { error ->
-                appendEvent(
-                    family = TimelineFamily.PEER,
-                    severity = TimelineSeverity.ERROR,
-                    title = "Peer trust reset failed",
-                    detail = error.message ?: error.toString(),
-                    peerSuffix = redactedSuffix(peerId),
+                stateStore.appendEvent(
+                    ReferenceTimelineEvent(
+                        family = TimelineFamily.PEER,
+                        severity = TimelineSeverity.ERROR,
+                        title = "Peer trust reset failed",
+                        detail = error.message ?: error.toString(),
+                        peerSuffix = redactedSuffix(peerId),
+                    )
                 )
             }
     }
@@ -274,7 +292,7 @@ public class LiveReferenceMeshLinkController(
         flowsBound = true
         scope.launch {
             meshLinkApi.state.collect { meshState ->
-                updateSession(meshStateLabel = meshState.toString())
+                stateStore.updateSession(meshStateLabel = meshState.toString())
             }
         }
         scope.launch { meshLinkApi.peerEvents.collect { event -> handlePeerEvent(event) } }
@@ -292,11 +310,13 @@ public class LiveReferenceMeshLinkController(
     ): Unit {
         result
             .onSuccess { value ->
-                appendEvent(
-                    family = TimelineFamily.LIFECYCLE,
-                    severity = TimelineSeverity.SUCCESS,
-                    title = successTitle,
-                    detail = successDetail(value),
+                stateStore.appendEvent(
+                    ReferenceTimelineEvent(
+                        family = TimelineFamily.LIFECYCLE,
+                        severity = TimelineSeverity.SUCCESS,
+                        title = successTitle,
+                        detail = successDetail(value),
+                    )
                 )
                 if (
                     value is StartResult ||
@@ -304,17 +324,19 @@ public class LiveReferenceMeshLinkController(
                         value is PauseResult ||
                         value is StopResult
                 ) {
-                    updateSession(lastOutcomeSummary = value.toString())
+                    stateStore.updateSession(lastOutcomeSummary = value.toString())
                 }
             }
             .onFailure { error ->
-                appendEvent(
-                    family = TimelineFamily.LIFECYCLE,
-                    severity = TimelineSeverity.ERROR,
-                    title = errorTitle,
-                    detail = error.message ?: error.toString(),
+                stateStore.appendEvent(
+                    ReferenceTimelineEvent(
+                        family = TimelineFamily.LIFECYCLE,
+                        severity = TimelineSeverity.ERROR,
+                        title = errorTitle,
+                        detail = error.message ?: error.toString(),
+                    )
                 )
-                updateSession(lastOutcomeSummary = errorTitle)
+                stateStore.updateSession(lastOutcomeSummary = errorTitle)
             }
     }
 
@@ -330,25 +352,28 @@ public class LiveReferenceMeshLinkController(
                         lastSeenAtEpochMillis = nowProvider(),
                         capabilityNotes = listOf("Discovered by live MeshLink flow"),
                     )
-                updatePeers { peers ->
+                stateStore.updatePeers { peers ->
                     (peers.filterNot { existing -> existing.peerId == peerSnapshot.peerId } +
                             peerSnapshot)
                         .sortedBy { peer -> peer.peerSuffix }
                 }
-                updateSession(
+                stateStore.updateSession(
                     selectedPeerId = event.peerId.value,
                     lastOutcomeSummary = "Peer found",
                 )
-                appendEvent(
-                    family = TimelineFamily.PEER,
-                    severity = TimelineSeverity.SUCCESS,
-                    title = "Peer found",
-                    detail = "Discovered ${peerSnapshot.peerSuffix} on the guided path.",
-                    peerSuffix = peerSnapshot.peerSuffix,
+                stateStore.appendEvent(
+                    ReferenceTimelineEvent(
+                        family = TimelineFamily.PEER,
+                        severity = TimelineSeverity.SUCCESS,
+                        title = "Peer found",
+                        detail = "Discovered ${peerSnapshot.peerSuffix} on the guided path.",
+                        peerSuffix = peerSnapshot.peerSuffix,
+                    )
                 )
             }
+
             is PeerEvent.StateChanged -> {
-                updatePeers { peers ->
+                stateStore.updatePeers { peers ->
                     peers.map { peer ->
                         if (peer.peerId == event.peerId.value) {
                             peer.copy(
@@ -360,16 +385,19 @@ public class LiveReferenceMeshLinkController(
                         }
                     }
                 }
-                appendEvent(
-                    family = TimelineFamily.PEER,
-                    severity = TimelineSeverity.INFO,
-                    title = "Peer state changed",
-                    detail = "${redactedSuffix(event.peerId.value)} -> ${event.state}",
-                    peerSuffix = redactedSuffix(event.peerId.value),
+                stateStore.appendEvent(
+                    ReferenceTimelineEvent(
+                        family = TimelineFamily.PEER,
+                        severity = TimelineSeverity.INFO,
+                        title = "Peer state changed",
+                        detail = "${redactedSuffix(event.peerId.value)} -> ${event.state}",
+                        peerSuffix = redactedSuffix(event.peerId.value),
+                    )
                 )
             }
+
             is PeerEvent.Lost -> {
-                updatePeers { peers ->
+                stateStore.updatePeers { peers ->
                     peers.map { peer ->
                         if (peer.peerId == event.peerId.value) {
                             peer.copy(
@@ -381,12 +409,15 @@ public class LiveReferenceMeshLinkController(
                         }
                     }
                 }
-                appendEvent(
-                    family = TimelineFamily.PEER,
-                    severity = TimelineSeverity.WARNING,
-                    title = "Peer lost",
-                    detail = "${redactedSuffix(event.peerId.value)} left the current guided view.",
-                    peerSuffix = redactedSuffix(event.peerId.value),
+                stateStore.appendEvent(
+                    ReferenceTimelineEvent(
+                        family = TimelineFamily.PEER,
+                        severity = TimelineSeverity.WARNING,
+                        title = "Peer lost",
+                        detail =
+                            "${redactedSuffix(event.peerId.value)} left the current guided view.",
+                        peerSuffix = redactedSuffix(event.peerId.value),
+                    )
                 )
             }
         }
@@ -397,7 +428,7 @@ public class LiveReferenceMeshLinkController(
             append(event.code)
             append(" @ ")
             append(event.stage)
-            if (!event.metadata.isEmpty()) {
+            if (event.metadata.isNotEmpty()) {
                 append(" ")
                 append(
                     event.metadata.entries.joinToString(prefix = "{", postfix = "}") { (key, value)
@@ -407,12 +438,14 @@ public class LiveReferenceMeshLinkController(
                 )
             }
         }
-        appendEvent(
-            family = TimelineFamily.DIAGNOSTIC,
-            severity = event.severity.toTimelineSeverity(),
-            title = event.code.name,
-            detail = detail,
-            peerSuffix = event.peerSuffix,
+        stateStore.appendEvent(
+            ReferenceTimelineEvent(
+                family = TimelineFamily.DIAGNOSTIC,
+                severity = event.severity.toTimelineSeverity(),
+                title = event.code.name,
+                detail = detail,
+                peerSuffix = event.peerSuffix,
+            )
         )
         when (event.code) {
             DiagnosticCode.TRUST_ESTABLISHED ->
@@ -420,32 +453,33 @@ public class LiveReferenceMeshLinkController(
             DiagnosticCode.TRUST_FAILURE ->
                 updatePeerTrust(event.peerSuffix, PeerTrustState.CHANGED)
             DiagnosticCode.POWER_MODE_CHANGED -> {
-                stateFlow.value =
-                    stateFlow.value.copy(
-                        activePowerModeLabel =
-                            event.metadata["tier"] ?: stateFlow.value.activePowerModeLabel
-                    )
+                stateStore.updateActivePowerModeLabel(
+                    event.metadata["tier"] ?: stateStore.currentSnapshot.activePowerModeLabel
+                )
             }
+
             else -> Unit
         }
     }
 
     private fun handleInboundMessage(message: InboundMessage): Unit {
         val preview = message.payload.decodeToString().take(80)
-        appendEvent(
-            family = TimelineFamily.MESSAGE,
-            severity = TimelineSeverity.SUCCESS,
-            title = "Inbound message",
-            detail =
-                "Received ${message.payload.size} bytes from ${redactedSuffix(message.originPeerId.value)}.",
-            peerSuffix = redactedSuffix(message.originPeerId.value),
-            payloadPreview = preview,
+        stateStore.appendEvent(
+            ReferenceTimelineEvent(
+                family = TimelineFamily.MESSAGE,
+                severity = TimelineSeverity.SUCCESS,
+                title = "Inbound message",
+                detail =
+                    "Received ${message.payload.size} bytes from ${redactedSuffix(message.originPeerId.value)}.",
+                peerSuffix = redactedSuffix(message.originPeerId.value),
+                payloadPreview = preview,
+            )
         )
-        updateSession(
+        stateStore.updateSession(
             lastOutcomeSummary = "Inbound message received",
             selectedPeerId = message.originPeerId.value,
         )
-        updatePeers { peers ->
+        stateStore.updatePeers { peers ->
             peers.map { peer ->
                 if (peer.peerId == message.originPeerId.value) {
                     peer.copy(lastDeliveryOutcome = "Inbound ${message.payload.size} bytes")
@@ -460,7 +494,7 @@ public class LiveReferenceMeshLinkController(
         if (peerSuffix == null) {
             return
         }
-        updatePeers { peers ->
+        stateStore.updatePeers { peers ->
             peers.map { peer ->
                 if (peer.peerSuffix == peerSuffix) {
                     peer.copy(trustState = trustState)
@@ -469,75 +503,6 @@ public class LiveReferenceMeshLinkController(
                 }
             }
         }
-    }
-
-    private fun updatePeers(transform: (List<PeerSnapshot>) -> List<PeerSnapshot>): Unit {
-        stateFlow.value = stateFlow.value.copy(peers = transform(stateFlow.value.peers))
-    }
-
-    private fun updateSession(
-        meshStateLabel: String = stateFlow.value.session.meshStateLabel,
-        lastOutcomeSummary: String? = stateFlow.value.session.lastOutcomeSummary,
-        selectedPeerId: String? = stateFlow.value.session.selectedPeerId,
-    ): Unit {
-        stateFlow.value =
-            stateFlow.value.copy(
-                session =
-                    stateFlow.value.session.copy(
-                        meshStateLabel = meshStateLabel,
-                        lastOutcomeSummary = lastOutcomeSummary,
-                        selectedPeerId = selectedPeerId,
-                    )
-            )
-    }
-
-    private fun appendEvent(
-        family: TimelineFamily,
-        severity: TimelineSeverity,
-        title: String,
-        detail: String,
-        peerSuffix: String? = null,
-        payloadPreview: String? = null,
-    ): Unit {
-        val current = stateFlow.value
-        val nextIndex = current.timeline.size + 1
-        stateFlow.value =
-            current.copy(
-                timeline =
-                    current.timeline +
-                        timelineEntry(
-                            index = nextIndex,
-                            family = family,
-                            severity = severity,
-                            title = title,
-                            detail = detail,
-                            peerSuffix = peerSuffix,
-                            payloadPreview = payloadPreview,
-                        )
-            )
-    }
-
-    private fun timelineEntry(
-        index: Int,
-        family: TimelineFamily,
-        severity: TimelineSeverity,
-        title: String,
-        detail: String,
-        peerSuffix: String? = null,
-        payloadPreview: String? = null,
-    ): TimelineEntry {
-        return TimelineEntry(
-            entryId = "$sessionId-$index",
-            sessionId = sessionId,
-            occurredAtEpochMillis = nowProvider(),
-            family = family,
-            severity = severity,
-            title = title,
-            detail = detail,
-            peerSuffix = peerSuffix,
-            searchText = listOf(title, detail, peerSuffix.orEmpty()).joinToString(" "),
-            payloadPreview = payloadPreview,
-        )
     }
 }
 

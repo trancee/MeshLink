@@ -27,7 +27,7 @@ public fun AdvancedControlsScreen(
     modifier: Modifier = Modifier,
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    val lifecycleActions by viewModel.lifecycleActions().collectAsState()
+    val lifecycleActions by viewModel.lifecycleActions.collectAsState()
 
     LazyColumn(
         modifier = modifier.fillMaxSize().padding(20.dp).testTag("advanced-screen"),
