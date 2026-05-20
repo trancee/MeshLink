@@ -199,28 +199,32 @@ private constructor(
         payload: ByteArray,
         priority: DeliveryPriority,
     ): SendResult {
-        if (payload.size > MAX_SUPPORTED_PAYLOAD_BYTES) {
-            emitDiagnostic(
-                code = DiagnosticCode.SIZE_LIMIT_REJECTED,
-                severity = DiagnosticSeverity.WARN,
-                stage = "delivery.send",
-                peerSuffix = peerId.value.takeLast(6),
-                reason = DiagnosticReason.SIZE_LIMIT,
-                metadata = mapOf("payloadBytes" to payload.size.toString()),
-            )
-            return SendResult.NotSent(SendFailureReason.PAYLOAD_TOO_LARGE)
-        }
-
-        if (mutableState.value !== MeshLinkState.Running || bleTransport == null) {
-            scheduleRetryDiagnostic(peerId = peerId, priority = priority)
-            return SendResult.NotSent(SendFailureReason.UNREACHABLE)
-        }
+        val isPayloadTooLarge = payload.size > MAX_SUPPORTED_PAYLOAD_BYTES
+        val transportUnavailable =
+            mutableState.value !== MeshLinkState.Running || bleTransport == null
         val shouldUseInlineDelivery =
             payload.size <= INLINE_MESSAGE_PAYLOAD_BYTES || shouldAttemptLargeInlineSend(peerId)
-        if (!shouldUseInlineDelivery) {
-            return sendLargePayload(peerId = peerId, payload = payload, priority = priority)
+
+        return when {
+            isPayloadTooLarge -> {
+                emitDiagnostic(
+                    code = DiagnosticCode.SIZE_LIMIT_REJECTED,
+                    severity = DiagnosticSeverity.WARN,
+                    stage = "delivery.send",
+                    peerSuffix = peerId.value.takeLast(6),
+                    reason = DiagnosticReason.SIZE_LIMIT,
+                    metadata = mapOf("payloadBytes" to payload.size.toString()),
+                )
+                SendResult.NotSent(SendFailureReason.PAYLOAD_TOO_LARGE)
+            }
+            transportUnavailable -> {
+                scheduleRetryDiagnostic(peerId = peerId, priority = priority)
+                SendResult.NotSent(SendFailureReason.UNREACHABLE)
+            }
+            shouldUseInlineDelivery ->
+                sendInlinePayload(peerId = peerId, payload = payload, priority = priority)
+            else -> sendLargePayload(peerId = peerId, payload = payload, priority = priority)
         }
-        return sendInlinePayload(peerId = peerId, payload = payload, priority = priority)
     }
 
     override suspend fun forgetPeer(peerId: PeerId): ForgetPeerResult {
@@ -1992,12 +1996,10 @@ private constructor(
 
     private fun shouldAttemptLargeInlineSend(peerId: PeerId): Boolean {
         val nextHopPeerId = routeCoordinator.nextHopFor(peerId) ?: peerId
-        if (nextHopPeerId.value != peerId.value) {
-            return false
-        }
-        val transportBudget =
-            bleTransport?.maximumPayloadBytesPerDelivery(nextHopPeerId) ?: return false
-        return transportBudget >= LARGE_INLINE_SEND_TRANSPORT_BUDGET_BYTES
+        return nextHopPeerId.value == peerId.value &&
+            (bleTransport?.maximumPayloadBytesPerDelivery(nextHopPeerId)?.let { transportBudget ->
+                transportBudget >= LARGE_INLINE_SEND_TRANSPORT_BUDGET_BYTES
+            } ?: false)
     }
 
     private fun isLocalPeerId(peerId: PeerId): Boolean {
