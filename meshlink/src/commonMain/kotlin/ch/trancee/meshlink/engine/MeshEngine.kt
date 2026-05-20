@@ -38,6 +38,7 @@ import ch.trancee.meshlink.routing.RoutingAdvertisement
 import ch.trancee.meshlink.routing.RoutingMutation
 import ch.trancee.meshlink.storage.InMemorySecureStorage
 import ch.trancee.meshlink.storage.SecureStorage
+import ch.trancee.meshlink.transfer.InboundChunkAcceptance
 import ch.trancee.meshlink.transfer.InboundTransferSession
 import ch.trancee.meshlink.transfer.OutboundTransferSession
 import ch.trancee.meshlink.transfer.PreparedInboundTransferAck
@@ -1512,70 +1513,7 @@ private constructor(
     private suspend fun handleTransferChunk(peerId: PeerId, frame: WireFrame.TransferChunk): Unit {
         val inboundSession = inboundTransfers[frame.transferId]
         if (inboundSession != null) {
-            val acceptance = inboundSession.acceptChunk(frame)
-            emitInboundTransferProgress(
-                stage =
-                    if (acceptance.accepted) {
-                        "transfer.receive.chunk"
-                    } else {
-                        "transfer.receive.invalidChunk"
-                    },
-                peerId = peerId,
-                session = inboundSession,
-                metadata =
-                    mapOf(
-                        "accepted" to acceptance.accepted.toString(),
-                        "chunkBytes" to acceptance.payloadBytes.toString(),
-                        "chunkIndex" to acceptance.chunkIndex.toString(),
-                        "complete" to acceptance.complete.toString(),
-                        "duplicateChunk" to acceptance.duplicateChunk.toString(),
-                        "highestContiguousAck" to acceptance.highestContiguousAck.toString(),
-                        "newlyReceivedChunksSinceLastAck" to
-                            acceptance.newlyReceivedChunksSinceLastAck.toString(),
-                        "receivedChunks" to acceptance.receivedChunkCount.toString(),
-                        "shouldAcknowledge" to acceptance.shouldAcknowledge.toString(),
-                    ),
-            )
-            if (acceptance.shouldAcknowledge) {
-                val preparedAck = inboundSession.prepareAck()
-                val ackSent =
-                    sendEncryptedWireFrame(
-                        inboundSession.upstreamPeerId,
-                        preparedAck.frame,
-                        "transfer.ack.chunk",
-                    )
-                emitInboundTransferProgress(
-                    stage = "transfer.ack.chunk",
-                    peerId = peerId,
-                    session = inboundSession,
-                    metadata =
-                        inboundAckMetadata(preparedAck, ackSent) +
-                            mapOf(
-                                "triggerChunkIndex" to frame.chunkIndex.toString(),
-                                "triggerDuplicateChunk" to acceptance.duplicateChunk.toString(),
-                            ),
-                )
-            }
-            if (acceptance.complete) {
-                inboundTransfers.remove(frame.transferId)
-                emitInboundTransferProgress(
-                    stage = "transfer.receive.complete",
-                    peerId = peerId,
-                    session = inboundSession,
-                    metadata =
-                        mapOf(
-                            "complete" to "true",
-                            "receivedChunks" to inboundSession.receivedChunkCount().toString(),
-                            "triggerChunkIndex" to frame.chunkIndex.toString(),
-                        ),
-                )
-                deliverInnerEnvelope(
-                    immediatePeerId = peerId,
-                    originPeerId = inboundSession.originPeerId,
-                    encryptedPayload = inboundSession.assembledPayload(),
-                    priority = DeliveryPriority.NORMAL,
-                )
-            }
+            handleInboundTransferChunk(peerId = peerId, frame = frame, session = inboundSession)
             return
         }
         val relaySession = relayTransfers[frame.transferId] ?: return
@@ -1583,6 +1521,111 @@ private constructor(
             relaySession.destinationPeerId,
             frame,
             "transfer.forward.chunk",
+        )
+    }
+
+    private suspend fun handleInboundTransferChunk(
+        peerId: PeerId,
+        frame: WireFrame.TransferChunk,
+        session: InboundTransferSession,
+    ): Unit {
+        val acceptance = session.acceptChunk(frame)
+        emitInboundTransferProgress(
+            stage = inboundTransferChunkStage(acceptance),
+            peerId = peerId,
+            session = session,
+            metadata = inboundTransferChunkMetadata(acceptance),
+        )
+        acknowledgeInboundTransferChunkIfNeeded(
+            peerId = peerId,
+            frame = frame,
+            session = session,
+            acceptance = acceptance,
+        )
+        completeInboundTransferChunkIfNeeded(
+            peerId = peerId,
+            frame = frame,
+            session = session,
+            acceptance = acceptance,
+        )
+    }
+
+    private fun inboundTransferChunkStage(acceptance: InboundChunkAcceptance): String {
+        return if (acceptance.accepted) {
+            "transfer.receive.chunk"
+        } else {
+            "transfer.receive.invalidChunk"
+        }
+    }
+
+    private fun inboundTransferChunkMetadata(
+        acceptance: InboundChunkAcceptance
+    ): Map<String, String> {
+        return mapOf(
+            "accepted" to acceptance.accepted.toString(),
+            "chunkBytes" to acceptance.payloadBytes.toString(),
+            "chunkIndex" to acceptance.chunkIndex.toString(),
+            "complete" to acceptance.complete.toString(),
+            "duplicateChunk" to acceptance.duplicateChunk.toString(),
+            "highestContiguousAck" to acceptance.highestContiguousAck.toString(),
+            "newlyReceivedChunksSinceLastAck" to
+                acceptance.newlyReceivedChunksSinceLastAck.toString(),
+            "receivedChunks" to acceptance.receivedChunkCount.toString(),
+            "shouldAcknowledge" to acceptance.shouldAcknowledge.toString(),
+        )
+    }
+
+    private suspend fun acknowledgeInboundTransferChunkIfNeeded(
+        peerId: PeerId,
+        frame: WireFrame.TransferChunk,
+        session: InboundTransferSession,
+        acceptance: InboundChunkAcceptance,
+    ): Unit {
+        if (!acceptance.shouldAcknowledge) {
+            return
+        }
+        val preparedAck = session.prepareAck()
+        val ackSent =
+            sendEncryptedWireFrame(session.upstreamPeerId, preparedAck.frame, "transfer.ack.chunk")
+        emitInboundTransferProgress(
+            stage = "transfer.ack.chunk",
+            peerId = peerId,
+            session = session,
+            metadata =
+                inboundAckMetadata(preparedAck, ackSent) +
+                    mapOf(
+                        "triggerChunkIndex" to frame.chunkIndex.toString(),
+                        "triggerDuplicateChunk" to acceptance.duplicateChunk.toString(),
+                    ),
+        )
+    }
+
+    private suspend fun completeInboundTransferChunkIfNeeded(
+        peerId: PeerId,
+        frame: WireFrame.TransferChunk,
+        session: InboundTransferSession,
+        acceptance: InboundChunkAcceptance,
+    ): Unit {
+        if (!acceptance.complete) {
+            return
+        }
+        inboundTransfers.remove(frame.transferId)
+        emitInboundTransferProgress(
+            stage = "transfer.receive.complete",
+            peerId = peerId,
+            session = session,
+            metadata =
+                mapOf(
+                    "complete" to "true",
+                    "receivedChunks" to session.receivedChunkCount().toString(),
+                    "triggerChunkIndex" to frame.chunkIndex.toString(),
+                ),
+        )
+        deliverInnerEnvelope(
+            immediatePeerId = peerId,
+            originPeerId = session.originPeerId,
+            encryptedPayload = session.assembledPayload(),
+            priority = DeliveryPriority.NORMAL,
         )
     }
 
