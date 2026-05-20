@@ -658,39 +658,61 @@ private constructor(
     }
 
     private suspend fun handleEncryptedDataFrame(peerId: PeerId, payload: ByteArray): Unit {
-        val session =
-            hopSessions[peerId.value]
-                ?: run {
-                    emitHopSessionFailed(
-                        peerId = peerId,
-                        stage = "transport.data.noSession",
-                        reason = DiagnosticReason.DELIVERY_FAILURE,
-                    )
-                    return
+        val session = activeHopSession(peerId)
+        if (session != null) {
+            val decryptedEnvelopeBytes = decryptInboundWireFrame(peerId, session, payload)
+            if (decryptedEnvelopeBytes != null) {
+                val frame = decodeInboundWireFrame(peerId, decryptedEnvelopeBytes)
+                if (frame != null) {
+                    dispatchInboundWireFrame(peerId, frame)
                 }
-        val decryptedEnvelopeBytes =
-            runCatching { decryptHopPayload(session, payload) }
-                .getOrElse { exception ->
-                    emitHopSessionFailed(
-                        peerId = peerId,
-                        stage = "transport.data.decrypt",
-                        reason = DiagnosticReason.DELIVERY_FAILURE,
-                        metadata = mapOf("cause" to exception::class.simpleName.orEmpty()),
-                    )
-                    return
-                }
-        val frame =
-            runCatching { WireCodec.decode(decryptedEnvelopeBytes) }
-                .getOrElse { exception ->
-                    emitHopSessionFailed(
-                        peerId = peerId,
-                        stage = "transport.data.decode",
-                        reason = DiagnosticReason.DELIVERY_FAILURE,
-                        metadata = mapOf("cause" to exception::class.simpleName.orEmpty()),
-                    )
-                    return
-                }
+            }
+        }
+    }
 
+    private fun activeHopSession(peerId: PeerId): HopSession? {
+        val session = hopSessions[peerId.value]
+        if (session == null) {
+            emitHopSessionFailed(
+                peerId = peerId,
+                stage = "transport.data.noSession",
+                reason = DiagnosticReason.DELIVERY_FAILURE,
+            )
+        }
+        return session
+    }
+
+    private fun decryptInboundWireFrame(
+        peerId: PeerId,
+        session: HopSession,
+        payload: ByteArray,
+    ): ByteArray? {
+        return runCatching { decryptHopPayload(session, payload) }
+            .getOrElse { exception ->
+                emitHopSessionFailed(
+                    peerId = peerId,
+                    stage = "transport.data.decrypt",
+                    reason = DiagnosticReason.DELIVERY_FAILURE,
+                    metadata = mapOf("cause" to exception::class.simpleName.orEmpty()),
+                )
+                null
+            }
+    }
+
+    private fun decodeInboundWireFrame(peerId: PeerId, payload: ByteArray): WireFrame? {
+        return runCatching { WireCodec.decode(payload) }
+            .getOrElse { exception ->
+                emitHopSessionFailed(
+                    peerId = peerId,
+                    stage = "transport.data.decode",
+                    reason = DiagnosticReason.DELIVERY_FAILURE,
+                    metadata = mapOf("cause" to exception::class.simpleName.orEmpty()),
+                )
+                null
+            }
+    }
+
+    private suspend fun dispatchInboundWireFrame(peerId: PeerId, frame: WireFrame): Unit {
         when (frame) {
             is WireFrame.Message -> handleRoutedMessageFrame(peerId = peerId, frame = frame)
             is WireFrame.RouteUpdate ->
