@@ -9,8 +9,17 @@ import ch.trancee.meshlink.transfer.OutboundTransferSession
 import ch.trancee.meshlink.transfer.PreparedInboundTransferAck
 import ch.trancee.meshlink.transport.TransportMode
 import ch.trancee.meshlink.wire.WireFrame
+import kotlinx.coroutines.sync.Mutex
 
 internal const val DIAGNOSTIC_PEER_SUFFIX_LENGTH: Int = 6
+
+internal class HopSession internal constructor(sendKey: ByteArray, receiveKey: ByteArray) {
+    internal val sendKey: ByteArray = sendKey.copyOf()
+    internal val receiveKey: ByteArray = receiveKey.copyOf()
+    internal val outboundMutex: Mutex = Mutex()
+    internal var sendNonce: ULong = 0u
+    internal var receiveNonce: ULong = 0u
+}
 
 internal data class InlineRetryWakeupState(val attempt: Int, val topologyVersion: Long)
 
