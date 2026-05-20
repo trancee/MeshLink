@@ -1167,10 +1167,19 @@ private constructor(
 
     private suspend fun resolveRecipientTrust(peerId: PeerId): TrustRecord? {
         val existingTrust = trustStore.read(peerId.value)
-        if (existingTrust != null) {
-            return existingTrust
+        val route = routeCoordinator.routeFor(peerId)
+
+        return when {
+            existingTrust != null -> existingTrust
+            route == null -> null
+            else -> learnRecipientTrustFromRoute(peerId = peerId, route = route)
         }
-        val route = routeCoordinator.routeFor(peerId) ?: return null
+    }
+
+    private suspend fun learnRecipientTrustFromRoute(
+        peerId: PeerId,
+        route: RouteEntry,
+    ): TrustRecord {
         val learnedAtEpochMillis = currentEpochMillis()
         val learnedTrust =
             TrustRecord(
@@ -1209,27 +1218,62 @@ private constructor(
         peerId: PeerId,
         payload: ByteArray,
     ): OutboundTransferPreparation {
-        val recipientTrust =
-            resolveRecipientTrust(peerId) ?: return OutboundTransferPreparation.PendingRoute
-        val sealedPayload =
-            runCatching {
-                    MessageSealer.seal(
-                        plaintext = payload,
-                        senderIdentity = localIdentity,
-                        recipientTrust = recipientTrust,
-                    )
-                }
-                .getOrElse { exception ->
-                    emitHopSessionFailed(
-                        peerId = peerId,
-                        stage = "transfer.encrypt",
-                        reason = DiagnosticReason.TRUST_FAILURE,
-                        metadata = mapOf("cause" to exception::class.simpleName.orEmpty()),
-                    )
-                    return OutboundTransferPreparation.Failed(
-                        SendResult.NotSent(SendFailureReason.TRUST_FAILURE)
-                    )
-                }
+        val recipientTrust = resolveRecipientTrust(peerId)
+
+        return if (recipientTrust == null) {
+            OutboundTransferPreparation.PendingRoute
+        } else {
+            prepareResolvedOutboundTransferSession(
+                peerId = peerId,
+                payload = payload,
+                recipientTrust = recipientTrust,
+            )
+        }
+    }
+
+    private suspend fun prepareResolvedOutboundTransferSession(
+        peerId: PeerId,
+        payload: ByteArray,
+        recipientTrust: TrustRecord,
+    ): OutboundTransferPreparation {
+        val sealedPayload = sealOutboundTransferPayload(peerId, payload, recipientTrust)
+        return if (sealedPayload == null) {
+            OutboundTransferPreparation.Failed(SendResult.NotSent(SendFailureReason.TRUST_FAILURE))
+        } else {
+            val session = createOutboundTransferSession(peerId, sealedPayload)
+            outboundTransfers[session.transferId] = session
+            emitTransferStartedDiagnostic(peerId)
+            OutboundTransferPreparation.Ready(session)
+        }
+    }
+
+    private fun sealOutboundTransferPayload(
+        peerId: PeerId,
+        payload: ByteArray,
+        recipientTrust: TrustRecord,
+    ): ByteArray? {
+        return runCatching {
+                MessageSealer.seal(
+                    plaintext = payload,
+                    senderIdentity = localIdentity,
+                    recipientTrust = recipientTrust,
+                )
+            }
+            .getOrElse { exception ->
+                emitHopSessionFailed(
+                    peerId = peerId,
+                    stage = "transfer.encrypt",
+                    reason = DiagnosticReason.TRUST_FAILURE,
+                    metadata = mapOf("cause" to exception::class.simpleName.orEmpty()),
+                )
+                null
+            }
+    }
+
+    private fun createOutboundTransferSession(
+        peerId: PeerId,
+        sealedPayload: ByteArray,
+    ): OutboundTransferSession {
         val innerEnvelope =
             DirectMessageEnvelope(
                     senderPeerId = localIdentity.peerId,
@@ -1239,17 +1283,18 @@ private constructor(
                     ciphertext = sealedPayload,
                 )
                 .encode()
-        val session =
-            OutboundTransferSession.fromOwnedChunks(
-                transferId = createTransferId(),
-                messageId = createMessageId(),
-                originPeerId = localIdentity.peerId,
-                destinationPeerId = peerId,
-                chunks = chunkTransferPayload(innerEnvelope, TRANSFER_CHUNK_PAYLOAD_BYTES),
-                totalBytes = innerEnvelope.size,
-                maxChunkPayloadBytes = TRANSFER_CHUNK_PAYLOAD_BYTES,
-            )
-        outboundTransfers[session.transferId] = session
+        return OutboundTransferSession.fromOwnedChunks(
+            transferId = createTransferId(),
+            messageId = createMessageId(),
+            originPeerId = localIdentity.peerId,
+            destinationPeerId = peerId,
+            chunks = chunkTransferPayload(innerEnvelope, TRANSFER_CHUNK_PAYLOAD_BYTES),
+            totalBytes = innerEnvelope.size,
+            maxChunkPayloadBytes = TRANSFER_CHUNK_PAYLOAD_BYTES,
+        )
+    }
+
+    private fun emitTransferStartedDiagnostic(peerId: PeerId): Unit {
         emitDiagnostic(
             code = DiagnosticCode.TRANSFER_STARTED,
             severity = DiagnosticSeverity.INFO,
@@ -1257,7 +1302,6 @@ private constructor(
             peerSuffix = peerId.value.takeLast(6),
             metadata = peerRouteMetadata(peerId),
         )
-        return OutboundTransferPreparation.Ready(session)
     }
 
     private fun chunkTransferPayload(payload: ByteArray, chunkSize: Int): List<ByteArray> {
