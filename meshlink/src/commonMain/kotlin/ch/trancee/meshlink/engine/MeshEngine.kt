@@ -19,6 +19,7 @@ import ch.trancee.meshlink.config.MeshLinkConfig
 import ch.trancee.meshlink.crypto.MessageSealer
 import ch.trancee.meshlink.crypto.NoiseXXHandshakeManager
 import ch.trancee.meshlink.crypto.NoiseXXHandshakeResult
+import ch.trancee.meshlink.crypto.NoiseXXResponderResult
 import ch.trancee.meshlink.diagnostics.DiagnosticCode
 import ch.trancee.meshlink.diagnostics.DiagnosticEvent
 import ch.trancee.meshlink.diagnostics.DiagnosticReason
@@ -612,27 +613,56 @@ private constructor(
     }
 
     private suspend fun handleHandshakeMessage3(peerId: PeerId, payload: ByteArray): Unit {
-        val pending =
-            pendingResponderHandshakes.remove(peerId.value)
-                ?: run {
-                    emitHopSessionFailed(
+        val pending = pendingResponderHandshake(peerId)
+        if (pending != null) {
+            val result =
+                processHandshakeMessage3(peerId = peerId, payload = payload, pending = pending)
+            if (result != null) {
+                val trustRecord = verifyHandshakeMessage3Trust(peerId = peerId, result = result)
+                if (trustRecord != null) {
+                    completeResponderHandshake(
                         peerId = peerId,
-                        stage = "transport.handshake.message3.unexpected",
-                        reason = DiagnosticReason.DELIVERY_FAILURE,
+                        result = result,
+                        trustRecord = trustRecord,
                     )
-                    return
                 }
-        val result =
-            runCatching { pending.manager.processMessage3(localIdentity.noiseIdentity, payload) }
-                .getOrElse { exception ->
-                    emitHopSessionFailed(
-                        peerId = peerId,
-                        stage = "transport.handshake.message3.process",
-                        reason = DiagnosticReason.DELIVERY_FAILURE,
-                        metadata = mapOf("cause" to exception::class.simpleName.orEmpty()),
-                    )
-                    return
-                }
+            }
+        }
+    }
+
+    private fun pendingResponderHandshake(peerId: PeerId): PendingResponderHandshake? {
+        val pending = pendingResponderHandshakes.remove(peerId.value)
+        if (pending == null) {
+            emitHopSessionFailed(
+                peerId = peerId,
+                stage = "transport.handshake.message3.unexpected",
+                reason = DiagnosticReason.DELIVERY_FAILURE,
+            )
+        }
+        return pending
+    }
+
+    private fun processHandshakeMessage3(
+        peerId: PeerId,
+        payload: ByteArray,
+        pending: PendingResponderHandshake,
+    ): NoiseXXResponderResult? {
+        return runCatching { pending.manager.processMessage3(localIdentity.noiseIdentity, payload) }
+            .getOrElse { exception ->
+                emitHopSessionFailed(
+                    peerId = peerId,
+                    stage = "transport.handshake.message3.process",
+                    reason = DiagnosticReason.DELIVERY_FAILURE,
+                    metadata = mapOf("cause" to exception::class.simpleName.orEmpty()),
+                )
+                null
+            }
+    }
+
+    private suspend fun verifyHandshakeMessage3Trust(
+        peerId: PeerId,
+        result: NoiseXXResponderResult,
+    ): TrustRecord? {
         val trustRecord =
             verifyAndPersistTrust(
                 peerId = peerId,
@@ -645,8 +675,15 @@ private constructor(
                 stage = "transport.handshake.message3.trust",
                 reason = DiagnosticReason.TRUST_FAILURE,
             )
-            return
         }
+        return trustRecord
+    }
+
+    private fun completeResponderHandshake(
+        peerId: PeerId,
+        result: NoiseXXResponderResult,
+        trustRecord: TrustRecord,
+    ): Unit {
         hopSessions[peerId.value] =
             HopSession(sendKey = result.sendKey, receiveKey = result.receiveKey)
         emitHopSessionEstablished(peerId, stage = "transport.handshake.message3.complete")
