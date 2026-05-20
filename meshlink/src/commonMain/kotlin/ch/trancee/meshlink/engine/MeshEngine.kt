@@ -925,17 +925,13 @@ private constructor(
                     ciphertext = sealedPayload,
                 )
                 .encode()
-        val chunks =
-            innerEnvelope.asList().chunked(TRANSFER_CHUNK_PAYLOAD_BYTES).map { chunk ->
-                chunk.toByteArray()
-            }
         val session =
-            OutboundTransferSession(
+            OutboundTransferSession.fromOwnedChunks(
                 transferId = createTransferId(),
                 messageId = createMessageId(),
                 originPeerId = localIdentity.peerId,
                 destinationPeerId = peerId,
-                chunks = chunks,
+                chunks = chunkTransferPayload(innerEnvelope, TRANSFER_CHUNK_PAYLOAD_BYTES),
                 totalBytes = innerEnvelope.size,
                 maxChunkPayloadBytes = TRANSFER_CHUNK_PAYLOAD_BYTES,
             )
@@ -948,6 +944,16 @@ private constructor(
             metadata = peerRouteMetadata(peerId),
         )
         return OutboundTransferPreparation.Ready(session)
+    }
+
+    private fun chunkTransferPayload(payload: ByteArray, chunkSize: Int): List<ByteArray> {
+        check(chunkSize > 0) { "chunkSize must be positive" }
+        val chunkCount = (payload.size + chunkSize - 1) / chunkSize
+        return List(chunkCount) { chunkIndex ->
+            val chunkStart = chunkIndex * chunkSize
+            val chunkEnd = minOf(chunkStart + chunkSize, payload.size)
+            payload.copyOfRange(chunkStart, chunkEnd)
+        }
     }
 
     private suspend fun sendLargePayload(
@@ -988,8 +994,7 @@ private constructor(
                             session.asStartFrame(),
                             "transfer.start",
                         )
-                    val missingChunks = session.missingChunkIndices()
-                    if (missingChunks.isEmpty()) {
+                    if (session.isComplete()) {
                         runPlatformCall("transfer.clearQueuedFrames") {
                             bleTransport?.clearQueuedOutboundFrames(session.destinationPeerId)
                         }
@@ -1008,7 +1013,7 @@ private constructor(
                         )
                         return SendResult.Sent
                     }
-                    missingChunks.forEach { chunkIndex ->
+                    session.forEachMissingChunkIndex { chunkIndex ->
                         routeAvailable =
                             sendTransferTowardsDestination(
                                 session.destinationPeerId,

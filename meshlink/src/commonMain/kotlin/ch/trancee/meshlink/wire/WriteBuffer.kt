@@ -1,10 +1,14 @@
 package ch.trancee.meshlink.wire
 
-internal class WriteBuffer {
-    private val bytes: MutableList<Byte> = mutableListOf()
+internal class WriteBuffer(initialCapacity: Int = DEFAULT_INITIAL_CAPACITY) {
+    private var bytes: ByteArray =
+        ByteArray(initialCapacity.coerceAtLeast(DEFAULT_INITIAL_CAPACITY))
+    private var size: Int = 0
 
     internal fun writeByte(value: Byte): Unit {
-        bytes += value
+        ensureCapacity(additionalBytes = 1)
+        bytes[size] = value
+        size += 1
     }
 
     internal fun writeShortLittleEndian(value: Short): Unit {
@@ -25,10 +29,30 @@ internal class WriteBuffer {
     }
 
     internal fun writeBytes(value: ByteArray): Unit {
-        value.forEach(::writeByte)
+        ensureCapacity(additionalBytes = value.size)
+        value.copyInto(bytes, destinationOffset = size)
+        size += value.size
     }
 
     internal fun toByteArray(): ByteArray {
-        return bytes.toByteArray()
+        return bytes.copyOf(size)
+    }
+
+    private fun ensureCapacity(additionalBytes: Int): Unit {
+        val requiredCapacity = size + additionalBytes
+        if (requiredCapacity <= bytes.size) {
+            return
+        }
+
+        var newCapacity = bytes.size
+        while (newCapacity < requiredCapacity) {
+            newCapacity *= GROWTH_FACTOR
+        }
+        bytes = bytes.copyOf(newCapacity)
+    }
+
+    private companion object {
+        private const val DEFAULT_INITIAL_CAPACITY: Int = 32
+        private const val GROWTH_FACTOR: Int = 2
     }
 }

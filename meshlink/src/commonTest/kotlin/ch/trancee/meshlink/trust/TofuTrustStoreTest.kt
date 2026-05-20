@@ -84,7 +84,8 @@ class TofuTrustStoreTest {
         val replacementRecord =
             TrustRecord(
                 peerIdValue = "peer-003",
-                identityFingerprintBytes = byteArrayOf(0x89.toByte(), 0xAB.toByte(), 0xCD.toByte(), 0xEF.toByte()),
+                identityFingerprintBytes =
+                    byteArrayOf(0x89.toByte(), 0xAB.toByte(), 0xCD.toByte(), 0xEF.toByte()),
                 firstSeenAtEpochMillis = 300L,
                 lastVerifiedAtEpochMillis = 400L,
                 ed25519PublicKey = byteArrayOf(0x51, 0x52),
@@ -100,7 +101,10 @@ class TofuTrustStoreTest {
         // Assert
         assertNotNull(restored)
         assertEquals(replacementRecord.identityFingerprint, restored.identityFingerprint)
-        assertContentEquals(replacementRecord.identityFingerprintBytes, restored.identityFingerprintBytes)
+        assertContentEquals(
+            replacementRecord.identityFingerprintBytes,
+            restored.identityFingerprintBytes,
+        )
         assertEquals(replacementRecord.firstSeenAtEpochMillis, restored.firstSeenAtEpochMillis)
         assertEquals(
             replacementRecord.lastVerifiedAtEpochMillis,

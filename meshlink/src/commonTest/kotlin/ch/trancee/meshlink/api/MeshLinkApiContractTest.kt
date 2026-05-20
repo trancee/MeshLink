@@ -19,6 +19,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.Flow
@@ -26,7 +27,6 @@ import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
-import kotlin.time.Duration.Companion.seconds
 
 class MeshLinkApiContractTest {
     private fun installIosFactoryTestBridge(): Unit {
@@ -101,10 +101,7 @@ class MeshLinkApiContractTest {
         val expectedRetryDeadline = 15.seconds
 
         // Act
-        val config =
-            meshLinkConfig {
-                appId = "defaults.meshlink"
-            }
+        val config = meshLinkConfig { appId = "defaults.meshlink" }
 
         // Assert
         assertEquals("defaults.meshlink", config.appId)
@@ -118,9 +115,7 @@ class MeshLinkApiContractTest {
         // Arrange / Act
         val error =
             assertFailsWith<MeshLinkException.InvalidConfiguration> {
-                meshLinkConfig {
-                    appId = "   "
-                }
+                meshLinkConfig { appId = "   " }
             }
 
         // Assert
@@ -133,20 +128,18 @@ class MeshLinkApiContractTest {
         val expectedDeadline = 9.seconds
 
         // Act
-        val first =
-            meshLinkConfig {
-                appId = "ordered.meshlink"
-                regulatoryRegion = RegulatoryRegion.EU
-                powerMode = PowerMode.Balanced
-                deliveryRetryDeadline = expectedDeadline
-            }
-        val second =
-            meshLinkConfig {
-                deliveryRetryDeadline = expectedDeadline
-                powerMode = PowerMode.Balanced
-                appId = "ordered.meshlink"
-                regulatoryRegion = RegulatoryRegion.EU
-            }
+        val first = meshLinkConfig {
+            appId = "ordered.meshlink"
+            regulatoryRegion = RegulatoryRegion.EU
+            powerMode = PowerMode.Balanced
+            deliveryRetryDeadline = expectedDeadline
+        }
+        val second = meshLinkConfig {
+            deliveryRetryDeadline = expectedDeadline
+            powerMode = PowerMode.Balanced
+            appId = "ordered.meshlink"
+            regulatoryRegion = RegulatoryRegion.EU
+        }
 
         // Assert
         assertEquals(first.appId, second.appId)
@@ -182,13 +175,12 @@ class MeshLinkApiContractTest {
         runBlocking {
             // Arrange
             installIosFactoryTestBridge()
-            val config =
-                meshLinkConfig {
-                    appId = "config.meshlink.${kotlin.random.Random.nextInt()}"
-                    regulatoryRegion = RegulatoryRegion.EU
-                    powerMode = PowerMode.Performance
-                    deliveryRetryDeadline = 9.seconds
-                }
+            val config = meshLinkConfig {
+                appId = "config.meshlink.${kotlin.random.Random.nextInt()}"
+                regulatoryRegion = RegulatoryRegion.EU
+                powerMode = PowerMode.Performance
+                deliveryRetryDeadline = 9.seconds
+            }
             val androidApi = MeshLink.create(config = config, context = AndroidFactoryTestContext)
             val iosApi = MeshLink.create(config = config)
             val androidPowerChanged =
@@ -202,7 +194,9 @@ class MeshLinkApiContractTest {
             val iosPowerChanged =
                 async(start = CoroutineStart.UNDISPATCHED) {
                     withTimeout(1_000) {
-                        iosApi.diagnosticEvents.first { it.code == DiagnosticCode.POWER_MODE_CHANGED }
+                        iosApi.diagnosticEvents.first {
+                            it.code == DiagnosticCode.POWER_MODE_CHANGED
+                        }
                     }
                 }
 
@@ -360,7 +354,9 @@ class MeshLinkApiContractTest {
                         ?: error("Expected initial trust record to be persisted")
                 }
             val initialTrustEstablishedCount =
-                receiver.diagnosticSink.events().count { it.code == DiagnosticCode.TRUST_ESTABLISHED }
+                receiver.diagnosticSink.events().count {
+                    it.code == DiagnosticCode.TRUST_ESTABLISHED
+                }
             sender.api.stop()
             kotlinx.coroutines.delay(50)
 

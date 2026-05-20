@@ -9,7 +9,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
 
 internal class OutboundTransferSession
-internal constructor(
+private constructor(
     internal val transferId: String,
     internal val messageId: String,
     internal val originPeerId: PeerId,
@@ -17,8 +17,33 @@ internal constructor(
     chunks: List<ByteArray>,
     internal val totalBytes: Int,
     internal val maxChunkPayloadBytes: Int,
+    copyChunks: Boolean,
 ) {
-    internal val chunks: List<ByteArray> = chunks.map { chunk -> chunk.copyOf() }
+    internal constructor(
+        transferId: String,
+        messageId: String,
+        originPeerId: PeerId,
+        destinationPeerId: PeerId,
+        chunks: List<ByteArray>,
+        totalBytes: Int,
+        maxChunkPayloadBytes: Int,
+    ) : this(
+        transferId = transferId,
+        messageId = messageId,
+        originPeerId = originPeerId,
+        destinationPeerId = destinationPeerId,
+        chunks = chunks,
+        totalBytes = totalBytes,
+        maxChunkPayloadBytes = maxChunkPayloadBytes,
+        copyChunks = true,
+    )
+
+    internal val chunks: List<ByteArray> =
+        if (copyChunks) {
+            chunks.map { chunk -> chunk.copyOf() }
+        } else {
+            chunks.toList()
+        }
     private val acknowledgedChunks: BooleanArray = BooleanArray(chunks.size)
     private val acknowledgedChunkCountFlow: MutableStateFlow<Int> = MutableStateFlow(0)
     private var acknowledgedChunkCount: Int = 0
@@ -58,7 +83,17 @@ internal constructor(
     }
 
     internal fun missingChunkIndices(): List<Int> {
-        return acknowledgedChunks.indices.filter { chunkIndex -> !acknowledgedChunks[chunkIndex] }
+        return buildList(capacity = totalChunks - acknowledgedChunkCount) {
+            forEachMissingChunkIndex { chunkIndex -> add(chunkIndex) }
+        }
+    }
+
+    internal inline fun forEachMissingChunkIndex(action: (Int) -> Unit): Unit {
+        repeat(totalChunks) { chunkIndex ->
+            if (!acknowledgedChunks[chunkIndex]) {
+                action(chunkIndex)
+            }
+        }
     }
 
     internal fun acknowledgedChunkCount(): Int {
@@ -94,6 +129,29 @@ internal constructor(
 
     internal fun isComplete(): Boolean {
         return acknowledgedChunkCount >= totalChunks
+    }
+
+    internal companion object {
+        internal fun fromOwnedChunks(
+            transferId: String,
+            messageId: String,
+            originPeerId: PeerId,
+            destinationPeerId: PeerId,
+            chunks: List<ByteArray>,
+            totalBytes: Int,
+            maxChunkPayloadBytes: Int,
+        ): OutboundTransferSession {
+            return OutboundTransferSession(
+                transferId = transferId,
+                messageId = messageId,
+                originPeerId = originPeerId,
+                destinationPeerId = destinationPeerId,
+                chunks = chunks,
+                totalBytes = totalBytes,
+                maxChunkPayloadBytes = maxChunkPayloadBytes,
+                copyChunks = false,
+            )
+        }
     }
 }
 

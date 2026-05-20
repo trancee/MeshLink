@@ -27,5 +27,4 @@ public object MeshLink {
     public fun create(config: MeshLinkConfig, context: Any): MeshLinkApi {
         return createMeshLink(config = config, context = context)
     }
-
 }

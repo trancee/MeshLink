@@ -212,13 +212,11 @@ internal fun shouldInitiateDiscoveryDrivenL2capConnection(
     remotePlatformFamily: BleDiscoveryPlatformFamily,
     gattSideLinkReady: Boolean,
 ): Boolean {
-    return !(
-        gattSideLinkReady &&
-            shouldUseMixedPlatformGattNotifyBearer(
-                localPlatformFamily = localPlatformFamily,
-                remotePlatformFamily = remotePlatformFamily,
-            )
-    )
+    return !(gattSideLinkReady &&
+        shouldUseMixedPlatformGattNotifyBearer(
+            localPlatformFamily = localPlatformFamily,
+            remotePlatformFamily = remotePlatformFamily,
+        ))
 }
 
 internal enum class GattDataBearerMode {

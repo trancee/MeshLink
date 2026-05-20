@@ -38,32 +38,30 @@ internal class RouteCoordinator internal constructor(private val localPeerId: Pe
         selectedRoutes[peerId.value] = directRoute
         updateFeasibilityDistance(directRoute)
 
+        val directRouteFrame = directRoute.asRouteUpdateFrame()
+        val digestFrame = routeDigestFrame()
         val advertisements = mutableListOf<RoutingAdvertisement>()
-        connectedPeers
-            .filterNot { connectedPeerId -> connectedPeerId == peerId.value }
-            .forEach { connectedPeerId ->
-                advertisements +=
-                    RoutingAdvertisement(
-                        targetPeerId = PeerId(connectedPeerId),
-                        frame = directRoute.asRouteUpdateFrame(),
-                    )
-                advertisements +=
-                    RoutingAdvertisement(
-                        targetPeerId = PeerId(connectedPeerId),
-                        frame = routeDigestFrame(),
-                    )
+        connectedPeers.forEach { connectedPeerId ->
+            if (connectedPeerId == peerId.value) {
+                return@forEach
             }
+            val targetPeerId = PeerId(connectedPeerId)
+            advertisements +=
+                RoutingAdvertisement(targetPeerId = targetPeerId, frame = directRouteFrame)
+            advertisements += RoutingAdvertisement(targetPeerId = targetPeerId, frame = digestFrame)
+        }
 
-        selectedRoutes.values
-            .filter { route ->
-                route.destinationPeerId.value != peerId.value &&
-                    route.nextHopPeerId.value != peerId.value
+        selectedRoutes.values.forEach { route ->
+            if (
+                route.destinationPeerId.value == peerId.value ||
+                    route.nextHopPeerId.value == peerId.value
+            ) {
+                return@forEach
             }
-            .forEach { route ->
-                advertisements +=
-                    RoutingAdvertisement(targetPeerId = peerId, frame = route.asRouteUpdateFrame())
-            }
-        advertisements += RoutingAdvertisement(targetPeerId = peerId, frame = routeDigestFrame())
+            advertisements +=
+                RoutingAdvertisement(targetPeerId = peerId, frame = route.asRouteUpdateFrame())
+        }
+        advertisements += RoutingAdvertisement(targetPeerId = peerId, frame = digestFrame)
 
         advanceTopologyVersion()
         val routeChange =
@@ -72,10 +70,7 @@ internal class RouteCoordinator internal constructor(private val localPeerId: Pe
             } else {
                 RouteSelectionChange.Updated(route = directRoute, previousRoute = previousRoute)
             }
-        return RoutingMutation(
-            advertisements = advertisements.deduplicated(),
-            routeChanges = listOf(routeChange),
-        )
+        return RoutingMutation(advertisements = advertisements, routeChanges = listOf(routeChange))
     }
 
     internal fun onPeerDisconnected(peerId: PeerId): RoutingMutation {
@@ -95,25 +90,29 @@ internal class RouteCoordinator internal constructor(private val localPeerId: Pe
         }
 
         val advertisements = mutableListOf<RoutingAdvertisement>()
-        removedRoutes.forEach { route ->
+        if (removedRoutes.isNotEmpty()) {
+            advanceTopologyVersion()
+            val digestFrame = routeDigestFrame()
+            removedRoutes.forEach { route ->
+                val retractionFrame = route.asRouteRetractionFrame()
+                connectedPeers.forEach { connectedPeerId ->
+                    advertisements +=
+                        RoutingAdvertisement(
+                            targetPeerId = PeerId(connectedPeerId),
+                            frame = retractionFrame,
+                        )
+                }
+            }
             connectedPeers.forEach { connectedPeerId ->
                 advertisements +=
                     RoutingAdvertisement(
                         targetPeerId = PeerId(connectedPeerId),
-                        frame = route.asRouteRetractionFrame(),
-                    )
-                advertisements +=
-                    RoutingAdvertisement(
-                        targetPeerId = PeerId(connectedPeerId),
-                        frame = routeDigestFrame(),
+                        frame = digestFrame,
                     )
             }
         }
-        if (removedRoutes.isNotEmpty()) {
-            advanceTopologyVersion()
-        }
         return RoutingMutation(
-            advertisements = advertisements.deduplicated(),
+            advertisements = advertisements,
             routeChanges = removedRoutes.map(RouteSelectionChange::Removed),
         )
     }
@@ -151,28 +150,22 @@ internal class RouteCoordinator internal constructor(private val localPeerId: Pe
             } else {
                 RouteSelectionChange.Updated(route = candidate, previousRoute = current)
             }
-        return RoutingMutation(
-            advertisements =
-                connectedPeers
-                    .filterNot { connectedPeerId ->
-                        connectedPeerId == fromPeerId.value ||
-                            connectedPeerId == candidate.nextHopPeerId.value
-                    }
-                    .flatMap { connectedPeerId ->
-                        listOf(
-                            RoutingAdvertisement(
-                                targetPeerId = PeerId(connectedPeerId),
-                                frame = candidate.asRouteUpdateFrame(),
-                            ),
-                            RoutingAdvertisement(
-                                targetPeerId = PeerId(connectedPeerId),
-                                frame = routeDigestFrame(),
-                            ),
-                        )
-                    }
-                    .deduplicated(),
-            routeChanges = listOf(routeChange),
-        )
+        val candidateFrame = candidate.asRouteUpdateFrame()
+        val digestFrame = routeDigestFrame()
+        val advertisements = mutableListOf<RoutingAdvertisement>()
+        connectedPeers.forEach { connectedPeerId ->
+            if (
+                connectedPeerId == fromPeerId.value ||
+                    connectedPeerId == candidate.nextHopPeerId.value
+            ) {
+                return@forEach
+            }
+            val targetPeerId = PeerId(connectedPeerId)
+            advertisements +=
+                RoutingAdvertisement(targetPeerId = targetPeerId, frame = candidateFrame)
+            advertisements += RoutingAdvertisement(targetPeerId = targetPeerId, frame = digestFrame)
+        }
+        return RoutingMutation(advertisements = advertisements, routeChanges = listOf(routeChange))
     }
 
     internal fun onRouteRetraction(
@@ -188,23 +181,20 @@ internal class RouteCoordinator internal constructor(private val localPeerId: Pe
         selectedRoutes.remove(retraction.destinationPeerId.value)
         feasibilityDistances.remove(retraction.destinationPeerId.value)
         advanceTopologyVersion()
+        val retractionFrame = current.asRouteRetractionFrame()
+        val digestFrame = routeDigestFrame()
+        val advertisements = mutableListOf<RoutingAdvertisement>()
+        connectedPeers.forEach { connectedPeerId ->
+            if (connectedPeerId == fromPeerId.value) {
+                return@forEach
+            }
+            val targetPeerId = PeerId(connectedPeerId)
+            advertisements +=
+                RoutingAdvertisement(targetPeerId = targetPeerId, frame = retractionFrame)
+            advertisements += RoutingAdvertisement(targetPeerId = targetPeerId, frame = digestFrame)
+        }
         return RoutingMutation(
-            advertisements =
-                connectedPeers
-                    .filterNot { connectedPeerId -> connectedPeerId == fromPeerId.value }
-                    .flatMap { connectedPeerId ->
-                        listOf(
-                            RoutingAdvertisement(
-                                targetPeerId = PeerId(connectedPeerId),
-                                frame = current.asRouteRetractionFrame(),
-                            ),
-                            RoutingAdvertisement(
-                                targetPeerId = PeerId(connectedPeerId),
-                                frame = routeDigestFrame(),
-                            ),
-                        )
-                    }
-                    .deduplicated(),
+            advertisements = advertisements,
             routeChanges = listOf(RouteSelectionChange.Removed(current)),
         )
     }
@@ -300,24 +290,6 @@ internal class RouteCoordinator internal constructor(private val localPeerId: Pe
 
     private fun advanceTopologyVersion(): Unit {
         mutableTopologyVersion.value += 1L
-    }
-
-    private fun List<RoutingAdvertisement>.deduplicated(): List<RoutingAdvertisement> {
-        return distinctBy { advertisement ->
-            val frame = advertisement.frame
-            buildString {
-                append(advertisement.targetPeerId.value)
-                append(':')
-                append(frame::class.simpleName)
-                append(':')
-                when (frame) {
-                    is WireFrame.RouteDigest -> append(frame.peerId.value)
-                    is WireFrame.RouteRetraction -> append(frame.destinationPeerId.value)
-                    is WireFrame.RouteUpdate -> append(frame.destinationPeerId.value)
-                    else -> append(frame::class.simpleName)
-                }
-            }
-        }
     }
 
     internal companion object {

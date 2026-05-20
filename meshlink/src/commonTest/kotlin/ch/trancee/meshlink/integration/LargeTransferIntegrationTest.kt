@@ -176,16 +176,11 @@ class LargeTransferIntegrationTest {
         runBlocking {
             // Arrange
             val harness = MeshTestHarness()
-            val senderConfig =
-                meshLinkConfig {
-                    appId = "peer-a-large-restart-loss"
-                    deliveryRetryDeadline = 1.seconds
-                }
-            val sender =
-                harness.createNode(
-                    peerIdValue = "peer-a",
-                    configOverride = senderConfig,
-                )
+            val senderConfig = meshLinkConfig {
+                appId = "peer-a-large-restart-loss"
+                deliveryRetryDeadline = 1.seconds
+            }
+            val sender = harness.createNode(peerIdValue = "peer-a", configOverride = senderConfig)
             val relay = harness.createNode("peer-b")
             val recipient = harness.createNode("peer-c")
             val payload = ByteArray(64 * 1024) { index -> ((index * 23) % 251).toByte() }

@@ -15,9 +15,7 @@ package ch.trancee.meshlink.api
 public object IosBleTransportBridge {
     public fun install(gattNotifySend: (Any, Any, Any, ByteArray) -> Boolean): Unit {
         IosBleTransportBridgeRegistry.install(
-            IosBleTransportCallbacks(
-                gattNotifySend = gattNotifySend,
-            )
+            IosBleTransportCallbacks(gattNotifySend = gattNotifySend)
         )
     }
 

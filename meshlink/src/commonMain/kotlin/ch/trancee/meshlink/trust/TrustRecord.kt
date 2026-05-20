@@ -15,13 +15,14 @@ internal constructor(
 ) {
     private var identityFingerprintText: String? = identityFingerprint
     internal val identityFingerprintBytes: ByteArray =
-        identityFingerprintBytes?.copyOf() ?: identityFingerprint?.toBytes()
-        ?: error("identity fingerprint is required")
+        identityFingerprintBytes?.copyOf()
+            ?: identityFingerprint?.toBytes()
+            ?: error("identity fingerprint is required")
     internal val identityFingerprint: String
         get() =
-            identityFingerprintText ?: identityFingerprintBytes.toHexString().also {
-                identityFingerprintText = it
-            }
+            identityFingerprintText
+                ?: identityFingerprintBytes.toHexString().also { identityFingerprintText = it }
+
     internal val ed25519PublicKey: ByteArray = ed25519PublicKey.copyOf()
     internal val x25519PublicKey: ByteArray = x25519PublicKey.copyOf()
 

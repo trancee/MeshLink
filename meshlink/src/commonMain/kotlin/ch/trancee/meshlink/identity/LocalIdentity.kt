@@ -20,9 +20,9 @@ internal constructor(
     internal val identityFingerprintBytes: ByteArray = identityFingerprintBytes.copyOf()
     internal val identityFingerprint: String
         get() =
-            identityFingerprintText ?: identityFingerprintBytes.toHexString().also {
-                identityFingerprintText = it
-            }
+            identityFingerprintText
+                ?: identityFingerprintBytes.toHexString().also { identityFingerprintText = it }
+
     internal val advertisementKeyHash: ByteArray = advertisementKeyHash.copyOf()
     internal val ed25519PublicKey: ByteArray = noiseIdentity.ed25519KeyPair.publicKey.copyOf()
     internal val x25519PublicKey: ByteArray = noiseIdentity.x25519KeyPair.publicKey.copyOf()

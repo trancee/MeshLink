@@ -145,7 +145,8 @@ private class BenchmarkTopology(nodeCount: Int) {
         val seed = peerId.value.removePrefix("node-").toIntOrNull() ?: 0
         return TrustRecord(
             peerIdValue = peerId.value,
-            identityFingerprintBytes = byteArrayOf(((seed + 73) and 0xFF).toByte()).repeatToLength(32),
+            identityFingerprintBytes =
+                byteArrayOf(((seed + 73) and 0xFF).toByte()).repeatToLength(32),
             firstSeenAtEpochMillis = seed.toLong(),
             lastVerifiedAtEpochMillis = seed.toLong(),
             ed25519PublicKey = byteArrayOf((seed and 0xFF).toByte()).repeatToLength(32),

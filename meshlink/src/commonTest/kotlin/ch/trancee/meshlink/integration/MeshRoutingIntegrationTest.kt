@@ -174,16 +174,11 @@ class MeshRoutingIntegrationTest {
         runBlocking {
             // Arrange
             val harness = MeshTestHarness()
-            val senderConfig =
-                meshLinkConfig {
-                    appId = "peer-a-restart-loss"
-                    deliveryRetryDeadline = 1.seconds
-                }
-            val sender =
-                harness.createNode(
-                    peerIdValue = "peer-a",
-                    configOverride = senderConfig,
-                )
+            val senderConfig = meshLinkConfig {
+                appId = "peer-a-restart-loss"
+                deliveryRetryDeadline = 1.seconds
+            }
+            val sender = harness.createNode(peerIdValue = "peer-a", configOverride = senderConfig)
             val relay = harness.createNode("peer-b")
             val recipient = harness.createNode("peer-c")
             val payload = "resubmit after restart".encodeToByteArray()

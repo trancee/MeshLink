@@ -46,6 +46,9 @@ internal object RouteCoordinatorAccess {
         RouteCoordinator::class.java.getMethod("nextHopFor\$meshlink", PeerId::class.java)
     private val routeFor =
         RouteCoordinator::class.java.getMethod("routeFor\$meshlink", PeerId::class.java)
+    private val routingMutationAdvertisements =
+        Class.forName("ch.trancee.meshlink.routing.RoutingMutation")
+            .getMethod("getAdvertisements\$meshlink")
     private val targetPeerId =
         RoutingAdvertisement::class.java.getMethod("getTargetPeerId\$meshlink")
     private val frame = RoutingAdvertisement::class.java.getMethod("getFrame\$meshlink")
@@ -101,7 +104,12 @@ internal object RouteCoordinatorAccess {
 
     @Suppress("UNCHECKED_CAST")
     private fun toBenchmarkAdvertisements(result: Any?): List<BenchmarkAdvertisement> {
-        return (result as List<RoutingAdvertisement>).map { advertisement ->
+        if (result == null) {
+            return emptyList()
+        }
+        val advertisements =
+            routingMutationAdvertisements.invoke(result) as List<RoutingAdvertisement>
+        return advertisements.map { advertisement ->
             BenchmarkAdvertisement(
                 targetPeerId = targetPeerId.invoke(advertisement) as PeerId,
                 frame = frame.invoke(advertisement) as WireFrame,

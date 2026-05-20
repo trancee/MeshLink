@@ -62,9 +62,7 @@ internal class TofuTrustStore internal constructor(private val secureStorage: Se
     private fun opaquePeerKey(peerIdValue: String): String {
         var hash = FNV64_OFFSET_BASIS
         val sourceBytes = peerIdValue.toBytes() ?: peerIdValue.encodeToByteArray()
-        sourceBytes.forEach { byte ->
-            hash = (hash xor (byte.toLong() and 0xFF)) * FNV64_PRIME
-        }
+        sourceBytes.forEach { byte -> hash = (hash xor (byte.toLong() and 0xFF)) * FNV64_PRIME }
         return hash.toULong().toString(radix = 16).padStart(16, '0')
     }
 
