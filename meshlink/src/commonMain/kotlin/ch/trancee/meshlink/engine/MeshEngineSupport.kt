@@ -10,6 +10,8 @@ import ch.trancee.meshlink.transfer.PreparedInboundTransferAck
 import ch.trancee.meshlink.transport.TransportMode
 import ch.trancee.meshlink.wire.WireFrame
 
+internal const val DIAGNOSTIC_PEER_SUFFIX_LENGTH: Int = 6
+
 internal data class InlineRetryWakeupState(val attempt: Int, val topologyVersion: Long)
 
 internal sealed class OutboundTransferPreparation {

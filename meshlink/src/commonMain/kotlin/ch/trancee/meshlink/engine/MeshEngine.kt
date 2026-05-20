@@ -35,9 +35,6 @@ import ch.trancee.meshlink.presence.PeerPresenceTracker
 import ch.trancee.meshlink.presence.PresenceTransition
 import ch.trancee.meshlink.routing.RouteCoordinator
 import ch.trancee.meshlink.routing.RouteEntry
-import ch.trancee.meshlink.routing.RouteSelectionChange
-import ch.trancee.meshlink.routing.RoutingAdvertisement
-import ch.trancee.meshlink.routing.RoutingMutation
 import ch.trancee.meshlink.storage.InMemorySecureStorage
 import ch.trancee.meshlink.storage.SecureStorage
 import ch.trancee.meshlink.transfer.InboundChunkAcceptance
@@ -92,6 +89,19 @@ private constructor(
     private val deliveryRetryScheduler = DeliveryRetryScheduler(routeCoordinator.topologyVersion)
     private val powerPolicyController =
         PowerPolicyController(configuredMode = config.powerMode, region = config.regulatoryRegion)
+    private val routingSupport =
+        MeshEngineRoutingSupport(
+            routeCoordinator = routeCoordinator,
+            coroutineScope = coroutineScope,
+            emitDiagnostic = ::emitDiagnostic,
+            sendEncryptedWireFrame = ::sendEncryptedWireFrame,
+        )
+    private val trustSupport =
+        MeshEngineTrustSupport(
+            localIdentity = localIdentity,
+            trustStore = trustStore,
+            emitDiagnostic = ::emitDiagnostic,
+        )
     private var currentPowerPolicy: PowerPolicy =
         powerPolicyController.currentPolicy(nowMillis = 0L)
     private var transportCollectionJob: Job? = null
@@ -235,7 +245,7 @@ private constructor(
             ?.sessionDeferred
             ?.complete(SessionEstablishmentOutcome.Unreachable)
         pendingResponderHandshakes.remove(peerId.value)
-        dispatchRoutingMutation(
+        routingSupport.dispatchMutation(
             mutation = routeCoordinator.onPeerDisconnected(peerId),
             stage = "trust.forgetPeer",
             removalCode = DiagnosticCode.ROUTE_RETRACTED,
@@ -348,7 +358,7 @@ private constructor(
         metadata: Map<String, String>,
     ): Unit {
         clearPeerTransportState(peerId)
-        dispatchRoutingMutation(
+        routingSupport.dispatchMutation(
             mutation = routeCoordinator.onPeerDisconnected(peerId),
             stage = stage,
             removalCode = removalCode,
@@ -521,7 +531,7 @@ private constructor(
         result: NoiseXXHandshakeResult,
     ): TrustRecord? {
         val trustRecord =
-            verifyAndPersistTrust(
+            trustSupport.verifyAndPersistTrust(
                 peerId = peerId,
                 remoteEd25519PublicKey = result.remoteEd25519PublicKey,
                 remoteX25519PublicKey = result.remoteStaticPublicKey,
@@ -586,7 +596,7 @@ private constructor(
         pendingInitiatorHandshakes.remove(peerId.value)
         pending.sessionDeferred.complete(SessionEstablishmentOutcome.Established(session))
         emitHopSessionEstablished(peerId, stage = "transport.handshake.message2.complete")
-        dispatchRoutingMutation(
+        routingSupport.dispatchMutation(
             mutation = routeCoordinator.onPeerConnected(peerId, trustRecord),
             stage = "transport.handshake.message2.complete",
             metadata = mapOf("connectedPeerId" to peerId.value),
@@ -667,7 +677,7 @@ private constructor(
         result: NoiseXXResponderResult,
     ): TrustRecord? {
         val trustRecord =
-            verifyAndPersistTrust(
+            trustSupport.verifyAndPersistTrust(
                 peerId = peerId,
                 remoteEd25519PublicKey = result.remoteEd25519PublicKey,
                 remoteX25519PublicKey = result.remoteStaticPublicKey,
@@ -690,7 +700,7 @@ private constructor(
         hopSessions[peerId.value] =
             HopSession(sendKey = result.sendKey, receiveKey = result.receiveKey)
         emitHopSessionEstablished(peerId, stage = "transport.handshake.message3.complete")
-        dispatchRoutingMutation(
+        routingSupport.dispatchMutation(
             mutation = routeCoordinator.onPeerConnected(peerId, trustRecord),
             stage = "transport.handshake.message3.complete",
             metadata = mapOf("connectedPeerId" to peerId.value),
@@ -756,13 +766,13 @@ private constructor(
         when (frame) {
             is WireFrame.Message -> handleRoutedMessageFrame(peerId = peerId, frame = frame)
             is WireFrame.RouteUpdate ->
-                dispatchRoutingMutation(
+                routingSupport.dispatchMutation(
                     mutation = routeCoordinator.onRouteUpdate(peerId, frame),
                     stage = "routing.routeUpdate",
                     metadata = mapOf("advertisedByPeerId" to peerId.value),
                 )
             is WireFrame.RouteRetraction ->
-                dispatchRoutingMutation(
+                routingSupport.dispatchMutation(
                     mutation = routeCoordinator.onRouteRetraction(peerId, frame),
                     stage = "routing.routeRetraction",
                     removalCode = DiagnosticCode.ROUTE_RETRACTED,
@@ -835,7 +845,7 @@ private constructor(
     private suspend fun verifyInnerEnvelopeSenderTrust(
         envelope: DirectMessageEnvelope
     ): TrustRecord? {
-        return verifyAndPersistTrust(
+        return trustSupport.verifyAndPersistTrust(
             peerId = envelope.senderPeerId,
             remoteEd25519PublicKey = envelope.senderEd25519PublicKey,
             remoteX25519PublicKey = envelope.senderX25519PublicKey,
@@ -981,7 +991,7 @@ private constructor(
             peerSuffix = peerId.value.takeLast(6),
             reason = DiagnosticReason.DELIVERY_RETRY,
             metadata =
-                peerRouteMetadata(
+                routingSupport.peerRouteMetadata(
                     peerId,
                     metadata = mapOf("attempt" to retryState.attempt.toString()),
                 ),
@@ -1013,7 +1023,7 @@ private constructor(
                 peerSuffix = peerId.value.takeLast(6),
                 reason = DiagnosticReason.DELIVERY_RETRY,
                 metadata =
-                    peerRouteMetadata(
+                    routingSupport.peerRouteMetadata(
                         peerId,
                         metadata = mapOf("attempt" to wakeupState.attempt.toString()),
                     ),
@@ -1139,7 +1149,7 @@ private constructor(
                     severity = DiagnosticSeverity.INFO,
                     stage = "delivery.send",
                     peerSuffix = peerId.value.takeLast(6),
-                    metadata = peerRouteMetadata(peerId),
+                    metadata = routingSupport.peerRouteMetadata(peerId),
                 )
                 SendResult.Sent
             }
@@ -1157,7 +1167,7 @@ private constructor(
             stage = "delivery.retryExpired",
             peerSuffix = peerId.value.takeLast(6),
             reason = DiagnosticReason.DELIVERY_FAILURE,
-            metadata = peerRouteMetadata(peerId),
+            metadata = routingSupport.peerRouteMetadata(peerId),
         )
         return SendResult.NotSent(SendFailureReason.UNREACHABLE)
     }
@@ -1287,7 +1297,7 @@ private constructor(
             severity = DiagnosticSeverity.INFO,
             stage = "transfer.send.start",
             peerSuffix = peerId.value.takeLast(6),
-            metadata = peerRouteMetadata(peerId),
+            metadata = routingSupport.peerRouteMetadata(peerId),
         )
     }
 
@@ -1481,7 +1491,7 @@ private constructor(
             stage = "transfer.send.progress",
             peerSuffix = session.destinationPeerId.value.takeLast(6),
             metadata =
-                peerRouteMetadata(
+                routingSupport.peerRouteMetadata(
                     session.destinationPeerId,
                     metadata =
                         mapOf(
@@ -1526,7 +1536,7 @@ private constructor(
                 stage = "transfer.retryExpired",
                 peerSuffix = peerId.value.takeLast(6),
                 reason = DiagnosticReason.DELIVERY_FAILURE,
-                metadata = peerRouteMetadata(peerId),
+                metadata = routingSupport.peerRouteMetadata(peerId),
             )
             SendResult.NotSent(SendFailureReason.UNREACHABLE)
         } else {
@@ -1536,7 +1546,7 @@ private constructor(
                 stage = "transfer.send.timeout",
                 peerSuffix = peerId.value.takeLast(6),
                 reason = DiagnosticReason.TRANSFER_FAILURE,
-                metadata = peerRouteMetadata(peerId),
+                metadata = routingSupport.peerRouteMetadata(peerId),
             )
             SendResult.NotSent(SendFailureReason.TRANSFER_TIMED_OUT)
         }
@@ -1557,7 +1567,10 @@ private constructor(
                 peerSuffix = peerId.value.takeLast(6),
                 reason = DiagnosticReason.DELIVERY_RETRY,
                 metadata =
-                    peerRouteMetadata(peerId, metadata = mapOf("attempt" to attempt.toString())),
+                    routingSupport.peerRouteMetadata(
+                        peerId,
+                        metadata = mapOf("attempt" to attempt.toString()),
+                    ),
             )
         }
 
@@ -1590,7 +1603,7 @@ private constructor(
                 peerSuffix = peerId.value.takeLast(6),
                 reason = DiagnosticReason.DELIVERY_RETRY,
                 metadata =
-                    peerRouteMetadata(
+                    routingSupport.peerRouteMetadata(
                         peerId,
                         metadata = mapOf("attempt" to wakeupState.attempt.toString()),
                     ),
@@ -1616,7 +1629,7 @@ private constructor(
             severity = DiagnosticSeverity.INFO,
             stage = "transfer.send.complete",
             peerSuffix = session.destinationPeerId.value.takeLast(6),
-            metadata = peerRouteMetadata(session.destinationPeerId),
+            metadata = routingSupport.peerRouteMetadata(session.destinationPeerId),
         )
         return SendResult.Sent
     }
@@ -1866,7 +1879,7 @@ private constructor(
             stage = stage,
             peerSuffix = peerId.value.takeLast(6),
             metadata =
-                peerRouteMetadata(
+                routingSupport.peerRouteMetadata(
                     peerId = peerId,
                     metadata = inboundTransferMetadata(session) + metadata,
                 ),
@@ -1902,161 +1915,6 @@ private constructor(
     private fun isLocalPeerId(peerId: PeerId): Boolean {
         return peerId.value == localIdentity.peerId.value ||
             peerId.value.hexContentEquals(localIdentity.advertisementKeyHash)
-    }
-
-    private fun dispatchRoutingMutation(
-        mutation: RoutingMutation,
-        stage: String,
-        removalCode: DiagnosticCode = DiagnosticCode.ROUTE_RETRACTED,
-        metadata: Map<String, String> = emptyMap(),
-    ): Unit {
-        dispatchRoutingAdvertisements(mutation.advertisements)
-        emitRouteSelectionDiagnostics(
-            changes = mutation.routeChanges,
-            stage = stage,
-            removalCode = removalCode,
-            metadata = metadata,
-        )
-    }
-
-    private fun emitRouteSelectionDiagnostics(
-        changes: List<RouteSelectionChange>,
-        stage: String,
-        removalCode: DiagnosticCode,
-        metadata: Map<String, String>,
-    ): Unit {
-        changes.forEach { change ->
-            emitRouteSelectionDiagnostic(
-                change = change,
-                stage = stage,
-                removalCode = removalCode,
-                metadata = metadata,
-            )
-        }
-    }
-
-    private fun emitRouteSelectionDiagnostic(
-        change: RouteSelectionChange,
-        stage: String,
-        removalCode: DiagnosticCode,
-        metadata: Map<String, String>,
-    ): Unit {
-        when (change) {
-            is RouteSelectionChange.Available ->
-                emitAvailableRouteDiagnostic(change = change, stage = stage, metadata = metadata)
-            is RouteSelectionChange.Updated ->
-                emitUpdatedRouteDiagnostic(change = change, stage = stage, metadata = metadata)
-            is RouteSelectionChange.Removed ->
-                emitRemovedRouteDiagnostic(
-                    change = change,
-                    stage = stage,
-                    removalCode = removalCode,
-                    metadata = metadata,
-                )
-        }
-    }
-
-    private fun emitAvailableRouteDiagnostic(
-        change: RouteSelectionChange.Available,
-        stage: String,
-        metadata: Map<String, String>,
-    ): Unit {
-        emitDiagnostic(
-            code = DiagnosticCode.ROUTE_DISCOVERED,
-            severity = DiagnosticSeverity.INFO,
-            stage = "$stage.routeAvailable",
-            peerSuffix = change.route.destinationPeerId.value.takeLast(6),
-            reason = DiagnosticReason.ROUTE_CHANGE,
-            metadata =
-                peerRouteMetadata(
-                    peerId = change.route.destinationPeerId,
-                    route = change.route,
-                    metadata = metadata + ("routeChange" to "available"),
-                ),
-        )
-    }
-
-    private fun emitUpdatedRouteDiagnostic(
-        change: RouteSelectionChange.Updated,
-        stage: String,
-        metadata: Map<String, String>,
-    ): Unit {
-        emitDiagnostic(
-            code = DiagnosticCode.ROUTE_UPDATED,
-            severity = DiagnosticSeverity.DEBUG,
-            stage = "$stage.routeUpdated",
-            peerSuffix = change.route.destinationPeerId.value.takeLast(6),
-            reason = DiagnosticReason.ROUTE_CHANGE,
-            metadata =
-                peerRouteMetadata(
-                    peerId = change.route.destinationPeerId,
-                    route = change.route,
-                    previousRoute = change.previousRoute,
-                    metadata = metadata + ("routeChange" to "updated"),
-                ),
-        )
-    }
-
-    private fun emitRemovedRouteDiagnostic(
-        change: RouteSelectionChange.Removed,
-        stage: String,
-        removalCode: DiagnosticCode,
-        metadata: Map<String, String>,
-    ): Unit {
-        emitDiagnostic(
-            code = removalCode,
-            severity = DiagnosticSeverity.WARN,
-            stage = routeRemovalStage(stage = stage, removalCode = removalCode),
-            peerSuffix = change.previousRoute.destinationPeerId.value.takeLast(6),
-            reason = DiagnosticReason.ROUTE_CHANGE,
-            metadata =
-                peerRouteMetadata(
-                    peerId = change.previousRoute.destinationPeerId,
-                    route = null,
-                    previousRoute = change.previousRoute,
-                    metadata = metadata + ("routeChange" to routeRemovalLabel(removalCode)),
-                ),
-        )
-    }
-
-    private fun peerRouteMetadata(
-        peerId: PeerId,
-        route: RouteEntry? = routeCoordinator.routeFor(peerId),
-        previousRoute: RouteEntry? = null,
-        metadata: Map<String, String> = emptyMap(),
-    ): Map<String, String> {
-        return buildMap {
-            put("peerId", peerId.value)
-            put("topologyVersion", routeCoordinator.topologyVersion.value.toString())
-            put("routeAvailable", (route != null).toString())
-            route?.let { selectedRoute ->
-                put("destinationPeerId", selectedRoute.destinationPeerId.value)
-                put("nextHopPeerId", selectedRoute.nextHopPeerId.value)
-                put("routeMetric", selectedRoute.metric.toString())
-                put("routeSeqNo", selectedRoute.seqNo.toString())
-                put("routeIsDirect", selectedRoute.isDirect.toString())
-            }
-            previousRoute?.let { priorRoute ->
-                put("previousDestinationPeerId", priorRoute.destinationPeerId.value)
-                put("previousNextHopPeerId", priorRoute.nextHopPeerId.value)
-                put("previousRouteMetric", priorRoute.metric.toString())
-                put("previousRouteSeqNo", priorRoute.seqNo.toString())
-                put("previousRouteIsDirect", priorRoute.isDirect.toString())
-            }
-            metadata.forEach { (key, value) -> put(key, value) }
-        }
-    }
-
-    private fun dispatchRoutingAdvertisements(advertisements: List<RoutingAdvertisement>): Unit {
-        advertisements.forEach { advertisement ->
-            coroutineScope.launch {
-                sendEncryptedWireFrame(
-                    peerId = advertisement.targetPeerId,
-                    frame = advertisement.frame,
-                    action = "routing.advertise",
-                )
-            }
-        }
     }
 
     private suspend fun sendEncryptedWireFrame(
@@ -2177,116 +2035,6 @@ private constructor(
         }
     }
 
-    private suspend fun verifyAndPersistTrust(
-        peerId: PeerId,
-        remoteEd25519PublicKey: ByteArray,
-        remoteX25519PublicKey: ByteArray,
-        expectedFingerprintBytes: ByteArray? = null,
-    ): TrustRecord? {
-        val remoteIdentityHash =
-            localIdentity.cryptoProvider.sha256(remoteEd25519PublicKey + remoteX25519PublicKey)
-        val fingerprintMatches =
-            fingerprintMatchesExpected(
-                peerId = peerId,
-                expectedFingerprintBytes = expectedFingerprintBytes,
-                remoteIdentityHash = remoteIdentityHash,
-            )
-        val existingTrust = if (fingerprintMatches) trustStore.read(peerId.value) else null
-
-        return when {
-            !fingerprintMatches -> null
-            existingTrust == null ->
-                pinVerifiedTrust(
-                    peerId = peerId,
-                    remoteIdentityHash = remoteIdentityHash,
-                    remoteEd25519PublicKey = remoteEd25519PublicKey,
-                    remoteX25519PublicKey = remoteX25519PublicKey,
-                )
-            !trustMatchesRemoteIdentity(
-                existingTrust = existingTrust,
-                remoteIdentityHash = remoteIdentityHash,
-                remoteEd25519PublicKey = remoteEd25519PublicKey,
-                remoteX25519PublicKey = remoteX25519PublicKey,
-            ) -> {
-                emitDiagnostic(
-                    code = DiagnosticCode.TRUST_FAILURE,
-                    severity = DiagnosticSeverity.ERROR,
-                    stage = "trust.verify",
-                    peerSuffix = peerId.value.takeLast(6),
-                    reason = DiagnosticReason.TRUST_FAILURE,
-                )
-                null
-            }
-            else -> refreshVerifiedTrust(existingTrust)
-        }
-    }
-
-    private fun fingerprintMatchesExpected(
-        peerId: PeerId,
-        expectedFingerprintBytes: ByteArray?,
-        remoteIdentityHash: ByteArray,
-    ): Boolean {
-        val fingerprintMatches =
-            expectedFingerprintBytes == null ||
-                expectedFingerprintBytes.contentEquals(remoteIdentityHash)
-        if (!fingerprintMatches) {
-            emitDiagnostic(
-                code = DiagnosticCode.TRUST_FAILURE,
-                severity = DiagnosticSeverity.ERROR,
-                stage = "trust.verify.fingerprint",
-                peerSuffix = peerId.value.takeLast(6),
-                reason = DiagnosticReason.TRUST_FAILURE,
-            )
-        }
-        return fingerprintMatches
-    }
-
-    private suspend fun pinVerifiedTrust(
-        peerId: PeerId,
-        remoteIdentityHash: ByteArray,
-        remoteEd25519PublicKey: ByteArray,
-        remoteX25519PublicKey: ByteArray,
-    ): TrustRecord {
-        val verifiedAtEpochMillis = currentEpochMillis()
-        val trustRecord =
-            TrustRecord(
-                peerIdValue = peerId.value,
-                identityFingerprintBytes = remoteIdentityHash,
-                firstSeenAtEpochMillis = verifiedAtEpochMillis,
-                lastVerifiedAtEpochMillis = verifiedAtEpochMillis,
-                ed25519PublicKey = remoteEd25519PublicKey,
-                x25519PublicKey = remoteX25519PublicKey,
-            )
-        trustStore.write(trustRecord)
-        emitDiagnostic(
-            code = DiagnosticCode.TRUST_ESTABLISHED,
-            severity = DiagnosticSeverity.INFO,
-            stage = "trust.pin",
-            peerSuffix = peerId.value.takeLast(6),
-            reason = DiagnosticReason.STATE_CHANGE,
-        )
-        return trustRecord
-    }
-
-    private fun trustMatchesRemoteIdentity(
-        existingTrust: TrustRecord,
-        remoteIdentityHash: ByteArray,
-        remoteEd25519PublicKey: ByteArray,
-        remoteX25519PublicKey: ByteArray,
-    ): Boolean {
-        return existingTrust.identityFingerprintBytes.contentEquals(remoteIdentityHash) &&
-            existingTrust.ed25519PublicKey.contentEquals(remoteEd25519PublicKey) &&
-            existingTrust.x25519PublicKey.contentEquals(remoteX25519PublicKey)
-    }
-
-    private suspend fun refreshVerifiedTrust(existingTrust: TrustRecord): TrustRecord {
-        val refreshedTrust = existingTrust.withLastVerifiedAt(currentEpochMillis())
-        if (refreshedTrust.lastVerifiedAtEpochMillis != existingTrust.lastVerifiedAtEpochMillis) {
-            trustStore.write(refreshedTrust)
-        }
-        return refreshedTrust
-    }
-
     private suspend fun sendDirectWireFrame(
         peerId: PeerId,
         frame: DirectWireFrame,
@@ -2366,7 +2114,7 @@ private constructor(
             stage = stage,
             peerSuffix = peerId.value.takeLast(6),
             reason = DiagnosticReason.STATE_CHANGE,
-            metadata = peerRouteMetadata(peerId),
+            metadata = routingSupport.peerRouteMetadata(peerId),
         )
     }
 
@@ -2382,7 +2130,7 @@ private constructor(
             stage = stage,
             peerSuffix = peerId.value.takeLast(6),
             reason = reason,
-            metadata = peerRouteMetadata(peerId, metadata = metadata),
+            metadata = routingSupport.peerRouteMetadata(peerId, metadata = metadata),
         )
     }
 
@@ -2419,7 +2167,7 @@ private constructor(
             peerSuffix = peerId.value.takeLast(6),
             reason = DiagnosticReason.DELIVERY_FAILURE,
             metadata =
-                peerRouteMetadata(
+                routingSupport.peerRouteMetadata(
                     peerId,
                     metadata =
                         mapOf(
