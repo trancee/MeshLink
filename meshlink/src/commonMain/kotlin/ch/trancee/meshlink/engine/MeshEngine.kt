@@ -1803,66 +1803,112 @@ private constructor(
         metadata: Map<String, String>,
     ): Unit {
         changes.forEach { change ->
-            when (change) {
-                is RouteSelectionChange.Available ->
-                    emitDiagnostic(
-                        code = DiagnosticCode.ROUTE_DISCOVERED,
-                        severity = DiagnosticSeverity.INFO,
-                        stage = "$stage.routeAvailable",
-                        peerSuffix = change.route.destinationPeerId.value.takeLast(6),
-                        reason = DiagnosticReason.ROUTE_CHANGE,
-                        metadata =
-                            peerRouteMetadata(
-                                peerId = change.route.destinationPeerId,
-                                route = change.route,
-                                metadata = metadata + ("routeChange" to "available"),
-                            ),
-                    )
-                is RouteSelectionChange.Updated ->
-                    emitDiagnostic(
-                        code = DiagnosticCode.ROUTE_UPDATED,
-                        severity = DiagnosticSeverity.DEBUG,
-                        stage = "$stage.routeUpdated",
-                        peerSuffix = change.route.destinationPeerId.value.takeLast(6),
-                        reason = DiagnosticReason.ROUTE_CHANGE,
-                        metadata =
-                            peerRouteMetadata(
-                                peerId = change.route.destinationPeerId,
-                                route = change.route,
-                                previousRoute = change.previousRoute,
-                                metadata = metadata + ("routeChange" to "updated"),
-                            ),
-                    )
-                is RouteSelectionChange.Removed -> {
-                    val removedStage =
-                        if (removalCode == DiagnosticCode.ROUTE_EXPIRED) {
-                            "$stage.routeExpired"
-                        } else {
-                            "$stage.routeRetracted"
-                        }
-                    emitDiagnostic(
-                        code = removalCode,
-                        severity = DiagnosticSeverity.WARN,
-                        stage = removedStage,
-                        peerSuffix = change.previousRoute.destinationPeerId.value.takeLast(6),
-                        reason = DiagnosticReason.ROUTE_CHANGE,
-                        metadata =
-                            peerRouteMetadata(
-                                peerId = change.previousRoute.destinationPeerId,
-                                route = null,
-                                previousRoute = change.previousRoute,
-                                metadata =
-                                    metadata +
-                                        ("routeChange" to
-                                            if (removalCode == DiagnosticCode.ROUTE_EXPIRED) {
-                                                "expired"
-                                            } else {
-                                                "retracted"
-                                            }),
-                            ),
-                    )
-                }
-            }
+            emitRouteSelectionDiagnostic(
+                change = change,
+                stage = stage,
+                removalCode = removalCode,
+                metadata = metadata,
+            )
+        }
+    }
+
+    private fun emitRouteSelectionDiagnostic(
+        change: RouteSelectionChange,
+        stage: String,
+        removalCode: DiagnosticCode,
+        metadata: Map<String, String>,
+    ): Unit {
+        when (change) {
+            is RouteSelectionChange.Available ->
+                emitAvailableRouteDiagnostic(change = change, stage = stage, metadata = metadata)
+            is RouteSelectionChange.Updated ->
+                emitUpdatedRouteDiagnostic(change = change, stage = stage, metadata = metadata)
+            is RouteSelectionChange.Removed ->
+                emitRemovedRouteDiagnostic(
+                    change = change,
+                    stage = stage,
+                    removalCode = removalCode,
+                    metadata = metadata,
+                )
+        }
+    }
+
+    private fun emitAvailableRouteDiagnostic(
+        change: RouteSelectionChange.Available,
+        stage: String,
+        metadata: Map<String, String>,
+    ): Unit {
+        emitDiagnostic(
+            code = DiagnosticCode.ROUTE_DISCOVERED,
+            severity = DiagnosticSeverity.INFO,
+            stage = "$stage.routeAvailable",
+            peerSuffix = change.route.destinationPeerId.value.takeLast(6),
+            reason = DiagnosticReason.ROUTE_CHANGE,
+            metadata =
+                peerRouteMetadata(
+                    peerId = change.route.destinationPeerId,
+                    route = change.route,
+                    metadata = metadata + ("routeChange" to "available"),
+                ),
+        )
+    }
+
+    private fun emitUpdatedRouteDiagnostic(
+        change: RouteSelectionChange.Updated,
+        stage: String,
+        metadata: Map<String, String>,
+    ): Unit {
+        emitDiagnostic(
+            code = DiagnosticCode.ROUTE_UPDATED,
+            severity = DiagnosticSeverity.DEBUG,
+            stage = "$stage.routeUpdated",
+            peerSuffix = change.route.destinationPeerId.value.takeLast(6),
+            reason = DiagnosticReason.ROUTE_CHANGE,
+            metadata =
+                peerRouteMetadata(
+                    peerId = change.route.destinationPeerId,
+                    route = change.route,
+                    previousRoute = change.previousRoute,
+                    metadata = metadata + ("routeChange" to "updated"),
+                ),
+        )
+    }
+
+    private fun emitRemovedRouteDiagnostic(
+        change: RouteSelectionChange.Removed,
+        stage: String,
+        removalCode: DiagnosticCode,
+        metadata: Map<String, String>,
+    ): Unit {
+        emitDiagnostic(
+            code = removalCode,
+            severity = DiagnosticSeverity.WARN,
+            stage = routeRemovalStage(stage = stage, removalCode = removalCode),
+            peerSuffix = change.previousRoute.destinationPeerId.value.takeLast(6),
+            reason = DiagnosticReason.ROUTE_CHANGE,
+            metadata =
+                peerRouteMetadata(
+                    peerId = change.previousRoute.destinationPeerId,
+                    route = null,
+                    previousRoute = change.previousRoute,
+                    metadata = metadata + ("routeChange" to routeRemovalLabel(removalCode)),
+                ),
+        )
+    }
+
+    private fun routeRemovalStage(stage: String, removalCode: DiagnosticCode): String {
+        return if (removalCode == DiagnosticCode.ROUTE_EXPIRED) {
+            "$stage.routeExpired"
+        } else {
+            "$stage.routeRetracted"
+        }
+    }
+
+    private fun routeRemovalLabel(removalCode: DiagnosticCode): String {
+        return if (removalCode == DiagnosticCode.ROUTE_EXPIRED) {
+            "expired"
+        } else {
+            "retracted"
         }
     }
 
