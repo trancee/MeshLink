@@ -5,10 +5,11 @@ In this tutorial, we will build a minimal Android host-side MeshLink controller,
 This lesson is intentionally narrow:
 
 - we use Android for the shortest path to a visible result
-- we assume the MeshLink library is already available to your app
 - we use a proof app on a second device as the receiving peer
 
-If you need full Android + iOS bootstrap guidance, follow [How to integrate MeshLink into a host app](../how-to/integrate-meshlink-into-a-host-app.md).
+If you still need to add the library to your build, follow [How to add MeshLink to your app](../how-to/add-meshlink-to-your-app.md).
+
+If you need full Android + iOS bootstrap guidance after that, follow [How to integrate MeshLink into a host app](../how-to/integrate-meshlink-into-a-host-app.md).
 
 ## Before you start
 

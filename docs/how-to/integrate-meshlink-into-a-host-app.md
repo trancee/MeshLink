@@ -2,7 +2,9 @@
 
 This guide shows you how to bootstrap MeshLink in an app, start it safely, collect its event streams, send payloads, and handle trust resets.
 
-This is a task guide. It assumes you already know why you want MeshLink and that the library is already available to your build.
+This is a task guide. It assumes you already know why you want MeshLink.
+
+If you still need to wire the library into your Android or iOS build, start with [How to add MeshLink to your app](add-meshlink-to-your-app.md).
 
 For a first hands-on lesson, start with [Your first MeshLink exchange](../tutorials/your-first-meshlink-exchange.md).
 

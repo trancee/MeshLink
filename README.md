@@ -21,12 +21,16 @@ The documentation follows the Diátaxis model. Start with the full
 
 Quick entry points:
 
+- [How to add MeshLink to your app](docs/how-to/add-meshlink-to-your-app.md)
 - [Your first MeshLink exchange](docs/tutorials/your-first-meshlink-exchange.md)
 - [How to integrate MeshLink into a host app](docs/how-to/integrate-meshlink-into-a-host-app.md)
 - [How to unblock MeshLink permissions on Android and iOS](docs/how-to/unblock-meshlink-permissions.md)
 - [How to use MeshLink from Swift](docs/how-to/use-meshlink-from-swift.md)
 - [MeshLink SDK API reference](docs/reference/meshlink-sdk-api.md)
 - [About integrating MeshLink well](docs/explanation/about-integrating-meshlink.md)
+
+Maintainers can run `./gradlew verifyDocs` to check the generated API appendix
+and relative markdown links.
 
 ## Reference app, proof apps, and validation
 

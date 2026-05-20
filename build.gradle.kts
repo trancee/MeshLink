@@ -3,6 +3,7 @@ import kotlinx.kover.gradle.plugin.dsl.CoverageUnit
 import org.gradle.api.tasks.wrapper.Wrapper
 
 plugins {
+    base
     alias(libs.plugins.kotlin.multiplatform) apply false
     alias(libs.plugins.kotlin.android) apply false
     alias(libs.plugins.kotlin.allopen) apply false
@@ -53,6 +54,33 @@ kover {
             }
         }
     }
+}
+
+val checkGeneratedPublicApiReference by
+    tasks.registering(Exec::class) {
+        group = "verification"
+        description = "Fails if docs/reference/generated-public-api.md is out of sync with the API dump."
+        workingDir = rootDir
+        commandLine("python3", "scripts/check_generated_public_api_reference.py")
+    }
+
+val checkMarkdownLinks by
+    tasks.registering(Exec::class) {
+        group = "verification"
+        description = "Fails if repository markdown files contain broken relative links."
+        workingDir = rootDir
+        commandLine("python3", "scripts/check_markdown_links.py")
+    }
+
+val verifyDocs by
+    tasks.registering {
+        group = "verification"
+        description = "Runs the repository documentation verification checks."
+        dependsOn(checkGeneratedPublicApiReference, checkMarkdownLinks)
+    }
+
+tasks.named("check") {
+    dependsOn(verifyDocs)
 }
 
 tasks.wrapper {

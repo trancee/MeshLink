@@ -4,9 +4,10 @@ This guide shows you how to consume MeshLink from Swift, using the names and cal
 
 This guide assumes:
 
-- your Xcode app already integrates the MeshLink framework
 - you are calling MeshLink from Swift, not from shared Kotlin code
 - you want practical naming and usage examples for the generated Swift surface
+
+If your Xcode app does not yet link the generated framework, start with [How to add MeshLink to your app](add-meshlink-to-your-app.md).
 
 For the exact Kotlin-side public contract, use the [MeshLink SDK API reference](../reference/meshlink-sdk-api.md).
 
