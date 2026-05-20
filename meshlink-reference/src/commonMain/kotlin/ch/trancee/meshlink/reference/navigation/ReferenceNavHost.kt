@@ -1,3 +1,5 @@
+@file:Suppress("FunctionNaming")
+
 package ch.trancee.meshlink.reference.navigation
 
 import androidx.compose.foundation.layout.Arrangement
@@ -88,12 +90,24 @@ public fun ReferenceNavHost(platformServices: PlatformServices) {
         }
     }
 
-    fun selectSurface(surface: ReferenceSurfaceId) {
+    fun selectSurface(surface: ReferenceSurfaceId): Unit {
         activeRoute = surface
         lastRouteBySection[primarySectionFor(surface)] = surface
     }
 
-    val activeSection = primarySectionFor(activeRoute)
+    fun selectSection(section: ReferencePrimarySection): Unit {
+        selectSurface(lastRouteBySection[section] ?: section.defaultSurface)
+    }
+
+    val shellHeaderState =
+        ReferenceShellHeaderState(
+            activeSection = primarySectionFor(activeRoute),
+            activeRoute = activeRoute,
+            workflowTitles = workflowTitles,
+            platformName = platformServices.platformName,
+            authorityModeLabel = snapshot.session.authorityMode.toString(),
+            meshStateLabel = snapshot.session.meshStateLabel,
+        )
 
     ReferenceLiveProofAutomation(
         platformServices = platformServices,
@@ -102,82 +116,106 @@ public fun ReferenceNavHost(platformServices: PlatformServices) {
         snapshot = snapshot,
     )
 
-    Scaffold(
-        topBar = {
-            ReferenceShellHeader(
-                activeSection = activeSection,
+    ReferenceShellScaffold(
+        headerState = shellHeaderState,
+        contentState =
+            ReferenceRouteContentState(
                 activeRoute = activeRoute,
-                workflowTitles = workflowTitles,
-                platformName = platformServices.platformName,
-                authorityModeLabel = snapshot.session.authorityMode.toString(),
-                meshStateLabel = snapshot.session.meshStateLabel,
-                onSelectSurface = ::selectSurface,
-            )
-        },
+                guidedViewModel = guidedViewModel,
+                advancedViewModel = advancedViewModel,
+                timelineStore = timelineStore,
+            ),
+        onSelectSurface = ::selectSurface,
+        onSelectSection = ::selectSection,
+    )
+}
+
+@Composable
+private fun ReferenceShellScaffold(
+    headerState: ReferenceShellHeaderState,
+    contentState: ReferenceRouteContentState,
+    onSelectSurface: (ReferenceSurfaceId) -> Unit,
+    onSelectSection: (ReferencePrimarySection) -> Unit,
+): Unit {
+    Scaffold(
+        topBar = { ReferenceShellHeader(state = headerState, onSelectSurface = onSelectSurface) },
         bottomBar = {
-            NavigationBar {
-                ReferencePrimarySection.entries.forEach { section ->
-                    NavigationBarItem(
-                        selected = section == activeSection,
-                        onClick = {
-                            selectSurface(lastRouteBySection[section] ?: section.defaultSurface)
-                        },
-                        icon = {
-                            Icon(imageVector = section.icon, contentDescription = section.label)
-                        },
-                        label = { Text(section.label) },
-                    )
-                }
-            }
+            ReferenceBottomBar(
+                activeSection = headerState.activeSection,
+                onSelectSection = onSelectSection,
+            )
         },
     ) { innerPadding ->
         Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
-            when (activeRoute) {
-                ReferenceSurfaceId.MAIN_GUIDED ->
-                    GuidedFirstExchangeScreen(
-                        viewModel = guidedViewModel,
-                        onOpenSolo = { selectSurface(ReferenceSurfaceId.SOLO_EXPLORATION) },
-                        modifier = Modifier.fillMaxSize(),
-                    )
-
-                ReferenceSurfaceId.SOLO_EXPLORATION ->
-                    SoloExplorationScreen(modifier = Modifier.fillMaxSize())
-
-                ReferenceSurfaceId.ADVANCED_CONTROLS ->
-                    AdvancedControlsScreen(
-                        viewModel = advancedViewModel,
-                        modifier = Modifier.fillMaxSize(),
-                    )
-
-                ReferenceSurfaceId.TECHNICAL_TIMELINE ->
-                    TechnicalTimelineScreen(
-                        store = timelineStore,
-                        modifier = Modifier.fillMaxSize(),
-                    )
-
-                ReferenceSurfaceId.LAB -> LabScreen(modifier = Modifier.fillMaxSize())
-
-                ReferenceSurfaceId.RECENT_HISTORY ->
-                    RecentSessionHistoryScreen(
-                        store = timelineStore,
-                        modifier = Modifier.fillMaxSize(),
-                    )
-            }
+            ReferenceRouteContent(
+                contentState = contentState,
+                onOpenSolo = { onSelectSurface(ReferenceSurfaceId.SOLO_EXPLORATION) },
+            )
         }
+    }
+}
+
+@Composable
+private fun ReferenceBottomBar(
+    activeSection: ReferencePrimarySection,
+    onSelectSection: (ReferencePrimarySection) -> Unit,
+): Unit {
+    NavigationBar {
+        ReferencePrimarySection.entries.forEach { section ->
+            NavigationBarItem(
+                selected = section == activeSection,
+                onClick = { onSelectSection(section) },
+                icon = { Icon(imageVector = section.icon, contentDescription = section.label) },
+                label = { Text(section.label) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun ReferenceRouteContent(
+    contentState: ReferenceRouteContentState,
+    onOpenSolo: () -> Unit,
+): Unit {
+    when (contentState.activeRoute) {
+        ReferenceSurfaceId.MAIN_GUIDED ->
+            GuidedFirstExchangeScreen(
+                viewModel = contentState.guidedViewModel,
+                onOpenSolo = onOpenSolo,
+                modifier = Modifier.fillMaxSize(),
+            )
+
+        ReferenceSurfaceId.SOLO_EXPLORATION ->
+            SoloExplorationScreen(modifier = Modifier.fillMaxSize())
+
+        ReferenceSurfaceId.ADVANCED_CONTROLS ->
+            AdvancedControlsScreen(
+                viewModel = contentState.advancedViewModel,
+                modifier = Modifier.fillMaxSize(),
+            )
+
+        ReferenceSurfaceId.TECHNICAL_TIMELINE ->
+            TechnicalTimelineScreen(
+                store = contentState.timelineStore,
+                modifier = Modifier.fillMaxSize(),
+            )
+
+        ReferenceSurfaceId.LAB -> LabScreen(modifier = Modifier.fillMaxSize())
+
+        ReferenceSurfaceId.RECENT_HISTORY ->
+            RecentSessionHistoryScreen(
+                store = contentState.timelineStore,
+                modifier = Modifier.fillMaxSize(),
+            )
     }
 }
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ReferenceShellHeader(
-    activeSection: ReferencePrimarySection,
-    activeRoute: ReferenceSurfaceId,
-    workflowTitles: Map<ReferenceSurfaceId, String>,
-    platformName: String,
-    authorityModeLabel: String,
-    meshStateLabel: String,
+    state: ReferenceShellHeaderState,
     onSelectSurface: (ReferenceSurfaceId) -> Unit,
-) {
+): Unit {
     Surface(
         color = MaterialTheme.colorScheme.surface,
         tonalElevation = 3.dp,
@@ -187,7 +225,10 @@ private fun ReferenceShellHeader(
         Column(
             modifier =
                 Modifier.fillMaxWidth()
-                    .then(if (platformName == "Android") Modifier.statusBarsPadding() else Modifier)
+                    .then(
+                        if (state.platformName == "Android") Modifier.statusBarsPadding()
+                        else Modifier
+                    )
                     .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
@@ -201,26 +242,26 @@ private fun ReferenceShellHeader(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                ReferenceBadge(label = activeSection.label, prominent = true)
+                ReferenceBadge(label = state.activeSection.label, prominent = true)
                 ReferenceBadge(
-                    label = "${stringResource(Res.string.platform_label)}: $platformName"
+                    label = "${stringResource(Res.string.platform_label)}: ${state.platformName}"
                 )
                 ReferenceBadge(
-                    label = "${stringResource(Res.string.mode_label)}: $authorityModeLabel"
+                    label = "${stringResource(Res.string.mode_label)}: ${state.authorityModeLabel}"
                 )
-                ReferenceBadge(label = "Mesh: $meshStateLabel")
+                ReferenceBadge(label = "Mesh: ${state.meshStateLabel}")
             }
-            if (activeSection.surfaces.size > 1) {
+            if (state.activeSection.surfaces.size > 1) {
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    activeSection.surfaces.forEach { surface ->
+                    state.activeSection.surfaces.forEach { surface ->
                         FilterChip(
-                            selected = surface == activeRoute,
+                            selected = surface == state.activeRoute,
                             onClick = { onSelectSurface(surface) },
-                            label = { Text(workflowTitles.getValue(surface)) },
+                            label = { Text(state.workflowTitles.getValue(surface)) },
                         )
                     }
                 }
@@ -228,6 +269,22 @@ private fun ReferenceShellHeader(
         }
     }
 }
+
+private data class ReferenceRouteContentState(
+    val activeRoute: ReferenceSurfaceId,
+    val guidedViewModel: GuidedFirstExchangeViewModel,
+    val advancedViewModel: AdvancedControlsViewModel,
+    val timelineStore: TechnicalTimelineStore,
+)
+
+private data class ReferenceShellHeaderState(
+    val activeSection: ReferencePrimarySection,
+    val activeRoute: ReferenceSurfaceId,
+    val workflowTitles: Map<ReferenceSurfaceId, String>,
+    val platformName: String,
+    val authorityModeLabel: String,
+    val meshStateLabel: String,
+)
 
 private enum class ReferencePrimarySection(
     val label: String,

@@ -1,3 +1,5 @@
+@file:Suppress("FunctionNaming")
+
 package ch.trancee.meshlink.reference.advanced
 
 import androidx.compose.foundation.layout.Arrangement
@@ -29,108 +31,37 @@ public fun AdvancedControlsScreen(
     val uiState by viewModel.uiState.collectAsState()
     val lifecycleActions by viewModel.lifecycleActions.collectAsState()
 
+    AdvancedControlsContent(
+        uiState = uiState,
+        lifecycleActions = lifecycleActions,
+        viewModel = viewModel,
+        modifier = modifier,
+    )
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun AdvancedControlsContent(
+    uiState: AdvancedControlsUiState,
+    lifecycleActions: LifecycleActionState,
+    viewModel: AdvancedControlsViewModel,
+    modifier: Modifier,
+) {
     LazyColumn(
         modifier = modifier.fillMaxSize().padding(20.dp).testTag("advanced-screen"),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        item { Text(text = "Advanced controls", style = MaterialTheme.typography.headlineSmall) }
+        item { AdvancedControlsHeader() }
+        item { AdvancedLiveSnapshotSection(uiState = uiState) }
         item {
-            Text(
-                text =
-                    "Inspect the live runtime, choose a peer deliberately, and send operator-facing previews without leaving the reference app.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            AdvancedLifecycleSection(
+                meshStateLabel = uiState.meshStateLabel,
+                lifecycleActions = lifecycleActions,
+                viewModel = viewModel,
             )
         }
-        item {
-            ReferenceSectionCard(
-                title = "Live snapshot",
-                subtitle =
-                    "Use this summary to see the current runtime state before you move into lifecycle, peer, or send actions.",
-            ) {
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    ReferenceBadge(label = uiState.config.authorityModeLabel)
-                    ReferenceBadge(label = uiState.activePowerModeLabel, prominent = true)
-                    ReferenceBadge(
-                        label =
-                            "Peer ${uiState.peerRows.firstOrNull { peer -> peer.peerId == uiState.selectedPeerId }?.peerSuffix ?: "none"}"
-                    )
-                }
-                Text(
-                    text = "Mesh state: ${uiState.meshStateLabel}",
-                    modifier = Modifier.testTag("advanced-mesh-state"),
-                    style = MaterialTheme.typography.bodyLarge,
-                )
-                Text(
-                    text = "Power mode: ${uiState.config.powerModeLabel}",
-                    style = MaterialTheme.typography.bodyLarge,
-                )
-                Text(
-                    text = "Last outcome: ${uiState.lastOutcomeSummary ?: "none yet"}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-        item {
-            ReferenceSectionCard(
-                title = "Lifecycle",
-                subtitle =
-                    "Use these controls when you want to inspect how the live runtime moves between start, pause, resume, and stop states.",
-            ) {
-                Text(
-                    text = "Mesh state: ${uiState.meshStateLabel}",
-                    style = MaterialTheme.typography.bodyLarge,
-                )
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    Button(
-                        onClick = viewModel::startMesh,
-                        enabled = lifecycleActions.startEnabled,
-                    ) {
-                        Text("Start")
-                    }
-                    Button(
-                        onClick = viewModel::pauseMesh,
-                        enabled = lifecycleActions.pauseEnabled,
-                    ) {
-                        Text("Pause")
-                    }
-                    Button(
-                        onClick = viewModel::resumeMesh,
-                        enabled = lifecycleActions.resumeEnabled,
-                    ) {
-                        Text("Resume")
-                    }
-                    Button(onClick = viewModel::stopMesh, enabled = lifecycleActions.stopEnabled) {
-                        Text("Stop")
-                    }
-                }
-            }
-        }
-        item {
-            ReferenceSectionCard(
-                title = "Configuration",
-                subtitle =
-                    "These are the product-facing defaults and live configuration values currently active in the reference app.",
-            ) {
-                Text(text = "App ID: ${uiState.config.appId}")
-                Text(text = "Regulatory region: ${uiState.config.regulatoryRegion}")
-                Text(text = "Retry deadline: ${uiState.config.deliveryRetryDeadlineLabel}")
-            }
-        }
-        item {
-            Text(
-                text = "Peers",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.SemiBold,
-            )
-        }
+        item { AdvancedConfigurationSection(uiState = uiState) }
+        item { AdvancedPeerSectionHeader() }
         items(uiState.peerRows) { peer ->
             PeerDetailCard(
                 peer = peer,
@@ -138,46 +69,159 @@ public fun AdvancedControlsScreen(
                 onSelect = { viewModel.selectPeer(peer.peerId) },
             )
         }
-        item {
-            ReferenceSectionCard(
-                title = "Send",
-                subtitle =
-                    "Use this area for deliberate outbound operator traffic once a peer is selected.",
-            ) {
-                SendComposer(
-                    state = uiState,
-                    onTextChanged = viewModel::updateComposerText,
-                    onPriorityChanged = viewModel::updatePriority,
-                    onSend = viewModel::sendCurrentMessage,
-                    onSendLargeTransfer = viewModel::sendLargeTransferPreview,
-                )
-                Button(
-                    onClick = viewModel::forgetSelectedPeer,
-                    enabled = uiState.canForgetPeer,
-                    modifier = Modifier.testTag("advanced-forget-peer"),
-                ) {
-                    Text("Forget selected peer")
-                }
-            }
+        item { AdvancedSendSection(uiState = uiState, viewModel = viewModel) }
+        item { AdvancedRecentHighlightsSection(highlights = uiState.timelineHighlights) }
+    }
+}
+
+@Composable
+private fun AdvancedControlsHeader(): Unit {
+    Text(text = "Advanced controls", style = MaterialTheme.typography.headlineSmall)
+    Text(
+        text = ADVANCED_CONTROLS_INTRO_TEXT,
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun AdvancedLiveSnapshotSection(uiState: AdvancedControlsUiState): Unit {
+    ReferenceSectionCard(
+        title = "Live snapshot",
+        subtitle =
+            "Use this summary to see the current runtime state before you move into lifecycle, peer, or send actions.",
+    ) {
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            ReferenceBadge(label = uiState.config.authorityModeLabel)
+            ReferenceBadge(label = uiState.activePowerModeLabel, prominent = true)
+            ReferenceBadge(label = "Peer ${uiState.selectedPeerSuffix()}")
         }
-        item {
-            ReferenceSectionCard(
-                title = "Recent highlights",
-                subtitle =
-                    "Keep one eye on the last timeline changes without leaving the controls surface.",
-            ) {
-                if (uiState.timelineHighlights.isEmpty()) {
-                    Text(
-                        text = "No highlights yet.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                } else {
-                    uiState.timelineHighlights.forEach { highlight ->
-                        Text(text = highlight, style = MaterialTheme.typography.bodyMedium)
-                    }
-                }
+        Text(
+            text = "Mesh state: ${uiState.meshStateLabel}",
+            modifier = Modifier.testTag("advanced-mesh-state"),
+            style = MaterialTheme.typography.bodyLarge,
+        )
+        Text(
+            text = "Power mode: ${uiState.config.powerModeLabel}",
+            style = MaterialTheme.typography.bodyLarge,
+        )
+        Text(
+            text = "Last outcome: ${uiState.lastOutcomeSummary ?: "none yet"}",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun AdvancedLifecycleSection(
+    meshStateLabel: String,
+    lifecycleActions: LifecycleActionState,
+    viewModel: AdvancedControlsViewModel,
+): Unit {
+    ReferenceSectionCard(title = "Lifecycle", subtitle = ADVANCED_LIFECYCLE_SUBTITLE) {
+        Text(text = "Mesh state: $meshStateLabel", style = MaterialTheme.typography.bodyLarge)
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Button(onClick = viewModel::startMesh, enabled = lifecycleActions.startEnabled) {
+                Text("Start")
+            }
+            Button(onClick = viewModel::pauseMesh, enabled = lifecycleActions.pauseEnabled) {
+                Text("Pause")
+            }
+            Button(onClick = viewModel::resumeMesh, enabled = lifecycleActions.resumeEnabled) {
+                Text("Resume")
+            }
+            Button(onClick = viewModel::stopMesh, enabled = lifecycleActions.stopEnabled) {
+                Text("Stop")
             }
         }
     }
 }
+
+@Composable
+private fun AdvancedConfigurationSection(uiState: AdvancedControlsUiState): Unit {
+    ReferenceSectionCard(title = "Configuration", subtitle = ADVANCED_CONFIGURATION_SUBTITLE) {
+        Text(text = "App ID: ${uiState.config.appId}")
+        Text(text = "Regulatory region: ${uiState.config.regulatoryRegion}")
+        Text(text = "Retry deadline: ${uiState.config.deliveryRetryDeadlineLabel}")
+    }
+}
+
+@Composable
+private fun AdvancedPeerSectionHeader(): Unit {
+    Text(
+        text = "Peers",
+        style = MaterialTheme.typography.titleLarge,
+        fontWeight = FontWeight.SemiBold,
+    )
+}
+
+@Composable
+private fun AdvancedSendSection(
+    uiState: AdvancedControlsUiState,
+    viewModel: AdvancedControlsViewModel,
+): Unit {
+    ReferenceSectionCard(
+        title = "Send",
+        subtitle = "Use this area for deliberate outbound operator traffic once a peer is selected.",
+    ) {
+        SendComposer(
+            state = uiState,
+            onTextChanged = viewModel::updateComposerText,
+            onPriorityChanged = viewModel::updatePriority,
+            onSend = viewModel::sendCurrentMessage,
+            onSendLargeTransfer = viewModel::sendLargeTransferPreview,
+        )
+        Button(
+            onClick = viewModel::forgetSelectedPeer,
+            enabled = uiState.canForgetPeer,
+            modifier = Modifier.testTag("advanced-forget-peer"),
+        ) {
+            Text("Forget selected peer")
+        }
+    }
+}
+
+@Composable
+private fun AdvancedRecentHighlightsSection(highlights: List<String>): Unit {
+    ReferenceSectionCard(
+        title = "Recent highlights",
+        subtitle = "Keep one eye on the last timeline changes without leaving the controls surface.",
+    ) {
+        if (highlights.isEmpty()) {
+            Text(
+                text = "No highlights yet.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        } else {
+            highlights.forEach { highlight ->
+                Text(text = highlight, style = MaterialTheme.typography.bodyMedium)
+            }
+        }
+    }
+}
+
+private fun AdvancedControlsUiState.selectedPeerSuffix(): String {
+    return peerRows.firstOrNull { peer -> peer.peerId == selectedPeerId }?.peerSuffix ?: "none"
+}
+
+private const val ADVANCED_CONTROLS_INTRO_TEXT: String =
+    "Inspect the live runtime, choose a peer deliberately, and send operator-facing previews " +
+        "without leaving the reference app."
+
+private const val ADVANCED_LIFECYCLE_SUBTITLE: String =
+    "Use these controls when you want to inspect how the live runtime moves between start, " +
+        "pause, resume, and stop states."
+
+private const val ADVANCED_CONFIGURATION_SUBTITLE: String =
+    "These are the product-facing defaults and live configuration values currently active in " +
+        "the reference app."

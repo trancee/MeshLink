@@ -1,3 +1,5 @@
+@file:Suppress("FunctionNaming")
+
 package ch.trancee.meshlink.reference.timeline
 
 import androidx.compose.foundation.layout.Arrangement
@@ -21,6 +23,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import ch.trancee.meshlink.reference.design.ReferenceBadge
 import ch.trancee.meshlink.reference.design.ReferenceSectionCard
+import ch.trancee.meshlink.reference.model.TimelineEntry
 import ch.trancee.meshlink.reference.model.TimelineFamily
 import ch.trancee.meshlink.reference.session.ExportPayloadPolicy
 
@@ -31,118 +34,161 @@ public fun TechnicalTimelineScreen(store: TechnicalTimelineStore, modifier: Modi
     val availableFamilies =
         uiState.currentSnapshot.timeline.map { entry -> entry.family }.distinct()
 
+    TechnicalTimelineContent(
+        uiState = uiState,
+        availableFamilies = availableFamilies,
+        store = store,
+        modifier = modifier,
+    )
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun TechnicalTimelineContent(
+    uiState: TechnicalTimelineUiState,
+    availableFamilies: List<TimelineFamily>,
+    store: TechnicalTimelineStore,
+    modifier: Modifier,
+): Unit {
     LazyColumn(
         modifier = modifier.fillMaxSize().padding(16.dp).testTag("timeline-screen"),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        item { Text(text = "Technical timeline", style = MaterialTheme.typography.headlineSmall) }
+        item { TechnicalTimelineHeader() }
+        item { TimelineRetentionSection(uiState = uiState, store = store) }
         item {
-            ReferenceSectionCard(title = "Retain or export") {
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    ReferenceBadge(
-                        label =
-                            if (uiState.viewingRetained) "Viewing retained session"
-                            else "Viewing live session",
-                        prominent = !uiState.viewingRetained,
-                    )
-                    ReferenceBadge(label = "Visible ${uiState.visibleEntries.size}")
-                    ReferenceBadge(label = "Retained ${uiState.retainedSessions.size}")
-                }
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    Button(onClick = store::retainCurrentSession) { Text("Retain session") }
-                    Button(
-                        onClick = {
-                            store.exportCurrentSession(ExportPayloadPolicy.REDACTED_PREVIEW)
-                        }
-                    ) {
-                        Text("Export redacted")
-                    }
-                    Button(
-                        onClick = {
-                            store.exportCurrentSession(ExportPayloadPolicy.FULL_PAYLOAD_OPT_IN)
-                        }
-                    ) {
-                        Text("Export full payload")
-                    }
-                }
-                if (uiState.lastExportPath != null) {
-                    Text(
-                        text = "Last export: ${uiState.lastExportPath}",
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                }
-            }
-        }
-        item {
-            ReferenceSectionCard(
-                title = "Filter events",
-                subtitle =
-                    "Search the current session and narrow the timeline to one family when you want a smaller operator view.",
-            ) {
-                OutlinedTextField(
-                    value = uiState.filters.searchText,
-                    onValueChange = store::updateSearch,
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Search events") },
-                )
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    FilterChip(
-                        selected = uiState.filters.family == null,
-                        onClick = store::clearFilters,
-                        label = { Text("All") },
-                    )
-                    availableFamilies.forEach { family ->
-                        FilterChip(
-                            selected = uiState.filters.family == family,
-                            onClick = { store.updateFamily(family) },
-                            label = { Text(family.label()) },
-                        )
-                    }
-                }
-            }
+            TimelineFilterSection(
+                uiState = uiState,
+                availableFamilies = availableFamilies,
+                store = store,
+            )
         }
         if (uiState.visibleEntries.isEmpty()) {
-            item {
-                ReferenceSectionCard(
-                    title = "No matching events",
-                    subtitle =
-                        "Clear the current filters or keep running the session until new diagnostics arrive.",
-                ) {
-                    Text(
-                        text = "Nothing matches the current search and family filters.",
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                }
+            item { EmptyTimelineSection() }
+        }
+        items(uiState.visibleEntries) { entry -> TimelineEntryCard(entry = entry) }
+    }
+}
+
+@Composable
+private fun TechnicalTimelineHeader(): Unit {
+    Text(text = "Technical timeline", style = MaterialTheme.typography.headlineSmall)
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun TimelineRetentionSection(
+    uiState: TechnicalTimelineUiState,
+    store: TechnicalTimelineStore,
+): Unit {
+    ReferenceSectionCard(title = "Retain or export") {
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            ReferenceBadge(
+                label =
+                    if (uiState.viewingRetained) "Viewing retained session"
+                    else "Viewing live session",
+                prominent = !uiState.viewingRetained,
+            )
+            ReferenceBadge(label = "Visible ${uiState.visibleEntries.size}")
+            ReferenceBadge(label = "Retained ${uiState.retainedSessions.size}")
+        }
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Button(onClick = store::retainCurrentSession) { Text("Retain session") }
+            Button(onClick = { store.exportCurrentSession(ExportPayloadPolicy.REDACTED_PREVIEW) }) {
+                Text("Export redacted")
+            }
+            Button(
+                onClick = { store.exportCurrentSession(ExportPayloadPolicy.FULL_PAYLOAD_OPT_IN) }
+            ) {
+                Text("Export full payload")
             }
         }
-        items(uiState.visibleEntries) { entry ->
-            ReferenceSectionCard(title = entry.title, subtitle = entry.detail) {
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    ReferenceBadge(label = entry.family.label())
-                    ReferenceBadge(label = entry.severity.name)
-                    if (entry.peerSuffix != null) {
-                        ReferenceBadge(label = "Peer ${entry.peerSuffix}")
-                    }
-                }
-                if (entry.payloadPreview != null) {
-                    Text(
-                        text = "Preview: ${entry.payloadPreview}",
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                }
+        if (uiState.lastExportPath != null) {
+            Text(
+                text = "Last export: ${uiState.lastExportPath}",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun TimelineFilterSection(
+    uiState: TechnicalTimelineUiState,
+    availableFamilies: List<TimelineFamily>,
+    store: TechnicalTimelineStore,
+): Unit {
+    ReferenceSectionCard(
+        title = "Filter events",
+        subtitle =
+            "Search the current session and narrow the timeline to one family when you want a smaller operator view.",
+    ) {
+        OutlinedTextField(
+            value = uiState.filters.searchText,
+            onValueChange = store::updateSearch,
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text("Search events") },
+        )
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            FilterChip(
+                selected = uiState.filters.family == null,
+                onClick = store::clearFilters,
+                label = { Text("All") },
+            )
+            availableFamilies.forEach { family ->
+                FilterChip(
+                    selected = uiState.filters.family == family,
+                    onClick = { store.updateFamily(family) },
+                    label = { Text(family.label()) },
+                )
             }
+        }
+    }
+}
+
+@Composable
+private fun EmptyTimelineSection(): Unit {
+    ReferenceSectionCard(
+        title = "No matching events",
+        subtitle =
+            "Clear the current filters or keep running the session until new diagnostics arrive.",
+    ) {
+        Text(
+            text = "Nothing matches the current search and family filters.",
+            style = MaterialTheme.typography.bodyMedium,
+        )
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun TimelineEntryCard(entry: TimelineEntry): Unit {
+    ReferenceSectionCard(title = entry.title, subtitle = entry.detail) {
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            ReferenceBadge(label = entry.family.label())
+            ReferenceBadge(label = entry.severity.name)
+            if (entry.peerSuffix != null) {
+                ReferenceBadge(label = "Peer ${entry.peerSuffix}")
+            }
+        }
+        if (entry.payloadPreview != null) {
+            Text(
+                text = "Preview: ${entry.payloadPreview}",
+                style = MaterialTheme.typography.bodyMedium,
+            )
         }
     }
 }
