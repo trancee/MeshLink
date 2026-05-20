@@ -15,7 +15,11 @@ protected constructor(message: String, cause: Throwable? = null) :
     public constructor(message: String, cause: Throwable? = null) :
         MeshLinkException(message, cause)
 
-    /** Raised when the host app requests a lifecycle transition that is not allowed. */
+    /**
+     * Raised when a lifecycle or protocol state transition violates the current MeshLink contract.
+     *
+     * Expected repeated lifecycle calls return the corresponding `Already*` result instead.
+     */
     public class InvalidStateTransition
     public constructor(message: String, cause: Throwable? = null) :
         MeshLinkException(message, cause)

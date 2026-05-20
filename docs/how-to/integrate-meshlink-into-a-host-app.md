@@ -118,6 +118,9 @@ class MeshLinkController(
 
 Do not create a fresh runtime for every send.
 
+Repeated lifecycle calls do not throw. They return the matching `Already*` result
+variant so your controller can stay idempotent.
+
 Before you call `start()`, make sure the platform permission work is already
 finished. On Android, request the runtime Bluetooth permissions first. On iOS,
 ship the Bluetooth usage description and handle the first-run prompt. If startup
@@ -162,7 +165,7 @@ fun bindMeshLinkFlows(meshLink: MeshLinkApi, scope: CoroutineScope) {
 }
 ```
 
-Use `peerEvents` to drive peer presence in your UI. Use `diagnosticEvents` for operator visibility and troubleshooting.
+Use `peerEvents` to drive peer presence in your UI. Use `diagnosticEvents` for operator visibility and troubleshooting. `InboundMessage.receivedAtEpochMillis` records when MeshLink delivered the message to your app, so you can reuse it for ordering, logging, or UI timestamps.
 
 ## 6. Send a payload
 

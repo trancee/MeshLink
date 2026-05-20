@@ -5,6 +5,7 @@ import ch.trancee.meshlink.api.InboundMessage
 import ch.trancee.meshlink.api.MeshLinkState
 import ch.trancee.meshlink.api.SendResult
 import ch.trancee.meshlink.diagnostics.DiagnosticCode
+import ch.trancee.meshlink.platform.currentEpochMillis
 import ch.trancee.meshlink.test.MeshTestHarness
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -38,12 +39,18 @@ class DirectMessagingIntegrationTest {
             }
 
         // Act
+        val beforeSendAtEpochMillis = currentEpochMillis()
         val sendResult = sender.api.send(receiver.peerId, payload)
         val receivedMessage = receivedMessageDeferred.await()
+        val afterReceiveAtEpochMillis = currentEpochMillis()
 
         // Assert
         assertIs<SendResult.Sent>(sendResult)
         assertContentEquals(payload, receivedMessage.payload)
+        assertTrue(
+            receivedMessage.receivedAtEpochMillis in
+                beforeSendAtEpochMillis..afterReceiveAtEpochMillis
+        )
         assertEquals(MeshLinkState.Running, receiver.api.state.value)
     }
 
@@ -97,7 +104,9 @@ class DirectMessagingIntegrationTest {
             sender.api.send(receiver.peerId, "first".encodeToByteArray())
             firstMessageDeferred.await()
             val initialTrustEstablishedCount =
-                receiver.diagnosticSink.events().count { it.code == DiagnosticCode.TRUST_ESTABLISHED }
+                receiver.diagnosticSink.events().count {
+                    it.code == DiagnosticCode.TRUST_ESTABLISHED
+                }
             sender.api.stop()
             delay(50)
             val forgetResult = receiver.api.forgetPeer(sender.peerId)

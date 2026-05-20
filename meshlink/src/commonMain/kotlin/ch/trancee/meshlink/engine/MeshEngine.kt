@@ -661,7 +661,7 @@ private constructor(
             InboundMessage(
                 originPeerId = originPeerId,
                 payload = plaintext,
-                receivedAtEpochMillis = 0L,
+                receivedAtEpochMillis = currentEpochMillis(),
                 priority = priority,
             )
         )
@@ -678,9 +678,7 @@ private constructor(
         val suspendDiscoveryDuringSend = payload.size > INLINE_MESSAGE_PAYLOAD_BYTES
 
         if (suspendDiscoveryDuringSend) {
-            runPlatformCall("inline.discoverySuspend") {
-                bleTransport?.setDiscoverySuspended(true)
-            }
+            runPlatformCall("inline.discoverySuspend") { bleTransport?.setDiscoverySuspended(true) }
         }
 
         try {
@@ -1182,17 +1180,16 @@ private constructor(
                     existingSession
                 } else {
                     InboundTransferSession(
-                        transferId = frame.transferId,
-                        messageId = frame.messageId,
-                        originPeerId = frame.originPeerId,
-                        destinationPeerId = frame.destinationPeerId,
-                        upstreamPeerId = peerId,
-                        totalBytes = frame.totalBytes,
-                        totalChunks = frame.totalChunks,
-                        maxChunkPayloadBytes = frame.maxChunkPayloadBytes,
-                    ).also { session ->
-                        inboundTransfers[frame.transferId] = session
-                    }
+                            transferId = frame.transferId,
+                            messageId = frame.messageId,
+                            originPeerId = frame.originPeerId,
+                            destinationPeerId = frame.destinationPeerId,
+                            upstreamPeerId = peerId,
+                            totalBytes = frame.totalBytes,
+                            totalChunks = frame.totalChunks,
+                            maxChunkPayloadBytes = frame.maxChunkPayloadBytes,
+                        )
+                        .also { session -> inboundTransfers[frame.transferId] = session }
                 }
             val preparedAck = inboundSession.prepareAck()
             emitInboundTransferProgress(
@@ -1418,7 +1415,8 @@ private constructor(
         ackSent: Boolean,
     ): Map<String, String> {
         return mapOf(
-            "ackContiguousChunks" to (preparedAck.highestContiguousAck + 1).coerceAtLeast(0).toString(),
+            "ackContiguousChunks" to
+                (preparedAck.highestContiguousAck + 1).coerceAtLeast(0).toString(),
             "ackHighestContiguous" to preparedAck.highestContiguousAck.toString(),
             "ackSent" to ackSent.toString(),
             "complete" to preparedAck.complete.toString(),

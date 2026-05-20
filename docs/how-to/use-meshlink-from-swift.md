@@ -105,6 +105,9 @@ api.stop { result, error in
 
 Use the same pattern for `pause`, `resume`, `send`, and `forgetPeer`.
 
+Repeated lifecycle calls do not throw. They return the matching `Already*` result
+variant through the completion handler so your Swift owner can stay idempotent.
+
 ## 5. Collect flows from Swift
 
 `StateFlow` and `Flow` values are collected with a collector object that conforms to `Kotlinx_coroutines_coreFlowCollector`.
@@ -182,6 +185,10 @@ final class MeshLinkService {
     }
 }
 ```
+
+When the value is an `InboundMessage`, the generated framework also exposes
+`receivedAtEpochMillis`, which you can reuse for arrival ordering, logging, or
+UI timestamps.
 
 ## 6. Send bytes from Swift
 

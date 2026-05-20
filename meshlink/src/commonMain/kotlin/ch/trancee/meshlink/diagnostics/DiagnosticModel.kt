@@ -1,5 +1,6 @@
 package ch.trancee.meshlink.diagnostics
 
+/** Stable diagnostic event codes emitted by MeshLink. */
 public enum class DiagnosticCode {
     MESH_STARTED,
     MESH_PAUSED,
@@ -29,6 +30,7 @@ public enum class DiagnosticCode {
     POWER_MODE_CHANGED,
 }
 
+/** Operator-facing severity level assigned to a [DiagnosticEvent]. */
 public enum class DiagnosticSeverity {
     DEBUG,
     INFO,
@@ -36,6 +38,7 @@ public enum class DiagnosticSeverity {
     ERROR,
 }
 
+/** High-level reason bucket attached to a [DiagnosticEvent]. */
 public enum class DiagnosticReason {
     STATE_CHANGE,
     TRUST_FAILURE,
@@ -48,6 +51,12 @@ public enum class DiagnosticReason {
     TRANSPORT_CHANGE,
 }
 
+/**
+ * Structured diagnostic record emitted by MeshLink.
+ *
+ * [stage] identifies the emitting subsystem path. [metadata] carries machine-readable context for
+ * operators and host-side tooling.
+ */
 public class DiagnosticEvent
 public constructor(
     public val code: DiagnosticCode,
@@ -57,6 +66,7 @@ public constructor(
     public val reason: DiagnosticReason? = null,
     metadata: Map<String, String> = emptyMap(),
 ) {
+    /** Machine-readable context attached to this diagnostic event. */
     public val metadata: Map<String, String> = LinkedHashMap(metadata)
 
     override fun toString(): String {

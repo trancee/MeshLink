@@ -298,7 +298,7 @@ class InboundMessage(
 Notes:
 
 - `payload` is copied on construction
-- `receivedAtEpochMillis` is the receive timestamp exposed to the host app
+- `receivedAtEpochMillis` records when MeshLink emitted the inbound message to the host app using the current platform epoch clock
 
 ## Diagnostics
 
@@ -410,6 +410,8 @@ All thrown public exceptions derive from `MeshLinkException`.
 Rules:
 
 - expected delivery outcomes use `SendResult`, not exceptions
+- repeated lifecycle calls use the corresponding `Already*` result variants, not `InvalidStateTransition`
+- `InvalidStateTransition` is reserved for lifecycle or protocol state-contract violations that cannot be represented by the public result types
 - platform-native failures must be wrapped before crossing the public API boundary
 
 ## iOS bridge entry points
