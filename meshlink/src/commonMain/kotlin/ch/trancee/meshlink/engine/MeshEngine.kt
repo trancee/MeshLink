@@ -282,91 +282,121 @@ private constructor(
     private suspend fun handleTransportEvent(event: TransportEvent): Unit {
         when (event) {
             is TransportEvent.FrameReceived -> handleInboundFrame(event)
-            is TransportEvent.PeerDiscovered -> {
-                if (event.transportMode != TransportMode.L2CAP) {
-                    emitDiagnostic(
-                        code = DiagnosticCode.TRANSPORT_MODE_CHANGED,
-                        severity = DiagnosticSeverity.INFO,
-                        stage = "transport.peerDiscovered.rejected",
-                        peerSuffix = event.peerId.value.takeLast(6),
-                        reason = DiagnosticReason.TRANSPORT_CHANGE,
-                        metadata =
-                            mapOf(
-                                "accepted" to "false",
-                                "supportedTransportMode" to TransportMode.L2CAP.name,
-                                "transportMode" to event.transportMode.name,
-                            ),
-                    )
-                    return
-                }
-                when (presenceTracker.onPeerConnected(event.peerId)) {
-                    PresenceTransition.FOUND -> {
-                        mutablePeerEvents.emit(
-                            PeerEvent.Found(event.peerId, PeerConnectionState.CONNECTED)
-                        )
-                    }
-                    PresenceTransition.STATE_CHANGED -> {
-                        mutablePeerEvents.emit(
-                            PeerEvent.StateChanged(event.peerId, PeerConnectionState.CONNECTED)
-                        )
-                    }
-                }
-                prewarmHopSession(event.peerId)
-            }
-            is TransportEvent.PeerLost -> {
-                hopSessions.remove(event.peerId.value)
-                pendingInitiatorHandshakes
-                    .remove(event.peerId.value)
-                    ?.sessionDeferred
-                    ?.complete(SessionEstablishmentOutcome.Unreachable)
-                pendingResponderHandshakes.remove(event.peerId.value)
-                dispatchRoutingMutation(
-                    mutation = routeCoordinator.onPeerDisconnected(event.peerId),
+            is TransportEvent.PeerDiscovered -> handleDiscoveredPeer(event)
+            is TransportEvent.PeerLost ->
+                handleDisconnectedPeer(
+                    peerId = event.peerId,
                     stage = "transport.peerLost",
                     removalCode = DiagnosticCode.ROUTE_EXPIRED,
                     metadata = mapOf("removedByPeerId" to event.peerId.value),
                 )
-                if (presenceTracker.onPeerDisconnected(event.peerId)) {
-                    mutablePeerEvents.emit(PeerEvent.Lost(event.peerId))
-                }
+            is TransportEvent.TransportModeChanged -> handleTransportModeChanged(event)
+        }
+    }
+
+    private suspend fun handleDiscoveredPeer(event: TransportEvent.PeerDiscovered): Unit {
+        if (event.transportMode != TransportMode.L2CAP) {
+            emitTransportModeDiagnostic(
+                peerId = event.peerId,
+                transportMode = event.transportMode,
+                stage = "transport.peerDiscovered.rejected",
+                accepted = false,
+            )
+            return
+        }
+        emitConnectedPeerEvent(
+            peerId = event.peerId,
+            transition = presenceTracker.onPeerConnected(event.peerId),
+        )
+        prewarmHopSession(event.peerId)
+    }
+
+    private suspend fun handleTransportModeChanged(
+        event: TransportEvent.TransportModeChanged
+    ): Unit {
+        val accepted = event.transportMode == TransportMode.L2CAP
+        emitTransportModeDiagnostic(
+            peerId = event.peerId,
+            transportMode = event.transportMode,
+            stage = "transport.modeChanged",
+            accepted = accepted,
+        )
+        if (!accepted) {
+            handleDisconnectedPeer(
+                peerId = event.peerId,
+                stage = "transport.modeChanged.rejected",
+                removalCode = DiagnosticCode.ROUTE_RETRACTED,
+                metadata =
+                    mapOf(
+                        "removedByPeerId" to event.peerId.value,
+                        "transportMode" to event.transportMode.name,
+                    ),
+            )
+        }
+    }
+
+    private suspend fun handleDisconnectedPeer(
+        peerId: PeerId,
+        stage: String,
+        removalCode: DiagnosticCode,
+        metadata: Map<String, String>,
+    ): Unit {
+        clearPeerTransportState(peerId)
+        dispatchRoutingMutation(
+            mutation = routeCoordinator.onPeerDisconnected(peerId),
+            stage = stage,
+            removalCode = removalCode,
+            metadata = metadata,
+        )
+        if (presenceTracker.onPeerDisconnected(peerId)) {
+            mutablePeerEvents.emit(PeerEvent.Lost(peerId))
+        }
+    }
+
+    private fun clearPeerTransportState(peerId: PeerId): Unit {
+        hopSessions.remove(peerId.value)
+        pendingInitiatorHandshakes
+            .remove(peerId.value)
+            ?.sessionDeferred
+            ?.complete(SessionEstablishmentOutcome.Unreachable)
+        pendingResponderHandshakes.remove(peerId.value)
+    }
+
+    private suspend fun emitConnectedPeerEvent(
+        peerId: PeerId,
+        transition: PresenceTransition,
+    ): Unit {
+        when (transition) {
+            PresenceTransition.FOUND -> {
+                mutablePeerEvents.emit(PeerEvent.Found(peerId, PeerConnectionState.CONNECTED))
             }
-            is TransportEvent.TransportModeChanged -> {
-                emitDiagnostic(
-                    code = DiagnosticCode.TRANSPORT_MODE_CHANGED,
-                    severity = DiagnosticSeverity.INFO,
-                    stage = "transport.modeChanged",
-                    peerSuffix = event.peerId.value.takeLast(6),
-                    reason = DiagnosticReason.TRANSPORT_CHANGE,
-                    metadata =
-                        mapOf(
-                            "accepted" to (event.transportMode == TransportMode.L2CAP).toString(),
-                            "supportedTransportMode" to TransportMode.L2CAP.name,
-                            "transportMode" to event.transportMode.name,
-                        ),
+            PresenceTransition.STATE_CHANGED -> {
+                mutablePeerEvents.emit(
+                    PeerEvent.StateChanged(peerId, PeerConnectionState.CONNECTED)
                 )
-                if (event.transportMode != TransportMode.L2CAP) {
-                    hopSessions.remove(event.peerId.value)
-                    pendingInitiatorHandshakes
-                        .remove(event.peerId.value)
-                        ?.sessionDeferred
-                        ?.complete(SessionEstablishmentOutcome.Unreachable)
-                    pendingResponderHandshakes.remove(event.peerId.value)
-                    dispatchRoutingMutation(
-                        mutation = routeCoordinator.onPeerDisconnected(event.peerId),
-                        stage = "transport.modeChanged.rejected",
-                        removalCode = DiagnosticCode.ROUTE_RETRACTED,
-                        metadata =
-                            mapOf(
-                                "removedByPeerId" to event.peerId.value,
-                                "transportMode" to event.transportMode.name,
-                            ),
-                    )
-                    if (presenceTracker.onPeerDisconnected(event.peerId)) {
-                        mutablePeerEvents.emit(PeerEvent.Lost(event.peerId))
-                    }
-                }
             }
         }
+    }
+
+    private fun emitTransportModeDiagnostic(
+        peerId: PeerId,
+        transportMode: TransportMode,
+        stage: String,
+        accepted: Boolean,
+    ): Unit {
+        emitDiagnostic(
+            code = DiagnosticCode.TRANSPORT_MODE_CHANGED,
+            severity = DiagnosticSeverity.INFO,
+            stage = stage,
+            peerSuffix = peerId.value.takeLast(6),
+            reason = DiagnosticReason.TRANSPORT_CHANGE,
+            metadata =
+                mapOf(
+                    "accepted" to accepted.toString(),
+                    "supportedTransportMode" to TransportMode.L2CAP.name,
+                    "transportMode" to transportMode.name,
+                ),
+        )
     }
 
     private suspend fun handleInboundFrame(event: TransportEvent.FrameReceived): Unit {
