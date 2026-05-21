@@ -25,12 +25,10 @@ import ch.trancee.meshlink.diagnostics.DiagnosticSink
 import ch.trancee.meshlink.identity.LocalIdentity
 import ch.trancee.meshlink.identity.hexContentEquals
 import ch.trancee.meshlink.platform.PlatformPermissionDeniedException
-import ch.trancee.meshlink.platform.currentEpochMillis
 import ch.trancee.meshlink.power.PowerPolicy
 import ch.trancee.meshlink.power.PowerPolicyController
 import ch.trancee.meshlink.presence.PeerPresenceTracker
 import ch.trancee.meshlink.routing.RouteCoordinator
-import ch.trancee.meshlink.routing.RouteEntry
 import ch.trancee.meshlink.storage.InMemorySecureStorage
 import ch.trancee.meshlink.storage.SecureStorage
 import ch.trancee.meshlink.transfer.InboundTransferSession
@@ -165,6 +163,31 @@ private constructor(
             trustSupport = trustSupport,
             mutableMessages = mutableMessages,
             emitHopSessionFailed = hopTransportSupport::emitHopSessionFailed,
+            emitDiagnostic = ::emitDiagnostic,
+        )
+    private val outboundPreparationSupport =
+        MeshEngineOutboundPreparationSupport(
+            localIdentity = localIdentity,
+            trustStore = trustStore,
+            state = MeshEngineOutboundPreparationState(outboundTransfers = outboundTransfers),
+            routingContext =
+                MeshEngineOutboundPreparationRoutingContext(
+                    routeCoordinator = routeCoordinator,
+                    routingSupport = routingSupport,
+                ),
+            callbacks =
+                MeshEngineOutboundPreparationCallbacks(
+                    createMessageId = ::createMessageId,
+                    createTransferId = ::createTransferId,
+                    emitTransferEncryptFailure = { peerId, cause ->
+                        hopTransportSupport.emitHopSessionFailed(
+                            peerId = peerId,
+                            stage = "transfer.encrypt",
+                            reason = DiagnosticReason.TRUST_FAILURE,
+                            metadata = mapOf("cause" to cause),
+                        )
+                    },
+                ),
             emitDiagnostic = ::emitDiagnostic,
         )
     private val transferSupport =
@@ -581,7 +604,7 @@ private constructor(
     }
 
     private suspend fun resolveInlineRecipientTrust(peerId: PeerId): TrustRecord? {
-        val recipientTrust = resolveRecipientTrust(peerId)
+        val recipientTrust = outboundPreparationSupport.resolveRecipientTrust(peerId)
         if (recipientTrust == null) {
             emitDiagnostic(
                 code = DiagnosticCode.TRUST_FAILURE,
@@ -690,135 +713,6 @@ private constructor(
             metadata = routingSupport.peerRouteMetadata(peerId),
         )
         return SendResult.NotSent(SendFailureReason.UNREACHABLE)
-    }
-
-    private suspend fun resolveRecipientTrust(peerId: PeerId): TrustRecord? {
-        val existingTrust = trustStore.read(peerId.value)
-        val route = routeCoordinator.routeFor(peerId)
-
-        return when {
-            existingTrust != null -> existingTrust
-            route == null -> null
-            else -> learnRecipientTrustFromRoute(peerId = peerId, route = route)
-        }
-    }
-
-    private suspend fun learnRecipientTrustFromRoute(
-        peerId: PeerId,
-        route: RouteEntry,
-    ): TrustRecord {
-        val learnedAtEpochMillis = currentEpochMillis()
-        val learnedTrust =
-            TrustRecord(
-                peerIdValue = route.destinationPeerId.value,
-                identityFingerprintBytes =
-                    localIdentity.cryptoProvider.sha256(
-                        route.ed25519PublicKey + route.x25519PublicKey
-                    ),
-                firstSeenAtEpochMillis = learnedAtEpochMillis,
-                lastVerifiedAtEpochMillis = learnedAtEpochMillis,
-                ed25519PublicKey = route.ed25519PublicKey,
-                x25519PublicKey = route.x25519PublicKey,
-            )
-        trustStore.write(learnedTrust)
-        emitDiagnostic(
-            code = DiagnosticCode.TRUST_ESTABLISHED,
-            severity = DiagnosticSeverity.INFO,
-            stage = "trust.routeUpdate",
-            peerSuffix = peerId.value.takeLast(6),
-            reason = DiagnosticReason.STATE_CHANGE,
-        )
-        return learnedTrust
-    }
-
-    private suspend fun prepareOutboundTransferSession(
-        peerId: PeerId,
-        payload: ByteArray,
-    ): OutboundTransferPreparation {
-        val recipientTrust = resolveRecipientTrust(peerId)
-
-        return if (recipientTrust == null) {
-            OutboundTransferPreparation.PendingRoute
-        } else {
-            prepareResolvedOutboundTransferSession(
-                peerId = peerId,
-                payload = payload,
-                recipientTrust = recipientTrust,
-            )
-        }
-    }
-
-    private suspend fun prepareResolvedOutboundTransferSession(
-        peerId: PeerId,
-        payload: ByteArray,
-        recipientTrust: TrustRecord,
-    ): OutboundTransferPreparation {
-        val sealedPayload = sealOutboundTransferPayload(peerId, payload, recipientTrust)
-        return if (sealedPayload == null) {
-            OutboundTransferPreparation.Failed(SendResult.NotSent(SendFailureReason.TRUST_FAILURE))
-        } else {
-            val session = createOutboundTransferSession(peerId, sealedPayload)
-            outboundTransfers[session.transferId] = session
-            emitTransferStartedDiagnostic(peerId)
-            OutboundTransferPreparation.Ready(session)
-        }
-    }
-
-    private fun sealOutboundTransferPayload(
-        peerId: PeerId,
-        payload: ByteArray,
-        recipientTrust: TrustRecord,
-    ): ByteArray? {
-        return runCatching {
-                MessageSealer.seal(
-                    plaintext = payload,
-                    senderIdentity = localIdentity,
-                    recipientTrust = recipientTrust,
-                )
-            }
-            .getOrElse { exception ->
-                hopTransportSupport.emitHopSessionFailed(
-                    peerId = peerId,
-                    stage = "transfer.encrypt",
-                    reason = DiagnosticReason.TRUST_FAILURE,
-                    metadata = mapOf("cause" to exception::class.simpleName.orEmpty()),
-                )
-                null
-            }
-    }
-
-    private fun createOutboundTransferSession(
-        peerId: PeerId,
-        sealedPayload: ByteArray,
-    ): OutboundTransferSession {
-        val innerEnvelope =
-            DirectMessageEnvelope(
-                    senderPeerId = localIdentity.peerId,
-                    senderFingerprintBytes = localIdentity.identityFingerprintBytes,
-                    senderEd25519PublicKey = localIdentity.ed25519PublicKey,
-                    senderX25519PublicKey = localIdentity.x25519PublicKey,
-                    ciphertext = sealedPayload,
-                )
-                .encode()
-        return OutboundTransferSession.fromOwnedChunks(
-            transferId = createTransferId(),
-            messageId = createMessageId(),
-            originPeerId = localIdentity.peerId,
-            destinationPeerId = peerId,
-            chunks = chunkTransferPayload(innerEnvelope, TRANSFER_CHUNK_PAYLOAD_BYTES),
-            totalBytes = innerEnvelope.size,
-            maxChunkPayloadBytes = TRANSFER_CHUNK_PAYLOAD_BYTES,
-        )
-    }
-
-    private fun emitTransferStartedDiagnostic(peerId: PeerId): Unit {
-        emitDiagnostic(
-            code = DiagnosticCode.TRANSFER_STARTED,
-            severity = DiagnosticSeverity.INFO,
-            stage = "transfer.send.start",
-            peerSuffix = peerId.value.takeLast(6),
-            metadata = routingSupport.peerRouteMetadata(peerId),
-        )
     }
 
     private suspend fun sendLargePayload(
@@ -935,7 +829,11 @@ private constructor(
         }
 
         return when (
-            val preparation = prepareOutboundTransferSession(peerId = peerId, payload = payload)
+            val preparation =
+                outboundPreparationSupport.prepareOutboundTransferSession(
+                    peerId = peerId,
+                    payload = payload,
+                )
         ) {
             OutboundTransferPreparation.PendingRoute -> {
                 scheduleRetryDiagnostic(peerId = peerId, priority = priority)
