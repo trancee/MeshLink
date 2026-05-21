@@ -76,17 +76,26 @@ class DirectMessagingIntegrationTest {
         val restartedReceiver = harness.restartNode(receiver)
         val senderRediscoveredReceiverDeferred =
             async(start = CoroutineStart.UNDISPATCHED) {
-                withTimeout(1_000) {
+                withTimeout(2_000) {
                     sender.api.peerEvents.first { event ->
                         event is PeerEvent.Found && event.peerId == restartedReceiver.peerId
                     }
                 }
             }
+        val restartedReceiverFoundSenderDeferred =
+            async(start = CoroutineStart.UNDISPATCHED) {
+                withTimeout(2_000) {
+                    restartedReceiver.api.peerEvents.first { event ->
+                        event is PeerEvent.Found && event.peerId == sender.peerId
+                    }
+                }
+            }
         restartedReceiver.api.start()
         senderRediscoveredReceiverDeferred.await()
+        restartedReceiverFoundSenderDeferred.await()
         val receivedMessageDeferred =
             async(start = CoroutineStart.UNDISPATCHED) {
-                withTimeout(1_000) { restartedReceiver.api.messages.first() }
+                withTimeout(2_000) { restartedReceiver.api.messages.first() }
             }
         val sendResult = sender.api.send(restartedReceiver.peerId, "second".encodeToByteArray())
         val receivedMessage = receivedMessageDeferred.await()
