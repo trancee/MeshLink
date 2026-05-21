@@ -10,14 +10,24 @@ public data class TimelineFilters(
     public val family: TimelineFamily? = null,
     public val severity: TimelineSeverity? = null,
 ) {
+    public fun isEmpty(): Boolean {
+        return searchText.isBlank() && peerSuffix == null && family == null && severity == null
+    }
+
+    public fun matches(entry: TimelineEntry): Boolean {
+        val matchesSearch =
+            searchText.isBlank() || entry.searchText.contains(searchText, ignoreCase = true)
+        val matchesPeer = peerSuffix == null || entry.peerSuffix == peerSuffix
+        val matchesFamily = family == null || entry.family == family
+        val matchesSeverity = severity == null || entry.severity == severity
+        return matchesSearch && matchesPeer && matchesFamily && matchesSeverity
+    }
+
     public fun apply(entries: List<TimelineEntry>): List<TimelineEntry> {
-        return entries.filter { entry ->
-            val matchesSearch =
-                searchText.isBlank() || entry.searchText.contains(searchText, ignoreCase = true)
-            val matchesPeer = peerSuffix == null || entry.peerSuffix == peerSuffix
-            val matchesFamily = family == null || entry.family == family
-            val matchesSeverity = severity == null || entry.severity == severity
-            matchesSearch && matchesPeer && matchesFamily && matchesSeverity
+        return if (isEmpty()) {
+            entries
+        } else {
+            entries.filter(::matches)
         }
     }
 }

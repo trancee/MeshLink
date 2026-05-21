@@ -187,8 +187,10 @@ internal constructor(
     internal val maxChunkPayloadBytes: Int,
 ) {
     private val receivedChunks: Array<ByteArray?> = arrayOfNulls(totalChunks)
+    private val receivedChunkBitSet: ByteArray = ByteArray((totalChunks + 7) / 8)
     private var receivedChunkCount: Int = 0
     private var newlyReceivedChunksSinceLastAck: Int = 0
+    private var highestContiguousAck: Int = -1
 
     internal fun acceptChunk(frame: WireFrame.TransferChunk): InboundChunkAcceptance {
         if (frame.chunkIndex !in 0 until totalChunks) {
@@ -199,7 +201,7 @@ internal constructor(
                 duplicateChunk = false,
                 receivedChunkCount = receivedChunkCount,
                 newlyReceivedChunksSinceLastAck = newlyReceivedChunksSinceLastAck,
-                highestContiguousAck = highestContiguousAck(),
+                highestContiguousAck = highestContiguousAck,
                 complete = isComplete(),
                 shouldAcknowledge = false,
             )
@@ -208,10 +210,11 @@ internal constructor(
         val duplicateChunk = receivedChunks[frame.chunkIndex] != null
         if (!duplicateChunk) {
             receivedChunks[frame.chunkIndex] = frame.payload.copyOf()
+            receivedChunkBitSet.mark(frame.chunkIndex)
             receivedChunkCount += 1
             newlyReceivedChunksSinceLastAck += 1
+            advanceHighestContiguousAck(frame.chunkIndex)
         }
-        val highestContiguousAck = highestContiguousAck()
         val complete = isComplete()
         val shouldAcknowledge =
             duplicateChunk || complete || newlyReceivedChunksSinceLastAck >= ACK_BATCH_CHUNK_COUNT
@@ -229,21 +232,11 @@ internal constructor(
     }
 
     internal fun highestContiguousAck(): Int {
-        var highest = -1
-        while (highest + 1 < totalChunks && receivedChunks[highest + 1] != null) {
-            highest += 1
-        }
-        return highest
+        return highestContiguousAck
     }
 
     internal fun selectiveRangesBitSet(): ByteArray {
-        val bitSet = ByteArray((totalChunks + 7) / 8)
-        receivedChunks.forEachIndexed { chunkIndex, payload ->
-            if (payload != null) {
-                bitSet.mark(chunkIndex)
-            }
-        }
-        return bitSet
+        return receivedChunkBitSet.copyOf()
     }
 
     internal fun receivedChunkCount(): Int {
@@ -266,14 +259,13 @@ internal constructor(
     }
 
     internal fun prepareAck(): PreparedInboundTransferAck {
-        val highestContiguousAck = highestContiguousAck()
         val preparedAck =
             PreparedInboundTransferAck(
                 frame =
                     WireFrame.TransferAck(
                         transferId = transferId,
                         highestContiguousAck = highestContiguousAck,
-                        selectiveRanges = selectiveRangesBitSet(),
+                        selectiveRanges = receivedChunkBitSet,
                     ),
                 receivedChunkCount = receivedChunkCount,
                 newlyReceivedChunksSinceLastAck = newlyReceivedChunksSinceLastAck,
@@ -282,6 +274,18 @@ internal constructor(
             )
         newlyReceivedChunksSinceLastAck = 0
         return preparedAck
+    }
+
+    private fun advanceHighestContiguousAck(receivedChunkIndex: Int): Unit {
+        if (receivedChunkIndex != highestContiguousAck + 1) {
+            return
+        }
+        while (
+            highestContiguousAck + 1 < totalChunks &&
+                receivedChunks[highestContiguousAck + 1] != null
+        ) {
+            highestContiguousAck += 1
+        }
     }
 
     internal fun asAckFrame(): WireFrame.TransferAck {

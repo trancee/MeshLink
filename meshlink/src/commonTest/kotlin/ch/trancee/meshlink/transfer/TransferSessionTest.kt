@@ -201,6 +201,44 @@ class TransferSessionTest {
         assertEquals(0, session.highestContiguousAck())
     }
 
+    @Test
+    fun `acceptChunk advances the contiguous acknowledgement when a gap closes`() {
+        // Arrange
+        val session = newInboundSession(chunkCount = 4)
+
+        // Act
+        val outOfOrderDelivery =
+            session.acceptChunk(
+                WireFrame.TransferChunk(
+                    transferId = session.transferId,
+                    chunkIndex = 2,
+                    payload = byteArrayOf(2),
+                )
+            )
+        val firstContiguousDelivery =
+            session.acceptChunk(
+                WireFrame.TransferChunk(
+                    transferId = session.transferId,
+                    chunkIndex = 0,
+                    payload = byteArrayOf(0),
+                )
+            )
+        val gapClosingDelivery =
+            session.acceptChunk(
+                WireFrame.TransferChunk(
+                    transferId = session.transferId,
+                    chunkIndex = 1,
+                    payload = byteArrayOf(1),
+                )
+            )
+
+        // Assert
+        assertEquals(-1, outOfOrderDelivery.highestContiguousAck)
+        assertEquals(0, firstContiguousDelivery.highestContiguousAck)
+        assertEquals(2, gapClosingDelivery.highestContiguousAck)
+        assertEquals(2, session.highestContiguousAck())
+    }
+
     private fun newOutboundSession(chunkCount: Int): OutboundTransferSession {
         val chunks = List(chunkCount) { index -> byteArrayOf(index.toByte()) }
         return OutboundTransferSession(

@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 public class TechnicalTimelineStore(
@@ -37,23 +38,25 @@ public class TechnicalTimelineStore(
     init {
         scope.launch {
             historyRepository.loadRetainedSessions().let { retainedSessions ->
-                stateFlow.value =
-                    stateFlow.value.copy(
+                updateState { current ->
+                    current.copy(
                         retainedSessions =
                             mergeRetainedSessions(
-                                current = stateFlow.value.retainedSessions,
+                                current = current.retainedSessions,
                                 loaded = retainedSessions,
                             )
                     )
+                }
             }
         }
         scope.launch {
             platformServices.meshLinkController.snapshot.collectLatest { snapshot ->
-                stateFlow.value =
-                    stateFlow.value.copy(
+                updateState { current ->
+                    current.copy(
                         liveSnapshot = snapshot,
-                        visibleEntries = stateFlow.value.filters.apply(snapshot.timeline),
+                        visibleEntries = visibleEntriesForUpdatedLiveSnapshot(current, snapshot),
                     )
+                }
             }
         }
     }
@@ -82,23 +85,24 @@ public class TechnicalTimelineStore(
 
     public fun retainCurrentSession(): Unit {
         scope.launch {
-            val snapshot = stateFlow.value.currentSnapshot
+            val current = stateFlow.value
             val retainedSnapshot =
-                snapshot.copy(
+                current.currentSnapshot.copy(
                     session =
-                        snapshot.session.copy(
+                        current.currentSnapshot.session.copy(
                             endedAtEpochMillis = platformServices.currentTimeMillis(),
                             historyStatus = ReferenceHistoryStatus.RETAINED,
                         )
                 )
-            stateFlow.value =
-                stateFlow.value.copy(
+            updateState { state ->
+                state.copy(
                     retainedSessions =
                         upsertRetainedSession(
-                            existing = stateFlow.value.retainedSessions,
+                            existing = state.retainedSessions,
                             session = retainedSnapshot.session,
                         )
                 )
+            }
             historyRepository.retainSnapshot(retainedSnapshot)
             val retainedSessions =
                 mergeRetainedSessions(
@@ -116,61 +120,64 @@ public class TechnicalTimelineStore(
                 } else {
                     stateFlow.value.lastExportPath
                 }
-            stateFlow.value =
-                stateFlow.value.copy(
-                    retainedSessions = retainedSessions,
-                    lastExportPath = lastExportPath,
-                )
+            updateState { state ->
+                state.copy(retainedSessions = retainedSessions, lastExportPath = lastExportPath)
+            }
         }
     }
 
     public fun openRetainedSession(sessionId: String): Unit {
         scope.launch {
             val retained = historyRepository.loadRetainedSnapshot(sessionId) ?: return@launch
-            stateFlow.value =
-                stateFlow.value.copy(
+            updateState { current ->
+                current.copy(
                     retainedSnapshot = retained,
-                    visibleEntries = stateFlow.value.filters.apply(retained.timeline),
+                    visibleEntries = current.filters.apply(retained.timeline),
                 )
+            }
         }
     }
 
     public fun returnToLive(): Unit {
-        stateFlow.value =
-            stateFlow.value.copy(
+        updateState { current ->
+            current.copy(
                 retainedSnapshot = null,
-                visibleEntries =
-                    stateFlow.value.filters.apply(stateFlow.value.liveSnapshot.timeline),
+                visibleEntries = current.filters.apply(current.liveSnapshot.timeline),
             )
+        }
     }
 
     public fun deleteRetainedSession(sessionId: String): Unit {
         scope.launch {
             historyRepository.deleteSession(sessionId)
             val retainedSessions = historyRepository.loadRetainedSessions()
-            stateFlow.value =
-                stateFlow.value.copy(
-                    retainedSessions = retainedSessions,
-                    retainedSnapshot =
-                        stateFlow.value.retainedSnapshot?.takeUnless { snapshot ->
-                            snapshot.session.sessionId == sessionId
-                        },
-                    visibleEntries =
-                        stateFlow.value.filters.apply(stateFlow.value.currentSnapshot.timeline),
+            updateState { current ->
+                val retainedSnapshot =
+                    current.retainedSnapshot?.takeUnless { snapshot ->
+                        snapshot.session.sessionId == sessionId
+                    }
+                val updated =
+                    current.copy(
+                        retainedSessions = retainedSessions,
+                        retainedSnapshot = retainedSnapshot,
+                    )
+                updated.copy(
+                    visibleEntries = updated.filters.apply(updated.currentSnapshot.timeline)
                 )
+            }
         }
     }
 
     public fun clearHistory(): Unit {
         scope.launch {
             historyRepository.clearAll()
-            stateFlow.value =
-                stateFlow.value.copy(
+            updateState { current ->
+                current.copy(
                     retainedSessions = emptyList(),
                     retainedSnapshot = null,
-                    visibleEntries =
-                        stateFlow.value.filters.apply(stateFlow.value.liveSnapshot.timeline),
+                    visibleEntries = current.filters.apply(current.liveSnapshot.timeline),
                 )
+            }
         }
     }
 
@@ -178,7 +185,7 @@ public class TechnicalTimelineStore(
         scope.launch {
             val storagePath =
                 writeExport(snapshot = stateFlow.value.currentSnapshot, policy = policy)
-            stateFlow.value = stateFlow.value.copy(lastExportPath = storagePath)
+            updateState { current -> current.copy(lastExportPath = storagePath) }
         }
     }
 
@@ -224,12 +231,58 @@ public class TechnicalTimelineStore(
     }
 
     private fun updateFilters(filters: TimelineFilters): Unit {
-        val currentSnapshot = stateFlow.value.currentSnapshot
-        stateFlow.value =
-            stateFlow.value.copy(
+        updateState { current ->
+            current.copy(
                 filters = filters,
-                visibleEntries = filters.apply(currentSnapshot.timeline),
+                visibleEntries = filters.apply(current.currentSnapshot.timeline),
             )
+        }
+    }
+
+    private fun visibleEntriesForUpdatedLiveSnapshot(
+        current: TechnicalTimelineUiState,
+        snapshot: ReferenceControllerSnapshot,
+    ): List<TimelineEntry> {
+        if (current.retainedSnapshot != null) {
+            return current.visibleEntries
+        }
+        if (current.filters.isEmpty()) {
+            return snapshot.timeline
+        }
+        return if (
+            isSingleEntryAppend(
+                previous = current.liveSnapshot.timeline,
+                current = snapshot.timeline,
+            )
+        ) {
+            val appendedEntry = snapshot.timeline.last()
+            if (current.filters.matches(appendedEntry)) {
+                current.visibleEntries + appendedEntry
+            } else {
+                current.visibleEntries
+            }
+        } else {
+            current.filters.apply(snapshot.timeline)
+        }
+    }
+
+    private fun isSingleEntryAppend(
+        previous: List<TimelineEntry>,
+        current: List<TimelineEntry>,
+    ): Boolean {
+        if (current.size != previous.size + 1) {
+            return false
+        }
+        if (previous.isEmpty()) {
+            return true
+        }
+        return current[current.lastIndex - 1].entryId == previous.last().entryId
+    }
+
+    private fun updateState(
+        transform: (TechnicalTimelineUiState) -> TechnicalTimelineUiState
+    ): Unit {
+        stateFlow.update(transform)
     }
 
     private fun upsertRetainedSession(
