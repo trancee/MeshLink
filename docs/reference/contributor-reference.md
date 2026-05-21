@@ -24,6 +24,7 @@ Use this page when you need exact commands, matrices, or policy details.
 |---|---|---|
 | Warm the checkout | `./gradlew help` | Confirms the wrapper works and downloads plugins/toolchains. |
 | Install repository Git hooks | `./scripts/install-git-hooks.sh` | Sets `core.hooksPath` to `.githooks` and enables the repository hook suite. |
+| Run the pre-push hook manually | `.githooks/pre-push <remote> <url>` | Feed it the standard Git pre-push ref lines on stdin when you want to simulate a push locally. |
 | Build the library | `./gradlew :meshlink:build` | Standard first build for the library module. |
 | Compile without the full build | `./gradlew :meshlink:assemble` | Useful during early edit loops. |
 | Format Kotlin | `./gradlew :meshlink:ktfmtFormat` | Repository formatting is ktfmt-based. |
@@ -106,6 +107,7 @@ A public API change currently requires all of the following:
 |---|---|
 | `.githooks/pre-commit` | Runs ktfmt formatting for the touched Gradle modules, aborts if formatting changed a staged file, runs `yamllint` for staged YAML files, then runs the relevant Gradle verification tasks for the staged paths. |
 | `.githooks/commit-msg` | Rejects commit messages that do not follow the repository Conventional Commit policy. |
+| `.githooks/pre-push` | Inspects the paths in the outgoing push, runs shell validation for hook changes, runs `yamllint` for pushed YAML files, and runs the heavier Gradle verification bundle for the affected modules before the push is allowed. |
 
 ## PR and evidence requirements
 

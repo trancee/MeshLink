@@ -71,7 +71,7 @@ done
 
 if [[ "$need_hook_validation" -eq 1 ]]; then
   echo "[pre-commit] Validating hook shell scripts"
-  bash -n .githooks/pre-commit .githooks/commit-msg scripts/install-git-hooks.sh
+  bash -n .githooks/pre-commit .githooks/pre-push .githooks/commit-msg scripts/install-git-hooks.sh
 fi
 
 if [[ "$need_yaml" -eq 1 ]]; then

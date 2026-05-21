@@ -4,7 +4,7 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 
-chmod +x .githooks/pre-commit .githooks/commit-msg
+chmod +x .githooks/pre-commit .githooks/pre-push .githooks/commit-msg
 
 git config core.hooksPath .githooks
 

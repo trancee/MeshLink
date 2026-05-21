@@ -45,10 +45,16 @@ Then install the repository Git hook:
 ./scripts/install-git-hooks.sh
 ```
 
-The hooks run formatting first, then the relevant Gradle checks for the
-staged paths before each commit, plus `yamllint` for staged YAML files and
-Conventional Commit validation for commit messages. If formatting changes a
-staged file, the commit stops so you can review and re-stage the result.
+The hook suite now includes:
+
+- `pre-commit` — formats touched Kotlin modules, runs `yamllint` for staged
+  YAML files, and runs the relevant Gradle verification for the staged paths
+- `commit-msg` — enforces Conventional Commits
+- `pre-push` — runs the heavier verification bundle for the paths in the
+  outgoing push
+
+If formatting changes a staged file, the commit stops so you can review and
+re-stage the result.
 
 ## 3. Build the library
 

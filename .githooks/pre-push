@@ -1,0 +1,151 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel)"
+cd "$repo_root"
+
+zero_sha="0000000000000000000000000000000000000000"
+changed_files_manifest="$(mktemp)"
+trap 'rm -f "$changed_files_manifest"' EXIT
+
+append_changed_files() {
+  local range="$1"
+  git diff --name-only "$range" >> "$changed_files_manifest"
+}
+
+append_commit_files() {
+  local commit="$1"
+  git diff-tree --no-commit-id --name-only -r "$commit" >> "$changed_files_manifest"
+}
+
+saw_ref_updates=0
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  if [[ -z "${local_ref:-}" ]]; then
+    continue
+  fi
+  saw_ref_updates=1
+
+  if [[ "$local_sha" == "$zero_sha" ]]; then
+    continue
+  fi
+
+  if [[ "$remote_sha" == "$zero_sha" ]]; then
+    append_commit_files "$local_sha"
+  else
+    append_changed_files "$remote_sha..$local_sha"
+  fi
+done
+
+if [[ "$saw_ref_updates" -eq 0 ]]; then
+  if git rev-parse --verify '@{upstream}' >/dev/null 2>&1; then
+    append_changed_files '@{upstream}..HEAD'
+  else
+    append_commit_files HEAD
+  fi
+fi
+
+if [[ ! -s "$changed_files_manifest" ]]; then
+  exit 0
+fi
+
+sort -u "$changed_files_manifest" -o "$changed_files_manifest"
+
+pushed_files=()
+while IFS= read -r file; do
+  if [[ -n "$file" ]]; then
+    pushed_files+=("$file")
+  fi
+done < "$changed_files_manifest"
+
+if [[ ${#pushed_files[@]} -eq 0 ]]; then
+  exit 0
+fi
+
+need_meshlink=0
+need_reference=0
+need_benchmarks=0
+need_proof_android=0
+need_docs=0
+need_yaml=0
+need_hook_validation=0
+yaml_files=()
+
+for file in "${pushed_files[@]}"; do
+  case "$file" in
+    meshlink/*)
+      need_meshlink=1
+      ;;
+    meshlink-reference/*)
+      need_reference=1
+      ;;
+    benchmarks/*)
+      need_benchmarks=1
+      ;;
+    meshlink-proof/android/*)
+      need_proof_android=1
+      ;;
+    .githooks/*|scripts/install-git-hooks.sh)
+      need_hook_validation=1
+      ;;
+    build.gradle.kts|settings.gradle.kts|gradle.properties|gradle/*)
+      need_meshlink=1
+      need_reference=1
+      need_benchmarks=1
+      need_proof_android=1
+      need_docs=1
+      ;;
+  esac
+
+  case "$file" in
+    *.md|docs/*|README.md|CONTRIBUTING.md|AGENTS.md|constitution.md|specs/*|scripts/check_generated_public_api_reference.py|scripts/check_markdown_links.py|scripts/generate_public_api_reference.py)
+      need_docs=1
+      ;;
+  esac
+
+  case "$file" in
+    *.yml|*.yaml)
+      if [[ -f "$file" ]]; then
+        need_yaml=1
+        yaml_files+=("$file")
+      fi
+      ;;
+  esac
+done
+
+if [[ "$need_hook_validation" -eq 1 ]]; then
+  echo "[pre-push] Validating hook shell scripts"
+  bash -n .githooks/pre-commit .githooks/pre-push .githooks/commit-msg scripts/install-git-hooks.sh
+fi
+
+if [[ "$need_yaml" -eq 1 ]]; then
+  if ! command -v yamllint >/dev/null 2>&1; then
+    echo "[pre-push] yamllint is required for YAML changes." >&2
+    echo "[pre-push] Install it with: python3 -m pip install --user yamllint" >&2
+    exit 1
+  fi
+  echo "[pre-push] Running YAML lint: ${yaml_files[*]}"
+  yamllint "${yaml_files[@]}"
+fi
+
+check_tasks=()
+if [[ "$need_meshlink" -eq 1 ]]; then
+  check_tasks+=(":meshlink:build")
+fi
+if [[ "$need_reference" -eq 1 ]]; then
+  check_tasks+=(":meshlink-reference:build")
+fi
+if [[ "$need_benchmarks" -eq 1 ]]; then
+  check_tasks+=(":benchmarks:build")
+fi
+if [[ "$need_proof_android" -eq 1 ]]; then
+  check_tasks+=(":meshlink-proof:android:meshlink-proof-android-app:build")
+fi
+if [[ "$need_docs" -eq 1 ]]; then
+  check_tasks+=("verifyDocs")
+fi
+
+if [[ ${#check_tasks[@]} -gt 0 ]]; then
+  echo "[pre-push] Running verification: ${check_tasks[*]}"
+  ./gradlew --console=plain "${check_tasks[@]}"
+fi
