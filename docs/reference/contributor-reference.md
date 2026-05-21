@@ -107,7 +107,7 @@ A public API change currently requires all of the following:
 |---|---|
 | `.githooks/pre-commit` | Runs ktfmt formatting for the touched Gradle modules, aborts if formatting changed a staged file, runs `yamllint` for staged YAML files, then runs the relevant Gradle verification tasks for the staged paths. |
 | `.githooks/commit-msg` | Rejects commit messages that do not follow the repository Conventional Commit policy. |
-| `.githooks/pre-push` | Inspects the paths in the outgoing push, runs shell validation for hook changes, runs `yamllint` for pushed YAML files, and runs the heavier Gradle verification bundle for the affected modules before the push is allowed. |
+| `.githooks/pre-push` | Inspects the paths and commit subjects in the outgoing push, blocks direct pushes to `main`, validates shell hooks, runs `yamllint` for pushed YAML files, runs benchmark smoke checks for benchmark-sensitive MeshLink paths, and runs the heavier Gradle verification bundle for the affected modules before the push is allowed. |
 
 ## PR and evidence requirements
 

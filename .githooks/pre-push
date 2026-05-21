@@ -4,9 +4,14 @@ set -euo pipefail
 repo_root="$(git rev-parse --show-toplevel)"
 cd "$repo_root"
 
+remote_name="${1:-}"
+remote_url="${2:-}"
 zero_sha="0000000000000000000000000000000000000000"
 changed_files_manifest="$(mktemp)"
-trap 'rm -f "$changed_files_manifest"' EXIT
+commit_manifest="$(mktemp)"
+trap 'rm -f "$changed_files_manifest" "$commit_manifest"' EXIT
+
+conventional_commit_pattern='^(feat|fix|test|docs|refactor|perf|chore)(\([A-Za-z0-9._/-]+\))?(!)?: .+'
 
 append_changed_files() {
   local range="$1"
@@ -18,6 +23,20 @@ append_commit_files() {
   git diff-tree --no-commit-id --name-only -r "$commit" >> "$changed_files_manifest"
 }
 
+append_commit_range() {
+  local range="$1"
+  git rev-list "$range" >> "$commit_manifest"
+}
+
+append_new_branch_commits() {
+  local commit="$1"
+  if [[ -n "$remote_name" ]]; then
+    git rev-list "$commit" --not --remotes="$remote_name" >> "$commit_manifest"
+  else
+    git rev-list "$commit" --not --remotes >> "$commit_manifest"
+  fi
+}
+
 saw_ref_updates=0
 
 while read -r local_ref local_sha remote_ref remote_sha; do
@@ -26,22 +45,51 @@ while read -r local_ref local_sha remote_ref remote_sha; do
   fi
   saw_ref_updates=1
 
+  if [[ "$remote_ref" == "refs/heads/main" ]]; then
+    echo "[pre-push] Direct pushes to main are prohibited. Push a feature branch and open a PR." >&2
+    exit 1
+  fi
+
   if [[ "$local_sha" == "$zero_sha" ]]; then
     continue
   fi
 
   if [[ "$remote_sha" == "$zero_sha" ]]; then
     append_commit_files "$local_sha"
+    append_new_branch_commits "$local_sha"
   else
     append_changed_files "$remote_sha..$local_sha"
+    append_commit_range "$remote_sha..$local_sha"
   fi
 done
 
 if [[ "$saw_ref_updates" -eq 0 ]]; then
   if git rev-parse --verify '@{upstream}' >/dev/null 2>&1; then
     append_changed_files '@{upstream}..HEAD'
+    append_commit_range '@{upstream}..HEAD'
   else
     append_commit_files HEAD
+    append_new_branch_commits HEAD
+  fi
+fi
+
+if [[ -s "$commit_manifest" ]]; then
+  sort -u "$commit_manifest" -o "$commit_manifest"
+  invalid_commits=()
+  while IFS= read -r commit; do
+    [[ -z "$commit" ]] && continue
+    subject="$(git log --format=%s -n 1 "$commit")"
+    if [[ ! "$subject" =~ $conventional_commit_pattern ]]; then
+      invalid_commits+=("$commit $subject")
+    fi
+  done < "$commit_manifest"
+
+  if [[ ${#invalid_commits[@]} -gt 0 ]]; then
+    echo "[pre-push] Outgoing commits must use Conventional Commits:" >&2
+    for item in "${invalid_commits[@]}"; do
+      echo "  - $item" >&2
+    done
+    exit 1
   fi
 fi
 
@@ -68,11 +116,16 @@ need_benchmarks=0
 need_proof_android=0
 need_docs=0
 need_yaml=0
+need_benchmark_smoke=0
 need_hook_validation=0
 yaml_files=()
 
 for file in "${pushed_files[@]}"; do
   case "$file" in
+    meshlink/src/*/kotlin/ch/trancee/meshlink/crypto/*|meshlink/src/*/kotlin/ch/trancee/meshlink/routing/*|meshlink/src/*/kotlin/ch/trancee/meshlink/wire/*)
+      need_meshlink=1
+      need_benchmark_smoke=1
+      ;;
     meshlink/*)
       need_meshlink=1
       ;;
@@ -81,6 +134,7 @@ for file in "${pushed_files[@]}"; do
       ;;
     benchmarks/*)
       need_benchmarks=1
+      need_benchmark_smoke=1
       ;;
     meshlink-proof/android/*)
       need_proof_android=1
@@ -94,6 +148,7 @@ for file in "${pushed_files[@]}"; do
       need_benchmarks=1
       need_proof_android=1
       need_docs=1
+      need_benchmark_smoke=1
       ;;
   esac
 
@@ -118,6 +173,10 @@ if [[ "$need_hook_validation" -eq 1 ]]; then
   bash -n .githooks/pre-commit .githooks/pre-push .githooks/commit-msg scripts/install-git-hooks.sh
 fi
 
+if [[ -n "$remote_name" || -n "$remote_url" ]]; then
+  echo "[pre-push] Validating push target: ${remote_name:-<unknown>} ${remote_url:-<unknown>}"
+fi
+
 if [[ "$need_yaml" -eq 1 ]]; then
   if ! command -v yamllint >/dev/null 2>&1; then
     echo "[pre-push] yamllint is required for YAML changes." >&2
@@ -137,6 +196,9 @@ if [[ "$need_reference" -eq 1 ]]; then
 fi
 if [[ "$need_benchmarks" -eq 1 ]]; then
   check_tasks+=(":benchmarks:build")
+fi
+if [[ "$need_benchmark_smoke" -eq 1 ]]; then
+  check_tasks+=(":benchmarks:jvmSmokeBenchmark")
 fi
 if [[ "$need_proof_android" -eq 1 ]]; then
   check_tasks+=(":meshlink-proof:android:meshlink-proof-android-app:build")
