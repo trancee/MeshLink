@@ -42,7 +42,6 @@ import ch.trancee.meshlink.transport.TransportMode
 import ch.trancee.meshlink.transport.TransportSendResult
 import ch.trancee.meshlink.trust.TofuTrustStore
 import ch.trancee.meshlink.trust.TrustRecord
-import ch.trancee.meshlink.wire.WireCodec
 import ch.trancee.meshlink.wire.WireFrame
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
@@ -62,7 +61,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeout
 
 internal class MeshEngine
@@ -88,6 +86,16 @@ private constructor(
             coroutineScope = coroutineScope,
             emitDiagnostic = ::emitDiagnostic,
             sendEncryptedWireFrame = ::sendEncryptedWireFrame,
+        )
+    private val hopTransportSupport =
+        MeshEngineHopTransportSupport(
+            localIdentity = localIdentity,
+            routingSupport = routingSupport,
+            establishedHopSession = ::establishedHopSession,
+            sendDirectWireFrame = { peerId, frame, action, preferredMode ->
+                sendDirectWireFrame(peerId, frame, action, preferredMode)
+            },
+            emitDiagnostic = ::emitDiagnostic,
         )
     private val trustSupport =
         MeshEngineTrustSupport(
@@ -123,8 +131,8 @@ private constructor(
             sendDirectWireFrame = { peerId, frame, action ->
                 sendDirectWireFrame(peerId = peerId, frame = frame, action = action)
             },
-            emitHopSessionEstablished = ::emitHopSessionEstablished,
-            emitHopSessionFailed = ::emitHopSessionFailed,
+            emitHopSessionEstablished = hopTransportSupport::emitHopSessionEstablished,
+            emitHopSessionFailed = hopTransportSupport::emitHopSessionFailed,
         )
     private val initiatorHandshakeSupport =
         MeshEngineInitiatorHandshakeSupport(
@@ -156,7 +164,7 @@ private constructor(
             localIdentity = localIdentity,
             trustSupport = trustSupport,
             mutableMessages = mutableMessages,
-            emitHopSessionFailed = ::emitHopSessionFailed,
+            emitHopSessionFailed = hopTransportSupport::emitHopSessionFailed,
             emitDiagnostic = ::emitDiagnostic,
         )
     private val transferSupport =
@@ -171,7 +179,7 @@ private constructor(
             callbacks =
                 MeshEngineTransferCallbacks(
                     isLocalPeerId = ::isLocalPeerId,
-                    sendEncryptedWireFrame = ::sendEncryptedWireFrame,
+                    sendEncryptedWireFrame = hopTransportSupport::sendEncryptedWireFrame,
                     sendTransferTowardsDestination = ::sendTransferTowardsDestination,
                     deliverInnerEnvelope = messageDeliverySupport::deliverInnerEnvelope,
                 ),
@@ -188,8 +196,8 @@ private constructor(
                 ),
             transport =
                 MeshEngineInboundTransport(
-                    emitHopSessionFailed = ::emitHopSessionFailed,
-                    decryptHopPayload = ::decryptHopPayload,
+                    emitHopSessionFailed = hopTransportSupport::emitHopSessionFailed,
+                    decryptHopPayload = hopTransportSupport::decryptHopPayload,
                 ),
             messageCallbacks =
                 MeshEngineInboundMessageCallbacks(
@@ -601,7 +609,7 @@ private constructor(
                     )
                 }
                 .getOrElse { exception ->
-                    emitHopSessionFailed(
+                    hopTransportSupport.emitHopSessionFailed(
                         peerId = peerId,
                         stage = "delivery.send.encrypt",
                         reason = DiagnosticReason.TRUST_FAILURE,
@@ -638,7 +646,7 @@ private constructor(
     ): SendResult {
         return when (
             runCatching {
-                    sendEncryptedDirectWireFrame(
+                    hopTransportSupport.sendEncryptedDirectWireFrame(
                         peerId = nextHopPeerId,
                         session = session,
                         frame = routedMessage,
@@ -646,7 +654,7 @@ private constructor(
                     )
                 }
                 .getOrElse { exception ->
-                    emitHopSessionFailed(
+                    hopTransportSupport.emitHopSessionFailed(
                         peerId = nextHopPeerId,
                         stage = "delivery.send.transportEncrypt",
                         reason = DiagnosticReason.DELIVERY_FAILURE,
@@ -769,7 +777,7 @@ private constructor(
                 )
             }
             .getOrElse { exception ->
-                emitHopSessionFailed(
+                hopTransportSupport.emitHopSessionFailed(
                     peerId = peerId,
                     stage = "transfer.encrypt",
                     reason = DiagnosticReason.TRUST_FAILURE,
@@ -1191,60 +1199,15 @@ private constructor(
         frame: WireFrame,
         action: String,
     ): Boolean {
-        val session = establishedHopSession(peerId)
-        val transportResult =
-            if (session != null) {
-                sendEncryptedWireFrameWithSession(
-                    peerId = peerId,
-                    session = session,
-                    frame = frame,
-                    action = action,
-                )
-            } else {
-                null
-            }
-
-        return when (transportResult) {
-            TransportSendResult.Delivered -> true
-            is TransportSendResult.Dropped -> {
-                emitHopSessionFailed(
-                    peerId = peerId,
-                    stage = "$action.send",
-                    reason = DiagnosticReason.DELIVERY_FAILURE,
-                )
-                false
-            }
-            null -> false
-        }
+        return hopTransportSupport.sendEncryptedWireFrame(
+            peerId = peerId,
+            frame = frame,
+            action = action,
+        )
     }
 
     private suspend fun establishedHopSession(peerId: PeerId): HopSession? {
         return (ensureHopSession(peerId) as? SessionEstablishmentOutcome.Established)?.session
-    }
-
-    private suspend fun sendEncryptedWireFrameWithSession(
-        peerId: PeerId,
-        session: HopSession,
-        frame: WireFrame,
-        action: String,
-    ): TransportSendResult? {
-        return runCatching {
-                sendEncryptedDirectWireFrame(
-                    peerId = peerId,
-                    session = session,
-                    frame = frame,
-                    action = action,
-                )
-            }
-            .getOrElse { exception ->
-                emitHopSessionFailed(
-                    peerId = peerId,
-                    stage = "$action.encrypt",
-                    reason = DiagnosticReason.DELIVERY_FAILURE,
-                    metadata = mapOf("cause" to exception::class.simpleName.orEmpty()),
-                )
-                null
-            }
     }
 
     private suspend fun ensureHopSession(peerId: PeerId): SessionEstablishmentOutcome {
@@ -1277,7 +1240,7 @@ private constructor(
             TransportSendResult.Delivered -> awaitSessionEstablishment(peerId, sessionDeferred)
             is TransportSendResult.Dropped -> {
                 pendingInitiatorHandshakes.remove(peerId.value)
-                emitHopSessionFailed(
+                hopTransportSupport.emitHopSessionFailed(
                     peerId = peerId,
                     stage = "transport.handshake.message1.send",
                     reason = DiagnosticReason.DELIVERY_FAILURE,
@@ -1295,7 +1258,7 @@ private constructor(
             withTimeout(HANDSHAKE_TIMEOUT.inWholeMilliseconds) { sessionDeferred.await() }
         } catch (_: TimeoutCancellationException) {
             pendingInitiatorHandshakes.remove(peerId.value)
-            emitHopSessionFailed(
+            hopTransportSupport.emitHopSessionFailed(
                 peerId = peerId,
                 stage = "transport.handshake.timeout",
                 reason = DiagnosticReason.DELIVERY_FAILURE,
@@ -1321,86 +1284,6 @@ private constructor(
                 )
             )
         }
-    }
-
-    private suspend fun sendEncryptedDirectWireFrame(
-        peerId: PeerId,
-        session: HopSession,
-        frame: WireFrame,
-        action: String,
-    ): TransportSendResult {
-        val encodedFrame = WireCodec.encode(frame)
-        return session.outboundMutex.withLock {
-            val encryptedFrame =
-                encryptHopPayload(
-                    sendKey = session.sendKey,
-                    sendNonce = session.sendNonce,
-                    plaintext = encodedFrame,
-                )
-            val sendResult =
-                sendDirectWireFrame(
-                    peerId = peerId,
-                    frame = DirectWireFrame.Data(encryptedFrame),
-                    action = action,
-                    preferredMode = preferredTransportModeForEncryptedFrame(frame),
-                )
-            if (sendResult is TransportSendResult.Delivered) {
-                session.sendNonce += 1uL
-            }
-            sendResult
-        }
-    }
-
-    private fun encryptHopPayload(
-        sendKey: ByteArray,
-        sendNonce: ULong,
-        plaintext: ByteArray,
-    ): ByteArray {
-        return localIdentity.cryptoProvider.chacha20Poly1305Seal(
-            key = sendKey,
-            nonce = noiseNonce(sendNonce),
-            aad = byteArrayOf(),
-            plaintext = plaintext,
-        )
-    }
-
-    private fun decryptHopPayload(session: HopSession, ciphertext: ByteArray): ByteArray {
-        val plaintext =
-            localIdentity.cryptoProvider.chacha20Poly1305Open(
-                key = session.receiveKey,
-                nonce = noiseNonce(session.receiveNonce),
-                aad = byteArrayOf(),
-                ciphertext = ciphertext,
-            )
-        session.receiveNonce += 1u
-        return plaintext
-    }
-
-    private fun emitHopSessionEstablished(peerId: PeerId, stage: String): Unit {
-        emitDiagnostic(
-            code = DiagnosticCode.HOP_SESSION_ESTABLISHED,
-            severity = DiagnosticSeverity.DEBUG,
-            stage = stage,
-            peerSuffix = peerId.value.takeLast(6),
-            reason = DiagnosticReason.STATE_CHANGE,
-            metadata = routingSupport.peerRouteMetadata(peerId),
-        )
-    }
-
-    private fun emitHopSessionFailed(
-        peerId: PeerId,
-        stage: String,
-        reason: DiagnosticReason,
-        metadata: Map<String, String> = emptyMap(),
-    ): Unit {
-        emitDiagnostic(
-            code = DiagnosticCode.HOP_SESSION_FAILED,
-            severity = DiagnosticSeverity.WARN,
-            stage = stage,
-            peerSuffix = peerId.value.takeLast(6),
-            reason = reason,
-            metadata = routingSupport.peerRouteMetadata(peerId, metadata = metadata),
-        )
     }
 
     private fun powerPolicyNowMillis(): Long {
@@ -1494,12 +1377,6 @@ private constructor(
         private val TRANSFER_ACK_IDLE_WINDOW = 100.milliseconds
         private val HANDSHAKE_TIMEOUT = 1.seconds
         private val INITIAL_BACKOFF = 250.milliseconds
-
-        private fun noiseNonce(value: ULong): ByteArray {
-            val nonce = ByteArray(12)
-            repeat(8) { index -> nonce[4 + index] = ((value shr (index * 8)) and 0xFFu).toByte() }
-            return nonce
-        }
 
         internal fun create(
             config: MeshLinkConfig,
