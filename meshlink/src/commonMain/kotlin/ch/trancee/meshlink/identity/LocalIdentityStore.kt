@@ -13,65 +13,46 @@ internal object LocalIdentityStore {
         secureStorage: SecureStorage,
         provider: CryptoProvider,
     ): LocalIdentity {
-        val storedEd25519PrivateKey = secureStorage.read(key(appId, "ed25519-private"))
-        val storedEd25519PublicKey = secureStorage.read(key(appId, "ed25519-public"))
-        val storedX25519PrivateKey = secureStorage.read(key(appId, "x25519-private"))
-        val storedX25519PublicKey = secureStorage.read(key(appId, "x25519-public"))
+        val storedKeys = readStoredKeys(appId = appId, secureStorage = secureStorage)
 
-        val storedValues =
-            listOf(
-                storedEd25519PrivateKey,
-                storedEd25519PublicKey,
-                storedX25519PrivateKey,
-                storedX25519PublicKey,
-            )
-        if (storedValues.all { value -> value == null }) {
-            val identity =
-                LocalIdentity.fromNoiseIdentity(NoiseIdentity.generate(provider), provider)
-            persist(appId = appId, secureStorage = secureStorage, identity = identity)
-            return identity
+        return when {
+            storedKeys.isEmpty() ->
+                createAndPersistIdentity(
+                    appId = appId,
+                    secureStorage = secureStorage,
+                    provider = provider,
+                )
+            storedKeys.isIncomplete() -> throwIncompleteIdentityFailure(appId)
+            else ->
+                LocalIdentity.fromNoiseIdentity(
+                    noiseIdentity = storedKeys.toNoiseIdentity(),
+                    provider = provider,
+                )
         }
-        if (storedValues.any { value -> value == null }) {
-            throw MeshLinkException.StorageFailure(
-                message = "Stored local identity is incomplete for appId=$appId"
-            )
-        }
+    }
 
-        return LocalIdentity.fromNoiseIdentity(
-            noiseIdentity =
-                NoiseIdentity(
-                    ed25519KeyPair =
-                        Ed25519KeyPair(
-                            privateKey =
-                                requireSized(
-                                    storedEd25519PrivateKey!!,
-                                    KEY_SIZE_BYTES,
-                                    "ed25519 private",
-                                ),
-                            publicKey =
-                                requireSized(
-                                    storedEd25519PublicKey!!,
-                                    KEY_SIZE_BYTES,
-                                    "ed25519 public",
-                                ),
-                        ),
-                    x25519KeyPair =
-                        X25519KeyPair(
-                            privateKey =
-                                requireSized(
-                                    storedX25519PrivateKey!!,
-                                    KEY_SIZE_BYTES,
-                                    "x25519 private",
-                                ),
-                            publicKey =
-                                requireSized(
-                                    storedX25519PublicKey!!,
-                                    KEY_SIZE_BYTES,
-                                    "x25519 public",
-                                ),
-                        ),
-                ),
-            provider = provider,
+    private suspend fun readStoredKeys(appId: String, secureStorage: SecureStorage): StoredKeys {
+        return StoredKeys(
+            ed25519PrivateKey = secureStorage.read(key(appId, "ed25519-private")),
+            ed25519PublicKey = secureStorage.read(key(appId, "ed25519-public")),
+            x25519PrivateKey = secureStorage.read(key(appId, "x25519-private")),
+            x25519PublicKey = secureStorage.read(key(appId, "x25519-public")),
+        )
+    }
+
+    private suspend fun createAndPersistIdentity(
+        appId: String,
+        secureStorage: SecureStorage,
+        provider: CryptoProvider,
+    ): LocalIdentity {
+        val identity = LocalIdentity.fromNoiseIdentity(NoiseIdentity.generate(provider), provider)
+        persist(appId = appId, secureStorage = secureStorage, identity = identity)
+        return identity
+    }
+
+    private fun throwIncompleteIdentityFailure(appId: String): Nothing {
+        throw MeshLinkException.StorageFailure(
+            message = "Stored local identity is incomplete for appId=$appId"
         )
     }
 
@@ -109,6 +90,60 @@ internal object LocalIdentityStore {
             )
         }
         return value.copyOf()
+    }
+
+    private data class StoredKeys(
+        val ed25519PrivateKey: ByteArray?,
+        val ed25519PublicKey: ByteArray?,
+        val x25519PrivateKey: ByteArray?,
+        val x25519PublicKey: ByteArray?,
+    ) {
+        fun isEmpty(): Boolean {
+            return allValues().all { value -> value == null }
+        }
+
+        fun isIncomplete(): Boolean {
+            return allValues().any { value -> value == null }
+        }
+
+        fun toNoiseIdentity(): NoiseIdentity {
+            return NoiseIdentity(
+                ed25519KeyPair =
+                    Ed25519KeyPair(
+                        privateKey =
+                            requireSized(
+                                value = checkNotNull(ed25519PrivateKey),
+                                expectedSize = KEY_SIZE_BYTES,
+                                label = "ed25519 private",
+                            ),
+                        publicKey =
+                            requireSized(
+                                value = checkNotNull(ed25519PublicKey),
+                                expectedSize = KEY_SIZE_BYTES,
+                                label = "ed25519 public",
+                            ),
+                    ),
+                x25519KeyPair =
+                    X25519KeyPair(
+                        privateKey =
+                            requireSized(
+                                value = checkNotNull(x25519PrivateKey),
+                                expectedSize = KEY_SIZE_BYTES,
+                                label = "x25519 private",
+                            ),
+                        publicKey =
+                            requireSized(
+                                value = checkNotNull(x25519PublicKey),
+                                expectedSize = KEY_SIZE_BYTES,
+                                label = "x25519 public",
+                            ),
+                    ),
+            )
+        }
+
+        private fun allValues(): List<ByteArray?> {
+            return listOf(ed25519PrivateKey, ed25519PublicKey, x25519PrivateKey, x25519PublicKey)
+        }
     }
 
     private const val KEY_SIZE_BYTES: Int = 32
