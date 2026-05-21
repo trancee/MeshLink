@@ -7,7 +7,6 @@ import ch.trancee.meshlink.api.MeshLinkApi
 import ch.trancee.meshlink.api.MeshLinkException
 import ch.trancee.meshlink.api.MeshLinkState
 import ch.trancee.meshlink.api.PauseResult
-import ch.trancee.meshlink.api.PeerConnectionState
 import ch.trancee.meshlink.api.PeerEvent
 import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.api.ResumeResult
@@ -32,7 +31,6 @@ import ch.trancee.meshlink.platform.currentEpochMillis
 import ch.trancee.meshlink.power.PowerPolicy
 import ch.trancee.meshlink.power.PowerPolicyController
 import ch.trancee.meshlink.presence.PeerPresenceTracker
-import ch.trancee.meshlink.presence.PresenceTransition
 import ch.trancee.meshlink.routing.RouteCoordinator
 import ch.trancee.meshlink.routing.RouteEntry
 import ch.trancee.meshlink.storage.InMemorySecureStorage
@@ -43,7 +41,6 @@ import ch.trancee.meshlink.transfer.OutboundTransferSession
 import ch.trancee.meshlink.transfer.RelayTransferSession
 import ch.trancee.meshlink.transport.BleTransport
 import ch.trancee.meshlink.transport.OutboundFrame
-import ch.trancee.meshlink.transport.TransportEvent
 import ch.trancee.meshlink.transport.TransportMode
 import ch.trancee.meshlink.transport.TransportSendResult
 import ch.trancee.meshlink.trust.TofuTrustStore
@@ -126,71 +123,54 @@ private constructor(
         MeshEngineInboundSupport(
             localIdentity = localIdentity,
             hopSessions = hopSessions,
-            routeCoordinator = routeCoordinator,
-            routingSupport = routingSupport,
+            routingContext =
+                MeshEngineInboundRoutingContext(
+                    routeCoordinator = routeCoordinator,
+                    routingSupport = routingSupport,
+                ),
             transport =
-                object : MeshEngineInboundTransport {
-                    override fun emitHopSessionFailed(
-                        peerId: PeerId,
-                        stage: String,
-                        reason: DiagnosticReason,
-                        metadata: Map<String, String>,
-                    ): Unit =
-                        this@MeshEngine.emitHopSessionFailed(
-                            peerId = peerId,
-                            stage = stage,
-                            reason = reason,
-                            metadata = metadata,
-                        )
-
-                    override fun decryptHopPayload(
-                        session: HopSession,
-                        payload: ByteArray,
-                    ): ByteArray = this@MeshEngine.decryptHopPayload(session, payload)
-                },
+                MeshEngineInboundTransport(
+                    emitHopSessionFailed = ::emitHopSessionFailed,
+                    decryptHopPayload = ::decryptHopPayload,
+                ),
+            messageCallbacks =
+                MeshEngineInboundMessageCallbacks(
+                    forwardMessageToNextHop = ::forwardMessageToNextHop,
+                    deliverInnerEnvelope = ::deliverInnerEnvelope,
+                ),
+            transferCallbacks =
+                MeshEngineInboundTransferCallbacks(
+                    handleTransferStart = ::handleTransferStart,
+                    handleTransferChunk = ::handleTransferChunk,
+                    handleTransferAck = ::handleTransferAck,
+                    handleTransferComplete = ::handleTransferComplete,
+                    handleTransferAbort = ::handleTransferAbort,
+                ),
+        )
+    private val transportSupport =
+        MeshEngineTransportSupport(
+            peerState =
+                MeshEngineTransportPeerState(
+                    presenceTracker = presenceTracker,
+                    mutablePeerEvents = mutablePeerEvents,
+                    hopSessions = hopSessions,
+                    pendingInitiatorHandshakes = pendingInitiatorHandshakes,
+                    pendingResponderHandshakes = pendingResponderHandshakes,
+                ),
+            routingContext =
+                MeshEngineTransportRoutingContext(
+                    routeCoordinator = routeCoordinator,
+                    routingSupport = routingSupport,
+                ),
             callbacks =
-                object : MeshEngineInboundCallbacks {
-                    override fun forwardMessageToNextHop(frame: WireFrame.Message): Unit =
-                        this@MeshEngine.forwardMessageToNextHop(frame)
-
-                    override suspend fun deliverInnerEnvelope(
-                        immediatePeerId: PeerId,
-                        originPeerId: PeerId,
-                        encryptedPayload: ByteArray,
-                        priority: DeliveryPriority,
-                    ): Unit =
-                        this@MeshEngine.deliverInnerEnvelope(
-                            immediatePeerId = immediatePeerId,
-                            originPeerId = originPeerId,
-                            encryptedPayload = encryptedPayload,
-                            priority = priority,
-                        )
-
-                    override suspend fun handleTransferStart(
-                        peerId: PeerId,
-                        frame: WireFrame.TransferStart,
-                    ): Unit = this@MeshEngine.handleTransferStart(peerId, frame)
-
-                    override suspend fun handleTransferChunk(
-                        peerId: PeerId,
-                        frame: WireFrame.TransferChunk,
-                    ): Unit = this@MeshEngine.handleTransferChunk(peerId, frame)
-
-                    override fun handleTransferAck(
-                        peerId: PeerId,
-                        frame: WireFrame.TransferAck,
-                    ): Unit = this@MeshEngine.handleTransferAck(peerId, frame)
-
-                    override suspend fun handleTransferComplete(
-                        peerId: PeerId,
-                        frame: WireFrame.TransferComplete,
-                    ): Unit = this@MeshEngine.handleTransferComplete(peerId, frame)
-
-                    override suspend fun handleTransferAbort(
-                        peerId: PeerId,
-                        frame: WireFrame.TransferAbort,
-                    ): Unit = this@MeshEngine.handleTransferAbort(peerId, frame)
-                },
+                MeshEngineTransportCallbacks(
+                    prewarmHopSession = ::prewarmHopSession,
+                    handleHandshakeMessage1 = ::handleHandshakeMessage1,
+                    handleHandshakeMessage2 = ::handleHandshakeMessage2,
+                    handleHandshakeMessage3 = ::handleHandshakeMessage3,
+                    handleEncryptedDataFrame = inboundSupport::handleEncryptedDataFrame,
+                ),
+            emitDiagnostic = ::emitDiagnostic,
         )
 
     override val state: StateFlow<MeshLinkState> = mutableState.asStateFlow()
@@ -360,141 +340,10 @@ private constructor(
         }
         transportCollectionJob =
             coroutineScope.launch(start = CoroutineStart.UNDISPATCHED) {
-                bleTransport.events.collect { event -> handleTransportEvent(event) }
+                bleTransport.events.collect { event ->
+                    transportSupport.handleTransportEvent(event)
+                }
             }
-    }
-
-    private suspend fun handleTransportEvent(event: TransportEvent): Unit {
-        when (event) {
-            is TransportEvent.FrameReceived -> handleInboundFrame(event)
-            is TransportEvent.PeerDiscovered -> handleDiscoveredPeer(event)
-            is TransportEvent.PeerLost ->
-                handleDisconnectedPeer(
-                    peerId = event.peerId,
-                    stage = "transport.peerLost",
-                    removalCode = DiagnosticCode.ROUTE_EXPIRED,
-                    metadata = mapOf("removedByPeerId" to event.peerId.value),
-                )
-            is TransportEvent.TransportModeChanged -> handleTransportModeChanged(event)
-        }
-    }
-
-    private suspend fun handleDiscoveredPeer(event: TransportEvent.PeerDiscovered): Unit {
-        if (event.transportMode != TransportMode.L2CAP) {
-            emitTransportModeDiagnostic(
-                peerId = event.peerId,
-                transportMode = event.transportMode,
-                stage = "transport.peerDiscovered.rejected",
-                accepted = false,
-            )
-            return
-        }
-        emitConnectedPeerEvent(
-            peerId = event.peerId,
-            transition = presenceTracker.onPeerConnected(event.peerId),
-        )
-        prewarmHopSession(event.peerId)
-    }
-
-    private suspend fun handleTransportModeChanged(
-        event: TransportEvent.TransportModeChanged
-    ): Unit {
-        val accepted = event.transportMode == TransportMode.L2CAP
-        emitTransportModeDiagnostic(
-            peerId = event.peerId,
-            transportMode = event.transportMode,
-            stage = "transport.modeChanged",
-            accepted = accepted,
-        )
-        if (!accepted) {
-            handleDisconnectedPeer(
-                peerId = event.peerId,
-                stage = "transport.modeChanged.rejected",
-                removalCode = DiagnosticCode.ROUTE_RETRACTED,
-                metadata =
-                    mapOf(
-                        "removedByPeerId" to event.peerId.value,
-                        "transportMode" to event.transportMode.name,
-                    ),
-            )
-        }
-    }
-
-    private suspend fun handleDisconnectedPeer(
-        peerId: PeerId,
-        stage: String,
-        removalCode: DiagnosticCode,
-        metadata: Map<String, String>,
-    ): Unit {
-        clearPeerTransportState(peerId)
-        routingSupport.dispatchMutation(
-            mutation = routeCoordinator.onPeerDisconnected(peerId),
-            stage = stage,
-            removalCode = removalCode,
-            metadata = metadata,
-        )
-        if (presenceTracker.onPeerDisconnected(peerId)) {
-            mutablePeerEvents.emit(PeerEvent.Lost(peerId))
-        }
-    }
-
-    private fun clearPeerTransportState(peerId: PeerId): Unit {
-        hopSessions.remove(peerId.value)
-        pendingInitiatorHandshakes
-            .remove(peerId.value)
-            ?.sessionDeferred
-            ?.complete(SessionEstablishmentOutcome.Unreachable)
-        pendingResponderHandshakes.remove(peerId.value)
-    }
-
-    private suspend fun emitConnectedPeerEvent(
-        peerId: PeerId,
-        transition: PresenceTransition,
-    ): Unit {
-        when (transition) {
-            PresenceTransition.FOUND -> {
-                mutablePeerEvents.emit(PeerEvent.Found(peerId, PeerConnectionState.CONNECTED))
-            }
-            PresenceTransition.STATE_CHANGED -> {
-                mutablePeerEvents.emit(
-                    PeerEvent.StateChanged(peerId, PeerConnectionState.CONNECTED)
-                )
-            }
-        }
-    }
-
-    private fun emitTransportModeDiagnostic(
-        peerId: PeerId,
-        transportMode: TransportMode,
-        stage: String,
-        accepted: Boolean,
-    ): Unit {
-        emitDiagnostic(
-            code = DiagnosticCode.TRANSPORT_MODE_CHANGED,
-            severity = DiagnosticSeverity.INFO,
-            stage = stage,
-            peerSuffix = peerId.value.takeLast(6),
-            reason = DiagnosticReason.TRANSPORT_CHANGE,
-            metadata =
-                mapOf(
-                    "accepted" to accepted.toString(),
-                    "supportedTransportMode" to TransportMode.L2CAP.name,
-                    "transportMode" to transportMode.name,
-                ),
-        )
-    }
-
-    private suspend fun handleInboundFrame(event: TransportEvent.FrameReceived): Unit {
-        when (val frame = DirectWireFrame.decode(event.payload)) {
-            is DirectWireFrame.HandshakeMessage1 ->
-                handleHandshakeMessage1(event.peerId, frame.payload)
-            is DirectWireFrame.HandshakeMessage2 ->
-                handleHandshakeMessage2(event.peerId, frame.payload)
-            is DirectWireFrame.HandshakeMessage3 ->
-                handleHandshakeMessage3(event.peerId, frame.payload)
-            is DirectWireFrame.Data ->
-                inboundSupport.handleEncryptedDataFrame(event.peerId, frame.payload)
-        }
     }
 
     private suspend fun handleHandshakeMessage1(peerId: PeerId, payload: ByteArray): Unit {
@@ -2225,21 +2074,3 @@ private constructor(
         }
     }
 }
-
-private sealed class SessionEstablishmentOutcome {
-    internal class Established internal constructor(internal val session: HopSession) :
-        SessionEstablishmentOutcome()
-
-    internal data object TrustFailure : SessionEstablishmentOutcome()
-
-    internal data object Unreachable : SessionEstablishmentOutcome()
-}
-
-private class PendingInitiatorHandshake
-internal constructor(
-    internal val manager: NoiseXXHandshakeManager,
-    internal val sessionDeferred: CompletableDeferred<SessionEstablishmentOutcome>,
-)
-
-private class PendingResponderHandshake
-internal constructor(internal val manager: NoiseXXHandshakeManager)

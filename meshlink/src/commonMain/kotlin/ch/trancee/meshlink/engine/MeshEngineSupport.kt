@@ -1,6 +1,7 @@
 package ch.trancee.meshlink.engine
 
 import ch.trancee.meshlink.api.SendResult
+import ch.trancee.meshlink.crypto.NoiseXXHandshakeManager
 import ch.trancee.meshlink.diagnostics.DiagnosticCode
 import ch.trancee.meshlink.power.PowerPolicy
 import ch.trancee.meshlink.transfer.InboundChunkAcceptance
@@ -9,9 +10,19 @@ import ch.trancee.meshlink.transfer.OutboundTransferSession
 import ch.trancee.meshlink.transfer.PreparedInboundTransferAck
 import ch.trancee.meshlink.transport.TransportMode
 import ch.trancee.meshlink.wire.WireFrame
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.sync.Mutex
 
 internal const val DIAGNOSTIC_PEER_SUFFIX_LENGTH: Int = 6
+
+internal sealed class SessionEstablishmentOutcome {
+    class Established internal constructor(internal val session: HopSession) :
+        SessionEstablishmentOutcome()
+
+    data object TrustFailure : SessionEstablishmentOutcome()
+
+    data object Unreachable : SessionEstablishmentOutcome()
+}
 
 internal class HopSession internal constructor(sendKey: ByteArray, receiveKey: ByteArray) {
     internal val sendKey: ByteArray = sendKey.copyOf()
@@ -20,6 +31,15 @@ internal class HopSession internal constructor(sendKey: ByteArray, receiveKey: B
     internal var sendNonce: ULong = 0u
     internal var receiveNonce: ULong = 0u
 }
+
+internal class PendingInitiatorHandshake
+internal constructor(
+    internal val manager: NoiseXXHandshakeManager,
+    internal val sessionDeferred: CompletableDeferred<SessionEstablishmentOutcome>,
+)
+
+internal class PendingResponderHandshake
+internal constructor(internal val manager: NoiseXXHandshakeManager)
 
 internal data class InlineRetryWakeupState(val attempt: Int, val topologyVersion: Long)
 
