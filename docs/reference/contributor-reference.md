@@ -22,6 +22,7 @@ Use this page when you need exact commands, matrices, or policy details.
 | Purpose | Command | Notes |
 |---|---|---|
 | Warm the checkout | `./gradlew help` | Confirms the wrapper works and downloads plugins/toolchains. |
+| Install repository Git hooks | `./scripts/install-git-hooks.sh` | Sets `core.hooksPath` to `.githooks` and enables the pre-commit checks. |
 | Build the library | `./gradlew :meshlink:build` | Standard first build for the library module. |
 | Compile without the full build | `./gradlew :meshlink:assemble` | Useful during early edit loops. |
 | Format Kotlin | `./gradlew :meshlink:ktfmtFormat` | Repository formatting is ktfmt-based. |
@@ -97,6 +98,12 @@ A public API change currently requires all of the following:
 | Documentation verification | `./gradlew verifyDocs` after the appendix and doc updates |
 | Android/iOS docs parity | Matching public workflow or API docs updated together |
 | PR rationale | Version-bump rationale recorded for the API diff |
+
+## Git hook behavior
+
+| Hook | Behavior |
+|---|---|
+| `.githooks/pre-commit` | Runs ktfmt formatting for the touched Gradle modules, aborts if formatting changed a staged file, then runs the relevant Gradle verification tasks for the staged paths. |
 
 ## PR and evidence requirements
 

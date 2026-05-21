@@ -39,6 +39,16 @@ From the repository root, run:
 That confirms the Gradle wrapper works and downloads the toolchain and project
 plugins.
 
+Then install the repository Git hook:
+
+```bash
+./scripts/install-git-hooks.sh
+```
+
+The hook runs formatting first and then the relevant Gradle checks for the
+staged paths before each commit. If formatting changes a staged file, the
+commit stops so you can review and re-stage the result.
+
 ## 3. Build the library
 
 For a normal first build, run:

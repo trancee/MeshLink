@@ -1,0 +1,127 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel)"
+cd "$repo_root"
+
+staged_files=()
+pre_format_hashes=()
+
+while IFS= read -r -d '' file; do
+  staged_files+=("$file")
+  if [[ -f "$file" ]]; then
+    pre_format_hashes+=("$(shasum -a 256 -- "$file" | awk '{print $1}')")
+  else
+    pre_format_hashes+=("")
+  fi
+done < <(git diff --cached --name-only --diff-filter=ACMR -z)
+
+if [[ ${#staged_files[@]} -eq 0 ]]; then
+  exit 0
+fi
+
+need_meshlink=0
+need_reference=0
+need_benchmarks=0
+need_proof_android=0
+need_docs=0
+need_hook_validation=0
+
+for file in "${staged_files[@]}"; do
+  case "$file" in
+    meshlink/*)
+      need_meshlink=1
+      ;;
+    meshlink-reference/*)
+      need_reference=1
+      ;;
+    benchmarks/*)
+      need_benchmarks=1
+      ;;
+    meshlink-proof/android/*)
+      need_proof_android=1
+      ;;
+    .githooks/*|scripts/install-git-hooks.sh)
+      need_hook_validation=1
+      ;;
+    build.gradle.kts|settings.gradle.kts|gradle.properties|gradle/*)
+      need_meshlink=1
+      need_reference=1
+      need_benchmarks=1
+      need_proof_android=1
+      need_docs=1
+      ;;
+  esac
+
+  case "$file" in
+    *.md|docs/*|README.md|CONTRIBUTING.md|AGENTS.md|constitution.md|specs/*|scripts/check_generated_public_api_reference.py|scripts/check_markdown_links.py|scripts/generate_public_api_reference.py)
+      need_docs=1
+      ;;
+  esac
+done
+
+if [[ "$need_hook_validation" -eq 1 ]]; then
+  echo "[pre-commit] Validating hook shell scripts"
+  bash -n .githooks/pre-commit scripts/install-git-hooks.sh
+fi
+
+format_tasks=()
+if [[ "$need_meshlink" -eq 1 ]]; then
+  format_tasks+=(":meshlink:ktfmtFormat")
+fi
+if [[ "$need_reference" -eq 1 ]]; then
+  format_tasks+=(":meshlink-reference:ktfmtFormat")
+fi
+if [[ "$need_benchmarks" -eq 1 ]]; then
+  format_tasks+=(":benchmarks:ktfmtFormat")
+fi
+
+if [[ ${#format_tasks[@]} -gt 0 ]]; then
+  echo "[pre-commit] Running formatter: ${format_tasks[*]}"
+  ./gradlew --console=plain "${format_tasks[@]}"
+
+  formatted_files=()
+  for index in "${!staged_files[@]}"; do
+    file="${staged_files[$index]}"
+    pre_hash="${pre_format_hashes[$index]}"
+    if [[ -f "$file" ]]; then
+      post_hash="$(shasum -a 256 -- "$file" | awk '{print $1}')"
+    else
+      post_hash=""
+    fi
+    if [[ "$pre_hash" != "$post_hash" ]]; then
+      formatted_files+=("$file")
+    fi
+  done
+
+  if [[ ${#formatted_files[@]} -gt 0 ]]; then
+    echo "[pre-commit] Formatter changed staged files:"
+    for file in "${formatted_files[@]}"; do
+      echo "  - $file"
+    done
+    echo "[pre-commit] Review the formatting changes, stage them, and run git commit again."
+    exit 1
+  fi
+fi
+
+check_tasks=()
+if [[ "$need_meshlink" -eq 1 ]]; then
+  check_tasks+=(":meshlink:build")
+fi
+if [[ "$need_reference" -eq 1 ]]; then
+  check_tasks+=(":meshlink-reference:check")
+fi
+if [[ "$need_benchmarks" -eq 1 ]]; then
+  check_tasks+=(":benchmarks:check")
+fi
+if [[ "$need_proof_android" -eq 1 ]]; then
+  check_tasks+=(":meshlink-proof:android:meshlink-proof-android-app:check")
+fi
+if [[ "$need_docs" -eq 1 ]]; then
+  check_tasks+=("verifyDocs")
+fi
+
+if [[ ${#check_tasks[@]} -gt 0 ]]; then
+  echo "[pre-commit] Running verification: ${check_tasks[*]}"
+  ./gradlew --console=plain "${check_tasks[@]}"
+fi
