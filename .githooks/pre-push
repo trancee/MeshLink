@@ -195,6 +195,11 @@ if [[ -n "$remote_name" || -n "$remote_url" ]]; then
   echo "[pre-push] Validating push target: ${remote_name:-<unknown>} ${remote_url:-<unknown>}"
 fi
 
+gradle_cmd=(./gradlew --console=plain)
+if [[ "$need_reference" -eq 1 ]]; then
+  gradle_cmd+=(-Pandroid.experimental.lint.version=8.13.2)
+fi
+
 if [[ "$need_yaml" -eq 1 ]]; then
   if ! command -v yamllint >/dev/null 2>&1; then
     echo "[pre-push] yamllint is required for YAML changes." >&2
@@ -210,7 +215,7 @@ if [[ "$need_meshlink" -eq 1 ]]; then
   check_tasks+=(":meshlink:build")
 fi
 if [[ "$need_reference" -eq 1 ]]; then
-  check_tasks+=(":meshlink-reference:build")
+  check_tasks+=(":meshlink-reference:localCheck")
 fi
 if [[ "$need_benchmarks" -eq 1 ]]; then
   check_tasks+=(":benchmarks:build")
@@ -227,5 +232,5 @@ fi
 
 if [[ ${#check_tasks[@]} -gt 0 ]]; then
   echo "[pre-push] Running verification: ${check_tasks[*]}"
-  ./gradlew --console=plain "${check_tasks[@]}"
+  "${gradle_cmd[@]}" "${check_tasks[@]}"
 fi

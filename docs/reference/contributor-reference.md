@@ -27,6 +27,8 @@ Use this page when you need exact commands, matrices, or policy details.
 | Run the pre-push hook manually | `.githooks/pre-push <remote> <url>` | Feed it the standard Git pre-push ref lines on stdin when you want to simulate a push locally. |
 | Build the library | `./gradlew :meshlink:build` | Standard first build for the library module. |
 | Compile without the full build | `./gradlew :meshlink:assemble` | Useful during early edit loops. |
+| Run fast reference-app verification | `./scripts/run-reference-local-check.sh` | Runs `:meshlink-reference:localCheck` with the Android lint-version override required by the current AGP/Kotlin combination. |
+| Build the reference app | `./gradlew :meshlink-reference:build` | Use when you need release APK or iOS framework artifacts; slower because it links release frameworks for all iOS targets. |
 | Format Kotlin | `./gradlew :meshlink:ktfmtFormat` | Repository formatting is ktfmt-based. |
 | Run the full library test bundle | `./gradlew :meshlink:allTests` | Aggregates tests across the library targets. |
 | Run JVM tests | `./gradlew :meshlink:jvmTest` | Fast shared-library feedback loop. |
@@ -50,6 +52,8 @@ Use this page when you need exact commands, matrices, or policy details.
 | Shared-library logic change | `./gradlew :meshlink:allTests :meshlink:detekt :meshlink:koverVerify` |
 | Android-specific library glue | `./gradlew :meshlink:testDebugUnitTest :meshlink:detekt :meshlink:koverVerify` plus `:meshlink:allTests` when parity or shared behavior is affected |
 | iOS-specific library glue | `./gradlew :meshlink:iosSimulatorArm64Test` or `:meshlink:iosX64Test`, plus `:meshlink:detekt :meshlink:koverVerify`; use `:meshlink:allTests` when parity or shared behavior is affected |
+| Reference-app shared UI, Android glue, or shared state change | `./scripts/run-reference-local-check.sh` |
+| Reference-app release artifact or framework export change | `./gradlew :meshlink-reference:build` |
 | Public API change | `./gradlew :meshlink:allTests :meshlink:detekt :meshlink:apiCheck :meshlink:koverVerify verifyDocs`, plus API dump and appendix refresh |
 | Performance-sensitive path | the relevant automated verification above plus `./gradlew :benchmarks:jvmSmokeBenchmark`; use `:benchmarks:jvmBenchmark` when retained evidence is required |
 | Android/iOS physical transport or proof behavior | the relevant automated verification above plus the appropriate proof-app or reference-app validation flow |
@@ -107,7 +111,7 @@ A public API change currently requires all of the following:
 |---|---|
 | `.githooks/pre-commit` | Runs ktfmt formatting for the touched Gradle modules, aborts if formatting changed a staged file, runs `yamllint` for staged YAML files, then runs the relevant Gradle verification tasks for the staged paths. |
 | `.githooks/commit-msg` | Rejects commit messages that do not follow the repository Conventional Commit policy. |
-| `.githooks/pre-push` | Inspects the paths and commit subjects in the outgoing push, blocks direct pushes to `main`, validates shell hooks, runs `yamllint` for pushed YAML files, runs benchmark smoke checks for benchmark-sensitive MeshLink paths, and runs the heavier Gradle verification bundle for the affected modules before the push is allowed. |
+| `.githooks/pre-push` | Inspects the paths and commit subjects in the outgoing push, blocks direct pushes to `main`, validates shell hooks, runs `yamllint` for pushed YAML files, runs benchmark smoke checks for benchmark-sensitive MeshLink paths, and runs the heavier Gradle verification bundle for the affected modules before the push is allowed. Reference-app paths use the fast local-check bundle instead of the slower full release build. |
 
 ## PR and evidence requirements
 

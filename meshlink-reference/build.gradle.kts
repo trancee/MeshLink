@@ -105,6 +105,21 @@ compose.resources {
     packageOfResClass = "ch.trancee.meshlink.reference.resources"
 }
 
+val localCheck by tasks.registering {
+    group = "verification"
+    description =
+        "Runs the fast local verification bundle for the reference app without release packaging."
+    dependsOn(
+        "lintDebug",
+        "allTests",
+        "detekt",
+        "koverVerify",
+        "linkDebugFrameworkIosArm64",
+        "linkDebugFrameworkIosSimulatorArm64",
+        "linkDebugFrameworkIosX64",
+    )
+}
+
 @OptIn(ExperimentalKotlinGradlePluginApi::class)
 powerAssert {
     functions =

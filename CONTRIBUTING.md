@@ -96,6 +96,19 @@ run the full library test bundle:
 ./gradlew :meshlink:allTests
 ```
 
+For `meshlink-reference` changes, prefer the faster reference-app bundle:
+
+```bash
+./scripts/run-reference-local-check.sh
+```
+
+The wrapper runs `:meshlink-reference:localCheck` with the Android lint-version
+override needed by the current AGP/Kotlin combination.
+
+Use `:meshlink-reference:build` only when you need release APK or iOS
+framework artifacts, because it also links release frameworks for all iOS
+targets.
+
 For the exact test-surface matrix, use the
 [Contributor build, test, and verification reference](docs/reference/contributor-reference.md).
 
@@ -110,6 +123,12 @@ Before you ask for review on a library change, run:
   :meshlink:apiCheck \
   :meshlink:koverVerify \
   verifyDocs
+```
+
+For a `meshlink-reference` review bundle, run:
+
+```bash
+./scripts/run-reference-local-check.sh
 ```
 
 If your change touches performance-sensitive code or physical transport

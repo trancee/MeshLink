@@ -95,9 +95,14 @@ if [[ "$need_benchmarks" -eq 1 ]]; then
   format_tasks+=(":benchmarks:ktfmtFormat")
 fi
 
+gradle_cmd=(./gradlew --console=plain)
+if [[ "$need_reference" -eq 1 ]]; then
+  gradle_cmd+=(-Pandroid.experimental.lint.version=8.13.2)
+fi
+
 if [[ ${#format_tasks[@]} -gt 0 ]]; then
   echo "[pre-commit] Running formatter: ${format_tasks[*]}"
-  ./gradlew --console=plain "${format_tasks[@]}"
+  "${gradle_cmd[@]}" "${format_tasks[@]}"
 
   formatted_files=()
   for index in "${!staged_files[@]}"; do
@@ -142,5 +147,5 @@ fi
 
 if [[ ${#check_tasks[@]} -gt 0 ]]; then
   echo "[pre-commit] Running verification: ${check_tasks[*]}"
-  ./gradlew --console=plain "${check_tasks[@]}"
+  "${gradle_cmd[@]}" "${check_tasks[@]}"
 fi
