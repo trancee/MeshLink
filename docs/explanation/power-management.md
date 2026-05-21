@@ -1,119 +1,179 @@
-# Power Management Design
+# Power management
 
-## The problem
+MeshLink runs on battery-powered phones, so its transport posture cannot stay at
+maximum radio activity all the time. But it also cannot become so conservative
+that discovery, trust establishment, and delivery feel unreliable.
 
-BLE radios consume significant battery. A mesh networking library that keeps the radio active at maximum duty will drain a phone in hours. But reducing radio activity too aggressively makes the mesh unresponsive — peers aren't discovered, messages are delayed.
+The current power model tries to solve that tension with three ideas:
 
-MeshLink must balance responsiveness against battery life, adapting automatically to the device's power state.
+- a small number of transport tiers that are easy to reason about
+- automatic tier selection based on battery level, charging state, and startup
+  posture
+- regional clamps that keep the transport within compliance-oriented bounds
 
-## The three-tier model
+## The three transport tiers
 
-| Tier | Scan Duty | Max Connections | Chunk Size | Ad Interval |
-|------|-----------|-----------------|------------|-------------|
-| PERFORMANCE | Continuous | 7 | Large (4KB L2CAP) | 250ms |
-| BALANCED | Medium | 5 | Medium | 500ms |
-| POWER_SAVER | Burst-scan | 3 | Small | 1000ms |
+MeshLink reduces transport behavior to three tiers.
 
-## Automatic tier selection
+| Tier | Advertisement interval | Connection interval | Scan duty cycle | Max connections | Chunk budget |
+|---|---:|---:|---:|---:|---:|
+| `PERFORMANCE` | 250 ms | 100 ms | 100% | 7 | 4096 bytes |
+| `BALANCED` | 500 ms | 250 ms | 50% | 5 | 2048 bytes |
+| `POWER_SAVER` | 1000 ms | 500 ms | 5% | 3 | 512 bytes |
 
-`PowerManager` observes battery state reported by the app:
+This is intentionally simple. A host application does not need to understand a
+large matrix of transport knobs. It only needs to understand which tier MeshLink
+selected and why.
+
+## Why automatic mode exists
+
+Most applications do not want to pick a transport posture manually. They want
+MeshLink to stay responsive when the device is charging or just starting up, and
+then back off when the battery is low.
+
+That is what `PowerMode.Automatic` does.
+
+The host app feeds battery state into MeshLink:
 
 ```kotlin
 meshLink.updateBattery(level = 0.45f, isCharging = false)
 ```
 
-The decision table:
+MeshLink then recalculates the effective tier immediately.
 
-| Condition | Tier |
-|-----------|------|
-| Charging (any level) | PERFORMANCE |
-| Battery > `performanceThreshold` (default 80%) | PERFORMANCE |
-| Battery < `powerSaverThreshold` (default 30%) | POWER_SAVER |
-| Otherwise | BALANCED |
+## The selection model
 
-## Hysteresis
+Automatic selection has four inputs:
 
-Without hysteresis, a device oscillating around 30% battery would rapidly flip between BALANCED and POWER_SAVER. Each transition changes radio behavior, causes connection renegotiation, and confuses peers.
+- the current battery level
+- whether the device is charging
+- whether the runtime is still inside the startup bootstrap window
+- the previously selected tier, so hysteresis can prevent flapping
 
-The fix: offset the threshold by ±2% depending on direction:
+### Startup bootstrap
 
-```
-BALANCED → POWER_SAVER:  battery drops below 28% (30% - 2%)
-POWER_SAVER → BALANCED:  battery rises above 32% (30% + 2%)
-```
+Immediately after `start()`, MeshLink enters a bootstrap period. During that
+window it stays in `PERFORMANCE`, even on a low battery.
 
-This creates a "dead zone" where the tier doesn't change, preventing flapping.
+The point is not to maximize throughput forever. The point is to give a fresh
+runtime the best chance to:
 
-## Transition delay
+- discover peers quickly
+- establish trust quickly
+- build initial connectivity before settling into a lower tier
 
-Even with hysteresis, we add a 30-second delay before downgrade transitions:
+By default, the bootstrap window lasts 30 seconds.
 
-- **Downgrade (PERFORMANCE → BALANCED, BALANCED → POWER_SAVER):** 30s delay. The battery must remain below threshold for 30 continuous seconds.
-- **Upgrade (any → PERFORMANCE when charging):** Immediate. Plugging in should instantly improve responsiveness.
+### Charging wins immediately
 
-## Bootstrap period
+When the device is charging, MeshLink stays in `PERFORMANCE`.
 
-On cold start (first `meshLink.start()`), the engine enters PERFORMANCE tier regardless of battery level for `bootstrapDurationMillis` (default 30s). This ensures:
+This is a deliberate bias toward responsiveness. When power pressure is gone,
+MeshLink stops trying to conserve radio activity aggressively.
 
-- Initial peer discovery happens at full scan rate
-- First handshakes complete quickly
-- The mesh establishes connectivity before settling into the appropriate tier
+### Battery thresholds
 
-After bootstrap expires, normal tier selection takes over.
+Outside bootstrap and charging, the default thresholds are:
 
-## What each tier controls
+- above 80% battery: prefer `PERFORMANCE`
+- below 30% battery: prefer `POWER_SAVER`
+- between them: prefer `BALANCED`
 
-### Scan behavior
-- PERFORMANCE: Continuous scan (100% duty)
-- BALANCED: Periodic scan windows (scan for 5s, pause for 5s)
-- POWER_SAVER: Burst scan (scan for 2s, pause for 30s)
+That would be enough if the battery level moved in large stable steps. In real
+usage it does not.
 
-### Connection limits (TieredShedder)
-When the tier downgrades and the current connection count exceeds the new limit:
-1. Peers are ranked by priority (last-message-time, route importance)
-2. Lowest-priority peers receive a graceful disconnect after `evictionGracePeriodMillis`
-3. If they reconnect before grace period, and we're still at limit, they're rejected
+## Why hysteresis matters
 
-### Advertisement interval
-Longer intervals = less radio time transmitting. POWER_SAVER advertises 4× less frequently than PERFORMANCE.
+A battery level that hovers near 30% or 80% would cause constant tier changes if
+MeshLink switched exactly at those boundaries.
 
-### Chunk size
-Smaller chunks per radio burst = less time with radio on per transmission = better battery. The tradeoff is more round-trips for large transfers.
+That would be noisy for operators and expensive for the transport, because each
+change alters the runtime's radio posture.
 
-## Custom power mode
+To avoid this, MeshLink uses a small hysteresis band around the thresholds.
+With the default 2% band:
 
-Apps can override automatic selection:
+- a runtime already in `PERFORMANCE` does not step down until battery drops
+  below 78%
+- a runtime already in `POWER_SAVER` does not step up until battery rises above
+  32%
+- a runtime already in `BALANCED` only leaves that band when the battery moves
+  clearly past a recovery or downgrade threshold
 
-```kotlin
-meshLink.setCustomPowerMode(PowerTier.PERFORMANCE)  // force high performance
-meshLink.setCustomPowerMode(null)                    // return to automatic
-```
+This means the system behaves like a state machine, not like a single raw lookup
+against current battery level.
 
-Use case: a navigation app that needs maximum mesh responsiveness during active use, regardless of battery.
+## Why the current tier changes more gently than the initial tier
+
+The first automatic selection has no history, so MeshLink chooses the tier that
+matches the raw battery level.
+
+After that, the previously selected tier matters. This gives the runtime some
+memory and prevents small battery oscillations from forcing immediate transport
+oscillations.
+
+That difference is important for integrators:
+
+- the initial tier answers "where should we start?"
+- later tiers answer "is there enough evidence to change?"
+
+## Regional clamps
+
+The selected tier is not always the final transport posture.
+
+For the EU region, MeshLink currently clamps two values when the chosen tier
+would be too aggressive:
+
+- advertisement interval cannot go below 300 ms
+- scan duty cycle cannot exceed 70%
+
+This is why the effective policy should be treated as the source of truth, not
+just the requested tier.
+
+A `PERFORMANCE` request in the EU region is still a performance-oriented policy,
+but it is not identical to the unrestricted default-region version.
+
+## What the host app needs to do
+
+The host app does not manage the full policy. It only needs to provide timely,
+normalized battery snapshots when it wants automatic mode to react.
+
+That makes the ownership boundary clear:
+
+- the app knows battery state
+- MeshLink knows how battery state changes transport posture
+
+If the host app never calls `updateBattery()`, automatic mode can only react to
+startup posture and its last known battery input.
 
 ## Observability
 
-Tier transitions emit `DiagnosticCode.TRANSPORT_MODE_CHANGED`:
+MeshLink emits `POWER_MODE_CHANGED` diagnostics when battery updates change the
+effective policy.
 
-```kotlin
-meshLink.diagnosticEvents
-    .filter { it.code == DiagnosticCode.TRANSPORT_MODE_CHANGED }
-    .collect { /* TransportModeChanged(mode = "POWER_SAVER") */ }
-```
+Those diagnostics include machine-readable metadata such as:
 
-`MeshHealthSnapshot` includes the current power tier for dashboard display.
+- `level`
+- `isCharging`
+- `tier`
+- `advertisementIntervalMillis`
+- `connectionIntervalMillis`
+- `scanDutyCyclePercent`
+- `maxConnections`
+- `chunkBudgetBytes`
+- `region`
 
-## Why not let the OS handle it?
+This is the right surface for operator tooling and troubleshooting. A host app
+should not try to infer policy changes indirectly from peer behavior alone.
 
-Android and iOS have their own battery optimization (Doze, App Standby, Background App Refresh). MeshLink's power management is complementary:
+## What this design optimizes for
 
-- **OS-level:** Suspends the entire app, kills background services, restricts network
-- **MeshLink-level:** Reduces radio activity while the app is still running
+The current design does not try to be infinitely configurable. It optimizes for:
 
-MeshLink's tiers operate within whatever runtime the OS grants. If the OS suspends BLE entirely (deep Doze), MeshLink can't override that — it simply resumes at the appropriate tier when the OS wakes it.
+- predictable transport behavior
+- enough adaptivity for real battery pressure
+- clear operator visibility
+- shared Android and iOS semantics
 
-## The polling architecture
-
-`PowerManager` polls battery state on a configurable interval (`batteryPollIntervalMillis`). The app reports battery via `updateBattery()`, and the next poll reads the latest value.
-
-**Testing gotcha:** This poll loop launches immediately on `MeshEngine.create()` (not `start()`). Any test that creates a MeshEngine must cancel it before `advanceUntilIdle()`, or the virtual time loop runs forever. See KNOWLEDGE.md K003 for the full explanation.
+That trade-off matters for library users. The value is not just lower battery
+usage; it is having a power model that can be explained, tested, and trusted.

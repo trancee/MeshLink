@@ -102,6 +102,29 @@ class PowerPolicyTest {
     }
 
     @Test
+    fun `automatic mode immediately returns to performance while charging`() {
+        // Arrange
+        val controller =
+            PowerPolicyController(
+                configuredMode = PowerMode.Automatic,
+                region = RegulatoryRegion.DEFAULT,
+                bootstrapDurationMillis = 0L,
+            )
+        controller.onBatterySnapshot(level = 0.25f, isCharging = false, nowMillis = 0L)
+        controller.onMeshStarted(nowMillis = 0L)
+        controller.currentPolicy(nowMillis = 0L)
+
+        // Act
+        val policy =
+            controller.onBatterySnapshot(level = 0.25f, isCharging = true, nowMillis = 1_000L)
+
+        // Assert
+        assertEquals(PowerTier.PERFORMANCE, policy.tier)
+        assertEquals(250L, policy.advertisementIntervalMillis)
+        assertEquals(100L, policy.connectionIntervalMillis)
+    }
+
+    @Test
     fun `eu region clamps the performance tier to compliant advertise and scan limits`() {
         // Arrange
         val controller =

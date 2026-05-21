@@ -70,54 +70,69 @@ internal constructor(
     }
 
     private fun resolveAutomaticTier(nowMillis: Long): PowerTier {
-        if (isBootstrapActive(nowMillis)) {
+        if (isBootstrapActive(nowMillis) || charging) {
             return PowerTier.PERFORMANCE
         }
-        if (charging) {
+        return when (lastTier) {
+            PowerTier.PERFORMANCE -> resolveTierFromPerformance()
+            PowerTier.BALANCED -> resolveTierFromBalanced()
+            PowerTier.POWER_SAVER -> resolveTierFromPowerSaver()
+            null -> resolveTierWithoutHistory()
+        }
+    }
+
+    private fun resolveTierFromPerformance(): PowerTier {
+        if (!isBelowPerformanceDowngradeThreshold()) {
             return PowerTier.PERFORMANCE
         }
-        val previousTier = lastTier
-        return when (previousTier) {
-            PowerTier.PERFORMANCE -> {
-                if (batteryLevel < performanceThreshold - hysteresisBand) {
-                    if (batteryLevel < powerSaverThreshold - hysteresisBand) {
-                        PowerTier.POWER_SAVER
-                    } else {
-                        PowerTier.BALANCED
-                    }
-                } else {
-                    PowerTier.PERFORMANCE
-                }
-            }
-
-            PowerTier.BALANCED -> {
-                when {
-                    batteryLevel > performanceThreshold + hysteresisBand -> PowerTier.PERFORMANCE
-                    batteryLevel < powerSaverThreshold - hysteresisBand -> PowerTier.POWER_SAVER
-                    else -> PowerTier.BALANCED
-                }
-            }
-
-            PowerTier.POWER_SAVER -> {
-                if (batteryLevel > powerSaverThreshold + hysteresisBand) {
-                    if (batteryLevel > performanceThreshold + hysteresisBand) {
-                        PowerTier.PERFORMANCE
-                    } else {
-                        PowerTier.BALANCED
-                    }
-                } else {
-                    PowerTier.POWER_SAVER
-                }
-            }
-
-            null -> {
-                when {
-                    batteryLevel > performanceThreshold -> PowerTier.PERFORMANCE
-                    batteryLevel < powerSaverThreshold -> PowerTier.POWER_SAVER
-                    else -> PowerTier.BALANCED
-                }
-            }
+        return if (isBelowPowerSaverDowngradeThreshold()) {
+            PowerTier.POWER_SAVER
+        } else {
+            PowerTier.BALANCED
         }
+    }
+
+    private fun resolveTierFromBalanced(): PowerTier {
+        return when {
+            isAbovePerformanceRecoveryThreshold() -> PowerTier.PERFORMANCE
+            isBelowPowerSaverDowngradeThreshold() -> PowerTier.POWER_SAVER
+            else -> PowerTier.BALANCED
+        }
+    }
+
+    private fun resolveTierFromPowerSaver(): PowerTier {
+        if (!isAbovePowerSaverRecoveryThreshold()) {
+            return PowerTier.POWER_SAVER
+        }
+        return if (isAbovePerformanceRecoveryThreshold()) {
+            PowerTier.PERFORMANCE
+        } else {
+            PowerTier.BALANCED
+        }
+    }
+
+    private fun resolveTierWithoutHistory(): PowerTier {
+        return when {
+            batteryLevel > performanceThreshold -> PowerTier.PERFORMANCE
+            batteryLevel < powerSaverThreshold -> PowerTier.POWER_SAVER
+            else -> PowerTier.BALANCED
+        }
+    }
+
+    private fun isBelowPerformanceDowngradeThreshold(): Boolean {
+        return batteryLevel < performanceThreshold - hysteresisBand
+    }
+
+    private fun isBelowPowerSaverDowngradeThreshold(): Boolean {
+        return batteryLevel < powerSaverThreshold - hysteresisBand
+    }
+
+    private fun isAbovePerformanceRecoveryThreshold(): Boolean {
+        return batteryLevel > performanceThreshold + hysteresisBand
+    }
+
+    private fun isAbovePowerSaverRecoveryThreshold(): Boolean {
+        return batteryLevel > powerSaverThreshold + hysteresisBand
     }
 
     private fun isBootstrapActive(nowMillis: Long): Boolean {
