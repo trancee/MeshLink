@@ -15,7 +15,6 @@ import ch.trancee.meshlink.api.SendResult
 import ch.trancee.meshlink.api.StartResult
 import ch.trancee.meshlink.api.StopResult
 import ch.trancee.meshlink.config.MeshLinkConfig
-import ch.trancee.meshlink.crypto.NoiseXXHandshakeManager
 import ch.trancee.meshlink.diagnostics.DiagnosticCode
 import ch.trancee.meshlink.diagnostics.DiagnosticEvent
 import ch.trancee.meshlink.diagnostics.DiagnosticReason
@@ -42,13 +41,11 @@ import ch.trancee.meshlink.wire.WireFrame
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TimeSource
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -56,7 +53,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeout
 
 internal class MeshEngine
 private constructor(
@@ -82,16 +78,6 @@ private constructor(
             emitDiagnostic = ::emitDiagnostic,
             sendEncryptedWireFrame = ::sendEncryptedWireFrame,
         )
-    private val hopTransportSupport =
-        MeshEngineHopTransportSupport(
-            localIdentity = localIdentity,
-            routingSupport = routingSupport,
-            establishedHopSession = ::establishedHopSession,
-            sendDirectWireFrame = { peerId, frame, action, preferredMode ->
-                sendDirectWireFrame(peerId, frame, action, preferredMode)
-            },
-            emitDiagnostic = ::emitDiagnostic,
-        )
     private val trustSupport =
         MeshEngineTrustSupport(
             localIdentity = localIdentity,
@@ -110,6 +96,43 @@ private constructor(
     private val inboundTransfers: MutableMap<String, InboundTransferSession> = linkedMapOf()
     private val relayTransfers: MutableMap<String, RelayTransferSession> = linkedMapOf()
     private var nextMessageSequenceNumber: Long = 1L
+    private val sessionSupport =
+        MeshEngineSessionSupport(
+            localIdentity = localIdentity,
+            state =
+                MeshEngineSessionState(
+                    hopSessions = hopSessions,
+                    pendingInitiatorHandshakes = pendingInitiatorHandshakes,
+                ),
+            handshakeTimeout = HANDSHAKE_TIMEOUT,
+            callbacks =
+                MeshEngineSessionCallbacks(
+                    hasTransport = { bleTransport != null },
+                    sendDirectWireFrame = { peerId, frame, action, preferredMode ->
+                        sendDirectWireFrame(peerId, frame, action, preferredMode)
+                    },
+                    emitHopSessionFailed = { peerId, stage, reason, metadata ->
+                        emitDiagnostic(
+                            code = DiagnosticCode.HOP_SESSION_FAILED,
+                            severity = DiagnosticSeverity.WARN,
+                            stage = stage,
+                            peerSuffix = peerId.value.takeLast(6),
+                            reason = reason,
+                            metadata = routingSupport.peerRouteMetadata(peerId, metadata = metadata),
+                        )
+                    },
+                ),
+        )
+    private val hopTransportSupport =
+        MeshEngineHopTransportSupport(
+            localIdentity = localIdentity,
+            routingSupport = routingSupport,
+            establishedHopSession = sessionSupport::establishedHopSession,
+            sendDirectWireFrame = { peerId, frame, action, preferredMode ->
+                sendDirectWireFrame(peerId, frame, action, preferredMode)
+            },
+            emitDiagnostic = ::emitDiagnostic,
+        )
     private val handshakeState =
         MeshEngineHandshakeState(
             hopSessions = hopSessions,
@@ -203,7 +226,7 @@ private constructor(
             dependencies =
                 MeshEngineInlineDependencies(
                     deliveryRetryScheduler = deliveryRetryScheduler,
-                    ensureHopSession = ::ensureHopSession,
+                    ensureHopSession = sessionSupport::ensureHopSession,
                     sendEncryptedDirectWireFrame =
                         hopTransportSupport::sendEncryptedDirectWireFrame,
                     resolveRecipientTrust = outboundPreparationSupport::resolveRecipientTrust,
@@ -519,7 +542,7 @@ private constructor(
         if (localIdentity.peerId.value >= peerId.value) {
             return
         }
-        coroutineScope.launch { ensureHopSession(peerId) }
+        coroutineScope.launch { sessionSupport.ensureHopSession(peerId) }
     }
 
     private fun forwardMessageToNextHop(frame: WireFrame.Message): Unit {
@@ -556,67 +579,6 @@ private constructor(
             frame = frame,
             action = action,
         )
-    }
-
-    private suspend fun establishedHopSession(peerId: PeerId): HopSession? {
-        return (ensureHopSession(peerId) as? SessionEstablishmentOutcome.Established)?.session
-    }
-
-    private suspend fun ensureHopSession(peerId: PeerId): SessionEstablishmentOutcome {
-        val existingSession = hopSessions[peerId.value]
-        val pendingHandshake = pendingInitiatorHandshakes[peerId.value]
-
-        return when {
-            existingSession != null -> SessionEstablishmentOutcome.Established(existingSession)
-            pendingHandshake != null ->
-                awaitSessionEstablishment(peerId, pendingHandshake.sessionDeferred)
-            bleTransport == null -> SessionEstablishmentOutcome.Unreachable
-            else -> initiateHopSession(peerId)
-        }
-    }
-
-    private suspend fun initiateHopSession(peerId: PeerId): SessionEstablishmentOutcome {
-        val manager = NoiseXXHandshakeManager(localIdentity.cryptoProvider)
-        val message1 = manager.createMessage1(localIdentity.noiseIdentity)
-        val sessionDeferred = CompletableDeferred<SessionEstablishmentOutcome>()
-        pendingInitiatorHandshakes[peerId.value] =
-            PendingInitiatorHandshake(manager, sessionDeferred)
-
-        return when (
-            sendDirectWireFrame(
-                peerId = peerId,
-                frame = DirectWireFrame.HandshakeMessage1(message1),
-                action = "handshake.message1",
-            )
-        ) {
-            TransportSendResult.Delivered -> awaitSessionEstablishment(peerId, sessionDeferred)
-            is TransportSendResult.Dropped -> {
-                pendingInitiatorHandshakes.remove(peerId.value)
-                hopTransportSupport.emitHopSessionFailed(
-                    peerId = peerId,
-                    stage = "transport.handshake.message1.send",
-                    reason = DiagnosticReason.DELIVERY_FAILURE,
-                )
-                SessionEstablishmentOutcome.Unreachable
-            }
-        }
-    }
-
-    private suspend fun awaitSessionEstablishment(
-        peerId: PeerId,
-        sessionDeferred: CompletableDeferred<SessionEstablishmentOutcome>,
-    ): SessionEstablishmentOutcome {
-        return try {
-            withTimeout(HANDSHAKE_TIMEOUT.inWholeMilliseconds) { sessionDeferred.await() }
-        } catch (_: TimeoutCancellationException) {
-            pendingInitiatorHandshakes.remove(peerId.value)
-            hopTransportSupport.emitHopSessionFailed(
-                peerId = peerId,
-                stage = "transport.handshake.timeout",
-                reason = DiagnosticReason.DELIVERY_FAILURE,
-            )
-            SessionEstablishmentOutcome.Unreachable
-        }
     }
 
     private suspend fun sendDirectWireFrame(
