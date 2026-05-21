@@ -15,6 +15,7 @@ internal class RouteCoordinator internal constructor(private val localPeerId: Pe
     private val feasibilityDistances: MutableMap<String, FeasibilityDistance> = linkedMapOf()
     private val peerDigests: MutableMap<String, ByteArray> = linkedMapOf()
     private val mutableTopologyVersion: MutableStateFlow<Long> = MutableStateFlow(0L)
+    private var cachedRouteDigest: ByteArray? = null
 
     internal val topologyVersion: StateFlow<Long> = mutableTopologyVersion.asStateFlow()
 
@@ -37,6 +38,7 @@ internal class RouteCoordinator internal constructor(private val localPeerId: Pe
         val previousRoute = selectedRoutes[peerId.value]
         selectedRoutes[peerId.value] = directRoute
         updateFeasibilityDistance(directRoute)
+        invalidateRouteDigest()
 
         val directRouteFrame = directRoute.asRouteUpdateFrame()
         val digestFrame = routeDigestFrame()
@@ -91,6 +93,7 @@ internal class RouteCoordinator internal constructor(private val localPeerId: Pe
 
         val advertisements = mutableListOf<RoutingAdvertisement>()
         if (removedRoutes.isNotEmpty()) {
+            invalidateRouteDigest()
             advanceTopologyVersion()
             val digestFrame = routeDigestFrame()
             removedRoutes.forEach { route ->
@@ -143,6 +146,7 @@ internal class RouteCoordinator internal constructor(private val localPeerId: Pe
 
         selectedRoutes[update.destinationPeerId.value] = candidate
         updateFeasibilityDistance(candidate)
+        invalidateRouteDigest()
         advanceTopologyVersion()
         val routeChange =
             if (current == null) {
@@ -180,6 +184,7 @@ internal class RouteCoordinator internal constructor(private val localPeerId: Pe
 
         selectedRoutes.remove(retraction.destinationPeerId.value)
         feasibilityDistances.remove(retraction.destinationPeerId.value)
+        invalidateRouteDigest()
         advanceTopologyVersion()
         val retractionFrame = current.asRouteRetractionFrame()
         val digestFrame = routeDigestFrame()
@@ -253,6 +258,10 @@ internal class RouteCoordinator internal constructor(private val localPeerId: Pe
     }
 
     private fun routeDigest(): ByteArray {
+        cachedRouteDigest?.let {
+            return it
+        }
+
         val buffer = WriteBuffer()
         selectedRoutes.values
             .sortedWith(
@@ -271,7 +280,11 @@ internal class RouteCoordinator internal constructor(private val localPeerId: Pe
                 buffer.writeIntLittleEndian(route.x25519PublicKey.size)
                 buffer.writeBytes(route.x25519PublicKey)
             }
-        return fnv1a32(buffer.toByteArray())
+        return fnv1a32(buffer.toByteArray()).also { digest -> cachedRouteDigest = digest }
+    }
+
+    private fun invalidateRouteDigest(): Unit {
+        cachedRouteDigest = null
     }
 
     private fun fnv1a32(bytes: ByteArray): ByteArray {
