@@ -2,7 +2,7 @@
 
 This page is about the shape of a good MeshLink integration.
 
-It does not tell you the step-by-step mechanics of setup. For that, use [How to integrate MeshLink into a host app](../how-to/integrate-meshlink-into-a-host-app.md). For the exact public surface, use the [MeshLink SDK API reference](../reference/meshlink-sdk-api.md).
+It does not tell you the step-by-step mechanics of setup. For that, use [How to integrate MeshLink into a host app](../how-to/integrate-meshlink-into-a-host-app.md). If you want a short production-shaped checklist, use [How to structure a robust MeshLink integration](../how-to/structure-a-robust-meshlink-integration.md). For the exact public surface, use the [MeshLink SDK API reference](../reference/meshlink-sdk-api.md).
 
 ## MeshLink is an app service, not a utility call
 

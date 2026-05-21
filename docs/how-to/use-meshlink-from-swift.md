@@ -285,4 +285,5 @@ That keeps the generated Swift names from leaking through your entire app.
 - [MeshLink SDK API reference](../reference/meshlink-sdk-api.md)
 - [Generated public API symbol tables](../reference/generated-public-api.md)
 - [How to integrate MeshLink into a host app](integrate-meshlink-into-a-host-app.md)
+- [How to structure a robust MeshLink integration](structure-a-robust-meshlink-integration.md)
 - [About integrating MeshLink well](../explanation/about-integrating-meshlink.md)

@@ -6,6 +6,8 @@ This is a task guide. It assumes you already know why you want MeshLink.
 
 If you still need to wire the library into your Android or iOS build, start with [How to add MeshLink to your app](add-meshlink-to-your-app.md).
 
+If you also want the architecture and operational guardrails for a production-shaped app integration, use [How to structure a robust MeshLink integration](structure-a-robust-meshlink-integration.md).
+
 For a first hands-on lesson, start with [Your first MeshLink exchange](../tutorials/your-first-meshlink-exchange.md).
 
 ## 1. Choose one `appId` per mesh domain
@@ -234,6 +236,7 @@ If you need application-level delivery confirmation, implement your own applicat
 ## Related docs
 
 - [How to unblock MeshLink permissions on Android and iOS](unblock-meshlink-permissions.md)
+- [How to structure a robust MeshLink integration](structure-a-robust-meshlink-integration.md)
 - [MeshLink SDK API reference](../reference/meshlink-sdk-api.md)
 - [About integrating MeshLink well](../explanation/about-integrating-meshlink.md)
 - [The trust model](../explanation/trust-model.md)

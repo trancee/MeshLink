@@ -147,6 +147,7 @@ cleanly.
 Once MeshLink is in your build:
 
 - use [How to integrate MeshLink into a host app](integrate-meshlink-into-a-host-app.md) for runtime bootstrap, lifecycle, streams, send, and trust reset flows
+- use [How to structure a robust MeshLink integration](structure-a-robust-meshlink-integration.md) when you want the architecture and operational checklist for a production-shaped host app
 - use [How to use MeshLink from Swift](use-meshlink-from-swift.md) for Swift naming and Flow collection
 - use [How to unblock MeshLink permissions on Android and iOS](unblock-meshlink-permissions.md) if startup or discovery stalls
 - use [Your first MeshLink exchange](../tutorials/your-first-meshlink-exchange.md) for a short end-to-end lesson
