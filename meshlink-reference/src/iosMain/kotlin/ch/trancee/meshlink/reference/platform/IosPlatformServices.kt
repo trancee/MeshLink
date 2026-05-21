@@ -7,6 +7,7 @@ import ch.trancee.meshlink.reference.meshlink.ScriptedReferenceMeshLinkControlle
 import ch.trancee.meshlink.reference.model.ReferenceAuthorityMode
 import ch.trancee.meshlink.reference.session.OkioReferenceDocumentStore
 import kotlinx.cinterop.ExperimentalForeignApi
+import okio.FileSystem
 import platform.Foundation.NSDocumentDirectory
 import platform.Foundation.NSSearchPathForDirectoriesInDomains
 import platform.Foundation.NSUserDomainMask
@@ -20,7 +21,7 @@ internal fun createIosPlatformServices(): DefaultPlatformServices {
         defaultAuthorityMode = ReferenceAuthorityMode.LIVE,
         readinessGuidance = iosReadinessGuidance(),
         nowProvider = { time(null) * 1000L },
-        documentStore = OkioReferenceDocumentStore(documentsDirectory),
+        documentStore = OkioReferenceDocumentStore(documentsDirectory, FileSystem.SYSTEM),
     )
 }
 
@@ -45,7 +46,7 @@ internal fun createIosAutomationPlatformServices(
                 emptyList()
             },
         nowProvider = nowProvider,
-        documentStore = OkioReferenceDocumentStore(baseDirectory),
+        documentStore = OkioReferenceDocumentStore(baseDirectory, FileSystem.SYSTEM),
         automationConfig =
             ReferenceAutomationConfig(
                 mode = ReferenceAutomationMode.SCRIPTED_UI,
@@ -82,7 +83,7 @@ internal fun createIosLiveAutomationPlatformServices(
         readinessGuidance = iosReadinessGuidance(),
         nowProvider = nowProvider,
         appId = appId,
-        documentStore = OkioReferenceDocumentStore(baseDirectory),
+        documentStore = OkioReferenceDocumentStore(baseDirectory, FileSystem.SYSTEM),
         automationConfig =
             ReferenceAutomationConfig(
                 mode = ReferenceAutomationMode.LIVE_PROOF,

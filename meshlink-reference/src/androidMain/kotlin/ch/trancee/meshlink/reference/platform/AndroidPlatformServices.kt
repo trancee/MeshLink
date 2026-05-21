@@ -8,6 +8,7 @@ import ch.trancee.meshlink.reference.automation.ReferenceAutomationRole
 import ch.trancee.meshlink.reference.meshlink.ScriptedReferenceMeshLinkController
 import ch.trancee.meshlink.reference.model.ReferenceAuthorityMode
 import ch.trancee.meshlink.reference.session.OkioReferenceDocumentStore
+import okio.FileSystem
 
 internal fun createAndroidPlatformServices(context: Context): DefaultPlatformServices {
     return DefaultPlatformServices(
@@ -17,7 +18,7 @@ internal fun createAndroidPlatformServices(context: Context): DefaultPlatformSer
         readinessBlockers = androidReadinessBlockers(context),
         nowProvider = { System.currentTimeMillis() },
         platformContext = context,
-        documentStore = OkioReferenceDocumentStore(context.filesDir.absolutePath),
+        documentStore = OkioReferenceDocumentStore(context.filesDir.absolutePath, FileSystem.SYSTEM),
     )
 }
 
@@ -42,7 +43,7 @@ internal fun createAndroidAutomationPlatformServices(
                 emptyList()
             },
         nowProvider = nowProvider,
-        documentStore = OkioReferenceDocumentStore(automationDirectory),
+        documentStore = OkioReferenceDocumentStore(automationDirectory, FileSystem.SYSTEM),
         automationConfig =
             ReferenceAutomationConfig(
                 mode = ReferenceAutomationMode.SCRIPTED_UI,
@@ -77,7 +78,7 @@ internal fun createAndroidLiveAutomationPlatformServices(
         nowProvider = nowProvider,
         appId = appId,
         platformContext = context,
-        documentStore = OkioReferenceDocumentStore(automationDirectory),
+        documentStore = OkioReferenceDocumentStore(automationDirectory, FileSystem.SYSTEM),
         automationConfig =
             ReferenceAutomationConfig(
                 mode = ReferenceAutomationMode.LIVE_PROOF,

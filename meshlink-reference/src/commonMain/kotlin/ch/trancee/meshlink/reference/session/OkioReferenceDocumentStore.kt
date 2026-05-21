@@ -7,7 +7,7 @@ import okio.Path.Companion.toPath
 /** File-backed document store for retained history and export artifacts. */
 public class OkioReferenceDocumentStore(
     private val baseDirectory: String,
-    private val fileSystem: FileSystem = FileSystem.SYSTEM,
+    private val fileSystem: FileSystem,
 ) : ReferenceDocumentStore {
     override suspend fun readText(path: String): String? {
         val resolved = resolve(path)
