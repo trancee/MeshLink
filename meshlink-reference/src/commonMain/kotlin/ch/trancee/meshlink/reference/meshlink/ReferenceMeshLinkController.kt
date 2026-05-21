@@ -318,12 +318,7 @@ public class LiveReferenceMeshLinkController(
                         detail = successDetail(value),
                     )
                 )
-                if (
-                    value is StartResult ||
-                        value is ResumeResult ||
-                        value is PauseResult ||
-                        value is StopResult
-                ) {
+                if (shouldTrackLifecycleOutcome(value)) {
                     stateStore.updateSession(lastOutcomeSummary = value.toString())
                 }
             }
@@ -572,6 +567,13 @@ public class PreviewReferenceMeshLinkController(
     ): Unit = Unit
 
     override suspend fun forgetPeer(peerId: String): Unit = Unit
+}
+
+private fun shouldTrackLifecycleOutcome(value: Any): Boolean {
+    return value is StartResult ||
+        value is ResumeResult ||
+        value is PauseResult ||
+        value is StopResult
 }
 
 private fun PeerConnectionState.toSnapshotState(): PeerConnectionSnapshotState {

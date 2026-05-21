@@ -60,11 +60,11 @@ internal fun ReferenceLiveProofAutomation(
         }
 
         if (
-            !meshStartRequested &&
-                !snapshot.session.meshStateLabel.contains("Running") &&
-                !snapshot.session.meshStateLabel.contains("Paused") &&
-                !snapshot.session.meshStateLabel.contains("Stopped") &&
-                platformServices.readinessBlockers.isEmpty()
+            shouldRequestLiveProofMeshStart(
+                meshStartRequested = meshStartRequested,
+                snapshot = snapshot,
+                readinessBlockers = platformServices.readinessBlockers,
+            )
         ) {
             platformServices.emitAutomationLog(
                 "REFERENCE_AUTOMATION mesh.start.requested role=${automationConfig.role}"
@@ -92,11 +92,15 @@ internal fun ReferenceLiveProofAutomation(
             }
 
             ReferenceAutomationRole.PASSIVE -> {
-                val hasTrustEstablished =
-                    snapshot.timeline.any { entry -> entry.title == "TRUST_ESTABLISHED" }
-                val hasInboundMessage =
-                    snapshot.timeline.any { entry -> entry.title == "Inbound message" }
-                if (!retainRequested && hasTrustEstablished && hasInboundMessage) {
+                val hasTrustEstablished = hasTimelineEntry(snapshot, "TRUST_ESTABLISHED")
+                val hasInboundMessage = hasTimelineEntry(snapshot, "Inbound message")
+                if (
+                    shouldRetainPassiveLiveProof(
+                        retainRequested = retainRequested,
+                        hasTrustEstablished = hasTrustEstablished,
+                        hasInboundMessage = hasInboundMessage,
+                    )
+                ) {
                     platformServices.emitAutomationLog(
                         "REFERENCE_AUTOMATION history.retain.requested role=passive"
                     )
@@ -104,9 +108,11 @@ internal fun ReferenceLiveProofAutomation(
                     retainRequested = true
                 }
                 if (
-                    retainRequested &&
-                        !exportRequested &&
-                        timelineUiState.retainedSessions.isNotEmpty()
+                    shouldExportPassiveLiveProof(
+                        retainRequested = retainRequested,
+                        exportRequested = exportRequested,
+                        retainedSessionCount = timelineUiState.retainedSessions.size,
+                    )
                 ) {
                     platformServices.emitAutomationLog(
                         "REFERENCE_AUTOMATION export.requested role=passive policy=redacted-preview"
@@ -127,4 +133,40 @@ internal fun ReferenceLiveProofAutomation(
 
 internal fun shouldAutoSendGuidedHello(snapshot: ReferenceControllerSnapshot): Boolean {
     return snapshot.peers.isNotEmpty()
+}
+
+internal fun shouldRequestLiveProofMeshStart(
+    meshStartRequested: Boolean,
+    snapshot: ReferenceControllerSnapshot,
+    readinessBlockers: List<String>,
+): Boolean {
+    return !meshStartRequested &&
+        !hasMeshEnteredLifecycle(snapshot.session.meshStateLabel) &&
+        readinessBlockers.isEmpty()
+}
+
+internal fun shouldRetainPassiveLiveProof(
+    retainRequested: Boolean,
+    hasTrustEstablished: Boolean,
+    hasInboundMessage: Boolean,
+): Boolean {
+    return !retainRequested && hasTrustEstablished && hasInboundMessage
+}
+
+internal fun shouldExportPassiveLiveProof(
+    retainRequested: Boolean,
+    exportRequested: Boolean,
+    retainedSessionCount: Int,
+): Boolean {
+    return retainRequested && !exportRequested && retainedSessionCount > 0
+}
+
+private fun hasTimelineEntry(snapshot: ReferenceControllerSnapshot, title: String): Boolean {
+    return snapshot.timeline.any { entry -> entry.title == title }
+}
+
+private fun hasMeshEnteredLifecycle(meshStateLabel: String): Boolean {
+    return meshStateLabel.contains("Running") ||
+        meshStateLabel.contains("Paused") ||
+        meshStateLabel.contains("Stopped")
 }
