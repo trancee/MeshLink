@@ -50,10 +50,7 @@ internal actual fun createMeshLink(config: MeshLinkConfig, context: Any): MeshLi
     )
 }
 
-private fun createFactoryTestMeshLink(
-    config: MeshLinkConfig,
-    context: Any,
-): MeshLinkApi {
+private fun createFactoryTestMeshLink(config: MeshLinkConfig, context: Any): MeshLinkApi {
     val secureStorage = InMemorySecureStorage()
     val cryptoProvider = AndroidCryptoProviderFactory.create()
     val localIdentity = runBlocking {

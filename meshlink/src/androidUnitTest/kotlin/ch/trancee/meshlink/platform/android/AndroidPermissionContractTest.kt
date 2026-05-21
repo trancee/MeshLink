@@ -52,7 +52,8 @@ class AndroidPermissionContractTest {
     @Test
     fun `granted permissions pass without exception`() {
         // Arrange
-        val grantedPermissions = AndroidBlePermissionContract.requiredPermissions(sdkInt = 31).toSet()
+        val grantedPermissions =
+            AndroidBlePermissionContract.requiredPermissions(sdkInt = 31).toSet()
 
         // Act
         AndroidBlePermissionContract.ensureRequiredPermissionsGranted(

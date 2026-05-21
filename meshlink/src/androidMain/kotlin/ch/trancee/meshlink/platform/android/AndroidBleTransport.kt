@@ -40,11 +40,11 @@ import ch.trancee.meshlink.transport.shouldUseMixedPlatformGattNotifyBearer
 import java.io.Closeable
 import java.io.InputStream
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelChildren
-import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -145,12 +145,11 @@ internal class AndroidBleTransport(
         serverSocket?.let(::launchAcceptLoop)
 
         inboundFrameEvents = Channel(capacity = Channel.UNLIMITED)
-        inboundFrameDispatchJob =
-            coroutineScope.launch {
-                for (event in inboundFrameEvents) {
-                    mutableEvents.emit(event)
-                }
+        inboundFrameDispatchJob = coroutineScope.launch {
+            for (event in inboundFrameEvents) {
+                mutableEvents.emit(event)
             }
+        }
 
         started = true
         refreshDiscoveryState()
@@ -396,7 +395,8 @@ internal class AndroidBleTransport(
                                     peerId = incomingPeerId,
                                     payload = payload,
                                 )
-                            ).isSuccess
+                            )
+                            .isSuccess
                     ) {
                         "Android inbound frame queue overflowed for ${incomingPeerId.value}"
                     }
@@ -829,9 +829,7 @@ internal class AndroidBleTransport(
     }
 
     private fun clearPendingConnect(hintPeer: String): Unit {
-        synchronized(pendingConnectLock) {
-            pendingConnectJobsByHint.remove(hintPeer)
-        }
+        synchronized(pendingConnectLock) { pendingConnectJobsByHint.remove(hintPeer) }
     }
 
     private fun closeQuietly(closeable: Closeable?): Unit {

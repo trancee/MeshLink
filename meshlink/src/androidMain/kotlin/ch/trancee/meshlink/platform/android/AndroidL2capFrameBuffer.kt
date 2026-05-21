@@ -60,9 +60,7 @@ internal class AndroidL2capFrameBuffer(
         val observations = mutableListOf<DecodedFrameObservation>()
         while (size - readOffset >= LENGTH_PREFIX_SIZE_BYTES) {
             val headerHex =
-                buffer
-                    .copyOfRange(readOffset, readOffset + LENGTH_PREFIX_SIZE_BYTES)
-                    .toHexString()
+                buffer.copyOfRange(readOffset, readOffset + LENGTH_PREFIX_SIZE_BYTES).toHexString()
             val frameSize = readIntLittleEndian(buffer, readOffset)
             if (frameSize < 0 || frameSize > maxFrameSizeBytes) {
                 clear()
@@ -86,10 +84,8 @@ internal class AndroidL2capFrameBuffer(
                     bufferedBytesBeforeAppend = bufferedBytesBeforeAppend,
                     totalBufferedBytesAfterAppend = size,
                     remainingBufferedBytesAfterFrame = size - frameEnd,
-                    headerStartsInPreviouslyBufferedBytes =
-                        readOffset < bufferedBytesBeforeAppend,
-                    frameEndsBeyondPreviouslyBufferedBytes =
-                        frameEnd > bufferedBytesBeforeAppend,
+                    headerStartsInPreviouslyBufferedBytes = readOffset < bufferedBytesBeforeAppend,
+                    frameEndsBeyondPreviouslyBufferedBytes = frameEnd > bufferedBytesBeforeAppend,
                     appendedChunkBytes = chunk.size,
                     appendedChunkPrefixHex = appendedChunkPrefixHex,
                     appendedChunkSuffixHex = appendedChunkSuffixHex,

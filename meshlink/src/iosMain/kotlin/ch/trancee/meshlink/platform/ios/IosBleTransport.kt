@@ -13,26 +13,26 @@ import ch.trancee.meshlink.transport.BleDiscoveryPayload
 import ch.trancee.meshlink.transport.BleDiscoveryPlatformFamily
 import ch.trancee.meshlink.transport.BleTransport
 import ch.trancee.meshlink.transport.GattDataBearerMode
-import ch.trancee.meshlink.transport.shouldLocalPeerInitiateL2capConnection
-import ch.trancee.meshlink.transport.shouldUseMixedPlatformGattNotifyBearer
-import ch.trancee.meshlink.transport.resolveGattDataBearerMode
 import ch.trancee.meshlink.transport.OutboundFrame
 import ch.trancee.meshlink.transport.PendingFrameWindow
 import ch.trancee.meshlink.transport.TransportEvent
 import ch.trancee.meshlink.transport.TransportMode
 import ch.trancee.meshlink.transport.TransportSendResult
+import ch.trancee.meshlink.transport.resolveGattDataBearerMode
+import ch.trancee.meshlink.transport.shouldLocalPeerInitiateL2capConnection
+import ch.trancee.meshlink.transport.shouldUseMixedPlatformGattNotifyBearer
 import kotlinx.cinterop.ObjCSignatureOverride
 import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.convert
 import kotlinx.cinterop.reinterpret
 import kotlinx.cinterop.toKString
 import kotlinx.cinterop.usePinned
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelChildren
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -46,13 +46,12 @@ import platform.CoreBluetooth.CBATTErrorUnlikelyError
 import platform.CoreBluetooth.CBATTRequest
 import platform.CoreBluetooth.CBAdvertisementDataServiceUUIDsKey
 import platform.CoreBluetooth.CBAttributePermissionsWriteable
-import platform.CoreBluetooth.CBCharacteristic
-import platform.CoreBluetooth.CBCharacteristicPropertyNotify
-import platform.CoreBluetooth.CBCharacteristicPropertyRead
-import platform.CoreBluetooth.CBCharacteristicPropertyWrite
 import platform.CoreBluetooth.CBCentral
 import platform.CoreBluetooth.CBCentralManager
 import platform.CoreBluetooth.CBCentralManagerDelegateProtocol
+import platform.CoreBluetooth.CBCharacteristic
+import platform.CoreBluetooth.CBCharacteristicPropertyNotify
+import platform.CoreBluetooth.CBCharacteristicPropertyWrite
 import platform.CoreBluetooth.CBL2CAPChannel
 import platform.CoreBluetooth.CBManager
 import platform.CoreBluetooth.CBManagerStatePoweredOn
@@ -227,7 +226,10 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
                         )
                     }
             }
-        if (directFrame is DirectWireFrame.Data && dataBearerMode == GattDataBearerMode.GATT_REQUIRED) {
+        if (
+            directFrame is DirectWireFrame.Data &&
+                dataBearerMode == GattDataBearerMode.GATT_REQUIRED
+        ) {
             log(
                 "send(${frame.peerId.value.takeLast(6)}) dropped: required GATT notify side link not ready"
             )
@@ -410,7 +412,10 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
             if (!discoveredPeer.presenceAnnounced) {
                 discoveredPeer.presenceAnnounced = true
                 mutableEvents.tryEmit(
-                    TransportEvent.PeerDiscovered(peerId = hintPeerId, transportMode = transportMode)
+                    TransportEvent.PeerDiscovered(
+                        peerId = hintPeerId,
+                        transportMode = transportMode,
+                    )
                 )
             }
         }
@@ -554,9 +559,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
         val identifier = central.identifier.UUIDString.lowercase()
         val hintPeerIdValue = peerHintByIdentifier[identifier] ?: return
         activeGattNotifyLinksByHint.remove(hintPeerIdValue)?.close()
-        reportLog(
-            "removed GATT notify side link for ${hintPeerIdValue.takeLast(6)} id=$identifier"
-        )
+        reportLog("removed GATT notify side link for ${hintPeerIdValue.takeLast(6)} id=$identifier")
         if (activeLinksByHint.containsKey(hintPeerIdValue)) {
             return
         }
@@ -577,16 +580,15 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
             return
         }
         val decodedFrames = mutableListOf<ByteArray>()
-        val allRequestsAccepted =
-            typedRequests.all { request ->
-                request.characteristic.UUID.UUIDString.lowercase() ==
-                    BleDiscoveryContract.GATT_WRITE_CHARACTERISTIC_UUID &&
-                    request.offset.toInt() == 0 &&
-                    request.value?.let { value ->
-                        decodedFrames += link.appendIncomingWrite(value.toByteArray())
-                        true
-                    } == true
-            }
+        val allRequestsAccepted = typedRequests.all { request ->
+            request.characteristic.UUID.UUIDString.lowercase() ==
+                BleDiscoveryContract.GATT_WRITE_CHARACTERISTIC_UUID &&
+                request.offset.toInt() == 0 &&
+                request.value?.let { value ->
+                    decodedFrames += link.appendIncomingWrite(value.toByteArray())
+                    true
+                } == true
+        }
         reportLog(
             "GATT write request for ${link.hintPeerId.value.takeLast(6)} requests=${typedRequests.size} decodedFrames=${decodedFrames.size} accepted=$allRequestsAccepted"
         )
@@ -659,12 +661,15 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
 
     private fun resolveGattNotifyHintPeerIdValue(identifier: String): String? {
         return peerHintByIdentifier[identifier]
-            ?: discoveredPeers.values.firstOrNull { peer ->
-                shouldUseMixedPlatformGattNotifyBearer(
-                    localPlatformFamily = currentDiscoveryPayload.platformFamily,
-                    remotePlatformFamily = peer.platformFamily,
-                )
-            }?.hintPeerId?.value
+            ?: discoveredPeers.values
+                .firstOrNull { peer ->
+                    shouldUseMixedPlatformGattNotifyBearer(
+                        localPlatformFamily = currentDiscoveryPayload.platformFamily,
+                        remotePlatformFamily = peer.platformFamily,
+                    )
+                }
+                ?.hintPeerId
+                ?.value
     }
 
     private fun hasActiveGattNotifyLink(hintPeer: String): Boolean {
@@ -760,7 +765,10 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
                     }
                     drainedFrames.frames.forEach { payload ->
                         mutableEvents.emit(
-                            TransportEvent.FrameReceived(peerId = link.hintPeerId, payload = payload)
+                            TransportEvent.FrameReceived(
+                                peerId = link.hintPeerId,
+                                payload = payload,
+                            )
                         )
                     }
                     if (drainedFrames.streamClosed) {
@@ -1166,14 +1174,16 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
                 copyOffset += queuedFrame.encoded.size
             }
             val batchHeadHex =
-                coalescedBuffer.copyOf(minOf(coalescedBuffer.size, TELEMETRY_HEX_SNIPPET_BYTES))
+                coalescedBuffer
+                    .copyOf(minOf(coalescedBuffer.size, TELEMETRY_HEX_SNIPPET_BYTES))
                     .toHexString()
             val batchTailHex =
                 coalescedBuffer
                     .copyOfRange(
                         maxOf(0, coalescedBuffer.size - TELEMETRY_HEX_SNIPPET_BYTES),
                         coalescedBuffer.size,
-                    ).toHexString()
+                    )
+                    .toHexString()
 
             var offset = 0
             var writeCalls = 0
@@ -1295,11 +1305,9 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
                         "streamByteEndExclusive" to batchStats.streamByteEndExclusive.toString(),
                         "frameHeaders" to
                             queuedFrames.joinToString(separator = ",") { queuedFrame ->
-                                queuedFrame
-                                    .encoded
-                                    .copyOf(
-                                        minOf(queuedFrame.encoded.size, FRAME_PREFIX_BYTES)
-                                    ).toHexString()
+                                queuedFrame.encoded
+                                    .copyOf(minOf(queuedFrame.encoded.size, FRAME_PREFIX_BYTES))
+                                    .toHexString()
                             },
                         "batchHeadHex" to batchStats.batchHeadHex,
                         "batchTailHex" to batchStats.batchTailHex,
@@ -1481,7 +1489,8 @@ internal data class IncomingL2capHintCandidate(
 )
 
 internal fun isStreamClosed(streamStatus: ULong, hasError: Boolean): Boolean {
-    return hasError || streamStatus == NSStreamStatusAtEnd ||
+    return hasError ||
+        streamStatus == NSStreamStatusAtEnd ||
         streamStatus == NSStreamStatusClosed ||
         streamStatus == NSStreamStatusError
 }
@@ -1503,9 +1512,7 @@ private fun NSData.toByteArray(): ByteArray {
         return ByteArray(0)
     }
     return ByteArray(lengthInt).also { output ->
-        output.usePinned { pinned ->
-            memcpy(pinned.addressOf(0), bytes, length)
-        }
+        output.usePinned { pinned -> memcpy(pinned.addressOf(0), bytes, length) }
     }
 }
 
@@ -1521,18 +1528,17 @@ internal fun selectIncomingL2capHintPeerId(
     peerHintByIdentifier[peripheralIdentifier]?.let { mappedHint ->
         return mappedHint
     }
-    val waitingCandidates =
-        discoveredPeers.filter { candidate ->
-            candidate.transportMode == TransportMode.L2CAP &&
-                candidate.hintPeerIdValue !in activeHintIds &&
-                candidate.hintPeerIdValue !in pendingHintIds &&
-                !shouldLocalPeerInitiateL2capConnection(
-                    localKeyHash = localKeyHash,
-                    localPlatformFamily = localPlatformFamily,
-                    remoteKeyHash = candidate.keyHash,
-                    remotePlatformFamily = candidate.platformFamily,
-                )
-        }
+    val waitingCandidates = discoveredPeers.filter { candidate ->
+        candidate.transportMode == TransportMode.L2CAP &&
+            candidate.hintPeerIdValue !in activeHintIds &&
+            candidate.hintPeerIdValue !in pendingHintIds &&
+            !shouldLocalPeerInitiateL2capConnection(
+                localKeyHash = localKeyHash,
+                localPlatformFamily = localPlatformFamily,
+                remoteKeyHash = candidate.keyHash,
+                remotePlatformFamily = candidate.platformFamily,
+            )
+    }
     return waitingCandidates.singleOrNull()?.hintPeerIdValue
 }
 

@@ -1,11 +1,11 @@
 package ch.trancee.meshlink.platform.ios
 
-import platform.Foundation.NSStreamStatusAtEnd
-import platform.Foundation.NSStreamStatusClosed
-import platform.Foundation.NSStreamStatusError
 import kotlin.test.Test
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import platform.Foundation.NSStreamStatusAtEnd
+import platform.Foundation.NSStreamStatusClosed
+import platform.Foundation.NSStreamStatusError
 
 class IosStreamClosureDetectionTest {
     @Test
@@ -56,7 +56,8 @@ class IosStreamClosureDetectionTest {
     @Test
     fun reportsStalledWhenNoWriteProgressExceedsTimeout(): Unit {
         // Act
-        val stalled = isWriteStalled(lastProgressAtMs = 1_000L, nowMs = 6_500L, stallTimeoutMs = 5_000L)
+        val stalled =
+            isWriteStalled(lastProgressAtMs = 1_000L, nowMs = 6_500L, stallTimeoutMs = 5_000L)
 
         // Assert
         assertTrue(stalled)
@@ -65,7 +66,8 @@ class IosStreamClosureDetectionTest {
     @Test
     fun reportsNotStalledWhenWriteProgressIsWithinTimeout(): Unit {
         // Act
-        val stalled = isWriteStalled(lastProgressAtMs = 1_000L, nowMs = 5_900L, stallTimeoutMs = 5_000L)
+        val stalled =
+            isWriteStalled(lastProgressAtMs = 1_000L, nowMs = 5_900L, stallTimeoutMs = 5_000L)
 
         // Assert
         assertFalse(stalled)

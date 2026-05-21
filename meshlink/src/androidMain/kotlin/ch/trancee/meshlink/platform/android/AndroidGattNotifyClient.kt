@@ -43,12 +43,11 @@ internal class AndroidGattNotifyClient(
     private val inboundFrameScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val inboundFrames = Channel<ByteArray>(capacity = Channel.UNLIMITED)
     private var pendingWrite: CompletableDeferred<Boolean>? = null
-    private val inboundFrameDispatchJob =
-        inboundFrameScope.launch {
-            for (payload in inboundFrames) {
-                onFrameReceived(peerHintId, payload)
-            }
+    private val inboundFrameDispatchJob = inboundFrameScope.launch {
+        for (payload in inboundFrames) {
+            onFrameReceived(peerHintId, payload)
         }
+    }
 
     private val callback =
         object : BluetoothGattCallback() {
@@ -83,9 +82,7 @@ internal class AndroidGattNotifyClient(
             }
 
             override fun onMtuChanged(gatt: BluetoothGatt, mtu: Int, status: Int) {
-                log(
-                    "GATT notify side link ${peerHintId.value.takeLast(6)} mtu=$mtu status=$status"
-                )
+                log("GATT notify side link ${peerHintId.value.takeLast(6)} mtu=$mtu status=$status")
                 requestFastPhyIfSupported(gatt)
                 if (status == BluetoothGatt.GATT_SUCCESS) {
                     currentMtu = mtu
@@ -112,7 +109,9 @@ internal class AndroidGattNotifyClient(
                     return
                 }
                 val service =
-                    gatt.getService(java.util.UUID.fromString(BleDiscoveryContract.GATT_FALLBACK_SERVICE_UUID))
+                    gatt.getService(
+                        java.util.UUID.fromString(BleDiscoveryContract.GATT_FALLBACK_SERVICE_UUID)
+                    )
                 if (service == null) {
                     log(
                         "GATT notify side link ${peerHintId.value.takeLast(6)} missing service ${BleDiscoveryContract.GATT_FALLBACK_SERVICE_UUID}"
@@ -122,11 +121,15 @@ internal class AndroidGattNotifyClient(
                 }
                 val notifyCharacteristic =
                     service.getCharacteristic(
-                        java.util.UUID.fromString(BleDiscoveryContract.GATT_NOTIFY_CHARACTERISTIC_UUID)
+                        java.util.UUID.fromString(
+                            BleDiscoveryContract.GATT_NOTIFY_CHARACTERISTIC_UUID
+                        )
                     )
                 val writeCharacteristic =
                     service.getCharacteristic(
-                        java.util.UUID.fromString(BleDiscoveryContract.GATT_WRITE_CHARACTERISTIC_UUID)
+                        java.util.UUID.fromString(
+                            BleDiscoveryContract.GATT_WRITE_CHARACTERISTIC_UUID
+                        )
                     )
                 if (notifyCharacteristic == null || writeCharacteristic == null) {
                     log(
@@ -172,7 +175,9 @@ internal class AndroidGattNotifyClient(
             ) {
                 if (
                     characteristic.uuid !=
-                        java.util.UUID.fromString(BleDiscoveryContract.GATT_NOTIFY_CHARACTERISTIC_UUID)
+                        java.util.UUID.fromString(
+                            BleDiscoveryContract.GATT_NOTIFY_CHARACTERISTIC_UUID
+                        )
                 ) {
                     return
                 }
@@ -187,7 +192,9 @@ internal class AndroidGattNotifyClient(
             ) {
                 if (
                     characteristic.uuid !=
-                        java.util.UUID.fromString(BleDiscoveryContract.GATT_NOTIFY_CHARACTERISTIC_UUID)
+                        java.util.UUID.fromString(
+                            BleDiscoveryContract.GATT_NOTIFY_CHARACTERISTIC_UUID
+                        )
                 ) {
                     return
                 }
@@ -202,7 +209,9 @@ internal class AndroidGattNotifyClient(
             ) {
                 if (
                     characteristic.uuid !=
-                        java.util.UUID.fromString(BleDiscoveryContract.GATT_WRITE_CHARACTERISTIC_UUID)
+                        java.util.UUID.fromString(
+                            BleDiscoveryContract.GATT_WRITE_CHARACTERISTIC_UUID
+                        )
                 ) {
                     return
                 }
@@ -300,8 +309,7 @@ internal class AndroidGattNotifyClient(
             return
         }
         cccd.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
-        @Suppress("DEPRECATION")
-        gatt.writeDescriptor(cccd)
+        @Suppress("DEPRECATION") gatt.writeDescriptor(cccd)
     }
 
     private fun completePendingWrite(success: Boolean): Unit {
@@ -333,8 +341,7 @@ internal class AndroidGattNotifyClient(
         writeCharacteristic.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
         @Suppress("DEPRECATION")
         writeCharacteristic.value = chunk
-        @Suppress("DEPRECATION")
-        val enqueued = gatt.writeCharacteristic(writeCharacteristic)
+        @Suppress("DEPRECATION") val enqueued = gatt.writeCharacteristic(writeCharacteristic)
         if (!enqueued) {
             log(
                 "GATT notify side link ${peerHintId.value.takeLast(6)} write enqueue failed bytes=${payloadBytes} encodedBytes=${encodedBytes} chunkBytes=${chunk.size}"
@@ -376,16 +383,17 @@ internal class AndroidGattNotifyClient(
             return
         }
         runCatching {
-            gatt.setPreferredPhy(
-                BluetoothDevice.PHY_LE_2M_MASK,
-                BluetoothDevice.PHY_LE_2M_MASK,
-                BluetoothDevice.PHY_OPTION_NO_PREFERRED,
-            )
-        }.onFailure { error ->
-            log(
-                "GATT notify side link ${peerHintId.value.takeLast(6)} preferred PHY request failed: ${error.message.orEmpty()}"
-            )
-        }
+                gatt.setPreferredPhy(
+                    BluetoothDevice.PHY_LE_2M_MASK,
+                    BluetoothDevice.PHY_LE_2M_MASK,
+                    BluetoothDevice.PHY_OPTION_NO_PREFERRED,
+                )
+            }
+            .onFailure { error ->
+                log(
+                    "GATT notify side link ${peerHintId.value.takeLast(6)} preferred PHY request failed: ${error.message.orEmpty()}"
+                )
+            }
     }
 
     internal companion object {

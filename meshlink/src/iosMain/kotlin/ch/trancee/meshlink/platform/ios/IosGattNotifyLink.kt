@@ -1,13 +1,13 @@
 package ch.trancee.meshlink.platform.ios
 
 import ch.trancee.meshlink.api.PeerId
-import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.usePinned
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import platform.CoreBluetooth.CBCentral
 import platform.CoreBluetooth.CBMutableCharacteristic
 import platform.CoreBluetooth.CBPeripheralManager
@@ -40,29 +40,24 @@ internal class IosGattNotifyLink(
         val pendingFrame =
             PendingFrame(
                 chunks =
-                    outgoingFrames
-                        .encode(payload)
-                        .asList()
-                        .chunked(chunkBytes)
-                        .map { chunk -> chunk.toByteArray() },
+                    outgoingFrames.encode(payload).asList().chunked(chunkBytes).map { chunk ->
+                        chunk.toByteArray()
+                    }
             )
-        val accepted =
-            stateLock.withLock {
-                if (closed) {
-                    false
-                } else {
-                    pendingFrames.addLast(pendingFrame)
-                    true
-                }
+        val accepted = stateLock.withLock {
+            if (closed) {
+                false
+            } else {
+                pendingFrames.addLast(pendingFrame)
+                true
             }
+        }
         if (!accepted) {
             return false
         }
         requestLowLatencyIfNeeded()
         if (!pumpOnMain()) {
-            stateLock.withLock {
-                pendingFrames.remove(pendingFrame)
-            }
+            stateLock.withLock { pendingFrames.remove(pendingFrame) }
             pendingFrame.completeIfPending(false)
             return false
         }
@@ -86,16 +81,15 @@ internal class IosGattNotifyLink(
     internal fun pump(): Boolean {
         val peripheralManager = peripheralManagerProvider() ?: return false
         val notifyCharacteristic = notifyCharacteristicProvider() ?: return false
-        val shouldStartPump =
-            stateLock.withLock {
-                if (closed || pumpInProgress) {
-                    false
-                } else {
-                    pumpInProgress = true
-                    retryPumpScheduled = false
-                    true
-                }
+        val shouldStartPump = stateLock.withLock {
+            if (closed || pumpInProgress) {
+                false
+            } else {
+                pumpInProgress = true
+                retryPumpScheduled = false
+                true
             }
+        }
         if (!shouldStartPump) {
             return true
         }
@@ -157,9 +151,7 @@ internal class IosGattNotifyLink(
                 }
             }
         } finally {
-            stateLock.withLock {
-                pumpInProgress = false
-            }
+            stateLock.withLock { pumpInProgress = false }
         }
     }
 
@@ -193,10 +185,11 @@ internal class IosGattNotifyLink(
         if (lowLatencyRequested) {
             return
         }
-        peripheralManagerProvider()?.setDesiredConnectionLatency(
-            latency = platform.CoreBluetooth.CBPeripheralManagerConnectionLatencyLow,
-            forCentral = central,
-        )
+        peripheralManagerProvider()
+            ?.setDesiredConnectionLatency(
+                latency = platform.CoreBluetooth.CBPeripheralManagerConnectionLatencyLow,
+                forCentral = central,
+            )
         lowLatencyRequested = true
         logger(
             "requested low connection latency for ${hintPeerId.value.takeLast(6)} central=$centralIdentifier via GATT notify"
@@ -268,8 +261,6 @@ private fun ByteArray.toNSData(): NSData {
         return NSData()
     }
     val data = NSMutableData.create(length = size.toULong()) ?: return NSData()
-    usePinned { pinned ->
-        memcpy(data.mutableBytes, pinned.addressOf(0), size.toULong())
-    }
+    usePinned { pinned -> memcpy(data.mutableBytes, pinned.addressOf(0), size.toULong()) }
     return data
 }

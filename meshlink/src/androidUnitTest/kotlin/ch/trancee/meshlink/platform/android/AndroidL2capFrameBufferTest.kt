@@ -92,7 +92,9 @@ class AndroidL2capFrameBufferTest {
 
         // Act
         val fastDecoded = chunks.flatMap(fastBuffer::append)
-        val detailedDecoded = chunks.flatMap { chunk -> detailedBuffer.appendDetailed(chunk).frames }
+        val detailedDecoded = chunks.flatMap { chunk ->
+            detailedBuffer.appendDetailed(chunk).frames
+        }
 
         // Assert
         assertEquals(2, fastDecoded.size)

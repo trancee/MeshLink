@@ -24,7 +24,7 @@ internal object AndroidBlePermissionContract {
         if (missingPermissions.isNotEmpty()) {
             throw PlatformPermissionDeniedException(
                 message =
-                    "Android BLE permissions denied: ${missingPermissions.joinToString(separator = ", ")}",
+                    "Android BLE permissions denied: ${missingPermissions.joinToString(separator = ", ")}"
             )
         }
     }
