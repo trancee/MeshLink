@@ -17,8 +17,6 @@ import ch.trancee.meshlink.api.StopResult
 import ch.trancee.meshlink.config.MeshLinkConfig
 import ch.trancee.meshlink.crypto.MessageSealer
 import ch.trancee.meshlink.crypto.NoiseXXHandshakeManager
-import ch.trancee.meshlink.crypto.NoiseXXHandshakeResult
-import ch.trancee.meshlink.crypto.NoiseXXResponderResult
 import ch.trancee.meshlink.diagnostics.DiagnosticCode
 import ch.trancee.meshlink.diagnostics.DiagnosticEvent
 import ch.trancee.meshlink.diagnostics.DiagnosticReason
@@ -110,6 +108,41 @@ private constructor(
     private val inboundTransfers: MutableMap<String, InboundTransferSession> = linkedMapOf()
     private val relayTransfers: MutableMap<String, RelayTransferSession> = linkedMapOf()
     private var nextMessageSequenceNumber: Long = 1L
+    private val handshakeState =
+        MeshEngineHandshakeState(
+            hopSessions = hopSessions,
+            pendingInitiatorHandshakes = pendingInitiatorHandshakes,
+            pendingResponderHandshakes = pendingResponderHandshakes,
+        )
+    private val handshakeRoutingContext =
+        MeshEngineHandshakeRoutingContext(
+            routeCoordinator = routeCoordinator,
+            routingSupport = routingSupport,
+        )
+    private val handshakeCallbacks =
+        MeshEngineHandshakeCallbacks(
+            sendDirectWireFrame = { peerId, frame, action ->
+                sendDirectWireFrame(peerId = peerId, frame = frame, action = action)
+            },
+            emitHopSessionEstablished = ::emitHopSessionEstablished,
+            emitHopSessionFailed = ::emitHopSessionFailed,
+        )
+    private val initiatorHandshakeSupport =
+        MeshEngineInitiatorHandshakeSupport(
+            localIdentity = localIdentity,
+            trustSupport = trustSupport,
+            state = handshakeState,
+            routingContext = handshakeRoutingContext,
+            callbacks = handshakeCallbacks,
+        )
+    private val responderHandshakeSupport =
+        MeshEngineResponderHandshakeSupport(
+            localIdentity = localIdentity,
+            trustSupport = trustSupport,
+            state = handshakeState,
+            routingContext = handshakeRoutingContext,
+            callbacks = handshakeCallbacks,
+        )
 
     private val mutableState: MutableStateFlow<MeshLinkState> =
         MutableStateFlow(MeshLinkState.Uninitialized)
@@ -165,9 +198,9 @@ private constructor(
             callbacks =
                 MeshEngineTransportCallbacks(
                     prewarmHopSession = ::prewarmHopSession,
-                    handleHandshakeMessage1 = ::handleHandshakeMessage1,
-                    handleHandshakeMessage2 = ::handleHandshakeMessage2,
-                    handleHandshakeMessage3 = ::handleHandshakeMessage3,
+                    handleHandshakeMessage1 = responderHandshakeSupport::handleHandshakeMessage1,
+                    handleHandshakeMessage2 = initiatorHandshakeSupport::handleHandshakeMessage2,
+                    handleHandshakeMessage3 = responderHandshakeSupport::handleHandshakeMessage3,
                     handleEncryptedDataFrame = inboundSupport::handleEncryptedDataFrame,
                 ),
             emitDiagnostic = ::emitDiagnostic,
@@ -344,286 +377,6 @@ private constructor(
                     transportSupport.handleTransportEvent(event)
                 }
             }
-    }
-
-    private suspend fun handleHandshakeMessage1(peerId: PeerId, payload: ByteArray): Unit {
-        val manager = NoiseXXHandshakeManager(localIdentity.cryptoProvider)
-        val message2 =
-            runCatching {
-                    manager.processMessage1AndCreateMessage2(localIdentity.noiseIdentity, payload)
-                }
-                .getOrElse { exception ->
-                    emitHopSessionFailed(
-                        peerId = peerId,
-                        stage = "transport.handshake.message1",
-                        reason = DiagnosticReason.DELIVERY_FAILURE,
-                        metadata = mapOf("cause" to exception::class.simpleName.orEmpty()),
-                    )
-                    return
-                }
-        pendingResponderHandshakes[peerId.value] = PendingResponderHandshake(manager)
-        when (
-            sendDirectWireFrame(
-                peerId = peerId,
-                frame = DirectWireFrame.HandshakeMessage2(message2),
-                action = "handshake.message2",
-            )
-        ) {
-            TransportSendResult.Delivered -> Unit
-            is TransportSendResult.Dropped -> {
-                pendingResponderHandshakes.remove(peerId.value)
-                emitHopSessionFailed(
-                    peerId = peerId,
-                    stage = "transport.handshake.message2.send",
-                    reason = DiagnosticReason.DELIVERY_FAILURE,
-                )
-            }
-        }
-    }
-
-    private suspend fun handleHandshakeMessage2(peerId: PeerId, payload: ByteArray): Unit {
-        val pending = pendingInitiatorHandshake(peerId)
-        if (pending != null) {
-            val result =
-                processHandshakeMessage2(peerId = peerId, payload = payload, pending = pending)
-            if (result != null) {
-                val trustRecord =
-                    verifyHandshakeMessage2Trust(
-                        peerId = peerId,
-                        pending = pending,
-                        result = result,
-                    )
-                if (trustRecord != null) {
-                    sendHandshakeMessage3(
-                        peerId = peerId,
-                        pending = pending,
-                        result = result,
-                        trustRecord = trustRecord,
-                    )
-                }
-            }
-        }
-    }
-
-    private fun pendingInitiatorHandshake(peerId: PeerId): PendingInitiatorHandshake? {
-        val pending = pendingInitiatorHandshakes[peerId.value]
-        if (pending == null) {
-            emitHopSessionFailed(
-                peerId = peerId,
-                stage = "transport.handshake.message2.unexpected",
-                reason = DiagnosticReason.DELIVERY_FAILURE,
-            )
-        }
-        return pending
-    }
-
-    private fun processHandshakeMessage2(
-        peerId: PeerId,
-        payload: ByteArray,
-        pending: PendingInitiatorHandshake,
-    ): NoiseXXHandshakeResult? {
-        return runCatching {
-                pending.manager.processMessage2AndCreateMessage3(
-                    localIdentity.noiseIdentity,
-                    payload,
-                )
-            }
-            .getOrElse { exception ->
-                failPendingInitiatorHandshake(
-                    peerId = peerId,
-                    pending = pending,
-                    failure =
-                        PendingInitiatorHandshakeFailure(
-                            outcome = SessionEstablishmentOutcome.Unreachable,
-                            stage = "transport.handshake.message2.process",
-                            reason = DiagnosticReason.DELIVERY_FAILURE,
-                            metadata = mapOf("cause" to exception::class.simpleName.orEmpty()),
-                        ),
-                )
-                null
-            }
-    }
-
-    private suspend fun verifyHandshakeMessage2Trust(
-        peerId: PeerId,
-        pending: PendingInitiatorHandshake,
-        result: NoiseXXHandshakeResult,
-    ): TrustRecord? {
-        val trustRecord =
-            trustSupport.verifyAndPersistTrust(
-                peerId = peerId,
-                remoteEd25519PublicKey = result.remoteEd25519PublicKey,
-                remoteX25519PublicKey = result.remoteStaticPublicKey,
-            )
-        if (trustRecord == null) {
-            failPendingInitiatorHandshake(
-                peerId = peerId,
-                pending = pending,
-                failure =
-                    PendingInitiatorHandshakeFailure(
-                        outcome = SessionEstablishmentOutcome.TrustFailure,
-                        stage = "transport.handshake.message2.trust",
-                        reason = DiagnosticReason.TRUST_FAILURE,
-                    ),
-            )
-        }
-        return trustRecord
-    }
-
-    private suspend fun sendHandshakeMessage3(
-        peerId: PeerId,
-        pending: PendingInitiatorHandshake,
-        result: NoiseXXHandshakeResult,
-        trustRecord: TrustRecord,
-    ): Unit {
-        when (
-            sendDirectWireFrame(
-                peerId = peerId,
-                frame = DirectWireFrame.HandshakeMessage3(result.message3),
-                action = "handshake.message3",
-            )
-        ) {
-            TransportSendResult.Delivered ->
-                completeInitiatorHandshake(
-                    peerId = peerId,
-                    pending = pending,
-                    result = result,
-                    trustRecord = trustRecord,
-                )
-            is TransportSendResult.Dropped ->
-                failPendingInitiatorHandshake(
-                    peerId = peerId,
-                    pending = pending,
-                    failure =
-                        PendingInitiatorHandshakeFailure(
-                            outcome = SessionEstablishmentOutcome.Unreachable,
-                            stage = "transport.handshake.message3.send",
-                            reason = DiagnosticReason.DELIVERY_FAILURE,
-                        ),
-                )
-        }
-    }
-
-    private fun completeInitiatorHandshake(
-        peerId: PeerId,
-        pending: PendingInitiatorHandshake,
-        result: NoiseXXHandshakeResult,
-        trustRecord: TrustRecord,
-    ): Unit {
-        val session = HopSession(sendKey = result.sendKey, receiveKey = result.receiveKey)
-        hopSessions[peerId.value] = session
-        pendingInitiatorHandshakes.remove(peerId.value)
-        pending.sessionDeferred.complete(SessionEstablishmentOutcome.Established(session))
-        emitHopSessionEstablished(peerId, stage = "transport.handshake.message2.complete")
-        routingSupport.dispatchMutation(
-            mutation = routeCoordinator.onPeerConnected(peerId, trustRecord),
-            stage = "transport.handshake.message2.complete",
-            metadata = mapOf("connectedPeerId" to peerId.value),
-        )
-    }
-
-    private data class PendingInitiatorHandshakeFailure(
-        val outcome: SessionEstablishmentOutcome,
-        val stage: String,
-        val reason: DiagnosticReason,
-        val metadata: Map<String, String> = emptyMap(),
-    )
-
-    private fun failPendingInitiatorHandshake(
-        peerId: PeerId,
-        pending: PendingInitiatorHandshake,
-        failure: PendingInitiatorHandshakeFailure,
-    ): Unit {
-        pendingInitiatorHandshakes.remove(peerId.value)
-        pending.sessionDeferred.complete(failure.outcome)
-        emitHopSessionFailed(
-            peerId = peerId,
-            stage = failure.stage,
-            reason = failure.reason,
-            metadata = failure.metadata,
-        )
-    }
-
-    private suspend fun handleHandshakeMessage3(peerId: PeerId, payload: ByteArray): Unit {
-        val pending = pendingResponderHandshake(peerId)
-        if (pending != null) {
-            val result =
-                processHandshakeMessage3(peerId = peerId, payload = payload, pending = pending)
-            if (result != null) {
-                val trustRecord = verifyHandshakeMessage3Trust(peerId = peerId, result = result)
-                if (trustRecord != null) {
-                    completeResponderHandshake(
-                        peerId = peerId,
-                        result = result,
-                        trustRecord = trustRecord,
-                    )
-                }
-            }
-        }
-    }
-
-    private fun pendingResponderHandshake(peerId: PeerId): PendingResponderHandshake? {
-        val pending = pendingResponderHandshakes.remove(peerId.value)
-        if (pending == null) {
-            emitHopSessionFailed(
-                peerId = peerId,
-                stage = "transport.handshake.message3.unexpected",
-                reason = DiagnosticReason.DELIVERY_FAILURE,
-            )
-        }
-        return pending
-    }
-
-    private fun processHandshakeMessage3(
-        peerId: PeerId,
-        payload: ByteArray,
-        pending: PendingResponderHandshake,
-    ): NoiseXXResponderResult? {
-        return runCatching { pending.manager.processMessage3(localIdentity.noiseIdentity, payload) }
-            .getOrElse { exception ->
-                emitHopSessionFailed(
-                    peerId = peerId,
-                    stage = "transport.handshake.message3.process",
-                    reason = DiagnosticReason.DELIVERY_FAILURE,
-                    metadata = mapOf("cause" to exception::class.simpleName.orEmpty()),
-                )
-                null
-            }
-    }
-
-    private suspend fun verifyHandshakeMessage3Trust(
-        peerId: PeerId,
-        result: NoiseXXResponderResult,
-    ): TrustRecord? {
-        val trustRecord =
-            trustSupport.verifyAndPersistTrust(
-                peerId = peerId,
-                remoteEd25519PublicKey = result.remoteEd25519PublicKey,
-                remoteX25519PublicKey = result.remoteStaticPublicKey,
-            )
-        if (trustRecord == null) {
-            emitHopSessionFailed(
-                peerId = peerId,
-                stage = "transport.handshake.message3.trust",
-                reason = DiagnosticReason.TRUST_FAILURE,
-            )
-        }
-        return trustRecord
-    }
-
-    private fun completeResponderHandshake(
-        peerId: PeerId,
-        result: NoiseXXResponderResult,
-        trustRecord: TrustRecord,
-    ): Unit {
-        hopSessions[peerId.value] =
-            HopSession(sendKey = result.sendKey, receiveKey = result.receiveKey)
-        emitHopSessionEstablished(peerId, stage = "transport.handshake.message3.complete")
-        routingSupport.dispatchMutation(
-            mutation = routeCoordinator.onPeerConnected(peerId, trustRecord),
-            stage = "transport.handshake.message3.complete",
-            metadata = mapOf("connectedPeerId" to peerId.value),
-        )
     }
 
     private suspend fun deliverInnerEnvelope(
