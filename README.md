@@ -35,7 +35,8 @@ and relative markdown links.
 
 ## Contributing
 
-- [How to build and contribute to MeshLink](CONTRIBUTING.md)
+- [How to contribute to MeshLink](CONTRIBUTING.md)
+- [Contributor build, test, and verification reference](docs/reference/contributor-reference.md)
 
 ## Reference app, proof apps, and validation
 
