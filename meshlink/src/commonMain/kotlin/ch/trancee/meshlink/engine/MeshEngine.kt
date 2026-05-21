@@ -21,7 +21,6 @@ import ch.trancee.meshlink.diagnostics.DiagnosticReason
 import ch.trancee.meshlink.diagnostics.DiagnosticSeverity
 import ch.trancee.meshlink.diagnostics.DiagnosticSink
 import ch.trancee.meshlink.identity.LocalIdentity
-import ch.trancee.meshlink.identity.hexContentEquals
 import ch.trancee.meshlink.platform.PlatformPermissionDeniedException
 import ch.trancee.meshlink.power.PowerPolicy
 import ch.trancee.meshlink.power.PowerPolicyController
@@ -37,7 +36,6 @@ import ch.trancee.meshlink.transport.OutboundFrame
 import ch.trancee.meshlink.transport.TransportMode
 import ch.trancee.meshlink.transport.TransportSendResult
 import ch.trancee.meshlink.trust.TofuTrustStore
-import ch.trancee.meshlink.wire.WireFrame
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TimeSource
@@ -71,12 +69,14 @@ private constructor(
     private val deliveryRetryScheduler = DeliveryRetryScheduler(routeCoordinator.topologyVersion)
     private val powerPolicyController =
         PowerPolicyController(configuredMode = config.powerMode, region = config.regulatoryRegion)
-    private val routingSupport =
+    private val routingSupport: MeshEngineRoutingSupport =
         MeshEngineRoutingSupport(
             routeCoordinator = routeCoordinator,
             coroutineScope = coroutineScope,
             emitDiagnostic = ::emitDiagnostic,
-            sendEncryptedWireFrame = ::sendEncryptedWireFrame,
+            sendEncryptedWireFrame = { peerId, frame, action ->
+                hopTransportSupport.sendEncryptedWireFrame(peerId, frame, action)
+            },
         )
     private val trustSupport =
         MeshEngineTrustSupport(
@@ -95,7 +95,47 @@ private constructor(
     private val outboundTransfers: MutableMap<String, OutboundTransferSession> = linkedMapOf()
     private val inboundTransfers: MutableMap<String, InboundTransferSession> = linkedMapOf()
     private val relayTransfers: MutableMap<String, RelayTransferSession> = linkedMapOf()
-    private var nextMessageSequenceNumber: Long = 1L
+    private val sequenceGenerator = MeshEngineSequenceGenerator(localIdentity)
+    private val powerPolicyNowMillis: () -> Long = { engineClock.elapsedNow().inWholeMilliseconds }
+    private val ensureTransportCollector: () -> Unit =
+        fun() {
+            if (bleTransport == null || transportCollectionJob != null) {
+                return
+            }
+            transportCollectionJob =
+                coroutineScope.launch(start = CoroutineStart.UNDISPATCHED) {
+                    bleTransport.events.collect { event ->
+                        transportSupport.handleTransportEvent(event)
+                    }
+                }
+        }
+    private val ttlMillisFor: (DeliveryPriority) -> Int = { priority ->
+        when (priority) {
+            DeliveryPriority.HIGH -> 45 * 60 * 1_000
+            DeliveryPriority.NORMAL -> 15 * 60 * 1_000
+            DeliveryPriority.LOW -> 5 * 60 * 1_000
+        }
+    }
+    private val scheduleRetryDiagnostic: (PeerId, DeliveryPriority) -> Unit = { peerId, priority ->
+        emitDiagnostic(
+            code = DiagnosticCode.NO_ROUTE_AVAILABLE,
+            severity = DiagnosticSeverity.WARN,
+            stage = "delivery.noRoute",
+            peerSuffix = peerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
+            reason = DiagnosticReason.DELIVERY_FAILURE,
+            metadata =
+                routingSupport.peerRouteMetadata(
+                    peerId,
+                    metadata =
+                        mapOf(
+                            "priority" to priority.name,
+                            "retryDeadlineMs" to
+                                config.deliveryRetryDeadline.inWholeMilliseconds.toString(),
+                            "retryBackoffBaseMs" to INITIAL_BACKOFF.inWholeMilliseconds.toString(),
+                        ),
+                ),
+        )
+    }
     private val sessionSupport =
         MeshEngineSessionSupport(
             localIdentity = localIdentity,
@@ -123,7 +163,7 @@ private constructor(
                     },
                 ),
         )
-    private val hopTransportSupport =
+    private val hopTransportSupport: MeshEngineHopTransportSupport =
         MeshEngineHopTransportSupport(
             localIdentity = localIdentity,
             routingSupport = routingSupport,
@@ -132,6 +172,27 @@ private constructor(
                 sendDirectWireFrame(peerId, frame, action, preferredMode)
             },
             emitDiagnostic = ::emitDiagnostic,
+        )
+    private val peerFlowSupport =
+        MeshEnginePeerFlowSupport(
+            localIdentity = localIdentity,
+            context =
+                MeshEnginePeerFlowContext(
+                    routeCoordinator = routeCoordinator,
+                    coroutineScope = coroutineScope,
+                ),
+            config =
+                MeshEnginePeerFlowConfig(
+                    largeInlineTransportBudgetBytes = LARGE_INLINE_SEND_TRANSPORT_BUDGET_BYTES
+                ),
+            callbacks =
+                MeshEnginePeerFlowCallbacks(
+                    sendEncryptedWireFrame = hopTransportSupport::sendEncryptedWireFrame,
+                    ensureHopSession = sessionSupport::ensureHopSession,
+                    maximumPayloadBytesPerDelivery = { peerId ->
+                        bleTransport?.maximumPayloadBytesPerDelivery(peerId)
+                    },
+                ),
         )
     private val handshakeState =
         MeshEngineHandshakeState(
@@ -197,8 +258,8 @@ private constructor(
                 ),
             callbacks =
                 MeshEngineOutboundPreparationCallbacks(
-                    createMessageId = ::createMessageId,
-                    createTransferId = ::createTransferId,
+                    createMessageId = sequenceGenerator::createMessageId,
+                    createTransferId = sequenceGenerator::createTransferId,
                     emitTransferEncryptFailure = { peerId, cause ->
                         hopTransportSupport.emitHopSessionFailed(
                             peerId = peerId,
@@ -230,7 +291,7 @@ private constructor(
                     sendEncryptedDirectWireFrame =
                         hopTransportSupport::sendEncryptedDirectWireFrame,
                     resolveRecipientTrust = outboundPreparationSupport::resolveRecipientTrust,
-                    scheduleRetryDiagnostic = ::scheduleRetryDiagnostic,
+                    scheduleRetryDiagnostic = scheduleRetryDiagnostic,
                     setDiscoverySuspended = { suspended ->
                         val action =
                             if (suspended) "inline.discoverySuspend" else "inline.discoveryResume"
@@ -241,8 +302,8 @@ private constructor(
             callbacks =
                 MeshEngineInlineCallbacks(
                     emitDiagnostic = ::emitDiagnostic,
-                    createMessageId = ::createMessageId,
-                    ttlMillisFor = ::ttlMillisFor,
+                    createMessageId = sequenceGenerator::createMessageId,
+                    ttlMillisFor = ttlMillisFor,
                 ),
         )
     private val transferSupport =
@@ -256,9 +317,10 @@ private constructor(
             routingSupport = routingSupport,
             callbacks =
                 MeshEngineTransferCallbacks(
-                    isLocalPeerId = ::isLocalPeerId,
+                    isLocalPeerId = peerFlowSupport::isLocalPeerId,
                     sendEncryptedWireFrame = hopTransportSupport::sendEncryptedWireFrame,
-                    sendTransferTowardsDestination = ::sendTransferTowardsDestination,
+                    sendTransferTowardsDestination =
+                        peerFlowSupport::sendTransferTowardsDestination,
                     deliverInnerEnvelope = messageDeliverySupport::deliverInnerEnvelope,
                 ),
             emitDiagnostic = ::emitDiagnostic,
@@ -279,8 +341,9 @@ private constructor(
                     deliveryRetryScheduler = deliveryRetryScheduler,
                     prepareOutboundTransferSession =
                         outboundPreparationSupport::prepareOutboundTransferSession,
-                    scheduleRetryDiagnostic = ::scheduleRetryDiagnostic,
-                    sendTransferTowardsDestination = ::sendTransferTowardsDestination,
+                    scheduleRetryDiagnostic = scheduleRetryDiagnostic,
+                    sendTransferTowardsDestination =
+                        peerFlowSupport::sendTransferTowardsDestination,
                     setDiscoverySuspended = { suspended ->
                         val action =
                             if (suspended) "transfer.discoverySuspend"
@@ -309,7 +372,7 @@ private constructor(
                 ),
             messageCallbacks =
                 MeshEngineInboundMessageCallbacks(
-                    forwardMessageToNextHop = ::forwardMessageToNextHop,
+                    forwardMessageToNextHop = peerFlowSupport::forwardMessageToNextHop,
                     deliverInnerEnvelope = messageDeliverySupport::deliverInnerEnvelope,
                 ),
             transferCallbacks =
@@ -338,7 +401,7 @@ private constructor(
                 ),
             callbacks =
                 MeshEngineTransportCallbacks(
-                    prewarmHopSession = ::prewarmHopSession,
+                    prewarmHopSession = peerFlowSupport::prewarmHopSession,
                     handleHandshakeMessage1 = responderHandshakeSupport::handleHandshakeMessage1,
                     handleHandshakeMessage2 = initiatorHandshakeSupport::handleHandshakeMessage2,
                     handleHandshakeMessage3 = responderHandshakeSupport::handleHandshakeMessage3,
@@ -435,7 +498,8 @@ private constructor(
         val transportUnavailable =
             mutableState.value !== MeshLinkState.Running || bleTransport == null
         val shouldUseInlineDelivery =
-            payload.size <= INLINE_MESSAGE_PAYLOAD_BYTES || shouldAttemptLargeInlineSend(peerId)
+            payload.size <= INLINE_MESSAGE_PAYLOAD_BYTES ||
+                peerFlowSupport.shouldAttemptLargeInlineSend(peerId)
 
         return when {
             isPayloadTooLarge -> {
@@ -450,7 +514,7 @@ private constructor(
                 SendResult.NotSent(SendFailureReason.PAYLOAD_TOO_LARGE)
             }
             transportUnavailable -> {
-                scheduleRetryDiagnostic(peerId = peerId, priority = priority)
+                scheduleRetryDiagnostic(peerId, priority)
                 SendResult.NotSent(SendFailureReason.UNREACHABLE)
             }
             shouldUseInlineDelivery ->
@@ -517,70 +581,6 @@ private constructor(
         )
     }
 
-    private fun ensureTransportCollector(): Unit {
-        if (bleTransport == null || transportCollectionJob != null) {
-            return
-        }
-        transportCollectionJob =
-            coroutineScope.launch(start = CoroutineStart.UNDISPATCHED) {
-                bleTransport.events.collect { event ->
-                    transportSupport.handleTransportEvent(event)
-                }
-            }
-    }
-
-    private suspend fun sendTransferTowardsDestination(
-        destinationPeerId: PeerId,
-        frame: WireFrame,
-        action: String,
-    ): Boolean {
-        val nextHopPeerId = routeCoordinator.nextHopFor(destinationPeerId) ?: destinationPeerId
-        return sendEncryptedWireFrame(nextHopPeerId, frame, action)
-    }
-
-    private fun prewarmHopSession(peerId: PeerId): Unit {
-        if (localIdentity.peerId.value >= peerId.value) {
-            return
-        }
-        coroutineScope.launch { sessionSupport.ensureHopSession(peerId) }
-    }
-
-    private fun forwardMessageToNextHop(frame: WireFrame.Message): Unit {
-        val nextHopPeerId = routeCoordinator.nextHopFor(frame.destinationPeerId) ?: return
-        coroutineScope.launch {
-            sendEncryptedWireFrame(
-                peerId = nextHopPeerId,
-                frame = frame,
-                action = "forward.message",
-            )
-        }
-    }
-
-    private fun shouldAttemptLargeInlineSend(peerId: PeerId): Boolean {
-        val nextHopPeerId = routeCoordinator.nextHopFor(peerId) ?: peerId
-        return nextHopPeerId.value == peerId.value &&
-            (bleTransport?.maximumPayloadBytesPerDelivery(nextHopPeerId)?.let { transportBudget ->
-                transportBudget >= LARGE_INLINE_SEND_TRANSPORT_BUDGET_BYTES
-            } ?: false)
-    }
-
-    private fun isLocalPeerId(peerId: PeerId): Boolean {
-        return peerId.value == localIdentity.peerId.value ||
-            peerId.value.hexContentEquals(localIdentity.advertisementKeyHash)
-    }
-
-    private suspend fun sendEncryptedWireFrame(
-        peerId: PeerId,
-        frame: WireFrame,
-        action: String,
-    ): Boolean {
-        return hopTransportSupport.sendEncryptedWireFrame(
-            peerId = peerId,
-            frame = frame,
-            action = action,
-        )
-    }
-
     private suspend fun sendDirectWireFrame(
         peerId: PeerId,
         frame: DirectWireFrame,
@@ -598,10 +598,6 @@ private constructor(
                 )
             )
         }
-    }
-
-    private fun powerPolicyNowMillis(): Long {
-        return engineClock.elapsedNow().inWholeMilliseconds
     }
 
     private fun emitDiagnostic(
@@ -623,47 +619,6 @@ private constructor(
             )
         mutableDiagnostics.tryEmit(event)
         diagnosticSink?.emit(event)
-    }
-
-    private fun scheduleRetryDiagnostic(peerId: PeerId, priority: DeliveryPriority): Unit {
-        emitDiagnostic(
-            code = DiagnosticCode.NO_ROUTE_AVAILABLE,
-            severity = DiagnosticSeverity.WARN,
-            stage = "delivery.noRoute",
-            peerSuffix = peerId.value.takeLast(6),
-            reason = DiagnosticReason.DELIVERY_FAILURE,
-            metadata =
-                routingSupport.peerRouteMetadata(
-                    peerId,
-                    metadata =
-                        mapOf(
-                            "priority" to priority.name,
-                            "retryDeadlineMs" to
-                                config.deliveryRetryDeadline.inWholeMilliseconds.toString(),
-                            "retryBackoffBaseMs" to INITIAL_BACKOFF.inWholeMilliseconds.toString(),
-                        ),
-                ),
-        )
-    }
-
-    private fun createMessageId(): String {
-        val current = nextMessageSequenceNumber
-        nextMessageSequenceNumber += 1L
-        return "${localIdentity.peerId.value.takeLast(6)}-$current"
-    }
-
-    private fun createTransferId(): String {
-        val current = nextMessageSequenceNumber
-        nextMessageSequenceNumber += 1L
-        return "transfer-${localIdentity.peerId.value.takeLast(6)}-$current"
-    }
-
-    private fun ttlMillisFor(priority: DeliveryPriority): Int {
-        return when (priority) {
-            DeliveryPriority.HIGH -> 45 * 60 * 1_000
-            DeliveryPriority.NORMAL -> 15 * 60 * 1_000
-            DeliveryPriority.LOW -> 5 * 60 * 1_000
-        }
     }
 
     private suspend fun <T> runPlatformCall(action: String, block: suspend () -> T): T {
