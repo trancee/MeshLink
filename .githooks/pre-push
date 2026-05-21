@@ -28,13 +28,24 @@ append_commit_range() {
   git rev-list "$range" >> "$commit_manifest"
 }
 
-append_new_branch_commits() {
-  local commit="$1"
-  if [[ -n "$remote_name" ]]; then
-    git rev-list "$commit" --not --remotes="$remote_name" >> "$commit_manifest"
-  else
-    git rev-list "$commit" --not --remotes >> "$commit_manifest"
+determine_base_ref() {
+  if git rev-parse --verify '@{upstream}' >/dev/null 2>&1; then
+    printf '%s\n' '@{upstream}'
+    return
   fi
+  if [[ -n "$remote_name" ]] && git show-ref --verify --quiet "refs/remotes/$remote_name/main"; then
+    printf 'refs/remotes/%s/main\n' "$remote_name"
+    return
+  fi
+  if git show-ref --verify --quiet 'refs/remotes/origin/main'; then
+    printf '%s\n' 'refs/remotes/origin/main'
+    return
+  fi
+  if git show-ref --verify --quiet 'refs/heads/main'; then
+    printf '%s\n' 'refs/heads/main'
+    return
+  fi
+  printf '%s' ''
 }
 
 saw_ref_updates=0
@@ -55,8 +66,14 @@ while read -r local_ref local_sha remote_ref remote_sha; do
   fi
 
   if [[ "$remote_sha" == "$zero_sha" ]]; then
-    append_commit_files "$local_sha"
-    append_new_branch_commits "$local_sha"
+    base_ref="$(determine_base_ref)"
+    if [[ -n "$base_ref" ]]; then
+      append_changed_files "$base_ref..$local_sha"
+      append_commit_range "$base_ref..$local_sha"
+    else
+      append_commit_files "$local_sha"
+      append_commit_range "$local_sha"
+    fi
   else
     append_changed_files "$remote_sha..$local_sha"
     append_commit_range "$remote_sha..$local_sha"
@@ -64,12 +81,13 @@ while read -r local_ref local_sha remote_ref remote_sha; do
 done
 
 if [[ "$saw_ref_updates" -eq 0 ]]; then
-  if git rev-parse --verify '@{upstream}' >/dev/null 2>&1; then
-    append_changed_files '@{upstream}..HEAD'
-    append_commit_range '@{upstream}..HEAD'
+  base_ref="$(determine_base_ref)"
+  if [[ -n "$base_ref" ]]; then
+    append_changed_files "$base_ref..HEAD"
+    append_commit_range "$base_ref..HEAD"
   else
     append_commit_files HEAD
-    append_new_branch_commits HEAD
+    append_commit_range HEAD
   fi
 fi
 
