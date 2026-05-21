@@ -1,5 +1,6 @@
 package ch.trancee.meshlink.platform.android
 
+import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
@@ -483,6 +484,7 @@ internal class AndroidBleTransport(
         maybeStartGattNotifySideLink(peer)
     }
 
+    @SuppressLint("MissingPermission")
     private fun connectIfNeeded(peer: DiscoveredPeer): Unit {
         if (peer.l2capPsm == 0) {
             log("connectIfNeeded(${peer.hintPeerId.value.takeLast(6)}) skipped: no PSM")
@@ -686,6 +688,7 @@ internal class AndroidBleTransport(
         }
     }
 
+    @SuppressLint("MissingPermission")
     private fun refreshDiscoveryState(): Unit {
         try {
             scanner?.stopScan(scanCallback)
@@ -764,6 +767,7 @@ internal class AndroidBleTransport(
         )
     }
 
+    @SuppressLint("MissingPermission")
     private fun stopTransports(clearPeers: Boolean): Unit {
         scanner?.stopScan(scanCallback)
         advertiser?.stopAdvertising(advertiseCallback)

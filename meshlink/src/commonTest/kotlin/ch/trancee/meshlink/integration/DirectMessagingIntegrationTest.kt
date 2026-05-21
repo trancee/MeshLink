@@ -3,6 +3,7 @@ package ch.trancee.meshlink.integration
 import ch.trancee.meshlink.api.ForgetPeerResult
 import ch.trancee.meshlink.api.InboundMessage
 import ch.trancee.meshlink.api.MeshLinkState
+import ch.trancee.meshlink.api.PeerEvent
 import ch.trancee.meshlink.api.SendResult
 import ch.trancee.meshlink.diagnostics.DiagnosticCode
 import ch.trancee.meshlink.platform.currentEpochMillis
@@ -73,7 +74,16 @@ class DirectMessagingIntegrationTest {
 
         // Act
         val restartedReceiver = harness.restartNode(receiver)
+        val senderRediscoveredReceiverDeferred =
+            async(start = CoroutineStart.UNDISPATCHED) {
+                withTimeout(1_000) {
+                    sender.api.peerEvents.first { event ->
+                        event is PeerEvent.Found && event.peerId == restartedReceiver.peerId
+                    }
+                }
+            }
         restartedReceiver.api.start()
+        senderRediscoveredReceiverDeferred.await()
         val receivedMessageDeferred =
             async(start = CoroutineStart.UNDISPATCHED) {
                 withTimeout(1_000) { restartedReceiver.api.messages.first() }
@@ -111,7 +121,16 @@ class DirectMessagingIntegrationTest {
             delay(50)
             val forgetResult = receiver.api.forgetPeer(sender.peerId)
             val restartedSender = harness.restartNode(sender)
+            val restartedSenderFoundReceiverDeferred =
+                async(start = CoroutineStart.UNDISPATCHED) {
+                    withTimeout(1_000) {
+                        restartedSender.api.peerEvents.first { event ->
+                            event is PeerEvent.Found && event.peerId == receiver.peerId
+                        }
+                    }
+                }
             restartedSender.api.start()
+            restartedSenderFoundReceiverDeferred.await()
             val secondMessageDeferred =
                 async(start = CoroutineStart.UNDISPATCHED) {
                     withTimeout(1_000) { receiver.api.messages.first() }

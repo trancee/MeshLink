@@ -1,11 +1,13 @@
 package ch.trancee.meshlink.platform.android
 
+import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothServerSocket
 import android.bluetooth.BluetoothSocket
 import android.os.Build
 
+@SuppressLint("MissingPermission", "PrivateApi")
 internal object AndroidL2capSocketFactory {
     internal fun listenInsecure(
         adapter: BluetoothAdapter,

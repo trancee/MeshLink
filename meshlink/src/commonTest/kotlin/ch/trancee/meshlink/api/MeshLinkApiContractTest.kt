@@ -5,7 +5,6 @@ import ch.trancee.meshlink.config.RegulatoryRegion
 import ch.trancee.meshlink.config.meshLinkConfig
 import ch.trancee.meshlink.diagnostics.DiagnosticCode
 import ch.trancee.meshlink.engine.MeshEngine
-import ch.trancee.meshlink.platform.AndroidFactoryTestContext
 import ch.trancee.meshlink.platform.PlatformPermissionDeniedException
 import ch.trancee.meshlink.test.MeshTestHarness
 import ch.trancee.meshlink.test.RecordingDiagnosticSink
@@ -29,38 +28,6 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 
 class MeshLinkApiContractTest {
-    private fun installIosFactoryTestBridge(): Unit {
-        var counter = 1
-
-        fun nextBytes(size: Int): ByteArray {
-            return ByteArray(size) { index -> ((counter + index) and 0xFF).toByte() }
-                .also { counter += 1 }
-        }
-
-        IosCryptoBridge.install(
-            randomBytes = { size -> nextBytes(size) },
-            sha256 = { input ->
-                ByteArray(32) { index -> input.getOrElse(index) { index.toByte() } }
-            },
-            hmacSha256 = { _, data ->
-                ByteArray(32) { index -> data.getOrElse(index) { index.toByte() } }
-            },
-            generateX25519KeyPair = {
-                IosCryptoRawKeyPair(privateKey = nextBytes(32), publicKey = nextBytes(32))
-            },
-            generateEd25519KeyPair = {
-                IosCryptoRawKeyPair(privateKey = nextBytes(32), publicKey = nextBytes(32))
-            },
-            x25519 = { _, publicKey -> publicKey.copyOf() },
-            ed25519Sign = { _, message ->
-                ByteArray(64) { index -> message.getOrElse(index % maxOf(1, message.size)) { 0 } }
-            },
-            ed25519Verify = { _, _, _ -> true },
-            chacha20Poly1305Seal = { _, _, _, plaintext -> plaintext.copyOf() },
-            chacha20Poly1305Open = { _, _, _, ciphertext -> ciphertext.copyOf() },
-        )
-    }
-
     @Test
     fun `deliveryRetryDeadline must be greater than zero`() {
         // Arrange / Act
@@ -151,10 +118,10 @@ class MeshLinkApiContractTest {
     @Test
     fun `android and ios factories expose matching lifecycle results`() = runBlocking {
         // Arrange
-        installIosFactoryTestBridge()
+        installFactoryTestBridges()
         val config = meshLinkConfig { appId = "demo.meshlink.${kotlin.random.Random.nextInt()}" }
-        val androidApi = MeshLink.create(config = config, context = AndroidFactoryTestContext)
-        val iosApi = MeshLink.create(config = config)
+        val androidApi = createAndroidFactoryParityApi(config = config)
+        val iosApi = createIosFactoryParityApi(config = config)
 
         // Act
         val androidResults =
@@ -174,15 +141,15 @@ class MeshLinkApiContractTest {
     fun `android and ios factories honor the same non default shared configuration`() =
         runBlocking {
             // Arrange
-            installIosFactoryTestBridge()
+            installFactoryTestBridges()
             val config = meshLinkConfig {
                 appId = "config.meshlink.${kotlin.random.Random.nextInt()}"
                 regulatoryRegion = RegulatoryRegion.EU
                 powerMode = PowerMode.Performance
                 deliveryRetryDeadline = 9.seconds
             }
-            val androidApi = MeshLink.create(config = config, context = AndroidFactoryTestContext)
-            val iosApi = MeshLink.create(config = config)
+            val androidApi = createAndroidFactoryParityApi(config = config)
+            val iosApi = createIosFactoryParityApi(config = config)
             val androidPowerChanged =
                 async(start = CoroutineStart.UNDISPATCHED) {
                     withTimeout(1_000) {

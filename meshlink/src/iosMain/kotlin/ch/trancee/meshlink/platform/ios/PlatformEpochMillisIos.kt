@@ -2,8 +2,16 @@
 
 package ch.trancee.meshlink.platform
 
-import platform.posix.time
+import kotlinx.cinterop.alloc
+import kotlinx.cinterop.memScoped
+import kotlinx.cinterop.ptr
+import platform.posix.gettimeofday
+import platform.posix.timeval
 
 internal actual fun currentEpochMillis(): Long {
-    return time(null) * 1_000L
+    return memScoped {
+        val now = alloc<timeval>()
+        gettimeofday(now.ptr, null)
+        (now.tv_sec * 1_000L) + (now.tv_usec / 1_000L)
+    }
 }

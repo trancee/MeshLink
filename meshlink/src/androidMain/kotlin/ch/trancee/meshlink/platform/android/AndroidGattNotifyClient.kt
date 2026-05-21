@@ -1,5 +1,6 @@
 package ch.trancee.meshlink.platform.android
 
+import android.annotation.SuppressLint
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattCallback
@@ -20,6 +21,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
 
+@SuppressLint("MissingPermission", "ObsoleteSdkInt")
 internal class AndroidGattNotifyClient(
     private val context: Context,
     @Suppress("UNUSED_PARAMETER") private val appId: String,
