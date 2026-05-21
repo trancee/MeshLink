@@ -33,7 +33,6 @@ import ch.trancee.meshlink.routing.RouteCoordinator
 import ch.trancee.meshlink.routing.RouteEntry
 import ch.trancee.meshlink.storage.InMemorySecureStorage
 import ch.trancee.meshlink.storage.SecureStorage
-import ch.trancee.meshlink.transfer.InboundChunkAcceptance
 import ch.trancee.meshlink.transfer.InboundTransferSession
 import ch.trancee.meshlink.transfer.OutboundTransferSession
 import ch.trancee.meshlink.transfer.RelayTransferSession
@@ -160,6 +159,24 @@ private constructor(
             emitHopSessionFailed = ::emitHopSessionFailed,
             emitDiagnostic = ::emitDiagnostic,
         )
+    private val transferSupport =
+        MeshEngineTransferSupport(
+            state =
+                MeshEngineTransferState(
+                    outboundTransfers = outboundTransfers,
+                    inboundTransfers = inboundTransfers,
+                    relayTransfers = relayTransfers,
+                ),
+            routingSupport = routingSupport,
+            callbacks =
+                MeshEngineTransferCallbacks(
+                    isLocalPeerId = ::isLocalPeerId,
+                    sendEncryptedWireFrame = ::sendEncryptedWireFrame,
+                    sendTransferTowardsDestination = ::sendTransferTowardsDestination,
+                    deliverInnerEnvelope = messageDeliverySupport::deliverInnerEnvelope,
+                ),
+            emitDiagnostic = ::emitDiagnostic,
+        )
     private val inboundSupport =
         MeshEngineInboundSupport(
             localIdentity = localIdentity,
@@ -181,11 +198,11 @@ private constructor(
                 ),
             transferCallbacks =
                 MeshEngineInboundTransferCallbacks(
-                    handleTransferStart = ::handleTransferStart,
-                    handleTransferChunk = ::handleTransferChunk,
-                    handleTransferAck = ::handleTransferAck,
-                    handleTransferComplete = ::handleTransferComplete,
-                    handleTransferAbort = ::handleTransferAbort,
+                    handleTransferStart = transferSupport::handleTransferStart,
+                    handleTransferChunk = transferSupport::handleTransferChunk,
+                    handleTransferAck = transferSupport::handleTransferAck,
+                    handleTransferComplete = transferSupport::handleTransferComplete,
+                    handleTransferAbort = transferSupport::handleTransferAbort,
                 ),
         )
     private val transportSupport =
@@ -1136,249 +1153,6 @@ private constructor(
     ): Boolean {
         val nextHopPeerId = routeCoordinator.nextHopFor(destinationPeerId) ?: destinationPeerId
         return sendEncryptedWireFrame(nextHopPeerId, frame, action)
-    }
-
-    private suspend fun handleTransferStart(peerId: PeerId, frame: WireFrame.TransferStart): Unit {
-        if (isLocalPeerId(frame.destinationPeerId)) {
-            val existingSession = inboundTransfers[frame.transferId]
-            val inboundSession =
-                if (existingSession != null) {
-                    existingSession.upstreamPeerId = peerId
-                    existingSession
-                } else {
-                    InboundTransferSession(
-                            transferId = frame.transferId,
-                            messageId = frame.messageId,
-                            originPeerId = frame.originPeerId,
-                            destinationPeerId = frame.destinationPeerId,
-                            upstreamPeerId = peerId,
-                            totalBytes = frame.totalBytes,
-                            totalChunks = frame.totalChunks,
-                            maxChunkPayloadBytes = frame.maxChunkPayloadBytes,
-                        )
-                        .also { session -> inboundTransfers[frame.transferId] = session }
-                }
-            val preparedAck = inboundSession.prepareAck()
-            emitInboundTransferProgress(
-                stage = "transfer.receive.start",
-                peerId = peerId,
-                session = inboundSession,
-                metadata =
-                    mapOf(
-                        "existingSession" to (existingSession != null).toString(),
-                        "receivedChunks" to preparedAck.receivedChunkCount.toString(),
-                        "ackHighestContiguous" to preparedAck.highestContiguousAck.toString(),
-                    ),
-            )
-            val ackSent = sendEncryptedWireFrame(peerId, preparedAck.frame, "transfer.ack.start")
-            emitInboundTransferProgress(
-                stage = "transfer.ack.start",
-                peerId = peerId,
-                session = inboundSession,
-                metadata =
-                    inboundAckMetadata(preparedAck, ackSent) +
-                        mapOf("existingSession" to (existingSession != null).toString()),
-            )
-            return
-        }
-
-        val relaySession = relayTransfers[frame.transferId]
-        if (relaySession != null) {
-            relaySession.upstreamPeerId = peerId
-        } else {
-            relayTransfers[frame.transferId] =
-                RelayTransferSession(
-                    transferId = frame.transferId,
-                    messageId = frame.messageId,
-                    originPeerId = frame.originPeerId,
-                    destinationPeerId = frame.destinationPeerId,
-                    upstreamPeerId = peerId,
-                )
-        }
-        sendTransferTowardsDestination(frame.destinationPeerId, frame, "transfer.forward.start")
-    }
-
-    private suspend fun handleTransferChunk(peerId: PeerId, frame: WireFrame.TransferChunk): Unit {
-        val inboundSession = inboundTransfers[frame.transferId]
-        if (inboundSession != null) {
-            handleInboundTransferChunk(peerId = peerId, frame = frame, session = inboundSession)
-            return
-        }
-        val relaySession = relayTransfers[frame.transferId] ?: return
-        sendTransferTowardsDestination(
-            relaySession.destinationPeerId,
-            frame,
-            "transfer.forward.chunk",
-        )
-    }
-
-    private suspend fun handleInboundTransferChunk(
-        peerId: PeerId,
-        frame: WireFrame.TransferChunk,
-        session: InboundTransferSession,
-    ): Unit {
-        val acceptance = session.acceptChunk(frame)
-        emitInboundTransferProgress(
-            stage = inboundTransferChunkStage(acceptance),
-            peerId = peerId,
-            session = session,
-            metadata = inboundTransferChunkMetadata(acceptance),
-        )
-        acknowledgeInboundTransferChunkIfNeeded(
-            peerId = peerId,
-            frame = frame,
-            session = session,
-            acceptance = acceptance,
-        )
-        completeInboundTransferChunkIfNeeded(
-            peerId = peerId,
-            frame = frame,
-            session = session,
-            acceptance = acceptance,
-        )
-    }
-
-    private suspend fun acknowledgeInboundTransferChunkIfNeeded(
-        peerId: PeerId,
-        frame: WireFrame.TransferChunk,
-        session: InboundTransferSession,
-        acceptance: InboundChunkAcceptance,
-    ): Unit {
-        if (!acceptance.shouldAcknowledge) {
-            return
-        }
-        val preparedAck = session.prepareAck()
-        val ackSent =
-            sendEncryptedWireFrame(session.upstreamPeerId, preparedAck.frame, "transfer.ack.chunk")
-        emitInboundTransferProgress(
-            stage = "transfer.ack.chunk",
-            peerId = peerId,
-            session = session,
-            metadata =
-                inboundAckMetadata(preparedAck, ackSent) +
-                    mapOf(
-                        "triggerChunkIndex" to frame.chunkIndex.toString(),
-                        "triggerDuplicateChunk" to acceptance.duplicateChunk.toString(),
-                    ),
-        )
-    }
-
-    private suspend fun completeInboundTransferChunkIfNeeded(
-        peerId: PeerId,
-        frame: WireFrame.TransferChunk,
-        session: InboundTransferSession,
-        acceptance: InboundChunkAcceptance,
-    ): Unit {
-        if (!acceptance.complete) {
-            return
-        }
-        inboundTransfers.remove(frame.transferId)
-        emitInboundTransferProgress(
-            stage = "transfer.receive.complete",
-            peerId = peerId,
-            session = session,
-            metadata =
-                mapOf(
-                    "complete" to "true",
-                    "receivedChunks" to session.receivedChunkCount().toString(),
-                    "triggerChunkIndex" to frame.chunkIndex.toString(),
-                ),
-        )
-        messageDeliverySupport.deliverInnerEnvelope(
-            immediatePeerId = peerId,
-            originPeerId = session.originPeerId,
-            encryptedPayload = session.assembledPayload(),
-            priority = DeliveryPriority.NORMAL,
-        )
-    }
-
-    private fun handleTransferAck(peerId: PeerId, frame: WireFrame.TransferAck): Unit {
-        val outboundSession = outboundTransfers[frame.transferId]
-        if (outboundSession != null) {
-            outboundSession.markAcknowledged(frame)
-            return
-        }
-        val relaySession = relayTransfers[frame.transferId] ?: return
-        coroutineScope.launch {
-            sendEncryptedWireFrame(relaySession.upstreamPeerId, frame, "transfer.forward.ack")
-        }
-    }
-
-    private suspend fun handleTransferComplete(
-        peerId: PeerId,
-        frame: WireFrame.TransferComplete,
-    ): Unit {
-        val inboundSession = inboundTransfers.remove(frame.transferId)
-        if (inboundSession != null) {
-            emitInboundTransferProgress(
-                stage = "transfer.receive.complete",
-                peerId = peerId,
-                session = inboundSession,
-                metadata =
-                    mapOf(
-                        "complete" to inboundSession.isComplete().toString(),
-                        "receivedChunks" to inboundSession.receivedChunkCount().toString(),
-                    ),
-            )
-            if (inboundSession.isComplete()) {
-                messageDeliverySupport.deliverInnerEnvelope(
-                    immediatePeerId = peerId,
-                    originPeerId = inboundSession.originPeerId,
-                    encryptedPayload = inboundSession.assembledPayload(),
-                    priority = DeliveryPriority.NORMAL,
-                )
-            }
-            return
-        }
-        val relaySession = relayTransfers.remove(frame.transferId) ?: return
-        sendTransferTowardsDestination(
-            relaySession.destinationPeerId,
-            frame,
-            "transfer.forward.complete",
-        )
-    }
-
-    private suspend fun handleTransferAbort(peerId: PeerId, frame: WireFrame.TransferAbort): Unit {
-        inboundTransfers.remove(frame.transferId)
-        val relaySession = relayTransfers.remove(frame.transferId)
-        if (relaySession != null) {
-            sendTransferTowardsDestination(
-                relaySession.destinationPeerId,
-                frame,
-                "transfer.forward.abort",
-            )
-            return
-        }
-        val outboundSession = outboundTransfers.remove(frame.transferId)
-        if (outboundSession != null) {
-            emitDiagnostic(
-                code = DiagnosticCode.TRANSFER_FAILED,
-                severity = DiagnosticSeverity.ERROR,
-                stage = "transfer.abort",
-                peerSuffix = peerId.value.takeLast(6),
-                reason = DiagnosticReason.TRANSFER_FAILURE,
-                metadata = mapOf("reasonCode" to frame.reasonCode.toString()),
-            )
-        }
-    }
-
-    private fun emitInboundTransferProgress(
-        stage: String,
-        peerId: PeerId,
-        session: InboundTransferSession,
-        metadata: Map<String, String> = emptyMap(),
-    ): Unit {
-        emitDiagnostic(
-            code = DiagnosticCode.TRANSFER_PROGRESS,
-            severity = DiagnosticSeverity.DEBUG,
-            stage = stage,
-            peerSuffix = peerId.value.takeLast(6),
-            metadata =
-                routingSupport.peerRouteMetadata(
-                    peerId = peerId,
-                    metadata = inboundTransferMetadata(session) + metadata,
-                ),
-        )
     }
 
     private fun prewarmHopSession(peerId: PeerId): Unit {

@@ -28,7 +28,7 @@ internal data class MeshEngineInboundMessageCallbacks(
 internal data class MeshEngineInboundTransferCallbacks(
     val handleTransferStart: suspend (PeerId, WireFrame.TransferStart) -> Unit,
     val handleTransferChunk: suspend (PeerId, WireFrame.TransferChunk) -> Unit,
-    val handleTransferAck: (PeerId, WireFrame.TransferAck) -> Unit,
+    val handleTransferAck: suspend (PeerId, WireFrame.TransferAck) -> Unit,
     val handleTransferComplete: suspend (PeerId, WireFrame.TransferComplete) -> Unit,
     val handleTransferAbort: suspend (PeerId, WireFrame.TransferAbort) -> Unit,
 )
