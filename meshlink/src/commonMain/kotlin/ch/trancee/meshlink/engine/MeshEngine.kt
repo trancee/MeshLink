@@ -111,9 +111,9 @@ private constructor(
         }
     private val ttlMillisFor: (DeliveryPriority) -> Int = { priority ->
         when (priority) {
-            DeliveryPriority.HIGH -> 45 * 60 * 1_000
-            DeliveryPriority.NORMAL -> 15 * 60 * 1_000
-            DeliveryPriority.LOW -> 5 * 60 * 1_000
+            DeliveryPriority.HIGH -> HIGH_PRIORITY_TTL_MILLIS
+            DeliveryPriority.NORMAL -> NORMAL_PRIORITY_TTL_MILLIS
+            DeliveryPriority.LOW -> LOW_PRIORITY_TTL_MILLIS
         }
     }
     private val scheduleRetryDiagnostic: (PeerId, DeliveryPriority) -> Unit = { peerId, priority ->
@@ -156,7 +156,7 @@ private constructor(
                             code = DiagnosticCode.HOP_SESSION_FAILED,
                             severity = DiagnosticSeverity.WARN,
                             stage = stage,
-                            peerSuffix = peerId.value.takeLast(6),
+                            peerSuffix = peerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
                             reason = reason,
                             metadata = routingSupport.peerRouteMetadata(peerId, metadata = metadata),
                         )
@@ -507,7 +507,7 @@ private constructor(
                     code = DiagnosticCode.SIZE_LIMIT_REJECTED,
                     severity = DiagnosticSeverity.WARN,
                     stage = "delivery.send",
-                    peerSuffix = peerId.value.takeLast(6),
+                    peerSuffix = peerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
                     reason = DiagnosticReason.SIZE_LIMIT,
                     metadata = mapOf("payloadBytes" to payload.size.toString()),
                 )
@@ -600,6 +600,7 @@ private constructor(
         }
     }
 
+    @Suppress("LongParameterList")
     private fun emitDiagnostic(
         code: DiagnosticCode,
         severity: DiagnosticSeverity,
@@ -621,6 +622,7 @@ private constructor(
         diagnosticSink?.emit(event)
     }
 
+    @Suppress("TooGenericExceptionCaught")
     private suspend fun <T> runPlatformCall(action: String, block: suspend () -> T): T {
         return try {
             block()
@@ -641,12 +643,15 @@ private constructor(
         private const val MAX_SUPPORTED_PAYLOAD_BYTES: Int = 64 * 1024
         private const val INLINE_MESSAGE_PAYLOAD_BYTES: Int = 1_024
         private const val LARGE_INLINE_SEND_TRANSPORT_BUDGET_BYTES: Int = 16 * 1024
-        private const val TRANSFER_CHUNK_PAYLOAD_BYTES: Int = 392
+        private const val HIGH_PRIORITY_TTL_MILLIS: Int = 45 * 60 * 1_000
+        private const val NORMAL_PRIORITY_TTL_MILLIS: Int = 15 * 60 * 1_000
+        private const val LOW_PRIORITY_TTL_MILLIS: Int = 5 * 60 * 1_000
         private val TRANSFER_ACK_SETTLEMENT_TIMEOUT = 1_500.milliseconds
         private val TRANSFER_ACK_IDLE_WINDOW = 100.milliseconds
         private val HANDSHAKE_TIMEOUT = 1.seconds
         private val INITIAL_BACKOFF = 250.milliseconds
 
+        @Suppress("LongParameterList")
         internal fun create(
             config: MeshLinkConfig,
             platformContext: Any? = null,
