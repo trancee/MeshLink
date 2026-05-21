@@ -33,6 +33,10 @@ Quick entry points:
 Maintainers can run `./gradlew verifyDocs` to check the generated API appendix
 and relative markdown links.
 
+## Contributing
+
+- [How to build and contribute to MeshLink](CONTRIBUTING.md)
+
 ## Reference app, proof apps, and validation
 
 - [How to evaluate MeshLink with the reference app](docs/how-to/evaluate-meshlink-with-the-reference-app.md)
