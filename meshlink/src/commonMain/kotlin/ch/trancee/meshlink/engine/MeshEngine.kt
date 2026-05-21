@@ -152,6 +152,14 @@ private constructor(
         MutableSharedFlow(extraBufferCapacity = 32)
     private val mutableMessages: MutableSharedFlow<InboundMessage> =
         MutableSharedFlow(extraBufferCapacity = 16)
+    private val messageDeliverySupport =
+        MeshEngineMessageDeliverySupport(
+            localIdentity = localIdentity,
+            trustSupport = trustSupport,
+            mutableMessages = mutableMessages,
+            emitHopSessionFailed = ::emitHopSessionFailed,
+            emitDiagnostic = ::emitDiagnostic,
+        )
     private val inboundSupport =
         MeshEngineInboundSupport(
             localIdentity = localIdentity,
@@ -169,7 +177,7 @@ private constructor(
             messageCallbacks =
                 MeshEngineInboundMessageCallbacks(
                     forwardMessageToNextHop = ::forwardMessageToNextHop,
-                    deliverInnerEnvelope = ::deliverInnerEnvelope,
+                    deliverInnerEnvelope = messageDeliverySupport::deliverInnerEnvelope,
                 ),
             transferCallbacks =
                 MeshEngineInboundTransferCallbacks(
@@ -377,95 +385,6 @@ private constructor(
                     transportSupport.handleTransportEvent(event)
                 }
             }
-    }
-
-    private suspend fun deliverInnerEnvelope(
-        immediatePeerId: PeerId,
-        originPeerId: PeerId,
-        encryptedPayload: ByteArray,
-        priority: DeliveryPriority,
-    ): Unit {
-        val envelope = decodeInnerEnvelope(immediatePeerId, encryptedPayload)
-        if (envelope != null) {
-            val senderTrust = verifyInnerEnvelopeSenderTrust(envelope)
-            if (senderTrust != null) {
-                val plaintext = openInnerEnvelope(envelope, senderTrust)
-                if (plaintext != null) {
-                    emitInboundMessage(
-                        originPeerId = originPeerId,
-                        payload = plaintext,
-                        priority = priority,
-                    )
-                }
-            }
-        }
-    }
-
-    private fun decodeInnerEnvelope(
-        immediatePeerId: PeerId,
-        encryptedPayload: ByteArray,
-    ): DirectMessageEnvelope? {
-        return runCatching { DirectMessageEnvelope.decode(encryptedPayload) }
-            .getOrElse { exception ->
-                emitHopSessionFailed(
-                    peerId = immediatePeerId,
-                    stage = "transport.data.messageEnvelope",
-                    reason = DiagnosticReason.DELIVERY_FAILURE,
-                    metadata = mapOf("cause" to exception::class.simpleName.orEmpty()),
-                )
-                null
-            }
-    }
-
-    private suspend fun verifyInnerEnvelopeSenderTrust(
-        envelope: DirectMessageEnvelope
-    ): TrustRecord? {
-        return trustSupport.verifyAndPersistTrust(
-            peerId = envelope.senderPeerId,
-            remoteEd25519PublicKey = envelope.senderEd25519PublicKey,
-            remoteX25519PublicKey = envelope.senderX25519PublicKey,
-            expectedFingerprintBytes = envelope.senderFingerprintBytes,
-        )
-    }
-
-    private fun openInnerEnvelope(
-        envelope: DirectMessageEnvelope,
-        senderTrust: TrustRecord,
-    ): ByteArray? {
-        return runCatching {
-                MessageSealer.open(
-                    sealedPayload = envelope.ciphertext,
-                    recipientIdentity = localIdentity,
-                    senderTrust = senderTrust,
-                )
-            }
-            .getOrElse { exception ->
-                emitDiagnostic(
-                    code = DiagnosticCode.TRUST_FAILURE,
-                    severity = DiagnosticSeverity.ERROR,
-                    stage = "transport.data.open",
-                    peerSuffix =
-                        envelope.senderPeerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
-                    reason = DiagnosticReason.TRUST_FAILURE,
-                    metadata = mapOf("cause" to exception::class.simpleName.orEmpty()),
-                )
-                null
-            }
-    }
-
-    private suspend fun emitInboundMessage(
-        originPeerId: PeerId,
-        payload: ByteArray,
-        priority: DeliveryPriority,
-    ): Unit {
-        mutableMessages.emit(
-            InboundMessage(
-                originPeerId = originPeerId,
-                payload = payload,
-                receivedAtEpochMillis = currentEpochMillis(),
-                priority = priority,
-            )
-        )
     }
 
     private data class InlineSessionResolution(
@@ -1365,7 +1284,7 @@ private constructor(
                     "triggerChunkIndex" to frame.chunkIndex.toString(),
                 ),
         )
-        deliverInnerEnvelope(
+        messageDeliverySupport.deliverInnerEnvelope(
             immediatePeerId = peerId,
             originPeerId = session.originPeerId,
             encryptedPayload = session.assembledPayload(),
@@ -1402,7 +1321,7 @@ private constructor(
                     ),
             )
             if (inboundSession.isComplete()) {
-                deliverInnerEnvelope(
+                messageDeliverySupport.deliverInnerEnvelope(
                     immediatePeerId = peerId,
                     originPeerId = inboundSession.originPeerId,
                     encryptedPayload = inboundSession.assembledPayload(),
