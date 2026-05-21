@@ -45,9 +45,10 @@ Then install the repository Git hook:
 ./scripts/install-git-hooks.sh
 ```
 
-The hook runs formatting first and then the relevant Gradle checks for the
-staged paths before each commit. If formatting changes a staged file, the
-commit stops so you can review and re-stage the result.
+The hooks run formatting first, then the relevant Gradle checks for the
+staged paths before each commit, plus `yamllint` for staged YAML files and
+Conventional Commit validation for commit messages. If formatting changes a
+staged file, the commit stops so you can review and re-stage the result.
 
 ## 3. Build the library
 

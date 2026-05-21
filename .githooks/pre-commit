@@ -25,7 +25,9 @@ need_reference=0
 need_benchmarks=0
 need_proof_android=0
 need_docs=0
+need_yaml=0
 need_hook_validation=0
+yaml_files=()
 
 for file in "${staged_files[@]}"; do
   case "$file" in
@@ -58,11 +60,28 @@ for file in "${staged_files[@]}"; do
       need_docs=1
       ;;
   esac
+
+  case "$file" in
+    *.yml|*.yaml)
+      need_yaml=1
+      yaml_files+=("$file")
+      ;;
+  esac
 done
 
 if [[ "$need_hook_validation" -eq 1 ]]; then
   echo "[pre-commit] Validating hook shell scripts"
-  bash -n .githooks/pre-commit scripts/install-git-hooks.sh
+  bash -n .githooks/pre-commit .githooks/commit-msg scripts/install-git-hooks.sh
+fi
+
+if [[ "$need_yaml" -eq 1 ]]; then
+  if ! command -v yamllint >/dev/null 2>&1; then
+    echo "[pre-commit] yamllint is required for YAML changes." >&2
+    echo "[pre-commit] Install it with: python3 -m pip install --user yamllint" >&2
+    exit 1
+  fi
+  echo "[pre-commit] Running YAML lint: ${yaml_files[*]}"
+  yamllint "${yaml_files[@]}"
 fi
 
 format_tasks=()

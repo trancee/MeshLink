@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+message_file="${1:?commit message file is required}"
+message="$(head -n 1 "$message_file" | tr -d '\r')"
+
+pattern='^(feat|fix|test|docs|refactor|perf|chore)(\([A-Za-z0-9._/-]+\))?(!)?: .+'
+
+if [[ "$message" =~ $pattern ]]; then
+  exit 0
+fi
+
+echo "[commit-msg] Commit messages must use Conventional Commits." >&2
+echo "[commit-msg] Expected: <type>(optional-scope): <summary>" >&2
+echo "[commit-msg] Allowed types: feat, fix, test, docs, refactor, perf, chore" >&2
+echo "[commit-msg] Example: fix(meshlink): restore iOS simulator test stability" >&2
+exit 1

@@ -14,6 +14,7 @@ Use this page when you need exact commands, matrices, or policy details.
 | Android compilation and unit tests | Android SDK for API 35 builds | Required for Android targets. |
 | iOS compilation and tests | Xcode | Required for iOS build and test targets. |
 | Documentation verification | Python 3 | Required by the documentation verification scripts. |
+| YAML validation | `yamllint` | Required when staged YAML files are part of the change. |
 | iOS project regeneration after project-spec changes | `xcodegen` | Needed only when the committed iOS project spec changes. |
 | Final full-library validation | macOS | Required for the Android + iOS contributor flow in one workstation. |
 
@@ -22,7 +23,7 @@ Use this page when you need exact commands, matrices, or policy details.
 | Purpose | Command | Notes |
 |---|---|---|
 | Warm the checkout | `./gradlew help` | Confirms the wrapper works and downloads plugins/toolchains. |
-| Install repository Git hooks | `./scripts/install-git-hooks.sh` | Sets `core.hooksPath` to `.githooks` and enables the pre-commit checks. |
+| Install repository Git hooks | `./scripts/install-git-hooks.sh` | Sets `core.hooksPath` to `.githooks` and enables the repository hook suite. |
 | Build the library | `./gradlew :meshlink:build` | Standard first build for the library module. |
 | Compile without the full build | `./gradlew :meshlink:assemble` | Useful during early edit loops. |
 | Format Kotlin | `./gradlew :meshlink:ktfmtFormat` | Repository formatting is ktfmt-based. |
@@ -103,7 +104,8 @@ A public API change currently requires all of the following:
 
 | Hook | Behavior |
 |---|---|
-| `.githooks/pre-commit` | Runs ktfmt formatting for the touched Gradle modules, aborts if formatting changed a staged file, then runs the relevant Gradle verification tasks for the staged paths. |
+| `.githooks/pre-commit` | Runs ktfmt formatting for the touched Gradle modules, aborts if formatting changed a staged file, runs `yamllint` for staged YAML files, then runs the relevant Gradle verification tasks for the staged paths. |
+| `.githooks/commit-msg` | Rejects commit messages that do not follow the repository Conventional Commit policy. |
 
 ## PR and evidence requirements
 
