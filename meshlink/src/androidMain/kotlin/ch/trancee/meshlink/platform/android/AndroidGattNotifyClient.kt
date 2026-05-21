@@ -12,11 +12,6 @@ import android.os.Build
 import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.transport.BleDiscoveryContract
 import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
@@ -28,7 +23,7 @@ internal class AndroidGattNotifyClient(
     private val peerHintId: PeerId,
     private val device: BluetoothDevice,
     private val log: (String) -> Unit,
-    private val onFrameReceived: (PeerId, ByteArray) -> Unit,
+    private val onFrameReceived: (PeerId, ByteArray) -> Boolean,
     private val onDisconnected: (PeerId) -> Unit,
 ) {
     @Volatile private var gatt: BluetoothGatt? = null
@@ -42,14 +37,7 @@ internal class AndroidGattNotifyClient(
     private val frameBuffer = AndroidL2capFrameBuffer()
     private val writeMutex = Mutex()
     private val notificationLock = Any()
-    private val inboundFrameScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private val inboundFrames = Channel<ByteArray>(capacity = Channel.UNLIMITED)
     private var pendingWrite: CompletableDeferred<Boolean>? = null
-    private val inboundFrameDispatchJob = inboundFrameScope.launch {
-        for (payload in inboundFrames) {
-            onFrameReceived(peerHintId, payload)
-        }
-    }
 
     private val callback =
         object : BluetoothGattCallback() {
@@ -233,8 +221,10 @@ internal class AndroidGattNotifyClient(
                 log(
                     "GATT notify side link ${peerHintId.value.takeLast(6)} decoded frame bytes=${payload.size}"
                 )
-                check(inboundFrames.trySend(payload.copyOf()).isSuccess) {
-                    "GATT inbound frame queue overflowed for ${peerHintId.value}"
+                val accepted = onFrameReceived(peerHintId, payload)
+                if (!accepted) {
+                    closeInternal(markClosedByOwner = false)
+                    return
                 }
             }
         }

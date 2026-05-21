@@ -46,7 +46,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelChildren
-import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -70,9 +69,7 @@ internal class AndroidBleTransport(
     private val pendingConnectJobsByHint: MutableMap<String, Job> = linkedMapOf()
     private val pendingConnectLock = Any()
     private val transportMutex = Mutex()
-    private var inboundFrameEvents: Channel<TransportEvent.FrameReceived> =
-        Channel(capacity = Channel.UNLIMITED)
-    private var inboundFrameDispatchJob: Job? = null
+    private var inboundFrameQueue: AndroidInboundFrameQueue? = null
 
     private var bluetoothAdapter: BluetoothAdapter? = null
     private var advertiser: BluetoothLeAdvertiser? = null
@@ -145,12 +142,8 @@ internal class AndroidBleTransport(
         log("start() with l2capPsm=${currentDiscoveryPayload.l2capPsm}")
         serverSocket?.let(::launchAcceptLoop)
 
-        inboundFrameEvents = Channel(capacity = Channel.UNLIMITED)
-        inboundFrameDispatchJob = coroutineScope.launch {
-            for (event in inboundFrameEvents) {
-                mutableEvents.emit(event)
-            }
-        }
+        inboundFrameQueue?.close()
+        inboundFrameQueue = createInboundFrameQueue()
 
         started = true
         refreshDiscoveryState()
@@ -388,20 +381,7 @@ internal class AndroidBleTransport(
                 peerHintId = peer.hintPeerId,
                 device = peer.device,
                 log = ::log,
-                onFrameReceived = { incomingPeerId, payload ->
-                    check(
-                        inboundFrameEvents
-                            .trySend(
-                                TransportEvent.FrameReceived(
-                                    peerId = incomingPeerId,
-                                    payload = payload,
-                                )
-                            )
-                            .isSuccess
-                    ) {
-                        "Android inbound frame queue overflowed for ${incomingPeerId.value}"
-                    }
-                },
+                onFrameReceived = ::enqueueInboundFrame,
                 onDisconnected = ::handleGattNotifySideLinkDisconnected,
             )
         gattNotifyClientsByHint[peer.hintPeerId.value] = client
@@ -783,9 +763,8 @@ internal class AndroidBleTransport(
         hintIds.forEach { hintPeer -> closeLink(hintPeer = hintPeer, reason = "transport stopped") }
         gattNotifyClientsByHint.values.forEach { client -> client.close() }
         gattNotifyClientsByHint.clear()
-        inboundFrameDispatchJob?.cancel()
-        inboundFrameDispatchJob = null
-        inboundFrameEvents.close()
+        inboundFrameQueue?.close()
+        inboundFrameQueue = null
         coroutineScope.coroutineContext.cancelChildren()
         if (clearPeers) {
             discoveredPeers.clear()
@@ -834,6 +813,27 @@ internal class AndroidBleTransport(
 
     private fun clearPendingConnect(hintPeer: String): Unit {
         synchronized(pendingConnectLock) { pendingConnectJobsByHint.remove(hintPeer) }
+    }
+
+    private fun enqueueInboundFrame(peerId: PeerId, payload: ByteArray): Boolean {
+        val queue = inboundFrameQueue
+        if (queue == null) {
+            log(
+                "closing GATT side link ${peerId.value.takeLast(6)}: inbound frame queue unavailable"
+            )
+            return false
+        }
+        val enqueued = queue.enqueue(peerId = peerId, payload = payload)
+        if (!enqueued) {
+            log("closing GATT side link ${peerId.value.takeLast(6)}: inbound frame queue overflow")
+        }
+        return enqueued
+    }
+
+    private fun createInboundFrameQueue(): AndroidInboundFrameQueue {
+        return AndroidInboundFrameQueue(scope = coroutineScope) { event ->
+            mutableEvents.emit(event)
+        }
     }
 
     private fun closeQuietly(closeable: Closeable?): Unit {
