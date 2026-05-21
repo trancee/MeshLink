@@ -130,9 +130,14 @@ finished. On Android, request the runtime Bluetooth permissions first. On iOS,
 ship the Bluetooth usage description and handle the first-run prompt. If startup
 or discovery stalls, follow [How to unblock MeshLink permissions on Android and iOS](unblock-meshlink-permissions.md).
 
+Also bind your long-lived collectors before you call `start()` when you need full
+session visibility. `peerEvents`, `diagnosticEvents`, and `messages` are hot,
+non-replaying streams, so collectors attached after startup can miss early events.
+
 ## 5. Collect state, peer, diagnostic, and message streams
 
 Collect the four public streams and fan their data into your UI, logs, or app state.
+For full-session visibility, attach these collectors before you call `start()`.
 
 ```kotlin
 import ch.trancee.meshlink.api.InboundMessage

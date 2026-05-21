@@ -129,6 +129,23 @@ interface MeshLinkApi {
 }
 ```
 
+### Stream semantics
+
+MeshLink exposes one hot state stream and three hot event streams.
+
+| Stream | Kind | Replay | Integration guidance |
+|---|---|---:|---|
+| `state` | `StateFlow` | latest value only | Safe to collect at any time. New collectors receive the current lifecycle state immediately. |
+| `peerEvents` | hot `Flow` backed by an internal shared event stream | none | Collect before `start()` if you need the full discovery session. Collectors attached later can miss earlier events. |
+| `diagnosticEvents` | hot `Flow` backed by an internal shared event stream | none | Collect before `start()` for full-session visibility. Diagnostics are best-effort and use bounded in-memory buffering, so sustained backlog can drop events. |
+| `messages` | hot `Flow` backed by an internal shared event stream | none | Collect before `start()` if you need the full inbound-message stream. Collectors attached later can miss earlier deliveries. |
+
+Practical rules for host apps:
+
+- attach collectors from one app-owned lifecycle boundary before you call `start()`
+- do not expect `peerEvents`, `diagnosticEvents`, or `messages` to replay earlier events for late subscribers
+- keep collectors long-lived and app-owned rather than screen-local when you want full operator visibility
+
 ## Runtime methods
 
 ### `start()`

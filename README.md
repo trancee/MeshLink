@@ -35,7 +35,7 @@ and relative markdown links.
 
 ## Reference app, proof apps, and validation
 
-- [How to use the MeshLink reference app](meshlink-reference/README.md)
+- [How to evaluate MeshLink with the reference app](docs/how-to/evaluate-meshlink-with-the-reference-app.md)
 - [How to run the Android proof app](meshlink-proof/android/README.md)
 - [How to build and run the iOS proof app](meshlink-proof/ios/README.md)
 - [Benchmarks and retained evidence](benchmarks/README.md)

@@ -41,9 +41,9 @@ experience.
 
 ## Run it
 
-For a fresh-reader walkthrough, start with the feature quickstart:
+For a fresh-reader walkthrough, start with the stable how-to guide:
 
-- [Reference app quickstart](../specs/002-meshlink-reference-app/quickstart.md)
+- [How to evaluate MeshLink with the reference app](../docs/how-to/evaluate-meshlink-with-the-reference-app.md)
 
 For surrounding context, use:
 

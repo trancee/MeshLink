@@ -23,6 +23,7 @@ start with your need:
 - [How to integrate MeshLink into a host app](how-to/integrate-meshlink-into-a-host-app.md) — bootstrap the SDK on Android and iOS, manage lifecycle, collect streams, send payloads, and handle trust resets.
 - [How to structure a robust MeshLink integration](how-to/structure-a-robust-meshlink-integration.md) — turn a first working integration into an app-owned runtime with explicit lifecycle, diagnostics, trust-reset, and delivery semantics.
 - [How to unblock MeshLink permissions on Android and iOS](how-to/unblock-meshlink-permissions.md) — clear Android Nearby devices / Location blockers and the first-run iPhone Bluetooth prompt before you debug discovery.
+- [How to evaluate MeshLink with the reference app](how-to/evaluate-meshlink-with-the-reference-app.md) — install the shared Android and iOS reference app, complete one guided exchange, inspect the operator surfaces, and export a retained artifact.
 - [How to use MeshLink from Swift](how-to/use-meshlink-from-swift.md) — call the generated Apple framework safely from Swift, retain collectors correctly, and interpret Swift-facing result types.
 
 ## Reference
@@ -59,7 +60,7 @@ start with your need:
 
 ## Proof and validation guides
 
-- [How to use the MeshLink reference app](../meshlink-reference/README.md) — guided reference workflows, deterministic UI automation, and the retained Android ↔ iPhone live-proof harness.
+- [How to evaluate MeshLink with the reference app](how-to/evaluate-meshlink-with-the-reference-app.md) — guided reference workflows, retained history, exports, and the handoff point to the proof harnesses.
 - [How to run the Android proof app](../meshlink-proof/android/README.md)
 - [How to build and run the iOS proof app](../meshlink-proof/ios/README.md)
 - [Benchmark and validation baselines](../benchmarks/README.md)
