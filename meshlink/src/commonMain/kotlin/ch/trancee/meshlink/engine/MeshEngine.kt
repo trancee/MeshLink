@@ -41,7 +41,6 @@ import ch.trancee.meshlink.trust.TofuTrustStore
 import ch.trancee.meshlink.wire.WireFrame
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
-import kotlin.time.TimeMark
 import kotlin.time.TimeSource
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -241,6 +240,36 @@ private constructor(
                 ),
             emitDiagnostic = ::emitDiagnostic,
         )
+    private val largeTransferSupport =
+        MeshEngineLargeTransferSupport(
+            config =
+                MeshEngineLargeTransferConfig(
+                    deliveryRetryDeadline = config.deliveryRetryDeadline,
+                    ackSettlementTimeout = TRANSFER_ACK_SETTLEMENT_TIMEOUT,
+                    ackIdleWindow = TRANSFER_ACK_IDLE_WINDOW,
+                ),
+            state = MeshEngineLargeTransferState(outboundTransfers = outboundTransfers),
+            routingSupport = routingSupport,
+            dependencies =
+                MeshEngineLargeTransferDependencies(
+                    currentTopologyVersion = { routeCoordinator.topologyVersion.value },
+                    deliveryRetryScheduler = deliveryRetryScheduler,
+                    prepareOutboundTransferSession =
+                        outboundPreparationSupport::prepareOutboundTransferSession,
+                    scheduleRetryDiagnostic = ::scheduleRetryDiagnostic,
+                    sendTransferTowardsDestination = ::sendTransferTowardsDestination,
+                    setDiscoverySuspended = { suspended ->
+                        val action =
+                            if (suspended) "transfer.discoverySuspend"
+                            else "transfer.discoveryResume"
+                        runPlatformCall(action) { bleTransport?.setDiscoverySuspended(suspended) }
+                    },
+                    clearQueuedOutboundFrames = { peerId, action ->
+                        runPlatformCall(action) { bleTransport?.clearQueuedOutboundFrames(peerId) }
+                    },
+                ),
+            emitDiagnostic = ::emitDiagnostic,
+        )
     private val inboundSupport =
         MeshEngineInboundSupport(
             localIdentity = localIdentity,
@@ -407,7 +436,12 @@ private constructor(
                     payload = payload,
                     priority = priority,
                 )
-            else -> sendLargePayload(peerId = peerId, payload = payload, priority = priority)
+            else ->
+                largeTransferSupport.sendLargePayload(
+                    peerId = peerId,
+                    payload = payload,
+                    priority = priority,
+                )
         }
     }
 
@@ -470,343 +504,6 @@ private constructor(
                     transportSupport.handleTransportEvent(event)
                 }
             }
-    }
-
-    private suspend fun sendLargePayload(
-        peerId: PeerId,
-        payload: ByteArray,
-        priority: DeliveryPriority,
-    ): SendResult {
-        val startedAt = TimeSource.Monotonic.markNow()
-        var attempt = 0
-        var topologyVersion = routeCoordinator.topologyVersion.value
-        var activeSession: OutboundTransferSession? = null
-        var lastRouteAvailable = false
-
-        runPlatformCall("transfer.discoverySuspend") { bleTransport?.setDiscoverySuspended(true) }
-        try {
-            while (startedAt.elapsedNow() < config.deliveryRetryDeadline) {
-                val loopResult =
-                    advanceLargeTransferSendLoop(
-                        activeSession = activeSession,
-                        peerId = peerId,
-                        payload = payload,
-                        priority = priority,
-                        startedAt = startedAt,
-                    )
-                val completedResult = loopResult.result
-                if (completedResult != null) {
-                    return completedResult
-                }
-                activeSession = loopResult.session
-                lastRouteAvailable = loopResult.lastRouteAvailable
-
-                if (loopResult.transferProgressObserved) {
-                    attempt = 0
-                } else {
-                    val wakeupState =
-                        awaitLargeTransferRetryWakeup(
-                            peerId = peerId,
-                            attempt = attempt,
-                            topologyVersion = topologyVersion,
-                            startedAt = startedAt,
-                            noRouteRetry = !lastRouteAvailable,
-                        ) ?: break
-                    topologyVersion = wakeupState.topologyVersion
-                    attempt = wakeupState.attempt
-                }
-            }
-            return finishFailedLargeTransfer(
-                activeSession = activeSession,
-                peerId = peerId,
-                lastRouteAvailable = lastRouteAvailable,
-            )
-        } finally {
-            runPlatformCall("transfer.discoveryResume") {
-                bleTransport?.setDiscoverySuspended(false)
-            }
-        }
-    }
-
-    private suspend fun advanceLargeTransferSendLoop(
-        activeSession: OutboundTransferSession?,
-        peerId: PeerId,
-        payload: ByteArray,
-        priority: DeliveryPriority,
-        startedAt: TimeMark,
-    ): LargeTransferLoopResult {
-        val sessionResolution =
-            resolveLargeTransferSession(
-                activeSession = activeSession,
-                peerId = peerId,
-                payload = payload,
-                priority = priority,
-            )
-        val resolvedResult = sessionResolution.result
-        val session = sessionResolution.session
-
-        return if (resolvedResult != null) {
-            LargeTransferLoopResult(
-                session = null,
-                lastRouteAvailable = sessionResolution.lastRouteAvailable,
-                result = resolvedResult,
-            )
-        } else if (session == null) {
-            LargeTransferLoopResult(
-                session = null,
-                lastRouteAvailable = sessionResolution.lastRouteAvailable,
-            )
-        } else {
-            val iterationResult =
-                sendLargeTransferIteration(
-                    session = session,
-                    priority = priority,
-                    startedAt = startedAt,
-                )
-            LargeTransferLoopResult(
-                session = session,
-                lastRouteAvailable = iterationResult.lastRouteAvailable,
-                transferProgressObserved = iterationResult.transferProgressObserved,
-                result = iterationResult.result,
-            )
-        }
-    }
-
-    private suspend fun resolveLargeTransferSession(
-        activeSession: OutboundTransferSession?,
-        peerId: PeerId,
-        payload: ByteArray,
-        priority: DeliveryPriority,
-    ): LargeTransferSessionResolution {
-        if (activeSession != null) {
-            return LargeTransferSessionResolution(
-                session = activeSession,
-                lastRouteAvailable = true,
-            )
-        }
-
-        return when (
-            val preparation =
-                outboundPreparationSupport.prepareOutboundTransferSession(
-                    peerId = peerId,
-                    payload = payload,
-                )
-        ) {
-            OutboundTransferPreparation.PendingRoute -> {
-                scheduleRetryDiagnostic(peerId = peerId, priority = priority)
-                LargeTransferSessionResolution(session = null, lastRouteAvailable = false)
-            }
-            is OutboundTransferPreparation.Ready ->
-                LargeTransferSessionResolution(
-                    session = preparation.session,
-                    lastRouteAvailable = true,
-                )
-            is OutboundTransferPreparation.Failed ->
-                LargeTransferSessionResolution(
-                    session = null,
-                    lastRouteAvailable = true,
-                    result = preparation.result,
-                )
-        }
-    }
-
-    private suspend fun sendLargeTransferIteration(
-        session: OutboundTransferSession,
-        priority: DeliveryPriority,
-        startedAt: TimeMark,
-    ): LargeTransferIterationResult {
-        var routeAvailable =
-            sendTransferTowardsDestination(
-                session.destinationPeerId,
-                session.asStartFrame(),
-                "transfer.start",
-            )
-        var transferProgressObserved = false
-        val result =
-            if (session.isComplete()) {
-                completeOutboundTransferSession(session)
-            } else {
-                session.forEachMissingChunkIndex { chunkIndex ->
-                    routeAvailable =
-                        sendTransferTowardsDestination(
-                            session.destinationPeerId,
-                            WireFrame.TransferChunk(
-                                transferId = session.transferId,
-                                chunkIndex = chunkIndex,
-                                payload = session.chunks[chunkIndex],
-                            ),
-                            "transfer.chunk",
-                        ) || routeAvailable
-                }
-                emitLargeTransferProgressDiagnostic(session)
-                if (!routeAvailable) {
-                    scheduleRetryDiagnostic(peerId = session.destinationPeerId, priority = priority)
-                    null
-                } else {
-                    transferProgressObserved =
-                        awaitLargeTransferAcknowledgementProgress(
-                            session = session,
-                            startedAt = startedAt,
-                        )
-                    if (session.isComplete()) completeOutboundTransferSession(session) else null
-                }
-            }
-
-        return LargeTransferIterationResult(
-            lastRouteAvailable = routeAvailable,
-            transferProgressObserved = transferProgressObserved,
-            result = result,
-        )
-    }
-
-    private fun emitLargeTransferProgressDiagnostic(session: OutboundTransferSession): Unit {
-        emitDiagnostic(
-            code = DiagnosticCode.TRANSFER_PROGRESS,
-            severity = DiagnosticSeverity.DEBUG,
-            stage = "transfer.send.progress",
-            peerSuffix = session.destinationPeerId.value.takeLast(6),
-            metadata =
-                routingSupport.peerRouteMetadata(
-                    session.destinationPeerId,
-                    metadata =
-                        mapOf(
-                            "ackedChunks" to session.acknowledgedChunkCount().toString(),
-                            "totalChunks" to session.totalChunks.toString(),
-                        ),
-                ),
-        )
-    }
-
-    private suspend fun awaitLargeTransferAcknowledgementProgress(
-        session: OutboundTransferSession,
-        startedAt: TimeMark,
-    ): Boolean {
-        val acknowledgedChunkCountBeforeSettlement = session.acknowledgedChunkCount()
-        val acknowledgedChunkCountAfterSettlement =
-            session.awaitAcknowledgementSettlement(
-                maximumWait =
-                    (config.deliveryRetryDeadline - startedAt.elapsedNow()).coerceAtMost(
-                        TRANSFER_ACK_SETTLEMENT_TIMEOUT
-                    ),
-                idleWindow = TRANSFER_ACK_IDLE_WINDOW,
-            )
-        return acknowledgedChunkCountAfterSettlement > acknowledgedChunkCountBeforeSettlement
-    }
-
-    private suspend fun finishFailedLargeTransfer(
-        activeSession: OutboundTransferSession?,
-        peerId: PeerId,
-        lastRouteAvailable: Boolean,
-    ): SendResult {
-        activeSession?.let { session ->
-            outboundTransfers.remove(session.transferId)
-            runPlatformCall("transfer.clearQueuedFramesOnFailure") {
-                bleTransport?.clearQueuedOutboundFrames(session.destinationPeerId)
-            }
-        }
-        return if (!lastRouteAvailable) {
-            emitDiagnostic(
-                code = DiagnosticCode.DELIVERY_UNREACHABLE,
-                severity = DiagnosticSeverity.ERROR,
-                stage = "transfer.retryExpired",
-                peerSuffix = peerId.value.takeLast(6),
-                reason = DiagnosticReason.DELIVERY_FAILURE,
-                metadata = routingSupport.peerRouteMetadata(peerId),
-            )
-            SendResult.NotSent(SendFailureReason.UNREACHABLE)
-        } else {
-            emitDiagnostic(
-                code = DiagnosticCode.TRANSFER_FAILED,
-                severity = DiagnosticSeverity.ERROR,
-                stage = "transfer.send.timeout",
-                peerSuffix = peerId.value.takeLast(6),
-                reason = DiagnosticReason.TRANSFER_FAILURE,
-                metadata = routingSupport.peerRouteMetadata(peerId),
-            )
-            SendResult.NotSent(SendFailureReason.TRANSFER_TIMED_OUT)
-        }
-    }
-
-    private suspend fun awaitLargeTransferRetryWakeup(
-        peerId: PeerId,
-        attempt: Int,
-        topologyVersion: Long,
-        startedAt: TimeMark,
-        noRouteRetry: Boolean,
-    ): LargeTransferRetryWakeupState? {
-        if (noRouteRetry) {
-            emitDiagnostic(
-                code = DiagnosticCode.DELIVERY_RETRY_SCHEDULED,
-                severity = DiagnosticSeverity.WARN,
-                stage = "transfer.retryScheduled",
-                peerSuffix = peerId.value.takeLast(6),
-                reason = DiagnosticReason.DELIVERY_RETRY,
-                metadata =
-                    routingSupport.peerRouteMetadata(
-                        peerId,
-                        metadata = mapOf("attempt" to attempt.toString()),
-                    ),
-            )
-        }
-
-        val wakeupState =
-            when (
-                val wakeup =
-                    deliveryRetryScheduler.awaitRetry(
-                        attempt = attempt,
-                        remainingBudget = config.deliveryRetryDeadline - startedAt.elapsedNow(),
-                        lastObservedTopologyVersion = topologyVersion,
-                    )
-            ) {
-                is RetryWakeup.DeadlineExpired -> null
-                is RetryWakeup.TimerElapsed ->
-                    LargeTransferRetryWakeupState(
-                        attempt = attempt + 1,
-                        topologyVersion = wakeup.topologyVersion,
-                    )
-                is RetryWakeup.TopologyChanged ->
-                    LargeTransferRetryWakeupState(
-                        attempt = 0,
-                        topologyVersion = wakeup.topologyVersion,
-                    )
-            }
-        if (noRouteRetry && wakeupState != null) {
-            emitDiagnostic(
-                code = DiagnosticCode.DELIVERY_RETRYING,
-                severity = DiagnosticSeverity.WARN,
-                stage = "transfer.retrying",
-                peerSuffix = peerId.value.takeLast(6),
-                reason = DiagnosticReason.DELIVERY_RETRY,
-                metadata =
-                    routingSupport.peerRouteMetadata(
-                        peerId,
-                        metadata = mapOf("attempt" to wakeupState.attempt.toString()),
-                    ),
-            )
-        }
-        return wakeupState
-    }
-
-    private suspend fun completeOutboundTransferSession(
-        session: OutboundTransferSession
-    ): SendResult {
-        runPlatformCall("transfer.clearQueuedFrames") {
-            bleTransport?.clearQueuedOutboundFrames(session.destinationPeerId)
-        }
-        sendTransferTowardsDestination(
-            session.destinationPeerId,
-            WireFrame.TransferComplete(session.transferId),
-            "transfer.complete",
-        )
-        outboundTransfers.remove(session.transferId)
-        emitDiagnostic(
-            code = DiagnosticCode.TRANSFER_COMPLETED,
-            severity = DiagnosticSeverity.INFO,
-            stage = "transfer.send.complete",
-            peerSuffix = session.destinationPeerId.value.takeLast(6),
-            metadata = routingSupport.peerRouteMetadata(session.destinationPeerId),
-        )
-        return SendResult.Sent
     }
 
     private suspend fun sendTransferTowardsDestination(
