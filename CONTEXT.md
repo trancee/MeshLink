@@ -49,7 +49,7 @@ The explicit operator action that closes the current evidence window for a sessi
 _Avoid_: Stop mesh, implicit end, session stop
 
 **Ended session view**:
-The read-only presentation of the most recently ended session before the operator starts a new live session. It keeps the closed evidence window visible without silently creating a replacement session.
+The read-only presentation of the most recently ended session before the operator starts a new live session. It keeps the closed evidence window visible without silently creating a replacement session, even if the same ended session has already been added to recent history.
 _Avoid_: Auto-start next session, hidden reset, live session
 
 **Review-only ended session view**:
@@ -77,7 +77,7 @@ The explicit removal of a retained session from recent history. History deletion
 _Avoid_: Deleted session state, retained tombstone, soft delete
 
 **Automatic retention**:
-The default rule that a finished live session with reviewable evidence is added to recent history without requiring a separate operator action. Automatic retention preserves evidence before the operator moves on to a new session, but it does not apply to solo sessions or lab sessions.
+The default rule that a finished live session with reviewable evidence is added to recent history immediately without requiring a separate operator action. Automatic retention preserves evidence before the operator moves on to a new session, but it does not apply to solo sessions or lab sessions.
 _Avoid_: Optional save, manual retain only
 
 **Reviewable evidence**:
