@@ -1,5 +1,7 @@
 package ch.trancee.meshlink.reference.model
 
+import ch.trancee.meshlink.api.DeliveryPriority
+
 internal fun referenceScenarioTitle(scenarioId: String): String {
     return when (scenarioId) {
         "guided-first-exchange" -> "Guided first exchange"
@@ -39,5 +41,31 @@ internal fun referenceOutcomeLabel(summary: String?): String? {
         summary.contains("UNREACHABLE") -> "Peer unreachable"
         summary.contains("TRUST_FAILURE") -> "Trust check failed"
         else -> summary
+    }
+}
+
+internal fun referencePeerTrustLabel(trustState: PeerTrustState): String {
+    return enumLabel(trustState.name)
+}
+
+internal fun referenceConnectionLabel(connectionState: PeerConnectionSnapshotState): String {
+    return enumLabel(connectionState.name)
+}
+
+internal fun referenceTimelineFamilyLabel(family: TimelineFamily): String {
+    return enumLabel(family.name)
+}
+
+internal fun referenceTimelineSeverityLabel(severity: TimelineSeverity): String {
+    return enumLabel(severity.name)
+}
+
+internal fun referencePriorityLabel(priority: DeliveryPriority): String {
+    return enumLabel(priority.name)
+}
+
+private fun enumLabel(value: String): String {
+    return value.lowercase().replace('_', ' ').replaceFirstChar { character ->
+        character.titlecase()
     }
 }

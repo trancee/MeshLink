@@ -45,6 +45,7 @@ import ch.trancee.meshlink.reference.guided.GuidedFirstExchangeScreen
 import ch.trancee.meshlink.reference.guided.GuidedFirstExchangeViewModel
 import ch.trancee.meshlink.reference.history.RecentSessionHistoryScreen
 import ch.trancee.meshlink.reference.lab.LabScreen
+import ch.trancee.meshlink.reference.model.referenceAuthorityLabel
 import ch.trancee.meshlink.reference.platform.PlatformServices
 import ch.trancee.meshlink.reference.resources.Res
 import ch.trancee.meshlink.reference.resources.app_title
@@ -105,7 +106,7 @@ public fun ReferenceNavHost(platformServices: PlatformServices) {
             activeRoute = activeRoute,
             workflowTitles = workflowTitles,
             platformName = platformServices.platformName,
-            authorityModeLabel = snapshot.session.authorityMode.toString(),
+            authorityModeLabel = referenceAuthorityLabel(snapshot.session.authorityMode),
             meshStateLabel = snapshot.session.meshStateLabel,
         )
 

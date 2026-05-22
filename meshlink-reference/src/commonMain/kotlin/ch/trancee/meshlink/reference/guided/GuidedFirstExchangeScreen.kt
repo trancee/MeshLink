@@ -25,6 +25,8 @@ import androidx.compose.ui.unit.dp
 import ch.trancee.meshlink.reference.design.ReferenceBadge
 import ch.trancee.meshlink.reference.design.ReferenceSectionCard
 import ch.trancee.meshlink.reference.model.TimelineEntry
+import ch.trancee.meshlink.reference.model.referenceTimelineFamilyLabel
+import ch.trancee.meshlink.reference.model.referenceTimelineSeverityLabel
 
 /** Shared guided first-exchange surface. */
 @OptIn(ExperimentalLayoutApi::class)
@@ -208,8 +210,8 @@ private fun GuidedTimelineEntryCard(entry: TimelineEntry): Unit {
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            ReferenceBadge(label = entry.family.name)
-            ReferenceBadge(label = entry.severity.name)
+            ReferenceBadge(label = referenceTimelineFamilyLabel(entry.family))
+            ReferenceBadge(label = referenceTimelineSeverityLabel(entry.severity))
             if (entry.peerSuffix != null) {
                 ReferenceBadge(label = "Peer ${entry.peerSuffix}")
             }

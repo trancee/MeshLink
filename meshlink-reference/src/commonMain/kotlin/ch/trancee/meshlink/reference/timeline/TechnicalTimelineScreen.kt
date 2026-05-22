@@ -26,6 +26,8 @@ import ch.trancee.meshlink.reference.design.ReferenceSectionCard
 import ch.trancee.meshlink.reference.model.TimelineEntry
 import ch.trancee.meshlink.reference.model.TimelineFamily
 import ch.trancee.meshlink.reference.model.TimelineSeverity
+import ch.trancee.meshlink.reference.model.referenceTimelineFamilyLabel
+import ch.trancee.meshlink.reference.model.referenceTimelineSeverityLabel
 import ch.trancee.meshlink.reference.session.ExportPayloadPolicy
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -176,7 +178,7 @@ private fun TimelineFilterSection(
                     onClick = {
                         store.updateFamily(if (uiState.filters.family == family) null else family)
                     },
-                    label = { Text(family.label()) },
+                    label = { Text(referenceTimelineFamilyLabel(family)) },
                 )
             }
         }
@@ -192,7 +194,7 @@ private fun TimelineFilterSection(
                             if (uiState.filters.severity == severity) null else severity
                         )
                     },
-                    label = { Text(severity.label()) },
+                    label = { Text(referenceTimelineSeverityLabel(severity)) },
                 )
             }
         }
@@ -239,8 +241,8 @@ private fun TimelineEntryCard(entry: TimelineEntry): Unit {
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            ReferenceBadge(label = entry.family.label())
-            ReferenceBadge(label = entry.severity.label())
+            ReferenceBadge(label = referenceTimelineFamilyLabel(entry.family))
+            ReferenceBadge(label = referenceTimelineSeverityLabel(entry.severity))
             if (entry.peerSuffix != null) {
                 ReferenceBadge(label = "Peer ${entry.peerSuffix}")
             }
@@ -251,17 +253,5 @@ private fun TimelineEntryCard(entry: TimelineEntry): Unit {
                 style = MaterialTheme.typography.bodyMedium,
             )
         }
-    }
-}
-
-private fun TimelineFamily.label(): String {
-    return name.lowercase().replace('_', ' ').replaceFirstChar { character ->
-        character.titlecase()
-    }
-}
-
-private fun TimelineSeverity.label(): String {
-    return name.lowercase().replace('_', ' ').replaceFirstChar { character ->
-        character.titlecase()
     }
 }

@@ -16,6 +16,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import ch.trancee.meshlink.api.DeliveryPriority
+import ch.trancee.meshlink.reference.model.referencePriorityLabel
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -47,7 +48,7 @@ public fun SendComposer(
                 FilterChip(
                     selected = state.selectedPriority == priority,
                     onClick = { actions.onPriorityChanged(priority) },
-                    label = { Text(priority.name) },
+                    label = { Text(referencePriorityLabel(priority)) },
                 )
             }
         }

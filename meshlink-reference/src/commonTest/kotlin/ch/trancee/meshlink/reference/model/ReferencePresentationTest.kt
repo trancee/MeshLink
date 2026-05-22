@@ -1,5 +1,6 @@
 package ch.trancee.meshlink.reference.model
 
+import ch.trancee.meshlink.api.DeliveryPriority
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -38,5 +39,29 @@ class ReferencePresentationTest {
 
         // Assert
         assertEquals("Payload too large", label)
+    }
+
+    @Test
+    fun formatsEnumBackedLabelsForOperatorFacingSurfaces() {
+        // Arrange
+        val trustState = PeerTrustState.CHANGED
+        val connectionState = PeerConnectionSnapshotState.DISCONNECTED
+        val family = TimelineFamily.DIAGNOSTIC
+        val severity = TimelineSeverity.WARNING
+        val priority = DeliveryPriority.HIGH
+
+        // Act
+        val trustLabel = referencePeerTrustLabel(trustState)
+        val connectionLabel = referenceConnectionLabel(connectionState)
+        val familyLabel = referenceTimelineFamilyLabel(family)
+        val severityLabel = referenceTimelineSeverityLabel(severity)
+        val priorityLabel = referencePriorityLabel(priority)
+
+        // Assert
+        assertEquals("Changed", trustLabel)
+        assertEquals("Disconnected", connectionLabel)
+        assertEquals("Diagnostic", familyLabel)
+        assertEquals("Warning", severityLabel)
+        assertEquals("High", priorityLabel)
     }
 }

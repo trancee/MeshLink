@@ -1,7 +1,10 @@
 package ch.trancee.meshlink.reference.advanced
 
 import ch.trancee.meshlink.api.DeliveryPriority
+import ch.trancee.meshlink.reference.model.referenceAuthorityLabel
+import ch.trancee.meshlink.reference.model.referenceConnectionLabel
 import ch.trancee.meshlink.reference.model.referenceOutcomeLabel
+import ch.trancee.meshlink.reference.model.referencePeerTrustLabel
 import ch.trancee.meshlink.reference.platform.PlatformServices
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -146,7 +149,7 @@ private fun buildAdvancedControlsUiState(
                 regulatoryRegion = configSnapshot["regulatoryRegion"] ?: "DEFAULT",
                 powerModeLabel = configSnapshot["powerMode"] ?: snapshot.activePowerModeLabel,
                 deliveryRetryDeadlineLabel = configSnapshot["deliveryRetryDeadline"] ?: "15s",
-                authorityModeLabel = snapshot.session.authorityMode.toString(),
+                authorityModeLabel = referenceAuthorityLabel(snapshot.session.authorityMode),
             ),
         meshStateLabel = snapshot.session.meshStateLabel,
         activePowerModeLabel = snapshot.activePowerModeLabel,
@@ -158,8 +161,8 @@ private fun buildAdvancedControlsUiState(
                 AdvancedPeerRow(
                     peerId = peer.peerId,
                     peerSuffix = peer.peerSuffix,
-                    trustLabel = peer.trustState.name,
-                    connectionLabel = peer.connectionState.name,
+                    trustLabel = referencePeerTrustLabel(peer.trustState),
+                    connectionLabel = referenceConnectionLabel(peer.connectionState),
                     lastDeliveryOutcome = peer.lastDeliveryOutcome,
                 )
             },
