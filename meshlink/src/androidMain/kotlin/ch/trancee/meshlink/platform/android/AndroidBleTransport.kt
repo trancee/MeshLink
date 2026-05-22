@@ -23,6 +23,7 @@ import android.util.Log
 import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.engine.DirectWireFrame
 import ch.trancee.meshlink.identity.hexStartsWith
+import ch.trancee.meshlink.identity.toBytes
 import ch.trancee.meshlink.identity.toHexString
 import ch.trancee.meshlink.power.PowerPolicy
 import ch.trancee.meshlink.transport.BleDiscoveryContract
@@ -186,6 +187,73 @@ internal class AndroidBleTransport(
         refreshDiscoveryState()
     }
 
+    override suspend fun promoteTemporaryPeer(
+        temporaryPeerId: PeerId,
+        canonicalPeerId: PeerId,
+    ): Unit {
+        if (
+            !temporaryPeerId.value.startsWith(TEMPORARY_PEER_PREFIX) ||
+                temporaryPeerId.value == canonicalPeerId.value
+        ) {
+            return
+        }
+        val activeLink =
+            synchronized(activeLinksByHint) {
+                val link =
+                    activeLinksByHint.remove(temporaryPeerId.value) ?: return@synchronized null
+                if (activeLinksByHint.containsKey(canonicalPeerId.value)) {
+                    closeQuietly(link)
+                    return@synchronized null
+                }
+                link.peerHintId = canonicalPeerId
+                activeLinksByHint[canonicalPeerId.value] = link
+                link
+            } ?: return
+        val remoteDevice = activeLink.socket.remoteDevice
+        val keyHash = canonicalPeerId.value.toBytes()
+        temporaryHintByAddress.remove(remoteDevice.address)
+        peerHintByAddress[remoteDevice.address] = canonicalPeerId.value
+        discoveredPeers.remove(temporaryPeerId.value)
+        val existingPeer = discoveredPeers[canonicalPeerId.value]
+        val promotedPeer =
+            if (existingPeer != null) {
+                existingPeer.device = remoteDevice
+                existingPeer.transportMode = TransportMode.L2CAP
+                existingPeer
+            } else if (keyHash != null && keyHash.size == BleDiscoveryPayload.KEY_HASH_SIZE_BYTES) {
+                DiscoveredPeer(
+                        hintPeerId = canonicalPeerId,
+                        keyHash = keyHash,
+                        device = remoteDevice,
+                        l2capPsm = 0,
+                        transportMode = TransportMode.L2CAP,
+                        platformFamily = BleDiscoveryPlatformFamily.UNKNOWN,
+                    )
+                    .also { peer -> discoveredPeers[canonicalPeerId.value] = peer }
+            } else {
+                null
+            }
+        if (promotedPeer != null && !promotedPeer.presenceAnnounced) {
+            promotedPeer.presenceAnnounced = true
+            mutableEvents.tryEmit(
+                TransportEvent.PeerDiscovered(
+                    peerId = canonicalPeerId,
+                    transportMode = TransportMode.L2CAP,
+                )
+            )
+        }
+        gattNotifyClientsByHint.remove(temporaryPeerId.value)?.let { client ->
+            if (!gattNotifyClientsByHint.containsKey(canonicalPeerId.value)) {
+                gattNotifyClientsByHint[canonicalPeerId.value] = client
+            } else {
+                client.close()
+            }
+        }
+        log(
+            "promoted temporary peer ${temporaryPeerId.value} -> ${canonicalPeerId.value} addr=${remoteDevice.address}"
+        )
+    }
+
     override fun maximumPayloadBytesPerDelivery(peerId: PeerId): Int? {
         val peer = resolvePeer(peerId) ?: return null
         if (
@@ -196,7 +264,7 @@ internal class AndroidBleTransport(
         ) {
             return AndroidGattNotifyClient.maximumPayloadBytesPerDelivery()
         }
-        return activeLinksByHint[peer.hintPeerId.value]?.maxTransmitPacketSize
+        return activeLinkFor(peer)?.maxTransmitPacketSize
     }
 
     override suspend fun send(frame: OutboundFrame): TransportSendResult {
@@ -205,25 +273,35 @@ internal class AndroidBleTransport(
             return TransportSendResult.Dropped("Android BLE transport is not started")
         }
 
-        val peer =
-            resolvePeer(frame.peerId)
-                ?: return TransportSendResult.Dropped("Android BLE peer has not been discovered")
-                    .also {
-                        log("send(${frame.peerId.value.takeLast(6)}) dropped: peer not discovered")
-                    }
-        if (peer.transportMode != TransportMode.L2CAP || peer.l2capPsm == 0) {
+        val peer = resolvePeer(frame.peerId)
+        if (peer == null) {
+            val temporaryLink = activeLinksByHint[frame.peerId.value]
+            return if (temporaryLink != null) {
+                sendViaConnectedLink(frame = frame, link = temporaryLink)
+            } else {
+                TransportSendResult.Dropped("Android BLE peer has not been discovered").also {
+                    log("send(${frame.peerId.value.takeLast(6)}) dropped: peer not discovered")
+                }
+            }
+        }
+
+        val directLink = activeLinkFor(peer)
+        if (peer.transportMode != TransportMode.L2CAP) {
             log("send(${frame.peerId.value.takeLast(6)}) dropped: peer is GATT-only")
             return TransportSendResult.Dropped(
                 "Android BLE GATT fallback transport is not implemented"
             )
+        }
+        if (peer.l2capPsm == 0 && directLink == null) {
+            log("send(${frame.peerId.value.takeLast(6)}) waiting for inbound L2CAP link")
+            return TransportSendResult.Dropped("Android BLE L2CAP connection is not ready")
         }
 
         tryPreferredGattSend(peer, frame)?.let { result ->
             return result
         }
 
-        val link = activeLinksByHint[peer.hintPeerId.value]
-        if (link == null) {
+        if (directLink == null) {
             if (shouldInitiateL2cap(peer.keyHash, peer.platformFamily)) {
                 log("send(${frame.peerId.value.takeLast(6)}) no active link, triggering connect")
                 connectIfNeeded(peer)
@@ -233,17 +311,7 @@ internal class AndroidBleTransport(
             return TransportSendResult.Dropped("Android BLE L2CAP connection is not ready")
         }
 
-        return runCatching {
-                transportMutex.withLock { link.write(frame.payload) }
-                TransportSendResult.Delivered
-            }
-            .getOrElse { error ->
-                closeLink(
-                    hintPeer = peer.hintPeerId.value,
-                    reason = "send failed: ${error.message.orEmpty()}",
-                )
-                TransportSendResult.Dropped("Android BLE send failed: ${error.message.orEmpty()}")
-            }
+        return sendViaConnectedLink(frame = frame, link = directLink)
     }
 
     private fun handleScanResult(result: ScanResult): Unit {
@@ -642,9 +710,11 @@ internal class AndroidBleTransport(
             peer.rediscoveryLoggedWithoutLink = false
             return
         }
+        val temporaryHint = temporaryHintByAddress[address]
         val hasActiveLink =
             synchronized(activeLinksByHint) {
-                activeLinksByHint.containsKey(peer.hintPeerId.value)
+                activeLinksByHint.containsKey(peer.hintPeerId.value) ||
+                    (temporaryHint?.let(activeLinksByHint::containsKey) == true)
             } || hasActiveGattNotifyLink(peer.hintPeerId.value)
         val hasPendingConnect = hasPendingConnect(peer.hintPeerId.value)
         if (hasActiveLink || hasPendingConnect) {
@@ -657,6 +727,29 @@ internal class AndroidBleTransport(
             )
             peer.rediscoveryLoggedWithoutLink = true
         }
+    }
+
+    private fun activeLinkFor(peer: DiscoveredPeer): L2capLink? {
+        val directLink = activeLinksByHint[peer.hintPeerId.value]
+        val temporaryHint = temporaryHintByAddress[peer.device.address]
+        return directLink ?: temporaryHint?.let(activeLinksByHint::get)
+    }
+
+    private suspend fun sendViaConnectedLink(
+        frame: OutboundFrame,
+        link: L2capLink,
+    ): TransportSendResult {
+        return runCatching {
+                transportMutex.withLock { link.write(frame.payload) }
+                TransportSendResult.Delivered
+            }
+            .getOrElse { error ->
+                closeLink(
+                    hintPeer = link.peerHintId.value,
+                    reason = "send failed: ${error.message.orEmpty()}",
+                )
+                TransportSendResult.Dropped("Android BLE send failed: ${error.message.orEmpty()}")
+            }
     }
 
     private fun resolvePeer(peerId: PeerId): DiscoveredPeer? {

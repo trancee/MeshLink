@@ -16,6 +16,7 @@ internal data class MeshEngineHandshakeCallbacks(
     val sendDirectWireFrame: suspend (PeerId, DirectWireFrame, String) -> TransportSendResult,
     val emitHopSessionEstablished: (PeerId, String) -> Unit,
     val emitHopSessionFailed: (PeerId, String, DiagnosticReason, Map<String, String>) -> Unit,
+    val promoteTemporaryPeer: suspend (PeerId, PeerId) -> Unit,
 )
 
 internal data class PendingInitiatorHandshakeFailure(

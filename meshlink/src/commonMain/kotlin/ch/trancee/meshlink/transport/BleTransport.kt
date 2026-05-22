@@ -58,6 +58,8 @@ internal interface BleTransport {
 
     suspend fun clearQueuedOutboundFrames(peerId: PeerId): Unit = Unit
 
+    suspend fun promoteTemporaryPeer(temporaryPeerId: PeerId, canonicalPeerId: PeerId): Unit = Unit
+
     fun maximumPayloadBytesPerDelivery(peerId: PeerId): Int? = null
 
     suspend fun send(frame: OutboundFrame): TransportSendResult

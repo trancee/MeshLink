@@ -199,6 +199,10 @@ private constructor(
             },
             emitHopSessionEstablished = hopTransportSupport::emitHopSessionEstablished,
             emitHopSessionFailed = hopTransportSupport::emitHopSessionFailed,
+            promoteTemporaryPeer = { temporaryPeerId, canonicalPeerId ->
+                runCatching { bleTransport?.promoteTemporaryPeer(temporaryPeerId, canonicalPeerId) }
+                    .getOrElse { Unit }
+            },
         )
     private val initiatorHandshakeSupport =
         MeshEngineInitiatorHandshakeSupport(

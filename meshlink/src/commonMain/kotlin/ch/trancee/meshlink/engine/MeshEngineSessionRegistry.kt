@@ -113,6 +113,30 @@ internal class MeshEngineSessionRegistry {
         }
     }
 
+    suspend fun rebindPendingResponderHandshake(
+        fromPeerId: PeerId,
+        toPeerId: PeerId,
+        pendingHandshake: PendingResponderHandshake,
+    ): Boolean {
+        return sessionMutex.withLock {
+            if (fromPeerId.value == toPeerId.value) {
+                return@withLock pendingResponderHandshakes[fromPeerId.value] === pendingHandshake
+            }
+            if (pendingResponderHandshakes[fromPeerId.value] !== pendingHandshake) {
+                return@withLock false
+            }
+            if (
+                pendingResponderHandshakes.containsKey(toPeerId.value) ||
+                    hopSessions.containsKey(toPeerId.value)
+            ) {
+                return@withLock false
+            }
+            pendingResponderHandshakes.remove(fromPeerId.value)
+            pendingResponderHandshakes[toPeerId.value] = pendingHandshake
+            true
+        }
+    }
+
     suspend fun removePendingResponderHandshake(
         peerId: PeerId,
         pendingHandshake: PendingResponderHandshake? = null,
