@@ -20,8 +20,11 @@ internal fun createIosPlatformServices(): DefaultPlatformServices {
         platformName = "iOS",
         defaultAuthorityMode = ReferenceAuthorityMode.LIVE,
         readinessGuidance = iosReadinessGuidance(),
-        nowProvider = { time(null) * 1000L },
-        documentStore = OkioReferenceDocumentStore(documentsDirectory, FileSystem.SYSTEM),
+        options =
+            DefaultPlatformServicesOptions().apply {
+                nowProvider = { time(null) * 1000L }
+                documentStore = OkioReferenceDocumentStore(documentsDirectory, FileSystem.SYSTEM)
+            },
     )
 }
 
@@ -31,36 +34,39 @@ internal fun createIosAutomationPlatformServices(
     blocked: Boolean,
 ): DefaultPlatformServices {
     val baseDirectory = resolveAutomationDirectory(storageSubdirectory)
-    val nowProvider = { time(null) * 1000L }
+    val clock = { time(null) * 1000L }
     return DefaultPlatformServices(
         platformName = "iOS",
         defaultAuthorityMode = ReferenceAuthorityMode.LIVE,
         readinessGuidance = iosReadinessGuidance(),
-        readinessBlockers =
-            if (blocked) {
-                listOf(
-                    "Enable Bluetooth on the iPhone before starting the guided exchange.",
-                    "Grant the required local Bluetooth permissions for MeshLink.",
-                )
-            } else {
-                emptyList()
+        options =
+            DefaultPlatformServicesOptions().apply {
+                readinessBlockers =
+                    if (blocked) {
+                        listOf(
+                            "Enable Bluetooth on the iPhone before starting the guided exchange.",
+                            "Grant the required local Bluetooth permissions for MeshLink.",
+                        )
+                    } else {
+                        emptyList()
+                    }
+                nowProvider = clock
+                documentStore = OkioReferenceDocumentStore(baseDirectory, FileSystem.SYSTEM)
+                automationConfig =
+                    ReferenceAutomationConfig(
+                        mode = ReferenceAutomationMode.SCRIPTED_UI,
+                        role = ReferenceAutomationRole.PASSIVE,
+                        appId = "demo.meshlink.reference.automation",
+                        storageSubdirectory = storageSubdirectory,
+                    )
+                automationLogger = ::println
+                meshLinkControllerOverride =
+                    ScriptedReferenceMeshLinkController(
+                        platformName = "iOS",
+                        authorityMode = ReferenceAuthorityMode.LIVE,
+                        nowProvider = clock,
+                    )
             },
-        nowProvider = nowProvider,
-        documentStore = OkioReferenceDocumentStore(baseDirectory, FileSystem.SYSTEM),
-        automationConfig =
-            ReferenceAutomationConfig(
-                mode = ReferenceAutomationMode.SCRIPTED_UI,
-                role = ReferenceAutomationRole.PASSIVE,
-                appId = "demo.meshlink.reference.automation",
-                storageSubdirectory = storageSubdirectory,
-            ),
-        automationLogger = ::println,
-        meshLinkControllerOverride =
-            ScriptedReferenceMeshLinkController(
-                platformName = "iOS",
-                authorityMode = ReferenceAuthorityMode.LIVE,
-                nowProvider = nowProvider,
-            ),
     )
 }
 
@@ -76,22 +82,26 @@ internal fun createIosLiveAutomationPlatformServices(
         append('/')
         append(storageSubdirectory)
     }
-    val nowProvider = { time(null) * 1000L }
+    val clock = { time(null) * 1000L }
+    val automationAppId = appId
     return DefaultPlatformServices(
         platformName = "iOS",
         defaultAuthorityMode = ReferenceAuthorityMode.LIVE,
         readinessGuidance = iosReadinessGuidance(),
-        nowProvider = nowProvider,
-        appId = appId,
-        documentStore = OkioReferenceDocumentStore(baseDirectory, FileSystem.SYSTEM),
-        automationConfig =
-            ReferenceAutomationConfig(
-                mode = ReferenceAutomationMode.LIVE_PROOF,
-                role = role,
-                appId = appId,
-                storageSubdirectory = storageSubdirectory,
-            ),
-        automationLogger = ::println,
+        options =
+            DefaultPlatformServicesOptions().apply {
+                nowProvider = clock
+                this.appId = automationAppId
+                documentStore = OkioReferenceDocumentStore(baseDirectory, FileSystem.SYSTEM)
+                automationConfig =
+                    ReferenceAutomationConfig(
+                        mode = ReferenceAutomationMode.LIVE_PROOF,
+                        role = role,
+                        appId = automationAppId,
+                        storageSubdirectory = storageSubdirectory,
+                    )
+                automationLogger = ::println
+            },
     )
 }
 

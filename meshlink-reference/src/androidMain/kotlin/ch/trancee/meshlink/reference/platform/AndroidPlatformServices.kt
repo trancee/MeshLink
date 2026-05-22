@@ -15,10 +15,14 @@ public fun createAndroidPlatformServices(context: Context): DefaultPlatformServi
         platformName = "Android",
         defaultAuthorityMode = ReferenceAuthorityMode.LIVE,
         readinessGuidance = androidReadinessGuidance(),
-        readinessBlockers = androidReadinessBlockers(context),
-        nowProvider = { System.currentTimeMillis() },
-        platformContext = context,
-        documentStore = OkioReferenceDocumentStore(context.filesDir.absolutePath, FileSystem.SYSTEM),
+        options =
+            DefaultPlatformServicesOptions().apply {
+                readinessBlockers = androidReadinessBlockers(context)
+                nowProvider = { System.currentTimeMillis() }
+                platformContext = context
+                documentStore =
+                    OkioReferenceDocumentStore(context.filesDir.absolutePath, FileSystem.SYSTEM)
+            },
     )
 }
 
@@ -27,37 +31,40 @@ public fun createAndroidAutomationPlatformServices(
     storageSubdirectory: String,
     blocked: Boolean,
 ): DefaultPlatformServices {
-    val nowProvider = { System.currentTimeMillis() }
+    val clock = { System.currentTimeMillis() }
     val automationDirectory = "${context.filesDir.absolutePath}/ui-automation/$storageSubdirectory"
     return DefaultPlatformServices(
         platformName = "Android",
         defaultAuthorityMode = ReferenceAuthorityMode.LIVE,
         readinessGuidance = androidReadinessGuidance(),
-        readinessBlockers =
-            if (blocked) {
-                listOf(
-                    "Enable Bluetooth on Android before starting the guided exchange.",
-                    "Grant the required nearby-device permissions for MeshLink.",
-                )
-            } else {
-                emptyList()
+        options =
+            DefaultPlatformServicesOptions().apply {
+                readinessBlockers =
+                    if (blocked) {
+                        listOf(
+                            "Enable Bluetooth on Android before starting the guided exchange.",
+                            "Grant the required nearby-device permissions for MeshLink.",
+                        )
+                    } else {
+                        emptyList()
+                    }
+                nowProvider = clock
+                documentStore = OkioReferenceDocumentStore(automationDirectory, FileSystem.SYSTEM)
+                automationConfig =
+                    ReferenceAutomationConfig(
+                        mode = ReferenceAutomationMode.SCRIPTED_UI,
+                        role = ReferenceAutomationRole.PASSIVE,
+                        appId = "demo.meshlink.reference.automation",
+                        storageSubdirectory = storageSubdirectory,
+                    )
+                automationLogger = { message -> Log.i(AUTOMATION_LOG_TAG, message) }
+                meshLinkControllerOverride =
+                    ScriptedReferenceMeshLinkController(
+                        platformName = "Android",
+                        authorityMode = ReferenceAuthorityMode.LIVE,
+                        nowProvider = clock,
+                    )
             },
-        nowProvider = nowProvider,
-        documentStore = OkioReferenceDocumentStore(automationDirectory, FileSystem.SYSTEM),
-        automationConfig =
-            ReferenceAutomationConfig(
-                mode = ReferenceAutomationMode.SCRIPTED_UI,
-                role = ReferenceAutomationRole.PASSIVE,
-                appId = "demo.meshlink.reference.automation",
-                storageSubdirectory = storageSubdirectory,
-            ),
-        automationLogger = { message -> Log.i(AUTOMATION_LOG_TAG, message) },
-        meshLinkControllerOverride =
-            ScriptedReferenceMeshLinkController(
-                platformName = "Android",
-                authorityMode = ReferenceAuthorityMode.LIVE,
-                nowProvider = nowProvider,
-            ),
     )
 }
 
@@ -67,26 +74,30 @@ public fun createAndroidLiveAutomationPlatformServices(
     appId: String,
     role: ReferenceAutomationRole,
 ): DefaultPlatformServices {
-    val nowProvider = { System.currentTimeMillis() }
+    val clock = { System.currentTimeMillis() }
     val automationDirectory =
         "${context.filesDir.absolutePath}/live-automation/$storageSubdirectory"
+    val automationAppId = appId
     return DefaultPlatformServices(
         platformName = "Android",
         defaultAuthorityMode = ReferenceAuthorityMode.LIVE,
         readinessGuidance = androidReadinessGuidance(),
-        readinessBlockers = androidReadinessBlockers(context),
-        nowProvider = nowProvider,
-        appId = appId,
-        platformContext = context,
-        documentStore = OkioReferenceDocumentStore(automationDirectory, FileSystem.SYSTEM),
-        automationConfig =
-            ReferenceAutomationConfig(
-                mode = ReferenceAutomationMode.LIVE_PROOF,
-                role = role,
-                appId = appId,
-                storageSubdirectory = storageSubdirectory,
-            ),
-        automationLogger = { message -> Log.i(AUTOMATION_LOG_TAG, message) },
+        options =
+            DefaultPlatformServicesOptions().apply {
+                readinessBlockers = androidReadinessBlockers(context)
+                nowProvider = clock
+                this.appId = automationAppId
+                platformContext = context
+                documentStore = OkioReferenceDocumentStore(automationDirectory, FileSystem.SYSTEM)
+                automationConfig =
+                    ReferenceAutomationConfig(
+                        mode = ReferenceAutomationMode.LIVE_PROOF,
+                        role = role,
+                        appId = automationAppId,
+                        storageSubdirectory = storageSubdirectory,
+                    )
+                automationLogger = { message -> Log.i(AUTOMATION_LOG_TAG, message) }
+            },
     )
 }
 
