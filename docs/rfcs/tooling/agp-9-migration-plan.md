@@ -141,51 +141,70 @@ without breaking configuration immediately:
 
 ### Exact scope of the first commit
 
-- [ ] **Edit `settings.gradle.kts`**
-  - add `include(":meshlink-reference:android-app")`
-  - point it at `meshlink-reference/android-app`
-- [ ] **Edit `meshlink-reference/build.gradle.kts`**
-  - switch from `alias(libs.plugins.android.application)` to
-    `alias(libs.plugins.android.library)`
-  - remove application-only configuration (`applicationId`, `targetSdk`,
-    `versionCode`, `versionName`, and `installation`)
-  - keep namespace, compile SDK, Compose Multiplatform, iOS framework export,
-    shared source sets, and shared tests
-  - preserve `localCheck`, but make it aggregate the new Android app module’s
-    Android verification tasks together with the shared module’s iOS/framework
-    checks so existing hooks and `./scripts/run-reference-local-check.sh`
-    remain valid in this commit
-- [ ] **Create `meshlink-reference/android-app/build.gradle.kts`**
-  - make it a pure Android application module on the current AGP 8 toolchain
-  - depend on `project(":meshlink-reference")`
-  - add `androidx.activity:activity-compose`
-  - move the Android test dependencies that belong to the Android app surface
-  - apply the same formatting/static-analysis/coverage plugins if the moved app
-    code remains governed
-- [ ] **Move Android app entry-point files into the new module**
-  - `meshlink-reference/src/androidMain/AndroidManifest.xml`
-  - `meshlink-reference/src/androidMain/kotlin/.../MainActivity.kt`
-  - `meshlink-reference/src/androidMain/res/values/strings.xml`
-- [ ] **Move Android instrumented tests into the new app module**
-  - `ReferenceAppAndroidSmokeTest.kt`
-  - `ReferenceAppAndroidWorkflowTest.kt`
-- [ ] **Keep these files in the shared KMP module**
-  - `AndroidPlatformServices.kt`
-  - `AndroidReadinessExplainer.kt`
-  - `AndroidReferenceDocumentStore.kt`
-- [ ] **Edit the root build only if needed for governed aggregation**
-  - if the new Android app module participates in repository-level coverage,
-    add it to the root Kover aggregation in `build.gradle.kts`
-- [ ] **Update the Android entry points that hardcode the old app-shaped module**
-  - `meshlink-reference/README.md`
-  - `docs/how-to/evaluate-meshlink-with-the-reference-app.md`
-  - `CONTRIBUTING.md`
-  - `docs/reference/contributor-reference.md`
-  - `meshlink-reference/scripts/run_headless_reference_live_proof.py`
-- [ ] **Do not change the iOS host wiring in this commit**
-  - keep `:meshlink-reference:embedAndSignAppleFrameworkForXcode`
-  - keep the `ReferenceAppShared` framework name
-  - keep the Xcode project path and framework search model unchanged
+#### Edit existing files
+
+| File | Action | Exact patch intent |
+|---|---|---|
+| `settings.gradle.kts` | edit | Add `include(":meshlink-reference:android-app")` and `project(":meshlink-reference:android-app").projectDir = file("meshlink-reference/android-app")`. Do not rename the shared module. |
+| `meshlink-reference/build.gradle.kts` | edit | Switch `alias(libs.plugins.android.application)` to `alias(libs.plugins.android.library)`. Remove `applicationId`, `targetSdk`, `versionCode`, `versionName`, `testInstrumentationRunner`, and `installation`. Remove `androidMain` dependency on `libs.androidx.activity.compose`. Remove `androidInstrumentedTest` dependencies because those tests move to the new app module. Keep `namespace`, `compileSdk`, `minSdk`, `buildFeatures { compose = true }`, shared/iOS configuration, and current iOS framework export unchanged. |
+| `meshlink-reference/build.gradle.kts` | edit | Add task-compatibility glue so existing command surfaces keep working in commit 1: make `ktfmtFormat` depend on `:meshlink-reference:android-app:ktfmtFormat`; make `check` depend on `:meshlink-reference:android-app:check`; make `build` depend on `:meshlink-reference:android-app:assemble`; keep `localCheck` but add the new app-module verification dependency; add alias tasks `installDebug` and `connectedDebugAndroidTest` that delegate to the new app module. |
+| `build.gradle.kts` | no change by default | Leave root Kover aggregation untouched in C01 unless verification proves the new app module must join the aggregate immediately. The goal of C01 is the module split, not coverage-policy expansion. |
+| `.githooks/pre-commit` | no change | Do not edit hooks in C01. The shared-module compatibility tasks above are what keep the current hook behavior truthful. |
+| `.githooks/pre-push` | no change | Same rationale as pre-commit: preserve the existing `:meshlink-reference:localCheck` surface in the shared module for now. |
+| `scripts/run-reference-local-check.sh` | no change | Keep the script stable by preserving `:meshlink-reference:localCheck` as a delegating shared-module task. |
+| `meshlink-reference/scripts/run_headless_reference_live_proof.py` | no change | Keep `:meshlink-reference:installDebug` working via a shared-module alias task so the harness does not need churn in C01. |
+| `meshlink-reference/README.md` | no change | Keep `:meshlink-reference:connectedDebugAndroidTest` valid through a shared-module alias task. |
+| `docs/how-to/evaluate-meshlink-with-the-reference-app.md` | no change | Keep `:meshlink-reference:installDebug` valid through a shared-module alias task. |
+| `CONTRIBUTING.md` | no change | Preserve `./scripts/run-reference-local-check.sh` and `:meshlink-reference:build` semantics through shared-module compatibility tasks in C01. |
+| `docs/reference/contributor-reference.md` | no change | Same rationale as `CONTRIBUTING.md`; defer doc churn until the AGP 9 toolchain is in place. |
+
+#### Add new files
+
+| File | Action | Exact patch intent |
+|---|---|---|
+| `meshlink-reference/android-app/build.gradle.kts` | add | Create a pure Android application module on the current AGP 8 toolchain. Apply `android.application`, `kotlin.android`, `kotlin.compose`, `detekt`, and `ktfmt`. Set a **distinct namespace** such as `ch.trancee.meshlink.reference.androidapp` while keeping `applicationId = "ch.trancee.meshlink.reference"`. Keep `compileSdk = 36`, `minSdk = 29`, `targetSdk = 35`, `versionCode = 1`, `versionName = "0.1.0"`, `testInstrumentationRunner`, Java 17, `installation { installOptions += "-g" }`, and `buildFeatures { compose = true }`. Add `implementation(project(":meshlink-reference"))`, `implementation(libs.androidx.activity.compose)`, and the existing Android instrumentation-test dependencies. |
+| `meshlink-reference/android-app/src/main/AndroidManifest.xml` | add via move | Rehome the current launcher manifest unchanged except for any package/namespace-sensitive cleanup required by the new app module namespace choice. |
+| `meshlink-reference/android-app/src/main/kotlin/ch/trancee/meshlink/reference/MainActivity.kt` | add via move | Move the current `MainActivity` unchanged. Keep its package and automation intent helpers stable so tests and scripts do not need rewriting in C01. |
+| `meshlink-reference/android-app/src/main/res/values/strings.xml` | add via move | Move the app-name resource unchanged. |
+| `meshlink-reference/android-app/src/androidTest/kotlin/ch/trancee/meshlink/reference/ReferenceAppAndroidSmokeTest.kt` | add via move | Move unchanged. |
+| `meshlink-reference/android-app/src/androidTest/kotlin/ch/trancee/meshlink/reference/ReferenceAppAndroidWorkflowTest.kt` | add via move | Move unchanged. |
+
+#### Move files out of the shared KMP module
+
+Use `git mv` so the history stays readable:
+
+- `meshlink-reference/src/androidMain/AndroidManifest.xml`
+  → `meshlink-reference/android-app/src/main/AndroidManifest.xml`
+- `meshlink-reference/src/androidMain/kotlin/ch/trancee/meshlink/reference/MainActivity.kt`
+  → `meshlink-reference/android-app/src/main/kotlin/ch/trancee/meshlink/reference/MainActivity.kt`
+- `meshlink-reference/src/androidMain/res/values/strings.xml`
+  → `meshlink-reference/android-app/src/main/res/values/strings.xml`
+- `meshlink-reference/src/androidInstrumentedTest/kotlin/ch/trancee/meshlink/reference/ReferenceAppAndroidSmokeTest.kt`
+  → `meshlink-reference/android-app/src/androidTest/kotlin/ch/trancee/meshlink/reference/ReferenceAppAndroidSmokeTest.kt`
+- `meshlink-reference/src/androidInstrumentedTest/kotlin/ch/trancee/meshlink/reference/ReferenceAppAndroidWorkflowTest.kt`
+  → `meshlink-reference/android-app/src/androidTest/kotlin/ch/trancee/meshlink/reference/ReferenceAppAndroidWorkflowTest.kt`
+
+#### Keep these files in place
+
+These remain in `:meshlink-reference` and should not move in C01:
+
+- `meshlink-reference/src/androidMain/kotlin/ch/trancee/meshlink/reference/platform/AndroidPlatformServices.kt`
+- `meshlink-reference/src/androidMain/kotlin/ch/trancee/meshlink/reference/platform/AndroidReadinessExplainer.kt`
+- `meshlink-reference/src/androidMain/kotlin/ch/trancee/meshlink/reference/platform/AndroidReferenceDocumentStore.kt`
+- everything under `meshlink-reference/src/commonMain/`
+- everything under `meshlink-reference/src/commonTest/`
+- everything under `meshlink-reference/src/iosMain/` and `meshlink-reference/src/iosTest/`
+- everything under `meshlink-reference/ios/`
+
+#### Explicit deferrals for C01
+
+Do **not** do these in the first commit:
+
+- change AGP, Gradle, or Kotlin versions
+- remove `org.jetbrains.kotlin.android` from the proof app
+- rewrite contributor docs to reference `:meshlink-reference:android-app` directly
+- change the iOS Xcode project or `embedAndSignAppleFrameworkForXcode`
+- add AGP 9-specific DSL or plugin aliases
 
 ### Exact verification for the first commit
 
