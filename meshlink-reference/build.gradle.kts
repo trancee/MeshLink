@@ -4,7 +4,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
-    alias(libs.plugins.android.application)
+    alias(libs.plugins.android.library)
     alias(libs.plugins.compose.multiplatform)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
@@ -48,13 +48,6 @@ kotlin {
             implementation(libs.kotlinx.coroutines.test)
             implementation(libs.compose.ui.test)
         }
-        androidMain.dependencies { implementation(libs.androidx.activity.compose) }
-        androidInstrumentedTest.dependencies {
-            implementation(libs.androidx.test.core)
-            implementation(libs.androidx.test.ext.junit)
-            implementation(libs.androidx.test.runner)
-            implementation(libs.androidx.test.uiautomator)
-        }
         androidUnitTest.dependencies {
             implementation(libs.kotlin.test)
             implementation(libs.kotlinx.coroutines.test)
@@ -70,14 +63,7 @@ android {
     namespace = "ch.trancee.meshlink.reference"
     compileSdk = 36
 
-    defaultConfig {
-        applicationId = "ch.trancee.meshlink.reference"
-        minSdk = 29
-        targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-    }
+    defaultConfig { minSdk = 29 }
 
     buildFeatures { compose = true }
 
@@ -85,8 +71,6 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-
-    installation { installOptions += "-g" }
 }
 
 detekt {
@@ -108,15 +92,29 @@ val localCheck by tasks.registering {
     group = "verification"
     description =
         "Runs the fast local verification bundle for the reference app without release packaging."
-    dependsOn(
-        "lintDebug",
-        "allTests",
-        "detekt",
-        "koverVerify",
-        "linkDebugFrameworkIosArm64",
-        "linkDebugFrameworkIosSimulatorArm64",
-    )
+    dependsOn("check", "linkDebugFrameworkIosArm64", "linkDebugFrameworkIosSimulatorArm64")
 }
+
+tasks.named("ktfmtFormat") { dependsOn(":meshlink-reference:android-app:ktfmtFormat") }
+
+tasks.named("check") { dependsOn(":meshlink-reference:android-app:check") }
+
+tasks.named("build") { dependsOn(":meshlink-reference:android-app:build") }
+
+val installDebug by tasks.registering {
+    group = "install"
+    description = "Installs the Android debug reference app from the nested Android app module."
+    dependsOn(":meshlink-reference:android-app:installDebug")
+}
+
+tasks
+    .matching { it.name == "connectedDebugAndroidTest" }
+    .configureEach {
+        group = "verification"
+        description =
+            "Runs Android connected debug tests for the nested reference Android app module."
+        dependsOn(":meshlink-reference:android-app:connectedDebugAndroidTest")
+    }
 
 @OptIn(ExperimentalKotlinGradlePluginApi::class)
 powerAssert {

@@ -10,7 +10,7 @@ import ch.trancee.meshlink.reference.model.ReferenceAuthorityMode
 import ch.trancee.meshlink.reference.session.OkioReferenceDocumentStore
 import okio.FileSystem
 
-internal fun createAndroidPlatformServices(context: Context): DefaultPlatformServices {
+public fun createAndroidPlatformServices(context: Context): DefaultPlatformServices {
     return DefaultPlatformServices(
         platformName = "Android",
         defaultAuthorityMode = ReferenceAuthorityMode.LIVE,
@@ -22,7 +22,7 @@ internal fun createAndroidPlatformServices(context: Context): DefaultPlatformSer
     )
 }
 
-internal fun createAndroidAutomationPlatformServices(
+public fun createAndroidAutomationPlatformServices(
     context: Context,
     storageSubdirectory: String,
     blocked: Boolean,
@@ -61,7 +61,7 @@ internal fun createAndroidAutomationPlatformServices(
     )
 }
 
-internal fun createAndroidLiveAutomationPlatformServices(
+public fun createAndroidLiveAutomationPlatformServices(
     context: Context,
     storageSubdirectory: String,
     appId: String,
