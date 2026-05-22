@@ -5,6 +5,9 @@
 **Status**: Approved
 **Input**: User description: "MeshLink is a library-first SDK for encrypted, serverless, offline-capable messaging over Bluetooth Low Energy (BLE) mesh networks — no internet, no servers, no user accounts. Core capabilities: multi-hop mesh routing, two-layer encryption, large message transfer, power-aware operation, and cross-platform Android/iOS support."
 
+This specification defines the product requirements and acceptance criteria for
+MeshLink as a library-first offline BLE mesh SDK.
+
 ## Clarifications
 
 ### Session 2026-05-10

@@ -3,6 +3,10 @@
 **Input**: Design documents from `/specs/002-meshlink-reference-app/`  
 **Prerequisites**: plan.md (required), spec.md (required for user stories), research.md, data-model.md, contracts/
 
+This file is the execution ledger for the reference app work. It groups the
+implementation by user story so each slice stays independently testable and
+reviewable.
+
 **Validation**: Every user story MUST include validation tasks. Because this feature changes executable mobile app behavior, each story below includes automated coverage and manual or quickstart validation. If implementation touches `:meshlink`, also run the applicable API-compatibility, platform-test, and benchmark gates before completion.
 
 **Skill Use**: Before starting implementation or best-practice-heavy work, read the relevant skills listed in `specs/002-meshlink-reference-app/plan.md`: kotlin-multiplatform, compose-multiplatform, kmp-ios-integration, gradle-build-tool, frontend-design, make-interfaces-feel-better, write-docs. Completion summaries MUST include a `Skills Used` section.

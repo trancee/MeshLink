@@ -142,7 +142,7 @@ def render(types: list[TypeSurface]) -> str:
         "",
         "This page is generated from the checked-in public API dump used for binary compatibility validation.",
         "",
-        "Use this page as a completeness appendix for the public SDK surface.",
+        "Use it as a completeness appendix for the public SDK surface.",
         "For behavior and usage, prefer the human-written [MeshLink SDK API reference](meshlink-sdk-api.md) and [How to use MeshLink from Swift](../how-to/use-meshlink-from-swift.md).",
         "",
     ]

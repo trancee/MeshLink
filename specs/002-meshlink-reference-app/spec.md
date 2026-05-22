@@ -5,6 +5,10 @@
 **Status**: Draft  
 **Input**: User description: "Create a modern, user-friendly MeshLink reference app that showcases the full library, explains what is happening, exposes logs and diagnostics, and offers the same experience on Android and iOS."
 
+This specification defines the user-facing goals and acceptance criteria for the
+reference app. It describes what the app should let evaluators, integrators,
+and reviewers do, not how it should be built.
+
 ## Clarifications
 
 ### Session 2026-05-18

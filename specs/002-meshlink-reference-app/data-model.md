@@ -1,15 +1,15 @@
-# Data Model: MeshLink Reference App
+# Data model: MeshLink reference app
 
 ## Overview
 
 The reference app adds application-level session, scenario, filtering, and
 export models around the existing MeshLink SDK. It does not redefine MeshLink
 protocol entities such as routes, wire frames, or trust records inside the SDK;
-it presents them in a user-friendly reference layer.
+it presents them through a user-facing reference layer.
 
 ## Entities
 
-### ReferenceScenario
+### `ReferenceScenario`
 
 Represents a named workflow or exercise the operator can run.
 
@@ -26,13 +26,13 @@ Represents a named workflow or exercise the operator can run.
 | `capabilityTags` | Set<String> | MeshLink capabilities demonstrated | Required; at least one tag |
 
 **Relationships**:
-- One `ReferenceScenario` can produce many `ReferenceSession`s.
-- `ReferenceScenario.surface` controls whether the scenario can appear in the
-  main experience, advanced area, or lab area.
+- One `ReferenceScenario` can produce many `ReferenceSession` values.
+- `ReferenceScenario.surface` controls whether the scenario appears in the main
+  experience, advanced area, or lab.
 
-### ReferenceSession
+### `ReferenceSession`
 
-Represents one run of a scenario in the reference app.
+Represents one run of a scenario.
 
 | Field | Type | Description | Validation |
 |---|---|---|---|
@@ -43,34 +43,30 @@ Represents one run of a scenario in the reference app.
 | `endedAt` | Instant? | Session end timestamp | Null while active |
 | `meshState` | Enum | Current visible runtime state | Required |
 | `selectedPeerId` | String? | Currently selected peer for operator actions | Optional |
-| `configurationSnapshot` | Map<String, String> | Operator-visible configuration values active for the session | Required |
+| `configurationSnapshot` | Map<String, String> | Operator-visible configuration values | Required |
 | `lastOutcomeSummary` | String? | Most recent high-level result | Optional |
 | `historyStatus` | Enum | `live`, `retained`, `exported`, `deleted` | Required |
 
 **Relationships**:
-- One `ReferenceSession` owns many `TimelineEntry`s.
-- One `ReferenceSession` can produce zero or more `SessionArtifact`s.
-- One `ReferenceSession` can appear in `RecentSessionHistory` once it ends.
+- One `ReferenceSession` owns many `TimelineEntry` values.
+- One `ReferenceSession` can produce zero or more `SessionArtifact` values.
+- One ended session can appear in `RecentSessionHistory`.
 
-### PeerSnapshot
+### `PeerSnapshot`
 
 Represents the app's current view of one MeshLink peer.
 
 | Field | Type | Description | Validation |
 |---|---|---|---|
 | `peerId` | String | Full runtime peer handle used for actions | Required in live memory |
-| `peerSuffix` | String | Redacted identifier shown in history/exports by default | Required |
+| `peerSuffix` | String | Redacted identifier shown in history and exports by default | Required |
 | `trustState` | Enum | `unknown`, `trusted`, `changed`, `forgotten` | Required |
 | `connectionState` | Enum | `connected`, `disconnected`, `lost` | Required |
 | `lastSeenAt` | Instant? | Most recent observation time | Optional |
 | `lastDeliveryOutcome` | String? | Most recent send/receive outcome summary | Optional |
-| `capabilityNotes` | List<String> | Human-readable notes about the peer in the app context | Optional |
+| `capabilityNotes` | List<String> | Human-readable notes in the app context | Optional |
 
-**Relationships**:
-- A `ReferenceSession` can include many `PeerSnapshot`s.
-- `TimelineEntry.peerSuffix` references the peer's redacted identity by default.
-
-### TimelineEntry
+### `TimelineEntry`
 
 Represents one operator-visible line item in the technical timeline.
 
@@ -88,11 +84,7 @@ Represents one operator-visible line item in the technical timeline.
 | `payloadPreview` | String? | Redacted preview when relevant | Optional |
 | `fullPayloadIncluded` | Boolean | Whether the full payload is present in the export representation | Defaults to `false` |
 
-**Relationships**:
-- Many `TimelineEntry`s belong to one `ReferenceSession`.
-- A `SessionArtifact` serializes the relevant `TimelineEntry` list.
-
-### SessionArtifact
+### `SessionArtifact`
 
 Represents an exported or retained structured session document.
 
@@ -108,7 +100,7 @@ Represents an exported or retained structured session document.
 | `timelineEntries` | List<TimelineEntry> | Serialized timeline records | Required |
 | `storagePath` | String | App-local path for the artifact | Required for retained/exported artifacts |
 
-### RecentSessionHistory
+### `RecentSessionHistory`
 
 Represents the bounded retained-history index.
 
@@ -118,20 +110,20 @@ Represents the bounded retained-history index.
 | `sessionIds` | List<String> | Most recent retained sessions, newest first | Length must be `<= 20` |
 | `lastPrunedAt` | Instant? | Timestamp of latest history pruning | Optional |
 
-## Validation Rules
+## Validation rules
 
 - Lab scenarios must never appear in the main guided experience.
 - Solo mode must never generate authoritative live-peer or live-delivery proof.
 - Recent history stores only redacted data by default.
 - Full payload content may appear only in explicit export artifacts and only
   after operator opt-in.
-- Session history and live session state must remain visibly separate.
-- Retained history pruning must remove the oldest session records once the
-  index would exceed 20 sessions.
+- Session history and live session state remain visibly separate.
+- Retained-history pruning removes the oldest session records once the index
+  would exceed 20 sessions.
 
-## State Transitions
+## State transitions
 
-### Scenario Surface State
+### Scenario surface state
 
 `main` ↔ `advanced`  
 `main`/`advanced` → `lab`  
@@ -142,7 +134,7 @@ Rules:
 - `solo` can coexist with `main` or `advanced`, but not with authoritative live
   proof claims.
 
-### Session Lifecycle
+### Session lifecycle
 
 `starting` → `live` → `ended` → `retained` → (`exported` or `deleted`)
 
@@ -151,11 +143,11 @@ Rules:
 - Deleting a retained session removes it from `RecentSessionHistory`.
 - Exporting a session does not remove it from retained history automatically.
 
-### Export Payload Policy
+### Export payload policy
 
 `metadata-only` → `redacted-preview` → `full-opt-in`
 
 Rules:
 - Default export starts at `redacted-preview`.
-- Transition to `full-opt-in` requires an explicit operator action.
+- Transition to `full-opt-in` requires explicit operator action.
 - Retained history never upgrades itself to `full-opt-in` automatically.

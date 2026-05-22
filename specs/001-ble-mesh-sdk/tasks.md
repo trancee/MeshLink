@@ -7,6 +7,10 @@ description: "Task list for MeshLink Offline BLE Mesh SDK"
 **Input**: Design documents from `/specs/001-ble-mesh-sdk/`
 **Prerequisites**: plan.md (required), spec.md (required for user stories), research.md, data-model.md, contracts/, quickstart.md
 
+This file is the execution ledger for the MeshLink SDK work. It groups the
+implementation by user story so the feature stays traceable, testable, and
+reviewable.
+
 **Validation**: Every user story MUST include validation tasks. When work changes code, contracts, or data models, include automated tests or contract/integration checks. For documentation-only work, include manual verification or reader-test tasks. When applicable, add explicit work for the root `constitution.md` obligations: formatting, static analysis, coverage, API compatibility, required Android/iOS platform tests, cross-platform parity, Wycheproof or harness coverage, benchmarks, public-API KDoc, documentation parity, and compatibility validation. When YAML or workflow files change, add `yamllint` validation as well.
 
 **Skill Use**: Before starting implementation or best-practice-heavy work, read the relevant skills listed in `specs/001-ble-mesh-sdk/plan.md` or otherwise applicable to the task. Completion summaries MUST include a `Skills Used` section or explicitly state `None`.

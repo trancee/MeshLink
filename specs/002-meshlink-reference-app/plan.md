@@ -3,21 +3,28 @@
 **Branch**: `002-meshlink-reference-app` | **Date**: 2026-05-18 | **Spec**: [spec.md](./spec.md)  
 **Input**: Feature specification from `/specs/002-meshlink-reference-app/spec.md`
 
+This plan records the build shape, design constraints, and verification posture
+for the reference app work.
+
 **Note**: This template is filled in by the `/speckit.plan` command. See `.specify/templates/plan-template.md` for the execution workflow.
 
 ## Summary
 
-Implement a new root-level `meshlink-reference` mobile app that showcases the
-existing `:meshlink` SDK through a shared Compose Multiplatform experience on
-Android and iOS. The app centers on four slices: a guided first exchange, an
-advanced capability explorer, a live technical timeline with retained session
-history and exports, and an explicitly separated lab for proof-only or
-benchmark-only behaviors. Android ships from the Kotlin Multiplatform app
-module itself, while iOS uses a direct-integrated Xcode host project under
-`meshlink-reference/ios` that consumes the same shared UI and state layer. The
-plan preserves the current MeshLink SDK API, runtime dependency budget, wire
-format, and proof/benchmark governance while adding an operator-friendly yet
-technical reference surface.
+Build a new root-level `meshlink-reference` mobile app that showcases the
+existing `:meshlink` SDK through one shared Compose Multiplatform experience on
+Android and iOS.
+
+The app is organized around four slices:
+
+- a guided first exchange
+- an advanced capability explorer
+- a live technical timeline with retained history and exports
+- a clearly separated lab for proof-only and benchmark-only behavior
+
+Android ships from the KMP app module, while iOS uses a direct-integrated Xcode
+host project under `meshlink-reference/ios`. The plan preserves the current
+MeshLink SDK API, runtime dependency budget, wire format, and proof/benchmark
+governance while adding an operator-friendly reference surface.
 
 ## Technical Context
 

@@ -2,12 +2,16 @@
 
 **Date:** 2026-05-18  
 **Branch audited:** `001-ble-mesh-sdk-spec-alignment-audit` (based on `main` at `1275e63`)  
-**Audience:** maintainers and reviewers validating whether the current MeshLink codebase still matches the approved `001-ble-mesh-sdk` specification.  
-**After reading:** you should know which parts of the implementation are aligned and whether any known implementation, coverage, or retained-evidence gaps still remain.
+**Audience:** maintainers and reviewers validating whether the current MeshLink
+codebase still matches the approved `001-ble-mesh-sdk` specification.
+
+After reading this audit, a reviewer should know which parts of the
+implementation are aligned and whether any known implementation, coverage, or
+retained-evidence gaps still remain.
 
 ## Scope and method
 
-This audit compared the current codebase against the canonical feature artifacts:
+This audit compared the codebase against the canonical feature artifacts:
 
 - `specs/001-ble-mesh-sdk/spec.md`
 - `specs/001-ble-mesh-sdk/plan.md`
@@ -16,7 +20,7 @@ This audit compared the current codebase against the canonical feature artifacts
 - `specs/001-ble-mesh-sdk/contracts/discovery-advertisement.md`
 - `benchmarks/README.md`
 
-The audit also inspected the current implementation and evidence surfaces in:
+It also inspected these implementation and evidence surfaces:
 
 - `meshlink/src/commonMain/`
 - `meshlink/src/androidMain/`
@@ -26,20 +30,24 @@ The audit also inspected the current implementation and evidence surfaces in:
 - `meshlink-proof/android/`
 - `meshlink-proof/ios/`
 
-Fresh verification was run during this audit:
+Fresh verification during the audit included:
 
-- targeted API / routing / transfer / parity / discovery / power tests
-- Android + iOS compile checks for the SDK
-- JVM benchmark module compilation through `:benchmarks:jvmBenchmark`
+- targeted API, routing, transfer, parity, discovery, and power tests
+- Android and iOS compile checks for the SDK
+- JVM benchmark-module compilation through `:benchmarks:jvmBenchmark`
 - open-task and evidence scans against the current spec artifacts
 
 ## Overall assessment
 
-The current MeshLink runtime is **mostly aligned** with the approved `001-ble-mesh-sdk` spec.
+The current MeshLink runtime is **mostly aligned** with the approved
+`001-ble-mesh-sdk` spec.
 
-The public API, TOFU trust model, routing, selective-ACK large transfer path, discovery advertisement contract, Android/iOS parity model, and retained `SC-004` future-branch evidence are all present and supported by current code and tests.
+The public API, TOFU trust model, routing, selective-ACK transfer path,
+discovery contract, Android/iOS parity model, and retained `SC-004`
+future-branch evidence are all present and supported by current code and tests.
 
-At the time of this update, the current codebase and retained project artifacts are aligned with the approved `001-ble-mesh-sdk` specification. The earlier `FR-008`, benchmark-build, `SC-005`, and `SC-001` follow-up gaps have all been closed or reduced to retained historical context.
+The earlier `FR-008`, benchmark-build, `SC-005`, and `SC-001` follow-up gaps
+have been closed or reduced to historical context.
 
 ## Areas verified as aligned
 
@@ -48,252 +56,105 @@ At the time of this update, the current codebase and retained project artifacts 
 **Spec references:** `FR-012`, `FR-014`, `FR-014a`, `SC-007`  
 **Status:** Aligned
 
-The shared public API matches the approved contract:
+The shared public API matches the approved contract, including the factory
+entry points, shared config DSL, lifecycle surface, and 26-code diagnostic
+catalog.
 
-- `MeshLink.create(config)` and `MeshLink.create(config, context)` in `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/api/MeshLink.kt`
-- lifecycle, send, forget, and battery update APIs in `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/api/MeshLinkModels.kt`
-- shared config DSL in `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/config/MeshLinkConfig.kt`
-- shared 26-code diagnostic catalog in `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/diagnostics/DiagnosticModel.kt`
-
-Supporting verification:
-
-- `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/api/MeshLinkApiContractTest.kt`
-- `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/api/CrossPlatformParityTest.kt`
-- fresh `apiCheck` pass
+Supporting verification includes `MeshLinkApiContractTest`,
+`CrossPlatformParityTest`, and a fresh `apiCheck` pass.
 
 ### 2. TOFU trust, identity change handling, and trust reset
 
 **Spec references:** `FR-002`, `FR-003`, `FR-003a`, `FR-015a`  
 **Status:** Aligned
 
-The codebase still implements TOFU trust and explicit trust reset:
+The codebase still implements TOFU trust, persisted trust records, and explicit
+trust reset behavior.
 
-- trust persistence in `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/trust/TofuTrustStore.kt`
-- trust records in `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/trust/TrustRecord.kt`
-- trust verification/pinning in `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/engine/MeshEngine.kt`
-
-Supporting verification:
-
-- `persisted trust survives sdk restart` in `DirectMessagingIntegrationTest`
-- `forgetPeer forces fresh trust establishment...` in `DirectMessagingIntegrationTest`
-- trust timestamp preservation in `MeshLinkApiContractTest`
-- storage minimization check in `DirectMessagingIntegrationTest`
+Supporting verification includes restart survival, trust-reset behavior,
+timestamp preservation, and storage-minimization coverage in the current test
+suite.
 
 ### 3. Offline encrypted direct messaging and relay confidentiality
 
 **Spec references:** `FR-001`, `FR-004`, `FR-005`, `FR-015`, `FR-018`  
 **Status:** Aligned
 
-The current runtime remains offline-first and keeps shared messaging logic in common code:
+The runtime remains offline-first, keeps messaging logic in shared code, and
+preserves both hop-to-hop and end-to-end security layering.
 
-- end-to-end and hop-by-hop crypto flow in `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/crypto/MessageSealer.kt` and `MeshEngine.kt`
-- Android/iOS radio glue isolated to platform source sets
-- no extra runtime dependency beyond `kotlinx-coroutines-core` in `meshlink/build.gradle.kts`
-
-Supporting verification:
-
-- `two trusted peers can exchange a direct offline message` in `DirectMessagingIntegrationTest`
-- `transport frames do not expose plaintext payloads` in `DirectMessagingIntegrationTest`
-- fresh Android/iOS SDK compile checks
+Supporting verification includes direct-message integration tests,
+confidentiality checks, and fresh Android/iOS compile checks.
 
 ### 4. Routing, no-route retry, and multi-hop delivery
 
 **Spec references:** `FR-006`, `FR-007`, `SC-002`  
 **Status:** Aligned
 
-The codebase still contains the required routing and retry machinery:
+The codebase still contains the expected routing and retry machinery, including
+route coordination, in-memory retry scheduling, and reconvergence behavior.
 
-- route coordination in `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/routing/RouteCoordinator.kt`
-- in-memory retry scheduler in `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/engine/DeliveryRetryScheduler.kt`
-- retry integration in `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/engine/MeshEngine.kt`
+Supporting verification includes multi-hop routing tests, immediate retry on
+route recovery, unreachable-on-expiry behavior, and retained convergence
+evidence.
 
-Supporting verification:
-
-- `a sender can reach a destination through a single relay hop` in `MeshRoutingIntegrationTest`
-- `routing reconverges onto an alternate relay...` in `MeshRoutingIntegrationTest`
-- `send retries immediately when a route appears...` in `MeshRoutingIntegrationTest`
-- `send returns unreachable when no route appears...` in `MeshRoutingIntegrationTest`
-- `pending no route retries do not survive runtime restart until the host resubmits` in `MeshRoutingIntegrationTest`
-- retained convergence evidence in `benchmarks/README.md`
-
-### 5. Large transfer chunking, selective acknowledgement, and resume semantics
+### 5. Large transfer, selective acknowledgement, and resume semantics
 
 **Spec references:** `FR-009`, `FR-010`, `SC-003`  
 **Status:** Aligned
 
-The current implementation still uses chunked transfer state with selective acknowledgement data:
+The implementation still uses chunked transfer state, selective-ACK handling,
+and route-change resume semantics.
 
-- outbound and inbound transfer sessions in `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/transfer/TransferSession.kt`
-- selective acknowledgement handling through `TransferAck.selectiveRanges`
-- transfer orchestration in `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/engine/MeshEngine.kt`
-
-Supporting verification:
-
-- `a large transfer resumes after the active route changes...` in `LargeTransferIntegrationTest`
-- `pending large-transfer retries do not survive runtime restart until the host resubmits` in `LargeTransferIntegrationTest`
-- `duplicate and out-of-order chunk delivery does not corrupt...` in `LargeTransferIntegrationTest`
-- `partial acknowledgements still allow the sender to complete the transfer` in `LargeTransferIntegrationTest`
-- deployed wire compatibility fixtures in `WireEnvelopeContractTest`
+Supporting verification includes large-transfer integration tests for resume,
+out-of-order handling, duplicate handling, partial acknowledgements, and wire
+compatibility fixtures.
 
 ### 6. Discovery advertisement contract
 
 **Spec references:** `FR-015b`  
 **Status:** Aligned
 
-The current discovery contract matches the approved spec:
-
-- contract encoding in `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/transport/BleDiscoveryContract.kt`
-- Android/iOS platform-family hint usage in `AndroidBleTransport.kt` and `IosBleTransport.kt`
-
-Supporting verification:
-
-- `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/transport/BleDiscoveryContractTest.kt`
-- fresh targeted JVM test pass for `BleDiscoveryContractTest`
+The discovery contract in code still matches the approved spec, including the
+shared payload layout and platform-family hint semantics.
 
 ### 7. Wire compatibility
 
 **Spec references:** `FR-016`  
 **Status:** Aligned
 
-The codebase still retains explicit backward-compatibility fixtures and decoding checks:
-
-- fixtures in `meshlink/src/commonTest/resources/wire-compat/`
-- contract coverage in `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/wire/WireEnvelopeContractTest.kt`
-
-Supporting verification:
-
-- fresh targeted JVM test pass for `WireEnvelopeContractTest`
+The repository still retains deployed-wire fixtures and explicit decode
+compatibility checks.
 
 ### 8. Power policy and LOW-mode contract
 
 **Spec references:** `FR-013`, `FR-013a`, `FR-013b`, `SC-006`  
 **Status:** Aligned
 
-The shared power policy still exposes the expected LOW-mode behavior:
-
-- policy logic in `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/power/`
-- Android/iOS hooks in platform source sets
-- diagnostic metadata contract in common code and docs
-
-Supporting verification:
-
-- `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/power/PowerPolicyTest.kt`
-- fresh targeted JVM test pass for `PowerPolicyTest`
-- retained physical LOW-mode evidence in `benchmarks/README.md`
+The shared power policy still exposes the expected LOW-mode behavior, and the
+retained physical evidence remains synchronized with the documented posture.
 
 ### 9. `SC-004` current-head future-branch closure framing
 
-**Spec references:** `SC-004`, `SC-004a`, release-decision framing in `spec.md`  
+**Spec references:** `SC-004`, `SC-004a`
 **Status:** Aligned with current written posture
 
 The canonical artifacts consistently distinguish:
 
 - the **released baseline**, which remains waived
-- the **current-head future branch**, which now has retained passing mixed-bearer evidence
+- the **current-head future branch**, which now has retained passing evidence
 
-Evidence is synchronized across:
-
-- `specs/001-ble-mesh-sdk/spec.md`
-- `specs/001-ble-mesh-sdk/plan.md`
-- `benchmarks/README.md`
-- `meshlink-proof/ios/README.md`
-
-This audit did not rerun physical benchmarks, but the retained evidence and wording are internally consistent.
+This audit did not rerun physical benchmarks, but the retained evidence and
+wording are internally consistent.
 
 ## Closed gaps and current notes
 
 ### Closed gap — `SC-001` now retains a passing timed quickstart run
 
 **Spec references:** `SC-001`  
-**Status:** Closed during the follow-up on this branch
+**Status:** Closed
 
-`specs/001-ble-mesh-sdk/research.md` now retains a successful timed quickstart
-run from `2026-05-18` with:
-
-- start timestamp
-- end timestamp
-- elapsed duration
-- observer note
-- sender proof-log evidence
-- recipient proof-log evidence
-- the isolated proof `appId` and device pair used for the run
-
-That closes the earlier success-criteria gap where only blocked attempts were
-retained.
-
-### Closed gap — `SC-005` now retains an explicit measured heap byte count
-
-**Spec references:** `SC-005`  
-**Status:** Closed during the follow-up on this branch
-
-The memory budget test still enforces the <= 8 MiB cap, and the retained benchmark docs now also include the measured byte-count artifact from a fresh JVM run:
-
-- `MEMORY_BUDGET baselineBytes=7437064 usedBytes=11430280 steadyStateBytes=3993216`
-
-That closes the earlier evidence-quality gap where only a pass/fail budget statement was retained.
-
-## What was not found as a current mismatch
-
-This audit did **not** find evidence that the following areas are currently out of sync with the spec:
-
-- the public MeshLink API shape
-- the 26-code diagnostic catalog
-- Android/iOS public parity expectations
-- discovery advertisement encoding
-- selective-ACK transfer semantics
-- trust reset behavior
-- backward wire compatibility fixtures
-- the released-baseline waiver vs future-branch `SC-004` framing
-
-## Recommended next actions
-
-No further spec-alignment remediation work is currently required from this audit.
-
-## Fresh audit verification
-
-### Command 1 — API, routing, transfer, discovery, parity, and platform compile checks
-
-```bash
-./gradlew apiCheck \
-  :meshlink:jvmTest --tests 'ch.trancee.meshlink.api.MeshLinkApiContractTest' \
-  --tests 'ch.trancee.meshlink.integration.DirectMessagingIntegrationTest' \
-  --tests 'ch.trancee.meshlink.integration.LargeTransferIntegrationTest' \
-  --tests 'ch.trancee.meshlink.integration.MeshRoutingIntegrationTest' \
-  --tests 'ch.trancee.meshlink.api.CrossPlatformParityTest' \
-  --tests 'ch.trancee.meshlink.transport.BleDiscoveryContractTest' \
-  --tests 'ch.trancee.meshlink.wire.WireEnvelopeContractTest' \
-  --tests 'ch.trancee.meshlink.power.PowerPolicyTest' \
-  :meshlink:compileDebugKotlinAndroid \
-  :meshlink:compileKotlinIosSimulatorArm64 \
-  --console=plain
-```
-
-Result:
-
-- `BUILD SUCCESSFUL`
-
-### Command 2 — JVM benchmark gate
-
-```bash
-./gradlew :benchmarks:jvmBenchmark --console=plain
-```
-
-Result:
-
-- `BUILD SUCCESSFUL`
-
-### Command 3 — spec/task/evidence scan
-
-```bash
-rg -n "^- \[ \]" specs/001-ble-mesh-sdk/tasks.md
-rg -n 'Quickstart reader-test attempt|no `SC-001` pass claim|Current physical evidence on attached hardware now shows' \
-  specs/001-ble-mesh-sdk/research.md specs/001-ble-mesh-sdk/quickstart.md -S
-rg -n 'MEMORY_BUDGET baselineBytes=7437064 usedBytes=11430280 steadyStateBytes=3993216' \
-  benchmarks/README.md -S
-```
-
-Result:
-
-- `tasks.md` has no open task entries after the follow-up closures on this branch
-- `SC-001` now has a retained passing timed quickstart run in `research.md`
-- `SC-005` now retains an explicit raw heap-byte artifact in `benchmarks/README.md`
+`research.md` now retains a successful timed quickstart run with timestamps,
+elapsed duration, observer note, sender proof-log evidence, recipient
+proof-log evidence, and the isolated proof `appId` and device pair used for the
+run.

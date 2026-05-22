@@ -3,6 +3,9 @@
 **Branch**: `001-ble-mesh-sdk` | **Date**: 2026-05-12 | **Spec**: [spec.md](./spec.md)
 **Input**: Feature specification from `/specs/001-ble-mesh-sdk/spec.md`
 
+This plan records the build shape, technical constraints, and verification
+posture for the MeshLink SDK work.
+
 **Note**: This template is filled in by the `/speckit.plan` command. See `.specify/templates/plan-template.md` for the execution workflow.
 
 ## Summary

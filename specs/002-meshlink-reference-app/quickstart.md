@@ -1,9 +1,9 @@
-# Quickstart: MeshLink Reference App
+# Quickstart: MeshLink reference app
 
 ## Goal
 
-Install the new reference app on Android and iOS, complete the guided first
-exchange, inspect the live technical timeline, and export one redacted session
+Install the reference app on Android and iOS, complete the guided first
+exchange, inspect the technical timeline, and export one redacted session
 artifact.
 
 ## Prerequisites
@@ -18,11 +18,12 @@ You need:
 - an Apple development team available locally if you want a physical iPhone
   build
 
-If you only have one prepared device, you can still use the app's clearly
-labeled solo exploration mode for non-authoritative walkthroughs.
+If you have only one prepared device, you can still use the clearly labeled
+solo exploration mode for a non-authoritative walkthrough.
 
-If peer discovery stalls because one platform is still blocked on local
-permissions or prompts, follow [How to unblock MeshLink permissions on Android and iOS](../../docs/how-to/unblock-meshlink-permissions.md) before continuing.
+If peer discovery stalls because one platform is still blocked on permissions or
+first-run prompts, use [How to unblock MeshLink permissions on Android and iOS](../../docs/how-to/unblock-meshlink-permissions.md)
+before continuing.
 
 ## 1. Build and install the Android app
 
@@ -42,8 +43,7 @@ xcodebuild \
   build
 ```
 
-For a physical iPhone, pass your team at build time instead of storing it in
-repo files:
+For a physical iPhone:
 
 ```bash
 xcodebuild \
@@ -55,27 +55,24 @@ xcodebuild \
 ```
 
 After the build succeeds, launch the `ReferenceApp` scheme from Xcode on the
-chosen simulator or physical iPhone.
+chosen simulator or device.
 
-On the first physical iPhone launch, allow Bluetooth access for the reference
-app if iOS prompts for it. If you need a recovery checklist, use [How to unblock MeshLink permissions on Android and iOS](../../docs/how-to/unblock-meshlink-permissions.md).
+## 3. Open the guided first-exchange flow on both devices
 
-## 3. Open the guided first-exchange scenario on both devices
+The first visible path should be the same named guided workflow on both
+platforms.
 
-On both platforms, the first visible path should be the same named guided
-experience.
-
-Expected first steps:
+Expected early states:
 
 - readiness check
 - MeshLink start action
-- peer wait / peer selection state
-- send proof state
-- timeline evidence state
+- peer wait or peer selection
+- send proof
+- timeline evidence review
 
 ## 4. Complete the first exchange
 
-Use the guided experience to:
+Use the guided flow to:
 
 1. start the mesh on both devices
 2. wait for peer discovery
@@ -103,14 +100,13 @@ After ending the session:
 
 ## 7. Keep proof-only behavior in the lab
 
-The lab section may expose proof-only or benchmark-only behavior, but it must
-stay clearly separated from the main guided and advanced product-reference
-surfaces.
+The lab may expose proof-only or benchmark-only behavior, but it must stay
+clearly separated from the main guided and advanced product-reference surfaces.
 
 ## 8. Optional: retain a headless two-device proof run
 
-Once the manual flow is working, you can retain one repeatable physical proof
-run with the live-proof harness:
+Once the manual flow works, you can retain one repeatable physical proof run
+with the live-proof harness:
 
 ```bash
 python3 meshlink-reference/scripts/run_headless_reference_live_proof.py \
@@ -129,16 +125,9 @@ The runner:
 
 Expected retained outputs:
 
-- `summary.json` with Android passive proof completion and iPhone sender
-  completion
-- `android_history.json` showing the retained session with
-  `"historyStatus": "RETAINED"`
-- `android_export.json` showing a redacted export with
-  `"fullPayloadIncluded": false` and no `fullPayload`
-
-If the first physical iPhone launch still needs permission handling, allow the
-Bluetooth prompt once and rerun the command. If Android or iPhone permissions
-are still the blocker, use [How to unblock MeshLink permissions on Android and iOS](../../docs/how-to/unblock-meshlink-permissions.md).
+- `summary.json`
+- `android_history.json`
+- `android_export.json`
 
 ## Expected first proof point
 
@@ -146,6 +135,6 @@ A reviewer should be able to complete the guided first exchange on Android and
 an iPhone, then point to:
 
 - a discovered peer
-- a successful trust/delivery timeline sequence
+- a successful trust and delivery timeline sequence
 - a retained session entry in recent history
 - one exported redacted session artifact

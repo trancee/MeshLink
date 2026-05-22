@@ -1,5 +1,8 @@
 # Research: MeshLink Offline BLE Mesh SDK
 
+This document records the key design decisions behind the MeshLink SDK. It is a
+decision log, not a step-by-step implementation guide.
+
 ## Decision: Build the SDK as a Kotlin Multiplatform library with shared domain logic in `commonMain`
 
 **Rationale:** The feature is explicitly cross-platform and the constitutions require the

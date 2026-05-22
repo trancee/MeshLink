@@ -1,22 +1,21 @@
-# Contract: Session Artifact Export
+# Contract: Session artifact export
 
 ## Purpose
 
-This contract defines the exported session artifact structure for the MeshLink
-reference app.
+Define the exported session-artifact structure for the MeshLink reference app.
 
 ## Format
 
 - Encoding: UTF-8 JSON
-- Scope: one exported artifact per session export action
+- Scope: one exported artifact per export action
 - Default policy: payload metadata plus redacted previews
 - Elevated policy: full payload content only after explicit operator opt-in
 
-## Top-Level Fields
+## Top-level fields
 
 | Field | Type | Required | Description |
 |---|---|---:|---|
-| `artifactVersion` | string | Yes | Version of the export contract |
+| `artifactVersion` | string | Yes | Export-contract version |
 | `artifactId` | string | Yes | Unique export identifier |
 | `createdAt` | string | Yes | ISO 8601 timestamp |
 | `sourceSessionId` | string | Yes | Session being exported |
@@ -26,7 +25,7 @@ reference app.
 | `timelineEntries` | array | Yes | Structured event timeline |
 | `payloadPolicy` | object | Yes | Export redaction/full-payload policy |
 
-## Scenario Block
+## Scenario block
 
 | Field | Type | Required | Description |
 |---|---|---:|---|
@@ -38,7 +37,7 @@ reference app.
 | `endedAt` | string | No | ISO 8601 timestamp when available |
 | `lastOutcomeSummary` | string | No | Last high-level result |
 
-## Peer Summary Block
+## Peer summary block
 
 | Field | Type | Required | Description |
 |---|---|---:|---|
@@ -47,7 +46,7 @@ reference app.
 | `connectionState` | string | Yes | Current or final connection state |
 | `lastDeliveryOutcome` | string | No | Latest delivery summary |
 
-## Timeline Entry Block
+## Timeline entry block
 
 | Field | Type | Required | Description |
 |---|---|---:|---|
@@ -62,7 +61,7 @@ reference app.
 | `payloadPreview` | string | No | Redacted preview shown by default |
 | `fullPayload` | string | No | Full payload content when explicitly included |
 
-## Payload Policy Block
+## Payload policy block
 
 | Field | Type | Required | Description |
 |---|---|---:|---|
@@ -70,12 +69,12 @@ reference app.
 | `fullPayloadIncluded` | boolean | Yes | Whether full payloads are present |
 | `operatorOptInRecorded` | boolean | Yes | Whether the operator explicitly requested full payload export |
 
-## Validation Rules
+## Validation rules
 
 - `fullPayloadIncluded = true` requires `operatorOptInRecorded = true`.
 - When `fullPayloadIncluded = false`, `fullPayload` must be absent from all
   timeline entries.
-- `peerSummaries` must use redacted peer identifiers by default.
+- `peerSummaries` use redacted peer identifiers by default.
 - `authorityMode = solo` must not be exported as authoritative live proof.
 - `surface = lab` must preserve a non-normative indicator in the exported
   scenario block.
