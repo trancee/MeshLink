@@ -40,6 +40,10 @@ _Avoid_: Current history, retained session, archived runtime
 The point where a live session stops accumulating new evidence. Session end is separate from retention, so an ended session may be retained or omitted from recent history depending on its path and reviewable evidence.
 _Avoid_: Same as retention, always retained, retained-only end
 
+**End session action**:
+The explicit operator action that closes the current evidence window for a session. It is separate from lifecycle controls such as start, pause, resume, and stop.
+_Avoid_: Stop mesh, implicit end, session stop
+
 **Supported live session**:
 A live session on the supported guided or advanced path rather than the solo or lab path. Only a supported live session may use full-payload export or automatic retention.
 _Avoid_: Any live session, solo session, lab session
