@@ -52,6 +52,10 @@ _Avoid_: Stop mesh, implicit end, session stop
 The read-only presentation of the most recently ended session before the operator starts a new live session. It keeps the closed evidence window visible without silently creating a replacement session.
 _Avoid_: Auto-start next session, hidden reset, live session
 
+**Review-only ended session view**:
+The ended-session view with inspection and export affordances but no runtime controls, send actions, peer actions, or trust actions. It exists to review a closed evidence window, not to mutate it.
+_Avoid_: Closed live session, editable ended session, post-end controls
+
 **Supported live session**:
 A live session on the supported guided or advanced path rather than the solo or lab path. Only a supported live session may use full-payload export or automatic retention.
 _Avoid_: Any live session, solo session, lab session
