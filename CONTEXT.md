@@ -40,6 +40,10 @@ _Avoid_: Saved live session, archived runtime
 The default rule that a finished live session is added to recent history without requiring a separate operator action. Automatic retention preserves evidence before the operator moves on to a new session.
 _Avoid_: Optional save, manual retain only
 
+**Session checkpoint**:
+A partial capture of an ongoing live session. Session checkpoints are not part of the current reference-app evidence model, so operators do not create separate mid-session retained entries.
+_Avoid_: Retain live session, manual retain, partial retained session
+
 **Session artifact**:
 An exported evidence document for one session. A session artifact summarizes the scenario, peer state, timeline, and export redaction policy.
 _Avoid_: Dump, log file, report
