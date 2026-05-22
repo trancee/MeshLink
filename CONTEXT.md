@@ -44,6 +44,10 @@ _Avoid_: Same as retention, always retained, retained-only end
 The explicit operator action that closes the current evidence window for a session. It is separate from lifecycle controls such as start, pause, resume, and stop.
 _Avoid_: Stop mesh, implicit end, session stop
 
+**Ended session view**:
+The read-only presentation of the most recently ended session before the operator starts a new live session. It keeps the closed evidence window visible without silently creating a replacement session.
+_Avoid_: Auto-start next session, hidden reset, live session
+
 **Supported live session**:
 A live session on the supported guided or advanced path rather than the solo or lab path. Only a supported live session may use full-payload export or automatic retention.
 _Avoid_: Any live session, solo session, lab session
