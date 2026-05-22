@@ -69,7 +69,7 @@ An exported evidence document for one session. A session artifact summarizes the
 _Avoid_: Dump, log file, report
 
 **Artifact instance**:
-One unique session artifact created by one export action. Different artifact instances may share the same source session while differing by export time or payload policy.
+One unique session artifact created by one export action. Different artifact instances may share the same source session while differing by export time or payload policy, and each artifact instance has its own identifier and storage path.
 _Avoid_: Canonical export file, overwritten export, one true artifact
 
 **Export action**:
