@@ -1,24 +1,31 @@
 import XCTest
 
 final class ReferenceAppPhysicalLiveProofUITests: XCTestCase {
+    private static let liveProofConfigURL = URL(fileURLWithPath: "/tmp/meshlink_reference_live_proof_xcuitest.json")
+    private static let maximumConfigAgeSeconds: TimeInterval = 15 * 60
+
     private let liveProofFlag = "MESHLINK_REFERENCE_LIVE_PROOF"
+    private var liveProofConfiguration: LiveProofConfiguration?
 
     override func setUpWithError() throws {
         continueAfterFailure = false
-        try XCTSkipUnless(
-            ProcessInfo.processInfo.environment[liveProofFlag] == "true",
-            "Physical live-proof UI test only runs when explicitly opted in"
-        )
+        guard let configuration = try loadLiveProofConfiguration() else {
+            throw XCTSkip("Physical live-proof UI test only runs when explicitly opted in")
+        }
+        liveProofConfiguration = configuration
     }
 
     func testLiveProofSender() {
         // Arrange
-        let environment = ProcessInfo.processInfo.environment
+        guard let liveProofConfiguration else {
+            XCTFail("Missing live-proof configuration for physical sender test")
+            return
+        }
         let app = XCUIApplication()
         app.launchEnvironment = [
             "MESHLINK_REFERENCE_AUTOMATION_MODE": "live-proof",
-            "MESHLINK_REFERENCE_AUTOMATION_STORAGE_SUBDIRECTORY": environment["MESHLINK_REFERENCE_AUTOMATION_STORAGE_SUBDIRECTORY"] ?? "live-proof",
-            "MESHLINK_REFERENCE_APP_ID": environment["MESHLINK_REFERENCE_APP_ID"] ?? "demo.meshlink.reference.live",
+            "MESHLINK_REFERENCE_AUTOMATION_STORAGE_SUBDIRECTORY": liveProofConfiguration.storageSubdirectory,
+            "MESHLINK_REFERENCE_APP_ID": liveProofConfiguration.appId,
             "MESHLINK_REFERENCE_AUTOMATION_ROLE": "sender",
         ]
         addUIInterruptionMonitor(withDescription: "Bluetooth permission") { alert in
@@ -61,4 +68,38 @@ final class ReferenceAppPhysicalLiveProofUITests: XCTestCase {
             }
         }
     }
+
+    private func loadLiveProofConfiguration() throws -> LiveProofConfiguration? {
+        let environment = ProcessInfo.processInfo.environment
+        if environment[liveProofFlag] == "true" {
+            return LiveProofConfiguration(
+                appId: environment["MESHLINK_REFERENCE_APP_ID"] ?? "demo.meshlink.reference.live",
+                storageSubdirectory: environment["MESHLINK_REFERENCE_AUTOMATION_STORAGE_SUBDIRECTORY"] ?? "live-proof"
+            )
+        }
+        guard FileManager.default.fileExists(atPath: Self.liveProofConfigURL.path) else {
+            return nil
+        }
+        let data = try Data(contentsOf: Self.liveProofConfigURL)
+        let configuration = try JSONDecoder().decode(HostLiveProofConfiguration.self, from: data)
+        let ageSeconds = Date().timeIntervalSince1970 - (configuration.createdAtEpochMillis / 1000)
+        guard ageSeconds <= Self.maximumConfigAgeSeconds else {
+            return nil
+        }
+        return LiveProofConfiguration(
+            appId: configuration.appId,
+            storageSubdirectory: configuration.storageSubdirectory
+        )
+    }
+}
+
+private struct LiveProofConfiguration {
+    let appId: String
+    let storageSubdirectory: String
+}
+
+private struct HostLiveProofConfiguration: Decodable {
+    let appId: String
+    let storageSubdirectory: String
+    let createdAtEpochMillis: Double
 }

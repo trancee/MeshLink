@@ -8,6 +8,7 @@ import os
 import plistlib
 import re
 import shlex
+import shutil
 import subprocess
 import sys
 import time
@@ -41,6 +42,8 @@ ANDROID_EXTRA_APP_ID = "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_APP_ID
 ANDROID_EXTRA_ROLE = "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_ROLE"
 AUTOMATION_MODE_LIVE_PROOF = "live-proof"
 IOS_SENDER_MARKER = "REFERENCE_AUTOMATION proof.complete role=sender"
+IOS_XCUITEST_LIVE_PROOF_CONFIG = Path("/tmp/meshlink_reference_live_proof_xcuitest.json")
+IOS_XCUITEST_SKIPPED_MARKER = "Physical live-proof UI test only runs when explicitly opted in"
 
 
 class BackgroundProcess:
@@ -228,6 +231,18 @@ def latest_built_app() -> Path:
     return candidates[0]
 
 
+def latest_built_xctestrun() -> Path:
+    derived_data = Path.home() / "Library/Developer/Xcode/DerivedData"
+    candidates = sorted(
+        derived_data.glob("ReferenceApp-*/Build/Products/*.xctestrun"),
+        key=lambda path: path.stat().st_mtime,
+        reverse=True,
+    )
+    if not candidates:
+        raise SystemExit("Could not find a built ReferenceApp .xctestrun file in Xcode DerivedData")
+    return candidates[0]
+
+
 def build_ios_app(ios_device: str, run_dir: Path) -> Path:
     development_team = resolve_development_team()
     command = [
@@ -317,7 +332,7 @@ def run_ios_live_proof_test(
     run_dir: Path,
 ) -> None:
     development_team = resolve_development_team()
-    command = [
+    build_command = [
         "xcodebuild",
         "-project",
         "meshlink-reference/ios/ReferenceApp.xcodeproj",
@@ -327,26 +342,83 @@ def run_ios_live_proof_test(
         f"id={ios_device}",
         f"DEVELOPMENT_TEAM={development_team}",
         "-allowProvisioningUpdates",
-        "-only-testing:ReferenceAppUITests/ReferenceAppPhysicalLiveProofUITests/testLiveProofSender",
-        "test",
+        "build-for-testing",
     ]
-    env = os.environ.copy()
-    env.update(
-        {
-            "MESHLINK_REFERENCE_LIVE_PROOF": "true",
-            "MESHLINK_REFERENCE_AUTOMATION_STORAGE_SUBDIRECTORY": storage_subdirectory,
-            "MESHLINK_REFERENCE_APP_ID": app_id,
-        }
-    )
-    redacted_command = [
+    redacted_build_command = [
         "DEVELOPMENT_TEAM=<redacted>" if part == f"DEVELOPMENT_TEAM={development_team}" else part
-        for part in command
+        for part in build_command
     ]
-    print(f"==> Running physical iPhone sender UI test: {shell_join(redacted_command)}")
+    print(f"==> Building physical iPhone UI tests for xctestrun launch: {shell_join(redacted_build_command)}")
+    build_log_path = run_dir / "ios_build_for_testing.log"
+    with build_log_path.open("w", encoding="utf-8") as log_file:
+        build_result = subprocess.run(build_command, stdout=log_file, stderr=subprocess.STDOUT, text=True)
+    build_log_text = build_log_path.read_text(encoding="utf-8", errors="replace").replace(development_team, "<redacted>")
+    if build_result.returncode != 0:
+        print("==> Physical iPhone build-for-testing failed; tail follows:", file=sys.stderr)
+        print("\n".join(build_log_text.splitlines()[-60:]), file=sys.stderr)
+        raise SystemExit(build_result.returncode)
+
+    source_xctestrun = latest_built_xctestrun()
+    xctestrun_path = source_xctestrun.with_name(f"{source_xctestrun.stem}-live-proof.xctestrun")
+    shutil.copy2(source_xctestrun, xctestrun_path)
+    with xctestrun_path.open("rb") as source_file:
+        xctestrun = plistlib.load(source_file)
+    test_targets = xctestrun.get("TestConfigurations", [{}])[0].get("TestTargets", [])
+    ui_test_target = next(
+        (target for target in test_targets if target.get("BlueprintName") == "ReferenceAppUITests"),
+        None,
+    )
+    if ui_test_target is None:
+        raise SystemExit("Could not find ReferenceAppUITests in generated .xctestrun file")
+    runner_environment = {
+        "MESHLINK_REFERENCE_LIVE_PROOF": "true",
+        "MESHLINK_REFERENCE_AUTOMATION_STORAGE_SUBDIRECTORY": storage_subdirectory,
+        "MESHLINK_REFERENCE_APP_ID": app_id,
+    }
+    target_environment = {
+        "MESHLINK_REFERENCE_AUTOMATION_MODE": AUTOMATION_MODE_LIVE_PROOF,
+        "MESHLINK_REFERENCE_AUTOMATION_STORAGE_SUBDIRECTORY": storage_subdirectory,
+        "MESHLINK_REFERENCE_APP_ID": app_id,
+        "MESHLINK_REFERENCE_AUTOMATION_ROLE": "sender",
+    }
+    ui_test_target.setdefault("EnvironmentVariables", {}).update(runner_environment)
+    ui_test_target.setdefault("TestingEnvironmentVariables", {}).update(runner_environment)
+    ui_test_target.setdefault("UITargetAppEnvironmentVariables", {}).update(target_environment)
+    with xctestrun_path.open("wb") as destination_file:
+        plistlib.dump(xctestrun, destination_file)
+
+    command = [
+        "xcodebuild",
+        "test-without-building",
+        "-xctestrun",
+        str(xctestrun_path),
+        "-destination",
+        f"id={ios_device}",
+        "-only-testing:ReferenceAppUITests/ReferenceAppPhysicalLiveProofUITests/testLiveProofSender",
+    ]
+    IOS_XCUITEST_LIVE_PROOF_CONFIG.write_text(
+        json.dumps(
+            {
+                "appId": app_id,
+                "storageSubdirectory": storage_subdirectory,
+                "createdAtEpochMillis": int(time.time() * 1000),
+            }
+        ),
+        encoding="utf-8",
+    )
+    print(f"==> Running physical iPhone sender UI test: {shell_join(command)}")
     log_path = run_dir / "ios_xcodebuild.log"
-    with log_path.open("w", encoding="utf-8") as log_file:
-        result = subprocess.run(command, stdout=log_file, stderr=subprocess.STDOUT, text=True, env=env)
+    try:
+        with log_path.open("w", encoding="utf-8") as log_file:
+            result = subprocess.run(command, stdout=log_file, stderr=subprocess.STDOUT, text=True)
+    finally:
+        IOS_XCUITEST_LIVE_PROOF_CONFIG.unlink(missing_ok=True)
     log_text = log_path.read_text(encoding="utf-8", errors="replace").replace(development_team, "<redacted>")
+    if IOS_XCUITEST_SKIPPED_MARKER in log_text:
+        raise SystemExit(
+            "Physical iPhone sender UI test was skipped instead of executed. "
+            "The live-proof opt-in did not reach the XCTest runner."
+        )
     if result.returncode != 0:
         print("==> Physical iPhone sender UI test failed; tail follows:", file=sys.stderr)
         print("\n".join(log_text.splitlines()[-60:]), file=sys.stderr)
