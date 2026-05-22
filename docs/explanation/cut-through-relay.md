@@ -1,83 +1,83 @@
-# Cut-Through vs Store-and-Forward Relay
+# Cut-through vs store-and-forward relay
 
 ## The problem
 
-When Node A sends a 10KB message to Node C through relay Node B:
+When node A sends a large message to node C through relay node B, the relay can
+handle the transfer in two very different ways.
 
-**Store-and-forward** (the naive approach):
-1. A sends all chunks to B
-2. B reassembles the entire message
-3. B re-chunks and sends all chunks to C
+**Store-and-forward** waits for the full payload:
 
-Total latency: 2× the single-hop transfer time. Every relay hop doubles latency.
+1. A sends every chunk to B
+2. B reassembles the full message
+3. B re-chunks and forwards it to C
 
-**Cut-through forwarding** (what MeshLink does):
-1. A sends chunk 0 to B
-2. B reads the routing header from chunk 0, determines next hop is C
-3. B immediately begins forwarding chunk 0 to C
-4. A sends chunk 1 to B → B forwards chunk 1 to C (pipelined)
-5. ...and so on
+That makes every hop pay the full transfer cost.
 
-Total latency: ~1× single-hop time + per-chunk processing overhead. Relay hops add minimal latency.
+**Cut-through forwarding** pipelines the transfer:
 
-## How it works
+1. A sends the first chunk to B
+2. B reads the routing header, resolves the next hop, and starts forwarding
+3. later chunks continue to flow through B while A is still sending
 
-### CutThroughBuffer
+That keeps relay latency much closer to one single-hop transfer plus per-chunk
+processing overhead.
 
-When `DeliveryPipeline` receives chunk 0 of a multi-chunk message at a relay node:
+## How MeshLink does it
 
-1. Parse the FlatBuffer routing header (destination key hash, next hop)
-2. Look up the next hop in the routing table
-3. If route exists: create a `CutThroughBuffer` and begin forwarding immediately
-4. If route doesn't exist: fall back to store-and-forward (buffer all chunks, then route when complete)
+When a relay receives chunk 0 of a multi-chunk message, it tries to do four
+things immediately:
 
-### Chunk re-encryption
+1. parse the routing header
+2. resolve the next hop
+3. confirm the next-hop transport session is usable
+4. start forwarding without waiting for full reassembly
 
-Each hop has its own Noise transport session. The relay:
-1. Decrypts the inbound chunk with its transport key from the previous hop
-2. Re-encrypts with its transport key to the next hop
-3. Forwards without touching the inner Noise K payload (which is E2E sealed to the final destination)
+If those conditions hold, MeshLink creates a cut-through relay buffer and
+pipelines the transfer.
 
-### Local relay buffer
+## Why the relay still buffers data
 
-Even with cut-through, B keeps a copy of forwarded chunks in its relay buffer. This serves retransmission: if C NACKs a chunk, B can resend it without cascading the NACK back to A.
+Cut-through does not mean "no buffer." The relay still keeps forwarded chunks
+long enough to handle local retransmission.
 
-### Fallback conditions
+That matters when the next hop asks for a resend. B should be able to retry the
+chunk locally instead of cascading the retry all the way back to A.
 
-Cut-through is abandoned (falls back to full reassembly) when:
-- Routing header parse fails on chunk 0
-- No route exists for the destination at the time chunk 0 arrives
-- Next-hop transport session is not established
+## Re-encryption stays hop-local
 
-## Why this matters for BLE mesh
+Each hop has its own Noise transport session. The relay therefore:
 
-BLE has high per-hop latency (~10–50ms per chunk, depending on connection interval and MTU). In a 3-hop path:
+1. decrypts the inbound chunk for the current hop
+2. re-encrypts it for the next hop
+3. forwards it without touching the inner end-to-end payload seal
 
-- Store-and-forward: 3 × (10KB / MTU) × per-chunk-latency = seconds
-- Cut-through: (10KB / MTU) × per-chunk-latency + 2 × per-chunk-processing = sub-second for the pipeline to fill
+The relay is helping transport the message, not terminating the application
+payload.
 
-For the "Tinder without Internet" use case (broadcasting 10KB profiles), the difference between 3 seconds and 1 second across a 3-hop mesh is noticeable.
+## When MeshLink falls back
 
-## How to verify in tests
+MeshLink falls back to full reassembly when cut-through cannot be started
+safely. Typical reasons are:
 
-The 3-node integration test proves cut-through by asserting structural interleaving:
+- the routing header on chunk 0 cannot be parsed
+- no route exists when the first chunk arrives
+- the next-hop transport session is not ready
 
-```kotlin
-// B starts sending chunks to C before receiving all chunks from A
-val chunksSentByBtoC = nodeB.transport.sentFrames.filter { toC && isChunk }
-val chunksReceivedByBfromA = nodeB.transport.receivedFrames.filter { fromA && isChunk }
+## Why this matters on BLE
 
-// At the point B has sent its first chunk to C,
-// it has NOT yet received all chunks from A
-assertTrue(chunksReceivedByBfromA.size > chunksSentByBtoC.size)
-assertTrue(chunksSentByBtoC.isNotEmpty())
-```
+BLE is especially sensitive to per-hop transfer cost. If every hop waits for the
+full payload before forwarding, multi-hop delivery gets slow quickly.
 
-## Tradeoff
+Cut-through keeps large relayed transfers usable because the pipeline fills once
+and then keeps moving.
 
-Cut-through adds complexity:
-- CutThroughBuffer state management per in-flight relay
-- Memory: relay buffer holds chunks until transfer completes
-- Failure handling: what if next-hop disconnects mid-relay?
+## How to think about the trade-off
 
-But the latency improvement is critical for usable multi-hop messaging over BLE.
+Cut-through relay adds complexity:
+
+- in-flight relay state per transfer
+- relay-side retransmission buffers
+- more edge cases when the next hop disappears mid-transfer
+
+MeshLink accepts that complexity because the latency improvement is material for
+large multi-hop transfers over BLE.

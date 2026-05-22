@@ -1,97 +1,88 @@
-# Regulatory Compliance and Region Clamping
+# Regulatory compliance and region clamping
 
 ## The problem
 
-BLE operates in the 2.4 GHz ISM band. Different jurisdictions impose different rules on how devices use this spectrum. A library that works globally must enforce these limits automatically.
+BLE operates in the 2.4 GHz ISM band, but applications still influence how hard
+that radio is driven. MeshLink cannot control the underlying controller or OS
+stack, but it can control application-level behavior that changes radio usage.
 
-## What MeshLink regulates
+## What MeshLink actually regulates
 
-MeshLink doesn't control raw radio parameters — that's the OS BLE stack's job. But it controls **application-layer behavior** that directly affects radio usage:
+MeshLink does not set raw PHY parameters. It adjusts higher-level policy values
+that still affect radio pressure:
 
 | Parameter | What it affects |
-|-----------|-----------------|
-| Advertisement interval | How often the radio transmits ads (duty cycle) |
-| Scan duty cycle | What percentage of time the radio is actively receiving |
+|---|---|
+| Advertisement interval | How often the device advertises |
+| Scan duty cycle | How much time the device spends listening |
 
-These two parameters determine whether the device complies with duty cycle limits imposed by radio regulations.
+Those values are enough to make regional policy matter at the application
+layer.
 
-## RegulatoryRegion enum
+## `RegulatoryRegion`
 
 ```kotlin
 public enum class RegulatoryRegion {
-    DEFAULT,  // No additional clamping (rely on OS enforcement)
-    EU,       // ETSI EN 300 328 compliance
+    DEFAULT,
+    EU,
 }
 ```
 
-## EU region: ETSI EN 300 328
+- `DEFAULT` means "rely on the platform's normal behavior"
+- `EU` adds MeshLink-side clamping for the current compliance-oriented policy
 
-The European Telecommunications Standards Institute sets rules for 2.4 GHz devices:
+## EU clamping
 
-- **Advertisement interval ≥ 300ms:** Prevents excessive channel occupation from rapid advertising
-- **Scan duty cycle ≤ 70%:** Ensures the device doesn't monopolize the receive path
+For the EU region, MeshLink currently clamps two values when the selected policy
+would be too aggressive:
 
-### How clamping works
+- advertisement interval cannot go below 300 ms
+- scan duty cycle cannot exceed 70%
 
-During `MeshLinkConfigBuilder.build()`:
+This happens inside the shared power-policy code, not in a platform-specific
+wrapper.
 
-```kotlin
-if (region == RegulatoryRegion.EU) {
-    if (advertisementIntervalMillis < 300L) {
-        // Clamp to 300ms, record warning
-        advertisementIntervalMillis = 300L
-        clampWarnings.add("advertisementIntervalMillis: clamped ... → 300 (EU minimum 300 ms)")
-    }
-    if (scanDutyCyclePercent > 70) {
-        // Clamp to 70%, record warning
-        scanDutyCyclePercent = 70
-        clampWarnings.add("scanDutyCyclePercent: clamped ... → 70 (EU maximum 70%)")
-    }
-}
-```
+## Why `DEFAULT` does not clamp
 
-### User visibility
+`DEFAULT` does not mean "ignore compliance." It means MeshLink does not add an
+extra shared clamp on top of what the operating system and controller already
+do.
 
-- Clamped values are recorded in `MeshLinkConfig.clampWarnings`
-- On `meshLink.start()`, each warning emits a `CONFIG_CLAMPED` diagnostic event
-- The app can log or display these: "Your scan duty was reduced to 70% for EU compliance"
+That default is reasonable because:
 
-## Why DEFAULT doesn't clamp
+- Android and iOS already enforce important BLE limits below the app layer
+- the exact low-level radio rules are owned by the platform stack, not by
+  MeshLink
+- redundant clamping in shared code would make behavior more conservative
+  without necessarily improving real compliance
 
-In the DEFAULT region:
-- The OS BLE stack already enforces its own radio limits
-- Android enforces minimum advertisement intervals at the HAL level
-- iOS enforces its own duty cycle limits (more aggressive than ETSI)
-- Adding redundant clamping on top of OS enforcement provides no benefit
+## How clamping interacts with power tiers
 
-DEFAULT means: "trust the platform to handle radio compliance."
+Power tier selection happens first, then regional clamping adjusts the effective
+policy if needed.
 
-## Power tier interaction
+That means an EU `PERFORMANCE` posture is still performance-oriented, but it may
+produce a more conservative effective advertisement interval or scan duty cycle
+than the unrestricted default-region version.
 
-Power tier settings are applied **after** regulatory clamping. This means:
+## How the host app sees it
 
-1. Config sets `advertisementIntervalMillis = 200ms`
-2. EU clamping raises it to `300ms`
-3. POWER_SAVER tier may further increase it to `500ms`
+MeshLink surfaces the effective power-policy state through
+`POWER_MODE_CHANGED` diagnostics. When a regional clamp is active, the emitted
+metadata includes `clampWarnings` alongside the effective values.
 
-Regulatory limits are a floor — power management can only be more conservative, never less.
+That keeps the app-facing story simple:
 
-## Why not per-country granularity?
+- the app chooses a region and a power mode
+- MeshLink computes the effective policy
+- diagnostics tell operators what actually happened
 
-Three reasons:
+## Why the model stays simple
 
-1. **BLE is globally harmonized on 2.4 GHz ISM.** Most countries follow either FCC (US) or ETSI (EU) rules, and the differences that matter for application-layer behavior are minimal.
+MeshLink does not currently model dozens of country-specific variants. The goal
+is a small set of meaningful, shared choices rather than a large compliance
+matrix that the host app has to reason about.
 
-2. **The OS handles the hard parts.** Channel hopping sequences, maximum transmit power, and frequency masking are managed by the Bluetooth controller firmware and OS BLE stack — not the application.
-
-3. **Complexity vs. value.** Supporting 50+ country codes with marginally different rules adds maintenance burden without meaningful compliance improvement. Two tiers (DEFAULT + EU) covers the practical space.
-
-## Future regions
-
-If a jurisdiction imposes application-layer BLE restrictions beyond what the OS enforces, add a new `RegulatoryRegion` variant with its own clamping rules in `MeshLinkConfigBuilder.build()`.
-
-Candidate: Japan (MIC Article 4-2 power density limits could affect advertisement rates for certain use cases). Not currently needed.
-
-## Export control note
-
-MeshLink uses standard cryptographic algorithms (ChaCha20-Poly1305, Ed25519, X25519) that are publicly available and widely deployed. See `EXPORT_CONTROL.md` in the repository root for the full analysis. The library qualifies for EAR License Exception TSU (publicly available encryption source code).
+If a future jurisdiction needs additional application-layer constraints beyond
+what the platform already enforces, that should become a new
+`RegulatoryRegion` with explicit shared clamping rules.

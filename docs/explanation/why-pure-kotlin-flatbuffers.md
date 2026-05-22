@@ -1,59 +1,74 @@
-# Why Pure-Kotlin FlatBuffers
+# Why pure-Kotlin FlatBuffers
 
 ## The decision
 
-MeshLink implements a FlatBuffers-compatible binary codec entirely in pure Kotlin (~600 lines: ReadBuffer + WriteBuffer). It does not use `flatc` codegen or any FlatBuffers library dependency in commonMain.
+MeshLink implements a FlatBuffers-compatible binary codec in pure Kotlin. It
+does not use `flatc` code generation or a commonMain FlatBuffers runtime
+library.
 
-## The constraint
+## Why this exists
 
-Kotlin Multiplatform requires all shared code to compile on three targets: JVM, Android (via JVM bytecode), and iOS (via Kotlin/Native). The FlatBuffers ecosystem doesn't serve this:
+MeshLink needs one shared wire codec across JVM, Android, and iOS. The usual
+FlatBuffers options did not fit that requirement cleanly:
 
-- **`flatbuffers-java`** (the Google artifact on Maven Central) is JVM-only. Importing it in commonMain causes an immediate iOS compilation failure.
-- **`flatbuffers-kotlin`** does not exist on Maven Central as a separate artifact. There is no official KMP FlatBuffers runtime.
-- **`flatc`** codegen produces code that depends on the Java runtime.
+- `flatbuffers-java` is JVM-only
+- there is no official KMP FlatBuffers runtime on Maven Central
+- `flatc` output assumes runtimes that do not solve the shared-code problem for
+  this repository
 
-## What we built instead
+## What MeshLink built instead
 
-Two classes (~300 lines each):
+The shared codec is intentionally small:
 
-- **`ReadBuffer`**: Reads FlatBuffers binary format — vtable navigation, field offset lookup, typed field accessors (Int, UInt, Byte, ByteArray, String, nested tables).
-- **`WriteBuffer`**: Builds FlatBuffers-compatible binary output — back-to-front construction, vtable generation, string/vector caching, alignment padding.
+- `ReadBuffer` handles FlatBuffers-compatible reads
+- `WriteBuffer` handles FlatBuffers-compatible writes
+- message-specific encode/decode logic lives in `WireCodec.kt`
 
-Plus per-message-type encode/decode functions in `WireCodec.kt`.
+The goal was not to reimplement the entire FlatBuffers ecosystem. It was to
+support the subset MeshLink actually uses.
 
-## Why this works
+## Why the manual approach is reasonable here
 
-The FlatBuffers binary format is a well-documented, stable specification:
-- Fixed-size vtable header at known offset
-- Field offsets stored as uint16 in the vtable
-- Absent optional fields have offset 0 (return default value)
-- Strings are null-terminated, length-prefixed
-- Tables can be extended with new fields (forward compatibility)
+The FlatBuffers binary format is stable and well specified. MeshLink only needs
+a narrow feature slice:
 
-Implementing it manually is straightforward because we don't need the full feature set — no unions, no vectors-of-tables, no file identifiers. Just flat tables with scalar and byte-array fields.
+- flat tables
+- scalar fields
+- byte arrays and strings
+- forward-compatible field skipping
 
-## What we proved
+It does **not** need the full feature matrix such as unions or the broader code
+generation toolchain.
 
-- 99 tests at 100% Kover line+branch coverage
-- All 12 message types round-trip correctly
-- Golden byte vectors match expected encoding
-- InboundValidator rejects all malformed inputs
-- Forward-compatible: old decoders skip unknown vtable slots
+## What this buys the project
 
-## Where flatbuffers-java lives
+- one shared codec across all supported targets
+- no new runtime dependency in `:meshlink`
+- exact control over the wire format
+- a smaller code footprint than generated code for the subset MeshLink uses
 
-It's still in the project — but only in `jvmMain` source set, used by benchmarks as a reference encoder to validate our pure-Kotlin implementation produces identical bytes.
+## What proves it works
 
-## Tradeoffs
+The repository keeps the codec under the same test discipline as the rest of the
+protocol surface:
 
-| Aspect | Manual codec | Library codegen |
-|--------|-------------|-----------------|
-| KMP compatibility | ✅ All targets | ❌ JVM-only |
-| Maintenance | Manual updates | Auto from `.fbs` |
-| Performance | Identical (same binary format) | Identical |
-| Code size | ~600 lines | Generated ~2000 lines |
-| Feature coverage | 12 message types only | Full FlatBuffers spec |
+- full coverage expectations
+- round-trip tests
+- malformed-input validation
+- forward-compatibility checks
+- JVM-side comparison against a reference FlatBuffers implementation where that
+  is useful
+
+## Trade-off
+
+The cost is maintenance. Schema evolution requires explicit manual updates
+instead of re-running a generator.
+
+MeshLink accepts that cost because the shared-target compatibility and runtime
+control matter more than generator convenience in the current repository shape.
 
 ## When to revisit
 
-If a KMP-compatible FlatBuffers runtime is published to Maven Central, the manual codec could be replaced. The binary format is identical, so this would be a drop-in replacement with no wire-level changes.
+If a well-supported KMP FlatBuffers runtime becomes available and fits the
+project's dependency rules, this decision can be revisited without changing the
+wire format itself.

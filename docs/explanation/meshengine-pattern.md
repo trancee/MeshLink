@@ -1,108 +1,89 @@
-# The MeshEngine Coordinator Pattern
+# The MeshEngine coordinator pattern
 
 ## The pattern
 
-MeshLink has two layers at the top:
+MeshLink keeps a strict top-level split:
 
+```text
+MeshLink (public API shell) -> MeshEngine (internal coordinator) -> subsystems
 ```
-MeshLink (public)  →  MeshEngine (internal coordinator)  →  Subsystems
-```
 
-- **MeshLink:** Thin lifecycle shell. Holds Identity, Engine, Transport. Manages MeshLinkState FSM. Delegates everything to MeshEngine.
-- **MeshEngine:** Owns all domain logic composition. Creates and wires all subsystems. Routes events between them. Single coordinator.
+- **`MeshLink`** is the public boundary
+- **`MeshEngine`** is the internal coordinator
+- **subsystems** own routing, transfer, handshake, power, presence, storage,
+  diagnostics, and transport-specific work
 
-## Why this layering
+## Why the split exists
 
-### MeshLink is the API boundary
+### `MeshLink` is the API boundary
 
-`MeshLink` implements `MeshLinkApi` — it's the only public class consumers interact with. Its responsibilities are narrow:
+`MeshLink` implements `MeshLinkApi` and keeps a narrow job:
 
-1. Lifecycle state machine (Idle → Starting → Running → Stopping → Stopped)
-2. Platform factory methods (createAndroid, createIos)
-3. Delegating every method call to MeshEngine
-4. Holding the top-level CoroutineScope
+- own the public lifecycle surface
+- expose factory entry points
+- hold top-level runtime ownership such as the coroutine scope
+- delegate real work into `MeshEngine`
 
-It does NOT contain routing logic, transfer logic, handshake logic, or diagnostic emission.
+It does **not** embed routing, transfer, trust, or handshake policy directly.
 
-### MeshEngine is the internal wiring layer
+### `MeshEngine` is the wiring layer
 
-`MeshEngine.create()` builds every subsystem and wires them together:
-
-```kotlin
-internal class MeshEngine private constructor(
-    private val transport: BleTransport,
-    private val routeCoordinator: RouteCoordinator,
-    private val deliveryPipeline: DeliveryPipeline,
-    private val transferEngine: TransferEngine,
-    private val powerManager: PowerManager,
-    private val handshakeManager: NoiseHandshakeManager,
-    private val presenceTracker: PresenceTracker,
-    private val meshStateManager: MeshStateManager,
-    private val advertisementCodec: AdvertisementCodec,
-    private val trustStore: TrustStore,
-    private val identity: Identity,
-    private val storage: SecureStorage,
-    private val diagnosticSink: DiagnosticSink,
-    private val cryptoProvider: CryptoProvider,
-) {
-    companion object {
-        fun create(config: MeshEngineConfig, ...): MeshEngine { ... }
-    }
-}
-```
+`MeshEngine.create()` builds the subsystem graph and wires the pieces together.
+That makes one place responsible for composition instead of scattering
+cross-subsystem knowledge through the public shell.
 
 ## Why not expose subsystems directly?
 
-An alternative design would have `MeshLink` hold references to `TrustStore`, `DeliveryPipeline`, etc., and call them directly. This was rejected because:
+That alternative looks simpler at first, but it makes three things worse.
 
-1. **Coupling:** If MeshLink calls DeliveryPipeline directly, changing the delivery pipeline interface breaks the public API layer.
-2. **Coordination:** Many operations touch multiple subsystems. `forgetPeer()` must clear TrustStore + RoutingTable + DeliveryPipeline + PresenceTracker. MeshEngine coordinates this.
-3. **Testing:** MeshEngine can be tested in isolation with VirtualMeshTransport. MeshLink is just a thin shell over it.
+### 1. Coupling
 
-## How methods flow
+If the public shell talks directly to `DeliveryPipeline`, `TrustStore`,
+`RouteCoordinator`, and other internals, those internal interfaces become much
+harder to change safely.
 
-```
-meshLink.forgetPeer(peerId)
-  → engine.forgetPeer(peerId)
-    → trustStore.removeKey(peerId)
-    → routeCoordinator.retractPeer(peerId)
-    → deliveryPipeline.clearPendingFor(peerId)
-    → presenceTracker.removePeer(peerId)
-    → diagnosticSink.emit(PEER_FORGOTTEN) { ... }
-```
+### 2. Coordination
 
-## Constructor injection, no service locator
+Real operations often span multiple subsystems. For example, forgetting a peer
+is not just a trust-store action. It can also affect routing, pending delivery,
+presence, and diagnostics. `MeshEngine` is where that coordination belongs.
 
-Every subsystem receives its dependencies via constructor parameters. There is no dependency injection framework, no global state, no `ServiceLocator.get<TrustStore>()`.
+### 3. Testing
 
-This means:
-- The dependency graph is visible in `MeshEngine.create()`
-- Testing any subsystem in isolation requires only passing mocks/fakes to its constructor
-- No hidden coupling through shared mutable state
+A thin public shell plus an internal coordinator is easier to test than a shell
+that knows every subsystem detail. The public layer stays small, and the engine
+can be exercised with the virtual harness.
 
-## The DiagnosticSink cascade
+## Constructor injection, not a service locator
 
-`DiagnosticSink` is injected into every subsystem constructor:
+Subsystems receive their dependencies through constructors. The graph stays
+visible in `MeshEngine.create()`.
 
-```
-MeshEngine.create()
-  → RoutingEngine(diagnosticSink, ...)
-  → DeliveryPipeline(diagnosticSink, ...)
-  → TransferEngine(diagnosticSink, ...)
-  → PowerManager(diagnosticSink, ...)
-  → NoiseHandshakeManager(diagnosticSink, ...)
-```
+That gives MeshLink three benefits:
 
-Any subsystem can emit events without knowing about the others. The single `DiagnosticSink` instance aggregates all events into one `SharedFlow` that consumers collect on.
+- the dependency graph is explicit
+- subsystem tests can use focused fakes and mocks
+- there is no hidden global lookup path that makes coupling harder to see
+
+## Why diagnostics fit this pattern well
+
+`DiagnosticSink` is injected everywhere that needs to emit runtime signals. That
+lets subsystems report what they know without depending on each other.
+
+The result is one aggregated diagnostics stream for the host app without a
+central "god object" that has to understand every event in advance.
 
 ## When to add a new subsystem
 
-If you're adding a new protocol capability:
+Add a new subsystem when it owns a distinct reason to change and has clear
+internal responsibilities.
 
-1. Create the subsystem class in its own package
-2. Accept `DiagnosticSink` (and other deps) via constructor
-3. Add it as a field on `MeshEngine`
-4. Wire it in `MeshEngine.create()`
-5. Add delegation methods on `MeshEngine` for any new public API methods
-6. Add thin delegations on `MeshLink`
-7. Update BCV baseline (`apiDump`)
+A good default path is:
+
+1. create the subsystem in its own package
+2. inject its dependencies explicitly
+3. wire it in `MeshEngine.create()`
+4. expose only the coordinator methods the public API actually needs
+
+That keeps new capability local instead of teaching the public shell about one
+more internal detail.

@@ -1,85 +1,80 @@
-# Why 100% Coverage for a Crypto Protocol
+# Why 100% coverage for a crypto protocol
 
 ## The decision
 
-MeshLink enforces 100% line and branch coverage via Kover on every commit. Zero `@CoverageIgnore` annotations are permitted in the codebase.
+MeshLink enforces 100% line and branch coverage via Kover. No
+`@CoverageIgnore` annotations are permitted in the codebase.
 
-## This isn't about a number
+## Why this is not just a vanity metric
 
-In most software, 100% coverage is either impossible or a vanity metric. You write tests to hit the number, not to prove correctness. The tests become brittle, the code becomes contorted, and everyone hates it.
+In many projects, 100% coverage becomes a number people chase instead of a real
+signal. MeshLink treats it differently because it is a cryptographic protocol
+library.
 
-MeshLink is different because it's a cryptographic protocol library. The argument isn't "coverage is good" — it's "uncovered code in a protocol implementation is a specific, quantifiable risk."
+Here, an uncovered branch is not just "missing test polish." It can mean a
+reachable protocol behavior that nobody has proven safe.
 
-## What uncovered code means here
+## What uncovered code means in this codebase
 
-In a crypto protocol, every branch has semantic meaning:
+In MeshLink, branches often carry protocol meaning:
 
-- An uncovered `if` in replay protection might mean a replay attack works
-- An uncovered branch in Noise XX might mean a handshake state is reachable that produces wrong keys
-- An uncovered path in routing might mean a loop can form under specific topology changes
-- An uncovered case in the wire codec might mean a malformed message causes undefined behavior
+- replay-protection behavior
+- handshake transitions
+- routing decisions
+- malformed-frame handling
+- power-policy transitions
 
-These aren't hypothetical. Protocol bugs live in the branches you didn't test.
+Those are exactly the places where subtle bugs hide.
 
-## How we make it practical
+## How MeshLink makes the rule practical
 
-The 100% rule is sustainable because of deliberate code patterns:
+The coverage rule stays sustainable because the code avoids patterns that create
+hard-to-exercise bytecode branches.
 
-### 1. No `require()` with string interpolation
+### 1. Prefer explicit checks over `require()` lambdas
 
 ```kotlin
-// BAD — creates uncoverable Kover branch (string lambda generates bytecode branch)
+// BAD
 require(value > 0) { "Value must be positive, got $value" }
 
-// GOOD — explicit, all branches testable
+// GOOD
 if (value <= 0) throw IllegalArgumentException("Value must be positive, got $value")
 ```
 
-### 2. No `while(isActive)` in coroutines
+### 2. Avoid `while (isActive)` loops in long-running coroutines
 
 ```kotlin
-// BAD — the `false` branch of isActive is unreachable under Kover
+// BAD
 while (isActive) { delay(1000) }
 
-// GOOD — compiles to unconditional GOTO, no false branch
+// GOOD
 while (true) { delay(1000) }
 ```
 
-### 3. Custom equals/hashCode for ByteArray data classes
+### 3. Override `ByteArray` equality deliberately
 
-Every `data class` with a `ByteArray` field overrides `equals()` and `hashCode()` using `contentEquals()`. Tests exercise each field-difference position to cover all branches.
+`ByteArray` needs `contentEquals()` and `contentHashCode()` semantics, not the
+default identity-based behavior.
 
-### 4. Explicit null checks over safe-call chains
+### 4. Prefer explicit null handling over opaque safe-call chains
 
-```kotlin
-// BAD — generates dead null-check branch when map.remove() returns non-null type
-map.remove(key)?.field
+Explicit branches are easier to reason about and easier to cover honestly.
 
-// GOOD — all branches are reachable
-val entry = map.remove(key)
-if (entry != null) { entry.field }
-```
+### 5. Cover wiring paths with integration tests
 
-### 5. Integration tests for wiring paths
+Some important behavior only appears when the full engine is composed. That is
+why MeshLink uses the virtual harness, not only small unit tests.
 
-Methods that only execute when MeshEngine is fully composed (handshake callbacks, power tier transitions) are covered by `MeshTestHarness` integration tests that run real Noise XX handshakes over VirtualMeshTransport.
+## What the rule buys back
 
-## What it catches
+The cost is real:
 
-Real bugs found by chasing coverage:
-- RouteCoordinator installing routes with all-zero X25519 key (invisible in unit tests, crashes at distant nodes)
-- Missing handshake subscription in MeshEngine (only activates on incoming frame from real transport)
-- PowerModeEngine timer leak on rapid start/stop cycling
-- DedupSet expiry race under concurrent access
+- more test code
+- occasional code reshaping to remove dead or misleading branches
+- a higher contributor bar
 
-## The cost
+The return is also real:
 
-- ~10% more test code than a "pragmatic 90%" approach
-- Occasional need to restructure code to eliminate dead branches
-- Higher bar for contributors
-
-## The return
-
-- Zero protocol-level bugs in production paths (all reachable states are exercised)
-- Refactoring confidence (move code freely, coverage regression = immediate signal)
-- The `@CoverageIgnore` removal in M005 found 3 genuinely untested behaviors
+- stronger confidence in protocol changes
+- faster detection of untested behavior during refactors
+- fewer places for "reachable but never exercised" bugs to hide

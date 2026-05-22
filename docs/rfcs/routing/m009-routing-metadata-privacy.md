@@ -1,83 +1,83 @@
-# M009 Routing Metadata Privacy Envelope and Negotiation Contract
+# M009 routing metadata privacy envelope and negotiation contract
 
 Status: Draft (S01 design contract)
 
-This RFC defines the wire contract for protecting routing metadata in MeshLink, including
-Envelope format, Versioning, Capability negotiation, Fallback behavior, Downgrade handling,
-and deterministic test vectors for S02 implementation.
+This RFC defines the wire contract for protecting routing metadata in MeshLink,
+including envelope format, versioning, capability negotiation, fallback
+behavior, downgrade handling, and the machine-readable evidence required for the
+next implementation slices.
 
 ## Scope
 
-This contract covers routing-control metadata only (Babel update/withdrawal semantics).
-It does not redesign trust, identity, or payload-layer application encryption.
+This contract covers routing-control metadata only. It does **not** redesign:
+
+- trust or identity
+- payload-layer application encryption
+- product-level UX policy
 
 ## Goals
 
-- Protect route-control metadata from passive BLE observers when both peers support privacy mode.
-- Preserve interoperability with legacy peers through explicit negotiation and deterministic fallback.
-- Make downgrade and compatibility outcomes machine-observable for acceptance artifacts.
+- protect route-control metadata from passive BLE observers when both peers
+  support privacy mode
+- preserve interoperability with legacy peers through explicit negotiation
+- make fallback and downgrade outcomes machine-observable
 
-## Non-goals
+## Baseline
 
-- Full endpoint-compromise resistance.
-- New PKI/trust infrastructure.
-- Product-level UX policy decisions.
+Before M009, route-control payloads are plaintext `BabelRouteControlFrame`
+values encoded by `BabelRouteFrameCodec` with wire types:
 
-## Baseline (pre-M009)
+- `0x21` — UPDATE
+- `0x22` — WITHDRAWAL
 
-Current route-control payloads are plaintext `BabelRouteControlFrame` encoded by
-`BabelRouteFrameCodec` with wire types:
+That leaves destination, next-hop, metric, and sequence metadata visible to a
+nearby observer.
 
-- `0x21` UPDATE
-- `0x22` WITHDRAWAL
-
-This leaks destination/routerId/nextHop/metric/seqno visibility to nearby observers.
-
-## Envelope
+## Envelope design
 
 ### New frame types
 
-To preserve backward compatibility and explicit negotiation, add two frame types:
+To preserve backward compatibility and explicit negotiation, M009 adds:
 
-- `0x20` ROUTE_CAPS (capability advertisement)
-- `0x23` ROUTE_PRIVACY_ENVELOPE (encrypted route-control metadata)
+- `0x20` — `ROUTE_CAPS`
+- `0x23` — `ROUTE_PRIVACY_ENVELOPE`
 
-Legacy frame types (`0x21`, `0x22`) remain valid for negotiated fallback mode.
+Legacy frame types `0x21` and `0x22` remain valid for negotiated fallback mode.
 
-### ROUTE_CAPS frame (0x20)
+### `ROUTE_CAPS` (`0x20`)
 
-`ROUTE_CAPS` is plaintext and small; it does not reveal route graph data.
+`ROUTE_CAPS` is plaintext and intentionally small.
 
 | Byte(s) | Field | Type | Notes |
 |---|---|---|---|
-| 0 | frame_type | u8 | `0x20` |
-| 1 | version | u8 | ROUTE_CAPS schema version (initial `1`) |
-| 2 | capability_bits | u8 | bit0 = supports privacy envelope v1 |
-| 3 | max_privacy_version | u8 | highest privacy version supported |
-| 4 | min_privacy_version | u8 | lowest privacy version supported |
-| 5 | flags | u8 | reserved (must be `0` in v1) |
+| 0 | `frame_type` | u8 | `0x20` |
+| 1 | `version` | u8 | schema version, initial `1` |
+| 2 | `capability_bits` | u8 | bit0 = supports privacy envelope v1 |
+| 3 | `max_privacy_version` | u8 | highest supported privacy version |
+| 4 | `min_privacy_version` | u8 | lowest supported privacy version |
+| 5 | `flags` | u8 | reserved, must be `0` in v1 |
 
-### ROUTE_PRIVACY_ENVELOPE frame (0x23)
+### `ROUTE_PRIVACY_ENVELOPE` (`0x23`)
 
 `ROUTE_PRIVACY_ENVELOPE` carries an encrypted inner route-control frame.
 
 | Byte(s) | Field | Type | Notes |
 |---|---|---|---|
-| 0 | frame_type | u8 | `0x23` |
-| 1 | envelope_version | u8 | privacy envelope version (initial `1`) |
-| 2 | inner_frame_type | u8 | `0x21` or `0x22` |
-| 3 | cipher_suite_id | u8 | `0x01` = Noise-session AEAD default |
-| 4 | key_phase | u8 | sender key phase / rekey epoch |
-| 5..8 | seq | u32 LE | monotonic per-neighbour privacy seq |
-| 9 | nonce_len | u8 | v1 requires `12` |
-| 10..(10+nonce_len-1) | nonce | bytes | AEAD nonce |
-| next 2 | ciphertext_len | u16 LE | encrypted inner frame bytes length |
-| next N | ciphertext | bytes | AEAD-encrypted inner frame bytes |
-| next 16 | tag | bytes | AEAD auth tag |
+| 0 | `frame_type` | u8 | `0x23` |
+| 1 | `envelope_version` | u8 | initial `1` |
+| 2 | `inner_frame_type` | u8 | `0x21` or `0x22` |
+| 3 | `cipher_suite_id` | u8 | `0x01` = Noise-session AEAD default |
+| 4 | `key_phase` | u8 | sender rekey epoch |
+| 5..8 | `seq` | u32 LE | monotonic per-neighbour privacy sequence |
+| 9 | `nonce_len` | u8 | v1 requires `12` |
+| 10.. | `nonce` | bytes | AEAD nonce |
+| next 2 | `ciphertext_len` | u16 LE | encrypted inner-frame length |
+| next N | `ciphertext` | bytes | encrypted inner frame |
+| next 16 | `tag` | bytes | AEAD tag |
 
-Plaintext encrypted into `ciphertext` is exactly the existing `BabelRouteFrameCodec.encode(...)`
-output for UPDATE/WITHDRAWAL, so route-table logic can reuse current decode/application flow
-after successful decryption.
+The encrypted plaintext is exactly the existing `BabelRouteFrameCodec.encode(...)`
+output for UPDATE or WITHDRAWAL, so route-table logic can stay intact after a
+successful decrypt.
 
 ### Authenticated data (AAD)
 
@@ -85,29 +85,32 @@ AAD for v1 is:
 
 `frame_type || envelope_version || inner_frame_type || cipher_suite_id || key_phase || seq || nonce_len`
 
-This binds routing-control type/version metadata to ciphertext integrity.
+That binds envelope metadata to ciphertext integrity.
 
-## Version
+## Version rules
 
-- `ROUTE_CAPS.version` and `ROUTE_PRIVACY_ENVELOPE.envelope_version` are independently versioned.
-- Unknown `ROUTE_CAPS.version` or `envelope_version` is a hard parse failure for that frame.
-- A peer may only select privacy mode when both peers share at least one envelope version in
-  `[min_privacy_version, max_privacy_version]`.
-- In v1, selected envelope version is `1`.
+- `ROUTE_CAPS.version` and `ROUTE_PRIVACY_ENVELOPE.envelope_version` are
+  versioned independently
+- unknown versions are hard parse failures for the offending frame
+- privacy mode is valid only when both peers share at least one supported
+  envelope version
+- v1 selects envelope version `1`
 
 ## Capability negotiation
 
 ### Exchange timing
 
-- After a Noise session is available for a neighbour, each side emits one `ROUTE_CAPS` frame.
-- Capability state is bound to the current session and cleared on disconnect/session reset.
+- after a Noise session is available for a neighbour, each side emits one
+  `ROUTE_CAPS` frame
+- capability state is bound to that session and cleared on disconnect or reset
 
-### Mode selection algorithm (deterministic)
+### Deterministic mode selection
 
 Per neighbour:
 
-1. If local supports privacy and remote `ROUTE_CAPS` advertises matching privacy version: `mode=privacy_v1`.
-2. Else: `mode=legacy` with explicit fallback reason.
+1. if local support and remote support overlap on privacy v1, select
+   `privacy_v1`
+2. otherwise, select `legacy` and record an explicit fallback reason
 
 No implicit mode switching is allowed.
 
@@ -120,126 +123,121 @@ No implicit mode switching is allowed.
 | legacy/none | privacy_v1 | legacy | `fallback_local_legacy` |
 | legacy/none | legacy/none | legacy | `fallback_both_legacy` |
 
-## Fallback
+## Fallback and downgrade rules
 
-Fallback is valid only for explicit capability mismatch, not parse/decrypt/auth failures.
+Fallback is valid only for explicit capability mismatch, not for parse,
+decrypt, auth, or version failures.
 
-Required fallback reasons (machine-parseable):
+Required fallback reasons:
 
 - `fallback_legacy_peer`
 - `fallback_local_legacy`
 - `fallback_both_legacy`
-- `fallback_local_policy` (feature disabled by operator/config)
+- `fallback_local_policy`
 
-When in fallback mode, route-control uses legacy frame types (`0x21`/`0x22`).
-
-## Downgrade
-
-Downgrade verdict is distinct from benign fallback.
-
-### Verdict values
+Downgrade verdicts are separate:
 
 - `none`
 - `downgrade_suspected`
 - `downgrade_detected`
 
-### Deterministic rules (v1)
+Deterministic v1 rules:
 
-Given peer/session capability state:
+1. if privacy was negotiated and a legacy route frame arrives afterward, flag
+   downgrade (`suspected` first, then `detected` on repeat or threshold breach)
+2. if a privacy-capable peer sends an unsupported or rolled-back envelope
+   version, mark `downgrade_detected`
+3. if envelope auth or decrypt fails after privacy negotiation, mark
+   `downgrade_detected`
+4. benign capability-mismatch fallback keeps `downgrade=none`
 
-1. If peer negotiated privacy and receives legacy route frame (`0x21`/`0x22`) after negotiation complete:
-   - first violation: `downgrade_suspected`
-   - repeated violation or policy threshold exceeded: `downgrade_detected`
-2. If peer advertised privacy support but sends envelope with unsupported/rolled-back version: `downgrade_detected`.
-3. If envelope auth/decrypt fails while peer is privacy-negotiated: `downgrade_detected`.
-4. Capability mismatch fallback cases always keep `downgrade=none`.
+Privacy mode is fail-closed: auth, decrypt, and version failures drop the frame
+and do not silently switch the session to legacy mode.
 
-Fail-closed rule for privacy mode: auth/decrypt/version failures drop the offending frame and do
-not silently auto-switch to legacy.
+## Diagnostics contract
 
-## Diagnostics contract (required fields)
+S02/S03 must expose machine-readable diagnostics for at least:
 
-S02/S03 must expose machine-readable diagnostics at least for:
-
-- `route.negotiated_mode` (`privacy_v1`|`legacy`)
-- `route.fallback_reason` (or `none`)
-- `route.downgrade_verdict` (`none|downgrade_suspected|downgrade_detected`)
+- `route.negotiated_mode`
+- `route.fallback_reason`
+- `route.downgrade_verdict`
 - `route.envelope_version`
-- `route.envelope_failure` (when applicable: `decode_failed`, `auth_failed`, `decrypt_failed`, `inner_decode_failed`, `missing_session`, `negotiation_incomplete`, `legacy_after_privacy`)
+- `route.envelope_failure` when applicable
 
-These may be emitted via existing `RouteControlDecision` diagnostics (extended fields)
-or a dedicated routing-privacy diagnostic payload type.
+Those fields may extend the current routing diagnostics or use a dedicated
+routing-privacy payload, but they must stay acceptance-projectable.
 
-## S03 integrated acceptance evidence contract
+## Acceptance evidence contract
 
-S03 closeout acceptance bundles must include machine-readable evidence for:
+S03 closeout bundles must include machine-readable evidence for:
 
-- `route.envelope_count.c_to_b` (privacy envelope frames observed on B↔C leg)
-- `route.envelope_count.b_to_a` (privacy envelope frames observed on A↔B leg)
-- `route.negotiated_mode.privacy_v1.count`
-- `route.negotiated_mode.legacy.count`
-- `route.fallback_reason.fallback_legacy_peer.count`
-- `route.downgrade.suspected.count`
-- `route.downgrade.detected.count`
-- `route.legacy_compatibility.applied`
-- `route.attack_legacy_drop`
+- privacy-envelope counts on both legs
+- negotiated-mode counts
+- fallback-reason counts
+- suspected/detected downgrade counts
+- legacy compatibility application
+- attack-path legacy drop behavior
 
-The acceptance runner must fail closed if required fields are missing, malformed, or violate
-expected invariants (for example envelope/downgrade counts not strictly positive when the scenario
-claims PASS).
+The acceptance runner should fail closed when required fields are missing,
+malformed, or inconsistent with the claimed scenario.
 
-## Test vector
+## Deterministic test vectors
 
-### Test vector 1 — ROUTE_CAPS advertise privacy v1
-
-Meaning:
-- frame type `0x20`
-- caps schema version `0x01`
-- capability bit0 set
-- max/min privacy version `0x01`
-- flags `0x00`
+### Test vector 1 — `ROUTE_CAPS` advertises privacy v1
 
 Hex:
 
 `20 01 01 01 01 00`
 
-### Test vector 2 — Negotiated privacy matrix expectation
+Meaning:
+
+- frame type `0x20`
+- schema version `0x01`
+- capability bit0 set
+- max/min privacy version `0x01`
+- flags `0x00`
+
+### Test vector 2 — negotiated privacy success
 
 Input:
+
 - local caps: `20 01 01 01 01 00`
 - remote caps: `20 01 01 01 01 00`
 
 Expected:
+
 - `negotiated_mode=privacy_v1`
 - `fallback_reason=none`
 - `downgrade_verdict=none`
 
-### Test vector 3 — Benign fallback with legacy peer
+### Test vector 3 — benign fallback with a legacy peer
 
 Input:
+
 - local caps: `20 01 01 01 01 00`
 - remote caps: absent
 
 Expected:
+
 - `negotiated_mode=legacy`
 - `fallback_reason=fallback_legacy_peer`
 - `downgrade_verdict=none`
 
-### Test vector 4 — Downgrade detected (legacy frame after privacy negotiation)
+### Test vector 4 — legacy frame after privacy negotiation
 
 Input:
+
 - prior state: `negotiated_mode=privacy_v1`
 - received frame type: `0x21`
 
 Expected:
-- `downgrade_verdict=downgrade_suspected` (first)
-- escalation to `downgrade_detected` on repeated violation
-- frame dropped per policy
 
-## S02 implementation notes
+- `downgrade_verdict=downgrade_suspected` on the first violation
+- escalation to `downgrade_detected` on repeat
+- offending frame dropped per policy
 
-- Keep route-table semantics unchanged; decrypt envelope first, then pass inner payload through
-  existing `BabelRouteFrameCodec.decode(...)`.
-- Maintain backward-compatible decode path: `0x21`/`0x22` remain accepted only when mode is legacy
-  or policy explicitly allows transition states.
-- Ensure all mode changes and verdicts are diagnostic-visible and acceptance-projectable.
+## Implementation note
+
+The route-table semantics should stay unchanged: decrypt the envelope first,
+then pass the inner payload through the existing route-frame decode/application
+flow.

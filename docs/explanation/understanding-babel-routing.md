@@ -1,92 +1,95 @@
-# Understanding Babel Routing in MeshLink
+# Understanding Babel routing in MeshLink
 
 ## What problem routing solves
 
-In a mesh network, not every device can see every other device. If A can see B, and B can see C, but A cannot see C — routing makes it possible for A to send a message to C through B.
+In a mesh network, not every device can reach every other device directly. If A
+can reach B and B can reach C, routing lets A send traffic to C through B.
 
-MeshLink adapts the Babel routing protocol (RFC 8966) for BLE mesh networks.
+MeshLink adapts ideas from Babel (RFC 8966) for this BLE mesh environment.
 
-## Why Babel
+## Why Babel fits this problem
 
-Babel is a loop-avoiding distance-vector protocol designed for both wired and wireless networks. Key properties that suit BLE mesh:
+Babel is attractive here because it gives MeshLink four useful properties:
 
-1. **Loop-free by construction** — the feasibility condition mathematically prevents routing loops without expensive link-state flooding
-2. **Fast convergence** — route changes propagate in O(diameter) time
-3. **Low overhead** — differential updates (only send what changed), not full table dumps
-4. **Designed for wireless** — handles asymmetric links, packet loss, changing topologies
+1. loop avoidance through the feasibility condition
+2. fast convergence after topology changes
+3. low control-plane overhead through differential updates
+4. a design intended for real wireless links, not only stable wired ones
 
 ## How it works in MeshLink
 
-### Neighbor Discovery (Hello messages)
+### Neighbor discovery
 
-Every node periodically sends Hello messages to immediate neighbors. These establish bidirectional link quality. A peer that stops sending Hellos is detected as disconnected.
+Nodes exchange Hello messages with immediate neighbors. That is how MeshLink
+learns that a direct peer is present and how link quality can start to matter.
 
-### Route Advertisement (Update messages)
+### Route advertisement
 
-When a node learns a route (either directly connected or via another node's Update), it advertises it to its neighbors with:
-- **Destination:** key hash of the reachable peer
-- **Metric:** cumulative link cost (hop count in MeshLink)
-- **Sequence number:** monotonically increasing per-destination, used for freshness
+When a node learns a route, it advertises that route to neighbors with:
 
-### The Feasibility Condition
+- the destination identity hint
+- a metric
+- a monotonically increasing sequence number
 
-This is the core loop-prevention mechanism. A node will only accept a route if its metric is **strictly less than** the feasibility distance (FD) — the best metric this node has ever announced for that destination.
+That lets other nodes compare candidate routes and reason about freshness.
 
-Three-step check:
-1. Is the new route's metric < our current FD for this destination?
-2. If yes → accept (it's provably loop-free)
-3. If no → reject (accepting could create a loop)
+### The feasibility condition
 
-The FD is stored separately from route entries and cleared only on explicit retraction — never on expiry. This prevents loops from stale re-advertisements.
+The feasibility condition is the loop-prevention rule.
 
-### Differential Updates
+A node accepts a route only when the candidate looks strictly better than the
+best metric it has already advertised for that destination. That keeps stale or
+loop-forming alternatives from being reintroduced casually.
 
-MeshLink doesn't dump the full routing table periodically. Instead:
-- On topology change: send only the affected routes
-- Route digest (FNV-1a hash) lets peers detect drift without full exchange
-- Full dump only when a new neighbor appears or digest mismatch detected
+### Differential updates
 
-### Route Retraction
+MeshLink does not dump the full route table on every change. It sends the route
+changes that matter.
 
-When a route becomes unreachable:
-1. Node sends Update with metric = infinity (retraction)
-2. Feasibility distance for that destination is cleared
-3. Neighbors propagate the retraction
+That keeps routing traffic smaller and better suited to BLE transport budgets.
 
-## The seqNo Problem (and fix)
+### Route retraction
 
-### The bug (M002–M003)
+When a route becomes unreachable, MeshLink propagates an explicit withdrawal so
+neighbors stop treating it as valid.
 
-When a peer disconnects and reconnects, `RouteCoordinator.onPeerConnected()` originally installed the route with `seqNo = 0u`. But the differential routing engine skips re-propagation when seqNo hasn't changed — so neighbors never learned the route was back.
+## Why sequence numbers matter on reconnect
 
-### The fix (M005)
+Reconnect logic is not only about "the peer is back." The routing state also has
+to look fresh enough for neighbors to re-accept and re-propagate it.
 
-Per-destination seqNo counter starting at 1u, incremented on each reconnect. The routing engine sees a fresh seqNo and propagates the re-installation to all neighbors.
+If reconnect uses stale sequence information, the local node may look healthy
+again while neighboring nodes keep older route state and fail to spread the
+recovery.
 
-## TTL per priority
+That is why reconnect paths need a fresh seqno progression.
 
-Messages have a time-to-live that limits how far they propagate:
+## TTL by priority
+
+Messages do not propagate indefinitely. MeshLink uses these TTL values:
 
 | Priority | TTL |
-|----------|-----|
-| HIGH | 45 minutes |
-| NORMAL | 15 minutes |
-| LOW | 5 minutes |
+|---|---|
+| `HIGH` | 45 minutes |
+| `NORMAL` | 15 minutes |
+| `LOW` | 5 minutes |
 
-## DedupSet
+## Deduplication still matters
 
-Every node maintains a dedup set (TTL + LRU) to prevent re-relaying messages it has already forwarded. Keys are `List<Byte>` (because `ByteArray` cannot be a HashMap key due to identity-based hashCode).
+Routing alone is not enough. A relay also needs to avoid re-forwarding traffic
+it has already seen.
 
-## PresenceTracker
+That is why MeshLink keeps a dedup set with TTL- and LRU-style behavior for
+already-forwarded messages.
 
-Tracks peer lifecycle through three states:
+## What host apps should take away
 
-```
-Connected → Disconnected → Gone
-    ↑                         │
-    └─────── (reconnect) ─────┘
-```
+Host apps do not need to implement their own routing policy. The public job is
+simpler:
 
-- **Connected:** Active BLE link, Hello exchanges flowing
-- **Disconnected:** Link lost, 60-second grace period (peer might return)
-- **Gone:** Evicted after two MeshStateManager sweeps (30s each). All routing/trust/transfer state for this peer is cleaned up.
+- observe peer and diagnostic events
+- send payloads through `MeshLinkApi`
+- treat routing behavior as runtime-owned infrastructure
+
+If you want the peer-presence side of this story, read
+[The peer lifecycle model](peer-lifecycle.md).
