@@ -32,6 +32,10 @@ _Avoid_: Epoch text, local timestamp
 A timestamp stored inside the live reference-app model for runtime logic and retention bookkeeping. Internal timestamps are stored as epoch-millis values even when the exported artifact presents them differently.
 _Avoid_: Export timestamp, display timestamp
 
+**Retained-history store**:
+The app-local JSON store that keeps retained session state for the reference app itself. The retained-history store is internal data, not a session artifact, and it stays on internal epoch-millis storage.
+_Avoid_: Export file, evidence artifact
+
 **Redacted export**:
 A session artifact that includes payload metadata and redacted previews without full payload content. This is the default export path.
 _Avoid_: Safe export, normal export
