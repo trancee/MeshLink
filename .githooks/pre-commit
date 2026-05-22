@@ -27,21 +27,25 @@ need_proof_android=0
 need_docs=0
 need_yaml=0
 need_hook_validation=0
+need_agp9_invariants=0
 yaml_files=()
 
 for file in "${staged_files[@]}"; do
   case "$file" in
     meshlink/*)
       need_meshlink=1
+      need_agp9_invariants=1
       ;;
     meshlink-reference/*)
       need_reference=1
+      need_agp9_invariants=1
       ;;
     benchmarks/*)
       need_benchmarks=1
       ;;
     meshlink-proof/android/*)
       need_proof_android=1
+      need_agp9_invariants=1
       ;;
     .githooks/*|scripts/install-git-hooks.sh)
       need_hook_validation=1
@@ -52,6 +56,10 @@ for file in "${staged_files[@]}"; do
       need_benchmarks=1
       need_proof_android=1
       need_docs=1
+      need_agp9_invariants=1
+      ;;
+    scripts/check_agp9_invariants.py|scripts/run-reference-local-check.sh)
+      need_agp9_invariants=1
       ;;
   esac
 
@@ -140,6 +148,10 @@ if [[ "$need_proof_android" -eq 1 ]]; then
 fi
 if [[ "$need_docs" -eq 1 ]]; then
   check_tasks+=("verifyDocs")
+fi
+
+if [[ "$need_agp9_invariants" -eq 1 ]]; then
+  check_tasks+=("checkAgp9Invariants")
 fi
 
 if [[ ${#check_tasks[@]} -gt 0 ]]; then

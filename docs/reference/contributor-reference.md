@@ -37,6 +37,7 @@ Use this page when you need exact commands, matrices, or policy details.
 | Run static analysis | `./gradlew :meshlink:detekt` | Production code must remain Detekt-clean. |
 | Check API compatibility | `./gradlew :meshlink:apiCheck` | Verifies the tracked public API surface. |
 | Verify coverage | `./gradlew :meshlink:koverVerify` | Coverage gate for the library module. |
+| Check AGP 9 build invariants | `./gradlew checkAgp9Invariants` | Confirms the post-migration module/plugin shape and preserved reference-app compatibility tasks stay intact. |
 | Run docs verification | `./gradlew verifyDocs` | Checks the generated API appendix and markdown links. |
 | Run connected-device checks | `./gradlew :meshlink:connectedCheck` | Uses currently connected devices. |
 | Refresh the checked-in API dump | `./gradlew :meshlink:apiDump` | Required for intentional public API changes. |
@@ -48,6 +49,7 @@ Use this page when you need exact commands, matrices, or policy details.
 | Change type | Expected verification |
 |---|---|
 | Docs-only change | `./gradlew verifyDocs` |
+| Build-tooling or module-shape change | `./gradlew checkAgp9Invariants` plus the relevant module builds or checks for the changed surface |
 | Shared-library logic change | `./gradlew :meshlink:allTests :meshlink:detekt :meshlink:koverVerify` |
 | Android-specific library glue | `./gradlew :meshlink:testDebugUnitTest :meshlink:detekt :meshlink:koverVerify` plus `:meshlink:allTests` when parity or shared behavior is affected |
 | iOS-specific library glue | `./gradlew :meshlink:iosSimulatorArm64Test`, plus `:meshlink:detekt :meshlink:koverVerify`; use `:meshlink:allTests` when parity or shared behavior is affected |
@@ -108,9 +110,9 @@ A public API change currently requires all of the following:
 
 | Hook | Behavior |
 |---|---|
-| `.githooks/pre-commit` | Runs ktfmt formatting for the touched Gradle modules, aborts if formatting changed a staged file, runs `yamllint` for staged YAML files, then runs the relevant Gradle verification tasks for the staged paths. |
+| `.githooks/pre-commit` | Runs ktfmt formatting for the touched Gradle modules, aborts if formatting changed a staged file, runs `yamllint` for staged YAML files, then runs the relevant Gradle verification tasks for the staged paths. Android/Gradle build-surface changes also run `checkAgp9Invariants`. |
 | `.githooks/commit-msg` | Rejects commit messages that do not follow the repository Conventional Commit policy. |
-| `.githooks/pre-push` | Inspects the paths and commit subjects in the outgoing push, blocks direct pushes to `main`, validates shell hooks, runs `yamllint` for pushed YAML files, runs benchmark smoke checks for benchmark-sensitive MeshLink paths, and runs the heavier Gradle verification bundle for the affected modules before the push is allowed. Reference-app paths use the fast local-check bundle instead of the slower full release build. |
+| `.githooks/pre-push` | Inspects the paths and commit subjects in the outgoing push, blocks direct pushes to `main`, validates shell hooks, runs `yamllint` for pushed YAML files, runs benchmark smoke checks for benchmark-sensitive MeshLink paths, and runs the heavier Gradle verification bundle for the affected modules before the push is allowed. Android/Gradle build-surface changes also run `checkAgp9Invariants`. Reference-app paths use the fast local-check bundle instead of the slower full release build. |
 
 ## PR and evidence requirements
 

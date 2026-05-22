@@ -4,6 +4,7 @@ package ch.trancee.meshlink.benchmarks
 
 import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.routing.RouteCoordinator
+import ch.trancee.meshlink.trust.TrustPublicKeys
 import ch.trancee.meshlink.trust.TrustRecord
 import ch.trancee.meshlink.wire.WireFrame
 import java.util.concurrent.TimeUnit
@@ -149,8 +150,12 @@ private class BenchmarkTopology(nodeCount: Int) {
                 byteArrayOf(((seed + 73) and 0xFF).toByte()).repeatToLength(32),
             firstSeenAtEpochMillis = seed.toLong(),
             lastVerifiedAtEpochMillis = seed.toLong(),
-            ed25519PublicKey = byteArrayOf((seed and 0xFF).toByte()).repeatToLength(32),
-            x25519PublicKey = byteArrayOf(((seed + 41) and 0xFF).toByte()).repeatToLength(32),
+            publicKeys =
+                TrustPublicKeys(
+                    ed25519PublicKey = byteArrayOf((seed and 0xFF).toByte()).repeatToLength(32),
+                    x25519PublicKey =
+                        byteArrayOf(((seed + 41) and 0xFF).toByte()).repeatToLength(32),
+                ),
         )
     }
 

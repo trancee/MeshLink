@@ -9,7 +9,6 @@ plugins {
     alias(libs.plugins.kotlin.power.assert) apply false
     alias(libs.plugins.kotlin.serialization) apply false
     alias(libs.plugins.kotlin.compose) apply false
-    alias(libs.plugins.android.library) apply false
     alias(libs.plugins.android.kmp.library) apply false
     alias(libs.plugins.android.application) apply false
     alias(libs.plugins.compose.multiplatform) apply false
@@ -79,6 +78,15 @@ val checkMarkdownLinks by
         commandLine("python3", "scripts/check_markdown_links.py")
     }
 
+val checkAgp9Invariants by
+    tasks.registering(Exec::class) {
+        group = "verification"
+        description =
+            "Fails if the post-migration AGP 9 module shape, plugin wiring, or compatibility tasks drift."
+        workingDir = rootDir
+        commandLine("python3", "scripts/check_agp9_invariants.py")
+    }
+
 val verifyDocs by
     tasks.registering {
         group = "verification"
@@ -87,7 +95,7 @@ val verifyDocs by
     }
 
 tasks.named("check") {
-    dependsOn(verifyDocs)
+    dependsOn(verifyDocs, checkAgp9Invariants)
 }
 
 tasks.wrapper {

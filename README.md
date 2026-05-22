@@ -31,7 +31,8 @@ Quick entry points:
 - [About integrating MeshLink well](docs/explanation/about-integrating-meshlink.md)
 
 Maintainers can run `./gradlew verifyDocs` to check the generated API appendix
-and relative markdown links.
+and relative markdown links, and `./gradlew checkAgp9Invariants` to confirm the
+post-migration AGP 9 module/plugin shape stays intact.
 
 ## Contributing
 

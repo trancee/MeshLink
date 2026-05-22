@@ -4,6 +4,7 @@ package ch.trancee.meshlink.benchmarks
 
 import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.routing.RouteCoordinator
+import ch.trancee.meshlink.trust.TrustPublicKeys
 import ch.trancee.meshlink.trust.TrustRecord
 import ch.trancee.meshlink.wire.WireFrame
 import java.util.concurrent.TimeUnit
@@ -47,13 +48,19 @@ class RoutingBenchmark {
                     WireFrame.RouteUpdate(
                         destinationPeerId = destination,
                         nextHopPeerId = relay,
-                        metric = 1 + (index % 4),
-                        seqNo = index.toLong() + 1L,
-                        feasibilityMetric = 1 + (index % 4),
-                        destinationEd25519PublicKey =
-                            byteArrayOf((index and 0xFF).toByte()).repeatToLength(32),
-                        destinationX25519PublicKey =
-                            byteArrayOf(((index + 17) and 0xFF).toByte()).repeatToLength(32),
+                        metrics =
+                            WireFrame.RouteUpdateMetrics(
+                                metric = 1 + (index % 4),
+                                seqNo = index.toLong() + 1L,
+                                feasibilityMetric = 1 + (index % 4),
+                            ),
+                        publicKeys =
+                            WireFrame.RouteUpdatePublicKeys(
+                                destinationEd25519PublicKey =
+                                    byteArrayOf((index and 0xFF).toByte()).repeatToLength(32),
+                                destinationX25519PublicKey =
+                                    byteArrayOf(((index + 17) and 0xFF).toByte()).repeatToLength(32),
+                            ),
                     ),
             )
         }
@@ -72,8 +79,12 @@ class RoutingBenchmark {
                 byteArrayOf(((seed + 59) and 0xFF).toByte()).repeatToLength(32),
             firstSeenAtEpochMillis = seed.toLong(),
             lastVerifiedAtEpochMillis = seed.toLong(),
-            ed25519PublicKey = byteArrayOf((seed and 0xFF).toByte()).repeatToLength(32),
-            x25519PublicKey = byteArrayOf(((seed + 31) and 0xFF).toByte()).repeatToLength(32),
+            publicKeys =
+                TrustPublicKeys(
+                    ed25519PublicKey = byteArrayOf((seed and 0xFF).toByte()).repeatToLength(32),
+                    x25519PublicKey =
+                        byteArrayOf(((seed + 31) and 0xFF).toByte()).repeatToLength(32),
+                ),
         )
     }
 

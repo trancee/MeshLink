@@ -103,6 +103,13 @@ For `meshlink-reference` changes, prefer the faster reference-app bundle:
 
 The wrapper runs `:meshlink-reference:localCheck` directly on the current AGP 9 toolchain.
 
+If you touch Gradle, Android plugin wiring, or post-migration module shape,
+run the AGP 9 invariant guard too:
+
+```bash
+./gradlew checkAgp9Invariants
+```
+
 Use `:meshlink-reference:build` only when you need release APK or iOS
 framework artifacts, because it also links release frameworks for all iOS
 targets.
@@ -132,6 +139,9 @@ For a `meshlink-reference` review bundle, run:
 If your change touches performance-sensitive code or physical transport
 behavior, add the benchmark or proof validation described in the contributor
 reference and benchmark guides.
+
+If your change touches Gradle, Android plugin wiring, or module layout, include
+`./gradlew checkAgp9Invariants` in the verification bundle as well.
 
 ## 6. If the public surface changes
 

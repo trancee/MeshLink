@@ -28,6 +28,27 @@ Current module shape on `main`:
 The remaining sections are kept as a historical execution record showing the
 migration order, rationale, and file-level split plan from the pre-AGP-9 state.
 
+## Post-migration maintenance
+
+Treat this document as a historical record plus a guardrail list, not as an
+open migration backlog.
+
+When maintainers touch Gradle, Android plugin wiring, or module structure, keep
+these invariants intact unless the change intentionally replaces them in one
+coordinated update:
+
+- `:meshlink` and `:meshlink-reference` stay on the AGP 9 KMP Android library
+  plugin
+- `:meshlink-reference:android-app` stays the Android application entry point
+- `:meshlink-reference` remains the iOS framework-export anchor
+- `:meshlink-reference:localCheck`, `:meshlink-reference:installDebug`, and
+  `:meshlink-reference:connectedDebugAndroidTest` stay available as the stable
+  contributor-facing compatibility surface unless the scripts and docs are
+  migrated together
+
+Use `./gradlew checkAgp9Invariants` after build-surface changes to confirm the
+post-migration shape still matches those expectations.
+
 ## Reader and intended outcome
 
 This plan is for maintainers working on the Gradle and Android build surface.
