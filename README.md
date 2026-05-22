@@ -5,16 +5,18 @@ MeshLink is an offline-first BLE mesh SDK for Android and iOS.
 This repository contains:
 
 - the shared `meshlink` Kotlin Multiplatform SDK
-- a shared Android/iOS `meshlink-reference` app for guided evaluation, logs, diagnostics, retained session history, and exports
+- the shared `meshlink-reference` app for guided evaluation, diagnostics, retained session history, and exports
 - runnable Android and iOS proof apps for physical validation
 - retained benchmark and release-decision evidence
-- explanation docs for the security, routing, transport, and power model
+- tutorials, how-to guides, reference docs, and explanation docs
 
 ## Developer documentation
 
 **Audience:** engineers integrating MeshLink into a host application.
 
-**After reading these docs, you should be able to:** bootstrap MeshLink, manage its lifecycle, react to peers and messages, send payloads correctly, and choose the right supporting docs when you need more detail.
+**After reading these docs, you should be able to:** add MeshLink to an app,
+bootstrap the runtime, react to peers and messages, send payloads correctly,
+and find the right supporting document when you need more detail.
 
 The documentation follows the Diátaxis model. Start with the full
 [documentation map](docs/README.md).
@@ -30,9 +32,9 @@ Quick entry points:
 - [MeshLink SDK API reference](docs/reference/meshlink-sdk-api.md)
 - [About integrating MeshLink well](docs/explanation/about-integrating-meshlink.md)
 
-Maintainers can run `./gradlew verifyDocs` to check the generated API appendix
-and relative markdown links, and `./gradlew checkAgp9Invariants` to confirm the
-post-migration AGP 9 module/plugin shape stays intact.
+Maintainers can run `./gradlew verifyDocs` to check markdown links and the
+rendered API appendix, and `./gradlew checkAgp9Invariants` to confirm the
+post-migration AGP 9 module shape stays intact.
 
 ## Contributing
 
@@ -50,8 +52,8 @@ post-migration AGP 9 module/plugin shape stays intact.
 
 ## Source of truth
 
-For behavior and compatibility, prefer these documents in order:
+For day-to-day use, prefer these documents in order:
 
-1. the public API and integration docs above for developer usage
+1. the public API and integration docs for developer-facing behavior
 2. the specification and release-decision docs for product requirements
-3. the benchmark evidence for retained physical validation
+3. the benchmark evidence for retained performance and physical validation

@@ -7,9 +7,13 @@ Use it when you want to:
 
 - move from a first working demo to an app-owned integration
 - choose where MeshLink should live in your app architecture
-- add the operational guardrails that make delivery, trust, and diagnostics easier to reason about
+- add the guardrails that make delivery, trust, and diagnostics easier to
+  reason about
 
-If you still need the basic runtime bootstrap steps, use [How to integrate MeshLink into a host app](integrate-meshlink-into-a-host-app.md). If you want the design rationale behind these choices, read [About integrating MeshLink well](../explanation/about-integrating-meshlink.md).
+If you still need the basic runtime bootstrap steps, use
+[How to integrate MeshLink into a host app](integrate-meshlink-into-a-host-app.md).
+If you want the design rationale behind these choices, read
+[About integrating MeshLink well](../explanation/about-integrating-meshlink.md).
 
 ## 1. Put MeshLink behind one long-lived app owner
 
@@ -31,7 +35,7 @@ peer visibility, trust continuity, retry state, and diagnostics.
 
 Treat `appId` as an environment boundary, not as display text.
 
-A reliable pattern is:
+A good default pattern is:
 
 - one production `appId` for production peers
 - one staging `appId` for staging peers
@@ -45,8 +49,10 @@ one another, check `appId` first.
 Before you start MeshLink, make sure the platform-specific prerequisites are
 already resolved.
 
-- On Android, request the required Bluetooth and Nearby/Location permissions first.
-- On iOS, install the required crypto bridge during app startup and clear the Bluetooth prompt before debugging discovery.
+- On Android, request the required Bluetooth and Nearby/Location permissions
+  first.
+- On iOS, install the required crypto bridge during app startup and clear the
+  Bluetooth prompt before debugging discovery.
 
 Treat permissions and bridge installation as startup prerequisites, not as
 something to debug after routing or trust.
@@ -63,7 +69,7 @@ Map each public stream to one clear responsibility:
 - `messages` → inbound application payloads
 
 Do not try to infer mesh health from `messages` alone. When discovery or
-delivery looks wrong, the diagnostics stream is the first place to look.
+delivery looks wrong, `diagnosticEvents` is the first place to look.
 
 ## 5. Treat `PeerId` as opaque
 
@@ -117,7 +123,7 @@ For the underlying model, read [Power management](../explanation/power-managemen
 
 At minimum, keep MeshLink diagnostics visible in development builds.
 
-A stronger production-shaped pattern is to expose them in:
+A stronger production-shaped pattern is to expose diagnostics in:
 
 - a hidden support screen
 - an operator log surface

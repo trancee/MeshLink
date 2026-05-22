@@ -3,9 +3,9 @@
 ## The problem
 
 MeshLink is intentionally offline-first. There is no account system, no
-certificate authority, and no backend that can tell a device which peer keys are
-"correct". The SDK still needs a practical way to decide whether a peer should
-be trusted for encrypted messaging.
+certificate authority, and no backend that can tell a device which peer keys
+are "correct". The SDK still needs a practical way to decide whether a peer
+should be trusted for encrypted messaging.
 
 ## Trust on first use (TOFU)
 
@@ -65,8 +65,9 @@ TOFU is a pragmatic fit for MeshLink's constraints:
 - **Fails closed on mismatch** — unexpected identity changes surface explicitly
 
 The trade-off is the classic TOFU limitation: if the very first encounter is
-already being intercepted, continuity will be pinned to the attacker's identity.
-MeshLink does not claim to solve that first-contact problem automatically.
+already being intercepted, continuity will be pinned to the attacker's
+identity. MeshLink does not claim to solve that first-contact problem
+automatically.
 
 ## Trust and delivery
 

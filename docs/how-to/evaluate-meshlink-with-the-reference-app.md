@@ -1,7 +1,7 @@
 # How to evaluate MeshLink with the reference app
 
-Use this guide when you want to evaluate MeshLink as an SDK and runtime experience,
-not just as a transport proof harness.
+Use this guide when you want to evaluate MeshLink as an SDK and runtime
+experience, not just as a transport proof harness.
 
 This guide helps you:
 
@@ -11,7 +11,7 @@ This guide helps you:
 - retain one session and export one redacted artifact
 - decide when to switch to the proof apps or the live-proof harness
 
-If you need the architectural overview of the app itself, use
+If you need the app overview itself, use
 [MeshLink reference app](../../meshlink-reference/README.md).
 
 ## Before you start
@@ -25,11 +25,11 @@ You need:
 - Bluetooth enabled on both devices
 - an Apple development team available locally if you want to run on a physical iPhone
 
-If one device is not ready yet, you can still use the app's clearly labelled solo
-exploration mode for a non-authoritative walkthrough.
+If one device is not ready yet, you can still use the app's clearly labelled
+solo exploration mode for a non-authoritative walkthrough.
 
-If discovery stalls because Android or iOS is still blocked on permissions or the
-first Bluetooth prompt, fix that first with
+If discovery stalls because Android or iOS is still blocked on permissions or
+the first Bluetooth prompt, fix that first with
 [How to unblock MeshLink permissions on Android and iOS](unblock-meshlink-permissions.md).
 
 ## 1. Install the Android reference app
@@ -82,8 +82,8 @@ The expected flow is the same on Android and iOS:
 4. send proof action
 5. timeline evidence review
 
-If the flow names differ between platforms, stop and fix that before using the app as
-reference evidence.
+If the flow names differ between platforms, stop and fix that before using the
+app as reference evidence.
 
 ## 4. Complete one guided first exchange
 
@@ -104,8 +104,8 @@ A successful evaluation pass should show:
 
 ## 5. Inspect the advanced controls
 
-Open the advanced controls surface and confirm that it exposes the runtime details a
-host-app integrator would care about:
+Open the advanced controls surface and confirm that it exposes the runtime
+details a host-app integrator would care about:
 
 - lifecycle controls
 - the visible power mode
@@ -118,8 +118,8 @@ failed.
 
 ## 6. Inspect the technical timeline
 
-Open the technical timeline and verify that it gives you one operator-facing place to
-inspect:
+Open the technical timeline and verify that it gives you one operator-facing
+place to inspect:
 
 - lifecycle events
 - peer events
@@ -138,7 +138,7 @@ After the guided exchange succeeds:
 3. verify the retained session appears separately from the live session
 4. export a redacted artifact
 
-The default export should keep payload previews redacted by default and should not
+The default export should keep payload previews redacted and should not
 silently switch to full-payload export.
 
 ## 8. Use the right validation path for the job
@@ -164,8 +164,8 @@ For proof-specific workflows, use:
 
 ## 9. Optional: retain one headless live-proof run
 
-Once the manual walkthrough is working, retain one repeatable physical proof run with
-this harness:
+Once the manual walkthrough works, retain one repeatable physical proof run
+with this harness:
 
 ```bash
 python3 meshlink-reference/scripts/run_headless_reference_live_proof.py \

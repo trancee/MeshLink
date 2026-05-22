@@ -10,12 +10,14 @@ Use it when:
 - the first physical iPhone launch stops at a Bluetooth permission prompt
 - a proof-app or live-proof run stalls before peer discovery
 
-For a first guided lesson, start with [Your first MeshLink exchange](../tutorials/your-first-meshlink-exchange.md).
-For end-to-end host-app bootstrap, use [How to integrate MeshLink into a host app](integrate-meshlink-into-a-host-app.md).
+For a first guided lesson, start with
+[Your first MeshLink exchange](../tutorials/your-first-meshlink-exchange.md).
+For end-to-end host-app bootstrap, use
+[How to integrate MeshLink into a host app](integrate-meshlink-into-a-host-app.md).
 
 ## 1. Check which platform is blocked
 
-Treat permissions as the first thing to verify when either of these happens:
+Treat permissions as the first thing to verify when any of these happens:
 
 - Android can start the app, but peer discovery stays empty
 - iPhone launches the app for the first time and shows a Bluetooth prompt
@@ -38,8 +40,7 @@ For Android 11 and older, make sure the app has:
 - `ACCESS_FINE_LOCATION`
 
 If you are integrating MeshLink into your own Android app, declare the needed
-permissions in the manifest and request the runtime permissions before starting
-MeshLink.
+permissions in the manifest and request them before starting MeshLink.
 
 If discovery still stays empty on some Android 12+ OEM builds, also grant
 Location permission for the app. In Android settings, the two labels you

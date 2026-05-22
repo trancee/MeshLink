@@ -2,16 +2,16 @@
 
 Use this page to find the right MeshLink document for the job.
 
-The docs follow the Diátaxis model, so the quickest way to the right page is to
-start with your need:
+The docs follow the Diátaxis model, so the fastest way to the right page is to
+start with your goal:
 
-| If you need to... | Start here |
+| If you want to... | Start here |
 |---|---|
 | learn MeshLink by doing | [Tutorials](#tutorials) |
 | complete an integration task | [How-to guides](#how-to-guides) |
 | look up exact API facts | [Reference](#reference) |
-| understand design and trade-offs | [Explanation](#explanation) |
-| run the proof apps or inspect retained evidence | [Proof and validation guides](#proof-and-validation-guides) |
+| understand design decisions and trade-offs | [Explanation](#explanation) |
+| run proof flows or inspect retained evidence | [Proof and validation guides](#proof-and-validation-guides) |
 
 ## Tutorials
 
@@ -19,17 +19,17 @@ start with your need:
 
 ## How-to guides
 
-- [How to add MeshLink to your app](how-to/add-meshlink-to-your-app.md) — add the current source-distributed SDK to an Android Gradle app or iOS Xcode app and understand the supported install paths.
-- [How to integrate MeshLink into a host app](how-to/integrate-meshlink-into-a-host-app.md) — bootstrap the SDK on Android and iOS, manage lifecycle, collect streams, send payloads, and handle trust resets.
-- [How to structure a robust MeshLink integration](how-to/structure-a-robust-meshlink-integration.md) — turn a first working integration into an app-owned runtime with explicit lifecycle, diagnostics, trust-reset, and delivery semantics.
-- [How to unblock MeshLink permissions on Android and iOS](how-to/unblock-meshlink-permissions.md) — clear Android Nearby devices / Location blockers and the first-run iPhone Bluetooth prompt before you debug discovery.
-- [How to evaluate MeshLink with the reference app](how-to/evaluate-meshlink-with-the-reference-app.md) — install the shared Android and iOS reference app, complete one guided exchange, inspect the operator surfaces, and export a retained artifact.
-- [How to use MeshLink from Swift](how-to/use-meshlink-from-swift.md) — call the generated Apple framework safely from Swift, retain collectors correctly, and interpret Swift-facing result types.
+- [How to add MeshLink to your app](how-to/add-meshlink-to-your-app.md) — wire the current source-distributed SDK into an Android Gradle app or iOS Xcode app.
+- [How to integrate MeshLink into a host app](how-to/integrate-meshlink-into-a-host-app.md) — bootstrap the runtime, manage lifecycle, collect streams, send payloads, and handle trust resets.
+- [How to structure a robust MeshLink integration](how-to/structure-a-robust-meshlink-integration.md) — move from a working demo to an app-owned integration with explicit lifecycle, diagnostics, trust-reset, and delivery semantics.
+- [How to unblock MeshLink permissions on Android and iOS](how-to/unblock-meshlink-permissions.md) — clear Android and iPhone permission blockers before you debug discovery or delivery.
+- [How to evaluate MeshLink with the reference app](how-to/evaluate-meshlink-with-the-reference-app.md) — run the shared Android and iOS reference app, complete a guided exchange, and export a retained artifact.
+- [How to use MeshLink from Swift](how-to/use-meshlink-from-swift.md) — call the generated Apple framework safely from Swift and interpret the Swift-facing API surface.
 
 ## Reference
 
 - [MeshLink SDK API reference](reference/meshlink-sdk-api.md) — public entry points, configuration, result types, diagnostics, exceptions, and iOS bridge APIs.
-- [Generated public API symbol tables](reference/generated-public-api.md) — the binary-compatibility-tracked public surface rendered from the checked-in API dump.
+- [Generated public API symbol tables](reference/generated-public-api.md) — the BCV-tracked public surface rendered from the checked-in API dump.
 - [Benchmark and validation baselines](../benchmarks/README.md) — retained performance evidence and the current benchmark posture.
 - [Feature specification](../specs/001-ble-mesh-sdk/spec.md) — normative product scope and success criteria.
 - [Release decision](../specs/001-ble-mesh-sdk/release-decision.md) — current release framing and waiver history.
@@ -54,7 +54,7 @@ start with your need:
 
 - [Privacy and pseudonyms](explanation/privacy-pseudonyms.md)
 - [Regulatory compliance](explanation/regulatory-compliance.md)
-- [Why MeshLink does not use Noise XX only](explanation/why-noise-xx-only.md)
+- [Why MeshLink uses Noise XX only](explanation/why-noise-xx-only.md)
 - [Why MeshLink keeps FlatBuffers in pure Kotlin](explanation/why-pure-kotlin-flatbuffers.md)
 - [Why MeshLink requires full coverage](explanation/why-full-coverage.md)
 

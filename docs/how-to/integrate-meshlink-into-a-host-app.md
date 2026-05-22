@@ -1,8 +1,9 @@
 # How to integrate MeshLink into a host app
 
-This guide shows you how to bootstrap MeshLink in an app, start it safely, collect its event streams, send payloads, and handle trust resets.
+This guide shows you how to bootstrap MeshLink in an app, start it safely,
+collect its public streams, send payloads, and handle trust resets.
 
-This is a task guide. It assumes you already know why you want MeshLink.
+It is a task guide. It assumes you already know why you want MeshLink.
 
 If you still need to wire the library into your Android or iOS build, start with [How to add MeshLink to your app](add-meshlink-to-your-app.md).
 
@@ -12,7 +13,8 @@ For a first hands-on lesson, start with [Your first MeshLink exchange](../tutori
 
 ## 1. Choose one `appId` per mesh domain
 
-Create one `MeshLinkConfig` for all peers that should interoperate in the same mesh.
+Create one `MeshLinkConfig` for all peers that should interoperate in the same
+mesh.
 
 ```kotlin
 import ch.trancee.meshlink.config.MeshLinkConfig
@@ -50,7 +52,8 @@ fun createAndroidRuntime(context: Context): MeshLinkApi {
 }
 ```
 
-Do this once for the app-owned MeshLink service or controller that will manage the runtime.
+Do this once for the app-owned MeshLink service or controller that will manage
+the runtime.
 
 ## 3. Create the runtime on iOS
 
@@ -84,13 +87,16 @@ struct ChatApp: App {
 }
 ```
 
-Your `installMeshLinkCrypto()` wrapper should call `IosCryptoBridge.shared.install(...)` with app-owned CryptoKit-backed callbacks.
+Your `installMeshLinkCrypto()` wrapper should call
+`IosCryptoBridge.shared.install(...)` with app-owned CryptoKit-backed
+callbacks.
 
 If you need the iPhone-hosted GATT-notify side bearer, install the optional `IosBleTransportBridge` during startup as well.
 
 ## 4. Start MeshLink from one app-owned lifecycle boundary
 
-Start MeshLink from a single owner such as a service, app controller, or view model.
+Start MeshLink from one owner such as a service, app controller, or view
+model.
 
 ```kotlin
 import ch.trancee.meshlink.api.MeshLinkApi
@@ -122,22 +128,24 @@ class MeshLinkController(
 
 Do not create a fresh runtime for every send.
 
-Repeated lifecycle calls do not throw. They return the matching `Already*` result
-variant so your controller can stay idempotent.
+Repeated lifecycle calls do not throw. They return the matching `Already*`
+result variant so your controller can stay idempotent.
 
 Before you call `start()`, make sure the platform permission work is already
 finished. On Android, request the runtime Bluetooth permissions first. On iOS,
 ship the Bluetooth usage description and handle the first-run prompt. If startup
 or discovery stalls, follow [How to unblock MeshLink permissions on Android and iOS](unblock-meshlink-permissions.md).
 
-Also bind your long-lived collectors before you call `start()` when you need full
-session visibility. `peerEvents`, `diagnosticEvents`, and `messages` are hot,
-non-replaying streams, so collectors attached after startup can miss early events.
+If you need full-session visibility, bind your long-lived collectors before you
+call `start()`. `peerEvents`, `diagnosticEvents`, and `messages` are hot,
+non-replaying streams, so collectors attached after startup can miss early
+events.
 
 ## 5. Collect state, peer, diagnostic, and message streams
 
-Collect the four public streams and fan their data into your UI, logs, or app state.
-For full-session visibility, attach these collectors before you call `start()`.
+Collect the four public streams and route their data into your UI, logs, or app
+state. For full-session visibility, attach these collectors before you call
+`start()`.
 
 ```kotlin
 import ch.trancee.meshlink.api.InboundMessage
@@ -195,7 +203,8 @@ suspend fun sendChatMessage(meshLink: MeshLinkApi, peerId: PeerId, text: String)
 }
 ```
 
-Treat `SendResult.NotSent(...)` as a normal delivery outcome that needs app logic, not exception handling.
+Treat `SendResult.NotSent(...)` as a normal delivery outcome that needs app
+logic, not exception handling.
 
 ## 7. Update battery state when you want automatic power policy to react
 
@@ -220,7 +229,7 @@ Use this for deliberate trust reset flows. Do not silently forget peers in norma
 
 ## 9. Handle iOS bridge installation explicitly
 
-For iOS, keep the bridge installation code in app-owned startup code.
+For iOS, keep bridge installation in app-owned startup code.
 
 - `IosCryptoBridge` is required before any real iOS runtime path needs cryptography.
 - `IosBleTransportBridge` is optional and only needed when you want the iPhone-hosted GATT-notify bearer path.
@@ -229,7 +238,7 @@ Do not spread bridge installation across multiple screens or feature modules.
 
 ## 10. Link your UI to the correct stream
 
-A reliable default mapping is:
+A good default mapping is:
 
 - app lifecycle state → `state`
 - peer list / availability → `peerEvents`

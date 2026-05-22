@@ -1,14 +1,20 @@
 # Programming Principles
 
-Every programmer benefits from understanding programming principles and design
-patterns. This overview is a reference for myself, and maybe it is of help to
-you during design, discussion, or review. The list is incomplete, and sometimes
-trade-offs need to be made between conflicting principles. However, higher
-ranked principles usually beat lower ranked ones.
+This page is a general programming-principles appendix for design,
+discussion, and review. It is intentionally broader than MeshLink itself.
 
-The list was inspired by [The Principles of Good Programming][1]. I've added a
-bit more reasoning, details, and links to further resources. [Let me know][2] if
-you have any feedback or suggestions for improvement!
+Use it as background reading, not as project policy. For MeshLink-specific
+requirements and merge gates, prefer the [constitution](../constitution.md),
+[contributor guide](../CONTRIBUTING.md), and
+[contributor reference](reference/contributor-reference.md).
+
+The list is incomplete, and trade-offs are sometimes necessary between
+conflicting principles. When principles compete, the higher-ranked ones usually
+win.
+
+The list was inspired by [The Principles of Good Programming][1]. It adds
+reasoning, details, and links to further resources. [Let me know][2] if you
+have feedback or suggestions for improvement.
 
 ## Contents
 

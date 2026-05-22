@@ -1,14 +1,14 @@
 # MeshLink reference app
 
-Use this app when you want to evaluate MeshLink as a product-like experience
-instead of a proof harness.
+Use this app when you want to evaluate MeshLink as a product-like experience,
+not just as a proof harness.
 
 It is designed for:
 
 - SDK evaluators who want a guided first exchange
 - integrators who want to inspect the live control surface
-- QA and support engineers who want logs, diagnostics, retained session history,
-  and exportable evidence
+- QA and support engineers who want diagnostics, retained session history, and
+  exportable evidence
 - reviewers who need the same named experience on Android and iOS
 
 ## What the app shows
@@ -16,8 +16,8 @@ It is designed for:
 The reference app is organized into clearly separated surfaces:
 
 - **Guided first exchange** — the fastest path to a first offline message proof
-- **Solo exploration** — a non-authoritative walkthrough when only one device is
-  available
+- **Solo exploration** — a non-authoritative walkthrough when only one device
+  is available
 - **Advanced controls** — the richer runtime control surface for technical
   reviewers
 - **Technical timeline** — lifecycle, peer, diagnostic, message, and transfer
@@ -41,7 +41,7 @@ experience.
 
 ## Run it
 
-For a fresh-reader walkthrough, start with the stable how-to guide:
+For the stable walkthrough, start with:
 
 - [How to evaluate MeshLink with the reference app](../docs/how-to/evaluate-meshlink-with-the-reference-app.md)
 
@@ -117,8 +117,8 @@ Expected retained outputs:
 - The default physical-launch path uses `devicectl`. The optional
   `--ios-launch-mode xcuitest` fallback exists for first-run permission
   handling. On free Apple development profiles, use
-  `--cleanup-ios-dev-app-slots` if you need the runner to free old MeshLink
-  dev apps before starting that fallback path.
+  `--cleanup-ios-dev-app-slots` if you need the runner to free old MeshLink dev
+  apps before starting that fallback path.
 
 ## Expected outcome
 

@@ -1,14 +1,13 @@
 # How to contribute to MeshLink
 
-This guide gets a contributor from a fresh checkout to a review-ready MeshLink
-change.
+This guide takes you from a fresh checkout to a review-ready MeshLink change.
 
-**Audience:** engineers changing the MeshLink repository, especially the
-`:meshlink` library.
+**Audience:** engineers changing this repository, especially the `:meshlink`
+library.
 
 **After reading this guide, you should be able to:** prepare a compatible
 workstation, build the library, run the expected verification bundle, and know
-which supporting documents to use for deeper checks.
+which supporting documents to use when you need more detail.
 
 If you are integrating MeshLink into a host app rather than changing MeshLink
 itself, start with the [documentation map](docs/README.md).
@@ -36,24 +35,24 @@ From the repository root, run:
 ./gradlew help
 ```
 
-That confirms the Gradle wrapper works and downloads the toolchain and project
-plugins.
+This confirms the Gradle wrapper works and downloads the required plugins and
+toolchains.
 
-Then install the repository Git hook:
+Then install the repository Git hook suite:
 
 ```bash
 ./scripts/install-git-hooks.sh
 ```
 
-The hook suite now includes:
+The suite includes:
 
 - `pre-commit` — formats touched Kotlin modules, runs `yamllint` for staged
   YAML files, and runs the relevant Gradle verification for the staged paths
 - `commit-msg` — enforces Conventional Commits
 - `pre-push` — scans outgoing commit subjects for Conventional Commit
   compliance, blocks direct pushes to `main`, and runs the heavier
-  verification bundle for the paths in the outgoing push, including benchmark
-  smoke runs for benchmark-sensitive MeshLink paths
+  verification bundle for the affected paths, including benchmark smoke runs
+  for benchmark-sensitive MeshLink changes
 
 If formatting changes a staged file, the commit stops so you can review and
 re-stage the result.
@@ -66,7 +65,7 @@ For a normal first build, run:
 ./gradlew :meshlink:build
 ```
 
-If you only want a compile pass while you are shaping the change, run:
+If you only want a compile pass while shaping the change, run:
 
 ```bash
 ./gradlew :meshlink:assemble
@@ -101,10 +100,11 @@ For `meshlink-reference` changes, prefer the faster reference-app bundle:
 ./scripts/run-reference-local-check.sh
 ```
 
-The wrapper runs `:meshlink-reference:localCheck` directly on the current AGP 9 toolchain.
+That wrapper runs `:meshlink-reference:localCheck` directly on the current AGP 9
+toolchain.
 
-If you touch Gradle, Android plugin wiring, or post-migration module shape,
-run the AGP 9 build-surface bundle:
+If you touch Gradle, Android plugin wiring, or post-migration module shape, run
+the AGP 9 build-surface bundle:
 
 ```bash
 ./scripts/run-agp9-verification.sh
@@ -116,11 +116,10 @@ For a narrower loop, you can still run just the invariant guard:
 ./gradlew checkAgp9Invariants
 ```
 
-Use `:meshlink-reference:build` only when you need release APK or iOS
-framework artifacts, because it also links release frameworks for all iOS
-targets.
+Use `:meshlink-reference:build` only when you need release APK or iOS framework
+artifacts, because it also links release frameworks for all iOS targets.
 
-For the exact test-surface matrix, use the
+For the full test-surface matrix, use the
 [Contributor build, test, and verification reference](docs/reference/contributor-reference.md).
 
 ## 5. Run the pre-review verification bundle
@@ -175,7 +174,7 @@ Before you push:
 
 ## 8. Use the right supporting docs
 
-Use this guide for the contributor flow.
+Use this guide for the contributor workflow.
 
 Use these documents when you need more detail:
 

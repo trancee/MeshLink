@@ -1,6 +1,6 @@
 # Contributor build, test, and verification reference
 
-This page describes the contributor-facing tooling, commands, verification
+This reference lists the contributor-facing tooling, commands, verification
 bundles, and repository rules for MeshLink changes.
 
 Use [How to contribute to MeshLink](../../CONTRIBUTING.md) for the guided flow.

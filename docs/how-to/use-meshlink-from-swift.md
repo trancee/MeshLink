@@ -1,6 +1,7 @@
 # How to use MeshLink from Swift
 
-This guide shows you how to consume MeshLink from Swift, using the names and calling conventions exposed by the generated Apple framework.
+This guide shows you how to consume MeshLink from Swift using the names and
+calling conventions exposed by the generated Apple framework.
 
 This guide assumes:
 
@@ -43,7 +44,8 @@ that checklist, use [How to unblock MeshLink permissions on Android and iOS](unb
 
 ## 2. Build config values with the Swift-visible names
 
-The Kotlin DSL appears in Swift through the generated `MeshLinkConfigKt` entry point.
+The Kotlin DSL appears in Swift through the generated `MeshLinkConfigKt` entry
+point.
 
 ```swift
 import MeshLink
@@ -82,7 +84,7 @@ On iOS, you do not pass a platform context.
 
 ## 4. Start and stop with completion handlers
 
-Suspend functions are exposed here as completion-handler APIs.
+Suspend functions are exposed as completion-handler APIs.
 
 ```swift
 api.start { result, error in
@@ -131,8 +133,8 @@ final class FlowCollector: NSObject, Kotlinx_coroutines_coreFlowCollector {
 }
 ```
 
-Retain the collector objects for as long as the flows should stay active.
-A practical pattern is to keep them on the same service object that owns your
+Retain the collector objects for as long as the flows should stay active. A
+practical pattern is to keep them on the same service object that owns your
 `MeshLinkApi`.
 
 ```swift
@@ -193,7 +195,8 @@ UI timestamps.
 
 ## 6. Send bytes from Swift
 
-The payload argument is a `KotlinByteArray`, so convert Swift `Data` or `String` into that form before sending.
+The payload argument is a `KotlinByteArray`, so convert Swift `Data` or
+`String` into that form before sending.
 
 ```swift
 import Foundation
@@ -256,7 +259,7 @@ let peerCollector = FlowCollector { value in
 }
 ```
 
-Use the same pattern for diagnostics and inbound messages.
+Use the same matching pattern for diagnostics and inbound messages.
 
 ## 8. Feed battery state if you use automatic power mode
 

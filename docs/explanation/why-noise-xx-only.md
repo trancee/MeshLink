@@ -1,4 +1,4 @@
-# Why Noise XX Only
+# Why MeshLink Uses Noise XX Only
 
 ## The decision
 

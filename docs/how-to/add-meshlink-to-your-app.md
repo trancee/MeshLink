@@ -7,11 +7,11 @@ Use it when you need to:
 
 - add MeshLink to an Android Gradle app
 - link the generated MeshLink framework into an iOS Xcode app
-- understand which installation paths are supported today
+- confirm which installation paths are supported today
 
 ## 1. Know the current distribution shape
 
-MeshLink is currently consumed from source.
+MeshLink is currently source-distributed.
 
 This repository does **not** yet publish:
 
@@ -19,7 +19,7 @@ This repository does **not** yet publish:
 - a Swift Package Manager package
 - a CocoaPods pod
 
-The supported installation path today is:
+The supported installation paths today are:
 
 - Gradle source integration for Android or shared Kotlin code
 - a Gradle-built Apple framework linked by Xcode for iOS
@@ -47,8 +47,8 @@ dependencies {
 }
 ```
 
-That is the simplest path for apps inside this repository or an existing
-monorepo that already carries the MeshLink build logic.
+That is the simplest path for apps inside this repository or any monorepo that
+already shares the MeshLink build logic.
 
 ## 4. Add MeshLink to an Android app from a separate Gradle repo
 
@@ -74,7 +74,7 @@ dependencies {
 ```
 
 This keeps MeshLink as the source of truth in one checkout while still letting
-your host app resolve it like a normal module.
+your host app resolve it like a normal module dependency.
 
 ## 5. Link MeshLink into an iOS Xcode app
 
@@ -110,7 +110,7 @@ proof app and reference app both use this Gradle-driven framework pattern.
 
 ## 6. Install the required iOS bridge at app startup
 
-Getting the framework linked is not the whole iOS setup.
+Linking the framework is not the whole iOS setup.
 
 Before you create a real MeshLink runtime on iOS, your app must install the
 required native crypto bridge:
@@ -124,7 +124,7 @@ Swift-facing API and bridge-install pattern.
 
 ## 7. Verify the install before you move on
 
-A good install check is minimal:
+A good install check is simple:
 
 Android or shared Kotlin code should compile with:
 

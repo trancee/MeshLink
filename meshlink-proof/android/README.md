@@ -28,7 +28,9 @@ You need:
 The debug install task passes `-g`, so the package is installed with runtime
 permissions granted where the platform allows it.
 
-If the proof app still sees no peers, follow [How to unblock MeshLink permissions on Android and iOS](../../docs/how-to/unblock-meshlink-permissions.md) before you debug transport behavior.
+If the proof app still sees no peers, use
+[How to unblock MeshLink permissions on Android and iOS](../../docs/how-to/unblock-meshlink-permissions.md)
+before you debug transport behavior.
 
 ## 2. Launch the proof app
 
@@ -123,7 +125,7 @@ Use physical devices for meaningful transport and power evidence.
 
 Use this guide to run the Android proof app.
 
-Use these documents for the rest:
+For retained evidence and release posture, use:
 
 - [MeshLink documentation map](../../docs/README.md)
 - [How to unblock MeshLink permissions on Android and iOS](../../docs/how-to/unblock-meshlink-permissions.md)

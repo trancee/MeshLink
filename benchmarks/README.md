@@ -6,6 +6,13 @@ normative acceptance thresholds live in `specs/001-ble-mesh-sdk/spec.md`
 `specs/001-ble-mesh-sdk/plan.md` (Performance Goals). A failing row here is
 still valuable evidence, but it does not relax the underlying requirement.
 
+Read this page in this order:
+
+1. **Normative acceptance thresholds** for the targets that matter
+2. **Latest retained evidence** for the current measured state
+3. **Current release-decision posture** for the summary judgment
+4. **Current learnings** for historical investigation detail
+
 ## Normative acceptance thresholds (mirror only)
 
 | Criterion | Normative threshold | Canonical source |

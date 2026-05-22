@@ -57,7 +57,8 @@ If local cached signing assets are not enough, rerun with
 `-allowProvisioningUpdates`.
 
 On the first physical iPhone launch, allow Bluetooth access if iOS prompts for
-it. If permission handling is the blocker, use [How to unblock MeshLink permissions on Android and iOS](../../docs/how-to/unblock-meshlink-permissions.md).
+it. If permissions are the blocker, use
+[How to unblock MeshLink permissions on Android and iOS](../../docs/how-to/unblock-meshlink-permissions.md).
 
 ## 4. Install and launch on a physical iPhone
 
@@ -132,7 +133,7 @@ benchmarks/scripts/run_headless_meshlink_benchmark.py \
 
 Use this guide to build and run the iOS proof app.
 
-Use these documents for the rest:
+For retained evidence and release posture, use:
 
 - [MeshLink documentation map](../../docs/README.md)
 - [How to unblock MeshLink permissions on Android and iOS](../../docs/how-to/unblock-meshlink-permissions.md)

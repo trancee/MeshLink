@@ -1,8 +1,13 @@
 # About integrating MeshLink well
 
-This page is about the shape of a good MeshLink integration.
+This page explains what a good MeshLink integration looks like.
 
-It does not tell you the step-by-step mechanics of setup. For that, use [How to integrate MeshLink into a host app](../how-to/integrate-meshlink-into-a-host-app.md). If you want a short production-shaped checklist, use [How to structure a robust MeshLink integration](../how-to/structure-a-robust-meshlink-integration.md). For the exact public surface, use the [MeshLink SDK API reference](../reference/meshlink-sdk-api.md).
+It does not walk through setup step by step. For that, use
+[How to integrate MeshLink into a host app](../how-to/integrate-meshlink-into-a-host-app.md).
+If you want a shorter production-shaped checklist, use
+[How to structure a robust MeshLink integration](../how-to/structure-a-robust-meshlink-integration.md).
+For the exact public surface, use the
+[MeshLink SDK API reference](../reference/meshlink-sdk-api.md).
 
 ## MeshLink is an app service, not a utility call
 
@@ -14,7 +19,9 @@ That means:
 - keep it alive across many send and receive operations
 - bind its public streams into your app state instead of polling for status
 
-A poor integration pattern is creating a fresh runtime per send. That throws away discovery, trust continuity, diagnostics, retry state, and peer visibility.
+A poor integration pattern is creating a fresh runtime per send. That throws
+away discovery, trust continuity, diagnostics, retry state, and peer
+visibility.
 
 ## `appId` is part of your architecture
 
@@ -74,7 +81,8 @@ Peers in a BLE mesh are noisy. They appear, disappear, reconnect, and drift thro
 
 MeshLink intentionally smooths that churn into a cleaner lifecycle so host apps do not need to reimplement transport timing policy themselves.
 
-That is why a good integration should react to the emitted peer lifecycle instead of inventing a second timeout system in the UI layer.
+That is why a good integration should react to the emitted peer lifecycle
+instead of inventing a second timeout system in the UI layer.
 
 For the lifecycle model itself, read [The peer lifecycle model](peer-lifecycle.md).
 
@@ -88,7 +96,8 @@ The best MeshLink integrations treat diagnostics as a first-class surface:
 - issue reproduction notes
 - in some products, even user-facing troubleshooting copy
 
-That does not mean dumping every diagnostic into the primary UI. It means designing one place where those signals can be observed when things go wrong.
+That does not mean dumping every diagnostic into the primary UI. It means
+choosing one place where those signals can be observed when things go wrong.
 
 Because MeshLink redacts aggressively, diagnostics are also the safest place to reason about runtime behavior without turning logs into plaintext payload archives.
 
@@ -114,7 +123,8 @@ That split keeps your host app from re-implementing MeshLink's decisions on each
 
 ## Use the right document for the right need
 
-When teams say "the docs are missing," the real problem is often that the right information exists in the wrong form.
+When teams say "the docs are missing," the real problem is often that the
+right information exists in the wrong form.
 
 Use these docs by question type:
 

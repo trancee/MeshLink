@@ -1,6 +1,8 @@
 # Your first MeshLink exchange
 
-In this tutorial, we will build a minimal Android host-side MeshLink controller, discover a nearby proof peer, and send a first message successfully.
+In this tutorial, we will build a minimal Android host-side MeshLink
+controller, discover a nearby proof peer, and send a first message
+successfully.
 
 This lesson is intentionally narrow:
 
@@ -19,7 +21,7 @@ You need:
 - a second device running one of the MeshLink proof apps
 - the Android host app already has the permissions described in [How to unblock MeshLink permissions on Android and iOS](../how-to/unblock-meshlink-permissions.md)
 
-We will create one controller class and log what happens.
+We will create one controller class and log the full flow.
 
 ## 1. Create the runtime
 
@@ -46,7 +48,8 @@ At this point you have a runtime object, but it is not doing anything yet.
 
 ## 2. Add a tiny controller
 
-Now we will create a controller that starts the runtime, watches peers, and keeps the first discovered peer ID.
+Now create a controller that starts the runtime, watches peers, and keeps the
+first discovered peer ID.
 
 ```kotlin
 import ch.trancee.meshlink.api.MeshLinkApi
@@ -134,7 +137,8 @@ class MainViewModel(context: Context) {
 }
 ```
 
-When you tap your start action, the first visible result should be a startup line like:
+When you trigger your start action, the first visible result should be a line
+like:
 
 ```text
 start() -> Started
@@ -142,7 +146,8 @@ start() -> Started
 
 ## 4. Wait for a nearby peer
 
-Launch a MeshLink proof app on a second device with the same `appId` and wait for discovery.
+Launch a MeshLink proof app on a second device with the same `appId` and wait
+for discovery.
 
 You should soon see a line like:
 
@@ -163,7 +168,8 @@ The expected result is:
 sendHello() -> Sent
 ```
 
-You now have a complete first exchange from a host app into the MeshLink runtime.
+You now have a complete first exchange from a host app through the MeshLink
+runtime.
 
 ## 6. Verify the result on the receiving device
 
