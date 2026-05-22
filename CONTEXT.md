@@ -36,6 +36,10 @@ _Avoid_: After-the-fact full export, warning only
 The current active session open in the reference app before it becomes retained history. A live session may belong to the supported path or to a non-authoritative or non-normative path.
 _Avoid_: Current history, retained session, archived runtime
 
+**Session end**:
+The point where a live session stops accumulating new evidence. Session end is separate from retention, so an ended session may be retained or omitted from recent history depending on its path and reviewable evidence.
+_Avoid_: Same as retention, always retained, retained-only end
+
 **Supported live session**:
 A live session on the supported guided or advanced path rather than the solo or lab path. Only a supported live session may use full-payload export or automatic retention.
 _Avoid_: Any live session, solo session, lab session
