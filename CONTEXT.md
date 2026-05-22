@@ -9,8 +9,12 @@ A named operator-facing area of the reference app with a stable purpose and audi
 _Avoid_: Screen, tab, mode
 
 **Advanced controls**:
-The supported surface for deliberate operator inspection and runtime actions beyond the guided flow. It exposes a curated set of reviewer-relevant controls without becoming a general-purpose SDK console.
+The supported surface for deliberate operator inspection and runtime actions beyond the guided flow. It exposes a curated set of evaluation-relevant controls without becoming a general-purpose SDK console.
 _Avoid_: Debug shell, expert mode, full SDK console
+
+**Evaluation-relevant capability**:
+A supported MeshLink capability that materially changes what an operator can demonstrate, compare, or explain in the reference app. Evaluation-relevant capabilities may belong in advanced controls; low-level SDK knobs that do not improve evaluation do not.
+_Avoid_: Every supported option, internal knob, full SDK parity
 
 **Live session**:
 The current active reference-app session backed by the running MeshLink runtime. A live session is the only session that can be retained again or exported with full payload content.
