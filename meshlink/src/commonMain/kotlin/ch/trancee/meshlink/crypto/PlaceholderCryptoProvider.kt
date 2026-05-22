@@ -3,12 +3,14 @@ package ch.trancee.meshlink.crypto
 import ch.trancee.meshlink.api.MeshLinkException
 
 internal object PlaceholderCryptoProvider : CryptoProvider {
-    private var nonceSeed: Int = 1
+    private var nonceSeed: Int = INITIAL_NONCE_SEED
 
     override fun randomBytes(size: Int): ByteArray {
         val start = nonceSeed
         nonceSeed += size + 1
-        return ByteArray(size) { index -> (((start + index) * 31) and 0xFF).toByte() }
+        return ByteArray(size) { index ->
+            (((start + index) * NONCE_MULTIPLIER) and BYTE_MASK).toByte()
+        }
     }
 
     override fun sha256(input: ByteArray): ByteArray {
@@ -16,7 +18,10 @@ internal object PlaceholderCryptoProvider : CryptoProvider {
     }
 
     override fun hmacSha256(key: ByteArray, data: ByteArray): ByteArray {
-        return pseudoHash(byteArrayOf(0x36) + key + byteArrayOf(0x5C) + data, HASH_SIZE_BYTES)
+        return pseudoHash(
+            byteArrayOf(HMAC_INNER_PAD) + key + byteArrayOf(HMAC_OUTER_PAD) + data,
+            HASH_SIZE_BYTES,
+        )
     }
 
     override fun generateX25519KeyPair(): X25519KeyPair {
@@ -90,50 +95,61 @@ internal object PlaceholderCryptoProvider : CryptoProvider {
             (cipherBytes[index].toInt() xor keystream[index].toInt()).toByte()
         }
     }
-
-    private fun pseudoHash(input: ByteArray, outputSize: Int): ByteArray {
-        var state = 0x811C9DC5.toInt()
-        val safeInput = if (input.isNotEmpty()) input else byteArrayOf(0)
-        val output =
-            ByteArray(outputSize) { index ->
-                val mixed = (safeInput[index % safeInput.size].toInt() and 0xFF) + index
-                state = (state xor mixed) * 16777619
-                (state ushr ((index and 3) * 8)).toByte()
-            }
-        if (output.all { it == 0.toByte() }) {
-            output[0] = 1
-        }
-        return output
-    }
-
-    private fun expandDigest(seed: ByteArray, size: Int): ByteArray {
-        val output = ByteArray(size)
-        var offset = 0
-        var counter = 0
-        while (offset < size) {
-            val block = pseudoHash(seed + counter.toByte(), HASH_SIZE_BYTES)
-            val copySize = minOf(block.size, size - offset)
-            block.copyInto(output, destinationOffset = offset, endIndex = copySize)
-            offset += copySize
-            counter += 1
-        }
-        return output
-    }
-
-    private fun lexicographicallyCompare(left: ByteArray, right: ByteArray): Int {
-        val size = minOf(left.size, right.size)
-        for (index in 0 until size) {
-            val leftValue = left[index].toInt() and 0xFF
-            val rightValue = right[index].toInt() and 0xFF
-            if (leftValue != rightValue) {
-                return leftValue - rightValue
-            }
-        }
-        return left.size - right.size
-    }
-
-    private const val HASH_SIZE_BYTES: Int = 32
-    private const val KEY_SIZE_BYTES: Int = 32
-    private const val SIGNATURE_SIZE_BYTES: Int = 64
-    private const val TAG_SIZE_BYTES: Int = 16
 }
+
+private fun pseudoHash(input: ByteArray, outputSize: Int): ByteArray {
+    var state = PSEUDO_HASH_INITIAL_STATE.toInt()
+    val safeInput = if (input.isNotEmpty()) input else byteArrayOf(ZERO_BYTE)
+    val output =
+        ByteArray(outputSize) { index ->
+            val mixed = (safeInput[index % safeInput.size].toInt() and BYTE_MASK) + index
+            state = (state xor mixed) * PSEUDO_HASH_PRIME
+            (state ushr ((index and BYTE_INDEX_MASK) * BITS_PER_BYTE)).toByte()
+        }
+    if (output.all { it == ZERO_BYTE }) {
+        output[0] = NON_ZERO_SENTINEL_BYTE
+    }
+    return output
+}
+
+private fun expandDigest(seed: ByteArray, size: Int): ByteArray {
+    val output = ByteArray(size)
+    var offset = 0
+    var counter = 0
+    while (offset < size) {
+        val block = pseudoHash(seed + counter.toByte(), HASH_SIZE_BYTES)
+        val copySize = minOf(block.size, size - offset)
+        block.copyInto(output, destinationOffset = offset, endIndex = copySize)
+        offset += copySize
+        counter += 1
+    }
+    return output
+}
+
+private fun lexicographicallyCompare(left: ByteArray, right: ByteArray): Int {
+    val size = minOf(left.size, right.size)
+    for (index in 0 until size) {
+        val leftValue = left[index].toInt() and BYTE_MASK
+        val rightValue = right[index].toInt() and BYTE_MASK
+        if (leftValue != rightValue) {
+            return leftValue - rightValue
+        }
+    }
+    return left.size - right.size
+}
+
+private const val INITIAL_NONCE_SEED: Int = 1
+private const val NONCE_MULTIPLIER: Int = 31
+private const val HASH_SIZE_BYTES: Int = 32
+private const val KEY_SIZE_BYTES: Int = 32
+private const val SIGNATURE_SIZE_BYTES: Int = 64
+private const val TAG_SIZE_BYTES: Int = 16
+private const val BYTE_MASK: Int = 0xFF
+private const val PSEUDO_HASH_INITIAL_STATE: UInt = 0x811C9DC5u
+private const val PSEUDO_HASH_PRIME: Int = 16777619
+private const val BYTE_INDEX_MASK: Int = 3
+private const val BITS_PER_BYTE: Int = 8
+private const val ZERO_BYTE: Byte = 0
+private const val NON_ZERO_SENTINEL_BYTE: Byte = 1
+private const val HMAC_INNER_PAD: Byte = 0x36
+private const val HMAC_OUTER_PAD: Byte = 0x5C
