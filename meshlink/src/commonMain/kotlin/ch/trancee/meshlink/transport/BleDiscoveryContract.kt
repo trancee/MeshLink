@@ -182,19 +182,13 @@ internal fun shouldLocalPeerInitiateL2capConnection(
     remoteKeyHash: ByteArray,
     remotePlatformFamily: BleDiscoveryPlatformFamily,
 ): Boolean {
-    if (
+    return when {
         localPlatformFamily == BleDiscoveryPlatformFamily.ANDROID &&
-            remotePlatformFamily == BleDiscoveryPlatformFamily.IOS
-    ) {
-        return true
-    }
-    if (
+            remotePlatformFamily == BleDiscoveryPlatformFamily.IOS -> true
         localPlatformFamily == BleDiscoveryPlatformFamily.IOS &&
-            remotePlatformFamily == BleDiscoveryPlatformFamily.ANDROID
-    ) {
-        return false
+            remotePlatformFamily == BleDiscoveryPlatformFamily.ANDROID -> false
+        else -> compareUnsignedKeyHashes(localKeyHash, remoteKeyHash) < 0
     }
-    return compareUnsignedKeyHashes(localKeyHash, remoteKeyHash) < 0
 }
 
 internal fun shouldUseMixedPlatformGattNotifyBearer(
