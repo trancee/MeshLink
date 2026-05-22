@@ -1,5 +1,6 @@
 package ch.trancee.meshlink.proof.android
 
+import android.annotation.SuppressLint
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattCharacteristic
@@ -18,6 +19,7 @@ import android.os.Build
 import android.os.ParcelUuid
 import java.io.ByteArrayOutputStream
 
+@SuppressLint("MissingPermission")
 internal class ProofGattBenchmarkServer(
     private val context: Context,
     private val bluetoothManager: BluetoothManager,
