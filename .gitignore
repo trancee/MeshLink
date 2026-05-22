@@ -28,6 +28,10 @@ Thumbs.db
 *.tmp
 *.swp
 
+# Python tooling noise
+__pycache__/
+*.pyc
+
 # Pi
 .context/
 .pi/
