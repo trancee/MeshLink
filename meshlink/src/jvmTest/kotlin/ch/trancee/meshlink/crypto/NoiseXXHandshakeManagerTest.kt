@@ -17,11 +17,11 @@ class NoiseXXHandshakeManagerTest {
         val responder = NoiseXXHandshakeManager(provider)
 
         // Act
-        val message1 = initiator.createMessage1(initiatorIdentity)
+        val message1 = initiator.createMessage1()
         val message2 = responder.processMessage1AndCreateMessage2(responderIdentity, message1)
         val initiatorResult =
             initiator.processMessage2AndCreateMessage3(initiatorIdentity, message2)
-        val responderResult = responder.processMessage3(responderIdentity, initiatorResult.message3)
+        val responderResult = responder.processMessage3(initiatorResult.message3)
 
         // Assert
         assertContentEquals(initiatorResult.sendKey, responderResult.receiveKey)
@@ -43,7 +43,7 @@ class NoiseXXHandshakeManagerTest {
         val responderIdentity = NoiseIdentity.generate(provider)
         val initiator = NoiseXXHandshakeManager(provider)
         val responder = NoiseXXHandshakeManager(provider)
-        val message1 = initiator.createMessage1(initiatorIdentity)
+        val message1 = initiator.createMessage1()
         val message2 = responder.processMessage1AndCreateMessage2(responderIdentity, message1)
         val tamperedMessage2 =
             message2.copyOf().also { bytes ->

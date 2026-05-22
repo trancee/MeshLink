@@ -24,7 +24,7 @@ internal constructor(private val cryptoProvider: CryptoProvider) {
     private var initiatorState: HandshakeState? = null
     private var responderState: HandshakeState? = null
 
-    internal fun createMessage1(initiatorIdentity: NoiseIdentity): ByteArray {
+    internal fun createMessage1(): ByteArray {
         val state = HandshakeState.initialize(cryptoProvider)
         val ephemeralKeyPair = cryptoProvider.generateX25519KeyPair()
         state.localEphemeralKeyPair = ephemeralKeyPair
@@ -137,10 +137,7 @@ internal constructor(private val cryptoProvider: CryptoProvider) {
         )
     }
 
-    internal fun processMessage3(
-        responderIdentity: NoiseIdentity,
-        message3: ByteArray,
-    ): NoiseXXResponderResult {
+    internal fun processMessage3(message3: ByteArray): NoiseXXResponderResult {
         val state =
             responderState
                 ?: throw MeshLinkException.InvalidStateTransition(
@@ -288,12 +285,20 @@ internal constructor(private val cryptoProvider: CryptoProvider) {
 
     private companion object {
         fun noiseNonce(value: ULong): ByteArray {
-            val nonce = ByteArray(12)
-            repeat(8) { index -> nonce[4 + index] = ((value shr (index * 8)) and 0xFFu).toByte() }
+            val nonce = ByteArray(NONCE_SIZE_BYTES)
+            repeat(NONCE_COUNTER_SIZE_BYTES) { index ->
+                nonce[NONCE_PREFIX_SIZE_BYTES + index] =
+                    ((value shr (index * NONCE_BITS_PER_BYTE)) and NONCE_BYTE_MASK).toByte()
+            }
             return nonce
         }
 
         private const val NOISE_PROTOCOL_NAME: String = "Noise_XX_25519_ChaChaPoly_SHA256"
+        private const val NONCE_SIZE_BYTES: Int = 12
+        private const val NONCE_COUNTER_SIZE_BYTES: Int = 8
+        private const val NONCE_PREFIX_SIZE_BYTES: Int = 4
+        private const val NONCE_BITS_PER_BYTE: Int = 8
+        private const val NONCE_BYTE_MASK: ULong = 0xFFu
         private const val HASH_LEN_BYTES: Int = 32
         private const val KEY_SIZE_BYTES: Int = 32
         private const val STATIC_PAYLOAD_SIZE_BYTES: Int = 64
@@ -317,8 +322,10 @@ internal fun hkdfSha256(
     info: ByteArray,
     outputLength: Int,
 ): ByteArray {
-    require(outputLength <= 255 * 32) { "HKDF output too large" }
-    val effectiveSalt = if (salt.isEmpty()) ByteArray(32) else salt
+    require(outputLength <= HKDF_MAX_OUTPUT_BLOCKS * HKDF_HASH_LEN_BYTES) {
+        "HKDF output too large"
+    }
+    val effectiveSalt = if (salt.isEmpty()) ByteArray(HKDF_HASH_LEN_BYTES) else salt
     val pseudoRandomKey = provider.hmacSha256(effectiveSalt, ikm)
     val output = ByteArray(outputLength)
     var previous = byteArrayOf()
@@ -334,3 +341,6 @@ internal fun hkdfSha256(
     }
     return output
 }
+
+private const val HKDF_HASH_LEN_BYTES: Int = 32
+private const val HKDF_MAX_OUTPUT_BLOCKS: Int = 255

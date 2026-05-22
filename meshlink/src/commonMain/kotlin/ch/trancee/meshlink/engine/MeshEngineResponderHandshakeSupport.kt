@@ -94,7 +94,7 @@ internal class MeshEngineResponderHandshakeSupport(
         payload: ByteArray,
         pending: PendingResponderHandshake,
     ): NoiseXXResponderResult? {
-        return runCatching { pending.manager.processMessage3(localIdentity.noiseIdentity, payload) }
+        return runCatching { pending.manager.processMessage3(payload) }
             .getOrElse { exception ->
                 failPendingResponderHandshake(
                     peerId = peerId,

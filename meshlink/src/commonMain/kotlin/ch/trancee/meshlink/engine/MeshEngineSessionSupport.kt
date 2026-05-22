@@ -46,7 +46,7 @@ internal class MeshEngineSessionSupport(
     private suspend fun reserveInitiatorHandshake(peerId: PeerId): InitiatorHandshakeReservation {
         return state.sessionRegistry.initiatorHandshakeReservation(peerId) {
             val manager = NoiseXXHandshakeManager(localIdentity.cryptoProvider)
-            val message1 = manager.createMessage1(localIdentity.noiseIdentity)
+            val message1 = manager.createMessage1()
             val pendingHandshake =
                 PendingInitiatorHandshake(
                     manager = manager,
