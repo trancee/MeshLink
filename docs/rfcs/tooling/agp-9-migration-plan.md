@@ -1,6 +1,32 @@
 # AGP 9 Migration Plan for MeshLink Build Modules
 
-Status: Draft maintainer execution plan and checklist
+Status: Implemented on `main` (historical plan and execution record)
+
+## Implementation status
+
+The migration described in this document has now landed on `main` in these
+commits:
+
+- `7140e2d` `refactor(reference): split android app from shared module`
+- `931a987` `chore(build): upgrade to AGP 9 and migrate android plugin usage`
+- `0ea7b5e` `chore(reference): remove AGP 8 lint override`
+
+Current verified toolchain on `main`:
+
+- Gradle `9.5.0`
+- AGP `9.2.1`
+- Kotlin `2.3.21`
+- Compose Multiplatform `1.11.0`
+
+Current module shape on `main`:
+
+- `:meshlink` → KMP library using `com.android.kotlin.multiplatform.library`
+- `:meshlink-reference` → shared KMP UI/state/framework-export module
+- `:meshlink-reference:android-app` → Android entry-point module
+- `:meshlink-proof:android:meshlink-proof-android-app` → pure Android app using AGP built-in Kotlin
+
+The remaining sections are kept as a historical execution record showing the
+migration order, rationale, and file-level split plan from the pre-AGP-9 state.
 
 ## Reader and intended outcome
 
