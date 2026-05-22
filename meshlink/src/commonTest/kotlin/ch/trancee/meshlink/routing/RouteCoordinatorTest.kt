@@ -9,6 +9,61 @@ import kotlin.test.assertEquals
 
 class RouteCoordinatorTest {
     @Test
+    fun `onRouteUpdate ignores infeasible updates from a different relay`() {
+        // Arrange
+        val coordinator = RouteCoordinator(PeerId("local"))
+        val relayA = PeerId("relay-a")
+        val relayB = PeerId("relay-b")
+        val destination = PeerId("remote-1")
+        coordinator.onPeerConnected(peerId = relayA, trustRecord = trustRecord(relayA, 1))
+        coordinator.onPeerConnected(peerId = relayB, trustRecord = trustRecord(relayB, 2))
+        coordinator.onRouteUpdate(
+            fromPeerId = relayA,
+            update = routeUpdate(destinationPeerId = destination, relayPeerId = relayA, seqNo = 5L),
+        )
+
+        // Act
+        val mutation =
+            coordinator.onRouteUpdate(
+                fromPeerId = relayB,
+                update =
+                    routeUpdate(destinationPeerId = destination, relayPeerId = relayB, seqNo = 4L),
+            )
+
+        // Assert
+        assertEquals(0, mutation.advertisements.size)
+        assertEquals(0, mutation.routeChanges.size)
+        assertEquals(relayA.value, coordinator.routeFor(destination)?.nextHopPeerId?.value)
+    }
+
+    @Test
+    fun `onRouteRetraction ignores a relay that is not the selected next hop`() {
+        // Arrange
+        val coordinator = RouteCoordinator(PeerId("local"))
+        val relayA = PeerId("relay-a")
+        val relayB = PeerId("relay-b")
+        val destination = PeerId("remote-2")
+        coordinator.onPeerConnected(peerId = relayA, trustRecord = trustRecord(relayA, 1))
+        coordinator.onPeerConnected(peerId = relayB, trustRecord = trustRecord(relayB, 2))
+        coordinator.onRouteUpdate(
+            fromPeerId = relayA,
+            update = routeUpdate(destinationPeerId = destination, relayPeerId = relayA, seqNo = 5L),
+        )
+
+        // Act
+        val mutation =
+            coordinator.onRouteRetraction(
+                fromPeerId = relayB,
+                retraction = WireFrame.RouteRetraction(destinationPeerId = destination, seqNo = 5L),
+            )
+
+        // Assert
+        assertEquals(0, mutation.advertisements.size)
+        assertEquals(0, mutation.routeChanges.size)
+        assertEquals(relayA.value, coordinator.routeFor(destination)?.nextHopPeerId?.value)
+    }
+
+    @Test
     fun `onPeerDisconnected emits one digest per remaining peer even when multiple routes retract`() {
         // Arrange
         val coordinator = RouteCoordinator(PeerId("local"))
