@@ -44,6 +44,10 @@ _Avoid_: After-the-fact full export, warning only
 The last export opportunity for a supported live session before the operator ends that session explicitly. It may include full payload only when the operator explicitly chooses it.
 _Avoid_: After-the-fact full export, warning only
 
+**Pre-exit redacted export**:
+The last export opportunity before the operator leaves a solo or lab session. It is always redacted-only because solo and lab sessions are never eligible for full-payload export.
+_Avoid_: Full export from solo or lab, silent discard without choice
+
 **Live session**:
 The current active session open in the reference app before it becomes retained history. A live session may belong to the supported path or to a non-authoritative or non-normative path.
 _Avoid_: Current history, retained session, archived runtime
@@ -173,7 +177,7 @@ The explicitly non-normative surface for proof-only or benchmark-only behavior. 
 _Avoid_: Advanced mode, expert mode
 
 **Lab session**:
-A session produced on the lab surface. Entering the lab starts a new lab session instead of changing the surface identity of an existing supported session. A lab session remains non-normative, is not added to recent history automatically, and may be exported only through an explicit redacted export.
+A session produced on the lab surface. Entering the lab starts a new lab session instead of changing the surface identity of an existing supported session. A lab session remains non-normative, is not added to recent history automatically, and may be exported only through an explicit redacted export, including the last-chance pre-exit redacted export.
 _Avoid_: Retained reference proof, supported-history entry, normal recent-history entry
 
 **Solo exploration**:
@@ -181,7 +185,7 @@ The one-device, non-authoritative walkthrough surface. It allows inspection and 
 _Avoid_: Demo mode, offline proof
 
 **Solo session**:
-A session produced on the solo exploration path. Entering solo exploration starts a new solo session instead of changing the authority mode of an existing session. A solo session remains non-authoritative, is not added to recent history automatically, and may be exported only through an explicit redacted export.
+A session produced on the solo exploration path. Entering solo exploration starts a new solo session instead of changing the authority mode of an existing session. A solo session remains non-authoritative, is not added to recent history automatically, and may be exported only through an explicit redacted export, including the last-chance pre-exit redacted export.
 _Avoid_: Retained live proof, authoritative session, normal recent-history entry
 
 ## Example dialogue
