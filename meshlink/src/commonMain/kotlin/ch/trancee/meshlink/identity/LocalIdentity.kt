@@ -93,76 +93,81 @@ internal constructor(
 
 private fun deterministicBytes(seed: String, size: Int): ByteArray {
     val encodedSeed = seed.encodeToByteArray()
-    val seedBytes = if (encodedSeed.isNotEmpty()) encodedSeed else byteArrayOf(0)
-    var state = 0x811C9DC5.toInt()
+    val seedBytes = if (encodedSeed.isNotEmpty()) encodedSeed else byteArrayOf(ZERO_BYTE)
+    var state = FNV_OFFSET_BASIS.toInt()
     val output =
         ByteArray(size) { index ->
-            val mixedInput = (seedBytes[index % seedBytes.size].toInt() and 0xFF) + index
-            state = (state xor mixedInput) * 16777619
-            (state ushr ((index and 3) * 8)).toByte()
+            val mixedInput = (seedBytes[index % seedBytes.size].toInt() and BYTE_MASK) + index
+            state = (state xor mixedInput) * FNV_PRIME
+            (state ushr ((index and BYTE_INDEX_MASK) * BITS_PER_BYTE)).toByte()
         }
-    if (output.all { byte -> byte == 0.toByte() }) {
-        output[0] = 1
+    if (output.all { byte -> byte == ZERO_BYTE }) {
+        output[0] = NON_ZERO_SENTINEL_BYTE
     }
     return output
 }
 
 internal fun ByteArray.toHexString(): String {
     return joinToString(separator = "") { byte ->
-        val value = byte.toInt() and 0xFF
-        value.toString(radix = 16).padStart(length = 2, padChar = '0')
+        val value = byte.toInt() and BYTE_MASK
+        value.toString(radix = HEX_RADIX).padStart(length = HEX_BYTE_LENGTH, padChar = '0')
     }
 }
 
 internal fun String.toBytes(): ByteArray? {
-    if ((length and 1) != 0) {
+    val hasEvenLength = (length and 1) == 0
+    if (!hasEvenLength) {
         return null
     }
-    return ByteArray(length / 2) { index ->
-        (decodeHexByte(charIndex = index * 2) ?: return null).toByte()
-    }
+
+    var invalidHexDetected = false
+    val decodedBytes =
+        ByteArray(length / HEX_BYTE_LENGTH) { index ->
+            val decoded = decodeHexByte(charIndex = index * HEX_BYTE_LENGTH)
+            if (decoded == null) {
+                    invalidHexDetected = true
+                    ZERO_BYTE.toInt()
+                } else {
+                    decoded
+                }
+                .toByte()
+        }
+    return decodedBytes.takeUnless { invalidHexDetected }
 }
 
 internal fun String.hexContentEquals(bytes: ByteArray): Boolean {
-    if (length != bytes.size * 2) {
-        return false
-    }
-    for (index in bytes.indices) {
-        val decoded = decodeHexByte(charIndex = index * 2) ?: return false
-        if (decoded != (bytes[index].toInt() and 0xFF)) {
-            return false
+    return length == bytes.size * HEX_BYTE_LENGTH &&
+        bytes.indices.all { index ->
+            decodeHexByte(charIndex = index * HEX_BYTE_LENGTH) ==
+                (bytes[index].toInt() and BYTE_MASK)
         }
-    }
-    return true
 }
 
 internal fun String.hexStartsWith(bytes: ByteArray): Boolean {
-    if (length < bytes.size * 2) {
-        return false
-    }
-    for (index in bytes.indices) {
-        val decoded = decodeHexByte(charIndex = index * 2) ?: return false
-        if (decoded != (bytes[index].toInt() and 0xFF)) {
-            return false
+    return length >= bytes.size * HEX_BYTE_LENGTH &&
+        bytes.indices.all { index ->
+            decodeHexByte(charIndex = index * HEX_BYTE_LENGTH) ==
+                (bytes[index].toInt() and BYTE_MASK)
         }
-    }
-    return true
 }
 
 private fun String.decodeHexByte(charIndex: Int): Int? {
-    if (charIndex + 1 >= length) {
-        return null
+    val hasCompleteByte = charIndex + 1 < length
+    val highNibble = if (hasCompleteByte) decodeHexNibble(this[charIndex]) else null
+    val lowNibble = if (hasCompleteByte) decodeHexNibble(this[charIndex + 1]) else null
+
+    return if (highNibble != null && lowNibble != null) {
+        (highNibble shl HIGH_NIBBLE_SHIFT) or lowNibble
+    } else {
+        null
     }
-    val high = decodeHexNibble(this[charIndex]) ?: return null
-    val low = decodeHexNibble(this[charIndex + 1]) ?: return null
-    return (high shl 4) or low
 }
 
 private fun decodeHexNibble(value: Char): Int? {
     return when (value) {
         in '0'..'9' -> value.code - '0'.code
-        in 'a'..'f' -> value.code - 'a'.code + 10
-        in 'A'..'F' -> value.code - 'A'.code + 10
+        in 'a'..'f' -> value.code - 'a'.code + HEX_ALPHA_OFFSET
+        in 'A'..'F' -> value.code - 'A'.code + HEX_ALPHA_OFFSET
         else -> null
     }
 }
@@ -170,8 +175,20 @@ private fun decodeHexNibble(value: Char): Int? {
 private fun decodeHexNibble(value: Int): Int? {
     return when (value) {
         in '0'.code..'9'.code -> value - '0'.code
-        in 'a'.code..'f'.code -> value - 'a'.code + 10
-        in 'A'.code..'F'.code -> value - 'A'.code + 10
+        in 'a'.code..'f'.code -> value - 'a'.code + HEX_ALPHA_OFFSET
+        in 'A'.code..'F'.code -> value - 'A'.code + HEX_ALPHA_OFFSET
         else -> null
     }
 }
+
+private const val BYTE_MASK: Int = 0xFF
+private const val BITS_PER_BYTE: Int = 8
+private const val BYTE_INDEX_MASK: Int = 3
+private const val FNV_OFFSET_BASIS: UInt = 0x811C9DC5u
+private const val FNV_PRIME: Int = 16777619
+private const val HEX_ALPHA_OFFSET: Int = 10
+private const val HEX_BYTE_LENGTH: Int = 2
+private const val HEX_RADIX: Int = 16
+private const val HIGH_NIBBLE_SHIFT: Int = 4
+private const val NON_ZERO_SENTINEL_BYTE: Byte = 1
+private const val ZERO_BYTE: Byte = 0
