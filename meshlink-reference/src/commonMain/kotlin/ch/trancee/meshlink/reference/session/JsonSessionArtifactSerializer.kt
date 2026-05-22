@@ -4,6 +4,7 @@ import ch.trancee.meshlink.reference.model.PeerSnapshot
 import ch.trancee.meshlink.reference.model.ReferenceSession
 import ch.trancee.meshlink.reference.model.SessionArtifact
 import ch.trancee.meshlink.reference.model.TimelineEntry
+import ch.trancee.meshlink.reference.model.referenceScenarioTitle
 import kotlinx.serialization.Serializable
 
 /** JSON serializer for redacted and explicit full-payload session exports. */
@@ -67,7 +68,7 @@ public class JsonSessionArtifactSerializer(private val documentStore: ReferenceD
             scenario =
                 ScenarioBlock(
                     scenarioId = session.scenarioId,
-                    title = scenarioTitle(session.scenarioId),
+                    title = referenceScenarioTitle(session.scenarioId),
                     surface = normalizeSurface(session.configurationSnapshot["surface"]),
                     authorityMode = session.authorityMode.toString().lowercase(),
                     startedAt = session.startedAtEpochMillis.toString(),
@@ -164,21 +165,6 @@ public class JsonSessionArtifactSerializer(private val documentStore: ReferenceD
         val fullPayloadIncluded: Boolean,
         val operatorOptInRecorded: Boolean,
     )
-}
-
-private fun scenarioTitle(scenarioId: String): String {
-    return when (scenarioId) {
-        "guided-first-exchange" -> "Guided first exchange"
-        "advanced-controls" -> "Advanced controls"
-        "technical-timeline" -> "Technical timeline"
-        "recent-history" -> "Recent history"
-        "solo-exploration" -> "Solo exploration"
-        "lab" -> "Lab"
-        else ->
-            scenarioId.split('-').joinToString(" ") { token ->
-                token.replaceFirstChar { it.titlecase() }
-            }
-    }
 }
 
 private fun normalizeSurface(surface: String?): String {

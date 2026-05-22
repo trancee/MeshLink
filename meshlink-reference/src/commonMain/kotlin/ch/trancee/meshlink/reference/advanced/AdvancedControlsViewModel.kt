@@ -1,6 +1,7 @@
 package ch.trancee.meshlink.reference.advanced
 
 import ch.trancee.meshlink.api.DeliveryPriority
+import ch.trancee.meshlink.reference.model.referenceOutcomeLabel
 import ch.trancee.meshlink.reference.platform.PlatformServices
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -167,7 +168,7 @@ private fun buildAdvancedControlsUiState(
                 "${entry.title}: ${entry.detail}"
             },
         lastOutcomeSummary = snapshot.session.lastOutcomeSummary,
-        lastOutcomeDisplayText = outcomeDisplayText(snapshot.session.lastOutcomeSummary),
+        lastOutcomeDisplayText = referenceOutcomeLabel(snapshot.session.lastOutcomeSummary),
         payloadSizeBytes = payloadSizeBytes,
         payloadLimitBytes = ADVANCED_PAYLOAD_LIMIT_BYTES,
         payloadValidationMessage = payloadValidationMessage(payloadSizeBytes),
@@ -182,26 +183,6 @@ private fun payloadValidationMessage(payloadSizeBytes: Int): String? {
             "$ADVANCED_PAYLOAD_LIMIT_BYTES bytes per message. Shorten the text before sending."
     } else {
         null
-    }
-}
-
-internal fun outcomeDisplayText(summary: String?): String? {
-    return when {
-        summary == null -> null
-        summary == "SendResult.Sent" -> "Message sent"
-        summary == "StartResult.Started" -> "Mesh started"
-        summary == "PauseResult.Paused" -> "Mesh paused"
-        summary == "ResumeResult.Resumed" -> "Mesh resumed"
-        summary == "StopResult.Stopped" -> "Mesh stopped"
-        summary == "ForgetPeerResult.Forgotten" -> "Trust reset"
-        summary == "Inbound message received" -> "Inbound message received"
-        summary == "Large transfer complete" -> "Large transfer complete"
-        summary.contains("PAYLOAD_TOO_LARGE") -> "Payload too large"
-        summary.contains("TRANSFER_TIMED_OUT") -> "Transfer timed out"
-        summary.contains("TRANSFER_ABORTED") -> "Transfer aborted"
-        summary.contains("UNREACHABLE") -> "Peer unreachable"
-        summary.contains("TRUST_FAILURE") -> "Trust check failed"
-        else -> summary
     }
 }
 

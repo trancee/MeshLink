@@ -22,6 +22,9 @@ import androidx.compose.ui.unit.dp
 import ch.trancee.meshlink.reference.design.ReferenceBadge
 import ch.trancee.meshlink.reference.design.ReferenceSectionCard
 import ch.trancee.meshlink.reference.model.ReferenceSession
+import ch.trancee.meshlink.reference.model.referenceAuthorityLabel
+import ch.trancee.meshlink.reference.model.referenceOutcomeLabel
+import ch.trancee.meshlink.reference.model.referenceScenarioTitle
 import ch.trancee.meshlink.reference.timeline.TechnicalTimelineStore
 import ch.trancee.meshlink.reference.timeline.TechnicalTimelineUiState
 import ch.trancee.meshlink.reference.timeline.clearHistory
@@ -113,7 +116,8 @@ private fun emptyHistoryCard(): Unit {
 private fun retainedSessionCard(store: TechnicalTimelineStore, session: ReferenceSession): Unit {
     ReferenceSectionCard(
         title = "Session ${session.sessionId.takeLast(SESSION_ID_SUFFIX_LENGTH)}",
-        subtitle = "Scenario ${session.scenarioId} · authority ${session.authorityMode}",
+        subtitle =
+            "${referenceScenarioTitle(session.scenarioId)} · ${referenceAuthorityLabel(session.authorityMode)}",
     ) {
         FlowRow(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -124,7 +128,7 @@ private fun retainedSessionCard(store: TechnicalTimelineStore, session: Referenc
         }
         Text(text = "State: ${session.meshStateLabel}", style = MaterialTheme.typography.bodyMedium)
         Text(
-            text = "Outcome: ${session.lastOutcomeSummary ?: "none"}",
+            text = "Outcome: ${referenceOutcomeLabel(session.lastOutcomeSummary) ?: "none yet"}",
             style = MaterialTheme.typography.bodyMedium,
         )
     }
