@@ -36,7 +36,8 @@ public fun SendComposer(
             onValueChange = actions.onTextChanged,
             modifier = Modifier.fillMaxWidth(),
             label = { Text("Payload text") },
-            supportingText = { Text(text = SEND_COMPOSER_SUPPORTING_TEXT) },
+            isError = state.payloadValidationMessage != null,
+            supportingText = { Text(text = sendComposerSupportingText(state)) },
         )
         FlowRow(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -54,8 +55,10 @@ public fun SendComposer(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Button(onClick = actions.onSend, enabled = state.canSend) { Text("Send message") }
-            Button(onClick = actions.onSendLargeTransfer, enabled = state.canSend) {
+            Button(onClick = actions.onSend, enabled = state.canSendMessage) {
+                Text("Send message")
+            }
+            Button(onClick = actions.onSendLargeTransfer, enabled = state.canSendLargeTransfer) {
                 Text("Send large transfer")
             }
         }
@@ -80,10 +83,15 @@ private fun composerTargetText(state: AdvancedControlsUiState): String {
     }
 }
 
+private fun sendComposerSupportingText(state: AdvancedControlsUiState): String {
+    val sizeSummary = "Message size: ${state.payloadSizeBytes} / ${state.payloadLimitBytes} bytes."
+    val guidance =
+        state.payloadValidationMessage
+            ?: "Use the high-priority large transfer button when you want a bigger transport " +
+                "preview instead of a short operator message."
+    return "$sizeSummary $guidance"
+}
+
 private const val SEND_COMPOSER_IDLE_TEXT: String =
     "Select a peer first, then choose whether to send the default operator message " +
         "or a larger transfer preview."
-
-private const val SEND_COMPOSER_SUPPORTING_TEXT: String =
-    "Use the high-priority large transfer button when you want a bigger transport " +
-        "preview instead of a short operator message."

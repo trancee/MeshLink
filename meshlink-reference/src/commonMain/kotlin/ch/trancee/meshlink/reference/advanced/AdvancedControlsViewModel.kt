@@ -92,6 +92,9 @@ public class AdvancedControlsViewModel(
     public fun sendCurrentMessage(): Unit {
         val state = uiStateFlow.value
         val peerId = state.selectedPeerId ?: return
+        if (!state.canSendMessage) {
+            return
+        }
         scope.launch {
             platformServices.meshLinkController.sendSamplePayload(
                 peerId = peerId,
@@ -104,6 +107,9 @@ public class AdvancedControlsViewModel(
     public fun sendLargeTransferPreview(): Unit {
         val state = uiStateFlow.value
         val peerId = state.selectedPeerId ?: return
+        if (!state.canSendLargeTransfer) {
+            return
+        }
         val largePayload = buildString {
             repeat(LARGE_TRANSFER_PREVIEW_REPEAT_COUNT) { append(LARGE_TRANSFER_PREVIEW_SEGMENT) }
         }
@@ -131,6 +137,7 @@ private fun buildAdvancedControlsUiState(
     val snapshot = platformServices.meshLinkController.snapshot.value
     val effectivePeerId = selectedPeerId ?: snapshot.peers.firstOrNull()?.peerId
     val configSnapshot = snapshot.session.configurationSnapshot
+    val payloadSizeBytes = composerText.encodeToByteArray().size
     return AdvancedControlsUiState(
         config =
             AdvancedConfigState(
@@ -160,7 +167,21 @@ private fun buildAdvancedControlsUiState(
                 "${entry.title}: ${entry.detail}"
             },
         lastOutcomeSummary = snapshot.session.lastOutcomeSummary,
+        payloadSizeBytes = payloadSizeBytes,
+        payloadLimitBytes = ADVANCED_PAYLOAD_LIMIT_BYTES,
+        payloadValidationMessage = payloadValidationMessage(payloadSizeBytes),
     )
+}
+
+internal const val ADVANCED_PAYLOAD_LIMIT_BYTES: Int = 64 * 1024
+
+private fun payloadValidationMessage(payloadSizeBytes: Int): String? {
+    return if (payloadSizeBytes > ADVANCED_PAYLOAD_LIMIT_BYTES) {
+        "Payload is $payloadSizeBytes bytes. MeshLink currently supports up to " +
+            "$ADVANCED_PAYLOAD_LIMIT_BYTES bytes per message. Shorten the text before sending."
+    } else {
+        null
+    }
 }
 
 private const val LARGE_TRANSFER_PREVIEW_REPEAT_COUNT: Int = 256

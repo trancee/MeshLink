@@ -21,9 +21,16 @@ public data class AdvancedControlsUiState(
     public val peerRows: List<AdvancedPeerRow>,
     public val timelineHighlights: List<String>,
     public val lastOutcomeSummary: String? = null,
+    public val payloadSizeBytes: Int,
+    public val payloadLimitBytes: Int,
+    public val payloadValidationMessage: String? = null,
 ) {
-    public val canSend: Boolean
-        get() = selectedPeerId != null && composerText.isNotBlank()
+    public val canSendMessage: Boolean
+        get() =
+            selectedPeerId != null && composerText.isNotBlank() && payloadValidationMessage == null
+
+    public val canSendLargeTransfer: Boolean
+        get() = selectedPeerId != null
 
     public val canForgetPeer: Boolean
         get() = selectedPeerId != null
