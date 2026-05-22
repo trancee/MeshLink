@@ -11,18 +11,36 @@ internal sealed class WireFrame {
     internal class Ihu
     internal constructor(public val peerId: PeerId, public val receiveCost: Int) : WireFrame()
 
+    internal class RouteUpdateMetrics
+    internal constructor(
+        public val metric: Int,
+        public val seqNo: Long,
+        public val feasibilityMetric: Int,
+    )
+
+    internal class RouteUpdatePublicKeys
+    internal constructor(
+        destinationEd25519PublicKey: ByteArray,
+        destinationX25519PublicKey: ByteArray,
+    ) {
+        internal val destinationEd25519PublicKey: ByteArray = destinationEd25519PublicKey.copyOf()
+        internal val destinationX25519PublicKey: ByteArray = destinationX25519PublicKey.copyOf()
+    }
+
     internal class RouteUpdate
     internal constructor(
         public val destinationPeerId: PeerId,
         public val nextHopPeerId: PeerId,
-        public val metric: Int,
-        public val seqNo: Long,
-        public val feasibilityMetric: Int,
-        destinationEd25519PublicKey: ByteArray,
-        destinationX25519PublicKey: ByteArray,
+        metrics: RouteUpdateMetrics,
+        publicKeys: RouteUpdatePublicKeys,
     ) : WireFrame() {
-        public val destinationEd25519PublicKey: ByteArray = destinationEd25519PublicKey.copyOf()
-        public val destinationX25519PublicKey: ByteArray = destinationX25519PublicKey.copyOf()
+        public val metric: Int = metrics.metric
+        public val seqNo: Long = metrics.seqNo
+        public val feasibilityMetric: Int = metrics.feasibilityMetric
+        public val destinationEd25519PublicKey: ByteArray =
+            publicKeys.destinationEd25519PublicKey.copyOf()
+        public val destinationX25519PublicKey: ByteArray =
+            publicKeys.destinationX25519PublicKey.copyOf()
     }
 
     internal class RouteRetraction
@@ -49,16 +67,31 @@ internal sealed class WireFrame {
         public val encryptedPayload: ByteArray = encryptedPayload.copyOf()
     }
 
-    internal class TransferStart
+    internal class TransferStartRoute
     internal constructor(
         public val transferId: String,
         public val messageId: String,
         public val originPeerId: PeerId,
         public val destinationPeerId: PeerId,
+    )
+
+    internal class TransferStartSizing
+    internal constructor(
         public val totalBytes: Int,
         public val totalChunks: Int,
         public val maxChunkPayloadBytes: Int,
-    ) : WireFrame()
+    )
+
+    internal class TransferStart
+    internal constructor(route: TransferStartRoute, sizing: TransferStartSizing) : WireFrame() {
+        public val transferId: String = route.transferId
+        public val messageId: String = route.messageId
+        public val originPeerId: PeerId = route.originPeerId
+        public val destinationPeerId: PeerId = route.destinationPeerId
+        public val totalBytes: Int = sizing.totalBytes
+        public val totalChunks: Int = sizing.totalChunks
+        public val maxChunkPayloadBytes: Int = sizing.maxChunkPayloadBytes
+    }
 
     internal class TransferChunk
     internal constructor(
@@ -106,316 +139,35 @@ internal object WireCodec {
     internal fun decodePayload(type: WireEnvelopeType, payload: ByteArray): WireFrame {
         val table = FlatBufferTable.fromRoot(payload)
         return when (type) {
-            WireEnvelopeType.HELLO ->
-                WireFrame.Hello(
-                    peerId =
-                        PeerId(requireString(table, HELLO_PEER_ID_FIELD_INDEX, "HELLO.peerId")),
-                    helloIntervalMillis = table.readInt(HELLO_INTERVAL_FIELD_INDEX),
-                )
-
-            WireEnvelopeType.IHU ->
-                WireFrame.Ihu(
-                    peerId = PeerId(requireString(table, IHU_PEER_ID_FIELD_INDEX, "IHU.peerId")),
-                    receiveCost = table.readInt(IHU_RECEIVE_COST_FIELD_INDEX),
-                )
-
-            WireEnvelopeType.ROUTE_UPDATE ->
-                WireFrame.RouteUpdate(
-                    destinationPeerId =
-                        PeerId(
-                            requireString(
-                                table,
-                                ROUTE_UPDATE_DESTINATION_FIELD_INDEX,
-                                "ROUTE_UPDATE.destinationPeerId",
-                            )
-                        ),
-                    nextHopPeerId =
-                        PeerId(
-                            requireString(
-                                table,
-                                ROUTE_UPDATE_NEXT_HOP_FIELD_INDEX,
-                                "ROUTE_UPDATE.nextHopPeerId",
-                            )
-                        ),
-                    metric = table.readInt(ROUTE_UPDATE_METRIC_FIELD_INDEX),
-                    seqNo = table.readLong(ROUTE_UPDATE_SEQ_NO_FIELD_INDEX),
-                    feasibilityMetric = table.readInt(ROUTE_UPDATE_FEASIBILITY_FIELD_INDEX),
-                    destinationEd25519PublicKey =
-                        requireByteVector(
-                            table,
-                            ROUTE_UPDATE_ED25519_FIELD_INDEX,
-                            "ROUTE_UPDATE.destinationEd25519PublicKey",
-                        ),
-                    destinationX25519PublicKey =
-                        requireByteVector(
-                            table,
-                            ROUTE_UPDATE_X25519_FIELD_INDEX,
-                            "ROUTE_UPDATE.destinationX25519PublicKey",
-                        ),
-                )
-
-            WireEnvelopeType.ROUTE_RETRACTION ->
-                WireFrame.RouteRetraction(
-                    destinationPeerId =
-                        PeerId(
-                            requireString(
-                                table,
-                                ROUTE_RETRACTION_DESTINATION_FIELD_INDEX,
-                                "ROUTE_RETRACTION.destinationPeerId",
-                            )
-                        ),
-                    seqNo = table.readLong(ROUTE_RETRACTION_SEQ_NO_FIELD_INDEX),
-                )
-
-            WireEnvelopeType.SEQNO_REQUEST ->
-                WireFrame.SeqNoRequest(
-                    destinationPeerId =
-                        PeerId(
-                            requireString(
-                                table,
-                                SEQNO_REQUEST_DESTINATION_FIELD_INDEX,
-                                "SEQNO_REQUEST.destinationPeerId",
-                            )
-                        ),
-                    requestedSeqNo = table.readLong(SEQNO_REQUEST_SEQ_NO_FIELD_INDEX),
-                )
-
-            WireEnvelopeType.ROUTE_DIGEST ->
-                WireFrame.RouteDigest(
-                    peerId =
-                        PeerId(
-                            requireString(
-                                table,
-                                ROUTE_DIGEST_PEER_ID_FIELD_INDEX,
-                                "ROUTE_DIGEST.peerId",
-                            )
-                        ),
-                    digest =
-                        requireByteVector(
-                            table,
-                            ROUTE_DIGEST_DIGEST_FIELD_INDEX,
-                            "ROUTE_DIGEST.digest",
-                        ),
-                )
-
-            WireEnvelopeType.MESSAGE ->
-                WireFrame.Message(
-                    messageId = requireString(table, MESSAGE_ID_FIELD_INDEX, "MESSAGE.messageId"),
-                    originPeerId =
-                        PeerId(
-                            requireString(table, MESSAGE_ORIGIN_FIELD_INDEX, "MESSAGE.originPeerId")
-                        ),
-                    destinationPeerId =
-                        PeerId(
-                            requireString(
-                                table,
-                                MESSAGE_DESTINATION_FIELD_INDEX,
-                                "MESSAGE.destinationPeerId",
-                            )
-                        ),
-                    priority = priorityFromCode(table.readByte(MESSAGE_PRIORITY_FIELD_INDEX)),
-                    ttlMillis = table.readInt(MESSAGE_TTL_FIELD_INDEX),
-                    encryptedPayload =
-                        requireByteVector(
-                            table,
-                            MESSAGE_PAYLOAD_FIELD_INDEX,
-                            "MESSAGE.encryptedPayload",
-                        ),
-                )
-
-            WireEnvelopeType.TRANSFER_START ->
-                WireFrame.TransferStart(
-                    transferId =
-                        requireString(
-                            table,
-                            TRANSFER_START_ID_FIELD_INDEX,
-                            "TRANSFER_START.transferId",
-                        ),
-                    messageId =
-                        requireString(
-                            table,
-                            TRANSFER_START_MESSAGE_ID_FIELD_INDEX,
-                            "TRANSFER_START.messageId",
-                        ),
-                    originPeerId =
-                        PeerId(
-                            requireString(
-                                table,
-                                TRANSFER_START_ORIGIN_FIELD_INDEX,
-                                "TRANSFER_START.originPeerId",
-                            )
-                        ),
-                    destinationPeerId =
-                        PeerId(
-                            requireString(
-                                table,
-                                TRANSFER_START_DESTINATION_FIELD_INDEX,
-                                "TRANSFER_START.destinationPeerId",
-                            )
-                        ),
-                    totalBytes = table.readInt(TRANSFER_START_TOTAL_BYTES_FIELD_INDEX),
-                    totalChunks = table.readInt(TRANSFER_START_TOTAL_CHUNKS_FIELD_INDEX),
-                    maxChunkPayloadBytes = table.readInt(TRANSFER_START_CHUNK_BYTES_FIELD_INDEX),
-                )
-
-            WireEnvelopeType.TRANSFER_CHUNK ->
-                WireFrame.TransferChunk(
-                    transferId =
-                        requireString(
-                            table,
-                            TRANSFER_CHUNK_ID_FIELD_INDEX,
-                            "TRANSFER_CHUNK.transferId",
-                        ),
-                    chunkIndex = table.readInt(TRANSFER_CHUNK_INDEX_FIELD_INDEX),
-                    payload =
-                        requireByteVector(
-                            table,
-                            TRANSFER_CHUNK_PAYLOAD_FIELD_INDEX,
-                            "TRANSFER_CHUNK.payload",
-                        ),
-                )
-
-            WireEnvelopeType.TRANSFER_ACK ->
-                WireFrame.TransferAck(
-                    transferId =
-                        requireString(
-                            table,
-                            TRANSFER_ACK_ID_FIELD_INDEX,
-                            "TRANSFER_ACK.transferId",
-                        ),
-                    highestContiguousAck =
-                        table.readInt(TRANSFER_ACK_HIGHEST_CONTIGUOUS_FIELD_INDEX),
-                    selectiveRanges =
-                        requireByteVector(
-                            table,
-                            TRANSFER_ACK_SELECTIVE_RANGES_FIELD_INDEX,
-                            "TRANSFER_ACK.selectiveRanges",
-                        ),
-                )
-
-            WireEnvelopeType.TRANSFER_COMPLETE ->
-                WireFrame.TransferComplete(
-                    transferId =
-                        requireString(
-                            table,
-                            TRANSFER_COMPLETE_ID_FIELD_INDEX,
-                            "TRANSFER_COMPLETE.transferId",
-                        )
-                )
-
-            WireEnvelopeType.TRANSFER_ABORT ->
-                WireFrame.TransferAbort(
-                    transferId =
-                        requireString(
-                            table,
-                            TRANSFER_ABORT_ID_FIELD_INDEX,
-                            "TRANSFER_ABORT.transferId",
-                        ),
-                    reasonCode = table.readInt(TRANSFER_ABORT_REASON_FIELD_INDEX),
-                )
+            WireEnvelopeType.MESSAGE -> MessagePayloadCodec.decode(table)
+            WireEnvelopeType.HELLO,
+            WireEnvelopeType.IHU,
+            WireEnvelopeType.ROUTE_UPDATE,
+            WireEnvelopeType.ROUTE_RETRACTION,
+            WireEnvelopeType.SEQNO_REQUEST,
+            WireEnvelopeType.ROUTE_DIGEST -> RoutingPayloadCodec.decode(type, table)
+            WireEnvelopeType.TRANSFER_START,
+            WireEnvelopeType.TRANSFER_CHUNK,
+            WireEnvelopeType.TRANSFER_ACK,
+            WireEnvelopeType.TRANSFER_COMPLETE,
+            WireEnvelopeType.TRANSFER_ABORT -> TransferPayloadCodec.decode(type, table)
         }
     }
 
     private fun encodePayload(frame: WireFrame): ByteArray {
         return when (frame) {
-            is WireFrame.Hello ->
-                FlatBufferTableBuilder(fieldCount = HELLO_FIELD_COUNT)
-                    .addString(HELLO_PEER_ID_FIELD_INDEX, frame.peerId.value)
-                    .addInt(HELLO_INTERVAL_FIELD_INDEX, frame.helloIntervalMillis)
-                    .finish()
-
-            is WireFrame.Ihu ->
-                FlatBufferTableBuilder(fieldCount = IHU_FIELD_COUNT)
-                    .addString(IHU_PEER_ID_FIELD_INDEX, frame.peerId.value)
-                    .addInt(IHU_RECEIVE_COST_FIELD_INDEX, frame.receiveCost)
-                    .finish()
-
-            is WireFrame.RouteUpdate ->
-                FlatBufferTableBuilder(fieldCount = ROUTE_UPDATE_FIELD_COUNT)
-                    .addString(ROUTE_UPDATE_DESTINATION_FIELD_INDEX, frame.destinationPeerId.value)
-                    .addString(ROUTE_UPDATE_NEXT_HOP_FIELD_INDEX, frame.nextHopPeerId.value)
-                    .addInt(ROUTE_UPDATE_METRIC_FIELD_INDEX, frame.metric)
-                    .addLong(ROUTE_UPDATE_SEQ_NO_FIELD_INDEX, frame.seqNo)
-                    .addInt(ROUTE_UPDATE_FEASIBILITY_FIELD_INDEX, frame.feasibilityMetric)
-                    .addByteVector(
-                        ROUTE_UPDATE_ED25519_FIELD_INDEX,
-                        frame.destinationEd25519PublicKey,
-                    )
-                    .addByteVector(
-                        ROUTE_UPDATE_X25519_FIELD_INDEX,
-                        frame.destinationX25519PublicKey,
-                    )
-                    .finish()
-
-            is WireFrame.RouteRetraction ->
-                FlatBufferTableBuilder(fieldCount = ROUTE_RETRACTION_FIELD_COUNT)
-                    .addString(
-                        ROUTE_RETRACTION_DESTINATION_FIELD_INDEX,
-                        frame.destinationPeerId.value,
-                    )
-                    .addLong(ROUTE_RETRACTION_SEQ_NO_FIELD_INDEX, frame.seqNo)
-                    .finish()
-
-            is WireFrame.SeqNoRequest ->
-                FlatBufferTableBuilder(fieldCount = SEQNO_REQUEST_FIELD_COUNT)
-                    .addString(SEQNO_REQUEST_DESTINATION_FIELD_INDEX, frame.destinationPeerId.value)
-                    .addLong(SEQNO_REQUEST_SEQ_NO_FIELD_INDEX, frame.requestedSeqNo)
-                    .finish()
-
-            is WireFrame.RouteDigest ->
-                FlatBufferTableBuilder(fieldCount = ROUTE_DIGEST_FIELD_COUNT)
-                    .addString(ROUTE_DIGEST_PEER_ID_FIELD_INDEX, frame.peerId.value)
-                    .addByteVector(ROUTE_DIGEST_DIGEST_FIELD_INDEX, frame.digest)
-                    .finish()
-
-            is WireFrame.Message ->
-                FlatBufferTableBuilder(fieldCount = MESSAGE_FIELD_COUNT)
-                    .addString(MESSAGE_ID_FIELD_INDEX, frame.messageId)
-                    .addString(MESSAGE_ORIGIN_FIELD_INDEX, frame.originPeerId.value)
-                    .addString(MESSAGE_DESTINATION_FIELD_INDEX, frame.destinationPeerId.value)
-                    .addByte(MESSAGE_PRIORITY_FIELD_INDEX, priorityCode(frame.priority))
-                    .addInt(MESSAGE_TTL_FIELD_INDEX, frame.ttlMillis)
-                    .addByteVector(MESSAGE_PAYLOAD_FIELD_INDEX, frame.encryptedPayload)
-                    .finish()
-
-            is WireFrame.TransferStart ->
-                FlatBufferTableBuilder(fieldCount = TRANSFER_START_FIELD_COUNT)
-                    .addString(TRANSFER_START_ID_FIELD_INDEX, frame.transferId)
-                    .addString(TRANSFER_START_MESSAGE_ID_FIELD_INDEX, frame.messageId)
-                    .addString(TRANSFER_START_ORIGIN_FIELD_INDEX, frame.originPeerId.value)
-                    .addString(
-                        TRANSFER_START_DESTINATION_FIELD_INDEX,
-                        frame.destinationPeerId.value,
-                    )
-                    .addInt(TRANSFER_START_TOTAL_BYTES_FIELD_INDEX, frame.totalBytes)
-                    .addInt(TRANSFER_START_TOTAL_CHUNKS_FIELD_INDEX, frame.totalChunks)
-                    .addInt(TRANSFER_START_CHUNK_BYTES_FIELD_INDEX, frame.maxChunkPayloadBytes)
-                    .finish()
-
-            is WireFrame.TransferChunk ->
-                FlatBufferTableBuilder(fieldCount = TRANSFER_CHUNK_FIELD_COUNT)
-                    .addString(TRANSFER_CHUNK_ID_FIELD_INDEX, frame.transferId)
-                    .addInt(TRANSFER_CHUNK_INDEX_FIELD_INDEX, frame.chunkIndex)
-                    .addByteVector(TRANSFER_CHUNK_PAYLOAD_FIELD_INDEX, frame.payload)
-                    .finish()
-
-            is WireFrame.TransferAck ->
-                FlatBufferTableBuilder(fieldCount = TRANSFER_ACK_FIELD_COUNT)
-                    .addString(TRANSFER_ACK_ID_FIELD_INDEX, frame.transferId)
-                    .addInt(TRANSFER_ACK_HIGHEST_CONTIGUOUS_FIELD_INDEX, frame.highestContiguousAck)
-                    .addByteVector(TRANSFER_ACK_SELECTIVE_RANGES_FIELD_INDEX, frame.selectiveRanges)
-                    .finish()
-
-            is WireFrame.TransferComplete ->
-                FlatBufferTableBuilder(fieldCount = TRANSFER_COMPLETE_FIELD_COUNT)
-                    .addString(TRANSFER_COMPLETE_ID_FIELD_INDEX, frame.transferId)
-                    .finish()
-
-            is WireFrame.TransferAbort ->
-                FlatBufferTableBuilder(fieldCount = TRANSFER_ABORT_FIELD_COUNT)
-                    .addString(TRANSFER_ABORT_ID_FIELD_INDEX, frame.transferId)
-                    .addInt(TRANSFER_ABORT_REASON_FIELD_INDEX, frame.reasonCode)
-                    .finish()
+            is WireFrame.Message -> MessagePayloadCodec.encode(frame)
+            is WireFrame.Hello,
+            is WireFrame.Ihu,
+            is WireFrame.RouteUpdate,
+            is WireFrame.RouteRetraction,
+            is WireFrame.SeqNoRequest,
+            is WireFrame.RouteDigest -> RoutingPayloadCodec.encode(frame)
+            is WireFrame.TransferStart,
+            is WireFrame.TransferChunk,
+            is WireFrame.TransferAck,
+            is WireFrame.TransferComplete,
+            is WireFrame.TransferAbort -> TransferPayloadCodec.encode(frame)
         }
     }
 
@@ -433,6 +185,355 @@ internal object WireCodec {
             is WireFrame.TransferAck -> WireEnvelopeType.TRANSFER_ACK
             is WireFrame.TransferComplete -> WireEnvelopeType.TRANSFER_COMPLETE
             is WireFrame.TransferAbort -> WireEnvelopeType.TRANSFER_ABORT
+        }
+    }
+
+    private object RoutingPayloadCodec {
+        fun decode(type: WireEnvelopeType, table: FlatBufferTable): WireFrame {
+            return when (type) {
+                WireEnvelopeType.HELLO ->
+                    WireFrame.Hello(
+                        peerId =
+                            PeerId(requireString(table, HELLO_PEER_ID_FIELD_INDEX, "HELLO.peerId")),
+                        helloIntervalMillis = table.readInt(HELLO_INTERVAL_FIELD_INDEX),
+                    )
+                WireEnvelopeType.IHU ->
+                    WireFrame.Ihu(
+                        peerId =
+                            PeerId(requireString(table, IHU_PEER_ID_FIELD_INDEX, "IHU.peerId")),
+                        receiveCost = table.readInt(IHU_RECEIVE_COST_FIELD_INDEX),
+                    )
+                WireEnvelopeType.ROUTE_UPDATE -> decodeRouteUpdate(table)
+                WireEnvelopeType.ROUTE_RETRACTION ->
+                    WireFrame.RouteRetraction(
+                        destinationPeerId =
+                            PeerId(
+                                requireString(
+                                    table,
+                                    ROUTE_RETRACTION_DESTINATION_FIELD_INDEX,
+                                    "ROUTE_RETRACTION.destinationPeerId",
+                                )
+                            ),
+                        seqNo = table.readLong(ROUTE_RETRACTION_SEQ_NO_FIELD_INDEX),
+                    )
+                WireEnvelopeType.SEQNO_REQUEST ->
+                    WireFrame.SeqNoRequest(
+                        destinationPeerId =
+                            PeerId(
+                                requireString(
+                                    table,
+                                    SEQNO_REQUEST_DESTINATION_FIELD_INDEX,
+                                    "SEQNO_REQUEST.destinationPeerId",
+                                )
+                            ),
+                        requestedSeqNo = table.readLong(SEQNO_REQUEST_SEQ_NO_FIELD_INDEX),
+                    )
+                WireEnvelopeType.ROUTE_DIGEST ->
+                    WireFrame.RouteDigest(
+                        peerId =
+                            PeerId(
+                                requireString(
+                                    table,
+                                    ROUTE_DIGEST_PEER_ID_FIELD_INDEX,
+                                    "ROUTE_DIGEST.peerId",
+                                )
+                            ),
+                        digest =
+                            requireByteVector(
+                                table,
+                                ROUTE_DIGEST_DIGEST_FIELD_INDEX,
+                                "ROUTE_DIGEST.digest",
+                            ),
+                    )
+                else -> error("Unsupported routing envelope type $type")
+            }
+        }
+
+        fun encode(frame: WireFrame): ByteArray {
+            return when (frame) {
+                is WireFrame.Hello ->
+                    FlatBufferTableBuilder(fieldCount = HELLO_FIELD_COUNT)
+                        .addString(HELLO_PEER_ID_FIELD_INDEX, frame.peerId.value)
+                        .addInt(HELLO_INTERVAL_FIELD_INDEX, frame.helloIntervalMillis)
+                        .finish()
+                is WireFrame.Ihu ->
+                    FlatBufferTableBuilder(fieldCount = IHU_FIELD_COUNT)
+                        .addString(IHU_PEER_ID_FIELD_INDEX, frame.peerId.value)
+                        .addInt(IHU_RECEIVE_COST_FIELD_INDEX, frame.receiveCost)
+                        .finish()
+                is WireFrame.RouteUpdate -> encodeRouteUpdate(frame)
+                is WireFrame.RouteRetraction ->
+                    FlatBufferTableBuilder(fieldCount = ROUTE_RETRACTION_FIELD_COUNT)
+                        .addString(
+                            ROUTE_RETRACTION_DESTINATION_FIELD_INDEX,
+                            frame.destinationPeerId.value,
+                        )
+                        .addLong(ROUTE_RETRACTION_SEQ_NO_FIELD_INDEX, frame.seqNo)
+                        .finish()
+                is WireFrame.SeqNoRequest ->
+                    FlatBufferTableBuilder(fieldCount = SEQNO_REQUEST_FIELD_COUNT)
+                        .addString(
+                            SEQNO_REQUEST_DESTINATION_FIELD_INDEX,
+                            frame.destinationPeerId.value,
+                        )
+                        .addLong(SEQNO_REQUEST_SEQ_NO_FIELD_INDEX, frame.requestedSeqNo)
+                        .finish()
+                is WireFrame.RouteDigest ->
+                    FlatBufferTableBuilder(fieldCount = ROUTE_DIGEST_FIELD_COUNT)
+                        .addString(ROUTE_DIGEST_PEER_ID_FIELD_INDEX, frame.peerId.value)
+                        .addByteVector(ROUTE_DIGEST_DIGEST_FIELD_INDEX, frame.digest)
+                        .finish()
+                else -> error("Unsupported routing frame")
+            }
+        }
+
+        private fun decodeRouteUpdate(table: FlatBufferTable): WireFrame.RouteUpdate {
+            return WireFrame.RouteUpdate(
+                destinationPeerId =
+                    PeerId(
+                        requireString(
+                            table,
+                            ROUTE_UPDATE_DESTINATION_FIELD_INDEX,
+                            "ROUTE_UPDATE.destinationPeerId",
+                        )
+                    ),
+                nextHopPeerId =
+                    PeerId(
+                        requireString(
+                            table,
+                            ROUTE_UPDATE_NEXT_HOP_FIELD_INDEX,
+                            "ROUTE_UPDATE.nextHopPeerId",
+                        )
+                    ),
+                metrics =
+                    WireFrame.RouteUpdateMetrics(
+                        metric = table.readInt(ROUTE_UPDATE_METRIC_FIELD_INDEX),
+                        seqNo = table.readLong(ROUTE_UPDATE_SEQ_NO_FIELD_INDEX),
+                        feasibilityMetric = table.readInt(ROUTE_UPDATE_FEASIBILITY_FIELD_INDEX),
+                    ),
+                publicKeys =
+                    WireFrame.RouteUpdatePublicKeys(
+                        destinationEd25519PublicKey =
+                            requireByteVector(
+                                table,
+                                ROUTE_UPDATE_ED25519_FIELD_INDEX,
+                                "ROUTE_UPDATE.destinationEd25519PublicKey",
+                            ),
+                        destinationX25519PublicKey =
+                            requireByteVector(
+                                table,
+                                ROUTE_UPDATE_X25519_FIELD_INDEX,
+                                "ROUTE_UPDATE.destinationX25519PublicKey",
+                            ),
+                    ),
+            )
+        }
+
+        private fun encodeRouteUpdate(frame: WireFrame.RouteUpdate): ByteArray {
+            return FlatBufferTableBuilder(fieldCount = ROUTE_UPDATE_FIELD_COUNT)
+                .addString(ROUTE_UPDATE_DESTINATION_FIELD_INDEX, frame.destinationPeerId.value)
+                .addString(ROUTE_UPDATE_NEXT_HOP_FIELD_INDEX, frame.nextHopPeerId.value)
+                .addInt(ROUTE_UPDATE_METRIC_FIELD_INDEX, frame.metric)
+                .addLong(ROUTE_UPDATE_SEQ_NO_FIELD_INDEX, frame.seqNo)
+                .addInt(ROUTE_UPDATE_FEASIBILITY_FIELD_INDEX, frame.feasibilityMetric)
+                .addByteVector(ROUTE_UPDATE_ED25519_FIELD_INDEX, frame.destinationEd25519PublicKey)
+                .addByteVector(ROUTE_UPDATE_X25519_FIELD_INDEX, frame.destinationX25519PublicKey)
+                .finish()
+        }
+    }
+
+    private object MessagePayloadCodec {
+        fun decode(table: FlatBufferTable): WireFrame.Message {
+            return WireFrame.Message(
+                messageId = requireString(table, MESSAGE_ID_FIELD_INDEX, "MESSAGE.messageId"),
+                originPeerId =
+                    PeerId(
+                        requireString(table, MESSAGE_ORIGIN_FIELD_INDEX, "MESSAGE.originPeerId")
+                    ),
+                destinationPeerId =
+                    PeerId(
+                        requireString(
+                            table,
+                            MESSAGE_DESTINATION_FIELD_INDEX,
+                            "MESSAGE.destinationPeerId",
+                        )
+                    ),
+                priority = priorityFromCode(table.readByte(MESSAGE_PRIORITY_FIELD_INDEX)),
+                ttlMillis = table.readInt(MESSAGE_TTL_FIELD_INDEX),
+                encryptedPayload =
+                    requireByteVector(
+                        table,
+                        MESSAGE_PAYLOAD_FIELD_INDEX,
+                        "MESSAGE.encryptedPayload",
+                    ),
+            )
+        }
+
+        fun encode(frame: WireFrame.Message): ByteArray {
+            return FlatBufferTableBuilder(fieldCount = MESSAGE_FIELD_COUNT)
+                .addString(MESSAGE_ID_FIELD_INDEX, frame.messageId)
+                .addString(MESSAGE_ORIGIN_FIELD_INDEX, frame.originPeerId.value)
+                .addString(MESSAGE_DESTINATION_FIELD_INDEX, frame.destinationPeerId.value)
+                .addByte(MESSAGE_PRIORITY_FIELD_INDEX, priorityCode(frame.priority))
+                .addInt(MESSAGE_TTL_FIELD_INDEX, frame.ttlMillis)
+                .addByteVector(MESSAGE_PAYLOAD_FIELD_INDEX, frame.encryptedPayload)
+                .finish()
+        }
+    }
+
+    private object TransferPayloadCodec {
+        fun decode(type: WireEnvelopeType, table: FlatBufferTable): WireFrame {
+            return when (type) {
+                WireEnvelopeType.TRANSFER_START -> decodeTransferStart(table)
+                WireEnvelopeType.TRANSFER_CHUNK -> decodeTransferChunk(table)
+                WireEnvelopeType.TRANSFER_ACK -> decodeTransferAck(table)
+                WireEnvelopeType.TRANSFER_COMPLETE -> decodeTransferComplete(table)
+                WireEnvelopeType.TRANSFER_ABORT -> decodeTransferAbort(table)
+                else -> error("Unsupported transfer envelope type $type")
+            }
+        }
+
+        private fun decodeTransferStart(table: FlatBufferTable): WireFrame.TransferStart {
+            return WireFrame.TransferStart(
+                route =
+                    WireFrame.TransferStartRoute(
+                        transferId =
+                            requireString(
+                                table,
+                                TRANSFER_START_ID_FIELD_INDEX,
+                                "TRANSFER_START.transferId",
+                            ),
+                        messageId =
+                            requireString(
+                                table,
+                                TRANSFER_START_MESSAGE_ID_FIELD_INDEX,
+                                "TRANSFER_START.messageId",
+                            ),
+                        originPeerId =
+                            PeerId(
+                                requireString(
+                                    table,
+                                    TRANSFER_START_ORIGIN_FIELD_INDEX,
+                                    "TRANSFER_START.originPeerId",
+                                )
+                            ),
+                        destinationPeerId =
+                            PeerId(
+                                requireString(
+                                    table,
+                                    TRANSFER_START_DESTINATION_FIELD_INDEX,
+                                    "TRANSFER_START.destinationPeerId",
+                                )
+                            ),
+                    ),
+                sizing =
+                    WireFrame.TransferStartSizing(
+                        totalBytes = table.readInt(TRANSFER_START_TOTAL_BYTES_FIELD_INDEX),
+                        totalChunks = table.readInt(TRANSFER_START_TOTAL_CHUNKS_FIELD_INDEX),
+                        maxChunkPayloadBytes = table.readInt(TRANSFER_START_CHUNK_BYTES_FIELD_INDEX),
+                    ),
+            )
+        }
+
+        private fun decodeTransferChunk(table: FlatBufferTable): WireFrame.TransferChunk {
+            return WireFrame.TransferChunk(
+                transferId =
+                    requireString(
+                        table,
+                        TRANSFER_CHUNK_ID_FIELD_INDEX,
+                        "TRANSFER_CHUNK.transferId",
+                    ),
+                chunkIndex = table.readInt(TRANSFER_CHUNK_INDEX_FIELD_INDEX),
+                payload =
+                    requireByteVector(
+                        table,
+                        TRANSFER_CHUNK_PAYLOAD_FIELD_INDEX,
+                        "TRANSFER_CHUNK.payload",
+                    ),
+            )
+        }
+
+        private fun decodeTransferAck(table: FlatBufferTable): WireFrame.TransferAck {
+            return WireFrame.TransferAck(
+                transferId =
+                    requireString(table, TRANSFER_ACK_ID_FIELD_INDEX, "TRANSFER_ACK.transferId"),
+                highestContiguousAck = table.readInt(TRANSFER_ACK_HIGHEST_CONTIGUOUS_FIELD_INDEX),
+                selectiveRanges =
+                    requireByteVector(
+                        table,
+                        TRANSFER_ACK_SELECTIVE_RANGES_FIELD_INDEX,
+                        "TRANSFER_ACK.selectiveRanges",
+                    ),
+            )
+        }
+
+        private fun decodeTransferComplete(table: FlatBufferTable): WireFrame.TransferComplete {
+            return WireFrame.TransferComplete(
+                transferId =
+                    requireString(
+                        table,
+                        TRANSFER_COMPLETE_ID_FIELD_INDEX,
+                        "TRANSFER_COMPLETE.transferId",
+                    )
+            )
+        }
+
+        private fun decodeTransferAbort(table: FlatBufferTable): WireFrame.TransferAbort {
+            return WireFrame.TransferAbort(
+                transferId =
+                    requireString(
+                        table,
+                        TRANSFER_ABORT_ID_FIELD_INDEX,
+                        "TRANSFER_ABORT.transferId",
+                    ),
+                reasonCode = table.readInt(TRANSFER_ABORT_REASON_FIELD_INDEX),
+            )
+        }
+
+        fun encode(frame: WireFrame): ByteArray {
+            return when (frame) {
+                is WireFrame.TransferStart ->
+                    FlatBufferTableBuilder(fieldCount = TRANSFER_START_FIELD_COUNT)
+                        .addString(TRANSFER_START_ID_FIELD_INDEX, frame.transferId)
+                        .addString(TRANSFER_START_MESSAGE_ID_FIELD_INDEX, frame.messageId)
+                        .addString(TRANSFER_START_ORIGIN_FIELD_INDEX, frame.originPeerId.value)
+                        .addString(
+                            TRANSFER_START_DESTINATION_FIELD_INDEX,
+                            frame.destinationPeerId.value,
+                        )
+                        .addInt(TRANSFER_START_TOTAL_BYTES_FIELD_INDEX, frame.totalBytes)
+                        .addInt(TRANSFER_START_TOTAL_CHUNKS_FIELD_INDEX, frame.totalChunks)
+                        .addInt(TRANSFER_START_CHUNK_BYTES_FIELD_INDEX, frame.maxChunkPayloadBytes)
+                        .finish()
+                is WireFrame.TransferChunk ->
+                    FlatBufferTableBuilder(fieldCount = TRANSFER_CHUNK_FIELD_COUNT)
+                        .addString(TRANSFER_CHUNK_ID_FIELD_INDEX, frame.transferId)
+                        .addInt(TRANSFER_CHUNK_INDEX_FIELD_INDEX, frame.chunkIndex)
+                        .addByteVector(TRANSFER_CHUNK_PAYLOAD_FIELD_INDEX, frame.payload)
+                        .finish()
+                is WireFrame.TransferAck ->
+                    FlatBufferTableBuilder(fieldCount = TRANSFER_ACK_FIELD_COUNT)
+                        .addString(TRANSFER_ACK_ID_FIELD_INDEX, frame.transferId)
+                        .addInt(
+                            TRANSFER_ACK_HIGHEST_CONTIGUOUS_FIELD_INDEX,
+                            frame.highestContiguousAck,
+                        )
+                        .addByteVector(
+                            TRANSFER_ACK_SELECTIVE_RANGES_FIELD_INDEX,
+                            frame.selectiveRanges,
+                        )
+                        .finish()
+                is WireFrame.TransferComplete ->
+                    FlatBufferTableBuilder(fieldCount = TRANSFER_COMPLETE_FIELD_COUNT)
+                        .addString(TRANSFER_COMPLETE_ID_FIELD_INDEX, frame.transferId)
+                        .finish()
+                is WireFrame.TransferAbort ->
+                    FlatBufferTableBuilder(fieldCount = TRANSFER_ABORT_FIELD_COUNT)
+                        .addString(TRANSFER_ABORT_ID_FIELD_INDEX, frame.transferId)
+                        .addInt(TRANSFER_ABORT_REASON_FIELD_INDEX, frame.reasonCode)
+                        .finish()
+                else -> error("Unsupported transfer frame")
+            }
         }
     }
 

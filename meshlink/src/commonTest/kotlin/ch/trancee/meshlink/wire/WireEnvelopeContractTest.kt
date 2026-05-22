@@ -47,11 +47,17 @@ class WireEnvelopeContractTest {
                 WireFrame.RouteUpdate(
                     destinationPeerId = PeerId("destination-peer-002"),
                     nextHopPeerId = PeerId("next-hop-peer-002"),
-                    metric = 3,
-                    seqNo = 4_294_967_300L,
-                    feasibilityMetric = 2,
-                    destinationEd25519PublicKey = byteArrayOf(1, 2, 3, 4),
-                    destinationX25519PublicKey = byteArrayOf(5, 6, 7, 8),
+                    metrics =
+                        WireFrame.RouteUpdateMetrics(
+                            metric = 3,
+                            seqNo = 4_294_967_300L,
+                            feasibilityMetric = 2,
+                        ),
+                    publicKeys =
+                        WireFrame.RouteUpdatePublicKeys(
+                            destinationEd25519PublicKey = byteArrayOf(1, 2, 3, 4),
+                            destinationX25519PublicKey = byteArrayOf(5, 6, 7, 8),
+                        ),
                 ),
                 WireFrame.RouteRetraction(
                     destinationPeerId = PeerId("destination-peer-003"),
@@ -82,13 +88,19 @@ class WireEnvelopeContractTest {
         val frames =
             listOf<WireFrame>(
                 WireFrame.TransferStart(
-                    transferId = "transfer-001",
-                    messageId = "message-001",
-                    originPeerId = PeerId("origin-peer-001"),
-                    destinationPeerId = PeerId("destination-peer-001"),
-                    totalBytes = 65_520,
-                    totalChunks = 64,
-                    maxChunkPayloadBytes = 1_024,
+                    route =
+                        WireFrame.TransferStartRoute(
+                            transferId = "transfer-001",
+                            messageId = "message-001",
+                            originPeerId = PeerId("origin-peer-001"),
+                            destinationPeerId = PeerId("destination-peer-001"),
+                        ),
+                    sizing =
+                        WireFrame.TransferStartSizing(
+                            totalBytes = 65_520,
+                            totalChunks = 64,
+                            maxChunkPayloadBytes = 1_024,
+                        ),
                 ),
                 WireFrame.TransferChunk(
                     transferId = "transfer-001",
@@ -246,11 +258,18 @@ class WireEnvelopeContractTest {
                         WireFrame.RouteUpdate(
                             destinationPeerId = PeerId("fixture-destination-002"),
                             nextHopPeerId = PeerId("fixture-next-hop-002"),
-                            metric = 2,
-                            seqNo = 4_294_967_300L,
-                            feasibilityMetric = 1,
-                            destinationEd25519PublicKey = byteArrayOf(0x11, 0x12, 0x13, 0x14),
-                            destinationX25519PublicKey = byteArrayOf(0x21, 0x22, 0x23, 0x24),
+                            metrics =
+                                WireFrame.RouteUpdateMetrics(
+                                    metric = 2,
+                                    seqNo = 4_294_967_300L,
+                                    feasibilityMetric = 1,
+                                ),
+                            publicKeys =
+                                WireFrame.RouteUpdatePublicKeys(
+                                    destinationEd25519PublicKey =
+                                        byteArrayOf(0x11, 0x12, 0x13, 0x14),
+                                    destinationX25519PublicKey = byteArrayOf(0x21, 0x22, 0x23, 0x24),
+                                ),
                         ),
                     encodedBytes = encodedBytes,
                 )

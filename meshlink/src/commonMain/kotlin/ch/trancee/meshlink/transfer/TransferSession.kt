@@ -29,13 +29,19 @@ internal data class TransferStartDescriptor(
 ) {
     fun asStartFrame(): WireFrame.TransferStart {
         return WireFrame.TransferStart(
-            transferId = route.transferId,
-            messageId = route.messageId,
-            originPeerId = route.originPeerId,
-            destinationPeerId = route.destinationPeerId,
-            totalBytes = totalBytes,
-            totalChunks = totalChunks,
-            maxChunkPayloadBytes = maxChunkPayloadBytes,
+            route =
+                WireFrame.TransferStartRoute(
+                    transferId = route.transferId,
+                    messageId = route.messageId,
+                    originPeerId = route.originPeerId,
+                    destinationPeerId = route.destinationPeerId,
+                ),
+            sizing =
+                WireFrame.TransferStartSizing(
+                    totalBytes = totalBytes,
+                    totalChunks = totalChunks,
+                    maxChunkPayloadBytes = maxChunkPayloadBytes,
+                ),
         )
     }
 }

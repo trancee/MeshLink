@@ -141,11 +141,13 @@ class RouteCoordinatorTest {
         return WireFrame.RouteUpdate(
             destinationPeerId = destinationPeerId,
             nextHopPeerId = relayPeerId,
-            metric = 1,
-            seqNo = seqNo,
-            feasibilityMetric = 1,
-            destinationEd25519PublicKey = repeatedByteArray(seed),
-            destinationX25519PublicKey = repeatedByteArray(seed + 25),
+            metrics =
+                WireFrame.RouteUpdateMetrics(metric = 1, seqNo = seqNo, feasibilityMetric = 1),
+            publicKeys =
+                WireFrame.RouteUpdatePublicKeys(
+                    destinationEd25519PublicKey = repeatedByteArray(seed),
+                    destinationX25519PublicKey = repeatedByteArray(seed + 25),
+                ),
         )
     }
 

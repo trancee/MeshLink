@@ -314,11 +314,17 @@ internal constructor(
         return WireFrame.RouteUpdate(
             destinationPeerId = destinationPeerId,
             nextHopPeerId = nextHopPeerId,
-            metric = metric,
-            seqNo = seqNo,
-            feasibilityMetric = feasibilityMetric,
-            destinationEd25519PublicKey = ed25519PublicKey,
-            destinationX25519PublicKey = x25519PublicKey,
+            metrics =
+                WireFrame.RouteUpdateMetrics(
+                    metric = metric,
+                    seqNo = seqNo,
+                    feasibilityMetric = feasibilityMetric,
+                ),
+            publicKeys =
+                WireFrame.RouteUpdatePublicKeys(
+                    destinationEd25519PublicKey = ed25519PublicKey,
+                    destinationX25519PublicKey = x25519PublicKey,
+                ),
         )
     }
 
