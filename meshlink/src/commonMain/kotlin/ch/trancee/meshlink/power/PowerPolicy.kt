@@ -9,29 +9,60 @@ internal enum class PowerTier {
     POWER_SAVER,
 }
 
-internal class PowerPolicy
+internal class PowerPolicyProfile
 internal constructor(
-    internal val tier: PowerTier,
     internal val advertisementIntervalMillis: Long,
     internal val connectionIntervalMillis: Long,
     internal val scanDutyCyclePercent: Int,
     internal val maxConnections: Int,
     internal val chunkBudgetBytes: Int,
+)
+
+internal class PowerPolicy
+internal constructor(
+    internal val tier: PowerTier,
+    profile: PowerPolicyProfile,
     internal val region: RegulatoryRegion,
     clampWarnings: List<String> = emptyList(),
 ) {
+    internal val advertisementIntervalMillis: Long = profile.advertisementIntervalMillis
+    internal val connectionIntervalMillis: Long = profile.connectionIntervalMillis
+    internal val scanDutyCyclePercent: Int = profile.scanDutyCyclePercent
+    internal val maxConnections: Int = profile.maxConnections
+    internal val chunkBudgetBytes: Int = profile.chunkBudgetBytes
     internal val clampWarnings: List<String> = clampWarnings.toList()
 }
+
+private data class AutomaticTierConfig(
+    val performanceThreshold: Float,
+    val powerSaverThreshold: Float,
+    val hysteresisBand: Float,
+    val bootstrapDurationMillis: Long,
+)
+
+private data class AutomaticTierState(
+    val batteryLevel: Float,
+    val charging: Boolean,
+    val bootstrapStartedAtMillis: Long?,
+    val lastTier: PowerTier?,
+)
 
 internal class PowerPolicyController
 internal constructor(
     private val configuredMode: PowerMode,
     private val region: RegulatoryRegion,
-    private val performanceThreshold: Float = DEFAULT_PERFORMANCE_THRESHOLD,
-    private val powerSaverThreshold: Float = DEFAULT_POWER_SAVER_THRESHOLD,
-    private val hysteresisBand: Float = DEFAULT_HYSTERESIS_BAND,
-    private val bootstrapDurationMillis: Long = DEFAULT_BOOTSTRAP_DURATION_MILLIS,
+    performanceThreshold: Float = DEFAULT_PERFORMANCE_THRESHOLD,
+    powerSaverThreshold: Float = DEFAULT_POWER_SAVER_THRESHOLD,
+    hysteresisBand: Float = DEFAULT_HYSTERESIS_BAND,
+    bootstrapDurationMillis: Long = DEFAULT_BOOTSTRAP_DURATION_MILLIS,
 ) {
+    private val automaticTierConfig =
+        AutomaticTierConfig(
+            performanceThreshold = performanceThreshold,
+            powerSaverThreshold = powerSaverThreshold,
+            hysteresisBand = hysteresisBand,
+            bootstrapDurationMillis = bootstrapDurationMillis,
+        )
     private var batteryLevel: Float = 1.0f
     private var charging: Boolean = false
     private var bootstrapStartedAtMillis: Long? = null
@@ -70,74 +101,17 @@ internal constructor(
     }
 
     private fun resolveAutomaticTier(nowMillis: Long): PowerTier {
-        if (isBootstrapActive(nowMillis) || charging) {
-            return PowerTier.PERFORMANCE
-        }
-        return when (lastTier) {
-            PowerTier.PERFORMANCE -> resolveTierFromPerformance()
-            PowerTier.BALANCED -> resolveTierFromBalanced()
-            PowerTier.POWER_SAVER -> resolveTierFromPowerSaver()
-            null -> resolveTierWithoutHistory()
-        }
-    }
-
-    private fun resolveTierFromPerformance(): PowerTier {
-        if (!isBelowPerformanceDowngradeThreshold()) {
-            return PowerTier.PERFORMANCE
-        }
-        return if (isBelowPowerSaverDowngradeThreshold()) {
-            PowerTier.POWER_SAVER
-        } else {
-            PowerTier.BALANCED
-        }
-    }
-
-    private fun resolveTierFromBalanced(): PowerTier {
-        return when {
-            isAbovePerformanceRecoveryThreshold() -> PowerTier.PERFORMANCE
-            isBelowPowerSaverDowngradeThreshold() -> PowerTier.POWER_SAVER
-            else -> PowerTier.BALANCED
-        }
-    }
-
-    private fun resolveTierFromPowerSaver(): PowerTier {
-        if (!isAbovePowerSaverRecoveryThreshold()) {
-            return PowerTier.POWER_SAVER
-        }
-        return if (isAbovePerformanceRecoveryThreshold()) {
-            PowerTier.PERFORMANCE
-        } else {
-            PowerTier.BALANCED
-        }
-    }
-
-    private fun resolveTierWithoutHistory(): PowerTier {
-        return when {
-            batteryLevel > performanceThreshold -> PowerTier.PERFORMANCE
-            batteryLevel < powerSaverThreshold -> PowerTier.POWER_SAVER
-            else -> PowerTier.BALANCED
-        }
-    }
-
-    private fun isBelowPerformanceDowngradeThreshold(): Boolean {
-        return batteryLevel < performanceThreshold - hysteresisBand
-    }
-
-    private fun isBelowPowerSaverDowngradeThreshold(): Boolean {
-        return batteryLevel < powerSaverThreshold - hysteresisBand
-    }
-
-    private fun isAbovePerformanceRecoveryThreshold(): Boolean {
-        return batteryLevel > performanceThreshold + hysteresisBand
-    }
-
-    private fun isAbovePowerSaverRecoveryThreshold(): Boolean {
-        return batteryLevel > powerSaverThreshold + hysteresisBand
-    }
-
-    private fun isBootstrapActive(nowMillis: Long): Boolean {
-        val startedAtMillis = bootstrapStartedAtMillis ?: return false
-        return nowMillis - startedAtMillis < bootstrapDurationMillis
+        return resolveAutomaticTier(
+            nowMillis = nowMillis,
+            state =
+                AutomaticTierState(
+                    batteryLevel = batteryLevel,
+                    charging = charging,
+                    bootstrapStartedAtMillis = bootstrapStartedAtMillis,
+                    lastTier = lastTier,
+                ),
+            config = automaticTierConfig,
+        )
     }
 
     private fun basePolicyFor(tier: PowerTier): PowerPolicy {
@@ -145,33 +119,42 @@ internal constructor(
             PowerTier.PERFORMANCE ->
                 PowerPolicy(
                     tier = tier,
-                    advertisementIntervalMillis = 250L,
-                    connectionIntervalMillis = 100L,
-                    scanDutyCyclePercent = 100,
-                    maxConnections = 7,
-                    chunkBudgetBytes = 4 * 1024,
+                    profile =
+                        PowerPolicyProfile(
+                            advertisementIntervalMillis = 250L,
+                            connectionIntervalMillis = 100L,
+                            scanDutyCyclePercent = 100,
+                            maxConnections = 7,
+                            chunkBudgetBytes = 4 * 1024,
+                        ),
                     region = region,
                 )
 
             PowerTier.BALANCED ->
                 PowerPolicy(
                     tier = tier,
-                    advertisementIntervalMillis = 500L,
-                    connectionIntervalMillis = 250L,
-                    scanDutyCyclePercent = 50,
-                    maxConnections = 5,
-                    chunkBudgetBytes = 2 * 1024,
+                    profile =
+                        PowerPolicyProfile(
+                            advertisementIntervalMillis = 500L,
+                            connectionIntervalMillis = 250L,
+                            scanDutyCyclePercent = 50,
+                            maxConnections = 5,
+                            chunkBudgetBytes = 2 * 1024,
+                        ),
                     region = region,
                 )
 
             PowerTier.POWER_SAVER ->
                 PowerPolicy(
                     tier = tier,
-                    advertisementIntervalMillis = 1_000L,
-                    connectionIntervalMillis = 500L,
-                    scanDutyCyclePercent = 5,
-                    maxConnections = 3,
-                    chunkBudgetBytes = 512,
+                    profile =
+                        PowerPolicyProfile(
+                            advertisementIntervalMillis = 1_000L,
+                            connectionIntervalMillis = 500L,
+                            scanDutyCyclePercent = 5,
+                            maxConnections = 3,
+                            chunkBudgetBytes = 512,
+                        ),
                     region = region,
                 )
         }
@@ -196,11 +179,14 @@ internal constructor(
         }
         return PowerPolicy(
             tier = policy.tier,
-            advertisementIntervalMillis = advertisementIntervalMillis,
-            connectionIntervalMillis = policy.connectionIntervalMillis,
-            scanDutyCyclePercent = scanDutyCyclePercent,
-            maxConnections = policy.maxConnections,
-            chunkBudgetBytes = policy.chunkBudgetBytes,
+            profile =
+                PowerPolicyProfile(
+                    advertisementIntervalMillis = advertisementIntervalMillis,
+                    connectionIntervalMillis = policy.connectionIntervalMillis,
+                    scanDutyCyclePercent = scanDutyCyclePercent,
+                    maxConnections = policy.maxConnections,
+                    chunkBudgetBytes = policy.chunkBudgetBytes,
+                ),
             region = policy.region,
             clampWarnings = clampWarnings,
         )
@@ -214,4 +200,102 @@ internal constructor(
         private const val EU_MIN_ADVERTISEMENT_INTERVAL_MILLIS: Long = 300L
         private const val EU_MAX_SCAN_DUTY_CYCLE_PERCENT: Int = 70
     }
+}
+
+private fun resolveAutomaticTier(
+    nowMillis: Long,
+    state: AutomaticTierState,
+    config: AutomaticTierConfig,
+): PowerTier {
+    if (state.isBootstrapActive(nowMillis = nowMillis, config = config) || state.charging) {
+        return PowerTier.PERFORMANCE
+    }
+    return when (state.lastTier) {
+        PowerTier.PERFORMANCE -> resolveTierFromPerformance(state = state, config = config)
+        PowerTier.BALANCED -> resolveTierFromBalanced(state = state, config = config)
+        PowerTier.POWER_SAVER -> resolveTierFromPowerSaver(state = state, config = config)
+        null -> resolveTierWithoutHistory(state = state, config = config)
+    }
+}
+
+private fun resolveTierFromPerformance(
+    state: AutomaticTierState,
+    config: AutomaticTierConfig,
+): PowerTier {
+    if (!state.isBelowPerformanceDowngradeThreshold(config)) {
+        return PowerTier.PERFORMANCE
+    }
+    return if (state.isBelowPowerSaverDowngradeThreshold(config)) {
+        PowerTier.POWER_SAVER
+    } else {
+        PowerTier.BALANCED
+    }
+}
+
+private fun resolveTierFromBalanced(
+    state: AutomaticTierState,
+    config: AutomaticTierConfig,
+): PowerTier {
+    return when {
+        state.isAbovePerformanceRecoveryThreshold(config) -> PowerTier.PERFORMANCE
+        state.isBelowPowerSaverDowngradeThreshold(config) -> PowerTier.POWER_SAVER
+        else -> PowerTier.BALANCED
+    }
+}
+
+private fun resolveTierFromPowerSaver(
+    state: AutomaticTierState,
+    config: AutomaticTierConfig,
+): PowerTier {
+    if (!state.isAbovePowerSaverRecoveryThreshold(config)) {
+        return PowerTier.POWER_SAVER
+    }
+    return if (state.isAbovePerformanceRecoveryThreshold(config)) {
+        PowerTier.PERFORMANCE
+    } else {
+        PowerTier.BALANCED
+    }
+}
+
+private fun resolveTierWithoutHistory(
+    state: AutomaticTierState,
+    config: AutomaticTierConfig,
+): PowerTier {
+    return when {
+        state.batteryLevel > config.performanceThreshold -> PowerTier.PERFORMANCE
+        state.batteryLevel < config.powerSaverThreshold -> PowerTier.POWER_SAVER
+        else -> PowerTier.BALANCED
+    }
+}
+
+private fun AutomaticTierState.isBelowPerformanceDowngradeThreshold(
+    config: AutomaticTierConfig
+): Boolean {
+    return batteryLevel < config.performanceThreshold - config.hysteresisBand
+}
+
+private fun AutomaticTierState.isBelowPowerSaverDowngradeThreshold(
+    config: AutomaticTierConfig
+): Boolean {
+    return batteryLevel < config.powerSaverThreshold - config.hysteresisBand
+}
+
+private fun AutomaticTierState.isAbovePerformanceRecoveryThreshold(
+    config: AutomaticTierConfig
+): Boolean {
+    return batteryLevel > config.performanceThreshold + config.hysteresisBand
+}
+
+private fun AutomaticTierState.isAbovePowerSaverRecoveryThreshold(
+    config: AutomaticTierConfig
+): Boolean {
+    return batteryLevel > config.powerSaverThreshold + config.hysteresisBand
+}
+
+private fun AutomaticTierState.isBootstrapActive(
+    nowMillis: Long,
+    config: AutomaticTierConfig,
+): Boolean {
+    val startedAtMillis = bootstrapStartedAtMillis ?: return false
+    return nowMillis - startedAtMillis < config.bootstrapDurationMillis
 }
