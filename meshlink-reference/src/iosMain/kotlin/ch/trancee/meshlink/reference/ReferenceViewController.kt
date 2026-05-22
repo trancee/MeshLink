@@ -36,20 +36,24 @@ public fun createReferenceLiveAutomationRootViewController(
     storageSubdirectory: String,
     appId: String,
     role: String,
+    requiredPeerCount: Int,
+    targetPeerIndex: Int,
 ): UIViewController {
     val platformServices =
         createIosLiveAutomationPlatformServices(
             storageSubdirectory = storageSubdirectory,
             appId = appId,
             role = role.toReferenceAutomationRole(),
+            requiredPeerCount = requiredPeerCount,
+            targetPeerIndex = targetPeerIndex,
         )
     return ComposeUIViewController { ReferenceApp(platformServices = platformServices) }
 }
 
 private fun String.toReferenceAutomationRole(): ReferenceAutomationRole {
-    return if (equals("sender", ignoreCase = true)) {
-        ReferenceAutomationRole.SENDER
-    } else {
-        ReferenceAutomationRole.PASSIVE
+    return when {
+        equals("sender", ignoreCase = true) -> ReferenceAutomationRole.SENDER
+        equals("relay", ignoreCase = true) -> ReferenceAutomationRole.RELAY
+        else -> ReferenceAutomationRole.PASSIVE
     }
 }

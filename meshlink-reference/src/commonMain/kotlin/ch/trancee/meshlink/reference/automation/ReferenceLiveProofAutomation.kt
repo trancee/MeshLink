@@ -59,9 +59,28 @@ private fun rememberLiveProofAutomationProgress(
     return remember(storageSubdirectory) { LiveProofAutomationProgress() }
 }
 
-internal fun shouldAutoSendGuidedHello(snapshot: ReferenceControllerSnapshot): Boolean {
-    return snapshot.peers.isNotEmpty()
+internal fun shouldAutoSendGuidedHello(
+    snapshot: ReferenceControllerSnapshot,
+    requiredPeerCount: Int = 1,
+    targetPeerIndex: Int = 0,
+): Boolean {
+    return autoSendTargetPeer(
+        snapshot = snapshot,
+        requiredPeerCount = requiredPeerCount,
+        targetPeerIndex = targetPeerIndex,
+    ) != null
 }
+
+internal fun autoSendTargetPeer(
+    snapshot: ReferenceControllerSnapshot,
+    requiredPeerCount: Int,
+    targetPeerIndex: Int,
+) =
+    snapshot.peers
+        .takeIf { peers ->
+            targetPeerIndex >= 0 && peers.size >= requiredPeerCount && targetPeerIndex < peers.size
+        }
+        ?.get(targetPeerIndex)
 
 internal fun shouldRequestLiveProofMeshStart(
     meshStartRequested: Boolean,

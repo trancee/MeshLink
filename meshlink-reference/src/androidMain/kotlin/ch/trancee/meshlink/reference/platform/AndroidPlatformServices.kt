@@ -75,6 +75,8 @@ public fun createAndroidLiveAutomationPlatformServices(
     storageSubdirectory: String,
     appId: String,
     role: ReferenceAutomationRole,
+    requiredPeerCount: Int = 1,
+    targetPeerIndex: Int = 0,
 ): DefaultPlatformServices {
     val clock = { System.currentTimeMillis() }
     val automationDirectory =
@@ -97,6 +99,8 @@ public fun createAndroidLiveAutomationPlatformServices(
                         role = role,
                         appId = automationAppId,
                         storageSubdirectory = storageSubdirectory,
+                        requiredPeerCount = requiredPeerCount,
+                        targetPeerIndex = targetPeerIndex,
                     )
                 automationLogger = { message -> Log.i(AUTOMATION_LOG_TAG, message) }
             },

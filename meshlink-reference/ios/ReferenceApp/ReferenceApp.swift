@@ -12,10 +12,14 @@ private struct ReferenceRootViewControllerRepresentable: UIViewControllerReprese
                 ?? "default"
             let appId = environment["MESHLINK_REFERENCE_APP_ID"] ?? "demo.meshlink.reference.live"
             let role = environment["MESHLINK_REFERENCE_AUTOMATION_ROLE"] ?? "passive"
+            let requiredPeerCount = Int32(environment["MESHLINK_REFERENCE_AUTOMATION_REQUIRED_PEER_COUNT"] ?? "1") ?? 1
+            let targetPeerIndex = Int32(environment["MESHLINK_REFERENCE_AUTOMATION_TARGET_PEER_INDEX"] ?? "0") ?? 0
             return ReferenceViewControllerKt.createReferenceLiveAutomationRootViewController(
                 storageSubdirectory: storageSubdirectory,
                 appId: appId,
-                role: role
+                role: role,
+                requiredPeerCount: requiredPeerCount,
+                targetPeerIndex: targetPeerIndex
             )
         }
 

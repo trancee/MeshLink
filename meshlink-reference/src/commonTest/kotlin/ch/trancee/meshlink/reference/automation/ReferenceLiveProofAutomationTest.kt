@@ -12,7 +12,50 @@ import kotlin.test.assertTrue
 
 class ReferenceLiveProofAutomationTest {
     @Test
-    fun autoSendStartsOnceAnyPeerIsDiscoveredEvenBeforeTrustIsPinned() {
+    fun autoSendStartsOnceTargetPeerIndexExists() {
+        // Arrange
+        val snapshot =
+            ReferenceControllerSnapshot(
+                session =
+                    ReferenceSession(
+                        sessionId = "session-1",
+                        scenarioId = "guided-first-exchange",
+                        authorityMode = ReferenceAuthorityMode.LIVE,
+                        startedAtEpochMillis = 1L,
+                    ),
+                peers =
+                    listOf(
+                        PeerSnapshot(
+                            peerId = "peer-1",
+                            peerSuffix = "abc123",
+                            trustState = PeerTrustState.UNKNOWN,
+                            connectionState = PeerConnectionSnapshotState.CONNECTED,
+                        ),
+                        PeerSnapshot(
+                            peerId = "peer-2",
+                            peerSuffix = "def456",
+                            trustState = PeerTrustState.UNKNOWN,
+                            connectionState = PeerConnectionSnapshotState.CONNECTED,
+                        ),
+                    ),
+                timeline = emptyList(),
+                activePowerModeLabel = "Automatic",
+            )
+
+        // Act
+        val actual =
+            shouldAutoSendGuidedHello(
+                snapshot = snapshot,
+                requiredPeerCount = 2,
+                targetPeerIndex = 1,
+            )
+
+        // Assert
+        assertTrue(actual)
+    }
+
+    @Test
+    fun autoSendWaitsWhenRequiredPeerCountOrTargetIndexIsMissing() {
         // Arrange
         val snapshot =
             ReferenceControllerSnapshot(
@@ -37,34 +80,22 @@ class ReferenceLiveProofAutomationTest {
             )
 
         // Act
-        val actual = shouldAutoSendGuidedHello(snapshot)
-
-        // Assert
-        assertTrue(actual)
-    }
-
-    @Test
-    fun autoSendWaitsWhenNoPeerHasBeenDiscovered() {
-        // Arrange
-        val snapshot =
-            ReferenceControllerSnapshot(
-                session =
-                    ReferenceSession(
-                        sessionId = "session-1",
-                        scenarioId = "guided-first-exchange",
-                        authorityMode = ReferenceAuthorityMode.LIVE,
-                        startedAtEpochMillis = 1L,
-                    ),
-                peers = emptyList(),
-                timeline = emptyList(),
-                activePowerModeLabel = "Automatic",
+        val blockedByPeerCount =
+            shouldAutoSendGuidedHello(
+                snapshot = snapshot,
+                requiredPeerCount = 2,
+                targetPeerIndex = 0,
+            )
+        val blockedByTargetIndex =
+            shouldAutoSendGuidedHello(
+                snapshot = snapshot,
+                requiredPeerCount = 1,
+                targetPeerIndex = 1,
             )
 
-        // Act
-        val actual = shouldAutoSendGuidedHello(snapshot)
-
         // Assert
-        assertFalse(actual)
+        assertFalse(blockedByPeerCount)
+        assertFalse(blockedByTargetIndex)
     }
 
     @Test

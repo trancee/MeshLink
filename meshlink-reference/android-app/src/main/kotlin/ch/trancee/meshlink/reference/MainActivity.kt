@@ -29,6 +29,10 @@ public class MainActivity : ComponentActivity() {
                             ?: DEFAULT_LIVE_AUTOMATION_APP_ID,
                     role =
                         intent?.getStringExtra(EXTRA_UI_AUTOMATION_ROLE).toReferenceAutomationRole(),
+                    requiredPeerCount =
+                        intent?.getIntExtra(EXTRA_UI_AUTOMATION_REQUIRED_PEER_COUNT, 1) ?: 1,
+                    targetPeerIndex =
+                        intent?.getIntExtra(EXTRA_UI_AUTOMATION_TARGET_PEER_INDEX, 0) ?: 0,
                 )
             } else if (automationEnabled) {
                 createAndroidAutomationPlatformServices(
@@ -57,6 +61,10 @@ public class MainActivity : ComponentActivity() {
             "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_APP_ID"
         public const val EXTRA_UI_AUTOMATION_ROLE: String =
             "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_ROLE"
+        public const val EXTRA_UI_AUTOMATION_REQUIRED_PEER_COUNT: String =
+            "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_REQUIRED_PEER_COUNT"
+        public const val EXTRA_UI_AUTOMATION_TARGET_PEER_INDEX: String =
+            "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_TARGET_PEER_INDEX"
         public const val DEFAULT_AUTOMATION_STORAGE_SUBDIRECTORY: String = "default"
         public const val DEFAULT_LIVE_AUTOMATION_APP_ID: String = "demo.meshlink.reference.live"
         public const val AUTOMATION_MODE_SCRIPTED: String = "scripted"

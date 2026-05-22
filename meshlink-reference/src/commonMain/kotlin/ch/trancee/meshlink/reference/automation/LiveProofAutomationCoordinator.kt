@@ -5,6 +5,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import ch.trancee.meshlink.reference.guided.GuidedFirstExchangeViewModel
 import ch.trancee.meshlink.reference.meshlink.ReferenceControllerSnapshot
+import ch.trancee.meshlink.reference.model.TimelineFamily
 import ch.trancee.meshlink.reference.platform.PlatformServices
 import ch.trancee.meshlink.reference.session.ExportPayloadPolicy
 import ch.trancee.meshlink.reference.timeline.TechnicalTimelineStore
@@ -25,11 +26,13 @@ internal class LiveProofAutomationCoordinator(
     ): Unit {
         announceAutomationStartIfNeeded()
         announcePeerDiscoveryIfNeeded(snapshot)
+        announcePeerSnapshotIfNeeded(snapshot)
         requestMeshStartIfNeeded(snapshot)
 
         when (automationConfig.role) {
             ReferenceAutomationRole.SENDER -> runSenderAutomationStep(snapshot)
             ReferenceAutomationRole.PASSIVE -> runPassiveAutomationStep(snapshot, timelineUiState)
+            ReferenceAutomationRole.RELAY -> runRelayAutomationStep(snapshot)
         }
     }
 
@@ -62,6 +65,21 @@ internal class LiveProofAutomationCoordinator(
         progress.peerAnnounced = true
     }
 
+    private fun announcePeerSnapshotIfNeeded(snapshot: ReferenceControllerSnapshot): Unit {
+        val peerSnapshotSummary =
+            snapshot.peers.joinToString(separator = ",") { peer -> peer.peerSuffix }
+        if (peerSnapshotSummary == progress.lastPeerSnapshotSummary) {
+            return
+        }
+        platformServices.emitAutomationLog(
+            "REFERENCE_AUTOMATION peers " +
+                "role=${automationConfig.role} " +
+                "count=${snapshot.peers.size} " +
+                "suffixes=$peerSnapshotSummary"
+        )
+        progress.lastPeerSnapshotSummary = peerSnapshotSummary
+    }
+
     private fun requestMeshStartIfNeeded(snapshot: ReferenceControllerSnapshot): Unit {
         if (
             !shouldRequestLiveProofMeshStart(
@@ -81,22 +99,45 @@ internal class LiveProofAutomationCoordinator(
     }
 
     private fun runSenderAutomationStep(snapshot: ReferenceControllerSnapshot): Unit {
-        val firstPeer = snapshot.peers.firstOrNull()
-        if (!progress.sendRequested && firstPeer != null && shouldAutoSendGuidedHello(snapshot)) {
-            platformServices.emitAutomationLog(
-                "REFERENCE_AUTOMATION send.requested role=sender peer=${firstPeer.peerSuffix}"
+        val targetPeer =
+            autoSendTargetPeer(
+                snapshot = snapshot,
+                requiredPeerCount = automationConfig.requiredPeerCount,
+                targetPeerIndex = automationConfig.targetPeerIndex,
             )
-            guidedViewModel.sendHelloToFirstPeer()
+        if (
+            !progress.sendRequested &&
+                targetPeer != null &&
+                shouldAutoSendGuidedHello(
+                    snapshot = snapshot,
+                    requiredPeerCount = automationConfig.requiredPeerCount,
+                    targetPeerIndex = automationConfig.targetPeerIndex,
+                )
+        ) {
+            platformServices.emitAutomationLog(
+                "REFERENCE_AUTOMATION send.requested role=sender " +
+                    "peer=${targetPeer.peerSuffix} " +
+                    "targetIndex=${automationConfig.targetPeerIndex} " +
+                    "requiredPeerCount=${automationConfig.requiredPeerCount}"
+            )
+            guidedViewModel.sendHelloToPeer(targetPeer.peerId)
             progress.sendRequested = true
         }
 
         if (
             !progress.completionLogged && snapshot.session.lastOutcomeSummary == "SendResult.Sent"
         ) {
+            val selectedPeer = targetPeer ?: snapshot.peers.firstOrNull()
+            val deliveryDetail =
+                latestSenderDeliveryDetail(
+                    snapshot = snapshot,
+                    peerSuffix = selectedPeer?.peerSuffix,
+                )
             platformServices.emitAutomationLog(
                 "REFERENCE_AUTOMATION proof.complete role=sender " +
                     "outcome=${snapshot.session.lastOutcomeSummary} " +
-                    "peer=${snapshot.peers.firstOrNull()?.peerSuffix ?: "none"}"
+                    "peer=${selectedPeer?.peerSuffix ?: "none"} " +
+                    "delivery=${deliveryDetail ?: "none"}"
             )
             progress.completionLogged = true
         }
@@ -147,6 +188,35 @@ internal class LiveProofAutomationCoordinator(
             progress.completionLogged = true
         }
     }
+
+    private fun runRelayAutomationStep(snapshot: ReferenceControllerSnapshot): Unit {
+        val routeDiagnostics =
+            snapshot.timeline.lastOrNull { entry ->
+                entry.family == TimelineFamily.DIAGNOSTIC &&
+                    (entry.title.startsWith("ROUTE_") ||
+                        entry.detail.contains("route", ignoreCase = true))
+            } ?: return
+        if (progress.lastRelayDiagnosticDetail == routeDiagnostics.detail) {
+            return
+        }
+        platformServices.emitAutomationLog(
+            "REFERENCE_AUTOMATION relay.observed detail=${routeDiagnostics.detail}"
+        )
+        progress.lastRelayDiagnosticDetail = routeDiagnostics.detail
+    }
+}
+
+private fun latestSenderDeliveryDetail(
+    snapshot: ReferenceControllerSnapshot,
+    peerSuffix: String?,
+): String? {
+    return snapshot.timeline
+        .lastOrNull { entry ->
+            entry.family == TimelineFamily.DIAGNOSTIC &&
+                entry.title == "DELIVERY_SUCCEEDED" &&
+                (peerSuffix == null || entry.peerSuffix == peerSuffix)
+        }
+        ?.detail
 }
 
 internal class LiveProofAutomationProgress {
@@ -157,4 +227,6 @@ internal class LiveProofAutomationProgress {
     var retainRequested by mutableStateOf(false)
     var exportRequested by mutableStateOf(false)
     var completionLogged by mutableStateOf(false)
+    var lastPeerSnapshotSummary by mutableStateOf<String?>(null)
+    var lastRelayDiagnosticDetail by mutableStateOf<String?>(null)
 }

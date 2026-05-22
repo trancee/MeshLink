@@ -56,9 +56,13 @@ public class GuidedFirstExchangeViewModel(
 
     public fun sendHelloToFirstPeer(): Unit {
         val firstPeer = uiStateFlow.value.snapshot.peers.firstOrNull() ?: return
+        sendHelloToPeer(firstPeer.peerId)
+    }
+
+    public fun sendHelloToPeer(peerId: String): Unit {
         scope.launch {
             platformServices.meshLinkController.sendSamplePayload(
-                peerId = firstPeer.peerId,
+                peerId = peerId,
                 payloadText = "hello mesh from ${platformServices.platformName}",
                 priority = DeliveryPriority.NORMAL,
             )

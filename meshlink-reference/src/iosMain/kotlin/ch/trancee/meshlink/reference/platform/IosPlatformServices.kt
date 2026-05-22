@@ -77,6 +77,8 @@ internal fun createIosLiveAutomationPlatformServices(
     storageSubdirectory: String,
     appId: String,
     role: ReferenceAutomationRole,
+    requiredPeerCount: Int = 1,
+    targetPeerIndex: Int = 0,
 ): DefaultPlatformServices {
     val baseDirectory = buildString {
         append(resolveIosDocumentsDirectory())
@@ -101,6 +103,8 @@ internal fun createIosLiveAutomationPlatformServices(
                         role = role,
                         appId = automationAppId,
                         storageSubdirectory = storageSubdirectory,
+                        requiredPeerCount = requiredPeerCount,
+                        targetPeerIndex = targetPeerIndex,
                     )
                 automationLogger = ::println
             },
