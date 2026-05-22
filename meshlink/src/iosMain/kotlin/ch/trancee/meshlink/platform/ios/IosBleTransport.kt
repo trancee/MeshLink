@@ -5,7 +5,6 @@ package ch.trancee.meshlink.platform.ios
 import ch.trancee.meshlink.api.IosBleTransportBridgeRegistry
 import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.engine.DirectWireFrame
-import ch.trancee.meshlink.identity.hexStartsWith
 import ch.trancee.meshlink.identity.toHexString
 import ch.trancee.meshlink.power.PowerPolicy
 import ch.trancee.meshlink.transport.BleDiscoveryContract
@@ -94,12 +93,11 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
     private val localKeyHash: ByteArray = advertisementKeyHash.copyOf()
     private val telemetryEnabled: Boolean = readEnvironmentFlag(TRANSPORT_TELEMETRY_ENV)
     private val transportDebugLoggingEnabled: Boolean = readEnvironmentFlag(TRANSPORT_DEBUG_ENV)
-    private val discoveredPeers: MutableMap<String, DiscoveredPeer> = linkedMapOf()
-    private val peerHintByIdentifier: MutableMap<String, String> = linkedMapOf()
+    private val peerBindings = IosPeerBindings()
+    private val peerRegistry = IosPeerRegistry(peerBindings)
     private val activeLinksByHint: MutableMap<String, IosL2capLink> = linkedMapOf()
     private val activeGattNotifyLinksByHint: MutableMap<String, IosGattNotifyLink> = linkedMapOf()
     private val pendingConnectionsByHint: MutableMap<String, String> = linkedMapOf()
-    private val temporaryHintByIdentifier: MutableMap<String, String> = linkedMapOf()
 
     private var currentPowerProfile: IosPowerProfile = IosPowerMonitor.defaultProfile()
     private var currentDiscoveryPayload: BleDiscoveryPayload =
@@ -491,55 +489,21 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
         payload: BleDiscoveryPayload,
         transportMode: TransportMode,
     ): DiscoveredPeer {
-        val discoveredPeer = discoveredPeers[hintPeerId.value]
-        return if (discoveredPeer == null) {
-            DiscoveredPeer(
-                    hintPeerId = hintPeerId,
-                    peripheral = peripheral,
-                    metadata =
-                        DiscoveredPeerMetadata(
-                            keyHash = payload.keyHash,
-                            l2capPsm = payload.l2capPsm.toInt(),
-                            transportMode = transportMode,
-                            platformFamily = payload.platformFamily,
-                            presenceAnnounced = true,
-                        ),
-                )
-                .also { peer ->
-                    discoveredPeers[hintPeerId.value] = peer
-                    peerHintByIdentifier[identifier] = hintPeerId.value
-                    mutableEvents.tryEmit(
-                        TransportEvent.PeerDiscovered(
-                            peerId = hintPeerId,
-                            transportMode = transportMode,
-                        )
-                    )
-                }
-        } else {
-            discoveredPeer.peripheral = peripheral
-            discoveredPeer.l2capPsm = payload.l2capPsm.toInt()
-            discoveredPeer.platformFamily = payload.platformFamily
-            peerHintByIdentifier[identifier] = hintPeerId.value
-            if (discoveredPeer.transportMode != transportMode) {
-                discoveredPeer.transportMode = transportMode
-                mutableEvents.tryEmit(
-                    TransportEvent.TransportModeChanged(
-                        peerId = hintPeerId,
+        peerBindings.retainPeripheral(identifier, peripheral)
+        val discoveryUpdate =
+            peerRegistry.upsertDiscovery(
+                hintPeerId = hintPeerId,
+                discovery =
+                    DiscoveredPeerDiscovery(
+                        identifier = identifier,
+                        keyHash = payload.keyHash,
+                        l2capPsm = payload.l2capPsm.toInt(),
                         transportMode = transportMode,
-                    )
-                )
-            }
-            if (!discoveredPeer.presenceAnnounced) {
-                discoveredPeer.presenceAnnounced = true
-                mutableEvents.tryEmit(
-                    TransportEvent.PeerDiscovered(
-                        peerId = hintPeerId,
-                        transportMode = transportMode,
-                    )
-                )
-            }
-            discoveredPeer
-        }
+                        platformFamily = payload.platformFamily,
+                    ),
+            )
+        discoveryUpdate.events.forEach { event -> mutableEvents.tryEmit(event) }
+        return discoveryUpdate.peer
     }
 
     private fun handleL2capDiscovery(
@@ -567,8 +531,8 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
 
     internal fun handleConnectedPeripheral(peripheral: CBPeripheral): Unit {
         val identifier = peripheral.identifier.UUIDString.lowercase()
-        val hint = peerHintByIdentifier[identifier] ?: return
-        val peer = discoveredPeers[hint] ?: return
+        val hint = peerBindings.hintForIdentifier(identifier) ?: return
+        val peer = peerRegistry.peer(hint) ?: return
         pendingConnectionsByHint[peer.hintPeerId.value] = identifier
         peripheral.delegate = peripheralClientDelegate
         peripheral.openL2CAPChannel(peer.l2capPsm.convert())
@@ -576,9 +540,9 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
 
     internal fun handleFailedConnection(peripheral: CBPeripheral, error: NSError?): Unit {
         val identifier = peripheral.identifier.UUIDString.lowercase()
-        val hint = peerHintByIdentifier[identifier] ?: return
+        val hint = peerBindings.hintForIdentifier(identifier) ?: return
         pendingConnectionsByHint.remove(hint)
-        discoveredPeers[hint]?.rediscoveryLoggedWithoutLink = false
+        peerRegistry.setRediscoveryLoggedWithoutLink(hint, logged = false)
         reportLog(
             "L2CAP connect failed for ${hint.logSuffix()}: ${error?.localizedDescription.orEmpty()}"
         )
@@ -587,7 +551,9 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
     internal fun handleDisconnectedPeripheral(peripheral: CBPeripheral): Unit {
         val identifier = peripheral.identifier.UUIDString.lowercase()
         val hint =
-            peerHintByIdentifier[identifier] ?: temporaryHintByIdentifier[identifier] ?: return
+            peerBindings.hintForIdentifier(identifier)
+                ?: peerBindings.temporaryHintForIdentifier(identifier)
+                ?: return
         pendingConnectionsByHint.remove(hint)
         closeLink(hintPeer = hint, reason = "peripheral disconnected")
     }
@@ -598,7 +564,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
         error: NSError?,
     ): Unit {
         val identifier = peripheral.identifier.UUIDString.lowercase()
-        val hint = peerHintByIdentifier[identifier] ?: return
+        val hint = peerBindings.hintForIdentifier(identifier) ?: return
         pendingConnectionsByHint.remove(hint)
         if (channel == null) {
             reportLog(
@@ -607,7 +573,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
             return
         }
         log("didOpenL2CAPChannel succeeded for ${hint.logSuffix()}")
-        discoveredPeers[hint]?.rediscoveryLoggedWithoutLink = false
+        peerRegistry.setRediscoveryLoggedWithoutLink(hint, logged = false)
         registerConnectedChannel(PeerId(hint), identifier, channel)
     }
 
@@ -622,16 +588,8 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
             selectIncomingL2capHintPeerId(
                 IncomingL2capHintSelectionRequest(
                     peripheralIdentifier = identifier,
-                    peerHintByIdentifier = peerHintByIdentifier,
-                    discoveredPeers =
-                        discoveredPeers.values.map { peer ->
-                            IncomingL2capHintCandidate(
-                                hintPeerIdValue = peer.hintPeerId.value,
-                                keyHash = peer.keyHash,
-                                platformFamily = peer.platformFamily,
-                                transportMode = peer.transportMode,
-                            )
-                        },
+                    peerHintByIdentifier = peerBindings.hintBindings,
+                    discoveredPeers = peerRegistry.incomingL2capHintCandidates(),
                     ignoredHints =
                         IncomingL2capSelectionIgnoredHints(
                             activeHintIds = activeLinksByHint.keys,
@@ -644,9 +602,10 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
                         ),
                 )
             )
-        val hintPeerId = selectedHintPeerIdValue?.let(::PeerId) ?: temporaryPeerId(identifier)
+        val hintPeerId =
+            selectedHintPeerIdValue?.let(::PeerId) ?: peerBindings.temporaryPeerId(identifier)
         if (selectedHintPeerIdValue != null) {
-            peerHintByIdentifier[identifier] = selectedHintPeerIdValue
+            peerBindings.bindHintToIdentifier(identifier, selectedHintPeerIdValue)
             log(
                 "binding incoming L2CAP channel to discovered peer ${hintPeerId.logSuffix()} id=$identifier"
             )
@@ -682,7 +641,8 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
             characteristic.UUID.UUIDString.lowercase() ==
                 BleDiscoveryContract.GATT_NOTIFY_CHARACTERISTIC_UUID
         val identifier = central.identifier.UUIDString.lowercase()
-        val hintPeerIdValue = if (isNotifyCharacteristic) peerHintByIdentifier[identifier] else null
+        val hintPeerIdValue =
+            if (isNotifyCharacteristic) peerBindings.hintForIdentifier(identifier) else null
         if (hintPeerIdValue != null) {
             removeGattNotifyLink(identifier = identifier, hintPeerIdValue = hintPeerIdValue)
         }
@@ -711,7 +671,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
                 null
             }
         return if (hintPeerIdValue != null) {
-            peerHintByIdentifier[identifier] = hintPeerIdValue
+            peerBindings.bindHintToIdentifier(identifier, hintPeerIdValue)
             promoteTemporaryL2capLinkIfPossible(
                 identifier = identifier,
                 resolvedHintPeerIdValue = hintPeerIdValue,
@@ -731,7 +691,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
         activeGattNotifyLinksByHint.remove(hintPeerIdValue)?.close()
         reportLog("removed GATT notify side link for ${hintPeerIdValue.logSuffix()} id=$identifier")
         if (!activeLinksByHint.containsKey(hintPeerIdValue)) {
-            discoveredPeers[hintPeerIdValue]?.presenceAnnounced = false
+            peerRegistry.setPresenceAnnounced(hintPeerIdValue, announced = false)
             mutableEvents.tryEmit(TransportEvent.PeerLost(PeerId(hintPeerIdValue)))
         }
     }
@@ -838,8 +798,9 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
     }
 
     private fun resolveGattNotifyHintPeerIdValue(identifier: String): String? {
-        return peerHintByIdentifier[identifier]
-            ?: discoveredPeers.values
+        return peerBindings.hintForIdentifier(identifier)
+            ?: peerRegistry
+                .peers()
                 .firstOrNull { peer ->
                     shouldUseMixedPlatformGattNotifyBearer(
                         localPlatformFamily = currentDiscoveryPayload.platformFamily,
@@ -863,7 +824,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
                 TemporaryL2capHintPromotionRequest(
                     identifier = identifier,
                     resolvedHintPeerIdValue = resolvedHintPeerIdValue,
-                    temporaryHintByIdentifier = temporaryHintByIdentifier,
+                    temporaryHintByIdentifier = peerBindings.temporaryHintBindings,
                     activeHintIds = activeLinksByHint.keys,
                     temporaryPeerPrefix = TEMPORARY_PEER_PREFIX,
                 )
@@ -872,8 +833,8 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
         val resolvedHintPeerId = PeerId(resolvedHintPeerIdValue)
         link.hintPeerId = resolvedHintPeerId
         activeLinksByHint[resolvedHintPeerIdValue] = link
-        temporaryHintByIdentifier[identifier] = resolvedHintPeerIdValue
-        discoveredPeers[resolvedHintPeerIdValue]?.rediscoveryLoggedWithoutLink = false
+        peerBindings.bindTemporaryHint(identifier, resolvedHintPeerIdValue)
+        peerRegistry.setRediscoveryLoggedWithoutLink(resolvedHintPeerIdValue, logged = false)
         reportLog(
             "promoted temporary L2CAP link ${temporaryHintPeerIdValue.logSuffix()} -> " +
                 "${resolvedHintPeerIdValue.logSuffix()} id=$identifier"
@@ -893,8 +854,8 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
         val link =
             createConnectedChannelLink(hintPeerId, peripheralIdentifier, channel, connectedCentral)
         activeLinksByHint[hintPeerId.value] = link
-        temporaryHintByIdentifier[peripheralIdentifier] = hintPeerId.value
-        discoveredPeers[hintPeerId.value]?.rediscoveryLoggedWithoutLink = false
+        peerBindings.bindTemporaryHint(peripheralIdentifier, hintPeerId.value)
+        peerRegistry.setRediscoveryLoggedWithoutLink(hintPeerId.value, logged = false)
         log("registered L2CAP link for ${hintPeerId.logSuffix()} id=$peripheralIdentifier")
         startConnectedChannelWriteLoop(link)
         startConnectedChannelReadLoop(link)
@@ -992,18 +953,19 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
             log("connectIfNeeded(${peer.hintPeerId.logSuffix()}) skipped: no PSM")
             return
         }
-        if (
+        val isActiveOrPending =
             activeLinksByHint.containsKey(peer.hintPeerId.value) ||
                 pendingConnectionsByHint.containsKey(peer.hintPeerId.value)
-        ) {
+        if (isActiveOrPending) {
             log(
                 "connectIfNeeded(${peer.hintPeerId.logSuffix()}) skipped: already active or pending"
             )
-            return
+        } else {
+            peerBindings.peripheralFor(peer.peripheralIdentifier)?.let { peripheral ->
+                pendingConnectionsByHint[peer.hintPeerId.value] = peer.peripheralIdentifier
+                centralManager?.connectPeripheral(peripheral, options = null)
+            }
         }
-        pendingConnectionsByHint[peer.hintPeerId.value] =
-            peer.peripheral.identifier.UUIDString.lowercase()
-        centralManager?.connectPeripheral(peer.peripheral, options = null)
     }
 
     private fun shouldInitiateL2cap(
@@ -1030,7 +992,9 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
         val hasActiveLink =
             activeLinksByHint.containsKey(peer.hintPeerId.value) ||
                 hasActiveGattNotifyLink(peer.hintPeerId.value) ||
-                (temporaryHintByIdentifier[identifier]?.let(activeLinksByHint::containsKey) == true)
+                (peerBindings
+                    .temporaryHintForIdentifier(identifier)
+                    ?.let(activeLinksByHint::containsKey) == true)
         val hasPendingConnect = pendingConnectionsByHint.containsKey(peer.hintPeerId.value)
         if (hasActiveLink || hasPendingConnect) {
             peer.rediscoveryLoggedWithoutLink = false
@@ -1047,8 +1011,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
 
     private fun activeLinkFor(peer: DiscoveredPeer): IosL2capLink? {
         val directLink = activeLinksByHint[peer.hintPeerId.value]
-        val temporaryHint =
-            temporaryHintByIdentifier[peer.peripheral.identifier.UUIDString.lowercase()]
+        val temporaryHint = peerBindings.temporaryHintForIdentifier(peer.peripheralIdentifier)
         return directLink ?: temporaryHint?.let(activeLinksByHint::get)
     }
 
@@ -1058,8 +1021,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
                 localPlatformFamily = currentDiscoveryPayload.platformFamily,
                 remotePlatformFamily = peer.platformFamily,
             ) && IosBleTransportBridgeRegistry.currentCallbacksOrNull() != null
-        val temporaryHint =
-            temporaryHintByIdentifier[peer.peripheral.identifier.UUIDString.lowercase()]
+        val temporaryHint = peerBindings.temporaryHintForIdentifier(peer.peripheralIdentifier)
         return if (supportsMixedGattNotifyBearer) {
             activeGattNotifyLinksByHint[peer.hintPeerId.value]
                 ?: temporaryHint?.let(activeGattNotifyLinksByHint::get)
@@ -1069,20 +1031,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
     }
 
     private fun resolvePeer(peerId: PeerId): DiscoveredPeer? {
-        discoveredPeers[peerId.value]?.let {
-            return it
-        }
-        return discoveredPeers.values.firstOrNull { discoveredPeer ->
-            peerId.value.hexStartsWith(discoveredPeer.keyHash)
-        }
-    }
-
-    private fun temporaryPeerId(identifier: String): PeerId {
-        val temporaryHint =
-            temporaryHintByIdentifier.getOrPut(identifier) {
-                TEMPORARY_PEER_PREFIX + identifier.replace("-", "")
-            }
-        return PeerId(temporaryHint)
+        return peerRegistry.resolve(peerId)
     }
 
     private fun stopTransport(clearPeers: Boolean): Unit {
@@ -1104,18 +1053,17 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
         }
         coroutineScope.coroutineContext.cancelChildren()
         if (clearPeers) {
-            discoveredPeers.clear()
-            peerHintByIdentifier.clear()
-            temporaryHintByIdentifier.clear()
+            peerRegistry.clear()
+            peerBindings.clear()
         }
     }
 
     private fun closeLink(hintPeer: String, reason: String): Unit {
         val link = activeLinksByHint.remove(hintPeer) ?: return
-        discoveredPeers[hintPeer]?.rediscoveryLoggedWithoutLink = false
+        peerRegistry.setRediscoveryLoggedWithoutLink(hintPeer, logged = false)
         reportLog(
             "closing L2CAP link ${hintPeer.logSuffix()}: $reason " +
-                "discoveredPeerRetained=${discoveredPeers.containsKey(hintPeer)} " +
+                "discoveredPeerRetained=${peerRegistry.peer(hintPeer) != null} " +
                 "pendingConnect=${pendingConnectionsByHint.containsKey(hintPeer)}"
         )
         link.readLoopJob?.cancel()
@@ -1127,7 +1075,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
             )
             return
         }
-        discoveredPeers[hintPeer]?.presenceAnnounced = false
+        peerRegistry.setPresenceAnnounced(hintPeer, announced = false)
         mutableEvents.tryEmit(TransportEvent.PeerLost(PeerId(hintPeer)))
     }
 
@@ -1176,30 +1124,6 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
 
     private fun emitTransportLog(message: String): Unit {
         println("MeshLinkTransport $message")
-    }
-
-    private class DiscoveredPeerMetadata(
-        keyHash: ByteArray,
-        var l2capPsm: Int,
-        var transportMode: TransportMode,
-        var platformFamily: BleDiscoveryPlatformFamily,
-        var rediscoveryLoggedWithoutLink: Boolean = false,
-        var presenceAnnounced: Boolean = false,
-    ) {
-        val keyHash: ByteArray = keyHash.copyOf()
-    }
-
-    private class DiscoveredPeer(
-        val hintPeerId: PeerId,
-        var peripheral: CBPeripheral,
-        metadata: DiscoveredPeerMetadata,
-    ) {
-        val keyHash: ByteArray = metadata.keyHash
-        var l2capPsm: Int = metadata.l2capPsm
-        var transportMode: TransportMode = metadata.transportMode
-        var platformFamily: BleDiscoveryPlatformFamily = metadata.platformFamily
-        var rediscoveryLoggedWithoutLink: Boolean = metadata.rediscoveryLoggedWithoutLink
-        var presenceAnnounced: Boolean = metadata.presenceAnnounced
     }
 
     private class IosL2capLinkDependencies(
@@ -1693,7 +1617,6 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
         private const val IDLE_STREAM_POLL_INTERVAL_MS: Long = 5
         private const val ACTIVE_STREAM_POLL_INTERVAL_MS: Long = 1
         private const val GATT_NOTIFY_PUMP_RETRY_POLL_INTERVAL_MS: Long = 2
-        private const val TEMPORARY_PEER_PREFIX: String = "cb-"
         private const val TRANSPORT_TELEMETRY_ENV: String = "MESHLINK_TRANSPORT_TELEMETRY"
         private const val TRANSPORT_DEBUG_ENV: String = "MESHLINK_TRANSPORT_DEBUG"
 
