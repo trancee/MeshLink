@@ -45,8 +45,12 @@ A previously captured local session snapshot kept separate from the live session
 _Avoid_: Saved live session, archived runtime
 
 **History state**:
-Where a session currently lives in the reference app’s evidence model. History state is about whether a session is live, retained, or deleted, not about whether it has been exported.
+Where a session currently lives in the reference app’s evidence model. History state is about whether a session is live or retained, not about whether it has been exported.
 _Avoid_: Export status, artifact state, file status
+
+**History deletion**:
+The explicit removal of a retained session from recent history. History deletion removes the retained entry instead of placing the session into a separate persistent deleted state.
+_Avoid_: Deleted session state, retained tombstone, soft delete
 
 **Automatic retention**:
 The default rule that a finished live session with reviewable evidence is added to recent history without requiring a separate operator action. Automatic retention preserves evidence before the operator moves on to a new session, but it does not apply to solo sessions or lab sessions.
