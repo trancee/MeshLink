@@ -1,6 +1,7 @@
 package ch.trancee.meshlink.crypto
 
 import ch.trancee.meshlink.identity.LocalIdentity
+import ch.trancee.meshlink.trust.TrustPublicKeys
 import ch.trancee.meshlink.trust.TrustRecord
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -79,8 +80,11 @@ class MessageSealerTest {
             identityFingerprintBytes = identity.identityFingerprintBytes,
             firstSeenAtEpochMillis = 1_000L,
             lastVerifiedAtEpochMillis = 2_000L,
-            ed25519PublicKey = identity.ed25519PublicKey,
-            x25519PublicKey = identity.x25519PublicKey,
+            publicKeys =
+                TrustPublicKeys(
+                    ed25519PublicKey = identity.ed25519PublicKey,
+                    x25519PublicKey = identity.x25519PublicKey,
+                ),
         )
     }
 }

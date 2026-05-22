@@ -1,6 +1,7 @@
 package ch.trancee.meshlink.routing
 
 import ch.trancee.meshlink.api.PeerId
+import ch.trancee.meshlink.trust.TrustPublicKeys
 import ch.trancee.meshlink.trust.TrustRecord
 import ch.trancee.meshlink.wire.WireFrame
 import kotlin.test.Test
@@ -68,8 +69,11 @@ class RouteCoordinatorTest {
             identityFingerprintBytes = repeatedByteArray(seed + 100),
             firstSeenAtEpochMillis = seed.toLong(),
             lastVerifiedAtEpochMillis = seed.toLong(),
-            ed25519PublicKey = repeatedByteArray(seed),
-            x25519PublicKey = repeatedByteArray(seed + 50),
+            publicKeys =
+                TrustPublicKeys(
+                    ed25519PublicKey = repeatedByteArray(seed),
+                    x25519PublicKey = repeatedByteArray(seed + 50),
+                ),
         )
     }
 

@@ -15,6 +15,7 @@ import ch.trancee.meshlink.transfer.OutboundTransferSession
 import ch.trancee.meshlink.transfer.TransferChunkPlan
 import ch.trancee.meshlink.transfer.TransferSessionRoute
 import ch.trancee.meshlink.trust.TofuTrustStore
+import ch.trancee.meshlink.trust.TrustPublicKeys
 import ch.trancee.meshlink.trust.TrustRecord
 
 internal data class MeshEngineOutboundPreparationState(
@@ -90,8 +91,11 @@ internal class MeshEngineOutboundPreparationSupport(
                     ),
                 firstSeenAtEpochMillis = learnedAtEpochMillis,
                 lastVerifiedAtEpochMillis = learnedAtEpochMillis,
-                ed25519PublicKey = route.ed25519PublicKey,
-                x25519PublicKey = route.x25519PublicKey,
+                publicKeys =
+                    TrustPublicKeys(
+                        ed25519PublicKey = route.ed25519PublicKey,
+                        x25519PublicKey = route.x25519PublicKey,
+                    ),
             )
         trustStore.write(learnedTrust)
         emitDiagnostic(

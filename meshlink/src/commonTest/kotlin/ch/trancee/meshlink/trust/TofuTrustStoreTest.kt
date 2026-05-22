@@ -21,8 +21,11 @@ class TofuTrustStoreTest {
                 identityFingerprintBytes = byteArrayOf(0x10, 0x20, 0x30, 0x40),
                 firstSeenAtEpochMillis = 1_700_000_000_000L,
                 lastVerifiedAtEpochMillis = 1_700_000_123_456L,
-                ed25519PublicKey = byteArrayOf(0x01, 0x02, 0x03),
-                x25519PublicKey = byteArrayOf(0x04, 0x05, 0x06),
+                publicKeys =
+                    TrustPublicKeys(
+                        ed25519PublicKey = byteArrayOf(0x01, 0x02, 0x03),
+                        x25519PublicKey = byteArrayOf(0x04, 0x05, 0x06),
+                    ),
             )
 
         // Act
@@ -53,8 +56,11 @@ class TofuTrustStoreTest {
                 identityFingerprintBytes = byteArrayOf(0x11, 0x22, 0x33, 0x44),
                 firstSeenAtEpochMillis = 10L,
                 lastVerifiedAtEpochMillis = 20L,
-                ed25519PublicKey = byteArrayOf(0x11, 0x12),
-                x25519PublicKey = byteArrayOf(0x21, 0x22),
+                publicKeys =
+                    TrustPublicKeys(
+                        ed25519PublicKey = byteArrayOf(0x11, 0x12),
+                        x25519PublicKey = byteArrayOf(0x21, 0x22),
+                    ),
             )
         store.write(record)
 
@@ -78,8 +84,11 @@ class TofuTrustStoreTest {
                 identityFingerprintBytes = byteArrayOf(0x01, 0x23, 0x45, 0x67),
                 firstSeenAtEpochMillis = 100L,
                 lastVerifiedAtEpochMillis = 200L,
-                ed25519PublicKey = byteArrayOf(0x31, 0x32),
-                x25519PublicKey = byteArrayOf(0x41, 0x42),
+                publicKeys =
+                    TrustPublicKeys(
+                        ed25519PublicKey = byteArrayOf(0x31, 0x32),
+                        x25519PublicKey = byteArrayOf(0x41, 0x42),
+                    ),
             )
         val replacementRecord =
             TrustRecord(
@@ -88,8 +97,11 @@ class TofuTrustStoreTest {
                     byteArrayOf(0x89.toByte(), 0xAB.toByte(), 0xCD.toByte(), 0xEF.toByte()),
                 firstSeenAtEpochMillis = 300L,
                 lastVerifiedAtEpochMillis = 400L,
-                ed25519PublicKey = byteArrayOf(0x51, 0x52),
-                x25519PublicKey = byteArrayOf(0x61, 0x62),
+                publicKeys =
+                    TrustPublicKeys(
+                        ed25519PublicKey = byteArrayOf(0x51, 0x52),
+                        x25519PublicKey = byteArrayOf(0x61, 0x62),
+                    ),
             )
         store.write(initialRecord)
         store.delete(initialRecord.peerIdValue)

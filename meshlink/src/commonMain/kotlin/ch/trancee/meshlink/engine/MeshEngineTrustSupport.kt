@@ -7,6 +7,7 @@ import ch.trancee.meshlink.diagnostics.DiagnosticSeverity
 import ch.trancee.meshlink.identity.LocalIdentity
 import ch.trancee.meshlink.platform.currentEpochMillis
 import ch.trancee.meshlink.trust.TofuTrustStore
+import ch.trancee.meshlink.trust.TrustPublicKeys
 import ch.trancee.meshlink.trust.TrustRecord
 
 internal class MeshEngineTrustSupport(
@@ -101,8 +102,11 @@ internal class MeshEngineTrustSupport(
                 identityFingerprintBytes = remoteIdentityHash,
                 firstSeenAtEpochMillis = verifiedAtEpochMillis,
                 lastVerifiedAtEpochMillis = verifiedAtEpochMillis,
-                ed25519PublicKey = remoteEd25519PublicKey,
-                x25519PublicKey = remoteX25519PublicKey,
+                publicKeys =
+                    TrustPublicKeys(
+                        ed25519PublicKey = remoteEd25519PublicKey,
+                        x25519PublicKey = remoteX25519PublicKey,
+                    ),
             )
         trustStore.write(trustRecord)
         emitDiagnostic(

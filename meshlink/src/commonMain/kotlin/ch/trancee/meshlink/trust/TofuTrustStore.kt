@@ -30,8 +30,11 @@ internal class TofuTrustStore internal constructor(private val secureStorage: Se
                     identityFingerprintBytes = fingerprintBytes,
                     firstSeenAtEpochMillis = firstSeenAtEpochMillis,
                     lastVerifiedAtEpochMillis = lastVerifiedAtEpochMillis,
-                    ed25519PublicKey = ed25519PublicKey,
-                    x25519PublicKey = x25519PublicKey,
+                    publicKeys =
+                        TrustPublicKeys(
+                            ed25519PublicKey = ed25519PublicKey,
+                            x25519PublicKey = x25519PublicKey,
+                        ),
                 )
             }
             .getOrNull()
