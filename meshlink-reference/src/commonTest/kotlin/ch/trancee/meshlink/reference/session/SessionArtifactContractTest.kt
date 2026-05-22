@@ -1,18 +1,25 @@
 package ch.trancee.meshlink.reference.session
 
+import ch.trancee.meshlink.reference.model.ArtifactPayloadPolicy
 import ch.trancee.meshlink.reference.model.PeerConnectionSnapshotState
 import ch.trancee.meshlink.reference.model.PeerSnapshot
 import ch.trancee.meshlink.reference.model.PeerTrustState
 import ch.trancee.meshlink.reference.model.ReferenceAuthorityMode
 import ch.trancee.meshlink.reference.model.ReferenceHistoryStatus
 import ch.trancee.meshlink.reference.model.ReferenceSession
+import ch.trancee.meshlink.reference.model.SessionArtifact
 import ch.trancee.meshlink.reference.model.TimelineEntry
 import ch.trancee.meshlink.reference.model.TimelineFamily
 import ch.trancee.meshlink.reference.model.TimelineSeverity
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
 class SessionArtifactContractTest {
     @Test
@@ -46,15 +53,45 @@ class SessionArtifactContractTest {
                     severity = TimelineSeverity.SUCCESS,
                     title = "Delivered",
                     detail = "Delivered",
-                    payloadPreview = "hello",
+                    payloadPreview = "he… [redacted]",
+                    payloadSizeBytes = 5,
+                    fullPayload = "hello",
+                    fullPayloadIncluded = true,
                 )
             )
 
-        val redacted = serializer.serializeRedacted(session, peers, timeline)
-        val full = serializer.serializeWithFullPayload(session, peers, timeline)
+        val artifact =
+            SessionArtifact(
+                artifactId = "artifact-session-1",
+                sourceSessionId = session.sessionId,
+                createdAtEpochMillis = 2_000L,
+                payloadPolicy = ArtifactPayloadPolicy.REDACTED_PREVIEW,
+                includesFullPayload = false,
+                scenarioSummary = mapOf("surface" to "main-guided"),
+                peerSummaries = emptyList(),
+                timelineEntries = timeline,
+                storagePath = "reference/exports/session-1.json",
+            )
+
+        val redacted = serializer.serializeRedacted(artifact, session, peers, timeline)
+        val full = serializer.serializeWithFullPayload(artifact, session, peers, timeline)
+
+        val redactedDocument = Json.parseToJsonElement(redacted).jsonObject
+        val fullDocument = Json.parseToJsonElement(full).jsonObject
+        val redactedTimelineEntry =
+            redactedDocument.getValue("timelineEntries").jsonArray.first().jsonObject
+        val fullTimelineEntry =
+            fullDocument.getValue("timelineEntries").jsonArray.first().jsonObject
+        val redactedScenario = redactedDocument.getValue("scenario").jsonObject
 
         assertTrue(redacted.contains("payloadPreview"))
-        assertFalse(redacted.contains("\"fullPayload\":\"hello\""))
-        assertTrue(full.contains("fullPayload"))
+        assertFalse(redactedTimelineEntry.containsKey("fullPayload"))
+        assertEquals("hello", fullTimelineEntry.getValue("fullPayload").jsonPrimitive.content)
+        assertEquals(
+            "Guided first exchange",
+            redactedScenario.getValue("title").jsonPrimitive.content,
+        )
+        assertEquals("main", redactedScenario.getValue("surface").jsonPrimitive.content)
+        assertEquals("2000", redactedDocument.getValue("createdAt").jsonPrimitive.content)
     }
 }

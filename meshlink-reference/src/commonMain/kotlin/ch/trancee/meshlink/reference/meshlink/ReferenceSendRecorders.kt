@@ -5,6 +5,7 @@ import ch.trancee.meshlink.api.MeshLinkState
 import ch.trancee.meshlink.api.SendResult
 import ch.trancee.meshlink.reference.model.TimelineFamily
 import ch.trancee.meshlink.reference.model.TimelineSeverity
+import ch.trancee.meshlink.reference.model.redactedPayloadPreview
 
 internal class LiveReferenceSendRecorder(private val stateStore: ReferenceControllerStateStore) {
     internal fun recordOutcome(
@@ -23,7 +24,9 @@ internal class LiveReferenceSendRecorder(private val stateStore: ReferenceContro
                         detail =
                             "First guided payload reached ${redactedSuffix(peerId)} with $priority priority.",
                         peerSuffix = redactedSuffix(peerId),
-                        payloadPreview = payloadText,
+                        payloadPreview = redactedPayloadPreview(payloadText),
+                        payloadSizeBytes = payloadText.encodeToByteArray().size,
+                        fullPayload = payloadText,
                     )
                 )
                 stateStore.updateSession(
@@ -41,7 +44,9 @@ internal class LiveReferenceSendRecorder(private val stateStore: ReferenceContro
                         detail =
                             "First guided payload failed for ${redactedSuffix(peerId)} with ${result.reason}.",
                         peerSuffix = redactedSuffix(peerId),
-                        payloadPreview = payloadText,
+                        payloadPreview = redactedPayloadPreview(payloadText),
+                        payloadSizeBytes = payloadText.encodeToByteArray().size,
+                        fullPayload = payloadText,
                     )
                 )
                 stateStore.updateSession(
@@ -60,7 +65,9 @@ internal class LiveReferenceSendRecorder(private val stateStore: ReferenceContro
                 title = "Guided message failed",
                 detail = error.message ?: error.toString(),
                 peerSuffix = redactedSuffix(peerId),
-                payloadPreview = payloadText,
+                payloadPreview = redactedPayloadPreview(payloadText),
+                payloadSizeBytes = payloadText.encodeToByteArray().size,
+                fullPayload = payloadText,
             )
         )
     }
@@ -130,7 +137,10 @@ internal class ScriptedReferenceSendRecorder(
                     detail =
                         "Transferred $payloadBytes bytes to $scriptedPeerSuffix with $priority priority.",
                     peerSuffix = scriptedPeerSuffix,
-                    payloadPreview = payloadText.take(payloadPreviewCharacters),
+                    payloadPreview =
+                        redactedPayloadPreview(payloadText.take(payloadPreviewCharacters)),
+                    payloadSizeBytes = payloadBytes,
+                    fullPayload = payloadText,
                 )
             )
             updatePeerOutcome("Large transfer complete ($payloadBytes bytes)")
@@ -149,7 +159,9 @@ internal class ScriptedReferenceSendRecorder(
                 title = "Guided message sent",
                 detail = "Sent $payloadBytes bytes to $scriptedPeerSuffix with $priority priority.",
                 peerSuffix = scriptedPeerSuffix,
-                payloadPreview = payloadText.take(payloadPreviewCharacters),
+                payloadPreview = redactedPayloadPreview(payloadText.take(payloadPreviewCharacters)),
+                payloadSizeBytes = payloadBytes,
+                fullPayload = payloadText,
             )
         )
         stateStore.appendEvent(
@@ -159,7 +171,9 @@ internal class ScriptedReferenceSendRecorder(
                 title = "Delivery confirmed",
                 detail = "The scripted peer acknowledged the latest guided payload.",
                 peerSuffix = scriptedPeerSuffix,
-                payloadPreview = payloadText.take(payloadPreviewCharacters),
+                payloadPreview = redactedPayloadPreview(payloadText.take(payloadPreviewCharacters)),
+                payloadSizeBytes = payloadBytes,
+                fullPayload = payloadText,
             )
         )
         updatePeerOutcome("Delivery confirmed")

@@ -87,7 +87,7 @@ Use the advanced area to confirm that the app exposes:
 - lifecycle controls
 - the visible power mode
 - trust reset
-- the full public SDK configuration relevant to the app
+- the current configuration snapshot relevant to the app
 
 ## 6. Confirm retained history and export behavior
 

@@ -8,12 +8,14 @@ import ch.trancee.meshlink.reference.model.TimelineEntry
 /** Serialization contract for redacted and opt-in session exports. */
 public interface SessionArtifactSerializer {
     public suspend fun serializeRedacted(
+        artifact: SessionArtifact,
         session: ReferenceSession,
         peers: List<PeerSnapshot>,
         timeline: List<TimelineEntry>,
     ): String
 
     public suspend fun serializeWithFullPayload(
+        artifact: SessionArtifact,
         session: ReferenceSession,
         peers: List<PeerSnapshot>,
         timeline: List<TimelineEntry>,

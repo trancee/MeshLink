@@ -17,7 +17,7 @@ Define the exported session-artifact structure for the MeshLink reference app.
 |---|---|---:|---|
 | `artifactVersion` | string | Yes | Export-contract version |
 | `artifactId` | string | Yes | Unique export identifier |
-| `createdAt` | string | Yes | ISO 8601 timestamp |
+| `createdAt` | string | Yes | Export timestamp string (current implementation uses epoch-millis text) |
 | `sourceSessionId` | string | Yes | Session being exported |
 | `scenario` | object | Yes | Scenario summary block |
 | `configuration` | object | Yes | Configuration snapshot active for the session |
@@ -33,8 +33,8 @@ Define the exported session-artifact structure for the MeshLink reference app.
 | `title` | string | Yes | Operator-facing scenario name |
 | `surface` | string | Yes | `main`, `advanced`, or `lab` |
 | `authorityMode` | string | Yes | `live` or `solo` |
-| `startedAt` | string | Yes | ISO 8601 timestamp |
-| `endedAt` | string | No | ISO 8601 timestamp when available |
+| `startedAt` | string | Yes | Session timestamp string (current implementation uses epoch-millis text) |
+| `endedAt` | string | No | Session timestamp string when available |
 | `lastOutcomeSummary` | string | No | Last high-level result |
 
 ## Peer summary block
@@ -51,7 +51,7 @@ Define the exported session-artifact structure for the MeshLink reference app.
 | Field | Type | Required | Description |
 |---|---|---:|---|
 | `entryId` | string | Yes | Stable event identifier |
-| `occurredAt` | string | Yes | ISO 8601 timestamp |
+| `occurredAt` | string | Yes | Event timestamp string (current implementation uses epoch-millis text) |
 | `family` | string | Yes | Event family |
 | `severity` | string | Yes | Event severity |
 | `title` | string | Yes | Short event summary |

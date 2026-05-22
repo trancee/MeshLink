@@ -25,6 +25,7 @@ import ch.trancee.meshlink.reference.design.ReferenceBadge
 import ch.trancee.meshlink.reference.design.ReferenceSectionCard
 import ch.trancee.meshlink.reference.model.TimelineEntry
 import ch.trancee.meshlink.reference.model.TimelineFamily
+import ch.trancee.meshlink.reference.model.TimelineSeverity
 import ch.trancee.meshlink.reference.session.ExportPayloadPolicy
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -33,10 +34,16 @@ public fun TechnicalTimelineScreen(store: TechnicalTimelineStore, modifier: Modi
     val uiState by store.uiState.collectAsState()
     val availableFamilies =
         uiState.currentSnapshot.timeline.map { entry -> entry.family }.distinct()
+    val availablePeerSuffixes =
+        uiState.currentSnapshot.timeline.mapNotNull { entry -> entry.peerSuffix }.distinct()
+    val availableSeverities =
+        uiState.currentSnapshot.timeline.map { entry -> entry.severity }.distinct()
 
     TechnicalTimelineContent(
         uiState = uiState,
         availableFamilies = availableFamilies,
+        availablePeerSuffixes = availablePeerSuffixes,
+        availableSeverities = availableSeverities,
         store = store,
         modifier = modifier,
     )
@@ -47,6 +54,8 @@ public fun TechnicalTimelineScreen(store: TechnicalTimelineStore, modifier: Modi
 private fun TechnicalTimelineContent(
     uiState: TechnicalTimelineUiState,
     availableFamilies: List<TimelineFamily>,
+    availablePeerSuffixes: List<String>,
+    availableSeverities: List<TimelineSeverity>,
     store: TechnicalTimelineStore,
     modifier: Modifier,
 ): Unit {
@@ -60,6 +69,8 @@ private fun TechnicalTimelineContent(
             TimelineFilterSection(
                 uiState = uiState,
                 availableFamilies = availableFamilies,
+                availablePeerSuffixes = availablePeerSuffixes,
+                availableSeverities = availableSeverities,
                 store = store,
             )
         }
@@ -104,10 +115,18 @@ private fun TimelineRetentionSection(
                 Text("Export redacted")
             }
             Button(
-                onClick = { store.exportCurrentSession(ExportPayloadPolicy.FULL_PAYLOAD_OPT_IN) }
+                onClick = { store.exportCurrentSession(ExportPayloadPolicy.FULL_PAYLOAD_OPT_IN) },
+                enabled = !uiState.viewingRetained,
             ) {
                 Text("Export full payload")
             }
+        }
+        if (uiState.viewingRetained) {
+            Text(
+                text = "Full-payload export is available only from the live session.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
         if (uiState.lastExportPath != null) {
             Text(
@@ -123,12 +142,14 @@ private fun TimelineRetentionSection(
 private fun TimelineFilterSection(
     uiState: TechnicalTimelineUiState,
     availableFamilies: List<TimelineFamily>,
+    availablePeerSuffixes: List<String>,
+    availableSeverities: List<TimelineSeverity>,
     store: TechnicalTimelineStore,
 ): Unit {
     ReferenceSectionCard(
         title = "Filter events",
         subtitle =
-            "Search the current session and narrow the timeline to one family when you want a smaller operator view.",
+            "Search the current session and narrow the timeline by family, severity, or peer when you want a smaller operator view.",
     ) {
         OutlinedTextField(
             value = uiState.filters.searchText,
@@ -141,16 +162,56 @@ private fun TimelineFilterSection(
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             FilterChip(
-                selected = uiState.filters.family == null,
+                selected =
+                    uiState.filters.searchText.isBlank() &&
+                        uiState.filters.family == null &&
+                        uiState.filters.severity == null &&
+                        uiState.filters.peerSuffix == null,
                 onClick = store::clearFilters,
                 label = { Text("All") },
             )
             availableFamilies.forEach { family ->
                 FilterChip(
                     selected = uiState.filters.family == family,
-                    onClick = { store.updateFamily(family) },
+                    onClick = {
+                        store.updateFamily(if (uiState.filters.family == family) null else family)
+                    },
                     label = { Text(family.label()) },
                 )
+            }
+        }
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            availableSeverities.forEach { severity ->
+                FilterChip(
+                    selected = uiState.filters.severity == severity,
+                    onClick = {
+                        store.updateSeverity(
+                            if (uiState.filters.severity == severity) null else severity
+                        )
+                    },
+                    label = { Text(severity.label()) },
+                )
+            }
+        }
+        if (availablePeerSuffixes.isNotEmpty()) {
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                availablePeerSuffixes.forEach { peerSuffix ->
+                    FilterChip(
+                        selected = uiState.filters.peerSuffix == peerSuffix,
+                        onClick = {
+                            store.updatePeer(
+                                if (uiState.filters.peerSuffix == peerSuffix) null else peerSuffix
+                            )
+                        },
+                        label = { Text("Peer $peerSuffix") },
+                    )
+                }
             }
         }
     }
@@ -164,7 +225,7 @@ private fun EmptyTimelineSection(): Unit {
             "Clear the current filters or keep running the session until new diagnostics arrive.",
     ) {
         Text(
-            text = "Nothing matches the current search and family filters.",
+            text = "Nothing matches the current search, family, severity, and peer filters.",
             style = MaterialTheme.typography.bodyMedium,
         )
     }
@@ -179,7 +240,7 @@ private fun TimelineEntryCard(entry: TimelineEntry): Unit {
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             ReferenceBadge(label = entry.family.label())
-            ReferenceBadge(label = entry.severity.name)
+            ReferenceBadge(label = entry.severity.label())
             if (entry.peerSuffix != null) {
                 ReferenceBadge(label = "Peer ${entry.peerSuffix}")
             }
@@ -194,6 +255,12 @@ private fun TimelineEntryCard(entry: TimelineEntry): Unit {
 }
 
 private fun TimelineFamily.label(): String {
+    return name.lowercase().replace('_', ' ').replaceFirstChar { character ->
+        character.titlecase()
+    }
+}
+
+private fun TimelineSeverity.label(): String {
     return name.lowercase().replace('_', ' ').replaceFirstChar { character ->
         character.titlecase()
     }

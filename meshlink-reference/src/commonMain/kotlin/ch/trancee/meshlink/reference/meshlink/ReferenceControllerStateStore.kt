@@ -71,6 +71,8 @@ internal data class ReferenceTimelineEvent(
     val detail: String,
     val peerSuffix: String? = null,
     val payloadPreview: String? = null,
+    val payloadSizeBytes: Int? = null,
+    val fullPayload: String? = null,
 )
 
 internal fun ReferenceTimelineEvent.toTimelineEntry(
@@ -89,5 +91,8 @@ internal fun ReferenceTimelineEvent.toTimelineEntry(
         peerSuffix = peerSuffix,
         searchText = listOf(title, detail, peerSuffix.orEmpty()).joinToString(" "),
         payloadPreview = payloadPreview,
+        payloadSizeBytes = payloadSizeBytes,
+        fullPayload = fullPayload,
+        fullPayloadIncluded = fullPayload != null,
     )
 }

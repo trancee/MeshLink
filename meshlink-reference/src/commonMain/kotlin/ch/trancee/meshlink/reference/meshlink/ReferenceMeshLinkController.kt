@@ -26,6 +26,7 @@ import ch.trancee.meshlink.reference.model.ReferenceSession
 import ch.trancee.meshlink.reference.model.TimelineEntry
 import ch.trancee.meshlink.reference.model.TimelineFamily
 import ch.trancee.meshlink.reference.model.TimelineSeverity
+import ch.trancee.meshlink.reference.model.redactedPayloadPreview
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -350,7 +351,8 @@ public class LiveReferenceMeshLinkController(
     }
 
     private fun handleInboundMessage(message: InboundMessage): Unit {
-        val preview = message.payload.decodeToString().take(INBOUND_MESSAGE_PREVIEW_LENGTH)
+        val payloadText = message.payload.decodeToString()
+        val preview = redactedPayloadPreview(payloadText.take(INBOUND_MESSAGE_PREVIEW_LENGTH))
         stateStore.appendEvent(
             ReferenceTimelineEvent(
                 family = TimelineFamily.MESSAGE,
@@ -360,6 +362,8 @@ public class LiveReferenceMeshLinkController(
                     "Received ${message.payload.size} bytes from ${redactedSuffix(message.originPeerId.value)}.",
                 peerSuffix = redactedSuffix(message.originPeerId.value),
                 payloadPreview = preview,
+                payloadSizeBytes = message.payload.size,
+                fullPayload = payloadText,
             )
         )
         stateStore.updateSession(

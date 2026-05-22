@@ -21,19 +21,20 @@ The app is organized around four slices:
 - a live technical timeline with retained history and exports
 - a clearly separated lab for proof-only and benchmark-only behavior
 
-Android ships from the KMP app module, while iOS uses a direct-integrated Xcode
-host project under `meshlink-reference/ios`. The plan preserves the current
-MeshLink SDK API, runtime dependency budget, wire format, and proof/benchmark
-governance while adding an operator-friendly reference surface.
+Android now ships from the nested `:meshlink-reference:android-app` module,
+while iOS uses a direct-integrated Xcode host project under
+`meshlink-reference/ios`. The plan preserves the current MeshLink SDK API,
+runtime dependency budget, wire format, and proof/benchmark governance while
+adding an operator-friendly reference surface.
 
 ## Technical Context
 
-**Language/Version**: Kotlin 2.3.10 with JVM toolchain 17 for shared and Android code; Swift 5.0 for the iOS host project  
-**Primary Dependencies**: `:meshlink`; Compose Multiplatform UI stack pinned compatibly with Kotlin 2.3.10; AndroidX lifecycle runtime compose `2.10.0`; AndroidX lifecycle viewmodel compose `2.10.0`; AndroidX navigation compose `2.9.2`; Compose resources; `kotlinx-coroutines-core` `1.10.2`; `kotlinx-serialization-json` for app-local session history and export artifacts  
+**Language/Version**: Kotlin 2.3.21 with JVM toolchain 17 for shared and Android code; Swift 5.0 for the iOS host project  
+**Primary Dependencies**: `:meshlink`; Compose Multiplatform UI stack `1.11.0` aligned with Kotlin 2.3.21; AndroidX lifecycle runtime compose `2.10.0`; AndroidX lifecycle viewmodel compose `2.10.0`; AndroidX navigation compose `2.9.2`; Compose resources; `kotlinx-coroutines-core` `1.11.0`; `kotlinx-serialization-json` `1.11.0`; `okio` `3.17.0` for app-local session history and export artifacts  
 **Storage**: App-local JSON files for recent session history and exported session artifacts; redacted previews by default; no backend or cloud sync  
 **Testing**: `kotlin-test` + Power-assert for shared state and model logic; Compose Multiplatform UI tests for common flows; Android instrumented smoke/UI tests; iOS simulator tests; targeted two-device quickstart validation; existing `:meshlink` regression suite and JVM benchmarks rerun whenever integration touches library behavior  
 **Target Platform**: Android API 29+, iOS 15+  
-**Project Type**: Kotlin Multiplatform mobile reference app with shared Compose UI and a native iOS host wrapper  
+**Project Type**: Kotlin Multiplatform mobile reference app with a shared KMP UI/state module, a nested Android app module, and a native iOS host wrapper  
 **Performance Goals**: Guided first-exchange evidence reachable within 5 minutes; timeline filter/search refresh within 1 second for sessions up to 2,000 entries; redacted session export completes within 60 seconds; routine timeline scrolling and control interaction remain visually smooth on supported devices  
 **Constraints**: Offline-only; app lives under root `meshlink-reference/`; same named workflows and terminology on Android/iOS; main guided experience separate from advanced controls and separate from lab-only behavior; solo exploration mode is non-authoritative; recent local history is capped at 20 sessions; full payload export requires explicit opt-in; existing proof apps and retained benchmarks remain the normative transport-validation path  
 **Constitutional Constraints**: Detekt and ktfmt gates; zero lingering TODOs; exact dependency pinning in the version catalog; Conventional Commits; BCV and KDoc only if `:meshlink` public API changes; 100% line/branch coverage expectations for governed code; Power-assert diagnostics; documentation parity between Android and iOS; feature-branch-only workflow; no new runtime dependency leakage into `:meshlink`; no wire-format, crypto-provider, minimum-platform, or cross-platform event/error/state regressions; benchmark reruns or explicit non-applicability when performance-sensitive library paths change  
@@ -128,21 +129,24 @@ meshlink-reference/
 │   │   └── composeResources/
 │   ├── commonTest/
 │   ├── androidMain/
-│   ├── androidUnitTest/
 │   ├── iosMain/
 │   └── iosTest/
+├── android-app/
+│   └── src/
+│       ├── main/
+│       └── androidTest/
 └── ios/
     ├── project.yml
     ├── ReferenceApp/
     └── ReferenceAppTests/
 ```
 
-**Structure Decision**: Use a single root-level Kotlin Multiplatform app module
-at `meshlink-reference/` so Android and iOS share one UI/state implementation,
-resource catalog, and test surface while still giving iOS a native host project
-for signing and device workflows. This honors the user's requested repository
-placement and keeps the new reference app clearly separate from the existing
-proof integrations.
+**Structure Decision**: Use a shared root-level Kotlin Multiplatform module at
+`meshlink-reference/` for common UI/state/resources, a nested
+`:meshlink-reference:android-app` module for the Android entry point and device
+UI tests, and a native iOS host project under `meshlink-reference/ios` for
+signing and device workflows. This keeps Android and iOS behavior aligned while
+reflecting the current AGP 9 build shape.
 
 ## Complexity Tracking
 

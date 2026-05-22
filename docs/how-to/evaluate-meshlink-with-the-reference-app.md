@@ -109,6 +109,7 @@ details a host-app integrator would care about:
 
 - lifecycle controls
 - the visible power mode
+- the current configuration snapshot
 - peer and trust state
 - send controls with priority selection
 - trust reset behavior

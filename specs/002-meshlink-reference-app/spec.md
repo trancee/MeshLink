@@ -14,7 +14,7 @@ and reviewers do, not how it should be built.
 ### Session 2026-05-18
 
 - Q: How should proof-only and benchmark-only features appear in the reference app? → A: Supported product capabilities stay in the main reference experience; proof-only and benchmark-only behaviors appear only in a clearly labeled separate lab section.
-- Q: How much control surface should the reference app expose? → A: Use a guided default experience plus a clearly separated advanced area exposing the full public SDK configuration and runtime controls.
+- Q: How much control surface should the reference app expose? → A: Use a guided default experience plus a clearly separated advanced area exposing the key configuration snapshot and runtime controls.
 - Q: Should the reference app include a no-peer exploration mode? → A: Include a clearly labeled solo exploration mode for non-authoritative walkthroughs and UI inspection, while reserving authoritative delivery and diagnostics proof for live device-to-device sessions.
 - Q: How should the app retain technical session history locally? → A: Automatically retain a clearly separated recent local session history, with explicit clear and delete controls.
 - Q: What payload detail should exported session artifacts include? → A: Export metadata and redacted previews by default, with an explicit operator opt-in to include full payload content.
@@ -85,8 +85,8 @@ resulting state changes.
 3. **Given** a first-time evaluator is using the app, **When** they stay in the
    default reference flow, **Then** they see only the guided controls needed
    for the current scenario, and **When** they choose the advanced area,
-   **Then** the full public SDK configuration and runtime controls become
-   available without replacing the guided experience.
+   **Then** the operator-visible configuration snapshot and runtime controls
+   become available without replacing the guided experience.
 
 ---
 
@@ -206,12 +206,12 @@ operating-system rules force a clearly explained difference.
   user actions, lifecycle changes, peer events, diagnostic events, message
   activity, and transfer activity in chronological order.
 - **FR-009**: The system MUST let the operator filter, search, and narrow the
-  visible technical timeline by peer, severity, event family, time range, and
-  searchable event text.
+  visible technical timeline by peer, severity, event family, and searchable
+  event text.
 - **FR-010**: The system MUST use progressive disclosure so the default view is
   approachable for first-time evaluators while a clearly separated advanced
-  area exposes the full public SDK configuration, runtime controls, and deeper
-  technical detail for users who want it.
+  area exposes the operator-visible configuration snapshot, runtime controls,
+  and deeper technical detail for users who want it.
 - **FR-011**: The system MUST let the operator capture and export a session
   artifact containing the active scenario, current configuration, peer summary,
   technical timeline, delivery outcomes, and payload metadata, with sensitive

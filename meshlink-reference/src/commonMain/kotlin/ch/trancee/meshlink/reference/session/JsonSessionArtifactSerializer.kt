@@ -10,6 +10,7 @@ import kotlinx.serialization.Serializable
 public class JsonSessionArtifactSerializer(private val documentStore: ReferenceDocumentStore) :
     SessionArtifactSerializer {
     override suspend fun serializeRedacted(
+        artifact: SessionArtifact,
         session: ReferenceSession,
         peers: List<PeerSnapshot>,
         timeline: List<TimelineEntry>,
@@ -17,6 +18,7 @@ public class JsonSessionArtifactSerializer(private val documentStore: ReferenceD
         return ReferenceJson.codec.encodeToString(
             ExportDocument.serializer(),
             exportDocument(
+                artifact = artifact,
                 session = session,
                 peers = peers,
                 timeline = timeline,
@@ -26,6 +28,7 @@ public class JsonSessionArtifactSerializer(private val documentStore: ReferenceD
     }
 
     override suspend fun serializeWithFullPayload(
+        artifact: SessionArtifact,
         session: ReferenceSession,
         peers: List<PeerSnapshot>,
         timeline: List<TimelineEntry>,
@@ -33,6 +36,7 @@ public class JsonSessionArtifactSerializer(private val documentStore: ReferenceD
         return ReferenceJson.codec.encodeToString(
             ExportDocument.serializer(),
             exportDocument(
+                artifact = artifact,
                 session = session,
                 peers = peers,
                 timeline = timeline,
@@ -47,21 +51,24 @@ public class JsonSessionArtifactSerializer(private val documentStore: ReferenceD
     }
 
     private fun exportDocument(
+        artifact: SessionArtifact,
         session: ReferenceSession,
         peers: List<PeerSnapshot>,
         timeline: List<TimelineEntry>,
         includeFullPayload: Boolean,
     ): ExportDocument {
+        val fullPayloadAvailable =
+            includeFullPayload && timeline.any { entry -> entry.fullPayload != null }
         return ExportDocument(
             artifactVersion = "1",
-            artifactId = "artifact-${session.sessionId}",
-            createdAt = session.startedAtEpochMillis.toString(),
-            sourceSessionId = session.sessionId,
+            artifactId = artifact.artifactId,
+            createdAt = artifact.createdAtEpochMillis.toString(),
+            sourceSessionId = artifact.sourceSessionId,
             scenario =
                 ScenarioBlock(
                     scenarioId = session.scenarioId,
-                    title = session.scenarioId,
-                    surface = session.configurationSnapshot["surface"] ?: "main",
+                    title = scenarioTitle(session.scenarioId),
+                    surface = normalizeSurface(session.configurationSnapshot["surface"]),
                     authorityMode = session.authorityMode.toString().lowercase(),
                     startedAt = session.startedAtEpochMillis.toString(),
                     endedAt = session.endedAtEpochMillis?.toString(),
@@ -89,16 +96,17 @@ public class JsonSessionArtifactSerializer(private val documentStore: ReferenceD
                         peerSuffix = entry.peerSuffix,
                         payloadMetadata =
                             mapOf(
-                                "previewLength" to (entry.payloadPreview?.length?.toString() ?: "0")
+                                "sizeBytes" to (entry.payloadSizeBytes?.toString() ?: "0"),
+                                "contentType" to "text/plain",
                             ),
                         payloadPreview = entry.payloadPreview,
-                        fullPayload = if (includeFullPayload) entry.payloadPreview else null,
+                        fullPayload = if (fullPayloadAvailable) entry.fullPayload else null,
                     )
                 },
             payloadPolicy =
                 PayloadPolicyBlock(
                     defaultMode = "redacted-preview",
-                    fullPayloadIncluded = includeFullPayload,
+                    fullPayloadIncluded = fullPayloadAvailable,
                     operatorOptInRecorded = includeFullPayload,
                 ),
         )
@@ -156,4 +164,27 @@ public class JsonSessionArtifactSerializer(private val documentStore: ReferenceD
         val fullPayloadIncluded: Boolean,
         val operatorOptInRecorded: Boolean,
     )
+}
+
+private fun scenarioTitle(scenarioId: String): String {
+    return when (scenarioId) {
+        "guided-first-exchange" -> "Guided first exchange"
+        "advanced-controls" -> "Advanced controls"
+        "technical-timeline" -> "Technical timeline"
+        "recent-history" -> "Recent history"
+        "solo-exploration" -> "Solo exploration"
+        "lab" -> "Lab"
+        else ->
+            scenarioId.split('-').joinToString(" ") { token ->
+                token.replaceFirstChar { it.titlecase() }
+            }
+    }
+}
+
+private fun normalizeSurface(surface: String?): String {
+    return when (surface) {
+        "advanced-controls" -> "advanced"
+        "lab" -> "lab"
+        else -> "main"
+    }
 }

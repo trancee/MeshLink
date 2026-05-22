@@ -6,6 +6,7 @@ import ch.trancee.meshlink.reference.model.ArtifactPayloadPolicy
 import ch.trancee.meshlink.reference.model.ReferenceHistoryStatus
 import ch.trancee.meshlink.reference.model.ReferenceSession
 import ch.trancee.meshlink.reference.model.SessionArtifact
+import ch.trancee.meshlink.reference.model.withoutSensitivePayload
 import ch.trancee.meshlink.reference.session.ExportPayloadPolicy
 import kotlinx.coroutines.launch
 
@@ -18,7 +19,11 @@ public fun TechnicalTimelineStore.retainCurrentSession(): Unit {
                     current.currentSnapshot.session.copy(
                         endedAtEpochMillis = platformServices.currentTimeMillis(),
                         historyStatus = ReferenceHistoryStatus.RETAINED,
-                    )
+                    ),
+                timeline =
+                    current.currentSnapshot.timeline.map { entry ->
+                        entry.withoutSensitivePayload()
+                    },
             )
         updateState { state ->
             state.copy(
@@ -114,20 +119,6 @@ private suspend fun TechnicalTimelineStore.writeExport(
     snapshot: ReferenceControllerSnapshot,
     policy: ExportPayloadPolicy,
 ): String {
-    val serialized =
-        if (policy == ExportPayloadPolicy.FULL_PAYLOAD_OPT_IN) {
-            artifactSerializer.serializeWithFullPayload(
-                snapshot.session,
-                snapshot.peers,
-                snapshot.timeline,
-            )
-        } else {
-            artifactSerializer.serializeRedacted(
-                snapshot.session,
-                snapshot.peers,
-                snapshot.timeline,
-            )
-        }
     val artifact =
         SessionArtifact(
             artifactId = "artifact-${snapshot.session.sessionId}",
@@ -139,7 +130,9 @@ private suspend fun TechnicalTimelineStore.writeExport(
                 } else {
                     ArtifactPayloadPolicy.REDACTED_PREVIEW
                 },
-            includesFullPayload = policy == ExportPayloadPolicy.FULL_PAYLOAD_OPT_IN,
+            includesFullPayload =
+                policy == ExportPayloadPolicy.FULL_PAYLOAD_OPT_IN &&
+                    snapshot.timeline.any { entry -> entry.fullPayload != null },
             scenarioSummary = snapshot.session.configurationSnapshot,
             peerSummaries =
                 snapshot.peers.map { peer ->
@@ -148,6 +141,22 @@ private suspend fun TechnicalTimelineStore.writeExport(
             timelineEntries = snapshot.timeline,
             storagePath = "reference/exports/${snapshot.session.sessionId}.json",
         )
+    val serialized =
+        if (policy == ExportPayloadPolicy.FULL_PAYLOAD_OPT_IN) {
+            artifactSerializer.serializeWithFullPayload(
+                artifact,
+                snapshot.session,
+                snapshot.peers,
+                snapshot.timeline,
+            )
+        } else {
+            artifactSerializer.serializeRedacted(
+                artifact,
+                snapshot.session,
+                snapshot.peers,
+                snapshot.timeline,
+            )
+        }
     return artifactSerializer.writeArtifact(artifact, serialized)
 }
 

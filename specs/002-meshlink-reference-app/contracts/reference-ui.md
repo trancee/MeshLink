@@ -10,7 +10,7 @@ expose on both Android and iOS.
 | Surface ID | Audience | Allowed content | Must not contain |
 |---|---|---|---|
 | `main-guided` | First-time evaluators | Guided first exchange, readiness checks, peer selection, primary send proof, clear recovery guidance | Proof-only behavior, benchmark-only behavior, overwhelming expert controls |
-| `advanced-controls` | Integrators and technical reviewers | Full public SDK configuration, runtime controls, deeper technical context, same live-proof semantics as the main app | Hidden unsupported SDK capabilities, proof-only transport behavior without lab labeling |
+| `advanced-controls` | Integrators and technical reviewers | Operator-visible configuration snapshot, runtime controls, deeper technical context, same live-proof semantics as the main app | Hidden unsupported SDK capabilities, proof-only transport behavior without lab labeling |
 | `technical-timeline` | QA, support, debugging reviewers | Chronological events, filtering, search, peer context, delivery/trust/transfer detail | Unlabeled redaction state, misleading simulated proof |
 | `recent-history` | QA, support, regression reviewers | Retained recent sessions, explicit clear/delete controls, reopen-for-review actions | Live-session controls presented as if the retained session were still active |
 | `lab` | Internal evaluators needing non-normative context | Proof-only and benchmark-only behavior with explicit non-normative labeling | Any presentation that implies the lab is the default supported product path |
@@ -41,7 +41,7 @@ The guided first-exchange workflow always provides:
 
 The advanced surface always provides:
 
-1. access to the full public SDK configuration relevant to the app
+1. access to the operator-visible configuration snapshot relevant to the app
 2. lifecycle controls: `start`, `pause`, `resume`, `stop`
 3. power-mode visibility
 4. trust-reset action

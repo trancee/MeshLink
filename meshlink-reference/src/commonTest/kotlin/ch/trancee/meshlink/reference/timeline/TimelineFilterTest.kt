@@ -46,6 +46,40 @@ class TimelineFilterTest {
     }
 
     @Test
+    fun filtersBySeverityAndFamily() {
+        // Arrange
+        val entries =
+            listOf(
+                TimelineEntry(
+                    entryId = "1",
+                    sessionId = "session",
+                    occurredAtEpochMillis = 1,
+                    family = TimelineFamily.MESSAGE,
+                    severity = TimelineSeverity.SUCCESS,
+                    title = "Delivered",
+                    detail = "Delivered to abc123",
+                ),
+                TimelineEntry(
+                    entryId = "2",
+                    sessionId = "session",
+                    occurredAtEpochMillis = 2,
+                    family = TimelineFamily.DIAGNOSTIC,
+                    severity = TimelineSeverity.ERROR,
+                    title = "Trust failure",
+                    detail = "Peer changed identity",
+                ),
+            )
+
+        // Act
+        val filtered =
+            TimelineFilters(family = TimelineFamily.DIAGNOSTIC, severity = TimelineSeverity.ERROR)
+                .apply(entries)
+
+        // Assert
+        assertEquals(listOf("2"), filtered.map { it.entryId })
+    }
+
+    @Test
     fun applyReturnsTheOriginalEntriesWhenNoFiltersAreActive() {
         // Arrange
         val entries =

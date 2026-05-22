@@ -82,7 +82,9 @@ Represents one operator-visible line item in the technical timeline.
 | `peerSuffix` | String? | Redacted peer reference | Optional |
 | `searchText` | String | Concatenated searchable content | Required |
 | `payloadPreview` | String? | Redacted preview when relevant | Optional |
-| `fullPayloadIncluded` | Boolean | Whether the full payload is present in the export representation | Defaults to `false` |
+| `payloadSizeBytes` | Int? | Original payload size when known | Optional |
+| `fullPayload` | String? | Full payload content when explicitly captured for export | Optional |
+| `fullPayloadIncluded` | Boolean | Whether a full payload copy is currently attached to the entry | Defaults to `false` |
 
 ### `SessionArtifact`
 

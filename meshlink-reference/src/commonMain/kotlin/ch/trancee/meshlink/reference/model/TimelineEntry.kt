@@ -15,6 +15,8 @@ public data class TimelineEntry(
     public val peerSuffix: String? = null,
     public val searchText: String = listOf(title, detail, peerSuffix.orEmpty()).joinToString(" "),
     public val payloadPreview: String? = null,
+    public val payloadSizeBytes: Int? = null,
+    public val fullPayload: String? = null,
     public val fullPayloadIncluded: Boolean = false,
 )
 
