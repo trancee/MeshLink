@@ -20,6 +20,10 @@ _Avoid_: Every supported option, internal knob, full SDK parity
 The operator-visible set of supported configuration values that defines one evaluated session. A configuration snapshot stays fixed for the session being reviewed or exported rather than drifting with later app changes.
 _Avoid_: Current config, latest values, live config
 
+**Session boundary**:
+The point where the reference app stops treating evidence as part of one evaluated session and starts a new one. A new session boundary is required when an evaluation-relevant capability changes the conditions being assessed.
+_Avoid_: Continue same session, silent drift, mixed evidence
+
 **Live session**:
 The current active reference-app session backed by the running MeshLink runtime. A live session is the only session that can be retained again or exported with full payload content.
 _Avoid_: Current history, active artifact
