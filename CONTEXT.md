@@ -17,7 +17,7 @@ A supported MeshLink capability that materially changes what an operator can dem
 _Avoid_: Every supported option, internal knob, full SDK parity
 
 **Configuration snapshot**:
-The operator-visible set of supported configuration values that defines one evaluated session. A configuration snapshot stays fixed for the session being reviewed or exported rather than drifting with later app changes.
+The operator-visible set of supported configuration values that defines one evaluated session. A configuration snapshot stays fixed for the session being reviewed or exported rather than drifting with later app changes, including the session’s surface of origin.
 _Avoid_: Current config, latest values, live config
 
 **Session boundary**:
@@ -67,6 +67,10 @@ _Avoid_: Closed live session, editable ended session, post-end controls
 **Supported live session**:
 A live session on the supported guided or advanced path rather than the solo or lab path. Only a supported live session may use full-payload export or automatic retention.
 _Avoid_: Any live session, solo session, lab session
+
+**Surface of origin**:
+The surface where a session began and from which its surface identity is derived. Surface of origin stays fixed for the session and is not replaced by whichever surface happens to be active when the operator exports or ends it.
+_Avoid_: Last viewed surface, export surface, current tab
 
 **Retained session**:
 A previously captured local session snapshot kept separate from the live session for review. Retained sessions are created automatically when a live session ends or rolls over if it produced reviewable evidence, preserve redacted evidence, and do not keep full payload content.
