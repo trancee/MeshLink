@@ -32,12 +32,14 @@ public fun SoloExplorationScreen(modifier: Modifier = Modifier) {
                 )
                 Text(
                     text =
-                        "Use this surface to inspect workflows, wording, and controls when a second device is unavailable.",
+                        "Use this surface to inspect workflows, wording, and controls " +
+                            "when a second device is unavailable.",
                     style = MaterialTheme.typography.bodyLarge,
                 )
                 Text(
                     text =
-                        "It must never be treated as proof of live peer discovery, live delivery, or authoritative diagnostics behavior.",
+                        "It must never be treated as proof of live peer discovery, " +
+                            "live delivery, or authoritative diagnostics behavior.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

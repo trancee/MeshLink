@@ -41,7 +41,8 @@ public fun LabScreen(
                     )
                     Text(
                         text =
-                            "Everything here is explicitly separated from the supported guided and advanced product-reference path.",
+                            "Everything here is explicitly separated from the supported " +
+                                "guided and advanced product-reference path.",
                         style = MaterialTheme.typography.bodyLarge,
                     )
                 }
