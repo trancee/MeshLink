@@ -1,5 +1,9 @@
 # MeshLink Constitution
 
+This document defines the binding engineering rules for MeshLink. Use it as the
+source of truth for code quality, testing, compatibility, performance, and
+project governance.
+
 ## Core Principles
 
 ### I. Rigorous Code Quality
