@@ -8,7 +8,6 @@ import ch.trancee.meshlink.api.MeshLinkApi
 import ch.trancee.meshlink.api.MeshLinkState
 import ch.trancee.meshlink.api.PauseResult
 import ch.trancee.meshlink.api.PeerConnectionState
-import ch.trancee.meshlink.api.PeerEvent
 import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.api.ResumeResult
 import ch.trancee.meshlink.api.SendResult
@@ -295,7 +294,11 @@ public class LiveReferenceMeshLinkController(
                 stateStore.updateSession(meshStateLabel = meshState.toString())
             }
         }
-        scope.launch { meshLinkApi.peerEvents.collect { event -> handlePeerEvent(event) } }
+        scope.launch {
+            meshLinkApi.peerEvents.collect { event ->
+                applyPeerEvent(stateStore = stateStore, nowProvider = nowProvider, event = event)
+            }
+        }
         scope.launch {
             meshLinkApi.diagnosticEvents.collect { event -> handleDiagnosticEvent(event) }
         }
@@ -335,89 +338,6 @@ public class LiveReferenceMeshLinkController(
             }
     }
 
-    private fun handlePeerEvent(event: PeerEvent): Unit {
-        when (event) {
-            is PeerEvent.Found -> {
-                val peerSnapshot =
-                    PeerSnapshot(
-                        peerId = event.peerId.value,
-                        peerSuffix = redactedSuffix(event.peerId.value),
-                        trustState = PeerTrustState.UNKNOWN,
-                        connectionState = event.state.toSnapshotState(),
-                        lastSeenAtEpochMillis = nowProvider(),
-                        capabilityNotes = listOf("Discovered by live MeshLink flow"),
-                    )
-                stateStore.updatePeers { peers ->
-                    (peers.filterNot { existing -> existing.peerId == peerSnapshot.peerId } +
-                            peerSnapshot)
-                        .sortedBy { peer -> peer.peerSuffix }
-                }
-                stateStore.updateSession(
-                    selectedPeerId = event.peerId.value,
-                    lastOutcomeSummary = "Peer found",
-                )
-                stateStore.appendEvent(
-                    ReferenceTimelineEvent(
-                        family = TimelineFamily.PEER,
-                        severity = TimelineSeverity.SUCCESS,
-                        title = "Peer found",
-                        detail = "Discovered ${peerSnapshot.peerSuffix} on the guided path.",
-                        peerSuffix = peerSnapshot.peerSuffix,
-                    )
-                )
-            }
-
-            is PeerEvent.StateChanged -> {
-                stateStore.updatePeers { peers ->
-                    peers.map { peer ->
-                        if (peer.peerId == event.peerId.value) {
-                            peer.copy(
-                                connectionState = event.state.toSnapshotState(),
-                                lastSeenAtEpochMillis = nowProvider(),
-                            )
-                        } else {
-                            peer
-                        }
-                    }
-                }
-                stateStore.appendEvent(
-                    ReferenceTimelineEvent(
-                        family = TimelineFamily.PEER,
-                        severity = TimelineSeverity.INFO,
-                        title = "Peer state changed",
-                        detail = "${redactedSuffix(event.peerId.value)} -> ${event.state}",
-                        peerSuffix = redactedSuffix(event.peerId.value),
-                    )
-                )
-            }
-
-            is PeerEvent.Lost -> {
-                stateStore.updatePeers { peers ->
-                    peers.map { peer ->
-                        if (peer.peerId == event.peerId.value) {
-                            peer.copy(
-                                connectionState = PeerConnectionSnapshotState.LOST,
-                                lastSeenAtEpochMillis = nowProvider(),
-                            )
-                        } else {
-                            peer
-                        }
-                    }
-                }
-                stateStore.appendEvent(
-                    ReferenceTimelineEvent(
-                        family = TimelineFamily.PEER,
-                        severity = TimelineSeverity.WARNING,
-                        title = "Peer lost",
-                        detail =
-                            "${redactedSuffix(event.peerId.value)} left the current guided view.",
-                        peerSuffix = redactedSuffix(event.peerId.value),
-                    )
-                )
-            }
-        }
-    }
-
     private fun handleDiagnosticEvent(event: DiagnosticEvent): Unit {
         val detail = buildString {
             append(event.code)
@@ -444,9 +364,17 @@ public class LiveReferenceMeshLinkController(
         )
         when (event.code) {
             DiagnosticCode.TRUST_ESTABLISHED ->
-                updatePeerTrust(event.peerSuffix, PeerTrustState.TRUSTED)
+                updatePeerTrustState(
+                    stateStore = stateStore,
+                    peerSuffix = event.peerSuffix,
+                    trustState = PeerTrustState.TRUSTED,
+                )
             DiagnosticCode.TRUST_FAILURE ->
-                updatePeerTrust(event.peerSuffix, PeerTrustState.CHANGED)
+                updatePeerTrustState(
+                    stateStore = stateStore,
+                    peerSuffix = event.peerSuffix,
+                    trustState = PeerTrustState.CHANGED,
+                )
             DiagnosticCode.POWER_MODE_CHANGED -> {
                 stateStore.updateActivePowerModeLabel(
                     event.metadata["tier"] ?: stateStore.currentSnapshot.activePowerModeLabel
@@ -478,21 +406,6 @@ public class LiveReferenceMeshLinkController(
             peers.map { peer ->
                 if (peer.peerId == message.originPeerId.value) {
                     peer.copy(lastDeliveryOutcome = "Inbound ${message.payload.size} bytes")
-                } else {
-                    peer
-                }
-            }
-        }
-    }
-
-    private fun updatePeerTrust(peerSuffix: String?, trustState: PeerTrustState): Unit {
-        if (peerSuffix == null) {
-            return
-        }
-        stateStore.updatePeers { peers ->
-            peers.map { peer ->
-                if (peer.peerSuffix == peerSuffix) {
-                    peer.copy(trustState = trustState)
                 } else {
                     peer
                 }
@@ -576,7 +489,7 @@ private fun shouldTrackLifecycleOutcome(value: Any): Boolean {
         value is StopResult
 }
 
-private fun PeerConnectionState.toSnapshotState(): PeerConnectionSnapshotState {
+internal fun PeerConnectionState.toSnapshotState(): PeerConnectionSnapshotState {
     return when (this) {
         PeerConnectionState.CONNECTED -> PeerConnectionSnapshotState.CONNECTED
         PeerConnectionState.DISCONNECTED -> PeerConnectionSnapshotState.DISCONNECTED
@@ -593,6 +506,6 @@ private fun ch.trancee.meshlink.diagnostics.DiagnosticSeverity.toTimelineSeverit
     }
 }
 
-private fun redactedSuffix(peerId: String): String {
+internal fun redactedSuffix(peerId: String): String {
     return peerId.takeLast(6)
 }
