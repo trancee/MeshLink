@@ -16,6 +16,10 @@ _Avoid_: Debug shell, expert mode, full SDK console
 A supported MeshLink capability that materially changes what an operator can demonstrate, compare, or explain in the reference app. Evaluation-relevant capabilities may belong in advanced controls; low-level SDK knobs that do not improve evaluation do not.
 _Avoid_: Every supported option, internal knob, full SDK parity
 
+**Configuration snapshot**:
+The operator-visible set of supported configuration values that defines one evaluated session. A configuration snapshot stays fixed for the session being reviewed or exported rather than drifting with later app changes.
+_Avoid_: Current config, latest values, live config
+
 **Live session**:
 The current active reference-app session backed by the running MeshLink runtime. A live session is the only session that can be retained again or exported with full payload content.
 _Avoid_: Current history, active artifact
