@@ -18,17 +18,20 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import ch.trancee.meshlink.reference.design.ReferenceBadge
 import ch.trancee.meshlink.reference.design.ReferenceSectionCard
+import ch.trancee.meshlink.reference.export.ExportSessionDialog
 import ch.trancee.meshlink.reference.model.TimelineEntry
 import ch.trancee.meshlink.reference.model.TimelineFamily
 import ch.trancee.meshlink.reference.model.TimelineSeverity
 import ch.trancee.meshlink.reference.model.referenceTimelineFamilyLabel
 import ch.trancee.meshlink.reference.model.referenceTimelineSeverityLabel
-import ch.trancee.meshlink.reference.session.ExportPayloadPolicy
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -61,12 +64,22 @@ private fun TechnicalTimelineContent(
     store: TechnicalTimelineStore,
     modifier: Modifier,
 ): Unit {
+    var showExportDialog by remember { mutableStateOf(false) }
+
     LazyColumn(
         modifier = modifier.fillMaxSize().padding(16.dp).testTag("timeline-screen"),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item { TechnicalTimelineHeader() }
-        item { TimelineRetentionSection(uiState = uiState, store = store) }
+        item {
+            TimelineRetentionSection(
+                uiState = uiState,
+                store = store,
+                showExportDialog = showExportDialog,
+                onOpenExportDialog = { showExportDialog = true },
+                onDismissExportDialog = { showExportDialog = false },
+            )
+        }
         item {
             TimelineFilterSection(
                 uiState = uiState,
@@ -93,6 +106,9 @@ private fun TechnicalTimelineHeader(): Unit {
 private fun TimelineRetentionSection(
     uiState: TechnicalTimelineUiState,
     store: TechnicalTimelineStore,
+    showExportDialog: Boolean,
+    onOpenExportDialog: () -> Unit,
+    onDismissExportDialog: () -> Unit,
 ): Unit {
     ReferenceSectionCard(title = "Retain or export") {
         FlowRow(
@@ -118,15 +134,7 @@ private fun TimelineRetentionSection(
             if (uiState.viewingRetained) {
                 Button(onClick = store::returnToLive) { Text("Return to live") }
             }
-            Button(onClick = { store.exportCurrentSession(ExportPayloadPolicy.REDACTED_PREVIEW) }) {
-                Text("Export redacted")
-            }
-            Button(
-                onClick = { store.exportCurrentSession(ExportPayloadPolicy.FULL_PAYLOAD_OPT_IN) },
-                enabled = !uiState.viewingRetained,
-            ) {
-                Text("Export full payload")
-            }
+            Button(onClick = onOpenExportDialog) { Text("Export session") }
         }
         if (uiState.viewingRetained) {
             Text(
@@ -134,6 +142,16 @@ private fun TimelineRetentionSection(
                     "Return to the live session before retaining again or exporting full payload content.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (showExportDialog) {
+            ExportSessionDialog(
+                onExport = { policy ->
+                    store.exportCurrentSession(policy)
+                    onDismissExportDialog()
+                },
+                onDismiss = onDismissExportDialog,
+                allowFullPayload = !uiState.viewingRetained,
             )
         }
         if (uiState.lastExportPath != null) {

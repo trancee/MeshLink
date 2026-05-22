@@ -21,6 +21,8 @@ import ch.trancee.meshlink.reference.session.ExportPayloadPolicy
 @Composable
 public fun ExportSessionDialog(
     onExport: (ExportPayloadPolicy) -> Unit,
+    onDismiss: () -> Unit,
+    allowFullPayload: Boolean,
     modifier: Modifier = Modifier,
 ) {
     Card(modifier = modifier.fillMaxWidth()) {
@@ -30,8 +32,7 @@ public fun ExportSessionDialog(
         ) {
             Text(text = "Export session", style = MaterialTheme.typography.titleLarge)
             Text(
-                text =
-                    "Redacted previews are the default. Full payloads require explicit operator opt-in.",
+                text = exportDialogBodyText(allowFullPayload),
                 style = MaterialTheme.typography.bodyMedium,
             )
             FlowRow(
@@ -39,12 +40,23 @@ public fun ExportSessionDialog(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Button(onClick = { onExport(ExportPayloadPolicy.REDACTED_PREVIEW) }) {
-                    Text("Redacted")
+                    Text("Redacted export")
                 }
-                Button(onClick = { onExport(ExportPayloadPolicy.FULL_PAYLOAD_OPT_IN) }) {
-                    Text("Full payload")
+                if (allowFullPayload) {
+                    Button(onClick = { onExport(ExportPayloadPolicy.FULL_PAYLOAD_OPT_IN) }) {
+                        Text("Full payload export")
+                    }
                 }
+                Button(onClick = onDismiss) { Text("Cancel") }
             }
         }
+    }
+}
+
+private fun exportDialogBodyText(allowFullPayload: Boolean): String {
+    return if (allowFullPayload) {
+        "Redacted previews are the default. Full payloads require explicit operator opt-in."
+    } else {
+        "Redacted previews are the default. Retained history strips full payload content, so only redacted export is available here."
     }
 }
