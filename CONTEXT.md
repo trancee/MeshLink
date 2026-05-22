@@ -45,7 +45,7 @@ The last export opportunity for a supported live session before the operator end
 _Avoid_: After-the-fact full export, warning only
 
 **Pre-exit redacted export**:
-The last export opportunity before the operator leaves a solo or lab session. It is always redacted-only because solo and lab sessions are never eligible for full-payload export.
+The last export opportunity before the operator leaves a solo or lab session. It is always redacted-only because solo and lab sessions are never eligible for full-payload export, and it does not lead into an ended-session view.
 _Avoid_: Full export from solo or lab, silent discard without choice
 
 **Live session**:
@@ -61,7 +61,7 @@ The explicit operator action that closes the current evidence window for a sessi
 _Avoid_: Stop mesh, implicit end, session stop
 
 **Ended session view**:
-The read-only presentation of the most recently ended session before the operator starts a new live session. It keeps the closed evidence window visible without silently creating a replacement session, even if the same ended session has already been added to recent history.
+The read-only presentation of the most recently ended supported session before the operator starts a new live session. It keeps the closed evidence window visible without silently creating a replacement session, even if the same ended session has already been added to recent history.
 _Avoid_: Auto-start next session, hidden reset, live session
 
 **Review-only ended session view**:
