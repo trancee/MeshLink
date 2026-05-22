@@ -131,27 +131,24 @@ private constructor(
         maximumWait: Duration,
         idleWindow: Duration,
     ): Int {
-        if (maximumWait <= Duration.ZERO) {
+        if (maximumWait <= Duration.ZERO || acknowledgedChunkCount >= totalChunks) {
             return acknowledgedChunkCount
         }
         var observedAcknowledgedChunks = acknowledgedChunkCount
-        if (observedAcknowledgedChunks >= totalChunks) {
-            return observedAcknowledgedChunks
-        }
         val startedAt = TimeSource.Monotonic.markNow()
-        while (startedAt.elapsedNow() < maximumWait) {
+        while (startedAt.elapsedNow() < maximumWait && observedAcknowledgedChunks < totalChunks) {
             val remainingBudget = maximumWait - startedAt.elapsedNow()
             val waitWindow = remainingBudget.coerceAtMost(idleWindow)
             val progressedAcknowledgedChunks =
                 withTimeoutOrNull(waitWindow) {
                     acknowledgedChunkCountFlow.first { count -> count > observedAcknowledgedChunks }
-                } ?: return acknowledgedChunkCount
-            observedAcknowledgedChunks = progressedAcknowledgedChunks
-            if (observedAcknowledgedChunks >= totalChunks) {
-                return observedAcknowledgedChunks
+                }
+            if (progressedAcknowledgedChunks == null) {
+                break
             }
+            observedAcknowledgedChunks = progressedAcknowledgedChunks
         }
-        return acknowledgedChunkCount
+        return observedAcknowledgedChunks.coerceAtLeast(acknowledgedChunkCount)
     }
 
     internal fun isComplete(): Boolean {
@@ -219,7 +216,7 @@ internal constructor(
         get() = startDescriptor.maxChunkPayloadBytes
 
     private val receivedChunks: Array<ByteArray?> = arrayOfNulls(totalChunks)
-    private val receivedChunkBitSet: ByteArray = ByteArray((totalChunks + 7) / 8)
+    private val receivedChunkBitSet: ByteArray = ByteArray(bitSetSizeFor(totalChunks))
     private var receivedChunkCount: Int = 0
     private var newlyReceivedChunksSinceLastAck: Int = 0
     private var highestContiguousAck: Int = -1
@@ -283,7 +280,7 @@ internal constructor(
         val output = ByteArray(totalBytes)
         var writeOffset = 0
         receivedChunks.forEach { chunk ->
-            val payload = chunk ?: throw IllegalStateException("Transfer payload is incomplete")
+            val payload = checkNotNull(chunk) { "Transfer payload is incomplete" }
             payload.copyInto(output, destinationOffset = writeOffset)
             writeOffset += payload.size
         }
@@ -365,25 +362,32 @@ internal fun WireFrame.TransferStart.toTransferStartDescriptor(): TransferStartD
 }
 
 private fun ByteArray.isMarked(index: Int): Boolean {
-    if (index < 0) {
-        return false
-    }
-    val byteIndex = index / 8
+    val byteIndex = indexToByteIndex(index)
     if (byteIndex !in indices) {
         return false
     }
-    val bitMask = 1 shl (index % 8)
-    return (this[byteIndex].toInt() and bitMask) != 0
+    return (this[byteIndex].toInt() and indexToBitMask(index)) != 0
 }
 
 private fun ByteArray.mark(index: Int): Unit {
-    if (index < 0) {
-        return
-    }
-    val byteIndex = index / 8
+    val byteIndex = indexToByteIndex(index)
     if (byteIndex !in indices) {
         return
     }
-    val bitMask = 1 shl (index % 8)
-    this[byteIndex] = (this[byteIndex].toInt() or bitMask).toByte()
+    this[byteIndex] = (this[byteIndex].toInt() or indexToBitMask(index)).toByte()
 }
+
+private fun bitSetSizeFor(bitCount: Int): Int {
+    return (bitCount + BIT_INDEX_MASK) / BITS_PER_BYTE
+}
+
+private fun indexToByteIndex(index: Int): Int {
+    return index / BITS_PER_BYTE
+}
+
+private fun indexToBitMask(index: Int): Int {
+    return 1 shl (index % BITS_PER_BYTE)
+}
+
+private const val BITS_PER_BYTE: Int = 8
+private const val BIT_INDEX_MASK: Int = 7
