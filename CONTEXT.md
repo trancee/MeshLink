@@ -37,7 +37,7 @@ A previously captured local session snapshot kept separate from the live session
 _Avoid_: Saved live session, archived runtime
 
 **Automatic retention**:
-The default rule that a finished live session with reviewable evidence is added to recent history without requiring a separate operator action. Automatic retention preserves evidence before the operator moves on to a new session.
+The default rule that a finished live session with reviewable evidence is added to recent history without requiring a separate operator action. Automatic retention preserves evidence before the operator moves on to a new session, but it does not apply to solo sessions.
 _Avoid_: Optional save, manual retain only
 
 **Reviewable evidence**:
@@ -87,6 +87,10 @@ _Avoid_: Advanced mode, expert mode
 **Solo exploration**:
 The one-device, non-authoritative walkthrough surface. It allows inspection and orientation without claiming live peer proof.
 _Avoid_: Demo mode, offline proof
+
+**Solo session**:
+A session produced on the solo exploration path. A solo session remains non-authoritative and is not added to recent history automatically.
+_Avoid_: Retained live proof, authoritative session, normal recent-history entry
 
 ## Example dialogue
 
