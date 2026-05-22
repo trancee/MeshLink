@@ -18,7 +18,7 @@ plugins {
 kotlin {
     androidTarget { compilerOptions { jvmTarget.set(JvmTarget.JVM_17) } }
 
-    listOf(iosX64(), iosArm64(), iosSimulatorArm64()).forEach { iosTarget ->
+    listOf(iosArm64(), iosSimulatorArm64()).forEach { iosTarget ->
         iosTarget.binaries.framework {
             baseName = "ReferenceAppShared"
             isStatic = true
@@ -51,10 +51,10 @@ kotlin {
         }
         androidMain.dependencies { implementation(libs.androidx.activity.compose) }
         androidInstrumentedTest.dependencies {
-            implementation("androidx.test:core:1.6.1")
-            implementation("androidx.test.ext:junit:1.2.1")
-            implementation("androidx.test:runner:1.6.2")
-            implementation("androidx.test.uiautomator:uiautomator:2.3.0")
+            implementation(libs.androidx.test.core)
+            implementation(libs.androidx.test.ext.junit)
+            implementation(libs.androidx.test.runner)
+            implementation(libs.androidx.test.uiautomator)
         }
         androidUnitTest.dependencies {
             implementation(libs.kotlin.test)
@@ -69,7 +69,7 @@ kotlin {
 
 android {
     namespace = "ch.trancee.meshlink.reference"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "ch.trancee.meshlink.reference"
@@ -116,7 +116,6 @@ val localCheck by tasks.registering {
         "koverVerify",
         "linkDebugFrameworkIosArm64",
         "linkDebugFrameworkIosSimulatorArm64",
-        "linkDebugFrameworkIosX64",
     )
 }
 

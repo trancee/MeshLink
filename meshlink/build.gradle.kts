@@ -15,7 +15,7 @@ kotlin {
     explicitApi()
     jvm { compilerOptions { jvmTarget.set(JvmTarget.JVM_17) } }
     androidTarget { compilerOptions { jvmTarget.set(JvmTarget.JVM_17) } }
-    listOf(iosX64(), iosArm64(), iosSimulatorArm64()).forEach { iosTarget ->
+    listOf(iosArm64(), iosSimulatorArm64()).forEach { iosTarget ->
         iosTarget.binaries.framework {
             baseName = "MeshLink"
             isStatic = true
@@ -36,7 +36,7 @@ kotlin {
 
 android {
     namespace = "ch.trancee.meshlink"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig { minSdk = 29 }
 

@@ -85,8 +85,7 @@ Then run the narrowest tests that still cover your change:
 ```bash
 ./gradlew :meshlink:jvmTest
 ./gradlew :meshlink:testDebugUnitTest
-./gradlew :meshlink:iosSimulatorArm64Test   # Apple Silicon Macs
-./gradlew :meshlink:iosX64Test              # Intel Macs
+./gradlew :meshlink:iosSimulatorArm64Test
 ```
 
 When a change crosses shared logic, public API behavior, or Android/iOS parity,

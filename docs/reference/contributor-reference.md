@@ -33,8 +33,7 @@ Use this page when you need exact commands, matrices, or policy details.
 | Run the full library test bundle | `./gradlew :meshlink:allTests` | Aggregates tests across the library targets. |
 | Run JVM tests | `./gradlew :meshlink:jvmTest` | Fast shared-library feedback loop. |
 | Run Android unit tests | `./gradlew :meshlink:testDebugUnitTest` | Default Android-side unit test task. |
-| Run iOS tests on Apple Silicon | `./gradlew :meshlink:iosSimulatorArm64Test` | Use on Apple Silicon Macs. |
-| Run iOS tests on Intel | `./gradlew :meshlink:iosX64Test` | Use on Intel Macs. |
+| Run iOS tests on Apple Silicon | `./gradlew :meshlink:iosSimulatorArm64Test` | Supported iOS simulator target for local verification. |
 | Run static analysis | `./gradlew :meshlink:detekt` | Production code must remain Detekt-clean. |
 | Check API compatibility | `./gradlew :meshlink:apiCheck` | Verifies the tracked public API surface. |
 | Verify coverage | `./gradlew :meshlink:koverVerify` | Coverage gate for the library module. |
@@ -51,7 +50,7 @@ Use this page when you need exact commands, matrices, or policy details.
 | Docs-only change | `./gradlew verifyDocs` |
 | Shared-library logic change | `./gradlew :meshlink:allTests :meshlink:detekt :meshlink:koverVerify` |
 | Android-specific library glue | `./gradlew :meshlink:testDebugUnitTest :meshlink:detekt :meshlink:koverVerify` plus `:meshlink:allTests` when parity or shared behavior is affected |
-| iOS-specific library glue | `./gradlew :meshlink:iosSimulatorArm64Test` or `:meshlink:iosX64Test`, plus `:meshlink:detekt :meshlink:koverVerify`; use `:meshlink:allTests` when parity or shared behavior is affected |
+| iOS-specific library glue | `./gradlew :meshlink:iosSimulatorArm64Test`, plus `:meshlink:detekt :meshlink:koverVerify`; use `:meshlink:allTests` when parity or shared behavior is affected |
 | Reference-app shared UI, Android glue, or shared state change | `./scripts/run-reference-local-check.sh` |
 | Reference-app release artifact or framework export change | `./gradlew :meshlink-reference:build` |
 | Public API change | `./gradlew :meshlink:allTests :meshlink:detekt :meshlink:apiCheck :meshlink:koverVerify verifyDocs`, plus API dump and appendix refresh |

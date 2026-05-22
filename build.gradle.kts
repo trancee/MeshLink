@@ -84,6 +84,6 @@ tasks.named("check") {
 }
 
 tasks.wrapper {
-    gradleVersion = "8.9"
-    distributionType = Wrapper.DistributionType.ALL
+    gradleVersion = "8.11.1"
+    distributionType = Wrapper.DistributionType.BIN
 }
