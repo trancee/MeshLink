@@ -350,7 +350,7 @@ public class LiveReferenceMeshLinkController(
     }
 
     private fun handleInboundMessage(message: InboundMessage): Unit {
-        val preview = message.payload.decodeToString().take(80)
+        val preview = message.payload.decodeToString().take(INBOUND_MESSAGE_PREVIEW_LENGTH)
         stateStore.appendEvent(
             ReferenceTimelineEvent(
                 family = TimelineFamily.MESSAGE,
@@ -405,7 +405,8 @@ public class PreviewReferenceMeshLinkController(
                     listOf(
                         PeerSnapshot(
                             peerId = "preview-peer-$platformName",
-                            peerSuffix = platformName.take(2).uppercase() + "0001",
+                            peerSuffix =
+                                platformName.take(PREVIEW_PEER_PREFIX_LENGTH).uppercase() + "0001",
                             trustState = PeerTrustState.UNKNOWN,
                             connectionState = PeerConnectionSnapshotState.DISCONNECTED,
                             capabilityNotes = listOf("Fallback preview data"),
@@ -471,5 +472,9 @@ private fun ch.trancee.meshlink.diagnostics.DiagnosticSeverity.toTimelineSeverit
 }
 
 internal fun redactedSuffix(peerId: String): String {
-    return peerId.takeLast(6)
+    return peerId.takeLast(REDACTED_PEER_SUFFIX_LENGTH)
 }
+
+private const val REDACTED_PEER_SUFFIX_LENGTH: Int = 6
+private const val INBOUND_MESSAGE_PREVIEW_LENGTH: Int = 80
+private const val PREVIEW_PEER_PREFIX_LENGTH: Int = 2

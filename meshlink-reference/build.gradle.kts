@@ -75,6 +75,11 @@ detekt {
 tasks.withType<Detekt>().configureEach {
     jvmTarget = "17"
     exclude("**/build/**")
+    exclude { element ->
+        element.file.invariantSeparatorsPath.contains(
+            "/meshlink-reference/build/generated/compose/resourceGenerator/"
+        )
+    }
 }
 
 ktfmt { kotlinLangStyle() }
