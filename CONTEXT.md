@@ -68,8 +68,12 @@ _Avoid_: Retain live session, manual retain, partial retained session
 An exported evidence document for one session. A session artifact summarizes the scenario, peer state, timeline, and export redaction policy, and a single session may produce multiple session artifacts.
 _Avoid_: Dump, log file, report
 
+**Artifact instance**:
+One unique session artifact created by one export action. Different artifact instances may share the same source session while differing by export time or payload policy.
+_Avoid_: Canonical export file, overwritten export, one true artifact
+
 **Export action**:
-An operator request that creates a session artifact from a session without changing that session’s history state. Export actions and history state are separate concerns, and repeated export actions may produce multiple artifacts for the same session.
+An operator request that creates a new session artifact instance from a session without changing that session’s history state. Export actions and history state are separate concerns, and repeated export actions may produce multiple artifacts for the same session.
 _Avoid_: Exported session state, promote to exported, replace retained state
 
 **Timestamp**:
