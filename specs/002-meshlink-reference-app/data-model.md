@@ -103,7 +103,7 @@ epoch-millis field in the timeline model.
 
 ### `SessionArtifact`
 
-Represents an exported or retained structured session document.
+Represents one exported artifact instance created from a session.
 
 | Field | Type | Description | Validation |
 |---|---|---|---|
