@@ -44,6 +44,10 @@ _Avoid_: Any live session, solo session, lab session
 A previously captured local session snapshot kept separate from the live session for review. Retained sessions are created automatically when a live session ends or rolls over if it produced reviewable evidence, preserve redacted evidence, and do not keep full payload content.
 _Avoid_: Saved live session, archived runtime
 
+**History state**:
+Where a session currently lives in the reference app’s evidence model. History state is about whether a session is live, retained, or deleted, not about whether it has been exported.
+_Avoid_: Export status, artifact state, file status
+
 **Automatic retention**:
 The default rule that a finished live session with reviewable evidence is added to recent history without requiring a separate operator action. Automatic retention preserves evidence before the operator moves on to a new session, but it does not apply to solo sessions or lab sessions.
 _Avoid_: Optional save, manual retain only
@@ -63,6 +67,10 @@ _Avoid_: Retain live session, manual retain, partial retained session
 **Session artifact**:
 An exported evidence document for one session. A session artifact summarizes the scenario, peer state, timeline, and export redaction policy.
 _Avoid_: Dump, log file, report
+
+**Export action**:
+An operator request that creates a session artifact from a session without changing that session’s history state. Export actions and history state are separate concerns.
+_Avoid_: Exported session state, promote to exported, replace retained state
 
 **Timestamp**:
 A conceptual point in time used in the reference-app documentation. In conceptual docs, `Timestamp` does not imply a concrete storage type or library type.
