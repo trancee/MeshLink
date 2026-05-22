@@ -31,6 +31,7 @@ public constructor(public val privateKey: ByteArray, public val publicKey: ByteA
  * - ChaCha20-Poly1305 returns `ciphertext || tag`
  */
 public object IosCryptoBridge {
+    @Suppress("LongParameterList")
     public fun install(
         randomBytes: (Int) -> ByteArray,
         sha256: (ByteArray) -> ByteArray,
@@ -46,33 +47,70 @@ public object IosCryptoBridge {
         IosCryptoBridgeRegistry.install(
             IosCryptoCallbacks(
                 randomBytes = randomBytes,
-                sha256 = sha256,
-                hmacSha256 = hmacSha256,
-                generateX25519KeyPair = generateX25519KeyPair,
-                generateEd25519KeyPair = generateEd25519KeyPair,
+                hashes = IosHashCallbacks(sha256 = sha256, hmacSha256 = hmacSha256),
+                keyGeneration =
+                    IosKeyGenerationCallbacks(
+                        generateX25519KeyPair = generateX25519KeyPair,
+                        generateEd25519KeyPair = generateEd25519KeyPair,
+                    ),
                 x25519 = x25519,
-                ed25519Sign = ed25519Sign,
-                ed25519Verify = ed25519Verify,
-                chacha20Poly1305Seal = chacha20Poly1305Seal,
-                chacha20Poly1305Open = chacha20Poly1305Open,
+                ed25519 = IosEd25519Callbacks(sign = ed25519Sign, verify = ed25519Verify),
+                chacha20Poly1305 =
+                    IosChaCha20Poly1305Callbacks(
+                        seal = chacha20Poly1305Seal,
+                        open = chacha20Poly1305Open,
+                    ),
             )
         )
     }
 }
 
+internal class IosHashCallbacks
+internal constructor(
+    internal val sha256: (ByteArray) -> ByteArray,
+    internal val hmacSha256: (ByteArray, ByteArray) -> ByteArray,
+)
+
+internal class IosKeyGenerationCallbacks
+internal constructor(
+    internal val generateX25519KeyPair: () -> IosCryptoRawKeyPair,
+    internal val generateEd25519KeyPair: () -> IosCryptoRawKeyPair,
+)
+
+internal class IosEd25519Callbacks
+internal constructor(
+    internal val sign: (ByteArray, ByteArray) -> ByteArray,
+    internal val verify: (ByteArray, ByteArray, ByteArray) -> Boolean,
+)
+
+internal class IosChaCha20Poly1305Callbacks
+internal constructor(
+    internal val seal: (ByteArray, ByteArray, ByteArray, ByteArray) -> ByteArray,
+    internal val open: (ByteArray, ByteArray, ByteArray, ByteArray) -> ByteArray,
+)
+
 internal class IosCryptoCallbacks
 internal constructor(
     internal val randomBytes: (Int) -> ByteArray,
-    internal val sha256: (ByteArray) -> ByteArray,
-    internal val hmacSha256: (ByteArray, ByteArray) -> ByteArray,
-    internal val generateX25519KeyPair: () -> IosCryptoRawKeyPair,
-    internal val generateEd25519KeyPair: () -> IosCryptoRawKeyPair,
+    hashes: IosHashCallbacks,
+    keyGeneration: IosKeyGenerationCallbacks,
     internal val x25519: (ByteArray, ByteArray) -> ByteArray,
-    internal val ed25519Sign: (ByteArray, ByteArray) -> ByteArray,
-    internal val ed25519Verify: (ByteArray, ByteArray, ByteArray) -> Boolean,
-    internal val chacha20Poly1305Seal: (ByteArray, ByteArray, ByteArray, ByteArray) -> ByteArray,
-    internal val chacha20Poly1305Open: (ByteArray, ByteArray, ByteArray, ByteArray) -> ByteArray,
-)
+    ed25519: IosEd25519Callbacks,
+    chacha20Poly1305: IosChaCha20Poly1305Callbacks,
+) {
+    internal val sha256: (ByteArray) -> ByteArray = hashes.sha256
+    internal val hmacSha256: (ByteArray, ByteArray) -> ByteArray = hashes.hmacSha256
+    internal val generateX25519KeyPair: () -> IosCryptoRawKeyPair =
+        keyGeneration.generateX25519KeyPair
+    internal val generateEd25519KeyPair: () -> IosCryptoRawKeyPair =
+        keyGeneration.generateEd25519KeyPair
+    internal val ed25519Sign: (ByteArray, ByteArray) -> ByteArray = ed25519.sign
+    internal val ed25519Verify: (ByteArray, ByteArray, ByteArray) -> Boolean = ed25519.verify
+    internal val chacha20Poly1305Seal: (ByteArray, ByteArray, ByteArray, ByteArray) -> ByteArray =
+        chacha20Poly1305.seal
+    internal val chacha20Poly1305Open: (ByteArray, ByteArray, ByteArray, ByteArray) -> ByteArray =
+        chacha20Poly1305.open
+}
 
 internal object IosCryptoBridgeRegistry {
     private var callbacks: IosCryptoCallbacks? = null
