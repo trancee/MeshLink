@@ -15,13 +15,21 @@ class IosIncomingL2capHintSelectionTest {
         // Act
         val selectedHint =
             selectIncomingL2capHintPeerId(
-                peripheralIdentifier = "known-id",
-                peerHintByIdentifier = mapOf("known-id" to mappedHint),
-                discoveredPeers = emptyList(),
-                activeHintIds = emptySet(),
-                pendingHintIds = emptySet(),
-                localKeyHash = byteArrayOf(0x7F, 0x10),
-                localPlatformFamily = BleDiscoveryPlatformFamily.UNKNOWN,
+                IncomingL2capHintSelectionRequest(
+                    peripheralIdentifier = "known-id",
+                    peerHintByIdentifier = mapOf("known-id" to mappedHint),
+                    discoveredPeers = emptyList(),
+                    ignoredHints =
+                        IncomingL2capSelectionIgnoredHints(
+                            activeHintIds = emptySet(),
+                            pendingHintIds = emptySet(),
+                        ),
+                    localPeer =
+                        IncomingL2capSelectionLocalPeer(
+                            localKeyHash = byteArrayOf(0x7F, 0x10),
+                            platformFamily = BleDiscoveryPlatformFamily.UNKNOWN,
+                        ),
+                )
             )
 
         // Assert
@@ -42,13 +50,21 @@ class IosIncomingL2capHintSelectionTest {
         // Act
         val selectedHint =
             selectIncomingL2capHintPeerId(
-                peripheralIdentifier = "incoming-id",
-                peerHintByIdentifier = emptyMap(),
-                discoveredPeers = listOf(waitingCandidate),
-                activeHintIds = emptySet(),
-                pendingHintIds = emptySet(),
-                localKeyHash = byteArrayOf(0x7F, 0x10),
-                localPlatformFamily = BleDiscoveryPlatformFamily.UNKNOWN,
+                IncomingL2capHintSelectionRequest(
+                    peripheralIdentifier = "incoming-id",
+                    peerHintByIdentifier = emptyMap(),
+                    discoveredPeers = listOf(waitingCandidate),
+                    ignoredHints =
+                        IncomingL2capSelectionIgnoredHints(
+                            activeHintIds = emptySet(),
+                            pendingHintIds = emptySet(),
+                        ),
+                    localPeer =
+                        IncomingL2capSelectionLocalPeer(
+                            localKeyHash = byteArrayOf(0x7F, 0x10),
+                            platformFamily = BleDiscoveryPlatformFamily.UNKNOWN,
+                        ),
+                )
             )
 
         // Assert
@@ -76,13 +92,21 @@ class IosIncomingL2capHintSelectionTest {
         // Act
         val selectedHint =
             selectIncomingL2capHintPeerId(
-                peripheralIdentifier = "incoming-id",
-                peerHintByIdentifier = emptyMap(),
-                discoveredPeers = listOf(firstWaitingCandidate, secondWaitingCandidate),
-                activeHintIds = emptySet(),
-                pendingHintIds = emptySet(),
-                localKeyHash = byteArrayOf(0x7F, 0x10),
-                localPlatformFamily = BleDiscoveryPlatformFamily.UNKNOWN,
+                IncomingL2capHintSelectionRequest(
+                    peripheralIdentifier = "incoming-id",
+                    peerHintByIdentifier = emptyMap(),
+                    discoveredPeers = listOf(firstWaitingCandidate, secondWaitingCandidate),
+                    ignoredHints =
+                        IncomingL2capSelectionIgnoredHints(
+                            activeHintIds = emptySet(),
+                            pendingHintIds = emptySet(),
+                        ),
+                    localPeer =
+                        IncomingL2capSelectionLocalPeer(
+                            localKeyHash = byteArrayOf(0x7F, 0x10),
+                            platformFamily = BleDiscoveryPlatformFamily.UNKNOWN,
+                        ),
+                )
             )
 
         // Assert
@@ -103,13 +127,21 @@ class IosIncomingL2capHintSelectionTest {
         // Act
         val selectedHint =
             selectIncomingL2capHintPeerId(
-                peripheralIdentifier = "incoming-id",
-                peerHintByIdentifier = emptyMap(),
-                discoveredPeers = listOf(outboundInitiatorCandidate),
-                activeHintIds = emptySet(),
-                pendingHintIds = emptySet(),
-                localKeyHash = byteArrayOf(0x7F, 0x10),
-                localPlatformFamily = BleDiscoveryPlatformFamily.UNKNOWN,
+                IncomingL2capHintSelectionRequest(
+                    peripheralIdentifier = "incoming-id",
+                    peerHintByIdentifier = emptyMap(),
+                    discoveredPeers = listOf(outboundInitiatorCandidate),
+                    ignoredHints =
+                        IncomingL2capSelectionIgnoredHints(
+                            activeHintIds = emptySet(),
+                            pendingHintIds = emptySet(),
+                        ),
+                    localPeer =
+                        IncomingL2capSelectionLocalPeer(
+                            localKeyHash = byteArrayOf(0x7F, 0x10),
+                            platformFamily = BleDiscoveryPlatformFamily.UNKNOWN,
+                        ),
+                )
             )
 
         // Assert

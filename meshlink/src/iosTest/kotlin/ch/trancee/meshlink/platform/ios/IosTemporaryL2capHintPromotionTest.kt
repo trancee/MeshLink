@@ -15,10 +15,12 @@ class IosTemporaryL2capHintPromotionTest {
         // Act
         val selectedHint =
             selectTemporaryL2capHintPromotion(
-                identifier = identifier,
-                resolvedHintPeerIdValue = resolvedHintPeerIdValue,
-                temporaryHintByIdentifier = mapOf(identifier to temporaryHintPeerIdValue),
-                activeHintIds = setOf(temporaryHintPeerIdValue),
+                TemporaryL2capHintPromotionRequest(
+                    identifier = identifier,
+                    resolvedHintPeerIdValue = resolvedHintPeerIdValue,
+                    temporaryHintByIdentifier = mapOf(identifier to temporaryHintPeerIdValue),
+                    activeHintIds = setOf(temporaryHintPeerIdValue),
+                )
             )
 
         // Assert
@@ -34,10 +36,12 @@ class IosTemporaryL2capHintPromotionTest {
         // Act
         val selectedHint =
             selectTemporaryL2capHintPromotion(
-                identifier = identifier,
-                resolvedHintPeerIdValue = resolvedHintPeerIdValue,
-                temporaryHintByIdentifier = mapOf(identifier to resolvedHintPeerIdValue),
-                activeHintIds = setOf(resolvedHintPeerIdValue),
+                TemporaryL2capHintPromotionRequest(
+                    identifier = identifier,
+                    resolvedHintPeerIdValue = resolvedHintPeerIdValue,
+                    temporaryHintByIdentifier = mapOf(identifier to resolvedHintPeerIdValue),
+                    activeHintIds = setOf(resolvedHintPeerIdValue),
+                )
             )
 
         // Assert
@@ -54,10 +58,12 @@ class IosTemporaryL2capHintPromotionTest {
         // Act
         val selectedHint =
             selectTemporaryL2capHintPromotion(
-                identifier = identifier,
-                resolvedHintPeerIdValue = resolvedHintPeerIdValue,
-                temporaryHintByIdentifier = mapOf(identifier to mappedHintPeerIdValue),
-                activeHintIds = setOf(mappedHintPeerIdValue),
+                TemporaryL2capHintPromotionRequest(
+                    identifier = identifier,
+                    resolvedHintPeerIdValue = resolvedHintPeerIdValue,
+                    temporaryHintByIdentifier = mapOf(identifier to mappedHintPeerIdValue),
+                    activeHintIds = setOf(mappedHintPeerIdValue),
+                )
             )
 
         // Assert
@@ -74,10 +80,12 @@ class IosTemporaryL2capHintPromotionTest {
         // Act
         val selectedHint =
             selectTemporaryL2capHintPromotion(
-                identifier = identifier,
-                resolvedHintPeerIdValue = resolvedHintPeerIdValue,
-                temporaryHintByIdentifier = mapOf(identifier to temporaryHintPeerIdValue),
-                activeHintIds = setOf(temporaryHintPeerIdValue, resolvedHintPeerIdValue),
+                TemporaryL2capHintPromotionRequest(
+                    identifier = identifier,
+                    resolvedHintPeerIdValue = resolvedHintPeerIdValue,
+                    temporaryHintByIdentifier = mapOf(identifier to temporaryHintPeerIdValue),
+                    activeHintIds = setOf(temporaryHintPeerIdValue, resolvedHintPeerIdValue),
+                )
             )
 
         // Assert
