@@ -81,7 +81,7 @@ The app-local JSON store that keeps retained session state for the reference app
 _Avoid_: Export file, evidence artifact
 
 **Redacted export**:
-A session artifact that includes payload metadata and redacted previews without full payload content. This is the default export path.
+A session artifact that includes payload metadata and redacted previews without full payload content. This is the default export path and the only export mode available for retained, solo, and lab sessions.
 _Avoid_: Safe export, normal export
 
 **Full-payload export**:
@@ -93,7 +93,7 @@ The explicitly non-normative surface for proof-only or benchmark-only behavior. 
 _Avoid_: Advanced mode, expert mode
 
 **Lab session**:
-A session produced on the lab surface. A lab session remains non-normative and is not added to recent history automatically.
+A session produced on the lab surface. A lab session remains non-normative, is not added to recent history automatically, and may be exported only through an explicit redacted export.
 _Avoid_: Retained reference proof, supported-history entry, normal recent-history entry
 
 **Solo exploration**:
@@ -101,7 +101,7 @@ The one-device, non-authoritative walkthrough surface. It allows inspection and 
 _Avoid_: Demo mode, offline proof
 
 **Solo session**:
-A session produced on the solo exploration path. A solo session remains non-authoritative and is not added to recent history automatically.
+A session produced on the solo exploration path. A solo session remains non-authoritative, is not added to recent history automatically, and may be exported only through an explicit redacted export.
 _Avoid_: Retained live proof, authoritative session, normal recent-history entry
 
 ## Example dialogue
