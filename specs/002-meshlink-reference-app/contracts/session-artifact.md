@@ -37,7 +37,7 @@ Define the exported session-artifact structure for the MeshLink reference app.
 | `authorityMode` | string | Yes | `live` or `solo` |
 | `startedAt` | string | Yes | Session timestamp string (current implementation uses epoch-millis text) |
 | `endedAt` | string | No | Session timestamp string when available |
-| `lastOutcomeSummary` | string | No | Last high-level result |
+| `lastOutcomeSummary` | string | No | Operator-facing last high-level result |
 
 ## Peer summary block
 

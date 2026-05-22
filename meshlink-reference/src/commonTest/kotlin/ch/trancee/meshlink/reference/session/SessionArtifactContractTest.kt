@@ -32,6 +32,7 @@ class SessionArtifactContractTest {
                 scenarioId = "guided-first-exchange",
                 authorityMode = ReferenceAuthorityMode.LIVE,
                 startedAtEpochMillis = 1_000L,
+                lastOutcomeSummary = "ForgetPeerResult.Forgotten",
                 historyStatus = ReferenceHistoryStatus.LIVE,
             )
         val peers =
@@ -92,6 +93,10 @@ class SessionArtifactContractTest {
             redactedScenario.getValue("title").jsonPrimitive.content,
         )
         assertEquals("main", redactedScenario.getValue("surface").jsonPrimitive.content)
+        assertEquals(
+            "Trust reset",
+            redactedScenario.getValue("lastOutcomeSummary").jsonPrimitive.content,
+        )
         assertEquals("2000", redactedDocument.getValue("createdAt").jsonPrimitive.content)
     }
 }

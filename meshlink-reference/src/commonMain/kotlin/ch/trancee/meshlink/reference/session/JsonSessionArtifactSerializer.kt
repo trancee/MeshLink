@@ -4,6 +4,7 @@ import ch.trancee.meshlink.reference.model.PeerSnapshot
 import ch.trancee.meshlink.reference.model.ReferenceSession
 import ch.trancee.meshlink.reference.model.SessionArtifact
 import ch.trancee.meshlink.reference.model.TimelineEntry
+import ch.trancee.meshlink.reference.model.referenceOutcomeLabel
 import ch.trancee.meshlink.reference.model.referenceScenarioTitle
 import kotlinx.serialization.Serializable
 
@@ -73,7 +74,7 @@ public class JsonSessionArtifactSerializer(private val documentStore: ReferenceD
                     authorityMode = session.authorityMode.toString().lowercase(),
                     startedAt = session.startedAtEpochMillis.toString(),
                     endedAt = session.endedAtEpochMillis?.toString(),
-                    lastOutcomeSummary = session.lastOutcomeSummary,
+                    lastOutcomeSummary = referenceOutcomeLabel(session.lastOutcomeSummary),
                 ),
             configuration = session.configurationSnapshot,
             peerSummaries =
