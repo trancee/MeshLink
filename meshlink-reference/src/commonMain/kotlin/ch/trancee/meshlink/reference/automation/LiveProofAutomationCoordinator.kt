@@ -9,8 +9,8 @@ import ch.trancee.meshlink.reference.platform.PlatformServices
 import ch.trancee.meshlink.reference.session.ExportPayloadPolicy
 import ch.trancee.meshlink.reference.timeline.TechnicalTimelineStore
 import ch.trancee.meshlink.reference.timeline.TechnicalTimelineUiState
+import ch.trancee.meshlink.reference.timeline.endCurrentSession
 import ch.trancee.meshlink.reference.timeline.exportCurrentSession
-import ch.trancee.meshlink.reference.timeline.retainCurrentSession
 
 internal class LiveProofAutomationCoordinator(
     private val automationConfig: ReferenceAutomationConfig,
@@ -117,9 +117,9 @@ internal class LiveProofAutomationCoordinator(
             )
         ) {
             platformServices.emitAutomationLog(
-                "REFERENCE_AUTOMATION history.retain.requested role=passive"
+                "REFERENCE_AUTOMATION session.end.requested role=passive"
             )
-            timelineStore.retainCurrentSession()
+            timelineStore.endCurrentSession()
             progress.retainRequested = true
         }
 

@@ -71,7 +71,8 @@ final class ReferenceAppWorkflowUITests: XCTestCase {
         ReferenceAppUITestSupport.waitForStaticText(in: app, labeled: "Technical timeline")
 
         // Act
-        ReferenceAppUITestSupport.tapButton(in: app, labeled: "Retain live session")
+        ReferenceAppUITestSupport.tapButton(in: app, labeled: "End session")
+        ReferenceAppUITestSupport.tapButton(in: app, labeled: "End without full export")
         ReferenceAppUITestSupport.tapButton(in: app, labeled: "Export session")
         ReferenceAppUITestSupport.tapButton(in: app, labeled: "Redacted export")
         let relativeExportPath = ReferenceAppUITestSupport.lastExportRelativePath(in: app)

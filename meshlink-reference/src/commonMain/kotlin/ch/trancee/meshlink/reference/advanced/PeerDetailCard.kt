@@ -23,6 +23,7 @@ import ch.trancee.meshlink.reference.design.ReferenceBadge
 public fun PeerDetailCard(
     peer: AdvancedPeerRow,
     selected: Boolean,
+    enabled: Boolean,
     onSelect: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -53,6 +54,7 @@ public fun PeerDetailCard(
                 }
                 AssistChip(
                     onClick = onSelect,
+                    enabled = enabled,
                     label = { Text(if (selected) "Selected" else "Select") },
                 )
             }

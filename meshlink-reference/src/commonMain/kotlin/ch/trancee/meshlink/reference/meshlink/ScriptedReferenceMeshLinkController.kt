@@ -18,6 +18,7 @@ public class ScriptedReferenceMeshLinkController(
     private val authorityMode: ReferenceAuthorityMode,
     private val nowProvider: () -> Long,
     private val appId: String = "demo.meshlink.reference.automation",
+    private val surfaceOfOrigin: String = "main-guided",
 ) : ReferenceMeshLinkController {
     private val startedAtEpochMillis: Long = nowProvider()
     private val sessionId: String = "automation-${platformName.lowercase()}-$startedAtEpochMillis"
@@ -37,7 +38,7 @@ public class ScriptedReferenceMeshLinkController(
                             configurationSnapshot =
                                 mapOf(
                                     "platform" to platformName,
-                                    "surface" to "main",
+                                    "surface" to surfaceOfOrigin,
                                     "appId" to appId,
                                     "regulatoryRegion" to "DEFAULT",
                                     "powerMode" to "Automatic",
@@ -211,6 +212,8 @@ public class ScriptedReferenceMeshLinkController(
             selectedPeerId = scriptedPeerId,
         )
     }
+
+    override suspend fun close(): Unit = Unit
 
     private fun ensurePeerAvailable(): Unit {
         if (stateStore.currentSnapshot.peers.any { peer -> peer.peerId == scriptedPeerId }) {

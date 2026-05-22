@@ -153,6 +153,7 @@ private fun buildAdvancedControlsUiState(
             ),
         meshStateLabel = snapshot.session.meshStateLabel,
         activePowerModeLabel = snapshot.activePowerModeLabel,
+        isSessionEnded = snapshot.session.endedAtEpochMillis != null,
         selectedPeerId = effectivePeerId,
         composerText = composerText,
         selectedPriority = selectedPriority,

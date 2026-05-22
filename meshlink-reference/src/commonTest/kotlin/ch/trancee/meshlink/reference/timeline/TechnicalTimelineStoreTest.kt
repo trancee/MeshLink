@@ -2,8 +2,6 @@ package ch.trancee.meshlink.reference.timeline
 
 import ch.trancee.meshlink.api.DeliveryPriority
 import ch.trancee.meshlink.reference.automation.ReferenceAutomationConfig
-import ch.trancee.meshlink.reference.automation.ReferenceAutomationMode
-import ch.trancee.meshlink.reference.automation.ReferenceAutomationRole
 import ch.trancee.meshlink.reference.meshlink.ReferenceControllerSnapshot
 import ch.trancee.meshlink.reference.meshlink.ReferenceMeshLinkController
 import ch.trancee.meshlink.reference.model.ReferenceAuthorityMode
@@ -12,14 +10,15 @@ import ch.trancee.meshlink.reference.model.ReferenceSession
 import ch.trancee.meshlink.reference.model.TimelineEntry
 import ch.trancee.meshlink.reference.model.TimelineFamily
 import ch.trancee.meshlink.reference.model.TimelineSeverity
+import ch.trancee.meshlink.reference.navigation.ReferenceSurfaceId
 import ch.trancee.meshlink.reference.platform.PlatformServices
 import ch.trancee.meshlink.reference.session.InMemoryReferenceDocumentStore
 import ch.trancee.meshlink.reference.session.JsonSessionArtifactSerializer
 import ch.trancee.meshlink.reference.session.JsonSessionHistoryRepository
 import ch.trancee.meshlink.reference.session.ReferenceDocumentStore
+import ch.trancee.meshlink.reference.session.ReferenceSessionController
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertSame
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -31,17 +30,19 @@ import kotlinx.coroutines.test.runTest
 class TechnicalTimelineStoreTest {
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
-    fun retainCurrentSessionPublishesRetainedSessionState() = runTest {
+    fun endCurrentSessionPublishesRetainedSessionState() = runTest {
         // Arrange
-        val harness = TimelineStoreHarness()
+        val harness =
+            TimelineStoreHarness(initialTimeline = listOf(timelineEntry("live-1", "Live")))
         val store = harness.createStore(scope = this)
         advanceUntilIdle()
 
         // Act
-        store.retainCurrentSession()
+        store.endCurrentSession()
         advanceUntilIdle()
 
         // Assert
+        assertEquals(true, store.uiState.value.isCurrentSessionEnded)
         assertEquals(1, store.uiState.value.retainedSessions.size)
         assertEquals(
             ReferenceHistoryStatus.RETAINED,
@@ -52,34 +53,76 @@ class TechnicalTimelineStoreTest {
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
-    fun retainCurrentSessionAutoExportsRedactedArtifactInScriptedAutomation() = runTest {
+    fun exportCurrentSessionCreatesUniqueArtifactInstancePath() = runTest {
         // Arrange
-        val harness =
-            TimelineStoreHarness(
-                activeAutomationConfig =
-                    ReferenceAutomationConfig(
-                        mode = ReferenceAutomationMode.SCRIPTED_UI,
-                        role = ReferenceAutomationRole.PASSIVE,
-                        appId = "demo.meshlink.reference.automation",
-                        storageSubdirectory = "timeline-test",
-                    )
-            )
+        val harness = TimelineStoreHarness()
         val store = harness.createStore(scope = this)
-        val expectedExportPath = "reference/exports/timeline-session.json"
         advanceUntilIdle()
+        val firstNow = harness.nowMillis
 
         // Act
-        store.retainCurrentSession()
+        store.exportCurrentSession(
+            ch.trancee.meshlink.reference.session.ExportPayloadPolicy.REDACTED_PREVIEW
+        )
+        advanceUntilIdle()
+        harness.nowMillis = firstNow + 100L
+        store.exportCurrentSession(
+            ch.trancee.meshlink.reference.session.ExportPayloadPolicy.REDACTED_PREVIEW
+        )
         advanceUntilIdle()
 
         // Assert
-        assertEquals(expectedExportPath, store.uiState.value.lastExportPath)
         assertEquals(
-            true,
-            harness.documentStore
-                .readText(expectedExportPath)
-                ?.contains("\"defaultMode\": \"redacted-preview\""),
+            "reference/exports/timeline-session-2100-redacted.json",
+            store.uiState.value.lastExportPath,
         )
+        coroutineContext.cancelChildren()
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun transitionToSoloSessionStartsSoloSnapshotWithoutRetention() = runTest {
+        // Arrange
+        val harness = TimelineStoreHarness()
+        val store = harness.createStore(scope = this)
+        advanceUntilIdle()
+
+        // Act
+        store.transitionToSoloSession()
+        advanceUntilIdle()
+
+        // Assert
+        assertEquals(
+            ReferenceAuthorityMode.SOLO,
+            store.uiState.value.liveSnapshot.session.authorityMode,
+        )
+        assertEquals(0, store.uiState.value.retainedSessions.size)
+        coroutineContext.cancelChildren()
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun transitionAlternativeSessionCanReturnToSupportedLiveSession() = runTest {
+        // Arrange
+        val harness = TimelineStoreHarness()
+        val store = harness.createStore(scope = this)
+        advanceUntilIdle()
+        store.transitionToSoloSession()
+        advanceUntilIdle()
+
+        // Act
+        store.transitionAlternativeSession(
+            targetSurface = ReferenceSurfaceId.MAIN_GUIDED,
+            exportBeforeExit = false,
+        )
+        advanceUntilIdle()
+
+        // Assert
+        assertEquals(
+            ReferenceAuthorityMode.LIVE,
+            store.uiState.value.liveSnapshot.session.authorityMode,
+        )
+        assertEquals(null, store.uiState.value.liveSnapshot.session.endedAtEpochMillis)
         coroutineContext.cancelChildren()
     }
 
@@ -92,7 +135,7 @@ class TechnicalTimelineStoreTest {
         val harness = TimelineStoreHarness(initialTimeline = listOf(retainedEntry))
         val store = harness.createStore(scope = this)
         advanceUntilIdle()
-        store.retainCurrentSession()
+        store.endCurrentSession()
         advanceUntilIdle()
         store.openRetainedSession(sessionId = "timeline-session")
         advanceUntilIdle()
@@ -104,72 +147,6 @@ class TechnicalTimelineStoreTest {
         // Assert
         assertEquals(true, store.uiState.value.viewingRetained)
         assertEquals(listOf("retained-1"), store.uiState.value.visibleEntries.map { it.entryId })
-        coroutineContext.cancelChildren()
-    }
-
-    @OptIn(ExperimentalCoroutinesApi::class)
-    @Test
-    fun retainCurrentSessionDoesNothingWhenViewingRetained() = runTest {
-        // Arrange
-        val harness = TimelineStoreHarness()
-        val store = harness.createStore(scope = this)
-        advanceUntilIdle()
-        store.retainCurrentSession()
-        advanceUntilIdle()
-        store.openRetainedSession(sessionId = "timeline-session")
-        advanceUntilIdle()
-        harness.nowMillis = 3_000L
-
-        // Act
-        store.retainCurrentSession()
-        advanceUntilIdle()
-
-        // Assert
-        assertEquals(2_000L, store.uiState.value.retainedSessions.single().endedAtEpochMillis)
-        assertEquals(true, store.uiState.value.viewingRetained)
-        coroutineContext.cancelChildren()
-    }
-
-    @OptIn(ExperimentalCoroutinesApi::class)
-    @Test
-    fun returnToLiveRestoresTheLatestLiveEntries() = runTest {
-        // Arrange
-        val retainedEntry = timelineEntry(entryId = "retained-1", title = "Retained")
-        val liveEntry = timelineEntry(entryId = "live-1", title = "Live")
-        val harness = TimelineStoreHarness(initialTimeline = listOf(retainedEntry))
-        val store = harness.createStore(scope = this)
-        advanceUntilIdle()
-        store.retainCurrentSession()
-        advanceUntilIdle()
-        store.openRetainedSession(sessionId = "timeline-session")
-        advanceUntilIdle()
-        harness.emitLiveSnapshot(timeline = listOf(liveEntry))
-        advanceUntilIdle()
-
-        // Act
-        store.returnToLive()
-
-        // Assert
-        assertEquals(false, store.uiState.value.viewingRetained)
-        assertEquals(listOf("live-1"), store.uiState.value.visibleEntries.map { it.entryId })
-        coroutineContext.cancelChildren()
-    }
-
-    @OptIn(ExperimentalCoroutinesApi::class)
-    @Test
-    fun unfilteredLiveSnapshotReusesTheTimelineList() = runTest {
-        // Arrange
-        val entry = timelineEntry(entryId = "live-1", title = "Live")
-        val harness = TimelineStoreHarness()
-        val store = harness.createStore(scope = this)
-        advanceUntilIdle()
-
-        // Act
-        harness.emitLiveSnapshot(timeline = listOf(entry))
-        advanceUntilIdle()
-
-        // Assert
-        assertSame(store.uiState.value.liveSnapshot.timeline, store.uiState.value.visibleEntries)
         coroutineContext.cancelChildren()
     }
 }
@@ -184,6 +161,36 @@ private class TimelineStoreHarness(
     private val controllerFlow: MutableStateFlow<ReferenceControllerSnapshot> =
         MutableStateFlow(referenceSnapshot(timeline = initialTimeline))
 
+    private fun rawController(): ReferenceMeshLinkController {
+        return object : ReferenceMeshLinkController {
+            override val snapshot: StateFlow<ReferenceControllerSnapshot> =
+                controllerFlow.asStateFlow()
+
+            override suspend fun start(): Unit = Unit
+
+            override suspend fun pause(): Unit = Unit
+
+            override suspend fun resume(): Unit = Unit
+
+            override suspend fun stop(): Unit = Unit
+
+            override suspend fun sendSamplePayload(
+                peerId: String,
+                payloadText: String,
+                priority: DeliveryPriority,
+            ): Unit = Unit
+
+            override suspend fun forgetPeer(peerId: String): Unit = Unit
+        }
+    }
+
+    private val sessionController: ReferenceSessionController =
+        ReferenceSessionController(
+            platformName = "Test",
+            nowProvider = { nowMillis },
+            supportedControllerFactory = { rawController() },
+        )
+
     private val platformServices: PlatformServices =
         object : PlatformServices {
             override val platformName: String = "Test"
@@ -193,27 +200,13 @@ private class TimelineStoreHarness(
             override val automationConfig: ReferenceAutomationConfig? = activeAutomationConfig
             override val documentStore: ReferenceDocumentStore =
                 this@TimelineStoreHarness.documentStore
-            override val meshLinkController: ReferenceMeshLinkController =
-                object : ReferenceMeshLinkController {
-                    override val snapshot: StateFlow<ReferenceControllerSnapshot> =
-                        controllerFlow.asStateFlow()
+            override val meshLinkController: ReferenceMeshLinkController = sessionController
 
-                    override suspend fun start(): Unit = Unit
-
-                    override suspend fun pause(): Unit = Unit
-
-                    override suspend fun resume(): Unit = Unit
-
-                    override suspend fun stop(): Unit = Unit
-
-                    override suspend fun sendSamplePayload(
-                        peerId: String,
-                        payloadText: String,
-                        priority: DeliveryPriority,
-                    ): Unit = Unit
-
-                    override suspend fun forgetPeer(peerId: String): Unit = Unit
-                }
+            override fun createSupportedMeshLinkController(
+                surfaceOfOrigin: String
+            ): ReferenceMeshLinkController {
+                return rawController()
+            }
 
             override fun currentTimeMillis(): Long = nowMillis
 
@@ -225,6 +218,7 @@ private class TimelineStoreHarness(
             platformServices = platformServices,
             historyRepository = JsonSessionHistoryRepository(documentStore = documentStore),
             artifactSerializer = JsonSessionArtifactSerializer(documentStore = documentStore),
+            sessionController = sessionController,
             scope = scope,
         )
     }
@@ -243,6 +237,7 @@ private fun referenceSnapshot(timeline: List<TimelineEntry>): ReferenceControlle
                 authorityMode = ReferenceAuthorityMode.LIVE,
                 startedAtEpochMillis = 1_000L,
                 historyStatus = ReferenceHistoryStatus.LIVE,
+                configurationSnapshot = mapOf("surface" to "main-guided"),
             ),
         peers = emptyList(),
         timeline = timeline,

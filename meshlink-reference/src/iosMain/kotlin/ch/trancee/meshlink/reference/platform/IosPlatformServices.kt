@@ -60,12 +60,14 @@ internal fun createIosAutomationPlatformServices(
                         storageSubdirectory = storageSubdirectory,
                     )
                 automationLogger = ::println
-                meshLinkControllerOverride =
+                meshLinkControllerFactory = { surfaceOfOrigin ->
                     ScriptedReferenceMeshLinkController(
                         platformName = "iOS",
                         authorityMode = ReferenceAuthorityMode.LIVE,
                         nowProvider = clock,
+                        surfaceOfOrigin = surfaceOfOrigin,
                     )
+                }
             },
     )
 }

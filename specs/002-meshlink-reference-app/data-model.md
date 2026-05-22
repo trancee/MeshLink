@@ -51,7 +51,7 @@ Represents one run of a scenario.
 | `selectedPeerId` | String? | Currently selected peer for operator actions | Optional |
 | `configurationSnapshot` | Map<String, String> | Operator-visible configuration values | Required |
 | `lastOutcomeSummary` | String? | Most recent high-level result | Optional |
-| `historyStatus` | Enum | `live`, `retained`, `exported`, `deleted` | Required |
+| `historyStatus` | Enum | `live` or `retained` | Required |
 
 **Relationships**:
 - One `ReferenceSession` owns many `TimelineEntry` values.
@@ -115,7 +115,7 @@ Represents an exported or retained structured session document.
 | `scenarioSummary` | Map<String, String> | Exported scenario metadata | Required |
 | `peerSummaries` | List<Map<String, String>> | Exported redacted peer summary | Required |
 | `timelineEntries` | List<TimelineEntry> | Serialized timeline records | Required |
-| `storagePath` | String | App-local path for the artifact | Required for retained/exported artifacts |
+| `storagePath` | String | App-local path for the artifact instance | Required |
 
 **Implementation note**: The current implementation stores `createdAt` as an
 epoch-millis field before the export serializer converts it into the normative
@@ -155,18 +155,24 @@ optional epoch-millis field inside the retained-history store.
 `main`/`advanced` → `solo`
 
 Rules:
-- `lab` is always explicitly labeled as non-normative.
-- `solo` can coexist with `main` or `advanced`, but not with authoritative live
-  proof claims.
+- `main` ↔ `advanced` is a supported surface switch inside the same supported live session.
+- Entering `lab` starts a new non-normative lab session.
+- Entering `solo` starts a new non-authoritative solo session.
 
 ### Session lifecycle
 
-`starting` → `live` → `ended` → `retained` → (`exported` or `deleted`)
+`starting` → `live` → `ended`
+
+Possible follow-up states:
+- `ended` → `retained`
+- `ended` → omitted from recent history
 
 Rules:
-- A session cannot become `retained` until it has ended.
-- Deleting a retained session removes it from `RecentSessionHistory`.
+- Session end is separate from retention.
+- A retained session appears in `RecentSessionHistory` immediately after eligible session end.
+- Deleting a retained session removes it from `RecentSessionHistory` instead of creating a persistent deleted state.
 - Exporting a session does not remove it from retained history automatically.
+- One session may produce multiple artifact instances with distinct identifiers and storage paths.
 
 ### Export payload policy
 

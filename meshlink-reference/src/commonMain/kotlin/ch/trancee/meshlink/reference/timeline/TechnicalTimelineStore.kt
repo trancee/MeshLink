@@ -6,6 +6,9 @@ import ch.trancee.meshlink.reference.model.TimelineEntry
 import ch.trancee.meshlink.reference.platform.PlatformServices
 import ch.trancee.meshlink.reference.session.JsonSessionArtifactSerializer
 import ch.trancee.meshlink.reference.session.JsonSessionHistoryRepository
+import ch.trancee.meshlink.reference.session.ReferenceSessionController
+import ch.trancee.meshlink.reference.session.ReferenceSessionKind
+import ch.trancee.meshlink.reference.session.referenceSessionKind
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -20,6 +23,7 @@ public class TechnicalTimelineStore(
     internal val platformServices: PlatformServices,
     internal val historyRepository: JsonSessionHistoryRepository,
     internal val artifactSerializer: JsonSessionArtifactSerializer,
+    internal val sessionController: ReferenceSessionController,
     internal val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
 ) {
     internal val stateFlow: MutableStateFlow<TechnicalTimelineUiState> =
@@ -118,6 +122,26 @@ public data class TechnicalTimelineUiState(
     public val visibleEntries: List<TimelineEntry> = liveSnapshot.timeline,
     public val lastExportPath: String? = null,
 ) {
+    public val currentSessionKind: ReferenceSessionKind
+        get() = currentSnapshot.referenceSessionKind()
+
+    public val isCurrentSessionEnded: Boolean
+        get() = currentSessionKind == ReferenceSessionKind.SUPPORTED_ENDED
+
+    public val isSupportedLiveSession: Boolean
+        get() = currentSessionKind == ReferenceSessionKind.SUPPORTED_LIVE
+
+    public val isAlternativeSession: Boolean
+        get() =
+            currentSessionKind == ReferenceSessionKind.SOLO ||
+                currentSessionKind == ReferenceSessionKind.LAB
+
+    public val allowFullPayloadExport: Boolean
+        get() = isSupportedLiveSession && !viewingRetained
+
+    public val showStartNewSession: Boolean
+        get() = isCurrentSessionEnded || isAlternativeSession
+
     public val currentSnapshot: ReferenceControllerSnapshot
         get() = retainedSnapshot ?: liveSnapshot
 

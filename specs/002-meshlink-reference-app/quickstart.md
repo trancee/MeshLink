@@ -91,10 +91,10 @@ Use the advanced area to confirm that the app exposes:
 
 ## 6. Confirm retained history and export behavior
 
-After ending the session:
+After you choose **End session** from the technical timeline:
 
 - open recent local session history
-- verify the ended session appears separately from any live session
+- verify the eligible ended session appears separately from any live session
 - open the export chooser and export a redacted session artifact
 - confirm the export includes payload metadata and redacted previews by default
 - confirm retained history does not offer full-payload export because retained

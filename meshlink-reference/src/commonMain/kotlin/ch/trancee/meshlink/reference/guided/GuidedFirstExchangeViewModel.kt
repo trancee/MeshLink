@@ -73,16 +73,20 @@ public data class GuidedFirstExchangeUiState(
     public val nextActionLabel: String
         get() {
             return when {
+                isSessionEnded -> "Open the technical timeline to review or start a new session"
                 readiness.isBlocked -> "Resolve startup blockers"
                 snapshot.session.meshStateLabel.contains("Uninitialized") -> "Start MeshLink"
-                snapshot.peers.isEmpty() -> "Wait for a peer or open solo exploration"
+                snapshot.peers.isEmpty() -> "Wait for a peer or start a solo session"
                 else -> "Send the first guided message"
             }
         }
+
+    public val isSessionEnded: Boolean
+        get() = snapshot.session.endedAtEpochMillis != null
 
     public val selectedPeerSuffix: String?
         get() = snapshot.peers.firstOrNull()?.peerSuffix
 
     public val canSendHello: Boolean
-        get() = snapshot.peers.isNotEmpty() && !readiness.isBlocked
+        get() = snapshot.peers.isNotEmpty() && !readiness.isBlocked && !isSessionEnded
 }

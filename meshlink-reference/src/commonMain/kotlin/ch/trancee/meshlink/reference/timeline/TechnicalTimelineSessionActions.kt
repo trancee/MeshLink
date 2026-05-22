@@ -1,11 +1,13 @@
 package ch.trancee.meshlink.reference.timeline
 
-import ch.trancee.meshlink.reference.automation.ReferenceAutomationMode
 import ch.trancee.meshlink.reference.meshlink.ReferenceControllerSnapshot
 import ch.trancee.meshlink.reference.model.ArtifactPayloadPolicy
+import ch.trancee.meshlink.reference.model.ReferenceAuthorityMode
 import ch.trancee.meshlink.reference.model.ReferenceHistoryStatus
-import ch.trancee.meshlink.reference.model.ReferenceSession
 import ch.trancee.meshlink.reference.model.SessionArtifact
+import ch.trancee.meshlink.reference.model.TimelineEntry
+import ch.trancee.meshlink.reference.model.TimelineFamily
+import ch.trancee.meshlink.reference.model.TimelineSeverity
 import ch.trancee.meshlink.reference.model.referenceAuthorityLabel
 import ch.trancee.meshlink.reference.model.referenceConnectionLabel
 import ch.trancee.meshlink.reference.model.referenceOutcomeLabel
@@ -13,53 +15,115 @@ import ch.trancee.meshlink.reference.model.referencePeerTrustLabel
 import ch.trancee.meshlink.reference.model.referenceScenarioTitle
 import ch.trancee.meshlink.reference.model.withoutSensitivePayload
 import ch.trancee.meshlink.reference.session.ExportPayloadPolicy
+import ch.trancee.meshlink.reference.session.ReferenceSessionKind
+import ch.trancee.meshlink.reference.session.allowsFullPayloadExport
+import ch.trancee.meshlink.reference.session.referenceSessionKind
 import kotlinx.coroutines.launch
 
-public fun TechnicalTimelineStore.retainCurrentSession(): Unit {
+public fun TechnicalTimelineStore.endCurrentSession(
+    preEndExportPolicy: ExportPayloadPolicy? = null
+): Unit {
     scope.launch {
         val current = uiState.value
-        if (current.viewingRetained) {
+        if (!current.isSupportedLiveSession || current.viewingRetained) {
             return@launch
         }
-        val retainedSnapshot =
-            current.currentSnapshot.copy(
-                session =
-                    current.currentSnapshot.session.copy(
-                        endedAtEpochMillis = platformServices.currentTimeMillis(),
-                        historyStatus = ReferenceHistoryStatus.RETAINED,
-                    ),
-                timeline =
-                    current.currentSnapshot.timeline.map { entry ->
-                        entry.withoutSensitivePayload()
-                    },
-            )
-        updateState { state ->
-            state.copy(
-                retainedSessions =
-                    upsertRetainedSession(
-                        existing = state.retainedSessions,
-                        session = retainedSnapshot.session,
-                    )
+
+        val snapshotBeforeEnd = current.liveSnapshot
+        val exportPath =
+            preEndExportPolicy?.let { policy ->
+                writeExport(snapshotBeforeEnd, normalizeExportPolicy(snapshotBeforeEnd, policy))
+            } ?: current.lastExportPath
+        val endedSnapshot = sessionController.endSupportedSession()
+        retainIfEligible(endedSnapshot)
+        refreshRetainedSessions(lastExportPath = exportPath)
+    }
+}
+
+public fun TechnicalTimelineStore.startNewSupportedSession(
+    surfaceOfOrigin: String = "main-guided"
+): Unit {
+    scope.launch {
+        sessionController.startNewSupportedSession(surfaceOfOrigin = surfaceOfOrigin)
+        updateState { current ->
+            current.copy(
+                retainedSnapshot = null,
+                visibleEntries = current.filters.apply(sessionController.snapshot.value.timeline),
             )
         }
-        historyRepository.retainSnapshot(retainedSnapshot)
-        val retainedSessions =
-            mergeRetainedSessions(
-                current = uiState.value.retainedSessions,
-                loaded = historyRepository.loadRetainedSessions(),
-            )
-        val lastExportPath =
-            if (platformServices.automationConfig?.mode == ReferenceAutomationMode.SCRIPTED_UI) {
-                writeExport(
-                    snapshot = retainedSnapshot,
-                    policy = ExportPayloadPolicy.REDACTED_PREVIEW,
-                )
+    }
+}
+
+public fun TechnicalTimelineStore.transitionToSoloSession(
+    preBoundaryExportPolicy: ExportPayloadPolicy? = null
+): Unit {
+    scope.launch {
+        val current = uiState.value
+        if (!current.isSupportedLiveSession || current.viewingRetained) {
+            return@launch
+        }
+
+        val supportedSnapshot = current.liveSnapshot
+        val exportPath =
+            preBoundaryExportPolicy?.let { policy ->
+                writeExport(supportedSnapshot, normalizeExportPolicy(supportedSnapshot, policy))
+            } ?: current.lastExportPath
+        retainIfEligible(
+            endedBoundarySnapshot(supportedSnapshot, platformServices.currentTimeMillis())
+        )
+        sessionController.startSoloSession()
+        refreshRetainedSessions(lastExportPath = exportPath)
+    }
+}
+
+public fun TechnicalTimelineStore.transitionToLabSession(
+    preBoundaryExportPolicy: ExportPayloadPolicy? = null
+): Unit {
+    scope.launch {
+        val current = uiState.value
+        if (!current.isSupportedLiveSession || current.viewingRetained) {
+            return@launch
+        }
+
+        val supportedSnapshot = current.liveSnapshot
+        val exportPath =
+            preBoundaryExportPolicy?.let { policy ->
+                writeExport(supportedSnapshot, normalizeExportPolicy(supportedSnapshot, policy))
+            } ?: current.lastExportPath
+        retainIfEligible(
+            endedBoundarySnapshot(supportedSnapshot, platformServices.currentTimeMillis())
+        )
+        sessionController.startLabSession()
+        refreshRetainedSessions(lastExportPath = exportPath)
+    }
+}
+
+public fun TechnicalTimelineStore.transitionAlternativeSession(
+    targetSurface: ch.trancee.meshlink.reference.navigation.ReferenceSurfaceId,
+    exportBeforeExit: Boolean,
+): Unit {
+    scope.launch {
+        val current = uiState.value
+        if (!current.isAlternativeSession || current.viewingRetained) {
+            return@launch
+        }
+
+        val exportPath =
+            if (exportBeforeExit) {
+                writeExport(current.liveSnapshot, ExportPayloadPolicy.REDACTED_PREVIEW)
             } else {
-                uiState.value.lastExportPath
+                current.lastExportPath
             }
-        updateState { state ->
-            state.copy(retainedSessions = retainedSessions, lastExportPath = lastExportPath)
+        when (targetSurface) {
+            ch.trancee.meshlink.reference.navigation.ReferenceSurfaceId.SOLO_EXPLORATION ->
+                sessionController.startSoloSession()
+            ch.trancee.meshlink.reference.navigation.ReferenceSurfaceId.LAB ->
+                sessionController.startLabSession()
+            ch.trancee.meshlink.reference.navigation.ReferenceSurfaceId.ADVANCED_CONTROLS ->
+                sessionController.startNewSupportedSession(surfaceOfOrigin = "advanced-controls")
+            else -> sessionController.startNewSupportedSession(surfaceOfOrigin = "main-guided")
         }
+        refreshRetainedSessions(lastExportPath = exportPath)
     }
 }
 
@@ -118,7 +182,9 @@ public fun TechnicalTimelineStore.clearHistory(): Unit {
 
 public fun TechnicalTimelineStore.exportCurrentSession(policy: ExportPayloadPolicy): Unit {
     scope.launch {
-        val storagePath = writeExport(snapshot = uiState.value.currentSnapshot, policy = policy)
+        val currentSnapshot = uiState.value.currentSnapshot
+        val storagePath =
+            writeExport(currentSnapshot, normalizeExportPolicy(currentSnapshot, policy))
         updateState { current -> current.copy(lastExportPath = storagePath) }
     }
 }
@@ -127,17 +193,26 @@ private suspend fun TechnicalTimelineStore.writeExport(
     snapshot: ReferenceControllerSnapshot,
     policy: ExportPayloadPolicy,
 ): String {
+    val createdAtEpochMillis = platformServices.currentTimeMillis()
+    val artifactPolicy =
+        if (policy == ExportPayloadPolicy.FULL_PAYLOAD_OPT_IN) {
+            ArtifactPayloadPolicy.FULL_OPT_IN
+        } else {
+            ArtifactPayloadPolicy.REDACTED_PREVIEW
+        }
+    val artifactSuffix =
+        if (policy == ExportPayloadPolicy.FULL_PAYLOAD_OPT_IN) {
+            "full"
+        } else {
+            "redacted"
+        }
     val artifact =
         SessionArtifact(
-            artifactId = "artifact-${snapshot.session.sessionId}",
+            artifactId =
+                "artifact-${snapshot.session.sessionId}-$createdAtEpochMillis-$artifactSuffix",
             sourceSessionId = snapshot.session.sessionId,
-            createdAtEpochMillis = platformServices.currentTimeMillis(),
-            payloadPolicy =
-                if (policy == ExportPayloadPolicy.FULL_PAYLOAD_OPT_IN) {
-                    ArtifactPayloadPolicy.FULL_OPT_IN
-                } else {
-                    ArtifactPayloadPolicy.REDACTED_PREVIEW
-                },
+            createdAtEpochMillis = createdAtEpochMillis,
+            payloadPolicy = artifactPolicy,
             includesFullPayload =
                 policy == ExportPayloadPolicy.FULL_PAYLOAD_OPT_IN &&
                     snapshot.timeline.any { entry -> entry.fullPayload != null },
@@ -161,7 +236,8 @@ private suspend fun TechnicalTimelineStore.writeExport(
                     }
                 },
             timelineEntries = snapshot.timeline,
-            storagePath = "reference/exports/${snapshot.session.sessionId}.json",
+            storagePath =
+                "reference/exports/${snapshot.session.sessionId}-$createdAtEpochMillis-$artifactSuffix.json",
         )
     val serialized =
         if (policy == ExportPayloadPolicy.FULL_PAYLOAD_OPT_IN) {
@@ -182,9 +258,69 @@ private suspend fun TechnicalTimelineStore.writeExport(
     return artifactSerializer.writeArtifact(artifact, serialized)
 }
 
-private fun upsertRetainedSession(
-    existing: List<ReferenceSession>,
-    session: ReferenceSession,
-): List<ReferenceSession> {
-    return listOf(session) + existing.filterNot { item -> item.sessionId == session.sessionId }
+private suspend fun TechnicalTimelineStore.refreshRetainedSessions(lastExportPath: String?): Unit {
+    val retainedSessions = historyRepository.loadRetainedSessions()
+    updateState { current ->
+        current.copy(
+            retainedSessions = retainedSessions,
+            lastExportPath = lastExportPath ?: current.lastExportPath,
+            visibleEntries = current.filters.apply(current.currentSnapshot.timeline),
+        )
+    }
+}
+
+private suspend fun TechnicalTimelineStore.retainIfEligible(
+    endedSnapshot: ReferenceControllerSnapshot
+): Unit {
+    if (!endedSnapshot.isEligibleForAutomaticRetention(platformServices.readinessBlockers)) {
+        return
+    }
+    historyRepository.retainSnapshot(endedSnapshot.redactedRetainedSnapshot())
+}
+
+private fun normalizeExportPolicy(
+    snapshot: ReferenceControllerSnapshot,
+    requestedPolicy: ExportPayloadPolicy,
+): ExportPayloadPolicy {
+    return if (snapshot.allowsFullPayloadExport()) {
+        requestedPolicy
+    } else {
+        ExportPayloadPolicy.REDACTED_PREVIEW
+    }
+}
+
+private fun endedBoundarySnapshot(
+    snapshot: ReferenceControllerSnapshot,
+    endedAtEpochMillis: Long,
+): ReferenceControllerSnapshot {
+    return snapshot.copy(session = snapshot.session.copy(endedAtEpochMillis = endedAtEpochMillis))
+}
+
+private fun ReferenceControllerSnapshot.redactedRetainedSnapshot(): ReferenceControllerSnapshot {
+    return copy(
+        session = session.copy(historyStatus = ReferenceHistoryStatus.RETAINED),
+        timeline = timeline.map { entry -> entry.withoutSensitivePayload() },
+    )
+}
+
+private fun ReferenceControllerSnapshot.isEligibleForAutomaticRetention(
+    readinessBlockers: List<String>
+): Boolean {
+    if (session.authorityMode != ReferenceAuthorityMode.LIVE) {
+        return false
+    }
+    if (referenceSessionKind() == ReferenceSessionKind.LAB) {
+        return false
+    }
+    if (readinessBlockers.isNotEmpty()) {
+        return true
+    }
+    return timeline.any { entry -> entry.isReviewableEvidenceEntry() }
+}
+
+private fun TimelineEntry.isReviewableEvidenceEntry(): Boolean {
+    if (title == "Reference session created" || title == "Automation session created") {
+        return false
+    }
+    return family != TimelineFamily.USER || severity != TimelineSeverity.INFO
 }

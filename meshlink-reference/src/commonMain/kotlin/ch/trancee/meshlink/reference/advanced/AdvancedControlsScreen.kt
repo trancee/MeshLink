@@ -57,6 +57,7 @@ private fun AdvancedControlsContent(
             AdvancedLifecycleSection(
                 meshStateLabel = uiState.meshStateLabel,
                 lifecycleActions = lifecycleActions,
+                isSessionEnded = uiState.isSessionEnded,
                 viewModel = viewModel,
             )
         }
@@ -66,6 +67,7 @@ private fun AdvancedControlsContent(
             PeerDetailCard(
                 peer = peer,
                 selected = uiState.selectedPeerId == peer.peerId,
+                enabled = !uiState.isSessionEnded,
                 onSelect = { viewModel.selectPeer(peer.peerId) },
             )
         }
@@ -114,6 +116,14 @@ private fun AdvancedLiveSnapshotSection(uiState: AdvancedControlsUiState): Unit 
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        if (uiState.isSessionEnded) {
+            Text(
+                text =
+                    "This session is closed. Open the technical timeline to export a redacted artifact or start a new session.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 
@@ -122,6 +132,7 @@ private fun AdvancedLiveSnapshotSection(uiState: AdvancedControlsUiState): Unit 
 private fun AdvancedLifecycleSection(
     meshStateLabel: String,
     lifecycleActions: LifecycleActionState,
+    isSessionEnded: Boolean,
     viewModel: AdvancedControlsViewModel,
 ): Unit {
     ReferenceSectionCard(title = "Lifecycle", subtitle = ADVANCED_LIFECYCLE_SUBTITLE) {
@@ -130,16 +141,28 @@ private fun AdvancedLifecycleSection(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Button(onClick = viewModel::startMesh, enabled = lifecycleActions.startEnabled) {
+            Button(
+                onClick = viewModel::startMesh,
+                enabled = lifecycleActions.startEnabled && !isSessionEnded,
+            ) {
                 Text("Start")
             }
-            Button(onClick = viewModel::pauseMesh, enabled = lifecycleActions.pauseEnabled) {
+            Button(
+                onClick = viewModel::pauseMesh,
+                enabled = lifecycleActions.pauseEnabled && !isSessionEnded,
+            ) {
                 Text("Pause")
             }
-            Button(onClick = viewModel::resumeMesh, enabled = lifecycleActions.resumeEnabled) {
+            Button(
+                onClick = viewModel::resumeMesh,
+                enabled = lifecycleActions.resumeEnabled && !isSessionEnded,
+            ) {
                 Text("Resume")
             }
-            Button(onClick = viewModel::stopMesh, enabled = lifecycleActions.stopEnabled) {
+            Button(
+                onClick = viewModel::stopMesh,
+                enabled = lifecycleActions.stopEnabled && !isSessionEnded,
+            ) {
                 Text("Stop")
             }
         }

@@ -28,6 +28,4 @@ public enum class ReferenceAuthorityMode {
 public enum class ReferenceHistoryStatus {
     LIVE,
     RETAINED,
-    EXPORTED,
-    DELETED,
 }

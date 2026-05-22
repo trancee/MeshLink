@@ -102,10 +102,12 @@ private fun historyActionRow(
 private fun emptyHistoryCard(): Unit {
     ReferenceSectionCard(
         title = "No retained sessions yet",
-        subtitle = "Retain a completed timeline first, then come back here to reopen or delete it.",
+        subtitle =
+            "Eligible sessions appear here automatically after they end, then you can reopen or delete them later.",
     ) {
         Text(
-            text = "This list stays empty until you retain a session from the technical timeline.",
+            text =
+                "This list stays empty until a supported ended session produces reviewable evidence and is retained automatically.",
             style = MaterialTheme.typography.bodyMedium,
         )
     }

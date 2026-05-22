@@ -18,6 +18,10 @@ public interface PlatformServices {
     public val documentStore: ReferenceDocumentStore
     public val meshLinkController: ReferenceMeshLinkController
 
+    public fun createSupportedMeshLinkController(
+        surfaceOfOrigin: String = "main-guided"
+    ): ReferenceMeshLinkController = meshLinkController
+
     public fun currentTimeMillis(): Long
 
     public fun emitAutomationLog(message: String): Unit
@@ -32,7 +36,7 @@ public class DefaultPlatformServicesOptions {
     public var readinessBlockers: List<String> = emptyList()
     public var automationConfig: ReferenceAutomationConfig? = null
     public var automationLogger: (String) -> Unit = {}
-    public var meshLinkControllerOverride: ReferenceMeshLinkController? = null
+    public var meshLinkControllerFactory: ((String) -> ReferenceMeshLinkController)? = null
 }
 
 /** Lightweight default implementation used by the reference app entry points. */
@@ -49,17 +53,24 @@ public class DefaultPlatformServices(
     override val readinessBlockers: List<String> = options.readinessBlockers
     override val automationConfig: ReferenceAutomationConfig? = options.automationConfig
     private val automationLogger: (String) -> Unit = options.automationLogger
-    private val meshLinkControllerOverride: ReferenceMeshLinkController? =
-        options.meshLinkControllerOverride
+    private val meshLinkControllerFactory: ((String) -> ReferenceMeshLinkController)? =
+        options.meshLinkControllerFactory
 
     override val meshLinkController: ReferenceMeshLinkController by lazy {
-        meshLinkControllerOverride
+        createSupportedMeshLinkController()
+    }
+
+    override fun createSupportedMeshLinkController(
+        surfaceOfOrigin: String
+    ): ReferenceMeshLinkController {
+        return meshLinkControllerFactory?.invoke(surfaceOfOrigin)
             ?: runCatching {
                     LiveReferenceMeshLinkController(
                         platformName = platformName,
                         authorityMode = defaultAuthorityMode,
                         appId = appId,
                         nowProvider = nowProvider,
+                        surfaceOfOrigin = surfaceOfOrigin,
                         platformContext = platformContext,
                     )
                 }

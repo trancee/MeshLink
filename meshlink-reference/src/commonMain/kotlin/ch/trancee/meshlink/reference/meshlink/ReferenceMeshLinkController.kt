@@ -30,6 +30,7 @@ import ch.trancee.meshlink.reference.model.redactedPayloadPreview
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -55,6 +56,8 @@ public interface ReferenceMeshLinkController {
     ): Unit
 
     public suspend fun forgetPeer(peerId: String): Unit
+
+    public suspend fun close(): Unit = Unit
 }
 
 @Serializable
@@ -71,6 +74,7 @@ public class LiveReferenceMeshLinkController(
     private val authorityMode: ReferenceAuthorityMode,
     private val appId: String,
     private val nowProvider: () -> Long,
+    private val surfaceOfOrigin: String = "main-guided",
     private val platformContext: Any? = null,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
 ) : ReferenceMeshLinkController {
@@ -90,7 +94,7 @@ public class LiveReferenceMeshLinkController(
                             configurationSnapshot =
                                 mapOf(
                                     "platform" to platformName,
-                                    "surface" to "main-guided",
+                                    "surface" to surfaceOfOrigin,
                                     "appId" to appId,
                                     "regulatoryRegion" to RegulatoryRegion.DEFAULT.name,
                                     "powerMode" to PowerMode.Automatic.toString(),
@@ -247,6 +251,11 @@ public class LiveReferenceMeshLinkController(
                     )
                 )
             }
+    }
+
+    override suspend fun close(): Unit {
+        runCatching { meshLinkApi.stop() }
+        scope.cancel()
     }
 
     private fun ensureBindings(): Unit {
@@ -449,6 +458,8 @@ public class PreviewReferenceMeshLinkController(
     ): Unit = Unit
 
     override suspend fun forgetPeer(peerId: String): Unit = Unit
+
+    override suspend fun close(): Unit = Unit
 }
 
 private fun shouldTrackLifecycleOutcome(value: Any): Boolean {

@@ -15,6 +15,7 @@ public data class AdvancedControlsUiState(
     public val config: AdvancedConfigState,
     public val meshStateLabel: String,
     public val activePowerModeLabel: String,
+    public val isSessionEnded: Boolean,
     public val selectedPeerId: String? = null,
     public val composerText: String,
     public val selectedPriority: DeliveryPriority,
@@ -28,13 +29,16 @@ public data class AdvancedControlsUiState(
 ) {
     public val canSendMessage: Boolean
         get() =
-            selectedPeerId != null && composerText.isNotBlank() && payloadValidationMessage == null
+            !isSessionEnded &&
+                selectedPeerId != null &&
+                composerText.isNotBlank() &&
+                payloadValidationMessage == null
 
     public val canSendLargeTransfer: Boolean
-        get() = selectedPeerId != null
+        get() = !isSessionEnded && selectedPeerId != null
 
     public val canForgetPeer: Boolean
-        get() = selectedPeerId != null
+        get() = !isSessionEnded && selectedPeerId != null
 }
 
 public data class AdvancedPeerRow(

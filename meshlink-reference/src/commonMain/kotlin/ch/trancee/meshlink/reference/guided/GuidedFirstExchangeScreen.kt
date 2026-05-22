@@ -110,8 +110,13 @@ private fun GuidedLiveFirstMessageSection(
             modifier = Modifier.fillMaxWidth(),
         ) {
             ReferenceBadge(
-                label = if (uiState.readiness.isBlocked) "Startup blocked" else "Ready to start",
-                prominent = !uiState.readiness.isBlocked,
+                label =
+                    when {
+                        uiState.isSessionEnded -> "Session ended"
+                        uiState.readiness.isBlocked -> "Startup blocked"
+                        else -> "Ready to start"
+                    },
+                prominent = !uiState.readiness.isBlocked && !uiState.isSessionEnded,
             )
             ReferenceBadge(label = "Peer: ${uiState.selectedPeerSuffix ?: "none"}")
         }
@@ -122,7 +127,7 @@ private fun GuidedLiveFirstMessageSection(
         ) {
             Button(
                 onClick = onStartMesh,
-                enabled = !uiState.readiness.isBlocked,
+                enabled = !uiState.readiness.isBlocked && !uiState.isSessionEnded,
                 modifier = Modifier.testTag("guided-start"),
             ) {
                 Text("Start MeshLink")
@@ -134,7 +139,11 @@ private fun GuidedLiveFirstMessageSection(
             ) {
                 Text("Send Hello")
             }
-            Button(onClick = onOpenSolo, modifier = Modifier.testTag("guided-open-solo")) {
+            Button(
+                onClick = onOpenSolo,
+                enabled = !uiState.isSessionEnded,
+                modifier = Modifier.testTag("guided-open-solo"),
+            ) {
                 Text("Solo exploration")
             }
         }
@@ -149,6 +158,14 @@ private fun GuidedLiveFirstMessageSection(
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        if (uiState.isSessionEnded) {
+            Text(
+                text =
+                    "This session is closed. Open the technical timeline to export a redacted artifact or start a new session.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 

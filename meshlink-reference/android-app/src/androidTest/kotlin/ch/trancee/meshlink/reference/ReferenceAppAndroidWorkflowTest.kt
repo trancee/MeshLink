@@ -90,7 +90,8 @@ class ReferenceAppAndroidWorkflowTest {
             tapText(device, "Evidence")
 
             waitForText(device, "Technical timeline")
-            tapTextWithScroll(device, "Retain live session", searchDirection = Direction.UP)
+            tapTextWithScroll(device, "End session", searchDirection = Direction.UP)
+            tapText(device, "End without full export")
             waitForTextContains(device, "Retained 1")
             tapText(device, "Export session")
             waitForText(device, "Redacted export")
@@ -111,8 +112,8 @@ class ReferenceAppAndroidWorkflowTest {
             assertTrue(exportJson.contains("\"fullPayloadIncluded\": false"))
             assertTrue(exportJson.contains("\"operatorOptInRecorded\": false"))
             assertTrue(
-                UTC_ISO_8601_CREATED_AT_REGEX.containsMatchIn(exportJson),
                 "Expected createdAt to use UTC ISO 8601 in the written export file",
+                UTC_ISO_8601_CREATED_AT_REGEX.containsMatchIn(exportJson),
             )
             assertFalse(exportJson.contains("\"fullPayload\":"))
             assertTrue(historyJson.contains("\"historyStatus\": \"RETAINED\""))

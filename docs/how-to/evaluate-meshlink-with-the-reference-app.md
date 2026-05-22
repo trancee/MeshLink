@@ -130,18 +130,18 @@ place to inspect:
 
 Use the filter controls to narrow the view when you want to isolate one kind of event.
 
-## 7. Retain one session and export one redacted artifact
+## 7. End one session and export one redacted artifact
 
 After the guided exchange succeeds:
 
-1. retain the current session
+1. open the technical timeline and choose **End session**
 2. open retained history
 3. verify the retained session appears separately from the live session
 4. open the export chooser and select the redacted export
 
 The default export should keep payload previews redacted and should not
 silently switch to full-payload export. Retained sessions stay redacted, so
-full-payload export is only available from the live session before retention.
+full-payload export is only available from the supported live session before it ends.
 
 ## 8. Use the right validation path for the job
 

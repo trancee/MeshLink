@@ -58,12 +58,14 @@ public fun createAndroidAutomationPlatformServices(
                         storageSubdirectory = storageSubdirectory,
                     )
                 automationLogger = { message -> Log.i(AUTOMATION_LOG_TAG, message) }
-                meshLinkControllerOverride =
+                meshLinkControllerFactory = { surfaceOfOrigin ->
                     ScriptedReferenceMeshLinkController(
                         platformName = "Android",
                         authorityMode = ReferenceAuthorityMode.LIVE,
                         nowProvider = clock,
+                        surfaceOfOrigin = surfaceOfOrigin,
                     )
+                }
             },
     )
 }

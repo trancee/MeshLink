@@ -32,6 +32,8 @@ import ch.trancee.meshlink.reference.model.TimelineFamily
 import ch.trancee.meshlink.reference.model.TimelineSeverity
 import ch.trancee.meshlink.reference.model.referenceTimelineFamilyLabel
 import ch.trancee.meshlink.reference.model.referenceTimelineSeverityLabel
+import ch.trancee.meshlink.reference.navigation.SessionBoundaryDialog
+import ch.trancee.meshlink.reference.session.ExportPayloadPolicy
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -65,6 +67,7 @@ private fun TechnicalTimelineContent(
     modifier: Modifier,
 ): Unit {
     var showExportDialog by remember { mutableStateOf(false) }
+    var showEndSessionDialog by remember { mutableStateOf(false) }
 
     LazyColumn(
         modifier = modifier.fillMaxSize().padding(16.dp).testTag("timeline-screen"),
@@ -76,8 +79,11 @@ private fun TechnicalTimelineContent(
                 uiState = uiState,
                 store = store,
                 showExportDialog = showExportDialog,
+                showEndSessionDialog = showEndSessionDialog,
                 onOpenExportDialog = { showExportDialog = true },
                 onDismissExportDialog = { showExportDialog = false },
+                onOpenEndSessionDialog = { showEndSessionDialog = true },
+                onDismissEndSessionDialog = { showEndSessionDialog = false },
             )
         }
         item {
@@ -107,18 +113,24 @@ private fun TimelineRetentionSection(
     uiState: TechnicalTimelineUiState,
     store: TechnicalTimelineStore,
     showExportDialog: Boolean,
+    showEndSessionDialog: Boolean,
     onOpenExportDialog: () -> Unit,
     onDismissExportDialog: () -> Unit,
+    onOpenEndSessionDialog: () -> Unit,
+    onDismissEndSessionDialog: () -> Unit,
 ): Unit {
-    ReferenceSectionCard(title = "Retain or export") {
+    ReferenceSectionCard(title = "End or export") {
         FlowRow(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             ReferenceBadge(
                 label =
-                    if (uiState.viewingRetained) "Viewing retained session"
-                    else "Viewing live session",
+                    when {
+                        uiState.viewingRetained -> "Viewing retained session"
+                        uiState.isCurrentSessionEnded -> "Viewing ended session"
+                        else -> "Viewing live session"
+                    },
                 prominent = !uiState.viewingRetained,
             )
             ReferenceBadge(label = "Visible ${uiState.visibleEntries.size}")
@@ -128,8 +140,11 @@ private fun TimelineRetentionSection(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Button(onClick = store::retainCurrentSession, enabled = !uiState.viewingRetained) {
-                Text("Retain live session")
+            if (uiState.isSupportedLiveSession && !uiState.viewingRetained) {
+                Button(onClick = onOpenEndSessionDialog) { Text("End session") }
+            }
+            if (uiState.showStartNewSession && !uiState.viewingRetained) {
+                Button(onClick = { store.startNewSupportedSession() }) { Text("Start new session") }
             }
             if (uiState.viewingRetained) {
                 Button(onClick = store::returnToLive) { Text("Return to live") }
@@ -139,9 +154,37 @@ private fun TimelineRetentionSection(
         if (uiState.viewingRetained) {
             Text(
                 text =
-                    "Return to the live session before retaining again or exporting full payload content.",
+                    "Return to the live session before starting another supported session or using full-payload export.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (uiState.isCurrentSessionEnded) {
+            Text(
+                text =
+                    "This supported session is closed. Review the timeline, export a redacted artifact, or start a new session.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (showEndSessionDialog) {
+            SessionBoundaryDialog(
+                title = "End supported session",
+                body =
+                    "Ending the session closes the current evidence window and immediately retains eligible evidence in recent history.",
+                exportLabel = "Export full and end",
+                continueLabel = "End without full export",
+                onExportAndContinue = {
+                    store.endCurrentSession(
+                        preEndExportPolicy = ExportPayloadPolicy.FULL_PAYLOAD_OPT_IN
+                    )
+                    onDismissEndSessionDialog()
+                },
+                onContinueWithoutExport = {
+                    store.endCurrentSession()
+                    onDismissEndSessionDialog()
+                },
+                onCancel = onDismissEndSessionDialog,
             )
         }
         if (showExportDialog) {
@@ -151,7 +194,7 @@ private fun TimelineRetentionSection(
                     onDismissExportDialog()
                 },
                 onDismiss = onDismissExportDialog,
-                allowFullPayload = !uiState.viewingRetained,
+                allowFullPayload = uiState.allowFullPayloadExport,
             )
         }
         if (uiState.lastExportPath != null) {

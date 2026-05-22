@@ -32,6 +32,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -51,11 +52,19 @@ import ch.trancee.meshlink.reference.resources.Res
 import ch.trancee.meshlink.reference.resources.app_title
 import ch.trancee.meshlink.reference.resources.mode_label
 import ch.trancee.meshlink.reference.resources.platform_label
+import ch.trancee.meshlink.reference.session.ExportPayloadPolicy
 import ch.trancee.meshlink.reference.session.JsonSessionArtifactSerializer
 import ch.trancee.meshlink.reference.session.JsonSessionHistoryRepository
+import ch.trancee.meshlink.reference.session.ReferenceSessionController
+import ch.trancee.meshlink.reference.session.ReferenceSessionKind
+import ch.trancee.meshlink.reference.session.referenceSessionKind
 import ch.trancee.meshlink.reference.solo.SoloExplorationScreen
 import ch.trancee.meshlink.reference.timeline.TechnicalTimelineScreen
 import ch.trancee.meshlink.reference.timeline.TechnicalTimelineStore
+import ch.trancee.meshlink.reference.timeline.transitionAlternativeSession
+import ch.trancee.meshlink.reference.timeline.transitionToLabSession
+import ch.trancee.meshlink.reference.timeline.transitionToSoloSession
+import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 
 /** Shared navigation shell for the reference app surfaces. */
@@ -65,17 +74,47 @@ public fun ReferenceNavHost(platformServices: PlatformServices) {
     var activeRoute: ReferenceSurfaceId by remember {
         mutableStateOf(ReferenceSurfaceId.MAIN_GUIDED)
     }
+    var pendingBoundary by remember { mutableStateOf<SessionBoundaryRequest?>(null) }
+    val coroutineScope = rememberCoroutineScope()
+    val historyRepository =
+        remember(platformServices.platformName) {
+            JsonSessionHistoryRepository(platformServices.documentStore)
+        }
+    val artifactSerializer =
+        remember(platformServices.platformName) {
+            JsonSessionArtifactSerializer(platformServices.documentStore)
+        }
+    val sessionController =
+        remember(platformServices.platformName) {
+            ReferenceSessionController(
+                platformName = platformServices.platformName,
+                nowProvider = platformServices::currentTimeMillis,
+                supportedControllerFactory = platformServices::createSupportedMeshLinkController,
+            )
+        }
+    val sessionPlatformServices =
+        remember(platformServices.platformName) {
+            SessionAwarePlatformServices(
+                delegate = platformServices,
+                sessionController = sessionController,
+            )
+        }
     val guidedViewModel =
-        remember(platformServices.platformName) { GuidedFirstExchangeViewModel(platformServices) }
-    val snapshot by platformServices.meshLinkController.snapshot.collectAsState()
+        remember(platformServices.platformName) {
+            GuidedFirstExchangeViewModel(sessionPlatformServices)
+        }
+    val snapshot by sessionController.snapshot.collectAsState()
     val advancedViewModel =
-        remember(platformServices.platformName) { AdvancedControlsViewModel(platformServices) }
+        remember(platformServices.platformName) {
+            AdvancedControlsViewModel(sessionPlatformServices)
+        }
     val timelineStore =
         remember(platformServices.platformName) {
             TechnicalTimelineStore(
-                platformServices = platformServices,
-                historyRepository = JsonSessionHistoryRepository(platformServices.documentStore),
-                artifactSerializer = JsonSessionArtifactSerializer(platformServices.documentStore),
+                platformServices = sessionPlatformServices,
+                historyRepository = historyRepository,
+                artifactSerializer = artifactSerializer,
+                sessionController = sessionController,
             )
         }
     val workflowTitles = remember {
@@ -91,9 +130,51 @@ public fun ReferenceNavHost(platformServices: PlatformServices) {
         }
     }
 
-    fun selectSurface(surface: ReferenceSurfaceId): Unit {
+    fun applySurfaceSelection(surface: ReferenceSurfaceId): Unit {
         activeRoute = surface
         lastRouteBySection[primarySectionFor(surface)] = surface
+    }
+
+    fun selectSurface(surface: ReferenceSurfaceId): Unit {
+        val currentKind = snapshot.referenceSessionKind()
+        when {
+            currentKind == ReferenceSessionKind.SUPPORTED_LIVE &&
+                surface == ReferenceSurfaceId.SOLO_EXPLORATION -> {
+                pendingBoundary = SessionBoundaryRequest.SupportedTo(surface)
+            }
+            currentKind == ReferenceSessionKind.SUPPORTED_LIVE &&
+                surface == ReferenceSurfaceId.LAB -> {
+                pendingBoundary = SessionBoundaryRequest.SupportedTo(surface)
+            }
+            currentKind == ReferenceSessionKind.SOLO || currentKind == ReferenceSessionKind.LAB -> {
+                when (surface) {
+                    ReferenceSurfaceId.MAIN_GUIDED,
+                    ReferenceSurfaceId.ADVANCED_CONTROLS,
+                    ReferenceSurfaceId.SOLO_EXPLORATION,
+                    ReferenceSurfaceId.LAB -> {
+                        if (surface != activeRoute) {
+                            pendingBoundary = SessionBoundaryRequest.AlternativeTo(surface)
+                        }
+                    }
+                    else -> applySurfaceSelection(surface)
+                }
+            }
+            currentKind == ReferenceSessionKind.SUPPORTED_ENDED &&
+                surface == ReferenceSurfaceId.SOLO_EXPLORATION -> {
+                coroutineScope.launch {
+                    sessionController.startSoloSession()
+                    applySurfaceSelection(surface)
+                }
+            }
+            currentKind == ReferenceSessionKind.SUPPORTED_ENDED &&
+                surface == ReferenceSurfaceId.LAB -> {
+                coroutineScope.launch {
+                    sessionController.startLabSession()
+                    applySurfaceSelection(surface)
+                }
+            }
+            else -> applySurfaceSelection(surface)
+        }
     }
 
     fun selectSection(section: ReferencePrimarySection): Unit {
@@ -111,7 +192,7 @@ public fun ReferenceNavHost(platformServices: PlatformServices) {
         )
 
     ReferenceLiveProofAutomation(
-        platformServices = platformServices,
+        platformServices = sessionPlatformServices,
         guidedViewModel = guidedViewModel,
         timelineStore = timelineStore,
         snapshot = snapshot,
@@ -126,6 +207,44 @@ public fun ReferenceNavHost(platformServices: PlatformServices) {
                 advancedViewModel = advancedViewModel,
                 timelineStore = timelineStore,
             ),
+        pendingBoundary = pendingBoundary,
+        onDismissBoundary = { pendingBoundary = null },
+        onConfirmBoundary = { request, exportFirst ->
+            when (request) {
+                is SessionBoundaryRequest.SupportedTo -> {
+                    when (request.targetSurface) {
+                        ReferenceSurfaceId.SOLO_EXPLORATION ->
+                            timelineStore.transitionToSoloSession(
+                                preBoundaryExportPolicy =
+                                    if (exportFirst) {
+                                        ExportPayloadPolicy.FULL_PAYLOAD_OPT_IN
+                                    } else {
+                                        null
+                                    }
+                            )
+                        ReferenceSurfaceId.LAB ->
+                            timelineStore.transitionToLabSession(
+                                preBoundaryExportPolicy =
+                                    if (exportFirst) {
+                                        ExportPayloadPolicy.FULL_PAYLOAD_OPT_IN
+                                    } else {
+                                        null
+                                    }
+                            )
+                        else -> Unit
+                    }
+                    applySurfaceSelection(request.targetSurface)
+                }
+                is SessionBoundaryRequest.AlternativeTo -> {
+                    timelineStore.transitionAlternativeSession(
+                        targetSurface = request.targetSurface,
+                        exportBeforeExit = exportFirst,
+                    )
+                    applySurfaceSelection(request.targetSurface)
+                }
+            }
+            pendingBoundary = null
+        },
         onSelectSurface = ::selectSurface,
         onSelectSection = ::selectSection,
     )
@@ -135,6 +254,9 @@ public fun ReferenceNavHost(platformServices: PlatformServices) {
 private fun ReferenceShellScaffold(
     headerState: ReferenceShellHeaderState,
     contentState: ReferenceRouteContentState,
+    pendingBoundary: SessionBoundaryRequest?,
+    onDismissBoundary: () -> Unit,
+    onConfirmBoundary: (SessionBoundaryRequest, Boolean) -> Unit,
     onSelectSurface: (ReferenceSurfaceId) -> Unit,
     onSelectSection: (ReferencePrimarySection) -> Unit,
 ): Unit {
@@ -152,6 +274,18 @@ private fun ReferenceShellScaffold(
                 contentState = contentState,
                 onOpenSolo = { onSelectSurface(ReferenceSurfaceId.SOLO_EXPLORATION) },
             )
+            pendingBoundary?.let { boundary ->
+                SessionBoundaryDialog(
+                    title = boundary.dialogTitle(),
+                    body = boundary.dialogBody(),
+                    exportLabel = boundary.exportLabel(),
+                    continueLabel = boundary.continueLabel(),
+                    onExportAndContinue = { onConfirmBoundary(boundary, true) },
+                    onContinueWithoutExport = { onConfirmBoundary(boundary, false) },
+                    onCancel = onDismissBoundary,
+                    modifier = Modifier.padding(16.dp),
+                )
+            }
         }
     }
 }
@@ -296,7 +430,7 @@ private enum class ReferencePrimarySection(
     EXCHANGE(
         label = "Exchange",
         description =
-            "Start with the live guided flow, then switch to solo review when a second device is unavailable.",
+            "Start with the live guided flow, then start a solo session when a second device is unavailable.",
         icon = Icons.Filled.Home,
         surfaces = listOf(ReferenceSurfaceId.MAIN_GUIDED, ReferenceSurfaceId.SOLO_EXPLORATION),
     ),
@@ -310,7 +444,7 @@ private enum class ReferencePrimarySection(
     EVIDENCE(
         label = "Evidence",
         description =
-            "Review live diagnostics, retain completed sessions, and export redacted evidence artifacts.",
+            "Review live diagnostics, end supported sessions, and reopen retained evidence artifacts.",
         icon = Icons.Filled.Info,
         surfaces = listOf(ReferenceSurfaceId.TECHNICAL_TIMELINE, ReferenceSurfaceId.RECENT_HISTORY),
     ),
@@ -327,4 +461,67 @@ private enum class ReferencePrimarySection(
 
 private fun primarySectionFor(surface: ReferenceSurfaceId): ReferencePrimarySection {
     return ReferencePrimarySection.entries.first { section -> surface in section.surfaces }
+}
+
+private class SessionAwarePlatformServices(
+    private val delegate: PlatformServices,
+    private val sessionController: ReferenceSessionController,
+) : PlatformServices by delegate {
+    override val meshLinkController:
+        ch.trancee.meshlink.reference.meshlink.ReferenceMeshLinkController
+        get() = sessionController
+
+    override fun createSupportedMeshLinkController(
+        surfaceOfOrigin: String
+    ): ch.trancee.meshlink.reference.meshlink.ReferenceMeshLinkController {
+        return delegate.createSupportedMeshLinkController(surfaceOfOrigin)
+    }
+}
+
+private sealed interface SessionBoundaryRequest {
+    val targetSurface: ReferenceSurfaceId
+
+    data class SupportedTo(override val targetSurface: ReferenceSurfaceId) : SessionBoundaryRequest
+
+    data class AlternativeTo(override val targetSurface: ReferenceSurfaceId) :
+        SessionBoundaryRequest
+}
+
+private fun SessionBoundaryRequest.dialogTitle(): String {
+    return when (this) {
+        is SessionBoundaryRequest.SupportedTo -> "Start a new session"
+        is SessionBoundaryRequest.AlternativeTo -> "Leave current session"
+    }
+}
+
+private fun SessionBoundaryRequest.dialogBody(): String {
+    return when (this) {
+        is SessionBoundaryRequest.SupportedTo ->
+            "This closes the current supported session and starts a new ${targetSurface.titleForBoundary()} session."
+        is SessionBoundaryRequest.AlternativeTo ->
+            "This closes the current solo or lab session and starts a new ${targetSurface.titleForBoundary()} session."
+    }
+}
+
+private fun SessionBoundaryRequest.exportLabel(): String {
+    return when (this) {
+        is SessionBoundaryRequest.SupportedTo -> "Export full and continue"
+        is SessionBoundaryRequest.AlternativeTo -> "Export redacted and continue"
+    }
+}
+
+private fun SessionBoundaryRequest.continueLabel(): String {
+    return when (this) {
+        is SessionBoundaryRequest.SupportedTo -> "Continue without export"
+        is SessionBoundaryRequest.AlternativeTo -> "Continue without export"
+    }
+}
+
+private fun ReferenceSurfaceId.titleForBoundary(): String {
+    return when (this) {
+        ReferenceSurfaceId.SOLO_EXPLORATION -> "solo"
+        ReferenceSurfaceId.LAB -> "lab"
+        ReferenceSurfaceId.ADVANCED_CONTROLS -> "supported"
+        else -> "supported"
+    }
 }
