@@ -1,25 +1,23 @@
 package ch.trancee.meshlink.wire
 
 internal enum class WireEnvelopeType private constructor(internal val code: Byte) {
-    HELLO(1),
-    IHU(2),
-    ROUTE_UPDATE(3),
-    ROUTE_RETRACTION(4),
-    SEQNO_REQUEST(5),
-    ROUTE_DIGEST(6),
-    MESSAGE(7),
-    TRANSFER_START(8),
-    TRANSFER_CHUNK(9),
-    TRANSFER_ACK(10),
-    TRANSFER_COMPLETE(11),
-    TRANSFER_ABORT(12);
+    HELLO(HELLO_CODE),
+    IHU(IHU_CODE),
+    ROUTE_UPDATE(ROUTE_UPDATE_CODE),
+    ROUTE_RETRACTION(ROUTE_RETRACTION_CODE),
+    SEQNO_REQUEST(SEQNO_REQUEST_CODE),
+    ROUTE_DIGEST(ROUTE_DIGEST_CODE),
+    MESSAGE(MESSAGE_CODE),
+    TRANSFER_START(TRANSFER_START_CODE),
+    TRANSFER_CHUNK(TRANSFER_CHUNK_CODE),
+    TRANSFER_ACK(TRANSFER_ACK_CODE),
+    TRANSFER_COMPLETE(TRANSFER_COMPLETE_CODE),
+    TRANSFER_ABORT(TRANSFER_ABORT_CODE);
 
     internal companion object {
         internal fun fromCode(code: Byte): WireEnvelopeType {
             return entries.firstOrNull { type -> type.code == code }
-                ?: throw IllegalStateException(
-                    "Unknown WireEnvelopeType code ${code.toInt() and 0xFF}"
-                )
+                ?: error("Unknown WireEnvelopeType code ${code.toInt() and BYTE_MASK}")
         }
     }
 }
@@ -50,10 +48,10 @@ internal constructor(
             val table = FlatBufferTable.fromRoot(bytes)
             val payload =
                 table.readByteVector(PAYLOAD_FIELD_INDEX)
-                    ?: throw IllegalStateException("WireEnvelope payload is missing")
+                    ?: error("WireEnvelope payload is missing")
             val version = table.readByte(VERSION_FIELD_INDEX).toUByte()
-            if (version != WireCodec.CURRENT_WIRE_VERSION) {
-                throw IllegalStateException("Unsupported WireEnvelope version ${version.toInt()}")
+            check(version == WireCodec.CURRENT_WIRE_VERSION) {
+                "Unsupported WireEnvelope version ${version.toInt()}"
             }
             return WireEnvelope(
                 version = version,
@@ -63,3 +61,17 @@ internal constructor(
         }
     }
 }
+
+private const val BYTE_MASK: Int = 0xFF
+private const val HELLO_CODE: Byte = 1
+private const val IHU_CODE: Byte = 2
+private const val ROUTE_UPDATE_CODE: Byte = 3
+private const val ROUTE_RETRACTION_CODE: Byte = 4
+private const val SEQNO_REQUEST_CODE: Byte = 5
+private const val ROUTE_DIGEST_CODE: Byte = 6
+private const val MESSAGE_CODE: Byte = 7
+private const val TRANSFER_START_CODE: Byte = 8
+private const val TRANSFER_CHUNK_CODE: Byte = 9
+private const val TRANSFER_ACK_CODE: Byte = 10
+private const val TRANSFER_COMPLETE_CODE: Byte = 11
+private const val TRANSFER_ABORT_CODE: Byte = 12

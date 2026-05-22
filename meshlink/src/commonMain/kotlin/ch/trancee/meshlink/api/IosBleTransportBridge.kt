@@ -61,7 +61,8 @@ internal object IosBleTransportBridgeRegistry {
         return callbacks
             ?: throw MeshLinkException.PlatformFailure(
                 message =
-                    "iOS BLE transport bridge is not installed. Call IosBleTransportBridge.install(...) during app startup."
+                    "iOS BLE transport bridge is not installed. " +
+                        "Call IosBleTransportBridge.install(...) during app startup."
             )
     }
 }

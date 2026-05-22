@@ -101,17 +101,23 @@ internal sealed class DirectWireFrame protected constructor(payload: ByteArray) 
 }
 
 internal enum class DirectWireFrameType private constructor(internal val code: Byte) {
-    HANDSHAKE_MESSAGE_1(1),
-    HANDSHAKE_MESSAGE_2(2),
-    HANDSHAKE_MESSAGE_3(3),
-    DATA(4);
+    HANDSHAKE_MESSAGE_1(HANDSHAKE_MESSAGE_1_CODE),
+    HANDSHAKE_MESSAGE_2(HANDSHAKE_MESSAGE_2_CODE),
+    HANDSHAKE_MESSAGE_3(HANDSHAKE_MESSAGE_3_CODE),
+    DATA(DATA_FRAME_CODE);
 
     internal companion object {
         internal fun fromCode(code: Byte): DirectWireFrameType {
             return entries.firstOrNull { it.code == code }
                 ?: throw MeshLinkException.TransportFailure(
-                    "Unknown direct wire frame type ${code.toInt() and 0xFF}"
+                    "Unknown direct wire frame type ${code.toInt() and DIRECT_FRAME_CODE_MASK}"
                 )
         }
     }
 }
+
+private const val DIRECT_FRAME_CODE_MASK: Int = 0xFF
+private const val HANDSHAKE_MESSAGE_1_CODE: Byte = 1
+private const val HANDSHAKE_MESSAGE_2_CODE: Byte = 2
+private const val HANDSHAKE_MESSAGE_3_CODE: Byte = 3
+private const val DATA_FRAME_CODE: Byte = 4

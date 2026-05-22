@@ -63,7 +63,7 @@ internal object MessageSealer {
         senderTrust: TrustRecord,
     ): ByteArray {
         val buffer = ReadBuffer(sealedPayload)
-        val version = buffer.readByte().toInt() and 0xFF
+        val version = buffer.readByte().toInt() and BYTE_MASK
         if (version != CURRENT_VERSION) {
             throw MeshLinkException.CryptoFailure("Unsupported message sealer version $version")
         }
@@ -148,6 +148,7 @@ internal object MessageSealer {
         }
     }
 
+    private const val BYTE_MASK: Int = 0xFF
     private const val CURRENT_VERSION: Int = 1
     private const val KEY_SIZE_BYTES: Int = 32
     private const val NONCE_SIZE_BYTES: Int = 12

@@ -37,14 +37,16 @@ internal constructor(
         repeat(attempt.coerceAtMost(MAX_SHIFTED_ATTEMPTS)) {
             baseDelay = (baseDelay * 2).coerceAtMost(MAX_RETRY_DELAY)
         }
-        val jitterFactor = 0.85 + random.nextDouble() * 0.30
+        val jitterFactor = JITTER_BASE_FACTOR + random.nextDouble() * JITTER_RANGE_FACTOR
         return (baseDelay * jitterFactor).coerceAtMost(MAX_RETRY_DELAY)
     }
 
     private companion object {
-        private const val MAX_SHIFTED_ATTEMPTS: Int = 5
         private val BASE_RETRY_DELAY: Duration = 100.milliseconds
+        private const val JITTER_BASE_FACTOR: Double = 0.85
+        private const val JITTER_RANGE_FACTOR: Double = 0.30
         private val MAX_RETRY_DELAY: Duration = 1_000.milliseconds
+        private const val MAX_SHIFTED_ATTEMPTS: Int = 5
     }
 }
 

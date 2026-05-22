@@ -6,26 +6,28 @@ internal class WriteBuffer(initialCapacity: Int = DEFAULT_INITIAL_CAPACITY) {
     private var size: Int = 0
 
     internal fun writeByte(value: Byte): Unit {
-        ensureCapacity(additionalBytes = 1)
+        ensureCapacity(additionalBytes = SINGLE_BYTE_SIZE)
         bytes[size] = value
-        size += 1
+        size += SINGLE_BYTE_SIZE
     }
 
     internal fun writeShortLittleEndian(value: Short): Unit {
         val intValue = value.toInt()
-        writeByte((intValue and 0xFF).toByte())
-        writeByte(((intValue shr 8) and 0xFF).toByte())
+        writeByte((intValue and BYTE_MASK).toByte())
+        writeByte(((intValue shr BITS_PER_BYTE) and BYTE_MASK).toByte())
     }
 
     internal fun writeIntLittleEndian(value: Int): Unit {
-        writeByte((value and 0xFF).toByte())
-        writeByte(((value shr 8) and 0xFF).toByte())
-        writeByte(((value shr 16) and 0xFF).toByte())
-        writeByte(((value shr 24) and 0xFF).toByte())
+        writeByte((value and BYTE_MASK).toByte())
+        writeByte(((value shr BITS_PER_BYTE) and BYTE_MASK).toByte())
+        writeByte(((value shr (BITS_PER_BYTE * THIRD_BYTE_INDEX)) and BYTE_MASK).toByte())
+        writeByte(((value shr (BITS_PER_BYTE * FOURTH_BYTE_INDEX)) and BYTE_MASK).toByte())
     }
 
     internal fun writeLongLittleEndian(value: Long): Unit {
-        repeat(8) { index -> writeByte(((value shr (index * 8)) and 0xFF).toByte()) }
+        repeat(LONG_SIZE_BYTES) { index ->
+            writeByte(((value shr (index * BITS_PER_BYTE)) and BYTE_MASK.toLong()).toByte())
+        }
     }
 
     internal fun writeBytes(value: ByteArray): Unit {
@@ -56,3 +58,10 @@ internal class WriteBuffer(initialCapacity: Int = DEFAULT_INITIAL_CAPACITY) {
         private const val GROWTH_FACTOR: Int = 2
     }
 }
+
+private const val BITS_PER_BYTE: Int = 8
+private const val BYTE_MASK: Int = 0xFF
+private const val SINGLE_BYTE_SIZE: Int = 1
+private const val THIRD_BYTE_INDEX: Int = 2
+private const val FOURTH_BYTE_INDEX: Int = 3
+private const val LONG_SIZE_BYTES: Int = 8

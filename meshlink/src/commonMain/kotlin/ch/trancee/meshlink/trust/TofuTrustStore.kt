@@ -65,11 +65,16 @@ internal class TofuTrustStore internal constructor(private val secureStorage: Se
     private fun opaquePeerKey(peerIdValue: String): String {
         var hash = FNV64_OFFSET_BASIS
         val sourceBytes = peerIdValue.toBytes() ?: peerIdValue.encodeToByteArray()
-        sourceBytes.forEach { byte -> hash = (hash xor (byte.toLong() and 0xFF)) * FNV64_PRIME }
-        return hash.toULong().toString(radix = 16).padStart(16, '0')
+        sourceBytes.forEach { byte ->
+            hash = (hash xor (byte.toLong() and BYTE_MASK.toLong())) * FNV64_PRIME
+        }
+        return hash.toULong().toString(radix = HEX_RADIX).padStart(FNV64_HEX_LENGTH, '0')
     }
 
     private companion object {
+        private const val BYTE_MASK: Int = 0xFF
+        private const val HEX_RADIX: Int = 16
+        private const val FNV64_HEX_LENGTH: Int = 16
         private const val TIMESTAMP_SIZE_BYTES: Int = 8
         private const val FNV64_OFFSET_BASIS: Long = -3750763034362895579L
         private const val FNV64_PRIME: Long = 1099511628211L
