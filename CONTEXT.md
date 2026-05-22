@@ -76,6 +76,10 @@ _Avoid_: Canonical export file, overwritten export, one true artifact
 An operator request that creates a new session artifact instance from a session without changing that session’s history state. Export actions and history state are separate concerns, and repeated export actions may produce multiple artifacts for the same session.
 _Avoid_: Exported session state, promote to exported, replace retained state
 
+**Export independence**:
+The rule that deleting or clearing retained-session history does not delete session artifact instances that were already exported. Export cleanup, if offered at all, is a separate explicit action.
+_Avoid_: History delete removes exports, hidden evidence cleanup
+
 **Timestamp**:
 A conceptual point in time used in the reference-app documentation. In conceptual docs, `Timestamp` does not imply a concrete storage type or library type.
 _Avoid_: Instant, datetime object
