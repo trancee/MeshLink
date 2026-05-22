@@ -65,11 +65,11 @@ A partial capture of an ongoing live session. Session checkpoints are not part o
 _Avoid_: Retain live session, manual retain, partial retained session
 
 **Session artifact**:
-An exported evidence document for one session. A session artifact summarizes the scenario, peer state, timeline, and export redaction policy.
+An exported evidence document for one session. A session artifact summarizes the scenario, peer state, timeline, and export redaction policy, and a single session may produce multiple session artifacts.
 _Avoid_: Dump, log file, report
 
 **Export action**:
-An operator request that creates a session artifact from a session without changing that session’s history state. Export actions and history state are separate concerns.
+An operator request that creates a session artifact from a session without changing that session’s history state. Export actions and history state are separate concerns, and repeated export actions may produce multiple artifacts for the same session.
 _Avoid_: Exported session state, promote to exported, replace retained state
 
 **Timestamp**:
