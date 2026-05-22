@@ -27,5 +27,4 @@ public enum class ReferenceSurface {
 public enum class ReferenceMode {
     LIVE,
     SOLO,
-    HYBRID,
 }

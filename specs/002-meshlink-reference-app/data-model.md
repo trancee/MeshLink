@@ -23,7 +23,7 @@ Represents a named workflow or exercise the operator can run.
 |---|---|---|---|
 | `scenarioId` | String | Stable unique identifier for the scenario | Required; unique across the app |
 | `surface` | Enum | `main`, `advanced`, or `lab` | Required |
-| `mode` | Enum | `live`, `solo`, or `hybrid` | Required |
+| `mode` | Enum | `live` or `solo` | Required |
 | `title` | String | Operator-facing scenario name | Required; non-blank |
 | `summary` | String | One-line description of the goal | Required |
 | `prerequisites` | List<String> | Conditions the operator must satisfy | May be empty for solo-only flows |
