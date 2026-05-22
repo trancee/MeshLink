@@ -103,6 +103,53 @@ class ReferenceLiveProofAutomationTest {
     }
 
     @Test
+    fun autoSendDoesNotFallBackToADirectPeerWhenARoutedTargetIsConfiguredButUnavailable() {
+        // Arrange
+        val routedPeerId = "peer-routed-target-abcdef"
+        val snapshot =
+            ReferenceControllerSnapshot(
+                session =
+                    ReferenceSession(
+                        sessionId = "session-1",
+                        scenarioId = "guided-first-exchange",
+                        authorityMode = ReferenceAuthorityMode.LIVE,
+                        startedAtEpochMillis = 1L,
+                    ),
+                peers =
+                    listOf(
+                        PeerSnapshot(
+                            peerId = "peer-direct-1",
+                            peerSuffix = "abc123",
+                            trustState = PeerTrustState.UNKNOWN,
+                            connectionState = PeerConnectionSnapshotState.CONNECTED,
+                        )
+                    ),
+                timeline = emptyList(),
+                activePowerModeLabel = "Automatic",
+            )
+
+        // Act
+        val actual =
+            shouldAutoSendGuidedHello(
+                snapshot = snapshot,
+                requiredPeerCount = 1,
+                targetPeerIndex = 0,
+                targetPeerId = routedPeerId,
+            )
+        val selectedTarget =
+            autoSendTargetPeer(
+                snapshot = snapshot,
+                requiredPeerCount = 1,
+                targetPeerIndex = 0,
+                targetPeerId = routedPeerId,
+            )
+
+        // Assert
+        assertFalse(actual)
+        assertTrue(selectedTarget == null)
+    }
+
+    @Test
     fun autoSendCanTargetARoutedPeerIdOnceRouteDiagnosticsAppear() {
         // Arrange
         val routedPeerId = "peer-routed-target-abcdef"

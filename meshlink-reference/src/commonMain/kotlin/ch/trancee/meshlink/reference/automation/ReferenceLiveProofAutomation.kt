@@ -81,12 +81,10 @@ internal fun autoSendTargetPeer(
     targetPeerIndex: Int,
     targetPeerId: String? = null,
 ): AutoSendTargetPeer? {
-    val explicitTargetPeerId = targetPeerId?.takeIf { hasAvailableRouteForPeer(snapshot, it) }
-    if (explicitTargetPeerId != null) {
-        return AutoSendTargetPeer(
-            peerId = explicitTargetPeerId,
-            peerSuffix = redactedSuffix(explicitTargetPeerId),
-        )
+    if (targetPeerId != null) {
+        return targetPeerId
+            .takeIf { hasAvailableRouteForPeer(snapshot, it) }
+            ?.let { AutoSendTargetPeer(peerId = it, peerSuffix = redactedSuffix(it)) }
     }
     val selectedPeer =
         snapshot.peers
