@@ -109,6 +109,17 @@ internal fun hasAvailableRouteForPeer(
     }
 }
 
+internal fun bootstrapTargetPeer(
+    snapshot: ReferenceControllerSnapshot,
+    targetPeerId: String? = null,
+): AutoSendTargetPeer? {
+    if (targetPeerId == null || hasAvailableRouteForPeer(snapshot, targetPeerId)) {
+        return null
+    }
+    val bootstrapPeer = snapshot.peers.firstOrNull() ?: return null
+    return AutoSendTargetPeer(peerId = bootstrapPeer.peerId, peerSuffix = bootstrapPeer.peerSuffix)
+}
+
 internal data class AutoSendTargetPeer(val peerId: String, val peerSuffix: String)
 
 internal fun shouldRequestLiveProofMeshStart(

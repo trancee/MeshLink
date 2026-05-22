@@ -150,6 +150,86 @@ class ReferenceLiveProofAutomationTest {
     }
 
     @Test
+    fun bootstrapSelectsTheFirstDirectPeerWhileARoutedTargetIsStillUnavailable() {
+        // Arrange
+        val routedPeerId = "peer-routed-target-abcdef"
+        val snapshot =
+            ReferenceControllerSnapshot(
+                session =
+                    ReferenceSession(
+                        sessionId = "session-1",
+                        scenarioId = "guided-first-exchange",
+                        authorityMode = ReferenceAuthorityMode.LIVE,
+                        startedAtEpochMillis = 1L,
+                    ),
+                peers =
+                    listOf(
+                        PeerSnapshot(
+                            peerId = "peer-direct-1",
+                            peerSuffix = "abc123",
+                            trustState = PeerTrustState.UNKNOWN,
+                            connectionState = PeerConnectionSnapshotState.CONNECTED,
+                        )
+                    ),
+                timeline = emptyList(),
+                activePowerModeLabel = "Automatic",
+            )
+
+        // Act
+        val bootstrapPeer = bootstrapTargetPeer(snapshot = snapshot, targetPeerId = routedPeerId)
+
+        // Assert
+        assertTrue(bootstrapPeer?.peerId == "peer-direct-1")
+        assertTrue(bootstrapPeer?.peerSuffix == "abc123")
+    }
+
+    @Test
+    fun bootstrapWaitsOnceTheRoutedTargetAlreadyHasARoute() {
+        // Arrange
+        val routedPeerId = "peer-routed-target-abcdef"
+        val snapshot =
+            ReferenceControllerSnapshot(
+                session =
+                    ReferenceSession(
+                        sessionId = "session-1",
+                        scenarioId = "guided-first-exchange",
+                        authorityMode = ReferenceAuthorityMode.LIVE,
+                        startedAtEpochMillis = 1L,
+                    ),
+                peers =
+                    listOf(
+                        PeerSnapshot(
+                            peerId = "peer-direct-1",
+                            peerSuffix = "abc123",
+                            trustState = PeerTrustState.UNKNOWN,
+                            connectionState = PeerConnectionSnapshotState.CONNECTED,
+                        )
+                    ),
+                timeline =
+                    listOf(
+                        TimelineEntry(
+                            entryId = "session-1-1",
+                            sessionId = "session-1",
+                            occurredAtEpochMillis = 2L,
+                            family = TimelineFamily.DIAGNOSTIC,
+                            severity = TimelineSeverity.INFO,
+                            title = "ROUTE_DISCOVERED",
+                            detail =
+                                "ROUTE_DISCOVERED @ routing.routeAvailable {peerId=$routedPeerId,routeAvailable=true,nextHopPeerId=peer-direct-1,routeIsDirect=false}",
+                            peerSuffix = redactedSuffix(routedPeerId),
+                        )
+                    ),
+                activePowerModeLabel = "Automatic",
+            )
+
+        // Act
+        val bootstrapPeer = bootstrapTargetPeer(snapshot = snapshot, targetPeerId = routedPeerId)
+
+        // Assert
+        assertTrue(bootstrapPeer == null)
+    }
+
+    @Test
     fun autoSendCanTargetARoutedPeerIdOnceRouteDiagnosticsAppear() {
         // Arrange
         val routedPeerId = "peer-routed-target-abcdef"

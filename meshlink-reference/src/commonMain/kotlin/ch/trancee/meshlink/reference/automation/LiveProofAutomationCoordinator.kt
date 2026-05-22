@@ -106,6 +106,22 @@ internal class LiveProofAutomationCoordinator(
                 targetPeerIndex = automationConfig.targetPeerIndex,
                 targetPeerId = automationConfig.targetPeerId,
             )
+        val bootstrapPeer =
+            bootstrapTargetPeer(snapshot = snapshot, targetPeerId = automationConfig.targetPeerId)
+        if (
+            !progress.bootstrapRequested &&
+                !progress.sendRequested &&
+                targetPeer == null &&
+                bootstrapPeer != null
+        ) {
+            platformServices.emitAutomationLog(
+                "REFERENCE_AUTOMATION bootstrap.requested role=sender " +
+                    "peer=${bootstrapPeer.peerSuffix} " +
+                    "targetPeerId=${automationConfig.targetPeerId ?: "auto"}"
+            )
+            guidedViewModel.sendHelloToPeer(bootstrapPeer.peerId)
+            progress.bootstrapRequested = true
+        }
         if (
             !progress.sendRequested &&
                 targetPeer != null &&
@@ -127,16 +143,19 @@ internal class LiveProofAutomationCoordinator(
             progress.sendRequested = true
         }
 
+        val deliveryDetail =
+            latestSenderDeliveryDetail(snapshot = snapshot, peerSuffix = targetPeer?.peerSuffix)
         if (
-            !progress.completionLogged && snapshot.session.lastOutcomeSummary == "SendResult.Sent"
+            progress.sendRequested &&
+                !progress.completionLogged &&
+                snapshot.session.lastOutcomeSummary == "SendResult.Sent" &&
+                deliveryDetail != null
         ) {
-            val deliveryDetail =
-                latestSenderDeliveryDetail(snapshot = snapshot, peerSuffix = targetPeer?.peerSuffix)
             platformServices.emitAutomationLog(
                 "REFERENCE_AUTOMATION proof.complete role=sender " +
                     "outcome=${snapshot.session.lastOutcomeSummary} " +
                     "peer=${targetPeer?.peerSuffix ?: "none"} " +
-                    "delivery=${deliveryDetail ?: "none"}"
+                    "delivery=$deliveryDetail"
             )
             progress.completionLogged = true
         }
@@ -222,6 +241,7 @@ internal class LiveProofAutomationProgress {
     var announced by mutableStateOf(false)
     var peerAnnounced by mutableStateOf(false)
     var meshStartRequested by mutableStateOf(false)
+    var bootstrapRequested by mutableStateOf(false)
     var sendRequested by mutableStateOf(false)
     var retainRequested by mutableStateOf(false)
     var exportRequested by mutableStateOf(false)
