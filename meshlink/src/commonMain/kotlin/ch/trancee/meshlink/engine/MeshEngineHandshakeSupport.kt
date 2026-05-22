@@ -5,11 +5,7 @@ import ch.trancee.meshlink.diagnostics.DiagnosticReason
 import ch.trancee.meshlink.routing.RouteCoordinator
 import ch.trancee.meshlink.transport.TransportSendResult
 
-internal data class MeshEngineHandshakeState(
-    val hopSessions: MutableMap<String, HopSession>,
-    val pendingInitiatorHandshakes: MutableMap<String, PendingInitiatorHandshake>,
-    val pendingResponderHandshakes: MutableMap<String, PendingResponderHandshake>,
-)
+internal data class MeshEngineHandshakeState(val sessionRegistry: MeshEngineSessionRegistry)
 
 internal data class MeshEngineHandshakeRoutingContext(
     val routeCoordinator: RouteCoordinator,

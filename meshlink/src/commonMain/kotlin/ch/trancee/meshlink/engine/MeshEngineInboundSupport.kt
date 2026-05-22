@@ -35,7 +35,7 @@ internal data class MeshEngineInboundTransferCallbacks(
 
 internal class MeshEngineInboundSupport(
     private val localIdentity: LocalIdentity,
-    private val hopSessions: MutableMap<String, HopSession>,
+    private val sessionRegistry: MeshEngineSessionRegistry,
     private val routingContext: MeshEngineInboundRoutingContext,
     private val transport: MeshEngineInboundTransport,
     private val messageCallbacks: MeshEngineInboundMessageCallbacks,
@@ -54,8 +54,8 @@ internal class MeshEngineInboundSupport(
         }
     }
 
-    private fun activeHopSession(peerId: PeerId): HopSession? {
-        val session = hopSessions[peerId.value]
+    private suspend fun activeHopSession(peerId: PeerId): HopSession? {
+        val session = sessionRegistry.hopSession(peerId)
         if (session == null) {
             transport.emitHopSessionFailed(
                 peerId,

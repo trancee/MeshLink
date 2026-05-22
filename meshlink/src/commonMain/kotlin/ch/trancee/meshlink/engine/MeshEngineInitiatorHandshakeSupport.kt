@@ -38,8 +38,11 @@ internal class MeshEngineInitiatorHandshakeSupport(
         }
     }
 
-    private fun pendingInitiatorHandshake(peerId: PeerId): PendingInitiatorHandshake? {
-        val pending = state.pendingInitiatorHandshakes[peerId.value]
+    private suspend fun pendingInitiatorHandshake(peerId: PeerId): PendingInitiatorHandshake? {
+        val pending =
+            (state.sessionRegistry.initiatorHandshakeReservation(peerId)
+                    as? InitiatorHandshakeReservation.Pending)
+                ?.pendingHandshake
         if (pending == null) {
             callbacks.emitHopSessionFailed(
                 peerId,
@@ -51,7 +54,7 @@ internal class MeshEngineInitiatorHandshakeSupport(
         return pending
     }
 
-    private fun processHandshakeMessage2(
+    private suspend fun processHandshakeMessage2(
         peerId: PeerId,
         payload: ByteArray,
         pending: PendingInitiatorHandshake,
@@ -138,15 +141,22 @@ internal class MeshEngineInitiatorHandshakeSupport(
         }
     }
 
-    private fun completeInitiatorHandshake(
+    private suspend fun completeInitiatorHandshake(
         peerId: PeerId,
         pending: PendingInitiatorHandshake,
         result: NoiseXXHandshakeResult,
         trustRecord: TrustRecord,
     ): Unit {
         val session = HopSession(sendKey = result.sendKey, receiveKey = result.receiveKey)
-        state.hopSessions[peerId.value] = session
-        state.pendingInitiatorHandshakes.remove(peerId.value)
+        val completed =
+            state.sessionRegistry.completeInitiatorHandshake(
+                peerId = peerId,
+                pendingHandshake = pending,
+                session = session,
+            )
+        if (!completed) {
+            return
+        }
         pending.sessionDeferred.complete(SessionEstablishmentOutcome.Established(session))
         callbacks.emitHopSessionEstablished(peerId, "transport.handshake.message2.complete")
         routingContext.routingSupport.dispatchMutation(
@@ -156,12 +166,15 @@ internal class MeshEngineInitiatorHandshakeSupport(
         )
     }
 
-    private fun failPendingInitiatorHandshake(
+    private suspend fun failPendingInitiatorHandshake(
         peerId: PeerId,
         pending: PendingInitiatorHandshake,
         failure: PendingInitiatorHandshakeFailure,
     ): Unit {
-        state.pendingInitiatorHandshakes.remove(peerId.value)
+        val removed = state.sessionRegistry.failInitiatorHandshake(peerId, pending)
+        if (!removed) {
+            return
+        }
         pending.sessionDeferred.complete(failure.outcome)
         callbacks.emitHopSessionFailed(peerId, failure.stage, failure.reason, failure.metadata)
     }

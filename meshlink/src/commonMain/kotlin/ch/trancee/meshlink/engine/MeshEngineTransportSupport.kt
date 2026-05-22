@@ -16,9 +16,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 internal data class MeshEngineTransportPeerState(
     val presenceTracker: PeerPresenceTracker,
     val mutablePeerEvents: MutableSharedFlow<PeerEvent>,
-    val hopSessions: MutableMap<String, HopSession>,
-    val pendingInitiatorHandshakes: MutableMap<String, PendingInitiatorHandshake>,
-    val pendingResponderHandshakes: MutableMap<String, PendingResponderHandshake>,
+    val sessionRegistry: MeshEngineSessionRegistry,
 )
 
 internal data class MeshEngineTransportRoutingContext(
@@ -122,13 +120,11 @@ internal class MeshEngineTransportSupport(
         }
     }
 
-    private fun clearPeerTransportState(peerId: PeerId): Unit {
-        peerState.hopSessions.remove(peerId.value)
-        peerState.pendingInitiatorHandshakes
-            .remove(peerId.value)
+    private suspend fun clearPeerTransportState(peerId: PeerId): Unit {
+        peerState.sessionRegistry
+            .clearPeer(peerId)
             ?.sessionDeferred
             ?.complete(SessionEstablishmentOutcome.Unreachable)
-        peerState.pendingResponderHandshakes.remove(peerId.value)
     }
 
     private suspend fun emitConnectedPeerEvent(

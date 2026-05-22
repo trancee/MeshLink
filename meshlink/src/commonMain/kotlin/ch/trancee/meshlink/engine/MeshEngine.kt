@@ -87,11 +87,7 @@ private constructor(
     private var currentPowerPolicy: PowerPolicy =
         powerPolicyController.currentPolicy(nowMillis = 0L)
     private var transportCollectionJob: Job? = null
-    private val hopSessions: MutableMap<String, HopSession> = linkedMapOf()
-    private val pendingInitiatorHandshakes: MutableMap<String, PendingInitiatorHandshake> =
-        linkedMapOf()
-    private val pendingResponderHandshakes: MutableMap<String, PendingResponderHandshake> =
-        linkedMapOf()
+    private val sessionRegistry = MeshEngineSessionRegistry()
     private val outboundTransfers: MutableMap<String, OutboundTransferSession> = linkedMapOf()
     private val inboundTransfers: MutableMap<String, InboundTransferSession> = linkedMapOf()
     private val relayTransfers: MutableMap<String, RelayTransferSession> = linkedMapOf()
@@ -139,11 +135,7 @@ private constructor(
     private val sessionSupport =
         MeshEngineSessionSupport(
             localIdentity = localIdentity,
-            state =
-                MeshEngineSessionState(
-                    hopSessions = hopSessions,
-                    pendingInitiatorHandshakes = pendingInitiatorHandshakes,
-                ),
+            state = MeshEngineSessionState(sessionRegistry = sessionRegistry),
             handshakeTimeout = HANDSHAKE_TIMEOUT,
             callbacks =
                 MeshEngineSessionCallbacks(
@@ -194,12 +186,7 @@ private constructor(
                     },
                 ),
         )
-    private val handshakeState =
-        MeshEngineHandshakeState(
-            hopSessions = hopSessions,
-            pendingInitiatorHandshakes = pendingInitiatorHandshakes,
-            pendingResponderHandshakes = pendingResponderHandshakes,
-        )
+    private val handshakeState = MeshEngineHandshakeState(sessionRegistry = sessionRegistry)
     private val handshakeRoutingContext =
         MeshEngineHandshakeRoutingContext(
             routeCoordinator = routeCoordinator,
@@ -359,7 +346,7 @@ private constructor(
     private val inboundSupport =
         MeshEngineInboundSupport(
             localIdentity = localIdentity,
-            hopSessions = hopSessions,
+            sessionRegistry = sessionRegistry,
             routingContext =
                 MeshEngineInboundRoutingContext(
                     routeCoordinator = routeCoordinator,
@@ -390,9 +377,7 @@ private constructor(
                 MeshEngineTransportPeerState(
                     presenceTracker = presenceTracker,
                     mutablePeerEvents = mutablePeerEvents,
-                    hopSessions = hopSessions,
-                    pendingInitiatorHandshakes = pendingInitiatorHandshakes,
-                    pendingResponderHandshakes = pendingResponderHandshakes,
+                    sessionRegistry = sessionRegistry,
                 ),
             routingContext =
                 MeshEngineTransportRoutingContext(
@@ -473,9 +458,9 @@ private constructor(
         runPlatformCall("stop") { bleTransport?.stop() }
         transportCollectionJob?.cancel()
         transportCollectionJob = null
-        hopSessions.clear()
-        pendingInitiatorHandshakes.clear()
-        pendingResponderHandshakes.clear()
+        sessionRegistry.clear().forEach { pendingHandshake ->
+            pendingHandshake.sessionDeferred.complete(SessionEstablishmentOutcome.Unreachable)
+        }
         outboundTransfers.clear()
         inboundTransfers.clear()
         relayTransfers.clear()
@@ -535,12 +520,10 @@ private constructor(
     override suspend fun forgetPeer(peerId: PeerId): ForgetPeerResult {
         val existingTrust = trustStore.read(peerId.value) ?: return ForgetPeerResult.NotFound
         trustStore.delete(peerId.value)
-        hopSessions.remove(peerId.value)
-        pendingInitiatorHandshakes
-            .remove(peerId.value)
+        sessionRegistry
+            .clearPeer(peerId)
             ?.sessionDeferred
             ?.complete(SessionEstablishmentOutcome.Unreachable)
-        pendingResponderHandshakes.remove(peerId.value)
         routingSupport.dispatchMutation(
             mutation = routeCoordinator.onPeerDisconnected(peerId),
             stage = "trust.forgetPeer",

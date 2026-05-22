@@ -10,10 +10,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withTimeout
 
-internal data class MeshEngineSessionState(
-    val hopSessions: MutableMap<String, HopSession>,
-    val pendingInitiatorHandshakes: MutableMap<String, PendingInitiatorHandshake>,
-)
+internal data class MeshEngineSessionState(val sessionRegistry: MeshEngineSessionRegistry)
 
 internal data class MeshEngineSessionCallbacks(
     val hasTransport: () -> Boolean,
@@ -35,62 +32,110 @@ internal class MeshEngineSessionSupport(
     }
 
     suspend fun ensureHopSession(peerId: PeerId): SessionEstablishmentOutcome {
-        val existingSession = state.hopSessions[peerId.value]
-        val pendingHandshake = state.pendingInitiatorHandshakes[peerId.value]
+        val currentReservation = state.sessionRegistry.initiatorHandshakeReservation(peerId)
+        val reservation =
+            when {
+                currentReservation != null -> currentReservation
+                !callbacks.hasTransport() -> null
+                else -> reserveInitiatorHandshake(peerId)
+            }
 
-        return when {
-            existingSession != null -> SessionEstablishmentOutcome.Established(existingSession)
-            pendingHandshake != null ->
-                awaitSessionEstablishment(peerId, pendingHandshake.sessionDeferred)
-            !callbacks.hasTransport() -> SessionEstablishmentOutcome.Unreachable
-            else -> initiateHopSession(peerId)
-        }
+        return reservation?.awaitOrReturn(peerId) ?: SessionEstablishmentOutcome.Unreachable
     }
 
-    private suspend fun initiateHopSession(peerId: PeerId): SessionEstablishmentOutcome {
-        val manager = NoiseXXHandshakeManager(localIdentity.cryptoProvider)
-        val message1 = manager.createMessage1(localIdentity.noiseIdentity)
-        val sessionDeferred = CompletableDeferred<SessionEstablishmentOutcome>()
-        state.pendingInitiatorHandshakes[peerId.value] =
-            PendingInitiatorHandshake(manager, sessionDeferred)
+    private suspend fun reserveInitiatorHandshake(peerId: PeerId): InitiatorHandshakeReservation {
+        return state.sessionRegistry.initiatorHandshakeReservation(peerId) {
+            val manager = NoiseXXHandshakeManager(localIdentity.cryptoProvider)
+            val message1 = manager.createMessage1(localIdentity.noiseIdentity)
+            val pendingHandshake =
+                PendingInitiatorHandshake(
+                    manager = manager,
+                    sessionDeferred = CompletableDeferred(),
+                )
+            CreatedInitiatorHandshake(pendingHandshake = pendingHandshake, message1 = message1)
+        } ?: error("Initiator reservation must create or reuse a session state")
+    }
 
+    private suspend fun initiateReservedHopSession(
+        peerId: PeerId,
+        reservation: InitiatorHandshakeReservation.Created,
+    ): SessionEstablishmentOutcome {
         return when (
             callbacks.sendDirectWireFrame(
                 peerId,
-                DirectWireFrame.HandshakeMessage1(message1),
+                DirectWireFrame.HandshakeMessage1(reservation.message1),
                 "handshake.message1",
                 null,
             )
         ) {
-            TransportSendResult.Delivered -> awaitSessionEstablishment(peerId, sessionDeferred)
+            TransportSendResult.Delivered ->
+                awaitSessionEstablishment(peerId, reservation.pendingHandshake)
             is TransportSendResult.Dropped -> {
-                state.pendingInitiatorHandshakes.remove(peerId.value)
-                callbacks.emitHopSessionFailed(
-                    peerId,
-                    "transport.handshake.message1.send",
-                    DiagnosticReason.DELIVERY_FAILURE,
-                    emptyMap(),
+                failPendingInitiatorHandshake(
+                    peerId = peerId,
+                    pendingHandshake = reservation.pendingHandshake,
+                    stage = "transport.handshake.message1.send",
                 )
-                SessionEstablishmentOutcome.Unreachable
             }
         }
     }
 
     private suspend fun awaitSessionEstablishment(
         peerId: PeerId,
-        sessionDeferred: CompletableDeferred<SessionEstablishmentOutcome>,
+        pendingHandshake: PendingInitiatorHandshake,
     ): SessionEstablishmentOutcome {
         return try {
-            withTimeout(handshakeTimeout.inWholeMilliseconds) { sessionDeferred.await() }
+            withTimeout(handshakeTimeout.inWholeMilliseconds) {
+                pendingHandshake.sessionDeferred.await()
+            }
         } catch (_: TimeoutCancellationException) {
-            state.pendingInitiatorHandshakes.remove(peerId.value)
+            failPendingInitiatorHandshake(
+                peerId = peerId,
+                pendingHandshake = pendingHandshake,
+                stage = "transport.handshake.timeout",
+            )
+        }
+    }
+
+    private suspend fun failPendingInitiatorHandshake(
+        peerId: PeerId,
+        pendingHandshake: PendingInitiatorHandshake,
+        stage: String,
+    ): SessionEstablishmentOutcome {
+        val removed = state.sessionRegistry.failInitiatorHandshake(peerId, pendingHandshake)
+        if (removed) {
+            pendingHandshake.sessionDeferred.complete(SessionEstablishmentOutcome.Unreachable)
             callbacks.emitHopSessionFailed(
                 peerId,
-                "transport.handshake.timeout",
+                stage,
                 DiagnosticReason.DELIVERY_FAILURE,
                 emptyMap(),
             )
-            SessionEstablishmentOutcome.Unreachable
         }
+        return pendingHandshake.sessionDeferred.completedOutcomeOr(
+            fallback = SessionEstablishmentOutcome.Unreachable
+        )
+    }
+
+    private suspend fun InitiatorHandshakeReservation.awaitOrReturn(
+        peerId: PeerId
+    ): SessionEstablishmentOutcome {
+        return when (this) {
+            is InitiatorHandshakeReservation.Established ->
+                SessionEstablishmentOutcome.Established(session)
+            is InitiatorHandshakeReservation.Pending ->
+                awaitSessionEstablishment(peerId, pendingHandshake)
+            is InitiatorHandshakeReservation.Created -> initiateReservedHopSession(peerId, this)
+        }
+    }
+}
+
+private suspend fun CompletableDeferred<SessionEstablishmentOutcome>.completedOutcomeOr(
+    fallback: SessionEstablishmentOutcome
+): SessionEstablishmentOutcome {
+    return if (isCompleted) {
+        await()
+    } else {
+        fallback
     }
 }
