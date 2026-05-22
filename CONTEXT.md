@@ -28,6 +28,10 @@ _Avoid_: Continue same session, silent drift, mixed evidence
 The implicit session boundary created when the app process dies or relaunches. A relaunched app starts a new live session rather than resuming the prior live evidence window.
 _Avoid_: Seamless live resume, same session after relaunch, restored live proof
 
+**Interrupted session**:
+A partially observed live session lost across process death or relaunch before it was retained. Interrupted sessions are not represented as retained evidence in the current reference-app model.
+_Avoid_: Crash tombstone, recovered live session, retained interruption record
+
 **Session rollover**:
 The explicit, operator-confirmed transition from one live session to the next after a boundary-changing action. For a supported live session, session rollover includes a direct pre-rollover export path before the old session becomes retained history.
 _Avoid_: Auto-restart, silent session reset
