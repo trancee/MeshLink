@@ -29,8 +29,12 @@ The explicit, operator-confirmed transition from one live session to the next af
 _Avoid_: Auto-restart, silent session reset
 
 **Live session**:
-The current active reference-app session backed by the running MeshLink runtime. A live session is the only session that can be retained again or exported with full payload content.
-_Avoid_: Current history, active artifact
+The current active session open in the reference app before it becomes retained history. A live session may belong to the supported path or to a non-authoritative or non-normative path.
+_Avoid_: Current history, retained session, archived runtime
+
+**Supported live session**:
+A live session on the supported guided or advanced path rather than the solo or lab path. Only a supported live session may use full-payload export or automatic retention.
+_Avoid_: Any live session, solo session, lab session
 
 **Retained session**:
 A previously captured local session snapshot kept separate from the live session for review. Retained sessions are created automatically when a live session ends or rolls over if it produced reviewable evidence, preserve redacted evidence, and do not keep full payload content.
@@ -77,7 +81,7 @@ A session artifact that includes payload metadata and redacted previews without 
 _Avoid_: Safe export, normal export
 
 **Full-payload export**:
-A session artifact that includes payload content after an explicit operator choice. This export is only available from the live session.
+A session artifact that includes payload content after an explicit operator choice. Full-payload export is available only from a supported live session.
 _Avoid_: Raw export, complete export
 
 **Lab**:
