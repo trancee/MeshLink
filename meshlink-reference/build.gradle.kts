@@ -1,5 +1,4 @@
 import io.gitlab.arturbosch.detekt.Detekt
-import org.jetbrains.compose.ExperimentalComposeLibrary
 import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
@@ -47,7 +46,7 @@ kotlin {
         commonTest.dependencies {
             implementation(libs.kotlin.test)
             implementation(libs.kotlinx.coroutines.test)
-            @OptIn(ExperimentalComposeLibrary::class) implementation(compose.uiTest)
+            implementation(libs.compose.ui.test)
         }
         androidMain.dependencies { implementation(libs.androidx.activity.compose) }
         androidInstrumentedTest.dependencies {
