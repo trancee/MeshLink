@@ -19,35 +19,22 @@ import ch.trancee.meshlink.api.DeliveryPriority
 @Composable
 public fun SendComposer(
     state: AdvancedControlsUiState,
-    onTextChanged: (String) -> Unit,
-    onPriorityChanged: (DeliveryPriority) -> Unit,
-    onSend: () -> Unit,
-    onSendLargeTransfer: () -> Unit,
+    actions: SendComposerActions,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(text = "Send composer", style = MaterialTheme.typography.titleLarge)
         Text(
-            text =
-                if (state.selectedPeerId == null) {
-                    "Select a peer first, then choose whether to send the default operator message or a larger transfer preview."
-                } else {
-                    "Targeting ${state.peerRows.firstOrNull { peer -> peer.peerId == state.selectedPeerId }?.peerSuffix ?: "selected peer"}."
-                },
+            text = composerTargetText(state),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         OutlinedTextField(
             value = state.composerText,
-            onValueChange = onTextChanged,
+            onValueChange = actions.onTextChanged,
             modifier = Modifier.fillMaxWidth(),
             label = { Text("Payload text") },
-            supportingText = {
-                Text(
-                    text =
-                        "Use the high-priority large transfer button when you want a bigger transport preview instead of a short operator message."
-                )
-            },
+            supportingText = { Text(text = SEND_COMPOSER_SUPPORTING_TEXT) },
         )
         FlowRow(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -56,7 +43,7 @@ public fun SendComposer(
             DeliveryPriority.entries.forEach { priority ->
                 FilterChip(
                     selected = state.selectedPriority == priority,
-                    onClick = { onPriorityChanged(priority) },
+                    onClick = { actions.onPriorityChanged(priority) },
                     label = { Text(priority.name) },
                 )
             }
@@ -65,10 +52,36 @@ public fun SendComposer(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Button(onClick = onSend, enabled = state.canSend) { Text("Send message") }
-            Button(onClick = onSendLargeTransfer, enabled = state.canSend) {
+            Button(onClick = actions.onSend, enabled = state.canSend) { Text("Send message") }
+            Button(onClick = actions.onSendLargeTransfer, enabled = state.canSend) {
                 Text("Send large transfer")
             }
         }
     }
 }
+
+public class SendComposerActions(
+    public val onTextChanged: (String) -> Unit,
+    public val onPriorityChanged: (DeliveryPriority) -> Unit,
+    public val onSend: () -> Unit,
+    public val onSendLargeTransfer: () -> Unit,
+)
+
+private fun composerTargetText(state: AdvancedControlsUiState): String {
+    return if (state.selectedPeerId == null) {
+        SEND_COMPOSER_IDLE_TEXT
+    } else {
+        val peerSuffix =
+            state.peerRows.firstOrNull { peer -> peer.peerId == state.selectedPeerId }?.peerSuffix
+                ?: "selected peer"
+        "Targeting $peerSuffix."
+    }
+}
+
+private const val SEND_COMPOSER_IDLE_TEXT: String =
+    "Select a peer first, then choose whether to send the default operator message " +
+        "or a larger transfer preview."
+
+private const val SEND_COMPOSER_SUPPORTING_TEXT: String =
+    "Use the high-priority large transfer button when you want a bigger transport " +
+        "preview instead of a short operator message."

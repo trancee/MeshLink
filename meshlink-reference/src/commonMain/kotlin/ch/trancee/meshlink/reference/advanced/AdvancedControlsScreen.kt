@@ -175,10 +175,13 @@ private fun AdvancedSendSection(
     ) {
         SendComposer(
             state = uiState,
-            onTextChanged = viewModel::updateComposerText,
-            onPriorityChanged = viewModel::updatePriority,
-            onSend = viewModel::sendCurrentMessage,
-            onSendLargeTransfer = viewModel::sendLargeTransferPreview,
+            actions =
+                SendComposerActions(
+                    onTextChanged = viewModel::updateComposerText,
+                    onPriorityChanged = viewModel::updatePriority,
+                    onSend = viewModel::sendCurrentMessage,
+                    onSendLargeTransfer = viewModel::sendLargeTransferPreview,
+                ),
         )
         Button(
             onClick = viewModel::forgetSelectedPeer,
