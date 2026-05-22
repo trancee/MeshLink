@@ -6,8 +6,11 @@ import ch.trancee.meshlink.diagnostics.DiagnosticReason
 import ch.trancee.meshlink.identity.LocalIdentity
 import ch.trancee.meshlink.transport.TransportSendResult
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.TimeSource
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeout
 
 internal data class MeshEngineSessionState(val sessionRegistry: MeshEngineSessionRegistry)
@@ -60,14 +63,7 @@ internal class MeshEngineSessionSupport(
         peerId: PeerId,
         reservation: InitiatorHandshakeReservation.Created,
     ): SessionEstablishmentOutcome {
-        return when (
-            callbacks.sendDirectWireFrame(
-                peerId,
-                DirectWireFrame.HandshakeMessage1(reservation.message1),
-                "handshake.message1",
-                null,
-            )
-        ) {
+        return when (sendHandshakeMessage1(peerId = peerId, message1 = reservation.message1)) {
             TransportSendResult.Delivered ->
                 awaitSessionEstablishment(peerId, reservation.pendingHandshake)
             is TransportSendResult.Dropped -> {
@@ -77,6 +73,29 @@ internal class MeshEngineSessionSupport(
                     stage = "transport.handshake.message1.send",
                 )
             }
+        }
+    }
+
+    private suspend fun sendHandshakeMessage1(
+        peerId: PeerId,
+        message1: ByteArray,
+    ): TransportSendResult {
+        val retryWindow = TimeSource.Monotonic.markNow()
+        while (true) {
+            val result =
+                callbacks.sendDirectWireFrame(
+                    peerId,
+                    DirectWireFrame.HandshakeMessage1(message1),
+                    "handshake.message1",
+                    null,
+                )
+            if (result !is TransportSendResult.Dropped || !result.isTransientLinkNotReady()) {
+                return result
+            }
+            if (retryWindow.elapsedNow() >= handshakeTimeout) {
+                return result
+            }
+            delay(HANDSHAKE_MESSAGE1_RETRY_DELAY)
         }
     }
 
@@ -139,3 +158,9 @@ private suspend fun CompletableDeferred<SessionEstablishmentOutcome>.completedOu
         fallback
     }
 }
+
+private fun TransportSendResult.Dropped.isTransientLinkNotReady(): Boolean {
+    return reason.contains("L2CAP connection is not ready")
+}
+
+private val HANDSHAKE_MESSAGE1_RETRY_DELAY = 100.milliseconds

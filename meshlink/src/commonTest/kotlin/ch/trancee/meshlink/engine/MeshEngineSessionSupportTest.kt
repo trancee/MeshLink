@@ -4,7 +4,9 @@ import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.identity.LocalIdentity
 import ch.trancee.meshlink.transport.TransportSendResult
 import kotlin.test.Test
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CompletableDeferred
@@ -57,4 +59,70 @@ class MeshEngineSessionSupportTest {
         assertEquals(SessionEstablishmentOutcome.Unreachable, secondOutcome)
         assertNull(sessionRegistry.initiatorHandshakeReservation(peerId))
     }
+
+    @Test
+    fun `transient connection setup drops retry handshake message one until a direct link is ready`() =
+        runBlocking {
+            // Arrange
+            val localIdentity = LocalIdentity.fromAppId("session-support-retry-test")
+            val sessionRegistry = MeshEngineSessionRegistry()
+            val peerId = PeerId("peer-b")
+            val establishedSession = HopSession(ByteArray(32) { 0x01 }, ByteArray(32) { 0x02 })
+            var sendCallCount = 0
+            val support =
+                MeshEngineSessionSupport(
+                    localIdentity = localIdentity,
+                    state = MeshEngineSessionState(sessionRegistry = sessionRegistry),
+                    handshakeTimeout = 1.seconds,
+                    callbacks =
+                        MeshEngineSessionCallbacks(
+                            hasTransport = { true },
+                            sendDirectWireFrame = { _, _, _, _ ->
+                                sendCallCount += 1
+                                when (sendCallCount) {
+                                    1 ->
+                                        TransportSendResult.Dropped(
+                                            "Android BLE L2CAP connection is not ready"
+                                        )
+
+                                    2 -> {
+                                        val pendingReservation =
+                                            assertIs<InitiatorHandshakeReservation.Pending>(
+                                                sessionRegistry.initiatorHandshakeReservation(
+                                                    peerId
+                                                )
+                                            )
+                                        sessionRegistry.completeInitiatorHandshake(
+                                            peerId = peerId,
+                                            pendingHandshake = pendingReservation.pendingHandshake,
+                                            session = establishedSession,
+                                        )
+                                        pendingReservation.pendingHandshake.sessionDeferred
+                                            .complete(
+                                                SessionEstablishmentOutcome.Established(
+                                                    establishedSession
+                                                )
+                                            )
+                                        TransportSendResult.Delivered
+                                    }
+
+                                    else -> error("Unexpected send attempt $sendCallCount")
+                                }
+                            },
+                            emitHopSessionFailed = { _, _, _, _ -> Unit },
+                        ),
+                )
+
+            // Act
+            val outcome = support.ensureHopSession(peerId)
+
+            // Assert
+            assertEquals(2, sendCallCount)
+            val establishedOutcome = assertIs<SessionEstablishmentOutcome.Established>(outcome)
+            assertContentEquals(establishedSession.sendKey, establishedOutcome.session.sendKey)
+            assertContentEquals(
+                establishedSession.receiveKey,
+                establishedOutcome.session.receiveKey,
+            )
+        }
 }
