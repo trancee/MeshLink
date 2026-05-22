@@ -116,6 +116,10 @@ _Avoid_: History delete removes exports, hidden evidence cleanup
 A browsable in-app archive of exported artifact instances. An export index is not part of the current reference-app evidence model; exported artifacts remain external file outputs rather than a second retained-history system.
 _Avoid_: Export history surface, in-app artifact archive, second recent-history list
 
+**Automation-equivalent flow**:
+A deterministic automation path that may skip interactive operator prompts while still producing the same semantic session, retention, and export outcomes as the explicit human flow. Automation may simplify the path, but it must not change the evidence rules.
+_Avoid_: Fake flow, rules bypass, test-only behavior
+
 **History pruning**:
 The automatic removal of the oldest retained-session entries when recent history exceeds its bounded limit. History pruning affects retained-session history only and does not remove exported artifact instances.
 _Avoid_: Export cleanup, evidence deletion, unbounded history
