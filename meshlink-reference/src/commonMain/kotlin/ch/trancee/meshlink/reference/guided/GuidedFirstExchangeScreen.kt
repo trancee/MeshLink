@@ -133,7 +133,7 @@ private fun GuidedLiveFirstMessageSection(
                 Text("Send Hello")
             }
             Button(onClick = onOpenSolo, modifier = Modifier.testTag("guided-open-solo")) {
-                Text("Solo mode")
+                Text("Solo exploration")
             }
         }
         Text(

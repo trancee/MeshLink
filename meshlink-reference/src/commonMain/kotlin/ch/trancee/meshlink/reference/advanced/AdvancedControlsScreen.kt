@@ -110,7 +110,7 @@ private fun AdvancedLiveSnapshotSection(uiState: AdvancedControlsUiState): Unit 
             style = MaterialTheme.typography.bodyLarge,
         )
         Text(
-            text = "Last outcome: ${uiState.lastOutcomeSummary ?: "none yet"}",
+            text = "Last outcome: ${uiState.lastOutcomeDisplayText ?: "none yet"}",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -188,7 +188,7 @@ private fun AdvancedSendSection(
             enabled = uiState.canForgetPeer,
             modifier = Modifier.testTag("advanced-forget-peer"),
         ) {
-            Text("Forget selected peer")
+            Text("Reset trust for selected peer")
         }
     }
 }

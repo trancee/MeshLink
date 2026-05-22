@@ -82,6 +82,30 @@ class AdvancedControlsViewModelTest {
         )
     }
 
+    @Test
+    fun mapsTechnicalOutcomeSummaryToOperatorFacingCopy() {
+        // Arrange
+        val viewModel =
+            AdvancedControlsViewModel(
+                platformServices =
+                    advancedPlatformServices(
+                        controller =
+                            TestReferenceMeshLinkController(
+                                initialSnapshot =
+                                    advancedSnapshot(
+                                        lastOutcomeSummary = "ForgetPeerResult.Forgotten"
+                                    )
+                            )
+                    )
+            )
+
+        // Act
+        val uiState = viewModel.uiState.value
+
+        // Assert
+        assertEquals("Trust reset", uiState.lastOutcomeDisplayText)
+    }
+
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
     fun lifecycleActionsTrackSnapshotState() = runTest {
@@ -157,7 +181,7 @@ private class TestReferenceMeshLinkController(
     }
 }
 
-private fun advancedSnapshot(): ReferenceControllerSnapshot {
+private fun advancedSnapshot(lastOutcomeSummary: String? = null): ReferenceControllerSnapshot {
     return ReferenceControllerSnapshot(
         session =
             ReferenceSession(
@@ -174,6 +198,7 @@ private fun advancedSnapshot(): ReferenceControllerSnapshot {
                         "deliveryRetryDeadline" to "15s",
                     ),
                 historyStatus = ReferenceHistoryStatus.LIVE,
+                lastOutcomeSummary = lastOutcomeSummary,
             ),
         peers =
             listOf(

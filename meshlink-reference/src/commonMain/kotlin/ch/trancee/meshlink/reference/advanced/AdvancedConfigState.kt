@@ -21,6 +21,7 @@ public data class AdvancedControlsUiState(
     public val peerRows: List<AdvancedPeerRow>,
     public val timelineHighlights: List<String>,
     public val lastOutcomeSummary: String? = null,
+    public val lastOutcomeDisplayText: String? = null,
     public val payloadSizeBytes: Int,
     public val payloadLimitBytes: Int,
     public val payloadValidationMessage: String? = null,
