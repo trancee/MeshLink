@@ -24,6 +24,10 @@ _Avoid_: Current config, latest values, live config
 The point where the reference app stops treating evidence as part of one evaluated session and starts a new one. A new session boundary is required when an evaluation-relevant capability changes the conditions being assessed.
 _Avoid_: Continue same session, silent drift, mixed evidence
 
+**Session rollover**:
+The explicit, operator-confirmed transition from one live session to the next after a boundary-changing action. Session rollover prevents the current evidence set from ending silently.
+_Avoid_: Auto-restart, silent session reset
+
 **Live session**:
 The current active reference-app session backed by the running MeshLink runtime. A live session is the only session that can be retained again or exported with full payload content.
 _Avoid_: Current history, active artifact
