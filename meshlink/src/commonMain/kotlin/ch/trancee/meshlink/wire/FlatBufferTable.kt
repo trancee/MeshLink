@@ -1,43 +1,77 @@
 package ch.trancee.meshlink.wire
 
+private const val ALIGNMENT_MASK_DELTA: Int = 1
+private const val BYTE_MASK: Int = 0xFF
+private const val BITS_PER_BYTE: Int = 8
+private const val BYTE_SIZE_BYTES: Int = 1
+private const val SHORT_SIZE_BYTES: Int = 2
+private const val INT_SIZE_BYTES: Int = 4
+private const val LONG_SIZE_BYTES: Int = 8
+private const val BYTE_ALIGNMENT: Int = BYTE_SIZE_BYTES
+private const val INT_ALIGNMENT: Int = INT_SIZE_BYTES
+private const val LONG_ALIGNMENT: Int = LONG_SIZE_BYTES
+private const val MIN_TABLE_ALIGNMENT: Int = INT_ALIGNMENT
+private const val VTABLE_HEADER_SIZE_BYTES: Int = SHORT_SIZE_BYTES * 2
+private const val VTABLE_FIELD_ENTRY_SIZE_BYTES: Int = SHORT_SIZE_BYTES
+private const val VTABLE_START_OFFSET_BYTES: Int = INT_SIZE_BYTES
+private const val STRING_TERMINATOR_SIZE_BYTES: Int = BYTE_SIZE_BYTES
+private const val STRING_TERMINATOR_BYTE: Byte = 0
+
 private fun align(value: Int, alignment: Int): Int {
-    val mask = alignment - 1
+    val mask = alignment - ALIGNMENT_MASK_DELTA
     return (value + mask) and mask.inv()
 }
 
-private fun readUnsignedShortLittleEndian(source: ByteArray, offset: Int): Int {
-    return (source[offset].toInt() and 0xFF) or ((source[offset + 1].toInt() and 0xFF) shl 8)
-}
-
-private fun readIntLittleEndian(source: ByteArray, offset: Int): Int {
-    return (source[offset].toInt() and 0xFF) or
-        ((source[offset + 1].toInt() and 0xFF) shl 8) or
-        ((source[offset + 2].toInt() and 0xFF) shl 16) or
-        ((source[offset + 3].toInt() and 0xFF) shl 24)
-}
-
-private fun readLongLittleEndian(source: ByteArray, offset: Int): Long {
+private fun readLittleEndian(source: ByteArray, offset: Int, byteCount: Int): Long {
     var value = 0L
-    repeat(8) { index ->
-        value = value or ((source[offset + index].toLong() and 0xFF) shl (index * 8))
+    repeat(byteCount) { index ->
+        val byteOffset = offset + index
+        val shiftBits = index * BITS_PER_BYTE
+        value = value or ((source[byteOffset].toLong() and BYTE_MASK.toLong()) shl shiftBits)
     }
     return value
 }
 
+private fun readUnsignedShortLittleEndian(source: ByteArray, offset: Int): Int {
+    return readLittleEndian(source = source, offset = offset, byteCount = SHORT_SIZE_BYTES).toInt()
+}
+
+private fun readIntLittleEndian(source: ByteArray, offset: Int): Int {
+    return readLittleEndian(source = source, offset = offset, byteCount = INT_SIZE_BYTES).toInt()
+}
+
+private fun readLongLittleEndian(source: ByteArray, offset: Int): Long {
+    return readLittleEndian(source = source, offset = offset, byteCount = LONG_SIZE_BYTES)
+}
+
+private fun writeLittleEndian(target: ByteArray, offset: Int, value: Long, byteCount: Int): Unit {
+    repeat(byteCount) { index ->
+        val byteOffset = offset + index
+        val shiftBits = index * BITS_PER_BYTE
+        target[byteOffset] = ((value shr shiftBits) and BYTE_MASK.toLong()).toByte()
+    }
+}
+
 private fun writeShortLittleEndian(target: ByteArray, offset: Int, value: Int): Unit {
-    target[offset] = (value and 0xFF).toByte()
-    target[offset + 1] = ((value shr 8) and 0xFF).toByte()
+    writeLittleEndian(
+        target = target,
+        offset = offset,
+        value = value.toLong(),
+        byteCount = SHORT_SIZE_BYTES,
+    )
 }
 
 private fun writeIntLittleEndian(target: ByteArray, offset: Int, value: Int): Unit {
-    target[offset] = (value and 0xFF).toByte()
-    target[offset + 1] = ((value shr 8) and 0xFF).toByte()
-    target[offset + 2] = ((value shr 16) and 0xFF).toByte()
-    target[offset + 3] = ((value shr 24) and 0xFF).toByte()
+    writeLittleEndian(
+        target = target,
+        offset = offset,
+        value = value.toLong(),
+        byteCount = INT_SIZE_BYTES,
+    )
 }
 
 private fun writeLongLittleEndian(target: ByteArray, offset: Int, value: Long): Unit {
-    repeat(8) { index -> target[offset + index] = ((value shr (index * 8)) and 0xFF).toByte() }
+    writeLittleEndian(target = target, offset = offset, value = value, byteCount = LONG_SIZE_BYTES)
 }
 
 private sealed class FlatBufferField(
@@ -46,17 +80,17 @@ private sealed class FlatBufferField(
     internal val alignment: Int,
 ) {
     internal class ByteField internal constructor(index: Int, internal val value: Byte) :
-        FlatBufferField(index = index, size = 1, alignment = 1)
+        FlatBufferField(index = index, size = BYTE_SIZE_BYTES, alignment = BYTE_ALIGNMENT)
 
     internal class IntField internal constructor(index: Int, internal val value: Int) :
-        FlatBufferField(index = index, size = 4, alignment = 4)
+        FlatBufferField(index = index, size = INT_SIZE_BYTES, alignment = INT_ALIGNMENT)
 
     internal class LongField internal constructor(index: Int, internal val value: Long) :
-        FlatBufferField(index = index, size = 8, alignment = 8)
+        FlatBufferField(index = index, size = LONG_SIZE_BYTES, alignment = LONG_ALIGNMENT)
 
     internal class OffsetField
     internal constructor(index: Int, internal val objectBytes: ByteArray) :
-        FlatBufferField(index = index, size = 4, alignment = 4)
+        FlatBufferField(index = index, size = INT_SIZE_BYTES, alignment = INT_ALIGNMENT)
 }
 
 internal class FlatBufferTableBuilder internal constructor(private val fieldCount: Int) {
@@ -114,10 +148,12 @@ internal class FlatBufferTableBuilder internal constructor(private val fieldCoun
     internal fun finish(): ByteArray {
         val presentFields = fields.values.sortedBy { field -> field.index }
         val maxAlignment =
-            presentFields.maxOfOrNull { field -> field.alignment }?.coerceAtLeast(4) ?: 4
+            presentFields
+                .maxOfOrNull { field -> field.alignment }
+                ?.coerceAtLeast(MIN_TABLE_ALIGNMENT) ?: MIN_TABLE_ALIGNMENT
         val fieldOffsets = IntArray(fieldCount)
 
-        var objectCursor = 4
+        var objectCursor = INT_SIZE_BYTES
         presentFields.forEach { field ->
             objectCursor = align(objectCursor, field.alignment)
             fieldOffsets[field.index] = objectCursor
@@ -125,12 +161,12 @@ internal class FlatBufferTableBuilder internal constructor(private val fieldCoun
         }
         val objectSize = align(objectCursor, maxAlignment)
 
-        val vtableSize = 4 + (fieldCount * 2)
-        val vtableStart = 4
+        val vtableSize = VTABLE_HEADER_SIZE_BYTES + (fieldCount * VTABLE_FIELD_ENTRY_SIZE_BYTES)
+        val vtableStart = VTABLE_START_OFFSET_BYTES
         val tableStart = align(vtableStart + vtableSize, maxAlignment)
 
         val offsetFieldStarts: MutableMap<Int, Int> = linkedMapOf()
-        var tailCursor = align(tableStart + objectSize, 4)
+        var tailCursor = align(tableStart + objectSize, INT_ALIGNMENT)
         presentFields.forEach { field ->
             if (field is FlatBufferField.OffsetField) {
                 tailCursor = align(tailCursor, field.alignment)
@@ -142,13 +178,13 @@ internal class FlatBufferTableBuilder internal constructor(private val fieldCoun
         val encoded = ByteArray(tailCursor)
         writeIntLittleEndian(encoded, 0, tableStart)
         writeShortLittleEndian(encoded, vtableStart, vtableSize)
-        writeShortLittleEndian(encoded, vtableStart + 2, objectSize)
+        writeShortLittleEndian(encoded, vtableStart + SHORT_SIZE_BYTES, objectSize)
         repeat(fieldCount) { fieldIndex ->
-            writeShortLittleEndian(
-                encoded,
-                vtableStart + 4 + (fieldIndex * 2),
-                fieldOffsets[fieldIndex],
-            )
+            val entryOffset =
+                vtableStart +
+                    VTABLE_HEADER_SIZE_BYTES +
+                    (fieldIndex * VTABLE_FIELD_ENTRY_SIZE_BYTES)
+            writeShortLittleEndian(encoded, entryOffset, fieldOffsets[fieldIndex])
         }
         writeIntLittleEndian(encoded, tableStart, tableStart - vtableStart)
 
@@ -172,27 +208,28 @@ internal class FlatBufferTableBuilder internal constructor(private val fieldCoun
     }
 
     private fun encodeStringObject(value: ByteArray): ByteArray {
-        val paddedSize = align(4 + value.size + 1, 4)
+        val payloadStart = INT_SIZE_BYTES
+        val paddedSize =
+            align(payloadStart + value.size + STRING_TERMINATOR_SIZE_BYTES, INT_ALIGNMENT)
         val encoded = ByteArray(paddedSize)
         writeIntLittleEndian(encoded, 0, value.size)
-        value.copyInto(encoded, destinationOffset = 4)
-        encoded[4 + value.size] = 0
+        value.copyInto(encoded, destinationOffset = payloadStart)
+        encoded[payloadStart + value.size] = STRING_TERMINATOR_BYTE
         return encoded
     }
 
     private fun encodeByteVectorObject(value: ByteArray): ByteArray {
-        val paddedSize = align(4 + value.size, 4)
+        val payloadStart = INT_SIZE_BYTES
+        val paddedSize = align(payloadStart + value.size, INT_ALIGNMENT)
         val encoded = ByteArray(paddedSize)
         writeIntLittleEndian(encoded, 0, value.size)
-        value.copyInto(encoded, destinationOffset = 4)
+        value.copyInto(encoded, destinationOffset = payloadStart)
         return encoded
     }
 
     private fun validateFieldIndex(fieldIndex: Int): Unit {
-        if (fieldIndex !in 0 until fieldCount) {
-            throw IllegalStateException(
-                "FlatBuffer field index $fieldIndex is outside 0 until $fieldCount"
-            )
+        check(fieldIndex in 0 until fieldCount) {
+            "FlatBuffer field index $fieldIndex is outside 0 until $fieldCount"
         }
     }
 }
@@ -204,18 +241,16 @@ private constructor(private val bytes: ByteArray, private val tableStart: Int) {
     private val objectSize: Int
 
     init {
-        ensureRange(tableStart, 4, "FlatBuffer table header")
+        ensureRange(tableStart, INT_SIZE_BYTES, "FlatBuffer table header")
         val vtableDistance = readIntLittleEndian(bytes, tableStart)
-        if (vtableDistance <= 0) {
-            throw IllegalStateException("FlatBuffer table has an invalid vtable offset")
-        }
+        check(vtableDistance > 0) { "FlatBuffer table has an invalid vtable offset" }
+
         vtableStart = tableStart - vtableDistance
-        ensureRange(vtableStart, 4, "FlatBuffer vtable header")
+        ensureRange(vtableStart, VTABLE_HEADER_SIZE_BYTES, "FlatBuffer vtable header")
         vtableSize = readUnsignedShortLittleEndian(bytes, vtableStart)
-        objectSize = readUnsignedShortLittleEndian(bytes, vtableStart + 2)
-        if (vtableSize < 4) {
-            throw IllegalStateException("FlatBuffer vtable is too small")
-        }
+        objectSize = readUnsignedShortLittleEndian(bytes, vtableStart + SHORT_SIZE_BYTES)
+        check(vtableSize >= VTABLE_HEADER_SIZE_BYTES) { "FlatBuffer vtable is too small" }
+
         ensureRange(vtableStart, vtableSize, "FlatBuffer vtable")
         ensureRange(tableStart, objectSize, "FlatBuffer table")
     }
@@ -226,7 +261,7 @@ private constructor(private val bytes: ByteArray, private val tableStart: Int) {
             return defaultValue
         }
         val fieldPosition = tableStart + fieldOffset
-        ensureRange(fieldPosition, 1, "FlatBuffer byte field")
+        ensureRange(fieldPosition, BYTE_SIZE_BYTES, "FlatBuffer byte field")
         return bytes[fieldPosition]
     }
 
@@ -236,7 +271,7 @@ private constructor(private val bytes: ByteArray, private val tableStart: Int) {
             return defaultValue
         }
         val fieldPosition = tableStart + fieldOffset
-        ensureRange(fieldPosition, 4, "FlatBuffer int field")
+        ensureRange(fieldPosition, INT_SIZE_BYTES, "FlatBuffer int field")
         return readIntLittleEndian(bytes, fieldPosition)
     }
 
@@ -246,40 +281,42 @@ private constructor(private val bytes: ByteArray, private val tableStart: Int) {
             return defaultValue
         }
         val fieldPosition = tableStart + fieldOffset
-        ensureRange(fieldPosition, 8, "FlatBuffer long field")
+        ensureRange(fieldPosition, LONG_SIZE_BYTES, "FlatBuffer long field")
         return readLongLittleEndian(bytes, fieldPosition)
     }
 
     internal fun readString(fieldIndex: Int): String? {
         val targetPosition = targetPosition(fieldIndex) ?: return null
         val length = readIntAt(targetPosition, "FlatBuffer string length")
-        if (length < 0) {
-            throw IllegalStateException("FlatBuffer string length is negative")
-        }
-        ensureRange(targetPosition + 4, length + 1, "FlatBuffer string payload")
-        val bytesStart = targetPosition + 4
-        val bytesEnd = bytesStart + length
-        return bytes.copyOfRange(bytesStart, bytesEnd).decodeToString()
+        check(length >= 0) { "FlatBuffer string length is negative" }
+
+        val payloadStart = targetPosition + INT_SIZE_BYTES
+        ensureRange(
+            payloadStart,
+            length + STRING_TERMINATOR_SIZE_BYTES,
+            "FlatBuffer string payload",
+        )
+        val bytesEnd = payloadStart + length
+        return bytes.copyOfRange(payloadStart, bytesEnd).decodeToString()
     }
 
     internal fun readByteVector(fieldIndex: Int): ByteArray? {
         val targetPosition = targetPosition(fieldIndex) ?: return null
         val length = readIntAt(targetPosition, "FlatBuffer vector length")
-        if (length < 0) {
-            throw IllegalStateException("FlatBuffer vector length is negative")
-        }
-        ensureRange(targetPosition + 4, length, "FlatBuffer vector payload")
-        val bytesStart = targetPosition + 4
-        val bytesEnd = bytesStart + length
-        return bytes.copyOfRange(bytesStart, bytesEnd)
+        check(length >= 0) { "FlatBuffer vector length is negative" }
+
+        val payloadStart = targetPosition + INT_SIZE_BYTES
+        ensureRange(payloadStart, length, "FlatBuffer vector payload")
+        val bytesEnd = payloadStart + length
+        return bytes.copyOfRange(payloadStart, bytesEnd)
     }
 
     private fun fieldOffset(fieldIndex: Int): Int {
-        if (fieldIndex < 0) {
-            throw IllegalStateException("FlatBuffer field index must not be negative")
-        }
-        val entryPosition = vtableStart + 4 + (fieldIndex * 2)
-        if (entryPosition + 2 > vtableStart + vtableSize) {
+        check(fieldIndex >= 0) { "FlatBuffer field index must not be negative" }
+
+        val entryPosition =
+            vtableStart + VTABLE_HEADER_SIZE_BYTES + (fieldIndex * VTABLE_FIELD_ENTRY_SIZE_BYTES)
+        if (entryPosition + VTABLE_FIELD_ENTRY_SIZE_BYTES > vtableStart + vtableSize) {
             return 0
         }
         return readUnsignedShortLittleEndian(bytes, entryPosition)
@@ -292,33 +329,31 @@ private constructor(private val bytes: ByteArray, private val tableStart: Int) {
         }
         val fieldPosition = tableStart + fieldOffset
         val relativeOffset = readIntAt(fieldPosition, "FlatBuffer offset field")
-        if (relativeOffset <= 0) {
-            throw IllegalStateException("FlatBuffer offset field is invalid")
-        }
+        check(relativeOffset > 0) { "FlatBuffer offset field is invalid" }
+
         val targetPosition = fieldPosition + relativeOffset
-        ensureRange(targetPosition, 4, "FlatBuffer offset target")
+        ensureRange(targetPosition, INT_SIZE_BYTES, "FlatBuffer offset target")
         return targetPosition
     }
 
     private fun readIntAt(offset: Int, label: String): Int {
-        ensureRange(offset, 4, label)
+        ensureRange(offset, INT_SIZE_BYTES, label)
         return readIntLittleEndian(bytes, offset)
     }
 
     private fun ensureRange(offset: Int, size: Int, label: String): Unit {
-        if (offset < 0 || size < 0 || offset + size > bytes.size) {
-            throw IllegalStateException("$label exceeds the available FlatBuffer bytes")
+        check(offset >= 0 && size >= 0 && offset + size <= bytes.size) {
+            "$label exceeds the available FlatBuffer bytes"
         }
     }
 
     internal companion object {
         internal fun fromRoot(bytes: ByteArray): FlatBufferTable {
-            if (bytes.size < 4) {
-                throw IllegalStateException("FlatBuffer root offset is missing")
-            }
+            check(bytes.size >= INT_SIZE_BYTES) { "FlatBuffer root offset is missing" }
+
             val tableStart = readIntLittleEndian(bytes, 0)
-            if (tableStart < 4 || tableStart >= bytes.size) {
-                throw IllegalStateException("FlatBuffer root table offset is invalid")
+            check(tableStart in INT_SIZE_BYTES until bytes.size) {
+                "FlatBuffer root table offset is invalid"
             }
             return FlatBufferTable(bytes = bytes, tableStart = tableStart)
         }

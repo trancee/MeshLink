@@ -438,26 +438,23 @@ internal object WireCodec {
 
     private fun priorityCode(priority: DeliveryPriority): Byte {
         return when (priority) {
-            DeliveryPriority.HIGH -> 1
-            DeliveryPriority.NORMAL -> 2
-            DeliveryPriority.LOW -> 3
+            DeliveryPriority.HIGH -> PRIORITY_CODE_HIGH
+            DeliveryPriority.NORMAL -> PRIORITY_CODE_NORMAL
+            DeliveryPriority.LOW -> PRIORITY_CODE_LOW
         }
     }
 
     private fun priorityFromCode(code: Byte): DeliveryPriority {
         return when (code.toInt()) {
-            1 -> DeliveryPriority.HIGH
-            2 -> DeliveryPriority.NORMAL
-            3 -> DeliveryPriority.LOW
-            else ->
-                throw IllegalStateException(
-                    "Unknown delivery priority code ${code.toInt() and 0xFF}"
-                )
+            PRIORITY_CODE_HIGH.toInt() -> DeliveryPriority.HIGH
+            PRIORITY_CODE_NORMAL.toInt() -> DeliveryPriority.NORMAL
+            PRIORITY_CODE_LOW.toInt() -> DeliveryPriority.LOW
+            else -> error("Unknown delivery priority code ${code.toInt() and PRIORITY_CODE_MASK}")
         }
     }
 
     private fun requireString(table: FlatBufferTable, fieldIndex: Int, fieldName: String): String {
-        return table.readString(fieldIndex) ?: throw IllegalStateException("$fieldName is missing")
+        return table.readString(fieldIndex) ?: error("$fieldName is missing")
     }
 
     private fun requireByteVector(
@@ -465,9 +462,13 @@ internal object WireCodec {
         fieldIndex: Int,
         fieldName: String,
     ): ByteArray {
-        return table.readByteVector(fieldIndex)
-            ?: throw IllegalStateException("$fieldName is missing")
+        return table.readByteVector(fieldIndex) ?: error("$fieldName is missing")
     }
+
+    private const val PRIORITY_CODE_MASK: Int = 0xFF
+    private const val PRIORITY_CODE_HIGH: Byte = 1
+    private const val PRIORITY_CODE_NORMAL: Byte = 2
+    private const val PRIORITY_CODE_LOW: Byte = 3
 
     private const val HELLO_FIELD_COUNT: Int = 2
     private const val HELLO_PEER_ID_FIELD_INDEX: Int = 0
