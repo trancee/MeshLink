@@ -126,7 +126,7 @@ public data class TechnicalTimelineUiState(
         get() = currentSnapshot.referenceSessionKind()
 
     public val isCurrentSessionEnded: Boolean
-        get() = currentSessionKind == ReferenceSessionKind.SUPPORTED_ENDED
+        get() = !viewingRetained && currentSessionKind == ReferenceSessionKind.SUPPORTED_ENDED
 
     public val isSupportedLiveSession: Boolean
         get() = currentSessionKind == ReferenceSessionKind.SUPPORTED_LIVE
