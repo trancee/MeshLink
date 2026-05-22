@@ -30,7 +30,7 @@ adding an operator-friendly reference surface.
 ## Technical Context
 
 **Language/Version**: Kotlin 2.3.21 with JVM toolchain 17 for shared and Android code; Swift 5.0 for the iOS host project  
-**Primary Dependencies**: `:meshlink`; Compose Multiplatform UI stack `1.11.0` aligned with Kotlin 2.3.21; AndroidX lifecycle runtime compose `2.10.0`; AndroidX lifecycle viewmodel compose `2.10.0`; AndroidX navigation compose `2.9.2`; Compose resources; `kotlinx-coroutines-core` `1.11.0`; `kotlinx-serialization-json` `1.11.0`; `okio` `3.17.0` for app-local session history and export artifacts  
+**Primary Dependencies**: `:meshlink`; Compose Multiplatform UI stack `1.11.0` aligned with Kotlin 2.3.21; AndroidX lifecycle runtime compose `2.10.0`; AndroidX lifecycle viewmodel compose `2.10.0`; AndroidX navigation compose `2.9.2`; Compose resources; `kotlinx-coroutines-core` `1.11.0`; `kotlinx-serialization-json` `1.11.0`; `kotlinx-datetime` `0.7.1` for UTC session-artifact timestamps; `okio` `3.17.0` for app-local session history and export artifacts  
 **Storage**: App-local JSON files for recent session history and exported session artifacts; redacted previews by default; no backend or cloud sync  
 **Testing**: `kotlin-test` + Power-assert for shared state and model logic; Compose Multiplatform UI tests for common flows; Android instrumented smoke/UI tests; iOS simulator tests; targeted two-device quickstart validation; existing `:meshlink` regression suite and JVM benchmarks rerun whenever integration touches library behavior  
 **Target Platform**: Android API 29+, iOS 15+  

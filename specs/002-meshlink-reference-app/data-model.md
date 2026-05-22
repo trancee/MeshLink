@@ -7,6 +7,12 @@ export models around the existing MeshLink SDK. It does not redefine MeshLink
 protocol entities such as routes, wire frames, or trust records inside the SDK;
 it presents them through a user-facing reference layer.
 
+**Timestamp boundary note**: This document uses reader-facing `Timestamp`
+terminology for conceptual time fields. The current implementation stores live
+runtime and retained-history timestamps as epoch-millis values, while exported
+session-artifact timestamps are UTC ISO 8601 strings defined normatively in
+[`contracts/session-artifact.md`](./contracts/session-artifact.md).
+
 ## Entities
 
 ### `ReferenceScenario`
@@ -39,8 +45,8 @@ Represents one run of a scenario.
 | `sessionId` | String | Stable unique session identifier | Required; unique |
 | `scenarioId` | String | Owning scenario | Must reference an existing `ReferenceScenario` |
 | `authorityMode` | Enum | `live` or `solo` | Required |
-| `startedAt` | Instant | Session start timestamp | Required |
-| `endedAt` | Instant? | Session end timestamp | Null while active |
+| `startedAt` | Timestamp | Session start timestamp | Required |
+| `endedAt` | Timestamp? | Session end timestamp | Null while active |
 | `meshState` | Enum | Current visible runtime state | Required |
 | `selectedPeerId` | String? | Currently selected peer for operator actions | Optional |
 | `configurationSnapshot` | Map<String, String> | Operator-visible configuration values | Required |
@@ -52,6 +58,9 @@ Represents one run of a scenario.
 - One `ReferenceSession` can produce zero or more `SessionArtifact` values.
 - One ended session can appear in `RecentSessionHistory`.
 
+**Implementation note**: The current implementation stores `startedAt` and
+`endedAt` as epoch-millis fields in the runtime model.
+
 ### `PeerSnapshot`
 
 Represents the app's current view of one MeshLink peer.
@@ -62,9 +71,12 @@ Represents the app's current view of one MeshLink peer.
 | `peerSuffix` | String | Redacted identifier shown in history and exports by default | Required |
 | `trustState` | Enum | `unknown`, `trusted`, `changed`, `forgotten` | Required |
 | `connectionState` | Enum | `connected`, `disconnected`, `lost` | Required |
-| `lastSeenAt` | Instant? | Most recent observation time | Optional |
+| `lastSeenAt` | Timestamp? | Most recent observation time | Optional |
 | `lastDeliveryOutcome` | String? | Most recent send/receive outcome summary | Optional |
 | `capabilityNotes` | List<String> | Human-readable notes in the app context | Optional |
+
+**Implementation note**: The current implementation stores `lastSeenAt` as an
+optional epoch-millis field when it is present.
 
 ### `TimelineEntry`
 
@@ -74,7 +86,7 @@ Represents one operator-visible line item in the technical timeline.
 |---|---|---|---|
 | `entryId` | String | Stable unique identifier within a session | Required; unique per session |
 | `sessionId` | String | Owning session | Required |
-| `occurredAt` | Instant | Event timestamp | Required |
+| `occurredAt` | Timestamp | Event timestamp | Required |
 | `family` | Enum | `user`, `lifecycle`, `peer`, `diagnostic`, `message`, `transfer`, `export` | Required |
 | `severity` | Enum | `info`, `warning`, `error`, `success`, `debug` | Required |
 | `title` | String | Short summary line | Required |
@@ -86,6 +98,9 @@ Represents one operator-visible line item in the technical timeline.
 | `fullPayload` | String? | Full payload content when explicitly captured for export | Optional |
 | `fullPayloadIncluded` | Boolean | Whether a full payload copy is currently attached to the entry | Defaults to `false` |
 
+**Implementation note**: The current implementation stores `occurredAt` as an
+epoch-millis field in the timeline model.
+
 ### `SessionArtifact`
 
 Represents an exported or retained structured session document.
@@ -94,13 +109,17 @@ Represents an exported or retained structured session document.
 |---|---|---|---|
 | `artifactId` | String | Stable unique artifact identifier | Required |
 | `sourceSessionId` | String | Session being exported | Required |
-| `createdAt` | Instant | Export creation timestamp | Required |
+| `createdAt` | Timestamp | Export creation timestamp | Required |
 | `payloadPolicy` | Enum | `metadata-only`, `redacted-preview`, `full-opt-in` | Required |
 | `includesFullPayload` | Boolean | Whether full payload content is present | `true` only after explicit opt-in |
 | `scenarioSummary` | Map<String, String> | Exported scenario metadata | Required |
 | `peerSummaries` | List<Map<String, String>> | Exported redacted peer summary | Required |
 | `timelineEntries` | List<TimelineEntry> | Serialized timeline records | Required |
 | `storagePath` | String | App-local path for the artifact | Required for retained/exported artifacts |
+
+**Implementation note**: The current implementation stores `createdAt` as an
+epoch-millis field before the export serializer converts it into the normative
+UTC ISO 8601 session-artifact contract.
 
 ### `RecentSessionHistory`
 
@@ -110,7 +129,10 @@ Represents the bounded retained-history index.
 |---|---|---|---|
 | `maxSessions` | Int | Maximum number of retained sessions | Fixed at `20` |
 | `sessionIds` | List<String> | Most recent retained sessions, newest first | Length must be `<= 20` |
-| `lastPrunedAt` | Instant? | Timestamp of latest history pruning | Optional |
+| `lastPrunedAt` | Timestamp? | Timestamp of latest history pruning | Optional |
+
+**Implementation note**: The current implementation stores `lastPrunedAt` as an
+optional epoch-millis field inside the retained-history store.
 
 ## Validation rules
 

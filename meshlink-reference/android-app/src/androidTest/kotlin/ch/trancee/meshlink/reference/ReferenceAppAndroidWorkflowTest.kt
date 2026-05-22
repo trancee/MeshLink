@@ -37,7 +37,7 @@ class ReferenceAppAndroidWorkflowTest {
             waitForTextContains(device, "Peer: 654321")
 
             tapTextWithScroll(device, "Send Hello", searchDirection = Direction.UP)
-            tapTextWithScroll(device, "Solo mode", searchDirection = Direction.UP)
+            tapTextWithScroll(device, "Solo exploration", searchDirection = Direction.UP)
 
             waitForText(device, "Solo exploration")
             waitForText(device, "Non-authoritative")
@@ -61,10 +61,14 @@ class ReferenceAppAndroidWorkflowTest {
             tapTextWithScroll(device, "Resume", searchDirection = Direction.UP)
 
             tapTextWithScroll(device, "Send large transfer", searchDirection = Direction.UP)
-            tapTextWithScroll(device, "Forget selected peer", searchDirection = Direction.UP)
+            tapTextWithScroll(
+                device,
+                "Reset trust for selected peer",
+                searchDirection = Direction.UP,
+            )
             waitForTextContainsWithScroll(
                 device,
-                "Trust: FORGOTTEN",
+                "Trust: Forgotten",
                 searchDirection = Direction.DOWN,
             )
 
@@ -86,8 +90,11 @@ class ReferenceAppAndroidWorkflowTest {
             tapText(device, "Evidence")
 
             waitForText(device, "Technical timeline")
-            tapTextWithScroll(device, "Retain session", searchDirection = Direction.UP)
+            tapTextWithScroll(device, "Retain live session", searchDirection = Direction.UP)
             waitForTextContains(device, "Retained 1")
+            tapText(device, "Export session")
+            waitForText(device, "Redacted export")
+            tapText(device, "Redacted export")
 
             val exportPath = waitForLatestAutomationExportPath(storageSubdirectory)
             tapText(device, "Recent history")
@@ -103,6 +110,10 @@ class ReferenceAppAndroidWorkflowTest {
             assertTrue(exportJson.contains("\"defaultMode\": \"redacted-preview\""))
             assertTrue(exportJson.contains("\"fullPayloadIncluded\": false"))
             assertTrue(exportJson.contains("\"operatorOptInRecorded\": false"))
+            assertTrue(
+                UTC_ISO_8601_CREATED_AT_REGEX.containsMatchIn(exportJson),
+                "Expected createdAt to use UTC ISO 8601 in the written export file",
+            )
             assertFalse(exportJson.contains("\"fullPayload\":"))
             assertTrue(historyJson.contains("\"historyStatus\": \"RETAINED\""))
         }
@@ -122,6 +133,8 @@ class ReferenceAppAndroidWorkflowTest {
 
     private companion object {
         private const val OPT_IN_ARGUMENT: String = "meshlink.reference.workflow"
+        private val UTC_ISO_8601_CREATED_AT_REGEX =
+            Regex("\\\"createdAt\\\"\\s*:\\s*\\\"\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z\\\"")
     }
 }
 

@@ -21,7 +21,7 @@ final class ReferenceAppWorkflowUITests: XCTestCase {
         )
         ReferenceAppUITestSupport.waitForStaticTextContaining(in: app, text: "Peer: 654321")
         ReferenceAppUITestSupport.tapButton(in: app, labeled: "Send Hello")
-        ReferenceAppUITestSupport.tapButton(in: app, labeled: "Solo mode")
+        ReferenceAppUITestSupport.tapButton(in: app, labeled: "Solo exploration")
 
         // Assert
         ReferenceAppUITestSupport.waitForStaticText(in: app, labeled: "Solo exploration")
@@ -44,8 +44,8 @@ final class ReferenceAppWorkflowUITests: XCTestCase {
         ReferenceAppUITestSupport.tapButton(in: app, labeled: "Pause")
         ReferenceAppUITestSupport.tapButton(in: app, labeled: "Resume")
         ReferenceAppUITestSupport.tapButton(in: app, labeled: "Send large transfer")
-        ReferenceAppUITestSupport.tapButton(in: app, labeled: "Forget selected peer")
-        ReferenceAppUITestSupport.waitForStaticTextContaining(in: app, text: "Trust: FORGOTTEN")
+        ReferenceAppUITestSupport.tapButton(in: app, labeled: "Reset trust for selected peer")
+        ReferenceAppUITestSupport.waitForStaticTextContaining(in: app, text: "Trust: Forgotten")
         app.swipeDown()
         app.swipeDown()
         ReferenceAppUITestSupport.tapButton(in: app, labeled: "Lab")
@@ -71,8 +71,9 @@ final class ReferenceAppWorkflowUITests: XCTestCase {
         ReferenceAppUITestSupport.waitForStaticText(in: app, labeled: "Technical timeline")
 
         // Act
-        ReferenceAppUITestSupport.tapButton(in: app, labeled: "Retain session")
-        ReferenceAppUITestSupport.tapButton(in: app, labeled: "Export redacted")
+        ReferenceAppUITestSupport.tapButton(in: app, labeled: "Retain live session")
+        ReferenceAppUITestSupport.tapButton(in: app, labeled: "Export session")
+        ReferenceAppUITestSupport.tapButton(in: app, labeled: "Redacted export")
         let relativeExportPath = ReferenceAppUITestSupport.lastExportRelativePath(in: app)
         ReferenceAppUITestSupport.tapButton(in: app, labeled: "Recent history")
         ReferenceAppUITestSupport.waitForStaticText(in: app, labeled: "Recent history")

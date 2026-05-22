@@ -66,7 +66,7 @@ public class JsonSessionArtifactSerializer(private val documentStore: ReferenceD
         return ExportDocument(
             artifactVersion = "1",
             artifactId = artifact.artifactId,
-            createdAt = artifact.createdAtEpochMillis.toString(),
+            createdAt = formatExportTimestampUtc(artifact.createdAtEpochMillis),
             sourceSessionId = artifact.sourceSessionId,
             scenario =
                 ScenarioBlock(
@@ -74,8 +74,8 @@ public class JsonSessionArtifactSerializer(private val documentStore: ReferenceD
                     title = referenceScenarioTitle(session.scenarioId),
                     surface = normalizeSurface(session.configurationSnapshot["surface"]),
                     authorityMode = session.authorityMode.toString().lowercase(),
-                    startedAt = session.startedAtEpochMillis.toString(),
-                    endedAt = session.endedAtEpochMillis?.toString(),
+                    startedAt = formatExportTimestampUtc(session.startedAtEpochMillis),
+                    endedAt = session.endedAtEpochMillis?.let(::formatExportTimestampUtc),
                     lastOutcomeSummary = referenceOutcomeLabel(session.lastOutcomeSummary),
                 ),
             configuration = session.configurationSnapshot,
@@ -92,7 +92,7 @@ public class JsonSessionArtifactSerializer(private val documentStore: ReferenceD
                 timeline.map { entry ->
                     TimelineEntryBlock(
                         entryId = entry.entryId,
-                        occurredAt = entry.occurredAtEpochMillis.toString(),
+                        occurredAt = formatExportTimestampUtc(entry.occurredAtEpochMillis),
                         family = entry.family.name.lowercase(),
                         severity = entry.severity.name.lowercase(),
                         title = entry.title,

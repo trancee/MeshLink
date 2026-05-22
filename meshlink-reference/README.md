@@ -106,8 +106,8 @@ Expected retained outputs:
 
 - `summary.json` — Android passive proof completion, iPhone sender completion,
   and the retained export path
-- `android_history.json` — retained session history evidence
-- `android_export.json` — redacted export evidence
+- `android_history.json` — internal retained-history store evidence (internal epoch-millis format)
+- `android_export.json` — redacted session-artifact evidence (UTC ISO 8601 export timestamps)
 - `android_logcat.log` and `iphone_console.log` — raw device logs for the run
 
 ## Platform caveats

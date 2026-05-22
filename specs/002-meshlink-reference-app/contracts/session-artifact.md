@@ -8,18 +8,28 @@ Define the exported session-artifact structure for the MeshLink reference app.
 
 - Encoding: UTF-8 JSON
 - Scope: one exported artifact per export action
+- Export-contract version: `1`
 - Default policy: payload metadata plus redacted previews
 - Elevated policy: full payload content only after explicit operator opt-in
 - Retained-session exports remain redacted because retained history does not
   persist full payload content
+- Pre-release local artifacts generated before this contract stabilized are not
+  compatibility targets
+
+## Timestamp rules
+
+All exported timestamp fields use UTC ISO 8601 strings in exact
+`YYYY-MM-DDTHH:MM:SS.SSSZ` form.
+
+Optional timestamp fields are absent when unknown.
 
 ## Top-level fields
 
 | Field | Type | Required | Description |
 |---|---|---:|---|
-| `artifactVersion` | string | Yes | Export-contract version |
+| `artifactVersion` | string | Yes | Always `1` for the unreleased v1 export contract |
 | `artifactId` | string | Yes | Unique export identifier |
-| `createdAt` | string | Yes | Export timestamp string (current implementation uses epoch-millis text) |
+| `createdAt` | string | Yes | UTC ISO 8601 export timestamp |
 | `sourceSessionId` | string | Yes | Session being exported |
 | `scenario` | object | Yes | Scenario summary block |
 | `configuration` | object | Yes | Configuration snapshot active for the session |
@@ -35,8 +45,8 @@ Define the exported session-artifact structure for the MeshLink reference app.
 | `title` | string | Yes | Operator-facing scenario name |
 | `surface` | string | Yes | `main`, `advanced`, or `lab` |
 | `authorityMode` | string | Yes | `live` or `solo` |
-| `startedAt` | string | Yes | Session timestamp string (current implementation uses epoch-millis text) |
-| `endedAt` | string | No | Session timestamp string when available |
+| `startedAt` | string | Yes | UTC ISO 8601 session start timestamp |
+| `endedAt` | string | No | UTC ISO 8601 session end timestamp when the session has ended |
 | `lastOutcomeSummary` | string | No | Operator-facing last high-level result |
 
 ## Peer summary block
@@ -53,7 +63,7 @@ Define the exported session-artifact structure for the MeshLink reference app.
 | Field | Type | Required | Description |
 |---|---|---:|---|
 | `entryId` | string | Yes | Stable event identifier |
-| `occurredAt` | string | Yes | Event timestamp string (current implementation uses epoch-millis text) |
+| `occurredAt` | string | Yes | UTC ISO 8601 event timestamp |
 | `family` | string | Yes | Event family |
 | `severity` | string | Yes | Event severity |
 | `title` | string | Yes | Short event summary |
@@ -71,8 +81,64 @@ Define the exported session-artifact structure for the MeshLink reference app.
 | `fullPayloadIncluded` | boolean | Yes | Whether full payloads are present |
 | `operatorOptInRecorded` | boolean | Yes | Whether the operator explicitly requested full payload export |
 
+## Example
+
+```json
+{
+  "artifactVersion": "1",
+  "artifactId": "artifact-android-1747922597123",
+  "createdAt": "2026-05-22T14:03:17.123Z",
+  "sourceSessionId": "android-1747922579000",
+  "scenario": {
+    "scenarioId": "guided-first-exchange",
+    "title": "Guided first exchange",
+    "surface": "main",
+    "authorityMode": "live",
+    "startedAt": "2026-05-22T14:02:59.000Z",
+    "lastOutcomeSummary": "Message sent"
+  },
+  "configuration": {
+    "platform": "Android",
+    "surface": "main-guided",
+    "appId": "demo.meshlink.reference"
+  },
+  "peerSummaries": [
+    {
+      "peerSuffix": "654321",
+      "trustState": "Trusted",
+      "connectionState": "Connected",
+      "lastDeliveryOutcome": "Message sent"
+    }
+  ],
+  "timelineEntries": [
+    {
+      "entryId": "android-1747922579000-7",
+      "occurredAt": "2026-05-22T14:03:10.456Z",
+      "family": "message",
+      "severity": "success",
+      "title": "Guided message sent",
+      "detail": "First guided payload reached 654321 with NORMAL priority.",
+      "peerSuffix": "654321",
+      "payloadMetadata": {
+        "sizeBytes": "19",
+        "contentType": "text/plain"
+      },
+      "payloadPreview": "he… [redacted]"
+    }
+  ],
+  "payloadPolicy": {
+    "defaultMode": "redacted-preview",
+    "fullPayloadIncluded": false,
+    "operatorOptInRecorded": false
+  }
+}
+```
+
 ## Validation rules
 
+- `createdAt`, `startedAt`, `endedAt`, and `occurredAt` must use exact UTC ISO
+  8601 `YYYY-MM-DDTHH:MM:SS.SSSZ` formatting when present.
+- Optional timestamp fields must be absent when unknown.
 - `fullPayloadIncluded = true` requires `operatorOptInRecorded = true`.
 - When `fullPayloadIncluded = false`, `fullPayload` must be absent from all
   timeline entries.
