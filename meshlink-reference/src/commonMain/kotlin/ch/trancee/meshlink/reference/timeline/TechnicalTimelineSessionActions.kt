@@ -13,6 +13,9 @@ import kotlinx.coroutines.launch
 public fun TechnicalTimelineStore.retainCurrentSession(): Unit {
     scope.launch {
         val current = uiState.value
+        if (current.viewingRetained) {
+            return@launch
+        }
         val retainedSnapshot =
             current.currentSnapshot.copy(
                 session =

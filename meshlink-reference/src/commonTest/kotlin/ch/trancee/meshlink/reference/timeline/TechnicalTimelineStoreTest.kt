@@ -109,6 +109,54 @@ class TechnicalTimelineStoreTest {
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
+    fun retainCurrentSessionDoesNothingWhenViewingRetained() = runTest {
+        // Arrange
+        val harness = TimelineStoreHarness()
+        val store = harness.createStore(scope = this)
+        advanceUntilIdle()
+        store.retainCurrentSession()
+        advanceUntilIdle()
+        store.openRetainedSession(sessionId = "timeline-session")
+        advanceUntilIdle()
+        harness.nowMillis = 3_000L
+
+        // Act
+        store.retainCurrentSession()
+        advanceUntilIdle()
+
+        // Assert
+        assertEquals(2_000L, store.uiState.value.retainedSessions.single().endedAtEpochMillis)
+        assertEquals(true, store.uiState.value.viewingRetained)
+        coroutineContext.cancelChildren()
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun returnToLiveRestoresTheLatestLiveEntries() = runTest {
+        // Arrange
+        val retainedEntry = timelineEntry(entryId = "retained-1", title = "Retained")
+        val liveEntry = timelineEntry(entryId = "live-1", title = "Live")
+        val harness = TimelineStoreHarness(initialTimeline = listOf(retainedEntry))
+        val store = harness.createStore(scope = this)
+        advanceUntilIdle()
+        store.retainCurrentSession()
+        advanceUntilIdle()
+        store.openRetainedSession(sessionId = "timeline-session")
+        advanceUntilIdle()
+        harness.emitLiveSnapshot(timeline = listOf(liveEntry))
+        advanceUntilIdle()
+
+        // Act
+        store.returnToLive()
+
+        // Assert
+        assertEquals(false, store.uiState.value.viewingRetained)
+        assertEquals(listOf("live-1"), store.uiState.value.visibleEntries.map { it.entryId })
+        coroutineContext.cancelChildren()
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
     fun unfilteredLiveSnapshotReusesTheTimelineList() = runTest {
         // Arrange
         val entry = timelineEntry(entryId = "live-1", title = "Live")
@@ -129,8 +177,10 @@ class TechnicalTimelineStoreTest {
 private class TimelineStoreHarness(
     initialTimeline: List<TimelineEntry> = emptyList(),
     activeAutomationConfig: ReferenceAutomationConfig? = null,
+    initialNowMillis: Long = 2_000L,
 ) {
     val documentStore: InMemoryReferenceDocumentStore = InMemoryReferenceDocumentStore()
+    var nowMillis: Long = initialNowMillis
     private val controllerFlow: MutableStateFlow<ReferenceControllerSnapshot> =
         MutableStateFlow(referenceSnapshot(timeline = initialTimeline))
 
@@ -165,7 +215,7 @@ private class TimelineStoreHarness(
                     override suspend fun forgetPeer(peerId: String): Unit = Unit
                 }
 
-            override fun currentTimeMillis(): Long = 2_000L
+            override fun currentTimeMillis(): Long = nowMillis
 
             override fun emitAutomationLog(message: String): Unit = Unit
         }

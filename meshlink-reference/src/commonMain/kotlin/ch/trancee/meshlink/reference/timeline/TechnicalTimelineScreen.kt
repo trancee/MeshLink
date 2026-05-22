@@ -112,7 +112,12 @@ private fun TimelineRetentionSection(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Button(onClick = store::retainCurrentSession) { Text("Retain session") }
+            Button(onClick = store::retainCurrentSession, enabled = !uiState.viewingRetained) {
+                Text("Retain live session")
+            }
+            if (uiState.viewingRetained) {
+                Button(onClick = store::returnToLive) { Text("Return to live") }
+            }
             Button(onClick = { store.exportCurrentSession(ExportPayloadPolicy.REDACTED_PREVIEW) }) {
                 Text("Export redacted")
             }
@@ -125,7 +130,8 @@ private fun TimelineRetentionSection(
         }
         if (uiState.viewingRetained) {
             Text(
-                text = "Full-payload export is available only from the live session.",
+                text =
+                    "Return to the live session before retaining again or exporting full payload content.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
