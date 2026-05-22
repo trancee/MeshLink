@@ -38,6 +38,12 @@ Every branch in MeshLink carries protocol meaning and MUST be testable.
 - Tests MUST use Power-assert for assertion diagnostics. Plain
   `assertEquals` is permitted only for structural comparisons where
   Power-assert cannot add diagnostic value.
+- Tests in the default contributor loop MUST be self-validating and
+  repeatable. Physical-device validation, proof apps, and retained
+  benchmarks MUST remain explicit opt-in surfaces, not replacements for
+  automated regression tests.
+- Test code SHOULD keep Arrange / Act / Assert phases visually distinct
+  so setup, action, and assertions stay obvious to the maintainer.
 - Protocol correctness MUST be validated against Wycheproof test vectors
   for ChaCha20-Poly1305, Ed25519, X25519, HKDF, and HMAC-SHA256.
 - Multi-node integration tests MUST use the canonical virtual harness
@@ -112,6 +118,43 @@ constrained mobile devices.
 **Rationale**: BLE mesh networking operates under hard power, latency,
 and memory limits that require explicit and enforceable budgets.
 
+### V. Maintainable Design and Change Isolation
+
+MeshLink MUST prefer designs that solve the current problem clearly and
+keep future changes local.
+
+- Changes MUST prefer the simplest design that satisfies the approved
+  spec today. Speculative extension points, generic frameworks, and
+  configuration knobs for uncommitted future requirements are
+  prohibited.
+- Modules, classes, and files MUST keep one clear reason to change.
+  Business logic, platform glue, tooling, UI, and benchmark concerns
+  MUST remain separated so changes stay local.
+- New abstractions MUST be introduced only to remove demonstrated
+  duplication, isolate a known change hotspot, or preserve a stable
+  public contract. A single use site or guessed future need is
+  insufficient.
+- Coupling MUST be minimized and cohesion maximized. Cross-module code
+  MUST depend on small contracts and stable APIs rather than deep object
+  traversal or incidental implementation details.
+- Prefer composition, factories, strategies, and small interfaces over
+  inheritance for behavior sharing. Inheritance is allowed only when the
+  subtype remains substitutable for the base type without surprising
+  callers.
+- Volatile implementation details MUST be hidden behind internal types,
+  interfaces, or `expect`/`actual` boundaries so refactors do not leak
+  across module boundaries.
+- Mutating operations and read-only queries SHOULD remain clearly
+  separated in naming and behavior. Commands MAY return status or domain
+  results, but they MUST NOT masquerade as passive queries.
+- Each change SHOULD leave touched code, tests, or docs at least as
+  clear as before. Additive complexity without local cleanup requires
+  explicit rationale in the planning artifact or PR.
+
+**Rationale**: MeshLink evolves under security, portability, and proof
+constraints; simple, cohesive, and deletable designs reduce the cost and
+risk of change.
+
 ## Quality Gates
 
 Every change MUST satisfy these release-blocking gates before merge.
@@ -126,6 +169,10 @@ Every change MUST satisfy these release-blocking gates before merge.
 - Every PR MUST pass the API compatibility and required platform test
   gates required by Principles I–III.
 - Every PR MUST provide the benchmark evidence required by Principle IV.
+- Every PR that introduces a new abstraction layer, extension point, or
+  inheritance hierarchy MUST explain the current requirement,
+  demonstrated duplication, or change hotspot it addresses, per
+  Principle V.
 - Every PR review MUST include the `plan-template.md` Constitution Check
   section, or a linked artifact containing the same
   principle-by-principle checklist.
@@ -186,4 +233,4 @@ development.
 - Day-to-day conventions that do not rise to constitutional level MUST
   live in `docs/` or other project documentation.
 
-**Version**: 1.0.4 | **Ratified**: 2026-04-30 | **Last Amended**: 2026-05-02
+**Version**: 1.1.0 | **Ratified**: 2026-04-30 | **Last Amended**: 2026-05-22
