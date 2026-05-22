@@ -21,7 +21,8 @@ final class ReferenceAppWorkflowUITests: XCTestCase {
         )
         ReferenceAppUITestSupport.waitForStaticTextContaining(in: app, text: "Peer: 654321")
         ReferenceAppUITestSupport.tapButton(in: app, labeled: "Send Hello")
-        ReferenceAppUITestSupport.tapButton(in: app, labeled: "Solo exploration")
+        ReferenceAppUITestSupport.tapButton(in: app, identifier: "guided-open-solo")
+        ReferenceAppUITestSupport.tapButton(in: app, labeled: "Continue without export")
 
         // Assert
         ReferenceAppUITestSupport.waitForStaticText(in: app, labeled: "Solo exploration")
@@ -49,10 +50,13 @@ final class ReferenceAppWorkflowUITests: XCTestCase {
         app.swipeDown()
         app.swipeDown()
         ReferenceAppUITestSupport.tapButton(in: app, labeled: "Lab")
+        ReferenceAppUITestSupport.tapButton(in: app, labeled: "Continue without export")
 
         // Assert
-        ReferenceAppUITestSupport.waitForStaticText(in: app, labeled: "Lab")
-        ReferenceAppUITestSupport.waitForStaticText(in: app, labeled: "Non-normative")
+        ReferenceAppUITestSupport.waitForStaticTextContaining(
+            in: app,
+            text: "Everything here is explicitly separated"
+        )
     }
 
     func testTimelineHistoryAndRedactedExport() {

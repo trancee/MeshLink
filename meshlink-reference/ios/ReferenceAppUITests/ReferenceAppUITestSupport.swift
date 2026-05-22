@@ -68,7 +68,7 @@ enum ReferenceAppUITestSupport {
         labeled label: String,
         timeout: TimeInterval = 10
     ) {
-        let button = application.buttons[label]
+        let button = application.buttons.matching(NSPredicate(format: "label == %@", label)).firstMatch
         if !button.waitForExistence(timeout: 1) {
             for _ in 0..<4 where !button.exists {
                 application.swipeUp()
@@ -76,6 +76,19 @@ enum ReferenceAppUITestSupport {
             }
         }
         XCTAssertTrue(button.waitForExistence(timeout: timeout), "Expected button '\(label)' to appear")
+        button.tap()
+    }
+
+    static func tapButton(
+        in application: XCUIApplication,
+        identifier: String,
+        timeout: TimeInterval = 10
+    ) {
+        let button = application.buttons[identifier]
+        XCTAssertTrue(
+            button.waitForExistence(timeout: timeout),
+            "Expected button identifier '\(identifier)' to appear"
+        )
         button.tap()
     }
 
