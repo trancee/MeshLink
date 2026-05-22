@@ -33,12 +33,16 @@ The current active reference-app session backed by the running MeshLink runtime.
 _Avoid_: Current history, active artifact
 
 **Retained session**:
-A previously captured local session snapshot kept separate from the live session for review. Retained sessions are created automatically when a live session ends or rolls over, preserve redacted evidence, and do not keep full payload content.
+A previously captured local session snapshot kept separate from the live session for review. Retained sessions are created automatically when a live session ends or rolls over if it produced reviewable evidence, preserve redacted evidence, and do not keep full payload content.
 _Avoid_: Saved live session, archived runtime
 
 **Automatic retention**:
-The default rule that a finished live session is added to recent history without requiring a separate operator action. Automatic retention preserves evidence before the operator moves on to a new session.
+The default rule that a finished live session with reviewable evidence is added to recent history without requiring a separate operator action. Automatic retention preserves evidence before the operator moves on to a new session.
 _Avoid_: Optional save, manual retain only
+
+**Reviewable evidence**:
+Operator-visible blockers, lifecycle changes, peer changes, sends, trust changes, or diagnostic timeline activity that make a finished session worth reopening. A trivial session with no meaningful evidence is not retained.
+_Avoid_: Successful proof only, empty session, incidental open
 
 **Session checkpoint**:
 A partial capture of an ongoing live session. Session checkpoints are not part of the current reference-app evidence model, so operators do not create separate mid-session retained entries.
@@ -82,9 +86,9 @@ _Avoid_: Demo mode, offline proof
 
 ## Example dialogue
 
-Developer: “The operator retained the live session, reopened it from recent history, and exported a redacted artifact.”
+Developer: “The live session ended, recent history kept it automatically, and the operator reopened it as a retained session before exporting a redacted artifact.”
 
-Domain expert: “Good — that means they reviewed a retained session, not the live session, and the export stayed on the default redacted path.”
+Domain expert: “Good — that means the session had reviewable evidence, they reviewed a retained session rather than the live one, and the export stayed on the default redacted path.”
 
 Developer: “If they need payload content, they must return to the live session and choose the full-payload export explicitly.”
 
