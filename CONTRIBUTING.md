@@ -18,7 +18,7 @@ itself, start with the [documentation map](docs/README.md).
 For the full contributor workflow, use a macOS machine with:
 
 - JDK 17
-- Android SDK for API 35 builds
+- Android SDK for API 36 builds
 - Xcode
 - Python 3
 
@@ -101,8 +101,7 @@ For `meshlink-reference` changes, prefer the faster reference-app bundle:
 ./scripts/run-reference-local-check.sh
 ```
 
-The wrapper runs `:meshlink-reference:localCheck` with the Android lint-version
-override needed by the current AGP/Kotlin combination.
+The wrapper runs `:meshlink-reference:localCheck` directly on the current AGP 9 toolchain.
 
 Use `:meshlink-reference:build` only when you need release APK or iOS
 framework artifacts, because it also links release frameworks for all iOS

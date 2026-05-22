@@ -11,7 +11,7 @@ Use this page when you need exact commands, matrices, or policy details.
 | Need | Requirement | Notes |
 |---|---|---|
 | Gradle build and tests | JDK 17 | Required for the repository build. |
-| Android compilation and unit tests | Android SDK for API 35 builds | Required for Android targets. |
+| Android compilation and unit tests | Android SDK for API 36 builds | Required for Android targets. |
 | iOS compilation and tests | Xcode | Required for iOS build and test targets. |
 | Documentation verification | Python 3 | Required by the documentation verification scripts. |
 | YAML validation | `yamllint` | Required when staged YAML files are part of the change. |
@@ -27,7 +27,7 @@ Use this page when you need exact commands, matrices, or policy details.
 | Run the pre-push hook manually | `.githooks/pre-push <remote> <url>` | Feed it the standard Git pre-push ref lines on stdin when you want to simulate a push locally. |
 | Build the library | `./gradlew :meshlink:build` | Standard first build for the library module. |
 | Compile without the full build | `./gradlew :meshlink:assemble` | Useful during early edit loops. |
-| Run fast reference-app verification | `./scripts/run-reference-local-check.sh` | Runs `:meshlink-reference:localCheck` with the Android lint-version override required by the current AGP/Kotlin combination. |
+| Run fast reference-app verification | `./scripts/run-reference-local-check.sh` | Runs `:meshlink-reference:localCheck` on the current AGP 9 toolchain. |
 | Build the reference app | `./gradlew :meshlink-reference:build` | Use when you need release APK or iOS framework artifacts; slower because it links release frameworks for all iOS targets. |
 | Format Kotlin | `./gradlew :meshlink:ktfmtFormat` | Repository formatting is ktfmt-based. |
 | Run the full library test bundle | `./gradlew :meshlink:allTests` | Aggregates tests across the library targets. |
