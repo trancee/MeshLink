@@ -72,6 +72,10 @@ _Avoid_: Any live session, solo session, lab session
 The surface where a session began and from which its surface identity is derived. Surface of origin stays fixed for the session and is not replaced by whichever surface happens to be active when the operator exports or ends it.
 _Avoid_: Last viewed surface, export surface, current tab
 
+**Supported surface switch**:
+A move between the guided and advanced surfaces within the same supported live session. Supported surface switches change the operator's view, not the session boundary.
+_Avoid_: New session for disclosure change, guided-to-advanced reset, advanced-to-guided reset
+
 **Authority mode**:
 Whether a session is authoritative live proof or non-authoritative solo review. Authority mode stays fixed for the session and changing it requires a new session boundary.
 _Avoid_: Toggle inside session, mixed-authority session, current mode only
