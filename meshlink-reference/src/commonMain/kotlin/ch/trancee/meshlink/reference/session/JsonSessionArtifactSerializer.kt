@@ -4,7 +4,9 @@ import ch.trancee.meshlink.reference.model.PeerSnapshot
 import ch.trancee.meshlink.reference.model.ReferenceSession
 import ch.trancee.meshlink.reference.model.SessionArtifact
 import ch.trancee.meshlink.reference.model.TimelineEntry
+import ch.trancee.meshlink.reference.model.referenceConnectionLabel
 import ch.trancee.meshlink.reference.model.referenceOutcomeLabel
+import ch.trancee.meshlink.reference.model.referencePeerTrustLabel
 import ch.trancee.meshlink.reference.model.referenceScenarioTitle
 import kotlinx.serialization.Serializable
 
@@ -81,8 +83,8 @@ public class JsonSessionArtifactSerializer(private val documentStore: ReferenceD
                 peers.map { peer ->
                     PeerSummaryBlock(
                         peerSuffix = peer.peerSuffix,
-                        trustState = peer.trustState.name,
-                        connectionState = peer.connectionState.name,
+                        trustState = referencePeerTrustLabel(peer.trustState),
+                        connectionState = referenceConnectionLabel(peer.connectionState),
                         lastDeliveryOutcome = peer.lastDeliveryOutcome,
                     )
                 },
@@ -96,11 +98,7 @@ public class JsonSessionArtifactSerializer(private val documentStore: ReferenceD
                         title = entry.title,
                         detail = entry.detail,
                         peerSuffix = entry.peerSuffix,
-                        payloadMetadata =
-                            mapOf(
-                                "sizeBytes" to (entry.payloadSizeBytes?.toString() ?: "0"),
-                                "contentType" to "text/plain",
-                            ),
+                        payloadMetadata = payloadMetadata(entry),
                         payloadPreview = entry.payloadPreview,
                         fullPayload = if (fullPayloadAvailable) entry.fullPayload else null,
                     )
@@ -166,6 +164,17 @@ public class JsonSessionArtifactSerializer(private val documentStore: ReferenceD
         val fullPayloadIncluded: Boolean,
         val operatorOptInRecorded: Boolean,
     )
+}
+
+private fun payloadMetadata(entry: TimelineEntry): Map<String, String>? {
+    val metadata = linkedMapOf<String, String>()
+    entry.payloadSizeBytes?.let { sizeBytes -> metadata["sizeBytes"] = sizeBytes.toString() }
+    if (
+        entry.payloadPreview != null || entry.fullPayload != null || entry.payloadSizeBytes != null
+    ) {
+        metadata["contentType"] = "text/plain"
+    }
+    return metadata.ifEmpty { null }
 }
 
 private fun normalizeSurface(surface: String?): String {

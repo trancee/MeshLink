@@ -84,6 +84,8 @@ class SessionArtifactContractTest {
         val fullTimelineEntry =
             fullDocument.getValue("timelineEntries").jsonArray.first().jsonObject
         val redactedScenario = redactedDocument.getValue("scenario").jsonObject
+        val redactedPeerSummary =
+            redactedDocument.getValue("peerSummaries").jsonArray.first().jsonObject
 
         assertTrue(redacted.contains("payloadPreview"))
         assertFalse(redactedTimelineEntry.containsKey("fullPayload"))
@@ -97,6 +99,74 @@ class SessionArtifactContractTest {
             "Trust reset",
             redactedScenario.getValue("lastOutcomeSummary").jsonPrimitive.content,
         )
+        assertEquals("Trusted", redactedPeerSummary.getValue("trustState").jsonPrimitive.content)
+        assertEquals(
+            "Connected",
+            redactedPeerSummary.getValue("connectionState").jsonPrimitive.content,
+        )
+        assertEquals(
+            "5",
+            redactedTimelineEntry
+                .getValue("payloadMetadata")
+                .jsonObject
+                .getValue("sizeBytes")
+                .jsonPrimitive
+                .content,
+        )
         assertEquals("2000", redactedDocument.getValue("createdAt").jsonPrimitive.content)
+    }
+
+    @Test
+    fun exportOmitsUnknownPayloadMetadata() = runTest {
+        // Arrange
+        val serializer =
+            JsonSessionArtifactSerializer(documentStore = InMemoryReferenceDocumentStore())
+        val session =
+            ReferenceSession(
+                sessionId = "session-2",
+                scenarioId = "technical-timeline",
+                authorityMode = ReferenceAuthorityMode.LIVE,
+                startedAtEpochMillis = 1_000L,
+                historyStatus = ReferenceHistoryStatus.LIVE,
+            )
+        val timeline =
+            listOf(
+                TimelineEntry(
+                    entryId = "entry-2",
+                    sessionId = session.sessionId,
+                    occurredAtEpochMillis = 1_500L,
+                    family = TimelineFamily.DIAGNOSTIC,
+                    severity = TimelineSeverity.INFO,
+                    title = "Mesh started",
+                    detail = "mesh.start() -> Started",
+                )
+            )
+        val artifact =
+            SessionArtifact(
+                artifactId = "artifact-session-2",
+                sourceSessionId = session.sessionId,
+                createdAtEpochMillis = 2_000L,
+                payloadPolicy = ArtifactPayloadPolicy.REDACTED_PREVIEW,
+                includesFullPayload = false,
+                scenarioSummary = mapOf("surface" to "main-guided"),
+                peerSummaries = emptyList(),
+                timelineEntries = timeline,
+                storagePath = "reference/exports/session-2.json",
+            )
+
+        // Act
+        val redacted =
+            serializer.serializeRedacted(
+                artifact = artifact,
+                session = session,
+                peers = emptyList(),
+                timeline = timeline,
+            )
+        val redactedDocument = Json.parseToJsonElement(redacted).jsonObject
+        val redactedTimelineEntry =
+            redactedDocument.getValue("timelineEntries").jsonArray.first().jsonObject
+
+        // Assert
+        assertFalse(redactedTimelineEntry.containsKey("payloadMetadata"))
     }
 }

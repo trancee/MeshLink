@@ -44,8 +44,8 @@ Define the exported session-artifact structure for the MeshLink reference app.
 | Field | Type | Required | Description |
 |---|---|---:|---|
 | `peerSuffix` | string | Yes | Default redacted peer identifier |
-| `trustState` | string | Yes | Current or final trust state |
-| `connectionState` | string | Yes | Current or final connection state |
+| `trustState` | string | Yes | Current or final operator-facing trust state label |
+| `connectionState` | string | Yes | Current or final operator-facing connection state label |
 | `lastDeliveryOutcome` | string | No | Latest delivery summary |
 
 ## Timeline entry block
@@ -59,7 +59,7 @@ Define the exported session-artifact structure for the MeshLink reference app.
 | `title` | string | Yes | Short event summary |
 | `detail` | string | Yes | Expanded explanation |
 | `peerSuffix` | string | No | Redacted peer context |
-| `payloadMetadata` | object | No | Size, direction, and content-type hints |
+| `payloadMetadata` | object | No | Size and content-type hints when known |
 | `payloadPreview` | string | No | Redacted preview shown by default |
 | `fullPayload` | string | No | Full payload content when explicitly included |
 
