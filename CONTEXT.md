@@ -33,8 +33,12 @@ A partially observed live session lost across process death or relaunch before i
 _Avoid_: Crash tombstone, recovered live session, retained interruption record
 
 **Session rollover**:
-The explicit, operator-confirmed transition from one live session to the next after a boundary-changing action. For a supported live session, session rollover includes a direct pre-rollover export path before the old session becomes retained history.
+The explicit, operator-confirmed transition from one live session to the next after a boundary-changing action. For a supported live session, session rollover uses the shared boundary-confirmation pattern and includes a direct pre-rollover export path before the old session becomes retained history.
 _Avoid_: Auto-restart, silent session reset
+
+**Boundary-confirmation pattern**:
+The consistent confirmation model used before a session boundary completes. It explains that the current session will close, offers the export choices allowed for that session type, and always provides a cancel path.
+_Avoid_: One-off boundary dialogs, silent leave, different rules per boundary
 
 **Pre-rollover export**:
 The last export opportunity for a supported live session before session rollover closes the full-payload path. It may include full payload only when the operator explicitly chooses it.
