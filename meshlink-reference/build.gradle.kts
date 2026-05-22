@@ -72,7 +72,10 @@ detekt {
     parallel = true
 }
 
-tasks.withType<Detekt>().configureEach { jvmTarget = "17" }
+tasks.withType<Detekt>().configureEach {
+    jvmTarget = "17"
+    exclude("**/build/**")
+}
 
 ktfmt { kotlinLangStyle() }
 

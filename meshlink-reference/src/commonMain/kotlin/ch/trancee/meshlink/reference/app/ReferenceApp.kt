@@ -1,3 +1,5 @@
+@file:Suppress("FunctionNaming")
+
 package ch.trancee.meshlink.reference.app
 
 import androidx.compose.foundation.layout.fillMaxSize

@@ -1,3 +1,5 @@
+@file:Suppress("FunctionNaming")
+
 package ch.trancee.meshlink.reference.lab
 
 import androidx.compose.foundation.layout.Arrangement
