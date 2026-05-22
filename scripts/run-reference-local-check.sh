@@ -6,6 +6,6 @@ cd "$repo_root"
 
 ./gradlew \
   --console=plain \
-  -Pandroid.experimental.lint.version=8.13.2 \
+  -Pandroid.experimental.lint.version=9.2.1 \
   :meshlink-reference:localCheck \
   "$@"

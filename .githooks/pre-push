@@ -197,7 +197,7 @@ fi
 
 gradle_cmd=(./gradlew --console=plain)
 if [[ "$need_reference" -eq 1 ]]; then
-  gradle_cmd+=(-Pandroid.experimental.lint.version=8.13.2)
+  gradle_cmd+=(-Pandroid.experimental.lint.version=9.2.1)
 fi
 
 if [[ "$need_yaml" -eq 1 ]]; then

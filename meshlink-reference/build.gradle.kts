@@ -4,7 +4,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
-    alias(libs.plugins.android.library)
+    alias(libs.plugins.android.kmp.library)
     alias(libs.plugins.compose.multiplatform)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
@@ -15,7 +15,14 @@ plugins {
 }
 
 kotlin {
-    androidTarget { compilerOptions { jvmTarget.set(JvmTarget.JVM_17) } }
+    android {
+        namespace = "ch.trancee.meshlink.reference"
+        compileSdk = 36
+        minSdk = 29
+        compilerOptions { jvmTarget.set(JvmTarget.JVM_17) }
+        androidResources { enable = true }
+        withHostTest {}
+    }
 
     listOf(iosArm64(), iosSimulatorArm64()).forEach { iosTarget ->
         iosTarget.binaries.framework {
@@ -48,7 +55,7 @@ kotlin {
             implementation(libs.kotlinx.coroutines.test)
             implementation(libs.compose.ui.test)
         }
-        androidUnitTest.dependencies {
+        getByName("androidHostTest").dependencies {
             implementation(libs.kotlin.test)
             implementation(libs.kotlinx.coroutines.test)
         }
@@ -56,20 +63,6 @@ kotlin {
             implementation(libs.kotlin.test)
             implementation(libs.kotlinx.coroutines.test)
         }
-    }
-}
-
-android {
-    namespace = "ch.trancee.meshlink.reference"
-    compileSdk = 36
-
-    defaultConfig { minSdk = 29 }
-
-    buildFeatures { compose = true }
-
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
     }
 }
 
@@ -107,14 +100,11 @@ val installDebug by tasks.registering {
     dependsOn(":meshlink-reference:android-app:installDebug")
 }
 
-tasks
-    .matching { it.name == "connectedDebugAndroidTest" }
-    .configureEach {
-        group = "verification"
-        description =
-            "Runs Android connected debug tests for the nested reference Android app module."
-        dependsOn(":meshlink-reference:android-app:connectedDebugAndroidTest")
-    }
+val connectedDebugAndroidTest by tasks.registering {
+    group = "verification"
+    description = "Runs Android connected debug tests for the nested reference Android app module."
+    dependsOn(":meshlink-reference:android-app:connectedDebugAndroidTest")
+}
 
 @OptIn(ExperimentalKotlinGradlePluginApi::class)
 powerAssert {
@@ -125,5 +115,5 @@ powerAssert {
             "kotlin.test.assertFalse",
             "kotlin.test.assertTrue",
         )
-    includedSourceSets = listOf("commonTest", "androidUnitTest", "iosTest")
+    includedSourceSets = listOf("commonTest", "androidHostTest", "iosTest")
 }

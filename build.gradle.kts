@@ -5,12 +5,12 @@ import org.gradle.api.tasks.wrapper.Wrapper
 plugins {
     base
     alias(libs.plugins.kotlin.multiplatform) apply false
-    alias(libs.plugins.kotlin.android) apply false
     alias(libs.plugins.kotlin.allopen) apply false
     alias(libs.plugins.kotlin.power.assert) apply false
     alias(libs.plugins.kotlin.serialization) apply false
     alias(libs.plugins.kotlin.compose) apply false
     alias(libs.plugins.android.library) apply false
+    alias(libs.plugins.android.kmp.library) apply false
     alias(libs.plugins.android.application) apply false
     alias(libs.plugins.compose.multiplatform) apply false
     alias(libs.plugins.detekt) apply false
@@ -91,6 +91,6 @@ tasks.named("check") {
 }
 
 tasks.wrapper {
-    gradleVersion = "8.11.1"
+    gradleVersion = "9.5.0"
     distributionType = Wrapper.DistributionType.BIN
 }
