@@ -12,6 +12,8 @@ import ch.trancee.meshlink.platform.currentEpochMillis
 import ch.trancee.meshlink.routing.RouteCoordinator
 import ch.trancee.meshlink.routing.RouteEntry
 import ch.trancee.meshlink.transfer.OutboundTransferSession
+import ch.trancee.meshlink.transfer.TransferChunkPlan
+import ch.trancee.meshlink.transfer.TransferSessionRoute
 import ch.trancee.meshlink.trust.TofuTrustStore
 import ch.trancee.meshlink.trust.TrustRecord
 
@@ -150,14 +152,20 @@ internal class MeshEngineOutboundPreparationSupport(
                     ciphertext = sealedPayload,
                 )
                 .encode()
-        return OutboundTransferSession.fromOwnedChunks(
-            transferId = callbacks.createTransferId(),
-            messageId = callbacks.createMessageId(),
-            originPeerId = localIdentity.peerId,
-            destinationPeerId = peerId,
-            chunks = chunkTransferPayload(innerEnvelope, TRANSFER_CHUNK_PAYLOAD_BYTES),
-            totalBytes = innerEnvelope.size,
-            maxChunkPayloadBytes = TRANSFER_CHUNK_PAYLOAD_BYTES,
+        return OutboundTransferSession.fromOwnedPlan(
+            route =
+                TransferSessionRoute(
+                    transferId = callbacks.createTransferId(),
+                    messageId = callbacks.createMessageId(),
+                    originPeerId = localIdentity.peerId,
+                    destinationPeerId = peerId,
+                ),
+            chunkPlan =
+                TransferChunkPlan(
+                    chunks = chunkTransferPayload(innerEnvelope, TRANSFER_CHUNK_PAYLOAD_BYTES),
+                    totalBytes = innerEnvelope.size,
+                    maxChunkPayloadBytes = TRANSFER_CHUNK_PAYLOAD_BYTES,
+                ),
         )
     }
 

@@ -9,6 +9,7 @@ import ch.trancee.meshlink.transfer.InboundChunkAcceptance
 import ch.trancee.meshlink.transfer.InboundTransferSession
 import ch.trancee.meshlink.transfer.OutboundTransferSession
 import ch.trancee.meshlink.transfer.RelayTransferSession
+import ch.trancee.meshlink.transfer.toTransferStartDescriptor
 import ch.trancee.meshlink.wire.WireFrame
 
 internal data class MeshEngineTransferState(
@@ -75,14 +76,8 @@ internal class MeshEngineTransferSupport(
                 existingSession
             } else {
                 InboundTransferSession(
-                        transferId = frame.transferId,
-                        messageId = frame.messageId,
-                        originPeerId = frame.originPeerId,
-                        destinationPeerId = frame.destinationPeerId,
+                        startDescriptor = frame.toTransferStartDescriptor(),
                         upstreamPeerId = peerId,
-                        totalBytes = frame.totalBytes,
-                        totalChunks = frame.totalChunks,
-                        maxChunkPayloadBytes = frame.maxChunkPayloadBytes,
                     )
                     .also { session -> state.inboundTransfers[frame.transferId] = session }
             }

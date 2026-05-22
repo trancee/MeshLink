@@ -8,41 +8,76 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
 
+internal data class TransferSessionRoute(
+    val transferId: String,
+    val messageId: String,
+    val originPeerId: PeerId,
+    val destinationPeerId: PeerId,
+)
+
+internal data class TransferChunkPlan(
+    val chunks: List<ByteArray>,
+    val totalBytes: Int,
+    val maxChunkPayloadBytes: Int,
+)
+
+internal data class TransferStartDescriptor(
+    val route: TransferSessionRoute,
+    val totalBytes: Int,
+    val totalChunks: Int,
+    val maxChunkPayloadBytes: Int,
+) {
+    fun asStartFrame(): WireFrame.TransferStart {
+        return WireFrame.TransferStart(
+            transferId = route.transferId,
+            messageId = route.messageId,
+            originPeerId = route.originPeerId,
+            destinationPeerId = route.destinationPeerId,
+            totalBytes = totalBytes,
+            totalChunks = totalChunks,
+            maxChunkPayloadBytes = maxChunkPayloadBytes,
+        )
+    }
+}
+
 internal class OutboundTransferSession
 private constructor(
-    internal val transferId: String,
-    internal val messageId: String,
-    internal val originPeerId: PeerId,
-    internal val destinationPeerId: PeerId,
-    chunks: List<ByteArray>,
-    internal val totalBytes: Int,
-    internal val maxChunkPayloadBytes: Int,
+    private val startDescriptor: TransferStartDescriptor,
+    chunkPlan: TransferChunkPlan,
     copyChunks: Boolean,
 ) {
+    internal val transferId: String
+        get() = startDescriptor.route.transferId
+
+    internal val messageId: String
+        get() = startDescriptor.route.messageId
+
+    internal val originPeerId: PeerId
+        get() = startDescriptor.route.originPeerId
+
+    internal val destinationPeerId: PeerId
+        get() = startDescriptor.route.destinationPeerId
+
+    internal val totalBytes: Int
+        get() = startDescriptor.totalBytes
+
+    internal val maxChunkPayloadBytes: Int
+        get() = startDescriptor.maxChunkPayloadBytes
+
     internal constructor(
-        transferId: String,
-        messageId: String,
-        originPeerId: PeerId,
-        destinationPeerId: PeerId,
-        chunks: List<ByteArray>,
-        totalBytes: Int,
-        maxChunkPayloadBytes: Int,
+        route: TransferSessionRoute,
+        chunkPlan: TransferChunkPlan,
     ) : this(
-        transferId = transferId,
-        messageId = messageId,
-        originPeerId = originPeerId,
-        destinationPeerId = destinationPeerId,
-        chunks = chunks,
-        totalBytes = totalBytes,
-        maxChunkPayloadBytes = maxChunkPayloadBytes,
+        startDescriptor = chunkPlan.toStartDescriptor(route),
+        chunkPlan = chunkPlan,
         copyChunks = true,
     )
 
     internal val chunks: List<ByteArray> =
         if (copyChunks) {
-            chunks.map { chunk -> chunk.copyOf() }
+            chunkPlan.chunks.map { chunk -> chunk.copyOf() }
         } else {
-            chunks.toList()
+            chunkPlan.chunks.toList()
         }
     private val acknowledgedChunks: BooleanArray = BooleanArray(chunks.size)
     private val acknowledgedChunkCountFlow: MutableStateFlow<Int> = MutableStateFlow(0)
@@ -52,15 +87,7 @@ private constructor(
         get() = chunks.size
 
     internal fun asStartFrame(): WireFrame.TransferStart {
-        return WireFrame.TransferStart(
-            transferId = transferId,
-            messageId = messageId,
-            originPeerId = originPeerId,
-            destinationPeerId = destinationPeerId,
-            totalBytes = totalBytes,
-            totalChunks = totalChunks,
-            maxChunkPayloadBytes = maxChunkPayloadBytes,
-        )
+        return startDescriptor.asStartFrame()
     }
 
     internal fun markAcknowledged(ackFrame: WireFrame.TransferAck): Unit {
@@ -132,23 +159,13 @@ private constructor(
     }
 
     internal companion object {
-        internal fun fromOwnedChunks(
-            transferId: String,
-            messageId: String,
-            originPeerId: PeerId,
-            destinationPeerId: PeerId,
-            chunks: List<ByteArray>,
-            totalBytes: Int,
-            maxChunkPayloadBytes: Int,
+        internal fun fromOwnedPlan(
+            route: TransferSessionRoute,
+            chunkPlan: TransferChunkPlan,
         ): OutboundTransferSession {
             return OutboundTransferSession(
-                transferId = transferId,
-                messageId = messageId,
-                originPeerId = originPeerId,
-                destinationPeerId = destinationPeerId,
-                chunks = chunks,
-                totalBytes = totalBytes,
-                maxChunkPayloadBytes = maxChunkPayloadBytes,
+                startDescriptor = chunkPlan.toStartDescriptor(route),
+                chunkPlan = chunkPlan,
                 copyChunks = false,
             )
         }
@@ -177,15 +194,30 @@ internal data class PreparedInboundTransferAck(
 
 internal class InboundTransferSession
 internal constructor(
-    internal val transferId: String,
-    internal val messageId: String,
-    internal val originPeerId: PeerId,
-    internal val destinationPeerId: PeerId,
+    private val startDescriptor: TransferStartDescriptor,
     internal var upstreamPeerId: PeerId,
-    internal val totalBytes: Int,
-    internal val totalChunks: Int,
-    internal val maxChunkPayloadBytes: Int,
 ) {
+    internal val transferId: String
+        get() = startDescriptor.route.transferId
+
+    internal val messageId: String
+        get() = startDescriptor.route.messageId
+
+    internal val originPeerId: PeerId
+        get() = startDescriptor.route.originPeerId
+
+    internal val destinationPeerId: PeerId
+        get() = startDescriptor.route.destinationPeerId
+
+    internal val totalBytes: Int
+        get() = startDescriptor.totalBytes
+
+    internal val totalChunks: Int
+        get() = startDescriptor.totalChunks
+
+    internal val maxChunkPayloadBytes: Int
+        get() = startDescriptor.maxChunkPayloadBytes
+
     private val receivedChunks: Array<ByteArray?> = arrayOfNulls(totalChunks)
     private val receivedChunkBitSet: ByteArray = ByteArray((totalChunks + 7) / 8)
     private var receivedChunkCount: Int = 0
@@ -305,6 +337,32 @@ internal constructor(
     internal val destinationPeerId: PeerId,
     internal var upstreamPeerId: PeerId,
 )
+
+private fun TransferChunkPlan.toStartDescriptor(
+    route: TransferSessionRoute
+): TransferStartDescriptor {
+    return TransferStartDescriptor(
+        route = route,
+        totalBytes = totalBytes,
+        totalChunks = chunks.size,
+        maxChunkPayloadBytes = maxChunkPayloadBytes,
+    )
+}
+
+internal fun WireFrame.TransferStart.toTransferStartDescriptor(): TransferStartDescriptor {
+    return TransferStartDescriptor(
+        route =
+            TransferSessionRoute(
+                transferId = transferId,
+                messageId = messageId,
+                originPeerId = originPeerId,
+                destinationPeerId = destinationPeerId,
+            ),
+        totalBytes = totalBytes,
+        totalChunks = totalChunks,
+        maxChunkPayloadBytes = maxChunkPayloadBytes,
+    )
+}
 
 private fun ByteArray.isMarked(index: Int): Boolean {
     if (index < 0) {

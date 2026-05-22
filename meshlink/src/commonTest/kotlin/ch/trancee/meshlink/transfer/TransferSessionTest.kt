@@ -242,26 +242,35 @@ class TransferSessionTest {
     private fun newOutboundSession(chunkCount: Int): OutboundTransferSession {
         val chunks = List(chunkCount) { index -> byteArrayOf(index.toByte()) }
         return OutboundTransferSession(
-            transferId = "transfer-1",
-            messageId = "message-1",
-            originPeerId = PeerId("origin"),
-            destinationPeerId = PeerId("destination"),
-            chunks = chunks,
-            totalBytes = chunks.sumOf { chunk -> chunk.size },
-            maxChunkPayloadBytes = 1,
+            route = transferRoute(destinationPeerId = PeerId("destination")),
+            chunkPlan =
+                TransferChunkPlan(
+                    chunks = chunks,
+                    totalBytes = chunks.sumOf { chunk -> chunk.size },
+                    maxChunkPayloadBytes = 1,
+                ),
         )
     }
 
     private fun newInboundSession(chunkCount: Int): InboundTransferSession {
         return InboundTransferSession(
+            startDescriptor =
+                TransferStartDescriptor(
+                    route = transferRoute(destinationPeerId = PeerId("destination")),
+                    totalBytes = chunkCount,
+                    totalChunks = chunkCount,
+                    maxChunkPayloadBytes = 1,
+                ),
+            upstreamPeerId = PeerId("upstream"),
+        )
+    }
+
+    private fun transferRoute(destinationPeerId: PeerId): TransferSessionRoute {
+        return TransferSessionRoute(
             transferId = "transfer-1",
             messageId = "message-1",
             originPeerId = PeerId("origin"),
-            destinationPeerId = PeerId("destination"),
-            upstreamPeerId = PeerId("upstream"),
-            totalBytes = chunkCount,
-            totalChunks = chunkCount,
-            maxChunkPayloadBytes = 1,
+            destinationPeerId = destinationPeerId,
         )
     }
 }
