@@ -47,7 +47,9 @@ coordinated update:
   migrated together
 
 Use `./gradlew checkAgp9Invariants` after build-surface changes to confirm the
-post-migration shape still matches those expectations.
+post-migration shape still matches those expectations, or
+`./scripts/run-agp9-verification.sh` when you want the full retained
+cross-module verification bundle from this migration.
 
 ## Reader and intended outcome
 

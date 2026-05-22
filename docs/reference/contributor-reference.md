@@ -28,6 +28,7 @@ Use this page when you need exact commands, matrices, or policy details.
 | Build the library | `./gradlew :meshlink:build` | Standard first build for the library module. |
 | Compile without the full build | `./gradlew :meshlink:assemble` | Useful during early edit loops. |
 | Run fast reference-app verification | `./scripts/run-reference-local-check.sh` | Runs `:meshlink-reference:localCheck` on the current AGP 9 toolchain. |
+| Run the AGP 9 build-surface verification bundle | `./scripts/run-agp9-verification.sh` | Runs the post-migration invariant check plus the cross-module verification bundle used for Gradle, AGP, Kotlin, or module-shape changes. |
 | Build the reference app | `./gradlew :meshlink-reference:build` | Use when you need release APK or iOS framework artifacts; slower because it links release frameworks for all iOS targets. |
 | Format Kotlin | `./gradlew :meshlink:ktfmtFormat` | Repository formatting is ktfmt-based. |
 | Run the full library test bundle | `./gradlew :meshlink:allTests` | Aggregates tests across the library targets. |
@@ -49,7 +50,7 @@ Use this page when you need exact commands, matrices, or policy details.
 | Change type | Expected verification |
 |---|---|
 | Docs-only change | `./gradlew verifyDocs` |
-| Build-tooling or module-shape change | `./gradlew checkAgp9Invariants` plus the relevant module builds or checks for the changed surface |
+| Build-tooling or module-shape change | `./scripts/run-agp9-verification.sh` for the full bundle, or `./gradlew checkAgp9Invariants` plus the relevant module builds or checks when you want a narrower loop |
 | Shared-library logic change | `./gradlew :meshlink:allTests :meshlink:detekt :meshlink:koverVerify` |
 | Android-specific library glue | `./gradlew :meshlink:testDebugUnitTest :meshlink:detekt :meshlink:koverVerify` plus `:meshlink:allTests` when parity or shared behavior is affected |
 | iOS-specific library glue | `./gradlew :meshlink:iosSimulatorArm64Test`, plus `:meshlink:detekt :meshlink:koverVerify`; use `:meshlink:allTests` when parity or shared behavior is affected |

@@ -47,7 +47,7 @@ for file in "${staged_files[@]}"; do
       need_proof_android=1
       need_agp9_invariants=1
       ;;
-    .githooks/*|scripts/install-git-hooks.sh)
+    .githooks/*|scripts/install-git-hooks.sh|scripts/run-agp9-verification.sh)
       need_hook_validation=1
       ;;
     build.gradle.kts|settings.gradle.kts|gradle.properties|gradle/*)
@@ -79,7 +79,12 @@ done
 
 if [[ "$need_hook_validation" -eq 1 ]]; then
   echo "[pre-commit] Validating hook shell scripts"
-  bash -n .githooks/pre-commit .githooks/pre-push .githooks/commit-msg scripts/install-git-hooks.sh
+  bash -n \
+    .githooks/pre-commit \
+    .githooks/pre-push \
+    .githooks/commit-msg \
+    scripts/install-git-hooks.sh \
+    scripts/run-agp9-verification.sh
 fi
 
 if [[ "$need_yaml" -eq 1 ]]; then
