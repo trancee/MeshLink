@@ -33,8 +33,12 @@ The current active reference-app session backed by the running MeshLink runtime.
 _Avoid_: Current history, active artifact
 
 **Retained session**:
-A previously captured local session snapshot kept separate from the live session for review. Retained sessions preserve redacted evidence and do not keep full payload content.
+A previously captured local session snapshot kept separate from the live session for review. Retained sessions are created automatically when a live session ends or rolls over, preserve redacted evidence, and do not keep full payload content.
 _Avoid_: Saved live session, archived runtime
+
+**Automatic retention**:
+The default rule that a finished live session is added to recent history without requiring a separate operator action. Automatic retention preserves evidence before the operator moves on to a new session.
+_Avoid_: Optional save, manual retain only
 
 **Session artifact**:
 An exported evidence document for one session. A session artifact summarizes the scenario, peer state, timeline, and export redaction policy.
