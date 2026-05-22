@@ -24,6 +24,10 @@ _Avoid_: Current config, latest values, live config
 The point where the reference app stops treating evidence as part of one evaluated session and starts a new one. A new session boundary is required when an evaluation-relevant capability changes the conditions being assessed.
 _Avoid_: Continue same session, silent drift, mixed evidence
 
+**Relaunch boundary**:
+The implicit session boundary created when the app process dies or relaunches. A relaunched app starts a new live session rather than resuming the prior live evidence window.
+_Avoid_: Seamless live resume, same session after relaunch, restored live proof
+
 **Session rollover**:
 The explicit, operator-confirmed transition from one live session to the next after a boundary-changing action. For a supported live session, session rollover includes a direct pre-rollover export path before the old session becomes retained history.
 _Avoid_: Auto-restart, silent session reset
