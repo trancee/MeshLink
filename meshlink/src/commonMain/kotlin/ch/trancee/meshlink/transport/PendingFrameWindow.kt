@@ -20,13 +20,16 @@ internal class PendingFrameWindow(
     suspend fun acquire(frameBytes: Int): Boolean {
         require(frameBytes > 0) { "frameBytes must be greater than zero" }
 
-        while (true) {
+        var acquired = false
+        var closed = false
+        while (!acquired && !closed) {
             val snapshot = usageFlow.value
-            if (snapshot.closed) {
-                return false
+            closed = snapshot.closed
+            if (closed) {
+                continue
             }
             if (canReserve(snapshot, frameBytes)) {
-                val reserved = mutationMutex.withLock {
+                acquired = mutationMutex.withLock {
                     val current = usageFlow.value
                     if (!canReserve(current, frameBytes)) {
                         return@withLock false
@@ -38,18 +41,15 @@ internal class PendingFrameWindow(
                         )
                     true
                 }
-                if (reserved) {
-                    return true
-                }
             }
-
-            val resumedState = usageFlow.first { state ->
-                state.closed || canReserve(state, frameBytes)
-            }
-            if (resumedState.closed) {
-                return false
+            if (!acquired) {
+                closed =
+                    usageFlow
+                        .first { state -> state.closed || canReserve(state, frameBytes) }
+                        .closed
             }
         }
+        return acquired
     }
 
     suspend fun release(frameBytes: Int): Unit {
