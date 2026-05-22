@@ -177,7 +177,7 @@ The one-device, non-authoritative walkthrough surface. It allows inspection and 
 _Avoid_: Demo mode, offline proof
 
 **Solo session**:
-A session produced on the solo exploration path. A solo session remains non-authoritative, is not added to recent history automatically, and may be exported only through an explicit redacted export.
+A session produced on the solo exploration path. Entering solo exploration starts a new solo session instead of changing the authority mode of an existing session. A solo session remains non-authoritative, is not added to recent history automatically, and may be exported only through an explicit redacted export.
 _Avoid_: Retained live proof, authoritative session, normal recent-history entry
 
 ## Example dialogue
