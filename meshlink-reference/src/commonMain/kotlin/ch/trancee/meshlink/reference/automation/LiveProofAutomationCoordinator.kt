@@ -104,6 +104,7 @@ internal class LiveProofAutomationCoordinator(
                 snapshot = snapshot,
                 requiredPeerCount = automationConfig.requiredPeerCount,
                 targetPeerIndex = automationConfig.targetPeerIndex,
+                targetPeerId = automationConfig.targetPeerId,
             )
         if (
             !progress.sendRequested &&
@@ -112,13 +113,15 @@ internal class LiveProofAutomationCoordinator(
                     snapshot = snapshot,
                     requiredPeerCount = automationConfig.requiredPeerCount,
                     targetPeerIndex = automationConfig.targetPeerIndex,
+                    targetPeerId = automationConfig.targetPeerId,
                 )
         ) {
             platformServices.emitAutomationLog(
                 "REFERENCE_AUTOMATION send.requested role=sender " +
                     "peer=${targetPeer.peerSuffix} " +
                     "targetIndex=${automationConfig.targetPeerIndex} " +
-                    "requiredPeerCount=${automationConfig.requiredPeerCount}"
+                    "requiredPeerCount=${automationConfig.requiredPeerCount} " +
+                    "targetPeerId=${automationConfig.targetPeerId ?: "auto"}"
             )
             guidedViewModel.sendHelloToPeer(targetPeer.peerId)
             progress.sendRequested = true
@@ -127,16 +130,12 @@ internal class LiveProofAutomationCoordinator(
         if (
             !progress.completionLogged && snapshot.session.lastOutcomeSummary == "SendResult.Sent"
         ) {
-            val selectedPeer = targetPeer ?: snapshot.peers.firstOrNull()
             val deliveryDetail =
-                latestSenderDeliveryDetail(
-                    snapshot = snapshot,
-                    peerSuffix = selectedPeer?.peerSuffix,
-                )
+                latestSenderDeliveryDetail(snapshot = snapshot, peerSuffix = targetPeer?.peerSuffix)
             platformServices.emitAutomationLog(
                 "REFERENCE_AUTOMATION proof.complete role=sender " +
                     "outcome=${snapshot.session.lastOutcomeSummary} " +
-                    "peer=${selectedPeer?.peerSuffix ?: "none"} " +
+                    "peer=${targetPeer?.peerSuffix ?: "none"} " +
                     "delivery=${deliveryDetail ?: "none"}"
             )
             progress.completionLogged = true

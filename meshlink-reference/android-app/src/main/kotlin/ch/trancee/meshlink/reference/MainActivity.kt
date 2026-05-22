@@ -33,6 +33,7 @@ public class MainActivity : ComponentActivity() {
                         intent?.getIntExtra(EXTRA_UI_AUTOMATION_REQUIRED_PEER_COUNT, 1) ?: 1,
                     targetPeerIndex =
                         intent?.getIntExtra(EXTRA_UI_AUTOMATION_TARGET_PEER_INDEX, 0) ?: 0,
+                    targetPeerId = intent?.getStringExtra(EXTRA_UI_AUTOMATION_TARGET_PEER_ID),
                 )
             } else if (automationEnabled) {
                 createAndroidAutomationPlatformServices(
@@ -65,6 +66,8 @@ public class MainActivity : ComponentActivity() {
             "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_REQUIRED_PEER_COUNT"
         public const val EXTRA_UI_AUTOMATION_TARGET_PEER_INDEX: String =
             "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_TARGET_PEER_INDEX"
+        public const val EXTRA_UI_AUTOMATION_TARGET_PEER_ID: String =
+            "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_TARGET_PEER_ID"
         public const val DEFAULT_AUTOMATION_STORAGE_SUBDIRECTORY: String = "default"
         public const val DEFAULT_LIVE_AUTOMATION_APP_ID: String = "demo.meshlink.reference.live"
         public const val AUTOMATION_MODE_SCRIPTED: String = "scripted"
@@ -105,9 +108,9 @@ public class MainActivity : ComponentActivity() {
 }
 
 private fun String?.toReferenceAutomationRole(): ReferenceAutomationRole {
-    return if (this.equals("sender", ignoreCase = true)) {
-        ReferenceAutomationRole.SENDER
-    } else {
-        ReferenceAutomationRole.PASSIVE
+    return when {
+        this.equals("sender", ignoreCase = true) -> ReferenceAutomationRole.SENDER
+        this.equals("relay", ignoreCase = true) -> ReferenceAutomationRole.RELAY
+        else -> ReferenceAutomationRole.PASSIVE
     }
 }

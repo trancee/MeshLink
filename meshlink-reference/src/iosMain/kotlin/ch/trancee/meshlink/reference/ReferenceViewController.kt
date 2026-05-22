@@ -38,6 +38,7 @@ public fun createReferenceLiveAutomationRootViewController(
     role: String,
     requiredPeerCount: Int,
     targetPeerIndex: Int,
+    targetPeerId: String?,
 ): UIViewController {
     val platformServices =
         createIosLiveAutomationPlatformServices(
@@ -46,6 +47,7 @@ public fun createReferenceLiveAutomationRootViewController(
             role = role.toReferenceAutomationRole(),
             requiredPeerCount = requiredPeerCount,
             targetPeerIndex = targetPeerIndex,
+            targetPeerId = targetPeerId,
         )
     return ComposeUIViewController { ReferenceApp(platformServices = platformServices) }
 }

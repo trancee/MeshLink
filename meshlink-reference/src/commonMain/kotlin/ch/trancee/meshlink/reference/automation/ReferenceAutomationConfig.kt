@@ -8,6 +8,7 @@ public data class ReferenceAutomationConfig(
     public val storageSubdirectory: String,
     public val requiredPeerCount: Int = 1,
     public val targetPeerIndex: Int = 0,
+    public val targetPeerId: String? = null,
 )
 
 public enum class ReferenceAutomationMode {

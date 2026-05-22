@@ -9,6 +9,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import ch.trancee.meshlink.reference.guided.GuidedFirstExchangeViewModel
 import ch.trancee.meshlink.reference.meshlink.ReferenceControllerSnapshot
+import ch.trancee.meshlink.reference.meshlink.redactedSuffix
+import ch.trancee.meshlink.reference.model.TimelineFamily
 import ch.trancee.meshlink.reference.platform.PlatformServices
 import ch.trancee.meshlink.reference.timeline.TechnicalTimelineStore
 
@@ -63,11 +65,13 @@ internal fun shouldAutoSendGuidedHello(
     snapshot: ReferenceControllerSnapshot,
     requiredPeerCount: Int = 1,
     targetPeerIndex: Int = 0,
+    targetPeerId: String? = null,
 ): Boolean {
     return autoSendTargetPeer(
         snapshot = snapshot,
         requiredPeerCount = requiredPeerCount,
         targetPeerIndex = targetPeerIndex,
+        targetPeerId = targetPeerId,
     ) != null
 }
 
@@ -75,12 +79,39 @@ internal fun autoSendTargetPeer(
     snapshot: ReferenceControllerSnapshot,
     requiredPeerCount: Int,
     targetPeerIndex: Int,
-) =
-    snapshot.peers
-        .takeIf { peers ->
-            targetPeerIndex >= 0 && peers.size >= requiredPeerCount && targetPeerIndex < peers.size
-        }
-        ?.get(targetPeerIndex)
+    targetPeerId: String? = null,
+): AutoSendTargetPeer? {
+    val explicitTargetPeerId = targetPeerId?.takeIf { hasAvailableRouteForPeer(snapshot, it) }
+    if (explicitTargetPeerId != null) {
+        return AutoSendTargetPeer(
+            peerId = explicitTargetPeerId,
+            peerSuffix = redactedSuffix(explicitTargetPeerId),
+        )
+    }
+    val selectedPeer =
+        snapshot.peers
+            .takeIf { peers ->
+                targetPeerIndex >= 0 &&
+                    peers.size >= requiredPeerCount &&
+                    targetPeerIndex < peers.size
+            }
+            ?.get(targetPeerIndex) ?: return null
+    return AutoSendTargetPeer(peerId = selectedPeer.peerId, peerSuffix = selectedPeer.peerSuffix)
+}
+
+internal fun hasAvailableRouteForPeer(
+    snapshot: ReferenceControllerSnapshot,
+    peerId: String,
+): Boolean {
+    return snapshot.timeline.any { entry ->
+        entry.family == TimelineFamily.DIAGNOSTIC &&
+            entry.peerSuffix == redactedSuffix(peerId) &&
+            entry.detail.contains("peerId=$peerId") &&
+            entry.detail.contains("routeAvailable=true")
+    }
+}
+
+internal data class AutoSendTargetPeer(val peerId: String, val peerSuffix: String)
 
 internal fun shouldRequestLiveProofMeshStart(
     meshStartRequested: Boolean,

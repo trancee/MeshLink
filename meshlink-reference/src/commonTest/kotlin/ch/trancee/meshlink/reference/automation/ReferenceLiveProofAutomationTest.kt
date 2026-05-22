@@ -1,11 +1,15 @@
 package ch.trancee.meshlink.reference.automation
 
 import ch.trancee.meshlink.reference.meshlink.ReferenceControllerSnapshot
+import ch.trancee.meshlink.reference.meshlink.redactedSuffix
 import ch.trancee.meshlink.reference.model.PeerConnectionSnapshotState
 import ch.trancee.meshlink.reference.model.PeerSnapshot
 import ch.trancee.meshlink.reference.model.PeerTrustState
 import ch.trancee.meshlink.reference.model.ReferenceAuthorityMode
 import ch.trancee.meshlink.reference.model.ReferenceSession
+import ch.trancee.meshlink.reference.model.TimelineEntry
+import ch.trancee.meshlink.reference.model.TimelineFamily
+import ch.trancee.meshlink.reference.model.TimelineSeverity
 import kotlin.test.Test
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
@@ -96,6 +100,67 @@ class ReferenceLiveProofAutomationTest {
         // Assert
         assertFalse(blockedByPeerCount)
         assertFalse(blockedByTargetIndex)
+    }
+
+    @Test
+    fun autoSendCanTargetARoutedPeerIdOnceRouteDiagnosticsAppear() {
+        // Arrange
+        val routedPeerId = "peer-routed-target-abcdef"
+        val snapshot =
+            ReferenceControllerSnapshot(
+                session =
+                    ReferenceSession(
+                        sessionId = "session-1",
+                        scenarioId = "guided-first-exchange",
+                        authorityMode = ReferenceAuthorityMode.LIVE,
+                        startedAtEpochMillis = 1L,
+                    ),
+                peers =
+                    listOf(
+                        PeerSnapshot(
+                            peerId = "peer-direct-1",
+                            peerSuffix = "abc123",
+                            trustState = PeerTrustState.UNKNOWN,
+                            connectionState = PeerConnectionSnapshotState.CONNECTED,
+                        )
+                    ),
+                timeline =
+                    listOf(
+                        TimelineEntry(
+                            entryId = "session-1-1",
+                            sessionId = "session-1",
+                            occurredAtEpochMillis = 2L,
+                            family = TimelineFamily.DIAGNOSTIC,
+                            severity = TimelineSeverity.INFO,
+                            title = "ROUTE_DISCOVERED",
+                            detail =
+                                "ROUTE_DISCOVERED @ routing.routeAvailable {peerId=$routedPeerId,routeAvailable=true,nextHopPeerId=peer-direct-1,routeIsDirect=false}",
+                            peerSuffix = redactedSuffix(routedPeerId),
+                        )
+                    ),
+                activePowerModeLabel = "Automatic",
+            )
+
+        // Act
+        val actual =
+            shouldAutoSendGuidedHello(
+                snapshot = snapshot,
+                requiredPeerCount = 1,
+                targetPeerIndex = 0,
+                targetPeerId = routedPeerId,
+            )
+        val selectedTarget =
+            autoSendTargetPeer(
+                snapshot = snapshot,
+                requiredPeerCount = 1,
+                targetPeerIndex = 0,
+                targetPeerId = routedPeerId,
+            )
+
+        // Assert
+        assertTrue(actual)
+        assertTrue(selectedTarget?.peerId == routedPeerId)
+        assertTrue(selectedTarget?.peerSuffix == redactedSuffix(routedPeerId))
     }
 
     @Test
