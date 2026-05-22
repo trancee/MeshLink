@@ -170,6 +170,8 @@ operating-system rules force a clearly explained difference.
 - Exported session artifacts must include payload metadata and redacted
   previews by default and require an explicit opt-in before including full
   payload content.
+- Retained-session exports must stay redacted because retained history does not
+  preserve full payload content.
 - Recent local session history must stay clearly separated from the live
   session and be removable through explicit clear or delete controls.
 

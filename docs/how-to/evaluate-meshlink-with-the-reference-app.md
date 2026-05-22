@@ -140,7 +140,8 @@ After the guided exchange succeeds:
 4. export a redacted artifact
 
 The default export should keep payload previews redacted and should not
-silently switch to full-payload export.
+silently switch to full-payload export. Retained sessions stay redacted, so
+full-payload export is only available from the live session before retention.
 
 ## 8. Use the right validation path for the job
 

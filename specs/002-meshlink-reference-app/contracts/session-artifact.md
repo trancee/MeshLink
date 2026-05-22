@@ -10,6 +10,8 @@ Define the exported session-artifact structure for the MeshLink reference app.
 - Scope: one exported artifact per export action
 - Default policy: payload metadata plus redacted previews
 - Elevated policy: full payload content only after explicit operator opt-in
+- Retained-session exports remain redacted because retained history does not
+  persist full payload content
 
 ## Top-level fields
 
@@ -75,6 +77,8 @@ Define the exported session-artifact structure for the MeshLink reference app.
 - When `fullPayloadIncluded = false`, `fullPayload` must be absent from all
   timeline entries.
 - `peerSummaries` use redacted peer identifiers by default.
+- Retained-session exports must keep `fullPayloadIncluded = false` because
+  retained history strips sensitive payload content.
 - `authorityMode = solo` must not be exported as authoritative live proof.
 - `surface = lab` must preserve a non-normative indicator in the exported
   scenario block.

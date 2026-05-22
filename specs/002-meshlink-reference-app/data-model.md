@@ -115,10 +115,11 @@ Represents the bounded retained-history index.
 ## Validation rules
 
 - Lab scenarios must never appear in the main guided experience.
-- Solo mode must never generate authoritative live-peer or live-delivery proof.
+- Solo exploration mode must never generate authoritative live-peer or
+  live-delivery proof.
 - Recent history stores only redacted data by default.
-- Full payload content may appear only in explicit export artifacts and only
-  after operator opt-in.
+- Full payload content may appear only in explicit live-session export
+  artifacts and only after operator opt-in.
 - Session history and live session state remain visibly separate.
 - Retained-history pruning removes the oldest session records once the index
   would exceed 20 sessions.
