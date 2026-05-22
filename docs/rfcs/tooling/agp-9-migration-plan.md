@@ -1,6 +1,6 @@
 # AGP 9 Migration Plan for MeshLink Build Modules
 
-Status: Draft maintainer execution plan
+Status: Draft maintainer execution plan and checklist
 
 ## Reader and intended outcome
 
@@ -102,6 +102,107 @@ shared KMP module:
 
 This boundary keeps Android app bootstrapping separate from shared runtime
 logic while minimizing churn in the iOS host integration.
+
+## Execution checklist (build-green order)
+
+The phase plan below is still the right logical breakdown, but the repository
+should be migrated in **build-green commit order**, not by naïvely bumping AGP
+first.
+
+- [ ] **C01: Split the reference Android app from the shared KMP module while staying on the current AGP 8 toolchain** `depends:[]`
+  > After this: `:meshlink-reference` is a shared KMP + Android library module, `:meshlink-reference:android-app` owns the Android launcher and instrumentation surface, and iOS still builds from `:meshlink-reference`.
+- [ ] **C02: Upgrade the toolchain and migrate all remaining Android plugin usage in one coordinated AGP 9 commit** `depends:[C01]`
+  > After this: Gradle 9 + AGP 9 are in place, `:meshlink` and `:meshlink-reference` use the AGP 9 KMP Android library plugin, and the proof app no longer applies `org.jetbrains.kotlin.android`.
+- [ ] **C03: Remove AGP 8 workarounds and normalize scripts, hooks, and docs around the final task graph** `depends:[C02]`
+  > After this: the lint override, reference-app command surface, and contributor docs all match the AGP 9 module layout.
+- [ ] **C04: Run the final full-repo verification bundle on the AGP 9 branch** `depends:[C03]`
+  > After this: the migration branch has fresh end-to-end build evidence instead of only phase-local checks.
+
+## Exact first migration commit
+
+### Commit message
+
+`refactor(reference): split android app from shared module`
+
+### Why this must be first
+
+This repository cannot take an AGP 9 version bump as its first migration commit
+without breaking configuration immediately:
+
+- `:meshlink-reference` is currently the only **KMP + Android application**
+  module, which AGP 9 forbids outright.
+- `:meshlink` is already a **KMP + Android library** module, so once the
+  reference app is split, the remaining AGP 9 work becomes a coordinated
+  library-plugin migration instead of an application split plus plugin
+  migration at the same time.
+- The split can be done safely on the current verified toolchain
+  (`Gradle 8.11.1`, `AGP 8.9.2`), which keeps the branch green while reducing
+  the later AGP 9 blast radius.
+
+### Exact scope of the first commit
+
+- [ ] **Edit `settings.gradle.kts`**
+  - add `include(":meshlink-reference:android-app")`
+  - point it at `meshlink-reference/android-app`
+- [ ] **Edit `meshlink-reference/build.gradle.kts`**
+  - switch from `alias(libs.plugins.android.application)` to
+    `alias(libs.plugins.android.library)`
+  - remove application-only configuration (`applicationId`, `targetSdk`,
+    `versionCode`, `versionName`, and `installation`)
+  - keep namespace, compile SDK, Compose Multiplatform, iOS framework export,
+    shared source sets, and shared tests
+  - preserve `localCheck`, but make it aggregate the new Android app module’s
+    Android verification tasks together with the shared module’s iOS/framework
+    checks so existing hooks and `./scripts/run-reference-local-check.sh`
+    remain valid in this commit
+- [ ] **Create `meshlink-reference/android-app/build.gradle.kts`**
+  - make it a pure Android application module on the current AGP 8 toolchain
+  - depend on `project(":meshlink-reference")`
+  - add `androidx.activity:activity-compose`
+  - move the Android test dependencies that belong to the Android app surface
+  - apply the same formatting/static-analysis/coverage plugins if the moved app
+    code remains governed
+- [ ] **Move Android app entry-point files into the new module**
+  - `meshlink-reference/src/androidMain/AndroidManifest.xml`
+  - `meshlink-reference/src/androidMain/kotlin/.../MainActivity.kt`
+  - `meshlink-reference/src/androidMain/res/values/strings.xml`
+- [ ] **Move Android instrumented tests into the new app module**
+  - `ReferenceAppAndroidSmokeTest.kt`
+  - `ReferenceAppAndroidWorkflowTest.kt`
+- [ ] **Keep these files in the shared KMP module**
+  - `AndroidPlatformServices.kt`
+  - `AndroidReadinessExplainer.kt`
+  - `AndroidReferenceDocumentStore.kt`
+- [ ] **Edit the root build only if needed for governed aggregation**
+  - if the new Android app module participates in repository-level coverage,
+    add it to the root Kover aggregation in `build.gradle.kts`
+- [ ] **Update the Android entry points that hardcode the old app-shaped module**
+  - `meshlink-reference/README.md`
+  - `docs/how-to/evaluate-meshlink-with-the-reference-app.md`
+  - `CONTRIBUTING.md`
+  - `docs/reference/contributor-reference.md`
+  - `meshlink-reference/scripts/run_headless_reference_live_proof.py`
+- [ ] **Do not change the iOS host wiring in this commit**
+  - keep `:meshlink-reference:embedAndSignAppleFrameworkForXcode`
+  - keep the `ReferenceAppShared` framework name
+  - keep the Xcode project path and framework search model unchanged
+
+### Exact verification for the first commit
+
+Run these commands after the last edit in the commit:
+
+```bash
+./scripts/run-reference-local-check.sh
+./gradlew --console=plain :meshlink-reference:android-app:check verifyDocs
+```
+
+Expected result for this first commit:
+
+- the branch is still on `Gradle 8.11.1` and `AGP 8.9.2`
+- `:meshlink-reference` is no longer an Android application module
+- Android install/test entry points now come from
+  `:meshlink-reference:android-app`
+- iOS framework export still comes from `:meshlink-reference`
 
 ## Phase plan
 
@@ -293,13 +394,21 @@ full toolchain jump.
 
 ## Suggested commit sequence
 
-A clean migration history should follow the module boundaries:
+A clean **build-green** migration history should follow this order instead of
+bumping AGP first:
 
-1. `chore(build): prepare AGP 9 wrapper and plugin catalog`
-2. `refactor(meshlink): migrate KMP library to AGP 9 android plugin`
-3. `refactor(reference): split android app from shared module`
-4. `chore(proof-android): migrate to AGP 9 built-in Kotlin`
-5. `docs(contributor): update AGP 9 build and verification guidance`
+1. `refactor(reference): split android app from shared module`
+2. `chore(build): upgrade to AGP 9 and migrate android plugin usage`
+3. `docs(contributor): update AGP 9 build and verification guidance`
+
+Notes:
+
+- Commit 2 is intentionally broader than usual because AGP 9 compatibility is
+  enforced during configuration. Splitting the toolchain bump from the
+  remaining plugin migrations would leave the branch red between commits.
+- If AGP 9 reveals a follow-up cleanup that is mechanically separate but still
+  build-green, keep it as a narrow `chore(build):` follow-up after commit 2,
+  not before it.
 
 ## Verification plan
 
