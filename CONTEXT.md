@@ -41,8 +41,12 @@ The default rule that a finished live session with reviewable evidence is added 
 _Avoid_: Optional save, manual retain only
 
 **Reviewable evidence**:
-Operator-visible blockers, lifecycle changes, peer changes, sends, trust changes, or diagnostic timeline activity that make a finished session worth reopening. A trivial session with no meaningful evidence is not retained.
+Operator-visible startup blockers, lifecycle changes, peer changes, sends, trust changes, or diagnostic timeline activity that make a finished session worth reopening. A trivial session with no meaningful evidence is not retained.
 _Avoid_: Successful proof only, empty session, incidental open
+
+**Startup-blocked session**:
+A live session whose main evidence is one or more unresolved startup blockers before mesh participation begins. A startup-blocked session still counts as reviewable evidence and may be retained for later review.
+_Avoid_: Not a real session, discardable attempt
 
 **Session checkpoint**:
 A partial capture of an ongoing live session. Session checkpoints are not part of the current reference-app evidence model, so operators do not create separate mid-session retained entries.
