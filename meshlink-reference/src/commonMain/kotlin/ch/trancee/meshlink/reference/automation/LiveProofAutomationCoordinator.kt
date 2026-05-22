@@ -108,6 +108,10 @@ internal class LiveProofAutomationCoordinator(
             )
         val bootstrapPeer =
             bootstrapTargetPeer(snapshot = snapshot, targetPeerId = automationConfig.targetPeerId)
+        val meshRunning = isMeshRunning(snapshot.session.meshStateLabel)
+        if (!meshRunning) {
+            return
+        }
         if (
             !progress.bootstrapRequested &&
                 !progress.sendRequested &&

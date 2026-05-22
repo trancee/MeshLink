@@ -291,6 +291,21 @@ class ReferenceLiveProofAutomationTest {
     }
 
     @Test
+    fun senderBootstrapAndTargetSendWaitForTheRunningMeshState() {
+        // Arrange
+        val startingState = "Uninitialized"
+        val runningState = "Running"
+
+        // Act
+        val blocked = isMeshRunning(startingState)
+        val allowed = isMeshRunning(runningState)
+
+        // Assert
+        assertFalse(blocked)
+        assertTrue(allowed)
+    }
+
+    @Test
     fun meshStartWaitsUntilNoLifecycleStateOrStartupBlockerIsPresent() {
         // Arrange
         val snapshot =

@@ -157,3 +157,7 @@ internal fun hasMeshEnteredLifecycle(meshStateLabel: String): Boolean {
         meshStateLabel.contains("Paused") ||
         meshStateLabel.contains("Stopped")
 }
+
+internal fun isMeshRunning(meshStateLabel: String): Boolean {
+    return meshStateLabel.contains("Running")
+}
