@@ -20,6 +20,10 @@ _Avoid_: Saved live session, archived runtime
 An exported evidence document for one session. A session artifact summarizes the scenario, peer state, timeline, and export redaction policy.
 _Avoid_: Dump, log file, report
 
+**Timestamp**:
+A conceptual point in time used in the reference-app documentation. In conceptual docs, `Timestamp` does not imply a concrete storage type or library type.
+_Avoid_: Instant, datetime object
+
 **Export timestamp**:
 A timestamp written into a session artifact for interchange with readers outside the live runtime. Export timestamps are canonical UTC ISO 8601 strings in `YYYY-MM-DDTHH:MM:SS.SSSZ` form.
 _Avoid_: Epoch text, local timestamp
