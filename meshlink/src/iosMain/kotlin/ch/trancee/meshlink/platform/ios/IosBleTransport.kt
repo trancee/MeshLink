@@ -635,20 +635,28 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
         activeGattNotifyLinksByHint.remove(hintPeerId.value)?.close()
         var createdLink: IosGattNotifyLink? = null
         return IosGattNotifyLink(
-                hintPeerId = hintPeerId,
-                centralIdentifier = identifier,
-                central = central,
-                peripheralManagerProvider = { peripheralManager },
-                notifyCharacteristicProvider = { gattNotifyServiceCharacteristic },
-                logger = ::log,
-                schedulePumpRetry = {
-                    coroutineScope.launch {
-                        delay(GATT_NOTIFY_PUMP_RETRY_POLL_INTERVAL_MS)
-                        createdLink
-                            ?.takeIf { activeGattNotifyLinksByHint[hintPeerId.value] === it }
-                            ?.pumpOnMain()
-                    }
-                },
+                peer =
+                    IosGattNotifyPeer(
+                        hintPeerId = hintPeerId,
+                        centralIdentifier = identifier,
+                        central = central,
+                    ),
+                dependencies =
+                    IosGattNotifyDependencies(
+                        peripheralManagerProvider = { peripheralManager },
+                        notifyCharacteristicProvider = { gattNotifyServiceCharacteristic },
+                        logger = ::log,
+                        schedulePumpRetry = {
+                            coroutineScope.launch {
+                                delay(GATT_NOTIFY_PUMP_RETRY_POLL_INTERVAL_MS)
+                                createdLink
+                                    ?.takeIf {
+                                        activeGattNotifyLinksByHint[hintPeerId.value] === it
+                                    }
+                                    ?.pumpOnMain()
+                            }
+                        },
+                    ),
             )
             .also { link ->
                 createdLink = link
