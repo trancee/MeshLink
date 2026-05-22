@@ -64,6 +64,10 @@ _Avoid_: Any live session, solo session, lab session
 A previously captured local session snapshot kept separate from the live session for review. Retained sessions are created automatically when a live session ends or rolls over if it produced reviewable evidence, preserve redacted evidence, and do not keep full payload content.
 _Avoid_: Saved live session, archived runtime
 
+**Recent history**:
+The surface that lists retained sessions that can be reopened later for review. Recent history is for retained sessions only, not for the immediate ended-session view.
+_Avoid_: Ended session view, live session list, export index
+
 **History state**:
 Where a session currently lives in the reference app’s evidence model. History state is about whether a session is live or retained, not about whether it has been exported.
 _Avoid_: Export status, artifact state, file status
