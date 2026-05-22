@@ -25,8 +25,12 @@ The point where the reference app stops treating evidence as part of one evaluat
 _Avoid_: Continue same session, silent drift, mixed evidence
 
 **Session rollover**:
-The explicit, operator-confirmed transition from one live session to the next after a boundary-changing action. Session rollover prevents the current evidence set from ending silently.
+The explicit, operator-confirmed transition from one live session to the next after a boundary-changing action. For a supported live session, session rollover includes a direct pre-rollover export path before the old session becomes retained history.
 _Avoid_: Auto-restart, silent session reset
+
+**Pre-rollover export**:
+The last export opportunity for a supported live session before session rollover closes the full-payload path. It may include full payload only when the operator explicitly chooses it.
+_Avoid_: After-the-fact full export, warning only
 
 **Live session**:
 The current active session open in the reference app before it becomes retained history. A live session may belong to the supported path or to a non-authoritative or non-normative path.
