@@ -127,5 +127,5 @@ After using the reference app, a reviewer should be able to:
 1. complete a guided first exchange
 2. explain why the last send succeeded or failed
 3. inspect retained session history separately from the live run
-4. export a redacted session artifact
+4. open the export chooser and export a redacted session artifact
 5. distinguish supported product behavior from lab-only behavior

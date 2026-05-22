@@ -95,7 +95,7 @@ After ending the session:
 
 - open recent local session history
 - verify the ended session appears separately from any live session
-- export a redacted session artifact
+- open the export chooser and export a redacted session artifact
 - confirm the export includes payload metadata and redacted previews by default
 - confirm retained history does not offer full-payload export because retained
   sessions keep only redacted payload evidence

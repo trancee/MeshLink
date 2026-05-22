@@ -137,7 +137,7 @@ After the guided exchange succeeds:
 1. retain the current session
 2. open retained history
 3. verify the retained session appears separately from the live session
-4. export a redacted artifact
+4. open the export chooser and select the redacted export
 
 The default export should keep payload previews redacted and should not
 silently switch to full-payload export. Retained sessions stay redacted, so
@@ -186,5 +186,5 @@ After following this guide, you should be able to:
 1. complete a guided first exchange
 2. explain the last trust or delivery outcome from the timeline
 3. inspect retained session history separately from the live run
-4. export a redacted session artifact
+4. open the export chooser and export a redacted session artifact
 5. distinguish supported reference behavior from proof-only or benchmark-only behavior
