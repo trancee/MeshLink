@@ -1,0 +1,341 @@
+# AGP 9 Migration Plan for MeshLink Build Modules
+
+Status: Draft maintainer execution plan
+
+## Reader and intended outcome
+
+This plan is for maintainers working on the Gradle and Android build surface.
+After reading it, a maintainer should be able to execute the AGP 9 migration on
+one feature branch without rediscovering the module boundaries, upgrade order,
+or verification strategy.
+
+Assumption for this plan: **focused** means the minimum migration required for
+AGP 9 compatibility, not a full JetBrains-style app-per-platform restructure.
+
+## Why this is not a version-bump-only change
+
+AGP 9 no longer allows the Android application or Android library plugins to
+coexist with `org.jetbrains.kotlin.multiplatform` in the same module.
+MeshLink currently has both affected shapes:
+
+| Module | Current shape | AGP 9 migration path | Why |
+|---|---|---|---|
+| `:meshlink` | KMP + Android library | Path A | Must replace the Android library plugin with the AGP 9 KMP Android library plugin. |
+| `:meshlink-reference` | KMP + Android application | Path B | Must split the Android app entry point out of the shared KMP module. |
+| `:meshlink-proof:android:meshlink-proof-android-app` | Pure Android application + `org.jetbrains.kotlin.android` | Built-in Kotlin cleanup | AGP 9 wants built-in Kotlin for pure Android modules. |
+
+This means the migration is a **module-shape change**, not just an AGP/Gradle
+version bump.
+
+## Decision summary
+
+The minimum-risk AGP 9 plan for this repository is:
+
+1. Keep `:meshlink-reference` as the shared KMP module so the iOS framework
+   export and Xcode integration stay anchored to the same module name.
+2. Add a new nested Android app module named
+   `:meshlink-reference:android-app` for the Android launcher activity,
+   application manifest, and instrumentation surface.
+3. Migrate `:meshlink` to the AGP 9 KMP Android library plugin.
+4. Migrate `:meshlink-proof:android:meshlink-proof-android-app` off
+   `org.jetbrains.kotlin.android` and onto AGP 9 built-in Kotlin in the same
+   branch.
+5. Preserve contributor-facing commands where practical by keeping thin
+   delegating tasks or scripts for the reference app instead of forcing a
+   flag day for every command and document.
+
+## Non-goals
+
+This plan intentionally does **not** include:
+
+- renaming `:meshlink-reference` to `:shared`
+- moving the iOS host project out of its current location
+- splitting desktop or web entry points, because this repository does not have
+  them
+- changing MeshLink public API shape, wire format, transport behavior, or
+  runtime dependency policy
+- redesigning proof or benchmark flows beyond the build changes required by
+  AGP 9
+
+## Target end state
+
+The repo shape after migration should be:
+
+| Module | Target role |
+|---|---|
+| `:meshlink` | Shared KMP library using the AGP 9 KMP Android library plugin |
+| `:meshlink-reference` | Shared KMP UI/state/framework-export module for Android and iOS |
+| `:meshlink-reference:android-app` | Android app entry point for the reference app |
+| `:meshlink-proof:android:meshlink-proof-android-app` | Pure Android app using AGP 9 built-in Kotlin |
+
+Key consequence: the iOS host project should continue to build the
+`ReferenceAppShared` framework from `:meshlink-reference`, while Android app
+installation and connected-device tasks move to
+`:meshlink-reference:android-app`.
+
+## What moves and what stays in the reference app split
+
+### Moves into `:meshlink-reference:android-app`
+
+These are Android **app entry-point** concerns and should leave the shared KMP
+module:
+
+- the launcher `MainActivity`
+- the Android manifest containing `<application>` and the launcher activity
+- Android-only app metadata such as the app-name resource
+- Android instrumented smoke and workflow tests that launch the activity
+- Android app verification tasks such as install, lint, and connected-device
+  test entry points
+
+### Stays in `:meshlink-reference`
+
+These are Android **platform glue for shared code** and should remain in the
+shared KMP module:
+
+- shared Compose UI, navigation, controller, retention, export, and timeline
+  logic
+- Compose Multiplatform resources
+- iOS framework export and Xcode integration
+- Android platform service factories and platform adapters
+- Android readiness explanation and Android document-store implementations
+- shared tests and iOS tests
+
+This boundary keeps Android app bootstrapping separate from shared runtime
+logic while minimizing churn in the iOS host integration.
+
+## Phase plan
+
+### Phase 0 — Compatibility gate and branch setup
+
+Before editing module shapes, confirm the toolchain and plugin matrix on a
+feature branch.
+
+### Actions
+
+- Confirm the AGP 9.x, Gradle 9.x, Kotlin 2.3.x, and Compose Multiplatform
+  compatibility matrix from the official sources before pinning exact target
+  versions.
+- Inventory third-party Gradle plugins used here and check AGP 9 compatibility:
+  Compose Multiplatform, Detekt, Kover, BCV, ktfmt, and the benchmark plugin.
+- Confirm proxy-backed Gradle 9 wrapper download strategy, because earlier
+  Gradle distribution fetches through the proxy were slow enough to matter.
+- Review `gradle.properties` for AGP-8-era workarounds that should be removed
+  or revalidated under AGP 9, especially `android.experimental.lint.version`.
+
+### Exit criteria
+
+- Exact target versions are selected and documented in the branch plan.
+- No blocking plugin incompatibility remains unknown.
+- The Gradle 9 wrapper download path is known to work, or the cache-preload
+  fallback is documented for the branch.
+
+### Phase 1 — Root build and catalog preparation
+
+Make the root build ready for AGP 9 without migrating module behavior yet.
+
+### Actions
+
+- Upgrade the Gradle wrapper to the selected Gradle 9.x version.
+- Upgrade AGP to the selected 9.x version.
+- Add a version-catalog plugin alias for
+  `com.android.kotlin.multiplatform.library`.
+- Remove the repository-wide `kotlin-android` plugin alias only in the same
+  branch where pure Android modules are migrated to built-in Kotlin.
+- Revisit root plugin declarations so they match the new plugin set.
+
+### Exit criteria
+
+- The root catalog and wrapper are ready for the module-by-module migration.
+- No module still depends on a removed root plugin alias.
+
+### Phase 2 — Migrate `:meshlink` to the AGP 9 KMP Android library plugin
+
+This is the lower-risk KMP migration and should happen before the reference-app
+split.
+
+### Actions
+
+- Replace `com.android.library` with the AGP 9 KMP Android library plugin.
+- Move Android-specific DSL from the top-level Android block into the new KMP
+  Android library DSL inside `kotlin { ... }`.
+- Keep the current JVM and iOS targets unchanged.
+- Explicitly enable any Android resources, tests, or Java support required by
+  the new plugin instead of relying on AGP 8 defaults.
+- Verify how the new plugin maps Android test source sets in this repository.
+  The current tree uses KMP-style Android test source sets already, but the
+  AGP 9 plugin introduces explicit host/device test concepts and may require
+  source-set renames or opt-ins.
+
+### Exit criteria
+
+- `:meshlink` builds and tests successfully on the AGP 9 toolchain.
+- API, coverage, and Detekt behavior stay equivalent to the pre-migration
+  branch.
+
+### Phase 3 — Split `:meshlink-reference` into shared + Android app modules
+
+This is the mandatory AGP 9 step for the reference app.
+
+### Actions
+
+- Convert `:meshlink-reference` from KMP + Android application into a shared KMP
+  library module using the AGP 9 KMP Android library plugin.
+- Add a new module named `:meshlink-reference:android-app` for the Android app
+  entry point.
+- Move the launcher activity, Android manifest, Android app-name resource, and
+  Android instrumented tests into `:meshlink-reference:android-app`.
+- Keep Android platform services and Android platform adapters in the shared
+  KMP module so the shared UI can still build Android-specific behavior.
+- Make `:meshlink-reference:android-app` depend on `:meshlink-reference` and
+  `androidx.activity:activity-compose`.
+- Configure the new Android app module for Compose and AGP 9 built-in Kotlin.
+- Keep the iOS host project calling
+  `:meshlink-reference:embedAndSignAppleFrameworkForXcode` so the Xcode side
+  does not need a second structural migration.
+
+### Preferred compatibility choice
+
+To reduce contributor churn, keep the current shared module name and introduce
+thin alias tasks where they materially reduce doc and script breakage.
+Examples worth preserving if practical:
+
+- `:meshlink-reference:localCheck` delegating to the new Android app module
+  plus the shared iOS/framework checks
+- `:meshlink-reference:installDebug` delegating to
+  `:meshlink-reference:android-app:installDebug`
+- `:meshlink-reference:connectedDebugAndroidTest` delegating to the new app
+  module task
+
+This preserves the iOS framework export task name while minimizing Android-side
+command churn.
+
+### Exit criteria
+
+- Android app install, lint, and instrumentation tasks run from the new Android
+  app module.
+- iOS framework export remains anchored to `:meshlink-reference`.
+- Shared UI/state code still builds for both Android and iOS.
+
+### Phase 4 — Migrate `:meshlink-proof:android:meshlink-proof-android-app`
+
+The proof app is not structurally blocked by KMP, but it still needs the AGP 9
+built-in Kotlin cleanup.
+
+### Actions
+
+- Remove `org.jetbrains.kotlin.android` from the proof app and from the root
+  plugin declarations/version catalog.
+- Keep or rewrite Kotlin compiler-options configuration in the AGP 9-compatible
+  location.
+- Verify that proof-app lint and unit-test behavior stays stable under AGP 9.
+
+### Exit criteria
+
+- The proof app no longer applies `org.jetbrains.kotlin.android`.
+- The proof app passes its existing `check` surface on the AGP 9 toolchain.
+
+### Phase 5 — Script, hook, and documentation cleanup
+
+After the module migration lands, update the contributor surface.
+
+### Actions
+
+- Update the fast local reference-app verification script to target the new
+  app/shared shape.
+- Remove the AGP-8-specific lint override if AGP 9 no longer needs it.
+- Update contributor commands and verification bundles.
+- Update the reference-app README and evaluation guides only where the Android
+  task surface changed.
+- Keep iOS build instructions stable if the iOS host project still builds from
+  the same shared module task.
+
+### Exit criteria
+
+- The documented Android reference-app commands are correct again.
+- No script still points at an obsolete application-shaped
+  `:meshlink-reference` module.
+
+## Known risks and decision points
+
+### 1. Android test source-set mapping under the new KMP Android library plugin
+
+Current KMP source sets already use Android-specific test trees, but AGP 9
+introduces explicit host/device test configuration on the library side. Treat
+this as an early checkpoint rather than a surprise discovered halfway through
+Phase 2.
+
+### 2. Compose and Android resources in shared KMP modules
+
+The new KMP Android library plugin makes some Android capabilities explicit.
+If Android resources or Compose-generated resources are not enabled correctly,
+shared Android builds can fail or behave differently than they do today.
+
+### 3. Reference-app command churn
+
+Without alias tasks, every current Android reference-app command changes. That
+would force simultaneous updates across hooks, scripts, README flows, and
+operator docs. Preserving a small compatibility layer is cheaper than a flag
+day if the task graph stays understandable.
+
+### 4. AGP-8-era lint workaround
+
+The current repository carries an AGP 8 lint-version override to stabilize the
+Kotlin 2.3.x toolchain. AGP 9 may make that override unnecessary, or it may
+become actively incorrect. Treat its removal as part of the migration, not a
+postscript.
+
+### 5. Gradle distribution download speed through the proxy
+
+Earlier Gradle distribution downloads through the proxy were reachable but too
+slow to be a reliable edit-loop assumption. The migration branch should either
+use a preseeded wrapper cache or validate the proxy path before attempting the
+full toolchain jump.
+
+## Suggested commit sequence
+
+A clean migration history should follow the module boundaries:
+
+1. `chore(build): prepare AGP 9 wrapper and plugin catalog`
+2. `refactor(meshlink): migrate KMP library to AGP 9 android plugin`
+3. `refactor(reference): split android app from shared module`
+4. `chore(proof-android): migrate to AGP 9 built-in Kotlin`
+5. `docs(contributor): update AGP 9 build and verification guidance`
+
+## Verification plan
+
+Run phase verification after each module move, not only at the end.
+
+### After Phase 2
+
+- `./gradlew --console=plain :meshlink:build`
+
+### After Phase 3
+
+- shared framework verification for iOS from `:meshlink-reference`
+- Android app verification from `:meshlink-reference:android-app`
+- if alias tasks are kept, verify the alias entry points too
+
+### After Phase 4
+
+- `./gradlew --console=plain :meshlink-proof:android:meshlink-proof-android-app:check`
+
+### Final branch verification
+
+- `./gradlew --console=plain :meshlink:build :benchmarks:check :meshlink-proof:android:meshlink-proof-android-app:check verifyDocs`
+- the reference-app Android verification bundle using either the preserved alias
+  script or the new app-module task surface
+- iOS host verification through the existing Xcode project if the branch
+  changes framework export behavior
+
+## Done criteria
+
+The AGP 9 migration is complete when all of the following are true:
+
+- no KMP module still applies `com.android.application` or `com.android.library`
+- no pure Android module still applies `org.jetbrains.kotlin.android`
+- `:meshlink-reference` is a shared KMP module and the Android launcher lives in
+  `:meshlink-reference:android-app`
+- the iOS host project still builds its shared framework successfully
+- contributor scripts and docs no longer point at obsolete Android application
+  tasks
+- the repository verification bundle is green on the AGP 9 toolchain
