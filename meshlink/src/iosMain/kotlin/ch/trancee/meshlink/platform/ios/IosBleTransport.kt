@@ -180,89 +180,150 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
     }
 
     override suspend fun send(frame: OutboundFrame): TransportSendResult {
-        if (!started) {
-            log("send(${frame.peerId.value.takeLast(6)}) dropped: transport not started")
-            return TransportSendResult.Dropped("iOS BLE transport is not started")
+        return if (!started) {
+            dropSend(
+                frame,
+                message = "iOS BLE transport is not started",
+                detail = "transport not started",
+            )
+        } else {
+            sendWhenStarted(frame)
         }
+    }
 
-        val peer =
-            resolvePeer(frame.peerId)
-                ?: return TransportSendResult.Dropped("iOS BLE peer has not been discovered").also {
-                    log("send(${frame.peerId.value.takeLast(6)}) dropped: peer not discovered")
-                }
+    private suspend fun sendWhenStarted(frame: OutboundFrame): TransportSendResult {
+        val peer = resolvePeer(frame.peerId)
+        return if (peer == null) {
+            dropSend(
+                frame,
+                message = "iOS BLE peer has not been discovered",
+                detail = "peer not discovered",
+            )
+        } else {
+            sendToPeer(frame, peer)
+        }
+    }
+
+    private suspend fun sendToPeer(
+        frame: OutboundFrame,
+        peer: DiscoveredPeer,
+    ): TransportSendResult {
         if (peer.transportMode != TransportMode.L2CAP || peer.l2capPsm == 0) {
-            log("send(${frame.peerId.value.takeLast(6)}) dropped: peer is GATT-only")
-            return TransportSendResult.Dropped("iOS BLE GATT fallback transport is not implemented")
+            return dropSend(
+                frame,
+                message = "iOS BLE GATT fallback transport is not implemented",
+                detail = "peer is GATT-only",
+            )
         }
 
         val directFrame = runCatching { DirectWireFrame.decode(frame.payload) }.getOrNull()
         val dataBearerMode =
-            if (directFrame is DirectWireFrame.Data) {
-                resolveGattDataBearerMode(
-                    localPlatformFamily = currentDiscoveryPayload.platformFamily,
-                    remotePlatformFamily = peer.platformFamily,
-                    preferredMode = frame.preferredMode,
-                )
-            } else {
-                GattDataBearerMode.L2CAP_ONLY
-            }
-        activeGattNotifyLinkFor(peer)
-            ?.takeIf { directFrame is DirectWireFrame.Data }
-            ?.let { gattNotifyLink ->
-                return runCatching {
-                        log(
-                            "sending ${frame.payload.size} bytes via GATT notify side link for ${frame.peerId.value.takeLast(6)}"
-                        )
-                        if (!gattNotifyLink.enqueue(frame.payload)) {
-                            return@runCatching TransportSendResult.Dropped(
-                                "iOS BLE GATT notify side link is not accepting frames"
-                            )
-                        }
-                        TransportSendResult.Delivered
-                    }
-                    .getOrElse { error ->
-                        TransportSendResult.Dropped(
-                            "iOS BLE GATT notify send failed: ${error.message.orEmpty()}"
-                        )
-                    }
-            }
-        if (
+            resolveSendDataBearerMode(frame = frame, peer = peer, directFrame = directFrame)
+        val gattSendResult =
+            sendViaGattNotifyLinkOrNull(frame = frame, peer = peer, directFrame = directFrame)
+        return when {
+            gattSendResult != null -> gattSendResult
             directFrame is DirectWireFrame.Data &&
-                dataBearerMode == GattDataBearerMode.GATT_REQUIRED
-        ) {
-            log(
-                "send(${frame.peerId.value.takeLast(6)}) dropped: required GATT notify side link not ready"
+                dataBearerMode == GattDataBearerMode.GATT_REQUIRED ->
+                dropSend(
+                    frame,
+                    message = "iOS BLE GATT notify side link is not ready",
+                    detail = "required GATT notify side link not ready",
+                )
+            else -> sendViaL2capWhenReady(frame = frame, peer = peer)
+        }
+    }
+
+    private fun resolveSendDataBearerMode(
+        frame: OutboundFrame,
+        peer: DiscoveredPeer,
+        directFrame: DirectWireFrame?,
+    ): GattDataBearerMode {
+        return if (directFrame is DirectWireFrame.Data) {
+            resolveGattDataBearerMode(
+                localPlatformFamily = currentDiscoveryPayload.platformFamily,
+                remotePlatformFamily = peer.platformFamily,
+                preferredMode = frame.preferredMode,
             )
-            return TransportSendResult.Dropped("iOS BLE GATT notify side link is not ready")
+        } else {
+            GattDataBearerMode.L2CAP_ONLY
         }
+    }
 
-        val link = activeLinkFor(peer)
-        if (link == null) {
-            if (shouldInitiateL2cap(peer.keyHash, peer.platformFamily)) {
-                connectIfNeeded(peer)
-                log("send(${frame.peerId.value.takeLast(6)}) no active link, triggering connect")
-            } else {
-                log("send(${frame.peerId.value.takeLast(6)}) waiting for inbound L2CAP link")
-            }
-            return TransportSendResult.Dropped("iOS BLE L2CAP connection is not ready")
-        }
-
-        return runCatching {
-                if (!link.enqueue(frame.payload)) {
-                    closeLink(hintPeer = link.hintPeerId.value, reason = "send queue closed")
-                    return@runCatching TransportSendResult.Dropped(
-                        "iOS BLE send queue is not accepting frames"
+    private suspend fun sendViaGattNotifyLinkOrNull(
+        frame: OutboundFrame,
+        peer: DiscoveredPeer,
+        directFrame: DirectWireFrame?,
+    ): TransportSendResult? {
+        val gattNotifyLink =
+            activeGattNotifyLinkFor(peer)?.takeIf { directFrame is DirectWireFrame.Data }
+        return gattNotifyLink?.let { link ->
+            runCatching {
+                    log(
+                        "sending ${frame.payload.size} bytes via GATT notify side link for ${frame.peerId.value.takeLast(6)}"
+                    )
+                    if (!link.enqueue(frame.payload)) {
+                        return@runCatching TransportSendResult.Dropped(
+                            "iOS BLE GATT notify side link is not accepting frames"
+                        )
+                    }
+                    TransportSendResult.Delivered
+                }
+                .getOrElse { error ->
+                    TransportSendResult.Dropped(
+                        "iOS BLE GATT notify send failed: ${error.message.orEmpty()}"
                     )
                 }
-                TransportSendResult.Delivered
-            }
-            .getOrElse { error ->
-                closeLink(
-                    hintPeer = link.hintPeerId.value,
-                    reason = "send failed: ${error.message.orEmpty()}",
-                )
-                TransportSendResult.Dropped("iOS BLE send failed: ${error.message.orEmpty()}")
-            }
+        }
+    }
+
+    private suspend fun sendViaL2capWhenReady(
+        frame: OutboundFrame,
+        peer: DiscoveredPeer,
+    ): TransportSendResult {
+        val link = activeLinkFor(peer)
+        return if (link == null) {
+            dropSendWhileWaitingForL2cap(frame = frame, peer = peer)
+        } else {
+            runCatching {
+                    if (!link.enqueue(frame.payload)) {
+                        closeLink(hintPeer = link.hintPeerId.value, reason = "send queue closed")
+                        return@runCatching TransportSendResult.Dropped(
+                            "iOS BLE send queue is not accepting frames"
+                        )
+                    }
+                    TransportSendResult.Delivered
+                }
+                .getOrElse { error ->
+                    closeLink(
+                        hintPeer = link.hintPeerId.value,
+                        reason = "send failed: ${error.message.orEmpty()}",
+                    )
+                    TransportSendResult.Dropped("iOS BLE send failed: ${error.message.orEmpty()}")
+                }
+        }
+    }
+
+    private fun dropSendWhileWaitingForL2cap(
+        frame: OutboundFrame,
+        peer: DiscoveredPeer,
+    ): TransportSendResult {
+        if (shouldInitiateL2cap(peer.keyHash, peer.platformFamily)) {
+            connectIfNeeded(peer)
+            log("send(${frame.peerId.value.takeLast(6)}) no active link, triggering connect")
+        } else {
+            log("send(${frame.peerId.value.takeLast(6)}) waiting for inbound L2CAP link")
+        }
+        return TransportSendResult.Dropped("iOS BLE L2CAP connection is not ready")
+    }
+
+    private fun dropSend(
+        frame: OutboundFrame,
+        message: String,
+        detail: String,
+    ): TransportSendResult {
+        log("send(${frame.peerId.value.takeLast(6)}) dropped: $detail")
+        return TransportSendResult.Dropped(message)
     }
 
     internal fun startScanIfReady(central: CBCentralManager): Unit {
@@ -351,26 +412,9 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
         peripheral: CBPeripheral,
         serviceUuids: List<CBUUID>,
     ): Unit {
-        val encodedUuids = serviceUuids.map { uuid -> uuid.UUIDString.lowercase() }
-        val payloadUuid =
-            encodedUuids.firstOrNull { uuid ->
-                !BleDiscoveryContract.isAdvertisementServiceUuid(uuid)
-            } ?: return
         val payload =
-            runCatching { BleDiscoveryPayload.fromUuidString(payloadUuid) }.getOrNull() ?: return
-        if (payload.meshHash != currentDiscoveryPayload.meshHash) {
-            return
-        }
-        if (payload.keyHash.contentEquals(localKeyHash)) {
-            return
-        }
-        if (!BleDiscoveryContract.isSupportedProtocolVersion(payload.protocolVersion)) {
-            log(
-                "ignoring discovery payload with unsupported protocolVersion=${payload.protocolVersion} id=${peripheral.identifier.UUIDString}"
-            )
-            return
-        }
-
+            decodeDiscoveryPayloadOrNull(peripheral = peripheral, serviceUuids = serviceUuids)
+                ?: return
         val hintPeerId = PeerId(payload.keyHash.toHexString())
         val transportMode =
             if (payload.l2capPsm.toInt() == 0) TransportMode.GATT else TransportMode.L2CAP
@@ -379,10 +423,62 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
         )
 
         val identifier = peripheral.identifier.UUIDString.lowercase()
+        val discoveredPeer =
+            upsertDiscoveredPeer(
+                hintPeerId = hintPeerId,
+                identifier = identifier,
+                peripheral = peripheral,
+                payload = payload,
+                transportMode = transportMode,
+            )
+
+        if (transportMode == TransportMode.L2CAP) {
+            handleL2capDiscovery(
+                identifier = identifier,
+                hintPeerId = hintPeerId,
+                payload = payload,
+                peer = discoveredPeer,
+            )
+        }
+    }
+
+    private fun decodeDiscoveryPayloadOrNull(
+        peripheral: CBPeripheral,
+        serviceUuids: List<CBUUID>,
+    ): BleDiscoveryPayload? {
+        val payloadUuid =
+            serviceUuids
+                .map { uuid -> uuid.UUIDString.lowercase() }
+                .firstOrNull { uuid -> !BleDiscoveryContract.isAdvertisementServiceUuid(uuid) }
+        val payload = payloadUuid?.let { uuid ->
+            runCatching { BleDiscoveryPayload.fromUuidString(uuid) }.getOrNull()
+        }
+        val isPayloadRelevant =
+            payload != null &&
+                payload.meshHash == currentDiscoveryPayload.meshHash &&
+                !payload.keyHash.contentEquals(localKeyHash)
+        if (!isPayloadRelevant) {
+            return null
+        }
+        if (!BleDiscoveryContract.isSupportedProtocolVersion(payload.protocolVersion)) {
+            log(
+                "ignoring discovery payload with unsupported protocolVersion=${payload.protocolVersion} id=${peripheral.identifier.UUIDString}"
+            )
+            return null
+        }
+        return payload
+    }
+
+    private fun upsertDiscoveredPeer(
+        hintPeerId: PeerId,
+        identifier: String,
+        peripheral: CBPeripheral,
+        payload: BleDiscoveryPayload,
+        transportMode: TransportMode,
+    ): DiscoveredPeer {
         val discoveredPeer = discoveredPeers[hintPeerId.value]
-        if (discoveredPeer == null) {
-            discoveredPeers[hintPeerId.value] =
-                DiscoveredPeer(
+        return if (discoveredPeer == null) {
+            DiscoveredPeer(
                     hintPeerId = hintPeerId,
                     peripheral = peripheral,
                     metadata =
@@ -394,10 +490,16 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
                             presenceAnnounced = true,
                         ),
                 )
-            peerHintByIdentifier[identifier] = hintPeerId.value
-            mutableEvents.tryEmit(
-                TransportEvent.PeerDiscovered(peerId = hintPeerId, transportMode = transportMode)
-            )
+                .also { peer ->
+                    discoveredPeers[hintPeerId.value] = peer
+                    peerHintByIdentifier[identifier] = hintPeerId.value
+                    mutableEvents.tryEmit(
+                        TransportEvent.PeerDiscovered(
+                            peerId = hintPeerId,
+                            transportMode = transportMode,
+                        )
+                    )
+                }
         } else {
             discoveredPeer.peripheral = peripheral
             discoveredPeer.l2capPsm = payload.l2capPsm.toInt()
@@ -421,30 +523,30 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
                     )
                 )
             }
+            discoveredPeer
         }
+    }
 
-        if (
-            transportMode == TransportMode.L2CAP &&
-                !shouldInitiateL2cap(payload.keyHash, payload.platformFamily)
-        ) {
+    private fun handleL2capDiscovery(
+        identifier: String,
+        hintPeerId: PeerId,
+        payload: BleDiscoveryPayload,
+        peer: DiscoveredPeer,
+    ): Unit {
+        if (!shouldInitiateL2cap(payload.keyHash, payload.platformFamily)) {
             promoteTemporaryL2capLinkIfPossible(
                 identifier = identifier,
                 resolvedHintPeerIdValue = hintPeerId.value,
             )
         }
-
         maybeLogRediscoveryWithoutLink(
-            peer = discoveredPeers.getValue(hintPeerId.value),
-            transportMode = transportMode,
+            peer = peer,
+            transportMode = TransportMode.L2CAP,
             identifier = identifier,
         )
-
-        if (
-            transportMode == TransportMode.L2CAP &&
-                shouldInitiateL2cap(payload.keyHash, payload.platformFamily)
-        ) {
+        if (shouldInitiateL2cap(payload.keyHash, payload.platformFamily)) {
             log("initiating L2CAP connect to ${hintPeerId.value.takeLast(6)}")
-            connectIfNeeded(discoveredPeers.getValue(hintPeerId.value))
+            connectIfNeeded(peer)
         }
     }
 
@@ -561,61 +663,20 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
         central: CBCentral,
         characteristic: CBCharacteristic,
     ): Unit {
-        if (
-            characteristic.UUID.UUIDString.lowercase() !=
+        val isNotifyCharacteristic =
+            characteristic.UUID.UUIDString.lowercase() ==
                 BleDiscoveryContract.GATT_NOTIFY_CHARACTERISTIC_UUID
-        ) {
-            return
-        }
         val identifier = central.identifier.UUIDString.lowercase()
-        val hintPeerIdValue = peerHintByIdentifier[identifier] ?: return
-        activeGattNotifyLinksByHint.remove(hintPeerIdValue)?.close()
-        reportLog("removed GATT notify side link for ${hintPeerIdValue.takeLast(6)} id=$identifier")
-        if (activeLinksByHint.containsKey(hintPeerIdValue)) {
-            return
+        val hintPeerIdValue = if (isNotifyCharacteristic) peerHintByIdentifier[identifier] else null
+        if (hintPeerIdValue != null) {
+            removeGattNotifyLink(identifier = identifier, hintPeerIdValue = hintPeerIdValue)
         }
-        discoveredPeers[hintPeerIdValue]?.presenceAnnounced = false
-        mutableEvents.tryEmit(TransportEvent.PeerLost(PeerId(hintPeerIdValue)))
     }
 
     internal fun handleGattWriteRequests(requests: List<*>): Unit {
         val typedRequests = requests.filterIsInstance<CBATTRequest>()
-        val firstRequest = typedRequests.firstOrNull() ?: return
-        val central = firstRequest.central
-        val link = ensureGattNotifyLink(central = central, replaceExisting = false)
-        if (link == null) {
-            reportLog(
-                "GATT write request rejected: no active side link for central=${central.identifier.UUIDString.lowercase()} requests=${typedRequests.size}"
-            )
-            peripheralManager?.respondToRequest(firstRequest, withResult = CBATTErrorUnlikelyError)
-            return
-        }
-        val decodedFrames = mutableListOf<ByteArray>()
-        val allRequestsAccepted = typedRequests.all { request ->
-            request.characteristic.UUID.UUIDString.lowercase() ==
-                BleDiscoveryContract.GATT_WRITE_CHARACTERISTIC_UUID &&
-                request.offset.toInt() == 0 &&
-                request.value?.let { value ->
-                    decodedFrames += link.appendIncomingWrite(value.toByteArray())
-                    true
-                } == true
-        }
-        reportLog(
-            "GATT write request for ${link.hintPeerId.value.takeLast(6)} requests=${typedRequests.size} decodedFrames=${decodedFrames.size} accepted=$allRequestsAccepted"
-        )
-        peripheralManager?.respondToRequest(
-            firstRequest,
-            withResult = if (allRequestsAccepted) CBATTErrorSuccess else CBATTErrorUnlikelyError,
-        )
-        if (!allRequestsAccepted || decodedFrames.isEmpty()) {
-            return
-        }
-        coroutineScope.launch {
-            decodedFrames.forEach { payload ->
-                mutableEvents.emit(
-                    TransportEvent.FrameReceived(peerId = link.hintPeerId, payload = payload)
-                )
-            }
+        typedRequests.firstOrNull()?.let { firstRequest ->
+            processGattWriteRequests(typedRequests = typedRequests, firstRequest = firstRequest)
         }
     }
 
@@ -627,16 +688,96 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
         central: CBCentral,
         replaceExisting: Boolean,
     ): IosGattNotifyLink? {
-        if (IosBleTransportBridgeRegistry.currentCallbacksOrNull() == null) {
-            return null
-        }
         val identifier = central.identifier.UUIDString.lowercase()
-        val hintPeerIdValue = resolveGattNotifyHintPeerIdValue(identifier) ?: return null
-        peerHintByIdentifier[identifier] = hintPeerIdValue
-        promoteTemporaryL2capLinkIfPossible(
-            identifier = identifier,
-            resolvedHintPeerIdValue = hintPeerIdValue,
+        val hintPeerIdValue =
+            if (IosBleTransportBridgeRegistry.currentCallbacksOrNull() != null) {
+                resolveGattNotifyHintPeerIdValue(identifier)
+            } else {
+                null
+            }
+        return if (hintPeerIdValue != null) {
+            peerHintByIdentifier[identifier] = hintPeerIdValue
+            promoteTemporaryL2capLinkIfPossible(
+                identifier = identifier,
+                resolvedHintPeerIdValue = hintPeerIdValue,
+            )
+            reuseOrCreateGattNotifyLink(
+                central = central,
+                identifier = identifier,
+                hintPeerIdValue = hintPeerIdValue,
+                replaceExisting = replaceExisting,
+            )
+        } else {
+            null
+        }
+    }
+
+    private fun removeGattNotifyLink(identifier: String, hintPeerIdValue: String): Unit {
+        activeGattNotifyLinksByHint.remove(hintPeerIdValue)?.close()
+        reportLog("removed GATT notify side link for ${hintPeerIdValue.takeLast(6)} id=$identifier")
+        if (!activeLinksByHint.containsKey(hintPeerIdValue)) {
+            discoveredPeers[hintPeerIdValue]?.presenceAnnounced = false
+            mutableEvents.tryEmit(TransportEvent.PeerLost(PeerId(hintPeerIdValue)))
+        }
+    }
+
+    private fun processGattWriteRequests(
+        typedRequests: List<CBATTRequest>,
+        firstRequest: CBATTRequest,
+    ): Unit {
+        val central = firstRequest.central
+        val link = ensureGattNotifyLink(central = central, replaceExisting = false)
+        if (link == null) {
+            reportLog(
+                "GATT write request rejected: no active side link for central=${central.identifier.UUIDString.lowercase()} requests=${typedRequests.size}"
+            )
+            peripheralManager?.respondToRequest(firstRequest, withResult = CBATTErrorUnlikelyError)
+            return
+        }
+        val decodedFrames = mutableListOf<ByteArray>()
+        val allRequestsAccepted = typedRequests.all { request ->
+            acceptsGattWriteRequest(request, link, decodedFrames)
+        }
+        reportLog(
+            "GATT write request for ${link.hintPeerId.value.takeLast(6)} requests=${typedRequests.size} decodedFrames=${decodedFrames.size} accepted=$allRequestsAccepted"
         )
+        peripheralManager?.respondToRequest(
+            firstRequest,
+            withResult = if (allRequestsAccepted) CBATTErrorSuccess else CBATTErrorUnlikelyError,
+        )
+        if (allRequestsAccepted && decodedFrames.isNotEmpty()) {
+            emitDecodedGattFrames(peerId = link.hintPeerId, decodedFrames = decodedFrames)
+        }
+    }
+
+    private fun acceptsGattWriteRequest(
+        request: CBATTRequest,
+        link: IosGattNotifyLink,
+        decodedFrames: MutableList<ByteArray>,
+    ): Boolean {
+        return request.characteristic.UUID.UUIDString.lowercase() ==
+            BleDiscoveryContract.GATT_WRITE_CHARACTERISTIC_UUID &&
+            request.offset.toInt() == 0 &&
+            request.value?.let { value ->
+                decodedFrames += link.appendIncomingWrite(value.toByteArray())
+                true
+            } == true
+    }
+
+    private fun emitDecodedGattFrames(peerId: PeerId, decodedFrames: List<ByteArray>): Unit {
+        coroutineScope.launch {
+            decodedFrames.forEach { payload ->
+                mutableEvents.emit(TransportEvent.FrameReceived(peerId = peerId, payload = payload))
+            }
+        }
+    }
+
+    private fun reuseOrCreateGattNotifyLink(
+        central: CBCentral,
+        identifier: String,
+        hintPeerIdValue: String,
+        replaceExisting: Boolean,
+    ): IosGattNotifyLink {
         if (!replaceExisting) {
             activeGattNotifyLinksByHint[hintPeerIdValue]?.let { existingLink ->
                 return existingLink
@@ -730,9 +871,24 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
             log("ignoring duplicate L2CAP channel for ${hintPeerId.value.takeLast(6)}")
             return
         }
-        var createdLink: IosL2capLink? = null
         val link =
-            IosL2capLink(
+            createConnectedChannelLink(hintPeerId, peripheralIdentifier, channel, connectedCentral)
+        activeLinksByHint[hintPeerId.value] = link
+        temporaryHintByIdentifier[peripheralIdentifier] = hintPeerId.value
+        discoveredPeers[hintPeerId.value]?.rediscoveryLoggedWithoutLink = false
+        log("registered L2CAP link for ${hintPeerId.value.takeLast(6)} id=$peripheralIdentifier")
+        startConnectedChannelWriteLoop(link)
+        startConnectedChannelReadLoop(link)
+    }
+
+    private fun createConnectedChannelLink(
+        hintPeerId: PeerId,
+        peripheralIdentifier: String,
+        channel: CBL2CAPChannel,
+        connectedCentral: CBCentral?,
+    ): IosL2capLink {
+        var createdLink: IosL2capLink? = null
+        return IosL2capLink(
                 hintPeerId = hintPeerId,
                 peripheralIdentifier = peripheralIdentifier,
                 channel = channel,
@@ -751,11 +907,10 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
                         },
                     ),
             )
-        createdLink = link
-        activeLinksByHint[hintPeerId.value] = link
-        temporaryHintByIdentifier[peripheralIdentifier] = hintPeerId.value
-        discoveredPeers[hintPeerId.value]?.rediscoveryLoggedWithoutLink = false
-        log("registered L2CAP link for ${hintPeerId.value.takeLast(6)} id=$peripheralIdentifier")
+            .also { link -> createdLink = link }
+    }
+
+    private fun startConnectedChannelWriteLoop(link: IosL2capLink): Unit {
         link.writeLoopJob = coroutineScope.launch {
             try {
                 link.runWriteLoop()
@@ -770,6 +925,9 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
                 closeLink(hintPeer = link.hintPeerId.value, reason = "write loop stopped")
             }
         }
+    }
+
+    private fun startConnectedChannelReadLoop(link: IosL2capLink): Unit {
         link.readLoopJob = coroutineScope.launch {
             try {
                 while (true) {
@@ -1085,39 +1243,52 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
                     break
                 }
             }
-            if (telemetryEnabled && decodedFrames.isNotEmpty()) {
-                decodedFrames.forEachIndexed { frameIndex, payload ->
-                    val classification = classifyFrame(payload)
-                    val nowMs = monotonicNowMillis()
-                    val interarrivalMs =
-                        lastReadFrameAtMs?.let { previousAtMs -> nowMs - previousAtMs } ?: -1L
-                    lastReadFrameAtMs = nowMs
-                    emitTelemetry(
-                        event = "read.frame",
-                        fields =
-                            mapOf(
-                                "seq" to (++readSequence).toString(),
-                                "peer" to hintPeerId.value.takeLast(6),
-                                "batchBytes" to readBytes.toString(),
-                                "batchFrames" to decodedFrames.size.toString(),
-                                "readCalls" to readCalls.toString(),
-                                "frameIndex" to (frameIndex + 1).toString(),
-                                "streamReady" to inputStream.hasBytesAvailable().toString(),
-                                "directType" to classification.directType,
-                                "dataClass" to classification.dataClass,
-                                "frameBytes" to payload.size.toString(),
-                                "innerBytes" to classification.innerBytes.toString(),
-                                "interarrivalMs" to interarrivalMs.toString(),
-                            ),
-                    )
-                }
-            }
+            emitReadTelemetry(
+                decodedFrames = decodedFrames,
+                readBytes = readBytes,
+                readCalls = readCalls,
+            )
             return ReadDrainResult(
                 frames = decodedFrames,
                 readBytes = readBytes,
                 readCalls = readCalls,
                 streamClosed = streamClosed,
             )
+        }
+
+        private fun emitReadTelemetry(
+            decodedFrames: List<ByteArray>,
+            readBytes: Int,
+            readCalls: Int,
+        ): Unit {
+            if (!telemetryEnabled || decodedFrames.isEmpty()) {
+                return
+            }
+            decodedFrames.forEachIndexed { frameIndex, payload ->
+                val classification = classifyFrame(payload)
+                val nowMs = monotonicNowMillis()
+                val interarrivalMs =
+                    lastReadFrameAtMs?.let { previousAtMs -> nowMs - previousAtMs } ?: -1L
+                lastReadFrameAtMs = nowMs
+                emitTelemetry(
+                    event = "read.frame",
+                    fields =
+                        mapOf(
+                            "seq" to (++readSequence).toString(),
+                            "peer" to hintPeerId.value.takeLast(6),
+                            "batchBytes" to readBytes.toString(),
+                            "batchFrames" to decodedFrames.size.toString(),
+                            "readCalls" to readCalls.toString(),
+                            "frameIndex" to (frameIndex + 1).toString(),
+                            "streamReady" to inputStream.hasBytesAvailable().toString(),
+                            "directType" to classification.directType,
+                            "dataClass" to classification.dataClass,
+                            "frameBytes" to payload.size.toString(),
+                            "innerBytes" to classification.innerBytes.toString(),
+                            "interarrivalMs" to interarrivalMs.toString(),
+                        ),
+                )
+            }
         }
 
         suspend fun enqueue(payload: ByteArray): Boolean {
