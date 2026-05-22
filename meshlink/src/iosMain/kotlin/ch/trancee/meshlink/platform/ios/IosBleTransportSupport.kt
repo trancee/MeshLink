@@ -190,11 +190,13 @@ internal fun IosBleTransport.dropSendWhileWaitingForL2cap(
     frame: OutboundFrame,
     peer: DiscoveredPeer,
 ): TransportSendResult {
+    connectIfNeeded(peer)
     if (shouldInitiateL2cap(peer.keyHash, peer.platformFamily)) {
-        connectIfNeeded(peer)
         log("send(${frame.peerId.logSuffix()}) no active link, triggering connect")
     } else {
-        log("send(${frame.peerId.logSuffix()}) waiting for inbound L2CAP link")
+        log(
+            "send(${frame.peerId.logSuffix()}) waiting for inbound L2CAP link; requesting outbound connect for explicit send"
+        )
     }
     return TransportSendResult.Dropped("iOS BLE L2CAP connection is not ready")
 }
