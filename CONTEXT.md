@@ -77,8 +77,12 @@ An operator request that creates a new session artifact instance from a session 
 _Avoid_: Exported session state, promote to exported, replace retained state
 
 **Export independence**:
-The rule that deleting or clearing retained-session history does not delete session artifact instances that were already exported. Export cleanup, if offered at all, is a separate explicit action.
+The rule that deleting, clearing, or pruning retained-session history does not delete session artifact instances that were already exported. Export cleanup, if offered at all, is a separate explicit action.
 _Avoid_: History delete removes exports, hidden evidence cleanup
+
+**History pruning**:
+The automatic removal of the oldest retained-session entries when recent history exceeds its bounded limit. History pruning affects retained-session history only and does not remove exported artifact instances.
+_Avoid_: Export cleanup, evidence deletion, unbounded history
 
 **Timestamp**:
 A conceptual point in time used in the reference-app documentation. In conceptual docs, `Timestamp` does not imply a concrete storage type or library type.
