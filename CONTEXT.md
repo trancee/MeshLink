@@ -8,6 +8,10 @@ The MeshLink reference app is the operator-facing evaluation surface for the Mes
 A named operator-facing area of the reference app with a stable purpose and audience. Surfaces include the guided flow, advanced controls, technical timeline, recent history, lab, and solo exploration.
 _Avoid_: Screen, tab, mode
 
+**Advanced controls**:
+The supported surface for deliberate operator inspection and runtime actions beyond the guided flow. It exposes a curated set of reviewer-relevant controls without becoming a general-purpose SDK console.
+_Avoid_: Debug shell, expert mode, full SDK console
+
 **Live session**:
 The current active reference-app session backed by the running MeshLink runtime. A live session is the only session that can be retained again or exported with full payload content.
 _Avoid_: Current history, active artifact
