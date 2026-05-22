@@ -81,20 +81,34 @@ internal class IosL2capFrameBuffer(
     }
 
     private fun writeIntLittleEndian(target: ByteArray, offset: Int, value: Int): Unit {
-        target[offset] = (value and 0xFF).toByte()
-        target[offset + 1] = ((value shr 8) and 0xFF).toByte()
-        target[offset + 2] = ((value shr 16) and 0xFF).toByte()
-        target[offset + 3] = ((value shr 24) and 0xFF).toByte()
+        writeLittleEndian(target = target, offset = offset, value = value.toLong())
     }
 
     private fun readIntLittleEndian(source: ByteArray, offset: Int): Int {
-        return (source[offset].toInt() and 0xFF) or
-            ((source[offset + 1].toInt() and 0xFF) shl 8) or
-            ((source[offset + 2].toInt() and 0xFF) shl 16) or
-            ((source[offset + 3].toInt() and 0xFF) shl 24)
+        return readLittleEndian(source = source, offset = offset).toInt()
+    }
+
+    private fun writeLittleEndian(target: ByteArray, offset: Int, value: Long): Unit {
+        repeat(LENGTH_PREFIX_SIZE_BYTES) { index ->
+            val byteOffset = offset + index
+            val shiftBits = index * BITS_PER_BYTE
+            target[byteOffset] = ((value shr shiftBits) and BYTE_MASK.toLong()).toByte()
+        }
+    }
+
+    private fun readLittleEndian(source: ByteArray, offset: Int): Long {
+        var value = 0L
+        repeat(LENGTH_PREFIX_SIZE_BYTES) { index ->
+            val byteOffset = offset + index
+            val shiftBits = index * BITS_PER_BYTE
+            value = value or ((source[byteOffset].toLong() and BYTE_MASK.toLong()) shl shiftBits)
+        }
+        return value
     }
 
     private companion object {
+        private const val BITS_PER_BYTE: Int = 8
+        private const val BYTE_MASK: Int = 0xFF
         private const val DEFAULT_MAX_FRAME_SIZE_BYTES: Int = 128 * 1024
         private const val INITIAL_CAPACITY_BYTES: Int = 1024
         private const val LENGTH_PREFIX_SIZE_BYTES: Int = 4

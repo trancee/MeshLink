@@ -8,10 +8,11 @@ internal class IosSecureStorage(appId: String) : SecureStorage {
 
     override suspend fun read(key: String): ByteArray? {
         val encoded = defaults.stringForKey(key) ?: return null
-        if (encoded.isEmpty()) {
-            return ByteArray(0)
+        return if (encoded.isEmpty()) {
+            ByteArray(0)
+        } else {
+            encoded.split(",").map { token -> token.toInt().toByte() }.toByteArray()
         }
-        return encoded.split(",").map { token -> token.toInt().toByte() }.toByteArray()
     }
 
     override suspend fun write(key: String, value: ByteArray): Unit {
