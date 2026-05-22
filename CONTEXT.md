@@ -32,6 +32,10 @@ _Avoid_: Auto-restart, silent session reset
 The last export opportunity for a supported live session before session rollover closes the full-payload path. It may include full payload only when the operator explicitly chooses it.
 _Avoid_: After-the-fact full export, warning only
 
+**Pre-end export**:
+The last export opportunity for a supported live session before the operator ends that session explicitly. It may include full payload only when the operator explicitly chooses it.
+_Avoid_: After-the-fact full export, warning only
+
 **Live session**:
 The current active session open in the reference app before it becomes retained history. A live session may belong to the supported path or to a non-authoritative or non-normative path.
 _Avoid_: Current history, retained session, archived runtime
@@ -41,7 +45,7 @@ The point where a live session stops accumulating new evidence. Session end is s
 _Avoid_: Same as retention, always retained, retained-only end
 
 **End session action**:
-The explicit operator action that closes the current evidence window for a session. It is separate from lifecycle controls such as start, pause, resume, and stop.
+The explicit operator action that closes the current evidence window for a session. It is separate from lifecycle controls such as start, pause, resume, and stop, and for a supported live session it includes a direct pre-end export path before full-payload export closes.
 _Avoid_: Stop mesh, implicit end, session stop
 
 **Ended session view**:
