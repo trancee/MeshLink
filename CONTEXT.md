@@ -173,7 +173,7 @@ The explicitly non-normative surface for proof-only or benchmark-only behavior. 
 _Avoid_: Advanced mode, expert mode
 
 **Lab session**:
-A session produced on the lab surface. A lab session remains non-normative, is not added to recent history automatically, and may be exported only through an explicit redacted export.
+A session produced on the lab surface. Entering the lab starts a new lab session instead of changing the surface identity of an existing supported session. A lab session remains non-normative, is not added to recent history automatically, and may be exported only through an explicit redacted export.
 _Avoid_: Retained reference proof, supported-history entry, normal recent-history entry
 
 **Solo exploration**:
