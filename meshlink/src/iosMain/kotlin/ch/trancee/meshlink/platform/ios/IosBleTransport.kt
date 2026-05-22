@@ -74,6 +74,19 @@ import platform.darwin.NSObject
 import platform.posix.getenv
 import platform.posix.memcpy
 
+private const val PEER_LOG_SUFFIX_CHARS: Int = 6
+private const val NO_L2CAP_PSM: Int = 0
+private const val ADVERTISED_PSM_MIN: Int = 128
+private const val ADVERTISED_PSM_MAX: Int = 255
+private const val NO_ADVERTISED_L2CAP_PSM: UByte = 0u
+private val ADVERTISED_PSM_RANGE: IntRange = ADVERTISED_PSM_MIN..ADVERTISED_PSM_MAX
+private const val NO_GATT_CHARACTERISTIC_PERMISSIONS: ULong = 0u
+private const val NO_DATA_BYTES: Int = 0
+private const val MILLIS_PER_SECOND: Double = 1000.0
+private const val ENV_VALUE_NUMERIC_TRUE: String = "1"
+private const val ENV_VALUE_BOOLEAN_TRUE: String = "true"
+private const val ENV_VALUE_YES: String = "yes"
+
 internal class IosBleTransport(private val appId: String, advertisementKeyHash: ByteArray) :
     BleTransport {
     private val mutableEvents = MutableSharedFlow<TransportEvent>(extraBufferCapacity = 32)
@@ -89,7 +102,8 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
     private val temporaryHintByIdentifier: MutableMap<String, String> = linkedMapOf()
 
     private var currentPowerProfile: IosPowerProfile = IosPowerMonitor.defaultProfile()
-    private var currentDiscoveryPayload: BleDiscoveryPayload = discoveryPayload(l2capPsm = 0u)
+    private var currentDiscoveryPayload: BleDiscoveryPayload =
+        discoveryPayload(l2capPsm = NO_ADVERTISED_L2CAP_PSM)
     private var centralManager: CBCentralManager? = null
     private var peripheralManager: CBPeripheralManager? = null
     private var gattNotifyServiceInstalled: Boolean = false
@@ -168,13 +182,13 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
         val discardedL2capFrames = activeLinkFor(peer)?.discardQueuedFrames() ?: 0
         if (discardedL2capFrames > 0) {
             log(
-                "discarded $discardedL2capFrames queued L2CAP frames for ${peer.hintPeerId.value.takeLast(6)}"
+                "discarded $discardedL2capFrames queued L2CAP frames for ${peer.hintPeerId.logSuffix()}"
             )
         }
         val discardedGattFrames = activeGattNotifyLinkFor(peer)?.discardQueuedFrames() ?: 0
         if (discardedGattFrames > 0) {
             log(
-                "discarded $discardedGattFrames queued GATT notify frames for ${peer.hintPeerId.value.takeLast(6)}"
+                "discarded $discardedGattFrames queued GATT notify frames for ${peer.hintPeerId.logSuffix()}"
             )
         }
     }
@@ -208,7 +222,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
         frame: OutboundFrame,
         peer: DiscoveredPeer,
     ): TransportSendResult {
-        if (peer.transportMode != TransportMode.L2CAP || peer.l2capPsm == 0) {
+        if (peer.transportMode != TransportMode.L2CAP || peer.l2capPsm == NO_L2CAP_PSM) {
             return dropSend(
                 frame,
                 message = "iOS BLE GATT fallback transport is not implemented",
@@ -260,7 +274,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
         return gattNotifyLink?.let { link ->
             runCatching {
                     log(
-                        "sending ${frame.payload.size} bytes via GATT notify side link for ${frame.peerId.value.takeLast(6)}"
+                        "sending ${frame.payload.size} bytes via GATT notify side link for ${frame.peerId.logSuffix()}"
                     )
                     if (!link.enqueue(frame.payload)) {
                         return@runCatching TransportSendResult.Dropped(
@@ -310,9 +324,9 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
     ): TransportSendResult {
         if (shouldInitiateL2cap(peer.keyHash, peer.platformFamily)) {
             connectIfNeeded(peer)
-            log("send(${frame.peerId.value.takeLast(6)}) no active link, triggering connect")
+            log("send(${frame.peerId.logSuffix()}) no active link, triggering connect")
         } else {
-            log("send(${frame.peerId.value.takeLast(6)}) waiting for inbound L2CAP link")
+            log("send(${frame.peerId.logSuffix()}) waiting for inbound L2CAP link")
         }
         return TransportSendResult.Dropped("iOS BLE L2CAP connection is not ready")
     }
@@ -322,7 +336,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
         message: String,
         detail: String,
     ): TransportSendResult {
-        log("send(${frame.peerId.value.takeLast(6)}) dropped: $detail")
+        log("send(${frame.peerId.logSuffix()}) dropped: $detail")
         return TransportSendResult.Dropped(message)
     }
 
@@ -345,12 +359,11 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
     }
 
     internal fun installGattNotifyServiceIfReady(peripheral: CBPeripheralManager): Unit {
-        if (
-            !started ||
-                peripheral.state != CBManagerStatePoweredOn ||
-                gattNotifyServiceInstalled ||
-                IosBleTransportBridgeRegistry.currentCallbacksOrNull() == null
-        ) {
+        val bluetoothReady = peripheral.state == CBManagerStatePoweredOn
+        val hasCryptoBridge = IosBleTransportBridgeRegistry.currentCallbacksOrNull() != null
+        val canInstallGattNotifyService =
+            started && bluetoothReady && !gattNotifyServiceInstalled && hasCryptoBridge
+        if (!canInstallGattNotifyService) {
             return
         }
         val notifyCharacteristic =
@@ -358,7 +371,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
                 type = CBUUID.UUIDWithString(BleDiscoveryContract.GATT_NOTIFY_CHARACTERISTIC_UUID),
                 properties = CBCharacteristicPropertyNotify,
                 value = null,
-                permissions = 0u,
+                permissions = NO_GATT_CHARACTERISTIC_PERMISSIONS,
             )
         val writeCharacteristic =
             CBMutableCharacteristic(
@@ -382,7 +395,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
     internal fun handlePublishedL2capChannel(psm: UShort, error: NSError?): Unit {
         if (error != null) {
             reportLog("publish L2CAP failed: ${error.localizedDescription}")
-            currentDiscoveryPayload = discoveryPayload(l2capPsm = 0u)
+            currentDiscoveryPayload = discoveryPayload(l2capPsm = NO_ADVERTISED_L2CAP_PSM)
         } else {
             currentDiscoveryPayload = discoveryPayload(l2capPsm = advertisedPsm(psm))
             log("published L2CAP channel psm=$psm advertised=${currentDiscoveryPayload.l2capPsm}")
@@ -417,9 +430,11 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
                 ?: return
         val hintPeerId = PeerId(payload.keyHash.toHexString())
         val transportMode =
-            if (payload.l2capPsm.toInt() == 0) TransportMode.GATT else TransportMode.L2CAP
+            if (payload.l2capPsm.toInt() == NO_L2CAP_PSM) TransportMode.GATT
+            else TransportMode.L2CAP
         log(
-            "scan found ${hintPeerId.value.takeLast(6)} mode=$transportMode psm=${payload.l2capPsm} platform=${payload.platformFamily} id=${peripheral.identifier.UUIDString}"
+            "scan found ${hintPeerId.logSuffix()} mode=$transportMode psm=${payload.l2capPsm} " +
+                "platform=${payload.platformFamily} id=${peripheral.identifier.UUIDString}"
         )
 
         val identifier = peripheral.identifier.UUIDString.lowercase()
@@ -457,16 +472,16 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
             payload != null &&
                 payload.meshHash == currentDiscoveryPayload.meshHash &&
                 !payload.keyHash.contentEquals(localKeyHash)
-        if (!isPayloadRelevant) {
-            return null
-        }
-        if (!BleDiscoveryContract.isSupportedProtocolVersion(payload.protocolVersion)) {
+        val supportsProtocolVersion =
+            isPayloadRelevant &&
+                BleDiscoveryContract.isSupportedProtocolVersion(payload.protocolVersion)
+        if (isPayloadRelevant && !supportsProtocolVersion) {
             log(
-                "ignoring discovery payload with unsupported protocolVersion=${payload.protocolVersion} id=${peripheral.identifier.UUIDString}"
+                "ignoring discovery payload with unsupported protocolVersion=${payload.protocolVersion} " +
+                    "id=${peripheral.identifier.UUIDString}"
             )
-            return null
         }
-        return payload
+        return if (supportsProtocolVersion) payload else null
     }
 
     private fun upsertDiscoveredPeer(
@@ -545,7 +560,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
             identifier = identifier,
         )
         if (shouldInitiateL2cap(payload.keyHash, payload.platformFamily)) {
-            log("initiating L2CAP connect to ${hintPeerId.value.takeLast(6)}")
+            log("initiating L2CAP connect to ${hintPeerId.logSuffix()}")
             connectIfNeeded(peer)
         }
     }
@@ -565,7 +580,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
         pendingConnectionsByHint.remove(hint)
         discoveredPeers[hint]?.rediscoveryLoggedWithoutLink = false
         reportLog(
-            "L2CAP connect failed for ${hint.takeLast(6)}: ${error?.localizedDescription.orEmpty()}"
+            "L2CAP connect failed for ${hint.logSuffix()}: ${error?.localizedDescription.orEmpty()}"
         )
     }
 
@@ -587,11 +602,11 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
         pendingConnectionsByHint.remove(hint)
         if (channel == null) {
             reportLog(
-                "didOpenL2CAPChannel failed for ${hint.takeLast(6)}: ${error?.localizedDescription.orEmpty()}"
+                "didOpenL2CAPChannel failed for ${hint.logSuffix()}: ${error?.localizedDescription.orEmpty()}"
             )
             return
         }
-        log("didOpenL2CAPChannel succeeded for ${hint.takeLast(6)}")
+        log("didOpenL2CAPChannel succeeded for ${hint.logSuffix()}")
         discoveredPeers[hint]?.rediscoveryLoggedWithoutLink = false
         registerConnectedChannel(PeerId(hint), identifier, channel)
     }
@@ -633,7 +648,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
         if (selectedHintPeerIdValue != null) {
             peerHintByIdentifier[identifier] = selectedHintPeerIdValue
             log(
-                "binding incoming L2CAP channel to discovered peer ${hintPeerId.value.takeLast(6)} id=$identifier"
+                "binding incoming L2CAP channel to discovered peer ${hintPeerId.logSuffix()} id=$identifier"
             )
         } else if (hintPeerId.value.startsWith(TEMPORARY_PEER_PREFIX)) {
             log("binding incoming L2CAP channel to temporary peer ${hintPeerId.value}")
@@ -714,7 +729,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
 
     private fun removeGattNotifyLink(identifier: String, hintPeerIdValue: String): Unit {
         activeGattNotifyLinksByHint.remove(hintPeerIdValue)?.close()
-        reportLog("removed GATT notify side link for ${hintPeerIdValue.takeLast(6)} id=$identifier")
+        reportLog("removed GATT notify side link for ${hintPeerIdValue.logSuffix()} id=$identifier")
         if (!activeLinksByHint.containsKey(hintPeerIdValue)) {
             discoveredPeers[hintPeerIdValue]?.presenceAnnounced = false
             mutableEvents.tryEmit(TransportEvent.PeerLost(PeerId(hintPeerIdValue)))
@@ -729,7 +744,8 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
         val link = ensureGattNotifyLink(central = central, replaceExisting = false)
         if (link == null) {
             reportLog(
-                "GATT write request rejected: no active side link for central=${central.identifier.UUIDString.lowercase()} requests=${typedRequests.size}"
+                "GATT write request rejected: no active side link for " +
+                    "central=${central.identifier.UUIDString.lowercase()} requests=${typedRequests.size}"
             )
             peripheralManager?.respondToRequest(firstRequest, withResult = CBATTErrorUnlikelyError)
             return
@@ -739,7 +755,8 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
             acceptsGattWriteRequest(request, link, decodedFrames)
         }
         reportLog(
-            "GATT write request for ${link.hintPeerId.value.takeLast(6)} requests=${typedRequests.size} decodedFrames=${decodedFrames.size} accepted=$allRequestsAccepted"
+            "GATT write request for ${link.hintPeerId.logSuffix()} requests=${typedRequests.size} " +
+                "decodedFrames=${decodedFrames.size} accepted=$allRequestsAccepted"
         )
         peripheralManager?.respondToRequest(
             firstRequest,
@@ -814,7 +831,8 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
                 createdLink = link
                 activeGattNotifyLinksByHint[hintPeerId.value] = link
                 reportLog(
-                    "registered GATT notify side link for ${hintPeerId.value.takeLast(6)} id=$identifier maxUpdateValueLength=${central.maximumUpdateValueLength}"
+                    "registered GATT notify side link for ${hintPeerId.logSuffix()} id=$identifier " +
+                        "maxUpdateValueLength=${central.maximumUpdateValueLength}"
                 )
             }
     }
@@ -857,7 +875,8 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
         temporaryHintByIdentifier[identifier] = resolvedHintPeerIdValue
         discoveredPeers[resolvedHintPeerIdValue]?.rediscoveryLoggedWithoutLink = false
         reportLog(
-            "promoted temporary L2CAP link ${temporaryHintPeerIdValue.takeLast(6)} -> ${resolvedHintPeerIdValue.takeLast(6)} id=$identifier"
+            "promoted temporary L2CAP link ${temporaryHintPeerIdValue.logSuffix()} -> " +
+                "${resolvedHintPeerIdValue.logSuffix()} id=$identifier"
         )
     }
 
@@ -868,7 +887,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
         connectedCentral: CBCentral? = null,
     ): Unit {
         if (activeLinksByHint.containsKey(hintPeerId.value)) {
-            log("ignoring duplicate L2CAP channel for ${hintPeerId.value.takeLast(6)}")
+            log("ignoring duplicate L2CAP channel for ${hintPeerId.logSuffix()}")
             return
         }
         val link =
@@ -876,7 +895,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
         activeLinksByHint[hintPeerId.value] = link
         temporaryHintByIdentifier[peripheralIdentifier] = hintPeerId.value
         discoveredPeers[hintPeerId.value]?.rediscoveryLoggedWithoutLink = false
-        log("registered L2CAP link for ${hintPeerId.value.takeLast(6)} id=$peripheralIdentifier")
+        log("registered L2CAP link for ${hintPeerId.logSuffix()} id=$peripheralIdentifier")
         startConnectedChannelWriteLoop(link)
         startConnectedChannelReadLoop(link)
     }
@@ -914,12 +933,11 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
         link.writeLoopJob = coroutineScope.launch {
             try {
                 link.runWriteLoop()
+            } catch (error: CancellationException) {
+                throw error
             } catch (error: Throwable) {
-                if (error is CancellationException) {
-                    throw error
-                }
                 reportLog(
-                    "L2CAP write loop failed for ${link.hintPeerId.value.takeLast(6)}: ${error.message.orEmpty()}"
+                    "L2CAP write loop failed for ${link.hintPeerId.logSuffix()}: ${error.message.orEmpty()}"
                 )
             } finally {
                 closeLink(hintPeer = link.hintPeerId.value, reason = "write loop stopped")
@@ -957,12 +975,11 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
                         break
                     }
                 }
+            } catch (error: CancellationException) {
+                throw error
             } catch (error: Throwable) {
-                if (error is CancellationException) {
-                    throw error
-                }
                 reportLog(
-                    "L2CAP read loop failed for ${link.hintPeerId.value.takeLast(6)}: ${error.message.orEmpty()}"
+                    "L2CAP read loop failed for ${link.hintPeerId.logSuffix()}: ${error.message.orEmpty()}"
                 )
             } finally {
                 closeLink(hintPeer = link.hintPeerId.value, reason = "channel closed")
@@ -971,8 +988,8 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
     }
 
     private fun connectIfNeeded(peer: DiscoveredPeer): Unit {
-        if (peer.l2capPsm == 0) {
-            log("connectIfNeeded(${peer.hintPeerId.value.takeLast(6)}) skipped: no PSM")
+        if (peer.l2capPsm == NO_L2CAP_PSM) {
+            log("connectIfNeeded(${peer.hintPeerId.logSuffix()}) skipped: no PSM")
             return
         }
         if (
@@ -980,7 +997,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
                 pendingConnectionsByHint.containsKey(peer.hintPeerId.value)
         ) {
             log(
-                "connectIfNeeded(${peer.hintPeerId.value.takeLast(6)}) skipped: already active or pending"
+                "connectIfNeeded(${peer.hintPeerId.logSuffix()}) skipped: already active or pending"
             )
             return
         }
@@ -1021,7 +1038,8 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
         }
         if (!peer.rediscoveryLoggedWithoutLink) {
             log(
-                "scan rediscovered ${peer.hintPeerId.value.takeLast(6)} with no active link pendingConnect=$hasPendingConnect id=$identifier"
+                "scan rediscovered ${peer.hintPeerId.logSuffix()} with no active link " +
+                    "pendingConnect=$hasPendingConnect id=$identifier"
             )
             peer.rediscoveryLoggedWithoutLink = true
         }
@@ -1072,7 +1090,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
         centralManager?.stopScan()
         peripheralManager?.stopAdvertising()
         val psm = currentDiscoveryPayload.l2capPsm.toInt()
-        if (psm in 128..255) {
+        if (psm in ADVERTISED_PSM_RANGE) {
             peripheralManager?.unpublishL2CAPChannel(psm.convert())
         }
         peripheralManager?.removeAllServices()
@@ -1096,14 +1114,16 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
         val link = activeLinksByHint.remove(hintPeer) ?: return
         discoveredPeers[hintPeer]?.rediscoveryLoggedWithoutLink = false
         reportLog(
-            "closing L2CAP link ${hintPeer.takeLast(6)}: $reason discoveredPeerRetained=${discoveredPeers.containsKey(hintPeer)} pendingConnect=${pendingConnectionsByHint.containsKey(hintPeer)}"
+            "closing L2CAP link ${hintPeer.logSuffix()}: $reason " +
+                "discoveredPeerRetained=${discoveredPeers.containsKey(hintPeer)} " +
+                "pendingConnect=${pendingConnectionsByHint.containsKey(hintPeer)}"
         )
         link.readLoopJob?.cancel()
         link.writeLoopJob?.cancel()
         link.close()
         if (hasActiveGattNotifyLink(hintPeer)) {
             reportLog(
-                "retaining peer ${hintPeer.takeLast(6)} after L2CAP close because the GATT side link is still active"
+                "retaining peer ${hintPeer.logSuffix()} after L2CAP close because the GATT side link is still active"
             )
             return
         }
@@ -1124,7 +1144,8 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
             forCentral = central,
         )
         reportLog(
-            "requested low connection latency for ${hintPeerId.value.takeLast(6)} central=${central.identifier.UUIDString.lowercase()}"
+            "requested low connection latency for ${hintPeerId.logSuffix()} " +
+                "central=${central.identifier.UUIDString.lowercase()}"
         )
     }
 
@@ -1140,7 +1161,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
     }
 
     private fun advertisedPsm(psm: UShort): UByte {
-        return if (psm.toInt() in 128..255) psm.toUByte() else 0u
+        return if (psm.toInt() in ADVERTISED_PSM_RANGE) psm.toUByte() else NO_ADVERTISED_L2CAP_PSM
     }
 
     private fun log(message: String): Unit {
@@ -1275,7 +1296,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
                     fields =
                         mapOf(
                             "seq" to (++readSequence).toString(),
-                            "peer" to hintPeerId.value.takeLast(6),
+                            "peer" to hintPeerId.logSuffix(),
                             "batchBytes" to readBytes.toString(),
                             "batchFrames" to decodedFrames.size.toString(),
                             "readCalls" to readCalls.toString(),
@@ -1412,25 +1433,25 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
                 minWriteBatchBytes = minOf(minWriteBatchBytes, batchBytes)
                 var batchOffset = 0
                 while (batchOffset < batchBytes) {
-                    if (
-                        isStreamClosed(
+                    check(
+                        !isStreamClosed(
                             streamStatus = outputStream.streamStatus,
                             hasError = outputStream.streamError != null,
                         )
                     ) {
-                        throw IllegalStateException("iOS L2CAP output stream closed")
+                        "iOS L2CAP output stream closed"
                     }
                     if (!outputStream.hasSpaceAvailable()) {
                         readyFalseCount += 1
                         backpressureSpins += 1
-                        if (
-                            isWriteStalled(
+                        check(
+                            !isWriteStalled(
                                 lastProgressAtMs = lastWriteProgressAtMs,
                                 nowMs = monotonicNowMillis(),
                                 stallTimeoutMs = WRITE_STALL_TIMEOUT_MS,
                             )
                         ) {
-                            throw IllegalStateException("iOS L2CAP output stream stalled")
+                            "iOS L2CAP output stream stalled"
                         }
                         delay(ACTIVE_STREAM_POLL_INTERVAL_MS)
                         continue
@@ -1443,19 +1464,17 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
                         )
                     }
                     writeCalls += 1
-                    if (written < 0) {
-                        throw IllegalStateException("iOS L2CAP output stream closed")
-                    }
+                    check(written >= 0) { "iOS L2CAP output stream closed" }
                     if (written == 0L) {
                         backpressureSpins += 1
-                        if (
-                            isWriteStalled(
+                        check(
+                            !isWriteStalled(
                                 lastProgressAtMs = lastWriteProgressAtMs,
                                 nowMs = monotonicNowMillis(),
                                 stallTimeoutMs = WRITE_STALL_TIMEOUT_MS,
                             )
                         ) {
-                            throw IllegalStateException("iOS L2CAP output stream stalled")
+                            "iOS L2CAP output stream stalled"
                         }
                         delay(ACTIVE_STREAM_POLL_INTERVAL_MS)
                         continue
@@ -1505,7 +1524,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
                 event = "write.batch",
                 fields =
                     mapOf(
-                        "peer" to hintPeerId.value.takeLast(6),
+                        "peer" to hintPeerId.logSuffix(),
                         "seqStart" to queuedFrames.first().sequence.toString(),
                         "seqEnd" to queuedFrames.last().sequence.toString(),
                         "coalescedFrames" to batchStats.coalescedFrames.toString(),
@@ -1538,7 +1557,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
                     fields =
                         mapOf(
                             "seq" to queuedFrame.sequence.toString(),
-                            "peer" to hintPeerId.value.takeLast(6),
+                            "peer" to hintPeerId.logSuffix(),
                             "directType" to queuedFrame.classification.directType,
                             "dataClass" to queuedFrame.classification.dataClass,
                             "frameBytes" to queuedFrame.payloadSize.toString(),
@@ -1679,15 +1698,25 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
         private const val TRANSPORT_DEBUG_ENV: String = "MESHLINK_TRANSPORT_DEBUG"
 
         private fun monotonicNowMillis(): Long {
-            return (NSProcessInfo.processInfo.systemUptime * 1000.0).toLong()
+            return (NSProcessInfo.processInfo.systemUptime * MILLIS_PER_SECOND).toLong()
         }
 
         private fun readEnvironmentFlag(name: String): Boolean {
             return getenv(name)?.toKString()?.lowercase()?.let { value ->
-                value == "1" || value == "true" || value == "yes"
+                value == ENV_VALUE_NUMERIC_TRUE ||
+                    value == ENV_VALUE_BOOLEAN_TRUE ||
+                    value == ENV_VALUE_YES
             } ?: false
         }
     }
+}
+
+private fun PeerId.logSuffix(): String {
+    return value.takeLast(PEER_LOG_SUFFIX_CHARS)
+}
+
+private fun String.logSuffix(): String {
+    return takeLast(PEER_LOG_SUFFIX_CHARS)
 }
 
 internal data class IncomingL2capHintCandidate(
@@ -1717,7 +1746,7 @@ internal fun isStreamClosed(inputStream: platform.Foundation.NSInputStream): Boo
 
 private fun NSData.toByteArray(): ByteArray {
     val lengthInt = length.toInt()
-    if (lengthInt == 0) {
+    if (lengthInt == NO_DATA_BYTES) {
         return ByteArray(0)
     }
     return ByteArray(lengthInt).also { output ->
