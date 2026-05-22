@@ -6,6 +6,11 @@ import ch.trancee.meshlink.reference.model.ArtifactPayloadPolicy
 import ch.trancee.meshlink.reference.model.ReferenceHistoryStatus
 import ch.trancee.meshlink.reference.model.ReferenceSession
 import ch.trancee.meshlink.reference.model.SessionArtifact
+import ch.trancee.meshlink.reference.model.referenceAuthorityLabel
+import ch.trancee.meshlink.reference.model.referenceConnectionLabel
+import ch.trancee.meshlink.reference.model.referenceOutcomeLabel
+import ch.trancee.meshlink.reference.model.referencePeerTrustLabel
+import ch.trancee.meshlink.reference.model.referenceScenarioTitle
 import ch.trancee.meshlink.reference.model.withoutSensitivePayload
 import ch.trancee.meshlink.reference.session.ExportPayloadPolicy
 import kotlinx.coroutines.launch
@@ -136,10 +141,24 @@ private suspend fun TechnicalTimelineStore.writeExport(
             includesFullPayload =
                 policy == ExportPayloadPolicy.FULL_PAYLOAD_OPT_IN &&
                     snapshot.timeline.any { entry -> entry.fullPayload != null },
-            scenarioSummary = snapshot.session.configurationSnapshot,
+            scenarioSummary =
+                mapOf(
+                    "scenarioId" to snapshot.session.scenarioId,
+                    "title" to referenceScenarioTitle(snapshot.session.scenarioId),
+                    "surface" to
+                        (snapshot.session.configurationSnapshot["surface"] ?: "main-guided"),
+                    "authorityMode" to referenceAuthorityLabel(snapshot.session.authorityMode),
+                ),
             peerSummaries =
                 snapshot.peers.map { peer ->
-                    mapOf("peerSuffix" to peer.peerSuffix, "trustState" to peer.trustState.name)
+                    buildMap {
+                        put("peerSuffix", peer.peerSuffix)
+                        put("trustState", referencePeerTrustLabel(peer.trustState))
+                        put("connectionState", referenceConnectionLabel(peer.connectionState))
+                        peer.lastDeliveryOutcome?.let { outcome ->
+                            put("lastDeliveryOutcome", referenceOutcomeLabel(outcome) ?: outcome)
+                        }
+                    }
                 },
             timelineEntries = snapshot.timeline,
             storagePath = "reference/exports/${snapshot.session.sessionId}.json",
