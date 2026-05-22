@@ -80,6 +80,10 @@ _Avoid_: Exported session state, promote to exported, replace retained state
 The rule that deleting, clearing, or pruning retained-session history does not delete session artifact instances that were already exported. Export cleanup, if offered at all, is a separate explicit action.
 _Avoid_: History delete removes exports, hidden evidence cleanup
 
+**Export index**:
+A browsable in-app archive of exported artifact instances. An export index is not part of the current reference-app evidence model; exported artifacts remain external file outputs rather than a second retained-history system.
+_Avoid_: Export history surface, in-app artifact archive, second recent-history list
+
 **History pruning**:
 The automatic removal of the oldest retained-session entries when recent history exceeds its bounded limit. History pruning affects retained-session history only and does not remove exported artifact instances.
 _Avoid_: Export cleanup, evidence deletion, unbounded history
