@@ -3,6 +3,7 @@
 package ch.trancee.meshlink.platform.ios
 
 import ch.trancee.meshlink.api.IosBleTransportBridgeRegistry
+import ch.trancee.meshlink.api.MeshLinkException
 import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.engine.DirectWireFrame
 import ch.trancee.meshlink.identity.toHexString
@@ -22,7 +23,6 @@ import ch.trancee.meshlink.transport.shouldUseMixedPlatformGattNotifyBearer
 import kotlinx.cinterop.ObjCSignatureOverride
 import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.convert
-import kotlinx.cinterop.reinterpret
 import kotlinx.cinterop.toKString
 import kotlinx.cinterop.usePinned
 import kotlinx.coroutines.CancellationException
@@ -893,7 +893,7 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
                 link.runWriteLoop()
             } catch (error: CancellationException) {
                 throw error
-            } catch (error: Throwable) {
+            } catch (error: IllegalStateException) {
                 reportLog(
                     "L2CAP write loop failed for ${link.hintPeerId.logSuffix()}: ${error.message.orEmpty()}"
                 )
@@ -906,36 +906,14 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
     private fun startConnectedChannelReadLoop(link: IosL2capLink): Unit {
         link.readLoopJob = coroutineScope.launch {
             try {
-                while (true) {
-                    val drainedFrames = link.drainReadableFrames()
-                    if (drainedFrames.frames.isEmpty()) {
-                        if (drainedFrames.streamClosed) {
-                            break
-                        }
-                        delay(
-                            if (drainedFrames.readBytes > 0) {
-                                ACTIVE_STREAM_POLL_INTERVAL_MS
-                            } else {
-                                IDLE_STREAM_POLL_INTERVAL_MS
-                            }
-                        )
-                        continue
-                    }
-                    drainedFrames.frames.forEach { payload ->
-                        mutableEvents.emit(
-                            TransportEvent.FrameReceived(
-                                peerId = link.hintPeerId,
-                                payload = payload,
-                            )
-                        )
-                    }
-                    if (drainedFrames.streamClosed) {
-                        break
-                    }
+                link.runReadLoop { payload ->
+                    mutableEvents.emit(
+                        TransportEvent.FrameReceived(peerId = link.hintPeerId, payload = payload)
+                    )
                 }
             } catch (error: CancellationException) {
                 throw error
-            } catch (error: Throwable) {
+            } catch (error: MeshLinkException) {
                 reportLog(
                     "L2CAP read loop failed for ${link.hintPeerId.logSuffix()}: ${error.message.orEmpty()}"
                 )
@@ -1143,7 +1121,23 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
         private val nowMillis: () -> Long = dependencies.nowMillis
         private val inputStream = checkNotNull(channel.inputStream).apply { open() }
         private val outputStream = checkNotNull(channel.outputStream).apply { open() }
-        private val readBuffer = ByteArray(STREAM_BUFFER_BYTES)
+        private val readPump =
+            IosL2capReadPump(
+                inputStream = inputStream,
+                frameBuffer = incomingFrames,
+                dependencies =
+                    IosL2capReadPumpDependencies(
+                        hintPeerIdProvider = { hintPeerId },
+                        telemetryEnabled = telemetryEnabled,
+                        telemetryLogger = telemetryLogger,
+                        timing =
+                            IosL2capReadTiming(
+                                nowMillis = nowMillis,
+                                activePollIntervalMs = ACTIVE_STREAM_POLL_INTERVAL_MS,
+                                idlePollIntervalMs = IDLE_STREAM_POLL_INTERVAL_MS,
+                            ),
+                    ),
+            )
         private val writePump =
             IosL2capWritePump(
                 outputStream = outputStream,
@@ -1161,85 +1155,11 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
                             ),
                     ),
             )
-        private var readSequence: Long = 0L
-        private var lastReadFrameAtMs: Long? = null
         var readLoopJob: Job? = null
         var writeLoopJob: Job? = null
 
-        suspend fun drainReadableFrames(): ReadDrainResult {
-            if (!inputStream.hasBytesAvailable()) {
-                return ReadDrainResult(streamClosed = isStreamClosed(inputStream))
-            }
-            val decodedFrames = mutableListOf<ByteArray>()
-            var readBytes = 0
-            var readCalls = 0
-            var streamClosed = false
-            while (inputStream.hasBytesAvailable()) {
-                val bytesRead = readBuffer.usePinned { pinned ->
-                    inputStream.read(pinned.addressOf(0).reinterpret(), readBuffer.size.convert())
-                }
-                if (bytesRead < 0) {
-                    streamClosed = true
-                    break
-                }
-                if (bytesRead == 0L) {
-                    break
-                }
-                val readCount = bytesRead.toInt()
-                readBytes += readCount
-                readCalls += 1
-                decodedFrames += incomingFrames.append(readBuffer.copyOf(readCount))
-                if (readCount < readBuffer.size && !inputStream.hasBytesAvailable()) {
-                    break
-                }
-            }
-            emitReadTelemetry(
-                decodedFrames = decodedFrames,
-                readBytes = readBytes,
-                readCalls = readCalls,
-            )
-            return ReadDrainResult(
-                frames = decodedFrames,
-                readBytes = readBytes,
-                readCalls = readCalls,
-                streamClosed = streamClosed,
-            )
-        }
-
-        private fun emitReadTelemetry(
-            decodedFrames: List<ByteArray>,
-            readBytes: Int,
-            readCalls: Int,
-        ): Unit {
-            if (!telemetryEnabled || decodedFrames.isEmpty()) {
-                return
-            }
-            decodedFrames.forEachIndexed { frameIndex, payload ->
-                val classification = classifyL2capFrame(payload)
-                val nowMs = nowMillis()
-                val interarrivalMs =
-                    lastReadFrameAtMs?.let { previousAtMs -> nowMs - previousAtMs } ?: -1L
-                lastReadFrameAtMs = nowMs
-                emitL2capTelemetry(
-                    telemetryLogger = telemetryLogger,
-                    event = "read.frame",
-                    fields =
-                        mapOf(
-                            "seq" to (++readSequence).toString(),
-                            "peer" to hintPeerId.logSuffix(),
-                            "batchBytes" to readBytes.toString(),
-                            "batchFrames" to decodedFrames.size.toString(),
-                            "readCalls" to readCalls.toString(),
-                            "frameIndex" to (frameIndex + 1).toString(),
-                            "streamReady" to inputStream.hasBytesAvailable().toString(),
-                            "directType" to classification.directType,
-                            "dataClass" to classification.dataClass,
-                            "frameBytes" to payload.size.toString(),
-                            "innerBytes" to classification.innerBytes.toString(),
-                            "interarrivalMs" to interarrivalMs.toString(),
-                        ),
-                )
-            }
+        suspend fun runReadLoop(onFrameReceived: suspend (ByteArray) -> Unit): Unit {
+            readPump.runLoop(onFrameReceived)
         }
 
         suspend fun enqueue(payload: ByteArray): Boolean {
@@ -1258,17 +1178,6 @@ internal class IosBleTransport(private val appId: String, advertisementKeyHash: 
 
         suspend fun discardQueuedFrames(): Int {
             return writePump.discardQueuedFrames()
-        }
-
-        data class ReadDrainResult(
-            val frames: List<ByteArray> = emptyList(),
-            val readBytes: Int = 0,
-            val readCalls: Int = 0,
-            val streamClosed: Boolean = false,
-        )
-
-        private companion object {
-            private const val STREAM_BUFFER_BYTES: Int = 16 * 1024
         }
     }
 
