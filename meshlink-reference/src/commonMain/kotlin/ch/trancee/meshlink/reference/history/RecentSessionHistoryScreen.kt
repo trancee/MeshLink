@@ -24,6 +24,10 @@ import ch.trancee.meshlink.reference.design.ReferenceSectionCard
 import ch.trancee.meshlink.reference.model.ReferenceSession
 import ch.trancee.meshlink.reference.timeline.TechnicalTimelineStore
 import ch.trancee.meshlink.reference.timeline.TechnicalTimelineUiState
+import ch.trancee.meshlink.reference.timeline.clearHistory
+import ch.trancee.meshlink.reference.timeline.deleteRetainedSession
+import ch.trancee.meshlink.reference.timeline.openRetainedSession
+import ch.trancee.meshlink.reference.timeline.returnToLive
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
