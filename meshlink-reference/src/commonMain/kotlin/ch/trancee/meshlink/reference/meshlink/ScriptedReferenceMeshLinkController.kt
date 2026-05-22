@@ -22,7 +22,7 @@ public class ScriptedReferenceMeshLinkController(
     private val startedAtEpochMillis: Long = nowProvider()
     private val sessionId: String = "automation-${platformName.lowercase()}-$startedAtEpochMillis"
     private val scriptedPeerId: String = "automation-peer-654321"
-    private val scriptedPeerSuffix: String = scriptedPeerId.takeLast(6)
+    private val scriptedPeerSuffix: String = redactedSuffix(scriptedPeerId)
     private val stateStore: ReferenceControllerStateStore =
         ReferenceControllerStateStore(
             initialSnapshot =
@@ -53,7 +53,8 @@ public class ScriptedReferenceMeshLinkController(
                                     severity = TimelineSeverity.INFO,
                                     title = "Automation session created",
                                     detail =
-                                        "A deterministic scripted controller is active for $platformName UI automation.",
+                                        "A deterministic scripted controller is active " +
+                                            "for $platformName UI automation.",
                                 )
                                 .toTimelineEntry(
                                     sessionId = sessionId,
@@ -65,6 +66,13 @@ public class ScriptedReferenceMeshLinkController(
                 ),
             sessionId = sessionId,
             nowProvider = nowProvider,
+        )
+    private val sendRecorder: ScriptedReferenceSendRecorder =
+        ScriptedReferenceSendRecorder(
+            stateStore = stateStore,
+            scriptedPeerId = scriptedPeerId,
+            scriptedPeerSuffix = scriptedPeerSuffix,
+            updatePeerOutcome = ::updatePeerOutcome,
         )
 
     override val snapshot: StateFlow<ReferenceControllerSnapshot> = stateStore.snapshot
@@ -154,82 +162,23 @@ public class ScriptedReferenceMeshLinkController(
         payloadText: String,
         priority: DeliveryPriority,
     ): Unit {
-        if (peerId != scriptedPeerId) {
-            stateStore.appendEvent(
-                ReferenceTimelineEvent(
-                    family = TimelineFamily.MESSAGE,
-                    severity = TimelineSeverity.ERROR,
-                    title = "Send failed",
-                    detail = "The scripted controller could not find ${peerId.takeLast(6)}.",
-                    peerSuffix = peerId.takeLast(6),
-                )
+        val blocker =
+            sendRecorder.blockerFor(
+                peerId = peerId,
+                meshStateLabel = stateStore.currentSnapshot.session.meshStateLabel,
             )
-            return
-        }
-
-        if (stateStore.currentSnapshot.session.meshStateLabel != MeshLinkState.Running.toString()) {
-            stateStore.appendEvent(
-                ReferenceTimelineEvent(
-                    family = TimelineFamily.MESSAGE,
-                    severity = TimelineSeverity.ERROR,
-                    title = "Send blocked",
-                    detail =
-                        "The scripted automation mesh must be Running before a send can proceed.",
-                    peerSuffix = scriptedPeerSuffix,
-                )
-            )
+        if (blocker != null) {
+            sendRecorder.recordBlockedSend(peerId = peerId, blocker = blocker)
             return
         }
 
         ensurePeerAvailable()
         promotePeerTrust()
-        val payloadBytes = payloadText.encodeToByteArray().size
-        if (payloadBytes > LARGE_TRANSFER_THRESHOLD_BYTES) {
-            stateStore.appendEvent(
-                ReferenceTimelineEvent(
-                    family = TimelineFamily.TRANSFER,
-                    severity = TimelineSeverity.SUCCESS,
-                    title = "Large transfer completed",
-                    detail =
-                        "Transferred $payloadBytes bytes to $scriptedPeerSuffix with $priority priority.",
-                    peerSuffix = scriptedPeerSuffix,
-                    payloadPreview = payloadText.take(PAYLOAD_PREVIEW_CHARACTERS),
-                )
-            )
-            updatePeerOutcome("Large transfer complete ($payloadBytes bytes)")
-            stateStore.updateSession(
-                meshStateLabel = MeshLinkState.Running.toString(),
-                lastOutcomeSummary = "Large transfer complete",
-                selectedPeerId = scriptedPeerId,
-            )
-            return
-        }
-
-        stateStore.appendEvent(
-            ReferenceTimelineEvent(
-                family = TimelineFamily.MESSAGE,
-                severity = TimelineSeverity.SUCCESS,
-                title = "Guided message sent",
-                detail = "Sent $payloadBytes bytes to $scriptedPeerSuffix with $priority priority.",
-                peerSuffix = scriptedPeerSuffix,
-                payloadPreview = payloadText.take(PAYLOAD_PREVIEW_CHARACTERS),
-            )
-        )
-        stateStore.appendEvent(
-            ReferenceTimelineEvent(
-                family = TimelineFamily.MESSAGE,
-                severity = TimelineSeverity.SUCCESS,
-                title = "Delivery confirmed",
-                detail = "The scripted peer acknowledged the latest guided payload.",
-                peerSuffix = scriptedPeerSuffix,
-                payloadPreview = payloadText.take(PAYLOAD_PREVIEW_CHARACTERS),
-            )
-        )
-        updatePeerOutcome("Delivery confirmed")
-        stateStore.updateSession(
-            meshStateLabel = MeshLinkState.Running.toString(),
-            lastOutcomeSummary = "SendResult.Sent",
-            selectedPeerId = scriptedPeerId,
+        sendRecorder.recordCompletion(
+            payloadText = payloadText,
+            priority = priority,
+            largeTransferThresholdBytes = LARGE_TRANSFER_THRESHOLD_BYTES,
+            payloadPreviewCharacters = PAYLOAD_PREVIEW_CHARACTERS,
         )
     }
 

@@ -10,7 +10,6 @@ import ch.trancee.meshlink.api.PauseResult
 import ch.trancee.meshlink.api.PeerConnectionState
 import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.api.ResumeResult
-import ch.trancee.meshlink.api.SendResult
 import ch.trancee.meshlink.api.StartResult
 import ch.trancee.meshlink.api.StopResult
 import ch.trancee.meshlink.config.PowerMode
@@ -131,6 +130,7 @@ public class LiveReferenceMeshLinkController(
             MeshLink.create(config = config)
         }
     }
+    private val sendRecorder: LiveReferenceSendRecorder = LiveReferenceSendRecorder(stateStore)
     private var flowsBound: Boolean = false
 
     override val snapshot: StateFlow<ReferenceControllerSnapshot> = stateStore.snapshot
@@ -190,54 +190,18 @@ public class LiveReferenceMeshLinkController(
         }
         outcome
             .onSuccess { result ->
-                when (result) {
-                    SendResult.Sent -> {
-                        stateStore.appendEvent(
-                            ReferenceTimelineEvent(
-                                family = TimelineFamily.MESSAGE,
-                                severity = TimelineSeverity.SUCCESS,
-                                title = "Guided message sent",
-                                detail =
-                                    "First guided payload reached ${redactedSuffix(peerId)} with $priority priority.",
-                                peerSuffix = redactedSuffix(peerId),
-                                payloadPreview = payloadText,
-                            )
-                        )
-                        stateStore.updateSession(
-                            lastOutcomeSummary = "SendResult.Sent",
-                            selectedPeerId = peerId,
-                        )
-                    }
-
-                    is SendResult.NotSent -> {
-                        stateStore.appendEvent(
-                            ReferenceTimelineEvent(
-                                family = TimelineFamily.MESSAGE,
-                                severity = TimelineSeverity.ERROR,
-                                title = "Guided message not sent",
-                                detail =
-                                    "First guided payload failed for ${redactedSuffix(peerId)} with ${result.reason}.",
-                                peerSuffix = redactedSuffix(peerId),
-                                payloadPreview = payloadText,
-                            )
-                        )
-                        stateStore.updateSession(
-                            lastOutcomeSummary = "SendResult.NotSent(${result.reason})",
-                            selectedPeerId = peerId,
-                        )
-                    }
-                }
+                sendRecorder.recordOutcome(
+                    peerId = peerId,
+                    payloadText = payloadText,
+                    priority = priority,
+                    result = result,
+                )
             }
             .onFailure { error ->
-                stateStore.appendEvent(
-                    ReferenceTimelineEvent(
-                        family = TimelineFamily.MESSAGE,
-                        severity = TimelineSeverity.ERROR,
-                        title = "Guided message failed",
-                        detail = error.message ?: error.toString(),
-                        peerSuffix = redactedSuffix(peerId),
-                        payloadPreview = payloadText,
-                    )
+                sendRecorder.recordFailure(
+                    peerId = peerId,
+                    payloadText = payloadText,
+                    error = error,
                 )
             }
     }
