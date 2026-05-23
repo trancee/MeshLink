@@ -47,8 +47,8 @@ internal data class MeshEngineOutboundDeliveryDependencies(
 internal class MeshEngineOutboundDeliverySupport(
     private val config: MeshEngineOutboundDeliveryConfig,
     private val dependencies: MeshEngineOutboundDeliveryDependencies,
-    private val inlineSendSupport: MeshEngineInlineSendSupport,
-    private val largeTransferSupport: MeshEngineLargeTransferSupport,
+    private val inlineOutboundDeliveryAdapter: MeshEngineInlineOutboundDeliveryAdapter,
+    private val largeTransferOutboundDeliveryAdapter: MeshEngineLargeTransferOutboundDeliveryAdapter,
 ) {
     suspend fun sendPayload(
         mode: MeshEngineOutboundDeliveryMode,
@@ -89,17 +89,17 @@ internal class MeshEngineOutboundDeliverySupport(
                 hardRunToken = hardRunToken,
                 remainingBudget = config.deliveryRetryDeadline,
             )
-        return inlineSendSupport.withDiscoveryPolicy(initialContext) {
+        return inlineOutboundDeliveryAdapter.withDiscoveryPolicy(initialContext) {
             executeSendLoop(
                 peerId = peerId,
                 payload = payload,
                 priority = priority,
                 hardRunToken = hardRunToken,
-                currentTopologyVersion = inlineSendSupport::currentTopologyVersion,
-                createInitialState = inlineSendSupport::beginOutboundDelivery,
-                attemptDelivery = inlineSendSupport::attemptOutboundDelivery,
-                onDeadlineExpired = inlineSendSupport::onDeadlineExpired,
-                onHardRunEnded = inlineSendSupport::onHardRunEnded,
+                currentTopologyVersion = inlineOutboundDeliveryAdapter::currentTopologyVersion,
+                createInitialState = inlineOutboundDeliveryAdapter::beginOutboundDelivery,
+                attemptDelivery = inlineOutboundDeliveryAdapter::attemptOutboundDelivery,
+                onDeadlineExpired = inlineOutboundDeliveryAdapter::onDeadlineExpired,
+                onHardRunEnded = inlineOutboundDeliveryAdapter::onHardRunEnded,
             )
         }
     }
@@ -118,17 +118,18 @@ internal class MeshEngineOutboundDeliverySupport(
                 hardRunToken = hardRunToken,
                 remainingBudget = config.deliveryRetryDeadline,
             )
-        return largeTransferSupport.withDiscoveryPolicy(initialContext) {
+        return largeTransferOutboundDeliveryAdapter.withDiscoveryPolicy(initialContext) {
             executeSendLoop(
                 peerId = peerId,
                 payload = payload,
                 priority = priority,
                 hardRunToken = hardRunToken,
-                currentTopologyVersion = largeTransferSupport::currentTopologyVersion,
-                createInitialState = largeTransferSupport::beginOutboundDelivery,
-                attemptDelivery = largeTransferSupport::attemptOutboundDelivery,
-                onDeadlineExpired = largeTransferSupport::onDeadlineExpired,
-                onHardRunEnded = largeTransferSupport::onHardRunEnded,
+                currentTopologyVersion =
+                    largeTransferOutboundDeliveryAdapter::currentTopologyVersion,
+                createInitialState = largeTransferOutboundDeliveryAdapter::beginOutboundDelivery,
+                attemptDelivery = largeTransferOutboundDeliveryAdapter::attemptOutboundDelivery,
+                onDeadlineExpired = largeTransferOutboundDeliveryAdapter::onDeadlineExpired,
+                onHardRunEnded = largeTransferOutboundDeliveryAdapter::onHardRunEnded,
             )
         }
     }

@@ -40,8 +40,8 @@ class MeshEngineOutboundDeliverySupportTest {
             val support =
                 outboundDeliverySupport(
                     deliveryRetryCallbacks = retryCallbacks,
-                    inlineSendSupport =
-                        inlineSendSupport(
+                    inlineOutboundDeliveryAdapter =
+                        inlineOutboundDeliveryAdapter(
                             runtimeGate = runtimeGate,
                             discoveryTransitions = inlineDiscoveryTransitions,
                             scheduleRetryDiagnostic = { retryPeerId, retryPriority ->
@@ -49,7 +49,8 @@ class MeshEngineOutboundDeliverySupportTest {
                             },
                             ensureHopSession = { _, _ -> SessionEstablishmentOutcome.Unreachable },
                         ),
-                    largeTransferSupport = dummyLargeTransferSupport(runtimeGate),
+                    largeTransferOutboundDeliveryAdapter =
+                        dummyLargeTransferOutboundDeliveryAdapter(runtimeGate),
                     deliveryRetryDeadline = 250.milliseconds,
                 )
 
@@ -95,17 +96,20 @@ class MeshEngineOutboundDeliverySupportTest {
         var outboundSession: OutboundTransferSession? = null
         var transferPreparationCalls = 0
         var transferStartFrames = 0
-        val largeTransferSupport =
-            MeshEngineLargeTransferSupport(
+        val largeTransferOutboundDeliveryAdapter =
+            MeshEngineLargeTransferOutboundDeliveryAdapter(
                 config =
-                    MeshEngineLargeTransferConfig(
+                    MeshEngineLargeTransferOutboundDeliveryAdapterConfig(
                         ackSettlementTimeout = 100.milliseconds,
                         ackIdleWindow = 25.milliseconds,
                     ),
-                state = MeshEngineLargeTransferState(outboundTransfers = outboundTransfers),
+                state =
+                    MeshEngineLargeTransferOutboundDeliveryAdapterState(
+                        outboundTransfers = outboundTransfers
+                    ),
                 routingSupport = routingSupport(runtimeGate),
                 dependencies =
-                    MeshEngineLargeTransferDependencies(
+                    MeshEngineLargeTransferOutboundDeliveryAdapterDependencies(
                         runtimeGate = runtimeGate,
                         currentTopologyVersion = { 4L },
                         discoverySuspensionSupport =
@@ -176,8 +180,8 @@ class MeshEngineOutboundDeliverySupportTest {
         val support =
             outboundDeliverySupport(
                 deliveryRetryCallbacks = retryCallbacks,
-                inlineSendSupport = dummyInlineSendSupport(runtimeGate),
-                largeTransferSupport = largeTransferSupport,
+                inlineOutboundDeliveryAdapter = dummyInlineOutboundDeliveryAdapter(runtimeGate),
+                largeTransferOutboundDeliveryAdapter = largeTransferOutboundDeliveryAdapter,
                 deliveryRetryDeadline = 300.milliseconds,
             )
 
@@ -209,8 +213,8 @@ class MeshEngineOutboundDeliverySupportTest {
 
 private fun outboundDeliverySupport(
     deliveryRetryCallbacks: OutboundDeliveryRetryCallbacksRecorder,
-    inlineSendSupport: MeshEngineInlineSendSupport,
-    largeTransferSupport: MeshEngineLargeTransferSupport,
+    inlineOutboundDeliveryAdapter: MeshEngineInlineOutboundDeliveryAdapter,
+    largeTransferOutboundDeliveryAdapter: MeshEngineLargeTransferOutboundDeliveryAdapter,
     deliveryRetryDeadline: Duration,
 ): MeshEngineOutboundDeliverySupport {
     return MeshEngineOutboundDeliverySupport(
@@ -219,26 +223,29 @@ private fun outboundDeliverySupport(
             MeshEngineOutboundDeliveryDependencies(
                 deliveryRetrySupport = deliveryRetrySupport(deliveryRetryCallbacks)
             ),
-        inlineSendSupport = inlineSendSupport,
-        largeTransferSupport = largeTransferSupport,
+        inlineOutboundDeliveryAdapter = inlineOutboundDeliveryAdapter,
+        largeTransferOutboundDeliveryAdapter = largeTransferOutboundDeliveryAdapter,
     )
 }
 
-private fun inlineSendSupport(
+private fun inlineOutboundDeliveryAdapter(
     runtimeGate: MeshEngineRuntimeGate,
     discoveryTransitions: MutableList<Boolean>,
     scheduleRetryDiagnostic: (PeerId, DeliveryPriority) -> Unit,
     ensureHopSession: suspend (PeerId, MeshEngineHardRunToken) -> SessionEstablishmentOutcome,
-): MeshEngineInlineSendSupport {
-    return MeshEngineInlineSendSupport(
-        config = MeshEngineInlineConfig(inlineMessagePayloadBytes = INLINE_MESSAGE_PAYLOAD_BYTES),
+): MeshEngineInlineOutboundDeliveryAdapter {
+    return MeshEngineInlineOutboundDeliveryAdapter(
+        config =
+            MeshEngineInlineOutboundDeliveryAdapterConfig(
+                inlineMessagePayloadBytes = INLINE_MESSAGE_PAYLOAD_BYTES
+            ),
         routingContext =
-            MeshEngineInlineRoutingContext(
+            MeshEngineInlineOutboundDeliveryAdapterRoutingContext(
                 routeCoordinator = RouteCoordinator(PeerId("local-inline-sender")),
                 routingSupport = routingSupport(runtimeGate),
             ),
         dependencies =
-            MeshEngineInlineDependencies(
+            MeshEngineInlineOutboundDeliveryAdapterDependencies(
                 discoverySuspensionSupport =
                     MeshEngineDiscoverySuspensionSupport { suspended ->
                         discoveryTransitions += suspended
@@ -254,17 +261,17 @@ private fun inlineSendSupport(
                 },
             ),
         callbacks =
-            MeshEngineInlineCallbacks(
+            MeshEngineInlineOutboundDeliveryAdapterCallbacks(
                 emitDiagnostic = { _, _, _, _, _, _ -> },
                 ttlMillisFor = { 1234 },
             ),
     )
 }
 
-private fun dummyInlineSendSupport(
+private fun dummyInlineOutboundDeliveryAdapter(
     runtimeGate: MeshEngineRuntimeGate
-): MeshEngineInlineSendSupport {
-    return inlineSendSupport(
+): MeshEngineInlineOutboundDeliveryAdapter {
+    return inlineOutboundDeliveryAdapter(
         runtimeGate = runtimeGate,
         discoveryTransitions = mutableListOf(),
         scheduleRetryDiagnostic = { _, _ -> },
@@ -272,19 +279,20 @@ private fun dummyInlineSendSupport(
     )
 }
 
-private fun dummyLargeTransferSupport(
+private fun dummyLargeTransferOutboundDeliveryAdapter(
     runtimeGate: MeshEngineRuntimeGate
-): MeshEngineLargeTransferSupport {
-    return MeshEngineLargeTransferSupport(
+): MeshEngineLargeTransferOutboundDeliveryAdapter {
+    return MeshEngineLargeTransferOutboundDeliveryAdapter(
         config =
-            MeshEngineLargeTransferConfig(
+            MeshEngineLargeTransferOutboundDeliveryAdapterConfig(
                 ackSettlementTimeout = 100.milliseconds,
                 ackIdleWindow = 25.milliseconds,
             ),
-        state = MeshEngineLargeTransferState(outboundTransfers = mutableMapOf()),
+        state =
+            MeshEngineLargeTransferOutboundDeliveryAdapterState(outboundTransfers = mutableMapOf()),
         routingSupport = routingSupport(runtimeGate),
         dependencies =
-            MeshEngineLargeTransferDependencies(
+            MeshEngineLargeTransferOutboundDeliveryAdapterDependencies(
                 runtimeGate = runtimeGate,
                 currentTopologyVersion = { 0L },
                 discoverySuspensionSupport = MeshEngineDiscoverySuspensionSupport { _ -> },

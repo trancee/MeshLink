@@ -51,30 +51,6 @@ internal sealed class OutboundTransferPreparation {
         OutboundTransferPreparation()
 }
 
-internal data class LargeTransferSessionResolution(
-    val session: OutboundTransferSession?,
-    val lastRouteAvailable: Boolean,
-    val result: SendResult? = null,
-)
-
-internal data class LargeTransferIterationResult(
-    val lastRouteAvailable: Boolean,
-    val transferProgressObserved: Boolean,
-    val result: SendResult? = null,
-)
-
-internal data class LargeTransferLoopResult(
-    val session: OutboundTransferSession?,
-    val lastRouteAvailable: Boolean,
-    val transferProgressObserved: Boolean = false,
-    val result: SendResult? = null,
-)
-
-internal fun SendResult.isRetryableInlineFailure(): Boolean {
-    return this is SendResult.NotSent &&
-        reason == ch.trancee.meshlink.api.SendFailureReason.UNREACHABLE
-}
-
 internal fun chunkTransferPayload(payload: ByteArray, chunkSize: Int): List<ByteArray> {
     check(chunkSize > 0) { "chunkSize must be positive" }
     val chunkCount = (payload.size + chunkSize - 1) / chunkSize

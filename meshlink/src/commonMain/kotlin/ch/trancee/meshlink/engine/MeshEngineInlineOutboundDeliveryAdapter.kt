@@ -10,14 +10,16 @@ import ch.trancee.meshlink.diagnostics.DiagnosticSeverity
 import ch.trancee.meshlink.transport.TransportSendResult
 import ch.trancee.meshlink.wire.WireFrame
 
-internal data class MeshEngineInlineConfig(val inlineMessagePayloadBytes: Int)
+internal data class MeshEngineInlineOutboundDeliveryAdapterConfig(
+    val inlineMessagePayloadBytes: Int
+)
 
-internal data class MeshEngineInlineRoutingContext(
+internal data class MeshEngineInlineOutboundDeliveryAdapterRoutingContext(
     val routeCoordinator: ch.trancee.meshlink.routing.RouteCoordinator,
     val routingSupport: MeshEngineRoutingSupport,
 )
 
-internal data class MeshEngineInlineDependencies(
+internal data class MeshEngineInlineOutboundDeliveryAdapterDependencies(
     val discoverySuspensionSupport: MeshEngineDiscoverySuspensionSupport,
     val ensureHopSession: suspend (PeerId, MeshEngineHardRunToken) -> SessionEstablishmentOutcome,
     val sendEncryptedDirectWireFrame:
@@ -30,7 +32,7 @@ internal data class MeshEngineInlineDependencies(
     val emitHopSessionFailed: (PeerId, String, DiagnosticReason, Map<String, String>) -> Unit,
 )
 
-internal data class MeshEngineInlineCallbacks(
+internal data class MeshEngineInlineOutboundDeliveryAdapterCallbacks(
     val emitDiagnostic:
         (
             DiagnosticCode,
@@ -43,17 +45,17 @@ internal data class MeshEngineInlineCallbacks(
     val ttlMillisFor: (DeliveryPriority) -> Int,
 )
 
-internal data class InlineSessionResolution(
+private data class MeshEngineInlineOutboundDeliverySessionResolution(
     val nextHopPeerId: PeerId,
     val session: HopSession?,
     val result: SendResult? = null,
 )
 
-internal class MeshEngineInlineSendSupport(
-    private val config: MeshEngineInlineConfig,
-    private val routingContext: MeshEngineInlineRoutingContext,
-    private val dependencies: MeshEngineInlineDependencies,
-    private val callbacks: MeshEngineInlineCallbacks,
+internal class MeshEngineInlineOutboundDeliveryAdapter(
+    private val config: MeshEngineInlineOutboundDeliveryAdapterConfig,
+    private val routingContext: MeshEngineInlineOutboundDeliveryAdapterRoutingContext,
+    private val dependencies: MeshEngineInlineOutboundDeliveryAdapterDependencies,
+    private val callbacks: MeshEngineInlineOutboundDeliveryAdapterCallbacks,
 ) {
     fun currentTopologyVersion(): Long {
         return routingContext.routeCoordinator.topologyVersion.value
@@ -84,13 +86,15 @@ internal class MeshEngineInlineSendSupport(
                 priority = context.priority,
                 hardRunToken = context.hardRunToken,
             )
-        return if (!sendResult.isRetryableInlineFailure()) {
-            MeshEngineOutboundDeliveryAttemptOutcome.Completed(sendResult)
-        } else {
+        return if (
+            sendResult is SendResult.NotSent && sendResult.reason == SendFailureReason.UNREACHABLE
+        ) {
             MeshEngineOutboundDeliveryAttemptOutcome.AwaitRetry(
                 nextState = Unit,
                 retryPolicy = MeshEngineOutboundDeliveryRetryPolicy(INLINE_DELIVERY_RETRY_POLICY),
             )
+        } else {
+            MeshEngineOutboundDeliveryAttemptOutcome.Completed(sendResult)
         }
     }
 
@@ -163,25 +167,25 @@ internal class MeshEngineInlineSendSupport(
         peerId: PeerId,
         priority: DeliveryPriority,
         hardRunToken: MeshEngineHardRunToken,
-    ): InlineSessionResolution {
+    ): MeshEngineInlineOutboundDeliverySessionResolution {
         val nextHopPeerId = routingContext.routeCoordinator.nextHopFor(peerId) ?: peerId
         return when (
             val sessionOutcome = dependencies.ensureHopSession(nextHopPeerId, hardRunToken)
         ) {
             is SessionEstablishmentOutcome.Established ->
-                InlineSessionResolution(
+                MeshEngineInlineOutboundDeliverySessionResolution(
                     nextHopPeerId = nextHopPeerId,
                     session = sessionOutcome.session,
                 )
             SessionEstablishmentOutcome.TrustFailure ->
-                InlineSessionResolution(
+                MeshEngineInlineOutboundDeliverySessionResolution(
                     nextHopPeerId = nextHopPeerId,
                     session = null,
                     result = SendResult.NotSent(SendFailureReason.TRUST_FAILURE),
                 )
             SessionEstablishmentOutcome.Unreachable -> {
                 dependencies.scheduleRetryDiagnostic(peerId, priority)
-                InlineSessionResolution(
+                MeshEngineInlineOutboundDeliverySessionResolution(
                     nextHopPeerId = nextHopPeerId,
                     session = null,
                     result = SendResult.NotSent(SendFailureReason.UNREACHABLE),
@@ -251,7 +255,7 @@ internal class MeshEngineInlineSendSupport(
     }
 }
 
-internal fun buildMeshEngineRuntimeInlineSendSupport(
+internal fun buildMeshEngineRuntimeInlineOutboundDeliveryAdapter(
     inlineMessagePayloadBytes: Int,
     routeCoordinator: ch.trancee.meshlink.routing.RouteCoordinator,
     routingSupport: MeshEngineRoutingSupport,
@@ -270,16 +274,19 @@ internal fun buildMeshEngineRuntimeInlineSendSupport(
             DiagnosticReason?,
             Map<String, String>,
         ) -> Unit,
-): MeshEngineInlineSendSupport {
-    return MeshEngineInlineSendSupport(
-        config = MeshEngineInlineConfig(inlineMessagePayloadBytes = inlineMessagePayloadBytes),
+): MeshEngineInlineOutboundDeliveryAdapter {
+    return MeshEngineInlineOutboundDeliveryAdapter(
+        config =
+            MeshEngineInlineOutboundDeliveryAdapterConfig(
+                inlineMessagePayloadBytes = inlineMessagePayloadBytes
+            ),
         routingContext =
-            MeshEngineInlineRoutingContext(
+            MeshEngineInlineOutboundDeliveryAdapterRoutingContext(
                 routeCoordinator = routeCoordinator,
                 routingSupport = routingSupport,
             ),
         dependencies =
-            MeshEngineInlineDependencies(
+            MeshEngineInlineOutboundDeliveryAdapterDependencies(
                 discoverySuspensionSupport = discoverySuspensionSupport,
                 ensureHopSession = { peerId, hardRunToken ->
                     sessionSupport.ensureHopSession(peerId, hardRunToken)
@@ -291,7 +298,10 @@ internal fun buildMeshEngineRuntimeInlineSendSupport(
                 emitHopSessionFailed = hopTransportSupport::emitHopSessionFailed,
             ),
         callbacks =
-            MeshEngineInlineCallbacks(emitDiagnostic = emitDiagnostic, ttlMillisFor = ttlMillisFor),
+            MeshEngineInlineOutboundDeliveryAdapterCallbacks(
+                emitDiagnostic = emitDiagnostic,
+                ttlMillisFor = ttlMillisFor,
+            ),
     )
 }
 

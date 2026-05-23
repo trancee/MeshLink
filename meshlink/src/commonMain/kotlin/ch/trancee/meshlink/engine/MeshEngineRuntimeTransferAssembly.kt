@@ -55,8 +55,8 @@ internal fun buildMeshEngineRuntimeTransferAndInboundPhase(
     val clearQueuedOutboundFrames: suspend (PeerId, String) -> Unit = { peerId, action ->
         environment.platformBridge.clearQueuedOutboundFrames(peerId = peerId, action = action)
     }
-    val inlineSendSupport =
-        buildMeshEngineRuntimeInlineSendSupport(
+    val inlineOutboundDeliveryAdapter =
+        buildMeshEngineRuntimeInlineOutboundDeliveryAdapter(
             inlineMessagePayloadBytes = INLINE_MESSAGE_PAYLOAD_BYTES,
             routeCoordinator = sharedState.routeCoordinator,
             routingSupport = routingAndTrust.routingSupport,
@@ -79,8 +79,8 @@ internal fun buildMeshEngineRuntimeTransferAndInboundPhase(
             sendTransferTowardsDestination = sendTransferTowardsDestination,
             clearQueuedOutboundFrames = clearQueuedOutboundFrames,
         )
-    val largeTransferSupport =
-        buildMeshEngineRuntimeLargeTransferSupport(
+    val largeTransferOutboundDeliveryAdapter =
+        buildMeshEngineRuntimeLargeTransferOutboundDeliveryAdapter(
             outboundTransfers = sharedState.outboundTransfers,
             routingSupport = routingAndTrust.routingSupport,
             runtimeGate = environment.compatibilitySurface.runtimeGate,
@@ -96,8 +96,8 @@ internal fun buildMeshEngineRuntimeTransferAndInboundPhase(
         buildMeshEngineRuntimeOutboundDeliverySupport(
             deliveryRetryDeadline = environment.config.deliveryRetryDeadline,
             deliveryRetrySupport = deliveryRetrySupport,
-            inlineSendSupport = inlineSendSupport,
-            largeTransferSupport = largeTransferSupport,
+            inlineOutboundDeliveryAdapter = inlineOutboundDeliveryAdapter,
+            largeTransferOutboundDeliveryAdapter = largeTransferOutboundDeliveryAdapter,
         )
     val inboundSupport =
         buildMeshEngineRuntimeInboundSupport(
@@ -221,15 +221,15 @@ private fun buildMeshEngineRuntimeDiscoverySuspensionSupport(
 private fun buildMeshEngineRuntimeOutboundDeliverySupport(
     deliveryRetryDeadline: kotlin.time.Duration,
     deliveryRetrySupport: MeshEngineDeliveryRetrySupport,
-    inlineSendSupport: MeshEngineInlineSendSupport,
-    largeTransferSupport: MeshEngineLargeTransferSupport,
+    inlineOutboundDeliveryAdapter: MeshEngineInlineOutboundDeliveryAdapter,
+    largeTransferOutboundDeliveryAdapter: MeshEngineLargeTransferOutboundDeliveryAdapter,
 ): MeshEngineOutboundDeliverySupport {
     return MeshEngineOutboundDeliverySupport(
         config = MeshEngineOutboundDeliveryConfig(deliveryRetryDeadline = deliveryRetryDeadline),
         dependencies =
             MeshEngineOutboundDeliveryDependencies(deliveryRetrySupport = deliveryRetrySupport),
-        inlineSendSupport = inlineSendSupport,
-        largeTransferSupport = largeTransferSupport,
+        inlineOutboundDeliveryAdapter = inlineOutboundDeliveryAdapter,
+        largeTransferOutboundDeliveryAdapter = largeTransferOutboundDeliveryAdapter,
     )
 }
 
