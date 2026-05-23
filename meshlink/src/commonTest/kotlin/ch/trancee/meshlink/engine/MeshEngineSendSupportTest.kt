@@ -1,6 +1,8 @@
 package ch.trancee.meshlink.engine
 
 import ch.trancee.meshlink.api.DeliveryPriority
+import ch.trancee.meshlink.api.MeshLinkException
+import ch.trancee.meshlink.api.MeshLinkState
 import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.api.SendFailureReason
 import ch.trancee.meshlink.api.SendResult
@@ -9,10 +11,31 @@ import ch.trancee.meshlink.diagnostics.DiagnosticReason
 import ch.trancee.meshlink.diagnostics.DiagnosticSeverity
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
 import kotlinx.coroutines.runBlocking
 
 class MeshEngineSendSupportTest {
+    @Test
+    fun `send throws invalid state when the runtime is not running`() = runBlocking {
+        // Arrange
+        val callbacks = RecordingSendCallbacks(currentLifecycleState = MeshLinkState.Paused)
+        val support = sendSupport(callbacks = callbacks)
+        val peerId = PeerId("peer-abcdef")
+        val payload = ByteArray(32) { 0x01 }
+
+        // Act
+        val error =
+            assertFailsWith<MeshLinkException.InvalidStateTransition> {
+                support.send(peerId = peerId, payload = payload, priority = DeliveryPriority.HIGH)
+            }
+
+        // Assert
+        assertEquals("send() requires MeshLinkState.Running but was Paused", error.message)
+        assertEquals(0, callbacks.inlineSendCalls)
+        assertEquals(0, callbacks.largeSendCalls)
+    }
+
     @Test
     fun `send rejects payloads that exceed the configured size limit`() = runBlocking {
         // Arrange
@@ -46,26 +69,6 @@ class MeshEngineSendSupportTest {
     }
 
     @Test
-    fun `send schedules a retry when the mesh is not running`() = runBlocking {
-        // Arrange
-        val callbacks = RecordingSendCallbacks(isMeshRunning = false)
-        val support = sendSupport(callbacks = callbacks)
-        val peerId = PeerId("peer-abcdef")
-        val payload = ByteArray(32) { 0x01 }
-
-        // Act
-        val result =
-            support.send(peerId = peerId, payload = payload, priority = DeliveryPriority.HIGH)
-
-        // Assert
-        val notSent = assertIs<SendResult.NotSent>(result)
-        assertEquals(SendFailureReason.UNREACHABLE, notSent.reason)
-        assertEquals(listOf(peerId to DeliveryPriority.HIGH), callbacks.retryDiagnostics)
-        assertEquals(0, callbacks.inlineSendCalls)
-        assertEquals(0, callbacks.largeSendCalls)
-    }
-
-    @Test
     fun `send schedules a retry when the transport is unavailable`() = runBlocking {
         // Arrange
         val callbacks = RecordingSendCallbacks(hasTransport = false)
@@ -86,22 +89,24 @@ class MeshEngineSendSupportTest {
     }
 
     @Test
-    fun `send uses the inline path for small payloads`() = runBlocking {
-        // Arrange
-        val callbacks = RecordingSendCallbacks()
-        val support = sendSupport(callbacks = callbacks)
-        val peerId = PeerId("peer-abcdef")
-        val payload = ByteArray(INLINE_MESSAGE_PAYLOAD_BYTES) { 0x01 }
+    fun `send uses the inline path for small payloads and passes the hard run token`() =
+        runBlocking {
+            // Arrange
+            val callbacks = RecordingSendCallbacks()
+            val support = sendSupport(callbacks = callbacks)
+            val peerId = PeerId("peer-abcdef")
+            val payload = ByteArray(INLINE_MESSAGE_PAYLOAD_BYTES) { 0x01 }
 
-        // Act
-        val result =
-            support.send(peerId = peerId, payload = payload, priority = DeliveryPriority.NORMAL)
+            // Act
+            val result =
+                support.send(peerId = peerId, payload = payload, priority = DeliveryPriority.NORMAL)
 
-        // Assert
-        assertEquals(SendResult.Sent, result)
-        assertEquals(1, callbacks.inlineSendCalls)
-        assertEquals(0, callbacks.largeSendCalls)
-    }
+            // Assert
+            assertEquals(SendResult.Sent, result)
+            assertEquals(1, callbacks.inlineSendCalls)
+            assertEquals(0, callbacks.largeSendCalls)
+            assertEquals(listOf(7L), callbacks.inlineHardRunEpochs)
+        }
 
     @Test
     fun `send uses the inline path when the peer flow prefers a large inline send`() = runBlocking {
@@ -138,6 +143,7 @@ class MeshEngineSendSupportTest {
             assertEquals(SendResult.Sent, result)
             assertEquals(0, callbacks.inlineSendCalls)
             assertEquals(1, callbacks.largeSendCalls)
+            assertEquals(listOf(7L), callbacks.largeHardRunEpochs)
         }
 }
 
@@ -162,26 +168,31 @@ private data class RecordingDiagnostic(
 )
 
 private class RecordingSendCallbacks(
-    private val isMeshRunning: Boolean = true,
+    private val currentLifecycleState: MeshLinkState = MeshLinkState.Running,
     private val hasTransport: Boolean = true,
     private val shouldAttemptLargeInlineSend: Boolean = false,
 ) {
     var inlineSendCalls: Int = 0
     var largeSendCalls: Int = 0
+    val inlineHardRunEpochs: MutableList<Long> = mutableListOf()
+    val largeHardRunEpochs: MutableList<Long> = mutableListOf()
     val retryDiagnostics: MutableList<Pair<PeerId, DeliveryPriority>> = mutableListOf()
     val diagnostics: MutableList<RecordingDiagnostic> = mutableListOf()
 
     fun asCallbacks(): MeshEngineSendCallbacks {
         return MeshEngineSendCallbacks(
-            isMeshRunning = { isMeshRunning },
+            currentLifecycleState = { currentLifecycleState },
+            captureHardRunToken = { MeshEngineHardRunToken(7L) },
             hasTransport = { hasTransport },
             shouldAttemptLargeInlineSend = { shouldAttemptLargeInlineSend },
-            sendInlinePayload = { _, _, _ ->
+            sendInlinePayload = { _, _, _, hardRunToken ->
                 inlineSendCalls += 1
+                inlineHardRunEpochs += hardRunToken.epoch
                 SendResult.Sent
             },
-            sendLargePayload = { _, _, _ ->
+            sendLargePayload = { _, _, _, hardRunToken ->
                 largeSendCalls += 1
+                largeHardRunEpochs += hardRunToken.epoch
                 SendResult.Sent
             },
             scheduleRetryDiagnostic = { peerId, priority ->

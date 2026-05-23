@@ -49,7 +49,9 @@ public enum class SendFailureReason {
 
 /** Result of a call to [MeshLinkApi.send]. */
 public sealed class SendResult {
-    /** MeshLink accepted the payload and completed the requested delivery path. */
+    /**
+     * MeshLink accepted the payload and completed its local protocol path for this send attempt.
+     */
     public data object Sent : SendResult()
 
     /** MeshLink could not send the payload for the expected [reason]. */
@@ -65,6 +67,13 @@ public sealed class StartResult {
     public data object Started : StartResult()
 
     public data object AlreadyRunning : StartResult()
+
+    public class InvalidState public constructor(public val currentState: MeshLinkState) :
+        StartResult() {
+        override fun toString(): String {
+            return "InvalidState(currentState=$currentState)"
+        }
+    }
 }
 
 /** Idempotent result from [MeshLinkApi.pause]. */
@@ -72,6 +81,13 @@ public sealed class PauseResult {
     public data object Paused : PauseResult()
 
     public data object AlreadyPaused : PauseResult()
+
+    public class InvalidState public constructor(public val currentState: MeshLinkState) :
+        PauseResult() {
+        override fun toString(): String {
+            return "InvalidState(currentState=$currentState)"
+        }
+    }
 }
 
 /** Idempotent result from [MeshLinkApi.resume]. */
@@ -79,6 +95,13 @@ public sealed class ResumeResult {
     public data object Resumed : ResumeResult()
 
     public data object AlreadyRunning : ResumeResult()
+
+    public class InvalidState public constructor(public val currentState: MeshLinkState) :
+        ResumeResult() {
+        override fun toString(): String {
+            return "InvalidState(currentState=$currentState)"
+        }
+    }
 }
 
 /** Idempotent result from [MeshLinkApi.stop]. */
@@ -166,23 +189,24 @@ public interface MeshLinkApi {
     /** Inbound application payloads delivered to the host app. */
     public val messages: kotlinx.coroutines.flow.Flow<InboundMessage>
 
-    /** Starts MeshLink if it is not already running. */
+    /** Starts MeshLink when the current lifecycle state permits a new hard run. */
     public suspend fun start(): StartResult
 
-    /** Pauses MeshLink if it is not already paused. */
+    /** Pauses MeshLink when the runtime is currently running. */
     public suspend fun pause(): PauseResult
 
-    /** Resumes MeshLink if it is not already running. */
+    /** Resumes MeshLink when the runtime is currently paused. */
     public suspend fun resume(): ResumeResult
 
-    /** Stops MeshLink and clears in-memory runtime state. */
+    /** Stops MeshLink, clears in-memory runtime state, and ends the current hard run. */
     public suspend fun stop(): StopResult
 
     /**
      * Sends an application payload toward [peerId].
      *
-     * Expected delivery outcomes are reported through [SendResult]. Payloads larger than 64 KiB are
-     * rejected with [SendFailureReason.PAYLOAD_TOO_LARGE].
+     * Expected delivery-path outcomes are reported through [SendResult]. Payloads larger than 64
+     * KiB are rejected with [SendFailureReason.PAYLOAD_TOO_LARGE]. Calling [send] while MeshLink is
+     * not [MeshLinkState.Running] throws [MeshLinkException.InvalidStateTransition].
      */
     public suspend fun send(
         peerId: PeerId,

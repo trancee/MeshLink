@@ -7,6 +7,7 @@ import ch.trancee.meshlink.api.SendResult
 import ch.trancee.meshlink.diagnostics.DiagnosticCode
 import ch.trancee.meshlink.diagnostics.DiagnosticReason
 import ch.trancee.meshlink.diagnostics.DiagnosticSeverity
+import ch.trancee.meshlink.transfer.AcknowledgementSettlementResult
 import ch.trancee.meshlink.transfer.OutboundTransferSession
 import ch.trancee.meshlink.wire.WireFrame
 import kotlin.time.Duration
@@ -24,14 +25,26 @@ internal data class MeshEngineLargeTransferState(
 )
 
 internal data class MeshEngineLargeTransferDependencies(
+    val runtimeGate: MeshEngineRuntimeGate,
     val currentTopologyVersion: () -> Long,
     val deliveryRetryScheduler: DeliveryRetryScheduler,
-    val prepareOutboundTransferSession: suspend (PeerId, ByteArray) -> OutboundTransferPreparation,
+    val prepareOutboundTransferSession:
+        suspend (PeerId, ByteArray, MeshEngineHardRunToken) -> OutboundTransferPreparation,
     val scheduleRetryDiagnostic: (PeerId, DeliveryPriority) -> Unit,
-    val sendTransferTowardsDestination: suspend (PeerId, WireFrame, String) -> Boolean,
+    val sendTransferTowardsDestination:
+        suspend (PeerId, WireFrame, String, MeshEngineHardRunToken?) -> Boolean,
     val setDiscoverySuspended: suspend (Boolean) -> Unit,
     val clearQueuedOutboundFrames: suspend (PeerId, String) -> Unit,
 )
+
+private sealed class LargeTransferRetryWakeupResult {
+    internal class Woke internal constructor(internal val state: LargeTransferRetryWakeupState) :
+        LargeTransferRetryWakeupResult()
+
+    internal data object DeadlineExpired : LargeTransferRetryWakeupResult()
+
+    internal data object HardRunEnded : LargeTransferRetryWakeupResult()
+}
 
 internal class MeshEngineLargeTransferSupport(
     private val config: MeshEngineLargeTransferConfig,
@@ -52,6 +65,7 @@ internal class MeshEngineLargeTransferSupport(
         peerId: PeerId,
         payload: ByteArray,
         priority: DeliveryPriority,
+        hardRunToken: MeshEngineHardRunToken,
     ): SendResult {
         val startedAt = TimeSource.Monotonic.markNow()
         var attempt = 0
@@ -69,6 +83,7 @@ internal class MeshEngineLargeTransferSupport(
                         payload = payload,
                         priority = priority,
                         startedAt = startedAt,
+                        hardRunToken = hardRunToken,
                     )
                 val completedResult = loopResult.result
                 if (completedResult != null) {
@@ -80,16 +95,26 @@ internal class MeshEngineLargeTransferSupport(
                 if (loopResult.transferProgressObserved) {
                     attempt = 0
                 } else {
-                    val wakeupState =
-                        awaitLargeTransferRetryWakeup(
-                            peerId = peerId,
-                            attempt = attempt,
-                            topologyVersion = topologyVersion,
-                            startedAt = startedAt,
-                            noRouteRetry = !lastRouteAvailable,
-                        ) ?: break
-                    topologyVersion = wakeupState.topologyVersion
-                    attempt = wakeupState.attempt
+                    when (
+                        val wakeupState =
+                            awaitLargeTransferRetryWakeup(
+                                peerId = peerId,
+                                attempt = attempt,
+                                topologyVersion = topologyVersion,
+                                startedAt = startedAt,
+                                noRouteRetry = !lastRouteAvailable,
+                                hardRunToken = hardRunToken,
+                            )
+                    ) {
+                        is LargeTransferRetryWakeupResult.Woke -> {
+                            topologyVersion = wakeupState.state.topologyVersion
+                            attempt = wakeupState.state.attempt
+                        }
+                        LargeTransferRetryWakeupResult.DeadlineExpired -> break
+                        LargeTransferRetryWakeupResult.HardRunEnded -> {
+                            return abortedLargeTransferResult(activeSession)
+                        }
+                    }
                 }
             }
             return finishFailedLargeTransfer(
@@ -108,6 +133,7 @@ internal class MeshEngineLargeTransferSupport(
         payload: ByteArray,
         priority: DeliveryPriority,
         startedAt: TimeMark,
+        hardRunToken: MeshEngineHardRunToken,
     ): LargeTransferLoopResult {
         val sessionResolution =
             resolveLargeTransferSession(
@@ -115,6 +141,7 @@ internal class MeshEngineLargeTransferSupport(
                 peerId = peerId,
                 payload = payload,
                 priority = priority,
+                hardRunToken = hardRunToken,
             )
         val resolvedResult = sessionResolution.result
         val session = sessionResolution.session
@@ -136,6 +163,7 @@ internal class MeshEngineLargeTransferSupport(
                     session = session,
                     priority = priority,
                     startedAt = startedAt,
+                    hardRunToken = hardRunToken,
                 )
             LargeTransferLoopResult(
                 session = session,
@@ -151,6 +179,7 @@ internal class MeshEngineLargeTransferSupport(
         peerId: PeerId,
         payload: ByteArray,
         priority: DeliveryPriority,
+        hardRunToken: MeshEngineHardRunToken,
     ): LargeTransferSessionResolution {
         if (activeSession != null) {
             return LargeTransferSessionResolution(
@@ -160,7 +189,8 @@ internal class MeshEngineLargeTransferSupport(
         }
 
         return when (
-            val preparation = dependencies.prepareOutboundTransferSession(peerId, payload)
+            val preparation =
+                dependencies.prepareOutboundTransferSession(peerId, payload, hardRunToken)
         ) {
             OutboundTransferPreparation.PendingRoute -> {
                 dependencies.scheduleRetryDiagnostic(peerId, priority)
@@ -184,17 +214,19 @@ internal class MeshEngineLargeTransferSupport(
         session: OutboundTransferSession,
         priority: DeliveryPriority,
         startedAt: TimeMark,
+        hardRunToken: MeshEngineHardRunToken,
     ): LargeTransferIterationResult {
         var routeAvailable =
             dependencies.sendTransferTowardsDestination(
                 session.destinationPeerId,
                 session.asStartFrame(),
                 "transfer.start",
+                hardRunToken,
             )
         var transferProgressObserved = false
         val result =
             if (session.isComplete()) {
-                completeOutboundTransferSession(session)
+                completeOutboundTransferSession(session, hardRunToken)
             } else {
                 session.forEachMissingChunkIndex { chunkIndex ->
                     routeAvailable =
@@ -206,6 +238,7 @@ internal class MeshEngineLargeTransferSupport(
                                 payload = session.chunks[chunkIndex],
                             ),
                             "transfer.chunk",
+                            hardRunToken,
                         ) || routeAvailable
                 }
                 emitLargeTransferProgressDiagnostic(session)
@@ -217,8 +250,13 @@ internal class MeshEngineLargeTransferSupport(
                         awaitLargeTransferAcknowledgementProgress(
                             session = session,
                             startedAt = startedAt,
+                            hardRunToken = hardRunToken,
                         )
-                    if (session.isComplete()) completeOutboundTransferSession(session) else null
+                    if (session.isComplete()) {
+                        completeOutboundTransferSession(session, hardRunToken)
+                    } else {
+                        null
+                    }
                 }
             }
 
@@ -250,17 +288,26 @@ internal class MeshEngineLargeTransferSupport(
     private suspend fun awaitLargeTransferAcknowledgementProgress(
         session: OutboundTransferSession,
         startedAt: TimeMark,
+        hardRunToken: MeshEngineHardRunToken,
     ): Boolean {
         val acknowledgedChunkCountBeforeSettlement = session.acknowledgedChunkCount()
-        val acknowledgedChunkCountAfterSettlement =
-            session.awaitAcknowledgementSettlement(
-                maximumWait =
-                    (config.deliveryRetryDeadline - startedAt.elapsedNow()).coerceAtMost(
-                        config.ackSettlementTimeout
-                    ),
-                idleWindow = config.ackIdleWindow,
-            )
-        return acknowledgedChunkCountAfterSettlement > acknowledgedChunkCountBeforeSettlement
+        return when (
+            val settlement =
+                session.awaitAcknowledgementSettlement(
+                    maximumWait =
+                        (config.deliveryRetryDeadline - startedAt.elapsedNow()).coerceAtMost(
+                            config.ackSettlementTimeout
+                        ),
+                    idleWindow = config.ackIdleWindow,
+                    runtimeGate = dependencies.runtimeGate,
+                    hardRunToken = hardRunToken,
+                )
+        ) {
+            is AcknowledgementSettlementResult.Completed -> {
+                settlement.acknowledgedChunkCount > acknowledgedChunkCountBeforeSettlement
+            }
+            AcknowledgementSettlementResult.HardRunEnded -> false
+        }
     }
 
     private suspend fun finishFailedLargeTransfer(
@@ -304,7 +351,8 @@ internal class MeshEngineLargeTransferSupport(
         topologyVersion: Long,
         startedAt: TimeMark,
         noRouteRetry: Boolean,
-    ): LargeTransferRetryWakeupState? {
+        hardRunToken: MeshEngineHardRunToken,
+    ): LargeTransferRetryWakeupResult {
         if (noRouteRetry) {
             emitDiagnostic(
                 DiagnosticCode.DELIVERY_RETRY_SCHEDULED,
@@ -326,21 +374,28 @@ internal class MeshEngineLargeTransferSupport(
                         attempt = attempt,
                         remainingBudget = config.deliveryRetryDeadline - startedAt.elapsedNow(),
                         lastObservedTopologyVersion = topologyVersion,
+                        runtimeGate = dependencies.runtimeGate,
+                        hardRunToken = hardRunToken,
                     )
             ) {
-                is RetryWakeup.DeadlineExpired -> null
+                is RetryWakeup.DeadlineExpired -> LargeTransferRetryWakeupResult.DeadlineExpired
                 is RetryWakeup.TimerElapsed ->
-                    LargeTransferRetryWakeupState(
-                        attempt = attempt + 1,
-                        topologyVersion = wakeup.topologyVersion,
+                    LargeTransferRetryWakeupResult.Woke(
+                        LargeTransferRetryWakeupState(
+                            attempt = attempt + 1,
+                            topologyVersion = wakeup.topologyVersion,
+                        )
                     )
                 is RetryWakeup.TopologyChanged ->
-                    LargeTransferRetryWakeupState(
-                        attempt = 0,
-                        topologyVersion = wakeup.topologyVersion,
+                    LargeTransferRetryWakeupResult.Woke(
+                        LargeTransferRetryWakeupState(
+                            attempt = 0,
+                            topologyVersion = wakeup.topologyVersion,
+                        )
                     )
+                RetryWakeup.HardRunEnded -> LargeTransferRetryWakeupResult.HardRunEnded
             }
-        if (noRouteRetry && wakeupState != null) {
+        if (noRouteRetry && wakeupState is LargeTransferRetryWakeupResult.Woke) {
             emitDiagnostic(
                 DiagnosticCode.DELIVERY_RETRYING,
                 DiagnosticSeverity.WARN,
@@ -349,7 +404,7 @@ internal class MeshEngineLargeTransferSupport(
                 DiagnosticReason.DELIVERY_RETRY,
                 routingSupport.peerRouteMetadata(
                     peerId,
-                    metadata = mapOf("attempt" to wakeupState.attempt.toString()),
+                    metadata = mapOf("attempt" to wakeupState.state.attempt.toString()),
                 ),
             )
         }
@@ -357,7 +412,8 @@ internal class MeshEngineLargeTransferSupport(
     }
 
     private suspend fun completeOutboundTransferSession(
-        session: OutboundTransferSession
+        session: OutboundTransferSession,
+        hardRunToken: MeshEngineHardRunToken,
     ): SendResult {
         dependencies.clearQueuedOutboundFrames(
             session.destinationPeerId,
@@ -367,6 +423,7 @@ internal class MeshEngineLargeTransferSupport(
             session.destinationPeerId,
             WireFrame.TransferComplete(session.transferId),
             "transfer.complete",
+            hardRunToken,
         )
         state.outboundTransfers.remove(session.transferId)
         emitDiagnostic(
@@ -378,5 +435,18 @@ internal class MeshEngineLargeTransferSupport(
             routingSupport.peerRouteMetadata(session.destinationPeerId),
         )
         return SendResult.Sent
+    }
+
+    private suspend fun abortedLargeTransferResult(
+        activeSession: OutboundTransferSession?
+    ): SendResult {
+        activeSession?.let { session ->
+            state.outboundTransfers.remove(session.transferId)
+            dependencies.clearQueuedOutboundFrames(
+                session.destinationPeerId,
+                "transfer.clearQueuedFramesOnAbort",
+            )
+        }
+        return SendResult.NotSent(SendFailureReason.TRANSFER_ABORTED)
     }
 }

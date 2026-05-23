@@ -161,33 +161,36 @@ Practical rules for host apps:
 
 | Returns | Description |
 |---|---|
-| `StartResult.Started` | MeshLink started from a non-running state. |
+| `StartResult.Started` | MeshLink started a new hard run from `Uninitialized` or `Stopped`. |
 | `StartResult.AlreadyRunning` | MeshLink was already running. |
+| `StartResult.InvalidState(Paused)` | `start()` is not valid while MeshLink is paused. Use `resume()` instead. |
 
 ### `pause()`
 
 | Returns | Description |
 |---|---|
-| `PauseResult.Paused` | MeshLink moved into the paused state. |
+| `PauseResult.Paused` | MeshLink moved from `Running` into the paused state. |
 | `PauseResult.AlreadyPaused` | MeshLink was already paused. |
+| `PauseResult.InvalidState(currentState)` | `pause()` was called from `Uninitialized` or `Stopped`. |
 
 ### `resume()`
 
 | Returns | Description |
 |---|---|
-| `ResumeResult.Resumed` | MeshLink resumed from a non-running state. |
+| `ResumeResult.Resumed` | MeshLink resumed from `Paused` back to `Running`. |
 | `ResumeResult.AlreadyRunning` | MeshLink was already running. |
+| `ResumeResult.InvalidState(currentState)` | `resume()` was called from `Uninitialized` or `Stopped`. |
 
 ### `stop()`
 
 | Returns | Description |
 |---|---|
-| `StopResult.Stopped` | MeshLink stopped and cleared runtime state. |
+| `StopResult.Stopped` | MeshLink stopped and cleared the current hard run's in-memory runtime state. |
 | `StopResult.AlreadyStopped` | MeshLink was already stopped. |
 
 ### `send(peerId, payload, priority)`
 
-Sends up to 64 KiB of payload data toward `peerId`.
+Sends up to 64 KiB of payload data toward `peerId` while MeshLink is `Running`.
 
 | Parameter | Type | Required | Description |
 |---|---|---:|---|
@@ -196,6 +199,8 @@ Sends up to 64 KiB of payload data toward `peerId`.
 | `priority` | `DeliveryPriority` | No | Delivery priority. Defaults to `NORMAL`. |
 
 **Returns:** `SendResult`
+
+**Throws:** `MeshLinkException.InvalidStateTransition` when `send()` is called while MeshLink is not `Running`.
 
 ### Example
 
@@ -270,20 +275,25 @@ sealed class SendResult {
 }
 ```
 
+`SendResult.Sent` means MeshLink completed its local protocol boundary for that send attempt. It does not imply a final application-level receipt acknowledgement from the destination app.
+
 ### `StartResult`
 
 - `Started`
 - `AlreadyRunning`
+- `InvalidState(currentState)`
 
 ### `PauseResult`
 
 - `Paused`
 - `AlreadyPaused`
+- `InvalidState(currentState)`
 
 ### `ResumeResult`
 
 - `Resumed`
 - `AlreadyRunning`
+- `InvalidState(currentState)`
 
 ### `StopResult`
 
@@ -435,9 +445,11 @@ All thrown public exceptions derive from `MeshLinkException`.
 
 Rules:
 
-- expected delivery outcomes use `SendResult`, not exceptions
+- expected delivery-path outcomes use `SendResult`, not exceptions
 - repeated lifecycle calls use the corresponding `Already*` result variants, not `InvalidStateTransition`
-- `InvalidStateTransition` is reserved for lifecycle or protocol state-contract violations that cannot be represented by the public result types
+- documented wrong-state lifecycle calls use the corresponding `InvalidState(currentState)` result variants
+- `send()` called while MeshLink is not `Running` throws `InvalidStateTransition`
+- `InvalidStateTransition` is reserved for invalid API usage or protocol / invariant breaches that are not modeled as public result types
 - platform-native failures must be wrapped before crossing the public API boundary
 
 ## iOS bridge entry points

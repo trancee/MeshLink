@@ -114,6 +114,11 @@ Frame families:
   the sender retries immediately without recreating the original send request.
 - Transfer state does not survive restart.
 - ACK state must support contiguous progress plus bounded selective ranges.
+- `TRANSFER_ABORT.reasonCode` uses a small internal stable numeric taxonomy.
+  Current codes:
+  - `1` = `RUNTIME_STOPPED`
+- Unknown `reasonCode` values MUST still be treated as a generic transfer abort
+  rather than rejected as a decode error.
 
 ## Compatibility rules
 

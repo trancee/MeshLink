@@ -21,8 +21,10 @@ internal data class MeshEngineInboundTransport(
 )
 
 internal data class MeshEngineInboundMessageCallbacks(
-    val forwardMessageToNextHop: (WireFrame.Message) -> Unit,
-    val deliverInnerEnvelope: suspend (PeerId, PeerId, ByteArray, DeliveryPriority) -> Unit,
+    val captureHardRunToken: () -> MeshEngineHardRunToken,
+    val forwardMessageToNextHop: (WireFrame.Message, MeshEngineHardRunToken) -> Unit,
+    val deliverInnerEnvelope:
+        suspend (PeerId, PeerId, ByteArray, DeliveryPriority, MeshEngineHardRunToken) -> Unit,
 )
 
 internal data class MeshEngineInboundTransferCallbacks(
@@ -127,8 +129,9 @@ internal class MeshEngineInboundSupport(
     }
 
     private suspend fun handleRoutedMessageFrame(peerId: PeerId, frame: WireFrame.Message): Unit {
+        val hardRunToken = messageCallbacks.captureHardRunToken()
         if (!isLocalPeerId(frame.destinationPeerId)) {
-            messageCallbacks.forwardMessageToNextHop(frame)
+            messageCallbacks.forwardMessageToNextHop(frame, hardRunToken)
             return
         }
 
@@ -137,6 +140,7 @@ internal class MeshEngineInboundSupport(
             frame.originPeerId,
             frame.encryptedPayload,
             frame.priority,
+            hardRunToken,
         )
     }
 

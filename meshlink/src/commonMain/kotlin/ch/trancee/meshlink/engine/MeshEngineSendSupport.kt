@@ -1,6 +1,8 @@
 package ch.trancee.meshlink.engine
 
 import ch.trancee.meshlink.api.DeliveryPriority
+import ch.trancee.meshlink.api.MeshLinkException
+import ch.trancee.meshlink.api.MeshLinkState
 import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.api.SendFailureReason
 import ch.trancee.meshlink.api.SendResult
@@ -14,11 +16,14 @@ internal data class MeshEngineSendConfig(
 )
 
 internal data class MeshEngineSendCallbacks(
-    val isMeshRunning: () -> Boolean,
+    val currentLifecycleState: () -> MeshLinkState,
+    val captureHardRunToken: () -> MeshEngineHardRunToken,
     val hasTransport: () -> Boolean,
     val shouldAttemptLargeInlineSend: (PeerId) -> Boolean,
-    val sendInlinePayload: suspend (PeerId, ByteArray, DeliveryPriority) -> SendResult,
-    val sendLargePayload: suspend (PeerId, ByteArray, DeliveryPriority) -> SendResult,
+    val sendInlinePayload:
+        suspend (PeerId, ByteArray, DeliveryPriority, MeshEngineHardRunToken) -> SendResult,
+    val sendLargePayload:
+        suspend (PeerId, ByteArray, DeliveryPriority, MeshEngineHardRunToken) -> SendResult,
     val scheduleRetryDiagnostic: (PeerId, DeliveryPriority) -> Unit,
     val emitDiagnostic:
         (
@@ -40,8 +45,15 @@ internal class MeshEngineSendSupport(
         payload: ByteArray,
         priority: DeliveryPriority,
     ): SendResult {
+        val currentState = callbacks.currentLifecycleState()
+        if (currentState !== MeshLinkState.Running) {
+            throw MeshLinkException.InvalidStateTransition(
+                message = "send() requires MeshLinkState.Running but was $currentState"
+            )
+        }
+
         val isPayloadTooLarge = payload.size > config.maxSupportedPayloadBytes
-        val transportUnavailable = !callbacks.isMeshRunning() || !callbacks.hasTransport()
+        val transportUnavailable = !callbacks.hasTransport()
         val shouldUseInlineDelivery =
             payload.size <= config.inlineMessagePayloadBytes ||
                 callbacks.shouldAttemptLargeInlineSend(peerId)
@@ -64,12 +76,13 @@ internal class MeshEngineSendSupport(
                 SendResult.NotSent(SendFailureReason.UNREACHABLE)
             }
 
-            shouldUseInlineDelivery -> {
-                callbacks.sendInlinePayload(peerId, payload, priority)
-            }
-
             else -> {
-                callbacks.sendLargePayload(peerId, payload, priority)
+                val hardRunToken = callbacks.captureHardRunToken()
+                if (shouldUseInlineDelivery) {
+                    callbacks.sendInlinePayload(peerId, payload, priority, hardRunToken)
+                } else {
+                    callbacks.sendLargePayload(peerId, payload, priority, hardRunToken)
+                }
             }
         }
     }

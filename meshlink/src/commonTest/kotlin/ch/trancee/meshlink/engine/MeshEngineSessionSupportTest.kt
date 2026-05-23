@@ -30,7 +30,11 @@ class MeshEngineSessionSupportTest {
         val support =
             MeshEngineSessionSupport(
                 localIdentity = localIdentity,
-                state = MeshEngineSessionState(sessionRegistry = sessionRegistry),
+                state =
+                    MeshEngineSessionState(
+                        sessionRegistry = sessionRegistry,
+                        runtimeGate = MeshEngineRuntimeSurface().runtimeGate,
+                    ),
                 handshakeTimeout = 1.seconds,
                 callbacks =
                     MeshEngineSessionCallbacks(
@@ -74,7 +78,11 @@ class MeshEngineSessionSupportTest {
             val support =
                 MeshEngineSessionSupport(
                     localIdentity = localIdentity,
-                    state = MeshEngineSessionState(sessionRegistry = sessionRegistry),
+                    state =
+                        MeshEngineSessionState(
+                            sessionRegistry = sessionRegistry,
+                            runtimeGate = MeshEngineRuntimeSurface().runtimeGate,
+                        ),
                     handshakeTimeout = 1.seconds,
                     callbacks =
                         MeshEngineSessionCallbacks(
@@ -140,7 +148,11 @@ class MeshEngineSessionSupportTest {
             val support =
                 MeshEngineSessionSupport(
                     localIdentity = localIdentity,
-                    state = MeshEngineSessionState(sessionRegistry = sessionRegistry),
+                    state =
+                        MeshEngineSessionState(
+                            sessionRegistry = sessionRegistry,
+                            runtimeGate = MeshEngineRuntimeSurface().runtimeGate,
+                        ),
                     handshakeTimeout = 2.seconds,
                     callbacks =
                         MeshEngineSessionCallbacks(

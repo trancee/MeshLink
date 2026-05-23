@@ -27,8 +27,9 @@ internal data class MeshEngineInlineRoutingContext(
 )
 
 internal data class MeshEngineInlineDependencies(
+    val runtimeGate: MeshEngineRuntimeGate,
     val deliveryRetryScheduler: DeliveryRetryScheduler,
-    val ensureHopSession: suspend (PeerId) -> SessionEstablishmentOutcome,
+    val ensureHopSession: suspend (PeerId, MeshEngineHardRunToken) -> SessionEstablishmentOutcome,
     val sendEncryptedDirectWireFrame:
         suspend (PeerId, HopSession, WireFrame, String) -> TransportSendResult,
     val resolveRecipientTrust: suspend (PeerId) -> TrustRecord?,
@@ -57,6 +58,15 @@ internal data class InlineSessionResolution(
     val result: SendResult? = null,
 )
 
+private sealed class InlineRetryWakeupResult {
+    internal class Woke internal constructor(internal val state: InlineRetryWakeupState) :
+        InlineRetryWakeupResult()
+
+    internal data object DeadlineExpired : InlineRetryWakeupResult()
+
+    internal data object HardRunEnded : InlineRetryWakeupResult()
+}
+
 internal class MeshEngineInlineSendSupport(
     private val localIdentity: LocalIdentity,
     private val config: MeshEngineInlineConfig,
@@ -68,6 +78,7 @@ internal class MeshEngineInlineSendSupport(
         peerId: PeerId,
         payload: ByteArray,
         priority: DeliveryPriority,
+        hardRunToken: MeshEngineHardRunToken,
     ): SendResult {
         val startedAt = TimeSource.Monotonic.markNow()
         var retryState =
@@ -84,17 +95,28 @@ internal class MeshEngineInlineSendSupport(
         try {
             while (startedAt.elapsedNow() < config.deliveryRetryDeadline) {
                 val sendResult =
-                    attemptInlineSend(peerId = peerId, payload = payload, priority = priority)
+                    attemptInlineSend(
+                        peerId = peerId,
+                        payload = payload,
+                        priority = priority,
+                        hardRunToken = hardRunToken,
+                    )
                 if (!sendResult.isRetryableInlineFailure()) {
                     return sendResult
                 }
-                val nextRetryState =
-                    awaitInlineRetryWakeup(
-                        peerId = peerId,
-                        retryState = retryState,
-                        startedAt = startedAt,
-                    ) ?: break
-                retryState = nextRetryState
+                when (
+                    val nextRetryState =
+                        awaitInlineRetryWakeup(
+                            peerId = peerId,
+                            retryState = retryState,
+                            startedAt = startedAt,
+                            hardRunToken = hardRunToken,
+                        )
+                ) {
+                    is InlineRetryWakeupResult.Woke -> retryState = nextRetryState.state
+                    InlineRetryWakeupResult.DeadlineExpired -> break
+                    InlineRetryWakeupResult.HardRunEnded -> return abortedInlineSendResult()
+                }
             }
             return unreachableInlineSendResult(peerId)
         } finally {
@@ -108,8 +130,10 @@ internal class MeshEngineInlineSendSupport(
         peerId: PeerId,
         payload: ByteArray,
         priority: DeliveryPriority,
+        hardRunToken: MeshEngineHardRunToken,
     ): SendResult {
-        val sessionResolution = resolveInlineSession(peerId = peerId, priority = priority)
+        val sessionResolution =
+            resolveInlineSession(peerId = peerId, priority = priority, hardRunToken = hardRunToken)
         val resolvedResult = sessionResolution.result
         val session = sessionResolution.session
 
@@ -147,7 +171,8 @@ internal class MeshEngineInlineSendSupport(
         peerId: PeerId,
         retryState: InlineRetryWakeupState,
         startedAt: TimeMark,
-    ): InlineRetryWakeupState? {
+        hardRunToken: MeshEngineHardRunToken,
+    ): InlineRetryWakeupResult {
         callbacks.emitDiagnostic(
             DiagnosticCode.DELIVERY_RETRY_SCHEDULED,
             DiagnosticSeverity.WARN,
@@ -167,18 +192,28 @@ internal class MeshEngineInlineSendSupport(
                         attempt = retryState.attempt,
                         remainingBudget = config.deliveryRetryDeadline - startedAt.elapsedNow(),
                         lastObservedTopologyVersion = retryState.topologyVersion,
+                        runtimeGate = dependencies.runtimeGate,
+                        hardRunToken = hardRunToken,
                     )
             ) {
-                is RetryWakeup.DeadlineExpired -> null
+                is RetryWakeup.DeadlineExpired -> InlineRetryWakeupResult.DeadlineExpired
                 is RetryWakeup.TimerElapsed ->
-                    InlineRetryWakeupState(
-                        attempt = retryState.attempt + 1,
-                        topologyVersion = wakeup.topologyVersion,
+                    InlineRetryWakeupResult.Woke(
+                        InlineRetryWakeupState(
+                            attempt = retryState.attempt + 1,
+                            topologyVersion = wakeup.topologyVersion,
+                        )
                     )
                 is RetryWakeup.TopologyChanged ->
-                    InlineRetryWakeupState(attempt = 0, topologyVersion = wakeup.topologyVersion)
+                    InlineRetryWakeupResult.Woke(
+                        InlineRetryWakeupState(
+                            attempt = 0,
+                            topologyVersion = wakeup.topologyVersion,
+                        )
+                    )
+                RetryWakeup.HardRunEnded -> InlineRetryWakeupResult.HardRunEnded
             }
-        if (wakeupState != null) {
+        if (wakeupState is InlineRetryWakeupResult.Woke) {
             callbacks.emitDiagnostic(
                 DiagnosticCode.DELIVERY_RETRYING,
                 DiagnosticSeverity.WARN,
@@ -187,7 +222,7 @@ internal class MeshEngineInlineSendSupport(
                 DiagnosticReason.DELIVERY_RETRY,
                 routingContext.routingSupport.peerRouteMetadata(
                     peerId,
-                    metadata = mapOf("attempt" to wakeupState.attempt.toString()),
+                    metadata = mapOf("attempt" to wakeupState.state.attempt.toString()),
                 ),
             )
         }
@@ -197,9 +232,12 @@ internal class MeshEngineInlineSendSupport(
     private suspend fun resolveInlineSession(
         peerId: PeerId,
         priority: DeliveryPriority,
+        hardRunToken: MeshEngineHardRunToken,
     ): InlineSessionResolution {
         val nextHopPeerId = routingContext.routeCoordinator.nextHopFor(peerId) ?: peerId
-        return when (val sessionOutcome = dependencies.ensureHopSession(nextHopPeerId)) {
+        return when (
+            val sessionOutcome = dependencies.ensureHopSession(nextHopPeerId, hardRunToken)
+        ) {
             is SessionEstablishmentOutcome.Established ->
                 InlineSessionResolution(
                     nextHopPeerId = nextHopPeerId,
@@ -334,5 +372,9 @@ internal class MeshEngineInlineSendSupport(
             routingContext.routingSupport.peerRouteMetadata(peerId),
         )
         return SendResult.NotSent(SendFailureReason.UNREACHABLE)
+    }
+
+    private fun abortedInlineSendResult(): SendResult {
+        return SendResult.NotSent(SendFailureReason.TRANSFER_ABORTED)
     }
 }

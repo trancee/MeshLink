@@ -63,6 +63,7 @@ internal class MeshEngineOutboundPreparationSupport(
     suspend fun prepareOutboundTransferSession(
         peerId: PeerId,
         payload: ByteArray,
+        hardRunToken: MeshEngineHardRunToken,
     ): OutboundTransferPreparation {
         val recipientTrust = resolveRecipientTrust(peerId)
 
@@ -73,6 +74,7 @@ internal class MeshEngineOutboundPreparationSupport(
                 peerId = peerId,
                 payload = payload,
                 recipientTrust = recipientTrust,
+                hardRunToken = hardRunToken,
             )
         }
     }
@@ -113,12 +115,13 @@ internal class MeshEngineOutboundPreparationSupport(
         peerId: PeerId,
         payload: ByteArray,
         recipientTrust: TrustRecord,
+        hardRunToken: MeshEngineHardRunToken,
     ): OutboundTransferPreparation {
         val sealedPayload = sealOutboundTransferPayload(peerId, payload, recipientTrust)
         return if (sealedPayload == null) {
             OutboundTransferPreparation.Failed(SendResult.NotSent(SendFailureReason.TRUST_FAILURE))
         } else {
-            val session = createOutboundTransferSession(peerId, sealedPayload)
+            val session = createOutboundTransferSession(peerId, sealedPayload, hardRunToken)
             state.outboundTransfers[session.transferId] = session
             emitTransferStartedDiagnostic(peerId)
             OutboundTransferPreparation.Ready(session)
@@ -146,6 +149,7 @@ internal class MeshEngineOutboundPreparationSupport(
     private fun createOutboundTransferSession(
         peerId: PeerId,
         sealedPayload: ByteArray,
+        @Suppress("UNUSED_PARAMETER") hardRunToken: MeshEngineHardRunToken,
     ): OutboundTransferSession {
         val innerEnvelope =
             DirectMessageEnvelope(

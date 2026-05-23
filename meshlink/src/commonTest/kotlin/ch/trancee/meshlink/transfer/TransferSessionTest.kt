@@ -1,10 +1,12 @@
 package ch.trancee.meshlink.transfer
 
 import ch.trancee.meshlink.api.PeerId
+import ch.trancee.meshlink.engine.MeshEngineRuntimeSurface
 import ch.trancee.meshlink.wire.WireFrame
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertIs
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.delay
@@ -74,6 +76,8 @@ class TransferSessionTest {
     fun `awaitAcknowledgementSettlement waits for an acknowledgement burst before returning`() =
         runBlocking {
             // Arrange
+            val runtimeSurface = MeshEngineRuntimeSurface()
+            val hardRunToken = runtimeSurface.beginHardRun()
             val session = newOutboundSession(chunkCount = 4)
             val acknowledgementProducer = launch {
                 delay(10)
@@ -95,15 +99,18 @@ class TransferSessionTest {
             }
 
             // Act
-            val acknowledgedChunkCount =
+            val settlement =
                 session.awaitAcknowledgementSettlement(
                     maximumWait = 300.milliseconds,
                     idleWindow = 50.milliseconds,
+                    runtimeGate = runtimeSurface.runtimeGate,
+                    hardRunToken = hardRunToken,
                 )
             acknowledgementProducer.join()
 
             // Assert
-            assertEquals(4, acknowledgedChunkCount)
+            val completed = assertIs<AcknowledgementSettlementResult.Completed>(settlement)
+            assertEquals(4, completed.acknowledgedChunkCount)
             assertTrue(session.isComplete())
         }
 
@@ -111,6 +118,8 @@ class TransferSessionTest {
     fun `awaitAcknowledgementSettlement stops at the idle window when the next acknowledgement arrives late`() =
         runBlocking {
             // Arrange
+            val runtimeSurface = MeshEngineRuntimeSurface()
+            val hardRunToken = runtimeSurface.beginHardRun()
             val session = newOutboundSession(chunkCount = 4)
             val acknowledgementProducer = launch {
                 delay(40)
@@ -124,15 +133,18 @@ class TransferSessionTest {
             }
 
             // Act
-            val settledAcknowledgedChunkCount =
+            val settlement =
                 session.awaitAcknowledgementSettlement(
                     maximumWait = 200.milliseconds,
                     idleWindow = 20.milliseconds,
+                    runtimeGate = runtimeSurface.runtimeGate,
+                    hardRunToken = hardRunToken,
                 )
             acknowledgementProducer.join()
 
             // Assert
-            assertEquals(0, settledAcknowledgedChunkCount)
+            val completed = assertIs<AcknowledgementSettlementResult.Completed>(settlement)
+            assertEquals(0, completed.acknowledgedChunkCount)
             assertEquals(1, session.acknowledgedChunkCount())
             assertFalse(session.isComplete())
         }
@@ -262,6 +274,7 @@ class TransferSessionTest {
                     maxChunkPayloadBytes = 1,
                 ),
             upstreamPeerId = PeerId("upstream"),
+            hardRunToken = MeshEngineRuntimeSurface().beginHardRun(),
         )
     }
 

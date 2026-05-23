@@ -11,11 +11,10 @@ import ch.trancee.meshlink.power.PowerPolicyController
 import ch.trancee.meshlink.transfer.InboundTransferSession
 import ch.trancee.meshlink.transfer.OutboundTransferSession
 import ch.trancee.meshlink.transfer.RelayTransferSession
-import kotlinx.coroutines.flow.MutableStateFlow
+import ch.trancee.meshlink.wire.TransferAbortReasonCode
 
 internal data class MeshEngineLifecycleState(
-    val mutableState: MutableStateFlow<MeshLinkState>,
-    val sessionRegistry: MeshEngineSessionRegistry,
+    val runtimeSurface: MeshEngineCompatibilityRuntimeSurface,
     val outboundTransfers: MutableMap<String, OutboundTransferSession>,
     val inboundTransfers: MutableMap<String, InboundTransferSession>,
     val relayTransfers: MutableMap<String, RelayTransferSession>,
@@ -31,6 +30,8 @@ internal data class MeshEngineLifecycleCallbacks(
     val resumeTransport: suspend () -> Unit,
     val stopTransport: suspend () -> Unit,
     val launchTransportPowerPolicyUpdate: (PowerPolicy) -> Unit,
+    val clearVolatileRuntimeView: suspend (String, DiagnosticCode, Map<String, String>) -> Unit,
+    val abortCommittedTransfers: suspend (TransferAbortReasonCode) -> Unit,
 )
 
 internal data class MeshEngineLifecycleDiagnostics(
@@ -46,56 +47,98 @@ internal class MeshEngineLifecycleSupport(
     private val diagnostics: MeshEngineLifecycleDiagnostics,
 ) {
     internal suspend fun start(): StartResult {
-        if (state.mutableState.value === MeshLinkState.Running) {
-            return StartResult.AlreadyRunning
+        return when (val currentState = state.runtimeSurface.currentState()) {
+            MeshLinkState.Running -> StartResult.AlreadyRunning
+            MeshLinkState.Paused -> StartResult.InvalidState(currentState)
+            MeshLinkState.Uninitialized,
+            MeshLinkState.Stopped -> {
+                callbacks.ensureTransportCollector()
+                runCatching {
+                        state.currentPowerPolicy =
+                            powerPolicyController.onMeshStarted(powerPolicyNowMillis())
+                        callbacks.updateTransportPowerPolicy(state.currentPowerPolicy)
+                        callbacks.startTransport()
+                        state.runtimeSurface.beginHardRun()
+                    }
+                    .onFailure { callbacks.stopTransportCollector() }
+                    .getOrThrow()
+                diagnostics.emitLifecycleEvent(DiagnosticCode.MESH_STARTED, "lifecycle.start")
+                StartResult.Started
+            }
         }
-        callbacks.ensureTransportCollector()
-        state.currentPowerPolicy = powerPolicyController.onMeshStarted(powerPolicyNowMillis())
-        callbacks.updateTransportPowerPolicy(state.currentPowerPolicy)
-        callbacks.startTransport()
-        state.mutableState.value = MeshLinkState.Running
-        diagnostics.emitLifecycleEvent(DiagnosticCode.MESH_STARTED, "lifecycle.start")
-        return StartResult.Started
     }
 
     internal suspend fun pause(): PauseResult {
-        if (state.mutableState.value === MeshLinkState.Paused) {
-            return PauseResult.AlreadyPaused
+        return when (val currentState = state.runtimeSurface.currentState()) {
+            MeshLinkState.Paused -> PauseResult.AlreadyPaused
+            MeshLinkState.Running -> {
+                callbacks.pauseTransport()
+                callbacks.stopTransportCollector()
+                state.runtimeSurface.setLifecycleState(MeshLinkState.Paused)
+                callbacks.clearVolatileRuntimeView(
+                    "lifecycle.pause",
+                    DiagnosticCode.ROUTE_RETRACTED,
+                    mapOf("runtimeBoundary" to "pause"),
+                )
+                diagnostics.emitLifecycleEvent(DiagnosticCode.MESH_PAUSED, "lifecycle.pause")
+                PauseResult.Paused
+            }
+            MeshLinkState.Uninitialized,
+            MeshLinkState.Stopped -> PauseResult.InvalidState(currentState)
         }
-        callbacks.pauseTransport()
-        state.mutableState.value = MeshLinkState.Paused
-        diagnostics.emitLifecycleEvent(DiagnosticCode.MESH_PAUSED, "lifecycle.pause")
-        return PauseResult.Paused
     }
 
     internal suspend fun resume(): ResumeResult {
-        if (state.mutableState.value === MeshLinkState.Running) {
-            return ResumeResult.AlreadyRunning
+        return when (val currentState = state.runtimeSurface.currentState()) {
+            MeshLinkState.Running -> ResumeResult.AlreadyRunning
+            MeshLinkState.Paused -> {
+                callbacks.ensureTransportCollector()
+                runCatching {
+                        state.currentPowerPolicy =
+                            powerPolicyController.currentPolicy(powerPolicyNowMillis())
+                        callbacks.updateTransportPowerPolicy(state.currentPowerPolicy)
+                        callbacks.resumeTransport()
+                    }
+                    .onFailure { callbacks.stopTransportCollector() }
+                    .getOrThrow()
+                state.runtimeSurface.setLifecycleState(MeshLinkState.Running)
+                diagnostics.emitLifecycleEvent(DiagnosticCode.MESH_RESUMED, "lifecycle.resume")
+                ResumeResult.Resumed
+            }
+            MeshLinkState.Uninitialized,
+            MeshLinkState.Stopped -> ResumeResult.InvalidState(currentState)
         }
-        callbacks.ensureTransportCollector()
-        state.currentPowerPolicy = powerPolicyController.currentPolicy(powerPolicyNowMillis())
-        callbacks.updateTransportPowerPolicy(state.currentPowerPolicy)
-        callbacks.resumeTransport()
-        state.mutableState.value = MeshLinkState.Running
-        diagnostics.emitLifecycleEvent(DiagnosticCode.MESH_RESUMED, "lifecycle.resume")
-        return ResumeResult.Resumed
     }
 
     internal suspend fun stop(): StopResult {
-        if (state.mutableState.value === MeshLinkState.Stopped) {
-            return StopResult.AlreadyStopped
+        return when (state.runtimeSurface.currentState()) {
+            MeshLinkState.Stopped -> StopResult.AlreadyStopped
+            MeshLinkState.Uninitialized -> {
+                state.outboundTransfers.clear()
+                state.inboundTransfers.clear()
+                state.relayTransfers.clear()
+                state.runtimeSurface.setLifecycleState(MeshLinkState.Stopped)
+                diagnostics.emitLifecycleEvent(DiagnosticCode.MESH_STOPPED, "lifecycle.stop")
+                StopResult.Stopped
+            }
+            MeshLinkState.Running,
+            MeshLinkState.Paused -> {
+                callbacks.abortCommittedTransfers(TransferAbortReasonCode.RUNTIME_STOPPED)
+                callbacks.stopTransport()
+                callbacks.stopTransportCollector()
+                callbacks.clearVolatileRuntimeView(
+                    "lifecycle.stop",
+                    DiagnosticCode.ROUTE_RETRACTED,
+                    mapOf("runtimeBoundary" to "stop"),
+                )
+                state.outboundTransfers.clear()
+                state.inboundTransfers.clear()
+                state.relayTransfers.clear()
+                state.runtimeSurface.setLifecycleState(MeshLinkState.Stopped)
+                diagnostics.emitLifecycleEvent(DiagnosticCode.MESH_STOPPED, "lifecycle.stop")
+                StopResult.Stopped
+            }
         }
-        callbacks.stopTransport()
-        callbacks.stopTransportCollector()
-        state.sessionRegistry.clear().forEach { pendingHandshake ->
-            pendingHandshake.sessionDeferred.complete(SessionEstablishmentOutcome.Unreachable)
-        }
-        state.outboundTransfers.clear()
-        state.inboundTransfers.clear()
-        state.relayTransfers.clear()
-        state.mutableState.value = MeshLinkState.Stopped
-        diagnostics.emitLifecycleEvent(DiagnosticCode.MESH_STOPPED, "lifecycle.stop")
-        return StopResult.Stopped
     }
 
     internal fun updateBattery(level: Float, isCharging: Boolean): Unit {

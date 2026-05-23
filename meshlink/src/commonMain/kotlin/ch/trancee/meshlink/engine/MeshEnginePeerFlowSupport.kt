@@ -19,7 +19,10 @@ internal data class MeshEnginePeerFlowContext(
 )
 
 internal data class MeshEnginePeerFlowCallbacks(
-    val sendEncryptedWireFrame: suspend (PeerId, WireFrame, String) -> Boolean,
+    val runtimeGate: MeshEngineRuntimeGate,
+    val captureHardRunToken: () -> MeshEngineHardRunToken,
+    val sendEncryptedWireFrame:
+        suspend (PeerId, WireFrame, String, MeshEngineHardRunToken?) -> Boolean,
     val ensureHopSession: suspend (PeerId) -> SessionEstablishmentOutcome,
     val maximumPayloadBytesPerDelivery: (PeerId) -> Int?,
     val emitDiagnostic:
@@ -44,20 +47,30 @@ internal class MeshEnginePeerFlowSupport(
         destinationPeerId: PeerId,
         frame: WireFrame,
         action: String,
+        hardRunToken: MeshEngineHardRunToken,
     ): Boolean {
         val nextHopPeerId =
             context.routeCoordinator.nextHopFor(destinationPeerId) ?: destinationPeerId
-        return callbacks.sendEncryptedWireFrame(nextHopPeerId, frame, action)
+        return callbacks.sendEncryptedWireFrame(nextHopPeerId, frame, action, hardRunToken)
     }
 
     fun prewarmHopSession(peerId: PeerId): Unit {
         if (localIdentity.peerId.value >= peerId.value) {
             return
         }
-        context.coroutineScope.launch { callbacks.ensureHopSession(peerId) }
+        val hardRunToken = callbacks.captureHardRunToken()
+        context.coroutineScope.launch {
+            if (!callbacks.runtimeGate.isHardRunActive(hardRunToken)) {
+                return@launch
+            }
+            callbacks.ensureHopSession(peerId)
+        }
     }
 
-    fun forwardMessageToNextHop(frame: WireFrame.Message): Unit {
+    fun forwardMessageToNextHop(
+        frame: WireFrame.Message,
+        hardRunToken: MeshEngineHardRunToken,
+    ): Unit {
         val destinationPeerId = frame.destinationPeerId
         val originPeerId = frame.originPeerId
         val peerSuffix = destinationPeerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH)
@@ -86,7 +99,15 @@ internal class MeshEnginePeerFlowSupport(
         )
         context.coroutineScope.launch {
             val forwarded =
-                callbacks.sendEncryptedWireFrame(nextHopPeerId, frame, "forward.message")
+                callbacks.sendEncryptedWireFrame(
+                    nextHopPeerId,
+                    frame,
+                    "forward.message",
+                    hardRunToken,
+                )
+            if (!callbacks.runtimeGate.isHardRunActive(hardRunToken) && !forwarded) {
+                return@launch
+            }
             callbacks.emitDiagnostic(
                 if (forwarded) DiagnosticCode.DELIVERY_SUCCEEDED
                 else DiagnosticCode.DELIVERY_UNREACHABLE,

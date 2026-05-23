@@ -192,6 +192,58 @@ class MeshLinkApiContractTest {
         }
 
     @Test
+    fun `lifecycle methods enforce the documented state machine`() = runBlocking {
+        // Arrange
+        val api = MeshEngine.create(config = meshLinkConfig { appId = "lifecycle.meshlink" })
+
+        // Act
+        val stopFromUninitialized = api.stop()
+        val restartFromStopped = api.start()
+        val pauseFromRunning = api.pause()
+        val startFromPaused = api.start()
+        val resumeFromPaused = api.resume()
+        val stopFromRunning = api.stop()
+        val pauseFromStopped = api.pause()
+        val resumeFromStopped = api.resume()
+
+        // Assert
+        assertEquals(StopResult.Stopped, stopFromUninitialized)
+        assertEquals(StartResult.Started, restartFromStopped)
+        assertEquals(PauseResult.Paused, pauseFromRunning)
+        assertEquals(
+            MeshLinkState.Paused,
+            (startFromPaused as StartResult.InvalidState).currentState,
+        )
+        assertEquals(ResumeResult.Resumed, resumeFromPaused)
+        assertEquals(StopResult.Stopped, stopFromRunning)
+        assertEquals(
+            MeshLinkState.Stopped,
+            (pauseFromStopped as PauseResult.InvalidState).currentState,
+        )
+        assertEquals(
+            MeshLinkState.Stopped,
+            (resumeFromStopped as ResumeResult.InvalidState).currentState,
+        )
+    }
+
+    @Test
+    fun `send throws invalid state when meshlink is not running`() = runBlocking {
+        // Arrange
+        val api = MeshEngine.create(config = meshLinkConfig { appId = "send-invalid.meshlink" })
+        api.start()
+        api.pause()
+
+        // Act
+        val error =
+            assertFailsWith<MeshLinkException.InvalidStateTransition> {
+                api.send(PeerId("peer-abcdef"), "hello".encodeToByteArray())
+            }
+
+        // Assert
+        assertEquals("send() requires MeshLinkState.Running but was Paused", error.message)
+    }
+
+    @Test
     fun `start wraps permission exceptions as permission denied`() {
         // Arrange
         val api =

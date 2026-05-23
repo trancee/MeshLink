@@ -127,6 +127,26 @@ internal class RouteCoordinator internal constructor(private val localPeerId: Pe
         )
     }
 
+    internal fun clearConnectedPeers(): RoutingMutation {
+        if (connectedPeers.isEmpty() && selectedRoutes.isEmpty()) {
+            return RoutingMutation.EMPTY
+        }
+
+        connectedPeers.clear()
+        peerDigests.clear()
+        val removedRoutes = selectedRoutes.values.toList()
+        selectedRoutes.clear()
+        feasibilityDistances.clear()
+        routeDigestTracker.invalidate()
+        if (removedRoutes.isNotEmpty()) {
+            advanceTopologyVersion()
+        }
+        return RoutingMutation(
+            advertisements = emptyList(),
+            routeChanges = removedRoutes.map(RouteSelectionChange::Removed),
+        )
+    }
+
     internal fun onRouteUpdate(fromPeerId: PeerId, update: WireFrame.RouteUpdate): RoutingMutation {
         val candidate =
             RouteEntry(

@@ -278,7 +278,7 @@ class MeshRoutingIntegrationTest {
 
             // Assert
             val originalNotSent = assertIs<SendResult.NotSent>(originalSendResult)
-            assertEquals(SendFailureReason.UNREACHABLE, originalNotSent.reason)
+            assertEquals(SendFailureReason.TRANSFER_ABORTED, originalNotSent.reason)
             assertNull(unexpectedMessage)
             assertIs<SendResult.Sent>(resubmittedSendResult)
             assertContentEquals(payload, resubmittedMessage.payload)

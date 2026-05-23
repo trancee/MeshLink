@@ -11,6 +11,7 @@ import ch.trancee.meshlink.diagnostics.DiagnosticSeverity
 import ch.trancee.meshlink.test.RecordingDiagnosticSink
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
@@ -52,17 +53,67 @@ class MeshEngineRuntimeSurfaceTest {
     }
 
     @Test
-    fun `published lifecycle state reflects compatibility state updates`() {
+    fun `published lifecycle state reflects compatibility lifecycle transitions`() {
         // Arrange
         val owner = MeshEngineRuntimeSurface()
         val published: MeshEnginePublishedRuntimeSurface = owner
         val compatibility: MeshEngineCompatibilityRuntimeSurface = owner
 
         // Act
-        compatibility.mutableState.value = MeshLinkState.Running
+        val hardRunToken = compatibility.beginHardRun()
+        compatibility.setLifecycleState(MeshLinkState.Paused)
 
         // Assert
-        assertEquals(MeshLinkState.Running, published.state.value)
+        assertEquals(MeshLinkState.Paused, published.state.value)
+        assertEquals(1L, hardRunToken.epoch)
+    }
+
+    @Test
+    fun `runtime gate reports pause interruptions and later reactivation in the same hard run`() =
+        runBlocking {
+            // Arrange
+            val owner = MeshEngineRuntimeSurface()
+            val compatibility: MeshEngineCompatibilityRuntimeSurface = owner
+            val runtimeGate = compatibility.runtimeGate
+            val hardRunToken = compatibility.beginHardRun()
+            val interruptionDeferred =
+                async(start = CoroutineStart.UNDISPATCHED) {
+                    withTimeout(1_000) { runtimeGate.awaitInterruption(hardRunToken) }
+                }
+            val activeDeferred =
+                async(start = CoroutineStart.UNDISPATCHED) {
+                    withTimeout(1_000) { runtimeGate.awaitActive(hardRunToken) }
+                }
+
+            // Act
+            compatibility.setLifecycleState(MeshLinkState.Paused)
+            val interruption = interruptionDeferred.await()
+            compatibility.setLifecycleState(MeshLinkState.Running)
+            val activation = activeDeferred.await()
+
+            // Assert
+            assertEquals(MeshEngineRuntimeInterruption.Paused, interruption)
+            assertEquals(MeshEngineRuntimeAwaitActiveResult.Active, activation)
+        }
+
+    @Test
+    fun `runtime gate invalidates old hard run tokens after stop and restart`() = runBlocking {
+        // Arrange
+        val owner = MeshEngineRuntimeSurface()
+        val compatibility: MeshEngineCompatibilityRuntimeSurface = owner
+        val runtimeGate = compatibility.runtimeGate
+        val firstHardRunToken = compatibility.beginHardRun()
+
+        // Act
+        compatibility.setLifecycleState(MeshLinkState.Stopped)
+        val stoppedActivation = runtimeGate.awaitActive(firstHardRunToken)
+        val stoppedInterruption = runtimeGate.awaitInterruption(firstHardRunToken)
+        val restartedHardRunToken = compatibility.beginHardRun()
+
+        // Assert
+        assertEquals(MeshEngineRuntimeAwaitActiveResult.HardRunEnded, stoppedActivation)
+        assertEquals(MeshEngineRuntimeInterruption.HardRunEnded, stoppedInterruption)
+        assertTrue(restartedHardRunToken.epoch > firstHardRunToken.epoch)
     }
 
     @Test

@@ -16,19 +16,35 @@ internal constructor(
         attempt: Int,
         remainingBudget: Duration,
         lastObservedTopologyVersion: Long,
+        runtimeGate: MeshEngineRuntimeGate,
+        hardRunToken: MeshEngineHardRunToken,
     ): RetryWakeup {
         if (remainingBudget <= Duration.ZERO) {
             return RetryWakeup.DeadlineExpired(lastObservedTopologyVersion)
         }
         val retryDelay = retryDelayFor(attempt).coerceAtMost(remainingBudget)
-        val observedTopologyVersion =
-            withTimeoutOrNull(retryDelay) {
-                topologyVersion.first { version -> version > lastObservedTopologyVersion }
+        return when (
+            val waitResult =
+                waitWithRuntimeGate(
+                    runtimeGate = runtimeGate,
+                    hardRunToken = hardRunToken,
+                    maximumActiveWait = retryDelay,
+                    awaitChange = { activeWait ->
+                        withTimeoutOrNull(activeWait) {
+                            topologyVersion.first { version ->
+                                version > lastObservedTopologyVersion
+                            }
+                        }
+                    },
+                )
+        ) {
+            is MeshEngineRuntimeTimedWaitResult.Completed -> {
+                RetryWakeup.TopologyChanged(waitResult.value)
             }
-        return if (observedTopologyVersion != null) {
-            RetryWakeup.TopologyChanged(observedTopologyVersion)
-        } else {
-            RetryWakeup.TimerElapsed(topologyVersion.value)
+            MeshEngineRuntimeTimedWaitResult.TimedOut -> {
+                RetryWakeup.TimerElapsed(topologyVersion.value)
+            }
+            MeshEngineRuntimeTimedWaitResult.HardRunEnded -> RetryWakeup.HardRunEnded
         }
     }
 
@@ -59,4 +75,6 @@ internal sealed class RetryWakeup {
 
     internal class DeadlineExpired internal constructor(internal val topologyVersion: Long) :
         RetryWakeup()
+
+    internal data object HardRunEnded : RetryWakeup()
 }

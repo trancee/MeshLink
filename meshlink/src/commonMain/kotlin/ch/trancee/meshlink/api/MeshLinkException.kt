@@ -16,9 +16,12 @@ protected constructor(message: String, cause: Throwable? = null) :
         MeshLinkException(message, cause)
 
     /**
-     * Raised when a lifecycle or protocol state transition violates the current MeshLink contract.
+     * Raised when a host call or internal protocol step violates the current MeshLink state
+     * contract.
      *
-     * Expected repeated lifecycle calls return the corresponding `Already*` result instead.
+     * Expected repeated lifecycle calls return the corresponding `Already*` result instead, and
+     * documented wrong-state lifecycle calls use their `InvalidState(currentState)` result
+     * variants.
      */
     public class InvalidStateTransition
     public constructor(message: String, cause: Throwable? = null) :

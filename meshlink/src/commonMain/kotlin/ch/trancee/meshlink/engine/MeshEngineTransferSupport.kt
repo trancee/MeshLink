@@ -10,6 +10,7 @@ import ch.trancee.meshlink.transfer.InboundTransferSession
 import ch.trancee.meshlink.transfer.OutboundTransferSession
 import ch.trancee.meshlink.transfer.RelayTransferSession
 import ch.trancee.meshlink.transfer.toTransferStartDescriptor
+import ch.trancee.meshlink.wire.TransferAbortReasonCode
 import ch.trancee.meshlink.wire.WireFrame
 
 internal data class MeshEngineTransferState(
@@ -19,10 +20,16 @@ internal data class MeshEngineTransferState(
 )
 
 internal data class MeshEngineTransferCallbacks(
+    val runtimeGate: MeshEngineRuntimeGate,
+    val captureHardRunToken: () -> MeshEngineHardRunToken,
     val isLocalPeerId: (PeerId) -> Boolean,
-    val sendEncryptedWireFrame: suspend (PeerId, WireFrame, String) -> Boolean,
-    val sendTransferTowardsDestination: suspend (PeerId, WireFrame, String) -> Boolean,
-    val deliverInnerEnvelope: suspend (PeerId, PeerId, ByteArray, DeliveryPriority) -> Unit,
+    val sendEncryptedWireFrame:
+        suspend (PeerId, WireFrame, String, MeshEngineHardRunToken?) -> Boolean,
+    val sendTransferTowardsDestination:
+        suspend (PeerId, WireFrame, String, MeshEngineHardRunToken?) -> Boolean,
+    val deliverInnerEnvelope:
+        suspend (PeerId, PeerId, ByteArray, DeliveryPriority, MeshEngineHardRunToken) -> Unit,
+    val clearQueuedOutboundFrames: suspend (PeerId, String) -> Unit,
 )
 
 internal class MeshEngineTransferSupport(
@@ -40,34 +47,40 @@ internal class MeshEngineTransferSupport(
         ) -> Unit,
 ) {
     suspend fun handleTransferStart(peerId: PeerId, frame: WireFrame.TransferStart): Unit {
+        val hardRunToken = callbacks.captureHardRunToken()
         if (callbacks.isLocalPeerId(frame.destinationPeerId)) {
-            handleInboundTransferStart(peerId, frame)
+            handleInboundTransferStart(peerId, frame, hardRunToken)
             return
         }
 
         val relaySession = state.relayTransfers[frame.transferId]
-        if (relaySession != null) {
-            relaySession.upstreamPeerId = peerId
-        } else {
-            state.relayTransfers[frame.transferId] =
+        val activeRelaySession =
+            if (relaySession != null) {
+                relaySession.upstreamPeerId = peerId
+                relaySession
+            } else {
                 RelayTransferSession(
-                    transferId = frame.transferId,
-                    messageId = frame.messageId,
-                    originPeerId = frame.originPeerId,
-                    destinationPeerId = frame.destinationPeerId,
-                    upstreamPeerId = peerId,
-                )
-        }
+                        transferId = frame.transferId,
+                        messageId = frame.messageId,
+                        originPeerId = frame.originPeerId,
+                        destinationPeerId = frame.destinationPeerId,
+                        upstreamPeerId = peerId,
+                        hardRunToken = hardRunToken,
+                    )
+                    .also { session -> state.relayTransfers[frame.transferId] = session }
+            }
         callbacks.sendTransferTowardsDestination(
             frame.destinationPeerId,
             frame,
             "transfer.forward.start",
+            activeRelaySession.hardRunToken,
         )
     }
 
     private suspend fun handleInboundTransferStart(
         peerId: PeerId,
         frame: WireFrame.TransferStart,
+        hardRunToken: MeshEngineHardRunToken,
     ): Unit {
         val existingSession = state.inboundTransfers[frame.transferId]
         val inboundSession =
@@ -78,6 +91,7 @@ internal class MeshEngineTransferSupport(
                 InboundTransferSession(
                         startDescriptor = frame.toTransferStartDescriptor(),
                         upstreamPeerId = peerId,
+                        hardRunToken = hardRunToken,
                     )
                     .also { session -> state.inboundTransfers[frame.transferId] = session }
             }
@@ -94,7 +108,12 @@ internal class MeshEngineTransferSupport(
                 ),
         )
         val ackSent =
-            callbacks.sendEncryptedWireFrame(peerId, preparedAck.frame, "transfer.ack.start")
+            callbacks.sendEncryptedWireFrame(
+                peerId,
+                preparedAck.frame,
+                "transfer.ack.start",
+                inboundSession.hardRunToken,
+            )
         emitInboundTransferProgress(
             stage = "transfer.ack.start",
             peerId = peerId,
@@ -116,6 +135,7 @@ internal class MeshEngineTransferSupport(
             relaySession.destinationPeerId,
             frame,
             "transfer.forward.chunk",
+            relaySession.hardRunToken,
         )
     }
 
@@ -127,7 +147,12 @@ internal class MeshEngineTransferSupport(
             return
         }
         val relaySession = state.relayTransfers[frame.transferId] ?: return
-        callbacks.sendEncryptedWireFrame(relaySession.upstreamPeerId, frame, "transfer.forward.ack")
+        callbacks.sendEncryptedWireFrame(
+            relaySession.upstreamPeerId,
+            frame,
+            "transfer.forward.ack",
+            relaySession.hardRunToken,
+        )
     }
 
     suspend fun handleTransferComplete(peerId: PeerId, frame: WireFrame.TransferComplete): Unit {
@@ -149,6 +174,7 @@ internal class MeshEngineTransferSupport(
                     inboundSession.originPeerId,
                     inboundSession.assembledPayload(),
                     DeliveryPriority.NORMAL,
+                    inboundSession.hardRunToken,
                 )
             }
             return
@@ -158,6 +184,7 @@ internal class MeshEngineTransferSupport(
             relaySession.destinationPeerId,
             frame,
             "transfer.forward.complete",
+            relaySession.hardRunToken,
         )
     }
 
@@ -169,6 +196,7 @@ internal class MeshEngineTransferSupport(
                 relaySession.destinationPeerId,
                 frame,
                 "transfer.forward.abort",
+                relaySession.hardRunToken,
             )
             return
         }
@@ -181,6 +209,108 @@ internal class MeshEngineTransferSupport(
                 peerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
                 DiagnosticReason.TRANSFER_FAILURE,
                 mapOf("reasonCode" to frame.reasonCode.toString()),
+            )
+        }
+    }
+
+    suspend fun abortLocalTransfers(reasonCode: TransferAbortReasonCode): Unit {
+        val abortFrameFor: (String) -> WireFrame.TransferAbort = { transferId ->
+            WireFrame.TransferAbort(transferId = transferId, reasonCode = reasonCode.code)
+        }
+        val outboundSessions = state.outboundTransfers.values.toList()
+        val inboundSessions = state.inboundTransfers.values.toList()
+        val relaySessions = state.relayTransfers.values.toList()
+        state.outboundTransfers.clear()
+        state.inboundTransfers.clear()
+        state.relayTransfers.clear()
+
+        outboundSessions.forEach { session ->
+            callbacks.clearQueuedOutboundFrames(
+                session.destinationPeerId,
+                "transfer.clearQueuedFramesOnAbort",
+            )
+            callbacks.sendTransferTowardsDestination(
+                session.destinationPeerId,
+                abortFrameFor(session.transferId),
+                "transfer.abort.runtimeStop",
+                null,
+            )
+            emitDiagnostic(
+                DiagnosticCode.TRANSFER_FAILED,
+                DiagnosticSeverity.ERROR,
+                "transfer.abort.runtimeStop",
+                session.destinationPeerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
+                DiagnosticReason.TRANSFER_FAILURE,
+                routingSupport.peerRouteMetadata(
+                    peerId = session.destinationPeerId,
+                    metadata =
+                        mapOf(
+                            "reasonCode" to reasonCode.code.toString(),
+                            "transferAbortReason" to reasonCode.name,
+                            "transferAbortScope" to "outbound",
+                        ),
+                ),
+            )
+        }
+
+        inboundSessions.forEach { session ->
+            callbacks.sendEncryptedWireFrame(
+                session.upstreamPeerId,
+                abortFrameFor(session.transferId),
+                "transfer.abort.runtimeStop",
+                null,
+            )
+            emitDiagnostic(
+                DiagnosticCode.TRANSFER_FAILED,
+                DiagnosticSeverity.ERROR,
+                "transfer.abort.runtimeStop",
+                session.upstreamPeerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
+                DiagnosticReason.TRANSFER_FAILURE,
+                routingSupport.peerRouteMetadata(
+                    peerId = session.upstreamPeerId,
+                    metadata =
+                        inboundTransferMetadata(session) +
+                            mapOf(
+                                "reasonCode" to reasonCode.code.toString(),
+                                "transferAbortReason" to reasonCode.name,
+                                "transferAbortScope" to "inbound",
+                            ),
+                ),
+            )
+        }
+
+        relaySessions.forEach { session ->
+            val abortFrame = abortFrameFor(session.transferId)
+            callbacks.sendEncryptedWireFrame(
+                session.upstreamPeerId,
+                abortFrame,
+                "transfer.abort.runtimeStop.upstream",
+                null,
+            )
+            callbacks.sendTransferTowardsDestination(
+                session.destinationPeerId,
+                abortFrame,
+                "transfer.abort.runtimeStop.downstream",
+                null,
+            )
+            emitDiagnostic(
+                DiagnosticCode.TRANSFER_FAILED,
+                DiagnosticSeverity.ERROR,
+                "transfer.abort.runtimeStop",
+                session.destinationPeerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
+                DiagnosticReason.TRANSFER_FAILURE,
+                routingSupport.peerRouteMetadata(
+                    peerId = session.destinationPeerId,
+                    metadata =
+                        mapOf(
+                            "originPeerId" to session.originPeerId.value,
+                            "reasonCode" to reasonCode.code.toString(),
+                            "transferAbortReason" to reasonCode.name,
+                            "transferAbortScope" to "relay",
+                            "transferId" to session.transferId,
+                            "upstreamPeerId" to session.upstreamPeerId.value,
+                        ),
+                ),
             )
         }
     }
@@ -226,6 +356,7 @@ internal class MeshEngineTransferSupport(
                 session.upstreamPeerId,
                 preparedAck.frame,
                 "transfer.ack.chunk",
+                session.hardRunToken,
             )
         emitInboundTransferProgress(
             stage = "transfer.ack.chunk",
@@ -266,6 +397,7 @@ internal class MeshEngineTransferSupport(
             session.originPeerId,
             session.assembledPayload(),
             DeliveryPriority.NORMAL,
+            session.hardRunToken,
         )
     }
 

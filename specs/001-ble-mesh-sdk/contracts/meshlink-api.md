@@ -124,6 +124,20 @@ interface MeshLinkApi {
 }
 ```
 
+**Lifecycle contract notes**
+- `start()` is valid from `Uninitialized` or `Stopped`.
+- `pause()` is valid only from `Running`.
+- `resume()` is valid only from `Paused`.
+- `stop()` is valid from `Uninitialized`, `Running`, or `Paused`.
+- Wrong-state lifecycle calls use the documented `InvalidState(currentState)` result variants rather than throwing.
+- Failed lifecycle transitions roll back to the pre-call lifecycle state.
+
+**`send` contract notes**
+- `send()` is valid only while MeshLink is `Running`.
+- Calling `send()` from `Uninitialized`, `Paused`, or `Stopped` fails as `MeshLinkException.InvalidStateTransition`.
+- `SendResult.Sent` marks local protocol completion for the send attempt, not a destination-app receipt acknowledgement.
+- `stop()` is a hard delivery boundary for in-flight send attempts in the current hard run.
+
 **`updateBattery` contract notes**
 - `level` is clamped into the inclusive `0.0..1.0` range.
 - `PowerMode.Automatic` uses shared commonMain policy logic with bootstrap,
@@ -150,12 +164,31 @@ interface MeshLinkApi {
 - `LOW`
 
 ### `SendResult`
-- `Sent`
+- `Sent` (local protocol completion boundary only; not a destination-app receipt acknowledgement)
 - `NotSent(PAYLOAD_TOO_LARGE)`
 - `NotSent(TRANSFER_TIMED_OUT)`
 - `NotSent(TRANSFER_ABORTED)`
 - `NotSent(UNREACHABLE)`
 - `NotSent(TRUST_FAILURE)`
+
+### `StartResult`
+- `Started`
+- `AlreadyRunning`
+- `InvalidState(currentState)`
+
+### `PauseResult`
+- `Paused`
+- `AlreadyPaused`
+- `InvalidState(currentState)`
+
+### `ResumeResult`
+- `Resumed`
+- `AlreadyRunning`
+- `InvalidState(currentState)`
+
+### `StopResult`
+- `Stopped`
+- `AlreadyStopped`
 
 ### `PeerEvent`
 - `Found(peerId, state)`

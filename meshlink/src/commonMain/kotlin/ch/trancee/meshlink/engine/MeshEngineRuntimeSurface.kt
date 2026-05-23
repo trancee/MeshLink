@@ -14,6 +14,19 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
+
+internal class MeshEngineHardRunToken internal constructor(internal val epoch: Long)
+
+internal enum class MeshEngineRuntimeAwaitActiveResult {
+    Active,
+    HardRunEnded,
+}
+
+internal enum class MeshEngineRuntimeInterruption {
+    Paused,
+    HardRunEnded,
+}
 
 internal interface MeshEnginePublishedRuntimeSurface {
     val state: StateFlow<MeshLinkState>
@@ -22,10 +35,32 @@ internal interface MeshEnginePublishedRuntimeSurface {
     val messages: Flow<InboundMessage>
 }
 
+internal interface MeshEngineRuntimeGate {
+    fun currentState(): MeshLinkState
+
+    fun currentHardRunEpoch(): Long
+
+    fun captureHardRunToken(): MeshEngineHardRunToken
+
+    fun isAcceptingNewSends(): Boolean
+
+    fun isHardRunActive(token: MeshEngineHardRunToken): Boolean
+
+    suspend fun awaitActive(token: MeshEngineHardRunToken): MeshEngineRuntimeAwaitActiveResult
+
+    suspend fun awaitInterruption(token: MeshEngineHardRunToken): MeshEngineRuntimeInterruption
+}
+
 internal interface MeshEngineCompatibilityRuntimeSurface {
-    val mutableState: MutableStateFlow<MeshLinkState>
+    val runtimeGate: MeshEngineRuntimeGate
     val mutablePeerEvents: MutableSharedFlow<PeerEvent>
     val mutableMessages: MutableSharedFlow<InboundMessage>
+
+    fun currentState(): MeshLinkState
+
+    fun beginHardRun(): MeshEngineHardRunToken
+
+    fun setLifecycleState(state: MeshLinkState): Unit
 
     @Suppress("LongParameterList")
     fun emitDiagnostic(
@@ -38,10 +73,18 @@ internal interface MeshEngineCompatibilityRuntimeSurface {
     ): Unit
 }
 
+private data class MeshEngineRuntimeGateSnapshot(val state: MeshLinkState, val hardRunEpoch: Long)
+
 internal class MeshEngineRuntimeSurface(diagnosticSink: DiagnosticSink? = null) :
-    MeshEnginePublishedRuntimeSurface, MeshEngineCompatibilityRuntimeSurface {
-    override val mutableState: MutableStateFlow<MeshLinkState> =
+    MeshEnginePublishedRuntimeSurface,
+    MeshEngineCompatibilityRuntimeSurface,
+    MeshEngineRuntimeGate {
+    private val mutableState: MutableStateFlow<MeshLinkState> =
         MutableStateFlow(MeshLinkState.Uninitialized)
+    private val mutableGateSnapshot: MutableStateFlow<MeshEngineRuntimeGateSnapshot> =
+        MutableStateFlow(
+            MeshEngineRuntimeGateSnapshot(state = MeshLinkState.Uninitialized, hardRunEpoch = 0L)
+        )
     override val mutablePeerEvents: MutableSharedFlow<PeerEvent> =
         MutableSharedFlow(extraBufferCapacity = 16)
     override val mutableMessages: MutableSharedFlow<InboundMessage> =
@@ -54,6 +97,90 @@ internal class MeshEngineRuntimeSurface(diagnosticSink: DiagnosticSink? = null) 
     override val peerEvents: Flow<PeerEvent> = mutablePeerEvents.asSharedFlow()
     override val diagnosticEvents: Flow<DiagnosticEvent> = mutableDiagnostics.asSharedFlow()
     override val messages: Flow<InboundMessage> = mutableMessages.asSharedFlow()
+    override val runtimeGate: MeshEngineRuntimeGate = this
+
+    override fun currentState(): MeshLinkState {
+        return mutableGateSnapshot.value.state
+    }
+
+    override fun currentHardRunEpoch(): Long {
+        return mutableGateSnapshot.value.hardRunEpoch
+    }
+
+    override fun captureHardRunToken(): MeshEngineHardRunToken {
+        return MeshEngineHardRunToken(currentHardRunEpoch())
+    }
+
+    override fun isAcceptingNewSends(): Boolean {
+        return currentState() === MeshLinkState.Running
+    }
+
+    override fun isHardRunActive(token: MeshEngineHardRunToken): Boolean {
+        val snapshot = mutableGateSnapshot.value
+        return snapshot.hardRunEpoch == token.epoch && snapshot.state === MeshLinkState.Running
+    }
+
+    override suspend fun awaitActive(
+        token: MeshEngineHardRunToken
+    ): MeshEngineRuntimeAwaitActiveResult {
+        val currentSnapshot = mutableGateSnapshot.value
+        if (
+            currentSnapshot.hardRunEpoch != token.epoch ||
+                currentSnapshot.state === MeshLinkState.Stopped ||
+                currentSnapshot.state === MeshLinkState.Uninitialized
+        ) {
+            return MeshEngineRuntimeAwaitActiveResult.HardRunEnded
+        }
+        if (currentSnapshot.state === MeshLinkState.Running) {
+            return MeshEngineRuntimeAwaitActiveResult.Active
+        }
+        val nextSnapshot = mutableGateSnapshot.first { snapshot ->
+            snapshot.hardRunEpoch != token.epoch || snapshot.state !== MeshLinkState.Paused
+        }
+        return if (
+            nextSnapshot.hardRunEpoch == token.epoch && nextSnapshot.state === MeshLinkState.Running
+        ) {
+            MeshEngineRuntimeAwaitActiveResult.Active
+        } else {
+            MeshEngineRuntimeAwaitActiveResult.HardRunEnded
+        }
+    }
+
+    override suspend fun awaitInterruption(
+        token: MeshEngineHardRunToken
+    ): MeshEngineRuntimeInterruption {
+        val currentSnapshot = mutableGateSnapshot.value
+        if (
+            currentSnapshot.hardRunEpoch != token.epoch ||
+                currentSnapshot.state === MeshLinkState.Stopped ||
+                currentSnapshot.state === MeshLinkState.Uninitialized
+        ) {
+            return MeshEngineRuntimeInterruption.HardRunEnded
+        }
+        if (currentSnapshot.state === MeshLinkState.Paused) {
+            return MeshEngineRuntimeInterruption.Paused
+        }
+        val nextSnapshot = mutableGateSnapshot.first { snapshot ->
+            snapshot.hardRunEpoch != token.epoch || snapshot.state !== MeshLinkState.Running
+        }
+        return if (
+            nextSnapshot.hardRunEpoch == token.epoch && nextSnapshot.state === MeshLinkState.Paused
+        ) {
+            MeshEngineRuntimeInterruption.Paused
+        } else {
+            MeshEngineRuntimeInterruption.HardRunEnded
+        }
+    }
+
+    override fun beginHardRun(): MeshEngineHardRunToken {
+        val nextEpoch = currentHardRunEpoch() + 1L
+        updateLifecycleState(state = MeshLinkState.Running, hardRunEpoch = nextEpoch)
+        return MeshEngineHardRunToken(nextEpoch)
+    }
+
+    override fun setLifecycleState(state: MeshLinkState): Unit {
+        updateLifecycleState(state = state, hardRunEpoch = currentHardRunEpoch())
+    }
 
     @Suppress("LongParameterList")
     override fun emitDiagnostic(
@@ -75,5 +202,11 @@ internal class MeshEngineRuntimeSurface(diagnosticSink: DiagnosticSink? = null) 
             )
         mutableDiagnostics.tryEmit(event)
         diagnosticSink?.emit(event)
+    }
+
+    private fun updateLifecycleState(state: MeshLinkState, hardRunEpoch: Long): Unit {
+        mutableState.value = state
+        mutableGateSnapshot.value =
+            MeshEngineRuntimeGateSnapshot(state = state, hardRunEpoch = hardRunEpoch)
     }
 }

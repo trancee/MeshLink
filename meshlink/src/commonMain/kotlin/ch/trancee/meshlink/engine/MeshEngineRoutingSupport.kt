@@ -15,6 +15,7 @@ import kotlinx.coroutines.launch
 
 internal class MeshEngineRoutingSupport(
     private val routeCoordinator: RouteCoordinator,
+    private val runtimeGate: MeshEngineRuntimeGate,
     private val coroutineScope: CoroutineScope,
     private val emitDiagnostic:
         (
@@ -25,7 +26,8 @@ internal class MeshEngineRoutingSupport(
             DiagnosticReason?,
             Map<String, String>,
         ) -> Unit,
-    private val sendEncryptedWireFrame: suspend (PeerId, WireFrame, String) -> Boolean,
+    private val sendEncryptedWireFrame:
+        suspend (PeerId, WireFrame, String, MeshEngineHardRunToken?) -> Boolean,
 ) {
     fun dispatchMutation(
         mutation: RoutingMutation,
@@ -167,12 +169,17 @@ internal class MeshEngineRoutingSupport(
     }
 
     private fun dispatchRoutingAdvertisements(advertisements: List<RoutingAdvertisement>): Unit {
+        val hardRunToken = runtimeGate.captureHardRunToken()
         advertisements.forEach { advertisement ->
             coroutineScope.launch {
+                if (!runtimeGate.isHardRunActive(hardRunToken)) {
+                    return@launch
+                }
                 sendEncryptedWireFrame(
                     advertisement.targetPeerId,
                     advertisement.frame,
                     "routing.advertise",
+                    null,
                 )
             }
         }

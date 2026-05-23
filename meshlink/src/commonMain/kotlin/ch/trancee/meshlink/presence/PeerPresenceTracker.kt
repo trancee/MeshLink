@@ -17,6 +17,12 @@ internal class PeerPresenceTracker {
     internal fun onPeerDisconnected(peerId: PeerId): Boolean {
         return connectedPeers.remove(peerId.value)
     }
+
+    internal fun clear(): List<PeerId> {
+        val clearedPeers = connectedPeers.map(::PeerId)
+        connectedPeers.clear()
+        return clearedPeers
+    }
 }
 
 internal enum class PresenceTransition {

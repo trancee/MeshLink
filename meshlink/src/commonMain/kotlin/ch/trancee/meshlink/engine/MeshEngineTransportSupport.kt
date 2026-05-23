@@ -120,6 +120,24 @@ internal class MeshEngineTransportSupport(
         }
     }
 
+    suspend fun clearRuntimeView(
+        stage: String,
+        removalCode: DiagnosticCode,
+        metadata: Map<String, String> = emptyMap(),
+    ): Unit {
+        peerState.sessionRegistry.clear().forEach { pendingHandshake ->
+            pendingHandshake.sessionDeferred.complete(SessionEstablishmentOutcome.Unreachable)
+        }
+        val clearedPeers = peerState.presenceTracker.clear()
+        routingContext.routingSupport.dispatchMutation(
+            mutation = routingContext.routeCoordinator.clearConnectedPeers(),
+            stage = stage,
+            removalCode = removalCode,
+            metadata = metadata,
+        )
+        clearedPeers.forEach { peerId -> peerState.mutablePeerEvents.emit(PeerEvent.Lost(peerId)) }
+    }
+
     private suspend fun clearPeerTransportState(peerId: PeerId): Unit {
         peerState.sessionRegistry
             .clearPeer(peerId)

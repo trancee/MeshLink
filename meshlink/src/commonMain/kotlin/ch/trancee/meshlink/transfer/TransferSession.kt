@@ -1,6 +1,10 @@
 package ch.trancee.meshlink.transfer
 
 import ch.trancee.meshlink.api.PeerId
+import ch.trancee.meshlink.engine.MeshEngineHardRunToken
+import ch.trancee.meshlink.engine.MeshEngineRuntimeGate
+import ch.trancee.meshlink.engine.MeshEngineRuntimeTimedWaitResult
+import ch.trancee.meshlink.engine.waitWithRuntimeGate
 import ch.trancee.meshlink.wire.WireFrame
 import kotlin.time.Duration
 import kotlin.time.TimeSource
@@ -136,25 +140,44 @@ private constructor(
     internal suspend fun awaitAcknowledgementSettlement(
         maximumWait: Duration,
         idleWindow: Duration,
-    ): Int {
+        runtimeGate: MeshEngineRuntimeGate,
+        hardRunToken: MeshEngineHardRunToken,
+    ): AcknowledgementSettlementResult {
         if (maximumWait <= Duration.ZERO || acknowledgedChunkCount >= totalChunks) {
-            return acknowledgedChunkCount
+            return AcknowledgementSettlementResult.Completed(acknowledgedChunkCount)
         }
         var observedAcknowledgedChunks = acknowledgedChunkCount
         val startedAt = TimeSource.Monotonic.markNow()
         while (startedAt.elapsedNow() < maximumWait && observedAcknowledgedChunks < totalChunks) {
             val remainingBudget = maximumWait - startedAt.elapsedNow()
             val waitWindow = remainingBudget.coerceAtMost(idleWindow)
-            val progressedAcknowledgedChunks =
-                withTimeoutOrNull(waitWindow) {
-                    acknowledgedChunkCountFlow.first { count -> count > observedAcknowledgedChunks }
+            when (
+                val waitResult =
+                    waitWithRuntimeGate(
+                        runtimeGate = runtimeGate,
+                        hardRunToken = hardRunToken,
+                        maximumActiveWait = waitWindow,
+                        awaitChange = { activeWait ->
+                            withTimeoutOrNull(activeWait) {
+                                acknowledgedChunkCountFlow.first { count ->
+                                    count > observedAcknowledgedChunks
+                                }
+                            }
+                        },
+                    )
+            ) {
+                is MeshEngineRuntimeTimedWaitResult.Completed -> {
+                    observedAcknowledgedChunks = waitResult.value
                 }
-            if (progressedAcknowledgedChunks == null) {
-                break
+                MeshEngineRuntimeTimedWaitResult.TimedOut -> break
+                MeshEngineRuntimeTimedWaitResult.HardRunEnded -> {
+                    return AcknowledgementSettlementResult.HardRunEnded
+                }
             }
-            observedAcknowledgedChunks = progressedAcknowledgedChunks
         }
-        return observedAcknowledgedChunks.coerceAtLeast(acknowledgedChunkCount)
+        return AcknowledgementSettlementResult.Completed(
+            observedAcknowledgedChunks.coerceAtLeast(acknowledgedChunkCount)
+        )
     }
 
     internal fun isComplete(): Boolean {
@@ -199,6 +222,7 @@ internal class InboundTransferSession
 internal constructor(
     private val startDescriptor: TransferStartDescriptor,
     internal var upstreamPeerId: PeerId,
+    internal val hardRunToken: ch.trancee.meshlink.engine.MeshEngineHardRunToken,
 ) {
     internal val transferId: String
         get() = startDescriptor.route.transferId
@@ -339,6 +363,7 @@ internal constructor(
     internal val originPeerId: PeerId,
     internal val destinationPeerId: PeerId,
     internal var upstreamPeerId: PeerId,
+    internal val hardRunToken: ch.trancee.meshlink.engine.MeshEngineHardRunToken,
 )
 
 private fun TransferChunkPlan.toStartDescriptor(
@@ -393,6 +418,13 @@ private fun indexToByteIndex(index: Int): Int {
 
 private fun indexToBitMask(index: Int): Int {
     return 1 shl (index % BITS_PER_BYTE)
+}
+
+internal sealed class AcknowledgementSettlementResult {
+    internal class Completed internal constructor(internal val acknowledgedChunkCount: Int) :
+        AcknowledgementSettlementResult()
+
+    internal data object HardRunEnded : AcknowledgementSettlementResult()
 }
 
 private const val BITS_PER_BYTE: Int = 8

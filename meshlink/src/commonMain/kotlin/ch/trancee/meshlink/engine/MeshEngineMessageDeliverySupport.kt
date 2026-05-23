@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 
 internal class MeshEngineMessageDeliverySupport(
     private val localIdentity: LocalIdentity,
+    private val runtimeGate: MeshEngineRuntimeGate,
     private val trustSupport: MeshEngineTrustSupport,
     private val mutableMessages: MutableSharedFlow<InboundMessage>,
     private val emitHopSessionFailed:
@@ -33,7 +34,12 @@ internal class MeshEngineMessageDeliverySupport(
         originPeerId: PeerId,
         encryptedPayload: ByteArray,
         priority: DeliveryPriority,
+        hardRunToken: MeshEngineHardRunToken,
     ): Unit {
+        when (runtimeGate.awaitActive(hardRunToken)) {
+            MeshEngineRuntimeAwaitActiveResult.Active -> Unit
+            MeshEngineRuntimeAwaitActiveResult.HardRunEnded -> return
+        }
         val envelope = decodeInnerEnvelope(immediatePeerId, encryptedPayload)
         if (envelope != null) {
             val senderTrust = verifyInnerEnvelopeSenderTrust(envelope)

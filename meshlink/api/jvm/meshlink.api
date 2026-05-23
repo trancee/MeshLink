@@ -156,6 +156,12 @@ public final class ch/trancee/meshlink/api/PauseResult$AlreadyPaused : ch/trance
 	public fun toString ()Ljava/lang/String;
 }
 
+public final class ch/trancee/meshlink/api/PauseResult$InvalidState : ch/trancee/meshlink/api/PauseResult {
+	public fun <init> (Lch/trancee/meshlink/api/MeshLinkState;)V
+	public final fun getCurrentState ()Lch/trancee/meshlink/api/MeshLinkState;
+	public fun toString ()Ljava/lang/String;
+}
+
 public final class ch/trancee/meshlink/api/PauseResult$Paused : ch/trancee/meshlink/api/PauseResult {
 	public static final field INSTANCE Lch/trancee/meshlink/api/PauseResult$Paused;
 	public fun equals (Ljava/lang/Object;)Z
@@ -207,6 +213,12 @@ public final class ch/trancee/meshlink/api/ResumeResult$AlreadyRunning : ch/tran
 	public fun toString ()Ljava/lang/String;
 }
 
+public final class ch/trancee/meshlink/api/ResumeResult$InvalidState : ch/trancee/meshlink/api/ResumeResult {
+	public fun <init> (Lch/trancee/meshlink/api/MeshLinkState;)V
+	public final fun getCurrentState ()Lch/trancee/meshlink/api/MeshLinkState;
+	public fun toString ()Ljava/lang/String;
+}
+
 public final class ch/trancee/meshlink/api/ResumeResult$Resumed : ch/trancee/meshlink/api/ResumeResult {
 	public static final field INSTANCE Lch/trancee/meshlink/api/ResumeResult$Resumed;
 	public fun equals (Ljava/lang/Object;)Z
@@ -248,6 +260,12 @@ public final class ch/trancee/meshlink/api/StartResult$AlreadyRunning : ch/tranc
 	public static final field INSTANCE Lch/trancee/meshlink/api/StartResult$AlreadyRunning;
 	public fun equals (Ljava/lang/Object;)Z
 	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class ch/trancee/meshlink/api/StartResult$InvalidState : ch/trancee/meshlink/api/StartResult {
+	public fun <init> (Lch/trancee/meshlink/api/MeshLinkState;)V
+	public final fun getCurrentState ()Lch/trancee/meshlink/api/MeshLinkState;
 	public fun toString ()Ljava/lang/String;
 }
 

@@ -175,7 +175,12 @@ Represents the shared power-management policy snapshot.
 ## State transitions
 
 ### Public lifecycle
-- `Uninitialized -> Running -> Paused -> Running -> Stopped`
+- `Uninitialized -> Running`
+- `Running -> Paused -> Running`
+- `Running -> Stopped`
+- `Paused -> Stopped`
+- `Stopped -> Running`
+- `Uninitialized -> Stopped`
 
 ### Peer presence
 - `Connected -> Disconnected -> Gone`

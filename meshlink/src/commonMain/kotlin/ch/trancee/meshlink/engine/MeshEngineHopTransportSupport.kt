@@ -13,8 +13,11 @@ import kotlinx.coroutines.sync.withLock
 
 internal class MeshEngineHopTransportSupport(
     private val localIdentity: LocalIdentity,
+    private val runtimeGate: MeshEngineRuntimeGate,
     private val routingSupport: MeshEngineRoutingSupport,
     private val establishedHopSession: suspend (PeerId) -> HopSession?,
+    private val ensureHopSession:
+        suspend (PeerId, MeshEngineHardRunToken) -> SessionEstablishmentOutcome,
     private val sendDirectWireFrame:
         suspend (PeerId, DirectWireFrame, String, TransportMode?) -> TransportSendResult,
     private val emitDiagnostic:
@@ -27,8 +30,24 @@ internal class MeshEngineHopTransportSupport(
             Map<String, String>,
         ) -> Unit,
 ) {
-    suspend fun sendEncryptedWireFrame(peerId: PeerId, frame: WireFrame, action: String): Boolean {
-        val session = establishedHopSession(peerId)
+    suspend fun sendEncryptedWireFrame(
+        peerId: PeerId,
+        frame: WireFrame,
+        action: String,
+        hardRunToken: MeshEngineHardRunToken? = null,
+    ): Boolean {
+        val session =
+            if (hardRunToken != null) {
+                when (runtimeGate.awaitActive(hardRunToken)) {
+                    MeshEngineRuntimeAwaitActiveResult.Active ->
+                        (ensureHopSession(peerId, hardRunToken)
+                                as? SessionEstablishmentOutcome.Established)
+                            ?.session
+                    MeshEngineRuntimeAwaitActiveResult.HardRunEnded -> null
+                }
+            } else {
+                establishedHopSession(peerId)
+            }
         val transportResult =
             if (session != null) {
                 sendEncryptedWireFrameWithSession(

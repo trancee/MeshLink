@@ -7,6 +7,9 @@ import ch.trancee.meshlink.identity.LocalIdentity
 import ch.trancee.meshlink.storage.InMemorySecureStorage
 import ch.trancee.meshlink.storage.SecureStorage
 import ch.trancee.meshlink.transport.BleTransport
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 
 internal object MeshEngine {
     @Suppress("LongParameterList", "UnusedParameter")
@@ -18,12 +21,18 @@ internal object MeshEngine {
         bleTransport: BleTransport? = null,
         diagnosticSink: DiagnosticSink? = null,
     ): MeshLinkApi {
+        val assembly =
+            assembleMeshEngineRuntime(
+                config = config,
+                localIdentity = localIdentity,
+                secureStorage = secureStorage,
+                bleTransport = bleTransport,
+                diagnosticSink = diagnosticSink,
+                coroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
+            )
         return MeshEngineRuntime(
-            config = config,
-            localIdentity = localIdentity,
-            secureStorage = secureStorage,
-            bleTransport = bleTransport,
-            diagnosticSink = diagnosticSink,
+            publishedSurface = assembly.publishedSurface,
+            graph = assembly.graph,
         )
     }
 }

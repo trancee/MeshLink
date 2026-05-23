@@ -34,6 +34,7 @@ For behavior and usage, prefer the human-written [MeshLink SDK API reference](me
 | `ch.trancee.meshlink.api.MeshLinkState.Uninitialized` | object | — |
 | `ch.trancee.meshlink.api.PauseResult` | abstract class | — |
 | `ch.trancee.meshlink.api.PauseResult.AlreadyPaused` | object | — |
+| `ch.trancee.meshlink.api.PauseResult.InvalidState` | nested type | `currentState` |
 | `ch.trancee.meshlink.api.PauseResult.Paused` | object | — |
 | `ch.trancee.meshlink.api.PeerConnectionState` | enum | constants: `CONNECTED`, `DISCONNECTED` |
 | `ch.trancee.meshlink.api.PeerEvent` | abstract class | — |
@@ -43,6 +44,7 @@ For behavior and usage, prefer the human-written [MeshLink SDK API reference](me
 | `ch.trancee.meshlink.api.PeerId` | class | `value` |
 | `ch.trancee.meshlink.api.ResumeResult` | abstract class | — |
 | `ch.trancee.meshlink.api.ResumeResult.AlreadyRunning` | object | — |
+| `ch.trancee.meshlink.api.ResumeResult.InvalidState` | nested type | `currentState` |
 | `ch.trancee.meshlink.api.ResumeResult.Resumed` | object | — |
 | `ch.trancee.meshlink.api.SendFailureReason` | enum | constants: `PAYLOAD_TOO_LARGE`, `TRANSFER_ABORTED`, `TRANSFER_TIMED_OUT`, `TRUST_FAILURE`, `UNREACHABLE` |
 | `ch.trancee.meshlink.api.SendResult` | abstract class | — |
@@ -50,6 +52,7 @@ For behavior and usage, prefer the human-written [MeshLink SDK API reference](me
 | `ch.trancee.meshlink.api.SendResult.Sent` | object | — |
 | `ch.trancee.meshlink.api.StartResult` | abstract class | — |
 | `ch.trancee.meshlink.api.StartResult.AlreadyRunning` | object | — |
+| `ch.trancee.meshlink.api.StartResult.InvalidState` | nested type | `currentState` |
 | `ch.trancee.meshlink.api.StartResult.Started` | object | — |
 | `ch.trancee.meshlink.api.StopResult` | abstract class | — |
 | `ch.trancee.meshlink.api.StopResult.AlreadyStopped` | object | — |
