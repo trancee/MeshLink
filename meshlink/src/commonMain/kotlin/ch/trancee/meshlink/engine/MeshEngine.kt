@@ -22,7 +22,6 @@ import ch.trancee.meshlink.diagnostics.DiagnosticSeverity
 import ch.trancee.meshlink.diagnostics.DiagnosticSink
 import ch.trancee.meshlink.identity.LocalIdentity
 import ch.trancee.meshlink.platform.PlatformPermissionDeniedException
-import ch.trancee.meshlink.power.PowerPolicy
 import ch.trancee.meshlink.power.PowerPolicyController
 import ch.trancee.meshlink.presence.PeerPresenceTracker
 import ch.trancee.meshlink.routing.RouteCoordinator
@@ -84,8 +83,6 @@ private constructor(
             trustStore = trustStore,
             emitDiagnostic = ::emitDiagnostic,
         )
-    private var currentPowerPolicy: PowerPolicy =
-        powerPolicyController.currentPolicy(nowMillis = 0L)
     private var transportCollectionJob: Job? = null
     private val sessionRegistry = MeshEngineSessionRegistry()
     private val outboundTransfers: MutableMap<String, OutboundTransferSession> = linkedMapOf()
@@ -402,6 +399,72 @@ private constructor(
                 ),
             emitDiagnostic = ::emitDiagnostic,
         )
+    private val lifecycleState =
+        MeshEngineLifecycleState(
+            mutableState = mutableState,
+            sessionRegistry = sessionRegistry,
+            outboundTransfers = outboundTransfers,
+            inboundTransfers = inboundTransfers,
+            relayTransfers = relayTransfers,
+            currentPowerPolicy = powerPolicyController.currentPolicy(nowMillis = 0L),
+        )
+    private val lifecycleSupport =
+        MeshEngineLifecycleSupport(
+            powerPolicyController = powerPolicyController,
+            powerPolicyNowMillis = powerPolicyNowMillis,
+            state = lifecycleState,
+            callbacks =
+                MeshEngineLifecycleCallbacks(
+                    ensureTransportCollector = ensureTransportCollector,
+                    stopTransportCollector = {
+                        transportCollectionJob?.cancel()
+                        transportCollectionJob = null
+                    },
+                    updateTransportPowerPolicy = { policy ->
+                        runPlatformCall("updatePowerPolicy") {
+                            bleTransport?.updatePowerPolicy(policy)
+                        }
+                    },
+                    startTransport = { runPlatformCall("start") { bleTransport?.start() } },
+                    pauseTransport = { runPlatformCall("pause") { bleTransport?.pause() } },
+                    resumeTransport = { runPlatformCall("resume") { bleTransport?.resume() } },
+                    stopTransport = { runPlatformCall("stop") { bleTransport?.stop() } },
+                    launchTransportPowerPolicyUpdate = { policy ->
+                        if (bleTransport != null) {
+                            coroutineScope.launch {
+                                runPlatformCall("updatePowerPolicy") {
+                                    bleTransport.updatePowerPolicy(policy)
+                                }
+                            }
+                        }
+                    },
+                ),
+            diagnostics =
+                MeshEngineLifecycleDiagnostics(
+                    emitLifecycleEvent = { code, stage ->
+                        emitDiagnostic(
+                            code = code,
+                            severity = DiagnosticSeverity.INFO,
+                            stage = stage,
+                            reason = DiagnosticReason.STATE_CHANGE,
+                        )
+                    },
+                    emitPowerModeChanged = { policy, level, isCharging ->
+                        emitDiagnostic(
+                            code = DiagnosticCode.POWER_MODE_CHANGED,
+                            severity = DiagnosticSeverity.INFO,
+                            stage = "power.updateBattery",
+                            reason = DiagnosticReason.POWER_CHANGE,
+                            metadata =
+                                powerPolicyMetadata(
+                                    policy = policy,
+                                    level = level,
+                                    isCharging = isCharging,
+                                ),
+                        )
+                    },
+                ),
+        )
 
     override val state: StateFlow<MeshLinkState> = mutableState.asStateFlow()
     override val peerEvents: Flow<PeerEvent> = mutablePeerEvents.asSharedFlow()
@@ -409,77 +472,19 @@ private constructor(
     override val messages: Flow<InboundMessage> = mutableMessages.asSharedFlow()
 
     override suspend fun start(): StartResult {
-        if (mutableState.value === MeshLinkState.Running) {
-            return StartResult.AlreadyRunning
-        }
-        ensureTransportCollector()
-        currentPowerPolicy = powerPolicyController.onMeshStarted(powerPolicyNowMillis())
-        runPlatformCall("updatePowerPolicy") { bleTransport?.updatePowerPolicy(currentPowerPolicy) }
-        runPlatformCall("start") { bleTransport?.start() }
-        mutableState.value = MeshLinkState.Running
-        emitDiagnostic(
-            code = DiagnosticCode.MESH_STARTED,
-            severity = DiagnosticSeverity.INFO,
-            stage = "lifecycle.start",
-            reason = DiagnosticReason.STATE_CHANGE,
-        )
-        return StartResult.Started
+        return lifecycleSupport.start()
     }
 
     override suspend fun pause(): PauseResult {
-        if (mutableState.value === MeshLinkState.Paused) {
-            return PauseResult.AlreadyPaused
-        }
-        runPlatformCall("pause") { bleTransport?.pause() }
-        mutableState.value = MeshLinkState.Paused
-        emitDiagnostic(
-            code = DiagnosticCode.MESH_PAUSED,
-            severity = DiagnosticSeverity.INFO,
-            stage = "lifecycle.pause",
-            reason = DiagnosticReason.STATE_CHANGE,
-        )
-        return PauseResult.Paused
+        return lifecycleSupport.pause()
     }
 
     override suspend fun resume(): ResumeResult {
-        if (mutableState.value === MeshLinkState.Running) {
-            return ResumeResult.AlreadyRunning
-        }
-        ensureTransportCollector()
-        currentPowerPolicy = powerPolicyController.currentPolicy(powerPolicyNowMillis())
-        runPlatformCall("updatePowerPolicy") { bleTransport?.updatePowerPolicy(currentPowerPolicy) }
-        runPlatformCall("resume") { bleTransport?.resume() }
-        mutableState.value = MeshLinkState.Running
-        emitDiagnostic(
-            code = DiagnosticCode.MESH_RESUMED,
-            severity = DiagnosticSeverity.INFO,
-            stage = "lifecycle.resume",
-            reason = DiagnosticReason.STATE_CHANGE,
-        )
-        return ResumeResult.Resumed
+        return lifecycleSupport.resume()
     }
 
     override suspend fun stop(): StopResult {
-        if (mutableState.value === MeshLinkState.Stopped) {
-            return StopResult.AlreadyStopped
-        }
-        runPlatformCall("stop") { bleTransport?.stop() }
-        transportCollectionJob?.cancel()
-        transportCollectionJob = null
-        sessionRegistry.clear().forEach { pendingHandshake ->
-            pendingHandshake.sessionDeferred.complete(SessionEstablishmentOutcome.Unreachable)
-        }
-        outboundTransfers.clear()
-        inboundTransfers.clear()
-        relayTransfers.clear()
-        mutableState.value = MeshLinkState.Stopped
-        emitDiagnostic(
-            code = DiagnosticCode.MESH_STOPPED,
-            severity = DiagnosticSeverity.INFO,
-            stage = "lifecycle.stop",
-            reason = DiagnosticReason.STATE_CHANGE,
-        )
-        return StopResult.Stopped
+        return lifecycleSupport.stop()
     }
 
     override suspend fun send(
@@ -549,27 +554,7 @@ private constructor(
     }
 
     override fun updateBattery(level: Float, isCharging: Boolean): Unit {
-        val clampedLevel = level.coerceIn(0f, 1f)
-        val policy =
-            powerPolicyController.onBatterySnapshot(
-                level = clampedLevel,
-                isCharging = isCharging,
-                nowMillis = powerPolicyNowMillis(),
-            )
-        currentPowerPolicy = policy
-        if (bleTransport != null) {
-            coroutineScope.launch {
-                runPlatformCall("updatePowerPolicy") { bleTransport.updatePowerPolicy(policy) }
-            }
-        }
-        emitDiagnostic(
-            code = DiagnosticCode.POWER_MODE_CHANGED,
-            severity = DiagnosticSeverity.INFO,
-            stage = "power.updateBattery",
-            reason = DiagnosticReason.POWER_CHANGE,
-            metadata =
-                powerPolicyMetadata(policy = policy, level = clampedLevel, isCharging = isCharging),
-        )
+        lifecycleSupport.updateBattery(level = level, isCharging = isCharging)
     }
 
     private suspend fun sendDirectWireFrame(
