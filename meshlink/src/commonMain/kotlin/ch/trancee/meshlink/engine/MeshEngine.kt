@@ -493,6 +493,27 @@ private constructor(
                     },
                 ),
         )
+    private val peerForgetSupport =
+        MeshEnginePeerForgetSupport(
+            callbacks =
+                MeshEnginePeerForgetCallbacks(
+                    readFirstSeenAtEpochMillis = { peerId ->
+                        trustStore.read(peerId.value)?.firstSeenAtEpochMillis
+                    },
+                    deleteTrust = { peerId -> trustStore.delete(peerId.value) },
+                    clearPeer = sessionRegistry::clearPeer,
+                    dispatchPeerDisconnected = { peerId, metadata ->
+                        routingSupport.dispatchMutation(
+                            mutation = routeCoordinator.onPeerDisconnected(peerId),
+                            stage = "trust.forgetPeer",
+                            removalCode = DiagnosticCode.ROUTE_RETRACTED,
+                            metadata = metadata,
+                        )
+                    },
+                    markPeerDisconnected = presenceTracker::onPeerDisconnected,
+                    emitPeerLost = { peerId -> mutablePeerEvents.emit(PeerEvent.Lost(peerId)) },
+                )
+        )
 
     override val state: StateFlow<MeshLinkState> = mutableState.asStateFlow()
     override val peerEvents: Flow<PeerEvent> = mutablePeerEvents.asSharedFlow()
@@ -524,26 +545,7 @@ private constructor(
     }
 
     override suspend fun forgetPeer(peerId: PeerId): ForgetPeerResult {
-        val existingTrust = trustStore.read(peerId.value) ?: return ForgetPeerResult.NotFound
-        trustStore.delete(peerId.value)
-        sessionRegistry
-            .clearPeer(peerId)
-            ?.sessionDeferred
-            ?.complete(SessionEstablishmentOutcome.Unreachable)
-        routingSupport.dispatchMutation(
-            mutation = routeCoordinator.onPeerDisconnected(peerId),
-            stage = "trust.forgetPeer",
-            removalCode = DiagnosticCode.ROUTE_RETRACTED,
-            metadata =
-                mapOf(
-                    "forgottenPeerId" to peerId.value,
-                    "firstSeenAtEpochMillis" to existingTrust.firstSeenAtEpochMillis.toString(),
-                ),
-        )
-        if (presenceTracker.onPeerDisconnected(peerId)) {
-            mutablePeerEvents.emit(PeerEvent.Lost(peerId))
-        }
-        return ForgetPeerResult.Forgotten
+        return peerForgetSupport.forgetPeer(peerId)
     }
 
     override fun updateBattery(level: Float, isCharging: Boolean): Unit {
