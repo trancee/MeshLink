@@ -64,6 +64,7 @@ private constructor(
     private val powerPolicyController =
         PowerPolicyController(configuredMode = config.powerMode, region = config.regulatoryRegion)
     private val platformBridge = MeshEnginePlatformBridge(bleTransport)
+    private val diagnosticRelay = MeshEngineDiagnosticRelay(diagnosticSink = diagnosticSink)
     private val routingSupport: MeshEngineRoutingSupport =
         MeshEngineRoutingSupport(
             routeCoordinator = routeCoordinator,
@@ -209,8 +210,6 @@ private constructor(
         MutableStateFlow(MeshLinkState.Uninitialized)
     private val mutablePeerEvents: MutableSharedFlow<PeerEvent> =
         MutableSharedFlow(extraBufferCapacity = 16)
-    private val mutableDiagnostics: MutableSharedFlow<DiagnosticEvent> =
-        MutableSharedFlow(extraBufferCapacity = 32)
     private val mutableMessages: MutableSharedFlow<InboundMessage> =
         MutableSharedFlow(extraBufferCapacity = 16)
     private val messageDeliverySupport =
@@ -504,7 +503,7 @@ private constructor(
 
     override val state: StateFlow<MeshLinkState> = mutableState.asStateFlow()
     override val peerEvents: Flow<PeerEvent> = mutablePeerEvents.asSharedFlow()
-    override val diagnosticEvents: Flow<DiagnosticEvent> = mutableDiagnostics.asSharedFlow()
+    override val diagnosticEvents: Flow<DiagnosticEvent> = diagnosticRelay.events
     override val messages: Flow<InboundMessage> = mutableMessages.asSharedFlow()
 
     override suspend fun start(): StartResult {
@@ -565,17 +564,14 @@ private constructor(
         reason: DiagnosticReason? = null,
         metadata: Map<String, String> = emptyMap(),
     ): Unit {
-        val event =
-            DiagnosticEvent(
-                code = code,
-                severity = severity,
-                stage = stage,
-                peerSuffix = peerSuffix,
-                reason = reason,
-                metadata = metadata,
-            )
-        mutableDiagnostics.tryEmit(event)
-        diagnosticSink?.emit(event)
+        diagnosticRelay.emit(
+            code = code,
+            severity = severity,
+            stage = stage,
+            peerSuffix = peerSuffix,
+            reason = reason,
+            metadata = metadata,
+        )
     }
 
     internal companion object {
