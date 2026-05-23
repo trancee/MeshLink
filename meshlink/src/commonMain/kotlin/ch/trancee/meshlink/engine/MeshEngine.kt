@@ -64,26 +64,27 @@ private constructor(
             platformBridge = MeshEnginePlatformBridge(bleTransport),
             runtimeSurface = runtimeSurface,
         )
+    private val runtime = MeshEngineRuntime(publishedSurface = publishedSurface, graph = graph)
 
-    override val state: StateFlow<MeshLinkState> = publishedSurface.state
-    override val peerEvents: Flow<PeerEvent> = publishedSurface.peerEvents
-    override val diagnosticEvents: Flow<DiagnosticEvent> = publishedSurface.diagnosticEvents
-    override val messages: Flow<InboundMessage> = publishedSurface.messages
+    override val state: StateFlow<MeshLinkState> = runtime.state
+    override val peerEvents: Flow<PeerEvent> = runtime.peerEvents
+    override val diagnosticEvents: Flow<DiagnosticEvent> = runtime.diagnosticEvents
+    override val messages: Flow<InboundMessage> = runtime.messages
 
     override suspend fun start(): StartResult {
-        return graph.start()
+        return runtime.start()
     }
 
     override suspend fun pause(): PauseResult {
-        return graph.pause()
+        return runtime.pause()
     }
 
     override suspend fun resume(): ResumeResult {
-        return graph.resume()
+        return runtime.resume()
     }
 
     override suspend fun stop(): StopResult {
-        return graph.stop()
+        return runtime.stop()
     }
 
     override suspend fun send(
@@ -91,15 +92,15 @@ private constructor(
         payload: ByteArray,
         priority: DeliveryPriority,
     ): SendResult {
-        return graph.send(peerId = peerId, payload = payload, priority = priority)
+        return runtime.send(peerId = peerId, payload = payload, priority = priority)
     }
 
     override suspend fun forgetPeer(peerId: PeerId): ForgetPeerResult {
-        return graph.forgetPeer(peerId)
+        return runtime.forgetPeer(peerId)
     }
 
     override fun updateBattery(level: Float, isCharging: Boolean): Unit {
-        graph.updateBattery(level = level, isCharging = isCharging)
+        runtime.updateBattery(level = level, isCharging = isCharging)
     }
 
     private interface MeshEngineGraphOperations {
@@ -116,6 +117,48 @@ private constructor(
         suspend fun forgetPeer(peerId: PeerId): ForgetPeerResult
 
         fun updateBattery(level: Float, isCharging: Boolean): Unit
+    }
+
+    private class MeshEngineRuntime(
+        private val publishedSurface: MeshEnginePublishedRuntimeSurface,
+        private val graph: MeshEngineGraphOperations,
+    ) : MeshLinkApi {
+        override val state: StateFlow<MeshLinkState> = publishedSurface.state
+        override val peerEvents: Flow<PeerEvent> = publishedSurface.peerEvents
+        override val diagnosticEvents: Flow<DiagnosticEvent> = publishedSurface.diagnosticEvents
+        override val messages: Flow<InboundMessage> = publishedSurface.messages
+
+        override suspend fun start(): StartResult {
+            return graph.start()
+        }
+
+        override suspend fun pause(): PauseResult {
+            return graph.pause()
+        }
+
+        override suspend fun resume(): ResumeResult {
+            return graph.resume()
+        }
+
+        override suspend fun stop(): StopResult {
+            return graph.stop()
+        }
+
+        override suspend fun send(
+            peerId: PeerId,
+            payload: ByteArray,
+            priority: DeliveryPriority,
+        ): SendResult {
+            return graph.send(peerId = peerId, payload = payload, priority = priority)
+        }
+
+        override suspend fun forgetPeer(peerId: PeerId): ForgetPeerResult {
+            return graph.forgetPeer(peerId)
+        }
+
+        override fun updateBattery(level: Float, isCharging: Boolean): Unit {
+            graph.updateBattery(level = level, isCharging = isCharging)
+        }
     }
 
     private class RuntimeGraph(
