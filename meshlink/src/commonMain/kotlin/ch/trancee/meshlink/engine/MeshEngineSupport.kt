@@ -41,8 +41,6 @@ internal constructor(
 internal class PendingResponderHandshake
 internal constructor(internal val manager: NoiseXXHandshakeManager)
 
-internal data class InlineRetryWakeupState(val attempt: Int, val topologyVersion: Long)
-
 internal sealed class OutboundTransferPreparation {
     data object PendingRoute : OutboundTransferPreparation()
 
@@ -71,8 +69,6 @@ internal data class LargeTransferLoopResult(
     val transferProgressObserved: Boolean = false,
     val result: SendResult? = null,
 )
-
-internal data class LargeTransferRetryWakeupState(val attempt: Int, val topologyVersion: Long)
 
 internal fun SendResult.isRetryableInlineFailure(): Boolean {
     return this is SendResult.NotSent &&

@@ -32,6 +32,13 @@ internal fun buildMeshEngineRuntimeTransferAndInboundPhase(
             routingAndTrust = routingAndTrust,
             sessionAndHopTransport = sessionAndHopTransport,
         )
+    val deliveryRetrySupport =
+        buildMeshEngineRuntimeDeliveryRetrySupport(
+            environment = environment,
+            support = support,
+            sharedState = sharedState,
+            routingAndTrust = routingAndTrust,
+        )
     val inlineSendSupport =
         buildMeshEngineRuntimeInlineSendSupport(
             environment = environment,
@@ -40,6 +47,7 @@ internal fun buildMeshEngineRuntimeTransferAndInboundPhase(
             routingAndTrust = routingAndTrust,
             sessionAndHopTransport = sessionAndHopTransport,
             outboundPreparationSupport = outboundPreparationSupport,
+            deliveryRetrySupport = deliveryRetrySupport,
         )
     val transferSupport =
         buildMeshEngineRuntimeTransferSupport(
@@ -58,6 +66,7 @@ internal fun buildMeshEngineRuntimeTransferAndInboundPhase(
             routingAndTrust = routingAndTrust,
             sessionAndHopTransport = sessionAndHopTransport,
             outboundPreparationSupport = outboundPreparationSupport,
+            deliveryRetrySupport = deliveryRetrySupport,
         )
     val inboundSupport =
         buildMeshEngineRuntimeInboundSupport(
@@ -126,6 +135,35 @@ private fun buildMeshEngineRuntimeOutboundPreparationSupport(
     )
 }
 
+private fun buildMeshEngineRuntimeDeliveryRetrySupport(
+    environment: MeshEngineRuntimeAssemblyEnvironment,
+    support: MeshEngineRuntimeAssemblySupport,
+    sharedState: MeshEngineRuntimeSharedState,
+    routingAndTrust: MeshEngineRuntimeRoutingAndTrustPhase,
+): MeshEngineDeliveryRetrySupport {
+    return MeshEngineDeliveryRetrySupport(
+        callbacks =
+            MeshEngineDeliveryRetryCallbacks(
+                awaitRetry = { attempt, remainingBudget, topologyVersion, hardRunToken ->
+                    sharedState.deliveryRetryScheduler.awaitRetry(
+                        attempt = attempt,
+                        remainingBudget = remainingBudget,
+                        lastObservedTopologyVersion = topologyVersion,
+                        runtimeGate = environment.compatibilitySurface.runtimeGate,
+                        hardRunToken = hardRunToken,
+                    )
+                },
+                routeMetadata = { peerId, metadata ->
+                    routingAndTrust.routingSupport.peerRouteMetadata(
+                        peerId = peerId,
+                        metadata = metadata,
+                    )
+                },
+                emitDiagnostic = support.emitDiagnostic,
+            )
+    )
+}
+
 private fun buildMeshEngineRuntimeInlineSendSupport(
     environment: MeshEngineRuntimeAssemblyEnvironment,
     support: MeshEngineRuntimeAssemblySupport,
@@ -133,6 +171,7 @@ private fun buildMeshEngineRuntimeInlineSendSupport(
     routingAndTrust: MeshEngineRuntimeRoutingAndTrustPhase,
     sessionAndHopTransport: MeshEngineRuntimeSessionAndHopTransportPhase,
     outboundPreparationSupport: MeshEngineOutboundPreparationSupport,
+    deliveryRetrySupport: MeshEngineDeliveryRetrySupport,
 ): MeshEngineInlineSendSupport {
     return MeshEngineInlineSendSupport(
         localIdentity = environment.localIdentity,
@@ -148,8 +187,7 @@ private fun buildMeshEngineRuntimeInlineSendSupport(
             ),
         dependencies =
             MeshEngineInlineDependencies(
-                runtimeGate = environment.compatibilitySurface.runtimeGate,
-                deliveryRetryScheduler = sharedState.deliveryRetryScheduler,
+                deliveryRetrySupport = deliveryRetrySupport,
                 ensureHopSession = { peerId, hardRunToken ->
                     sessionAndHopTransport.sessionSupport.ensureHopSession(peerId, hardRunToken)
                 },
@@ -229,6 +267,7 @@ private fun buildMeshEngineRuntimeLargeTransferSupport(
     routingAndTrust: MeshEngineRuntimeRoutingAndTrustPhase,
     sessionAndHopTransport: MeshEngineRuntimeSessionAndHopTransportPhase,
     outboundPreparationSupport: MeshEngineOutboundPreparationSupport,
+    deliveryRetrySupport: MeshEngineDeliveryRetrySupport,
 ): MeshEngineLargeTransferSupport {
     return MeshEngineLargeTransferSupport(
         config =
@@ -243,7 +282,7 @@ private fun buildMeshEngineRuntimeLargeTransferSupport(
             MeshEngineLargeTransferDependencies(
                 runtimeGate = environment.compatibilitySurface.runtimeGate,
                 currentTopologyVersion = { sharedState.routeCoordinator.topologyVersion.value },
-                deliveryRetryScheduler = sharedState.deliveryRetryScheduler,
+                deliveryRetrySupport = deliveryRetrySupport,
                 prepareOutboundTransferSession =
                     outboundPreparationSupport::prepareOutboundTransferSession,
                 scheduleRetryDiagnostic = routingAndTrust.scheduleRetryDiagnostic,
