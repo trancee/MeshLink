@@ -13,16 +13,11 @@ import ch.trancee.meshlink.api.SendResult
 import ch.trancee.meshlink.api.StartResult
 import ch.trancee.meshlink.api.StopResult
 import ch.trancee.meshlink.config.MeshLinkConfig
-import ch.trancee.meshlink.diagnostics.DiagnosticCode
 import ch.trancee.meshlink.diagnostics.DiagnosticEvent
-import ch.trancee.meshlink.diagnostics.DiagnosticReason
-import ch.trancee.meshlink.diagnostics.DiagnosticSeverity
 import ch.trancee.meshlink.diagnostics.DiagnosticSink
 import ch.trancee.meshlink.identity.LocalIdentity
 import ch.trancee.meshlink.storage.SecureStorage
 import ch.trancee.meshlink.transport.OutboundFrame
-import ch.trancee.meshlink.transport.TransportMode
-import ch.trancee.meshlink.transport.TransportSendResult
 import ch.trancee.meshlink.trust.TofuTrustStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -96,13 +91,34 @@ private constructor(
                 )
             val support = buildMeshEngineRuntimeAssemblySupport(environment)
             val lateBindingContext = buildMeshEngineRuntimeLateBindingContext()
+            val foundation =
+                buildMeshEngineRuntimeFoundationAssembly(
+                    environment = environment,
+                    support = support,
+                    lateBindingContext = lateBindingContext,
+                )
+            val session =
+                buildMeshEngineRuntimeSessionAssembly(
+                    environment = environment,
+                    support = support,
+                    foundation = foundation,
+                    lateBindingContext = lateBindingContext,
+                )
+            val transferAndInbound =
+                buildMeshEngineRuntimeTransferAndInboundPhase(
+                    environment = environment,
+                    support = support,
+                    foundation = foundation,
+                    session = session,
+                )
             val facadeOperations =
-                RuntimeGraphAssembler(
-                        environment = environment,
-                        support = support,
-                        lateBindingContext = lateBindingContext,
-                    )
-                    .assemble()
+                buildMeshEngineRuntimeFacadeOperationsPhase(
+                    environment = environment,
+                    support = support,
+                    foundation = foundation,
+                    session = session,
+                    transferAndInbound = transferAndInbound,
+                )
             return MeshEngineRuntime(
                 publishedSurface = environment.publishedSurface,
                 facadeOperations = facadeOperations,
@@ -161,79 +177,4 @@ private fun buildMeshEngineRuntimeAssemblySupport(
 
 private fun buildMeshEngineRuntimeLateBindingContext(): MeshEngineRuntimeLateBindingContext {
     return MeshEngineRuntimeLateBindingContext()
-}
-
-private class RuntimeGraphAssembler(
-    private val environment: MeshEngineRuntimeAssemblyEnvironment,
-    private val support: MeshEngineRuntimeAssemblySupport,
-    private val lateBindingContext: MeshEngineRuntimeLateBindingContext,
-) {
-    private val config: MeshLinkConfig
-        get() = environment.config
-
-    private val localIdentity: LocalIdentity
-        get() = environment.localIdentity
-
-    private val trustStore: TofuTrustStore
-        get() = environment.trustStore
-
-    private val coroutineScope: CoroutineScope
-        get() = environment.coroutineScope
-
-    private val platformBridge: MeshEnginePlatformBridge
-        get() = environment.platformBridge
-
-    private val runtimeSurface: MeshEngineCompatibilityRuntimeSurface
-        get() = environment.compatibilitySurface
-
-    fun assemble(): MeshEngineRuntimeFacadeOperationsPhase {
-        val foundation =
-            buildMeshEngineRuntimeFoundationAssembly(
-                environment = environment,
-                support = support,
-                lateBindingContext = lateBindingContext,
-            )
-        val session =
-            buildMeshEngineRuntimeSessionAssembly(
-                environment = environment,
-                support = support,
-                foundation = foundation,
-                lateBindingContext = lateBindingContext,
-            )
-        val transferAndInbound =
-            buildMeshEngineRuntimeTransferAndInboundPhase(
-                environment = environment,
-                support = support,
-                foundation = foundation,
-                session = session,
-            )
-        return buildMeshEngineRuntimeFacadeOperationsPhase(
-            environment = environment,
-            support = support,
-            foundation = foundation,
-            session = session,
-            transferAndInbound = transferAndInbound,
-        )
-    }
-
-    private suspend fun sendDirectWireFrame(
-        peerId: PeerId,
-        frame: DirectWireFrame,
-        action: String,
-        preferredMode: TransportMode? = null,
-    ): TransportSendResult {
-        return support.sendDirectWireFrame(peerId, frame, action, preferredMode)
-    }
-
-    @Suppress("LongParameterList")
-    private fun emitDiagnostic(
-        code: DiagnosticCode,
-        severity: DiagnosticSeverity,
-        stage: String,
-        peerSuffix: String? = null,
-        reason: DiagnosticReason? = null,
-        metadata: Map<String, String> = emptyMap(),
-    ): Unit {
-        support.emitDiagnostic(code, severity, stage, peerSuffix, reason, metadata)
-    }
 }
