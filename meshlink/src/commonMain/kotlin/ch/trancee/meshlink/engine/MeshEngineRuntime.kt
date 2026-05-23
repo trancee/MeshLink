@@ -19,9 +19,6 @@ import ch.trancee.meshlink.diagnostics.DiagnosticReason
 import ch.trancee.meshlink.diagnostics.DiagnosticSeverity
 import ch.trancee.meshlink.diagnostics.DiagnosticSink
 import ch.trancee.meshlink.identity.LocalIdentity
-import ch.trancee.meshlink.power.PowerPolicyController
-import ch.trancee.meshlink.presence.PeerPresenceTracker
-import ch.trancee.meshlink.routing.RouteCoordinator
 import ch.trancee.meshlink.storage.SecureStorage
 import ch.trancee.meshlink.transport.OutboundFrame
 import ch.trancee.meshlink.transport.TransportMode
@@ -29,7 +26,6 @@ import ch.trancee.meshlink.transport.TransportSendResult
 import ch.trancee.meshlink.trust.TofuTrustStore
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
-import kotlin.time.TimeSource
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -194,84 +190,18 @@ private class RuntimeGraphAssembler(
         get() = environment.compatibilitySurface
 
     fun assemble(): MeshEngineRuntimeFacadeOperationsPhase {
-        val foundation = buildMeshEngineRuntimeFoundationAssembly()
+        val foundation =
+            buildMeshEngineRuntimeFoundationAssembly(
+                environment = environment,
+                support = support,
+                lateBindingContext = lateBindingContext,
+            )
         val session = buildMeshEngineRuntimeSessionAssembly(foundation)
         val transferAndInbound = buildMeshEngineRuntimeTransferAndInboundPhase(foundation, session)
         return buildMeshEngineRuntimeFacadeOperationsPhase(
             foundation = foundation,
             session = session,
             transferAndInbound = transferAndInbound,
-        )
-    }
-
-    private fun buildMeshEngineRuntimeFoundationAssembly(): MeshEngineRuntimeFoundationAssembly {
-        val sharedState = buildSharedState()
-        val routingAndTrust = buildRoutingAndTrust(sharedState)
-        return MeshEngineRuntimeFoundationAssembly(
-            sharedState = sharedState,
-            routingAndTrust = routingAndTrust,
-        )
-    }
-
-    private fun buildSharedState(): MeshEngineRuntimeSharedState {
-        val routeCoordinator = RouteCoordinator(localIdentity.peerId)
-        val engineClock = TimeSource.Monotonic.markNow()
-        return MeshEngineRuntimeSharedState(
-            presenceTracker = PeerPresenceTracker(),
-            routeCoordinator = routeCoordinator,
-            deliveryRetryScheduler = DeliveryRetryScheduler(routeCoordinator.topologyVersion),
-            powerPolicyController =
-                PowerPolicyController(
-                    configuredMode = config.powerMode,
-                    region = config.regulatoryRegion,
-                ),
-            sessionRegistry = MeshEngineSessionRegistry(),
-            outboundTransfers = linkedMapOf(),
-            inboundTransfers = linkedMapOf(),
-            relayTransfers = linkedMapOf(),
-            sequenceGenerator = MeshEngineSequenceGenerator(localIdentity),
-            powerPolicyNowMillis = { engineClock.elapsedNow().inWholeMilliseconds },
-            ttlMillisFor = { priority ->
-                when (priority) {
-                    DeliveryPriority.HIGH -> HIGH_PRIORITY_TTL_MILLIS
-                    DeliveryPriority.NORMAL -> NORMAL_PRIORITY_TTL_MILLIS
-                    DeliveryPriority.LOW -> LOW_PRIORITY_TTL_MILLIS
-                }
-            },
-        )
-    }
-
-    private fun buildRoutingAndTrust(
-        sharedState: MeshEngineRuntimeSharedState
-    ): MeshEngineRuntimeRoutingAndTrustPhase {
-        val routingSupport =
-            MeshEngineRoutingSupport(
-                routeCoordinator = sharedState.routeCoordinator,
-                runtimeGate = runtimeSurface.runtimeGate,
-                coroutineScope = coroutineScope,
-                emitDiagnostic = ::emitDiagnostic,
-                sendEncryptedWireFrame = { peerId, frame, action, hardRunToken ->
-                    lateBindingContext.routingAdvertisementSender()(
-                        peerId,
-                        frame,
-                        action,
-                        hardRunToken,
-                    )
-                },
-            )
-        val trustSupport =
-            MeshEngineTrustSupport(
-                localIdentity = localIdentity,
-                trustStore = trustStore,
-                emitDiagnostic = ::emitDiagnostic,
-            )
-        val scheduleRetryDiagnostic = { peerId: PeerId, priority: DeliveryPriority ->
-            scheduleRetryDiagnostic(routingSupport, peerId, priority)
-        }
-        return MeshEngineRuntimeRoutingAndTrustPhase(
-            routingSupport = routingSupport,
-            trustSupport = trustSupport,
-            scheduleRetryDiagnostic = scheduleRetryDiagnostic,
         )
     }
 
@@ -1027,31 +957,6 @@ private class RuntimeGraphAssembler(
         return support.sendDirectWireFrame(peerId, frame, action, preferredMode)
     }
 
-    private fun scheduleRetryDiagnostic(
-        routingSupport: MeshEngineRoutingSupport,
-        peerId: PeerId,
-        priority: DeliveryPriority,
-    ): Unit {
-        emitDiagnostic(
-            code = DiagnosticCode.NO_ROUTE_AVAILABLE,
-            severity = DiagnosticSeverity.WARN,
-            stage = "delivery.noRoute",
-            peerSuffix = peerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
-            reason = DiagnosticReason.DELIVERY_FAILURE,
-            metadata =
-                routingSupport.peerRouteMetadata(
-                    peerId,
-                    metadata =
-                        mapOf(
-                            "priority" to priority.name,
-                            "retryDeadlineMs" to
-                                config.deliveryRetryDeadline.inWholeMilliseconds.toString(),
-                            "retryBackoffBaseMs" to INITIAL_BACKOFF.inWholeMilliseconds.toString(),
-                        ),
-                ),
-        )
-    }
-
     @Suppress("LongParameterList")
     private fun emitDiagnostic(
         code: DiagnosticCode,
@@ -1068,10 +973,6 @@ private class RuntimeGraphAssembler(
 private const val MAX_SUPPORTED_PAYLOAD_BYTES: Int = 64 * 1024
 private const val INLINE_MESSAGE_PAYLOAD_BYTES: Int = 1_024
 private const val LARGE_INLINE_SEND_TRANSPORT_BUDGET_BYTES: Int = 16 * 1024
-private const val HIGH_PRIORITY_TTL_MILLIS: Int = 45 * 60 * 1_000
-private const val NORMAL_PRIORITY_TTL_MILLIS: Int = 15 * 60 * 1_000
-private const val LOW_PRIORITY_TTL_MILLIS: Int = 5 * 60 * 1_000
 private val TRANSFER_ACK_SETTLEMENT_TIMEOUT = 1_500.milliseconds
 private val TRANSFER_ACK_IDLE_WINDOW = 100.milliseconds
 private val HANDSHAKE_TIMEOUT = 3.seconds
-private val INITIAL_BACKOFF = 250.milliseconds
