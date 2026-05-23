@@ -238,6 +238,14 @@ private fun buildMeshEngineRuntimeTransferSupport(
             sharedState = sharedState,
             sessionAndHopTransport = sessionAndHopTransport,
         )
+    val inboundSupport =
+        buildMeshEngineRuntimeInboundTransferSupport(
+            state = state,
+            support = support,
+            routingAndTrust = routingAndTrust,
+            sessionAndHopTransport = sessionAndHopTransport,
+            messageDeliverySupport = messageDeliverySupport,
+        )
     val relaySupport =
         buildMeshEngineRuntimeRelayTransferSupport(
             state = state,
@@ -255,19 +263,41 @@ private fun buildMeshEngineRuntimeTransferSupport(
         )
     return MeshEngineTransferSupport(
         state = state,
-        routingSupport = routingAndTrust.routingSupport,
         callbacks =
             MeshEngineTransferCallbacks(
                 captureHardRunToken =
                     environment.compatibilitySurface.runtimeGate::captureHardRunToken,
                 isLocalPeerId = sessionAndHopTransport.peerFlowSupport::isLocalPeerId,
-                sendEncryptedWireFrame =
-                    sessionAndHopTransport.hopTransportSupport::sendEncryptedWireFrame,
-                deliverInnerEnvelope = messageDeliverySupport::deliverInnerEnvelope,
             ),
+        inboundSupport = inboundSupport,
         relaySupport = relaySupport,
         abortSupport = abortSupport,
         emitDiagnostic = support.emitDiagnostic,
+    )
+}
+
+private fun buildMeshEngineRuntimeInboundTransferSupport(
+    state: MeshEngineTransferState,
+    support: MeshEngineRuntimeAssemblySupport,
+    routingAndTrust: MeshEngineRuntimeRoutingAndTrustPhase,
+    sessionAndHopTransport: MeshEngineRuntimeSessionAndHopTransportPhase,
+    messageDeliverySupport: MeshEngineMessageDeliverySupport,
+): MeshEngineInboundTransferSupport {
+    return MeshEngineInboundTransferSupport(
+        inboundTransfers = state.inboundTransfers,
+        callbacks =
+            MeshEngineInboundTransferSupportCallbacks(
+                sendEncryptedWireFrame =
+                    sessionAndHopTransport.hopTransportSupport::sendEncryptedWireFrame,
+                deliverInnerEnvelope = messageDeliverySupport::deliverInnerEnvelope,
+                routeMetadata = { peerId, metadata ->
+                    routingAndTrust.routingSupport.peerRouteMetadata(
+                        peerId = peerId,
+                        metadata = metadata,
+                    )
+                },
+                emitDiagnostic = support.emitDiagnostic,
+            ),
     )
 }
 
