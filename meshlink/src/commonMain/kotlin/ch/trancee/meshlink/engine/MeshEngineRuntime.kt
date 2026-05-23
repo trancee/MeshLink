@@ -23,9 +23,6 @@ import ch.trancee.meshlink.power.PowerPolicyController
 import ch.trancee.meshlink.presence.PeerPresenceTracker
 import ch.trancee.meshlink.routing.RouteCoordinator
 import ch.trancee.meshlink.storage.SecureStorage
-import ch.trancee.meshlink.transfer.InboundTransferSession
-import ch.trancee.meshlink.transfer.OutboundTransferSession
-import ch.trancee.meshlink.transfer.RelayTransferSession
 import ch.trancee.meshlink.transport.OutboundFrame
 import ch.trancee.meshlink.transport.TransportMode
 import ch.trancee.meshlink.transport.TransportSendResult
@@ -218,10 +215,10 @@ private class RuntimeGraphAssembler(
         )
     }
 
-    private fun buildSharedState(): SharedState {
+    private fun buildSharedState(): MeshEngineRuntimeSharedState {
         val routeCoordinator = RouteCoordinator(localIdentity.peerId)
         val engineClock = TimeSource.Monotonic.markNow()
-        return SharedState(
+        return MeshEngineRuntimeSharedState(
             presenceTracker = PeerPresenceTracker(),
             routeCoordinator = routeCoordinator,
             deliveryRetryScheduler = DeliveryRetryScheduler(routeCoordinator.topologyVersion),
@@ -246,7 +243,9 @@ private class RuntimeGraphAssembler(
         )
     }
 
-    private fun buildRoutingAndTrust(context: AssemblyContext): RoutingAndTrustPhase {
+    private fun buildRoutingAndTrust(
+        context: AssemblyContext
+    ): MeshEngineRuntimeRoutingAndTrustPhase {
         val sharedState = context.sharedState
         val routingSupport =
             MeshEngineRoutingSupport(
@@ -272,14 +271,16 @@ private class RuntimeGraphAssembler(
         val scheduleRetryDiagnostic = { peerId: PeerId, priority: DeliveryPriority ->
             scheduleRetryDiagnostic(routingSupport, peerId, priority)
         }
-        return RoutingAndTrustPhase(
+        return MeshEngineRuntimeRoutingAndTrustPhase(
             routingSupport = routingSupport,
             trustSupport = trustSupport,
             scheduleRetryDiagnostic = scheduleRetryDiagnostic,
         )
     }
 
-    private fun buildSessionAndHopTransport(context: AssemblyContext): SessionAndHopTransportPhase {
+    private fun buildSessionAndHopTransport(
+        context: AssemblyContext
+    ): MeshEngineRuntimeSessionAndHopTransportPhase {
         val sharedState = context.sharedState
         val routingAndTrust = context.routingAndTrust
         val sessionSupport =
@@ -296,14 +297,14 @@ private class RuntimeGraphAssembler(
                 sessionSupport = sessionSupport,
                 hopTransportSupport = hopTransportSupport,
             )
-        return SessionAndHopTransportPhase(
+        return MeshEngineRuntimeSessionAndHopTransportPhase(
             sessionSupport = sessionSupport,
             hopTransportSupport = hopTransportSupport,
             peerFlowSupport = peerFlowSupport,
         )
     }
 
-    private fun buildHandshake(context: AssemblyContext): HandshakePhase {
+    private fun buildHandshake(context: AssemblyContext): MeshEngineRuntimeHandshakePhase {
         val sharedState = context.sharedState
         val routingAndTrust = context.routingAndTrust
         val sessionAndHopTransport = context.sessionAndHopTransport
@@ -329,13 +330,15 @@ private class RuntimeGraphAssembler(
                 handshakeRoutingContext = handshakeRoutingContext,
                 handshakeCallbacks = handshakeCallbacks,
             )
-        return HandshakePhase(
+        return MeshEngineRuntimeHandshakePhase(
             initiatorHandshakeSupport = initiatorHandshakeSupport,
             responderHandshakeSupport = responderHandshakeSupport,
         )
     }
 
-    private fun buildTransferAndInbound(context: AssemblyContext): TransferAndInboundPhase {
+    private fun buildTransferAndInbound(
+        context: AssemblyContext
+    ): MeshEngineRuntimeTransferAndInboundPhase {
         val sharedState = context.sharedState
         val routingAndTrust = context.routingAndTrust
         val sessionAndHopTransport = context.sessionAndHopTransport
@@ -379,7 +382,7 @@ private class RuntimeGraphAssembler(
                 messageDeliverySupport = messageDeliverySupport,
                 transferSupport = transferSupport,
             )
-        return TransferAndInboundPhase(
+        return MeshEngineRuntimeTransferAndInboundPhase(
             inlineSendSupport = inlineSendSupport,
             transferSupport = transferSupport,
             largeTransferSupport = largeTransferSupport,
@@ -388,8 +391,8 @@ private class RuntimeGraphAssembler(
     }
 
     private fun buildSessionSupport(
-        sharedState: SharedState,
-        routingAndTrust: RoutingAndTrustPhase,
+        sharedState: MeshEngineRuntimeSharedState,
+        routingAndTrust: MeshEngineRuntimeRoutingAndTrustPhase,
     ): MeshEngineSessionSupport {
         return MeshEngineSessionSupport(
             localIdentity = localIdentity,
@@ -429,7 +432,7 @@ private class RuntimeGraphAssembler(
     }
 
     private fun buildHopTransportSupport(
-        routingAndTrust: RoutingAndTrustPhase,
+        routingAndTrust: MeshEngineRuntimeRoutingAndTrustPhase,
         sessionSupport: MeshEngineSessionSupport,
     ): MeshEngineHopTransportSupport {
         return MeshEngineHopTransportSupport(
@@ -453,8 +456,8 @@ private class RuntimeGraphAssembler(
     }
 
     private fun buildPeerFlowSupport(
-        sharedState: SharedState,
-        routingAndTrust: RoutingAndTrustPhase,
+        sharedState: MeshEngineRuntimeSharedState,
+        routingAndTrust: MeshEngineRuntimeRoutingAndTrustPhase,
         sessionSupport: MeshEngineSessionSupport,
         hopTransportSupport: MeshEngineHopTransportSupport,
     ): MeshEnginePeerFlowSupport {
@@ -488,7 +491,7 @@ private class RuntimeGraphAssembler(
     }
 
     private fun buildHandshakeCallbacks(
-        sessionAndHopTransport: SessionAndHopTransportPhase
+        sessionAndHopTransport: MeshEngineRuntimeSessionAndHopTransportPhase
     ): MeshEngineHandshakeCallbacks {
         return MeshEngineHandshakeCallbacks(
             sendDirectWireFrame = { peerId, frame, action ->
@@ -507,7 +510,7 @@ private class RuntimeGraphAssembler(
     }
 
     private fun buildInitiatorHandshakeSupport(
-        routingAndTrust: RoutingAndTrustPhase,
+        routingAndTrust: MeshEngineRuntimeRoutingAndTrustPhase,
         handshakeState: MeshEngineHandshakeState,
         handshakeRoutingContext: MeshEngineHandshakeRoutingContext,
         handshakeCallbacks: MeshEngineHandshakeCallbacks,
@@ -522,7 +525,7 @@ private class RuntimeGraphAssembler(
     }
 
     private fun buildResponderHandshakeSupport(
-        routingAndTrust: RoutingAndTrustPhase,
+        routingAndTrust: MeshEngineRuntimeRoutingAndTrustPhase,
         handshakeState: MeshEngineHandshakeState,
         handshakeRoutingContext: MeshEngineHandshakeRoutingContext,
         handshakeCallbacks: MeshEngineHandshakeCallbacks,
@@ -537,8 +540,8 @@ private class RuntimeGraphAssembler(
     }
 
     private fun buildMessageDeliverySupport(
-        routingAndTrust: RoutingAndTrustPhase,
-        sessionAndHopTransport: SessionAndHopTransportPhase,
+        routingAndTrust: MeshEngineRuntimeRoutingAndTrustPhase,
+        sessionAndHopTransport: MeshEngineRuntimeSessionAndHopTransportPhase,
     ): MeshEngineMessageDeliverySupport {
         return MeshEngineMessageDeliverySupport(
             localIdentity = localIdentity,
@@ -551,9 +554,9 @@ private class RuntimeGraphAssembler(
     }
 
     private fun buildOutboundPreparationSupport(
-        sharedState: SharedState,
-        routingAndTrust: RoutingAndTrustPhase,
-        sessionAndHopTransport: SessionAndHopTransportPhase,
+        sharedState: MeshEngineRuntimeSharedState,
+        routingAndTrust: MeshEngineRuntimeRoutingAndTrustPhase,
+        sessionAndHopTransport: MeshEngineRuntimeSessionAndHopTransportPhase,
     ): MeshEngineOutboundPreparationSupport {
         return MeshEngineOutboundPreparationSupport(
             localIdentity = localIdentity,
@@ -585,9 +588,9 @@ private class RuntimeGraphAssembler(
     }
 
     private fun buildInlineSendSupport(
-        sharedState: SharedState,
-        routingAndTrust: RoutingAndTrustPhase,
-        sessionAndHopTransport: SessionAndHopTransportPhase,
+        sharedState: MeshEngineRuntimeSharedState,
+        routingAndTrust: MeshEngineRuntimeRoutingAndTrustPhase,
+        sessionAndHopTransport: MeshEngineRuntimeSessionAndHopTransportPhase,
         outboundPreparationSupport: MeshEngineOutboundPreparationSupport,
     ): MeshEngineInlineSendSupport {
         return MeshEngineInlineSendSupport(
@@ -635,9 +638,9 @@ private class RuntimeGraphAssembler(
     }
 
     private fun buildTransferSupport(
-        sharedState: SharedState,
-        routingAndTrust: RoutingAndTrustPhase,
-        sessionAndHopTransport: SessionAndHopTransportPhase,
+        sharedState: MeshEngineRuntimeSharedState,
+        routingAndTrust: MeshEngineRuntimeRoutingAndTrustPhase,
+        sessionAndHopTransport: MeshEngineRuntimeSessionAndHopTransportPhase,
         messageDeliverySupport: MeshEngineMessageDeliverySupport,
     ): MeshEngineTransferSupport {
         return MeshEngineTransferSupport(
@@ -670,9 +673,9 @@ private class RuntimeGraphAssembler(
     }
 
     private fun buildLargeTransferSupport(
-        sharedState: SharedState,
-        routingAndTrust: RoutingAndTrustPhase,
-        sessionAndHopTransport: SessionAndHopTransportPhase,
+        sharedState: MeshEngineRuntimeSharedState,
+        routingAndTrust: MeshEngineRuntimeRoutingAndTrustPhase,
+        sessionAndHopTransport: MeshEngineRuntimeSessionAndHopTransportPhase,
         outboundPreparationSupport: MeshEngineOutboundPreparationSupport,
     ): MeshEngineLargeTransferSupport {
         return MeshEngineLargeTransferSupport(
@@ -715,9 +718,9 @@ private class RuntimeGraphAssembler(
     }
 
     private fun buildInboundSupport(
-        sharedState: SharedState,
-        routingAndTrust: RoutingAndTrustPhase,
-        sessionAndHopTransport: SessionAndHopTransportPhase,
+        sharedState: MeshEngineRuntimeSharedState,
+        routingAndTrust: MeshEngineRuntimeRoutingAndTrustPhase,
+        sessionAndHopTransport: MeshEngineRuntimeSessionAndHopTransportPhase,
         messageDeliverySupport: MeshEngineMessageDeliverySupport,
         transferSupport: MeshEngineTransferSupport,
     ): MeshEngineInboundSupport {
@@ -755,8 +758,8 @@ private class RuntimeGraphAssembler(
     }
 
     private fun createSendTransferTowardsDestination(
-        sharedState: SharedState,
-        sessionAndHopTransport: SessionAndHopTransportPhase,
+        sharedState: MeshEngineRuntimeSharedState,
+        sessionAndHopTransport: MeshEngineRuntimeSessionAndHopTransportPhase,
     ): suspend (
         PeerId, ch.trancee.meshlink.wire.WireFrame, String, MeshEngineHardRunToken?,
     ) -> Boolean {
@@ -779,7 +782,9 @@ private class RuntimeGraphAssembler(
         }
     }
 
-    private fun buildTransportAndFacadeOperations(context: AssemblyContext): FacadeOperationsPhase {
+    private fun buildTransportAndFacadeOperations(
+        context: AssemblyContext
+    ): MeshEngineRuntimeFacadeOperationsPhase {
         val sharedState = context.sharedState
         val routingAndTrust = context.routingAndTrust
         val sessionAndHopTransport = context.sessionAndHopTransport
@@ -809,7 +814,7 @@ private class RuntimeGraphAssembler(
             )
         val peerForgetSupport =
             buildPeerForgetSupport(sharedState = sharedState, routingAndTrust = routingAndTrust)
-        return FacadeOperationsPhase(
+        return MeshEngineRuntimeFacadeOperationsPhase(
             lifecycleSupport = lifecycleSupport,
             sendSupport = sendSupport,
             peerForgetSupport = peerForgetSupport,
@@ -817,11 +822,11 @@ private class RuntimeGraphAssembler(
     }
 
     private fun buildTransportSupport(
-        sharedState: SharedState,
-        routingAndTrust: RoutingAndTrustPhase,
-        sessionAndHopTransport: SessionAndHopTransportPhase,
-        handshake: HandshakePhase,
-        transferAndInbound: TransferAndInboundPhase,
+        sharedState: MeshEngineRuntimeSharedState,
+        routingAndTrust: MeshEngineRuntimeRoutingAndTrustPhase,
+        sessionAndHopTransport: MeshEngineRuntimeSessionAndHopTransportPhase,
+        handshake: MeshEngineRuntimeHandshakePhase,
+        transferAndInbound: MeshEngineRuntimeTransferAndInboundPhase,
     ): MeshEngineTransportSupport {
         return MeshEngineTransportSupport(
             peerState =
@@ -862,10 +867,10 @@ private class RuntimeGraphAssembler(
     }
 
     private fun buildLifecycleSupport(
-        sharedState: SharedState,
+        sharedState: MeshEngineRuntimeSharedState,
         transportSupport: MeshEngineTransportSupport,
         transportCollector: MeshEngineTransportCollector,
-        transferAndInbound: TransferAndInboundPhase,
+        transferAndInbound: MeshEngineRuntimeTransferAndInboundPhase,
     ): MeshEngineLifecycleSupport {
         val lifecycleState =
             MeshEngineLifecycleState(
@@ -931,9 +936,9 @@ private class RuntimeGraphAssembler(
     }
 
     private fun buildSendSupport(
-        sessionAndHopTransport: SessionAndHopTransportPhase,
-        transferAndInbound: TransferAndInboundPhase,
-        routingAndTrust: RoutingAndTrustPhase,
+        sessionAndHopTransport: MeshEngineRuntimeSessionAndHopTransportPhase,
+        transferAndInbound: MeshEngineRuntimeTransferAndInboundPhase,
+        routingAndTrust: MeshEngineRuntimeRoutingAndTrustPhase,
     ): MeshEngineSendSupport {
         return MeshEngineSendSupport(
             config =
@@ -971,8 +976,8 @@ private class RuntimeGraphAssembler(
     }
 
     private fun buildPeerForgetSupport(
-        sharedState: SharedState,
-        routingAndTrust: RoutingAndTrustPhase,
+        sharedState: MeshEngineRuntimeSharedState,
+        routingAndTrust: MeshEngineRuntimeRoutingAndTrustPhase,
     ): MeshEnginePeerForgetSupport {
         return MeshEnginePeerForgetSupport(
             callbacks =
@@ -1059,57 +1064,13 @@ private class RuntimeGraphAssembler(
         )
     }
 
-    private class SharedState(
-        val presenceTracker: PeerPresenceTracker,
-        val routeCoordinator: RouteCoordinator,
-        val deliveryRetryScheduler: DeliveryRetryScheduler,
-        val powerPolicyController: PowerPolicyController,
-        val sessionRegistry: MeshEngineSessionRegistry,
-        val outboundTransfers: MutableMap<String, OutboundTransferSession>,
-        val inboundTransfers: MutableMap<String, InboundTransferSession>,
-        val relayTransfers: MutableMap<String, RelayTransferSession>,
-        val sequenceGenerator: MeshEngineSequenceGenerator,
-        val powerPolicyNowMillis: () -> Long,
-        val ttlMillisFor: (DeliveryPriority) -> Int,
-    )
-
-    private class RoutingAndTrustPhase(
-        val routingSupport: MeshEngineRoutingSupport,
-        val trustSupport: MeshEngineTrustSupport,
-        val scheduleRetryDiagnostic: (PeerId, DeliveryPriority) -> Unit,
-    )
-
-    private class SessionAndHopTransportPhase(
-        val sessionSupport: MeshEngineSessionSupport,
-        val hopTransportSupport: MeshEngineHopTransportSupport,
-        val peerFlowSupport: MeshEnginePeerFlowSupport,
-    )
-
-    private class HandshakePhase(
-        val initiatorHandshakeSupport: MeshEngineInitiatorHandshakeSupport,
-        val responderHandshakeSupport: MeshEngineResponderHandshakeSupport,
-    )
-
-    private class TransferAndInboundPhase(
-        val inlineSendSupport: MeshEngineInlineSendSupport,
-        val transferSupport: MeshEngineTransferSupport,
-        val largeTransferSupport: MeshEngineLargeTransferSupport,
-        val inboundSupport: MeshEngineInboundSupport,
-    )
-
-    private class FacadeOperationsPhase(
-        val lifecycleSupport: MeshEngineLifecycleSupport,
-        val sendSupport: MeshEngineSendSupport,
-        val peerForgetSupport: MeshEnginePeerForgetSupport,
-    )
-
     private class AssemblyContext {
-        lateinit var sharedState: SharedState
-        lateinit var routingAndTrust: RoutingAndTrustPhase
-        lateinit var sessionAndHopTransport: SessionAndHopTransportPhase
-        lateinit var handshake: HandshakePhase
-        lateinit var transferAndInbound: TransferAndInboundPhase
-        lateinit var facadeOperations: FacadeOperationsPhase
+        lateinit var sharedState: MeshEngineRuntimeSharedState
+        lateinit var routingAndTrust: MeshEngineRuntimeRoutingAndTrustPhase
+        lateinit var sessionAndHopTransport: MeshEngineRuntimeSessionAndHopTransportPhase
+        lateinit var handshake: MeshEngineRuntimeHandshakePhase
+        lateinit var transferAndInbound: MeshEngineRuntimeTransferAndInboundPhase
+        lateinit var facadeOperations: MeshEngineRuntimeFacadeOperationsPhase
     }
 }
 
