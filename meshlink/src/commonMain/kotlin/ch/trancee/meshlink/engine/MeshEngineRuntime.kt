@@ -127,29 +127,31 @@ internal interface MeshEngineGraphOperations {
 }
 
 private class RuntimeGraph(
-    private val config: MeshLinkConfig,
-    private val localIdentity: LocalIdentity,
+    config: MeshLinkConfig,
+    localIdentity: LocalIdentity,
     secureStorage: SecureStorage,
-    private val coroutineScope: CoroutineScope,
-    private val platformBridge: MeshEnginePlatformBridge,
-    private val runtimeSurface: MeshEngineCompatibilityRuntimeSurface,
+    coroutineScope: CoroutineScope,
+    platformBridge: MeshEnginePlatformBridge,
+    runtimeSurface: MeshEngineCompatibilityRuntimeSurface,
 ) : MeshEngineGraphOperations {
-    private val trustStore = TofuTrustStore(secureStorage)
     private val lifecycleSupport: MeshEngineLifecycleSupport
     private val sendSupport: MeshEngineSendSupport
     private val peerForgetSupport: MeshEnginePeerForgetSupport
 
     init {
-        val context = AssemblyContext()
-        buildSharedState(context)
-        buildRoutingAndTrust(context)
-        buildSessionAndHopTransport(context)
-        buildHandshake(context)
-        buildTransferAndInbound(context)
-        buildTransportAndFacadeOperations(context)
-        lifecycleSupport = context.lifecycleSupport
-        sendSupport = context.sendSupport
-        peerForgetSupport = context.peerForgetSupport
+        val assembly =
+            RuntimeGraphAssembler(
+                    config = config,
+                    localIdentity = localIdentity,
+                    secureStorage = secureStorage,
+                    coroutineScope = coroutineScope,
+                    platformBridge = platformBridge,
+                    runtimeSurface = runtimeSurface,
+                )
+                .assemble()
+        lifecycleSupport = assembly.lifecycleSupport
+        sendSupport = assembly.sendSupport
+        peerForgetSupport = assembly.peerForgetSupport
     }
 
     override suspend fun start(): StartResult {
@@ -182,6 +184,38 @@ private class RuntimeGraph(
 
     override fun updateBattery(level: Float, isCharging: Boolean): Unit {
         lifecycleSupport.updateBattery(level = level, isCharging = isCharging)
+    }
+}
+
+private data class RuntimeGraphAssembly(
+    val lifecycleSupport: MeshEngineLifecycleSupport,
+    val sendSupport: MeshEngineSendSupport,
+    val peerForgetSupport: MeshEnginePeerForgetSupport,
+)
+
+private class RuntimeGraphAssembler(
+    private val config: MeshLinkConfig,
+    private val localIdentity: LocalIdentity,
+    secureStorage: SecureStorage,
+    private val coroutineScope: CoroutineScope,
+    private val platformBridge: MeshEnginePlatformBridge,
+    private val runtimeSurface: MeshEngineCompatibilityRuntimeSurface,
+) {
+    private val trustStore = TofuTrustStore(secureStorage)
+
+    fun assemble(): RuntimeGraphAssembly {
+        val context = AssemblyContext()
+        buildSharedState(context)
+        buildRoutingAndTrust(context)
+        buildSessionAndHopTransport(context)
+        buildHandshake(context)
+        buildTransferAndInbound(context)
+        buildTransportAndFacadeOperations(context)
+        return RuntimeGraphAssembly(
+            lifecycleSupport = context.lifecycleSupport,
+            sendSupport = context.sendSupport,
+            peerForgetSupport = context.peerForgetSupport,
+        )
     }
 
     private fun buildSharedState(context: AssemblyContext): Unit {
