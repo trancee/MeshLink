@@ -30,6 +30,7 @@ internal class MeshEngineSessionRegistry {
         linkedMapOf()
     private val pendingResponderHandshakes: MutableMap<String, PendingResponderHandshake> =
         linkedMapOf()
+    private val peerAliases: MutableMap<String, String> = linkedMapOf()
 
     suspend fun initiatorHandshakeReservation(
         peerId: PeerId,
@@ -56,7 +57,11 @@ internal class MeshEngineSessionRegistry {
     }
 
     suspend fun hopSession(peerId: PeerId): HopSession? {
-        return sessionMutex.withLock { hopSessions[peerId.value] }
+        return sessionMutex.withLock { hopSessions[resolvePeerIdValue(peerId.value)] }
+    }
+
+    suspend fun resolvePeerId(peerId: PeerId): PeerId {
+        return sessionMutex.withLock { PeerId(resolvePeerIdValue(peerId.value)) }
     }
 
     suspend fun completeInitiatorHandshake(
@@ -133,6 +138,7 @@ internal class MeshEngineSessionRegistry {
             }
             pendingResponderHandshakes.remove(fromPeerId.value)
             pendingResponderHandshakes[toPeerId.value] = pendingHandshake
+            peerAliases[fromPeerId.value] = toPeerId.value
             true
         }
     }
@@ -153,9 +159,15 @@ internal class MeshEngineSessionRegistry {
 
     suspend fun clearPeer(peerId: PeerId): PendingInitiatorHandshake? {
         return sessionMutex.withLock {
-            hopSessions.remove(peerId.value)
-            val pendingHandshake = pendingInitiatorHandshakes.remove(peerId.value)
-            pendingResponderHandshakes.remove(peerId.value)
+            val resolvedPeerIdValue = resolvePeerIdValue(peerId.value)
+            hopSessions.remove(resolvedPeerIdValue)
+            val pendingHandshake = pendingInitiatorHandshakes.remove(resolvedPeerIdValue)
+            pendingResponderHandshakes.remove(resolvedPeerIdValue)
+            peerAliases.remove(peerId.value)
+            peerAliases.remove(resolvedPeerIdValue)
+            peerAliases.entries.removeAll { (_, canonicalPeerIdValue) ->
+                canonicalPeerIdValue == resolvedPeerIdValue
+            }
             pendingHandshake
         }
     }
@@ -166,7 +178,19 @@ internal class MeshEngineSessionRegistry {
             hopSessions.clear()
             pendingInitiatorHandshakes.clear()
             pendingResponderHandshakes.clear()
+            peerAliases.clear()
             pendingHandshakes
+        }
+    }
+
+    private fun resolvePeerIdValue(peerIdValue: String): String {
+        var currentPeerIdValue = peerIdValue
+        val visitedPeerIds: MutableSet<String> = linkedSetOf()
+        while (true) {
+            if (!visitedPeerIds.add(currentPeerIdValue)) {
+                return currentPeerIdValue
+            }
+            currentPeerIdValue = peerAliases[currentPeerIdValue] ?: return currentPeerIdValue
         }
     }
 }

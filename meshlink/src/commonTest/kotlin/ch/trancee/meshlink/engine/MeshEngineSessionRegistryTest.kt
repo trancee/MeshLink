@@ -4,6 +4,7 @@ import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.crypto.NoiseXXHandshakeManager
 import ch.trancee.meshlink.identity.LocalIdentity
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
@@ -33,5 +34,74 @@ class MeshEngineSessionRegistryTest {
         assertTrue(rebound)
         assertNull(sessionRegistry.pendingResponderHandshake(temporaryPeerId))
         assertSame(pendingHandshake, sessionRegistry.pendingResponderHandshake(canonicalPeerId))
+    }
+
+    @Test
+    fun `hop session lookup follows temporary peer aliases after responder rebind`() = runBlocking {
+        // Arrange
+        val localIdentity = LocalIdentity.fromAppId("session-registry-alias-test")
+        val sessionRegistry = MeshEngineSessionRegistry()
+        val temporaryPeerId = PeerId("bt-aabbccddeeff")
+        val canonicalPeerId = PeerId("00112233445566778899aabb")
+        val pendingHandshake =
+            PendingResponderHandshake(NoiseXXHandshakeManager(localIdentity.cryptoProvider))
+        val establishedSession = HopSession(ByteArray(32) { 0x01 }, ByteArray(32) { 0x02 })
+        sessionRegistry.storePendingResponderHandshake(temporaryPeerId, pendingHandshake)
+        sessionRegistry.rebindPendingResponderHandshake(
+            fromPeerId = temporaryPeerId,
+            toPeerId = canonicalPeerId,
+            pendingHandshake = pendingHandshake,
+        )
+        sessionRegistry.completeResponderHandshake(
+            peerId = canonicalPeerId,
+            pendingHandshake = pendingHandshake,
+            session = establishedSession,
+        )
+
+        // Act
+        val resolvedTemporaryPeerId = sessionRegistry.resolvePeerId(temporaryPeerId)
+        val resolvedCanonicalPeerId = sessionRegistry.resolvePeerId(canonicalPeerId)
+        val temporarySession = sessionRegistry.hopSession(temporaryPeerId)
+        val canonicalSession = sessionRegistry.hopSession(canonicalPeerId)
+
+        // Assert
+        assertEquals(canonicalPeerId.value, resolvedTemporaryPeerId.value)
+        assertEquals(canonicalPeerId.value, resolvedCanonicalPeerId.value)
+        assertSame(establishedSession, temporarySession)
+        assertSame(establishedSession, canonicalSession)
+    }
+
+    @Test
+    fun `clearing a canonical peer removes temporary peer aliases`() = runBlocking {
+        // Arrange
+        val localIdentity = LocalIdentity.fromAppId("session-registry-clear-alias-test")
+        val sessionRegistry = MeshEngineSessionRegistry()
+        val temporaryPeerId = PeerId("bt-aabbccddeeff")
+        val canonicalPeerId = PeerId("00112233445566778899aabb")
+        val pendingHandshake =
+            PendingResponderHandshake(NoiseXXHandshakeManager(localIdentity.cryptoProvider))
+        val establishedSession = HopSession(ByteArray(32) { 0x03 }, ByteArray(32) { 0x04 })
+        sessionRegistry.storePendingResponderHandshake(temporaryPeerId, pendingHandshake)
+        sessionRegistry.rebindPendingResponderHandshake(
+            fromPeerId = temporaryPeerId,
+            toPeerId = canonicalPeerId,
+            pendingHandshake = pendingHandshake,
+        )
+        sessionRegistry.completeResponderHandshake(
+            peerId = canonicalPeerId,
+            pendingHandshake = pendingHandshake,
+            session = establishedSession,
+        )
+
+        // Act
+        sessionRegistry.clearPeer(canonicalPeerId)
+        val resolvedTemporaryPeerId = sessionRegistry.resolvePeerId(temporaryPeerId)
+        val clearedTemporarySession = sessionRegistry.hopSession(temporaryPeerId)
+        val clearedCanonicalSession = sessionRegistry.hopSession(canonicalPeerId)
+
+        // Assert
+        assertEquals(temporaryPeerId.value, resolvedTemporaryPeerId.value)
+        assertNull(clearedTemporarySession)
+        assertNull(clearedCanonicalSession)
     }
 }

@@ -42,13 +42,14 @@ internal class MeshEngineInboundSupport(
     private val transferCallbacks: MeshEngineInboundTransferCallbacks,
 ) {
     suspend fun handleEncryptedDataFrame(peerId: PeerId, payload: ByteArray): Unit {
-        val session = activeHopSession(peerId)
+        val canonicalPeerId = sessionRegistry.resolvePeerId(peerId)
+        val session = activeHopSession(canonicalPeerId)
         if (session != null) {
-            val decryptedEnvelopeBytes = decryptInboundWireFrame(peerId, session, payload)
+            val decryptedEnvelopeBytes = decryptInboundWireFrame(canonicalPeerId, session, payload)
             if (decryptedEnvelopeBytes != null) {
-                val frame = decodeInboundWireFrame(peerId, decryptedEnvelopeBytes)
+                val frame = decodeInboundWireFrame(canonicalPeerId, decryptedEnvelopeBytes)
                 if (frame != null) {
-                    dispatchInboundWireFrame(peerId, frame)
+                    dispatchInboundWireFrame(canonicalPeerId, frame)
                 }
             }
         }
