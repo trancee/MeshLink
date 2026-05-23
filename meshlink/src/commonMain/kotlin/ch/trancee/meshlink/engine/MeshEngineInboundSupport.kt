@@ -149,3 +149,46 @@ internal class MeshEngineInboundSupport(
             peerId.value.hexContentEquals(localIdentity.advertisementKeyHash)
     }
 }
+
+internal fun buildMeshEngineRuntimeInboundSupport(
+    localIdentity: LocalIdentity,
+    sessionRegistry: MeshEngineSessionRegistry,
+    routeCoordinator: RouteCoordinator,
+    routingSupport: MeshEngineRoutingSupport,
+    emitHopSessionFailed: (PeerId, String, DiagnosticReason, Map<String, String>) -> Unit,
+    decryptHopPayload: (HopSession, ByteArray) -> ByteArray,
+    captureHardRunToken: () -> MeshEngineHardRunToken,
+    forwardMessageToNextHop: (WireFrame.Message, MeshEngineHardRunToken) -> Unit,
+    deliverInnerEnvelope:
+        suspend (PeerId, PeerId, ByteArray, DeliveryPriority, MeshEngineHardRunToken) -> Unit,
+    transferSupport: MeshEngineTransferSupport,
+): MeshEngineInboundSupport {
+    return MeshEngineInboundSupport(
+        localIdentity = localIdentity,
+        sessionRegistry = sessionRegistry,
+        routingContext =
+            MeshEngineInboundRoutingContext(
+                routeCoordinator = routeCoordinator,
+                routingSupport = routingSupport,
+            ),
+        transport =
+            MeshEngineInboundTransport(
+                emitHopSessionFailed = emitHopSessionFailed,
+                decryptHopPayload = decryptHopPayload,
+            ),
+        messageCallbacks =
+            MeshEngineInboundMessageCallbacks(
+                captureHardRunToken = captureHardRunToken,
+                forwardMessageToNextHop = forwardMessageToNextHop,
+                deliverInnerEnvelope = deliverInnerEnvelope,
+            ),
+        transferCallbacks =
+            MeshEngineInboundTransferCallbacks(
+                handleTransferStart = transferSupport::handleTransferStart,
+                handleTransferChunk = transferSupport::handleTransferChunk,
+                handleTransferAck = transferSupport::handleTransferAck,
+                handleTransferComplete = transferSupport::handleTransferComplete,
+                handleTransferAbort = transferSupport::handleTransferAbort,
+            ),
+    )
+}

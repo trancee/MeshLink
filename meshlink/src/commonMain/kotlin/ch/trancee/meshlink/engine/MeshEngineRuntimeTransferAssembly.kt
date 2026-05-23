@@ -101,11 +101,16 @@ internal fun buildMeshEngineRuntimeTransferAndInboundPhase(
         )
     val inboundSupport =
         buildMeshEngineRuntimeInboundSupport(
-            environment = environment,
-            sharedState = sharedState,
-            routingAndTrust = routingAndTrust,
-            sessionAndHopTransport = sessionAndHopTransport,
-            messageDeliverySupport = messageDeliverySupport,
+            localIdentity = environment.localIdentity,
+            sessionRegistry = sharedState.sessionRegistry,
+            routeCoordinator = sharedState.routeCoordinator,
+            routingSupport = routingAndTrust.routingSupport,
+            emitHopSessionFailed = sessionAndHopTransport.hopTransportSupport::emitHopSessionFailed,
+            decryptHopPayload = sessionAndHopTransport.hopTransportSupport::decryptHopPayload,
+            captureHardRunToken = environment.compatibilitySurface.runtimeGate::captureHardRunToken,
+            forwardMessageToNextHop =
+                sessionAndHopTransport.peerFlowSupport::forwardMessageToNextHop,
+            deliverInnerEnvelope = messageDeliverySupport::deliverInnerEnvelope,
             transferSupport = transferSupport,
         )
     return MeshEngineRuntimeTransferAndInboundPhase(
@@ -270,47 +275,6 @@ private fun buildMeshEngineRuntimeTransferSupport(
         relaySupport = relaySupport,
         abortSupport = abortSupport,
         emitDiagnostic = support.emitDiagnostic,
-    )
-}
-
-private fun buildMeshEngineRuntimeInboundSupport(
-    environment: MeshEngineRuntimeAssemblyEnvironment,
-    sharedState: MeshEngineRuntimeSharedState,
-    routingAndTrust: MeshEngineRuntimeRoutingAndTrustPhase,
-    sessionAndHopTransport: MeshEngineRuntimeSessionAndHopTransportPhase,
-    messageDeliverySupport: MeshEngineMessageDeliverySupport,
-    transferSupport: MeshEngineTransferSupport,
-): MeshEngineInboundSupport {
-    return MeshEngineInboundSupport(
-        localIdentity = environment.localIdentity,
-        sessionRegistry = sharedState.sessionRegistry,
-        routingContext =
-            MeshEngineInboundRoutingContext(
-                routeCoordinator = sharedState.routeCoordinator,
-                routingSupport = routingAndTrust.routingSupport,
-            ),
-        transport =
-            MeshEngineInboundTransport(
-                emitHopSessionFailed =
-                    sessionAndHopTransport.hopTransportSupport::emitHopSessionFailed,
-                decryptHopPayload = sessionAndHopTransport.hopTransportSupport::decryptHopPayload,
-            ),
-        messageCallbacks =
-            MeshEngineInboundMessageCallbacks(
-                captureHardRunToken =
-                    environment.compatibilitySurface.runtimeGate::captureHardRunToken,
-                forwardMessageToNextHop =
-                    sessionAndHopTransport.peerFlowSupport::forwardMessageToNextHop,
-                deliverInnerEnvelope = messageDeliverySupport::deliverInnerEnvelope,
-            ),
-        transferCallbacks =
-            MeshEngineInboundTransferCallbacks(
-                handleTransferStart = transferSupport::handleTransferStart,
-                handleTransferChunk = transferSupport::handleTransferChunk,
-                handleTransferAck = transferSupport::handleTransferAck,
-                handleTransferComplete = transferSupport::handleTransferComplete,
-                handleTransferAbort = transferSupport::handleTransferAbort,
-            ),
     )
 }
 
