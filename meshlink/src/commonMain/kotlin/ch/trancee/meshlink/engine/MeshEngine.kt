@@ -36,9 +36,7 @@ import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TimeSource
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -81,26 +79,12 @@ private constructor(
             trustStore = trustStore,
             emitDiagnostic = ::emitDiagnostic,
         )
-    private var transportCollectionJob: Job? = null
     private val sessionRegistry = MeshEngineSessionRegistry()
     private val outboundTransfers: MutableMap<String, OutboundTransferSession> = linkedMapOf()
     private val inboundTransfers: MutableMap<String, InboundTransferSession> = linkedMapOf()
     private val relayTransfers: MutableMap<String, RelayTransferSession> = linkedMapOf()
     private val sequenceGenerator = MeshEngineSequenceGenerator(localIdentity)
     private val powerPolicyNowMillis: () -> Long = { engineClock.elapsedNow().inWholeMilliseconds }
-    private val ensureTransportCollector: () -> Unit =
-        fun() {
-            val transportEvents = platformBridge.events ?: return
-            if (transportCollectionJob != null) {
-                return
-            }
-            transportCollectionJob =
-                coroutineScope.launch(start = CoroutineStart.UNDISPATCHED) {
-                    transportEvents.collect { event ->
-                        transportSupport.handleTransportEvent(event)
-                    }
-                }
-        }
     private val ttlMillisFor: (DeliveryPriority) -> Int = { priority ->
         when (priority) {
             DeliveryPriority.HIGH -> HIGH_PRIORITY_TTL_MILLIS
@@ -398,6 +382,12 @@ private constructor(
                 ),
             emitDiagnostic = ::emitDiagnostic,
         )
+    private val transportCollector =
+        MeshEngineTransportCollector(
+            coroutineScope = coroutineScope,
+            transportEvents = { platformBridge.events },
+            handleTransportEvent = transportSupport::handleTransportEvent,
+        )
     private val lifecycleState =
         MeshEngineLifecycleState(
             mutableState = mutableState,
@@ -414,11 +404,8 @@ private constructor(
             state = lifecycleState,
             callbacks =
                 MeshEngineLifecycleCallbacks(
-                    ensureTransportCollector = ensureTransportCollector,
-                    stopTransportCollector = {
-                        transportCollectionJob?.cancel()
-                        transportCollectionJob = null
-                    },
+                    ensureTransportCollector = transportCollector::ensureStarted,
+                    stopTransportCollector = transportCollector::stop,
                     updateTransportPowerPolicy = platformBridge::updatePowerPolicy,
                     startTransport = platformBridge::start,
                     pauseTransport = platformBridge::pause,
