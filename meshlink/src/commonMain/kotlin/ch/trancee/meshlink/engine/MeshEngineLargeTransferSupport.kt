@@ -11,6 +11,7 @@ import ch.trancee.meshlink.transfer.AcknowledgementSettlementResult
 import ch.trancee.meshlink.transfer.OutboundTransferSession
 import ch.trancee.meshlink.wire.WireFrame
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.TimeMark
 import kotlin.time.TimeSource
 
@@ -391,8 +392,6 @@ internal class MeshEngineLargeTransferSupport(
 
 internal fun buildMeshEngineRuntimeLargeTransferSupport(
     deliveryRetryDeadline: Duration,
-    ackSettlementTimeout: Duration,
-    ackIdleWindow: Duration,
     outboundTransfers: MutableMap<String, OutboundTransferSession>,
     routingSupport: MeshEngineRoutingSupport,
     runtimeGate: MeshEngineRuntimeGate,
@@ -418,8 +417,8 @@ internal fun buildMeshEngineRuntimeLargeTransferSupport(
         config =
             MeshEngineLargeTransferConfig(
                 deliveryRetryDeadline = deliveryRetryDeadline,
-                ackSettlementTimeout = ackSettlementTimeout,
-                ackIdleWindow = ackIdleWindow,
+                ackSettlementTimeout = TRANSFER_ACK_SETTLEMENT_TIMEOUT,
+                ackIdleWindow = TRANSFER_ACK_IDLE_WINDOW,
             ),
         state = MeshEngineLargeTransferState(outboundTransfers = outboundTransfers),
         routingSupport = routingSupport,
@@ -444,3 +443,6 @@ private val LARGE_TRANSFER_DELIVERY_RETRY_PROFILE =
         scheduledStage = "transfer.retryScheduled",
         retryingStage = "transfer.retrying",
     )
+
+private val TRANSFER_ACK_SETTLEMENT_TIMEOUT = 1_500.milliseconds
+private val TRANSFER_ACK_IDLE_WINDOW = 100.milliseconds

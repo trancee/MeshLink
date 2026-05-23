@@ -3,7 +3,6 @@ package ch.trancee.meshlink.engine
 import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.diagnostics.DiagnosticReason
 import ch.trancee.meshlink.wire.WireFrame
-import kotlin.time.Duration.Companion.milliseconds
 
 internal fun buildMeshEngineRuntimeTransferAndInboundPhase(
     environment: MeshEngineRuntimeAssemblyEnvironment,
@@ -85,8 +84,6 @@ internal fun buildMeshEngineRuntimeTransferAndInboundPhase(
     val largeTransferSupport =
         buildMeshEngineRuntimeLargeTransferSupport(
             deliveryRetryDeadline = environment.config.deliveryRetryDeadline,
-            ackSettlementTimeout = TRANSFER_ACK_SETTLEMENT_TIMEOUT,
-            ackIdleWindow = TRANSFER_ACK_IDLE_WINDOW,
             outboundTransfers = sharedState.outboundTransfers,
             routingSupport = routingAndTrust.routingSupport,
             runtimeGate = environment.compatibilitySurface.runtimeGate,
@@ -300,6 +297,3 @@ private fun createMeshEngineRuntimeSendTransferTowardsDestination(
         }
     }
 }
-
-private val TRANSFER_ACK_SETTLEMENT_TIMEOUT = 1_500.milliseconds
-private val TRANSFER_ACK_IDLE_WINDOW = 100.milliseconds
