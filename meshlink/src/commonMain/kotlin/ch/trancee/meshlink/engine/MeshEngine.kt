@@ -4,7 +4,6 @@ import ch.trancee.meshlink.api.DeliveryPriority
 import ch.trancee.meshlink.api.ForgetPeerResult
 import ch.trancee.meshlink.api.InboundMessage
 import ch.trancee.meshlink.api.MeshLinkApi
-import ch.trancee.meshlink.api.MeshLinkException
 import ch.trancee.meshlink.api.MeshLinkState
 import ch.trancee.meshlink.api.PauseResult
 import ch.trancee.meshlink.api.PeerEvent
@@ -21,7 +20,6 @@ import ch.trancee.meshlink.diagnostics.DiagnosticReason
 import ch.trancee.meshlink.diagnostics.DiagnosticSeverity
 import ch.trancee.meshlink.diagnostics.DiagnosticSink
 import ch.trancee.meshlink.identity.LocalIdentity
-import ch.trancee.meshlink.platform.PlatformPermissionDeniedException
 import ch.trancee.meshlink.power.PowerPolicyController
 import ch.trancee.meshlink.presence.PeerPresenceTracker
 import ch.trancee.meshlink.routing.RouteCoordinator
@@ -68,6 +66,7 @@ private constructor(
     private val deliveryRetryScheduler = DeliveryRetryScheduler(routeCoordinator.topologyVersion)
     private val powerPolicyController =
         PowerPolicyController(configuredMode = config.powerMode, region = config.regulatoryRegion)
+    private val platformBridge = MeshEnginePlatformBridge(bleTransport)
     private val routingSupport: MeshEngineRoutingSupport =
         MeshEngineRoutingSupport(
             routeCoordinator = routeCoordinator,
@@ -92,12 +91,13 @@ private constructor(
     private val powerPolicyNowMillis: () -> Long = { engineClock.elapsedNow().inWholeMilliseconds }
     private val ensureTransportCollector: () -> Unit =
         fun() {
-            if (bleTransport == null || transportCollectionJob != null) {
+            val transportEvents = platformBridge.events ?: return
+            if (transportCollectionJob != null) {
                 return
             }
             transportCollectionJob =
                 coroutineScope.launch(start = CoroutineStart.UNDISPATCHED) {
-                    bleTransport.events.collect { event ->
+                    transportEvents.collect { event ->
                         transportSupport.handleTransportEvent(event)
                     }
                 }
@@ -136,7 +136,7 @@ private constructor(
             handshakeTimeout = HANDSHAKE_TIMEOUT,
             callbacks =
                 MeshEngineSessionCallbacks(
-                    hasTransport = { bleTransport != null },
+                    hasTransport = { platformBridge.hasTransport },
                     sendDirectWireFrame = { peerId, frame, action, preferredMode ->
                         sendDirectWireFrame(peerId, frame, action, preferredMode)
                     },
@@ -178,9 +178,7 @@ private constructor(
                 MeshEnginePeerFlowCallbacks(
                     sendEncryptedWireFrame = hopTransportSupport::sendEncryptedWireFrame,
                     ensureHopSession = sessionSupport::ensureHopSession,
-                    maximumPayloadBytesPerDelivery = { peerId ->
-                        bleTransport?.maximumPayloadBytesPerDelivery(peerId)
-                    },
+                    maximumPayloadBytesPerDelivery = platformBridge::maximumPayloadBytesPerDelivery,
                     emitDiagnostic = ::emitDiagnostic,
                     peerRouteMetadata = { peerId, metadata ->
                         routingSupport.peerRouteMetadata(peerId, metadata = metadata)
@@ -201,7 +199,9 @@ private constructor(
             emitHopSessionEstablished = hopTransportSupport::emitHopSessionEstablished,
             emitHopSessionFailed = hopTransportSupport::emitHopSessionFailed,
             promoteTemporaryPeer = { temporaryPeerId, canonicalPeerId ->
-                runCatching { bleTransport?.promoteTemporaryPeer(temporaryPeerId, canonicalPeerId) }
+                runCatching {
+                        platformBridge.promoteTemporaryPeer(temporaryPeerId, canonicalPeerId)
+                    }
                     .getOrElse { Unit }
             },
         )
@@ -287,7 +287,7 @@ private constructor(
                     setDiscoverySuspended = { suspended ->
                         val action =
                             if (suspended) "inline.discoverySuspend" else "inline.discoveryResume"
-                        runPlatformCall(action) { bleTransport?.setDiscoverySuspended(suspended) }
+                        platformBridge.setDiscoverySuspended(action = action, suspended = suspended)
                     },
                     emitHopSessionFailed = hopTransportSupport::emitHopSessionFailed,
                 ),
@@ -340,10 +340,10 @@ private constructor(
                         val action =
                             if (suspended) "transfer.discoverySuspend"
                             else "transfer.discoveryResume"
-                        runPlatformCall(action) { bleTransport?.setDiscoverySuspended(suspended) }
+                        platformBridge.setDiscoverySuspended(action = action, suspended = suspended)
                     },
                     clearQueuedOutboundFrames = { peerId, action ->
-                        runPlatformCall(action) { bleTransport?.clearQueuedOutboundFrames(peerId) }
+                        platformBridge.clearQueuedOutboundFrames(peerId = peerId, action = action)
                     },
                 ),
             emitDiagnostic = ::emitDiagnostic,
@@ -420,23 +420,13 @@ private constructor(
                         transportCollectionJob?.cancel()
                         transportCollectionJob = null
                     },
-                    updateTransportPowerPolicy = { policy ->
-                        runPlatformCall("updatePowerPolicy") {
-                            bleTransport?.updatePowerPolicy(policy)
-                        }
-                    },
-                    startTransport = { runPlatformCall("start") { bleTransport?.start() } },
-                    pauseTransport = { runPlatformCall("pause") { bleTransport?.pause() } },
-                    resumeTransport = { runPlatformCall("resume") { bleTransport?.resume() } },
-                    stopTransport = { runPlatformCall("stop") { bleTransport?.stop() } },
+                    updateTransportPowerPolicy = platformBridge::updatePowerPolicy,
+                    startTransport = platformBridge::start,
+                    pauseTransport = platformBridge::pause,
+                    resumeTransport = platformBridge::resume,
+                    stopTransport = platformBridge::stop,
                     launchTransportPowerPolicyUpdate = { policy ->
-                        if (bleTransport != null) {
-                            coroutineScope.launch {
-                                runPlatformCall("updatePowerPolicy") {
-                                    bleTransport.updatePowerPolicy(policy)
-                                }
-                            }
-                        }
+                        coroutineScope.launch { platformBridge.updatePowerPolicy(policy) }
                     },
                 ),
             diagnostics =
@@ -494,7 +484,7 @@ private constructor(
     ): SendResult {
         val isPayloadTooLarge = payload.size > MAX_SUPPORTED_PAYLOAD_BYTES
         val transportUnavailable =
-            mutableState.value !== MeshLinkState.Running || bleTransport == null
+            mutableState.value !== MeshLinkState.Running || !platformBridge.hasTransport
         val shouldUseInlineDelivery =
             payload.size <= INLINE_MESSAGE_PAYLOAD_BYTES ||
                 peerFlowSupport.shouldAttemptLargeInlineSend(peerId)
@@ -563,17 +553,15 @@ private constructor(
         action: String,
         preferredMode: TransportMode? = null,
     ): TransportSendResult {
-        val transport =
-            bleTransport ?: return TransportSendResult.Dropped("BLE transport is unavailable")
-        return runPlatformCall(action) {
-            transport.send(
+        return platformBridge.send(
+            frame =
                 OutboundFrame(
                     peerId = peerId,
                     payload = frame.encode(),
                     preferredMode = preferredMode,
-                )
-            )
-        }
+                ),
+            action = action,
+        )
     }
 
     @Suppress("LongParameterList")
@@ -596,23 +584,6 @@ private constructor(
             )
         mutableDiagnostics.tryEmit(event)
         diagnosticSink?.emit(event)
-    }
-
-    @Suppress("TooGenericExceptionCaught")
-    private suspend fun <T> runPlatformCall(action: String, block: suspend () -> T): T {
-        return try {
-            block()
-        } catch (exception: PlatformPermissionDeniedException) {
-            throw MeshLinkException.PermissionDenied(
-                message = "Platform transport denied permission during $action",
-                cause = exception,
-            )
-        } catch (exception: Throwable) {
-            throw MeshLinkException.PlatformFailure(
-                message = "Platform transport failed during $action",
-                cause = exception,
-            )
-        }
     }
 
     internal companion object {
