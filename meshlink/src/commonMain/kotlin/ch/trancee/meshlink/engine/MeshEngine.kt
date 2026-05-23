@@ -39,11 +39,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 internal class MeshEngine
@@ -53,7 +49,7 @@ private constructor(
     private val localIdentity: LocalIdentity,
     secureStorage: SecureStorage,
     private val bleTransport: BleTransport? = null,
-    private val diagnosticSink: DiagnosticSink? = null,
+    diagnosticSink: DiagnosticSink? = null,
 ) : MeshLinkApi {
     private val coroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val engineClock = TimeSource.Monotonic.markNow()
@@ -64,7 +60,9 @@ private constructor(
     private val powerPolicyController =
         PowerPolicyController(configuredMode = config.powerMode, region = config.regulatoryRegion)
     private val platformBridge = MeshEnginePlatformBridge(bleTransport)
-    private val diagnosticRelay = MeshEngineDiagnosticRelay(diagnosticSink = diagnosticSink)
+    private val runtimeSurface = MeshEngineRuntimeSurface(diagnosticSink = diagnosticSink)
+    private val publishedSurface: MeshEnginePublishedRuntimeSurface = runtimeSurface
+    private val compatibilitySurface: MeshEngineCompatibilityRuntimeSurface = runtimeSurface
     private val routingSupport: MeshEngineRoutingSupport =
         MeshEngineRoutingSupport(
             routeCoordinator = routeCoordinator,
@@ -206,17 +204,11 @@ private constructor(
             callbacks = handshakeCallbacks,
         )
 
-    private val mutableState: MutableStateFlow<MeshLinkState> =
-        MutableStateFlow(MeshLinkState.Uninitialized)
-    private val mutablePeerEvents: MutableSharedFlow<PeerEvent> =
-        MutableSharedFlow(extraBufferCapacity = 16)
-    private val mutableMessages: MutableSharedFlow<InboundMessage> =
-        MutableSharedFlow(extraBufferCapacity = 16)
     private val messageDeliverySupport =
         MeshEngineMessageDeliverySupport(
             localIdentity = localIdentity,
             trustSupport = trustSupport,
-            mutableMessages = mutableMessages,
+            mutableMessages = compatibilitySurface.mutableMessages,
             emitHopSessionFailed = hopTransportSupport::emitHopSessionFailed,
             emitDiagnostic = ::emitDiagnostic,
         )
@@ -363,7 +355,7 @@ private constructor(
             peerState =
                 MeshEngineTransportPeerState(
                     presenceTracker = presenceTracker,
-                    mutablePeerEvents = mutablePeerEvents,
+                    mutablePeerEvents = compatibilitySurface.mutablePeerEvents,
                     sessionRegistry = sessionRegistry,
                 ),
             routingContext =
@@ -389,7 +381,7 @@ private constructor(
         )
     private val lifecycleState =
         MeshEngineLifecycleState(
-            mutableState = mutableState,
+            mutableState = compatibilitySurface.mutableState,
             sessionRegistry = sessionRegistry,
             outboundTransfers = outboundTransfers,
             inboundTransfers = inboundTransfers,
@@ -449,7 +441,7 @@ private constructor(
                 ),
             callbacks =
                 MeshEngineSendCallbacks(
-                    isMeshRunning = { mutableState.value === MeshLinkState.Running },
+                    isMeshRunning = { publishedSurface.state.value === MeshLinkState.Running },
                     hasTransport = { platformBridge.hasTransport },
                     shouldAttemptLargeInlineSend = peerFlowSupport::shouldAttemptLargeInlineSend,
                     sendInlinePayload = { peerId, payload, priority ->
@@ -497,14 +489,16 @@ private constructor(
                         )
                     },
                     markPeerDisconnected = presenceTracker::onPeerDisconnected,
-                    emitPeerLost = { peerId -> mutablePeerEvents.emit(PeerEvent.Lost(peerId)) },
+                    emitPeerLost = { peerId ->
+                        compatibilitySurface.mutablePeerEvents.emit(PeerEvent.Lost(peerId))
+                    },
                 )
         )
 
-    override val state: StateFlow<MeshLinkState> = mutableState.asStateFlow()
-    override val peerEvents: Flow<PeerEvent> = mutablePeerEvents.asSharedFlow()
-    override val diagnosticEvents: Flow<DiagnosticEvent> = diagnosticRelay.events
-    override val messages: Flow<InboundMessage> = mutableMessages.asSharedFlow()
+    override val state: StateFlow<MeshLinkState> = publishedSurface.state
+    override val peerEvents: Flow<PeerEvent> = publishedSurface.peerEvents
+    override val diagnosticEvents: Flow<DiagnosticEvent> = publishedSurface.diagnosticEvents
+    override val messages: Flow<InboundMessage> = publishedSurface.messages
 
     override suspend fun start(): StartResult {
         return lifecycleSupport.start()
@@ -564,7 +558,7 @@ private constructor(
         reason: DiagnosticReason? = null,
         metadata: Map<String, String> = emptyMap(),
     ): Unit {
-        diagnosticRelay.emit(
+        compatibilitySurface.emitDiagnostic(
             code = code,
             severity = severity,
             stage = stage,
