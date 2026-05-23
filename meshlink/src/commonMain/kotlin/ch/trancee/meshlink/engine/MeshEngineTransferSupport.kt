@@ -20,7 +20,6 @@ internal data class MeshEngineTransferState(
 )
 
 internal data class MeshEngineTransferCallbacks(
-    val runtimeGate: MeshEngineRuntimeGate,
     val captureHardRunToken: () -> MeshEngineHardRunToken,
     val isLocalPeerId: (PeerId) -> Boolean,
     val sendEncryptedWireFrame:
@@ -29,13 +28,13 @@ internal data class MeshEngineTransferCallbacks(
         suspend (PeerId, WireFrame, String, MeshEngineHardRunToken?) -> Boolean,
     val deliverInnerEnvelope:
         suspend (PeerId, PeerId, ByteArray, DeliveryPriority, MeshEngineHardRunToken) -> Unit,
-    val clearQueuedOutboundFrames: suspend (PeerId, String) -> Unit,
 )
 
 internal class MeshEngineTransferSupport(
     private val state: MeshEngineTransferState,
     private val routingSupport: MeshEngineRoutingSupport,
     private val callbacks: MeshEngineTransferCallbacks,
+    private val abortSupport: MeshEngineTransferAbortSupport,
     private val emitDiagnostic:
         (
             DiagnosticCode,
@@ -214,105 +213,7 @@ internal class MeshEngineTransferSupport(
     }
 
     suspend fun abortLocalTransfers(reasonCode: TransferAbortReasonCode): Unit {
-        val abortFrameFor: (String) -> WireFrame.TransferAbort = { transferId ->
-            WireFrame.TransferAbort(transferId = transferId, reasonCode = reasonCode.code)
-        }
-        val outboundSessions = state.outboundTransfers.values.toList()
-        val inboundSessions = state.inboundTransfers.values.toList()
-        val relaySessions = state.relayTransfers.values.toList()
-        state.outboundTransfers.clear()
-        state.inboundTransfers.clear()
-        state.relayTransfers.clear()
-
-        outboundSessions.forEach { session ->
-            callbacks.clearQueuedOutboundFrames(
-                session.destinationPeerId,
-                "transfer.clearQueuedFramesOnAbort",
-            )
-            callbacks.sendTransferTowardsDestination(
-                session.destinationPeerId,
-                abortFrameFor(session.transferId),
-                "transfer.abort.runtimeStop",
-                null,
-            )
-            emitDiagnostic(
-                DiagnosticCode.TRANSFER_FAILED,
-                DiagnosticSeverity.ERROR,
-                "transfer.abort.runtimeStop",
-                session.destinationPeerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
-                DiagnosticReason.TRANSFER_FAILURE,
-                routingSupport.peerRouteMetadata(
-                    peerId = session.destinationPeerId,
-                    metadata =
-                        mapOf(
-                            "reasonCode" to reasonCode.code.toString(),
-                            "transferAbortReason" to reasonCode.name,
-                            "transferAbortScope" to "outbound",
-                        ),
-                ),
-            )
-        }
-
-        inboundSessions.forEach { session ->
-            callbacks.sendEncryptedWireFrame(
-                session.upstreamPeerId,
-                abortFrameFor(session.transferId),
-                "transfer.abort.runtimeStop",
-                null,
-            )
-            emitDiagnostic(
-                DiagnosticCode.TRANSFER_FAILED,
-                DiagnosticSeverity.ERROR,
-                "transfer.abort.runtimeStop",
-                session.upstreamPeerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
-                DiagnosticReason.TRANSFER_FAILURE,
-                routingSupport.peerRouteMetadata(
-                    peerId = session.upstreamPeerId,
-                    metadata =
-                        inboundTransferMetadata(session) +
-                            mapOf(
-                                "reasonCode" to reasonCode.code.toString(),
-                                "transferAbortReason" to reasonCode.name,
-                                "transferAbortScope" to "inbound",
-                            ),
-                ),
-            )
-        }
-
-        relaySessions.forEach { session ->
-            val abortFrame = abortFrameFor(session.transferId)
-            callbacks.sendEncryptedWireFrame(
-                session.upstreamPeerId,
-                abortFrame,
-                "transfer.abort.runtimeStop.upstream",
-                null,
-            )
-            callbacks.sendTransferTowardsDestination(
-                session.destinationPeerId,
-                abortFrame,
-                "transfer.abort.runtimeStop.downstream",
-                null,
-            )
-            emitDiagnostic(
-                DiagnosticCode.TRANSFER_FAILED,
-                DiagnosticSeverity.ERROR,
-                "transfer.abort.runtimeStop",
-                session.destinationPeerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
-                DiagnosticReason.TRANSFER_FAILURE,
-                routingSupport.peerRouteMetadata(
-                    peerId = session.destinationPeerId,
-                    metadata =
-                        mapOf(
-                            "originPeerId" to session.originPeerId.value,
-                            "reasonCode" to reasonCode.code.toString(),
-                            "transferAbortReason" to reasonCode.name,
-                            "transferAbortScope" to "relay",
-                            "transferId" to session.transferId,
-                            "upstreamPeerId" to session.upstreamPeerId.value,
-                        ),
-                ),
-            )
-        }
+        abortSupport.abortLocalTransfers(reasonCode)
     }
 
     private suspend fun handleInboundTransferChunk(
