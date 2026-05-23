@@ -44,6 +44,8 @@ object MeshLink {
 | `create(config)` | iOS and platforms that do not need extra bootstrap input | Fails if platform prerequisites are missing. |
 | `create(config, context)` | Android | `context` must be an Android `Context`. Use the application context. |
 
+Factory instances are created in `MeshLinkState.Uninitialized`. Construction is side-effect-free: it does not start transport activity, emit lifecycle diagnostics, or begin peer/session work before `start()` is called.
+
 ### Example
 
 ```kotlin
