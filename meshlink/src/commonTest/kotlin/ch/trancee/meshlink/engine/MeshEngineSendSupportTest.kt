@@ -32,8 +32,7 @@ class MeshEngineSendSupportTest {
 
         // Assert
         assertEquals("send() requires MeshLinkState.Running but was Paused", error.message)
-        assertEquals(0, callbacks.inlineSendCalls)
-        assertEquals(0, callbacks.largeSendCalls)
+        assertEquals(emptyList(), callbacks.sendModes)
     }
 
     @Test
@@ -64,8 +63,7 @@ class MeshEngineSendSupportTest {
             ),
             callbacks.diagnostics,
         )
-        assertEquals(0, callbacks.inlineSendCalls)
-        assertEquals(0, callbacks.largeSendCalls)
+        assertEquals(emptyList(), callbacks.sendModes)
     }
 
     @Test
@@ -84,8 +82,7 @@ class MeshEngineSendSupportTest {
         val notSent = assertIs<SendResult.NotSent>(result)
         assertEquals(SendFailureReason.UNREACHABLE, notSent.reason)
         assertEquals(listOf(peerId to DeliveryPriority.LOW), callbacks.retryDiagnostics)
-        assertEquals(0, callbacks.inlineSendCalls)
-        assertEquals(0, callbacks.largeSendCalls)
+        assertEquals(emptyList(), callbacks.sendModes)
     }
 
     @Test
@@ -103,9 +100,8 @@ class MeshEngineSendSupportTest {
 
             // Assert
             assertEquals(SendResult.Sent, result)
-            assertEquals(1, callbacks.inlineSendCalls)
-            assertEquals(0, callbacks.largeSendCalls)
-            assertEquals(listOf(7L), callbacks.inlineHardRunEpochs)
+            assertEquals(listOf(MeshEngineOutboundDeliveryMode.INLINE), callbacks.sendModes)
+            assertEquals(listOf(7L), callbacks.sendHardRunEpochs)
         }
 
     @Test
@@ -122,8 +118,7 @@ class MeshEngineSendSupportTest {
 
         // Assert
         assertEquals(SendResult.Sent, result)
-        assertEquals(1, callbacks.inlineSendCalls)
-        assertEquals(0, callbacks.largeSendCalls)
+        assertEquals(listOf(MeshEngineOutboundDeliveryMode.INLINE), callbacks.sendModes)
     }
 
     @Test
@@ -141,9 +136,8 @@ class MeshEngineSendSupportTest {
 
             // Assert
             assertEquals(SendResult.Sent, result)
-            assertEquals(0, callbacks.inlineSendCalls)
-            assertEquals(1, callbacks.largeSendCalls)
-            assertEquals(listOf(7L), callbacks.largeHardRunEpochs)
+            assertEquals(listOf(MeshEngineOutboundDeliveryMode.LARGE_TRANSFER), callbacks.sendModes)
+            assertEquals(listOf(7L), callbacks.sendHardRunEpochs)
         }
 }
 
@@ -172,10 +166,8 @@ private class RecordingSendCallbacks(
     private val hasTransport: Boolean = true,
     private val shouldAttemptLargeInlineSend: Boolean = false,
 ) {
-    var inlineSendCalls: Int = 0
-    var largeSendCalls: Int = 0
-    val inlineHardRunEpochs: MutableList<Long> = mutableListOf()
-    val largeHardRunEpochs: MutableList<Long> = mutableListOf()
+    val sendModes: MutableList<MeshEngineOutboundDeliveryMode> = mutableListOf()
+    val sendHardRunEpochs: MutableList<Long> = mutableListOf()
     val retryDiagnostics: MutableList<Pair<PeerId, DeliveryPriority>> = mutableListOf()
     val diagnostics: MutableList<RecordingDiagnostic> = mutableListOf()
 
@@ -185,14 +177,9 @@ private class RecordingSendCallbacks(
             captureHardRunToken = { MeshEngineHardRunToken(7L) },
             hasTransport = { hasTransport },
             shouldAttemptLargeInlineSend = { shouldAttemptLargeInlineSend },
-            sendInlinePayload = { _, _, _, hardRunToken ->
-                inlineSendCalls += 1
-                inlineHardRunEpochs += hardRunToken.epoch
-                SendResult.Sent
-            },
-            sendLargePayload = { _, _, _, hardRunToken ->
-                largeSendCalls += 1
-                largeHardRunEpochs += hardRunToken.epoch
+            sendPayload = { mode, _, _, _, hardRunToken ->
+                sendModes += mode
+                sendHardRunEpochs += hardRunToken.epoch
                 SendResult.Sent
             },
             scheduleRetryDiagnostic = { peerId, priority ->

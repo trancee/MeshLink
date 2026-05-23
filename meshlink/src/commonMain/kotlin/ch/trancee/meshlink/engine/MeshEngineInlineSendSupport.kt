@@ -9,14 +9,8 @@ import ch.trancee.meshlink.diagnostics.DiagnosticReason
 import ch.trancee.meshlink.diagnostics.DiagnosticSeverity
 import ch.trancee.meshlink.transport.TransportSendResult
 import ch.trancee.meshlink.wire.WireFrame
-import kotlin.time.Duration
-import kotlin.time.TimeMark
-import kotlin.time.TimeSource
 
-internal data class MeshEngineInlineConfig(
-    val deliveryRetryDeadline: Duration,
-    val inlineMessagePayloadBytes: Int,
-)
+internal data class MeshEngineInlineConfig(val inlineMessagePayloadBytes: Int)
 
 internal data class MeshEngineInlineRoutingContext(
     val routeCoordinator: ch.trancee.meshlink.routing.RouteCoordinator,
@@ -24,7 +18,6 @@ internal data class MeshEngineInlineRoutingContext(
 )
 
 internal data class MeshEngineInlineDependencies(
-    val deliveryRetrySupport: MeshEngineDeliveryRetrySupport,
     val discoverySuspensionSupport: MeshEngineDiscoverySuspensionSupport,
     val ensureHopSession: suspend (PeerId, MeshEngineHardRunToken) -> SessionEstablishmentOutcome,
     val sendEncryptedDirectWireFrame:
@@ -62,52 +55,57 @@ internal class MeshEngineInlineSendSupport(
     private val dependencies: MeshEngineInlineDependencies,
     private val callbacks: MeshEngineInlineCallbacks,
 ) {
-    suspend fun sendInlinePayload(
-        peerId: PeerId,
-        payload: ByteArray,
-        priority: DeliveryPriority,
-        hardRunToken: MeshEngineHardRunToken,
-    ): SendResult {
-        val startedAt = TimeSource.Monotonic.markNow()
-        var retryState =
-            MeshEngineDeliveryRetryState(
-                attempt = 0,
-                topologyVersion = routingContext.routeCoordinator.topologyVersion.value,
-            )
-        val suspendDiscoveryDuringSend = payload.size > config.inlineMessagePayloadBytes
+    fun currentTopologyVersion(): Long {
+        return routingContext.routeCoordinator.topologyVersion.value
+    }
 
+    fun beginOutboundDelivery(
+        @Suppress("UnusedParameter") context: MeshEngineOutboundDeliveryAttemptContext
+    ): Unit = Unit
+
+    suspend fun <T> withDiscoveryPolicy(
+        context: MeshEngineOutboundDeliveryAttemptContext,
+        block: suspend () -> T,
+    ): T {
         return dependencies.discoverySuspensionSupport.withDiscoverySuspended(
-            shouldSuspend = suspendDiscoveryDuringSend
-        ) {
-            while (startedAt.elapsedNow() < config.deliveryRetryDeadline) {
-                val sendResult =
-                    attemptInlineSend(
-                        peerId = peerId,
-                        payload = payload,
-                        priority = priority,
-                        hardRunToken = hardRunToken,
-                    )
-                if (!sendResult.isRetryableInlineFailure()) {
-                    return@withDiscoverySuspended sendResult
-                }
-                when (
-                    val nextRetryState =
-                        awaitInlineRetryWakeup(
-                            peerId = peerId,
-                            retryState = retryState,
-                            startedAt = startedAt,
-                            hardRunToken = hardRunToken,
-                        )
-                ) {
-                    is MeshEngineDeliveryRetryResult.Woke -> retryState = nextRetryState.state
-                    MeshEngineDeliveryRetryResult.DeadlineExpired -> break
-                    MeshEngineDeliveryRetryResult.HardRunEnded -> {
-                        return@withDiscoverySuspended abortedInlineSendResult()
-                    }
-                }
-            }
-            unreachableInlineSendResult(peerId)
+            shouldSuspend = context.payload.size > config.inlineMessagePayloadBytes,
+            block = block,
+        )
+    }
+
+    suspend fun attemptOutboundDelivery(
+        @Suppress("UnusedParameter") state: Unit,
+        context: MeshEngineOutboundDeliveryAttemptContext,
+    ): MeshEngineOutboundDeliveryAttemptOutcome<Unit> {
+        val sendResult =
+            attemptInlineSend(
+                peerId = context.peerId,
+                payload = context.payload,
+                priority = context.priority,
+                hardRunToken = context.hardRunToken,
+            )
+        return if (!sendResult.isRetryableInlineFailure()) {
+            MeshEngineOutboundDeliveryAttemptOutcome.Completed(sendResult)
+        } else {
+            MeshEngineOutboundDeliveryAttemptOutcome.AwaitRetry(
+                nextState = Unit,
+                retryPolicy = MeshEngineOutboundDeliveryRetryPolicy(INLINE_DELIVERY_RETRY_POLICY),
+            )
         }
+    }
+
+    fun onDeadlineExpired(
+        @Suppress("UnusedParameter") state: Unit,
+        context: MeshEngineOutboundDeliveryAttemptContext,
+    ): SendResult {
+        return unreachableInlineSendResult(context.peerId)
+    }
+
+    fun onHardRunEnded(
+        @Suppress("UnusedParameter") state: Unit,
+        @Suppress("UnusedParameter") context: MeshEngineOutboundDeliveryAttemptContext,
+    ): SendResult {
+        return abortedInlineSendResult()
     }
 
     private suspend fun attemptInlineSend(
@@ -159,21 +157,6 @@ internal class MeshEngineInlineSendSupport(
                 }
             }
         }
-    }
-
-    private suspend fun awaitInlineRetryWakeup(
-        peerId: PeerId,
-        retryState: MeshEngineDeliveryRetryState,
-        startedAt: TimeMark,
-        hardRunToken: MeshEngineHardRunToken,
-    ): MeshEngineDeliveryRetryResult {
-        return dependencies.deliveryRetrySupport.awaitRetry(
-            peerId = peerId,
-            state = retryState,
-            remainingBudget = config.deliveryRetryDeadline - startedAt.elapsedNow(),
-            hardRunToken = hardRunToken,
-            profile = INLINE_DELIVERY_RETRY_PROFILE,
-        )
     }
 
     private suspend fun resolveInlineSession(
@@ -269,14 +252,12 @@ internal class MeshEngineInlineSendSupport(
 }
 
 internal fun buildMeshEngineRuntimeInlineSendSupport(
-    deliveryRetryDeadline: Duration,
     inlineMessagePayloadBytes: Int,
     routeCoordinator: ch.trancee.meshlink.routing.RouteCoordinator,
     routingSupport: MeshEngineRoutingSupport,
     sessionSupport: MeshEngineSessionSupport,
     hopTransportSupport: MeshEngineHopTransportSupport,
     outboundPreparationSupport: MeshEngineOutboundPreparationSupport,
-    deliveryRetrySupport: MeshEngineDeliveryRetrySupport,
     discoverySuspensionSupport: MeshEngineDiscoverySuspensionSupport,
     ttlMillisFor: (DeliveryPriority) -> Int,
     scheduleRetryDiagnostic: (PeerId, DeliveryPriority) -> Unit,
@@ -291,11 +272,7 @@ internal fun buildMeshEngineRuntimeInlineSendSupport(
         ) -> Unit,
 ): MeshEngineInlineSendSupport {
     return MeshEngineInlineSendSupport(
-        config =
-            MeshEngineInlineConfig(
-                deliveryRetryDeadline = deliveryRetryDeadline,
-                inlineMessagePayloadBytes = inlineMessagePayloadBytes,
-            ),
+        config = MeshEngineInlineConfig(inlineMessagePayloadBytes = inlineMessagePayloadBytes),
         routingContext =
             MeshEngineInlineRoutingContext(
                 routeCoordinator = routeCoordinator,
@@ -303,7 +280,6 @@ internal fun buildMeshEngineRuntimeInlineSendSupport(
             ),
         dependencies =
             MeshEngineInlineDependencies(
-                deliveryRetrySupport = deliveryRetrySupport,
                 discoverySuspensionSupport = discoverySuspensionSupport,
                 ensureHopSession = { peerId, hardRunToken ->
                     sessionSupport.ensureHopSession(peerId, hardRunToken)
@@ -319,7 +295,7 @@ internal fun buildMeshEngineRuntimeInlineSendSupport(
     )
 }
 
-private val INLINE_DELIVERY_RETRY_PROFILE =
+private val INLINE_DELIVERY_RETRY_POLICY =
     MeshEngineDeliveryRetryProfile(
         scheduledStage = "delivery.retryScheduled",
         retryingStage = "delivery.retrying",

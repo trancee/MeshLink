@@ -20,10 +20,14 @@ internal data class MeshEngineSendCallbacks(
     val captureHardRunToken: () -> MeshEngineHardRunToken,
     val hasTransport: () -> Boolean,
     val shouldAttemptLargeInlineSend: (PeerId) -> Boolean,
-    val sendInlinePayload:
-        suspend (PeerId, ByteArray, DeliveryPriority, MeshEngineHardRunToken) -> SendResult,
-    val sendLargePayload:
-        suspend (PeerId, ByteArray, DeliveryPriority, MeshEngineHardRunToken) -> SendResult,
+    val sendPayload:
+        suspend (
+            MeshEngineOutboundDeliveryMode,
+            PeerId,
+            ByteArray,
+            DeliveryPriority,
+            MeshEngineHardRunToken,
+        ) -> SendResult,
     val scheduleRetryDiagnostic: (PeerId, DeliveryPriority) -> Unit,
     val emitDiagnostic:
         (
@@ -81,11 +85,13 @@ internal class MeshEngineSendSupport(
 
             else -> {
                 val hardRunToken = callbacks.captureHardRunToken()
-                if (shouldUseInlineDelivery) {
-                    callbacks.sendInlinePayload(peerId, payload, priority, hardRunToken)
-                } else {
-                    callbacks.sendLargePayload(peerId, payload, priority, hardRunToken)
-                }
+                val mode =
+                    if (shouldUseInlineDelivery) {
+                        MeshEngineOutboundDeliveryMode.INLINE
+                    } else {
+                        MeshEngineOutboundDeliveryMode.LARGE_TRANSFER
+                    }
+                callbacks.sendPayload(mode, peerId, payload, priority, hardRunToken)
             }
         }
     }

@@ -198,16 +198,9 @@ private fun buildMeshEngineRuntimeSendSupport(
                 hasTransport = { environment.platformBridge.hasTransport },
                 shouldAttemptLargeInlineSend =
                     sessionAndHopTransport.peerFlowSupport::shouldAttemptLargeInlineSend,
-                sendInlinePayload = { peerId, payload, priority, hardRunToken ->
-                    transferAndInbound.inlineSendSupport.sendInlinePayload(
-                        peerId = peerId,
-                        payload = payload,
-                        priority = priority,
-                        hardRunToken = hardRunToken,
-                    )
-                },
-                sendLargePayload = { peerId, payload, priority, hardRunToken ->
-                    transferAndInbound.largeTransferSupport.sendLargePayload(
+                sendPayload = { mode, peerId, payload, priority, hardRunToken ->
+                    transferAndInbound.outboundDeliverySupport.sendPayload(
+                        mode = mode,
                         peerId = peerId,
                         payload = payload,
                         priority = priority,

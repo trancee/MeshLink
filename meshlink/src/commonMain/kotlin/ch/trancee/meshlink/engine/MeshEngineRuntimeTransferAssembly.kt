@@ -57,14 +57,12 @@ internal fun buildMeshEngineRuntimeTransferAndInboundPhase(
     }
     val inlineSendSupport =
         buildMeshEngineRuntimeInlineSendSupport(
-            deliveryRetryDeadline = environment.config.deliveryRetryDeadline,
             inlineMessagePayloadBytes = INLINE_MESSAGE_PAYLOAD_BYTES,
             routeCoordinator = sharedState.routeCoordinator,
             routingSupport = routingAndTrust.routingSupport,
             sessionSupport = sessionAndHopTransport.sessionSupport,
             hopTransportSupport = sessionAndHopTransport.hopTransportSupport,
             outboundPreparationSupport = outboundPreparationSupport,
-            deliveryRetrySupport = deliveryRetrySupport,
             discoverySuspensionSupport = inlineDiscoverySuspensionSupport,
             ttlMillisFor = sharedState.ttlMillisFor,
             scheduleRetryDiagnostic = routingAndTrust.scheduleRetryDiagnostic,
@@ -83,18 +81,23 @@ internal fun buildMeshEngineRuntimeTransferAndInboundPhase(
         )
     val largeTransferSupport =
         buildMeshEngineRuntimeLargeTransferSupport(
-            deliveryRetryDeadline = environment.config.deliveryRetryDeadline,
             outboundTransfers = sharedState.outboundTransfers,
             routingSupport = routingAndTrust.routingSupport,
             runtimeGate = environment.compatibilitySurface.runtimeGate,
             currentTopologyVersion = { sharedState.routeCoordinator.topologyVersion.value },
             outboundPreparationSupport = outboundPreparationSupport,
-            deliveryRetrySupport = deliveryRetrySupport,
             discoverySuspensionSupport = transferDiscoverySuspensionSupport,
             scheduleRetryDiagnostic = routingAndTrust.scheduleRetryDiagnostic,
             sendTransferTowardsDestination = sendTransferTowardsDestination,
             clearQueuedOutboundFrames = clearQueuedOutboundFrames,
             emitDiagnostic = support.emitDiagnostic,
+        )
+    val outboundDeliverySupport =
+        buildMeshEngineRuntimeOutboundDeliverySupport(
+            deliveryRetryDeadline = environment.config.deliveryRetryDeadline,
+            deliveryRetrySupport = deliveryRetrySupport,
+            inlineSendSupport = inlineSendSupport,
+            largeTransferSupport = largeTransferSupport,
         )
     val inboundSupport =
         buildMeshEngineRuntimeInboundSupport(
@@ -111,9 +114,8 @@ internal fun buildMeshEngineRuntimeTransferAndInboundPhase(
             transferSupport = transferSupport,
         )
     return MeshEngineRuntimeTransferAndInboundPhase(
-        inlineSendSupport = inlineSendSupport,
+        outboundDeliverySupport = outboundDeliverySupport,
         transferSupport = transferSupport,
-        largeTransferSupport = largeTransferSupport,
         inboundSupport = inboundSupport,
     )
 }
@@ -214,6 +216,21 @@ private fun buildMeshEngineRuntimeDiscoverySuspensionSupport(
         val action = if (suspended) suspendAction else resumeAction
         environment.platformBridge.setDiscoverySuspended(action = action, suspended = suspended)
     }
+}
+
+private fun buildMeshEngineRuntimeOutboundDeliverySupport(
+    deliveryRetryDeadline: kotlin.time.Duration,
+    deliveryRetrySupport: MeshEngineDeliveryRetrySupport,
+    inlineSendSupport: MeshEngineInlineSendSupport,
+    largeTransferSupport: MeshEngineLargeTransferSupport,
+): MeshEngineOutboundDeliverySupport {
+    return MeshEngineOutboundDeliverySupport(
+        config = MeshEngineOutboundDeliveryConfig(deliveryRetryDeadline = deliveryRetryDeadline),
+        dependencies =
+            MeshEngineOutboundDeliveryDependencies(deliveryRetrySupport = deliveryRetrySupport),
+        inlineSendSupport = inlineSendSupport,
+        largeTransferSupport = largeTransferSupport,
+    )
 }
 
 private fun buildMeshEngineRuntimeTransferSupport(
