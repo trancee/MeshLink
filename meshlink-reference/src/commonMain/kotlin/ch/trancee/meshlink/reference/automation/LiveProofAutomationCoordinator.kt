@@ -5,6 +5,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import ch.trancee.meshlink.reference.guided.GuidedFirstExchangeViewModel
 import ch.trancee.meshlink.reference.meshlink.ReferenceControllerSnapshot
+import ch.trancee.meshlink.reference.meshlink.redactedSuffix
 import ch.trancee.meshlink.reference.model.TimelineFamily
 import ch.trancee.meshlink.reference.platform.PlatformServices
 import ch.trancee.meshlink.reference.session.ExportPayloadPolicy
@@ -126,6 +127,7 @@ internal class LiveProofAutomationCoordinator(
             guidedViewModel.sendHelloToPeer(bootstrapPeer.peerId)
             progress.bootstrapRequested = true
         }
+        announceBootstrapObservationIfNeeded(snapshot = snapshot, bootstrapPeer = bootstrapPeer)
         if (
             !progress.sendRequested &&
                 targetPeer != null &&
@@ -147,22 +149,108 @@ internal class LiveProofAutomationCoordinator(
             progress.sendRequested = true
         }
 
+        val targetPeerSuffix =
+            targetPeer?.peerSuffix ?: automationConfig.targetPeerId?.let(::redactedSuffix)
+        announceSenderObservationIfNeeded(snapshot = snapshot, targetPeerSuffix = targetPeerSuffix)
+        announceSenderOutcomeIfNeeded(snapshot = snapshot)
+
+        val lastOutcomeSummary = snapshot.session.lastOutcomeSummary
         val deliveryDetail =
-            latestSenderDeliveryDetail(snapshot = snapshot, peerSuffix = targetPeer?.peerSuffix)
+            latestSenderDeliveryDetail(snapshot = snapshot, peerSuffix = targetPeerSuffix)
         if (
             progress.sendRequested &&
                 !progress.completionLogged &&
-                snapshot.session.lastOutcomeSummary == "SendResult.Sent" &&
+                lastOutcomeSummary == "SendResult.Sent" &&
                 deliveryDetail != null
         ) {
             platformServices.emitAutomationLog(
                 "REFERENCE_AUTOMATION proof.complete role=sender " +
-                    "outcome=${snapshot.session.lastOutcomeSummary} " +
-                    "peer=${targetPeer?.peerSuffix ?: "none"} " +
+                    "outcome=$lastOutcomeSummary " +
+                    "peer=${targetPeerSuffix ?: "none"} " +
                     "delivery=$deliveryDetail"
             )
             progress.completionLogged = true
         }
+        if (
+            progress.sendRequested &&
+                !progress.completionLogged &&
+                lastOutcomeSummary != null &&
+                isTerminalSenderFailureOutcome(lastOutcomeSummary)
+        ) {
+            val latestObservation =
+                latestAutomationObservation(snapshot = snapshot, peerSuffix = targetPeerSuffix)
+            platformServices.emitAutomationLog(
+                "REFERENCE_AUTOMATION proof.failed role=sender " +
+                    "outcome=$lastOutcomeSummary " +
+                    "peer=${targetPeerSuffix ?: "none"} " +
+                    "observation=${latestObservation?.title ?: "none"} " +
+                    "detail=${latestObservation?.detail ?: "none"}"
+            )
+            progress.completionLogged = true
+        }
+    }
+
+    private fun announceBootstrapObservationIfNeeded(
+        snapshot: ReferenceControllerSnapshot,
+        bootstrapPeer: AutoSendTargetPeer?,
+    ): Unit {
+        if (!progress.bootstrapRequested || progress.sendRequested || bootstrapPeer == null) {
+            return
+        }
+        val observation =
+            latestAutomationObservation(snapshot = snapshot, peerSuffix = bootstrapPeer.peerSuffix)
+                ?: return
+        if (progress.lastBootstrapObservationEntryId == observation.entryId) {
+            return
+        }
+        platformServices.emitAutomationLog(
+            "REFERENCE_AUTOMATION bootstrap.observed role=sender " +
+                "family=${observation.family} " +
+                "title=${observation.title} " +
+                "peer=${bootstrapPeer.peerSuffix} " +
+                "detail=${observation.detail}"
+        )
+        progress.lastBootstrapObservationEntryId = observation.entryId
+    }
+
+    private fun announceSenderObservationIfNeeded(
+        snapshot: ReferenceControllerSnapshot,
+        targetPeerSuffix: String?,
+    ): Unit {
+        if (!progress.sendRequested || targetPeerSuffix == null) {
+            return
+        }
+        val observation =
+            latestAutomationObservation(snapshot = snapshot, peerSuffix = targetPeerSuffix)
+                ?: return
+        if (progress.lastSenderObservationEntryId == observation.entryId) {
+            return
+        }
+        platformServices.emitAutomationLog(
+            "REFERENCE_AUTOMATION sender.observed role=sender " +
+                "family=${observation.family} " +
+                "title=${observation.title} " +
+                "peer=$targetPeerSuffix " +
+                "detail=${observation.detail}"
+        )
+        progress.lastSenderObservationEntryId = observation.entryId
+    }
+
+    private fun announceSenderOutcomeIfNeeded(snapshot: ReferenceControllerSnapshot): Unit {
+        if (!progress.bootstrapRequested && !progress.sendRequested) {
+            return
+        }
+        val lastOutcomeSummary = snapshot.session.lastOutcomeSummary ?: return
+        if (
+            lastOutcomeSummary == "Peer found" ||
+                progress.lastSenderOutcomeSummary == lastOutcomeSummary
+        ) {
+            return
+        }
+        platformServices.emitAutomationLog(
+            "REFERENCE_AUTOMATION sender.outcome role=sender " + "summary=$lastOutcomeSummary"
+        )
+        progress.lastSenderOutcomeSummary = lastOutcomeSummary
     }
 
     private fun runPassiveAutomationStep(
@@ -171,6 +259,7 @@ internal class LiveProofAutomationCoordinator(
     ): Unit {
         val trustEstablished = hasTimelineEntry(snapshot, "TRUST_ESTABLISHED")
         val inboundMessage = hasTimelineEntry(snapshot, "Inbound message")
+        announcePassiveObservationIfNeeded(snapshot = snapshot)
 
         if (
             shouldRetainPassiveLiveProof(
@@ -211,20 +300,38 @@ internal class LiveProofAutomationCoordinator(
         }
     }
 
-    private fun runRelayAutomationStep(snapshot: ReferenceControllerSnapshot): Unit {
-        val routeDiagnostics =
-            snapshot.timeline.lastOrNull { entry ->
-                entry.family == TimelineFamily.DIAGNOSTIC &&
-                    (entry.title.startsWith("ROUTE_") ||
-                        entry.detail.contains("route", ignoreCase = true))
-            } ?: return
-        if (progress.lastRelayDiagnosticDetail == routeDiagnostics.detail) {
+    private fun announcePassiveObservationIfNeeded(snapshot: ReferenceControllerSnapshot): Unit {
+        val observation = latestAutomationObservation(snapshot = snapshot) ?: return
+        if (progress.lastPassiveObservationEntryId == observation.entryId) {
             return
         }
         platformServices.emitAutomationLog(
-            "REFERENCE_AUTOMATION relay.observed detail=${routeDiagnostics.detail}"
+            "REFERENCE_AUTOMATION passive.observed role=passive " +
+                "family=${observation.family} " +
+                "title=${observation.title} " +
+                "peer=${observation.peerSuffix ?: "none"} " +
+                "detail=${observation.detail}"
         )
-        progress.lastRelayDiagnosticDetail = routeDiagnostics.detail
+        progress.lastPassiveObservationEntryId = observation.entryId
+    }
+
+    private fun runRelayAutomationStep(snapshot: ReferenceControllerSnapshot): Unit {
+        val observation =
+            latestAutomationObservation(
+                snapshot = snapshot,
+                families = setOf(TimelineFamily.DIAGNOSTIC, TimelineFamily.TRANSFER),
+            ) ?: return
+        if (progress.lastRelayObservationEntryId == observation.entryId) {
+            return
+        }
+        platformServices.emitAutomationLog(
+            "REFERENCE_AUTOMATION relay.observed role=relay " +
+                "family=${observation.family} " +
+                "title=${observation.title} " +
+                "peer=${observation.peerSuffix ?: "none"} " +
+                "detail=${observation.detail}"
+        )
+        progress.lastRelayObservationEntryId = observation.entryId
     }
 }
 
@@ -251,5 +358,9 @@ internal class LiveProofAutomationProgress {
     var exportRequested by mutableStateOf(false)
     var completionLogged by mutableStateOf(false)
     var lastPeerSnapshotSummary by mutableStateOf<String?>(null)
-    var lastRelayDiagnosticDetail by mutableStateOf<String?>(null)
+    var lastBootstrapObservationEntryId by mutableStateOf<String?>(null)
+    var lastSenderObservationEntryId by mutableStateOf<String?>(null)
+    var lastPassiveObservationEntryId by mutableStateOf<String?>(null)
+    var lastRelayObservationEntryId by mutableStateOf<String?>(null)
+    var lastSenderOutcomeSummary by mutableStateOf<String?>(null)
 }

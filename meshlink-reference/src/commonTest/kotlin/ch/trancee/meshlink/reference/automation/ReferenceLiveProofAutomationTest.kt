@@ -11,7 +11,9 @@ import ch.trancee.meshlink.reference.model.TimelineEntry
 import ch.trancee.meshlink.reference.model.TimelineFamily
 import ch.trancee.meshlink.reference.model.TimelineSeverity
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 class ReferenceLiveProofAutomationTest {
@@ -179,8 +181,9 @@ class ReferenceLiveProofAutomationTest {
         val bootstrapPeer = bootstrapTargetPeer(snapshot = snapshot, targetPeerId = routedPeerId)
 
         // Assert
-        assertTrue(bootstrapPeer?.peerId == "peer-direct-1")
-        assertTrue(bootstrapPeer?.peerSuffix == "abc123")
+        assertNotNull(bootstrapPeer)
+        assertEquals("peer-direct-1", bootstrapPeer.peerId)
+        assertEquals("abc123", bootstrapPeer.peerSuffix)
     }
 
     @Test
@@ -286,8 +289,75 @@ class ReferenceLiveProofAutomationTest {
 
         // Assert
         assertTrue(actual)
-        assertTrue(selectedTarget?.peerId == routedPeerId)
-        assertTrue(selectedTarget?.peerSuffix == redactedSuffix(routedPeerId))
+        assertNotNull(selectedTarget)
+        assertEquals(routedPeerId, selectedTarget.peerId)
+        assertEquals(redactedSuffix(routedPeerId), selectedTarget.peerSuffix)
+    }
+
+    @Test
+    fun latestAutomationObservationUsesTheNewestMatchingPeerEntry() {
+        // Arrange
+        val routedPeerId = "peer-routed-target-abcdef"
+        val targetPeerSuffix = redactedSuffix(routedPeerId)
+        val snapshot =
+            ReferenceControllerSnapshot(
+                session =
+                    ReferenceSession(
+                        sessionId = "session-1",
+                        scenarioId = "guided-first-exchange",
+                        authorityMode = ReferenceAuthorityMode.LIVE,
+                        startedAtEpochMillis = 1L,
+                    ),
+                peers = emptyList(),
+                timeline =
+                    listOf(
+                        TimelineEntry(
+                            entryId = "session-1-1",
+                            sessionId = "session-1",
+                            occurredAtEpochMillis = 2L,
+                            family = TimelineFamily.DIAGNOSTIC,
+                            severity = TimelineSeverity.INFO,
+                            title = "ROUTE_DISCOVERED",
+                            detail = "route available",
+                            peerSuffix = targetPeerSuffix,
+                        ),
+                        TimelineEntry(
+                            entryId = "session-1-2",
+                            sessionId = "session-1",
+                            occurredAtEpochMillis = 3L,
+                            family = TimelineFamily.MESSAGE,
+                            severity = TimelineSeverity.ERROR,
+                            title = "Guided message not sent",
+                            detail = "send unreachable",
+                            peerSuffix = targetPeerSuffix,
+                        ),
+                    ),
+                activePowerModeLabel = "Automatic",
+            )
+
+        // Act
+        val observation =
+            latestAutomationObservation(snapshot = snapshot, peerSuffix = targetPeerSuffix)
+
+        // Assert
+        assertNotNull(observation)
+        assertEquals("Guided message not sent", observation.title)
+        assertEquals("send unreachable", observation.detail)
+    }
+
+    @Test
+    fun terminalSenderFailureOutcomeMatchesNotSentSummaries() {
+        // Arrange
+        val failureSummary = "SendResult.NotSent(UNREACHABLE)"
+        val successSummary = "SendResult.Sent"
+
+        // Act
+        val failureDetected = isTerminalSenderFailureOutcome(failureSummary)
+        val successDetected = isTerminalSenderFailureOutcome(successSummary)
+
+        // Assert
+        assertTrue(failureDetected)
+        assertFalse(successDetected)
     }
 
     @Test

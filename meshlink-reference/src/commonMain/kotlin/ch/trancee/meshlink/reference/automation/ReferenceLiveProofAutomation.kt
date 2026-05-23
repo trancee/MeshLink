@@ -10,6 +10,7 @@ import androidx.compose.runtime.remember
 import ch.trancee.meshlink.reference.guided.GuidedFirstExchangeViewModel
 import ch.trancee.meshlink.reference.meshlink.ReferenceControllerSnapshot
 import ch.trancee.meshlink.reference.meshlink.redactedSuffix
+import ch.trancee.meshlink.reference.model.TimelineEntry
 import ch.trancee.meshlink.reference.model.TimelineFamily
 import ch.trancee.meshlink.reference.platform.PlatformServices
 import ch.trancee.meshlink.reference.timeline.TechnicalTimelineStore
@@ -161,3 +162,20 @@ internal fun hasMeshEnteredLifecycle(meshStateLabel: String): Boolean {
 internal fun isMeshRunning(meshStateLabel: String): Boolean {
     return meshStateLabel.contains("Running")
 }
+
+internal fun latestAutomationObservation(
+    snapshot: ReferenceControllerSnapshot,
+    peerSuffix: String? = null,
+    families: Set<TimelineFamily> = DEFAULT_AUTOMATION_OBSERVATION_FAMILIES,
+): TimelineEntry? {
+    return snapshot.timeline.lastOrNull { entry ->
+        entry.family in families && (peerSuffix == null || entry.peerSuffix == peerSuffix)
+    }
+}
+
+internal fun isTerminalSenderFailureOutcome(lastOutcomeSummary: String): Boolean {
+    return lastOutcomeSummary.startsWith("SendResult.NotSent(")
+}
+
+private val DEFAULT_AUTOMATION_OBSERVATION_FAMILIES: Set<TimelineFamily> =
+    setOf(TimelineFamily.DIAGNOSTIC, TimelineFamily.MESSAGE, TimelineFamily.TRANSFER)
