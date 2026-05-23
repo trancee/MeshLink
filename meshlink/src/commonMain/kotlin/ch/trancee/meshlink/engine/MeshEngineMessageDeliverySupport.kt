@@ -41,6 +41,7 @@ internal class MeshEngineMessageDeliverySupport(
                 val plaintext = openInnerEnvelope(envelope, senderTrust)
                 if (plaintext != null) {
                     emitInboundMessage(
+                        immediatePeerId = immediatePeerId,
                         originPeerId = originPeerId,
                         payload = plaintext,
                         priority = priority,
@@ -102,6 +103,7 @@ internal class MeshEngineMessageDeliverySupport(
     }
 
     private suspend fun emitInboundMessage(
+        immediatePeerId: PeerId,
         originPeerId: PeerId,
         payload: ByteArray,
         priority: DeliveryPriority,
@@ -113,6 +115,19 @@ internal class MeshEngineMessageDeliverySupport(
                 receivedAtEpochMillis = currentEpochMillis(),
                 priority = priority,
             )
+        )
+        emitDiagnostic(
+            DiagnosticCode.DELIVERY_SUCCEEDED,
+            DiagnosticSeverity.INFO,
+            "transport.data.deliver",
+            originPeerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
+            null,
+            mapOf(
+                "peerId" to originPeerId.value,
+                "originPeerId" to originPeerId.value,
+                "immediatePeerId" to immediatePeerId.value,
+                "payloadBytes" to payload.size.toString(),
+            ),
         )
     }
 }

@@ -13,6 +13,7 @@ import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.milliseconds
@@ -55,6 +56,67 @@ class MeshRoutingIntegrationTest {
         // Assert
         assertIs<SendResult.Sent>(sendResult)
         assertContentEquals(payload, receivedMessage.payload)
+    }
+
+    @Test
+    fun `relay forwarding emits diagnostics and recipient delivery is observable`() = runBlocking {
+        // Arrange
+        val harness = MeshTestHarness()
+        val sender = harness.createNode("peer-a")
+        val relay = harness.createNode("peer-b")
+        val recipient = harness.createNode("peer-c")
+        val payload = "relay diagnostics".encodeToByteArray()
+
+        harness.linkPeers(sender, relay)
+        harness.linkPeers(relay, recipient)
+
+        sender.api.start()
+        relay.api.start()
+        recipient.api.start()
+        delay(250)
+        val receivedMessageDeferred =
+            async(start = CoroutineStart.UNDISPATCHED) {
+                withTimeout(1_000) { recipient.api.messages.first() }
+            }
+
+        // Act
+        val sendResult = sender.api.send(recipient.peerId, payload)
+        val receivedMessage = receivedMessageDeferred.await()
+
+        // Assert
+        assertIs<SendResult.Sent>(sendResult)
+        assertContentEquals(payload, receivedMessage.payload)
+        val relayDiagnostics = relay.diagnosticSink.events()
+        val relayQueued = relayDiagnostics.firstOrNull { event ->
+            event.code == DiagnosticCode.DELIVERY_QUEUED &&
+                event.stage == "forward.message.queued" &&
+                event.metadata["peerId"] == recipient.peerId.value &&
+                event.metadata["originPeerId"] == sender.peerId.value &&
+                event.metadata["routeAvailable"] == "true"
+        }
+        val relayDelivered = relayDiagnostics.firstOrNull { event ->
+            event.code == DiagnosticCode.DELIVERY_SUCCEEDED &&
+                event.stage == "forward.message.delivered" &&
+                event.metadata["peerId"] == recipient.peerId.value &&
+                event.metadata["originPeerId"] == sender.peerId.value &&
+                event.metadata["routeAvailable"] == "true"
+        }
+        val recipientDelivered =
+            recipient.diagnosticSink.events().firstOrNull { event ->
+                event.code == DiagnosticCode.DELIVERY_SUCCEEDED &&
+                    event.stage == "transport.data.deliver" &&
+                    event.metadata["peerId"] == sender.peerId.value &&
+                    event.metadata["originPeerId"] == sender.peerId.value &&
+                    event.metadata["immediatePeerId"] == relay.peerId.value &&
+                    event.metadata["payloadBytes"] == payload.size.toString()
+            }
+        assertNotNull(relayQueued, "Expected relay to log queued forwarding diagnostics")
+        assertNotNull(relayDelivered, "Expected relay to log successful forwarding diagnostics")
+        assertNotNull(
+            recipientDelivered,
+            "Expected recipient to log delivery diagnostics after inbound message emission",
+        )
+        Unit
     }
 
     @Test

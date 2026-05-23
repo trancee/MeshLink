@@ -184,6 +184,10 @@ private constructor(
                     maximumPayloadBytesPerDelivery = { peerId ->
                         bleTransport?.maximumPayloadBytesPerDelivery(peerId)
                     },
+                    emitDiagnostic = ::emitDiagnostic,
+                    peerRouteMetadata = { peerId, metadata ->
+                        routingSupport.peerRouteMetadata(peerId, metadata = metadata)
+                    },
                 ),
         )
     private val handshakeState = MeshEngineHandshakeState(sessionRegistry = sessionRegistry)

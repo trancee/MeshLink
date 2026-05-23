@@ -1,6 +1,9 @@
 package ch.trancee.meshlink.engine
 
 import ch.trancee.meshlink.api.PeerId
+import ch.trancee.meshlink.diagnostics.DiagnosticCode
+import ch.trancee.meshlink.diagnostics.DiagnosticReason
+import ch.trancee.meshlink.diagnostics.DiagnosticSeverity
 import ch.trancee.meshlink.identity.LocalIdentity
 import ch.trancee.meshlink.identity.hexContentEquals
 import ch.trancee.meshlink.routing.RouteCoordinator
@@ -19,6 +22,16 @@ internal data class MeshEnginePeerFlowCallbacks(
     val sendEncryptedWireFrame: suspend (PeerId, WireFrame, String) -> Boolean,
     val ensureHopSession: suspend (PeerId) -> SessionEstablishmentOutcome,
     val maximumPayloadBytesPerDelivery: (PeerId) -> Int?,
+    val emitDiagnostic:
+        (
+            DiagnosticCode,
+            DiagnosticSeverity,
+            String,
+            String?,
+            DiagnosticReason?,
+            Map<String, String>,
+        ) -> Unit,
+    val peerRouteMetadata: (PeerId, Map<String, String>) -> Map<String, String>,
 )
 
 internal class MeshEnginePeerFlowSupport(
@@ -45,9 +58,44 @@ internal class MeshEnginePeerFlowSupport(
     }
 
     fun forwardMessageToNextHop(frame: WireFrame.Message): Unit {
-        val nextHopPeerId = context.routeCoordinator.nextHopFor(frame.destinationPeerId) ?: return
+        val destinationPeerId = frame.destinationPeerId
+        val originPeerId = frame.originPeerId
+        val peerSuffix = destinationPeerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH)
+        val diagnosticMetadata =
+            mapOf("originPeerId" to originPeerId.value, "forwardAction" to "relay")
+        val nextHopPeerId = context.routeCoordinator.nextHopFor(destinationPeerId)
+        if (nextHopPeerId == null) {
+            callbacks.emitDiagnostic(
+                DiagnosticCode.DELIVERY_UNREACHABLE,
+                DiagnosticSeverity.ERROR,
+                "forward.message.noRoute",
+                peerSuffix,
+                DiagnosticReason.DELIVERY_FAILURE,
+                callbacks.peerRouteMetadata(destinationPeerId, diagnosticMetadata),
+            )
+            return
+        }
+
+        callbacks.emitDiagnostic(
+            DiagnosticCode.DELIVERY_QUEUED,
+            DiagnosticSeverity.INFO,
+            "forward.message.queued",
+            peerSuffix,
+            null,
+            callbacks.peerRouteMetadata(destinationPeerId, diagnosticMetadata),
+        )
         context.coroutineScope.launch {
-            callbacks.sendEncryptedWireFrame(nextHopPeerId, frame, "forward.message")
+            val forwarded =
+                callbacks.sendEncryptedWireFrame(nextHopPeerId, frame, "forward.message")
+            callbacks.emitDiagnostic(
+                if (forwarded) DiagnosticCode.DELIVERY_SUCCEEDED
+                else DiagnosticCode.DELIVERY_UNREACHABLE,
+                if (forwarded) DiagnosticSeverity.INFO else DiagnosticSeverity.ERROR,
+                if (forwarded) "forward.message.delivered" else "forward.message.failed",
+                peerSuffix,
+                if (forwarded) null else DiagnosticReason.DELIVERY_FAILURE,
+                callbacks.peerRouteMetadata(destinationPeerId, diagnosticMetadata),
+            )
         }
     }
 
