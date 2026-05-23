@@ -723,39 +723,87 @@ private class RuntimeGraphAssembler(
         val handshake = context.handshake
         val transferAndInbound = context.transferAndInbound
         val transportSupport =
-            MeshEngineTransportSupport(
-                peerState =
-                    MeshEngineTransportPeerState(
-                        presenceTracker = sharedState.presenceTracker,
-                        mutablePeerEvents = runtimeSurface.mutablePeerEvents,
-                        sessionRegistry = sharedState.sessionRegistry,
-                    ),
-                routingContext =
-                    MeshEngineTransportRoutingContext(
-                        routeCoordinator = sharedState.routeCoordinator,
-                        routingSupport = routingAndTrust.routingSupport,
-                    ),
-                callbacks =
-                    MeshEngineTransportCallbacks(
-                        prewarmHopSession =
-                            sessionAndHopTransport.peerFlowSupport::prewarmHopSession,
-                        handleHandshakeMessage1 =
-                            handshake.responderHandshakeSupport::handleHandshakeMessage1,
-                        handleHandshakeMessage2 =
-                            handshake.initiatorHandshakeSupport::handleHandshakeMessage2,
-                        handleHandshakeMessage3 =
-                            handshake.responderHandshakeSupport::handleHandshakeMessage3,
-                        handleEncryptedDataFrame =
-                            transferAndInbound.inboundSupport::handleEncryptedDataFrame,
-                    ),
-                emitDiagnostic = ::emitDiagnostic,
+            buildTransportSupport(
+                sharedState = sharedState,
+                routingAndTrust = routingAndTrust,
+                sessionAndHopTransport = sessionAndHopTransport,
+                handshake = handshake,
+                transferAndInbound = transferAndInbound,
             )
-        val transportCollector =
-            MeshEngineTransportCollector(
-                coroutineScope = coroutineScope,
-                transportEvents = { platformBridge.events },
-                handleTransportEvent = transportSupport::handleTransportEvent,
+        val transportCollector = buildTransportCollector(transportSupport)
+        val lifecycleSupport =
+            buildLifecycleSupport(
+                sharedState = sharedState,
+                transportSupport = transportSupport,
+                transportCollector = transportCollector,
+                transferAndInbound = transferAndInbound,
             )
+        val sendSupport =
+            buildSendSupport(
+                sessionAndHopTransport = sessionAndHopTransport,
+                transferAndInbound = transferAndInbound,
+                routingAndTrust = routingAndTrust,
+            )
+        val peerForgetSupport =
+            buildPeerForgetSupport(sharedState = sharedState, routingAndTrust = routingAndTrust)
+        return FacadeOperationsPhase(
+            lifecycleSupport = lifecycleSupport,
+            sendSupport = sendSupport,
+            peerForgetSupport = peerForgetSupport,
+        )
+    }
+
+    private fun buildTransportSupport(
+        sharedState: SharedState,
+        routingAndTrust: RoutingAndTrustPhase,
+        sessionAndHopTransport: SessionAndHopTransportPhase,
+        handshake: HandshakePhase,
+        transferAndInbound: TransferAndInboundPhase,
+    ): MeshEngineTransportSupport {
+        return MeshEngineTransportSupport(
+            peerState =
+                MeshEngineTransportPeerState(
+                    presenceTracker = sharedState.presenceTracker,
+                    mutablePeerEvents = runtimeSurface.mutablePeerEvents,
+                    sessionRegistry = sharedState.sessionRegistry,
+                ),
+            routingContext =
+                MeshEngineTransportRoutingContext(
+                    routeCoordinator = sharedState.routeCoordinator,
+                    routingSupport = routingAndTrust.routingSupport,
+                ),
+            callbacks =
+                MeshEngineTransportCallbacks(
+                    prewarmHopSession = sessionAndHopTransport.peerFlowSupport::prewarmHopSession,
+                    handleHandshakeMessage1 =
+                        handshake.responderHandshakeSupport::handleHandshakeMessage1,
+                    handleHandshakeMessage2 =
+                        handshake.initiatorHandshakeSupport::handleHandshakeMessage2,
+                    handleHandshakeMessage3 =
+                        handshake.responderHandshakeSupport::handleHandshakeMessage3,
+                    handleEncryptedDataFrame =
+                        transferAndInbound.inboundSupport::handleEncryptedDataFrame,
+                ),
+            emitDiagnostic = ::emitDiagnostic,
+        )
+    }
+
+    private fun buildTransportCollector(
+        transportSupport: MeshEngineTransportSupport
+    ): MeshEngineTransportCollector {
+        return MeshEngineTransportCollector(
+            coroutineScope = coroutineScope,
+            transportEvents = { platformBridge.events },
+            handleTransportEvent = transportSupport::handleTransportEvent,
+        )
+    }
+
+    private fun buildLifecycleSupport(
+        sharedState: SharedState,
+        transportSupport: MeshEngineTransportSupport,
+        transportCollector: MeshEngineTransportCollector,
+        transferAndInbound: TransferAndInboundPhase,
+    ): MeshEngineLifecycleSupport {
         val lifecycleState =
             MeshEngineLifecycleState(
                 runtimeSurface = runtimeSurface,
@@ -764,121 +812,126 @@ private class RuntimeGraphAssembler(
                 relayTransfers = sharedState.relayTransfers,
                 currentPowerPolicy = sharedState.powerPolicyController.currentPolicy(nowMillis = 0L),
             )
-        val lifecycleSupport =
-            MeshEngineLifecycleSupport(
-                powerPolicyController = sharedState.powerPolicyController,
-                powerPolicyNowMillis = sharedState.powerPolicyNowMillis,
-                state = lifecycleState,
-                callbacks =
-                    MeshEngineLifecycleCallbacks(
-                        ensureTransportCollector = transportCollector::ensureStarted,
-                        stopTransportCollector = transportCollector::stop,
-                        updateTransportPowerPolicy = platformBridge::updatePowerPolicy,
-                        startTransport = platformBridge::start,
-                        pauseTransport = platformBridge::pause,
-                        resumeTransport = platformBridge::resume,
-                        stopTransport = platformBridge::stop,
-                        launchTransportPowerPolicyUpdate = { policy ->
-                            coroutineScope.launch { platformBridge.updatePowerPolicy(policy) }
-                        },
-                        clearVolatileRuntimeView = { stage, removalCode, metadata ->
-                            transportSupport.clearRuntimeView(
-                                stage = stage,
-                                removalCode = removalCode,
-                                metadata = metadata,
-                            )
-                        },
-                        abortCommittedTransfers = { reasonCode ->
-                            transferAndInbound.transferSupport.abortLocalTransfers(reasonCode)
-                        },
-                    ),
-                diagnostics =
-                    MeshEngineLifecycleDiagnostics(
-                        emitLifecycleEvent = { code, stage ->
-                            emitDiagnostic(
-                                code = code,
-                                severity = DiagnosticSeverity.INFO,
-                                stage = stage,
-                                reason = DiagnosticReason.STATE_CHANGE,
-                            )
-                        },
-                        emitPowerModeChanged = { policy, level, isCharging ->
-                            emitDiagnostic(
-                                code = DiagnosticCode.POWER_MODE_CHANGED,
-                                severity = DiagnosticSeverity.INFO,
-                                stage = "power.updateBattery",
-                                reason = DiagnosticReason.POWER_CHANGE,
-                                metadata =
-                                    powerPolicyMetadata(
-                                        policy = policy,
-                                        level = level,
-                                        isCharging = isCharging,
-                                    ),
-                            )
-                        },
-                    ),
-            )
-        val sendSupport =
-            MeshEngineSendSupport(
-                config =
-                    MeshEngineSendConfig(
-                        maxSupportedPayloadBytes = MAX_SUPPORTED_PAYLOAD_BYTES,
-                        inlineMessagePayloadBytes = INLINE_MESSAGE_PAYLOAD_BYTES,
-                    ),
-                callbacks =
-                    MeshEngineSendCallbacks(
-                        currentLifecycleState = runtimeSurface::currentState,
-                        captureHardRunToken = runtimeSurface.runtimeGate::captureHardRunToken,
-                        hasTransport = { platformBridge.hasTransport },
-                        shouldAttemptLargeInlineSend =
-                            sessionAndHopTransport.peerFlowSupport::shouldAttemptLargeInlineSend,
-                        sendInlinePayload = { peerId, payload, priority, hardRunToken ->
-                            transferAndInbound.inlineSendSupport.sendInlinePayload(
-                                peerId = peerId,
-                                payload = payload,
-                                priority = priority,
-                                hardRunToken = hardRunToken,
-                            )
-                        },
-                        sendLargePayload = { peerId, payload, priority, hardRunToken ->
-                            transferAndInbound.largeTransferSupport.sendLargePayload(
-                                peerId = peerId,
-                                payload = payload,
-                                priority = priority,
-                                hardRunToken = hardRunToken,
-                            )
-                        },
-                        scheduleRetryDiagnostic = routingAndTrust.scheduleRetryDiagnostic,
-                        emitDiagnostic = ::emitDiagnostic,
-                    ),
-            )
-        val peerForgetSupport =
-            MeshEnginePeerForgetSupport(
-                callbacks =
-                    MeshEnginePeerForgetCallbacks(
-                        readFirstSeenAtEpochMillis = { peerId ->
-                            trustStore.read(peerId.value)?.firstSeenAtEpochMillis
-                        },
-                        deleteTrust = { peerId -> trustStore.delete(peerId.value) },
-                        clearPeer = sharedState.sessionRegistry::clearPeer,
-                        dispatchPeerDisconnected = { peerId, metadata ->
-                            routingAndTrust.routingSupport.dispatchMutation(
-                                mutation = sharedState.routeCoordinator.onPeerDisconnected(peerId),
-                                stage = "trust.forgetPeer",
-                                removalCode = DiagnosticCode.ROUTE_RETRACTED,
-                                metadata = metadata,
-                            )
-                        },
-                        markPeerDisconnected = sharedState.presenceTracker::onPeerDisconnected,
-                        emitPeerLost = { peerId ->
-                            runtimeSurface.mutablePeerEvents.emit(PeerEvent.Lost(peerId))
-                        },
-                    )
-            )
-        return FacadeOperationsPhase(
-            lifecycleSupport = lifecycleSupport,
-            sendSupport = sendSupport,
-            peerForgetSupport = peerForgetSupport,
+        return MeshEngineLifecycleSupport(
+            powerPolicyController = sharedState.powerPolicyController,
+            powerPolicyNowMillis = sharedState.powerPolicyNowMillis,
+            state = lifecycleState,
+            callbacks =
+                MeshEngineLifecycleCallbacks(
+                    ensureTransportCollector = transportCollector::ensureStarted,
+                    stopTransportCollector = transportCollector::stop,
+                    updateTransportPowerPolicy = platformBridge::updatePowerPolicy,
+                    startTransport = platformBridge::start,
+                    pauseTransport = platformBridge::pause,
+                    resumeTransport = platformBridge::resume,
+                    stopTransport = platformBridge::stop,
+                    launchTransportPowerPolicyUpdate = { policy ->
+                        coroutineScope.launch { platformBridge.updatePowerPolicy(policy) }
+                    },
+                    clearVolatileRuntimeView = { stage, removalCode, metadata ->
+                        transportSupport.clearRuntimeView(
+                            stage = stage,
+                            removalCode = removalCode,
+                            metadata = metadata,
+                        )
+                    },
+                    abortCommittedTransfers = { reasonCode ->
+                        transferAndInbound.transferSupport.abortLocalTransfers(reasonCode)
+                    },
+                ),
+            diagnostics =
+                MeshEngineLifecycleDiagnostics(
+                    emitLifecycleEvent = { code, stage ->
+                        emitDiagnostic(
+                            code = code,
+                            severity = DiagnosticSeverity.INFO,
+                            stage = stage,
+                            reason = DiagnosticReason.STATE_CHANGE,
+                        )
+                    },
+                    emitPowerModeChanged = { policy, level, isCharging ->
+                        emitDiagnostic(
+                            code = DiagnosticCode.POWER_MODE_CHANGED,
+                            severity = DiagnosticSeverity.INFO,
+                            stage = "power.updateBattery",
+                            reason = DiagnosticReason.POWER_CHANGE,
+                            metadata =
+                                powerPolicyMetadata(
+                                    policy = policy,
+                                    level = level,
+                                    isCharging = isCharging,
+                                ),
+                        )
+                    },
+                ),
+        )
+    }
+
+    private fun buildSendSupport(
+        sessionAndHopTransport: SessionAndHopTransportPhase,
+        transferAndInbound: TransferAndInboundPhase,
+        routingAndTrust: RoutingAndTrustPhase,
+    ): MeshEngineSendSupport {
+        return MeshEngineSendSupport(
+            config =
+                MeshEngineSendConfig(
+                    maxSupportedPayloadBytes = MAX_SUPPORTED_PAYLOAD_BYTES,
+                    inlineMessagePayloadBytes = INLINE_MESSAGE_PAYLOAD_BYTES,
+                ),
+            callbacks =
+                MeshEngineSendCallbacks(
+                    currentLifecycleState = runtimeSurface::currentState,
+                    captureHardRunToken = runtimeSurface.runtimeGate::captureHardRunToken,
+                    hasTransport = { platformBridge.hasTransport },
+                    shouldAttemptLargeInlineSend =
+                        sessionAndHopTransport.peerFlowSupport::shouldAttemptLargeInlineSend,
+                    sendInlinePayload = { peerId, payload, priority, hardRunToken ->
+                        transferAndInbound.inlineSendSupport.sendInlinePayload(
+                            peerId = peerId,
+                            payload = payload,
+                            priority = priority,
+                            hardRunToken = hardRunToken,
+                        )
+                    },
+                    sendLargePayload = { peerId, payload, priority, hardRunToken ->
+                        transferAndInbound.largeTransferSupport.sendLargePayload(
+                            peerId = peerId,
+                            payload = payload,
+                            priority = priority,
+                            hardRunToken = hardRunToken,
+                        )
+                    },
+                    scheduleRetryDiagnostic = routingAndTrust.scheduleRetryDiagnostic,
+                    emitDiagnostic = ::emitDiagnostic,
+                ),
+        )
+    }
+
+    private fun buildPeerForgetSupport(
+        sharedState: SharedState,
+        routingAndTrust: RoutingAndTrustPhase,
+    ): MeshEnginePeerForgetSupport {
+        return MeshEnginePeerForgetSupport(
+            callbacks =
+                MeshEnginePeerForgetCallbacks(
+                    readFirstSeenAtEpochMillis = { peerId ->
+                        trustStore.read(peerId.value)?.firstSeenAtEpochMillis
+                    },
+                    deleteTrust = { peerId -> trustStore.delete(peerId.value) },
+                    clearPeer = sharedState.sessionRegistry::clearPeer,
+                    dispatchPeerDisconnected = { peerId, metadata ->
+                        routingAndTrust.routingSupport.dispatchMutation(
+                            mutation = sharedState.routeCoordinator.onPeerDisconnected(peerId),
+                            stage = "trust.forgetPeer",
+                            removalCode = DiagnosticCode.ROUTE_RETRACTED,
+                            metadata = metadata,
+                        )
+                    },
+                    markPeerDisconnected = sharedState.presenceTracker::onPeerDisconnected,
+                    emitPeerLost = { peerId ->
+                        runtimeSurface.mutablePeerEvents.emit(PeerEvent.Lost(peerId))
+                    },
+                )
         )
     }
 
