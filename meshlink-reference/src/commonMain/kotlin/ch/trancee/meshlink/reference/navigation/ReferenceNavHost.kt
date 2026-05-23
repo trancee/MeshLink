@@ -56,7 +56,6 @@ import ch.trancee.meshlink.reference.session.ExportPayloadPolicy
 import ch.trancee.meshlink.reference.session.JsonSessionArtifactSerializer
 import ch.trancee.meshlink.reference.session.JsonSessionHistoryRepository
 import ch.trancee.meshlink.reference.session.ReferenceSessionController
-import ch.trancee.meshlink.reference.session.ReferenceSessionKind
 import ch.trancee.meshlink.reference.session.referenceSessionKind
 import ch.trancee.meshlink.reference.solo.SoloExplorationScreen
 import ch.trancee.meshlink.reference.timeline.TechnicalTimelineScreen
@@ -136,44 +135,33 @@ public fun ReferenceNavHost(platformServices: PlatformServices) {
     }
 
     fun selectSurface(surface: ReferenceSurfaceId): Unit {
-        val currentKind = snapshot.referenceSessionKind()
-        when {
-            currentKind == ReferenceSessionKind.SUPPORTED_LIVE &&
-                surface == ReferenceSurfaceId.SOLO_EXPLORATION -> {
-                pendingBoundary = SessionBoundaryRequest.SupportedTo(surface)
+        when (
+            val decision =
+                resolveSurfaceSelection(
+                    ReferenceSurfaceSelectionRequest(
+                        currentKind = snapshot.referenceSessionKind(),
+                        activeRoute = activeRoute,
+                        targetSurface = surface,
+                    )
+                )
+        ) {
+            is ReferenceSurfaceSelectionDecision.SelectSurface ->
+                applySurfaceSelection(decision.surface)
+
+            is ReferenceSurfaceSelectionDecision.RequireBoundary -> {
+                pendingBoundary = decision.request
             }
-            currentKind == ReferenceSessionKind.SUPPORTED_LIVE &&
-                surface == ReferenceSurfaceId.LAB -> {
-                pendingBoundary = SessionBoundaryRequest.SupportedTo(surface)
-            }
-            currentKind == ReferenceSessionKind.SOLO || currentKind == ReferenceSessionKind.LAB -> {
-                when (surface) {
-                    ReferenceSurfaceId.MAIN_GUIDED,
-                    ReferenceSurfaceId.ADVANCED_CONTROLS,
-                    ReferenceSurfaceId.SOLO_EXPLORATION,
-                    ReferenceSurfaceId.LAB -> {
-                        if (surface != activeRoute) {
-                            pendingBoundary = SessionBoundaryRequest.AlternativeTo(surface)
-                        }
+
+            is ReferenceSurfaceSelectionDecision.StartNewSession -> {
+                coroutineScope.launch {
+                    when (decision.surface) {
+                        ReferenceSurfaceId.SOLO_EXPLORATION -> sessionController.startSoloSession()
+                        ReferenceSurfaceId.LAB -> sessionController.startLabSession()
+                        else -> Unit
                     }
-                    else -> applySurfaceSelection(surface)
+                    applySurfaceSelection(decision.surface)
                 }
             }
-            currentKind == ReferenceSessionKind.SUPPORTED_ENDED &&
-                surface == ReferenceSurfaceId.SOLO_EXPLORATION -> {
-                coroutineScope.launch {
-                    sessionController.startSoloSession()
-                    applySurfaceSelection(surface)
-                }
-            }
-            currentKind == ReferenceSessionKind.SUPPORTED_ENDED &&
-                surface == ReferenceSurfaceId.LAB -> {
-                coroutineScope.launch {
-                    sessionController.startLabSession()
-                    applySurfaceSelection(surface)
-                }
-            }
-            else -> applySurfaceSelection(surface)
         }
     }
 
@@ -275,11 +263,12 @@ private fun ReferenceShellScaffold(
                 onOpenSolo = { onSelectSurface(ReferenceSurfaceId.SOLO_EXPLORATION) },
             )
             pendingBoundary?.let { boundary ->
+                val dialogContent = boundary.toDialogContent()
                 SessionBoundaryDialog(
-                    title = boundary.dialogTitle(),
-                    body = boundary.dialogBody(),
-                    exportLabel = boundary.exportLabel(),
-                    continueLabel = boundary.continueLabel(),
+                    title = dialogContent.title,
+                    body = dialogContent.body,
+                    exportLabel = dialogContent.exportLabel,
+                    continueLabel = dialogContent.continueLabel,
                     onExportAndContinue = { onConfirmBoundary(boundary, true) },
                     onContinueWithoutExport = { onConfirmBoundary(boundary, false) },
                     onCancel = onDismissBoundary,
@@ -475,53 +464,5 @@ private class SessionAwarePlatformServices(
         surfaceOfOrigin: String
     ): ch.trancee.meshlink.reference.meshlink.ReferenceMeshLinkController {
         return delegate.createSupportedMeshLinkController(surfaceOfOrigin)
-    }
-}
-
-private sealed interface SessionBoundaryRequest {
-    val targetSurface: ReferenceSurfaceId
-
-    data class SupportedTo(override val targetSurface: ReferenceSurfaceId) : SessionBoundaryRequest
-
-    data class AlternativeTo(override val targetSurface: ReferenceSurfaceId) :
-        SessionBoundaryRequest
-}
-
-private fun SessionBoundaryRequest.dialogTitle(): String {
-    return when (this) {
-        is SessionBoundaryRequest.SupportedTo -> "Start a new session"
-        is SessionBoundaryRequest.AlternativeTo -> "Leave current session"
-    }
-}
-
-private fun SessionBoundaryRequest.dialogBody(): String {
-    return when (this) {
-        is SessionBoundaryRequest.SupportedTo ->
-            "This closes the current supported session and starts a new ${targetSurface.titleForBoundary()} session."
-        is SessionBoundaryRequest.AlternativeTo ->
-            "This closes the current solo or lab session and starts a new ${targetSurface.titleForBoundary()} session."
-    }
-}
-
-private fun SessionBoundaryRequest.exportLabel(): String {
-    return when (this) {
-        is SessionBoundaryRequest.SupportedTo -> "Export full and continue"
-        is SessionBoundaryRequest.AlternativeTo -> "Export redacted and continue"
-    }
-}
-
-private fun SessionBoundaryRequest.continueLabel(): String {
-    return when (this) {
-        is SessionBoundaryRequest.SupportedTo -> "Continue without export"
-        is SessionBoundaryRequest.AlternativeTo -> "Continue without export"
-    }
-}
-
-private fun ReferenceSurfaceId.titleForBoundary(): String {
-    return when (this) {
-        ReferenceSurfaceId.SOLO_EXPLORATION -> "solo"
-        ReferenceSurfaceId.LAB -> "lab"
-        ReferenceSurfaceId.ADVANCED_CONTROLS -> "supported"
-        else -> "supported"
     }
 }
