@@ -268,6 +268,57 @@ internal class MeshEngineInlineSendSupport(
     }
 }
 
+internal fun buildMeshEngineRuntimeInlineSendSupport(
+    deliveryRetryDeadline: Duration,
+    inlineMessagePayloadBytes: Int,
+    routeCoordinator: ch.trancee.meshlink.routing.RouteCoordinator,
+    routingSupport: MeshEngineRoutingSupport,
+    sessionSupport: MeshEngineSessionSupport,
+    hopTransportSupport: MeshEngineHopTransportSupport,
+    outboundPreparationSupport: MeshEngineOutboundPreparationSupport,
+    deliveryRetrySupport: MeshEngineDeliveryRetrySupport,
+    discoverySuspensionSupport: MeshEngineDiscoverySuspensionSupport,
+    ttlMillisFor: (DeliveryPriority) -> Int,
+    scheduleRetryDiagnostic: (PeerId, DeliveryPriority) -> Unit,
+    emitDiagnostic:
+        (
+            DiagnosticCode,
+            DiagnosticSeverity,
+            String,
+            String?,
+            DiagnosticReason?,
+            Map<String, String>,
+        ) -> Unit,
+): MeshEngineInlineSendSupport {
+    return MeshEngineInlineSendSupport(
+        config =
+            MeshEngineInlineConfig(
+                deliveryRetryDeadline = deliveryRetryDeadline,
+                inlineMessagePayloadBytes = inlineMessagePayloadBytes,
+            ),
+        routingContext =
+            MeshEngineInlineRoutingContext(
+                routeCoordinator = routeCoordinator,
+                routingSupport = routingSupport,
+            ),
+        dependencies =
+            MeshEngineInlineDependencies(
+                deliveryRetrySupport = deliveryRetrySupport,
+                discoverySuspensionSupport = discoverySuspensionSupport,
+                ensureHopSession = { peerId, hardRunToken ->
+                    sessionSupport.ensureHopSession(peerId, hardRunToken)
+                },
+                sendEncryptedDirectWireFrame = hopTransportSupport::sendEncryptedDirectWireFrame,
+                prepareOutboundInlineMessage =
+                    outboundPreparationSupport::prepareOutboundInlineMessage,
+                scheduleRetryDiagnostic = scheduleRetryDiagnostic,
+                emitHopSessionFailed = hopTransportSupport::emitHopSessionFailed,
+            ),
+        callbacks =
+            MeshEngineInlineCallbacks(emitDiagnostic = emitDiagnostic, ttlMillisFor = ttlMillisFor),
+    )
+}
+
 private val INLINE_DELIVERY_RETRY_PROFILE =
     MeshEngineDeliveryRetryProfile(
         scheduledStage = "delivery.retryScheduled",

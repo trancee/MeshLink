@@ -206,3 +206,31 @@ internal class MeshEngineInboundTransferSupport(
         )
     }
 }
+
+internal fun buildMeshEngineRuntimeInboundTransferSupport(
+    inboundTransfers: MutableMap<String, InboundTransferSession>,
+    sendEncryptedWireFrame: suspend (PeerId, WireFrame, String, MeshEngineHardRunToken?) -> Boolean,
+    deliverInnerEnvelope:
+        suspend (PeerId, PeerId, ByteArray, DeliveryPriority, MeshEngineHardRunToken) -> Unit,
+    routeMetadata: (PeerId, Map<String, String>) -> Map<String, String>,
+    emitDiagnostic:
+        (
+            DiagnosticCode,
+            DiagnosticSeverity,
+            String,
+            String?,
+            DiagnosticReason?,
+            Map<String, String>,
+        ) -> Unit,
+): MeshEngineInboundTransferSupport {
+    return MeshEngineInboundTransferSupport(
+        inboundTransfers = inboundTransfers,
+        callbacks =
+            MeshEngineInboundTransferSupportCallbacks(
+                sendEncryptedWireFrame = sendEncryptedWireFrame,
+                deliverInnerEnvelope = deliverInnerEnvelope,
+                routeMetadata = routeMetadata,
+                emitDiagnostic = emitDiagnostic,
+            ),
+    )
+}

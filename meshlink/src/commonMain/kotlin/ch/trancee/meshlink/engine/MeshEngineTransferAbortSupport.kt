@@ -136,3 +136,33 @@ internal class MeshEngineTransferAbortSupport(
         return WireFrame.TransferAbort(transferId = transferId, reasonCode = reasonCode.code)
     }
 }
+
+internal fun buildMeshEngineRuntimeTransferAbortSupport(
+    state: MeshEngineTransferState,
+    sendEncryptedWireFrame: suspend (PeerId, WireFrame, String, MeshEngineHardRunToken?) -> Boolean,
+    sendTransferTowardsDestination:
+        suspend (PeerId, WireFrame, String, MeshEngineHardRunToken?) -> Boolean,
+    clearQueuedOutboundFrames: suspend (PeerId, String) -> Unit,
+    routeMetadata: (PeerId, Map<String, String>) -> Map<String, String>,
+    emitDiagnostic:
+        (
+            DiagnosticCode,
+            DiagnosticSeverity,
+            String,
+            String?,
+            DiagnosticReason?,
+            Map<String, String>,
+        ) -> Unit,
+): MeshEngineTransferAbortSupport {
+    return MeshEngineTransferAbortSupport(
+        state = state,
+        callbacks =
+            MeshEngineTransferAbortCallbacks(
+                sendEncryptedWireFrame = sendEncryptedWireFrame,
+                sendTransferTowardsDestination = sendTransferTowardsDestination,
+                clearQueuedOutboundFrames = clearQueuedOutboundFrames,
+                routeMetadata = routeMetadata,
+            ),
+        emitDiagnostic = emitDiagnostic,
+    )
+}

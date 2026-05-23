@@ -389,6 +389,56 @@ internal class MeshEngineLargeTransferSupport(
     }
 }
 
+internal fun buildMeshEngineRuntimeLargeTransferSupport(
+    deliveryRetryDeadline: Duration,
+    ackSettlementTimeout: Duration,
+    ackIdleWindow: Duration,
+    outboundTransfers: MutableMap<String, OutboundTransferSession>,
+    routingSupport: MeshEngineRoutingSupport,
+    runtimeGate: MeshEngineRuntimeGate,
+    currentTopologyVersion: () -> Long,
+    outboundPreparationSupport: MeshEngineOutboundPreparationSupport,
+    deliveryRetrySupport: MeshEngineDeliveryRetrySupport,
+    discoverySuspensionSupport: MeshEngineDiscoverySuspensionSupport,
+    scheduleRetryDiagnostic: (PeerId, DeliveryPriority) -> Unit,
+    sendTransferTowardsDestination:
+        suspend (PeerId, WireFrame, String, MeshEngineHardRunToken?) -> Boolean,
+    clearQueuedOutboundFrames: suspend (PeerId, String) -> Unit,
+    emitDiagnostic:
+        (
+            DiagnosticCode,
+            DiagnosticSeverity,
+            String,
+            String?,
+            DiagnosticReason?,
+            Map<String, String>,
+        ) -> Unit,
+): MeshEngineLargeTransferSupport {
+    return MeshEngineLargeTransferSupport(
+        config =
+            MeshEngineLargeTransferConfig(
+                deliveryRetryDeadline = deliveryRetryDeadline,
+                ackSettlementTimeout = ackSettlementTimeout,
+                ackIdleWindow = ackIdleWindow,
+            ),
+        state = MeshEngineLargeTransferState(outboundTransfers = outboundTransfers),
+        routingSupport = routingSupport,
+        dependencies =
+            MeshEngineLargeTransferDependencies(
+                runtimeGate = runtimeGate,
+                currentTopologyVersion = currentTopologyVersion,
+                deliveryRetrySupport = deliveryRetrySupport,
+                discoverySuspensionSupport = discoverySuspensionSupport,
+                prepareOutboundTransferSession =
+                    outboundPreparationSupport::prepareOutboundTransferSession,
+                scheduleRetryDiagnostic = scheduleRetryDiagnostic,
+                sendTransferTowardsDestination = sendTransferTowardsDestination,
+                clearQueuedOutboundFrames = clearQueuedOutboundFrames,
+            ),
+        emitDiagnostic = emitDiagnostic,
+    )
+}
+
 private val LARGE_TRANSFER_DELIVERY_RETRY_PROFILE =
     MeshEngineDeliveryRetryProfile(
         scheduledStage = "transfer.retryScheduled",

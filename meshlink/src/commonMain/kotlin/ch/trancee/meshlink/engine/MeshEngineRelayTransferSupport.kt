@@ -88,3 +88,19 @@ internal class MeshEngineRelayTransferSupport(
         return true
     }
 }
+
+internal fun buildMeshEngineRuntimeRelayTransferSupport(
+    relayTransfers: MutableMap<String, RelayTransferSession>,
+    sendEncryptedWireFrame: suspend (PeerId, WireFrame, String, MeshEngineHardRunToken?) -> Boolean,
+    sendTransferTowardsDestination:
+        suspend (PeerId, WireFrame, String, MeshEngineHardRunToken?) -> Boolean,
+): MeshEngineRelayTransferSupport {
+    return MeshEngineRelayTransferSupport(
+        relayTransfers = relayTransfers,
+        callbacks =
+            MeshEngineRelayTransferCallbacks(
+                sendEncryptedWireFrame = sendEncryptedWireFrame,
+                sendTransferTowardsDestination = sendTransferTowardsDestination,
+            ),
+    )
+}
