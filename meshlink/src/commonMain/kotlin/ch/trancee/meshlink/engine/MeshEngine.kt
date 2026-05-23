@@ -9,7 +9,6 @@ import ch.trancee.meshlink.api.PauseResult
 import ch.trancee.meshlink.api.PeerEvent
 import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.api.ResumeResult
-import ch.trancee.meshlink.api.SendFailureReason
 import ch.trancee.meshlink.api.SendResult
 import ch.trancee.meshlink.api.StartResult
 import ch.trancee.meshlink.api.StopResult
@@ -455,6 +454,45 @@ private constructor(
                     },
                 ),
         )
+    private val sendSupport =
+        MeshEngineSendSupport(
+            config =
+                MeshEngineSendConfig(
+                    maxSupportedPayloadBytes = MAX_SUPPORTED_PAYLOAD_BYTES,
+                    inlineMessagePayloadBytes = INLINE_MESSAGE_PAYLOAD_BYTES,
+                ),
+            callbacks =
+                MeshEngineSendCallbacks(
+                    isMeshRunning = { mutableState.value === MeshLinkState.Running },
+                    hasTransport = { platformBridge.hasTransport },
+                    shouldAttemptLargeInlineSend = peerFlowSupport::shouldAttemptLargeInlineSend,
+                    sendInlinePayload = { peerId, payload, priority ->
+                        inlineSendSupport.sendInlinePayload(
+                            peerId = peerId,
+                            payload = payload,
+                            priority = priority,
+                        )
+                    },
+                    sendLargePayload = { peerId, payload, priority ->
+                        largeTransferSupport.sendLargePayload(
+                            peerId = peerId,
+                            payload = payload,
+                            priority = priority,
+                        )
+                    },
+                    scheduleRetryDiagnostic = scheduleRetryDiagnostic,
+                    emitDiagnostic = { code, severity, stage, peerSuffix, reason, metadata ->
+                        emitDiagnostic(
+                            code = code,
+                            severity = severity,
+                            stage = stage,
+                            peerSuffix = peerSuffix,
+                            reason = reason,
+                            metadata = metadata,
+                        )
+                    },
+                ),
+        )
 
     override val state: StateFlow<MeshLinkState> = mutableState.asStateFlow()
     override val peerEvents: Flow<PeerEvent> = mutablePeerEvents.asSharedFlow()
@@ -482,42 +520,7 @@ private constructor(
         payload: ByteArray,
         priority: DeliveryPriority,
     ): SendResult {
-        val isPayloadTooLarge = payload.size > MAX_SUPPORTED_PAYLOAD_BYTES
-        val transportUnavailable =
-            mutableState.value !== MeshLinkState.Running || !platformBridge.hasTransport
-        val shouldUseInlineDelivery =
-            payload.size <= INLINE_MESSAGE_PAYLOAD_BYTES ||
-                peerFlowSupport.shouldAttemptLargeInlineSend(peerId)
-
-        return when {
-            isPayloadTooLarge -> {
-                emitDiagnostic(
-                    code = DiagnosticCode.SIZE_LIMIT_REJECTED,
-                    severity = DiagnosticSeverity.WARN,
-                    stage = "delivery.send",
-                    peerSuffix = peerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
-                    reason = DiagnosticReason.SIZE_LIMIT,
-                    metadata = mapOf("payloadBytes" to payload.size.toString()),
-                )
-                SendResult.NotSent(SendFailureReason.PAYLOAD_TOO_LARGE)
-            }
-            transportUnavailable -> {
-                scheduleRetryDiagnostic(peerId, priority)
-                SendResult.NotSent(SendFailureReason.UNREACHABLE)
-            }
-            shouldUseInlineDelivery ->
-                inlineSendSupport.sendInlinePayload(
-                    peerId = peerId,
-                    payload = payload,
-                    priority = priority,
-                )
-            else ->
-                largeTransferSupport.sendLargePayload(
-                    peerId = peerId,
-                    payload = payload,
-                    priority = priority,
-                )
-        }
+        return sendSupport.send(peerId = peerId, payload = payload, priority = priority)
     }
 
     override suspend fun forgetPeer(peerId: PeerId): ForgetPeerResult {
