@@ -28,12 +28,12 @@ internal data class MeshEngineLargeTransferDependencies(
     val runtimeGate: MeshEngineRuntimeGate,
     val currentTopologyVersion: () -> Long,
     val deliveryRetrySupport: MeshEngineDeliveryRetrySupport,
+    val discoverySuspensionSupport: MeshEngineDiscoverySuspensionSupport,
     val prepareOutboundTransferSession:
         suspend (PeerId, ByteArray, MeshEngineHardRunToken) -> OutboundTransferPreparation,
     val scheduleRetryDiagnostic: (PeerId, DeliveryPriority) -> Unit,
     val sendTransferTowardsDestination:
         suspend (PeerId, WireFrame, String, MeshEngineHardRunToken?) -> Boolean,
-    val setDiscoverySuspended: suspend (Boolean) -> Unit,
     val clearQueuedOutboundFrames: suspend (PeerId, String) -> Unit,
 )
 
@@ -67,8 +67,7 @@ internal class MeshEngineLargeTransferSupport(
         var activeSession: OutboundTransferSession? = null
         var lastRouteAvailable = false
 
-        dependencies.setDiscoverySuspended(true)
-        try {
+        return dependencies.discoverySuspensionSupport.withDiscoverySuspended {
             while (startedAt.elapsedNow() < config.deliveryRetryDeadline) {
                 val loopResult =
                     advanceLargeTransferSendLoop(
@@ -81,7 +80,7 @@ internal class MeshEngineLargeTransferSupport(
                     )
                 val completedResult = loopResult.result
                 if (completedResult != null) {
-                    return completedResult
+                    return@withDiscoverySuspended completedResult
                 }
                 activeSession = loopResult.session
                 lastRouteAvailable = loopResult.lastRouteAvailable
@@ -102,18 +101,16 @@ internal class MeshEngineLargeTransferSupport(
                         is MeshEngineDeliveryRetryResult.Woke -> retryState = wakeupState.state
                         MeshEngineDeliveryRetryResult.DeadlineExpired -> break
                         MeshEngineDeliveryRetryResult.HardRunEnded -> {
-                            return abortedLargeTransferResult(activeSession)
+                            return@withDiscoverySuspended abortedLargeTransferResult(activeSession)
                         }
                     }
                 }
             }
-            return finishFailedLargeTransfer(
+            finishFailedLargeTransfer(
                 activeSession = activeSession,
                 peerId = peerId,
                 lastRouteAvailable = lastRouteAvailable,
             )
-        } finally {
-            dependencies.setDiscoverySuspended(false)
         }
     }
 

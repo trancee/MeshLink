@@ -39,6 +39,18 @@ internal fun buildMeshEngineRuntimeTransferAndInboundPhase(
             sharedState = sharedState,
             routingAndTrust = routingAndTrust,
         )
+    val inlineDiscoverySuspensionSupport =
+        buildMeshEngineRuntimeDiscoverySuspensionSupport(
+            environment = environment,
+            suspendAction = "inline.discoverySuspend",
+            resumeAction = "inline.discoveryResume",
+        )
+    val transferDiscoverySuspensionSupport =
+        buildMeshEngineRuntimeDiscoverySuspensionSupport(
+            environment = environment,
+            suspendAction = "transfer.discoverySuspend",
+            resumeAction = "transfer.discoveryResume",
+        )
     val inlineSendSupport =
         buildMeshEngineRuntimeInlineSendSupport(
             environment = environment,
@@ -48,6 +60,7 @@ internal fun buildMeshEngineRuntimeTransferAndInboundPhase(
             sessionAndHopTransport = sessionAndHopTransport,
             outboundPreparationSupport = outboundPreparationSupport,
             deliveryRetrySupport = deliveryRetrySupport,
+            discoverySuspensionSupport = inlineDiscoverySuspensionSupport,
         )
     val transferSupport =
         buildMeshEngineRuntimeTransferSupport(
@@ -67,6 +80,7 @@ internal fun buildMeshEngineRuntimeTransferAndInboundPhase(
             sessionAndHopTransport = sessionAndHopTransport,
             outboundPreparationSupport = outboundPreparationSupport,
             deliveryRetrySupport = deliveryRetrySupport,
+            discoverySuspensionSupport = transferDiscoverySuspensionSupport,
         )
     val inboundSupport =
         buildMeshEngineRuntimeInboundSupport(
@@ -164,6 +178,17 @@ private fun buildMeshEngineRuntimeDeliveryRetrySupport(
     )
 }
 
+private fun buildMeshEngineRuntimeDiscoverySuspensionSupport(
+    environment: MeshEngineRuntimeAssemblyEnvironment,
+    suspendAction: String,
+    resumeAction: String,
+): MeshEngineDiscoverySuspensionSupport {
+    return MeshEngineDiscoverySuspensionSupport { suspended ->
+        val action = if (suspended) suspendAction else resumeAction
+        environment.platformBridge.setDiscoverySuspended(action = action, suspended = suspended)
+    }
+}
+
 private fun buildMeshEngineRuntimeInlineSendSupport(
     environment: MeshEngineRuntimeAssemblyEnvironment,
     support: MeshEngineRuntimeAssemblySupport,
@@ -172,6 +197,7 @@ private fun buildMeshEngineRuntimeInlineSendSupport(
     sessionAndHopTransport: MeshEngineRuntimeSessionAndHopTransportPhase,
     outboundPreparationSupport: MeshEngineOutboundPreparationSupport,
     deliveryRetrySupport: MeshEngineDeliveryRetrySupport,
+    discoverySuspensionSupport: MeshEngineDiscoverySuspensionSupport,
 ): MeshEngineInlineSendSupport {
     return MeshEngineInlineSendSupport(
         localIdentity = environment.localIdentity,
@@ -188,6 +214,7 @@ private fun buildMeshEngineRuntimeInlineSendSupport(
         dependencies =
             MeshEngineInlineDependencies(
                 deliveryRetrySupport = deliveryRetrySupport,
+                discoverySuspensionSupport = discoverySuspensionSupport,
                 ensureHopSession = { peerId, hardRunToken ->
                     sessionAndHopTransport.sessionSupport.ensureHopSession(peerId, hardRunToken)
                 },
@@ -195,18 +222,6 @@ private fun buildMeshEngineRuntimeInlineSendSupport(
                     sessionAndHopTransport.hopTransportSupport::sendEncryptedDirectWireFrame,
                 resolveRecipientTrust = outboundPreparationSupport::resolveRecipientTrust,
                 scheduleRetryDiagnostic = routingAndTrust.scheduleRetryDiagnostic,
-                setDiscoverySuspended = { suspended ->
-                    val action =
-                        if (suspended) {
-                            "inline.discoverySuspend"
-                        } else {
-                            "inline.discoveryResume"
-                        }
-                    environment.platformBridge.setDiscoverySuspended(
-                        action = action,
-                        suspended = suspended,
-                    )
-                },
                 emitHopSessionFailed =
                     sessionAndHopTransport.hopTransportSupport::emitHopSessionFailed,
             ),
@@ -359,6 +374,7 @@ private fun buildMeshEngineRuntimeLargeTransferSupport(
     sessionAndHopTransport: MeshEngineRuntimeSessionAndHopTransportPhase,
     outboundPreparationSupport: MeshEngineOutboundPreparationSupport,
     deliveryRetrySupport: MeshEngineDeliveryRetrySupport,
+    discoverySuspensionSupport: MeshEngineDiscoverySuspensionSupport,
 ): MeshEngineLargeTransferSupport {
     return MeshEngineLargeTransferSupport(
         config =
@@ -374,6 +390,7 @@ private fun buildMeshEngineRuntimeLargeTransferSupport(
                 runtimeGate = environment.compatibilitySurface.runtimeGate,
                 currentTopologyVersion = { sharedState.routeCoordinator.topologyVersion.value },
                 deliveryRetrySupport = deliveryRetrySupport,
+                discoverySuspensionSupport = discoverySuspensionSupport,
                 prepareOutboundTransferSession =
                     outboundPreparationSupport::prepareOutboundTransferSession,
                 scheduleRetryDiagnostic = routingAndTrust.scheduleRetryDiagnostic,
@@ -382,18 +399,6 @@ private fun buildMeshEngineRuntimeLargeTransferSupport(
                         sharedState = sharedState,
                         sessionAndHopTransport = sessionAndHopTransport,
                     ),
-                setDiscoverySuspended = { suspended ->
-                    val action =
-                        if (suspended) {
-                            "transfer.discoverySuspend"
-                        } else {
-                            "transfer.discoveryResume"
-                        }
-                    environment.platformBridge.setDiscoverySuspended(
-                        action = action,
-                        suspended = suspended,
-                    )
-                },
                 clearQueuedOutboundFrames = { peerId, action ->
                     environment.platformBridge.clearQueuedOutboundFrames(
                         peerId = peerId,

@@ -28,12 +28,12 @@ internal data class MeshEngineInlineRoutingContext(
 
 internal data class MeshEngineInlineDependencies(
     val deliveryRetrySupport: MeshEngineDeliveryRetrySupport,
+    val discoverySuspensionSupport: MeshEngineDiscoverySuspensionSupport,
     val ensureHopSession: suspend (PeerId, MeshEngineHardRunToken) -> SessionEstablishmentOutcome,
     val sendEncryptedDirectWireFrame:
         suspend (PeerId, HopSession, WireFrame, String) -> TransportSendResult,
     val resolveRecipientTrust: suspend (PeerId) -> TrustRecord?,
     val scheduleRetryDiagnostic: (PeerId, DeliveryPriority) -> Unit,
-    val setDiscoverySuspended: suspend (Boolean) -> Unit,
     val emitHopSessionFailed: (PeerId, String, DiagnosticReason, Map<String, String>) -> Unit,
 )
 
@@ -78,11 +78,9 @@ internal class MeshEngineInlineSendSupport(
             )
         val suspendDiscoveryDuringSend = payload.size > config.inlineMessagePayloadBytes
 
-        if (suspendDiscoveryDuringSend) {
-            dependencies.setDiscoverySuspended(true)
-        }
-
-        try {
+        return dependencies.discoverySuspensionSupport.withDiscoverySuspended(
+            shouldSuspend = suspendDiscoveryDuringSend
+        ) {
             while (startedAt.elapsedNow() < config.deliveryRetryDeadline) {
                 val sendResult =
                     attemptInlineSend(
@@ -92,7 +90,7 @@ internal class MeshEngineInlineSendSupport(
                         hardRunToken = hardRunToken,
                     )
                 if (!sendResult.isRetryableInlineFailure()) {
-                    return sendResult
+                    return@withDiscoverySuspended sendResult
                 }
                 when (
                     val nextRetryState =
@@ -105,14 +103,12 @@ internal class MeshEngineInlineSendSupport(
                 ) {
                     is MeshEngineDeliveryRetryResult.Woke -> retryState = nextRetryState.state
                     MeshEngineDeliveryRetryResult.DeadlineExpired -> break
-                    MeshEngineDeliveryRetryResult.HardRunEnded -> return abortedInlineSendResult()
+                    MeshEngineDeliveryRetryResult.HardRunEnded -> {
+                        return@withDiscoverySuspended abortedInlineSendResult()
+                    }
                 }
             }
-            return unreachableInlineSendResult(peerId)
-        } finally {
-            if (suspendDiscoveryDuringSend) {
-                dependencies.setDiscoverySuspended(false)
-            }
+            unreachableInlineSendResult(peerId)
         }
     }
 
