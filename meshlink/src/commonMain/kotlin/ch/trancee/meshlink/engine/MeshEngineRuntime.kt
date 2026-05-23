@@ -92,34 +92,106 @@ private constructor(
             diagnosticSink: DiagnosticSink? = null,
             coroutineScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
         ): MeshEngineRuntime {
-            val runtimeSurface = MeshEngineRuntimeSurface(diagnosticSink = diagnosticSink)
+            val environment =
+                buildMeshEngineRuntimeAssemblyEnvironment(
+                    config = config,
+                    localIdentity = localIdentity,
+                    secureStorage = secureStorage,
+                    bleTransport = bleTransport,
+                    diagnosticSink = diagnosticSink,
+                    coroutineScope = coroutineScope,
+                )
+            val support = buildMeshEngineRuntimeAssemblySupport(environment)
+            val lateBindingContext = buildMeshEngineRuntimeLateBindingContext()
             val facadeOperations =
                 RuntimeGraphAssembler(
-                        config = config,
-                        localIdentity = localIdentity,
-                        secureStorage = secureStorage,
-                        coroutineScope = coroutineScope,
-                        platformBridge = MeshEnginePlatformBridge(bleTransport),
-                        runtimeSurface = runtimeSurface,
+                        environment = environment,
+                        support = support,
+                        lateBindingContext = lateBindingContext,
                     )
                     .assemble()
             return MeshEngineRuntime(
-                publishedSurface = runtimeSurface,
+                publishedSurface = environment.publishedSurface,
                 facadeOperations = facadeOperations,
             )
         }
     }
 }
 
-private class RuntimeGraphAssembler(
-    private val config: MeshLinkConfig,
-    private val localIdentity: LocalIdentity,
+private fun buildMeshEngineRuntimeAssemblyEnvironment(
+    config: MeshLinkConfig,
+    localIdentity: LocalIdentity,
     secureStorage: SecureStorage,
-    private val coroutineScope: CoroutineScope,
-    private val platformBridge: MeshEnginePlatformBridge,
-    private val runtimeSurface: MeshEngineCompatibilityRuntimeSurface,
+    bleTransport: ch.trancee.meshlink.transport.BleTransport?,
+    diagnosticSink: DiagnosticSink?,
+    coroutineScope: CoroutineScope,
+): MeshEngineRuntimeAssemblyEnvironment {
+    val runtimeSurface = MeshEngineRuntimeSurface(diagnosticSink = diagnosticSink)
+    return MeshEngineRuntimeAssemblyEnvironment(
+        config = config,
+        localIdentity = localIdentity,
+        trustStore = TofuTrustStore(secureStorage),
+        coroutineScope = coroutineScope,
+        platformBridge = MeshEnginePlatformBridge(bleTransport),
+        publishedSurface = runtimeSurface,
+        compatibilitySurface = runtimeSurface,
+    )
+}
+
+private fun buildMeshEngineRuntimeAssemblySupport(
+    environment: MeshEngineRuntimeAssemblyEnvironment
+): MeshEngineRuntimeAssemblySupport {
+    return MeshEngineRuntimeAssemblySupport(
+        emitDiagnostic = { code, severity, stage, peerSuffix, reason, metadata ->
+            environment.compatibilitySurface.emitDiagnostic(
+                code = code,
+                severity = severity,
+                stage = stage,
+                peerSuffix = peerSuffix,
+                reason = reason,
+                metadata = metadata,
+            )
+        },
+        sendDirectWireFrame = { peerId, frame, action, preferredMode ->
+            environment.platformBridge.send(
+                frame =
+                    OutboundFrame(
+                        peerId = peerId,
+                        payload = frame.encode(),
+                        preferredMode = preferredMode,
+                    ),
+                action = action,
+            )
+        },
+    )
+}
+
+private fun buildMeshEngineRuntimeLateBindingContext(): MeshEngineRuntimeLateBindingContext {
+    return MeshEngineRuntimeLateBindingContext()
+}
+
+private class RuntimeGraphAssembler(
+    private val environment: MeshEngineRuntimeAssemblyEnvironment,
+    private val support: MeshEngineRuntimeAssemblySupport,
+    private val lateBindingContext: MeshEngineRuntimeLateBindingContext,
 ) {
-    private val trustStore = TofuTrustStore(secureStorage)
+    private val config: MeshLinkConfig
+        get() = environment.config
+
+    private val localIdentity: LocalIdentity
+        get() = environment.localIdentity
+
+    private val trustStore: TofuTrustStore
+        get() = environment.trustStore
+
+    private val coroutineScope: CoroutineScope
+        get() = environment.coroutineScope
+
+    private val platformBridge: MeshEnginePlatformBridge
+        get() = environment.platformBridge
+
+    private val runtimeSurface: MeshEngineCompatibilityRuntimeSurface
+        get() = environment.compatibilitySurface
 
     fun assemble(): MeshEngineRuntimeFacadeOperationsPhase {
         val context = AssemblyContext()
@@ -171,11 +243,11 @@ private class RuntimeGraphAssembler(
                 coroutineScope = coroutineScope,
                 emitDiagnostic = ::emitDiagnostic,
                 sendEncryptedWireFrame = { peerId, frame, action, hardRunToken ->
-                    context.sessionAndHopTransport.hopTransportSupport.sendEncryptedWireFrame(
-                        peerId = peerId,
-                        frame = frame,
-                        action = action,
-                        hardRunToken = hardRunToken,
+                    lateBindingContext.routingAdvertisementSender()(
+                        peerId,
+                        frame,
+                        action,
+                        hardRunToken,
                     )
                 },
             )
@@ -214,6 +286,9 @@ private class RuntimeGraphAssembler(
                 sessionSupport = sessionSupport,
                 hopTransportSupport = hopTransportSupport,
             )
+        lateBindingContext.registerRoutingAdvertisementSender(
+            hopTransportSupport::sendEncryptedWireFrame
+        )
         return MeshEngineRuntimeSessionAndHopTransportPhase(
             sessionSupport = sessionSupport,
             hopTransportSupport = hopTransportSupport,
@@ -926,15 +1001,7 @@ private class RuntimeGraphAssembler(
         action: String,
         preferredMode: TransportMode? = null,
     ): TransportSendResult {
-        return platformBridge.send(
-            frame =
-                OutboundFrame(
-                    peerId = peerId,
-                    payload = frame.encode(),
-                    preferredMode = preferredMode,
-                ),
-            action = action,
-        )
+        return support.sendDirectWireFrame(peerId, frame, action, preferredMode)
     }
 
     private fun scheduleRetryDiagnostic(
@@ -971,14 +1038,7 @@ private class RuntimeGraphAssembler(
         reason: DiagnosticReason? = null,
         metadata: Map<String, String> = emptyMap(),
     ): Unit {
-        runtimeSurface.emitDiagnostic(
-            code = code,
-            severity = severity,
-            stage = stage,
-            peerSuffix = peerSuffix,
-            reason = reason,
-            metadata = metadata,
-        )
+        support.emitDiagnostic(code, severity, stage, peerSuffix, reason, metadata)
     }
 
     private class AssemblyContext {
