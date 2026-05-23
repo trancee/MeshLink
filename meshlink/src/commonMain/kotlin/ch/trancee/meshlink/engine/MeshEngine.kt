@@ -21,18 +21,13 @@ internal object MeshEngine {
         bleTransport: BleTransport? = null,
         diagnosticSink: DiagnosticSink? = null,
     ): MeshLinkApi {
-        val assembly =
-            assembleMeshEngineRuntime(
-                config = config,
-                localIdentity = localIdentity,
-                secureStorage = secureStorage,
-                bleTransport = bleTransport,
-                diagnosticSink = diagnosticSink,
-                coroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
-            )
-        return MeshEngineRuntime(
-            publishedSurface = assembly.publishedSurface,
-            graph = assembly.graph,
+        return MeshEngineRuntime.assembleMeshEngineRuntime(
+            config = config,
+            localIdentity = localIdentity,
+            secureStorage = secureStorage,
+            bleTransport = bleTransport,
+            diagnosticSink = diagnosticSink,
+            coroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
         )
     }
 }

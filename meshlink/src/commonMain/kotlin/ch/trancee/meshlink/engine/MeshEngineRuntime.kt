@@ -37,119 +37,19 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
-internal class MeshEngineRuntime(
-    private val publishedSurface: MeshEnginePublishedRuntimeSurface,
-    private val graph: MeshEngineGraphOperations,
+internal class MeshEngineRuntime
+private constructor(
+    publishedSurface: MeshEnginePublishedRuntimeSurface,
+    facadeOperations: MeshEngineRuntimeFacadeOperationsPhase,
 ) : MeshLinkApi {
+    private val lifecycleSupport: MeshEngineLifecycleSupport = facadeOperations.lifecycleSupport
+    private val sendSupport: MeshEngineSendSupport = facadeOperations.sendSupport
+    private val peerForgetSupport: MeshEnginePeerForgetSupport = facadeOperations.peerForgetSupport
+
     override val state: StateFlow<MeshLinkState> = publishedSurface.state
     override val peerEvents: Flow<PeerEvent> = publishedSurface.peerEvents
     override val diagnosticEvents: Flow<DiagnosticEvent> = publishedSurface.diagnosticEvents
     override val messages: Flow<InboundMessage> = publishedSurface.messages
-
-    override suspend fun start(): StartResult {
-        return graph.start()
-    }
-
-    override suspend fun pause(): PauseResult {
-        return graph.pause()
-    }
-
-    override suspend fun resume(): ResumeResult {
-        return graph.resume()
-    }
-
-    override suspend fun stop(): StopResult {
-        return graph.stop()
-    }
-
-    override suspend fun send(
-        peerId: PeerId,
-        payload: ByteArray,
-        priority: DeliveryPriority,
-    ): SendResult {
-        return graph.send(peerId = peerId, payload = payload, priority = priority)
-    }
-
-    override suspend fun forgetPeer(peerId: PeerId): ForgetPeerResult {
-        return graph.forgetPeer(peerId)
-    }
-
-    override fun updateBattery(level: Float, isCharging: Boolean): Unit {
-        graph.updateBattery(level = level, isCharging = isCharging)
-    }
-}
-
-internal data class MeshEngineAssembly(
-    val publishedSurface: MeshEnginePublishedRuntimeSurface,
-    val graph: MeshEngineGraphOperations,
-)
-
-internal fun assembleMeshEngineRuntime(
-    config: MeshLinkConfig,
-    localIdentity: LocalIdentity,
-    secureStorage: SecureStorage,
-    bleTransport: ch.trancee.meshlink.transport.BleTransport? = null,
-    diagnosticSink: DiagnosticSink? = null,
-    coroutineScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
-): MeshEngineAssembly {
-    val runtimeSurface = MeshEngineRuntimeSurface(diagnosticSink = diagnosticSink)
-    return MeshEngineAssembly(
-        publishedSurface = runtimeSurface,
-        graph =
-            RuntimeGraph(
-                config = config,
-                localIdentity = localIdentity,
-                secureStorage = secureStorage,
-                coroutineScope = coroutineScope,
-                platformBridge = MeshEnginePlatformBridge(bleTransport),
-                runtimeSurface = runtimeSurface,
-            ),
-    )
-}
-
-internal interface MeshEngineGraphOperations {
-    suspend fun start(): StartResult
-
-    suspend fun pause(): PauseResult
-
-    suspend fun resume(): ResumeResult
-
-    suspend fun stop(): StopResult
-
-    suspend fun send(peerId: PeerId, payload: ByteArray, priority: DeliveryPriority): SendResult
-
-    suspend fun forgetPeer(peerId: PeerId): ForgetPeerResult
-
-    fun updateBattery(level: Float, isCharging: Boolean): Unit
-}
-
-private class RuntimeGraph(
-    config: MeshLinkConfig,
-    localIdentity: LocalIdentity,
-    secureStorage: SecureStorage,
-    coroutineScope: CoroutineScope,
-    platformBridge: MeshEnginePlatformBridge,
-    runtimeSurface: MeshEngineCompatibilityRuntimeSurface,
-) : MeshEngineGraphOperations {
-    private val lifecycleSupport: MeshEngineLifecycleSupport
-    private val sendSupport: MeshEngineSendSupport
-    private val peerForgetSupport: MeshEnginePeerForgetSupport
-
-    init {
-        val assembly =
-            RuntimeGraphAssembler(
-                    config = config,
-                    localIdentity = localIdentity,
-                    secureStorage = secureStorage,
-                    coroutineScope = coroutineScope,
-                    platformBridge = platformBridge,
-                    runtimeSurface = runtimeSurface,
-                )
-                .assemble()
-        lifecycleSupport = assembly.lifecycleSupport
-        sendSupport = assembly.sendSupport
-        peerForgetSupport = assembly.peerForgetSupport
-    }
 
     override suspend fun start(): StartResult {
         return lifecycleSupport.start()
@@ -182,13 +82,34 @@ private class RuntimeGraph(
     override fun updateBattery(level: Float, isCharging: Boolean): Unit {
         lifecycleSupport.updateBattery(level = level, isCharging = isCharging)
     }
-}
 
-private data class RuntimeGraphAssembly(
-    val lifecycleSupport: MeshEngineLifecycleSupport,
-    val sendSupport: MeshEngineSendSupport,
-    val peerForgetSupport: MeshEnginePeerForgetSupport,
-)
+    internal companion object {
+        internal fun assembleMeshEngineRuntime(
+            config: MeshLinkConfig,
+            localIdentity: LocalIdentity,
+            secureStorage: SecureStorage,
+            bleTransport: ch.trancee.meshlink.transport.BleTransport? = null,
+            diagnosticSink: DiagnosticSink? = null,
+            coroutineScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
+        ): MeshEngineRuntime {
+            val runtimeSurface = MeshEngineRuntimeSurface(diagnosticSink = diagnosticSink)
+            val facadeOperations =
+                RuntimeGraphAssembler(
+                        config = config,
+                        localIdentity = localIdentity,
+                        secureStorage = secureStorage,
+                        coroutineScope = coroutineScope,
+                        platformBridge = MeshEnginePlatformBridge(bleTransport),
+                        runtimeSurface = runtimeSurface,
+                    )
+                    .assemble()
+            return MeshEngineRuntime(
+                publishedSurface = runtimeSurface,
+                facadeOperations = facadeOperations,
+            )
+        }
+    }
+}
 
 private class RuntimeGraphAssembler(
     private val config: MeshLinkConfig,
@@ -200,7 +121,7 @@ private class RuntimeGraphAssembler(
 ) {
     private val trustStore = TofuTrustStore(secureStorage)
 
-    fun assemble(): RuntimeGraphAssembly {
+    fun assemble(): MeshEngineRuntimeFacadeOperationsPhase {
         val context = AssemblyContext()
         context.sharedState = buildSharedState()
         context.routingAndTrust = buildRoutingAndTrust(context)
@@ -208,11 +129,7 @@ private class RuntimeGraphAssembler(
         context.handshake = buildHandshake(context)
         context.transferAndInbound = buildTransferAndInbound(context)
         context.facadeOperations = buildTransportAndFacadeOperations(context)
-        return RuntimeGraphAssembly(
-            lifecycleSupport = context.facadeOperations.lifecycleSupport,
-            sendSupport = context.facadeOperations.sendSupport,
-            peerForgetSupport = context.facadeOperations.peerForgetSupport,
-        )
+        return context.facadeOperations
     }
 
     private fun buildSharedState(): MeshEngineRuntimeSharedState {
