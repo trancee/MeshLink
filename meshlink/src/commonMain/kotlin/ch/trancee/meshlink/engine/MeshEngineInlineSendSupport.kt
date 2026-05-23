@@ -4,13 +4,10 @@ import ch.trancee.meshlink.api.DeliveryPriority
 import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.api.SendFailureReason
 import ch.trancee.meshlink.api.SendResult
-import ch.trancee.meshlink.crypto.MessageSealer
 import ch.trancee.meshlink.diagnostics.DiagnosticCode
 import ch.trancee.meshlink.diagnostics.DiagnosticReason
 import ch.trancee.meshlink.diagnostics.DiagnosticSeverity
-import ch.trancee.meshlink.identity.LocalIdentity
 import ch.trancee.meshlink.transport.TransportSendResult
-import ch.trancee.meshlink.trust.TrustRecord
 import ch.trancee.meshlink.wire.WireFrame
 import kotlin.time.Duration
 import kotlin.time.TimeMark
@@ -32,7 +29,10 @@ internal data class MeshEngineInlineDependencies(
     val ensureHopSession: suspend (PeerId, MeshEngineHardRunToken) -> SessionEstablishmentOutcome,
     val sendEncryptedDirectWireFrame:
         suspend (PeerId, HopSession, WireFrame, String) -> TransportSendResult,
-    val resolveRecipientTrust: suspend (PeerId) -> TrustRecord?,
+    val prepareOutboundInlineMessage:
+        suspend (
+            PeerId, ByteArray, DeliveryPriority, Int,
+        ) -> MeshEngineOutboundInlineMessagePreparation,
     val scheduleRetryDiagnostic: (PeerId, DeliveryPriority) -> Unit,
     val emitHopSessionFailed: (PeerId, String, DiagnosticReason, Map<String, String>) -> Unit,
 )
@@ -47,7 +47,6 @@ internal data class MeshEngineInlineCallbacks(
             DiagnosticReason?,
             Map<String, String>,
         ) -> Unit,
-    val createMessageId: () -> String,
     val ttlMillisFor: (DeliveryPriority) -> Int,
 )
 
@@ -58,7 +57,6 @@ internal data class InlineSessionResolution(
 )
 
 internal class MeshEngineInlineSendSupport(
-    private val localIdentity: LocalIdentity,
     private val config: MeshEngineInlineConfig,
     private val routingContext: MeshEngineInlineRoutingContext,
     private val dependencies: MeshEngineInlineDependencies,
@@ -127,25 +125,35 @@ internal class MeshEngineInlineSendSupport(
             resolvedResult
         } else {
             val establishedSession = session ?: error("inline session resolution is required")
-            val recipientTrust = resolveInlineRecipientTrust(peerId)
-            if (recipientTrust == null) {
-                SendResult.NotSent(SendFailureReason.TRUST_FAILURE)
-            } else {
-                val routedMessage =
-                    buildInlineRoutedMessage(
-                        peerId = peerId,
-                        payload = payload,
-                        priority = priority,
-                        recipientTrust = recipientTrust,
+            when (
+                val preparedMessage =
+                    dependencies.prepareOutboundInlineMessage(
+                        peerId,
+                        payload,
+                        priority,
+                        callbacks.ttlMillisFor(priority),
                     )
-                if (routedMessage == null) {
+            ) {
+                MeshEngineOutboundInlineMessagePreparation.MissingTrust -> {
+                    callbacks.emitDiagnostic(
+                        DiagnosticCode.TRUST_FAILURE,
+                        DiagnosticSeverity.ERROR,
+                        "delivery.send.noTrust",
+                        peerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
+                        DiagnosticReason.TRUST_FAILURE,
+                        emptyMap(),
+                    )
                     SendResult.NotSent(SendFailureReason.TRUST_FAILURE)
-                } else {
+                }
+                MeshEngineOutboundInlineMessagePreparation.EncryptFailure -> {
+                    SendResult.NotSent(SendFailureReason.TRUST_FAILURE)
+                }
+                is MeshEngineOutboundInlineMessagePreparation.Ready -> {
                     dispatchInlineMessage(
                         peerId = peerId,
                         nextHopPeerId = sessionResolution.nextHopPeerId,
                         session = establishedSession,
-                        routedMessage = routedMessage,
+                        routedMessage = preparedMessage.message,
                         priority = priority,
                     )
                 }
@@ -197,64 +205,6 @@ internal class MeshEngineInlineSendSupport(
                 )
             }
         }
-    }
-
-    private suspend fun resolveInlineRecipientTrust(peerId: PeerId): TrustRecord? {
-        val recipientTrust = dependencies.resolveRecipientTrust(peerId)
-        if (recipientTrust == null) {
-            callbacks.emitDiagnostic(
-                DiagnosticCode.TRUST_FAILURE,
-                DiagnosticSeverity.ERROR,
-                "delivery.send.noTrust",
-                peerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
-                DiagnosticReason.TRUST_FAILURE,
-                emptyMap(),
-            )
-        }
-        return recipientTrust
-    }
-
-    private fun buildInlineRoutedMessage(
-        peerId: PeerId,
-        payload: ByteArray,
-        priority: DeliveryPriority,
-        recipientTrust: TrustRecord,
-    ): WireFrame.Message? {
-        val sealedPayload =
-            runCatching {
-                    MessageSealer.seal(
-                        plaintext = payload,
-                        senderIdentity = localIdentity,
-                        recipientTrust = recipientTrust,
-                    )
-                }
-                .getOrElse { exception ->
-                    dependencies.emitHopSessionFailed(
-                        peerId,
-                        "delivery.send.encrypt",
-                        DiagnosticReason.TRUST_FAILURE,
-                        mapOf("cause" to exception::class.simpleName.orEmpty()),
-                    )
-                    return null
-                }
-
-        val innerEnvelope =
-            DirectMessageEnvelope(
-                    senderPeerId = localIdentity.peerId,
-                    senderFingerprintBytes = localIdentity.identityFingerprintBytes,
-                    senderEd25519PublicKey = localIdentity.ed25519PublicKey,
-                    senderX25519PublicKey = localIdentity.x25519PublicKey,
-                    ciphertext = sealedPayload,
-                )
-                .encode()
-        return WireFrame.Message(
-            messageId = callbacks.createMessageId(),
-            originPeerId = localIdentity.peerId,
-            destinationPeerId = peerId,
-            priority = priority,
-            ttlMillis = callbacks.ttlMillisFor(priority),
-            encryptedPayload = innerEnvelope,
-        )
     }
 
     private suspend fun dispatchInlineMessage(

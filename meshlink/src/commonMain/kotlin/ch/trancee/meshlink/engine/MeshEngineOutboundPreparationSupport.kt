@@ -1,5 +1,6 @@
 package ch.trancee.meshlink.engine
 
+import ch.trancee.meshlink.api.DeliveryPriority
 import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.api.SendFailureReason
 import ch.trancee.meshlink.api.SendResult
@@ -17,6 +18,7 @@ import ch.trancee.meshlink.transfer.TransferSessionRoute
 import ch.trancee.meshlink.trust.TofuTrustStore
 import ch.trancee.meshlink.trust.TrustPublicKeys
 import ch.trancee.meshlink.trust.TrustRecord
+import ch.trancee.meshlink.wire.WireFrame
 
 internal data class MeshEngineOutboundPreparationState(
     val outboundTransfers: MutableMap<String, OutboundTransferSession>
@@ -30,8 +32,27 @@ internal data class MeshEngineOutboundPreparationRoutingContext(
 internal data class MeshEngineOutboundPreparationCallbacks(
     val createMessageId: () -> String,
     val createTransferId: () -> String,
+    val emitInlineEncryptFailure: (PeerId, String) -> Unit,
     val emitTransferEncryptFailure: (PeerId, String) -> Unit,
 )
+
+internal sealed class MeshEngineOutboundDirectEnvelopePreparation {
+    internal class Ready internal constructor(internal val envelopeBytes: ByteArray) :
+        MeshEngineOutboundDirectEnvelopePreparation()
+
+    internal data object MissingTrust : MeshEngineOutboundDirectEnvelopePreparation()
+
+    internal data object EncryptFailure : MeshEngineOutboundDirectEnvelopePreparation()
+}
+
+internal sealed class MeshEngineOutboundInlineMessagePreparation {
+    internal class Ready internal constructor(internal val message: WireFrame.Message) :
+        MeshEngineOutboundInlineMessagePreparation()
+
+    internal data object MissingTrust : MeshEngineOutboundInlineMessagePreparation()
+
+    internal data object EncryptFailure : MeshEngineOutboundInlineMessagePreparation()
+}
 
 internal class MeshEngineOutboundPreparationSupport(
     private val localIdentity: LocalIdentity,
@@ -60,22 +81,66 @@ internal class MeshEngineOutboundPreparationSupport(
         }
     }
 
+    suspend fun prepareOutboundInlineMessage(
+        peerId: PeerId,
+        payload: ByteArray,
+        priority: DeliveryPriority,
+        ttlMillis: Int,
+    ): MeshEngineOutboundInlineMessagePreparation {
+        return when (
+            val envelopePreparation =
+                prepareOutboundDirectEnvelope(
+                    peerId = peerId,
+                    payload = payload,
+                    emitEncryptFailure = callbacks.emitInlineEncryptFailure,
+                )
+        ) {
+            MeshEngineOutboundDirectEnvelopePreparation.MissingTrust ->
+                MeshEngineOutboundInlineMessagePreparation.MissingTrust
+            MeshEngineOutboundDirectEnvelopePreparation.EncryptFailure ->
+                MeshEngineOutboundInlineMessagePreparation.EncryptFailure
+            is MeshEngineOutboundDirectEnvelopePreparation.Ready ->
+                MeshEngineOutboundInlineMessagePreparation.Ready(
+                    createInlineRoutedMessage(
+                        peerId = peerId,
+                        priority = priority,
+                        ttlMillis = ttlMillis,
+                        envelopeBytes = envelopePreparation.envelopeBytes,
+                    )
+                )
+        }
+    }
+
     suspend fun prepareOutboundTransferSession(
         peerId: PeerId,
         payload: ByteArray,
         hardRunToken: MeshEngineHardRunToken,
     ): OutboundTransferPreparation {
-        val recipientTrust = resolveRecipientTrust(peerId)
-
-        return if (recipientTrust == null) {
-            OutboundTransferPreparation.PendingRoute
-        } else {
-            prepareResolvedOutboundTransferSession(
-                peerId = peerId,
-                payload = payload,
-                recipientTrust = recipientTrust,
-                hardRunToken = hardRunToken,
-            )
+        return when (
+            val envelopePreparation =
+                prepareOutboundDirectEnvelope(
+                    peerId = peerId,
+                    payload = payload,
+                    emitEncryptFailure = callbacks.emitTransferEncryptFailure,
+                )
+        ) {
+            MeshEngineOutboundDirectEnvelopePreparation.MissingTrust ->
+                OutboundTransferPreparation.PendingRoute
+            MeshEngineOutboundDirectEnvelopePreparation.EncryptFailure ->
+                OutboundTransferPreparation.Failed(
+                    SendResult.NotSent(SendFailureReason.TRUST_FAILURE)
+                )
+            is MeshEngineOutboundDirectEnvelopePreparation.Ready -> {
+                val session =
+                    createOutboundTransferSession(
+                        peerId = peerId,
+                        envelopeBytes = envelopePreparation.envelopeBytes,
+                        hardRunToken = hardRunToken,
+                    )
+                state.outboundTransfers[session.transferId] = session
+                emitTransferStartedDiagnostic(peerId)
+                OutboundTransferPreparation.Ready(session)
+            }
         }
     }
 
@@ -111,55 +176,64 @@ internal class MeshEngineOutboundPreparationSupport(
         return learnedTrust
     }
 
-    private suspend fun prepareResolvedOutboundTransferSession(
+    private suspend fun prepareOutboundDirectEnvelope(
         peerId: PeerId,
         payload: ByteArray,
-        recipientTrust: TrustRecord,
-        hardRunToken: MeshEngineHardRunToken,
-    ): OutboundTransferPreparation {
-        val sealedPayload = sealOutboundTransferPayload(peerId, payload, recipientTrust)
-        return if (sealedPayload == null) {
-            OutboundTransferPreparation.Failed(SendResult.NotSent(SendFailureReason.TRUST_FAILURE))
-        } else {
-            val session = createOutboundTransferSession(peerId, sealedPayload, hardRunToken)
-            state.outboundTransfers[session.transferId] = session
-            emitTransferStartedDiagnostic(peerId)
-            OutboundTransferPreparation.Ready(session)
+        emitEncryptFailure: (PeerId, String) -> Unit,
+    ): MeshEngineOutboundDirectEnvelopePreparation {
+        val recipientTrust = resolveRecipientTrust(peerId)
+        if (recipientTrust == null) {
+            return MeshEngineOutboundDirectEnvelopePreparation.MissingTrust
         }
+        val sealedPayload =
+            runCatching {
+                    MessageSealer.seal(
+                        plaintext = payload,
+                        senderIdentity = localIdentity,
+                        recipientTrust = recipientTrust,
+                    )
+                }
+                .getOrElse { exception ->
+                    emitEncryptFailure(peerId, exception::class.simpleName.orEmpty())
+                    return MeshEngineOutboundDirectEnvelopePreparation.EncryptFailure
+                }
+        return MeshEngineOutboundDirectEnvelopePreparation.Ready(
+            createOutboundDirectEnvelope(sealedPayload)
+        )
     }
 
-    private fun sealOutboundTransferPayload(
+    private fun createOutboundDirectEnvelope(sealedPayload: ByteArray): ByteArray {
+        return DirectMessageEnvelope(
+                senderPeerId = localIdentity.peerId,
+                senderFingerprintBytes = localIdentity.identityFingerprintBytes,
+                senderEd25519PublicKey = localIdentity.ed25519PublicKey,
+                senderX25519PublicKey = localIdentity.x25519PublicKey,
+                ciphertext = sealedPayload,
+            )
+            .encode()
+    }
+
+    private fun createInlineRoutedMessage(
         peerId: PeerId,
-        payload: ByteArray,
-        recipientTrust: TrustRecord,
-    ): ByteArray? {
-        return runCatching {
-                MessageSealer.seal(
-                    plaintext = payload,
-                    senderIdentity = localIdentity,
-                    recipientTrust = recipientTrust,
-                )
-            }
-            .getOrElse { exception ->
-                callbacks.emitTransferEncryptFailure(peerId, exception::class.simpleName.orEmpty())
-                null
-            }
+        priority: DeliveryPriority,
+        ttlMillis: Int,
+        envelopeBytes: ByteArray,
+    ): WireFrame.Message {
+        return WireFrame.Message(
+            messageId = callbacks.createMessageId(),
+            originPeerId = localIdentity.peerId,
+            destinationPeerId = peerId,
+            priority = priority,
+            ttlMillis = ttlMillis,
+            encryptedPayload = envelopeBytes,
+        )
     }
 
     private fun createOutboundTransferSession(
         peerId: PeerId,
-        sealedPayload: ByteArray,
+        envelopeBytes: ByteArray,
         @Suppress("UNUSED_PARAMETER") hardRunToken: MeshEngineHardRunToken,
     ): OutboundTransferSession {
-        val innerEnvelope =
-            DirectMessageEnvelope(
-                    senderPeerId = localIdentity.peerId,
-                    senderFingerprintBytes = localIdentity.identityFingerprintBytes,
-                    senderEd25519PublicKey = localIdentity.ed25519PublicKey,
-                    senderX25519PublicKey = localIdentity.x25519PublicKey,
-                    ciphertext = sealedPayload,
-                )
-                .encode()
         return OutboundTransferSession.fromOwnedPlan(
             route =
                 TransferSessionRoute(
@@ -170,8 +244,8 @@ internal class MeshEngineOutboundPreparationSupport(
                 ),
             chunkPlan =
                 TransferChunkPlan(
-                    chunks = chunkTransferPayload(innerEnvelope, TRANSFER_CHUNK_PAYLOAD_BYTES),
-                    totalBytes = innerEnvelope.size,
+                    chunks = chunkTransferPayload(envelopeBytes, TRANSFER_CHUNK_PAYLOAD_BYTES),
+                    totalBytes = envelopeBytes.size,
                     maxChunkPayloadBytes = TRANSFER_CHUNK_PAYLOAD_BYTES,
                 ),
         )

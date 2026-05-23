@@ -136,6 +136,14 @@ private fun buildMeshEngineRuntimeOutboundPreparationSupport(
             MeshEngineOutboundPreparationCallbacks(
                 createMessageId = sharedState.sequenceGenerator::createMessageId,
                 createTransferId = sharedState.sequenceGenerator::createTransferId,
+                emitInlineEncryptFailure = { peerId, cause ->
+                    sessionAndHopTransport.hopTransportSupport.emitHopSessionFailed(
+                        peerId = peerId,
+                        stage = "delivery.send.encrypt",
+                        reason = DiagnosticReason.TRUST_FAILURE,
+                        metadata = mapOf("cause" to cause),
+                    )
+                },
                 emitTransferEncryptFailure = { peerId, cause ->
                     sessionAndHopTransport.hopTransportSupport.emitHopSessionFailed(
                         peerId = peerId,
@@ -200,7 +208,6 @@ private fun buildMeshEngineRuntimeInlineSendSupport(
     discoverySuspensionSupport: MeshEngineDiscoverySuspensionSupport,
 ): MeshEngineInlineSendSupport {
     return MeshEngineInlineSendSupport(
-        localIdentity = environment.localIdentity,
         config =
             MeshEngineInlineConfig(
                 deliveryRetryDeadline = environment.config.deliveryRetryDeadline,
@@ -220,7 +227,8 @@ private fun buildMeshEngineRuntimeInlineSendSupport(
                 },
                 sendEncryptedDirectWireFrame =
                     sessionAndHopTransport.hopTransportSupport::sendEncryptedDirectWireFrame,
-                resolveRecipientTrust = outboundPreparationSupport::resolveRecipientTrust,
+                prepareOutboundInlineMessage =
+                    outboundPreparationSupport::prepareOutboundInlineMessage,
                 scheduleRetryDiagnostic = routingAndTrust.scheduleRetryDiagnostic,
                 emitHopSessionFailed =
                     sessionAndHopTransport.hopTransportSupport::emitHopSessionFailed,
@@ -228,7 +236,6 @@ private fun buildMeshEngineRuntimeInlineSendSupport(
         callbacks =
             MeshEngineInlineCallbacks(
                 emitDiagnostic = support.emitDiagnostic,
-                createMessageId = sharedState.sequenceGenerator::createMessageId,
                 ttlMillisFor = sharedState.ttlMillisFor,
             ),
     )
