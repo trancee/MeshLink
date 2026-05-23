@@ -192,6 +192,29 @@ class MeshLinkApiContractTest {
         }
 
     @Test
+    fun `creating meshlink stays uninitialized and side effect free`() {
+        // Arrange
+        val transport = RecordingBleTransport()
+        val diagnosticSink = RecordingDiagnosticSink()
+
+        // Act
+        val api =
+            MeshEngine.create(
+                config = meshLinkConfig { appId = "create.meshlink" },
+                bleTransport = transport,
+                diagnosticSink = diagnosticSink,
+            )
+
+        // Assert
+        assertEquals(MeshLinkState.Uninitialized, api.state.value)
+        assertEquals(0, transport.startCalls)
+        assertEquals(0, transport.pauseCalls)
+        assertEquals(0, transport.resumeCalls)
+        assertEquals(0, transport.stopCalls)
+        assertTrue(diagnosticSink.events().isEmpty())
+    }
+
+    @Test
     fun `lifecycle methods enforce the documented state machine`() = runBlocking {
         // Arrange
         val api = MeshEngine.create(config = meshLinkConfig { appId = "lifecycle.meshlink" })
@@ -437,5 +460,34 @@ class MeshLinkApiContractTest {
         // Assert
         assertEquals(DiagnosticCode.TRUST_FAILURE, trustFailure.await().code)
         assertTrue(receiver.diagnosticSink.events().any { it.code == DiagnosticCode.TRUST_FAILURE })
+    }
+
+    private class RecordingBleTransport : BleTransport {
+        var startCalls: Int = 0
+        var pauseCalls: Int = 0
+        var resumeCalls: Int = 0
+        var stopCalls: Int = 0
+
+        override val events: Flow<TransportEvent> = emptyFlow()
+
+        override suspend fun start(): Unit {
+            startCalls += 1
+        }
+
+        override suspend fun pause(): Unit {
+            pauseCalls += 1
+        }
+
+        override suspend fun resume(): Unit {
+            resumeCalls += 1
+        }
+
+        override suspend fun stop(): Unit {
+            stopCalls += 1
+        }
+
+        override suspend fun send(frame: OutboundFrame): TransportSendResult {
+            return TransportSendResult.Delivered
+        }
     }
 }
