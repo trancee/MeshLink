@@ -283,88 +283,18 @@ private class RuntimeGraphAssembler(
         val sharedState = context.sharedState
         val routingAndTrust = context.routingAndTrust
         val sessionSupport =
-            MeshEngineSessionSupport(
-                localIdentity = localIdentity,
-                state =
-                    MeshEngineSessionState(
-                        sessionRegistry = sharedState.sessionRegistry,
-                        runtimeGate = runtimeSurface.runtimeGate,
-                    ),
-                handshakeTimeout = HANDSHAKE_TIMEOUT,
-                callbacks =
-                    MeshEngineSessionCallbacks(
-                        hasTransport = { platformBridge.hasTransport },
-                        sendDirectWireFrame = { peerId, frame, action, preferredMode ->
-                            sendDirectWireFrame(
-                                peerId = peerId,
-                                frame = frame,
-                                action = action,
-                                preferredMode = preferredMode,
-                            )
-                        },
-                        emitHopSessionFailed = { peerId, stage, reason, metadata ->
-                            emitDiagnostic(
-                                code = DiagnosticCode.HOP_SESSION_FAILED,
-                                severity = DiagnosticSeverity.WARN,
-                                stage = stage,
-                                peerSuffix = peerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
-                                reason = reason,
-                                metadata =
-                                    routingAndTrust.routingSupport.peerRouteMetadata(
-                                        peerId,
-                                        metadata = metadata,
-                                    ),
-                            )
-                        },
-                    ),
-            )
+            buildSessionSupport(sharedState = sharedState, routingAndTrust = routingAndTrust)
         val hopTransportSupport =
-            MeshEngineHopTransportSupport(
-                localIdentity = localIdentity,
-                runtimeGate = runtimeSurface.runtimeGate,
-                routingSupport = routingAndTrust.routingSupport,
-                establishedHopSession = { peerId -> sessionSupport.establishedHopSession(peerId) },
-                ensureHopSession = { peerId, hardRunToken ->
-                    sessionSupport.ensureHopSession(peerId, hardRunToken)
-                },
-                sendDirectWireFrame = { peerId, frame, action, preferredMode ->
-                    sendDirectWireFrame(
-                        peerId = peerId,
-                        frame = frame,
-                        action = action,
-                        preferredMode = preferredMode,
-                    )
-                },
-                emitDiagnostic = ::emitDiagnostic,
+            buildHopTransportSupport(
+                routingAndTrust = routingAndTrust,
+                sessionSupport = sessionSupport,
             )
         val peerFlowSupport =
-            MeshEnginePeerFlowSupport(
-                localIdentity = localIdentity,
-                context =
-                    MeshEnginePeerFlowContext(
-                        routeCoordinator = sharedState.routeCoordinator,
-                        coroutineScope = coroutineScope,
-                    ),
-                config =
-                    MeshEnginePeerFlowConfig(
-                        largeInlineTransportBudgetBytes = LARGE_INLINE_SEND_TRANSPORT_BUDGET_BYTES
-                    ),
-                callbacks =
-                    MeshEnginePeerFlowCallbacks(
-                        runtimeGate = runtimeSurface.runtimeGate,
-                        captureHardRunToken = runtimeSurface.runtimeGate::captureHardRunToken,
-                        sendEncryptedWireFrame = hopTransportSupport::sendEncryptedWireFrame,
-                        ensureHopSession = { peerId -> sessionSupport.ensureHopSession(peerId) },
-                        maximumPayloadBytesPerDelivery =
-                            platformBridge::maximumPayloadBytesPerDelivery,
-                        emitDiagnostic = ::emitDiagnostic,
-                        peerRouteMetadata = { peerId, metadata ->
-                            routingAndTrust.routingSupport.peerRouteMetadata(
-                                peerId,
-                                metadata = metadata,
-                            )
-                        },
-                    ),
+            buildPeerFlowSupport(
+                sharedState = sharedState,
+                routingAndTrust = routingAndTrust,
+                sessionSupport = sessionSupport,
+                hopTransportSupport = hopTransportSupport,
             )
         return SessionAndHopTransportPhase(
             sessionSupport = sessionSupport,
@@ -384,36 +314,20 @@ private class RuntimeGraphAssembler(
                 routingSupport = routingAndTrust.routingSupport,
             )
         val handshakeCallbacks =
-            MeshEngineHandshakeCallbacks(
-                sendDirectWireFrame = { peerId, frame, action ->
-                    sendDirectWireFrame(peerId = peerId, frame = frame, action = action)
-                },
-                emitHopSessionEstablished =
-                    sessionAndHopTransport.hopTransportSupport::emitHopSessionEstablished,
-                emitHopSessionFailed =
-                    sessionAndHopTransport.hopTransportSupport::emitHopSessionFailed,
-                promoteTemporaryPeer = { temporaryPeerId, canonicalPeerId ->
-                    runCatching {
-                            platformBridge.promoteTemporaryPeer(temporaryPeerId, canonicalPeerId)
-                        }
-                        .getOrElse { Unit }
-                },
-            )
+            buildHandshakeCallbacks(sessionAndHopTransport = sessionAndHopTransport)
         val initiatorHandshakeSupport =
-            MeshEngineInitiatorHandshakeSupport(
-                localIdentity = localIdentity,
-                trustSupport = routingAndTrust.trustSupport,
-                state = handshakeState,
-                routingContext = handshakeRoutingContext,
-                callbacks = handshakeCallbacks,
+            buildInitiatorHandshakeSupport(
+                routingAndTrust = routingAndTrust,
+                handshakeState = handshakeState,
+                handshakeRoutingContext = handshakeRoutingContext,
+                handshakeCallbacks = handshakeCallbacks,
             )
         val responderHandshakeSupport =
-            MeshEngineResponderHandshakeSupport(
-                localIdentity = localIdentity,
-                trustSupport = routingAndTrust.trustSupport,
-                state = handshakeState,
-                routingContext = handshakeRoutingContext,
-                callbacks = handshakeCallbacks,
+            buildResponderHandshakeSupport(
+                routingAndTrust = routingAndTrust,
+                handshakeState = handshakeState,
+                handshakeRoutingContext = handshakeRoutingContext,
+                handshakeCallbacks = handshakeCallbacks,
             )
         return HandshakePhase(
             initiatorHandshakeSupport = initiatorHandshakeSupport,
@@ -470,6 +384,155 @@ private class RuntimeGraphAssembler(
             transferSupport = transferSupport,
             largeTransferSupport = largeTransferSupport,
             inboundSupport = inboundSupport,
+        )
+    }
+
+    private fun buildSessionSupport(
+        sharedState: SharedState,
+        routingAndTrust: RoutingAndTrustPhase,
+    ): MeshEngineSessionSupport {
+        return MeshEngineSessionSupport(
+            localIdentity = localIdentity,
+            state =
+                MeshEngineSessionState(
+                    sessionRegistry = sharedState.sessionRegistry,
+                    runtimeGate = runtimeSurface.runtimeGate,
+                ),
+            handshakeTimeout = HANDSHAKE_TIMEOUT,
+            callbacks =
+                MeshEngineSessionCallbacks(
+                    hasTransport = { platformBridge.hasTransport },
+                    sendDirectWireFrame = { peerId, frame, action, preferredMode ->
+                        sendDirectWireFrame(
+                            peerId = peerId,
+                            frame = frame,
+                            action = action,
+                            preferredMode = preferredMode,
+                        )
+                    },
+                    emitHopSessionFailed = { peerId, stage, reason, metadata ->
+                        emitDiagnostic(
+                            code = DiagnosticCode.HOP_SESSION_FAILED,
+                            severity = DiagnosticSeverity.WARN,
+                            stage = stage,
+                            peerSuffix = peerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
+                            reason = reason,
+                            metadata =
+                                routingAndTrust.routingSupport.peerRouteMetadata(
+                                    peerId,
+                                    metadata = metadata,
+                                ),
+                        )
+                    },
+                ),
+        )
+    }
+
+    private fun buildHopTransportSupport(
+        routingAndTrust: RoutingAndTrustPhase,
+        sessionSupport: MeshEngineSessionSupport,
+    ): MeshEngineHopTransportSupport {
+        return MeshEngineHopTransportSupport(
+            localIdentity = localIdentity,
+            runtimeGate = runtimeSurface.runtimeGate,
+            routingSupport = routingAndTrust.routingSupport,
+            establishedHopSession = { peerId -> sessionSupport.establishedHopSession(peerId) },
+            ensureHopSession = { peerId, hardRunToken ->
+                sessionSupport.ensureHopSession(peerId, hardRunToken)
+            },
+            sendDirectWireFrame = { peerId, frame, action, preferredMode ->
+                sendDirectWireFrame(
+                    peerId = peerId,
+                    frame = frame,
+                    action = action,
+                    preferredMode = preferredMode,
+                )
+            },
+            emitDiagnostic = ::emitDiagnostic,
+        )
+    }
+
+    private fun buildPeerFlowSupport(
+        sharedState: SharedState,
+        routingAndTrust: RoutingAndTrustPhase,
+        sessionSupport: MeshEngineSessionSupport,
+        hopTransportSupport: MeshEngineHopTransportSupport,
+    ): MeshEnginePeerFlowSupport {
+        return MeshEnginePeerFlowSupport(
+            localIdentity = localIdentity,
+            context =
+                MeshEnginePeerFlowContext(
+                    routeCoordinator = sharedState.routeCoordinator,
+                    coroutineScope = coroutineScope,
+                ),
+            config =
+                MeshEnginePeerFlowConfig(
+                    largeInlineTransportBudgetBytes = LARGE_INLINE_SEND_TRANSPORT_BUDGET_BYTES
+                ),
+            callbacks =
+                MeshEnginePeerFlowCallbacks(
+                    runtimeGate = runtimeSurface.runtimeGate,
+                    captureHardRunToken = runtimeSurface.runtimeGate::captureHardRunToken,
+                    sendEncryptedWireFrame = hopTransportSupport::sendEncryptedWireFrame,
+                    ensureHopSession = { peerId -> sessionSupport.ensureHopSession(peerId) },
+                    maximumPayloadBytesPerDelivery = platformBridge::maximumPayloadBytesPerDelivery,
+                    emitDiagnostic = ::emitDiagnostic,
+                    peerRouteMetadata = { peerId, metadata ->
+                        routingAndTrust.routingSupport.peerRouteMetadata(
+                            peerId,
+                            metadata = metadata,
+                        )
+                    },
+                ),
+        )
+    }
+
+    private fun buildHandshakeCallbacks(
+        sessionAndHopTransport: SessionAndHopTransportPhase
+    ): MeshEngineHandshakeCallbacks {
+        return MeshEngineHandshakeCallbacks(
+            sendDirectWireFrame = { peerId, frame, action ->
+                sendDirectWireFrame(peerId = peerId, frame = frame, action = action)
+            },
+            emitHopSessionEstablished =
+                sessionAndHopTransport.hopTransportSupport::emitHopSessionEstablished,
+            emitHopSessionFailed = sessionAndHopTransport.hopTransportSupport::emitHopSessionFailed,
+            promoteTemporaryPeer = { temporaryPeerId, canonicalPeerId ->
+                runCatching {
+                        platformBridge.promoteTemporaryPeer(temporaryPeerId, canonicalPeerId)
+                    }
+                    .getOrElse { Unit }
+            },
+        )
+    }
+
+    private fun buildInitiatorHandshakeSupport(
+        routingAndTrust: RoutingAndTrustPhase,
+        handshakeState: MeshEngineHandshakeState,
+        handshakeRoutingContext: MeshEngineHandshakeRoutingContext,
+        handshakeCallbacks: MeshEngineHandshakeCallbacks,
+    ): MeshEngineInitiatorHandshakeSupport {
+        return MeshEngineInitiatorHandshakeSupport(
+            localIdentity = localIdentity,
+            trustSupport = routingAndTrust.trustSupport,
+            state = handshakeState,
+            routingContext = handshakeRoutingContext,
+            callbacks = handshakeCallbacks,
+        )
+    }
+
+    private fun buildResponderHandshakeSupport(
+        routingAndTrust: RoutingAndTrustPhase,
+        handshakeState: MeshEngineHandshakeState,
+        handshakeRoutingContext: MeshEngineHandshakeRoutingContext,
+        handshakeCallbacks: MeshEngineHandshakeCallbacks,
+    ): MeshEngineResponderHandshakeSupport {
+        return MeshEngineResponderHandshakeSupport(
+            localIdentity = localIdentity,
+            trustSupport = routingAndTrust.trustSupport,
+            state = handshakeState,
+            routingContext = handshakeRoutingContext,
+            callbacks = handshakeCallbacks,
         )
     }
 
