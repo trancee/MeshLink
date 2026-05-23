@@ -1,22 +1,14 @@
 package ch.trancee.meshlink.reference.meshlink
 
 import ch.trancee.meshlink.api.DeliveryPriority
-import ch.trancee.meshlink.api.ForgetPeerResult
-import ch.trancee.meshlink.api.InboundMessage
 import ch.trancee.meshlink.api.MeshLink
 import ch.trancee.meshlink.api.MeshLinkApi
 import ch.trancee.meshlink.api.MeshLinkState
-import ch.trancee.meshlink.api.PauseResult
 import ch.trancee.meshlink.api.PeerConnectionState
 import ch.trancee.meshlink.api.PeerId
-import ch.trancee.meshlink.api.ResumeResult
-import ch.trancee.meshlink.api.StartResult
-import ch.trancee.meshlink.api.StopResult
 import ch.trancee.meshlink.config.PowerMode
 import ch.trancee.meshlink.config.RegulatoryRegion
 import ch.trancee.meshlink.config.meshLinkConfig
-import ch.trancee.meshlink.diagnostics.DiagnosticCode
-import ch.trancee.meshlink.diagnostics.DiagnosticEvent
 import ch.trancee.meshlink.reference.model.PeerConnectionSnapshotState
 import ch.trancee.meshlink.reference.model.PeerSnapshot
 import ch.trancee.meshlink.reference.model.PeerTrustState
@@ -26,7 +18,6 @@ import ch.trancee.meshlink.reference.model.ReferenceSession
 import ch.trancee.meshlink.reference.model.TimelineEntry
 import ch.trancee.meshlink.reference.model.TimelineFamily
 import ch.trancee.meshlink.reference.model.TimelineSeverity
-import ch.trancee.meshlink.reference.model.redactedPayloadPreview
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -137,6 +128,8 @@ public class LiveReferenceMeshLinkController(
         }
     }
     private val sendRecorder: LiveReferenceSendRecorder = LiveReferenceSendRecorder(stateStore)
+    private val sessionProjector: LiveReferenceSessionProjector =
+        LiveReferenceSessionProjector(stateStore = stateStore, runtimeLogger = runtimeLogger)
     private var flowsBound: Boolean = false
 
     override val snapshot: StateFlow<ReferenceControllerSnapshot> = stateStore.snapshot
@@ -144,7 +137,7 @@ public class LiveReferenceMeshLinkController(
     override suspend fun start(): Unit {
         ensureBindings()
         val outcome = runCatching { meshLinkApi.start() }
-        handleMeshCall(
+        sessionProjector.recordMeshCall(
             result = outcome,
             successTitle = "Mesh started",
             successDetail = { result -> "mesh.start() -> $result" },
@@ -154,7 +147,7 @@ public class LiveReferenceMeshLinkController(
 
     override suspend fun pause(): Unit {
         val outcome = runCatching { meshLinkApi.pause() }
-        handleMeshCall(
+        sessionProjector.recordMeshCall(
             result = outcome,
             successTitle = "Mesh paused",
             successDetail = { result -> "mesh.pause() -> $result" },
@@ -164,7 +157,7 @@ public class LiveReferenceMeshLinkController(
 
     override suspend fun resume(): Unit {
         val outcome = runCatching { meshLinkApi.resume() }
-        handleMeshCall(
+        sessionProjector.recordMeshCall(
             result = outcome,
             successTitle = "Mesh resumed",
             successDetail = { result -> "mesh.resume() -> $result" },
@@ -174,7 +167,7 @@ public class LiveReferenceMeshLinkController(
 
     override suspend fun stop(): Unit {
         val outcome = runCatching { meshLinkApi.stop() }
-        handleMeshCall(
+        sessionProjector.recordMeshCall(
             result = outcome,
             successTitle = "Mesh stopped",
             successDetail = { result -> "mesh.stop() -> $result" },
@@ -215,43 +208,8 @@ public class LiveReferenceMeshLinkController(
     override suspend fun forgetPeer(peerId: String): Unit {
         val outcome = runCatching { meshLinkApi.forgetPeer(PeerId(peerId)) }
         outcome
-            .onSuccess { result ->
-                val trustState =
-                    if (result == ForgetPeerResult.Forgotten) {
-                        PeerTrustState.FORGOTTEN
-                    } else {
-                        PeerTrustState.UNKNOWN
-                    }
-                stateStore.updatePeers { peers ->
-                    peers.map { peer ->
-                        if (peer.peerId == peerId) {
-                            peer.copy(trustState = trustState)
-                        } else {
-                            peer
-                        }
-                    }
-                }
-                stateStore.appendEvent(
-                    ReferenceTimelineEvent(
-                        family = TimelineFamily.PEER,
-                        severity = TimelineSeverity.INFO,
-                        title = "Peer trust reset",
-                        detail = "forgetPeer(${redactedSuffix(peerId)}) -> $result",
-                        peerSuffix = redactedSuffix(peerId),
-                    )
-                )
-            }
-            .onFailure { error ->
-                stateStore.appendEvent(
-                    ReferenceTimelineEvent(
-                        family = TimelineFamily.PEER,
-                        severity = TimelineSeverity.ERROR,
-                        title = "Peer trust reset failed",
-                        detail = error.message ?: error.toString(),
-                        peerSuffix = redactedSuffix(peerId),
-                    )
-                )
-            }
+            .onSuccess { result -> sessionProjector.recordPeerTrustReset(peerId, result) }
+            .onFailure { error -> sessionProjector.recordPeerTrustResetFailure(peerId, error) }
     }
 
     override suspend fun close(): Unit {
@@ -275,135 +233,14 @@ public class LiveReferenceMeshLinkController(
             }
         }
         scope.launch {
-            meshLinkApi.diagnosticEvents.collect { event -> handleDiagnosticEvent(event) }
-        }
-        scope.launch { meshLinkApi.messages.collect { message -> handleInboundMessage(message) } }
-    }
-
-    private fun handleMeshCall(
-        result: Result<Any>,
-        successTitle: String,
-        successDetail: (Any) -> String,
-        errorTitle: String,
-    ): Unit {
-        result
-            .onSuccess { value ->
-                stateStore.appendEvent(
-                    ReferenceTimelineEvent(
-                        family = TimelineFamily.LIFECYCLE,
-                        severity = TimelineSeverity.SUCCESS,
-                        title = successTitle,
-                        detail = successDetail(value),
-                    )
-                )
-                if (shouldTrackLifecycleOutcome(value)) {
-                    stateStore.updateSession(lastOutcomeSummary = value.toString())
-                }
-            }
-            .onFailure { error ->
-                stateStore.appendEvent(
-                    ReferenceTimelineEvent(
-                        family = TimelineFamily.LIFECYCLE,
-                        severity = TimelineSeverity.ERROR,
-                        title = errorTitle,
-                        detail = error.message ?: error.toString(),
-                    )
-                )
-                stateStore.updateSession(lastOutcomeSummary = errorTitle)
-            }
-    }
-
-    private fun handleDiagnosticEvent(event: DiagnosticEvent): Unit {
-        val detail = diagnosticDetail(event)
-        runtimeLogger(
-            "REFERENCE_RUNTIME diagnostic " +
-                "code=${event.code} " +
-                "stage=${event.stage} " +
-                "peer=${event.peerSuffix ?: "none"} " +
-                "detail=$detail"
-        )
-        stateStore.appendEvent(
-            ReferenceTimelineEvent(
-                family = TimelineFamily.DIAGNOSTIC,
-                severity = event.severity.toTimelineSeverity(),
-                title = event.code.name,
-                detail = detail,
-                peerSuffix = event.peerSuffix,
-            )
-        )
-        when (event.code) {
-            DiagnosticCode.TRUST_ESTABLISHED ->
-                updatePeerTrustState(
-                    stateStore = stateStore,
-                    peerSuffix = event.peerSuffix,
-                    trustState = PeerTrustState.TRUSTED,
-                )
-            DiagnosticCode.TRUST_FAILURE ->
-                updatePeerTrustState(
-                    stateStore = stateStore,
-                    peerSuffix = event.peerSuffix,
-                    trustState = PeerTrustState.CHANGED,
-                )
-            DiagnosticCode.POWER_MODE_CHANGED -> {
-                stateStore.updateActivePowerModeLabel(
-                    event.metadata["tier"] ?: stateStore.currentSnapshot.activePowerModeLabel
-                )
-            }
-
-            else -> Unit
-        }
-    }
-
-    private fun handleInboundMessage(message: InboundMessage): Unit {
-        val payloadText = message.payload.decodeToString()
-        val preview = redactedPayloadPreview(payloadText.take(INBOUND_MESSAGE_PREVIEW_LENGTH))
-        runtimeLogger(
-            "REFERENCE_RUNTIME inbound " +
-                "origin=${message.originPeerId.value} " +
-                "bytes=${message.payload.size} " +
-                "priority=${message.priority}"
-        )
-        stateStore.appendEvent(
-            ReferenceTimelineEvent(
-                family = TimelineFamily.MESSAGE,
-                severity = TimelineSeverity.SUCCESS,
-                title = "Inbound message",
-                detail =
-                    "Received ${message.payload.size} bytes from ${redactedSuffix(message.originPeerId.value)}.",
-                peerSuffix = redactedSuffix(message.originPeerId.value),
-                payloadPreview = preview,
-                payloadSizeBytes = message.payload.size,
-                fullPayload = payloadText,
-            )
-        )
-        stateStore.updateSession(
-            lastOutcomeSummary = "Inbound message received",
-            selectedPeerId = message.originPeerId.value,
-        )
-        stateStore.updatePeers { peers ->
-            peers.map { peer ->
-                if (peer.peerId == message.originPeerId.value) {
-                    peer.copy(lastDeliveryOutcome = "Inbound ${message.payload.size} bytes")
-                } else {
-                    peer
-                }
+            meshLinkApi.diagnosticEvents.collect { event ->
+                sessionProjector.recordDiagnostic(event)
             }
         }
-    }
-}
-
-private fun diagnosticDetail(event: DiagnosticEvent): String {
-    return buildString {
-        append(event.code)
-        append(" @ ")
-        append(event.stage)
-        if (event.metadata.isNotEmpty()) {
-            append(" ")
-            append(
-                event.metadata.entries.joinToString(prefix = "{", postfix = "}") { (key, value) ->
-                    "$key=$value"
-                }
-            )
+        scope.launch {
+            meshLinkApi.messages.collect { message ->
+                sessionProjector.recordInboundMessage(message)
+            }
         }
     }
 }
@@ -479,27 +316,10 @@ public class PreviewReferenceMeshLinkController(
     override suspend fun close(): Unit = Unit
 }
 
-private fun shouldTrackLifecycleOutcome(value: Any): Boolean {
-    return value is StartResult ||
-        value is ResumeResult ||
-        value is PauseResult ||
-        value is StopResult
-}
-
 internal fun PeerConnectionState.toSnapshotState(): PeerConnectionSnapshotState {
     return when (this) {
         PeerConnectionState.CONNECTED -> PeerConnectionSnapshotState.CONNECTED
         PeerConnectionState.DISCONNECTED -> PeerConnectionSnapshotState.DISCONNECTED
-    }
-}
-
-private fun ch.trancee.meshlink.diagnostics.DiagnosticSeverity.toTimelineSeverity():
-    TimelineSeverity {
-    return when (this) {
-        ch.trancee.meshlink.diagnostics.DiagnosticSeverity.DEBUG -> TimelineSeverity.DEBUG
-        ch.trancee.meshlink.diagnostics.DiagnosticSeverity.INFO -> TimelineSeverity.INFO
-        ch.trancee.meshlink.diagnostics.DiagnosticSeverity.WARN -> TimelineSeverity.WARNING
-        ch.trancee.meshlink.diagnostics.DiagnosticSeverity.ERROR -> TimelineSeverity.ERROR
     }
 }
 
@@ -508,5 +328,4 @@ internal fun redactedSuffix(peerId: String): String {
 }
 
 private const val REDACTED_PEER_SUFFIX_LENGTH: Int = 6
-private const val INBOUND_MESSAGE_PREVIEW_LENGTH: Int = 80
 private const val PREVIEW_PEER_PREFIX_LENGTH: Int = 2
