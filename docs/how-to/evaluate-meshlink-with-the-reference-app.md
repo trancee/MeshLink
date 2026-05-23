@@ -179,6 +179,17 @@ python3 meshlink-reference/scripts/run_headless_reference_live_proof.py \
 The harness installs the Android debug build, rebuilds the iPhone app, runs the
 physical guided exchange, and writes retained evidence into the chosen run directory.
 
+If you only need to verify the physical iPhone sender XCTest path, add:
+
+```bash
+  --ios-launch-mode xcuitest \
+  --skip-android-completion-wait
+```
+
+That variant still launches the passive Android app so the iPhone can discover a
+peer, but it stops after the sender UI test passes instead of waiting for an
+Android retained export.
+
 ## Expected outcome
 
 After following this guide, you should be able to:

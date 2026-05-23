@@ -116,9 +116,11 @@ Expected retained outputs:
   Bluetooth prompt, use [How to unblock MeshLink permissions on Android and iOS](../docs/how-to/unblock-meshlink-permissions.md) before debugging anything deeper.
 - The default physical-launch path uses `devicectl`. The optional
   `--ios-launch-mode xcuitest` fallback exists for first-run permission
-  handling. On free Apple development profiles, use
-  `--cleanup-ios-dev-app-slots` if you need the runner to free old MeshLink dev
-  apps before starting that fallback path.
+  handling. When you only need to verify the physical iPhone sender XCTest path,
+  add `--skip-android-completion-wait` so the run stops after the sender test
+  passes instead of waiting for a retained Android passive export. On free Apple
+  development profiles, use `--cleanup-ios-dev-app-slots` if you need the
+  runner to free old MeshLink dev apps before starting that fallback path.
 
 ## Expected outcome
 

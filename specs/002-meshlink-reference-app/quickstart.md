@@ -125,6 +125,17 @@ The runner:
 - waits for the live guided exchange to complete
 - retains proof artifacts in the chosen run directory
 
+If you only need to verify the physical iPhone sender XCTest path, add:
+
+```bash
+  --ios-launch-mode xcuitest \
+  --skip-android-completion-wait
+```
+
+That mode still launches the passive Android peer so the iPhone can discover a
+real device, but it stops after the sender UI test passes instead of waiting
+for a retained Android passive export.
+
 Expected retained outputs:
 
 - `summary.json`
