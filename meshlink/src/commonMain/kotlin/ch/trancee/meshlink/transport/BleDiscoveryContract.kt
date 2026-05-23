@@ -240,7 +240,7 @@ internal fun resolveGattDataBearerMode(
         shouldUseMixedPlatformGattNotifyBearer(
             localPlatformFamily = localPlatformFamily,
             remotePlatformFamily = remotePlatformFamily,
-        ) -> GattDataBearerMode.GATT_REQUIRED
+        ) -> GattDataBearerMode.GATT_OPTIONAL_WITH_L2CAP_FALLBACK
         preferredMode == TransportMode.GATT -> GattDataBearerMode.GATT_OPTIONAL_WITH_L2CAP_FALLBACK
         else -> GattDataBearerMode.L2CAP_ONLY
     }

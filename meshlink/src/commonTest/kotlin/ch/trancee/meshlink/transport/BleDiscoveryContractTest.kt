@@ -409,9 +409,9 @@ class BleDiscoveryContractTest {
     }
 
     @Test
-    fun `mixed platform data bearer mode requires gatt without l2cap fallback`() {
+    fun `mixed platform data bearer mode prefers gatt but still falls back to l2cap`() {
         // Arrange
-        val expected = GattDataBearerMode.GATT_REQUIRED
+        val expected = GattDataBearerMode.GATT_OPTIONAL_WITH_L2CAP_FALLBACK
 
         // Act
         val actual =
