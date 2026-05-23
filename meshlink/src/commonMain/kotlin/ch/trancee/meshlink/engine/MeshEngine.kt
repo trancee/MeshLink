@@ -44,455 +44,25 @@ import kotlinx.coroutines.launch
 
 internal class MeshEngine
 private constructor(
-    private val config: MeshLinkConfig,
-    private val platformContext: Any?,
-    private val localIdentity: LocalIdentity,
+    config: MeshLinkConfig,
+    platformContext: Any?,
+    localIdentity: LocalIdentity,
     secureStorage: SecureStorage,
-    private val bleTransport: BleTransport? = null,
+    bleTransport: BleTransport? = null,
     diagnosticSink: DiagnosticSink? = null,
 ) : MeshLinkApi {
+    @Suppress("unused") private val platformContext: Any? = platformContext
     private val coroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-    private val engineClock = TimeSource.Monotonic.markNow()
-    private val trustStore = TofuTrustStore(secureStorage)
-    private val presenceTracker = PeerPresenceTracker()
-    private val routeCoordinator = RouteCoordinator(localIdentity.peerId)
-    private val deliveryRetryScheduler = DeliveryRetryScheduler(routeCoordinator.topologyVersion)
-    private val powerPolicyController =
-        PowerPolicyController(configuredMode = config.powerMode, region = config.regulatoryRegion)
-    private val platformBridge = MeshEnginePlatformBridge(bleTransport)
     private val runtimeSurface = MeshEngineRuntimeSurface(diagnosticSink = diagnosticSink)
     private val publishedSurface: MeshEnginePublishedRuntimeSurface = runtimeSurface
-    private val compatibilitySurface: MeshEngineCompatibilityRuntimeSurface = runtimeSurface
-    private val routingSupport: MeshEngineRoutingSupport =
-        MeshEngineRoutingSupport(
-            routeCoordinator = routeCoordinator,
+    private val graph: MeshEngineGraphOperations =
+        RuntimeGraph(
+            config = config,
+            localIdentity = localIdentity,
+            secureStorage = secureStorage,
             coroutineScope = coroutineScope,
-            emitDiagnostic = ::emitDiagnostic,
-            sendEncryptedWireFrame = { peerId, frame, action ->
-                hopTransportSupport.sendEncryptedWireFrame(peerId, frame, action)
-            },
-        )
-    private val trustSupport =
-        MeshEngineTrustSupport(
-            localIdentity = localIdentity,
-            trustStore = trustStore,
-            emitDiagnostic = ::emitDiagnostic,
-        )
-    private val sessionRegistry = MeshEngineSessionRegistry()
-    private val outboundTransfers: MutableMap<String, OutboundTransferSession> = linkedMapOf()
-    private val inboundTransfers: MutableMap<String, InboundTransferSession> = linkedMapOf()
-    private val relayTransfers: MutableMap<String, RelayTransferSession> = linkedMapOf()
-    private val sequenceGenerator = MeshEngineSequenceGenerator(localIdentity)
-    private val powerPolicyNowMillis: () -> Long = { engineClock.elapsedNow().inWholeMilliseconds }
-    private val ttlMillisFor: (DeliveryPriority) -> Int = { priority ->
-        when (priority) {
-            DeliveryPriority.HIGH -> HIGH_PRIORITY_TTL_MILLIS
-            DeliveryPriority.NORMAL -> NORMAL_PRIORITY_TTL_MILLIS
-            DeliveryPriority.LOW -> LOW_PRIORITY_TTL_MILLIS
-        }
-    }
-    private val scheduleRetryDiagnostic: (PeerId, DeliveryPriority) -> Unit = { peerId, priority ->
-        emitDiagnostic(
-            code = DiagnosticCode.NO_ROUTE_AVAILABLE,
-            severity = DiagnosticSeverity.WARN,
-            stage = "delivery.noRoute",
-            peerSuffix = peerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
-            reason = DiagnosticReason.DELIVERY_FAILURE,
-            metadata =
-                routingSupport.peerRouteMetadata(
-                    peerId,
-                    metadata =
-                        mapOf(
-                            "priority" to priority.name,
-                            "retryDeadlineMs" to
-                                config.deliveryRetryDeadline.inWholeMilliseconds.toString(),
-                            "retryBackoffBaseMs" to INITIAL_BACKOFF.inWholeMilliseconds.toString(),
-                        ),
-                ),
-        )
-    }
-    private val sessionSupport =
-        MeshEngineSessionSupport(
-            localIdentity = localIdentity,
-            state = MeshEngineSessionState(sessionRegistry = sessionRegistry),
-            handshakeTimeout = HANDSHAKE_TIMEOUT,
-            callbacks =
-                MeshEngineSessionCallbacks(
-                    hasTransport = { platformBridge.hasTransport },
-                    sendDirectWireFrame = { peerId, frame, action, preferredMode ->
-                        sendDirectWireFrame(peerId, frame, action, preferredMode)
-                    },
-                    emitHopSessionFailed = { peerId, stage, reason, metadata ->
-                        emitDiagnostic(
-                            code = DiagnosticCode.HOP_SESSION_FAILED,
-                            severity = DiagnosticSeverity.WARN,
-                            stage = stage,
-                            peerSuffix = peerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
-                            reason = reason,
-                            metadata = routingSupport.peerRouteMetadata(peerId, metadata = metadata),
-                        )
-                    },
-                ),
-        )
-    private val hopTransportSupport: MeshEngineHopTransportSupport =
-        MeshEngineHopTransportSupport(
-            localIdentity = localIdentity,
-            routingSupport = routingSupport,
-            establishedHopSession = sessionSupport::establishedHopSession,
-            sendDirectWireFrame = { peerId, frame, action, preferredMode ->
-                sendDirectWireFrame(peerId, frame, action, preferredMode)
-            },
-            emitDiagnostic = ::emitDiagnostic,
-        )
-    private val peerFlowSupport =
-        MeshEnginePeerFlowSupport(
-            localIdentity = localIdentity,
-            context =
-                MeshEnginePeerFlowContext(
-                    routeCoordinator = routeCoordinator,
-                    coroutineScope = coroutineScope,
-                ),
-            config =
-                MeshEnginePeerFlowConfig(
-                    largeInlineTransportBudgetBytes = LARGE_INLINE_SEND_TRANSPORT_BUDGET_BYTES
-                ),
-            callbacks =
-                MeshEnginePeerFlowCallbacks(
-                    sendEncryptedWireFrame = hopTransportSupport::sendEncryptedWireFrame,
-                    ensureHopSession = sessionSupport::ensureHopSession,
-                    maximumPayloadBytesPerDelivery = platformBridge::maximumPayloadBytesPerDelivery,
-                    emitDiagnostic = ::emitDiagnostic,
-                    peerRouteMetadata = { peerId, metadata ->
-                        routingSupport.peerRouteMetadata(peerId, metadata = metadata)
-                    },
-                ),
-        )
-    private val handshakeState = MeshEngineHandshakeState(sessionRegistry = sessionRegistry)
-    private val handshakeRoutingContext =
-        MeshEngineHandshakeRoutingContext(
-            routeCoordinator = routeCoordinator,
-            routingSupport = routingSupport,
-        )
-    private val handshakeCallbacks =
-        MeshEngineHandshakeCallbacks(
-            sendDirectWireFrame = { peerId, frame, action ->
-                sendDirectWireFrame(peerId = peerId, frame = frame, action = action)
-            },
-            emitHopSessionEstablished = hopTransportSupport::emitHopSessionEstablished,
-            emitHopSessionFailed = hopTransportSupport::emitHopSessionFailed,
-            promoteTemporaryPeer = { temporaryPeerId, canonicalPeerId ->
-                runCatching {
-                        platformBridge.promoteTemporaryPeer(temporaryPeerId, canonicalPeerId)
-                    }
-                    .getOrElse { Unit }
-            },
-        )
-    private val initiatorHandshakeSupport =
-        MeshEngineInitiatorHandshakeSupport(
-            localIdentity = localIdentity,
-            trustSupport = trustSupport,
-            state = handshakeState,
-            routingContext = handshakeRoutingContext,
-            callbacks = handshakeCallbacks,
-        )
-    private val responderHandshakeSupport =
-        MeshEngineResponderHandshakeSupport(
-            localIdentity = localIdentity,
-            trustSupport = trustSupport,
-            state = handshakeState,
-            routingContext = handshakeRoutingContext,
-            callbacks = handshakeCallbacks,
-        )
-
-    private val messageDeliverySupport =
-        MeshEngineMessageDeliverySupport(
-            localIdentity = localIdentity,
-            trustSupport = trustSupport,
-            mutableMessages = compatibilitySurface.mutableMessages,
-            emitHopSessionFailed = hopTransportSupport::emitHopSessionFailed,
-            emitDiagnostic = ::emitDiagnostic,
-        )
-    private val outboundPreparationSupport =
-        MeshEngineOutboundPreparationSupport(
-            localIdentity = localIdentity,
-            trustStore = trustStore,
-            state = MeshEngineOutboundPreparationState(outboundTransfers = outboundTransfers),
-            routingContext =
-                MeshEngineOutboundPreparationRoutingContext(
-                    routeCoordinator = routeCoordinator,
-                    routingSupport = routingSupport,
-                ),
-            callbacks =
-                MeshEngineOutboundPreparationCallbacks(
-                    createMessageId = sequenceGenerator::createMessageId,
-                    createTransferId = sequenceGenerator::createTransferId,
-                    emitTransferEncryptFailure = { peerId, cause ->
-                        hopTransportSupport.emitHopSessionFailed(
-                            peerId = peerId,
-                            stage = "transfer.encrypt",
-                            reason = DiagnosticReason.TRUST_FAILURE,
-                            metadata = mapOf("cause" to cause),
-                        )
-                    },
-                ),
-            emitDiagnostic = ::emitDiagnostic,
-        )
-    private val inlineSendSupport =
-        MeshEngineInlineSendSupport(
-            localIdentity = localIdentity,
-            config =
-                MeshEngineInlineConfig(
-                    deliveryRetryDeadline = config.deliveryRetryDeadline,
-                    inlineMessagePayloadBytes = INLINE_MESSAGE_PAYLOAD_BYTES,
-                ),
-            routingContext =
-                MeshEngineInlineRoutingContext(
-                    routeCoordinator = routeCoordinator,
-                    routingSupport = routingSupport,
-                ),
-            dependencies =
-                MeshEngineInlineDependencies(
-                    deliveryRetryScheduler = deliveryRetryScheduler,
-                    ensureHopSession = sessionSupport::ensureHopSession,
-                    sendEncryptedDirectWireFrame =
-                        hopTransportSupport::sendEncryptedDirectWireFrame,
-                    resolveRecipientTrust = outboundPreparationSupport::resolveRecipientTrust,
-                    scheduleRetryDiagnostic = scheduleRetryDiagnostic,
-                    setDiscoverySuspended = { suspended ->
-                        val action =
-                            if (suspended) "inline.discoverySuspend" else "inline.discoveryResume"
-                        platformBridge.setDiscoverySuspended(action = action, suspended = suspended)
-                    },
-                    emitHopSessionFailed = hopTransportSupport::emitHopSessionFailed,
-                ),
-            callbacks =
-                MeshEngineInlineCallbacks(
-                    emitDiagnostic = ::emitDiagnostic,
-                    createMessageId = sequenceGenerator::createMessageId,
-                    ttlMillisFor = ttlMillisFor,
-                ),
-        )
-    private val transferSupport =
-        MeshEngineTransferSupport(
-            state =
-                MeshEngineTransferState(
-                    outboundTransfers = outboundTransfers,
-                    inboundTransfers = inboundTransfers,
-                    relayTransfers = relayTransfers,
-                ),
-            routingSupport = routingSupport,
-            callbacks =
-                MeshEngineTransferCallbacks(
-                    isLocalPeerId = peerFlowSupport::isLocalPeerId,
-                    sendEncryptedWireFrame = hopTransportSupport::sendEncryptedWireFrame,
-                    sendTransferTowardsDestination =
-                        peerFlowSupport::sendTransferTowardsDestination,
-                    deliverInnerEnvelope = messageDeliverySupport::deliverInnerEnvelope,
-                ),
-            emitDiagnostic = ::emitDiagnostic,
-        )
-    private val largeTransferSupport =
-        MeshEngineLargeTransferSupport(
-            config =
-                MeshEngineLargeTransferConfig(
-                    deliveryRetryDeadline = config.deliveryRetryDeadline,
-                    ackSettlementTimeout = TRANSFER_ACK_SETTLEMENT_TIMEOUT,
-                    ackIdleWindow = TRANSFER_ACK_IDLE_WINDOW,
-                ),
-            state = MeshEngineLargeTransferState(outboundTransfers = outboundTransfers),
-            routingSupport = routingSupport,
-            dependencies =
-                MeshEngineLargeTransferDependencies(
-                    currentTopologyVersion = { routeCoordinator.topologyVersion.value },
-                    deliveryRetryScheduler = deliveryRetryScheduler,
-                    prepareOutboundTransferSession =
-                        outboundPreparationSupport::prepareOutboundTransferSession,
-                    scheduleRetryDiagnostic = scheduleRetryDiagnostic,
-                    sendTransferTowardsDestination =
-                        peerFlowSupport::sendTransferTowardsDestination,
-                    setDiscoverySuspended = { suspended ->
-                        val action =
-                            if (suspended) "transfer.discoverySuspend"
-                            else "transfer.discoveryResume"
-                        platformBridge.setDiscoverySuspended(action = action, suspended = suspended)
-                    },
-                    clearQueuedOutboundFrames = { peerId, action ->
-                        platformBridge.clearQueuedOutboundFrames(peerId = peerId, action = action)
-                    },
-                ),
-            emitDiagnostic = ::emitDiagnostic,
-        )
-    private val inboundSupport =
-        MeshEngineInboundSupport(
-            localIdentity = localIdentity,
-            sessionRegistry = sessionRegistry,
-            routingContext =
-                MeshEngineInboundRoutingContext(
-                    routeCoordinator = routeCoordinator,
-                    routingSupport = routingSupport,
-                ),
-            transport =
-                MeshEngineInboundTransport(
-                    emitHopSessionFailed = hopTransportSupport::emitHopSessionFailed,
-                    decryptHopPayload = hopTransportSupport::decryptHopPayload,
-                ),
-            messageCallbacks =
-                MeshEngineInboundMessageCallbacks(
-                    forwardMessageToNextHop = peerFlowSupport::forwardMessageToNextHop,
-                    deliverInnerEnvelope = messageDeliverySupport::deliverInnerEnvelope,
-                ),
-            transferCallbacks =
-                MeshEngineInboundTransferCallbacks(
-                    handleTransferStart = transferSupport::handleTransferStart,
-                    handleTransferChunk = transferSupport::handleTransferChunk,
-                    handleTransferAck = transferSupport::handleTransferAck,
-                    handleTransferComplete = transferSupport::handleTransferComplete,
-                    handleTransferAbort = transferSupport::handleTransferAbort,
-                ),
-        )
-    private val transportSupport =
-        MeshEngineTransportSupport(
-            peerState =
-                MeshEngineTransportPeerState(
-                    presenceTracker = presenceTracker,
-                    mutablePeerEvents = compatibilitySurface.mutablePeerEvents,
-                    sessionRegistry = sessionRegistry,
-                ),
-            routingContext =
-                MeshEngineTransportRoutingContext(
-                    routeCoordinator = routeCoordinator,
-                    routingSupport = routingSupport,
-                ),
-            callbacks =
-                MeshEngineTransportCallbacks(
-                    prewarmHopSession = peerFlowSupport::prewarmHopSession,
-                    handleHandshakeMessage1 = responderHandshakeSupport::handleHandshakeMessage1,
-                    handleHandshakeMessage2 = initiatorHandshakeSupport::handleHandshakeMessage2,
-                    handleHandshakeMessage3 = responderHandshakeSupport::handleHandshakeMessage3,
-                    handleEncryptedDataFrame = inboundSupport::handleEncryptedDataFrame,
-                ),
-            emitDiagnostic = ::emitDiagnostic,
-        )
-    private val transportCollector =
-        MeshEngineTransportCollector(
-            coroutineScope = coroutineScope,
-            transportEvents = { platformBridge.events },
-            handleTransportEvent = transportSupport::handleTransportEvent,
-        )
-    private val lifecycleState =
-        MeshEngineLifecycleState(
-            mutableState = compatibilitySurface.mutableState,
-            sessionRegistry = sessionRegistry,
-            outboundTransfers = outboundTransfers,
-            inboundTransfers = inboundTransfers,
-            relayTransfers = relayTransfers,
-            currentPowerPolicy = powerPolicyController.currentPolicy(nowMillis = 0L),
-        )
-    private val lifecycleSupport =
-        MeshEngineLifecycleSupport(
-            powerPolicyController = powerPolicyController,
-            powerPolicyNowMillis = powerPolicyNowMillis,
-            state = lifecycleState,
-            callbacks =
-                MeshEngineLifecycleCallbacks(
-                    ensureTransportCollector = transportCollector::ensureStarted,
-                    stopTransportCollector = transportCollector::stop,
-                    updateTransportPowerPolicy = platformBridge::updatePowerPolicy,
-                    startTransport = platformBridge::start,
-                    pauseTransport = platformBridge::pause,
-                    resumeTransport = platformBridge::resume,
-                    stopTransport = platformBridge::stop,
-                    launchTransportPowerPolicyUpdate = { policy ->
-                        coroutineScope.launch { platformBridge.updatePowerPolicy(policy) }
-                    },
-                ),
-            diagnostics =
-                MeshEngineLifecycleDiagnostics(
-                    emitLifecycleEvent = { code, stage ->
-                        emitDiagnostic(
-                            code = code,
-                            severity = DiagnosticSeverity.INFO,
-                            stage = stage,
-                            reason = DiagnosticReason.STATE_CHANGE,
-                        )
-                    },
-                    emitPowerModeChanged = { policy, level, isCharging ->
-                        emitDiagnostic(
-                            code = DiagnosticCode.POWER_MODE_CHANGED,
-                            severity = DiagnosticSeverity.INFO,
-                            stage = "power.updateBattery",
-                            reason = DiagnosticReason.POWER_CHANGE,
-                            metadata =
-                                powerPolicyMetadata(
-                                    policy = policy,
-                                    level = level,
-                                    isCharging = isCharging,
-                                ),
-                        )
-                    },
-                ),
-        )
-    private val sendSupport =
-        MeshEngineSendSupport(
-            config =
-                MeshEngineSendConfig(
-                    maxSupportedPayloadBytes = MAX_SUPPORTED_PAYLOAD_BYTES,
-                    inlineMessagePayloadBytes = INLINE_MESSAGE_PAYLOAD_BYTES,
-                ),
-            callbacks =
-                MeshEngineSendCallbacks(
-                    isMeshRunning = { publishedSurface.state.value === MeshLinkState.Running },
-                    hasTransport = { platformBridge.hasTransport },
-                    shouldAttemptLargeInlineSend = peerFlowSupport::shouldAttemptLargeInlineSend,
-                    sendInlinePayload = { peerId, payload, priority ->
-                        inlineSendSupport.sendInlinePayload(
-                            peerId = peerId,
-                            payload = payload,
-                            priority = priority,
-                        )
-                    },
-                    sendLargePayload = { peerId, payload, priority ->
-                        largeTransferSupport.sendLargePayload(
-                            peerId = peerId,
-                            payload = payload,
-                            priority = priority,
-                        )
-                    },
-                    scheduleRetryDiagnostic = scheduleRetryDiagnostic,
-                    emitDiagnostic = { code, severity, stage, peerSuffix, reason, metadata ->
-                        emitDiagnostic(
-                            code = code,
-                            severity = severity,
-                            stage = stage,
-                            peerSuffix = peerSuffix,
-                            reason = reason,
-                            metadata = metadata,
-                        )
-                    },
-                ),
-        )
-    private val peerForgetSupport =
-        MeshEnginePeerForgetSupport(
-            callbacks =
-                MeshEnginePeerForgetCallbacks(
-                    readFirstSeenAtEpochMillis = { peerId ->
-                        trustStore.read(peerId.value)?.firstSeenAtEpochMillis
-                    },
-                    deleteTrust = { peerId -> trustStore.delete(peerId.value) },
-                    clearPeer = sessionRegistry::clearPeer,
-                    dispatchPeerDisconnected = { peerId, metadata ->
-                        routingSupport.dispatchMutation(
-                            mutation = routeCoordinator.onPeerDisconnected(peerId),
-                            stage = "trust.forgetPeer",
-                            removalCode = DiagnosticCode.ROUTE_RETRACTED,
-                            metadata = metadata,
-                        )
-                    },
-                    markPeerDisconnected = presenceTracker::onPeerDisconnected,
-                    emitPeerLost = { peerId ->
-                        compatibilitySurface.mutablePeerEvents.emit(PeerEvent.Lost(peerId))
-                    },
-                )
+            platformBridge = MeshEnginePlatformBridge(bleTransport),
+            runtimeSurface = runtimeSurface,
         )
 
     override val state: StateFlow<MeshLinkState> = publishedSurface.state
@@ -501,19 +71,19 @@ private constructor(
     override val messages: Flow<InboundMessage> = publishedSurface.messages
 
     override suspend fun start(): StartResult {
-        return lifecycleSupport.start()
+        return graph.start()
     }
 
     override suspend fun pause(): PauseResult {
-        return lifecycleSupport.pause()
+        return graph.pause()
     }
 
     override suspend fun resume(): ResumeResult {
-        return lifecycleSupport.resume()
+        return graph.resume()
     }
 
     override suspend fun stop(): StopResult {
-        return lifecycleSupport.stop()
+        return graph.stop()
     }
 
     override suspend fun send(
@@ -521,51 +91,685 @@ private constructor(
         payload: ByteArray,
         priority: DeliveryPriority,
     ): SendResult {
-        return sendSupport.send(peerId = peerId, payload = payload, priority = priority)
+        return graph.send(peerId = peerId, payload = payload, priority = priority)
     }
 
     override suspend fun forgetPeer(peerId: PeerId): ForgetPeerResult {
-        return peerForgetSupport.forgetPeer(peerId)
+        return graph.forgetPeer(peerId)
     }
 
     override fun updateBattery(level: Float, isCharging: Boolean): Unit {
-        lifecycleSupport.updateBattery(level = level, isCharging = isCharging)
+        graph.updateBattery(level = level, isCharging = isCharging)
     }
 
-    private suspend fun sendDirectWireFrame(
-        peerId: PeerId,
-        frame: DirectWireFrame,
-        action: String,
-        preferredMode: TransportMode? = null,
-    ): TransportSendResult {
-        return platformBridge.send(
-            frame =
-                OutboundFrame(
-                    peerId = peerId,
-                    payload = frame.encode(),
-                    preferredMode = preferredMode,
-                ),
-            action = action,
-        )
+    private interface MeshEngineGraphOperations {
+        suspend fun start(): StartResult
+
+        suspend fun pause(): PauseResult
+
+        suspend fun resume(): ResumeResult
+
+        suspend fun stop(): StopResult
+
+        suspend fun send(peerId: PeerId, payload: ByteArray, priority: DeliveryPriority): SendResult
+
+        suspend fun forgetPeer(peerId: PeerId): ForgetPeerResult
+
+        fun updateBattery(level: Float, isCharging: Boolean): Unit
     }
 
-    @Suppress("LongParameterList")
-    private fun emitDiagnostic(
-        code: DiagnosticCode,
-        severity: DiagnosticSeverity,
-        stage: String,
-        peerSuffix: String? = null,
-        reason: DiagnosticReason? = null,
-        metadata: Map<String, String> = emptyMap(),
-    ): Unit {
-        compatibilitySurface.emitDiagnostic(
-            code = code,
-            severity = severity,
-            stage = stage,
-            peerSuffix = peerSuffix,
-            reason = reason,
-            metadata = metadata,
-        )
+    private class RuntimeGraph(
+        private val config: MeshLinkConfig,
+        private val localIdentity: LocalIdentity,
+        secureStorage: SecureStorage,
+        private val coroutineScope: CoroutineScope,
+        private val platformBridge: MeshEnginePlatformBridge,
+        private val runtimeSurface: MeshEngineCompatibilityRuntimeSurface,
+    ) : MeshEngineGraphOperations {
+        private val trustStore = TofuTrustStore(secureStorage)
+        private val lifecycleSupport: MeshEngineLifecycleSupport
+        private val sendSupport: MeshEngineSendSupport
+        private val peerForgetSupport: MeshEnginePeerForgetSupport
+
+        init {
+            val context = AssemblyContext()
+            buildSharedState(context)
+            buildRoutingAndTrust(context)
+            buildSessionAndHopTransport(context)
+            buildHandshake(context)
+            buildTransferAndInbound(context)
+            buildTransportAndFacadeOperations(context)
+            lifecycleSupport = context.lifecycleSupport
+            sendSupport = context.sendSupport
+            peerForgetSupport = context.peerForgetSupport
+        }
+
+        override suspend fun start(): StartResult {
+            return lifecycleSupport.start()
+        }
+
+        override suspend fun pause(): PauseResult {
+            return lifecycleSupport.pause()
+        }
+
+        override suspend fun resume(): ResumeResult {
+            return lifecycleSupport.resume()
+        }
+
+        override suspend fun stop(): StopResult {
+            return lifecycleSupport.stop()
+        }
+
+        override suspend fun send(
+            peerId: PeerId,
+            payload: ByteArray,
+            priority: DeliveryPriority,
+        ): SendResult {
+            return sendSupport.send(peerId = peerId, payload = payload, priority = priority)
+        }
+
+        override suspend fun forgetPeer(peerId: PeerId): ForgetPeerResult {
+            return peerForgetSupport.forgetPeer(peerId)
+        }
+
+        override fun updateBattery(level: Float, isCharging: Boolean): Unit {
+            lifecycleSupport.updateBattery(level = level, isCharging = isCharging)
+        }
+
+        private fun buildSharedState(context: AssemblyContext): Unit {
+            context.presenceTracker = PeerPresenceTracker()
+            context.routeCoordinator = RouteCoordinator(localIdentity.peerId)
+            context.deliveryRetryScheduler =
+                DeliveryRetryScheduler(context.routeCoordinator.topologyVersion)
+            context.powerPolicyController =
+                PowerPolicyController(
+                    configuredMode = config.powerMode,
+                    region = config.regulatoryRegion,
+                )
+            context.sessionRegistry = MeshEngineSessionRegistry()
+            context.outboundTransfers = linkedMapOf()
+            context.inboundTransfers = linkedMapOf()
+            context.relayTransfers = linkedMapOf()
+            context.sequenceGenerator = MeshEngineSequenceGenerator(localIdentity)
+            val engineClock = TimeSource.Monotonic.markNow()
+            context.powerPolicyNowMillis = { engineClock.elapsedNow().inWholeMilliseconds }
+            context.ttlMillisFor = { priority ->
+                when (priority) {
+                    DeliveryPriority.HIGH -> HIGH_PRIORITY_TTL_MILLIS
+                    DeliveryPriority.NORMAL -> NORMAL_PRIORITY_TTL_MILLIS
+                    DeliveryPriority.LOW -> LOW_PRIORITY_TTL_MILLIS
+                }
+            }
+        }
+
+        private fun buildRoutingAndTrust(context: AssemblyContext): Unit {
+            context.routingSupport =
+                MeshEngineRoutingSupport(
+                    routeCoordinator = context.routeCoordinator,
+                    coroutineScope = coroutineScope,
+                    emitDiagnostic = ::emitDiagnostic,
+                    sendEncryptedWireFrame = { peerId, frame, action ->
+                        context.hopTransportSupport.sendEncryptedWireFrame(peerId, frame, action)
+                    },
+                )
+            context.trustSupport =
+                MeshEngineTrustSupport(
+                    localIdentity = localIdentity,
+                    trustStore = trustStore,
+                    emitDiagnostic = ::emitDiagnostic,
+                )
+            context.scheduleRetryDiagnostic = { peerId, priority ->
+                scheduleRetryDiagnostic(context.routingSupport, peerId, priority)
+            }
+        }
+
+        private fun buildSessionAndHopTransport(context: AssemblyContext): Unit {
+            context.sessionSupport =
+                MeshEngineSessionSupport(
+                    localIdentity = localIdentity,
+                    state = MeshEngineSessionState(sessionRegistry = context.sessionRegistry),
+                    handshakeTimeout = HANDSHAKE_TIMEOUT,
+                    callbacks =
+                        MeshEngineSessionCallbacks(
+                            hasTransport = { platformBridge.hasTransport },
+                            sendDirectWireFrame = { peerId, frame, action, preferredMode ->
+                                sendDirectWireFrame(
+                                    peerId = peerId,
+                                    frame = frame,
+                                    action = action,
+                                    preferredMode = preferredMode,
+                                )
+                            },
+                            emitHopSessionFailed = { peerId, stage, reason, metadata ->
+                                emitDiagnostic(
+                                    code = DiagnosticCode.HOP_SESSION_FAILED,
+                                    severity = DiagnosticSeverity.WARN,
+                                    stage = stage,
+                                    peerSuffix =
+                                        peerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
+                                    reason = reason,
+                                    metadata =
+                                        context.routingSupport.peerRouteMetadata(
+                                            peerId,
+                                            metadata = metadata,
+                                        ),
+                                )
+                            },
+                        ),
+                )
+            context.hopTransportSupport =
+                MeshEngineHopTransportSupport(
+                    localIdentity = localIdentity,
+                    routingSupport = context.routingSupport,
+                    establishedHopSession = context.sessionSupport::establishedHopSession,
+                    sendDirectWireFrame = { peerId, frame, action, preferredMode ->
+                        sendDirectWireFrame(
+                            peerId = peerId,
+                            frame = frame,
+                            action = action,
+                            preferredMode = preferredMode,
+                        )
+                    },
+                    emitDiagnostic = ::emitDiagnostic,
+                )
+            context.peerFlowSupport =
+                MeshEnginePeerFlowSupport(
+                    localIdentity = localIdentity,
+                    context =
+                        MeshEnginePeerFlowContext(
+                            routeCoordinator = context.routeCoordinator,
+                            coroutineScope = coroutineScope,
+                        ),
+                    config =
+                        MeshEnginePeerFlowConfig(
+                            largeInlineTransportBudgetBytes =
+                                LARGE_INLINE_SEND_TRANSPORT_BUDGET_BYTES
+                        ),
+                    callbacks =
+                        MeshEnginePeerFlowCallbacks(
+                            sendEncryptedWireFrame =
+                                context.hopTransportSupport::sendEncryptedWireFrame,
+                            ensureHopSession = context.sessionSupport::ensureHopSession,
+                            maximumPayloadBytesPerDelivery =
+                                platformBridge::maximumPayloadBytesPerDelivery,
+                            emitDiagnostic = ::emitDiagnostic,
+                            peerRouteMetadata = { peerId, metadata ->
+                                context.routingSupport.peerRouteMetadata(
+                                    peerId,
+                                    metadata = metadata,
+                                )
+                            },
+                        ),
+                )
+        }
+
+        private fun buildHandshake(context: AssemblyContext): Unit {
+            context.handshakeState =
+                MeshEngineHandshakeState(sessionRegistry = context.sessionRegistry)
+            context.handshakeRoutingContext =
+                MeshEngineHandshakeRoutingContext(
+                    routeCoordinator = context.routeCoordinator,
+                    routingSupport = context.routingSupport,
+                )
+            context.handshakeCallbacks =
+                MeshEngineHandshakeCallbacks(
+                    sendDirectWireFrame = { peerId, frame, action ->
+                        sendDirectWireFrame(peerId = peerId, frame = frame, action = action)
+                    },
+                    emitHopSessionEstablished =
+                        context.hopTransportSupport::emitHopSessionEstablished,
+                    emitHopSessionFailed = context.hopTransportSupport::emitHopSessionFailed,
+                    promoteTemporaryPeer = { temporaryPeerId, canonicalPeerId ->
+                        runCatching {
+                                platformBridge.promoteTemporaryPeer(
+                                    temporaryPeerId,
+                                    canonicalPeerId,
+                                )
+                            }
+                            .getOrElse { Unit }
+                    },
+                )
+            context.initiatorHandshakeSupport =
+                MeshEngineInitiatorHandshakeSupport(
+                    localIdentity = localIdentity,
+                    trustSupport = context.trustSupport,
+                    state = context.handshakeState,
+                    routingContext = context.handshakeRoutingContext,
+                    callbacks = context.handshakeCallbacks,
+                )
+            context.responderHandshakeSupport =
+                MeshEngineResponderHandshakeSupport(
+                    localIdentity = localIdentity,
+                    trustSupport = context.trustSupport,
+                    state = context.handshakeState,
+                    routingContext = context.handshakeRoutingContext,
+                    callbacks = context.handshakeCallbacks,
+                )
+        }
+
+        private fun buildTransferAndInbound(context: AssemblyContext): Unit {
+            context.messageDeliverySupport =
+                MeshEngineMessageDeliverySupport(
+                    localIdentity = localIdentity,
+                    trustSupport = context.trustSupport,
+                    mutableMessages = runtimeSurface.mutableMessages,
+                    emitHopSessionFailed = context.hopTransportSupport::emitHopSessionFailed,
+                    emitDiagnostic = ::emitDiagnostic,
+                )
+            context.outboundPreparationSupport =
+                MeshEngineOutboundPreparationSupport(
+                    localIdentity = localIdentity,
+                    trustStore = trustStore,
+                    state =
+                        MeshEngineOutboundPreparationState(
+                            outboundTransfers = context.outboundTransfers
+                        ),
+                    routingContext =
+                        MeshEngineOutboundPreparationRoutingContext(
+                            routeCoordinator = context.routeCoordinator,
+                            routingSupport = context.routingSupport,
+                        ),
+                    callbacks =
+                        MeshEngineOutboundPreparationCallbacks(
+                            createMessageId = context.sequenceGenerator::createMessageId,
+                            createTransferId = context.sequenceGenerator::createTransferId,
+                            emitTransferEncryptFailure = { peerId, cause ->
+                                context.hopTransportSupport.emitHopSessionFailed(
+                                    peerId = peerId,
+                                    stage = "transfer.encrypt",
+                                    reason = DiagnosticReason.TRUST_FAILURE,
+                                    metadata = mapOf("cause" to cause),
+                                )
+                            },
+                        ),
+                    emitDiagnostic = ::emitDiagnostic,
+                )
+            context.inlineSendSupport =
+                MeshEngineInlineSendSupport(
+                    localIdentity = localIdentity,
+                    config =
+                        MeshEngineInlineConfig(
+                            deliveryRetryDeadline = config.deliveryRetryDeadline,
+                            inlineMessagePayloadBytes = INLINE_MESSAGE_PAYLOAD_BYTES,
+                        ),
+                    routingContext =
+                        MeshEngineInlineRoutingContext(
+                            routeCoordinator = context.routeCoordinator,
+                            routingSupport = context.routingSupport,
+                        ),
+                    dependencies =
+                        MeshEngineInlineDependencies(
+                            deliveryRetryScheduler = context.deliveryRetryScheduler,
+                            ensureHopSession = context.sessionSupport::ensureHopSession,
+                            sendEncryptedDirectWireFrame =
+                                context.hopTransportSupport::sendEncryptedDirectWireFrame,
+                            resolveRecipientTrust =
+                                context.outboundPreparationSupport::resolveRecipientTrust,
+                            scheduleRetryDiagnostic = context.scheduleRetryDiagnostic,
+                            setDiscoverySuspended = { suspended ->
+                                val action =
+                                    if (suspended) {
+                                        "inline.discoverySuspend"
+                                    } else {
+                                        "inline.discoveryResume"
+                                    }
+                                platformBridge.setDiscoverySuspended(
+                                    action = action,
+                                    suspended = suspended,
+                                )
+                            },
+                            emitHopSessionFailed = context.hopTransportSupport::emitHopSessionFailed,
+                        ),
+                    callbacks =
+                        MeshEngineInlineCallbacks(
+                            emitDiagnostic = ::emitDiagnostic,
+                            createMessageId = context.sequenceGenerator::createMessageId,
+                            ttlMillisFor = context.ttlMillisFor,
+                        ),
+                )
+            context.transferSupport =
+                MeshEngineTransferSupport(
+                    state =
+                        MeshEngineTransferState(
+                            outboundTransfers = context.outboundTransfers,
+                            inboundTransfers = context.inboundTransfers,
+                            relayTransfers = context.relayTransfers,
+                        ),
+                    routingSupport = context.routingSupport,
+                    callbacks =
+                        MeshEngineTransferCallbacks(
+                            isLocalPeerId = context.peerFlowSupport::isLocalPeerId,
+                            sendEncryptedWireFrame =
+                                context.hopTransportSupport::sendEncryptedWireFrame,
+                            sendTransferTowardsDestination =
+                                context.peerFlowSupport::sendTransferTowardsDestination,
+                            deliverInnerEnvelope =
+                                context.messageDeliverySupport::deliverInnerEnvelope,
+                        ),
+                    emitDiagnostic = ::emitDiagnostic,
+                )
+            context.largeTransferSupport =
+                MeshEngineLargeTransferSupport(
+                    config =
+                        MeshEngineLargeTransferConfig(
+                            deliveryRetryDeadline = config.deliveryRetryDeadline,
+                            ackSettlementTimeout = TRANSFER_ACK_SETTLEMENT_TIMEOUT,
+                            ackIdleWindow = TRANSFER_ACK_IDLE_WINDOW,
+                        ),
+                    state =
+                        MeshEngineLargeTransferState(outboundTransfers = context.outboundTransfers),
+                    routingSupport = context.routingSupport,
+                    dependencies =
+                        MeshEngineLargeTransferDependencies(
+                            currentTopologyVersion = {
+                                context.routeCoordinator.topologyVersion.value
+                            },
+                            deliveryRetryScheduler = context.deliveryRetryScheduler,
+                            prepareOutboundTransferSession =
+                                context.outboundPreparationSupport::prepareOutboundTransferSession,
+                            scheduleRetryDiagnostic = context.scheduleRetryDiagnostic,
+                            sendTransferTowardsDestination =
+                                context.peerFlowSupport::sendTransferTowardsDestination,
+                            setDiscoverySuspended = { suspended ->
+                                val action =
+                                    if (suspended) {
+                                        "transfer.discoverySuspend"
+                                    } else {
+                                        "transfer.discoveryResume"
+                                    }
+                                platformBridge.setDiscoverySuspended(
+                                    action = action,
+                                    suspended = suspended,
+                                )
+                            },
+                            clearQueuedOutboundFrames = { peerId, action ->
+                                platformBridge.clearQueuedOutboundFrames(
+                                    peerId = peerId,
+                                    action = action,
+                                )
+                            },
+                        ),
+                    emitDiagnostic = ::emitDiagnostic,
+                )
+            context.inboundSupport =
+                MeshEngineInboundSupport(
+                    localIdentity = localIdentity,
+                    sessionRegistry = context.sessionRegistry,
+                    routingContext =
+                        MeshEngineInboundRoutingContext(
+                            routeCoordinator = context.routeCoordinator,
+                            routingSupport = context.routingSupport,
+                        ),
+                    transport =
+                        MeshEngineInboundTransport(
+                            emitHopSessionFailed =
+                                context.hopTransportSupport::emitHopSessionFailed,
+                            decryptHopPayload = context.hopTransportSupport::decryptHopPayload,
+                        ),
+                    messageCallbacks =
+                        MeshEngineInboundMessageCallbacks(
+                            forwardMessageToNextHop =
+                                context.peerFlowSupport::forwardMessageToNextHop,
+                            deliverInnerEnvelope =
+                                context.messageDeliverySupport::deliverInnerEnvelope,
+                        ),
+                    transferCallbacks =
+                        MeshEngineInboundTransferCallbacks(
+                            handleTransferStart = context.transferSupport::handleTransferStart,
+                            handleTransferChunk = context.transferSupport::handleTransferChunk,
+                            handleTransferAck = context.transferSupport::handleTransferAck,
+                            handleTransferComplete =
+                                context.transferSupport::handleTransferComplete,
+                            handleTransferAbort = context.transferSupport::handleTransferAbort,
+                        ),
+                )
+        }
+
+        private fun buildTransportAndFacadeOperations(context: AssemblyContext): Unit {
+            context.transportSupport =
+                MeshEngineTransportSupport(
+                    peerState =
+                        MeshEngineTransportPeerState(
+                            presenceTracker = context.presenceTracker,
+                            mutablePeerEvents = runtimeSurface.mutablePeerEvents,
+                            sessionRegistry = context.sessionRegistry,
+                        ),
+                    routingContext =
+                        MeshEngineTransportRoutingContext(
+                            routeCoordinator = context.routeCoordinator,
+                            routingSupport = context.routingSupport,
+                        ),
+                    callbacks =
+                        MeshEngineTransportCallbacks(
+                            prewarmHopSession = context.peerFlowSupport::prewarmHopSession,
+                            handleHandshakeMessage1 =
+                                context.responderHandshakeSupport::handleHandshakeMessage1,
+                            handleHandshakeMessage2 =
+                                context.initiatorHandshakeSupport::handleHandshakeMessage2,
+                            handleHandshakeMessage3 =
+                                context.responderHandshakeSupport::handleHandshakeMessage3,
+                            handleEncryptedDataFrame =
+                                context.inboundSupport::handleEncryptedDataFrame,
+                        ),
+                    emitDiagnostic = ::emitDiagnostic,
+                )
+            context.transportCollector =
+                MeshEngineTransportCollector(
+                    coroutineScope = coroutineScope,
+                    transportEvents = { platformBridge.events },
+                    handleTransportEvent = context.transportSupport::handleTransportEvent,
+                )
+            context.lifecycleState =
+                MeshEngineLifecycleState(
+                    mutableState = runtimeSurface.mutableState,
+                    sessionRegistry = context.sessionRegistry,
+                    outboundTransfers = context.outboundTransfers,
+                    inboundTransfers = context.inboundTransfers,
+                    relayTransfers = context.relayTransfers,
+                    currentPowerPolicy = context.powerPolicyController.currentPolicy(nowMillis = 0L),
+                )
+            context.lifecycleSupport =
+                MeshEngineLifecycleSupport(
+                    powerPolicyController = context.powerPolicyController,
+                    powerPolicyNowMillis = context.powerPolicyNowMillis,
+                    state = context.lifecycleState,
+                    callbacks =
+                        MeshEngineLifecycleCallbacks(
+                            ensureTransportCollector = context.transportCollector::ensureStarted,
+                            stopTransportCollector = context.transportCollector::stop,
+                            updateTransportPowerPolicy = platformBridge::updatePowerPolicy,
+                            startTransport = platformBridge::start,
+                            pauseTransport = platformBridge::pause,
+                            resumeTransport = platformBridge::resume,
+                            stopTransport = platformBridge::stop,
+                            launchTransportPowerPolicyUpdate = { policy ->
+                                coroutineScope.launch { platformBridge.updatePowerPolicy(policy) }
+                            },
+                        ),
+                    diagnostics =
+                        MeshEngineLifecycleDiagnostics(
+                            emitLifecycleEvent = { code, stage ->
+                                emitDiagnostic(
+                                    code = code,
+                                    severity = DiagnosticSeverity.INFO,
+                                    stage = stage,
+                                    reason = DiagnosticReason.STATE_CHANGE,
+                                )
+                            },
+                            emitPowerModeChanged = { policy, level, isCharging ->
+                                emitDiagnostic(
+                                    code = DiagnosticCode.POWER_MODE_CHANGED,
+                                    severity = DiagnosticSeverity.INFO,
+                                    stage = "power.updateBattery",
+                                    reason = DiagnosticReason.POWER_CHANGE,
+                                    metadata =
+                                        powerPolicyMetadata(
+                                            policy = policy,
+                                            level = level,
+                                            isCharging = isCharging,
+                                        ),
+                                )
+                            },
+                        ),
+                )
+            context.sendSupport =
+                MeshEngineSendSupport(
+                    config =
+                        MeshEngineSendConfig(
+                            maxSupportedPayloadBytes = MAX_SUPPORTED_PAYLOAD_BYTES,
+                            inlineMessagePayloadBytes = INLINE_MESSAGE_PAYLOAD_BYTES,
+                        ),
+                    callbacks =
+                        MeshEngineSendCallbacks(
+                            isMeshRunning = {
+                                runtimeSurface.mutableState.value === MeshLinkState.Running
+                            },
+                            hasTransport = { platformBridge.hasTransport },
+                            shouldAttemptLargeInlineSend =
+                                context.peerFlowSupport::shouldAttemptLargeInlineSend,
+                            sendInlinePayload = { peerId, payload, priority ->
+                                context.inlineSendSupport.sendInlinePayload(
+                                    peerId = peerId,
+                                    payload = payload,
+                                    priority = priority,
+                                )
+                            },
+                            sendLargePayload = { peerId, payload, priority ->
+                                context.largeTransferSupport.sendLargePayload(
+                                    peerId = peerId,
+                                    payload = payload,
+                                    priority = priority,
+                                )
+                            },
+                            scheduleRetryDiagnostic = context.scheduleRetryDiagnostic,
+                            emitDiagnostic = ::emitDiagnostic,
+                        ),
+                )
+            context.peerForgetSupport =
+                MeshEnginePeerForgetSupport(
+                    callbacks =
+                        MeshEnginePeerForgetCallbacks(
+                            readFirstSeenAtEpochMillis = { peerId ->
+                                trustStore.read(peerId.value)?.firstSeenAtEpochMillis
+                            },
+                            deleteTrust = { peerId -> trustStore.delete(peerId.value) },
+                            clearPeer = context.sessionRegistry::clearPeer,
+                            dispatchPeerDisconnected = { peerId, metadata ->
+                                context.routingSupport.dispatchMutation(
+                                    mutation = context.routeCoordinator.onPeerDisconnected(peerId),
+                                    stage = "trust.forgetPeer",
+                                    removalCode = DiagnosticCode.ROUTE_RETRACTED,
+                                    metadata = metadata,
+                                )
+                            },
+                            markPeerDisconnected = context.presenceTracker::onPeerDisconnected,
+                            emitPeerLost = { peerId ->
+                                runtimeSurface.mutablePeerEvents.emit(PeerEvent.Lost(peerId))
+                            },
+                        )
+                )
+        }
+
+        private suspend fun sendDirectWireFrame(
+            peerId: PeerId,
+            frame: DirectWireFrame,
+            action: String,
+            preferredMode: TransportMode? = null,
+        ): TransportSendResult {
+            return platformBridge.send(
+                frame =
+                    OutboundFrame(
+                        peerId = peerId,
+                        payload = frame.encode(),
+                        preferredMode = preferredMode,
+                    ),
+                action = action,
+            )
+        }
+
+        private fun scheduleRetryDiagnostic(
+            routingSupport: MeshEngineRoutingSupport,
+            peerId: PeerId,
+            priority: DeliveryPriority,
+        ): Unit {
+            emitDiagnostic(
+                code = DiagnosticCode.NO_ROUTE_AVAILABLE,
+                severity = DiagnosticSeverity.WARN,
+                stage = "delivery.noRoute",
+                peerSuffix = peerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
+                reason = DiagnosticReason.DELIVERY_FAILURE,
+                metadata =
+                    routingSupport.peerRouteMetadata(
+                        peerId,
+                        metadata =
+                            mapOf(
+                                "priority" to priority.name,
+                                "retryDeadlineMs" to
+                                    config.deliveryRetryDeadline.inWholeMilliseconds.toString(),
+                                "retryBackoffBaseMs" to
+                                    INITIAL_BACKOFF.inWholeMilliseconds.toString(),
+                            ),
+                    ),
+            )
+        }
+
+        @Suppress("LongParameterList")
+        private fun emitDiagnostic(
+            code: DiagnosticCode,
+            severity: DiagnosticSeverity,
+            stage: String,
+            peerSuffix: String? = null,
+            reason: DiagnosticReason? = null,
+            metadata: Map<String, String> = emptyMap(),
+        ): Unit {
+            runtimeSurface.emitDiagnostic(
+                code = code,
+                severity = severity,
+                stage = stage,
+                peerSuffix = peerSuffix,
+                reason = reason,
+                metadata = metadata,
+            )
+        }
+
+        private class AssemblyContext {
+            lateinit var presenceTracker: PeerPresenceTracker
+            lateinit var routeCoordinator: RouteCoordinator
+            lateinit var deliveryRetryScheduler: DeliveryRetryScheduler
+            lateinit var powerPolicyController: PowerPolicyController
+            lateinit var sessionRegistry: MeshEngineSessionRegistry
+            lateinit var outboundTransfers: MutableMap<String, OutboundTransferSession>
+            lateinit var inboundTransfers: MutableMap<String, InboundTransferSession>
+            lateinit var relayTransfers: MutableMap<String, RelayTransferSession>
+            lateinit var sequenceGenerator: MeshEngineSequenceGenerator
+            var powerPolicyNowMillis: () -> Long = { error("powerPolicyNowMillis not initialized") }
+            var ttlMillisFor: (DeliveryPriority) -> Int = { error("ttlMillisFor not initialized") }
+            lateinit var routingSupport: MeshEngineRoutingSupport
+            lateinit var trustSupport: MeshEngineTrustSupport
+            var scheduleRetryDiagnostic: (PeerId, DeliveryPriority) -> Unit = { _, _ ->
+                error("scheduleRetryDiagnostic not initialized")
+            }
+            lateinit var sessionSupport: MeshEngineSessionSupport
+            lateinit var hopTransportSupport: MeshEngineHopTransportSupport
+            lateinit var peerFlowSupport: MeshEnginePeerFlowSupport
+            lateinit var handshakeState: MeshEngineHandshakeState
+            lateinit var handshakeRoutingContext: MeshEngineHandshakeRoutingContext
+            lateinit var handshakeCallbacks: MeshEngineHandshakeCallbacks
+            lateinit var initiatorHandshakeSupport: MeshEngineInitiatorHandshakeSupport
+            lateinit var responderHandshakeSupport: MeshEngineResponderHandshakeSupport
+            lateinit var messageDeliverySupport: MeshEngineMessageDeliverySupport
+            lateinit var outboundPreparationSupport: MeshEngineOutboundPreparationSupport
+            lateinit var inlineSendSupport: MeshEngineInlineSendSupport
+            lateinit var transferSupport: MeshEngineTransferSupport
+            lateinit var largeTransferSupport: MeshEngineLargeTransferSupport
+            lateinit var inboundSupport: MeshEngineInboundSupport
+            lateinit var transportSupport: MeshEngineTransportSupport
+            lateinit var transportCollector: MeshEngineTransportCollector
+            lateinit var lifecycleState: MeshEngineLifecycleState
+            lateinit var lifecycleSupport: MeshEngineLifecycleSupport
+            lateinit var sendSupport: MeshEngineSendSupport
+            lateinit var peerForgetSupport: MeshEnginePeerForgetSupport
+        }
     }
 
     internal companion object {
