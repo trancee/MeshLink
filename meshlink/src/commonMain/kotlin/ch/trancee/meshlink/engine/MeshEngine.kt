@@ -635,7 +635,7 @@ private constructor(
         private const val LOW_PRIORITY_TTL_MILLIS: Int = 5 * 60 * 1_000
         private val TRANSFER_ACK_SETTLEMENT_TIMEOUT = 1_500.milliseconds
         private val TRANSFER_ACK_IDLE_WINDOW = 100.milliseconds
-        private val HANDSHAKE_TIMEOUT = 1.seconds
+        private val HANDSHAKE_TIMEOUT = 3.seconds
         private val INITIAL_BACKOFF = 250.milliseconds
 
         @Suppress("LongParameterList")

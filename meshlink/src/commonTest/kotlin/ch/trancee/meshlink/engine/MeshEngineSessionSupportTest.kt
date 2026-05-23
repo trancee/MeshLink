@@ -8,10 +8,12 @@ import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertNull
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 
@@ -118,6 +120,76 @@ class MeshEngineSessionSupportTest {
 
             // Assert
             assertEquals(2, sendCallCount)
+            val establishedOutcome = assertIs<SessionEstablishmentOutcome.Established>(outcome)
+            assertContentEquals(establishedSession.sendKey, establishedOutcome.session.sendKey)
+            assertContentEquals(
+                establishedSession.receiveKey,
+                establishedOutcome.session.receiveKey,
+            )
+        }
+
+    @Test
+    fun `transient connection setup keeps retrying beyond one second when the timeout allows it`() =
+        runBlocking {
+            // Arrange
+            val localIdentity = LocalIdentity.fromAppId("session-support-extended-retry-test")
+            val sessionRegistry = MeshEngineSessionRegistry()
+            val peerId = PeerId("peer-c")
+            val establishedSession = HopSession(ByteArray(32) { 0x03 }, ByteArray(32) { 0x04 })
+            var sendCallCount = 0
+            val support =
+                MeshEngineSessionSupport(
+                    localIdentity = localIdentity,
+                    state = MeshEngineSessionState(sessionRegistry = sessionRegistry),
+                    handshakeTimeout = 2.seconds,
+                    callbacks =
+                        MeshEngineSessionCallbacks(
+                            hasTransport = { true },
+                            sendDirectWireFrame = { _, _, _, _ ->
+                                sendCallCount += 1
+                                when (sendCallCount) {
+                                    1,
+                                    2,
+                                    3 -> {
+                                        delay(350.milliseconds)
+                                        TransportSendResult.Dropped(
+                                            "Android BLE L2CAP connection is not ready"
+                                        )
+                                    }
+
+                                    4 -> {
+                                        val pendingReservation =
+                                            assertIs<InitiatorHandshakeReservation.Pending>(
+                                                sessionRegistry.initiatorHandshakeReservation(
+                                                    peerId
+                                                )
+                                            )
+                                        sessionRegistry.completeInitiatorHandshake(
+                                            peerId = peerId,
+                                            pendingHandshake = pendingReservation.pendingHandshake,
+                                            session = establishedSession,
+                                        )
+                                        pendingReservation.pendingHandshake.sessionDeferred
+                                            .complete(
+                                                SessionEstablishmentOutcome.Established(
+                                                    establishedSession
+                                                )
+                                            )
+                                        TransportSendResult.Delivered
+                                    }
+
+                                    else -> error("Unexpected send attempt $sendCallCount")
+                                }
+                            },
+                            emitHopSessionFailed = { _, _, _, _ -> Unit },
+                        ),
+                )
+
+            // Act
+            val outcome = support.ensureHopSession(peerId)
+
+            // Assert
+            assertEquals(4, sendCallCount)
             val establishedOutcome = assertIs<SessionEstablishmentOutcome.Established>(outcome)
             assertContentEquals(establishedSession.sendKey, establishedOutcome.session.sendKey)
             assertContentEquals(
