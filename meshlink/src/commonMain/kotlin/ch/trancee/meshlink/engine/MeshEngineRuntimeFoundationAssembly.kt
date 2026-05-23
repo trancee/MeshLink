@@ -1,9 +1,14 @@
 package ch.trancee.meshlink.engine
 
 import ch.trancee.meshlink.api.DeliveryPriority
+import ch.trancee.meshlink.api.PeerId
+import ch.trancee.meshlink.diagnostics.DiagnosticCode
+import ch.trancee.meshlink.diagnostics.DiagnosticReason
+import ch.trancee.meshlink.diagnostics.DiagnosticSeverity
 import ch.trancee.meshlink.power.PowerPolicyController
 import ch.trancee.meshlink.presence.PeerPresenceTracker
 import ch.trancee.meshlink.routing.RouteCoordinator
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.TimeSource
 
 internal fun buildMeshEngineRuntimeFoundationAssembly(
@@ -90,6 +95,33 @@ private fun buildMeshEngineRuntimeRoutingAndTrustPhase(
     )
 }
 
+internal fun buildMeshEngineRuntimeScheduleRetryDiagnostic(
+    environment: MeshEngineRuntimeAssemblyEnvironment,
+    support: MeshEngineRuntimeAssemblySupport,
+    routingSupport: MeshEngineRoutingSupport,
+): (PeerId, DeliveryPriority) -> Unit {
+    return { peerId, priority ->
+        support.emitDiagnostic(
+            DiagnosticCode.NO_ROUTE_AVAILABLE,
+            DiagnosticSeverity.WARN,
+            "delivery.noRoute",
+            peerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
+            DiagnosticReason.DELIVERY_FAILURE,
+            routingSupport.peerRouteMetadata(
+                peerId,
+                metadata =
+                    mapOf(
+                        "priority" to priority.name,
+                        "retryDeadlineMs" to
+                            environment.config.deliveryRetryDeadline.inWholeMilliseconds.toString(),
+                        "retryBackoffBaseMs" to INITIAL_BACKOFF.inWholeMilliseconds.toString(),
+                    ),
+            ),
+        )
+    }
+}
+
 private const val HIGH_PRIORITY_TTL_MILLIS: Int = 45 * 60 * 1_000
 private const val NORMAL_PRIORITY_TTL_MILLIS: Int = 15 * 60 * 1_000
 private const val LOW_PRIORITY_TTL_MILLIS: Int = 5 * 60 * 1_000
+private val INITIAL_BACKOFF = 250.milliseconds

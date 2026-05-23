@@ -36,6 +36,9 @@ internal data class MeshEngineSendCallbacks(
         ) -> Unit,
 )
 
+internal const val MAX_SUPPORTED_PAYLOAD_BYTES: Int = 64 * 1024
+internal const val INLINE_MESSAGE_PAYLOAD_BYTES: Int = 1_024
+
 internal class MeshEngineSendSupport(
     private val config: MeshEngineSendConfig,
     private val callbacks: MeshEngineSendCallbacks,

@@ -1,10 +1,7 @@
 package ch.trancee.meshlink.engine
 
-import ch.trancee.meshlink.api.DeliveryPriority
 import ch.trancee.meshlink.api.PeerId
-import ch.trancee.meshlink.diagnostics.DiagnosticCode
 import ch.trancee.meshlink.diagnostics.DiagnosticReason
-import ch.trancee.meshlink.diagnostics.DiagnosticSeverity
 import ch.trancee.meshlink.wire.WireFrame
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -340,33 +337,5 @@ private fun createMeshEngineRuntimeSendTransferTowardsDestination(
     }
 }
 
-internal fun buildMeshEngineRuntimeScheduleRetryDiagnostic(
-    environment: MeshEngineRuntimeAssemblyEnvironment,
-    support: MeshEngineRuntimeAssemblySupport,
-    routingSupport: MeshEngineRoutingSupport,
-): (PeerId, DeliveryPriority) -> Unit {
-    return { peerId, priority ->
-        support.emitDiagnostic(
-            DiagnosticCode.NO_ROUTE_AVAILABLE,
-            DiagnosticSeverity.WARN,
-            "delivery.noRoute",
-            peerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
-            DiagnosticReason.DELIVERY_FAILURE,
-            routingSupport.peerRouteMetadata(
-                peerId,
-                metadata =
-                    mapOf(
-                        "priority" to priority.name,
-                        "retryDeadlineMs" to
-                            environment.config.deliveryRetryDeadline.inWholeMilliseconds.toString(),
-                        "retryBackoffBaseMs" to INITIAL_BACKOFF.inWholeMilliseconds.toString(),
-                    ),
-            ),
-        )
-    }
-}
-
-private const val INLINE_MESSAGE_PAYLOAD_BYTES: Int = 1_024
 private val TRANSFER_ACK_SETTLEMENT_TIMEOUT = 1_500.milliseconds
 private val TRANSFER_ACK_IDLE_WINDOW = 100.milliseconds
-private val INITIAL_BACKOFF = 250.milliseconds

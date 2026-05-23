@@ -248,6 +248,3 @@ private fun buildMeshEngineRuntimePeerForgetSupport(
             )
     )
 }
-
-private const val MAX_SUPPORTED_PAYLOAD_BYTES: Int = 64 * 1024
-private const val INLINE_MESSAGE_PAYLOAD_BYTES: Int = 1_024
