@@ -238,6 +238,12 @@ private fun buildMeshEngineRuntimeTransferSupport(
             sharedState = sharedState,
             sessionAndHopTransport = sessionAndHopTransport,
         )
+    val relaySupport =
+        buildMeshEngineRuntimeRelayTransferSupport(
+            state = state,
+            sessionAndHopTransport = sessionAndHopTransport,
+            sendTransferTowardsDestination = sendTransferTowardsDestination,
+        )
     val abortSupport =
         buildMeshEngineRuntimeTransferAbortSupport(
             environment = environment,
@@ -257,11 +263,28 @@ private fun buildMeshEngineRuntimeTransferSupport(
                 isLocalPeerId = sessionAndHopTransport.peerFlowSupport::isLocalPeerId,
                 sendEncryptedWireFrame =
                     sessionAndHopTransport.hopTransportSupport::sendEncryptedWireFrame,
-                sendTransferTowardsDestination = sendTransferTowardsDestination,
                 deliverInnerEnvelope = messageDeliverySupport::deliverInnerEnvelope,
             ),
+        relaySupport = relaySupport,
         abortSupport = abortSupport,
         emitDiagnostic = support.emitDiagnostic,
+    )
+}
+
+private fun buildMeshEngineRuntimeRelayTransferSupport(
+    state: MeshEngineTransferState,
+    sessionAndHopTransport: MeshEngineRuntimeSessionAndHopTransportPhase,
+    sendTransferTowardsDestination:
+        suspend (PeerId, WireFrame, String, MeshEngineHardRunToken?) -> Boolean,
+): MeshEngineRelayTransferSupport {
+    return MeshEngineRelayTransferSupport(
+        relayTransfers = state.relayTransfers,
+        callbacks =
+            MeshEngineRelayTransferCallbacks(
+                sendEncryptedWireFrame =
+                    sessionAndHopTransport.hopTransportSupport::sendEncryptedWireFrame,
+                sendTransferTowardsDestination = sendTransferTowardsDestination,
+            ),
     )
 }
 

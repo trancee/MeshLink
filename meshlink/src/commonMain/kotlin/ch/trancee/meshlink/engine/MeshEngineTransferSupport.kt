@@ -24,8 +24,6 @@ internal data class MeshEngineTransferCallbacks(
     val isLocalPeerId: (PeerId) -> Boolean,
     val sendEncryptedWireFrame:
         suspend (PeerId, WireFrame, String, MeshEngineHardRunToken?) -> Boolean,
-    val sendTransferTowardsDestination:
-        suspend (PeerId, WireFrame, String, MeshEngineHardRunToken?) -> Boolean,
     val deliverInnerEnvelope:
         suspend (PeerId, PeerId, ByteArray, DeliveryPriority, MeshEngineHardRunToken) -> Unit,
 )
@@ -34,6 +32,7 @@ internal class MeshEngineTransferSupport(
     private val state: MeshEngineTransferState,
     private val routingSupport: MeshEngineRoutingSupport,
     private val callbacks: MeshEngineTransferCallbacks,
+    private val relaySupport: MeshEngineRelayTransferSupport,
     private val abortSupport: MeshEngineTransferAbortSupport,
     private val emitDiagnostic:
         (
@@ -51,28 +50,10 @@ internal class MeshEngineTransferSupport(
             handleInboundTransferStart(peerId, frame, hardRunToken)
             return
         }
-
-        val relaySession = state.relayTransfers[frame.transferId]
-        val activeRelaySession =
-            if (relaySession != null) {
-                relaySession.upstreamPeerId = peerId
-                relaySession
-            } else {
-                RelayTransferSession(
-                        transferId = frame.transferId,
-                        messageId = frame.messageId,
-                        originPeerId = frame.originPeerId,
-                        destinationPeerId = frame.destinationPeerId,
-                        upstreamPeerId = peerId,
-                        hardRunToken = hardRunToken,
-                    )
-                    .also { session -> state.relayTransfers[frame.transferId] = session }
-            }
-        callbacks.sendTransferTowardsDestination(
-            frame.destinationPeerId,
-            frame,
-            "transfer.forward.start",
-            activeRelaySession.hardRunToken,
+        relaySupport.handleTransferStart(
+            peerId = peerId,
+            frame = frame,
+            hardRunToken = hardRunToken,
         )
     }
 
@@ -129,13 +110,7 @@ internal class MeshEngineTransferSupport(
             handleInboundTransferChunk(peerId = peerId, frame = frame, session = inboundSession)
             return
         }
-        val relaySession = state.relayTransfers[frame.transferId] ?: return
-        callbacks.sendTransferTowardsDestination(
-            relaySession.destinationPeerId,
-            frame,
-            "transfer.forward.chunk",
-            relaySession.hardRunToken,
-        )
+        relaySupport.handleTransferChunk(frame)
     }
 
     @Suppress("UnusedParameter")
@@ -145,13 +120,7 @@ internal class MeshEngineTransferSupport(
             outboundSession.markAcknowledged(frame)
             return
         }
-        val relaySession = state.relayTransfers[frame.transferId] ?: return
-        callbacks.sendEncryptedWireFrame(
-            relaySession.upstreamPeerId,
-            frame,
-            "transfer.forward.ack",
-            relaySession.hardRunToken,
-        )
+        relaySupport.handleTransferAck(frame)
     }
 
     suspend fun handleTransferComplete(peerId: PeerId, frame: WireFrame.TransferComplete): Unit {
@@ -178,25 +147,12 @@ internal class MeshEngineTransferSupport(
             }
             return
         }
-        val relaySession = state.relayTransfers.remove(frame.transferId) ?: return
-        callbacks.sendTransferTowardsDestination(
-            relaySession.destinationPeerId,
-            frame,
-            "transfer.forward.complete",
-            relaySession.hardRunToken,
-        )
+        relaySupport.handleTransferComplete(frame)
     }
 
     suspend fun handleTransferAbort(peerId: PeerId, frame: WireFrame.TransferAbort): Unit {
         state.inboundTransfers.remove(frame.transferId)
-        val relaySession = state.relayTransfers.remove(frame.transferId)
-        if (relaySession != null) {
-            callbacks.sendTransferTowardsDestination(
-                relaySession.destinationPeerId,
-                frame,
-                "transfer.forward.abort",
-                relaySession.hardRunToken,
-            )
+        if (relaySupport.handleTransferAbort(frame)) {
             return
         }
         val outboundSession = state.outboundTransfers.remove(frame.transferId)
