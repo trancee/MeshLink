@@ -8,15 +8,21 @@ import ch.trancee.meshlink.api.MeshLinkException
 import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.engine.DirectWireFrame
 import ch.trancee.meshlink.identity.toHexString
+import ch.trancee.meshlink.transport.ActivePeerHintResolutionRequest
 import ch.trancee.meshlink.transport.BleDiscoveryContract
 import ch.trancee.meshlink.transport.BleDiscoveryPayload
 import ch.trancee.meshlink.transport.BleDiscoveryPlatformFamily
 import ch.trancee.meshlink.transport.GattDataBearerMode
 import ch.trancee.meshlink.transport.OutboundFrame
+import ch.trancee.meshlink.transport.RediscoveryWithoutLinkDecisionRequest
+import ch.trancee.meshlink.transport.TemporaryPeerHintPromotionRequest
 import ch.trancee.meshlink.transport.TransportEvent
 import ch.trancee.meshlink.transport.TransportMode
 import ch.trancee.meshlink.transport.TransportSendResult
+import ch.trancee.meshlink.transport.evaluateRediscoveryWithoutLink
+import ch.trancee.meshlink.transport.resolveActivePeerHint
 import ch.trancee.meshlink.transport.resolveGattDataBearerMode
+import ch.trancee.meshlink.transport.selectTemporaryPeerHintPromotion
 import ch.trancee.meshlink.transport.shouldLocalPeerInitiateL2capConnection
 import ch.trancee.meshlink.transport.shouldUseMixedPlatformGattNotifyBearer
 import kotlinx.cinterop.ObjCSignatureOverride
@@ -702,11 +708,10 @@ internal fun IosBleTransport.promoteTemporaryL2capLinkIfPossible(
     resolvedHintPeerIdValue: String,
 ): Unit {
     val temporaryHintPeerIdValue =
-        selectTemporaryL2capHintPromotion(
-            TemporaryL2capHintPromotionRequest(
-                identifier = identifier,
+        selectTemporaryPeerHintPromotion(
+            TemporaryPeerHintPromotionRequest(
+                temporaryHintPeerIdValue = peerBindings.temporaryHintForIdentifier(identifier),
                 resolvedHintPeerIdValue = resolvedHintPeerIdValue,
-                temporaryHintByIdentifier = peerBindings.temporaryHintBindings,
                 activeHintIds = activeLinksByHint.keys,
                 temporaryPeerPrefix = TEMPORARY_PEER_PREFIX,
             )
@@ -844,34 +849,39 @@ internal fun IosBleTransport.maybeLogRediscoveryWithoutLink(
     transportMode: TransportMode,
     identifier: String,
 ): Unit {
-    if (transportMode != TransportMode.L2CAP) {
-        peer.rediscoveryLoggedWithoutLink = false
-        return
-    }
-    val hasActiveLink =
-        activeLinksByHint.containsKey(peer.hintPeerId.value) ||
-            hasActiveGattNotifyLink(peer.hintPeerId.value) ||
-            (peerBindings
-                .temporaryHintForIdentifier(identifier)
-                ?.let(activeLinksByHint::containsKey) == true)
     val hasPendingConnect = pendingConnectionsByHint.containsKey(peer.hintPeerId.value)
-    if (hasActiveLink || hasPendingConnect) {
-        peer.rediscoveryLoggedWithoutLink = false
-        return
-    }
-    if (!peer.rediscoveryLoggedWithoutLink) {
+    val decision =
+        evaluateRediscoveryWithoutLink(
+            RediscoveryWithoutLinkDecisionRequest(
+                transportMode = transportMode,
+                hintPeerIdValue = peer.hintPeerId.value,
+                temporaryHintPeerIdValue = peerBindings.temporaryHintForIdentifier(identifier),
+                activeHintIds = activeLinksByHint.keys,
+                hasActiveSideLink = hasActiveGattNotifyLink(peer.hintPeerId.value),
+                hasPendingConnect = hasPendingConnect,
+                rediscoveryLoggedWithoutLink = peer.rediscoveryLoggedWithoutLink,
+            )
+        )
+    if (decision.shouldLogRediscoveryWithoutLink) {
         log(
             "scan rediscovered ${peer.hintPeerId.logSuffix()} with no active link " +
                 "pendingConnect=$hasPendingConnect id=$identifier"
         )
-        peer.rediscoveryLoggedWithoutLink = true
     }
+    peer.rediscoveryLoggedWithoutLink = decision.rediscoveryLoggedWithoutLink
 }
 
 internal fun IosBleTransport.activeLinkFor(peer: DiscoveredPeer): IosL2capLink? {
-    val directLink = activeLinksByHint[peer.hintPeerId.value]
-    val temporaryHint = peerBindings.temporaryHintForIdentifier(peer.peripheralIdentifier)
-    return directLink ?: temporaryHint?.let(activeLinksByHint::get)
+    val activeHint =
+        resolveActivePeerHint(
+            ActivePeerHintResolutionRequest(
+                hintPeerIdValue = peer.hintPeerId.value,
+                temporaryHintPeerIdValue =
+                    peerBindings.temporaryHintForIdentifier(peer.peripheralIdentifier),
+                activeHintIds = activeLinksByHint.keys,
+            )
+        ) ?: return null
+    return activeLinksByHint[activeHint]
 }
 
 internal fun IosBleTransport.activeGattNotifyLinkFor(peer: DiscoveredPeer): IosGattNotifyLink? {
@@ -880,10 +890,17 @@ internal fun IosBleTransport.activeGattNotifyLinkFor(peer: DiscoveredPeer): IosG
             localPlatformFamily = currentDiscoveryPayload.platformFamily,
             remotePlatformFamily = peer.platformFamily,
         ) && IosBleTransportBridgeRegistry.currentCallbacksOrNull() != null
-    val temporaryHint = peerBindings.temporaryHintForIdentifier(peer.peripheralIdentifier)
-    return if (supportsMixedGattNotifyBearer) {
-        activeGattNotifyLinksByHint[peer.hintPeerId.value]
-            ?: temporaryHint?.let(activeGattNotifyLinksByHint::get)
+    val activeHint =
+        resolveActivePeerHint(
+            ActivePeerHintResolutionRequest(
+                hintPeerIdValue = peer.hintPeerId.value,
+                temporaryHintPeerIdValue =
+                    peerBindings.temporaryHintForIdentifier(peer.peripheralIdentifier),
+                activeHintIds = activeGattNotifyLinksByHint.keys,
+            )
+        )
+    return if (supportsMixedGattNotifyBearer && activeHint != null) {
+        activeGattNotifyLinksByHint[activeHint]
     } else {
         null
     }
@@ -1164,27 +1181,6 @@ internal fun selectIncomingL2capHintPeerId(request: IncomingL2capHintSelectionRe
                 )
         }
     return waitingCandidates.singleOrNull()?.hintPeerIdValue
-}
-
-internal class TemporaryL2capHintPromotionRequest(
-    val identifier: String,
-    val resolvedHintPeerIdValue: String,
-    val temporaryHintByIdentifier: Map<String, String>,
-    val activeHintIds: Collection<String>,
-    val temporaryPeerPrefix: String = "cb-",
-)
-
-internal fun selectTemporaryL2capHintPromotion(
-    request: TemporaryL2capHintPromotionRequest
-): String? {
-    val temporaryHintPeerIdValue = request.temporaryHintByIdentifier[request.identifier]
-    val canPromote =
-        temporaryHintPeerIdValue != null &&
-            temporaryHintPeerIdValue != request.resolvedHintPeerIdValue &&
-            temporaryHintPeerIdValue.startsWith(request.temporaryPeerPrefix) &&
-            temporaryHintPeerIdValue in request.activeHintIds &&
-            request.resolvedHintPeerIdValue !in request.activeHintIds
-    return if (canPromote) temporaryHintPeerIdValue else null
 }
 
 internal class IosCentralDelegate(private val owner: IosBleTransport) :

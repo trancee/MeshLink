@@ -60,9 +60,6 @@ internal class IosPeerBindings {
     internal val hintBindings: Map<String, String>
         get() = peerHintByIdentifier
 
-    internal val temporaryHintBindings: Map<String, String>
-        get() = temporaryHintByIdentifier
-
     internal fun retainPeripheral(identifier: String, peripheral: CBPeripheral): Unit {
         peripheralsByIdentifier[identifier] = peripheral
     }

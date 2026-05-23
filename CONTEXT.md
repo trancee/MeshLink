@@ -201,3 +201,29 @@ Domain expert: “Good — that means the session had reviewable evidence, they 
 Developer: “If they need payload content, they must return to the live session and choose the full-payload export explicitly.”
 
 Domain expert: “Exactly. And if they want proof-only experiments, they should move into the lab, not the guided or advanced surfaces.”
+
+## Physical relay-proof findings
+
+**Constrained relay proof**:
+The physical `A → B → C` relay proof means `A` sees only `B` directly, `C` sees only `B` directly, and `B` is the only node that sees both sides. A valid routed proof must complete with `routeIsDirect=false`; any automation path that silently falls back to a direct peer is a false positive.
+_Avoid_: direct `A → C` proof presented as relay proof, fallback-to-first-peer automation
+
+**Relay-target identity**:
+The routed target for physical automation is the 24-hex advertisement peer ID, not the longer identity-derived hash. Relay automation must wait for a discovered route to that advertised peer instead of sending to the first currently reachable direct peer.
+_Avoid_: full identity hash as runtime target, implicit direct fallback
+
+**Temporary-peer canonicalization**:
+Inbound responder paths may start on temporary transport peer IDs such as `bt-...` or `cb-...` before the canonical advertisement peer ID is known. The transport seam and session registry must rebind those temporary peers to the canonical advertisement peer and preserve alias lookups after promotion so later inbound delivery still resolves the established session.
+_Avoid_: one-shot promotion without alias retention, dropping post-promotion inbound frames as `transport.data.noSession`
+
+**Relay-proof bootstrap**:
+Some physical routed proofs need the sender to bootstrap the middle hop as a direct peer before the routed send to the final recipient can converge. Routed automation should also wait until the mesh reports `Running` before firing the proof send.
+_Avoid_: immediate routed send before mesh convergence, assuming discovery alone is enough
+
+**Mixed-platform data bearer fallback**:
+Mixed iOS ↔ Android routed traffic may need `GATT_OPTIONAL_WITH_L2CAP_FALLBACK` instead of treating GATT as strictly required. The transport seam must allow L2CAP to take over when mixed-platform GATT notify paths are not sufficient.
+_Avoid_: hard GATT-required policy for mixed-platform relay proof
+
+**Relay observability**:
+The load-bearing diagnostics for physical relay proof are sender bootstrap/send observations, middle-hop forward-queue and forward-deliver events, recipient inbound-runtime delivery logs, and passive-proof completion/export logs. When routed proof fails, these signals should make the failure stage obvious without relying on UI interpretation.
+_Avoid_: UI-only relay diagnosis, timeline-only proof debugging

@@ -26,16 +26,22 @@ import ch.trancee.meshlink.identity.hexStartsWith
 import ch.trancee.meshlink.identity.toBytes
 import ch.trancee.meshlink.identity.toHexString
 import ch.trancee.meshlink.power.PowerPolicy
+import ch.trancee.meshlink.transport.ActivePeerHintResolutionRequest
 import ch.trancee.meshlink.transport.BleDiscoveryContract
 import ch.trancee.meshlink.transport.BleDiscoveryPayload
 import ch.trancee.meshlink.transport.BleDiscoveryPlatformFamily
 import ch.trancee.meshlink.transport.BleTransport
 import ch.trancee.meshlink.transport.GattDataBearerMode
 import ch.trancee.meshlink.transport.OutboundFrame
+import ch.trancee.meshlink.transport.RediscoveryWithoutLinkDecisionRequest
+import ch.trancee.meshlink.transport.TemporaryPeerHintPromotionRequest
 import ch.trancee.meshlink.transport.TransportEvent
 import ch.trancee.meshlink.transport.TransportMode
 import ch.trancee.meshlink.transport.TransportSendResult
+import ch.trancee.meshlink.transport.evaluateRediscoveryWithoutLink
+import ch.trancee.meshlink.transport.resolveActivePeerHint
 import ch.trancee.meshlink.transport.resolveGattDataBearerMode
+import ch.trancee.meshlink.transport.selectTemporaryPeerHintPromotion
 import ch.trancee.meshlink.transport.shouldInitiateDiscoveryDrivenL2capConnection
 import ch.trancee.meshlink.transport.shouldLocalPeerInitiateL2capConnection
 import ch.trancee.meshlink.transport.shouldUseMixedPlatformGattNotifyBearer
@@ -589,26 +595,44 @@ internal class AndroidBleTransport(
     }
 
     private fun promoteTemporaryLink(address: String, hintPeerId: PeerId): Unit {
-        val temporaryHint = temporaryHintByAddress[address] ?: return
+        val mappedTemporaryHint = temporaryHintByAddress[address] ?: return
+        val temporaryHint =
+            selectTemporaryPeerHintPromotion(
+                TemporaryPeerHintPromotionRequest(
+                    temporaryHintPeerIdValue = mappedTemporaryHint,
+                    resolvedHintPeerIdValue = hintPeerId.value,
+                    activeHintIds = activeLinksByHint.keys,
+                    temporaryPeerPrefix = TEMPORARY_PEER_PREFIX,
+                )
+            )
         val promoted =
             synchronized(activeLinksByHint) {
-                val link = activeLinksByHint.remove(temporaryHint) ?: return@synchronized false
-                if (activeLinksByHint.containsKey(hintPeerId.value)) {
-                    log(
-                        "closing temporary L2CAP link ${temporaryHint.takeLast(6)} because ${hintPeerId.value.takeLast(6)} already has an active link"
-                    )
-                    closeQuietly(link)
-                    return@synchronized false
+                when {
+                    temporaryHint != null -> {
+                        val link =
+                            activeLinksByHint.remove(temporaryHint) ?: return@synchronized false
+                        link.peerHintId = hintPeerId
+                        activeLinksByHint[hintPeerId.value] = link
+                        true
+                    }
+
+                    activeLinksByHint.containsKey(mappedTemporaryHint) &&
+                        activeLinksByHint.containsKey(hintPeerId.value) -> {
+                        log(
+                            "closing temporary L2CAP link ${mappedTemporaryHint.takeLast(6)} because ${hintPeerId.value.takeLast(6)} already has an active link"
+                        )
+                        closeQuietly(activeLinksByHint.remove(mappedTemporaryHint))
+                        false
+                    }
+
+                    else -> false
                 }
-                link.peerHintId = hintPeerId
-                activeLinksByHint[hintPeerId.value] = link
-                true
             }
         temporaryHintByAddress.remove(address)
         peerHintByAddress[address] = hintPeerId.value
         if (promoted) {
             log(
-                "promoted temporary L2CAP link ${temporaryHint.takeLast(6)} -> ${hintPeerId.value.takeLast(6)} addr=$address"
+                "promoted temporary L2CAP link ${mappedTemporaryHint.takeLast(6)} -> ${hintPeerId.value.takeLast(6)} addr=$address"
             )
         }
     }
@@ -706,33 +730,37 @@ internal class AndroidBleTransport(
         transportMode: TransportMode,
         address: String,
     ): Unit {
-        if (transportMode != TransportMode.L2CAP) {
-            peer.rediscoveryLoggedWithoutLink = false
-            return
-        }
-        val temporaryHint = temporaryHintByAddress[address]
-        val hasActiveLink =
-            synchronized(activeLinksByHint) {
-                activeLinksByHint.containsKey(peer.hintPeerId.value) ||
-                    (temporaryHint?.let(activeLinksByHint::containsKey) == true)
-            } || hasActiveGattNotifyLink(peer.hintPeerId.value)
         val hasPendingConnect = hasPendingConnect(peer.hintPeerId.value)
-        if (hasActiveLink || hasPendingConnect) {
-            peer.rediscoveryLoggedWithoutLink = false
-            return
-        }
-        if (!peer.rediscoveryLoggedWithoutLink) {
+        val decision =
+            evaluateRediscoveryWithoutLink(
+                RediscoveryWithoutLinkDecisionRequest(
+                    transportMode = transportMode,
+                    hintPeerIdValue = peer.hintPeerId.value,
+                    temporaryHintPeerIdValue = temporaryHintByAddress[address],
+                    activeHintIds = activeLinksByHint.keys,
+                    hasActiveSideLink = hasActiveGattNotifyLink(peer.hintPeerId.value),
+                    hasPendingConnect = hasPendingConnect,
+                    rediscoveryLoggedWithoutLink = peer.rediscoveryLoggedWithoutLink,
+                )
+            )
+        if (decision.shouldLogRediscoveryWithoutLink) {
             log(
                 "scan rediscovered ${peer.hintPeerId.value.takeLast(6)} with no active link pendingConnect=$hasPendingConnect addr=$address"
             )
-            peer.rediscoveryLoggedWithoutLink = true
         }
+        peer.rediscoveryLoggedWithoutLink = decision.rediscoveryLoggedWithoutLink
     }
 
     private fun activeLinkFor(peer: DiscoveredPeer): L2capLink? {
-        val directLink = activeLinksByHint[peer.hintPeerId.value]
-        val temporaryHint = temporaryHintByAddress[peer.device.address]
-        return directLink ?: temporaryHint?.let(activeLinksByHint::get)
+        val activeHint =
+            resolveActivePeerHint(
+                ActivePeerHintResolutionRequest(
+                    hintPeerIdValue = peer.hintPeerId.value,
+                    temporaryHintPeerIdValue = temporaryHintByAddress[peer.device.address],
+                    activeHintIds = activeLinksByHint.keys,
+                )
+            ) ?: return null
+        return activeLinksByHint[activeHint]
     }
 
     private suspend fun sendViaConnectedLink(
