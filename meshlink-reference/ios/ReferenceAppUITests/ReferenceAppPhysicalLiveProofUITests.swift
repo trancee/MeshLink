@@ -28,6 +28,7 @@ final class ReferenceAppPhysicalLiveProofUITests: XCTestCase {
             "MESHLINK_REFERENCE_APP_ID": liveProofConfiguration.appId,
             "MESHLINK_REFERENCE_AUTOMATION_ROLE": "sender",
         ]
+        let sendHelloButton = app.buttons["Send Hello"]
         addUIInterruptionMonitor(withDescription: "Bluetooth permission") { alert in
             let preferredButtons = ["Allow", "OK", "Continue"]
             for label in preferredButtons where alert.buttons[label].exists {
@@ -47,11 +48,10 @@ final class ReferenceAppPhysicalLiveProofUITests: XCTestCase {
             app.staticTexts["Guided first exchange"].waitForExistence(timeout: 15),
             "Expected the guided first-exchange surface to appear on the physical iPhone"
         )
-        let sentPredicate = NSPredicate(format: "label CONTAINS %@", "Guided message sent")
-        let sentEntry = app.staticTexts.containing(sentPredicate).firstMatch
-        XCTAssertTrue(
-            sentEntry.waitForExistence(timeout: 120),
-            "Expected the live-proof sender to reach the guided message sent state"
+        ReferenceAppUITestSupport.waitForEnabled(
+            sendHelloButton,
+            timeout: 120,
+            message: "Expected the live-proof sender to discover a peer and enable Send Hello"
         )
     }
 

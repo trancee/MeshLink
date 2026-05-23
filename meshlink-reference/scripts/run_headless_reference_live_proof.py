@@ -110,6 +110,14 @@ def parse_args() -> argparse.Namespace:
         default=DEFAULT_POST_RESULT_IDLE_SECONDS,
         help="How long to keep the iPhone console open after the sender completion marker when using devicectl",
     )
+    parser.add_argument(
+        "--skip-android-completion-wait",
+        action="store_true",
+        help=(
+            "Do not require the Android passive app to reach proof.complete. Useful when verifying only "
+            "the physical iPhone sender UI/XCTest path."
+        ),
+    )
     parser.add_argument("--skip-android-install", action="store_true")
     parser.add_argument("--skip-ios-build", action="store_true")
     parser.add_argument("--skip-ios-install", action="store_true")
@@ -647,6 +655,17 @@ def summarize_and_verify(
     print("==> Android export:", export_relative_path)
 
 
+def summarize_sender_only(*, run_dir: Path, ios_completion: str) -> None:
+    summary = {
+        "android_completion": None,
+        "ios_completion": ios_completion,
+        "export_relative_path": None,
+    }
+    (run_dir / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
+    print("==> iPhone completion:", ios_completion)
+    print("==> Android completion: skipped by --skip-android-completion-wait")
+
+
 def main() -> int:
     args = parse_args()
     ensure_android_device_ready(args.android_serial)
@@ -689,27 +708,34 @@ def main() -> int:
                 storage_subdirectory=storage_subdirectory,
                 run_dir=run_dir,
             )
-        android_completion_line, export_relative_path = wait_for_android_completion(
-            run_dir,
-            args.capture_timeout_seconds,
-        )
         if args.ios_launch_mode == "devicectl":
             time.sleep(args.post_result_idle_seconds)
             ios_completion = verify_ios_sender_log(run_dir / "iphone_console.log")
+        if args.skip_android_completion_wait:
+            android_completion_line = None
+            export_relative_path = None
+        else:
+            android_completion_line, export_relative_path = wait_for_android_completion(
+                run_dir,
+                args.capture_timeout_seconds,
+            )
     finally:
         if ios_console_process is not None:
             ios_console_process.stop()
         android_logcat.stop()
         run(["adb", "-s", args.android_serial, "shell", "am", "force-stop", ANDROID_PACKAGE], check=False)
 
-    summarize_and_verify(
-        android_serial=args.android_serial,
-        run_dir=run_dir,
-        storage_subdirectory=storage_subdirectory,
-        android_completion_line=android_completion_line,
-        ios_completion=ios_completion,
-        export_relative_path=export_relative_path,
-    )
+    if args.skip_android_completion_wait:
+        summarize_sender_only(run_dir=run_dir, ios_completion=ios_completion)
+    else:
+        summarize_and_verify(
+            android_serial=args.android_serial,
+            run_dir=run_dir,
+            storage_subdirectory=storage_subdirectory,
+            android_completion_line=android_completion_line,
+            ios_completion=ios_completion,
+            export_relative_path=export_relative_path,
+        )
     return 0
 
 
