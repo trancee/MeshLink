@@ -72,6 +72,7 @@ public class DefaultPlatformServices(
                         nowProvider = nowProvider,
                         surfaceOfOrigin = surfaceOfOrigin,
                         platformContext = platformContext,
+                        runtimeLogger = automationLogger,
                     )
                 }
                 .getOrElse {

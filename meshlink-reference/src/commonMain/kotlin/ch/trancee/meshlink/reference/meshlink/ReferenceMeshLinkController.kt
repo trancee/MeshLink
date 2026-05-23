@@ -76,6 +76,7 @@ public class LiveReferenceMeshLinkController(
     private val nowProvider: () -> Long,
     private val surfaceOfOrigin: String = "main-guided",
     private val platformContext: Any? = null,
+    private val runtimeLogger: (String) -> Unit = {},
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
 ) : ReferenceMeshLinkController {
     private val startedAtEpochMillis: Long = nowProvider()
@@ -313,20 +314,14 @@ public class LiveReferenceMeshLinkController(
     }
 
     private fun handleDiagnosticEvent(event: DiagnosticEvent): Unit {
-        val detail = buildString {
-            append(event.code)
-            append(" @ ")
-            append(event.stage)
-            if (event.metadata.isNotEmpty()) {
-                append(" ")
-                append(
-                    event.metadata.entries.joinToString(prefix = "{", postfix = "}") { (key, value)
-                        ->
-                        "$key=$value"
-                    }
-                )
-            }
-        }
+        val detail = diagnosticDetail(event)
+        runtimeLogger(
+            "REFERENCE_RUNTIME diagnostic " +
+                "code=${event.code} " +
+                "stage=${event.stage} " +
+                "peer=${event.peerSuffix ?: "none"} " +
+                "detail=$detail"
+        )
         stateStore.appendEvent(
             ReferenceTimelineEvent(
                 family = TimelineFamily.DIAGNOSTIC,
@@ -362,6 +357,12 @@ public class LiveReferenceMeshLinkController(
     private fun handleInboundMessage(message: InboundMessage): Unit {
         val payloadText = message.payload.decodeToString()
         val preview = redactedPayloadPreview(payloadText.take(INBOUND_MESSAGE_PREVIEW_LENGTH))
+        runtimeLogger(
+            "REFERENCE_RUNTIME inbound " +
+                "origin=${message.originPeerId.value} " +
+                "bytes=${message.payload.size} " +
+                "priority=${message.priority}"
+        )
         stateStore.appendEvent(
             ReferenceTimelineEvent(
                 family = TimelineFamily.MESSAGE,
@@ -387,6 +388,22 @@ public class LiveReferenceMeshLinkController(
                     peer
                 }
             }
+        }
+    }
+}
+
+private fun diagnosticDetail(event: DiagnosticEvent): String {
+    return buildString {
+        append(event.code)
+        append(" @ ")
+        append(event.stage)
+        if (event.metadata.isNotEmpty()) {
+            append(" ")
+            append(
+                event.metadata.entries.joinToString(prefix = "{", postfix = "}") { (key, value) ->
+                    "$key=$value"
+                }
+            )
         }
     }
 }
