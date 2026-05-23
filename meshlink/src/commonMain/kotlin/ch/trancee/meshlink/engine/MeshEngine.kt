@@ -42,66 +42,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
-internal class MeshEngine
-private constructor(
-    config: MeshLinkConfig,
-    platformContext: Any?,
-    localIdentity: LocalIdentity,
-    secureStorage: SecureStorage,
-    bleTransport: BleTransport? = null,
-    diagnosticSink: DiagnosticSink? = null,
-) : MeshLinkApi {
-    @Suppress("unused") private val platformContext: Any? = platformContext
-    private val coroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-    private val runtimeSurface = MeshEngineRuntimeSurface(diagnosticSink = diagnosticSink)
-    private val publishedSurface: MeshEnginePublishedRuntimeSurface = runtimeSurface
-    private val graph: MeshEngineGraphOperations =
-        RuntimeGraph(
-            config = config,
-            localIdentity = localIdentity,
-            secureStorage = secureStorage,
-            coroutineScope = coroutineScope,
-            platformBridge = MeshEnginePlatformBridge(bleTransport),
-            runtimeSurface = runtimeSurface,
-        )
-    private val runtime = MeshEngineRuntime(publishedSurface = publishedSurface, graph = graph)
-
-    override val state: StateFlow<MeshLinkState> = runtime.state
-    override val peerEvents: Flow<PeerEvent> = runtime.peerEvents
-    override val diagnosticEvents: Flow<DiagnosticEvent> = runtime.diagnosticEvents
-    override val messages: Flow<InboundMessage> = runtime.messages
-
-    override suspend fun start(): StartResult {
-        return runtime.start()
-    }
-
-    override suspend fun pause(): PauseResult {
-        return runtime.pause()
-    }
-
-    override suspend fun resume(): ResumeResult {
-        return runtime.resume()
-    }
-
-    override suspend fun stop(): StopResult {
-        return runtime.stop()
-    }
-
-    override suspend fun send(
-        peerId: PeerId,
-        payload: ByteArray,
-        priority: DeliveryPriority,
-    ): SendResult {
-        return runtime.send(peerId = peerId, payload = payload, priority = priority)
-    }
-
-    override suspend fun forgetPeer(peerId: PeerId): ForgetPeerResult {
-        return runtime.forgetPeer(peerId)
-    }
-
-    override fun updateBattery(level: Float, isCharging: Boolean): Unit {
-        runtime.updateBattery(level = level, isCharging = isCharging)
-    }
+internal object MeshEngine {
 
     private interface MeshEngineGraphOperations {
         suspend fun start(): StartResult
@@ -815,35 +756,38 @@ private constructor(
         }
     }
 
-    internal companion object {
-        private const val MAX_SUPPORTED_PAYLOAD_BYTES: Int = 64 * 1024
-        private const val INLINE_MESSAGE_PAYLOAD_BYTES: Int = 1_024
-        private const val LARGE_INLINE_SEND_TRANSPORT_BUDGET_BYTES: Int = 16 * 1024
-        private const val HIGH_PRIORITY_TTL_MILLIS: Int = 45 * 60 * 1_000
-        private const val NORMAL_PRIORITY_TTL_MILLIS: Int = 15 * 60 * 1_000
-        private const val LOW_PRIORITY_TTL_MILLIS: Int = 5 * 60 * 1_000
-        private val TRANSFER_ACK_SETTLEMENT_TIMEOUT = 1_500.milliseconds
-        private val TRANSFER_ACK_IDLE_WINDOW = 100.milliseconds
-        private val HANDSHAKE_TIMEOUT = 3.seconds
-        private val INITIAL_BACKOFF = 250.milliseconds
+    private const val MAX_SUPPORTED_PAYLOAD_BYTES: Int = 64 * 1024
+    private const val INLINE_MESSAGE_PAYLOAD_BYTES: Int = 1_024
+    private const val LARGE_INLINE_SEND_TRANSPORT_BUDGET_BYTES: Int = 16 * 1024
+    private const val HIGH_PRIORITY_TTL_MILLIS: Int = 45 * 60 * 1_000
+    private const val NORMAL_PRIORITY_TTL_MILLIS: Int = 15 * 60 * 1_000
+    private const val LOW_PRIORITY_TTL_MILLIS: Int = 5 * 60 * 1_000
+    private val TRANSFER_ACK_SETTLEMENT_TIMEOUT = 1_500.milliseconds
+    private val TRANSFER_ACK_IDLE_WINDOW = 100.milliseconds
+    private val HANDSHAKE_TIMEOUT = 3.seconds
+    private val INITIAL_BACKOFF = 250.milliseconds
 
-        @Suppress("LongParameterList")
-        internal fun create(
-            config: MeshLinkConfig,
-            platformContext: Any? = null,
-            localIdentity: LocalIdentity = LocalIdentity.fromAppId(config.appId),
-            secureStorage: SecureStorage = InMemorySecureStorage(),
-            bleTransport: BleTransport? = null,
-            diagnosticSink: DiagnosticSink? = null,
-        ): MeshLinkApi {
-            return MeshEngine(
+    @Suppress("LongParameterList", "UnusedParameter")
+    internal fun create(
+        config: MeshLinkConfig,
+        platformContext: Any? = null,
+        localIdentity: LocalIdentity = LocalIdentity.fromAppId(config.appId),
+        secureStorage: SecureStorage = InMemorySecureStorage(),
+        bleTransport: BleTransport? = null,
+        diagnosticSink: DiagnosticSink? = null,
+    ): MeshLinkApi {
+        val coroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        val runtimeSurface = MeshEngineRuntimeSurface(diagnosticSink = diagnosticSink)
+        val publishedSurface: MeshEnginePublishedRuntimeSurface = runtimeSurface
+        val graph: MeshEngineGraphOperations =
+            RuntimeGraph(
                 config = config,
-                platformContext = platformContext,
                 localIdentity = localIdentity,
                 secureStorage = secureStorage,
-                bleTransport = bleTransport,
-                diagnosticSink = diagnosticSink,
+                coroutineScope = coroutineScope,
+                platformBridge = MeshEnginePlatformBridge(bleTransport),
+                runtimeSurface = runtimeSurface,
             )
-        }
+        return MeshEngineRuntime(publishedSurface = publishedSurface, graph = graph)
     }
 }
