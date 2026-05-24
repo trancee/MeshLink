@@ -1,9 +1,5 @@
 package ch.trancee.meshlink.engine
 
-import ch.trancee.meshlink.diagnostics.DiagnosticCode
-import ch.trancee.meshlink.diagnostics.DiagnosticSeverity
-import kotlin.time.Duration.Companion.seconds
-
 internal fun buildMeshEngineRuntimeSessionAssembly(
     environment: MeshEngineRuntimeAssemblyEnvironment,
     support: MeshEngineRuntimeAssemblySupport,
@@ -41,125 +37,52 @@ private fun buildMeshEngineRuntimeSessionAndHopTransportPhase(
     val routingAndTrust = foundation.routingAndTrust
     val sessionSupport =
         buildMeshEngineRuntimeSessionSupport(
-            environment = environment,
-            support = support,
-            sharedState = sharedState,
-            routingAndTrust = routingAndTrust,
+            localIdentity = environment.localIdentity,
+            sessionRegistry = sharedState.sessionRegistry,
+            runtimeGate = environment.compatibilitySurface.runtimeGate,
+            hasTransport = { environment.platformBridge.hasTransport },
+            sendDirectWireFrame = { peerId, frame, action, preferredMode ->
+                support.sendDirectWireFrame(peerId, frame, action, preferredMode)
+            },
+            emitDiagnostic = support.emitDiagnostic,
+            peerRouteMetadata = { peerId, metadata ->
+                routingAndTrust.routingSupport.peerRouteMetadata(peerId, metadata = metadata)
+            },
         )
     val hopTransportSupport =
         buildMeshEngineRuntimeHopTransportSupport(
-            environment = environment,
-            support = support,
-            routingAndTrust = routingAndTrust,
-            sessionSupport = sessionSupport,
+            localIdentity = environment.localIdentity,
+            runtimeGate = environment.compatibilitySurface.runtimeGate,
+            routingSupport = routingAndTrust.routingSupport,
+            establishedHopSession = { peerId -> sessionSupport.establishedHopSession(peerId) },
+            ensureHopSession = { peerId, hardRunToken ->
+                sessionSupport.ensureHopSession(peerId, hardRunToken)
+            },
+            sendDirectWireFrame = { peerId, frame, action, preferredMode ->
+                support.sendDirectWireFrame(peerId, frame, action, preferredMode)
+            },
+            emitDiagnostic = support.emitDiagnostic,
         )
     val peerFlowSupport =
         buildMeshEngineRuntimePeerFlowSupport(
-            environment = environment,
-            support = support,
-            sharedState = sharedState,
-            routingAndTrust = routingAndTrust,
-            sessionSupport = sessionSupport,
-            hopTransportSupport = hopTransportSupport,
+            localIdentity = environment.localIdentity,
+            routeCoordinator = sharedState.routeCoordinator,
+            coroutineScope = environment.coroutineScope,
+            runtimeGate = environment.compatibilitySurface.runtimeGate,
+            captureHardRunToken = environment.compatibilitySurface.runtimeGate::captureHardRunToken,
+            sendEncryptedWireFrame = hopTransportSupport::sendEncryptedWireFrame,
+            ensureHopSession = { peerId -> sessionSupport.ensureHopSession(peerId) },
+            maximumPayloadBytesPerDelivery =
+                environment.platformBridge::maximumPayloadBytesPerDelivery,
+            emitDiagnostic = support.emitDiagnostic,
+            peerRouteMetadata = { peerId, metadata ->
+                routingAndTrust.routingSupport.peerRouteMetadata(peerId, metadata = metadata)
+            },
         )
     return MeshEngineRuntimeSessionAndHopTransportPhase(
         sessionSupport = sessionSupport,
         hopTransportSupport = hopTransportSupport,
         peerFlowSupport = peerFlowSupport,
-    )
-}
-
-private fun buildMeshEngineRuntimeSessionSupport(
-    environment: MeshEngineRuntimeAssemblyEnvironment,
-    support: MeshEngineRuntimeAssemblySupport,
-    sharedState: MeshEngineRuntimeSharedState,
-    routingAndTrust: MeshEngineRuntimeRoutingAndTrustPhase,
-): MeshEngineSessionSupport {
-    return MeshEngineSessionSupport(
-        localIdentity = environment.localIdentity,
-        state =
-            MeshEngineSessionState(
-                sessionRegistry = sharedState.sessionRegistry,
-                runtimeGate = environment.compatibilitySurface.runtimeGate,
-            ),
-        handshakeTimeout = HANDSHAKE_TIMEOUT,
-        callbacks =
-            MeshEngineSessionCallbacks(
-                hasTransport = { environment.platformBridge.hasTransport },
-                sendDirectWireFrame = { peerId, frame, action, preferredMode ->
-                    support.sendDirectWireFrame(peerId, frame, action, preferredMode)
-                },
-                emitHopSessionFailed = { peerId, stage, reason, metadata ->
-                    support.emitDiagnostic(
-                        DiagnosticCode.HOP_SESSION_FAILED,
-                        DiagnosticSeverity.WARN,
-                        stage,
-                        peerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
-                        reason,
-                        routingAndTrust.routingSupport.peerRouteMetadata(
-                            peerId,
-                            metadata = metadata,
-                        ),
-                    )
-                },
-            ),
-    )
-}
-
-private fun buildMeshEngineRuntimeHopTransportSupport(
-    environment: MeshEngineRuntimeAssemblyEnvironment,
-    support: MeshEngineRuntimeAssemblySupport,
-    routingAndTrust: MeshEngineRuntimeRoutingAndTrustPhase,
-    sessionSupport: MeshEngineSessionSupport,
-): MeshEngineHopTransportSupport {
-    return MeshEngineHopTransportSupport(
-        localIdentity = environment.localIdentity,
-        runtimeGate = environment.compatibilitySurface.runtimeGate,
-        routingSupport = routingAndTrust.routingSupport,
-        establishedHopSession = { peerId -> sessionSupport.establishedHopSession(peerId) },
-        ensureHopSession = { peerId, hardRunToken ->
-            sessionSupport.ensureHopSession(peerId, hardRunToken)
-        },
-        sendDirectWireFrame = { peerId, frame, action, preferredMode ->
-            support.sendDirectWireFrame(peerId, frame, action, preferredMode)
-        },
-        emitDiagnostic = support.emitDiagnostic,
-    )
-}
-
-private fun buildMeshEngineRuntimePeerFlowSupport(
-    environment: MeshEngineRuntimeAssemblyEnvironment,
-    support: MeshEngineRuntimeAssemblySupport,
-    sharedState: MeshEngineRuntimeSharedState,
-    routingAndTrust: MeshEngineRuntimeRoutingAndTrustPhase,
-    sessionSupport: MeshEngineSessionSupport,
-    hopTransportSupport: MeshEngineHopTransportSupport,
-): MeshEnginePeerFlowSupport {
-    return MeshEnginePeerFlowSupport(
-        localIdentity = environment.localIdentity,
-        context =
-            MeshEnginePeerFlowContext(
-                routeCoordinator = sharedState.routeCoordinator,
-                coroutineScope = environment.coroutineScope,
-            ),
-        config =
-            MeshEnginePeerFlowConfig(
-                largeInlineTransportBudgetBytes = LARGE_INLINE_SEND_TRANSPORT_BUDGET_BYTES
-            ),
-        callbacks =
-            MeshEnginePeerFlowCallbacks(
-                runtimeGate = environment.compatibilitySurface.runtimeGate,
-                captureHardRunToken =
-                    environment.compatibilitySurface.runtimeGate::captureHardRunToken,
-                sendEncryptedWireFrame = hopTransportSupport::sendEncryptedWireFrame,
-                ensureHopSession = { peerId -> sessionSupport.ensureHopSession(peerId) },
-                maximumPayloadBytesPerDelivery =
-                    environment.platformBridge::maximumPayloadBytesPerDelivery,
-                emitDiagnostic = support.emitDiagnostic,
-                peerRouteMetadata = { peerId, metadata ->
-                    routingAndTrust.routingSupport.peerRouteMetadata(peerId, metadata = metadata)
-                },
-            ),
     )
 }
 
@@ -179,12 +102,24 @@ private fun buildMeshEngineRuntimeHandshakePhase(
         )
     val handshakeCallbacks =
         buildMeshEngineRuntimeHandshakeCallbacks(
-            environment = environment,
-            support = support,
-            sessionAndHopTransport = sessionAndHopTransport,
+            sendDirectWireFrame = { peerId, frame, action ->
+                support.sendDirectWireFrame(peerId, frame, action, null)
+            },
+            emitHopSessionEstablished =
+                sessionAndHopTransport.hopTransportSupport::emitHopSessionEstablished,
+            emitHopSessionFailed = sessionAndHopTransport.hopTransportSupport::emitHopSessionFailed,
+            promoteTemporaryPeer = { temporaryPeerId, canonicalPeerId ->
+                runCatching {
+                        environment.platformBridge.promoteTemporaryPeer(
+                            temporaryPeerId,
+                            canonicalPeerId,
+                        )
+                    }
+                    .getOrElse { Unit }
+            },
         )
     val initiatorHandshakeSupport =
-        MeshEngineInitiatorHandshakeSupport(
+        buildMeshEngineRuntimeInitiatorHandshakeSupport(
             localIdentity = environment.localIdentity,
             trustSupport = routingAndTrust.trustSupport,
             state = handshakeState,
@@ -192,7 +127,7 @@ private fun buildMeshEngineRuntimeHandshakePhase(
             callbacks = handshakeCallbacks,
         )
     val responderHandshakeSupport =
-        MeshEngineResponderHandshakeSupport(
+        buildMeshEngineRuntimeResponderHandshakeSupport(
             localIdentity = environment.localIdentity,
             trustSupport = routingAndTrust.trustSupport,
             state = handshakeState,
@@ -204,30 +139,3 @@ private fun buildMeshEngineRuntimeHandshakePhase(
         responderHandshakeSupport = responderHandshakeSupport,
     )
 }
-
-private fun buildMeshEngineRuntimeHandshakeCallbacks(
-    environment: MeshEngineRuntimeAssemblyEnvironment,
-    support: MeshEngineRuntimeAssemblySupport,
-    sessionAndHopTransport: MeshEngineRuntimeSessionAndHopTransportPhase,
-): MeshEngineHandshakeCallbacks {
-    return MeshEngineHandshakeCallbacks(
-        sendDirectWireFrame = { peerId, frame, action ->
-            support.sendDirectWireFrame(peerId, frame, action, null)
-        },
-        emitHopSessionEstablished =
-            sessionAndHopTransport.hopTransportSupport::emitHopSessionEstablished,
-        emitHopSessionFailed = sessionAndHopTransport.hopTransportSupport::emitHopSessionFailed,
-        promoteTemporaryPeer = { temporaryPeerId, canonicalPeerId ->
-            runCatching {
-                    environment.platformBridge.promoteTemporaryPeer(
-                        temporaryPeerId,
-                        canonicalPeerId,
-                    )
-                }
-                .getOrElse { Unit }
-        },
-    )
-}
-
-private val HANDSHAKE_TIMEOUT = 3.seconds
-private const val LARGE_INLINE_SEND_TRANSPORT_BUDGET_BYTES: Int = 16 * 1024

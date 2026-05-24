@@ -25,3 +25,17 @@ internal data class PendingInitiatorHandshakeFailure(
     val reason: DiagnosticReason,
     val metadata: Map<String, String> = emptyMap(),
 )
+
+internal fun buildMeshEngineRuntimeHandshakeCallbacks(
+    sendDirectWireFrame: suspend (PeerId, DirectWireFrame, String) -> TransportSendResult,
+    emitHopSessionEstablished: (PeerId, String) -> Unit,
+    emitHopSessionFailed: (PeerId, String, DiagnosticReason, Map<String, String>) -> Unit,
+    promoteTemporaryPeer: suspend (PeerId, PeerId) -> Unit,
+): MeshEngineHandshakeCallbacks {
+    return MeshEngineHandshakeCallbacks(
+        sendDirectWireFrame = sendDirectWireFrame,
+        emitHopSessionEstablished = emitHopSessionEstablished,
+        emitHopSessionFailed = emitHopSessionFailed,
+        promoteTemporaryPeer = promoteTemporaryPeer,
+    )
+}

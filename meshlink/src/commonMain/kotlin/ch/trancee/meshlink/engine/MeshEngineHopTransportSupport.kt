@@ -196,3 +196,32 @@ internal class MeshEngineHopTransportSupport(
         private const val NONCE_BYTE_MASK: ULong = 0xFFu
     }
 }
+
+internal fun buildMeshEngineRuntimeHopTransportSupport(
+    localIdentity: LocalIdentity,
+    runtimeGate: MeshEngineRuntimeGate,
+    routingSupport: MeshEngineRoutingSupport,
+    establishedHopSession: suspend (PeerId) -> HopSession?,
+    ensureHopSession: suspend (PeerId, MeshEngineHardRunToken) -> SessionEstablishmentOutcome,
+    sendDirectWireFrame:
+        suspend (PeerId, DirectWireFrame, String, TransportMode?) -> TransportSendResult,
+    emitDiagnostic:
+        (
+            DiagnosticCode,
+            DiagnosticSeverity,
+            String,
+            String?,
+            DiagnosticReason?,
+            Map<String, String>,
+        ) -> Unit,
+): MeshEngineHopTransportSupport {
+    return MeshEngineHopTransportSupport(
+        localIdentity = localIdentity,
+        runtimeGate = runtimeGate,
+        routingSupport = routingSupport,
+        establishedHopSession = establishedHopSession,
+        ensureHopSession = ensureHopSession,
+        sendDirectWireFrame = sendDirectWireFrame,
+        emitDiagnostic = emitDiagnostic,
+    )
+}

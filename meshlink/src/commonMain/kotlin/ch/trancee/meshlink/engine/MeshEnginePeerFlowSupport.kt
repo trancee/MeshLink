@@ -133,3 +133,49 @@ internal class MeshEnginePeerFlowSupport(
             peerId.value.hexContentEquals(localIdentity.advertisementKeyHash)
     }
 }
+
+internal fun buildMeshEngineRuntimePeerFlowSupport(
+    localIdentity: LocalIdentity,
+    routeCoordinator: RouteCoordinator,
+    coroutineScope: CoroutineScope,
+    runtimeGate: MeshEngineRuntimeGate,
+    captureHardRunToken: () -> MeshEngineHardRunToken,
+    sendEncryptedWireFrame: suspend (PeerId, WireFrame, String, MeshEngineHardRunToken?) -> Boolean,
+    ensureHopSession: suspend (PeerId) -> SessionEstablishmentOutcome,
+    maximumPayloadBytesPerDelivery: (PeerId) -> Int?,
+    emitDiagnostic:
+        (
+            DiagnosticCode,
+            DiagnosticSeverity,
+            String,
+            String?,
+            DiagnosticReason?,
+            Map<String, String>,
+        ) -> Unit,
+    peerRouteMetadata: (PeerId, Map<String, String>) -> Map<String, String>,
+): MeshEnginePeerFlowSupport {
+    return MeshEnginePeerFlowSupport(
+        localIdentity = localIdentity,
+        context =
+            MeshEnginePeerFlowContext(
+                routeCoordinator = routeCoordinator,
+                coroutineScope = coroutineScope,
+            ),
+        config =
+            MeshEnginePeerFlowConfig(
+                largeInlineTransportBudgetBytes = LARGE_INLINE_SEND_TRANSPORT_BUDGET_BYTES
+            ),
+        callbacks =
+            MeshEnginePeerFlowCallbacks(
+                runtimeGate = runtimeGate,
+                captureHardRunToken = captureHardRunToken,
+                sendEncryptedWireFrame = sendEncryptedWireFrame,
+                ensureHopSession = ensureHopSession,
+                maximumPayloadBytesPerDelivery = maximumPayloadBytesPerDelivery,
+                emitDiagnostic = emitDiagnostic,
+                peerRouteMetadata = peerRouteMetadata,
+            ),
+    )
+}
+
+private const val LARGE_INLINE_SEND_TRANSPORT_BUDGET_BYTES: Int = 16 * 1024

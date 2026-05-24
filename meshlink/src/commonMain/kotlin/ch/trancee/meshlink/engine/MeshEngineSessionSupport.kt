@@ -2,11 +2,14 @@ package ch.trancee.meshlink.engine
 
 import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.crypto.NoiseXXHandshakeManager
+import ch.trancee.meshlink.diagnostics.DiagnosticCode
 import ch.trancee.meshlink.diagnostics.DiagnosticReason
+import ch.trancee.meshlink.diagnostics.DiagnosticSeverity
 import ch.trancee.meshlink.identity.LocalIdentity
 import ch.trancee.meshlink.transport.TransportSendResult
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TimeSource
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.delay
@@ -213,6 +216,49 @@ internal class MeshEngineSessionSupport(
     }
 }
 
+internal fun buildMeshEngineRuntimeSessionSupport(
+    localIdentity: LocalIdentity,
+    sessionRegistry: MeshEngineSessionRegistry,
+    runtimeGate: MeshEngineRuntimeGate,
+    hasTransport: () -> Boolean,
+    sendDirectWireFrame:
+        suspend (
+            PeerId, DirectWireFrame, String, ch.trancee.meshlink.transport.TransportMode?,
+        ) -> TransportSendResult,
+    emitDiagnostic:
+        (
+            DiagnosticCode,
+            DiagnosticSeverity,
+            String,
+            String?,
+            DiagnosticReason?,
+            Map<String, String>,
+        ) -> Unit,
+    peerRouteMetadata: (PeerId, Map<String, String>) -> Map<String, String>,
+): MeshEngineSessionSupport {
+    return MeshEngineSessionSupport(
+        localIdentity = localIdentity,
+        state =
+            MeshEngineSessionState(sessionRegistry = sessionRegistry, runtimeGate = runtimeGate),
+        handshakeTimeout = HANDSHAKE_TIMEOUT,
+        callbacks =
+            MeshEngineSessionCallbacks(
+                hasTransport = hasTransport,
+                sendDirectWireFrame = sendDirectWireFrame,
+                emitHopSessionFailed = { peerId, stage, reason, metadata ->
+                    emitDiagnostic(
+                        DiagnosticCode.HOP_SESSION_FAILED,
+                        DiagnosticSeverity.WARN,
+                        stage,
+                        peerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
+                        reason,
+                        peerRouteMetadata(peerId, metadata),
+                    )
+                },
+            ),
+    )
+}
+
 private suspend fun CompletableDeferred<SessionEstablishmentOutcome>.completedOutcomeOr(
     fallback: SessionEstablishmentOutcome
 ): SessionEstablishmentOutcome {
@@ -227,4 +273,5 @@ private fun TransportSendResult.Dropped.isTransientLinkNotReady(): Boolean {
     return reason.contains("L2CAP connection is not ready")
 }
 
+private val HANDSHAKE_TIMEOUT = 3.seconds
 private val HANDSHAKE_MESSAGE1_RETRY_DELAY = 100.milliseconds

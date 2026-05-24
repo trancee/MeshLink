@@ -207,3 +207,19 @@ internal class MeshEngineResponderHandshakeSupport(
         callbacks.emitHopSessionFailed(peerId, stage, reason, metadata)
     }
 }
+
+internal fun buildMeshEngineRuntimeResponderHandshakeSupport(
+    localIdentity: LocalIdentity,
+    trustSupport: MeshEngineTrustSupport,
+    state: MeshEngineHandshakeState,
+    routingContext: MeshEngineHandshakeRoutingContext,
+    callbacks: MeshEngineHandshakeCallbacks,
+): MeshEngineResponderHandshakeSupport {
+    return MeshEngineResponderHandshakeSupport(
+        localIdentity = localIdentity,
+        trustSupport = trustSupport,
+        state = state,
+        routingContext = routingContext,
+        callbacks = callbacks,
+    )
+}
