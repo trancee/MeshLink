@@ -21,7 +21,6 @@ import android.os.Build
 import android.os.ParcelUuid
 import android.util.Log
 import ch.trancee.meshlink.api.PeerId
-import ch.trancee.meshlink.engine.DirectWireFrame
 import ch.trancee.meshlink.identity.hexStartsWith
 import ch.trancee.meshlink.identity.toBytes
 import ch.trancee.meshlink.identity.toHexString
@@ -31,7 +30,6 @@ import ch.trancee.meshlink.transport.BleDiscoveryContract
 import ch.trancee.meshlink.transport.BleDiscoveryPayload
 import ch.trancee.meshlink.transport.BleDiscoveryPlatformFamily
 import ch.trancee.meshlink.transport.BleTransport
-import ch.trancee.meshlink.transport.GattDataBearerMode
 import ch.trancee.meshlink.transport.OutboundFrame
 import ch.trancee.meshlink.transport.RediscoveryWithoutLinkDecisionRequest
 import ch.trancee.meshlink.transport.TemporaryPeerHintPromotionRequest
@@ -40,7 +38,6 @@ import ch.trancee.meshlink.transport.TransportMode
 import ch.trancee.meshlink.transport.TransportSendResult
 import ch.trancee.meshlink.transport.evaluateRediscoveryWithoutLink
 import ch.trancee.meshlink.transport.resolveActivePeerHint
-import ch.trancee.meshlink.transport.resolveGattDataBearerMode
 import ch.trancee.meshlink.transport.selectTemporaryPeerHintPromotion
 import ch.trancee.meshlink.transport.shouldInitiateDiscoveryDrivenL2capConnection
 import ch.trancee.meshlink.transport.shouldLocalPeerInitiateL2capConnection
@@ -480,46 +477,34 @@ internal class AndroidBleTransport(
         peer: DiscoveredPeer,
         frame: OutboundFrame,
     ): TransportSendResult? {
-        val directFrame = runCatching { DirectWireFrame.decode(frame.payload) }.getOrNull()
-        if (directFrame !is DirectWireFrame.Data) {
-            return null
-        }
-        val dataBearerMode =
-            resolveGattDataBearerMode(
-                localPlatformFamily = currentDiscoveryPayload.platformFamily,
-                remotePlatformFamily = peer.platformFamily,
-                preferredMode = frame.preferredMode,
-            )
-        if (dataBearerMode == GattDataBearerMode.L2CAP_ONLY) {
-            return null
-        }
-        maybeStartGattNotifySideLink(peer)
-        val client = gattNotifyClientsByHint[peer.hintPeerId.value] ?: return null
-        if (!client.isReady()) {
-            log(
-                "preferred GATT side-link send skipped for ${peer.hintPeerId.value.takeLast(6)}: client not ready"
-            )
-            return null
-        }
-        val delivered =
-            runCatching { client.write(frame.payload) }
-                .onFailure { error ->
-                    log(
-                        "preferred GATT side-link send failed for ${peer.hintPeerId.value.takeLast(6)}: ${error.message.orEmpty()}"
-                    )
-                }
-                .getOrDefault(false)
-        return if (delivered) {
-            log(
-                "sent ${frame.payload.size} bytes via GATT write side link for ${peer.hintPeerId.value.takeLast(6)}"
-            )
-            TransportSendResult.Delivered
-        } else {
-            log(
-                "preferred GATT side-link send returned false for ${peer.hintPeerId.value.takeLast(6)} bytes=${frame.payload.size}"
-            )
-            null
-        }
+        return sendViaPreferredGattSideLinkOrNull(
+            frame = frame,
+            context =
+                AndroidPreferredGattSendContext(
+                    hintPeerId = peer.hintPeerId,
+                    localPlatformFamily = currentDiscoveryPayload.platformFamily,
+                    remotePlatformFamily = peer.platformFamily,
+                ),
+            dependencies =
+                AndroidPreferredGattSendDependencies(
+                    ensureSideLink = { maybeStartGattNotifySideLink(peer) },
+                    currentClient = {
+                        gattNotifyClientsByHint[peer.hintPeerId.value]?.let { client ->
+                            object : AndroidPreferredGattSendClient {
+                                override fun isReady(): Boolean {
+                                    return client.isReady()
+                                }
+
+                                override suspend fun write(payload: ByteArray): Boolean {
+                                    return client.write(payload)
+                                }
+                            }
+                        }
+                    },
+                    restartSideLink = { reason -> restartGattNotifySideLink(peer, reason) },
+                    log = ::log,
+                ),
+        )
     }
 
     private fun restartGattNotifySideLink(peer: DiscoveredPeer, reason: String): Unit {

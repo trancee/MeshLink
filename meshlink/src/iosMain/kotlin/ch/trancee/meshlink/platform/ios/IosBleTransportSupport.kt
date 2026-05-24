@@ -136,26 +136,30 @@ internal suspend fun IosBleTransport.sendViaGattNotifyLinkOrNull(
     peer: DiscoveredPeer,
     directFrame: DirectWireFrame?,
 ): TransportSendResult? {
-    val gattNotifyLink =
-        activeGattNotifyLinkFor(peer)?.takeIf { directFrame is DirectWireFrame.Data }
-    return gattNotifyLink?.let { link ->
-        runCatching {
-                log(
-                    "sending ${frame.payload.size} bytes via GATT notify side link for ${frame.peerId.logSuffix()}"
-                )
-                if (!link.enqueue(frame.payload)) {
-                    return@runCatching TransportSendResult.Dropped(
-                        "iOS BLE GATT notify side link is not accepting frames"
-                    )
-                }
-                TransportSendResult.Delivered
-            }
-            .getOrElse { error ->
-                TransportSendResult.Dropped(
-                    "iOS BLE GATT notify send failed: ${error.message.orEmpty()}"
-                )
-            }
-    }
+    return sendViaPreferredGattNotifyLinkOrNull(
+        frame = frame,
+        context =
+            IosPreferredGattSendContext(
+                hintPeerId = peer.hintPeerId,
+                localPlatformFamily = currentDiscoveryPayload.platformFamily,
+                remotePlatformFamily = peer.platformFamily,
+            ),
+        dependencies =
+            IosPreferredGattSendDependencies(
+                currentLink = {
+                    activeGattNotifyLinkFor(peer)
+                        ?.takeIf { directFrame is DirectWireFrame.Data }
+                        ?.let { link ->
+                            object : IosPreferredGattSendLink {
+                                override suspend fun enqueue(payload: ByteArray): Boolean {
+                                    return link.enqueue(payload)
+                                }
+                            }
+                        }
+                },
+                log = ::log,
+            ),
+    )
 }
 
 internal suspend fun IosBleTransport.sendViaL2capWhenReady(
