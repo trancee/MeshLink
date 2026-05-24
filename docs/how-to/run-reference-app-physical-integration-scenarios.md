@@ -47,7 +47,7 @@ If Android or iOS is still blocked on permissions, clear that first with
 |---|---|---|
 | **Direct guided proof** | iPhone sender ↔ one Android passive peer, trust, inbound delivery, retained redacted export | This is the baseline physical proof. If this is not stable, nothing more complex matters. |
 | **Direct XCTest permission recovery** | The same direct proof, but through the physical iPhone XCTest launch path | This is the edge-case runner for first-run Bluetooth prompts and other physical iPhone launch friction. |
-| **Constrained relay proof** | `A = iPhone 15` sender, `B = Samsung` relay, `C = OPPO` passive recipient, with `routeIsDirect=false` | This proves routing, relay forwarding, temporary-peer promotion, and recipient-side retained export instead of a sender-only false positive. |
+| **Constrained relay proof** | `A = iPhone 15` sender, `B = Samsung` relay, `C = OPPO` passive recipient, with `routeIsDirect=false` | This proves routing, relay forwarding, and recipient-side retained export instead of a sender-only false positive. Temporary-peer promotion remains a valuable supporting signal when that transport path is exercised. |
 | **Physical matrix** | Runs the selected scenarios in order and writes one summary for the full campaign | This keeps physical validation repeatable and makes regressions obvious to reviewers. |
 
 ## Run the direct guided proof
@@ -105,8 +105,9 @@ Expected pass signals:
 - the sender-side routed delivery contains `routeIsDirect=false`
 - the Samsung relay logs both `forward.message.queued` and
   `forward.message.delivered`
-- the relay shows temporary-peer promotion from a transport-only `bt-...` peer
-  to a canonical advertisement peer
+- if the relay started on a transport-only `bt-...` peer, it promotes that
+  temporary peer to the canonical advertisement peer instead of losing session
+  continuity later
 - the OPPO passive peer reaches `proof.complete role=passive`
 - the OPPO retained export still stays redacted by default
 

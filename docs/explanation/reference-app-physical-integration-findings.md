@@ -107,8 +107,10 @@ The fix was not cosmetic. The transport/session seam needed to keep alias
 lookups valid after promotion from temporary peer IDs to canonical advertisement
 peer IDs.
 
-That is why the relay scenario now treats temporary-peer promotion as a
-load-bearing observation, not just a debug curiosity.
+That is why the relay scenario keeps temporary-peer promotion as a valuable
+observability signal, not just a debug curiosity. It is extremely useful when a
+transport path begins on a temporary peer ID, but a successful routed proof does
+not require that every run exercise that exact path.
 
 ## What the successful relay proof now proves
 

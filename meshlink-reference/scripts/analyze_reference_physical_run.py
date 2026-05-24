@@ -401,7 +401,6 @@ def analyze_relay_run(run_dir: Path) -> RunAnalysis:
         "passive_proof_complete",
         "relay_forward_queued",
         "relay_forward_delivered",
-        "temporary_peer_promoted",
         "no_session_failure_absent",
     ]
     status = "pass" if all(invariants[key] for key in critical_keys) else "fail"
@@ -417,7 +416,7 @@ def analyze_relay_run(run_dir: Path) -> RunAnalysis:
         )
     if invariants["temporary_peer_promoted"]:
         summary.append(
-            "The relay log shows temporary transport peers being promoted to canonical advertisement peers, which is a load-bearing signal for responder/session continuity."
+            "The relay log shows temporary transport peers being promoted to canonical advertisement peers, which is a high-value diagnostic signal for responder/session continuity when that transport path is exercised."
         )
 
     artifacts = {
