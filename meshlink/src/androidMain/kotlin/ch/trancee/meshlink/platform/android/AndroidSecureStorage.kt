@@ -1,19 +1,19 @@
 package ch.trancee.meshlink.platform.android
 
 import android.content.Context
-import android.util.Base64
 import ch.trancee.meshlink.storage.SecureStorage
+import java.util.Base64
 
 internal class AndroidSecureStorage(context: Context, appId: String) : SecureStorage {
     private val preferences = context.getSharedPreferences("meshlink-$appId", Context.MODE_PRIVATE)
 
     override suspend fun read(key: String): ByteArray? {
         val encoded = preferences.getString(key, null) ?: return null
-        return Base64.decode(encoded, Base64.NO_WRAP)
+        return Base64.getDecoder().decode(encoded)
     }
 
     override suspend fun write(key: String, value: ByteArray): Unit {
-        val encoded = Base64.encodeToString(value, Base64.NO_WRAP)
+        val encoded = Base64.getEncoder().encodeToString(value)
         preferences.edit().putString(key, encoded).apply()
     }
 
