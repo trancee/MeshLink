@@ -215,6 +215,109 @@ class MeshEngineRuntimeTransferAssemblyTest {
             )
             assertTrue(harness.foundation.sharedState.outboundTransfers.isEmpty())
         }
+
+    @Test
+    fun `transfer assembly relays transfer frames through the assembled downstream path`() =
+        runBlocking {
+            // Arrange
+            val localIdentity = LocalIdentity.fromAppId("transfer-assembly-local")
+            val upstreamIdentity = LocalIdentity.fromAppId("transfer-assembly-upstream")
+            val downstreamIdentity = LocalIdentity.fromAppId("transfer-assembly-downstream")
+            val harness = runtimeTransferAssemblyHarness(localIdentity = localIdentity)
+            harness.runtimeSurface.beginHardRun()
+            val upstreamProducerSession = hopSession(keyByte = 0x44)
+            val downstreamSnifferSession = hopSession(keyByte = 0x55)
+            seedEstablishedHopSession(
+                localIdentity = localIdentity,
+                sessionRegistry = harness.foundation.sharedState.sessionRegistry,
+                peerId = upstreamIdentity.peerId,
+                session = hopSession(keyByte = 0x44),
+            )
+            seedEstablishedHopSession(
+                localIdentity = localIdentity,
+                sessionRegistry = harness.foundation.sharedState.sessionRegistry,
+                peerId = downstreamIdentity.peerId,
+                session = hopSession(keyByte = 0x55),
+            )
+            harness.foundation.sharedState.routeCoordinator.onPeerConnected(
+                downstreamIdentity.peerId,
+                trustRecordFor(downstreamIdentity),
+            )
+            val transferStart =
+                WireFrame.TransferStart(
+                    route =
+                        WireFrame.TransferStartRoute(
+                            transferId = "relay-transfer-1",
+                            messageId = "relay-message-1",
+                            originPeerId = upstreamIdentity.peerId,
+                            destinationPeerId = downstreamIdentity.peerId,
+                        ),
+                    sizing =
+                        WireFrame.TransferStartSizing(
+                            totalBytes = 5,
+                            totalChunks = 1,
+                            maxChunkPayloadBytes = 5,
+                        ),
+                )
+            val transferChunk =
+                WireFrame.TransferChunk(
+                    transferId = "relay-transfer-1",
+                    chunkIndex = 0,
+                    payload = "hello".encodeToByteArray(),
+                )
+            val transferComplete = WireFrame.TransferComplete("relay-transfer-1")
+
+            // Act
+            harness.transferAndInbound.handleEncryptedDataFrame(
+                upstreamIdentity.peerId,
+                encryptInboundDataFrame(
+                    harness = harness,
+                    peerId = upstreamIdentity.peerId,
+                    session = upstreamProducerSession,
+                    outerFrame = transferStart,
+                ),
+            )
+            harness.transferAndInbound.handleEncryptedDataFrame(
+                upstreamIdentity.peerId,
+                encryptInboundDataFrame(
+                    harness = harness,
+                    peerId = upstreamIdentity.peerId,
+                    session = upstreamProducerSession,
+                    outerFrame = transferChunk,
+                ),
+            )
+            harness.transferAndInbound.handleEncryptedDataFrame(
+                upstreamIdentity.peerId,
+                encryptInboundDataFrame(
+                    harness = harness,
+                    peerId = upstreamIdentity.peerId,
+                    session = upstreamProducerSession,
+                    outerFrame = transferComplete,
+                ),
+            )
+            val forwardedFrames =
+                harness.transport.sentFrames.map { outboundFrame ->
+                    val directFrame =
+                        assertIs<DirectWireFrame.Data>(
+                            DirectWireFrame.decode(outboundFrame.payload)
+                        )
+                    WireCodec.decode(
+                        harness.session.decryptHopPayload(
+                            downstreamSnifferSession,
+                            directFrame.payload,
+                        )
+                    )
+                }
+
+            // Assert
+            assertEquals(3, forwardedFrames.size)
+            assertIs<WireFrame.TransferStart>(forwardedFrames[0])
+            val forwardedChunk = assertIs<WireFrame.TransferChunk>(forwardedFrames[1])
+            assertEquals(0, forwardedChunk.chunkIndex)
+            assertContentEquals("hello".encodeToByteArray(), forwardedChunk.payload)
+            assertIs<WireFrame.TransferComplete>(forwardedFrames[2])
+            assertTrue(harness.foundation.sharedState.relayTransfers.isEmpty())
+        }
 }
 
 private data class RuntimeTransferAssemblyHarness(
@@ -314,6 +417,19 @@ private suspend fun seedEstablishedHopSession(
         )
     sessionRegistry.storePendingResponderHandshake(peerId, pendingHandshake)
     sessionRegistry.completeResponderHandshake(peerId, pendingHandshake, session)
+}
+
+private suspend fun encryptInboundDataFrame(
+    harness: RuntimeTransferAssemblyHarness,
+    peerId: PeerId,
+    session: HopSession,
+    outerFrame: WireFrame,
+): ByteArray {
+    harness.session.sendEncryptedDirectWireFrame(peerId, session, outerFrame, "loopback.send")
+    val recordedFrame =
+        harness.transport.sentFrames.removeAt(harness.transport.sentFrames.lastIndex)
+    val directFrame = assertIs<DirectWireFrame.Data>(DirectWireFrame.decode(recordedFrame.payload))
+    return directFrame.payload
 }
 
 private fun hopSession(keyByte: Int): HopSession {
