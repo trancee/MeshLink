@@ -9,7 +9,6 @@ import android.bluetooth.BluetoothGattDescriptor
 import android.content.Context
 import android.os.Build
 import ch.trancee.meshlink.transport.BleDiscoveryContract
-import java.util.UUID
 
 internal interface AndroidGattNotifySessionFactory {
     fun open(listener: AndroidGattNotifySessionListener): AndroidGattNotifySession
@@ -159,58 +158,51 @@ internal class AndroidBluetoothGattNotifySessionFactory(
             } else {
                 bluetoothDevice.connectGatt(androidContext, false, callback)
             }
-        return AndroidBluetoothGattNotifySession(gatt = gatt, sdkInt = sdkInt)
+        return AndroidBluetoothGattNotifySession(
+            connection = AndroidPlatformGattConnectionAdapter(gatt),
+            sdkInt = sdkInt,
+        )
     }
 }
 
-@SuppressLint("MissingPermission", "ObsoleteSdkInt")
-private class AndroidBluetoothGattNotifySession(
-    private val gatt: BluetoothGatt,
+internal class AndroidBluetoothGattNotifySession(
+    private val connection: AndroidGattConnectionAdapter,
     private val sdkInt: Int,
 ) : AndroidGattNotifySession {
-    private var notifyCharacteristic: BluetoothGattCharacteristic? = null
-    private var writeCharacteristic: BluetoothGattCharacteristic? = null
+    private var notifyCharacteristic: AndroidGattCharacteristicAdapter? = null
+    private var writeCharacteristic: AndroidGattCharacteristicAdapter? = null
 
     override val address: String
-        get() = gatt.device.address
+        get() = connection.address
 
     override fun requestHighConnectionPriority(): Unit {
-        gatt.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_HIGH)
+        connection.requestHighConnectionPriority()
     }
 
     override fun requestFastPhyIfSupported(): Unit {
         if (sdkInt < Build.VERSION_CODES.O) {
             return
         }
-        gatt.setPreferredPhy(
-            BluetoothDevice.PHY_LE_2M_MASK,
-            BluetoothDevice.PHY_LE_2M_MASK,
-            BluetoothDevice.PHY_OPTION_NO_PREFERRED,
-        )
+        connection.requestFastPhy()
     }
 
     override fun requestMtu(mtu: Int): Boolean {
-        return gatt.requestMtu(mtu)
+        return connection.requestMtu(mtu)
     }
 
     override fun discoverServices(): Unit {
-        gatt.discoverServices()
+        connection.discoverServices()
     }
 
     override fun resolveFallbackCharacteristics(): AndroidGattNotifyCharacteristicResolution {
-        val service =
-            gatt.getService(UUID.fromString(BleDiscoveryContract.GATT_FALLBACK_SERVICE_UUID))
+        val service = connection.findService(BleDiscoveryContract.GATT_FALLBACK_SERVICE_UUID)
         if (service == null) {
             return AndroidGattNotifyCharacteristicResolution.MISSING_SERVICE
         }
         val notifyCharacteristic =
-            service.getCharacteristic(
-                UUID.fromString(BleDiscoveryContract.GATT_NOTIFY_CHARACTERISTIC_UUID)
-            )
+            service.findCharacteristic(BleDiscoveryContract.GATT_NOTIFY_CHARACTERISTIC_UUID)
         val writeCharacteristic =
-            service.getCharacteristic(
-                UUID.fromString(BleDiscoveryContract.GATT_WRITE_CHARACTERISTIC_UUID)
-            )
+            service.findCharacteristic(BleDiscoveryContract.GATT_WRITE_CHARACTERISTIC_UUID)
         if (notifyCharacteristic == null || writeCharacteristic == null) {
             return AndroidGattNotifyCharacteristicResolution.MISSING_CHARACTERISTICS
         }
@@ -223,33 +215,30 @@ private class AndroidBluetoothGattNotifySession(
         return writeCharacteristic != null
     }
 
-    @Suppress("DEPRECATION")
     override fun enableNotifications(): AndroidGattNotifyEnableNotificationsResult {
         val notifyCharacteristic =
             notifyCharacteristic ?: return AndroidGattNotifyEnableNotificationsResult.REQUEST_FAILED
-        gatt.setCharacteristicNotification(notifyCharacteristic, true)
+        connection.setCharacteristicNotification(notifyCharacteristic, true)
         val cccd =
-            notifyCharacteristic.getDescriptor(
-                UUID.fromString(CLIENT_CHARACTERISTIC_CONFIGURATION_UUID)
-            ) ?: return AndroidGattNotifyEnableNotificationsResult.MISSING_CCCD
-        cccd.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
-        return if (gatt.writeDescriptor(cccd)) {
+            notifyCharacteristic.findDescriptor(CLIENT_CHARACTERISTIC_CONFIGURATION_UUID)
+                ?: return AndroidGattNotifyEnableNotificationsResult.MISSING_CCCD
+        cccd.setEnableNotificationValue()
+        return if (connection.writeDescriptor(cccd)) {
             AndroidGattNotifyEnableNotificationsResult.REQUESTED
         } else {
             AndroidGattNotifyEnableNotificationsResult.REQUEST_FAILED
         }
     }
 
-    @Suppress("DEPRECATION")
     override fun writeChunk(chunk: ByteArray): Boolean {
         val writeCharacteristic = writeCharacteristic ?: return false
-        writeCharacteristic.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
-        writeCharacteristic.value = chunk
-        return gatt.writeCharacteristic(writeCharacteristic)
+        writeCharacteristic.setWriteTypeDefault()
+        writeCharacteristic.setValue(chunk)
+        return connection.writeCharacteristic(writeCharacteristic)
     }
 
     override fun close(): Unit {
-        gatt.close()
+        connection.close()
     }
 
     private companion object {
