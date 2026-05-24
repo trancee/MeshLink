@@ -14,11 +14,13 @@ import ch.trancee.meshlink.transport.TransportSendResult
 import ch.trancee.meshlink.trust.TofuTrustStore
 import ch.trancee.meshlink.trust.TrustPublicKeys
 import ch.trancee.meshlink.trust.TrustRecord
+import ch.trancee.meshlink.wire.WireCodec
 import ch.trancee.meshlink.wire.WireFrame
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
@@ -136,6 +138,83 @@ class MeshEngineRuntimeTransferAssemblyTest {
                 }
             )
         }
+
+    @Test
+    fun `transfer assembly sendPayload uses the assembled large transfer delivery path`() =
+        runBlocking {
+            // Arrange
+            val localIdentity = LocalIdentity.fromAppId("transfer-assembly-local")
+            val recipientIdentity = LocalIdentity.fromAppId("transfer-assembly-recipient")
+            lateinit var harness: RuntimeTransferAssemblyHarness
+            val snifferSession = hopSession(keyByte = 0x33)
+            val observedFrames = mutableListOf<String>()
+            var acknowledgedTransferId: String? = null
+            harness =
+                runtimeTransferAssemblyHarness(localIdentity = localIdentity) { outboundFrame ->
+                    val directFrame =
+                        assertIs<DirectWireFrame.Data>(
+                            DirectWireFrame.decode(outboundFrame.payload)
+                        )
+                    val decryptedPayload =
+                        harness.session.decryptHopPayload(snifferSession, directFrame.payload)
+                    when (val outerFrame = WireCodec.decode(decryptedPayload)) {
+                        is WireFrame.TransferStart -> observedFrames += "start"
+                        is WireFrame.TransferChunk -> {
+                            observedFrames += "chunk:${outerFrame.chunkIndex}"
+                            val activeSession =
+                                harness.foundation.sharedState.outboundTransfers[
+                                        outerFrame.transferId]
+                            if (
+                                activeSession != null &&
+                                    acknowledgedTransferId == null &&
+                                    outerFrame.chunkIndex == activeSession.totalChunks - 1
+                            ) {
+                                acknowledgedTransferId = activeSession.transferId
+                                activeSession.markAcknowledged(
+                                    WireFrame.TransferAck(
+                                        transferId = activeSession.transferId,
+                                        highestContiguousAck = activeSession.totalChunks - 1,
+                                        selectiveRanges = byteArrayOf(),
+                                    )
+                                )
+                            }
+                        }
+                        is WireFrame.TransferComplete -> observedFrames += "complete"
+                        else -> observedFrames += outerFrame::class.simpleName.orEmpty()
+                    }
+                }
+            val hardRunToken = harness.runtimeSurface.beginHardRun()
+            seedEstablishedHopSession(
+                localIdentity = localIdentity,
+                sessionRegistry = harness.foundation.sharedState.sessionRegistry,
+                peerId = recipientIdentity.peerId,
+                session = hopSession(keyByte = 0x33),
+            )
+            harness.environment.trustStore.write(trustRecordFor(recipientIdentity))
+            val payload = ByteArray(2_048) { 0x55.toByte() }
+
+            // Act
+            val result =
+                harness.transferAndInbound.sendPayload(
+                    MeshEngineOutboundDeliveryMode.LARGE_TRANSFER,
+                    recipientIdentity.peerId,
+                    payload,
+                    DeliveryPriority.HIGH,
+                    hardRunToken,
+                )
+
+            // Assert
+            assertEquals(SendResult.Sent, result)
+            assertNotNull(acknowledgedTransferId)
+            assertTrue(observedFrames.contains("start"))
+            assertTrue(observedFrames.any { frame -> frame.startsWith("chunk:") })
+            assertTrue(observedFrames.contains("complete"))
+            assertEquals(
+                recipientIdentity.peerId.value,
+                harness.transport.clearedQueuedPeerIds.single(),
+            )
+            assertTrue(harness.foundation.sharedState.outboundTransfers.isEmpty())
+        }
 }
 
 private data class RuntimeTransferAssemblyHarness(
@@ -150,10 +229,11 @@ private data class RuntimeTransferAssemblyHarness(
 )
 
 private fun runtimeTransferAssemblyHarness(
-    localIdentity: LocalIdentity
+    localIdentity: LocalIdentity,
+    onSend: (suspend (RecordedRuntimeTransferAssemblyOutboundFrame) -> Unit)? = null,
 ): RuntimeTransferAssemblyHarness {
     val runtimeSurface = MeshEngineRuntimeSurface()
-    val transport = RecordingRuntimeTransferAssemblyBleTransport()
+    val transport = RecordingRuntimeTransferAssemblyBleTransport(onSend = onSend)
     val diagnostics = mutableListOf<RecordedRuntimeTransferAssemblyDiagnostic>()
     val environment =
         MeshEngineRuntimeAssemblyEnvironment(
@@ -255,9 +335,12 @@ private fun trustRecordFor(identity: LocalIdentity): TrustRecord {
     )
 }
 
-private class RecordingRuntimeTransferAssemblyBleTransport : BleTransport {
+private class RecordingRuntimeTransferAssemblyBleTransport(
+    private val onSend: (suspend (RecordedRuntimeTransferAssemblyOutboundFrame) -> Unit)? = null
+) : BleTransport {
     override val events: Flow<TransportEvent> = emptyFlow()
     val sentFrames: MutableList<RecordedRuntimeTransferAssemblyOutboundFrame> = mutableListOf()
+    val clearedQueuedPeerIds: MutableList<String> = mutableListOf()
 
     override suspend fun start(): Unit = Unit
 
@@ -269,14 +352,18 @@ private class RecordingRuntimeTransferAssemblyBleTransport : BleTransport {
 
     override suspend fun setDiscoverySuspended(suspended: Boolean): Unit = Unit
 
-    override suspend fun clearQueuedOutboundFrames(peerId: PeerId): Unit = Unit
+    override suspend fun clearQueuedOutboundFrames(peerId: PeerId): Unit {
+        clearedQueuedPeerIds += peerId.value
+    }
 
     override suspend fun send(frame: OutboundFrame): TransportSendResult {
-        sentFrames +=
+        val recordedFrame =
             RecordedRuntimeTransferAssemblyOutboundFrame(
                 peerIdValue = frame.peerId.value,
                 payload = frame.payload,
             )
+        sentFrames += recordedFrame
+        onSend?.invoke(recordedFrame)
         return TransportSendResult.Delivered
     }
 }
