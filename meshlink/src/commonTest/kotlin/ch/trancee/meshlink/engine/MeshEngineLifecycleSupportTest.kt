@@ -225,6 +225,44 @@ class MeshEngineLifecycleSupportTest {
         }
 
     @Test
+    fun `start stops the transport collector again when transport startup throws`() = runBlocking {
+        // Arrange
+        val harness = lifecycleHarness(meshState = MeshLinkState.Uninitialized)
+        val support = harness.support
+        harness.callbacks.startTransportFailure = IllegalStateException("boom")
+
+        // Act
+        val error = kotlin.test.assertFailsWith<IllegalStateException> { support.start() }
+
+        // Assert
+        assertEquals("boom", error.message)
+        assertEquals(1, harness.callbacks.ensureTransportCollectorCalls)
+        assertEquals(1, harness.callbacks.startTransportCalls)
+        assertEquals(1, harness.callbacks.stopTransportCollectorCalls)
+        assertEquals(MeshLinkState.Uninitialized, harness.runtimeSurface.state.value)
+        assertTrue(harness.diagnostics.lifecycleEvents.isEmpty())
+    }
+
+    @Test
+    fun `resume stops the transport collector again when transport resume throws`() = runBlocking {
+        // Arrange
+        val harness = lifecycleHarness(meshState = MeshLinkState.Paused)
+        val support = harness.support
+        harness.callbacks.resumeTransportFailure = IllegalStateException("boom")
+
+        // Act
+        val error = kotlin.test.assertFailsWith<IllegalStateException> { support.resume() }
+
+        // Assert
+        assertEquals("boom", error.message)
+        assertEquals(1, harness.callbacks.ensureTransportCollectorCalls)
+        assertEquals(1, harness.callbacks.resumeTransportCalls)
+        assertEquals(1, harness.callbacks.stopTransportCollectorCalls)
+        assertEquals(MeshLinkState.Paused, harness.runtimeSurface.state.value)
+        assertTrue(harness.diagnostics.lifecycleEvents.isEmpty())
+    }
+
+    @Test
     fun `updateBattery stores the new power policy and emits a power-mode diagnostic`() {
         // Arrange
         val harness = lifecycleHarness(meshState = MeshLinkState.Running)
@@ -308,6 +346,8 @@ private class RecordingLifecycleCallbacks {
     var pauseTransportCalls: Int = 0
     var resumeTransportCalls: Int = 0
     var stopTransportCalls: Int = 0
+    var startTransportFailure: Throwable? = null
+    var resumeTransportFailure: Throwable? = null
     var stopTransportCollectorCalls: Int = 0
     val updatedTransportPolicies: MutableList<PowerPolicy> = mutableListOf()
     val launchedTransportPowerPolicies: MutableList<PowerPolicy> = mutableListOf()
@@ -326,9 +366,15 @@ private class RecordingLifecycleCallbacks {
                 stopTransportCollectorGate?.await()
             },
             updateTransportPowerPolicy = { policy -> updatedTransportPolicies += policy },
-            startTransport = { startTransportCalls += 1 },
+            startTransport = {
+                startTransportCalls += 1
+                startTransportFailure?.let { throw it }
+            },
             pauseTransport = { pauseTransportCalls += 1 },
-            resumeTransport = { resumeTransportCalls += 1 },
+            resumeTransport = {
+                resumeTransportCalls += 1
+                resumeTransportFailure?.let { throw it }
+            },
             stopTransport = { stopTransportCalls += 1 },
             launchTransportPowerPolicyUpdate = { policy ->
                 launchedTransportPowerPolicies += policy
