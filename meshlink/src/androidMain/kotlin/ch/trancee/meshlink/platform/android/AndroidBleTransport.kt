@@ -104,7 +104,18 @@ internal class AndroidBleTransport(
 
     override val events: Flow<TransportEvent> = mutableEvents.asSharedFlow()
 
-    private val advertiseCallback = object : AdvertiseCallback() {}
+    private val advertiseCallback =
+        object : AdvertiseCallback() {
+            override fun onStartSuccess(settingsInEffect: AdvertiseSettings) {
+                log(
+                    "advertising started mode=${settingsInEffect.mode} tx=${settingsInEffect.txPowerLevel} connectable=${settingsInEffect.isConnectable}"
+                )
+            }
+
+            override fun onStartFailure(errorCode: Int) {
+                log("advertising failed errorCode=$errorCode")
+            }
+        }
 
     private val scanCallback =
         object : ScanCallback() {
@@ -776,13 +787,20 @@ internal class AndroidBleTransport(
     @SuppressLint("MissingPermission")
     private fun refreshDiscoveryState(): Unit {
         try {
+            log(
+                "refreshDiscoveryState started=$started suspended=$discoverySuspended scanner=${scanner != null} advertiser=${advertiser != null} psm=${currentDiscoveryPayload.l2capPsm}"
+            )
             scanner?.stopScan(scanCallback)
             advertiser?.stopAdvertising(advertiseCallback)
             if (!started || discoverySuspended) {
+                log(
+                    "refreshDiscoveryState skipped after stop started=$started suspended=$discoverySuspended"
+                )
                 return
             }
             ensurePermissionsGranted()
             scanner?.startScan(scanFilters(), scanSettings(), scanCallback)
+            log("scan started")
             advertiser?.startAdvertising(
                 advertiseSettings(),
                 advertiseData(currentDiscoveryPayload),
