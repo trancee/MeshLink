@@ -362,10 +362,7 @@ private fun ReferenceShellHeader(
         Column(
             modifier =
                 Modifier.fillMaxWidth()
-                    .then(
-                        if (state.platformName == "Android") Modifier.statusBarsPadding()
-                        else Modifier
-                    )
+                    .statusBarsPadding()
                     .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
