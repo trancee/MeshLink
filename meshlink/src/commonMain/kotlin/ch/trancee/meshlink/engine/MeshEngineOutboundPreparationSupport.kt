@@ -9,20 +9,15 @@ import ch.trancee.meshlink.diagnostics.DiagnosticCode
 import ch.trancee.meshlink.diagnostics.DiagnosticReason
 import ch.trancee.meshlink.diagnostics.DiagnosticSeverity
 import ch.trancee.meshlink.identity.LocalIdentity
-import ch.trancee.meshlink.platform.currentEpochMillis
 import ch.trancee.meshlink.routing.RouteCoordinator
-import ch.trancee.meshlink.routing.RouteEntry
 import ch.trancee.meshlink.transfer.OutboundTransferSession
 import ch.trancee.meshlink.transfer.TransferChunkPlan
 import ch.trancee.meshlink.transfer.TransferSessionRoute
 import ch.trancee.meshlink.trust.TofuTrustStore
-import ch.trancee.meshlink.trust.TrustPublicKeys
-import ch.trancee.meshlink.trust.TrustRecord
 import ch.trancee.meshlink.wire.WireFrame
 
 internal data class MeshEngineOutboundPreparationRoutingContext(
-    val routeCoordinator: RouteCoordinator,
-    val routingSupport: MeshEngineRoutingSupport,
+    val routingSupport: MeshEngineRoutingSupport
 )
 
 internal data class MeshEngineOutboundPreparationCallbacks(
@@ -52,7 +47,7 @@ internal sealed class MeshEngineOutboundInlineMessagePreparation {
 
 internal class MeshEngineOutboundPreparationSupport(
     private val localIdentity: LocalIdentity,
-    private val trustStore: TofuTrustStore,
+    private val recipientTrustSupport: MeshEngineOutboundRecipientTrustSupport,
     private val routingContext: MeshEngineOutboundPreparationRoutingContext,
     private val callbacks: MeshEngineOutboundPreparationCallbacks,
     private val emitDiagnostic:
@@ -65,16 +60,6 @@ internal class MeshEngineOutboundPreparationSupport(
             Map<String, String>,
         ) -> Unit,
 ) {
-    suspend fun resolveRecipientTrust(peerId: PeerId): TrustRecord? {
-        val existingTrust = trustStore.read(peerId.value)
-        val route = routingContext.routeCoordinator.routeFor(peerId)
-
-        return when {
-            existingTrust != null -> existingTrust
-            route == null -> null
-            else -> learnRecipientTrustFromRoute(peerId = peerId, route = route)
-        }
-    }
 
     suspend fun prepareOutboundInlineMessage(
         peerId: PeerId,
@@ -138,44 +123,12 @@ internal class MeshEngineOutboundPreparationSupport(
         }
     }
 
-    private suspend fun learnRecipientTrustFromRoute(
-        peerId: PeerId,
-        route: RouteEntry,
-    ): TrustRecord {
-        val learnedAtEpochMillis = currentEpochMillis()
-        val learnedTrust =
-            TrustRecord(
-                peerIdValue = route.destinationPeerId.value,
-                identityFingerprintBytes =
-                    localIdentity.cryptoProvider.sha256(
-                        route.ed25519PublicKey + route.x25519PublicKey
-                    ),
-                firstSeenAtEpochMillis = learnedAtEpochMillis,
-                lastVerifiedAtEpochMillis = learnedAtEpochMillis,
-                publicKeys =
-                    TrustPublicKeys(
-                        ed25519PublicKey = route.ed25519PublicKey,
-                        x25519PublicKey = route.x25519PublicKey,
-                    ),
-            )
-        trustStore.write(learnedTrust)
-        emitDiagnostic(
-            DiagnosticCode.TRUST_ESTABLISHED,
-            DiagnosticSeverity.INFO,
-            "trust.routeUpdate",
-            peerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
-            DiagnosticReason.STATE_CHANGE,
-            emptyMap(),
-        )
-        return learnedTrust
-    }
-
     private suspend fun prepareOutboundDirectEnvelope(
         peerId: PeerId,
         payload: ByteArray,
         emitEncryptFailure: (PeerId, String) -> Unit,
     ): MeshEngineOutboundDirectEnvelopePreparation {
-        val recipientTrust = resolveRecipientTrust(peerId)
+        val recipientTrust = recipientTrustSupport.resolveRecipientTrust(peerId)
         if (recipientTrust == null) {
             return MeshEngineOutboundDirectEnvelopePreparation.MissingTrust
         }
@@ -282,12 +235,15 @@ internal fun buildMeshEngineRuntimeOutboundPreparationSupport(
 ): MeshEngineOutboundPreparationSupport {
     return MeshEngineOutboundPreparationSupport(
         localIdentity = localIdentity,
-        trustStore = trustStore,
-        routingContext =
-            MeshEngineOutboundPreparationRoutingContext(
+        recipientTrustSupport =
+            buildMeshEngineRuntimeOutboundRecipientTrustSupport(
+                localIdentity = localIdentity,
+                trustStore = trustStore,
                 routeCoordinator = routeCoordinator,
-                routingSupport = routingSupport,
+                emitDiagnostic = emitDiagnostic,
             ),
+        routingContext =
+            MeshEngineOutboundPreparationRoutingContext(routingSupport = routingSupport),
         callbacks =
             MeshEngineOutboundPreparationCallbacks(
                 createMessageId = createMessageId,

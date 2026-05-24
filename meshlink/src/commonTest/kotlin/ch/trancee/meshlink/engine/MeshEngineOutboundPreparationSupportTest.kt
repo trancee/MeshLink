@@ -129,11 +129,26 @@ private fun outboundPreparationSupport(
     val routeCoordinator = RouteCoordinator(localIdentity.peerId)
     return MeshEngineOutboundPreparationSupport(
         localIdentity = localIdentity,
-        trustStore = trustStore,
+        recipientTrustSupport =
+            MeshEngineOutboundRecipientTrustSupport(
+                localIdentity = localIdentity,
+                trustStore = trustStore,
+                routeCoordinator = routeCoordinator,
+                emitDiagnostic = { code, severity, stage, peerSuffix, reason, metadata ->
+                    callbacks.diagnostics +=
+                        RecordedPreparationDiagnostic(
+                            code = code,
+                            severity = severity,
+                            stage = stage,
+                            peerSuffix = peerSuffix,
+                            reason = reason,
+                            metadata = metadata,
+                        )
+                },
+            ),
         routingContext =
             MeshEngineOutboundPreparationRoutingContext(
-                routeCoordinator = routeCoordinator,
-                routingSupport = routingSupport(routeCoordinator, callbacks),
+                routingSupport = routingSupport(routeCoordinator, callbacks)
             ),
         callbacks =
             MeshEngineOutboundPreparationCallbacks(
