@@ -1,7 +1,28 @@
 package ch.trancee.meshlink.engine
 
 import ch.trancee.meshlink.api.PeerId
+import ch.trancee.meshlink.diagnostics.DiagnosticReason
+import ch.trancee.meshlink.transport.TransportSendResult
 import ch.trancee.meshlink.wire.WireFrame
+
+internal data class MeshEngineRuntimeSessionAssembly(
+    val ensureHopSession: suspend (PeerId, MeshEngineHardRunToken?) -> SessionEstablishmentOutcome,
+    val sendEncryptedWireFrame:
+        suspend (PeerId, WireFrame, String, MeshEngineHardRunToken?) -> Boolean,
+    val sendEncryptedDirectWireFrame:
+        suspend (PeerId, HopSession, WireFrame, String) -> TransportSendResult,
+    val decryptHopPayload: (HopSession, ByteArray) -> ByteArray,
+    val emitHopSessionFailed: (PeerId, String, DiagnosticReason, Map<String, String>) -> Unit,
+    val prewarmHopSession: (PeerId) -> Unit,
+    val forwardMessageToNextHop: (WireFrame.Message, MeshEngineHardRunToken) -> Unit,
+    val shouldAttemptLargeInlineSend: (PeerId) -> Boolean,
+    val isLocalPeerId: (PeerId) -> Boolean,
+    val sendTransferTowardsDestination:
+        suspend (PeerId, WireFrame, String, MeshEngineHardRunToken?) -> Boolean,
+    val handleHandshakeMessage1: suspend (PeerId, ByteArray) -> Unit,
+    val handleHandshakeMessage2: suspend (PeerId, ByteArray) -> Unit,
+    val handleHandshakeMessage3: suspend (PeerId, ByteArray) -> Unit,
+)
 
 internal fun buildMeshEngineRuntimeSessionAssembly(
     environment: MeshEngineRuntimeAssemblyEnvironment,

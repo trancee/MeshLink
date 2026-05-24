@@ -8,8 +8,36 @@ import ch.trancee.meshlink.diagnostics.DiagnosticSeverity
 import ch.trancee.meshlink.power.PowerPolicyController
 import ch.trancee.meshlink.presence.PeerPresenceTracker
 import ch.trancee.meshlink.routing.RouteCoordinator
+import ch.trancee.meshlink.transfer.InboundTransferSession
+import ch.trancee.meshlink.transfer.OutboundTransferSession
+import ch.trancee.meshlink.transfer.RelayTransferSession
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.TimeSource
+
+internal data class MeshEngineRuntimeFoundationAssembly(
+    val sharedState: MeshEngineRuntimeSharedState,
+    val routingAndTrust: MeshEngineRuntimeRoutingAndTrustPhase,
+)
+
+internal data class MeshEngineRuntimeSharedState(
+    val presenceTracker: PeerPresenceTracker,
+    val routeCoordinator: RouteCoordinator,
+    val deliveryRetryScheduler: DeliveryRetryScheduler,
+    val powerPolicyController: PowerPolicyController,
+    val sessionRegistry: MeshEngineSessionRegistry,
+    val outboundTransfers: MutableMap<String, OutboundTransferSession>,
+    val inboundTransfers: MutableMap<String, InboundTransferSession>,
+    val relayTransfers: MutableMap<String, RelayTransferSession>,
+    val sequenceGenerator: MeshEngineSequenceGenerator,
+    val powerPolicyNowMillis: () -> Long,
+    val ttlMillisFor: (DeliveryPriority) -> Int,
+)
+
+internal data class MeshEngineRuntimeRoutingAndTrustPhase(
+    val routingSupport: MeshEngineRoutingSupport,
+    val trustSupport: MeshEngineTrustSupport,
+    val scheduleRetryDiagnostic: (PeerId, DeliveryPriority) -> Unit,
+)
 
 internal fun buildMeshEngineRuntimeFoundationAssembly(
     environment: MeshEngineRuntimeAssemblyEnvironment,

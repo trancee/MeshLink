@@ -1,8 +1,25 @@
 package ch.trancee.meshlink.engine
 
+import ch.trancee.meshlink.api.DeliveryPriority
 import ch.trancee.meshlink.api.PeerId
+import ch.trancee.meshlink.api.SendResult
 import ch.trancee.meshlink.diagnostics.DiagnosticReason
+import ch.trancee.meshlink.wire.TransferAbortReasonCode
 import ch.trancee.meshlink.wire.WireFrame
+
+internal data class MeshEngineRuntimeTransferAndInboundPhase(
+    val sendPayload:
+        suspend (
+            MeshEngineOutboundDeliveryMode,
+            PeerId,
+            ByteArray,
+            DeliveryPriority,
+            MeshEngineHardRunToken,
+        ) -> SendResult,
+    val handleEncryptedDataFrame: suspend (PeerId, ByteArray) -> Unit,
+    val abortLocalTransfers: suspend (TransferAbortReasonCode) -> Unit,
+    val clearOutboundTransfers: () -> Unit,
+)
 
 internal fun buildMeshEngineRuntimeTransferAndInboundPhase(
     environment: MeshEngineRuntimeAssemblyEnvironment,

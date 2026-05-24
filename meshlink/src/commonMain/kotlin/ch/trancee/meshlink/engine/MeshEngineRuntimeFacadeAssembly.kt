@@ -1,8 +1,32 @@
 package ch.trancee.meshlink.engine
 
+import ch.trancee.meshlink.api.DeliveryPriority
+import ch.trancee.meshlink.api.ForgetPeerResult
+import ch.trancee.meshlink.api.PauseResult
 import ch.trancee.meshlink.api.PeerEvent
+import ch.trancee.meshlink.api.PeerId
+import ch.trancee.meshlink.api.ResumeResult
+import ch.trancee.meshlink.api.SendResult
+import ch.trancee.meshlink.api.StartResult
+import ch.trancee.meshlink.api.StopResult
 import ch.trancee.meshlink.diagnostics.DiagnosticCode
 import kotlinx.coroutines.launch
+
+internal interface MeshEngineRuntimeFacadeOperations {
+    suspend fun start(): StartResult
+
+    suspend fun pause(): PauseResult
+
+    suspend fun resume(): ResumeResult
+
+    suspend fun stop(): StopResult
+
+    suspend fun send(peerId: PeerId, payload: ByteArray, priority: DeliveryPriority): SendResult
+
+    suspend fun forgetPeer(peerId: PeerId): ForgetPeerResult
+
+    fun updateBattery(level: Float, isCharging: Boolean): Unit
+}
 
 internal fun buildMeshEngineRuntimeFacadeOperations(
     environment: MeshEngineRuntimeAssemblyEnvironment,
