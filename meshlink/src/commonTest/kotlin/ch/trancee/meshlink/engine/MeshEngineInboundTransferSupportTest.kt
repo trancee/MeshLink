@@ -107,6 +107,138 @@ class MeshEngineInboundTransferSupportTest {
         }
 
     @Test
+    fun `handleTransferStart reuses an existing session and refreshes the upstream peer`() =
+        runBlocking {
+            // Arrange
+            val originalPeerId = PeerId("upstream-old")
+            val replacementPeerId = PeerId("upstream-new")
+            val session =
+                newInboundSession(
+                    transferId = "transfer-existing",
+                    upstreamPeerId = originalPeerId,
+                    totalChunks = 2,
+                )
+            val inboundTransfers = mutableMapOf(session.transferId to session)
+            val callbacks = RecordingInboundTransferCallbacks()
+            val support =
+                inboundTransferSupport(inboundTransfers = inboundTransfers, callbacks = callbacks)
+            val frame = newTransferStartFrame(transferId = session.transferId, totalChunks = 2)
+
+            // Act
+            support.handleTransferStart(
+                peerId = replacementPeerId,
+                frame = frame,
+                hardRunToken = session.hardRunToken,
+            )
+
+            // Assert
+            assertEquals(replacementPeerId, session.upstreamPeerId)
+            assertEquals(1, inboundTransfers.size)
+            assertEquals(
+                listOf(
+                    RecordedInboundAck(
+                        peerId = replacementPeerId,
+                        action = "transfer.ack.start",
+                        transferId = frame.transferId,
+                        highestContiguousAck = -1,
+                        hardRunEpoch = session.hardRunToken.epoch,
+                    )
+                ),
+                callbacks.acks,
+            )
+            assertTrue(
+                callbacks.diagnostics.any { diagnostic ->
+                    diagnostic.stage == "transfer.receive.start" &&
+                        diagnostic.metadata["existingSession"] == "true"
+                }
+            )
+        }
+
+    @Test
+    fun `handleTransferChunk rejects invalid chunk indices without acknowledging`() = runBlocking {
+        // Arrange
+        val inboundTransfers = mutableMapOf<String, InboundTransferSession>()
+        val callbacks = RecordingInboundTransferCallbacks()
+        val support =
+            inboundTransferSupport(inboundTransfers = inboundTransfers, callbacks = callbacks)
+        val peerId = PeerId("upstream")
+        val frame = newTransferStartFrame(transferId = "transfer-invalid", totalChunks = 1)
+        val hardRunToken = MeshEngineHardRunToken(epoch = 7)
+        support.handleTransferStart(peerId = peerId, frame = frame, hardRunToken = hardRunToken)
+        val invalidChunk =
+            WireFrame.TransferChunk(
+                transferId = frame.transferId,
+                chunkIndex = 3,
+                payload = "bad".encodeToByteArray(),
+            )
+
+        // Act
+        val handled = support.handleTransferChunk(peerId = peerId, frame = invalidChunk)
+
+        // Assert
+        assertTrue(handled)
+        assertEquals(1, inboundTransfers.size)
+        assertEquals(1, callbacks.acks.size)
+        assertTrue(
+            callbacks.diagnostics.any { diagnostic ->
+                diagnostic.stage == "transfer.receive.invalidChunk" &&
+                    diagnostic.metadata["accepted"] == "false" &&
+                    diagnostic.metadata["chunkIndex"] == "3"
+            }
+        )
+    }
+
+    @Test
+    fun `handleTransferChunk acknowledges duplicate chunks and keeps the session active`() =
+        runBlocking {
+            // Arrange
+            val inboundTransfers = mutableMapOf<String, InboundTransferSession>()
+            val callbacks = RecordingInboundTransferCallbacks()
+            val support =
+                inboundTransferSupport(inboundTransfers = inboundTransfers, callbacks = callbacks)
+            val peerId = PeerId("upstream")
+            val frame = newTransferStartFrame(transferId = "transfer-duplicate", totalChunks = 2)
+            val hardRunToken = MeshEngineHardRunToken(epoch = 8)
+            support.handleTransferStart(peerId = peerId, frame = frame, hardRunToken = hardRunToken)
+            val firstChunk =
+                WireFrame.TransferChunk(
+                    transferId = frame.transferId,
+                    chunkIndex = 0,
+                    payload = "he".encodeToByteArray(),
+                )
+            support.handleTransferChunk(peerId = peerId, frame = firstChunk)
+            callbacks.acks.clear()
+            callbacks.diagnostics.clear()
+
+            // Act
+            val handled = support.handleTransferChunk(peerId = peerId, frame = firstChunk)
+
+            // Assert
+            assertTrue(handled)
+            assertEquals(1, inboundTransfers.size)
+            assertEquals(
+                listOf(
+                    RecordedInboundAck(
+                        peerId = peerId,
+                        action = "transfer.ack.chunk",
+                        transferId = frame.transferId,
+                        highestContiguousAck = 0,
+                        hardRunEpoch = hardRunToken.epoch,
+                    )
+                ),
+                callbacks.acks,
+            )
+            assertTrue(
+                callbacks.diagnostics.any { diagnostic ->
+                    diagnostic.stage == "transfer.receive.chunk" &&
+                        diagnostic.metadata["duplicateChunk"] == "true" &&
+                        diagnostic.metadata["shouldAcknowledge"] == "true"
+                }
+            )
+            assertTrue(callbacks.deliveries.isEmpty())
+        }
+
+    @Test
     fun `handleTransferComplete delivers an already assembled inbound session`() = runBlocking {
         // Arrange
         val peerId = PeerId("upstream")
