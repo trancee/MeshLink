@@ -106,19 +106,12 @@ internal suspend fun IosBleTransport.sendToPeer(
     }
 
     val directFrame = runCatching { DirectWireFrame.decode(frame.payload) }.getOrNull()
-    val dataBearerMode =
-        resolveSendDataBearerMode(frame = frame, peer = peer, directFrame = directFrame)
     val gattSendResult =
         sendViaGattNotifyLinkOrNull(frame = frame, peer = peer, directFrame = directFrame)
-    return when {
-        gattSendResult != null -> gattSendResult
-        directFrame is DirectWireFrame.Data && dataBearerMode == GattDataBearerMode.GATT_REQUIRED ->
-            dropSend(
-                frame,
-                message = "iOS BLE GATT notify side link is not ready",
-                detail = "required GATT notify side link not ready",
-            )
-        else -> sendViaL2capWhenReady(frame = frame, peer = peer)
+    return if (gattSendResult != null) {
+        gattSendResult
+    } else {
+        sendViaL2capWhenReady(frame = frame, peer = peer)
     }
 }
 

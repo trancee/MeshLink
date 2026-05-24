@@ -228,7 +228,6 @@ internal fun shouldInitiateDiscoveryDrivenL2capConnection(
 internal enum class GattDataBearerMode {
     L2CAP_ONLY,
     GATT_OPTIONAL_WITH_L2CAP_FALLBACK,
-    GATT_REQUIRED,
 }
 
 internal fun resolveGattDataBearerMode(

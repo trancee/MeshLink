@@ -494,22 +494,12 @@ internal class AndroidBleTransport(
             return null
         }
         maybeStartGattNotifySideLink(peer)
-        val client =
-            gattNotifyClientsByHint[peer.hintPeerId.value]
-                ?: return when (dataBearerMode) {
-                    GattDataBearerMode.GATT_REQUIRED ->
-                        TransportSendResult.Dropped("Android BLE GATT side link is unavailable")
-                    else -> null
-                }
+        val client = gattNotifyClientsByHint[peer.hintPeerId.value] ?: return null
         if (!client.isReady()) {
             log(
                 "preferred GATT side-link send skipped for ${peer.hintPeerId.value.takeLast(6)}: client not ready"
             )
-            return when (dataBearerMode) {
-                GattDataBearerMode.GATT_REQUIRED ->
-                    TransportSendResult.Dropped("Android BLE GATT side link is not ready")
-                else -> null
-            }
+            return null
         }
         val delivered =
             runCatching { client.write(frame.payload) }
@@ -528,16 +518,7 @@ internal class AndroidBleTransport(
             log(
                 "preferred GATT side-link send returned false for ${peer.hintPeerId.value.takeLast(6)} bytes=${frame.payload.size}"
             )
-            when (dataBearerMode) {
-                GattDataBearerMode.GATT_REQUIRED -> {
-                    restartGattNotifySideLink(
-                        peer = peer,
-                        reason = "write failed for ${frame.payload.size} bytes",
-                    )
-                    TransportSendResult.Dropped("Android BLE GATT side link write failed")
-                }
-                else -> null
-            }
+            null
         }
     }
 
