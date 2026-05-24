@@ -21,7 +21,7 @@ internal data class MeshEngineLifecycleState(
 
 internal data class MeshEngineLifecycleCallbacks(
     val ensureTransportCollector: () -> Unit,
-    val stopTransportCollector: () -> Unit,
+    val stopTransportCollector: suspend () -> Unit,
     val updateTransportPowerPolicy: suspend (PowerPolicy) -> Unit,
     val startTransport: suspend () -> Unit,
     val pauseTransport: suspend () -> Unit,
@@ -52,15 +52,16 @@ internal class MeshEngineLifecycleSupport(
             MeshLinkState.Uninitialized,
             MeshLinkState.Stopped -> {
                 callbacks.ensureTransportCollector()
-                runCatching {
-                        state.currentPowerPolicy =
-                            powerPolicyController.onMeshStarted(powerPolicyNowMillis())
-                        callbacks.updateTransportPowerPolicy(state.currentPowerPolicy)
-                        callbacks.startTransport()
-                        state.runtimeSurface.beginHardRun()
-                    }
-                    .onFailure { callbacks.stopTransportCollector() }
-                    .getOrThrow()
+                try {
+                    state.currentPowerPolicy =
+                        powerPolicyController.onMeshStarted(powerPolicyNowMillis())
+                    callbacks.updateTransportPowerPolicy(state.currentPowerPolicy)
+                    callbacks.startTransport()
+                    state.runtimeSurface.beginHardRun()
+                } catch (exception: Throwable) {
+                    callbacks.stopTransportCollector()
+                    throw exception
+                }
                 diagnostics.emitLifecycleEvent(DiagnosticCode.MESH_STARTED, "lifecycle.start")
                 StartResult.Started
             }
@@ -92,14 +93,15 @@ internal class MeshEngineLifecycleSupport(
             MeshLinkState.Running -> ResumeResult.AlreadyRunning
             MeshLinkState.Paused -> {
                 callbacks.ensureTransportCollector()
-                runCatching {
-                        state.currentPowerPolicy =
-                            powerPolicyController.currentPolicy(powerPolicyNowMillis())
-                        callbacks.updateTransportPowerPolicy(state.currentPowerPolicy)
-                        callbacks.resumeTransport()
-                    }
-                    .onFailure { callbacks.stopTransportCollector() }
-                    .getOrThrow()
+                try {
+                    state.currentPowerPolicy =
+                        powerPolicyController.currentPolicy(powerPolicyNowMillis())
+                    callbacks.updateTransportPowerPolicy(state.currentPowerPolicy)
+                    callbacks.resumeTransport()
+                } catch (exception: Throwable) {
+                    callbacks.stopTransportCollector()
+                    throw exception
+                }
                 state.runtimeSurface.setLifecycleState(MeshLinkState.Running)
                 diagnostics.emitLifecycleEvent(DiagnosticCode.MESH_RESUMED, "lifecycle.resume")
                 ResumeResult.Resumed

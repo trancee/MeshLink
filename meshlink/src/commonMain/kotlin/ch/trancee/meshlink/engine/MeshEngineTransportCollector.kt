@@ -4,6 +4,7 @@ import ch.trancee.meshlink.transport.TransportEvent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 
@@ -25,8 +26,9 @@ internal class MeshEngineTransportCollector(
             }
     }
 
-    internal fun stop(): Unit {
-        transportCollectionJob?.cancel()
+    internal suspend fun stop(): Unit {
+        val currentJob = transportCollectionJob ?: return
         transportCollectionJob = null
+        currentJob.cancelAndJoin()
     }
 }

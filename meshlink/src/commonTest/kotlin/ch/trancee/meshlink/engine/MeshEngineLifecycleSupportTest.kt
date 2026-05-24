@@ -17,7 +17,11 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 
 class MeshEngineLifecycleSupportTest {
     @Test
@@ -187,6 +191,40 @@ class MeshEngineLifecycleSupportTest {
         }
 
     @Test
+    fun `stop waits for the transport collector to finish before clearing the volatile view`() =
+        runBlocking {
+            // Arrange
+            val harness = lifecycleHarness(meshState = MeshLinkState.Running)
+            val support = harness.support
+            val stopTransportCollectorGate = CompletableDeferred<Unit>()
+            val stopTransportCollectorStarted = CompletableDeferred<Unit>()
+            harness.callbacks.stopTransportCollectorGate = stopTransportCollectorGate
+            harness.callbacks.stopTransportCollectorStarted = stopTransportCollectorStarted
+
+            // Act
+            val stopDeferred = async { support.stop() }
+            withTimeout(1_000) { stopTransportCollectorStarted.await() }
+            delay(10)
+
+            // Assert
+            assertTrue(harness.callbacks.clearedRuntimeViews.isEmpty())
+            assertTrue(!stopDeferred.isCompleted)
+
+            stopTransportCollectorGate.complete(Unit)
+            assertEquals(StopResult.Stopped, withTimeout(1_000) { stopDeferred.await() })
+            assertEquals(
+                listOf(
+                    RuntimeViewClear(
+                        stage = "lifecycle.stop",
+                        removalCode = DiagnosticCode.ROUTE_RETRACTED,
+                        metadata = mapOf("runtimeBoundary" to "stop"),
+                    )
+                ),
+                harness.callbacks.clearedRuntimeViews,
+            )
+        }
+
+    @Test
     fun `updateBattery stores the new power policy and emits a power-mode diagnostic`() {
         // Arrange
         val harness = lifecycleHarness(meshState = MeshLinkState.Running)
@@ -276,11 +314,17 @@ private class RecordingLifecycleCallbacks {
     val clearedRuntimeViews: MutableList<RuntimeViewClear> = mutableListOf()
     val abortedTransferReasons: MutableList<TransferAbortReasonCode> = mutableListOf()
     var clearOutboundTransfersCalls: Int = 0
+    var stopTransportCollectorStarted: CompletableDeferred<Unit>? = null
+    var stopTransportCollectorGate: CompletableDeferred<Unit>? = null
 
     fun asCallbacks(): MeshEngineLifecycleCallbacks {
         return MeshEngineLifecycleCallbacks(
             ensureTransportCollector = { ensureTransportCollectorCalls += 1 },
-            stopTransportCollector = { stopTransportCollectorCalls += 1 },
+            stopTransportCollector = {
+                stopTransportCollectorCalls += 1
+                stopTransportCollectorStarted?.complete(Unit)
+                stopTransportCollectorGate?.await()
+            },
             updateTransportPowerPolicy = { policy -> updatedTransportPolicies += policy },
             startTransport = { startTransportCalls += 1 },
             pauseTransport = { pauseTransportCalls += 1 },

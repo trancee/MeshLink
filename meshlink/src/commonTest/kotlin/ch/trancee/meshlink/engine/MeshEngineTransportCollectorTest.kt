@@ -7,8 +7,13 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 
 class MeshEngineTransportCollectorTest {
@@ -123,6 +128,47 @@ class MeshEngineTransportCollectorTest {
         assertEquals(listOf("peer-first", "peer-second"), handledPeerIds)
         assertTrue(firstHandled.isCompleted)
         assertTrue(secondHandled.isCompleted)
+    }
+
+    @Test
+    fun `stop waits for an in-flight handler to finish cancelling`() = runBlocking {
+        // Arrange
+        val events = MutableSharedFlow<TransportEvent>(extraBufferCapacity = 1)
+        val handlerStarted = CompletableDeferred<Unit>()
+        val handlerFinished = CompletableDeferred<Unit>()
+        val collector =
+            MeshEngineTransportCollector(
+                coroutineScope = this,
+                transportEvents = { events },
+                handleTransportEvent = {
+                    try {
+                        handlerStarted.complete(Unit)
+                        awaitCancellation()
+                    } finally {
+                        withContext(NonCancellable) {
+                            delay(50)
+                            handlerFinished.complete(Unit)
+                        }
+                    }
+                },
+            )
+        val event =
+            TransportEvent.PeerDiscovered(
+                peerId = PeerId("peer-inflight"),
+                transportMode = TransportMode.L2CAP,
+            )
+
+        // Act
+        collector.ensureStarted()
+        events.emit(event)
+        withTimeout(1_000) { handlerStarted.await() }
+        val stopDeferred = async { collector.stop() }
+        delay(10)
+
+        // Assert
+        assertTrue(!stopDeferred.isCompleted)
+        withTimeout(1_000) { handlerFinished.await() }
+        withTimeout(1_000) { stopDeferred.await() }
     }
 
     @Test
