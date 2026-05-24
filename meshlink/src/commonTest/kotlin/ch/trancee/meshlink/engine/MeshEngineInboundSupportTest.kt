@@ -5,6 +5,7 @@ import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.crypto.NoiseXXHandshakeManager
 import ch.trancee.meshlink.diagnostics.DiagnosticReason
 import ch.trancee.meshlink.identity.LocalIdentity
+import ch.trancee.meshlink.identity.toHexString
 import ch.trancee.meshlink.routing.RouteCoordinator
 import ch.trancee.meshlink.wire.WireCodec
 import ch.trancee.meshlink.wire.WireFrame
@@ -29,7 +30,6 @@ class MeshEngineInboundSupportTest {
                 temporaryPeerId = temporaryPeerId,
                 canonicalPeerId = canonicalPeerId,
             )
-            val deliveredMessages = mutableListOf<RecordedInboundSupportDelivery>()
             val fixture =
                 inboundSupportFixture(
                     localIdentity = localIdentity,
@@ -43,20 +43,6 @@ class MeshEngineInboundSupportTest {
                             ttlMillis = 1000,
                             encryptedPayload = "hello".encodeToByteArray(),
                         ),
-                    deliverInnerEnvelope = {
-                        immediatePeerId,
-                        deliveredOriginPeerId,
-                        payload,
-                        priority,
-                        _ ->
-                        deliveredMessages +=
-                            RecordedInboundSupportDelivery(
-                                immediatePeerIdValue = immediatePeerId.value,
-                                originPeerIdValue = deliveredOriginPeerId.value,
-                                payload = payload,
-                                priority = priority,
-                            )
-                    },
                 )
 
             // Act
@@ -75,7 +61,7 @@ class MeshEngineInboundSupportTest {
                         priority = DeliveryPriority.HIGH,
                     )
                 ),
-                deliveredMessages,
+                fixture.deliveredMessages,
             )
             assertTrue(fixture.forwardedMessages.isEmpty())
             assertTrue(fixture.failures.isEmpty())
@@ -89,14 +75,10 @@ class MeshEngineInboundSupportTest {
             val peerId = PeerId("peer-abcdef")
             val destinationPeerId = PeerId("destination-peer")
             val sessionRegistry = MeshEngineSessionRegistry()
-            sessionRegistry.completeResponderHandshake(
+            seedInboundSession(
+                localIdentity = localIdentity,
+                sessionRegistry = sessionRegistry,
                 peerId = peerId,
-                pendingHandshake =
-                    PendingResponderHandshake(NoiseXXHandshakeManager(localIdentity.cryptoProvider))
-                        .also { pendingHandshake ->
-                            sessionRegistry.storePendingResponderHandshake(peerId, pendingHandshake)
-                        },
-                session = HopSession(ByteArray(32) { 0x01 }, ByteArray(32) { 0x02 }),
             )
             val fixture =
                 inboundSupportFixture(
@@ -121,6 +103,333 @@ class MeshEngineInboundSupportTest {
             assertEquals(destinationPeerId.value, forwarded.destinationPeerIdValue)
             assertEquals("message-2", forwarded.messageId)
             assertTrue(fixture.failures.isEmpty())
+        }
+
+    @Test
+    fun `handleEncryptedDataFrame delivers a local message addressed to the advertisement hash`() =
+        runBlocking {
+            // Arrange
+            val localIdentity = LocalIdentity.fromAppId("inbound-local")
+            val peerId = PeerId("peer-abcdef")
+            val originPeerId = PeerId("origin-peer")
+            val sessionRegistry = MeshEngineSessionRegistry()
+            seedInboundSession(
+                localIdentity = localIdentity,
+                sessionRegistry = sessionRegistry,
+                peerId = peerId,
+            )
+            val advertisementPeerId = PeerId(localIdentity.advertisementKeyHash.toHexString())
+            val fixture =
+                inboundSupportFixture(
+                    localIdentity = localIdentity,
+                    sessionRegistry = sessionRegistry,
+                    decryptedFrame =
+                        WireFrame.Message(
+                            messageId = "message-hash",
+                            originPeerId = originPeerId,
+                            destinationPeerId = advertisementPeerId,
+                            priority = DeliveryPriority.NORMAL,
+                            ttlMillis = 1000,
+                            encryptedPayload = "hashed".encodeToByteArray(),
+                        ),
+                )
+
+            // Act
+            fixture.support.handleEncryptedDataFrame(peerId = peerId, payload = byteArrayOf(1))
+
+            // Assert
+            assertEquals(
+                listOf(
+                    RecordedInboundSupportDelivery(
+                        immediatePeerIdValue = peerId.value,
+                        originPeerIdValue = originPeerId.value,
+                        payload = "hashed".encodeToByteArray(),
+                        priority = DeliveryPriority.NORMAL,
+                    )
+                ),
+                fixture.deliveredMessages,
+            )
+            assertTrue(fixture.forwardedMessages.isEmpty())
+            assertTrue(fixture.failures.isEmpty())
+        }
+
+    @Test
+    fun `handleEncryptedDataFrame emits decrypt failure when hop payload decryption throws`() =
+        runBlocking {
+            // Arrange
+            val localIdentity = LocalIdentity.fromAppId("inbound-local")
+            val peerId = PeerId("peer-abcdef")
+            val sessionRegistry = MeshEngineSessionRegistry()
+            seedInboundSession(
+                localIdentity = localIdentity,
+                sessionRegistry = sessionRegistry,
+                peerId = peerId,
+            )
+            val fixture =
+                inboundSupportFixture(
+                    localIdentity = localIdentity,
+                    sessionRegistry = sessionRegistry,
+                    decryptHopPayload = { _, _ -> throw IllegalStateException("boom") },
+                )
+
+            // Act
+            fixture.support.handleEncryptedDataFrame(peerId = peerId, payload = byteArrayOf(1))
+
+            // Assert
+            assertEquals(
+                listOf(
+                    RecordedInboundSupportFailure(
+                        peerIdValue = peerId.value,
+                        stage = "transport.data.decrypt",
+                        reason = DiagnosticReason.DELIVERY_FAILURE,
+                        metadata = mapOf("cause" to "IllegalStateException"),
+                    )
+                ),
+                fixture.failures,
+            )
+            assertTrue(fixture.forwardedMessages.isEmpty())
+            assertTrue(fixture.deliveredMessages.isEmpty())
+            assertTrue(fixture.transferEvents.isEmpty())
+        }
+
+    @Test
+    fun `handleEncryptedDataFrame emits decode failure when a decrypted payload is invalid`() =
+        runBlocking {
+            // Arrange
+            val localIdentity = LocalIdentity.fromAppId("inbound-local")
+            val peerId = PeerId("peer-abcdef")
+            val sessionRegistry = MeshEngineSessionRegistry()
+            seedInboundSession(
+                localIdentity = localIdentity,
+                sessionRegistry = sessionRegistry,
+                peerId = peerId,
+            )
+            val fixture =
+                inboundSupportFixture(
+                    localIdentity = localIdentity,
+                    sessionRegistry = sessionRegistry,
+                    decryptHopPayload = { _, _ -> byteArrayOf(0x01, 0x02, 0x03) },
+                )
+
+            // Act
+            fixture.support.handleEncryptedDataFrame(peerId = peerId, payload = byteArrayOf(1))
+
+            // Assert
+            val failure = fixture.failures.single()
+            assertEquals(peerId.value, failure.peerIdValue)
+            assertEquals("transport.data.decode", failure.stage)
+            assertEquals(DiagnosticReason.DELIVERY_FAILURE, failure.reason)
+            assertTrue(failure.metadata.containsKey("cause"))
+            assertTrue(fixture.forwardedMessages.isEmpty())
+            assertTrue(fixture.deliveredMessages.isEmpty())
+            assertTrue(fixture.transferEvents.isEmpty())
+        }
+
+    @Test
+    fun `handleEncryptedDataFrame dispatches transfer start frames to transfer callbacks`() =
+        runBlocking {
+            // Arrange
+            val localIdentity = LocalIdentity.fromAppId("inbound-local")
+            val peerId = PeerId("peer-abcdef")
+            val sessionRegistry = MeshEngineSessionRegistry()
+            seedInboundSession(
+                localIdentity = localIdentity,
+                sessionRegistry = sessionRegistry,
+                peerId = peerId,
+            )
+            val frame =
+                WireFrame.TransferStart(
+                    route =
+                        WireFrame.TransferStartRoute(
+                            transferId = "transfer-start",
+                            messageId = "message-1",
+                            originPeerId = PeerId("origin-peer"),
+                            destinationPeerId = localIdentity.peerId,
+                        ),
+                    sizing =
+                        WireFrame.TransferStartSizing(
+                            totalBytes = 10,
+                            totalChunks = 1,
+                            maxChunkPayloadBytes = 10,
+                        ),
+                )
+            val fixture =
+                inboundSupportFixture(
+                    localIdentity = localIdentity,
+                    sessionRegistry = sessionRegistry,
+                    decryptedFrame = frame,
+                )
+
+            // Act
+            fixture.support.handleEncryptedDataFrame(peerId = peerId, payload = byteArrayOf(1))
+
+            // Assert
+            assertEquals(
+                listOf(
+                    RecordedInboundTransferEvent(
+                        kind = "start",
+                        peerIdValue = peerId.value,
+                        transferId = "transfer-start",
+                    )
+                ),
+                fixture.transferEvents,
+            )
+        }
+
+    @Test
+    fun `handleEncryptedDataFrame dispatches transfer chunk frames to transfer callbacks`() =
+        runBlocking {
+            // Arrange
+            val localIdentity = LocalIdentity.fromAppId("inbound-local")
+            val peerId = PeerId("peer-abcdef")
+            val sessionRegistry = MeshEngineSessionRegistry()
+            seedInboundSession(
+                localIdentity = localIdentity,
+                sessionRegistry = sessionRegistry,
+                peerId = peerId,
+            )
+            val frame =
+                WireFrame.TransferChunk(
+                    transferId = "transfer-chunk",
+                    chunkIndex = 2,
+                    payload = "chunk".encodeToByteArray(),
+                )
+            val fixture =
+                inboundSupportFixture(
+                    localIdentity = localIdentity,
+                    sessionRegistry = sessionRegistry,
+                    decryptedFrame = frame,
+                )
+
+            // Act
+            fixture.support.handleEncryptedDataFrame(peerId = peerId, payload = byteArrayOf(1))
+
+            // Assert
+            assertEquals(
+                listOf(
+                    RecordedInboundTransferEvent(
+                        kind = "chunk",
+                        peerIdValue = peerId.value,
+                        transferId = "transfer-chunk",
+                        chunkIndex = 2,
+                    )
+                ),
+                fixture.transferEvents,
+            )
+        }
+
+    @Test
+    fun `handleEncryptedDataFrame dispatches transfer ack frames to transfer callbacks`() =
+        runBlocking {
+            // Arrange
+            val localIdentity = LocalIdentity.fromAppId("inbound-local")
+            val peerId = PeerId("peer-abcdef")
+            val sessionRegistry = MeshEngineSessionRegistry()
+            seedInboundSession(
+                localIdentity = localIdentity,
+                sessionRegistry = sessionRegistry,
+                peerId = peerId,
+            )
+            val frame =
+                WireFrame.TransferAck(
+                    transferId = "transfer-ack",
+                    highestContiguousAck = 4,
+                    selectiveRanges = byteArrayOf(5, 6),
+                )
+            val fixture =
+                inboundSupportFixture(
+                    localIdentity = localIdentity,
+                    sessionRegistry = sessionRegistry,
+                    decryptedFrame = frame,
+                )
+
+            // Act
+            fixture.support.handleEncryptedDataFrame(peerId = peerId, payload = byteArrayOf(1))
+
+            // Assert
+            assertEquals(
+                listOf(
+                    RecordedInboundTransferEvent(
+                        kind = "ack",
+                        peerIdValue = peerId.value,
+                        transferId = "transfer-ack",
+                        highestContiguousAck = 4,
+                    )
+                ),
+                fixture.transferEvents,
+            )
+        }
+
+    @Test
+    fun `handleEncryptedDataFrame dispatches transfer complete frames to transfer callbacks`() =
+        runBlocking {
+            // Arrange
+            val localIdentity = LocalIdentity.fromAppId("inbound-local")
+            val peerId = PeerId("peer-abcdef")
+            val sessionRegistry = MeshEngineSessionRegistry()
+            seedInboundSession(
+                localIdentity = localIdentity,
+                sessionRegistry = sessionRegistry,
+                peerId = peerId,
+            )
+            val fixture =
+                inboundSupportFixture(
+                    localIdentity = localIdentity,
+                    sessionRegistry = sessionRegistry,
+                    decryptedFrame = WireFrame.TransferComplete("transfer-complete"),
+                )
+
+            // Act
+            fixture.support.handleEncryptedDataFrame(peerId = peerId, payload = byteArrayOf(1))
+
+            // Assert
+            assertEquals(
+                listOf(
+                    RecordedInboundTransferEvent(
+                        kind = "complete",
+                        peerIdValue = peerId.value,
+                        transferId = "transfer-complete",
+                    )
+                ),
+                fixture.transferEvents,
+            )
+        }
+
+    @Test
+    fun `handleEncryptedDataFrame dispatches transfer abort frames to transfer callbacks`() =
+        runBlocking {
+            // Arrange
+            val localIdentity = LocalIdentity.fromAppId("inbound-local")
+            val peerId = PeerId("peer-abcdef")
+            val sessionRegistry = MeshEngineSessionRegistry()
+            seedInboundSession(
+                localIdentity = localIdentity,
+                sessionRegistry = sessionRegistry,
+                peerId = peerId,
+            )
+            val fixture =
+                inboundSupportFixture(
+                    localIdentity = localIdentity,
+                    sessionRegistry = sessionRegistry,
+                    decryptedFrame =
+                        WireFrame.TransferAbort(transferId = "transfer-abort", reasonCode = 9),
+                )
+
+            // Act
+            fixture.support.handleEncryptedDataFrame(peerId = peerId, payload = byteArrayOf(1))
+
+            // Assert
+            assertEquals(
+                listOf(
+                    RecordedInboundTransferEvent(
+                        kind = "abort",
+                        peerIdValue = peerId.value,
+                        transferId = "transfer-abort",
+                        reasonCode = 9,
+                    )
+                ),
+                fixture.transferEvents,
+            )
         }
 
     @Test
@@ -158,20 +467,24 @@ private data class InboundSupportFixture(
     val support: MeshEngineInboundSupport,
     val failures: MutableList<RecordedInboundSupportFailure>,
     val forwardedMessages: MutableList<RecordedInboundSupportForwardedMessage>,
+    val deliveredMessages: MutableList<RecordedInboundSupportDelivery>,
+    val transferEvents: MutableList<RecordedInboundTransferEvent>,
 )
 
 private fun inboundSupportFixture(
     localIdentity: LocalIdentity,
     sessionRegistry: MeshEngineSessionRegistry,
-    decryptedFrame: WireFrame,
+    decryptedFrame: WireFrame? = null,
+    decryptHopPayload: ((HopSession, ByteArray) -> ByteArray)? = null,
     deliverInnerEnvelope:
-        suspend (PeerId, PeerId, ByteArray, DeliveryPriority, MeshEngineHardRunToken) -> Unit =
-        { _, _, _, _, _ ->
-            error("unexpected envelope delivery")
-        },
+        (suspend (PeerId, PeerId, ByteArray, DeliveryPriority, MeshEngineHardRunToken) -> Unit)? =
+        null,
+    transferCallbacks: MeshEngineInboundTransferCallbacks? = null,
 ): InboundSupportFixture {
     val failures = mutableListOf<RecordedInboundSupportFailure>()
     val forwardedMessages = mutableListOf<RecordedInboundSupportForwardedMessage>()
+    val deliveredMessages = mutableListOf<RecordedInboundSupportDelivery>()
+    val transferEvents = mutableListOf<RecordedInboundTransferEvent>()
     val runtimeSurface = MeshEngineRuntimeSurface()
     val hardRunToken = runtimeSurface.beginHardRun()
     val routeCoordinator = RouteCoordinator(localIdentity.peerId)
@@ -184,6 +497,64 @@ private fun inboundSupportFixture(
             emitDiagnostic = { _, _, _, _, _, _ -> Unit },
             sendEncryptedWireFrame = { _, _, _, _ -> true },
         )
+    val recordedDeliverInnerEnvelope =
+        deliverInnerEnvelope
+            ?: { immediatePeerId, deliveredOriginPeerId, payload, priority, _ ->
+                deliveredMessages +=
+                    RecordedInboundSupportDelivery(
+                        immediatePeerIdValue = immediatePeerId.value,
+                        originPeerIdValue = deliveredOriginPeerId.value,
+                        payload = payload,
+                        priority = priority,
+                    )
+            }
+    val recordedTransferCallbacks =
+        transferCallbacks
+            ?: MeshEngineInboundTransferCallbacks(
+                handleTransferStart = { peerId, frame ->
+                    transferEvents +=
+                        RecordedInboundTransferEvent(
+                            kind = "start",
+                            peerIdValue = peerId.value,
+                            transferId = frame.transferId,
+                        )
+                },
+                handleTransferChunk = { peerId, frame ->
+                    transferEvents +=
+                        RecordedInboundTransferEvent(
+                            kind = "chunk",
+                            peerIdValue = peerId.value,
+                            transferId = frame.transferId,
+                            chunkIndex = frame.chunkIndex,
+                        )
+                },
+                handleTransferAck = { peerId, frame ->
+                    transferEvents +=
+                        RecordedInboundTransferEvent(
+                            kind = "ack",
+                            peerIdValue = peerId.value,
+                            transferId = frame.transferId,
+                            highestContiguousAck = frame.highestContiguousAck,
+                        )
+                },
+                handleTransferComplete = { peerId, frame ->
+                    transferEvents +=
+                        RecordedInboundTransferEvent(
+                            kind = "complete",
+                            peerIdValue = peerId.value,
+                            transferId = frame.transferId,
+                        )
+                },
+                handleTransferAbort = { peerId, frame ->
+                    transferEvents +=
+                        RecordedInboundTransferEvent(
+                            kind = "abort",
+                            peerIdValue = peerId.value,
+                            transferId = frame.transferId,
+                            reasonCode = frame.reasonCode,
+                        )
+                },
+            )
     val support =
         MeshEngineInboundSupport(
             localIdentity = localIdentity,
@@ -204,7 +575,11 @@ private fun inboundSupportFixture(
                                 metadata = metadata,
                             )
                     },
-                    decryptHopPayload = { _, _ -> WireCodec.encode(decryptedFrame) },
+                    decryptHopPayload =
+                        decryptHopPayload
+                            ?: { _, _ ->
+                                WireCodec.encode(checkNotNull(decryptedFrame))
+                            },
                 ),
             messageCallbacks =
                 MeshEngineInboundMessageCallbacks(
@@ -217,21 +592,31 @@ private fun inboundSupportFixture(
                                 payload = frame.encryptedPayload,
                             )
                     },
-                    deliverInnerEnvelope = deliverInnerEnvelope,
+                    deliverInnerEnvelope = recordedDeliverInnerEnvelope,
                 ),
-            transferCallbacks =
-                MeshEngineInboundTransferCallbacks(
-                    handleTransferStart = { _, _ -> error("unexpected transfer start") },
-                    handleTransferChunk = { _, _ -> error("unexpected transfer chunk") },
-                    handleTransferAck = { _, _ -> error("unexpected transfer ack") },
-                    handleTransferComplete = { _, _ -> error("unexpected transfer complete") },
-                    handleTransferAbort = { _, _ -> error("unexpected transfer abort") },
-                ),
+            transferCallbacks = recordedTransferCallbacks,
         )
     return InboundSupportFixture(
         support = support,
         failures = failures,
         forwardedMessages = forwardedMessages,
+        deliveredMessages = deliveredMessages,
+        transferEvents = transferEvents,
+    )
+}
+
+private suspend fun seedInboundSession(
+    localIdentity: LocalIdentity,
+    sessionRegistry: MeshEngineSessionRegistry,
+    peerId: PeerId,
+): Unit {
+    val pendingHandshake =
+        PendingResponderHandshake(NoiseXXHandshakeManager(localIdentity.cryptoProvider))
+    sessionRegistry.storePendingResponderHandshake(peerId, pendingHandshake)
+    sessionRegistry.completeResponderHandshake(
+        peerId = peerId,
+        pendingHandshake = pendingHandshake,
+        session = HopSession(ByteArray(32) { 0x01 }, ByteArray(32) { 0x02 }),
     )
 }
 
@@ -306,4 +691,13 @@ private data class RecordedInboundSupportFailure(
     val stage: String,
     val reason: DiagnosticReason,
     val metadata: Map<String, String>,
+)
+
+private data class RecordedInboundTransferEvent(
+    val kind: String,
+    val peerIdValue: String,
+    val transferId: String,
+    val chunkIndex: Int? = null,
+    val highestContiguousAck: Int? = null,
+    val reasonCode: Int? = null,
 )
