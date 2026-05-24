@@ -57,23 +57,27 @@ internal class IosBleTransport(internal val appId: String, advertisementKeyHash:
 
     override suspend fun start(): Unit {
         IosBlePermissionContract.ensureBluetoothAuthorized(CBManager.authorization)
+        reportLog("start transport authorization=${CBManager.authorization}")
         started = true
         centralManager = CBCentralManager(delegate = centralDelegate, queue = null)
         peripheralManager = CBPeripheralManager(delegate = peripheralManagerDelegate, queue = null)
     }
 
     override suspend fun pause(): Unit {
+        reportLog("pause transport")
         stopTransport(clearPeers = false)
         started = false
     }
 
     override suspend fun resume(): Unit {
+        reportLog("resume transport started=$started")
         if (!started) {
             start()
         }
     }
 
     override suspend fun stop(): Unit {
+        reportLog("stop transport")
         stopTransport(clearPeers = true)
         started = false
     }

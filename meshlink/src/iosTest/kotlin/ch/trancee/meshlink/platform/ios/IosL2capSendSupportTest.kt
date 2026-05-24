@@ -27,7 +27,7 @@ class IosL2capSendSupportTest {
     }
 
     @Test
-    fun sendViaIosL2capWhenReadyStillRequestsConnectWhenWaitingForInboundLink(): Unit =
+    fun sendViaIosL2capWhenReadyDoesNotRequestConnectWhenWaitingForInboundLink(): Unit =
         runBlocking {
             // Arrange
             val fixture = IosL2capSendFixture(shouldInitiateL2cap = false)
@@ -41,7 +41,7 @@ class IosL2capSendSupportTest {
                 "iOS BLE L2CAP connection is not ready",
                 (result as TransportSendResult.Dropped).reason,
             )
-            assertEquals(1, fixture.connectCalls)
+            assertEquals(0, fixture.connectCalls)
             assertEquals(emptyList(), fixture.closedLinks)
         }
 

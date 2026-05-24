@@ -207,8 +207,12 @@ internal fun IosBleTransport.dropSend(
 
 internal fun IosBleTransport.startScanIfReady(central: CBCentralManager): Unit {
     if (!started || discoverySuspended || central.state != CBManagerStatePoweredOn) {
+        log(
+            "startScanIfReady skipped started=$started suspended=$discoverySuspended state=${central.state}"
+        )
         return
     }
+    reportLog("start scanning state=${central.state}")
     central.scanForPeripheralsWithServices(
         serviceUUIDs =
             listOf(CBUUID.UUIDWithString(BleDiscoveryContract.ADVERTISEMENT_SERVICE_UUID)),
@@ -218,8 +222,10 @@ internal fun IosBleTransport.startScanIfReady(central: CBCentralManager): Unit {
 
 internal fun IosBleTransport.publishL2capChannelIfReady(peripheral: CBPeripheralManager): Unit {
     if (!started || peripheral.state != CBManagerStatePoweredOn) {
+        log("publishL2capChannelIfReady skipped started=$started state=${peripheral.state}")
         return
     }
+    reportLog("publishing L2CAP channel state=${peripheral.state}")
     peripheral.publishL2CAPChannelWithEncryption(encryptionRequired = false)
 }
 
@@ -273,8 +279,14 @@ internal fun IosBleTransport.handlePublishedL2capChannel(psm: UShort, error: NSE
 internal fun IosBleTransport.startAdvertisingIfReady(): Unit {
     val peripheral = peripheralManager ?: return
     if (!started || discoverySuspended || peripheral.state != CBManagerStatePoweredOn) {
+        log(
+            "startAdvertisingIfReady skipped started=$started suspended=$discoverySuspended state=${peripheral.state}"
+        )
         return
     }
+    reportLog(
+        "start advertising payload=${currentDiscoveryPayload.payloadUuidString()} state=${peripheral.state}"
+    )
     peripheral.stopAdvertising()
     peripheral.startAdvertising(
         advertisementData =
@@ -916,6 +928,9 @@ internal fun IosBleTransport.resolvePeer(peerId: PeerId): DiscoveredPeer? {
 }
 
 internal fun IosBleTransport.stopTransport(clearPeers: Boolean): Unit {
+    reportLog(
+        "stopTransport clearPeers=$clearPeers activeLinks=${activeLinksByHint.size} activeGatt=${activeGattNotifyLinksByHint.size} pending=${pendingConnectionsByHint.size}"
+    )
     discoverySuspended = false
     centralManager?.stopScan()
     peripheralManager?.stopAdvertising()
@@ -961,6 +976,9 @@ internal fun IosBleTransport.closeLink(hintPeer: String, reason: String): Unit {
 }
 
 internal fun IosBleTransport.refreshDiscoveryState(): Unit {
+    reportLog(
+        "refreshDiscoveryState started=$started suspended=$discoverySuspended centralState=${centralManager?.state} peripheralState=${peripheralManager?.state}"
+    )
     centralManager?.stopScan()
     peripheralManager?.stopAdvertising()
     centralManager?.let(::startScanIfReady)
@@ -1191,6 +1209,7 @@ internal fun selectIncomingL2capHintPeerId(request: IncomingL2capHintSelectionRe
 internal class IosCentralDelegate(private val owner: IosBleTransport) :
     NSObject(), CBCentralManagerDelegateProtocol {
     override fun centralManagerDidUpdateState(central: CBCentralManager) {
+        owner.reportLog("centralManagerDidUpdateState state=${central.state}")
         owner.startScanIfReady(central)
     }
 
@@ -1245,6 +1264,7 @@ internal class IosPeripheralClientDelegate(private val owner: IosBleTransport) :
 internal class IosPeripheralManagerDelegate(private val owner: IosBleTransport) :
     NSObject(), CBPeripheralManagerDelegateProtocol {
     override fun peripheralManagerDidUpdateState(peripheral: CBPeripheralManager) {
+        owner.reportLog("peripheralManagerDidUpdateState state=${peripheral.state}")
         owner.installGattNotifyServiceIfReady(peripheral)
         owner.publishL2capChannelIfReady(peripheral)
     }

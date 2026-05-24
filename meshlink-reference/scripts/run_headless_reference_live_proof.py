@@ -24,6 +24,7 @@ IOS_KNOWN_DEV_APPS_FOR_CLEANUP = (
 ANDROID_PACKAGE = "ch.trancee.meshlink.reference"
 ANDROID_ACTIVITY = f"{ANDROID_PACKAGE}/.MainActivity"
 ANDROID_AUTOMATION_LOG_TAGS = ["MeshLinkReferenceAutomation:I", "*:S"]
+ANDROID_TRANSPORT_LOG_TAGS = ["MeshLinkTransport:D"]
 DEFAULT_ANDROID_READY_SECONDS = 8
 DEFAULT_CAPTURE_TIMEOUT_SECONDS = 120
 DEFAULT_POST_RESULT_IDLE_SECONDS = 5
@@ -141,6 +142,21 @@ def parse_args() -> argparse.Namespace:
         action="append",
         default=[],
         help="Extra Android serials whose reference app should be force-stopped before and after the run",
+    )
+    parser.add_argument(
+        "--android-transport-logcat",
+        action="store_true",
+        help="Also capture MeshLinkTransport Android logcat lines for transport diagnosis",
+    )
+    parser.add_argument(
+        "--ios-transport-debug",
+        action="store_true",
+        help="Enable MESHLINK_TRANSPORT_DEBUG for the iPhone sender app",
+    )
+    parser.add_argument(
+        "--ios-transport-telemetry",
+        action="store_true",
+        help="Enable MESHLINK_TRANSPORT_TELEMETRY for the iPhone sender app",
     )
     parser.add_argument("--skip-android-install", action="store_true")
     parser.add_argument("--skip-ios-build", action="store_true")
@@ -367,6 +383,8 @@ def run_ios_live_proof_test(
     storage_subdirectory: str,
     scenario: str,
     run_dir: Path,
+    ios_transport_debug: bool,
+    ios_transport_telemetry: bool,
 ) -> None:
     development_team = resolve_development_team()
     build_command = [
@@ -407,11 +425,16 @@ def run_ios_live_proof_test(
     )
     if ui_test_target is None:
         raise SystemExit("Could not find ReferenceAppUITests in generated .xctestrun file")
+    ios_transport_environment = build_ios_transport_environment(
+        transport_debug=ios_transport_debug,
+        transport_telemetry=ios_transport_telemetry,
+    )
     runner_environment = {
         "MESHLINK_REFERENCE_LIVE_PROOF": "true",
         "MESHLINK_REFERENCE_AUTOMATION_STORAGE_SUBDIRECTORY": storage_subdirectory,
         "MESHLINK_REFERENCE_APP_ID": app_id,
         IOS_AUTOMATION_SCENARIO: scenario,
+        **ios_transport_environment,
     }
     target_environment = {
         "MESHLINK_REFERENCE_AUTOMATION_MODE": AUTOMATION_MODE_LIVE_PROOF,
@@ -419,6 +442,7 @@ def run_ios_live_proof_test(
         "MESHLINK_REFERENCE_APP_ID": app_id,
         "MESHLINK_REFERENCE_AUTOMATION_ROLE": "sender",
         IOS_AUTOMATION_SCENARIO: scenario,
+        **ios_transport_environment,
     }
     ui_test_target.setdefault("EnvironmentVariables", {}).update(runner_environment)
     ui_test_target.setdefault("TestingEnvironmentVariables", {}).update(runner_environment)
@@ -526,6 +550,8 @@ def start_ios_app_via_devicectl(
     storage_subdirectory: str,
     scenario: str,
     run_dir: Path,
+    ios_transport_debug: bool,
+    ios_transport_telemetry: bool,
 ) -> BackgroundProcess:
     command = [
         "xcrun",
@@ -545,6 +571,10 @@ def start_ios_app_via_devicectl(
                 "MESHLINK_REFERENCE_APP_ID": app_id,
                 "MESHLINK_REFERENCE_AUTOMATION_ROLE": "sender",
                 IOS_AUTOMATION_SCENARIO: scenario,
+                **build_ios_transport_environment(
+                    transport_debug=ios_transport_debug,
+                    transport_telemetry=ios_transport_telemetry,
+                ),
             }
         ),
         IOS_BUNDLE_ID,
@@ -604,19 +634,36 @@ def verify_ios_sender_log(log_path: Path, scenario: str) -> str:
     return completion_line or "REFERENCE_AUTOMATION send.requested role=sender"
 
 
+def android_logcat_tags(include_transport_debug: bool) -> list[str]:
+    return [
+        *(ANDROID_TRANSPORT_LOG_TAGS if include_transport_debug else []),
+        *ANDROID_AUTOMATION_LOG_TAGS,
+    ]
+
+
+def build_ios_transport_environment(*, transport_debug: bool, transport_telemetry: bool) -> dict[str, str]:
+    environment: dict[str, str] = {}
+    if transport_debug:
+        environment["MESHLINK_TRANSPORT_DEBUG"] = "1"
+    if transport_telemetry:
+        environment["MESHLINK_TRANSPORT_TELEMETRY"] = "1"
+    return environment
+
+
 def start_android_app(
     run_dir: Path,
     android_serial: str,
     app_id: str,
     storage_subdirectory: str,
     scenario: str,
+    android_transport_logcat: bool,
 ) -> BackgroundProcess:
     force_stop_reference_app(android_serial)
     run(["adb", "-s", android_serial, "logcat", "-c"])
     logcat_path = run_dir / "android_logcat.log"
     logcat_file = logcat_path.open("w", encoding="utf-8")
     logcat = subprocess.Popen(
-        ["adb", "-s", android_serial, "logcat", *ANDROID_AUTOMATION_LOG_TAGS],
+        ["adb", "-s", android_serial, "logcat", *android_logcat_tags(android_transport_logcat)],
         stdout=logcat_file,
         stderr=subprocess.STDOUT,
         text=True,
@@ -795,6 +842,7 @@ def main() -> int:
         app_id,
         storage_subdirectory,
         args.scenario,
+        args.android_transport_logcat,
     )
     ios_console_process: BackgroundProcess | None = None
 
@@ -810,6 +858,8 @@ def main() -> int:
                 storage_subdirectory=storage_subdirectory,
                 scenario=args.scenario,
                 run_dir=run_dir,
+                ios_transport_debug=args.ios_transport_debug,
+                ios_transport_telemetry=args.ios_transport_telemetry,
             )
             ios_completion = "xcodebuild test passed"
         else:
@@ -819,6 +869,8 @@ def main() -> int:
                 storage_subdirectory=storage_subdirectory,
                 scenario=args.scenario,
                 run_dir=run_dir,
+                ios_transport_debug=args.ios_transport_debug,
+                ios_transport_telemetry=args.ios_transport_telemetry,
             )
         if args.ios_launch_mode == "devicectl":
             wait_for_ios_sender_result(

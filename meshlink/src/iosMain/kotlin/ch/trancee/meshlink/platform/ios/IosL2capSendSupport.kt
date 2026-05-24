@@ -28,14 +28,14 @@ internal suspend fun sendViaIosL2capWhenReady(
 ): TransportSendResult {
     val link = dependencies.currentLink()
     return if (link == null) {
-        dependencies.ensureConnectAttempt()
         if (dependencies.shouldInitiateL2cap()) {
+            dependencies.ensureConnectAttempt()
             dependencies.log(
                 "send(${context.hintPeerId.logSuffix()}) no active link, triggering connect"
             )
         } else {
             dependencies.log(
-                "send(${context.hintPeerId.logSuffix()}) waiting for inbound L2CAP link; requesting outbound connect for explicit send"
+                "send(${context.hintPeerId.logSuffix()}) waiting for inbound L2CAP link"
             )
         }
         TransportSendResult.Dropped("iOS BLE L2CAP connection is not ready")
