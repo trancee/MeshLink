@@ -11,6 +11,7 @@ plugins {
     alias(libs.plugins.kotlin.power.assert)
     alias(libs.plugins.detekt)
     alias(libs.plugins.ktfmt)
+    alias(libs.plugins.dokka)
     id("org.jetbrains.kotlinx.kover")
 }
 
@@ -84,6 +85,13 @@ tasks.withType<Detekt>().configureEach {
 }
 
 ktfmt { kotlinLangStyle() }
+
+dokka {
+    dokkaPublications.html {
+        moduleName.set("MeshLink Reference App Shared")
+        outputDirectory.set(layout.buildDirectory.dir("dokka/html"))
+    }
+}
 
 compose.resources {
     publicResClass = true

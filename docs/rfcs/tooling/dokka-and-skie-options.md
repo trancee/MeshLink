@@ -1,33 +1,70 @@
 # Dokka and SKIE posture for MeshLink
 
-Status: Adopted for `:meshlink`
+Status: Adopted for `:meshlink`; Dokka also adopted for `:meshlink-reference`
 
-This note records the current repository posture for Dokka and SKIE after the
-latest stable rollout.
+This note records the current repository posture for Dokka and SKIE after a
+codebase-wide pass over the Gradle modules.
 
 ## Current posture
 
-The repository now uses both tools on the SDK module:
+The repository now uses the tools in these scopes:
 
 - **Dokka 2.2.0** on `:meshlink`
+- **Dokka 2.2.0** on `:meshlink-reference`
 - **SKIE 0.10.12** on `:meshlink`
 
-They are intentionally scoped to the library module that produces the Apple
-framework and the public Kotlin API surface.
+They are intentionally **not** applied to:
 
-They are **not** applied to:
-
-- `:meshlink-reference`
 - `:benchmarks`
-- proof apps
+- `:meshlink-proof:android:meshlink-proof-android-app`
 
-That keeps the tooling change focused on SDK docs and Swift consumer ergonomics.
+A root convenience task now generates the useful Dokka outputs together:
+
+```bash
+./gradlew dokkaGenerateAllHtml
+```
 
 ## Why this shape
 
-### Dokka
+### `:meshlink`
 
-Dokka is used as **supplemental generated Kotlin reference output**.
+`:meshlink` is the actual SDK module:
+
+- it enables `explicitApi()`
+- it is BCV-tracked
+- it has the public Kotlin API surface
+- it produces the Apple framework consumed by host apps
+
+Dokka is clearly useful here as supplemental generated Kotlin reference output.
+
+### `:meshlink-reference`
+
+`:meshlink-reference` is not a public SDK, but it is still a shared Kotlin
+module that:
+
+- produces the `ReferenceAppShared` iOS framework
+- exposes shared bridge types and entry points consumed by the native iOS host
+- contains contributor-facing shared app contracts such as platform-services
+  bridges, automation configuration, and root view-controller entry points
+
+That makes Dokka helpful for maintainers and contributors working on the shared
+reference-app layer, even though it is not a versioned public API commitment.
+
+### Why not `:benchmarks`
+
+`:benchmarks` is an internal measurement harness rather than a reusable
+library surface. It has no meaningful consumer API to browse, and generated
+reference docs would mostly add noise.
+
+### Why not the proof app
+
+`:meshlink-proof:android:meshlink-proof-android-app` is an Android application
+module used for retained proof workflows, not a reusable library module. Dokka
+would not add meaningful value there.
+
+## Dokka usage
+
+Dokka remains **supplemental generated reference output**.
 
 It does not replace:
 
@@ -35,21 +72,25 @@ It does not replace:
 - the generated BCV appendix
 - contributor KDoc discipline
 
-Current output task:
+Useful commands:
 
 ```bash
+./gradlew dokkaGenerateAllHtml
 ./gradlew :meshlink:dokkaGenerateHtml
+./gradlew :meshlink-reference:dokkaGenerateHtml
 ```
 
-Current output directory:
+Outputs:
 
 ```text
 meshlink/build/dokka/html/
+meshlink-reference/build/dokka/html/
 ```
 
-### SKIE
+## SKIE usage
 
-SKIE is used to improve the Swift surface of the generated MeshLink framework.
+SKIE is still used only to improve the Swift surface of the generated
+**MeshLink SDK framework**.
 
 Current stable benefits we rely on:
 
@@ -63,11 +104,18 @@ Current stable benefits we rely on:
 
 The current rollout intentionally keeps SKIE conservative:
 
-- apply SKIE only to the framework-producing module (`:meshlink`)
+- apply SKIE only to the framework-producing SDK module (`:meshlink`)
 - keep preview features off
 - keep default-argument interop off
 - do not add SKIE annotations until a real API need appears
 - keep the Swift guide aligned with the stable SKIE surface
+
+For Dokka, the current constraint is different:
+
+- apply it where generated API browsing is genuinely useful to contributors
+- keep it off internal harness and proof-app modules where it would add noise
+- keep the generated output supplemental rather than a replacement for the
+  written docs
 
 This means the current Swift surface still requires explicit `KotlinByteArray`
 conversion for binary payloads. SKIE improves concurrency and naming, but it is
@@ -76,9 +124,13 @@ not being used here to opt into preview bridges or broader interop experiments.
 ## Practical implications for maintainers
 
 If you change public KDoc in `:meshlink`, regenerate Dokka locally when you want
-fresh generated reference output.
+fresh SDK reference output.
 
-If you change Swift-facing API guidance, update at least:
+If you change shared reference-app bridge types or host-consumed entry points,
+regenerate `:meshlink-reference` Dokka when you want fresh contributor-facing
+shared-module reference output.
+
+If you change Swift-facing SDK guidance, update at least:
 
 - `docs/how-to/use-meshlink-from-swift.md`
 - `docs/reference/meshlink-sdk-api.md`
@@ -95,3 +147,5 @@ Re-open this posture when any of these becomes true:
   bridges
 - maintainers want selective SKIE annotations such as default-argument interop
 - the repository wants to publish Dokka output as a versioned hosted API site
+- the reference-app shared module becomes more strictly internal or more
+  intentionally API-shaped, changing whether Dokka remains useful there

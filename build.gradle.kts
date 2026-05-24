@@ -96,6 +96,17 @@ val verifyDocs by
         dependsOn(checkGeneratedPublicApiReference, checkMarkdownLinks)
     }
 
+val dokkaGenerateAllHtml by
+    tasks.registering {
+        group = "documentation"
+        description =
+            "Generates Dokka HTML for the SDK and the shared reference-app module."
+        dependsOn(
+            ":meshlink:dokkaGenerateHtml",
+            ":meshlink-reference:dokkaGenerateHtml",
+        )
+    }
+
 tasks.named("check") {
     dependsOn(verifyDocs, checkAgp9Invariants)
 }

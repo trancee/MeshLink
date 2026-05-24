@@ -40,7 +40,9 @@ Use this page when you need exact commands, matrices, or policy details.
 | Verify coverage | `./gradlew :meshlink:koverVerify` | Coverage gate for the library module. |
 | Check AGP 9 build invariants | `./gradlew checkAgp9Invariants` | Confirms the post-migration module/plugin shape and preserved reference-app compatibility tasks stay intact. |
 | Run docs verification | `./gradlew verifyDocs` | Checks the generated API appendix and markdown links. |
+| Generate all useful Dokka HTML | `./gradlew dokkaGenerateAllHtml` | Generates contributor-useful Dokka output for `:meshlink` and `:meshlink-reference` without selecting Dokka's deprecated per-project `dokkaHtml` tasks. |
 | Generate Dokka HTML for the SDK | `./gradlew :meshlink:dokkaGenerateHtml` | Writes supplemental Kotlin API reference output to `meshlink/build/dokka/html/`. |
+| Generate Dokka HTML for the shared reference app module | `./gradlew :meshlink-reference:dokkaGenerateHtml` | Writes contributor-facing shared-module output to `meshlink-reference/build/dokka/html/`. |
 | Run connected-device checks | `./gradlew :meshlink:connectedCheck` | Uses currently connected devices. |
 | Refresh the checked-in API dump | `./gradlew :meshlink:apiDump` | Required for intentional public API changes. |
 | Run JVM smoke benchmarks | `./gradlew :benchmarks:jvmSmokeBenchmark` | Fast development-time performance check. |
