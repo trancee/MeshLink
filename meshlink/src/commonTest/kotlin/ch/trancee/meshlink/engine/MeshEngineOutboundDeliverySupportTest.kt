@@ -197,10 +197,10 @@ private fun outboundDeliverySupport(
     deliveryRetryDeadline: Duration,
 ): MeshEngineOutboundDeliverySupport {
     return MeshEngineOutboundDeliverySupport(
-        config = MeshEngineOutboundDeliveryConfig(deliveryRetryDeadline = deliveryRetryDeadline),
-        dependencies =
-            MeshEngineOutboundDeliveryDependencies(
-                deliveryRetrySupport = deliveryRetrySupport(deliveryRetryCallbacks)
+        outboundDeliveryDriver =
+            MeshEngineOutboundDeliveryDriver(
+                deliveryRetryDeadline = deliveryRetryDeadline,
+                deliveryRetrySupport = deliveryRetrySupport(deliveryRetryCallbacks),
             ),
         inlineOutboundDeliveryAdapter = inlineOutboundDeliveryAdapter,
         largeTransferOutboundDeliveryAdapter = largeTransferOutboundDeliveryAdapter,

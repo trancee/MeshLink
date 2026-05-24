@@ -4,7 +4,6 @@ import ch.trancee.meshlink.api.DeliveryPriority
 import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.api.SendResult
 import kotlin.time.Duration
-import kotlin.time.TimeSource
 
 internal enum class MeshEngineOutboundDeliveryMode {
     INLINE,
@@ -38,15 +37,8 @@ internal sealed class MeshEngineOutboundDeliveryAttemptOutcome<out S> {
     ) : MeshEngineOutboundDeliveryAttemptOutcome<S>()
 }
 
-internal data class MeshEngineOutboundDeliveryConfig(val deliveryRetryDeadline: Duration)
-
-internal data class MeshEngineOutboundDeliveryDependencies(
-    val deliveryRetrySupport: MeshEngineDeliveryRetrySupport
-)
-
 internal class MeshEngineOutboundDeliverySupport(
-    private val config: MeshEngineOutboundDeliveryConfig,
-    private val dependencies: MeshEngineOutboundDeliveryDependencies,
+    private val outboundDeliveryDriver: MeshEngineOutboundDeliveryDriver,
     private val inlineOutboundDeliveryAdapter: MeshEngineInlineOutboundDeliveryAdapter,
     private val largeTransferOutboundDeliveryAdapter: MeshEngineLargeTransferOutboundDeliveryAdapter,
 ) {
@@ -57,165 +49,29 @@ internal class MeshEngineOutboundDeliverySupport(
         priority: DeliveryPriority,
         hardRunToken: MeshEngineHardRunToken,
     ): SendResult {
+        val initialContext =
+            MeshEngineOutboundDeliveryAttemptContext(
+                peerId = peerId,
+                payload = payload,
+                priority = priority,
+                hardRunToken = hardRunToken,
+                remainingBudget = outboundDeliveryDriver.deliveryRetryDeadline,
+            )
         return when (mode) {
             MeshEngineOutboundDeliveryMode.INLINE ->
-                sendInlinePayload(
-                    peerId = peerId,
-                    payload = payload,
-                    priority = priority,
-                    hardRunToken = hardRunToken,
-                )
+                sendWithAdapter(inlineOutboundDeliveryAdapter, initialContext)
             MeshEngineOutboundDeliveryMode.LARGE_TRANSFER ->
-                sendLargeTransferPayload(
-                    peerId = peerId,
-                    payload = payload,
-                    priority = priority,
-                    hardRunToken = hardRunToken,
-                )
+                sendWithAdapter(largeTransferOutboundDeliveryAdapter, initialContext)
         }
     }
 
-    private suspend fun sendInlinePayload(
-        peerId: PeerId,
-        payload: ByteArray,
-        priority: DeliveryPriority,
-        hardRunToken: MeshEngineHardRunToken,
+    private suspend fun <S> sendWithAdapter(
+        adapter: MeshEngineOutboundDeliveryAdapter<S>,
+        initialContext: MeshEngineOutboundDeliveryAttemptContext,
     ): SendResult {
-        val initialContext =
-            MeshEngineOutboundDeliveryAttemptContext(
-                peerId = peerId,
-                payload = payload,
-                priority = priority,
-                hardRunToken = hardRunToken,
-                remainingBudget = config.deliveryRetryDeadline,
-            )
-        return inlineOutboundDeliveryAdapter.withDiscoveryPolicy(initialContext) {
-            executeSendLoop(
-                peerId = peerId,
-                payload = payload,
-                priority = priority,
-                hardRunToken = hardRunToken,
-                currentTopologyVersion = inlineOutboundDeliveryAdapter::currentTopologyVersion,
-                createInitialState = inlineOutboundDeliveryAdapter::beginOutboundDelivery,
-                attemptDelivery = inlineOutboundDeliveryAdapter::attemptOutboundDelivery,
-                onDeadlineExpired = inlineOutboundDeliveryAdapter::onDeadlineExpired,
-                onHardRunEnded = inlineOutboundDeliveryAdapter::onHardRunEnded,
-            )
+        return adapter.withDiscoveryPolicy(initialContext) {
+            outboundDeliveryDriver.execute(adapter = adapter, initialContext = initialContext)
         }
-    }
-
-    private suspend fun sendLargeTransferPayload(
-        peerId: PeerId,
-        payload: ByteArray,
-        priority: DeliveryPriority,
-        hardRunToken: MeshEngineHardRunToken,
-    ): SendResult {
-        val initialContext =
-            MeshEngineOutboundDeliveryAttemptContext(
-                peerId = peerId,
-                payload = payload,
-                priority = priority,
-                hardRunToken = hardRunToken,
-                remainingBudget = config.deliveryRetryDeadline,
-            )
-        return largeTransferOutboundDeliveryAdapter.withDiscoveryPolicy(initialContext) {
-            executeSendLoop(
-                peerId = peerId,
-                payload = payload,
-                priority = priority,
-                hardRunToken = hardRunToken,
-                currentTopologyVersion =
-                    largeTransferOutboundDeliveryAdapter::currentTopologyVersion,
-                createInitialState = largeTransferOutboundDeliveryAdapter::beginOutboundDelivery,
-                attemptDelivery = largeTransferOutboundDeliveryAdapter::attemptOutboundDelivery,
-                onDeadlineExpired = largeTransferOutboundDeliveryAdapter::onDeadlineExpired,
-                onHardRunEnded = largeTransferOutboundDeliveryAdapter::onHardRunEnded,
-            )
-        }
-    }
-
-    private suspend fun <S> executeSendLoop(
-        peerId: PeerId,
-        payload: ByteArray,
-        priority: DeliveryPriority,
-        hardRunToken: MeshEngineHardRunToken,
-        currentTopologyVersion: () -> Long,
-        createInitialState: (MeshEngineOutboundDeliveryAttemptContext) -> S,
-        attemptDelivery:
-            suspend (
-                S, MeshEngineOutboundDeliveryAttemptContext,
-            ) -> MeshEngineOutboundDeliveryAttemptOutcome<S>,
-        onDeadlineExpired: suspend (S, MeshEngineOutboundDeliveryAttemptContext) -> SendResult,
-        onHardRunEnded: suspend (S, MeshEngineOutboundDeliveryAttemptContext) -> SendResult,
-    ): SendResult {
-        val startedAt = TimeSource.Monotonic.markNow()
-        var retryState =
-            MeshEngineDeliveryRetryState(attempt = 0, topologyVersion = currentTopologyVersion())
-        var deliveryState =
-            createInitialState(
-                MeshEngineOutboundDeliveryAttemptContext(
-                    peerId = peerId,
-                    payload = payload,
-                    priority = priority,
-                    hardRunToken = hardRunToken,
-                    remainingBudget = config.deliveryRetryDeadline,
-                )
-            )
-
-        while (startedAt.elapsedNow() < config.deliveryRetryDeadline) {
-            val remainingBudget =
-                (config.deliveryRetryDeadline - startedAt.elapsedNow()).coerceAtLeast(Duration.ZERO)
-            val attemptContext =
-                MeshEngineOutboundDeliveryAttemptContext(
-                    peerId = peerId,
-                    payload = payload,
-                    priority = priority,
-                    hardRunToken = hardRunToken,
-                    remainingBudget = remainingBudget,
-                )
-            when (val attemptOutcome = attemptDelivery(deliveryState, attemptContext)) {
-                is MeshEngineOutboundDeliveryAttemptOutcome.Completed -> {
-                    return attemptOutcome.result
-                }
-                is MeshEngineOutboundDeliveryAttemptOutcome.RetryImmediately -> {
-                    deliveryState = attemptOutcome.nextState
-                    retryState = retryState.copy(attempt = 0)
-                }
-                is MeshEngineOutboundDeliveryAttemptOutcome.AwaitRetry -> {
-                    deliveryState = attemptOutcome.nextState
-                    when (
-                        val wakeupResult =
-                            dependencies.deliveryRetrySupport.awaitRetry(
-                                peerId = peerId,
-                                state = retryState,
-                                remainingBudget = remainingBudget,
-                                hardRunToken = hardRunToken,
-                                profile = attemptOutcome.retryPolicy.profile,
-                                emitDiagnostics = attemptOutcome.retryPolicy.emitDiagnostics,
-                            )
-                    ) {
-                        is MeshEngineDeliveryRetryResult.Woke -> retryState = wakeupResult.state
-                        MeshEngineDeliveryRetryResult.DeadlineExpired -> {
-                            return onDeadlineExpired(deliveryState, attemptContext)
-                        }
-                        MeshEngineDeliveryRetryResult.HardRunEnded -> {
-                            return onHardRunEnded(deliveryState, attemptContext)
-                        }
-                    }
-                }
-            }
-        }
-
-        return onDeadlineExpired(
-            deliveryState,
-            MeshEngineOutboundDeliveryAttemptContext(
-                peerId = peerId,
-                payload = payload,
-                priority = priority,
-                hardRunToken = hardRunToken,
-                remainingBudget = Duration.ZERO,
-            ),
-        )
     }
 }
 
@@ -226,9 +82,11 @@ internal fun buildMeshEngineRuntimeOutboundDeliverySupport(
     largeTransferOutboundDeliveryAdapter: MeshEngineLargeTransferOutboundDeliveryAdapter,
 ): MeshEngineOutboundDeliverySupport {
     return MeshEngineOutboundDeliverySupport(
-        config = MeshEngineOutboundDeliveryConfig(deliveryRetryDeadline = deliveryRetryDeadline),
-        dependencies =
-            MeshEngineOutboundDeliveryDependencies(deliveryRetrySupport = deliveryRetrySupport),
+        outboundDeliveryDriver =
+            MeshEngineOutboundDeliveryDriver(
+                deliveryRetryDeadline = deliveryRetryDeadline,
+                deliveryRetrySupport = deliveryRetrySupport,
+            ),
         inlineOutboundDeliveryAdapter = inlineOutboundDeliveryAdapter,
         largeTransferOutboundDeliveryAdapter = largeTransferOutboundDeliveryAdapter,
     )

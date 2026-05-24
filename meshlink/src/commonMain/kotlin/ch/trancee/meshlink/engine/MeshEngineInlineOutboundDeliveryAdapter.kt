@@ -40,16 +40,16 @@ internal class MeshEngineInlineOutboundDeliveryAdapter(
     private val config: MeshEngineInlineOutboundDeliveryAdapterConfig,
     private val dependencies: MeshEngineInlineOutboundDeliveryAdapterDependencies,
     private val callbacks: MeshEngineInlineOutboundDeliveryAdapterCallbacks,
-) {
-    fun currentTopologyVersion(): Long {
+) : MeshEngineOutboundDeliveryAdapter<Unit> {
+    override fun currentTopologyVersion(): Long {
         return dependencies.dispatchSupport.currentTopologyVersion()
     }
 
-    fun beginOutboundDelivery(
+    override fun beginOutboundDelivery(
         @Suppress("UnusedParameter") context: MeshEngineOutboundDeliveryAttemptContext
     ): Unit = Unit
 
-    suspend fun <T> withDiscoveryPolicy(
+    override suspend fun <T> withDiscoveryPolicy(
         context: MeshEngineOutboundDeliveryAttemptContext,
         block: suspend () -> T,
     ): T {
@@ -59,7 +59,7 @@ internal class MeshEngineInlineOutboundDeliveryAdapter(
         )
     }
 
-    suspend fun attemptOutboundDelivery(
+    override suspend fun attemptOutboundDelivery(
         @Suppress("UnusedParameter") state: Unit,
         context: MeshEngineOutboundDeliveryAttemptContext,
     ): MeshEngineOutboundDeliveryAttemptOutcome<Unit> {
@@ -139,7 +139,7 @@ internal class MeshEngineInlineOutboundDeliveryAdapter(
         }
     }
 
-    fun onDeadlineExpired(
+    override suspend fun onDeadlineExpired(
         @Suppress("UnusedParameter") state: Unit,
         context: MeshEngineOutboundDeliveryAttemptContext,
     ): SendResult {
@@ -154,7 +154,7 @@ internal class MeshEngineInlineOutboundDeliveryAdapter(
         return SendResult.NotSent(SendFailureReason.UNREACHABLE)
     }
 
-    fun onHardRunEnded(
+    override suspend fun onHardRunEnded(
         @Suppress("UnusedParameter") state: Unit,
         @Suppress("UnusedParameter") context: MeshEngineOutboundDeliveryAttemptContext,
     ): SendResult {

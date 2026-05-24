@@ -25,25 +25,25 @@ internal data class MeshEngineLargeTransferOutboundDeliveryState(
 internal class MeshEngineLargeTransferOutboundDeliveryAdapter(
     private val outboundTransferLifecycleSupport: MeshEngineOutboundTransferLifecycleSupport,
     private val dependencies: MeshEngineLargeTransferOutboundDeliveryAdapterDependencies,
-) {
-    fun currentTopologyVersion(): Long {
+) : MeshEngineOutboundDeliveryAdapter<MeshEngineLargeTransferOutboundDeliveryState> {
+    override fun currentTopologyVersion(): Long {
         return dependencies.currentTopologyVersion()
     }
 
-    fun beginOutboundDelivery(
+    override fun beginOutboundDelivery(
         @Suppress("UnusedParameter") context: MeshEngineOutboundDeliveryAttemptContext
     ): MeshEngineLargeTransferOutboundDeliveryState {
         return MeshEngineLargeTransferOutboundDeliveryState()
     }
 
-    suspend fun <T> withDiscoveryPolicy(
+    override suspend fun <T> withDiscoveryPolicy(
         @Suppress("UnusedParameter") context: MeshEngineOutboundDeliveryAttemptContext,
         block: suspend () -> T,
     ): T {
         return dependencies.discoverySuspensionSupport.withDiscoverySuspended(block = block)
     }
 
-    suspend fun attemptOutboundDelivery(
+    override suspend fun attemptOutboundDelivery(
         state: MeshEngineLargeTransferOutboundDeliveryState,
         context: MeshEngineOutboundDeliveryAttemptContext,
     ): MeshEngineOutboundDeliveryAttemptOutcome<MeshEngineLargeTransferOutboundDeliveryState> {
@@ -108,7 +108,7 @@ internal class MeshEngineLargeTransferOutboundDeliveryAdapter(
         }
     }
 
-    suspend fun onDeadlineExpired(
+    override suspend fun onDeadlineExpired(
         state: MeshEngineLargeTransferOutboundDeliveryState,
         context: MeshEngineOutboundDeliveryAttemptContext,
     ): SendResult {
@@ -119,7 +119,7 @@ internal class MeshEngineLargeTransferOutboundDeliveryAdapter(
         )
     }
 
-    suspend fun onHardRunEnded(
+    override suspend fun onHardRunEnded(
         state: MeshEngineLargeTransferOutboundDeliveryState,
         @Suppress("UnusedParameter") context: MeshEngineOutboundDeliveryAttemptContext,
     ): SendResult {
