@@ -20,10 +20,6 @@ import ch.trancee.meshlink.trust.TrustPublicKeys
 import ch.trancee.meshlink.trust.TrustRecord
 import ch.trancee.meshlink.wire.WireFrame
 
-internal data class MeshEngineOutboundPreparationState(
-    val outboundTransfers: MutableMap<String, OutboundTransferSession>
-)
-
 internal data class MeshEngineOutboundPreparationRoutingContext(
     val routeCoordinator: RouteCoordinator,
     val routingSupport: MeshEngineRoutingSupport,
@@ -57,7 +53,6 @@ internal sealed class MeshEngineOutboundInlineMessagePreparation {
 internal class MeshEngineOutboundPreparationSupport(
     private val localIdentity: LocalIdentity,
     private val trustStore: TofuTrustStore,
-    private val state: MeshEngineOutboundPreparationState,
     private val routingContext: MeshEngineOutboundPreparationRoutingContext,
     private val callbacks: MeshEngineOutboundPreparationCallbacks,
     private val emitDiagnostic:
@@ -137,7 +132,6 @@ internal class MeshEngineOutboundPreparationSupport(
                         envelopeBytes = envelopePreparation.envelopeBytes,
                         hardRunToken = hardRunToken,
                     )
-                state.outboundTransfers[session.transferId] = session
                 emitTransferStartedDiagnostic(peerId)
                 OutboundTransferPreparation.Ready(session)
             }

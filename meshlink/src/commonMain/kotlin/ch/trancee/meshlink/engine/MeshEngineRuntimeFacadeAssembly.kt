@@ -117,7 +117,6 @@ private fun buildMeshEngineRuntimeLifecycleSupport(
     val lifecycleState =
         MeshEngineLifecycleState(
             runtimeSurface = environment.compatibilitySurface,
-            outboundTransfers = sharedState.outboundTransfers,
             inboundTransfers = sharedState.inboundTransfers,
             relayTransfers = sharedState.relayTransfers,
             currentPowerPolicy = sharedState.powerPolicyController.currentPolicy(nowMillis = 0L),
@@ -150,6 +149,8 @@ private fun buildMeshEngineRuntimeLifecycleSupport(
                 abortCommittedTransfers = { reasonCode ->
                     transferAndInbound.transferSupport.abortLocalTransfers(reasonCode)
                 },
+                clearOutboundTransfers =
+                    transferAndInbound.outboundTransferLifecycleSupport::clearAll,
             ),
         diagnostics =
             MeshEngineLifecycleDiagnostics(

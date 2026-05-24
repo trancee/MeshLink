@@ -30,12 +30,15 @@ class MeshEngineLargeTransferOutboundDeliveryAdapterTest {
         val retryDiagnostics = mutableListOf<Pair<PeerId, DeliveryPriority>>()
         val adapter =
             largeTransferOutboundDeliveryAdapter(
-                scheduleRetryDiagnostic = { peerId, priority ->
-                    retryDiagnostics += peerId to priority
-                },
-                prepareOutboundTransferSession = { _, _, _ ->
-                    OutboundTransferPreparation.PendingRoute
-                },
+                outboundTransferLifecycleSupport =
+                    outboundTransferLifecycleSupport(
+                        scheduleRetryDiagnostic = { peerId, priority ->
+                            retryDiagnostics += peerId to priority
+                        },
+                        prepareOutboundTransferSession = { _, _, _ ->
+                            OutboundTransferPreparation.PendingRoute
+                        },
+                    )
             )
         val context = largeTransferAttemptContext()
         val state = adapter.beginOutboundDelivery(context)
@@ -65,12 +68,15 @@ class MeshEngineLargeTransferOutboundDeliveryAdapterTest {
             var transferStartFrames = 0
             val adapter =
                 largeTransferOutboundDeliveryAdapter(
-                    prepareOutboundTransferSession = { destinationPeerId, _, _ ->
-                        if (outboundSession == null) {
-                            outboundSession = testOutboundTransferSession(destinationPeerId)
-                        }
-                        OutboundTransferPreparation.Ready(checkNotNull(outboundSession))
-                    },
+                    outboundTransferLifecycleSupport =
+                        outboundTransferLifecycleSupport(
+                            prepareOutboundTransferSession = { destinationPeerId, _, _ ->
+                                if (outboundSession == null) {
+                                    outboundSession = testOutboundTransferSession(destinationPeerId)
+                                }
+                                OutboundTransferPreparation.Ready(checkNotNull(outboundSession))
+                            }
+                        ),
                     sendTransferTowardsDestination = { _, frame, _, _ ->
                         when (frame) {
                             is WireFrame.TransferStart -> {
@@ -131,12 +137,16 @@ class MeshEngineLargeTransferOutboundDeliveryAdapterTest {
         runBlocking {
             // Arrange
             val clearedOutboundFrames = mutableListOf<Pair<PeerId, String>>()
+            val outboundTransfers = mutableMapOf<String, OutboundTransferSession>()
             val session = testOutboundTransferSession(PeerId("peer-abcdef"))
+            outboundTransfers[session.transferId] = session
             val adapter =
                 largeTransferOutboundDeliveryAdapter(
+                    outboundTransferLifecycleSupport =
+                        outboundTransferLifecycleSupport(outboundTransfers = outboundTransfers),
                     clearQueuedOutboundFrames = { peerId, action ->
                         clearedOutboundFrames += peerId to action
-                    }
+                    },
                 )
             val context = largeTransferAttemptContext(peerId = session.destinationPeerId)
             val state =
@@ -155,16 +165,13 @@ class MeshEngineLargeTransferOutboundDeliveryAdapterTest {
                 listOf(session.destinationPeerId to "transfer.clearQueuedFramesOnFailure"),
                 clearedOutboundFrames,
             )
+            assertEquals(emptyMap(), outboundTransfers)
         }
 }
 
 private fun largeTransferOutboundDeliveryAdapter(
-    scheduleRetryDiagnostic: (PeerId, DeliveryPriority) -> Unit = { _, _ -> },
-    prepareOutboundTransferSession:
-        suspend (PeerId, ByteArray, MeshEngineHardRunToken) -> OutboundTransferPreparation =
-        { _, _, _ ->
-            OutboundTransferPreparation.Failed(SendResult.NotSent(SendFailureReason.UNREACHABLE))
-        },
+    outboundTransferLifecycleSupport: MeshEngineOutboundTransferLifecycleSupport =
+        outboundTransferLifecycleSupport(),
     sendTransferTowardsDestination:
         suspend (PeerId, WireFrame, String, MeshEngineHardRunToken?) -> Boolean =
         { _, _, _, _ ->
@@ -178,20 +185,37 @@ private fun largeTransferOutboundDeliveryAdapter(
                 ackSettlementTimeout = 100.milliseconds,
                 ackIdleWindow = 25.milliseconds,
             ),
-        state =
-            MeshEngineLargeTransferOutboundDeliveryAdapterState(outboundTransfers = mutableMapOf()),
         routingSupport = largeTransferRoutingSupport(),
+        outboundTransferLifecycleSupport = outboundTransferLifecycleSupport,
         dependencies =
             MeshEngineLargeTransferOutboundDeliveryAdapterDependencies(
                 runtimeGate = LargeTransferAdapterRuntimeGate(),
                 currentTopologyVersion = { 3L },
                 discoverySuspensionSupport = MeshEngineDiscoverySuspensionSupport { _ -> },
-                prepareOutboundTransferSession = prepareOutboundTransferSession,
-                scheduleRetryDiagnostic = scheduleRetryDiagnostic,
+                scheduleRetryDiagnostic = { _, _ -> },
                 sendTransferTowardsDestination = sendTransferTowardsDestination,
                 clearQueuedOutboundFrames = clearQueuedOutboundFrames,
             ),
         emitDiagnostic = { _, _, _, _, _, _ -> },
+    )
+}
+
+private fun outboundTransferLifecycleSupport(
+    outboundTransfers: MutableMap<String, OutboundTransferSession> = mutableMapOf(),
+    scheduleRetryDiagnostic: (PeerId, DeliveryPriority) -> Unit = { _, _ -> },
+    prepareOutboundTransferSession:
+        suspend (PeerId, ByteArray, MeshEngineHardRunToken) -> OutboundTransferPreparation =
+        { _, _, _ ->
+            OutboundTransferPreparation.Failed(SendResult.NotSent(SendFailureReason.UNREACHABLE))
+        },
+): MeshEngineOutboundTransferLifecycleSupport {
+    return MeshEngineOutboundTransferLifecycleSupport(
+        state = MeshEngineOutboundTransferLifecycleState(outboundTransfers = outboundTransfers),
+        dependencies =
+            MeshEngineOutboundTransferLifecycleDependencies(
+                prepareOutboundTransferSession = prepareOutboundTransferSession,
+                scheduleRetryDiagnostic = scheduleRetryDiagnostic,
+            ),
     )
 }
 

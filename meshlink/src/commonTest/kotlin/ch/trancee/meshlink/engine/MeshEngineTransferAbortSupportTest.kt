@@ -30,21 +30,27 @@ class MeshEngineTransferAbortSupportTest {
                     destinationPeerId = PeerId("relay-destination"),
                     upstreamPeerId = PeerId("relay-upstream"),
                 )
+            val outboundTransfers = mutableMapOf(outboundSession.transferId to outboundSession)
             val state =
                 MeshEngineTransferState(
-                    outboundTransfers = mutableMapOf(outboundSession.transferId to outboundSession),
                     inboundTransfers = mutableMapOf(inboundSession.transferId to inboundSession),
                     relayTransfers = mutableMapOf(relaySession.transferId to relaySession),
                 )
             val callbacks = RecordingTransferAbortCallbacks()
-            val support = transferAbortSupport(state = state, callbacks = callbacks)
+            val support =
+                transferAbortSupport(
+                    state = state,
+                    outboundTransferLifecycleSupport =
+                        outboundTransferLifecycleSupport(outboundTransfers),
+                    callbacks = callbacks,
+                )
             val reasonCode = TransferAbortReasonCode.RUNTIME_STOPPED
 
             // Act
             support.abortLocalTransfers(reasonCode)
 
             // Assert
-            assertTrue(state.outboundTransfers.isEmpty())
+            assertTrue(outboundTransfers.isEmpty())
             assertTrue(state.inboundTransfers.isEmpty())
             assertTrue(state.relayTransfers.isEmpty())
             assertEquals(
@@ -114,12 +120,16 @@ class MeshEngineTransferAbortSupportTest {
         // Arrange
         val state =
             MeshEngineTransferState(
-                outboundTransfers = mutableMapOf(),
                 inboundTransfers = mutableMapOf(),
                 relayTransfers = mutableMapOf(),
             )
         val callbacks = RecordingTransferAbortCallbacks()
-        val support = transferAbortSupport(state = state, callbacks = callbacks)
+        val support =
+            transferAbortSupport(
+                state = state,
+                outboundTransferLifecycleSupport = outboundTransferLifecycleSupport(),
+                callbacks = callbacks,
+            )
 
         // Act
         support.abortLocalTransfers(TransferAbortReasonCode.RUNTIME_STOPPED)
@@ -134,10 +144,12 @@ class MeshEngineTransferAbortSupportTest {
 
 private fun transferAbortSupport(
     state: MeshEngineTransferState,
+    outboundTransferLifecycleSupport: MeshEngineOutboundTransferLifecycleSupport,
     callbacks: RecordingTransferAbortCallbacks,
 ): MeshEngineTransferAbortSupport {
     return MeshEngineTransferAbortSupport(
         state = state,
+        outboundTransferLifecycleSupport = outboundTransferLifecycleSupport,
         callbacks =
             MeshEngineTransferAbortCallbacks(
                 sendEncryptedWireFrame = { peerId, frame, action, _ ->
@@ -179,6 +191,25 @@ private fun transferAbortSupport(
                     metadata = metadata,
                 )
         },
+    )
+}
+
+private fun outboundTransferLifecycleSupport(
+    outboundTransfers: MutableMap<String, OutboundTransferSession> = mutableMapOf()
+): MeshEngineOutboundTransferLifecycleSupport {
+    return MeshEngineOutboundTransferLifecycleSupport(
+        state = MeshEngineOutboundTransferLifecycleState(outboundTransfers = outboundTransfers),
+        dependencies =
+            MeshEngineOutboundTransferLifecycleDependencies(
+                prepareOutboundTransferSession = { _, _, _ ->
+                    OutboundTransferPreparation.Failed(
+                        ch.trancee.meshlink.api.SendResult.NotSent(
+                            ch.trancee.meshlink.api.SendFailureReason.UNREACHABLE
+                        )
+                    )
+                },
+                scheduleRetryDiagnostic = { _, _ -> },
+            ),
     )
 }
 

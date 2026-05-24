@@ -9,13 +9,11 @@ import ch.trancee.meshlink.diagnostics.DiagnosticCode
 import ch.trancee.meshlink.power.PowerPolicy
 import ch.trancee.meshlink.power.PowerPolicyController
 import ch.trancee.meshlink.transfer.InboundTransferSession
-import ch.trancee.meshlink.transfer.OutboundTransferSession
 import ch.trancee.meshlink.transfer.RelayTransferSession
 import ch.trancee.meshlink.wire.TransferAbortReasonCode
 
 internal data class MeshEngineLifecycleState(
     val runtimeSurface: MeshEngineCompatibilityRuntimeSurface,
-    val outboundTransfers: MutableMap<String, OutboundTransferSession>,
     val inboundTransfers: MutableMap<String, InboundTransferSession>,
     val relayTransfers: MutableMap<String, RelayTransferSession>,
     var currentPowerPolicy: PowerPolicy,
@@ -32,6 +30,7 @@ internal data class MeshEngineLifecycleCallbacks(
     val launchTransportPowerPolicyUpdate: (PowerPolicy) -> Unit,
     val clearVolatileRuntimeView: suspend (String, DiagnosticCode, Map<String, String>) -> Unit,
     val abortCommittedTransfers: suspend (TransferAbortReasonCode) -> Unit,
+    val clearOutboundTransfers: () -> Unit,
 )
 
 internal data class MeshEngineLifecycleDiagnostics(
@@ -114,7 +113,7 @@ internal class MeshEngineLifecycleSupport(
         return when (state.runtimeSurface.currentState()) {
             MeshLinkState.Stopped -> StopResult.AlreadyStopped
             MeshLinkState.Uninitialized -> {
-                state.outboundTransfers.clear()
+                callbacks.clearOutboundTransfers()
                 state.inboundTransfers.clear()
                 state.relayTransfers.clear()
                 state.runtimeSurface.setLifecycleState(MeshLinkState.Stopped)
@@ -131,7 +130,7 @@ internal class MeshEngineLifecycleSupport(
                     DiagnosticCode.ROUTE_RETRACTED,
                     mapOf("runtimeBoundary" to "stop"),
                 )
-                state.outboundTransfers.clear()
+                callbacks.clearOutboundTransfers()
                 state.inboundTransfers.clear()
                 state.relayTransfers.clear()
                 state.runtimeSurface.setLifecycleState(MeshLinkState.Stopped)

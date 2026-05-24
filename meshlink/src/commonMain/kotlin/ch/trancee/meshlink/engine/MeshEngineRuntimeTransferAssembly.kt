@@ -24,9 +24,15 @@ internal fun buildMeshEngineRuntimeTransferAndInboundPhase(
         buildMeshEngineRuntimeOutboundPreparationSupport(
             environment = environment,
             support = support,
-            sharedState = sharedState,
             routingAndTrust = routingAndTrust,
             sessionAndHopTransport = sessionAndHopTransport,
+            sharedState = sharedState,
+        )
+    val outboundTransferLifecycleSupport =
+        buildMeshEngineRuntimeOutboundTransferLifecycleSupport(
+            sharedState = sharedState,
+            routingAndTrust = routingAndTrust,
+            outboundPreparationSupport = outboundPreparationSupport,
         )
     val deliveryRetrySupport =
         buildMeshEngineRuntimeDeliveryRetrySupport(
@@ -78,14 +84,14 @@ internal fun buildMeshEngineRuntimeTransferAndInboundPhase(
             messageDeliverySupport = messageDeliverySupport,
             sendTransferTowardsDestination = sendTransferTowardsDestination,
             clearQueuedOutboundFrames = clearQueuedOutboundFrames,
+            outboundTransferLifecycleSupport = outboundTransferLifecycleSupport,
         )
     val largeTransferOutboundDeliveryAdapter =
         buildMeshEngineRuntimeLargeTransferOutboundDeliveryAdapter(
-            outboundTransfers = sharedState.outboundTransfers,
             routingSupport = routingAndTrust.routingSupport,
             runtimeGate = environment.compatibilitySurface.runtimeGate,
             currentTopologyVersion = { sharedState.routeCoordinator.topologyVersion.value },
-            outboundPreparationSupport = outboundPreparationSupport,
+            outboundTransferLifecycleSupport = outboundTransferLifecycleSupport,
             discoverySuspensionSupport = transferDiscoverySuspensionSupport,
             scheduleRetryDiagnostic = routingAndTrust.scheduleRetryDiagnostic,
             sendTransferTowardsDestination = sendTransferTowardsDestination,
@@ -114,6 +120,7 @@ internal fun buildMeshEngineRuntimeTransferAndInboundPhase(
             transferSupport = transferSupport,
         )
     return MeshEngineRuntimeTransferAndInboundPhase(
+        outboundTransferLifecycleSupport = outboundTransferLifecycleSupport,
         outboundDeliverySupport = outboundDeliverySupport,
         transferSupport = transferSupport,
         inboundSupport = inboundSupport,
@@ -139,15 +146,13 @@ private fun buildMeshEngineRuntimeMessageDeliverySupport(
 private fun buildMeshEngineRuntimeOutboundPreparationSupport(
     environment: MeshEngineRuntimeAssemblyEnvironment,
     support: MeshEngineRuntimeAssemblySupport,
-    sharedState: MeshEngineRuntimeSharedState,
     routingAndTrust: MeshEngineRuntimeRoutingAndTrustPhase,
     sessionAndHopTransport: MeshEngineRuntimeSessionAndHopTransportPhase,
+    sharedState: MeshEngineRuntimeSharedState,
 ): MeshEngineOutboundPreparationSupport {
     return MeshEngineOutboundPreparationSupport(
         localIdentity = environment.localIdentity,
         trustStore = environment.trustStore,
-        state =
-            MeshEngineOutboundPreparationState(outboundTransfers = sharedState.outboundTransfers),
         routingContext =
             MeshEngineOutboundPreparationRoutingContext(
                 routeCoordinator = sharedState.routeCoordinator,
@@ -233,6 +238,25 @@ private fun buildMeshEngineRuntimeOutboundDeliverySupport(
     )
 }
 
+private fun buildMeshEngineRuntimeOutboundTransferLifecycleSupport(
+    sharedState: MeshEngineRuntimeSharedState,
+    routingAndTrust: MeshEngineRuntimeRoutingAndTrustPhase,
+    outboundPreparationSupport: MeshEngineOutboundPreparationSupport,
+): MeshEngineOutboundTransferLifecycleSupport {
+    return MeshEngineOutboundTransferLifecycleSupport(
+        state =
+            MeshEngineOutboundTransferLifecycleState(
+                outboundTransfers = sharedState.outboundTransfers
+            ),
+        dependencies =
+            MeshEngineOutboundTransferLifecycleDependencies(
+                prepareOutboundTransferSession =
+                    outboundPreparationSupport::prepareOutboundTransferSession,
+                scheduleRetryDiagnostic = routingAndTrust.scheduleRetryDiagnostic,
+            ),
+    )
+}
+
 private fun buildMeshEngineRuntimeTransferSupport(
     environment: MeshEngineRuntimeAssemblyEnvironment,
     support: MeshEngineRuntimeAssemblySupport,
@@ -243,10 +267,10 @@ private fun buildMeshEngineRuntimeTransferSupport(
     sendTransferTowardsDestination:
         suspend (PeerId, WireFrame, String, MeshEngineHardRunToken?) -> Boolean,
     clearQueuedOutboundFrames: suspend (PeerId, String) -> Unit,
+    outboundTransferLifecycleSupport: MeshEngineOutboundTransferLifecycleSupport,
 ): MeshEngineTransferSupport {
     val state =
         MeshEngineTransferState(
-            outboundTransfers = sharedState.outboundTransfers,
             inboundTransfers = sharedState.inboundTransfers,
             relayTransfers = sharedState.relayTransfers,
         )
@@ -271,6 +295,7 @@ private fun buildMeshEngineRuntimeTransferSupport(
     val abortSupport =
         buildMeshEngineRuntimeTransferAbortSupport(
             state = state,
+            outboundTransferLifecycleSupport = outboundTransferLifecycleSupport,
             sendEncryptedWireFrame = sendEncryptedWireFrame,
             sendTransferTowardsDestination = sendTransferTowardsDestination,
             clearQueuedOutboundFrames = clearQueuedOutboundFrames,
@@ -279,6 +304,7 @@ private fun buildMeshEngineRuntimeTransferSupport(
         )
     return MeshEngineTransferSupport(
         state = state,
+        outboundTransferLifecycleSupport = outboundTransferLifecycleSupport,
         callbacks =
             MeshEngineTransferCallbacks(
                 captureHardRunToken =

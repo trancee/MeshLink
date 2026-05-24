@@ -5,13 +5,11 @@ import ch.trancee.meshlink.diagnostics.DiagnosticCode
 import ch.trancee.meshlink.diagnostics.DiagnosticReason
 import ch.trancee.meshlink.diagnostics.DiagnosticSeverity
 import ch.trancee.meshlink.transfer.InboundTransferSession
-import ch.trancee.meshlink.transfer.OutboundTransferSession
 import ch.trancee.meshlink.transfer.RelayTransferSession
 import ch.trancee.meshlink.wire.TransferAbortReasonCode
 import ch.trancee.meshlink.wire.WireFrame
 
 internal data class MeshEngineTransferState(
-    val outboundTransfers: MutableMap<String, OutboundTransferSession>,
     val inboundTransfers: MutableMap<String, InboundTransferSession>,
     val relayTransfers: MutableMap<String, RelayTransferSession>,
 )
@@ -23,6 +21,7 @@ internal data class MeshEngineTransferCallbacks(
 
 internal class MeshEngineTransferSupport(
     private val state: MeshEngineTransferState,
+    private val outboundTransferLifecycleSupport: MeshEngineOutboundTransferLifecycleSupport,
     private val callbacks: MeshEngineTransferCallbacks,
     private val inboundSupport: MeshEngineInboundTransferSupport,
     private val relaySupport: MeshEngineRelayTransferSupport,
@@ -63,9 +62,7 @@ internal class MeshEngineTransferSupport(
 
     @Suppress("UnusedParameter")
     suspend fun handleTransferAck(peerId: PeerId, frame: WireFrame.TransferAck): Unit {
-        val outboundSession = state.outboundTransfers[frame.transferId]
-        if (outboundSession != null) {
-            outboundSession.markAcknowledged(frame)
+        if (outboundTransferLifecycleSupport.markAcknowledged(frame)) {
             return
         }
         relaySupport.handleTransferAck(frame)
@@ -85,7 +82,7 @@ internal class MeshEngineTransferSupport(
         if (relaySupport.handleTransferAbort(frame)) {
             return
         }
-        val outboundSession = state.outboundTransfers.remove(frame.transferId)
+        val outboundSession = outboundTransferLifecycleSupport.removeSession(frame.transferId)
         if (outboundSession != null) {
             emitDiagnostic(
                 DiagnosticCode.TRANSFER_FAILED,

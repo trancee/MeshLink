@@ -87,7 +87,7 @@ class MeshEngineOutboundPreparationSupportTest {
         }
 
     @Test
-    fun `prepareOutboundTransferSession stores the outbound session when trust already exists`() =
+    fun `prepareOutboundTransferSession returns an unregistered outbound session when trust already exists`() =
         runBlocking {
             // Arrange
             val localIdentity = LocalIdentity.fromAppId("outbound-transfer-sender")
@@ -108,7 +108,6 @@ class MeshEngineOutboundPreparationSupportTest {
 
             // Assert
             val ready = assertIs<OutboundTransferPreparation.Ready>(preparation)
-            assertEquals(ready.session, callbacks.outboundTransfers[ready.session.transferId])
             assertEquals("message-1", ready.session.messageId)
             assertEquals("transfer-1", ready.session.transferId)
             assertTrue(ready.session.totalChunks > 1)
@@ -131,7 +130,6 @@ private fun outboundPreparationSupport(
     return MeshEngineOutboundPreparationSupport(
         localIdentity = localIdentity,
         trustStore = trustStore,
-        state = MeshEngineOutboundPreparationState(callbacks.outboundTransfers),
         routingContext =
             MeshEngineOutboundPreparationRoutingContext(
                 routeCoordinator = routeCoordinator,
@@ -212,8 +210,6 @@ private class RecordingOutboundPreparationCallbacks {
     val diagnostics: MutableList<RecordedPreparationDiagnostic> = mutableListOf()
     val inlineEncryptFailures: MutableList<Pair<PeerId, String>> = mutableListOf()
     val transferEncryptFailures: MutableList<Pair<PeerId, String>> = mutableListOf()
-    val outboundTransfers =
-        mutableMapOf<String, ch.trancee.meshlink.transfer.OutboundTransferSession>()
 
     private var messageCounter: Int = 0
     private var transferCounter: Int = 0

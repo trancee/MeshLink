@@ -11,7 +11,6 @@ import ch.trancee.meshlink.diagnostics.DiagnosticCode
 import ch.trancee.meshlink.power.PowerPolicy
 import ch.trancee.meshlink.power.PowerPolicyController
 import ch.trancee.meshlink.transfer.InboundTransferSession
-import ch.trancee.meshlink.transfer.OutboundTransferSession
 import ch.trancee.meshlink.transfer.RelayTransferSession
 import ch.trancee.meshlink.wire.TransferAbortReasonCode
 import kotlin.test.Test
@@ -146,6 +145,7 @@ class MeshEngineLifecycleSupportTest {
         assertEquals(MeshLinkState.Stopped, harness.runtimeSurface.state.value)
         assertEquals(0, harness.callbacks.stopTransportCalls)
         assertEquals(0, harness.callbacks.stopTransportCollectorCalls)
+        assertEquals(1, harness.callbacks.clearOutboundTransfersCalls)
         assertTrue(harness.callbacks.clearedRuntimeViews.isEmpty())
         assertTrue(harness.callbacks.abortedTransferReasons.isEmpty())
     }
@@ -167,6 +167,7 @@ class MeshEngineLifecycleSupportTest {
                 listOf(TransferAbortReasonCode.RUNTIME_STOPPED),
                 harness.callbacks.abortedTransferReasons,
             )
+            assertEquals(1, harness.callbacks.clearOutboundTransfersCalls)
             assertEquals(1, harness.callbacks.stopTransportCalls)
             assertEquals(1, harness.callbacks.stopTransportCollectorCalls)
             assertEquals(
@@ -236,7 +237,6 @@ private fun lifecycleHarness(meshState: MeshLinkState): LifecycleHarness {
     val lifecycleState =
         MeshEngineLifecycleState(
             runtimeSurface = runtimeSurface,
-            outboundTransfers = linkedMapOf<String, OutboundTransferSession>(),
             inboundTransfers = linkedMapOf<String, InboundTransferSession>(),
             relayTransfers = linkedMapOf<String, RelayTransferSession>(),
             currentPowerPolicy = powerPolicyController.currentPolicy(nowMillis = 0L),
@@ -275,6 +275,7 @@ private class RecordingLifecycleCallbacks {
     val launchedTransportPowerPolicies: MutableList<PowerPolicy> = mutableListOf()
     val clearedRuntimeViews: MutableList<RuntimeViewClear> = mutableListOf()
     val abortedTransferReasons: MutableList<TransferAbortReasonCode> = mutableListOf()
+    var clearOutboundTransfersCalls: Int = 0
 
     fun asCallbacks(): MeshEngineLifecycleCallbacks {
         return MeshEngineLifecycleCallbacks(
@@ -292,6 +293,7 @@ private class RecordingLifecycleCallbacks {
                 clearedRuntimeViews += RuntimeViewClear(stage, removalCode, metadata)
             },
             abortCommittedTransfers = { reasonCode -> abortedTransferReasons += reasonCode },
+            clearOutboundTransfers = { clearOutboundTransfersCalls += 1 },
         )
     }
 }

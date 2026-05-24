@@ -18,6 +18,7 @@ internal data class MeshEngineTransferAbortCallbacks(
 
 internal class MeshEngineTransferAbortSupport(
     private val state: MeshEngineTransferState,
+    private val outboundTransferLifecycleSupport: MeshEngineOutboundTransferLifecycleSupport,
     private val callbacks: MeshEngineTransferAbortCallbacks,
     private val emitDiagnostic:
         (
@@ -30,10 +31,9 @@ internal class MeshEngineTransferAbortSupport(
         ) -> Unit,
 ) {
     suspend fun abortLocalTransfers(reasonCode: TransferAbortReasonCode): Unit {
-        val outboundSessions = state.outboundTransfers.values.toList()
+        val outboundSessions = outboundTransferLifecycleSupport.takeAllSessions()
         val inboundSessions = state.inboundTransfers.values.toList()
         val relaySessions = state.relayTransfers.values.toList()
-        state.outboundTransfers.clear()
         state.inboundTransfers.clear()
         state.relayTransfers.clear()
 
@@ -139,6 +139,7 @@ internal class MeshEngineTransferAbortSupport(
 
 internal fun buildMeshEngineRuntimeTransferAbortSupport(
     state: MeshEngineTransferState,
+    outboundTransferLifecycleSupport: MeshEngineOutboundTransferLifecycleSupport,
     sendEncryptedWireFrame: suspend (PeerId, WireFrame, String, MeshEngineHardRunToken?) -> Boolean,
     sendTransferTowardsDestination:
         suspend (PeerId, WireFrame, String, MeshEngineHardRunToken?) -> Boolean,
@@ -156,6 +157,7 @@ internal fun buildMeshEngineRuntimeTransferAbortSupport(
 ): MeshEngineTransferAbortSupport {
     return MeshEngineTransferAbortSupport(
         state = state,
+        outboundTransferLifecycleSupport = outboundTransferLifecycleSupport,
         callbacks =
             MeshEngineTransferAbortCallbacks(
                 sendEncryptedWireFrame = sendEncryptedWireFrame,

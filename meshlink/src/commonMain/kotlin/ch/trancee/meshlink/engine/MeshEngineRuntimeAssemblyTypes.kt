@@ -105,6 +105,7 @@ internal data class MeshEngineRuntimeHandshakePhase(
 )
 
 internal data class MeshEngineRuntimeTransferAndInboundPhase(
+    val outboundTransferLifecycleSupport: MeshEngineOutboundTransferLifecycleSupport,
     val outboundDeliverySupport: MeshEngineOutboundDeliverySupport,
     val transferSupport: MeshEngineTransferSupport,
     val inboundSupport: MeshEngineInboundSupport,
