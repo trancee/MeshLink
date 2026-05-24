@@ -7,6 +7,8 @@ import ch.trancee.meshlink.api.SendResult
 import ch.trancee.meshlink.diagnostics.DiagnosticCode
 import ch.trancee.meshlink.diagnostics.DiagnosticReason
 import ch.trancee.meshlink.diagnostics.DiagnosticSeverity
+import ch.trancee.meshlink.transport.TransportSendResult
+import ch.trancee.meshlink.wire.WireFrame
 
 internal data class MeshEngineInlineOutboundDeliveryAdapterConfig(
     val inlineMessagePayloadBytes: Int
@@ -164,8 +166,10 @@ internal fun buildMeshEngineRuntimeInlineOutboundDeliveryAdapter(
     inlineMessagePayloadBytes: Int,
     routeCoordinator: ch.trancee.meshlink.routing.RouteCoordinator,
     routingSupport: MeshEngineRoutingSupport,
-    sessionSupport: MeshEngineSessionSupport,
-    hopTransportSupport: MeshEngineHopTransportSupport,
+    ensureHopSession: suspend (PeerId, MeshEngineHardRunToken?) -> SessionEstablishmentOutcome,
+    sendEncryptedDirectWireFrame:
+        suspend (PeerId, HopSession, WireFrame, String) -> TransportSendResult,
+    emitHopSessionFailed: (PeerId, String, DiagnosticReason, Map<String, String>) -> Unit,
     inlineMessagePreparationSupport: MeshEngineInlineMessagePreparationSupport,
     discoverySuspensionSupport: MeshEngineDiscoverySuspensionSupport,
     ttlMillisFor: (DeliveryPriority) -> Int,
@@ -189,13 +193,10 @@ internal fun buildMeshEngineRuntimeInlineOutboundDeliveryAdapter(
                 ),
             dependencies =
                 MeshEngineInlineDispatchDependencies(
-                    ensureHopSession = { peerId, hardRunToken ->
-                        sessionSupport.ensureHopSession(peerId, hardRunToken)
-                    },
-                    sendEncryptedDirectWireFrame =
-                        hopTransportSupport::sendEncryptedDirectWireFrame,
+                    ensureHopSession = ensureHopSession,
+                    sendEncryptedDirectWireFrame = sendEncryptedDirectWireFrame,
                     scheduleRetryDiagnostic = scheduleRetryDiagnostic,
-                    emitHopSessionFailed = hopTransportSupport::emitHopSessionFailed,
+                    emitHopSessionFailed = emitHopSessionFailed,
                 ),
             callbacks = MeshEngineInlineDispatchCallbacks(emitDiagnostic = emitDiagnostic),
         )

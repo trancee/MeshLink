@@ -13,8 +13,6 @@ internal fun buildMeshEngineRuntimeFacadeOperationsPhase(
 ): MeshEngineRuntimeFacadeOperationsPhase {
     val sharedState = foundation.sharedState
     val routingAndTrust = foundation.routingAndTrust
-    val sessionAndHopTransport = session.sessionAndHopTransport
-    val handshake = session.handshake
     val transportSupport =
         buildMeshEngineRuntimeTransportSupport(
             presenceTracker = sharedState.presenceTracker,
@@ -22,10 +20,10 @@ internal fun buildMeshEngineRuntimeFacadeOperationsPhase(
             sessionRegistry = sharedState.sessionRegistry,
             routeCoordinator = sharedState.routeCoordinator,
             routingSupport = routingAndTrust.routingSupport,
-            prewarmHopSession = sessionAndHopTransport.peerFlowSupport::prewarmHopSession,
-            handleHandshakeMessage1 = handshake.responderHandshakeSupport::handleHandshakeMessage1,
-            handleHandshakeMessage2 = handshake.initiatorHandshakeSupport::handleHandshakeMessage2,
-            handleHandshakeMessage3 = handshake.responderHandshakeSupport::handleHandshakeMessage3,
+            prewarmHopSession = session.prewarmHopSession,
+            handleHandshakeMessage1 = session.handleHandshakeMessage1,
+            handleHandshakeMessage2 = session.handleHandshakeMessage2,
+            handleHandshakeMessage3 = session.handleHandshakeMessage3,
             handleEncryptedDataFrame = transferAndInbound.handleEncryptedDataFrame,
             emitDiagnostic = support.emitDiagnostic,
         )
@@ -70,8 +68,7 @@ internal fun buildMeshEngineRuntimeFacadeOperationsPhase(
             currentLifecycleState = environment.compatibilitySurface::currentState,
             captureHardRunToken = environment.compatibilitySurface.runtimeGate::captureHardRunToken,
             hasTransport = { environment.platformBridge.hasTransport },
-            shouldAttemptLargeInlineSend =
-                sessionAndHopTransport.peerFlowSupport::shouldAttemptLargeInlineSend,
+            shouldAttemptLargeInlineSend = session.shouldAttemptLargeInlineSend,
             sendPayload = transferAndInbound.sendPayload,
             scheduleRetryDiagnostic = routingAndTrust.scheduleRetryDiagnostic,
             emitDiagnostic = support.emitDiagnostic,

@@ -91,19 +91,22 @@ internal data class MeshEngineRuntimeRoutingAndTrustPhase(
 )
 
 internal data class MeshEngineRuntimeSessionAssembly(
-    val sessionAndHopTransport: MeshEngineRuntimeSessionAndHopTransportPhase,
-    val handshake: MeshEngineRuntimeHandshakePhase,
-)
-
-internal data class MeshEngineRuntimeSessionAndHopTransportPhase(
-    val sessionSupport: MeshEngineSessionSupport,
-    val hopTransportSupport: MeshEngineHopTransportSupport,
-    val peerFlowSupport: MeshEnginePeerFlowSupport,
-)
-
-internal data class MeshEngineRuntimeHandshakePhase(
-    val initiatorHandshakeSupport: MeshEngineInitiatorHandshakeSupport,
-    val responderHandshakeSupport: MeshEngineResponderHandshakeSupport,
+    val ensureHopSession: suspend (PeerId, MeshEngineHardRunToken?) -> SessionEstablishmentOutcome,
+    val sendEncryptedWireFrame:
+        suspend (PeerId, WireFrame, String, MeshEngineHardRunToken?) -> Boolean,
+    val sendEncryptedDirectWireFrame:
+        suspend (PeerId, HopSession, WireFrame, String) -> TransportSendResult,
+    val decryptHopPayload: (HopSession, ByteArray) -> ByteArray,
+    val emitHopSessionFailed: (PeerId, String, DiagnosticReason, Map<String, String>) -> Unit,
+    val prewarmHopSession: (PeerId) -> Unit,
+    val forwardMessageToNextHop: (WireFrame.Message, MeshEngineHardRunToken) -> Unit,
+    val shouldAttemptLargeInlineSend: (PeerId) -> Boolean,
+    val isLocalPeerId: (PeerId) -> Boolean,
+    val sendTransferTowardsDestination:
+        suspend (PeerId, WireFrame, String, MeshEngineHardRunToken?) -> Boolean,
+    val handleHandshakeMessage1: suspend (PeerId, ByteArray) -> Unit,
+    val handleHandshakeMessage2: suspend (PeerId, ByteArray) -> Unit,
+    val handleHandshakeMessage3: suspend (PeerId, ByteArray) -> Unit,
 )
 
 internal data class MeshEngineRuntimeTransferAndInboundPhase(

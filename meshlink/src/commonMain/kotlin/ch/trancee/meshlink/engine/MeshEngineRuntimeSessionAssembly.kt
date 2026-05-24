@@ -1,38 +1,14 @@
 package ch.trancee.meshlink.engine
 
+import ch.trancee.meshlink.api.PeerId
+import ch.trancee.meshlink.wire.WireFrame
+
 internal fun buildMeshEngineRuntimeSessionAssembly(
     environment: MeshEngineRuntimeAssemblyEnvironment,
     support: MeshEngineRuntimeAssemblySupport,
     foundation: MeshEngineRuntimeFoundationAssembly,
     lateBindingContext: MeshEngineRuntimeLateBindingContext,
 ): MeshEngineRuntimeSessionAssembly {
-    val sessionAndHopTransport =
-        buildMeshEngineRuntimeSessionAndHopTransportPhase(
-            environment = environment,
-            support = support,
-            foundation = foundation,
-        )
-    lateBindingContext.registerRoutingAdvertisementSender(
-        sessionAndHopTransport.hopTransportSupport::sendEncryptedWireFrame
-    )
-    val handshake =
-        buildMeshEngineRuntimeHandshakePhase(
-            environment = environment,
-            support = support,
-            foundation = foundation,
-            sessionAndHopTransport = sessionAndHopTransport,
-        )
-    return MeshEngineRuntimeSessionAssembly(
-        sessionAndHopTransport = sessionAndHopTransport,
-        handshake = handshake,
-    )
-}
-
-private fun buildMeshEngineRuntimeSessionAndHopTransportPhase(
-    environment: MeshEngineRuntimeAssemblyEnvironment,
-    support: MeshEngineRuntimeAssemblySupport,
-    foundation: MeshEngineRuntimeFoundationAssembly,
-): MeshEngineRuntimeSessionAndHopTransportPhase {
     val sharedState = foundation.sharedState
     val routingAndTrust = foundation.routingAndTrust
     val sessionSupport =
@@ -79,21 +55,9 @@ private fun buildMeshEngineRuntimeSessionAndHopTransportPhase(
                 routingAndTrust.routingSupport.peerRouteMetadata(peerId, metadata = metadata)
             },
         )
-    return MeshEngineRuntimeSessionAndHopTransportPhase(
-        sessionSupport = sessionSupport,
-        hopTransportSupport = hopTransportSupport,
-        peerFlowSupport = peerFlowSupport,
+    lateBindingContext.registerRoutingAdvertisementSender(
+        hopTransportSupport::sendEncryptedWireFrame
     )
-}
-
-private fun buildMeshEngineRuntimeHandshakePhase(
-    environment: MeshEngineRuntimeAssemblyEnvironment,
-    support: MeshEngineRuntimeAssemblySupport,
-    foundation: MeshEngineRuntimeFoundationAssembly,
-    sessionAndHopTransport: MeshEngineRuntimeSessionAndHopTransportPhase,
-): MeshEngineRuntimeHandshakePhase {
-    val sharedState = foundation.sharedState
-    val routingAndTrust = foundation.routingAndTrust
     val handshakeState = MeshEngineHandshakeState(sessionRegistry = sharedState.sessionRegistry)
     val handshakeRoutingContext =
         MeshEngineHandshakeRoutingContext(
@@ -105,9 +69,8 @@ private fun buildMeshEngineRuntimeHandshakePhase(
             sendDirectWireFrame = { peerId, frame, action ->
                 support.sendDirectWireFrame(peerId, frame, action, null)
             },
-            emitHopSessionEstablished =
-                sessionAndHopTransport.hopTransportSupport::emitHopSessionEstablished,
-            emitHopSessionFailed = sessionAndHopTransport.hopTransportSupport::emitHopSessionFailed,
+            emitHopSessionEstablished = hopTransportSupport::emitHopSessionEstablished,
+            emitHopSessionFailed = hopTransportSupport::emitHopSessionFailed,
             promoteTemporaryPeer = { temporaryPeerId, canonicalPeerId ->
                 runCatching {
                         environment.platformBridge.promoteTemporaryPeer(
@@ -134,8 +97,48 @@ private fun buildMeshEngineRuntimeHandshakePhase(
             routingContext = handshakeRoutingContext,
             callbacks = handshakeCallbacks,
         )
-    return MeshEngineRuntimeHandshakePhase(
-        initiatorHandshakeSupport = initiatorHandshakeSupport,
-        responderHandshakeSupport = responderHandshakeSupport,
+    return MeshEngineRuntimeSessionAssembly(
+        ensureHopSession = sessionSupport::ensureHopSession,
+        sendEncryptedWireFrame = hopTransportSupport::sendEncryptedWireFrame,
+        sendEncryptedDirectWireFrame = hopTransportSupport::sendEncryptedDirectWireFrame,
+        decryptHopPayload = hopTransportSupport::decryptHopPayload,
+        emitHopSessionFailed = hopTransportSupport::emitHopSessionFailed,
+        prewarmHopSession = peerFlowSupport::prewarmHopSession,
+        forwardMessageToNextHop = peerFlowSupport::forwardMessageToNextHop,
+        shouldAttemptLargeInlineSend = peerFlowSupport::shouldAttemptLargeInlineSend,
+        isLocalPeerId = peerFlowSupport::isLocalPeerId,
+        sendTransferTowardsDestination =
+            createMeshEngineRuntimeSendTransferTowardsDestination(
+                routeCoordinator = sharedState.routeCoordinator,
+                peerFlowSupport = peerFlowSupport,
+                hopTransportSupport = hopTransportSupport,
+            ),
+        handleHandshakeMessage1 = responderHandshakeSupport::handleHandshakeMessage1,
+        handleHandshakeMessage2 = initiatorHandshakeSupport::handleHandshakeMessage2,
+        handleHandshakeMessage3 = responderHandshakeSupport::handleHandshakeMessage3,
     )
+}
+
+private fun createMeshEngineRuntimeSendTransferTowardsDestination(
+    routeCoordinator: ch.trancee.meshlink.routing.RouteCoordinator,
+    peerFlowSupport: MeshEnginePeerFlowSupport,
+    hopTransportSupport: MeshEngineHopTransportSupport,
+): suspend (PeerId, WireFrame, String, MeshEngineHardRunToken?) -> Boolean {
+    return { peerId, frame, action, hardRunToken ->
+        if (hardRunToken != null) {
+            peerFlowSupport.sendTransferTowardsDestination(
+                destinationPeerId = peerId,
+                frame = frame,
+                action = action,
+                hardRunToken = hardRunToken,
+            )
+        } else {
+            val nextHopPeerId = routeCoordinator.nextHopFor(peerId) ?: peerId
+            hopTransportSupport.sendEncryptedWireFrame(
+                peerId = nextHopPeerId,
+                frame = frame,
+                action = action,
+            )
+        }
+    }
 }

@@ -12,14 +12,13 @@ internal fun buildMeshEngineRuntimeTransferAndInboundPhase(
 ): MeshEngineRuntimeTransferAndInboundPhase {
     val sharedState = foundation.sharedState
     val routingAndTrust = foundation.routingAndTrust
-    val sessionAndHopTransport = session.sessionAndHopTransport
     val messageDeliverySupport =
         buildMeshEngineRuntimeMessageDeliverySupport(
             localIdentity = environment.localIdentity,
             runtimeGate = environment.compatibilitySurface.runtimeGate,
             trustSupport = routingAndTrust.trustSupport,
             mutableMessages = environment.compatibilitySurface.mutableMessages,
-            emitHopSessionFailed = sessionAndHopTransport.hopTransportSupport::emitHopSessionFailed,
+            emitHopSessionFailed = session.emitHopSessionFailed,
             emitDiagnostic = support.emitDiagnostic,
         )
     val outboundRecipientTrustSupport =
@@ -40,11 +39,11 @@ internal fun buildMeshEngineRuntimeTransferAndInboundPhase(
             directEnvelopeSupport = outboundDirectEnvelopeSupport,
             createMessageId = sharedState.sequenceGenerator::createMessageId,
             emitEncryptFailure = { peerId, cause ->
-                sessionAndHopTransport.hopTransportSupport.emitHopSessionFailed(
-                    peerId = peerId,
-                    stage = "delivery.send.encrypt",
-                    reason = DiagnosticReason.TRUST_FAILURE,
-                    metadata = mapOf("cause" to cause),
+                session.emitHopSessionFailed(
+                    peerId,
+                    "delivery.send.encrypt",
+                    DiagnosticReason.TRUST_FAILURE,
+                    mapOf("cause" to cause),
                 )
             },
         )
@@ -56,11 +55,11 @@ internal fun buildMeshEngineRuntimeTransferAndInboundPhase(
             createMessageId = sharedState.sequenceGenerator::createMessageId,
             createTransferId = sharedState.sequenceGenerator::createTransferId,
             emitEncryptFailure = { peerId, cause ->
-                sessionAndHopTransport.hopTransportSupport.emitHopSessionFailed(
-                    peerId = peerId,
-                    stage = "transfer.encrypt",
-                    reason = DiagnosticReason.TRUST_FAILURE,
-                    metadata = mapOf("cause" to cause),
+                session.emitHopSessionFailed(
+                    peerId,
+                    "transfer.encrypt",
+                    DiagnosticReason.TRUST_FAILURE,
+                    mapOf("cause" to cause),
                 )
             },
             emitDiagnostic = support.emitDiagnostic,
@@ -103,11 +102,7 @@ internal fun buildMeshEngineRuntimeTransferAndInboundPhase(
             suspendAction = "transfer.discoverySuspend",
             resumeAction = "transfer.discoveryResume",
         )
-    val sendTransferTowardsDestination =
-        createMeshEngineRuntimeSendTransferTowardsDestination(
-            sharedState = sharedState,
-            sessionAndHopTransport = sessionAndHopTransport,
-        )
+    val sendTransferTowardsDestination = session.sendTransferTowardsDestination
     val clearQueuedOutboundFrames: suspend (PeerId, String) -> Unit = { peerId, action ->
         environment.platformBridge.clearQueuedOutboundFrames(peerId = peerId, action = action)
     }
@@ -116,8 +111,9 @@ internal fun buildMeshEngineRuntimeTransferAndInboundPhase(
             inlineMessagePayloadBytes = INLINE_MESSAGE_PAYLOAD_BYTES,
             routeCoordinator = sharedState.routeCoordinator,
             routingSupport = routingAndTrust.routingSupport,
-            sessionSupport = sessionAndHopTransport.sessionSupport,
-            hopTransportSupport = sessionAndHopTransport.hopTransportSupport,
+            ensureHopSession = session.ensureHopSession,
+            sendEncryptedDirectWireFrame = session.sendEncryptedDirectWireFrame,
+            emitHopSessionFailed = session.emitHopSessionFailed,
             inlineMessagePreparationSupport = inlineMessagePreparationSupport,
             discoverySuspensionSupport = inlineDiscoverySuspensionSupport,
             ttlMillisFor = sharedState.ttlMillisFor,
@@ -130,7 +126,7 @@ internal fun buildMeshEngineRuntimeTransferAndInboundPhase(
             support = support,
             sharedState = sharedState,
             routingAndTrust = routingAndTrust,
-            sessionAndHopTransport = sessionAndHopTransport,
+            session = session,
             messageDeliverySupport = messageDeliverySupport,
             sendTransferTowardsDestination = sendTransferTowardsDestination,
             clearQueuedOutboundFrames = clearQueuedOutboundFrames,
@@ -161,11 +157,10 @@ internal fun buildMeshEngineRuntimeTransferAndInboundPhase(
             sessionRegistry = sharedState.sessionRegistry,
             routeCoordinator = sharedState.routeCoordinator,
             routingSupport = routingAndTrust.routingSupport,
-            emitHopSessionFailed = sessionAndHopTransport.hopTransportSupport::emitHopSessionFailed,
-            decryptHopPayload = sessionAndHopTransport.hopTransportSupport::decryptHopPayload,
+            emitHopSessionFailed = session.emitHopSessionFailed,
+            decryptHopPayload = session.decryptHopPayload,
             captureHardRunToken = environment.compatibilitySurface.runtimeGate::captureHardRunToken,
-            forwardMessageToNextHop =
-                sessionAndHopTransport.peerFlowSupport::forwardMessageToNextHop,
+            forwardMessageToNextHop = session.forwardMessageToNextHop,
             deliverInnerEnvelope = messageDeliverySupport::deliverInnerEnvelope,
             transferSupport = transferSupport,
         )
@@ -182,7 +177,7 @@ private fun buildMeshEngineRuntimeTransferSupport(
     support: MeshEngineRuntimeAssemblySupport,
     sharedState: MeshEngineRuntimeSharedState,
     routingAndTrust: MeshEngineRuntimeRoutingAndTrustPhase,
-    sessionAndHopTransport: MeshEngineRuntimeSessionAndHopTransportPhase,
+    session: MeshEngineRuntimeSessionAssembly,
     messageDeliverySupport: MeshEngineMessageDeliverySupport,
     sendTransferTowardsDestination:
         suspend (PeerId, WireFrame, String, MeshEngineHardRunToken?) -> Boolean,
@@ -194,7 +189,7 @@ private fun buildMeshEngineRuntimeTransferSupport(
             inboundTransfers = sharedState.inboundTransfers,
             relayTransfers = sharedState.relayTransfers,
         )
-    val sendEncryptedWireFrame = sessionAndHopTransport.hopTransportSupport::sendEncryptedWireFrame
+    val sendEncryptedWireFrame = session.sendEncryptedWireFrame
     val routeMetadata = { peerId: PeerId, metadata: Map<String, String> ->
         routingAndTrust.routingSupport.peerRouteMetadata(peerId = peerId, metadata = metadata)
     }
@@ -229,34 +224,11 @@ private fun buildMeshEngineRuntimeTransferSupport(
             MeshEngineTransferCallbacks(
                 captureHardRunToken =
                     environment.compatibilitySurface.runtimeGate::captureHardRunToken,
-                isLocalPeerId = sessionAndHopTransport.peerFlowSupport::isLocalPeerId,
+                isLocalPeerId = session.isLocalPeerId,
             ),
         inboundSupport = inboundSupport,
         relaySupport = relaySupport,
         abortSupport = abortSupport,
         emitDiagnostic = support.emitDiagnostic,
     )
-}
-
-private fun createMeshEngineRuntimeSendTransferTowardsDestination(
-    sharedState: MeshEngineRuntimeSharedState,
-    sessionAndHopTransport: MeshEngineRuntimeSessionAndHopTransportPhase,
-): suspend (PeerId, WireFrame, String, MeshEngineHardRunToken?) -> Boolean {
-    return { peerId, frame, action, hardRunToken ->
-        if (hardRunToken != null) {
-            sessionAndHopTransport.peerFlowSupport.sendTransferTowardsDestination(
-                destinationPeerId = peerId,
-                frame = frame,
-                action = action,
-                hardRunToken = hardRunToken,
-            )
-        } else {
-            val nextHopPeerId = sharedState.routeCoordinator.nextHopFor(peerId) ?: peerId
-            sessionAndHopTransport.hopTransportSupport.sendEncryptedWireFrame(
-                peerId = nextHopPeerId,
-                frame = frame,
-                action = action,
-            )
-        }
-    }
 }
