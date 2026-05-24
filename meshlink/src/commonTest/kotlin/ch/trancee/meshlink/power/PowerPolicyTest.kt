@@ -8,6 +8,27 @@ import kotlin.test.assertTrue
 
 class PowerPolicyTest {
     @Test
+    fun `automatic mode selects balanced when battery starts between the thresholds`() {
+        // Arrange
+        val controller =
+            PowerPolicyController(
+                configuredMode = PowerMode.Automatic,
+                region = RegulatoryRegion.DEFAULT,
+                bootstrapDurationMillis = 0L,
+            )
+        controller.onBatterySnapshot(level = 0.50f, isCharging = false, nowMillis = 0L)
+
+        // Act
+        val policy = controller.currentPolicy(nowMillis = 0L)
+
+        // Assert
+        assertEquals(PowerTier.BALANCED, policy.tier)
+        assertEquals(500L, policy.advertisementIntervalMillis)
+        assertEquals(250L, policy.connectionIntervalMillis)
+        assertEquals(50, policy.scanDutyCyclePercent)
+    }
+
+    @Test
     fun `automatic mode stays in performance during bootstrap even on low battery`() {
         // Arrange
         val controller =
@@ -27,6 +48,28 @@ class PowerPolicyTest {
         assertEquals(250L, policy.advertisementIntervalMillis)
         assertEquals(100L, policy.connectionIntervalMillis)
         assertEquals(100, policy.scanDutyCyclePercent)
+    }
+
+    @Test
+    fun `automatic mode does not restart the bootstrap window on repeated mesh starts`() {
+        // Arrange
+        val controller =
+            PowerPolicyController(
+                configuredMode = PowerMode.Automatic,
+                region = RegulatoryRegion.DEFAULT,
+                bootstrapDurationMillis = 30_000L,
+            )
+        controller.onBatterySnapshot(level = 0.10f, isCharging = false, nowMillis = 0L)
+        controller.onMeshStarted(nowMillis = 0L)
+        controller.currentPolicy(nowMillis = 31_000L)
+
+        // Act
+        val policy = controller.onMeshStarted(nowMillis = 40_000L)
+
+        // Assert
+        assertEquals(PowerTier.POWER_SAVER, policy.tier)
+        assertEquals(1_000L, policy.advertisementIntervalMillis)
+        assertEquals(500L, policy.connectionIntervalMillis)
     }
 
     @Test
@@ -102,6 +145,52 @@ class PowerPolicyTest {
     }
 
     @Test
+    fun `hysteresis keeps performance active until the downgrade threshold is crossed`() {
+        // Arrange
+        val controller =
+            PowerPolicyController(
+                configuredMode = PowerMode.Automatic,
+                region = RegulatoryRegion.DEFAULT,
+                bootstrapDurationMillis = 0L,
+            )
+        controller.onBatterySnapshot(level = 0.90f, isCharging = false, nowMillis = 0L)
+        controller.currentPolicy(nowMillis = 0L)
+
+        // Act
+        controller.onBatterySnapshot(level = 0.79f, isCharging = false, nowMillis = 1_000L)
+        val withinDeadZone = controller.currentPolicy(nowMillis = 1_000L)
+        controller.onBatterySnapshot(level = 0.77f, isCharging = false, nowMillis = 2_000L)
+        val downgraded = controller.currentPolicy(nowMillis = 2_000L)
+
+        // Assert
+        assertEquals(PowerTier.PERFORMANCE, withinDeadZone.tier)
+        assertEquals(PowerTier.BALANCED, downgraded.tier)
+    }
+
+    @Test
+    fun `balanced tier recovers to performance once the recovery threshold is crossed`() {
+        // Arrange
+        val controller =
+            PowerPolicyController(
+                configuredMode = PowerMode.Automatic,
+                region = RegulatoryRegion.DEFAULT,
+                bootstrapDurationMillis = 0L,
+            )
+        controller.onBatterySnapshot(level = 0.50f, isCharging = false, nowMillis = 0L)
+        controller.currentPolicy(nowMillis = 0L)
+
+        // Act
+        controller.onBatterySnapshot(level = 0.81f, isCharging = false, nowMillis = 1_000L)
+        val withinDeadZone = controller.currentPolicy(nowMillis = 1_000L)
+        controller.onBatterySnapshot(level = 0.83f, isCharging = false, nowMillis = 2_000L)
+        val recovered = controller.currentPolicy(nowMillis = 2_000L)
+
+        // Assert
+        assertEquals(PowerTier.BALANCED, withinDeadZone.tier)
+        assertEquals(PowerTier.PERFORMANCE, recovered.tier)
+    }
+
+    @Test
     fun `automatic mode immediately returns to performance while charging`() {
         // Arrange
         val controller =
@@ -122,6 +211,27 @@ class PowerPolicyTest {
         assertEquals(PowerTier.PERFORMANCE, policy.tier)
         assertEquals(250L, policy.advertisementIntervalMillis)
         assertEquals(100L, policy.connectionIntervalMillis)
+    }
+
+    @Test
+    fun `eu region leaves already compliant balanced settings unchanged`() {
+        // Arrange
+        val controller =
+            PowerPolicyController(
+                configuredMode = PowerMode.Balanced,
+                region = RegulatoryRegion.EU,
+                bootstrapDurationMillis = 0L,
+            )
+
+        // Act
+        val policy = controller.currentPolicy(nowMillis = 0L)
+
+        // Assert
+        assertEquals(PowerTier.BALANCED, policy.tier)
+        assertEquals(500L, policy.advertisementIntervalMillis)
+        assertEquals(250L, policy.connectionIntervalMillis)
+        assertEquals(50, policy.scanDutyCyclePercent)
+        assertTrue(policy.clampWarnings.isEmpty())
     }
 
     @Test
