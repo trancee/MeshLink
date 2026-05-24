@@ -56,6 +56,7 @@ struct ReferenceAppApp: App {
     var body: some Scene {
         WindowGroup {
             ReferenceRootViewControllerRepresentable()
+                .ignoresSafeArea()
         }
     }
 }

@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -262,6 +263,7 @@ private fun ReferenceShellScaffold(
     onSelectSection: (ReferencePrimarySection) -> Unit,
 ): Unit {
     Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = { ReferenceShellHeader(state = headerState, onSelectSurface = onSelectSurface) },
         bottomBar = {
             ReferenceBottomBar(
@@ -362,11 +364,8 @@ private fun ReferenceShellHeader(
         Column(
             modifier =
                 Modifier.fillMaxWidth()
-                    .then(
-                        if (state.platformName == "Android") Modifier.statusBarsPadding()
-                        else Modifier
-                    )
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                    .statusBarsPadding()
+                    .padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text(
