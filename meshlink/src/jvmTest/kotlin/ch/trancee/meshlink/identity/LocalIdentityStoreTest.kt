@@ -14,6 +14,44 @@ class LocalIdentityStoreTest {
     private val provider = JvmCryptoProvider()
 
     @Test
+    fun `loadOrCreate keeps app identities isolated inside shared secure storage`() = runBlocking {
+        // Arrange
+        val storage = InMemorySecureStorage()
+        val firstAppId = "demo.meshlink.alpha"
+        val secondAppId = "demo.meshlink.beta"
+
+        // Act
+        val firstIdentity =
+            LocalIdentityStore.loadOrCreate(
+                appId = firstAppId,
+                secureStorage = storage,
+                provider = provider,
+            )
+        val secondIdentity =
+            LocalIdentityStore.loadOrCreate(
+                appId = secondAppId,
+                secureStorage = storage,
+                provider = provider,
+            )
+        val firstEd25519PrivateKey = storage.read("identity:$firstAppId:ed25519-private")
+        val secondEd25519PrivateKey = storage.read("identity:$secondAppId:ed25519-private")
+
+        // Assert
+        assertTrue(firstIdentity.peerId.value.isNotBlank())
+        assertTrue(secondIdentity.peerId.value.isNotBlank())
+        assertTrue(firstIdentity.peerId.value != secondIdentity.peerId.value)
+        assertTrue(firstIdentity.identityFingerprint != secondIdentity.identityFingerprint)
+        assertContentEquals(
+            firstIdentity.noiseIdentity.ed25519KeyPair.privateKey,
+            firstEd25519PrivateKey,
+        )
+        assertContentEquals(
+            secondIdentity.noiseIdentity.ed25519KeyPair.privateKey,
+            secondEd25519PrivateKey,
+        )
+    }
+
+    @Test
     fun `loadOrCreate persists and reloads the same local identity`() = runBlocking {
         // Arrange
         val storage = InMemorySecureStorage()
@@ -103,5 +141,34 @@ class LocalIdentityStoreTest {
             actual = exception.message.orEmpty().contains("invalid size"),
             message = "Stored identities with malformed key sizes must fail closed",
         )
+    }
+
+    @Test
+    fun `loadOrCreate reports which stored key has the wrong size`() {
+        // Arrange
+        val storage = InMemorySecureStorage()
+        val appId = "invalid-x25519-public.meshlink"
+        runBlocking {
+            storage.write("identity:$appId:ed25519-private", ByteArray(32) { 0x01.toByte() })
+            storage.write("identity:$appId:ed25519-public", ByteArray(32) { 0x02.toByte() })
+            storage.write("identity:$appId:x25519-private", ByteArray(32) { 0x03.toByte() })
+            storage.write("identity:$appId:x25519-public", ByteArray(31) { 0x04.toByte() })
+        }
+
+        // Act
+        val exception =
+            assertFailsWith<MeshLinkException.StorageFailure> {
+                runBlocking {
+                    LocalIdentityStore.loadOrCreate(
+                        appId = appId,
+                        secureStorage = storage,
+                        provider = provider,
+                    )
+                }
+            }
+
+        // Assert
+        assertTrue(exception.message.orEmpty().contains("x25519 public"))
+        assertTrue(exception.message.orEmpty().contains("31"))
     }
 }
