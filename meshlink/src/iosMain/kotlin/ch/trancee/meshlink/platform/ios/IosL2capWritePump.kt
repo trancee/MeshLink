@@ -6,10 +6,6 @@ import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.engine.DirectWireFrame
 import ch.trancee.meshlink.identity.toHexString
 import ch.trancee.meshlink.transport.PendingFrameWindow
-import kotlinx.cinterop.addressOf
-import kotlinx.cinterop.convert
-import kotlinx.cinterop.reinterpret
-import kotlinx.cinterop.usePinned
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
@@ -101,7 +97,8 @@ internal constructor(
             maxPendingBytes = PENDING_FRAME_WINDOW_BYTES,
         )
     private val outboundFrames = Channel<QueuedFrame>(capacity = Channel.UNLIMITED)
-    private val outputWriter = IosL2capOutputWriter(outputStream, dependencies.timing)
+    private val outputWriter =
+        IosL2capOutputWriter(NsOutputStreamAdapter(outputStream), dependencies.timing)
     private var writeSequence: Long = 0L
     private var cumulativeEncodedBytesWritten: Long = 0L
     private var activeWriteLatencyPromoted: Boolean = false
@@ -241,8 +238,8 @@ internal constructor(
     }
 }
 
-private class IosL2capOutputWriter(
-    private val outputStream: NSOutputStream,
+internal class IosL2capOutputWriter(
+    private val outputStream: IosL2capOutputStreamAdapter,
     private val timing: IosL2capWriteTiming,
 ) {
     suspend fun write(coalescedBuffer: ByteArray): IosL2capBufferWriteStats {
@@ -299,8 +296,8 @@ private class IosL2capOutputWriter(
     ): IosL2capWriteAttempt {
         check(
             !isStreamClosed(
-                streamStatus = outputStream.streamStatus,
-                hasError = outputStream.streamError != null,
+                streamStatus = outputStream.streamStatus(),
+                hasError = outputStream.hasError(),
             )
         ) {
             "iOS L2CAP output stream closed"
@@ -309,12 +306,7 @@ private class IosL2capOutputWriter(
             return IosL2capWriteAttempt.ReadyFalse
         }
         val attemptAtMs = timing.nowMillis()
-        val written = coalescedBuffer.usePinned { pinned ->
-            outputStream.write(
-                pinned.addressOf(request.offset).reinterpret(),
-                request.requestedBytes.convert(),
-            )
-        }
+        val written = outputStream.write(coalescedBuffer, request.offset, request.requestedBytes)
         check(written >= 0) { "iOS L2CAP output stream closed" }
         return if (written == 0L) {
             IosL2capWriteAttempt.ZeroWrite
