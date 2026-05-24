@@ -257,33 +257,37 @@ internal class AndroidGattNotifyClient(
 
     suspend fun write(payload: ByteArray): Boolean {
         return writeMutex.withLock {
-            if (!ready) {
-                log(
-                    "GATT notify side link ${peerHintId.value.takeLast(6)} write skipped: client not ready"
-                )
-                false
-            } else {
-                val gatt = gatt
-                val writeCharacteristic = writeCharacteristic
-                if (gatt == null || writeCharacteristic == null) {
-                    log(
-                        "GATT notify side link ${peerHintId.value.takeLast(6)} write skipped: missing GATT state gatt=${gatt != null} characteristic=${writeCharacteristic != null}"
-                    )
-                    false
-                } else {
-                    val encoded = frameBuffer.encode(payload)
-                    val maxChunkBytes = maximumWriteChunkBytes()
-                    encoded.asList().chunked(maxChunkBytes).all { chunk ->
-                        writeEncodedChunk(
-                            gatt = gatt,
-                            writeCharacteristic = writeCharacteristic,
-                            payloadBytes = payload.size,
-                            encodedBytes = encoded.size,
-                            chunk = chunk.toByteArray(),
-                        )
-                    }
-                }
-            }
+            val gatt = gatt
+            val writeCharacteristic = writeCharacteristic
+            writeViaAndroidGattNotify(
+                payload = payload,
+                context =
+                    AndroidGattNotifyWriteContext(
+                        peerLogSuffix = peerHintId.value.takeLast(6),
+                        clientReady = ready,
+                        hasGatt = gatt != null,
+                        hasWriteCharacteristic = writeCharacteristic != null,
+                        maxChunkBytes = maximumWriteChunkBytes(),
+                    ),
+                dependencies =
+                    AndroidGattNotifyWriteDependencies(
+                        encode = frameBuffer::encode,
+                        writeChunk = { payloadBytes, encodedBytes, chunk ->
+                            if (gatt == null || writeCharacteristic == null) {
+                                false
+                            } else {
+                                writeEncodedChunk(
+                                    gatt = gatt,
+                                    writeCharacteristic = writeCharacteristic,
+                                    payloadBytes = payloadBytes,
+                                    encodedBytes = encodedBytes,
+                                    chunk = chunk,
+                                )
+                            }
+                        },
+                        log = log,
+                    ),
+            )
         }
     }
 
