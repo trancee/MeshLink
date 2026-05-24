@@ -1,5 +1,6 @@
 package ch.trancee.meshlink.engine
 
+import ch.trancee.meshlink.api.DeliveryPriority
 import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.diagnostics.DiagnosticCode
 import ch.trancee.meshlink.diagnostics.DiagnosticReason
@@ -98,4 +99,71 @@ internal class MeshEngineTransferSupport(
     suspend fun abortLocalTransfers(reasonCode: TransferAbortReasonCode): Unit {
         abortSupport.abortLocalTransfers(reasonCode)
     }
+}
+
+internal fun buildMeshEngineRuntimeTransferSupport(
+    captureHardRunToken: () -> MeshEngineHardRunToken,
+    isLocalPeerId: (PeerId) -> Boolean,
+    inboundTransfers: MutableMap<String, InboundTransferSession>,
+    relayTransfers: MutableMap<String, RelayTransferSession>,
+    outboundTransferLifecycleSupport: MeshEngineOutboundTransferLifecycleSupport,
+    sendEncryptedWireFrame: suspend (PeerId, WireFrame, String, MeshEngineHardRunToken?) -> Boolean,
+    sendTransferTowardsDestination:
+        suspend (PeerId, WireFrame, String, MeshEngineHardRunToken?) -> Boolean,
+    clearQueuedOutboundFrames: suspend (PeerId, String) -> Unit,
+    deliverInnerEnvelope:
+        suspend (PeerId, PeerId, ByteArray, DeliveryPriority, MeshEngineHardRunToken) -> Unit,
+    routeMetadata: (PeerId, Map<String, String>) -> Map<String, String>,
+    emitDiagnostic:
+        (
+            DiagnosticCode,
+            DiagnosticSeverity,
+            String,
+            String?,
+            DiagnosticReason?,
+            Map<String, String>,
+        ) -> Unit,
+): MeshEngineTransferSupport {
+    val state =
+        MeshEngineTransferState(
+            inboundTransfers = inboundTransfers,
+            relayTransfers = relayTransfers,
+        )
+    val inboundSupport =
+        buildMeshEngineRuntimeInboundTransferSupport(
+            inboundTransfers = state.inboundTransfers,
+            sendEncryptedWireFrame = sendEncryptedWireFrame,
+            deliverInnerEnvelope = deliverInnerEnvelope,
+            routeMetadata = routeMetadata,
+            emitDiagnostic = emitDiagnostic,
+        )
+    val relaySupport =
+        buildMeshEngineRuntimeRelayTransferSupport(
+            relayTransfers = state.relayTransfers,
+            sendEncryptedWireFrame = sendEncryptedWireFrame,
+            sendTransferTowardsDestination = sendTransferTowardsDestination,
+        )
+    val abortSupport =
+        buildMeshEngineRuntimeTransferAbortSupport(
+            state = state,
+            outboundTransferLifecycleSupport = outboundTransferLifecycleSupport,
+            sendEncryptedWireFrame = sendEncryptedWireFrame,
+            sendTransferTowardsDestination = sendTransferTowardsDestination,
+            clearQueuedOutboundFrames = clearQueuedOutboundFrames,
+            routeMetadata = routeMetadata,
+            emitDiagnostic = emitDiagnostic,
+        )
+    return MeshEngineTransferSupport(
+        state = state,
+        outboundTransferLifecycleSupport = outboundTransferLifecycleSupport,
+        callbacks =
+            MeshEngineTransferCallbacks(
+                captureHardRunToken = captureHardRunToken,
+                isLocalPeerId = isLocalPeerId,
+            ),
+        inboundSupport = inboundSupport,
+        relaySupport = relaySupport,
+        abortSupport = abortSupport,
+        emitDiagnostic = emitDiagnostic,
+    )
 }

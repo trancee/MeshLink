@@ -17,8 +17,6 @@ internal data class MeshEngineRuntimeSessionAssembly(
     val forwardMessageToNextHop: (WireFrame.Message, MeshEngineHardRunToken) -> Unit,
     val shouldAttemptLargeInlineSend: (PeerId) -> Boolean,
     val isLocalPeerId: (PeerId) -> Boolean,
-    val sendTransferTowardsDestination:
-        suspend (PeerId, WireFrame, String, MeshEngineHardRunToken?) -> Boolean,
     val handleHandshakeMessage1: suspend (PeerId, ByteArray) -> Unit,
     val handleHandshakeMessage2: suspend (PeerId, ByteArray) -> Unit,
     val handleHandshakeMessage3: suspend (PeerId, ByteArray) -> Unit,
@@ -128,38 +126,8 @@ internal fun buildMeshEngineRuntimeSessionAssembly(
         forwardMessageToNextHop = peerFlowSupport::forwardMessageToNextHop,
         shouldAttemptLargeInlineSend = peerFlowSupport::shouldAttemptLargeInlineSend,
         isLocalPeerId = peerFlowSupport::isLocalPeerId,
-        sendTransferTowardsDestination =
-            createMeshEngineRuntimeSendTransferTowardsDestination(
-                routeCoordinator = sharedState.routeCoordinator,
-                peerFlowSupport = peerFlowSupport,
-                hopTransportSupport = hopTransportSupport,
-            ),
         handleHandshakeMessage1 = responderHandshakeSupport::handleHandshakeMessage1,
         handleHandshakeMessage2 = initiatorHandshakeSupport::handleHandshakeMessage2,
         handleHandshakeMessage3 = responderHandshakeSupport::handleHandshakeMessage3,
     )
-}
-
-private fun createMeshEngineRuntimeSendTransferTowardsDestination(
-    routeCoordinator: ch.trancee.meshlink.routing.RouteCoordinator,
-    peerFlowSupport: MeshEnginePeerFlowSupport,
-    hopTransportSupport: MeshEngineHopTransportSupport,
-): suspend (PeerId, WireFrame, String, MeshEngineHardRunToken?) -> Boolean {
-    return { peerId, frame, action, hardRunToken ->
-        if (hardRunToken != null) {
-            peerFlowSupport.sendTransferTowardsDestination(
-                destinationPeerId = peerId,
-                frame = frame,
-                action = action,
-                hardRunToken = hardRunToken,
-            )
-        } else {
-            val nextHopPeerId = routeCoordinator.nextHopFor(peerId) ?: peerId
-            hopTransportSupport.sendEncryptedWireFrame(
-                peerId = nextHopPeerId,
-                frame = frame,
-                action = action,
-            )
-        }
-    }
 }

@@ -118,7 +118,6 @@ private fun runtimeFacadeAssemblyHarness(): RuntimeFacadeAssemblyHarness {
             forwardMessageToNextHop = { _, _ -> Unit },
             shouldAttemptLargeInlineSend = { false },
             isLocalPeerId = { false },
-            sendTransferTowardsDestination = { _, _, _, _ -> false },
             handleHandshakeMessage1 = { _, _ -> Unit },
             handleHandshakeMessage2 = { _, _ -> Unit },
             handleHandshakeMessage3 = { _, _ -> Unit },

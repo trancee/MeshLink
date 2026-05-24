@@ -38,7 +38,11 @@ internal fun buildMeshEngineRuntimeTransferAndInboundPhase(
             emitHopSessionFailed = session.emitHopSessionFailed,
             emitDiagnostic = support.emitDiagnostic,
         )
-    val sendTransferTowardsDestination = session.sendTransferTowardsDestination
+    val sendTransferTowardsDestination =
+        createMeshEngineRuntimeSendTransferTowardsDestination(
+            routeCoordinator = sharedState.routeCoordinator,
+            sendEncryptedWireFrame = session.sendEncryptedWireFrame,
+        )
     val clearQueuedOutboundFrames: suspend (PeerId, String) -> Unit = { peerId, action ->
         environment.platformBridge.clearQueuedOutboundFrames(peerId = peerId, action = action)
     }
@@ -54,16 +58,23 @@ internal fun buildMeshEngineRuntimeTransferAndInboundPhase(
         )
     val transferSupport =
         buildMeshEngineRuntimeTransferSupport(
-            environment = environment,
-            support = support,
-            sharedState = sharedState,
-            routingAndTrust = routingAndTrust,
-            session = session,
-            messageDeliverySupport = messageDeliverySupport,
-            sendTransferTowardsDestination = sendTransferTowardsDestination,
-            clearQueuedOutboundFrames = clearQueuedOutboundFrames,
+            captureHardRunToken = environment.compatibilitySurface.runtimeGate::captureHardRunToken,
+            isLocalPeerId = session.isLocalPeerId,
+            inboundTransfers = sharedState.inboundTransfers,
+            relayTransfers = sharedState.relayTransfers,
             outboundTransferLifecycleSupport =
                 outboundDeliveryPhase.outboundTransferLifecycleSupport,
+            sendEncryptedWireFrame = session.sendEncryptedWireFrame,
+            sendTransferTowardsDestination = sendTransferTowardsDestination,
+            clearQueuedOutboundFrames = clearQueuedOutboundFrames,
+            deliverInnerEnvelope = messageDeliverySupport::deliverInnerEnvelope,
+            routeMetadata = { peerId, metadata ->
+                routingAndTrust.routingSupport.peerRouteMetadata(
+                    peerId = peerId,
+                    metadata = metadata,
+                )
+            },
+            emitDiagnostic = support.emitDiagnostic,
         )
     val inboundSupport =
         buildMeshEngineRuntimeInboundSupport(
@@ -84,6 +95,16 @@ internal fun buildMeshEngineRuntimeTransferAndInboundPhase(
         abortLocalTransfers = transferSupport::abortLocalTransfers,
         clearOutboundTransfers = outboundDeliveryPhase.outboundTransferLifecycleSupport::clearAll,
     )
+}
+
+private fun createMeshEngineRuntimeSendTransferTowardsDestination(
+    routeCoordinator: ch.trancee.meshlink.routing.RouteCoordinator,
+    sendEncryptedWireFrame: suspend (PeerId, WireFrame, String, MeshEngineHardRunToken?) -> Boolean,
+): suspend (PeerId, WireFrame, String, MeshEngineHardRunToken?) -> Boolean {
+    return { peerId, frame, action, hardRunToken ->
+        val nextHopPeerId = routeCoordinator.nextHopFor(peerId) ?: peerId
+        sendEncryptedWireFrame(nextHopPeerId, frame, action, hardRunToken)
+    }
 }
 
 private data class MeshEngineRuntimeTransferOutboundDeliveryPhase(
@@ -218,66 +239,5 @@ private fun buildMeshEngineRuntimeTransferOutboundDeliveryPhase(
     return MeshEngineRuntimeTransferOutboundDeliveryPhase(
         outboundTransferLifecycleSupport = outboundTransferLifecycleSupport,
         outboundDeliverySupport = outboundDeliverySupport,
-    )
-}
-
-private fun buildMeshEngineRuntimeTransferSupport(
-    environment: MeshEngineRuntimeAssemblyEnvironment,
-    support: MeshEngineRuntimeAssemblySupport,
-    sharedState: MeshEngineRuntimeSharedState,
-    routingAndTrust: MeshEngineRuntimeRoutingAndTrustPhase,
-    session: MeshEngineRuntimeSessionAssembly,
-    messageDeliverySupport: MeshEngineMessageDeliverySupport,
-    sendTransferTowardsDestination:
-        suspend (PeerId, WireFrame, String, MeshEngineHardRunToken?) -> Boolean,
-    clearQueuedOutboundFrames: suspend (PeerId, String) -> Unit,
-    outboundTransferLifecycleSupport: MeshEngineOutboundTransferLifecycleSupport,
-): MeshEngineTransferSupport {
-    val state =
-        MeshEngineTransferState(
-            inboundTransfers = sharedState.inboundTransfers,
-            relayTransfers = sharedState.relayTransfers,
-        )
-    val sendEncryptedWireFrame = session.sendEncryptedWireFrame
-    val routeMetadata = { peerId: PeerId, metadata: Map<String, String> ->
-        routingAndTrust.routingSupport.peerRouteMetadata(peerId = peerId, metadata = metadata)
-    }
-    val inboundSupport =
-        buildMeshEngineRuntimeInboundTransferSupport(
-            inboundTransfers = state.inboundTransfers,
-            sendEncryptedWireFrame = sendEncryptedWireFrame,
-            deliverInnerEnvelope = messageDeliverySupport::deliverInnerEnvelope,
-            routeMetadata = routeMetadata,
-            emitDiagnostic = support.emitDiagnostic,
-        )
-    val relaySupport =
-        buildMeshEngineRuntimeRelayTransferSupport(
-            relayTransfers = state.relayTransfers,
-            sendEncryptedWireFrame = sendEncryptedWireFrame,
-            sendTransferTowardsDestination = sendTransferTowardsDestination,
-        )
-    val abortSupport =
-        buildMeshEngineRuntimeTransferAbortSupport(
-            state = state,
-            outboundTransferLifecycleSupport = outboundTransferLifecycleSupport,
-            sendEncryptedWireFrame = sendEncryptedWireFrame,
-            sendTransferTowardsDestination = sendTransferTowardsDestination,
-            clearQueuedOutboundFrames = clearQueuedOutboundFrames,
-            routeMetadata = routeMetadata,
-            emitDiagnostic = support.emitDiagnostic,
-        )
-    return MeshEngineTransferSupport(
-        state = state,
-        outboundTransferLifecycleSupport = outboundTransferLifecycleSupport,
-        callbacks =
-            MeshEngineTransferCallbacks(
-                captureHardRunToken =
-                    environment.compatibilitySurface.runtimeGate::captureHardRunToken,
-                isLocalPeerId = session.isLocalPeerId,
-            ),
-        inboundSupport = inboundSupport,
-        relaySupport = relaySupport,
-        abortSupport = abortSupport,
-        emitDiagnostic = support.emitDiagnostic,
     )
 }
