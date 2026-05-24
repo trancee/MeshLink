@@ -147,6 +147,140 @@ class MeshEngineHopTransportSupportTest {
         }
 
     @Test
+    fun `sendEncryptedWireFrame returns false when no session exists without a hard run token`() =
+        runBlocking {
+            // Arrange
+            val localIdentity = LocalIdentity.fromAppId("hop-transport-local")
+            val peerId = PeerId("peer-abcdef")
+            val fixture = hopTransportFixture(localIdentity = localIdentity)
+
+            // Act
+            val delivered =
+                fixture.support.sendEncryptedWireFrame(
+                    peerId = peerId,
+                    frame = WireFrame.TransferComplete("transfer-none"),
+                    action = "transfer.complete",
+                )
+
+            // Assert
+            assertFalse(delivered)
+            assertTrue(fixture.sentFrames.isEmpty())
+            assertTrue(fixture.diagnostics.isEmpty())
+        }
+
+    @Test
+    fun `sendEncryptedWireFrame returns false when ensuring a running hard run session stays unreachable`() =
+        runBlocking {
+            // Arrange
+            val localIdentity = LocalIdentity.fromAppId("hop-transport-local")
+            val runtimeSurface = MeshEngineRuntimeSurface()
+            val hardRunToken = runtimeSurface.beginHardRun()
+            val peerId = PeerId("peer-abcdef")
+            val ensureCalls = mutableListOf<Pair<String, Long>>()
+            val fixture =
+                hopTransportFixture(
+                    localIdentity = localIdentity,
+                    runtimeSurface = runtimeSurface,
+                    establishedHopSession = { error("unexpected established-session lookup") },
+                    ensureHopSession = { ensuredPeerId, token ->
+                        ensureCalls += ensuredPeerId.value to token.epoch
+                        SessionEstablishmentOutcome.Unreachable
+                    },
+                )
+
+            // Act
+            val delivered =
+                fixture.support.sendEncryptedWireFrame(
+                    peerId = peerId,
+                    frame = WireFrame.TransferComplete("transfer-unreachable"),
+                    action = "transfer.complete",
+                    hardRunToken = hardRunToken,
+                )
+
+            // Assert
+            assertFalse(delivered)
+            assertEquals(listOf(peerId.value to hardRunToken.epoch), ensureCalls)
+            assertTrue(fixture.sentFrames.isEmpty())
+            assertTrue(fixture.diagnostics.isEmpty())
+        }
+
+    @Test
+    fun `sendEncryptedDirectWireFrame does not increment the send nonce when delivery drops`() =
+        runBlocking {
+            // Arrange
+            val localIdentity = LocalIdentity.fromAppId("hop-transport-local")
+            val peerId = PeerId("peer-abcdef")
+            val session = hopSession(keyByte = 0x44)
+            val fixture =
+                hopTransportFixture(
+                    localIdentity = localIdentity,
+                    sendDirectWireFrame = { _, _, _, _ ->
+                        TransportSendResult.Dropped("link not ready")
+                    },
+                )
+
+            // Act
+            val result =
+                fixture.support.sendEncryptedDirectWireFrame(
+                    peerId = peerId,
+                    session = session,
+                    frame = WireFrame.TransferComplete("transfer-drop"),
+                    action = "transfer.complete",
+                )
+
+            // Assert
+            assertIs<TransportSendResult.Dropped>(result)
+            assertEquals(0uL, session.sendNonce)
+            assertEquals(1, fixture.sentFrames.size)
+        }
+
+    @Test
+    fun `sendEncryptedWireFrame emits a hop session failure when encrypted send throws`() =
+        runBlocking {
+            // Arrange
+            val localIdentity = LocalIdentity.fromAppId("hop-transport-local")
+            val peerId = PeerId("peer-abcdef")
+            val session = hopSession(keyByte = 0x55)
+            val fixture =
+                hopTransportFixture(
+                    localIdentity = localIdentity,
+                    establishedHopSession = { session },
+                    sendDirectWireFrame = { _, _, _, _ -> throw IllegalStateException("boom") },
+                )
+
+            // Act
+            val delivered =
+                fixture.support.sendEncryptedWireFrame(
+                    peerId = peerId,
+                    frame = WireFrame.TransferComplete("transfer-throw"),
+                    action = "transfer.complete",
+                )
+
+            // Assert
+            assertFalse(delivered)
+            assertEquals(1, fixture.sentFrames.size)
+            assertEquals(
+                listOf(
+                    RecordedHopTransportDiagnostic(
+                        code = DiagnosticCode.HOP_SESSION_FAILED,
+                        severity = DiagnosticSeverity.WARN,
+                        stage = "transfer.complete.encrypt",
+                        peerSuffix = peerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
+                        reason = DiagnosticReason.DELIVERY_FAILURE,
+                        metadata =
+                            mapOf(
+                                "peerId" to peerId.value,
+                                "topologyVersion" to "0",
+                                "routeAvailable" to "false",
+                                "cause" to "IllegalStateException",
+                            ),
+                    )
+                ),
+                fixture.diagnostics,
+            )
+        }
+
+    @Test
     fun `sendEncryptedWireFrame returns false without ensuring a session when the hard run already ended`() =
         runBlocking {
             // Arrange
