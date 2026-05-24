@@ -433,6 +433,167 @@ class MeshEngineInboundSupportTest {
         }
 
     @Test
+    fun `handleEncryptedDataFrame applies route update frames to the route coordinator`() =
+        runBlocking {
+            // Arrange
+            val localIdentity = LocalIdentity.fromAppId("inbound-local")
+            val peerId = PeerId("peer-abcdef")
+            val destinationPeerId = PeerId("remote-route")
+            val sessionRegistry = MeshEngineSessionRegistry()
+            seedInboundSession(
+                localIdentity = localIdentity,
+                sessionRegistry = sessionRegistry,
+                peerId = peerId,
+            )
+            val fixture =
+                inboundSupportFixture(
+                    localIdentity = localIdentity,
+                    sessionRegistry = sessionRegistry,
+                    decryptedFrame =
+                        routeUpdateFrame(
+                            destinationPeerId = destinationPeerId,
+                            relayPeerId = peerId,
+                            seqNo = 7L,
+                        ),
+                )
+
+            // Act
+            fixture.support.handleEncryptedDataFrame(peerId = peerId, payload = byteArrayOf(1))
+
+            // Assert
+            val route = fixture.routeCoordinator.routeFor(destinationPeerId)
+            assertEquals(destinationPeerId.value, route?.destinationPeerId?.value)
+            assertEquals(peerId.value, route?.nextHopPeerId?.value)
+            assertTrue(fixture.failures.isEmpty())
+        }
+
+    @Test
+    fun `handleEncryptedDataFrame applies route retraction frames to the route coordinator`() =
+        runBlocking {
+            // Arrange
+            val localIdentity = LocalIdentity.fromAppId("inbound-local")
+            val peerId = PeerId("peer-abcdef")
+            val destinationPeerId = PeerId("remote-route")
+            val sessionRegistry = MeshEngineSessionRegistry()
+            seedInboundSession(
+                localIdentity = localIdentity,
+                sessionRegistry = sessionRegistry,
+                peerId = peerId,
+            )
+            val fixture =
+                inboundSupportFixture(
+                    localIdentity = localIdentity,
+                    sessionRegistry = sessionRegistry,
+                    decryptedFrame =
+                        WireFrame.RouteRetraction(destinationPeerId = destinationPeerId, seqNo = 7L),
+                )
+            fixture.routeCoordinator.onRouteUpdate(
+                fromPeerId = peerId,
+                update =
+                    routeUpdateFrame(
+                        destinationPeerId = destinationPeerId,
+                        relayPeerId = peerId,
+                        seqNo = 7L,
+                    ),
+            )
+
+            // Act
+            fixture.support.handleEncryptedDataFrame(peerId = peerId, payload = byteArrayOf(1))
+
+            // Assert
+            assertEquals(null, fixture.routeCoordinator.routeFor(destinationPeerId))
+            assertTrue(fixture.failures.isEmpty())
+        }
+
+    @Test
+    fun `handleEncryptedDataFrame ignores hello frames after decryption`() = runBlocking {
+        // Arrange
+        val localIdentity = LocalIdentity.fromAppId("inbound-local")
+        val peerId = PeerId("peer-abcdef")
+        val sessionRegistry = MeshEngineSessionRegistry()
+        seedInboundSession(
+            localIdentity = localIdentity,
+            sessionRegistry = sessionRegistry,
+            peerId = peerId,
+        )
+        val fixture =
+            inboundSupportFixture(
+                localIdentity = localIdentity,
+                sessionRegistry = sessionRegistry,
+                decryptedFrame = WireFrame.Hello(peerId = peerId, helloIntervalMillis = 5_000),
+            )
+
+        // Act
+        fixture.support.handleEncryptedDataFrame(peerId = peerId, payload = byteArrayOf(1))
+
+        // Assert
+        assertTrue(fixture.failures.isEmpty())
+        assertTrue(fixture.forwardedMessages.isEmpty())
+        assertTrue(fixture.deliveredMessages.isEmpty())
+        assertTrue(fixture.transferEvents.isEmpty())
+    }
+
+    @Test
+    fun `handleEncryptedDataFrame ignores ihu frames after decryption`() = runBlocking {
+        // Arrange
+        val localIdentity = LocalIdentity.fromAppId("inbound-local")
+        val peerId = PeerId("peer-abcdef")
+        val sessionRegistry = MeshEngineSessionRegistry()
+        seedInboundSession(
+            localIdentity = localIdentity,
+            sessionRegistry = sessionRegistry,
+            peerId = peerId,
+        )
+        val fixture =
+            inboundSupportFixture(
+                localIdentity = localIdentity,
+                sessionRegistry = sessionRegistry,
+                decryptedFrame = WireFrame.Ihu(peerId = peerId, receiveCost = 1),
+            )
+
+        // Act
+        fixture.support.handleEncryptedDataFrame(peerId = peerId, payload = byteArrayOf(1))
+
+        // Assert
+        assertTrue(fixture.failures.isEmpty())
+        assertTrue(fixture.forwardedMessages.isEmpty())
+        assertTrue(fixture.deliveredMessages.isEmpty())
+        assertTrue(fixture.transferEvents.isEmpty())
+    }
+
+    @Test
+    fun `handleEncryptedDataFrame ignores seqno request frames after decryption`() = runBlocking {
+        // Arrange
+        val localIdentity = LocalIdentity.fromAppId("inbound-local")
+        val peerId = PeerId("peer-abcdef")
+        val sessionRegistry = MeshEngineSessionRegistry()
+        seedInboundSession(
+            localIdentity = localIdentity,
+            sessionRegistry = sessionRegistry,
+            peerId = peerId,
+        )
+        val fixture =
+            inboundSupportFixture(
+                localIdentity = localIdentity,
+                sessionRegistry = sessionRegistry,
+                decryptedFrame =
+                    WireFrame.SeqNoRequest(
+                        destinationPeerId = PeerId("remote-route"),
+                        requestedSeqNo = 9L,
+                    ),
+            )
+
+        // Act
+        fixture.support.handleEncryptedDataFrame(peerId = peerId, payload = byteArrayOf(1))
+
+        // Assert
+        assertTrue(fixture.failures.isEmpty())
+        assertTrue(fixture.forwardedMessages.isEmpty())
+        assertTrue(fixture.deliveredMessages.isEmpty())
+        assertTrue(fixture.transferEvents.isEmpty())
+    }
+
+    @Test
     fun `handleEncryptedDataFrame emits no session when no active hop session exists`() =
         runBlocking {
             // Arrange
@@ -465,6 +626,7 @@ class MeshEngineInboundSupportTest {
 
 private data class InboundSupportFixture(
     val support: MeshEngineInboundSupport,
+    val routeCoordinator: RouteCoordinator,
     val failures: MutableList<RecordedInboundSupportFailure>,
     val forwardedMessages: MutableList<RecordedInboundSupportForwardedMessage>,
     val deliveredMessages: MutableList<RecordedInboundSupportDelivery>,
@@ -598,11 +760,34 @@ private fun inboundSupportFixture(
         )
     return InboundSupportFixture(
         support = support,
+        routeCoordinator = routeCoordinator,
         failures = failures,
         forwardedMessages = forwardedMessages,
         deliveredMessages = deliveredMessages,
         transferEvents = transferEvents,
     )
+}
+
+private fun routeUpdateFrame(
+    destinationPeerId: PeerId,
+    relayPeerId: PeerId,
+    seqNo: Long,
+): WireFrame.RouteUpdate {
+    val seed = destinationPeerId.value.last().code
+    return WireFrame.RouteUpdate(
+        destinationPeerId = destinationPeerId,
+        nextHopPeerId = relayPeerId,
+        metrics = WireFrame.RouteUpdateMetrics(metric = 1, seqNo = seqNo, feasibilityMetric = 1),
+        publicKeys =
+            WireFrame.RouteUpdatePublicKeys(
+                destinationEd25519PublicKey = repeatedByteArray(seed),
+                destinationX25519PublicKey = repeatedByteArray(seed + 25),
+            ),
+    )
+}
+
+private fun repeatedByteArray(seed: Int): ByteArray {
+    return ByteArray(32) { index -> ((seed + index) and 0xFF).toByte() }
 }
 
 private suspend fun seedInboundSession(
