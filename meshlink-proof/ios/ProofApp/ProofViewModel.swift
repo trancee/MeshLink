@@ -35,24 +35,13 @@ final class ProofViewModel: ObservableObject {
         }
     )
     private var autoSendTasks: [String: Task<Void, Never>] = [:]
+    private var flowTasks: [Task<Void, Never>] = []
     private var peerBytesByValue: [String: [UInt8]] = [:]
     private var pendingBenchmarkReceipts: [String: PendingBenchmarkReceipt] = [:]
     private var benchmarkTokenCounter: UInt64 = 0
     private var capturedStdoutBuffer: String = ""
     private var stdoutPipe: Pipe?
     private var stdoutOriginalDescriptor: Int32 = -1
-    private lazy var stateCollector: FlowCollector = FlowCollector { [weak self] value in
-        self?.stateText = String(describing: value ?? "Unknown")
-    }
-    private lazy var peerCollector: FlowCollector = FlowCollector { [weak self] value in
-        self?.handlePeerEvent(value)
-    }
-    private lazy var diagnosticCollector: FlowCollector = FlowCollector { [weak self] value in
-        self?.handleDiagnosticEvent(value)
-    }
-    private lazy var messageCollector: FlowCollector = FlowCollector { [weak self] value in
-        self?.handleInboundMessage(value)
-    }
 
     init() {
         launchConfig = ProofLaunchConfig.fromEnvironment(ProcessInfo.processInfo.environment)
@@ -61,12 +50,11 @@ final class ProofViewModel: ObservableObject {
                 .appendingPathComponent("proof.log")
         try? FileManager.default.removeItem(at: logFileUrl)
         let resolvedLaunchConfig = launchConfig
-        let config = MeshLinkConfigKt.meshLinkConfig { builder in
+        let config = meshLinkConfig { builder in
             builder.appId = resolvedLaunchConfig.appId
-            builder.regulatoryRegion = RegulatoryRegion.default_
             builder.powerMode = resolvedLaunchConfig.powerMode
         }
-        api = MeshLink.shared.create(config: config)
+        api = createMeshLinkRuntime(config: config)
         if resolvedLaunchConfig.benchmarkTransport == .meshLink {
             startTransportLogCaptureIfNeeded()
             bindFlows()
@@ -108,27 +96,25 @@ final class ProofViewModel: ObservableObject {
         }
 
         let startedAtNanos = DispatchTime.now().uptimeNanoseconds
-        api.start { [weak self] result, error in
-            Task { @MainActor in
-                guard let self else {
-                    return
+        Task { @MainActor [weak self] in
+            guard let self else {
+                return
+            }
+            do {
+                let result = try await self.api.start()
+                self.appendLog("mesh.start() -> \(result)")
+                if self.launchConfig.benchmarkColdStart {
+                    self.appendLog(
+                        "BENCHMARK coldStart elapsedMs=\(self.elapsedMilliseconds(since: startedAtNanos)) result=\(result)"
+                    )
                 }
-                if let result {
-                    self.appendLog("mesh.start() -> \(result)")
-                    if self.launchConfig.benchmarkColdStart {
-                        self.appendLog(
-                            "BENCHMARK coldStart elapsedMs=\(self.elapsedMilliseconds(since: startedAtNanos)) result=\(result)"
-                        )
-                    }
-                    self.applyBenchmarkPowerSnapshot()
-                }
-                if let error {
-                    self.appendLog("mesh.start() failed: \(error.localizedDescription)")
-                    if self.launchConfig.benchmarkColdStart {
-                        self.appendLog(
-                            "BENCHMARK coldStart failed=\(error.localizedDescription)"
-                        )
-                    }
+                self.applyBenchmarkPowerSnapshot()
+            } catch {
+                self.appendLog("mesh.start() failed: \(error.localizedDescription)")
+                if self.launchConfig.benchmarkColdStart {
+                    self.appendLog(
+                        "BENCHMARK coldStart failed=\(error.localizedDescription)"
+                    )
                 }
             }
         }
@@ -145,14 +131,15 @@ final class ProofViewModel: ObservableObject {
             appendLog("gatt.notify.stop() -> Stopped")
             return
         }
-        api.stop { [weak self] result, error in
-            Task { @MainActor in
-                if let result {
-                    self?.appendLog("mesh.stop() -> \(result)")
-                }
-                if let error {
-                    self?.appendLog("mesh.stop() failed: \(error.localizedDescription)")
-                }
+        Task { @MainActor [weak self] in
+            guard let self else {
+                return
+            }
+            do {
+                let result = try await self.api.stop()
+                self.appendLog("mesh.stop() -> \(result)")
+            } catch {
+                self.appendLog("mesh.stop() failed: \(error.localizedDescription)")
             }
         }
     }
@@ -180,57 +167,52 @@ final class ProofViewModel: ObservableObject {
         guard launchConfig.benchmarkTransport == .meshLink else {
             return
         }
-        stateText = String(describing: api.state.value ?? "Unknown")
-        api.state.collect(collector: stateCollector) { [weak self] error in
-            Task { @MainActor in
-                if let error {
-                    self?.appendLog("state flow ended: \(error.localizedDescription)")
-                }
-            }
+        guard flowTasks.isEmpty else {
+            return
         }
-        api.peerEvents.collect(collector: peerCollector) { [weak self] error in
-            Task { @MainActor in
-                if let error {
-                    self?.appendLog("peer flow ended: \(error.localizedDescription)")
+        let api = api
+        flowTasks = [
+            Task { @MainActor [weak self] in
+                for await state in api.state {
+                    self?.stateText = String(describing: state)
                 }
-            }
-        }
-        api.diagnosticEvents.collect(collector: diagnosticCollector) { [weak self] error in
-            Task { @MainActor in
-                if let error {
-                    self?.appendLog("diagnostic flow ended: \(error.localizedDescription)")
+            },
+            Task { @MainActor [weak self] in
+                for await event in api.peerEvents {
+                    self?.handlePeerEvent(event)
                 }
-            }
-        }
-        api.messages.collect(collector: messageCollector) { [weak self] error in
-            Task { @MainActor in
-                if let error {
-                    self?.appendLog("message flow ended: \(error.localizedDescription)")
+            },
+            Task { @MainActor [weak self] in
+                for await diagnostic in api.diagnosticEvents {
+                    self?.handleDiagnosticEvent(diagnostic)
                 }
-            }
-        }
+            },
+            Task { @MainActor [weak self] in
+                for await message in api.messages {
+                    self?.handleInboundMessage(message)
+                }
+            },
+        ]
     }
 
-    private func handlePeerEvent(_ value: Any?) {
-        if let found = value as? PeerEvent.Found {
+    private func handlePeerEvent(_ event: PeerEvent) {
+        switch onEnum(of: event) {
+        case .found(let found):
             peers = insertOrReplace(found.peerId, into: peers)
             cachePeerBytes(found.peerId)
             appendLog("Peer found: \(found.peerId.value)")
             scheduleAutoSend(for: found.peerId)
-        } else if let lost = value as? PeerEvent.Lost {
+        case .lost(let lost):
             peers.removeAll { peer in peer.value == lost.peerId.value }
             peerBytesByValue.removeValue(forKey: lost.peerId.value)
             autoSendTasks.removeValue(forKey: lost.peerId.value)?.cancel()
             appendLog("Peer lost: \(lost.peerId.value)")
-        } else if let changed = value as? PeerEvent.StateChanged {
+        case .stateChanged(let changed):
             appendLog("Peer state changed: \(changed.peerId.value) -> \(changed.state)")
         }
     }
 
-    private func handleDiagnosticEvent(_ value: Any?) {
-        guard let diagnostic = value as? DiagnosticEvent else {
-            return
-        }
+    private func handleDiagnosticEvent(_ diagnostic: DiagnosticEvent) {
         let reasonText = diagnostic.reason.map { String(describing: $0) } ?? "nil"
         let metadataSuffix: String
         if diagnostic.metadata.isEmpty {
@@ -270,10 +252,7 @@ final class ProofViewModel: ObservableObject {
         scheduleAutoSend(for: recoveredPeer)
     }
 
-    private func handleInboundMessage(_ value: Any?) {
-        guard let message = value as? InboundMessage else {
-            return
-        }
+    private func handleInboundMessage(_ message: InboundMessage) {
         let payloadData = message.payload.toData()
 
         if let receipt = BenchmarkReceiptEnvelope.decode(payloadData) {
@@ -395,8 +374,14 @@ final class ProofViewModel: ObservableObject {
                 let payload = benchmarkPayload?.encode().toKotlinByteArray() ?? buildHelloPayload()
                 let startedAtNanos = DispatchTime.now().uptimeNanoseconds
                 let receiptTask = benchmarkPayload.map { envelope in
-                    Task { @MainActor in
-                        await awaitBenchmarkReceipt(tokenHex: envelope.tokenHex, timeoutNanos: benchmarkReceiptTimeoutNanos)
+                    Task<BenchmarkReceiptEnvelope?, Never> { @MainActor [weak self] in
+                        guard let self else {
+                            return nil
+                        }
+                        return await self.awaitBenchmarkReceipt(
+                            tokenHex: envelope.tokenHex,
+                            timeoutNanos: self.benchmarkReceiptTimeoutNanos
+                        )
                     }
                 }
                 let result = await sendPayload(to: peerId, payload: payload, priority: DeliveryPriority.normal)
@@ -405,7 +390,13 @@ final class ProofViewModel: ObservableObject {
                         "auto-send attempt \(attempt + 1) -> \(result) for \(peerId.value.suffix(6))"
                     )
                     let resultDescription = String(describing: result)
-                    let wasSent = result is SendResult.Sent
+                    let wasSent: Bool
+                    switch onEnum(of: result) {
+                    case .sent:
+                        wasSent = true
+                    case .notSent:
+                        wasSent = false
+                    }
                     var receiptConfirmed = true
                     if let benchmarkPayload {
                         let receipt: BenchmarkReceiptEnvelope?
@@ -489,21 +480,18 @@ final class ProofViewModel: ObservableObject {
     ) async -> SendResult? {
         let peerSuffix = String(peerId.value.suffix(6))
 
-        return await withCheckedContinuation { continuation in
-            api.send(peerId: peerId, payload: payload, priority: priority) { [weak self] result, error in
-                Task { @MainActor in
-                    if let logPrefix, let result {
-                        self?.appendLog("\(logPrefix)(\(peerSuffix)) -> \(result)")
-                    }
-                    if benchmarkWarmup, let result {
-                        self?.appendLog("BENCHMARK transport warmup=\(result)")
-                    }
-                    if let error {
-                        self?.appendLog("mesh.send() failed: \(error.localizedDescription)")
-                    }
-                    continuation.resume(returning: result)
-                }
+        do {
+            let result = try await api.send(peerId: peerId, payload: payload, priority: priority)
+            if let logPrefix {
+                appendLog("\(logPrefix)(\(peerSuffix)) -> \(result)")
             }
+            if benchmarkWarmup {
+                appendLog("BENCHMARK transport warmup=\(result)")
+            }
+            return result
+        } catch {
+            appendLog("mesh.send() failed: \(error.localizedDescription)")
+            return nil
         }
     }
 
@@ -689,6 +677,10 @@ private final class PendingBenchmarkReceipt {
     }
 }
 
+private func createMeshLinkRuntime(config: MeshLinkConfig) -> MeshLinkApi {
+    return MeshLink_.shared.create(config: config)
+}
+
 private struct BenchmarkPayloadEnvelope {
     static let magic = Array("MLBM1000".utf8)
     static let headerBytes = 16
@@ -817,21 +809,6 @@ private struct ProofLaunchConfig {
             return false
         default:
             return nil
-        }
-    }
-}
-
-private final class FlowCollector: NSObject, Kotlinx_coroutines_coreFlowCollector {
-    private let onValue: @MainActor (Any?) -> Void
-
-    init(onValue: @escaping @MainActor (Any?) -> Void) {
-        self.onValue = onValue
-    }
-
-    func emit(value: Any?, completionHandler: @escaping (Error?) -> Void) {
-        Task { @MainActor in
-            onValue(value)
-            completionHandler(nil)
         }
     }
 }

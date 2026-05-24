@@ -18,10 +18,12 @@ For a completeness appendix rendered from the public API dump, use
 ## Swift naming notes
 
 These notes matter when you consume the generated Apple framework from Swift.
+The direct factory singleton currently appears as `MeshLink_` because the
+framework module itself is also named `MeshLink`.
 
 | Kotlin surface | Swift-facing shape |
 |---|---|
-| `MeshLink.create(...)` | `MeshLink.shared.create(...)` |
+| `MeshLink.create(...)` | `MeshLink_.shared.create(...)` (usually wrapped once in app code) |
 | `meshLinkConfig { ... }` | `meshLinkConfig { ... }` |
 | suspend functions like `start()` | `try await api.start()` |
 | `StateFlow` / `Flow` values | `AsyncSequence` values collected with `for await` |

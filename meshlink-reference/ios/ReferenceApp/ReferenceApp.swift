@@ -15,7 +15,7 @@ private struct ReferenceRootViewControllerRepresentable: UIViewControllerReprese
             let requiredPeerCount = Int32(environment["MESHLINK_REFERENCE_AUTOMATION_REQUIRED_PEER_COUNT"] ?? "1") ?? 1
             let targetPeerIndex = Int32(environment["MESHLINK_REFERENCE_AUTOMATION_TARGET_PEER_INDEX"] ?? "0") ?? 0
             let targetPeerId = environment["MESHLINK_REFERENCE_AUTOMATION_TARGET_PEER_ID"]
-            return ReferenceViewControllerKt.createReferenceLiveAutomationRootViewController(
+            return createReferenceLiveAutomationRootViewController(
                 storageSubdirectory: storageSubdirectory,
                 appId: appId,
                 role: role,
@@ -32,12 +32,12 @@ private struct ReferenceRootViewControllerRepresentable: UIViewControllerReprese
                 environment["MESHLINK_REFERENCE_AUTOMATION_STORAGE_SUBDIRECTORY"]
                 ?? "default"
             let blocked = environment["MESHLINK_REFERENCE_AUTOMATION_BLOCKED"] == "true"
-            return ReferenceViewControllerKt.createReferenceAutomationRootViewController(
+            return createReferenceAutomationRootViewController(
                 storageSubdirectory: storageSubdirectory,
                 blocked: blocked
             )
         }
-        return ReferenceViewControllerKt.createReferenceRootViewController()
+        return createReferenceRootViewController()
     }
 
     func updateUIViewController(_ uiViewController: UIViewController, context: Context) {

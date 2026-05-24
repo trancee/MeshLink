@@ -1,6 +1,6 @@
 # Dokka and SKIE posture for MeshLink
 
-Status: Adopted for `:meshlink`; Dokka also adopted for `:meshlink-reference`
+Status: Adopted for `:meshlink`; Dokka and SKIE also adopted for `:meshlink-reference`
 
 This note records the current repository posture for Dokka and SKIE after a
 codebase-wide pass over the Gradle modules.
@@ -12,6 +12,7 @@ The repository now uses the tools in these scopes:
 - **Dokka 2.2.0** on `:meshlink`
 - **Dokka 2.2.0** on `:meshlink-reference`
 - **SKIE 0.10.12** on `:meshlink`
+- **SKIE 0.10.12** on `:meshlink-reference`
 
 They are intentionally **not** applied to:
 
@@ -49,6 +50,11 @@ module that:
 
 That makes Dokka helpful for maintainers and contributors working on the shared
 reference-app layer, even though it is not a versioned public API commitment.
+
+It also makes SKIE worthwhile there, because the native iOS host consumes those
+entry points directly. Applying SKIE to `:meshlink-reference` removes needless
+Swift-side `*Kt` calls and keeps the host app on the same modern Swift-facing
+surface style already used for `:meshlink`.
 
 ### Why not `:benchmarks`
 
@@ -89,8 +95,11 @@ meshlink-reference/build/dokka/html/
 
 ## SKIE usage
 
-SKIE is still used only to improve the Swift surface of the generated
-**MeshLink SDK framework**.
+SKIE is used to improve the Swift surface of the generated framework-producing
+Kotlin modules that have native Swift consumers:
+
+- the **MeshLink SDK framework** from `:meshlink`
+- the **ReferenceAppShared** framework from `:meshlink-reference`
 
 Current stable benefits we rely on:
 
@@ -104,11 +113,12 @@ Current stable benefits we rely on:
 
 The current rollout intentionally keeps SKIE conservative:
 
-- apply SKIE only to the framework-producing SDK module (`:meshlink`)
+- apply SKIE only to framework-producing modules with real Swift consumers
+  (`:meshlink` and `:meshlink-reference`)
 - keep preview features off
 - keep default-argument interop off
 - do not add SKIE annotations until a real API need appears
-- keep the Swift guide aligned with the stable SKIE surface
+- keep the Swift guides and host apps aligned with the stable SKIE surface
 
 For Dokka, the current constraint is different:
 
@@ -118,8 +128,10 @@ For Dokka, the current constraint is different:
   written docs
 
 This means the current Swift surface still requires explicit `KotlinByteArray`
-conversion for binary payloads. SKIE improves concurrency and naming, but it is
-not being used here to opt into preview bridges or broader interop experiments.
+conversion for binary payloads and still relies on explicit native bridge
+installations where MeshLink needs platform crypto or transport hooks. SKIE
+improves concurrency and naming, but it is not being used here to opt into
+preview bridges or broader interop experiments.
 
 ## Practical implications for maintainers
 
@@ -134,6 +146,11 @@ If you change Swift-facing SDK guidance, update at least:
 
 - `docs/how-to/use-meshlink-from-swift.md`
 - `docs/reference/meshlink-sdk-api.md`
+
+If you change native iOS host usage of the shared reference-app framework,
+prefer SKIE-visible global functions and async or `AsyncSequence` entry points
+when those surfaces exist, instead of falling back to older `*Kt`, callback, or
+manual `FlowCollector` patterns.
 
 If you consider enabling more SKIE features later, treat them as deliberate API
 surface changes rather than passive tooling upgrades.

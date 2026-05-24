@@ -74,7 +74,7 @@ struct ChatApp: App {
             builder.appId = "com.example.chat.prod"
         }
 
-        meshLink = MeshLink.shared.create(config: config)
+        meshLink = createMeshLinkRuntime(config: config)
     }
 
     var body: some Scene {
@@ -82,6 +82,14 @@ struct ChatApp: App {
             ContentView()
         }
     }
+}
+```
+
+Add the tiny Swift wrapper once near your app boundary:
+
+```swift
+func createMeshLinkRuntime(config: MeshLinkConfig) -> MeshLinkApi {
+    MeshLink_.shared.create(config: config)
 }
 ```
 

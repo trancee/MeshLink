@@ -12,6 +12,7 @@ plugins {
     alias(libs.plugins.detekt)
     alias(libs.plugins.ktfmt)
     alias(libs.plugins.dokka)
+    alias(libs.plugins.skie)
     id("org.jetbrains.kotlinx.kover")
 }
 

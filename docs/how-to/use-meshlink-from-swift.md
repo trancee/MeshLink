@@ -62,16 +62,23 @@ Two practical notes:
 
 ## 3. Create the runtime from Swift
 
-Use `MeshLink.shared.create(config:)` on iOS.
+Because the framework module is also named `MeshLink`, the generated Kotlin
+singleton object currently appears in Swift as `MeshLink_`.
+
+Hide that generated name behind one small app-local wrapper:
 
 ```swift
 import MeshLink
+
+func createMeshLinkRuntime(config: MeshLinkConfig) -> MeshLinkApi {
+    MeshLink_.shared.create(config: config)
+}
 
 final class MeshLinkService {
     let api: MeshLinkApi
 
     init() {
-        api = MeshLink.shared.create(config: makeMeshLinkConfig())
+        api = createMeshLinkRuntime(config: makeMeshLinkConfig())
     }
 }
 ```
