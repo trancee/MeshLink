@@ -647,12 +647,28 @@ internal fun IosBleTransport.reuseOrCreateGattNotifyLink(
                 IosGattNotifyPeer(
                     hintPeerId = hintPeerId,
                     centralIdentifier = identifier,
-                    central = central,
+                    maximumUpdateValueLength = central.maximumUpdateValueLength.toInt(),
                 ),
             dependencies =
                 IosGattNotifyDependencies(
-                    peripheralManagerProvider = { peripheralManager },
-                    notifyCharacteristicProvider = { gattNotifyServiceCharacteristic },
+                    peripheralAdapterProvider = {
+                        val manager = peripheralManager
+                        val characteristic = gattNotifyServiceCharacteristic
+                        if (manager == null || characteristic == null) {
+                            null
+                        } else {
+                            CoreBluetoothGattNotifyPeripheralAdapter(
+                                peripheralManager = manager,
+                                notifyCharacteristic = characteristic,
+                                central = central,
+                            )
+                        }
+                    },
+                    runPump = { block ->
+                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                            block()
+                        }
+                    },
                     logger = ::log,
                     schedulePumpRetry = {
                         coroutineScope.launch {
