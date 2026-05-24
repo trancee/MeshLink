@@ -202,7 +202,8 @@ internal constructor(
             activeWriteLatencyPromoted = true
         }
         val startedAtMs = dependencies.timing.nowMillis()
-        val coalescedBuffer = buildCoalescedBufferSnapshot(queuedFrames)
+        val coalescedBuffer =
+            buildCoalescedBufferSnapshot(queuedFrames.map { queuedFrame -> queuedFrame.encoded })
         val writeStats = outputWriter.write(coalescedBuffer.buffer)
         val streamByteStart = cumulativeEncodedBytesWritten
         cumulativeEncodedBytesWritten += coalescedBuffer.buffer.size.toLong()
@@ -374,108 +375,12 @@ private data class BatchWriteStats(
     val batchTailHex: String,
 )
 
-private data class IosL2capBufferWriteStats(
-    val writeCalls: Int,
-    val writeBatches: Int,
-    val backpressureSpins: Int,
-    val readyFalseCount: Int,
-    val minWriteChunkBytes: Int,
-    val maxWriteChunkBytes: Int,
-    val minWriteBatchBytes: Int,
-    val maxWriteBatchBytes: Int,
-    val maxInterWriteGapMs: Long,
-    val totalElapsedMs: Long,
-)
-
-private data class IosL2capCoalescedBufferSnapshot(
-    val buffer: ByteArray,
-    val batchHeadHex: String,
-    val batchTailHex: String,
-)
-
-private data class IosL2capWriteProgress(
-    var lastWriteProgressAtMs: Long,
-    var writeCalls: Int = 0,
-    var writeBatches: Int = 0,
-    var backpressureSpins: Int = 0,
-    var readyFalseCount: Int = 0,
-    var minWriteChunkBytes: Int = Int.MAX_VALUE,
-    var maxWriteChunkBytes: Int = 0,
-    var minWriteBatchBytes: Int = Int.MAX_VALUE,
-    var maxWriteBatchBytes: Int = 0,
-    var previousPositiveWriteAtMs: Long? = null,
-    var maxInterWriteGapMs: Long = 0L,
-)
-
 private sealed interface IosL2capWriteAttempt {
     data class Progress(val writtenBytes: Int, val attemptAtMs: Long) : IosL2capWriteAttempt
 
     data object ReadyFalse : IosL2capWriteAttempt
 
     data object ZeroWrite : IosL2capWriteAttempt
-}
-
-private fun IosL2capWriteProgress.recordBatch(batchBytes: Int): Unit {
-    writeBatches += 1
-    maxWriteBatchBytes = maxOf(maxWriteBatchBytes, batchBytes)
-    minWriteBatchBytes = minOf(minWriteBatchBytes, batchBytes)
-}
-
-private fun IosL2capWriteProgress.recordBackpressure(readyFalse: Boolean): Unit {
-    backpressureSpins += 1
-    if (readyFalse) {
-        readyFalseCount += 1
-    }
-}
-
-private fun IosL2capWriteProgress.recordWrite(writtenBytes: Int, attemptAtMs: Long): Unit {
-    maxWriteChunkBytes = maxOf(maxWriteChunkBytes, writtenBytes)
-    minWriteChunkBytes = minOf(minWriteChunkBytes, writtenBytes)
-    previousPositiveWriteAtMs?.let { previousAtMs ->
-        maxInterWriteGapMs = maxOf(maxInterWriteGapMs, attemptAtMs - previousAtMs)
-    }
-    previousPositiveWriteAtMs = attemptAtMs
-    lastWriteProgressAtMs = attemptAtMs
-}
-
-private fun IosL2capWriteProgress.toStats(totalElapsedMs: Long): IosL2capBufferWriteStats {
-    return IosL2capBufferWriteStats(
-        writeCalls = writeCalls,
-        writeBatches = writeBatches,
-        backpressureSpins = backpressureSpins,
-        readyFalseCount = readyFalseCount,
-        minWriteChunkBytes = if (minWriteChunkBytes == Int.MAX_VALUE) 0 else minWriteChunkBytes,
-        maxWriteChunkBytes = maxWriteChunkBytes,
-        minWriteBatchBytes = if (minWriteBatchBytes == Int.MAX_VALUE) 0 else minWriteBatchBytes,
-        maxWriteBatchBytes = maxWriteBatchBytes,
-        maxInterWriteGapMs = maxInterWriteGapMs,
-        totalElapsedMs = totalElapsedMs,
-    )
-}
-
-private fun buildCoalescedBufferSnapshot(
-    queuedFrames: List<QueuedFrame>
-): IosL2capCoalescedBufferSnapshot {
-    val coalescedBuffer = ByteArray(queuedFrames.sumOf { queuedFrame -> queuedFrame.encoded.size })
-    var copyOffset = 0
-    queuedFrames.forEach { queuedFrame ->
-        queuedFrame.encoded.copyInto(coalescedBuffer, destinationOffset = copyOffset)
-        copyOffset += queuedFrame.encoded.size
-    }
-    return IosL2capCoalescedBufferSnapshot(
-        buffer = coalescedBuffer,
-        batchHeadHex =
-            coalescedBuffer
-                .copyOf(minOf(coalescedBuffer.size, TELEMETRY_HEX_SNIPPET_BYTES))
-                .toHexString(),
-        batchTailHex =
-            coalescedBuffer
-                .copyOfRange(
-                    maxOf(0, coalescedBuffer.size - TELEMETRY_HEX_SNIPPET_BYTES),
-                    coalescedBuffer.size,
-                )
-                .toHexString(),
-    )
 }
 
 private fun emitBatchTelemetry(
@@ -559,4 +464,3 @@ private const val WRITE_BATCH_BYTES: Int = 4 * 1024
 private const val ACK_LIKELY_ENCRYPTED_BYTES: Int = 192
 private const val WRITE_STALL_TIMEOUT_MS: Long = 10_000L
 private const val FRAME_PREFIX_BYTES: Int = 4
-private const val TELEMETRY_HEX_SNIPPET_BYTES: Int = 16
