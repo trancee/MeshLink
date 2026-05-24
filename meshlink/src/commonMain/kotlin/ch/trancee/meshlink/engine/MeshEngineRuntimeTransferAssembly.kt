@@ -170,10 +170,10 @@ internal fun buildMeshEngineRuntimeTransferAndInboundPhase(
             transferSupport = transferSupport,
         )
     return MeshEngineRuntimeTransferAndInboundPhase(
-        outboundTransferLifecycleSupport = outboundTransferLifecycleSupport,
-        outboundDeliverySupport = outboundDeliverySupport,
-        transferSupport = transferSupport,
-        inboundSupport = inboundSupport,
+        sendPayload = outboundDeliverySupport::sendPayload,
+        handleEncryptedDataFrame = inboundSupport::handleEncryptedDataFrame,
+        abortLocalTransfers = transferSupport::abortLocalTransfers,
+        clearOutboundTransfers = outboundTransferLifecycleSupport::clearAll,
     )
 }
 

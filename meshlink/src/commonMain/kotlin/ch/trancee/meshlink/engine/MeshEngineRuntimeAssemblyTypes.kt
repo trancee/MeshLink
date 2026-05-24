@@ -2,6 +2,7 @@ package ch.trancee.meshlink.engine
 
 import ch.trancee.meshlink.api.DeliveryPriority
 import ch.trancee.meshlink.api.PeerId
+import ch.trancee.meshlink.api.SendResult
 import ch.trancee.meshlink.config.MeshLinkConfig
 import ch.trancee.meshlink.diagnostics.DiagnosticCode
 import ch.trancee.meshlink.diagnostics.DiagnosticReason
@@ -16,6 +17,7 @@ import ch.trancee.meshlink.transfer.RelayTransferSession
 import ch.trancee.meshlink.transport.TransportMode
 import ch.trancee.meshlink.transport.TransportSendResult
 import ch.trancee.meshlink.trust.TofuTrustStore
+import ch.trancee.meshlink.wire.TransferAbortReasonCode
 import ch.trancee.meshlink.wire.WireFrame
 import kotlinx.coroutines.CoroutineScope
 
@@ -105,10 +107,17 @@ internal data class MeshEngineRuntimeHandshakePhase(
 )
 
 internal data class MeshEngineRuntimeTransferAndInboundPhase(
-    val outboundTransferLifecycleSupport: MeshEngineOutboundTransferLifecycleSupport,
-    val outboundDeliverySupport: MeshEngineOutboundDeliverySupport,
-    val transferSupport: MeshEngineTransferSupport,
-    val inboundSupport: MeshEngineInboundSupport,
+    val sendPayload:
+        suspend (
+            MeshEngineOutboundDeliveryMode,
+            PeerId,
+            ByteArray,
+            DeliveryPriority,
+            MeshEngineHardRunToken,
+        ) -> SendResult,
+    val handleEncryptedDataFrame: suspend (PeerId, ByteArray) -> Unit,
+    val abortLocalTransfers: suspend (TransferAbortReasonCode) -> Unit,
+    val clearOutboundTransfers: () -> Unit,
 )
 
 internal data class MeshEngineRuntimeFacadeOperationsPhase(

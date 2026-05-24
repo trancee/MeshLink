@@ -26,7 +26,7 @@ internal fun buildMeshEngineRuntimeFacadeOperationsPhase(
             handleHandshakeMessage1 = handshake.responderHandshakeSupport::handleHandshakeMessage1,
             handleHandshakeMessage2 = handshake.initiatorHandshakeSupport::handleHandshakeMessage2,
             handleHandshakeMessage3 = handshake.responderHandshakeSupport::handleHandshakeMessage3,
-            handleEncryptedDataFrame = transferAndInbound.inboundSupport::handleEncryptedDataFrame,
+            handleEncryptedDataFrame = transferAndInbound.handleEncryptedDataFrame,
             emitDiagnostic = support.emitDiagnostic,
         )
     val transportCollector =
@@ -61,10 +61,8 @@ internal fun buildMeshEngineRuntimeFacadeOperationsPhase(
                     metadata = metadata,
                 )
             },
-            abortCommittedTransfers = { reasonCode ->
-                transferAndInbound.transferSupport.abortLocalTransfers(reasonCode)
-            },
-            clearOutboundTransfers = transferAndInbound.outboundTransferLifecycleSupport::clearAll,
+            abortCommittedTransfers = transferAndInbound.abortLocalTransfers,
+            clearOutboundTransfers = transferAndInbound.clearOutboundTransfers,
             emitDiagnostic = support.emitDiagnostic,
         )
     val sendSupport =
@@ -74,15 +72,7 @@ internal fun buildMeshEngineRuntimeFacadeOperationsPhase(
             hasTransport = { environment.platformBridge.hasTransport },
             shouldAttemptLargeInlineSend =
                 sessionAndHopTransport.peerFlowSupport::shouldAttemptLargeInlineSend,
-            sendPayload = { mode, peerId, payload, priority, hardRunToken ->
-                transferAndInbound.outboundDeliverySupport.sendPayload(
-                    mode = mode,
-                    peerId = peerId,
-                    payload = payload,
-                    priority = priority,
-                    hardRunToken = hardRunToken,
-                )
-            },
+            sendPayload = transferAndInbound.sendPayload,
             scheduleRetryDiagnostic = routingAndTrust.scheduleRetryDiagnostic,
             emitDiagnostic = support.emitDiagnostic,
         )
