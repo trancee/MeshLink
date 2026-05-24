@@ -13,6 +13,7 @@ import kotlin.time.Duration.Companion.milliseconds
 internal data class MeshEngineLargeTransferOutboundDeliveryAdapterDependencies(
     val currentTopologyVersion: () -> Long,
     val discoverySuspensionSupport: MeshEngineDiscoverySuspensionSupport,
+    val shouldSuspendDiscovery: (PeerId) -> Boolean,
     val progressSupport: MeshEngineLargeTransferProgressSupport,
     val terminalSupport: MeshEngineLargeTransferTerminalSupport,
 )
@@ -37,10 +38,13 @@ internal class MeshEngineLargeTransferOutboundDeliveryAdapter(
     }
 
     override suspend fun <T> withDiscoveryPolicy(
-        @Suppress("UnusedParameter") context: MeshEngineOutboundDeliveryAttemptContext,
+        context: MeshEngineOutboundDeliveryAttemptContext,
         block: suspend () -> T,
     ): T {
-        return dependencies.discoverySuspensionSupport.withDiscoverySuspended(block = block)
+        return dependencies.discoverySuspensionSupport.withDiscoverySuspended(
+            shouldSuspend = dependencies.shouldSuspendDiscovery(context.peerId),
+            block = block,
+        )
     }
 
     override suspend fun attemptOutboundDelivery(
@@ -188,6 +192,9 @@ internal fun buildMeshEngineRuntimeLargeTransferOutboundDeliveryAdapter(
             MeshEngineLargeTransferOutboundDeliveryAdapterDependencies(
                 currentTopologyVersion = currentTopologyVersion,
                 discoverySuspensionSupport = discoverySuspensionSupport,
+                shouldSuspendDiscovery = { peerId ->
+                    routingSupport.peerRouteMetadata(peerId)["routeAvailable"] == "true"
+                },
                 progressSupport = progressSupport,
                 terminalSupport = terminalSupport,
             ),

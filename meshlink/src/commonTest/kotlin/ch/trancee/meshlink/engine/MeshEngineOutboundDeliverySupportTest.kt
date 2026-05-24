@@ -76,6 +76,55 @@ class MeshEngineOutboundDeliverySupportTest {
         }
 
     @Test
+    fun `sendPayload does not suspend discovery while a large transfer is still waiting for its first route`() =
+        runBlocking {
+            // Arrange
+            val peerId = PeerId("peer-route-wait")
+            val runtimeGate = TestRuntimeGate(activeHardRunEpoch = 11L)
+            val retryCallbacks = OutboundDeliveryRetryCallbacksRecorder { _, _ ->
+                RetryWakeup.DeadlineExpired(topologyVersion = 0L)
+            }
+            val largeDiscoveryTransitions = mutableListOf<Boolean>()
+            val support =
+                outboundDeliverySupport(
+                    deliveryRetryCallbacks = retryCallbacks,
+                    inlineOutboundDeliveryAdapter = dummyInlineOutboundDeliveryAdapter(runtimeGate),
+                    largeTransferOutboundDeliveryAdapter =
+                        largeTransferOutboundDeliveryAdapter(
+                            runtimeGate = runtimeGate,
+                            outboundTransferLifecycleSupport =
+                                outboundTransferLifecycleSupport(
+                                    scheduleRetryDiagnostic = { _, _ -> },
+                                    prepareOutboundTransferSession = { _, _, _ ->
+                                        OutboundTransferPreparation.PendingRoute
+                                    },
+                                ),
+                            discoveryTransitions = largeDiscoveryTransitions,
+                            shouldSuspendDiscovery = { false },
+                            scheduleRetryDiagnostic = { _, _ -> },
+                            sendTransferTowardsDestination = { _, _, _, _ -> true },
+                            clearQueuedOutboundFrames = { _, _ -> },
+                        ),
+                    deliveryRetryDeadline = 100.milliseconds,
+                )
+
+            // Act
+            val result =
+                support.sendPayload(
+                    mode = MeshEngineOutboundDeliveryMode.LARGE_TRANSFER,
+                    peerId = peerId,
+                    payload = byteArrayOf(0x01, 0x02),
+                    priority = DeliveryPriority.HIGH,
+                    hardRunToken = MeshEngineHardRunToken(epoch = 11L),
+                )
+
+            // Assert
+            val notSent = assertIs<SendResult.NotSent>(result)
+            assertEquals(SendFailureReason.UNREACHABLE, notSent.reason)
+            assertEquals(emptyList(), largeDiscoveryTransitions)
+        }
+
+    @Test
     fun `sendPayload resets retry attempts after large transfer progress`() = runBlocking {
         // Arrange
         val peerId = PeerId("peer-abcdef")
@@ -292,6 +341,7 @@ private fun largeTransferOutboundDeliveryAdapter(
     runtimeGate: MeshEngineRuntimeGate,
     outboundTransferLifecycleSupport: MeshEngineOutboundTransferLifecycleSupport,
     discoveryTransitions: MutableList<Boolean>,
+    shouldSuspendDiscovery: (PeerId) -> Boolean = { true },
     scheduleRetryDiagnostic: (PeerId, DeliveryPriority) -> Unit,
     sendTransferTowardsDestination:
         suspend (PeerId, WireFrame, String, MeshEngineHardRunToken?) -> Boolean,
@@ -342,6 +392,7 @@ private fun largeTransferOutboundDeliveryAdapter(
                     MeshEngineDiscoverySuspensionSupport { suspended ->
                         discoveryTransitions += suspended
                     },
+                shouldSuspendDiscovery = shouldSuspendDiscovery,
                 progressSupport = progressSupport,
                 terminalSupport = terminalSupport,
             ),

@@ -133,6 +133,25 @@ class MeshEngineLargeTransferOutboundDeliveryAdapterTest {
         }
 
     @Test
+    fun `withDiscoveryPolicy skips discovery suspension when the route is not ready`() =
+        runBlocking {
+            // Arrange
+            val discoveryTransitions = mutableListOf<Boolean>()
+            val adapter =
+                largeTransferOutboundDeliveryAdapter(
+                    discoveryTransitions = discoveryTransitions,
+                    shouldSuspendDiscovery = { false },
+                )
+            val context = largeTransferAttemptContext()
+
+            // Act
+            adapter.withDiscoveryPolicy(context) { Unit }
+
+            // Assert
+            assertEquals(emptyList(), discoveryTransitions)
+        }
+
+    @Test
     fun `onDeadlineExpired returns transfer timed out when a route was previously available`() =
         runBlocking {
             // Arrange
@@ -178,6 +197,8 @@ private fun largeTransferOutboundDeliveryAdapter(
             true
         },
     clearQueuedOutboundFrames: suspend (PeerId, String) -> Unit = { _, _ -> },
+    discoveryTransitions: MutableList<Boolean> = mutableListOf(),
+    shouldSuspendDiscovery: (PeerId) -> Boolean = { true },
 ): MeshEngineLargeTransferOutboundDeliveryAdapter {
     val routingSupport = largeTransferRoutingSupport()
     val progressSupport =
@@ -220,7 +241,11 @@ private fun largeTransferOutboundDeliveryAdapter(
         dependencies =
             MeshEngineLargeTransferOutboundDeliveryAdapterDependencies(
                 currentTopologyVersion = { 3L },
-                discoverySuspensionSupport = MeshEngineDiscoverySuspensionSupport { _ -> },
+                discoverySuspensionSupport =
+                    MeshEngineDiscoverySuspensionSupport { suspended ->
+                        discoveryTransitions += suspended
+                    },
+                shouldSuspendDiscovery = shouldSuspendDiscovery,
                 progressSupport = progressSupport,
                 terminalSupport = terminalSupport,
             ),
