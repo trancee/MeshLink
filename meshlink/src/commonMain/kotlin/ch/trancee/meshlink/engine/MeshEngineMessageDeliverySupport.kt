@@ -137,3 +137,29 @@ internal class MeshEngineMessageDeliverySupport(
         )
     }
 }
+
+internal fun buildMeshEngineRuntimeMessageDeliverySupport(
+    localIdentity: LocalIdentity,
+    runtimeGate: MeshEngineRuntimeGate,
+    trustSupport: MeshEngineTrustSupport,
+    mutableMessages: MutableSharedFlow<InboundMessage>,
+    emitHopSessionFailed: (PeerId, String, DiagnosticReason, Map<String, String>) -> Unit,
+    emitDiagnostic:
+        (
+            DiagnosticCode,
+            DiagnosticSeverity,
+            String,
+            String?,
+            DiagnosticReason?,
+            Map<String, String>,
+        ) -> Unit,
+): MeshEngineMessageDeliverySupport {
+    return MeshEngineMessageDeliverySupport(
+        localIdentity = localIdentity,
+        runtimeGate = runtimeGate,
+        trustSupport = trustSupport,
+        mutableMessages = mutableMessages,
+        emitHopSessionFailed = emitHopSessionFailed,
+        emitDiagnostic = emitDiagnostic,
+    )
+}

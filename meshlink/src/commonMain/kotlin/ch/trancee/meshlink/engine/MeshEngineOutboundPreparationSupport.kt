@@ -260,3 +260,41 @@ internal class MeshEngineOutboundPreparationSupport(
         private const val TRANSFER_CHUNK_PAYLOAD_BYTES: Int = 392
     }
 }
+
+internal fun buildMeshEngineRuntimeOutboundPreparationSupport(
+    localIdentity: LocalIdentity,
+    trustStore: TofuTrustStore,
+    routeCoordinator: RouteCoordinator,
+    routingSupport: MeshEngineRoutingSupport,
+    createMessageId: () -> String,
+    createTransferId: () -> String,
+    emitInlineEncryptFailure: (PeerId, String) -> Unit,
+    emitTransferEncryptFailure: (PeerId, String) -> Unit,
+    emitDiagnostic:
+        (
+            DiagnosticCode,
+            DiagnosticSeverity,
+            String,
+            String?,
+            DiagnosticReason?,
+            Map<String, String>,
+        ) -> Unit,
+): MeshEngineOutboundPreparationSupport {
+    return MeshEngineOutboundPreparationSupport(
+        localIdentity = localIdentity,
+        trustStore = trustStore,
+        routingContext =
+            MeshEngineOutboundPreparationRoutingContext(
+                routeCoordinator = routeCoordinator,
+                routingSupport = routingSupport,
+            ),
+        callbacks =
+            MeshEngineOutboundPreparationCallbacks(
+                createMessageId = createMessageId,
+                createTransferId = createTransferId,
+                emitInlineEncryptFailure = emitInlineEncryptFailure,
+                emitTransferEncryptFailure = emitTransferEncryptFailure,
+            ),
+        emitDiagnostic = emitDiagnostic,
+    )
+}

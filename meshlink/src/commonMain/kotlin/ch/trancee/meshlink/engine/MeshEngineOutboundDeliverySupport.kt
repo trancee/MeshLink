@@ -218,3 +218,18 @@ internal class MeshEngineOutboundDeliverySupport(
         )
     }
 }
+
+internal fun buildMeshEngineRuntimeOutboundDeliverySupport(
+    deliveryRetryDeadline: Duration,
+    deliveryRetrySupport: MeshEngineDeliveryRetrySupport,
+    inlineOutboundDeliveryAdapter: MeshEngineInlineOutboundDeliveryAdapter,
+    largeTransferOutboundDeliveryAdapter: MeshEngineLargeTransferOutboundDeliveryAdapter,
+): MeshEngineOutboundDeliverySupport {
+    return MeshEngineOutboundDeliverySupport(
+        config = MeshEngineOutboundDeliveryConfig(deliveryRetryDeadline = deliveryRetryDeadline),
+        dependencies =
+            MeshEngineOutboundDeliveryDependencies(deliveryRetrySupport = deliveryRetrySupport),
+        inlineOutboundDeliveryAdapter = inlineOutboundDeliveryAdapter,
+        largeTransferOutboundDeliveryAdapter = largeTransferOutboundDeliveryAdapter,
+    )
+}

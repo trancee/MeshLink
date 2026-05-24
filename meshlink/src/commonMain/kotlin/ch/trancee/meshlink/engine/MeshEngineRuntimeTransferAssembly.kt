@@ -15,41 +15,74 @@ internal fun buildMeshEngineRuntimeTransferAndInboundPhase(
     val sessionAndHopTransport = session.sessionAndHopTransport
     val messageDeliverySupport =
         buildMeshEngineRuntimeMessageDeliverySupport(
-            environment = environment,
-            support = support,
-            routingAndTrust = routingAndTrust,
-            sessionAndHopTransport = sessionAndHopTransport,
+            localIdentity = environment.localIdentity,
+            runtimeGate = environment.compatibilitySurface.runtimeGate,
+            trustSupport = routingAndTrust.trustSupport,
+            mutableMessages = environment.compatibilitySurface.mutableMessages,
+            emitHopSessionFailed = sessionAndHopTransport.hopTransportSupport::emitHopSessionFailed,
+            emitDiagnostic = support.emitDiagnostic,
         )
     val outboundPreparationSupport =
         buildMeshEngineRuntimeOutboundPreparationSupport(
-            environment = environment,
-            support = support,
-            routingAndTrust = routingAndTrust,
-            sessionAndHopTransport = sessionAndHopTransport,
-            sharedState = sharedState,
+            localIdentity = environment.localIdentity,
+            trustStore = environment.trustStore,
+            routeCoordinator = sharedState.routeCoordinator,
+            routingSupport = routingAndTrust.routingSupport,
+            createMessageId = sharedState.sequenceGenerator::createMessageId,
+            createTransferId = sharedState.sequenceGenerator::createTransferId,
+            emitInlineEncryptFailure = { peerId, cause ->
+                sessionAndHopTransport.hopTransportSupport.emitHopSessionFailed(
+                    peerId = peerId,
+                    stage = "delivery.send.encrypt",
+                    reason = DiagnosticReason.TRUST_FAILURE,
+                    metadata = mapOf("cause" to cause),
+                )
+            },
+            emitTransferEncryptFailure = { peerId, cause ->
+                sessionAndHopTransport.hopTransportSupport.emitHopSessionFailed(
+                    peerId = peerId,
+                    stage = "transfer.encrypt",
+                    reason = DiagnosticReason.TRUST_FAILURE,
+                    metadata = mapOf("cause" to cause),
+                )
+            },
+            emitDiagnostic = support.emitDiagnostic,
         )
     val outboundTransferLifecycleSupport =
         buildMeshEngineRuntimeOutboundTransferLifecycleSupport(
-            sharedState = sharedState,
-            routingAndTrust = routingAndTrust,
-            outboundPreparationSupport = outboundPreparationSupport,
+            outboundTransfers = sharedState.outboundTransfers,
+            prepareOutboundTransferSession =
+                outboundPreparationSupport::prepareOutboundTransferSession,
+            scheduleRetryDiagnostic = routingAndTrust.scheduleRetryDiagnostic,
         )
     val deliveryRetrySupport =
         buildMeshEngineRuntimeDeliveryRetrySupport(
-            environment = environment,
-            support = support,
-            sharedState = sharedState,
-            routingAndTrust = routingAndTrust,
+            awaitRetry = { attempt, remainingBudget, topologyVersion, hardRunToken ->
+                sharedState.deliveryRetryScheduler.awaitRetry(
+                    attempt = attempt,
+                    remainingBudget = remainingBudget,
+                    lastObservedTopologyVersion = topologyVersion,
+                    runtimeGate = environment.compatibilitySurface.runtimeGate,
+                    hardRunToken = hardRunToken,
+                )
+            },
+            routeMetadata = { peerId, metadata ->
+                routingAndTrust.routingSupport.peerRouteMetadata(
+                    peerId = peerId,
+                    metadata = metadata,
+                )
+            },
+            emitDiagnostic = support.emitDiagnostic,
         )
     val inlineDiscoverySuspensionSupport =
         buildMeshEngineRuntimeDiscoverySuspensionSupport(
-            environment = environment,
+            setDiscoverySuspended = environment.platformBridge::setDiscoverySuspended,
             suspendAction = "inline.discoverySuspend",
             resumeAction = "inline.discoveryResume",
         )
     val transferDiscoverySuspensionSupport =
         buildMeshEngineRuntimeDiscoverySuspensionSupport(
-            environment = environment,
+            setDiscoverySuspended = environment.platformBridge::setDiscoverySuspended,
             suspendAction = "transfer.discoverySuspend",
             resumeAction = "transfer.discoveryResume",
         )
@@ -124,136 +157,6 @@ internal fun buildMeshEngineRuntimeTransferAndInboundPhase(
         outboundDeliverySupport = outboundDeliverySupport,
         transferSupport = transferSupport,
         inboundSupport = inboundSupport,
-    )
-}
-
-private fun buildMeshEngineRuntimeMessageDeliverySupport(
-    environment: MeshEngineRuntimeAssemblyEnvironment,
-    support: MeshEngineRuntimeAssemblySupport,
-    routingAndTrust: MeshEngineRuntimeRoutingAndTrustPhase,
-    sessionAndHopTransport: MeshEngineRuntimeSessionAndHopTransportPhase,
-): MeshEngineMessageDeliverySupport {
-    return MeshEngineMessageDeliverySupport(
-        localIdentity = environment.localIdentity,
-        runtimeGate = environment.compatibilitySurface.runtimeGate,
-        trustSupport = routingAndTrust.trustSupport,
-        mutableMessages = environment.compatibilitySurface.mutableMessages,
-        emitHopSessionFailed = sessionAndHopTransport.hopTransportSupport::emitHopSessionFailed,
-        emitDiagnostic = support.emitDiagnostic,
-    )
-}
-
-private fun buildMeshEngineRuntimeOutboundPreparationSupport(
-    environment: MeshEngineRuntimeAssemblyEnvironment,
-    support: MeshEngineRuntimeAssemblySupport,
-    routingAndTrust: MeshEngineRuntimeRoutingAndTrustPhase,
-    sessionAndHopTransport: MeshEngineRuntimeSessionAndHopTransportPhase,
-    sharedState: MeshEngineRuntimeSharedState,
-): MeshEngineOutboundPreparationSupport {
-    return MeshEngineOutboundPreparationSupport(
-        localIdentity = environment.localIdentity,
-        trustStore = environment.trustStore,
-        routingContext =
-            MeshEngineOutboundPreparationRoutingContext(
-                routeCoordinator = sharedState.routeCoordinator,
-                routingSupport = routingAndTrust.routingSupport,
-            ),
-        callbacks =
-            MeshEngineOutboundPreparationCallbacks(
-                createMessageId = sharedState.sequenceGenerator::createMessageId,
-                createTransferId = sharedState.sequenceGenerator::createTransferId,
-                emitInlineEncryptFailure = { peerId, cause ->
-                    sessionAndHopTransport.hopTransportSupport.emitHopSessionFailed(
-                        peerId = peerId,
-                        stage = "delivery.send.encrypt",
-                        reason = DiagnosticReason.TRUST_FAILURE,
-                        metadata = mapOf("cause" to cause),
-                    )
-                },
-                emitTransferEncryptFailure = { peerId, cause ->
-                    sessionAndHopTransport.hopTransportSupport.emitHopSessionFailed(
-                        peerId = peerId,
-                        stage = "transfer.encrypt",
-                        reason = DiagnosticReason.TRUST_FAILURE,
-                        metadata = mapOf("cause" to cause),
-                    )
-                },
-            ),
-        emitDiagnostic = support.emitDiagnostic,
-    )
-}
-
-private fun buildMeshEngineRuntimeDeliveryRetrySupport(
-    environment: MeshEngineRuntimeAssemblyEnvironment,
-    support: MeshEngineRuntimeAssemblySupport,
-    sharedState: MeshEngineRuntimeSharedState,
-    routingAndTrust: MeshEngineRuntimeRoutingAndTrustPhase,
-): MeshEngineDeliveryRetrySupport {
-    return MeshEngineDeliveryRetrySupport(
-        callbacks =
-            MeshEngineDeliveryRetryCallbacks(
-                awaitRetry = { attempt, remainingBudget, topologyVersion, hardRunToken ->
-                    sharedState.deliveryRetryScheduler.awaitRetry(
-                        attempt = attempt,
-                        remainingBudget = remainingBudget,
-                        lastObservedTopologyVersion = topologyVersion,
-                        runtimeGate = environment.compatibilitySurface.runtimeGate,
-                        hardRunToken = hardRunToken,
-                    )
-                },
-                routeMetadata = { peerId, metadata ->
-                    routingAndTrust.routingSupport.peerRouteMetadata(
-                        peerId = peerId,
-                        metadata = metadata,
-                    )
-                },
-                emitDiagnostic = support.emitDiagnostic,
-            )
-    )
-}
-
-private fun buildMeshEngineRuntimeDiscoverySuspensionSupport(
-    environment: MeshEngineRuntimeAssemblyEnvironment,
-    suspendAction: String,
-    resumeAction: String,
-): MeshEngineDiscoverySuspensionSupport {
-    return MeshEngineDiscoverySuspensionSupport { suspended ->
-        val action = if (suspended) suspendAction else resumeAction
-        environment.platformBridge.setDiscoverySuspended(action = action, suspended = suspended)
-    }
-}
-
-private fun buildMeshEngineRuntimeOutboundDeliverySupport(
-    deliveryRetryDeadline: kotlin.time.Duration,
-    deliveryRetrySupport: MeshEngineDeliveryRetrySupport,
-    inlineOutboundDeliveryAdapter: MeshEngineInlineOutboundDeliveryAdapter,
-    largeTransferOutboundDeliveryAdapter: MeshEngineLargeTransferOutboundDeliveryAdapter,
-): MeshEngineOutboundDeliverySupport {
-    return MeshEngineOutboundDeliverySupport(
-        config = MeshEngineOutboundDeliveryConfig(deliveryRetryDeadline = deliveryRetryDeadline),
-        dependencies =
-            MeshEngineOutboundDeliveryDependencies(deliveryRetrySupport = deliveryRetrySupport),
-        inlineOutboundDeliveryAdapter = inlineOutboundDeliveryAdapter,
-        largeTransferOutboundDeliveryAdapter = largeTransferOutboundDeliveryAdapter,
-    )
-}
-
-private fun buildMeshEngineRuntimeOutboundTransferLifecycleSupport(
-    sharedState: MeshEngineRuntimeSharedState,
-    routingAndTrust: MeshEngineRuntimeRoutingAndTrustPhase,
-    outboundPreparationSupport: MeshEngineOutboundPreparationSupport,
-): MeshEngineOutboundTransferLifecycleSupport {
-    return MeshEngineOutboundTransferLifecycleSupport(
-        state =
-            MeshEngineOutboundTransferLifecycleState(
-                outboundTransfers = sharedState.outboundTransfers
-            ),
-        dependencies =
-            MeshEngineOutboundTransferLifecycleDependencies(
-                prepareOutboundTransferSession =
-                    outboundPreparationSupport::prepareOutboundTransferSession,
-                scheduleRetryDiagnostic = routingAndTrust.scheduleRetryDiagnostic,
-            ),
     )
 }
 

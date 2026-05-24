@@ -112,3 +112,26 @@ internal class MeshEngineDeliveryRetrySupport(
         )
     }
 }
+
+internal fun buildMeshEngineRuntimeDeliveryRetrySupport(
+    awaitRetry: suspend (Int, Duration, Long, MeshEngineHardRunToken) -> RetryWakeup,
+    routeMetadata: (PeerId, Map<String, String>) -> Map<String, String>,
+    emitDiagnostic:
+        (
+            DiagnosticCode,
+            DiagnosticSeverity,
+            String,
+            String?,
+            DiagnosticReason?,
+            Map<String, String>,
+        ) -> Unit,
+): MeshEngineDeliveryRetrySupport {
+    return MeshEngineDeliveryRetrySupport(
+        callbacks =
+            MeshEngineDeliveryRetryCallbacks(
+                awaitRetry = awaitRetry,
+                routeMetadata = routeMetadata,
+                emitDiagnostic = emitDiagnostic,
+            )
+    )
+}

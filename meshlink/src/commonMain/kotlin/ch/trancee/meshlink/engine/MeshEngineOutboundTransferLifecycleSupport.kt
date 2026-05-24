@@ -78,3 +78,19 @@ internal class MeshEngineOutboundTransferLifecycleSupport(
         state.outboundTransfers.clear()
     }
 }
+
+internal fun buildMeshEngineRuntimeOutboundTransferLifecycleSupport(
+    outboundTransfers: MutableMap<String, OutboundTransferSession>,
+    prepareOutboundTransferSession:
+        suspend (PeerId, ByteArray, MeshEngineHardRunToken) -> OutboundTransferPreparation,
+    scheduleRetryDiagnostic: (PeerId, DeliveryPriority) -> Unit,
+): MeshEngineOutboundTransferLifecycleSupport {
+    return MeshEngineOutboundTransferLifecycleSupport(
+        state = MeshEngineOutboundTransferLifecycleState(outboundTransfers = outboundTransfers),
+        dependencies =
+            MeshEngineOutboundTransferLifecycleDependencies(
+                prepareOutboundTransferSession = prepareOutboundTransferSession,
+                scheduleRetryDiagnostic = scheduleRetryDiagnostic,
+            ),
+    )
+}

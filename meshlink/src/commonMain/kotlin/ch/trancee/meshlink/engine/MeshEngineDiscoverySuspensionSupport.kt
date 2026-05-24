@@ -18,3 +18,14 @@ internal class MeshEngineDiscoverySuspensionSupport(
         }
     }
 }
+
+internal fun buildMeshEngineRuntimeDiscoverySuspensionSupport(
+    setDiscoverySuspended: suspend (String, Boolean) -> Unit,
+    suspendAction: String,
+    resumeAction: String,
+): MeshEngineDiscoverySuspensionSupport {
+    return MeshEngineDiscoverySuspensionSupport { suspended ->
+        val action = if (suspended) suspendAction else resumeAction
+        setDiscoverySuspended(action, suspended)
+    }
+}
