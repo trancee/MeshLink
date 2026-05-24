@@ -1,0 +1,72 @@
+package ch.trancee.meshlink.platform.android
+
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
+
+class AndroidJcaCapabilityProbeTest {
+    @Test
+    fun `supportsMeshLinkRuntime requires both X25519 and ChaCha20 Poly1305 support`() {
+        // Arrange
+        val missingX25519 =
+            AndroidJcaCapabilityReport(
+                supportsX25519 = false,
+                supportsEd25519 = true,
+                supportsChaCha20Poly1305 = true,
+            )
+        val missingChaCha =
+            AndroidJcaCapabilityReport(
+                supportsX25519 = true,
+                supportsEd25519 = true,
+                supportsChaCha20Poly1305 = false,
+            )
+        val fullySupported =
+            AndroidJcaCapabilityReport(
+                supportsX25519 = true,
+                supportsEd25519 = false,
+                supportsChaCha20Poly1305 = true,
+            )
+
+        // Act / Assert
+        assertEquals(false, missingX25519.supportsMeshLinkRuntime)
+        assertEquals(false, missingChaCha.supportsMeshLinkRuntime)
+        assertEquals(true, fullySupported.supportsMeshLinkRuntime)
+    }
+
+    @Test
+    fun `detect produces a report whose aggregate runtime support matches its primitive flags`() {
+        // Arrange / Act
+        val report = AndroidJcaCapabilityProbe.detect()
+
+        // Assert
+        assertEquals(
+            report.supportsX25519 && report.supportsChaCha20Poly1305,
+            report.supportsMeshLinkRuntime,
+        )
+    }
+
+    @Test
+    fun `xdh helper factories provide working primitives when available`() {
+        // Arrange
+        val keyPairGenerator = xdhKeyPairGenerator()
+        val keyFactory = xdhKeyFactory()
+        val alice = keyPairGenerator.generateKeyPair()
+        val bob = keyPairGenerator.generateKeyPair()
+
+        // Act
+        val aliceAgreement = xdhKeyAgreement()
+        aliceAgreement.init(alice.private)
+        aliceAgreement.doPhase(bob.public, true)
+        val aliceSecret = aliceAgreement.generateSecret()
+
+        val bobAgreement = xdhKeyAgreement()
+        bobAgreement.init(bob.private)
+        bobAgreement.doPhase(alice.public, true)
+        val bobSecret = bobAgreement.generateSecret()
+
+        // Assert
+        assertTrue(aliceSecret.isNotEmpty())
+        assertTrue(aliceSecret.contentEquals(bobSecret))
+        assertTrue(keyFactory.algorithm == "XDH" || keyFactory.algorithm == "X25519")
+    }
+}
