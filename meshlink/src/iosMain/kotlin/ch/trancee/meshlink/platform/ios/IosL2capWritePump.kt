@@ -247,56 +247,55 @@ private class IosL2capOutputWriter(
 ) {
     suspend fun write(coalescedBuffer: ByteArray): IosL2capBufferWriteStats {
         val startedAtMs = timing.nowMillis()
-        val progress = IosL2capWriteProgress(lastWriteProgressAtMs = startedAtMs)
-        var offset = 0
-        while (offset < coalescedBuffer.size) {
-            val batchBytes = minOf(WRITE_BATCH_BYTES, coalescedBuffer.size - offset)
-            progress.recordBatch(batchBytes)
-            offset += writeBatch(coalescedBuffer, offset, batchBytes, progress)
-        }
-        return progress.toStats(totalElapsedMs = timing.nowMillis() - startedAtMs)
-    }
-
-    private suspend fun writeBatch(
-        coalescedBuffer: ByteArray,
-        offset: Int,
-        batchBytes: Int,
-        progress: IosL2capWriteProgress,
-    ): Int {
-        var batchOffset = 0
-        while (batchOffset < batchBytes) {
-            val request =
-                IosL2capWriteRequest(
-                    coalescedBuffer = coalescedBuffer,
-                    offset = offset + batchOffset,
-                    requestedBytes = batchBytes - batchOffset,
-                )
-            when (val attempt = attemptWriteChunk(request, progress)) {
+        val state =
+            IosL2capOutputWriteState(
+                totalBytes = coalescedBuffer.size,
+                startedAtMs = startedAtMs,
+                maxBatchBytes = WRITE_BATCH_BYTES,
+            )
+        while (true) {
+            val request = state.nextRequestOrNull() ?: break
+            when (val attempt = attemptWriteChunk(request, coalescedBuffer)) {
                 IosL2capWriteAttempt.ReadyFalse -> {
-                    progress.recordBackpressure(readyFalse = true)
+                    check(
+                        state.recordReadyFalse(
+                            nowMs = timing.nowMillis(),
+                            stallTimeoutMs = WRITE_STALL_TIMEOUT_MS,
+                        )
+                    ) {
+                        "iOS L2CAP output stream stalled"
+                    }
                     delay(timing.activePollIntervalMs)
                 }
 
                 IosL2capWriteAttempt.ZeroWrite -> {
-                    progress.recordBackpressure(readyFalse = false)
+                    state.recordWriteCall()
+                    check(
+                        state.recordZeroWrite(
+                            nowMs = timing.nowMillis(),
+                            stallTimeoutMs = WRITE_STALL_TIMEOUT_MS,
+                        )
+                    ) {
+                        "iOS L2CAP output stream stalled"
+                    }
                     delay(timing.activePollIntervalMs)
                 }
 
                 is IosL2capWriteAttempt.Progress -> {
-                    progress.recordWrite(
+                    state.recordWriteCall()
+                    state.recordProgress(
                         writtenBytes = attempt.writtenBytes,
                         attemptAtMs = attempt.attemptAtMs,
                     )
-                    batchOffset += attempt.writtenBytes
                 }
             }
         }
-        return batchBytes
+        return state.toStats(totalElapsedMs = timing.nowMillis() - startedAtMs)
     }
 
     private fun attemptWriteChunk(
         request: IosL2capWriteRequest,
-        progress: IosL2capWriteProgress,
+        coalescedBuffer: ByteArray,
     ): IosL2capWriteAttempt {
         check(
             !isStreamClosed(
@@ -306,45 +305,23 @@ private class IosL2capOutputWriter(
         ) {
             "iOS L2CAP output stream closed"
         }
-        val writeAttempt =
-            if (!outputStream.hasSpaceAvailable()) {
-                IosL2capWriteAttempt.ReadyFalse
-            } else {
-                val attemptAtMs = timing.nowMillis()
-                val written =
-                    request.coalescedBuffer.usePinned { pinned ->
-                        outputStream.write(
-                            pinned.addressOf(request.offset).reinterpret(),
-                            request.requestedBytes.convert(),
-                        )
-                    }
-                progress.writeCalls += 1
-                check(written >= 0) { "iOS L2CAP output stream closed" }
-                if (written == 0L) {
-                    IosL2capWriteAttempt.ZeroWrite
-                } else {
-                    IosL2capWriteAttempt.Progress(written.toInt(), attemptAtMs)
-                }
-            }
-        if (writeAttempt !is IosL2capWriteAttempt.Progress) {
-            check(
-                !isWriteStalled(
-                    lastProgressAtMs = progress.lastWriteProgressAtMs,
-                    nowMs = timing.nowMillis(),
-                    stallTimeoutMs = WRITE_STALL_TIMEOUT_MS,
-                )
-            ) {
-                "iOS L2CAP output stream stalled"
-            }
+        if (!outputStream.hasSpaceAvailable()) {
+            return IosL2capWriteAttempt.ReadyFalse
         }
-        return writeAttempt
+        val attemptAtMs = timing.nowMillis()
+        val written = coalescedBuffer.usePinned { pinned ->
+            outputStream.write(
+                pinned.addressOf(request.offset).reinterpret(),
+                request.requestedBytes.convert(),
+            )
+        }
+        check(written >= 0) { "iOS L2CAP output stream closed" }
+        return if (written == 0L) {
+            IosL2capWriteAttempt.ZeroWrite
+        } else {
+            IosL2capWriteAttempt.Progress(written.toInt(), attemptAtMs)
+        }
     }
-
-    private data class IosL2capWriteRequest(
-        val coalescedBuffer: ByteArray,
-        val offset: Int,
-        val requestedBytes: Int,
-    )
 }
 
 private data class QueuedFrame(
