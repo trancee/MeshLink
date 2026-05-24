@@ -7,29 +7,18 @@ import ch.trancee.meshlink.api.SendResult
 import ch.trancee.meshlink.diagnostics.DiagnosticCode
 import ch.trancee.meshlink.diagnostics.DiagnosticReason
 import ch.trancee.meshlink.diagnostics.DiagnosticSeverity
-import ch.trancee.meshlink.transport.TransportSendResult
-import ch.trancee.meshlink.wire.WireFrame
 
 internal data class MeshEngineInlineOutboundDeliveryAdapterConfig(
     val inlineMessagePayloadBytes: Int
 )
 
-internal data class MeshEngineInlineOutboundDeliveryAdapterRoutingContext(
-    val routeCoordinator: ch.trancee.meshlink.routing.RouteCoordinator,
-    val routingSupport: MeshEngineRoutingSupport,
-)
-
 internal data class MeshEngineInlineOutboundDeliveryAdapterDependencies(
     val discoverySuspensionSupport: MeshEngineDiscoverySuspensionSupport,
-    val ensureHopSession: suspend (PeerId, MeshEngineHardRunToken) -> SessionEstablishmentOutcome,
-    val sendEncryptedDirectWireFrame:
-        suspend (PeerId, HopSession, WireFrame, String) -> TransportSendResult,
     val prepareOutboundInlineMessage:
         suspend (
             PeerId, ByteArray, DeliveryPriority, Int,
         ) -> MeshEngineOutboundInlineMessagePreparation,
-    val scheduleRetryDiagnostic: (PeerId, DeliveryPriority) -> Unit,
-    val emitHopSessionFailed: (PeerId, String, DiagnosticReason, Map<String, String>) -> Unit,
+    val dispatchSupport: MeshEngineInlineDispatchSupport,
 )
 
 internal data class MeshEngineInlineOutboundDeliveryAdapterCallbacks(
@@ -45,20 +34,13 @@ internal data class MeshEngineInlineOutboundDeliveryAdapterCallbacks(
     val ttlMillisFor: (DeliveryPriority) -> Int,
 )
 
-private data class MeshEngineInlineOutboundDeliverySessionResolution(
-    val nextHopPeerId: PeerId,
-    val session: HopSession?,
-    val result: SendResult? = null,
-)
-
 internal class MeshEngineInlineOutboundDeliveryAdapter(
     private val config: MeshEngineInlineOutboundDeliveryAdapterConfig,
-    private val routingContext: MeshEngineInlineOutboundDeliveryAdapterRoutingContext,
     private val dependencies: MeshEngineInlineOutboundDeliveryAdapterDependencies,
     private val callbacks: MeshEngineInlineOutboundDeliveryAdapterCallbacks,
 ) {
     fun currentTopologyVersion(): Long {
-        return routingContext.routeCoordinator.topologyVersion.value
+        return dependencies.dispatchSupport.currentTopologyVersion()
     }
 
     fun beginOutboundDelivery(
@@ -79,22 +61,79 @@ internal class MeshEngineInlineOutboundDeliveryAdapter(
         @Suppress("UnusedParameter") state: Unit,
         context: MeshEngineOutboundDeliveryAttemptContext,
     ): MeshEngineOutboundDeliveryAttemptOutcome<Unit> {
-        val sendResult =
-            attemptInlineSend(
-                peerId = context.peerId,
-                payload = context.payload,
-                priority = context.priority,
-                hardRunToken = context.hardRunToken,
-            )
-        return if (
-            sendResult is SendResult.NotSent && sendResult.reason == SendFailureReason.UNREACHABLE
+        return when (
+            val resolution =
+                dependencies.dispatchSupport.resolveDispatch(
+                    peerId = context.peerId,
+                    priority = context.priority,
+                    hardRunToken = context.hardRunToken,
+                )
         ) {
-            MeshEngineOutboundDeliveryAttemptOutcome.AwaitRetry(
-                nextState = Unit,
-                retryPolicy = MeshEngineOutboundDeliveryRetryPolicy(INLINE_DELIVERY_RETRY_POLICY),
-            )
-        } else {
-            MeshEngineOutboundDeliveryAttemptOutcome.Completed(sendResult)
+            MeshEngineInlineDispatchResolution.AwaitRetry -> {
+                MeshEngineOutboundDeliveryAttemptOutcome.AwaitRetry(
+                    nextState = Unit,
+                    retryPolicy =
+                        MeshEngineOutboundDeliveryRetryPolicy(INLINE_DELIVERY_RETRY_POLICY),
+                )
+            }
+            MeshEngineInlineDispatchResolution.TrustFailure -> {
+                MeshEngineOutboundDeliveryAttemptOutcome.Completed(
+                    SendResult.NotSent(SendFailureReason.TRUST_FAILURE)
+                )
+            }
+            is MeshEngineInlineDispatchResolution.Ready -> {
+                when (
+                    val preparedMessage =
+                        dependencies.prepareOutboundInlineMessage(
+                            context.peerId,
+                            context.payload,
+                            context.priority,
+                            callbacks.ttlMillisFor(context.priority),
+                        )
+                ) {
+                    MeshEngineOutboundInlineMessagePreparation.MissingTrust -> {
+                        callbacks.emitDiagnostic(
+                            DiagnosticCode.TRUST_FAILURE,
+                            DiagnosticSeverity.ERROR,
+                            "delivery.send.noTrust",
+                            context.peerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
+                            DiagnosticReason.TRUST_FAILURE,
+                            emptyMap(),
+                        )
+                        MeshEngineOutboundDeliveryAttemptOutcome.Completed(
+                            SendResult.NotSent(SendFailureReason.TRUST_FAILURE)
+                        )
+                    }
+                    MeshEngineOutboundInlineMessagePreparation.EncryptFailure -> {
+                        MeshEngineOutboundDeliveryAttemptOutcome.Completed(
+                            SendResult.NotSent(SendFailureReason.TRUST_FAILURE)
+                        )
+                    }
+                    is MeshEngineOutboundInlineMessagePreparation.Ready -> {
+                        when (
+                            dependencies.dispatchSupport.dispatchPreparedMessage(
+                                peerId = context.peerId,
+                                priority = context.priority,
+                                routedMessage = preparedMessage.message,
+                                resolution = resolution,
+                            )
+                        ) {
+                            MeshEngineInlineDispatchResult.Delivered -> {
+                                MeshEngineOutboundDeliveryAttemptOutcome.Completed(SendResult.Sent)
+                            }
+                            MeshEngineInlineDispatchResult.AwaitRetry -> {
+                                MeshEngineOutboundDeliveryAttemptOutcome.AwaitRetry(
+                                    nextState = Unit,
+                                    retryPolicy =
+                                        MeshEngineOutboundDeliveryRetryPolicy(
+                                            INLINE_DELIVERY_RETRY_POLICY
+                                        ),
+                                )
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -102,155 +141,21 @@ internal class MeshEngineInlineOutboundDeliveryAdapter(
         @Suppress("UnusedParameter") state: Unit,
         context: MeshEngineOutboundDeliveryAttemptContext,
     ): SendResult {
-        return unreachableInlineSendResult(context.peerId)
+        callbacks.emitDiagnostic(
+            DiagnosticCode.DELIVERY_UNREACHABLE,
+            DiagnosticSeverity.ERROR,
+            "delivery.retryExpired",
+            context.peerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
+            DiagnosticReason.DELIVERY_FAILURE,
+            dependencies.dispatchSupport.routeMetadata(context.peerId),
+        )
+        return SendResult.NotSent(SendFailureReason.UNREACHABLE)
     }
 
     fun onHardRunEnded(
         @Suppress("UnusedParameter") state: Unit,
         @Suppress("UnusedParameter") context: MeshEngineOutboundDeliveryAttemptContext,
     ): SendResult {
-        return abortedInlineSendResult()
-    }
-
-    private suspend fun attemptInlineSend(
-        peerId: PeerId,
-        payload: ByteArray,
-        priority: DeliveryPriority,
-        hardRunToken: MeshEngineHardRunToken,
-    ): SendResult {
-        val sessionResolution =
-            resolveInlineSession(peerId = peerId, priority = priority, hardRunToken = hardRunToken)
-        val resolvedResult = sessionResolution.result
-        val session = sessionResolution.session
-
-        return if (resolvedResult != null) {
-            resolvedResult
-        } else {
-            val establishedSession = session ?: error("inline session resolution is required")
-            when (
-                val preparedMessage =
-                    dependencies.prepareOutboundInlineMessage(
-                        peerId,
-                        payload,
-                        priority,
-                        callbacks.ttlMillisFor(priority),
-                    )
-            ) {
-                MeshEngineOutboundInlineMessagePreparation.MissingTrust -> {
-                    callbacks.emitDiagnostic(
-                        DiagnosticCode.TRUST_FAILURE,
-                        DiagnosticSeverity.ERROR,
-                        "delivery.send.noTrust",
-                        peerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
-                        DiagnosticReason.TRUST_FAILURE,
-                        emptyMap(),
-                    )
-                    SendResult.NotSent(SendFailureReason.TRUST_FAILURE)
-                }
-                MeshEngineOutboundInlineMessagePreparation.EncryptFailure -> {
-                    SendResult.NotSent(SendFailureReason.TRUST_FAILURE)
-                }
-                is MeshEngineOutboundInlineMessagePreparation.Ready -> {
-                    dispatchInlineMessage(
-                        peerId = peerId,
-                        nextHopPeerId = sessionResolution.nextHopPeerId,
-                        session = establishedSession,
-                        routedMessage = preparedMessage.message,
-                        priority = priority,
-                    )
-                }
-            }
-        }
-    }
-
-    private suspend fun resolveInlineSession(
-        peerId: PeerId,
-        priority: DeliveryPriority,
-        hardRunToken: MeshEngineHardRunToken,
-    ): MeshEngineInlineOutboundDeliverySessionResolution {
-        val nextHopPeerId = routingContext.routeCoordinator.nextHopFor(peerId) ?: peerId
-        return when (
-            val sessionOutcome = dependencies.ensureHopSession(nextHopPeerId, hardRunToken)
-        ) {
-            is SessionEstablishmentOutcome.Established ->
-                MeshEngineInlineOutboundDeliverySessionResolution(
-                    nextHopPeerId = nextHopPeerId,
-                    session = sessionOutcome.session,
-                )
-            SessionEstablishmentOutcome.TrustFailure ->
-                MeshEngineInlineOutboundDeliverySessionResolution(
-                    nextHopPeerId = nextHopPeerId,
-                    session = null,
-                    result = SendResult.NotSent(SendFailureReason.TRUST_FAILURE),
-                )
-            SessionEstablishmentOutcome.Unreachable -> {
-                dependencies.scheduleRetryDiagnostic(peerId, priority)
-                MeshEngineInlineOutboundDeliverySessionResolution(
-                    nextHopPeerId = nextHopPeerId,
-                    session = null,
-                    result = SendResult.NotSent(SendFailureReason.UNREACHABLE),
-                )
-            }
-        }
-    }
-
-    private suspend fun dispatchInlineMessage(
-        peerId: PeerId,
-        nextHopPeerId: PeerId,
-        session: HopSession,
-        routedMessage: WireFrame.Message,
-        priority: DeliveryPriority,
-    ): SendResult {
-        return when (
-            runCatching {
-                    dependencies.sendEncryptedDirectWireFrame(
-                        nextHopPeerId,
-                        session,
-                        routedMessage,
-                        "send.data",
-                    )
-                }
-                .getOrElse { exception ->
-                    dependencies.emitHopSessionFailed(
-                        nextHopPeerId,
-                        "delivery.send.transportEncrypt",
-                        DiagnosticReason.DELIVERY_FAILURE,
-                        mapOf("cause" to exception::class.simpleName.orEmpty()),
-                    )
-                    return SendResult.NotSent(SendFailureReason.UNREACHABLE)
-                }
-        ) {
-            TransportSendResult.Delivered -> {
-                callbacks.emitDiagnostic(
-                    DiagnosticCode.DELIVERY_SUCCEEDED,
-                    DiagnosticSeverity.INFO,
-                    "delivery.send",
-                    peerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
-                    null,
-                    routingContext.routingSupport.peerRouteMetadata(peerId),
-                )
-                SendResult.Sent
-            }
-            is TransportSendResult.Dropped -> {
-                dependencies.scheduleRetryDiagnostic(peerId, priority)
-                SendResult.NotSent(SendFailureReason.UNREACHABLE)
-            }
-        }
-    }
-
-    private fun unreachableInlineSendResult(peerId: PeerId): SendResult {
-        callbacks.emitDiagnostic(
-            DiagnosticCode.DELIVERY_UNREACHABLE,
-            DiagnosticSeverity.ERROR,
-            "delivery.retryExpired",
-            peerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
-            DiagnosticReason.DELIVERY_FAILURE,
-            routingContext.routingSupport.peerRouteMetadata(peerId),
-        )
-        return SendResult.NotSent(SendFailureReason.UNREACHABLE)
-    }
-
-    private fun abortedInlineSendResult(): SendResult {
         return SendResult.NotSent(SendFailureReason.TRANSFER_ABORTED)
     }
 }
@@ -275,27 +180,36 @@ internal fun buildMeshEngineRuntimeInlineOutboundDeliveryAdapter(
             Map<String, String>,
         ) -> Unit,
 ): MeshEngineInlineOutboundDeliveryAdapter {
+    val dispatchSupport =
+        MeshEngineInlineDispatchSupport(
+            routingContext =
+                MeshEngineInlineDispatchRoutingContext(
+                    routeCoordinator = routeCoordinator,
+                    routingSupport = routingSupport,
+                ),
+            dependencies =
+                MeshEngineInlineDispatchDependencies(
+                    ensureHopSession = { peerId, hardRunToken ->
+                        sessionSupport.ensureHopSession(peerId, hardRunToken)
+                    },
+                    sendEncryptedDirectWireFrame =
+                        hopTransportSupport::sendEncryptedDirectWireFrame,
+                    scheduleRetryDiagnostic = scheduleRetryDiagnostic,
+                    emitHopSessionFailed = hopTransportSupport::emitHopSessionFailed,
+                ),
+            callbacks = MeshEngineInlineDispatchCallbacks(emitDiagnostic = emitDiagnostic),
+        )
     return MeshEngineInlineOutboundDeliveryAdapter(
         config =
             MeshEngineInlineOutboundDeliveryAdapterConfig(
                 inlineMessagePayloadBytes = inlineMessagePayloadBytes
             ),
-        routingContext =
-            MeshEngineInlineOutboundDeliveryAdapterRoutingContext(
-                routeCoordinator = routeCoordinator,
-                routingSupport = routingSupport,
-            ),
         dependencies =
             MeshEngineInlineOutboundDeliveryAdapterDependencies(
                 discoverySuspensionSupport = discoverySuspensionSupport,
-                ensureHopSession = { peerId, hardRunToken ->
-                    sessionSupport.ensureHopSession(peerId, hardRunToken)
-                },
-                sendEncryptedDirectWireFrame = hopTransportSupport::sendEncryptedDirectWireFrame,
                 prepareOutboundInlineMessage =
                     outboundPreparationSupport::prepareOutboundInlineMessage,
-                scheduleRetryDiagnostic = scheduleRetryDiagnostic,
-                emitHopSessionFailed = hopTransportSupport::emitHopSessionFailed,
+                dispatchSupport = dispatchSupport,
             ),
         callbacks =
             MeshEngineInlineOutboundDeliveryAdapterCallbacks(

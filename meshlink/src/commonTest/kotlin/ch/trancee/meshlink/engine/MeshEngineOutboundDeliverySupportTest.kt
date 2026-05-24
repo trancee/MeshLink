@@ -212,16 +212,18 @@ private fun inlineOutboundDeliveryAdapter(
     discoveryTransitions: MutableList<Boolean>,
     scheduleRetryDiagnostic: (PeerId, DeliveryPriority) -> Unit,
     ensureHopSession: suspend (PeerId, MeshEngineHardRunToken) -> SessionEstablishmentOutcome,
+    prepareOutboundInlineMessage:
+        suspend (
+            PeerId, ByteArray, DeliveryPriority, Int,
+        ) -> MeshEngineOutboundInlineMessagePreparation =
+        { _, _, _, _ ->
+            error("prepareOutboundInlineMessage should not be called in this test")
+        },
 ): MeshEngineInlineOutboundDeliveryAdapter {
     return MeshEngineInlineOutboundDeliveryAdapter(
         config =
             MeshEngineInlineOutboundDeliveryAdapterConfig(
                 inlineMessagePayloadBytes = INLINE_MESSAGE_PAYLOAD_BYTES
-            ),
-        routingContext =
-            MeshEngineInlineOutboundDeliveryAdapterRoutingContext(
-                routeCoordinator = RouteCoordinator(PeerId("local-inline-sender")),
-                routingSupport = routingSupport(runtimeGate),
             ),
         dependencies =
             MeshEngineInlineOutboundDeliveryAdapterDependencies(
@@ -229,15 +231,30 @@ private fun inlineOutboundDeliveryAdapter(
                     MeshEngineDiscoverySuspensionSupport { suspended ->
                         discoveryTransitions += suspended
                     },
-                ensureHopSession = ensureHopSession,
-                sendEncryptedDirectWireFrame = { _, _, _, _ -> TransportSendResult.Delivered },
-                prepareOutboundInlineMessage = { _, _, _, _ ->
-                    error("prepareOutboundInlineMessage should not be called in this test")
-                },
-                scheduleRetryDiagnostic = scheduleRetryDiagnostic,
-                emitHopSessionFailed = { _, _, _, _ ->
-                    error("emitHopSessionFailed should not be called in this test")
-                },
+                prepareOutboundInlineMessage = prepareOutboundInlineMessage,
+                dispatchSupport =
+                    MeshEngineInlineDispatchSupport(
+                        routingContext =
+                            MeshEngineInlineDispatchRoutingContext(
+                                routeCoordinator = RouteCoordinator(PeerId("local-inline-sender")),
+                                routingSupport = routingSupport(runtimeGate),
+                            ),
+                        dependencies =
+                            MeshEngineInlineDispatchDependencies(
+                                ensureHopSession = ensureHopSession,
+                                sendEncryptedDirectWireFrame = { _, _, _, _ ->
+                                    TransportSendResult.Delivered
+                                },
+                                scheduleRetryDiagnostic = scheduleRetryDiagnostic,
+                                emitHopSessionFailed = { _, _, _, _ ->
+                                    error("emitHopSessionFailed should not be called in this test")
+                                },
+                            ),
+                        callbacks =
+                            MeshEngineInlineDispatchCallbacks(
+                                emitDiagnostic = { _, _, _, _, _, _ -> }
+                            ),
+                    ),
             ),
         callbacks =
             MeshEngineInlineOutboundDeliveryAdapterCallbacks(

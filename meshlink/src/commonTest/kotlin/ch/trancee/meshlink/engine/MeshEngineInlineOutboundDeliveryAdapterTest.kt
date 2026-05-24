@@ -3,7 +3,11 @@ package ch.trancee.meshlink.engine
 import ch.trancee.meshlink.api.DeliveryPriority
 import ch.trancee.meshlink.api.MeshLinkState
 import ch.trancee.meshlink.api.PeerId
+import ch.trancee.meshlink.api.SendFailureReason
 import ch.trancee.meshlink.api.SendResult
+import ch.trancee.meshlink.diagnostics.DiagnosticCode
+import ch.trancee.meshlink.diagnostics.DiagnosticReason
+import ch.trancee.meshlink.diagnostics.DiagnosticSeverity
 import ch.trancee.meshlink.routing.RouteCoordinator
 import ch.trancee.meshlink.transport.TransportSendResult
 import ch.trancee.meshlink.wire.WireFrame
@@ -19,11 +23,53 @@ import kotlinx.coroutines.runBlocking
 
 class MeshEngineInlineOutboundDeliveryAdapterTest {
     @Test
-    fun `attemptOutboundDelivery returns completed sent when the transport delivers`() =
+    fun `attemptOutboundDelivery returns completed sent when dispatch delivers`() = runBlocking {
+        // Arrange
+        val adapter =
+            inlineOutboundDeliveryAdapter(
+                prepareOutboundInlineMessage = { peerId, _, priority, ttlMillis ->
+                    MeshEngineOutboundInlineMessagePreparation.Ready(
+                        WireFrame.Message(
+                            messageId = "message-1",
+                            originPeerId = PeerId("origin-abcdef"),
+                            destinationPeerId = peerId,
+                            priority = priority,
+                            ttlMillis = ttlMillis,
+                            encryptedPayload = byteArrayOf(0x01),
+                        )
+                    )
+                },
+                ensureHopSession = { _, _ ->
+                    SessionEstablishmentOutcome.Established(
+                        HopSession(
+                            sendKey = ByteArray(32) { 0x01 },
+                            receiveKey = ByteArray(32) { 0x02 },
+                        )
+                    )
+                },
+                sendEncryptedDirectWireFrame = { _, _, _, _ -> TransportSendResult.Delivered },
+            )
+        val context = inlineAttemptContext(payload = ByteArray(32) { 0x01 })
+
+        // Act
+        val outcome = adapter.attemptOutboundDelivery(Unit, context)
+
+        // Assert
+        val completed = assertIs<MeshEngineOutboundDeliveryAttemptOutcome.Completed>(outcome)
+        assertEquals(SendResult.Sent, completed.result)
+    }
+
+    @Test
+    fun `attemptOutboundDelivery returns completed trust failure when preparation reports missing trust`() =
         runBlocking {
             // Arrange
+            val diagnostics = mutableListOf<RecordedInlineOutboundDeliveryDiagnostic>()
             val adapter =
                 inlineOutboundDeliveryAdapter(
+                    diagnostics = diagnostics,
+                    prepareOutboundInlineMessage = { _, _, _, _ ->
+                        MeshEngineOutboundInlineMessagePreparation.MissingTrust
+                    },
                     ensureHopSession = { _, _ ->
                         SessionEstablishmentOutcome.Established(
                             HopSession(
@@ -32,19 +78,6 @@ class MeshEngineInlineOutboundDeliveryAdapterTest {
                             )
                         )
                     },
-                    prepareOutboundInlineMessage = { peerId, _, priority, ttlMillis ->
-                        MeshEngineOutboundInlineMessagePreparation.Ready(
-                            WireFrame.Message(
-                                messageId = "message-1",
-                                originPeerId = PeerId("origin-abcdef"),
-                                destinationPeerId = peerId,
-                                priority = priority,
-                                ttlMillis = ttlMillis,
-                                encryptedPayload = byteArrayOf(0x01),
-                            )
-                        )
-                    },
-                    sendEncryptedDirectWireFrame = { _, _, _, _ -> TransportSendResult.Delivered },
                 )
             val context = inlineAttemptContext(payload = ByteArray(32) { 0x01 })
 
@@ -53,34 +86,48 @@ class MeshEngineInlineOutboundDeliveryAdapterTest {
 
             // Assert
             val completed = assertIs<MeshEngineOutboundDeliveryAttemptOutcome.Completed>(outcome)
-            assertEquals(SendResult.Sent, completed.result)
+            val notSent = assertIs<SendResult.NotSent>(completed.result)
+            assertEquals(SendFailureReason.TRUST_FAILURE, notSent.reason)
+            assertEquals(
+                listOf(DiagnosticCode.TRUST_FAILURE to "delivery.send.noTrust"),
+                diagnostics.map { it.code to it.stage },
+            )
         }
 
     @Test
-    fun `attemptOutboundDelivery returns await retry when no hop session can be established`() =
-        runBlocking {
-            // Arrange
-            val retryDiagnostics = mutableListOf<Pair<PeerId, DeliveryPriority>>()
-            val adapter =
-                inlineOutboundDeliveryAdapter(
-                    scheduleRetryDiagnostic = { peerId, priority ->
-                        retryDiagnostics += peerId to priority
-                    },
-                    ensureHopSession = { _, _ -> SessionEstablishmentOutcome.Unreachable },
-                )
-            val context = inlineAttemptContext(payload = ByteArray(32) { 0x01 })
+    fun `attemptOutboundDelivery returns await retry when dispatch requests retry`() = runBlocking {
+        // Arrange
+        val retryDiagnostics = mutableListOf<Pair<PeerId, DeliveryPriority>>()
+        val adapter =
+            inlineOutboundDeliveryAdapter(
+                retryDiagnostics = retryDiagnostics,
+                prepareOutboundInlineMessage = { peerId, _, priority, ttlMillis ->
+                    MeshEngineOutboundInlineMessagePreparation.Ready(
+                        WireFrame.Message(
+                            messageId = "message-1",
+                            originPeerId = PeerId("origin-abcdef"),
+                            destinationPeerId = peerId,
+                            priority = priority,
+                            ttlMillis = ttlMillis,
+                            encryptedPayload = byteArrayOf(0x01),
+                        )
+                    )
+                },
+                ensureHopSession = { _, _ -> SessionEstablishmentOutcome.Unreachable },
+            )
+        val context = inlineAttemptContext(payload = ByteArray(32) { 0x01 })
 
-            // Act
-            val outcome = adapter.attemptOutboundDelivery(Unit, context)
+        // Act
+        val outcome = adapter.attemptOutboundDelivery(Unit, context)
 
-            // Assert
-            val awaitRetry =
-                assertIs<MeshEngineOutboundDeliveryAttemptOutcome.AwaitRetry<Unit>>(outcome)
-            assertEquals(listOf(context.peerId to context.priority), retryDiagnostics)
-            assertEquals("delivery.retryScheduled", awaitRetry.retryPolicy.profile.scheduledStage)
-            assertEquals("delivery.retrying", awaitRetry.retryPolicy.profile.retryingStage)
-            assertEquals(true, awaitRetry.retryPolicy.emitDiagnostics)
-        }
+        // Assert
+        val awaitRetry =
+            assertIs<MeshEngineOutboundDeliveryAttemptOutcome.AwaitRetry<Unit>>(outcome)
+        assertEquals(listOf(context.peerId to context.priority), retryDiagnostics)
+        assertEquals("delivery.retryScheduled", awaitRetry.retryPolicy.profile.scheduledStage)
+        assertEquals("delivery.retrying", awaitRetry.retryPolicy.profile.retryingStage)
+        assertEquals(true, awaitRetry.retryPolicy.emitDiagnostics)
+    }
 
     @Test
     fun `withDiscoveryPolicy suspends discovery for payloads above the inline threshold`() =
@@ -100,18 +147,19 @@ class MeshEngineInlineOutboundDeliveryAdapterTest {
 }
 
 private fun inlineOutboundDeliveryAdapter(
+    diagnostics: MutableList<RecordedInlineOutboundDeliveryDiagnostic> = mutableListOf(),
     discoveryTransitions: MutableList<Boolean> = mutableListOf(),
-    scheduleRetryDiagnostic: (PeerId, DeliveryPriority) -> Unit = { _, _ -> },
-    ensureHopSession: suspend (PeerId, MeshEngineHardRunToken) -> SessionEstablishmentOutcome =
-        { _, _ ->
-            SessionEstablishmentOutcome.TrustFailure
-        },
+    retryDiagnostics: MutableList<Pair<PeerId, DeliveryPriority>> = mutableListOf(),
     prepareOutboundInlineMessage:
         suspend (
             PeerId, ByteArray, DeliveryPriority, Int,
         ) -> MeshEngineOutboundInlineMessagePreparation =
         { _, _, _, _ ->
             MeshEngineOutboundInlineMessagePreparation.MissingTrust
+        },
+    ensureHopSession: suspend (PeerId, MeshEngineHardRunToken) -> SessionEstablishmentOutcome =
+        { _, _ ->
+            SessionEstablishmentOutcome.TrustFailure
         },
     sendEncryptedDirectWireFrame:
         suspend (PeerId, HopSession, WireFrame, String) -> TransportSendResult =
@@ -124,26 +172,62 @@ private fun inlineOutboundDeliveryAdapter(
             MeshEngineInlineOutboundDeliveryAdapterConfig(
                 inlineMessagePayloadBytes = INLINE_OUTBOUND_DELIVERY_THRESHOLD_BYTES
             ),
-        routingContext =
-            MeshEngineInlineOutboundDeliveryAdapterRoutingContext(
-                routeCoordinator = RouteCoordinator(PeerId("local-inline-adapter")),
-                routingSupport = inlineRoutingSupport(),
-            ),
         dependencies =
             MeshEngineInlineOutboundDeliveryAdapterDependencies(
                 discoverySuspensionSupport =
                     MeshEngineDiscoverySuspensionSupport { suspended ->
                         discoveryTransitions += suspended
                     },
-                ensureHopSession = ensureHopSession,
-                sendEncryptedDirectWireFrame = sendEncryptedDirectWireFrame,
                 prepareOutboundInlineMessage = prepareOutboundInlineMessage,
-                scheduleRetryDiagnostic = scheduleRetryDiagnostic,
-                emitHopSessionFailed = { _, _, _, _ -> },
+                dispatchSupport =
+                    MeshEngineInlineDispatchSupport(
+                        routingContext =
+                            MeshEngineInlineDispatchRoutingContext(
+                                routeCoordinator = RouteCoordinator(PeerId("local-inline-adapter")),
+                                routingSupport = inlineRoutingSupport(diagnostics),
+                            ),
+                        dependencies =
+                            MeshEngineInlineDispatchDependencies(
+                                ensureHopSession = ensureHopSession,
+                                sendEncryptedDirectWireFrame = sendEncryptedDirectWireFrame,
+                                scheduleRetryDiagnostic = { peerId, priority ->
+                                    retryDiagnostics += peerId to priority
+                                },
+                                emitHopSessionFailed = { _, _, _, _ -> },
+                            ),
+                        callbacks =
+                            MeshEngineInlineDispatchCallbacks {
+                                code,
+                                severity,
+                                stage,
+                                peerSuffix,
+                                reason,
+                                metadata ->
+                                diagnostics +=
+                                    RecordedInlineOutboundDeliveryDiagnostic(
+                                        code = code,
+                                        severity = severity,
+                                        stage = stage,
+                                        peerSuffix = peerSuffix,
+                                        reason = reason,
+                                        metadata = metadata,
+                                    )
+                            },
+                    ),
             ),
         callbacks =
             MeshEngineInlineOutboundDeliveryAdapterCallbacks(
-                emitDiagnostic = { _, _, _, _, _, _ -> },
+                emitDiagnostic = { code, severity, stage, peerSuffix, reason, metadata ->
+                    diagnostics +=
+                        RecordedInlineOutboundDeliveryDiagnostic(
+                            code = code,
+                            severity = severity,
+                            stage = stage,
+                            peerSuffix = peerSuffix,
+                            reason = reason,
+                            metadata = metadata,
+                        )
+                },
                 ttlMillisFor = { 1234 },
             ),
     )
@@ -162,15 +246,36 @@ private fun inlineAttemptContext(
     )
 }
 
-private fun inlineRoutingSupport(): MeshEngineRoutingSupport {
+private fun inlineRoutingSupport(
+    diagnostics: MutableList<RecordedInlineOutboundDeliveryDiagnostic>
+): MeshEngineRoutingSupport {
     return MeshEngineRoutingSupport(
         routeCoordinator = RouteCoordinator(PeerId("local-routing-inline")),
         runtimeGate = InlineAdapterRuntimeGate(),
         coroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined),
-        emitDiagnostic = { _, _, _, _, _, _ -> },
+        emitDiagnostic = { code, severity, stage, peerSuffix, reason, metadata ->
+            diagnostics +=
+                RecordedInlineOutboundDeliveryDiagnostic(
+                    code = code,
+                    severity = severity,
+                    stage = stage,
+                    peerSuffix = peerSuffix,
+                    reason = reason,
+                    metadata = metadata,
+                )
+        },
         sendEncryptedWireFrame = { _, _, _, _ -> true },
     )
 }
+
+private data class RecordedInlineOutboundDeliveryDiagnostic(
+    val code: DiagnosticCode,
+    val severity: DiagnosticSeverity,
+    val stage: String,
+    val peerSuffix: String?,
+    val reason: DiagnosticReason?,
+    val metadata: Map<String, String>,
+)
 
 private class InlineAdapterRuntimeGate : MeshEngineRuntimeGate {
     private val interruption = CompletableDeferred<MeshEngineRuntimeInterruption>()
