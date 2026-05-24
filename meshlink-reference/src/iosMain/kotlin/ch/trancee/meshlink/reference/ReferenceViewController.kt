@@ -3,6 +3,7 @@ package ch.trancee.meshlink.reference
 import androidx.compose.ui.window.ComposeUIViewController
 import ch.trancee.meshlink.reference.app.ReferenceApp
 import ch.trancee.meshlink.reference.automation.ReferenceAutomationRole
+import ch.trancee.meshlink.reference.automation.toReferenceAutomationScenario
 import ch.trancee.meshlink.reference.platform.createIosAutomationPlatformServices
 import ch.trancee.meshlink.reference.platform.createIosLiveAutomationPlatformServices
 import ch.trancee.meshlink.reference.platform.createIosPlatformServices
@@ -39,6 +40,7 @@ public fun createReferenceLiveAutomationRootViewController(
     requiredPeerCount: Int,
     targetPeerIndex: Int,
     targetPeerId: String?,
+    scenario: String,
 ): UIViewController {
     val platformServices =
         createIosLiveAutomationPlatformServices(
@@ -48,6 +50,7 @@ public fun createReferenceLiveAutomationRootViewController(
             requiredPeerCount = requiredPeerCount,
             targetPeerIndex = targetPeerIndex,
             targetPeerId = targetPeerId,
+            scenario = scenario.toReferenceAutomationScenario(),
         )
     return ComposeUIViewController { ReferenceApp(platformServices = platformServices) }
 }

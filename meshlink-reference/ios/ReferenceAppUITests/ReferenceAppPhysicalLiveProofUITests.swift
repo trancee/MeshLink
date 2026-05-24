@@ -22,11 +22,13 @@ final class ReferenceAppPhysicalLiveProofUITests: XCTestCase {
             return
         }
         let app = XCUIApplication()
+        let scenario = ProcessInfo.processInfo.environment["MESHLINK_REFERENCE_AUTOMATION_SCENARIO"] ?? "direct-guided"
         app.launchEnvironment = [
             "MESHLINK_REFERENCE_AUTOMATION_MODE": "live-proof",
             "MESHLINK_REFERENCE_AUTOMATION_STORAGE_SUBDIRECTORY": liveProofConfiguration.storageSubdirectory,
             "MESHLINK_REFERENCE_APP_ID": liveProofConfiguration.appId,
             "MESHLINK_REFERENCE_AUTOMATION_ROLE": "sender",
+            "MESHLINK_REFERENCE_AUTOMATION_SCENARIO": scenario,
         ]
         let sendHelloButton = app.buttons["Send Hello"]
         addUIInterruptionMonitor(withDescription: "Bluetooth permission") { alert in

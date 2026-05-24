@@ -19,6 +19,9 @@ But physical runs prove a different class of behavior:
 
 - whether nearby peers are actually discovered on real radios
 - whether trust and route state converge across platforms
+- whether lifecycle controls still allow the next send to recover
+- whether a trust reset really clears and rebuilds peer state
+- whether larger payloads still move on real transports
 - whether a routed send is truly routed instead of accidentally direct
 - whether retained redacted artifacts survive a real session end
 - whether teardown side effects make the next failure diagnosable
@@ -45,6 +48,55 @@ sender side: the iPhone can keep a GATT notify side link alive after the L2CAP
 channel closes. That is not the primary success criterion, but it is a useful
 indicator that the mixed-bearer posture is doing real work rather than existing
 only on paper.
+
+## What the expanded direct scenarios taught us
+
+The direct baseline is necessary, but it is not sufficient on its own.
+
+The new direct scenarios exposed three useful truths.
+
+### 1. Direct and relay proofs do not naturally share the same room geometry
+
+A direct proof wants one Android peer in clear range of the iPhone. A
+constrained relay proof wants the passive recipient out of direct range.
+
+Trying to run both phases back-to-back without changing placement creates a fake
+failure: the one-hop direct phase inherits the relay topology and never
+converges.
+
+That is why the matrix now supports a separate `--direct-android-serial` and
+why the docs now treat direct and relay placement as separate phases when
+necessary.
+
+### 2. Non-participating Android peers must be force-stopped
+
+When one extra Android device keeps the reference app running in the background,
+it can silently contaminate a supposedly direct proof.
+
+The effect is subtle but dangerous:
+
+- the sender or passive side may see extra peers
+- route updates may reflect the wrong topology
+- a “direct” result can stop meaning direct very quickly
+
+That is why the direct runner now force-stops the non-participating Android peer
+when the matrix knows about it.
+
+### 3. Sender-side feature probes are still useful when passive-side retention is blocked
+
+On the current device set, the iPhone 15 sender successfully completed the new
+physical pause/resume, trust-reset recovery, and large-transfer scenarios against
+Samsung in sender-only mode.
+
+Those runs gave us real-device evidence for:
+
+- explicit mesh pause and resume before the send
+- a real `forgetPeer` followed by a second successful delivery (`deliveries=2`)
+- a large 13,824-byte physical send request and delivery completion
+
+At the same time, the passive-side Samsung direct runs did not autonomously end
+and export the session even after inbound delivery was visible in the runtime
+logs. That is a real operational gap worth documenting rather than hiding.
 
 ## What the early relay failures taught us
 
@@ -160,6 +212,13 @@ The sender’s bootstrap send is operationally important. It should stay explici
 in logs and in analysis output so reviewers can tell whether a routed proof
 needed warm-up or reached the passive target directly.
 
+### Keep direct-scenario isolation explicit
+
+A direct physical scenario should not have to assume that every nearby Android
+peer was manually cleaned up first. Force-stopping the non-participating Android
+app from the runner is a small change, but it removes a whole class of accidental
+false results.
+
 ### Preserve teardown diagnostics
 
 `ROUTE_RETRACTED` and `ROUTE_EXPIRED` are not vanity logs. They tell us whether
@@ -187,11 +246,22 @@ The more the runners can derive the passive target from retained identity data,
 the less they depend on manual copy-paste or UI ordering. That directly improves
 repeatability.
 
-### Prefer structured relay diagnostics over ad-hoc text parsing
+### Prefer structured diagnostics over ad-hoc text parsing
 
 The current analysis still depends on stable log text. That is much better than
 manual review, but the next step would be even stronger: emit a small structured
-relay-proof summary directly from the runtime or automation layer.
+summary directly from the runtime or automation layer for both direct and relay
+proofs.
+
+### Move passive automation off the UI surface
+
+The current passive proof automation is driven from the reference-app UI layer.
+That is convenient, but the latest direct-device runs suggest it is not equally
+robust on every Android device role and placement.
+
+A better next step would be to move passive proof orchestration into a
+non-Compose automation engine attached to the live session/runtime surface. That
+would make retained end/export behavior less sensitive to UI lifecycle quirks.
 
 ## What should stay out of the physical matrix
 

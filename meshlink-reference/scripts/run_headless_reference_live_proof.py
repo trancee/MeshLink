@@ -40,8 +40,20 @@ ANDROID_EXTRA_MODE = "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_MODE"
 ANDROID_EXTRA_STORAGE = "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_STORAGE_SUBDIRECTORY"
 ANDROID_EXTRA_APP_ID = "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_APP_ID"
 ANDROID_EXTRA_ROLE = "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_ROLE"
+ANDROID_EXTRA_SCENARIO = "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_SCENARIO"
 AUTOMATION_MODE_LIVE_PROOF = "live-proof"
+IOS_AUTOMATION_SCENARIO = "MESHLINK_REFERENCE_AUTOMATION_SCENARIO"
 IOS_SENDER_MARKER = "REFERENCE_AUTOMATION proof.complete role=sender"
+ANDROID_FULL_EXPORT_PATTERN = re.compile(
+    r"REFERENCE_AUTOMATION export\.completed role=passive policy=full-payload path=(?P<export>\S+)"
+)
+DIRECT_PHYSICAL_SCENARIOS = [
+    "direct-guided",
+    "direct-pause-resume",
+    "direct-full-export",
+    "direct-trust-reset-recovery",
+    "direct-large-transfer",
+]
 IOS_XCUITEST_LIVE_PROOF_CONFIG = Path("/tmp/meshlink_reference_live_proof_xcuitest.json")
 IOS_XCUITEST_SKIPPED_MARKER = "Physical live-proof UI test only runs when explicitly opted in"
 
@@ -87,6 +99,12 @@ def parse_args() -> argparse.Namespace:
         help="Directory for retained logs and artifacts. Defaults to /tmp/reference_live_proof_<timestamp>",
     )
     parser.add_argument(
+        "--scenario",
+        choices=DIRECT_PHYSICAL_SCENARIOS,
+        default="direct-guided",
+        help="Physical direct scenario to run",
+    )
+    parser.add_argument(
         "--android-ready-seconds",
         type=float,
         default=DEFAULT_ANDROID_READY_SECONDS,
@@ -117,6 +135,12 @@ def parse_args() -> argparse.Namespace:
             "Do not require the Android passive app to reach proof.complete. Useful when verifying only "
             "the physical iPhone sender UI/XCTest path."
         ),
+    )
+    parser.add_argument(
+        "--extra-force-stop-serial",
+        action="append",
+        default=[],
+        help="Extra Android serials whose reference app should be force-stopped before and after the run",
     )
     parser.add_argument("--skip-android-install", action="store_true")
     parser.add_argument("--skip-ios-build", action="store_true")
@@ -159,6 +183,10 @@ def ensure_android_device_ready(android_serial: str) -> None:
         return
     available = ", ".join(f"{serial}({state})" for serial, state in sorted(devices.items())) or "none"
     raise SystemExit(f"Android serial '{android_serial}' is not ready. Available devices: {available}")
+
+
+def force_stop_reference_app(android_serial: str) -> None:
+    run(["adb", "-s", android_serial, "shell", "am", "force-stop", ANDROID_PACKAGE], check=False)
 
 
 def decode_provisioning_profile(path: Path) -> dict[str, Any] | None:
@@ -337,6 +365,7 @@ def run_ios_live_proof_test(
     ios_device: str,
     app_id: str,
     storage_subdirectory: str,
+    scenario: str,
     run_dir: Path,
 ) -> None:
     development_team = resolve_development_team()
@@ -382,12 +411,14 @@ def run_ios_live_proof_test(
         "MESHLINK_REFERENCE_LIVE_PROOF": "true",
         "MESHLINK_REFERENCE_AUTOMATION_STORAGE_SUBDIRECTORY": storage_subdirectory,
         "MESHLINK_REFERENCE_APP_ID": app_id,
+        IOS_AUTOMATION_SCENARIO: scenario,
     }
     target_environment = {
         "MESHLINK_REFERENCE_AUTOMATION_MODE": AUTOMATION_MODE_LIVE_PROOF,
         "MESHLINK_REFERENCE_AUTOMATION_STORAGE_SUBDIRECTORY": storage_subdirectory,
         "MESHLINK_REFERENCE_APP_ID": app_id,
         "MESHLINK_REFERENCE_AUTOMATION_ROLE": "sender",
+        IOS_AUTOMATION_SCENARIO: scenario,
     }
     ui_test_target.setdefault("EnvironmentVariables", {}).update(runner_environment)
     ui_test_target.setdefault("TestingEnvironmentVariables", {}).update(runner_environment)
@@ -493,6 +524,7 @@ def start_ios_app_via_devicectl(
     ios_device: str,
     app_id: str,
     storage_subdirectory: str,
+    scenario: str,
     run_dir: Path,
 ) -> BackgroundProcess:
     command = [
@@ -512,6 +544,7 @@ def start_ios_app_via_devicectl(
                 "MESHLINK_REFERENCE_AUTOMATION_STORAGE_SUBDIRECTORY": storage_subdirectory,
                 "MESHLINK_REFERENCE_APP_ID": app_id,
                 "MESHLINK_REFERENCE_AUTOMATION_ROLE": "sender",
+                IOS_AUTOMATION_SCENARIO: scenario,
             }
         ),
         IOS_BUNDLE_ID,
@@ -527,13 +560,40 @@ def start_ios_app_via_devicectl(
     return BackgroundProcess(process, cleanup_actions=[log_file.close])
 
 
-def verify_ios_sender_log(log_path: Path) -> str:
+def wait_for_ios_sender_result(log_path: Path, timeout_seconds: float) -> None:
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        if log_path.exists():
+            log_text = log_path.read_text(encoding="utf-8", errors="replace")
+            if IOS_SENDER_MARKER in log_text or "REFERENCE_AUTOMATION proof.failed role=sender" in log_text:
+                return
+        time.sleep(0.5)
+    raise SystemExit("iPhone sender reference app did not reach a terminal proof marker within the timeout")
+
+
+def verify_ios_sender_log(log_path: Path, scenario: str) -> str:
     log_text = log_path.read_text(encoding="utf-8", errors="replace")
     required_markers = [
         "REFERENCE_AUTOMATION started mode=LIVE_PROOF role=SENDER",
+        f"scenario={scenario}",
         "REFERENCE_AUTOMATION peer.discovered role=SENDER",
         "REFERENCE_AUTOMATION send.requested role=sender",
     ]
+    scenario_specific_markers = {
+        "direct-pause-resume": [
+            "REFERENCE_AUTOMATION pause.requested role=sender",
+            "REFERENCE_AUTOMATION pause.observed role=sender",
+            "REFERENCE_AUTOMATION resume.requested role=sender",
+            "REFERENCE_AUTOMATION resume.observed role=sender",
+        ],
+        "direct-trust-reset-recovery": [
+            "REFERENCE_AUTOMATION trust.reset.requested role=sender",
+            "REFERENCE_AUTOMATION trust.reset.observed role=sender",
+            "phase=recovery",
+        ],
+        "direct-large-transfer": ["payload=large-transfer"],
+    }
+    required_markers.extend(scenario_specific_markers.get(scenario, []))
     for marker in required_markers:
         if marker not in log_text:
             raise SystemExit(f"Expected iPhone sender log to contain '{marker}'")
@@ -544,8 +604,14 @@ def verify_ios_sender_log(log_path: Path) -> str:
     return completion_line or "REFERENCE_AUTOMATION send.requested role=sender"
 
 
-def start_android_app(run_dir: Path, android_serial: str, app_id: str, storage_subdirectory: str) -> BackgroundProcess:
-    run(["adb", "-s", android_serial, "shell", "am", "force-stop", ANDROID_PACKAGE], check=False)
+def start_android_app(
+    run_dir: Path,
+    android_serial: str,
+    app_id: str,
+    storage_subdirectory: str,
+    scenario: str,
+) -> BackgroundProcess:
+    force_stop_reference_app(android_serial)
     run(["adb", "-s", android_serial, "logcat", "-c"])
     logcat_path = run_dir / "android_logcat.log"
     logcat_file = logcat_path.open("w", encoding="utf-8")
@@ -580,6 +646,9 @@ def start_android_app(run_dir: Path, android_serial: str, app_id: str, storage_s
         "--es",
         ANDROID_EXTRA_ROLE,
         "passive",
+        "--es",
+        ANDROID_EXTRA_SCENARIO,
+        scenario,
     ]
     print(f"==> Launching Android passive reference app: {shell_join(command)}")
     start_output = run(command, capture_output=True)
@@ -616,11 +685,20 @@ def read_android_app_file(android_serial: str, relative_path: str) -> str:
     return result.stdout
 
 
+def extract_full_export_relative_path(log_path: Path) -> str | None:
+    if not log_path.exists():
+        return None
+    log_text = log_path.read_text(encoding="utf-8", errors="replace")
+    match = ANDROID_FULL_EXPORT_PATTERN.search(log_text)
+    return match.group("export") if match is not None else None
+
+
 def summarize_and_verify(
     *,
     android_serial: str,
     run_dir: Path,
     storage_subdirectory: str,
+    scenario: str,
     android_completion_line: str,
     ios_completion: str,
     export_relative_path: str,
@@ -644,24 +722,45 @@ def summarize_and_verify(
     if '"fullPayload":' in export_json:
         raise SystemExit("Redacted export unexpectedly included fullPayload")
 
+    full_export_relative_path = extract_full_export_relative_path(run_dir / "android_logcat.log")
+    if full_export_relative_path is not None:
+        full_export_json = read_android_app_file(
+            android_serial,
+            f"live-automation/{storage_subdirectory}/{full_export_relative_path}",
+        )
+        (run_dir / "android_export_full.json").write_text(full_export_json, encoding="utf-8")
+        if '"fullPayloadIncluded": true' not in full_export_json:
+            raise SystemExit("Expected the live full export to include fullPayloadIncluded=true")
+        if '"operatorOptInRecorded": true' not in full_export_json:
+            raise SystemExit("Expected the live full export to record explicit operator opt-in")
+        if '"fullPayload":' not in full_export_json:
+            raise SystemExit("Expected the live full export to include fullPayload content")
+
     summary = {
+        "scenario": scenario,
         "android_completion": android_completion_line,
         "ios_completion": ios_completion,
         "export_relative_path": export_relative_path,
+        "full_export_relative_path": full_export_relative_path,
     }
     (run_dir / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
+    print("==> Scenario:", scenario)
     print("==> Android completion:", android_completion_line)
     print("==> iPhone completion:", ios_completion)
     print("==> Android export:", export_relative_path)
+    if full_export_relative_path is not None:
+        print("==> Android full export:", full_export_relative_path)
 
 
-def summarize_sender_only(*, run_dir: Path, ios_completion: str) -> None:
+def summarize_sender_only(*, run_dir: Path, scenario: str, ios_completion: str) -> None:
     summary = {
+        "scenario": scenario,
         "android_completion": None,
         "ios_completion": ios_completion,
         "export_relative_path": None,
     }
     (run_dir / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
+    print("==> Scenario:", scenario)
     print("==> iPhone completion:", ios_completion)
     print("==> Android completion: skipped by --skip-android-completion-wait")
 
@@ -669,6 +768,8 @@ def summarize_sender_only(*, run_dir: Path, ios_completion: str) -> None:
 def main() -> int:
     args = parse_args()
     ensure_android_device_ready(args.android_serial)
+    for extra_serial in args.extra_force_stop_serial:
+        ensure_android_device_ready(extra_serial)
 
     run_dir = Path(args.run_dir or f"/tmp/reference_live_proof_{timestamp()}")
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -685,7 +786,16 @@ def main() -> int:
         if not args.skip_ios_install:
             install_ios_app(args.ios_device, ios_app_path)
 
-    android_logcat = start_android_app(run_dir, args.android_serial, app_id, storage_subdirectory)
+    for extra_serial in args.extra_force_stop_serial:
+        force_stop_reference_app(extra_serial)
+
+    android_logcat = start_android_app(
+        run_dir,
+        args.android_serial,
+        app_id,
+        storage_subdirectory,
+        args.scenario,
+    )
     ios_console_process: BackgroundProcess | None = None
 
     try:
@@ -698,6 +808,7 @@ def main() -> int:
                 ios_device=args.ios_device,
                 app_id=app_id,
                 storage_subdirectory=storage_subdirectory,
+                scenario=args.scenario,
                 run_dir=run_dir,
             )
             ios_completion = "xcodebuild test passed"
@@ -706,11 +817,16 @@ def main() -> int:
                 ios_device=args.ios_device,
                 app_id=app_id,
                 storage_subdirectory=storage_subdirectory,
+                scenario=args.scenario,
                 run_dir=run_dir,
             )
         if args.ios_launch_mode == "devicectl":
+            wait_for_ios_sender_result(
+                run_dir / "iphone_console.log",
+                args.capture_timeout_seconds,
+            )
             time.sleep(args.post_result_idle_seconds)
-            ios_completion = verify_ios_sender_log(run_dir / "iphone_console.log")
+            ios_completion = verify_ios_sender_log(run_dir / "iphone_console.log", args.scenario)
         if args.skip_android_completion_wait:
             android_completion_line = None
             export_relative_path = None
@@ -723,15 +839,18 @@ def main() -> int:
         if ios_console_process is not None:
             ios_console_process.stop()
         android_logcat.stop()
-        run(["adb", "-s", args.android_serial, "shell", "am", "force-stop", ANDROID_PACKAGE], check=False)
+        force_stop_reference_app(args.android_serial)
+        for extra_serial in args.extra_force_stop_serial:
+            force_stop_reference_app(extra_serial)
 
     if args.skip_android_completion_wait:
-        summarize_sender_only(run_dir=run_dir, ios_completion=ios_completion)
+        summarize_sender_only(run_dir=run_dir, scenario=args.scenario, ios_completion=ios_completion)
     else:
         summarize_and_verify(
             android_serial=args.android_serial,
             run_dir=run_dir,
             storage_subdirectory=storage_subdirectory,
+            scenario=args.scenario,
             android_completion_line=android_completion_line,
             ios_completion=ios_completion,
             export_relative_path=export_relative_path,

@@ -12,6 +12,10 @@ from run_headless_reference_live_proof import shell_join, timestamp
 
 AVAILABLE_SCENARIOS = {
     "direct-guided",
+    "direct-pause-resume",
+    "direct-full-export",
+    "direct-trust-reset-recovery",
+    "direct-large-transfer",
     "direct-xcuitest-permission-recovery",
     "relay-constrained",
 }
@@ -44,8 +48,8 @@ def parse_args() -> argparse.Namespace:
         "--scenarios",
         default="auto",
         help=(
-            "Comma-separated scenario list. Available values: direct-guided, direct-xcuitest-permission-recovery, relay-constrained. "
-            "Defaults to auto (direct-guided, plus relay-constrained when both Android relay/passive serials are available)."
+            "Comma-separated scenario list. Available values: direct-guided, direct-pause-resume, direct-full-export, direct-trust-reset-recovery, direct-large-transfer, direct-xcuitest-permission-recovery, relay-constrained. "
+            "Defaults to auto (the full direct scenario set, plus relay-constrained when both Android relay/passive serials are available)."
         ),
     )
     parser.add_argument(
@@ -79,7 +83,13 @@ def parse_args() -> argparse.Namespace:
 
 def resolve_scenarios(args: argparse.Namespace) -> list[str]:
     if args.scenarios == "auto":
-        scenarios = ["direct-guided"]
+        scenarios = [
+            "direct-guided",
+            "direct-pause-resume",
+            "direct-full-export",
+            "direct-trust-reset-recovery",
+            "direct-large-transfer",
+        ]
         if args.passive_android_serial and args.relay_android_serial:
             scenarios.append("relay-constrained")
         return scenarios
@@ -134,12 +144,23 @@ def main() -> int:
         scenario_run_dir = run_root / scenario
         scenario_type: str | None = None
         try:
-            if scenario == "direct-guided":
+            if scenario in {
+                "direct-guided",
+                "direct-pause-resume",
+                "direct-full-export",
+                "direct-trust-reset-recovery",
+                "direct-large-transfer",
+            }:
                 scenario_type = "direct"
                 if not direct_android_serial:
                     raise SystemExit(
-                        "direct-guided requires --direct-android-serial or --passive-android-serial"
+                        f"{scenario} requires --direct-android-serial or --passive-android-serial"
                     )
+                extra_force_stop_serials = [
+                    serial
+                    for serial in [args.passive_android_serial, args.relay_android_serial]
+                    if serial is not None and serial != direct_android_serial
+                ]
                 command = [
                     sys.executable,
                     str(scripts_dir / "run_headless_reference_live_proof.py"),
@@ -149,12 +170,19 @@ def main() -> int:
                     args.ios_device,
                     "--run-dir",
                     str(scenario_run_dir),
+                    "--scenario",
+                    scenario,
                     "--android-ready-seconds",
                     str(args.android_ready_seconds),
                     "--capture-timeout-seconds",
                     str(args.capture_timeout_seconds),
                     "--post-result-idle-seconds",
                     str(args.post_result_idle_seconds),
+                    *[
+                        item
+                        for serial in extra_force_stop_serials
+                        for item in ("--extra-force-stop-serial", serial)
+                    ],
                     *bool_flag(args.skip_android_install, "--skip-android-install"),
                     *bool_flag(args.skip_ios_build, "--skip-ios-build"),
                     *bool_flag(args.skip_ios_install, "--skip-ios-install"),
@@ -171,6 +199,11 @@ def main() -> int:
                     raise SystemExit(
                         "direct-xcuitest-permission-recovery requires --direct-android-serial or --passive-android-serial"
                     )
+                extra_force_stop_serials = [
+                    serial
+                    for serial in [args.passive_android_serial, args.relay_android_serial]
+                    if serial is not None and serial != direct_android_serial
+                ]
                 command = [
                     sys.executable,
                     str(scripts_dir / "run_headless_reference_live_proof.py"),
@@ -180,6 +213,8 @@ def main() -> int:
                     args.ios_device,
                     "--run-dir",
                     str(scenario_run_dir),
+                    "--scenario",
+                    "direct-guided",
                     "--ios-launch-mode",
                     "xcuitest",
                     "--android-ready-seconds",
@@ -188,6 +223,11 @@ def main() -> int:
                     str(args.capture_timeout_seconds),
                     "--post-result-idle-seconds",
                     str(args.post_result_idle_seconds),
+                    *[
+                        item
+                        for serial in extra_force_stop_serials
+                        for item in ("--extra-force-stop-serial", serial)
+                    ],
                     *bool_flag(args.skip_android_install, "--skip-android-install"),
                     *bool_flag(args.skip_ios_build, "--skip-ios-build"),
                     *bool_flag(args.skip_ios_install, "--skip-ios-install"),

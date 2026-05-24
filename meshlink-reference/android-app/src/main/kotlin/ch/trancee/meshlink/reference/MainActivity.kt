@@ -7,6 +7,9 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import ch.trancee.meshlink.reference.app.ReferenceApp
 import ch.trancee.meshlink.reference.automation.ReferenceAutomationRole
+import ch.trancee.meshlink.reference.automation.ReferenceAutomationScenario
+import ch.trancee.meshlink.reference.automation.toReferenceAutomationScenario
+import ch.trancee.meshlink.reference.automation.wireValue
 import ch.trancee.meshlink.reference.platform.createAndroidAutomationPlatformServices
 import ch.trancee.meshlink.reference.platform.createAndroidLiveAutomationPlatformServices
 import ch.trancee.meshlink.reference.platform.createAndroidPlatformServices
@@ -34,6 +37,9 @@ public class MainActivity : ComponentActivity() {
                     targetPeerIndex =
                         intent?.getIntExtra(EXTRA_UI_AUTOMATION_TARGET_PEER_INDEX, 0) ?: 0,
                     targetPeerId = intent?.getStringExtra(EXTRA_UI_AUTOMATION_TARGET_PEER_ID),
+                    scenario =
+                        intent?.getStringExtra(EXTRA_UI_AUTOMATION_SCENARIO)
+                            .toReferenceAutomationScenario(),
                 )
             } else if (automationEnabled) {
                 createAndroidAutomationPlatformServices(
@@ -68,6 +74,8 @@ public class MainActivity : ComponentActivity() {
             "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_TARGET_PEER_INDEX"
         public const val EXTRA_UI_AUTOMATION_TARGET_PEER_ID: String =
             "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_TARGET_PEER_ID"
+        public const val EXTRA_UI_AUTOMATION_SCENARIO: String =
+            "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_SCENARIO"
         public const val DEFAULT_AUTOMATION_STORAGE_SUBDIRECTORY: String = "default"
         public const val DEFAULT_LIVE_AUTOMATION_APP_ID: String = "demo.meshlink.reference.live"
         public const val AUTOMATION_MODE_SCRIPTED: String = "scripted"
@@ -93,6 +101,7 @@ public class MainActivity : ComponentActivity() {
             storageSubdirectory: String,
             appId: String,
             role: ReferenceAutomationRole,
+            scenario: ReferenceAutomationScenario = ReferenceAutomationScenario.DIRECT_GUIDED,
         ): Intent {
             return Intent(context, MainActivity::class.java).apply {
                 putExtra(EXTRA_UI_AUTOMATION, true)
@@ -100,6 +109,7 @@ public class MainActivity : ComponentActivity() {
                 putExtra(EXTRA_UI_AUTOMATION_STORAGE_SUBDIRECTORY, storageSubdirectory)
                 putExtra(EXTRA_UI_AUTOMATION_APP_ID, appId)
                 putExtra(EXTRA_UI_AUTOMATION_ROLE, role.name.lowercase())
+                putExtra(EXTRA_UI_AUTOMATION_SCENARIO, scenario.wireValue())
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK)
             }

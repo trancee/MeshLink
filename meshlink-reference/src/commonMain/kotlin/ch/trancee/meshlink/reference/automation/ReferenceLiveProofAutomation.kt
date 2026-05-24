@@ -149,8 +149,56 @@ internal fun shouldExportPassiveLiveProof(
     return retainRequested && !exportRequested && retainedSessionCount > 0
 }
 
-internal fun hasTimelineEntry(snapshot: ReferenceControllerSnapshot, title: String): Boolean {
-    return snapshot.timeline.any { entry -> entry.title == title }
+internal fun hasTimelineEntry(
+    snapshot: ReferenceControllerSnapshot,
+    title: String,
+    peerSuffix: String? = null,
+): Boolean {
+    return snapshot.timeline.any { entry ->
+        entry.title == title && (peerSuffix == null || entry.peerSuffix == peerSuffix)
+    }
+}
+
+internal fun timelineEntryCount(
+    snapshot: ReferenceControllerSnapshot,
+    title: String,
+    peerSuffix: String? = null,
+): Int {
+    return snapshot.timeline.count { entry ->
+        entry.title == title && (peerSuffix == null || entry.peerSuffix == peerSuffix)
+    }
+}
+
+internal fun largestInboundPayloadBytes(snapshot: ReferenceControllerSnapshot): Int? {
+    return snapshot.timeline
+        .filter { entry -> entry.title == "Inbound message" }
+        .maxOfOrNull { entry -> entry.payloadSizeBytes ?: 0 }
+        ?.takeIf { bytes -> bytes > 0 }
+}
+
+internal fun hasPauseObserved(snapshot: ReferenceControllerSnapshot): Boolean {
+    return snapshot.session.lastOutcomeSummary == "PauseResult.Paused" ||
+        hasTimelineEntry(snapshot, title = "Mesh paused")
+}
+
+internal fun hasResumeObserved(snapshot: ReferenceControllerSnapshot): Boolean {
+    return snapshot.session.lastOutcomeSummary == "ResumeResult.Resumed" ||
+        hasTimelineEntry(snapshot, title = "Mesh resumed")
+}
+
+internal fun hasPeerTrustReset(
+    snapshot: ReferenceControllerSnapshot,
+    peerSuffix: String? = null,
+): Boolean {
+    return hasTimelineEntry(snapshot, title = "Peer trust reset", peerSuffix = peerSuffix)
+}
+
+internal fun hasTrustResetRecoveryReady(
+    snapshot: ReferenceControllerSnapshot,
+    peerSuffix: String? = null,
+): Boolean {
+    return hasPeerTrustReset(snapshot, peerSuffix = peerSuffix) ||
+        hasTimelineEntry(snapshot, title = "ROUTE_RETRACTED", peerSuffix = peerSuffix)
 }
 
 internal fun hasMeshEnteredLifecycle(meshStateLabel: String): Boolean {
@@ -176,6 +224,18 @@ internal fun latestAutomationObservation(
 internal fun isTerminalSenderFailureOutcome(lastOutcomeSummary: String): Boolean {
     return lastOutcomeSummary.startsWith("SendResult.NotSent(")
 }
+
+internal fun buildLargeTransferPayload(platformName: String): String {
+    return buildString {
+        repeat(LARGE_TRANSFER_PREVIEW_REPEAT_COUNT) {
+            append("MeshLink reference large transfer preview from ")
+            append(platformName)
+            append(" · ")
+        }
+    }
+}
+
+private const val LARGE_TRANSFER_PREVIEW_REPEAT_COUNT: Int = 256
 
 private val DEFAULT_AUTOMATION_OBSERVATION_FAMILIES: Set<TimelineFamily> =
     setOf(TimelineFamily.DIAGNOSTIC, TimelineFamily.MESSAGE, TimelineFamily.TRANSFER)

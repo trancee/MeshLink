@@ -128,7 +128,19 @@ python3 meshlink-reference/scripts/run_headless_reference_physical_matrix.py \
   --relay-android-serial <samsung-serial>
 ```
 
-The matrix keeps the physical campaign repeatable. Each scenario writes:
+The matrix keeps the physical campaign repeatable. The direct phase can cover:
+
+- `direct-guided`
+- `direct-pause-resume`
+- `direct-full-export`
+- `direct-trust-reset-recovery`
+- `direct-large-transfer`
+
+and the relay phase can cover:
+
+- `relay-constrained`
+
+Each scenario writes:
 
 - `summary.json` — scenario-specific completion lines and retained export path
 - `analysis.json` — machine-readable pass/fail analysis

@@ -3,6 +3,7 @@ package ch.trancee.meshlink.reference.platform
 import ch.trancee.meshlink.reference.automation.ReferenceAutomationConfig
 import ch.trancee.meshlink.reference.automation.ReferenceAutomationMode
 import ch.trancee.meshlink.reference.automation.ReferenceAutomationRole
+import ch.trancee.meshlink.reference.automation.ReferenceAutomationScenario
 import ch.trancee.meshlink.reference.meshlink.ScriptedReferenceMeshLinkController
 import ch.trancee.meshlink.reference.model.ReferenceAuthorityMode
 import ch.trancee.meshlink.reference.session.OkioReferenceDocumentStore
@@ -80,6 +81,7 @@ internal fun createIosLiveAutomationPlatformServices(
     requiredPeerCount: Int = 1,
     targetPeerIndex: Int = 0,
     targetPeerId: String? = null,
+    scenario: ReferenceAutomationScenario = ReferenceAutomationScenario.DIRECT_GUIDED,
 ): DefaultPlatformServices {
     val baseDirectory = buildString {
         append(resolveIosDocumentsDirectory())
@@ -107,6 +109,7 @@ internal fun createIosLiveAutomationPlatformServices(
                         requiredPeerCount = requiredPeerCount,
                         targetPeerIndex = targetPeerIndex,
                         targetPeerId = targetPeerId,
+                        scenario = scenario,
                     )
                 automationLogger = ::println
             },

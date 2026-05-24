@@ -5,6 +5,7 @@ import android.util.Log
 import ch.trancee.meshlink.reference.automation.ReferenceAutomationConfig
 import ch.trancee.meshlink.reference.automation.ReferenceAutomationMode
 import ch.trancee.meshlink.reference.automation.ReferenceAutomationRole
+import ch.trancee.meshlink.reference.automation.ReferenceAutomationScenario
 import ch.trancee.meshlink.reference.meshlink.ScriptedReferenceMeshLinkController
 import ch.trancee.meshlink.reference.model.ReferenceAuthorityMode
 import ch.trancee.meshlink.reference.session.OkioReferenceDocumentStore
@@ -78,6 +79,7 @@ public fun createAndroidLiveAutomationPlatformServices(
     requiredPeerCount: Int = 1,
     targetPeerIndex: Int = 0,
     targetPeerId: String? = null,
+    scenario: ReferenceAutomationScenario = ReferenceAutomationScenario.DIRECT_GUIDED,
 ): DefaultPlatformServices {
     val clock = { System.currentTimeMillis() }
     val automationDirectory =
@@ -103,6 +105,7 @@ public fun createAndroidLiveAutomationPlatformServices(
                         requiredPeerCount = requiredPeerCount,
                         targetPeerIndex = targetPeerIndex,
                         targetPeerId = targetPeerId,
+                        scenario = scenario,
                     )
                 automationLogger = { message -> Log.i(AUTOMATION_LOG_TAG, message) }
             },

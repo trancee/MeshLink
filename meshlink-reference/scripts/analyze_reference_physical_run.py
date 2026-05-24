@@ -21,12 +21,13 @@ XCODEBUILD_TIMESTAMP = re.compile(
 @dataclass
 class RunAnalysis:
     scenario_type: str
+    scenario_name: str
     status: str
     run_directory: str
     summary: list[str]
     invariants: dict[str, bool]
     timings_seconds: dict[str, float | None]
-    artifacts: dict[str, str | bool | None]
+    artifacts: dict[str, str | int | bool | None]
     recommendations: list[str]
 
 
@@ -187,8 +188,21 @@ def route_is_direct_value(line: str | None) -> str | None:
     return None
 
 
+def extract_integer_value(line: str | None, key: str) -> int | None:
+    if line is None:
+        return None
+    match = re.search(rf"{re.escape(key)}=(?P<value>\d+)", line)
+    return int(match.group("value")) if match is not None else None
+
+
+def extract_first_matching_line(text: str, pattern: str) -> str | None:
+    regex = re.compile(pattern)
+    return next((line.strip() for line in text.splitlines() if regex.search(line)), None)
+
+
 def analyze_direct_run(run_dir: Path) -> RunAnalysis:
     summary_json = load_summary_json(run_dir)
+    scenario_name = str(summary_json.get("scenario") or "direct-guided")
     sender_console_path = run_dir / "iphone_console.log"
     sender_xcodebuild_path = run_dir / "ios_xcodebuild.log"
     passive_log_path = run_dir / "android_logcat.log"
@@ -196,6 +210,7 @@ def analyze_direct_run(run_dir: Path) -> RunAnalysis:
     sender_xcodebuild = load_text(sender_xcodebuild_path)
     passive_log = load_text(passive_log_path)
     export_text = load_text(run_dir / "android_export.json")
+    full_export_text = load_text(run_dir / "android_export_full.json")
     history_text = load_text(run_dir / "android_history.json")
 
     sender_completion_line = (
@@ -206,12 +221,22 @@ def analyze_direct_run(run_dir: Path) -> RunAnalysis:
         passive_log, "REFERENCE_AUTOMATION proof.complete role=passive"
     )
     sender_via_xcuitest = "** TEST SUCCEEDED **" in sender_xcodebuild
+    passive_inbound_count = extract_integer_value(passive_completion_line, "inboundCount")
+    passive_largest_inbound_bytes = extract_integer_value(
+        passive_completion_line, "largestInboundBytes"
+    )
+    recovery_delivery_count = extract_integer_value(sender_completion_line, "deliveries")
+    large_transfer_request_line = extract_first_matching_line(
+        sender_console, r"payload=large-transfer"
+    )
+    large_transfer_request_bytes = extract_integer_value(large_transfer_request_line, "bytes")
 
     invariants = {
         "sender_proof_complete": bool(sender_completion_line) or sender_via_xcuitest,
         "sender_proof_failed": "REFERENCE_AUTOMATION proof.failed role=sender" in sender_console,
         "passive_proof_complete": passive_completion_line is not None,
-        "peer_discovered_on_passive": "REFERENCE_AUTOMATION peer.discovered role=PASSIVE" in passive_log,
+        "peer_discovered_on_passive": "REFERENCE_AUTOMATION peer.discovered role=PASSIVE"
+        in passive_log,
         "passive_requested_redacted_export": "REFERENCE_AUTOMATION export.requested role=passive policy=redacted-preview"
         in passive_log,
         "redacted_export_file_captured": bool(export_text),
@@ -224,6 +249,26 @@ def analyze_direct_run(run_dir: Path) -> RunAnalysis:
         "ios_gatt_side_link_retained_after_l2cap_close": "retaining peer" in sender_console
         and "GATT side link is still active" in sender_console,
         "unexpected_routed_delivery": "routeIsDirect=false" in sender_console,
+        "pause_requested": "REFERENCE_AUTOMATION pause.requested role=sender" in sender_console,
+        "pause_observed": "REFERENCE_AUTOMATION pause.observed role=sender" in sender_console,
+        "resume_requested": "REFERENCE_AUTOMATION resume.requested role=sender" in sender_console,
+        "resume_observed": "REFERENCE_AUTOMATION resume.observed role=sender" in sender_console,
+        "full_export_requested": "REFERENCE_AUTOMATION export.requested role=passive policy=full-payload"
+        in passive_log,
+        "full_export_file_captured": bool(full_export_text),
+        "full_export_flags_present": '"fullPayloadIncluded": true' in full_export_text
+        and '"operatorOptInRecorded": true' in full_export_text
+        and '"fullPayload":' in full_export_text,
+        "trust_reset_requested": "REFERENCE_AUTOMATION trust.reset.requested role=sender"
+        in sender_console,
+        "trust_reset_observed": "REFERENCE_AUTOMATION trust.reset.observed role=sender"
+        in sender_console,
+        "recovery_send_requested": "phase=recovery" in sender_console,
+        "recovery_delivery_count_met": (recovery_delivery_count or 0) >= 2,
+        "passive_recovery_inbound_count_met": (passive_inbound_count or 0) >= 2,
+        "large_transfer_requested": large_transfer_request_line is not None,
+        "large_transfer_bytes_recorded": (large_transfer_request_bytes or 0) >= 4096,
+        "passive_large_inbound_recorded": (passive_largest_inbound_bytes or 0) >= 4096,
     }
 
     timings = collect_relative_timings(
@@ -237,6 +282,18 @@ def analyze_direct_run(run_dir: Path) -> RunAnalysis:
             "passive_proof_complete": "REFERENCE_AUTOMATION proof.complete role=passive",
         },
     )
+    if scenario_name == "direct-full-export":
+        timings.update(
+            collect_relative_timings(
+                passive_log,
+                parse_android_timestamp,
+                markers={
+                    "passive_full_export_requested": "REFERENCE_AUTOMATION export.requested role=passive policy=full-payload",
+                    "passive_full_export_completed": "REFERENCE_AUTOMATION export.completed role=passive policy=full-payload",
+                    "passive_redacted_export_completed": "REFERENCE_AUTOMATION export.completed role=passive policy=redacted-preview",
+                },
+            )
+        )
 
     recommendations: list[str] = []
     if invariants["unexpected_routed_delivery"]:
@@ -271,17 +328,69 @@ def analyze_direct_run(run_dir: Path) -> RunAnalysis:
         "redacted_export_flags_present",
         "retained_history_marked_retained",
     ]
-    status = "pass" if all(invariants[key] for key in critical_keys) else "fail"
+    scenario_critical_keys: list[str] = []
+    if scenario_name == "direct-pause-resume":
+        scenario_critical_keys = [
+            "pause_requested",
+            "pause_observed",
+            "resume_requested",
+            "resume_observed",
+        ]
+        if not invariants["resume_observed"]:
+            recommendations.append(
+                "The pause/resume scenario never observed a clean resume on the sender. Keep lifecycle recovery in the physical matrix until pause/resume stops being a transport-risky operation."
+            )
+    elif scenario_name == "direct-full-export":
+        scenario_critical_keys = [
+            "full_export_requested",
+            "full_export_file_captured",
+            "full_export_flags_present",
+        ]
+        if not invariants["full_export_file_captured"]:
+            recommendations.append(
+                "The passive peer never captured the live full export. Re-check the live-session full-export path before relying on redacted retained artifacts alone."
+            )
+    elif scenario_name == "direct-trust-reset-recovery":
+        scenario_critical_keys = [
+            "trust_reset_requested",
+            "trust_reset_observed",
+            "recovery_send_requested",
+            "recovery_delivery_count_met",
+            "passive_recovery_inbound_count_met",
+        ]
+        if not invariants["passive_recovery_inbound_count_met"]:
+            recommendations.append(
+                "The trust-reset recovery scenario did not produce two inbound deliveries on the passive peer. Re-check trust reset, re-discovery, and re-send sequencing before trusting that recovery path."
+            )
+    elif scenario_name == "direct-large-transfer":
+        scenario_critical_keys = [
+            "large_transfer_requested",
+            "large_transfer_bytes_recorded",
+            "passive_large_inbound_recorded",
+        ]
+        if not invariants["passive_large_inbound_recorded"]:
+            recommendations.append(
+                "The large-transfer scenario never observed a large inbound payload on the passive peer. Re-check the physical large-transfer threshold and delivery path before trusting the transfer evidence."
+            )
 
-    summary = []
-    if status == "pass":
-        summary.append(
-            "The direct guided proof completed end-to-end, retained the session on Android, and captured a redacted export without full payload bytes."
+    status = "pass" if all(invariants[key] for key in critical_keys + scenario_critical_keys) else "fail"
+
+    summary: list[str] = []
+    scenario_summary_text = {
+        "direct-guided": "The direct guided proof completed end-to-end, retained the session on Android, and captured a redacted export without full payload bytes.",
+        "direct-pause-resume": "The direct pause/resume proof completed after an explicit lifecycle pause and resume on the sender, then retained a redacted export on the passive peer.",
+        "direct-full-export": "The direct full-export proof captured a live full-payload export before session end, then retained a separate redacted export after the session closed.",
+        "direct-trust-reset-recovery": "The direct trust-reset recovery proof completed an initial send, reset trust on the sender, then re-established delivery and retained evidence on the passive peer.",
+        "direct-large-transfer": "The direct large-transfer proof delivered a large physical payload and retained a redacted export after the passive peer received the oversized message.",
+    }
+    summary.append(
+        scenario_summary_text.get(
+            scenario_name,
+            "The direct physical proof completed with retained history and a redacted export.",
         )
-    else:
-        summary.append(
-            "The direct guided proof is incomplete; at least one of sender completion, passive retention, or redacted artifact capture is missing."
-        )
+        if status == "pass"
+        else "The direct physical scenario is incomplete; at least one sender, passive, or scenario-specific invariant is missing."
+    )
     if invariants["ios_gatt_side_link_retained_after_l2cap_close"]:
         summary.append(
             "The sender log shows the iPhone keeping a GATT notify side link alive after the L2CAP channel closes, which matches the mixed-bearer resilience posture."
@@ -292,11 +401,16 @@ def analyze_direct_run(run_dir: Path) -> RunAnalysis:
         "passive_completion_line": passive_completion_line,
         "sender_launch_mode": "xcuitest" if sender_via_xcuitest else ("devicectl" if sender_console else None),
         "export_relative_path": summary_json.get("export_relative_path"),
+        "full_export_relative_path": summary_json.get("full_export_relative_path"),
+        "passive_inbound_count": passive_inbound_count,
+        "passive_largest_inbound_bytes": passive_largest_inbound_bytes,
+        "large_transfer_request_bytes": large_transfer_request_bytes,
         "analysis_based_on_summary_json": bool(summary_json),
     }
 
     return RunAnalysis(
         scenario_type="direct",
+        scenario_name=scenario_name,
         status=status,
         run_directory=str(run_dir),
         summary=summary,
@@ -309,6 +423,7 @@ def analyze_direct_run(run_dir: Path) -> RunAnalysis:
 
 def analyze_relay_run(run_dir: Path) -> RunAnalysis:
     summary_json = load_summary_json(run_dir)
+    scenario_name = str(summary_json.get("scenario") or "relay-constrained")
     sender_log = load_text(run_dir / "iphone_console.log")
     role_logs = classify_android_role_logs(run_dir)
     passive_log = role_logs.get("PASSIVE")
@@ -433,6 +548,7 @@ def analyze_relay_run(run_dir: Path) -> RunAnalysis:
 
     return RunAnalysis(
         scenario_type="relay",
+        scenario_name=scenario_name,
         status=status,
         run_directory=str(run_dir),
         summary=summary,
@@ -455,6 +571,7 @@ def render_markdown(analysis: RunAnalysis) -> str:
         f"# Physical run analysis: {Path(analysis.run_directory).name}",
         "",
         f"- Scenario type: `{analysis.scenario_type}`",
+        f"- Scenario name: `{analysis.scenario_name}`",
         f"- Status: `{analysis.status}`",
         "",
         "## Summary",

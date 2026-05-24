@@ -14,8 +14,10 @@ from pathlib import Path
 from run_headless_reference_live_proof import (
     ANDROID_ACTIVITY,
     ANDROID_AUTOMATION_LOG_TAGS,
+    ANDROID_EXTRA_SCENARIO,
     ANDROID_PACKAGE,
     AUTOMATION_MODE_LIVE_PROOF,
+    IOS_AUTOMATION_SCENARIO,
     BackgroundProcess,
     DEFAULT_ANDROID_READY_SECONDS,
     DEFAULT_CAPTURE_TIMEOUT_SECONDS,
@@ -33,6 +35,7 @@ from run_headless_reference_live_proof import (
 )
 
 DEFAULT_APP_ID_PREFIX = "demo.meshlink.reference.relay"
+RELAY_SCENARIO = "relay-constrained"
 
 
 def parse_args() -> argparse.Namespace:
@@ -188,6 +191,9 @@ def start_android_role_app(
         "--es",
         "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_ROLE",
         role,
+        "--es",
+        ANDROID_EXTRA_SCENARIO,
+        RELAY_SCENARIO,
     ]
     print(f"==> Launching {label} Android reference app ({role}): {shell_join(command)}")
     start_output = run(command, capture_output=True)
@@ -224,6 +230,7 @@ def start_ios_sender_app(
                 "MESHLINK_REFERENCE_APP_ID": app_id,
                 "MESHLINK_REFERENCE_AUTOMATION_ROLE": "sender",
                 "MESHLINK_REFERENCE_AUTOMATION_TARGET_PEER_ID": target_peer_id,
+                IOS_AUTOMATION_SCENARIO: RELAY_SCENARIO,
             }
         ),
         IOS_BUNDLE_ID,
@@ -254,6 +261,7 @@ def verify_ios_sender_relay_log(log_path: Path) -> str:
     log_text = log_path.read_text(encoding="utf-8", errors="replace")
     required_markers = [
         "REFERENCE_AUTOMATION started mode=LIVE_PROOF role=SENDER",
+        f"scenario={RELAY_SCENARIO}",
         "REFERENCE_AUTOMATION bootstrap.requested role=sender",
         "REFERENCE_AUTOMATION send.requested role=sender",
         "REFERENCE_AUTOMATION proof.complete role=sender",
@@ -326,6 +334,7 @@ def summarize_and_verify_relay(
         raise SystemExit("Relay run hit transport.data.noSession")
 
     summary = {
+        "scenario": RELAY_SCENARIO,
         "ios_completion": sender_completion_line,
         "passive_completion": passive_completion_line,
         "relay_forward_queued": relay_observations["forward_queued"],

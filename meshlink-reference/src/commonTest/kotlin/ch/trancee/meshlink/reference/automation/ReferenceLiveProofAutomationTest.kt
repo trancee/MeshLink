@@ -458,4 +458,219 @@ class ReferenceLiveProofAutomationTest {
         assertTrue(exportReady)
         assertFalse(exportBlocked)
     }
+
+    @Test
+    fun lifecycleHelpersRecognizePauseAndResumeOutcomes() {
+        // Arrange
+        val pausedSnapshot =
+            ReferenceControllerSnapshot(
+                session =
+                    ReferenceSession(
+                        sessionId = "session-1",
+                        scenarioId = "guided-first-exchange",
+                        authorityMode = ReferenceAuthorityMode.LIVE,
+                        startedAtEpochMillis = 1L,
+                        meshStateLabel = "Paused",
+                        lastOutcomeSummary = "PauseResult.Paused",
+                    ),
+                peers = emptyList(),
+                timeline =
+                    listOf(
+                        TimelineEntry(
+                            entryId = "session-1-1",
+                            sessionId = "session-1",
+                            occurredAtEpochMillis = 2L,
+                            family = TimelineFamily.LIFECYCLE,
+                            severity = TimelineSeverity.SUCCESS,
+                            title = "Mesh paused",
+                            detail = "mesh.pause() -> Paused",
+                        )
+                    ),
+                activePowerModeLabel = "Automatic",
+            )
+        val resumedSnapshot =
+            pausedSnapshot.copy(
+                session =
+                    pausedSnapshot.session.copy(
+                        meshStateLabel = "Running",
+                        lastOutcomeSummary = "ResumeResult.Resumed",
+                    ),
+                timeline =
+                    pausedSnapshot.timeline +
+                        TimelineEntry(
+                            entryId = "session-1-2",
+                            sessionId = "session-1",
+                            occurredAtEpochMillis = 3L,
+                            family = TimelineFamily.LIFECYCLE,
+                            severity = TimelineSeverity.SUCCESS,
+                            title = "Mesh resumed",
+                            detail = "mesh.resume() -> Resumed",
+                        ),
+            )
+
+        // Act
+        val pauseObserved = hasPauseObserved(pausedSnapshot)
+        val resumeObserved = hasResumeObserved(resumedSnapshot)
+
+        // Assert
+        assertTrue(pauseObserved)
+        assertTrue(resumeObserved)
+    }
+
+    @Test
+    fun inboundHelpersTrackRecoveryCountsAndLargestPayloadBytes() {
+        // Arrange
+        val snapshot =
+            ReferenceControllerSnapshot(
+                session =
+                    ReferenceSession(
+                        sessionId = "session-1",
+                        scenarioId = "guided-first-exchange",
+                        authorityMode = ReferenceAuthorityMode.LIVE,
+                        startedAtEpochMillis = 1L,
+                    ),
+                peers = emptyList(),
+                timeline =
+                    listOf(
+                        TimelineEntry(
+                            entryId = "session-1-1",
+                            sessionId = "session-1",
+                            occurredAtEpochMillis = 2L,
+                            family = TimelineFamily.MESSAGE,
+                            severity = TimelineSeverity.SUCCESS,
+                            title = "Inbound message",
+                            detail = "Received 32 bytes from abc123.",
+                            peerSuffix = "abc123",
+                            payloadSizeBytes = 32,
+                        ),
+                        TimelineEntry(
+                            entryId = "session-1-2",
+                            sessionId = "session-1",
+                            occurredAtEpochMillis = 3L,
+                            family = TimelineFamily.MESSAGE,
+                            severity = TimelineSeverity.SUCCESS,
+                            title = "Inbound message",
+                            detail = "Received 8192 bytes from abc123.",
+                            peerSuffix = "abc123",
+                            payloadSizeBytes = 8_192,
+                        ),
+                    ),
+                activePowerModeLabel = "Automatic",
+            )
+
+        // Act
+        val inboundCount = timelineEntryCount(snapshot, title = "Inbound message")
+        val largestInboundBytes = largestInboundPayloadBytes(snapshot)
+
+        // Assert
+        assertEquals(2, inboundCount)
+        assertEquals(8_192, largestInboundBytes)
+    }
+
+    @Test
+    fun trustResetHelperFindsResetEventsForTheSelectedPeer() {
+        // Arrange
+        val peerId = "peer-selected-abcdef"
+        val snapshot =
+            ReferenceControllerSnapshot(
+                session =
+                    ReferenceSession(
+                        sessionId = "session-1",
+                        scenarioId = "guided-first-exchange",
+                        authorityMode = ReferenceAuthorityMode.LIVE,
+                        startedAtEpochMillis = 1L,
+                    ),
+                peers = emptyList(),
+                timeline =
+                    listOf(
+                        TimelineEntry(
+                            entryId = "session-1-1",
+                            sessionId = "session-1",
+                            occurredAtEpochMillis = 2L,
+                            family = TimelineFamily.PEER,
+                            severity = TimelineSeverity.SUCCESS,
+                            title = "Peer trust reset",
+                            detail = "forgetPeer(${redactedSuffix(peerId)}) -> Forgotten",
+                            peerSuffix = redactedSuffix(peerId),
+                        )
+                    ),
+                activePowerModeLabel = "Automatic",
+            )
+
+        // Act
+        val actual = hasPeerTrustReset(snapshot, peerSuffix = redactedSuffix(peerId))
+        val recoveryReady =
+            hasTrustResetRecoveryReady(snapshot, peerSuffix = redactedSuffix(peerId))
+
+        // Assert
+        assertTrue(actual)
+        assertTrue(recoveryReady)
+    }
+
+    @Test
+    fun trustResetRecoveryAlsoAcceptsRouteRetractionForTheSelectedPeer() {
+        // Arrange
+        val peerId = "peer-selected-abcdef"
+        val snapshot =
+            ReferenceControllerSnapshot(
+                session =
+                    ReferenceSession(
+                        sessionId = "session-1",
+                        scenarioId = "guided-first-exchange",
+                        authorityMode = ReferenceAuthorityMode.LIVE,
+                        startedAtEpochMillis = 1L,
+                    ),
+                peers = emptyList(),
+                timeline =
+                    listOf(
+                        TimelineEntry(
+                            entryId = "session-1-1",
+                            sessionId = "session-1",
+                            occurredAtEpochMillis = 2L,
+                            family = TimelineFamily.DIAGNOSTIC,
+                            severity = TimelineSeverity.INFO,
+                            title = "ROUTE_RETRACTED",
+                            detail = "ROUTE_RETRACTED @ trust.forgetPeer.routeRetracted",
+                            peerSuffix = redactedSuffix(peerId),
+                        )
+                    ),
+                activePowerModeLabel = "Automatic",
+            )
+
+        // Act
+        val recoveryReady =
+            hasTrustResetRecoveryReady(snapshot, peerSuffix = redactedSuffix(peerId))
+
+        // Assert
+        assertTrue(recoveryReady)
+    }
+
+    @Test
+    fun largeTransferPayloadBuilderProducesAnOversizedPhysicalPayload() {
+        // Arrange
+        val platformName = "Android"
+
+        // Act
+        val payload = buildLargeTransferPayload(platformName)
+        val payloadBytes = payload.encodeToByteArray().size
+
+        // Assert
+        assertTrue(payloadBytes > 4_096)
+        assertTrue(payload.contains(platformName))
+    }
+
+    @Test
+    fun automationScenarioParserMapsWireValues() {
+        // Arrange
+        val largeTransferWireValue = "direct-large-transfer"
+        val relayWireValue = "relay-constrained"
+
+        // Act
+        val largeTransferScenario = largeTransferWireValue.toReferenceAutomationScenario()
+        val relayScenario = relayWireValue.toReferenceAutomationScenario()
+
+        // Assert
+        assertEquals(ReferenceAutomationScenario.DIRECT_LARGE_TRANSFER, largeTransferScenario)
+        assertEquals(ReferenceAutomationScenario.RELAY_CONSTRAINED, relayScenario)
+    }
 }
