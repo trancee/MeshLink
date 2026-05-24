@@ -340,10 +340,13 @@ private class PendingFrame internal constructor(chunks: List<ByteArray>) {
     }
 }
 
-private fun maxNotificationChunkBytes(central: CBCentral): Int {
-    val rawLength = central.maximumUpdateValueLength.toInt()
-    return minOf(rawLength, PREFERRED_NOTIFICATION_FRAME_BYTES)
+internal fun maximumGattNotificationChunkBytes(maximumUpdateValueLength: Int): Int {
+    return minOf(maximumUpdateValueLength, PREFERRED_NOTIFICATION_FRAME_BYTES)
         .coerceAtLeast(MIN_NOTIFICATION_CHUNK_BYTES)
+}
+
+private fun maxNotificationChunkBytes(central: CBCentral): Int {
+    return maximumGattNotificationChunkBytes(central.maximumUpdateValueLength.toInt())
 }
 
 private inline fun <T> NSLock.withLock(block: () -> T): T {

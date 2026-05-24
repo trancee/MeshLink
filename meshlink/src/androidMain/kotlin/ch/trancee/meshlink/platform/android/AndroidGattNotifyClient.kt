@@ -16,6 +16,14 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
 
+private const val ATT_WRITE_REQUEST_OVERHEAD_BYTES: Int = 3
+private const val MAX_SAFE_WRITE_CHUNK_BYTES: Int = 512
+
+internal fun maximumGattWriteChunkBytes(currentMtu: Int): Int {
+    return minOf(currentMtu - ATT_WRITE_REQUEST_OVERHEAD_BYTES, MAX_SAFE_WRITE_CHUNK_BYTES)
+        .coerceAtLeast(1)
+}
+
 @SuppressLint("MissingPermission", "ObsoleteSdkInt")
 internal class AndroidGattNotifyClient(
     private val context: Context,
@@ -358,8 +366,7 @@ internal class AndroidGattNotifyClient(
     }
 
     private fun maximumWriteChunkBytes(): Int {
-        return minOf(currentMtu - ATT_WRITE_REQUEST_OVERHEAD_BYTES, MAX_SAFE_WRITE_CHUNK_BYTES)
-            .coerceAtLeast(1)
+        return maximumGattWriteChunkBytes(currentMtu)
     }
 
     private fun connectGatt(device: BluetoothDevice): BluetoothGatt {
@@ -397,8 +404,6 @@ internal class AndroidGattNotifyClient(
             "00002902-0000-1000-8000-00805f9b34fb"
         private const val WRITE_TIMEOUT_MILLIS: Long = 5_000L
         private const val DEFAULT_ATT_MTU_BYTES: Int = 23
-        private const val ATT_WRITE_REQUEST_OVERHEAD_BYTES: Int = 3
-        private const val MAX_SAFE_WRITE_CHUNK_BYTES: Int = 512
         private const val MAX_FRAME_PAYLOAD_BYTES: Int = 128 * 1024
     }
 }
