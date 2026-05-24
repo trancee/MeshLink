@@ -22,15 +22,24 @@ internal fun buildMeshEngineRuntimeTransferAndInboundPhase(
             emitHopSessionFailed = sessionAndHopTransport.hopTransportSupport::emitHopSessionFailed,
             emitDiagnostic = support.emitDiagnostic,
         )
-    val outboundPreparationSupport =
-        buildMeshEngineRuntimeOutboundPreparationSupport(
+    val outboundRecipientTrustSupport =
+        buildMeshEngineRuntimeOutboundRecipientTrustSupport(
             localIdentity = environment.localIdentity,
             trustStore = environment.trustStore,
             routeCoordinator = sharedState.routeCoordinator,
-            routingSupport = routingAndTrust.routingSupport,
+            emitDiagnostic = support.emitDiagnostic,
+        )
+    val outboundDirectEnvelopeSupport =
+        buildMeshEngineRuntimeOutboundDirectEnvelopeSupport(
+            localIdentity = environment.localIdentity,
+            recipientTrustSupport = outboundRecipientTrustSupport,
+        )
+    val inlineMessagePreparationSupport =
+        buildMeshEngineRuntimeInlineMessagePreparationSupport(
+            localIdentity = environment.localIdentity,
+            directEnvelopeSupport = outboundDirectEnvelopeSupport,
             createMessageId = sharedState.sequenceGenerator::createMessageId,
-            createTransferId = sharedState.sequenceGenerator::createTransferId,
-            emitInlineEncryptFailure = { peerId, cause ->
+            emitEncryptFailure = { peerId, cause ->
                 sessionAndHopTransport.hopTransportSupport.emitHopSessionFailed(
                     peerId = peerId,
                     stage = "delivery.send.encrypt",
@@ -38,7 +47,15 @@ internal fun buildMeshEngineRuntimeTransferAndInboundPhase(
                     metadata = mapOf("cause" to cause),
                 )
             },
-            emitTransferEncryptFailure = { peerId, cause ->
+        )
+    val outboundTransferPreparationSupport =
+        buildMeshEngineRuntimeOutboundTransferPreparationSupport(
+            localIdentity = environment.localIdentity,
+            directEnvelopeSupport = outboundDirectEnvelopeSupport,
+            routingSupport = routingAndTrust.routingSupport,
+            createMessageId = sharedState.sequenceGenerator::createMessageId,
+            createTransferId = sharedState.sequenceGenerator::createTransferId,
+            emitEncryptFailure = { peerId, cause ->
                 sessionAndHopTransport.hopTransportSupport.emitHopSessionFailed(
                     peerId = peerId,
                     stage = "transfer.encrypt",
@@ -52,7 +69,7 @@ internal fun buildMeshEngineRuntimeTransferAndInboundPhase(
         buildMeshEngineRuntimeOutboundTransferLifecycleSupport(
             outboundTransfers = sharedState.outboundTransfers,
             prepareOutboundTransferSession =
-                outboundPreparationSupport::prepareOutboundTransferSession,
+                outboundTransferPreparationSupport::prepareOutboundTransferSession,
             scheduleRetryDiagnostic = routingAndTrust.scheduleRetryDiagnostic,
         )
     val deliveryRetrySupport =
@@ -101,7 +118,7 @@ internal fun buildMeshEngineRuntimeTransferAndInboundPhase(
             routingSupport = routingAndTrust.routingSupport,
             sessionSupport = sessionAndHopTransport.sessionSupport,
             hopTransportSupport = sessionAndHopTransport.hopTransportSupport,
-            outboundPreparationSupport = outboundPreparationSupport,
+            inlineMessagePreparationSupport = inlineMessagePreparationSupport,
             discoverySuspensionSupport = inlineDiscoverySuspensionSupport,
             ttlMillisFor = sharedState.ttlMillisFor,
             scheduleRetryDiagnostic = routingAndTrust.scheduleRetryDiagnostic,

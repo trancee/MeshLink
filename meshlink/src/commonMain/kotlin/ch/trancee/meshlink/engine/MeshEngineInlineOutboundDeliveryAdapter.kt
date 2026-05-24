@@ -166,7 +166,7 @@ internal fun buildMeshEngineRuntimeInlineOutboundDeliveryAdapter(
     routingSupport: MeshEngineRoutingSupport,
     sessionSupport: MeshEngineSessionSupport,
     hopTransportSupport: MeshEngineHopTransportSupport,
-    outboundPreparationSupport: MeshEngineOutboundPreparationSupport,
+    inlineMessagePreparationSupport: MeshEngineInlineMessagePreparationSupport,
     discoverySuspensionSupport: MeshEngineDiscoverySuspensionSupport,
     ttlMillisFor: (DeliveryPriority) -> Int,
     scheduleRetryDiagnostic: (PeerId, DeliveryPriority) -> Unit,
@@ -207,8 +207,7 @@ internal fun buildMeshEngineRuntimeInlineOutboundDeliveryAdapter(
         dependencies =
             MeshEngineInlineOutboundDeliveryAdapterDependencies(
                 discoverySuspensionSupport = discoverySuspensionSupport,
-                prepareOutboundInlineMessage =
-                    outboundPreparationSupport::prepareOutboundInlineMessage,
+                prepareOutboundInlineMessage = inlineMessagePreparationSupport::prepare,
                 dispatchSupport = dispatchSupport,
             ),
         callbacks =
