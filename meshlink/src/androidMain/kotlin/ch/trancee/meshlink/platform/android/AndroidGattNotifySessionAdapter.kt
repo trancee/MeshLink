@@ -2,10 +2,7 @@ package ch.trancee.meshlink.platform.android
 
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothDevice
-import android.bluetooth.BluetoothGatt
-import android.bluetooth.BluetoothGattCallback
 import android.bluetooth.BluetoothGattCharacteristic
-import android.bluetooth.BluetoothGattDescriptor
 import android.content.Context
 import android.os.Build
 import ch.trancee.meshlink.transport.BleDiscoveryContract
@@ -74,79 +71,7 @@ internal class AndroidBluetoothGattNotifySessionFactory(
         val androidContext = context as Context
         val bluetoothDevice = device as BluetoothDevice
         val relay = AndroidGattNotifyCallbackRelay(listener)
-        val callback =
-            object : BluetoothGattCallback() {
-                override fun onConnectionStateChange(
-                    gatt: BluetoothGatt,
-                    status: Int,
-                    newState: Int,
-                ) {
-                    relay.onConnectionStateChange(
-                        address = gatt.device.address,
-                        status = status,
-                        newState = newState,
-                    )
-                }
-
-                override fun onMtuChanged(gatt: BluetoothGatt, mtu: Int, status: Int) {
-                    relay.onMtuChanged(mtu = mtu, status = status)
-                }
-
-                override fun onPhyUpdate(gatt: BluetoothGatt, txPhy: Int, rxPhy: Int, status: Int) {
-                    relay.onPhyUpdate(txPhy = txPhy, rxPhy = rxPhy, status = status)
-                }
-
-                @Suppress("OVERRIDE_DEPRECATION", "DEPRECATION")
-                override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
-                    relay.onServicesDiscovered(status = status)
-                }
-
-                @Suppress("OVERRIDE_DEPRECATION", "DEPRECATION")
-                override fun onDescriptorWrite(
-                    gatt: BluetoothGatt,
-                    descriptor: BluetoothGattDescriptor,
-                    status: Int,
-                ) {
-                    relay.onDescriptorWrite(
-                        descriptorUuid = descriptor.uuid.toString(),
-                        status = status,
-                    )
-                }
-
-                @Suppress("OVERRIDE_DEPRECATION", "DEPRECATION")
-                override fun onCharacteristicChanged(
-                    gatt: BluetoothGatt,
-                    characteristic: BluetoothGattCharacteristic,
-                ) {
-                    relay.onCharacteristicChanged(
-                        characteristicUuid = characteristic.uuid.toString(),
-                        value = characteristic.value,
-                    )
-                }
-
-                override fun onCharacteristicChanged(
-                    gatt: BluetoothGatt,
-                    characteristic: BluetoothGattCharacteristic,
-                    value: ByteArray,
-                ) {
-                    relay.onCharacteristicChanged(
-                        characteristicUuid = characteristic.uuid.toString(),
-                        value = value,
-                    )
-                }
-
-                @Suppress("OVERRIDE_DEPRECATION", "DEPRECATION")
-                override fun onCharacteristicWrite(
-                    gatt: BluetoothGatt,
-                    characteristic: BluetoothGattCharacteristic,
-                    status: Int,
-                ) {
-                    relay.onCharacteristicWrite(
-                        characteristicUuid = characteristic.uuid.toString(),
-                        status = status,
-                    )
-                }
-            }
+        val callback = createAndroidGattNotifyCallback(sdkInt = sdkInt, relay = relay)
         val gatt =
             connectAndroidGattSession(
                 sdkInt = sdkInt,
@@ -161,7 +86,7 @@ internal class AndroidBluetoothGattNotifySessionFactory(
                 legacyFactory = { bluetoothDevice.connectGatt(androidContext, false, callback) },
             )
         return AndroidBluetoothGattNotifySession(
-            connection = AndroidPlatformGattConnectionAdapter(gatt),
+            connection = AndroidPlatformGattConnectionAdapter(gatt = gatt, sdkInt = sdkInt),
             sdkInt = sdkInt,
         )
     }
@@ -224,8 +149,7 @@ internal class AndroidBluetoothGattNotifySession(
         val cccd =
             notifyCharacteristic.findDescriptor(CLIENT_CHARACTERISTIC_CONFIGURATION_UUID)
                 ?: return AndroidGattNotifyEnableNotificationsResult.MISSING_CCCD
-        cccd.setEnableNotificationValue()
-        return if (connection.writeDescriptor(cccd)) {
+        return if (connection.writeDescriptor(cccd, enableNotificationValue())) {
             AndroidGattNotifyEnableNotificationsResult.REQUESTED
         } else {
             AndroidGattNotifyEnableNotificationsResult.REQUEST_FAILED
@@ -234,9 +158,11 @@ internal class AndroidBluetoothGattNotifySession(
 
     override fun writeChunk(chunk: ByteArray): Boolean {
         val writeCharacteristic = writeCharacteristic ?: return false
-        writeCharacteristic.setWriteTypeDefault()
-        writeCharacteristic.setValue(chunk)
-        return connection.writeCharacteristic(writeCharacteristic)
+        return connection.writeCharacteristic(
+            characteristic = writeCharacteristic,
+            value = chunk,
+            writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT,
+        )
     }
 
     override fun close(): Unit {
@@ -246,5 +172,9 @@ internal class AndroidBluetoothGattNotifySession(
     private companion object {
         private const val CLIENT_CHARACTERISTIC_CONFIGURATION_UUID: String =
             "00002902-0000-1000-8000-00805f9b34fb"
+
+        private fun enableNotificationValue(): ByteArray {
+            return byteArrayOf(0x01, 0x00)
+        }
     }
 }

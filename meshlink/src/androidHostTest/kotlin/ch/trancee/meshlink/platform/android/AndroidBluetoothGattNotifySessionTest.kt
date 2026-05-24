@@ -1,10 +1,13 @@
 package ch.trancee.meshlink.platform.android
 
+import android.bluetooth.BluetoothGattCharacteristic
 import android.os.Build
 import ch.trancee.meshlink.transport.BleDiscoveryContract
 import kotlin.test.Test
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 class AndroidBluetoothGattNotifySessionTest {
@@ -55,7 +58,10 @@ class AndroidBluetoothGattNotifySessionTest {
     fun enableNotificationsReturnsMissingCccdWhenTheDescriptorIsAbsent(): Unit {
         // Arrange
         val notifyCharacteristic = FakeAndroidGattCharacteristicAdapter(descriptor = null)
-        val writeCharacteristic = FakeAndroidGattCharacteristicAdapter()
+        val writeCharacteristic =
+            FakeAndroidGattCharacteristicAdapter(
+                uuid = BleDiscoveryContract.GATT_WRITE_CHARACTERISTIC_UUID
+            )
         val connection =
             FakeAndroidGattConnectionAdapter(
                 service =
@@ -81,7 +87,10 @@ class AndroidBluetoothGattNotifySessionTest {
         // Arrange
         val descriptor = FakeAndroidGattDescriptorAdapter()
         val notifyCharacteristic = FakeAndroidGattCharacteristicAdapter(descriptor = descriptor)
-        val writeCharacteristic = FakeAndroidGattCharacteristicAdapter()
+        val writeCharacteristic =
+            FakeAndroidGattCharacteristicAdapter(
+                uuid = BleDiscoveryContract.GATT_WRITE_CHARACTERISTIC_UUID
+            )
         val connection =
             FakeAndroidGattConnectionAdapter(
                 service =
@@ -100,13 +109,17 @@ class AndroidBluetoothGattNotifySessionTest {
         // Assert
         assertEquals(AndroidGattNotifyEnableNotificationsResult.REQUESTED, result)
         assertEquals(1, connection.writeDescriptorCalls)
-        assertTrue(descriptor.enableNotificationValueSet)
+        assertSame(descriptor, connection.lastDescriptor)
+        assertContentEquals(byteArrayOf(0x01, 0x00), connection.lastDescriptorValue)
     }
 
     @Test
-    fun writeChunkConfiguresTheWriteCharacteristicBeforeDelegating(): Unit {
+    fun writeChunkPassesTheValueAndWriteTypeToTheConnection(): Unit {
         // Arrange
-        val writeCharacteristic = FakeAndroidGattCharacteristicAdapter()
+        val writeCharacteristic =
+            FakeAndroidGattCharacteristicAdapter(
+                uuid = BleDiscoveryContract.GATT_WRITE_CHARACTERISTIC_UUID
+            )
         val connection =
             FakeAndroidGattConnectionAdapter(
                 service =
@@ -125,8 +138,9 @@ class AndroidBluetoothGattNotifySessionTest {
 
         // Assert
         assertTrue(written)
-        assertEquals(1, writeCharacteristic.writeTypeDefaultCalls)
-        assertEquals(chunk.toList(), writeCharacteristic.recordedValue.toList())
+        assertSame(writeCharacteristic, connection.lastWriteCharacteristic)
+        assertContentEquals(chunk, connection.lastWriteValue)
+        assertEquals(BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT, connection.lastWriteType)
         assertEquals(1, connection.writeCharacteristicCalls)
     }
 
@@ -162,6 +176,11 @@ private class FakeAndroidGattConnectionAdapter(
     var writeDescriptorCalls: Int = 0
     var writeCharacteristicCalls: Int = 0
     var closeCalls: Int = 0
+    var lastDescriptor: AndroidGattDescriptorAdapter? = null
+    var lastDescriptorValue: ByteArray? = null
+    var lastWriteCharacteristic: AndroidGattCharacteristicAdapter? = null
+    var lastWriteValue: ByteArray? = null
+    var lastWriteType: Int? = null
 
     override fun requestHighConnectionPriority(): Unit {
         highPriorityRequests += 1
@@ -191,13 +210,25 @@ private class FakeAndroidGattConnectionAdapter(
         notificationRequests += characteristic.uuid to enabled
     }
 
-    override fun writeDescriptor(descriptor: AndroidGattDescriptorAdapter): Boolean {
+    override fun writeDescriptor(
+        descriptor: AndroidGattDescriptorAdapter,
+        value: ByteArray,
+    ): Boolean {
         writeDescriptorCalls += 1
+        lastDescriptor = descriptor
+        lastDescriptorValue = value.copyOf()
         return writeDescriptorResult
     }
 
-    override fun writeCharacteristic(characteristic: AndroidGattCharacteristicAdapter): Boolean {
+    override fun writeCharacteristic(
+        characteristic: AndroidGattCharacteristicAdapter,
+        value: ByteArray,
+        writeType: Int,
+    ): Boolean {
         writeCharacteristicCalls += 1
+        lastWriteCharacteristic = characteristic
+        lastWriteValue = value.copyOf()
+        lastWriteType = writeType
         return writeCharacteristicResult
     }
 
@@ -220,30 +251,14 @@ private class FakeAndroidGattServiceAdapter(
 }
 
 private class FakeAndroidGattCharacteristicAdapter(
-    private val descriptor: AndroidGattDescriptorAdapter? = FakeAndroidGattDescriptorAdapter()
+    override val uuid: String = BleDiscoveryContract.GATT_NOTIFY_CHARACTERISTIC_UUID,
+    private val descriptor: AndroidGattDescriptorAdapter? = FakeAndroidGattDescriptorAdapter(),
 ) : AndroidGattCharacteristicAdapter {
-    override val uuid: String = BleDiscoveryContract.GATT_NOTIFY_CHARACTERISTIC_UUID
-    var writeTypeDefaultCalls: Int = 0
-    var recordedValue: ByteArray = byteArrayOf()
-
     override fun findDescriptor(uuid: String): AndroidGattDescriptorAdapter? {
         return if (uuid == "00002902-0000-1000-8000-00805f9b34fb") descriptor else null
-    }
-
-    override fun setWriteTypeDefault(): Unit {
-        writeTypeDefaultCalls += 1
-    }
-
-    override fun setValue(value: ByteArray): Unit {
-        recordedValue = value.copyOf()
     }
 }
 
 private class FakeAndroidGattDescriptorAdapter : AndroidGattDescriptorAdapter {
     override val uuid: String = "00002902-0000-1000-8000-00805f9b34fb"
-    var enableNotificationValueSet: Boolean = false
-
-    override fun setEnableNotificationValue(): Unit {
-        enableNotificationValueSet = true
-    }
 }
