@@ -7,6 +7,8 @@ kover = "0.9.8"
 bcv = "0.18.1"
 benchmark = "0.4.17"
 ktfmt = "0.26.0"
+dokka = "2.2.0"
+skie = "0.10.12"
 compose-multiplatform = "1.11.0"
 navigation-compose = "2.9.2"
 lifecycle = "2.10.0"
@@ -54,6 +56,8 @@ android-application = { id = "com.android.application", version.ref = "agp" }
 compose-multiplatform = { id = "org.jetbrains.compose", version.ref = "compose-multiplatform" }
 detekt = { id = "io.gitlab.arturbosch.detekt", version.ref = "detekt" }
 ktfmt = { id = "com.ncorti.ktfmt.gradle", version.ref = "ktfmt" }
+dokka = { id = "org.jetbrains.dokka", version.ref = "dokka" }
+skie = { id = "co.touchlab.skie", version.ref = "skie" }
 benchmark = { id = "org.jetbrains.kotlinx.benchmark", version.ref = "benchmark" }
 binary-compatibility = { id = "org.jetbrains.kotlinx.binary-compatibility-validator", version.ref = "bcv" }
 kover = { id = "org.jetbrains.kotlinx.kover", version.ref = "kover" }

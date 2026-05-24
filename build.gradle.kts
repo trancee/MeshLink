@@ -14,6 +14,8 @@ plugins {
     alias(libs.plugins.compose.multiplatform) apply false
     alias(libs.plugins.detekt) apply false
     alias(libs.plugins.ktfmt) apply false
+    alias(libs.plugins.dokka) apply false
+    alias(libs.plugins.skie) apply false
     alias(libs.plugins.benchmark) apply false
     alias(libs.plugins.binary.compatibility)
     alias(libs.plugins.kover)

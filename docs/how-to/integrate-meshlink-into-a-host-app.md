@@ -70,10 +70,8 @@ struct ChatApp: App {
     init() {
         installMeshLinkCrypto()
 
-        let config = MeshLinkConfigKt.meshLinkConfig { builder in
+        let config = meshLinkConfig { builder in
             builder.appId = "com.example.chat.prod"
-            builder.regulatoryRegion = RegulatoryRegion.default_
-            builder.powerMode = PowerMode.Automatic.shared
         }
 
         meshLink = MeshLink.shared.create(config: config)

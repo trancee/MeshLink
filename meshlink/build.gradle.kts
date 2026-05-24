@@ -8,6 +8,8 @@ plugins {
     alias(libs.plugins.kotlin.power.assert)
     alias(libs.plugins.detekt)
     alias(libs.plugins.ktfmt)
+    alias(libs.plugins.dokka)
+    alias(libs.plugins.skie)
     id("org.jetbrains.kotlinx.kover")
 }
 
@@ -49,6 +51,13 @@ detekt {
 tasks.withType<Detekt>().configureEach { jvmTarget = "17" }
 
 ktfmt { kotlinLangStyle() }
+
+dokka {
+    dokkaPublications.html {
+        moduleName.set("MeshLink")
+        outputDirectory.set(layout.buildDirectory.dir("dokka/html"))
+    }
+}
 
 @OptIn(ExperimentalKotlinGradlePluginApi::class)
 powerAssert {

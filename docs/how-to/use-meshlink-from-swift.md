@@ -1,12 +1,13 @@
 # How to use MeshLink from Swift
 
-This guide shows you how to consume MeshLink from Swift using the names and
-calling conventions exposed by the generated Apple framework.
+This guide shows you how to consume MeshLink from Swift through the SKIE-enhanced
+Apple framework surface generated from `:meshlink`.
 
 This guide assumes:
 
 - you are calling MeshLink from Swift, not from shared Kotlin code
-- you want practical naming and usage examples for the generated Swift surface
+- your Xcode app links the generated `MeshLink` framework
+- SKIE is enabled on the `:meshlink` module
 
 If your Xcode app does not yet link the generated framework, start with [How to add MeshLink to your app](add-meshlink-to-your-app.md).
 
@@ -38,31 +39,26 @@ Your `installMeshLinkCrypto()` wrapper should call `IosCryptoBridge.shared.insta
 
 If you need the iPhone-hosted GATT-notify bearer, install `IosBleTransportBridge.shared.install(...)` or `installData(...)` during the same startup path.
 
-Make sure the app has a Bluetooth usage description and that the first-run
-Bluetooth prompt is handled before you debug discovery or delivery. If you need
-that checklist, use [How to unblock MeshLink permissions on Android and iOS](unblock-meshlink-permissions.md).
+Make sure the app has a Bluetooth usage description and that the first-run Bluetooth prompt is handled before you debug discovery or delivery. If you need that checklist, use [How to unblock MeshLink permissions on Android and iOS](unblock-meshlink-permissions.md).
 
-## 2. Build config values with the Swift-visible names
+## 2. Build config values with the direct Swift-visible function
 
-The Kotlin DSL appears in Swift through the generated `MeshLinkConfigKt` entry
-point.
+With SKIE enabled, the Kotlin config DSL appears as a global Swift function instead of through `MeshLinkConfigKt`.
 
 ```swift
 import MeshLink
 
 func makeMeshLinkConfig() -> MeshLinkConfig {
-    MeshLinkConfigKt.meshLinkConfig { builder in
+    meshLinkConfig { builder in
         builder.appId = "com.example.chat.ios"
-        builder.regulatoryRegion = RegulatoryRegion.default_
-        builder.powerMode = PowerMode.Automatic.shared
     }
 }
 ```
 
-Two naming details matter here:
+Two practical notes:
 
-- Kotlin `object` values appear as `.shared` in Swift
-- Kotlin enum entries like `DEFAULT` appear with Swift-safe names such as `default_`
+- keep this example minimal unless you need non-default region or power settings
+- enum case names now come from SKIE-generated Swift enums, so do not rely on older bridge spellings such as `default_`
 
 ## 3. Create the runtime from Swift
 
@@ -82,121 +78,84 @@ final class MeshLinkService {
 
 On iOS, you do not pass a platform context.
 
-## 4. Start and stop with completion handlers
+## 4. Start and stop with Swift async APIs
 
-Suspend functions are exposed as completion-handler APIs.
+With SKIE enabled, suspend functions surface as Swift `async` APIs.
 
 ```swift
-api.start { result, error in
-    if let result {
-        print("mesh.start() -> \(result)")
-    }
-    if let error {
-        print("mesh.start() failed: \(error.localizedDescription)")
+func startMesh(api: MeshLinkApi) async throws {
+    let result = try await api.start()
+
+    switch onEnum(of: result) {
+    case .started:
+        print("mesh.start() -> Started")
+    case .alreadyRunning:
+        print("mesh.start() -> AlreadyRunning")
+    case .invalidState(let invalidState):
+        print("mesh.start() -> InvalidState(\(invalidState.currentState))")
     }
 }
 
-api.stop { result, error in
-    if let result {
-        print("mesh.stop() -> \(result)")
-    }
-    if let error {
-        print("mesh.stop() failed: \(error.localizedDescription)")
-    }
+func stopMesh(api: MeshLinkApi) async throws {
+    let result = try await api.stop()
+    print("mesh.stop() -> \(result)")
 }
 ```
 
 Use the same pattern for `pause`, `resume`, `send`, and `forgetPeer`.
 
-Repeated lifecycle calls do not throw. They return the matching `Already*` result
-variant through the completion handler so your Swift owner can stay idempotent.
+Repeated lifecycle calls do not throw for expected idempotent cases. They return the matching `Already*` or `InvalidState` result variant instead.
 
-## 5. Collect flows from Swift
+## 5. Collect state, peer, diagnostic, and message streams with `for await`
 
-`StateFlow` and `Flow` values are collected with a collector object that conforms to `Kotlinx_coroutines_coreFlowCollector`.
-
-```swift
-import MeshLink
-import Foundation
-
-final class FlowCollector: NSObject, Kotlinx_coroutines_coreFlowCollector {
-    private let onValue: (Any?) -> Void
-
-    init(onValue: @escaping (Any?) -> Void) {
-        self.onValue = onValue
-    }
-
-    func emit(value: Any?, completionHandler: @escaping (Error?) -> Void) {
-        onValue(value)
-        completionHandler(nil)
-    }
-}
-```
-
-Retain the collector objects for as long as the flows should stay active. A
-practical pattern is to keep them on the same service object that owns your
-`MeshLinkApi`.
+`StateFlow` and `Flow` values surface as `AsyncSequence` values.
 
 ```swift
-final class MeshLinkService {
-    let api: MeshLinkApi
-
-    private lazy var stateCollector = FlowCollector { value in
-        print("state = \(String(describing: value))")
-    }
-
-    private lazy var peerCollector = FlowCollector { value in
-        print("peer event = \(String(describing: value))")
-    }
-
-    private lazy var diagnosticCollector = FlowCollector { value in
-        print("diagnostic = \(String(describing: value))")
-    }
-
-    private lazy var messageCollector = FlowCollector { value in
-        print("message = \(String(describing: value))")
-    }
-
-    init() {
-        api = MeshLink.shared.create(config: makeMeshLinkConfig())
-    }
-
-    func bindFlows() {
-        api.state.collect(collector: stateCollector) { error in
-            if let error {
-                print("state flow ended: \(error.localizedDescription)")
-            }
-        }
-
-        api.peerEvents.collect(collector: peerCollector) { error in
-            if let error {
-                print("peer flow ended: \(error.localizedDescription)")
-            }
-        }
-
-        api.diagnosticEvents.collect(collector: diagnosticCollector) { error in
-            if let error {
-                print("diagnostic flow ended: \(error.localizedDescription)")
-            }
-        }
-
-        api.messages.collect(collector: messageCollector) { error in
-            if let error {
-                print("message flow ended: \(error.localizedDescription)")
-            }
+func observeState(api: MeshLinkApi) {
+    Task {
+        for await state in api.state {
+            print("state = \(state)")
         }
     }
 }
 ```
 
-When the value is an `InboundMessage`, the generated framework also exposes
-`receivedAtEpochMillis`, which you can reuse for arrival ordering, logging, or
-UI timestamps.
+Use separate tasks for peer events, diagnostics, and inbound messages:
+
+```swift
+func bindFlows(api: MeshLinkApi) {
+    Task {
+        for await event in api.peerEvents {
+            switch onEnum(of: event) {
+            case .found(let found):
+                print("Peer found: \(found.peerId.value)")
+            case .stateChanged(let changed):
+                print("Peer state changed: \(changed.peerId.value) -> \(changed.state)")
+            case .lost(let lost):
+                print("Peer lost: \(lost.peerId.value)")
+            }
+        }
+    }
+
+    Task {
+        for await diagnostic in api.diagnosticEvents {
+            print("diagnostic = \(diagnostic)")
+        }
+    }
+
+    Task {
+        for await message in api.messages {
+            print("message = \(message)")
+        }
+    }
+}
+```
+
+When the value is an `InboundMessage`, the framework also exposes `receivedAtEpochMillis`, which you can reuse for arrival ordering, logging, or UI timestamps.
 
 ## 6. Send bytes from Swift
 
-The payload argument is a `KotlinByteArray`, so convert Swift `Data` or
-`String` into that form before sending.
+SKIE does not remove the Kotlin `ByteArray` bridge requirement, so payloads still need a `KotlinByteArray` conversion helper.
 
 ```swift
 import Foundation
@@ -219,47 +178,39 @@ extension String {
 }
 ```
 
-Send with the generated completion-handler API and match on the concrete
-`SendResult` variants instead of stringifying the result:
+Send with Swift async and match on the sealed result through `onEnum(of:)`:
 
 ```swift
-func sendHello(to peerId: PeerId) {
-    api.send(
+func sendHello(api: MeshLinkApi, peerId: PeerId) async throws {
+    let result = try await api.send(
         peerId: peerId,
         payload: "hello mesh from Swift".toKotlinByteArray(),
-        priority: DeliveryPriority.normal
-    ) { result, error in
-        if let error {
-            print("mesh.send() failed: \(error.localizedDescription)")
-            return
-        }
+        priority: .normal
+    )
 
-        if result is SendResult.Sent {
-            print("mesh.send() -> Sent")
-        } else if let notSent = result as? SendResult.NotSent {
-            print("mesh.send() -> NotSent(\(notSent.reason))")
-        }
+    switch onEnum(of: result) {
+    case .sent:
+        print("mesh.send() -> Sent")
+    case .notSent(let notSent):
+        print("mesh.send() -> NotSent(\(notSent.reason))")
     }
 }
 ```
 
-## 7. Handle specific event types in Swift
+Default arguments are still not enabled for Swift, so pass every argument explicitly unless maintainers deliberately turn SKIE default-argument interop on later.
 
-The generated framework exposes nested Kotlin sealed-class variants such as `PeerEvent.Found`.
+## 7. Handle sealed results and events with `onEnum(of:)`
+
+SKIE keeps the original Kotlin sealed classes available, but it also generates Swift enums for exhaustive switching through `onEnum(of:)`.
+
+Use that pattern for results and events:
 
 ```swift
-let peerCollector = FlowCollector { value in
-    if let found = value as? PeerEvent.Found {
-        print("Peer found: \(found.peerId.value)")
-    } else if let changed = value as? PeerEvent.StateChanged {
-        print("Peer state changed: \(changed.peerId.value) -> \(changed.state)")
-    } else if let lost = value as? PeerEvent.Lost {
-        print("Peer lost: \(lost.peerId.value)")
-    }
-}
+let peerEventEnum = onEnum(of: somePeerEvent)
+let startResultEnum = onEnum(of: someStartResult)
 ```
 
-Use the same matching pattern for diagnostics and inbound messages.
+That gives Swift exhaustive switching without depending on the older nested Kotlin class names everywhere.
 
 ## 8. Feed battery state if you use automatic power mode
 
@@ -281,6 +232,18 @@ A stable integration pattern is:
 - keep your product logic working with your own app models, not raw framework objects everywhere
 
 That keeps the generated Swift names from leaking through your entire app.
+
+## 10. What SKIE does not change by default
+
+The current MeshLink setup uses SKIE's stable default features only.
+
+That means:
+
+- suspend functions are `async`
+- `Flow` and `StateFlow` are `AsyncSequence`
+- global Kotlin functions lose the older `FileKt`/`*Kt` entry-point names
+- preview features such as SwiftUI observing and Combine bridges stay off
+- default-argument interop stays off unless maintainers opt in selectively later
 
 ## Related docs
 

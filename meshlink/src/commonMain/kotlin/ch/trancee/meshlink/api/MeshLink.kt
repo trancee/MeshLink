@@ -20,7 +20,7 @@ public object MeshLink {
     /**
      * Creates a MeshLink runtime on Android using [context] for platform services.
      *
-     * The supplied value must be an Android [android.content.Context] on Android targets.
+     * The supplied value must be an Android `Context` on Android targets.
      *
      * @throws MeshLinkException.InvalidConfiguration when [context] is missing or invalid.
      */

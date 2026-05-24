@@ -17,16 +17,16 @@ For a completeness appendix rendered from the public API dump, use
 
 ## Swift naming notes
 
-These names matter when you consume the generated Apple framework from Swift.
+These notes matter when you consume the generated Apple framework from Swift.
 
-| Kotlin surface | Swift-facing name |
+| Kotlin surface | Swift-facing shape |
 |---|---|
 | `MeshLink.create(...)` | `MeshLink.shared.create(...)` |
-| `meshLinkConfig { ... }` | `MeshLinkConfigKt.meshLinkConfig { ... }` |
-| `PowerMode.Automatic` | `PowerMode.Automatic.shared` |
-| `RegulatoryRegion.DEFAULT` | `RegulatoryRegion.default_` |
-| suspend functions like `start()` | completion-handler methods such as `api.start { result, error in ... }` |
-| `Flow.collect(...)` | `collect(collector:completionHandler:)` with a collector object conforming to `Kotlinx_coroutines_coreFlowCollector` |
+| `meshLinkConfig { ... }` | `meshLinkConfig { ... }` |
+| suspend functions like `start()` | `try await api.start()` |
+| `StateFlow` / `Flow` values | `AsyncSequence` values collected with `for await` |
+| sealed results and events | exhaustive switching through `onEnum(of: ...)` |
+| `ByteArray` payloads | still bridged as `KotlinByteArray` |
 
 ## Factory entry points
 

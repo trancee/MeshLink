@@ -40,6 +40,7 @@ Use this page when you need exact commands, matrices, or policy details.
 | Verify coverage | `./gradlew :meshlink:koverVerify` | Coverage gate for the library module. |
 | Check AGP 9 build invariants | `./gradlew checkAgp9Invariants` | Confirms the post-migration module/plugin shape and preserved reference-app compatibility tasks stay intact. |
 | Run docs verification | `./gradlew verifyDocs` | Checks the generated API appendix and markdown links. |
+| Generate Dokka HTML for the SDK | `./gradlew :meshlink:dokkaGenerateHtml` | Writes supplemental Kotlin API reference output to `meshlink/build/dokka/html/`. |
 | Run connected-device checks | `./gradlew :meshlink:connectedCheck` | Uses currently connected devices. |
 | Refresh the checked-in API dump | `./gradlew :meshlink:apiDump` | Required for intentional public API changes. |
 | Run JVM smoke benchmarks | `./gradlew :benchmarks:jvmSmokeBenchmark` | Fast development-time performance check. |
@@ -131,7 +132,7 @@ A public API change currently requires all of the following:
 - [MeshLink Constitution](../../constitution.md)
 - [MeshLink documentation map](../README.md)
 - [AGP 9 migration plan](../rfcs/tooling/agp-9-migration-plan.md)
-- [Dokka and SKIE options for future MeshLink work](../rfcs/tooling/dokka-and-skie-options.md)
+- [Current Dokka and SKIE posture for MeshLink](../rfcs/tooling/dokka-and-skie-options.md)
 - [Benchmark and validation baselines](../../benchmarks/README.md)
 - [How to use the MeshLink reference app](../../meshlink-reference/README.md)
 - [How to run the Android proof app](../../meshlink-proof/android/README.md)
