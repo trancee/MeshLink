@@ -73,6 +73,7 @@ internal class AndroidBluetoothGattNotifySessionFactory(
     override fun open(listener: AndroidGattNotifySessionListener): AndroidGattNotifySession {
         val androidContext = context as Context
         val bluetoothDevice = device as BluetoothDevice
+        val relay = AndroidGattNotifyCallbackRelay(listener)
         val callback =
             object : BluetoothGattCallback() {
                 override fun onConnectionStateChange(
@@ -80,7 +81,7 @@ internal class AndroidBluetoothGattNotifySessionFactory(
                     status: Int,
                     newState: Int,
                 ) {
-                    listener.onConnectionStateChange(
+                    relay.onConnectionStateChange(
                         address = gatt.device.address,
                         status = status,
                         newState = newState,
@@ -88,16 +89,16 @@ internal class AndroidBluetoothGattNotifySessionFactory(
                 }
 
                 override fun onMtuChanged(gatt: BluetoothGatt, mtu: Int, status: Int) {
-                    listener.onMtuChanged(mtu = mtu, status = status)
+                    relay.onMtuChanged(mtu = mtu, status = status)
                 }
 
                 override fun onPhyUpdate(gatt: BluetoothGatt, txPhy: Int, rxPhy: Int, status: Int) {
-                    listener.onPhyUpdate(txPhy = txPhy, rxPhy = rxPhy, status = status)
+                    relay.onPhyUpdate(txPhy = txPhy, rxPhy = rxPhy, status = status)
                 }
 
                 @Suppress("OVERRIDE_DEPRECATION", "DEPRECATION")
                 override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
-                    listener.onServicesDiscovered(status = status)
+                    relay.onServicesDiscovered(status = status)
                 }
 
                 @Suppress("OVERRIDE_DEPRECATION", "DEPRECATION")
@@ -106,7 +107,7 @@ internal class AndroidBluetoothGattNotifySessionFactory(
                     descriptor: BluetoothGattDescriptor,
                     status: Int,
                 ) {
-                    listener.onDescriptorWrite(
+                    relay.onDescriptorWrite(
                         descriptorUuid = descriptor.uuid.toString(),
                         status = status,
                     )
@@ -117,10 +118,9 @@ internal class AndroidBluetoothGattNotifySessionFactory(
                     gatt: BluetoothGatt,
                     characteristic: BluetoothGattCharacteristic,
                 ) {
-                    val value = characteristic.value ?: return
-                    listener.onCharacteristicChanged(
+                    relay.onCharacteristicChanged(
                         characteristicUuid = characteristic.uuid.toString(),
-                        value = value.copyOf(),
+                        value = characteristic.value,
                     )
                 }
 
@@ -129,9 +129,9 @@ internal class AndroidBluetoothGattNotifySessionFactory(
                     characteristic: BluetoothGattCharacteristic,
                     value: ByteArray,
                 ) {
-                    listener.onCharacteristicChanged(
+                    relay.onCharacteristicChanged(
                         characteristicUuid = characteristic.uuid.toString(),
-                        value = value.copyOf(),
+                        value = value,
                     )
                 }
 
@@ -141,23 +141,25 @@ internal class AndroidBluetoothGattNotifySessionFactory(
                     characteristic: BluetoothGattCharacteristic,
                     status: Int,
                 ) {
-                    listener.onCharacteristicWrite(
+                    relay.onCharacteristicWrite(
                         characteristicUuid = characteristic.uuid.toString(),
                         status = status,
                     )
                 }
             }
         val gatt =
-            if (sdkInt >= Build.VERSION_CODES.M) {
-                bluetoothDevice.connectGatt(
-                    androidContext,
-                    false,
-                    callback,
-                    BluetoothDevice.TRANSPORT_LE,
-                )
-            } else {
-                bluetoothDevice.connectGatt(androidContext, false, callback)
-            }
+            connectAndroidGattSession(
+                sdkInt = sdkInt,
+                leTransportFactory = {
+                    bluetoothDevice.connectGatt(
+                        androidContext,
+                        false,
+                        callback,
+                        BluetoothDevice.TRANSPORT_LE,
+                    )
+                },
+                legacyFactory = { bluetoothDevice.connectGatt(androidContext, false, callback) },
+            )
         return AndroidBluetoothGattNotifySession(
             connection = AndroidPlatformGattConnectionAdapter(gatt),
             sdkInt = sdkInt,
