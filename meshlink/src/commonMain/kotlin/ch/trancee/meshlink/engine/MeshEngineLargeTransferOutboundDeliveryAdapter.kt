@@ -2,7 +2,6 @@ package ch.trancee.meshlink.engine
 
 import ch.trancee.meshlink.api.DeliveryPriority
 import ch.trancee.meshlink.api.PeerId
-import ch.trancee.meshlink.api.SendFailureReason
 import ch.trancee.meshlink.api.SendResult
 import ch.trancee.meshlink.diagnostics.DiagnosticCode
 import ch.trancee.meshlink.diagnostics.DiagnosticReason
@@ -14,10 +13,8 @@ import kotlin.time.Duration.Companion.milliseconds
 internal data class MeshEngineLargeTransferOutboundDeliveryAdapterDependencies(
     val currentTopologyVersion: () -> Long,
     val discoverySuspensionSupport: MeshEngineDiscoverySuspensionSupport,
-    val sendTransferTowardsDestination:
-        suspend (PeerId, WireFrame, String, MeshEngineHardRunToken?) -> Boolean,
-    val clearQueuedOutboundFrames: suspend (PeerId, String) -> Unit,
     val progressSupport: MeshEngineLargeTransferProgressSupport,
+    val terminalSupport: MeshEngineLargeTransferTerminalSupport,
 )
 
 internal data class MeshEngineLargeTransferOutboundDeliveryState(
@@ -26,18 +23,8 @@ internal data class MeshEngineLargeTransferOutboundDeliveryState(
 )
 
 internal class MeshEngineLargeTransferOutboundDeliveryAdapter(
-    private val routingSupport: MeshEngineRoutingSupport,
     private val outboundTransferLifecycleSupport: MeshEngineOutboundTransferLifecycleSupport,
     private val dependencies: MeshEngineLargeTransferOutboundDeliveryAdapterDependencies,
-    private val emitDiagnostic:
-        (
-            DiagnosticCode,
-            DiagnosticSeverity,
-            String,
-            String?,
-            DiagnosticReason?,
-            Map<String, String>,
-        ) -> Unit,
 ) {
     fun currentTopologyVersion(): Long {
         return dependencies.currentTopologyVersion()
@@ -97,7 +84,7 @@ internal class MeshEngineLargeTransferOutboundDeliveryAdapter(
                 when {
                     progressResult.sessionIsComplete -> {
                         MeshEngineOutboundDeliveryAttemptOutcome.Completed(
-                            completeOutboundTransferSession(
+                            dependencies.terminalSupport.complete(
                                 session = sessionResolution.session,
                                 hardRunToken = context.hardRunToken,
                             )
@@ -125,7 +112,7 @@ internal class MeshEngineLargeTransferOutboundDeliveryAdapter(
         state: MeshEngineLargeTransferOutboundDeliveryState,
         context: MeshEngineOutboundDeliveryAttemptContext,
     ): SendResult {
-        return finishFailedLargeTransfer(
+        return dependencies.terminalSupport.fail(
             activeSession = state.activeSession,
             peerId = context.peerId,
             lastRouteAvailable = state.lastRouteAvailable,
@@ -136,81 +123,7 @@ internal class MeshEngineLargeTransferOutboundDeliveryAdapter(
         state: MeshEngineLargeTransferOutboundDeliveryState,
         @Suppress("UnusedParameter") context: MeshEngineOutboundDeliveryAttemptContext,
     ): SendResult {
-        return abortedLargeTransferResult(state.activeSession)
-    }
-
-    private suspend fun finishFailedLargeTransfer(
-        activeSession: OutboundTransferSession?,
-        peerId: PeerId,
-        lastRouteAvailable: Boolean,
-    ): SendResult {
-        activeSession?.let { session ->
-            outboundTransferLifecycleSupport.removeSession(session.transferId)
-            dependencies.clearQueuedOutboundFrames(
-                session.destinationPeerId,
-                "transfer.clearQueuedFramesOnFailure",
-            )
-        }
-        return if (!lastRouteAvailable) {
-            emitDiagnostic(
-                DiagnosticCode.DELIVERY_UNREACHABLE,
-                DiagnosticSeverity.ERROR,
-                "transfer.retryExpired",
-                peerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
-                DiagnosticReason.DELIVERY_FAILURE,
-                routingSupport.peerRouteMetadata(peerId),
-            )
-            SendResult.NotSent(SendFailureReason.UNREACHABLE)
-        } else {
-            emitDiagnostic(
-                DiagnosticCode.TRANSFER_FAILED,
-                DiagnosticSeverity.ERROR,
-                "transfer.send.timeout",
-                peerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
-                DiagnosticReason.TRANSFER_FAILURE,
-                routingSupport.peerRouteMetadata(peerId),
-            )
-            SendResult.NotSent(SendFailureReason.TRANSFER_TIMED_OUT)
-        }
-    }
-
-    private suspend fun completeOutboundTransferSession(
-        session: OutboundTransferSession,
-        hardRunToken: MeshEngineHardRunToken,
-    ): SendResult {
-        dependencies.clearQueuedOutboundFrames(
-            session.destinationPeerId,
-            "transfer.clearQueuedFrames",
-        )
-        dependencies.sendTransferTowardsDestination(
-            session.destinationPeerId,
-            WireFrame.TransferComplete(session.transferId),
-            "transfer.complete",
-            hardRunToken,
-        )
-        outboundTransferLifecycleSupport.removeSession(session.transferId)
-        emitDiagnostic(
-            DiagnosticCode.TRANSFER_COMPLETED,
-            DiagnosticSeverity.INFO,
-            "transfer.send.complete",
-            session.destinationPeerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
-            null,
-            routingSupport.peerRouteMetadata(session.destinationPeerId),
-        )
-        return SendResult.Sent
-    }
-
-    private suspend fun abortedLargeTransferResult(
-        activeSession: OutboundTransferSession?
-    ): SendResult {
-        activeSession?.let { session ->
-            outboundTransferLifecycleSupport.removeSession(session.transferId)
-            dependencies.clearQueuedOutboundFrames(
-                session.destinationPeerId,
-                "transfer.clearQueuedFramesOnAbort",
-            )
-        }
-        return SendResult.NotSent(SendFailureReason.TRANSFER_ABORTED)
+        return dependencies.terminalSupport.abort(state.activeSession)
     }
 }
 
@@ -255,18 +168,29 @@ internal fun buildMeshEngineRuntimeLargeTransferOutboundDeliveryAdapter(
                     },
                 ),
         )
+    val terminalSupport =
+        MeshEngineLargeTransferTerminalSupport(
+            outboundTransferLifecycleSupport = outboundTransferLifecycleSupport,
+            dependencies =
+                MeshEngineLargeTransferTerminalDependencies(
+                    clearQueuedOutboundFrames = clearQueuedOutboundFrames,
+                    sendTransferTowardsDestination = sendTransferTowardsDestination,
+                ),
+            callbacks =
+                MeshEngineLargeTransferTerminalCallbacks(
+                    routeMetadata = { peerId -> routingSupport.peerRouteMetadata(peerId = peerId) },
+                    emitDiagnostic = emitDiagnostic,
+                ),
+        )
     return MeshEngineLargeTransferOutboundDeliveryAdapter(
-        routingSupport = routingSupport,
         outboundTransferLifecycleSupport = outboundTransferLifecycleSupport,
         dependencies =
             MeshEngineLargeTransferOutboundDeliveryAdapterDependencies(
                 currentTopologyVersion = currentTopologyVersion,
                 discoverySuspensionSupport = discoverySuspensionSupport,
-                sendTransferTowardsDestination = sendTransferTowardsDestination,
-                clearQueuedOutboundFrames = clearQueuedOutboundFrames,
                 progressSupport = progressSupport,
+                terminalSupport = terminalSupport,
             ),
-        emitDiagnostic = emitDiagnostic,
     )
 }
 

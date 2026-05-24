@@ -201,18 +201,29 @@ private fun largeTransferOutboundDeliveryAdapter(
                     },
                 ),
         )
+    val terminalSupport =
+        MeshEngineLargeTransferTerminalSupport(
+            outboundTransferLifecycleSupport = outboundTransferLifecycleSupport,
+            dependencies =
+                MeshEngineLargeTransferTerminalDependencies(
+                    clearQueuedOutboundFrames = clearQueuedOutboundFrames,
+                    sendTransferTowardsDestination = sendTransferTowardsDestination,
+                ),
+            callbacks =
+                MeshEngineLargeTransferTerminalCallbacks(
+                    routeMetadata = { peerId -> routingSupport.peerRouteMetadata(peerId = peerId) },
+                    emitDiagnostic = { _, _, _, _, _, _ -> },
+                ),
+        )
     return MeshEngineLargeTransferOutboundDeliveryAdapter(
-        routingSupport = routingSupport,
         outboundTransferLifecycleSupport = outboundTransferLifecycleSupport,
         dependencies =
             MeshEngineLargeTransferOutboundDeliveryAdapterDependencies(
                 currentTopologyVersion = { 3L },
                 discoverySuspensionSupport = MeshEngineDiscoverySuspensionSupport { _ -> },
-                sendTransferTowardsDestination = sendTransferTowardsDestination,
-                clearQueuedOutboundFrames = clearQueuedOutboundFrames,
                 progressSupport = progressSupport,
+                terminalSupport = terminalSupport,
             ),
-        emitDiagnostic = { _, _, _, _, _, _ -> },
     )
 }
 
