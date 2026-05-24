@@ -81,16 +81,22 @@ private const val ENV_VALUE_BOOLEAN_TRUE: String = "true"
 private const val ENV_VALUE_YES: String = "yes"
 
 internal suspend fun IosBleTransport.sendWhenStarted(frame: OutboundFrame): TransportSendResult {
-    val peer = resolvePeer(frame.peerId)
-    return if (peer == null) {
-        dropSend(
-            frame,
-            message = "iOS BLE peer has not been discovered",
-            detail = "peer not discovered",
-        )
-    } else {
-        sendToPeer(frame, peer)
-    }
+    return dispatchIosSend(
+        frame = frame,
+        dependencies =
+            IosSendDispatchDependencies(
+                sendToResolvedPeerOrNull = {
+                    resolvePeer(frame.peerId)?.let { peer -> sendToPeer(frame, peer) }
+                },
+                dropWhenPeerIsMissing = {
+                    dropSend(
+                        frame,
+                        message = "iOS BLE peer has not been discovered",
+                        detail = "peer not discovered",
+                    )
+                },
+            ),
+    )
 }
 
 internal suspend fun IosBleTransport.sendToPeer(

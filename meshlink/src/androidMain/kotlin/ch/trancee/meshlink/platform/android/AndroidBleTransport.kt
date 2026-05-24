@@ -284,52 +284,52 @@ internal class AndroidBleTransport(
     }
 
     override suspend fun send(frame: OutboundFrame): TransportSendResult {
-        if (!started) {
-            log("send(${frame.peerId.value.takeLast(6)}) dropped: transport not started")
-            return TransportSendResult.Dropped("Android BLE transport is not started")
-        }
-
-        val peer = resolvePeer(frame.peerId)
-        if (peer == null) {
-            val temporaryLink = activeLinksByHint[frame.peerId.value]
-            return if (temporaryLink != null) {
-                sendViaConnectedLink(frame = frame, link = temporaryLink)
-            } else {
-                TransportSendResult.Dropped("Android BLE peer has not been discovered").also {
-                    log("send(${frame.peerId.value.takeLast(6)}) dropped: peer not discovered")
-                }
-            }
-        }
-
-        tryPreferredGattSend(peer, frame)?.let { result ->
-            return result
-        }
-
-        return sendViaAndroidL2capWhenReady(
+        return dispatchAndroidSend(
             frame = frame,
-            context =
-                AndroidL2capSendContext(
-                    hintPeerId = peer.hintPeerId,
-                    transportMode = peer.transportMode,
-                    advertisedL2capPsm = peer.l2capPsm,
-                ),
+            context = AndroidSendDispatchContext(transportStarted = started),
             dependencies =
-                AndroidL2capSendDependencies(
-                    currentLink = {
-                        activeLinkFor(peer)?.let { link ->
-                            object : AndroidL2capSendLink {
-                                override suspend fun send(
-                                    frame: OutboundFrame
-                                ): TransportSendResult {
-                                    return sendViaConnectedLink(frame = frame, link = link)
-                                }
-                            }
+                AndroidSendDispatchDependencies(
+                    sendToResolvedPeerOrNull = {
+                        val peer =
+                            resolvePeer(frame.peerId) ?: return@AndroidSendDispatchDependencies null
+                        tryPreferredGattSend(peer, frame)
+                            ?: sendViaAndroidL2capWhenReady(
+                                frame = frame,
+                                context =
+                                    AndroidL2capSendContext(
+                                        hintPeerId = peer.hintPeerId,
+                                        transportMode = peer.transportMode,
+                                        advertisedL2capPsm = peer.l2capPsm,
+                                    ),
+                                dependencies =
+                                    AndroidL2capSendDependencies(
+                                        currentLink = {
+                                            activeLinkFor(peer)?.let { link ->
+                                                object : AndroidL2capSendLink {
+                                                    override suspend fun send(
+                                                        frame: OutboundFrame
+                                                    ): TransportSendResult {
+                                                        return sendViaConnectedLink(
+                                                            frame = frame,
+                                                            link = link,
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        shouldInitiateL2cap = {
+                                            shouldInitiateL2cap(peer.keyHash, peer.platformFamily)
+                                        },
+                                        triggerConnectIfNeeded = { connectIfNeeded(peer) },
+                                        log = ::log,
+                                    ),
+                            )
+                    },
+                    sendToTemporaryLinkOrNull = {
+                        activeLinksByHint[frame.peerId.value]?.let { temporaryLink ->
+                            sendViaConnectedLink(frame = frame, link = temporaryLink)
                         }
                     },
-                    shouldInitiateL2cap = {
-                        shouldInitiateL2cap(peer.keyHash, peer.platformFamily)
-                    },
-                    triggerConnectIfNeeded = { connectIfNeeded(peer) },
                     log = ::log,
                 ),
         )

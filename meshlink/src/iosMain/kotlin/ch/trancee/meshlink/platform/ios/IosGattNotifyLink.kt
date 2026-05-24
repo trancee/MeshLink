@@ -5,7 +5,6 @@ import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.usePinned
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import platform.CoreBluetooth.CBCentral
@@ -50,7 +49,7 @@ internal constructor(peer: IosGattNotifyPeer, private val dependencies: IosGattN
 
     private val outgoingFrames = IosL2capFrameBuffer()
     private val incomingFrames = IosL2capFrameBuffer()
-    private val pendingFrames: ArrayDeque<PendingFrame> = ArrayDeque()
+    private val pendingFrames: ArrayDeque<IosGattNotifyPendingFrame> = ArrayDeque()
     private val stateLock = NSLock()
     private var lowLatencyRequested: Boolean = false
     private var closed: Boolean = false
@@ -96,7 +95,7 @@ internal constructor(peer: IosGattNotifyPeer, private val dependencies: IosGattN
     }
 
     internal fun discardQueuedFrames(): Int {
-        val discardedFrames = mutableListOf<PendingFrame>()
+        val discardedFrames = mutableListOf<IosGattNotifyPendingFrame>()
         stateLock.withLock {
             if (pendingFrames.isEmpty()) {
                 return@withLock
@@ -113,7 +112,7 @@ internal constructor(peer: IosGattNotifyPeer, private val dependencies: IosGattN
     }
 
     internal fun close(): Unit {
-        val discardedFrames = mutableListOf<PendingFrame>()
+        val discardedFrames = mutableListOf<IosGattNotifyPendingFrame>()
         stateLock.withLock {
             closed = true
             while (pendingFrames.isNotEmpty()) {
@@ -123,16 +122,16 @@ internal constructor(peer: IosGattNotifyPeer, private val dependencies: IosGattN
         discardedFrames.forEach { frame -> frame.completeIfPending(false) }
     }
 
-    private fun encodePendingFrame(payload: ByteArray): PendingFrame {
+    private fun encodePendingFrame(payload: ByteArray): IosGattNotifyPendingFrame {
         val chunkBytes = maxNotificationChunkBytes(central)
         val encodedChunks =
             outgoingFrames.encode(payload).asList().chunked(chunkBytes).map { chunk ->
                 chunk.toByteArray()
             }
-        return PendingFrame(chunks = encodedChunks)
+        return IosGattNotifyPendingFrame(chunks = encodedChunks)
     }
 
-    private fun enqueuePendingFrame(pendingFrame: PendingFrame): Boolean {
+    private fun enqueuePendingFrame(pendingFrame: IosGattNotifyPendingFrame): Boolean {
         return stateLock.withLock {
             if (closed) {
                 false
@@ -143,7 +142,7 @@ internal constructor(peer: IosGattNotifyPeer, private val dependencies: IosGattN
         }
     }
 
-    private suspend fun deliverPendingFrame(pendingFrame: PendingFrame): Boolean {
+    private suspend fun deliverPendingFrame(pendingFrame: IosGattNotifyPendingFrame): Boolean {
         requestLowLatencyIfNeeded()
         return if (pumpOnMain()) {
             pendingFrame.awaitCompletion()
@@ -152,7 +151,7 @@ internal constructor(peer: IosGattNotifyPeer, private val dependencies: IosGattN
         }
     }
 
-    private fun rejectPendingFrame(pendingFrame: PendingFrame): Boolean {
+    private fun rejectPendingFrame(pendingFrame: IosGattNotifyPendingFrame): Boolean {
         stateLock.withLock { pendingFrames.remove(pendingFrame) }
         pendingFrame.completeIfPending(false)
         return false
@@ -223,7 +222,7 @@ internal constructor(peer: IosGattNotifyPeer, private val dependencies: IosGattN
     }
 
     private fun recordPumpAttempt(didSend: Boolean): PumpOutcome {
-        var completedFrame: PendingFrame? = null
+        var completedFrame: IosGattNotifyPendingFrame? = null
         var pendingChunkCount = NO_PENDING_CHUNKS
         var shouldScheduleRetryPump = false
         stateLock.withLock {
@@ -252,7 +251,9 @@ internal constructor(peer: IosGattNotifyPeer, private val dependencies: IosGattN
         )
     }
 
-    private fun finishHeadFrameChunk(headFrame: PendingFrame): PendingFrame? {
+    private fun finishHeadFrameChunk(
+        headFrame: IosGattNotifyPendingFrame
+    ): IosGattNotifyPendingFrame? {
         return if (headFrame.markCurrentChunkSent()) {
             pendingFrames.removeFirst()
             headFrame
@@ -304,41 +305,10 @@ internal constructor(
 
 private class PumpOutcome
 internal constructor(
-    internal val completedFrame: PendingFrame?,
+    internal val completedFrame: IosGattNotifyPendingFrame?,
     internal val pendingChunkCount: Int,
     internal val shouldScheduleRetryPump: Boolean,
 )
-
-private class PendingFrame internal constructor(chunks: List<ByteArray>) {
-    private val completion: CompletableDeferred<Boolean> = CompletableDeferred()
-    private val chunks: List<ByteArray> = chunks.map { chunk -> chunk.copyOf() }
-    private var nextChunkIndex: Int = 0
-
-    internal fun nextChunkOrNull(): ByteArray? {
-        return chunks.getOrNull(nextChunkIndex)
-    }
-
-    internal fun markCurrentChunkSent(): Boolean {
-        if (nextChunkIndex < chunks.size) {
-            nextChunkIndex += 1
-        }
-        return nextChunkIndex >= chunks.size
-    }
-
-    internal fun remainingChunkCount(): Int {
-        return (chunks.size - nextChunkIndex).coerceAtLeast(0)
-    }
-
-    internal suspend fun awaitCompletion(): Boolean {
-        return completion.await()
-    }
-
-    internal fun completeIfPending(result: Boolean): Unit {
-        if (!completion.isCompleted) {
-            completion.complete(result)
-        }
-    }
-}
 
 internal fun maximumGattNotificationChunkBytes(maximumUpdateValueLength: Int): Int {
     return minOf(maximumUpdateValueLength, PREFERRED_NOTIFICATION_FRAME_BYTES)
