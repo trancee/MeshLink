@@ -21,6 +21,69 @@ internal fun buildMeshEngineRuntimeTransferAndInboundPhase(
             emitHopSessionFailed = session.emitHopSessionFailed,
             emitDiagnostic = support.emitDiagnostic,
         )
+    val sendTransferTowardsDestination = session.sendTransferTowardsDestination
+    val clearQueuedOutboundFrames: suspend (PeerId, String) -> Unit = { peerId, action ->
+        environment.platformBridge.clearQueuedOutboundFrames(peerId = peerId, action = action)
+    }
+    val outboundDeliveryPhase =
+        buildMeshEngineRuntimeTransferOutboundDeliveryPhase(
+            environment = environment,
+            support = support,
+            sharedState = sharedState,
+            routingAndTrust = routingAndTrust,
+            session = session,
+            sendTransferTowardsDestination = sendTransferTowardsDestination,
+            clearQueuedOutboundFrames = clearQueuedOutboundFrames,
+        )
+    val transferSupport =
+        buildMeshEngineRuntimeTransferSupport(
+            environment = environment,
+            support = support,
+            sharedState = sharedState,
+            routingAndTrust = routingAndTrust,
+            session = session,
+            messageDeliverySupport = messageDeliverySupport,
+            sendTransferTowardsDestination = sendTransferTowardsDestination,
+            clearQueuedOutboundFrames = clearQueuedOutboundFrames,
+            outboundTransferLifecycleSupport =
+                outboundDeliveryPhase.outboundTransferLifecycleSupport,
+        )
+    val inboundSupport =
+        buildMeshEngineRuntimeInboundSupport(
+            localIdentity = environment.localIdentity,
+            sessionRegistry = sharedState.sessionRegistry,
+            routeCoordinator = sharedState.routeCoordinator,
+            routingSupport = routingAndTrust.routingSupport,
+            emitHopSessionFailed = session.emitHopSessionFailed,
+            decryptHopPayload = session.decryptHopPayload,
+            captureHardRunToken = environment.compatibilitySurface.runtimeGate::captureHardRunToken,
+            forwardMessageToNextHop = session.forwardMessageToNextHop,
+            deliverInnerEnvelope = messageDeliverySupport::deliverInnerEnvelope,
+            transferSupport = transferSupport,
+        )
+    return MeshEngineRuntimeTransferAndInboundPhase(
+        sendPayload = outboundDeliveryPhase.outboundDeliverySupport::sendPayload,
+        handleEncryptedDataFrame = inboundSupport::handleEncryptedDataFrame,
+        abortLocalTransfers = transferSupport::abortLocalTransfers,
+        clearOutboundTransfers = outboundDeliveryPhase.outboundTransferLifecycleSupport::clearAll,
+    )
+}
+
+private data class MeshEngineRuntimeTransferOutboundDeliveryPhase(
+    val outboundTransferLifecycleSupport: MeshEngineOutboundTransferLifecycleSupport,
+    val outboundDeliverySupport: MeshEngineOutboundDeliverySupport,
+)
+
+private fun buildMeshEngineRuntimeTransferOutboundDeliveryPhase(
+    environment: MeshEngineRuntimeAssemblyEnvironment,
+    support: MeshEngineRuntimeAssemblySupport,
+    sharedState: MeshEngineRuntimeSharedState,
+    routingAndTrust: MeshEngineRuntimeRoutingAndTrustPhase,
+    session: MeshEngineRuntimeSessionAssembly,
+    sendTransferTowardsDestination:
+        suspend (PeerId, WireFrame, String, MeshEngineHardRunToken?) -> Boolean,
+    clearQueuedOutboundFrames: suspend (PeerId, String) -> Unit,
+): MeshEngineRuntimeTransferOutboundDeliveryPhase {
     val outboundRecipientTrustSupport =
         buildMeshEngineRuntimeOutboundRecipientTrustSupport(
             localIdentity = environment.localIdentity,
@@ -102,10 +165,6 @@ internal fun buildMeshEngineRuntimeTransferAndInboundPhase(
             suspendAction = "transfer.discoverySuspend",
             resumeAction = "transfer.discoveryResume",
         )
-    val sendTransferTowardsDestination = session.sendTransferTowardsDestination
-    val clearQueuedOutboundFrames: suspend (PeerId, String) -> Unit = { peerId, action ->
-        environment.platformBridge.clearQueuedOutboundFrames(peerId = peerId, action = action)
-    }
     val inlineOutboundDeliveryAdapter =
         buildMeshEngineRuntimeInlineOutboundDeliveryAdapter(
             inlineMessagePayloadBytes = INLINE_MESSAGE_PAYLOAD_BYTES,
@@ -119,18 +178,6 @@ internal fun buildMeshEngineRuntimeTransferAndInboundPhase(
             ttlMillisFor = sharedState.ttlMillisFor,
             scheduleRetryDiagnostic = routingAndTrust.scheduleRetryDiagnostic,
             emitDiagnostic = support.emitDiagnostic,
-        )
-    val transferSupport =
-        buildMeshEngineRuntimeTransferSupport(
-            environment = environment,
-            support = support,
-            sharedState = sharedState,
-            routingAndTrust = routingAndTrust,
-            session = session,
-            messageDeliverySupport = messageDeliverySupport,
-            sendTransferTowardsDestination = sendTransferTowardsDestination,
-            clearQueuedOutboundFrames = clearQueuedOutboundFrames,
-            outboundTransferLifecycleSupport = outboundTransferLifecycleSupport,
         )
     val largeTransferOutboundDeliveryAdapter =
         buildMeshEngineRuntimeLargeTransferOutboundDeliveryAdapter(
@@ -151,24 +198,9 @@ internal fun buildMeshEngineRuntimeTransferAndInboundPhase(
             inlineOutboundDeliveryAdapter = inlineOutboundDeliveryAdapter,
             largeTransferOutboundDeliveryAdapter = largeTransferOutboundDeliveryAdapter,
         )
-    val inboundSupport =
-        buildMeshEngineRuntimeInboundSupport(
-            localIdentity = environment.localIdentity,
-            sessionRegistry = sharedState.sessionRegistry,
-            routeCoordinator = sharedState.routeCoordinator,
-            routingSupport = routingAndTrust.routingSupport,
-            emitHopSessionFailed = session.emitHopSessionFailed,
-            decryptHopPayload = session.decryptHopPayload,
-            captureHardRunToken = environment.compatibilitySurface.runtimeGate::captureHardRunToken,
-            forwardMessageToNextHop = session.forwardMessageToNextHop,
-            deliverInnerEnvelope = messageDeliverySupport::deliverInnerEnvelope,
-            transferSupport = transferSupport,
-        )
-    return MeshEngineRuntimeTransferAndInboundPhase(
-        sendPayload = outboundDeliverySupport::sendPayload,
-        handleEncryptedDataFrame = inboundSupport::handleEncryptedDataFrame,
-        abortLocalTransfers = transferSupport::abortLocalTransfers,
-        clearOutboundTransfers = outboundTransferLifecycleSupport::clearAll,
+    return MeshEngineRuntimeTransferOutboundDeliveryPhase(
+        outboundTransferLifecycleSupport = outboundTransferLifecycleSupport,
+        outboundDeliverySupport = outboundDeliverySupport,
     )
 }
 
