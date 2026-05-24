@@ -83,8 +83,10 @@ surfaces while keeping the full two-device proof run separate.
 
 ## Physical live proof
 
-Use the live-proof harness when you need retained evidence from a real Android ↔
-physical iPhone guided exchange instead of scripted UI validation.
+Use the physical runners when you need retained evidence from real devices
+instead of scripted UI validation.
+
+### Direct guided proof
 
 ```bash
 python3 meshlink-reference/scripts/run_headless_reference_live_proof.py \
@@ -93,22 +95,48 @@ python3 meshlink-reference/scripts/run_headless_reference_live_proof.py \
   --run-dir /tmp/reference_live_proof_attempt
 ```
 
-The harness:
+This is the stable one-hop baseline:
 
-- installs the Android debug build
-- builds and reinstalls the physical iPhone app
-- launches Android in passive live-proof mode
-- launches the iPhone as the live sender
-- waits for the guided exchange, retained history, and redacted export to finish
-- writes retained evidence into the chosen run directory
+- Android runs as the passive peer
+- the physical iPhone runs as the sender
+- the scenario waits for retained history and a redacted export
 
-Expected retained outputs:
+### Constrained relay proof
 
-- `summary.json` — Android passive proof completion, iPhone sender completion,
-  and the retained export path
-- `android_history.json` — internal retained-history store evidence (internal epoch-millis format)
-- `android_export.json` — redacted session-artifact evidence (UTC ISO 8601 export timestamps)
-- `android_logcat.log` and `iphone_console.log` — raw device logs for the run
+```bash
+python3 meshlink-reference/scripts/run_headless_reference_relay_proof.py \
+  --ios-device <your-iphone-udid> \
+  --relay-android-serial <samsung-serial> \
+  --passive-android-serial <oppo-serial> \
+  --run-dir /tmp/reference_relay_proof_attempt
+```
+
+This is the honest routed proof:
+
+- `A = iPhone 15` sender
+- `B = Samsung` relay
+- `C = OPPO` passive recipient
+- sender-side success only counts when the routed delivery reaches
+  `routeIsDirect=false` and the passive side also retains/exports the session
+
+### Physical matrix
+
+```bash
+python3 meshlink-reference/scripts/run_headless_reference_physical_matrix.py \
+  --ios-device <your-iphone-udid> \
+  --passive-android-serial <oppo-serial> \
+  --relay-android-serial <samsung-serial>
+```
+
+The matrix keeps the physical campaign repeatable. Each scenario writes:
+
+- `summary.json` — scenario-specific completion lines and retained export path
+- `analysis.json` — machine-readable pass/fail analysis
+- `analysis.md` — reviewer-friendly findings and next debugging direction
+- raw device logs and retained artifacts for the scenario
+
+For the scenario list, hard pass criteria, and the reasoning behind the matrix,
+use [How to run the reference-app physical integration scenarios](../docs/how-to/run-reference-app-physical-integration-scenarios.md).
 
 ## Platform caveats
 
@@ -121,6 +149,9 @@ Expected retained outputs:
   passes instead of waiting for a retained Android passive export. On free Apple
   development profiles, use `--cleanup-ios-dev-app-slots` if you need the
   runner to free old MeshLink dev apps before starting that fallback path.
+- Keep the relay proof topology constrained and honest: `A = iPhone 15`,
+  `B = Samsung`, `C = OPPO`, with both Android devices reachable over wireless
+  ADB and `routeIsDirect=false` required on the sender side.
 
 ## Expected outcome
 

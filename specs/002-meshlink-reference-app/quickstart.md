@@ -142,6 +142,12 @@ Expected retained outputs:
 - `android_history.json`
 - `android_export.json`
 
+If you need the broader retained physical campaign instead of a single direct
+proof, continue with
+[`docs/how-to/run-reference-app-physical-integration-scenarios.md`](../../docs/how-to/run-reference-app-physical-integration-scenarios.md).
+That guide adds the constrained relay proof, the optional XCTest
+permission-recovery path, and per-run `analysis.json` / `analysis.md` artifacts.
+
 ## Expected first proof point
 
 A reviewer should be able to complete the guided first exchange on Android and

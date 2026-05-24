@@ -24,6 +24,7 @@ start with your goal:
 - [How to structure a robust MeshLink integration](how-to/structure-a-robust-meshlink-integration.md) — move from a working demo to an app-owned integration with explicit lifecycle, diagnostics, trust-reset, and delivery semantics.
 - [How to unblock MeshLink permissions on Android and iOS](how-to/unblock-meshlink-permissions.md) — clear Android and iPhone permission blockers before you debug discovery or delivery.
 - [How to evaluate MeshLink with the reference app](how-to/evaluate-meshlink-with-the-reference-app.md) — run the shared Android and iOS reference app, complete a guided exchange, and export a retained artifact.
+- [How to run the reference-app physical integration scenarios](how-to/run-reference-app-physical-integration-scenarios.md) — retain direct, relay, and permission-recovery physical proofs with scenario-specific analysis artifacts.
 - [How to use MeshLink from Swift](how-to/use-meshlink-from-swift.md) — call the generated Apple framework safely from Swift and interpret the Swift-facing API surface.
 
 ## Reference
@@ -47,6 +48,7 @@ start with your goal:
 
 - [About the L2CAP-first transport posture](explanation/why-l2cap-first.md)
 - [Cut-through relay](explanation/cut-through-relay.md)
+- [Physical reference-app integration findings](explanation/reference-app-physical-integration-findings.md)
 - [Understanding Babel routing](explanation/understanding-babel-routing.md)
 - [The MeshEngine pattern](explanation/meshengine-pattern.md)
 
@@ -61,6 +63,7 @@ start with your goal:
 ## Proof and validation guides
 
 - [How to evaluate MeshLink with the reference app](how-to/evaluate-meshlink-with-the-reference-app.md) — guided reference workflows, retained history, exports, and the handoff point to the proof harnesses.
+- [How to run the reference-app physical integration scenarios](how-to/run-reference-app-physical-integration-scenarios.md) — direct proof, relay proof, and the retained physical matrix.
 - [How to run the Android proof app](../meshlink-proof/android/README.md)
 - [How to build and run the iOS proof app](../meshlink-proof/ios/README.md)
 - [Benchmark and validation baselines](../benchmarks/README.md)

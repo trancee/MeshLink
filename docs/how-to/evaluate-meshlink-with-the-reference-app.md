@@ -14,6 +14,10 @@ This guide helps you:
 If you need the app overview itself, use
 [MeshLink reference app](../../meshlink-reference/README.md).
 
+If you already know you need retained physical evidence for direct and relay
+scenarios, skip ahead to
+[How to run the reference-app physical integration scenarios](run-reference-app-physical-integration-scenarios.md).
+
 ## Before you start
 
 You need:
@@ -189,6 +193,16 @@ If you only need to verify the physical iPhone sender XCTest path, add:
 That variant still launches the passive Android app so the iPhone can discover a
 peer, but it stops after the sender UI test passes instead of waiting for an
 Android retained export.
+
+If you want the broader physical validation campaign instead of a single direct
+proof, continue with
+[How to run the reference-app physical integration scenarios](run-reference-app-physical-integration-scenarios.md).
+That guide adds:
+
+- the constrained relay proof (`A = iPhone 15`, `B = Samsung`, `C = OPPO`)
+- the optional XCTest permission-recovery path
+- per-run `analysis.json` and `analysis.md` artifacts so review does not depend
+  on raw log archaeology
 
 ## Expected outcome
 
