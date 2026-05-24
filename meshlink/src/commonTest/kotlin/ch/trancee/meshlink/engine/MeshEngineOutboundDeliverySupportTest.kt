@@ -100,13 +100,8 @@ class MeshEngineOutboundDeliverySupportTest {
                 deliveryRetryCallbacks = retryCallbacks,
                 inlineOutboundDeliveryAdapter = dummyInlineOutboundDeliveryAdapter(runtimeGate),
                 largeTransferOutboundDeliveryAdapter =
-                    MeshEngineLargeTransferOutboundDeliveryAdapter(
-                        config =
-                            MeshEngineLargeTransferOutboundDeliveryAdapterConfig(
-                                ackSettlementTimeout = 100.milliseconds,
-                                ackIdleWindow = 25.milliseconds,
-                            ),
-                        routingSupport = routingSupport(runtimeGate),
+                    largeTransferOutboundDeliveryAdapter(
+                        runtimeGate = runtimeGate,
                         outboundTransferLifecycleSupport =
                             outboundTransferLifecycleSupport(
                                 outboundTransfers = outboundTransfers,
@@ -120,62 +115,51 @@ class MeshEngineOutboundDeliverySupportTest {
                                     OutboundTransferPreparation.Ready(checkNotNull(outboundSession))
                                 },
                             ),
-                        dependencies =
-                            MeshEngineLargeTransferOutboundDeliveryAdapterDependencies(
-                                runtimeGate = runtimeGate,
-                                currentTopologyVersion = { 4L },
-                                discoverySuspensionSupport =
-                                    MeshEngineDiscoverySuspensionSupport { suspended ->
-                                        largeDiscoveryTransitions += suspended
-                                    },
-                                scheduleRetryDiagnostic = { retryPeerId, retryPriority ->
-                                    largeRetryDiagnostics += retryPeerId to retryPriority
-                                },
-                                sendTransferTowardsDestination = { _, frame, _, _ ->
-                                    when (frame) {
-                                        is WireFrame.TransferStart -> {
-                                            transferStartFrames += 1
-                                            transferStartFrames == 1
-                                        }
-                                        is WireFrame.TransferChunk -> {
-                                            if (transferStartFrames == 1) {
-                                                if (frame.chunkIndex == 0) {
-                                                    launch {
-                                                        delay(10)
-                                                        val activeSession =
-                                                            checkNotNull(outboundSession)
-                                                        activeSession.markAcknowledged(
-                                                            WireFrame.TransferAck(
-                                                                transferId =
-                                                                    activeSession.transferId,
-                                                                highestContiguousAck = 0,
-                                                                selectiveRanges = byteArrayOf(),
-                                                            )
-                                                        )
-                                                    }
-                                                }
-                                                true
-                                            } else {
-                                                false
+                        discoveryTransitions = largeDiscoveryTransitions,
+                        scheduleRetryDiagnostic = { retryPeerId, retryPriority ->
+                            largeRetryDiagnostics += retryPeerId to retryPriority
+                        },
+                        sendTransferTowardsDestination = { _, frame, _, _ ->
+                            when (frame) {
+                                is WireFrame.TransferStart -> {
+                                    transferStartFrames += 1
+                                    transferStartFrames == 1
+                                }
+                                is WireFrame.TransferChunk -> {
+                                    if (transferStartFrames == 1) {
+                                        if (frame.chunkIndex == 0) {
+                                            launch {
+                                                delay(10)
+                                                val activeSession = checkNotNull(outboundSession)
+                                                activeSession.markAcknowledged(
+                                                    WireFrame.TransferAck(
+                                                        transferId = activeSession.transferId,
+                                                        highestContiguousAck = 0,
+                                                        selectiveRanges = byteArrayOf(),
+                                                    )
+                                                )
                                             }
                                         }
-                                        is WireFrame.TransferAck,
-                                        is WireFrame.TransferComplete,
-                                        is WireFrame.TransferAbort,
-                                        is WireFrame.Message,
-                                        is WireFrame.Hello,
-                                        is WireFrame.Ihu,
-                                        is WireFrame.RouteUpdate,
-                                        is WireFrame.RouteRetraction,
-                                        is WireFrame.SeqNoRequest,
-                                        is WireFrame.RouteDigest -> true
+                                        true
+                                    } else {
+                                        false
                                     }
-                                },
-                                clearQueuedOutboundFrames = { clearedPeerId, action ->
-                                    clearedOutboundFrames += clearedPeerId to action
-                                },
-                            ),
-                        emitDiagnostic = { _, _, _, _, _, _ -> },
+                                }
+                                is WireFrame.TransferAck,
+                                is WireFrame.TransferComplete,
+                                is WireFrame.TransferAbort,
+                                is WireFrame.Message,
+                                is WireFrame.Hello,
+                                is WireFrame.Ihu,
+                                is WireFrame.RouteUpdate,
+                                is WireFrame.RouteRetraction,
+                                is WireFrame.SeqNoRequest,
+                                is WireFrame.RouteDigest -> true
+                            }
+                        },
+                        clearQueuedOutboundFrames = { clearedPeerId, action ->
+                            clearedOutboundFrames += clearedPeerId to action
+                        },
                     ),
                 deliveryRetryDeadline = 300.milliseconds,
             )
@@ -277,22 +261,60 @@ private fun dummyInlineOutboundDeliveryAdapter(
 private fun dummyLargeTransferOutboundDeliveryAdapter(
     runtimeGate: MeshEngineRuntimeGate
 ): MeshEngineLargeTransferOutboundDeliveryAdapter {
-    return MeshEngineLargeTransferOutboundDeliveryAdapter(
-        config =
-            MeshEngineLargeTransferOutboundDeliveryAdapterConfig(
-                ackSettlementTimeout = 100.milliseconds,
-                ackIdleWindow = 25.milliseconds,
-            ),
-        routingSupport = routingSupport(runtimeGate),
+    return largeTransferOutboundDeliveryAdapter(
+        runtimeGate = runtimeGate,
         outboundTransferLifecycleSupport = outboundTransferLifecycleSupport(),
+        discoveryTransitions = mutableListOf(),
+        scheduleRetryDiagnostic = { _, _ -> },
+        sendTransferTowardsDestination = { _, _, _, _ -> true },
+        clearQueuedOutboundFrames = { _, _ -> },
+    )
+}
+
+private fun largeTransferOutboundDeliveryAdapter(
+    runtimeGate: MeshEngineRuntimeGate,
+    outboundTransferLifecycleSupport: MeshEngineOutboundTransferLifecycleSupport,
+    discoveryTransitions: MutableList<Boolean>,
+    scheduleRetryDiagnostic: (PeerId, DeliveryPriority) -> Unit,
+    sendTransferTowardsDestination:
+        suspend (PeerId, WireFrame, String, MeshEngineHardRunToken?) -> Boolean,
+    clearQueuedOutboundFrames: suspend (PeerId, String) -> Unit,
+): MeshEngineLargeTransferOutboundDeliveryAdapter {
+    val routingSupport = routingSupport(runtimeGate)
+    val progressSupport =
+        MeshEngineLargeTransferProgressSupport(
+            config =
+                MeshEngineLargeTransferProgressConfig(
+                    ackSettlementTimeout = 100.milliseconds,
+                    ackIdleWindow = 25.milliseconds,
+                ),
+            dependencies =
+                MeshEngineLargeTransferProgressDependencies(
+                    runtimeGate = runtimeGate,
+                    scheduleRetryDiagnostic = scheduleRetryDiagnostic,
+                    sendTransferTowardsDestination = sendTransferTowardsDestination,
+                ),
+            callbacks =
+                MeshEngineLargeTransferProgressCallbacks(
+                    emitDiagnostic = { _, _, _, _, _, _ -> },
+                    routeMetadata = { peerId, metadata ->
+                        routingSupport.peerRouteMetadata(peerId = peerId, metadata = metadata)
+                    },
+                ),
+        )
+    return MeshEngineLargeTransferOutboundDeliveryAdapter(
+        routingSupport = routingSupport,
+        outboundTransferLifecycleSupport = outboundTransferLifecycleSupport,
         dependencies =
             MeshEngineLargeTransferOutboundDeliveryAdapterDependencies(
-                runtimeGate = runtimeGate,
                 currentTopologyVersion = { 0L },
-                discoverySuspensionSupport = MeshEngineDiscoverySuspensionSupport { _ -> },
-                scheduleRetryDiagnostic = { _, _ -> },
-                sendTransferTowardsDestination = { _, _, _, _ -> true },
-                clearQueuedOutboundFrames = { _, _ -> },
+                discoverySuspensionSupport =
+                    MeshEngineDiscoverySuspensionSupport { suspended ->
+                        discoveryTransitions += suspended
+                    },
+                sendTransferTowardsDestination = sendTransferTowardsDestination,
+                clearQueuedOutboundFrames = clearQueuedOutboundFrames,
+                progressSupport = progressSupport,
             ),
         emitDiagnostic = { _, _, _, _, _, _ -> },
     )

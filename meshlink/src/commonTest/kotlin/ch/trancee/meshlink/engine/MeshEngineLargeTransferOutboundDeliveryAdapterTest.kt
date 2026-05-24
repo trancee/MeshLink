@@ -179,22 +179,38 @@ private fun largeTransferOutboundDeliveryAdapter(
         },
     clearQueuedOutboundFrames: suspend (PeerId, String) -> Unit = { _, _ -> },
 ): MeshEngineLargeTransferOutboundDeliveryAdapter {
+    val routingSupport = largeTransferRoutingSupport()
+    val progressSupport =
+        MeshEngineLargeTransferProgressSupport(
+            config =
+                MeshEngineLargeTransferProgressConfig(
+                    ackSettlementTimeout = 100.milliseconds,
+                    ackIdleWindow = 25.milliseconds,
+                ),
+            dependencies =
+                MeshEngineLargeTransferProgressDependencies(
+                    runtimeGate = LargeTransferAdapterRuntimeGate(),
+                    scheduleRetryDiagnostic = { _, _ -> },
+                    sendTransferTowardsDestination = sendTransferTowardsDestination,
+                ),
+            callbacks =
+                MeshEngineLargeTransferProgressCallbacks(
+                    emitDiagnostic = { _, _, _, _, _, _ -> },
+                    routeMetadata = { peerId, metadata ->
+                        routingSupport.peerRouteMetadata(peerId = peerId, metadata = metadata)
+                    },
+                ),
+        )
     return MeshEngineLargeTransferOutboundDeliveryAdapter(
-        config =
-            MeshEngineLargeTransferOutboundDeliveryAdapterConfig(
-                ackSettlementTimeout = 100.milliseconds,
-                ackIdleWindow = 25.milliseconds,
-            ),
-        routingSupport = largeTransferRoutingSupport(),
+        routingSupport = routingSupport,
         outboundTransferLifecycleSupport = outboundTransferLifecycleSupport,
         dependencies =
             MeshEngineLargeTransferOutboundDeliveryAdapterDependencies(
-                runtimeGate = LargeTransferAdapterRuntimeGate(),
                 currentTopologyVersion = { 3L },
                 discoverySuspensionSupport = MeshEngineDiscoverySuspensionSupport { _ -> },
-                scheduleRetryDiagnostic = { _, _ -> },
                 sendTransferTowardsDestination = sendTransferTowardsDestination,
                 clearQueuedOutboundFrames = clearQueuedOutboundFrames,
+                progressSupport = progressSupport,
             ),
         emitDiagnostic = { _, _, _, _, _, _ -> },
     )
