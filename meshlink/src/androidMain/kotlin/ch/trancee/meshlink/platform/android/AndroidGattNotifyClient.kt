@@ -35,12 +35,11 @@ internal class AndroidGattNotifyClient(
     private val onDisconnected: (PeerId) -> Unit,
 ) {
     @Volatile private var gatt: BluetoothGatt? = null
-    @Volatile private var ready: Boolean = false
-    @Volatile private var servicesDiscoveryStarted: Boolean = false
+    @Volatile
+    private var lifecycleState: AndroidGattNotifyLifecycleState =
+        startedAndroidGattNotifyLifecycle(DEFAULT_ATT_MTU_BYTES)
     @Volatile private var notifyCharacteristic: BluetoothGattCharacteristic? = null
     @Volatile private var writeCharacteristic: BluetoothGattCharacteristic? = null
-    @Volatile private var closedByOwner: Boolean = false
-    @Volatile private var currentMtu: Int = DEFAULT_ATT_MTU_BYTES
 
     private val frameBuffer = AndroidL2capFrameBuffer()
     private val writeMutex = Mutex()
@@ -62,15 +61,17 @@ internal class AndroidGattNotifyClient(
                 if (newState == BluetoothProfile.STATE_CONNECTED) {
                     gatt.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_HIGH)
                     requestFastPhyIfSupported(gatt)
-                    servicesDiscoveryStarted = false
-                    val requestedMtu = gatt.requestMtu(517)
-                    if (!requestedMtu) {
-                        servicesDiscoveryStarted = true
+                    val connectionPlan =
+                        connectedAndroidGattNotifyLifecycle(
+                            state = lifecycleState,
+                            requestedMtu = gatt.requestMtu(517),
+                        )
+                    lifecycleState = connectionPlan.state
+                    if (connectionPlan.shouldDiscoverServices) {
                         gatt.discoverServices()
                     }
                 } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
-                    val shouldNotifyDisconnect = !closedByOwner
-                    ready = false
+                    val shouldNotifyDisconnect = !lifecycleState.closedByOwner
                     completePendingWrite(success = false)
                     closeInternal(markClosedByOwner = true)
                     if (shouldNotifyDisconnect) {
@@ -82,11 +83,14 @@ internal class AndroidGattNotifyClient(
             override fun onMtuChanged(gatt: BluetoothGatt, mtu: Int, status: Int) {
                 log("GATT notify side link ${peerHintId.value.takeLast(6)} mtu=$mtu status=$status")
                 requestFastPhyIfSupported(gatt)
-                if (status == BluetoothGatt.GATT_SUCCESS) {
-                    currentMtu = mtu
-                }
-                if (!servicesDiscoveryStarted) {
-                    servicesDiscoveryStarted = true
+                val mtuPlan =
+                    mtuChangedAndroidGattNotifyLifecycle(
+                        state = lifecycleState,
+                        mtu = mtu,
+                        mtuAccepted = status == BluetoothGatt.GATT_SUCCESS,
+                    )
+                lifecycleState = mtuPlan.state
+                if (mtuPlan.shouldDiscoverServices) {
                     gatt.discoverServices()
                 }
             }
@@ -153,14 +157,19 @@ internal class AndroidGattNotifyClient(
                 ) {
                     return
                 }
-                if (status != BluetoothGatt.GATT_SUCCESS) {
+                val descriptorPlan =
+                    descriptorWrittenAndroidGattNotifyLifecycle(
+                        state = lifecycleState,
+                        success = status == BluetoothGatt.GATT_SUCCESS,
+                    )
+                lifecycleState = descriptorPlan.state
+                if (!descriptorPlan.ready) {
                     log(
                         "GATT notify side link ${peerHintId.value.takeLast(6)} notify enable failed status=$status"
                     )
                     closeInternal(markClosedByOwner = false)
                     return
                 }
-                ready = true
                 log(
                     "GATT notify side link ready for ${peerHintId.value.takeLast(6)} addr=${device.address}"
                 )
@@ -242,17 +251,14 @@ internal class AndroidGattNotifyClient(
         if (gatt != null) {
             return
         }
-        ready = false
-        servicesDiscoveryStarted = false
+        lifecycleState = startedAndroidGattNotifyLifecycle(DEFAULT_ATT_MTU_BYTES)
         notifyCharacteristic = null
         writeCharacteristic = null
-        closedByOwner = false
-        currentMtu = DEFAULT_ATT_MTU_BYTES
         gatt = connectGatt(device)
     }
 
     fun isReady(): Boolean {
-        return ready
+        return lifecycleState.ready
     }
 
     suspend fun write(payload: ByteArray): Boolean {
@@ -264,7 +270,7 @@ internal class AndroidGattNotifyClient(
                 context =
                     AndroidGattNotifyWriteContext(
                         peerLogSuffix = peerHintId.value.takeLast(6),
-                        clientReady = ready,
+                        clientReady = lifecycleState.ready,
                         hasGatt = gatt != null,
                         hasWriteCharacteristic = writeCharacteristic != null,
                         maxChunkBytes = maximumWriteChunkBytes(),
@@ -322,11 +328,13 @@ internal class AndroidGattNotifyClient(
     }
 
     private fun closeInternal(markClosedByOwner: Boolean): Unit {
-        closedByOwner = markClosedByOwner
-        ready = false
+        lifecycleState =
+            closedAndroidGattNotifyLifecycle(
+                defaultAttMtuBytes = DEFAULT_ATT_MTU_BYTES,
+                markClosedByOwner = markClosedByOwner,
+            )
         notifyCharacteristic = null
         writeCharacteristic = null
-        currentMtu = DEFAULT_ATT_MTU_BYTES
         completePendingWrite(success = false)
         runCatching { gatt?.close() }
         gatt = null
@@ -370,7 +378,7 @@ internal class AndroidGattNotifyClient(
     }
 
     private fun maximumWriteChunkBytes(): Int {
-        return maximumGattWriteChunkBytes(currentMtu)
+        return maximumGattWriteChunkBytes(lifecycleState.currentMtu)
     }
 
     private fun connectGatt(device: BluetoothDevice): BluetoothGatt {
