@@ -123,8 +123,18 @@ internal data class MeshEngineRuntimeTransferAndInboundPhase(
     val clearOutboundTransfers: () -> Unit,
 )
 
-internal data class MeshEngineRuntimeFacadeOperationsPhase(
-    val lifecycleSupport: MeshEngineLifecycleSupport,
-    val sendSupport: MeshEngineSendSupport,
-    val peerForgetSupport: MeshEnginePeerForgetSupport,
-)
+internal interface MeshEngineRuntimeFacadeOperations {
+    suspend fun start(): ch.trancee.meshlink.api.StartResult
+
+    suspend fun pause(): ch.trancee.meshlink.api.PauseResult
+
+    suspend fun resume(): ch.trancee.meshlink.api.ResumeResult
+
+    suspend fun stop(): ch.trancee.meshlink.api.StopResult
+
+    suspend fun send(peerId: PeerId, payload: ByteArray, priority: DeliveryPriority): SendResult
+
+    suspend fun forgetPeer(peerId: PeerId): ch.trancee.meshlink.api.ForgetPeerResult
+
+    fun updateBattery(level: Float, isCharging: Boolean): Unit
+}

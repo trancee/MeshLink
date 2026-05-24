@@ -24,7 +24,7 @@ import kotlinx.coroutines.runBlocking
 
 class MeshEngineRuntimeFacadeAssemblyTest {
     @Test
-    fun `facade assembly send support delegates to transfer phase sendPayload`() = runBlocking {
+    fun `facade assembly send delegates to transfer phase sendPayload`() = runBlocking {
         // Arrange
         val harness = runtimeFacadeAssemblyHarness()
         harness.runtimeSurface.beginHardRun()
@@ -32,7 +32,7 @@ class MeshEngineRuntimeFacadeAssemblyTest {
 
         // Act
         val result =
-            harness.facadeOperations.sendSupport.send(
+            harness.facadeOperations.send(
                 peerId = PeerId("peer-abcdef"),
                 payload = payload,
                 priority = DeliveryPriority.HIGH,
@@ -55,24 +55,23 @@ class MeshEngineRuntimeFacadeAssemblyTest {
     }
 
     @Test
-    fun `facade assembly lifecycle stop delegates to transfer abort and clear operations`() =
-        runBlocking {
-            // Arrange
-            val harness = runtimeFacadeAssemblyHarness()
-            harness.runtimeSurface.beginHardRun()
+    fun `facade assembly stop delegates to transfer abort and clear operations`() = runBlocking {
+        // Arrange
+        val harness = runtimeFacadeAssemblyHarness()
+        harness.runtimeSurface.beginHardRun()
 
-            // Act
-            val result = harness.facadeOperations.lifecycleSupport.stop()
+        // Act
+        val result = harness.facadeOperations.stop()
 
-            // Assert
-            assertEquals(StopResult.Stopped, result)
-            assertEquals(listOf(TransferAbortReasonCode.RUNTIME_STOPPED), harness.abortReasons)
-            assertEquals(1, harness.clearOutboundTransfersCalls.size)
-        }
+        // Assert
+        assertEquals(StopResult.Stopped, result)
+        assertEquals(listOf(TransferAbortReasonCode.RUNTIME_STOPPED), harness.abortReasons)
+        assertEquals(1, harness.clearOutboundTransfersCalls.size)
+    }
 }
 
 private data class RuntimeFacadeAssemblyHarness(
-    val facadeOperations: MeshEngineRuntimeFacadeOperationsPhase,
+    val facadeOperations: MeshEngineRuntimeFacadeOperations,
     val runtimeSurface: MeshEngineRuntimeSurface,
     val sendPayloadCalls: MutableList<RecordedFacadeSendPayload>,
     val abortReasons: MutableList<TransferAbortReasonCode>,
@@ -142,7 +141,7 @@ private fun runtimeFacadeAssemblyHarness(): RuntimeFacadeAssemblyHarness {
             clearOutboundTransfers = { clearOutboundTransfersCalls += Unit },
         )
     val facadeOperations =
-        buildMeshEngineRuntimeFacadeOperationsPhase(
+        buildMeshEngineRuntimeFacadeOperations(
             environment = environment,
             support = support,
             foundation = foundation,

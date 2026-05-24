@@ -4,13 +4,13 @@ import ch.trancee.meshlink.api.PeerEvent
 import ch.trancee.meshlink.diagnostics.DiagnosticCode
 import kotlinx.coroutines.launch
 
-internal fun buildMeshEngineRuntimeFacadeOperationsPhase(
+internal fun buildMeshEngineRuntimeFacadeOperations(
     environment: MeshEngineRuntimeAssemblyEnvironment,
     support: MeshEngineRuntimeAssemblySupport,
     foundation: MeshEngineRuntimeFoundationAssembly,
     session: MeshEngineRuntimeSessionAssembly,
     transferAndInbound: MeshEngineRuntimeTransferAndInboundPhase,
-): MeshEngineRuntimeFacadeOperationsPhase {
+): MeshEngineRuntimeFacadeOperations {
     val sharedState = foundation.sharedState
     val routingAndTrust = foundation.routingAndTrust
     val transportSupport =
@@ -93,9 +93,26 @@ internal fun buildMeshEngineRuntimeFacadeOperationsPhase(
                 environment.compatibilitySurface.mutablePeerEvents.emit(PeerEvent.Lost(peerId))
             },
         )
-    return MeshEngineRuntimeFacadeOperationsPhase(
-        lifecycleSupport = lifecycleSupport,
-        sendSupport = sendSupport,
-        peerForgetSupport = peerForgetSupport,
-    )
+    return object : MeshEngineRuntimeFacadeOperations {
+        override suspend fun start() = lifecycleSupport.start()
+
+        override suspend fun pause() = lifecycleSupport.pause()
+
+        override suspend fun resume() = lifecycleSupport.resume()
+
+        override suspend fun stop() = lifecycleSupport.stop()
+
+        override suspend fun send(
+            peerId: ch.trancee.meshlink.api.PeerId,
+            payload: ByteArray,
+            priority: ch.trancee.meshlink.api.DeliveryPriority,
+        ) = sendSupport.send(peerId = peerId, payload = payload, priority = priority)
+
+        override suspend fun forgetPeer(peerId: ch.trancee.meshlink.api.PeerId) =
+            peerForgetSupport.forgetPeer(peerId)
+
+        override fun updateBattery(level: Float, isCharging: Boolean) {
+            lifecycleSupport.updateBattery(level = level, isCharging = isCharging)
+        }
+    }
 }

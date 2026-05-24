@@ -26,33 +26,29 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 
 internal class MeshEngineRuntime
-private constructor(
+constructor(
     publishedSurface: MeshEnginePublishedRuntimeSurface,
-    facadeOperations: MeshEngineRuntimeFacadeOperationsPhase,
+    private val facadeOperations: MeshEngineRuntimeFacadeOperations,
 ) : MeshLinkApi {
-    private val lifecycleSupport: MeshEngineLifecycleSupport = facadeOperations.lifecycleSupport
-    private val sendSupport: MeshEngineSendSupport = facadeOperations.sendSupport
-    private val peerForgetSupport: MeshEnginePeerForgetSupport = facadeOperations.peerForgetSupport
-
     override val state: StateFlow<MeshLinkState> = publishedSurface.state
     override val peerEvents: Flow<PeerEvent> = publishedSurface.peerEvents
     override val diagnosticEvents: Flow<DiagnosticEvent> = publishedSurface.diagnosticEvents
     override val messages: Flow<InboundMessage> = publishedSurface.messages
 
     override suspend fun start(): StartResult {
-        return lifecycleSupport.start()
+        return facadeOperations.start()
     }
 
     override suspend fun pause(): PauseResult {
-        return lifecycleSupport.pause()
+        return facadeOperations.pause()
     }
 
     override suspend fun resume(): ResumeResult {
-        return lifecycleSupport.resume()
+        return facadeOperations.resume()
     }
 
     override suspend fun stop(): StopResult {
-        return lifecycleSupport.stop()
+        return facadeOperations.stop()
     }
 
     override suspend fun send(
@@ -60,15 +56,15 @@ private constructor(
         payload: ByteArray,
         priority: DeliveryPriority,
     ): SendResult {
-        return sendSupport.send(peerId = peerId, payload = payload, priority = priority)
+        return facadeOperations.send(peerId = peerId, payload = payload, priority = priority)
     }
 
     override suspend fun forgetPeer(peerId: PeerId): ForgetPeerResult {
-        return peerForgetSupport.forgetPeer(peerId)
+        return facadeOperations.forgetPeer(peerId)
     }
 
     override fun updateBattery(level: Float, isCharging: Boolean): Unit {
-        lifecycleSupport.updateBattery(level = level, isCharging = isCharging)
+        facadeOperations.updateBattery(level = level, isCharging = isCharging)
     }
 
     internal companion object {
@@ -112,7 +108,7 @@ private constructor(
                     session = session,
                 )
             val facadeOperations =
-                buildMeshEngineRuntimeFacadeOperationsPhase(
+                buildMeshEngineRuntimeFacadeOperations(
                     environment = environment,
                     support = support,
                     foundation = foundation,
