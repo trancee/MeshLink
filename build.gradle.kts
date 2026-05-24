@@ -1,6 +1,70 @@
 import kotlinx.kover.gradle.plugin.dsl.AggregationType
 import kotlinx.kover.gradle.plugin.dsl.CoverageUnit
+import org.gradle.api.Action
+import org.gradle.api.Project
 import org.gradle.api.tasks.wrapper.Wrapper
+
+private fun isAgpDependencyResolutionWarningListener(listener: Any): Boolean {
+    if (listener::class.java.name.startsWith("com.android.build.gradle.internal.DependencyResolutionChecksKt$")) {
+        return true
+    }
+    val wrappedActionField =
+        runCatching { listener::class.java.getDeclaredField("val\$action") }.getOrNull() ?: return false
+    wrappedActionField.isAccessible = true
+    val wrappedAction: Any = wrappedActionField.get(listener) ?: return false
+    return wrappedAction::class.java.name.startsWith(
+        "com.android.build.gradle.internal.DependencyResolutionChecksKt$"
+    )
+}
+
+private fun Project.stripAgpDependencyResolutionWarningListeners(): Unit {
+    configurations.configureEach {
+        val configuration: org.gradle.api.artifacts.Configuration = this
+        val dependencyResolutionListeners: Any =
+            runCatching {
+                    val getter = (configuration as Any)::class.java.getMethod("getDependencyResolutionListeners")
+                    getter.invoke(configuration)
+                }
+                .getOrNull() ?: return@configureEach
+        val visitListenersUntyped =
+            dependencyResolutionListeners.javaClass.methods.firstOrNull {
+                it.name == "visitListenersUntyped" && it.parameterCount == 1
+            } ?: return@configureEach
+        val removeListener =
+            dependencyResolutionListeners.javaClass.methods.firstOrNull {
+                it.name == "remove" && it.parameterCount == 1
+            } ?: return@configureEach
+
+        val listenersToRemove = mutableListOf<Any>()
+        visitListenersUntyped.invoke(
+            dependencyResolutionListeners,
+            object : Action<Any> {
+                override fun execute(listener: Any): Unit {
+                    if (isAgpDependencyResolutionWarningListener(listener)) {
+                        listenersToRemove += listener
+                    }
+                }
+            },
+        )
+        listenersToRemove.forEach { listener -> removeListener.invoke(dependencyResolutionListeners, listener) }
+    }
+}
+
+allprojects {
+    // AGP registers configuration-time dependency warning listeners that currently fire for
+    // upstream KMP, Dokka, SKIE, and related plugin task graphs. Strip only that AGP warning
+    // listener so the repo stops reporting non-actionable upstream noise while leaving the task
+    // graph itself unchanged.
+    pluginManager.withPlugin("com.android.application") {
+        stripAgpDependencyResolutionWarningListeners()
+    }
+    pluginManager.withPlugin("com.android.library") {
+        stripAgpDependencyResolutionWarningListeners()
+    }
+    pluginManager.withPlugin("com.android.kotlin.multiplatform.library") {
+        stripAgpDependencyResolutionWarningListeners()
+    }
+}
 
 plugins {
     base
