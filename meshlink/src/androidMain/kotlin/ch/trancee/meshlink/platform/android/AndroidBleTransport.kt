@@ -60,6 +60,23 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
+internal fun resolveAndroidMaximumPayloadBytesPerDelivery(
+    localPlatformFamily: BleDiscoveryPlatformFamily,
+    remotePlatformFamily: BleDiscoveryPlatformFamily,
+    l2capMaxTransmitPacketSize: Int?,
+): Int? {
+    return if (
+        shouldUseMixedPlatformGattNotifyBearer(
+            localPlatformFamily = localPlatformFamily,
+            remotePlatformFamily = remotePlatformFamily,
+        )
+    ) {
+        AndroidGattNotifyClient.maximumPayloadBytesPerDelivery()
+    } else {
+        l2capMaxTransmitPacketSize
+    }
+}
+
 internal class AndroidBleTransport(
     private val context: Context,
     private val appId: String,
@@ -262,15 +279,11 @@ internal class AndroidBleTransport(
 
     override fun maximumPayloadBytesPerDelivery(peerId: PeerId): Int? {
         val peer = resolvePeer(peerId) ?: return null
-        if (
-            shouldUseMixedPlatformGattNotifyBearer(
-                localPlatformFamily = currentDiscoveryPayload.platformFamily,
-                remotePlatformFamily = peer.platformFamily,
-            )
-        ) {
-            return AndroidGattNotifyClient.maximumPayloadBytesPerDelivery()
-        }
-        return activeLinkFor(peer)?.maxTransmitPacketSize
+        return resolveAndroidMaximumPayloadBytesPerDelivery(
+            localPlatformFamily = currentDiscoveryPayload.platformFamily,
+            remotePlatformFamily = peer.platformFamily,
+            l2capMaxTransmitPacketSize = activeLinkFor(peer)?.maxTransmitPacketSize,
+        )
     }
 
     override suspend fun send(frame: OutboundFrame): TransportSendResult {
