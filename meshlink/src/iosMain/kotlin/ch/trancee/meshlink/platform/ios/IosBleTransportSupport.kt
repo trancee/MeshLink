@@ -166,42 +166,28 @@ internal suspend fun IosBleTransport.sendViaL2capWhenReady(
     frame: OutboundFrame,
     peer: DiscoveredPeer,
 ): TransportSendResult {
-    val link = activeLinkFor(peer)
-    return if (link == null) {
-        dropSendWhileWaitingForL2cap(frame = frame, peer = peer)
-    } else {
-        runCatching {
-                if (!link.enqueue(frame.payload)) {
-                    closeLink(hintPeer = link.hintPeerId.value, reason = "send queue closed")
-                    return@runCatching TransportSendResult.Dropped(
-                        "iOS BLE send queue is not accepting frames"
-                    )
-                }
-                TransportSendResult.Delivered
-            }
-            .getOrElse { error ->
-                closeLink(
-                    hintPeer = link.hintPeerId.value,
-                    reason = "send failed: ${error.message.orEmpty()}",
-                )
-                TransportSendResult.Dropped("iOS BLE send failed: ${error.message.orEmpty()}")
-            }
-    }
-}
+    return sendViaIosL2capWhenReady(
+        frame = frame,
+        context = IosL2capSendContext(hintPeerId = frame.peerId),
+        dependencies =
+            IosL2capSendDependencies(
+                currentLink = {
+                    activeLinkFor(peer)?.let { link ->
+                        object : IosL2capSendLink {
+                            override val hintPeerId: PeerId = link.hintPeerId
 
-internal fun IosBleTransport.dropSendWhileWaitingForL2cap(
-    frame: OutboundFrame,
-    peer: DiscoveredPeer,
-): TransportSendResult {
-    connectIfNeeded(peer)
-    if (shouldInitiateL2cap(peer.keyHash, peer.platformFamily)) {
-        log("send(${frame.peerId.logSuffix()}) no active link, triggering connect")
-    } else {
-        log(
-            "send(${frame.peerId.logSuffix()}) waiting for inbound L2CAP link; requesting outbound connect for explicit send"
-        )
-    }
-    return TransportSendResult.Dropped("iOS BLE L2CAP connection is not ready")
+                            override suspend fun enqueue(payload: ByteArray): Boolean {
+                                return link.enqueue(payload)
+                            }
+                        }
+                    }
+                },
+                ensureConnectAttempt = { connectIfNeeded(peer) },
+                shouldInitiateL2cap = { shouldInitiateL2cap(peer.keyHash, peer.platformFamily) },
+                closeLink = ::closeLink,
+                log = ::log,
+            ),
+    )
 }
 
 internal fun IosBleTransport.dropSend(

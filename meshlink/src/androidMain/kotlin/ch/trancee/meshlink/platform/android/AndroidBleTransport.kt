@@ -301,33 +301,38 @@ internal class AndroidBleTransport(
             }
         }
 
-        val directLink = activeLinkFor(peer)
-        if (peer.transportMode != TransportMode.L2CAP) {
-            log("send(${frame.peerId.value.takeLast(6)}) dropped: peer is GATT-only")
-            return TransportSendResult.Dropped(
-                "Android BLE GATT fallback transport is not implemented"
-            )
-        }
-        if (peer.l2capPsm == 0 && directLink == null) {
-            log("send(${frame.peerId.value.takeLast(6)}) waiting for inbound L2CAP link")
-            return TransportSendResult.Dropped("Android BLE L2CAP connection is not ready")
-        }
-
         tryPreferredGattSend(peer, frame)?.let { result ->
             return result
         }
 
-        if (directLink == null) {
-            if (shouldInitiateL2cap(peer.keyHash, peer.platformFamily)) {
-                log("send(${frame.peerId.value.takeLast(6)}) no active link, triggering connect")
-                connectIfNeeded(peer)
-            } else {
-                log("send(${frame.peerId.value.takeLast(6)}) waiting for inbound L2CAP link")
-            }
-            return TransportSendResult.Dropped("Android BLE L2CAP connection is not ready")
-        }
-
-        return sendViaConnectedLink(frame = frame, link = directLink)
+        return sendViaAndroidL2capWhenReady(
+            frame = frame,
+            context =
+                AndroidL2capSendContext(
+                    hintPeerId = peer.hintPeerId,
+                    transportMode = peer.transportMode,
+                    advertisedL2capPsm = peer.l2capPsm,
+                ),
+            dependencies =
+                AndroidL2capSendDependencies(
+                    currentLink = {
+                        activeLinkFor(peer)?.let { link ->
+                            object : AndroidL2capSendLink {
+                                override suspend fun send(
+                                    frame: OutboundFrame
+                                ): TransportSendResult {
+                                    return sendViaConnectedLink(frame = frame, link = link)
+                                }
+                            }
+                        }
+                    },
+                    shouldInitiateL2cap = {
+                        shouldInitiateL2cap(peer.keyHash, peer.platformFamily)
+                    },
+                    triggerConnectIfNeeded = { connectIfNeeded(peer) },
+                    log = ::log,
+                ),
+        )
     }
 
     private fun handleScanResult(result: ScanResult): Unit {
