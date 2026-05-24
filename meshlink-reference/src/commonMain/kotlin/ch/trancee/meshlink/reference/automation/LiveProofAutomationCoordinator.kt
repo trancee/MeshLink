@@ -1,26 +1,15 @@
 package ch.trancee.meshlink.reference.automation
 
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import ch.trancee.meshlink.api.DeliveryPriority
-import ch.trancee.meshlink.reference.guided.GuidedFirstExchangeViewModel
 import ch.trancee.meshlink.reference.meshlink.ReferenceControllerSnapshot
 import ch.trancee.meshlink.reference.meshlink.redactedSuffix
 import ch.trancee.meshlink.reference.model.TimelineFamily
-import ch.trancee.meshlink.reference.platform.PlatformServices
 import ch.trancee.meshlink.reference.session.ExportPayloadPolicy
-import ch.trancee.meshlink.reference.timeline.TechnicalTimelineStore
 import ch.trancee.meshlink.reference.timeline.TechnicalTimelineUiState
-import ch.trancee.meshlink.reference.timeline.endCurrentSession
-import ch.trancee.meshlink.reference.timeline.exportCurrentSession
-import kotlinx.coroutines.launch
 
 internal class LiveProofAutomationCoordinator(
     private val automationConfig: ReferenceAutomationConfig,
-    private val platformServices: PlatformServices,
-    private val guidedViewModel: GuidedFirstExchangeViewModel,
-    private val timelineStore: TechnicalTimelineStore,
+    private val actions: LiveProofAutomationActions,
     private val progress: LiveProofAutomationProgress,
 ) {
     internal fun run(
@@ -44,7 +33,7 @@ internal class LiveProofAutomationCoordinator(
             return
         }
 
-        platformServices.emitAutomationLog(
+        actions.emitAutomationLog(
             "REFERENCE_AUTOMATION started " +
                 "mode=${automationConfig.mode} " +
                 "role=${automationConfig.role} " +
@@ -61,7 +50,7 @@ internal class LiveProofAutomationCoordinator(
             return
         }
 
-        platformServices.emitAutomationLog(
+        actions.emitAutomationLog(
             "REFERENCE_AUTOMATION peer.discovered " +
                 "role=${automationConfig.role} " +
                 "peer=${firstPeer.peerSuffix}"
@@ -75,7 +64,7 @@ internal class LiveProofAutomationCoordinator(
         if (peerSnapshotSummary == progress.lastPeerSnapshotSummary) {
             return
         }
-        platformServices.emitAutomationLog(
+        actions.emitAutomationLog(
             "REFERENCE_AUTOMATION peers " +
                 "role=${automationConfig.role} " +
                 "count=${snapshot.peers.size} " +
@@ -89,16 +78,16 @@ internal class LiveProofAutomationCoordinator(
             !shouldRequestLiveProofMeshStart(
                 meshStartRequested = progress.meshStartRequested,
                 snapshot = snapshot,
-                readinessBlockers = platformServices.readinessBlockers,
+                readinessBlockers = actions.readinessBlockers,
             )
         ) {
             return
         }
 
-        platformServices.emitAutomationLog(
+        actions.emitAutomationLog(
             "REFERENCE_AUTOMATION mesh.start.requested role=${automationConfig.role}"
         )
-        guidedViewModel.startMesh()
+        actions.requestMeshStart()
         progress.meshStartRequested = true
     }
 
@@ -165,9 +154,9 @@ internal class LiveProofAutomationCoordinator(
                     SenderPayloadPlan.GUIDED_HELLO,
                     SenderPayloadPlan.RECOVERY_HELLO -> ""
                     SenderPayloadPlan.LARGE_TRANSFER ->
-                        " bytes=${largeTransferPayloadBytes(platformServices.platformName)}"
+                        " bytes=${largeTransferPayloadBytes(actions.platformName)}"
                 }
-            platformServices.emitAutomationLog(
+            actions.emitAutomationLog(
                 "REFERENCE_AUTOMATION proof.complete role=sender " +
                     "outcome=$lastOutcomeSummary " +
                     "peer=$targetPeerSuffix " +
@@ -186,38 +175,116 @@ internal class LiveProofAutomationCoordinator(
     }
 
     private fun runPauseResumeSenderAutomationStep(snapshot: ReferenceControllerSnapshot): Unit {
-        val targetPeer =
+        val resolvedTargetPeer =
             autoSendTargetPeer(
                 snapshot = snapshot,
                 requiredPeerCount = automationConfig.requiredPeerCount,
                 targetPeerIndex = automationConfig.targetPeerIndex,
                 targetPeerId = automationConfig.targetPeerId,
-            ) ?: return
-        val meshRunning = isMeshRunning(snapshot.session.meshStateLabel)
-        if (!progress.pauseRequested && meshRunning) {
-            platformServices.emitAutomationLog("REFERENCE_AUTOMATION pause.requested role=sender")
-            timelineStore.scope.launch { platformServices.meshLinkController.pause() }
+            )
+        if (progress.pauseResumeTargetPeerId == null && resolvedTargetPeer != null) {
+            progress.pauseResumeTargetPeerId = resolvedTargetPeer.peerId
+            progress.pauseResumeTargetPeerSuffix = resolvedTargetPeer.peerSuffix
+        }
+        val targetPeer =
+            resolvedTargetPeer
+                ?: progress.pauseResumeTargetPeerId?.let { peerId ->
+                    AutoSendTargetPeer(
+                        peerId = peerId,
+                        peerSuffix = progress.pauseResumeTargetPeerSuffix ?: redactedSuffix(peerId),
+                    )
+                }
+                ?: return
+        if (!progress.pauseRequested && !isMeshRunning(snapshot.session.meshStateLabel)) {
+            return
+        }
+
+        if (!progress.sendRequested) {
+            requestSenderPayload(
+                phase = "warmup",
+                targetPeer = targetPeer,
+                payloadPlan = SenderPayloadPlan.GUIDED_HELLO,
+            )
+            progress.sendRequested = true
+        }
+
+        val targetPeerSuffix = targetPeer.peerSuffix
+        announceSenderObservationIfNeeded(snapshot = snapshot, targetPeerSuffix = targetPeerSuffix)
+        announceSenderOutcomeIfNeeded(snapshot = snapshot)
+
+        val deliveryCount =
+            timelineEntryCount(
+                snapshot,
+                title = "DELIVERY_SUCCEEDED",
+                peerSuffix = targetPeerSuffix,
+            )
+        if (
+            shouldRequestPauseForPauseResume(
+                pauseRequested = progress.pauseRequested,
+                snapshot = snapshot,
+                targetPeerId = targetPeer.peerId,
+            ) && snapshot.session.lastOutcomeSummary == "SendResult.Sent" && deliveryCount >= 1
+        ) {
+            actions.emitAutomationLog("REFERENCE_AUTOMATION pause.requested role=sender")
+            actions.requestMeshPause()
             progress.pauseRequested = true
             return
         }
         if (progress.pauseRequested && !progress.pauseObserved && hasPauseObserved(snapshot)) {
-            platformServices.emitAutomationLog("REFERENCE_AUTOMATION pause.observed role=sender")
+            actions.emitAutomationLog("REFERENCE_AUTOMATION pause.observed role=sender")
             progress.pauseObserved = true
         }
         if (progress.pauseObserved && !progress.resumeRequested) {
-            platformServices.emitAutomationLog("REFERENCE_AUTOMATION resume.requested role=sender")
-            timelineStore.scope.launch { platformServices.meshLinkController.resume() }
+            actions.emitAutomationLog("REFERENCE_AUTOMATION resume.requested role=sender")
+            actions.requestMeshResume()
             progress.resumeRequested = true
             return
         }
         if (progress.resumeRequested && !progress.resumeObserved && hasResumeObserved(snapshot)) {
-            platformServices.emitAutomationLog("REFERENCE_AUTOMATION resume.observed role=sender")
+            actions.emitAutomationLog("REFERENCE_AUTOMATION resume.observed role=sender")
             progress.resumeObserved = true
         }
-        if (!progress.resumeObserved || !isMeshRunning(snapshot.session.meshStateLabel)) {
-            return
+        if (
+            !progress.recoverySendRequested &&
+                shouldSendAfterPauseResumeRecovery(
+                    resumeObserved = progress.resumeObserved,
+                    snapshot = snapshot,
+                )
+        ) {
+            requestSenderPayload(
+                phase = "recovery",
+                targetPeer = targetPeer,
+                payloadPlan = SenderPayloadPlan.GUIDED_HELLO,
+            )
+            progress.recoverySendRequested = true
         }
-        runDirectSenderAutomationStep(snapshot, payloadPlan = SenderPayloadPlan.GUIDED_HELLO)
+
+        val deliveryDetail =
+            latestSenderDeliveryDetail(snapshot = snapshot, peerSuffix = targetPeerSuffix)
+        if (
+            progress.recoverySendRequested &&
+                !progress.completionLogged &&
+                snapshot.session.lastOutcomeSummary == "SendResult.Sent" &&
+                deliveryCount >= REQUIRED_PAUSE_RESUME_DELIVERY_COUNT &&
+                deliveryDetail != null
+        ) {
+            actions.emitAutomationLog(
+                "REFERENCE_AUTOMATION proof.complete role=sender " +
+                    "outcome=${snapshot.session.lastOutcomeSummary} " +
+                    "peer=$targetPeerSuffix " +
+                    "delivery=$deliveryDetail " +
+                    "deliveries=$deliveryCount"
+            )
+            progress.completionLogged = true
+        }
+        if (
+            progress.recoverySendRequested &&
+                !progress.completionLogged &&
+                snapshot.session.lastOutcomeSummary != null &&
+                isTerminalSenderFailureOutcome(snapshot.session.lastOutcomeSummary)
+        ) {
+            emitSenderFailure(snapshot = snapshot, targetPeerSuffix = targetPeerSuffix)
+        }
     }
 
     private fun runTrustResetRecoverySenderAutomationStep(
@@ -259,12 +326,10 @@ internal class LiveProofAutomationCoordinator(
                 snapshot.session.lastOutcomeSummary == "SendResult.Sent" &&
                 deliveryCount >= 1
         ) {
-            platformServices.emitAutomationLog(
+            actions.emitAutomationLog(
                 "REFERENCE_AUTOMATION trust.reset.requested role=sender peer=$targetPeerSuffix"
             )
-            timelineStore.scope.launch {
-                platformServices.meshLinkController.forgetPeer(targetPeer.peerId)
-            }
+            actions.requestForgetPeer(targetPeer.peerId)
             progress.trustResetRequested = true
             return
         }
@@ -273,7 +338,7 @@ internal class LiveProofAutomationCoordinator(
                 !progress.trustResetObserved &&
                 hasTrustResetRecoveryReady(snapshot, peerSuffix = targetPeerSuffix)
         ) {
-            platformServices.emitAutomationLog(
+            actions.emitAutomationLog(
                 "REFERENCE_AUTOMATION trust.reset.observed role=sender peer=$targetPeerSuffix"
             )
             progress.trustResetObserved = true
@@ -296,7 +361,7 @@ internal class LiveProofAutomationCoordinator(
                 deliveryCount >= REQUIRED_RECOVERY_DELIVERY_COUNT &&
                 deliveryDetail != null
         ) {
-            platformServices.emitAutomationLog(
+            actions.emitAutomationLog(
                 "REFERENCE_AUTOMATION proof.complete role=sender " +
                     "outcome=${snapshot.session.lastOutcomeSummary} " +
                     "peer=$targetPeerSuffix " +
@@ -335,7 +400,7 @@ internal class LiveProofAutomationCoordinator(
                 targetPeer == null &&
                 bootstrapPeer != null
         ) {
-            platformServices.emitAutomationLog(
+            actions.emitAutomationLog(
                 "REFERENCE_AUTOMATION bootstrap.requested role=sender " +
                     "peer=${bootstrapPeer.peerSuffix} " +
                     "targetPeerId=${automationConfig.targetPeerId ?: "auto"}"
@@ -380,7 +445,7 @@ internal class LiveProofAutomationCoordinator(
                 lastOutcomeSummary == "SendResult.Sent" &&
                 deliveryDetail != null
         ) {
-            platformServices.emitAutomationLog(
+            actions.emitAutomationLog(
                 "REFERENCE_AUTOMATION proof.complete role=sender " +
                     "outcome=$lastOutcomeSummary " +
                     "peer=${targetPeerSuffix ?: "none"} " +
@@ -403,10 +468,10 @@ internal class LiveProofAutomationCoordinator(
         targetPeer: AutoSendTargetPeer,
         payloadPlan: SenderPayloadPlan,
     ): Unit {
-        val payloadText = payloadPlan.payload(platformServices.platformName)
+        val payloadText = payloadPlan.payload(actions.platformName)
         val priority = payloadPlan.priority
         val payloadBytes = payloadText.encodeToByteArray().size
-        platformServices.emitAutomationLog(
+        actions.emitAutomationLog(
             "REFERENCE_AUTOMATION send.requested role=sender " +
                 "phase=$phase " +
                 "peer=${targetPeer.peerSuffix} " +
@@ -417,13 +482,11 @@ internal class LiveProofAutomationCoordinator(
                 "requiredPeerCount=${automationConfig.requiredPeerCount} " +
                 "targetPeerId=${automationConfig.targetPeerId ?: "auto"}"
         )
-        timelineStore.scope.launch {
-            platformServices.meshLinkController.sendSamplePayload(
-                peerId = targetPeer.peerId,
-                payloadText = payloadText,
-                priority = priority,
-            )
-        }
+        actions.requestSendSamplePayload(
+            peerId = targetPeer.peerId,
+            payloadText = payloadText,
+            priority = priority,
+        )
     }
 
     private fun emitSenderFailure(
@@ -432,7 +495,7 @@ internal class LiveProofAutomationCoordinator(
     ): Unit {
         val latestObservation =
             latestAutomationObservation(snapshot = snapshot, peerSuffix = targetPeerSuffix)
-        platformServices.emitAutomationLog(
+        actions.emitAutomationLog(
             "REFERENCE_AUTOMATION proof.failed role=sender " +
                 "outcome=${snapshot.session.lastOutcomeSummary.orEmpty()} " +
                 "peer=${targetPeerSuffix ?: "none"} " +
@@ -455,7 +518,7 @@ internal class LiveProofAutomationCoordinator(
         if (progress.lastBootstrapObservationEntryId == observation.entryId) {
             return
         }
-        platformServices.emitAutomationLog(
+        actions.emitAutomationLog(
             "REFERENCE_AUTOMATION bootstrap.observed role=sender " +
                 "family=${observation.family} " +
                 "title=${observation.title} " +
@@ -480,7 +543,7 @@ internal class LiveProofAutomationCoordinator(
         if (progress.lastSenderObservationEntryId == observation.entryId) {
             return
         }
-        platformServices.emitAutomationLog(
+        actions.emitAutomationLog(
             "REFERENCE_AUTOMATION sender.observed role=sender " +
                 "family=${observation.family} " +
                 "title=${observation.title} " +
@@ -505,7 +568,7 @@ internal class LiveProofAutomationCoordinator(
         ) {
             return
         }
-        platformServices.emitAutomationLog(
+        actions.emitAutomationLog(
             "REFERENCE_AUTOMATION sender.outcome role=sender summary=$lastOutcomeSummary"
         )
         progress.lastSenderOutcomeSummary = lastOutcomeSummary
@@ -529,11 +592,15 @@ internal class LiveProofAutomationCoordinator(
                     snapshot = snapshot,
                     timelineUiState = timelineUiState,
                     requiredInboundCount = 1,
-                    requiredLargestInboundBytes =
-                        largeTransferPayloadBytes(platformServices.platformName),
+                    requiredLargestInboundBytes = largeTransferPayloadBytes(actions.platformName),
+                )
+            ReferenceAutomationScenario.DIRECT_PAUSE_RESUME ->
+                runPassiveBaselineAutomationStep(
+                    snapshot = snapshot,
+                    timelineUiState = timelineUiState,
+                    requiredInboundCount = REQUIRED_PAUSE_RESUME_INBOUND_COUNT,
                 )
             ReferenceAutomationScenario.RELAY_CONSTRAINED,
-            ReferenceAutomationScenario.DIRECT_PAUSE_RESUME,
             ReferenceAutomationScenario.DIRECT_GUIDED ->
                 runPassiveBaselineAutomationStep(
                     snapshot = snapshot,
@@ -564,10 +631,10 @@ internal class LiveProofAutomationCoordinator(
                 hasInboundMessage = inboundReady,
             )
         ) {
-            platformServices.emitAutomationLog(
+            actions.emitAutomationLog(
                 "REFERENCE_AUTOMATION session.end.requested role=passive inboundCount=$inboundCount"
             )
-            timelineStore.endCurrentSession()
+            actions.requestEndCurrentSession()
             progress.retainRequested = true
         }
 
@@ -578,10 +645,10 @@ internal class LiveProofAutomationCoordinator(
                 retainedSessionCount = timelineUiState.retainedSessions.size,
             )
         ) {
-            platformServices.emitAutomationLog(
+            actions.emitAutomationLog(
                 "REFERENCE_AUTOMATION export.requested role=passive policy=redacted-preview"
             )
-            timelineStore.exportCurrentSession(ExportPayloadPolicy.REDACTED_PREVIEW)
+            actions.requestExportCurrentSession(ExportPayloadPolicy.REDACTED_PREVIEW)
             progress.exportRequested = true
         }
 
@@ -593,7 +660,7 @@ internal class LiveProofAutomationCoordinator(
         if (!progress.completionLogged && exportPath != null) {
             val largestInboundText =
                 largestInboundBytes?.let { bytes -> " largestInboundBytes=$bytes" }.orEmpty()
-            platformServices.emitAutomationLog(
+            actions.emitAutomationLog(
                 "REFERENCE_AUTOMATION proof.complete role=passive " +
                     "inbound=$inboundReady " +
                     "inboundCount=$inboundCount " +
@@ -614,10 +681,10 @@ internal class LiveProofAutomationCoordinator(
         announcePassiveObservationIfNeeded(snapshot = snapshot)
 
         if (!progress.fullExportRequested && trustEstablished && inboundReady) {
-            platformServices.emitAutomationLog(
+            actions.emitAutomationLog(
                 "REFERENCE_AUTOMATION export.requested role=passive policy=full-payload"
             )
-            timelineStore.exportCurrentSession(ExportPayloadPolicy.FULL_PAYLOAD_OPT_IN)
+            actions.requestExportCurrentSession(ExportPayloadPolicy.FULL_PAYLOAD_OPT_IN)
             progress.fullExportRequested = true
         }
         trackExportPath(
@@ -626,10 +693,10 @@ internal class LiveProofAutomationCoordinator(
         )
 
         if (progress.fullExportPath != null && !progress.retainRequested) {
-            platformServices.emitAutomationLog(
+            actions.emitAutomationLog(
                 "REFERENCE_AUTOMATION session.end.requested role=passive inboundCount=$inboundCount"
             )
-            timelineStore.endCurrentSession()
+            actions.requestEndCurrentSession()
             progress.retainRequested = true
         }
         if (
@@ -640,10 +707,10 @@ internal class LiveProofAutomationCoordinator(
                     retainedSessionCount = timelineUiState.retainedSessions.size,
                 )
         ) {
-            platformServices.emitAutomationLog(
+            actions.emitAutomationLog(
                 "REFERENCE_AUTOMATION export.requested role=passive policy=redacted-preview"
             )
-            timelineStore.exportCurrentSession(ExportPayloadPolicy.REDACTED_PREVIEW)
+            actions.requestExportCurrentSession(ExportPayloadPolicy.REDACTED_PREVIEW)
             progress.exportRequested = true
         }
         trackExportPath(
@@ -656,7 +723,7 @@ internal class LiveProofAutomationCoordinator(
                 progress.fullExportPath != null &&
                 progress.redactedExportPath != null
         ) {
-            platformServices.emitAutomationLog(
+            actions.emitAutomationLog(
                 "REFERENCE_AUTOMATION proof.complete role=passive " +
                     "inbound=$inboundReady " +
                     "inboundCount=$inboundCount " +
@@ -685,7 +752,7 @@ internal class LiveProofAutomationCoordinator(
                     return progress.redactedExportPath
                 }
                 progress.redactedExportPath = currentExportPath
-                platformServices.emitAutomationLog(
+                actions.emitAutomationLog(
                     "REFERENCE_AUTOMATION export.completed role=passive policy=redacted-preview path=$currentExportPath"
                 )
                 return progress.redactedExportPath
@@ -695,7 +762,7 @@ internal class LiveProofAutomationCoordinator(
                     return progress.fullExportPath
                 }
                 progress.fullExportPath = currentExportPath
-                platformServices.emitAutomationLog(
+                actions.emitAutomationLog(
                     "REFERENCE_AUTOMATION export.completed role=passive policy=full-payload path=$currentExportPath"
                 )
                 return progress.fullExportPath
@@ -708,7 +775,7 @@ internal class LiveProofAutomationCoordinator(
         if (progress.lastPassiveObservationEntryId == observation.entryId) {
             return
         }
-        platformServices.emitAutomationLog(
+        actions.emitAutomationLog(
             "REFERENCE_AUTOMATION passive.observed role=passive " +
                 "family=${observation.family} " +
                 "title=${observation.title} " +
@@ -727,7 +794,7 @@ internal class LiveProofAutomationCoordinator(
         if (progress.lastRelayObservationEntryId == observation.entryId) {
             return
         }
-        platformServices.emitAutomationLog(
+        actions.emitAutomationLog(
             "REFERENCE_AUTOMATION relay.observed role=relay " +
                 "family=${observation.family} " +
                 "title=${observation.title} " +
@@ -752,31 +819,33 @@ private fun latestSenderDeliveryDetail(
 }
 
 internal class LiveProofAutomationProgress {
-    var announced by mutableStateOf(false)
-    var peerAnnounced by mutableStateOf(false)
-    var meshStartRequested by mutableStateOf(false)
-    var bootstrapRequested by mutableStateOf(false)
-    var sendRequested by mutableStateOf(false)
-    var pauseRequested by mutableStateOf(false)
-    var pauseObserved by mutableStateOf(false)
-    var resumeRequested by mutableStateOf(false)
-    var resumeObserved by mutableStateOf(false)
-    var trustResetRequested by mutableStateOf(false)
-    var trustResetObserved by mutableStateOf(false)
-    var recoverySendRequested by mutableStateOf(false)
-    var retainRequested by mutableStateOf(false)
-    var exportRequested by mutableStateOf(false)
-    var fullExportRequested by mutableStateOf(false)
-    var fullExportPath by mutableStateOf<String?>(null)
-    var redactedExportPath by mutableStateOf<String?>(null)
-    var lastObservedExportPath by mutableStateOf<String?>(null)
-    var completionLogged by mutableStateOf(false)
-    var lastPeerSnapshotSummary by mutableStateOf<String?>(null)
-    var lastBootstrapObservationEntryId by mutableStateOf<String?>(null)
-    var lastSenderObservationEntryId by mutableStateOf<String?>(null)
-    var lastPassiveObservationEntryId by mutableStateOf<String?>(null)
-    var lastRelayObservationEntryId by mutableStateOf<String?>(null)
-    var lastSenderOutcomeSummary by mutableStateOf<String?>(null)
+    var announced: Boolean = false
+    var peerAnnounced: Boolean = false
+    var meshStartRequested: Boolean = false
+    var bootstrapRequested: Boolean = false
+    var sendRequested: Boolean = false
+    var pauseRequested: Boolean = false
+    var pauseObserved: Boolean = false
+    var pauseResumeTargetPeerId: String? = null
+    var pauseResumeTargetPeerSuffix: String? = null
+    var resumeRequested: Boolean = false
+    var resumeObserved: Boolean = false
+    var trustResetRequested: Boolean = false
+    var trustResetObserved: Boolean = false
+    var recoverySendRequested: Boolean = false
+    var retainRequested: Boolean = false
+    var exportRequested: Boolean = false
+    var fullExportRequested: Boolean = false
+    var fullExportPath: String? = null
+    var redactedExportPath: String? = null
+    var lastObservedExportPath: String? = null
+    var completionLogged: Boolean = false
+    var lastPeerSnapshotSummary: String? = null
+    var lastBootstrapObservationEntryId: String? = null
+    var lastSenderObservationEntryId: String? = null
+    var lastPassiveObservationEntryId: String? = null
+    var lastRelayObservationEntryId: String? = null
+    var lastSenderOutcomeSummary: String? = null
 }
 
 private enum class SenderPayloadPlan(val label: String, val priority: DeliveryPriority) {
@@ -797,5 +866,7 @@ private fun largeTransferPayloadBytes(platformName: String): Int {
     return buildLargeTransferPayload(platformName).encodeToByteArray().size
 }
 
+private const val REQUIRED_PAUSE_RESUME_DELIVERY_COUNT: Int = 2
+private const val REQUIRED_PAUSE_RESUME_INBOUND_COUNT: Int = 2
 private const val REQUIRED_RECOVERY_DELIVERY_COUNT: Int = 2
 private const val REQUIRED_RECOVERY_INBOUND_COUNT: Int = 2

@@ -27,6 +27,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
@@ -40,7 +41,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import ch.trancee.meshlink.reference.advanced.AdvancedControlsScreen
 import ch.trancee.meshlink.reference.advanced.AdvancedControlsViewModel
-import ch.trancee.meshlink.reference.automation.ReferenceLiveProofAutomation
+import ch.trancee.meshlink.reference.automation.LiveProofAutomationDriver
+import ch.trancee.meshlink.reference.automation.TimelineStoreLiveProofAutomationActions
 import ch.trancee.meshlink.reference.design.ReferenceBadge
 import ch.trancee.meshlink.reference.guided.GuidedFirstExchangeScreen
 import ch.trancee.meshlink.reference.guided.GuidedFirstExchangeViewModel
@@ -179,12 +181,23 @@ public fun ReferenceNavHost(platformServices: PlatformServices) {
             meshStateLabel = snapshot.session.meshStateLabel,
         )
 
-    ReferenceLiveProofAutomation(
-        platformServices = sessionPlatformServices,
-        guidedViewModel = guidedViewModel,
-        timelineStore = timelineStore,
-        snapshot = snapshot,
-    )
+    val liveProofAutomationDriver =
+        remember(platformServices.platformName) {
+            LiveProofAutomationDriver(
+                automationConfig = sessionPlatformServices.automationConfig,
+                timelineUiStateFlow = timelineStore.uiState,
+                actions =
+                    TimelineStoreLiveProofAutomationActions(
+                        platformServices = sessionPlatformServices,
+                        timelineStore = timelineStore,
+                    ),
+            )
+        }
+
+    DisposableEffect(liveProofAutomationDriver) {
+        liveProofAutomationDriver.start()
+        onDispose { liveProofAutomationDriver.close() }
+    }
 
     ReferenceShellScaffold(
         headerState = shellHeaderState,

@@ -1,66 +1,9 @@
-@file:Suppress("FunctionNaming")
-
 package ch.trancee.meshlink.reference.automation
 
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
-import ch.trancee.meshlink.reference.guided.GuidedFirstExchangeViewModel
 import ch.trancee.meshlink.reference.meshlink.ReferenceControllerSnapshot
 import ch.trancee.meshlink.reference.meshlink.redactedSuffix
 import ch.trancee.meshlink.reference.model.TimelineEntry
 import ch.trancee.meshlink.reference.model.TimelineFamily
-import ch.trancee.meshlink.reference.platform.PlatformServices
-import ch.trancee.meshlink.reference.timeline.TechnicalTimelineStore
-
-/** Drives one real-device proof flow using the live reference app surfaces. */
-@Composable
-internal fun ReferenceLiveProofAutomation(
-    platformServices: PlatformServices,
-    guidedViewModel: GuidedFirstExchangeViewModel,
-    timelineStore: TechnicalTimelineStore,
-    snapshot: ReferenceControllerSnapshot,
-) {
-    val automationConfig = platformServices.automationConfig ?: return
-    if (!automationConfig.isLiveProofMode()) {
-        return
-    }
-
-    val timelineUiState by timelineStore.uiState.collectAsState()
-    val progress = rememberLiveProofAutomationProgress(automationConfig.storageSubdirectory)
-
-    LaunchedEffect(
-        automationConfig,
-        snapshot.session.meshStateLabel,
-        snapshot.session.lastOutcomeSummary,
-        snapshot.peers.size,
-        snapshot.timeline.size,
-        timelineUiState.retainedSessions.size,
-        timelineUiState.lastExportPath,
-    ) {
-        LiveProofAutomationCoordinator(
-                automationConfig = automationConfig,
-                platformServices = platformServices,
-                guidedViewModel = guidedViewModel,
-                timelineStore = timelineStore,
-                progress = progress,
-            )
-            .run(snapshot = snapshot, timelineUiState = timelineUiState)
-    }
-}
-
-private fun ReferenceAutomationConfig.isLiveProofMode(): Boolean {
-    return mode == ReferenceAutomationMode.LIVE_PROOF
-}
-
-@Composable
-private fun rememberLiveProofAutomationProgress(
-    storageSubdirectory: String
-): LiveProofAutomationProgress {
-    return remember(storageSubdirectory) { LiveProofAutomationProgress() }
-}
 
 internal fun shouldAutoSendGuidedHello(
     snapshot: ReferenceControllerSnapshot,
@@ -102,7 +45,24 @@ internal fun hasAvailableRouteForPeer(
     snapshot: ReferenceControllerSnapshot,
     peerId: String,
 ): Boolean {
+    return hasAvailableRouteForPeerAfterEntry(
+        snapshot = snapshot,
+        peerId = peerId,
+        boundaryEntryId = null,
+    )
+}
+
+internal fun hasAvailableRouteForPeerAfterEntry(
+    snapshot: ReferenceControllerSnapshot,
+    peerId: String,
+    boundaryEntryId: String?,
+): Boolean {
+    var boundaryReached = boundaryEntryId == null
     return snapshot.timeline.any { entry ->
+        if (!boundaryReached) {
+            boundaryReached = entry.entryId == boundaryEntryId
+            return@any false
+        }
         entry.family == TimelineFamily.DIAGNOSTIC &&
             entry.peerSuffix == redactedSuffix(peerId) &&
             entry.detail.contains("peerId=$peerId") &&
@@ -131,6 +91,23 @@ internal fun shouldRequestLiveProofMeshStart(
     return !meshStartRequested &&
         !hasMeshEnteredLifecycle(snapshot.session.meshStateLabel) &&
         readinessBlockers.isEmpty()
+}
+
+internal fun shouldRequestPauseForPauseResume(
+    pauseRequested: Boolean,
+    snapshot: ReferenceControllerSnapshot,
+    targetPeerId: String,
+): Boolean {
+    return !pauseRequested &&
+        isMeshRunning(snapshot.session.meshStateLabel) &&
+        hasAvailableRouteForPeer(snapshot, targetPeerId)
+}
+
+internal fun shouldSendAfterPauseResumeRecovery(
+    resumeObserved: Boolean,
+    snapshot: ReferenceControllerSnapshot,
+): Boolean {
+    return resumeObserved && isMeshRunning(snapshot.session.meshStateLabel)
 }
 
 internal fun shouldRetainPassiveLiveProof(

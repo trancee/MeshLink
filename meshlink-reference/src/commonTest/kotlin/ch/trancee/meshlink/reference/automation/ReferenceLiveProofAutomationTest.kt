@@ -518,6 +518,73 @@ class ReferenceLiveProofAutomationTest {
     }
 
     @Test
+    fun pauseResumeAutomationWaitsForARouteBeforePausingAndOnlySendsAgainAfterResume() {
+        // Arrange
+        val peerId = "peer-selected-abcdef"
+        val resumedSnapshotWithoutRoute =
+            ReferenceControllerSnapshot(
+                session =
+                    ReferenceSession(
+                        sessionId = "session-1",
+                        scenarioId = "guided-first-exchange",
+                        authorityMode = ReferenceAuthorityMode.LIVE,
+                        startedAtEpochMillis = 1L,
+                        meshStateLabel = "Running",
+                    ),
+                peers = emptyList(),
+                timeline = emptyList(),
+                activePowerModeLabel = "Automatic",
+            )
+        val resumedSnapshotWithRoute =
+            resumedSnapshotWithoutRoute.copy(
+                timeline =
+                    listOf(
+                        TimelineEntry(
+                            entryId = "session-1-1",
+                            sessionId = "session-1",
+                            occurredAtEpochMillis = 2L,
+                            family = TimelineFamily.DIAGNOSTIC,
+                            severity = TimelineSeverity.INFO,
+                            title = "ROUTE_DISCOVERED",
+                            detail =
+                                "ROUTE_DISCOVERED @ transport.handshake.message2.complete.routeAvailable {peerId=$peerId, routeAvailable=true}",
+                            peerSuffix = redactedSuffix(peerId),
+                        )
+                    )
+            )
+
+        // Act
+        val pauseBlocked =
+            shouldRequestPauseForPauseResume(
+                pauseRequested = false,
+                snapshot = resumedSnapshotWithoutRoute,
+                targetPeerId = peerId,
+            )
+        val pauseAllowed =
+            shouldRequestPauseForPauseResume(
+                pauseRequested = false,
+                snapshot = resumedSnapshotWithRoute,
+                targetPeerId = peerId,
+            )
+        val sendBlocked =
+            shouldSendAfterPauseResumeRecovery(
+                resumeObserved = false,
+                snapshot = resumedSnapshotWithRoute,
+            )
+        val sendAllowed =
+            shouldSendAfterPauseResumeRecovery(
+                resumeObserved = true,
+                snapshot = resumedSnapshotWithoutRoute,
+            )
+
+        // Assert
+        assertFalse(pauseBlocked)
+        assertTrue(pauseAllowed)
+        assertFalse(sendBlocked)
+        assertTrue(sendAllowed)
+    }
+
+    @Test
     fun inboundHelpersTrackRecoveryCountsAndLargestPayloadBytes() {
         // Arrange
         val snapshot =

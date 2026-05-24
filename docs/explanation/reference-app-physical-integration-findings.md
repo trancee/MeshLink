@@ -82,21 +82,40 @@ The effect is subtle but dangerous:
 That is why the direct runner now force-stops the non-participating Android peer
 when the matrix knows about it.
 
-### 3. Sender-side feature probes are still useful when passive-side retention is blocked
+### 3. Moving passive automation off the Compose surface fixed the direct-proof blind spot
 
-On the current device set, the iPhone 15 sender successfully completed the new
-physical pause/resume, trust-reset recovery, and large-transfer scenarios against
-Samsung in sender-only mode.
+The direct passive automation used to live behind the app UI lifecycle. On the
+current Samsung direct-passive setup that created a misleading failure mode:
 
-Those runs gave us real-device evidence for:
+- the Android runtime logged real inbound delivery
+- the shared session state contained the inbound evidence
+- but the passive proof orchestration never advanced to end/export/proof-complete
 
-- explicit mesh pause and resume before the send
-- a real `forgetPeer` followed by a second successful delivery (`deliveries=2`)
-- a large 13,824-byte physical send request and delivery completion
+Moving the live-proof automation onto the shared session/timeline flows fixed
+that blind spot. After the change:
 
-At the same time, the passive-side Samsung direct runs did not autonomously end
-and export the session even after inbound delivery was visible in the runtime
-logs. That is a real operational gap worth documenting rather than hiding.
+- `direct-guided` passed end-to-end again on iPhone 15 → Samsung
+- `direct-trust-reset-recovery` passed end-to-end with `deliveries=2`
+- the passive side reached retained export without depending on Compose
+  recomposition timing
+
+That is an important result because it narrows the remaining direct-scenario
+failures to sender/runtime behavior instead of passive UI orchestration.
+
+### 4. Two direct scenarios still expose real runtime blockers
+
+After the off-UI automation fix, two advanced direct scenarios still fail on the
+current iPhone 15 → Samsung setup:
+
+- **Pause/resume recovery**: the warmup send succeeds, but the post-resume
+  recovery send still expires as `SendResult.NotSent(UNREACHABLE)`.
+- **Large transfer**: the first 13,824-byte send never establishes a route on
+  the sender and expires as `SendResult.NotSent(UNREACHABLE)` before the
+  passive side receives anything.
+
+Those are no longer passive-automation problems. They are now honest transport
+or runtime recovery problems worth debugging directly in the sender/runtime
+surface.
 
 ## What the early relay failures taught us
 
