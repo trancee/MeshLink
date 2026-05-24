@@ -17,6 +17,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -124,6 +125,123 @@ class MeshEngineTransportSupportTest {
             }
         assertEquals(2, retractedDiagnostics.size)
     }
+
+    @Test
+    fun `peer discovered on gatt is rejected without peer events or prewarm`() = runBlocking {
+        // Arrange
+        val harness = transportSupportHarness()
+        val peerId = PeerId("peer-gatt")
+
+        // Act
+        harness.support.handleTransportEvent(
+            TransportEvent.PeerDiscovered(peerId = peerId, transportMode = TransportMode.GATT)
+        )
+
+        // Assert
+        assertTrue(harness.mutablePeerEvents.replayCache.isEmpty())
+        assertTrue(harness.prewarmedPeerIds.isEmpty())
+        assertNotNull(
+            harness.diagnostics.firstOrNull { diagnostic ->
+                diagnostic.code == DiagnosticCode.TRANSPORT_MODE_CHANGED &&
+                    diagnostic.stage == "transport.peerDiscovered.rejected" &&
+                    diagnostic.metadata["accepted"] == "false" &&
+                    diagnostic.metadata["transportMode"] == TransportMode.GATT.name
+            }
+        )
+        Unit
+    }
+
+    @Test
+    fun `repeat l2cap discovery emits state changed after the first observation`() = runBlocking {
+        // Arrange
+        val harness = transportSupportHarness()
+        val peerId = PeerId("peer-repeat")
+        harness.support.handleTransportEvent(
+            TransportEvent.PeerDiscovered(peerId = peerId, transportMode = TransportMode.L2CAP)
+        )
+
+        // Act
+        harness.support.handleTransportEvent(
+            TransportEvent.PeerDiscovered(peerId = peerId, transportMode = TransportMode.L2CAP)
+        )
+
+        // Assert
+        val events = harness.mutablePeerEvents.replayCache
+        assertIs<PeerEvent.Found>(events[0])
+        val stateChanged = assertIs<PeerEvent.StateChanged>(events[1])
+        assertEquals(peerId.value, stateChanged.peerId.value)
+        assertEquals(PeerConnectionState.CONNECTED, stateChanged.state)
+        assertEquals(listOf(peerId.value, peerId.value), harness.prewarmedPeerIds)
+    }
+
+    @Test
+    fun `peer lost expires routes and emits lost peer event`() = runBlocking {
+        // Arrange
+        val harness = transportSupportHarness()
+        val peerId = PeerId("peer-lost")
+        harness.presenceTracker.onPeerConnected(peerId)
+        harness.routeCoordinator.onPeerConnected(
+            peerId = peerId,
+            trustRecord = trustRecord(peerId = peerId, seed = 4),
+        )
+
+        // Act
+        harness.support.handleTransportEvent(TransportEvent.PeerLost(peerId))
+
+        // Assert
+        val lost = assertIs<PeerEvent.Lost>(harness.mutablePeerEvents.replayCache.single())
+        assertEquals(peerId.value, lost.peerId.value)
+        assertNull(harness.routeCoordinator.routeFor(peerId))
+        assertNotNull(
+            harness.diagnostics.firstOrNull { diagnostic ->
+                diagnostic.code == DiagnosticCode.ROUTE_EXPIRED &&
+                    diagnostic.stage == "transport.peerLost.routeExpired" &&
+                    diagnostic.metadata["removedByPeerId"] == peerId.value
+            }
+        )
+        Unit
+    }
+
+    @Test
+    fun `frame received routes all direct wire frame types to the matching callbacks`() =
+        runBlocking {
+            // Arrange
+            val harness = transportSupportHarness()
+            val peerId = PeerId("peer-frames")
+            val message1 = byteArrayOf(0x01)
+            val message2 = byteArrayOf(0x02)
+            val message3 = byteArrayOf(0x03)
+            val data = byteArrayOf(0x04)
+
+            // Act
+            harness.support.handleTransportEvent(
+                TransportEvent.FrameReceived(
+                    peerId,
+                    DirectWireFrame.HandshakeMessage1(message1).encode(),
+                )
+            )
+            harness.support.handleTransportEvent(
+                TransportEvent.FrameReceived(
+                    peerId,
+                    DirectWireFrame.HandshakeMessage2(message2).encode(),
+                )
+            )
+            harness.support.handleTransportEvent(
+                TransportEvent.FrameReceived(
+                    peerId,
+                    DirectWireFrame.HandshakeMessage3(message3).encode(),
+                )
+            )
+            harness.support.handleTransportEvent(
+                TransportEvent.FrameReceived(peerId, DirectWireFrame.Data(data).encode())
+            )
+
+            // Assert
+            assertEquals(listOf(peerId.value to message1.toList()), harness.handshakeMessage1Calls)
+            assertEquals(listOf(peerId.value to message2.toList()), harness.handshakeMessage2Calls)
+            assertEquals(listOf(peerId.value to message3.toList()), harness.handshakeMessage3Calls)
+            assertEquals(listOf(peerId.value to data.toList()), harness.encryptedDataCalls)
+        }
 }
 
 private data class TransportSupportHarness(
@@ -133,6 +251,10 @@ private data class TransportSupportHarness(
     val mutablePeerEvents: MutableSharedFlow<PeerEvent>,
     val diagnostics: MutableList<RecordedTransportSupportDiagnostic>,
     val prewarmedPeerIds: MutableList<String>,
+    val handshakeMessage1Calls: MutableList<Pair<String, List<Byte>>>,
+    val handshakeMessage2Calls: MutableList<Pair<String, List<Byte>>>,
+    val handshakeMessage3Calls: MutableList<Pair<String, List<Byte>>>,
+    val encryptedDataCalls: MutableList<Pair<String, List<Byte>>>,
 )
 
 private fun transportSupportHarness(): TransportSupportHarness {
@@ -141,6 +263,10 @@ private fun transportSupportHarness(): TransportSupportHarness {
     val mutablePeerEvents = MutableSharedFlow<PeerEvent>(replay = 16, extraBufferCapacity = 16)
     val diagnostics = mutableListOf<RecordedTransportSupportDiagnostic>()
     val prewarmedPeerIds = mutableListOf<String>()
+    val handshakeMessage1Calls = mutableListOf<Pair<String, List<Byte>>>()
+    val handshakeMessage2Calls = mutableListOf<Pair<String, List<Byte>>>()
+    val handshakeMessage3Calls = mutableListOf<Pair<String, List<Byte>>>()
+    val encryptedDataCalls = mutableListOf<Pair<String, List<Byte>>>()
     val support =
         MeshEngineTransportSupport(
             peerState =
@@ -157,10 +283,18 @@ private fun transportSupportHarness(): TransportSupportHarness {
             callbacks =
                 MeshEngineTransportCallbacks(
                     prewarmHopSession = { peerId -> prewarmedPeerIds += peerId.value },
-                    handleHandshakeMessage1 = { _, _ -> error("unexpected handshake message 1") },
-                    handleHandshakeMessage2 = { _, _ -> error("unexpected handshake message 2") },
-                    handleHandshakeMessage3 = { _, _ -> error("unexpected handshake message 3") },
-                    handleEncryptedDataFrame = { _, _ -> error("unexpected encrypted data") },
+                    handleHandshakeMessage1 = { peerId, payload ->
+                        handshakeMessage1Calls += peerId.value to payload.toList()
+                    },
+                    handleHandshakeMessage2 = { peerId, payload ->
+                        handshakeMessage2Calls += peerId.value to payload.toList()
+                    },
+                    handleHandshakeMessage3 = { peerId, payload ->
+                        handshakeMessage3Calls += peerId.value to payload.toList()
+                    },
+                    handleEncryptedDataFrame = { peerId, payload ->
+                        encryptedDataCalls += peerId.value to payload.toList()
+                    },
                 ),
             emitDiagnostic = { code, severity, stage, peerSuffix, reason, metadata ->
                 diagnostics +=
@@ -181,6 +315,10 @@ private fun transportSupportHarness(): TransportSupportHarness {
         mutablePeerEvents = mutablePeerEvents,
         diagnostics = diagnostics,
         prewarmedPeerIds = prewarmedPeerIds,
+        handshakeMessage1Calls = handshakeMessage1Calls,
+        handshakeMessage2Calls = handshakeMessage2Calls,
+        handshakeMessage3Calls = handshakeMessage3Calls,
+        encryptedDataCalls = encryptedDataCalls,
     )
 }
 
