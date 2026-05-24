@@ -20,9 +20,6 @@ private const val PEER_LOG_SUFFIX_LENGTH: Int = 6
 private const val PREFERRED_NOTIFICATION_FRAME_BYTES: Int = 495
 private const val MAX_FRAME_PAYLOAD_BYTES: Int = 128 * 1024
 private const val MIN_NOTIFICATION_CHUNK_BYTES: Int = 1
-private const val NO_FRAME_COUNT: Int = 0
-private const val PUMP_HEAD_FRAME_COUNT: Int = 1
-private const val NO_PENDING_CHUNKS: Int = 0
 
 internal class IosGattNotifyPeer
 internal constructor(
@@ -49,12 +46,9 @@ internal constructor(peer: IosGattNotifyPeer, private val dependencies: IosGattN
 
     private val outgoingFrames = IosL2capFrameBuffer()
     private val incomingFrames = IosL2capFrameBuffer()
-    private val pendingFrames: ArrayDeque<IosGattNotifyPendingFrame> = ArrayDeque()
+    private val pumpState = IosGattNotifyPumpState()
     private val stateLock = NSLock()
     private var lowLatencyRequested: Boolean = false
-    private var closed: Boolean = false
-    private var pumpInProgress: Boolean = false
-    private var retryPumpScheduled: Boolean = false
 
     internal suspend fun enqueue(payload: ByteArray): Boolean {
         val pendingFrame = encodePendingFrame(payload)
@@ -67,7 +61,7 @@ internal constructor(peer: IosGattNotifyPeer, private val dependencies: IosGattN
 
     internal fun appendIncomingWrite(chunk: ByteArray): List<ByteArray> {
         return stateLock.withLock {
-            if (closed) {
+            if (pumpState.isClosed()) {
                 emptyList()
             } else {
                 incomingFrames.append(chunk)
@@ -89,36 +83,19 @@ internal constructor(peer: IosGattNotifyPeer, private val dependencies: IosGattN
                 try {
                     drainPendingChunks(pumpTargets)
                 } finally {
-                    stateLock.withLock { pumpInProgress = false }
+                    stateLock.withLock { pumpState.finishPump() }
                 }
         }
     }
 
     internal fun discardQueuedFrames(): Int {
-        val discardedFrames = mutableListOf<IosGattNotifyPendingFrame>()
-        stateLock.withLock {
-            if (pendingFrames.isEmpty()) {
-                return@withLock
-            }
-            val preserveHead = pumpInProgress
-            while (
-                pendingFrames.size > if (preserveHead) PUMP_HEAD_FRAME_COUNT else NO_FRAME_COUNT
-            ) {
-                discardedFrames += pendingFrames.removeLast()
-            }
-        }
+        val discardedFrames = stateLock.withLock { pumpState.discardQueuedFrames() }
         discardedFrames.forEach { frame -> frame.completeIfPending(false) }
         return discardedFrames.size
     }
 
     internal fun close(): Unit {
-        val discardedFrames = mutableListOf<IosGattNotifyPendingFrame>()
-        stateLock.withLock {
-            closed = true
-            while (pendingFrames.isNotEmpty()) {
-                discardedFrames += pendingFrames.removeFirst()
-            }
-        }
+        val discardedFrames = stateLock.withLock { pumpState.close() }
         discardedFrames.forEach { frame -> frame.completeIfPending(false) }
     }
 
@@ -132,14 +109,7 @@ internal constructor(peer: IosGattNotifyPeer, private val dependencies: IosGattN
     }
 
     private fun enqueuePendingFrame(pendingFrame: IosGattNotifyPendingFrame): Boolean {
-        return stateLock.withLock {
-            if (closed) {
-                false
-            } else {
-                pendingFrames.addLast(pendingFrame)
-                true
-            }
-        }
+        return stateLock.withLock { pumpState.enqueue(pendingFrame) }
     }
 
     private suspend fun deliverPendingFrame(pendingFrame: IosGattNotifyPendingFrame): Boolean {
@@ -152,7 +122,7 @@ internal constructor(peer: IosGattNotifyPeer, private val dependencies: IosGattN
     }
 
     private fun rejectPendingFrame(pendingFrame: IosGattNotifyPendingFrame): Boolean {
-        stateLock.withLock { pendingFrames.remove(pendingFrame) }
+        stateLock.withLock { pumpState.reject(pendingFrame) }
         pendingFrame.completeIfPending(false)
         return false
     }
@@ -171,15 +141,7 @@ internal constructor(peer: IosGattNotifyPeer, private val dependencies: IosGattN
     }
 
     private fun beginPump(): Boolean {
-        return stateLock.withLock {
-            if (closed || pumpInProgress) {
-                false
-            } else {
-                pumpInProgress = true
-                retryPumpScheduled = false
-                true
-            }
-        }
+        return stateLock.withLock { pumpState.beginPump() }
     }
 
     private fun drainPendingChunks(targets: PumpTargets): Boolean {
@@ -204,13 +166,7 @@ internal constructor(peer: IosGattNotifyPeer, private val dependencies: IosGattN
     }
 
     private fun nextPendingChunkOrNull(): ByteArray? {
-        return stateLock.withLock {
-            if (closed) {
-                null
-            } else {
-                pendingFrames.firstOrNull()?.nextChunkOrNull()
-            }
-        }
+        return stateLock.withLock { pumpState.nextPendingChunkOrNull() }
     }
 
     private fun sendChunk(targets: PumpTargets, nextChunk: ByteArray): Boolean {
@@ -221,45 +177,8 @@ internal constructor(peer: IosGattNotifyPeer, private val dependencies: IosGattN
         )
     }
 
-    private fun recordPumpAttempt(didSend: Boolean): PumpOutcome {
-        var completedFrame: IosGattNotifyPendingFrame? = null
-        var pendingChunkCount = NO_PENDING_CHUNKS
-        var shouldScheduleRetryPump = false
-        stateLock.withLock {
-            if (closed) {
-                completedFrame = null
-                pendingChunkCount = NO_PENDING_CHUNKS
-            } else {
-                val headFrame = pendingFrames.firstOrNull()
-                completedFrame =
-                    if (didSend && headFrame != null) {
-                        finishHeadFrameChunk(headFrame)
-                    } else {
-                        null
-                    }
-                pendingChunkCount = pendingFrames.sumOf { frame -> frame.remainingChunkCount() }
-                if (!didSend && pendingChunkCount > NO_PENDING_CHUNKS && !retryPumpScheduled) {
-                    retryPumpScheduled = true
-                    shouldScheduleRetryPump = true
-                }
-            }
-        }
-        return PumpOutcome(
-            completedFrame = completedFrame,
-            pendingChunkCount = pendingChunkCount,
-            shouldScheduleRetryPump = shouldScheduleRetryPump,
-        )
-    }
-
-    private fun finishHeadFrameChunk(
-        headFrame: IosGattNotifyPendingFrame
-    ): IosGattNotifyPendingFrame? {
-        return if (headFrame.markCurrentChunkSent()) {
-            pendingFrames.removeFirst()
-            headFrame
-        } else {
-            null
-        }
+    private fun recordPumpAttempt(didSend: Boolean): IosGattNotifyPumpOutcome {
+        return stateLock.withLock { pumpState.recordPumpAttempt(didSend) }
     }
 
     private fun logPumpAttempt(chunkBytes: Int, didSend: Boolean, pendingChunkCount: Int): Unit {
@@ -301,13 +220,6 @@ private class PumpTargets
 internal constructor(
     internal val peripheralManager: CBPeripheralManager,
     internal val notifyCharacteristic: CBMutableCharacteristic,
-)
-
-private class PumpOutcome
-internal constructor(
-    internal val completedFrame: IosGattNotifyPendingFrame?,
-    internal val pendingChunkCount: Int,
-    internal val shouldScheduleRetryPump: Boolean,
 )
 
 internal fun maximumGattNotificationChunkBytes(maximumUpdateValueLength: Int): Int {
