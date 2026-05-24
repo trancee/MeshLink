@@ -96,3 +96,46 @@ internal class MeshEngineSendSupport(
         }
     }
 }
+
+internal fun buildMeshEngineRuntimeSendSupport(
+    currentLifecycleState: () -> MeshLinkState,
+    captureHardRunToken: () -> MeshEngineHardRunToken,
+    hasTransport: () -> Boolean,
+    shouldAttemptLargeInlineSend: (PeerId) -> Boolean,
+    sendPayload:
+        suspend (
+            MeshEngineOutboundDeliveryMode,
+            PeerId,
+            ByteArray,
+            DeliveryPriority,
+            MeshEngineHardRunToken,
+        ) -> SendResult,
+    scheduleRetryDiagnostic: (PeerId, DeliveryPriority) -> Unit,
+    emitDiagnostic:
+        (
+            code: DiagnosticCode,
+            severity: DiagnosticSeverity,
+            stage: String,
+            peerSuffix: String?,
+            reason: DiagnosticReason?,
+            metadata: Map<String, String>,
+        ) -> Unit,
+): MeshEngineSendSupport {
+    return MeshEngineSendSupport(
+        config =
+            MeshEngineSendConfig(
+                maxSupportedPayloadBytes = MAX_SUPPORTED_PAYLOAD_BYTES,
+                inlineMessagePayloadBytes = INLINE_MESSAGE_PAYLOAD_BYTES,
+            ),
+        callbacks =
+            MeshEngineSendCallbacks(
+                currentLifecycleState = currentLifecycleState,
+                captureHardRunToken = captureHardRunToken,
+                hasTransport = hasTransport,
+                shouldAttemptLargeInlineSend = shouldAttemptLargeInlineSend,
+                sendPayload = sendPayload,
+                scheduleRetryDiagnostic = scheduleRetryDiagnostic,
+                emitDiagnostic = emitDiagnostic,
+            ),
+    )
+}

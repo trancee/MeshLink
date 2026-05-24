@@ -32,3 +32,15 @@ internal class MeshEngineTransportCollector(
         currentJob.cancelAndJoin()
     }
 }
+
+internal fun buildMeshEngineRuntimeTransportCollector(
+    coroutineScope: CoroutineScope,
+    transportEvents: () -> Flow<TransportEvent>?,
+    handleTransportEvent: suspend (TransportEvent) -> Unit,
+): MeshEngineTransportCollector {
+    return MeshEngineTransportCollector(
+        coroutineScope = coroutineScope,
+        transportEvents = transportEvents,
+        handleTransportEvent = handleTransportEvent,
+    )
+}

@@ -37,3 +37,24 @@ internal class MeshEnginePeerForgetSupport(private val callbacks: MeshEnginePeer
         return ForgetPeerResult.Forgotten
     }
 }
+
+internal fun buildMeshEngineRuntimePeerForgetSupport(
+    readFirstSeenAtEpochMillis: suspend (PeerId) -> Long?,
+    deleteTrust: suspend (PeerId) -> Unit,
+    clearPeer: suspend (PeerId) -> PendingInitiatorHandshake?,
+    dispatchPeerDisconnected: suspend (PeerId, Map<String, String>) -> Unit,
+    markPeerDisconnected: (PeerId) -> Boolean,
+    emitPeerLost: suspend (PeerId) -> Unit,
+): MeshEnginePeerForgetSupport {
+    return MeshEnginePeerForgetSupport(
+        callbacks =
+            MeshEnginePeerForgetCallbacks(
+                readFirstSeenAtEpochMillis = readFirstSeenAtEpochMillis,
+                deleteTrust = deleteTrust,
+                clearPeer = clearPeer,
+                dispatchPeerDisconnected = dispatchPeerDisconnected,
+                markPeerDisconnected = markPeerDisconnected,
+                emitPeerLost = emitPeerLost,
+            )
+    )
+}

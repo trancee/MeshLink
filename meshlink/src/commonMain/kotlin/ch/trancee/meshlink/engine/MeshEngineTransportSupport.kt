@@ -196,3 +196,48 @@ internal class MeshEngineTransportSupport(
         }
     }
 }
+
+internal fun buildMeshEngineRuntimeTransportSupport(
+    presenceTracker: PeerPresenceTracker,
+    mutablePeerEvents: MutableSharedFlow<PeerEvent>,
+    sessionRegistry: MeshEngineSessionRegistry,
+    routeCoordinator: RouteCoordinator,
+    routingSupport: MeshEngineRoutingSupport,
+    prewarmHopSession: (PeerId) -> Unit,
+    handleHandshakeMessage1: suspend (PeerId, ByteArray) -> Unit,
+    handleHandshakeMessage2: suspend (PeerId, ByteArray) -> Unit,
+    handleHandshakeMessage3: suspend (PeerId, ByteArray) -> Unit,
+    handleEncryptedDataFrame: suspend (PeerId, ByteArray) -> Unit,
+    emitDiagnostic:
+        (
+            DiagnosticCode,
+            DiagnosticSeverity,
+            String,
+            String?,
+            DiagnosticReason?,
+            Map<String, String>,
+        ) -> Unit,
+): MeshEngineTransportSupport {
+    return MeshEngineTransportSupport(
+        peerState =
+            MeshEngineTransportPeerState(
+                presenceTracker = presenceTracker,
+                mutablePeerEvents = mutablePeerEvents,
+                sessionRegistry = sessionRegistry,
+            ),
+        routingContext =
+            MeshEngineTransportRoutingContext(
+                routeCoordinator = routeCoordinator,
+                routingSupport = routingSupport,
+            ),
+        callbacks =
+            MeshEngineTransportCallbacks(
+                prewarmHopSession = prewarmHopSession,
+                handleHandshakeMessage1 = handleHandshakeMessage1,
+                handleHandshakeMessage2 = handleHandshakeMessage2,
+                handleHandshakeMessage3 = handleHandshakeMessage3,
+                handleEncryptedDataFrame = handleEncryptedDataFrame,
+            ),
+        emitDiagnostic = emitDiagnostic,
+    )
+}

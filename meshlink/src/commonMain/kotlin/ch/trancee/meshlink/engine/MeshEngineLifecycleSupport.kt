@@ -6,6 +6,8 @@ import ch.trancee.meshlink.api.ResumeResult
 import ch.trancee.meshlink.api.StartResult
 import ch.trancee.meshlink.api.StopResult
 import ch.trancee.meshlink.diagnostics.DiagnosticCode
+import ch.trancee.meshlink.diagnostics.DiagnosticReason
+import ch.trancee.meshlink.diagnostics.DiagnosticSeverity
 import ch.trancee.meshlink.power.PowerPolicy
 import ch.trancee.meshlink.power.PowerPolicyController
 import ch.trancee.meshlink.transfer.InboundTransferSession
@@ -154,4 +156,82 @@ internal class MeshEngineLifecycleSupport(
         callbacks.launchTransportPowerPolicyUpdate(policy)
         diagnostics.emitPowerModeChanged(policy, clampedLevel, isCharging)
     }
+}
+
+internal fun buildMeshEngineRuntimeLifecycleSupport(
+    powerPolicyController: PowerPolicyController,
+    powerPolicyNowMillis: () -> Long,
+    runtimeSurface: MeshEngineCompatibilityRuntimeSurface,
+    inboundTransfers: MutableMap<String, InboundTransferSession>,
+    relayTransfers: MutableMap<String, RelayTransferSession>,
+    ensureTransportCollector: () -> Unit,
+    stopTransportCollector: suspend () -> Unit,
+    updateTransportPowerPolicy: suspend (PowerPolicy) -> Unit,
+    startTransport: suspend () -> Unit,
+    pauseTransport: suspend () -> Unit,
+    resumeTransport: suspend () -> Unit,
+    stopTransport: suspend () -> Unit,
+    launchTransportPowerPolicyUpdate: (PowerPolicy) -> Unit,
+    clearVolatileRuntimeView: suspend (String, DiagnosticCode, Map<String, String>) -> Unit,
+    abortCommittedTransfers: suspend (TransferAbortReasonCode) -> Unit,
+    clearOutboundTransfers: () -> Unit,
+    emitDiagnostic:
+        (
+            DiagnosticCode,
+            DiagnosticSeverity,
+            String,
+            String?,
+            DiagnosticReason?,
+            Map<String, String>,
+        ) -> Unit,
+): MeshEngineLifecycleSupport {
+    val lifecycleState =
+        MeshEngineLifecycleState(
+            runtimeSurface = runtimeSurface,
+            inboundTransfers = inboundTransfers,
+            relayTransfers = relayTransfers,
+            currentPowerPolicy = powerPolicyController.currentPolicy(nowMillis = 0L),
+        )
+    return MeshEngineLifecycleSupport(
+        powerPolicyController = powerPolicyController,
+        powerPolicyNowMillis = powerPolicyNowMillis,
+        state = lifecycleState,
+        callbacks =
+            MeshEngineLifecycleCallbacks(
+                ensureTransportCollector = ensureTransportCollector,
+                stopTransportCollector = stopTransportCollector,
+                updateTransportPowerPolicy = updateTransportPowerPolicy,
+                startTransport = startTransport,
+                pauseTransport = pauseTransport,
+                resumeTransport = resumeTransport,
+                stopTransport = stopTransport,
+                launchTransportPowerPolicyUpdate = launchTransportPowerPolicyUpdate,
+                clearVolatileRuntimeView = clearVolatileRuntimeView,
+                abortCommittedTransfers = abortCommittedTransfers,
+                clearOutboundTransfers = clearOutboundTransfers,
+            ),
+        diagnostics =
+            MeshEngineLifecycleDiagnostics(
+                emitLifecycleEvent = { code, stage ->
+                    emitDiagnostic(
+                        code,
+                        DiagnosticSeverity.INFO,
+                        stage,
+                        null,
+                        DiagnosticReason.STATE_CHANGE,
+                        emptyMap(),
+                    )
+                },
+                emitPowerModeChanged = { policy, level, isCharging ->
+                    emitDiagnostic(
+                        DiagnosticCode.POWER_MODE_CHANGED,
+                        DiagnosticSeverity.INFO,
+                        "power.updateBattery",
+                        null,
+                        DiagnosticReason.POWER_CHANGE,
+                        powerPolicyMetadata(policy = policy, level = level, isCharging = isCharging),
+                    )
+                },
+            ),
+    )
 }
