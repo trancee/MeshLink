@@ -2,7 +2,6 @@ package ch.trancee.meshlink.platform.android
 
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
-import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothServerSocket
 import android.bluetooth.BluetoothSocket
@@ -21,7 +20,6 @@ import android.os.Build
 import android.os.ParcelUuid
 import android.util.Log
 import ch.trancee.meshlink.api.PeerId
-import ch.trancee.meshlink.identity.hexStartsWith
 import ch.trancee.meshlink.identity.toBytes
 import ch.trancee.meshlink.identity.toHexString
 import ch.trancee.meshlink.power.PowerPolicy
@@ -82,11 +80,10 @@ internal class AndroidBleTransport(
     private val mutableEvents = MutableSharedFlow<TransportEvent>(extraBufferCapacity = 32)
     private val coroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val localKeyHash: ByteArray = advertisementKeyHash.copyOf()
-    private val discoveredPeers: MutableMap<String, DiscoveredPeer> = linkedMapOf()
-    private val peerHintByAddress: MutableMap<String, String> = linkedMapOf()
+    private val peerBindings = AndroidPeerBindings()
+    private val peerRegistry = AndroidPeerRegistry(bindings = peerBindings)
     private val activeLinksByHint: MutableMap<String, L2capLink> = linkedMapOf()
     private val gattNotifyClientsByHint: MutableMap<String, AndroidGattNotifyClient> = linkedMapOf()
-    private val temporaryHintByAddress: MutableMap<String, String> = linkedMapOf()
     private val pendingConnectJobsByHint: MutableMap<String, Job> = linkedMapOf()
     private val pendingConnectLock = Any()
     private val transportMutex = Mutex()
@@ -241,37 +238,26 @@ internal class AndroidBleTransport(
                 link
             } ?: return
         val remoteDevice = activeLink.socket.remoteDevice
-        val keyHash = canonicalPeerId.value.toBytes()
-        temporaryHintByAddress.remove(remoteDevice.address)
-        peerHintByAddress[remoteDevice.address] = canonicalPeerId.value
-        discoveredPeers.remove(temporaryPeerId.value)
-        val existingPeer = discoveredPeers[canonicalPeerId.value]
-        val promotedPeer =
-            if (existingPeer != null) {
-                existingPeer.device = remoteDevice
-                existingPeer.transportMode = TransportMode.L2CAP
-                existingPeer
-            } else if (keyHash != null && keyHash.size == BleDiscoveryPayload.KEY_HASH_SIZE_BYTES) {
-                DiscoveredPeer(
-                        hintPeerId = canonicalPeerId,
-                        keyHash = keyHash,
-                        device = remoteDevice,
-                        l2capPsm = 0,
-                        transportMode = TransportMode.L2CAP,
-                        platformFamily = BleDiscoveryPlatformFamily.UNKNOWN,
-                    )
-                    .also { peer -> discoveredPeers[canonicalPeerId.value] = peer }
-            } else {
-                null
-            }
-        if (promotedPeer != null && !promotedPeer.presenceAnnounced) {
-            promotedPeer.presenceAnnounced = true
-            mutableEvents.tryEmit(
-                TransportEvent.PeerDiscovered(
-                    peerId = canonicalPeerId,
-                    transportMode = TransportMode.L2CAP,
+        val existingPeer = peerRegistry.peer(canonicalPeerId.value)
+        val keyHash = canonicalPeerId.value.toBytes() ?: existingPeer?.keyHash
+        peerBindings.removeTemporaryHint(remoteDevice.address)
+        peerBindings.retainDevice(remoteDevice.address, remoteDevice)
+        peerRegistry.removePeer(temporaryPeerId.value)
+        if (keyHash != null && keyHash.size == BleDiscoveryPayload.KEY_HASH_SIZE_BYTES) {
+            val update =
+                peerRegistry.upsertDiscovery(
+                    hintPeerId = canonicalPeerId,
+                    discovery =
+                        DiscoveredPeerDiscovery(
+                            address = remoteDevice.address,
+                            keyHash = keyHash,
+                            l2capPsm = existingPeer?.l2capPsm ?: 0,
+                            transportMode = TransportMode.L2CAP,
+                            platformFamily =
+                                existingPeer?.platformFamily ?: BleDiscoveryPlatformFamily.UNKNOWN,
+                        ),
                 )
-            )
+            update.events.forEach(mutableEvents::tryEmit)
         }
         gattNotifyClientsByHint.remove(temporaryPeerId.value)?.let { client ->
             if (!gattNotifyClientsByHint.containsKey(canonicalPeerId.value)) {
@@ -375,10 +361,11 @@ internal class AndroidBleTransport(
         if (transportMode == TransportMode.L2CAP) {
             promoteTemporaryLink(address = result.device.address, hintPeerId = hintPeerId)
         }
-        val discoveredPeer = discoveredPeers[hintPeerId.value]
+        peerBindings.retainDevice(result.device.address, result.device)
+        val discoveredPeer = peerRegistry.peer(hintPeerId.value)
         val sameTransportAdvertisement =
             discoveredPeer != null &&
-                discoveredPeer.device.address == result.device.address &&
+                discoveredPeer.deviceAddress == result.device.address &&
                 discoveredPeer.l2capPsm == payload.l2capPsm.toInt() &&
                 discoveredPeer.transportMode == transportMode
         if (!sameTransportAdvertisement) {
@@ -386,47 +373,21 @@ internal class AndroidBleTransport(
                 "scan found ${hintPeerId.value.takeLast(6)} mode=$transportMode psm=${payload.l2capPsm} platform=${payload.platformFamily} addr=${result.device.address}"
             )
         }
-        if (discoveredPeer == null) {
-            discoveredPeers[hintPeerId.value] =
-                DiscoveredPeer(
+        val resolvedPeer =
+            peerRegistry
+                .upsertDiscovery(
                     hintPeerId = hintPeerId,
-                    keyHash = payload.keyHash,
-                    device = result.device,
-                    l2capPsm = payload.l2capPsm.toInt(),
-                    transportMode = transportMode,
-                    platformFamily = payload.platformFamily,
-                    presenceAnnounced = true,
+                    discovery =
+                        DiscoveredPeerDiscovery(
+                            address = result.device.address,
+                            keyHash = payload.keyHash,
+                            l2capPsm = payload.l2capPsm.toInt(),
+                            transportMode = transportMode,
+                            platformFamily = payload.platformFamily,
+                        ),
                 )
-            peerHintByAddress[result.device.address] = hintPeerId.value
-            mutableEvents.tryEmit(
-                TransportEvent.PeerDiscovered(peerId = hintPeerId, transportMode = transportMode)
-            )
-        } else {
-            discoveredPeer.device = result.device
-            discoveredPeer.l2capPsm = payload.l2capPsm.toInt()
-            discoveredPeer.platformFamily = payload.platformFamily
-            peerHintByAddress[result.device.address] = hintPeerId.value
-            if (discoveredPeer.transportMode != transportMode) {
-                discoveredPeer.transportMode = transportMode
-                mutableEvents.tryEmit(
-                    TransportEvent.TransportModeChanged(
-                        peerId = hintPeerId,
-                        transportMode = transportMode,
-                    )
-                )
-            }
-            if (!discoveredPeer.presenceAnnounced) {
-                discoveredPeer.presenceAnnounced = true
-                mutableEvents.tryEmit(
-                    TransportEvent.PeerDiscovered(
-                        peerId = hintPeerId,
-                        transportMode = transportMode,
-                    )
-                )
-            }
-        }
-
-        val resolvedPeer = discoveredPeers.getValue(hintPeerId.value)
+                .also { update -> update.events.forEach(mutableEvents::tryEmit) }
+                .peer
         maybeLogRediscoveryWithoutLink(
             peer = resolvedPeer,
             transportMode = transportMode,
@@ -467,6 +428,7 @@ internal class AndroidBleTransport(
         ) {
             return
         }
+        val device = peerBindings.deviceFor(peer.deviceAddress) ?: return
         val existingClient = gattNotifyClientsByHint[peer.hintPeerId.value]
         if (existingClient != null) {
             if (!existingClient.isReady()) {
@@ -479,7 +441,7 @@ internal class AndroidBleTransport(
                 context = context,
                 appId = appId,
                 peerHintId = peer.hintPeerId,
-                device = peer.device,
+                device = device,
                 log = ::log,
                 onFrameReceived = ::enqueueInboundFrame,
                 onDisconnected = ::handleGattNotifySideLinkDisconnected,
@@ -540,15 +502,16 @@ internal class AndroidBleTransport(
             return
         }
         val adapter = bluetoothAdapter ?: return
+        val device = peerBindings.deviceFor(peer.deviceAddress) ?: return
         val connectJob =
             coroutineScope.launch(start = CoroutineStart.LAZY) {
                 runCatching {
                         log(
-                            "connecting L2CAP to ${peer.hintPeerId.value.takeLast(6)} psm=${peer.l2capPsm} addr=${peer.device.address}"
+                            "connecting L2CAP to ${peer.hintPeerId.value.takeLast(6)} psm=${peer.l2capPsm} addr=${device.address}"
                         )
                         val socket =
                             AndroidL2capSocketFactory.createInsecure(
-                                device = peer.device,
+                                device = device,
                                 psm = peer.l2capPsm,
                             ) { error ->
                                 log(
@@ -557,14 +520,14 @@ internal class AndroidBleTransport(
                             }
                         socket.connect()
                         log("L2CAP connect succeeded for ${peer.hintPeerId.value.takeLast(6)}")
-                        discoveredPeers[peer.hintPeerId.value]?.rediscoveryLoggedWithoutLink = false
+                        peerRegistry.setRediscoveryLoggedWithoutLink(peer.hintPeerId.value, false)
                         registerConnectedSocket(peer.hintPeerId, socket)
                     }
                     .onFailure { error ->
                         log(
                             "L2CAP connect failed for ${peer.hintPeerId.value.takeLast(6)}: ${error.message.orEmpty()}"
                         )
-                        discoveredPeers[peer.hintPeerId.value]?.rediscoveryLoggedWithoutLink = false
+                        peerRegistry.setRediscoveryLoggedWithoutLink(peer.hintPeerId.value, false)
                         closeQuietly(activeLinksByHint.remove(peer.hintPeerId.value))
                     }
                 clearPendingConnect(peer.hintPeerId.value)
@@ -590,7 +553,7 @@ internal class AndroidBleTransport(
     }
 
     private fun promoteTemporaryLink(address: String, hintPeerId: PeerId): Unit {
-        val mappedTemporaryHint = temporaryHintByAddress[address] ?: return
+        val mappedTemporaryHint = peerBindings.temporaryHintForAddress(address) ?: return
         val temporaryHint =
             selectTemporaryPeerHintPromotion(
                 TemporaryPeerHintPromotionRequest(
@@ -623,8 +586,8 @@ internal class AndroidBleTransport(
                     else -> false
                 }
             }
-        temporaryHintByAddress.remove(address)
-        peerHintByAddress[address] = hintPeerId.value
+        peerBindings.removeTemporaryHint(address)
+        peerBindings.bindHintToAddress(address, hintPeerId.value)
         if (promoted) {
             log(
                 "promoted temporary L2CAP link ${mappedTemporaryHint.takeLast(6)} -> ${hintPeerId.value.takeLast(6)} addr=$address"
@@ -643,8 +606,8 @@ internal class AndroidBleTransport(
                         }
                 log("accepted L2CAP socket from ${socket.remoteDevice.address}")
                 val hintPeerId =
-                    peerHintByAddress[socket.remoteDevice.address]?.let(::PeerId)
-                        ?: temporaryPeerId(socket.remoteDevice.address)
+                    peerBindings.hintForAddress(socket.remoteDevice.address)?.let(::PeerId)
+                        ?: peerBindings.temporaryPeerId(socket.remoteDevice.address)
                 if (hintPeerId.value.startsWith(TEMPORARY_PEER_PREFIX)) {
                     log("binding accepted socket to temporary peer ${hintPeerId.value}")
                 }
@@ -667,8 +630,9 @@ internal class AndroidBleTransport(
                     incomingFrames = AndroidL2capFrameBuffer(),
                 )
             activeLinksByHint[hintPeerId.value] = link
-            peerHintByAddress[socket.remoteDevice.address] = hintPeerId.value
-            discoveredPeers[hintPeerId.value]?.rediscoveryLoggedWithoutLink = false
+            peerBindings.retainDevice(socket.remoteDevice.address, socket.remoteDevice)
+            peerBindings.bindHintToAddress(socket.remoteDevice.address, hintPeerId.value)
+            peerRegistry.setRediscoveryLoggedWithoutLink(hintPeerId.value, false)
             log(
                 "registered L2CAP link for ${hintPeerId.value.takeLast(6)} addr=${socket.remoteDevice.address}"
             )
@@ -731,7 +695,7 @@ internal class AndroidBleTransport(
                 RediscoveryWithoutLinkDecisionRequest(
                     transportMode = transportMode,
                     hintPeerIdValue = peer.hintPeerId.value,
-                    temporaryHintPeerIdValue = temporaryHintByAddress[address],
+                    temporaryHintPeerIdValue = peerBindings.temporaryHintForAddress(address),
                     activeHintIds = activeLinksByHint.keys,
                     hasActiveSideLink = hasActiveGattNotifyLink(peer.hintPeerId.value),
                     hasPendingConnect = hasPendingConnect,
@@ -743,7 +707,10 @@ internal class AndroidBleTransport(
                 "scan rediscovered ${peer.hintPeerId.value.takeLast(6)} with no active link pendingConnect=$hasPendingConnect addr=$address"
             )
         }
-        peer.rediscoveryLoggedWithoutLink = decision.rediscoveryLoggedWithoutLink
+        peerRegistry.setRediscoveryLoggedWithoutLink(
+            peer.hintPeerId.value,
+            decision.rediscoveryLoggedWithoutLink,
+        )
     }
 
     private fun activeLinkFor(peer: DiscoveredPeer): L2capLink? {
@@ -751,7 +718,8 @@ internal class AndroidBleTransport(
             resolveActivePeerHint(
                 ActivePeerHintResolutionRequest(
                     hintPeerIdValue = peer.hintPeerId.value,
-                    temporaryHintPeerIdValue = temporaryHintByAddress[peer.device.address],
+                    temporaryHintPeerIdValue =
+                        peerBindings.temporaryHintForAddress(peer.deviceAddress),
                     activeHintIds = activeLinksByHint.keys,
                 )
             ) ?: return null
@@ -776,12 +744,7 @@ internal class AndroidBleTransport(
     }
 
     private fun resolvePeer(peerId: PeerId): DiscoveredPeer? {
-        discoveredPeers[peerId.value]?.let {
-            return it
-        }
-        return discoveredPeers.values.firstOrNull { discoveredPeer ->
-            peerId.value.hexStartsWith(discoveredPeer.keyHash)
-        }
+        return peerRegistry.resolve(peerId)
     }
 
     @SuppressLint("MissingPermission")
@@ -890,17 +853,16 @@ internal class AndroidBleTransport(
         inboundFrameQueue = null
         coroutineScope.coroutineContext.cancelChildren()
         if (clearPeers) {
-            discoveredPeers.clear()
-            peerHintByAddress.clear()
-            temporaryHintByAddress.clear()
+            peerRegistry.clear()
+            peerBindings.clear()
         }
     }
 
     private fun closeLink(hintPeer: String, reason: String): Unit {
         val link = synchronized(activeLinksByHint) { activeLinksByHint.remove(hintPeer) } ?: return
-        discoveredPeers[hintPeer]?.rediscoveryLoggedWithoutLink = false
+        peerRegistry.setRediscoveryLoggedWithoutLink(hintPeer, false)
         log(
-            "closing L2CAP link ${hintPeer.takeLast(6)}: $reason discoveredPeerRetained=${discoveredPeers.containsKey(hintPeer)} pendingConnect=${hasPendingConnect(hintPeer)}"
+            "closing L2CAP link ${hintPeer.takeLast(6)}: $reason discoveredPeerRetained=${peerRegistry.peer(hintPeer) != null} pendingConnect=${hasPendingConnect(hintPeer)}"
         )
         link.readLoopJob?.cancel()
         closeQuietly(link)
@@ -910,7 +872,7 @@ internal class AndroidBleTransport(
             )
             return
         }
-        discoveredPeers[hintPeer]?.presenceAnnounced = false
+        peerRegistry.setPresenceAnnounced(hintPeer, false)
         val peerId = PeerId(hintPeer)
         mutableEvents.tryEmit(TransportEvent.PeerLost(peerId))
     }
@@ -922,7 +884,7 @@ internal class AndroidBleTransport(
             return
         }
         removedClient.close()
-        discoveredPeers[peerHintId.value]?.presenceAnnounced = false
+        peerRegistry.setPresenceAnnounced(peerHintId.value, false)
         mutableEvents.tryEmit(TransportEvent.PeerLost(peerHintId))
     }
 
@@ -965,27 +927,6 @@ internal class AndroidBleTransport(
 
     private fun closeQuietly(socket: BluetoothSocket?): Unit {
         runCatching { socket?.close() }
-    }
-
-    private fun temporaryPeerId(address: String): PeerId {
-        val temporaryHint =
-            temporaryHintByAddress.getOrPut(address) {
-                TEMPORARY_PEER_PREFIX + address.lowercase().replace(":", "")
-            }
-        return PeerId(temporaryHint)
-    }
-
-    private class DiscoveredPeer(
-        val hintPeerId: PeerId,
-        keyHash: ByteArray,
-        var device: BluetoothDevice,
-        var l2capPsm: Int,
-        var transportMode: TransportMode,
-        var platformFamily: BleDiscoveryPlatformFamily,
-        var rediscoveryLoggedWithoutLink: Boolean = false,
-        var presenceAnnounced: Boolean = false,
-    ) {
-        val keyHash: ByteArray = keyHash.copyOf()
     }
 
     private fun logEmptyFrameObservation(
@@ -1035,6 +976,5 @@ internal class AndroidBleTransport(
     private companion object {
         private const val DEFAULT_SOCKET_READ_BUFFER_BYTES: Int = 1024
         private const val LOG_TAG: String = "MeshLinkTransport"
-        private const val TEMPORARY_PEER_PREFIX: String = "bt-"
     }
 }

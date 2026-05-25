@@ -1,0 +1,207 @@
+package ch.trancee.meshlink.platform.android
+
+import android.bluetooth.BluetoothDevice
+import ch.trancee.meshlink.api.PeerId
+import ch.trancee.meshlink.identity.hexStartsWith
+import ch.trancee.meshlink.transport.BleDiscoveryPlatformFamily
+import ch.trancee.meshlink.transport.TransportEvent
+import ch.trancee.meshlink.transport.TransportMode
+
+internal const val TEMPORARY_PEER_PREFIX: String = "bt-"
+
+internal class DiscoveredPeerFlags
+internal constructor(
+    val rediscoveryLoggedWithoutLink: Boolean = false,
+    val presenceAnnounced: Boolean = false,
+)
+
+internal class DiscoveredPeerState
+internal constructor(
+    keyHash: ByteArray,
+    val deviceAddress: String,
+    val l2capPsm: Int,
+    val transportMode: TransportMode,
+    val platformFamily: BleDiscoveryPlatformFamily,
+    val flags: DiscoveredPeerFlags = DiscoveredPeerFlags(),
+) {
+    val keyHash: ByteArray = keyHash.copyOf()
+}
+
+internal class DiscoveredPeerDiscovery
+internal constructor(
+    internal val address: String,
+    keyHash: ByteArray,
+    internal val l2capPsm: Int,
+    internal val transportMode: TransportMode,
+    internal val platformFamily: BleDiscoveryPlatformFamily,
+) {
+    internal val keyHash: ByteArray = keyHash.copyOf()
+}
+
+internal class DiscoveredPeer
+internal constructor(val hintPeerId: PeerId, state: DiscoveredPeerState) {
+    val keyHash: ByteArray = state.keyHash
+    var deviceAddress: String = state.deviceAddress
+    var l2capPsm: Int = state.l2capPsm
+    var transportMode: TransportMode = state.transportMode
+    var platformFamily: BleDiscoveryPlatformFamily = state.platformFamily
+    var rediscoveryLoggedWithoutLink: Boolean = state.flags.rediscoveryLoggedWithoutLink
+    var presenceAnnounced: Boolean = state.flags.presenceAnnounced
+}
+
+internal class AndroidPeerDiscoveryUpdate
+internal constructor(internal val peer: DiscoveredPeer, internal val events: List<TransportEvent>)
+
+internal class AndroidPeerBindings {
+    private val peerHintByAddress: MutableMap<String, String> = linkedMapOf()
+    private val temporaryHintByAddress: MutableMap<String, String> = linkedMapOf()
+    private val devicesByAddress: MutableMap<String, BluetoothDevice> = linkedMapOf()
+
+    internal fun retainDevice(address: String, device: BluetoothDevice): Unit {
+        devicesByAddress[address] = device
+    }
+
+    internal fun deviceFor(address: String): BluetoothDevice? {
+        return devicesByAddress[address]
+    }
+
+    internal fun hintForAddress(address: String): String? {
+        return peerHintByAddress[address]
+    }
+
+    internal fun bindHintToAddress(address: String, hintPeerIdValue: String): Unit {
+        peerHintByAddress[address] = hintPeerIdValue
+    }
+
+    internal fun temporaryHintForAddress(address: String): String? {
+        return temporaryHintByAddress[address]
+    }
+
+    internal fun removeTemporaryHint(address: String): String? {
+        return temporaryHintByAddress.remove(address)
+    }
+
+    internal fun temporaryPeerId(address: String): PeerId {
+        val temporaryHint =
+            temporaryHintByAddress.getOrPut(address) {
+                TEMPORARY_PEER_PREFIX + address.lowercase().replace(":", "")
+            }
+        return PeerId(temporaryHint)
+    }
+
+    internal fun clear(): Unit {
+        peerHintByAddress.clear()
+        temporaryHintByAddress.clear()
+        devicesByAddress.clear()
+    }
+}
+
+internal class AndroidPeerRegistry(private val bindings: AndroidPeerBindings) {
+    private val discoveredPeers: MutableMap<String, DiscoveredPeer> = linkedMapOf()
+
+    internal fun upsertDiscovery(
+        hintPeerId: PeerId,
+        discovery: DiscoveredPeerDiscovery,
+    ): AndroidPeerDiscoveryUpdate {
+        val existingPeer = discoveredPeers[hintPeerId.value]
+        return if (existingPeer == null) {
+            createDiscoveredPeer(hintPeerId = hintPeerId, discovery = discovery)
+        } else {
+            refreshDiscoveredPeer(
+                existingPeer = existingPeer,
+                hintPeerId = hintPeerId,
+                discovery = discovery,
+            )
+        }
+    }
+
+    private fun createDiscoveredPeer(
+        hintPeerId: PeerId,
+        discovery: DiscoveredPeerDiscovery,
+    ): AndroidPeerDiscoveryUpdate {
+        val peer =
+            DiscoveredPeer(
+                hintPeerId = hintPeerId,
+                state =
+                    DiscoveredPeerState(
+                        keyHash = discovery.keyHash,
+                        deviceAddress = discovery.address,
+                        l2capPsm = discovery.l2capPsm,
+                        transportMode = discovery.transportMode,
+                        platformFamily = discovery.platformFamily,
+                        flags = DiscoveredPeerFlags(presenceAnnounced = true),
+                    ),
+            )
+        discoveredPeers[hintPeerId.value] = peer
+        bindings.bindHintToAddress(discovery.address, hintPeerId.value)
+        return AndroidPeerDiscoveryUpdate(
+            peer = peer,
+            events =
+                listOf(
+                    TransportEvent.PeerDiscovered(
+                        peerId = hintPeerId,
+                        transportMode = discovery.transportMode,
+                    )
+                ),
+        )
+    }
+
+    private fun refreshDiscoveredPeer(
+        existingPeer: DiscoveredPeer,
+        hintPeerId: PeerId,
+        discovery: DiscoveredPeerDiscovery,
+    ): AndroidPeerDiscoveryUpdate {
+        existingPeer.deviceAddress = discovery.address
+        existingPeer.l2capPsm = discovery.l2capPsm
+        existingPeer.platformFamily = discovery.platformFamily
+        bindings.bindHintToAddress(discovery.address, hintPeerId.value)
+
+        val events = mutableListOf<TransportEvent>()
+        if (existingPeer.transportMode != discovery.transportMode) {
+            existingPeer.transportMode = discovery.transportMode
+            events +=
+                TransportEvent.TransportModeChanged(
+                    peerId = hintPeerId,
+                    transportMode = discovery.transportMode,
+                )
+        }
+        if (!existingPeer.presenceAnnounced) {
+            existingPeer.presenceAnnounced = true
+            events +=
+                TransportEvent.PeerDiscovered(
+                    peerId = hintPeerId,
+                    transportMode = discovery.transportMode,
+                )
+        }
+        return AndroidPeerDiscoveryUpdate(peer = existingPeer, events = events)
+    }
+
+    internal fun peer(hintPeerIdValue: String): DiscoveredPeer? {
+        return discoveredPeers[hintPeerIdValue]
+    }
+
+    internal fun removePeer(hintPeerIdValue: String): DiscoveredPeer? {
+        return discoveredPeers.remove(hintPeerIdValue)
+    }
+
+    internal fun resolve(peerId: PeerId): DiscoveredPeer? {
+        discoveredPeers[peerId.value]?.let { peer ->
+            return peer
+        }
+        return discoveredPeers.values.firstOrNull { discoveredPeer ->
+            peerId.value.hexStartsWith(discoveredPeer.keyHash)
+        }
+    }
+
+    internal fun setRediscoveryLoggedWithoutLink(hintPeerIdValue: String, logged: Boolean): Unit {
+        discoveredPeers[hintPeerIdValue]?.rediscoveryLoggedWithoutLink = logged
+    }
+
+    internal fun setPresenceAnnounced(hintPeerIdValue: String, announced: Boolean): Unit {
+        discoveredPeers[hintPeerIdValue]?.presenceAnnounced = announced
+    }
+
+    internal fun clear(): Unit {
+        discoveredPeers.clear()
+    }
+}
