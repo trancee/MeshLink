@@ -16,6 +16,8 @@ import ch.trancee.meshlink.reference.timeline.TechnicalTimelineStore
 @Composable
 internal fun ReferenceRouteContent(
     contentState: ReferenceRouteContentState,
+    followUpSupportedSessionLabel: String,
+    onStartFollowUpSupportedSession: () -> Unit,
     onOpenSolo: () -> Unit,
 ): Unit {
     when (contentState.activeRoute) {
@@ -38,6 +40,8 @@ internal fun ReferenceRouteContent(
         ReferenceSurfaceId.TECHNICAL_TIMELINE ->
             TechnicalTimelineScreen(
                 store = contentState.timelineStore,
+                followUpSupportedSessionLabel = followUpSupportedSessionLabel,
+                onStartFollowUpSupportedSession = onStartFollowUpSupportedSession,
                 modifier = Modifier.fillMaxSize(),
             )
 

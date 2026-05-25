@@ -19,6 +19,8 @@ import ch.trancee.meshlink.reference.session.ExportPayloadPolicy
 internal fun TimelineRetentionSection(
     uiState: TechnicalTimelineUiState,
     store: TechnicalTimelineStore,
+    followUpSupportedSessionLabel: String,
+    onStartFollowUpSupportedSession: () -> Unit,
     showExportDialog: Boolean,
     showEndSessionDialog: Boolean,
     onOpenExportDialog: () -> Unit,
@@ -51,7 +53,9 @@ internal fun TimelineRetentionSection(
                 Button(onClick = onOpenEndSessionDialog) { Text("End session") }
             }
             if (uiState.showStartNewSession && !uiState.viewingRetained) {
-                Button(onClick = { store.startNewSupportedSession() }) { Text("Start new session") }
+                Button(onClick = onStartFollowUpSupportedSession) {
+                    Text(followUpSupportedSessionLabel)
+                }
             }
             if (uiState.viewingRetained) {
                 Button(onClick = store::returnToLive) { Text("Return to live") }

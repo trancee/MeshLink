@@ -20,7 +20,12 @@ import ch.trancee.meshlink.reference.model.TimelineSeverity
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-public fun TechnicalTimelineScreen(store: TechnicalTimelineStore, modifier: Modifier = Modifier) {
+public fun TechnicalTimelineScreen(
+    store: TechnicalTimelineStore,
+    followUpSupportedSessionLabel: String,
+    onStartFollowUpSupportedSession: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val uiState by store.uiState.collectAsState()
     val availableFamilies = rememberAvailableFamilies(uiState)
     val availablePeerSuffixes = rememberAvailablePeerSuffixes(uiState)
@@ -32,6 +37,8 @@ public fun TechnicalTimelineScreen(store: TechnicalTimelineStore, modifier: Modi
         availablePeerSuffixes = availablePeerSuffixes,
         availableSeverities = availableSeverities,
         store = store,
+        followUpSupportedSessionLabel = followUpSupportedSessionLabel,
+        onStartFollowUpSupportedSession = onStartFollowUpSupportedSession,
         modifier = modifier,
     )
 }
@@ -44,6 +51,8 @@ private fun TechnicalTimelineContent(
     availablePeerSuffixes: List<String>,
     availableSeverities: List<TimelineSeverity>,
     store: TechnicalTimelineStore,
+    followUpSupportedSessionLabel: String,
+    onStartFollowUpSupportedSession: () -> Unit,
     modifier: Modifier,
 ): Unit {
     var showExportDialog by remember { mutableStateOf(false) }
@@ -58,6 +67,8 @@ private fun TechnicalTimelineContent(
             TimelineRetentionSection(
                 uiState = uiState,
                 store = store,
+                followUpSupportedSessionLabel = followUpSupportedSessionLabel,
+                onStartFollowUpSupportedSession = onStartFollowUpSupportedSession,
                 showExportDialog = showExportDialog,
                 showEndSessionDialog = showEndSessionDialog,
                 onOpenExportDialog = { showExportDialog = true },

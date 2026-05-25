@@ -11,6 +11,7 @@ import androidx.compose.runtime.setValue
 import ch.trancee.meshlink.reference.model.referenceAuthorityLabel
 import ch.trancee.meshlink.reference.platform.PlatformServices
 import ch.trancee.meshlink.reference.session.referenceSessionKind
+import ch.trancee.meshlink.reference.timeline.startNewSupportedSessionNow
 import kotlinx.coroutines.launch
 
 /** Shared navigation shell for the reference app surfaces. */
@@ -66,6 +67,22 @@ public fun ReferenceNavHost(platformServices: PlatformServices) {
         selectSurface(lastRouteBySection[section] ?: section.defaultSurface)
     }
 
+    val followUpSupportedSessionLabel = followUpSupportedSessionLabel(snapshot)
+
+    fun startFollowUpSupportedSessionFromEvidenceSurface(): Unit {
+        coroutineScope.launch {
+            startFollowUpSupportedSession(
+                currentSnapshot = snapshot,
+                applySurfaceSelection = ::applySurfaceSelection,
+                startSupportedSession = { targetSurface ->
+                    dependencies.timelineStore.startNewSupportedSessionNow(
+                        surfaceOfOrigin = targetSurface.route
+                    )
+                },
+            )
+        }
+    }
+
     val shellHeaderState =
         ReferenceShellHeaderState(
             activeSection = primarySectionFor(activeRoute),
@@ -90,15 +107,19 @@ public fun ReferenceNavHost(platformServices: PlatformServices) {
                 advancedViewModel = dependencies.advancedViewModel,
                 timelineStore = dependencies.timelineStore,
             ),
+        followUpSupportedSessionLabel = followUpSupportedSessionLabel,
+        onStartFollowUpSupportedSession = ::startFollowUpSupportedSessionFromEvidenceSurface,
         pendingBoundary = pendingBoundary,
         onDismissBoundary = { pendingBoundary = null },
         onConfirmBoundary = { request, exportFirst ->
-            handleBoundaryConfirmation(
-                request = request,
-                exportFirst = exportFirst,
-                timelineStore = dependencies.timelineStore,
-                applySurfaceSelection = ::applySurfaceSelection,
-            )
+            coroutineScope.launch {
+                handleBoundaryConfirmation(
+                    request = request,
+                    exportFirst = exportFirst,
+                    timelineStore = dependencies.timelineStore,
+                    applySurfaceSelection = ::applySurfaceSelection,
+                )
+            }
             pendingBoundary = null
         },
         onSelectSurface = ::selectSurface,

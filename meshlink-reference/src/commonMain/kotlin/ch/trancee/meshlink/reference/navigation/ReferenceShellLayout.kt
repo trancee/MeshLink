@@ -13,6 +13,8 @@ import androidx.compose.ui.unit.dp
 internal fun ReferenceShellScaffold(
     headerState: ReferenceShellHeaderState,
     contentState: ReferenceRouteContentState,
+    followUpSupportedSessionLabel: String,
+    onStartFollowUpSupportedSession: () -> Unit,
     pendingBoundary: SessionBoundaryRequest?,
     onDismissBoundary: () -> Unit,
     onConfirmBoundary: (SessionBoundaryRequest, Boolean) -> Unit,
@@ -25,6 +27,8 @@ internal fun ReferenceShellScaffold(
             Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
                 ReferenceRouteContent(
                     contentState = contentState,
+                    followUpSupportedSessionLabel = followUpSupportedSessionLabel,
+                    onStartFollowUpSupportedSession = onStartFollowUpSupportedSession,
                     onOpenSolo = { onSelectSurface(ReferenceSurfaceId.SOLO_EXPLORATION) },
                 )
             }

@@ -3,12 +3,13 @@ package ch.trancee.meshlink.reference.navigation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
+import ch.trancee.meshlink.reference.meshlink.ReferenceControllerSnapshot
 import ch.trancee.meshlink.reference.session.ExportPayloadPolicy
 import ch.trancee.meshlink.reference.session.ReferenceSessionController
 import ch.trancee.meshlink.reference.timeline.TechnicalTimelineStore
-import ch.trancee.meshlink.reference.timeline.transitionAlternativeSession
-import ch.trancee.meshlink.reference.timeline.transitionToLabSession
-import ch.trancee.meshlink.reference.timeline.transitionToSoloSession
+import ch.trancee.meshlink.reference.timeline.transitionAlternativeSessionNow
+import ch.trancee.meshlink.reference.timeline.transitionToLabSessionNow
+import ch.trancee.meshlink.reference.timeline.transitionToSoloSessionNow
 
 @Composable
 internal fun rememberReferenceWorkflowTitles(): Map<ReferenceSurfaceId, String> {
@@ -41,7 +42,33 @@ internal suspend fun startAlternativeSession(
     }
 }
 
-internal fun handleBoundaryConfirmation(
+internal fun followUpSupportedEntrySurface(
+    currentSnapshot: ReferenceControllerSnapshot
+): ReferenceSurfaceId {
+    return when (currentSnapshot.session.configurationSnapshot["surface"]) {
+        ReferenceSurfaceId.ADVANCED_CONTROLS.route -> ReferenceSurfaceId.ADVANCED_CONTROLS
+        else -> ReferenceSurfaceId.MAIN_GUIDED
+    }
+}
+
+internal fun followUpSupportedSessionLabel(currentSnapshot: ReferenceControllerSnapshot): String {
+    return when (followUpSupportedEntrySurface(currentSnapshot)) {
+        ReferenceSurfaceId.ADVANCED_CONTROLS -> "Start new advanced session"
+        else -> "Start new guided session"
+    }
+}
+
+internal suspend fun startFollowUpSupportedSession(
+    currentSnapshot: ReferenceControllerSnapshot,
+    applySurfaceSelection: (ReferenceSurfaceId) -> Unit,
+    startSupportedSession: suspend (ReferenceSurfaceId) -> Unit,
+): Unit {
+    val targetSurface = followUpSupportedEntrySurface(currentSnapshot)
+    applySurfaceSelection(targetSurface)
+    startSupportedSession(targetSurface)
+}
+
+internal suspend fun handleBoundaryConfirmation(
     request: SessionBoundaryRequest,
     exportFirst: Boolean,
     timelineStore: TechnicalTimelineStore,
@@ -49,9 +76,10 @@ internal fun handleBoundaryConfirmation(
 ): Unit {
     when (request) {
         is SessionBoundaryRequest.SupportedTo -> {
+            applySurfaceSelection(request.targetSurface)
             when (request.targetSurface) {
                 ReferenceSurfaceId.SOLO_EXPLORATION ->
-                    timelineStore.transitionToSoloSession(
+                    timelineStore.transitionToSoloSessionNow(
                         preBoundaryExportPolicy =
                             if (exportFirst) {
                                 ExportPayloadPolicy.FULL_PAYLOAD_OPT_IN
@@ -60,7 +88,7 @@ internal fun handleBoundaryConfirmation(
                             }
                     )
                 ReferenceSurfaceId.LAB ->
-                    timelineStore.transitionToLabSession(
+                    timelineStore.transitionToLabSessionNow(
                         preBoundaryExportPolicy =
                             if (exportFirst) {
                                 ExportPayloadPolicy.FULL_PAYLOAD_OPT_IN
@@ -70,15 +98,14 @@ internal fun handleBoundaryConfirmation(
                     )
                 else -> Unit
             }
-            applySurfaceSelection(request.targetSurface)
         }
 
         is SessionBoundaryRequest.AlternativeTo -> {
-            timelineStore.transitionAlternativeSession(
+            applySurfaceSelection(request.targetSurface)
+            timelineStore.transitionAlternativeSessionNow(
                 targetSurface = request.targetSurface,
                 exportBeforeExit = exportFirst,
             )
-            applySurfaceSelection(request.targetSurface)
         }
     }
 }
