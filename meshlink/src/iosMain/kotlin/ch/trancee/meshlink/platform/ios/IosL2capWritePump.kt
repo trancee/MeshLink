@@ -3,7 +3,6 @@
 package ch.trancee.meshlink.platform.ios
 
 import ch.trancee.meshlink.api.PeerId
-import ch.trancee.meshlink.engine.DirectWireFrame
 import ch.trancee.meshlink.identity.toHexString
 import ch.trancee.meshlink.transport.PendingFrameWindow
 import kotlinx.coroutines.channels.Channel
@@ -23,66 +22,6 @@ internal constructor(
     internal val promoteActiveWriteLatency: () -> Unit,
     internal val timing: IosL2capWriteTiming,
 )
-
-internal class IosL2capFrameTelemetry
-internal constructor(
-    internal val directType: String,
-    internal val dataClass: String,
-    internal val innerBytes: Int,
-)
-
-internal fun classifyL2capFrame(payload: ByteArray): IosL2capFrameTelemetry {
-    return runCatching { DirectWireFrame.decode(payload) }
-        .getOrNull()
-        ?.let { frame ->
-            when (frame) {
-                is DirectWireFrame.HandshakeMessage1 ->
-                    IosL2capFrameTelemetry(
-                        directType = "HANDSHAKE_MESSAGE_1",
-                        dataClass = "handshake",
-                        innerBytes = frame.payload.size,
-                    )
-                is DirectWireFrame.HandshakeMessage2 ->
-                    IosL2capFrameTelemetry(
-                        directType = "HANDSHAKE_MESSAGE_2",
-                        dataClass = "handshake",
-                        innerBytes = frame.payload.size,
-                    )
-                is DirectWireFrame.HandshakeMessage3 ->
-                    IosL2capFrameTelemetry(
-                        directType = "HANDSHAKE_MESSAGE_3",
-                        dataClass = "handshake",
-                        innerBytes = frame.payload.size,
-                    )
-                is DirectWireFrame.Data ->
-                    IosL2capFrameTelemetry(
-                        directType = "DATA",
-                        dataClass =
-                            if (frame.payload.size <= ACK_LIKELY_ENCRYPTED_BYTES) {
-                                "ackLikely"
-                            } else {
-                                "bulkLikely"
-                            },
-                        innerBytes = frame.payload.size,
-                    )
-            }
-        }
-        ?: IosL2capFrameTelemetry(
-            directType = "UNKNOWN",
-            dataClass = "unknown",
-            innerBytes = payload.size,
-        )
-}
-
-internal fun emitL2capTelemetry(
-    telemetryLogger: (String) -> Unit,
-    event: String,
-    fields: Map<String, String>,
-): Unit {
-    val body =
-        fields.entries.joinToString(separator = " ") { entry -> "${entry.key}=${entry.value}" }
-    telemetryLogger("MeshLinkTransportTelemetry event=$event $body")
-}
 
 internal class IosL2capWritePump
 internal constructor(
@@ -430,6 +369,5 @@ private const val PENDING_FRAME_WINDOW_BYTES: Int = 16 * 1024
 private const val MAX_COALESCED_FRAMES: Int = 16
 private const val MAX_COALESCED_BATCH_BYTES: Int = 16 * 1024
 private const val WRITE_BATCH_BYTES: Int = 4 * 1024
-private const val ACK_LIKELY_ENCRYPTED_BYTES: Int = 192
 private const val WRITE_STALL_TIMEOUT_MS: Long = 10_000L
 private const val FRAME_PREFIX_BYTES: Int = 4
