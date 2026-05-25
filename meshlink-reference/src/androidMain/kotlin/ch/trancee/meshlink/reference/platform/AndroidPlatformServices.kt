@@ -2,6 +2,7 @@ package ch.trancee.meshlink.reference.platform
 
 import android.content.Context
 import android.util.Log
+import ch.trancee.meshlink.api.androidMeshLinkBootstrap
 import ch.trancee.meshlink.reference.automation.ReferenceAutomationConfig
 import ch.trancee.meshlink.reference.automation.ReferenceAutomationMode
 import ch.trancee.meshlink.reference.automation.ReferenceAutomationRole
@@ -20,7 +21,7 @@ public fun createAndroidPlatformServices(context: Context): PlatformServices {
             DefaultPlatformServicesOptions().apply {
                 readinessBlockers = androidReadinessBlockers(context)
                 nowProvider = { System.currentTimeMillis() }
-                platformContext = context
+                meshLinkBootstrap = androidMeshLinkBootstrap(context)
                 documentStore =
                     OkioReferenceDocumentStore(context.filesDir.absolutePath, FileSystem.SYSTEM)
             },
@@ -94,7 +95,7 @@ public fun createAndroidLiveAutomationPlatformServices(
                 readinessBlockers = androidReadinessBlockers(context)
                 nowProvider = clock
                 this.appId = automationAppId
-                platformContext = context
+                meshLinkBootstrap = androidMeshLinkBootstrap(context)
                 documentStore = OkioReferenceDocumentStore(automationDirectory, FileSystem.SYSTEM)
                 automationConfig =
                     ReferenceAutomationConfig(

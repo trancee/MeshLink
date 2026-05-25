@@ -2,7 +2,6 @@ package ch.trancee.meshlink.api
 
 import ch.trancee.meshlink.config.MeshLinkConfig
 import ch.trancee.meshlink.engine.MeshEngine
-import ch.trancee.meshlink.platform.AndroidFactoryTestContext
 import ch.trancee.meshlink.platform.android.AndroidCryptoProviderFactory
 import ch.trancee.meshlink.platform.loadOrCreateLocalIdentityBlocking
 import ch.trancee.meshlink.storage.InMemorySecureStorage
@@ -10,7 +9,7 @@ import ch.trancee.meshlink.storage.InMemorySecureStorage
 internal actual fun installFactoryTestBridges(): Unit = Unit
 
 internal actual fun createAndroidFactoryParityApi(config: MeshLinkConfig): MeshLinkApi {
-    return meshLink(config = config, context = AndroidFactoryTestContext)
+    return meshLink(config = config, bootstrap = AndroidFactoryTestMeshLinkBootstrap)
 }
 
 internal actual fun createIosFactoryParityApi(config: MeshLinkConfig): MeshLinkApi {

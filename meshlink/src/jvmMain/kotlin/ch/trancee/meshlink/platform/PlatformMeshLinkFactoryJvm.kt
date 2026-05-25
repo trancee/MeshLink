@@ -1,6 +1,7 @@
 package ch.trancee.meshlink.platform
 
 import ch.trancee.meshlink.api.MeshLinkApi
+import ch.trancee.meshlink.api.MeshLinkBootstrap
 import ch.trancee.meshlink.config.MeshLinkConfig
 import ch.trancee.meshlink.crypto.JvmCryptoProvider
 import ch.trancee.meshlink.engine.MeshEngine
@@ -21,7 +22,10 @@ internal actual fun createMeshLink(config: MeshLinkConfig): MeshLinkApi {
     )
 }
 
-internal actual fun createMeshLink(config: MeshLinkConfig, context: Any): MeshLinkApi {
+internal actual fun createMeshLink(
+    config: MeshLinkConfig,
+    bootstrap: MeshLinkBootstrap,
+): MeshLinkApi {
     val secureStorage = InMemorySecureStorage()
     val localIdentity =
         loadOrCreateLocalIdentityBlocking(
@@ -31,7 +35,7 @@ internal actual fun createMeshLink(config: MeshLinkConfig, context: Any): MeshLi
         )
     return MeshEngine.create(
         config = config,
-        platformContext = context,
+        platformContext = bootstrap,
         localIdentity = localIdentity,
         secureStorage = secureStorage,
     )

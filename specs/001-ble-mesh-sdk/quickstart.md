@@ -42,7 +42,7 @@ val config = meshLinkConfig {
 
 ## 3. Construct the platform instance
 
-- Android calls `meshLink(config, context)`.
+- Android calls `meshLink(config, bootstrap = androidMeshLinkBootstrap(context))`.
 - iOS calls `meshLink(config)`.
 - Both factories return the same `MeshLinkApi` surface.
 - If local signing, device trust, or reference hardware blocks this step, treat

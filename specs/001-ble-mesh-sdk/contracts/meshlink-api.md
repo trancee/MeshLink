@@ -11,13 +11,16 @@ shape must stay identical across platforms.
 
 ```kotlin
 fun meshLink(config: MeshLinkConfig): MeshLinkApi
-fun meshLink(config: MeshLinkConfig, context: Any): MeshLinkApi
+fun meshLink(config: MeshLinkConfig, bootstrap: MeshLinkBootstrap): MeshLinkApi
+abstract class MeshLinkBootstrap
+fun androidMeshLinkBootstrap(context: Context): MeshLinkBootstrap // Android only
 ```
 
 **Contract notes**
 - `meshLink(config)` is the primary entry point for platforms that do not need
   extra bootstrap input.
-- `meshLink(config, context)` is the Android bootstrap overload.
+- `meshLink(config, bootstrap)` is the typed bootstrap overload.
+- Android obtains `bootstrap` from `androidMeshLinkBootstrap(context)`.
 - Platform-specific parameters belong in factory overloads, not in the shared
   DSL.
 - Android-specific handles, iOS/CoreBluetooth handles, and other platform

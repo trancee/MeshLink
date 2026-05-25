@@ -22,7 +22,7 @@ These notes matter when you consume the generated Apple framework from Swift.
 | Kotlin surface | Swift-facing shape |
 |---|---|
 | `meshLink(config)` | `meshLink(config:)` |
-| `meshLink(config, context)` | `meshLink(config:context:)` |
+| `meshLink(config, bootstrap)` | `meshLink(config:bootstrap:)` |
 | `meshLinkConfig { ... }` | `meshLinkConfig { ... }` |
 | suspend functions like `start()` | `try await api.start()` |
 | `StateFlow` / `Flow` values | `AsyncSequence` values collected with `for await` |
@@ -36,13 +36,17 @@ These notes matter when you consume the generated Apple framework from Swift.
 
 ```kotlin
 fun meshLink(config: MeshLinkConfig): MeshLinkApi
-fun meshLink(config: MeshLinkConfig, context: Any): MeshLinkApi
+fun meshLink(config: MeshLinkConfig, bootstrap: MeshLinkBootstrap): MeshLinkApi
+abstract class MeshLinkBootstrap
+
+// Android only
+fun androidMeshLinkBootstrap(context: Context): MeshLinkBootstrap
 ```
 
 | API | Use | Notes |
 |---|---|---|
 | `meshLink(config)` | iOS and platforms that do not need extra bootstrap input | Recommended default for Swift and Kotlin callers that do not need platform bootstrap input. |
-| `meshLink(config, context)` | Android | `context` must be an Android `Context`. Use the application context. |
+| `meshLink(config, bootstrap)` | Android | Obtain `bootstrap` from `androidMeshLinkBootstrap(context)` and pass an application context. |
 
 Factory instances are created in `MeshLinkState.Uninitialized`. Construction does not start transport activity, emit lifecycle diagnostics, or begin peer/session work before `start()` is called. The current implementation may still load or create local identity material during construction so the runtime can derive its stable peer identity.
 
@@ -51,7 +55,7 @@ Factory instances are created in `MeshLinkState.Uninitialized`. Construction doe
 ```kotlin
 val runtime = meshLink(
     config = meshLinkConfig { appId = "com.example.chat" },
-    context = applicationContext,
+    bootstrap = androidMeshLinkBootstrap(applicationContext),
 )
 ```
 

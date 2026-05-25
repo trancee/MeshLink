@@ -9,20 +9,21 @@ import ch.trancee.meshlink.platform.createMeshLink
  * This top-level helper gives Swift and Kotlin callers a stable factory entry point without needing
  * to reference a generated singleton object directly.
  *
- * @throws MeshLinkException.InvalidConfiguration on Android when no platform context is supplied.
+ * @throws MeshLinkException.InvalidConfiguration on Android when no platform bootstrap is supplied.
  */
 public fun meshLink(config: MeshLinkConfig): MeshLinkApi {
     return createMeshLink(config = config)
 }
 
 /**
- * Creates a MeshLink runtime on platforms that require extra bootstrap input, such as Android.
+ * Creates a MeshLink runtime with typed platform bootstrap input, such as an Android application
+ * context wrapped by `androidMeshLinkBootstrap(...)`.
  *
- * The supplied value must be an Android `Context` on Android targets. On platforms that do not
- * require extra bootstrap input, prefer [meshLink].
+ * On platforms that do not require extra bootstrap input, prefer [meshLink].
  *
- * @throws MeshLinkException.InvalidConfiguration when [context] is missing or invalid.
+ * @throws MeshLinkException.InvalidConfiguration when [bootstrap] is missing or invalid for the
+ *   current platform.
  */
-public fun meshLink(config: MeshLinkConfig, context: Any): MeshLinkApi {
-    return createMeshLink(config = config, context = context)
+public fun meshLink(config: MeshLinkConfig, bootstrap: MeshLinkBootstrap): MeshLinkApi {
+    return createMeshLink(config = config, bootstrap = bootstrap)
 }

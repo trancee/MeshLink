@@ -1,7 +1,9 @@
 package ch.trancee.meshlink.platform
 
-import android.content.Context
+import ch.trancee.meshlink.api.AndroidContextMeshLinkBootstrap
+import ch.trancee.meshlink.api.AndroidFactoryTestMeshLinkBootstrap
 import ch.trancee.meshlink.api.MeshLinkApi
+import ch.trancee.meshlink.api.MeshLinkBootstrap
 import ch.trancee.meshlink.api.MeshLinkException
 import ch.trancee.meshlink.config.MeshLinkConfig
 import ch.trancee.meshlink.engine.MeshEngine
@@ -10,21 +12,24 @@ import ch.trancee.meshlink.platform.android.AndroidCryptoProviderFactory
 import ch.trancee.meshlink.platform.android.AndroidSecureStorage
 import ch.trancee.meshlink.storage.InMemorySecureStorage
 
-private const val ANDROID_CONTEXT_REQUIRED_MESSAGE =
-    "Android context is required. Call meshLink(config = ..., context = ...)."
+private const val ANDROID_BOOTSTRAP_REQUIRED_MESSAGE =
+    "Android bootstrap is required. Call meshLink(config = ..., bootstrap = androidMeshLinkBootstrap(context))."
 
 internal actual fun createMeshLink(config: MeshLinkConfig): MeshLinkApi {
-    throw MeshLinkException.InvalidConfiguration(ANDROID_CONTEXT_REQUIRED_MESSAGE)
+    throw MeshLinkException.InvalidConfiguration(ANDROID_BOOTSTRAP_REQUIRED_MESSAGE)
 }
 
-internal actual fun createMeshLink(config: MeshLinkConfig, context: Any): MeshLinkApi {
-    if (context === AndroidFactoryTestContext) {
-        return createFactoryTestMeshLink(config = config, context = context)
+internal actual fun createMeshLink(
+    config: MeshLinkConfig,
+    bootstrap: MeshLinkBootstrap,
+): MeshLinkApi {
+    if (bootstrap === AndroidFactoryTestMeshLinkBootstrap) {
+        return createFactoryTestMeshLink(config = config)
     }
 
     val androidContext =
-        context as? Context
-            ?: throw MeshLinkException.InvalidConfiguration(ANDROID_CONTEXT_REQUIRED_MESSAGE)
+        (bootstrap as? AndroidContextMeshLinkBootstrap)?.context
+            ?: throw MeshLinkException.InvalidConfiguration(ANDROID_BOOTSTRAP_REQUIRED_MESSAGE)
     val secureStorage = AndroidSecureStorage(androidContext, config.appId)
     val cryptoProvider = AndroidCryptoProviderFactory.create()
     val localIdentity =
@@ -47,7 +52,7 @@ internal actual fun createMeshLink(config: MeshLinkConfig, context: Any): MeshLi
     )
 }
 
-private fun createFactoryTestMeshLink(config: MeshLinkConfig, context: Any): MeshLinkApi {
+private fun createFactoryTestMeshLink(config: MeshLinkConfig): MeshLinkApi {
     val secureStorage = InMemorySecureStorage()
     val cryptoProvider = AndroidCryptoProviderFactory.create()
     val localIdentity =
@@ -58,7 +63,6 @@ private fun createFactoryTestMeshLink(config: MeshLinkConfig, context: Any): Mes
         )
     return MeshEngine.create(
         config = config,
-        platformContext = context,
         localIdentity = localIdentity,
         secureStorage = secureStorage,
     )

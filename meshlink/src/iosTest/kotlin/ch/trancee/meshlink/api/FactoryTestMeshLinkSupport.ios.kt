@@ -1,7 +1,6 @@
 package ch.trancee.meshlink.api
 
 import ch.trancee.meshlink.config.MeshLinkConfig
-import ch.trancee.meshlink.platform.AndroidFactoryTestContext
 
 internal actual fun installFactoryTestBridges(): Unit {
     var counter = 1
@@ -34,7 +33,7 @@ internal actual fun installFactoryTestBridges(): Unit {
 }
 
 internal actual fun createAndroidFactoryParityApi(config: MeshLinkConfig): MeshLinkApi {
-    return meshLink(config = config, context = AndroidFactoryTestContext)
+    return meshLink(config = config, bootstrap = AndroidFactoryTestMeshLinkBootstrap)
 }
 
 internal actual fun createIosFactoryParityApi(config: MeshLinkConfig): MeshLinkApi {

@@ -1,5 +1,6 @@
 package ch.trancee.meshlink.reference.platform
 
+import ch.trancee.meshlink.api.MeshLinkBootstrap
 import ch.trancee.meshlink.reference.automation.ReferenceAutomationConfig
 import ch.trancee.meshlink.reference.meshlink.LiveReferenceMeshLinkController
 import ch.trancee.meshlink.reference.meshlink.PreviewReferenceMeshLinkController
@@ -31,7 +32,7 @@ public interface PlatformServices {
 internal class DefaultPlatformServicesOptions {
     public var nowProvider: () -> Long = { 0L }
     public var appId: String = DEFAULT_REFERENCE_APP_ID
-    public var platformContext: Any? = null
+    public var meshLinkBootstrap: MeshLinkBootstrap? = null
     public var documentStore: ReferenceDocumentStore = InMemoryReferenceDocumentStore()
     public var readinessBlockers: List<String> = emptyList()
     public var automationConfig: ReferenceAutomationConfig? = null
@@ -48,7 +49,7 @@ internal class DefaultPlatformServices(
 ) : PlatformServices {
     private val nowProvider: () -> Long = options.nowProvider
     private val appId: String = options.appId
-    private val platformContext: Any? = options.platformContext
+    private val meshLinkBootstrap: MeshLinkBootstrap? = options.meshLinkBootstrap
     override val documentStore: ReferenceDocumentStore = options.documentStore
     override val readinessBlockers: List<String> = options.readinessBlockers
     override val automationConfig: ReferenceAutomationConfig? = options.automationConfig
@@ -71,7 +72,7 @@ internal class DefaultPlatformServices(
                         appId = appId,
                         nowProvider = nowProvider,
                         surfaceOfOrigin = surfaceOfOrigin,
-                        platformContext = platformContext,
+                        meshLinkBootstrap = meshLinkBootstrap,
                         runtimeLogger = automationLogger,
                     )
                 }

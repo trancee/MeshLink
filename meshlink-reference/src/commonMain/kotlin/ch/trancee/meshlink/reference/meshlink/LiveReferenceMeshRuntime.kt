@@ -3,6 +3,7 @@ package ch.trancee.meshlink.reference.meshlink
 import ch.trancee.meshlink.api.DeliveryPriority
 import ch.trancee.meshlink.api.ForgetPeerResult
 import ch.trancee.meshlink.api.MeshLinkApi
+import ch.trancee.meshlink.api.MeshLinkBootstrap
 import ch.trancee.meshlink.api.PauseResult
 import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.api.ResumeResult
@@ -13,9 +14,10 @@ import kotlinx.coroutines.CoroutineScope
 
 internal class LiveReferenceMeshRuntime(
     private val appId: String,
-    private val platformContext: Any?,
+    private val meshLinkBootstrap: MeshLinkBootstrap?,
     private val scope: CoroutineScope,
-    private val meshLinkApiFactory: (String, Any?) -> MeshLinkApi = ::createLiveReferenceMeshLinkApi,
+    private val meshLinkApiFactory: (String, MeshLinkBootstrap?) -> MeshLinkApi =
+        ::createLiveReferenceMeshLinkApi,
 ) {
     private var meshLinkApi: MeshLinkApi? = null
     private var flowsBound: Boolean = false
@@ -109,6 +111,6 @@ internal class LiveReferenceMeshRuntime(
 
     private fun requireMeshLinkApi(): MeshLinkApi {
         return meshLinkApi
-            ?: meshLinkApiFactory(appId, platformContext).also { api -> meshLinkApi = api }
+            ?: meshLinkApiFactory(appId, meshLinkBootstrap).also { api -> meshLinkApi = api }
     }
 }

@@ -1,6 +1,7 @@
 package ch.trancee.meshlink.reference.meshlink
 
 import ch.trancee.meshlink.api.MeshLinkApi
+import ch.trancee.meshlink.api.MeshLinkBootstrap
 import ch.trancee.meshlink.api.MeshLinkState
 import ch.trancee.meshlink.api.meshLink
 import ch.trancee.meshlink.config.PowerMode
@@ -60,14 +61,17 @@ internal fun createLiveReferenceInitialSnapshot(
     )
 }
 
-internal fun createLiveReferenceMeshLinkApi(appId: String, platformContext: Any?): MeshLinkApi {
+internal fun createLiveReferenceMeshLinkApi(
+    appId: String,
+    meshLinkBootstrap: MeshLinkBootstrap?,
+): MeshLinkApi {
     val config = meshLinkConfig {
         this.appId = appId
         regulatoryRegion = RegulatoryRegion.DEFAULT
         powerMode = PowerMode.Automatic
     }
-    return if (platformContext != null) {
-        meshLink(config = config, context = platformContext)
+    return if (meshLinkBootstrap != null) {
+        meshLink(config = config, bootstrap = meshLinkBootstrap)
     } else {
         meshLink(config = config)
     }

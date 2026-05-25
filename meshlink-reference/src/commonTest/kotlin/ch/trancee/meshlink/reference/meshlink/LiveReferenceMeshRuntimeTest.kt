@@ -30,7 +30,7 @@ class LiveReferenceMeshRuntimeTest {
         val runtime =
             LiveReferenceMeshRuntime(
                 appId = "demo.meshlink.reference",
-                platformContext = null,
+                meshLinkBootstrap = null,
                 scope = CoroutineScope(SupervisorJob()),
                 meshLinkApiFactory = { _, _ -> api },
             )
@@ -62,7 +62,7 @@ class LiveReferenceMeshRuntimeTest {
         val runtime =
             LiveReferenceMeshRuntime(
                 appId = "demo.meshlink.reference",
-                platformContext = null,
+                meshLinkBootstrap = null,
                 scope = CoroutineScope(SupervisorJob()),
                 meshLinkApiFactory = { _, _ -> api },
             )

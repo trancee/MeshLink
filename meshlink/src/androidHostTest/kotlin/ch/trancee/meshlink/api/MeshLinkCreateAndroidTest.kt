@@ -7,11 +7,11 @@ import kotlin.test.assertFailsWith
 
 class MeshLinkCreateAndroidTest {
     @Test
-    fun `meshLink without context on Android fails with helpful guidance`() {
+    fun `meshLink without bootstrap on Android fails with helpful guidance`() {
         // Arrange
         val config = meshLinkConfig { appId = "demo.meshlink.android.runtime" }
         val expectedMessage =
-            "Android context is required. Call meshLink(config = ..., context = ...)."
+            "Android bootstrap is required. Call meshLink(config = ..., bootstrap = androidMeshLinkBootstrap(context))."
 
         // Act
         val error =
@@ -22,20 +22,22 @@ class MeshLinkCreateAndroidTest {
     }
 
     @Test
-    fun `meshLink with a non context bootstrap object fails as invalid configuration`() {
+    fun `meshLink with a non Android bootstrap fails as invalid configuration`() {
         // Arrange
         val config = meshLinkConfig { appId = "demo.meshlink.android.runtime" }
-        val invalidContext = Any()
+        val invalidBootstrap = InvalidBootstrap()
         val expectedMessage =
-            "Android context is required. Call meshLink(config = ..., context = ...)."
+            "Android bootstrap is required. Call meshLink(config = ..., bootstrap = androidMeshLinkBootstrap(context))."
 
         // Act
         val error =
             assertFailsWith<MeshLinkException.InvalidConfiguration> {
-                meshLink(config = config, context = invalidContext)
+                meshLink(config = config, bootstrap = invalidBootstrap)
             }
 
         // Assert
         assertEquals(expected = expectedMessage, actual = error.message)
     }
 }
+
+private class InvalidBootstrap : MeshLinkBootstrap()

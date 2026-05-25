@@ -104,6 +104,9 @@ public final class ch/trancee/meshlink/api/MeshLinkApi$DefaultImpls {
 	public static synthetic fun send$default (Lch/trancee/meshlink/api/MeshLinkApi;Lch/trancee/meshlink/api/PeerId;[BLch/trancee/meshlink/api/DeliveryPriority;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 }
 
+public abstract class ch/trancee/meshlink/api/MeshLinkBootstrap {
+}
+
 public abstract class ch/trancee/meshlink/api/MeshLinkException : java/lang/IllegalStateException {
 	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/Throwable;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/Throwable;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
@@ -146,7 +149,7 @@ public final class ch/trancee/meshlink/api/MeshLinkException$TransportFailure : 
 
 public final class ch/trancee/meshlink/api/MeshLinkFactoriesKt {
 	public static final fun meshLink (Lch/trancee/meshlink/config/MeshLinkConfig;)Lch/trancee/meshlink/api/MeshLinkApi;
-	public static final fun meshLink (Lch/trancee/meshlink/config/MeshLinkConfig;Ljava/lang/Object;)Lch/trancee/meshlink/api/MeshLinkApi;
+	public static final fun meshLink (Lch/trancee/meshlink/config/MeshLinkConfig;Lch/trancee/meshlink/api/MeshLinkBootstrap;)Lch/trancee/meshlink/api/MeshLinkApi;
 }
 
 public abstract class ch/trancee/meshlink/api/MeshLinkState {

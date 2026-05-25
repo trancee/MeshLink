@@ -1,6 +1,7 @@
 package ch.trancee.meshlink.reference.meshlink
 
 import ch.trancee.meshlink.api.DeliveryPriority
+import ch.trancee.meshlink.api.MeshLinkBootstrap
 import ch.trancee.meshlink.reference.model.ReferenceAuthorityMode
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -15,7 +16,7 @@ internal class LiveReferenceMeshLinkController(
     private val appId: String,
     private val nowProvider: () -> Long,
     private val surfaceOfOrigin: String = "main-guided",
-    private val platformContext: Any? = null,
+    private val meshLinkBootstrap: MeshLinkBootstrap? = null,
     private val runtimeLogger: (String) -> Unit = {},
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
 ) : ReferenceMeshLinkController {
@@ -36,7 +37,11 @@ internal class LiveReferenceMeshLinkController(
             nowProvider = nowProvider,
         )
     private val runtime: LiveReferenceMeshRuntime =
-        LiveReferenceMeshRuntime(appId = appId, platformContext = platformContext, scope = scope)
+        LiveReferenceMeshRuntime(
+            appId = appId,
+            meshLinkBootstrap = meshLinkBootstrap,
+            scope = scope,
+        )
     private val sendRecorder: LiveReferenceSendRecorder = LiveReferenceSendRecorder(stateStore)
     private val sessionProjector: LiveReferenceSessionProjector =
         LiveReferenceSessionProjector(stateStore = stateStore, runtimeLogger = runtimeLogger)
