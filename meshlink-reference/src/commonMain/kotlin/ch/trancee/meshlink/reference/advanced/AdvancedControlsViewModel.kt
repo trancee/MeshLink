@@ -5,9 +5,7 @@ import ch.trancee.meshlink.reference.platform.PlatformServices
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
@@ -16,56 +14,31 @@ public class AdvancedControlsViewModel(
     private val platformServices: PlatformServices,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
 ) {
-    private val defaultComposerText: String =
-        "hello mesh from ${platformServices.platformName} advanced"
-    private val uiStateFlow: MutableStateFlow<AdvancedControlsUiState> =
-        MutableStateFlow(
-            buildAdvancedControlsUiState(
-                platformServices = platformServices,
-                selectedPeerId = null,
-                composerText = defaultComposerText,
-                selectedPriority = DeliveryPriority.NORMAL,
-            )
+    private val stateStore: AdvancedControlsStateStore =
+        AdvancedControlsStateStore(
+            platformName = platformServices.platformName,
+            initialSnapshot = platformServices.meshLinkController.snapshot.value,
         )
-    private val lifecycleStateFlow: MutableStateFlow<LifecycleActionState> =
-        MutableStateFlow(LifecycleActionState.from(uiStateFlow.value.meshStateLabel))
 
-    public val uiState: StateFlow<AdvancedControlsUiState> = uiStateFlow.asStateFlow()
-    public val lifecycleActions: StateFlow<LifecycleActionState> = lifecycleStateFlow.asStateFlow()
+    public val uiState: StateFlow<AdvancedControlsUiState> = stateStore.uiState
+    public val lifecycleActions: StateFlow<LifecycleActionState> = stateStore.lifecycleActions
 
     init {
         scope.launch {
-            platformServices.meshLinkController.snapshot.collectLatest { snapshot ->
-                val current = uiStateFlow.value
-                rebuildUiState(
-                    selectedPeerId = current.selectedPeerId ?: snapshot.peers.firstOrNull()?.peerId,
-                    composerText = current.composerText,
-                    selectedPriority = current.selectedPriority,
-                )
-                lifecycleStateFlow.value =
-                    LifecycleActionState.from(snapshot.session.meshStateLabel)
-            }
+            platformServices.meshLinkController.snapshot.collectLatest(stateStore::applySnapshot)
         }
     }
 
     public fun selectPeer(peerId: String): Unit {
-        rebuildUiState(
-            selectedPeerId = peerId,
-            composerText = uiStateFlow.value.composerText,
-            selectedPriority = uiStateFlow.value.selectedPriority,
-        )
+        stateStore.selectPeer(peerId)
     }
 
     public fun updateComposerText(text: String): Unit {
-        rebuildUiState(
-            selectedPeerId = uiStateFlow.value.selectedPeerId,
-            composerText = text,
-            selectedPriority = uiStateFlow.value.selectedPriority,
-        )
+        stateStore.updateComposerText(text)
     }
 
     public fun updatePriority(priority: DeliveryPriority): Unit {
-        uiStateFlow.value = uiStateFlow.value.copy(selectedPriority = priority)
+        stateStore.updatePriority(priority)
     }
 
     public fun startMesh(): Unit {
@@ -85,7 +58,7 @@ public class AdvancedControlsViewModel(
     }
 
     public fun sendCurrentMessage(): Unit {
-        val state = uiStateFlow.value
+        val state = uiState.value
         val peerId = state.selectedPeerId ?: return
         if (!state.canSendMessage) {
             return
@@ -100,7 +73,7 @@ public class AdvancedControlsViewModel(
     }
 
     public fun sendLargeTransferPreview(): Unit {
-        val state = uiStateFlow.value
+        val state = uiState.value
         val peerId = state.selectedPeerId ?: return
         if (!state.canSendLargeTransfer) {
             return
@@ -115,21 +88,7 @@ public class AdvancedControlsViewModel(
     }
 
     public fun forgetSelectedPeer(): Unit {
-        val peerId = uiStateFlow.value.selectedPeerId ?: return
+        val peerId = uiState.value.selectedPeerId ?: return
         scope.launch { platformServices.meshLinkController.forgetPeer(peerId) }
-    }
-
-    private fun rebuildUiState(
-        selectedPeerId: String?,
-        composerText: String,
-        selectedPriority: DeliveryPriority,
-    ): Unit {
-        uiStateFlow.value =
-            buildAdvancedControlsUiState(
-                platformServices = platformServices,
-                selectedPeerId = selectedPeerId,
-                composerText = composerText,
-                selectedPriority = selectedPriority,
-            )
     }
 }

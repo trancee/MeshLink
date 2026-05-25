@@ -1,19 +1,18 @@
 package ch.trancee.meshlink.reference.advanced
 
 import ch.trancee.meshlink.api.DeliveryPriority
+import ch.trancee.meshlink.reference.meshlink.ReferenceControllerSnapshot
 import ch.trancee.meshlink.reference.model.referenceAuthorityLabel
 import ch.trancee.meshlink.reference.model.referenceConnectionLabel
 import ch.trancee.meshlink.reference.model.referenceOutcomeLabel
 import ch.trancee.meshlink.reference.model.referencePeerTrustLabel
-import ch.trancee.meshlink.reference.platform.PlatformServices
 
 internal fun buildAdvancedControlsUiState(
-    platformServices: PlatformServices,
+    snapshot: ReferenceControllerSnapshot,
     selectedPeerId: String?,
     composerText: String,
     selectedPriority: DeliveryPriority,
 ): AdvancedControlsUiState {
-    val snapshot = platformServices.meshLinkController.snapshot.value
     val effectivePeerId = selectedPeerId ?: snapshot.peers.firstOrNull()?.peerId
     val configSnapshot = snapshot.session.configurationSnapshot
     val payloadSizeBytes = composerText.encodeToByteArray().size
