@@ -11,7 +11,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 
-class LiveProofAutomationTimelineSupportTest {
+class LiveProofAutomationTimelineQueriesTest {
     @Test
     fun latestAutomationObservationUsesTheNewestMatchingPeerEntry() {
         // Arrange
