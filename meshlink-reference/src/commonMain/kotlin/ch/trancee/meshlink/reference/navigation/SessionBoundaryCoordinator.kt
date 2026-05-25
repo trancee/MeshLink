@@ -17,8 +17,8 @@ internal class SessionBoundaryCoordinator(private val timelineStore: TechnicalTi
             is SessionBoundaryRequest.LeaveSupportedSession ->
                 current.isSupportedLiveSession &&
                     !current.viewingRetained &&
-                    (request.targetSurface == ReferenceSurfaceId.SOLO_EXPLORATION ||
-                        request.targetSurface == ReferenceSurfaceId.LAB)
+                    (request.targetSurface == ReferenceSurface.SOLO_EXPLORATION ||
+                        request.targetSurface == ReferenceSurface.LAB)
 
             is SessionBoundaryRequest.LeaveAlternativeSession ->
                 current.isAlternativeSession && !current.viewingRetained
@@ -26,8 +26,8 @@ internal class SessionBoundaryCoordinator(private val timelineStore: TechnicalTi
     }
 
     suspend fun startAlternativeSession(
-        surface: ReferenceSurfaceId,
-        applySurfaceSelection: (ReferenceSurfaceId) -> Unit,
+        surface: ReferenceSurface,
+        applySurfaceSelection: (ReferenceSurface) -> Unit,
     ): Unit {
         val snapshot = startAlternativeSnapshot(surface) ?: return
         timelineStore.syncLiveSnapshot(snapshot)
@@ -36,7 +36,7 @@ internal class SessionBoundaryCoordinator(private val timelineStore: TechnicalTi
 
     suspend fun startFollowUpSupportedSession(
         currentSnapshot: ReferenceControllerSnapshot,
-        applySurfaceSelection: (ReferenceSurfaceId) -> Unit,
+        applySurfaceSelection: (ReferenceSurface) -> Unit,
     ): Unit {
         val targetSurface = followUpSupportedEntrySurface(currentSnapshot)
         applySurfaceSelection(targetSurface)
@@ -44,7 +44,7 @@ internal class SessionBoundaryCoordinator(private val timelineStore: TechnicalTi
     }
 
     suspend fun startSupportedSession(
-        surfaceOfOrigin: String = ReferenceSurfaceId.MAIN_GUIDED.route
+        surfaceOfOrigin: String = ReferenceSurface.MAIN_GUIDED.route
     ): Unit {
         val snapshot = timelineStore.sessionController.startNewSupportedSession(surfaceOfOrigin)
         timelineStore.syncLiveSnapshot(snapshot)
@@ -66,7 +66,7 @@ internal class SessionBoundaryCoordinator(private val timelineStore: TechnicalTi
     }
 
     suspend fun transitionSupportedSession(
-        targetSurface: ReferenceSurfaceId,
+        targetSurface: ReferenceSurface,
         preBoundaryExportPolicy: ExportPayloadPolicy? = null,
     ): Unit {
         val current = timelineStore.uiState.value
@@ -89,7 +89,7 @@ internal class SessionBoundaryCoordinator(private val timelineStore: TechnicalTi
     }
 
     suspend fun transitionAlternativeSession(
-        targetSurface: ReferenceSurfaceId,
+        targetSurface: ReferenceSurface,
         continuation: BoundaryContinuation,
     ): Unit {
         val current = timelineStore.uiState.value
@@ -107,16 +107,16 @@ internal class SessionBoundaryCoordinator(private val timelineStore: TechnicalTi
                 current.lastExportPath
             }
         when (targetSurface) {
-            ReferenceSurfaceId.SOLO_EXPLORATION,
-            ReferenceSurfaceId.LAB -> {
+            ReferenceSurface.SOLO_EXPLORATION,
+            ReferenceSurface.LAB -> {
                 val snapshot = startAlternativeSnapshot(targetSurface) ?: return
                 timelineStore.syncLiveSnapshot(snapshot)
             }
 
-            ReferenceSurfaceId.ADVANCED_CONTROLS ->
-                startSupportedSession(ReferenceSurfaceId.ADVANCED_CONTROLS.route)
+            ReferenceSurface.ADVANCED_CONTROLS ->
+                startSupportedSession(ReferenceSurface.ADVANCED_CONTROLS.route)
 
-            else -> startSupportedSession(ReferenceSurfaceId.MAIN_GUIDED.route)
+            else -> startSupportedSession(ReferenceSurface.MAIN_GUIDED.route)
         }
         timelineStore.refreshRetainedSessions(lastExportPath = exportPath)
     }
@@ -124,7 +124,7 @@ internal class SessionBoundaryCoordinator(private val timelineStore: TechnicalTi
     suspend fun completeBoundary(
         request: SessionBoundaryRequest,
         continuation: BoundaryContinuation,
-        applySurfaceSelection: (ReferenceSurfaceId) -> Unit,
+        applySurfaceSelection: (ReferenceSurface) -> Unit,
     ): Unit {
         if (!canCompleteBoundary(request)) {
             return
@@ -149,12 +149,11 @@ internal class SessionBoundaryCoordinator(private val timelineStore: TechnicalTi
     }
 
     private suspend fun startAlternativeSnapshot(
-        surface: ReferenceSurfaceId
+        surface: ReferenceSurface
     ): ReferenceControllerSnapshot? {
         return when (surface) {
-            ReferenceSurfaceId.SOLO_EXPLORATION ->
-                timelineStore.sessionController.startSoloSession()
-            ReferenceSurfaceId.LAB -> timelineStore.sessionController.startLabSession()
+            ReferenceSurface.SOLO_EXPLORATION -> timelineStore.sessionController.startSoloSession()
+            ReferenceSurface.LAB -> timelineStore.sessionController.startLabSession()
             else -> null
         }
     }

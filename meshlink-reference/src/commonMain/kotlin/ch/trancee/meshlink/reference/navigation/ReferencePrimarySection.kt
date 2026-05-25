@@ -10,30 +10,30 @@ import androidx.compose.ui.graphics.vector.ImageVector
 internal enum class ReferencePrimarySection(
     val label: String,
     val icon: ImageVector,
-    val surfaces: List<ReferenceSurfaceId>,
+    val surfaces: List<ReferenceSurface>,
 ) {
     EXCHANGE(
         label = "Exchange",
         icon = Icons.Filled.Home,
-        surfaces = listOf(ReferenceSurfaceId.MAIN_GUIDED, ReferenceSurfaceId.SOLO_EXPLORATION),
+        surfaces = listOf(ReferenceSurface.MAIN_GUIDED, ReferenceSurface.SOLO_EXPLORATION),
     ),
     CONTROLS(
         label = "Controls",
         icon = Icons.Filled.Settings,
-        surfaces = listOf(ReferenceSurfaceId.ADVANCED_CONTROLS),
+        surfaces = listOf(ReferenceSurface.ADVANCED_CONTROLS),
     ),
     EVIDENCE(
         label = "Evidence",
         icon = Icons.Filled.Info,
-        surfaces = listOf(ReferenceSurfaceId.TECHNICAL_TIMELINE, ReferenceSurfaceId.RECENT_HISTORY),
+        surfaces = listOf(ReferenceSurface.TECHNICAL_TIMELINE, ReferenceSurface.RECENT_HISTORY),
     ),
-    LAB(label = "Lab", icon = Icons.Filled.Build, surfaces = listOf(ReferenceSurfaceId.LAB));
+    LAB(label = "Lab", icon = Icons.Filled.Build, surfaces = listOf(ReferenceSurface.LAB));
 
-    val defaultSurface: ReferenceSurfaceId = surfaces.first()
+    val defaultSurface: ReferenceSurface = surfaces.first()
 
     val supportsSubsurfaceSelection: Boolean = surfaces.size > 1
 }
 
-internal fun primarySectionFor(surface: ReferenceSurfaceId): ReferencePrimarySection {
+internal fun primarySectionFor(surface: ReferenceSurface): ReferencePrimarySection {
     return ReferencePrimarySection.entries.first { section -> surface in section.surfaces }
 }

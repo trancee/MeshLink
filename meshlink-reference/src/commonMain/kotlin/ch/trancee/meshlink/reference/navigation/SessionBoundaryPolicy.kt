@@ -13,12 +13,12 @@ internal enum class BoundaryContinuation {
 }
 
 internal sealed interface SessionBoundaryRequest {
-    val targetSurface: ReferenceSurfaceId
+    val targetSurface: ReferenceSurface
 
-    data class LeaveSupportedSession(override val targetSurface: ReferenceSurfaceId) :
+    data class LeaveSupportedSession(override val targetSurface: ReferenceSurface) :
         SessionBoundaryRequest
 
-    data class LeaveAlternativeSession(override val targetSurface: ReferenceSurfaceId) :
+    data class LeaveAlternativeSession(override val targetSurface: ReferenceSurface) :
         SessionBoundaryRequest
 }
 
@@ -62,11 +62,11 @@ private fun SessionBoundaryRequest.continueLabel(): String {
     }
 }
 
-private fun ReferenceSurfaceId.titleForBoundary(): String {
+private fun ReferenceSurface.titleForBoundary(): String {
     return when (this) {
-        ReferenceSurfaceId.SOLO_EXPLORATION -> "solo"
-        ReferenceSurfaceId.LAB -> "lab"
-        ReferenceSurfaceId.ADVANCED_CONTROLS -> "supported"
+        ReferenceSurface.SOLO_EXPLORATION -> "solo"
+        ReferenceSurface.LAB -> "lab"
+        ReferenceSurface.ADVANCED_CONTROLS -> "supported"
         else -> "supported"
     }
 }

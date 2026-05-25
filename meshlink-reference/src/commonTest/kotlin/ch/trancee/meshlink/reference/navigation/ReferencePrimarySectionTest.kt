@@ -11,12 +11,12 @@ class ReferencePrimarySectionTest {
         // Arrange
         val expectedSectionsBySurface =
             mapOf(
-                ReferenceSurfaceId.MAIN_GUIDED to ReferencePrimarySection.EXCHANGE,
-                ReferenceSurfaceId.SOLO_EXPLORATION to ReferencePrimarySection.EXCHANGE,
-                ReferenceSurfaceId.ADVANCED_CONTROLS to ReferencePrimarySection.CONTROLS,
-                ReferenceSurfaceId.TECHNICAL_TIMELINE to ReferencePrimarySection.EVIDENCE,
-                ReferenceSurfaceId.RECENT_HISTORY to ReferencePrimarySection.EVIDENCE,
-                ReferenceSurfaceId.LAB to ReferencePrimarySection.LAB,
+                ReferenceSurface.MAIN_GUIDED to ReferencePrimarySection.EXCHANGE,
+                ReferenceSurface.SOLO_EXPLORATION to ReferencePrimarySection.EXCHANGE,
+                ReferenceSurface.ADVANCED_CONTROLS to ReferencePrimarySection.CONTROLS,
+                ReferenceSurface.TECHNICAL_TIMELINE to ReferencePrimarySection.EVIDENCE,
+                ReferenceSurface.RECENT_HISTORY to ReferencePrimarySection.EVIDENCE,
+                ReferenceSurface.LAB to ReferencePrimarySection.LAB,
             )
 
         // Act

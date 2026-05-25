@@ -23,23 +23,23 @@ internal fun ReferenceRouteContent(
     onOpenSolo: () -> Unit,
 ): Unit {
     when (contentState.activeRoute) {
-        ReferenceSurfaceId.MAIN_GUIDED ->
+        ReferenceSurface.MAIN_GUIDED ->
             GuidedFirstExchangeScreen(
                 viewModel = contentState.guidedViewModel,
                 onOpenSolo = onOpenSolo,
                 modifier = Modifier.fillMaxSize(),
             )
 
-        ReferenceSurfaceId.SOLO_EXPLORATION ->
+        ReferenceSurface.SOLO_EXPLORATION ->
             SoloExplorationScreen(modifier = Modifier.fillMaxSize())
 
-        ReferenceSurfaceId.ADVANCED_CONTROLS ->
+        ReferenceSurface.ADVANCED_CONTROLS ->
             AdvancedControlsScreen(
                 viewModel = contentState.advancedViewModel,
                 modifier = Modifier.fillMaxSize(),
             )
 
-        ReferenceSurfaceId.TECHNICAL_TIMELINE ->
+        ReferenceSurface.TECHNICAL_TIMELINE ->
             TechnicalTimelineScreen(
                 store = contentState.timelineStore,
                 followUpSupportedSessionLabel = followUpSupportedSessionLabel,
@@ -48,9 +48,9 @@ internal fun ReferenceRouteContent(
                 modifier = Modifier.fillMaxSize(),
             )
 
-        ReferenceSurfaceId.LAB -> LabScreen(modifier = Modifier.fillMaxSize())
+        ReferenceSurface.LAB -> LabScreen(modifier = Modifier.fillMaxSize())
 
-        ReferenceSurfaceId.RECENT_HISTORY ->
+        ReferenceSurface.RECENT_HISTORY ->
             RecentSessionHistoryScreen(
                 store = contentState.timelineStore,
                 modifier = Modifier.fillMaxSize(),
@@ -59,7 +59,7 @@ internal fun ReferenceRouteContent(
 }
 
 internal data class ReferenceRouteContentState(
-    val activeRoute: ReferenceSurfaceId,
+    val activeRoute: ReferenceSurface,
     val guidedViewModel: GuidedFirstExchangeViewModel,
     val advancedViewModel: AdvancedControlsViewModel,
     val timelineStore: TechnicalTimelineStore,

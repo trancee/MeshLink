@@ -19,7 +19,7 @@ class ReferenceNavHostSupportTest {
     fun followUpSupportedEntrySurfacePreservesAdvancedSurfaceOfOrigin() = runTest {
         // Arrange
         val snapshot =
-            navigationSnapshot(surfaceOfOrigin = ReferenceSurfaceId.ADVANCED_CONTROLS.route)
+            navigationSnapshot(surfaceOfOrigin = ReferenceSurface.ADVANCED_CONTROLS.route)
         val harness = TimelineStoreHarness().createBoundaryCoordinatorHarness(scope = this)
 
         try {
@@ -28,7 +28,7 @@ class ReferenceNavHostSupportTest {
             val label = followUpSupportedSessionLabel(snapshot)
 
             // Assert
-            assertEquals(ReferenceSurfaceId.ADVANCED_CONTROLS, actual)
+            assertEquals(ReferenceSurface.ADVANCED_CONTROLS, actual)
             assertEquals("Start new advanced session", label)
         } finally {
             coroutineContext.cancelChildren()
@@ -41,7 +41,7 @@ class ReferenceNavHostSupportTest {
         val snapshot =
             navigationSnapshot(
                 authorityMode = ReferenceAuthorityMode.SOLO,
-                surfaceOfOrigin = ReferenceSurfaceId.SOLO_EXPLORATION.route,
+                surfaceOfOrigin = ReferenceSurface.SOLO_EXPLORATION.route,
             )
         val harness = TimelineStoreHarness().createBoundaryCoordinatorHarness(scope = this)
 
@@ -51,7 +51,7 @@ class ReferenceNavHostSupportTest {
             val label = followUpSupportedSessionLabel(snapshot)
 
             // Assert
-            assertEquals(ReferenceSurfaceId.MAIN_GUIDED, actual)
+            assertEquals(ReferenceSurface.MAIN_GUIDED, actual)
             assertEquals("Start new guided session", label)
         } finally {
             coroutineContext.cancelChildren()
@@ -64,7 +64,7 @@ class ReferenceNavHostSupportTest {
         // Arrange
         val harness = TimelineStoreHarness().createBoundaryCoordinatorHarness(scope = this)
         val snapshot =
-            navigationSnapshot(surfaceOfOrigin = ReferenceSurfaceId.ADVANCED_CONTROLS.route)
+            navigationSnapshot(surfaceOfOrigin = ReferenceSurface.ADVANCED_CONTROLS.route)
         val events = mutableListOf<String>()
         advanceUntilIdle()
 
@@ -86,7 +86,7 @@ class ReferenceNavHostSupportTest {
             // Assert
             assertEquals(listOf("route:advanced-controls", "state:main-guided"), events)
             assertEquals(
-                ReferenceSurfaceId.ADVANCED_CONTROLS.route,
+                ReferenceSurface.ADVANCED_CONTROLS.route,
                 harness.timelineStore.uiState.value.liveSnapshot.session.configurationSnapshot
                     .getValue("surface"),
             )
@@ -107,18 +107,16 @@ class ReferenceNavHostSupportTest {
             // Act
             harness.boundaryCoordinator.completeBoundary(
                 request =
-                    SessionBoundaryRequest.LeaveSupportedSession(
-                        ReferenceSurfaceId.SOLO_EXPLORATION
-                    ),
+                    SessionBoundaryRequest.LeaveSupportedSession(ReferenceSurface.SOLO_EXPLORATION),
                 continuation = BoundaryContinuation.EXPORT_AND_CONTINUE,
                 applySurfaceSelection = { surface -> routes += surface.route },
             )
             advanceUntilIdle()
 
             // Assert
-            assertEquals(listOf(ReferenceSurfaceId.SOLO_EXPLORATION.route), routes)
+            assertEquals(listOf(ReferenceSurface.SOLO_EXPLORATION.route), routes)
             assertEquals(
-                ReferenceSurfaceId.SOLO_EXPLORATION.route,
+                ReferenceSurface.SOLO_EXPLORATION.route,
                 harness.timelineStore.uiState.value.liveSnapshot.session.configurationSnapshot
                     .getValue("surface"),
             )
@@ -164,7 +162,7 @@ class ReferenceNavHostSupportTest {
         try {
             // Act
             harness.boundaryCoordinator.startAlternativeSession(
-                surface = ReferenceSurfaceId.LAB,
+                surface = ReferenceSurface.LAB,
                 applySurfaceSelection = { surface ->
                     val surfaceOfOrigin =
                         harness.timelineStore.uiState.value.liveSnapshot.session
@@ -179,7 +177,7 @@ class ReferenceNavHostSupportTest {
             // Assert
             assertEquals(listOf("route:lab", "state:lab"), events)
             assertEquals(
-                ReferenceSurfaceId.LAB.route,
+                ReferenceSurface.LAB.route,
                 harness.timelineStore.uiState.value.liveSnapshot.session.configurationSnapshot
                     .getValue("surface"),
             )
@@ -204,9 +202,7 @@ class ReferenceNavHostSupportTest {
             // Act
             harness.boundaryCoordinator.completeBoundary(
                 request =
-                    SessionBoundaryRequest.LeaveSupportedSession(
-                        ReferenceSurfaceId.SOLO_EXPLORATION
-                    ),
+                    SessionBoundaryRequest.LeaveSupportedSession(ReferenceSurface.SOLO_EXPLORATION),
                 continuation = BoundaryContinuation.CONTINUE_WITHOUT_EXPORT,
                 applySurfaceSelection = { surface -> routes += surface.route },
             )
@@ -216,7 +212,7 @@ class ReferenceNavHostSupportTest {
             assertEquals(emptyList(), routes)
             assertEquals(true, harness.timelineStore.uiState.value.isCurrentSessionEnded)
             assertEquals(
-                ReferenceSurfaceId.MAIN_GUIDED.route,
+                ReferenceSurface.MAIN_GUIDED.route,
                 harness.timelineStore.uiState.value.liveSnapshot.session.configurationSnapshot
                     .getValue("surface"),
             )
@@ -228,7 +224,7 @@ class ReferenceNavHostSupportTest {
 
 private fun navigationSnapshot(
     authorityMode: ReferenceAuthorityMode = ReferenceAuthorityMode.LIVE,
-    surfaceOfOrigin: String = ReferenceSurfaceId.MAIN_GUIDED.route,
+    surfaceOfOrigin: String = ReferenceSurface.MAIN_GUIDED.route,
 ): ReferenceControllerSnapshot {
     return ReferenceControllerSnapshot(
         session =

@@ -20,7 +20,7 @@ internal fun ReferenceShellScaffold(
     pendingBoundary: SessionBoundaryRequest?,
     onDismissBoundary: () -> Unit,
     onCompleteBoundary: (SessionBoundaryRequest, BoundaryContinuation) -> Unit,
-    onSelectSurface: (ReferenceSurfaceId) -> Unit,
+    onSelectSurface: (ReferenceSurface) -> Unit,
     onSelectSection: (ReferencePrimarySection) -> Unit,
 ): Unit {
     Box(modifier = Modifier.fillMaxSize()) {
@@ -32,7 +32,7 @@ internal fun ReferenceShellScaffold(
                     followUpSupportedSessionLabel = followUpSupportedSessionLabel,
                     onStartFollowUpSupportedSession = onStartFollowUpSupportedSession,
                     onEndSupportedSession = onEndSupportedSession,
-                    onOpenSolo = { onSelectSurface(ReferenceSurfaceId.SOLO_EXPLORATION) },
+                    onOpenSolo = { onSelectSurface(ReferenceSurface.SOLO_EXPLORATION) },
                 )
             }
             ReferenceBottomBar(

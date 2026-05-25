@@ -18,9 +18,7 @@ import kotlinx.coroutines.launch
 /** Shared navigation shell for the reference app surfaces. */
 @Composable
 public fun ReferenceNavHost(platformServices: PlatformServices) {
-    var activeRoute: ReferenceSurfaceId by remember {
-        mutableStateOf(ReferenceSurfaceId.MAIN_GUIDED)
-    }
+    var activeRoute: ReferenceSurface by remember { mutableStateOf(ReferenceSurface.MAIN_GUIDED) }
     var pendingBoundary by remember { mutableStateOf<SessionBoundaryRequest?>(null) }
     val coroutineScope = rememberCoroutineScope()
     val dependencies = rememberReferenceNavHostDependencies(platformServices)
@@ -28,12 +26,12 @@ public fun ReferenceNavHost(platformServices: PlatformServices) {
     val workflowTitles = rememberReferenceWorkflowTitles()
     val lastRouteBySection = rememberLastRouteBySection()
 
-    fun applySurfaceSelection(surface: ReferenceSurfaceId): Unit {
+    fun applySurfaceSelection(surface: ReferenceSurface): Unit {
         activeRoute = surface
         lastRouteBySection[primarySectionFor(surface)] = surface
     }
 
-    fun selectSurface(surface: ReferenceSurfaceId): Unit {
+    fun selectSurface(surface: ReferenceSurface): Unit {
         when (
             val choice =
                 determineSurfaceSelectionAction(

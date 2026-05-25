@@ -54,7 +54,7 @@ internal fun ReferenceBottomBar(
 @Composable
 internal fun ReferenceShellHeader(
     state: ReferenceShellHeaderState,
-    onSelectSurface: (ReferenceSurfaceId) -> Unit,
+    onSelectSurface: (ReferenceSurface) -> Unit,
 ): Unit {
     Surface(
         color = MaterialTheme.colorScheme.surface,
@@ -109,8 +109,8 @@ internal fun ReferenceShellHeader(
 
 internal data class ReferenceShellHeaderState(
     val activeSection: ReferencePrimarySection,
-    val activeRoute: ReferenceSurfaceId,
-    val workflowTitles: Map<ReferenceSurfaceId, String>,
+    val activeRoute: ReferenceSurface,
+    val workflowTitles: Map<ReferenceSurface, String>,
     val platformName: String,
     val authorityModeLabel: String,
     val meshStateLabel: String,

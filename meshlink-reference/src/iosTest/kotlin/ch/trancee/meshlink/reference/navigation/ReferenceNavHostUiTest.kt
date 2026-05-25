@@ -103,7 +103,7 @@ private fun navHostSnapshot(endedAtEpochMillis: Long? = null): ReferenceControll
                 authorityMode = ReferenceAuthorityMode.LIVE,
                 startedAtEpochMillis = 1_000L,
                 endedAtEpochMillis = endedAtEpochMillis,
-                configurationSnapshot = mapOf("surface" to ReferenceSurfaceId.MAIN_GUIDED.route),
+                configurationSnapshot = mapOf("surface" to ReferenceSurface.MAIN_GUIDED.route),
             ),
         peers = emptyList(),
         timeline = emptyList(),

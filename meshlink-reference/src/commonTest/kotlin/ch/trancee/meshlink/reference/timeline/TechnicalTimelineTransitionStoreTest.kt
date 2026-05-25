@@ -1,7 +1,7 @@
 package ch.trancee.meshlink.reference.timeline
 
 import ch.trancee.meshlink.reference.model.ReferenceAuthorityMode
-import ch.trancee.meshlink.reference.navigation.ReferenceSurfaceId
+import ch.trancee.meshlink.reference.navigation.ReferenceSurface
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -20,7 +20,7 @@ class TechnicalTimelineTransitionStoreTest {
         try {
             // Act
             harness.boundaryCoordinator.transitionSupportedSession(
-                targetSurface = ReferenceSurfaceId.SOLO_EXPLORATION
+                targetSurface = ReferenceSurface.SOLO_EXPLORATION
             )
             advanceUntilIdle()
 
@@ -42,14 +42,14 @@ class TechnicalTimelineTransitionStoreTest {
         val harness = TimelineStoreHarness().createBoundaryCoordinatorHarness(scope = this)
         advanceUntilIdle()
         harness.boundaryCoordinator.transitionSupportedSession(
-            targetSurface = ReferenceSurfaceId.SOLO_EXPLORATION
+            targetSurface = ReferenceSurface.SOLO_EXPLORATION
         )
         advanceUntilIdle()
 
         try {
             // Act
             harness.boundaryCoordinator.transitionAlternativeSession(
-                targetSurface = ReferenceSurfaceId.MAIN_GUIDED,
+                targetSurface = ReferenceSurface.MAIN_GUIDED,
                 continuation =
                     ch.trancee.meshlink.reference.navigation.BoundaryContinuation
                         .CONTINUE_WITHOUT_EXPORT,
