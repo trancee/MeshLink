@@ -1,8 +1,6 @@
 package ch.trancee.meshlink.reference.meshlink
 
 import ch.trancee.meshlink.api.DeliveryPriority
-import ch.trancee.meshlink.api.MeshLinkApi
-import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.reference.model.ReferenceAuthorityMode
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -37,19 +35,21 @@ public class LiveReferenceMeshLinkController(
             sessionId = sessionId,
             nowProvider = nowProvider,
         )
-    private val meshLinkApi: MeshLinkApi by lazy {
-        createLiveReferenceMeshLinkApi(appId = appId, platformContext = platformContext)
-    }
+    private val runtime: LiveReferenceMeshRuntime =
+        LiveReferenceMeshRuntime(appId = appId, platformContext = platformContext, scope = scope)
     private val sendRecorder: LiveReferenceSendRecorder = LiveReferenceSendRecorder(stateStore)
     private val sessionProjector: LiveReferenceSessionProjector =
         LiveReferenceSessionProjector(stateStore = stateStore, runtimeLogger = runtimeLogger)
-    private var flowsBound: Boolean = false
 
     override val snapshot: StateFlow<ReferenceControllerSnapshot> = stateStore.snapshot
 
     override suspend fun start(): Unit {
-        ensureBindings()
-        val outcome = runCatching { meshLinkApi.start() }
+        val outcome =
+            runtime.start(
+                stateStore = stateStore,
+                nowProvider = nowProvider,
+                sessionProjector = sessionProjector,
+            )
         sessionProjector.recordMeshCall(
             result = outcome,
             successTitle = "Mesh started",
@@ -59,7 +59,12 @@ public class LiveReferenceMeshLinkController(
     }
 
     override suspend fun pause(): Unit {
-        val outcome = runCatching { meshLinkApi.pause() }
+        val outcome =
+            runtime.pause(
+                stateStore = stateStore,
+                nowProvider = nowProvider,
+                sessionProjector = sessionProjector,
+            )
         sessionProjector.recordMeshCall(
             result = outcome,
             successTitle = "Mesh paused",
@@ -69,7 +74,12 @@ public class LiveReferenceMeshLinkController(
     }
 
     override suspend fun resume(): Unit {
-        val outcome = runCatching { meshLinkApi.resume() }
+        val outcome =
+            runtime.resume(
+                stateStore = stateStore,
+                nowProvider = nowProvider,
+                sessionProjector = sessionProjector,
+            )
         sessionProjector.recordMeshCall(
             result = outcome,
             successTitle = "Mesh resumed",
@@ -79,7 +89,12 @@ public class LiveReferenceMeshLinkController(
     }
 
     override suspend fun stop(): Unit {
-        val outcome = runCatching { meshLinkApi.stop() }
+        val outcome =
+            runtime.stop(
+                stateStore = stateStore,
+                nowProvider = nowProvider,
+                sessionProjector = sessionProjector,
+            )
         sessionProjector.recordMeshCall(
             result = outcome,
             successTitle = "Mesh stopped",
@@ -93,13 +108,15 @@ public class LiveReferenceMeshLinkController(
         payloadText: String,
         priority: DeliveryPriority,
     ): Unit {
-        val outcome = runCatching {
-            meshLinkApi.send(
-                peerId = PeerId(peerId),
-                payload = payloadText.encodeToByteArray(),
+        val outcome =
+            runtime.send(
+                peerId = peerId,
+                payloadText = payloadText,
                 priority = priority,
+                stateStore = stateStore,
+                nowProvider = nowProvider,
+                sessionProjector = sessionProjector,
             )
-        }
         outcome
             .onSuccess { result ->
                 sendRecorder.recordOutcome(
@@ -119,28 +136,20 @@ public class LiveReferenceMeshLinkController(
     }
 
     override suspend fun forgetPeer(peerId: String): Unit {
-        val outcome = runCatching { meshLinkApi.forgetPeer(PeerId(peerId)) }
+        val outcome =
+            runtime.forgetPeer(
+                peerId = peerId,
+                stateStore = stateStore,
+                nowProvider = nowProvider,
+                sessionProjector = sessionProjector,
+            )
         outcome
             .onSuccess { result -> sessionProjector.recordPeerTrustReset(peerId, result) }
             .onFailure { error -> sessionProjector.recordPeerTrustResetFailure(peerId, error) }
     }
 
     override suspend fun close(): Unit {
-        runCatching { meshLinkApi.stop() }
+        runtime.close()
         scope.cancel()
-    }
-
-    private fun ensureBindings(): Unit {
-        if (flowsBound) {
-            return
-        }
-        flowsBound = true
-        bindLiveReferenceControllerFlows(
-            scope = scope,
-            meshLinkApi = meshLinkApi,
-            stateStore = stateStore,
-            nowProvider = nowProvider,
-            sessionProjector = sessionProjector,
-        )
     }
 }
