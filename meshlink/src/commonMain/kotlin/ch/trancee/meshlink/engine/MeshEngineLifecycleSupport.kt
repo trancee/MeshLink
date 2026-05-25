@@ -1,6 +1,5 @@
 package ch.trancee.meshlink.engine
 
-import ch.trancee.meshlink.api.BatterySnapshot
 import ch.trancee.meshlink.api.MeshLinkState
 import ch.trancee.meshlink.api.PauseResult
 import ch.trancee.meshlink.api.ResumeResult
@@ -9,8 +8,6 @@ import ch.trancee.meshlink.api.StopResult
 import ch.trancee.meshlink.diagnostics.DiagnosticCode
 import ch.trancee.meshlink.diagnostics.DiagnosticReason
 import ch.trancee.meshlink.diagnostics.DiagnosticSeverity
-import ch.trancee.meshlink.power.PowerPolicy
-import ch.trancee.meshlink.power.PowerPolicyController
 import ch.trancee.meshlink.transfer.InboundTransferSession
 import ch.trancee.meshlink.transfer.RelayTransferSession
 import ch.trancee.meshlink.wire.TransferAbortReasonCode
@@ -19,34 +16,29 @@ internal data class MeshEngineLifecycleState(
     val runtimeSurface: MeshEngineCompatibilityRuntimeSurface,
     val inboundTransfers: MutableMap<String, InboundTransferSession>,
     val relayTransfers: MutableMap<String, RelayTransferSession>,
-    var currentPowerPolicy: PowerPolicy,
 )
 
 internal data class MeshEngineLifecycleCallbacks(
     val ensureTransportCollector: () -> Unit,
     val stopTransportCollector: suspend () -> Unit,
-    val updateTransportPowerPolicy: suspend (PowerPolicy) -> Unit,
     val startTransport: suspend () -> Unit,
     val pauseTransport: suspend () -> Unit,
     val resumeTransport: suspend () -> Unit,
     val stopTransport: suspend () -> Unit,
-    val launchTransportPowerPolicyUpdate: (PowerPolicy) -> Unit,
     val clearVolatileRuntimeView: suspend (String, DiagnosticCode, Map<String, String>) -> Unit,
     val abortCommittedTransfers: suspend (TransferAbortReasonCode) -> Unit,
     val clearOutboundTransfers: () -> Unit,
 )
 
 internal data class MeshEngineLifecycleDiagnostics(
-    val emitLifecycleEvent: (DiagnosticCode, String) -> Unit,
-    val emitPowerModeChanged: (PowerPolicy, Float, Boolean) -> Unit,
+    val emitLifecycleEvent: (DiagnosticCode, String) -> Unit
 )
 
 internal class MeshEngineLifecycleSupport(
-    private val powerPolicyController: PowerPolicyController,
-    private val powerPolicyNowMillis: () -> Long,
     private val state: MeshEngineLifecycleState,
     private val callbacks: MeshEngineLifecycleCallbacks,
     private val diagnostics: MeshEngineLifecycleDiagnostics,
+    private val powerPolicySupport: MeshEnginePowerPolicySupport,
 ) {
     internal suspend fun start(): StartResult {
         return when (val currentState = state.runtimeSurface.currentState()) {
@@ -56,9 +48,7 @@ internal class MeshEngineLifecycleSupport(
             MeshLinkState.Stopped -> {
                 callbacks.ensureTransportCollector()
                 try {
-                    state.currentPowerPolicy =
-                        powerPolicyController.onMeshStarted(powerPolicyNowMillis())
-                    callbacks.updateTransportPowerPolicy(state.currentPowerPolicy)
+                    powerPolicySupport.onMeshStarted()
                     callbacks.startTransport()
                     state.runtimeSurface.beginHardRun()
                 } catch (exception: Throwable) {
@@ -97,9 +87,7 @@ internal class MeshEngineLifecycleSupport(
             MeshLinkState.Paused -> {
                 callbacks.ensureTransportCollector()
                 try {
-                    state.currentPowerPolicy =
-                        powerPolicyController.currentPolicy(powerPolicyNowMillis())
-                    callbacks.updateTransportPowerPolicy(state.currentPowerPolicy)
+                    powerPolicySupport.refreshCurrentPolicy()
                     callbacks.resumeTransport()
                 } catch (exception: Throwable) {
                     callbacks.stopTransportCollector()
@@ -144,34 +132,18 @@ internal class MeshEngineLifecycleSupport(
             }
         }
     }
-
-    internal fun updateBattery(snapshot: BatterySnapshot): Unit {
-        val policy =
-            powerPolicyController.onBatterySnapshot(
-                level = snapshot.level,
-                isCharging = snapshot.isCharging,
-                nowMillis = powerPolicyNowMillis(),
-            )
-        state.currentPowerPolicy = policy
-        callbacks.launchTransportPowerPolicyUpdate(policy)
-        diagnostics.emitPowerModeChanged(policy, snapshot.level, snapshot.isCharging)
-    }
 }
 
 internal fun buildMeshEngineRuntimeLifecycleSupport(
-    powerPolicyController: PowerPolicyController,
-    powerPolicyNowMillis: () -> Long,
     runtimeSurface: MeshEngineCompatibilityRuntimeSurface,
     inboundTransfers: MutableMap<String, InboundTransferSession>,
     relayTransfers: MutableMap<String, RelayTransferSession>,
     ensureTransportCollector: () -> Unit,
     stopTransportCollector: suspend () -> Unit,
-    updateTransportPowerPolicy: suspend (PowerPolicy) -> Unit,
     startTransport: suspend () -> Unit,
     pauseTransport: suspend () -> Unit,
     resumeTransport: suspend () -> Unit,
     stopTransport: suspend () -> Unit,
-    launchTransportPowerPolicyUpdate: (PowerPolicy) -> Unit,
     clearVolatileRuntimeView: suspend (String, DiagnosticCode, Map<String, String>) -> Unit,
     abortCommittedTransfers: suspend (TransferAbortReasonCode) -> Unit,
     clearOutboundTransfers: () -> Unit,
@@ -184,28 +156,24 @@ internal fun buildMeshEngineRuntimeLifecycleSupport(
             DiagnosticReason?,
             Map<String, String>,
         ) -> Unit,
+    powerPolicySupport: MeshEnginePowerPolicySupport,
 ): MeshEngineLifecycleSupport {
     val lifecycleState =
         MeshEngineLifecycleState(
             runtimeSurface = runtimeSurface,
             inboundTransfers = inboundTransfers,
             relayTransfers = relayTransfers,
-            currentPowerPolicy = powerPolicyController.currentPolicy(nowMillis = 0L),
         )
     return MeshEngineLifecycleSupport(
-        powerPolicyController = powerPolicyController,
-        powerPolicyNowMillis = powerPolicyNowMillis,
         state = lifecycleState,
         callbacks =
             MeshEngineLifecycleCallbacks(
                 ensureTransportCollector = ensureTransportCollector,
                 stopTransportCollector = stopTransportCollector,
-                updateTransportPowerPolicy = updateTransportPowerPolicy,
                 startTransport = startTransport,
                 pauseTransport = pauseTransport,
                 resumeTransport = resumeTransport,
                 stopTransport = stopTransport,
-                launchTransportPowerPolicyUpdate = launchTransportPowerPolicyUpdate,
                 clearVolatileRuntimeView = clearVolatileRuntimeView,
                 abortCommittedTransfers = abortCommittedTransfers,
                 clearOutboundTransfers = clearOutboundTransfers,
@@ -221,17 +189,8 @@ internal fun buildMeshEngineRuntimeLifecycleSupport(
                         DiagnosticReason.STATE_CHANGE,
                         emptyMap(),
                     )
-                },
-                emitPowerModeChanged = { policy, level, isCharging ->
-                    emitDiagnostic(
-                        DiagnosticCode.POWER_MODE_CHANGED,
-                        DiagnosticSeverity.INFO,
-                        "power.updateBattery",
-                        null,
-                        DiagnosticReason.POWER_CHANGE,
-                        powerPolicyMetadata(policy = policy, level = level, isCharging = isCharging),
-                    )
-                },
+                }
             ),
+        powerPolicySupport = powerPolicySupport,
     )
 }

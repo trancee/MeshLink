@@ -58,25 +58,29 @@ internal fun buildMeshEngineRuntimeFacadeOperations(
             transportEvents = { environment.platformBridge.events },
             handleTransportEvent = transportSupport::handleTransportEvent,
         )
-    val lifecycleSupport =
-        buildMeshEngineRuntimeLifecycleSupport(
+    val powerPolicySupport =
+        buildMeshEngineRuntimePowerPolicySupport(
             powerPolicyController = sharedState.powerPolicyController,
             powerPolicyNowMillis = sharedState.powerPolicyNowMillis,
-            runtimeSurface = environment.compatibilitySurface,
-            inboundTransfers = sharedState.inboundTransfers,
-            relayTransfers = sharedState.relayTransfers,
-            ensureTransportCollector = transportCollector::ensureStarted,
-            stopTransportCollector = transportCollector::stop,
             updateTransportPowerPolicy = environment.platformBridge::updatePowerPolicy,
-            startTransport = environment.platformBridge::start,
-            pauseTransport = environment.platformBridge::pause,
-            resumeTransport = environment.platformBridge::resume,
-            stopTransport = environment.platformBridge::stop,
             launchTransportPowerPolicyUpdate = { policy ->
                 environment.coroutineScope.launch {
                     environment.platformBridge.updatePowerPolicy(policy)
                 }
             },
+            emitDiagnostic = support.emitDiagnostic,
+        )
+    val lifecycleSupport =
+        buildMeshEngineRuntimeLifecycleSupport(
+            runtimeSurface = environment.compatibilitySurface,
+            inboundTransfers = sharedState.inboundTransfers,
+            relayTransfers = sharedState.relayTransfers,
+            ensureTransportCollector = transportCollector::ensureStarted,
+            stopTransportCollector = transportCollector::stop,
+            startTransport = environment.platformBridge::start,
+            pauseTransport = environment.platformBridge::pause,
+            resumeTransport = environment.platformBridge::resume,
+            stopTransport = environment.platformBridge::stop,
             clearVolatileRuntimeView = { stage, removalCode, metadata ->
                 transportSupport.clearRuntimeView(
                     stage = stage,
@@ -87,6 +91,7 @@ internal fun buildMeshEngineRuntimeFacadeOperations(
             abortCommittedTransfers = transferAndInbound.abortLocalTransfers,
             clearOutboundTransfers = transferAndInbound.clearOutboundTransfers,
             emitDiagnostic = support.emitDiagnostic,
+            powerPolicySupport = powerPolicySupport,
         )
     val sendSupport =
         buildMeshEngineRuntimeSendSupport(
@@ -137,7 +142,7 @@ internal fun buildMeshEngineRuntimeFacadeOperations(
             peerForgetSupport.forgetPeer(peerId)
 
         override fun updateBattery(snapshot: BatterySnapshot) {
-            lifecycleSupport.updateBattery(snapshot)
+            powerPolicySupport.updateBattery(snapshot)
         }
     }
 }
