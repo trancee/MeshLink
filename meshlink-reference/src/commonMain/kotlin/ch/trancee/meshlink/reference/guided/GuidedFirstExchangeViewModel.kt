@@ -77,7 +77,8 @@ public data class GuidedFirstExchangeUiState(
     public val nextActionLabel: String
         get() {
             return when {
-                isSessionEnded -> "Open the technical timeline to review or start a new session"
+                isSessionEnded ->
+                    "Open the technical timeline to review or start the next supported session"
                 readiness.isBlocked -> "Resolve startup blockers"
                 snapshot.session.meshStateLabel.contains("Uninitialized") -> "Start MeshLink"
                 snapshot.peers.isEmpty() -> "Wait for a peer or start a solo session"

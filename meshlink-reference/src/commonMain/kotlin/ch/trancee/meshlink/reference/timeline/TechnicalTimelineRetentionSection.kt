@@ -73,7 +73,7 @@ internal fun TimelineRetentionSection(
         if (uiState.isCurrentSessionEnded) {
             Text(
                 text =
-                    "This supported session is closed. Review the timeline, export a redacted artifact, or start a new session.",
+                    "This supported session is closed. Review the timeline, export a redacted artifact, or start the next supported session.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

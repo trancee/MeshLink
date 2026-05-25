@@ -56,7 +56,7 @@ internal fun AdvancedLiveSnapshotSection(uiState: AdvancedControlsUiState): Unit
         if (uiState.isSessionEnded) {
             Text(
                 text =
-                    "This session is closed. Open the technical timeline to export a redacted artifact or start a new session.",
+                    "This session is closed. Open the technical timeline to export a redacted artifact or start the next supported session.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
