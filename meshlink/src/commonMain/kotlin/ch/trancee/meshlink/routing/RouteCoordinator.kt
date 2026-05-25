@@ -12,7 +12,6 @@ internal class RouteCoordinator internal constructor(private val localPeerId: Pe
     private val directRouteSeqNos: MutableMap<String, Long> = linkedMapOf()
     private val selectedRoutes: MutableMap<String, RouteEntry> = linkedMapOf()
     private val feasibilityDistances: MutableMap<String, FeasibilityDistance> = linkedMapOf()
-    private val peerDigests: MutableMap<String, ByteArray> = linkedMapOf()
     private val mutableTopologyVersion: MutableStateFlow<Long> = MutableStateFlow(0L)
     private val routeDigestTracker = RouteDigestTracker()
 
@@ -82,7 +81,6 @@ internal class RouteCoordinator internal constructor(private val localPeerId: Pe
 
     internal fun onPeerDisconnected(peerId: PeerId): RoutingMutation {
         connectedPeers -= peerId.value
-        peerDigests.remove(peerId.value)
 
         val removedRoutes =
             selectedRoutes.values
@@ -133,7 +131,6 @@ internal class RouteCoordinator internal constructor(private val localPeerId: Pe
         }
 
         connectedPeers.clear()
-        peerDigests.clear()
         val removedRoutes = selectedRoutes.values.toList()
         selectedRoutes.clear()
         feasibilityDistances.clear()
@@ -239,8 +236,9 @@ internal class RouteCoordinator internal constructor(private val localPeerId: Pe
         }
     }
 
+    @Suppress("UNUSED_PARAMETER")
     internal fun onRouteDigest(fromPeerId: PeerId, frame: WireFrame.RouteDigest): Unit {
-        peerDigests[fromPeerId.value] = frame.digest.copyOf()
+        Unit
     }
 
     internal fun nextHopFor(destinationPeerId: PeerId): PeerId? {
