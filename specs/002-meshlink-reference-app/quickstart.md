@@ -25,6 +25,15 @@ If peer discovery stalls because one platform is still blocked on permissions or
 first-run prompts, use [How to unblock MeshLink permissions on Android and iOS](../../docs/how-to/unblock-meshlink-permissions.md)
 before continuing.
 
+## Evidence to record
+
+- guided first-exchange start time
+- guided first-exchange proof time
+- timeline entry count used for filter/search/export validation
+- redacted export start time
+- redacted export completion time
+- whether the session used live or retained history
+
 ## 1. Build and install the Android app
 
 ```bash
@@ -80,6 +89,12 @@ Use the guided flow to:
 4. send the default first message
 5. confirm that discovery, trust, and delivery evidence appear in the timeline
 
+For SC-001 evidence:
+
+- record the guided first-exchange start time when the live flow begins
+- record the proof time when matching delivery and diagnostic evidence are visible
+- confirm the live proof path completes within 5 minutes
+
 ## 5. Inspect the advanced surface
 
 Use the advanced area to confirm that the app exposes:
@@ -95,8 +110,13 @@ After you choose **End session** from the technical timeline:
 
 - open recent local session history
 - verify the eligible ended session appears separately from any live session
+- if you are collecting SC-004 timing evidence, use a live or retained session containing up to 2,000 timeline entries for the filter/search/export check
+- record the timeline entry count used for the check
+- record the redacted export start time
 - open the export chooser and export a redacted session artifact
+- record the redacted export completion time
 - confirm the export includes payload metadata and redacted previews by default
+- confirm redacted export completes within 60 seconds
 - confirm retained history does not offer full-payload export because retained
   sessions keep only redacted payload evidence
 

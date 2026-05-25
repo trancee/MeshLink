@@ -67,7 +67,7 @@ reviewable.
 
 - [X] T013 [P] [US1] Add guided first-exchange state tests in `meshlink-reference/src/commonTest/kotlin/ch/trancee/meshlink/reference/guided/GuidedFirstExchangeViewModelTest.kt`
 - [X] T014 [P] [US1] Add reference-ui contract and Compose UI tests for guided and solo surfaces in `meshlink-reference/src/commonTest/kotlin/ch/trancee/meshlink/reference/guided/GuidedFirstExchangeScreenTest.kt`
-- [X] T015 [US1] Validate the guided first exchange and solo fallback against `specs/002-meshlink-reference-app/quickstart.md` and `specs/002-meshlink-reference-app/contracts/reference-ui.md`
+- [X] T015 [US1] Validate the guided first exchange and solo fallback against `specs/002-meshlink-reference-app/quickstart.md` and `specs/002-meshlink-reference-app/contracts/reference-ui.md`, including stopwatch-based evidence that the live first-exchange proof path completes within 5 minutes on Android and iOS.
 
 ### Implementation for User Story 1
 
@@ -92,16 +92,16 @@ reviewable.
 
 - [X] T022 [P] [US2] Add advanced control state tests in `meshlink-reference/src/commonTest/kotlin/ch/trancee/meshlink/reference/advanced/AdvancedControlsViewModelTest.kt`
 - [X] T023 [P] [US2] Add reference-ui contract and Compose UI tests for advanced and lab surfaces in `meshlink-reference/src/commonTest/kotlin/ch/trancee/meshlink/reference/advanced/AdvancedControlsScreenTest.kt`
-- [X] T024 [US2] Validate lifecycle, power, trust-reset, transfer, and lab flows against `specs/002-meshlink-reference-app/quickstart.md` and `specs/002-meshlink-reference-app/contracts/reference-ui.md`
+- [X] T024 [US2] Validate lifecycle, power, trust-reset, trust-failure or identity-change, unreachable-route, oversized-payload, paused-runtime, and lab flows against `specs/002-meshlink-reference-app/quickstart.md` and `specs/002-meshlink-reference-app/contracts/reference-ui.md`.
 
 ### Implementation for User Story 2
 
 - [X] T025 [P] [US2] Implement advanced configuration and action models in `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/advanced/AdvancedConfigState.kt` and `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/advanced/LifecycleActionState.kt`
 - [X] T026 [P] [US2] Implement advanced controls orchestration in `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/advanced/AdvancedControlsViewModel.kt`
 - [X] T027 [P] [US2] Implement the advanced controls screen in `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/advanced/AdvancedControlsScreen.kt`
-- [X] T028 [P] [US2] Implement peer detail and send composer components in `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/advanced/PeerDetailCard.kt` and `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/advanced/SendComposer.kt`
+- [X] T028 [P] [US2] Implement peer detail and send composer components in `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/advanced/PeerDetailCard.kt` and `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/advanced/SendComposer.kt`, including inline oversized-payload guidance using the supported payload limit.
 - [X] T029 [P] [US2] Implement the lab scenario catalog and lab screen shell in `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/lab/LabScenarioCatalog.kt` and `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/lab/LabScreen.kt`
-- [X] T030 [US2] Route lifecycle, power, send, large-transfer, and trust-reset actions through `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/meshlink/ReferenceMeshLinkController.kt`
+- [X] T030 [US2] Route lifecycle, power, send, large-transfer, trust-reset, unreachable-route, and paused-runtime recovery states through `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/meshlink/ReferenceMeshLinkController.kt`.
 - [X] T031 [US2] Wire the `advanced-controls` and `lab` surfaces into `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/navigation/ReferenceNavHost.kt` and `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/app/ReferenceApp.kt`
 
 **Checkpoint**: User Story 2 is complete when integrators can exercise the supported SDK control surface and intentionally enter a separately labeled lab without confusing the product path.
@@ -116,10 +116,10 @@ reviewable.
 
 ### Validation for User Story 3 (REQUIRED) ⚠️
 
-- [X] T032 [P] [US3] Add timeline filter and search tests in `meshlink-reference/src/commonTest/kotlin/ch/trancee/meshlink/reference/timeline/TimelineFilterTest.kt`
+- [X] T032 [P] [US3] Add timeline filter/search correctness and 2,000-entry performance tests in `meshlink-reference/src/commonTest/kotlin/ch/trancee/meshlink/reference/timeline/TimelineFilterTest.kt`.
 - [X] T033 [P] [US3] Add retained-history pruning tests in `meshlink-reference/src/commonTest/kotlin/ch/trancee/meshlink/reference/session/JsonSessionHistoryRepositoryTest.kt`
 - [X] T034 [P] [US3] Add session-artifact contract serialization tests in `meshlink-reference/src/commonTest/kotlin/ch/trancee/meshlink/reference/session/SessionArtifactContractTest.kt`
-- [X] T035 [US3] Validate recent history and redacted export behavior against `specs/002-meshlink-reference-app/quickstart.md` and `specs/002-meshlink-reference-app/contracts/session-artifact.md`
+- [X] T035 [US3] Validate recent history retention, per-session delete, clear-all, and redacted export behavior against `specs/002-meshlink-reference-app/quickstart.md` and `specs/002-meshlink-reference-app/contracts/session-artifact.md`.
 
 ### Implementation for User Story 3
 
@@ -127,7 +127,7 @@ reviewable.
 - [X] T037 [P] [US3] Implement JSON-backed recent-session retention in `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/session/JsonSessionHistoryRepository.kt`
 - [X] T038 [P] [US3] Implement redacted export and full-payload opt-in serialization in `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/session/JsonSessionArtifactSerializer.kt` and `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/session/ExportPayloadPolicy.kt`
 - [X] T039 [P] [US3] Implement timeline, recent-history, and export UI surfaces in `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/timeline/TechnicalTimelineScreen.kt`, `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/history/RecentSessionHistoryScreen.kt`, and `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/export/ExportSessionDialog.kt`
-- [X] T040 [US3] Connect live session capture, retained-session reopen, and delete actions in `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/timeline/TechnicalTimelineStore.kt`, `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/history/RecentSessionHistoryScreen.kt`, and `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/navigation/ReferenceNavHost.kt`
+- [X] T040 [US3] Connect live session capture, retained-session reopen, and clear/delete actions in `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/timeline/TechnicalTimelineStore.kt`, `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/history/RecentSessionHistoryScreen.kt`, and `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/navigation/ReferenceNavHost.kt`.
 
 **Checkpoint**: User Story 3 is complete when QA/support users can inspect live and retained sessions, then export a contract-compliant redacted artifact without exposing full payloads by default.
 
@@ -167,7 +167,7 @@ reviewable.
 - [X] T052 [P] Regenerate the committed iOS host project from `meshlink-reference/ios/project.yml` and verify `meshlink-reference/ios/ReferenceApp.xcodeproj/project.pbxproj`
 - [X] T053 [P] If implementation touched `:meshlink`, run `apiCheck`, `:meshlink:jvmTest`, `:meshlink:iosSimulatorArm64Test`, and `:benchmarks:jvmBenchmark`, then update `benchmarks/README.md` only if new benchmark evidence is required
 - [X] T054 [P] Update Android/iOS workflow guidance in `docs/README.md` and `meshlink-reference/README.md` to preserve documentation parity
-- [x] T055 Run the full two-device guided quickstart and redacted-export validation in `specs/002-meshlink-reference-app/quickstart.md`
+- [x] T055 Run the full two-device guided quickstart and redacted-export validation in `specs/002-meshlink-reference-app/quickstart.md`, recording pass/fail evidence for SC-001 (≤5 minutes) and SC-004 (≤60 seconds for sessions up to 2,000 timeline entries).
 
 ---
 

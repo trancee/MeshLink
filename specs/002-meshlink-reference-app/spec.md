@@ -159,8 +159,9 @@ operating-system rules force a clearly explained difference.
   unreachable during a send or large transfer.
 - The app must explain identity-change and trust-reset outcomes clearly for a
   previously known peer.
-- The app must reject and explain payloads that exceed the supported transfer
-  limit before the operator starts a misleading demo flow.
+- The app must reject and explain payloads that exceed the current
+  SDK-supported payload limit of 65,536 bytes before the operator starts a
+  misleading demo flow.
 - The technical timeline must remain understandable during long or noisy
   sessions with a high volume of events.
 - The app must explain platform- or device-specific blockers without making the
@@ -197,7 +198,10 @@ operating-system rules force a clearly explained difference.
   stop mesh participation and MUST show the resulting outcome clearly.
 - **FR-005**: The system MUST allow the operator to send supported payloads to a
   selected peer and MUST show delivery progress, transfer progress, priority,
-  and final outcome for both short messages and large transfers.
+  and final outcome for both short messages and large transfers. For this
+  release, the operator-composed payload limit is the current SDK-supported
+  maximum of 65,536 bytes; payloads above that limit MUST be rejected before
+  send with explicit guidance.
 - **FR-006**: The system MUST surface peer discovery, peer loss, connection
   state, and trust state, and MUST allow the operator to forget a peer so the
   trust flow can be demonstrated again.
@@ -221,12 +225,14 @@ operating-system rules force a clearly explained difference.
 - **FR-011b**: Exported session artifacts MUST include redacted payload
   previews by default and MUST require an explicit operator opt-in before full
   payload content is included.
-- **FR-011a**: The system MUST automatically retain a recent local session
-  history that is clearly separated from the live session view and provides
-  explicit clear and delete controls for the operator.
+- **FR-011a**: The system MUST automatically retain up to 20 recent local
+  sessions in a history view that is clearly separated from the live session
+  view and provides explicit per-session delete and clear-all controls for the
+  operator.
 - **FR-012**: The system MUST provide actionable recovery guidance for blocked
   or failed states, including no peer available, unreachable route, trust
-  failure, oversized payload, paused runtime, and missing prerequisites.
+  failure or identity change, oversized payload rejection above 65,536 bytes,
+  paused runtime, and missing prerequisites.
 - **FR-013**: The system MUST preserve the same information architecture,
   workflow names, capability coverage, and diagnostic terminology on Android
   and iOS, except where operating-system rules require a clearly explained
@@ -284,9 +290,13 @@ operating-system rules force a clearly explained difference.
 - **Performance & Technical Constraints**: The feature MUST preserve offline
   operation, minimum supported mobile platforms, redaction expectations,
   transport and wire-compatibility guarantees, and the library's existing
-  runtime-dependency budget. Any dependencies or UI capabilities added for the
-  reference app MUST NOT leak into the shipped MeshLink runtime artifact or
-  alter the library's cryptographic or wire-format posture.
+  runtime-dependency budget. Reference-app-only dependencies are confined to
+  `meshlink-reference/` and host-app modules and MUST NOT leak into the shipped
+  `:meshlink` runtime artifact or alter the library's cryptographic or
+  wire-format posture. This specification assumes the root runtime-dependency
+  budget applies to the shipped library artifact; if governance review
+  interprets that budget as repository-wide, additional runtime dependencies
+  for the reference app are out of scope until the constitution is amended.
 
 ## Out of Scope *(mandatory)*
 
@@ -309,19 +319,22 @@ operating-system rules force a clearly explained difference.
   exchange and locate the corresponding peer, delivery, and diagnostic evidence
   within 5 minutes on either supported mobile platform using only the app and
   its in-app guidance.
-- **SC-002**: In a scripted evaluation covering lifecycle control, peer
-  selection, a short send, a large transfer, a trust reset, and diagnostics
-  inspection, at least 90% of evaluators complete every step without needing
-  source-code help.
+- **SC-002**: The scripted advanced evaluation in
+  `specs/002-meshlink-reference-app/quickstart.md` covers lifecycle control,
+  peer selection, a short send, a large transfer, a trust reset, and
+  diagnostics inspection on both supported platforms, and each step can be
+  completed successfully without consulting source code.
 - **SC-003**: Android and iOS each expose 100% of the named primary reference
   workflows, terminology, and diagnostic categories, excluding only
   operating-system setup differences that are explicitly explained in the app.
 - **SC-004**: A QA or support operator can filter the current session to a
   specific peer or failure class and export a redacted session artifact with
-  payload metadata and redacted previews in under 60 seconds.
-- **SC-005**: After a 10-minute guided exploration, at least 80% of reviewers
-  can correctly answer the current mesh state, whether the selected peer is
-  trusted, and why the last send succeeded or failed.
+  payload metadata and redacted previews in under 60 seconds for sessions
+  containing up to 2,000 timeline entries.
+- **SC-005**: After the guided or advanced flow completes, an independent
+  reviewer can identify the current mesh state, selected-peer trust status,
+  and reason for the last send outcome directly from the app's visible summary
+  or timeline state on both supported platforms without consulting source code.
 
 ## Assumptions
 
@@ -334,6 +347,9 @@ operating-system rules force a clearly explained difference.
   proof-only validation apps and benchmark harnesses.
 - The app automatically retains a bounded recent local session history for
   review, while explicit export remains a separate operator action.
+- Retained-session timelines are sized for up to 2,000 entries per session in
+  this release, and filter, search, and redacted export behavior are evaluated
+  against that bound.
 - Existing MeshLink documentation, diagnostics, and public behavior remain the
   source of truth for capability definitions; any gaps discovered while shaping
   the reference experience will be resolved during planning rather than assumed

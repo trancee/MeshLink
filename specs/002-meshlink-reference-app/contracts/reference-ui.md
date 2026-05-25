@@ -72,7 +72,7 @@ The solo exploration surface always provides:
 | No peer discovered | Keep the guided flow useful and offer solo exploration when appropriate |
 | Peer lost during session | Preserve timeline evidence and explain the transition clearly |
 | Trust reset or identity change | Explain why the peer can no longer be treated as previously trusted |
-| Oversized payload | Reject before send and explain the supported limit |
+| Oversized payload | Reject before send and explain the supported limit of 65,536 bytes |
 | Export with full payload disabled | Show the default redaction state clearly |
 
 ## Acceptance notes
