@@ -5,12 +5,10 @@ import ch.trancee.meshlink.api.MeshLinkApi
 import ch.trancee.meshlink.api.MeshLinkException
 import ch.trancee.meshlink.config.MeshLinkConfig
 import ch.trancee.meshlink.engine.MeshEngine
-import ch.trancee.meshlink.identity.LocalIdentityStore
 import ch.trancee.meshlink.platform.android.AndroidBleTransport
 import ch.trancee.meshlink.platform.android.AndroidCryptoProviderFactory
 import ch.trancee.meshlink.platform.android.AndroidSecureStorage
 import ch.trancee.meshlink.storage.InMemorySecureStorage
-import kotlinx.coroutines.runBlocking
 
 private const val ANDROID_CONTEXT_REQUIRED_MESSAGE =
     "Android context is required. Call meshLink(config = ..., context = ...)."
@@ -29,13 +27,12 @@ internal actual fun createMeshLink(config: MeshLinkConfig, context: Any): MeshLi
             ?: throw MeshLinkException.InvalidConfiguration(ANDROID_CONTEXT_REQUIRED_MESSAGE)
     val secureStorage = AndroidSecureStorage(androidContext, config.appId)
     val cryptoProvider = AndroidCryptoProviderFactory.create()
-    val localIdentity = runBlocking {
-        LocalIdentityStore.loadOrCreate(
+    val localIdentity =
+        loadOrCreateLocalIdentityBlocking(
             appId = config.appId,
             secureStorage = secureStorage,
             provider = cryptoProvider,
         )
-    }
     return MeshEngine.create(
         config = config,
         platformContext = androidContext,
@@ -53,13 +50,12 @@ internal actual fun createMeshLink(config: MeshLinkConfig, context: Any): MeshLi
 private fun createFactoryTestMeshLink(config: MeshLinkConfig, context: Any): MeshLinkApi {
     val secureStorage = InMemorySecureStorage()
     val cryptoProvider = AndroidCryptoProviderFactory.create()
-    val localIdentity = runBlocking {
-        LocalIdentityStore.loadOrCreate(
+    val localIdentity =
+        loadOrCreateLocalIdentityBlocking(
             appId = config.appId,
             secureStorage = secureStorage,
             provider = cryptoProvider,
         )
-    }
     return MeshEngine.create(
         config = config,
         platformContext = context,
